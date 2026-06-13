@@ -4,8 +4,8 @@ import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { ensureDespiaOneSignalLinked, linkOneSignalUser } from '@/lib/despiaOneSignal';
-import { isDespiaRuntime, openAppSettings } from '@/lib/despiaBridge';
-import { pushBlockedSettingsMessage, pushNotLinkedHint } from '@/lib/pushSettingsCopy';
+import { isDespiaRuntime } from '@/lib/despiaBridge';
+import { pushNotLinkedHint } from '@/lib/pushSettingsCopy';
 import { parseEdgeInvokeResult, pushDeliveryErrorMessage } from '@/lib/edgeFunctionResponse';
 import { haptics } from '@/lib/haptics';
 import { useNotificationPreferences, useUpdateNotificationPreference } from '@/hooks/useNotificationPreferences';
@@ -88,31 +88,14 @@ export function NotificationsSection() {
                       haptics.tap();
                       try {
                         if (isDespiaRuntime()) {
-                          toast.message('Linking this device to push…');
-                          const link = await ensureDespiaOneSignalLinked(profile.id, {
-                            requestPermission: true,
-                            waitForPlayerIdMs: 12_000,
+                          void ensureDespiaOneSignalLinked(profile.id, {
+                            requestPermission: false,
+                            waitForPlayerIdMs: 2_500,
                             persistToken: true,
                             trigger: 'test-push',
                           });
-                          if (link.permission === false) {
-                            toast.error(pushBlockedSettingsMessage(), {
-                              action: isDespiaRuntime() ? {
-                                label: 'Open settings',
-                                onClick: () => { void openAppSettings(); },
-                              } : undefined,
-                            });
-                            return;
-                          }
-                          if (link.playerId) {
-                            await linkOneSignalUser(profile.id, link.playerId);
-                          } else {
-                            await linkOneSignalUser(profile.id);
-                            toast.message('Still linking device… wait a few seconds and try again.');
-                            return;
-                          }
                         } else {
-                          await linkOneSignalUser(profile.id);
+                          void linkOneSignalUser(profile.id);
                         }
 
                         const result = await supabase.functions.invoke('send-push-notification', {

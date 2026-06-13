@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useQueryClient } from '@tanstack/react-query';
-import { ensureDespiaOneSignalLinked, checkDespiaPushPermission } from '@/lib/despiaOneSignal';
+import { relinkDespiaPushInBackground, checkDespiaPushPermission } from '@/lib/despiaOneSignal';
 import { isDespiaRuntime } from '@/lib/despiaBridge';
 import { navigationRef } from '@/lib/navigationRef';
 import {
@@ -76,12 +76,11 @@ export function DespiaOneSignalSync() {
 
         const permission = await checkDespiaPushPermission();
         const shouldAskPermission = permission !== true;
-        void ensureDespiaOneSignalLinked(externalId, {
-          requestPermission: shouldAskPermission || trigger === 'login',
-          waitForPlayerIdMs: trigger === 'login' ? 6_000 : 3_000,
-          authUserId,
+        relinkDespiaPushInBackground(
+          externalId,
           trigger,
-        });
+          shouldAskPermission || trigger === 'login',
+        );
         if (trigger === 'login' || trigger === 'initial-session') {
           void import('@/lib/nativeIncomingCall').then((m) => m.ensureIncomingCallPermissions());
         }
@@ -174,12 +173,7 @@ export function DespiaOneSignalSync() {
                 primaryExternalId_profileId: externalId,
                 backupAlias_authUid: data.user!.id,
               });
-              void ensureDespiaOneSignalLinked(externalId, {
-                requestPermission: true,
-                waitForPlayerIdMs: 4_000,
-                authUserId: data.user!.id,
-                trigger: 'permission-grant',
-              });
+              relinkDespiaPushInBackground(externalId, 'permission-grant', true);
             });
         });
       } catch (err) {
@@ -198,12 +192,7 @@ export function DespiaOneSignalSync() {
           .maybeSingle()
           .then(({ data: profile }) => {
             const externalId = profile?.id ?? data.user!.id;
-            void ensureDespiaOneSignalLinked(externalId, {
-              requestPermission: false,
-              waitForPlayerIdMs: 2_000,
-              authUserId: data.user!.id,
-              trigger: 'foreground-relink',
-            });
+            relinkDespiaPushInBackground(externalId, 'foreground-relink');
           });
       });
     };

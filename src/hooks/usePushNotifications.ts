@@ -3,7 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/lib/auth';
 import { toast } from 'sonner';
 import { isPreviewServiceWorkerDisabled, registerVybeServiceWorker } from '@/lib/serviceWorker';
-import { ensureDespiaOneSignalLinked, linkOneSignalUser, persistDespiaPushToken } from '@/lib/despiaOneSignal';
+import { ensureDespiaOneSignalLinked, relinkDespiaPushInBackground } from '@/lib/despiaOneSignal';
 import { isDespiaRuntime, openAppSettings } from '@/lib/despiaBridge';
 import { pushBlockedSettingsMessage } from '@/lib/pushSettingsCopy';
 
@@ -180,11 +180,7 @@ export function usePushNotifications() {
       if (intent) {
         setIsSubscribed(true);
         if (!data && isDespiaRuntime()) {
-          ensureDespiaOneSignalLinked(profile.id, {
-            requestPermission: false,
-            waitForPlayerIdMs: 2_000,
-            persistToken: true,
-          }).catch((err) => console.warn('[Push] background relink failed', err));
+          relinkDespiaPushInBackground(profile.id, 'background-relink');
         }
       } else {
         setIsSubscribed(!!data);
@@ -241,7 +237,7 @@ export function usePushNotifications() {
 
     const link = await ensureDespiaOneSignalLinked(profile.id, {
       requestPermission: true,
-      waitForPlayerIdMs: 8_000,
+      fastReturn: true,
       persistToken: true,
       trigger: 'permission-grant',
     });
@@ -253,21 +249,17 @@ export function usePushNotifications() {
           onClick: () => { void openAppSettings(); },
         },
       });
+      writeIntent(profile.id, false);
+      setIsSubscribed(false);
       return false;
     }
 
     if (link.playerId) {
-      await linkOneSignalUser(profile.id, link.playerId);
-    } else {
-      await linkOneSignalUser(profile.id);
-    }
-
-    if (!link.playerId) {
-      toast.message('Push enabled — finishing device setup…', {
-        description: 'If test push fails, toggle off and on once more.',
-      });
-    } else {
       toast.success('Push notifications enabled!');
+    } else {
+      toast.success('Push enabled — linking this device…', {
+        description: 'You can test push in a few seconds.',
+      });
     }
     return true;
   };

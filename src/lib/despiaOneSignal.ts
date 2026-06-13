@@ -19,6 +19,17 @@ const PLAYER_ID_KEYS = [
   'push_subscription_id',
 ];
 
+const REGISTER_SCHEMES = ['registerpush://', 'registerPush://', 'requestpushpermission://'];
+const PLAYER_ID_SCHEMES = [
+  'getonesignalplayerid://',
+  'onesignalplayerid://',
+  'getOneSignalPlayerId://',
+  'oneSignalPlayerId://',
+];
+
+const BRIDGE_TIMEOUT_MS = isAndroidUA() ? 700 : 550;
+const POLL_INTERVAL_MS = 180;
+
 const delay = (ms: number) => new Promise((resolve) => window.setTimeout(resolve, ms));
 
 export async function checkDespiaPushPermission(): Promise<boolean | null> {
@@ -27,7 +38,7 @@ export async function checkDespiaPushPermission(): Promise<boolean | null> {
 
 async function checkNativePushPermission(): Promise<boolean | null> {
   for (const checkUrl of ['checkNativePushPermissions://', 'checknativepushpermissions://']) {
-    const permissionResult = await despiaCall(checkUrl, ['nativePushEnabled'], 1_500);
+    const permissionResult = await despiaCall(checkUrl, ['nativePushEnabled'], 800);
     if (permissionResult && 'nativePushEnabled' in permissionResult) {
       return Boolean(permissionResult.nativePushEnabled);
     }
@@ -98,53 +109,86 @@ export async function linkOneSignalUser(profileId: string, subscriptionId?: stri
   return payload?.success === true;
 }
 
+/** Fire all native bridges in parallel — much faster than serial awaits. */
+async function fireDespiaPushBridges(externalId: string, includeRegister = true): Promise<void> {
+  const urls = [
+    ...(includeRegister ? REGISTER_SCHEMES : []),
+    ...linkSchemes(externalId),
+  ];
+  await Promise.all(urls.map((url) => despiaCall(url, [], BRIDGE_TIMEOUT_MS)));
+}
+
+function linkSchemes(externalId: string): string[] {
+  return [
+    `setonesignalplayerid://?user_id=${encodeURIComponent(externalId)}`,
+    `setOneSignalPlayerId://?user_id=${encodeURIComponent(externalId)}`,
+    `onesignallogin://?external_id=${encodeURIComponent(externalId)}`,
+  ];
+}
+
+async function probePlayerIdOnce(): Promise<string> {
+  const cached = readWindowPlayerId();
+  if (cached) return cached;
+
+  const results = await Promise.all(
+    PLAYER_ID_SCHEMES.map((scheme) => despiaCall(scheme, PLAYER_ID_KEYS, BRIDGE_TIMEOUT_MS)),
+  );
+  for (const result of results) {
+    const id = normalizeId(result);
+    if (id) return id;
+  }
+  return '';
+}
+
+/** Tight poll right after Allow — returns as soon as native exposes a subscription id. */
+async function pollPlayerId(externalId: string, maxMs: number): Promise<string> {
+  const deadline = Date.now() + Math.max(0, maxMs);
+  let playerId = await probePlayerIdOnce();
+  while (!playerId && Date.now() < deadline) {
+    await delay(POLL_INTERVAL_MS);
+    await fireDespiaPushBridges(externalId, false);
+    playerId = await probePlayerIdOnce();
+  }
+  return playerId;
+}
+
+function startBackgroundPushFinish(
+  externalId: string,
+  options: { persistToken?: boolean; trigger?: string },
+): void {
+  const tag = `[OneSignal:${options.trigger ?? 'manual'}:bg]`;
+  void (async () => {
+    for (let attempt = 1; attempt <= 8; attempt++) {
+      await delay(1_500);
+      try {
+        await fireDespiaPushBridges(externalId);
+        const playerId = await probePlayerIdOnce();
+        if (!playerId) continue;
+        if (options.persistToken !== false) {
+          await persistDespiaPushToken(externalId, playerId);
+        }
+        await linkOneSignalUser(externalId, playerId);
+        console.log(`${tag} linked playerId on attempt ${attempt}`);
+        return;
+      } catch (err) {
+        console.warn(`${tag} attempt ${attempt} failed`, err);
+      }
+    }
+  })();
+}
+
 export async function fetchDespiaOneSignalPlayerId(waitMs = 0): Promise<string> {
   if (!isDespiaRuntime()) return '';
-
-  const deadline = Date.now() + Math.max(0, waitMs);
-  do {
-    const cached = readWindowPlayerId();
-    if (cached) return cached;
-
-    for (const scheme of [
-      'getonesignalplayerid://',
-      'onesignalplayerid://',
-      'getOneSignalPlayerId://',
-      'oneSignalPlayerId://',
-    ]) {
-      const result = await despiaCall(scheme, PLAYER_ID_KEYS, 1_200);
-      const id = normalizeId(result);
-      if (id) return id;
-    }
-
-    if (Date.now() < deadline) await delay(450);
-  } while (Date.now() < deadline);
-
-  return readWindowPlayerId();
+  if (waitMs <= 0) return probePlayerIdOnce();
+  const externalId = (await resolveCurrentOneSignalExternalId()) ?? '';
+  return pollPlayerId(externalId, waitMs);
 }
 
-const LINK_SCHEMES = (externalId: string) => [
-  `setonesignalplayerid://?user_id=${encodeURIComponent(externalId)}`,
-  `setOneSignalPlayerId://?user_id=${encodeURIComponent(externalId)}`,
-  `onesignallogin://?external_id=${encodeURIComponent(externalId)}`,
-];
-
-async function registerDespiaPush(): Promise<void> {
-  for (const url of ['registerpush://', 'registerPush://', 'requestpushpermission://']) {
-    await despiaCall(url, [], isAndroidUA() ? 2_500 : 1_500);
-  }
-}
-
-async function bindDespiaOneSignalUser(externalId: string): Promise<void> {
-  await registerDespiaPush();
-  for (const url of LINK_SCHEMES(externalId)) {
-    await despiaCall(url, [], isAndroidUA() ? 1_200 : 900);
-  }
-}
-
-async function requestDespiaPushPermission(): Promise<boolean | null> {
-  await registerDespiaPush();
-  return checkNativePushPermission();
+async function primeServerLink(externalId: string, persistToken: boolean): Promise<void> {
+  await Promise.all([
+    persistToken ? persistDespiaPushToken(externalId, '') : Promise.resolve(),
+    linkOneSignalUser(externalId),
+  ]);
 }
 
 export async function ensureDespiaOneSignalLinked(
@@ -153,95 +197,74 @@ export async function ensureDespiaOneSignalLinked(
     requestPermission?: boolean;
     waitForPlayerIdMs?: number;
     persistToken?: boolean;
-    /** Optional Supabase auth.uid — logged + stored as backup alias only. profile.id remains the primary external_id. */
     authUserId?: string;
-    /** Label for logs: 'cold-start' | 'login' | 'token-refresh' | 'permission-grant' | etc. */
     trigger?: string;
+    /** Return as soon as permission is granted — finish player id in background. */
+    fastReturn?: boolean;
   } = {},
 ): Promise<{ linked: boolean; playerId: string; permission: boolean | null }> {
   const isNative = isDespiaRuntime();
   const tag = `[OneSignal:${options.trigger ?? 'manual'}]`;
-
-  console.log(`${tag} link request`, {
-    primaryExternalId: externalId,
-    backupAuthUid: options.authUserId ?? null,
-    despiaNative: isNative,
-  });
+  const persistToken = options.persistToken !== false;
 
   if (!externalId || !isNative) {
     if (!externalId) console.warn(`${tag} skipped — no external id`);
-    if (!isNative) console.log(`${tag} skipped — not Despia native runtime (web/PWA path handled separately)`);
+    if (!isNative) console.log(`${tag} skipped — not Despia native runtime`);
     return { linked: false, playerId: '', permission: null };
   }
 
-  let permission: boolean | null = await checkNativePushPermission();
+  console.log(`${tag} fast link`, { externalId, authUserId: options.authUserId ?? null });
 
-  await bindDespiaOneSignalUser(externalId);
-  permission = await checkNativePushPermission();
-  console.log(`${tag} push permission =`, permission);
+  // Server knows this user immediately — don't wait for native player id.
+  await primeServerLink(externalId, persistToken);
+
+  let permission: boolean | null = await checkNativePushPermission();
+  await fireDespiaPushBridges(externalId);
 
   if (options.requestPermission && permission !== true) {
-    console.log(`${tag} requesting push permission`);
-    permission = await requestDespiaPushPermission();
-    console.log(`${tag} permission after prompt =`, permission);
+    await Promise.all(REGISTER_SCHEMES.map((url) => despiaCall(url, [], 1_200)));
+    permission = await checkNativePushPermission();
+    await fireDespiaPushBridges(externalId);
   }
 
-  await bindDespiaOneSignalUser(externalId);
+  const instantPlayerId = await probePlayerIdOnce();
 
-  const MAX_RETRIES = 5;
-  const RETRY_DELAY_MS = 2_000;
-  void (async () => {
-    for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
-      await delay(RETRY_DELAY_MS);
-      try {
-        await bindDespiaOneSignalUser(externalId);
-        const currentPlayerId = await fetchDespiaOneSignalPlayerId(0);
-        console.log(`${tag} retry ${attempt}/${MAX_RETRIES}`, {
-          playerIdResolved: !!currentPlayerId,
-          playerId: currentPlayerId || null,
-        });
-        if (currentPlayerId && options.persistToken !== false) {
-          await persistDespiaPushToken(externalId, currentPlayerId).catch(() => {});
-          await linkOneSignalUser(externalId, currentPlayerId).catch(() => {});
-          break;
-        }
-      } catch (err) {
-        console.warn(`${tag} retry ${attempt} error`, err);
-      }
+  if (options.fastReturn && permission !== false) {
+    if (instantPlayerId && persistToken) {
+      await persistDespiaPushToken(externalId, instantPlayerId);
+      await linkOneSignalUser(externalId, instantPlayerId);
     }
-  })();
-
-  window.setTimeout(() => void bindDespiaOneSignalUser(externalId), 2_500);
-  window.setTimeout(() => void bindDespiaOneSignalUser(externalId), 6_000);
-
-  const playerId = await fetchDespiaOneSignalPlayerId(
-    options.waitForPlayerIdMs ?? (isAndroidUA() ? 15_000 : 2_500),
-  );
-  console.log(`${tag} immediate fetch playerId =`, playerId || '(empty — retry loop will keep trying)');
-
-  if (options.persistToken !== false) {
-    try {
-      await persistDespiaPushToken(externalId, playerId);
-    } catch (err) {
-      console.warn(`${tag} push token save failed`, err);
-    }
+    startBackgroundPushFinish(externalId, options);
+    console.log(`${tag} fast return`, { permission, playerId: instantPlayerId || '(background)' });
+    return { linked: true, playerId: instantPlayerId, permission };
   }
 
-  if (playerId) {
+  const defaultWait = options.requestPermission ? 4_500 : 1_200;
+  const waitMs = options.waitForPlayerIdMs ?? defaultWait;
+  const playerId = instantPlayerId || await pollPlayerId(externalId, waitMs);
+
+  if (playerId && persistToken) {
+    await persistDespiaPushToken(externalId, playerId);
     await linkOneSignalUser(externalId, playerId);
-  } else {
-    void linkOneSignalUser(externalId);
   }
 
-  if (!playerId) {
-    window.setTimeout(() => {
-      void fetchDespiaOneSignalPlayerId(4_000).then((lateId) => {
-        if (lateId) {
-          persistDespiaPushToken(externalId, lateId).catch(() => {});
-        }
-      });
-    }, 3_000);
-  }
+  startBackgroundPushFinish(externalId, options);
 
+  console.log(`${tag} done`, { permission, playerId: playerId || '(pending background)' });
   return { linked: true, playerId, permission };
+}
+
+/** Non-blocking relink for foreground/cold-start — never stalls UI. */
+export function relinkDespiaPushInBackground(
+  externalId: string,
+  trigger: string,
+  requestPermission = false,
+): void {
+  void ensureDespiaOneSignalLinked(externalId, {
+    requestPermission,
+    fastReturn: requestPermission,
+    waitForPlayerIdMs: requestPermission ? 3_500 : 800,
+    persistToken: true,
+    trigger,
+  }).catch((err) => console.warn(`[OneSignal:${trigger}] background link failed`, err));
 }
