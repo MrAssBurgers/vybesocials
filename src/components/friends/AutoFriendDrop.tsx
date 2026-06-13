@@ -612,8 +612,8 @@ export function AutoFriendDrop() {
         <>
           <div
             className={cn(
-              'fixed inset-0 bg-black/70',
-              !reduceFriendLinkMotion && 'backdrop-blur-sm'
+              'friend-link-backdrop fixed inset-0 bg-black/90',
+              !reduceFriendLinkMotion && 'backdrop-blur-md'
             )}
             style={{ zIndex: 10080, touchAction: 'none', overscrollBehavior: 'contain' }}
             onClick={handleClose}
@@ -626,11 +626,12 @@ export function AutoFriendDrop() {
             role="dialog"
             aria-modal="true"
             aria-label="Friend Link"
-            className="fixed inset-x-0 mx-auto w-full max-w-sm bg-card rounded-t-3xl sm:rounded-2xl border border-border/40 shadow-2xl overflow-hidden flex flex-col animate-in slide-in-from-bottom-4 duration-300 pointer-events-auto"
+            className="friend-link-sheet fixed inset-x-0 mx-auto w-full max-w-sm rounded-t-3xl sm:rounded-2xl border border-border shadow-2xl overflow-hidden flex flex-col animate-in slide-in-from-bottom-4 duration-300 pointer-events-auto bg-background"
             style={{
               zIndex: 10081,
               bottom: 'env(safe-area-inset-bottom, 0px)',
               maxHeight: 'calc(100dvh - var(--sat, env(safe-area-inset-top, 0px)) - 24px)',
+              backgroundColor: 'hsl(var(--background))',
             }}
             onClick={(e) => e.stopPropagation()}
             onPointerDown={(e) => e.stopPropagation()}
@@ -658,7 +659,7 @@ export function AutoFriendDrop() {
             </div>
 
             {/* Scrollable content */}
-            <div className="flex-1 overflow-y-auto overscroll-contain" style={{ touchAction: 'pan-y', WebkitOverflowScrolling: 'touch' }}>
+            <div className="flex-1 overflow-y-auto overscroll-contain bg-background" style={{ touchAction: 'pan-y', WebkitOverflowScrolling: 'touch', backgroundColor: 'hsl(var(--background))' }}>
 
             {phase === 'activated' && <FriendLinkSheetTips />}
 

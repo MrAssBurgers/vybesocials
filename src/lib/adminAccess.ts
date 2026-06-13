@@ -13,6 +13,8 @@ export function isStaffGateLoading(
   authReady: boolean,
   roleLoading: boolean,
   roleFetched: boolean,
+  hasIdentity = true,
 ): boolean {
-  return !authReady || roleLoading || !roleFetched;
+  if (!authReady || !hasIdentity) return true;
+  return roleLoading || !roleFetched;
 }

@@ -39,10 +39,11 @@ export default function AdminBugReports() {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [filter, setFilter] = useState<BugStatus | 'all'>('all');
   const canViewBugs = isAdminRole(userRole);
+  const bugsQueryEnabled = authReady && !!user && roleFetched && canViewBugs;
 
   const {
     data: bugs = [],
-    isPending: bugsPending,
+    isLoading: bugsLoading,
     isError,
     error,
     refetch,
@@ -51,7 +52,7 @@ export default function AdminBugReports() {
     queryFn: async () => {
       let query = supabase
         .from('bug_reports')
-        .select('*, reporter:profiles!bug_reports_reporter_id_fkey(username, display_name, avatar_url)')
+        .select('id, status, error_message, error_stack, page_url, ai_analysis, created_at, reporter_id')
         .order('created_at', { ascending: false })
         .limit(100);
 
@@ -59,11 +60,26 @@ export default function AdminBugReports() {
         query = query.eq('status', filter);
       }
 
-      const { data, error: queryError } = await query;
+      const { data: rows, error: queryError } = await query;
       if (queryError) throw queryError;
-      return (data || []) as AdminBugReport[];
+      if (!rows?.length) return [] as AdminBugReport[];
+
+      const reporterIds = [...new Set(rows.map((r) => r.reporter_id).filter(Boolean))];
+      const { data: profiles } = reporterIds.length
+        ? await supabase
+            .from('profiles')
+            .select('id, username, display_name, avatar_url')
+            .in('id', reporterIds)
+        : { data: [] as { id: string; username: string; display_name: string | null; avatar_url: string | null }[] };
+
+      const profileById = new Map((profiles || []).map((p) => [p.id, p]));
+
+      return rows.map((row) => ({
+        ...row,
+        reporter: profileById.get(row.reporter_id) ?? null,
+      })) as AdminBugReport[];
     },
-    enabled: authReady && !!(user || profileId) && canViewBugs,
+    enabled: bugsQueryEnabled,
     retry: 2,
   });
 
@@ -105,8 +121,8 @@ export default function AdminBugReports() {
   });
 
   const pendingCount = bugs.filter((b) => b.status === 'pending').length;
-  const gateLoading = isStaffGateLoading(authReady, roleLoading, roleFetched);
-  const showBugLoading = canViewBugs && bugsPending;
+  const gateLoading = isStaffGateLoading(authReady, roleLoading, roleFetched, !!(user || profileId));
+  const showBugLoading = gateLoading || (canViewBugs && bugsLoading);
 
   return (
     <div className="min-h-screen bg-background">

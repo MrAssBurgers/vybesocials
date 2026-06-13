@@ -132,7 +132,7 @@ export default function AdminDashboard() {
   const isAdmin = userRole === 'admin' || userRole === 'owner';
   const isModOrAdmin = isModOrAdminRole(userRole);
 
-  if (isStaffGateLoading(authReady, roleLoading, roleFetched)) {
+  if (isStaffGateLoading(authReady, roleLoading, roleFetched, !!user)) {
     return (
       <AppLayout>
         <div className="flex items-center justify-center min-h-screen">

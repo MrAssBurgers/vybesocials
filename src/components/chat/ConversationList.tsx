@@ -121,7 +121,6 @@ export function ConversationList() {
     unpinnedConversations, 
     isLoading, 
     isFetched,
-    isFetching,
     error: convError,
     totalUnreadCount,
     refetch: refetchConversations,
@@ -203,7 +202,13 @@ export function ConversationList() {
 
   const showListSkeleton =
     allConversations.length === 0 &&
-    (isLoading || isFetching || (authLoading && !dmProfileId));
+    (isLoading || (authLoading && !dmProfileId));
+
+  // Refetch once profile id is ready and list is still empty.
+  useEffect(() => {
+    if (!dmProfileId || allConversations.length > 0) return;
+    void refetchConversations();
+  }, [dmProfileId, allConversations.length, refetchConversations]);
   
   // Get all conversation IDs for typing indicator subscription
   const conversationIds = useMemo(() => 

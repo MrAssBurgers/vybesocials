@@ -30,12 +30,12 @@ export function AdminErrorsSection() {
   const verifiedOnly = true;
   const recheck = useBugRecheck();
 
-  const { data: bugs = [], isPending, isError, error, refetch } = useQuery({
+  const { data: bugs = [], isLoading, isError, error, refetch } = useQuery({
     queryKey: ['admin-bug-reports-inline', filter, verifiedOnly],
     queryFn: async () => {
       let query = supabase
         .from('bug_reports')
-        .select('id, error_message, page_url, status, created_at, ai_analysis, ai_severity, reporter_id, reporter:profiles!bug_reports_reporter_id_fkey(username, display_name, avatar_url)')
+        .select('id, error_message, page_url, status, created_at, ai_analysis, ai_severity, reporter_id')
         .order('created_at', { ascending: false })
         .limit(50);
 
@@ -43,14 +43,28 @@ export function AdminErrorsSection() {
         query = query.eq('status', filter);
       }
       if (verifiedOnly) {
-        // Only bugs the AI has analyzed AND rated as a real, attention-worthy defect
         query = query.not('ai_analysis', 'is', null).in('ai_severity', ['medium', 'high', 'critical']);
         if (filter === 'all') query = query.neq('status', 'fixed');
       }
 
-      const { data, error: queryError } = await query;
+      const { data: rows, error: queryError } = await query;
       if (queryError) throw queryError;
-      return data || [];
+      if (!rows?.length) return [];
+
+      const reporterIds = [...new Set(rows.map((r) => r.reporter_id).filter(Boolean))];
+      const { data: profiles } = reporterIds.length
+        ? await supabase
+            .from('profiles')
+            .select('id, username, display_name, avatar_url')
+            .in('id', reporterIds)
+        : { data: [] as { id: string; username: string; display_name: string | null; avatar_url: string | null }[] };
+
+      const profileById = new Map((profiles || []).map((p) => [p.id, p]));
+
+      return rows.map((row) => ({
+        ...row,
+        reporter: profileById.get(row.reporter_id) ?? null,
+      }));
     },
     enabled: roleFetched && canView,
     staleTime: 60_000,
@@ -158,7 +172,7 @@ export function AdminErrorsSection() {
     return <div className="p-4 text-muted-foreground text-sm">Admin access required.</div>;
   }
 
-  if (isPending && bugs.length === 0) {
+  if (isLoading && bugs.length === 0) {
     return <div className="p-4 text-muted-foreground text-sm">Loading bug reports...</div>;
   }
 

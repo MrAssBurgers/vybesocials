@@ -4,6 +4,18 @@ Use this file as the Lovable -> Cursor handoff each session.
 
 **Links:** [Lovable project](https://lovable.dev/projects/416714c8-d013-4aff-984d-522418a9bbc7) · [Production](https://vybehub.app) · Deploy steps: `DEPLOY.md`
 
+## What Changed (DMs + bug reports + Friend Link opacity — 2026-06-12)
+- **`ConversationList.tsx`** — skeleton only on first fetch; refetch when profile id ready; removed perpetual loading loop
+- **`useDMConversations.ts`** — isLoading gated on `!isFetched` (not every background refetch)
+- **`AdminBugReports.tsx` / `AdminErrorsSection.tsx`** — split reporter fetch (no brittle FK join); fixed loading gate with `isLoading`
+- **`adminAccess.ts`** — staff gate waits for auth identity
+- **`AutoFriendDrop.tsx` + `index.css`** — opaque Friend Link sheet/backdrop (fixes see-through on custom home bg)
+- **Build:** `npm run build` pass
+
+## Publish status (2026-06-12)
+- **Git:** pending push
+- **Web:** Lovable → Share → Publish → https://vybehub.app
+
 ## What Changed (DMs load + poster stories resize — 2026-06-12)
 - **`ConversationList.tsx`** — no full-page skeleton; header/AI row always visible; inline list loading; `useAuthProfileId()` throughout
 - **`useDMConversations.ts`** — clearer loading state; `useMarkConversationRead` uses cached profile id

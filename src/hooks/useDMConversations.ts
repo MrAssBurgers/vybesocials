@@ -174,11 +174,12 @@ export function useDMConversations(searchQuery: string = '') {
   }, [conversationsQuery.data]);
 
   const listCount = conversationsQuery.data?.length ?? 0;
+  // Only block UI on the first fetch — not on background refetches of an empty list.
   const isLoading =
     !!profileId &&
     listCount === 0 &&
-    (conversationsQuery.isFetching || conversationsQuery.isPending) &&
-    !conversationsQuery.isError;
+    !conversationsQuery.isFetched &&
+    (conversationsQuery.isFetching || conversationsQuery.isPending);
 
   return {
     conversations: filteredConversations,
