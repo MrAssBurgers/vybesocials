@@ -15,7 +15,9 @@ Use this file as the Lovable -> Cursor handoff each session.
 - **Build:** `npm run build` pass
 
 ## Publish status (2026-06-09 — Messages cluster)
-- **Git:** uncommitted locally — commit + push, then Lovable → Share → Publish → https://vybehub.app
+- **Git:** `b2547a24` pushed to `origin/main`
+- **Web:** Lovable → Share → Publish → https://vybehub.app
+- **After publish:** force-quit app; hard-refresh browser
 
 ## Current Focus
 - **You:** Lovable Publish after push (one click — agent cannot trigger this)
