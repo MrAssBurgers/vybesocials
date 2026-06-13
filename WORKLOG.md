@@ -12,7 +12,7 @@ Use this file as the Lovable -> Cursor handoff each session.
 - **Build:** `npm run build` pass
 
 ## Publish status (2026-06-12 — DMs skeleton)
-- **Git:** pending push
+- **Git:** `05ea633a` pushed to `origin/main`
 - **Web:** Lovable → Share → Publish → https://vybehub.app
 
 ## What Changed (DMs loading spinner fix — 2026-06-12)
