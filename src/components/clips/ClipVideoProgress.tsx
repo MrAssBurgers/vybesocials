@@ -78,7 +78,7 @@ export const ClipVideoProgress = memo(function ClipVideoProgress({
       fill.style.transform = `scaleX(${progress})`;
 
       if (audio && freqDataRef.current && !video.paused && !isMuted) {
-        audio.analyser.getByteFrequencyData(freqDataRef.current);
+        audio.analyser.getByteFrequencyData(freqDataRef.current as any);
         const data = freqDataRef.current;
         const step = Math.max(1, Math.floor(data.length / WAVE_BAR_COUNT));
 

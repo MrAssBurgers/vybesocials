@@ -3,6 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/lib/auth';
 import { toast } from 'sonner';
 import { invalidateConversationCaches } from '@/lib/invalidateConversationCaches';
+import type { Message } from '@/hooks/useMessages';
 
 /**
  * Unsend message for everyone (soft delete via UPDATE - no new row insertion)

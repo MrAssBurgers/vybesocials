@@ -204,6 +204,7 @@ function RecentAnnouncementsSection() {
 
 export default function NotificationsPage() {
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const { data: notifications, isLoading, isError: notificationsError, refetch } = useNotifications();
   const { data: friendRequests, isError: requestsError, refetch: refetchRequests } = useFriendRequests();
   const markRead = useMarkNotificationsRead();
