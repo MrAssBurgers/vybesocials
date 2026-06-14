@@ -15,6 +15,7 @@ import {
 import { refetchListOnMount } from '@/lib/queryRefetchPolicy';
 import { resolveSessionProfileId, syncSessionProfileId } from '@/lib/resolveSessionProfileId';
 import { debugLog } from '@/lib/debugSessionLog';
+import { withTimeout } from '@/lib/withTimeout';
 
 type DMConversation = LoadedDMConversation;
 
@@ -29,7 +30,12 @@ export function useDMConversations(searchQuery: string = '') {
 
   const profileResolveQuery = useQuery({
     queryKey: ['session-profile-id', user?.id],
-    queryFn: () => resolveSessionProfileId(profile?.id),
+    queryFn: () =>
+      withTimeout(
+        resolveSessionProfileId(profile?.id),
+        8_000,
+        'Profile resolve timed out',
+      ),
     enabled: !!user?.id && !cachedProfileId,
     staleTime: 60_000,
     retry: 2,

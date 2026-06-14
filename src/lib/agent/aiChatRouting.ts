@@ -42,3 +42,10 @@ export function shouldPreferAiChatDirect(
   if (priorUserMessageCount === 0 && trimmed.length <= 80) return true;
   return false;
 }
+
+/** Only call vybe-agent edge fn when the user wants app control (not casual chat). */
+export function messageWantsCloudAgent(text: string): boolean {
+  const t = text.trim().toLowerCase();
+  if (!t) return false;
+  return /\b(open|go to|show me|take me|navigate|switch to|apply|theme|widget|hide|show|reorder|dark mode|minimal|midnight|neon)\b/.test(t);
+}

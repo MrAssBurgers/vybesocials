@@ -54,6 +54,8 @@ import { usePendingRequestCount } from '@/hooks/useMessageRequests';
 import { DMsHeader } from './DMsHeader';
 import { cn } from '@/lib/utils';
 import { navVisibility } from '@/lib/navVisibility';
+import { useAgentAvailabilityProbe } from '@/hooks/useAgentAvailabilityProbe';
+import { debugLog } from '@/lib/debugSessionLog';
 
 const AutisyAIChatRow = memo(function AutisyAIChatRow() {
   const navigate = useNavigate();
@@ -131,6 +133,9 @@ export function ConversationList() {
 
   // Show a recoverable retry affordance if the skeleton lingers past 6s.
   const [slowLoad, setSlowLoad] = useState(false);
+  const [skeletonTimedOut, setSkeletonTimedOut] = useState(false);
+
+  useAgentAvailabilityProbe();
   
   // Enable instant realtime updates for conversations
   useRealtimeConversations();
@@ -191,7 +196,25 @@ export function ConversationList() {
     allConversations.length === 0 &&
     !profileMissing &&
     isLoading &&
-    !isFetched;
+    !isFetched &&
+    !skeletonTimedOut;
+
+  useEffect(() => {
+    if (!isLoading || isFetched || allConversations.length > 0) {
+      setSkeletonTimedOut(false);
+      return;
+    }
+    const t = setTimeout(() => {
+      setSkeletonTimedOut(true);
+      // #region agent log
+      debugLog('ConversationList', 'skeleton timed out', {
+        profileId: dmProfileId ?? null,
+        convError: convError instanceof Error ? convError.message : null,
+      }, 'H4-dm');
+      // #endregion
+    }, 12_000);
+    return () => clearTimeout(t);
+  }, [isLoading, isFetched, allConversations.length, dmProfileId, convError]);
 
   useEffect(() => {
     if (!isLoading) { setSlowLoad(false); return; }

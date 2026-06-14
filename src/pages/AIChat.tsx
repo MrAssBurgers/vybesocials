@@ -23,7 +23,7 @@ import { getEdgeFunctionUrl, getFunctionAuthHeaders, isLegacySupabaseProject, fo
 import { getCanonicalPublishableKey } from '@/lib/canonicalSupabase';
 import { fetchWithTimeout } from '@/lib/withTimeout';
 import { useVybeAgent, shouldFallbackToAiChat, isAgentAuthError, isAgentUnavailableError } from '@/lib/agent/useVybeAgent';
-import { shouldSkipAgentDueToAuth, clearAgentAuthFailure } from '@/lib/agent/aiChatRouting';
+import { shouldSkipAgentDueToAuth, clearAgentAuthFailure, messageWantsCloudAgent } from '@/lib/agent/aiChatRouting';
 import { parseLocalAgentPlan } from '@/lib/agent/localAgentCommands';
 import { isAgentMarkedUnavailable, markAgentUnavailable } from '@/lib/agent/agentAvailability';
 import { formatAgentActionSummary } from '@/lib/agent/formatActionSummary';
@@ -331,13 +331,28 @@ export default function AIChat() {
       }, 'H0-env');
       // #endregion
 
+      // Local agent (open messages, themes) — no edge fn required
+      if (!imageBase64) {
+        const localPlan = parseLocalAgentPlan(msgText);
+        if (localPlan) {
+          const batch = await executePlan(localPlan);
+          const summary = formatAgentActionSummary(batch);
+          appendAssistantReply((localPlan.message.trim() || 'Done!') + summary);
+          return;
+        }
+      }
+
       const useAgentPath =
-        !imageBase64 && !shouldSkipAgentDueToAuth() && !isAgentMarkedUnavailable();
+        !imageBase64 &&
+        !shouldSkipAgentDueToAuth() &&
+        !isAgentMarkedUnavailable() &&
+        messageWantsCloudAgent(msgText);
 
       // #region agent log
       debugLog('AIChat:sendMessage', 'routing', {
         useAgentPath,
         agentUnavailable: isAgentMarkedUnavailable(),
+        wantsCloudAgent: messageWantsCloudAgent(msgText),
         textLen: msgText.length,
       }, 'H1-agent');
       // #endregion
@@ -367,11 +382,11 @@ export default function AIChat() {
             appendAssistantReply(formatAiChatError(agentErr));
             return;
           }
-          const localPlan = parseLocalAgentPlan(msgText);
-          if (localPlan) {
-            const batch = await executePlan(localPlan);
+          const localFallback = parseLocalAgentPlan(msgText);
+          if (localFallback) {
+            const batch = await executePlan(localFallback);
             const summary = formatAgentActionSummary(batch);
-            appendAssistantReply((localPlan.message.trim() || 'Done!') + summary);
+            appendAssistantReply((localFallback.message.trim() || 'Done!') + summary);
             return;
           }
           // Fall through to streaming ai-chat
