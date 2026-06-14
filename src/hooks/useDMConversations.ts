@@ -14,6 +14,7 @@ import {
 } from '@/lib/loadDMConversations';
 import { refetchListOnMount } from '@/lib/queryRefetchPolicy';
 import { resolveSessionProfileId, syncSessionProfileId } from '@/lib/resolveSessionProfileId';
+import { debugLog } from '@/lib/debugSessionLog';
 
 type DMConversation = LoadedDMConversation;
 
@@ -78,9 +79,33 @@ export function useDMConversations(searchQuery: string = '') {
     // DM list must reach network on first load — offlineFirst can pause forever
     // with isFetched=false when connectivity is flaky (shows perpetual spinner).
     networkMode: 'always',
-    retry: 2,
-    retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 8000),
+    retry: 1,
+    retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 4000),
   });
+
+  // #region agent log
+  useEffect(() => {
+    debugLog('useDMConversations', 'state', {
+      profileId: profileId ?? null,
+      resolvingProfile: !!user?.id && !profileId && (profileResolveQuery.isFetching || profileResolveQuery.isPending),
+      queryStatus: conversationsQuery.status,
+      isFetched: conversationsQuery.isFetched,
+      isFetching: conversationsQuery.isFetching,
+      count: conversationsQuery.data?.length ?? 0,
+      error: conversationsQuery.error instanceof Error ? conversationsQuery.error.message : null,
+    }, 'H4-dm');
+  }, [
+    profileId,
+    user?.id,
+    profileResolveQuery.isFetching,
+    profileResolveQuery.isPending,
+    conversationsQuery.status,
+    conversationsQuery.isFetched,
+    conversationsQuery.isFetching,
+    conversationsQuery.data?.length,
+    conversationsQuery.error,
+  ]);
+  // #endregion
 
   // Auto-create conversations for friends who don't have one.
   // Read latest data from the cache on demand so this callback's identity
@@ -205,7 +230,10 @@ export function useDMConversations(searchQuery: string = '') {
   }, [conversationsQuery.data]);
 
   const listCount = conversationsQuery.data?.length ?? 0;
-  const querySettled = conversationsQuery.isFetched || conversationsQuery.isError;
+  const querySettled =
+    conversationsQuery.isFetched ||
+    conversationsQuery.isError ||
+    conversationsQuery.status === 'success';
   const resolvingProfile =
     !!user?.id && !profileId && (profileResolveQuery.isFetching || profileResolveQuery.isPending);
   // Skeleton only until the first fetch settles — not while background refetches run.

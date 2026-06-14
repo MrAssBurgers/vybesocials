@@ -20,12 +20,15 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { getEdgeFunctionUrl, getFunctionAuthHeaders, isLegacySupabaseProject, formatAiChatError } from '@/lib/functionAuth';
+import { getCanonicalPublishableKey } from '@/lib/canonicalSupabase';
 import { fetchWithTimeout } from '@/lib/withTimeout';
 import { useVybeAgent, shouldFallbackToAiChat, isAgentAuthError, isAgentUnavailableError } from '@/lib/agent/useVybeAgent';
 import { shouldSkipAgentDueToAuth, clearAgentAuthFailure } from '@/lib/agent/aiChatRouting';
 import { parseLocalAgentPlan } from '@/lib/agent/localAgentCommands';
+import { isAgentMarkedUnavailable, markAgentUnavailable } from '@/lib/agent/agentAvailability';
 import { formatAgentActionSummary } from '@/lib/agent/formatActionSummary';
 import { agentDebugLog } from '@/lib/agent/agentDebugLog';
+import { debugLog } from '@/lib/debugSessionLog';
 import { cn } from '@/lib/utils';
 import { VybeMiniIcon } from '@/components/ui/VybeMiniIcon';
 import ReactMarkdown from 'react-markdown';
@@ -67,9 +70,9 @@ const QUICK_PROMPTS = [
   '🧬 What does my DNA say?',
 ];
 
-const AI_CHAT_FETCH_MS = 90_000;
-const AI_CHAT_STREAM_MS = 120_000;
-const AI_CHAT_STREAM_IDLE_MS = 35_000;
+const AI_CHAT_FETCH_MS = 45_000;
+const AI_CHAT_STREAM_MS = 90_000;
+const AI_CHAT_STREAM_IDLE_MS = 15_000;
 
 // Resize image to max dimension and return base64
 async function imageToBase64(file: File, maxSize = 1024): Promise<{ base64: string; mimeType: string }> {
@@ -170,6 +173,23 @@ export default function AIChat() {
   useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: 'auto' }); }, [messages, streamingText]);
   useEffect(() => { setEditName(aiName); setEditPersonality(aiPersonality); }, [aiName, aiPersonality]);
   useEffect(() => { inputRef.current?.focus(); }, []);
+
+  // Skip vybe-agent when edge fn is not deployed (404) — avoids 8s+ delay before ai-chat.
+  useEffect(() => {
+    if (isAgentMarkedUnavailable()) return;
+    fetch(getEdgeFunctionUrl('vybe-agent'), {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        apikey: getCanonicalPublishableKey(),
+      },
+      body: JSON.stringify({ messages: [{ role: 'user', content: 'ping' }] }),
+    })
+      .then((res) => {
+        if (res.status === 404) markAgentUnavailable();
+      })
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     if (locationEnabled && navigator.geolocation) {
@@ -311,9 +331,16 @@ export default function AIChat() {
       }, 'H0-env');
       // #endregion
 
-      const useAgentPath = !imageBase64 && !shouldSkipAgentDueToAuth();
+      const useAgentPath =
+        !imageBase64 && !shouldSkipAgentDueToAuth() && !isAgentMarkedUnavailable();
 
-      // Text-only: unified agent (chat + navigate + theme + widgets), then local/offline commands, then ai-chat
+      // #region agent log
+      debugLog('AIChat:sendMessage', 'routing', {
+        useAgentPath,
+        agentUnavailable: isAgentMarkedUnavailable(),
+        textLen: msgText.length,
+      }, 'H1-agent');
+      // #endregion
       if (useAgentPath) {
         try {
           const agentResult = await sendAndExecute({
@@ -375,6 +402,14 @@ export default function AIChat() {
         AI_CHAT_FETCH_MS,
       );
 
+      // #region agent log
+      debugLog('AIChat:sendMessage', 'ai-chat response', {
+        status: response.status,
+        ok: response.ok,
+        contentType: response.headers.get('content-type') || '',
+      }, 'H2-stream');
+      // #endregion
+
       if (!response.ok) {
         let errMsg = 'Failed to get response';
         try {
@@ -401,16 +436,22 @@ export default function AIChat() {
 
       const contentType = response.headers.get('content-type') || '';
       if (!contentType.includes('text/event-stream')) {
+        const rawText = await response.text();
         try {
-          const payload = await response.json();
+          const payload = JSON.parse(rawText);
           const text = payload.message || payload.content || payload.error;
           if (text) {
             appendAssistantReply(String(text));
             return;
           }
         } catch {
-          // fall through to stream reader
+          if (rawText.trim()) {
+            appendAssistantReply(rawText.trim().slice(0, 2000));
+            return;
+          }
         }
+        appendAssistantReply(formatAiChatError(new Error('AI returned an empty response'), response.status));
+        return;
       }
 
       const reader = response.body?.getReader();
@@ -481,6 +522,12 @@ export default function AIChat() {
       streamingContentRef.current = '';
     } catch (error) {
       console.error('AI chat error:', error);
+      // #region agent log
+      debugLog('AIChat:sendMessage', 'error', {
+        name: error instanceof Error ? error.name : 'unknown',
+        message: error instanceof Error ? error.message : String(error),
+      }, 'H2-stream');
+      // #endregion
       appendAssistantReply(formatAiChatError(error));
       setStreamingText('');
       streamingContentRef.current = '';

@@ -6,6 +6,7 @@ import { fetchWithTimeout } from '@/lib/withTimeout';
 import { useHomeLayout, ALL_WIDGETS } from '@/hooks/useHomeLayout';
 import { useAgentActions } from '@/lib/agent/useAgentActions';
 import { agentDebugLog } from '@/lib/agent/agentDebugLog';
+import { markAgentUnavailable, clearAgentUnavailableMark } from '@/lib/agent/agentAvailability';
 import { type AgentChatMessage, type AgentContext, type AgentPlan, type AgentAction } from '@/lib/agent/agentToolSchema';
 
 function readEquippedPreset(): string {
@@ -121,8 +122,12 @@ export function useVybeAgent() {
             context: buildContext(),
           }),
         },
-        25_000,
+        8_000,
       );
+
+      if (res.status === 404) {
+        markAgentUnavailable();
+      }
 
       if (res.status === 401 && !retriedAfterRefresh) {
         // #region agent log
@@ -173,7 +178,10 @@ export function useVybeAgent() {
       }
 
       const validated = validatePlan(raw);
-      if (validated) return validated;
+      if (validated) {
+        clearAgentUnavailableMark();
+        return validated;
+      }
 
       const message =
         typeof raw.message === 'string' && raw.message.trim() ? raw.message.trim() : 'Done!';
