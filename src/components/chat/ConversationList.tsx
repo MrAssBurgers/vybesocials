@@ -55,7 +55,6 @@ import { DMsHeader } from './DMsHeader';
 import { cn } from '@/lib/utils';
 import { navVisibility } from '@/lib/navVisibility';
 import { useAgentAvailabilityProbe } from '@/hooks/useAgentAvailabilityProbe';
-import { debugLog } from '@/lib/debugSessionLog';
 
 const AutisyAIChatRow = memo(function AutisyAIChatRow() {
   const navigate = useNavigate();
@@ -196,20 +195,7 @@ export function ConversationList() {
     allConversations.length === 0 &&
     !profileMissing &&
     isLoading &&
-    !isFetched &&
     !skeletonTimedOut;
-
-  useEffect(() => {
-    if (showListSkeleton) {
-      // #region agent log
-      debugLog('ConversationList', 'skeleton visible', {
-        isLoading,
-        isFetched,
-        profileId: dmProfileId ?? null,
-      }, 'H4-dm');
-      // #endregion
-    }
-  }, [showListSkeleton, isLoading, isFetched, dmProfileId]);
 
   useEffect(() => {
     if (!isLoading || isFetched || allConversations.length > 0) {
@@ -218,12 +204,6 @@ export function ConversationList() {
     }
     const t = setTimeout(() => {
       setSkeletonTimedOut(true);
-      // #region agent log
-      debugLog('ConversationList', 'skeleton timed out', {
-        profileId: dmProfileId ?? null,
-        convError: convError instanceof Error ? convError.message : null,
-      }, 'H4-dm');
-      // #endregion
     }, 12_000);
     return () => clearTimeout(t);
   }, [isLoading, isFetched, allConversations.length, dmProfileId, convError]);

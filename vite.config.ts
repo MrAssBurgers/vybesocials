@@ -1,7 +1,6 @@
 import { defineConfig, loadEnv } from "vite";
 import react from "@vitejs/plugin-react-swc";
 import path from "path";
-import fs from "fs";
 import { componentTagger } from "lovable-tagger";
 // @ts-expect-error despia-local ships without TypeScript declarations
 import { despiaLocalPlugin } from "@despia/local/vite";
@@ -32,35 +31,6 @@ function previewSupabaseClientShimPlugin() {
         }
 
         next();
-      });
-    },
-  };
-}
-
-/** Persist debug-session NDJSON locally when Cursor ingest proxy is unavailable. */
-function debugSessionLogPlugin() {
-  const ingestPath = "/ingest/50637484-d3e0-47cb-9fea-f484edc6e98d";
-  const logFile = path.resolve(__dirname, ".cursor/debug-d7bed4.log");
-
-  return {
-    name: "debug-session-log",
-    configureServer(server: any) {
-      server.middlewares.use((req: any, res: any, next: () => void) => {
-        if (req.method !== "POST" || !String(req.url || "").startsWith(ingestPath)) return next();
-        let body = "";
-        req.on("data", (chunk: Buffer) => {
-          body += chunk.toString();
-        });
-        req.on("end", () => {
-          try {
-            fs.mkdirSync(path.dirname(logFile), { recursive: true });
-            fs.appendFileSync(logFile, body.trim() + "\n");
-          } catch {
-            /* ignore */
-          }
-          res.statusCode = 204;
-          res.end();
-        });
       });
     },
   };
@@ -97,12 +67,6 @@ export default defineConfig(({ mode }) => {
       port: 8080,
       strictPort: false,
       open: false,
-      proxy: {
-        "/ingest": {
-          target: "http://127.0.0.1:7261",
-          changeOrigin: true,
-        },
-      },
     },
     define: {
       'import.meta.env.VITE_SUPABASE_PROJECT_ID': JSON.stringify(projectId),
@@ -111,7 +75,6 @@ export default defineConfig(({ mode }) => {
       'import.meta.env.VITE_OFFLINE_MODE': JSON.stringify(offlineMode),
     },
     plugins: [
-      debugSessionLogPlugin(),
       previewSupabaseClientShimPlugin(),
       react(),
       useDespiaLocal && despiaLocalPlugin({ outDir: "dist", entryHtml: "index.html" }),

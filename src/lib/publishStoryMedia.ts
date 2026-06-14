@@ -1,5 +1,4 @@
 import { supabase } from '@/integrations/supabase/client';
-import { debugLog } from '@/lib/debugSessionLog';
 import { withTimeout } from '@/lib/withTimeout';
 import {
   compressImage,
@@ -29,11 +28,6 @@ export async function publishStoryMedia({
 }: PublishStoryMediaParams): Promise<PublishStoryMediaResult> {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error('Not authenticated');
-
-  // #region agent log
-  debugLog('publishStoryMedia.ts', 'upload starting', { isVideo, userId: user.id }, 'H2', 'verify');
-  // #endregion
-
   let fileToUpload: File | Blob = file;
   if (!isVideo && file instanceof File) {
     try {
@@ -59,11 +53,7 @@ export async function publishStoryMedia({
     'Upload timed out. Check your connection and try again.',
   );
 
-  if (uploadError) {
-    // #region agent log
-    debugLog('publishStoryMedia.ts', 'upload failed', { message: uploadError.message, fileName }, 'H2', 'verify');
-    // #endregion
-    const msg = uploadError.message || 'Upload failed';
+  if (uploadError) {    const msg = uploadError.message || 'Upload failed';
     if (/mime|content.?type|invalid file type/i.test(msg)) {
       throw new Error('This file type is not supported for stories. Try JPG or MP4.');
     }
@@ -99,9 +89,5 @@ export async function publishStoryMedia({
   const { data: { publicUrl } } = supabase.storage.from('stories').getPublicUrl(fileName);
   if (!publicUrl) throw new Error('Failed to get public URL');
 
-  onProgress?.(85);
-  // #region agent log
-  debugLog('publishStoryMedia.ts', 'upload ok', { fileName, hasThumb: !!thumbnailUrl }, 'H2', 'verify');
-  // #endregion
-  return { mediaUrl: publicUrl, thumbnailUrl };
+  onProgress?.(85);  return { mediaUrl: publicUrl, thumbnailUrl };
 }

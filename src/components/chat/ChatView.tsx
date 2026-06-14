@@ -151,8 +151,8 @@ export function ChatView() {
   const queryClient = useQueryClient();
   const bumpStreak = useInteractionStreakBump();
   
-  const { data: conversation, isLoading: conversationLoading } = useConversationDetail(conversationId);
-  const { data: messages, isLoading: messagesLoading, isError: messagesError, refetch: refetchMessages } = useMessages(conversationId);
+  const { data: conversation, isPending: conversationPending, isFetched: conversationFetched, isError: conversationError } = useConversationDetail(conversationId);
+  const { data: messages, isPending: messagesPending, isFetched: messagesFetched, isError: messagesError, refetch: refetchMessages } = useMessages(conversationId);
   const { sendText, sendMedia, sendVideo, retry: retryMessage, removeMessage, videoUploadProgress } = useInstantSend(conversationId);
   
   // Batch preload all media URLs for instant rendering
@@ -1283,7 +1283,38 @@ export function ChatView() {
     );
   }
 
-  if (messagesLoading && !(messages as any)?.length) {
+  // Conversation missing or user is not a member — don't spin forever on stale /messages/:id URLs.
+  if (conversationId && conversationFetched && !conversation) {
+    return (
+      <div className="flex flex-col h-full items-center justify-center gap-3 p-6 text-center">
+        <p className="text-sm text-muted-foreground">This conversation isn&apos;t available.</p>
+        <Button size="sm" variant="secondary" onClick={() => navigate('/messages', { replace: true })}>
+          Back to messages
+        </Button>
+      </div>
+    );
+  }
+
+  if (conversationError && !conversation) {
+    return (
+      <div className="flex flex-col h-full items-center justify-center gap-3 p-6 text-center">
+        <p className="text-sm text-muted-foreground">Couldn&apos;t load this conversation.</p>
+        <Button size="sm" variant="ghost" onClick={() => navigate('/messages', { replace: true })}>
+          Back to messages
+        </Button>
+      </div>
+    );
+  }
+
+  const showConversationSkeleton =
+    !!conversationId && !conversationFetched && (conversationPending || !conversation);
+  const showMessagesSkeleton =
+    !!conversationId &&
+    !!conversation &&
+    !messagesFetched &&
+    (messagesPending || !messages?.length);
+
+  if (showConversationSkeleton || showMessagesSkeleton) {
     return (
       <div className="flex flex-col h-full">
         <div className="p-4 border-b border-border flex items-center gap-3">
@@ -1292,24 +1323,6 @@ export function ChatView() {
         </div>
         <div className="flex-1 p-4 space-y-4">
           {[...Array(5)].map((_, i) => (
-            <div key={i} className={`flex ${i % 2 === 0 ? 'justify-start' : 'justify-end'}`}>
-              <Skeleton className="h-12 w-48 rounded-2xl" />
-            </div>
-          ))}
-        </div>
-      </div>
-    );
-  }
-
-  if (conversationLoading && !conversation) {
-    return (
-      <div className="flex flex-col h-full">
-        <div className="p-4 border-b border-border flex items-center gap-3">
-          <Skeleton className="h-10 w-10 rounded-full" />
-          <Skeleton className="h-5 w-32" />
-        </div>
-        <div className="flex-1 p-4 space-y-4">
-          {[...Array(3)].map((_, i) => (
             <div key={i} className={`flex ${i % 2 === 0 ? 'justify-start' : 'justify-end'}`}>
               <Skeleton className="h-12 w-48 rounded-2xl" />
             </div>

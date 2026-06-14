@@ -12,7 +12,6 @@ import { AgeSetup } from '@/components/onboarding/AgeSetup';
 import { AIVybeDesigner } from '@/components/onboarding/AIVybeDesigner';
 import { LegalAcceptance } from '@/components/onboarding/LegalAcceptance';
 import { useAuth } from '@/lib/auth';
-import { debugLog } from '@/lib/debugSessionLog';
 import { supabase } from '@/integrations/supabase/client';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { VybeMiniIcon } from '@/components/ui/VybeMiniIcon';
@@ -175,13 +174,7 @@ export default function Onboarding({ onInviteNavigate, isInviteMode = false }: O
     void (async () => {
       const fresh = await refreshProfile();
       if (cancelled || !fresh) return;
-      if (fresh.onboarding_completed !== false) {
-        // #region agent log
-        debugLog('Onboarding.tsx', 'already completed — redirect home', {
-          onboardingCompleted: fresh.onboarding_completed,
-        }, 'H8', 'verify');
-        // #endregion
-        navigate('/home', { replace: true });
+      if (fresh.onboarding_completed !== false) {        navigate('/home', { replace: true });
       }
     })();
     return () => { cancelled = true; };

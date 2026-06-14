@@ -17,7 +17,6 @@ import { isLovablePreviewHost } from '@/lib/lovablePreview';
 import { refreshSupabaseSession } from '@/lib/supabaseAuthRefresh';
 import { clearFunctionAuthHeadersCache } from '@/lib/functionAuth';
 import { logEvent } from '@/lib/debugLogger';
-import { debugLog } from '@/lib/debugSessionLog';
 import {
   clearSignupUsername,
   isGeneratedUsername,
@@ -26,6 +25,18 @@ import {
 } from '@/lib/username';
 import { startHeartbeat, stopHeartbeat } from '@/lib/analytics';
 import { removeRealtimeChannel, subscribePostgresChannel } from '@/lib/realtimeChannel';
+import { normalizeLoginEmail } from '@/lib/loginEmail';
+
+/** Fail-soft — production may not have deployed sync_signup_username yet. */
+async function trySyncSignupUsername(): Promise<string | null> {
+  try {
+    const { data, error } = await supabase.rpc('sync_signup_username');
+    if (error) return null;
+    return typeof data === 'string' ? data : null;
+  } catch {
+    return null;
+  }
+}
 
 // Token refresh interval - refresh 5 minutes before expiry
 const TOKEN_REFRESH_MARGIN_MS = 5 * 60 * 1000;
@@ -349,8 +360,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const profileData = data[0] as unknown as Profile;
 
         if (isGeneratedUsername(profileData.username)) {
-          const { data: syncedUsername } = await (supabase as any).rpc('sync_signup_username');
-          if (typeof syncedUsername === 'string' && syncedUsername && !isGeneratedUsername(syncedUsername)) {
+          const syncedUsername = await trySyncSignupUsername();
+          if (syncedUsername && !isGeneratedUsername(syncedUsername)) {
             profileData.username = syncedUsername;
             clearSignupUsername();
           }
@@ -360,12 +371,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         setProfile(profileData);
         persistCurrentProfile(profileData);
-        // #region agent log
-        debugLog('auth.tsx:fetchProfile', 'profile loaded from db', {
-          onboardingCompleted: profileData.onboarding_completed ?? null,
-          profileId: profileData.id,
-        }, 'H8', 'verify');
-        // #endregion
         // Check ban status and subscribe to realtime changes
         checkBanStatus(profileData.id);
         subscribeToBanChanges(profileData.id);
@@ -420,8 +425,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const profileData = afterEnsure[0] as unknown as Profile;
 
         if (isGeneratedUsername(profileData.username)) {
-          const { data: syncedUsername } = await (supabase as any).rpc('sync_signup_username');
-          if (typeof syncedUsername === 'string' && syncedUsername && !isGeneratedUsername(syncedUsername)) {
+          const syncedUsername = await trySyncSignupUsername();
+          if (syncedUsername && !isGeneratedUsername(syncedUsername)) {
             profileData.username = syncedUsername;
             clearSignupUsername();
           }
@@ -578,13 +583,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         if (event === 'SIGNED_IN' && session?.user) {
           stripStaleOnboardingFlagFromDisk();
-          // #region agent log
-          debugLog('auth.tsx', 'signed in', { userId: session.user.id }, 'H0-env', 'verify');
-          // #endregion
         } else if (event === 'SIGNED_OUT') {
-          // #region agent log
-          debugLog('auth.tsx', 'signed out', {}, 'H0-env', 'verify');
-          // #endregion
         }
         
         // ── KEY FIX: Never finalize "no session" from INITIAL_SESSION ──
@@ -879,6 +878,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signUp = async (email: string, password: string, username: string) => {
     try {
+      const normalizedEmail = normalizeLoginEmail(email);
       const cleanUsername = normalizeUsername(username);
       if (!cleanUsername || cleanUsername.length < 3) {
         throw new Error('Username must be at least 3 characters.');
@@ -888,14 +888,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const { data: isAvailable, error: checkError } = await supabase
         .rpc('is_username_available', { p_username: cleanUsername });
 
-      if (checkError) throw new Error('Unable to verify username. Please try again.');
+      if (checkError) {
+        throw new Error('Unable to verify username. Please try again.');
+      }
       if (!isAvailable) throw new Error('This username is already taken. Please choose another.');
 
       stashSignupUsername(cleanUsername);
 
       // 2. Create auth user — username in metadata triggers handle_new_user.
       const { data, error } = await supabase.auth.signUp({
-        email,
+        email: normalizedEmail,
         password,
         options: {
           emailRedirectTo: getAuthRedirectUrl('/auth/callback'),
@@ -903,10 +905,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         },
       });
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
 
       if (data.session?.user) {
-        await (supabase as any).rpc('sync_signup_username');
+        await trySyncSignupUsername();
         return { error: null, needsEmailConfirmation: false };
       }
 
@@ -921,7 +925,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signIn = async (email: string, password: string) => {
     try {
-      const normalized = email.trim().toLowerCase();
+      const normalized = normalizeLoginEmail(email);
       const { error } = await supabase.auth.signInWithPassword({
         email: normalized,
         password,

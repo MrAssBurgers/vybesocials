@@ -19,7 +19,6 @@ import { resolveStoryAuthorProfileId } from '@/lib/resolveSessionProfileId';
 import { refreshSupabaseSession } from '@/lib/supabaseAuthRefresh';
 import { withTimeout } from '@/lib/withTimeout';
 import { generateStoryThumbnail, validateStoryMedia } from '@/lib/storyUtils';
-import { debugLog } from '@/lib/debugSessionLog';
 
 interface CameraShareSheetProps {
   mediaUrl: string;
@@ -105,14 +104,6 @@ export function CameraShareSheet({ mediaUrl, mediaType, mediaFile, soundId, soun
   };
 
   const handleShare = async () => {
-    // #region agent log
-    debugLog('CameraShareSheet.tsx:handleShare', 'share clicked', {
-      destinations: selectedDestinations,
-      hasMediaFile: !!mediaFile,
-      mediaType,
-    }, 'H7', 'verify');
-    // #endregion
-
     if (selectedDestinations.length === 0) {
       toast({ title: "Select a destination", description: "Choose where you want to share this", variant: "destructive" });
       return;
@@ -123,11 +114,7 @@ export function CameraShareSheet({ mediaUrl, mediaType, mediaFile, soundId, soun
       return;
     }
 
-    if (selectedDestinations.includes('story') && !user) {
-      // #region agent log
-      debugLog('CameraShareSheet.tsx:handleShare', 'guest blocked from story publish', {}, 'H0-guest', 'verify');
-      // #endregion
-      toast({
+    if (selectedDestinations.includes('story') && !user) {      toast({
         title: 'Sign in required',
         description: 'Log in to post stories.',
         variant: 'destructive',
@@ -148,11 +135,7 @@ export function CameraShareSheet({ mediaUrl, mediaType, mediaFile, soundId, soun
           'Safety scan timed out',
         );
       } catch (scanErr) {
-        const scanMessage = scanErr instanceof Error ? scanErr.message : 'Safety scan failed';
-        // #region agent log
-        debugLog('CameraShareSheet.tsx:handleShare', 'safety scan timeout or error', { scanMessage }, 'H7', 'verify');
-        // #endregion
-        if (selectedDestinations.includes('story') && selectedDestinations.length === 1) {
+        const scanMessage = scanErr instanceof Error ? scanErr.message : 'Safety scan failed';        if (selectedDestinations.includes('story') && selectedDestinations.length === 1) {
           scanResult = { result: 'allowed' as const };
         } else {
           setIsSharing(false);
@@ -160,11 +143,6 @@ export function CameraShareSheet({ mediaUrl, mediaType, mediaFile, soundId, soun
           return;
         }
       }
-
-      // #region agent log
-      debugLog('CameraShareSheet.tsx:handleShare', 'safety scan done', { result: scanResult.result }, 'H7', 'verify');
-      // #endregion
-
       if (scanResult.result === 'blocked') {
         setIsSharing(false);
         setScanMessage(scanResult.message || 'Content violates community guidelines');
@@ -187,13 +165,6 @@ export function CameraShareSheet({ mediaUrl, mediaType, mediaFile, soundId, soun
     const postedDestinations: string[] = [];
 
     if (selectedDestinations.includes('story')) {
-      // #region agent log
-      debugLog('CameraShareSheet.tsx:handleShare', 'story share started', {
-        hasMediaFile: !!mediaFile,
-        mediaType,
-      }, 'H6', 'verify');
-      // #endregion
-
       try {
         const file = await resolveCaptureFile(mediaUrl, mediaType, mediaFile);
         const validation = await validateStoryMedia(file);
@@ -224,19 +195,10 @@ export function CameraShareSheet({ mediaUrl, mediaType, mediaFile, soundId, soun
           60000,
           'Saving story timed out. Please try again.',
         );
-
-        // #region agent log
-        debugLog('CameraShareSheet.tsx:handleShare', 'story saved ok', { authorProfileId }, 'H6', 'verify');
-        // #endregion
-
         void queryClient.invalidateQueries({ queryKey: ['stories'], refetchType: 'all' });
         postedDestinations.push('Story');
       } catch (error) {
-        const message = error instanceof Error ? error.message : 'Failed to post story';
-        // #region agent log
-        debugLog('CameraShareSheet.tsx:handleShare', 'story publish failed', { message }, 'H6', 'verify');
-        // #endregion
-        setIsSharing(false);
+        const message = error instanceof Error ? error.message : 'Failed to post story';        setIsSharing(false);
         toast({ title: 'Story failed', description: message, variant: 'destructive' });
         return;
       }

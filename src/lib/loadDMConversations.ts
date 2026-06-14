@@ -3,7 +3,6 @@ import { supabase } from '@/integrations/supabase/client';
 import type { Conversation, Message } from '@/hooks/useMessages';
 import { resolveSessionProfileId } from '@/lib/resolveSessionProfileId';
 import { withTimeout } from '@/lib/withTimeout';
-import { debugLog } from '@/lib/debugSessionLog';
 
 export interface LoadedDMConversation extends Conversation {
   _sortTime: string;
@@ -37,31 +36,15 @@ export async function loadDMConversations(
   const stale = fallback?.length ? fallback : [];
 
   try {
-    // #region agent log
-    debugLog('loadDMConversations', 'start', { profileId }, 'H4-dm');
-    // #endregion
     const result = await withTimeout(
       loadDMConversationsOnce(profileId, stale),
       12_000,
       'Loading chats timed out',
     );
-    // #region agent log
-    debugLog('loadDMConversations', 'done', {
-      profileId: result.profileId,
-      count: result.data.length,
-      error: result.error?.message ?? null,
-    }, 'H4-dm');
-    // #endregion
     return result;
   } catch (err) {
     console.warn('[DM] load failed:', err);
     const error = err instanceof Error ? err : new Error(String(err));
-    // #region agent log
-    debugLog('loadDMConversations', 'failed', {
-      profileId,
-      message: error.message,
-    }, 'H4-dm');
-    // #endregion
     return { data: stale, error, profileId };
   }
 }

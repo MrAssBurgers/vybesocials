@@ -1,4 +1,4 @@
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { ConversationList } from '@/components/chat/ConversationList';
 import { ChatView } from '@/components/chat/ChatView';
 import { AppLayout } from '@/components/layout/AppLayout';
@@ -29,10 +29,10 @@ function MessagesFallback() {
 }
 
 export default function Messages() {
-  const location = useLocation();
   const navigate = useNavigate();
+  const { conversationId } = useParams<{ conversationId?: string }>();
   const { isDesktop } = useBreakpoint();
-  const isInChat = location.pathname !== '/messages';
+  const isInChat = Boolean(conversationId);
 
   useLayoutEffect(() => {
     if (isDesktop) return;

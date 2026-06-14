@@ -3,7 +3,6 @@ import { useNavigate, useSearchParams, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import { useAuth, waitForAuthSession } from '@/lib/auth';
-import { debugLog } from '@/lib/debugSessionLog';
 import { getPostLoginPath } from '@/lib/authReturnPath';
 import { isLovablePreviewHost } from '@/lib/lovablePreview';
 import { Button } from '@/components/ui/button';
@@ -270,13 +269,6 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
       const fresh = await refreshProfile();
       if (cancelled) return;
 
-      // #region agent log
-      debugLog('Landing.tsx', 'post-login redirect check', {
-        onboardingCompleted: fresh?.onboarding_completed ?? null,
-        hasUsername: !!fresh?.username,
-      }, 'H8', 'verify');
-      // #endregion
-
       if (fresh?.onboarding_completed === false) {
         navigate('/onboarding', { replace: true });
         return;
@@ -311,6 +303,10 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!isLogin && !agreedToTerms) {
+      toast.error('Please agree to the Terms of Use and Privacy Policy to create an account.');
+      return;
+    }
     setLoading(true);
 
     // Helper function for navigation - uses callback in invite mode
@@ -372,11 +368,13 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
           throw new Error('You must agree to the Terms of Use');
         }
         const { error, needsEmailConfirmation } = await signUp(
-          formData.email,
+          normalizeLoginEmail(formData.email),
           formData.password,
           formData.username,
         );
-        if (error) throw error;
+        if (error) {
+          throw error;
+        }
 
         if (needsEmailConfirmation) {
           setAwaitingEmailVerification(true);

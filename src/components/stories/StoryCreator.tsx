@@ -18,7 +18,6 @@ import { toast } from 'sonner';
 import { validateStoryMedia, compressImage, generateStoryThumbnail, inferStoryMediaKind } from '@/lib/storyUtils';
 import { Camera } from '@/components/camera/Camera';
 import { FullscreenPortal } from '@/components/layout/FullscreenPortal';
-import { debugLog } from '@/lib/debugSessionLog';
 import { useTranslation } from 'react-i18next';
 import { useQueryClient } from '@tanstack/react-query';
 
@@ -83,15 +82,7 @@ export function StoryCreator({ onClose }: StoryCreatorProps) {
     isVideo: boolean;
   } | null>(null);
 
-  useEffect(() => {
-    // #region agent log
-    debugLog('StoryCreator.tsx', 'creator opened', {
-      effectiveProfileId: effectiveProfileId ?? null,
-      hasUser: !!user,
-      hasCachedProfile: !!profile?.id,
-    }, 'H1', 'verify');
-    // #endregion
-  }, [effectiveProfileId, user, profile?.id]);
+  useEffect(() => {  }, [effectiveProfileId, user, profile?.id]);
 
   const resetState = useCallback(() => {
     setSelectedFile(null);
@@ -148,15 +139,7 @@ export function StoryCreator({ onClose }: StoryCreatorProps) {
       setSelectedFile(file);
       setPreview(URL.createObjectURL(file));
       setUploadState('idle');
-      void applyAutoThumbnail(file, isVideo);
-
-      // #region agent log
-      debugLog('StoryCreator.tsx:processGalleryFile', 'media ready', {
-        isVideo,
-        fileSize: file.size,
-      }, 'H4', 'verify');
-      // #endregion
-      toast.success(isVideo ? 'Video selected' : 'Photo selected', { duration: 1500 });
+      void applyAutoThumbnail(file, isVideo);      toast.success(isVideo ? 'Video selected' : 'Photo selected', { duration: 1500 });
     } catch (err) {
       console.error('File validation error:', err);
       const msg = err instanceof Error ? err.message : 'Failed to process media file';
@@ -175,36 +158,16 @@ export function StoryCreator({ onClose }: StoryCreatorProps) {
   };
 
   const handleSubmit = async () => {
-    // #region agent log
-    debugLog('StoryCreator.tsx:handleSubmit', 'share clicked', {
-      hasFile: !!selectedFile,
-      hasMediaInfo: !!mediaInfo,
-      effectiveProfileId: effectiveProfileId ?? null,
-      uploadState,
-      canShare,
-    }, 'H1', 'verify');
-    // #endregion
-
     if (!selectedFile || !mediaInfo) {
       toast.error('Media is still loading. Wait a moment and try again.');
       return;
     }
 
-    if (authLoading) {
-      // #region agent log
-      debugLog('StoryCreator.tsx:handleSubmit', 'share blocked — auth still loading', {}, 'H0-loading', 'verify');
-      // #endregion
-      toast.error('Checking sign-in… try again in a moment.');
+    if (authLoading) {      toast.error('Checking sign-in… try again in a moment.');
       return;
     }
 
-    if (!user) {
-      // #region agent log
-      debugLog('StoryCreator.tsx:handleSubmit', 'guest blocked from share', {
-        hasCachedProfile: !!profile?.id,
-      }, 'H0-guest', 'verify');
-      // #endregion
-      toast.error('Sign in to post stories.');
+    if (!user) {      toast.error('Sign in to post stories.');
       return;
     }
 
@@ -215,10 +178,6 @@ export function StoryCreator({ onClose }: StoryCreatorProps) {
     try {
       await refreshSupabaseSession(8000);
       const authorProfileId = await resolveStoryAuthorProfileId(effectiveProfileId);
-      // #region agent log
-      debugLog('StoryCreator.tsx:handleSubmit', 'profile resolved', { authorProfileId }, 'H1', 'verify');
-      // #endregion
-
       setUploadState('uploading');
 
       const { mediaUrl, thumbnailUrl } = await publishStoryMedia({
@@ -245,11 +204,6 @@ export function StoryCreator({ onClose }: StoryCreatorProps) {
         60000,
         'Saving story timed out. Please try again.',
       );
-
-      // #region agent log
-      debugLog('StoryCreator.tsx:handleSubmit', 'story saved ok', { authorProfileId }, 'H3', 'verify');
-      // #endregion
-
       setUploadProgress(100);
       setUploadState('idle');
       toast.success('Story posted!');
@@ -260,11 +214,7 @@ export function StoryCreator({ onClose }: StoryCreatorProps) {
       }, 300);
     } catch (error) {
       console.error('Failed to create story:', error);
-      const message = error instanceof Error ? error.message : 'Failed to create story';
-      // #region agent log
-      debugLog('StoryCreator.tsx:handleSubmit', 'publish failed', { message }, 'H2', 'verify');
-      // #endregion
-      setErrorMessage(message);
+      const message = error instanceof Error ? error.message : 'Failed to create story';      setErrorMessage(message);
       setUploadState('error');
       toast.error(message);
     }

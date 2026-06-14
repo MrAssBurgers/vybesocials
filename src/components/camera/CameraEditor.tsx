@@ -6,7 +6,6 @@ import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import { getFilterCSS } from './CameraFilters';
 import { DraggableOverlay } from './DraggableOverlay';
-import { debugLog } from '@/lib/debugSessionLog';
 
 interface TextOverlay {
   id: string;
@@ -201,14 +200,6 @@ export function CameraEditor({ mediaUrl, mediaType, filter, soundId, soundStartT
         setCurrentText('');
         setMode('none');
       }
-
-      debugLog('CameraEditor.tsx:handleSave', 'story editor save', {
-        overlayCount: overlays.length,
-        drawingCount: drawings.length,
-        pendingCommitted: !!pending,
-        displayW: rect?.width ?? 0,
-        displayH: rect?.height ?? 0,
-      }, 'H1-pending-text');
 
       void Promise.resolve(onSave({
         url: mediaUrl,

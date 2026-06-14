@@ -15,7 +15,6 @@ import { useIsGuest } from '@/components/auth/GuestAuthPrompt';
 import { StoryPoster } from './StoryPoster';
 import { computeStoryPosterDimensions, getStoryPosterUrl } from '@/lib/storyUtils';
 import { cn } from '@/lib/utils';
-import { debugLog } from '@/lib/debugSessionLog';
 
 interface StoriesBarProps {
   colSpan?: 1 | 2;
@@ -78,14 +77,7 @@ export const StoriesBar = memo(function StoriesBar({
   const isTall = rowSpan === 2;
   const avatarSize = Math.max(36, Math.round(posterSize.width * 0.42));
 
-  const promptStorySignIn = () => {
-    // #region agent log
-    debugLog('StoriesBar.tsx', 'guest blocked from story creator', {
-      hasCachedProfile: !!profile?.id,
-      authLoading,
-    }, 'H0-guest', 'verify');
-    // #endregion
-    toast.error('Sign in to post stories');
+  const promptStorySignIn = () => {    toast.error('Sign in to post stories');
     navigate('/?mode=login');
   };
 

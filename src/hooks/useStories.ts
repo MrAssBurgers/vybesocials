@@ -4,7 +4,6 @@ import { useAuth } from '@/lib/auth';
 import { useAuthProfileId } from '@/hooks/useAuthProfileId';
 import { getEffectiveProfileId } from '@/lib/profileCache';
 import { resolveSessionProfileId, resolveStoryAuthorProfileId } from '@/lib/resolveSessionProfileId';
-import { debugLog } from '@/lib/debugSessionLog';
 
 function storiesQueryProfileId(liveProfileId?: string | null, resolvedProfileId?: string) {
   return getEffectiveProfileId(liveProfileId ?? resolvedProfileId);
@@ -199,17 +198,7 @@ export function useCreateStory() {
         `)
         .maybeSingle();
 
-      if (error) {
-        // #region agent log
-        debugLog('useStories.ts:createStory', 'insert failed', {
-          code: error.code,
-          message: error.message,
-          details: error.details,
-          hint: error.hint,
-          authorId,
-        }, 'H3', 'verify');
-        // #endregion
-        throw error;
+      if (error) {        throw error;
       }
 
       if (!data) {
@@ -230,11 +219,6 @@ export function useCreateStory() {
         }
         data = latest;
       }
-
-      // #region agent log
-      debugLog('useStories.ts:createStory', 'insert ok', { storyId: data.id, authorId }, 'H3', 'verify');
-      // #endregion
-
       return data;
     },
     onMutate: async (newStory) => {

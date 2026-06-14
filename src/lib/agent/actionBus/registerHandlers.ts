@@ -8,7 +8,6 @@ import type {
   ActionHandlerContext,
 } from '@/lib/agent/actionBus/types';
 import type { AgentAction } from '@/lib/agent/agentToolSchema';
-import { agentDebugLog } from '@/lib/agent/agentDebugLog';
 
 export interface ActionHandlerDeps {
   navigate: (path: string) => void;
@@ -39,9 +38,6 @@ export function registerAgentActionHandlers(
       const path = normalizeAgentPath(action.path);
       if (!path) return fail(action, 'Invalid or blocked route');
       deps.navigate(path);
-      // #region agent log
-      agentDebugLog('registerHandlers:navigate', 'navigated', { path }, 'H4-bus');
-      // #endregion
       toast.success('On your way ✨', { duration: 1500 });
       return ok(action);
     }),

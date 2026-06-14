@@ -5,7 +5,6 @@ import { getEdgeFunctionUrl, getFunctionAuthHeaders, refreshAuthSessionWithTimeo
 import { fetchWithTimeout } from '@/lib/withTimeout';
 import { useHomeLayout, ALL_WIDGETS } from '@/hooks/useHomeLayout';
 import { useAgentActions } from '@/lib/agent/useAgentActions';
-import { agentDebugLog } from '@/lib/agent/agentDebugLog';
 import { markAgentUnavailable, clearAgentUnavailableMark } from '@/lib/agent/agentAvailability';
 import { type AgentChatMessage, type AgentContext, type AgentPlan, type AgentAction } from '@/lib/agent/agentToolSchema';
 
@@ -99,14 +98,6 @@ export function useVybeAgent() {
       },
       retriedAfterRefresh = false,
     ): Promise<Response> => {
-      // #region agent log
-      agentDebugLog('useVybeAgent:postVybeAgent', 'request start', {
-        retriedAfterRefresh,
-        route: location.pathname,
-        messageCount: options.messages.length,
-      }, 'H5-auth');
-      // #endregion
-
       const headers = await getFunctionAuthHeaders();
       const res = await fetchWithTimeout(
         getEdgeFunctionUrl('vybe-agent'),
@@ -130,9 +121,6 @@ export function useVybeAgent() {
       }
 
       if (res.status === 401 && !retriedAfterRefresh) {
-        // #region agent log
-        agentDebugLog('useVybeAgent:postVybeAgent', '401 — refreshing session', {}, 'H5-auth');
-        // #endregion
         try {
           const { data: refreshed, error } = await refreshAuthSessionWithTimeout();
           if (!error && refreshed.session?.access_token) {
@@ -160,15 +148,6 @@ export function useVybeAgent() {
       const res = await postVybeAgent(options);
       const raw = await parseAgentResponseBody(res);
 
-      // #region agent log
-      agentDebugLog('useVybeAgent:sendAgentMessage', 'vybe-agent response', {
-        status: res.status,
-        ok: res.ok,
-        actionCount: Array.isArray(raw.actions) ? raw.actions.length : 0,
-        error: raw.error,
-      }, 'H1-deploy');
-      // #endregion
-
       if (!res.ok) {
         const msg =
           res.status === 401
@@ -189,13 +168,6 @@ export function useVybeAgent() {
         .map((a) => bus.validateAction(a))
         .filter((a): a is AgentAction => a !== null);
 
-      // #region agent log
-      agentDebugLog('useVybeAgent:sendAgentMessage', 'partial plan recovery', {
-        validatedActions: actions.length,
-        rawActions: Array.isArray(raw.actions) ? raw.actions.length : 0,
-      }, 'H3-validate');
-      // #endregion
-
       return { message, actions };
     },
     [postVybeAgent, validatePlan, bus],
@@ -205,15 +177,6 @@ export function useVybeAgent() {
     async (options: Parameters<typeof sendAgentMessage>[0]) => {
       const plan = await sendAgentMessage(options);
       const batch = await executePlan(plan);
-
-      // #region agent log
-      agentDebugLog('useVybeAgent:sendAndExecute', 'bus batch', {
-        executed: batch.executed,
-        failed: batch.failed,
-        pending: batch.pending,
-        total: batch.results.length,
-      }, 'H4-bus');
-      // #endregion
 
       return { ...plan, batch };
     },

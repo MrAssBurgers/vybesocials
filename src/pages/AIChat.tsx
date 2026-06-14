@@ -27,8 +27,6 @@ import { shouldSkipAgentDueToAuth, clearAgentAuthFailure, messageWantsCloudAgent
 import { parseLocalAgentPlan } from '@/lib/agent/localAgentCommands';
 import { isAgentMarkedUnavailable, markAgentUnavailable } from '@/lib/agent/agentAvailability';
 import { formatAgentActionSummary } from '@/lib/agent/formatActionSummary';
-import { agentDebugLog } from '@/lib/agent/agentDebugLog';
-import { debugLog } from '@/lib/debugSessionLog';
 import { cn } from '@/lib/utils';
 import { VybeMiniIcon } from '@/components/ui/VybeMiniIcon';
 import ReactMarkdown from 'react-markdown';
@@ -323,14 +321,6 @@ export default function AIChat() {
         { role: 'user' as const, content: msgText || 'What is in this image?' },
       ]);
 
-      // #region agent log
-      agentDebugLog('AIChat:sendMessage', 'send start', {
-        hasImage: !!imageBase64,
-        textLen: msgText.length,
-        host: typeof window !== 'undefined' ? window.location.host : '',
-      }, 'H0-env');
-      // #endregion
-
       // Local agent (open messages, themes) — no edge fn required
       if (!imageBase64) {
         const localPlan = parseLocalAgentPlan(msgText);
@@ -348,14 +338,6 @@ export default function AIChat() {
         !isAgentMarkedUnavailable() &&
         messageWantsCloudAgent(msgText);
 
-      // #region agent log
-      debugLog('AIChat:sendMessage', 'routing', {
-        useAgentPath,
-        agentUnavailable: isAgentMarkedUnavailable(),
-        wantsCloudAgent: messageWantsCloudAgent(msgText),
-        textLen: msgText.length,
-      }, 'H1-agent');
-      // #endregion
       if (useAgentPath) {
         try {
           const agentResult = await sendAndExecute({
@@ -370,14 +352,6 @@ export default function AIChat() {
           appendAssistantReply((agentResult.message.trim() || 'Done!') + summary);
           return;
         } catch (agentErr) {
-          // #region agent log
-          agentDebugLog('AIChat:sendMessage', 'agent path failed', {
-            message: agentErr instanceof Error ? agentErr.message : String(agentErr),
-            fallback: shouldFallbackToAiChat(agentErr),
-            auth: isAgentAuthError(agentErr),
-            legacyProject: isLegacySupabaseProject(),
-          }, 'H1-deploy');
-          // #endregion
           if (!shouldFallbackToAiChat(agentErr)) {
             appendAssistantReply(formatAiChatError(agentErr));
             return;
@@ -416,14 +390,6 @@ export default function AIChat() {
         { method: 'POST', headers, body: JSON.stringify(body) },
         AI_CHAT_FETCH_MS,
       );
-
-      // #region agent log
-      debugLog('AIChat:sendMessage', 'ai-chat response', {
-        status: response.status,
-        ok: response.ok,
-        contentType: response.headers.get('content-type') || '',
-      }, 'H2-stream');
-      // #endregion
 
       if (!response.ok) {
         let errMsg = 'Failed to get response';
@@ -537,12 +503,6 @@ export default function AIChat() {
       streamingContentRef.current = '';
     } catch (error) {
       console.error('AI chat error:', error);
-      // #region agent log
-      debugLog('AIChat:sendMessage', 'error', {
-        name: error instanceof Error ? error.name : 'unknown',
-        message: error instanceof Error ? error.message : String(error),
-      }, 'H2-stream');
-      // #endregion
       appendAssistantReply(formatAiChatError(error));
       setStreamingText('');
       streamingContentRef.current = '';

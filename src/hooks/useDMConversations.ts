@@ -14,7 +14,6 @@ import {
 } from '@/lib/loadDMConversations';
 import { refetchListOnMount } from '@/lib/queryRefetchPolicy';
 import { resolveSessionProfileId, syncSessionProfileId } from '@/lib/resolveSessionProfileId';
-import { debugLog } from '@/lib/debugSessionLog';
 import { withTimeout } from '@/lib/withTimeout';
 
 type DMConversation = LoadedDMConversation;
@@ -46,6 +45,7 @@ export function useDMConversations(searchQuery: string = '') {
   const profileId = cachedProfileId ?? profileResolveQuery.data ?? undefined;
   const { data: friends, isLoading: friendsLoading } = useFriends();
   const attemptedFriendIdsRef = useRef<Set<string>>(new Set());
+  const dmInitialFetchDoneRef = useRef(false);
 
   // Fetch all conversations with proper sorting
   const conversationsQuery = useQuery({
@@ -88,32 +88,6 @@ export function useDMConversations(searchQuery: string = '') {
     retry: 1,
     retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 4000),
   });
-
-  // #region agent log
-  useEffect(() => {
-    debugLog('useDMConversations', 'state', {
-      profileId: profileId ?? null,
-      resolvingProfile,
-      isPending: conversationsQuery.isPending,
-      isFetched: conversationsQuery.isFetched,
-      isFetching: conversationsQuery.isFetching,
-      status: conversationsQuery.status,
-      count: conversationsQuery.data?.length ?? 0,
-      isLoading,
-      error: conversationsQuery.error instanceof Error ? conversationsQuery.error.message : null,
-    }, 'H4-dm');
-  }, [
-    profileId,
-    resolvingProfile,
-    conversationsQuery.isPending,
-    conversationsQuery.isFetched,
-    conversationsQuery.isFetching,
-    conversationsQuery.status,
-    conversationsQuery.data?.length,
-    conversationsQuery.error,
-    isLoading,
-  ]);
-  // #endregion
 
   // Auto-create conversations for friends who don't have one.
   // Read latest data from the cache on demand so this callback's identity
@@ -240,10 +214,15 @@ export function useDMConversations(searchQuery: string = '') {
   const listCount = conversationsQuery.data?.length ?? 0;
   const resolvingProfile =
     !!user?.id && !profileId && (profileResolveQuery.isFetching || profileResolveQuery.isPending);
-  // Skeleton only on first fetch — not during background refetches (logs showed loadDM done in <1s but UI stuck).
+  // Latch off loading after first fetch settles — prior logs showed loadDM done in <1s but skeleton stuck.
+  if (conversationsQuery.isFetched) {
+    dmInitialFetchDoneRef.current = true;
+  }
   const isLoading =
     resolvingProfile ||
-    (!!profileId && conversationsQuery.isPending && !conversationsQuery.isFetched);
+    (!dmInitialFetchDoneRef.current &&
+      !!profileId &&
+      (conversationsQuery.isPending || !conversationsQuery.isFetched));
 
   const softErrorKey = profileId ? (['dm-conversations-soft-error', profileId] as const) : null;
   const fetchWarning =

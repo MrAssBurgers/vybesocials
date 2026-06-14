@@ -1,7 +1,6 @@
 import { useEffect, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/lib/auth';
-import { debugLog } from '@/lib/debugSessionLog';
 
 /**
  * OAuth callback page. After the Lovable Cloud OAuth broker redirects here
@@ -85,14 +84,6 @@ export default function AuthCallback() {
     void (async () => {
       const fresh = await refreshProfile();
       if (cancelled) return;
-
-      // #region agent log
-      debugLog('AuthCallback.tsx', 'oauth redirect check', {
-        onboardingCompleted: fresh?.onboarding_completed ?? null,
-        hasUsername: !!fresh?.username,
-      }, 'H8', 'verify');
-      // #endregion
-
       if (!fresh || fresh.onboarding_completed === false || !fresh.username) {
         navigate('/onboarding', { replace: true });
       } else {

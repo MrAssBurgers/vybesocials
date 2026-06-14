@@ -20,7 +20,6 @@ import { HomeEditModeProvider, useEditMode } from '@/components/home/HomeEditMod
 import { HomeWidgetRenderer } from '@/components/home/HomeWidgetRenderer';
 import { useGridLayout } from '@/hooks/useGridLayout';
 import { scrollAppTo } from '@/lib/appScrollContainer';
-import { debugLog } from '@/lib/debugSessionLog';
 
 // Lazy load heavy components that aren't needed for initial render
 const AnnouncementModal = lazy(() => import('@/components/announcements/AnnouncementModal').then(m => ({ default: m.AnnouncementModal })));
@@ -310,19 +309,8 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
         console.log('[Home] Skipping profile redirect - active referral/invite in progress');
         return;
       }
-      if (document.body.hasAttribute('data-story-upload-active')) {
-        // #region agent log
-        debugLog('Home.tsx', 'deferred onboarding redirect — story upload active', {}, 'H8', 'verify');
-        // #endregion
-        return;
-      }
-      // #region agent log
-      debugLog('Home.tsx', 'redirecting to onboarding', {
-        profileId: fresh.id,
-        onboardingCompleted: fresh.onboarding_completed,
-      }, 'H8', 'verify');
-      // #endregion
-      console.log('[Home] Profile explicitly has onboarding_completed=false, redirecting...');
+      if (document.body.hasAttribute('data-story-upload-active')) {        return;
+      }      console.log('[Home] Profile explicitly has onboarding_completed=false, redirecting...');
       navigate('/onboarding');
     })();
 

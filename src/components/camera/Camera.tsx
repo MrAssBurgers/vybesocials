@@ -16,7 +16,6 @@ import { captureVideoFrame } from '@/lib/cameraCapture';
 import { createCameraMediaRecorder, recordingBlobType } from '@/lib/cameraRecording';
 import { acquirePostCameraStream, attachAudioToStream, stopStream } from '@/lib/postCameraStream';
 import { bakeCameraEdits, bakedCameraFileName, type CameraDrawPath, type CameraTextOverlay } from '@/lib/bakeCameraEdits';
-import { debugLog } from '@/lib/debugSessionLog';
 
 interface CameraProps {
   onClose: () => void;
@@ -330,13 +329,6 @@ export function Camera({ onClose, showBackArrow = false, onCapture }: CameraProp
 
               const media = { file, url, type: capturedMedia.type };
 
-              debugLog('Camera.tsx:onSave', 'camera bake complete', {
-                hadEdits,
-                overlayCount: edited.overlays.length,
-                fileBytes: file.size,
-                bakedSameRef: baked === capturedMedia.file,
-              }, 'H2-bake');
-
               if (hadEdits) {
                 toast.success(
                   edited.overlays.length > 0
@@ -356,7 +348,6 @@ export function Camera({ onClose, showBackArrow = false, onCapture }: CameraProp
             } catch (err) {
               const msg = err instanceof Error ? err.message : 'Failed to save edits';
               console.error('[Camera] Failed to bake edits:', err);
-              debugLog('Camera.tsx:onSave', 'camera bake failed', { error: msg }, 'H2-bake');
               toast.error(msg);
             } finally {
               setIsBaking(false);
