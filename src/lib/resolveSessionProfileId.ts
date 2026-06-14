@@ -31,11 +31,20 @@ export async function resolveSessionProfileId(
 
   inflight = (async () => {
     try {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('id, user_id, username, avatar_url, display_name')
-        .eq('user_id', authUserId)
-        .maybeSingle();
+      const loadProfile = () =>
+        supabase
+          .from('profiles')
+          .select('id, user_id, username, avatar_url, display_name')
+          .eq('user_id', authUserId)
+          .maybeSingle();
+
+      let { data, error } = await loadProfile();
+
+      // Signed-in users may lack a profiles row (signup trigger lag) — ensure_profile creates it.
+      if (!data?.id) {
+        await supabase.rpc('ensure_profile');
+        ({ data, error } = await loadProfile());
+      }
 
       if (error || !data?.id) return undefined;
 

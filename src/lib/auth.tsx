@@ -583,9 +583,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         if (event === 'SIGNED_IN' && session?.user) {
           stripStaleOnboardingFlagFromDisk();
-        } else if (event === 'SIGNED_OUT') {
         }
-        
+
         // ── KEY FIX: Never finalize "no session" from INITIAL_SESSION ──
         // INITIAL_SESSION with null session happens when the stored token
         // is expired and a background refresh is in progress. We MUST wait

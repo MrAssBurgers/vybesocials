@@ -31,12 +31,33 @@ Use this file as the Lovable -> Cursor handoff each session.
 - **You:** Lovable Backend deploy `auth-2fa-preauth` + `auth-2fa-request` on **agtcyx** → Lovable Publish → sign in on vybehub.app with a known agtcyx account
 
 ## Current Focus
-- **You:** Lovable Publish → smoke test login on vybehub.app (email/password for existing user)
+- **You:** Lovable Backend deploy on **agtcyx** + Lovable Publish (client fixes below are local until publish)
+
+## What Changed (prod triage DMs/stories/AI — 2026-06-14)
+- **Debug scan (`scripts/debug-scan.mjs`)** — probes **agtcyx** (not hprmic); adds `ai-chat`, `vybe-agent`, `create_dm_conversation`, bundle hash
+- **`resolveSessionProfileId.ts`** — call `ensure_profile` RPC when profile row missing (fixes DMs spinner when signup lag)
+- **`useStories.ts`** — retry insert without `poll_data` if column missing; clearer RLS/author_id errors; lint fix
+- **`useDMConversations.ts`** — skip auto-create when `create_dm_conversation` RPC missing (PGRST202)
+- **`auth.tsx`** — remove empty `SIGNED_OUT` block (lint)
+- **Scan (agtcyx, 2026-06-14):** build/lint/CSS PASS · bundle `index-DcpMikVv.js` · RPCs MISSING: `get_public_user_count`, `sync_signup_username`, `is_username_available`, `create_dm_conversation` · edge MISSING: `vybe-agent` (404), `community-voice-token`, `link-onesignal-user`, `spaces-token` · `ai-chat` deployed (401 anon)
+- **Verify:** `npm run build` PASS · `npm run lint` PASS
+- **Git:** local only (not committed/pushed)
 
 ## Next 3 Tasks
-1. Lovable Backend deploy `auth-2fa-preauth` + `auth-2fa-request` to **agtcyx** (2FA gate logic fix)
-2. Lovable Publish → sign in with existing account; should reach Home (not `invalid_credentials`)
-3. Plan auth-user migration agtcyx → hprmic before moving edge-only features (vybe-agent) to hprmic-only
+1. **Supabase SQL Editor (agtcyx):** paste `supabase/manual/PENDING_20260530.sql` + `20260108184952_*create_dm_conversation*.sql` + `20260613150000_stories_upload_android_fix.sql`
+2. **Lovable Backend deploy (agtcyx):** `ai-chat`, `vybe-agent` — set `LOVABLE_API_KEY` secret on agtcyx
+3. **Lovable → Share → Publish** → smoke: Messages list, post story, VYBE-AI send "hi"
+
+## What Changed (publish prep — 2026-06-14)
+- **`auth.tsx` / `Landing.tsx`** — fail-soft `sync_signup_username`; normalize signup email; terms toast
+- **`ChatView.tsx` / `Messages.tsx`** — fix desktop right-pane skeleton on stale `/messages/:id`
+- **`public/sw.js`** — v12 cache bust; removed debug instrumentation
+- **Git:** pushed `0470b47f` · `npm run build` PASS · production still `index-BW3exuY_.js` until Publish
+
+## Next 3 Tasks
+1. **Lovable → Share → Publish** (required for vybehub.app)
+2. Hard refresh vybehub.app — bundle hash should change from `index-BW3exuY_.js`
+3. Smoke: login → Messages (desktop empty pane) → VYBE-AI
 
 ## What Changed (Friend Link sheet polish v2 — 2026-06-13)
 - **`AutoFriendDrop.tsx`** — unified handle + title header (no border); tighter padding; close pinned top-right; `reduceMotion` passed to content; maxHeight 68vh for no-scroll QR on iPhone

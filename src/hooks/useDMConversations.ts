@@ -132,6 +132,11 @@ export function useDMConversations(searchQuery: string = '') {
           other_profile_id: friend.id,
         });
         if (error) {
+          // create_dm_conversation may be missing on prod until SQL migration is applied.
+          if (error.code === 'PGRST202' || /could not find the function/i.test(error.message || '')) {
+            console.warn('[DM] create_dm_conversation RPC not deployed — skipping auto-create');
+            continue;
+          }
           // Allow a retry on next data update if it failed
           attemptedFriendIdsRef.current.delete(friend.id);
         } else {

@@ -190,15 +190,34 @@ export function useCreateStory() {
         poll_data: pollData || null,
       };
 
-      let { data, error } = await (supabase.from('stories') as any)
-        .insert(payload)
-        .select(`
+      const storySelect = `
           *,
           author:profiles!author_id(id, username, avatar_url, display_name)
-        `)
+        `;
+
+      let { data, error } = await (supabase.from('stories') as any)
+        .insert(payload)
+        .select(storySelect)
         .maybeSingle();
 
-      if (error) {        throw error;
+      // Prod may lag migrations — retry without poll_data if column missing.
+      if (error && pollData && /poll_data|column/i.test(error.message || '')) {
+        const { poll_data: _omit, ...withoutPoll } = payload;
+        ({ data, error } = await (supabase.from('stories') as any)
+          .insert(withoutPoll)
+          .select(storySelect)
+          .maybeSingle());
+      }
+
+      if (error) {
+        const msg = error.message || '';
+        if (/row-level security|policy|42501/i.test(msg)) {
+          throw new Error('Story save blocked by permissions. Sign out and back in, then try again.');
+        }
+        if (/author_id|foreign key|violates foreign key/i.test(msg)) {
+          throw new Error('Could not link story to your profile. Sign out and back in, then try again.');
+        }
+        throw error;
       }
 
       if (!data) {

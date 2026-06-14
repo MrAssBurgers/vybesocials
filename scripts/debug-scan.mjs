@@ -10,8 +10,9 @@ import { spawnSync } from 'node:child_process';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = join(__dirname, '..');
-const PROD_REF = 'hprmicwhlaaqfgshucec';
+const PROD_REF = 'agtcyxjxgkdyoxwxkjth';
 const PROD_URL = `https://${PROD_REF}.supabase.co`;
+const SANDBOX_REF = 'hprmicwhlaaqfgshucec';
 
 function run(cmd, args, opts = {}) {
   const r = spawnSync(cmd, args, { cwd: root, encoding: 'utf8', ...opts });
@@ -22,14 +23,20 @@ function section(title) {
   console.log(`\n=== ${title} ===`);
 }
 
+const CANONICAL_AGTCYX_ANON =
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFndGN5eGp4Z2tkeW94d3hranRoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzAyMjk5NTMsImV4cCI6MjA4NTgwNTk1M30.G92pPYU9K2z3yqXtN5R7WR_-EAIVTfl-T-GlJ-N8oYg';
+
 function loadAnonKey() {
   for (const f of ['.env', '.env.local']) {
     const p = join(root, f);
     if (!existsSync(p)) continue;
     const m = readFileSync(p, 'utf8').match(/VITE_SUPABASE_PUBLISHABLE_KEY=(.+)/);
-    if (m) return m[1].trim().replace(/^["']|["']$/g, '');
+    if (m) {
+      const key = m[1].trim().replace(/^["']|["']$/g, '');
+      if (key.includes(PROD_REF)) return key;
+    }
   }
-  return 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFndGN5eGp4Z2tkeW94d3hranRoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzAyMjk5NTMsImV4cCI6MjA4NTgwNTk1M30.G92pPYU9K2z3yqXtN5R7WR_-EAIVTfl-T-GlJ-N8oYg';
+  return CANONICAL_AGTCYX_ANON;
 }
 
 async function probe(url, opts = {}) {
@@ -92,18 +99,31 @@ async function main() {
     Authorization: `Bearer ${anon}`,
     'Content-Type': 'application/json',
   };
-  for (const rpc of ['get_public_user_count', 'sync_signup_username', 'ensure_user_level']) {
+  for (const rpc of [
+    'get_public_user_count',
+    'sync_signup_username',
+    'ensure_user_level',
+    'is_username_available',
+    'ensure_profile',
+    'create_dm_conversation',
+  ]) {
     const { status } = await probe(`${PROD_URL}/rest/v1/rpc/${rpc}`, {
       method: 'POST',
       headers: rpcHeaders,
       body: '{}',
     });
-    const label = status === 200 ? 'OK' : status === 404 ? 'MISSING' : `HTTP ${status}`;
+    const label =
+      status === 200 ? 'OK' :
+      status === 404 ? 'MISSING' :
+      status === 400 ? 'HTTP 400 (auth/body required — OK)' :
+      `HTTP ${status}`;
     console.log(`${rpc}: ${label}`);
   }
 
   section('Production — sample edge functions (anon POST)');
   const samples = [
+    'ai-chat',
+    'vybe-agent',
     'livekit-token',
     'share-preview',
     'giphy-search',
@@ -132,11 +152,17 @@ async function main() {
   const st = run('git', ['status', '-sb'], { stdio: 'pipe' });
   console.log(st.out.trim() || '(clean)');
 
+  section('vybehub.app bundle');
+  const html = await fetch('https://vybehub.app/index.html').then((r) => r.text()).catch(() => '');
+  const bundle = html.match(/index-[A-Za-z0-9_-]+\.js/)?.[0] ?? 'unknown';
+  console.log(`index.html bundle: ${bundle}`);
+
   section('Reminders');
   console.log('- Web deploy: Lovable → Share → Publish (vybehub.app)');
-  console.log('- Supabase prod ref: hprmicwhlaaqfgshucec (vybehub.app — see DEPLOY.md)');
-  console.log('- Legacy ref agtcyxjxgkdyoxwxkjth — do not deploy there unless migrating back');
-  console.log('- Edge functions: Lovable Backend deploy or supabase functions deploy');
+  console.log(`- Supabase prod ref: ${PROD_REF} (live users — see DEPLOY.md)`);
+  console.log(`- Sandbox ref: ${SANDBOX_REF} — migration target only, not vybehub.app auth`);
+  console.log('- Edge functions: Lovable Backend deploy on agtcyx (ai-chat, vybe-agent, etc.)');
+  console.log('- SQL: apply supabase/manual/PENDING_20260530.sql on agtcyx if RPCs MISSING');
 }
 
 main().catch((e) => {
