@@ -200,6 +200,18 @@ export function ConversationList() {
     !skeletonTimedOut;
 
   useEffect(() => {
+    if (showListSkeleton) {
+      // #region agent log
+      debugLog('ConversationList', 'skeleton visible', {
+        isLoading,
+        isFetched,
+        profileId: dmProfileId ?? null,
+      }, 'H4-dm');
+      // #endregion
+    }
+  }, [showListSkeleton, isLoading, isFetched, dmProfileId]);
+
+  useEffect(() => {
     if (!isLoading || isFetched || allConversations.length > 0) {
       setSkeletonTimedOut(false);
       return;

@@ -93,23 +93,25 @@ export function useDMConversations(searchQuery: string = '') {
   useEffect(() => {
     debugLog('useDMConversations', 'state', {
       profileId: profileId ?? null,
-      resolvingProfile: !!user?.id && !profileId && (profileResolveQuery.isFetching || profileResolveQuery.isPending),
-      queryStatus: conversationsQuery.status,
+      resolvingProfile,
+      isPending: conversationsQuery.isPending,
       isFetched: conversationsQuery.isFetched,
       isFetching: conversationsQuery.isFetching,
+      status: conversationsQuery.status,
       count: conversationsQuery.data?.length ?? 0,
+      isLoading,
       error: conversationsQuery.error instanceof Error ? conversationsQuery.error.message : null,
     }, 'H4-dm');
   }, [
     profileId,
-    user?.id,
-    profileResolveQuery.isFetching,
-    profileResolveQuery.isPending,
-    conversationsQuery.status,
+    resolvingProfile,
+    conversationsQuery.isPending,
     conversationsQuery.isFetched,
     conversationsQuery.isFetching,
+    conversationsQuery.status,
     conversationsQuery.data?.length,
     conversationsQuery.error,
+    isLoading,
   ]);
   // #endregion
 
@@ -236,14 +238,12 @@ export function useDMConversations(searchQuery: string = '') {
   }, [conversationsQuery.data]);
 
   const listCount = conversationsQuery.data?.length ?? 0;
-  const querySettled =
-    conversationsQuery.isFetched ||
-    conversationsQuery.isError ||
-    conversationsQuery.status === 'success';
   const resolvingProfile =
     !!user?.id && !profileId && (profileResolveQuery.isFetching || profileResolveQuery.isPending);
-  // Skeleton only until the first fetch settles — not while background refetches run.
-  const isLoading = resolvingProfile || (!!profileId && !querySettled);
+  // Skeleton only on first fetch — not during background refetches (logs showed loadDM done in <1s but UI stuck).
+  const isLoading =
+    resolvingProfile ||
+    (!!profileId && conversationsQuery.isPending && !conversationsQuery.isFetched);
 
   const softErrorKey = profileId ? (['dm-conversations-soft-error', profileId] as const) : null;
   const fetchWarning =

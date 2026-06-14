@@ -33,8 +33,10 @@ export function shouldRefetchWhenEmpty(query: any): boolean | 'always' {
 export function refetchListOnMount(query: any): boolean | 'always' {
   const data = query?.state?.data;
   const status = query?.state?.status;
+  const dataUpdatedAt = query?.state?.dataUpdatedAt as number | undefined;
   if (status === 'error' && (!Array.isArray(data) || data.length === 0)) return 'always';
-  if (status === 'pending') return 'always';
+  // Only force refetch on the very first load — not on every pending refetch (caused refetch storms + skeleton).
+  if (status === 'pending' && !dataUpdatedAt) return 'always';
   if (!Array.isArray(data)) return 'always';
   // Empty but successfully fetched — use normal stale refetch (not 'always'),
   // otherwise every Messages visit re-skeletons while background refetch runs.
