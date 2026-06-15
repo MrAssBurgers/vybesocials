@@ -4,6 +4,27 @@ Use this file as the Lovable -> Cursor handoff each session.
 
 **Links:** [Lovable project](https://lovable.dev/projects/416714c8-d013-4aff-984d-522418a9bbc7) · [Production](https://vybehub.app) · Deploy steps: `DEPLOY.md`
 
+## What Changed (auth login/signup deep scan — 2026-06-15)
+- **Root cause (signup):** `is_username_available` RPC **MISSING** on agtcyx → `signUp()` hard-failed with "Unable to verify username"; same RPC blocked onboarding username picker.
+- **Root cause (login UX):** Logged-in users with slow/missing profile hydration stayed on auth form (Landing required `authProfile.username` before redirect spinner).
+- **`usernameAvailability.ts`** — shared fail-soft check: RPC when deployed; optimistic proceed when PGRST202/404 (DB unique constraint still catches duplicates).
+- **`auth.tsx`** — signUp uses fail-soft check; `fetchProfile` tries `ensure_profile` then `claim_profile_by_email` (was claim-only).
+- **`Landing.tsx`** — any signed-in user gets redirect spinner; navigate to Home even when profile still loading; generated usernames → onboarding.
+- **`UsernameSetup.tsx`** — fail-soft availability check.
+- **`public/sw.js`** — v13 cache bust for publish.
+- **Scan (agtcyx, 2026-06-15):** build/lint/CSS PASS · bundle local `index-BN9lJxzU.js` · prod `index-DcpMikVv.js` (pre-fix) · auth endpoint OK (400 invalid creds) · RPCs MISSING: `get_public_user_count`, `sync_signup_username`, `is_username_available`, `create_dm_conversation` · RPCs OK: `ensure_profile`, `ensure_user_level` · edge OK: `auth-2fa-preauth`, `ai-chat`, `livekit-token` · edge MISSING: `vybe-agent`, `community-voice-token`, `link-onesignal-user`, `spaces-token`
+- **Verify:** `npm run build` PASS · `npm run lint` PASS (3 pre-existing warnings)
+- **Git:** local only (not committed)
+
+## Current Focus
+- **You:** Lovable → Share → Publish (required for vybehub.app auth fixes)
+- **Optional SQL (agtcyx):** paste `supabase/manual/PENDING_20260530.sql` for `sync_signup_username` + `is_username_available` (client now works without them)
+
+## Next 3 Tasks
+1. **Lovable → Share → Publish** → hard refresh vybehub.app (bundle should change from `index-DcpMikVv.js`)
+2. Smoke: **login** existing agtcyx account → lands on Home (not stuck on auth form)
+3. Smoke: **signup** new email → onboarding (even before SQL applied)
+
 ## What Changed (VYBE AI talk + agent — 2026-06-13)
 - **`ai-chat` edge fn** — use `LOVABLE_API_KEY` (Lovable gateway) when `GEMINI_API_KEY` missing; fix profile lookup via `user_id`
 - **`vybe-agent`** — fix profile lookup via `user_id`

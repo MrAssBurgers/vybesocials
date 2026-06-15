@@ -23,6 +23,7 @@ import {
   normalizeUsername,
   stashSignupUsername,
 } from '@/lib/username';
+import { checkUsernameAvailable } from '@/lib/usernameAvailability';
 import { startHeartbeat, stopHeartbeat } from '@/lib/analytics';
 import { removeRealtimeChannel, subscribePostgresChannel } from '@/lib/realtimeChannel';
 import { normalizeLoginEmail } from '@/lib/loginEmail';
@@ -384,11 +385,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return fetchProfile(userId, retryCount + 1);
       }
 
-      console.log('[Auth] Profile not found, calling claim_profile_by_email...');
-      const { data: profileId, error: ensureError } = await supabase.rpc('claim_profile_by_email');
-      
+      console.log('[Auth] Profile not found, calling ensure_profile...');
+      let { error: ensureError } = await supabase.rpc('ensure_profile');
       if (ensureError) {
-        console.error('[Auth] ensure_profile failed:', ensureError);
+        console.log('[Auth] ensure_profile failed, trying claim_profile_by_email...', ensureError.message);
+        ({ error: ensureError } = await supabase.rpc('claim_profile_by_email'));
+      }
+
+      if (ensureError) {
+        console.error('[Auth] Profile ensure failed:', ensureError);
         
         // Retry on failure
         if (retryCount < maxRetries) {
@@ -883,14 +888,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         throw new Error('Username must be at least 3 characters.');
       }
 
-      // 1. Validate username availability BEFORE creating auth user
-      const { data: isAvailable, error: checkError } = await supabase
-        .rpc('is_username_available', { p_username: cleanUsername });
-
-      if (checkError) {
-        throw new Error('Unable to verify username. Please try again.');
+      // 1. Validate username when RPC exists; fail-soft if not deployed on production yet.
+      const availability = await checkUsernameAvailable(cleanUsername);
+      if (availability.error) throw new Error(availability.error);
+      if (!availability.available) {
+        throw new Error('This username is already taken. Please choose another.');
       }
-      if (!isAvailable) throw new Error('This username is already taken. Please choose another.');
 
       stashSignupUsername(cleanUsername);
 

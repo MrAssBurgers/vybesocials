@@ -25,6 +25,7 @@ import { LoginGateModal } from '@/components/auth/LoginGateModal';
 import { FounderCounter } from '@/components/growth/FounderCounter';
 import { getAuthRedirectUrl } from '@/lib/authRedirect';
 import { normalizeLoginEmail } from '@/lib/loginEmail';
+import { isGeneratedUsername } from '@/lib/username';
 import { VybeLiquidBackground } from '@/components/effects/VybeLiquidBackground';
 import { VybeLiquidTouchOverlay } from '@/components/effects/VybeLiquidTouchOverlay';
 import { VybeLiquidText } from '@/components/ui/VybeLiquidText';
@@ -111,7 +112,7 @@ interface LandingProps {
 
 export default function Landing({ onInviteNavigate, isInviteMode = false }: LandingProps) {
   const { t } = useTranslation();
-  const { user, profile: authProfile, signIn, signUp, resendVerification, authReady, refreshProfile } = useAuth();
+  const { user, signIn, signUp, resendVerification, authReady, refreshProfile } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { triggerTransition } = useThemeTransition();
@@ -164,7 +165,7 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
 
   const showAuthForm =
     isInviteMode ||
-    (authReady && !(user && authProfile?.username && authProfile?.onboarding_completed !== false && !gatePending && !loginGate));
+    (authReady && !user && !gatePending && !loginGate);
 
   const { contentRef, scale } = useAuthScreenFit(
     showAuthForm && !isOAuthReturn,
@@ -269,14 +270,17 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
       const fresh = await refreshProfile();
       if (cancelled) return;
 
-      if (fresh?.onboarding_completed === false) {
+      if (fresh?.onboarding_completed === false || isGeneratedUsername(fresh?.username)) {
         navigate('/onboarding', { replace: true });
         return;
       }
       if (fresh?.username) {
         const returnPath = getPostLoginPath('/home');
         navigate(returnPath, { replace: true });
+        return;
       }
+      // Session exists but profile still hydrating — don't trap on auth form.
+      navigate(getPostLoginPath('/home'), { replace: true });
     })();
 
     return () => { cancelled = true; };
@@ -291,14 +295,12 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
     );
   }
 
-  if (!isInviteMode) {
-    if (user && authProfile?.username && authProfile?.onboarding_completed !== false && !gatePending && !loginGate) {
-      return (
-        <div className="fixed inset-0 z-50 bg-background flex items-center justify-center">
-          <div className="w-8 h-8 rounded-full border-[3px] border-primary/30 border-t-primary animate-spin" />
-        </div>
-      );
-    }
+  if (!isInviteMode && authReady && user && !gatePending && !loginGate) {
+    return (
+      <div className="fixed inset-0 z-50 bg-background flex items-center justify-center">
+        <div className="w-8 h-8 rounded-full border-[3px] border-primary/30 border-t-primary animate-spin" />
+      </div>
+    );
   }
 
   const handleSubmit = async (e: React.FormEvent) => {

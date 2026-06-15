@@ -1,8 +1,8 @@
 // VYBE Service Worker
-// Version 12.0 — PWA-first app shell + asset caching (see VITE_OFFLINE_MODE=pwa)
+// Version 13.0 — auth fail-soft + login redirect fix (2026-06-15)
 
-const CACHE_NAME = 'vybe-v12';
-const STATIC_CACHE = 'vybe-static-v12';
+const CACHE_NAME = 'vybe-v13';
+const STATIC_CACHE = 'vybe-static-v13';
 const MEDIA_CACHE = 'vybe-media-v2';
 const SHELL_CACHE = 'vybe-shell-v4';
 const ASSETS_CACHE = 'vybe-assets-v4';

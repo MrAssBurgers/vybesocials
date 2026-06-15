@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { AtSign, Check, X, Loader2 } from 'lucide-react';
-import { supabase } from '@/integrations/supabase/client';
+import { checkUsernameAvailable } from '@/lib/usernameAvailability';
 
 interface UsernameSetupProps {
   username: string;
@@ -35,27 +35,29 @@ export function UsernameSetup({ username, onChange, onValidChange }: UsernameSet
 
     setChecking(true);
     try {
-      const normalized = value.toLowerCase().replace(/\s+/g, '');
-      const { data: available, error } = await supabase.rpc('is_username_available', {
-        p_username: normalized,
-      });
+      const result = await checkUsernameAvailable(value);
 
-      if (error) {
-        setError('Error checking username');
+      if (result.error) {
+        setError(result.error);
         onValidChange(false);
         return;
       }
 
-      if (!available) {
+      if (!result.available) {
         setError('Username is already taken');
         setIsAvailable(false);
         onValidChange(false);
-      } else {
-        setIsAvailable(true);
-        onValidChange(true);
+        return;
       }
-    } catch (err) {
+
+      setIsAvailable(true);
+      onValidChange(true);
+      if (!result.rpcChecked) {
+        setError('');
+      }
+    } catch {
       setError('Error checking username');
+      onValidChange(false);
     } finally {
       setChecking(false);
     }
