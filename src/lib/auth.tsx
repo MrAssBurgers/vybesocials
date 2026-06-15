@@ -361,7 +361,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (!error && data?.[0]) {
         const profileData = data[0] as unknown as Profile;
 
-        if (isGeneratedUsername(profileData.username)) {
+        const { data: { user: authUser } } = await supabase.auth.getUser();
+        const metaUsername = authUser?.user_metadata?.username;
+        const shouldSyncSignupUsername =
+          isGeneratedUsername(profileData.username) ||
+          (typeof metaUsername === 'string' &&
+            metaUsername.trim() &&
+            normalizeUsername(metaUsername) !== normalizeUsername(profileData.username));
+
+        if (shouldSyncSignupUsername) {
           const syncedUsername = await trySyncSignupUsername();
           if (syncedUsername && !isGeneratedUsername(syncedUsername)) {
             profileData.username = syncedUsername;
@@ -430,7 +438,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (!afterEnsureError && afterEnsure?.[0]) {
         const profileData = afterEnsure[0] as unknown as Profile;
 
-        if (isGeneratedUsername(profileData.username)) {
+        const { data: { user: authUser } } = await supabase.auth.getUser();
+        const metaUsername = authUser?.user_metadata?.username;
+        const shouldSyncSignupUsername =
+          isGeneratedUsername(profileData.username) ||
+          (typeof metaUsername === 'string' &&
+            metaUsername.trim() &&
+            normalizeUsername(metaUsername) !== normalizeUsername(profileData.username));
+
+        if (shouldSyncSignupUsername) {
           const syncedUsername = await trySyncSignupUsername();
           if (syncedUsername && !isGeneratedUsername(syncedUsername)) {
             profileData.username = syncedUsername;
