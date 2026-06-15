@@ -39,24 +39,23 @@ function previewSupabaseClientShimPlugin() {
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), "");
-  // Live auth + profiles (31+ users). Do not rewrite agtcyx → hprmic.
-  const AUTH_PROJECT_ID = "agtcyxjxgkdyoxwxkjth";
-  const AUTH_URL = `https://${AUTH_PROJECT_ID}.supabase.co`;
-  const AUTH_KEY =
-    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFndGN5eGp4Z2tkeW94d3hranRoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzAyMjk5NTMsImV4cCI6MjA4NTgwNTk1M30.G92pPYU9K2z3yqXtN5R7WR_-EAIVTfl-T-GlJ-N8oYg";
-  const MISCONFIGURED_AUTH_REFS = ["eabvbtkxdbttjpdpbmuw", "hprmicwhlaaqfgshucec"];
+  const CANONICAL_PROJECT_ID = "hprmicwhlaaqfgshucec";
+  const CANONICAL_URL = `https://${CANONICAL_PROJECT_ID}.supabase.co`;
+  const CANONICAL_KEY =
+    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imhwcm1pY3dobGFhcWZnc2h1Y2VjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjkwNDkwODgsImV4cCI6MjA4NDYyNTA4OH0.Lk72yBKNj3sRjf5E5DQ8TLBfXB2tbjTpAAb075hbMa4";
+  const LEGACY_REFS = ["eabvbtkxdbttjpdpbmuw", "agtcyxjxgkdyoxwxkjth"];
 
-  let projectId = env.VITE_SUPABASE_PROJECT_ID || AUTH_PROJECT_ID;
-  let supabaseUrl = env.VITE_SUPABASE_URL || `https://${projectId}.supabase.co`;
-  let publishableKey = env.VITE_SUPABASE_PUBLISHABLE_KEY || AUTH_KEY;
+  let projectId = env.VITE_SUPABASE_PROJECT_ID || CANONICAL_PROJECT_ID;
+  let supabaseUrl = env.VITE_SUPABASE_URL || CANONICAL_URL;
+  let publishableKey = env.VITE_SUPABASE_PUBLISHABLE_KEY || CANONICAL_KEY;
 
-  const needsAuthProject = MISCONFIGURED_AUTH_REFS.some(
+  const needsCanonicalRedirect = LEGACY_REFS.some(
     (ref) => projectId === ref || supabaseUrl.includes(ref),
   );
-  if (needsAuthProject) {
-    projectId = AUTH_PROJECT_ID;
-    supabaseUrl = AUTH_URL;
-    publishableKey = AUTH_KEY;
+  if (needsCanonicalRedirect) {
+    projectId = CANONICAL_PROJECT_ID;
+    supabaseUrl = CANONICAL_URL;
+    publishableKey = CANONICAL_KEY;
   }
   const offlineMode = env.VITE_OFFLINE_MODE || "pwa";
   const useDespiaLocal = offlineMode === "despia-local";

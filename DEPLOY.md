@@ -1,8 +1,8 @@
 # DEPLOY — VYBE (`vybehub.app`)
 
 Production web hosting is **Lovable Cloud** with custom domain **`vybehub.app`**.  
-Backend is **Supabase** project **`agtcyxjxgkdyoxwxkjth`** (live users + auth).  
-`hprmicwhlaaqfgshucec` is a separate sandbox — do not use for vybehub.app login.
+Backend is **Supabase** project **`hprmicwhlaaqfgshucec`** (auth, profiles, edge functions).
+Legacy refs (`agtcyxjxgkdyoxwxkjth`, `eabvbtkxdbttjpdpbmuw`) are not used — old sessions must sign in again on hprmic.
 
 | Environment | URL |
 |-------------|-----|

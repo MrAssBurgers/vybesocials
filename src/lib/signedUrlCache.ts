@@ -29,7 +29,6 @@ const LEGACY_SUPABASE_PROJECTS = [
   'eabvbtkxdbttjpdpbmuw',
   'agtcyxjxgkdyoxwxkjth',
   'szthqtnbepupjqjxaduu',
-  'hprmicwhlaaqfgshucec',
 ];
 
 function isProjectUrl(url: string): boolean {

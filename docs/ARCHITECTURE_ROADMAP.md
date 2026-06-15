@@ -69,4 +69,4 @@ Expand this file into full `docs/ARCHITECTURE.md` with:
 ## Deploy
 
 Web production: **Lovable → Share → Publish** → https://vybehub.app  
-Supabase project ref: `agtcyxjxgkdyoxwxkjth` (see `supabase/config.toml` and `AGENTS.md`)
+Supabase project ref: `hprmicwhlaaqfgshucec` (see `supabase/config.toml` and `AGENTS.md`)

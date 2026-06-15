@@ -163,7 +163,7 @@ the app needs the permission, or Apple rejects.
 <array>
   <string>vybehub.app</string>
   <string>www.vybehub.app</string>
-  <string>agtcyxjxgkdyoxwxkjth.supabase.co</string>
+  <string>hprmicwhlaaqfgshucec.supabase.co</string>
   <string>vybeapp.lovable.app</string>
 </array>
 ```
@@ -189,7 +189,7 @@ In the Apple Developer console:
 
 1. Identifiers → your App ID → enable **Sign in with Apple**
 2. Make sure the Services ID redirect URL points to:
-   `https://agtcyxjxgkdyoxwxkjth.supabase.co/auth/v1/callback`
+   `https://hprmicwhlaaqfgshucec.supabase.co/auth/v1/callback`
 
 ---
 

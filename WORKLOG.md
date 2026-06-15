@@ -4,6 +4,27 @@ Use this file as the Lovable -> Cursor handoff each session.
 
 **Links:** [Lovable project](https://lovable.dev/projects/416714c8-d013-4aff-984d-522418a9bbc7) · [Production](https://vybehub.app) · Deploy steps: `DEPLOY.md`
 
+## What Changed (canonical Supabase → hprmic only — 2026-06-15)
+- **User directive:** remove all `agtcyxjxgkdyoxwxkjth` production assumptions; user owns only `hprmicwhlaaqfgshucec`.
+- **`canonicalSupabase.ts`** — canonical project = hprmic; legacy redirect from agtcyx/eabvbt baked env → hprmic URL + anon key.
+- **`vite.config.ts`** — build define uses hprmic defaults; redirects legacy agtcyx/eabvbt → hprmic (removed agtcyx auth redirect).
+- **`index.html`** — preconnect/dns-prefetch → hprmic Supabase.
+- **`scripts/debug-scan.mjs`** — production probes target hprmic only.
+- **`AGENTS.md`**, **`DEPLOY.md`**, **`docs/ARCHITECTURE_ROADMAP.md`**, **`docs/IOS_SETUP.md`** — hprmic as sole project.
+- **`mediaUrl.ts`**, **`signedUrlCache.ts`** — agtcyx kept in legacy media rewrite list only (old stored URLs).
+- **Migrations/manual SQL:** unchanged (historical agtcyx URLs in SQL left as-is per scope).
+- **Verify:** `npm run build` PASS · `npm run lint` PASS (3 pre-existing warnings)
+- **Git:** commit + push (excludes `.env`, `.tmp-*`, accidental migration edits).
+
+## Current Focus
+- **You:** ensure Lovable Cloud `VITE_SUPABASE_*` env vars point at **hprmic** → Lovable Publish
+- **You:** apply pending SQL + deploy edge functions on **hprmic** (see Next 3 Tasks)
+
+## Next 3 Tasks
+1. **Supabase SQL Editor (hprmic):** paste `supabase/manual/PENDING_20260530.sql` + any missing RPC migrations
+2. **Deploy edge functions on hprmic:** `ai-chat`, `vybe-agent`, `auth-2fa-preauth`, etc. — set secrets (`LOVABLE_API_KEY`, `RESEND_API_KEY`)
+3. **Lovable → Share → Publish** → hard refresh vybehub.app → smoke login/signup on hprmic
+
 ## What Changed (auth login/signup deep scan — 2026-06-15)
 - **Root cause (signup):** `is_username_available` RPC **MISSING** on agtcyx → `signUp()` hard-failed with "Unable to verify username"; same RPC blocked onboarding username picker.
 - **Root cause (login UX):** Logged-in users with slow/missing profile hydration stayed on auth form (Landing required `authProfile.username` before redirect spinner).

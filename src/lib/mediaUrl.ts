@@ -5,7 +5,6 @@ const LEGACY_SUPABASE_REFS = [
   'szthqtnbepupjqjxaduu',
   'agtcyxjxgkdyoxwxkjth',
   'eabvbtkxdbttjpdpbmuw',
-  'hprmicwhlaaqfgshucec',
 ];
 
 const BLOCKED_MEDIA_PATTERNS = [

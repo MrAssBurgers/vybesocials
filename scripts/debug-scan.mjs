@@ -10,9 +10,8 @@ import { spawnSync } from 'node:child_process';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = join(__dirname, '..');
-const PROD_REF = 'agtcyxjxgkdyoxwxkjth';
+const PROD_REF = 'hprmicwhlaaqfgshucec';
 const PROD_URL = `https://${PROD_REF}.supabase.co`;
-const SANDBOX_REF = 'hprmicwhlaaqfgshucec';
 
 function run(cmd, args, opts = {}) {
   const r = spawnSync(cmd, args, { cwd: root, encoding: 'utf8', ...opts });
@@ -23,8 +22,8 @@ function section(title) {
   console.log(`\n=== ${title} ===`);
 }
 
-const CANONICAL_AGTCYX_ANON =
-  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFndGN5eGp4Z2tkeW94d3hranRoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzAyMjk5NTMsImV4cCI6MjA4NTgwNTk1M30.G92pPYU9K2z3yqXtN5R7WR_-EAIVTfl-T-GlJ-N8oYg';
+const CANONICAL_HPRMIC_ANON =
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imhwcm1pY3dobGFhcWZnc2h1Y2VjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjkwNDkwODgsImV4cCI6MjA4NDYyNTA4OH0.Lk72yBKNj3sRjf5E5DQ8TLBfXB2tbjTpAAb075hbMa4';
 
 function loadAnonKey() {
   for (const f of ['.env', '.env.local']) {
@@ -36,7 +35,7 @@ function loadAnonKey() {
       if (key.includes(PROD_REF)) return key;
     }
   }
-  return CANONICAL_AGTCYX_ANON;
+  return CANONICAL_HPRMIC_ANON;
 }
 
 async function probe(url, opts = {}) {
@@ -159,10 +158,9 @@ async function main() {
 
   section('Reminders');
   console.log('- Web deploy: Lovable → Share → Publish (vybehub.app)');
-  console.log(`- Supabase prod ref: ${PROD_REF} (live users — see DEPLOY.md)`);
-  console.log(`- Sandbox ref: ${SANDBOX_REF} — migration target only, not vybehub.app auth`);
-  console.log('- Edge functions: Lovable Backend deploy on agtcyx (ai-chat, vybe-agent, etc.)');
-  console.log('- SQL: apply supabase/manual/PENDING_20260530.sql on agtcyx if RPCs MISSING');
+  console.log(`- Supabase prod ref: ${PROD_REF} (see DEPLOY.md)`);
+  console.log('- Edge functions: deploy on hprmic (ai-chat, vybe-agent, etc.)');
+  console.log('- SQL: apply supabase/manual/PENDING_20260530.sql on hprmic if RPCs MISSING');
 }
 
 main().catch((e) => {
