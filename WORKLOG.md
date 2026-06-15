@@ -4,6 +4,22 @@ Use this file as the Lovable -> Cursor handoff each session.
 
 **Links:** [Lovable project](https://lovable.dev/projects/416714c8-d013-4aff-984d-522418a9bbc7) · [Production](https://vybehub.app) · Deploy steps: `DEPLOY.md`
 
+## Publish prep (2026-06-15 — user requested ship)
+- **Git:** `main` @ `94c35fd7` synced with `origin/main` (login UX + hprmic switch + auth fixes)
+- **Build:** `npm run build` PASS · local main `index-B5IgHIXw.js` · Landing `Landing-CjCJmolp.js` (has migration login copy)
+- **Prod now (pre-publish):** `index-Ct8Z2p_t.js` · Landing `Landing-Avt62Skb.js` · SW **v13** · Supabase preconnect **hprmic** only
+- **Gap:** prod Landing chunk missing `No matching account on VYBE…` toast + SW still v13 (repo has v14) → **publish required**
+- **Automated publish:** none in repo (`DEPLOY.md` — Lovable Share → Publish only; agents cannot trigger)
+- **After publish expect:** new `index-*.js` hash (≠ `Ct8Z2p_t`) · Landing chunk includes migration login copy · `/sw.js` → `vybe-v14` · `despia/local.json` `deployed_at` bumps
+
+## Current Focus
+- **You:** Lovable → Share → Publish → hard refresh / private window on vybehub.app
+
+## Next 3 Tasks
+1. **Lovable Publish** → verify bundle hash changes + SW v14 + Landing migration toast
+2. **barron.bakic@gmail.com:** Forgot password on vybehub.app → set hprmic password → login
+3. **Supabase SQL Editor (hprmic):** paste `supabase/manual/PENDING_20260530.sql` + deploy edge functions
+
 ## What Changed (login instant invalid creds — hprmic migration — 2026-06-15)
 - **Root cause:** `barron.bakic@gmail.com` (and ~31 live accounts) exist on **agtcyx** auth; vybehub.app + local bundle correctly target **hprmic** (`index-Ct8Z2p_t.js` prod · `index-DIjNgQr7.js` local). `signInWithPassword` → `invalid_credentials` is expected when using an agtcyx-only password — not a premature client error or wrong URL/key in the published bundle.
 - **Probe (curl):** agtcyx signup → `user_already_exists` · hprmic signup → new account creatable (separate auth DB) · prod JWT ref = `hprmicwhlaaqfgshucec` only.
