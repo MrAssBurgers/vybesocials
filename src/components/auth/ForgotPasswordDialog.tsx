@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Mail, CheckCircle, ArrowLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -11,12 +11,19 @@ import { normalizeLoginEmail } from '@/lib/loginEmail';
 interface ForgotPasswordDialogProps {
   open: boolean;
   onClose: () => void;
+  initialEmail?: string;
 }
 
-export function ForgotPasswordDialog({ open, onClose }: ForgotPasswordDialogProps) {
-  const [email, setEmail] = useState('');
+export function ForgotPasswordDialog({ open, onClose, initialEmail = '' }: ForgotPasswordDialogProps) {
+  const [email, setEmail] = useState(initialEmail);
   const [loading, setLoading] = useState(false);
   const [sent, setSent] = useState(false);
+
+  useEffect(() => {
+    if (open && initialEmail.trim()) {
+      setEmail(normalizeLoginEmail(initialEmail));
+    }
+  }, [open, initialEmail]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

@@ -1,9 +1,8 @@
-/** User-facing copy when Supabase returns invalid_credentials (wrong password or no account on this project). */
+/** User-facing copy when Supabase returns invalid_credentials (wrong password or unknown email). */
 export function getLoginCredentialErrorMessage(): string {
   return (
-    'No matching account on VYBE\'s current servers. ' +
-    'Tap Forgot password to set a password for this email, or sign up if you have not created an account here yet. ' +
-    'Google or Apple sign-in only works if you linked that provider on this site.'
+    'Invalid email or password. Tap Forgot password to set a new password for this email, ' +
+    'or Sign up if you have not created an account yet. Google or Apple only works if you linked that provider here.'
   );
 }
 

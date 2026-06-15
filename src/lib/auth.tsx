@@ -933,6 +933,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         password,
       });
 
+      // #region agent log
+      fetch('http://127.0.0.1:7261/ingest/50637484-d3e0-47cb-9fea-f484edc6e98d',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'d7bed4'},body:JSON.stringify({sessionId:'d7bed4',location:'auth.tsx:signIn',message:'signInWithPassword result',data:{ok:!error,errorCode:(error as {code?:string})?.code??null,errorMsg:error?.message??null},timestamp:Date.now(),hypothesisId:'H1'})}).catch(()=>{});
+      // #endregion
+
       if (error) throw error;
       return { error: null };
     } catch (error) {

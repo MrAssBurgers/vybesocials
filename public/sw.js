@@ -1,8 +1,8 @@
 // VYBE Service Worker
-// Version 14.0 — hprmic auth migration UX + legacy session purge (2026-06-15)
+// Version 15.0 — login copy fix + feed loads without profile gate (2026-06-15)
 
-const CACHE_NAME = 'vybe-v14';
-const STATIC_CACHE = 'vybe-static-v14';
+const CACHE_NAME = 'vybe-v15';
+const STATIC_CACHE = 'vybe-static-v15';
 const MEDIA_CACHE = 'vybe-media-v2';
 const SHELL_CACHE = 'vybe-shell-v4';
 const ASSETS_CACHE = 'vybe-assets-v4';

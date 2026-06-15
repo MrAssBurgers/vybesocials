@@ -365,7 +365,8 @@ export function usePersonalizedFeed(
   const blockedIds = useBlockedUserIds();
   const tabEnabled = options?.enabled !== false;
   const profileId = getEffectiveProfileId(profile?.id);
-  const enabled = tabEnabled && (!user || !!profileId);
+  // Run even while profile hydrates — cold-start uses get_trending_feed when profileId is missing.
+  const enabled = tabEnabled;
 
   return useInfiniteQuery({
     queryKey: ['personalized-feed-v2', type, profileId, blockedIds.length],
@@ -374,13 +375,16 @@ export function usePersonalizedFeed(
       const offset = pageParam === 0 ? 0 : INITIAL_PAGE_SIZE + (pageParam - 1) * PAGE_SIZE;
       const blocked = new Set(blockedIds);
 
-      // Cold start (signed-out / no profile): fall back to trending
+      // Cold start (signed-out / profile still loading): fall back to trending
       if (!profileId) {
         const { data, error } = await supabase.rpc('get_trending_feed', {
           p_content_type: type || 'post',
           p_page: pageParam,
           p_page_size: limit,
         } as any);
+        // #region agent log
+        fetch('http://127.0.0.1:7261/ingest/50637484-d3e0-47cb-9fea-f484edc6e98d',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'d7bed4'},body:JSON.stringify({sessionId:'d7bed4',location:'useInfinitePosts.ts:trending',message:'personalized feed cold start',data:{hasUser:!!user,hasProfileId:!!profileId,postCount:(data||[]).length,error:error?.message??null},timestamp:Date.now(),hypothesisId:'H3'})}).catch(()=>{});
+        // #endregion
         if (error) throw error;
         const posts = (data || []).map((r: any) => ({
           id: r.post_id ?? r.id,

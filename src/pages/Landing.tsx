@@ -929,9 +929,10 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
 
       {/* Touch ripple removed */}
 
-      <ForgotPasswordDialog 
-        open={showForgotPassword} 
-        onClose={() => setShowForgotPassword(false)} 
+      <ForgotPasswordDialog
+        open={showForgotPassword}
+        onClose={() => setShowForgotPassword(false)}
+        initialEmail={formData.email}
       />
 
       {loginGate && (
