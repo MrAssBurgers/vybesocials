@@ -27,6 +27,7 @@ import { checkUsernameAvailable } from '@/lib/usernameAvailability';
 import { startHeartbeat, stopHeartbeat } from '@/lib/analytics';
 import { removeRealtimeChannel, subscribePostgresChannel } from '@/lib/realtimeChannel';
 import { normalizeLoginEmail } from '@/lib/loginEmail';
+import { isPasswordRecoveryUrl, redirectToPasswordRecoveryPage } from '@/lib/passwordRecoveryUrl';
 
 /** Fail-soft — production may not have deployed sync_signup_username yet. */
 async function trySyncSignupUsername(): Promise<string | null> {
@@ -510,12 +511,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // ──────────────────────────────────────────────────────────────────────
     const extractHashTokens = async () => {
       const hash = window.location.hash;
+
+      // Recovery links must land on /reset-password — never consume as OAuth login.
+      try {
+        if (isPasswordRecoveryUrl(new URL(window.location.href))) {
+          redirectToPasswordRecoveryPage();
+          return false;
+        }
+      } catch {
+        /* ignore */
+      }
+
       if (!hash || !hash.includes('access_token')) return false;
 
       try {
         const params = new URLSearchParams(hash.substring(1));
         const access_token = params.get('access_token');
         const refresh_token = params.get('refresh_token');
+        const type = params.get('type');
+
+        if (type === 'recovery') {
+          redirectToPasswordRecoveryPage();
+          return false;
+        }
 
         if (access_token && refresh_token) {
           logEvent('auth', 'Hash tokens detected — manually setting session');
@@ -585,6 +603,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         logEvent('auth', `onAuthStateChange: ${event}`, { hasSession: !!session });
+
+        if (event === 'PASSWORD_RECOVERY') {
+          redirectToPasswordRecoveryPage();
+          setLoading(false);
+          setIsInitialized(true);
+          authInitializedRef.current = true;
+          return;
+        }
 
         if (event === 'SIGNED_IN' && session?.user) {
           stripStaleOnboardingFlagFromDisk();

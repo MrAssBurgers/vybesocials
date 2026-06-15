@@ -204,6 +204,7 @@ export function AnimatedRoutes() {
             <Route path="/local" element={<LocalIndex />} />
             <Route path="/local/:city" element={<LocalCity />} />
             <Route path="/reset-password" element={<ResetPassword />} />
+            <Route path="/auth/reset-password" element={<ResetPassword />} />
             <Route path="/unsubscribe" element={<Unsubscribe />} />
             <Route path="/auth/callback" element={<AuthCallback />} />
             <Route path="/spotify/callback" element={<SpotifyCallback />} />

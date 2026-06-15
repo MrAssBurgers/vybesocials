@@ -1,8 +1,8 @@
 // VYBE Service Worker
-// Version 15.0 — login copy fix + feed loads without profile gate (2026-06-15)
+// Version 16.0 — password recovery link routing fix (2026-06-15)
 
-const CACHE_NAME = 'vybe-v15';
-const STATIC_CACHE = 'vybe-static-v15';
+const CACHE_NAME = 'vybe-v16';
+const STATIC_CACHE = 'vybe-static-v16';
 const MEDIA_CACHE = 'vybe-media-v2';
 const SHELL_CACHE = 'vybe-shell-v4';
 const ASSETS_CACHE = 'vybe-assets-v4';

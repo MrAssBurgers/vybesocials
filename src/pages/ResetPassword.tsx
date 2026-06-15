@@ -9,6 +9,51 @@ import { Eye, EyeOff, Lock, CheckCircle, Loader2, AlertTriangle } from 'lucide-r
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
+async function establishRecoverySession(): Promise<{ ok: true } | { ok: false; message: string }> {
+  const url = new URL(window.location.href);
+  const hashParams = new URLSearchParams(url.hash.replace(/^#/, ''));
+  const queryParams = url.searchParams;
+
+  const code = queryParams.get('code') || hashParams.get('code');
+  const tokenHash = queryParams.get('token_hash');
+  const type = queryParams.get('type') || hashParams.get('type');
+
+  // #region agent log
+  fetch('http://127.0.0.1:7261/ingest/50637484-d3e0-47cb-9fea-f484edc6e98d',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'d7bed4'},body:JSON.stringify({sessionId:'d7bed4',location:'ResetPassword.tsx:establishRecoverySession',message:'recovery url parsed',data:{hasCode:!!code,hasTokenHash:!!tokenHash,type:type??null,path:url.pathname},timestamp:Date.now(),hypothesisId:'H2'})}).catch(()=>{});
+  // #endregion
+
+  if (code) {
+    const { error } = await supabase.auth.exchangeCodeForSession(code);
+    if (error) return { ok: false, message: error.message || 'Invalid or expired reset link.' };
+    window.history.replaceState(null, '', url.pathname);
+    return { ok: true };
+  }
+
+  if (tokenHash && type === 'recovery') {
+    const { error } = await supabase.auth.verifyOtp({ token_hash: tokenHash, type: 'recovery' });
+    if (error) return { ok: false, message: error.message || 'Invalid or expired reset link.' };
+    window.history.replaceState(null, '', url.pathname);
+    return { ok: true };
+  }
+
+  const accessToken = hashParams.get('access_token');
+  const refreshToken = hashParams.get('refresh_token');
+  if (accessToken && refreshToken && type === 'recovery') {
+    const { error } = await supabase.auth.setSession({
+      access_token: accessToken,
+      refresh_token: refreshToken,
+    });
+    if (error) return { ok: false, message: error.message || 'Invalid or expired reset link.' };
+    window.history.replaceState(null, '', url.pathname);
+    return { ok: true };
+  }
+
+  const { data: { session } } = await supabase.auth.getSession();
+  if (session) return { ok: true };
+
+  return { ok: false, message: 'Invalid or expired reset link. Please request a new one.' };
+}
+
 export default function ResetPassword() {
   const navigate = useNavigate();
   const [password, setPassword] = useState('');
@@ -21,43 +66,43 @@ export default function ResetPassword() {
   const [tokenValid, setTokenValid] = useState(false);
 
   useEffect(() => {
-    // Listen for the PASSWORD_RECOVERY event from Supabase
-    // The generateLink recovery URL will trigger this event when the page loads
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      console.log('[ResetPassword] Auth event:', event);
-      if (event === 'PASSWORD_RECOVERY') {
-        setTokenValid(true);
-        setChecking(false);
-      } else if (event === 'SIGNED_IN' && session) {
-        // Recovery link may also come through as SIGNED_IN
-        setTokenValid(true);
-        setChecking(false);
+    let cancelled = false;
+    let recoveryTimer: ReturnType<typeof setTimeout> | null = null;
+
+    const finishOk = () => {
+      if (cancelled) return;
+      setTokenValid(true);
+      setChecking(false);
+    };
+
+    const finishErr = (message: string) => {
+      if (cancelled) return;
+      setError(message);
+      setChecking(false);
+    };
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+      if (event === 'PASSWORD_RECOVERY' || event === 'SIGNED_IN') {
+        finishOk();
       }
     });
 
-    // Also check if already in a recovery session
-    const checkSession = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session) {
-        setTokenValid(true);
-        setChecking(false);
+    void (async () => {
+      const result = await establishRecoverySession();
+      if (cancelled) return;
+      if (result.ok) {
+        finishOk();
         return;
       }
-      // Give Supabase time to process the recovery hash
-      setTimeout(() => {
-        setChecking((prev) => {
-          if (prev) {
-            setError('Invalid or expired reset link. Please request a new one.');
-            return false;
-          }
-          return prev;
-        });
-      }, 4000);
-    };
 
-    checkSession();
+      recoveryTimer = setTimeout(() => {
+        if (!cancelled) finishErr(result.message);
+      }, 2500);
+    })();
 
     return () => {
+      cancelled = true;
+      if (recoveryTimer) clearTimeout(recoveryTimer);
       subscription.unsubscribe();
     };
   }, []);
