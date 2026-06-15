@@ -25,6 +25,8 @@ import { LoginGateModal } from '@/components/auth/LoginGateModal';
 import { FounderCounter } from '@/components/growth/FounderCounter';
 import { getAuthRedirectUrl } from '@/lib/authRedirect';
 import { normalizeLoginEmail } from '@/lib/loginEmail';
+import { getLoginCredentialErrorMessage, isInvalidLoginCredentialError } from '@/lib/loginErrors';
+import { clearLegacySupabaseAuthStorage } from '@/lib/supabaseStorageKey';
 import { isGeneratedUsername } from '@/lib/username';
 import { VybeLiquidBackground } from '@/components/effects/VybeLiquidBackground';
 import { VybeLiquidTouchOverlay } from '@/components/effects/VybeLiquidTouchOverlay';
@@ -335,11 +337,9 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
         setGatePending(false);
 
         if (error) {
-          const msg = (error.message || '').toLowerCase();
-          if (msg.includes('invalid') || msg.includes('credential')) {
-            throw createHandledLoginError(
-              'Invalid email or password. Use Google or Apple if you signed up that way, or tap Forgot password.',
-            );
+          if (isInvalidLoginCredentialError(error)) {
+            clearLegacySupabaseAuthStorage();
+            throw createHandledLoginError(getLoginCredentialErrorMessage());
           }
           throw error;
         }
@@ -408,6 +408,14 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
               },
             },
             duration: 8000,
+          });
+        } else if (isLogin && (error?.isHandledLoginError || isInvalidLoginCredentialError(error))) {
+          toast.error(message, {
+            duration: 10000,
+            action: {
+              label: 'Forgot password',
+              onClick: () => setShowForgotPassword(true),
+            },
           });
         } else {
           toast.error(message);

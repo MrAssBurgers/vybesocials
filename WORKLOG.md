@@ -4,6 +4,26 @@ Use this file as the Lovable -> Cursor handoff each session.
 
 **Links:** [Lovable project](https://lovable.dev/projects/416714c8-d013-4aff-984d-522418a9bbc7) · [Production](https://vybehub.app) · Deploy steps: `DEPLOY.md`
 
+## What Changed (login instant invalid creds — hprmic migration — 2026-06-15)
+- **Root cause:** `barron.bakic@gmail.com` (and ~31 live accounts) exist on **agtcyx** auth; vybehub.app + local bundle correctly target **hprmic** (`index-Ct8Z2p_t.js` prod · `index-DIjNgQr7.js` local). `signInWithPassword` → `invalid_credentials` is expected when using an agtcyx-only password — not a premature client error or wrong URL/key in the published bundle.
+- **Probe (curl):** agtcyx signup → `user_already_exists` · hprmic signup → new account creatable (separate auth DB) · prod JWT ref = `hprmicwhlaaqfgshucec` only.
+- **`loginErrors.ts`** — shared `isInvalidLoginCredentialError` + migration-aware message.
+- **`Landing.tsx`** — invalid-creds toast with **Forgot password** action; purge legacy agtcyx/eabvbt localStorage on failed login.
+- **`supabaseStorageKey.ts`** — `clearLegacySupabaseAuthStorage()`.
+- **`errorUtils.ts`**, **`ForgotPasswordDialog.tsx`** — aligned copy + normalized email on reset.
+- **`public/sw.js`** — v14 cache bust.
+- **Verify:** `npm run build` PASS · `npm run lint` PASS (3 pre-existing warnings)
+- **Git:** commit + push (excludes `.env`)
+
+## Current Focus
+- **You:** Lovable → Share → Publish → hard refresh vybehub.app
+- **You (barron.bakic@gmail.com):** **Forgot password** on vybehub.app (sets password on hprmic) OR **Sign up** same email on hprmic — agtcyx password does not carry over
+
+## Next 3 Tasks
+1. **Lovable Publish** → confirm bundle hash changes from `index-Ct8Z2p_t.js`
+2. **barron.bakic@gmail.com:** Forgot password on vybehub.app → set new password on hprmic → login
+3. **Supabase SQL Editor (hprmic):** paste `supabase/manual/PENDING_20260530.sql` + deploy edge functions
+
 ## What Changed (canonical Supabase → hprmic only — 2026-06-15)
 - **User directive:** remove all `agtcyxjxgkdyoxwxkjth` production assumptions; user owns only `hprmicwhlaaqfgshucec`.
 - **`canonicalSupabase.ts`** — canonical project = hprmic; legacy redirect from agtcyx/eabvbt baked env → hprmic URL + anon key.

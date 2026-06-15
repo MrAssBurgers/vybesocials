@@ -1,8 +1,8 @@
 // VYBE Service Worker
-// Version 13.0 — auth fail-soft + login redirect fix (2026-06-15)
+// Version 14.0 — hprmic auth migration UX + legacy session purge (2026-06-15)
 
-const CACHE_NAME = 'vybe-v13';
-const STATIC_CACHE = 'vybe-static-v13';
+const CACHE_NAME = 'vybe-v14';
+const STATIC_CACHE = 'vybe-static-v14';
 const MEDIA_CACHE = 'vybe-media-v2';
 const SHELL_CACHE = 'vybe-shell-v4';
 const ASSETS_CACHE = 'vybe-assets-v4';

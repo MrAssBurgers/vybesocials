@@ -161,6 +161,19 @@ export function getStoredAuthUserId(): string | null {
   }
 }
 
+/** Drop sessions from legacy Supabase projects after switching canonical auth to hprmic. */
+export function clearLegacySupabaseAuthStorage(): void {
+  try {
+    for (const ref of KNOWN_LEGACY_SUPABASE_REFS) {
+      const key = authStorageKeyForRef(ref);
+      localStorage.removeItem(key);
+      localStorage.removeItem(`${key}${BACKUP_SUFFIX}`);
+    }
+  } catch {
+    /* ignore */
+  }
+}
+
 /** Repair primary/backup pair and migrate legacy keys before auth client reads storage. */
 export function repairSupabaseAuthStorage(): void {
   try {

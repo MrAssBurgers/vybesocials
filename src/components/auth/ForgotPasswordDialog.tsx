@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 import { requestPasswordReset } from '@/lib/authReset';
+import { normalizeLoginEmail } from '@/lib/loginEmail';
 
 interface ForgotPasswordDialogProps {
   open: boolean;
@@ -28,7 +29,7 @@ export function ForgotPasswordDialog({ open, onClose }: ForgotPasswordDialogProp
     setLoading(true);
 
     try {
-      await requestPasswordReset(email.trim());
+      await requestPasswordReset(normalizeLoginEmail(email));
 
       setSent(true);
       toast.success('If that email exists, we sent a reset link.');
