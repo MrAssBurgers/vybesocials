@@ -10,6 +10,7 @@ import {
   isPreviewFounderUser,
   isPreviewSandbox,
   LEGACY_FOUNDER_AUTH_ID,
+  FIREBASE_FOUNDER_AUTH_ID,
 } from '@/lib/previewSandbox';
 
 // Owner username - must match OwnerBadge.tsx
@@ -20,6 +21,7 @@ const OWNER_USERNAME = 'mrassburgers';
 // the founder never loses access on Live.
 const OWNER_AUTH_ID_ALLOWLIST = new Set<string>([
   LEGACY_FOUNDER_AUTH_ID,
+  FIREBASE_FOUNDER_AUTH_ID,
 ]);
 
 // Cache the owner status to avoid repeated checks

@@ -19,6 +19,7 @@ import { createRealtimeChannel, getActiveChannels, removeChannelByTopic } from '
 import type { VybeAuthError } from './types';
 import type { QueryConstraint } from 'firebase/firestore';
 import {
+  FIREBASE_FOUNDER_AUTH_ID,
   isPreviewFounderUser,
   isPreviewSandbox,
   LEGACY_FOUNDER_AUTH_ID,
@@ -463,6 +464,7 @@ async function rpcGetMyHighestRole(): Promise<string | null> {
   if (!user) return null;
   if (isPreviewSandbox() && isPreviewFounderUser(user)) return 'owner';
   if (user.id === LEGACY_FOUNDER_AUTH_ID) return 'owner';
+  if (user.id === FIREBASE_FOUNDER_AUTH_ID) return 'owner';
 
   const [profileRoles, authRoles] = await Promise.all([
     getDocuments<{ role?: string }>('user_roles', [where('user_id', '==', user.id)]),

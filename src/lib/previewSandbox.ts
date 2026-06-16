@@ -7,6 +7,9 @@ export const PREVIEW_FOUNDER_USERNAMES = ['bakrix', 'mrassburgers'] as const;
 /** Legacy Supabase auth UUID — still honored when present. */
 export const LEGACY_FOUNDER_AUTH_ID = '703760a8-1245-4fc1-b242-32619ecc0ef3';
 
+/** Firebase Auth UID for barron.bakic@gmail.com (vybe-daaab). */
+export const FIREBASE_FOUNDER_AUTH_ID = 'oXZZXoceCdOaCKekqNrDhCfJ90M2';
+
 export function isPreviewSandbox(): boolean {
   return isLovablePreviewHost();
 }
@@ -28,6 +31,7 @@ type FounderUserLike = {
 export function isPreviewFounderUser(user: FounderUserLike): boolean {
   if (!user?.id) return false;
   if (user.id === LEGACY_FOUNDER_AUTH_ID) return true;
+  if (user.id === FIREBASE_FOUNDER_AUTH_ID) return true;
   const email = (user.email || '').trim().toLowerCase();
   if (email === PREVIEW_FOUNDER_EMAIL) return true;
   const username = String(
