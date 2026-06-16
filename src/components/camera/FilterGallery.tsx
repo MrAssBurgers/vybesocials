@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import { ARFilterDef } from '@/lib/arFilters';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
@@ -37,7 +37,7 @@ export const FilterGallery = memo(function FilterGallery({
   const { data: filters = [], isLoading } = useQuery({
     queryKey: ['community-filters', sort],
     queryFn: async () => {
-      const q = supabase
+      const q = db
         .from('community_filters')
         .select(`
           *,
@@ -59,7 +59,7 @@ export const FilterGallery = memo(function FilterGallery({
     queryKey: ['community-filter-likes', profile?.id],
     queryFn: async () => {
       if (!profile) return [];
-      const { data } = await supabase
+      const { data } = await db
         .from('community_filter_likes')
         .select('filter_id')
         .eq('user_id', profile.id);
@@ -90,7 +90,7 @@ export const FilterGallery = memo(function FilterGallery({
     triggerHaptic('medium');
 
     // Increment use count (fire and forget)
-    supabase
+    db
       .from('community_filters')
       .update({ use_count: (filter.use_count || 0) + 1 })
       .eq('id', filter.id)
@@ -102,13 +102,13 @@ export const FilterGallery = memo(function FilterGallery({
     const isLiked = likedSet.has(filterId);
 
     if (isLiked) {
-      await supabase
+      await db
         .from('community_filter_likes')
         .delete()
         .eq('filter_id', filterId)
         .eq('user_id', profile.id);
     } else {
-      await supabase
+      await db
         .from('community_filter_likes')
         .insert({ filter_id: filterId, user_id: profile.id });
     }

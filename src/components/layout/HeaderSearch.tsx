@@ -7,7 +7,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { useQuery } from '@tanstack/react-query';
 import { cn } from '@/lib/utils';
 
@@ -154,7 +154,7 @@ export const HeaderSearch = React.forwardRef<HTMLDivElement, { className?: strin
       const results: SearchResult[] = [];
 
       // Search users
-      const { data: users } = await supabase
+      const { data: users } = await db
         .from('profiles')
         .select('id, username, display_name, avatar_url, is_verified')
         .or(`username.ilike.%${debouncedQuery}%,display_name.ilike.%${debouncedQuery}%`)
@@ -173,7 +173,7 @@ export const HeaderSearch = React.forwardRef<HTMLDivElement, { className?: strin
       }
 
       // Search posts by caption
-      const { data: posts } = await supabase
+      const { data: posts } = await db
         .from('posts')
         .select('id, caption, media_url, type')
         .ilike('caption', `%${debouncedQuery}%`)
@@ -192,7 +192,7 @@ export const HeaderSearch = React.forwardRef<HTMLDivElement, { className?: strin
       }
 
       // Search listings
-      const { data: listings } = await supabase
+      const { data: listings } = await db
         .from('listings')
         .select('id, title, price, images, category')
         .ilike('title', `%${debouncedQuery}%`)

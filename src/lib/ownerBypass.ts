@@ -5,7 +5,7 @@
  * The owner can bypass AI content safety scanners (when enabled via Owner Settings).
  */
 
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 
 // Owner username - must match OwnerBadge.tsx
 const OWNER_USERNAME = 'mrassburgers';
@@ -29,7 +29,7 @@ const BYPASS_CACHE_TTL = 30_000; // 30 seconds
  */
 export async function isCurrentUserOwner(): Promise<boolean> {
   try {
-    const { data: { user } } = await supabase.auth.getUser();
+    const { data: { user } } = await db.auth.getUser();
     if (!user) return false;
 
     // Hard-coded safety net: founder is ALWAYS owner.
@@ -44,7 +44,7 @@ export async function isCurrentUserOwner(): Promise<boolean> {
     }
 
     // Server-validated role via SECURITY DEFINER RPC (authoritative)
-    const { data, error } = await supabase.rpc('is_owner', { _user_id: user.id });
+    const { data, error } = await db.rpc('is_owner', { _user_id: user.id });
     if (error) {
       console.error('is_owner RPC failed:', error);
       return false; // Fail closed
@@ -71,7 +71,7 @@ export async function isOwnerBypassEnabled(): Promise<boolean> {
   }
 
   try {
-    const { data } = await supabase
+    const { data } = await db
       .from('app_secrets')
       .select('value')
       .eq('key', 'OWNER_AI_BYPASS_ENABLED')

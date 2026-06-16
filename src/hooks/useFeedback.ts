@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth';
 import { toast } from 'sonner';
 
@@ -27,7 +27,7 @@ export function useFeedback() {
   return useQuery({
     queryKey: ['feedback', profile?.id],
     queryFn: async () => {
-      const { data: feedback, error } = await supabase
+      const { data: feedback, error } = await db
         .from('feedback')
         .select(`
           *,
@@ -39,7 +39,7 @@ export function useFeedback() {
 
       // Check if current user has liked each feedback
       if (profile?.id) {
-        const { data: likes } = await supabase
+        const { data: likes } = await db
           .from('feedback_likes')
           .select('feedback_id')
           .eq('user_id', profile.id);
@@ -68,7 +68,7 @@ export function useCreateFeedback() {
     mutationFn: async ({ type, message }: { type: string; message: string }) => {
       if (!profile?.id) throw new Error('Not authenticated');
 
-      const { error } = await supabase.from('feedback').insert({
+      const { error } = await db.from('feedback').insert({
         user_id: profile.id,
         type,
         message,
@@ -96,7 +96,7 @@ export function useLikeFeedback() {
       if (!profile?.id) throw new Error('Not authenticated');
 
       if (unlike) {
-        const { error } = await supabase
+        const { error } = await db
           .from('feedback_likes')
           .delete()
           .eq('feedback_id', feedbackId)
@@ -104,7 +104,7 @@ export function useLikeFeedback() {
 
         if (error) throw error;
       } else {
-        const { error } = await supabase.from('feedback_likes').insert({
+        const { error } = await db.from('feedback_likes').insert({
           feedback_id: feedbackId,
           user_id: profile.id,
         });
@@ -123,7 +123,7 @@ export function useUpdateFeedbackStatus() {
 
   return useMutation({
     mutationFn: async ({ id, status }: { id: string; status: string }) => {
-      const { error } = await supabase
+      const { error } = await db
         .from('feedback')
         .update({ status, updated_at: new Date().toISOString() })
         .eq('id', id);

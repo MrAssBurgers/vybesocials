@@ -6,7 +6,7 @@
 import { memo, useEffect, useState, useCallback } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Check, Plus } from 'lucide-react';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth';
 import { useQueryClient } from '@tanstack/react-query';
 import { triggerHaptic } from '@/lib/haptics';
@@ -42,7 +42,7 @@ export const FollowPlusButton = memo(function FollowPlusButton({
       return;
     }
     (async () => {
-      const { data } = await supabase
+      const { data } = await db
         .from('follows')
         .select('id')
         .eq('follower_id', profile.id)
@@ -67,7 +67,7 @@ export const FollowPlusButton = memo(function FollowPlusButton({
     triggerHaptic('success');
 
     // Optimistic DB write
-    const { error } = await supabase.from('follows').insert({
+    const { error } = await db.from('follows').insert({
       follower_id: profile.id,
       following_id: authorId,
     });
@@ -80,7 +80,7 @@ export const FollowPlusButton = memo(function FollowPlusButton({
     }
 
     // Fire notification (best effort)
-    supabase.from('notifications').insert({
+    db.from('notifications').insert({
       user_id: authorId,
       type: 'follow',
       actor_id: profile.id,

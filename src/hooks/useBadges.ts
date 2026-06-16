@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth';
 
 export interface Badge {
@@ -40,7 +40,7 @@ export function useAllBadges() {
   return useQuery({
     queryKey: ['all-badges'],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('badges')
         .select('*')
         .order('priority', { ascending: true });
@@ -62,7 +62,7 @@ export function useUserBadges(userId: string | undefined) {
       if (!userId) return [];
       
       // Use the new RPC function that resolves profile ID → auth user_id
-      const { data, error } = await supabase
+      const { data, error } = await db
         .rpc('get_user_badges_by_profile', { p_profile_id: userId });
       
       if (error) throw error;
@@ -107,7 +107,7 @@ export function useUserPrimaryBadge(userId: string | undefined) {
     queryFn: async () => {
       if (!userId) return null;
       
-      const { data, error } = await supabase
+      const { data, error } = await db
         .rpc('get_user_primary_badge', { p_user_id: userId });
       
       if (error) throw error;
@@ -135,7 +135,7 @@ export function useUpdateBadgeSettings() {
     }) => {
       if (!profile) throw new Error('Not authenticated');
       
-      const { error } = await supabase
+      const { error } = await db
         .from('user_badges')
         .update(updates)
         .eq('user_id', profile.id)
@@ -166,7 +166,7 @@ export function useAwardBadge() {
       badgeId: string;
       expiresAt?: string;
     }) => {
-      const { data, error } = await supabase
+      const { data, error } = await db
         .rpc('award_badge', {
           p_user_id: userId,
           p_badge_id: badgeId,
@@ -196,7 +196,7 @@ export function useRemoveBadge() {
       userId: string;
       badgeId: string;
     }) => {
-      const { error } = await supabase
+      const { error } = await db
         .from('user_badges')
         .delete()
         .eq('user_id', userId)

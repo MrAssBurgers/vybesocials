@@ -19,9 +19,9 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { getEdgeFunctionUrl, getFunctionAuthHeaders, isLegacySupabaseProject, formatAiChatError } from '@/lib/functionAuth';
+import { getEdgeFunctionUrl, getFunctionAuthHeaders, formatAiChatError } from '@/lib/functionAuth';
 import { getCanonicalPublishableKey } from '@/lib/canonicalSupabase';
-import { fetchWithTimeout } from '@/lib/withTimeout';
+import { formatFirebaseAiError, isAiLogicConfigured, streamVybeAiChat } from '@/lib/firebase';
 import { useVybeAgent, shouldFallbackToAiChat, isAgentAuthError, isAgentUnavailableError } from '@/lib/agent/useVybeAgent';
 import { shouldSkipAgentDueToAuth, clearAgentAuthFailure, messageWantsCloudAgent } from '@/lib/agent/aiChatRouting';
 import { parseLocalAgentPlan } from '@/lib/agent/localAgentCommands';
@@ -68,7 +68,6 @@ const QUICK_PROMPTS = [
   '🧬 What does my DNA say?',
 ];
 
-const AI_CHAT_FETCH_MS = 45_000;
 const AI_CHAT_STREAM_MS = 90_000;
 const AI_CHAT_STREAM_IDLE_MS = 15_000;
 
@@ -367,135 +366,41 @@ export default function AIChat() {
         }
       }
 
-      let headers: Record<string, string>;
-      try {
-        headers = await getFunctionAuthHeaders();
-      } catch (authErr) {
-        appendAssistantReply(formatAiChatError(authErr));
+      if (!isAiLogicConfigured()) {
+        appendAssistantReply('VYBE AI requires Firebase configuration. Check your environment variables.');
         return;
       }
-      const body: Record<string, unknown> = {
-        messages: chatHistory,
-        aiName,
-        aiPersonality,
-        model: 'gemini-flash',
-        feedDNA,
-        location: userLocation ? { lat: userLocation.lat, lng: userLocation.lng, city: userLocation.city } : null,
-        image_base64: imageBase64,
-        image_mime_type: imageMimeType,
-      };
-
-      const response = await fetchWithTimeout(
-        getEdgeFunctionUrl('ai-chat'),
-        { method: 'POST', headers, body: JSON.stringify(body) },
-        AI_CHAT_FETCH_MS,
-      );
-
-      if (!response.ok) {
-        let errMsg = 'Failed to get response';
-        try {
-          const errData = await response.json();
-          errMsg = errData.error || errData.message || errMsg;
-        } catch {
-          // ignore parse errors
-        }
-        if (response.status === 429) {
-          const rateMsg = 'Too many requests. Wait a moment.';
-          toast.error(rateMsg);
-          appendAssistantReply(rateMsg);
-          return;
-        }
-        if (response.status === 402) {
-          const creditsMsg = 'AI credits exhausted.';
-          toast.error(creditsMsg);
-          appendAssistantReply(creditsMsg);
-          return;
-        }
-        appendAssistantReply(formatAiChatError(new Error(errMsg), response.status));
-        return;
-      }
-
-      const contentType = response.headers.get('content-type') || '';
-      if (!contentType.includes('text/event-stream')) {
-        const rawText = await response.text();
-        try {
-          const payload = JSON.parse(rawText);
-          const text = payload.message || payload.content || payload.error;
-          if (text) {
-            appendAssistantReply(String(text));
-            return;
-          }
-        } catch {
-          if (rawText.trim()) {
-            appendAssistantReply(rawText.trim().slice(0, 2000));
-            return;
-          }
-        }
-        appendAssistantReply(formatAiChatError(new Error('AI returned an empty response'), response.status));
-        return;
-      }
-
-      const reader = response.body?.getReader();
-      const decoder = new TextDecoder();
-      if (!reader) throw new Error('No reader');
 
       setStreamingText('');
 
-      let buffer = '';
-      let streamDone = false;
-      let lastChunkAt = Date.now();
-      const streamDeadline = Date.now() + AI_CHAT_STREAM_MS;
-      while (!streamDone) {
-        if (Date.now() > streamDeadline) {
-          throw new DOMException('Stream read timed out', 'AbortError');
+      try {
+        assistantContent = await streamVybeAiChat({
+          history: messages.map((m) => ({ role: m.role, content: m.content })),
+          userText: msgText || 'What is in this image?',
+          imageBase64,
+          imageMimeType,
+          context: {
+            aiName,
+            aiPersonality,
+            feedDNA,
+            location: userLocation,
+          },
+          streamDeadlineMs: AI_CHAT_STREAM_MS,
+          idleMs: AI_CHAT_STREAM_IDLE_MS,
+          onChunk: (_delta, full) => {
+            assistantContent = full;
+            streamingContentRef.current = full;
+            setStreamingText(full);
+          },
+        });
+      } catch (aiErr) {
+        const fbMsg = formatFirebaseAiError(aiErr);
+        if (fbMsg) {
+          if ((aiErr as { status?: number }).status === 429) toast.error(fbMsg);
+          appendAssistantReply(fbMsg);
+          return;
         }
-        if (!assistantContent && Date.now() - lastChunkAt > AI_CHAT_STREAM_IDLE_MS) {
-          throw new DOMException('Stream read timed out waiting for first chunk', 'AbortError');
-        }
-        const { done, value } = await reader.read();
-        if (done) break;
-        lastChunkAt = Date.now();
-        buffer += decoder.decode(value, { stream: true });
-
-        let newlineIndex: number;
-        while ((newlineIndex = buffer.indexOf('\n')) !== -1) {
-          let line = buffer.slice(0, newlineIndex);
-          buffer = buffer.slice(newlineIndex + 1);
-          if (line.endsWith('\r')) line = line.slice(0, -1);
-          if (line.startsWith(':') || line.trim() === '') continue;
-          if (!line.startsWith('data: ')) continue;
-          const jsonStr = line.slice(6).trim();
-          if (jsonStr === '[DONE]') { streamDone = true; break; }
-          try {
-            const parsed = JSON.parse(jsonStr);
-            const content = parsed.choices?.[0]?.delta?.content;
-            if (content) {
-              assistantContent += content;
-              lastChunkAt = Date.now();
-              streamingContentRef.current = assistantContent;
-              setStreamingText(assistantContent);
-            }
-          } catch { buffer = line + '\n' + buffer; break; }
-        }
-      }
-      
-      if (buffer.trim()) {
-        for (const raw of buffer.split('\n')) {
-          if (!raw || raw.startsWith(':') || raw.trim() === '') continue;
-          if (!raw.startsWith('data: ')) continue;
-          const jsonStr = raw.slice(6).trim();
-          if (jsonStr === '[DONE]') continue;
-          try {
-            const parsed = JSON.parse(jsonStr);
-            const content = parsed.choices?.[0]?.delta?.content;
-            if (content) {
-              assistantContent += content;
-              lastChunkAt = Date.now();
-              streamingContentRef.current = assistantContent;
-              setStreamingText(assistantContent);
-            }
-          } catch {}
-        }
+        throw aiErr;
       }
 
       appendAssistantReply(assistantContent.trim() || "I couldn't generate a reply. Try again.");
@@ -503,7 +408,8 @@ export default function AIChat() {
       streamingContentRef.current = '';
     } catch (error) {
       console.error('AI chat error:', error);
-      appendAssistantReply(formatAiChatError(error));
+      const fbMsg = formatFirebaseAiError(error);
+      appendAssistantReply(fbMsg || formatAiChatError(error));
       setStreamingText('');
       streamingContentRef.current = '';
     } finally {

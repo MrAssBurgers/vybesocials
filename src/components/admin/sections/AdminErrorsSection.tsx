@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { formatDistanceToNow } from 'date-fns';
 import { AlertTriangle, Bug, RefreshCw, Trash2, CheckCircle2, Clock, ChevronDown, ChevronUp, MessageSquare, Sparkles, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -33,7 +33,7 @@ export function AdminErrorsSection() {
   const { data: bugs = [], isLoading, isError, error, refetch } = useQuery({
     queryKey: ['admin-bug-reports-inline', filter, verifiedOnly],
     queryFn: async () => {
-      let query = supabase
+      let query = db
         .from('bug_reports')
         .select('id, error_message, page_url, status, created_at, ai_analysis, ai_severity, reporter_id')
         .order('created_at', { ascending: false })
@@ -53,7 +53,7 @@ export function AdminErrorsSection() {
 
       const reporterIds = [...new Set(rows.map((r) => r.reporter_id).filter(Boolean))];
       const { data: profiles } = reporterIds.length
-        ? await supabase
+        ? await db
             .from('profiles')
             .select('id, username, display_name, avatar_url')
             .in('id', reporterIds)
@@ -80,7 +80,7 @@ export function AdminErrorsSection() {
     enabled: !!expandedId,
     staleTime: 5 * 60_000,
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('bug_reports')
         .select('id, error_stack, component_stack, user_agent')
         .eq('id', expandedId!)
@@ -92,17 +92,17 @@ export function AdminErrorsSection() {
 
   const updateStatus = useMutation({
     mutationFn: async ({ id, status }: { id: string; status: string }) => {
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { user } } = await db.auth.getUser();
       const update: Record<string, unknown> = { status };
       if (status === 'fixed' || status === 'wont_fix') {
         update.resolved_at = new Date().toISOString();
         // Use profile id (not auth user id) to satisfy FK constraint
         if (user?.id) {
-          const { data: profile } = await supabase.from('profiles').select('id').eq('user_id', user.id).single();
+          const { data: profile } = await db.from('profiles').select('id').eq('user_id', user.id).single();
           update.resolved_by = profile?.id || null;
         }
       }
-      const { error } = await supabase.from('bug_reports').update(update as never).eq('id', id);
+      const { error } = await db.from('bug_reports').update(update as never).eq('id', id);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -114,7 +114,7 @@ export function AdminErrorsSection() {
 
   const deleteBug = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from('bug_reports').delete().eq('id', id);
+      const { error } = await db.from('bug_reports').delete().eq('id', id);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -126,7 +126,7 @@ export function AdminErrorsSection() {
 
   const recheckAI = useMutation({
     mutationFn: async (id: string) => {
-      const { data, error } = await supabase.functions.invoke('analyze-bug-report', {
+      const { data, error } = await db.functions.invoke('analyze-bug-report', {
         body: { bugId: id, force: true },
       });
       if (error) throw error;
@@ -233,7 +233,7 @@ export function AdminErrorsSection() {
           <Button variant="outline" size="sm" onClick={async () => {
             // Fix All = delete every unfixed bug in batches so the list
             // actually empties out instead of just changing status.
-            const { count: unfixedCount } = await supabase
+            const { count: unfixedCount } = await db
               .from('bug_reports')
               .select('id', { count: 'exact', head: true })
               .neq('status', 'fixed');
@@ -248,7 +248,7 @@ export function AdminErrorsSection() {
             const BATCH = 200;
             // Loop deleting batches until none remain (or RLS blocks)
             for (let i = 0; i < 50; i++) {
-              const { data: batchIds, error: selErr } = await supabase
+              const { data: batchIds, error: selErr } = await db
                 .from('bug_reports')
                 .select('id')
                 .neq('status', 'fixed')
@@ -256,7 +256,7 @@ export function AdminErrorsSection() {
               if (selErr) { toast.error('Failed to read bugs: ' + selErr.message, { id: toastId }); return; }
               if (!batchIds || batchIds.length === 0) break;
               const ids = batchIds.map((r: any) => r.id);
-              const { error: delErr, data: deleted } = await supabase
+              const { error: delErr, data: deleted } = await db
                 .from('bug_reports')
                 .delete()
                 .in('id', ids)

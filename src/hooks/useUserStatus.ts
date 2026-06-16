@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth';
 import { useAuthProfileId } from '@/hooks/useAuthProfileId';
 import { normalizePersistedMap } from '@/lib/persistedCollections';
@@ -19,7 +19,7 @@ export function useUserStatusById(userId: string | undefined) {
     queryKey: ['user-status', userId],
     queryFn: async (): Promise<UserStatus | null> => {
       if (!userId) return null;
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('user_statuses')
         .select('*')
         .eq('user_id', userId)
@@ -40,7 +40,7 @@ export function useBatchUserStatuses(userIds: string[]) {
     queryKey: ['user-statuses-batch', userIds.sort().join(',')],
     queryFn: async (): Promise<Map<string, UserStatus>> => {
       if (userIds.length === 0) return new Map();
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('user_statuses')
         .select('*')
         .in('user_id', userIds);
@@ -71,7 +71,7 @@ export function useSetStatus() {
         ? new Date(Date.now() + durationHours * 60 * 60 * 1000).toISOString()
         : null;
 
-      const { error } = await supabase
+      const { error } = await db
         .from('user_statuses')
         .upsert({
           user_id: profileId,
@@ -98,7 +98,7 @@ export function useClearStatus() {
   return useMutation({
     mutationFn: async () => {
       if (!profileId) throw new Error('Not authenticated');
-      await supabase
+      await db
         .from('user_statuses')
         .delete()
         .eq('user_id', profileId);

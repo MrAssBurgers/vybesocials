@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { subscribePostgresChannel, removeRealtimeChannel } from '@/lib/realtimeChannel';
 import { useAuth } from '@/lib/auth';
 import { useAuthProfileId } from '@/hooks/useAuthProfileId';
@@ -77,7 +77,7 @@ export function useMyServers() {
     queryFn: async () => {
       if (!profileId) return [];
 
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('server_members')
         .select(`
           server_id,
@@ -104,7 +104,7 @@ export function useServer(serverId: string | undefined) {
     queryFn: async () => {
       if (!serverId) return null;
 
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('servers')
         .select('*')
         .eq('id', serverId)
@@ -124,7 +124,7 @@ export function useServerMembers(serverId: string | undefined) {
     queryFn: async () => {
       if (!serverId) return [];
 
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('server_members')
         .select(`
           *,
@@ -169,7 +169,7 @@ export function useChannels(serverId: string | undefined) {
     queryFn: async () => {
       if (!serverId) return [];
 
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('channels')
         .select('*')
         .eq('server_id', serverId)
@@ -191,7 +191,7 @@ export function useChannelMessages(channelId: string | undefined) {
     queryFn: async () => {
       if (!channelId) return [];
 
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('channel_messages')
         .select(`
           *,
@@ -240,7 +240,7 @@ export function useCreateServer() {
       if (!profile?.id) throw new Error('Not authenticated');
 
       // Create server
-      const { data: server, error: serverError } = await supabase
+      const { data: server, error: serverError } = await db
         .from('servers')
         .insert({
           name,
@@ -254,7 +254,7 @@ export function useCreateServer() {
       if (serverError) throw serverError;
 
       // Add owner as member
-      await supabase
+      await db
         .from('server_members')
         .insert({
           server_id: server.id,
@@ -263,7 +263,7 @@ export function useCreateServer() {
         });
 
       // Create default general channel
-      await supabase
+      await db
         .from('channels')
         .insert({
           server_id: server.id,
@@ -294,7 +294,7 @@ export function useJoinServer() {
       if (!profile?.id) throw new Error('Not authenticated');
 
       // Find server by invite code
-      const { data: server, error: findError } = await supabase
+      const { data: server, error: findError } = await db
         .from('servers')
         .select('id, name')
         .eq('invite_code', inviteCode)
@@ -303,7 +303,7 @@ export function useJoinServer() {
       if (findError || !server) throw new Error('Invalid invite code');
 
       // Check if already a member
-      const { data: existing } = await supabase
+      const { data: existing } = await db
         .from('server_members')
         .select('id')
         .eq('server_id', server.id)
@@ -313,7 +313,7 @@ export function useJoinServer() {
       if (existing) throw new Error('Already a member of this server');
 
       // Join server
-      const { error: joinError } = await supabase
+      const { error: joinError } = await db
         .from('server_members')
         .insert({
           server_id: server.id,
@@ -344,7 +344,7 @@ export function useLeaveServer() {
     mutationFn: async (serverId: string) => {
       if (!profile?.id) throw new Error('Not authenticated');
 
-      const { error } = await supabase
+      const { error } = await db
         .from('server_members')
         .delete()
         .eq('server_id', serverId)
@@ -368,7 +368,7 @@ export function useCreateChannel() {
 
   return useMutation({
     mutationFn: async ({ serverId, name, type }: { serverId: string; name: string; type?: ChannelType }) => {
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('channels')
         .insert({
           server_id: serverId,
@@ -406,7 +406,7 @@ export function useSendChannelMessage() {
     }) => {
       if (!profile?.id) throw new Error('Not authenticated');
 
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('channel_messages')
         .insert({
           channel_id: channelId,
@@ -436,7 +436,7 @@ export function useUpdateServerMemberRole() {
 
   return useMutation({
     mutationFn: async ({ serverId, userId, role }: { serverId: string; userId: string; role: ServerRole }) => {
-      const { error } = await supabase
+      const { error } = await db
         .from('server_members')
         .update({ role })
         .eq('server_id', serverId)
@@ -460,7 +460,7 @@ export function useRemoveServerMember() {
 
   return useMutation({
     mutationFn: async ({ serverId, userId }: { serverId: string; userId: string }) => {
-      const { error } = await supabase
+      const { error } = await db
         .from('server_members')
         .delete()
         .eq('server_id', serverId)
@@ -487,7 +487,7 @@ export function useMyServerRole(serverId: string | undefined) {
     queryFn: async () => {
       if (!serverId || !profileId) return null;
 
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('server_members')
         .select('role')
         .eq('server_id', serverId)
@@ -506,7 +506,7 @@ export function usePublicServers(search?: string) {
   return useQuery({
     queryKey: ['public-servers', search],
     queryFn: async () => {
-      let query = supabase
+      let query = db
         .from('servers')
         .select('*')
         .eq('is_public', true)

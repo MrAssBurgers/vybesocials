@@ -5,7 +5,7 @@ import { useAuth } from '@/lib/auth';
 import { useEquipItem } from '@/hooks/useLockerItems';
 import { usePremiumStatus } from '@/hooks/usePremiumStatus';
 import { useQuery } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { toast } from 'sonner';
 import { haptics } from '@/lib/haptics';
 import { cn } from '@/lib/utils';
@@ -64,8 +64,8 @@ function usePremiumItems() {
       if (!profile?.id) throw new Error('No user');
 
       const [itemsRes, profileRes] = await Promise.all([
-        supabase.from('battle_pass_tiers').select('*').eq('is_premium', true).order('level'),
-        supabase.from('profiles')
+        db.from('battle_pass_tiers').select('*').eq('is_premium', true).order('level'),
+        db.from('profiles')
           .select('equipped_title, equipped_effect, equipped_frame, equipped_name_color, equipped_profile_theme')
           .eq('id', profile.id)
           .single(),

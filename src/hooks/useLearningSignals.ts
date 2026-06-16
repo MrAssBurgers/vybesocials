@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth';
 
 export interface LearningSignals {
@@ -23,18 +23,18 @@ export function useLearningSignals() {
     (async () => {
       const since = new Date(Date.now() - 30 * 86400_000).toISOString();
       // fetch profile.id once for comments lookups (uses profile id)
-      const { data: prof } = await supabase.from('profiles').select('id').eq('user_id', user.id).maybeSingle();
+      const { data: prof } = await db.from('profiles').select('id').eq('user_id', user.id).maybeSingle();
       const profId = prof?.id || user.id;
 
       const [likesR, followsR, commentsR, sessionsR, dnaR, recentLikesR, recentFollowsR, recentCommentsR] = await Promise.all([
-        supabase.from('likes').select('id', { count: 'exact', head: true }).eq('user_id', user.id).gte('created_at', since),
-        supabase.from('follows').select('id', { count: 'exact', head: true }).eq('follower_id', user.id).gte('created_at', since),
-        supabase.from('comments').select('id', { count: 'exact', head: true }).eq('user_id', profId).gte('created_at', since),
-        supabase.from('screen_time_sessions').select('duration_seconds').eq('user_id', user.id).gte('started_at', since),
-        supabase.from('vybe_dna').select('interests,active_hours').eq('user_id', user.id).maybeSingle(),
-        supabase.from('likes').select('reaction_type,created_at,post_id').eq('user_id', user.id).order('created_at', { ascending: false }).limit(8),
-        supabase.from('follows').select('following_id,created_at').eq('follower_id', user.id).order('created_at', { ascending: false }).limit(8),
-        supabase.from('comments').select('text,created_at').eq('user_id', profId).order('created_at', { ascending: false }).limit(6),
+        db.from('likes').select('id', { count: 'exact', head: true }).eq('user_id', user.id).gte('created_at', since),
+        db.from('follows').select('id', { count: 'exact', head: true }).eq('follower_id', user.id).gte('created_at', since),
+        db.from('comments').select('id', { count: 'exact', head: true }).eq('user_id', profId).gte('created_at', since),
+        db.from('screen_time_sessions').select('duration_seconds').eq('user_id', user.id).gte('started_at', since),
+        db.from('vybe_dna').select('interests,active_hours').eq('user_id', user.id).maybeSingle(),
+        db.from('likes').select('reaction_type,created_at,post_id').eq('user_id', user.id).order('created_at', { ascending: false }).limit(8),
+        db.from('follows').select('following_id,created_at').eq('follower_id', user.id).order('created_at', { ascending: false }).limit(8),
+        db.from('comments').select('text,created_at').eq('user_id', profId).order('created_at', { ascending: false }).limit(6),
       ]);
 
       if (!active) return;

@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
 import { Users, Phone, UserPlus, Loader2, CheckCircle, X } from 'lucide-react';
 import { useState } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth';
 import { toast } from 'sonner';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -92,7 +92,7 @@ export function ContactDiscovery({ onComplete }: ContactDiscoveryProps) {
         .filter(Boolean);
 
       // Server-side phone lookup; raw phone numbers never returned to client.
-      const { data: usersRaw, error } = await (supabase as any)
+      const { data: usersRaw, error } = await (db as any)
         .rpc('discover_users_by_phone', { _phones: phoneNumbers });
 
       if (error) throw error;

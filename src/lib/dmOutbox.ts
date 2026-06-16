@@ -8,7 +8,7 @@
  * "sent" — it just delivers when the network is back.
  */
 import { get, set } from 'idb-keyval';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { onReconnect } from '@/lib/reconnectManager';
 import type { ViewMode } from '@/hooks/useMessages';
 
@@ -81,7 +81,7 @@ export async function getPending(): Promise<OutboxItem[]> {
 
 async function sendOne(item: OutboxItem): Promise<boolean> {
   try {
-    const { error } = await supabase.from('messages').insert({
+    const { error } = await db.from('messages').insert({
       conversation_id: item.conversationId,
       sender_id: item.senderId,
       content: item.content,
@@ -102,7 +102,7 @@ async function sendOne(item: OutboxItem): Promise<boolean> {
       return !transient;
     }
     // Bump conversation timestamp (best-effort).
-    void supabase
+    void db
       .from('conversations')
       .update({ updated_at: new Date().toISOString() })
       .eq('id', item.conversationId);

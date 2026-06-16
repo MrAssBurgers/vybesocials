@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { subscribePostgresChannel, removeRealtimeChannel } from '@/lib/realtimeChannel';
 import { useAuth } from '@/lib/auth';
 import { ActivityType } from '@/components/chat/LiveActivityIndicator';
@@ -39,13 +39,13 @@ export function useLiveActivity(conversationId: string | undefined) {
     const updateActivity = async () => {
       try {
         if (activity === 'idle') {
-          await supabase
+          await db
             .from('typing_indicators')
             .delete()
             .eq('conversation_id', conversationId)
             .eq('user_id', profile.id);
         } else {
-          await supabase
+          await db
             .from('typing_indicators')
             .upsert(
               {
@@ -56,7 +56,7 @@ export function useLiveActivity(conversationId: string | undefined) {
               { onConflict: 'conversation_id,user_id', ignoreDuplicates: false }
             );
           
-          await supabase
+          await db
             .from('chat_presence')
             .upsert(
               {
@@ -102,7 +102,7 @@ export function useLiveActivity(conversationId: string | undefined) {
       const tenSecondsAgo = new Date(Date.now() - 10000).toISOString();
 
       // Check typing indicators (active within 3 seconds)
-      const { data: typingData } = await supabase
+      const { data: typingData } = await db
         .from('typing_indicators')
         .select(`
           user_id,
@@ -115,7 +115,7 @@ export function useLiveActivity(conversationId: string | undefined) {
         .limit(1);
 
       // Check presence (active within 10 seconds)
-      const { data: presenceData } = await supabase
+      const { data: presenceData } = await db
         .from('chat_presence')
         .select(`
           user_id,
@@ -169,7 +169,7 @@ export function useLiveActivity(conversationId: string | undefined) {
     const joinPresence = async () => {
       if (!isMounted) return;
       try {
-        await supabase
+        await db
           .from('chat_presence')
           .upsert(
             {
@@ -186,12 +186,12 @@ export function useLiveActivity(conversationId: string | undefined) {
 
     const leavePresence = async () => {
       try {
-        await supabase
+        await db
           .from('chat_presence')
           .delete()
           .eq('conversation_id', conversationId)
           .eq('user_id', profile.id);
-        await supabase
+        await db
           .from('typing_indicators')
           .delete()
           .eq('conversation_id', conversationId)

@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 
 /**
  * Public, unauthenticated count of total profiles.
@@ -9,7 +9,7 @@ export function usePublicUserCount() {
   return useQuery({
     queryKey: ['public-user-count'],
     queryFn: async () => {
-      const { data, error } = await (supabase as any).rpc('get_public_user_count');
+      const { data, error } = await (db as any).rpc('get_public_user_count');
       if (error) {
         const code = (error as { code?: string }).code;
         const msg = error.message || '';

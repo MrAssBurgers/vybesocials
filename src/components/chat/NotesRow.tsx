@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { Search, X } from 'lucide-react';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 // GIPHY calls go through the giphy-search edge function (key stays server-side).
 
 interface GifResult {
@@ -43,7 +43,7 @@ export const NotesRow = memo(function NotesRow() {
     const trimmed = query.trim();
     setGifLoading(true);
     try {
-      const { data } = await supabase.functions.invoke('giphy-search', {
+      const { data } = await db.functions.invoke('giphy-search', {
         body: {
           endpoint: trimmed ? 'search' : 'trending',
           query: trimmed || undefined,

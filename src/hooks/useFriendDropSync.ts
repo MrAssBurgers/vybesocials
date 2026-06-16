@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { subscribePostgresChannel, removeRealtimeChannel } from '@/lib/realtimeChannel';
 import { useAuth } from '@/lib/auth';
 import { useAuthProfileId } from '@/hooks/useAuthProfileId';
@@ -36,7 +36,7 @@ export function useFriendDropSync({
   const profileId = useAuthProfileId();
   const [activeDrop, setActiveDrop] = useState<FriendDrop | null>(null);
   const [isCreating, setIsCreating] = useState(false);
-  const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
+  const channelRef = useRef<ReturnType<typeof db.channel> | null>(null);
   const callbacksRef = useRef({ onScanned, onConfirmed, onCompleted });
   
   // Keep callbacks in sync without re-subscribing
@@ -51,14 +51,14 @@ export function useFriendDropSync({
     setIsCreating(true);
     try {
       // Clean up any existing pending drops from this user
-      await supabase
+      await db
         .from('friend_drops')
         .delete()
         .eq('from_user_id', profileId)
         .eq('status', 'pending');
 
       // Create new drop
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('friend_drops')
         .insert({
           from_user_id: profileId,
@@ -86,7 +86,7 @@ export function useFriendDropSync({
     
     try {
       console.log('[FriendDropSync] Scanning drop:', dropId);
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('friend_drops')
         .update({
           to_user_id: profileId,
@@ -113,7 +113,7 @@ export function useFriendDropSync({
   const confirmDrop = useCallback(async (dropId: string): Promise<boolean> => {
     try {
       console.log('[FriendDropSync] Confirming drop:', dropId);
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('friend_drops')
         .update({
           status: 'confirmed',
@@ -139,7 +139,7 @@ export function useFriendDropSync({
   const completeDrop = useCallback(async (dropId: string): Promise<boolean> => {
     try {
       console.log('[FriendDropSync] Completing drop:', dropId);
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('friend_drops')
         .update({
           status: 'completed',
@@ -166,7 +166,7 @@ export function useFriendDropSync({
     if (!id) return;
     
     try {
-      await supabase
+      await db
         .from('friend_drops')
         .delete()
         .eq('id', id);

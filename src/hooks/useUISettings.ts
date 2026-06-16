@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth';
 import { toast } from 'sonner';
 import { useEffect, useCallback } from 'react';
@@ -194,7 +194,7 @@ export function useUISettings() {
         return cached || DEFAULT_UI_SETTINGS;
       }
 
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('user_ui_settings')
         .select('*')
         .eq('user_id', userId)
@@ -247,7 +247,7 @@ export function useSaveUISettings() {
       const current = getCachedSettings() || DEFAULT_UI_SETTINGS;
       const merged = validateSettings({ ...current, ...settings });
 
-      const { error } = await supabase
+      const { error } = await db
         .from('user_ui_settings')
         .upsert([{
           user_id: userId,
@@ -289,7 +289,7 @@ export function useResetUISettings() {
       const userId = user?.id;
       if (!userId) throw new Error('Not authenticated');
 
-      const { error } = await supabase
+      const { error } = await db
         .from('user_ui_settings')
         .delete()
         .eq('user_id', userId);
@@ -349,7 +349,7 @@ export function useExportThemeCode() {
       if (!profile?.id) throw new Error('Not authenticated');
 
       // Generate a unique code
-      const { data: codeData, error: codeError } = await supabase
+      const { data: codeData, error: codeError } = await db
         .rpc('generate_theme_code');
 
       if (codeError) throw codeError;
@@ -357,7 +357,7 @@ export function useExportThemeCode() {
       const code = codeData as string;
 
       // Insert the theme code
-      const { error } = await supabase
+      const { error } = await db
         .from('theme_codes')
         .insert({
           code,
@@ -385,14 +385,14 @@ export function useImportThemeCode() {
   return useMutation({
     mutationFn: async (code: string) => {
       // Use the code and get theme ID
-      const { data: themeId, error } = await supabase
+      const { data: themeId, error } = await db
         .rpc('use_theme_code', { p_code: code.toUpperCase() });
 
       if (error) throw error;
       if (!themeId) throw new Error('Invalid or expired theme code');
 
       // Get the theme data
-      const { data: theme, error: themeError } = await supabase
+      const { data: theme, error: themeError } = await db
         .from('shared_themes')
         .select('*')
         .eq('id', themeId)

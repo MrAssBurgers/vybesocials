@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth';
 import { recordEmoji } from '@/lib/frequentEmojis';
 import { recordShareTo } from '@/lib/shareRecency';
@@ -137,7 +137,7 @@ export function useUserAdaptation() {
     
     const loadFromDB = async () => {
       try {
-        const { data } = await supabase
+        const { data } = await db
           .from('profiles')
           .select('interests')
           .eq('id', user.id)

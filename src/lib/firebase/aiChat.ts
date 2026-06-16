@@ -1,0 +1,177 @@
+import type { Content, Part } from 'firebase/ai';
+import { AIError } from 'firebase/ai';
+import { getChatModel } from './aiLogic';
+import { RATE_LIMITS } from '@/lib/rateLimit';
+
+export interface VybeAiChatMessage {
+  role: 'user' | 'assistant';
+  content: string;
+}
+
+export interface VybeAiChatContext {
+  aiName: string;
+  aiPersonality: string;
+  feedDNA?: boolean;
+  location?: { lat: number; lng: number; city?: string } | null;
+}
+
+export interface StreamVybeAiChatOptions {
+  history: VybeAiChatMessage[];
+  userText: string;
+  imageBase64?: string | null;
+  imageMimeType?: string | null;
+  context: VybeAiChatContext;
+  onChunk: (delta: string, fullText: string) => void;
+  streamDeadlineMs?: number;
+  idleMs?: number;
+}
+
+function buildSystemInstruction(ctx: VybeAiChatContext): string {
+  const lines = [
+    `You are ${ctx.aiName}, the AI assistant built into the VYBE social app.`,
+    ctx.aiPersonality,
+    'Be concise, warm, and helpful. Use markdown when it improves readability.',
+    'You are in chat mode — you cannot change app settings here. If the user wants to open Messages or change their theme, suggest they ask using phrases like "open my messages" or "make my app dark".',
+  ];
+  if (ctx.feedDNA) {
+    lines.push(
+      'The user has Vybe DNA personalization on — tailor creative and growth advice to their social creator context.',
+    );
+  }
+  if (ctx.location?.city) {
+    lines.push(`Location context: near ${ctx.location.city} (${ctx.location.lat.toFixed(2)}, ${ctx.location.lng.toFixed(2)}).`);
+  } else if (ctx.location) {
+    lines.push(`Location context: ${ctx.location.lat.toFixed(2)}, ${ctx.location.lng.toFixed(2)}.`);
+  }
+  return lines.join('\n\n');
+}
+
+function toGeminiHistory(messages: VybeAiChatMessage[]): Content[] {
+  return messages
+    .filter((m) => m.content.trim())
+    .slice(-24)
+    .map((m) => ({
+      role: m.role === 'assistant' ? 'model' : 'user',
+      parts: [{ text: m.content }],
+    }));
+}
+
+function buildUserRequest(
+  text: string,
+  imageBase64?: string | null,
+  imageMimeType?: string | null,
+): Array<string | Part> {
+  const parts: Array<string | Part> = [];
+  const prompt = text.trim() || 'What is in this image? Describe it helpfully.';
+  parts.push(prompt);
+  if (imageBase64 && imageMimeType) {
+    parts.push({
+      inlineData: { data: imageBase64, mimeType: imageMimeType },
+    });
+  }
+  return parts;
+}
+
+function appendStreamText(fullText: string, raw: string): string {
+  if (!raw) return fullText;
+  if (fullText && raw.startsWith(fullText)) return raw;
+  return fullText + raw;
+}
+
+export function formatFirebaseAiError(error: unknown): string | null {
+  if (error && typeof error === 'object' && 'status' in error && (error as { status: number }).status === 429) {
+    return 'Too many requests. Wait a moment.';
+  }
+  if (error instanceof AIError) {
+    switch (error.code) {
+      case 'api-not-enabled':
+        return 'VYBE AI is not enabled yet. Run Firebase AI Logic setup in the Firebase console.';
+      case 'no-api-key':
+      case 'no-app-id':
+      case 'no-project-id':
+        return 'VYBE AI is not configured. Check Firebase environment variables.';
+      case 'fetch-error':
+      case 'request-error':
+        return 'Could not reach VYBE AI. Check your connection and try again.';
+      case 'response-error':
+        return error.message || 'VYBE AI blocked or failed this request. Try rephrasing.';
+      default:
+        if (error.message) return error.message;
+    }
+  }
+  return null;
+}
+
+/**
+ * Stream a VYBE AI chat reply via Firebase AI Logic (Gemini Developer API proxy).
+ */
+export async function streamVybeAiChat(options: StreamVybeAiChatOptions): Promise<string> {
+  if (!RATE_LIMITS.aiChat()) {
+    const err = new Error('Too many requests. Wait a moment.');
+    Object.assign(err, { status: 429 });
+    throw err;
+  }
+
+  const {
+    history,
+    userText,
+    imageBase64,
+    imageMimeType,
+    context,
+    onChunk,
+    streamDeadlineMs = 90_000,
+    idleMs = 15_000,
+  } = options;
+
+  const model = getChatModel();
+  const chat = model.startChat({
+    history: toGeminiHistory(history),
+    systemInstruction: buildSystemInstruction(context),
+  });
+
+  const result = await chat.sendMessageStream(
+    buildUserRequest(userText, imageBase64, imageMimeType),
+  );
+
+  let fullText = '';
+  const deadline = Date.now() + streamDeadlineMs;
+  let lastActivity = Date.now();
+
+  for await (const chunk of result.stream) {
+    if (Date.now() > deadline) {
+      throw Object.assign(new Error('Stream read timed out'), { name: 'AbortError' });
+    }
+    if (!fullText && Date.now() - lastActivity > idleMs) {
+      throw Object.assign(new Error('Stream read timed out waiting for first chunk'), {
+        name: 'AbortError',
+      });
+    }
+
+    let raw = '';
+    try {
+      raw = chunk.text();
+    } catch {
+      continue;
+    }
+    if (!raw) continue;
+
+    const prev = fullText;
+    fullText = appendStreamText(fullText, raw);
+    lastActivity = Date.now();
+    onChunk(fullText.slice(prev.length) || raw, fullText);
+  }
+
+  if (!fullText.trim()) {
+    try {
+      const aggregated = await result.response;
+      fullText = aggregated.text();
+      if (fullText) onChunk(fullText, fullText);
+    } catch (err) {
+      const formatted = formatFirebaseAiError(err);
+      if (formatted) throw new Error(formatted);
+      throw err;
+    }
+  }
+
+  return fullText.trim();
+}

@@ -28,7 +28,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { useUserRole } from '@/hooks/useModeration';
 import { useWarnUser, useBanUser } from '@/hooks/useModerationActions';
 import { useAuth } from '@/lib/auth';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { toast } from 'sonner';
 import { useQueryClient } from '@tanstack/react-query';
 import { GiphySearchPicker } from './GiphySearchPicker';
@@ -88,12 +88,12 @@ export function ModeratorMenuItems({
 
     try {
       const table = type === 'post' ? 'posts' : 'comments';
-      const { error } = await supabase.from(table).delete().eq('id', id);
+      const { error } = await db.from(table).delete().eq('id', id);
       if (error) throw error;
 
       // Background: notify the author so they know it was removed by a mod.
       if (profile?.id && userId && userId !== profile.id) {
-        supabase.from('notifications').insert({
+        db.from('notifications').insert({
           user_id: userId,
           type: 'content_removed',
           actor_id: profile.id,
@@ -266,12 +266,12 @@ export function ModeratorDialogs({
       const { type, id } = deleteContentDialog;
       const table = type === 'post' ? 'posts' : type === 'comment' ? 'comments' : 'listings';
       
-      const { error } = await supabase.from(table).delete().eq('id', id);
+      const { error } = await db.from(table).delete().eq('id', id);
       if (error) throw error;
 
       // Send notification to the content owner
       if (profile) {
-        await supabase.from('notifications').insert({
+        await db.from('notifications').insert({
           user_id: userId,
           type: 'content_removed',
           actor_id: profile.id,

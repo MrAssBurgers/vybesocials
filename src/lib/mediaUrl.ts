@@ -18,7 +18,7 @@ const PLACEHOLDER_FILENAMES = new Set(['avatar.png', 'avatar.jpg', 'placeholder.
 export function getSupabaseStorageBase(): string {
   const fromEnv = (import.meta.env.VITE_SUPABASE_URL as string | undefined)?.replace(/\/$/, '');
   if (fromEnv) return fromEnv;
-  return `https://${getSupabaseProjectRef()}.supabase.co`;
+  return `https://${getSupabaseProjectRef()}.db.co`;
 }
 
 /**
@@ -39,8 +39,8 @@ export function normalizeMediaUrl(url: string | null | undefined): string | null
 
   for (const ref of LEGACY_SUPABASE_REFS) {
     if (ref === currentRef) continue;
-    if (trimmed.includes(`${ref}.supabase.co`)) {
-      trimmed = trimmed.replace(`https://${ref}.supabase.co`, base);
+    if (trimmed.includes(`${ref}.db.co`)) {
+      trimmed = trimmed.replace(`https://${ref}.db.co`, base);
       break;
     }
   }

@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth';
 
 export interface CollabInvite {
@@ -46,7 +46,7 @@ export function useCollabInvites() {
     queryFn: async () => {
       if (!user?.id) return [];
 
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('collab_post_invites' as any)
         .select('*')
         .eq('invitee_id', user.id)
@@ -56,7 +56,7 @@ export function useCollabInvites() {
       if (error) throw error;
       
       const inviterIds = [...new Set((data || []).map((i: any) => i.inviter_id))];
-      const { data: profiles } = await supabase
+      const { data: profiles } = await db
         .from('profiles')
         .select('id, username, avatar_url, display_name')
         .in('id', inviterIds);
@@ -78,7 +78,7 @@ export function usePostCollaborators(postId: string | undefined) {
     queryFn: async () => {
       if (!postId) return [];
 
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('post_collaborators' as any)
         .select('*')
         .eq('post_id', postId)
@@ -87,7 +87,7 @@ export function usePostCollaborators(postId: string | undefined) {
       if (error) throw error;
       
       const userIds = [...new Set((data || []).map((c: any) => c.user_id))];
-      const { data: profiles } = await supabase
+      const { data: profiles } = await db
         .from('profiles')
         .select('id, username, avatar_url, display_name')
         .in('id', userIds);
@@ -111,7 +111,7 @@ export function useSendCollabInvite() {
     mutationFn: async ({ postId, inviteeId }: { postId?: string; inviteeId: string }) => {
       if (!user?.id) throw new Error('Not authenticated');
 
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('collab_post_invites' as any)
         .insert({
           post_id: postId || null,
@@ -125,7 +125,7 @@ export function useSendCollabInvite() {
       if (error) throw error;
 
       // Create notification
-      await supabase.from('notifications').insert({
+      await db.from('notifications').insert({
         user_id: inviteeId,
         type: 'collab_invite',
         actor_id: user.id,
@@ -148,7 +148,7 @@ export function useRespondToCollabInvite() {
     mutationFn: async ({ inviteId, accept, postId }: { inviteId: string; accept: boolean; postId?: string }) => {
       if (!user?.id) throw new Error('Not authenticated');
 
-      const { error } = await supabase
+      const { error } = await db
         .from('collab_post_invites' as any)
         .update({
           status: accept ? 'accepted' : 'declined',
@@ -160,7 +160,7 @@ export function useRespondToCollabInvite() {
 
       // If accepted and post exists, add as collaborator
       if (accept && postId) {
-        await supabase.from('post_collaborators' as any).insert({
+        await db.from('post_collaborators' as any).insert({
           post_id: postId,
           user_id: user.id,
           role: 'contributor',
@@ -179,7 +179,7 @@ export function useAddCollaborator() {
 
   return useMutation({
     mutationFn: async ({ postId, userId }: { postId: string; userId: string }) => {
-      const { error } = await supabase
+      const { error } = await db
         .from('post_collaborators' as any)
         .insert({
           post_id: postId,
@@ -200,7 +200,7 @@ export function useRemoveCollaborator() {
 
   return useMutation({
     mutationFn: async ({ postId, collaboratorId }: { postId: string; collaboratorId: string }) => {
-      const { error } = await supabase
+      const { error } = await db
         .from('post_collaborators' as any)
         .delete()
         .eq('id', collaboratorId);

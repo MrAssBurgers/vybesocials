@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { useAuthProfileId } from '@/hooks/useAuthProfileId';
 import { toast } from 'sonner';
 
@@ -56,7 +56,7 @@ export function useAcceptedFriendRequests() {
 
       // Fetch accepted requests where current user is the sender
       // and they haven't been notified yet
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('friend_requests')
         .select(`
           id,
@@ -98,7 +98,7 @@ export function useDismissAcceptedRequest() {
 
       persistDismissedAcceptedId(requestId);
 
-      const { error } = await supabase
+      const { error } = await db
         .from('friend_requests')
         .update({ notified_at: new Date().toISOString() })
         .eq('id', requestId)
@@ -138,7 +138,7 @@ export function useMarkRequestAsNotified() {
     mutationFn: async (requestId: string) => {
       if (!profileId) throw new Error('Not authenticated');
 
-      const { error } = await supabase
+      const { error } = await db
         .from('friend_requests')
         .update({ notified_at: new Date().toISOString() })
         .eq('id', requestId)

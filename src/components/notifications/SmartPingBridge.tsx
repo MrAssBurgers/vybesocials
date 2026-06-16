@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { useQueryClient } from '@tanstack/react-query';
 
 /**
@@ -16,7 +16,7 @@ export function SmartPingBridge() {
       if (!msg || typeof msg !== 'object') return;
       if (msg.type === 'MUTE_SMART_PINGS') {
         try {
-          await supabase.functions.invoke('mute-smart-pings', {
+          await db.functions.invoke('mute-smart-pings', {
             body: { hours: msg.hours || 1 },
           });
           queryClient.invalidateQueries({ queryKey: ['notification-preferences'] });

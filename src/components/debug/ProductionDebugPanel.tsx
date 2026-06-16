@@ -15,7 +15,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { useAuth } from '@/lib/auth';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { cn } from '@/lib/utils';
 import {
   getLogs, getNetworkLogs, clearLogs, clearNetworkLogs, subscribe,
@@ -196,7 +196,7 @@ export function ProductionDebugPanel({ isOpen, onClose }: Props) {
   const checkSupabase = useCallback(async () => {
     setSupabaseStatus('checking');
     try {
-      const { error } = await supabase.from('profiles').select('id').limit(1);
+      const { error } = await db.from('profiles').select('id').limit(1);
       setSupabaseStatus(error ? 'disconnected' : 'connected');
     } catch { setSupabaseStatus('disconnected'); }
   }, []);
@@ -206,7 +206,7 @@ export function ProductionDebugPanel({ isOpen, onClose }: Props) {
   // ── Stripe secrets check ──
   const checkStripeSecrets = useCallback(async () => {
     try {
-      const { data } = await supabase.functions.invoke('check-debug-secrets');
+      const { data } = await db.functions.invoke('check-debug-secrets');
       if (data) setStripeSecrets(data);
     } catch { /* edge fn might not exist */ }
   }, []);
@@ -218,7 +218,7 @@ export function ProductionDebugPanel({ isOpen, onClose }: Props) {
     setStripeTestResult('Testing...');
     logEvent('stripe', 'Testing Stripe OAuth URL generation...');
     try {
-      const { data, error } = await supabase.functions.invoke('create-stripe-connect', {
+      const { data, error } = await db.functions.invoke('create-stripe-connect', {
         body: { dry_run: true },
       });
       if (error) {
@@ -245,7 +245,7 @@ export function ProductionDebugPanel({ isOpen, onClose }: Props) {
   const [connectStatus, setConnectStatus] = useState<any>(null);
   const checkConnectStatus = async () => {
     try {
-      const { data } = await supabase.functions.invoke('check-stripe-connect');
+      const { data } = await db.functions.invoke('check-stripe-connect');
       setConnectStatus(data);
     } catch { setConnectStatus({ error: 'Failed to check' }); }
   };
@@ -253,7 +253,7 @@ export function ProductionDebugPanel({ isOpen, onClose }: Props) {
   // ── Stripe Dashboard link ──
   const openStripeDashboard = async () => {
     try {
-      const { data, error } = await supabase.functions.invoke('create-stripe-dashboard-link');
+      const { data, error } = await db.functions.invoke('create-stripe-dashboard-link');
       if (data?.url) window.open(data.url, '_blank');
       else logEvent('stripe', `Dashboard link failed: ${error?.message || data?.error}`);
     } catch (err: any) {
@@ -265,7 +265,7 @@ export function ProductionDebugPanel({ isOpen, onClose }: Props) {
   const loadTables = async () => {
     setTablesLoading(true);
     try {
-      const { data } = await supabase.functions.invoke('admin-debug-tools', {
+      const { data } = await db.functions.invoke('admin-debug-tools', {
         body: { action: 'list_tables' },
       });
       if (data?.tables) setTables(data.tables);
@@ -277,7 +277,7 @@ export function ProductionDebugPanel({ isOpen, onClose }: Props) {
     setSelectedTable(tableName);
     setTableDataLoading(true);
     try {
-      const { data } = await supabase.functions.invoke('admin-debug-tools', {
+      const { data } = await db.functions.invoke('admin-debug-tools', {
         body: { action: 'preview_table', table_name: tableName, limit: 20 },
       });
       setTableData(data?.data || []);
@@ -294,7 +294,7 @@ export function ProductionDebugPanel({ isOpen, onClose }: Props) {
       let body: any;
       try { body = JSON.parse(fnBody); } catch { body = {}; }
       const start = performance.now();
-      const { data, error } = await supabase.functions.invoke(selectedFunction, { body });
+      const { data, error } = await db.functions.invoke(selectedFunction, { body });
       const duration = Math.round(performance.now() - start);
       if (error) {
         setFnResult(`✗ Error (${duration}ms): ${error.message}`);
@@ -311,7 +311,7 @@ export function ProductionDebugPanel({ isOpen, onClose }: Props) {
   const executeSql = async (sql: string, blockId: string) => {
     setSqlResults(prev => ({ ...prev, [blockId]: { loading: true } }));
     try {
-      const session = (await supabase.auth.getSession()).data.session;
+      const session = (await db.auth.getSession()).data.session;
       const resp = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/admin-ai-builder`, {
         method: 'POST',
         headers: {
@@ -337,7 +337,7 @@ export function ProductionDebugPanel({ isOpen, onClose }: Props) {
     setSqlEditorResult({ loading: true });
     const start = performance.now();
     try {
-      const sess = (await supabase.auth.getSession()).data.session;
+      const sess = (await db.auth.getSession()).data.session;
       const resp = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/admin-ai-builder`, {
         method: 'POST',
         headers: {
@@ -368,7 +368,7 @@ export function ProductionDebugPanel({ isOpen, onClose }: Props) {
   useEffect(() => {
     if (isOpen) {
       setSqlConnected('checking');
-      supabase.from('profiles').select('id').limit(1).then(({ error }) => {
+      db.from('profiles').select('id').limit(1).then(({ error }) => {
         setSqlConnected(error ? 'error' : 'connected');
       });
     }
@@ -404,7 +404,7 @@ export function ProductionDebugPanel({ isOpen, onClose }: Props) {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${(await supabase.auth.getSession()).data.session?.access_token || import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+          Authorization: `Bearer ${(await db.auth.getSession()).data.session?.access_token || import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
         },
         body: JSON.stringify({ messages: [...aiMessages, userMsg] }),
       });

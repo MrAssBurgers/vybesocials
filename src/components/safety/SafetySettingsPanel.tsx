@@ -31,7 +31,7 @@ import {
   canAccessMinimalFiltering 
 } from '@/hooks/useSafetySettings';
 import { useAuth } from '@/lib/auth';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { triggerHaptic } from '@/lib/haptics';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
@@ -45,7 +45,7 @@ export const SafetySettingsPanel = memo(function SafetySettingsPanel() {
 
   useEffect(() => {
     if (!profile?.id) return;
-    supabase.rpc('get_own_sensitive_profile').single().then(({ data }) => {
+    db.rpc('get_own_sensitive_profile').single().then(({ data }) => {
       if (data?.date_of_birth) {
         setCanUseMinimal(canAccessMinimalFiltering(data.date_of_birth));
       }

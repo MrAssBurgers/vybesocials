@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth';
 
 /**
@@ -24,7 +24,7 @@ export function useExternalPresence(enabled = true) {
       if (cancelled || document.hidden) return;
       // Cheap check the first time — skip polling entirely if no handles saved
       if (hasHandlesRef.current === null) {
-        const { data } = await supabase
+        const { data } = await db
           .from('external_account_handles')
           .select('twitch_login, steam_id')
           .eq('user_id', user!.id)
@@ -34,7 +34,7 @@ export function useExternalPresence(enabled = true) {
       if (!hasHandlesRef.current) return;
 
       try {
-        await supabase.functions.invoke('external-presence-poll', { body: {} });
+        await db.functions.invoke('external-presence-poll', { body: {} });
       } catch (e) {
         console.warn('external-presence-poll failed', e);
       }

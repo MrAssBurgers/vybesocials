@@ -1,6 +1,6 @@
 import { useCallback, useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { subscribePostgresChannel, removeRealtimeChannel } from '@/lib/realtimeChannel';
 import { useAuth } from '@/lib/auth';
 import { getEffectiveProfileId } from '@/lib/profileCache';
@@ -27,7 +27,7 @@ export function useChatPrefetch() {
     if (cached && cached.length > 0) return;
 
     try {
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('messages')
         .select(PREFETCH_SELECT)
         .eq('conversation_id', conversationId)
@@ -51,7 +51,7 @@ export function useChatPrefetch() {
     if (cached) return;
 
     try {
-      const { data: existingConv } = await supabase
+      const { data: existingConv } = await db
         .from('conversation_members')
         .select(`
           conversation_id,
@@ -63,7 +63,7 @@ export function useChatPrefetch() {
       if (!existingConv) return;
 
       for (const member of existingConv) {
-        const { data: otherMembers } = await supabase
+        const { data: otherMembers } = await db
           .from('conversation_members')
           .select('user_id')
           .eq('conversation_id', member.conversation_id)

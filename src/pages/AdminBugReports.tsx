@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { Bug, CheckCircle2, Clock, AlertTriangle, Trash2, MessageSquare, ChevronDown, ChevronUp, ArrowLeft, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
@@ -50,7 +50,7 @@ export default function AdminBugReports() {
   } = useQuery({
     queryKey: ['admin-bug-reports', filter],
     queryFn: async () => {
-      let query = supabase
+      let query = db
         .from('bug_reports')
         .select('id, status, error_message, error_stack, page_url, ai_analysis, created_at, reporter_id')
         .order('created_at', { ascending: false })
@@ -66,7 +66,7 @@ export default function AdminBugReports() {
 
       const reporterIds = [...new Set(rows.map((r) => r.reporter_id).filter(Boolean))];
       const { data: profiles } = reporterIds.length
-        ? await supabase
+        ? await db
             .from('profiles')
             .select('id, username, display_name, avatar_url')
             .in('id', reporterIds)
@@ -85,12 +85,12 @@ export default function AdminBugReports() {
 
   const updateStatus = useMutation({
     mutationFn: async ({ id, status, notes }: { id: string; status: string; notes?: string }) => {
-      const { data: { user: authUser } } = await supabase.auth.getUser();
+      const { data: { user: authUser } } = await db.auth.getUser();
       const update: Record<string, unknown> = { status };
       if (status === 'fixed' || status === 'wont_fix') {
         update.resolved_at = new Date().toISOString();
         if (authUser?.id) {
-          const { data: profile } = await supabase
+          const { data: profile } = await db
             .from('profiles')
             .select('id')
             .eq('user_id', authUser.id)
@@ -100,7 +100,7 @@ export default function AdminBugReports() {
       }
       if (notes) update.admin_notes = notes;
 
-      const { error: updateError } = await supabase.from('bug_reports').update(update as never).eq('id', id);
+      const { error: updateError } = await db.from('bug_reports').update(update as never).eq('id', id);
       if (updateError) throw updateError;
     },
     onSuccess: () => {
@@ -111,7 +111,7 @@ export default function AdminBugReports() {
 
   const deleteBug = useMutation({
     mutationFn: async (id: string) => {
-      const { error: deleteError } = await supabase.from('bug_reports').delete().eq('id', id);
+      const { error: deleteError } = await db.from('bug_reports').delete().eq('id', id);
       if (deleteError) throw deleteError;
     },
     onSuccess: () => {

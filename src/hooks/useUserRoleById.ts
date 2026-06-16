@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 
 /**
  * Hook to fetch a specific user's role by their profile ID
@@ -12,8 +12,8 @@ export function useUserRoleById(userId: string | undefined) {
       
       // Check both user_roles (profile-keyed) and user_roles_auth (auth-keyed)
       const [profileRoles, authRoles] = await Promise.all([
-        supabase.from('user_roles').select('role').eq('user_id', userId),
-        supabase.from('user_roles_auth').select('role').eq('user_id', userId),
+        db.from('user_roles').select('role').eq('user_id', userId),
+        db.from('user_roles_auth').select('role').eq('user_id', userId),
       ]);
       
       const allRoles = [
@@ -40,7 +40,7 @@ export function useUsersRoles(userIds: string[]) {
     queryFn: async () => {
       if (userIds.length === 0) return {};
       
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('user_roles')
         .select('user_id, role')
         .in('user_id', userIds);

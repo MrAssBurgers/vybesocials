@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth';
 import { filterBlockedContent, containsBlockedContent } from '@/lib/contentModeration';
 import { scanText as nsfwScanText } from '@/lib/nsfwScanner';
@@ -31,7 +31,7 @@ export function useComments(postId: string) {
   return useQuery({
     queryKey: ['comments', postId],
     queryFn: async (): Promise<Comment[]> => {
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('comments')
         .select(`
           id,
@@ -59,9 +59,9 @@ export function useComments(postId: string) {
 
       if (commentIds.length > 0) {
         const [countsRes, userLikesRes] = await Promise.all([
-          (supabase as any).from('comment_likes').select('comment_id').in('comment_id', commentIds),
+          (db as any).from('comment_likes').select('comment_id').in('comment_id', commentIds),
           profile
-            ? (supabase as any).from('comment_likes').select('comment_id').eq('user_id', profile.id).in('comment_id', commentIds)
+            ? (db as any).from('comment_likes').select('comment_id').eq('user_id', profile.id).in('comment_id', commentIds)
             : Promise.resolve({ data: [] }),
         ]);
 
@@ -135,7 +135,7 @@ export function useCreateComment() {
         }
       }
 
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('comments')
         .insert({
           user_id: profile.id,
@@ -156,7 +156,7 @@ export function useCreateComment() {
       // and the user thinks "send didn't work" even though the row inserted).
       if (authorId && authorId !== profile.id) {
         try {
-          await supabase.from('notifications').insert({
+          await db.from('notifications').insert({
             user_id: authorId,
             type: 'comment',
             actor_id: profile.id,
@@ -175,7 +175,7 @@ export function useCreateComment() {
         moderateContent(filteredText, 'comment', data.id).then(result => {
           if (result.requires_review) {
             // Update the flag status if moderation catches something
-            supabase.from('comments').update({ is_flagged: true }).eq('id', data.id).then(() => {});
+            db.from('comments').update({ is_flagged: true }).eq('id', data.id).then(() => {});
           }
         }).catch(console.error);
       }
@@ -199,7 +199,7 @@ export function useDeleteComment() {
     mutationFn: async ({ commentId, postId }: { commentId: string; postId: string }) => {
       if (!profile) throw new Error('Not authenticated');
 
-      const { data: comment, error: fetchError } = await supabase
+      const { data: comment, error: fetchError } = await db
         .from('comments')
         .select('user_id')
         .eq('id', commentId)
@@ -210,7 +210,7 @@ export function useDeleteComment() {
         throw new Error('You can only delete your own comments');
       }
 
-      const { error } = await supabase
+      const { error } = await db
         .from('comments')
         .delete()
         .eq('id', commentId);
@@ -245,7 +245,7 @@ export function useEditComment() {
 
       const filteredText = filterBlockedContent(text);
 
-      const { error } = await supabase
+      const { error } = await db
         .from('comments')
         .update({ text: filteredText })
         .eq('id', commentId)

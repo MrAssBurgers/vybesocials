@@ -7,7 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import { getUserFriendlyError } from '@/lib/errorUtils';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { haptics } from '@/lib/haptics';
 import { BlockedUsersCard } from './BlockedUsersCard';
 import { SettingsSectionCard, SettingsPanel, SettingsToggleRow } from './SettingsUI';
@@ -28,7 +28,7 @@ export function PrivacySection() {
 
   useEffect(() => {
     if (profile?.id) {
-      supabase
+      db
         .from('profiles')
         .select('is_private, feature_on_landing')
         .eq('id', profile.id)
@@ -65,7 +65,7 @@ export function PrivacySection() {
     setPrivacyLoading(true);
     haptics.tap();
     try {
-      const { error } = await supabase
+      const { error } = await db
         .from('profiles')
         .update({ is_private: value })
         .eq('id', profile.id);
@@ -98,7 +98,7 @@ export function PrivacySection() {
 
     setPasswordLoading(true);
     try {
-      const { error } = await supabase.auth.updateUser({ password: newPassword });
+      const { error } = await db.auth.updateUser({ password: newPassword });
       if (error) throw error;
 
       haptics.success();

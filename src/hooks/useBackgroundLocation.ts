@@ -1,5 +1,5 @@
 import { useEffect, useRef, useCallback, useState } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { toast } from 'sonner';
 
 const UPSERT_INTERVAL_MS = 15_000;
@@ -47,7 +47,7 @@ export function useBackgroundLocation(
     const hour = new Date().getHours();
     const status = autoStatus(spd, hour);
     const expiresAt = new Date(now + 60 * 60 * 1000).toISOString(); // 1 hour from now
-    await supabase
+    await db
       .from('user_locations')
       .upsert({
         user_id: userId,
@@ -130,7 +130,7 @@ export function useBackgroundLocation(
   // Disable sharing in DB when toggled off
   useEffect(() => {
     if (sharing || !userId) return;
-    supabase.from('user_locations').update({ sharing_enabled: false } as any).eq('user_id', userId).then();
+    db.from('user_locations').update({ sharing_enabled: false } as any).eq('user_id', userId).then();
   }, [sharing, userId]);
 
   return { coords, accuracy, speed, sharing, setSharing };

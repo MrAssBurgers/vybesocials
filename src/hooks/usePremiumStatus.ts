@@ -1,7 +1,7 @@
 import { useRevenueCat } from './useRevenueCat';
 import { useAuth } from '@/lib/auth';
 import { useQuery } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 
 const PREMIUM_ENTITLEMENT_ID = 'Vybe Social Pro';
 
@@ -28,7 +28,7 @@ export function usePremiumStatus() {
       if (!user?.id) return { isOwner: false, isGifted: false };
 
       // Check owner role
-      const { data: ownerData } = await supabase
+      const { data: ownerData } = await db
         .from('user_roles_auth')
         .select('role')
         .eq('user_id', user.id)
@@ -36,7 +36,7 @@ export function usePremiumStatus() {
         .maybeSingle();
 
       // Check gifted premium (only accepted ones)
-      const { data: giftedData } = await supabase
+      const { data: giftedData } = await db
         .from('gifted_premium')
         .select('id')
         .eq('user_id', user.id)

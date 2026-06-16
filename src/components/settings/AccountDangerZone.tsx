@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { AlertTriangle, Download, Trash2, Loader2, Clock, Undo2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth';
 import { toast } from 'sonner';
 import {
@@ -42,7 +42,7 @@ export function AccountDangerZone() {
     if (!user || exporting) return;
     setExporting(true);
     try {
-      const { data, error } = await supabase.functions.invoke('manage-account', {
+      const { data, error } = await db.functions.invoke('manage-account', {
         body: { action: 'export' },
       });
       if (error) throw error;
@@ -69,7 +69,7 @@ export function AccountDangerZone() {
     if (!user || confirmText !== 'DELETE' || requesting) return;
     setRequesting(true);
     try {
-      const { data, error } = await supabase.functions.invoke('manage-account', {
+      const { data, error } = await db.functions.invoke('manage-account', {
         body: { action: 'request_deletion' },
       });
       if (error) throw error;
@@ -91,7 +91,7 @@ export function AccountDangerZone() {
     if (!user || cancelling) return;
     setCancelling(true);
     try {
-      const { data, error } = await supabase.functions.invoke('manage-account', {
+      const { data, error } = await db.functions.invoke('manage-account', {
         body: { action: 'cancel_deletion' },
       });
       if (error) throw error;

@@ -8,7 +8,7 @@ import { useAuthProfileId } from '@/hooks/useAuthProfileId';
 import { useSendFriendRequest } from '@/hooks/useFriends';
 import { useFriendDropSync } from '@/hooks/useFriendDropSync';
 import { useCreateConversation } from '@/hooks/useMessages';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { useSwingDetection } from '@/hooks/useSwingDetection';
 import { useNativeFriendDrop } from '@/hooks/useNativeFriendDrop';
 import { haptics } from '@/lib/haptics';
@@ -94,7 +94,7 @@ export function AutoFriendDrop() {
 
   const fetchUser = async (userId: string): Promise<FoundUser | null> => {
     try {
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('profiles')
         .select('id, username, display_name, avatar_url')
         .eq('id', userId)
@@ -407,7 +407,7 @@ export function AutoFriendDrop() {
     haptics.success();
     setPhase('found');
     try {
-      const { data, error } = await supabase.from('profiles').select('id, username, display_name, avatar_url').eq('id', userId).single();
+      const { data, error } = await db.from('profiles').select('id, username, display_name, avatar_url').eq('id', userId).single();
       if (error) throw error;
       setFoundUser(data);
     } catch { toast.error('Could not find user'); handleClose(); }

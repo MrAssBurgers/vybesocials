@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { useAuth } from '@/lib/auth';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { PhoneNumberCard } from '@/components/settings/PhoneNumberCard';
 import { ShieldCheck } from 'lucide-react';
 import {
@@ -34,7 +34,7 @@ export function PhoneVerifyGate() {
 
     let cancelled = false;
     (async () => {
-      const { data } = await supabase
+      const { data } = await db
         .from('profiles')
         .select('phone_verified')
         .eq('user_id', user.id)

@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useEffect } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { removeRealtimeChannel, subscribePostgresChannel } from '@/lib/realtimeChannel';
 import { useAuth } from '@/lib/auth';
 import { useAuthProfileId } from '@/hooks/useAuthProfileId';
@@ -60,7 +60,7 @@ export function useMyCommunities() {
     queryFn: async () => {
       if (!profileId) return [];
 
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('server_members')
         .select(`
           server_id,
@@ -92,7 +92,7 @@ export function useCommunity(communityId: string | undefined) {
     queryFn: async () => {
       if (!communityId) return null;
 
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('servers')
         .select('id, name, description, icon_url, banner_url, cover_url, owner_id, invite_code, is_public, member_count, active_now_count, created_at')
         .eq('id', communityId)
@@ -113,7 +113,7 @@ export function useRooms(communityId: string | undefined) {
     queryFn: async () => {
       if (!communityId) return [];
 
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('channels')
         .select('id, server_id, name, description, type, room_type, position, is_private, created_at')
         .eq('server_id', communityId)
@@ -138,7 +138,7 @@ export function useCommunityMembers(communityId: string | undefined) {
     queryFn: async () => {
       if (!communityId) return [];
 
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('server_members')
         .select(`
           id, server_id, user_id, role, nickname, joined_at,
@@ -173,7 +173,7 @@ export function useLiveActivity(communityId: string | undefined) {
     queryFn: async () => {
       if (!communityId) return [];
 
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('live_activity')
         .select(`
           id, community_id, user_id, activity_type, room_id, started_at, last_seen_at
@@ -221,7 +221,7 @@ export function useCreateCommunity() {
       if (!profile?.id) throw new Error('Not authenticated');
 
       // Create community (server)
-      const { data: community, error: communityError } = await supabase
+      const { data: community, error: communityError } = await db
         .from('servers')
         .insert({
           name,
@@ -235,7 +235,7 @@ export function useCreateCommunity() {
       if (communityError) throw communityError;
 
       // Add owner as member
-      await supabase
+      await db
         .from('server_members')
         .insert({
           server_id: community.id,
@@ -244,7 +244,7 @@ export function useCreateCommunity() {
         });
 
       // Create default rooms (all 5)
-      await supabase.rpc('create_default_rooms', { p_server_id: community.id });
+      await db.rpc('create_default_rooms', { p_server_id: community.id });
 
       return community as Community;
     },
@@ -268,7 +268,7 @@ export function useJoinCommunity() {
       if (!profile?.id) throw new Error('Not authenticated');
 
       // Find community by invite code
-      const { data: community, error: findError } = await supabase
+      const { data: community, error: findError } = await db
         .from('servers')
         .select('id, name')
         .eq('invite_code', inviteCode)
@@ -277,7 +277,7 @@ export function useJoinCommunity() {
       if (findError || !community) throw new Error('Invalid invite code');
 
       // Check if already a member
-      const { data: existing } = await supabase
+      const { data: existing } = await db
         .from('server_members')
         .select('id')
         .eq('server_id', community.id)
@@ -287,7 +287,7 @@ export function useJoinCommunity() {
       if (existing) throw new Error('Already a member of this community');
 
       // Join community
-      const { error: joinError } = await supabase
+      const { error: joinError } = await db
         .from('server_members')
         .insert({
           server_id: community.id,
@@ -318,7 +318,7 @@ export function useLeaveCommunity() {
     mutationFn: async (communityId: string) => {
       if (!profile?.id) throw new Error('Not authenticated');
 
-      const { error } = await supabase
+      const { error } = await db
         .from('server_members')
         .delete()
         .eq('server_id', communityId)
@@ -352,7 +352,7 @@ export function useUpdateActivity() {
     }) => {
       if (!profile?.id) return;
 
-      await supabase
+      await db
         .from('live_activity')
         .upsert({
           community_id: communityId,
@@ -372,7 +372,7 @@ export function usePublicCommunities(search?: string) {
   return useQuery({
     queryKey: ['public-communities', search],
     queryFn: async () => {
-      let query = supabase
+      let query = db
         .from('servers')
         .select('id, name, description, icon_url, banner_url, cover_url, member_count, active_now_count, invite_code, created_at')
         .eq('is_public', true)
@@ -402,7 +402,7 @@ export function useMyCommunityRole(communityId: string | undefined) {
     queryFn: async () => {
       if (!communityId || !profileId) return null;
 
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('server_members')
         .select('role')
         .eq('server_id', communityId)

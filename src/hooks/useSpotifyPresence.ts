@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth';
 import { setLocalPresence } from '@/hooks/useLiveMusicPresence';
 
@@ -43,7 +43,7 @@ export function useSpotifyPresence() {
     };
 
     const checkConnection = async () => {
-      const { data } = await supabase
+      const { data } = await db
         .from('spotify_connections')
         .select('user_id')
         .eq('user_id', userId)
@@ -58,7 +58,7 @@ export function useSpotifyPresence() {
       if (connected === false) return;
       inflight.current = true;
       try {
-        const { data, error } = await supabase.functions.invoke('spotify-now-playing');
+        const { data, error } = await db.functions.invoke('spotify-now-playing');
         if (error) {
           console.warn('[SpotifyPresence] invoke error', error);
           if (error?.message?.includes('Unauthorized') || error?.message?.includes('token_invalid')) {

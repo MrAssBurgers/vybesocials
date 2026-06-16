@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { useAuthProfileId } from '@/hooks/useAuthProfileId';
 
 export interface MessageRequest {
@@ -26,7 +26,7 @@ export function useMessageRequests() {
     queryFn: async () => {
       if (!profileId) return [];
 
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('message_requests')
         .select(`
           *,
@@ -57,7 +57,7 @@ export function usePendingRequestCount() {
     queryFn: async () => {
       if (!profileId) return 0;
 
-      const { count, error } = await supabase
+      const { count, error } = await db
         .from('message_requests')
         .select('id', { count: 'exact', head: true })
         .eq('receiver_id', profileId)
@@ -85,7 +85,7 @@ export function useSendMessageRequest() {
     }) => {
       if (!profileId) throw new Error('Not authenticated');
 
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('message_requests')
         .insert({
           sender_id: profileId,
@@ -115,7 +115,7 @@ export function useRespondToMessageRequest() {
       requestId: string;
       action: 'accepted' | 'declined' | 'ignored';
     }) => {
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('message_requests')
         .update({
           status: action,
@@ -144,7 +144,7 @@ export function useCanSendDM(receiverId: string) {
       if (!profileId || !receiverId) return false;
       if (profileId === receiverId) return true;
 
-      const { data, error } = await supabase.rpc('can_send_dm', {
+      const { data, error } = await db.rpc('can_send_dm', {
         sender_id: profileId,
         receiver_id: receiverId,
       });
@@ -164,7 +164,7 @@ export function useExistingRequest(receiverId: string) {
     queryFn: async () => {
       if (!profileId || !receiverId) return null;
 
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('message_requests')
         .select('*')
         .eq('sender_id', profileId)

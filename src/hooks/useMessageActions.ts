@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth';
 import { toast } from 'sonner';
 import { invalidateConversationCaches } from '@/lib/invalidateConversationCaches';
@@ -30,7 +30,7 @@ export function useUnsendForEveryone() {
         return { messageId, conversationId };
       }
 
-      const { data, error } = await supabase.functions.invoke('unsend-message', {
+      const { data, error } = await db.functions.invoke('unsend-message', {
         body: { messageId },
       });
 
@@ -74,7 +74,7 @@ export function useDeleteForMe() {
       if (!profile?.id) throw new Error('Not authenticated');
 
       // Get conversation ID for cache invalidation
-      const { data: message, error: fetchError } = await supabase
+      const { data: message, error: fetchError } = await db
         .from('messages')
         .select('conversation_id')
         .eq('id', messageId)
@@ -84,7 +84,7 @@ export function useDeleteForMe() {
       if (!message) throw new Error('Message not found');
 
       // Insert into message_deletions table in mutationFn
-      const { error } = await supabase
+      const { error } = await db
         .from('message_deletions')
         .upsert({
           message_id: messageId,
@@ -126,7 +126,7 @@ export function useEditMessage() {
       if (!profile?.id) throw new Error('Not authenticated');
 
       // Verify ownership + grab conversation_id for cache updates
-      const { data: message, error: fetchError } = await supabase
+      const { data: message, error: fetchError } = await db
         .from('messages')
         .select('sender_id, conversation_id, created_at')
         .eq('id', messageId)
@@ -156,7 +156,7 @@ export function useEditMessage() {
       });
 
       // Server-side 15-min enforcement via SECURITY DEFINER RPC
-      const { error } = await supabase.rpc('edit_message', {
+      const { error } = await db.rpc('edit_message', {
         p_message_id: messageId,
         p_new_content: newContent,
       });

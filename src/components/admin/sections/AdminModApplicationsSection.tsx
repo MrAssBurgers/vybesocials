@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Shield, CheckCircle, XCircle, Clock, User, ChevronDown, ChevronUp } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { GlassCard } from '@/components/ui/glass/GlassCard';
@@ -35,7 +35,7 @@ export function AdminModApplicationsSection() {
   const { data: applications = [], isLoading } = useQuery({
     queryKey: ['admin-mod-applications', filter],
     queryFn: async () => {
-      let query = supabase
+      let query = db
         .from('moderator_applications')
         .select('*, applicant:profiles!user_id(username, avatar_url, display_name)')
         .order('created_at', { ascending: false });
@@ -53,7 +53,7 @@ export function AdminModApplicationsSection() {
   const reviewMutation = useMutation({
     mutationFn: async ({ id, status, notes }: { id: string; status: 'approved' | 'rejected'; notes?: string }) => {
       // Update application
-      const { error } = await supabase
+      const { error } = await db
         .from('moderator_applications')
         .update({
           status,
@@ -68,7 +68,7 @@ export function AdminModApplicationsSection() {
       if (status === 'approved') {
         const app = applications.find(a => a.id === id);
         if (app) {
-          const { error: roleError } = await supabase
+          const { error: roleError } = await db
             .from('user_roles')
             .upsert({ user_id: app.user_id, role: 'moderator' }, { onConflict: 'user_id,role' });
           if (roleError) console.error('Failed to assign role:', roleError);

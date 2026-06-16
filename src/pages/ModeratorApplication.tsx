@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { GlassCard } from '@/components/ui/glass/GlassCard';
 import { useAuth } from '@/lib/auth';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 
@@ -33,7 +33,7 @@ export default function ModeratorApplication() {
     queryKey: ['mod-application', profile?.id],
     queryFn: async () => {
       if (!profile?.id) return null;
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('moderator_applications')
         .select('*')
         .eq('user_id', profile.id)
@@ -49,7 +49,7 @@ export default function ModeratorApplication() {
   const submitMutation = useMutation({
     mutationFn: async () => {
       if (!profile?.id) throw new Error('Not authenticated');
-      const { error } = await supabase
+      const { error } = await db
         .from('moderator_applications')
         .insert({
           user_id: profile.id,

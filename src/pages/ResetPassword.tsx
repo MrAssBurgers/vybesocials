@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { VYBELogo } from '@/components/ui/VYBELogo';
 import { Eye, EyeOff, Lock, CheckCircle, Loader2, AlertTriangle } from 'lucide-react';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { toast } from 'sonner';
 
 async function establishRecoverySession(): Promise<{ ok: true } | { ok: false; message: string }> {
@@ -19,14 +19,14 @@ async function establishRecoverySession(): Promise<{ ok: true } | { ok: false; m
   const type = queryParams.get('type') || hashParams.get('type');
 
   if (code) {
-    const { error } = await supabase.auth.exchangeCodeForSession(code);
+    const { error } = await db.auth.exchangeCodeForSession(code);
     if (error) return { ok: false, message: error.message || 'Invalid or expired reset link.' };
     window.history.replaceState(null, '', url.pathname);
     return { ok: true };
   }
 
   if (tokenHash && type === 'recovery') {
-    const { error } = await supabase.auth.verifyOtp({ token_hash: tokenHash, type: 'recovery' });
+    const { error } = await db.auth.verifyOtp({ token_hash: tokenHash, type: 'recovery' });
     if (error) return { ok: false, message: error.message || 'Invalid or expired reset link.' };
     window.history.replaceState(null, '', url.pathname);
     return { ok: true };
@@ -35,7 +35,7 @@ async function establishRecoverySession(): Promise<{ ok: true } | { ok: false; m
   const accessToken = hashParams.get('access_token');
   const refreshToken = hashParams.get('refresh_token');
   if (accessToken && refreshToken && type === 'recovery') {
-    const { error } = await supabase.auth.setSession({
+    const { error } = await db.auth.setSession({
       access_token: accessToken,
       refresh_token: refreshToken,
     });
@@ -44,7 +44,7 @@ async function establishRecoverySession(): Promise<{ ok: true } | { ok: false; m
     return { ok: true };
   }
 
-  const { data: { session } } = await supabase.auth.getSession();
+  const { data: { session } } = await db.auth.getSession();
   if (session) return { ok: true };
 
   return { ok: false, message: 'Invalid or expired reset link. Please request a new one.' };
@@ -77,7 +77,7 @@ export default function ResetPassword() {
       setChecking(false);
     };
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+    const { data: { subscription } } = db.auth.onAuthStateChange((event) => {
       if (event === 'PASSWORD_RECOVERY' || event === 'SIGNED_IN') {
         finishOk();
       }
@@ -120,7 +120,7 @@ export default function ResetPassword() {
     setLoading(true);
 
     try {
-      const { error } = await supabase.auth.updateUser({ password });
+      const { error } = await db.auth.updateUser({ password });
       if (error) throw error;
 
       setSuccess(true);

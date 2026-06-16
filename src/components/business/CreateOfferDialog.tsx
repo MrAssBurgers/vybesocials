@@ -12,7 +12,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { toast } from 'sonner';
 
 interface CreateOfferDialogProps {
@@ -53,7 +53,7 @@ export function CreateOfferDialog({
     setLoading(true);
     try {
       // Create the offer
-      const { data: offer, error: offerError } = await supabase
+      const { data: offer, error: offerError } = await db
         .from('business_offers')
         .insert({
           conversation_id: conversationId,
@@ -73,7 +73,7 @@ export function CreateOfferDialog({
       if (offerError) throw offerError;
 
       // Send a message with the offer
-      const { error: msgError } = await supabase
+      const { error: msgError } = await db
         .from('messages')
         .insert({
           conversation_id: conversationId,

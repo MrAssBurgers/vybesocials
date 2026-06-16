@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Shield, Upload, Music, Film, Check, AlertTriangle, X, Loader2, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { scanVideo as nsfwScanVideo } from '@/lib/nsfwScanner';
 import { cn } from '@/lib/utils';
 
@@ -63,7 +63,7 @@ export const VideoUploadScanner = memo(function VideoUploadScanner({
       const quarantinePath = `quarantine/${fileName}`;
       
       // Upload with progress tracking
-      const { data: uploadData, error: uploadError } = await supabase.storage
+      const { data: uploadData, error: uploadError } = await db.storage
         .from('media')
         .upload(quarantinePath, file, {
           cacheControl: '3600',
@@ -98,7 +98,7 @@ export const VideoUploadScanner = memo(function VideoUploadScanner({
           progress: 100 
         }));
         
-        await supabase.storage.from('media').remove([quarantinePath]);
+        await db.storage.from('media').remove([quarantinePath]);
         return;
       }
 
@@ -113,12 +113,12 @@ export const VideoUploadScanner = memo(function VideoUploadScanner({
       const publicPath = `videos/${fileName}`;
       
       // Copy to public location (Supabase doesn't have a move function)
-      const { data: fileData } = await supabase.storage
+      const { data: fileData } = await db.storage
         .from('media')
         .download(quarantinePath);
       
       if (fileData) {
-        await supabase.storage
+        await db.storage
           .from('media')
           .upload(publicPath, fileData, {
             cacheControl: '3600',
@@ -126,11 +126,11 @@ export const VideoUploadScanner = memo(function VideoUploadScanner({
           });
         
         // Delete quarantine copy
-        await supabase.storage.from('media').remove([quarantinePath]);
+        await db.storage.from('media').remove([quarantinePath]);
       }
 
       // Get public URL
-      const { data: urlData } = supabase.storage
+      const { data: urlData } = db.storage
         .from('media')
         .getPublicUrl(publicPath);
 

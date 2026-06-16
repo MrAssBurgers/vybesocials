@@ -1,14 +1,14 @@
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 
-let refreshInFlight: ReturnType<typeof supabase.auth.refreshSession> | null = null;
+type RefreshResult = ReturnType<typeof db.auth.refreshSession>;
 
-/** Single-flight refresh — concurrent calls share one request (prevents refresh-token rotation races). */
-export function refreshSupabaseSession(
-  timeoutMs?: number,
-): ReturnType<typeof supabase.auth.refreshSession> {
+let refreshInFlight: Promise<Awaited<RefreshResult>> | null = null;
+
+/** Single-flight refresh — concurrent calls share one request. */
+export function refreshFirebaseSession(timeoutMs?: number): Promise<Awaited<RefreshResult>> {
   if (refreshInFlight) return refreshInFlight;
 
-  const refreshPromise = supabase.auth.refreshSession();
+  const refreshPromise = db.auth.refreshSession();
 
   if (timeoutMs == null || timeoutMs <= 0) {
     refreshInFlight = refreshPromise.finally(() => {
@@ -17,16 +17,12 @@ export function refreshSupabaseSession(
     return refreshInFlight;
   }
 
-  const timeoutPromise = new Promise<Awaited<ReturnType<typeof supabase.auth.refreshSession>>>(
-    (resolve) => {
-      setTimeout(
-        () => resolve({ data: { session: null, user: null }, error: null } as Awaited<
-          ReturnType<typeof supabase.auth.refreshSession>
-        >),
-        timeoutMs,
-      );
-    },
-  );
+  const timeoutPromise = new Promise<Awaited<RefreshResult>>((resolve) => {
+    setTimeout(
+      () => resolve({ data: { session: null }, error: null }),
+      timeoutMs,
+    );
+  });
 
   refreshInFlight = Promise.race([refreshPromise, timeoutPromise]).finally(() => {
     refreshInFlight = null;
@@ -34,3 +30,6 @@ export function refreshSupabaseSession(
 
   return refreshInFlight;
 }
+
+/** @deprecated Use refreshFirebaseSession */
+export const refreshSupabaseSession = refreshFirebaseSession;

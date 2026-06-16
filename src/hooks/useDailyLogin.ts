@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth';
 import { useQueryClient } from '@tanstack/react-query';
 import { useTokenReward } from '@/hooks/useVybeTokens';
@@ -38,7 +38,7 @@ export function useDailyLoginChallenge() {
       localStorage.setItem(LOCAL_KEY, today);
       
       try {
-        const { data, error } = await supabase.rpc('track_daily_login');
+        const { data, error } = await db.rpc('track_daily_login');
         
         if (error) throw error;
         

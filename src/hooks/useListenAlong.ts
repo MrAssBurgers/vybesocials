@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { toast } from '@/hooks/use-toast';
 import type { LiveMusicPresence } from '@/hooks/useLiveMusicPresence';
 
@@ -18,7 +18,7 @@ export function useListenAlong() {
     }
     setLoading(true);
     try {
-      const { data, error } = await supabase.functions.invoke('spotify-listen-along', {
+      const { data, error } = await db.functions.invoke('spotify-listen-along', {
         body: { track_id: presence.track_id, position_ms: presence.progress_ms ?? 0 },
       });
       if (error) throw error;

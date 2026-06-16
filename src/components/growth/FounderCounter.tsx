@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { motion } from 'framer-motion';
 import { Shield } from 'lucide-react';
 
@@ -14,7 +14,7 @@ export function FounderCounter({ compact = false }: { compact?: boolean }) {
     queryKey: ['founder-counter'],
     queryFn: async () => {
       // Use maybeSingle to avoid 406 when row doesn't exist
-      const { data: config, error } = await supabase
+      const { data: config, error } = await db
         .from('growth_config')
         .select('value')
         .eq('key', 'founding_program')
@@ -30,7 +30,7 @@ export function FounderCounter({ compact = false }: { compact?: boolean }) {
       if (!isActive || !badgeId) return null;
 
       // Count how many have the founder badge
-      const { count } = await supabase
+      const { count } = await db
         .from('user_badges')
         .select('id', { count: 'exact', head: true })
         .eq('badge_id', badgeId);

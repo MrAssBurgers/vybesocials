@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 
-import { supabase } from "@/integrations/supabase/client";
+import { db } from "@/lib/firebase";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { useAuthProfileId } from "@/hooks/useAuthProfileId";
 import { RecentMessageUser } from "@/lib/recentMessageUsers";
@@ -367,7 +367,7 @@ export default function NewMessage() {
     queryKey: ["add-friend-user-search", debounced, profileId],
     queryFn: async () => {
       if (!debounced || !profileId) return [] as RecentMessageUser[];
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from("profiles")
         .select("id, username, avatar_url, display_name")
         .neq("id", profileId)

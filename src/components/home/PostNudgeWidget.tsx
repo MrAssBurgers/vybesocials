@@ -4,7 +4,7 @@ import { Camera, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/lib/auth';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { useQuery } from '@tanstack/react-query';
 import { liquidSpring } from '@/motion/liquidConfig';
 
@@ -35,7 +35,7 @@ export const PostNudgeWidget = memo(function PostNudgeWidget() {
     queryFn: async () => {
       if (!profile?.id) return true;
       const threeDaysAgo = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString();
-      const { count } = await (supabase as any)
+      const { count } = await (db as any)
         .from('posts')
         .select('id', { count: 'exact', head: true })
         .eq('author_id', profile.id)

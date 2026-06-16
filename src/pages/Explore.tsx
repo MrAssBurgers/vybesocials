@@ -31,7 +31,7 @@ import { useIsMobileOrTablet } from '@/hooks/use-mobile';
 import { useVideoPreload } from '@/hooks/useVideoPreload';
 import { useNetworkStatus } from '@/hooks/useNetworkStatus';
 import { useSignedUrl } from '@/hooks/useSignedUrl';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { TrendingCreators } from '@/components/explore/TrendingCreators';
 import { TrendingHashtags } from '@/components/explore/TrendingHashtags';
 
@@ -544,9 +544,9 @@ export default function ExplorePage() {
   useEffect(() => {
     localStorage.setItem('explore-view-mode', viewMode);
     // Fire-and-forget DB sync
-    supabase.auth.getUser().then(({ data: { user } }) => {
+    db.auth.getUser().then(({ data: { user } }) => {
       if (!user?.id) return;
-      supabase
+      db
         .from('user_preferences' as any)
         .upsert({
           user_id: user.id,

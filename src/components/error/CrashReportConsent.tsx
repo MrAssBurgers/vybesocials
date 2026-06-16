@@ -1,5 +1,5 @@
 import { useEffect, useState, memo } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth';
 import {
   AlertDialog,
@@ -25,7 +25,7 @@ export const CrashReportConsent = memo(function CrashReportConsent() {
 
     const fetchConsent = async () => {
       try {
-        const { data } = await supabase
+        const { data } = await db
           .rpc('get_own_sensitive_profile')
           .single();
         const dbVal = (data as any)?.crash_consent;
@@ -48,7 +48,7 @@ export const CrashReportConsent = memo(function CrashReportConsent() {
 
     // Persist to DB so it never asks again on any device
     if (profile?.id) {
-      await supabase
+      await db
         .from('profiles')
         .update({ crash_consent: consent } as any)
         .eq('id', profile.id);

@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Check, Heart, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
@@ -87,7 +87,7 @@ export function InvitePopup() {
     
     // Verify onboarding + tutorial completion from DB
     try {
-      const { data: profileData, error } = await supabase
+      const { data: profileData, error } = await db
         .from('profiles')
         .select('referral_inviter_id, tutorial_completed, tutorial_skipped, onboarding_completed')
         .eq('id', profile.id)
@@ -109,7 +109,7 @@ export function InvitePopup() {
     }
     
     // Verify inviter still exists
-    const { data: inviterProfile } = await supabase
+    const { data: inviterProfile } = await db
       .from('profiles')
       .select('id, user_id, username, avatar_url, display_name')
       .eq('id', pending.inviterId)
@@ -182,11 +182,11 @@ export function InvitePopup() {
     try {
       // Get a fresh token
       let activeToken: string | undefined;
-      const { data: { session } } = await supabase.auth.getSession();
+      const { data: { session } } = await db.auth.getSession();
       activeToken = session?.access_token;
       
       if (!activeToken) {
-        const { data: refreshData } = await supabase.auth.refreshSession();
+        const { data: refreshData } = await db.auth.refreshSession();
         activeToken = refreshData.session?.access_token;
       }
       

@@ -1,5 +1,5 @@
 import type { QueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import type { Conversation, Message } from '@/hooks/useMessages';
 import { resolveSessionProfileId } from '@/lib/resolveSessionProfileId';
 import { withTimeout } from '@/lib/withTimeout';
@@ -56,7 +56,7 @@ async function loadDMConversationsOnce(
   try {
     const effectiveProfileId = (await resolveSessionProfileId(profileId)) ?? profileId;
 
-    const { data: membershipData, error: membershipError } = await supabase
+    const { data: membershipData, error: membershipError } = await db
       .from('conversation_members')
       .select('conversation_id, last_read_at, is_pinned, is_muted')
       .eq('user_id', effectiveProfileId);
@@ -72,19 +72,19 @@ async function loadDMConversationsOnce(
     const userConversationIds = membershipData.map((m) => m.conversation_id);
     const membershipMap = new Map(membershipData.map((m) => [m.conversation_id, m]));
 
-    const { data: { session } } = await supabase.auth.getSession();
+    const { data: { session } } = await db.auth.getSession();
     const authUserId = session?.user?.id;
 
     const [{ data: hiddenData }, { data: trashedData }] = await Promise.all([
       authUserId
-        ? supabase.from('hidden_conversations').select('conversation_id').eq('user_id', authUserId)
+        ? db.from('hidden_conversations').select('conversation_id').eq('user_id', authUserId)
         : Promise.resolve({ data: [] as { conversation_id: string }[] }),
-      supabase.from('trashed_conversations').select('conversation_id').eq('user_id', effectiveProfileId),
+      db.from('trashed_conversations').select('conversation_id').eq('user_id', effectiveProfileId),
     ]);
     const hiddenIds = new Set((hiddenData || []).map((h) => h.conversation_id));
     const trashedIds = new Set((trashedData || []).map((t) => t.conversation_id));
 
-    const { data: conversationsRaw, error: convError } = await supabase
+    const { data: conversationsRaw, error: convError } = await db
       .from('conversations')
       .select('*')
       .in('id', userConversationIds)
@@ -98,7 +98,7 @@ async function loadDMConversationsOnce(
       return { data: [], error: null, profileId: effectiveProfileId };
     }
 
-    const { data: allMembers, error: membersError } = await supabase
+    const { data: allMembers, error: membersError } = await db
       .from('conversation_members')
       .select('conversation_id, user_id, role, is_muted, is_pinned, last_read_at')
       .in('conversation_id', userConversationIds);
@@ -109,7 +109,7 @@ async function loadDMConversationsOnce(
 
     const memberUserIds = Array.from(new Set((allMembers || []).map((m) => m.user_id)));
     const { data: memberProfiles, error: profilesError } = memberUserIds.length
-      ? await supabase
+      ? await db
           .from('profiles')
           .select('id, user_id, username, avatar_url, display_name')
           .in('id', memberUserIds)
@@ -135,7 +135,7 @@ async function loadDMConversationsOnce(
     const convIds = conversationsData.map((c) => c.id);
     const messageLimit = Math.min(Math.max(convIds.length * 3, 60), 250);
 
-    const { data: allMessages, error: messagesError } = await supabase
+    const { data: allMessages, error: messagesError } = await db
       .from('messages')
       .select('id, conversation_id, sender_id, content, media_type, viewed_at, created_at')
       .in('conversation_id', convIds)

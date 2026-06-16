@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { useAllUserRoles, useAddUserRole, useRemoveUserRole } from '@/hooks/useModeration';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -25,7 +25,7 @@ export function AdminRolesSection() {
     queryKey: ['search-users', searchTerm],
     queryFn: async () => {
       if (!searchTerm || searchTerm.length < 2) return [];
-      const { data } = await supabase
+      const { data } = await db
         .from('profiles')
         .select('id, username, display_name, avatar_url')
         .ilike('username', `%${searchTerm}%`)

@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { subscribePostgresChannel, removeRealtimeChannel } from '@/lib/realtimeChannel';
 import { useAuth } from '@/lib/auth';
 
@@ -18,7 +18,7 @@ export function useVybeScore(profileId: string | undefined) {
     queryKey: ['vybe-score', profileId],
     queryFn: async () => {
       if (!profileId) return 0;
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('vybe_scores')
         .select('score')
         .eq('profile_id', profileId)
@@ -60,7 +60,7 @@ export function useVybeScoreBreakdown(profileId: string | undefined) {
       if (!profileId) return { today: 0, topActions: [] };
       const since = new Date();
       since.setHours(0, 0, 0, 0);
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('vybe_score_events')
         .select('action, points, created_at')
         .eq('profile_id', profileId)

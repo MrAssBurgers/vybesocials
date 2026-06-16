@@ -5,7 +5,7 @@ import { Search, X, Users, FileText, Music, Radio, Sparkles, TrendingUp, ArrowLe
 import { Input } from '@/components/ui/input';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { useQuery } from '@tanstack/react-query';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { cn } from '@/lib/utils';
@@ -37,7 +37,7 @@ export function SpotlightSearch({ open, onClose }: SpotlightSearchProps) {
     queryKey: ['spotlight-people', debouncedQuery],
     queryFn: async () => {
       if (!debouncedQuery || debouncedQuery.length < 2) return [];
-      const { data } = await supabase
+      const { data } = await db
         .from('profiles')
         .select('id, username, display_name, avatar_url, bio')
         .or(`username.ilike.%${debouncedQuery}%,display_name.ilike.%${debouncedQuery}%`)
@@ -52,7 +52,7 @@ export function SpotlightSearch({ open, onClose }: SpotlightSearchProps) {
     queryKey: ['spotlight-posts', debouncedQuery],
     queryFn: async () => {
       if (!debouncedQuery || debouncedQuery.length < 2) return [];
-      const { data } = await supabase
+      const { data } = await db
         .from('posts')
         .select('id, content, media_url, media_type, created_at, profiles:user_id(username, avatar_url)')
         .ilike('content', `%${debouncedQuery}%`)
@@ -67,7 +67,7 @@ export function SpotlightSearch({ open, onClose }: SpotlightSearchProps) {
   const { data: trending = [] } = useQuery({
     queryKey: ['spotlight-trending'],
     queryFn: async () => {
-      const { data } = await supabase
+      const { data } = await db
         .from('profiles')
         .select('id, username, display_name, avatar_url')
         .order('created_at', { ascending: false })

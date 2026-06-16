@@ -2,7 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
 import { ShieldOff, Loader2 } from 'lucide-react';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
@@ -33,7 +33,7 @@ export function BlockedUsersCard() {
     queryKey: ['blocked-users-full', profile?.id],
     queryFn: async (): Promise<BlockedRow[]> => {
       if (!profile?.id) return [];
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('blocked_users')
         .select('blocked_id, created_at, profile:profiles!blocked_users_blocked_id_fkey(id, username, display_name, avatar_url)')
         .eq('blocker_id', profile.id)
@@ -51,7 +51,7 @@ export function BlockedUsersCard() {
   const unblock = useMutation({
     mutationFn: async (blockedId: string) => {
       if (!profile?.id) throw new Error('Not signed in');
-      const { error } = await supabase
+      const { error } = await db
         .from('blocked_users')
         .delete()
         .eq('blocker_id', profile.id)

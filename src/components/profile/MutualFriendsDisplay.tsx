@@ -1,6 +1,6 @@
 import { memo } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -32,7 +32,7 @@ export function useMutualFriendsWithUser(targetUserId: string | undefined) {
       }
 
       // Use the security definer function to bypass RLS
-      const { data, error } = await supabase
+      const { data, error } = await db
         .rpc('get_mutual_friends', {
           current_user_id: profile.id,
           target_user_id: targetUserId

@@ -9,7 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { toast } from 'sonner';
 import { useStripeReady } from '@/hooks/useStripeConfig';
 import { useQueryClient } from '@tanstack/react-query';
@@ -56,7 +56,7 @@ export function PaymentsSetup({
   const checkStripeStatus = useCallback(async (silent = false) => {
     if (!silent) setChecking(true);
     try {
-      const { data, error } = await supabase.functions.invoke('check-stripe-connect');
+      const { data, error } = await db.functions.invoke('check-stripe-connect');
       if (error) {
         console.error('Stripe check error:', error);
         if (!silent) toast.error('Unable to check payment status. Please try again.');
@@ -145,7 +145,7 @@ export function PaymentsSetup({
     }
     setLoading(true);
     try {
-      const { data, error } = await supabase.functions.invoke('create-stripe-connect');
+      const { data, error } = await db.functions.invoke('create-stripe-connect');
 
       console.log('[PaymentsSetup] create-stripe-connect response:', { data, error });
 
@@ -204,7 +204,7 @@ export function PaymentsSetup({
     }
     setLoading(true);
     try {
-      const { data, error } = await supabase.functions.invoke('create-stripe-dashboard-link');
+      const { data, error } = await db.functions.invoke('create-stripe-dashboard-link');
       const payload = data as any;
 
       if (payload?.url) {

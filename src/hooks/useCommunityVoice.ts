@@ -11,7 +11,7 @@ import {
   type RemoteParticipant,
   type Participant,
 } from 'livekit-client';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { parseEdgeInvokeResult } from '@/lib/edgeFunctionResponse';
 
 export type CommunityVoiceState = 'idle' | 'connecting' | 'connected' | 'error';
@@ -47,7 +47,7 @@ async function fetchCommunityVoiceToken(
   let lastError = 'Could not join voice channel';
 
   for (const fnName of VOICE_TOKEN_FUNCTIONS) {
-    const result = await supabase.functions.invoke<VoiceTokenResponse>(fnName, { body });
+    const result = await db.functions.invoke<VoiceTokenResponse>(fnName, { body });
     const { payload, errorCode, errorMessage } = await parseEdgeInvokeResult(result as any);
     const typed = payload as unknown as VoiceTokenResponse | undefined;
 

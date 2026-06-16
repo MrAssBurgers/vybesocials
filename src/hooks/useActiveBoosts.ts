@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth';
 import { toast } from 'sonner';
 import { triggerHaptic } from '@/lib/haptics';
@@ -32,7 +32,7 @@ export function useActiveBoosts() {
     queryKey: ['active-boosts', user?.id],
     queryFn: async (): Promise<ActiveBoost[]> => {
       if (!user?.id) return [];
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('user_active_boosts' as any)
         .select('*')
         .eq('user_id', user.id)
@@ -63,7 +63,7 @@ export function useActivateBoost() {
 
   return useMutation({
     mutationFn: async ({ itemId, name }: { itemId: string; name: string }) => {
-      const { data, error } = await supabase.rpc('activate_user_boost' as any, {
+      const { data, error } = await db.rpc('activate_user_boost' as any, {
         p_item_id: itemId,
       });
       if (error) throw error;

@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth';
 
 export interface GlobalEvent {
@@ -53,7 +53,7 @@ export function useGlobalEvents(filters?: EventFilters) {
   return useQuery({
     queryKey: ['global-events', filters],
     queryFn: async () => {
-      let query = supabase
+      let query = db
         .from('events')
         .select(`
           *,
@@ -90,7 +90,7 @@ export function useGlobalEvents(filters?: EventFilters) {
       const eventsWithDetails = await Promise.all(
         (data || []).map(async (event: any) => {
           // Get RSVP count
-          const { count } = await supabase
+          const { count } = await db
             .from('event_rsvps')
             .select('id', { count: 'exact', head: true })
             .eq('event_id', event.id)
@@ -99,7 +99,7 @@ export function useGlobalEvents(filters?: EventFilters) {
           // Get sponsor if exists
           let sponsor = null;
           if (event.sponsor_id) {
-            const { data: sponsorData } = await supabase
+            const { data: sponsorData } = await db
               .from('sponsor_profiles')
               .select('id, company_name, company_logo, is_verified')
               .eq('id', event.sponsor_id)
@@ -110,7 +110,7 @@ export function useGlobalEvents(filters?: EventFilters) {
           // Get user's RSVP
           let userRSVP = null;
           if (profile) {
-            const { data: rsvp } = await supabase
+            const { data: rsvp } = await db
               .from('event_rsvps')
               .select('status')
               .eq('event_id', event.id)
@@ -141,7 +141,7 @@ export function useGlobalBannerEvents() {
   return useQuery({
     queryKey: ['global-banner-events'],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('events')
         .select(`
           id,
@@ -181,14 +181,14 @@ export function useEventRSVP() {
       if (!profile) throw new Error('Not authenticated');
 
       if (status === null) {
-        const { error } = await supabase
+        const { error } = await db
           .from('event_rsvps')
           .delete()
           .eq('event_id', eventId)
           .eq('user_id', profile.id);
         if (error) throw error;
       } else {
-        const { error } = await supabase
+        const { error } = await db
           .from('event_rsvps')
           .upsert({
             event_id: eventId,
@@ -215,7 +215,7 @@ export function useCreateGlobalEvent() {
     mutationFn: async (event: Omit<GlobalEvent, 'id' | 'host_id' | 'created_at' | 'updated_at' | 'host' | 'sponsor' | 'rsvp_count' | 'user_rsvp'>) => {
       if (!profile) throw new Error('Not authenticated');
 
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('events')
         .insert({
           ...event,
@@ -248,7 +248,7 @@ export function useTrackSponsorEvent() {
       contentId: string;
       eventType: 'view' | 'click' | 'rsvp' | 'join' | 'share';
     }) => {
-      const { error } = await supabase
+      const { error } = await db
         .from('sponsor_analytics')
         .insert({
           sponsor_id: sponsorId,

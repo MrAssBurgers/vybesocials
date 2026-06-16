@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 
 type MediaType = 'image' | 'video' | 'gif';
 
@@ -26,13 +26,13 @@ export function useAnnouncementUpload() {
       const ext = file.name.split('.').pop() || 'bin';
       const path = `${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
 
-      const { error } = await supabase.storage
+      const { error } = await db.storage
         .from('announcements')
         .upload(path, file, { upsert: true });
 
       if (error) throw error;
 
-      const { data: urlData } = supabase.storage
+      const { data: urlData } = db.storage
         .from('announcements')
         .getPublicUrl(path);
 
@@ -52,13 +52,13 @@ export function useAnnouncementUpload() {
 
     try {
       const path = `${Date.now()}-${filename}`;
-      const { error } = await supabase.storage
+      const { error } = await db.storage
         .from('announcements')
         .upload(path, blob, { upsert: true, contentType: 'image/gif' });
 
       if (error) throw error;
 
-      const { data: urlData } = supabase.storage
+      const { data: urlData } = db.storage
         .from('announcements')
         .getPublicUrl(path);
 

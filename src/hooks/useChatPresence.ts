@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { subscribePostgresChannel, removeRealtimeChannel } from '@/lib/realtimeChannel';
 import { useAuth } from '@/lib/auth';
 import { PRESENCE } from '@/lib/constants';
@@ -51,7 +51,7 @@ export function useChatPresence(conversationId: string | undefined) {
     const updateTyping = async () => {
       try {
         if (isTyping) {
-          await supabase
+          await db
             .from('typing_indicators')
             .upsert(
               {
@@ -62,7 +62,7 @@ export function useChatPresence(conversationId: string | undefined) {
               { onConflict: 'conversation_id,user_id', ignoreDuplicates: false }
             );
         } else {
-          await supabase
+          await db
             .from('typing_indicators')
             .delete()
             .eq('conversation_id', cid)
@@ -92,7 +92,7 @@ export function useChatPresence(conversationId: string | undefined) {
     const joinPresence = async () => {
       if (!isMounted) return;
       try {
-        await supabase
+        await db
           .from('chat_presence')
           .upsert(
             {
@@ -110,7 +110,7 @@ export function useChatPresence(conversationId: string | undefined) {
     // Leave presence
     const leavePresence = async () => {
       try {
-        await supabase
+        await db
           .from('chat_presence')
           .delete()
           .eq('conversation_id', conversationId)
@@ -126,7 +126,7 @@ export function useChatPresence(conversationId: string | undefined) {
       try {
         const presenceWindow = new Date(Date.now() - 30000).toISOString();
         
-        const { data: presenceData } = await supabase
+        const { data: presenceData } = await db
           .from('chat_presence')
           .select(`
             user_id,
@@ -137,7 +137,7 @@ export function useChatPresence(conversationId: string | undefined) {
           .gt('last_seen_at', presenceWindow);
 
         const typingWindow = new Date(Date.now() - PRESENCE.TYPING_TIMEOUT_MS).toISOString();
-        const { data: typingData } = await supabase
+        const { data: typingData } = await db
           .from('typing_indicators')
           .select('user_id')
           .eq('conversation_id', conversationId)

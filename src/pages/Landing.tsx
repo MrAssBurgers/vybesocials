@@ -14,7 +14,7 @@ import { toast } from 'sonner';
 import { getUserFriendlyError } from '@/lib/errorUtils';
 import { Eye, EyeOff, Mail } from 'lucide-react';
 import { isNativeAppShell } from '@/lib/despiaBridge';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { lovable } from '@/integrations/lovable/index';
 import { VYBELogo } from '@/components/ui/VYBELogo';
 
@@ -955,13 +955,13 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
               return;
             }
             try {
-              const { error: sessionError } = await supabase.auth.setSession({
+              const { error: sessionError } = await db.auth.setSession({
                 access_token: session.access_token,
                 refresh_token: session.refresh_token,
               });
               if (sessionError) throw sessionError;
 
-              const { data: active, error: activeError } = await supabase.auth.getUser();
+              const { data: active, error: activeError } = await db.auth.getUser();
               if (activeError || !active.user) throw activeError ?? new Error('Session was not established');
             } catch (e) {
               console.warn('setSession after gate failed', e);

@@ -130,6 +130,10 @@ export function migrateLegacySupabaseAuthStorage(): boolean {
 
 export function hasStoredSupabaseSession(): boolean {
   try {
+    // Firebase Auth persistence (localStorage key pattern)
+    if (Object.keys(localStorage).some((k) => k.startsWith('firebase:authUser:'))) {
+      return true;
+    }
     for (const key of getAllSupabaseAuthStorageKeys()) {
       const raw = readRawSession(key);
       if (raw && sessionMatchesCurrentProject(raw)) return true;

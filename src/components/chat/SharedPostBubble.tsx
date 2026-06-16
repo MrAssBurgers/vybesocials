@@ -4,7 +4,7 @@ import { motion } from 'framer-motion';
 import { Play, Film } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useSignedUrl } from '@/hooks/useSignedUrl';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 
 interface SharedPostBubbleProps {
@@ -54,7 +54,7 @@ export const SharedPostBubble = memo(function SharedPostBubble({
 
       // If we have media info, still need to fetch author data
       try {
-        const { data, error } = await supabase
+        const { data, error } = await db
           .from('posts')
           .select(`
             id, 

@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { useUserRole } from '@/hooks/useModeration';
 import { useNavigate } from 'react-router-dom';
 import { useEffect } from 'react';
@@ -46,7 +46,7 @@ export default function AdminMetrics() {
       const dateFilter = getDateFilter();
       
       // Get event counts by type
-      let query = supabase
+      let query = db
         .from('analytics_events')
         .select('event_name', { count: 'exact' });
       
@@ -63,7 +63,7 @@ export default function AdminMetrics() {
       });
       
       // Get user signups
-      let signupQuery = supabase
+      let signupQuery = db
         .from('profiles')
         .select('id', { count: 'exact' });
       
@@ -74,7 +74,7 @@ export default function AdminMetrics() {
       const { count: signupCount } = await signupQuery;
       
       // Get total posts
-      let postsQuery = supabase
+      let postsQuery = db
         .from('posts')
         .select('id', { count: 'exact' });
       
@@ -85,7 +85,7 @@ export default function AdminMetrics() {
       const { count: postsCount } = await postsQuery;
       
       // Get total messages
-      let messagesQuery = supabase
+      let messagesQuery = db
         .from('messages')
         .select('id', { count: 'exact' });
       
@@ -111,7 +111,7 @@ export default function AdminMetrics() {
   const { data: recentEvents } = useQuery({
     queryKey: ['recent-analytics-events'],
     queryFn: async () => {
-      const { data } = await supabase
+      const { data } = await db
         .from('analytics_events')
         .select('*')
         .order('created_at', { ascending: false })

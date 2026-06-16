@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { subscribePostgresChannel, removeRealtimeChannel } from '@/lib/realtimeChannel';
 import { useAuth } from '@/lib/auth';
 import { toast } from 'sonner';
@@ -62,7 +62,7 @@ export function useUserLevel() {
     queryFn: async () => {
       if (!profile) return null;
       
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('user_levels')
         .select('*')
         .eq('user_id', profile.user_id)
@@ -73,8 +73,8 @@ export function useUserLevel() {
       // If no record exists, ask the server to provision one safely (RPC), then re-fetch.
       if (!data) {
         try {
-          await supabase.rpc('ensure_user_level');
-          const { data: retryData } = await supabase
+          await db.rpc('ensure_user_level');
+          const { data: retryData } = await db
             .from('user_levels')
             .select('*')
             .eq('user_id', profile.user_id)
@@ -109,7 +109,7 @@ export function useBattlePassTiers() {
   return useQuery({
     queryKey: ['battle-pass-tiers'],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('battle_pass_tiers')
         .select('*')
         .order('level', { ascending: true });
@@ -132,7 +132,7 @@ export function useUnclaimedRewards() {
     queryFn: async () => {
       if (!profile) return [];
       
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('challenge_rewards')
         .select(`
           *,
@@ -161,7 +161,7 @@ export function useClaimReward() {
     mutationFn: async (rewardId: string) => {
       if (!profile) throw new Error('Not authenticated');
       
-      const { data, error } = await supabase.rpc('claim_challenge_reward', {
+      const { data, error } = await db.rpc('claim_challenge_reward', {
         p_user_id: profile.user_id,
         p_reward_id: rewardId,
       });
@@ -219,7 +219,7 @@ export function useRealtimeChallengeRewards(onNewReward?: (reward: ChallengeRewa
           }
           
           // Fetch the full reward with challenge info
-          const { data: reward } = await supabase
+          const { data: reward } = await db
             .from('challenge_rewards')
             .select(`*, challenge:challenges(title, description)`)
             .eq('id', payload.new.id)

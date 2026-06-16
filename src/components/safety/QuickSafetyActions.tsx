@@ -18,7 +18,7 @@ import {
   AlertDialogCancel,
 } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth';
 import { triggerHaptic } from '@/lib/haptics';
 import { toast } from 'sonner';
@@ -57,7 +57,7 @@ export const QuickSafetyActions = memo(function QuickSafetyActions({
     triggerHaptic('medium');
 
     try {
-      const { error } = await supabase
+      const { error } = await db
         .from('reports')
         .insert({
           reporter_id: profile.id,
@@ -85,7 +85,7 @@ export const QuickSafetyActions = memo(function QuickSafetyActions({
     triggerHaptic('heavy');
 
     try {
-      const { error } = await supabase
+      const { error } = await db
         .from('blocked_users')
         .insert({
           blocker_id: profile.id,

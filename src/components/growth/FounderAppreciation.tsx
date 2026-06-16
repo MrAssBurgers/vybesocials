@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { FounderBadge } from '@/components/badges/FounderBadge';
 import { Button } from '@/components/ui/button';
 
@@ -19,7 +19,7 @@ export function FounderAppreciation() {
 
     const check = async () => {
       // Check DB flag first
-      const { data: profileData } = await supabase
+      const { data: profileData } = await db
         .from('profiles')
         .select('founder_badge_seen')
         .eq('id', profile.id)
@@ -32,7 +32,7 @@ export function FounderAppreciation() {
       }
 
       // Check if user has the founder badge
-      const { data } = await supabase
+      const { data } = await db
         .from('user_badges')
         .select('id')
         .eq('user_id', user.id)
@@ -54,7 +54,7 @@ export function FounderAppreciation() {
 
     // Persist to DB so it never shows again on any device
     if (profile?.id) {
-      await supabase
+      await db
         .from('profiles')
         .update({ founder_badge_seen: true } as any)
         .eq('id', profile.id);

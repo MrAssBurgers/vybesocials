@@ -2,7 +2,7 @@ import { useState, useEffect, memo } from 'react';
 import { motion } from 'framer-motion';
 import { Link2, Mail, Check, Plus, Unlink, Loader2 } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { toast } from 'sonner';
@@ -51,21 +51,21 @@ export function ConnectionsSection() {
   useEffect(() => {
     const checkLinks = async () => {
       try {
-        const { data: { user: authUser } } = await supabase.auth.getUser();
+        const { data: { user: authUser } } = await db.auth.getUser();
         if (!authUser) return;
 
         const googleIdentity = authUser.identities?.find(i => i.provider === 'google');
         const appleIdentity = authUser.identities?.find(i => i.provider === 'apple');
 
         // Spotify connection
-        const { data: sp } = await supabase
+        const { data: sp } = await db
           .from('spotify_connections')
           .select('spotify_user_id, display_name, email, avatar_url')
           .eq('user_id', authUser.id)
           .maybeSingle();
         setSpotify((sp as any) || null);
 
-        const { data: ms } = await supabase
+        const { data: ms } = await db
           .from('music_settings')
           .select('show_listening_activity, show_on_profile, show_in_dms, hide_when_invisible')
           .eq('user_id', authUser.id)
@@ -104,7 +104,7 @@ export function ConnectionsSection() {
   const handleLink = async (providerId: string) => {
     setLinking(providerId);
     try {
-      const { error } = await supabase.auth.linkIdentity({
+      const { error } = await db.auth.linkIdentity({
         provider: providerId as 'google' | 'apple',
         options: { redirectTo: window.location.origin + '/settings?tab=connections&linked=' + providerId },
       });
@@ -121,7 +121,7 @@ export function ConnectionsSection() {
 
   const handleUnlink = async (providerId: string) => {
     try {
-      const { data: { user: authUser } } = await supabase.auth.getUser();
+      const { data: { user: authUser } } = await db.auth.getUser();
       if (!authUser) return;
       const identity = authUser.identities?.find(i => i.provider === providerId);
       if (!identity) return;
@@ -129,7 +129,7 @@ export function ConnectionsSection() {
         toast.error('You must have at least one login method connected.');
         return;
       }
-      const { error } = await supabase.auth.unlinkIdentity(identity);
+      const { error } = await db.auth.unlinkIdentity(identity);
       if (error) throw error;
       setProviders(prev => prev.map(p => p.id === providerId ? { ...p, linked: false, email: null } : p));
       toast.success(`${providerId === 'google' ? 'Google' : 'Apple'} account disconnected.`);
@@ -142,7 +142,7 @@ export function ConnectionsSection() {
     setSpotifyBusy(true);
     try {
       const returnTo = window.location.origin + '/settings?tab=connections&spotify=connected';
-      const { data, error } = await supabase.functions.invoke('spotify-oauth-start', { body: { returnTo } });
+      const { data, error } = await db.functions.invoke('spotify-oauth-start', { body: { returnTo } });
       if (error) throw error;
       if (!data?.url) throw new Error('No auth URL returned');
       window.location.href = data.url;
@@ -155,7 +155,7 @@ export function ConnectionsSection() {
   const disconnectSpotify = async () => {
     setSpotifyBusy(true);
     try {
-      const { error } = await supabase.functions.invoke('spotify-disconnect');
+      const { error } = await db.functions.invoke('spotify-disconnect');
       if (error) throw error;
       setSpotify(null);
       toast.success('Spotify disconnected');
@@ -168,9 +168,9 @@ export function ConnectionsSection() {
 
   const updateSetting = async (key: keyof MusicSettingsRow, value: boolean) => {
     setMusicSettings(prev => ({ ...prev, [key]: value }));
-    const { data: { user: authUser } } = await supabase.auth.getUser();
+    const { data: { user: authUser } } = await db.auth.getUser();
     if (!authUser) return;
-    await supabase.from('music_settings').upsert({ user_id: authUser.id, ...musicSettings, [key]: value }, { onConflict: 'user_id' });
+    await db.from('music_settings').upsert({ user_id: authUser.id, ...musicSettings, [key]: value }, { onConflict: 'user_id' });
   };
 
   return (

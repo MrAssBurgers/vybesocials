@@ -1,100 +1,56 @@
-import { defineConfig, loadEnv } from "vite";
-import react from "@vitejs/plugin-react-swc";
-import path from "path";
-import { componentTagger } from "lovable-tagger";
+import { defineConfig, loadEnv } from 'vite';
+import react from '@vitejs/plugin-react-swc';
+import path from 'path';
+import { componentTagger } from 'lovable-tagger';
 // @ts-expect-error despia-local ships without TypeScript declarations
-import { despiaLocalPlugin } from "@despia/local/vite";
+import { despiaLocalPlugin } from '@despia/local/vite';
 
-function previewSupabaseClientShimPlugin() {
-  const sourceModuleUrl = "/src/integrations/supabase/client.ts";
-  const runtimeModuleUrl = "/src/integrations/supabase/runtime-client.ts";
-  const runtimeModulePath = path.resolve(__dirname, `.${runtimeModuleUrl}`);
-
-  return {
-    name: "preview-supabase-client-shim",
-    enforce: "pre" as const,
-    resolveId(source: string) {
-      if (
-        source === "@/integrations/supabase/client" ||
-        source === "@/integrations/supabase/client.ts" ||
-        source === sourceModuleUrl
-      ) {
-        return runtimeModulePath;
-      }
-
-      return null;
-    },
-    configureServer(server: any) {
-      server.middlewares.use((req: any, _res: any, next: () => void) => {
-        if (typeof req.url === "string" && req.url.startsWith(sourceModuleUrl)) {
-          req.url = req.url.replace(sourceModuleUrl, runtimeModuleUrl);
-        }
-
-        next();
-      });
-    },
-  };
-}
-
-// https://vitejs.dev/config/
 export default defineConfig(({ mode }) => {
-  const env = loadEnv(mode, process.cwd(), "");
-  const CANONICAL_PROJECT_ID = "hprmicwhlaaqfgshucec";
-  const CANONICAL_URL = `https://${CANONICAL_PROJECT_ID}.supabase.co`;
-  const CANONICAL_KEY =
-    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imhwcm1pY3dobGFhcWZnc2h1Y2VjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjkwNDkwODgsImV4cCI6MjA4NDYyNTA4OH0.Lk72yBKNj3sRjf5E5DQ8TLBfXB2tbjTpAAb075hbMa4";
-  const LEGACY_REFS = ["eabvbtkxdbttjpdpbmuw", "agtcyxjxgkdyoxwxkjth"];
+  const env = loadEnv(mode, process.cwd(), '');
+  const offlineMode = env.VITE_OFFLINE_MODE || 'pwa';
+  const useDespiaLocal = offlineMode === 'despia-local';
 
-  let projectId = env.VITE_SUPABASE_PROJECT_ID || CANONICAL_PROJECT_ID;
-  let supabaseUrl = env.VITE_SUPABASE_URL || CANONICAL_URL;
-  let publishableKey = env.VITE_SUPABASE_PUBLISHABLE_KEY || CANONICAL_KEY;
+  const firebaseEnvKeys = [
+    'VITE_FIREBASE_API_KEY',
+    'VITE_FIREBASE_AUTH_DOMAIN',
+    'VITE_FIREBASE_PROJECT_ID',
+    'VITE_FIREBASE_STORAGE_BUCKET',
+    'VITE_FIREBASE_MESSAGING_SENDER_ID',
+    'VITE_FIREBASE_APP_ID',
+    'VITE_FIREBASE_MEASUREMENT_ID',
+    'VITE_FIREBASE_FUNCTIONS_REGION',
+    'VITE_FIREBASE_VAPID_KEY',
+    'VITE_FIREBASE_APP_CHECK_RECAPTCHA_SITE_KEY',
+    'VITE_FIREBASE_APP_CHECK_DEBUG_TOKEN',
+    'VITE_MAINTENANCE_MODE',
+    'VITE_MAINTENANCE_MESSAGE',
+  ] as const;
 
-  const needsCanonicalRedirect = LEGACY_REFS.some(
-    (ref) => projectId === ref || supabaseUrl.includes(ref),
+  const firebaseDefine = Object.fromEntries(
+    firebaseEnvKeys.map((key) => [key, JSON.stringify(env[key] ?? '')]),
   );
-  if (needsCanonicalRedirect) {
-    projectId = CANONICAL_PROJECT_ID;
-    supabaseUrl = CANONICAL_URL;
-    publishableKey = CANONICAL_KEY;
-  }
-  const offlineMode = env.VITE_OFFLINE_MODE || "pwa";
-  const useDespiaLocal = offlineMode === "despia-local";
 
   return {
     server: {
-      host: "127.0.0.1",
+      host: '127.0.0.1',
       port: 8080,
       strictPort: false,
       open: false,
     },
     define: {
-      'import.meta.env.VITE_SUPABASE_PROJECT_ID': JSON.stringify(projectId),
-      'import.meta.env.VITE_SUPABASE_URL': JSON.stringify(supabaseUrl),
-      'import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY': JSON.stringify(publishableKey),
+      ...firebaseDefine,
       'import.meta.env.VITE_OFFLINE_MODE': JSON.stringify(offlineMode),
     },
     plugins: [
-      previewSupabaseClientShimPlugin(),
       react(),
-      useDespiaLocal && despiaLocalPlugin({ outDir: "dist", entryHtml: "index.html" }),
-      mode === "development" && componentTagger(),
+      useDespiaLocal && despiaLocalPlugin({ outDir: 'dist', entryHtml: 'index.html' }),
+      mode === 'development' && componentTagger(),
     ].filter(Boolean),
     resolve: {
       dedupe: ['react', 'react-dom'],
-      alias: [
-        {
-          find: /^@\/integrations\/supabase\/client$/,
-          replacement: path.resolve(__dirname, "./src/integrations/supabase/runtime-client.ts"),
-        },
-        {
-          find: path.resolve(__dirname, "./src/integrations/supabase/client.ts"),
-          replacement: path.resolve(__dirname, "./src/integrations/supabase/runtime-client.ts"),
-        },
-        {
-          find: "@",
-          replacement: path.resolve(__dirname, "./src"),
-        },
-      ],
+      alias: {
+        '@': path.resolve(__dirname, './src'),
+      },
     },
     build: {
       rollupOptions: {
@@ -114,7 +70,7 @@ export default defineConfig(({ mode }) => {
             ],
             'vendor-query': ['@tanstack/react-query'],
             'vendor-motion': ['framer-motion'],
-            'vendor-supabase': ['@supabase/supabase-js'],
+            'vendor-firebase': ['firebase/app', 'firebase/auth', 'firebase/firestore', 'firebase/storage', 'firebase/functions'],
             'vendor-i18n': ['i18next', 'react-i18next', 'i18next-browser-languagedetector'],
             'vendor-date': ['date-fns'],
             'vendor-recharts': ['recharts'],
@@ -133,7 +89,7 @@ export default defineConfig(({ mode }) => {
         'react', 'react-dom', 'react-router-dom',
         '@tanstack/react-query', '@tanstack/react-query-persist-client',
         'framer-motion',
-        '@supabase/supabase-js',
+        'firebase/app', 'firebase/auth', 'firebase/firestore', 'firebase/storage', 'firebase/functions',
         'lucide-react',
         'clsx', 'tailwind-merge', 'class-variance-authority',
         'date-fns',

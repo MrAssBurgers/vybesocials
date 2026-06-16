@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth';
 import { toast } from 'sonner';
 
@@ -10,7 +10,7 @@ export function useCreatorProfile() {
     queryKey: ['creator-profile', user?.id],
     queryFn: async () => {
       if (!user?.id) return null;
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('creator_profiles')
         .select('*')
         .eq('user_id', user.id)
@@ -30,7 +30,7 @@ export function useApplyForPartner() {
   return useMutation({
     mutationFn: async () => {
       if (!user?.id) throw new Error('Not authenticated');
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('creator_profiles')
         .upsert({
           user_id: user.id,
@@ -54,7 +54,7 @@ export function useCreatorEarnings(creatorId: string | undefined) {
     queryKey: ['creator-earnings', creatorId],
     queryFn: async () => {
       if (!creatorId) return [];
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('creator_earnings')
         .select('*')
         .eq('creator_id', creatorId)
@@ -72,7 +72,7 @@ export function useCreatorDailyStats(creatorId: string | undefined) {
     queryKey: ['creator-daily-stats', creatorId],
     queryFn: async () => {
       if (!creatorId) return [];
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('creator_daily_stats')
         .select('*')
         .eq('creator_id', creatorId)
@@ -90,7 +90,7 @@ export function useCreatorPayouts(creatorId: string | undefined) {
     queryKey: ['creator-payouts', creatorId],
     queryFn: async () => {
       if (!creatorId) return [];
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('creator_payouts')
         .select('*')
         .eq('creator_id', creatorId)
@@ -108,7 +108,7 @@ export function useRequestPayout() {
 
   return useMutation({
     mutationFn: async ({ creatorId, amount }: { creatorId: string; amount: number }) => {
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('creator_payouts')
         .insert({ creator_id: creatorId, amount })
         .select()

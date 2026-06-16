@@ -20,7 +20,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { MoreHorizontal, Trash2, BellOff, Bell, User } from 'lucide-react';
 import { useTrashConversation } from '@/hooks/useTrashedConversations';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { invalidateConversationCaches } from '@/lib/invalidateConversationCaches';
@@ -58,10 +58,10 @@ export function ConversationOptionsMenu({
   const handleToggleMute = async () => {
     setIsTogglingMute(true);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { user } } = await db.auth.getUser();
       if (!user) return;
 
-      const { error } = await supabase
+      const { error } = await db
         .from('conversation_members')
         .update({ is_muted: !isMuted })
         .eq('conversation_id', conversationId)

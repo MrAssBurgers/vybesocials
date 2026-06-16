@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth';
 import { useEffect } from 'react';
 
@@ -77,7 +77,7 @@ export function useVybeDNA(userId?: string) {
   const computeQuery = useQuery({
     queryKey: ['vybe-dna-compute', targetId],
     queryFn: async () => {
-      const { data, error } = await supabase.rpc('compute_vybe_dna');
+      const { data, error } = await db.rpc('compute_vybe_dna');
       if (error) throw error;
       return data as Record<string, number>;
     },
@@ -92,7 +92,7 @@ export function useVybeDNA(userId?: string) {
     queryFn: async (): Promise<VybeDNA> => {
       if (!targetId) return buildSeedDNA('unknown');
 
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('vybe_dna' as any)
         .select('*')
         .eq('user_id', targetId)

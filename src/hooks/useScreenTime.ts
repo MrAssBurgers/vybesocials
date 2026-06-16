@@ -1,6 +1,6 @@
 import { useEffect, useRef, useCallback } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth';
 
 const SESSION_INTERVAL_MS = 60_000; // Update every 60s
@@ -16,7 +16,7 @@ export function useScreenTimeTracker() {
 
   const startSession = useCallback(async () => {
     if (!user) return;
-    const { data } = await supabase
+    const { data } = await db
       .from('screen_time_sessions')
       .insert({ user_id: user.id, duration_seconds: 0 })
       .select('id')
@@ -27,7 +27,7 @@ export function useScreenTimeTracker() {
   const updateSession = useCallback(async () => {
     if (!sessionIdRef.current) return;
     try {
-      await supabase
+      await db
         .from('screen_time_sessions')
         .update({ duration_seconds: 60, ended_at: new Date().toISOString() })
         .eq('id', sessionIdRef.current!);
@@ -45,7 +45,7 @@ export function useScreenTimeTracker() {
       if (document.hidden) {
         // End session
         if (sessionIdRef.current) {
-          supabase
+          db
             .from('screen_time_sessions')
             .update({ ended_at: new Date().toISOString() })
             .eq('id', sessionIdRef.current)
@@ -63,7 +63,7 @@ export function useScreenTimeTracker() {
       document.removeEventListener('visibilitychange', handleVisibility);
       if (intervalRef.current) clearInterval(intervalRef.current);
       if (sessionIdRef.current) {
-        supabase
+        db
           .from('screen_time_sessions')
           .update({ ended_at: new Date().toISOString() })
           .eq('id', sessionIdRef.current)
@@ -84,7 +84,7 @@ export function useTodayScreenTime() {
     queryFn: async () => {
       if (!user) return 0;
       const today = new Date().toISOString().split('T')[0];
-      const { data } = await supabase
+      const { data } = await db
         .from('screen_time_sessions')
         .select('duration_seconds')
         .eq('user_id', user.id)

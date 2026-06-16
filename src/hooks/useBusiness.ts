@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth';
 import { toast } from 'sonner';
 
@@ -109,7 +109,7 @@ export function useMyBusiness() {
     queryFn: async () => {
       if (!profile) return null;
 
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('business_profiles_public')
         .select('*')
         .eq('owner_id', profile.id)
@@ -127,7 +127,7 @@ export function useBusinessBySlug(slug: string) {
   return useQuery({
     queryKey: ['business', slug],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('business_profiles')
         .select(`
           id, owner_id, name, slug, description, category, location, website,
@@ -156,7 +156,7 @@ export function useBusinesses(category?: string) {
   return useQuery({
     queryKey: ['businesses', category],
     queryFn: async () => {
-      let query = supabase
+      let query = db
         .from('business_profiles')
         .select(`
           id, owner_id, name, slug, description, category, location, website,
@@ -197,7 +197,7 @@ export function useCreateBusiness() {
         .replace(/[^a-z0-9]+/g, '-')
         .replace(/^-|-$/g, '') || `biz-${Date.now()}`;
 
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('business_profiles')
         .insert({
           name: business.name || '',
@@ -233,7 +233,7 @@ export function useUpdateBusiness() {
 
   return useMutation({
     mutationFn: async ({ id, ...updates }: Partial<BusinessProfile> & { id: string }) => {
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('business_profiles')
         .update(updates as never)
         .eq('id', id)
@@ -262,7 +262,7 @@ export function useBusinessProducts(businessId?: string) {
     queryFn: async () => {
       if (!businessId) return [];
 
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('business_products')
         .select('*')
         .eq('business_id', businessId)
@@ -286,7 +286,7 @@ export function useMyBusinessProducts() {
     queryFn: async () => {
       if (!business) return [];
 
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('business_products')
         .select('*')
         .eq('business_id', business.id)
@@ -308,7 +308,7 @@ export function useCreateProduct() {
     mutationFn: async (product: Partial<BusinessProduct>) => {
       if (!business) throw new Error('No business profile');
 
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('business_products')
         .insert({
           title: product.title || '',
@@ -344,7 +344,7 @@ export function useUpdateProduct() {
 
   return useMutation({
     mutationFn: async ({ id, ...updates }: Partial<BusinessProduct> & { id: string }) => {
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('business_products')
         .update(updates as never)
         .eq('id', id)
@@ -371,7 +371,7 @@ export function useDeleteProduct() {
 
   return useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase
+      const { error } = await db
         .from('business_products')
         .delete()
         .eq('id', id);
@@ -398,7 +398,7 @@ export function useBusinessOrders() {
     queryFn: async () => {
       if (!business) return [];
 
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('business_orders')
         .select(`
           *,
@@ -427,7 +427,7 @@ export function useMyOrders() {
     queryFn: async () => {
       if (!profile) return [];
 
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('business_orders')
         .select(`
           *,
@@ -454,7 +454,7 @@ export function useUpdateOrderStatus() {
 
   return useMutation({
     mutationFn: async ({ orderId, status }: { orderId: string; status: string }) => {
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('business_orders')
         .update({ status })
         .eq('id', orderId)

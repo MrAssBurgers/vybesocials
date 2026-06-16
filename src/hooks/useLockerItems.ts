@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth';
 
 export interface LockerItem {
@@ -37,7 +37,7 @@ export function useLockerItems(userId?: string) {
     queryFn: async (): Promise<LockerData> => {
       if (!targetId) throw new Error('No user');
 
-      const { data: prof } = await supabase
+      const { data: prof } = await db
         .from('profiles')
         .select('user_id, equipped_title, equipped_effect, equipped_frame, equipped_name_color, equipped_profile_theme, equipped_badge_id')
         .eq('id', targetId)
@@ -46,8 +46,8 @@ export function useLockerItems(userId?: string) {
       const authId = prof?.user_id || targetId;
 
       const [levelRes, tiersRes] = await Promise.all([
-        supabase.from('user_levels').select('current_level').eq('user_id', authId).maybeSingle(),
-        supabase.from('battle_pass_tiers').select('*').order('level', { ascending: true }),
+        db.from('user_levels').select('current_level').eq('user_id', authId).maybeSingle(),
+        db.from('battle_pass_tiers').select('*').order('level', { ascending: true }),
       ]);
 
       const userLevel = levelRes.data?.current_level || 1;
@@ -105,7 +105,7 @@ export function useEquipItem() {
       const updatePayload = { [colMap[type]]: value };
       console.log('[useEquipItem] Updating profile', profile.id, 'with', updatePayload);
       
-      const { error, data, count } = await supabase
+      const { error, data, count } = await db
         .from('profiles')
         .update(updatePayload as any)
         .eq('id', profile.id)

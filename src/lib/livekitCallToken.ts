@@ -1,4 +1,4 @@
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { parseEdgeInvokeResult } from '@/lib/edgeFunctionResponse';
 
 export interface LiveKitCallTokenRequest {
@@ -33,7 +33,7 @@ function isMissingFunctionError(msg: string): boolean {
 export async function invokeLiveKitCallToken(
   body: LiveKitCallTokenRequest,
 ): Promise<LiveKitCallTokenResponse> {
-  const result = await supabase.functions.invoke<LiveKitCallTokenResponse>('livekit-token', { body });
+  const result = await db.functions.invoke<LiveKitCallTokenResponse>('livekit-token', { body });
   const { payload, errorCode, errorMessage } = await parseEdgeInvokeResult(result);
 
   const typed = payload as LiveKitCallTokenResponse | null;

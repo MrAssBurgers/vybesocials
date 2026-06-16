@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth';
 import { useRef, useCallback } from 'react';
 
@@ -24,7 +24,7 @@ export function useStoryLikes(storyId: string | undefined) {
     queryFn: async () => {
       if (!storyId) return { likes: [], hasLiked: false, count: 0 };
 
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('story_likes')
         .select(`
           *,
@@ -56,12 +56,12 @@ export function useLikeStory() {
 
     if (action === 'like') {
       // Use profile ID - matches RLS policy which checks profiles.id
-      const { error } = await supabase
+      const { error } = await db
         .from('story_likes')
         .insert({ story_id: storyId, user_id: profile.id });
       if (error && !error.message.includes('duplicate')) throw error;
     } else {
-      const { error } = await supabase
+      const { error } = await db
         .from('story_likes')
         .delete()
         .eq('story_id', storyId)

@@ -1,4 +1,4 @@
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { isValidUsernameFormat, normalizeUsername } from '@/lib/username';
 
 export type UsernameAvailabilityResult = {
@@ -32,7 +32,7 @@ export async function checkUsernameAvailable(
     };
   }
 
-  const { data, error } = await supabase.rpc('is_username_available', {
+  const { data, error } = await db.rpc('is_username_available', {
     p_username: clean,
   });
 

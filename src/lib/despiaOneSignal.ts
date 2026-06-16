@@ -1,4 +1,4 @@
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { despiaCall, isDespiaRuntime, isAndroidUA } from '@/lib/despiaBridge';
 
 const PLAYER_ID_KEYS = [
@@ -73,11 +73,11 @@ function readWindowPlayerId(): string {
 }
 
 export async function resolveCurrentOneSignalExternalId(): Promise<string | null> {
-  const { data } = await supabase.auth.getUser();
+  const { data } = await db.auth.getUser();
   const authUserId = data.user?.id;
   if (!authUserId) return null;
 
-  const { data: profile } = await supabase
+  const { data: profile } = await db
     .from('profiles')
     .select('id')
     .eq('user_id', authUserId)
@@ -89,7 +89,7 @@ export async function resolveCurrentOneSignalExternalId(): Promise<string | null
 export async function persistDespiaPushToken(profileId: string, playerId = ''): Promise<void> {
   if (!/^[0-9a-f-]{36}$/i.test(profileId)) return;
   const token = playerId || `despia:${profileId}`;
-  const { error } = await supabase.from('push_tokens').upsert({
+  const { error } = await db.from('push_tokens').upsert({
     user_id: profileId,
     platform: 'despia',
     token,
@@ -98,7 +98,7 @@ export async function persistDespiaPushToken(profileId: string, playerId = ''): 
 }
 
 export async function linkOneSignalUser(profileId: string, subscriptionId?: string): Promise<boolean> {
-  const { data, error } = await supabase.functions.invoke('link-onesignal-user', {
+  const { data, error } = await db.functions.invoke('link-onesignal-user', {
     body: { profileId, subscriptionId: subscriptionId || undefined },
   });
   if (error) {

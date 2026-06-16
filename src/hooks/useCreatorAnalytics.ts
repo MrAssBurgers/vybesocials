@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth';
 
 /**
@@ -14,7 +14,7 @@ export function useCreatorContentStats() {
       if (!user?.id) return null;
 
       // Get post stats
-      const { data: posts, error: postsErr } = await supabase
+      const { data: posts, error: postsErr } = await db
         .from('posts')
         .select('id, type, caption, view_count, created_at')
         .eq('author_id', user.id)
@@ -28,8 +28,8 @@ export function useCreatorContentStats() {
 
       // Batch fetch likes and comments counts
       const [likesRes, commentsRes] = await Promise.all([
-        supabase.from('likes').select('post_id', { count: 'exact' }).in('post_id', postIds),
-        supabase.from('comments').select('post_id', { count: 'exact' }).in('post_id', postIds),
+        db.from('likes').select('post_id', { count: 'exact' }).in('post_id', postIds),
+        db.from('comments').select('post_id', { count: 'exact' }).in('post_id', postIds),
       ]);
 
       // Count likes per post
@@ -79,7 +79,7 @@ export function useFollowerGrowth() {
     queryFn: async () => {
       if (!user?.id) return { total: 0, recentFollowers: [] };
 
-      const { count } = await supabase
+      const { count } = await db
         .from('follows')
         .select('id', { count: 'exact', head: true })
         .eq('following_id', user.id);
@@ -88,7 +88,7 @@ export function useFollowerGrowth() {
       const thirtyDaysAgo = new Date();
       thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
-      const { data: recent } = await supabase
+      const { data: recent } = await db
         .from('follows')
         .select('created_at')
         .eq('following_id', user.id)

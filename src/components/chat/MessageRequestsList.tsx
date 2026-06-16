@@ -18,7 +18,7 @@ import {
   useRespondToMessageRequest,
   MessageRequest 
 } from '@/hooks/useMessageRequests';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth';
 import { triggerHaptic } from '@/lib/haptics';
 import { toast } from 'sonner';
@@ -40,7 +40,7 @@ const RequestCard = memo(function RequestCard({
     
     try {
       // Create DM conversation
-      const { data: convId, error } = await supabase
+      const { data: convId, error } = await db
         .rpc('create_dm_conversation', { other_profile_id: request.sender_id });
       
       if (error) throw error;

@@ -25,7 +25,7 @@ import { toast } from 'sonner';
 import { useDebugPanel } from '@/contexts/DebugPanelContext';
 import { useAuth } from '@/lib/auth';
 import { useQuery } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 
 export function DeveloperSection() {
   const [flags, setFlags] = useState<FeatureFlags>(getFeatureFlags());
@@ -38,7 +38,7 @@ export function DeveloperSection() {
     queryKey: ['is-owner', profile?.user_id],
     queryFn: async () => {
       if (!profile?.user_id) return false;
-      const { data } = await supabase.rpc('is_owner', { _user_id: profile.user_id });
+      const { data } = await db.rpc('is_owner', { _user_id: profile.user_id });
       return !!data;
     },
     enabled: !!profile?.user_id,

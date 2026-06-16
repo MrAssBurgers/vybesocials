@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth';
 import { toast } from 'sonner';
 import { invalidateConversationCaches } from '@/lib/invalidateConversationCaches';
@@ -17,7 +17,7 @@ export function useUnsendMessage() {
       if (!profile?.id) throw new Error('Not authenticated');
 
       // Verify ownership first
-      const { data: message, error: fetchError } = await supabase
+      const { data: message, error: fetchError } = await db
         .from('messages')
         .select('sender_id, conversation_id')
         .eq('id', messageId)
@@ -31,7 +31,7 @@ export function useUnsendMessage() {
       }
 
       // Soft delete - UPDATE existing row (no INSERT)
-      const { error } = await supabase
+      const { error } = await db
         .from('messages')
         .update({
           is_deleted: true,
@@ -71,7 +71,7 @@ export function useDeleteMessageForMe() {
       if (!profile?.id) throw new Error('Not authenticated');
 
       // Get conversation ID first for cache invalidation
-      const { data: message, error: fetchError } = await supabase
+      const { data: message, error: fetchError } = await db
         .from('messages')
         .select('conversation_id')
         .eq('id', messageId)
@@ -81,7 +81,7 @@ export function useDeleteMessageForMe() {
       if (!message) throw new Error('Message not found');
 
       // Insert into message_deletions (uses RLS to ensure user_id = current user)
-      const { error } = await supabase
+      const { error } = await db
         .from('message_deletions')
         .upsert({
           message_id: messageId,

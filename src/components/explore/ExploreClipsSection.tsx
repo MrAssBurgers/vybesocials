@@ -9,7 +9,7 @@ import { MobileShortCard } from '@/components/posts/MobileShortCard';
 import { useIsMobileOrTablet } from '@/hooks/use-mobile';
 import { useVideoPreload } from '@/hooks/useVideoPreload';
 import { useNetworkStatus } from '@/hooks/useNetworkStatus';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 
 interface ClipPost {
   id: string;
@@ -225,9 +225,9 @@ function FullscreenClipViewer({
       localStorage.setItem('vybe-clips-muted', String(next));
       localStorage.setItem('clips-muted', String(next));
       // DB sync (fire-and-forget)
-      supabase.auth.getUser().then(({ data: { user } }) => {
+      db.auth.getUser().then(({ data: { user } }) => {
         if (!user?.id) return;
-        supabase
+        db
           .from('user_preferences' as any)
           .upsert({
             user_id: user.id,

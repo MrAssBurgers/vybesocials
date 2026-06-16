@@ -1,5 +1,5 @@
 import type { QueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { batchSignUrls } from '@/lib/signedUrlCache';
 import { getCachedCurrentProfile } from '@/lib/profileCache';
 import { prefetchDMConversations } from '@/lib/loadDMConversations';
@@ -61,7 +61,7 @@ function warmPersonalizedFeed(queryClient: QueryClient, profileId: string) {
   if (queryClient.getQueryData(feedKey)) return;
 
   void (async () => {
-    const { data, error } = await supabase.rpc('get_ranked_feed_v2', {
+    const { data, error } = await db.rpc('get_ranked_feed_v2', {
       p_user_id: profileId,
       p_content_type: null,
       p_category: null,
@@ -74,7 +74,7 @@ function warmPersonalizedFeed(queryClient: QueryClient, profileId: string) {
 
     let rows = (!error && data?.length ? data : null) as any[] | null;
     if (!rows?.length) {
-      const fallback = await supabase.rpc('get_posts_with_counts', {
+      const fallback = await db.rpc('get_posts_with_counts', {
         p_type: null,
         p_author_id: null,
         p_user_id: profileId,
@@ -99,7 +99,7 @@ function warmFollowingFeed(queryClient: QueryClient, profileId: string) {
   const feedKey = ['infinite-following-posts', undefined, profileId, 0] as const;
   if (queryClient.getQueryData(feedKey)) return;
 
-  void supabase
+  void db
     .rpc('get_following_posts_with_counts', {
       p_user_id: profileId,
       p_type: null,
@@ -125,7 +125,7 @@ function warmStories(queryClient: QueryClient, profileId: string) {
   const key = ['stories', profileId] as const;
   if (queryClient.getQueryData(key)) return;
 
-  void supabase
+  void db
     .from('stories')
     .select(`*, author:profiles!stories_author_id_fkey(id, username, avatar_url, display_name)`)
     .gt('expires_at', new Date().toISOString())
@@ -144,7 +144,7 @@ function warmNotifications(queryClient: QueryClient, profileId: string) {
   const key = ['notifications', profileId] as const;
   if (queryClient.getQueryData(key)) return;
 
-  void supabase
+  void db
     .from('notifications')
     .select(`*, actor:profiles!notifications_actor_id_fkey(id, username, avatar_url)`)
     .eq('user_id', profileId)
@@ -157,7 +157,7 @@ function warmNotifications(queryClient: QueryClient, profileId: string) {
 
 function warmUserMeta(queryClient: QueryClient, uid: string, profileId: string) {
   void Promise.allSettled([
-    supabase
+    db
       .from('user_preferences' as any)
       .select('*')
       .eq('user_id', uid)
@@ -177,7 +177,7 @@ function warmUserMeta(queryClient: QueryClient, uid: string, profileId: string) 
           });
         }
       }),
-    supabase
+    db
       .from('user_levels')
       .select('*')
       .eq('user_id', uid)
@@ -196,8 +196,8 @@ function warmUserMeta(queryClient: QueryClient, uid: string, profileId: string) 
           });
           return;
         }
-        await supabase.rpc('ensure_user_level');
-        const { data: retryRow } = await supabase
+        await db.rpc('ensure_user_level');
+        const { data: retryRow } = await db
           .from('user_levels')
           .select('*')
           .eq('user_id', uid)
@@ -211,7 +211,7 @@ function warmUserMeta(queryClient: QueryClient, uid: string, profileId: string) 
           });
         }
       }),
-    supabase
+    db
       .from('dna_agent_settings')
       .select('*')
       .eq('user_id', uid)
@@ -261,7 +261,7 @@ export async function warmHomeCaches(queryClient: QueryClient): Promise<void> {
 
     const cached = getCachedCurrentProfile();
     if (cached?.id) {
-      const { data: { session } } = await supabase.auth.getSession();
+      const { data: { session } } = await db.auth.getSession();
       const uid = session?.user?.id || cached.user_id || '';
       if (uid) {
         warmHomeCachesForProfile(queryClient, uid, cached.id, {
@@ -276,7 +276,7 @@ export async function warmHomeCaches(queryClient: QueryClient): Promise<void> {
       }
     }
 
-    const { data: { session } } = await supabase.auth.getSession();
+    const { data: { session } } = await db.auth.getSession();
     if (!session?.user) return;
     const uid = session.user.id;
 
@@ -285,7 +285,7 @@ export async function warmHomeCaches(queryClient: QueryClient): Promise<void> {
       return;
     }
 
-    const { data: profileData } = await supabase
+    const { data: profileData } = await db
       .from('profiles')
       .select('*')
       .eq('user_id', uid)

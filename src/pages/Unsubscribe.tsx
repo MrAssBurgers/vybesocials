@@ -3,7 +3,7 @@ import { useSearchParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Loader2, MailX, CheckCircle2, AlertCircle } from 'lucide-react';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 
 type Status = 'validating' | 'valid' | 'already' | 'invalid' | 'submitting' | 'success' | 'error';
 
@@ -41,7 +41,7 @@ export default function Unsubscribe() {
     if (!token) return;
     setStatus('submitting');
     try {
-      const { data, error } = await supabase.functions.invoke('handle-email-unsubscribe', {
+      const { data, error } = await db.functions.invoke('handle-email-unsubscribe', {
         body: { token },
       });
       if (error) throw error;

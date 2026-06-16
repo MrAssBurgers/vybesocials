@@ -9,7 +9,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/lib/auth';
 import { useAuthProfileId } from '@/hooks/useAuthProfileId';
 import { isStaffQueryEnabled } from '@/lib/adminAccess';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { subscribePostgresChannel, removeRealtimeChannel } from '@/lib/realtimeChannel';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -67,30 +67,30 @@ export function AdminLiveAnalytics() {
         totalUsersResult,
       ] = await Promise.all([
         // --- Active users (last 10 min to catch between heartbeats) ---
-        supabase.from('chat_presence').select('user_id').gte('last_seen_at', tenMinAgo),
-        supabase.from('messages').select('sender_id').gte('created_at', tenMinAgo).limit(200),
-        supabase.from('analytics_events').select('user_id').gte('created_at', fiveMinAgo).not('user_id', 'is', null).limit(200),
-        supabase.from('likes').select('user_id').gte('created_at', tenMinAgo).limit(100),
-        supabase.from('comments').select('user_id').gte('created_at', tenMinAgo).limit(100),
-        supabase.from('posts').select('author_id').gte('created_at', tenMinAgo).limit(50),
-        supabase.from('follows').select('follower_id').gte('created_at', tenMinAgo).limit(50),
-        supabase.from('bookmarks').select('user_id').gte('created_at', tenMinAgo).limit(50),
+        db.from('chat_presence').select('user_id').gte('last_seen_at', tenMinAgo),
+        db.from('messages').select('sender_id').gte('created_at', tenMinAgo).limit(200),
+        db.from('analytics_events').select('user_id').gte('created_at', fiveMinAgo).not('user_id', 'is', null).limit(200),
+        db.from('likes').select('user_id').gte('created_at', tenMinAgo).limit(100),
+        db.from('comments').select('user_id').gte('created_at', tenMinAgo).limit(100),
+        db.from('posts').select('author_id').gte('created_at', tenMinAgo).limit(50),
+        db.from('follows').select('follower_id').gte('created_at', tenMinAgo).limit(50),
+        db.from('bookmarks').select('user_id').gte('created_at', tenMinAgo).limit(50),
         // --- Hourly counts ---
-        supabase.from('messages').select('id', { count: 'exact', head: true }).gte('created_at', oneHourAgo),
-        supabase.from('likes').select('id', { count: 'exact', head: true }).gte('created_at', oneHourAgo),
-        supabase.from('comments').select('id', { count: 'exact', head: true }).gte('created_at', oneHourAgo),
+        db.from('messages').select('id', { count: 'exact', head: true }).gte('created_at', oneHourAgo),
+        db.from('likes').select('id', { count: 'exact', head: true }).gte('created_at', oneHourAgo),
+        db.from('comments').select('id', { count: 'exact', head: true }).gte('created_at', oneHourAgo),
         // --- Daily counts ---
-        supabase.from('posts').select('id', { count: 'exact', head: true }).gte('created_at', todayStart),
-        supabase.from('profiles').select('id', { count: 'exact', head: true }).gte('created_at', todayStart),
-        supabase.from('messages').select('id', { count: 'exact', head: true }).gte('created_at', todayStart),
-        supabase.from('likes').select('id', { count: 'exact', head: true }).gte('created_at', todayStart),
-        supabase.from('comments').select('id', { count: 'exact', head: true }).gte('created_at', todayStart),
-        supabase.from('follows').select('id', { count: 'exact', head: true }).gte('created_at', todayStart),
-        supabase.from('bookmarks').select('id', { count: 'exact', head: true }).gte('created_at', todayStart),
-        supabase.from('stories').select('id', { count: 'exact', head: true }).gte('created_at', todayStart),
+        db.from('posts').select('id', { count: 'exact', head: true }).gte('created_at', todayStart),
+        db.from('profiles').select('id', { count: 'exact', head: true }).gte('created_at', todayStart),
+        db.from('messages').select('id', { count: 'exact', head: true }).gte('created_at', todayStart),
+        db.from('likes').select('id', { count: 'exact', head: true }).gte('created_at', todayStart),
+        db.from('comments').select('id', { count: 'exact', head: true }).gte('created_at', todayStart),
+        db.from('follows').select('id', { count: 'exact', head: true }).gte('created_at', todayStart),
+        db.from('bookmarks').select('id', { count: 'exact', head: true }).gte('created_at', todayStart),
+        db.from('stories').select('id', { count: 'exact', head: true }).gte('created_at', todayStart),
         // --- Live ---
-        supabase.from('calls').select('id', { count: 'exact', head: true }).eq('status', 'active'),
-        supabase.rpc('get_auth_users_count'),
+        db.from('calls').select('id', { count: 'exact', head: true }).eq('status', 'active'),
+        db.rpc('get_auth_users_count'),
       ]);
 
       // Combine ALL active user IDs from every source
@@ -142,7 +142,7 @@ export function AdminLiveAnalytics() {
       // Messages
       if (shouldFetch('messages')) {
         queries.push(
-          Promise.resolve(supabase.from('messages').select('id, sender_id, created_at, is_deleted')
+          Promise.resolve(db.from('messages').select('id, sender_id, created_at, is_deleted')
             .gte('created_at', thirtyMinAgo).order('created_at', { ascending: false }).limit(15))
             .then(r => (r.data || []).map((m: any) => ({
               id: `msg-${m.id}`, type: 'message', event_name: m.is_deleted ? 'message_unsent' : 'message_sent',
@@ -154,14 +154,14 @@ export function AdminLiveAnalytics() {
       // Content (posts, stories)
       if (shouldFetch('content')) {
         queries.push(
-          Promise.resolve(supabase.from('posts').select('id, author_id, created_at, type, caption')
+          Promise.resolve(db.from('posts').select('id, author_id, created_at, type, caption')
             .gte('created_at', thirtyMinAgo).order('created_at', { ascending: false }).limit(10))
             .then(r => (r.data || []).map((p: any) => ({
               id: `post-${p.id}`, type: 'content', event_name: 'post_created',
               created_at: p.created_at, user_id: p.author_id,
               detail: `${p.type || 'post'}: ${p.caption?.substring(0, 40) || 'new post'}`,
             }))),
-          Promise.resolve(supabase.from('stories').select('id, author_id, created_at')
+          Promise.resolve(db.from('stories').select('id, author_id, created_at')
             .gte('created_at', thirtyMinAgo).order('created_at', { ascending: false }).limit(5))
             .then(r => (r.data || []).map((s: any) => ({
               id: `story-${s.id}`, type: 'content', event_name: 'story_created',
@@ -173,32 +173,32 @@ export function AdminLiveAnalytics() {
       // Social (likes, comments, follows, bookmarks, friend requests)
       if (shouldFetch('social')) {
         queries.push(
-          Promise.resolve(supabase.from('likes').select('id, user_id, created_at')
+          Promise.resolve(db.from('likes').select('id, user_id, created_at')
             .gte('created_at', thirtyMinAgo).order('created_at', { ascending: false }).limit(10))
             .then(r => (r.data || []).map((l: any) => ({
               id: `like-${l.id}`, type: 'social', event_name: 'post_liked',
               created_at: l.created_at, user_id: l.user_id,
             }))),
-          Promise.resolve(supabase.from('comments').select('id, user_id, created_at, text')
+          Promise.resolve(db.from('comments').select('id, user_id, created_at, text')
             .gte('created_at', thirtyMinAgo).order('created_at', { ascending: false }).limit(10))
             .then(r => (r.data || []).map((c: any) => ({
               id: `comment-${c.id}`, type: 'social', event_name: 'comment_added',
               created_at: c.created_at, user_id: c.user_id,
               detail: c.text?.substring(0, 30),
             }))),
-          Promise.resolve(supabase.from('follows').select('id, follower_id, created_at')
+          Promise.resolve(db.from('follows').select('id, follower_id, created_at')
             .gte('created_at', thirtyMinAgo).order('created_at', { ascending: false }).limit(5))
             .then(r => (r.data || []).map((f: any) => ({
               id: `follow-${f.id}`, type: 'social', event_name: 'user_followed',
               created_at: f.created_at, user_id: f.follower_id,
             }))),
-          Promise.resolve(supabase.from('bookmarks').select('id, user_id, created_at')
+          Promise.resolve(db.from('bookmarks').select('id, user_id, created_at')
             .gte('created_at', thirtyMinAgo).order('created_at', { ascending: false }).limit(5))
             .then(r => (r.data || []).map((b: any) => ({
               id: `bookmark-${b.id}`, type: 'social', event_name: 'post_bookmarked',
               created_at: b.created_at, user_id: b.user_id,
             }))),
-          Promise.resolve(supabase.from('friend_requests').select('id, sender_id, created_at')
+          Promise.resolve(db.from('friend_requests').select('id, sender_id, created_at')
             .gte('created_at', thirtyMinAgo).order('created_at', { ascending: false }).limit(5))
             .then(r => (r.data || []).map((fr: any) => ({
               id: `fr-${fr.id}`, type: 'social', event_name: 'friend_request_sent',
@@ -224,7 +224,7 @@ export function AdminLiveAnalytics() {
       const activeIds = stats?.activeUserIds || [];
       if (activeIds.length === 0) {
         // Fallback: recent heartbeat users
-        const { data: recentEvents } = await supabase
+        const { data: recentEvents } = await db
           .from('analytics_events')
           .select('user_id, created_at')
           .eq('event_name', 'heartbeat')
@@ -233,7 +233,7 @@ export function AdminLiveAnalytics() {
         
         if (!recentEvents?.length) return [];
         const ids = [...new Set(recentEvents.map(e => e.user_id).filter(Boolean))];
-        const { data: profiles } = await supabase
+        const { data: profiles } = await db
           .from('profiles').select('id, username, avatar_url').in('id', ids);
         
         const timeMap = new Map(recentEvents.map(e => [e.user_id, e.created_at]));
@@ -243,7 +243,7 @@ export function AdminLiveAnalytics() {
         }));
       }
 
-      const { data: profiles } = await supabase
+      const { data: profiles } = await db
         .from('profiles').select('id, username, avatar_url')
         .in('id', activeIds.slice(0, 30));
 

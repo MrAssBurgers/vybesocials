@@ -1,0 +1,102 @@
+import {
+  getFirestore,
+  collection,
+  doc,
+  getDoc,
+  getDocs,
+  setDoc,
+  updateDoc,
+  deleteDoc,
+  query,
+  where,
+  orderBy,
+  limit as firestoreLimit,
+  writeBatch,
+  serverTimestamp,
+  onSnapshot,
+  type QueryConstraint,
+  type DocumentData,
+  type Unsubscribe,
+} from 'firebase/firestore';
+import { getFirebaseApp } from './app';
+
+const db = getFirestore(getFirebaseApp());
+
+/** Map legacy Postgres table names to Firestore collection paths. */
+export const TABLE_TO_COLLECTION: Record<string, string> = {
+  profiles: 'users',
+};
+
+export function resolveCollection(table: string): string {
+  return TABLE_TO_COLLECTION[table] ?? table;
+}
+
+export function getFirestoreDb() {
+  return db;
+}
+
+export function collectionRef(table: string) {
+  return collection(db, resolveCollection(table));
+}
+
+export function documentRef(table: string, id: string) {
+  return doc(db, resolveCollection(table), id);
+}
+
+export async function getDocument<T extends DocumentData>(
+  table: string,
+  id: string,
+): Promise<T | null> {
+  const snap = await getDoc(documentRef(table, id));
+  if (!snap.exists()) return null;
+  return { id: snap.id, ...snap.data() } as T;
+}
+
+export async function getDocuments<T extends DocumentData>(
+  table: string,
+  constraints: QueryConstraint[] = [],
+): Promise<T[]> {
+  const q = query(collectionRef(table), ...constraints);
+  const snap = await getDocs(q);
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() }) as T);
+}
+
+export async function setDocument(
+  table: string,
+  id: string,
+  data: DocumentData,
+  merge = true,
+): Promise<void> {
+  await setDoc(documentRef(table, id), { ...data, updated_at: new Date().toISOString() }, { merge });
+}
+
+export async function updateDocument(
+  table: string,
+  id: string,
+  data: DocumentData,
+): Promise<void> {
+  await updateDoc(documentRef(table, id), { ...data, updated_at: new Date().toISOString() });
+}
+
+export async function deleteDocument(table: string, id: string): Promise<void> {
+  await deleteDoc(documentRef(table, id));
+}
+
+export async function batchSet(
+  table: string,
+  rows: Array<{ id?: string; data: DocumentData }>,
+): Promise<void> {
+  const batch = writeBatch(db);
+  for (const row of rows) {
+    const id = row.id || doc(collectionRef(table)).id;
+    batch.set(documentRef(table, id), {
+      ...row.data,
+      id,
+      created_at: row.data.created_at || new Date().toISOString(),
+    }, { merge: true });
+  }
+  await batch.commit();
+}
+
+export { query, where, orderBy, firestoreLimit, serverTimestamp, onSnapshot };
+export type { QueryConstraint, Unsubscribe, DocumentData };

@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth';
 
 export interface SafetySettings {
@@ -42,7 +42,7 @@ export function useSafetySettings() {
     queryFn: async () => {
       if (!profile) return null;
 
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('user_safety_settings')
         .select('*')
         .eq('user_id', profile.id)
@@ -72,7 +72,7 @@ export function useUpdateSafetySettings() {
     mutationFn: async (updates: Partial<SafetySettings>) => {
       if (!profile) throw new Error('Not authenticated');
 
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('user_safety_settings')
         .upsert({
           user_id: profile.id,

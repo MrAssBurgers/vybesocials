@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth';
 
 /**
@@ -15,7 +15,7 @@ export function useMutualFriends(targetUserId?: string) {
       if (!user?.id || !targetUserId || user.id === targetUserId) return [];
 
       // Get current user's friends
-      const { data: myFriends } = await supabase
+      const { data: myFriends } = await db
         .from('friend_requests')
         .select('sender_id, receiver_id')
         .eq('status', 'accepted')
@@ -26,7 +26,7 @@ export function useMutualFriends(targetUserId?: string) {
       );
 
       // Get target user's friends
-      const { data: theirFriends } = await supabase
+      const { data: theirFriends } = await db
         .from('friend_requests')
         .select('sender_id, receiver_id')
         .eq('status', 'accepted')
@@ -42,7 +42,7 @@ export function useMutualFriends(targetUserId?: string) {
       if (mutualIds.length === 0) return [];
 
       // Fetch profiles for mutual friends
-      const { data: profiles } = await supabase
+      const { data: profiles } = await db
         .from('profiles')
         .select('id, username, display_name, avatar_url, is_verified')
         .in('id', mutualIds.slice(0, 10));
@@ -100,7 +100,7 @@ export function useSuggestedFriends() {
       if (!user?.id) return [];
 
       // Resolve my profile id + age from auth.uid()
-      const { data: meProfile } = await supabase
+      const { data: meProfile } = await db
         .from('profiles')
         .select('id, date_of_birth')
         .eq('user_id', user.id)
@@ -110,7 +110,7 @@ export function useSuggestedFriends() {
       const window = myAge !== null ? ageWindow(myAge) : null;
 
       // Get current user's friends
-      const { data: myFriends } = await supabase
+      const { data: myFriends } = await db
         .from('friend_requests')
         .select('sender_id, receiver_id')
         .eq('status', 'accepted')
@@ -129,7 +129,7 @@ export function useSuggestedFriends() {
 
       // For each friend, get their friends
       for (const friendId of friendIdsArr.slice(0, 20)) {
-        const { data: theirFriends } = await supabase
+        const { data: theirFriends } = await db
           .from('friend_requests')
           .select('sender_id, receiver_id')
           .eq('status', 'accepted')
@@ -155,7 +155,7 @@ export function useSuggestedFriends() {
       if (sortedFof.length === 0) return [];
 
       const fofIds = sortedFof.map(([id]) => id);
-      const { data: profiles } = await supabase
+      const { data: profiles } = await db
         .from('profiles')
         .select('id, username, display_name, avatar_url, is_verified, date_of_birth')
         .in('id', fofIds);
@@ -195,7 +195,7 @@ export function useFriendsAtEvent(eventId?: string) {
       if (!user?.id || !eventId) return { friends: [], fof: [] };
 
       // Get current user's friends
-      const { data: myFriends } = await supabase
+      const { data: myFriends } = await db
         .from('friend_requests')
         .select('sender_id, receiver_id')
         .eq('status', 'accepted')
@@ -206,7 +206,7 @@ export function useFriendsAtEvent(eventId?: string) {
       );
 
       // Get event attendees
-      const { data: rsvps } = await supabase
+      const { data: rsvps } = await db
         .from('event_rsvps')
         .select(`
           user_id,
@@ -225,7 +225,7 @@ export function useFriendsAtEvent(eventId?: string) {
       const fofAtEvent: typeof rsvps = [];
 
       for (const friendId of [...myFriendIds]) {
-        const { data: theirFriends } = await supabase
+        const { data: theirFriends } = await db
           .from('friend_requests')
           .select('sender_id, receiver_id')
           .eq('status', 'accepted')

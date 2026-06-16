@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { VYBELogo } from '@/components/ui/VYBELogo';
 import { VybeMiniIcon } from '@/components/ui/VybeMiniIcon';
 import { useAccessibility } from '@/providers/AccessibilityProvider';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 
 const INTRO_SHOWN_KEY = 'vybe_intro_completed';
 
@@ -346,10 +346,10 @@ export function markIntroComplete(): void {
 // Persist intro completion to database for logged-in users
 async function persistIntroToDatabase(): Promise<void> {
   try {
-    const { data: { user } } = await supabase.auth.getUser();
+    const { data: { user } } = await db.auth.getUser();
     if (!user) return;
     
-    await supabase
+    await db
       .from('profiles')
       .update({ intro_completed: true })
       .eq('user_id', user.id);
@@ -369,7 +369,7 @@ export async function checkIntroStatus(userId?: string): Promise<boolean> {
   if (!userId) return false;
   
   try {
-    const { data: profile } = await supabase
+    const { data: profile } = await db
       .from('profiles')
       .select('intro_completed')
       .eq('user_id', userId)

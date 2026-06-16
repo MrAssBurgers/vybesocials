@@ -1,5 +1,5 @@
 import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth';
 import { useEffect, useRef } from 'react';
 import { batchSignUrls, getCachedSignedUrl, needsSigning } from '@/lib/signedUrlCache';
@@ -109,7 +109,7 @@ async function fetchPersonalizedPosts(
   limit: number,
   blocked: Set<string>,
 ): Promise<Post[]> {
-  const { data, error } = await supabase.rpc('get_ranked_feed_v2', {
+  const { data, error } = await db.rpc('get_ranked_feed_v2', {
     p_user_id: profileId,
     p_content_type: type ?? null,
     p_category: null,
@@ -130,7 +130,7 @@ async function fetchPersonalizedPosts(
     console.warn('[Feed] get_ranked_feed_v2 failed, using fallback:', error.message);
   }
 
-  const { data: fallback, error: fallbackError } = await supabase.rpc('get_posts_with_counts', {
+  const { data: fallback, error: fallbackError } = await db.rpc('get_posts_with_counts', {
     p_type: type || null,
     p_author_id: null,
     p_user_id: profileId,
@@ -163,7 +163,7 @@ export function useInfinitePosts(
       const limit = isFirstPage ? INITIAL_PAGE_SIZE : PAGE_SIZE;
       const offset = isFirstPage ? 0 : INITIAL_PAGE_SIZE + (pageParam - 1) * PAGE_SIZE;
 
-      const { data, error } = await supabase.rpc('get_posts_with_counts', {
+      const { data, error } = await db.rpc('get_posts_with_counts', {
         p_type: type || null,
         p_author_id: authorId || null,
         p_user_id: profileId || null,
@@ -228,7 +228,7 @@ export function useInfiniteFollowingPosts(
       const limit = isFirstPage ? INITIAL_PAGE_SIZE : PAGE_SIZE;
       const offset = isFirstPage ? 0 : INITIAL_PAGE_SIZE + (pageParam - 1) * PAGE_SIZE;
 
-      const { data, error } = await supabase.rpc('get_following_posts_with_counts', {
+      const { data, error } = await db.rpc('get_following_posts_with_counts', {
         p_user_id: profileId,
         p_type: type || null,
         p_offset: offset,
@@ -306,7 +306,7 @@ export function usePrefetchPosts() {
       const followingKey = ['infinite-following-posts', undefined, profileId, blockedLen] as const;
 
       if (!queryClient.getQueryData(personalizedKey)) {
-        const { data } = await supabase.rpc('get_ranked_feed_v2', {
+        const { data } = await db.rpc('get_ranked_feed_v2', {
           p_user_id: profileId,
           p_content_type: null,
           p_category: null,
@@ -327,7 +327,7 @@ export function usePrefetchPosts() {
       }
 
       if (!queryClient.getQueryData(followingKey)) {
-        const { data } = await supabase.rpc('get_following_posts_with_counts', {
+        const { data } = await db.rpc('get_following_posts_with_counts', {
           p_user_id: profileId,
           p_type: null,
           p_offset: 0,
@@ -377,7 +377,7 @@ export function usePersonalizedFeed(
 
       // Cold start (signed-out / profile still loading): fall back to trending
       if (!profileId) {
-        const { data, error } = await supabase.rpc('get_trending_feed', {
+        const { data, error } = await db.rpc('get_trending_feed', {
           p_content_type: type || 'post',
           p_page: pageParam,
           p_page_size: limit,

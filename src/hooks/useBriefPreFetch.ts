@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { toast } from 'sonner';
 import { haptics } from '@/lib/haptics';
 import { getBriefTimeSlot } from '@/lib/briefTimeSlot';
@@ -49,7 +49,7 @@ function writeBriefCache(data: unknown) {
 async function tryServerCache(userId: string): Promise<boolean> {
   try {
     const slot = getSlot();
-    const { data } = await supabase
+    const { data } = await db
       .from('daily_brief_cache')
       .select('payload, generated_at, expires_at')
       .eq('user_id', userId)
@@ -68,7 +68,7 @@ async function prefetchBrief(authUserId?: string, force = false): Promise<boolea
   if (!force && isCacheFresh()) return false;
 
   try {
-    const { data: { session } } = await supabase.auth.getSession();
+    const { data: { session } } = await db.auth.getSession();
     if (!session) return false;
 
     // Prefer server-pre-warmed cache (zero AI cost, instant)

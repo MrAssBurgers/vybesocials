@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth';
 
 export type WidgetType = 
@@ -56,7 +56,7 @@ export function useLiveWidgets() {
     queryFn: async (): Promise<LiveWidget[]> => {
       if (!user?.id) return [];
 
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('live_widgets' as any)
         .select('*')
         .eq('user_id', user.id)
@@ -80,7 +80,7 @@ export function useAddWidget() {
 
       const catalog = WIDGET_CATALOG[widget.widget_type];
       
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('live_widgets' as any)
         .insert({
           user_id: user.id,
@@ -110,7 +110,7 @@ export function useUpdateWidget() {
     mutationFn: async ({ id, ...updates }: Partial<LiveWidget> & { id: string }) => {
       if (!user?.id) throw new Error('Not authenticated');
 
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('live_widgets' as any)
         .update({
           ...updates,
@@ -138,7 +138,7 @@ export function useRemoveWidget() {
     mutationFn: async (widgetId: string) => {
       if (!user?.id) throw new Error('Not authenticated');
 
-      const { error } = await supabase
+      const { error } = await db
         .from('live_widgets' as any)
         .delete()
         .eq('id', widgetId)

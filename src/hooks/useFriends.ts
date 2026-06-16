@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useEffect } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { subscribePostgresChannel, removeRealtimeChannel } from '@/lib/realtimeChannel';
 import { useAuth } from '@/lib/auth';
 import { useAuthProfileId } from '@/hooks/useAuthProfileId';
@@ -45,7 +45,7 @@ export function useFriendRequests() {
         callback: async (payload) => {
           console.log('[FriendRequests] New incoming request:', payload.new);
           
-          const { data: sender } = await supabase
+          const { data: sender } = await db
             .from('profiles')
             .select('username, display_name, avatar_url')
             .eq('id', (payload.new as any).sender_id)
@@ -85,7 +85,7 @@ export function useFriendRequests() {
     queryFn: async () => {
       if (!profileId) return { incoming: [], outgoing: [] };
 
-      const { data: incoming, error: inError } = await supabase
+      const { data: incoming, error: inError } = await db
         .from('friend_requests')
         .select(`
           *,
@@ -97,7 +97,7 @@ export function useFriendRequests() {
 
       if (inError) throw inError;
 
-      const { data: outgoing, error: outError } = await supabase
+      const { data: outgoing, error: outError } = await db
         .from('friend_requests')
         .select(`
           *,
@@ -131,7 +131,7 @@ export function useFriends() {
       if (!profileId) return [];
 
       // Get accepted friend requests where user is sender or receiver
-      const { data: asSender, error: senderError } = await supabase
+      const { data: asSender, error: senderError } = await db
         .from('friend_requests')
         .select(`
           receiver:profiles!receiver_id(id, user_id, username, avatar_url, display_name)
@@ -141,7 +141,7 @@ export function useFriends() {
 
       if (senderError) throw senderError;
 
-      const { data: asReceiver, error: receiverError } = await supabase
+      const { data: asReceiver, error: receiverError } = await db
         .from('friend_requests')
         .select(`
           sender:profiles!sender_id(id, user_id, username, avatar_url, display_name)
@@ -182,7 +182,7 @@ export function useFriendshipStatus(targetUserId: string | undefined) {
       }
 
       // Check if there's a request from current user to target
-      const { data: sentRequest } = await supabase
+      const { data: sentRequest } = await db
         .from('friend_requests')
         .select('id, status')
         .eq('sender_id', profileId)
@@ -197,7 +197,7 @@ export function useFriendshipStatus(targetUserId: string | undefined) {
       }
 
       // Check if there's a request from target to current user
-      const { data: receivedRequest } = await supabase
+      const { data: receivedRequest } = await db
         .from('friend_requests')
         .select('id, status')
         .eq('sender_id', targetUserId)
@@ -226,11 +226,11 @@ export function useSendFriendRequest() {
 
   const ensureDirectConversation = async (currentUserId: string, receiverId: string) => {
     const [{ data: myMemberships }, { data: theirMemberships }] = await Promise.all([
-      supabase
+      db
         .from('conversation_members')
         .select('conversation_id')
         .eq('user_id', currentUserId),
-      supabase
+      db
         .from('conversation_members')
         .select('conversation_id')
         .eq('user_id', receiverId),
@@ -241,7 +241,7 @@ export function useSendFriendRequest() {
     const sharedConversationIds = myConversationIds.filter((id) => theirConversationIds.includes(id));
 
     if (sharedConversationIds.length > 0) {
-      const { data: sharedConversations } = await supabase
+      const { data: sharedConversations } = await db
         .from('conversations')
         .select('id')
         .in('id', sharedConversationIds)
@@ -254,7 +254,7 @@ export function useSendFriendRequest() {
     }
 
     // Use the SECURITY DEFINER RPC to create conversation (bypasses RLS safely)
-    const { data: conversationId, error: rpcError } = await supabase.rpc('create_dm_conversation', {
+    const { data: conversationId, error: rpcError } = await db.rpc('create_dm_conversation', {
       other_profile_id: receiverId,
     });
 
@@ -276,13 +276,13 @@ export function useSendFriendRequest() {
       }
 
       const [sameDirectionResult, reverseDirectionResult] = await Promise.all([
-        supabase
+        db
           .from('friend_requests')
           .select('id, status')
           .eq('sender_id', profileId)
           .eq('receiver_id', receiverId)
           .maybeSingle(),
-        supabase
+        db
           .from('friend_requests')
           .select('id, status')
           .eq('sender_id', receiverId)
@@ -307,14 +307,14 @@ export function useSendFriendRequest() {
       }
 
       if (existingSentRequest?.status === 'declined') {
-        const { error: reviveError } = await supabase
+        const { error: reviveError } = await db
           .from('friend_requests')
           .update({ status: 'pending' })
           .eq('id', existingSentRequest.id);
 
         if (reviveError) throw reviveError;
       } else {
-        const { error: insertError } = await supabase.from('friend_requests').insert({
+        const { error: insertError } = await db.from('friend_requests').insert({
           sender_id: profileId,
           receiver_id: receiverId,
         });
@@ -329,7 +329,7 @@ export function useSendFriendRequest() {
         }
       }
 
-      await supabase.from('notifications').insert({
+      await db.from('notifications').insert({
         user_id: receiverId,
         actor_id: profileId,
         type: 'friend_request',
@@ -371,7 +371,7 @@ export function useRespondToFriendRequest() {
       const profileId = getEffectiveProfileId(profile?.id);
       if (!profileId) throw new Error('Profile still loading — try again in a moment');
 
-      const { data: request, error: requestError } = await supabase
+      const { data: request, error: requestError } = await db
         .from('friend_requests')
         .select('id, sender_id, receiver_id')
         .eq('id', requestId)
@@ -379,7 +379,7 @@ export function useRespondToFriendRequest() {
 
       if (requestError) throw requestError;
 
-      const { error } = await supabase
+      const { error } = await db
         .from('friend_requests')
         .update({
           status: action === 'accept' ? 'accepted' : 'declined',
@@ -390,7 +390,7 @@ export function useRespondToFriendRequest() {
       if (error) throw error;
 
       // Notify the sender about the decision
-      await supabase.from('notifications').insert({
+      await db.from('notifications').insert({
         user_id: request.sender_id,
         actor_id: profileId,
         type: action === 'accept' ? 'friend_accepted' : 'friend_declined',
@@ -418,7 +418,7 @@ export function useCancelFriendRequest() {
       const profileId = getEffectiveProfileId(profile?.id);
       if (!profileId) throw new Error('Profile still loading — try again in a moment');
 
-      const { error } = await supabase
+      const { error } = await db
         .from('friend_requests')
         .delete()
         .eq('id', requestId);
@@ -443,7 +443,7 @@ export function useUnfriend() {
       if (!profileId) throw new Error('Profile still loading — try again in a moment');
 
       // Delete friend request in either direction
-      await supabase
+      await db
         .from('friend_requests')
         .delete()
         .or(`and(sender_id.eq.${profileId},receiver_id.eq.${friendId}),and(sender_id.eq.${friendId},receiver_id.eq.${profileId})`);

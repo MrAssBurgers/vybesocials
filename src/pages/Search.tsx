@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { cn } from '@/lib/utils';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/lib/auth';
 import { FriendButton } from '@/components/friends/FriendButton';
@@ -31,7 +31,7 @@ function useSearchPeople(query: string) {
     queryKey: ['search-people', query],
     queryFn: async () => {
       if (!query || query.length < 2) return [];
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('profiles')
         .select('id, username, display_name, avatar_url, bio')
         .or(`username.ilike.%${query}%,display_name.ilike.%${query}%`)
@@ -51,7 +51,7 @@ function useSearchPosts(query: string) {
     queryKey: ['search-posts', query],
     queryFn: async () => {
       if (!query || query.length < 2) return [];
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('posts')
         .select('id, caption, type, media_url, created_at, like_count, comment_count, author:profiles!author_id(id, username, avatar_url)')
         .ilike('caption', `%${query}%`)
@@ -72,7 +72,7 @@ function useSearchHashtags(query: string) {
     queryKey: ['search-hashtags', query],
     queryFn: async () => {
       if (!query || query.length < 2) return [];
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('posts')
         .select('tags')
         .not('tags', 'is', null)
@@ -106,7 +106,7 @@ function useTrendingPeople() {
   return useQuery({
     queryKey: ['trending-people'],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('profiles')
         .select('id, username, display_name, avatar_url, bio')
         .limit(10);

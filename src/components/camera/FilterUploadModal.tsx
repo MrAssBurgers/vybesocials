@@ -4,7 +4,7 @@ import { X, Upload, Sparkles, Globe, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useAuth } from '@/lib/auth';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { toast } from 'sonner';
 import { triggerHaptic } from '@/lib/haptics';
 import { cn } from '@/lib/utils';
@@ -38,7 +38,7 @@ export function FilterUploadModal({ isOpen, onClose }: FilterUploadModalProps) {
 
     setIsSubmitting(true);
     try {
-      const { error } = await supabase.from('filters').insert({
+      const { error } = await db.from('filters').insert({
         creator_id: user.id,
         name: name.trim(),
         description: description.trim() || null,

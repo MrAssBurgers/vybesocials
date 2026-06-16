@@ -18,7 +18,7 @@ import { haptics } from '@/lib/haptics';
 // Badge settings moved to Profile Locker tab
 import { StyledUsername } from '@/components/ui/StyledUsername';
 import { useUserPrimaryBadge } from '@/hooks/useBadges';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { AIProfileWriter } from '@/components/ai/AIProfileWriter';
 import { AboutMeSection } from '@/components/settings/AboutMeSection';
 
@@ -64,7 +64,7 @@ export function ProfileSection() {
       // If the @ changed, verify it's still available server-side before saving.
       const usernameChanged = trimmedUsername !== (profile?.username || '').toLowerCase();
       if (usernameChanged) {
-        const { data: existing, error: checkErr } = await supabase
+        const { data: existing, error: checkErr } = await db
           .from('profiles')
           .select('id')
           .eq('username', trimmedUsername)
@@ -89,7 +89,7 @@ export function ProfileSection() {
       // Fire-and-forget: challenge sync + cache invalidation should never
       // block the user from seeing their save complete.
       void (async () => {
-        try { await supabase.rpc('force_sync_my_challenges'); } catch {}
+        try { await db.rpc('force_sync_my_challenges'); } catch {}
         queryClient.invalidateQueries({ queryKey: ['challenge-progress'] });
         queryClient.invalidateQueries({ queryKey: ['profile'] });
         queryClient.invalidateQueries({ queryKey: ['profile-by-id'] });

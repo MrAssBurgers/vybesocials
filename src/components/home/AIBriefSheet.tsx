@@ -5,7 +5,7 @@ import { Sheet, SheetContent } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
 import { RefreshCw, TrendingUp, ExternalLink, AlertCircle, Sun, Moon, Sunset, MessageCircle, Globe, ChevronDown, ChevronRight, Settings, Users, Bell, Flame, Zap, Target, UserPlus, Sparkles, Newspaper } from 'lucide-react';
 import { VybeMiniIcon } from '@/components/ui/VybeMiniIcon';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth';
 import { toast } from 'sonner';
 import { haptics } from '@/lib/haptics';
@@ -403,7 +403,7 @@ export function AIBriefSheet({ open, onOpenChange, focusTopic, focusHeadline, no
 
     try {
       if (!isBackground) { setLoadingProgress(20); setLoadingStage('auth'); }
-      const { data: { session } } = await supabase.auth.getSession();
+      const { data: { session } } = await db.auth.getSession();
       if (!session) { setError('Please sign in to see your brief'); return; }
 
       if (!isBackground) { setLoadingProgress(35); setLoadingStage('data'); }
@@ -528,7 +528,7 @@ export function AIBriefSheet({ open, onOpenChange, focusTopic, focusHeadline, no
     setFocusSearchUrl(null);
     (async () => {
       try {
-        const { data: { session } } = await supabase.auth.getSession();
+        const { data: { session } } = await db.auth.getSession();
         if (!session) { setFocusLoading(false); return; }
         const res = await fetch(
           `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/brief-topic-detail`,

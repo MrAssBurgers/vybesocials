@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Gamepad2, Tv, Loader2, Check } from 'lucide-react';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -22,7 +22,7 @@ export function ExternalPresenceConnections() {
 
   useEffect(() => {
     if (!user) return;
-    supabase
+    db
       .from('external_account_handles')
       .select('twitch_login, steam_id')
       .eq('user_id', user.id)
@@ -42,7 +42,7 @@ export function ExternalPresenceConnections() {
       twitch_login: twitch.trim().toLowerCase().replace(/^@/, '') || null,
       steam_id: steam.trim() || null,
     };
-    const { error } = await supabase
+    const { error } = await db
       .from('external_account_handles')
       .upsert(payload, { onConflict: 'user_id' });
     setSaving(false);
@@ -51,7 +51,7 @@ export function ExternalPresenceConnections() {
       return;
     }
     // Kick off an immediate poll so the pill shows up right away
-    supabase.functions.invoke('external-presence-poll', { body: {} }).catch(() => {});
+    db.functions.invoke('external-presence-poll', { body: {} }).catch(() => {});
     toast({ title: 'Saved', description: 'Friends will see your live presence within ~45s.' });
   }
 

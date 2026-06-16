@@ -5,7 +5,7 @@
  */
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { subscribePostgresChannel, removeRealtimeChannel } from '@/lib/realtimeChannel';
 import { useAuth } from '@/lib/auth';
 import { toast } from 'sonner';
@@ -50,7 +50,7 @@ export function useConversationSafety(conversationId: string | undefined) {
   const { data: userAge } = useQuery({
     queryKey: ['user-age', profile?.id],
     queryFn: async () => {
-      const { data, error } = await supabase.rpc('get_own_sensitive_profile');
+      const { data, error } = await db.rpc('get_own_sensitive_profile');
       if (error || !data) return null;
       const dob = (data as any).date_of_birth;
       if (!dob) return null;
@@ -68,7 +68,7 @@ export function useConversationSafety(conversationId: string | undefined) {
     queryKey: ['safety-override', conversationId],
     queryFn: async () => {
       if (!conversationId) return null;
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('conversation_safety_overrides')
         .select('*')
         .eq('conversation_id', conversationId)
@@ -88,7 +88,7 @@ export function useConversationSafety(conversationId: string | undefined) {
     queryKey: ['safety-responses', activeOverride?.id],
     queryFn: async () => {
       if (!activeOverride?.id) return [];
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('conversation_safety_responses')
         .select('*')
         .eq('override_id', activeOverride.id);
@@ -144,7 +144,7 @@ export function useConversationSafety(conversationId: string | undefined) {
       if (!conversationId || !profile?.id) throw new Error('Not ready');
       if (isUnder13) throw new Error('Users 12 and under must keep AI filters on');
 
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('conversation_safety_overrides')
         .insert({
           conversation_id: conversationId,
@@ -178,7 +178,7 @@ export function useConversationSafety(conversationId: string | undefined) {
       if (isUnder13 && response === 'accepted') throw new Error('Users 12 and under must keep AI filters on');
 
       // Insert response
-      const { error: responseError } = await supabase
+      const { error: responseError } = await db
         .from('conversation_safety_responses')
         .insert({
           override_id: activeOverride.id,
@@ -190,21 +190,21 @@ export function useConversationSafety(conversationId: string | undefined) {
       // For DMs (2 users), if accepted, mark the override as accepted
       // For groups, we check if everyone accepted below
       if (response === 'declined') {
-        await supabase
+        await db
           .from('conversation_safety_overrides')
           .update({ status: 'declined', responded_at: new Date().toISOString() })
           .eq('id', activeOverride.id);
       } else {
         // Check if all other members have accepted (for group chats)
         // For DMs this is sufficient since only 2 members
-        const { data: members } = await supabase
+        const { data: members } = await db
           .from('conversation_members')
           .select('user_id')
           .eq('conversation_id', activeOverride.conversation_id);
 
         const memberIds = (members || []).map(m => m.user_id).filter(id => id !== activeOverride.requested_by);
         
-        const { data: allResponses } = await supabase
+        const { data: allResponses } = await db
           .from('conversation_safety_responses')
           .select('*')
           .eq('override_id', activeOverride.id);
@@ -216,7 +216,7 @@ export function useConversationSafety(conversationId: string | undefined) {
         const allAccepted = memberIds.every(id => acceptedIds.has(id));
         
         if (allAccepted) {
-          await supabase
+          await db
             .from('conversation_safety_overrides')
             .update({ status: 'accepted', responded_at: new Date().toISOString() })
             .eq('id', activeOverride.id);
@@ -241,7 +241,7 @@ export function useConversationSafety(conversationId: string | undefined) {
   const reEnable = useMutation({
     mutationFn: async () => {
       if (!activeOverride?.id) throw new Error('No active override');
-      await supabase
+      await db
         .from('conversation_safety_overrides')
         .update({ status: 'cancelled', responded_at: new Date().toISOString() })
         .eq('id', activeOverride.id);

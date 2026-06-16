@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth';
 import { toast } from 'sonner';
 
@@ -59,7 +59,7 @@ export function usePaymentMethods(userId?: string) {
     queryFn: async () => {
       if (!userId) return [];
       
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('payment_methods')
         .select('*')
         .eq('user_id', userId)
@@ -79,7 +79,7 @@ export function useSellerPaymentMethods(sellerId?: string) {
     queryFn: async () => {
       if (!sellerId) return [];
       
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('payment_methods')
         .select('*')
         .eq('user_id', sellerId)
@@ -101,7 +101,7 @@ export function useSavePaymentMethod() {
     mutationFn: async ({ type, handle, isEnabled = true }: { type: PaymentMethodType; handle: string; isEnabled?: boolean }) => {
       if (!profile) throw new Error('Not authenticated');
 
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('payment_methods')
         .upsert(
           {
@@ -134,7 +134,7 @@ export function useDeletePaymentMethod() {
 
   return useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase
+      const { error } = await db
         .from('payment_methods')
         .delete()
         .eq('id', id);
@@ -160,7 +160,7 @@ export function useOrders() {
     queryFn: async () => {
       if (!profile) return [];
 
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('orders')
         .select(`
           *,
@@ -185,7 +185,7 @@ export function useOrder(orderId?: string) {
     queryFn: async () => {
       if (!orderId) return null;
 
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('orders')
         .select(`
           *,
@@ -222,7 +222,7 @@ export function useCreateOrder() {
     }) => {
       if (!profile) throw new Error('Not authenticated');
 
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('orders')
         .insert({
           listing_id: listingId,
@@ -238,7 +238,7 @@ export function useCreateOrder() {
       if (error) throw error;
 
       // Create order event
-      await supabase.from('order_events').insert({
+      await db.from('order_events').insert({
         order_id: data.id,
         event_type: 'order_created',
         actor_id: profile.id,
@@ -263,7 +263,7 @@ export function useUpdateOrderStatus() {
 
   return useMutation({
     mutationFn: async ({ orderId, status }: { orderId: string; status: OrderStatus }) => {
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('orders')
         .update({ status })
         .eq('id', orderId)
@@ -274,7 +274,7 @@ export function useUpdateOrderStatus() {
 
       // Create order event
       if (profile) {
-        await supabase.from('order_events').insert({
+        await db.from('order_events').insert({
           order_id: orderId,
           event_type: `status_${status}`,
           actor_id: profile.id,
@@ -283,7 +283,7 @@ export function useUpdateOrderStatus() {
 
       // If completed, update listing status
       if (status === 'completed') {
-        await supabase
+        await db
           .from('listings')
           .update({ status: 'sold' })
           .eq('id', data.listing_id);
@@ -309,7 +309,7 @@ export function useOrderEvents(orderId?: string) {
     queryFn: async () => {
       if (!orderId) return [];
 
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('order_events')
         .select('*')
         .eq('order_id', orderId)

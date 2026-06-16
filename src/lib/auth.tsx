@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useState, useRef, ReactNode } from 'react';
-import { User, Session } from '@supabase/supabase-js';
-import { supabase } from '@/integrations/supabase/client';
+import type { User, Session } from '@/lib/firebase';
+import { db } from '@/lib/firebase';
 import { BannedScreen } from '@/components/auth/BannedScreen';
 import { MemeBanScreen } from '@/components/auth/MemeBanScreen';
 import { setCachedProfile, setCachedCurrentProfile, getCachedCurrentProfile, clearCachedCurrentProfile, clearProfileCache, setActiveAuthUserId, isRawId, stripStaleOnboardingFlagFromDisk, type CachedProfile } from '@/lib/profileCache';
@@ -32,7 +32,7 @@ import { isPasswordRecoveryUrl, redirectToPasswordRecoveryPage } from '@/lib/pas
 /** Fail-soft — production may not have deployed sync_signup_username yet. */
 async function trySyncSignupUsername(): Promise<string | null> {
   try {
-    const { data, error } = await supabase.rpc('sync_signup_username');
+    const { data, error } = await db.rpc('sync_signup_username');
     if (error) return null;
     return typeof data === 'string' ? data : null;
   } catch {
@@ -170,7 +170,7 @@ function persistCurrentProfile(profileData: Profile) {
 
 /** Wait until Supabase has a session (post-signup / OAuth race). */
 export async function waitForAuthSession(timeoutMs = 8000): Promise<Session | null> {
-  const initial = (await supabase.auth.getSession()).data.session;
+  const initial = (await db.auth.getSession()).data.session;
   if (initial?.user) return initial;
 
   return new Promise((resolve) => {
@@ -184,11 +184,11 @@ export async function waitForAuthSession(timeoutMs = 8000): Promise<Session | nu
     };
 
     const timer = setTimeout(async () => {
-      const { data: { session } } = await supabase.auth.getSession();
+      const { data: { session } } = await db.auth.getSession();
       finish(session);
     }, timeoutMs);
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+    const { data: { subscription } } = db.auth.onAuthStateChange((event, session) => {
       if (session?.user && event !== 'INITIAL_SESSION') {
         finish(session);
       }
@@ -210,7 +210,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [banInfo, setBanInfo] = useState<BanInfo | null>(null);
   const refreshTimerRef = useRef<NodeJS.Timeout | null>(null);
   const banExpiryTimerRef = useRef<NodeJS.Timeout | null>(null);
-  const banSubscriptionRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
+  const banSubscriptionRef = useRef<ReturnType<typeof db.channel> | null>(null);
   // Prevent double-triggering from onAuthStateChange + getSession running simultaneously
   const authInitializedRef = useRef(false);
   const explicitSignOutRef = useRef(false);
@@ -262,7 +262,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // Check if user is banned
   const checkBanStatus = async (profileId: string) => {
-    const { data, error } = await supabase
+    const { data, error } = await db
       .from('user_bans')
       .select('reason, expires_at, is_permanent, is_meme_ban, custom_gif_url')
       .eq('user_id', profileId)
@@ -326,7 +326,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               // can sign back in and reload data (instead of being stuck with
               // a cached profile and 401s on every request).
               try {
-                await supabase.auth.signOut({ scope: 'local' });
+                await db.auth.signOut({ scope: 'local' });
               } catch { /* ignore */ }
               setSession(null);
               setUser(null);
@@ -352,7 +352,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     
     try {
       // Prefer array result to avoid throwing when the row doesn't exist
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('profiles')
         .select('id, user_id, username, avatar_url, bio, created_at, display_name, link_url, location, is_private, is_verified, interests, language, timezone, coins_balance, onboarding_completed, tutorial_completed, tutorial_skipped, intro_completed, badge_settings, referral_inviter_id')
         .eq('user_id', userId)
@@ -361,7 +361,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (!error && data?.[0]) {
         const profileData = data[0] as unknown as Profile;
 
-        const { data: { user: authUser } } = await supabase.auth.getUser();
+        const { data: { user: authUser } } = await db.auth.getUser();
         const metaUsername = authUser?.user_metadata?.username;
         const shouldSyncSignupUsername =
           isGeneratedUsername(profileData.username) ||
@@ -395,10 +395,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       console.log('[Auth] Profile not found, calling ensure_profile...');
-      let { error: ensureError } = await supabase.rpc('ensure_profile');
+      let { error: ensureError } = await db.rpc('ensure_profile');
       if (ensureError) {
         console.log('[Auth] ensure_profile failed, trying claim_profile_by_email...', ensureError.message);
-        ({ error: ensureError } = await supabase.rpc('claim_profile_by_email'));
+        ({ error: ensureError } = await db.rpc('claim_profile_by_email'));
       }
 
       if (ensureError) {
@@ -429,7 +429,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       // Fetch the newly created profile
-      const { data: afterEnsure, error: afterEnsureError } = await supabase
+      const { data: afterEnsure, error: afterEnsureError } = await db
         .from('profiles')
         .select('id, user_id, username, avatar_url, bio, created_at, display_name, link_url, location, is_private, is_verified, interests, language, timezone, coins_balance, onboarding_completed, tutorial_completed, tutorial_skipped, intro_completed, badge_settings, referral_inviter_id')
         .eq('user_id', userId)
@@ -438,7 +438,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (!afterEnsureError && afterEnsure?.[0]) {
         const profileData = afterEnsure[0] as unknown as Profile;
 
-        const { data: { user: authUser } } = await supabase.auth.getUser();
+        const { data: { user: authUser } } = await db.auth.getUser();
         const metaUsername = authUser?.user_metadata?.username;
         const shouldSyncSignupUsername =
           isGeneratedUsername(profileData.username) ||
@@ -557,7 +557,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           // Clean hash from URL immediately to prevent re-processing
           window.history.replaceState(null, '', window.location.pathname + window.location.search);
           
-          const { error } = await supabase.auth.setSession({
+          const { error } = await db.auth.setSession({
             access_token,
             refresh_token,
           });
@@ -616,7 +616,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }, safetyMs);
 
     // Set up auth state listener FIRST
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+    const { data: { subscription } } = db.auth.onAuthStateChange(
       async (event, session) => {
         logEvent('auth', `onAuthStateChange: ${event}`, { hasSession: !!session });
 
@@ -655,7 +655,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // events (e.g. DM INSERT on `messages`) actually reach the client.
         try {
           if (session?.access_token) {
-            supabase.realtime.setAuth(session.access_token);
+            db.realtime.setAuth(session.access_token);
           }
         } catch { /* noop */ }
 
@@ -721,7 +721,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             refreshTimerRef.current = null;
           }
           if (banSubscriptionRef.current) {
-            supabase.removeChannel(banSubscriptionRef.current);
+            db.removeChannel(banSubscriptionRef.current);
             banSubscriptionRef.current = null;
           }
           clearBanExpiryTimer();
@@ -747,7 +747,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (now - lastResumeRefreshAt < debounceMs) return;
       lastResumeRefreshAt = now;
 
-      void supabase.auth.getSession().then(({ data: { session } }) => {
+      void db.auth.getSession().then(({ data: { session } }) => {
         if (session?.user && session.expires_at) {
           const expiresMs = session.expires_at * 1000;
           if (expiresMs - Date.now() > 5 * 60 * 1000) return;
@@ -777,7 +777,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       let getSessionHandled = false;
       const handleGetSession = async (
-        result: Awaited<ReturnType<typeof supabase.auth.getSession>>,
+        result: Awaited<ReturnType<typeof db.auth.getSession>>,
       ) => {
         if (getSessionHandled) return;
         getSessionHandled = true;
@@ -858,7 +858,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           if (error && isFatalRefreshError(error.message)) {
             logEvent('auth', 'Refresh token invalid — clearing local session', { error: error.message });
             try {
-              await supabase.auth.signOut({ scope: 'local' });
+              await db.auth.signOut({ scope: 'local' });
             } catch { /* ignore */ }
             setSession(null);
             setUser(null);
@@ -901,7 +901,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         void handleGetSession({ data: { session: null }, error: null });
       }, getSessionMs);
 
-      supabase.auth.getSession().then((result) => {
+      db.auth.getSession().then((result) => {
         window.clearTimeout(getSessionTimeout);
         void handleGetSession(result);
       });
@@ -917,7 +917,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         clearTimeout(refreshTimerRef.current);
       }
       if (banSubscriptionRef.current) {
-        supabase.removeChannel(banSubscriptionRef.current);
+        db.removeChannel(banSubscriptionRef.current);
       }
       clearBanExpiryTimer();
     };
@@ -941,7 +941,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       stashSignupUsername(cleanUsername);
 
       // 2. Create auth user — username in metadata triggers handle_new_user.
-      const { data, error } = await supabase.auth.signUp({
+      const { data, error } = await db.auth.signUp({
         email: normalizedEmail,
         password,
         options: {
@@ -971,7 +971,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signIn = async (email: string, password: string) => {
     try {
       const normalized = normalizeLoginEmail(email);
-      const { error } = await supabase.auth.signInWithPassword({
+      const { error } = await db.auth.signInWithPassword({
         email: normalized,
         password,
       });
@@ -985,7 +985,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const resendVerification = async (email: string) => {
     try {
-      const { error } = await supabase.auth.resend({
+      const { error } = await db.auth.resend({
         type: 'signup',
         email,
         options: { emailRedirectTo: getAuthRedirectUrl('/auth/callback') },
@@ -1010,8 +1010,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     // 2) Clear local Supabase session synchronously (no network round-trip).
     //    The global revoke happens in the background.
-    void supabase.auth.signOut({ scope: 'local' as any }).catch(() => {});
-    void supabase.auth.signOut().catch(() => {});
+    void db.auth.signOut({ scope: 'local' as any }).catch(() => {});
+    void db.auth.signOut().catch(() => {});
 
     // 3) Defer all theme/DOM/localStorage cleanup so it never blocks the navigate.
     queueMicrotask(() => {
@@ -1070,7 +1070,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     })();
 
     try {
-      const { error } = await supabase
+      const { error } = await db
         .from('profiles')
         .update(updates as never)
         .eq('id', profile.id);
@@ -1085,7 +1085,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const refreshProfile = async () => {
-    const uid = user?.id ?? (await supabase.auth.getSession()).data.session?.user?.id;
+    const uid = user?.id ?? (await db.auth.getSession()).data.session?.user?.id;
     if (!uid) return null;
     return (await fetchProfile(uid)) as Profile | null;
   };

@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth';
 import { useDNAPerks } from '@/hooks/useDNAPerks';
 import { useHasBoost } from '@/hooks/useActiveBoosts';
@@ -43,7 +43,7 @@ export function useTokenBalance() {
     queryFn: async (): Promise<TokenBalance | null> => {
       if (!user?.id) return null;
 
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('vybe_tokens' as any)
         .select('*')
         .eq('user_id', user.id)
@@ -79,7 +79,7 @@ export function useTokenTransactions(limit = 20) {
     queryFn: async (): Promise<TokenTransaction[]> => {
       if (!user?.id) return [];
 
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('token_transactions' as any)
         .select('*')
         .eq('user_id', user.id)
@@ -111,7 +111,7 @@ export function useEarnTokens() {
     }) => {
       if (!user?.id) throw new Error('Not authenticated');
 
-      const { data, error } = await supabase.rpc('earn_vybe_tokens', {
+      const { data, error } = await db.rpc('earn_vybe_tokens', {
         p_user_id: user.id,
         p_amount: amount,
         p_type: type,

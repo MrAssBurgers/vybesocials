@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth';
 
 export interface Filter {
@@ -29,7 +29,7 @@ export function useFilters(category?: string) {
   return useQuery({
     queryKey: ['filters', category],
     queryFn: async () => {
-      let query = supabase
+      let query = db
         .from('filters')
         .select('*, creator:profiles!filters_creator_id_fkey(id, username, avatar_url, display_name)')
         .eq('is_published', true)
@@ -52,7 +52,7 @@ export function useTrendingFilters() {
   return useQuery({
     queryKey: ['filters', 'trending'],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('filters')
         .select('*, creator:profiles!filters_creator_id_fkey(id, username, avatar_url, display_name)')
         .eq('is_published', true)
@@ -69,7 +69,7 @@ export function useNewFilters() {
   return useQuery({
     queryKey: ['filters', 'new'],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('filters')
         .select('*, creator:profiles!filters_creator_id_fkey(id, username, avatar_url, display_name)')
         .eq('is_published', true)
@@ -87,7 +87,7 @@ export function useTopFilterCreators() {
     queryKey: ['filters', 'top-creators'],
     queryFn: async () => {
       // Get creators with most filter usage
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('filters')
         .select('creator_id, creator:profiles!filters_creator_id_fkey(id, username, avatar_url, display_name)')
         .eq('is_published', true)
@@ -116,7 +116,7 @@ export function useSavedFilters() {
     queryKey: ['filters', 'saved', user?.id],
     enabled: !!user,
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('filter_saves')
         .select('filter_id, filter:filters!filter_saves_filter_id_fkey(*, creator:profiles!filters_creator_id_fkey(id, username, avatar_url, display_name))')
         .eq('user_id', user!.id);
@@ -132,7 +132,7 @@ export function useSaveFilter() {
 
   const save = useMutation({
     mutationFn: async (filterId: string) => {
-      const { error } = await supabase
+      const { error } = await db
         .from('filter_saves')
         .insert({ filter_id: filterId, user_id: user!.id });
       if (error) throw error;
@@ -144,7 +144,7 @@ export function useSaveFilter() {
 
   const unsave = useMutation({
     mutationFn: async (filterId: string) => {
-      const { error } = await supabase
+      const { error } = await db
         .from('filter_saves')
         .delete()
         .eq('filter_id', filterId)
@@ -165,7 +165,7 @@ export function useLogFilterUsage() {
   return useMutation({
     mutationFn: async ({ filterId, postId }: { filterId: string; postId?: string }) => {
       if (!user) return;
-      const { error } = await supabase
+      const { error } = await db
         .from('filter_usage')
         .insert({ filter_id: filterId, user_id: user.id, post_id: postId || null });
       if (error) throw error;
@@ -179,7 +179,7 @@ export function useMyFilters() {
     queryKey: ['filters', 'mine', user?.id],
     enabled: !!user,
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('filters')
         .select('*')
         .eq('creator_id', user!.id)
@@ -196,7 +196,7 @@ export function useCreateFilter() {
 
   return useMutation({
     mutationFn: async (filter: { name: string; css_filter: string; description?: string; category?: string }) => {
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('filters')
         .insert({
           creator_id: user!.id,
@@ -223,7 +223,7 @@ export function useFilterPosts(filterId: string | null) {
     queryKey: ['filter-posts', filterId],
     enabled: !!filterId,
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('posts')
         .select('*, author:profiles!posts_author_id_fkey(id, username, avatar_url, display_name)')
         .eq('filter_id', filterId!)

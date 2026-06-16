@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth';
 
 export interface UserWithMutualFriends {
@@ -28,20 +28,20 @@ export interface UserWithMutualFriends {
  */
 async function getHiddenUserIds(profileId: string): Promise<Set<string>> {
   const [outgoingResult, dismissedResult, blockedResult, friendsResult] = await Promise.all([
-    supabase
+    db
       .from('friend_requests')
       .select('receiver_id')
       .eq('sender_id', profileId)
       .eq('status', 'pending'),
-    supabase
+    db
       .from('dismissed_profiles')
       .select('dismissed_user_id')
       .eq('user_id', profileId),
-    supabase
+    db
       .from('blocked_users')
       .select('blocked_id, blocker_id')
       .or(`blocker_id.eq.${profileId},blocked_id.eq.${profileId}`),
-    supabase
+    db
       .from('friend_requests')
       .select('sender_id, receiver_id')
       .eq('status', 'accepted')
@@ -84,8 +84,8 @@ export function useMutualFriends() {
 
         // 1. Get my friends
         const [senderResult, receiverResult] = await Promise.all([
-          supabase.from('friend_requests').select('receiver_id').eq('sender_id', profile.id).eq('status', 'accepted'),
-          supabase.from('friend_requests').select('sender_id').eq('receiver_id', profile.id).eq('status', 'accepted'),
+          db.from('friend_requests').select('receiver_id').eq('sender_id', profile.id).eq('status', 'accepted'),
+          db.from('friend_requests').select('sender_id').eq('receiver_id', profile.id).eq('status', 'accepted'),
         ]);
         const myFriendIds = new Set([
           ...(senderResult.data || []).map(f => f.receiver_id),
@@ -94,7 +94,7 @@ export function useMutualFriends() {
         if (myFriendIds.size === 0) return [];
 
         // 2. Get my profile interests for matching
-        const { data: myProfile } = await supabase
+        const { data: myProfile } = await db
           .from('profiles')
           .select('interests')
           .eq('id', profile.id)
@@ -108,7 +108,7 @@ export function useMutualFriends() {
         const friendAffinityMap = new Map<string, number>();
 
         // Recent DMs sent to friends — use messages table directly
-        const { data: recentDMs } = await supabase
+        const { data: recentDMs } = await db
           .from('messages')
           .select('conversation_id')
           .eq('sender_id', profile.id)
@@ -123,7 +123,7 @@ export function useMutualFriends() {
           // For each conversation, get the other participants
           const convIds = [...convCounts.keys()].slice(0, 50);
           for (const convId of convIds) {
-            const { data: participants } = await supabase
+            const { data: participants } = await db
               .from('conversation_members')
               .select('user_id')
               .eq('conversation_id', convId)
@@ -139,7 +139,7 @@ export function useMutualFriends() {
         }
 
         // Recent likes on friends' posts
-        const { data: recentLikes } = await supabase
+        const { data: recentLikes } = await db
           .from('likes')
           .select('post_id, posts!inner(author_id)')
           .eq('user_id', profile.id)
@@ -159,8 +159,8 @@ export function useMutualFriends() {
         // 4. Get friends-of-friends
         const friendIdsArray = Array.from(myFriendIds);
         const [fofSenderResult, fofReceiverResult] = await Promise.all([
-          supabase.from('friend_requests').select('sender_id, receiver_id').in('sender_id', friendIdsArray).eq('status', 'accepted'),
-          supabase.from('friend_requests').select('sender_id, receiver_id').in('receiver_id', friendIdsArray).eq('status', 'accepted'),
+          db.from('friend_requests').select('sender_id, receiver_id').in('sender_id', friendIdsArray).eq('status', 'accepted'),
+          db.from('friend_requests').select('sender_id, receiver_id').in('receiver_id', friendIdsArray).eq('status', 'accepted'),
         ]);
 
         // Build: candidateId → { viaFriends, totalAffinity }
@@ -183,7 +183,7 @@ export function useMutualFriends() {
         const candidateIds = Array.from(candidateMap.keys()).slice(0, 40);
         if (candidateIds.length === 0) return [];
 
-        const { data: candidateProfiles } = await (supabase
+        const { data: candidateProfiles } = await (db
           .from('profiles' as any)
           .select('id, username, display_name, first_name, last_name, avatar_url, interests')
           .in('id', candidateIds) as any);
@@ -191,7 +191,7 @@ export function useMutualFriends() {
         // 6. Fetch mutual friend profiles for display
         const allMutualIds = new Set<string>();
         candidateMap.forEach(v => v.viaFriends.forEach(id => allMutualIds.add(id)));
-        const { data: mutualProfiles } = await (supabase
+        const { data: mutualProfiles } = await (db
           .from('profiles' as any)
           .select('id, username, first_name, last_name, avatar_url')
           .in('id', Array.from(allMutualIds)) as any);

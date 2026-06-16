@@ -1,4 +1,4 @@
-import type { User } from '@supabase/supabase-js';
+import type { User } from '@/lib/firebase';
 import { isRawId } from '@/lib/profileCache';
 
 /** True only when auth is settled and we have a real signed-in profile (not guest / cached placeholder). */

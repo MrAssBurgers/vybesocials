@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth';
 import { toast } from 'sonner';
 import { isPreviewServiceWorkerDisabled, registerVybeServiceWorker } from '@/lib/serviceWorker';
@@ -21,7 +21,7 @@ async function fetchVapidPublicKey(): Promise<string> {
     }
   } catch { /* sessionStorage unavailable */ }
 
-  const { data, error } = await supabase.functions.invoke('get-vapid-key');
+  const { data, error } = await db.functions.invoke('get-vapid-key');
   if (error || !data?.publicKey) {
     throw new Error('Could not load push notification configuration. Please try again.');
   }
@@ -68,7 +68,7 @@ async function subscribeViaOneSignalWeb(profileId: string): Promise<boolean> {
         const subscriptionId = typeof pushSubscription?.id === 'string' ? pushSubscription.id : '';
         const optedIn = pushSubscription?.optedIn === true || !!subscriptionId;
         if (optedIn) {
-          const { error } = await supabase.from('push_tokens').upsert({
+          const { error } = await db.from('push_tokens').upsert({
             user_id: profileId,
             platform: 'web',
             token: subscriptionId || `onesignal:${profileId}`,
@@ -161,7 +161,7 @@ export function usePushNotifications() {
       const platform = isDespiaRuntime() ? 'despia' : 'web';
       const intent = readIntent(profile.id);
 
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('push_tokens')
         .select('id')
         .eq('user_id', profile.id)
@@ -190,7 +190,7 @@ export function usePushNotifications() {
       if (!isDespiaRuntime() && registrationRef.current && !intent) {
         const subscription = await registrationRef.current.pushManager.getSubscription();
         if (!subscription && data) {
-          await supabase
+          await db
             .from('push_tokens')
             .delete()
             .eq('user_id', profile.id)
@@ -215,7 +215,7 @@ export function usePushNotifications() {
     setPermission('granted');
 
     try {
-      const { error: tokenError } = await supabase.from('push_tokens').upsert({
+      const { error: tokenError } = await db.from('push_tokens').upsert({
         user_id: profile.id,
         token: `despia:${profile.id}`,
         platform: 'despia',
@@ -328,7 +328,7 @@ export function usePushNotifications() {
       console.log('[Push] Push subscription created:', subscription.endpoint);
 
       // Upsert subscription to database (avoids 409 on re-subscribe)
-      const { error } = await supabase.from('push_tokens').upsert({
+      const { error } = await db.from('push_tokens').upsert({
         user_id: profile.id,
         token: JSON.stringify(subscription.toJSON()),
         platform: 'web',
@@ -375,7 +375,7 @@ export function usePushNotifications() {
         }
       }
 
-      const { error } = await supabase
+      const { error } = await db
         .from('push_tokens')
         .delete()
         .eq('user_id', profile.id)

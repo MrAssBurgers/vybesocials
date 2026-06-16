@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth';
 
 export interface UserNote {
@@ -25,7 +25,7 @@ export function useMyNote() {
     queryKey: ['my-note', userId],
     queryFn: async () => {
       if (!userId) return null;
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('user_notes')
         .select('*')
         .eq('user_id', userId)
@@ -48,7 +48,7 @@ export function useFriendsNotes() {
       if (!userId || !profile?.id) return [];
 
       // Get friend IDs via accepted friend requests
-      const { data: friendReqs } = await supabase
+      const { data: friendReqs } = await db
         .from('friend_requests')
         .select('sender_id, receiver_id')
         .eq('status', 'accepted')
@@ -61,7 +61,7 @@ export function useFriendsNotes() {
       );
 
       // Get profiles to map profile_id -> auth user_id
-      const { data: friendProfiles } = await supabase
+      const { data: friendProfiles } = await db
         .from('profiles')
         .select('id, username, avatar_url, display_name, user_id')
         .in('id', friendProfileIds);
@@ -69,7 +69,7 @@ export function useFriendsNotes() {
       if (!friendProfiles || friendProfiles.length === 0) return [];
 
       // Get active notes via secure RPC (bypasses owner-only RLS)
-      const { data: notes, error } = await supabase
+      const { data: notes, error } = await db
         .rpc('get_friends_notes');
 
       if (error) throw error;
@@ -102,7 +102,7 @@ export function useSetNote() {
     mutationFn: async ({ content, gifUrl }: { content: string; gifUrl?: string }) => {
       if (!userId) throw new Error('Not authenticated');
 
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('user_notes')
         .upsert(
           {
@@ -133,7 +133,7 @@ export function useDeleteNote() {
   return useMutation({
     mutationFn: async () => {
       if (!userId) throw new Error('Not authenticated');
-      const { error } = await supabase
+      const { error } = await db
         .from('user_notes')
         .delete()
         .eq('user_id', userId);

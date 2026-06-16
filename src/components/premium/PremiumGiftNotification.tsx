@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Crown, Gift, Sparkles, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { PremiumActivationAnimation } from './PremiumActivationAnimation';
@@ -21,7 +21,7 @@ export function PremiumGiftNotification({ giftId, gifterUsername, onDismiss }: P
   const handleAccept = async () => {
     setAccepting(true);
     try {
-      const { error } = await supabase
+      const { error } = await db
         .from('gifted_premium')
         .update({
           is_active: true,

@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { toast } from 'sonner';
 
 /**
@@ -22,13 +22,13 @@ export function useEmailVerificationPoll(active: boolean, onVerified?: () => voi
     };
 
     const checkSession = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
+      const { data: { session } } = await db.auth.getSession();
       if (session?.user?.email_confirmed_at) {
         handleVerified();
       }
     };
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = db.auth.onAuthStateChange((_event, session) => {
       if (session?.user?.email_confirmed_at) {
         handleVerified();
       }

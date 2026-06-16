@@ -87,8 +87,8 @@ export default function ProfilePage() {
         return;
       }
       try {
-        const { supabase } = await import('@/integrations/supabase/client');
-        const { data } = await supabase
+        const { db } = await import('@/lib/firebase');
+        const { data } = await db
           .from('user_backgrounds')
           .select('image_url')
           .eq('user_id', profile.id)

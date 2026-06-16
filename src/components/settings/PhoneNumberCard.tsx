@@ -6,7 +6,7 @@ import { InputOTP, InputOTPGroup, InputOTPSlot } from '@/components/ui/input-otp
 import { REGEXP_ONLY_DIGITS } from 'input-otp';
 import { Phone, CheckCircle2, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth';
 import { normalizeE164, formatDisplayUS, maskPhone } from '@/lib/phone';
 import { parseEdgeInvokeResult, phoneVerifyErrorMessage } from '@/lib/edgeFunctionResponse';
@@ -33,7 +33,7 @@ export function PhoneNumberCard({ embedded, onVerified }: Props) {
     if (!user) return;
     let cancelled = false;
     (async () => {
-      const { data } = await supabase.rpc('get_my_private_profile');
+      const { data } = await db.rpc('get_my_private_profile');
       const row = Array.isArray(data) ? data[0] : data;
       if (cancelled || !row) return;
       setPhoneVerified(!!row.phone_verified);
@@ -53,7 +53,7 @@ export function PhoneNumberCard({ embedded, onVerified }: Props) {
     if (!e164) { toast.error('Enter a valid phone number'); return; }
     setSending(true);
     try {
-      const { data, error } = await supabase.functions.invoke('phone-verify-request', {
+      const { data, error } = await db.functions.invoke('phone-verify-request', {
         body: { phone: e164, purpose: phoneVerified ? 'change' : 'add', userId: user?.id },
       });
       if (error) throw error;
@@ -88,7 +88,7 @@ export function PhoneNumberCard({ embedded, onVerified }: Props) {
     if (!challengeId || code.length !== 6) return;
     setVerifying(true);
     try {
-      const result = await supabase.functions.invoke('phone-verify-confirm', {
+      const result = await db.functions.invoke('phone-verify-confirm', {
         body: { challengeId, code },
       });
       const { payload, errorCode } = await parseEdgeInvokeResult(result);

@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { toast } from 'sonner';
 
 export interface MemeBanBackground {
@@ -17,7 +17,7 @@ export function useMemeBanBackgrounds() {
   return useQuery({
     queryKey: ['meme-ban-backgrounds'],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('meme_ban_backgrounds')
         .select('*')
         .eq('is_active', true)
@@ -47,9 +47,9 @@ export function useAddMemeBanBackground() {
   
   return useMutation({
     mutationFn: async ({ name, gifUrl }: { name: string; gifUrl: string }) => {
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { user } } = await db.auth.getUser();
       
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('meme_ban_backgrounds')
         .insert({
           name,
@@ -79,7 +79,7 @@ export function useToggleMemeBanBackground() {
   
   return useMutation({
     mutationFn: async ({ id, isActive }: { id: string; isActive: boolean }) => {
-      const { error } = await supabase
+      const { error } = await db
         .from('meme_ban_backgrounds')
         .update({ is_active: isActive })
         .eq('id', id);
@@ -98,7 +98,7 @@ export function useDeleteMemeBanBackground() {
   
   return useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase
+      const { error } = await db
         .from('meme_ban_backgrounds')
         .delete()
         .eq('id', id);

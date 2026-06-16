@@ -3,7 +3,7 @@ import { motion } from 'framer-motion';
 import { ShieldX, Edit3, MessageSquareWarning, Loader2, ThumbsDown, Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth';
 import { toast } from 'sonner';
 
@@ -41,7 +41,7 @@ export function VybeCheckFailed({
     if (!profile?.id || feedbackSent) return;
     setFeedbackSent(true);
     try {
-      await supabase.from('moderation_feedback').insert({
+      await db.from('moderation_feedback').insert({
         user_id: profile.id,
         content_type: contentType,
         scan_reason: message || null,
@@ -68,7 +68,7 @@ export function VybeCheckFailed({
       const draftData = { caption, tags, mediaUrls, contentType, timestamp: Date.now() };
       localStorage.setItem(draftKey, JSON.stringify(draftData));
 
-      const { error } = await supabase.from('content_appeals').insert({
+      const { error } = await db.from('content_appeals').insert({
         user_id: profile.id,
         content_type: contentType as any,
         reason: appealReason,

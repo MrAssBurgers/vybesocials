@@ -7,7 +7,7 @@ import { ArrowLeft, Check, Crown, Sparkles, BarChart3, Rocket, Shield } from 'lu
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/lib/auth';
 import { useQuery } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 
 const tierIcons: Record<number, any> = {
   0: BarChart3,
@@ -26,7 +26,7 @@ export default function BusinessSubscriptions() {
   const { data: business } = useQuery({
     queryKey: ['my-business-for-sub', profile?.id],
     queryFn: async () => {
-      const { data } = await supabase
+      const { data } = await db
         .from('business_profiles')
         .select('id, name')
         .eq('owner_id', profile!.id)

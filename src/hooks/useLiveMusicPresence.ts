@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { subscribePostgresChannel, removeRealtimeChannel } from '@/lib/realtimeChannel';
 
 export type LivePresenceProvider = 'spotify' | 'apple_music' | 'youtube' | 'steam' | 'twitch';
@@ -30,7 +30,7 @@ export interface LiveMusicPresence {
 type Listener = (p: LiveMusicPresence | null) => void;
 
 interface Entry {
-  channel: ReturnType<typeof supabase.channel>;
+  channel: ReturnType<typeof db.channel>;
   listeners: Set<Listener>;
   latest: LiveMusicPresence | null;
   refCount: number;
@@ -40,7 +40,7 @@ interface Entry {
 const registry = new Map<string, Entry>();
 
 async function fetchPresence(authUserId: string) {
-  const { data } = await supabase
+  const { data } = await db
     .from('live_music_presence')
     .select('*')
     .eq('user_id', authUserId)

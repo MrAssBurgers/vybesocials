@@ -6,7 +6,7 @@ import { StoryGroup, useViewStory } from '@/hooks/useStories';
 import { useStoryLikes, useLikeStory } from '@/hooks/useStoryLikes';
 import { useCreateConversation } from '@/hooks/useMessages';
 import { useAuth } from '@/lib/auth';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { toast } from 'sonner';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
@@ -258,7 +258,7 @@ export function StoryViewer({ groups, initialGroupIndex, onClose }: StoryViewerP
         memberIds: [currentGroup.user.id],
       });
 
-      const { error } = await supabase.from('messages').insert({
+      const { error } = await db.from('messages').insert({
         conversation_id: conversation.id,
         sender_id: profile.id,
         content,

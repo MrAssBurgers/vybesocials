@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { useAuthProfileId } from '@/hooks/useAuthProfileId';
 import { normalizePersistedSet } from '@/lib/persistedCollections';
 
@@ -15,7 +15,7 @@ export function useDismissedProfiles() {
     queryFn: async () => {
       if (!profileId) return new Set<string>();
 
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('dismissed_profiles')
         .select('dismissed_user_id')
         .eq('user_id', profileId);
@@ -45,7 +45,7 @@ export function useDismissProfile() {
     mutationFn: async (dismissedUserId: string) => {
       if (!profileId) throw new Error('Not authenticated');
 
-      const { error } = await supabase
+      const { error } = await db
         .from('dismissed_profiles')
         .insert({
           user_id: profileId,
@@ -77,7 +77,7 @@ export function useUndismissProfile() {
     mutationFn: async (dismissedUserId: string) => {
       if (!profileId) throw new Error('Not authenticated');
 
-      const { error } = await supabase
+      const { error } = await db
         .from('dismissed_profiles')
         .delete()
         .eq('user_id', profileId)
@@ -106,7 +106,7 @@ export function useDismissedProfilesList() {
     queryFn: async () => {
       if (!profileId) return [];
 
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('dismissed_profiles')
         .select(`
           id,

@@ -1,4 +1,4 @@
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { scheduleOfflinePush, isNativeShell } from '@/lib/despiaPush';
  
  /**
@@ -14,7 +14,7 @@ import { scheduleOfflinePush, isNativeShell } from '@/lib/despiaPush';
    data?: Record<string, unknown>;
  }) {
    try {
-     const { data, error } = await supabase.functions.invoke('send-push-notification', {
+     const { data, error } = await db.functions.invoke('send-push-notification', {
        body: {
          userId: options.userId,
          title: options.title,

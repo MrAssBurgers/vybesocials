@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth';
 import { useAuthProfileId } from '@/hooks/useAuthProfileId';
 import { isStaffQueryEnabled } from '@/lib/adminAccess';
@@ -22,7 +22,7 @@ export function AdminAppealsSection() {
   const { data: appeals = [], isLoading } = useQuery({
     queryKey: ['all-appeals'],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('content_appeals')
         .select(`*, user:profiles!user_id(id, username, avatar_url, display_name), reviewer:profiles!reviewed_by(username)`)
         .order('created_at', { ascending: false });
@@ -36,7 +36,7 @@ export function AdminAppealsSection() {
 
   const updateAppeal = useMutation({
     mutationFn: async ({ id, status, userId }: { id: string; status: 'approved' | 'rejected'; userId?: string }) => {
-      const { error } = await supabase
+      const { error } = await db
         .from('content_appeals')
         .update({ status, reviewed_at: new Date().toISOString(), reviewed_by: profileId })
         .eq('id', id);
@@ -44,7 +44,7 @@ export function AdminAppealsSection() {
 
       // On approval, send notification to the user so they can resume posting
       if (status === 'approved' && userId && profileId) {
-        await supabase.from('notifications').insert({
+        await db.from('notifications').insert({
           user_id: userId,
           type: 'appeal_approved' as any,
           actor_id: profileId,

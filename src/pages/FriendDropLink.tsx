@@ -6,7 +6,7 @@ import { useAuth } from '@/lib/auth';
 import { useAuthProfileId } from '@/hooks/useAuthProfileId';
 import { useSendFriendRequest } from '@/hooks/useFriends';
 import { useCreateConversation } from '@/hooks/useMessages';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { toast } from 'sonner';
@@ -68,7 +68,7 @@ export default function FriendDropLink() {
       try {
         const syncAt = scheduleFriendDropSyncStart();
 
-        const { data: drop, error } = await supabase
+        const { data: drop, error } = await db
           .from('friend_drops')
           .update({
             to_user_id: profileId,
@@ -85,7 +85,7 @@ export default function FriendDropLink() {
           return;
         }
 
-        const { data: ownerProfile, error: profileError } = await supabase
+        const { data: ownerProfile, error: profileError } = await db
           .from('profiles')
           .select('id, username, display_name, avatar_url')
           .eq('id', drop.from_user_id)
@@ -149,7 +149,7 @@ export default function FriendDropLink() {
     completeRef.current = true;
     try {
       await sendRequest.mutateAsync(owner.id);
-      await supabase
+      await db
         .from('friend_drops')
         .update({
           status: 'completed',

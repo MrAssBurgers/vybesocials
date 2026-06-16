@@ -4,7 +4,7 @@
  * Tracks key conversion and engagement events
  */
 
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 
 export type AnalyticsEvent = 
   // Heartbeat / presence
@@ -94,14 +94,14 @@ async function flushEvents() {
   eventQueue = [];
   
   try {
-    const { data: { user } } = await supabase.auth.getUser();
+    const { data: { user } } = await db.auth.getUser();
     
     const events = eventsToSend.map(e => ({
       ...e,
       user_id: user?.id || null,
     }));
     
-    await supabase.from('analytics_events').insert(events);
+    await db.from('analytics_events').insert(events);
   } catch (error) {
     // On error, put events back in queue (up to limit)
     eventQueue = [...eventsToSend.slice(0, 50), ...eventQueue.slice(0, 50)];

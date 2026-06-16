@@ -1,6 +1,6 @@
 import { useEffect, useCallback, useRef } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { subscribePostgresChannel, removeRealtimeChannel } from '@/lib/realtimeChannel';
 import { useAuth } from '@/lib/auth';
 
@@ -36,7 +36,7 @@ export function usePresence() {
 
     try {
       logPresence('Updating presence for user:', profile.id);
-      const { error } = await supabase
+      const { error } = await db
         .from('user_presence')
         .upsert({
           user_id: profile.id,
@@ -75,7 +75,7 @@ export function usePresence() {
 
     try {
       logPresence('Setting offline for user:', profile.id);
-      const { error } = await supabase
+      const { error } = await db
         .from('user_presence')
         .update({
           is_online: false,
@@ -179,7 +179,7 @@ export function useUserOnlineStatus(userId: string | undefined) {
     queryFn: async () => {
       if (!userId) return null;
 
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('user_presence')
         .select('is_online, last_seen_at')
         .eq('user_id', userId)
@@ -248,7 +248,7 @@ export function useUsersOnlineStatus(userIds: string[]) {
 
       logPresence('Fetching presence for users:', userIds.length, 'users');
 
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('user_presence')
         .select('user_id, is_online, last_seen_at')
         .in('user_id', userIds);

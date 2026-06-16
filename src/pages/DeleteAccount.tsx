@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { useNavigate, Link } from 'react-router-dom';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { toast } from 'sonner';
 
 const CONTACT_EMAIL = 'vybesocial.info@gmail.com';
@@ -34,21 +34,21 @@ export default function DeleteAccountPage() {
     setSubmitting(true);
     try {
       // Logged-in path: trigger immediate deletion
-      const { data: sessionData } = await supabase.auth.getSession();
+      const { data: sessionData } = await db.auth.getSession();
       if (sessionData?.session) {
-        const { data, error } = await supabase.functions.invoke('manage-account', {
+        const { data, error } = await db.functions.invoke('manage-account', {
           body: { action: 'delete' },
         });
         if (error) throw error;
         if (!data?.success) throw new Error(data?.error || 'Deletion failed');
-        await supabase.auth.signOut();
+        await db.auth.signOut();
         setSubmitted(true);
         toast.success('Account deleted.');
         return;
       }
 
       // Logged-out path: file a deletion request via support
-      const { error } = await supabase.from('account_deletion_requests').insert({
+      const { error } = await db.from('account_deletion_requests').insert({
         email: email.trim().toLowerCase(),
         username: username.trim() || null,
         reason: reason.trim() || null,

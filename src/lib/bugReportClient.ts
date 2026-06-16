@@ -1,4 +1,4 @@
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { getConsentState } from '@/lib/crashReportConsent';
 import { getDeviceInfoText } from '@/lib/deviceInfo';
 
@@ -67,7 +67,7 @@ function createCrashFingerprint(message: string, componentStack?: string | null,
 }
 
 async function resolveReporterProfileId(userId: string): Promise<string | null> {
-  const { data: profile } = await supabase
+  const { data: profile } = await db
     .from('profiles')
     .select('id')
     .or(`id.eq.${userId},user_id.eq.${userId}`)
@@ -96,7 +96,7 @@ export async function reportAppCrash({
 
   let userId: string | null = null;
   try {
-    const { data: { user } } = await supabase.auth.getUser();
+    const { data: { user } } = await db.auth.getUser();
     userId = user?.id || null;
   } catch {
     userId = null;
@@ -120,7 +120,7 @@ export async function reportAppCrash({
 
   let errorLogged = false;
   try {
-    await supabase.from('error_logs').insert({
+    await db.from('error_logs').insert({
       user_id: userId,
       error_message: resolvedError.message.slice(0, 2000),
       error_stack: combinedStack.slice(0, 4000) || null,
@@ -154,7 +154,7 @@ export async function reportAppCrash({
         .filter(Boolean)
         .join('\n\n');
 
-      await supabase.from('bug_reports').insert({
+      await db.from('bug_reports').insert({
         reporter_id: reporterId,
         error_message: (reason ? `[${reason}] ` : '') + resolvedError.message.slice(0, 480),
         error_stack: resolvedError.stack?.slice(0, 2000) || null,

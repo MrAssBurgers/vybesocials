@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { toast } from 'sonner';
 
 export type SpotifyAction =
@@ -18,7 +18,7 @@ export function useSpotifyControl() {
   const control = useCallback(async (payload: SpotifyAction): Promise<boolean> => {
     setLoading(true);
     try {
-      const { data, error } = await supabase.functions.invoke('spotify-control', { body: payload });
+      const { data, error } = await db.functions.invoke('spotify-control', { body: payload });
       const d = (data as any) || {};
       if (error && !d?.ok && !d?.needs_connect && !d?.needs_reconnect && !d?.no_device && !d?.premium_required) {
         throw error;

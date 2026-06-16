@@ -90,14 +90,14 @@ function pickHeuristic(rawKey: string): FixAction | null {
 
 async function requestAiFix(record: ErrorRecord, toastId: string | number) {
   try {
-    const { supabase } = await import('@/integrations/supabase/client');
+    const { db } = await import('@/lib/firebase');
     // Avoid sending an anon-only bearer (which fails with "missing sub claim").
-    const { data: { session } } = await supabase.auth.getSession();
+    const { data: { session } } = await db.auth.getSession();
     if (!session?.access_token) {
       toast.dismiss(toastId);
       return;
     }
-    const { data, error } = await supabase.functions.invoke('ai-auto-fix', {
+    const { data, error } = await db.functions.invoke('ai-auto-fix', {
       body: {
         message: record.key,
         route: typeof window !== 'undefined' ? window.location.pathname : '',
@@ -205,7 +205,7 @@ async function refreshAuth() {
 /** Remove non-essential items from localStorage when nearing quota */
 function pruneLocalStorage() {
   try {
-    const preserveKeys = ['sb-', 'supabase.auth'];
+    const preserveKeys = ['sb-', 'db.auth'];
     const toRemove: string[] = [];
     for (let i = 0; i < localStorage.length; i++) {
       const key = localStorage.key(i);

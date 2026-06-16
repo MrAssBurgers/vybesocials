@@ -9,7 +9,7 @@
 import { DespiaWebSocket } from './despiaWebSocket';
 import { isDespiaRuntime } from './despiaBridge';
 
-const REALTIME_HOST_RE = /\.supabase\.co\/realtime\/v1\/websocket/i;
+const REALTIME_HOST_RE = /\.db\.co\/realtime\/v1\/websocket/i;
 
 let installed = false;
 

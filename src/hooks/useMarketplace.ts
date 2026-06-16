@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth';
 import { useAuthProfileId } from '@/hooks/useAuthProfileId';
 
@@ -55,7 +55,7 @@ export function useListings(filters?: ListingsFilters) {
   return useQuery({
     queryKey: ['listings', filters],
     queryFn: async () => {
-      let query = supabase
+      let query = db
         .from('listings')
         .select(`
           *,
@@ -98,7 +98,7 @@ export function useListing(id: string) {
   return useQuery({
     queryKey: ['listing', id],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('listings')
         .select(`
           *,
@@ -127,7 +127,7 @@ export function useMyListings() {
     queryFn: async () => {
       if (!profileId) return [];
       
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('listings')
         .select('*')
         .eq('seller_id', profileId)
@@ -149,7 +149,7 @@ export function useCreateListing() {
     mutationFn: async (listing: Omit<Listing, 'id' | 'seller_id' | 'created_at' | 'updated_at' | 'view_count' | 'seller'>) => {
       if (!profile) throw new Error('Not authenticated');
 
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('listings')
         .insert({
           ...listing,
@@ -173,7 +173,7 @@ export function useUpdateListing() {
 
   return useMutation({
     mutationFn: async ({ id, ...updates }: Partial<Listing> & { id: string }) => {
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('listings')
         .update(updates as never)
         .eq('id', id)
@@ -196,7 +196,7 @@ export function useDeleteListing() {
 
   return useMutation({
     mutationFn: async (id: string) => {
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('listings')
         .delete()
         .eq('id', id)
@@ -227,7 +227,7 @@ export function useListingFavorites() {
     queryFn: async () => {
       if (!profileId) return [];
 
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('listing_favorites')
         .select(`
           id,
@@ -260,14 +260,14 @@ export function useToggleFavorite() {
       if (!profile) throw new Error('Not authenticated');
 
       if (isFavorite) {
-        const { error } = await supabase
+        const { error } = await db
           .from('listing_favorites')
           .delete()
           .eq('user_id', profile.id)
           .eq('listing_id', listingId);
         if (error) throw error;
       } else {
-        const { error } = await supabase
+        const { error } = await db
           .from('listing_favorites')
           .insert({ user_id: profile.id, listing_id: listingId });
         if (error) throw error;
@@ -283,7 +283,7 @@ export function useSellerRating(sellerId: string) {
   return useQuery({
     queryKey: ['seller-rating', sellerId],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('seller_ratings')
         .select('rating')
         .eq('seller_id', sellerId);

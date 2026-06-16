@@ -1,5 +1,5 @@
 import { useInfiniteQuery, useMutation } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth';
 import { useAuthProfileId } from '@/hooks/useAuthProfileId';
 import { useBlockedUserIds } from '@/hooks/useBlockedUsers';
@@ -71,7 +71,7 @@ export function useRankedFeed(opts: RankedFeedOptions = {}) {
     networkMode: 'always',
     queryFn: async ({ pageParam = 0 }) => {
       const offset = (pageParam as number) * PAGE_SIZE;
-      const { data, error } = await supabase.rpc('get_ranked_feed_v2', {
+      const { data, error } = await db.rpc('get_ranked_feed_v2', {
         p_user_id: profileId!,
         p_content_type: opts.contentType ?? null,
         p_category: opts.category ?? null,
@@ -118,7 +118,7 @@ export function useRecordRankingSignal() {
       durationSeconds?: number;
     }) => {
       if (!profile?.id) return;
-      const { error } = await supabase.from('user_interactions').upsert(
+      const { error } = await db.from('user_interactions').upsert(
         {
           user_id: profile.id,
           post_id: postId,
@@ -135,5 +135,5 @@ export function useRecordRankingSignal() {
 
 /** Bump impression count atomically. Fire when a post enters the viewport. */
 export function bumpImpression(postId: string) {
-  return supabase.rpc('bump_post_impression', { p_post_id: postId } as any);
+  return db.rpc('bump_post_impression', { p_post_id: postId } as any);
 }

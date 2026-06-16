@@ -9,7 +9,7 @@ import { AIFilterGenerator } from './AIFilterGenerator';
 import { useAIFilterGenerator } from '@/hooks/useAIFilterGenerator';
 import { FilterGallery } from './FilterGallery';
 import { toast } from 'sonner';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth';
 
 type ARCategory = 'all' | 'face' | 'color' | 'particle';
@@ -64,7 +64,7 @@ export const ARFilterPicker = memo(function ARFilterPicker({
     const { masks, particles, colorGrade, lighting, cssFilter } = filter;
     const config = JSON.parse(JSON.stringify({ masks, particles, colorGrade, lighting, cssFilter }));
 
-    const { error } = await supabase.from('community_filters').insert([{
+    const { error } = await db.from('community_filters').insert([{
       creator_id: profile.id,
       name: filter.name,
       icon: filter.icon,

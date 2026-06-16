@@ -10,7 +10,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { useQueryClient } from '@tanstack/react-query';
 
 interface EditPostDialogProps {
@@ -43,7 +43,7 @@ export function EditPostDialog({ open, onOpenChange, post }: EditPostDialogProps
         .map(tag => tag.trim().replace(/^#/, ''))
         .filter(tag => tag.length > 0);
 
-      const { error } = await supabase
+      const { error } = await db
         .from('posts')
         .update({ 
           caption, 

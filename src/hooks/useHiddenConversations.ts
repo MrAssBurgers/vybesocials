@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { useAuthProfileId } from '@/hooks/useAuthProfileId';
 import { toast } from 'sonner';
 import { invalidateConversationCaches } from '@/lib/invalidateConversationCaches';
@@ -13,7 +13,7 @@ export function useHiddenConversations() {
     queryFn: async () => {
       if (!profileId) return new Set<string>();
 
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('hidden_conversations')
         .select('conversation_id')
         .eq('user_id', profileId);
@@ -35,7 +35,7 @@ export function useHideConversation() {
     mutationFn: async (conversationId: string) => {
       if (!profileId) throw new Error('Not authenticated');
 
-      const { error } = await supabase
+      const { error } = await db
         .from('hidden_conversations')
         .insert({
           user_id: profileId,
@@ -64,7 +64,7 @@ export function useUnhideConversation() {
     mutationFn: async (conversationId: string) => {
       if (!profileId) throw new Error('Not authenticated');
 
-      const { error } = await supabase
+      const { error } = await db
         .from('hidden_conversations')
         .delete()
         .eq('user_id', profileId)

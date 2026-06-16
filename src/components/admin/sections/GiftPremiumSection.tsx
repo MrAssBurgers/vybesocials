@@ -3,7 +3,7 @@ import { Crown, Gift, Loader2, Search, X, Check, User } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
@@ -41,7 +41,7 @@ export function GiftPremiumSection() {
     queryKey: ['gift-premium-search', search],
     queryFn: async () => {
       if (search.length < 2) return [];
-      const { data } = await supabase
+      const { data } = await db
         .from('profiles')
         .select('id, user_id, username, display_name, avatar_url')
         .neq('user_id', user!.id)
@@ -52,7 +52,7 @@ export function GiftPremiumSection() {
 
       // Check which ones already have premium
       const userIds = data.map(d => d.user_id);
-      const { data: giftedData } = await supabase
+      const { data: giftedData } = await db
         .from('gifted_premium')
         .select('user_id, is_active, status')
         .in('user_id', userIds)
@@ -77,7 +77,7 @@ export function GiftPremiumSection() {
   const { data: recentGifts = [] } = useQuery({
     queryKey: ['recent-premium-gifts'],
     queryFn: async () => {
-      const { data } = await supabase
+      const { data } = await db
         .from('gifted_premium')
         .select('id, user_id, status, is_active, created_at, accepted_at')
         .is('revoked_at', null)
@@ -87,7 +87,7 @@ export function GiftPremiumSection() {
       if (!data || data.length === 0) return [];
 
       const userIds = data.map(d => d.user_id);
-      const { data: profiles } = await supabase
+      const { data: profiles } = await db
         .from('profiles')
         .select('user_id, username, avatar_url')
         .in('user_id', userIds);
@@ -107,14 +107,14 @@ export function GiftPremiumSection() {
     setGifting(true);
     try {
       // Remove any previously revoked gift so we can re-gift
-      await supabase
+      await db
         .from('gifted_premium')
         .delete()
         .eq('user_id', selectedUser.user_id)
         .not('revoked_at', 'is', null);
 
       // Insert gift as pending (is_active = false, status = 'pending')
-      const { error } = await supabase
+      const { error } = await db
         .from('gifted_premium')
         .insert({
           user_id: selectedUser.user_id,
@@ -129,14 +129,14 @@ export function GiftPremiumSection() {
       }
 
       // Send notification
-      const { data: profile } = await supabase
+      const { data: profile } = await db
         .from('profiles')
         .select('id')
         .eq('user_id', user.id)
         .maybeSingle();
 
       if (profile) {
-        await supabase.from('notifications').insert({
+        await db.from('notifications').insert({
           user_id: selectedUser.id, // profile id for notification
           type: 'premium_gift',
           actor_id: profile.id,
@@ -158,7 +158,7 @@ export function GiftPremiumSection() {
 
   const handleRevoke = async (giftId: string, username: string) => {
     try {
-      const { error } = await supabase
+      const { error } = await db
         .from('gifted_premium')
         .update({ is_active: false, status: 'revoked', revoked_at: new Date().toISOString() })
         .eq('id', giftId);

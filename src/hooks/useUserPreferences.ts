@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth';
 import { useCallback } from 'react';
 
@@ -58,7 +58,7 @@ export function useUserPreferences() {
 
       if (!userId) return { ...DEFAULTS, ...cached };
 
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('user_preferences' as any)
         .select('*')
         .eq('user_id', userId)
@@ -98,7 +98,7 @@ export function useUpdatePreferences() {
       const current = (qc.getQueryData(['user-preferences', userId]) as UserPreferences) ?? { ...DEFAULTS };
       const merged = { ...current, ...patch };
 
-      const { error } = await supabase
+      const { error } = await db
         .from('user_preferences' as any)
         .upsert({
           user_id: userId,

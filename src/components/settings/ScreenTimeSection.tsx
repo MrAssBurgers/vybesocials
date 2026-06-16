@@ -2,7 +2,7 @@ import { motion } from 'framer-motion';
 import { Clock, TrendingUp, BarChart3 } from 'lucide-react';
 import { useTodayScreenTime, formatScreenTime } from '@/hooks/useScreenTime';
 import { useQuery } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth';
 
 export function ScreenTimeSection() {
@@ -20,7 +20,7 @@ export function ScreenTimeSection() {
         d.setDate(d.getDate() - i);
         dates.push(d.toISOString().split('T')[0]);
       }
-      const { data } = await supabase
+      const { data } = await db
         .from('screen_time_sessions')
         .select('session_date, duration_seconds')
         .eq('user_id', user.id)

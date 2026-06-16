@@ -1,6 +1,6 @@
 import React, { Component, ErrorInfo, ReactNode } from 'react';
 import { RefreshCw, Home, AlertTriangle, Loader2, Bug, Check } from 'lucide-react';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { reportAppCrash } from '@/lib/bugReportClient';
 
 interface Props {
@@ -123,7 +123,7 @@ class SmartErrorBoundary extends Component<Props, State> {
   analyzeError = async (error: Error, errorInfo: ErrorInfo) => {
     this.setState({ isAnalyzing: true });
     try {
-      const { data } = await supabase.functions.invoke('analyze-error', {
+      const { data } = await db.functions.invoke('analyze-error', {
         body: {
           error: error.message,
           componentStack: errorInfo.componentStack,

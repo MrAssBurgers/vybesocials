@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/lib/auth';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
 import { ShieldCheck } from 'lucide-react';
@@ -30,7 +30,7 @@ export function Enable2FANudge() {
         const lastDismissed = Number(localStorage.getItem(STORAGE_KEY) || '0');
         if (Date.now() - lastDismissed < REMIND_AFTER_MS) return;
 
-        const { data } = await supabase
+        const { data } = await db
           .from('user_2fa_settings')
           .select('email_2fa_enabled, login_approvals_enabled')
           .eq('user_id', user.id)

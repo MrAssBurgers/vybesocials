@@ -4,7 +4,7 @@
  * Requires user consent via localStorage key 'vybe_crash_consent'.
  */
 import { useEffect, useRef } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { trackError } from '@/lib/selfHealingMonitor';
 import { getConsentState } from '@/lib/crashReportConsent';
 
@@ -118,13 +118,13 @@ async function flushReports() {
   const batch = reportQueue.splice(0, 10); // max 10 per flush
 
   try {
-    const { data: { user } } = await supabase.auth.getUser();
+    const { data: { user } } = await db.auth.getUser();
     const reporterId = user?.id;
     if (!reporterId) return; // can't report without auth
 
     // Resolve profile id
     let profileId = reporterId;
-    const { data: profile } = await supabase
+    const { data: profile } = await db
       .from('profiles')
       .select('id')
       .or(`id.eq.${reporterId},user_id.eq.${reporterId}`)
@@ -143,7 +143,7 @@ async function flushReports() {
       ai_severity: 'auto',
     }));
 
-    const { data: inserted } = await supabase
+    const { data: inserted } = await db
       .from('bug_reports')
       .insert(rows)
       .select('id');
@@ -152,7 +152,7 @@ async function flushReports() {
     if (inserted && inserted.length) {
       for (const row of inserted) {
         try {
-          void supabase.functions.invoke('analyze-bug-report', { body: { bugId: row.id } });
+          void db.functions.invoke('analyze-bug-report', { body: { bugId: row.id } });
         } catch {
           // Silent — analysis is best-effort.
         }
@@ -253,7 +253,7 @@ export function useAutoBugReporter() {
       if (!['img', 'script', 'link', 'video', 'audio'].includes(tagName)) return;
       const src = (target as HTMLImageElement).src || (target as HTMLLinkElement).href || '';
       if (!src || shouldIgnore(src) || shouldIgnoreUrl(src)) return;
-      const isAppResource = src.startsWith(window.location.origin) || src.includes('supabase');
+      const isAppResource = src.startsWith(window.location.origin) || src.includes('db');
       if (!isAppResource) return;
       // Broken avatars/storage files are noisy and never actionable — skip
       if (src.includes('/storage/v1/') || /\/avatars?\//i.test(src)) return;

@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from 'react';
 import { useParams } from 'react-router-dom';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { analytics } from '@/lib/analytics';
 import { setPendingReferral, clearPendingReferral, type PendingReferral } from '@/lib/referral';
 import { useAuth } from '@/lib/auth';
@@ -109,7 +109,7 @@ export default function InviteRedeem() {
         
         // Find inviter by username or UUID using case-insensitive lookup
         if (parsed.type === 'uuid') {
-          const { data, error } = await supabase
+          const { data, error } = await db
             .from('profiles')
             .select('id, username, avatar_url, display_name, user_id')
             .eq('id', parsed.value)
@@ -121,7 +121,7 @@ export default function InviteRedeem() {
           inviterProfile = data;
         } else {
           // Use RPC for robust case/whitespace-insensitive username match
-          const { data: profiles, error } = await supabase
+          const { data: profiles, error } = await db
             .rpc('get_profile_by_username', { target_username: parsed.value });
           
           if (error) {

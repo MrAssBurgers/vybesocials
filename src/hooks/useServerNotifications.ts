@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { subscribePostgresChannel, removeRealtimeChannel } from '@/lib/realtimeChannel';
 import { useAuth } from '@/lib/auth';
 
@@ -24,7 +24,7 @@ export function useUnreadServerNotificationsCount() {
     queryFn: async () => {
       if (!profile?.id) return 0;
 
-      const { count, error } = await supabase
+      const { count, error } = await db
         .from('server_notifications')
         .select('id', { count: 'exact', head: true })
         .eq('user_id', profile.id)
@@ -49,7 +49,7 @@ export function useUnreadCountPerServer() {
     queryFn: async () => {
       if (!profile?.id) return {};
 
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('server_notifications')
         .select('server_id')
         .eq('user_id', profile.id)
@@ -102,7 +102,7 @@ export function useUnreadCountPerChannel(serverId: string | undefined) {
     queryFn: async () => {
       if (!profile?.id || !serverId) return {};
 
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('server_notifications')
         .select('channel_id')
         .eq('user_id', profile.id)
@@ -132,7 +132,7 @@ export function useMarkChannelRead() {
     mutationFn: async (channelId: string) => {
       if (!profile?.id) throw new Error('Not authenticated');
 
-      const { error } = await supabase
+      const { error } = await db
         .from('server_notifications')
         .update({ read: true })
         .eq('user_id', profile.id)
@@ -158,7 +158,7 @@ export function useMarkServerRead() {
     mutationFn: async (serverId: string) => {
       if (!profile?.id) throw new Error('Not authenticated');
 
-      const { error } = await supabase
+      const { error } = await db
         .from('server_notifications')
         .update({ read: true })
         .eq('user_id', profile.id)

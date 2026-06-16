@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Heart, Eye, MessageCircle, Users, TrendingUp, Sparkles, ChevronRight, X } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { triggerHaptic } from '@/lib/haptics';
 
 interface WeeklyStats {
@@ -56,19 +56,19 @@ export function WeeklyRecapModal() {
 
     try {
       // Get user's posts from this week first
-      const postsRes = await (supabase.from('posts') as any).select('id, caption', { count: 'exact' })
+      const postsRes = await (db.from('posts') as any).select('id, caption', { count: 'exact' })
         .eq('author_id', user.id).gte('created_at', weekAgoStr);
 
       const postIds = (postsRes.data || []).map(p => p.id);
 
       const [likesRes, commentsRes, followersRes] = await Promise.all([
         postIds.length > 0
-          ? supabase.from('likes').select('id', { count: 'exact' }).in('post_id', postIds).gte('created_at', weekAgoStr)
+          ? db.from('likes').select('id', { count: 'exact' }).in('post_id', postIds).gte('created_at', weekAgoStr)
           : Promise.resolve({ count: 0 } as any),
         postIds.length > 0
-          ? supabase.from('comments').select('id', { count: 'exact' }).in('post_id', postIds).gte('created_at', weekAgoStr)
+          ? db.from('comments').select('id', { count: 'exact' }).in('post_id', postIds).gte('created_at', weekAgoStr)
           : Promise.resolve({ count: 0 } as any),
-        supabase.from('follows').select('id', { count: 'exact' })
+        db.from('follows').select('id', { count: 'exact' })
           .eq('following_id', user.id).gte('created_at', weekAgoStr),
       ]);
 
@@ -76,7 +76,7 @@ export function WeeklyRecapModal() {
       let topPost: WeeklyStats['topPost'] = null;
       if (postIds.length > 0) {
         // Count likes per post
-        const { data: likeCounts } = await supabase
+        const { data: likeCounts } = await db
           .from('likes')
           .select('post_id')
           .in('post_id', postIds);

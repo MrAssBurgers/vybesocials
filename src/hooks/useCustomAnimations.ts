@@ -1,5 +1,5 @@
 import { useCallback } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 
 // Style element ID for custom animations
 const CUSTOM_ANIM_STYLE_ID = 'vybe-custom-animations';
@@ -73,7 +73,7 @@ export function useCustomAnimations() {
     mood: string = 'balanced'
   ): Promise<{ css: string; animations: CustomAnimations } | null> => {
     try {
-      const { data, error } = await supabase.functions.invoke('generate-custom-animations', {
+      const { data, error } = await db.functions.invoke('generate-custom-animations', {
         body: { prompt, mood },
       });
       

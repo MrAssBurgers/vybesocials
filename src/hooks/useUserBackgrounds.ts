@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth';
 import { toast } from 'sonner';
 import { useEffect } from 'react';
@@ -25,7 +25,7 @@ export function useUserBackgrounds() {
     queryFn: async (): Promise<UserBackground[]> => {
       if (!profileId) return [];
 
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('user_backgrounds')
         .select('*')
         .eq('user_id', profileId)
@@ -65,7 +65,7 @@ export function usePrefetchBackgrounds() {
     queryClient.prefetchQuery({
       queryKey: ['user-backgrounds', profileId],
       queryFn: async (): Promise<UserBackground[]> => {
-        const { data, error } = await supabase
+        const { data, error } = await db
           .from('user_backgrounds')
           .select('*')
           .eq('user_id', profileId)
@@ -101,14 +101,14 @@ export function useAddBackground() {
 
       // If setting as active, deactivate others first
       if (setActive) {
-        await supabase
+        await db
           .from('user_backgrounds')
           .update({ is_active: false, updated_at: new Date().toISOString() })
           .eq('user_id', profileId);
       }
 
       // Insert new background
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('user_backgrounds')
         .insert({
           user_id: profileId,
@@ -139,7 +139,7 @@ export function useSetActiveBackground() {
 
   return useMutation({
     mutationFn: async (backgroundId: string) => {
-      const { error } = await supabase.rpc('set_active_background', {
+      const { error } = await db.rpc('set_active_background', {
         p_background_id: backgroundId,
       });
 
@@ -162,7 +162,7 @@ export function useRenameBackground() {
 
   return useMutation({
     mutationFn: async ({ id, name }: { id: string; name: string }) => {
-      const { error } = await supabase
+      const { error } = await db
         .from('user_backgrounds')
         .update({ name, updated_at: new Date().toISOString() })
         .eq('id', id);
@@ -188,11 +188,11 @@ export function useDeleteBackground() {
     mutationFn: async ({ id, storagePath }: { id: string; storagePath?: string | null }) => {
       // Delete from storage if path exists
       if (storagePath) {
-        await supabase.storage.from('media').remove([storagePath]);
+        await db.storage.from('media').remove([storagePath]);
       }
 
       // Delete from database
-      const { error } = await supabase
+      const { error } = await db
         .from('user_backgrounds')
         .delete()
         .eq('id', id);
@@ -220,7 +220,7 @@ export function useClearActiveBackground() {
       const profileId = profile?.id;
       if (!profileId) throw new Error('Not authenticated');
 
-      const { error } = await supabase
+      const { error } = await db
         .from('user_backgrounds')
         .update({ is_active: false, updated_at: new Date().toISOString() })
         .eq('user_id', profileId);

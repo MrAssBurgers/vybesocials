@@ -14,7 +14,7 @@ import { useEquipItem } from '@/hooks/useLockerItems';
 import { ActiveBoostsBanner } from '@/components/tokens/ActiveBoostsBanner';
 import { useAuth } from '@/lib/auth';
 import { useQuery } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { toast } from 'sonner';
 
 // Maps marketplace item ids -> { equip type, equip value } for permanent cosmetics
@@ -134,7 +134,7 @@ function usePurchasedItems() {
     queryKey: ['marketplace-purchases', user?.id],
     queryFn: async () => {
       if (!user?.id) return [];
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('marketplace_purchases')
         .select('item_id')
         .eq('user_id', user.id);

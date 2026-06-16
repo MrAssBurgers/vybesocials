@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth';
 import { useAuthProfileId } from '@/hooks/useAuthProfileId';
 import { toast } from 'sonner';
@@ -37,7 +37,7 @@ export function useTrashedConversations() {
     queryFn: async () => {
       if (!profileId) return [];
 
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('trashed_conversations')
         .select(`
           *,
@@ -72,13 +72,13 @@ export function useTrashConversation() {
     mutationFn: async (conversationId: string) => {
       if (!profileId || !user?.id) throw new Error('Not authenticated');
 
-      await supabase
+      await db
         .from('hidden_conversations')
         .delete()
         .eq('user_id', user.id)
         .eq('conversation_id', conversationId);
 
-      const { error } = await supabase
+      const { error } = await db
         .from('trashed_conversations')
         .upsert(
           {
@@ -142,7 +142,7 @@ export function useRestoreConversation() {
     mutationFn: async (conversationId: string) => {
       if (!profileId) throw new Error('Not authenticated');
 
-      const { error } = await supabase
+      const { error } = await db
         .from('trashed_conversations')
         .delete()
         .eq('user_id', profileId)
@@ -190,7 +190,7 @@ export function usePermanentlyDeleteConversation() {
     mutationFn: async (conversationId: string) => {
       if (!profileId || !user?.id) throw new Error('Not authenticated');
 
-      const { error: trashError } = await supabase
+      const { error: trashError } = await db
         .from('trashed_conversations')
         .delete()
         .eq('user_id', profileId)
@@ -198,7 +198,7 @@ export function usePermanentlyDeleteConversation() {
 
       if (trashError) throw trashError;
 
-      const { error: hideError } = await supabase
+      const { error: hideError } = await db
         .from('hidden_conversations')
         .upsert(
           { user_id: user.id, conversation_id: conversationId },
@@ -227,7 +227,7 @@ export function useTrashedConversationIds() {
     queryFn: async () => {
       if (!profileId) return new Set<string>();
 
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('trashed_conversations')
         .select('conversation_id')
         .eq('user_id', profileId);

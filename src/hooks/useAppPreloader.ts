@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { batchSignUrls } from '@/lib/signedUrlCache';
 import { hasWarmOfflineCache } from '@/lib/offlineCacheProbe';
 import { warmHomeCaches, warmHomeCachesForProfile } from '@/lib/warmHomeCaches';
@@ -151,7 +151,7 @@ export function useAppPreloader() {
         let session = null;
         try {
           const authResult = await Promise.race([
-            supabase.auth.getSession(),
+            db.auth.getSession(),
             new Promise((_, reject) => setTimeout(() => reject(new Error('Auth timeout')), 250))
           ]) as { data: { session: any } };
           session = authResult.data.session;
@@ -164,14 +164,14 @@ export function useAppPreloader() {
           updateStatus('feed');
 
           Promise.allSettled([
-            supabase.rpc('get_posts_with_counts', {
+            db.rpc('get_posts_with_counts', {
               p_type: 'feed_post',
               p_author_id: null,
               p_user_id: null,
               p_offset: 0,
               p_limit: 30,
             }),
-            supabase.rpc('get_posts_with_counts', {
+            db.rpc('get_posts_with_counts', {
               p_type: 'clip',
               p_author_id: null,
               p_user_id: null,
@@ -203,7 +203,7 @@ export function useAppPreloader() {
         // Step 3: Kick off profile fetch but cap how long the splash will wait on it.
         updateStatus('profile');
 
-        const profilePromise = supabase
+        const profilePromise = db
           .from('profiles')
           .select('*')
           .eq('user_id', uid)
@@ -233,14 +233,14 @@ export function useAppPreloader() {
 
         if (profileId) {
           Promise.allSettled([
-            supabase.rpc('get_posts_with_counts', {
+            db.rpc('get_posts_with_counts', {
               p_type: null,
               p_author_id: null,
               p_user_id: profileId,
               p_offset: 0,
               p_limit: 25,
             }),
-            supabase.rpc('get_posts_with_counts', {
+            db.rpc('get_posts_with_counts', {
               p_type: 'short',
               p_author_id: null,
               p_user_id: profileId,

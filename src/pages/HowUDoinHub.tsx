@@ -15,7 +15,7 @@ import {
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { useQuery } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -185,7 +185,7 @@ const WeeklyCheckin = memo(function WeeklyCheckin({ prompt }: { prompt: CheckinP
     triggerHaptic('medium');
     
     try {
-      await supabase.from('user_checkins').insert({
+      await db.from('user_checkins').insert({
         prompt_id: prompt.id,
         response: response.trim() || null,
         mood_rating: mood,
@@ -285,7 +285,7 @@ export default function HowUDoinHub() {
   const { data: hubContent } = useQuery({
     queryKey: ['hub-content', activePillar],
     queryFn: async () => {
-      let query = supabase
+      let query = db
         .from('hub_content')
         .select('*')
         .order('display_order', { ascending: true });
@@ -306,7 +306,7 @@ export default function HowUDoinHub() {
   const { data: checkinPrompt } = useQuery({
     queryKey: ['checkin-prompt'],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('checkin_prompts')
         .select('*')
         .eq('is_active', true)

@@ -1,4 +1,4 @@
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { setLocalPresence, type LiveMusicPresence, type LivePresenceProvider } from '@/hooks/useLiveMusicPresence';
 
 /**
@@ -23,7 +23,7 @@ export interface LivePresencePayload {
 }
 
 export async function upsertLivePresence(payload: LivePresencePayload) {
-  const { data: { user } } = await supabase.auth.getUser();
+  const { data: { user } } = await db.auth.getUser();
   if (!user) return;
 
   const row = {
@@ -43,17 +43,17 @@ export async function upsertLivePresence(payload: LivePresencePayload) {
   // Optimistic UI immediately
   setLocalPresence(user.id, row as Partial<LiveMusicPresence>);
 
-  await supabase.from('live_music_presence').upsert(row, { onConflict: 'user_id' });
+  await db.from('live_music_presence').upsert(row, { onConflict: 'user_id' });
 }
 
 export async function clearLivePresence(provider?: LivePresenceProvider) {
-  const { data: { user } } = await supabase.auth.getUser();
+  const { data: { user } } = await db.auth.getUser();
   if (!user) return;
 
   // Only clear if the current row matches this provider (avoid wiping Spotify
   // because the YouTube player unmounted).
   if (provider) {
-    const { data } = await supabase
+    const { data } = await db
       .from('live_music_presence')
       .select('provider')
       .eq('user_id', user.id)
@@ -62,5 +62,5 @@ export async function clearLivePresence(provider?: LivePresenceProvider) {
   }
 
   setLocalPresence(user.id, null);
-  await supabase.from('live_music_presence').delete().eq('user_id', user.id);
+  await db.from('live_music_presence').delete().eq('user_id', user.id);
 }

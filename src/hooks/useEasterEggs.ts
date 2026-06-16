@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { toast } from 'sonner';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 
 // Konami Code: ↑ ↑ ↓ ↓ ← → ← → B A
 const KONAMI_CODE = ['ArrowUp', 'ArrowUp', 'ArrowDown', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'ArrowLeft', 'ArrowRight', 'KeyB', 'KeyA'];
@@ -55,9 +55,9 @@ export function useEasterEggs() {
 
   // Sync from DB on mount
   useEffect(() => {
-    supabase.auth.getUser().then(({ data: { user } }) => {
+    db.auth.getUser().then(({ data: { user } }) => {
       if (!user?.id) return;
-      supabase
+      db
         .from('user_preferences' as any)
         .select('unlocked_easter_eggs')
         .eq('user_id', user.id)
@@ -79,9 +79,9 @@ export function useEasterEggs() {
     const arr = [...eggs];
     localStorage.setItem('xd_easter_eggs', JSON.stringify(arr));
     // Persist to DB (fire-and-forget)
-    supabase.auth.getUser().then(({ data: { user } }) => {
+    db.auth.getUser().then(({ data: { user } }) => {
       if (!user?.id) return;
-      supabase
+      db
         .from('user_preferences' as any)
         .upsert({
           user_id: user.id,

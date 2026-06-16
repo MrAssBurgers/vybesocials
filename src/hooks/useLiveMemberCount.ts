@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 
 /**
  * Hook to get member count for a server.
@@ -11,7 +11,7 @@ export function useLiveMemberCount(serverId: string | undefined) {
     queryFn: async () => {
       if (!serverId) return 0;
 
-      const { count, error } = await supabase
+      const { count, error } = await db
         .from('server_members')
         .select('*', { count: 'exact', head: true })
         .eq('server_id', serverId);
@@ -44,7 +44,7 @@ export function useAllServerMemberCounts(serverIds: string[]) {
       
       const results = await Promise.all(
         serverIds.map(async (serverId) => {
-          const { count, error } = await supabase
+          const { count, error } = await db
             .from('server_members')
             .select('*', { count: 'exact', head: true })
             .eq('server_id', serverId);

@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef, useCallback } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { subscribePostgresChannel, removeRealtimeChannel } from '@/lib/realtimeChannel';
 import { useAuth } from '@/lib/auth';
 import { toast } from 'sonner';
@@ -77,7 +77,7 @@ export function useUserLevel() {
     queryFn: async () => {
       if (!authUserId) return null;
       
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('user_levels')
         .select('*')
         .eq('user_id', authUserId)
@@ -87,8 +87,8 @@ export function useUserLevel() {
       
       if (!data) {
         try {
-          await supabase.rpc('ensure_user_level');
-          const { data: retryData } = await supabase
+          await db.rpc('ensure_user_level');
+          const { data: retryData } = await db
             .from('user_levels')
             .select('*')
             .eq('user_id', authUserId)
@@ -132,7 +132,7 @@ export function useVybePassTiers() {
   return useQuery({
     queryKey: ['vybe-pass-tiers'],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('battle_pass_tiers')
         .select('*')
         .order('level', { ascending: true });
@@ -153,7 +153,7 @@ export function useUnclaimedRewards() {
     queryFn: async () => {
       if (!authUserId) return [];
       
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('challenge_rewards')
         .select(`
           *,
@@ -180,7 +180,7 @@ export function useClaimReward() {
     mutationFn: async (rewardId: string) => {
       if (!profile?.user_id) throw new Error('Not authenticated');
       
-      const { data, error } = await supabase.rpc('claim_challenge_reward', {
+      const { data, error } = await db.rpc('claim_challenge_reward', {
         p_user_id: profile.user_id,
         p_reward_id: rewardId,
       });
@@ -247,7 +247,7 @@ export function useRealtimeChallengeRewards(
         table: 'challenge_rewards',
         filter: `user_id=eq.${profile.user_id}`,
         callback: async (payload) => {
-          const { data: reward } = await supabase
+          const { data: reward } = await db
             .from('challenge_rewards')
             .select(`*, challenge:challenges(title, description)`)
             .eq('id', payload.new.id)
@@ -372,7 +372,7 @@ export function useGrantPostXP() {
     mutationFn: async (contentType: string = 'post') => {
       if (!profile?.id) throw new Error('Not authenticated');
       
-      const { data, error } = await supabase.rpc('grant_post_xp', {
+      const { data, error } = await db.rpc('grant_post_xp', {
         p_user_id: profile.id,
         p_content_type: contentType,
       });

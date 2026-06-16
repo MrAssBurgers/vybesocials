@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth';
 import { normalizePersistedSet } from '@/lib/persistedCollections';
 
@@ -22,7 +22,7 @@ export function useFoundingStatus() {
     queryKey: ['founding-status', user?.id],
     queryFn: async (): Promise<FoundingStatus> => {
       // Get config
-      const { data: config } = await supabase
+      const { data: config } = await db
         .from('growth_config')
         .select('value')
         .eq('key', 'founding_program')
@@ -36,7 +36,7 @@ export function useFoundingStatus() {
       // Count claimed
       let claimedSlots = 0;
       if (badgeId) {
-        const { count } = await supabase
+        const { count } = await db
           .from('user_badges')
           .select('*', { count: 'exact', head: true })
           .eq('badge_id', badgeId);
@@ -46,7 +46,7 @@ export function useFoundingStatus() {
       // Check if current user is founder
       let userIsFounder = false;
       if (user?.id && badgeId) {
-        const { data } = await supabase
+        const { data } = await db
           .from('user_badges')
           .select('id')
           .eq('user_id', user.id)
@@ -86,7 +86,7 @@ export function useFeatureRequests() {
   return useQuery({
     queryKey: ['feature-requests'],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('feature_requests')
         .select('*')
         .order('vote_count', { ascending: false });
@@ -104,7 +104,7 @@ export function useMyFeatureVotes() {
     queryKey: ['my-feature-votes', user?.id],
     queryFn: async () => {
       if (!user?.id) return new Set<string>();
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('feature_votes')
         .select('feature_id')
         .eq('user_id', user.id);
@@ -126,7 +126,7 @@ export function useToggleFeatureVote() {
 
       if (isVoted) {
         // Remove vote
-        const { error } = await supabase
+        const { error } = await db
           .from('feature_votes')
           .delete()
           .eq('feature_id', featureId)
@@ -134,7 +134,7 @@ export function useToggleFeatureVote() {
         if (error) throw error;
       } else {
         // Add vote
-        const { error } = await supabase
+        const { error } = await db
           .from('feature_votes')
           .insert({ feature_id: featureId, user_id: user.id });
         if (error) throw error;
@@ -153,7 +153,7 @@ export function useSubmitFeatureRequest() {
 
   return useMutation({
     mutationFn: async ({ title, description }: { title: string; description?: string }) => {
-      const { error } = await supabase
+      const { error } = await db
         .from('feature_requests')
         .insert({
           title,

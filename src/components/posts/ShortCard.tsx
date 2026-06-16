@@ -13,7 +13,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
@@ -166,7 +166,7 @@ export const ShortCard = memo(function ShortCard({ post, isActive, globalMuted =
 
   const incrementViewCount = async () => {
     try {
-      const { error } = await supabase.rpc('increment_view_count', { post_id_param: post.id });
+      const { error } = await db.rpc('increment_view_count', { post_id_param: post.id });
       if (error) {
         console.error('RPC error:', error);
         setViewCount(prev => prev + 1);
@@ -280,14 +280,14 @@ export const ShortCard = memo(function ShortCard({ post, isActive, globalMuted =
 
     try {
       if (newIsLiked) {
-        const { error } = await supabase.from('likes').upsert(
+        const { error } = await db.from('likes').upsert(
           { user_id: profile.id, post_id: post.id, reaction_type: reactionType } as any,
           { onConflict: 'user_id,post_id', ignoreDuplicates: false }
         );
         if (error) throw error;
         
         if (!wasLiked && post.author.id !== profile.id) {
-          await supabase.from('notifications').insert({
+          await db.from('notifications').insert({
             user_id: post.author.id,
             type: 'like',
             actor_id: profile.id,
@@ -295,7 +295,7 @@ export const ShortCard = memo(function ShortCard({ post, isActive, globalMuted =
           });
         }
       } else {
-        const { error } = await supabase.from('likes').delete().match({ user_id: profile.id, post_id: post.id });
+        const { error } = await db.from('likes').delete().match({ user_id: profile.id, post_id: post.id });
         if (error) throw error;
       }
       queryClient.invalidateQueries({ queryKey: ['posts'] });
@@ -315,9 +315,9 @@ export const ShortCard = memo(function ShortCard({ post, isActive, globalMuted =
     setIsBookmarked(newIsBookmarked);
 
     if (newIsBookmarked) {
-      await supabase.from('bookmarks').insert({ user_id: profile.id, post_id: post.id });
+      await db.from('bookmarks').insert({ user_id: profile.id, post_id: post.id });
     } else {
-      await supabase.from('bookmarks').delete().match({ user_id: profile.id, post_id: post.id });
+      await db.from('bookmarks').delete().match({ user_id: profile.id, post_id: post.id });
     }
   };
 
@@ -333,7 +333,7 @@ export const ShortCard = memo(function ShortCard({ post, isActive, globalMuted =
     if (!confirm('Are you sure you want to delete this clip?')) return;
 
     try {
-      const { data: deletedRows, error } = await supabase
+      const { data: deletedRows, error } = await db
         .from('posts')
         .delete()
         .eq('id', post.id)
@@ -347,7 +347,7 @@ export const ShortCard = memo(function ShortCard({ post, isActive, globalMuted =
       }
 
       if (profile?.id) {
-        supabase.from('post_deletion_log').insert({
+        db.from('post_deletion_log').insert({
           post_id: post.id,
           author_id: (post as any).author?.id ?? null,
           deleted_by: profile.id,
@@ -373,7 +373,7 @@ export const ShortCard = memo(function ShortCard({ post, isActive, globalMuted =
     const reason = prompt('Why are you reporting this clip?');
     if (!reason) return;
 
-    const { error } = await supabase.from('reports').insert({
+    const { error } = await db.from('reports').insert({
       reporter_id: profile.id,
       reported_user_id: (post as any).author?.id ?? null,
       post_id: post.id,

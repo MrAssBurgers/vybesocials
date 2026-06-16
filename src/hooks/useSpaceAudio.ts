@@ -16,7 +16,7 @@ import {
   type RemoteParticipant,
   type Participant,
 } from 'livekit-client';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 
 export type SpaceAudioState = 'idle' | 'connecting' | 'connected' | 'error';
 
@@ -80,7 +80,7 @@ export function useSpaceAudio() {
     setError(null);
 
     try {
-      const { data, error: fnError } = await supabase.functions.invoke<SpaceTokenResponse>(
+      const { data, error: fnError } = await db.functions.invoke<SpaceTokenResponse>(
         'spaces-token',
         { body: { spaceId } },
       );

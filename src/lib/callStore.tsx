@@ -13,7 +13,7 @@
  */
 
 import React, { createContext, useContext, useState, useCallback, useRef, ReactNode, useEffect } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { subscribePostgresChannel, removeRealtimeChannel } from '@/lib/realtimeChannel';
 import { useAuth } from '@/lib/auth';
 import { useAuthProfileId } from '@/hooks/useAuthProfileId';
@@ -261,7 +261,7 @@ export function CallStoreProvider({ children }: { children: ReactNode }) {
     if (import.meta.env.DEV) console.log('[CallStore] Incoming call:', newCall.id);
 
     const [callResult, conversationResult] = await Promise.all([
-      supabase
+      db
         .from('calls')
         .select(`
           *,
@@ -270,7 +270,7 @@ export function CallStoreProvider({ children }: { children: ReactNode }) {
         `)
         .eq('id', newCall.id)
         .single(),
-      supabase
+      db
         .from('conversations')
         .select('id, name, avatar_url, is_group')
         .eq('id', newCall.conversation_id)
@@ -359,7 +359,7 @@ export function CallStoreProvider({ children }: { children: ReactNode }) {
       }
 
       try {
-        const { data: ringingCalls } = await supabase
+        const { data: ringingCalls } = await db
           .from('calls')
           .select('id, status, conversation_id, call_type, room_name, created_at')
           .eq('receiver_id', profileId)
@@ -449,7 +449,7 @@ export function CallStoreProvider({ children }: { children: ReactNode }) {
 
       try {
         // Verify the call is still active
-        const { data: callRow, error: callErr } = await supabase
+        const { data: callRow, error: callErr } = await db
           .from('calls')
           .select('id, status, call_mode, call_type, conversation_id, room_name')
           .eq('id', snap.callId)
@@ -514,7 +514,7 @@ export function CallStoreProvider({ children }: { children: ReactNode }) {
   // so the green "Rejoin" button never sticks around after a real hangup.
   useEffect(() => {
     if (!profileId) return;
-    let channel: ReturnType<typeof supabase.channel> | null = null;
+    let channel: ReturnType<typeof db.channel> | null = null;
     let watchedId: string | null = null;
 
     const attach = (id: string) => {
@@ -629,7 +629,7 @@ export function CallStoreProvider({ children }: { children: ReactNode }) {
       const initialMode: CallMode = params.isGroupCall ? 'persistent' : 'p2p';
 
       // Insert call record directly — P2P doesn't need an edge function
-      const { data: callSession, error: callError } = await supabase
+      const { data: callSession, error: callError } = await db
         .from('calls')
         .insert({
           conversation_id: params.conversationId,
@@ -722,7 +722,7 @@ export function CallStoreProvider({ children }: { children: ReactNode }) {
           const body = `${callerName} is calling…`;
 
           for (const userId of targetIds) {
-            supabase.functions.invoke('send-push-notification', {
+            db.functions.invoke('send-push-notification', {
               body: {
                 userId,
                 title,
@@ -772,7 +772,7 @@ export function CallStoreProvider({ children }: { children: ReactNode }) {
     const warmupPromise = warmCallMedia(call.callType);
 
     // Fire-and-forget DB status update — never block the UI on this
-    void supabase
+    void db
       .from('calls')
       .update({ status: 'accepted', started_at: new Date().toISOString() })
       .eq('id', call.id)
@@ -821,7 +821,7 @@ export function CallStoreProvider({ children }: { children: ReactNode }) {
     const callId = globalCallState.call?.id || globalLingeringCall?.id;
     if (callId) {
       try {
-        await supabase
+        await db
           .from('calls')
           .update({ status: 'ended', ended_at: new Date().toISOString() })
           .eq('id', callId);
@@ -895,7 +895,7 @@ export function CallStoreProvider({ children }: { children: ReactNode }) {
     if (import.meta.env.DEV) console.log('[CallStore] Switching mode to:', mode);
 
     // Update in DB — this triggers Realtime to the other client
-    await supabase
+    await db
       .from('calls')
       .update({ call_mode: mode })
       .eq('id', currentCall.id);
@@ -923,7 +923,7 @@ export function CallStoreProvider({ children }: { children: ReactNode }) {
       } catch (err: any) {
         console.error('[CallStore] Switch to persistent failed:', err);
         // Revert mode in DB
-        await supabase
+        await db
           .from('calls')
           .update({ call_mode: currentCall.callMode })
           .eq('id', currentCall.id);
@@ -964,13 +964,13 @@ export function CallStoreProvider({ children }: { children: ReactNode }) {
     const currentIncoming = globalIncomingCall;
     if (currentIncoming?.id) {
       void dismissNativeIncomingCall(currentIncoming.id);
-      await supabase
+      await db
         .from('calls')
         .update({ status: 'declined' })
         .eq('id', currentIncoming.id);
 
       if (currentIncoming.caller?.id && profileId) {
-        await supabase
+        await db
           .from('notifications')
           .insert({
             user_id: profileId,

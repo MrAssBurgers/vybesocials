@@ -1,5 +1,5 @@
 import { useInfiniteQuery } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth';
 import { getEffectiveProfileId } from '@/lib/profileCache';
 import { useState, useEffect, useCallback } from 'react';
@@ -104,7 +104,7 @@ export function useLocalFeed(options?: { enabled?: boolean }) {
 
       // If we have location, use the local posts RPC
       if (location) {
-        const { data, error } = await supabase.rpc('get_local_posts', {
+        const { data, error } = await db.rpc('get_local_posts', {
           p_lat: location.lat,
           p_lng: location.lng,
           p_radius_miles: RADIUS_MILES,
@@ -145,7 +145,7 @@ export function useLocalFeed(options?: { enabled?: boolean }) {
 }
 
 async function fetchFallbackFeed(offset: number, userId?: string): Promise<{ posts: Post[]; nextPage: number | null }> {
-  const { data, error } = await supabase.rpc('get_posts_with_counts', {
+  const { data, error } = await db.rpc('get_posts_with_counts', {
     p_type: null,
     p_author_id: null,
     p_user_id: userId || null,

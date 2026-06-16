@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { useAuth } from '@/lib/auth';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import { Shield, Mail, Trash2, LogOut, Loader2 } from 'lucide-react';
@@ -47,9 +47,9 @@ export function SecuritySection() {
     if (!user) return;
     setLoading(true);
     const [{ data: s }, { data: sess }, { data: h }] = await Promise.all([
-      supabase.rpc('ensure_2fa_settings'),
-      supabase.from('user_sessions').select('*').eq('user_id', user.id).is('revoked_at', null).order('last_seen_at', { ascending: false }),
-      supabase.from('login_history').select('*').eq('user_id', user.id).order('created_at', { ascending: false }).limit(10),
+      db.rpc('ensure_2fa_settings'),
+      db.from('user_sessions').select('*').eq('user_id', user.id).is('revoked_at', null).order('last_seen_at', { ascending: false }),
+      db.from('login_history').select('*').eq('user_id', user.id).order('created_at', { ascending: false }).limit(10),
     ]);
     const row = Array.isArray(s) ? s[0] : s;
     setSettings(row ?? { email_2fa_enabled: false, login_approvals_enabled: false });
@@ -65,7 +65,7 @@ export function SecuritySection() {
     const prev = settings;
     const next = { ...settings, ...patch };
     setSettings(next);
-    const { data, error } = await supabase.rpc('update_2fa_settings', {
+    const { data, error } = await db.rpc('update_2fa_settings', {
       p_email_2fa: next.email_2fa_enabled,
       p_login_approvals: next.login_approvals_enabled,
     });
@@ -80,7 +80,7 @@ export function SecuritySection() {
       login_approvals_enabled: !!row.login_approvals_enabled,
     });
     toast.success('Saved');
-    const { data: fresh } = await supabase.rpc('ensure_2fa_settings');
+    const { data: fresh } = await db.rpc('ensure_2fa_settings');
     const freshRow = Array.isArray(fresh) ? fresh[0] : fresh;
     if (freshRow) {
       setSettings({
@@ -93,7 +93,7 @@ export function SecuritySection() {
   const revoke = async (sessionId?: string, all = false) => {
     setBusy(true);
     try {
-      const { error } = await supabase.functions.invoke('auth-session-revoke', { body: { sessionId, all } });
+      const { error } = await db.functions.invoke('auth-session-revoke', { body: { sessionId, all } });
       if (error) throw error;
       toast.success(all ? 'Signed out everywhere' : 'Session revoked');
       await load();

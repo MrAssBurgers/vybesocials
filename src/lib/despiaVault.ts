@@ -9,7 +9,7 @@
  * real native Face ID / Touch ID prompt — no fake biometric UI.
  */
 
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 
 const DESPIA_APP_HINT = /despia|vybeapp|app\.lovable\.416714c8d0134aff984d522418a9bbc7|app\.lovable\.762a689eac3b48a59a179f1c2b5b3a2b|com\.despia\.vybe/i;
 
@@ -72,7 +72,7 @@ export function isDespiaPasskeyEnrolled(): boolean {
  */
 export async function registerDespiaDevicePasskey(): Promise<void> {
   if (!isDespiaShell()) throw new Error('Not in Despia shell');
-  const { data: { session } } = await supabase.auth.getSession();
+  const { data: { session } } = await db.auth.getSession();
   if (!session?.refresh_token) throw new Error('Sign in first to add a passkey');
   const despia = await getDespia();
 
@@ -126,7 +126,7 @@ export async function signInWithDespiaPasskey(): Promise<boolean> {
   if (!isDespiaShell()) return false;
   const refresh = await readVault(VAULT_REFRESH_KEY);
   if (!refresh) return false;
-  const { error } = await supabase.auth.refreshSession({ refresh_token: refresh });
+  const { error } = await db.auth.refreshSession({ refresh_token: refresh });
   if (error) {
     // Refresh token expired/revoked — clear marker so UI prompts re-enroll.
     try { localStorage.removeItem(LOCAL_MARKER); } catch {}
@@ -134,7 +134,7 @@ export async function signInWithDespiaPasskey(): Promise<boolean> {
   }
   // Re-store rotated refresh token so it stays valid.
   try {
-    const { data: { session } } = await supabase.auth.getSession();
+    const { data: { session } } = await db.auth.getSession();
     if (session?.refresh_token) {
       await setVault(VAULT_REFRESH_KEY, session.refresh_token, true);
     }

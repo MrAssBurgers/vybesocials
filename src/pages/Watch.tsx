@@ -13,7 +13,7 @@ import {
   VolumeX,
   Maximize,
 } from 'lucide-react';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
@@ -56,7 +56,7 @@ export default function WatchPage() {
     queryFn: async () => {
       if (!id) return null;
       
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('posts')
         .select(`
           *,
@@ -98,7 +98,7 @@ export default function WatchPage() {
   useEffect(() => {
     if (!isPlaying || !id || hasCountedView.current) return;
     hasCountedView.current = true;
-    void supabase.rpc('increment_view_count', { post_id_param: id }).then(() => {}, () => {});
+    void db.rpc('increment_view_count', { post_id_param: id }).then(() => {}, () => {});
   }, [isPlaying, id]);
 
   // Fetch like/bookmark status
@@ -107,10 +107,10 @@ export default function WatchPage() {
 
     const fetchStatus = async () => {
       const [likeRes, bookmarkRes, countRes, commentRes] = await Promise.all([
-        supabase.from('likes').select('id').eq('post_id', id).eq('user_id', profile.id).single(),
-        supabase.from('bookmarks').select('id').eq('post_id', id).eq('user_id', profile.id).single(),
-        supabase.from('likes').select('id', { count: 'exact', head: true }).eq('post_id', id),
-        supabase.from('comments').select('id', { count: 'exact', head: true }).eq('post_id', id),
+        db.from('likes').select('id').eq('post_id', id).eq('user_id', profile.id).single(),
+        db.from('bookmarks').select('id').eq('post_id', id).eq('user_id', profile.id).single(),
+        db.from('likes').select('id', { count: 'exact', head: true }).eq('post_id', id),
+        db.from('comments').select('id', { count: 'exact', head: true }).eq('post_id', id),
       ]);
 
       setIsLiked(!!likeRes.data);
@@ -191,9 +191,9 @@ export default function WatchPage() {
     setLikeCount(prev => newIsLiked ? prev + 1 : prev - 1);
 
     if (newIsLiked) {
-      await supabase.from('likes').upsert({ user_id: profile.id, post_id: id }, { onConflict: 'user_id,post_id', ignoreDuplicates: true });
+      await db.from('likes').upsert({ user_id: profile.id, post_id: id }, { onConflict: 'user_id,post_id', ignoreDuplicates: true });
     } else {
-      await supabase.from('likes').delete().match({ user_id: profile.id, post_id: id });
+      await db.from('likes').delete().match({ user_id: profile.id, post_id: id });
     }
   };
 
@@ -204,10 +204,10 @@ export default function WatchPage() {
     setIsBookmarked(newIsBookmarked);
 
     if (newIsBookmarked) {
-      await supabase.from('bookmarks').insert({ user_id: profile.id, post_id: id });
+      await db.from('bookmarks').insert({ user_id: profile.id, post_id: id });
       toast.success('Saved to bookmarks');
     } else {
-      await supabase.from('bookmarks').delete().match({ user_id: profile.id, post_id: id });
+      await db.from('bookmarks').delete().match({ user_id: profile.id, post_id: id });
     }
   };
 

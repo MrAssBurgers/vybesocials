@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { subscribePostgresChannel, removeRealtimeChannel } from '@/lib/realtimeChannel';
 import { useAuth } from '@/lib/auth';
 
@@ -38,7 +38,7 @@ export function useRouletteMatch() {
       if (channelRef.current) removeRealtimeChannel(channelRef.current);
       // Remove from queue on unmount
       if (user?.id) {
-        supabase.from('roulette_queue' as any).delete().eq('user_id', user.id);
+        db.from('roulette_queue' as any).delete().eq('user_id', user.id);
       }
     };
   }, [user?.id]);
@@ -51,7 +51,7 @@ export function useRouletteMatch() {
     setMatch(null);
 
     try {
-      const { data, error: rpcError } = await supabase.rpc('find_roulette_match', {
+      const { data, error: rpcError } = await db.rpc('find_roulette_match', {
         p_mode: mode,
         p_interests: interests,
       });
@@ -61,7 +61,7 @@ export function useRouletteMatch() {
       if (data) {
         // Matched immediately
         const partnerId = (data as any).user_a === user.id ? (data as any).user_b : (data as any).user_a;
-        const { data: partnerProfile } = await supabase
+        const { data: partnerProfile } = await db
           .from('profiles')
           .select('id, username, avatar_url, display_name')
           .eq('id', partnerId)
@@ -74,7 +74,7 @@ export function useRouletteMatch() {
 
       const handleMatch = async (m: any) => {
         const partnerId = m.user_a === user.id ? m.user_b : m.user_a;
-        const { data: partnerProfile } = await supabase
+        const { data: partnerProfile } = await db
           .from('profiles')
           .select('id, username, avatar_url, display_name')
           .eq('id', partnerId)
@@ -106,13 +106,13 @@ export function useRouletteMatch() {
 
       // Also poll every 5s as fallback
       pollingRef.current = setInterval(async () => {
-        const { data: pollData } = await supabase.rpc('find_roulette_match', {
+        const { data: pollData } = await db.rpc('find_roulette_match', {
           p_mode: mode,
           p_interests: interests,
         });
         if (pollData) {
           const partnerId = (pollData as any).user_a === user.id ? (pollData as any).user_b : (pollData as any).user_a;
-          const { data: partnerProfile } = await supabase
+          const { data: partnerProfile } = await db
             .from('profiles')
             .select('id, username, avatar_url, display_name')
             .eq('id', partnerId)
@@ -134,7 +134,7 @@ export function useRouletteMatch() {
     if (pollingRef.current) clearInterval(pollingRef.current);
     if (channelRef.current) removeRealtimeChannel(channelRef.current);
     if (user?.id) {
-      await supabase.from('roulette_queue' as any).delete().eq('user_id', user.id);
+      await db.from('roulette_queue' as any).delete().eq('user_id', user.id);
     }
     setStatus('idle');
     setMatch(null);
@@ -142,7 +142,7 @@ export function useRouletteMatch() {
 
   const endMatch = useCallback(async () => {
     if (match?.id) {
-      await supabase
+      await db
         .from('roulette_matches' as any)
         .update({ status: 'ended', ended_at: new Date().toISOString() } as any)
         .eq('id', match.id);

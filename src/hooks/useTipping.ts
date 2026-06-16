@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth';
 import { toast } from 'sonner';
 import { getPaymentClientContext, openCheckoutUrl } from '@/lib/platformPayments';
@@ -15,7 +15,7 @@ export function useSendTip() {
   const sendTip = useCallback(async (creatorId: string, amount: number, message?: string) => {
     setIsLoading(true);
     try {
-      const { data, error } = await supabase.functions.invoke('create-tip', {
+      const { data, error } = await db.functions.invoke('create-tip', {
         body: { creator_id: creatorId, amount, message, ...getPaymentClientContext() },
       });
       if (error) throw error;
@@ -43,7 +43,7 @@ export function useMyTipsGiven() {
     queryKey: ['tips-given', user?.id],
     queryFn: async () => {
       if (!user?.id) return [];
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('tips')
         .select('*')
         .eq('tipper_id', user.id)

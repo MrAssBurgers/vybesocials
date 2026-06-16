@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 
 export interface StripeConfig {
   stripe_enabled: boolean;
@@ -17,7 +17,7 @@ export function useStripeConfig() {
     queryKey: ['stripe-config-status'],
     queryFn: async (): Promise<StripeConfig> => {
       // Try to read full config (will fail for non-admins due to RLS)
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('stripe_config')
         .select('stripe_enabled, stripe_mode, stripe_publishable_key')
         .limit(1)
@@ -32,7 +32,7 @@ export function useStripeConfig() {
       }
 
       // Fallback for non-admins: use the security definer function
-      const { data: enabledData } = await supabase.rpc('is_stripe_enabled');
+      const { data: enabledData } = await db.rpc('is_stripe_enabled');
       return {
         stripe_enabled: !!enabledData,
         stripe_mode: 'unknown',

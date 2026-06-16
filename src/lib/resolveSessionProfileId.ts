@@ -1,4 +1,4 @@
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import {
   getEffectiveProfileId,
   setCachedCurrentProfile,
@@ -21,7 +21,7 @@ export async function resolveSessionProfileId(
   const cached = getEffectiveProfileId(liveProfileId);
   if (cached) return cached;
 
-  const { data: { session } } = await supabase.auth.getSession();
+  const { data: { session } } = await db.auth.getSession();
   const authUserId = session?.user?.id;
   if (!authUserId) return undefined;
 
@@ -32,7 +32,7 @@ export async function resolveSessionProfileId(
   inflight = (async () => {
     try {
       const loadProfile = () =>
-        supabase
+        db
           .from('profiles')
           .select('id, user_id, username, avatar_url, display_name')
           .eq('user_id', authUserId)
@@ -42,7 +42,7 @@ export async function resolveSessionProfileId(
 
       // Signed-in users may lack a profiles row (signup trigger lag) — ensure_profile creates it.
       if (!data?.id) {
-        await supabase.rpc('ensure_profile');
+        await db.rpc('ensure_profile');
         ({ data, error } = await loadProfile());
       }
 
@@ -82,9 +82,9 @@ export async function resolveStoryAuthorProfileId(
   let id = getEffectiveProfileId(liveProfileId) ?? (await resolveSessionProfileId(liveProfileId));
   if (id) return id;
 
-  const { error } = await supabase.rpc('ensure_profile');
+  const { error } = await db.rpc('ensure_profile');
   if (error) {
-    await supabase.rpc('claim_profile_by_email');
+    await db.rpc('claim_profile_by_email');
   }
 
   id = await resolveSessionProfileId(liveProfileId);

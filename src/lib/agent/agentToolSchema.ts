@@ -1,6 +1,6 @@
 /**
  * VYBE agent tool schema (client) — zod validation + risk tiers.
- * Edge JSON tool def: supabase/functions/_shared/agentToolSchema.ts
+ * Edge JSON tool def: db/functions/_shared/agentToolSchema.ts
  */
 import { z } from 'zod';
 import { normalizeAgentPath } from '@/lib/agent/agentRoutes';

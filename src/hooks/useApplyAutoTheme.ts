@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { subscribePostgresChannel, removeRealtimeChannel } from '@/lib/realtimeChannel';
 import { useAuth } from '@/lib/auth';
 
@@ -41,8 +41,8 @@ export function useApplyAutoTheme() {
 
     async function apply() {
       const [{ data: settings }, { data: theme }] = await Promise.all([
-        supabase.from('dna_agent_settings').select('mode').eq('user_id', user!.id).maybeSingle(),
-        supabase.from('dna_auto_theme').select('*').eq('user_id', user!.id).maybeSingle(),
+        db.from('dna_agent_settings').select('mode').eq('user_id', user!.id).maybeSingle(),
+        db.from('dna_auto_theme').select('*').eq('user_id', user!.id).maybeSingle(),
       ]);
       if (!active) return;
 

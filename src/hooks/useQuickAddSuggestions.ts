@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { useAuthProfileId } from '@/hooks/useAuthProfileId';
 import { useSuggestedFriends } from '@/hooks/useFriendsOfFriends';
 import { useFriends } from '@/hooks/useFriends';
@@ -48,7 +48,7 @@ export function useQuickAddSuggestions(limit = 8) {
       const friendIds = friends?.map(f => f.id) || [];
 
       // Get my interests + DOB for age-based filtering
-      const { data: myProfile } = await supabase
+      const { data: myProfile } = await db
         .from('profiles')
         .select('interests, date_of_birth')
         .eq('id', profileId)
@@ -78,7 +78,7 @@ export function useQuickAddSuggestions(limit = 8) {
       })();
 
       // Build query — fetch recent active users excluding self and friends
-      let query = supabase
+      let query = db
         .from('profiles' as any)
         .select('id, username, display_name, avatar_url, interests, date_of_birth')
         .neq('id', profileId)

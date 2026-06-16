@@ -29,7 +29,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { ChevronDown, SlidersHorizontal } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { toast } from 'sonner';
 import { useAuth } from '@/lib/auth';
 import {
@@ -282,14 +282,14 @@ export function BackgroundCustomizer({
       const storagePath = `backgrounds/${userId}/${Date.now()}_${Math.random().toString(36).substring(7)}.${ext}`;
 
       // Upload to storage
-      const { error: uploadError } = await supabase.storage
+      const { error: uploadError } = await db.storage
         .from('media')
         .upload(storagePath, file, { upsert: true, contentType: file.type });
 
       if (uploadError) throw uploadError;
 
       // Get public URL
-      const { data: { publicUrl } } = supabase.storage
+      const { data: { publicUrl } } = db.storage
         .from('media')
         .getPublicUrl(storagePath);
 
@@ -362,7 +362,7 @@ export function BackgroundCustomizer({
     setSelectedStyle(styleId || null);
 
     try {
-      const { data, error } = await supabase.functions.invoke('generate-background', {
+      const { data, error } = await db.functions.invoke('generate-background', {
         body: { prompt, style: styleId },
       });
 

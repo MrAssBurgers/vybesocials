@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 
@@ -116,7 +116,7 @@ export function MusicGallery({ onSelectTrack, onClose }: MusicGalleryProps) {
 
   const loadTracks = async () => {
     try {
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('licensed_tracks')
         .select('*')
         .order('created_at', { ascending: false });
@@ -134,7 +134,7 @@ export function MusicGallery({ onSelectTrack, onClose }: MusicGalleryProps) {
 
   const loadTrackUsage = async () => {
     try {
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('track_usage')
         .select('*');
 
@@ -189,7 +189,7 @@ export function MusicGallery({ onSelectTrack, onClose }: MusicGalleryProps) {
         setCurrentlyPlaying(track.track_id);
 
         // Update play count
-        await supabase.rpc('update_track_usage', {
+        await db.rpc('update_track_usage', {
           p_track_id: track.track_id,
           p_plays: 1
         });
@@ -213,14 +213,14 @@ export function MusicGallery({ onSelectTrack, onClose }: MusicGalleryProps) {
 
   const handleShareTrack = async (track: Track) => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { user } } = await db.auth.getUser();
       if (!user) {
         toast.error('You must be logged in to share music');
         return;
       }
 
       // Check profile
-      const { data: profile } = await supabase
+      const { data: profile } = await db
         .from('profiles')
         .select('id')
         .eq('user_id', user.id)
@@ -236,7 +236,7 @@ export function MusicGallery({ onSelectTrack, onClose }: MusicGalleryProps) {
       }
 
       // Create a feed post sharing the track
-      const { error } = await supabase.from('posts').insert({
+      const { error } = await db.from('posts').insert({
         author_id: profile.id,
         type: 'post',
         caption: `Vibing to "${track.title}" by ${track.artist} 🎵\n#music #discovery #${track.genre.replace(/\s+/g, '').toLowerCase()}`,
@@ -246,14 +246,14 @@ export function MusicGallery({ onSelectTrack, onClose }: MusicGalleryProps) {
       if (error) throw error;
 
       // Update track usage stats (shares)
-      await supabase.rpc('update_track_usage', {
+      await db.rpc('update_track_usage', {
         p_track_id: track.track_id,
         p_shares: 1
       });
 
       // Simple way to award XP directly (like 50 XP for sharing a track)
       try {
-        await supabase.rpc('add_user_xp', {
+        await db.rpc('add_user_xp', {
           p_user_id: user.id,
           p_xp: 50,
           p_source: 'music_share'

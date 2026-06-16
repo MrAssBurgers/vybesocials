@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient, type QueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { subscribePostgresChannel, removeRealtimeChannel } from '@/lib/realtimeChannel';
 import { useAuth } from '@/lib/auth';
 import { useAuthProfileId } from '@/hooks/useAuthProfileId';
@@ -77,7 +77,7 @@ export function useUnreadMessagesCount() {
       if (!profileId) return 0;
 
       // Get conversations the user is part of
-      const { data: memberships } = await supabase
+      const { data: memberships } = await db
         .from('conversation_members')
         .select('conversation_id, last_read_at')
         .eq('user_id', profileId);
@@ -87,7 +87,7 @@ export function useUnreadMessagesCount() {
       let totalUnread = 0;
       for (const membership of memberships) {
         const lastReadAt = membership.last_read_at || '1970-01-01';
-        const { count } = await supabase
+        const { count } = await db
           .from('messages')
           .select('id', { count: 'exact', head: true })
           .eq('conversation_id', membership.conversation_id)
@@ -118,7 +118,7 @@ export function useConversations() {
 
       // Fetch hidden conversations and conversations in parallel
       // First get the conversation IDs the user is a member of
-      const { data: membershipData, error: membershipError } = await supabase
+      const { data: membershipData, error: membershipError } = await db
         .from('conversation_members')
         .select('conversation_id')
         .eq('user_id', profileId);
@@ -129,11 +129,11 @@ export function useConversations() {
       const userConversationIds = membershipData.map(m => m.conversation_id);
 
       const [hiddenResult, conversationsResult] = await Promise.all([
-        supabase
+        db
           .from('hidden_conversations')
           .select('conversation_id')
           .eq('user_id', profileId),
-        supabase
+        db
           .from('conversations')
           .select(`
             *,
@@ -160,7 +160,7 @@ export function useConversations() {
 
       // Batch fetch last messages for all conversations
       const convIds = conversations.map(c => c.id);
-      const { data: allMessages } = await supabase
+      const { data: allMessages } = await db
         .from('messages')
         .select('*')
         .in('conversation_id', convIds)
@@ -286,7 +286,7 @@ export function useMessages(conversationId: string | undefined) {
 
       const viewerId = (await resolveSessionProfileId(profileId)) ?? profileId;
 
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('messages')
         .select(MESSAGE_SELECT_SLIM)
         .eq('conversation_id', conversationId)
@@ -347,7 +347,7 @@ export function useSendMessage() {
         : null;
 
       try {
-        const { data, error } = await supabase
+        const { data, error } = await db
           .from('messages')
           .insert({
             conversation_id: conversationId,
@@ -365,7 +365,7 @@ export function useSendMessage() {
         if (error) throw error;
 
         // Update conversation updated_at
-        await supabase
+        await db
           .from('conversations')
           .update({ updated_at: new Date().toISOString() })
           .eq('id', conversationId);
@@ -434,7 +434,7 @@ export function useUnsendMessage() {
       if (!profile?.id) throw new Error('Not authenticated');
 
       // Get the message to verify ownership and get conversation_id
-      const { data: message, error: fetchError } = await supabase
+      const { data: message, error: fetchError } = await db
         .from('messages')
         .select('sender_id, conversation_id')
         .eq('id', messageId)
@@ -449,7 +449,7 @@ export function useUnsendMessage() {
       }
 
       // Soft delete the message - RLS will verify ownership
-      const { error } = await supabase
+      const { error } = await db
         .from('messages')
         .update({ 
           is_deleted: true,
@@ -481,7 +481,7 @@ export function useMarkMessageViewed() {
     mutationFn: async (messageId: string) => {
       if (!profile?.id) throw new Error('Not authenticated');
 
-      const { error } = await supabase
+      const { error } = await db
         .from('message_views')
         .upsert({
           message_id: messageId,
@@ -528,7 +528,7 @@ export function useToggleSavedMessage(conversationId?: string) {
       return { previous };
     },
     mutationFn: async (messageId: string) => {
-      const { data, error } = await supabase.rpc('toggle_message_saved', { _message_id: messageId });
+      const { data, error } = await db.rpc('toggle_message_saved', { _message_id: messageId });
       if (error) throw error;
       const row = Array.isArray(data) ? data[0] : data;
       return { messageId, ...(row as any) };
@@ -585,7 +585,7 @@ export function useCreateConversation() {
       if (!isGroup && memberIds.length === 1) {
         const otherUserId = memberIds[0];
         
-        const { data: conversationId, error: rpcError } = await supabase
+        const { data: conversationId, error: rpcError } = await db
           .rpc('create_dm_conversation', { other_profile_id: otherUserId });
 
         if (rpcError) {
@@ -594,7 +594,7 @@ export function useCreateConversation() {
         }
 
         // Fetch the full conversation object to return
-        const { data: conv, error: fetchError } = await supabase
+        const { data: conv, error: fetchError } = await db
           .from('conversations')
           .select('*')
           .eq('id', conversationId)
@@ -608,7 +608,7 @@ export function useCreateConversation() {
       }
 
       // For group chats, use the existing multi-step approach
-      const { data: conversation, error: convError } = await supabase
+      const { data: conversation, error: convError } = await db
         .from('conversations')
         .insert({
           is_group: isGroup,
@@ -627,12 +627,12 @@ export function useCreateConversation() {
         role: userId === profile.id ? 'admin' : 'member',
       }));
 
-      const { error: membersError } = await supabase
+      const { error: membersError } = await db
         .from('conversation_members')
         .insert(membersToInsert);
 
       if (membersError) {
-        await supabase.from('conversations').delete().eq('id', conversation.id);
+        await db.from('conversations').delete().eq('id', conversation.id);
         throw membersError;
       }
 
@@ -658,7 +658,7 @@ export function useTypingIndicator(conversationId: string | undefined) {
 
     if (isTyping) {
       // Use upsert with onConflict to handle race conditions
-      await supabase
+      await db
         .from('typing_indicators')
         .upsert(
           {
@@ -669,7 +669,7 @@ export function useTypingIndicator(conversationId: string | undefined) {
           { onConflict: 'conversation_id,user_id', ignoreDuplicates: false }
         );
     } else {
-      await supabase
+      await db
         .from('typing_indicators')
         .delete()
         .eq('conversation_id', conversationId)
@@ -686,7 +686,7 @@ export function useTypingIndicator(conversationId: string | undefined) {
         table: 'typing_indicators',
         filter: `conversation_id=eq.${conversationId}`,
         callback: async () => {
-          const { data } = await supabase
+          const { data } = await db
             .from('typing_indicators')
             .select('user_id')
             .eq('conversation_id', conversationId)
@@ -752,7 +752,7 @@ export function useScreenshotNotification(conversationId: string | undefined) {
       // For screenshots, also insert into screenshot_notifications table
       if (captureType === 'screenshot') {
         console.log('[Capture] Inserting to screenshot_notifications table...');
-        const { error } = await supabase
+        const { error } = await db
           .from('screenshot_notifications')
           .insert({
             conversation_id: conversationId,
@@ -768,7 +768,7 @@ export function useScreenshotNotification(conversationId: string | undefined) {
 
       // Insert system message so it shows in chat history
       console.log('[Capture] Inserting system message...');
-      const { error: msgError } = await supabase
+      const { error: msgError } = await db
         .from('messages')
         .insert({
           conversation_id: conversationId,
@@ -804,7 +804,7 @@ export function useScreenshotNotification(conversationId: string | undefined) {
         filter: `conversation_id=eq.${conversationId}`,
         callback: async (payload) => {
           if ((payload.new as any).user_id !== profile?.id) {
-            const { data: user } = await supabase
+            const { data: user } = await db
               .from('profiles')
               .select('username')
               .eq('id', (payload.new as any).user_id)
@@ -858,7 +858,7 @@ export function useStreaks() {
     queryFn: async () => {
       if (!profile?.id) return [];
 
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('streaks')
         .select(`
           *,
@@ -886,7 +886,7 @@ export function useAddReaction() {
 
       // Toggle: if user already reacted with same emoji, remove it.
       // Otherwise upsert (one reaction per user per message).
-      const { data: existing } = await supabase
+      const { data: existing } = await db
         .from('message_reactions')
         .select('emoji')
         .eq('message_id', messageId)
@@ -894,7 +894,7 @@ export function useAddReaction() {
         .maybeSingle();
 
       // Always clear any existing reaction from this user on this message first
-      await supabase
+      await db
         .from('message_reactions')
         .delete()
         .eq('message_id', messageId)
@@ -905,7 +905,7 @@ export function useAddReaction() {
         return { messageId, emoji, removed: true };
       }
 
-      const { error: insertError } = await supabase
+      const { error: insertError } = await db
         .from('message_reactions')
         .insert({ message_id: messageId, user_id: profile.id, emoji });
       if (insertError) throw insertError;
@@ -974,7 +974,7 @@ export function useMarkConversationRead() {
     mutationFn: async (conversationId: string) => {
       if (!profile?.id) throw new Error('Not authenticated');
 
-      const { error } = await supabase
+      const { error } = await db
         .from('conversation_members')
         .update({ last_read_at: new Date().toISOString() })
         .eq('conversation_id', conversationId)
@@ -999,7 +999,7 @@ export function useMarkConversationReadByUser() {
       if (!profile?.id || profile.id === targetUserId) return;
 
       // Find the 1:1 conversation with this user
-      const { data: myMemberships } = await supabase
+      const { data: myMemberships } = await db
         .from('conversation_members')
         .select('conversation_id')
         .eq('user_id', profile.id);
@@ -1009,7 +1009,7 @@ export function useMarkConversationReadByUser() {
       const conversationIds = myMemberships.map(m => m.conversation_id);
 
       // Find conversations where the target user is also a member AND it's a 1:1 (not group)
-      const { data: targetMemberships } = await supabase
+      const { data: targetMemberships } = await db
         .from('conversation_members')
         .select(`
           conversation_id,
@@ -1028,7 +1028,7 @@ export function useMarkConversationReadByUser() {
       // Mark the first (most recent) DM conversation as read
       const conversationId = dmConversations[0].conversation_id;
 
-      const { error } = await supabase
+      const { error } = await db
         .from('conversation_members')
         .update({ last_read_at: new Date().toISOString() })
         .eq('conversation_id', conversationId)
@@ -1055,7 +1055,7 @@ export function useMarkVybeViewed() {
     mutationFn: async (messageId: string) => {
       if (!profile?.id) throw new Error('Not authenticated');
 
-      const { error } = await supabase
+      const { error } = await db
         .from('messages')
         .update({ viewed_at: new Date().toISOString() })
         .eq('id', messageId);

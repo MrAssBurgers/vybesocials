@@ -5,7 +5,7 @@ import {
   ExternalLink, Star, Eye, Clock, MapPin, Globe, Lock
 } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -79,7 +79,7 @@ export function AdminEventsManager() {
   const { data: events = [], isLoading } = useQuery({
     queryKey: ['admin-events'],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('events')
         .select(`
           *,
@@ -92,7 +92,7 @@ export function AdminEventsManager() {
       // Get RSVP counts for each event
       const eventsWithCounts = await Promise.all(
         (data || []).map(async (event) => {
-          const { count } = await supabase
+          const { count } = await db
             .from('event_rsvps')
             .select('id', { count: 'exact', head: true })
             .eq('event_id', event.id)
@@ -112,7 +112,7 @@ export function AdminEventsManager() {
     queryFn: async () => {
       if (!viewRSVPsFor) return [];
       
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('event_rsvps')
         .select(`
           *,
@@ -130,8 +130,8 @@ export function AdminEventsManager() {
   // Create event mutation
   const createEvent = useMutation({
     mutationFn: async (data: EventFormData) => {
-      const { data: session } = await supabase.auth.getSession();
-      const { data: profile } = await supabase
+      const { data: session } = await db.auth.getSession();
+      const { data: profile } = await db
         .from('profiles')
         .select('id')
         .eq('user_id', session.session?.user.id)
@@ -139,7 +139,7 @@ export function AdminEventsManager() {
       
       if (!profile) throw new Error('Profile not found');
       
-      const { error } = await supabase.from('events').insert({
+      const { error } = await db.from('events').insert({
         ...data,
         host_id: profile.id,
         start_time: new Date(data.start_time).toISOString(),
@@ -162,7 +162,7 @@ export function AdminEventsManager() {
   // Update event mutation
   const updateEvent = useMutation({
     mutationFn: async ({ id, data }: { id: string; data: EventFormData }) => {
-      const { error } = await supabase
+      const { error } = await db
         .from('events')
         .update({
           ...data,
@@ -190,9 +190,9 @@ export function AdminEventsManager() {
   const deleteEvent = useMutation({
     mutationFn: async (id: string) => {
       // First delete RSVPs
-      await supabase.from('event_rsvps').delete().eq('event_id', id);
+      await db.from('event_rsvps').delete().eq('event_id', id);
       // Then delete event
-      const { error } = await supabase.from('events').delete().eq('id', id);
+      const { error } = await db.from('events').delete().eq('id', id);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -206,7 +206,7 @@ export function AdminEventsManager() {
   // Toggle featured mutation
   const toggleFeatured = useMutation({
     mutationFn: async ({ id, featured }: { id: string; featured: boolean }) => {
-      const { error } = await supabase
+      const { error } = await db
         .from('events')
         .update({ is_featured: featured })
         .eq('id', id);

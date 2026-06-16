@@ -12,7 +12,7 @@ import { AgeSetup } from '@/components/onboarding/AgeSetup';
 import { AIVybeDesigner } from '@/components/onboarding/AIVybeDesigner';
 import { LegalAcceptance } from '@/components/onboarding/LegalAcceptance';
 import { useAuth } from '@/lib/auth';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { VybeMiniIcon } from '@/components/ui/VybeMiniIcon';
 import { toast } from 'sonner';
@@ -28,12 +28,12 @@ import {
 const EASE_OUT_EXPO: [number, number, number, number] = [0.16, 1, 0.3, 1];
 
 async function ensureProfileRow(userId: string): Promise<void> {
-  const { error } = await supabase.rpc('ensure_profile');
+  const { error } = await db.rpc('ensure_profile');
   if (error) {
-    await supabase.rpc('claim_profile_by_email');
+    await db.rpc('claim_profile_by_email');
   }
 
-  const { data: row } = await supabase
+  const { data: row } = await db
     .from('profiles')
     .select('id')
     .eq('user_id', userId)
@@ -70,7 +70,7 @@ async function persistOnboardingSkip(
 ): Promise<{ username: string; error: Error | null }> {
   await ensureProfileRow(userId);
 
-  const { data: syncedUsername } = await (supabase as any).rpc('sync_signup_username');
+  const { data: syncedUsername } = await (db as any).rpc('sync_signup_username');
   let finalUsername = desiredUsername;
   if (
     typeof syncedUsername === 'string' &&
@@ -82,7 +82,7 @@ async function persistOnboardingSkip(
   }
 
   const runUpdate = (uname: string) =>
-    supabase
+    db
       .from('profiles')
       .update({ onboarding_completed: true, username: uname })
       .eq('user_id', userId)
@@ -238,12 +238,12 @@ export default function Onboarding({ onInviteNavigate, isInviteMode = false }: O
         const fileExt = profileData.avatarFile.name.split('.').pop();
         const fileName = `${user.id}-${Date.now()}.${fileExt}`;
         
-        const { error: uploadError } = await supabase.storage
+        const { error: uploadError } = await db.storage
           .from('media')
           .upload(`avatars/${fileName}`, profileData.avatarFile);
         
         if (!uploadError) {
-          const { data: urlData } = supabase.storage
+          const { data: urlData } = db.storage
             .from('media')
             .getPublicUrl(`avatars/${fileName}`);
           avatarUrl = urlData.publicUrl;
@@ -267,7 +267,7 @@ export default function Onboarding({ onInviteNavigate, isInviteMode = false }: O
 
       await ensureProfileRow(user.id);
 
-      const { data: updatedRow, error } = await supabase
+      const { data: updatedRow, error } = await db
         .from('profiles')
         .update({
           username: finalUsername?.toLowerCase(),
@@ -299,7 +299,7 @@ export default function Onboarding({ onInviteNavigate, isInviteMode = false }: O
       }
 
       if (legalAccepted) {
-        await supabase.from('legal_acceptances').upsert([
+        await db.from('legal_acceptances').upsert([
           { user_id: user.id, document_type: 'tos', document_version: '2.0' },
           { user_id: user.id, document_type: 'privacy', document_version: '2.0' },
         ], { onConflict: 'user_id,document_type,document_version' });

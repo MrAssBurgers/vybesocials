@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { toast } from 'sonner';
 import { useCreatePost } from '@/hooks/usePosts';
 import { useNavigate } from 'react-router-dom';
@@ -69,7 +69,7 @@ export function AIVideoGenerator({ onVideoGenerated, onClose }: AIVideoGenerator
       }
 
       try {
-        const { data, error: fnError } = await supabase.functions.invoke('check-runway-status', {
+        const { data, error: fnError } = await db.functions.invoke('check-runway-status', {
           body: { taskId }
         });
 
@@ -108,7 +108,7 @@ export function AIVideoGenerator({ onVideoGenerated, onClose }: AIVideoGenerator
     try {
       if (mode === 'image') {
         // Generate image using Lovable AI
-        const { data, error: fnError } = await supabase.functions.invoke('generate-ai-video', {
+        const { data, error: fnError } = await db.functions.invoke('generate-ai-video', {
           body: { prompt: prompt.trim() }
         });
 
@@ -127,7 +127,7 @@ export function AIVideoGenerator({ onVideoGenerated, onClose }: AIVideoGenerator
         }
       } else {
         // Generate video using Runway
-        const { data, error: fnError } = await supabase.functions.invoke('generate-runway-video', {
+        const { data, error: fnError } = await db.functions.invoke('generate-runway-video', {
           body: { 
             prompt: prompt.trim(),
             duration: 5,

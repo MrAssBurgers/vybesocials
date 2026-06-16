@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth';
 import { toast } from 'sonner';
 import { haptics } from '@/lib/haptics';
@@ -36,7 +36,7 @@ export function useLoginStreak() {
   const { data: streakStatus, isLoading } = useQuery({
     queryKey: ['login-streak', user?.id],
     queryFn: async () => {
-      const { data, error } = await supabase.rpc('get_login_streak_status', { p_timezone: clientTimezone });
+      const { data, error } = await db.rpc('get_login_streak_status', { p_timezone: clientTimezone });
       if (error) throw error;
       return data as unknown as StreakResult;
     },
@@ -47,7 +47,7 @@ export function useLoginStreak() {
   // Mutation to update streak
   const updateStreakMutation = useMutation({
     mutationFn: async () => {
-      const { data, error } = await supabase.rpc('update_login_streak', { p_timezone: clientTimezone });
+      const { data, error } = await db.rpc('update_login_streak', { p_timezone: clientTimezone });
       if (error) throw error;
       return data as unknown as StreakResult;
     },
@@ -98,7 +98,7 @@ export function useLoginStreak() {
   // Restore streak mutation (premium only)
   const restoreStreakMutation = useMutation({
     mutationFn: async () => {
-      const { data, error } = await supabase.rpc('restore_login_streak', { p_timezone: clientTimezone });
+      const { data, error } = await db.rpc('restore_login_streak', { p_timezone: clientTimezone });
       if (error) throw error;
       return data as unknown as { success: boolean; restored_streak?: number; error?: string };
     },
@@ -139,7 +139,7 @@ export function useStreakCount() {
   const { data } = useQuery({
     queryKey: ['login-streak', user?.id],
     queryFn: async () => {
-      const { data, error } = await supabase.rpc('get_login_streak_status', { p_timezone: clientTimezone });
+      const { data, error } = await db.rpc('get_login_streak_status', { p_timezone: clientTimezone });
       if (error) throw error;
       return data as unknown as StreakResult;
     },

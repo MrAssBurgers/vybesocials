@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth';
 import { toast } from 'sonner';
 
@@ -32,7 +32,7 @@ export function useUpdateServer() {
       if (isPublic !== undefined) updates.is_public = isPublic;
       if (iconUrl !== undefined) updates.icon_url = iconUrl;
 
-      const { error } = await supabase
+      const { error } = await db
         .from('servers')
         .update(updates as never)
         .eq('id', serverId);
@@ -65,13 +65,13 @@ export function useUploadServerIcon() {
       const fileName = `${serverId}-${Date.now()}.${fileExt}`;
       const filePath = `server-icons/${fileName}`;
 
-      const { error: uploadError } = await supabase.storage
+      const { error: uploadError } = await db.storage
         .from('media')
         .upload(filePath, file, { upsert: true });
 
       if (uploadError) throw uploadError;
 
-      const { data: { publicUrl } } = supabase.storage
+      const { data: { publicUrl } } = db.storage
         .from('media')
         .getPublicUrl(filePath);
 
@@ -94,7 +94,7 @@ export function useDeleteServer() {
     mutationFn: async (serverId: string) => {
       if (!profile?.id) throw new Error('Not authenticated');
 
-      const { error } = await supabase
+      const { error } = await db
         .from('servers')
         .delete()
         .eq('id', serverId)
@@ -123,7 +123,7 @@ export function useRegenerateInviteCode() {
       // Generate new invite code
       const newCode = Math.random().toString(36).substring(2, 10).toUpperCase();
       
-      const { error } = await supabase
+      const { error } = await db
         .from('servers')
         .update({ invite_code: newCode })
         .eq('id', serverId);
@@ -149,7 +149,7 @@ export function useDeleteChannel() {
 
   return useMutation({
     mutationFn: async ({ channelId, serverId }: { channelId: string; serverId: string }) => {
-      const { error } = await supabase
+      const { error } = await db
         .from('channels')
         .delete()
         .eq('id', channelId);

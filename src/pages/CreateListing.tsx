@@ -10,7 +10,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useCreateListing, LISTING_CATEGORIES, LISTING_CONDITIONS } from '@/hooks/useMarketplace';
 import { useAuth } from '@/lib/auth';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { toast } from 'sonner';
 import { getFunctionAuthHeaders } from '@/lib/functionAuth';
 
@@ -65,13 +65,13 @@ export default function CreateListingPage() {
     
     for (const file of images) {
       const fileName = `${profile?.id}/${Date.now()}_${file.name}`;
-      const { error } = await supabase.storage
+      const { error } = await db.storage
         .from('media')
         .upload(fileName, file);
       
       if (error) throw error;
       
-      const { data: urlData } = supabase.storage
+      const { data: urlData } = db.storage
         .from('media')
         .getPublicUrl(fileName);
       
@@ -137,7 +137,7 @@ export default function CreateListingPage() {
       }
 
       // Rate limiting check - max 5 listings per hour
-      const { count } = await supabase
+      const { count } = await db
         .from('listings')
         .select('*', { count: 'exact', head: true })
         .eq('seller_id', profile.id)

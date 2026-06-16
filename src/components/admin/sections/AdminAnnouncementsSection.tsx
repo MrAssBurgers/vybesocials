@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth';
 import { useAuthProfileId } from '@/hooks/useAuthProfileId';
 import { isStaffQueryEnabled } from '@/lib/adminAccess';
@@ -22,7 +22,7 @@ export function AdminAnnouncementsSection() {
   const { data: announcements = [], isLoading } = useQuery({
     queryKey: ['all-announcements'],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('announcements')
         .select(`*, author:profiles!author_id(username, avatar_url)`)
         .order('created_at', { ascending: false });
@@ -36,8 +36,8 @@ export function AdminAnnouncementsSection() {
 
   const deleteAnnouncement = useMutation({
     mutationFn: async (id: string) => {
-      await supabase.from('dismissed_announcements').delete().eq('announcement_id', id);
-      const { error } = await supabase.from('announcements').delete().eq('id', id);
+      await db.from('dismissed_announcements').delete().eq('announcement_id', id);
+      const { error } = await db.from('announcements').delete().eq('id', id);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -49,7 +49,7 @@ export function AdminAnnouncementsSection() {
 
   const reactivate = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from('announcements').update({ is_active: true }).eq('id', id);
+      const { error } = await db.from('announcements').update({ is_active: true }).eq('id', id);
       if (error) throw error;
     },
     onSuccess: () => {

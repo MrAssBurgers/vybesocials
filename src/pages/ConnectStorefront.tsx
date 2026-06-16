@@ -14,7 +14,7 @@
 
 import { useState, useEffect } from "react";
 import { useParams } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
+import { db } from "@/lib/firebase";
 import { toast } from "sonner";
 
 interface Product {
@@ -45,7 +45,7 @@ export default function ConnectStorefront() {
     const load = async () => {
       setLoading(true);
       try {
-        const { data, error } = await supabase.functions.invoke(
+        const { data, error } = await db.functions.invoke(
           `connect-v2-list-products?account_id=${accountId}`,
           { method: "GET" },
         );
@@ -66,7 +66,7 @@ export default function ConnectStorefront() {
     if (!accountId || !product.default_price) return;
     setBuyingId(product.id);
     try {
-      const { data, error } = await supabase.functions.invoke("connect-v2-checkout", {
+      const { data, error } = await db.functions.invoke("connect-v2-checkout", {
         body: {
           account_id: accountId,
           price_id: product.default_price.id,

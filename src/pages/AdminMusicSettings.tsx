@@ -8,7 +8,7 @@ import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { Plus, TestTube, Check, X, Loader2, Music, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { getFunctionAuthHeaders } from '@/lib/functionAuth';
 import {
   Dialog,
@@ -60,7 +60,7 @@ export default function AdminMusicSettings() {
   const loadProviders = async () => {
     try {
       // Note: api_key is intentionally NOT selected — it is write-only from the client.
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('music_providers')
         .select('provider_id, provider_name, api_base_url, is_active, created_at')
         .order('created_at', { ascending: false });
@@ -79,7 +79,7 @@ export default function AdminMusicSettings() {
     e.preventDefault();
     
     try {
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('music_providers')
         .insert([{
           provider_name: newProvider.provider_name,
@@ -137,7 +137,7 @@ export default function AdminMusicSettings() {
 
   const toggleProvider = async (provider: MusicProvider) => {
     try {
-      const { error } = await supabase
+      const { error } = await db
         .from('music_providers')
         .update({ is_active: !provider.is_active })
         .eq('provider_id', provider.provider_id);
@@ -193,7 +193,7 @@ export default function AdminMusicSettings() {
 
   const deleteProvider = async (providerId: string) => {
     try {
-      const { error } = await supabase
+      const { error } = await db
         .from('music_providers')
         .delete()
         .eq('provider_id', providerId);

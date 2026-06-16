@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth';
 import { useAuthProfileId } from '@/hooks/useAuthProfileId';
 import { isStaffQueryEnabled } from '@/lib/adminAccess';
@@ -11,7 +11,7 @@ const OWNER_USERNAME = 'mrassburgers';
 
 // Helper to check if a user is the owner by their profile ID
 async function isUserOwner(userId: string): Promise<boolean> {
-  const { data } = await supabase
+  const { data } = await db
     .from('profiles')
     .select('username')
     .eq('id', userId)
@@ -25,7 +25,7 @@ export function useUserWarnings(userId?: string) {
     queryKey: ['user-warnings', userId],
     queryFn: async () => {
       if (!userId) return [];
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('user_warnings')
         .select(`
           *,
@@ -46,7 +46,7 @@ export function useUserBans(userId?: string) {
     queryKey: ['user-bans', userId],
     queryFn: async () => {
       if (!userId) return [];
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('user_bans')
         .select(`
           *,
@@ -69,7 +69,7 @@ export function useAllWarnings() {
   return useQuery({
     queryKey: ['all-warnings'],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('user_warnings')
         .select(`
           *,
@@ -95,7 +95,7 @@ export function useAllBans() {
     queryKey: ['all-bans'],
     queryFn: async () => {
       const now = new Date().toISOString();
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('user_bans')
         .select(`
           *,
@@ -119,7 +119,7 @@ export function useIsUserBanned(userId?: string) {
     queryKey: ['is-banned', userId],
     queryFn: async () => {
       if (!userId) return false;
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('user_bans')
         .select('id, expires_at, is_permanent')
         .eq('user_id', userId)
@@ -146,7 +146,7 @@ export function useWarnUser() {
     mutationFn: async ({ userId, reason }: { userId: string; reason: string }) => {
       if (!profile?.id) throw new Error('Not authenticated');
       
-      const { error } = await supabase
+      const { error } = await db
         .from('user_warnings')
         .insert({
           user_id: userId,
@@ -208,7 +208,7 @@ export function useBanUser() {
           : null;
 
         // Ban the mod/admin who tried to ban the owner
-        const { error } = await supabase
+        const { error } = await db
           .from('user_bans')
           .insert({
             user_id: profile.id, // Ban the person who tried
@@ -229,7 +229,7 @@ export function useBanUser() {
         ? new Date(Date.now() + durationDays * 24 * 60 * 60 * 1000).toISOString()
         : null;
 
-      const { error } = await supabase
+      const { error } = await db
         .from('user_bans')
         .insert({
           user_id: userId,
@@ -270,7 +270,7 @@ export function useUnbanUser() {
 
   return useMutation({
     mutationFn: async (banId: string) => {
-      const { error } = await supabase
+      const { error } = await db
         .from('user_bans')
         .delete()
         .eq('id', banId);
@@ -296,7 +296,7 @@ export function useAdminDeleteComment() {
 
   return useMutation({
     mutationFn: async (commentId: string) => {
-      const { error } = await supabase
+      const { error } = await db
         .from('comments')
         .delete()
         .eq('id', commentId);

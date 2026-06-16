@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { QrCode, Loader2, ShieldCheck, ShieldX, MapPin, Smartphone } from 'lucide-react';
 import { toast } from 'sonner';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 
 interface ScannedNonce {
   nonce: string;
@@ -86,7 +86,7 @@ export function QrSignInScannerCard() {
   const pollNonce = async (nonce: string) => {
     setBusy(true);
     try {
-      const { data, error } = await supabase.functions.invoke('auth-qr', {
+      const { data, error } = await db.functions.invoke('auth-qr', {
         body: { action: 'poll', nonce },
       });
       if (error) throw error;
@@ -100,7 +100,7 @@ export function QrSignInScannerCard() {
         return;
       }
       // We don't have device meta from poll — fetch via direct read for context
-      const { data: meta } = await supabase
+      const { data: meta } = await db
         .from('auth_challenges')
         .select('metadata')
         .eq('nonce', nonce)
@@ -124,7 +124,7 @@ export function QrSignInScannerCard() {
     if (!pending) return;
     setBusy(true);
     try {
-      const { error } = await supabase.functions.invoke('auth-qr', {
+      const { error } = await db.functions.invoke('auth-qr', {
         body: { action: 'claim', nonce: pending.nonce, intent },
       });
       if (error) throw error;

@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { useQueryClient } from '@tanstack/react-query';
 import { relinkDespiaPushInBackground, checkDespiaPushPermission } from '@/lib/despiaOneSignal';
 import { isDespiaRuntime } from '@/lib/despiaBridge';
@@ -56,7 +56,7 @@ export function DespiaOneSignalSync() {
         // OneSignal external_id MUST match the id used by app push call sites,
         // which is profiles.id (NOT auth.users.id). auth.uid is kept as a
         // backup alias/tag for debugging + fallback lookup only.
-        const { data: profile } = await supabase
+        const { data: profile } = await db
           .from('profiles')
           .select('id')
           .eq('user_id', authUserId)
@@ -160,9 +160,9 @@ export function DespiaOneSignalSync() {
         const alreadyAsked = localStorage.getItem(PUSH_PERM_KEY);
         if (alreadyAsked) return;
         localStorage.setItem(PUSH_PERM_KEY, String(Date.now()));
-        void supabase.auth.getUser().then(({ data }) => {
+        void db.auth.getUser().then(({ data }) => {
           if (!data.user?.id) return;
-          void supabase
+          void db
             .from('profiles')
             .select('id')
             .eq('user_id', data.user.id)
@@ -183,9 +183,9 @@ export function DespiaOneSignalSync() {
 
     const relinkDespiaPush = () => {
       if (!isDespiaRuntime()) return;
-      void supabase.auth.getUser().then(({ data }) => {
+      void db.auth.getUser().then(({ data }) => {
         if (!data.user?.id) return;
-        void supabase
+        void db
           .from('profiles')
           .select('id')
           .eq('user_id', data.user.id)
@@ -197,12 +197,12 @@ export function DespiaOneSignalSync() {
       });
     };
 
-    supabase.auth.getUser().then(({ data }) => {
+    db.auth.getUser().then(({ data }) => {
       void setPlayerIdForAuthUser(data.user?.id, data.user?.email, 'cold-start');
     }).catch(() => {});
 
     // Login / signup / token refresh / user updates — all re-link.
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+    const { data: { subscription } } = db.auth.onAuthStateChange((event, session) => {
       if (event === 'SIGNED_OUT' || !session?.user?.id) {
         console.log('[OneSignal:signout] clearing player id');
         clearPlayerId();

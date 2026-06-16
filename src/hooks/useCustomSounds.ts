@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth';
 import { toast } from 'sonner';
 import { 
@@ -36,7 +36,7 @@ export function useCustomSounds() {
     queryFn: async () => {
       if (!profile?.id) return [];
       
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('user_custom_sounds')
         .select('*')
         .eq('user_id', profile.id);
@@ -124,26 +124,26 @@ export function useUploadCustomSound() {
       const fileName = `${soundType}.${fileExt}`;
       const filePath = `${user.id}/${fileName}`;
       
-      const { error: uploadError } = await supabase.storage
+      const { error: uploadError } = await db.storage
         .from('custom-sounds')
         .upload(filePath, file, { upsert: true });
       
       if (uploadError) throw uploadError;
       
       // Get the URL
-      const { data: urlData } = supabase.storage
+      const { data: urlData } = db.storage
         .from('custom-sounds')
         .getPublicUrl(filePath);
       
       // For private buckets, we need a signed URL
-      const { data: signedData, error: signedError } = await supabase.storage
+      const { data: signedData, error: signedError } = await db.storage
         .from('custom-sounds')
         .createSignedUrl(filePath, 60 * 60 * 24 * 365); // 1 year
       
       const fileUrl = signedData?.signedUrl || urlData.publicUrl;
       
       // Upsert to database
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('user_custom_sounds')
         .upsert({
           user_id: profile.id,
@@ -186,7 +186,7 @@ export function useDeleteCustomSound() {
       if (!profile?.id || !user?.id) throw new Error('Not authenticated');
       
       // Delete from database
-      const { error } = await supabase
+      const { error } = await db
         .from('user_custom_sounds')
         .delete()
         .eq('user_id', profile.id)
@@ -199,7 +199,7 @@ export function useDeleteCustomSound() {
       const extensions = ['mp3', 'wav', 'm4a'];
       
       for (const ext of extensions) {
-        await supabase.storage
+        await db.storage
           .from('custom-sounds')
           .remove([`${user.id}/${soundType}.${ext}`]);
       }

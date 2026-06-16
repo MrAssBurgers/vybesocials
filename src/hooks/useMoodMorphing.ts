@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth';
 import { useEffect, useState, useCallback } from 'react';
 
@@ -67,7 +67,7 @@ export function useCurrentMood() {
     queryFn: async (): Promise<MoodState | null> => {
       if (!user?.id) return null;
 
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('mood_states' as any)
         .select('*')
         .eq('user_id', user.id)
@@ -95,7 +95,7 @@ export function useSetMood() {
     }) => {
       if (!user?.id) throw new Error('Not authenticated');
 
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('mood_states' as any)
         .insert({
           user_id: user.id,

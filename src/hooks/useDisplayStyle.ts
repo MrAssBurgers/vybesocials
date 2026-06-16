@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { BadgeStyle } from '@/components/badges/StyledDisplayName';
 
 export interface DisplayStyle extends BadgeStyle {
@@ -20,8 +20,8 @@ export function useDisplayStyle(userId: string | undefined) {
       
       // Fetch badge style and equipped color in parallel
       const [badgeRes, profileRes] = await Promise.all([
-        supabase.rpc('get_user_primary_badge', { p_user_id: userId }),
-        supabase.from('profiles').select('equipped_name_color').eq('id', userId).maybeSingle(),
+        db.rpc('get_user_primary_badge', { p_user_id: userId }),
+        db.from('profiles').select('equipped_name_color').eq('id', userId).maybeSingle(),
       ]);
       
       const badge = badgeRes.data?.[0];
@@ -61,7 +61,7 @@ export function useDisplayStyles(userIds: string[]) {
       
       // Fetch primary badges for all users
       const promises = userIds.map(async (userId) => {
-        const { data } = await supabase
+        const { data } = await db
           .rpc('get_user_primary_badge', { p_user_id: userId });
         
         if (data?.[0]) {

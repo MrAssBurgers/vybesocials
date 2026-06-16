@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth';
 
 export interface DNAContentPreferences {
@@ -17,7 +17,7 @@ export function useDNAPreferences() {
     queryFn: async (): Promise<DNAContentPreferences | null> => {
       if (!user?.id) return null;
 
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('dna_content_preferences' as any)
         .select('*')
         .eq('user_id', user.id)

@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth';
 import { useEffect, useCallback } from 'react';
 import { toast } from 'sonner';
@@ -203,7 +203,7 @@ export function useUserTheme() {
     queryFn: async () => {
       if (!userId) return null;
 
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('user_themes')
         .select('*')
         .eq('user_id', userId)
@@ -304,7 +304,7 @@ export function useSaveTheme() {
         updated_at: new Date().toISOString(),
       };
 
-      const { error } = await supabase
+      const { error } = await db
         .from('user_themes')
         .upsert(payload, {
           onConflict: 'user_id',
@@ -347,7 +347,7 @@ export function useResetTheme() {
       const userId = user?.id;
       if (!userId) throw new Error('Not authenticated');
 
-      const { error } = await supabase
+      const { error } = await db
         .from('user_themes')
         .delete()
         .eq('user_id', userId);
@@ -408,7 +408,7 @@ export function useGenerateTheme() {
         }
       }
 
-      const { data, error } = await supabase.functions.invoke('generate-theme', {
+      const { data, error } = await db.functions.invoke('generate-theme', {
         body: { prompt, basePreset },
       });
 

@@ -9,7 +9,7 @@ import { useComments, useCreateComment } from '@/hooks/useComments';
 import { GifPicker } from '@/components/chat/GifPicker';
 import { MentionInput } from './MentionInput';
 import { CommentThread } from './CommentThread';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import {
@@ -70,13 +70,13 @@ export const InlineComments = memo(function InlineComments({
       const fileExt = file.name.split('.').pop();
       const fileName = `comments/${profile.user_id}/${Date.now()}.${fileExt}`;
 
-      const { error: uploadError } = await supabase.storage
+      const { error: uploadError } = await db.storage
         .from('media')
         .upload(fileName, file);
 
       if (uploadError) throw uploadError;
 
-      const { data: { publicUrl } } = supabase.storage
+      const { data: { publicUrl } } = db.storage
         .from('media')
         .getPublicUrl(fileName);
 

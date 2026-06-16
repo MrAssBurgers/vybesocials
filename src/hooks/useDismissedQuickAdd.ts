@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/lib/auth';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 
 const STORAGE_KEY_PREFIX = 'vybe_dismissed_quick_add_';
 
@@ -21,7 +21,7 @@ export function useDismissedQuickAdd() {
     } catch { /* noop */ }
 
     // Sync from DB
-    supabase
+    db
       .from('user_preferences' as any)
       .select('dismissed_quick_add_ids')
       .eq('user_id', user.id)
@@ -49,7 +49,7 @@ export function useDismissedQuickAdd() {
 
       // Persist to DB (fire-and-forget)
       if (user?.id) {
-        supabase
+        db
           .from('user_preferences' as any)
           .upsert({
             user_id: user.id,
@@ -75,7 +75,7 @@ export function useDismissedQuickAdd() {
     localStorage.removeItem(storageKey);
 
     if (user?.id) {
-      supabase
+      db
         .from('user_preferences' as any)
         .upsert({
           user_id: user.id,

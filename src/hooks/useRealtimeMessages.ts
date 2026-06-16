@@ -1,6 +1,6 @@
 import { useEffect, useCallback, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { subscribePostgresChannel, removeRealtimeChannel } from '@/lib/realtimeChannel';
 import { useAuth } from '@/lib/auth';
 import { Message } from './useMessages';
@@ -14,7 +14,7 @@ import { Message } from './useMessages';
 export function useRealtimeMessages(conversationId: string | undefined) {
   const { profile } = useAuth();
   const queryClient = useQueryClient();
-  const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
+  const channelRef = useRef<ReturnType<typeof db.channel> | null>(null);
   const reactionDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const viewDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 

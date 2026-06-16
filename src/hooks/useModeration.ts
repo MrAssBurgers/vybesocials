@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth';
 import { useAuthProfileId } from '@/hooks/useAuthProfileId';
 import { isStaffQueryEnabled } from '@/lib/adminAccess';
@@ -41,7 +41,7 @@ export function useContentFlags() {
   return useQuery({
     queryKey: ['content-flags'],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('content_flags')
         .select('*')
         .order('created_at', { ascending: false });
@@ -61,7 +61,7 @@ export function useReports() {
   return useQuery({
     queryKey: ['admin-reports'],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('reports')
         .select(`
           *,
@@ -92,7 +92,7 @@ export function useUpdateFlag() {
       status: 'approved' | 'rejected'; 
       reviewed_by: string;
     }) => {
-      const { error } = await supabase
+      const { error } = await db
         .from('content_flags')
         .update({ 
           status, 
@@ -124,7 +124,7 @@ export function useUpdateReport() {
       reviewed_by: string;
       admin_notes?: string;
     }) => {
-      const { error } = await supabase
+      const { error } = await db
         .from('reports')
         .update({ 
           status, 
@@ -153,7 +153,7 @@ export function useUserRole() {
 
       // 1) Authoritative path: SECURITY DEFINER RPC bypasses any RLS edge cases
       try {
-        const { data: rpcRole, error: rpcErr } = await supabase.rpc('get_my_highest_role');
+        const { data: rpcRole, error: rpcErr } = await db.rpc('get_my_highest_role');
         if (!rpcErr && rpcRole) {
           return rpcRole as 'owner' | 'admin' | 'moderator';
         }
@@ -164,10 +164,10 @@ export function useUserRole() {
       // 2) Fallback: query both role tables directly (may be hidden by RLS)
       const [profileRoles, authRoles] = await Promise.all([
         profileId
-          ? supabase.from('user_roles').select('role').eq('user_id', profileId)
+          ? db.from('user_roles').select('role').eq('user_id', profileId)
           : Promise.resolve({ data: [], error: null }),
         user?.id
-          ? supabase.from('user_roles_auth').select('role').eq('user_id', user.id)
+          ? db.from('user_roles_auth').select('role').eq('user_id', user.id)
           : Promise.resolve({ data: [], error: null }),
       ]);
 
@@ -183,7 +183,7 @@ export function useUserRole() {
       //    Moderator badge gets the matching effective role so they immediately
       //    see the admin panel (covers users granted via badges only).
       if (profileId) {
-        const { data: badgeRows } = await supabase
+        const { data: badgeRows } = await db
           .from('user_badges')
           .select('badge_name, badge_type')
           .eq('user_id', profileId);
@@ -207,7 +207,7 @@ export function useAllUserRoles() {
   return useQuery({
     queryKey: ['all-user-roles'],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('user_roles')
         .select(`
           *,
@@ -227,7 +227,7 @@ export function useAddUserRole() {
   
   return useMutation({
     mutationFn: async ({ userId, role }: { userId: string; role: 'admin' | 'moderator' }) => {
-      const { error } = await supabase
+      const { error } = await db
         .from('user_roles')
         .insert({ user_id: userId, role });
       
@@ -246,7 +246,7 @@ export function useRemoveUserRole() {
   
   return useMutation({
     mutationFn: async ({ userId, role }: { userId: string; role: 'admin' | 'moderator' }) => {
-      const { error } = await supabase
+      const { error } = await db
         .from('user_roles')
         .delete()
         .eq('user_id', userId)

@@ -3,7 +3,7 @@ import { useEffect, useMemo, useCallback, useRef } from 'react';
 // Using a module-level set (instead of a ref) means a transient failure can be
 // retried on the next render cycle without being permanently locked out.
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth';
 import { useAuthProfileId } from '@/hooks/useAuthProfileId';
 import { useFriends } from '@/hooks/useFriends';
@@ -128,7 +128,7 @@ export function useDMConversations(searchQuery: string = '') {
       attemptedFriendIdsRef.current.add(friend.id);
 
       try {
-        const { error } = await supabase.rpc('create_dm_conversation', {
+        const { error } = await db.rpc('create_dm_conversation', {
           other_profile_id: friend.id,
         });
         if (error) {
@@ -274,7 +274,7 @@ export function useConversationDetail(conversationId: string | undefined) {
         );
       if (cached?.members?.length) return cached;
 
-      const { data: conv, error: convError } = await supabase
+      const { data: conv, error: convError } = await db
         .from('conversations')
         .select('*')
         .eq('id', conversationId)
@@ -283,7 +283,7 @@ export function useConversationDetail(conversationId: string | undefined) {
       if (convError) throw convError;
       if (!conv) return null;
 
-      const { data: allMembers, error: membersError } = await supabase
+      const { data: allMembers, error: membersError } = await db
         .from('conversation_members')
         .select('conversation_id, user_id, role, is_muted, is_pinned, last_read_at')
         .eq('conversation_id', conversationId);
@@ -292,7 +292,7 @@ export function useConversationDetail(conversationId: string | undefined) {
 
       const memberUserIds = Array.from(new Set((allMembers || []).map((m) => m.user_id)));
       const { data: memberProfiles } = memberUserIds.length
-        ? await supabase
+        ? await db
             .from('profiles')
             .select('id, user_id, username, avatar_url, display_name')
             .in('id', memberUserIds)
@@ -343,7 +343,7 @@ export function useMarkConversationRead() {
     mutationFn: async (conversationId: string) => {
       if (!profileId) return;
 
-      const { error } = await supabase
+      const { error } = await db
         .from('conversation_members')
         .update({ last_read_at: new Date().toISOString() })
         .eq('conversation_id', conversationId)

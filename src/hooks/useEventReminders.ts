@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth';
 import { toast } from 'sonner';
 
@@ -10,7 +10,7 @@ export function useEventReminder(eventId?: string) {
     queryKey: ['event-reminder', user?.id, eventId],
     queryFn: async () => {
       if (!user?.id || !eventId) return null;
-      const { data } = await supabase
+      const { data } = await db
         .from('event_reminders')
         .select('*')
         .eq('user_id', user.id)
@@ -30,7 +30,7 @@ export function useSetEventReminder() {
     mutationFn: async ({ eventId, remindAt }: { eventId: string; remindAt: Date }) => {
       if (!user?.id) throw new Error('Not authenticated');
 
-      const { error } = await supabase
+      const { error } = await db
         .from('event_reminders')
         .upsert({
           user_id: user.id,
@@ -55,7 +55,7 @@ export function useRemoveEventReminder() {
   return useMutation({
     mutationFn: async (eventId: string) => {
       if (!user?.id) throw new Error('Not authenticated');
-      const { error } = await supabase
+      const { error } = await db
         .from('event_reminders')
         .delete()
         .eq('user_id', user.id)

@@ -3,7 +3,7 @@ import { Gift, Crown, Loader2, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { usePremiumStatus } from '@/hooks/usePremiumStatus';
 import { useAuth } from '@/lib/auth';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { useQueryClient, useQuery } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import {
@@ -33,7 +33,7 @@ export function GiftPremiumButton({ targetUserId, targetUsername }: GiftPremiumB
   const { data: existingGift } = useQuery({
     queryKey: ['gifted-premium-check', targetUserId],
     queryFn: async () => {
-      const { data } = await supabase
+      const { data } = await db
         .from('gifted_premium')
         .select('id, is_active')
         .eq('user_id', targetUserId)
@@ -51,13 +51,13 @@ export function GiftPremiumButton({ targetUserId, targetUsername }: GiftPremiumB
     setLoading(true);
     try {
       // Remove any previously revoked gift so we can re-gift
-      await supabase
+      await db
         .from('gifted_premium')
         .delete()
         .eq('user_id', targetUserId)
         .not('revoked_at', 'is', null);
 
-      const { error } = await supabase
+      const { error } = await db
         .from('gifted_premium')
         .insert({
           user_id: targetUserId,
@@ -87,7 +87,7 @@ export function GiftPremiumButton({ targetUserId, targetUsername }: GiftPremiumB
     if (!existingGift?.id) return;
     setLoading(true);
     try {
-      const { error } = await supabase
+      const { error } = await db
         .from('gifted_premium')
         .update({ is_active: false, revoked_at: new Date().toISOString() })
         .eq('id', existingGift.id);

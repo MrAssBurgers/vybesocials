@@ -6,7 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 
 interface GiphySearchPickerProps {
   selectedGifUrl: string | null;
@@ -35,7 +35,7 @@ export const GiphySearchPicker = ({ selectedGifUrl, onSelectGif }: GiphySearchPi
   useEffect(() => {
     const loadTrending = async () => {
       try {
-        const { data } = await supabase.functions.invoke('giphy-search', {
+        const { data } = await db.functions.invoke('giphy-search', {
           body: { endpoint: 'trending', limit: 20, rating: 'pg-13' },
         });
         setTrending((data?.results || []) as GiphyGif[]);
@@ -53,7 +53,7 @@ export const GiphySearchPicker = ({ selectedGifUrl, onSelectGif }: GiphySearchPi
     }
     setIsLoading(true);
     try {
-      const { data } = await supabase.functions.invoke('giphy-search', {
+      const { data } = await db.functions.invoke('giphy-search', {
         body: { endpoint: 'search', query: searchQuery, limit: 30, rating: 'pg-13' },
       });
       setResults((data?.results || []) as GiphyGif[]);

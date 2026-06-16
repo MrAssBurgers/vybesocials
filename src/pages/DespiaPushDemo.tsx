@@ -4,7 +4,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Card } from '@/components/ui/card';
 import { toast } from 'sonner';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import {
   ensureDespiaOneSignalLinked,
   fetchDespiaOneSignalPlayerId,
@@ -51,10 +51,10 @@ export default function DespiaPushDemo() {
     let cancelled = false;
     (async () => {
       try {
-        const { data } = await supabase.auth.getUser();
+        const { data } = await db.auth.getUser();
         let id = data.user?.id || '';
         if (data.user?.id) {
-          const { data: profile } = await supabase
+          const { data: profile } = await db
             .from('profiles')
             .select('id')
             .eq('user_id', data.user.id)

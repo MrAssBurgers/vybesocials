@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth';
 import { useAuthProfileId } from '@/hooks/useAuthProfileId';
 import { toast } from 'sonner';
@@ -40,7 +40,7 @@ export function usePublicThemes(searchQuery?: string) {
   return useQuery({
     queryKey: ['public-themes', searchQuery],
     queryFn: async () => {
-      let query = supabase
+      let query = db
         .from('shared_themes')
         .select(`
           *,
@@ -76,7 +76,7 @@ export function useSavedThemes() {
     queryFn: async () => {
       if (!profileId) return [];
 
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('saved_themes')
         .select(`
           id,
@@ -110,7 +110,7 @@ export function useMySharedThemes() {
     queryFn: async () => {
       if (!profileId) return [];
 
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('shared_themes')
         .select('*')
         .eq('creator_id', profileId)
@@ -157,7 +157,7 @@ export function useShareTheme() {
     }) => {
       if (!profile?.id) throw new Error('Not authenticated');
 
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('shared_themes')
         .insert({
           creator_id: profile.id,
@@ -175,7 +175,7 @@ export function useShareTheme() {
       if (error) throw error;
 
       if (visibility === 'private') {
-        await supabase
+        await db
           .from('saved_themes')
           .insert({ user_id: profile.id, shared_theme_id: data.id })
           .then(() => {}, () => {});
@@ -228,7 +228,7 @@ export function useEquipSharedTheme() {
       const { equipTheme } = await import('@/hooks/useCustomTheme');
       equipTheme(theme.theme_tokens, { themeId: theme.id, silent: true });
 
-      await supabase.from('user_themes').upsert(
+      await db.from('user_themes').upsert(
         {
           user_id: user.id,
           theme_name: theme.theme_name,
@@ -241,11 +241,11 @@ export function useEquipSharedTheme() {
       );
 
       if (profile?.id) {
-        await supabase
+        await db
           .from('saved_themes')
           .insert({ user_id: profile.id, shared_theme_id: theme.id })
           .then(() => {}, () => {});
-        await supabase.rpc('increment_theme_downloads', { theme_id: theme.id }).then(() => {}, () => {});
+        await db.rpc('increment_theme_downloads', { theme_id: theme.id }).then(() => {}, () => {});
       }
     },
     onSuccess: () => {
@@ -266,7 +266,7 @@ export function useSharedThemeById(id: string | null | undefined) {
     queryKey: ['shared-theme', id],
     queryFn: async () => {
       if (!id) return null;
-      const { data, error } = await supabase.rpc('get_shared_theme_by_id', { p_theme_id: id });
+      const { data, error } = await db.rpc('get_shared_theme_by_id', { p_theme_id: id });
       if (error) throw error;
       const row = Array.isArray(data) ? data[0] : (data as any);
       if (!row) return null;
@@ -313,7 +313,7 @@ export function useUpdateSharedTheme() {
       if (themeName !== undefined) updates.theme_name = themeName;
       if (description !== undefined) updates.description = description;
 
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('shared_themes')
         .update(updates as never)
         .eq('id', themeId)
@@ -344,7 +344,7 @@ export function useSaveSharedTheme() {
     mutationFn: async (sharedThemeId: string) => {
       if (!profile?.id) throw new Error('Not authenticated');
 
-      const { error } = await supabase
+      const { error } = await db
         .from('saved_themes')
         .insert({
           user_id: profile.id, // Use profile ID
@@ -354,7 +354,7 @@ export function useSaveSharedTheme() {
       if (error) throw error;
 
       // Increment download count
-      await supabase.rpc('increment_theme_downloads', { theme_id: sharedThemeId });
+      await db.rpc('increment_theme_downloads', { theme_id: sharedThemeId });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['saved-themes'] });
@@ -380,7 +380,7 @@ export function useUnsaveTheme() {
     mutationFn: async (sharedThemeId: string) => {
       if (!profile?.id) throw new Error('Not authenticated');
 
-      const { error } = await supabase
+      const { error } = await db
         .from('saved_themes')
         .delete()
         .eq('user_id', profile.id) // Use profile ID
@@ -408,7 +408,7 @@ export function useLikeTheme() {
     mutationFn: async (sharedThemeId: string) => {
       if (!profile?.id) throw new Error('Not authenticated');
 
-      const { error } = await supabase
+      const { error } = await db
         .from('theme_likes')
         .insert({
           user_id: profile.id, // Use profile ID
@@ -438,7 +438,7 @@ export function useUnlikeTheme() {
     mutationFn: async (sharedThemeId: string) => {
       if (!profile?.id) throw new Error('Not authenticated');
 
-      const { error } = await supabase
+      const { error } = await db
         .from('theme_likes')
         .delete()
         .eq('user_id', profile.id) // Use profile ID
@@ -465,7 +465,7 @@ export function useUserThemeLikes() {
     queryFn: async () => {
       if (!profileId) return [];
 
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('theme_likes')
         .select('shared_theme_id')
         .eq('user_id', profileId);
@@ -485,7 +485,7 @@ export function useDeleteSharedTheme() {
 
   return useMutation({
     mutationFn: async (themeId: string) => {
-      const { error } = await supabase
+      const { error } = await db
         .from('shared_themes')
         .delete()
         .eq('id', themeId);

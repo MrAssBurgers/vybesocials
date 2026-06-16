@@ -16,7 +16,7 @@ import { useSellerPaymentMethods } from '@/hooks/useMarketplacePayments';
 import { PaymentSheet } from '@/components/marketplace/PaymentSheet';
 import { useAuth } from '@/lib/auth';
 import { useCreateConversation } from '@/hooks/useMessages';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { formatDistanceToNow } from 'date-fns';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
@@ -127,7 +127,7 @@ export default function ListingDetailPage() {
       
       // Notify the listing owner
       if (profile && listing) {
-        await supabase.from('notifications').insert({
+        await db.from('notifications').insert({
           user_id: listing.seller_id,
           type: 'content_removed',
           actor_id: profile.id,

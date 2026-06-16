@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth';
 import { toast } from 'sonner';
 import { invalidateConversationCaches } from '@/lib/invalidateConversationCaches';
@@ -37,7 +37,7 @@ export function useGroupMembers(conversationId: string | undefined) {
     queryFn: async () => {
       if (!conversationId) return [];
       
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('group_members')
         .select(`
           *,
@@ -58,7 +58,7 @@ export function useCreateGroup() {
 
   return useMutation({
     mutationFn: async (params: CreateGroupParams) => {
-      const { data: { session } } = await supabase.auth.getSession();
+      const { data: { session } } = await db.auth.getSession();
       if (!session?.access_token) {
         throw new Error('Must be logged in');
       }
@@ -111,7 +111,7 @@ export function useAddGroupMember() {
     mutationFn: async ({ conversationId, userId }: { conversationId: string; userId: string }) => {
       if (!profile?.id) throw new Error('Must be logged in');
 
-      const { error } = await supabase
+      const { error } = await db
         .from('group_members')
         .insert({
           conversation_id: conversationId,
@@ -123,7 +123,7 @@ export function useAddGroupMember() {
       if (error) throw error;
 
       // Also add to conversation_members
-      await supabase
+      await db
         .from('conversation_members')
         .insert({
           conversation_id: conversationId,
@@ -146,7 +146,7 @@ export function useRemoveGroupMember() {
 
   return useMutation({
     mutationFn: async ({ conversationId, userId }: { conversationId: string; userId: string }) => {
-      const { error } = await supabase
+      const { error } = await db
         .from('group_members')
         .delete()
         .eq('conversation_id', conversationId)
@@ -155,7 +155,7 @@ export function useRemoveGroupMember() {
       if (error) throw error;
 
       // Also remove from conversation_members
-      await supabase
+      await db
         .from('conversation_members')
         .delete()
         .eq('conversation_id', conversationId)
@@ -179,7 +179,7 @@ export function useLeaveGroup() {
     mutationFn: async (conversationId: string) => {
       if (!profile?.id) throw new Error('Must be logged in');
 
-      const { error } = await supabase
+      const { error } = await db
         .from('group_members')
         .delete()
         .eq('conversation_id', conversationId)
@@ -187,7 +187,7 @@ export function useLeaveGroup() {
 
       if (error) throw error;
 
-      await supabase
+      await db
         .from('conversation_members')
         .delete()
         .eq('conversation_id', conversationId)
@@ -216,7 +216,7 @@ export function useUpdateMemberRole() {
       userId: string; 
       role: GroupRole;
     }) => {
-      const { error } = await supabase
+      const { error } = await db
         .from('group_members')
         .update({ role })
         .eq('conversation_id', conversationId)
@@ -254,7 +254,7 @@ export function useUpdateGroupSettings() {
       if (avatar_url !== undefined) updates.avatar_url = avatar_url;
       if (description !== undefined) updates.description = description;
 
-      const { error } = await supabase
+      const { error } = await db
         .from('conversations')
         .update(updates as never)
         .eq('id', conversationId);
@@ -280,7 +280,7 @@ export function useMyGroupRole(conversationId: string | undefined) {
     queryFn: async () => {
       if (!conversationId || !profile?.id) return null;
       
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('group_members')
         .select('role')
         .eq('conversation_id', conversationId)

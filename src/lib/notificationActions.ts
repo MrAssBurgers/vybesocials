@@ -1,4 +1,4 @@
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { navigationRef } from '@/lib/navigationRef';
 import type { CallData, CallMode, CallType, CallUser } from '@/lib/callStore';
 
@@ -145,7 +145,7 @@ export function buildNotificationRoute(payload: NormalizedNotificationPayload): 
 }
 
 export async function declineCallById(callId: string): Promise<void> {
-  await supabase
+  await db
     .from('calls')
     .update({ status: 'declined', ended_at: new Date().toISOString() })
     .eq('id', callId)
@@ -153,7 +153,7 @@ export async function declineCallById(callId: string): Promise<void> {
 }
 
 export async function fetchRingingCall(callId: string): Promise<CallData | null> {
-  const { data, error } = await supabase
+  const { data, error } = await db
     .from('calls')
     .select(`
       *,
@@ -165,7 +165,7 @@ export async function fetchRingingCall(callId: string): Promise<CallData | null>
 
   if (error || !data || data.status !== 'ringing') return null;
 
-  const { data: conversation } = await supabase
+  const { data: conversation } = await db
     .from('conversations')
     .select('id, name, avatar_url, is_group')
     .eq('id', data.conversation_id)

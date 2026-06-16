@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/lib/auth';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 
 export function usePendingPremiumGift() {
   const { user } = useAuth();
@@ -10,7 +10,7 @@ export function usePendingPremiumGift() {
     queryFn: async () => {
       if (!user?.id) return null;
 
-      const { data } = await supabase
+      const { data } = await db
         .from('gifted_premium')
         .select('id, gifted_by, created_at')
         .eq('user_id', user.id)
@@ -24,7 +24,7 @@ export function usePendingPremiumGift() {
       if (!data) return null;
 
       // Get gifter's username
-      const { data: gifterProfile } = await supabase
+      const { data: gifterProfile } = await db
         .from('profiles')
         .select('username')
         .eq('user_id', data.gifted_by)

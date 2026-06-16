@@ -7,7 +7,7 @@ import { Label } from '@/components/ui/label';
 import { useAuth } from '@/lib/auth';
 import { useUserBadges, useAllBadges } from '@/hooks/useBadges';
 import { useLockerItems, useEquipItem, LockerItem } from '@/hooks/useLockerItems';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { haptics } from '@/lib/haptics';
@@ -280,7 +280,7 @@ export function ProfileLocker() {
     setSavingBadges(true);
     haptics.select();
     try {
-      const { error } = await supabase
+      const { error } = await db
         .from('profiles')
         .update({ badge_settings: settings as unknown as Record<string, boolean> })
         .eq('id', profile.id);

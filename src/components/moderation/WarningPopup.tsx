@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { AlertTriangle, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
@@ -21,7 +21,7 @@ export function WarningPopup() {
     queryKey: ['unacknowledged-warning', profile?.id],
     queryFn: async () => {
       if (!profile?.id) return null;
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('user_warnings')
         .select('id, reason, created_at, acknowledged')
         .eq('user_id', profile.id)
@@ -42,7 +42,7 @@ export function WarningPopup() {
 
   const acknowledgeWarning = useMutation({
     mutationFn: async (warningId: string) => {
-      const { error } = await supabase
+      const { error } = await db
         .from('user_warnings')
         .update({ 
           acknowledged: true, 

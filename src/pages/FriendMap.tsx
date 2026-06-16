@@ -4,7 +4,7 @@ import { ChevronLeft, Navigation, MapPin, Search, Layers, Ghost, X, MessageCircl
 import { useNavigate } from 'react-router-dom';
 
 import { useAuth } from '@/lib/auth';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { triggerHaptic } from '@/lib/haptics';
@@ -274,8 +274,8 @@ function useFriendIds(profileId?: string) {
     queryFn: async () => {
       if (!profileId) return [] as string[];
       const [s, r] = await Promise.all([
-        supabase.from('friend_requests').select('receiver_id').eq('sender_id', profileId).eq('status', 'accepted'),
-        supabase.from('friend_requests').select('sender_id').eq('receiver_id', profileId).eq('status', 'accepted'),
+        db.from('friend_requests').select('receiver_id').eq('sender_id', profileId).eq('status', 'accepted'),
+        db.from('friend_requests').select('sender_id').eq('receiver_id', profileId).eq('status', 'accepted'),
       ]);
       if (s.error) throw s.error;
       if (r.error) throw r.error;
@@ -294,7 +294,7 @@ function useFriendLocations(friendIds: string[]) {
     staleTime: 10_000,
     queryFn: async (): Promise<LocationRecord[]> => {
       if (!friendIds.length) return [];
-      const { data: locationRows, error } = await supabase
+      const { data: locationRows, error } = await db
         .from('user_locations')
         .select('id, user_id, latitude, longitude, accuracy, label, updated_at, expires_at, sharing_enabled, status, speed')
         .in('user_id', friendIds)
@@ -306,7 +306,7 @@ function useFriendLocations(friendIds: string[]) {
       if (!validLocations.length) return [];
 
       const profileIds = Array.from(new Set(validLocations.map((row) => row.user_id)));
-      const { data: profileRows } = await supabase
+      const { data: profileRows } = await db
         .from('public_profiles')
         .select('id, username, display_name, avatar_url')
         .in('id', profileIds);
@@ -473,7 +473,7 @@ function FriendMapInner() {
     setMyStatus(status);
     try { localStorage.setItem('vybe-map-status', status); } catch { /* ignore */ }
     if (!profile?.id) return;
-    await supabase
+    await db
       .from('user_locations')
       .update({ status })
       .eq('user_id', profile.id);
@@ -582,7 +582,7 @@ function FriendMapInner() {
     staleTime: 60_000,
     queryFn: async () => {
       if (!friendIds.length) return [];
-      const { data } = await supabase
+      const { data } = await db
         .from('public_profiles')
         .select('id, username, display_name, avatar_url')
         .in('id', friendIds);

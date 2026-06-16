@@ -6,7 +6,7 @@ import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/lib/auth';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { toast } from 'sonner';
 import { haptics } from '@/lib/haptics';
 import { isOwner } from '@/components/ui/OwnerBadge';
@@ -79,7 +79,7 @@ export function BadgeSettingsSection() {
     haptics.select();
     
     try {
-      const { error } = await supabase
+      const { error } = await db
         .from('profiles')
         .update({ badge_settings: settings as unknown as Record<string, boolean> })
         .eq('id', profile.id);

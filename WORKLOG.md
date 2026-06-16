@@ -4,7 +4,21 @@ Use this file as the Lovable -> Cursor handoff each session.
 
 **Links:** [Lovable project](https://lovable.dev/projects/416714c8-d013-4aff-984d-522418a9bbc7) · [Production](https://vybehub.app) · Deploy steps: `DEPLOY.md`
 
-## Current Focus (2026-06-16 — full agtcyx → hprmic migration prep)
+## Current Focus (2026-06-16 — Firebase AI Logic Phase 1–2)
+- **Goal:** Gemini via Firebase proxy + App Check; streaming multimodal VYBE AI chat.
+- **Done:** `appCheck.ts`, `aiLogic.ts`, `aiSchemas.ts`, `aiChat.ts`; `AIChat.tsx` uses `streamVybeAiChat` (no Supabase `ai-chat` fetch); App Check init in `main.tsx`
+- **You:** Firebase Console → register Web App Check (reCAPTCHA Enterprise) → add `VITE_FIREBASE_APP_CHECK_RECAPTCHA_SITE_KEY` to `.env` + Lovable → run `npx firebase-tools init ailogic` if not done → enforce App Check when ready
+- **Verify:** `npm run build` PASS · `npm run lint` PASS
+
+## Prior Focus (2026-06-16 — Firebase backend migration)
+- **Goal:** Replace Supabase with Firebase (Auth, Firestore, Storage, Cloud Functions, FCM).
+- **Project:** `vybe-daaab` — `.env` configured (web API key + app id), `.firebaserc`, `native/android/google-services.json`
+- **Done:** `src/lib/firebase/` service layer, `db` client, rules, Cloud Functions stubs, removed `@supabase/supabase-js`
+- **You:** Firebase Console → enable Auth (email + Google), Firestore, Storage → `firebase deploy --only firestore:rules,storage:rules,functions` → add same `VITE_FIREBASE_*` in Lovable env → Publish
+- **Android (when `npx cap add android`):** copy `native/android/google-services.json` → `android/app/google-services.json`, add Google services Gradle plugin per Firebase docs
+- **Verify:** `npm run build` PASS · `npm run lint` PASS
+
+## Prior Focus (2026-06-16 — full agtcyx → hprmic migration prep)
 - **Goal:** Import all live data (~31 users, Bakrix, posts, DMs, media) from **agtcyx** into owned **hprmic**, then run app on hprmic only.
 - **You:** Add `AGTCYX_SERVICE_ROLE_KEY` to `.env` → run migration commands in `supabase/manual/MIGRATE_agtcyx_to_hprmic.md`
 - **Git:** pending push — enhanced migration script + hprmic-primary client + SW v20
@@ -29,9 +43,10 @@ Use this file as the Lovable -> Cursor handoff each session.
 **Yes** — hprmic-primary client + SW v20 until Lovable Publish.
 
 ## Next 3 Tasks
-1. **You:** Run full migration locally (`MIGRATE_agtcyx_to_hprmic.md`)
-2. **Lovable Publish** → verify `/sw.js` → `vybe-v20` + hprmic preconnect
-3. **hprmic:** deploy missing edge fns if smoke tests fail
+1. **You:** Register Web App Check + set `VITE_FIREBASE_APP_CHECK_RECAPTCHA_SITE_KEY` → Lovable Publish
+2. **Phase 3:** Migrate captions, comments, DM assist to `getJsonModel` + AI Logic
+3. **Phase 3:** Vybe Agent structured JSON + daily brief (server-enriched)
+
 ## Current Focus (2026-06-16 — dual Supabase: agtcyx legacy + hprmic new writes)
 - **Legacy (read + auth):** `agtcyxjxgkdyoxwxkjth` — existing users, Bakrix, posts, DMs, feed (Lovable live DB).
 - **New writes:** `hprmicwhlaaqfgshucec` — owned project for NEW posts/stories going forward.

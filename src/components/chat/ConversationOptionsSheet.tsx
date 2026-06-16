@@ -14,7 +14,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Trash2, BellOff, Bell, User, Pin, PinOff, MessageSquareX } from 'lucide-react';
 import { useTrashConversation } from '@/hooks/useTrashedConversations';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { invalidateConversationCaches } from '@/lib/invalidateConversationCaches';
@@ -66,7 +66,7 @@ export function ConversationOptionsSheet({
     if (!profile?.id) return;
     setIsClearing(true);
     try {
-      const { data, error } = await supabase.rpc('clear_conversation_messages', {
+      const { data, error } = await db.rpc('clear_conversation_messages', {
         p_conversation_id: conversationId,
         p_user_id: profile.id,
       });
@@ -95,7 +95,7 @@ export function ConversationOptionsSheet({
          return;
        }
 
-      const { error } = await supabase
+      const { error } = await db
         .from('conversation_members')
         .update({ is_muted: !isMuted })
         .eq('conversation_id', conversationId)
@@ -122,7 +122,7 @@ export function ConversationOptionsSheet({
          return;
        }
 
-      const { error } = await supabase
+      const { error } = await db
         .from('conversation_members')
         .update({ is_pinned: !isPinned })
         .eq('conversation_id', conversationId)

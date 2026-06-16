@@ -1,6 +1,6 @@
 import { useCallback, useRef, useState, useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth';
 import { Message, ViewMode } from './useMessages';
 import { registerOptimisticMessage } from './useGlobalRealtimeMessages';
@@ -35,7 +35,7 @@ export function useInstantSend(conversationId: string | undefined) {
   // Long-lived broadcast channel for instant delivery to receivers viewing this convo.
   // Created lazily and kept subscribed; throwaway channels never finish joining
   // before `.send()` is called, so broadcasts get silently dropped.
-  const broadcastChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
+  const broadcastChannelRef = useRef<ReturnType<typeof db.channel> | null>(null);
   const broadcastConvoIdRef = useRef<string | undefined>(undefined);
 
   const getBroadcastChannel = useCallback(() => {
@@ -45,10 +45,10 @@ export function useInstantSend(conversationId: string | undefined) {
     }
     // Conversation changed — tear down old channel
     if (broadcastChannelRef.current) {
-      try { supabase.removeChannel(broadcastChannelRef.current); } catch { /* noop */ }
+      try { db.removeChannel(broadcastChannelRef.current); } catch { /* noop */ }
       broadcastChannelRef.current = null;
     }
-    const ch = supabase
+    const ch = db
       .channel(`dm-broadcast:${conversationId}`, {
         config: { broadcast: { ack: false, self: false } },
       })
@@ -66,7 +66,7 @@ export function useInstantSend(conversationId: string | undefined) {
   useEffect(() => {
     return () => {
       if (broadcastChannelRef.current) {
-        try { supabase.removeChannel(broadcastChannelRef.current); } catch { /* noop */ }
+        try { db.removeChannel(broadcastChannelRef.current); } catch { /* noop */ }
         broadcastChannelRef.current = null;
         broadcastConvoIdRef.current = undefined;
       }
@@ -238,7 +238,7 @@ export function useInstantSend(conversationId: string | undefined) {
         ? new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
         : null;
 
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('messages')
         .insert({
           conversation_id: conversationId,
@@ -267,7 +267,7 @@ export function useInstantSend(conversationId: string | undefined) {
       } catch { /* best-effort */ }
 
       // Update conversation timestamp
-      await supabase
+      await db
         .from('conversations')
         .update({ updated_at: new Date().toISOString() })
         .eq('id', conversationId);
@@ -314,7 +314,7 @@ export function useInstantSend(conversationId: string | undefined) {
         ? new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
         : null;
 
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('messages')
         .insert({
           conversation_id: conversationId,
@@ -342,7 +342,7 @@ export function useInstantSend(conversationId: string | undefined) {
         await bc?.send({ type: 'broadcast', event: 'new-message', payload: { message: messageWithViewMode } });
       } catch { /* best-effort */ }
 
-      await supabase
+      await db
         .from('conversations')
         .update({ updated_at: new Date().toISOString() })
         .eq('id', conversationId);
@@ -416,7 +416,7 @@ export function useInstantSend(conversationId: string | undefined) {
       
       updateProgress(30);
       
-      const { data: uploadData, error: uploadError } = await supabase.storage
+      const { data: uploadData, error: uploadError } = await db.storage
         .from('chat-media')
         .upload(fileName, file, {
           contentType: file.type,
@@ -428,7 +428,7 @@ export function useInstantSend(conversationId: string | undefined) {
       updateProgress(70);
 
       // Get public URL
-      const { data: urlData } = supabase.storage
+      const { data: urlData } = db.storage
         .from('chat-media')
         .getPublicUrl(fileName);
       
@@ -442,7 +442,7 @@ export function useInstantSend(conversationId: string | undefined) {
         : null;
 
       // Insert message
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('messages')
         .insert({
           conversation_id: conversationId,
@@ -469,7 +469,7 @@ export function useInstantSend(conversationId: string | undefined) {
       confirmMessage(tempId, messageWithViewMode);
 
       // Update conversation timestamp
-      await supabase
+      await db
         .from('conversations')
         .update({ updated_at: new Date().toISOString() })
         .eq('id', conversationId);

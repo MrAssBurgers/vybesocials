@@ -6,7 +6,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { UserPlus, X, Check, MessageCircle } from 'lucide-react';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth';
 import { useFriendshipStatus, useSendFriendRequest, useFriends } from '@/hooks/useFriends';
 import { toast } from 'sonner';
@@ -37,7 +37,7 @@ function useSuggestedUsers() {
       const allHiddenIds = hiddenIds || new Set<string>();
 
       // Get my interests for matching
-      const { data: myProfile } = await supabase
+      const { data: myProfile } = await db
         .from('profiles')
         .select('interests')
         .eq('id', profile.id)
@@ -46,7 +46,7 @@ function useSuggestedUsers() {
         (myProfile?.interests || []).map((i: string) => i.toLowerCase())
       );
 
-      let query = (supabase
+      let query = (db
         .from('profiles' as any)
         .select('id, username, display_name, first_name, last_name, avatar_url, interests')
         .neq('id', profile.id)

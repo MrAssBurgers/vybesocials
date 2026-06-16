@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { ARFilterDef } from '@/lib/arFilters';
 import { toast } from 'sonner';
 
@@ -10,7 +10,7 @@ export function useAIFilterGenerator() {
   const generateFilter = useCallback(async (prompt: string) => {
     setIsGenerating(true);
     try {
-      const { data, error } = await supabase.functions.invoke('generate-ar-filter', {
+      const { data, error } = await db.functions.invoke('generate-ar-filter', {
         body: { prompt },
       });
       if (error) throw error;

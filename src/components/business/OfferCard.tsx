@@ -7,7 +7,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { toast } from 'sonner';
 import { formatDistanceToNow } from 'date-fns';
 import { getPaymentClientContext, openCheckoutUrl } from '@/lib/platformPayments';
@@ -42,7 +42,7 @@ export function OfferCard({ offer, currentProfileId, onStatusChange }: OfferCard
     setLoading(true);
     try {
       // Create checkout session for this offer
-      const { data, error } = await supabase.functions.invoke('create-business-checkout', {
+      const { data, error } = await db.functions.invoke('create-business-checkout', {
         body: {
           businessId: offer.business_id,
           offerId: offer.id,
@@ -54,7 +54,7 @@ export function OfferCard({ offer, currentProfileId, onStatusChange }: OfferCard
       if (!data?.url) throw new Error('No checkout URL returned');
 
       // Update offer status to accepted
-      await supabase
+      await db
         .from('business_offers')
         .update({ 
           status: 'accepted',
@@ -78,7 +78,7 @@ export function OfferCard({ offer, currentProfileId, onStatusChange }: OfferCard
   const handleDecline = async () => {
     setLoading(true);
     try {
-      const { error } = await supabase
+      const { error } = await db
         .from('business_offers')
         .update({ 
           status: 'declined',
@@ -99,7 +99,7 @@ export function OfferCard({ offer, currentProfileId, onStatusChange }: OfferCard
   const handleWithdraw = async () => {
     setLoading(true);
     try {
-      const { error } = await supabase
+      const { error } = await db
         .from('business_offers')
         .update({ status: 'cancelled' })
         .eq('id', offer.id);

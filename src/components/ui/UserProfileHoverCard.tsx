@@ -5,7 +5,7 @@ import { HoverCard, HoverCardContent, HoverCardTrigger } from '@/components/ui/h
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth';
 import { useFollow } from '@/hooks/useProfile';
 import { OwnerBadge, isOwner } from '@/components/ui/OwnerBadge';
@@ -43,7 +43,7 @@ function useHoverProfile(username: string, enabled: boolean) {
     queryKey: ['hover-profile', username],
     queryFn: async (): Promise<ProfileData | null> => {
       // Use case-insensitive lookup with ilike
-      const { data: profiles, error } = await supabase
+      const { data: profiles, error } = await db
         .from('profiles')
         .select('id, username, display_name, avatar_url, bio, is_verified')
         .ilike('username', username)
@@ -57,20 +57,20 @@ function useHoverProfile(username: string, enabled: boolean) {
 
       // Get counts in parallel
       const [followerRes, followingRes, postRes, isFollowingRes] = await Promise.all([
-        supabase
+        db
           .from('follows')
           .select('id', { count: 'exact', head: true })
           .eq('following_id', profileData.id),
-        supabase
+        db
           .from('follows')
           .select('id', { count: 'exact', head: true })
           .eq('follower_id', profileData.id),
-        supabase
+        db
           .from('posts')
           .select('id', { count: 'exact', head: true })
           .eq('author_id', profileData.id),
         currentUser?.id
-          ? supabase
+          ? db
               .from('follows')
               .select('id')
               .eq('follower_id', currentUser.id)

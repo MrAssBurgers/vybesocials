@@ -1,5 +1,5 @@
 import { startRegistration, startAuthentication, browserSupportsWebAuthn } from '@simplewebauthn/browser';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import {
   isDespiaShell,
   registerDespiaDevicePasskey,
@@ -75,7 +75,7 @@ export async function registerPasskey(deviceName?: string): Promise<void> {
 
   // Stage 1 — session check. Never start registration without a real user.
   console.log('[passkey:register] stage=session_check');
-  const { data: { session } } = await supabase.auth.getSession();
+  const { data: { session } } = await db.auth.getSession();
   if (!session?.user?.id) {
     throw new Error('Sign in first to add a passkey to your account.');
   }
@@ -86,7 +86,7 @@ export async function registerPasskey(deviceName?: string): Promise<void> {
 
   // Stage 2 — fetch options from server (server uses session to bind to user).
   console.log('[passkey:register] stage=options_request', { userId: session.user.id });
-  const { data: optsRes, error: optsErr } = await supabase.functions.invoke('auth-passkey-register-options', {});
+  const { data: optsRes, error: optsErr } = await db.functions.invoke('auth-passkey-register-options', {});
   if (optsErr || !(optsRes as any)?.options) {
     console.error('[passkey:register] options_failed', optsErr, optsRes);
     throw new Error('Could not start registration');
@@ -104,7 +104,7 @@ export async function registerPasskey(deviceName?: string): Promise<void> {
   }
 
   // Stage 4 — server verifies and stores credential bound to user_id.
-  const { data: verifyRes, error: verifyErr } = await supabase.functions.invoke('auth-passkey-register-verify', {
+  const { data: verifyRes, error: verifyErr } = await db.functions.invoke('auth-passkey-register-verify', {
     body: { credential, deviceName },
   });
   if (verifyErr || (verifyRes as any)?.error) {
@@ -141,7 +141,7 @@ export async function signInWithPasskey(email?: string): Promise<string | null> 
 
   if (!passkeysSupported()) return null;
 
-  const { data: optsRes, error: optsErr } = await supabase.functions.invoke('auth-passkey-login-options', {
+  const { data: optsRes, error: optsErr } = await db.functions.invoke('auth-passkey-login-options', {
     body: email ? { email } : {},
   });
   if (optsErr) throw new Error('Could not start passkey sign-in');
@@ -154,7 +154,7 @@ export async function signInWithPasskey(email?: string): Promise<string | null> 
     throw classifyPasskeyError(e);
   }
 
-  const { data: verifyRes, error: verifyErr } = await supabase.functions.invoke('auth-passkey-login-verify', {
+  const { data: verifyRes, error: verifyErr } = await db.functions.invoke('auth-passkey-login-verify', {
     body: { challengeId: (optsRes as any).challengeId, credential },
   });
   if (verifyErr || !(verifyRes as any)?.actionLink) {

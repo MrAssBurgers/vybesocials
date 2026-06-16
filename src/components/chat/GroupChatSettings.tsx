@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useAuth } from '@/lib/auth';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { toast } from 'sonner';
 import { triggerHaptic } from '@/lib/haptics';
 import { cn } from '@/lib/utils';
@@ -28,7 +28,7 @@ export function GroupChatSettings({ conversationId, conversation, members, onClo
 
   const saveGroupName = useCallback(async () => {
     if (!groupName.trim()) return;
-    const { error } = await supabase
+    const { error } = await db
       .from('conversations')
       .update({ name: groupName.trim() })
       .eq('id', conversationId);
@@ -44,7 +44,7 @@ export function GroupChatSettings({ conversationId, conversation, members, onClo
 
   const removeMember = useCallback(async (userId: string) => {
     if (!isCreator) return;
-    const { error } = await supabase
+    const { error } = await db
       .from('conversation_members')
       .delete()
       .eq('conversation_id', conversationId)

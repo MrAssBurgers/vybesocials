@@ -23,7 +23,7 @@ import { useAISmartReplies } from '@/hooks/useAIMessageAssist';
 import { useScreenCapture } from '@/hooks/useScreenCapture';
 import { useAuth } from '@/lib/auth';
 import { useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { scanVideo as nsfwScanVideo, scanImage as nsfwScanImage } from '@/lib/nsfwScanner';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
@@ -356,7 +356,7 @@ export function ChatView() {
     if (lastReadSyncedForConversationRef.current !== conversationId) {
       lastReadSyncedForConversationRef.current = conversationId;
 
-      supabase
+      db
         .from('conversation_members')
         .update({ last_read_at: new Date().toISOString() })
         .eq('conversation_id', conversationId)
@@ -396,7 +396,7 @@ export function ChatView() {
       const otherMemberIds = otherMembers.map(m => m.user_id);
 
       // Clear notifications from these specific users
-      supabase
+      db
         .from('notifications')
         .update({ read: true })
         .eq('user_id', profileId)
@@ -778,7 +778,7 @@ export function ChatView() {
       const fileExt = file.type === 'image/png' ? 'png' : 'jpg';
       const fileName = `${profile.user_id}/${Date.now()}.${fileExt}`;
 
-      const { error: uploadError } = await supabase.storage
+      const { error: uploadError } = await db.storage
         .from('chat-media')
         .upload(fileName, compressedBlob, {
           contentType: `image/${fileExt}`,
@@ -787,7 +787,7 @@ export function ChatView() {
 
       if (uploadError) throw uploadError;
 
-      const { data: { publicUrl } } = supabase.storage
+      const { data: { publicUrl } } = db.storage
         .from('chat-media')
         .getPublicUrl(fileName);
 
@@ -821,13 +821,13 @@ export function ChatView() {
       
       const fileName = `${authUserId}/${Date.now()}.webm`;
 
-      const { error: uploadError } = await supabase.storage
+      const { error: uploadError } = await db.storage
         .from('chat-media')
         .upload(fileName, blob);
 
       if (uploadError) throw uploadError;
 
-      const { data: { publicUrl } } = supabase.storage
+      const { data: { publicUrl } } = db.storage
         .from('chat-media')
         .getPublicUrl(fileName);
 
@@ -983,7 +983,7 @@ export function ChatView() {
         // PHASE 3: Upload to storage
         phase = 'storage-upload';
         const fileName = `${profile.user_id}/${Date.now()}_vybe.webm`;
-        const { error: uploadError } = await supabase.storage
+        const { error: uploadError } = await db.storage
           .from('chat-media')
           .upload(fileName, uploadFile, {
             contentType: uploadFile.type,
@@ -996,7 +996,7 @@ export function ChatView() {
           return;
         }
 
-        const { data: { publicUrl } } = supabase.storage
+        const { data: { publicUrl } } = db.storage
           .from('chat-media')
           .getPublicUrl(fileName);
         
@@ -1060,7 +1060,7 @@ export function ChatView() {
         const blob = new Blob([byteArray], { type: 'image/jpeg' });
         
         const fileName = `${profile.user_id}/${Date.now()}_vybe.jpg`;
-        const { error: uploadError } = await supabase.storage
+        const { error: uploadError } = await db.storage
           .from('chat-media')
           .upload(fileName, blob, {
             contentType: 'image/jpeg',
@@ -1072,7 +1072,7 @@ export function ChatView() {
           return;
         }
 
-        const { data: { publicUrl } } = supabase.storage
+        const { data: { publicUrl } } = db.storage
           .from('chat-media')
           .getPublicUrl(fileName);
         
@@ -1093,7 +1093,7 @@ export function ChatView() {
         ? new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
         : null;
 
-      const { data: realMessage, error: insertError } = await supabase
+      const { data: realMessage, error: insertError } = await db
         .from('messages')
         .insert({
           conversation_id: conversationId,
@@ -1130,7 +1130,7 @@ export function ChatView() {
       });
 
       // Update conversation timestamp
-      await supabase
+      await db
         .from('conversations')
         .update({ updated_at: new Date().toISOString() })
         .eq('id', conversationId);
@@ -2749,7 +2749,7 @@ const MessageBubble = memo(function MessageBubble({
                   onViewed={onView}
                   onSave={async () => {
                     try {
-                      const { error } = await supabase
+                      const { error } = await db
                         .from('messages')
                         .update({ media_type: 'image', viewed_at: new Date().toISOString() })
                         .eq('id', message.id);

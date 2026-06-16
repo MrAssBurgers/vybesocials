@@ -1,6 +1,6 @@
 import { useEffect, useCallback, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { subscribePostgresChannel, removeRealtimeChannel } from '@/lib/realtimeChannel';
 import { useAuth } from '@/lib/auth';
 import { useAuthProfileId } from '@/hooks/useAuthProfileId';
@@ -104,7 +104,7 @@ export function useMessageNotifications() {
           }
           
           // Check if user is member of this conversation
-          const { data: membership } = await supabase
+          const { data: membership } = await db
             .from('conversation_members')
             .select('user_id')
             .eq('conversation_id', newMessage.conversation_id)
@@ -114,7 +114,7 @@ export function useMessageNotifications() {
           if (!membership) return;
           
           // Fetch sender info
-          const { data: sender } = await supabase
+          const { data: sender } = await db
             .from('profiles')
             .select('username, avatar_url, display_name')
             .eq('id', newMessage.sender_id)
@@ -137,7 +137,7 @@ export function useMessageNotifications() {
           // Only invalidate if not already invalidating
           
           // Fetch conversation info to check if group
-          const { data: conversation } = await supabase
+          const { data: conversation } = await db
             .from('conversations')
             .select('is_group, name')
             .eq('id', newMessage.conversation_id)
@@ -222,7 +222,7 @@ export function useInstantReadClear(conversationId: string | undefined) {
     
     // Update last_read_at in database
     const now = new Date().toISOString();
-    await supabase
+    await db
       .from('conversation_members')
       .update({ last_read_at: now })
       .eq('conversation_id', conversationId)

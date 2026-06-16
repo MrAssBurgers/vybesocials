@@ -22,7 +22,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth';
 import { applyThemeTokens, useSaveTheme, setThemePreviewLock, ThemeTokens, sanitizeThemeTokens } from '@/hooks/useCustomTheme';
 import { navVisibility } from '@/lib/navVisibility';
@@ -391,7 +391,7 @@ export function AIVybeDesigner({ interests = [], onComplete, onSkip }: AIVybeDes
     // palette for the selected vibe so the flow NEVER dead-ends.
     let theme: GeneratedTheme;
     try {
-      const { data, error } = await supabase.functions.invoke('generate-advanced-theme', {
+      const { data, error } = await db.functions.invoke('generate-advanced-theme', {
         body: {
           prompt: fullPrompt,
           interests,

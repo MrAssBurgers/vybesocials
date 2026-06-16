@@ -5,7 +5,7 @@ import {
   Save, X, Loader2, UserMinus
 } from 'lucide-react';
 import { useAllBadges, useAwardBadge, useRemoveBadge, Badge } from '@/hooks/useBadges';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { GlassCard } from '@/components/ui/glass/GlassCard';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -111,7 +111,7 @@ export function AdminBadgeManager() {
     queryFn: async (): Promise<BadgeHolder[]> => {
       if (!selectedBadgeForManage) return [];
       
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('user_badges')
         .select('id, user_id, badge_id, earned_at')
         .eq('badge_id', selectedBadgeForManage.id);
@@ -121,7 +121,7 @@ export function AdminBadgeManager() {
       
       // Get profile info for each holder
       const userIds = data.map(h => h.user_id);
-      const { data: profiles } = await supabase
+      const { data: profiles } = await db
         .from('profiles')
         .select('id, user_id, username, display_name, avatar_url')
         .or(`user_id.in.(${userIds.join(',')}),id.in.(${userIds.join(',')})`);
@@ -185,7 +185,7 @@ export function AdminBadgeManager() {
       setIsSearching(true);
       try {
         // Search by username OR display_name (case insensitive)
-        const { data, error } = await supabase
+        const { data, error } = await db
           .from('profiles')
           .select('id, user_id, username, display_name, avatar_url')
           .or(`username.ilike.%${searchTerm}%,display_name.ilike.%${searchTerm}%`)
@@ -211,7 +211,7 @@ export function AdminBadgeManager() {
 
   const createBadge = useMutation({
     mutationFn: async (data: BadgeFormData) => {
-      const { error } = await supabase.from('badges').insert({
+      const { error } = await db.from('badges').insert({
         name: data.name,
         description: data.description || null,
         icon: data.icon,
@@ -238,7 +238,7 @@ export function AdminBadgeManager() {
 
   const updateBadge = useMutation({
     mutationFn: async ({ id, data }: { id: string; data: BadgeFormData }) => {
-      const { error } = await supabase.from('badges').update({
+      const { error } = await db.from('badges').update({
         name: data.name,
         description: data.description || null,
         icon: data.icon,
@@ -267,7 +267,7 @@ export function AdminBadgeManager() {
 
   const deleteBadge = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from('badges').delete().eq('id', id);
+      const { error } = await db.from('badges').delete().eq('id', id);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -284,7 +284,7 @@ export function AdminBadgeManager() {
     let targetProfile = selectedUser;
     
     if (!targetProfile && awardUsername.trim()) {
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('profiles')
         .select('id, user_id, username, display_name, avatar_url')
         .or(`username.ilike.${awardUsername.trim()},display_name.ilike.${awardUsername.trim()}`)

@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth';
 import { toast } from 'sonner';
 
@@ -10,7 +10,7 @@ export function useCreatorConnectStatus() {
   return useQuery({
     queryKey: ['creator-connect-status', user?.id],
     queryFn: async () => {
-      const { data, error } = await supabase.functions.invoke('check-creator-connect');
+      const { data, error } = await db.functions.invoke('check-creator-connect');
       if (error) throw error;
       return data as {
         connected: boolean;
@@ -33,7 +33,7 @@ export function useCreatorConnectOnboard() {
   const startOnboarding = useCallback(async () => {
     setIsLoading(true);
     try {
-      const { data, error } = await supabase.functions.invoke('create-creator-connect');
+      const { data, error } = await db.functions.invoke('create-creator-connect');
       if (error) throw error;
       if (data?.error) {
         toast.error(data.error);
@@ -58,7 +58,7 @@ export function useProcessCreatorPayout() {
   const processPayout = useCallback(async (amount: number) => {
     setIsLoading(true);
     try {
-      const { data, error } = await supabase.functions.invoke('process-creator-payout', {
+      const { data, error } = await db.functions.invoke('process-creator-payout', {
         body: { amount },
       });
       if (error) throw error;

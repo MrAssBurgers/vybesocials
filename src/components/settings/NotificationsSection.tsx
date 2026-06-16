@@ -2,7 +2,7 @@ import { Bell, Megaphone, BellRing, Smartphone, MessageSquare, Phone, Sparkles, 
 import { useAuth } from '@/lib/auth';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { ensureDespiaOneSignalLinked, linkOneSignalUser } from '@/lib/despiaOneSignal';
 import { isDespiaRuntime } from '@/lib/despiaBridge';
 import { pushNotLinkedHint } from '@/lib/pushSettingsCopy';
@@ -37,7 +37,7 @@ export function NotificationsSection() {
     updatePref.mutate({ key: key as never, value });
 
     if (!value && key === 'announcements_enabled' && profile?.id) {
-      await supabase
+      await db
         .from('notifications')
         .delete()
         .eq('user_id', profile.id)
@@ -98,7 +98,7 @@ export function NotificationsSection() {
                           void linkOneSignalUser(profile.id);
                         }
 
-                        const result = await supabase.functions.invoke('send-push-notification', {
+                        const result = await db.functions.invoke('send-push-notification', {
                           body: {
                             userId: profile.id,
                             title: 'VYBE test push 🚀',

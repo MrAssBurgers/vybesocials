@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { useMyServerRole } from '@/hooks/useServers';
 
 export interface ChannelPermission {
@@ -18,7 +18,7 @@ export function useChannelPermissions(channelId: string | undefined) {
     queryKey: ['channel-permissions', channelId],
     queryFn: async () => {
       if (!channelId) return [];
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('channel_permissions')
         .select('*')
         .eq('channel_id', channelId)
@@ -42,7 +42,7 @@ export function useMyChannelPermissions(channelId: string | undefined, serverId:
       if (myRole === 'owner') {
         return { can_view: true, can_send: true, can_manage: true, can_pin: true, can_attach_media: true };
       }
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('channel_permissions')
         .select('can_view, can_send, can_manage, can_pin, can_attach_media')
         .eq('channel_id', channelId)
@@ -65,7 +65,7 @@ export function useUpdateChannelPermission() {
       field: 'can_view' | 'can_send' | 'can_manage' | 'can_pin' | 'can_attach_media';
       value: boolean;
     }) => {
-      const { error } = await supabase
+      const { error } = await db
         .from('channel_permissions')
         .update({ [field]: value, updated_at: new Date().toISOString() } as never)
         .eq('channel_id', channelId)

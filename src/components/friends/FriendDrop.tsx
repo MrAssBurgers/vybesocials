@@ -10,7 +10,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useAuth } from '@/lib/auth';
 import { useSendFriendRequest } from '@/hooks/useFriends';
 import { useFriendDropSync, FriendDrop as FriendDropType } from '@/hooks/useFriendDropSync';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { haptics } from '@/lib/haptics';
 import { toast } from 'sonner';
 import jsQR from 'jsqr';
@@ -230,7 +230,7 @@ export function FriendDrop({ variant = 'button' }: FriendDropProps) {
 
   const fetchUser = async (userId: string): Promise<FoundUser | null> => {
     try {
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('profiles')
         .select('id, username, display_name, avatar_url, bio')
         .eq('id', userId)

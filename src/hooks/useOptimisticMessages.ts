@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth';
 import { ViewMode } from './useMessages';
 import { enqueue as outboxEnqueue, onOutboxChange, flush as outboxFlush } from '@/lib/dmOutbox';
@@ -45,7 +45,7 @@ export function useOptimisticMessages(conversationId: string | undefined) {
         ? new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
         : null;
 
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('messages')
         .insert({
           conversation_id: conversationId,
@@ -63,7 +63,7 @@ export function useOptimisticMessages(conversationId: string | undefined) {
       if (error) throw error;
 
       // Update conversation updated_at
-      await supabase
+      await db
         .from('conversations')
         .update({ updated_at: new Date().toISOString() })
         .eq('id', conversationId);

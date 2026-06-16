@@ -6,7 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useMemeBanBackgrounds, useAddMemeBanBackground } from '@/hooks/useMemeBanBackgrounds';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 
@@ -31,7 +31,7 @@ export const MemeBanGifPicker = ({ selectedGifUrl, onSelectGif }: MemeBanGifPick
       return;
     }
 
-    const { data: authData, error: authError } = await supabase.auth.getUser();
+    const { data: authData, error: authError } = await db.auth.getUser();
     if (authError) {
       toast.error('Please sign in again to upload');
       return;
@@ -48,13 +48,13 @@ export const MemeBanGifPicker = ({ selectedGifUrl, onSelectGif }: MemeBanGifPick
       const fileName = `meme-ban-${Date.now()}-${file.name}`;
       const filePath = `${userId}/${fileName}`;
 
-      const { error: uploadError } = await supabase.storage
+      const { error: uploadError } = await db.storage
         .from('media')
         .upload(filePath, file);
 
       if (uploadError) throw uploadError;
 
-      const { data } = supabase.storage.from('media').getPublicUrl(filePath);
+      const { data } = db.storage.from('media').getPublicUrl(filePath);
 
       // Add to backgrounds library
       await addBackground.mutateAsync({

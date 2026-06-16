@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth';
 
 export interface Space {
@@ -49,7 +49,7 @@ export function useSpaces(status?: 'live' | 'scheduled') {
   return useQuery({
     queryKey: ['spaces', status],
     queryFn: async () => {
-      let query = supabase
+      let query = db
         .from('spaces' as any)
         .select('*')
         .order('created_at', { ascending: false });
@@ -65,7 +65,7 @@ export function useSpaces(status?: 'live' | 'scheduled') {
       
       // Fetch host profiles separately (host_id is the auth user id)
       const hostIds = [...new Set((data || []).map((s: any) => s.host_id))];
-      const { data: profiles } = await supabase
+      const { data: profiles } = await db
         .from('profiles')
         .select('id, user_id, username, avatar_url, display_name')
         .in('user_id', hostIds);
@@ -87,7 +87,7 @@ export function useSpace(spaceId: string | undefined) {
     queryFn: async () => {
       if (!spaceId) return null;
 
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('spaces' as any)
         .select('*')
         .eq('id', spaceId)
@@ -96,7 +96,7 @@ export function useSpace(spaceId: string | undefined) {
       if (error) throw error;
       
       // Fetch host profile (host_id is the auth user id)
-      const { data: host } = await supabase
+      const { data: host } = await db
         .from('profiles')
         .select('id, user_id, username, avatar_url, display_name')
         .eq('user_id', (data as any).host_id)
@@ -116,7 +116,7 @@ export function useSpaceParticipants(spaceId: string | undefined) {
     queryFn: async () => {
       if (!spaceId) return [];
 
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('space_participants' as any)
         .select('*')
         .eq('space_id', spaceId)
@@ -127,7 +127,7 @@ export function useSpaceParticipants(spaceId: string | undefined) {
       
       // Fetch participant profiles (user_id is the auth user id)
       const userIds = [...new Set((data || []).map((p: any) => p.user_id))];
-      const { data: profiles } = await supabase
+      const { data: profiles } = await db
         .from('profiles')
         .select('id, user_id, username, avatar_url, display_name')
         .in('user_id', userIds);
@@ -152,7 +152,7 @@ export function useCreateSpace() {
     mutationFn: async (input: { title: string; description?: string; tags?: string[]; scheduledAt?: string }) => {
       if (!user?.id) throw new Error('Not authenticated');
 
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('spaces' as any)
         .insert({
           host_id: user.id,
@@ -169,7 +169,7 @@ export function useCreateSpace() {
       if (error) throw error;
 
       // Auto-join as host — muted until they actually unmute (mic starts off)
-      await supabase.from('space_participants' as any).insert({
+      await db.from('space_participants' as any).insert({
         space_id: (data as any).id,
         user_id: user.id,
         role: 'host',
@@ -192,7 +192,7 @@ export function useJoinSpace() {
     mutationFn: async ({ spaceId, role = 'listener' }: { spaceId: string; role?: 'listener' | 'requested' }) => {
       if (!user?.id) throw new Error('Not authenticated');
 
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('space_participants' as any)
         .upsert({
           space_id: spaceId,
@@ -207,7 +207,7 @@ export function useJoinSpace() {
       if (error) throw error;
 
       // Increment listener count
-      await supabase.rpc('increment_space_listeners' as any, { p_space_id: spaceId });
+      await db.rpc('increment_space_listeners' as any, { p_space_id: spaceId });
 
       return data;
     },
@@ -226,14 +226,14 @@ export function useLeaveSpace() {
     mutationFn: async (spaceId: string) => {
       if (!user?.id) throw new Error('Not authenticated');
 
-      await supabase
+      await db
         .from('space_participants' as any)
         .update({ left_at: new Date().toISOString() } as any)
         .eq('space_id', spaceId)
         .eq('user_id', user.id);
 
       // Decrement listener count
-      await supabase.rpc('decrement_space_listeners' as any, { p_space_id: spaceId });
+      await db.rpc('decrement_space_listeners' as any, { p_space_id: spaceId });
     },
     onSuccess: (_, spaceId) => {
       queryClient.invalidateQueries({ queryKey: ['space-participants', spaceId] });
@@ -250,7 +250,7 @@ export function useSetSpaceMute() {
   return useMutation({
     mutationFn: async ({ spaceId, isMuted }: { spaceId: string; isMuted: boolean }) => {
       if (!user?.id) throw new Error('Not authenticated');
-      const { error } = await supabase
+      const { error } = await db
         .from('space_participants' as any)
         .update({ is_muted: isMuted } as any)
         .eq('space_id', spaceId)
@@ -271,7 +271,7 @@ export function useRaiseHand() {
   return useMutation({
     mutationFn: async ({ spaceId, raised }: { spaceId: string; raised: boolean }) => {
       if (!user?.id) throw new Error('Not authenticated');
-      const { error } = await supabase
+      const { error } = await db
         .from('space_participants' as any)
         .update({ raised_hand: raised, role: raised ? 'requested' : 'listener' } as any)
         .eq('space_id', spaceId)
@@ -290,7 +290,7 @@ export function useUpdateParticipantRole() {
 
   return useMutation({
     mutationFn: async ({ participantId, spaceId, role }: { participantId: string; spaceId: string; role: string }) => {
-      const { error } = await supabase
+      const { error } = await db
         .from('space_participants' as any)
         .update({ role, raised_hand: false } as any)
         .eq('id', participantId);
@@ -308,7 +308,7 @@ export function useEndSpace() {
 
   return useMutation({
     mutationFn: async (spaceId: string) => {
-      const { error } = await supabase
+      const { error } = await db
         .from('spaces' as any)
         .update({ status: 'ended', ended_at: new Date().toISOString() } as any)
         .eq('id', spaceId);

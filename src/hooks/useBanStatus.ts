@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { useAuthProfileId } from '@/hooks/useAuthProfileId';
 
 export const useBanStatus = () => {
@@ -11,7 +11,7 @@ export const useBanStatus = () => {
     queryFn: async () => {
       if (!profileId) return null;
 
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('user_bans')
         .select('*, is_meme_ban, custom_gif_url')
         .eq('user_id', profileId)

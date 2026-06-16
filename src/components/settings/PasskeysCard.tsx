@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Key, Plus, Trash2, Loader2, Pencil, Check, X, ShieldCheck, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth';
 import { passkeysSupported, registerPasskey, isAndroidWebViewShell, openInChromeFallback } from '@/lib/passkeys';
 import { isDespiaShell, isDespiaPasskeyEnrolled, removeDespiaDevicePasskey } from '@/lib/despiaVault';
@@ -40,7 +40,7 @@ export function PasskeysCard() {
       setDespiaEnrolled(isDespiaPasskeyEnrolled());
       return;
     }
-    const { data } = await supabase
+    const { data } = await db
       .from('user_passkeys')
       .select('id, device_name, created_at, last_used_at')
       .eq('user_id', user.id)
@@ -80,7 +80,7 @@ export function PasskeysCard() {
         await removeDespiaDevicePasskey();
         setDespiaEnrolled(false);
       } else {
-        const { error } = await supabase.from('user_passkeys').delete().eq('id', id);
+        const { error } = await db.from('user_passkeys').delete().eq('id', id);
         if (error) throw error;
       }
       toast.success('Passkey removed');
@@ -103,7 +103,7 @@ export function PasskeysCard() {
     if (!name) { setEditingId(null); return; }
     setBusy(true);
     try {
-      const { error } = await supabase
+      const { error } = await db
         .from('user_passkeys')
         .update({ device_name: name })
         .eq('id', editingId);

@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth';
 import { startOfDay, endOfDay, endOfWeek, startOfWeek, endOfMonth, nextFriday, nextSunday, isAfter } from 'date-fns';
 
@@ -74,7 +74,7 @@ export function useEvents(filters?: EventsFilters) {
   return useQuery({
     queryKey: ['events', filters],
     queryFn: async () => {
-      let query = supabase
+      let query = db
         .from('events')
         .select(`
           *,
@@ -144,7 +144,7 @@ export function useEvents(filters?: EventsFilters) {
       // Get RSVP counts and user's RSVP status
       const eventsWithRSVP = await Promise.all(
         data.map(async (event) => {
-          const { count } = await supabase
+          const { count } = await db
             .from('event_rsvps')
             .select('id', { count: 'exact', head: true })
             .eq('event_id', event.id)
@@ -152,7 +152,7 @@ export function useEvents(filters?: EventsFilters) {
 
           let userRSVP = null;
           if (profile) {
-            const { data: rsvp } = await supabase
+            const { data: rsvp } = await db
               .from('event_rsvps')
               .select('status')
               .eq('event_id', event.id)
@@ -180,7 +180,7 @@ export function useEvent(id: string) {
   return useQuery({
     queryKey: ['event', id],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('events')
         .select(`
           *,
@@ -197,7 +197,7 @@ export function useEvent(id: string) {
       if (error) throw error;
 
       // Get RSVP count
-      const { count } = await supabase
+      const { count } = await db
         .from('event_rsvps')
         .select('id', { count: 'exact', head: true })
         .eq('event_id', id)
@@ -206,7 +206,7 @@ export function useEvent(id: string) {
       // Get user's RSVP
       let userRSVP = null;
       if (profile) {
-        const { data: rsvp } = await supabase
+        const { data: rsvp } = await db
           .from('event_rsvps')
           .select('status')
           .eq('event_id', id)
@@ -233,7 +233,7 @@ export function useMyEvents() {
     queryFn: async () => {
       if (!profile) return [];
 
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('events')
         .select('*')
         .eq('host_id', profile.id)
@@ -254,7 +254,7 @@ export function useCreateEvent() {
     mutationFn: async (event: Omit<VybeEvent, 'id' | 'host_id' | 'created_at' | 'updated_at' | 'host' | 'rsvp_count' | 'user_rsvp'>) => {
       if (!profile) throw new Error('Not authenticated');
 
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('events')
         .insert({
           ...event,
@@ -278,7 +278,7 @@ export function useUpdateEvent() {
 
   return useMutation({
     mutationFn: async ({ id, ...updates }: Partial<VybeEvent> & { id: string }) => {
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('events')
         .update(updates as never)
         .eq('id', id)
@@ -301,7 +301,7 @@ export function useDeleteEvent() {
 
   return useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase
+      const { error } = await db
         .from('events')
         .delete()
         .eq('id', id);
@@ -325,7 +325,7 @@ export function useEventRSVP() {
 
       if (status === null) {
         // Remove RSVP
-        const { error } = await supabase
+        const { error } = await db
           .from('event_rsvps')
           .delete()
           .eq('event_id', eventId)
@@ -333,7 +333,7 @@ export function useEventRSVP() {
         if (error) throw error;
       } else {
         // Upsert RSVP
-        const { error } = await supabase
+        const { error } = await db
           .from('event_rsvps')
           .upsert({
             event_id: eventId,
@@ -356,7 +356,7 @@ export function useEventAttendees(eventId: string) {
   return useQuery({
     queryKey: ['event-attendees', eventId],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('event_rsvps')
         .select(`
           *,

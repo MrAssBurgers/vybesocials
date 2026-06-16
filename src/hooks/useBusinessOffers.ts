@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth';
 
 export function useUserBusiness() {
@@ -10,7 +10,7 @@ export function useUserBusiness() {
     queryFn: async () => {
       if (!profile?.id) return null;
 
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('business_profiles_public')
         .select('id, name, slug, stripe_account_id, stripe_onboarding_complete')
         .eq('owner_id', profile.id)
@@ -31,7 +31,7 @@ export function useConversationOffers(conversationId: string | undefined) {
     queryFn: async () => {
       if (!conversationId) return [];
 
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('business_offers')
         .select('*')
         .eq('conversation_id', conversationId)

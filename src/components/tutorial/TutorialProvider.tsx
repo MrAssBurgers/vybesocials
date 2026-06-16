@@ -1,7 +1,7 @@
 import { createContext, useContext, useState, useCallback, useEffect, ReactNode, useRef } from 'react';
 import { useLocation } from 'react-router-dom';
 import { useAuth } from '@/lib/auth';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { useTutorialLayout, TutorialLayoutMode } from '@/hooks/useTutorialLayout';
 import { TutorialStep, getStepsForLayout } from './tutorialSteps';
 import { TutorialOverlay } from './TutorialOverlay';
@@ -95,7 +95,7 @@ export function TutorialProvider({ children }: { children: ReactNode }) {
     console.log('[Tutorial] Checking tutorial status for user:', profile.id);
 
     try {
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('profiles')
         .select('tutorial_completed, tutorial_skipped, onboarding_completed')
         .eq('id', profile.id)
@@ -229,7 +229,7 @@ export function TutorialProvider({ children }: { children: ReactNode }) {
     
     try {
       // FIRST: Persist to database
-      const { error } = await supabase
+      const { error } = await db
         .from('profiles')
         .update({ tutorial_skipped: true })
         .eq('id', profile.id);
@@ -266,7 +266,7 @@ export function TutorialProvider({ children }: { children: ReactNode }) {
     
     try {
       // FIRST: Persist to database
-      const { error } = await supabase
+      const { error } = await db
         .from('profiles')
         .update({ tutorial_completed: true })
         .eq('id', profile.id);

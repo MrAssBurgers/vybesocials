@@ -19,9 +19,22 @@ import { installAuthSessionKeepAlive } from "./lib/authSessionKeepAlive";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { installDespiaNfcDispatcher } from "./lib/despiaNFCv2";
 import { installDespiaRewardedAdBridge } from "./lib/despiaRewardedAds";
+import { isFirebaseConfigured } from "./lib/firebase/config";
+import { initFirebaseAppCheck } from "./lib/firebase/appCheck";
+import { isMaintenanceMode } from "./lib/maintenanceMode";
+import { MaintenanceScreen } from "./components/system/MaintenanceScreen";
 
 // Initialize Sentry as early as possible so we capture init-time errors.
 initSentry();
+
+// App Check before Firebase AI Logic (Gemini proxy) — reCAPTCHA Enterprise on web.
+if (isFirebaseConfigured()) {
+  try {
+    initFirebaseAppCheck();
+  } catch (err) {
+    console.warn("[VYBE] App Check init skipped:", err);
+  }
+}
 
 // Native store shell: static aurora + reduced motion before first paint.
 initNativePerfMode();
@@ -147,10 +160,19 @@ if ('serviceWorker' in navigator) {
 
 // Enable concurrent features for better performance
 const root = createRoot(document.getElementById("root")!);
-root.render(
-  <StrictMode>
-    <ErrorBoundary scope="root">
-      <App />
+
+if (isMaintenanceMode()) {
+  root.render(
+    <ErrorBoundary scope="maintenance">
+      <MaintenanceScreen />
     </ErrorBoundary>
-  </StrictMode>
-);
+  );
+} else {
+  root.render(
+    <StrictMode>
+      <ErrorBoundary scope="root">
+        <App />
+      </ErrorBoundary>
+    </StrictMode>
+  );
+}

@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth';
 
 export interface ReactionStreak {
@@ -26,7 +26,7 @@ export function useReactionStreaks() {
     queryFn: async () => {
       if (!profile?.id) return [];
 
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('reaction_streaks' as any)
         .select('*')
         .or(`user_a.eq.${profile.id},user_b.eq.${profile.id}`)
@@ -40,7 +40,7 @@ export function useReactionStreaks() {
 
       if (partnerIds.length === 0) return [];
 
-      const { data: profiles } = await supabase
+      const { data: profiles } = await db
         .from('profiles')
         .select('id, username, avatar_url, display_name')
         .in('id', partnerIds);
@@ -63,7 +63,7 @@ export function useBumpReactionStreak() {
 
   return useMutation({
     mutationFn: async (otherUserId: string) => {
-      const { data, error } = await supabase.rpc('bump_reaction_streak', {
+      const { data, error } = await db.rpc('bump_reaction_streak', {
         p_other_user: otherUserId,
       });
 

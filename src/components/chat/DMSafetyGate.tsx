@@ -4,7 +4,7 @@ import { UserPlus, Clock, Check, Users, MessageCircle } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { cn } from '@/lib/utils';
 import { useQuery } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 
 interface DMSafetyGateProps {
   targetUserId: string;
@@ -26,7 +26,7 @@ export function DMSafetyGate({ targetUserId, targetUsername, children }: DMSafet
   const { data: targetProfile, isLoading: profileLoading } = useQuery({
     queryKey: ['profile-privacy', targetUserId],
     queryFn: async () => {
-      const { data } = await supabase
+      const { data } = await db
         .from('profiles')
         .select('is_private')
         .eq('id', targetUserId)

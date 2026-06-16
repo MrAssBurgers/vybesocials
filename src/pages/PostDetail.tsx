@@ -9,7 +9,7 @@ import { PremiumMemeBanMenuItem, PremiumMemeBanDialog } from '@/components/premi
 import { useUserRole } from '@/hooks/useModeration';
 import { EditPostDialog } from '@/components/posts/EditPostDialog';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth';
 import { useComments, useCreateComment, useDeleteComment, useEditComment } from '@/hooks/useComments';
 import { AppLayout } from '@/components/layout/AppLayout';
@@ -264,7 +264,7 @@ export default function PostDetailPage() {
   const { data: post, isLoading: postLoading } = useQuery({
     queryKey: ['post', id, profile?.id],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('posts')
         .select(`
           id,
@@ -286,8 +286,8 @@ export default function PostDetailPage() {
       if (error) throw error;
 
       const [likesResult, commentsResult] = await Promise.all([
-        supabase.from('likes').select('id', { count: 'exact', head: true }).eq('post_id', id),
-        supabase.from('comments').select('id', { count: 'exact', head: true }).eq('post_id', id),
+        db.from('likes').select('id', { count: 'exact', head: true }).eq('post_id', id),
+        db.from('comments').select('id', { count: 'exact', head: true }).eq('post_id', id),
       ]);
 
       let userLiked = false;
@@ -296,8 +296,8 @@ export default function PostDetailPage() {
       let userReactionType: ReactionType | null = null;
       if (profile) {
         const [likeCheck, bookmarkCheck] = await Promise.all([
-          supabase.from('likes').select('id, reaction_type').eq('user_id', profile.id).eq('post_id', id!).maybeSingle(),
-          supabase.from('bookmarks').select('id').eq('user_id', profile.id).eq('post_id', id!).maybeSingle(),
+          db.from('likes').select('id, reaction_type').eq('user_id', profile.id).eq('post_id', id!).maybeSingle(),
+          db.from('bookmarks').select('id').eq('user_id', profile.id).eq('post_id', id!).maybeSingle(),
         ]);
         userLiked = !!likeCheck.data;
         userReactionType = likeCheck.data ? ((likeCheck.data as any).reaction_type as ReactionType || 'like') : null;
@@ -353,7 +353,7 @@ export default function PostDetailPage() {
     if (!confirm('Are you sure you want to delete this post?')) return;
 
     try {
-      const { data: deletedRows, error } = await supabase
+      const { data: deletedRows, error } = await db
         .from('posts')
         .delete()
         .eq('id', post.id)
@@ -387,17 +387,17 @@ export default function PostDetailPage() {
     });
 
     if (newIsLiked) {
-      await supabase.from('likes').upsert(
+      await db.from('likes').upsert(
         { user_id: profile.id, post_id: post.id, reaction_type: reactionType } as any,
         { onConflict: 'user_id,post_id', ignoreDuplicates: false }
       );
       if (!wasLiked && post.author.id !== profile.id) {
-        await supabase.from('notifications').insert({
+        await db.from('notifications').insert({
           user_id: post.author.id, type: 'like', actor_id: profile.id, post_id: post.id,
         });
       }
     } else {
-      await supabase.from('likes').delete().match({ user_id: profile.id, post_id: post.id });
+      await db.from('likes').delete().match({ user_id: profile.id, post_id: post.id });
     }
   }, [profile, currentReaction, post]);
 
@@ -407,10 +407,10 @@ export default function PostDetailPage() {
     setIsBookmarked(newIsBookmarked);
 
     if (newIsBookmarked) {
-      await supabase.from('bookmarks').insert({ user_id: profile.id, post_id: post.id });
+      await db.from('bookmarks').insert({ user_id: profile.id, post_id: post.id });
       toast.success('Saved to bookmarks');
     } else {
-      await supabase.from('bookmarks').delete().match({ user_id: profile.id, post_id: post.id });
+      await db.from('bookmarks').delete().match({ user_id: profile.id, post_id: post.id });
       toast.success('Removed from bookmarks');
     }
   };
@@ -448,7 +448,7 @@ export default function PostDetailPage() {
 
   const handleReport = async () => {
     if (!profile || !post || !reportReason) return;
-    await supabase.from('reports').insert({ reporter_id: profile.id, post_id: post.id, reason: reportReason });
+    await db.from('reports').insert({ reporter_id: profile.id, post_id: post.id, reason: reportReason });
     setReportDialogOpen(false);
     setReportReason('');
     toast.success('Report submitted');
@@ -456,7 +456,7 @@ export default function PostDetailPage() {
 
   const handleBlockUser = async () => {
     if (!profile || !post) return;
-    await supabase.from('blocked_users').insert({ blocker_id: profile.id, blocked_id: post.author.id });
+    await db.from('blocked_users').insert({ blocker_id: profile.id, blocked_id: post.author.id });
     toast.success(`@${post.author.username} blocked`);
   };
 

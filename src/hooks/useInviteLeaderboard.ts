@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth';
 
 interface LeaderboardEntry {
@@ -22,7 +22,7 @@ export function useInviteLeaderboard(limit = 10) {
     queryKey: ['invite-leaderboard', limit],
     queryFn: async () => {
       // Query the view
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('invite_leaderboard')
         .select('*')
         .limit(limit);
@@ -42,7 +42,7 @@ export function useInviteLeaderboard(limit = 10) {
       // If user not in top results, fetch their rank separately
       let userRankEntry: LeaderboardEntry | null = null;
       if (profile?.id && !currentUserEntry) {
-        const { data: userData } = await supabase
+        const { data: userData } = await db
           .from('invite_leaderboard')
           .select('*')
           .eq('profile_id', profile.id)

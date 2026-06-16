@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { toast } from 'sonner';
 import { getPaymentClientContext, openCheckoutUrl } from '@/lib/platformPayments';
 
@@ -9,7 +9,7 @@ export function useCheckoutSession() {
   const createCheckout = useCallback(async (priceId: string) => {
     setIsLoading(true);
     try {
-      const { data, error } = await supabase.functions.invoke('create-checkout-session', {
+      const { data, error } = await db.functions.invoke('create-checkout-session', {
         body: { price_id: priceId, ...getPaymentClientContext() },
       });
       if (error) throw error;

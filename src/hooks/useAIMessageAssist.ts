@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { Message } from './useMessages';
 import { useUserAdaptation } from './useUserAdaptation';
 
@@ -46,7 +46,7 @@ export function useAIMessageAssist() {
 
     try {
       // Use adaptive AI endpoint with user profile
-      const { data, error: fnError } = await supabase.functions.invoke('ai-adaptive-response', {
+      const { data, error: fnError } = await db.functions.invoke('ai-adaptive-response', {
         body: {
           action,
           userProfile: profile,
@@ -112,7 +112,7 @@ export function useAISmartReplies() {
 
     try {
       // Use adaptive endpoint with user profile for personalized suggestions
-      const { data, error } = await supabase.functions.invoke('ai-adaptive-response', {
+      const { data, error } = await db.functions.invoke('ai-adaptive-response', {
         body: { 
           action: 'smart_replies',
           context: lastMessage.content,
@@ -152,7 +152,7 @@ export function useAIChatSummary() {
     setIsLoading(true);
 
     try {
-      const { data, error } = await supabase.functions.invoke('ai-chat-summary', {
+      const { data, error } = await db.functions.invoke('ai-chat-summary', {
         body: {
           messages: messages.slice(-50).map(m => ({
             sender: m.sender?.username || 'Unknown',

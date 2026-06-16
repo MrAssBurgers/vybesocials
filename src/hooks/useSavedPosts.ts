@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { useAuthProfileId } from '@/hooks/useAuthProfileId';
 
 export function useSavedPosts() {
@@ -11,7 +11,7 @@ export function useSavedPosts() {
       if (!profileId) return [];
 
       // First get bookmarked post IDs
-      const { data: bookmarks, error: bookmarksError } = await supabase
+      const { data: bookmarks, error: bookmarksError } = await db
         .from('bookmarks')
         .select('post_id')
         .eq('user_id', profileId)
@@ -23,7 +23,7 @@ export function useSavedPosts() {
       const postIds = bookmarks.map(b => b.post_id);
 
       // Then fetch the posts with author info
-      const { data: posts, error: postsError } = await supabase
+      const { data: posts, error: postsError } = await db
         .from('posts')
         .select(`
           *,
@@ -37,8 +37,8 @@ export function useSavedPosts() {
       const postsWithCounts = await Promise.all(
         (posts || []).map(async (post) => {
           const [{ count: likeCount }, { count: commentCount }] = await Promise.all([
-            supabase.from('likes').select('*', { count: 'exact', head: true }).eq('post_id', post.id),
-            supabase.from('comments').select('*', { count: 'exact', head: true }).eq('post_id', post.id),
+            db.from('likes').select('*', { count: 'exact', head: true }).eq('post_id', post.id),
+            db.from('comments').select('*', { count: 'exact', head: true }).eq('post_id', post.id),
           ]);
 
           return {

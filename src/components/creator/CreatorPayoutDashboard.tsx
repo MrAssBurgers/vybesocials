@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import { useCreatorConnectStatus, useCreatorConnectOnboard, useProcessCreatorPayout } from '@/hooks/useCreatorConnect';
 import { useQuery } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth';
 import { toast } from 'sonner';
 
@@ -23,7 +23,7 @@ export function CreatorPayoutDashboard() {
     queryKey: ['creator-earnings', profile?.id],
     queryFn: async () => {
       if (!profile?.id) return null;
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('creator_profiles')
         .select('id, pending_payout, total_earnings, stripe_connect_account_id, stripe_onboarding_complete')
         .eq('user_id', profile?.user_id)
@@ -40,7 +40,7 @@ export function CreatorPayoutDashboard() {
     queryKey: ['creator-payouts', creatorData?.id],
     queryFn: async () => {
       if (!creatorData?.id) return [];
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('creator_payouts')
         .select('*')
         .eq('creator_id', creatorData.id)

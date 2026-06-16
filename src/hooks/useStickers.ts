@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth';
 import { toast } from 'sonner';
 
@@ -17,7 +17,7 @@ export function useStickers() {
     queryKey: ['stickers', profile?.id],
     queryFn: async () => {
       if (!profile) return [];
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('user_stickers')
         .select('*')
         .eq('user_id', profile.user_id)
@@ -40,7 +40,7 @@ export function useAddSticker() {
       console.log('[Stickers] Saving sticker, user:', profile.user_id, 'url:', imageUrl.substring(0, 80));
       
       // Check for duplicates
-      const { data: existing } = await supabase
+      const { data: existing } = await db
         .from('user_stickers')
         .select('id')
         .eq('user_id', profile.user_id)
@@ -51,7 +51,7 @@ export function useAddSticker() {
         throw new Error('Already saved');
       }
 
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('user_stickers')
         .insert({ user_id: profile.user_id, image_url: imageUrl })
         .select()
@@ -60,7 +60,7 @@ export function useAddSticker() {
       
       // Trigger AI content rating in background
       if (data?.id) {
-        supabase.functions.invoke('rate-sticker-content', {
+        db.functions.invoke('rate-sticker-content', {
           body: { imageUrl, stickerId: data.id },
         }).catch(err => console.warn('[Stickers] Rating failed:', err));
       }
@@ -87,7 +87,7 @@ export function useDeleteSticker() {
 
   return useMutation({
     mutationFn: async (stickerId: string) => {
-      const { error } = await supabase
+      const { error } = await db
         .from('user_stickers')
         .delete()
         .eq('id', stickerId);

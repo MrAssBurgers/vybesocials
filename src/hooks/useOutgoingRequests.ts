@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { useAuthProfileId } from '@/hooks/useAuthProfileId';
 import { normalizePersistedSet } from '@/lib/persistedCollections';
 
@@ -15,7 +15,7 @@ export function useOutgoingRequestUserIds() {
     queryFn: async () => {
       if (!profileId) return new Set<string>();
 
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('friend_requests')
         .select('receiver_id')
         .eq('sender_id', profileId)
@@ -55,26 +55,26 @@ export function useHiddenFromDiscovery() {
         friendsResult
       ] = await Promise.all([
         // Outgoing pending requests
-        supabase
+        db
           .from('friend_requests')
           .select('receiver_id')
           .eq('sender_id', profileId)
           .eq('status', 'pending'),
         
         // Dismissed profiles
-        supabase
+        db
           .from('dismissed_profiles')
           .select('dismissed_user_id')
           .eq('user_id', profileId),
         
         // Blocked users (both directions)
-        supabase
+        db
           .from('blocked_users')
           .select('blocked_id, blocker_id')
           .or(`blocker_id.eq.${profileId},blocked_id.eq.${profileId}`),
         
         // Existing friends (accepted requests)
-        supabase
+        db
           .from('friend_requests')
           .select('sender_id, receiver_id')
           .eq('status', 'accepted')

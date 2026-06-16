@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth';
 
 export interface SponsorProfile {
@@ -43,7 +43,7 @@ export function useSponsorProfile(userId?: string) {
       // Use public view for other users (excludes contact_email), direct table for own profile
       const isOwn = profile?.id === targetUserId;
       if (isOwn) {
-        const { data, error } = await supabase
+        const { data, error } = await db
           .from('sponsor_profiles')
           .select('*')
           .eq('user_id', targetUserId)
@@ -52,7 +52,7 @@ export function useSponsorProfile(userId?: string) {
         return data as SponsorProfile | null;
       }
 
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('public_sponsor_profiles' as any)
         .select('*')
         .eq('user_id', targetUserId)
@@ -79,7 +79,7 @@ export function useCreateSponsorProfile() {
     }) => {
       if (!profile) throw new Error('Not authenticated');
 
-      const { data: sponsor, error } = await supabase
+      const { data: sponsor, error } = await db
         .from('sponsor_profiles')
         .insert({
           user_id: profile.id,
@@ -101,7 +101,7 @@ export function usePostCollaborators(postId: string) {
   return useQuery({
     queryKey: ['post-collaborators', postId],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('collab_posts')
         .select(`
           *,
@@ -134,7 +134,7 @@ export function useAddCollaborator() {
       collaboratorId: string;
       role?: 'collaborator' | 'sponsor';
     }) => {
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('collab_posts')
         .insert({
           post_id: postId,
@@ -158,7 +158,7 @@ export function useAcceptCollab() {
 
   return useMutation({
     mutationFn: async (collabId: string) => {
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('collab_posts')
         .update({ accepted_at: new Date().toISOString() })
         .eq('id', collabId)
@@ -179,7 +179,7 @@ export function useRemoveCollaborator() {
 
   return useMutation({
     mutationFn: async ({ collabId, postId }: { collabId: string; postId: string }) => {
-      const { error } = await supabase
+      const { error } = await db
         .from('collab_posts')
         .delete()
         .eq('id', collabId);
@@ -198,7 +198,7 @@ export function useSponsorAnalytics(sponsorId: string) {
   return useQuery({
     queryKey: ['sponsor-analytics', sponsorId],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('sponsor_analytics')
         .select('*')
         .eq('sponsor_id', sponsorId)

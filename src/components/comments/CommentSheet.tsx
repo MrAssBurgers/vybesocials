@@ -9,7 +9,7 @@ import { useComments, useCreateComment, useDeleteComment } from '@/hooks/useComm
 import { GifPicker } from '@/components/chat/GifPicker';
 import { MentionInput } from './MentionInput';
 import { CommentThread } from './CommentThread';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { navVisibility } from '@/lib/navVisibility';
@@ -77,7 +77,7 @@ export const CommentSheet = memo(forwardRef<CommentSheetRef, CommentSheetProps>(
     });
 
     try {
-      const { data: existing } = await (supabase as any)
+      const { data: existing } = await (db as any)
         .from('comment_likes')
         .select('id')
         .eq('comment_id', commentId)
@@ -85,9 +85,9 @@ export const CommentSheet = memo(forwardRef<CommentSheetRef, CommentSheetProps>(
         .maybeSingle();
 
       if (existing) {
-        await (supabase as any).from('comment_likes').delete().eq('id', existing.id);
+        await (db as any).from('comment_likes').delete().eq('id', existing.id);
       } else {
-        await (supabase as any).from('comment_likes').insert({
+        await (db as any).from('comment_likes').insert({
           comment_id: commentId,
           user_id: profile.id,
         });

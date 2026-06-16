@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth';
 import { useQueryClient } from '@tanstack/react-query';
 import { isOwner } from '@/components/ui/OwnerBadge';
@@ -24,13 +24,13 @@ export function useRetroactiveSync() {
     // Defer sync to idle time - not critical for initial render
     const idleId = runWhenIdle(async () => {
       try {
-        const { error: syncError } = await supabase.rpc('sync_my_challenge_progress');
+        const { error: syncError } = await db.rpc('sync_my_challenge_progress');
         if (syncError) {
           console.error('[RetroactiveSync] Challenge sync error:', syncError);
         }
         
         if (isOwner(profile.username)) {
-          const { error: ownerError } = await supabase.rpc('check_and_grant_owner_badges');
+          const { error: ownerError } = await db.rpc('check_and_grant_owner_badges');
           if (ownerError) {
             console.error('[RetroactiveSync] Owner badge error:', ownerError);
           }

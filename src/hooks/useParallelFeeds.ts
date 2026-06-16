@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth';
 import { useState, useCallback } from 'react';
 
@@ -41,7 +41,7 @@ export function useParallelFeeds() {
         }));
       }
 
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('parallel_feeds' as any)
         .select('*')
         .eq('user_id', user.id)
@@ -75,7 +75,7 @@ export function useCreateFeed() {
     mutationFn: async (feed: Omit<ParallelFeed, 'id' | 'user_id' | 'created_at'>) => {
       if (!user?.id) throw new Error('Not authenticated');
 
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('parallel_feeds' as any)
         .insert({
           user_id: user.id,
@@ -101,7 +101,7 @@ export function useUpdateFeed() {
     mutationFn: async ({ id, ...updates }: Partial<ParallelFeed> & { id: string }) => {
       if (!user?.id) throw new Error('Not authenticated');
 
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('parallel_feeds' as any)
         .update(updates as any)
         .eq('id', id)
@@ -126,7 +126,7 @@ export function useDeleteFeed() {
     mutationFn: async (feedId: string) => {
       if (!user?.id) throw new Error('Not authenticated');
 
-      const { error } = await supabase
+      const { error } = await db
         .from('parallel_feeds' as any)
         .delete()
         .eq('id', feedId)

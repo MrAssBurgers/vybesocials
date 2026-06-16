@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useQuery, useInfiniteQuery } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth';
 import { MobileShortCard } from '@/components/posts/MobileShortCard';
 import { ShortCard } from '@/components/posts/ShortCard';
@@ -70,7 +70,7 @@ export default function ClipsViewer() {
     queryFn: async (): Promise<Post | null> => {
       if (!postId) return null;
 
-      const { data: post, error: postErr } = await supabase
+      const { data: post, error: postErr } = await db
         .from('posts')
         .select(`
           id, type, media_url, thumbnail_url, caption, tags, created_at, is_pinned, view_count,
@@ -82,10 +82,10 @@ export default function ClipsViewer() {
       if (postErr || !post) return null;
 
       const [likeRes, commentRes, isLikedRes, isBookmarkedRes] = await Promise.all([
-        supabase.from('likes').select('id', { count: 'exact', head: true }).eq('post_id', postId),
-        supabase.from('comments').select('id', { count: 'exact', head: true }).eq('post_id', postId),
-        profile ? supabase.from('likes').select('id').eq('post_id', postId).eq('user_id', profile.id).maybeSingle() : Promise.resolve({ data: null }),
-        profile ? supabase.from('bookmarks').select('id').eq('post_id', postId).eq('user_id', profile.id).maybeSingle() : Promise.resolve({ data: null }),
+        db.from('likes').select('id', { count: 'exact', head: true }).eq('post_id', postId),
+        db.from('comments').select('id', { count: 'exact', head: true }).eq('post_id', postId),
+        profile ? db.from('likes').select('id').eq('post_id', postId).eq('user_id', profile.id).maybeSingle() : Promise.resolve({ data: null }),
+        profile ? db.from('bookmarks').select('id').eq('post_id', postId).eq('user_id', profile.id).maybeSingle() : Promise.resolve({ data: null }),
       ]);
 
       const author = post.author as any;
@@ -134,7 +134,7 @@ export default function ClipsViewer() {
     queryKey: ['clips-viewer-feed', profile?.id, postId],
     queryFn: async ({ pageParam = 0 }): Promise<{ posts: Post[]; nextPage: number | null }> => {
       if (profile?.id) {
-        const { data, error } = await supabase.rpc('get_ranked_feed_v2', {
+        const { data, error } = await db.rpc('get_ranked_feed_v2', {
           p_user_id: profile.id,
           p_content_type: 'short',
           p_offset: (pageParam as number) * PAGE_SIZE,
@@ -146,7 +146,7 @@ export default function ClipsViewer() {
         return { posts, nextPage: posts.length >= PAGE_SIZE ? pageParam + 1 : null };
       }
 
-      const { data, error } = await supabase.rpc('get_trending_feed', {
+      const { data, error } = await db.rpc('get_trending_feed', {
         p_content_type: 'short',
         p_page: pageParam,
         p_page_size: PAGE_SIZE,

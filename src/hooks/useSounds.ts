@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/lib/auth';
 import { useAuthProfileId } from '@/hooks/useAuthProfileId';
@@ -48,7 +48,7 @@ export function useTrendingSounds() {
   return useQuery({
     queryKey: ['sounds', 'trending'],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('sounds')
         .select(`
           *,
@@ -70,7 +70,7 @@ export function useNewSounds() {
   return useQuery({
     queryKey: ['sounds', 'new'],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('sounds')
         .select(`
           *,
@@ -97,7 +97,7 @@ export function useSavedSounds() {
     queryFn: async () => {
       if (!authUserId) return [];
       
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('user_saved_sounds')
         .select(`
           sound:sounds!inner(
@@ -120,7 +120,7 @@ export function useSound(soundId: string) {
   return useQuery({
     queryKey: ['sounds', soundId],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('sounds')
         .select(`
           *,
@@ -141,7 +141,7 @@ export function useSoundStats(soundId: string) {
   return useQuery({
     queryKey: ['sound-stats', soundId],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('sound_analytics')
         .select('*')
         .eq('sound_id', soundId)
@@ -163,7 +163,7 @@ export function usePostsWithSound(soundId: string) {
   return useQuery({
     queryKey: ['posts', 'sound', soundId, profileId],
     queryFn: async () => {
-      const { data: posts, error } = await supabase
+      const { data: posts, error } = await db
         .from('posts')
         .select(`
           id,
@@ -190,8 +190,8 @@ export function usePostsWithSound(soundId: string) {
       if (profileId) {
         const postIds = posts.map((p) => p.id);
         const [likesResult, bookmarksResult] = await Promise.all([
-          supabase.from('likes').select('post_id').eq('user_id', profileId).in('post_id', postIds),
-          supabase.from('bookmarks').select('post_id').eq('user_id', profileId).in('post_id', postIds),
+          db.from('likes').select('post_id').eq('user_id', profileId).in('post_id', postIds),
+          db.from('bookmarks').select('post_id').eq('user_id', profileId).in('post_id', postIds),
         ]);
         userLikes = likesResult.data?.map((l) => l.post_id) || [];
         userBookmarks = bookmarksResult.data?.map((b) => b.post_id) || [];
@@ -200,8 +200,8 @@ export function usePostsWithSound(soundId: string) {
       const postsWithCounts = await Promise.all(
         posts.map(async (post) => {
           const [likesCount, commentsCount] = await Promise.all([
-            supabase.from('likes').select('id', { count: 'exact', head: true }).eq('post_id', post.id),
-            supabase.from('comments').select('id', { count: 'exact', head: true }).eq('post_id', post.id),
+            db.from('likes').select('id', { count: 'exact', head: true }).eq('post_id', post.id),
+            db.from('comments').select('id', { count: 'exact', head: true }).eq('post_id', post.id),
           ]);
 
           const authorRow = post.profiles as { id: string; username: string; display_name?: string | null; avatar_url: string | null } | null;
@@ -245,7 +245,7 @@ export function useIsSoundSaved(soundId: string | undefined) {
     queryFn: async () => {
       if (!authUserId || !soundId) return false;
 
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('user_saved_sounds')
         .select('id')
         .eq('user_id', authUserId)
@@ -266,7 +266,7 @@ export function useSaveSound() {
   const saveSound = useCallback(async (soundId: string) => {
     if (!profile?.user_id) throw new Error('Not authenticated');
     
-    const { error } = await supabase
+    const { error } = await db
       .from('user_saved_sounds')
       .insert({
         user_id: profile.user_id,
@@ -279,7 +279,7 @@ export function useSaveSound() {
   const unsaveSound = useCallback(async (soundId: string) => {
     if (!profile?.user_id) throw new Error('Not authenticated');
     
-    const { error } = await supabase
+    const { error } = await db
       .from('user_saved_sounds')
       .delete()
       .eq('user_id', profile.user_id)
@@ -296,7 +296,7 @@ export function useTrackSoundPlay() {
   const { profile } = useAuth();
   
   return useCallback(async (soundId: string, context = 'feed', watchDuration = 0) => {
-    const { error } = await supabase
+    const { error } = await db
       .from('sound_play_events')
       .insert({
         sound_id: soundId,

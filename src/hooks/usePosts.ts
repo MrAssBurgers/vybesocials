@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth';
 import { containsBlockedContent, filterBlockedContent } from '@/lib/contentModeration';
 import { optimizeForUpload, isVideoFile, generateVideoThumbnail, getCompressedExtension } from '@/lib/mediaOptimizer';
@@ -49,7 +49,7 @@ export function usePosts(type?: 'short' | 'post' | 'video', authorId?: string) {
       // doesn't bubble that post to the top of everyone else's feed.
       const isProfileView = !!authorId;
 
-      let query = supabase
+      let query = db
         .from('posts')
         .select(`
           id,
@@ -93,7 +93,7 @@ export function usePosts(type?: 'short' | 'post' | 'video', authorId?: string) {
         query = query.neq('author_id', profile.id);
 
         // Hide posts from users you've blocked.
-        const { data: blocks } = await supabase
+        const { data: blocks } = await db
           .from('blocked_users')
           .select('blocked_id')
           .eq('blocker_id', profile.id);
@@ -117,8 +117,8 @@ export function usePosts(type?: 'short' | 'post' | 'video', authorId?: string) {
 
       if (profile) {
         const [likesResult, bookmarksResult] = await Promise.all([
-          supabase.from('likes').select('post_id, reaction_type').eq('user_id', profile.id),
-          supabase.from('bookmarks').select('post_id').eq('user_id', profile.id),
+          db.from('likes').select('post_id, reaction_type').eq('user_id', profile.id),
+          db.from('bookmarks').select('post_id').eq('user_id', profile.id),
         ]);
 
         userLikes = likesResult.data?.map(l => l.post_id) || [];
@@ -130,8 +130,8 @@ export function usePosts(type?: 'short' | 'post' | 'video', authorId?: string) {
       const postsWithCounts = await Promise.all(
         (posts || []).map(async (post) => {
           const [likesCount, commentsCount] = await Promise.all([
-            supabase.from('likes').select('id', { count: 'exact', head: true }).eq('post_id', post.id),
-            supabase.from('comments').select('id', { count: 'exact', head: true }).eq('post_id', post.id),
+            db.from('likes').select('id', { count: 'exact', head: true }).eq('post_id', post.id),
+            db.from('comments').select('id', { count: 'exact', head: true }).eq('post_id', post.id),
           ]);
 
           const author = post.author as unknown as { id: string; username: string; display_name?: string | null; avatar_url: string | null; is_verified?: boolean | null } | null;
@@ -186,7 +186,7 @@ export function useFollowingPosts() {
       if (!profile) return [];
 
       // Get following list
-      const { data: following } = await supabase
+      const { data: following } = await db
         .from('follows')
         .select('following_id')
         .eq('follower_id', profile.id);
@@ -195,7 +195,7 @@ export function useFollowingPosts() {
 
       if (followingIds.length === 0) return [];
 
-      const { data: posts, error } = await supabase
+      const { data: posts, error } = await db
         .from('posts')
         .select(`
           id,
@@ -227,8 +227,8 @@ export function useFollowingPosts() {
 
       // Get likes and bookmarks
       const [likesResult, bookmarksResult] = await Promise.all([
-        supabase.from('likes').select('post_id, reaction_type').eq('user_id', profile.id),
-        supabase.from('bookmarks').select('post_id').eq('user_id', profile.id),
+        db.from('likes').select('post_id, reaction_type').eq('user_id', profile.id),
+        db.from('bookmarks').select('post_id').eq('user_id', profile.id),
       ]);
 
       const userLikes = likesResult.data?.map(l => l.post_id) || [];
@@ -239,8 +239,8 @@ export function useFollowingPosts() {
       const postsWithCounts = await Promise.all(
         (posts || []).map(async (post) => {
           const [likesCount, commentsCount] = await Promise.all([
-            supabase.from('likes').select('id', { count: 'exact', head: true }).eq('post_id', post.id),
-            supabase.from('comments').select('id', { count: 'exact', head: true }).eq('post_id', post.id),
+            db.from('likes').select('id', { count: 'exact', head: true }).eq('post_id', post.id),
+            db.from('comments').select('id', { count: 'exact', head: true }).eq('post_id', post.id),
           ]);
 
           const author = post.author as unknown as { id: string; username: string; display_name?: string | null; avatar_url: string | null; is_verified?: boolean | null } | null;
@@ -352,12 +352,12 @@ export function useCreatePost() {
 
           const fileName = `${authUserId}/${Date.now()}-${Math.random().toString(36).slice(2)}.${fileExt}`;
           const { error: uploadError } = await withTimeout(
-            supabase.storage.from('media').upload(fileName, uploadBlob),
+            db.storage.from('media').upload(fileName, uploadBlob),
             120000,
             'Upload timed out. Check your connection and try again.'
           );
           if (uploadError) throw uploadError;
-          const { data: { publicUrl: url } } = supabase.storage.from('media').getPublicUrl(fileName);
+          const { data: { publicUrl: url } } = db.storage.from('media').getPublicUrl(fileName);
           uploadedUrls.push(url);
         }
         publicUrl = uploadedUrls[0];
@@ -382,12 +382,12 @@ export function useCreatePost() {
 
         const fileName = `${authUserId}/${Date.now()}.${fileExt}`;
         const { error: uploadError } = await withTimeout(
-          supabase.storage.from('media').upload(fileName, uploadBlob),
+          db.storage.from('media').upload(fileName, uploadBlob),
           120000,
           'Upload timed out. Check your connection and try again.'
         );
         if (uploadError) throw uploadError;
-        const { data: { publicUrl: url } } = supabase.storage.from('media').getPublicUrl(fileName);
+        const { data: { publicUrl: url } } = db.storage.from('media').getPublicUrl(fileName);
         publicUrl = url;
 
         // Auto-generate video thumbnail if none provided
@@ -400,9 +400,9 @@ export function useCreatePost() {
             );
             const thumbExt = getCompressedExtension();
             const thumbFileName = `${authUserId}/thumb_${Date.now()}.${thumbExt}`;
-            const { error: thumbErr } = await supabase.storage.from('media').upload(thumbFileName, thumbBlob, { contentType: `image/${thumbExt}` });
+            const { error: thumbErr } = await db.storage.from('media').upload(thumbFileName, thumbBlob, { contentType: `image/${thumbExt}` });
             if (!thumbErr) {
-              const { data: { publicUrl: thumbUrl } } = supabase.storage.from('media').getPublicUrl(thumbFileName);
+              const { data: { publicUrl: thumbUrl } } = db.storage.from('media').getPublicUrl(thumbFileName);
               thumbnailUrl = thumbUrl;
             }
           } catch (e) {
@@ -416,9 +416,9 @@ export function useCreatePost() {
       if (data.thumbnailFile) {
         const thumbExt = data.thumbnailFile.name.split('.').pop();
         const thumbFileName = `${authUserId}/thumb_${Date.now()}.${thumbExt}`;
-        const { error: thumbError } = await supabase.storage.from('media').upload(thumbFileName, data.thumbnailFile);
+        const { error: thumbError } = await db.storage.from('media').upload(thumbFileName, data.thumbnailFile);
         if (!thumbError) {
-          const { data: { publicUrl: thumbPublicUrl } } = supabase.storage.from('media').getPublicUrl(thumbFileName);
+          const { data: { publicUrl: thumbPublicUrl } } = db.storage.from('media').getPublicUrl(thumbFileName);
           thumbnailUrl = thumbPublicUrl;
         }
       } else if (data.thumbnailDataUrl) {
@@ -426,9 +426,9 @@ export function useCreatePost() {
           const response = await fetch(data.thumbnailDataUrl);
           const blob = await response.blob();
           const thumbFileName = `${authUserId}/thumb_${Date.now()}.jpg`;
-          const { error: thumbError } = await supabase.storage.from('media').upload(thumbFileName, blob, { contentType: 'image/jpeg' });
+          const { error: thumbError } = await db.storage.from('media').upload(thumbFileName, blob, { contentType: 'image/jpeg' });
           if (!thumbError) {
-            const { data: { publicUrl: thumbPublicUrl } } = supabase.storage.from('media').getPublicUrl(thumbFileName);
+            const { data: { publicUrl: thumbPublicUrl } } = db.storage.from('media').getPublicUrl(thumbFileName);
             thumbnailUrl = thumbPublicUrl;
           }
         } catch (e) {
@@ -440,7 +440,7 @@ export function useCreatePost() {
       const postType = data.type === 'text' ? 'post' : data.type;
 
       // Create post
-      const { data: post, error } = await supabase
+      const { data: post, error } = await db
         .from('posts')
         .insert({
           author_id: profile.id,
@@ -517,7 +517,7 @@ export function useTogglePin() {
       // If the user is at the cap, auto-unpin their oldest pinned post so the
       // newest pin succeeds (matches IG/X/TikTok behavior).
       if (isPinned && profile?.id) {
-        const { data: existingPins, error: pinErr } = await supabase
+        const { data: existingPins, error: pinErr } = await db
           .from('posts')
           .select('id, created_at')
           .eq('author_id', profile.id)
@@ -531,7 +531,7 @@ export function useTogglePin() {
         if (pins.length >= PIN_LIMIT) {
           const toUnpin = pins.slice(0, pins.length - (PIN_LIMIT - 1));
           if (toUnpin.length > 0) {
-            const { error: unpinErr } = await supabase
+            const { error: unpinErr } = await db
               .from('posts')
               .update({ is_pinned: false })
               .in('id', toUnpin.map((p) => p.id));
@@ -540,7 +540,7 @@ export function useTogglePin() {
         }
       }
 
-      const { error } = await supabase
+      const { error } = await db
         .from('posts')
         .update({ is_pinned: isPinned })
         .eq('id', postId);

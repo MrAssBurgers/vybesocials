@@ -4,7 +4,7 @@ import { Loader2, RefreshCw } from 'lucide-react';
 import { VybeMiniIcon } from '@/components/ui/VybeMiniIcon';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/lib/auth';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { PostCard } from '@/components/posts/PostCard';
 import { toast } from 'sonner';
 import { getFunctionAuthHeaders } from '@/lib/functionAuth';
@@ -78,7 +78,7 @@ export function AIRecommendations() {
       setReason(aiReason || 'Based on your interests');
 
       if (recommended_ids && recommended_ids.length > 0) {
-        const { data } = await supabase
+        const { data } = await db
           .from('posts')
           .select(`
             id, type, media_url, caption, tags, created_at,
@@ -115,7 +115,7 @@ export function AIRecommendations() {
   };
 
   const fetchFallbackPosts = async () => {
-    const { data } = await supabase
+    const { data } = await db
       .from('posts')
       .select(`
         id, type, media_url, caption, tags, created_at,
@@ -138,10 +138,10 @@ export function AIRecommendations() {
     const postIds = data.map(p => p.id);
     
     const [likesRes, bookmarksRes, likeCountsRes, commentCountsRes] = await Promise.all([
-      supabase.from('likes').select('post_id').eq('user_id', profile.id).in('post_id', postIds),
-      supabase.from('bookmarks').select('post_id').eq('user_id', profile.id).in('post_id', postIds),
-      supabase.from('likes').select('post_id').in('post_id', postIds),
-      supabase.from('comments').select('post_id').in('post_id', postIds),
+      db.from('likes').select('post_id').eq('user_id', profile.id).in('post_id', postIds),
+      db.from('bookmarks').select('post_id').eq('user_id', profile.id).in('post_id', postIds),
+      db.from('likes').select('post_id').in('post_id', postIds),
+      db.from('comments').select('post_id').in('post_id', postIds),
     ]);
 
     const likedIds = new Set(likesRes.data?.map(l => l.post_id) || []);

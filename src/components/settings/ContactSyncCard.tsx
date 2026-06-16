@@ -5,7 +5,7 @@ import { Switch } from '@/components/ui/switch';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { Users, Loader2, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth';
 import { normalizeE164, hashPhoneE164 } from '@/lib/phone';
 
@@ -31,8 +31,8 @@ export function ContactSyncCard() {
     if (!user) return;
     (async () => {
       const [{ data: prof }, { count }] = await Promise.all([
-        supabase.from('profiles').select('id, contact_discoverable, phone_verified').eq('user_id', user.id).maybeSingle(),
-        supabase.from('contact_hashes').select('sha256', { count: 'exact', head: true }).eq('user_id', user.id),
+        db.from('profiles').select('id, contact_discoverable, phone_verified').eq('user_id', user.id).maybeSingle(),
+        db.from('contact_hashes').select('sha256', { count: 'exact', head: true }).eq('user_id', user.id),
       ]);
       if (prof) {
         setDiscoverable(!!prof.contact_discoverable);
@@ -50,7 +50,7 @@ export function ContactSyncCard() {
       return;
     }
     setDiscoverable(v);
-    const { error } = await supabase
+    const { error } = await db
       .from('profiles')
       .update({ contact_discoverable: v })
       .eq('user_id', user.id);
@@ -105,11 +105,11 @@ export function ContactSyncCard() {
       const rows = hashes.map(sha256 => ({ user_id: user.id, sha256 }));
       const chunkSize = 500;
       for (let i = 0; i < rows.length; i += chunkSize) {
-        await supabase.from('contact_hashes').upsert(rows.slice(i, i + chunkSize), { onConflict: 'user_id,sha256' });
+        await db.from('contact_hashes').upsert(rows.slice(i, i + chunkSize), { onConflict: 'user_id,sha256' });
       }
       setUploadedCount(hashes.length);
 
-      const { data, error } = await supabase.rpc('match_contacts', { hashes });
+      const { data, error } = await db.rpc('match_contacts', { hashes });
       if (error) throw error;
       setMatches((data || []) as Match[]);
       toast.success(`Found ${data?.length ?? 0} friends on VYBE`);
@@ -126,7 +126,7 @@ export function ContactSyncCard() {
 
   const addFriend = async (toProfileId: string) => {
     if (!myProfileId) return;
-    const { error } = await supabase
+    const { error } = await db
       .from('friend_requests')
       .insert({ sender_id: myProfileId, receiver_id: toProfileId, status: 'pending' });
     if (error && !error.message.includes('duplicate')) {
@@ -139,7 +139,7 @@ export function ContactSyncCard() {
 
   const clearUploaded = async () => {
     if (!user) return;
-    const { error } = await supabase.from('contact_hashes').delete().eq('user_id', user.id);
+    const { error } = await db.from('contact_hashes').delete().eq('user_id', user.id);
     if (error) { toast.error('Could not clear'); return; }
     setUploadedCount(0);
     setMatches(null);

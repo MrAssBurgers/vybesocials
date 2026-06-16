@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 
 export interface LandingCreator {
   id: string;
@@ -18,7 +18,7 @@ export function useLandingTopCreators(limit = 4) {
   return useQuery<LandingCreator[]>({
     queryKey: ['landing-top-creators', limit],
     queryFn: async () => {
-      const { data, error } = await supabase.rpc('get_landing_top_creators', { _limit: limit });
+      const { data, error } = await db.rpc('get_landing_top_creators', { _limit: limit });
       if (error) {
         console.warn('[landing-top-creators] rpc failed', error);
         return [];

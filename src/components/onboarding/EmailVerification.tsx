@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Mail, Shield, CheckCircle, Loader2 } from 'lucide-react';
 import { VybeMiniIcon } from '@/components/ui/VybeMiniIcon';
 import { useState, useEffect } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { getAuthRedirectUrl } from '@/lib/authRedirect';
 import { toast } from 'sonner';
 
@@ -65,7 +65,7 @@ export function EmailVerification({ onVerified }: EmailVerificationProps) {
       // `shouldCreateUser:false` fails on existing-but-unverified accounts
       // with "Signups not allowed for otp" — that was the source of the
       // generic "failed to send verification code" toast.
-      const { error } = await supabase.auth.resend({
+      const { error } = await db.auth.resend({
         type: 'signup',
         email: user.email,
         options: { emailRedirectTo: getAuthRedirectUrl('/auth/callback') },
@@ -74,7 +74,7 @@ export function EmailVerification({ onVerified }: EmailVerificationProps) {
       if (error) {
         // Fallback path: try OTP signin (covers email-change flows).
         console.warn('[email-verify] resend failed, trying signInWithOtp', error);
-        const { error: otpErr } = await supabase.auth.signInWithOtp({
+        const { error: otpErr } = await db.auth.signInWithOtp({
           email: user.email,
           options: { shouldCreateUser: false },
         });
@@ -98,7 +98,7 @@ export function EmailVerification({ onVerified }: EmailVerificationProps) {
     setLoading(true);
     
     try {
-      const { error } = await supabase.auth.verifyOtp({
+      const { error } = await db.auth.verifyOtp({
         email: user.email,
         token: code,
         type: 'email',

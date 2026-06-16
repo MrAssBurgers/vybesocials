@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { useAuth } from '@/lib/auth';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { toast } from 'sonner';
 
 const QUIZ_QUESTIONS = [
@@ -209,13 +209,13 @@ export default function MusicPersonalityQuiz() {
     setIsSaving(true);
     try {
       // Save music personality to profile
-      await supabase
+      await db
         .from('profiles')
         .update({ music_personality: personality } as any)
         .eq('id', profile.id);
 
       // Award XP for completing the quiz
-      await supabase.rpc('add_user_xp', {
+      await db.rpc('add_user_xp', {
         p_user_id: profile.id,
         p_xp: 100,
         p_source: 'music_quiz'
@@ -235,7 +235,7 @@ export default function MusicPersonalityQuiz() {
     try {
       const personality = PERSONALITIES[result];
       
-      const { error } = await supabase.from('posts').insert({
+      const { error } = await db.from('posts').insert({
         author_id: profile.id,
         type: 'post',
         caption: `${personality.emoji} I just discovered my Music DNA — I'm **${personality.title}**!\n\n"${personality.description}"\n\n🎵 My strengths: ${personality.strengths.join(', ')}\n⚡ DNA Boost: ${personality.dnaBoost}\n\nDiscover your sound identity on VYBE! #MusicDNA #VybeQuiz`,
@@ -243,7 +243,7 @@ export default function MusicPersonalityQuiz() {
 
       if (error) throw error;
       
-      await supabase.rpc('add_user_xp', {
+      await db.rpc('add_user_xp', {
         p_user_id: profile.id,
         p_xp: 50,
         p_source: 'music_quiz_share'

@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth';
 import { useAuthProfileId } from '@/hooks/useAuthProfileId';
 import { getEffectiveProfileId } from '@/lib/profileCache';
@@ -57,13 +57,13 @@ export function useStories() {
       if (!profileId) return [];
 
       // Get friends using friend_requests table (accepted requests)
-      const { data: asSender } = await supabase
+      const { data: asSender } = await db
         .from('friend_requests')
         .select('receiver_id')
         .eq('sender_id', profileId)
         .eq('status', 'accepted');
 
-      const { data: asReceiver } = await supabase
+      const { data: asReceiver } = await db
         .from('friend_requests')
         .select('sender_id')
         .eq('receiver_id', profileId)
@@ -78,7 +78,7 @@ export function useStories() {
       // Get non-expired stories - ONLY from friends and self
       const allowedIds = [profileId, ...Array.from(friendIds)];
       
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('stories')
         .select(`
           *,
@@ -90,7 +90,7 @@ export function useStories() {
 
       if (error) throw error;
 
-      const { data: views } = await supabase
+      const { data: views } = await db
         .from('story_views')
         .select('story_id')
         .eq('viewer_id', profileId);
@@ -196,7 +196,7 @@ export function useCreateStory() {
           author:profiles!author_id(id, username, avatar_url, display_name)
         `;
 
-      let { data, error } = await (supabase.from('stories') as any)
+      let { data, error } = await (db.from('stories') as any)
         .insert(payload)
         .select(storySelect)
         .maybeSingle();
@@ -204,7 +204,7 @@ export function useCreateStory() {
       // Prod may lag migrations — retry without poll_data if column missing.
       if (error && pollData && /poll_data|column/i.test(error.message || '')) {
         const { poll_data: _omit, ...withoutPoll } = payload;
-        ({ data, error } = await (supabase.from('stories') as any)
+        ({ data, error } = await (db.from('stories') as any)
           .insert(withoutPoll)
           .select(storySelect)
           .maybeSingle());
@@ -222,7 +222,7 @@ export function useCreateStory() {
       }
 
       if (!data) {
-        const { data: latest, error: fetchError } = await (supabase.from('stories') as any)
+        const { data: latest, error: fetchError } = await (db.from('stories') as any)
           .select(`
             *,
             author:profiles!author_id(id, username, avatar_url, display_name)
@@ -381,7 +381,7 @@ export function useViewStory() {
     mutationFn: async (storyId: string) => {
       if (!profile?.id) throw new Error('Not authenticated');
 
-      const { error } = await supabase
+      const { error } = await db
         .from('story_views')
         .upsert(
           {
@@ -443,7 +443,7 @@ export function useCloseFriends() {
     queryFn: async () => {
       if (!profile?.id) return [];
 
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('close_friends')
         .select(`
           id,
@@ -467,7 +467,7 @@ export function useManageCloseFriend() {
       if (!profile?.id) throw new Error('Not authenticated');
 
       if (action === 'add') {
-        const { error } = await supabase
+        const { error } = await db
           .from('close_friends')
           .insert({
             user_id: profile.id,
@@ -475,7 +475,7 @@ export function useManageCloseFriend() {
           });
         if (error) throw error;
       } else {
-        const { error } = await supabase
+        const { error } = await db
           .from('close_friends')
           .delete()
           .eq('user_id', profile.id)

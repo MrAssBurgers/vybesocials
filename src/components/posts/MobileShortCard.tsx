@@ -14,7 +14,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
@@ -191,7 +191,7 @@ export const MobileShortCard = memo(function MobileShortCard({
 
   const incrementViewCount = async () => {
     try {
-      const { error } = await supabase.rpc('increment_view_count', { post_id_param: post.id });
+      const { error } = await db.rpc('increment_view_count', { post_id_param: post.id });
       if (error) {
         console.error('RPC error:', error);
         // Fallback: optimistically update local state
@@ -259,12 +259,12 @@ export const MobileShortCard = memo(function MobileShortCard({
     });
 
     if (newIsLiked) {
-      await supabase.from('likes').upsert(
+      await db.from('likes').upsert(
         { user_id: profile.id, post_id: post.id, reaction_type: reactionType } as any,
         { onConflict: 'user_id,post_id', ignoreDuplicates: false }
       );
       if (!wasLiked && post.author.id !== profile.id) {
-        await supabase.from('notifications').insert({
+        await db.from('notifications').insert({
           user_id: post.author.id,
           type: 'like',
           actor_id: profile.id,
@@ -272,7 +272,7 @@ export const MobileShortCard = memo(function MobileShortCard({
         });
       }
     } else {
-      await supabase.from('likes').delete().match({ user_id: profile.id, post_id: post.id });
+      await db.from('likes').delete().match({ user_id: profile.id, post_id: post.id });
     }
   }, [profile, currentReaction, post.author.id, post.id]);
 
@@ -324,9 +324,9 @@ export const MobileShortCard = memo(function MobileShortCard({
     setIsBookmarked(newIsBookmarked);
 
     if (newIsBookmarked) {
-      await supabase.from('bookmarks').insert({ user_id: profile.id, post_id: post.id });
+      await db.from('bookmarks').insert({ user_id: profile.id, post_id: post.id });
     } else {
-      await supabase.from('bookmarks').delete().match({ user_id: profile.id, post_id: post.id });
+      await db.from('bookmarks').delete().match({ user_id: profile.id, post_id: post.id });
     }
   };
 

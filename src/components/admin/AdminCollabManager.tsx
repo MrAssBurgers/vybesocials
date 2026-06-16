@@ -5,7 +5,7 @@ import {
   CheckCircle, XCircle, Eye, ExternalLink, Users
 } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -52,7 +52,7 @@ export function AdminCollabManager() {
   const { data: sponsors = [], isLoading: sponsorsLoading } = useQuery({
     queryKey: ['admin-sponsors'],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('sponsor_profiles')
         .select('*')
         .order('created_at', { ascending: false });
@@ -66,7 +66,7 @@ export function AdminCollabManager() {
   const { data: collabPosts = [], isLoading: collabsLoading } = useQuery({
     queryKey: ['admin-collab-posts'],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('collab_posts')
         .select(`
           *,
@@ -84,7 +84,7 @@ export function AdminCollabManager() {
   const { data: sponsorAnalytics = {} } = useQuery({
     queryKey: ['sponsor-analytics'],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('sponsor_analytics')
         .select('sponsor_id, event_type')
         .order('created_at', { ascending: false })
@@ -112,7 +112,7 @@ export function AdminCollabManager() {
     mutationFn: async (data: SponsorFormData) => {
       if (!profile?.id) throw new Error('Not authenticated');
       
-      const { error } = await supabase.from('sponsor_profiles').insert({
+      const { error } = await db.from('sponsor_profiles').insert({
         company_name: data.company_name,
         company_logo: data.company_logo || null,
         description: data.description || null,
@@ -135,7 +135,7 @@ export function AdminCollabManager() {
   // Update sponsor mutation
   const updateSponsor = useMutation({
     mutationFn: async ({ id, data }: { id: string; data: SponsorFormData }) => {
-      const { error } = await supabase
+      const { error } = await db
         .from('sponsor_profiles')
         .update({
           company_name: data.company_name,
@@ -162,7 +162,7 @@ export function AdminCollabManager() {
   // Delete sponsor mutation
   const deleteSponsor = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from('sponsor_profiles').delete().eq('id', id);
+      const { error } = await db.from('sponsor_profiles').delete().eq('id', id);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -175,7 +175,7 @@ export function AdminCollabManager() {
   // Toggle sponsor verification
   const toggleVerified = useMutation({
     mutationFn: async ({ id, verified }: { id: string; verified: boolean }) => {
-      const { error } = await supabase
+      const { error } = await db
         .from('sponsor_profiles')
         .update({ is_verified: verified })
         .eq('id', id);
@@ -190,13 +190,13 @@ export function AdminCollabManager() {
   const updateCollab = useMutation({
     mutationFn: async ({ id, accept }: { id: string; accept: boolean }) => {
       if (accept) {
-        const { error } = await supabase
+        const { error } = await db
           .from('collab_posts')
           .update({ accepted_at: new Date().toISOString() })
           .eq('id', id);
         if (error) throw error;
       } else {
-        const { error } = await supabase.from('collab_posts').delete().eq('id', id);
+        const { error } = await db.from('collab_posts').delete().eq('id', id);
         if (error) throw error;
       }
     },

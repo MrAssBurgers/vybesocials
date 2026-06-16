@@ -1,4 +1,4 @@
-/** Parse supabase.functions.invoke results including non-2xx JSON bodies. */
+/** Parse db.functions.invoke results including non-2xx JSON bodies. */
 export async function parseEdgeInvokeResult<T extends Record<string, unknown> = Record<string, unknown>>(
   result: { data: T | null; error: { message?: string; context?: Response } | null },
 ): Promise<{ payload: T | null; errorCode?: string; errorMessage?: string }> {

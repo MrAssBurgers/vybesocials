@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { useAuthProfileId } from '@/hooks/useAuthProfileId';
 
 /**
@@ -13,7 +13,7 @@ export function useBlockedUserIds() {
     queryKey: ['blocked-user-ids', profileId],
     queryFn: async (): Promise<string[]> => {
       if (!profileId) return [];
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('blocked_users')
         .select('blocked_id')
         .eq('blocker_id', profileId);

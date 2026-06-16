@@ -9,7 +9,7 @@ import {
 import { clearBypassCache } from '@/lib/ownerBypass';
 import { GiftPremiumSection } from '@/components/admin/sections/GiftPremiumSection';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -28,7 +28,7 @@ function useIsOwner() {
     queryKey: ['is-owner', profile?.user_id],
     queryFn: async () => {
       if (!profile?.user_id) return false;
-      const { data } = await supabase.rpc('is_owner', { _user_id: profile.user_id });
+      const { data } = await db.rpc('is_owner', { _user_id: profile.user_id });
       return !!data;
     },
     enabled: !!profile?.user_id,
@@ -47,7 +47,7 @@ function useStripeConfigAdmin() {
   return useQuery({
     queryKey: ['admin-stripe-config'],
     queryFn: async (): Promise<StripeConfig | null> => {
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('stripe_config')
         .select('*')
         .limit(1)
@@ -62,7 +62,7 @@ function useSecretStatuses() {
   return useQuery({
     queryKey: ['admin-secret-statuses'],
     queryFn: async (): Promise<Record<string, boolean>> => {
-      const { data, error } = await supabase.functions.invoke('manage-secrets', {
+      const { data, error } = await db.functions.invoke('manage-secrets', {
         body: { action: 'list' },
       });
       if (error) throw error;
@@ -77,7 +77,7 @@ function useOwnerBypassSetting() {
   const query = useQuery({
     queryKey: ['owner-ai-bypass-enabled'],
     queryFn: async () => {
-      const { data } = await supabase
+      const { data } = await db
         .from('app_secrets')
         .select('value')
         .eq('key', 'OWNER_AI_BYPASS_ENABLED')
@@ -88,7 +88,7 @@ function useOwnerBypassSetting() {
 
   const toggle = useMutation({
     mutationFn: async (enabled: boolean) => {
-      const { error } = await supabase
+      const { error } = await db
         .from('app_secrets')
         .upsert({ key: 'OWNER_AI_BYPASS_ENABLED', value: enabled ? 'true' : 'false', updated_at: new Date().toISOString() }, { onConflict: 'key' });
       if (error) throw error;
@@ -132,7 +132,7 @@ function SecretRow({ name, label, description, placeholder, isSet, onSaved }: {
     if (!value.trim()) { toast.error('Please enter a value'); return; }
     setSaving(true);
     try {
-      const { data, error } = await supabase.functions.invoke('manage-secrets', {
+      const { data, error } = await db.functions.invoke('manage-secrets', {
         body: { action: 'set', secret_name: name, secret_value: value.trim() },
       });
       if (error) throw error;
@@ -323,11 +323,11 @@ export default function AdminSettings() {
       };
 
       if (stripeConfig?.id) {
-        const { error } = await supabase.from('stripe_config').update(updateData).eq('id', stripeConfig.id);
+        const { error } = await db.from('stripe_config').update(updateData).eq('id', stripeConfig.id);
         if (error) throw error;
       } else {
         // No config row exists yet — insert one
-        const { error } = await supabase.from('stripe_config').insert(updateData);
+        const { error } = await db.from('stripe_config').insert(updateData);
         if (error) throw error;
       }
 

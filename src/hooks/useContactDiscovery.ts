@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth';
 import { toast } from 'sonner';
 
@@ -75,7 +75,7 @@ export function useContactDiscovery() {
 
       // Search for users with matching verified phone numbers (server-side RPC,
       // never exposes raw phone_number to the client).
-      const { data: users, error } = await (supabase
+      const { data: users, error } = await (db
         .rpc('discover_users_by_phone', { _phones: phoneNumbers }) as any);
 
       if (error) throw error;

@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { subscribePostgresChannel, removeRealtimeChannel } from '@/lib/realtimeChannel';
 import { useAuthProfileId } from '@/hooks/useAuthProfileId';
 
@@ -22,7 +22,7 @@ function useUnreadMessagesCount() {
     queryFn: async () => {
       if (!profileId) return 0;
 
-      const { data: memberships } = await supabase
+      const { data: memberships } = await db
         .from('conversation_members')
         .select('conversation_id, last_read_at')
         .eq('user_id', profileId);
@@ -32,7 +32,7 @@ function useUnreadMessagesCount() {
       let totalUnread = 0;
 
       for (const membership of memberships) {
-        const query = supabase
+        const query = db
           .from('messages')
           .select('id', { count: 'exact', head: true })
           .eq('conversation_id', membership.conversation_id)
@@ -65,7 +65,7 @@ function useUnreadNotificationsCount() {
     queryFn: async () => {
       if (!profileId) return 0;
 
-      const { count } = await supabase
+      const { count } = await db
         .from('notifications')
         .select('id', { count: 'exact', head: true })
         .eq('user_id', profileId)

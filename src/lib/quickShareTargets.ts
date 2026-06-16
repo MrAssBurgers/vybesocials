@@ -1,4 +1,4 @@
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { getRecentMessageUsers, type RecentMessageUser } from '@/lib/recentMessageUsers';
 
 export type QuickShareTarget = {
@@ -103,7 +103,7 @@ export async function getQuickShareTargets(
   // Hydrate remaining IDs we don't have profiles for.
   const missingIds = orderedIds.filter((id) => !result.find((r) => r.id === id));
   if (missingIds.length > 0) {
-    const { data } = await supabase
+    const { data } = await db
       .from('profiles')
       .select('id, username, display_name, avatar_url')
       .in('id', missingIds);
@@ -121,13 +121,13 @@ export async function getQuickShareTargets(
   if (result.length < limit) {
     try {
       const [{ data: asSender }, { data: asReceiver }] = await Promise.all([
-        supabase
+        db
           .from('friend_requests')
           .select('receiver:profiles!receiver_id(id, username, display_name, avatar_url)')
           .eq('sender_id', ownerProfileId)
           .eq('status', 'accepted')
           .limit(limit),
-        supabase
+        db
           .from('friend_requests')
           .select('sender:profiles!sender_id(id, username, display_name, avatar_url)')
           .eq('receiver_id', ownerProfileId)

@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth';
 import { useAuthProfileId } from '@/hooks/useAuthProfileId';
 
@@ -78,7 +78,7 @@ export function useChallenges() {
       const { today, weekStart } = getDateFilters();
       
       // Fetch achievements (no date filter)
-      const { data: achievements, error: achError } = await supabase
+      const { data: achievements, error: achError } = await db
         .from('challenges')
         .select('*')
         .eq('is_active', true)
@@ -87,7 +87,7 @@ export function useChallenges() {
       if (achError) throw achError;
       
       // Fetch today's daily challenges (date-specific first)
-      const { data: dailies, error: dailyError } = await supabase
+      const { data: dailies, error: dailyError } = await db
         .from('challenges')
         .select('*')
         .eq('is_active', true)
@@ -102,8 +102,8 @@ export function useChallenges() {
       // populate them from the template library, then re-fetch once.
       if (finalDailies.length === 0) {
         try {
-          await supabase.rpc('rotate_challenges');
-          const { data: refreshed } = await supabase
+          await db.rpc('rotate_challenges');
+          const { data: refreshed } = await db
             .from('challenges')
             .select('*')
             .eq('is_active', true)
@@ -117,7 +117,7 @@ export function useChallenges() {
 
       // Final fallback: NULL-dated dailies
       if (finalDailies.length === 0) {
-        const { data: fallbackDailies } = await supabase
+        const { data: fallbackDailies } = await db
           .from('challenges')
           .select('*')
           .eq('is_active', true)
@@ -127,7 +127,7 @@ export function useChallenges() {
       }
       
       // Fetch this week's weekly challenges (date-specific first)
-      const { data: weeklies, error: weeklyError } = await supabase
+      const { data: weeklies, error: weeklyError } = await db
         .from('challenges')
         .select('*')
         .eq('is_active', true)
@@ -139,7 +139,7 @@ export function useChallenges() {
       // Fallback: if no date-specific weeklies, fetch ones with NULL active_week_start
       let finalWeeklies = weeklies || [];
       if (finalWeeklies.length === 0) {
-        const { data: fallbackWeeklies, error: fbError } = await supabase
+        const { data: fallbackWeeklies, error: fbError } = await db
           .from('challenges')
           .select('*')
           .eq('is_active', true)
@@ -169,7 +169,7 @@ export function useUserChallengeProgress() {
     queryFn: async () => {
       if (!profileId) return [];
       
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('challenge_progress')
         .select(`
           *,
@@ -204,7 +204,7 @@ export function useChallengesWithProgress() {
     queryKey: ['claimed-rewards', authUserId],
     queryFn: async () => {
       if (!authUserId) return [];
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('challenge_rewards')
         .select('challenge_id, is_claimed')
         .eq('user_id', authUserId);
@@ -262,7 +262,7 @@ export function useUpdateChallengeProgress() {
 
       // Server-side RPC: enforces validation, prevents tampering with
       // is_completed / current_count and protects reward triggers.
-      const { data, error } = await supabase.rpc('increment_challenge_progress', {
+      const { data, error } = await db.rpc('increment_challenge_progress', {
         p_challenge_id: challengeId,
         p_increment: increment,
       });

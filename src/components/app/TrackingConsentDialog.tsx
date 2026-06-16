@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Shield } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/lib/auth';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { isDespiaRuntime } from '@/lib/despiaBridge';
 import { syncNativeTrackingConsent, TRACKING_CONSENT_KEY, pollNativeTrackingConsent } from '@/lib/att';
 import { ATT_RESUME_EVENT } from '@/lib/attResumeRecovery';
@@ -50,7 +50,7 @@ export const TrackingConsentDialog = memo(function TrackingConsentDialog() {
     };
 
     if (profile?.id) {
-      supabase
+      db
         .rpc('get_own_sensitive_profile')
         .single()
         .then(
@@ -79,7 +79,7 @@ export const TrackingConsentDialog = memo(function TrackingConsentDialog() {
     setVisible(false);
 
     if (profile?.id) {
-      await supabase
+      await db
         .from('profiles')
         .update({ tracking_consent: consent } as any)
         .eq('id', profile.id);

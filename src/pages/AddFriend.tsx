@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/lib/auth';
 import { useAuthProfileId } from '@/hooks/useAuthProfileId';
 import { useFriendshipStatus, useSendFriendRequest } from '@/hooks/useFriends';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { useQuery } from '@tanstack/react-query';
 import { Loader2, UserPlus, Check, Users } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -33,7 +33,7 @@ export default function AddFriend() {
     queryKey: ['add-friend-user', userId],
     queryFn: async () => {
       if (!userId) return null;
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('profiles')
         .select('id, username, avatar_url, display_name')
         .eq('id', userId)

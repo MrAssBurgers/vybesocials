@@ -7,7 +7,7 @@
  */
 
 import { createContext, useContext, useState, useCallback, useEffect, useRef, ReactNode } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth';
 import { getSignedUrl, needsSigning } from '@/lib/signedUrlCache';
 import { THEME_IMAGES } from '@/lib/cosmeticConstants';
@@ -202,7 +202,7 @@ export function AppBackgroundProvider({ children }: { children: ReactNode }) {
 
     // 2. Active user_backgrounds upload — explicit custom wallpaper; hides liquid aurora
     try {
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('user_backgrounds')
         .select('image_url')
         .eq('user_id', profileId)

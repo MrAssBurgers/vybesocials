@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth';
 import { useAuthProfileId } from '@/hooks/useAuthProfileId';
 
@@ -25,7 +25,7 @@ export function useAnnouncements() {
   return useQuery({
     queryKey: ['announcements', profileId],
     queryFn: async () => {
-      const { data: announcements, error } = await supabase
+      const { data: announcements, error } = await db
         .from('announcements')
         .select(`
           *,
@@ -36,7 +36,7 @@ export function useAnnouncements() {
       
       if (error) throw error;
       
-      const { data: dismissed } = await supabase
+      const { data: dismissed } = await db
         .from('dismissed_announcements')
         .select('announcement_id')
         .eq('user_id', profileId || '');
@@ -56,7 +56,7 @@ export function useDismissAnnouncement() {
   
   return useMutation({
     mutationFn: async (announcementId: string) => {
-      const { error } = await supabase
+      const { error } = await db
         .from('dismissed_announcements')
         .upsert({
           user_id: profile!.id,
@@ -76,7 +76,7 @@ export function useCreateAnnouncement() {
   
   return useMutation({
     mutationFn: async ({ title, content, image_url, media_type }: { title: string; content: string; image_url?: string; media_type?: string }) => {
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('announcements')
         .insert({
           title,
@@ -90,13 +90,13 @@ export function useCreateAnnouncement() {
       
       if (error) throw error;
       
-      const { data: usersToNotify } = await supabase
+      const { data: usersToNotify } = await db
         .from('profiles')
         .select('id')
         .neq('id', profile!.id);
       
       if (usersToNotify && usersToNotify.length > 0) {
-        const { data: disabledPrefs } = await supabase
+        const { data: disabledPrefs } = await db
           .from('notification_preferences')
           .select('user_id')
           .eq('announcements_enabled', false);
@@ -114,7 +114,7 @@ export function useCreateAnnouncement() {
             type: 'announcement' as const,
           }));
           
-          await supabase.from('notifications').insert(notifications);
+          await db.from('notifications').insert(notifications);
         }
       }
       
@@ -131,7 +131,7 @@ export function useUpdateAnnouncement() {
   
   return useMutation({
     mutationFn: async ({ id, title, content, image_url, media_type }: { id: string; title: string; content: string; image_url?: string | null; media_type?: string | null }) => {
-      const { error } = await supabase
+      const { error } = await db
         .from('announcements')
         .update({ title, content, image_url: image_url ?? null, media_type: media_type ?? 'image' })
         .eq('id', id);
@@ -148,7 +148,7 @@ export function useRecentAnnouncements(limit = 5) {
   return useQuery({
     queryKey: ['recent-announcements', limit],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('announcements')
         .select(`
           *,
@@ -171,7 +171,7 @@ export function useClearAnnouncementNotifications() {
   return useMutation({
     mutationFn: async () => {
       if (!profile?.id) return;
-      await supabase
+      await db
         .from('notifications')
         .delete()
         .eq('user_id', profile.id)

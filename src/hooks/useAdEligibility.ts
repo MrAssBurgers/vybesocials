@@ -3,7 +3,7 @@ import { useAuth } from '@/lib/auth';
 import { useRevenueCat } from '@/hooks/useRevenueCat';
 import { getTrackingConsent } from '@/components/app/TrackingConsentDialog';
 import { isDespiaRuntime, isNativeAppShell } from '@/lib/despiaBridge';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 
 const PREMIUM_ENTITLEMENT_ID = 'Vybe Social Pro';
 
@@ -34,7 +34,7 @@ export function useAdEligibility() {
   const { data: userAge, isLoading: ageLoading } = useQuery({
     queryKey: ['user-age-ads', user?.id],
     queryFn: async () => {
-      const { data, error } = await supabase.rpc('get_own_sensitive_profile');
+      const { data, error } = await db.rpc('get_own_sensitive_profile');
       if (error || !data) return null;
       const dob = (data as { date_of_birth?: string }).date_of_birth;
       if (!dob) return null;

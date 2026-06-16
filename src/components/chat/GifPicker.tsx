@@ -7,7 +7,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { useGifFavorites, SavedGif } from '@/hooks/useGifFavorites';
 import { cn } from '@/lib/utils';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 
 // GIPHY calls go through the giphy-search edge function so the API key
 // stays server-side. No client-bundled credentials.
@@ -43,7 +43,7 @@ export const GifPicker = memo(function GifPicker({ onSelect, onClose }: GifPicke
   const fetchGifs = useCallback(async (query: string, offset = 0) => {
     try {
       const trimmed = query.trim();
-      const { data, error } = await supabase.functions.invoke('giphy-search', {
+      const { data, error } = await db.functions.invoke('giphy-search', {
         body: {
           endpoint: trimmed ? 'search' : 'trending',
           query: trimmed || undefined,

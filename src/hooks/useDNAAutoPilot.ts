@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth';
 import { toast } from 'sonner';
 
@@ -92,8 +92,8 @@ export function useDNAAutoPilot() {
     }
 
     const [s, a] = await Promise.all([
-      supabase.from('dna_agent_settings').select('*').eq('user_id', user.id).maybeSingle(),
-      supabase.from('dna_agent_actions').select('*').eq('user_id', user.id).order('created_at', { ascending: false }).limit(30),
+      db.from('dna_agent_settings').select('*').eq('user_id', user.id).maybeSingle(),
+      db.from('dna_agent_actions').select('*').eq('user_id', user.id).order('created_at', { ascending: false }).limit(30),
     ]);
     const mergedSettings = { ...buildDefaultSettings(user.id), ...((s.data as any) || {}) };
     const nextActions = ((a.data as any[]) || []) as AutoPilotAction[];
@@ -113,7 +113,7 @@ export function useDNAAutoPilot() {
     setSettings(p => p ? { ...p, ...patch } : { ...(patch as any), user_id: user.id });
     const merged = { ...(settings || {} as any), ...patch, user_id: user.id };
     const { last_run_at, created_at, updated_at, ...payload } = merged as any;
-    const { error } = await supabase
+    const { error } = await db
       .from('dna_agent_settings')
       .upsert(payload, { onConflict: 'user_id' });
     if (error) {
@@ -128,7 +128,7 @@ export function useDNAAutoPilot() {
   }, [updateSettings]);
 
   const clearAdaptationData = useCallback(async () => {
-    const { error } = await supabase.rpc('clear_dna_adaptation_data');
+    const { error } = await db.rpc('clear_dna_adaptation_data');
     if (error) { toast.error('Could not clear data'); return; }
     toast.success('All adaptation data cleared');
     await refresh();
@@ -138,7 +138,7 @@ export function useDNAAutoPilot() {
     if (!user?.id || running) return;
     setRunning(true);
     try {
-      const { data, error } = await supabase.functions.invoke('dna-autopilot', { body: { trigger: 'manual' } });
+      const { data, error } = await db.functions.invoke('dna-autopilot', { body: { trigger: 'manual' } });
       if (error) {
         // Friendly handling for AI gateway rate limit / credit errors
         const ctx: any = (error as any).context;
@@ -187,14 +187,14 @@ export function useDNAAutoPilot() {
   }, [user?.id, running, refresh]);
 
   const revert = useCallback(async (actionId: string) => {
-    const { error } = await supabase.functions.invoke('dna-autopilot-revert', { body: { actionId } });
+    const { error } = await db.functions.invoke('dna-autopilot-revert', { body: { actionId } });
     if (error) { toast.error('Revert failed'); return; }
     toast.success('Reverted');
     await refresh();
   }, [refresh]);
 
   const applyPending = useCallback(async (actionId: string) => {
-    const { error } = await supabase.functions.invoke('dna-autopilot-revert', { body: { actionId, applyPending: true } });
+    const { error } = await db.functions.invoke('dna-autopilot-revert', { body: { actionId, applyPending: true } });
     if (error) { toast.error('Apply failed'); return; }
     toast.success('Applied');
     await refresh();

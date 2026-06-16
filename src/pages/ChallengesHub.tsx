@@ -21,7 +21,7 @@ import { VybePassSheet } from '@/components/vybepass/VybePassSheet';
 import { ChallengeDetailSheet } from '@/components/challenges/ChallengeDetailSheet';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 
 const TYPE_CONFIG = {
   daily: {
@@ -217,7 +217,7 @@ export default function ChallengesHubPage() {
   const handleSyncProgress = async () => {
     setSyncing(true);
     try {
-      const { error } = await supabase.rpc('force_sync_my_challenges');
+      const { error } = await db.rpc('force_sync_my_challenges');
       if (error) throw error;
       
       await queryClient.invalidateQueries({ queryKey: ['challenge-progress'] });

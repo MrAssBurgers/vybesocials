@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Cookie, X } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '@/lib/auth';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { isLovablePreviewHost } from '@/lib/lovablePreview';
 
 const COOKIE_CONSENT_KEY = 'vybe-cookie-consent';
@@ -19,7 +19,7 @@ export function CookieConsentBanner() {
 
     // If logged in, check DB first so the choice follows them across devices
     if (profile?.id) {
-      supabase
+      db
         .rpc('get_own_sensitive_profile')
         .single()
         .then(({ data }) => {
@@ -43,7 +43,7 @@ export function CookieConsentBanner() {
     localStorage.setItem(COOKIE_CONSENT_KEY, value);
     setVisible(false);
     if (profile?.id) {
-      await supabase
+      await db
         .from('profiles')
         .update({ cookie_consent: value } as any)
         .eq('id', profile.id);

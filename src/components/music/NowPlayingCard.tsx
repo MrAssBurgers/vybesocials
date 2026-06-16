@@ -1,7 +1,7 @@
 import { motion, AnimatePresence } from 'framer-motion';
 import { ExternalLink, Music2, Headphones, Loader2 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth';
 import { toast } from 'sonner';
 import type { LiveMusicPresence } from '@/hooks/useLiveMusicPresence';
@@ -47,7 +47,7 @@ export function NowPlayingCard({ presence, className, hideListenAlong }: Props) 
     if (!presence?.track_id) return;
     setSyncing(true);
     try {
-      const { data, error } = await supabase.functions.invoke('spotify-listen-along', {
+      const { data, error } = await db.functions.invoke('spotify-listen-along', {
         body: { track_id: presence.track_id, position_ms: progress },
       });
       if (error) throw error;

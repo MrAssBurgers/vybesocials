@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 
 export interface AppScreenshot {
   id: string;
@@ -23,7 +23,7 @@ async function fetchScreenshots(): Promise<AppScreenshot[]> {
   if (cache) return cache;
   if (inflight) return inflight;
   inflight = (async () => {
-    const { data } = await supabase
+    const { data } = await db
       .from('app_screenshots')
       .select('*')
       .order('display_order', { ascending: true });

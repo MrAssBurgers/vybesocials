@@ -10,7 +10,7 @@
  */
 
 import { useState, useCallback } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { toast } from 'sonner';
 import { shouldBypassSafety } from '@/lib/ownerBypass';
 import { scanImage as nsfwScanImage, scanVideo as nsfwScanVideo, scanText as nsfwScanText, type ScanResult } from '@/lib/nsfwScanner';
@@ -298,13 +298,13 @@ export function useContentSafety() {
 
   const submitAppeal = useCallback(async (contentType: 'image' | 'text' | 'video' | 'post' | 'ban', reason: string) => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { user } } = await db.auth.getUser();
       if (!user) {
         toast.error('Please log in to submit an appeal');
         return false;
       }
       
-      const { data: profile } = await supabase
+      const { data: profile } = await db
         .from('profiles')
         .select('id')
         .eq('user_id', user.id)
@@ -315,7 +315,7 @@ export function useContentSafety() {
         return false;
       }
 
-      const { error } = await supabase.from('content_appeals').insert({
+      const { error } = await db.from('content_appeals').insert({
         user_id: profile.id,
         content_type: contentType,
         reason,

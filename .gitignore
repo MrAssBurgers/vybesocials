@@ -23,3 +23,8 @@ dist-ssr
 *.sln
 *.sw?
 supabase/.temp/
+
+# Local secrets
+.env
+.env.local
+.env.*.local

@@ -9,7 +9,7 @@ const PROJECT_REF = import.meta.env.VITE_SUPABASE_PROJECT_ID as string | undefin
 
 function sharePreviewBase(): string | null {
   if (!PROJECT_REF) return null;
-  return `https://${PROJECT_REF}.supabase.co/functions/v1/share-preview`;
+  return `https://${PROJECT_REF}.db.co/functions/v1/share-preview`;
 }
 
 export function buildPostShareUrl(postId: string): string {

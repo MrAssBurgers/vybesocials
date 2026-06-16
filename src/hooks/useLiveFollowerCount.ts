@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 
 /**
  * Hook to get follower count for a profile.
@@ -11,7 +11,7 @@ export function useLiveFollowerCount(profileId: string | undefined) {
     queryFn: async () => {
       if (!profileId) return 0;
 
-      const { count, error } = await supabase
+      const { count, error } = await db
         .from('follows')
         .select('*', { count: 'exact', head: true })
         .eq('following_id', profileId);

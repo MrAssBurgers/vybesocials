@@ -31,7 +31,7 @@ import { useCallStore, CallData, CallMode } from '@/lib/callStore';
 
 import { callSounds } from '@/lib/callSounds';
 import { premiumSounds } from '@/lib/premiumSounds';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { invokeLiveKitCallToken } from '@/lib/livekitCallToken';
 import { useAuth } from '@/lib/auth';
 import { useAuthProfileId } from '@/hooks/useAuthProfileId';
@@ -95,7 +95,7 @@ export function GlobalCallOverlay() {
   const [showPaywall, setShowPaywall] = useState(false);
   const [p2pFailCount, setP2pFailCount] = useState(0);
   const [incomingReaction, setIncomingReaction] = useState<{ emoji: string; nonce: number } | null>(null);
-  const reactionsChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
+  const reactionsChannelRef = useRef<ReturnType<typeof db.channel> | null>(null);
   const p2pEndedRef = useRef(false); // Guard against double endCall from P2P events
   
   // Remote user left — linger state (persistent mode only)
@@ -651,7 +651,7 @@ export function GlobalCallOverlay() {
   useEffect(() => {
     const callId = state.call?.id;
     if (!callId || !profile?.id) return;
-    const ch = supabase.channel(`call-reactions-${callId}`, { config: { broadcast: { self: false } } });
+    const ch = db.channel(`call-reactions-${callId}`, { config: { broadcast: { self: false } } });
     ch.on('broadcast', { event: 'reaction' }, (msg) => {
       const p: any = msg.payload;
       if (!p?.emoji || p.userId === profile.id) return;
@@ -659,7 +659,7 @@ export function GlobalCallOverlay() {
     });
     ch.subscribe();
     reactionsChannelRef.current = ch;
-    return () => { try { supabase.removeChannel(ch); } catch {} reactionsChannelRef.current = null; };
+    return () => { try { db.removeChannel(ch); } catch {} reactionsChannelRef.current = null; };
   }, [state.call?.id, profile?.id]);
 
   const sendReaction = useCallback((emoji: string) => {

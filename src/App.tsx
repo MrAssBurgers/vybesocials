@@ -1,6 +1,6 @@
 import { useState, useEffect, memo, lazy, Suspense, useRef } from 'react';
 import './lib/i18n';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import './styles/liquid.css';
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
@@ -220,8 +220,8 @@ function completeInitialSplash(setShowSplash: (v: boolean) => void) {
 function BriefPreFetchInit() {
   const [uid, setUid] = useState<string | undefined>();
   useEffect(() => {
-    supabase.auth.getUser().then(({ data }) => setUid(data.user?.id));
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_, session) => {
+    db.auth.getUser().then(({ data }) => setUid(data.user?.id));
+    const { data: { subscription } } = db.auth.onAuthStateChange((_, session) => {
       setUid(session?.user?.id);
     });
     return () => subscription.unsubscribe();
@@ -250,14 +250,14 @@ function useAuthResolved() {
       setWasLoggedIn(true);
     }
 
-    supabase.auth.getSession().then(({ data }) => {
+    db.auth.getSession().then(({ data }) => {
       if (cancelled) return;
       setHasSession(!!data.session);
       setWasLoggedIn(!!data.session);
       setResolved(true);
     }).catch(() => { if (!cancelled) setResolved(true); });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+    const { data: { subscription } } = db.auth.onAuthStateChange((event, session) => {
       setHasSession(!!session);
       if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') setWasLoggedIn(!!session);
       if (event === 'SIGNED_OUT') setWasLoggedIn(false);
@@ -359,14 +359,14 @@ function AppWithPreloader() {
   // Show welcome-back splash on sign-in (not on initial page load with existing session)
   const signInHandledRef = useRef(false);
   useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+    const { data: { subscription } } = db.auth.onAuthStateChange(async (event, session) => {
       // Do not invalidate the full cache — wipes offline feed/DM snapshots.
       if (event === 'SIGNED_IN' && !signInHandledRef.current && hasInitialLoadCompleted) {
         signInHandledRef.current = true;
         // Fetch minimal profile info for the splash
         if (session?.user?.id) {
           try {
-            const { data } = await supabase
+            const { data } = await db
               .from('profiles')
               .select('username, avatar_url')
               .eq('user_id', session.user.id)

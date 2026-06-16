@@ -5,7 +5,7 @@ import { InputOTP, InputOTPGroup, InputOTPSlot } from '@/components/ui/input-otp
 import { Loader2, Mail, ShieldCheck, Smartphone, ShieldAlert, KeyRound } from 'lucide-react';
 import { REGEXP_ONLY_DIGITS } from 'input-otp';
 import { toast } from 'sonner';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { motion } from 'framer-motion';
 import { gateVerifyErrorMessage, parseEdgeInvokeResult } from '@/lib/edgeFunctionResponse';
 
@@ -114,7 +114,7 @@ export function LoginGateModal({
     const poll = async () => {
       if (cancelledRef.current) return;
       try {
-        const { data, error } = await supabase.functions.invoke('auth-login-approval', {
+        const { data, error } = await db.functions.invoke('auth-login-approval', {
           body: { action: 'poll', challengeId: pollChallengeId },
         });
         if (cancelledRef.current) return;
@@ -147,7 +147,7 @@ export function LoginGateModal({
     };
 
     // Instant resolution via broadcast from auth-login-approval `respond`.
-    const bc = supabase
+    const bc = db
       .channel(`login-approval:${pollChallengeId}`)
       .on('broadcast', { event: 'resolved' }, (payload: any) => {
         const status = payload?.payload?.status;
@@ -179,7 +179,7 @@ export function LoginGateModal({
       cancelledRef.current = true;
       if (pollTimerRef.current) window.clearTimeout(pollTimerRef.current);
       document.removeEventListener('visibilitychange', onVisible);
-      supabase.removeChannel(bc);
+      db.removeChannel(bc);
     };
   }, [open, currentMode, activeChallengeId, onSuccess, onCancel]);
 
@@ -191,7 +191,7 @@ export function LoginGateModal({
     setBusy(true);
     try {
       const fn = currentMode === 'sms' ? 'auth-2fa-verify-phone' : 'auth-2fa-verify';
-      const result = await supabase.functions.invoke(fn, {
+      const result = await db.functions.invoke(fn, {
         body: { challengeId: activeChallengeId, code: codeStr },
       });
       const { payload, errorCode } = await parseEdgeInvokeResult(result);
@@ -230,7 +230,7 @@ export function LoginGateModal({
     if (resendCooldown > 0 || busy) return;
     try {
       setBusy(true);
-      const { data, error } = await supabase.functions.invoke('auth-2fa-request', {
+      const { data, error } = await db.functions.invoke('auth-2fa-request', {
         body: { email: currentEmail, challengeId: activeChallengeId },
       });
       if (error || (data as any)?.ok === false || (data as any)?.error) {
@@ -255,7 +255,7 @@ export function LoginGateModal({
   const denySelf = async () => {
     try {
       setBusy(true);
-      await supabase.functions.invoke('auth-login-approval', {
+      await db.functions.invoke('auth-login-approval', {
         body: { action: 'deny_self', challengeId },
       });
       toast.success('Sign-in denied. Change your password if this wasn\'t you.');
@@ -271,7 +271,7 @@ export function LoginGateModal({
     if (optionBusy) return;
     setOptionBusy('email');
     try {
-      const { data, error } = await supabase.functions.invoke('auth-login-approval', {
+      const { data, error } = await db.functions.invoke('auth-login-approval', {
         body: { action: 'switch_to_code', challengeId: approvalChallengeId },
       });
       const payload = (data as any) || {};
@@ -304,7 +304,7 @@ export function LoginGateModal({
     if (optionBusy) return;
     setOptionBusy('sms');
     try {
-      const { data, error } = await supabase.functions.invoke('auth-login-approval', {
+      const { data, error } = await db.functions.invoke('auth-login-approval', {
         body: { action: 'switch_to_sms', challengeId: approvalChallengeId },
       });
       const payload = (data as any) || {};

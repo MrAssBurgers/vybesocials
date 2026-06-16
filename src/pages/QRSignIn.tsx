@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import QRCode from 'qrcode';
 import { motion } from 'framer-motion';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { ArrowLeft, RefreshCw, Loader2, ShieldCheck, QrCode } from 'lucide-react';
@@ -38,7 +38,7 @@ export default function QRSignIn() {
     setQrDataUrl(null);
     setNonce(null);
     try {
-      const { data, error } = await supabase.functions.invoke('auth-qr', {
+      const { data, error } = await db.functions.invoke('auth-qr', {
         body: { action: 'create' },
       });
       if (error) throw error;
@@ -81,7 +81,7 @@ export default function QRSignIn() {
 
     pollRef.current = window.setInterval(async () => {
       try {
-        const { data } = await supabase.functions.invoke('auth-qr', {
+        const { data } = await db.functions.invoke('auth-qr', {
           body: { action: 'poll', nonce },
         });
         const status = (data as any)?.status;
@@ -89,7 +89,7 @@ export default function QRSignIn() {
           stopTimers();
           setPhase('approved');
           // Redeem for an action link
-          const { data: r, error } = await supabase.functions.invoke('auth-qr', {
+          const { data: r, error } = await db.functions.invoke('auth-qr', {
             body: { action: 'redeem', nonce },
           });
           if (error) throw error;

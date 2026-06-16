@@ -34,7 +34,7 @@ import { AdminRolesSection } from '@/components/admin/sections/AdminRolesSection
 import { AdminErrorsSection } from '@/components/admin/sections/AdminErrorsSection';
 import { AdminSubmissionsSection } from '@/components/admin/sections/AdminSubmissionsSection';
 import { useQuery } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 
 interface NavItem {
   id: string;
@@ -79,7 +79,7 @@ export default function AdminDashboard() {
   const { data: announcements = [] } = useQuery({
     queryKey: ['all-announcements'],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('announcements')
         .select(`*, author:profiles!author_id(username, avatar_url)`)
         .order('created_at', { ascending: false });
@@ -94,7 +94,7 @@ export default function AdminDashboard() {
   const { data: appeals = [] } = useQuery({
     queryKey: ['all-appeals'],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('content_appeals')
         .select(`*, user:profiles!user_id(id, username, avatar_url, display_name), reviewer:profiles!reviewed_by(username)`)
         .order('created_at', { ascending: false });
@@ -109,7 +109,7 @@ export default function AdminDashboard() {
   const { data: pendingBugs = 0 } = useQuery({
     queryKey: ['admin-pending-bugs-count'],
     queryFn: async () => {
-      const { count, error } = await supabase
+      const { count, error } = await db
         .from('bug_reports')
         .select('id', { count: 'exact', head: true })
         .eq('status', 'pending');
@@ -126,8 +126,8 @@ export default function AdminDashboard() {
     queryKey: ['admin-pending-submissions-count'],
     queryFn: async () => {
       const [modRes, creatorRes] = await Promise.all([
-        supabase.from('moderator_applications').select('id', { count: 'exact', head: true }).eq('status', 'pending'),
-        supabase.from('creator_profiles').select('id', { count: 'exact', head: true }).not('applied_at', 'is', null).eq('is_approved', false),
+        db.from('moderator_applications').select('id', { count: 'exact', head: true }).eq('status', 'pending'),
+        db.from('creator_profiles').select('id', { count: 'exact', head: true }).not('applied_at', 'is', null).eq('is_approved', false),
       ]);
       return (modRes.count || 0) + (creatorRes.count || 0);
     },

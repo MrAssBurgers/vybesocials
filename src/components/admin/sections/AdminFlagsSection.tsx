@@ -8,7 +8,7 @@ import { AlertTriangle, CheckCircle, XCircle, ExternalLink } from 'lucide-react'
 import { formatDistanceToNow } from 'date-fns';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 
 export function AdminFlagsSection() {
   const { profile } = useAuth();
@@ -37,7 +37,7 @@ export function AdminFlagsSection() {
     }
     try {
       if (type.includes('comment')) {
-        const { data } = await supabase
+        const { data } = await db
           .from('comments')
           .select('post_id')
           .eq('id', id)

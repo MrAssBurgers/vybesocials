@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth';
 import { toast } from 'sonner';
 
@@ -65,7 +65,7 @@ export function useNotificationPreferences() {
     queryFn: async () => {
       if (!profile?.id) return null;
 
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('notification_preferences')
         .select('*')
         .eq('user_id', profile.id)
@@ -97,7 +97,7 @@ export function useUpdateNotificationPreference() {
       if (!profile?.id) throw new Error('Not authenticated');
 
       // Check if preferences exist
-      const { data: existing } = await supabase
+      const { data: existing } = await db
         .from('notification_preferences')
         .select('id')
         .eq('user_id', profile.id)
@@ -105,7 +105,7 @@ export function useUpdateNotificationPreference() {
 
       if (existing) {
         // Update existing
-        const { error } = await supabase
+        const { error } = await db
           .from('notification_preferences')
           .update({ [key]: value, updated_at: new Date().toISOString() } as never)
           .eq('user_id', profile.id);
@@ -113,7 +113,7 @@ export function useUpdateNotificationPreference() {
         if (error) throw error;
       } else {
         // Insert new
-        const { error } = await supabase
+        const { error } = await db
           .from('notification_preferences')
           .insert({
             user_id: profile.id,

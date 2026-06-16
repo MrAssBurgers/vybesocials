@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '@/lib/utils';
 import { triggerHaptic } from '@/lib/haptics';
 import { useAuth } from '@/lib/auth';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { toast } from 'sonner';
 import type { PollData } from './StoryPollEditor';
 
@@ -36,7 +36,7 @@ export function StoryPollViewer({ storyId, pollData, isOwner }: StoryPollViewerP
     setTotalVotes(prev => prev + 1);
 
     try {
-      await supabase.from('story_poll_votes').insert({
+      await db.from('story_poll_votes').insert({
         story_id: storyId,
         user_id: user.id,
         option_index: optionIndex,

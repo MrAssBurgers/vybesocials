@@ -1,4 +1,4 @@
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { getStoredAuthUserId } from '@/lib/supabaseStorageKey';
 
 /**
@@ -167,7 +167,7 @@ export async function fetchProfileById(profileId: string): Promise<CachedProfile
   // Fetch from database
   const fetchPromise = (async () => {
     try {
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('profiles')
         .select('id, username, display_name, avatar_url, bio')
         .eq('id', profileId)
@@ -208,7 +208,7 @@ export async function fetchProfilesByIds(profileIds: string[]): Promise<Map<stri
   // Fetch missing profiles
   if (idsToFetch.length > 0) {
     try {
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('profiles')
         .select('id, username, display_name, avatar_url, bio')
         .in('id', idsToFetch);

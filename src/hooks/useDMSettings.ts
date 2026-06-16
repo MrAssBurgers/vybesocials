@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth';
 
 export type ReadReceiptMode = 'instant' | 'after_reply' | 'never' | 'fake';
@@ -42,7 +42,7 @@ export function useDMSettings(conversationId: string | undefined) {
     queryFn: async () => {
       if (!conversationId || !profile?.id) return null;
 
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('dm_settings')
         .select('*')
         .eq('conversation_id', conversationId)
@@ -74,7 +74,7 @@ export function useDMSettings(conversationId: string | undefined) {
         updated_at: new Date().toISOString(),
       };
 
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('dm_settings')
         .upsert(settingsToUpsert, { onConflict: 'conversation_id,user_id' })
         .select()
@@ -96,7 +96,7 @@ export function useDMSettings(conversationId: string | undefined) {
     queryFn: async () => {
       if (!conversationId || !profile?.id) return null;
 
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('dm_settings')
         .select('*')
         .eq('conversation_id', conversationId)
@@ -130,7 +130,7 @@ export function useCrossUserSafetySettings(conversationId: string | undefined) {
       if (!conversationId || !profile?.id) return { requiresScan: true, level: 'protected' };
       
       // Get both users' sensitivity preferences
-      const { data: members } = await supabase
+      const { data: members } = await db
         .from('conversation_members')
         .select(`
           user_id,
@@ -176,7 +176,7 @@ export function useMessagePins(conversationId: string | undefined) {
 
       // Use a join-based approach via RPC or filter by user only,
       // then filter client-side, to avoid massive .in() queries
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('message_pins')
         .select('*, message:messages!inner(conversation_id)')
         .eq('user_id', profile.id)
@@ -192,7 +192,7 @@ export function useMessagePins(conversationId: string | undefined) {
     mutationFn: async ({ messageId, label }: { messageId: string; label?: string }) => {
       if (!profile?.id) throw new Error('Not authenticated');
 
-      const { error } = await supabase
+      const { error } = await db
         .from('message_pins')
         .upsert({
           message_id: messageId,
@@ -211,7 +211,7 @@ export function useMessagePins(conversationId: string | undefined) {
     mutationFn: async (messageId: string) => {
       if (!profile?.id) throw new Error('Not authenticated');
 
-      const { error } = await supabase
+      const { error } = await db
         .from('message_pins')
         .delete()
         .eq('message_id', messageId)
@@ -242,7 +242,7 @@ export function useScheduledMessages(conversationId: string | undefined) {
     queryFn: async () => {
       if (!conversationId || !profile?.id) return [];
 
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('scheduled_messages')
         .select('*')
         .eq('conversation_id', conversationId)
@@ -272,7 +272,7 @@ export function useScheduledMessages(conversationId: string | undefined) {
     }) => {
       if (!conversationId || !profile?.id) throw new Error('Not authenticated');
 
-      const { error } = await supabase
+      const { error } = await db
         .from('scheduled_messages')
         .insert({
           conversation_id: conversationId,
@@ -293,7 +293,7 @@ export function useScheduledMessages(conversationId: string | undefined) {
 
   const cancelScheduledMessage = useMutation({
     mutationFn: async (messageId: string) => {
-      const { error } = await supabase
+      const { error } = await db
         .from('scheduled_messages')
         .update({ status: 'cancelled' })
         .eq('id', messageId);
@@ -322,7 +322,7 @@ export function useVanishThreads(conversationId: string | undefined) {
     queryFn: async () => {
       if (!conversationId) return [];
 
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('vanish_threads')
         .select('*')
         .eq('conversation_id', conversationId)
@@ -339,7 +339,7 @@ export function useVanishThreads(conversationId: string | undefined) {
     mutationFn: async (title?: string) => {
       if (!conversationId || !profile?.id) throw new Error('Not authenticated');
 
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('vanish_threads')
         .insert({
           conversation_id: conversationId,
@@ -372,7 +372,7 @@ export function useVanishMessages(threadId: string | undefined) {
     queryFn: async () => {
       if (!threadId) return [];
 
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('vanish_messages')
         .select(`
           *,
@@ -399,7 +399,7 @@ export function useVanishMessages(threadId: string | undefined) {
     }) => {
       if (!threadId || !profile?.id) throw new Error('Not authenticated');
 
-      const { error } = await supabase
+      const { error } = await db
         .from('vanish_messages')
         .insert({
           thread_id: threadId,
@@ -432,7 +432,7 @@ export function useWordReactions(messageId: string | undefined) {
     queryFn: async () => {
       if (!messageId) return [];
 
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('word_reactions')
         .select('*')
         .eq('message_id', messageId);
@@ -455,7 +455,7 @@ export function useWordReactions(messageId: string | undefined) {
     }) => {
       if (!messageId || !profile?.id) throw new Error('Not authenticated');
 
-      const { error } = await supabase
+      const { error } = await db
         .from('word_reactions')
         .upsert({
           message_id: messageId,

@@ -5,7 +5,7 @@ import { Link } from 'react-router-dom';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { usePageMeta } from '@/hooks/usePageMeta';
 
 export default function CommunityGuidelines() {
@@ -20,7 +20,7 @@ export default function CommunityGuidelines() {
   useEffect(() => {
     async function fetchGuidelines() {
       try {
-        const { data } = await supabase
+        const { data } = await db
           .from('community_guidelines')
           .select('content')
           .eq('is_current', true)

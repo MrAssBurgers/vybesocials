@@ -18,7 +18,7 @@ import {
   useToggleMemeBanBackground,
 } from '@/hooks/useMemeBanBackgrounds';
 import { MemeBanScreen } from '@/components/auth/MemeBanScreen';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { toast } from 'sonner';
 
 export const MemeBanManager = () => {
@@ -44,7 +44,7 @@ export const MemeBanManager = () => {
       return;
     }
 
-    const { data: authData, error: authError } = await supabase.auth.getUser();
+    const { data: authData, error: authError } = await db.auth.getUser();
     if (authError || !authData.user?.id) {
       toast.error('Please sign in to upload');
       e.target.value = '';
@@ -56,13 +56,13 @@ export const MemeBanManager = () => {
       const fileName = `meme-ban-${Date.now()}-${file.name}`;
       const filePath = `${authData.user.id}/${fileName}`;
 
-      const { error: uploadError } = await supabase.storage
+      const { error: uploadError } = await db.storage
         .from('media')
         .upload(filePath, file);
 
       if (uploadError) throw uploadError;
 
-      const { data } = supabase.storage.from('media').getPublicUrl(filePath);
+      const { data } = db.storage.from('media').getPublicUrl(filePath);
       setGifUrl(data.publicUrl);
       setPreviewUrl(data.publicUrl);
       toast.success('File uploaded!');

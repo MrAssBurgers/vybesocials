@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Shield, CheckCircle, XCircle, Clock, User, ChevronDown, ChevronUp, Sparkles, FileText } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { GlassCard } from '@/components/ui/glass/GlassCard';
@@ -42,7 +42,7 @@ interface CreatorApplication {
 // ─── Send rejection DM helper ───
 async function sendRejectionDM(adminProfileId: string, targetUserId: string, type: 'moderator' | 'creator', reason: string) {
   try {
-    const { data: conversationId } = await supabase.rpc('create_dm_conversation', {
+    const { data: conversationId } = await db.rpc('create_dm_conversation', {
       other_profile_id: targetUserId,
     });
 
@@ -51,7 +51,7 @@ async function sendRejectionDM(adminProfileId: string, targetUserId: string, typ
     const typeLabel = type === 'moderator' ? 'Moderator' : 'Creator Partner';
     const message = `🔔 **${typeLabel} Application Update**\n\nYour application has been reviewed and was not accepted at this time.\n\n${reason ? `**Reason:** ${reason}` : 'Please continue engaging with the community and feel free to reapply in the future.'}\n\nKeep creating and growing! 💪`;
 
-    await supabase.from('messages').insert({
+    await db.from('messages').insert({
       conversation_id: conversationId,
       sender_id: adminProfileId,
       content: message,
@@ -64,7 +64,7 @@ async function sendRejectionDM(adminProfileId: string, targetUserId: string, typ
 // ─── Send acceptance DM helper ───
 async function sendAcceptanceDM(adminProfileId: string, targetUserId: string, type: 'moderator' | 'creator') {
   try {
-    const { data: conversationId } = await supabase.rpc('create_dm_conversation', {
+    const { data: conversationId } = await db.rpc('create_dm_conversation', {
       other_profile_id: targetUserId,
     });
 
@@ -81,7 +81,7 @@ async function sendAcceptanceDM(adminProfileId: string, targetUserId: string, ty
         `🏦 **Next Step:** Head to your **Creator Dashboard** and set up your payout method so you can get paid!\n\n` +
         `The more you create and engage, the more you earn. Welcome to the team! 🚀`;
 
-      await supabase.from('messages').insert({
+      await db.from('messages').insert({
         conversation_id: conversationId,
         sender_id: adminProfileId,
         content: message,
@@ -89,7 +89,7 @@ async function sendAcceptanceDM(adminProfileId: string, targetUserId: string, ty
     } else {
       const message = `🎉 **Congratulations! You've Been Accepted as a Moderator!**\n\nYou now have moderator privileges. Use them wisely to keep the community safe and positive!\n\nWelcome to the team! 🛡️`;
 
-      await supabase.from('messages').insert({
+      await db.from('messages').insert({
         conversation_id: conversationId,
         sender_id: adminProfileId,
         content: message,
@@ -113,7 +113,7 @@ function ModApplicationsTab() {
   const { data: applications = [], isLoading } = useQuery({
     queryKey: ['admin-mod-applications', filter],
     queryFn: async () => {
-      let query = supabase
+      let query = db
         .from('moderator_applications')
         .select('*, applicant:profiles!user_id(username, avatar_url, display_name)')
         .order('created_at', { ascending: false });
@@ -129,7 +129,7 @@ function ModApplicationsTab() {
 
   const reviewMutation = useMutation({
     mutationFn: async ({ id, status, notes }: { id: string; status: 'approved' | 'rejected'; notes?: string }) => {
-      const { error } = await supabase
+      const { error } = await db
         .from('moderator_applications')
         .update({
           status,
@@ -144,7 +144,7 @@ function ModApplicationsTab() {
       if (!app) return;
 
       if (status === 'approved') {
-        await supabase
+        await db
           .from('user_roles')
           .upsert({ user_id: app.user_id, role: 'moderator' }, { onConflict: 'user_id,role' });
         if (profileId) {
@@ -214,7 +214,7 @@ function CreatorApplicationsTab() {
   const { data: applications = [], isLoading } = useQuery({
     queryKey: ['admin-creator-applications', filter],
     queryFn: async () => {
-      let query = supabase
+      let query = db
         .from('creator_profiles')
         .select('*, user:profiles!user_id(username, avatar_url, display_name)')
         .not('applied_at', 'is', null)
@@ -232,7 +232,7 @@ function CreatorApplicationsTab() {
   const reviewMutation = useMutation({
     mutationFn: async ({ id, userId, status, notes }: { id: string; userId: string; status: 'approved' | 'rejected'; notes?: string }) => {
       if (status === 'approved') {
-        const { error } = await supabase
+        const { error } = await db
           .from('creator_profiles')
           .update({
             is_approved: true,
@@ -248,7 +248,7 @@ function CreatorApplicationsTab() {
         }
       } else {
         // Delete the creator profile so they can reapply
-        const { error } = await supabase
+        const { error } = await db
           .from('creator_profiles')
           .delete()
           .eq('id', id);

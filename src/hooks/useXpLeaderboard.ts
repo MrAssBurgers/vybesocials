@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth';
 
 export interface LeaderboardEntry {
@@ -23,7 +23,7 @@ export function useXpLeaderboard(limit = 20) {
   return useQuery({
     queryKey: ['xp-leaderboard', limit],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('xp_leaderboard' as any)
         .select('*')
         .limit(limit);
@@ -34,7 +34,7 @@ export function useXpLeaderboard(limit = 20) {
       // Get current user's rank if not in top
       let userEntry: LeaderboardEntry | null = null;
       if (user?.id && !entries.find(e => e.user_id === user.id)) {
-        const { data: userData } = await supabase
+        const { data: userData } = await db
           .from('xp_leaderboard' as any)
           .select('*')
           .eq('user_id', user.id)
@@ -60,7 +60,7 @@ export function useFriendsXpLeaderboard() {
       if (!user?.id) return [];
 
       // Get current user's profile ID
-      const { data: myProfile } = await supabase
+      const { data: myProfile } = await db
         .from('profiles')
         .select('id')
         .eq('user_id', user.id)
@@ -70,7 +70,7 @@ export function useFriendsXpLeaderboard() {
       if (!myProfileId) return [];
 
       // Get friend IDs (these are profile IDs)
-      const { data: friendships } = await supabase
+      const { data: friendships } = await db
         .from('friend_requests')
         .select('sender_id, receiver_id')
         .eq('status', 'accepted')
@@ -83,7 +83,7 @@ export function useFriendsXpLeaderboard() {
 
       if (friendProfileIds.length === 0) return [];
 
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('xp_leaderboard' as any)
         .select('*')
         .in('profile_id', friendProfileIds)

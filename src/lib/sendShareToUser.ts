@@ -1,4 +1,4 @@
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { recordShareTo } from '@/lib/shareRecency';
 
 /**
@@ -13,12 +13,12 @@ export async function sendThemeToUser(params: {
 }): Promise<boolean> {
   const { recipientProfileId, senderProfileId, sharedThemeId, themeName } = params;
   try {
-    const { data: convId, error: convErr } = await supabase.rpc('create_dm_conversation', {
+    const { data: convId, error: convErr } = await db.rpc('create_dm_conversation', {
       other_profile_id: recipientProfileId,
     });
     if (convErr || !convId) return false;
 
-    const { error: msgErr } = await supabase.from('messages').insert({
+    const { error: msgErr } = await db.from('messages').insert({
       conversation_id: convId,
       sender_id: senderProfileId,
       content: sharedThemeId,
@@ -28,7 +28,7 @@ export async function sendThemeToUser(params: {
     });
     if (msgErr) return false;
 
-    await supabase
+    await db
       .from('conversations')
       .update({ updated_at: new Date().toISOString() })
       .eq('id', convId);
@@ -66,14 +66,14 @@ export async function sendShareToUser({
   mediaUrl,
 }: SendShareToUserParams): Promise<boolean> {
   try {
-    const { data: convId, error: convErr } = await supabase.rpc('create_dm_conversation', {
+    const { data: convId, error: convErr } = await db.rpc('create_dm_conversation', {
       other_profile_id: recipientProfileId,
     });
     if (convErr || !convId) return false;
 
     const isVideo = postType === 'video' || postType === 'short';
 
-    const { error: msgErr } = await supabase.from('messages').insert({
+    const { error: msgErr } = await db.from('messages').insert({
       conversation_id: convId,
       sender_id: senderProfileId,
       content: postId,
@@ -83,7 +83,7 @@ export async function sendShareToUser({
     });
     if (msgErr) return false;
 
-    await supabase
+    await db
       .from('conversations')
       .update({ updated_at: new Date().toISOString() })
       .eq('id', convId);

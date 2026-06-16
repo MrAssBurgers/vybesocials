@@ -5,7 +5,7 @@ import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { X, Plus, Loader2, Check, MapPin, Sparkles, ArrowLeft } from 'lucide-react';
 import { VybeMiniIcon } from '@/components/ui/VybeMiniIcon';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth';
 import { toast } from 'sonner';
 import { haptics } from '@/lib/haptics';
@@ -81,7 +81,7 @@ export function AIBriefCustomizePanel({ onClose, onPreferencesUpdated }: AIBrief
     setLoadError(null);
 
     try {
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('ai_brief_preferences')
         .select('custom_topics, excluded_topics, show_images, brief_style')
         .eq('user_id', profile.id)
@@ -131,7 +131,7 @@ export function AIBriefCustomizePanel({ onClose, onPreferencesUpdated }: AIBrief
     haptics.tap();
 
     try {
-      const { error } = await supabase
+      const { error } = await db
         .from('ai_brief_preferences')
         .upsert(
           {

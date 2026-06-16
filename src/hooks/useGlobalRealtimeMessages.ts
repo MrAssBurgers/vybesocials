@@ -10,7 +10,7 @@
 
 import { useEffect, useRef, useCallback, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth';
 import { getEffectiveProfileId } from '@/lib/profileCache';
 import { callSounds } from '@/lib/callSounds';
@@ -123,7 +123,7 @@ export function useGlobalRealtimeMessages() {
   const { profile } = useAuth();
   const profileId = getEffectiveProfileId(profile?.id);
   const queryClient = useQueryClient();
-  const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
+  const channelRef = useRef<ReturnType<typeof db.channel> | null>(null);
   const retryTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const setupGenerationRef = useRef(0);
 
@@ -139,9 +139,9 @@ export function useGlobalRealtimeMessages() {
     // Ensure the Realtime socket carries the current JWT so RLS-filtered
     // postgres_changes events (e.g. messages INSERT) actually reach us.
     try {
-      const { data: { session } } = await supabase.auth.getSession();
+      const { data: { session } } = await db.auth.getSession();
       if (session?.access_token) {
-        supabase.realtime.setAuth(session.access_token);
+        db.realtime.setAuth(session.access_token);
         if (import.meta.env.DEV) console.log('[GlobalRT] setAuth applied');
       }
     } catch (e) {
@@ -203,7 +203,7 @@ export function useGlobalRealtimeMessages() {
 
             // Only fetch from DB if not in cache
             if (!sender) {
-              const { data: fetchedSender } = await supabase
+              const { data: fetchedSender } = await db
                 .from('profiles')
                 .select('id, username, avatar_url, display_name')
                 .eq('id', newMessage.sender_id)
@@ -389,7 +389,7 @@ export function useGlobalRealtimeMessages() {
   // Global presence channel — patches ['user-presence', id] and
   // ['users-presence', ...] caches as soon as anyone toggles online/offline,
   // so the DM list reflects status in near-realtime instead of waiting 20s.
-  const presenceChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
+  const presenceChannelRef = useRef<ReturnType<typeof db.channel> | null>(null);
   useEffect(() => {
     if (!profileId) return;
     removeRealtimeChannel(presenceChannelRef.current);
@@ -426,7 +426,7 @@ export function useGlobalRealtimeMessages() {
   }, [profileId, queryClient]);
 
   // Broadcast listener for instant delivery on the currently viewed conversation
-  const broadcastChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
+  const broadcastChannelRef = useRef<ReturnType<typeof db.channel> | null>(null);
   const [activeConvoId, setActiveConvoId] = useState<string | null>(currentConversationId);
 
   useEffect(() => {
@@ -443,7 +443,7 @@ export function useGlobalRealtimeMessages() {
     const convoId = activeConvoId;
     removeChannelByTopic(`dm-broadcast:${convoId}`);
 
-    const bc = supabase
+    const bc = db
       .channel(`dm-broadcast:${convoId}`)
       .on('broadcast', { event: 'new-message' }, (payload: any) => {
         const msg = payload.payload?.message;

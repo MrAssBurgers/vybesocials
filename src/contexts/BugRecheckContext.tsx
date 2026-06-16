@@ -11,7 +11,7 @@
  *   3) Updates `done`/`total` as it goes — UI reads from this context.
  */
 import { createContext, useContext, useMemo, useRef, useState, useCallback, ReactNode } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { useQueryClient } from '@tanstack/react-query';
 
 type BugRecheckState = {
@@ -65,7 +65,7 @@ export function BugRecheckProvider({ children }: { children: ReactNode }) {
     });
 
     try {
-      const { data: rows, error } = await supabase
+      const { data: rows, error } = await db
         .from('bug_reports')
         .select('id')
         .neq('status', 'fixed')
@@ -93,7 +93,7 @@ export function BugRecheckProvider({ children }: { children: ReactNode }) {
         while (cursor < ids.length && !abortRef.current) {
           const id = ids[cursor++];
           try {
-            const { data, error: invokeErr } = await supabase.functions.invoke('analyze-bug-report', {
+            const { data, error: invokeErr } = await db.functions.invoke('analyze-bug-report', {
               body: { bugId: id, force: true, verify: true },
             });
             if (invokeErr) {

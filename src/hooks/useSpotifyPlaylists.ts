@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 
 export interface SpotifyPlaylist {
   id: string;
@@ -38,7 +38,7 @@ export function useSpotifyPlaylists(enabled: boolean) {
     setLoading(true);
     setError(null);
     try {
-      const { data, error: invokeError } = await supabase.functions.invoke('spotify-playlists', { body: {} });
+      const { data, error: invokeError } = await db.functions.invoke('spotify-playlists', { body: {} });
       const d = (data as any) || {};
 
       // Only treat invoke error as fatal if the payload didn't carry a status flag we can interpret

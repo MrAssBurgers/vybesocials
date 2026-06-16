@@ -4,7 +4,7 @@
  * Includes failed URL caching to prevent repeated 404 attempts
  */
 
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { getSupabaseProjectRef } from '@/lib/supabaseStorageKey';
 import { normalizeMediaUrl } from '@/lib/mediaUrl';
 
@@ -115,7 +115,7 @@ export async function getSignedUrl(publicUrl: string): Promise<string | null> {
       const parsed = parseStorageUrl(url);
       if (!parsed) return url;
 
-      const { data, error } = await supabase.storage
+      const { data, error } = await db.storage
         .from(parsed.bucket)
         .createSignedUrl(parsed.path, 3600);
 
@@ -196,7 +196,7 @@ export async function batchSignUrls(urls: (string | null | undefined)[]): Promis
       const paths = Array.from(pathMap.keys());
       const originalUrls = Array.from(pathMap.values());
 
-      const { data, error } = await supabase.storage
+      const { data, error } = await db.storage
         .from(bucket)
         .createSignedUrls(paths, 3600);
       

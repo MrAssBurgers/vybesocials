@@ -1,5 +1,5 @@
 import { useEffect, useRef, useCallback, useState } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { subscribePostgresChannel, removeRealtimeChannel } from '@/lib/realtimeChannel';
 import { useAuth } from '@/lib/auth';
 import { haptics } from '@/lib/haptics';
@@ -78,7 +78,7 @@ export function useCaptureDetection({
     onCaptureDetected?.(type);
 
     try {
-      await supabase.from('capture_events').insert({
+      await db.from('capture_events').insert({
         viewer_id: user.id,
         sender_id: senderId,
         media_id: mediaId || null,
@@ -274,7 +274,7 @@ export function useCaptureNotifications() {
         callback: async (payload) => {
           const event = payload.new as any;
           
-          const { data: viewer } = await supabase
+          const { data: viewer } = await db
             .from('profiles')
             .select('username, display_name')
             .eq('id', event.viewer_id)

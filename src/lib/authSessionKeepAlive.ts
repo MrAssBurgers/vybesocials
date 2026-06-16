@@ -1,4 +1,4 @@
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { isLovablePreviewHost } from '@/lib/lovablePreview';
 import { refreshSupabaseSession } from '@/lib/supabaseAuthRefresh';
 import { hasStoredSupabaseSession } from '@/lib/supabaseStorageKey';
@@ -15,7 +15,7 @@ async function refreshIfNeeded(force = false) {
   if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return;
   if (!hasStoredSupabaseSession()) return;
 
-  const { data: { session } } = await supabase.auth.getSession();
+  const { data: { session } } = await db.auth.getSession();
   if (session?.user) {
     setWasLoggedIn(true);
     if (!force && session.expires_at) {

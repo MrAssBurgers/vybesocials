@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient, useInfiniteQuery } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth';
 import { toast } from 'sonner';
 
@@ -53,7 +53,7 @@ export function useRecordInteraction() {
       if (!profile?.id) return;
 
       // Upsert interaction - update duration if watch_time, otherwise just record
-      const { error } = await supabase
+      const { error } = await db
         .from('user_interactions')
         .upsert({
           user_id: profile.id,

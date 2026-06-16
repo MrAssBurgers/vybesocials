@@ -7,7 +7,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useNFC } from '@/hooks/useNFC';
 import { useAuth } from '@/lib/auth';
 import { useSendFriendRequest, useFriendshipStatus } from '@/hooks/useFriends';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { haptics } from '@/lib/haptics';
@@ -71,7 +71,7 @@ export function NFCFriendShare({ className, variant = 'button' }: NFCFriendShare
 
     try {
       // Fetch the user's profile
-      const { data: userData, error } = await supabase
+      const { data: userData, error } = await db
         .from('profiles')
         .select('id, username, avatar_url')
         .eq('id', userId)

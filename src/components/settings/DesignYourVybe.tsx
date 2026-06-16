@@ -36,7 +36,7 @@ import { useShareTheme } from '@/hooks/useSharedThemes';
 import { cn } from '@/lib/utils';
 import { useThemeTransition } from '@/providers/ThemeTransitionProvider';
 import { useTheme } from '@/lib/theme';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 
 // Personality vibes from AI VYBE Designer - the 8 moods
 const PERSONALITY_VIBES = [
@@ -448,9 +448,9 @@ export function DesignYourVybe() {
       
       // Save button sound preference locally + to DB
       localStorage.setItem('vybe-button-sound', buttonSound);
-      supabase.auth.getUser().then(({ data: { user } }) => {
+      db.auth.getUser().then(({ data: { user } }) => {
         if (!user?.id) return;
-        supabase
+        db
           .from('user_preferences' as any)
           .upsert({
             user_id: user.id,

@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth';
 
 export interface SimilarDNAUser {
@@ -25,7 +25,7 @@ export function useSimilarDNAUsers(limit = 10) {
       if (!user?.id) return [];
 
       // Get current user's profile id
-      const { data: myProfile } = await supabase
+      const { data: myProfile } = await db
         .from('profiles')
         .select('id')
         .eq('user_id', user.id)
@@ -34,7 +34,7 @@ export function useSimilarDNAUsers(limit = 10) {
       if (!myProfile) return [];
 
       // Get my DNA
-      const { data: myDna } = await supabase
+      const { data: myDna } = await db
         .from('vybe_dna' as any)
         .select('personality_vector')
         .eq('user_id', myProfile.id)
@@ -50,7 +50,7 @@ export function useSimilarDNAUsers(limit = 10) {
       const myC = myPv.creative ?? 0;
 
       // Get all other users' DNA
-      const { data: allDna } = await supabase
+      const { data: allDna } = await db
         .from('vybe_dna' as any)
         .select('user_id, personality_vector')
         .neq('user_id', myProfile.id)
@@ -59,7 +59,7 @@ export function useSimilarDNAUsers(limit = 10) {
       if (!allDna || allDna.length === 0) return [];
 
       // Get my about data for lifestyle matching
-      const { data: myAbout } = await supabase
+      const { data: myAbout } = await db
         .from('user_about' as any)
         .select('mbti, music_genres, streaming_services')
         .eq('user_id', myProfile.id)
@@ -71,7 +71,7 @@ export function useSimilarDNAUsers(limit = 10) {
 
       // Batch fetch about data for other users
       const otherIds = (allDna as any[]).map((d: any) => d.user_id);
-      const { data: allAbout } = await supabase
+      const { data: allAbout } = await db
         .from('user_about' as any)
         .select('user_id, mbti, music_genres, streaming_services')
         .in('user_id', otherIds);
@@ -134,7 +134,7 @@ export function useSimilarDNAUsers(limit = 10) {
       if (topIds.length === 0) return [];
 
       // Fetch profiles for top matches
-      const { data: profiles } = await supabase
+      const { data: profiles } = await db
         .from('profiles')
         .select('id, username, display_name, avatar_url')
         .in('id', topIds.map(t => t.user_id));

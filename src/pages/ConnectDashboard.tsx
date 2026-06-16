@@ -18,7 +18,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useSearchParams } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
+import { db } from "@/lib/firebase";
 import { toast } from "sonner";
 
 // ── Types ──────────────────────────────────────────────────────────────
@@ -52,7 +52,7 @@ export default function ConnectDashboard() {
     if (!id) return;
     setLoading(true);
     try {
-      const { data, error } = await supabase.functions.invoke("connect-v2-account-status", {
+      const { data, error } = await db.functions.invoke("connect-v2-account-status", {
         body: { account_id: id },
       });
       if (error) throw error;
@@ -77,7 +77,7 @@ export default function ConnectDashboard() {
   const handleCreateAccount = async () => {
     setLoading(true);
     try {
-      const { data, error } = await supabase.functions.invoke("connect-v2-create-account", {
+      const { data, error } = await db.functions.invoke("connect-v2-create-account", {
         body: {
           display_name: "My Business", // In production, collect from a form
           contact_email: "owner@example.com", // In production, use the user's email
@@ -103,7 +103,7 @@ export default function ConnectDashboard() {
     if (!accountId) return;
     setLoading(true);
     try {
-      const { data, error } = await supabase.functions.invoke("connect-v2-account-link", {
+      const { data, error } = await db.functions.invoke("connect-v2-account-link", {
         body: { account_id: accountId },
       });
       if (error) throw error;
@@ -123,7 +123,7 @@ export default function ConnectDashboard() {
     if (!accountId) return;
     setLoading(true);
     try {
-      const { data, error } = await supabase.functions.invoke("connect-v2-create-product", {
+      const { data, error } = await db.functions.invoke("connect-v2-create-product", {
         body: {
           account_id: accountId,
           name: productName,
@@ -149,7 +149,7 @@ export default function ConnectDashboard() {
     if (!accountId) return;
     setLoading(true);
     try {
-      const { data, error } = await supabase.functions.invoke("connect-v2-subscription", {
+      const { data, error } = await db.functions.invoke("connect-v2-subscription", {
         body: { account_id: accountId },
       });
       if (error) throw error;
@@ -167,7 +167,7 @@ export default function ConnectDashboard() {
     if (!accountId) return;
     setLoading(true);
     try {
-      const { data, error } = await supabase.functions.invoke("connect-v2-billing-portal", {
+      const { data, error } = await db.functions.invoke("connect-v2-billing-portal", {
         body: { account_id: accountId },
       });
       if (error) throw error;

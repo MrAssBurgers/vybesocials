@@ -2,7 +2,7 @@ import { motion } from 'framer-motion';
 import { Shield, Check, Sparkles, Users } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useQuery } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth';
 import { FounderBadge, getFounderTier } from '@/components/badges/FounderBadge';
 import { Progress } from '@/components/ui/progress';
@@ -22,7 +22,7 @@ function useFounderClaimStatus() {
     queryKey: ['founder-claim-status', user?.id],
     queryFn: async () => {
       // Get config
-      const { data: config } = await supabase
+      const { data: config } = await db
         .from('growth_config')
         .select('value')
         .eq('key', 'founding_program')
@@ -36,7 +36,7 @@ function useFounderClaimStatus() {
       // Count claimed
       let claimedSlots = 0;
       if (badgeId) {
-        const { count } = await supabase
+        const { count } = await db
           .from('user_badges')
           .select('*', { count: 'exact', head: true })
           .eq('badge_id', badgeId);
@@ -46,7 +46,7 @@ function useFounderClaimStatus() {
       // Check if current user already has it
       let userHasBadge = false;
       if (user?.id && badgeId) {
-        const { data } = await supabase
+        const { data } = await db
           .from('user_badges')
           .select('id')
           .eq('user_id', user.id)
@@ -80,7 +80,7 @@ export function CreatorSuggestions({ following, onChange }: CreatorSuggestionsPr
     setClaiming(true);
     try {
       // Try to insert the badge - the DB constraint will prevent duplicates
-      const { error } = await supabase
+      const { error } = await db
         .from('user_badges')
         .insert({
           user_id: user.id,

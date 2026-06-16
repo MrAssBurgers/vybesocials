@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { useReports, useUpdateReport } from '@/hooks/useModeration';
 import { useAuth } from '@/lib/auth';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -15,7 +15,7 @@ function useDeletionLog() {
   return useQuery({
     queryKey: ['post-deletion-log'],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('post_deletion_log' as any)
         .select('*')
         .order('created_at', { ascending: false })

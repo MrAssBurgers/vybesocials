@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth';
 import { toast } from 'sonner';
 
@@ -38,7 +38,7 @@ export function useBusinessTiers() {
   return useQuery({
     queryKey: ['business-tiers'],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('business_subscription_tiers')
         .select('*')
         .eq('is_active', true)
@@ -58,7 +58,7 @@ export function useAllBusinessTiers() {
   return useQuery({
     queryKey: ['business-tiers-all'],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('business_subscription_tiers')
         .select('*')
         .order('sort_order');
@@ -82,13 +82,13 @@ export function useUpsertTier() {
         updated_at: new Date().toISOString(),
       };
       if (tier.id) {
-        const { error } = await supabase
+        const { error } = await db
           .from('business_subscription_tiers')
           .update(payload as any)
           .eq('id', tier.id);
         if (error) throw error;
       } else {
-        const { error } = await supabase
+        const { error } = await db
           .from('business_subscription_tiers')
           .insert(payload as any);
         if (error) throw error;
@@ -108,7 +108,7 @@ export function useMyBusinessSubscription(businessId: string | null) {
   return useQuery({
     queryKey: ['business-subscription', businessId],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('business_subscriptions')
         .select('*, tier:business_subscription_tiers(*)')
         .eq('business_id', businessId!)
@@ -133,7 +133,7 @@ export function useSubscribeBusiness() {
   return useMutation({
     mutationFn: async ({ businessId, tierId }: { businessId: string; tierId: string }) => {
       // Upsert: one subscription per business
-      const { error } = await supabase
+      const { error } = await db
         .from('business_subscriptions')
         .upsert({
           business_id: businessId,

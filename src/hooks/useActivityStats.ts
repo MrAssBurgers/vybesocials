@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 
 export interface ActivityStats {
   recentPosts: number;
@@ -31,24 +31,24 @@ export function useActivityStats() {
         // Run all queries in parallel - lightweight counts only
         const [postsRes, levelUpsRes, badgesRes, chatsRes] = await Promise.all([
         // Posts in last 5 minutes
-        supabase
+        db
           .from('posts')
           .select('id', { count: 'exact', head: true })
           .gte('created_at', fiveMinAgo),
         // Level ups today (user_levels updated today with level > 1)
-        supabase
+        db
           .from('user_levels')
           .select('id', { count: 'exact', head: true })
           .gte('updated_at', todayStart)
           .gt('current_level', 1),
         // Badges claimed today
-        supabase
+        db
           .from('challenge_rewards')
           .select('id', { count: 'exact', head: true })
           .gte('created_at', todayStart)
           .eq('is_claimed', true),
         // Active conversations (messages in last 5 min)
-        supabase
+        db
           .from('messages')
           .select('conversation_id', { count: 'exact', head: true })
           .gte('created_at', fiveMinAgo),
@@ -96,7 +96,7 @@ export function useRhythmData() {
 
       const [topXPRes, challengeRes, postsRes] = await Promise.all([
         // Top XP gainer today
-        supabase
+        db
           .from('user_levels')
           .select('total_xp, user_id')
           .gte('updated_at', todayStart)
@@ -104,7 +104,7 @@ export function useRhythmData() {
           .limit(1)
           .maybeSingle(),
         // Active challenge ending soonest
-        supabase
+        db
           .from('challenges')
           .select('title, ends_at')
           .eq('is_active', true)
@@ -114,7 +114,7 @@ export function useRhythmData() {
           .limit(1)
           .maybeSingle(),
         // Total posts today
-        supabase
+        db
           .from('posts')
           .select('id, tags', { count: 'exact', head: false })
           .gte('created_at', todayStart)
@@ -124,7 +124,7 @@ export function useRhythmData() {
       // Get username for top XP gainer
       let topXPGainer = null;
       if (topXPRes.data?.user_id) {
-        const { data: profile } = await supabase
+        const { data: profile } = await db
           .from('profiles')
           .select('username')
           .eq('user_id', topXPRes.data.user_id)

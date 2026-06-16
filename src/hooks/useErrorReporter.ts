@@ -1,5 +1,5 @@
 import { useEffect, useCallback } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 
 interface ErrorReport {
   message: string;
@@ -47,7 +47,7 @@ async function processErrorQueue() {
   const batch = errorQueue.splice(0, 5);
 
   try {
-    const { data: { user } } = await supabase.auth.getUser();
+    const { data: { user } } = await db.auth.getUser();
 
     const rows = batch.map(err => ({
       user_id: user?.id || null,
@@ -59,7 +59,7 @@ async function processErrorQueue() {
       session_id: getSessionId(),
     }));
 
-    await supabase.from('error_logs').insert(rows);
+    await db.from('error_logs').insert(rows);
   } catch {
     // Silent fail — never let error reporting cause errors
   }

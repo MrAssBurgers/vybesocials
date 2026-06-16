@@ -9,7 +9,7 @@ import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Bot, X, Check } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth';
 import { toast } from 'sonner';
 
@@ -36,7 +36,7 @@ export function AIBadge({ postId, authorId, isAiGenerated, aiConfidence, aiOverr
 
   const handleToggle = async (newValue: boolean | null) => {
     try {
-      const { error } = await supabase
+      const { error } = await db
         .from('posts')
         .update({ ai_override: newValue } as any)
         .eq('id', postId);

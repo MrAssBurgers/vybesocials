@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth';
 import { Package, ShoppingBag, Zap, Palette, Crown } from 'lucide-react';
 import { motion } from 'framer-motion';
@@ -41,7 +41,7 @@ export function PurchasedItems() {
     queryKey: ['marketplace-purchases', profile?.id],
     queryFn: async () => {
       if (!profile?.id) return [];
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('marketplace_purchases')
         .select('*')
         .eq('user_id', profile.id)

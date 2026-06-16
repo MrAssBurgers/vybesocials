@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useAuth } from '@/lib/auth';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { subscribePostgresChannel, removeRealtimeChannel } from '@/lib/realtimeChannel';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -47,7 +47,7 @@ export function LoginApprovalSheet() {
     };
 
     const refresh = async () => {
-      const { data } = await supabase
+      const { data } = await db
         .from('auth_challenges')
         .select('id, metadata, created_at, expires_at, status, challenge_type')
         .eq('user_id', user.id)
@@ -63,7 +63,7 @@ export function LoginApprovalSheet() {
     const onLoginApprovalPush = (event: Event) => {
       const challengeId = (event as CustomEvent<{ challengeId?: string }>).detail?.challengeId;
       if (!challengeId) return;
-      void supabase
+      void db
         .from('auth_challenges')
         .select('id, metadata, created_at, expires_at, status, challenge_type')
         .eq('id', challengeId)
@@ -117,7 +117,7 @@ export function LoginApprovalSheet() {
     if (!pending) return;
     setBusy(true);
     try {
-      const { data, error } = await supabase.functions.invoke('auth-login-approval', {
+      const { data, error } = await db.functions.invoke('auth-login-approval', {
         body: { action: 'respond', challengeId: pending.id, intent },
       });
       if (error) throw error;

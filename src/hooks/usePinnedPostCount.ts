@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 
 export const PIN_LIMIT = 3;
 
@@ -12,7 +12,7 @@ export function usePinnedPostCount(authorId?: string) {
     queryKey: ['pinned-post-count', authorId],
     queryFn: async (): Promise<number> => {
       if (!authorId) return 0;
-      const { count, error } = await supabase
+      const { count, error } = await db
         .from('posts')
         .select('id', { count: 'exact', head: true })
         .eq('author_id', authorId)

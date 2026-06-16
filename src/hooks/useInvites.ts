@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth';
 import { toast } from 'sonner';
 import { analytics } from '@/lib/analytics';
@@ -42,7 +42,7 @@ export function useMyInvite() {
       if (!user?.id) return null;
       
       // Check for existing invite
-      const { data: existingInvite } = await supabase
+      const { data: existingInvite } = await db
         .from('invites')
         .select('*')
         .eq('inviter_id', user.id)
@@ -56,7 +56,7 @@ export function useMyInvite() {
       
       // Create new invite if none exists - never expires, unlimited uses
       const inviteCode = generateInviteCode();
-      const { data: newInvite, error } = await supabase
+      const { data: newInvite, error } = await db
         .from('invites')
         .insert({
           inviter_id: user.id,
@@ -94,7 +94,7 @@ export function useRegenerateInvite() {
       const newCode = generateInviteCode();
       
       // Check if user has an existing invite
-      const { data: existingInvite } = await supabase
+      const { data: existingInvite } = await db
         .from('invites')
         .select('id')
         .eq('inviter_id', user.id)
@@ -104,7 +104,7 @@ export function useRegenerateInvite() {
       
       if (existingInvite) {
         // Update existing invite with new code
-        const { data, error } = await supabase
+        const { data, error } = await db
           .from('invites')
           .update({ 
             invite_code: newCode,
@@ -120,7 +120,7 @@ export function useRegenerateInvite() {
         return data as Invite;
       } else {
         // Create new invite
-        const { data, error } = await supabase
+        const { data, error } = await db
           .from('invites')
           .insert({
             inviter_id: user.id,
@@ -161,7 +161,7 @@ export function useInviteStats() {
       if (!user?.id) return { totalRedemptions: 0, recentRedemptions: [] };
       
       // Get all invites by this user
-      const { data: invites } = await supabase
+      const { data: invites } = await db
         .from('invites')
         .select('id, use_count')
         .eq('inviter_id', user.id);
@@ -174,7 +174,7 @@ export function useInviteStats() {
       const inviteIds = invites.map(i => i.id);
       
       // Get redemption count as backup
-      const { count } = await supabase
+      const { count } = await db
         .from('invite_redemptions')
         .select('*', { count: 'exact', head: true })
         .in('invite_id', inviteIds);
@@ -183,7 +183,7 @@ export function useInviteStats() {
       const totalRedemptions = Math.max(totalFromInvites, count || 0);
       
       // Get recent redemptions with profiles
-      const { data: recentRedemptions } = await supabase
+      const { data: recentRedemptions } = await db
         .from('invite_redemptions')
         .select(`
           id,
@@ -197,7 +197,7 @@ export function useInviteStats() {
       // Fetch all redeemer profiles in a single batched query (was N+1)
       const redeemerIds = [...new Set((recentRedemptions || []).map(r => r.redeemer_id))];
       const { data: redeemerProfiles } = redeemerIds.length
-        ? await supabase
+        ? await db
             .from('profiles')
             .select('user_id, username, avatar_url')
             .in('user_id', redeemerIds)
@@ -227,7 +227,7 @@ export function useInviteStats() {
 
       try {
         // Server-validated badge award (counts real redemptions; idempotent)
-        const { data, error } = await supabase.rpc('award_invite_badge', {
+        const { data, error } = await db.rpc('award_invite_badge', {
           p_milestone: milestone,
         });
 
@@ -270,7 +270,7 @@ export function useUserBadges(userId?: string) {
     queryFn: async () => {
       if (!targetUserId) return [];
       
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('user_badges')
         .select('*')
         .eq('user_id', targetUserId)

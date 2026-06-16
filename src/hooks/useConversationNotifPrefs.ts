@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth';
 import { toast } from 'sonner';
 
@@ -31,7 +31,7 @@ const empty = (
 
 export function useConversationNotifPrefs(conversationId: string | null) {
   // Auth user id (notif prefs use auth.uid(), not profile.id, per RLS)
-  const authUserId = supabase.auth.getSession ? undefined : undefined;
+  const authUserId = db.auth.getSession ? undefined : undefined;
 
   return useQuery({
     queryKey: ['conversation-notif-prefs', conversationId],
@@ -39,9 +39,9 @@ export function useConversationNotifPrefs(conversationId: string | null) {
     queryFn: async () => {
       const {
         data: { user },
-      } = await supabase.auth.getUser();
+      } = await db.auth.getUser();
       if (!user || !conversationId) return null;
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('conversation_notification_prefs')
         .select('*')
         .eq('conversation_id', conversationId)
@@ -60,7 +60,7 @@ export function useUpdateConversationNotifPrefs() {
     mutationFn: async (next: Partial<ConversationNotifPrefs> & { conversation_id: string }) => {
       const {
         data: { user },
-      } = await supabase.auth.getUser();
+      } = await db.auth.getUser();
       if (!user) throw new Error('Not authenticated');
 
       const payload = {
@@ -73,7 +73,7 @@ export function useUpdateConversationNotifPrefs() {
         native_channel_id: next.native_channel_id ?? null,
       };
 
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('conversation_notification_prefs')
         .upsert(payload, { onConflict: 'conversation_id,user_id' })
         .select()

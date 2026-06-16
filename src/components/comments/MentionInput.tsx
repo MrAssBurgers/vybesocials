@@ -2,7 +2,7 @@ import { useState, useRef, useCallback, useEffect, memo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Textarea } from '@/components/ui/textarea';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { cn } from '@/lib/utils';
 
@@ -50,7 +50,7 @@ export const MentionInput = memo(function MentionInput({
     }
 
     const searchUsers = async () => {
-      const { data } = await supabase
+      const { data } = await db
         .from('profiles')
         .select('id, username, avatar_url, display_name')
         .ilike('username', `${debouncedQuery}%`)

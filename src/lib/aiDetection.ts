@@ -5,7 +5,7 @@
  * to determine if content is AI-generated.
  */
 
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 
 interface AIDetectionResult {
   is_ai: boolean;
@@ -41,7 +41,7 @@ export async function detectAIContent(
       return { is_ai: false, confidence: 0, reason: 'No content to analyze' };
     }
 
-    const { data, error } = await supabase.functions.invoke('detect-ai-content', {
+    const { data, error } = await db.functions.invoke('detect-ai-content', {
       body: {
         image_base64,
         mime_type,

@@ -11,7 +11,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Input } from '@/components/ui/input';
 import { useAuth } from '@/lib/auth';
 import { useFriends } from '@/hooks/useFriends';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { useSignedUrl } from '@/hooks/useSignedUrl';
@@ -146,14 +146,14 @@ export const ShareSheet = memo(function ShareSheet({
     try {
       for (const friendId of friendIds) {
         // Find or create conversation
-        const { data: convId } = await supabase.rpc('create_dm_conversation', {
+        const { data: convId } = await db.rpc('create_dm_conversation', {
           other_profile_id: friendId
         });
 
         if (convId) {
           const isVideo = postType === 'video' || postType === 'short';
           
-          await supabase.from('messages').insert({
+          await db.from('messages').insert({
             conversation_id: convId,
             sender_id: profile.id,
             content: postId,
@@ -163,7 +163,7 @@ export const ShareSheet = memo(function ShareSheet({
           });
 
           // Update conversation timestamp to move it to top
-          await supabase
+          await db
             .from('conversations')
             .update({ updated_at: new Date().toISOString() })
             .eq('id', convId);

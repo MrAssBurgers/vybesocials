@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useAuth } from '@/lib/auth';
 import { useCreateComment } from '@/hooks/useComments';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { toast } from 'sonner';
 import { GifPicker } from '@/components/chat/GifPicker';
 import { cn } from '@/lib/utils';
@@ -53,13 +53,13 @@ export const CommentComposer = memo(function CommentComposer({
       const fileExt = file.name.split('.').pop();
       const fileName = `comments/${profile.user_id}/${Date.now()}.${fileExt}`;
 
-      const { error: uploadError } = await supabase.storage
+      const { error: uploadError } = await db.storage
         .from('media')
         .upload(fileName, file);
 
       if (uploadError) throw uploadError;
 
-      const { data: { publicUrl } } = supabase.storage
+      const { data: { publicUrl } } = db.storage
         .from('media')
         .getPublicUrl(fileName);
 

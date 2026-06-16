@@ -10,8 +10,8 @@
  * - Hangup-only mode: send hangup without cleanup (for linger support)
  */
 
-import { supabase } from '@/integrations/supabase/client';
-import type { RealtimeChannel } from '@supabase/supabase-js';
+import { db } from '@/lib/firebase';
+import type { RealtimeChannel } from '@/lib/firebase/realtimeService';
 import { stopCameraStream } from '@/hooks/useCameraPreload';
 
 // ── Types ──────────────────────────────────────────────────────
@@ -542,7 +542,7 @@ export class P2PConnection {
     return new Promise((resolve, reject) => {
       const channelName = `p2p-signal:${this.conversationId}`;
 
-      this.signalingChannel = supabase.channel(channelName, {
+      this.signalingChannel = db.channel(channelName, {
         config: { broadcast: { self: false } },
       });
 
@@ -743,7 +743,7 @@ export class P2PConnection {
     }
 
     if (this.signalingChannel) {
-      supabase.removeChannel(this.signalingChannel);
+      db.removeChannel(this.signalingChannel);
       this.signalingChannel = null;
     }
 

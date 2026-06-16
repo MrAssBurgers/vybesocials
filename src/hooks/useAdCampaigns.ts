@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth';
 import { toast } from 'sonner';
 
@@ -44,7 +44,7 @@ export function useMyAdCampaigns() {
   return useQuery({
     queryKey: ['ad-campaigns', profileId],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('ad_campaigns')
         .select('*')
         .eq('advertiser_id', profileId!)
@@ -60,7 +60,7 @@ export function useAdCampaignStats(campaignId: string | null) {
   return useQuery({
     queryKey: ['ad-campaign-stats', campaignId],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('ad_daily_stats')
         .select('*')
         .eq('campaign_id', campaignId!)
@@ -93,7 +93,7 @@ export function useCreateAdCampaign() {
       target_interests?: string[];
       business_id?: string;
     }) => {
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('ad_campaigns')
         .insert({
           ...campaign,
@@ -118,7 +118,7 @@ export function useUpdateCampaignStatus() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async ({ id, status }: { id: string; status: string }) => {
-      const { error } = await supabase
+      const { error } = await db
         .from('ad_campaigns')
         .update({ status: status as any, updated_at: new Date().toISOString() })
         .eq('id', id);
@@ -138,7 +138,7 @@ export function useWinningAd(placement: string) {
   return useQuery({
     queryKey: ['winning-ad', placement],
     queryFn: async () => {
-      const { data, error } = await supabase.rpc('get_winning_ad', {
+      const { data, error } = await db.rpc('get_winning_ad', {
         p_placement: placement as any,
         p_viewer_id: profileId || null,
       });
@@ -154,7 +154,7 @@ export function useWinningAd(placement: string) {
 export function useRecordImpression() {
   return useMutation({
     mutationFn: async ({ campaignId, clicked }: { campaignId: string; clicked?: boolean }) => {
-      const { error } = await supabase.rpc('record_ad_impression', {
+      const { error } = await db.rpc('record_ad_impression', {
         p_campaign_id: campaignId,
         p_viewer_id: null,
         p_clicked: clicked || false,

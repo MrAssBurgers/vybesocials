@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth';
 
 export interface UserAbout {
@@ -27,7 +27,7 @@ export function useUserAbout(profileId: string | undefined) {
     queryKey: ['user-about', profileId],
     queryFn: async (): Promise<UserAbout | null> => {
       if (!profileId) return null;
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('user_about' as any)
         .select('*')
         .eq('user_id', profileId)
@@ -49,7 +49,7 @@ export function useUpdateUserAbout() {
       if (!profile?.id) throw new Error('Not authenticated');
 
       // Upsert — insert if not exists, update if exists
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('user_about' as any)
         .upsert(
           { user_id: profile.id, ...input },

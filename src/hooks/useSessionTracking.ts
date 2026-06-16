@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { useAuth } from '@/lib/auth';
-import { supabase } from '@/integrations/supabase/client';
+import { db } from '@/lib/firebase';
 
 const REVOKE_CHECK_INTERVAL_MS = 15_000;
 
@@ -28,20 +28,20 @@ export function useSessionTracking() {
     let interval: ReturnType<typeof setInterval> | undefined;
 
     const kickIfRevoked = async (trackedSessionId: string) => {
-      const { data } = await supabase
+      const { data } = await db
         .from('user_sessions')
         .select('revoked_at')
         .eq('id', trackedSessionId)
         .maybeSingle();
 
       if (!cancelled && data?.revoked_at) {
-        await supabase.auth.signOut({ scope: 'local' as any });
+        await db.auth.signOut({ scope: 'local' as any });
         window.location.assign('/login');
       }
     };
 
     const trackAndWatch = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
+      const { data: { session } } = await db.auth.getSession();
       const authSessionId = getJwtSessionId(session?.access_token);
       const sessionKey = authSessionId || 'legacy';
       const trackedKey = `vybe-session-tracked-${user.id}-${sessionKey}`;
@@ -51,7 +51,7 @@ export function useSessionTracking() {
       try {
         trackedSessionId = sessionStorage.getItem(idKey);
         if (!sessionStorage.getItem(trackedKey)) {
-          const { data } = await supabase.functions.invoke('auth-login-notify', {
+          const { data } = await db.functions.invoke('auth-login-notify', {
             body: { method: 'password', deviceFingerprint: authSessionId },
           });
           trackedSessionId = (data as any)?.sessionId || trackedSessionId;
@@ -63,7 +63,7 @@ export function useSessionTracking() {
       }
 
       if (!trackedSessionId && authSessionId) {
-        const { data } = await supabase
+        const { data } = await db
           .from('user_sessions')
           .select('id, revoked_at')
           .eq('user_id', user.id)
