@@ -20,8 +20,19 @@
  * OAuth identities need SQL import (see MIGRATE_agtcyx_to_hprmic.md).
  */
 
-import 'dotenv/config';
 import { createClient } from '@supabase/supabase-js';
+import { readFileSync, existsSync } from 'fs';
+import { resolve } from 'path';
+
+function loadEnvFile() {
+  const envPath = resolve(process.cwd(), '.env');
+  if (!existsSync(envPath)) return;
+  for (const line of readFileSync(envPath, 'utf8').split('\n')) {
+    const m = line.match(/^([A-Z0-9_]+)=["']?([^"'\n]+)["']?/);
+    if (m && !process.env[m[1]]) process.env[m[1]] = m[2];
+  }
+}
+loadEnvFile();
 
 const argv = process.argv.slice(2);
 const MODE = argv.includes('--execute') ? 'execute'
