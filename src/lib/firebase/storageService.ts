@@ -63,6 +63,22 @@ export function createStorageBucket(bucket: string) {
       }
     },
 
+    async createSignedUrls(paths: string[], expiresIn = 3600): Promise<{ data: Array<{ path: string; signedUrl: string; error?: string | null }> | null; error: VybeAuthError | null }> {
+      try {
+        const data = await Promise.all(paths.map(async (p) => {
+          try {
+            const u = await getDownloadURL(ref(storage, `${bucket}/${p}`));
+            return { path: p, signedUrl: u, error: null };
+          } catch (e: any) {
+            return { path: p, signedUrl: '', error: e?.message || 'failed' };
+          }
+        }));
+        return { data, error: null };
+      } catch (err) {
+        return { data: null, error: toError(err) };
+      }
+    },
+
     async remove(paths: string[]): Promise<{ error: VybeAuthError | null }> {
       try {
         await Promise.all(paths.map((p) => deleteObject(ref(storage, `${bucket}/${p}`))));

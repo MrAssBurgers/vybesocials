@@ -23,6 +23,8 @@ export interface VybeAuthError {
   name?: string;
   status?: number;
   code?: string;
+  details?: any;
+  context?: any;
 }
 
 export interface QueryResult<T = any> {

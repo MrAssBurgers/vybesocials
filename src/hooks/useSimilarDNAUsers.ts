@@ -141,7 +141,7 @@ export function useSimilarDNAUsers(limit = 10) {
 
       if (!profiles) return [];
 
-      const profileMap = new Map(profiles.map(p => [p.id, p]));
+      const profileMap = new Map<string, any>((profiles as any[]).map((p: any) => [p.id, p]));
 
       return topIds
         .map(t => {

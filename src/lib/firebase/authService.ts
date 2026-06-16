@@ -74,7 +74,7 @@ export const firebaseAuth = {
     return { data: { user: toVybeUser(user) }, error: null };
   },
 
-  async refreshSession(): Promise<{ data: { session: VybeSession | null }; error: VybeAuthError | null }> {
+  async refreshSession(_opts?: { refresh_token?: string }): Promise<{ data: { session: VybeSession | null }; error: VybeAuthError | null }> {
     const user = auth.currentUser;
     if (!user) return { data: { session: null }, error: { message: 'Not authenticated' } };
     try {
@@ -83,6 +83,10 @@ export const firebaseAuth = {
     } catch (err) {
       return { data: { session: null }, error: toAuthError(err) };
     }
+  },
+
+  async exchangeCodeForSession(_code: string): Promise<{ data: { session: VybeSession | null }; error: VybeAuthError | null }> {
+    return { data: { session: null }, error: { message: 'exchangeCodeForSession not supported on Firebase Auth — use email link or oauth flow' } };
   },
 
   onAuthStateChange(callback: AuthStateCallback) {
@@ -175,9 +179,10 @@ export const firebaseAuth = {
     return this.getSession();
   },
 
-  async resetPasswordForEmail(email: string, redirectUrl?: string) {
+  async resetPasswordForEmail(email: string, redirect?: string | { redirectTo?: string }) {
     try {
-      await sendPasswordResetEmail(auth, email, redirectUrl ? { url: redirectUrl } : undefined);
+      const url = typeof redirect === 'string' ? redirect : redirect?.redirectTo;
+      await sendPasswordResetEmail(auth, email, url ? { url } : undefined);
       return { error: null };
     } catch (err) {
       return { error: toAuthError(err) };
@@ -222,7 +227,7 @@ export const firebaseAuth = {
   async signInWithOtp(_payload: { email?: string; phone?: string; options?: any }) {
     return { data: null, error: { message: 'signInWithOtp not supported on Firebase Auth — use email link or password instead' } };
   },
-  async verifyOtp(_payload: { email?: string; phone?: string; token: string; type: string }) {
+  async verifyOtp(_payload: { email?: string; phone?: string; token?: string; token_hash?: string; type: string }) {
     return { data: { session: null, user: null }, error: { message: 'verifyOtp not supported on Firebase Auth' } };
   },
   async linkIdentity(_payload: { provider: string; options?: any }): Promise<{ data: any; error: VybeAuthError | null }> {

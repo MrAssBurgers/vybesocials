@@ -92,7 +92,7 @@ export default function ResetPassword() {
       }
 
       recoveryTimer = setTimeout(() => {
-        if (!cancelled) finishErr(result.message);
+        if (!cancelled) finishErr((result as any).message || '');
       }, 2500);
     })();
 

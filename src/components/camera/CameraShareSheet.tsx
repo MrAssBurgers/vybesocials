@@ -175,7 +175,7 @@ export function CameraShareSheet({ mediaUrl, mediaType, mediaFile, soundId, soun
         await refreshSupabaseSession(8000);
         const authorProfileId = await resolveStoryAuthorProfileId(effectiveProfileId);
         const isVideo = mediaType === 'video';
-        const thumbnailBlob = isVideo ? await generateStoryThumbnail(file) : null;
+        const thumbnailBlob = isVideo ? await generateStoryThumbnail(file, true) : null;
 
         const { mediaUrl: uploadedUrl, thumbnailUrl } = await publishStoryMedia({
           file,

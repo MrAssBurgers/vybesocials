@@ -259,14 +259,8 @@ export function StoryCreator({ onClose }: StoryCreatorProps) {
 
   const isProcessing = uploadState !== 'idle' && uploadState !== 'error';
   const canShare = !!selectedFile && !!mediaInfo && !isProcessing;
-  const shareBlockedReason =
-    !selectedFile || !mediaInfo
-      ? 'Media still loading'
-      : isProcessing
-        ? getStatusText() || 'Upload in progress'
-        : null;
 
-  const getStatusText = () => {
+  function getStatusText() {
     switch (uploadState) {
       case 'validating': return 'Validating...';
       case 'compressing': return 'Optimizing...';
@@ -274,7 +268,14 @@ export function StoryCreator({ onClose }: StoryCreatorProps) {
       case 'saving': return 'Saving...';
       default: return '';
     }
-  };
+  }
+
+  const shareBlockedReason =
+    !selectedFile || !mediaInfo
+      ? 'Media still loading'
+      : isProcessing
+        ? getStatusText() || 'Upload in progress'
+        : null;
 
   useEffect(() => {
     if (isProcessing) {

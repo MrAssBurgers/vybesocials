@@ -48,7 +48,7 @@ export async function listPosts(opts?: {
   excludeAuthorId?: string;
   limit?: number;
 }): Promise<PostWithAuthor[]> {
-  const constraints = [orderBy('created_at', 'desc'), firestoreLimit(opts?.limit ?? 100)];
+  const constraints: any[] = [orderBy('created_at', 'desc'), firestoreLimit(opts?.limit ?? 100)];
 
   if (opts?.authorId) {
     constraints.unshift(where('author_id', '==', opts.authorId));
@@ -86,7 +86,7 @@ export async function listPosts(opts?: {
         is_bookmarked: false,
       };
     })
-    .filter((p): p is PostWithAuthor => p !== null);
+    .filter((p): p is any => p !== null) as PostWithAuthor[];
 }
 
 export async function createPost(

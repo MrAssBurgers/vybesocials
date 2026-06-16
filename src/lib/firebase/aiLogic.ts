@@ -51,7 +51,7 @@ export function getJsonModel(schema: Schema | object, modelId = DEFAULT_CHAT_MOD
       temperature: 0.7,
       maxOutputTokens: 2048,
       responseMimeType: 'application/json',
-      responseSchema: schema,
+      responseSchema: schema as any,
     },
   });
 }

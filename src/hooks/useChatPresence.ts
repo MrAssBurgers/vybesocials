@@ -146,7 +146,7 @@ export function useChatPresence(conversationId: string | undefined) {
 
         if (!isMounted) return;
 
-        const typingSet = new Set(typingData?.map(t => t.user_id) || []);
+        const typingSet = new Set<string>((typingData || []).map((t: any) => String(t.user_id)));
         setTypingUsers(Array.from(typingSet));
 
         const users: PresenceUser[] = (presenceData || []).map((p: any) => ({

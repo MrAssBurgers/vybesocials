@@ -257,11 +257,12 @@ class QueryBuilder {
   private applyClientFilters(rows: Record<string, unknown>[]) {
     let result = rows;
     for (const f of this.filters) {
-      if (f.op === 'not-in' && Array.isArray(f.value)) {
-        result = result.filter((r) => !f.value.includes(r[f.field]));
+      const v = f.value as any;
+      if (f.op === 'not-in' && Array.isArray(v)) {
+        result = result.filter((r) => !v.includes(r[f.field]));
       }
-      if (f.op === 'in' && Array.isArray(f.value) && f.value.length > 10) {
-        result = result.filter((r) => f.value.includes(r[f.field]));
+      if (f.op === 'in' && Array.isArray(v) && v.length > 10) {
+        result = result.filter((r) => v.includes(r[f.field]));
       }
     }
     return result;
@@ -555,15 +556,24 @@ export function createDataClient() {
       return new QueryBuilder(table);
     },
 
-    async rpc(name: string, params: Record<string, unknown> = {}) {
+    rpc(name: string, params: Record<string, unknown> = {}) {
       const clientFn = CLIENT_RPC[name];
       if (clientFn) {
-        try {
-          const data = await clientFn(params);
-          return { data, error: null };
-        } catch (err) {
-          return { data: null, error: toQueryError(err) };
-        }
+        const promise = (async () => {
+          try {
+            const data = await clientFn(params);
+            return { data, error: null } as any;
+          } catch (err) {
+            return { data: null, error: toQueryError(err) } as any;
+          }
+        })();
+        const enriched = promise as Promise<any> & {
+          single: () => Promise<any>;
+          maybeSingle: () => Promise<any>;
+        };
+        enriched.single = () => promise;
+        enriched.maybeSingle = () => promise;
+        return enriched;
       }
 
       // Delegate unknown RPCs to Cloud Functions (same name).
@@ -576,7 +586,7 @@ export function createDataClient() {
       invoke: invokeFunction,
     },
 
-    channel(name: string) {
+    channel(name: string, _opts?: { config?: any }) {
       return createRealtimeChannel(name);
     },
 

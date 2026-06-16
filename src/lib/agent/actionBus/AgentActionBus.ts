@@ -52,7 +52,7 @@ export class AgentActionBus {
     action: AgentAction,
     ctx: ActionHandlerContext,
   ): Promise<ActionExecutionResult> {
-    const risk = getActionRisk(action.type);
+    const risk = getActionRisk(action);
     if (risk === 'deny') {
       const result: ActionExecutionResult = {
         ok: false,

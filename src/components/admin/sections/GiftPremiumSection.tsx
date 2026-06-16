@@ -58,7 +58,7 @@ export function GiftPremiumSection() {
         .in('user_id', userIds)
         .is('revoked_at', null);
 
-      const giftedMap = new Map((giftedData || []).map(g => [g.user_id, g]));
+      const giftedMap = new Map<string, any>((giftedData || []).map((g: any) => [g.user_id, g]));
 
       return data.map(d => ({
         id: d.id,
@@ -92,7 +92,7 @@ export function GiftPremiumSection() {
         .select('user_id, username, avatar_url')
         .in('user_id', userIds);
 
-      const profileMap = new Map((profiles || []).map(p => [p.user_id, p]));
+      const profileMap = new Map<string, any>((profiles || []).map((p: any) => [p.user_id, p]));
 
       return data.map(g => ({
         ...g,
