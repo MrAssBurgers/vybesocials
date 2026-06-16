@@ -95,29 +95,47 @@ export function subscribePostgresChannel(
   return channel;
 }
 
-export function createRealtimeChannel(channelName: string) {
+export interface ChannelBuilder extends RealtimeChannel {
+  on: (type: string, config: any, callback?: any) => ChannelBuilder;
+  subscribe: (cb?: (status: string) => void) => ChannelBuilder;
+  send: (payload: any) => Promise<'ok'>;
+  track: (state: any) => Promise<'ok'>;
+  untrack: () => Promise<'ok'>;
+  presenceState: () => Record<string, any[]>;
+}
+
+export function createRealtimeChannel(channelName: string): ChannelBuilder {
   const bindings: PostgresBinding[] = [];
   let statusCb: ((status: string) => void) | undefined;
+  let resolved: RealtimeChannel | null = null;
 
-  const builder = {
-    on(
-      _type: 'postgres_changes',
-      config: { event: PostgresBinding['event']; schema?: string; table: string; filter?: string },
-      callback: PostgresBinding['callback'],
-    ) {
-      bindings.push({
-        event: config.event,
-        schema: config.schema,
-        table: config.table,
-        filter: config.filter,
-        callback,
-      });
+  const builder: ChannelBuilder = {
+    topic: channelName.startsWith('realtime:') ? channelName : `realtime:${channelName}`,
+    unsubscribe: () => { resolved?.unsubscribe(); },
+    on(type: string, config: any, callback?: any) {
+      if (type === 'postgres_changes' && callback) {
+        bindings.push({
+          event: config.event,
+          schema: config.schema,
+          table: config.table,
+          filter: config.filter,
+          callback,
+        });
+      }
+      // broadcast/presence: no-op in firebase shim
       return builder;
     },
     subscribe(cb?: (status: string) => void) {
       statusCb = cb;
-      return subscribePostgresChannel(channelName, bindings, statusCb);
+      resolved = subscribePostgresChannel(channelName, bindings, statusCb);
+      builder.topic = resolved.topic;
+      builder.unsubscribe = resolved.unsubscribe;
+      return builder;
     },
+    async send(_payload: any) { return 'ok' as const; },
+    async track(_state: any) { return 'ok' as const; },
+    async untrack() { return 'ok' as const; },
+    presenceState() { return {}; },
   };
 
   return builder;
