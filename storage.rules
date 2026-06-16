@@ -1,35 +1,55 @@
 rules_version = '2';
 
+// VYBE Storage rules — ported from Supabase bucket policies.
 service firebase.storage {
   match /b/{bucket}/o {
 
-    function isSignedIn() {
-      return request.auth != null;
-    }
+    function signedIn() { return request.auth != null; }
+    function isAdmin() { return signedIn() && request.auth.token.admin == true; }
+    function isOwner(userId) { return signedIn() && request.auth.uid == userId; }
+    function smallEnough() { return request.resource.size < 50 * 1024 * 1024; }
+    function isImage() { return request.resource.contentType.matches('image/.*'); }
+    function isAv() { return request.resource.contentType.matches('(image|video|audio)/.*'); }
 
+    // Per-user owned buckets
     match /avatars/{userId}/{allPaths=**} {
-      allow read: if isSignedIn();
-      allow write: if isSignedIn() && request.auth.uid == userId;
+      allow read: if signedIn();
+      allow write: if isOwner(userId) && smallEnough() && isImage();
     }
-
     match /media/{userId}/{allPaths=**} {
-      allow read: if isSignedIn();
-      allow write: if isSignedIn() && request.auth.uid == userId;
+      allow read: if signedIn();
+      allow write: if isOwner(userId) && smallEnough() && isAv();
     }
-
     match /stories/{userId}/{allPaths=**} {
-      allow read: if isSignedIn();
-      allow write: if isSignedIn() && request.auth.uid == userId;
+      allow read: if signedIn();
+      allow write: if isOwner(userId) && smallEnough() && isAv();
     }
-
     match /chat-media/{userId}/{allPaths=**} {
-      allow read: if isSignedIn();
-      allow write: if isSignedIn() && request.auth.uid == userId;
+      allow read: if signedIn();
+      allow write: if isOwner(userId) && smallEnough() && isAv();
+    }
+    match /clips/{userId}/{allPaths=**} {
+      allow read: if signedIn();
+      allow write: if isOwner(userId) && smallEnough();
+    }
+    match /post-media/{userId}/{allPaths=**} {
+      allow read: if signedIn();
+      allow write: if isOwner(userId) && smallEnough() && isAv();
+    }
+    match /community-assets/{userId}/{allPaths=**} {
+      allow read: if signedIn();
+      allow write: if isOwner(userId) && smallEnough();
     }
 
-    match /{bucketName}/{allPaths=**} {
-      allow read: if isSignedIn();
-      allow write: if isSignedIn();
+    // Public reference assets (write via admin SDK only)
+    match /public/{allPaths=**} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // Default deny
+    match /{allPaths=**} {
+      allow read, write: if false;
     }
   }
 }

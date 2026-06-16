@@ -1,18 +1,276 @@
-rules_version='2'
+rules_version = '2';
+
+// VYBE — Firestore Security Rules (ported from Supabase RLS, Phase 4)
+//
+// Access model:
+//   - Auth ID == document field `user_id` / `author_id` / `owner_id` for ownership.
+//   - `profiles` is globally readable to authenticated users (matches Supabase
+//     "Authenticated users can view all profiles USING (true)" policy).
+//   - `user_roles` is read-only to the owning user; admin escalation flows via
+//     custom claims (`request.auth.token.admin == true`) set by a Cloud Function.
+//   - Sensitive admin tables (app_secrets, error_logs, payouts, etc.) are
+//     deny-all to clients; access is server-side via Cloud Functions only.
+//   - Chat membership uses subcollections under `conversations/{cid}/members/{uid}`
+//     to keep rules O(1); legacy `conversation_members` collection is read-gated
+//     on `request.auth.uid in resource.data.member_ids` arrays during cutover.
 
 service cloud.firestore {
   match /databases/{database}/documents {
+
+    // ---------- helpers ----------
+    function signedIn() { return request.auth != null; }
+    function uid() { return request.auth.uid; }
+    function isAdmin() {
+      return signedIn() && request.auth.token.admin == true;
+    }
+    function isOwner(field) {
+      return signedIn() && resource.data[field] == uid();
+    }
+    function willOwn(field) {
+      return signedIn() && request.resource.data[field] == uid();
+    }
+    function isMember(cid) {
+      return signedIn() &&
+        exists(/databases/$(database)/documents/conversations/$(cid)/members/$(uid()));
+    }
+
+    // ---------- profiles ----------
+    // Public-ish read for any authed user (prevents "Unknown User" bug).
+    match /profiles/{userId} {
+      allow read: if signedIn();
+      allow create: if signedIn() && userId == uid();
+      allow update: if signedIn() && (userId == uid() || isAdmin());
+      allow delete: if isAdmin();
+    }
+
+    // Profile-scoped subcollections (settings, prefs, etc.)
+    match /profiles/{userId}/{sub=**} {
+      allow read, write: if signedIn() && (userId == uid() || isAdmin());
+    }
+
+    // ---------- user roles (read-only to owner; mutation via Cloud Function) ----------
+    match /user_roles/{docId} {
+      allow read: if signedIn() && (resource.data.user_id == uid() || isAdmin());
+      allow write: if isAdmin();
+    }
+
+    // ---------- social: follows / blocks / friend requests ----------
+    match /follows/{docId} {
+      allow read: if signedIn();
+      allow create: if willOwn('follower_id');
+      allow delete: if isOwner('follower_id') || isAdmin();
+    }
+    match /blocked_users/{docId} {
+      allow read: if isOwner('blocker_id') || isAdmin();
+      allow create: if willOwn('blocker_id');
+      allow delete: if isOwner('blocker_id');
+    }
+    match /friend_requests/{docId} {
+      allow read: if signedIn() && (resource.data.sender_id == uid() || resource.data.recipient_id == uid());
+      allow create: if willOwn('sender_id');
+      allow update, delete: if signedIn() && (resource.data.sender_id == uid() || resource.data.recipient_id == uid());
+    }
+    match /close_friends/{docId} {
+      allow read, write: if isOwner('user_id') || willOwn('user_id');
+    }
+    match /dismissed_profiles/{docId} {
+      allow read, write: if isOwner('user_id') || willOwn('user_id');
+    }
+
+    // ---------- posts / comments / reactions ----------
+    match /posts/{postId} {
+      allow read: if signedIn();
+      allow create: if willOwn('author_id');
+      allow update, delete: if isOwner('author_id') || isAdmin();
+    }
+    match /comments/{commentId} {
+      allow read: if signedIn();
+      allow create: if willOwn('author_id');
+      allow update, delete: if isOwner('author_id') || isAdmin();
+    }
+    match /comment_likes/{docId} {
+      allow read: if signedIn();
+      allow create: if willOwn('user_id');
+      allow delete: if isOwner('user_id');
+    }
+    match /bookmarks/{docId} {
+      allow read, write: if isOwner('user_id') || willOwn('user_id');
+    }
+    match /post_reactions/{docId} {
+      allow read: if signedIn();
+      allow create: if willOwn('user_id');
+      allow delete: if isOwner('user_id');
+    }
+    match /post_views/{docId} {
+      allow read: if signedIn() && (resource.data.viewer_id == uid() || isAdmin());
+      allow create: if willOwn('viewer_id');
+    }
+
+    // ---------- conversations / messages ----------
+    match /conversations/{cid} {
+      allow read: if isMember(cid) || isAdmin();
+      allow create: if signedIn(); // Cloud Function should validate participants
+      allow update: if isMember(cid);
+      allow delete: if isAdmin();
+
+      match /members/{memberId} {
+        allow read: if isMember(cid);
+        allow write: if isMember(cid) || isAdmin();
+      }
+      match /messages/{messageId} {
+        allow read: if isMember(cid);
+        allow create: if isMember(cid) && willOwn('sender_id');
+        allow update, delete: if signedIn() &&
+          (resource.data.sender_id == uid() || isAdmin());
+      }
+      match /typing/{uid} {
+        allow read: if isMember(cid);
+        allow write: if isMember(cid) && uid == request.auth.uid;
+      }
+    }
+    // Legacy flat conversation_members during cutover
+    match /conversation_members/{docId} {
+      allow read: if signedIn() && resource.data.user_id == uid();
+      allow create: if willOwn('user_id');
+      allow delete: if isOwner('user_id') || isAdmin();
+    }
+    match /hidden_conversations/{docId} {
+      allow read, write: if isOwner('user_id') || willOwn('user_id');
+    }
+    match /dm_settings/{docId} {
+      allow read, write: if isOwner('user_id') || willOwn('user_id');
+    }
+
+    // ---------- calls / signaling ----------
+    match /calls/{callId} {
+      allow read: if signedIn() && (
+        resource.data.caller_id == uid() || resource.data.callee_id == uid() ||
+        uid() in resource.data.get('participant_ids', [])
+      );
+      allow create: if willOwn('caller_id');
+      allow update: if signedIn();
+    }
+    match /call_signals/{docId} {
+      allow read: if signedIn() && (resource.data.to_user == uid() || resource.data.from_user == uid());
+      allow create: if willOwn('from_user');
+      allow delete: if isOwner('from_user') || isOwner('to_user');
+    }
+
+    // ---------- stories ----------
+    match /stories/{id} {
+      allow read: if signedIn();
+      allow create: if willOwn('author_id');
+      allow update, delete: if isOwner('author_id') || isAdmin();
+    }
+    match /story_views/{id} {
+      allow read: if signedIn() && (resource.data.viewer_id == uid() || isAdmin());
+      allow create: if willOwn('viewer_id');
+    }
+
+    // ---------- notifications / push tokens ----------
+    match /notifications/{id} {
+      allow read: if isOwner('user_id') || isAdmin();
+      allow update: if isOwner('user_id'); // mark as read
+      allow create: if isAdmin(); // Cloud Functions only via admin SDK
+      allow delete: if isOwner('user_id') || isAdmin();
+    }
+    match /push_tokens/{id} {
+      allow read, write: if isOwner('user_id') || willOwn('user_id');
+    }
+
+    // ---------- user-owned generic ----------
+    match /bug_reports/{id} {
+      allow create: if signedIn();
+      allow read, update, delete: if isAdmin();
+    }
+    match /feedback/{id} {
+      allow create: if signedIn();
+      allow read: if signedIn();
+      allow update, delete: if isOwner('user_id') || isAdmin();
+    }
+    match /feature_requests/{id} {
+      allow read: if signedIn();
+      allow create: if willOwn('user_id');
+      allow update, delete: if isOwner('user_id') || isAdmin();
+    }
+    match /feature_votes/{id} {
+      allow read: if signedIn();
+      allow create: if willOwn('user_id');
+      allow delete: if isOwner('user_id');
+    }
+    match /capture_events/{id} {
+      allow create: if willOwn('user_id');
+      allow read: if isOwner('user_id') || isAdmin();
+    }
+
+    // ---------- communities / channels ----------
+    match /communities/{cid} {
+      allow read: if signedIn();
+      allow create: if willOwn('owner_id');
+      allow update, delete: if isOwner('owner_id') || isAdmin();
+    }
+    match /channels/{id} {
+      allow read: if signedIn();
+      allow write: if signedIn(); // Cloud Function validates community ownership
+    }
+    match /channel_messages/{id} {
+      allow read: if signedIn();
+      allow create: if willOwn('author_id');
+      allow update, delete: if isOwner('author_id') || isAdmin();
+    }
+    match /group_members/{id} {
+      allow read: if signedIn();
+      allow create: if willOwn('user_id');
+      allow delete: if isOwner('user_id') || isAdmin();
+    }
+
+    // ---------- public-ish reference data ----------
+    match /badges/{id}            { allow read: if signedIn(); allow write: if isAdmin(); }
+    match /challenges/{id}        { allow read: if signedIn(); allow write: if isAdmin(); }
+    match /challenge_templates/{id} { allow read: if signedIn(); allow write: if isAdmin(); }
+    match /announcements/{id}     { allow read: if signedIn(); allow write: if isAdmin(); }
+    match /battle_pass_tiers/{id} { allow read: if signedIn(); allow write: if isAdmin(); }
+    match /algorithm_settings/{id} { allow read: if signedIn(); allow write: if isAdmin(); }
+    match /community_guidelines/{id} { allow read: if signedIn(); allow write: if isAdmin(); }
+    match /growth_config/{id}     { allow read: if signedIn(); allow write: if isAdmin(); }
+
+    // ---------- commerce ----------
+    match /creator_profiles/{id} {
+      allow read: if signedIn();
+      allow create, update: if isOwner('user_id') || willOwn('user_id');
+      allow delete: if isAdmin();
+    }
+    match /creator_earnings/{id}   { allow read: if isOwner('creator_id') || isAdmin(); allow write: if isAdmin(); }
+    match /creator_payouts/{id}    { allow read: if isOwner('creator_id') || isAdmin(); allow write: if isAdmin(); }
+    match /creator_daily_stats/{id} { allow read: if isOwner('creator_id') || isAdmin(); allow write: if isAdmin(); }
+    match /business_profiles/{id} {
+      allow read: if signedIn();
+      allow write: if isOwner('owner_id') || willOwn('owner_id') || isAdmin();
+    }
+    match /business_products/{id}  { allow read: if signedIn(); allow write: if isOwner('owner_id') || willOwn('owner_id') || isAdmin(); }
+    match /business_orders/{id}    { allow read: if isOwner('buyer_id') || isOwner('seller_id') || isAdmin(); allow write: if isAdmin(); }
+    match /gifted_premium/{id}     { allow read: if isOwner('recipient_id') || isOwner('giver_id') || isAdmin(); allow create: if willOwn('giver_id'); allow update, delete: if isAdmin(); }
+
+    // ---------- explicit deny-all admin-only tables (Cloud Functions handle these) ----------
+    match /app_secrets/{id}                   { allow read, write: if false; }
+    match /encryption_keys/{id}               { allow read, write: if false; }
+    match /error_logs/{id}                    { allow read, write: if isAdmin(); }
+    match /email_send_log/{id}                { allow read, write: if isAdmin(); }
+    match /email_send_state/{id}              { allow read, write: if isAdmin(); }
+    match /email_unsubscribe_tokens/{id}      { allow read, write: if false; }
+    match /auth_challenges/{id}               { allow read, write: if false; }
+    match /account_deletion_requests/{id}     { allow create: if willOwn('user_id'); allow read, update, delete: if isAdmin(); }
+    match /content_appeals/{id}               { allow create: if willOwn('user_id'); allow read: if isOwner('user_id') || isAdmin(); allow update, delete: if isAdmin(); }
+    match /content_flags/{id}                 { allow create: if willOwn('reporter_id'); allow read, update, delete: if isAdmin(); }
+    match /ad_campaigns/{id}                  { allow read: if signedIn(); allow write: if isOwner('owner_id') || willOwn('owner_id') || isAdmin(); }
+    match /ad_impressions/{id}                { allow create: if signedIn(); allow read: if isAdmin(); }
+    match /ad_daily_stats/{id}                { allow read: if isAdmin(); }
+    match /ad_credits/{id}                    { allow read: if isOwner('user_id') || isAdmin(); allow write: if isAdmin(); }
+    match /contact_hashes/{id}                { allow read, write: if isOwner('user_id') || willOwn('user_id'); }
+
+    // ---------- catch-all: deny by default ----------
     match /{document=**} {
-      // This rule allows anyone with your database reference to view, edit,
-      // and delete all data in your database. It is useful for getting
-      // started, but it is configured to expire after 30 days because it
-      // leaves your app open to attackers. At that time, all client
-      // requests to your database will be denied.
-      //
-      // Make sure to write security rules for your app before that time, or
-      // else all client requests to your database will be denied until you
-      // update your rules.
-      allow read, write: if request.time < timestamp.date(2026, 7, 16);
+      allow read, write: if false;
     }
   }
 }
