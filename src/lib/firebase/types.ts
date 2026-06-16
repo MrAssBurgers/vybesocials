@@ -25,11 +25,14 @@ export interface VybeAuthError {
   code?: string;
 }
 
-export interface QueryResult<T> {
+export interface QueryResult<T = any> {
   data: T;
   error: VybeAuthError | null;
   count?: number | null;
 }
+
+/** VybeAuthError compatibility extras. */
+export type VybeAuthErrorWithDetails = VybeAuthError & { details?: any };
 
 export interface StorageUploadResult {
   data: { path: string } | null;
