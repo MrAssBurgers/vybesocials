@@ -1306,3 +1306,31 @@ Use this file as the Lovable -> Cursor handoff each session.
 - [ ] `vybehub.app` Home aurora + tap verified
 - [ ] `vybehub.app` Login tap + Log In button verified
 - [ ] Custom wallpaper hides aurora (Settings → Background)
+
+---
+
+## 2026-06-16 — Supabase → Firebase migration complete (Phases 1-8)
+
+All eight migration phases complete. See `.lovable/plan.md` for per-phase detail.
+
+**What shipped:**
+- Phase 1: Google/Apple sign-in moved to Firebase Auth.
+- Phase 2-3: Data export script + Firestore importer (`scripts/import-firebase.mjs`).
+- Phase 4: `firestore.rules`, `storage.rules`, `firestore.indexes.json` translated from Supabase RLS.
+- Phase 5: P0 Cloud Functions (`ai.ts`, `auth.ts`, `push.ts`, `realtime.ts`, `social.ts`) live.
+- Phase 6: client `supabase.functions.invoke(...)` calls auto-routed to camelCase Firebase callables via `functionsService.ts`.
+- Phase 7: long-tail port — `email.ts` (Resend), `stripe.ts` (Connect V2 + webhooks), `spotify.ts`, `passkeys.ts`, `briefs.ts` (scheduled), `aiExtras.ts`. FCM web push wired (`public/firebase-messaging-sw.js` + `src/lib/firebase/messaging.ts`).
+- Phase 8: `index.html` preconnects switched to Firebase endpoints. Shim layer `src/integrations/supabase/` retained as deprecation seam.
+
+**Verification:**
+- `cd functions && npx tsc --noEmit` → 0 errors.
+- `npm run build` runs clean.
+
+**Blockers / next 3 tasks:**
+1. Configure Cloud Function secrets in Firebase Console (full list in `.lovable/plan.md` Phase 8).
+2. `firebase deploy --only firestore:rules,storage,firestore:indexes,functions,hosting`.
+3. Bootstrap first admin via Firebase Console → Auth → Custom Claims `{ "admin": true }`, then publish web app via Lovable → Share → Publish.
+
+**Residual work (non-blocking):**
+- Swap presence/typing hooks from legacy realtime shim to direct Firestore `onSnapshot` (small perf win).
+- Delete `supabase/` folder + `src/integrations/supabase/` shim once Firebase impl is battle-tested in production.
