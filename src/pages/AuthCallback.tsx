@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/lib/auth';
+import { isPasswordRecoveryUrl, redirectToPasswordRecoveryPage } from '@/lib/passwordRecoveryUrl';
 
 /**
  * OAuth callback page. After the Lovable Cloud OAuth broker redirects here
@@ -14,6 +15,17 @@ export default function AuthCallback() {
   const [timedOut, setTimedOut] = useState(false);
   const profileCheckTimer = useRef<NodeJS.Timeout | null>(null);
   const [profileSettled, setProfileSettled] = useState(false);
+
+  // Password recovery links must never be consumed as OAuth sign-in.
+  useEffect(() => {
+    try {
+      if (isPasswordRecoveryUrl(new URL(window.location.href))) {
+        redirectToPasswordRecoveryPage();
+      }
+    } catch {
+      /* ignore */
+    }
+  }, []);
 
   // If the user cancelled the OAuth flow (or the broker returned an error),
   // the URL will contain ?error=… / #error=… instead of access tokens. In that

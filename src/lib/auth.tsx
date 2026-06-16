@@ -9,7 +9,7 @@ import { prefetchDMConversationsFromNav } from '@/lib/loadDMConversations';
 import { warmHomeCachesForProfile } from '@/lib/warmHomeCaches';
 import { resolveSessionProfileId, resetSessionProfileMemo } from '@/lib/resolveSessionProfileId';
 import { resetThemeToDefault } from '@/lib/themeReset';
-import { hasStoredSupabaseSession, getStoredAuthUserId } from '@/lib/supabaseStorageKey';
+import { hasStoredSupabaseSession, getStoredAuthUserId, clearLegacySupabaseAuthStorage } from '@/lib/supabaseStorageKey';
 import { setWasLoggedIn } from '@/lib/wasLoggedIn';
 import { getAuthRedirectUrl } from '@/lib/authRedirect';
 import { isDespiaRuntime } from '@/lib/despiaBridge';
@@ -630,6 +630,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         if (event === 'SIGNED_IN' && session?.user) {
           stripStaleOnboardingFlagFromDisk();
+          clearLegacySupabaseAuthStorage();
         }
 
         // ── KEY FIX: Never finalize "no session" from INITIAL_SESSION ──
@@ -974,10 +975,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         email: normalized,
         password,
       });
-
-      // #region agent log
-      fetch('http://127.0.0.1:7261/ingest/50637484-d3e0-47cb-9fea-f484edc6e98d',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'d7bed4'},body:JSON.stringify({sessionId:'d7bed4',location:'auth.tsx:signIn',message:'signInWithPassword result',data:{ok:!error,errorCode:(error as {code?:string})?.code??null,errorMsg:error?.message??null},timestamp:Date.now(),hypothesisId:'H1'})}).catch(()=>{});
-      // #endregion
 
       if (error) throw error;
       return { error: null };

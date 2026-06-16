@@ -382,9 +382,6 @@ export function usePersonalizedFeed(
           p_page: pageParam,
           p_page_size: limit,
         } as any);
-        // #region agent log
-        fetch('http://127.0.0.1:7261/ingest/50637484-d3e0-47cb-9fea-f484edc6e98d',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'d7bed4'},body:JSON.stringify({sessionId:'d7bed4',location:'useInfinitePosts.ts:trending',message:'personalized feed cold start',data:{hasUser:!!user,hasProfileId:!!profileId,postCount:(data||[]).length,error:error?.message??null},timestamp:Date.now(),hypothesisId:'H3'})}).catch(()=>{});
-        // #endregion
         if (error) throw error;
         const posts = (data || []).map((r: any) => ({
           id: r.post_id ?? r.id,

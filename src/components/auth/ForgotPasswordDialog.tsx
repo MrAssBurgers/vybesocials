@@ -7,6 +7,7 @@ import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 import { requestPasswordReset } from '@/lib/authReset';
 import { normalizeLoginEmail } from '@/lib/loginEmail';
+import { getUserFriendlyError } from '@/lib/errorUtils';
 
 interface ForgotPasswordDialogProps {
   open: boolean;
@@ -41,9 +42,7 @@ export function ForgotPasswordDialog({ open, onClose, initialEmail = '' }: Forgo
       setSent(true);
       toast.success('If that email exists, we sent a reset link.');
     } catch (err: unknown) {
-      const message =
-        err instanceof Error ? err.message : 'Failed to send reset email. Please try again.';
-      toast.error(message);
+      toast.error(getUserFriendlyError(err));
     } finally {
       setLoading(false);
     }

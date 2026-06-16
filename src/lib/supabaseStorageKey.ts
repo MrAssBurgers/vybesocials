@@ -161,7 +161,7 @@ export function getStoredAuthUserId(): string | null {
   }
 }
 
-/** Drop sessions from legacy Supabase projects after switching canonical auth to hprmic. */
+/** Drop hprmic/eabvbt auth keys so they never block agtcyx login. */
 export function clearLegacySupabaseAuthStorage(): void {
   try {
     for (const ref of KNOWN_LEGACY_SUPABASE_REFS) {
@@ -174,9 +174,30 @@ export function clearLegacySupabaseAuthStorage(): void {
   }
 }
 
+/** Remove stored sessions whose JWT ref does not match the canonical agtcyx project. */
+export function purgeWrongProjectAuthSessions(): void {
+  try {
+    const keys = new Set<string>([
+      getSupabaseAuthStorageKey(),
+      ...KNOWN_LEGACY_SUPABASE_REFS.map(authStorageKeyForRef),
+    ]);
+
+    for (const key of keys) {
+      const raw = readRawSession(key);
+      if (!raw) continue;
+      if (sessionMatchesCurrentProject(raw)) continue;
+      localStorage.removeItem(key);
+      localStorage.removeItem(`${key}${BACKUP_SUFFIX}`);
+    }
+  } catch {
+    /* ignore */
+  }
+}
+
 /** Repair primary/backup pair and migrate legacy keys before auth client reads storage. */
 export function repairSupabaseAuthStorage(): void {
   try {
+    purgeWrongProjectAuthSessions();
     migrateLegacySupabaseAuthStorage();
 
     const key = getSupabaseAuthStorageKey();

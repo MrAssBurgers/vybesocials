@@ -354,6 +354,7 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
         }
 
         sessionStorage.removeItem('vybe-session-only');
+        clearLegacySupabaseAuthStorage();
         toast.success('Welcome back! ✨');
         if (session.user && !session.user.email_confirmed_at) {
           toast.info('Verify your email to unlock all features.');

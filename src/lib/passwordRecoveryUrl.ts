@@ -1,4 +1,5 @@
 const RESET_PATH = '/reset-password';
+const RESET_PATHS = new Set([RESET_PATH, '/auth/reset-password']);
 
 export function isPasswordRecoveryUrl(url: URL = new URL(window.location.href)): boolean {
   const hashParams = new URLSearchParams(url.hash.replace(/^#/, ''));
@@ -7,6 +8,8 @@ export function isPasswordRecoveryUrl(url: URL = new URL(window.location.href)):
   if (type === 'recovery') return true;
   if (queryParams.get('token_hash')) return true;
   if (hashParams.get('access_token') && hashParams.get('type') === 'recovery') return true;
+  // PKCE recovery often lands as ?code= on the redirect URL (no type param).
+  if (queryParams.get('code') && RESET_PATHS.has(url.pathname)) return true;
   return false;
 }
 

@@ -18,10 +18,6 @@ async function establishRecoverySession(): Promise<{ ok: true } | { ok: false; m
   const tokenHash = queryParams.get('token_hash');
   const type = queryParams.get('type') || hashParams.get('type');
 
-  // #region agent log
-  fetch('http://127.0.0.1:7261/ingest/50637484-d3e0-47cb-9fea-f484edc6e98d',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'d7bed4'},body:JSON.stringify({sessionId:'d7bed4',location:'ResetPassword.tsx:establishRecoverySession',message:'recovery url parsed',data:{hasCode:!!code,hasTokenHash:!!tokenHash,type:type??null,path:url.pathname},timestamp:Date.now(),hypothesisId:'H2'})}).catch(()=>{});
-  // #endregion
-
   if (code) {
     const { error } = await supabase.auth.exchangeCodeForSession(code);
     if (error) return { ok: false, message: error.message || 'Invalid or expired reset link.' };
