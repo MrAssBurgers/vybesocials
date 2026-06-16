@@ -443,28 +443,20 @@ export function AIBriefSheet({ open, onOpenChange, focusTopic, focusHeadline, no
         bodyPayload.longitude = longitude;
       }
 
-      const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ai-catch-up`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
-          body: JSON.stringify(bodyPayload),
-          signal: abortControllerRef.current.signal,
-        }
-      );
+      const { data, error: fnError } = await invokeFunction<any>('ai-catch-up', bodyPayload);
 
       if (progressInterval) clearInterval(progressInterval);
       if (!isBackground) { setLoadingProgress(85); setLoadingStage('ai'); }
 
-      if (!response.ok) {
-        if (response.status === 429) { setError('Rate limited. Try again in a moment.'); return; }
-        if (response.status === 402) { setError('AI credits exhausted.'); return; }
-        throw new Error('Failed to get brief');
+      if (fnError || !data) {
+        const msg = String(fnError?.message || '');
+        if (/rate|429/i.test(msg)) { setError('Rate limited. Try again in a moment.'); return; }
+        if (/credit|402/i.test(msg)) { setError('AI credits exhausted.'); return; }
+        throw new Error(msg || 'Failed to get brief');
       }
 
       if (!isBackground) { setLoadingProgress(95); setLoadingStage('done'); }
 
-      const data = await response.json();
       setBriefData(data);
       setCachedBrief(data);
       setError(null);
