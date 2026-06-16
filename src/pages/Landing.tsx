@@ -809,17 +809,13 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
                   onClick={async () => {
                     setLoading(true);
                     try {
-                      sessionStorage.setItem('vybe-oauth-pending', 'true');
-                      const { error } = await lovable.auth.signInWithOAuth('google', {
-                        redirect_uri: getAuthRedirectUrl('/auth/callback'),
+                      const { firebaseAuth } = await import('@/lib/firebase');
+                      const { error } = await firebaseAuth.signInWithOAuth('google', {
                         extraParams: { prompt: 'select_account' },
                       });
-                      if (error) {
-                        sessionStorage.removeItem('vybe-oauth-pending');
-                        throw error;
-                      }
+                      if (error) throw error;
+                      // Popup closed successfully — onAuthStateChanged will pick it up
                     } catch (error: any) {
-                      sessionStorage.removeItem('vybe-oauth-pending');
                       const msg = getUserFriendlyError(error);
                       if (msg !== '__SUPPRESS__') toast.error(msg);
                       setLoading(false);
