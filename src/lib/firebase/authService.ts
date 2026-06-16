@@ -227,7 +227,7 @@ export const firebaseAuth = {
   async signInWithOtp(_payload: { email?: string; phone?: string; options?: any }) {
     return { data: null, error: { message: 'signInWithOtp not supported on Firebase Auth — use email link or password instead' } };
   },
-  async verifyOtp(_payload: { email?: string; phone?: string; token: string; type: string }) {
+  async verifyOtp(_payload: { email?: string; phone?: string; token?: string; token_hash?: string; type: string }) {
     return { data: { session: null, user: null }, error: { message: 'verifyOtp not supported on Firebase Auth' } };
   },
   async linkIdentity(_payload: { provider: string; options?: any }): Promise<{ data: any; error: VybeAuthError | null }> {
