@@ -1,5 +1,6 @@
 <!doctype html>
-<html lang="en" class="dark">
+<!-- Set data-vybe-maintenance="false" when the app is live again -->
+<html lang="en" class="dark" data-vybe-maintenance="true">
   <head>
     <!-- VYBE pre-boot theme application — runs BEFORE anything paints so the
          splash screen never flashes default/preset colors before the user's
@@ -306,6 +307,68 @@
   <meta name="twitter:description" content="VYBE - The Next Generation Social Platform. Share moments, connect with friends, and discover amazing content from creators worldwide.">
 </head>
   <body>
+    <div id="vybe-maintenance-static" role="alert" aria-live="polite">
+      <div class="vybe-maint-inner">
+        <p class="vybe-maint-badge">Under reconstruction</p>
+        <h1 class="vybe-maint-title">We&rsquo;ll be back soon</h1>
+        <p class="vybe-maint-body">VYBE is down for reconstruction while we move to our new backend. Sign-ups, messages, and posts are paused. We will be back soon.</p>
+        <p class="vybe-maint-foot">vybehub.app</p>
+      </div>
+    </div>
+    <style>
+      #vybe-maintenance-static {
+        display: none;
+        position: fixed;
+        inset: 0;
+        z-index: 2147483646;
+        align-items: center;
+        justify-content: center;
+        padding: 1.5rem;
+        text-align: center;
+        background: #07070c;
+        color: #fafafa;
+        font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      }
+      html[data-vybe-maintenance="true"] #vybe-maintenance-static {
+        display: flex;
+      }
+      .vybe-maint-inner { max-width: 28rem; }
+      .vybe-maint-badge {
+        display: inline-block;
+        margin: 0 0 1rem;
+        padding: 0.35rem 0.9rem;
+        border-radius: 9999px;
+        border: 1px solid rgba(139, 92, 246, 0.35);
+        background: rgba(139, 92, 246, 0.12);
+        color: #ddd6fe;
+        font-size: 0.875rem;
+        font-weight: 500;
+      }
+      .vybe-maint-title {
+        margin: 0 0 0.75rem;
+        font-size: 1.75rem;
+        font-weight: 700;
+        letter-spacing: -0.02em;
+      }
+      .vybe-maint-body {
+        margin: 0;
+        font-size: 1.05rem;
+        line-height: 1.6;
+        color: #d4d4d8;
+      }
+      .vybe-maint-foot {
+        margin: 1.5rem 0 0;
+        font-size: 0.75rem;
+        color: #52525b;
+      }
+    </style>
+    <script>
+      (function () {
+        if (document.documentElement.getAttribute('data-vybe-maintenance') === 'true') {
+          window.__VYBE_MAINTENANCE__ = true;
+        }
+      })();
+    </script>
     <div id="vybe-aurora-mount" aria-hidden="true"></div>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx" fetchpriority="high"></script>

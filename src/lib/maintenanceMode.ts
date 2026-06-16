@@ -1,7 +1,23 @@
-/** Full-app maintenance gate — set VITE_MAINTENANCE_MODE=true in Lovable env + Publish. */
+declare global {
+  interface Window {
+    __VYBE_MAINTENANCE__?: boolean;
+  }
+}
+
+/** Full-app maintenance gate — html data-vybe-maintenance, env, or window flag. */
 export function isMaintenanceMode(): boolean {
+  if (typeof document !== 'undefined') {
+    if (document.documentElement.getAttribute('data-vybe-maintenance') === 'true') return true;
+  }
+  if (typeof window !== 'undefined' && window.__VYBE_MAINTENANCE__ === true) return true;
   const raw = import.meta.env.VITE_MAINTENANCE_MODE;
   return raw === 'true' || raw === '1';
+}
+
+export function dismissStaticMaintenanceShell(): void {
+  if (typeof document === 'undefined') return;
+  document.getElementById('vybe-maintenance-static')?.remove();
+  document.documentElement.removeAttribute('data-vybe-maintenance');
 }
 
 export function getMaintenanceMessage(): string {

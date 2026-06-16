@@ -1,9 +1,14 @@
+import { useEffect } from 'react';
 import { VYBELogo } from '@/components/ui/VYBELogo';
-import { getMaintenanceMessage } from '@/lib/maintenanceMode';
+import { dismissStaticMaintenanceShell, getMaintenanceMessage } from '@/lib/maintenanceMode';
 import { Wrench } from 'lucide-react';
 
 export function MaintenanceScreen() {
   const message = getMaintenanceMessage();
+
+  useEffect(() => {
+    dismissStaticMaintenanceShell();
+  }, []);
 
   return (
     <div className="min-h-[100dvh] flex flex-col items-center justify-center px-6 py-12 text-center bg-[#07070c] text-foreground overflow-hidden relative">
@@ -27,7 +32,7 @@ export function MaintenanceScreen() {
           <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-white">
             We&apos;ll be back soon
           </h1>
-          <p className="text-base leading-relaxed text-zinc-400">{message}</p>
+          <p className="text-base sm:text-lg leading-relaxed text-zinc-200 max-w-prose">{message}</p>
         </div>
 
         <p className="text-xs text-zinc-600">
