@@ -127,3 +127,25 @@ Sweep for `import.meta.env.VITE_SUPABASE_PROJECT_ID`, direct `supabase.functions
 Just **Phase 1** (Google/Apple → Firebase Auth, ~10 file edits) + write the **Phase 2 export script** so you can start the data dump while I queue up Phase 3 for next session.
 
 Reply "approve phase 1+2" to start, or tell me what to change.
+---
+
+## Phase 4 — STATUS: ✅ scaffolded (2026-06-16)
+
+**Written:**
+- `firestore.rules` — full ruleset translating RLS for ~50 collections (profiles global-read, owner writes via `user_id`/`author_id`, conversation membership via `conversations/{cid}/members/{uid}` subcollection, admin gating via `request.auth.token.admin`, deny-all catch-all).
+- `storage.rules` — per-user buckets (`avatars`, `media`, `stories`, `chat-media`, `clips`, `post-media`, `community-assets`) with 50 MB size + content-type guards, public read for `/public/**`, default deny.
+- `firestore.indexes.json` — composite indexes for the hot queries (posts by author+date, comments by post, messages by conversation, notifications by user, stories by author+expires, follows both directions, channel_messages).
+- `functions/src/index.ts` — added `setAdminClaim` callable to manage `admin` custom claim + write-back to `user_roles`. Bootstrap the FIRST admin manually in Firebase Console → Auth → user → Custom Claims: `{ "admin": true }`.
+
+**You run (after Phase 3 import finishes):**
+```
+firebase deploy --only firestore:rules,storage,firestore:indexes
+firebase deploy --only functions
+```
+
+**Caveats to revisit in Phase 5/6:**
+- `conversation_members` rule is permissive during cutover; tighten once all reads move to the `conversations/{cid}/members` subcollection.
+- Rules assume documents include `author_id` / `user_id` fields matching the Firebase Auth UID. The import script (Phase 3) preserves Supabase auth UIDs, so this holds.
+- A few admin-only tables (`error_logs`, `email_send_*`, `gifted_premium` writes) deny client writes — the corresponding Cloud Functions (Phase 5) must use the admin SDK.
+
+Say **"start Phase 5"** to begin porting edge functions in priority batches.
