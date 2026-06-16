@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { db } from '@/lib/firebase';
+import { invokeFunction } from '@/lib/firebase/functionsService';
 import { toast } from 'sonner';
 import { haptics } from '@/lib/haptics';
 import { getBriefTimeSlot } from '@/lib/briefTimeSlot';
@@ -95,18 +96,9 @@ async function prefetchBrief(authUserId?: string, force = false): Promise<boolea
       bodyPayload.longitude = longitude;
     }
 
-    const response = await fetch(
-      `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ai-catch-up`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
-        body: JSON.stringify(bodyPayload),
-      }
-    );
+    const { data, error } = await invokeFunction<any>('ai-catch-up', bodyPayload);
+    if (error || !data) return false;
 
-    if (!response.ok) return false;
-
-    const data = await response.json();
     if (data && typeof data.summary === 'string' && data.summary.trim().length > 0) {
       writeBriefCache(data);
       return true;
