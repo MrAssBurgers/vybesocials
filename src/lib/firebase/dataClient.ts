@@ -55,6 +55,9 @@ class QueryBuilder {
   private countOnly = false;
   private updatePayload: Record<string, unknown> | null = null;
   private deleteMode = false;
+  private insertRows: Record<string, unknown>[] | null = null;
+  private upsertRows: Record<string, unknown>[] | null = null;
+  private upsertConflictKey?: string;
   private matchFilters: Record<string, unknown> = {};
 
   constructor(table: string) {
