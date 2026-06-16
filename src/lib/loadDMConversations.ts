@@ -70,7 +70,7 @@ async function loadDMConversationsOnce(
     }
 
     const userConversationIds = membershipData.map((m) => m.conversation_id);
-    const membershipMap = new Map(membershipData.map((m) => [m.conversation_id, m]));
+    const membershipMap = new Map<string, any>(membershipData.map((m: any) => [m.conversation_id, m]));
 
     const { data: { session } } = await db.auth.getSession();
     const authUserId = session?.user?.id;
