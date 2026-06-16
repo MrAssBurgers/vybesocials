@@ -11,6 +11,12 @@
  *   GOOGLE_APPLICATION_CREDENTIALS=./secrets/firebase-admin.json \
  *   node scripts/import-firebase.mjs
  *
+ * Auth users: import separately with Firebase CLI (preserves bcrypt):
+ *   firebase auth:import ./export/firebase-users.json --hash-algo=BCRYPT --project=vybe-daaab
+ *
+ * To import auth via Admin SDK instead (no password hashes in auth-users.ndjson):
+ *   node scripts/import-firebase.mjs --only=auth,firestore,storage
+ *
  * Flags:
  *   --only=auth,firestore,storage   limit which stages run (default: all)
  *   --dry                           parse + count, do not write
@@ -35,7 +41,7 @@ import { getStorage } from 'firebase-admin/storage';
 
 // ── CLI ──────────────────────────────────────────────────────────────
 const args = process.argv.slice(2);
-const ONLY = (args.find(a => a.startsWith('--only='))?.split('=')[1] || 'auth,firestore,storage').split(',');
+const ONLY = (args.find(a => a.startsWith('--only='))?.split('=')[1] || 'firestore,storage').split(',');
 const DRY = args.includes('--dry');
 const RESUME = args.includes('--resume');
 

@@ -12,6 +12,10 @@
     "validate:css": "node scripts/validate-css.mjs",
     "debug": "node scripts/debug-scan.mjs",
     "migrate:agtcyx": "node scripts/migrate-agtcyx-to-hprmic.mjs",
+    "migrate:firebase:export": "node scripts/export-supabase.mjs",
+    "migrate:firebase:auth-hashes": "node scripts/export-auth-hashes.mjs",
+    "migrate:firebase:import": "node scripts/import-firebase.mjs --only=firestore,storage",
+    "migrate:firebase:verify": "node scripts/verify-migration.mjs",
     "ios:setup": "npm run build && npx cap add ios && npx cap sync ios",
     "ios:sync": "npm run build && npx cap sync ios",
     "ios:dev": "CAP_DEV=1 npx cap sync ios && npx cap open ios",
@@ -114,6 +118,8 @@
     "zod": "^3.25.76"
   },
   "devDependencies": {
+    "@supabase/supabase-js": "^2.49.8",
+    "firebase-admin": "^13.10.0",
     "@eslint/js": "^9.32.0",
     "@tailwindcss/typography": "^0.5.16",
     "@types/node": "^22.16.5",

@@ -95,31 +95,21 @@ async function exportTable(table) {
   let from = 0;
   let total = 0;
   for (;;) {
-    const { data, error } = await supabase
+    let res = await supabase
       .from(table)
       .select('*')
       .range(from, from + BATCH - 1)
-      .order('created_at', { ascending: true, nullsFirst: false })
-      .throwOnError()
-      .then((r) => r, (err) => ({ data: null, error: err }));
+      .order('created_at', { ascending: true });
 
-    if (error) {
-      // Some tables don't have created_at — fallback to unordered.
-      const fb = await supabase.from(table).select('*').range(from, from + BATCH - 1);
-      if (fb.error) {
-        console.warn(`  ⚠️  ${table}: ${fb.error.message}`);
-        return { table, rows: total, error: fb.error.message };
-      }
-      const rows = fb.data || [];
-      if (!rows.length) break;
-      await appendFile(file, rows.map((r) => JSON.stringify(r)).join('\n') + '\n');
-      total += rows.length;
-      if (rows.length < BATCH) break;
-      from += BATCH;
-      continue;
+    if (res.error) {
+      res = await supabase.from(table).select('*').range(from, from + BATCH - 1);
+    }
+    if (res.error) {
+      console.warn(`  ⚠️  ${table}: ${res.error.message}`);
+      return { table, rows: total, error: res.error.message };
     }
 
-    const rows = data || [];
+    const rows = res.data || [];
     if (!rows.length) break;
     await appendFile(file, rows.map((r) => JSON.stringify(r)).join('\n') + '\n');
     total += rows.length;
