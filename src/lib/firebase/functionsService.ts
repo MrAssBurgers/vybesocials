@@ -79,7 +79,7 @@ function toError(err: unknown): VybeAuthError {
 }
 
 /** Invoke a Cloud Function (replaces Supabase edge functions.invoke). */
-export async function invokeFunction<T = unknown>(
+export async function invokeFunction<T = any>(
   name: string,
   body?: Record<string, unknown>,
 ): Promise<FunctionInvokeResult<T>> {
