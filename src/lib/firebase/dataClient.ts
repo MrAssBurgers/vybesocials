@@ -176,11 +176,17 @@ class QueryBuilder {
   }
 
   insert(rows: Record<string, unknown> | Record<string, unknown>[]) {
-    return this.executeInsert(rows);
+    this.insertRows = Array.isArray(rows) ? rows : [rows];
+    return this;
   }
 
-  upsert(rows: Record<string, unknown> | Record<string, unknown>[], opts?: { onConflict?: string }) {
-    return this.executeUpsert(rows, opts?.onConflict);
+  upsert(
+    rows: Record<string, unknown> | Record<string, unknown>[],
+    opts?: { onConflict?: string; ignoreDuplicates?: boolean },
+  ) {
+    this.upsertRows = Array.isArray(rows) ? rows : [rows];
+    this.upsertConflictKey = opts?.onConflict;
+    return this;
   }
 
   update(payload: Record<string, unknown>) {
