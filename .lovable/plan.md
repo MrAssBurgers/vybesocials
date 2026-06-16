@@ -1,79 +1,129 @@
-## Issue 1 — Background follows you off the profile (race condition)
+# Full migration: Supabase (agtcyx) → Firebase (vybe-daaab)
 
-`src/components/layout/AppBackground.tsx` + `src/pages/Profile.tsx`
+Realistic scope. This will take multiple sessions and requires work only you can do locally (service-role keys, Firebase Admin credentials, Blaze plan, Cloud Functions deploys). I'll do everything that can be done inside this repo; you run the data + deploy steps.
 
-Root cause: `setBackgroundImage(otherUserUrl)` triggers an async `signAndApply` (network call to sign the URL). On slow networks that promise can resolve AFTER you navigate away and the unmount `refreshBackground()` has already restored your own bg, overwriting it.
+---
 
-Fix:
-- Add a generation token (`appliedTokenRef`) inside `AppBackgroundProvider`. Every call to `setBackgroundImage` / `refreshBackground` increments it and captures the value locally; the async `signAndApply` only commits state if its captured token still matches the latest. Stale resolutions are dropped silently.
-- In `Profile.tsx` `useEffect` cleanup, call `refreshBackground()` synchronously AND set `rawUrlRef` cleanup so we don't leak.
-- Bonus: short-circuit `setBackgroundImage(null)` to clear body styles immediately (don't wait for state→effect round-trip).
+## Phase 0 — Prerequisites (you, before I start Phase 2)
 
-## Issue 2 — X on current background doesn't restore default
+1. **Firebase project on Blaze plan** (`vybe-daaab`). Required for Cloud Functions + outbound network.
+2. **Enable in Firebase Console:** Auth (Email/Password, Google, Apple), Firestore, Storage, Cloud Functions, App Check (reCAPTCHA v3), Cloud Messaging.
+3. **Service account JSON** from Firebase → Project Settings → Service Accounts → save as `secrets/firebase-admin.json` (gitignored).
+4. **`agtcyx` service-role key** from Lovable support (the anon key is not enough for a full export).
+5. **Storage bucket size estimate** — if >50 GB, we batch.
 
-`src/components/settings/BackgroundCustomizer.tsx` `removeBackground` (line 438) + `useUserBackgrounds.useClearActiveBackground`
+When all 5 are ready, say "Phase 0 done" and I move to Phase 2.
 
-Root cause: after `clearActiveBackground` mutation, the parent (`ThemeCustomizer` / `useCustomTheme`) still re-applies the previously cached opacity/blur via `appBackground.setBackgroundOpacity` on its own re-render. Also the user's equipped cosmetic `equipped_profile_theme` re-applies on next `refreshBackground`.
+---
 
-Fix:
-- `removeBackground` now: (1) call `clearActiveBackground.mutateAsync()`, (2) optimistically `appBackground.setBackgroundImage(null)` + reset opacity to 1 and blur to 0, (3) invalidate `user-backgrounds` query, (4) explicitly call `applyBodyBackground({ imageUrl: null, opacity: 1, blur: 0 })` via a new exported helper in `AppBackground.tsx`, (5) toast "Restored default background".
-- If user has an `equipped_profile_theme` cosmetic, the X clears the upload but the cosmetic remains — show a small note: "Cosmetic theme still equipped. Unequip in Locker to fully reset."
-- Reset local `extractedColors` so the color-match panel disappears.
+## Phase 1 — Finish auth cutover (I do now, no prereqs)
 
-## Issue 3 — Background settings UX redesign (clean / organized / not crowded)
+- Replace Lovable OAuth in `src/pages/Landing.tsx` with `signInWithPopup(GoogleAuthProvider)` and `OAuthProvider('apple.com')` from Firebase Auth.
+- Remove `lovable.auth.*` calls from sign-in/sign-up paths.
+- Keep email/password (already Firebase).
+- Update `useAuth` / session listeners to use `onAuthStateChanged` exclusively.
+- Add Firebase Auth domain `vybehub.app` to authorized domains (you click in console).
 
-Restructure `BackgroundCustomizer.tsx` (875 → ~500 lines) into 3 focused, collapsible sections with a single visible action at a time. Pull two subcomponents out for clarity.
+Verifiable: sign in with Google on preview → user appears in Firebase Console → Authentication.
 
-New structure (top→bottom):
+---
 
-```
-[ Hero preview card ]
-  - 16:9 current background, opacity/blur applied
-  - corner X button (now actually works)
-  - if empty: large dashed dropzone with single "Choose Image" CTA
+## Phase 2 — Data export from Supabase (you run, I write the scripts)
 
-[ Pill segmented control ]   Library | Upload | Generate
-  - only ONE panel renders at a time → no more wall of buttons
+I'll write `scripts/export-supabase.mjs`:
+- Connects with `AGTCYX_SERVICE_ROLE_KEY`.
+- Dumps every public table → `./export/<table>.ndjson` in batches of 1000.
+- Dumps `auth.users` + `auth.identities` (preserves UIDs).
+- Dumps Storage object metadata + downloads files → `./export/storage/<bucket>/...`.
 
-  Library panel:
-    grid of saved backgrounds (current "My Backgrounds")
-    
-  Upload panel:
-    big drop zone + "Browse" button, supported formats hint
+You run: `AGTCYX_SERVICE_ROLE_KEY=... node scripts/export-supabase.mjs`.
 
-  Generate panel:
-    8 style chips (existing AI_BACKGROUND_STYLES) as a single row
-    Prompt input + Generate button BELOW chips
-    
-[ Collapsible "Adjust" accordion ] (only when bg active)
-   Opacity slider + Blur slider + "Match UI Colors" button
-   Collapsed by default to reduce crowding
-```
+---
 
-New files:
-- `src/components/settings/background/BackgroundPreviewCard.tsx` — hero card + X.
-- `src/components/settings/background/BackgroundLibraryGrid.tsx` — saved grid + rename/delete.
-- `src/components/settings/background/BackgroundGenerator.tsx` — style chips + prompt.
-- `src/components/settings/background/BackgroundUploader.tsx` — drop zone + file picker.
+## Phase 3 — Import into Firebase (you run, I write the scripts)
 
-`BackgroundCustomizer.tsx` becomes a thin orchestrator: header, tabs (Library/Upload/Generate), preview card, adjust accordion. Existing hooks (`useUploadBackground`, `useSetActiveBackground`, etc.) are reused; nothing changes server-side.
+I'll write `scripts/import-firebase.mjs` using `firebase-admin`:
+- **Auth:** imports users via `auth.importUsers()` with `passwordHash`/`passwordSalt` preserved (bcrypt/scrypt depending on what Supabase returns — Supabase uses bcrypt, supported by Firebase).
+- **Firestore:** maps each Postgres table → Firestore collection. UUIDs become document IDs.
+- **Storage:** uploads to Firebase Storage preserving paths.
+- **Schema decisions** (I'll document per-table):
+  - Flatten foreign keys → reference paths (`profiles/{uid}`).
+  - Convert RLS policies → Firestore Security Rules (Phase 4).
+  - Denormalize hot reads (e.g. `posts.author` embeds avatar/username for feed) since Firestore has no joins.
 
-Visual polish:
-- Reuse existing `Tabs` from shadcn for the segmented control.
-- Use `Collapsible` (already in shadcn) for the Adjust section.
-- Spacing increased to `space-y-6`, sections wrapped in `rounded-2xl bg-card/60 border`.
-- Smaller iconography in chips (no more two CTAs competing for attention).
-- Adjust section animated via existing `AnimatePresence` (already imported).
+You run: `GOOGLE_APPLICATION_CREDENTIALS=./secrets/firebase-admin.json node scripts/import-firebase.mjs`.
 
-## Files touched
+---
 
-- new `src/components/settings/background/BackgroundPreviewCard.tsx`
-- new `src/components/settings/background/BackgroundLibraryGrid.tsx`
-- new `src/components/settings/background/BackgroundGenerator.tsx`
-- new `src/components/settings/background/BackgroundUploader.tsx`
-- edit `src/components/settings/BackgroundCustomizer.tsx` — slim orchestrator
-- edit `src/components/layout/AppBackground.tsx` — generation token + export hard `clearAllBackground` helper
-- edit `src/pages/Profile.tsx` — defensive cleanup ordering
-- edit `src/hooks/useUserBackgrounds.ts` — `useClearActiveBackground` now also returns `Promise<void>` and the new flow waits on it before clearing context
+## Phase 4 — Firestore Security Rules (I write, you deploy)
 
-No DB migrations. Existing schema (`user_backgrounds` with `is_active`) is unchanged.
+- Translate each table's RLS policies into `firestore.rules`.
+- Hot patterns: owner-only writes, public reads on `profiles`, member-only reads on `conversations/{id}/messages`, role check via `request.auth.token.admin`.
+- Custom claims set by a Cloud Function reading `user_roles`.
+
+You run: `firebase deploy --only firestore:rules`.
+
+---
+
+## Phase 5 — Port edge functions to Cloud Functions (largest chunk, multi-session)
+
+50+ Supabase edge functions. I'll port them in batches by domain:
+
+| Batch | Functions | Priority |
+|---|---|---|
+| Auth/security | `auth-2fa-preauth`, `sync_signup_username`, `ensure_user_level`, `webauthn-*` | P0 |
+| AI | `ai-catch-up`, `generate-advanced-theme`, `daily-brief`, `vybe-check`, all Gemini wrappers | P0 |
+| Realtime/calls | `livekit-token`, `community-voice-token`, signaling | P1 |
+| Commerce | Stripe Connect, tipping, payouts, RevenueCat webhooks | P1 |
+| Social | `share-preview`, push notifications (FCM), invites | P1 |
+| Admin/ops | analytics, debug RPC, moderation, ad-fraud checks | P2 |
+
+Each ported function uses `onCall` (auth-checked) or `onRequest` (webhooks). I'll keep the same client-side function names so callers don't change much.
+
+You run: `firebase deploy --only functions` after each batch.
+
+---
+
+## Phase 6 — Replace remaining Supabase client calls (~25+ files)
+
+Sweep for `import.meta.env.VITE_SUPABASE_PROJECT_ID`, direct `supabase.functions.invoke`, `supabase.from`, `supabase.channel`. Replace with:
+- Reads/writes → `db.from(...)` (already Firestore-backed) or direct Firestore SDK.
+- Realtime → Firestore `onSnapshot` listeners.
+- Edge invokes → `httpsCallable(functions, '<name>')`.
+
+---
+
+## Phase 7 — Realtime, presence, FCM push
+
+- Presence: Firestore `presence/{uid}` doc with `onDisconnect` via Realtime Database (Firebase pattern).
+- Chat typing/reactions: Firestore listeners (or RTDB for high-frequency typing).
+- Push: replace OneSignal with FCM web push using `VITE_FIREBASE_VAPID_KEY`. Keep OneSignal as fallback during cutover if you want.
+
+---
+
+## Phase 8 — Cleanup & publish
+
+- Delete `src/integrations/supabase/`, `supabase/` folder, `dualSupabase.ts`, legacy URL rewrites in `mediaUrl.ts`.
+- Remove `VITE_SUPABASE_*` from `.env`.
+- Update `index.html` preconnect from `agtcyx...supabase.co` → `*.firebaseapp.com` / `firestore.googleapis.com`.
+- Update `WORKLOG.md` and `DEPLOY.md`.
+- Lovable Publish → `vybehub.app`.
+
+---
+
+## What breaks during migration (be aware)
+
+- **RLS → Security Rules** is not 1:1. Some Postgres-side checks (e.g. `has_role(...)` with joins) become Cloud Function callables.
+- **No SQL joins.** Feed ranking, friend-of-friend queries, analytics RPCs become either denormalized reads or Cloud Function aggregations.
+- **No `SECURITY DEFINER` RPCs.** Each becomes a callable function with admin SDK.
+- **Triggers** (e.g. `update_updated_at_column`, profile auto-create) become Cloud Function triggers (`onDocumentCreated`, etc.).
+- **Storage signed URLs** semantics differ — Firebase uses long-lived download tokens or signed URLs from Admin SDK.
+- **Costs**: Firestore reads scale with denormalization; Cloud Functions cost per invocation. Expect higher monthly bills than current Supabase usage unless you cache aggressively.
+
+---
+
+## What I'll do this session if you approve
+
+Just **Phase 1** (Google/Apple → Firebase Auth, ~10 file edits) + write the **Phase 2 export script** so you can start the data dump while I queue up Phase 3 for next session.
+
+Reply "approve phase 1+2" to start, or tell me what to change.
