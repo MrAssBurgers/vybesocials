@@ -1,4 +1,4 @@
-import { getNewWritesClient } from '@/lib/dualSupabase';
+import { supabase } from '@/integrations/supabase/client';
 import { withTimeout } from '@/lib/withTimeout';
 import {
   compressImage,
@@ -19,15 +19,14 @@ export interface PublishStoryMediaResult {
   thumbnailUrl?: string;
 }
 
-/** Upload story media (+ optional cover) to hprmic stories bucket. */
+/** Upload story media (+ optional cover) to stories bucket. */
 export async function publishStoryMedia({
   file,
   isVideo,
   thumbnailBlob,
   onProgress,
 }: PublishStoryMediaParams): Promise<PublishStoryMediaResult> {
-  const writeClient = getNewWritesClient();
-  const { data: { user } } = await writeClient.auth.getUser();
+  const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error('Not authenticated');
   let fileToUpload: File | Blob = file;
   if (!isVideo && file instanceof File) {
@@ -45,7 +44,7 @@ export async function publishStoryMedia({
   const mainContentType = storyUploadContentType(fileToUpload, isVideo ? 'video' : 'image');
 
   const { error: uploadError } = await withTimeout(
-    writeClient.storage.from('stories').upload(fileName, fileToUpload, {
+    supabase.storage.from('stories').upload(fileName, fileToUpload, {
       cacheControl: '3600',
       upsert: false,
       contentType: mainContentType,
@@ -71,7 +70,7 @@ export async function publishStoryMedia({
   if (thumbnailBlob) {
     const thumbFileName = generateStoryThumbnailFileName(user.id);
     const { error: thumbUploadError } = await withTimeout(
-      writeClient.storage.from('stories').upload(thumbFileName, thumbnailBlob, {
+      supabase.storage.from('stories').upload(thumbFileName, thumbnailBlob, {
         cacheControl: '3600',
         upsert: false,
         contentType: 'image/jpeg',
@@ -81,14 +80,14 @@ export async function publishStoryMedia({
     );
 
     if (!thumbUploadError) {
-      const { data: { publicUrl: thumbPublicUrl } } = writeClient.storage
+      const { data: { publicUrl: thumbPublicUrl } } = supabase.storage
         .from('stories')
         .getPublicUrl(thumbFileName);
       thumbnailUrl = thumbPublicUrl || undefined;
     }
   }
 
-  const { data: { publicUrl } } = writeClient.storage.from('stories').getPublicUrl(fileName);
+  const { data: { publicUrl } } = supabase.storage.from('stories').getPublicUrl(fileName);
   if (!publicUrl) throw new Error('Failed to get public URL');
 
   onProgress?.(85);

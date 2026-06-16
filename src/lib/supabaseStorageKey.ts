@@ -162,10 +162,11 @@ export function getStoredAuthUserId(): string | null {
   }
 }
 
-/** Drop obsolete eabvbt auth keys — hprmic session is kept for dual-write. */
+/** Drop obsolete agtcyx/eabvbt auth keys after migration to hprmic. */
 export function clearLegacySupabaseAuthStorage(): void {
   try {
-    for (const ref of OBSOLETE_AUTH_REFS) {
+    for (const ref of KNOWN_LEGACY_SUPABASE_REFS) {
+      if (ref === getSupabaseProjectRef()) continue;
       const key = authStorageKeyForRef(ref);
       localStorage.removeItem(key);
       localStorage.removeItem(`${key}${BACKUP_SUFFIX}`);
@@ -175,12 +176,12 @@ export function clearLegacySupabaseAuthStorage(): void {
   }
 }
 
-/** Remove stored sessions whose JWT ref does not match the canonical agtcyx project. */
+/** Remove stored sessions whose JWT ref does not match the canonical hprmic project. */
 export function purgeWrongProjectAuthSessions(): void {
   try {
     const keys = new Set<string>([
       getSupabaseAuthStorageKey(),
-      ...OBSOLETE_AUTH_REFS.map(authStorageKeyForRef),
+      ...KNOWN_LEGACY_SUPABASE_REFS.map(authStorageKeyForRef),
     ]);
 
     for (const key of keys) {

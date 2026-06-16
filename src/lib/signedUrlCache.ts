@@ -5,8 +5,6 @@
  */
 
 import { supabase } from '@/integrations/supabase/client';
-import { hprmicSupabase } from '@/integrations/supabase/hprmicClient';
-import { NEW_WRITES_PROJECT_ID } from '@/lib/canonicalSupabase';
 import { getSupabaseProjectRef } from '@/lib/supabaseStorageKey';
 import { normalizeMediaUrl } from '@/lib/mediaUrl';
 
@@ -117,8 +115,7 @@ export async function getSignedUrl(publicUrl: string): Promise<string | null> {
       const parsed = parseStorageUrl(url);
       if (!parsed) return url;
 
-      const storageClient = url.includes(NEW_WRITES_PROJECT_ID) ? hprmicSupabase : supabase;
-      const { data, error } = await storageClient.storage
+      const { data, error } = await supabase.storage
         .from(parsed.bucket)
         .createSignedUrl(parsed.path, 3600);
 
@@ -180,12 +177,9 @@ export async function batchSignUrls(urls: (string | null | undefined)[]): Promis
   if (urlsToSign.length === 0) return;
   
   // Group by bucket + project for efficient batch requests
-  const byBucket = new Map<string, Map<string, string>>(); // `${project}:${bucket}` -> path -> url
+  const byBucket = new Map<string, Map<string, string>>();
   for (const item of urlsToSign) {
-    const projectRef = item.url.includes(NEW_WRITES_PROJECT_ID)
-      ? NEW_WRITES_PROJECT_ID
-      : CURRENT_SUPABASE_PROJECT;
-    const bucketKey = `${projectRef}:${item.bucket}`;
+    const bucketKey = `${CURRENT_SUPABASE_PROJECT}:${item.bucket}`;
     let bucketMap = byBucket.get(bucketKey);
     if (!bucketMap) {
       bucketMap = new Map();
@@ -198,12 +192,11 @@ export async function batchSignUrls(urls: (string | null | undefined)[]): Promis
 
   const promises = Array.from(byBucket.entries()).map(async ([bucketKey, pathMap]) => {
     try {
-      const [projectRef, bucket] = bucketKey.split(':');
+      const [, bucket] = bucketKey.split(':');
       const paths = Array.from(pathMap.keys());
       const originalUrls = Array.from(pathMap.values());
-      const storageClient = projectRef === NEW_WRITES_PROJECT_ID ? hprmicSupabase : supabase;
 
-      const { data, error } = await storageClient.storage
+      const { data, error } = await supabase.storage
         .from(bucket)
         .createSignedUrls(paths, 3600);
       

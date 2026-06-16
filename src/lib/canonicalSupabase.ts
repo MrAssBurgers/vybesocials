@@ -1,31 +1,31 @@
 /**
- * Live production Supabase — auth users and profiles live here (agtcyx).
- * Lovable builds may still bake hprmic/eabvbt; runtime + build redirect those to agtcyx.
+ * Canonical production Supabase — user-owned project (hprmic).
+ * Lovable builds may still bake agtcyx/eabvbt; runtime + build redirect those to hprmic.
  */
-export const CANONICAL_SUPABASE_PROJECT_ID = 'agtcyxjxgkdyoxwxkjth';
+export const CANONICAL_SUPABASE_PROJECT_ID = 'hprmicwhlaaqfgshucec';
 export const CANONICAL_SUPABASE_URL = `https://${CANONICAL_SUPABASE_PROJECT_ID}.supabase.co`;
 
-/** agtcyx anon key — public publishable key for the live user database. */
+/** hprmic anon key — public publishable key for the owned production database. */
 export const CANONICAL_PUBLISHABLE_KEY =
-  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFndGN5eGp4Z2tkeW94d3hranRoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzAyMjk5NTMsImV4cCI6MjA4NTgwNTk1M30.G92pPYU9K2z3yqXtN5R7WR_-EAIVTfl-T-GlJ-N8oYg';
-
-/** Owned project for new content writes (auth stays on agtcyx). */
-export const NEW_WRITES_PROJECT_ID = 'hprmicwhlaaqfgshucec';
-export const NEW_WRITES_SUPABASE_URL = `https://${NEW_WRITES_PROJECT_ID}.supabase.co`;
-export const NEW_WRITES_PUBLISHABLE_KEY =
   'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imhwcm1pY3dobGFhcWZnc2h1Y2VjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjkwNDkwODgsImV4cCI6MjA4NDYyNTA4OH0.Lk72yBKNj3sRjf5E5DQ8TLBfXB2tbjTpAAb075hbMa4';
 
-/** Obsolete refs — purge/migrate to agtcyx; never used for primary auth. */
+/** Legacy Lovable live project — media URLs in old rows may still reference this host. */
+export const LEGACY_READ_PROJECT_ID = 'agtcyxjxgkdyoxwxkjth';
+
+/** Obsolete refs — purge/migrate to hprmic primary auth key. */
 export const OBSOLETE_AUTH_REFS = ['eabvbtkxdbttjpdpbmuw'] as const;
 
-/** Baked env refs that must redirect to agtcyx for login (includes hprmic when used as sole client). */
+/** Baked env refs that must redirect to hprmic (includes legacy agtcyx after full migration). */
 export const MISCONFIGURED_AUTH_REFS = [
   ...OBSOLETE_AUTH_REFS,
-  NEW_WRITES_PROJECT_ID,
+  LEGACY_READ_PROJECT_ID,
 ] as const;
 
-/** Prior refs to migrate into agtcyx primary auth key (excludes hprmic — dual-write session). */
-export const KNOWN_LEGACY_SUPABASE_REFS = OBSOLETE_AUTH_REFS;
+/** Prior refs to migrate into hprmic primary auth key. */
+export const KNOWN_LEGACY_SUPABASE_REFS = [
+  ...OBSOLETE_AUTH_REFS,
+  LEGACY_READ_PROJECT_ID,
+] as const;
 
 function parseEnv(value: string | undefined): string {
   if (!value) return '';
@@ -40,7 +40,7 @@ function envSupabaseUrl(): string {
   return parseEnv(import.meta.env.VITE_SUPABASE_URL as string | undefined);
 }
 
-/** True when the baked bundle/env still targets hprmic/eabvbt instead of live auth project. */
+/** True when the baked bundle/env still targets agtcyx/eabvbt instead of hprmic. */
 export function isLegacySupabaseEnv(): boolean {
   const projectId = envProjectId();
   const url = envSupabaseUrl();

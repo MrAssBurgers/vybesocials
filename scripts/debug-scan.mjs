@@ -10,7 +10,7 @@ import { spawnSync } from 'node:child_process';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = join(__dirname, '..');
-const PROD_REF = 'agtcyxjxgkdyoxwxkjth';
+const PROD_REF = 'hprmicwhlaaqfgshucec';
 const PROD_URL = `https://${PROD_REF}.supabase.co`;
 
 function run(cmd, args, opts = {}) {

@@ -4,6 +4,34 @@ Use this file as the Lovable -> Cursor handoff each session.
 
 **Links:** [Lovable project](https://lovable.dev/projects/416714c8-d013-4aff-984d-522418a9bbc7) · [Production](https://vybehub.app) · Deploy steps: `DEPLOY.md`
 
+## Current Focus (2026-06-16 — full agtcyx → hprmic migration prep)
+- **Goal:** Import all live data (~31 users, Bakrix, posts, DMs, media) from **agtcyx** into owned **hprmic**, then run app on hprmic only.
+- **You:** Add `AGTCYX_SERVICE_ROLE_KEY` to `.env` → run migration commands in `supabase/manual/MIGRATE_agtcyx_to_hprmic.md`
+- **Git:** pending push — enhanced migration script + hprmic-primary client + SW v20
+
+## What Changed (2026-06-16 — migration + hprmic primary)
+- **`scripts/migrate-agtcyx-to-hprmic.mjs`** — ~130 public tables, auth.users (UUID preserve), storage bucket recursive copy, `--storage-only` / `--tables-only` / `--skip-auth`, before/after row counts, progress logs
+- **`MIGRATE_agtcyx_to_hprmic.md`** — foolproof step-by-step + full table coverage list
+- **`canonicalSupabase.ts`**, **`vite.config.ts`**, **`index.html`**, **`debug-scan.mjs`** — hprmic canonical; redirect agtcyx/eabvbt → hprmic
+- **Removed dual-backend:** `dualSupabase.ts`, `hprmicClient.ts`; reverted `usePosts`, `useStories`, `useInfinitePosts`, `publishStoryMedia`, `signedUrlCache`, `auth.tsx`
+- **`supabaseStorageKey.ts`** — purge agtcyx/eabvbt sessions after migration
+- **`public/sw.js`** — v20 cache bust
+- **hprmic schema (MCP):** key tables + RPCs present; `PENDING_20260530.sql` optional
+- **Verify:** `npm run build` PASS · `npm run lint` PASS
+
+## User steps (required)
+1. **Get agtcyx service_role** from Lovable support → add to `.env`
+2. `npm run migrate:agtcyx -- --verify` → `--dry-run` → `--execute`
+3. Forgot password on vybehub.app → confirm Bakrix feed/DMs/media
+4. Lovable env → hprmic URL + anon key → **Publish** → clear site data
+
+## Publish required?
+**Yes** — hprmic-primary client + SW v20 until Lovable Publish.
+
+## Next 3 Tasks
+1. **You:** Run full migration locally (`MIGRATE_agtcyx_to_hprmic.md`)
+2. **Lovable Publish** → verify `/sw.js` → `vybe-v20` + hprmic preconnect
+3. **hprmic:** deploy missing edge fns if smoke tests fail
 ## Current Focus (2026-06-16 — dual Supabase: agtcyx legacy + hprmic new writes)
 - **Legacy (read + auth):** `agtcyxjxgkdyoxwxkjth` — existing users, Bakrix, posts, DMs, feed (Lovable live DB).
 - **New writes:** `hprmicwhlaaqfgshucec` — owned project for NEW posts/stories going forward.

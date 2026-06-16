@@ -27,7 +27,6 @@ import { checkUsernameAvailable } from '@/lib/usernameAvailability';
 import { startHeartbeat, stopHeartbeat } from '@/lib/analytics';
 import { removeRealtimeChannel, subscribePostgresChannel } from '@/lib/realtimeChannel';
 import { normalizeLoginEmail } from '@/lib/loginEmail';
-import { syncHprmicAuth, signOutHprmicLocal } from '@/lib/dualSupabase';
 import { isPasswordRecoveryUrl, redirectToPasswordRecoveryPage } from '@/lib/passwordRecoveryUrl';
 
 /** Fail-soft — production may not have deployed sync_signup_username yet. */
@@ -957,7 +956,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       if (data.session?.user) {
         await trySyncSignupUsername();
-        void syncHprmicAuth(normalized, password);
         return { error: null, needsEmailConfirmation: false };
       }
 
@@ -979,7 +977,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       });
 
       if (error) throw error;
-      void syncHprmicAuth(normalized, password);
       return { error: null };
     } catch (error) {
       return { error: error as Error };
@@ -1015,7 +1012,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     //    The global revoke happens in the background.
     void supabase.auth.signOut({ scope: 'local' as any }).catch(() => {});
     void supabase.auth.signOut().catch(() => {});
-    void signOutHprmicLocal();
 
     // 3) Defer all theme/DOM/localStorage cleanup so it never blocks the navigate.
     queueMicrotask(() => {

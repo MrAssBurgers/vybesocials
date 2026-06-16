@@ -1,8 +1,8 @@
 // VYBE Service Worker
-// Version 19.0 — dual Supabase: agtcyx read/auth + hprmic new writes (2026-06-16)
+// Version 20.0 — single Supabase: hprmic primary post-migration (2026-06-16)
 
-const CACHE_NAME = 'vybe-v19';
-const STATIC_CACHE = 'vybe-static-v19';
+const CACHE_NAME = 'vybe-v20';
+const STATIC_CACHE = 'vybe-static-v20';
 const MEDIA_CACHE = 'vybe-media-v2';
 const SHELL_CACHE = 'vybe-shell-v4';
 const ASSETS_CACHE = 'vybe-assets-v4';

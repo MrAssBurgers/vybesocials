@@ -39,11 +39,11 @@ function previewSupabaseClientShimPlugin() {
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), "");
-  const CANONICAL_PROJECT_ID = "agtcyxjxgkdyoxwxkjth";
+  const CANONICAL_PROJECT_ID = "hprmicwhlaaqfgshucec";
   const CANONICAL_URL = `https://${CANONICAL_PROJECT_ID}.supabase.co`;
   const CANONICAL_KEY =
-    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFndGN5eGp4Z2tkeW94d3hranRoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzAyMjk5NTMsImV4cCI6MjA4NTgwNTk1M30.G92pPYU9K2z3yqXtN5R7WR_-EAIVTfl-T-GlJ-N8oYg";
-  const LEGACY_REFS = ["eabvbtkxdbttjpdpbmuw", "hprmicwhlaaqfgshucec"];
+    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imhwcm1pY3dobGFhcWZnc2h1Y2VjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjkwNDkwODgsImV4cCI6MjA4NDYyNTA4OH0.Lk72yBKNj3sRjf5E5DQ8TLBfXB2tbjTpAAb075hbMa4";
+  const LEGACY_REFS = ["eabvbtkxdbttjpdpbmuw", "agtcyxjxgkdyoxwxkjth"];
 
   let projectId = env.VITE_SUPABASE_PROJECT_ID || CANONICAL_PROJECT_ID;
   let supabaseUrl = env.VITE_SUPABASE_URL || CANONICAL_URL;
