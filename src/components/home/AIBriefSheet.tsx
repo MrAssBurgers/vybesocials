@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { RefreshCw, TrendingUp, ExternalLink, AlertCircle, Sun, Moon, Sunset, MessageCircle, Globe, ChevronDown, ChevronRight, Settings, Users, Bell, Flame, Zap, Target, UserPlus, Sparkles, Newspaper } from 'lucide-react';
 import { VybeMiniIcon } from '@/components/ui/VybeMiniIcon';
 import { db } from '@/lib/firebase';
+import { invokeFunction } from '@/lib/firebase/functionsService';
 import { useAuth } from '@/lib/auth';
 import { toast } from 'sonner';
 import { haptics } from '@/lib/haptics';
