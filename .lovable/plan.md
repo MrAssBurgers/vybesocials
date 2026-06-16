@@ -238,3 +238,31 @@ firebase deploy --only hosting   # to publish firebase-messaging-sw.js
 4. Update `WORKLOG.md` + `DEPLOY.md`, then Lovable Publish → `vybehub.app`.
 
 Say **"start Phase 8"** to do the final cutover and publish.
+
+---
+
+## Phase 8 — STATUS: ✅ done (2026-06-16)
+
+**Decision:** the shim layer at `src/integrations/supabase/` (just three files: `client.ts`, `runtime-client.ts`, `types.ts`) is now thin pass-throughs to `@/lib/firebase`. ~25 client files still import from it. Deleting it would force a churn-y rename PR for zero runtime benefit, so it stays as the compatibility seam. New code should import from `@/lib/firebase` directly (the shim files already carry `@deprecated` JSDoc).
+
+**Changes this phase:**
+- `index.html` — replaced the four stale `hprmicwhlaaqfgshucec.supabase.co` preconnect / dns-prefetch entries with `firestore.googleapis.com`, `firebasestorage.googleapis.com`, and `identitytoolkit.googleapis.com`. Resolves the legacy-sandbox connection attempts noted in `AGENTS.md`.
+- `WORKLOG.md` — recorded the 8-phase migration outcome and the residual items below.
+
+**What was intentionally NOT done (and why):**
+- `src/integrations/supabase/` directory — kept as deprecation shim, see decision above.
+- `supabase/` folder (config.toml, functions/, migrations/) — kept for historical reference / rollback. Safe to delete in a follow-up PR once the team has rebuilt confidence in the Firebase impl in production.
+- Presence/typing call-site rewrites — the realtime shim from Phase 3 already routes them to Firestore `onSnapshot` under the hood, so user-visible behavior is correct. A future pass can swap individual hooks (`useChatPresence`, `useTypingIndicator`) to call Firestore directly for a small perf win, but it isn't blocking.
+- `.env` `VITE_SUPABASE_*` — left in place because Lovable's preview/build pipeline still expects them (removing breaks the dev sandbox even though nothing reads them at runtime). They are inert.
+
+**Required user actions before going fully live on Firebase:**
+1. **Set Cloud Function secrets** (see Phase 5 + Phase 7 secret lists): `LOVABLE_API_KEY`, `LIVEKIT_API_KEY/SECRET/URL`, `GIPHY_API_KEY`, `PIXABAY_API_KEY`, `FIREBASE_VAPID_KEY`, `RESEND_API_KEY`, `EMAIL_FROM`, `UNSUBSCRIBE_SECRET`, `PUBLIC_SITE_URL`, `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_WEBHOOK_SECRET_THIN`, `SPOTIFY_CLIENT_ID`, `SPOTIFY_CLIENT_SECRET`, `WEBAUTHN_RP_ID`.
+2. **Deploy:**
+   ```
+   cd functions && npm install
+   firebase deploy --only firestore:rules,storage,firestore:indexes,functions,hosting
+   ```
+3. **Bootstrap the first admin** in Firebase Console → Authentication → user → Custom Claims: `{ "admin": true }`. After that, the `setAdminClaim` callable manages further admins.
+4. **Publish the web app** via Lovable → Share → Publish (the dev pipeline still owns the Vite build for `vybehub.app`).
+
+**Migration complete.** All eight phases (Auth → Data export → Firestore import → Rules/indexes → Cloud Functions P0 → Client cutover → Long-tail port + web push → Cleanup) are done. The app builds clean (`npm run build`), Cloud Functions type-check clean (`cd functions && npx tsc --noEmit`), and the legacy Supabase shim continues to route any stragglers transparently.
