@@ -273,6 +273,9 @@ class QueryBuilder {
 
   private async execute(): Promise<QueryResult> {
     try {
+      if (this.updatePayload !== null) return await this.executeUpdate();
+      if (this.deleteMode) return await this.executeDelete();
+
       if (this.countOnly) {
         const rows = await getDocuments(this.table, this.buildConstraints());
         const filtered = this.applyClientFilters(rows as Record<string, unknown>[]);
