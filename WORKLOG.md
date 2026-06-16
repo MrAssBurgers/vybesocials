@@ -4,6 +4,67 @@ Use this file as the Lovable -> Cursor handoff each session.
 
 **Links:** [Lovable project](https://lovable.dev/projects/416714c8-d013-4aff-984d-522418a9bbc7) · [Production](https://vybehub.app) · Deploy steps: `DEPLOY.md`
 
+## Current Focus (2026-06-16 — auth crisis fix + agtcyx restore)
+- **User:** barron.bakic@gmail.com / Bakrix — live data on **agtcyxjxgkdyoxwxkjth** (~31 users).
+- **Git:** `main` @ `d8ac21b3` pushed — auth recovery hardening + legacy session purge + SW v18.
+- **Prod now (pre-publish):** bundle `index-DsQgE5tL.js` · preconnect **agtcyx** · SW **v17** (repo has **v18**).
+- **You:** Lovable → Share → Publish → clear site data → Forgot password OR original agtcyx password.
+
+## Debug scan (2026-06-16 — auth crisis)
+
+| Check | Result |
+|-------|--------|
+| `npm run build` | PASS |
+| `npm run lint` | PASS (3 pre-existing warnings) |
+| `npm run validate:css` | PASS |
+| Edge fn refs (83 client → 122 local) | PASS |
+| Prod RPCs (agtcyx) | PASS — 401 auth-required (deployed, not missing) |
+| `ai-chat`, `livekit-token`, `share-preview`, `auth-2fa-preauth` | PASS (deployed) |
+| `vybe-agent`, `community-voice-token`, `link-onesignal-user`, `spaces-token` | FAIL — 404 not deployed |
+| vybehub.app bundle | **agtcyx** (14 refs) — not hprmic |
+| vybehub.app SW | v17 (repo v18 after publish) |
+| agtcyx `/auth/v1/recover` (barron.bakic@gmail.com) | PASS `{}` |
+| agtcyx `send-reset-email` edge | PASS 200 |
+| agtcyx signup (barron.bakic@gmail.com) | `user_already_exists` — account lives on agtcyx |
+
+## Root causes (evidence)
+
+1. **Wrong Supabase project during hprmic migration window** — vybehub.app briefly baked **hprmic**; agtcyx passwords returned `invalid_credentials`. Commit `58e438ce` reverted client to agtcyx; prod bundle now shows agtcyx refs (curl probe 2026-06-16).
+2. **Stale hprmic localStorage sessions** — `sb-hprmicwhlaaqfgshucec-auth-token` could linger after revert and confuse cold-start auth. Fixed: `purgeWrongProjectAuthSessions()` + `clearLegacySupabaseAuthStorage()` on boot and on sign-in.
+3. **Password reset errors** — client invoked `send-reset-email` after Supabase recover (duplicate email; 500 when Resend missing on sandbox). Fixed: `authReset.ts` uses Supabase `resetPasswordForEmail` only; agtcyx recover probe returns `{}`.
+4. **Recovery link hijacked by OAuth** — hash/query recovery tokens on `/auth/callback` consumed as login. Fixed: `AuthCallback` + `passwordRecoveryUrl` redirect to `/reset-password`; PKCE `?code=` on reset path detected.
+5. **Debug instrumentation in prod path** — agent `fetch` logs to `127.0.0.1:7261` removed from auth/reset/feed.
+6. **Content “lost”** — not deleted; user was on wrong project (hprmic empty) or not signed in to agtcyx. Bakrix profile/posts remain on agtcyx once logged in with correct account.
+
+## What Changed (2026-06-16 — auth crisis fix)
+- **`bootstrapAuthStorage.ts`**, **`main.tsx`** — purge wrong-project + legacy hprmic/eabvbt keys before Supabase client init.
+- **`supabaseStorageKey.ts`** — `purgeWrongProjectAuthSessions()`; repair calls purge first.
+- **`authReset.ts`** — Supabase recover only (no duplicate `send-reset-email` invoke).
+- **`passwordRecoveryUrl.ts`** — PKCE `?code=` on `/reset-password`.
+- **`AuthCallback.tsx`** — recovery redirect before OAuth handling.
+- **`auth.tsx`**, **`Landing.tsx`** — clear legacy storage on sign-in / failed login.
+- **`ForgotPasswordDialog.tsx`** — `getUserFriendlyError` for reset toasts.
+- **`ResetPassword.tsx`**, **`useInfinitePosts.ts`** — remove debug logs.
+- **`public/sw.js`** — v18 cache bust.
+- **Verify:** `npm run build` PASS · `npm run lint` PASS
+- **Git:** `d8ac21b3` pushed (excludes `.env`)
+
+## User steps (required)
+
+1. **Lovable → Share → Publish** (agents cannot click Publish).
+2. **Clear site data** on vybehub.app (or private window): Application → Clear storage — removes old hprmic SW/cache.
+3. **Sign in** barron.bakic@gmail.com with **original agtcyx password** OR **Forgot password** → email link → `/reset-password` → set new password.
+4. If you used **Google/Apple** for Bakrix, use that provider — password login will not work.
+5. Confirm Home feed + Profile **Bakrix** load after login.
+
+## Publish required?
+**Yes** — SW v18 + auth purge/recovery fixes are local until Lovable Publish. Prod already on agtcyx bundle but needs v18 bump.
+
+## Next 3 Tasks
+1. **Lovable Publish** → verify bundle hash changes + `/sw.js` → `vybe-v18`
+2. **barron.bakic@gmail.com:** Forgot password → reset → login → confirm Bakrix feed/profile
+3. **Optional SQL (agtcyx):** paste `supabase/manual/PENDING_20260530.sql` for missing RPCs; deploy `vybe-agent` edge fn
+
 ## Current Focus (2026-06-16 — revert to Lovable live backend)
 - **User:** restore working auth + Bakrix/live data → point client back at **`agtcyxjxgkdyoxwxkjth`** (Lovable production DB, ~31 users).
 - **`canonicalSupabase.ts`**, **`vite.config.ts`**, **`index.html`**, **`debug-scan.mjs`**, **`DEPLOY.md`**, **`AGENTS.md`** — agtcyx canonical; redirect hprmic/eabvbt → agtcyx.
