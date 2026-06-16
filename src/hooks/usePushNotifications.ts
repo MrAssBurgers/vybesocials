@@ -3,7 +3,7 @@ import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth';
 import { toast } from 'sonner';
 import { isPreviewServiceWorkerDisabled, registerVybeServiceWorker } from '@/lib/serviceWorker';
-import { ensureDespiaOneSignalLinked, relinkDespiaPushInBackground } from '@/lib/despiaOneSignal';
+import { ensureDespiaOneSignalLinked, relinkDespiaPushInBackground, linkOneSignalUser } from '@/lib/despiaOneSignal';
 import { isDespiaRuntime, openAppSettings } from '@/lib/despiaBridge';
 import { pushBlockedSettingsMessage } from '@/lib/pushSettingsCopy';
 
