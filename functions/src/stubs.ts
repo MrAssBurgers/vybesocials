@@ -12,11 +12,12 @@ function pending(name: string) {
   }));
 }
 
-function pendingHttp(name: string) {
+function _pendingHttp(name: string) {
   return onRequest({ cors: true }, async (_req, res) => {
     res.status(501).json({ ok: false, error: 'not_yet_ported', function: name });
   });
 }
+void _pendingHttp;
 
 // Runway video (requires RUNWAY_API_KEY + polling — port when needed)
 export const generateRunwayVideo = pending('generate-runway-video');
@@ -30,5 +31,4 @@ export const uploadSound = pending('upload-sound');
 // Auth email hook (Firebase Auth handles its own templates — port if customized)
 export const authEmailHook = pending('auth-email-hook');
 
-// Streak notifier (placeholder until scheduled fn is wired)
-export const notifyExpiringStreaks = pending('notify-expiring-streaks');
+// notifyExpiringStreaks lives in push.ts
