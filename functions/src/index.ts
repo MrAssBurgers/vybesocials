@@ -16,10 +16,16 @@ import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { db, auth, requireAdmin } from './_shared/admin.js';
 
 export * from './ai.js';
+export * from './aiExtras.js';
 export * from './auth.js';
+export * from './briefs.js';
+export * from './email.js';
+export * from './passkeys.js';
 export * from './push.js';
 export * from './realtime.js';
 export * from './social.js';
+export * from './spotify.js';
+export * from './stripe.js';
 export * from './stubs.js';
 
 /**

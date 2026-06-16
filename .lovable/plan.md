@@ -198,3 +198,43 @@ Because Phase 5 named every Cloud Function export (real impl *and* stub) using t
 **Remaining work (Phase 7):** real implementations for the ~70 stubbed functions (Stripe Connect V2 suite, Spotify OAuth, passkeys, email queue, Runway video, prewarm-briefs, vybe-agent). Also wire FCM web push end-to-end (service worker → `getVapidKey` → `linkOnesignalUser`), and switch the call-site presence/typing patterns from the Supabase realtime shim to Firestore `onSnapshot`.
 
 Say **"start Phase 7"** to begin the long-tail port + cutover polish.
+
+---
+
+## Phase 7 — STATUS: ✅ done (2026-06-16)
+
+**New domain modules (all `tsc --noEmit` clean, 0 errors):**
+- `functions/src/email.ts` — Resend-backed transactional email. Exports `sendTransactionalEmail`, `sendAuthEmail`, `sendResetEmail`, `previewTransactionalEmail`, `handleEmailSuppression`, `handleEmailUnsubscribe` (HTTP w/ HMAC token), and a scheduled `processEmailQueue` (every 5 min) draining `email_send_state`. Auto-checks `suppressed_emails` before send and appends a per-recipient unsubscribe link.
+- `functions/src/stripe.ts` — Full Connect V2 suite using `stripe` SDK (dynamic import). Exports `connectV2{CreateAccount,AccountLink,AccountStatus,BillingPortal,Checkout,Subscription,CreateProduct,ListProducts,Webhook*}`, `createTip` (15% platform fee), `processCreatorPayout`, `createStripeDashboardLink`, `validateStripeConfig`, and legacy aliases (`createCheckoutSession`, `createPremiumCheckout`, etc.) so older clients keep working. Webhooks persist to `orders`/`creator_earnings` and update `profiles.premium_status`.
+- `functions/src/spotify.ts` — OAuth start/callback (HTTP), `spotifyDisconnect`, `spotifyNowPlaying`, `spotifyControl`, `spotifyPlaylists`, `spotifyListenAlong`. Auto-refreshes tokens 60s before expiry; stores creds in `spotify_connections`.
+- `functions/src/passkeys.ts` — WebAuthn register + login via `@simplewebauthn/server`. Persists challenges in `auth_challenges`, credentials in `webauthn_credentials`, mints Firebase custom token on successful login.
+- `functions/src/briefs.ts` — `prewarmDailyBriefs` (every 6h, scans `last_active_at >= now-7d`, regenerates `daily_brief_cache`), `smartBriefPings` (hourly multicast FCM), `briefTopicDetail` (on-demand expand).
+- `functions/src/aiExtras.ts` — Thin Lovable AI wrappers: `aiAdaptiveResponse`, `aiAutoFix`, `aiDetectText`, `aiEnhancePhoto`, `generateChallenges`, `generateCustomAnimations`, `generatePwaIcon`, `generateArFilter`, `analyzeBugReport`, `analyzeError`, `dnaAutopilot` (writes `dna_agent_actions`, respects `dna_agent_settings.mode`), `dnaAutopilotRevert`, `vybeAgent`, `vybeCommander`, `adminAiBuilder`, `adminDebugTools`.
+
+**Stubs trimmed:** `functions/src/stubs.ts` now only holds `generateRunwayVideo`/`checkRunwayStatus` (needs RUNWAY_API_KEY + polling), `syncMusicProviders`/`testMusicProvider`/`uploadSound` (Spotify is the real path), and `authEmailHook` (Firebase Auth handles templates natively unless customized).
+
+**FCM web push wired end-to-end:**
+- `public/firebase-messaging-sw.js` — background message handler + notification-click navigation. Public Firebase web config inlined (no secrets).
+- `src/lib/firebase/messaging.ts` — `initWebPush({ silent? })` registers the SW, fetches the VAPID key (build-time `VITE_FIREBASE_VAPID_KEY` or callable `getVapidKey`), requests permission, retrieves the FCM token, writes to `push_tokens/{uid}_web`, and calls `linkOnesignalUser`. `onForegroundPush(handler)` exposes the foreground listener.
+
+**Dependencies added (`functions/package.json`):** `stripe@^17.5.0`, `@simplewebauthn/server@^11.0.0` (livekit-server-sdk + firebase-admin already present).
+
+**Secrets to set before deploy (`firebase functions:secrets:set NAME`):**
+- `RESEND_API_KEY`, `EMAIL_FROM`, `UNSUBSCRIBE_SECRET`, `PUBLIC_SITE_URL` — email
+- `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_WEBHOOK_SECRET_THIN` — Stripe
+- `SPOTIFY_CLIENT_ID`, `SPOTIFY_CLIENT_SECRET` — Spotify OAuth
+- `WEBAUTHN_RP_ID` (default `vybehub.app`) — passkeys
+
+**You run:**
+```
+cd functions && npm install && firebase deploy --only functions
+firebase deploy --only hosting   # to publish firebase-messaging-sw.js
+```
+
+**Remaining for Phase 8 (cleanup & publish):**
+1. Switch presence/typing call sites (`useChatPresence`, `useTypingIndicator`, etc.) from the legacy Supabase realtime shim to Firestore `onSnapshot` on `chat_presence/{conversationId}/users/{uid}` and `typing_indicators/{conversationId}/users/{uid}`. The realtime shim from Phase 3 keeps them working in the meantime — no UI is broken, just suboptimal.
+2. Delete `src/integrations/supabase/`, `supabase/` folder, `dualSupabase.ts`, legacy URL rewrites in `mediaUrl.ts`.
+3. Remove `VITE_SUPABASE_*` from `.env`, swap `index.html` preconnect to `firestore.googleapis.com`.
+4. Update `WORKLOG.md` + `DEPLOY.md`, then Lovable Publish → `vybehub.app`.
+
+Say **"start Phase 8"** to do the final cutover and publish.
