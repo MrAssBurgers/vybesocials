@@ -11,6 +11,7 @@
     "lint": "eslint .",
     "validate:css": "node scripts/validate-css.mjs",
     "debug": "node scripts/debug-scan.mjs",
+    "migrate:agtcyx": "node scripts/migrate-agtcyx-to-hprmic.mjs",
     "preview": "vite preview",
     "db:apply-pending": "node scripts/apply-pending-migrations.mjs",
     "migrate:agtcyx": "node scripts/migrate-agtcyx-to-hprmic.mjs",

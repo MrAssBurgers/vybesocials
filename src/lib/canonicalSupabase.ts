@@ -1,19 +1,22 @@
 /**
- * Canonical Supabase project — auth, profiles, and edge functions.
- * Lovable builds may still bake legacy refs (agtcyx/eabvbt); runtime + build redirect those to hprmic.
+ * Live production Supabase — auth users and profiles live here (agtcyx).
+ * Lovable builds may still bake hprmic/eabvbt; runtime + build redirect those to agtcyx.
  */
-export const CANONICAL_SUPABASE_PROJECT_ID = 'hprmicwhlaaqfgshucec';
+export const CANONICAL_SUPABASE_PROJECT_ID = 'agtcyxjxgkdyoxwxkjth';
 export const CANONICAL_SUPABASE_URL = `https://${CANONICAL_SUPABASE_PROJECT_ID}.supabase.co`;
 
-/** hprmic anon key — public publishable key for the user database. */
+/** agtcyx anon key — public publishable key for the live user database. */
 export const CANONICAL_PUBLISHABLE_KEY =
-  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imhwcm1pY3dobGFhcWZnc2h1Y2VjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjkwNDkwODgsImV4cCI6MjA4NDYyNTA4OH0.Lk72yBKNj3sRjf5E5DQ8TLBfXB2tbjTpAAb075hbMa4';
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFndGN5eGp4Z2tkeW94d3hranRoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzAyMjk5NTMsImV4cCI6MjA4NTgwNTk1M30.G92pPYU9K2z3yqXtN5R7WR_-EAIVTfl-T-GlJ-N8oYg';
 
-/** Prior refs that may still be baked into old bundles or have sessions in localStorage. */
-export const KNOWN_LEGACY_SUPABASE_REFS = [
+/** Dead or empty refs that must not be used for auth (hprmic sandbox; eabvbt obsolete). */
+export const MISCONFIGURED_AUTH_REFS = [
   'eabvbtkxdbttjpdpbmuw',
-  'agtcyxjxgkdyoxwxkjth',
+  'hprmicwhlaaqfgshucec',
 ] as const;
+
+/** Prior refs that may still have sessions in localStorage after project changes. */
+export const KNOWN_LEGACY_SUPABASE_REFS = MISCONFIGURED_AUTH_REFS;
 
 function parseEnv(value: string | undefined): string {
   if (!value) return '';
@@ -28,14 +31,14 @@ function envSupabaseUrl(): string {
   return parseEnv(import.meta.env.VITE_SUPABASE_URL as string | undefined);
 }
 
-/** True when the baked bundle/env still targets a legacy ref instead of hprmic. */
+/** True when the baked bundle/env still targets hprmic/eabvbt instead of live auth project. */
 export function isLegacySupabaseEnv(): boolean {
   const projectId = envProjectId();
   const url = envSupabaseUrl();
   if (projectId === CANONICAL_SUPABASE_PROJECT_ID || url.includes(CANONICAL_SUPABASE_PROJECT_ID)) {
     return false;
   }
-  return KNOWN_LEGACY_SUPABASE_REFS.some((ref) => projectId === ref || url.includes(ref));
+  return MISCONFIGURED_AUTH_REFS.some((ref) => projectId === ref || url.includes(ref));
 }
 
 export function getCanonicalSupabaseUrl(): string {

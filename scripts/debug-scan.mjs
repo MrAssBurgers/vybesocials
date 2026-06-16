@@ -10,7 +10,7 @@ import { spawnSync } from 'node:child_process';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = join(__dirname, '..');
-const PROD_REF = 'hprmicwhlaaqfgshucec';
+const PROD_REF = 'agtcyxjxgkdyoxwxkjth';
 const PROD_URL = `https://${PROD_REF}.supabase.co`;
 
 function run(cmd, args, opts = {}) {
@@ -159,8 +159,8 @@ async function main() {
   section('Reminders');
   console.log('- Web deploy: Lovable → Share → Publish (vybehub.app)');
   console.log(`- Supabase prod ref: ${PROD_REF} (see DEPLOY.md)`);
-  console.log('- Edge functions: deploy on hprmic (ai-chat, vybe-agent, etc.)');
-  console.log('- SQL: apply supabase/manual/PENDING_20260530.sql on hprmic if RPCs MISSING');
+  console.log('- Edge functions: deploy on agtcyx (ai-chat, vybe-agent, etc.)');
+  console.log('- SQL: apply supabase/manual/PENDING_20260530.sql on agtcyx if RPCs MISSING');
 }
 
 main().catch((e) => {

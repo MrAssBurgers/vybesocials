@@ -4,6 +4,13 @@ Use this file as the Lovable -> Cursor handoff each session.
 
 **Links:** [Lovable project](https://lovable.dev/projects/416714c8-d013-4aff-984d-522418a9bbc7) · [Production](https://vybehub.app) · Deploy steps: `DEPLOY.md`
 
+## Current Focus (2026-06-16 — revert to Lovable live backend)
+- **User:** restore working auth + Bakrix/live data → point client back at **`agtcyxjxgkdyoxwxkjth`** (Lovable production DB, ~31 users).
+- **`canonicalSupabase.ts`**, **`vite.config.ts`**, **`index.html`**, **`debug-scan.mjs`**, **`DEPLOY.md`**, **`AGENTS.md`** — agtcyx canonical; redirect hprmic/eabvbt → agtcyx.
+- **`loginErrors.ts`**, **`errorUtils.ts`** — remove hprmic migration copy.
+- **`public/sw.js`** — v17 cache bust.
+- **You:** Lovable → Share → Publish → sign out / clear site data → log in with **original agtcyx password** (Bakrix account).
+
 ## Publish prep (2026-06-15 — user requested ship)
 - **Git:** `main` @ `94c35fd7` synced with `origin/main` (login UX + hprmic switch + auth fixes)
 - **Build:** `npm run build` PASS · local main `index-B5IgHIXw.js` · Landing `Landing-CjCJmolp.js` (has migration login copy)

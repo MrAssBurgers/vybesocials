@@ -1,8 +1,7 @@
-/** User-facing copy when Supabase returns invalid_credentials (wrong password or unknown email). */
+/** User-facing copy when Supabase returns invalid_credentials. */
 export function getLoginCredentialErrorMessage(): string {
   return (
-    'Invalid email or password. Tap Forgot password to set a new password for this email, ' +
-    'or Sign up if you have not created an account yet. Google or Apple only works if you linked that provider here.'
+    'Invalid email or password. Use Google or Apple if you signed up that way, or tap Forgot password.'
   );
 }
 

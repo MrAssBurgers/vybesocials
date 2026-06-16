@@ -15,7 +15,7 @@ export function getUserFriendlyError(error: any): string {
   
   // Authentication errors
   if (message.includes('Invalid login credentials')) {
-    return 'No matching account on VYBE\'s current servers. Tap Forgot password or sign up with this email.';
+    return 'Invalid email or password. Use Google or Apple if you signed up that way, or tap Forgot password.';
   }
   if (message.includes('Email not confirmed')) {
     return 'Please verify your email address. Check your inbox or tap "Resend verification".';

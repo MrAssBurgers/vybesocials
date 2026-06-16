@@ -1,0 +1,23 @@
+-- Optional: import auth.users WITH password hashes after Lovable provides a pg_dump.
+-- Run in hprmic SQL Editor ONLY after reviewing exported rows from agtcyx.
+--
+-- The JS migration script cannot copy encrypted_password via Admin API.
+-- If you have a dump, extract auth.users rows and adapt the INSERT below.
+--
+-- WARNING: destructive — backs up hprmic auth first if needed.
+
+-- Example shape (replace values from your agtcyx dump):
+-- INSERT INTO auth.users (
+--   id, instance_id, aud, role, email, encrypted_password,
+--   email_confirmed_at, raw_app_meta_data, raw_user_meta_data,
+--   created_at, updated_at, confirmation_token, recovery_token
+-- )
+-- VALUES (...)
+-- ON CONFLICT (id) DO UPDATE SET
+--   email = EXCLUDED.email,
+--   encrypted_password = EXCLUDED.encrypted_password,
+--   raw_user_meta_data = EXCLUDED.raw_user_meta_data,
+--   email_confirmed_at = EXCLUDED.email_confirmed_at;
+
+-- After auth import, run:
+--   npm run migrate:agtcyx -- --skip-auth --execute

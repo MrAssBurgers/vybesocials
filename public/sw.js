@@ -1,8 +1,8 @@
 // VYBE Service Worker
-// Version 16.0 — password recovery link routing fix (2026-06-15)
+// Version 17.0 — restore Lovable live backend agtcyx (2026-06-16)
 
-const CACHE_NAME = 'vybe-v16';
-const STATIC_CACHE = 'vybe-static-v16';
+const CACHE_NAME = 'vybe-v17';
+const STATIC_CACHE = 'vybe-static-v17';
 const MEDIA_CACHE = 'vybe-media-v2';
 const SHELL_CACHE = 'vybe-shell-v4';
 const ASSETS_CACHE = 'vybe-assets-v4';
