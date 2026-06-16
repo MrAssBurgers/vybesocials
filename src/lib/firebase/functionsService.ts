@@ -51,7 +51,7 @@ export function invokeFunction<T = any>(
   single: () => Promise<FunctionInvokeResult<T>>;
   maybeSingle: () => Promise<FunctionInvokeResult<T>>;
 } {
-  const callableName = FUNCTION_NAME_MAP[name] || name;
+  const callableName = resolveCallableName(name);
   const promise = (async () => {
     try {
       const fn = httpsCallable<Record<string, unknown> | undefined, T>(
