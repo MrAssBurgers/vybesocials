@@ -4,7 +4,61 @@ Use this file as the Lovable -> Cursor handoff each session.
 
 **Links:** [Lovable project](https://lovable.dev/projects/416714c8-d013-4aff-984d-522418a9bbc7) · [Production](https://vybehub.app) · Deploy steps: `DEPLOY.md`
 
-## Current Focus (2026-06-16 — auth crisis fix + agtcyx restore)
+## Current Focus (2026-06-16 — dual Supabase: agtcyx legacy + hprmic new writes)
+- **Legacy (read + auth):** `agtcyxjxgkdyoxwxkjth` — existing users, Bakrix, posts, DMs, feed (Lovable live DB).
+- **New writes:** `hprmicwhlaaqfgshucec` — owned project for NEW posts/stories going forward.
+- **Git:** pending push — dual-client + feed merge + SW v19.
+- **Prod now (pre-publish):** bundle `index-DsQgE5tL.js` · preconnect **agtcyx** · SW **v18** (repo **v19**).
+
+## Architecture (dual Supabase)
+
+| Surface | Project | Notes |
+|---------|---------|--------|
+| Auth / login / passwords | **agtcyx** | `supabase` client + `canonicalSupabase` |
+| Profile read, DMs, friends, notifications | **agtcyx** | unchanged |
+| Feed read (ranked / following / global) | **agtcyx** | RPCs unchanged |
+| **New posts** | **hprmic** | `useCreatePost` → hprmic storage + `posts` |
+| **New stories** | **hprmic** | `useCreateStory` + `publishStoryMedia` |
+| Own profile feed + For You page 0 | **merged** | agtcyx + user's hprmic posts |
+| Own stories ring | **merged** | agtcyx friends + user's hprmic stories |
+| DMs / messages | **agtcyx only** | not split (conversations stay legacy) |
+| Edge functions / AI | **agtcyx** | `VITE_SUPABASE_URL` still agtcyx |
+| hprmic auth | separate localStorage key | synced on email/password sign-in/sign-up |
+
+## What Changed (2026-06-16 — dual Supabase)
+- **`canonicalSupabase.ts`** — `NEW_WRITES_*` hprmic constants; `OBSOLETE_AUTH_REFS` (eabvbt only); hprmic no longer purged on boot.
+- **`hprmicClient.ts`** — secondary Supabase client (isolated auth storage).
+- **`dualSupabase.ts`** — `syncHprmicAuth`, `ensureHprmicWriteReady`, feed merge helpers.
+- **`supabaseStorageKey.ts`** — purge/migrate eabvbt only; keep hprmic session for writes.
+- **`auth.tsx`** — mirror password login to hprmic; sign out clears hprmic session.
+- **`usePosts.ts`**, **`useStories.ts`**, **`publishStoryMedia.ts`** — new content writes to hprmic.
+- **`useInfinitePosts.ts`** — merge user's hprmic posts into profile + For You (page 0).
+- **`signedUrlCache.ts`**, **`mediaUrl.ts`** — sign/serve hprmic media URLs.
+- **`public/sw.js`** — v19 cache bust.
+- **Verify:** `npm run build` PASS · `npm run lint` PASS
+
+## Limitations
+- **No data migration** — agtcyx keeps all historical data; hprmic starts empty for content.
+- **OAuth-only users** (Google/Apple): hprmic write sync needs email/password login once (or future OAuth bridge).
+- **DMs** still on agtcyx — new messages not routed to hprmic in this pass.
+- **Other users' new hprmic posts** not visible until full cross-project feed merge.
+- **hprmic SQL/edge** — paste `supabase/manual/PENDING_20260530.sql` on **hprmic** if `ensure_profile` / RLS missing.
+
+## User steps (required)
+1. **Lovable → Share → Publish** (SW v19 + dual-write client).
+2. **Clear site data** on vybehub.app (or private window).
+3. **Sign in** with **agtcyx password** (barron.bakic@gmail.com / Bakrix) — email/password also mirrors to hprmic.
+4. Post a story or feed post → should land on **hprmic** and appear in your feed/profile merge.
+5. **Supabase SQL Editor (hprmic):** apply `PENDING_20260530.sql` + deploy edge fns if writes fail.
+
+## Publish required?
+**Yes** — dual-write + SW v19 local until Lovable Publish.
+
+## Next 3 Tasks
+1. **Lovable Publish** → verify `/sw.js` → `vybe-v19`
+2. **barron.bakic@gmail.com:** login (password) → create post → confirm in feed + profile
+3. **hprmic:** SQL Editor + smoke test story upload
+
 - **User:** barron.bakic@gmail.com / Bakrix — live data on **agtcyxjxgkdyoxwxkjth** (~31 users).
 - **Git:** `main` @ `d8ac21b3` pushed — auth recovery hardening + legacy session purge + SW v18.
 - **Prod now (pre-publish):** bundle `index-DsQgE5tL.js` · preconnect **agtcyx** · SW **v17** (repo has **v18**).

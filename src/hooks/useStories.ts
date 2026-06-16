@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
+import { ensureHprmicWriteReady, getNewWritesClient } from '@/lib/dualSupabase';
 import { useAuth } from '@/lib/auth';
 import { useAuthProfileId } from '@/hooks/useAuthProfileId';
 import { getEffectiveProfileId } from '@/lib/profileCache';
@@ -7,6 +8,35 @@ import { resolveSessionProfileId, resolveStoryAuthorProfileId } from '@/lib/reso
 
 function storiesQueryProfileId(liveProfileId?: string | null, resolvedProfileId?: string) {
   return getEffectiveProfileId(liveProfileId ?? resolvedProfileId);
+}
+
+async function fetchHprmicStoriesForUser(legacyProfileId: string): Promise<Story[]> {
+  const hprmicProfileId = await ensureHprmicWriteReady(legacyProfileId);
+  if (!hprmicProfileId) return [];
+
+  const { data, error } = await getNewWritesClient()
+    .from('stories')
+    .select(`
+      *,
+      author:profiles!author_id(id, username, avatar_url, display_name)
+    `)
+    .eq('author_id', hprmicProfileId)
+    .gt('expires_at', new Date().toISOString())
+    .order('created_at', { ascending: false });
+
+  if (error) {
+    console.warn('[useStories] hprmic stories fetch failed:', error.message);
+    return [];
+  }
+
+  return (data || []).map((story) => ({
+    ...story,
+    author_id: legacyProfileId,
+    author: {
+      ...(story.author as Story['author']),
+      id: legacyProfileId,
+    },
+  })) as Story[];
 }
 
 export interface Story {
@@ -90,7 +120,6 @@ export function useStories() {
 
       if (error) throw error;
 
-      // Get viewed stories
       const { data: views } = await supabase
         .from('story_views')
         .select('story_id')
@@ -98,11 +127,26 @@ export function useStories() {
 
       const viewedIds = new Set(views?.map((v) => v.story_id) || []);
 
-      // Group stories by author
-      const storiesWithViews = (data || []).map((story) => ({
+      const baseStories = (data || []).map((story) => ({
         ...story,
         has_viewed: viewedIds.has(story.id),
       }));
+
+      let extraHprmic: typeof baseStories = [];
+      if (profileId) {
+        const hprmicStories = await fetchHprmicStoriesForUser(profileId);
+        if (hprmicStories.length > 0) {
+          const legacyIds = new Set(baseStories.map((s) => s.id));
+          extraHprmic = hprmicStories
+            .filter((story) => !legacyIds.has(story.id))
+            .map((story) => ({
+              ...story,
+              has_viewed: viewedIds.has(story.id),
+            }));
+        }
+      }
+
+      const storiesWithViews = [...baseStories, ...extraHprmic];
 
       const groupedMap = new Map<string, StoryGroup>();
 
@@ -176,10 +220,18 @@ export function useCreateStory() {
       duration,
       pollData,
     }: CreateStoryParams) => {
-      const authorId = await resolveStoryAuthorProfileId(profileId ?? profile?.id);
+      const legacyAuthorId = await resolveStoryAuthorProfileId(profileId ?? profile?.id);
+      if (!legacyAuthorId) throw new Error('Not authenticated');
+
+      const hprmicAuthorId = await ensureHprmicWriteReady(legacyAuthorId);
+      if (!hprmicAuthorId) {
+        throw new Error('Sign out and sign in again with email/password to publish stories.');
+      }
+
+      const writeClient = getNewWritesClient();
 
       const payload = {
-        author_id: authorId,
+        author_id: hprmicAuthorId,
         media_url: mediaUrl,
         media_type: mediaType,
         thumbnail_url: thumbnailUrl || null,
@@ -195,7 +247,7 @@ export function useCreateStory() {
           author:profiles!author_id(id, username, avatar_url, display_name)
         `;
 
-      let { data, error } = await (supabase.from('stories') as any)
+      let { data, error } = await (writeClient.from('stories') as any)
         .insert(payload)
         .select(storySelect)
         .maybeSingle();
@@ -203,7 +255,7 @@ export function useCreateStory() {
       // Prod may lag migrations — retry without poll_data if column missing.
       if (error && pollData && /poll_data|column/i.test(error.message || '')) {
         const { poll_data: _omit, ...withoutPoll } = payload;
-        ({ data, error } = await (supabase.from('stories') as any)
+        ({ data, error } = await (writeClient.from('stories') as any)
           .insert(withoutPoll)
           .select(storySelect)
           .maybeSingle());
@@ -221,12 +273,12 @@ export function useCreateStory() {
       }
 
       if (!data) {
-        const { data: latest, error: fetchError } = await (supabase.from('stories') as any)
+        const { data: latest, error: fetchError } = await (writeClient.from('stories') as any)
           .select(`
             *,
             author:profiles!author_id(id, username, avatar_url, display_name)
           `)
-          .eq('author_id', authorId)
+          .eq('author_id', hprmicAuthorId)
           .eq('media_url', mediaUrl)
           .order('created_at', { ascending: false })
           .limit(1)
@@ -237,6 +289,12 @@ export function useCreateStory() {
           throw new Error('Story may have saved but could not be confirmed. Refresh Home and check your story ring.');
         }
         data = latest;
+      }
+      if (data?.author) {
+        data.author.id = legacyAuthorId;
+      }
+      if (data) {
+        data.author_id = legacyAuthorId;
       }
       return data;
     },

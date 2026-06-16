@@ -1,5 +1,6 @@
 import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
+import { fetchHprmicPostsForUser, mergeFeedPosts } from '@/lib/dualSupabase';
 import { useAuth } from '@/lib/auth';
 import { useEffect, useRef } from 'react';
 import { batchSignUrls, getCachedSignedUrl, needsSigning } from '@/lib/signedUrlCache';
@@ -174,6 +175,16 @@ export function useInfinitePosts(
       if (error) throw error;
 
       let posts = (data || []).map(transformPost);
+
+      // Own profile: merge new posts from hprmic
+      if (isProfileView && authorId && authorId === profileId) {
+        const hprmicPosts = await fetchHprmicPostsForUser(profileId, {
+          type: type || undefined,
+          limit,
+          offset,
+        });
+        posts = mergeFeedPosts(posts, hprmicPosts);
+      }
 
       // For non-profile (feed) views: hide your own posts and posts from blocked users.
       if (!isProfileView && profileId) {
@@ -408,7 +419,17 @@ export function usePersonalizedFeed(
         return { posts, nextPage: posts.length >= limit ? pageParam + 1 : null };
       }
 
-      const posts = await fetchPersonalizedPosts(profileId, type, offset, limit, blocked);
+      let posts = await fetchPersonalizedPosts(profileId, type, offset, limit, blocked);
+
+      if (pageParam === 0) {
+        const hprmicPosts = await fetchHprmicPostsForUser(profileId, {
+          type: type || undefined,
+          limit,
+          offset: 0,
+        });
+        posts = mergeFeedPosts(posts, hprmicPosts);
+      }
+
       presignPostMedia(posts).then(() => preloadSignedMedia(posts)).catch(() => {});
 
       return { posts, nextPage: posts.length >= limit ? pageParam + 1 : null };

@@ -4,6 +4,7 @@ import { getSupabaseProjectRef } from '@/lib/supabaseStorageKey';
 const LEGACY_SUPABASE_REFS = [
   'szthqtnbepupjqjxaduu',
   'agtcyxjxgkdyoxwxkjth',
+  'hprmicwhlaaqfgshucec',
   'eabvbtkxdbttjpdpbmuw',
 ];
 

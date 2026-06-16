@@ -9,14 +9,23 @@ export const CANONICAL_SUPABASE_URL = `https://${CANONICAL_SUPABASE_PROJECT_ID}.
 export const CANONICAL_PUBLISHABLE_KEY =
   'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFndGN5eGp4Z2tkeW94d3hranRoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzAyMjk5NTMsImV4cCI6MjA4NTgwNTk1M30.G92pPYU9K2z3yqXtN5R7WR_-EAIVTfl-T-GlJ-N8oYg';
 
-/** Dead or empty refs that must not be used for auth (hprmic sandbox; eabvbt obsolete). */
+/** Owned project for new content writes (auth stays on agtcyx). */
+export const NEW_WRITES_PROJECT_ID = 'hprmicwhlaaqfgshucec';
+export const NEW_WRITES_SUPABASE_URL = `https://${NEW_WRITES_PROJECT_ID}.supabase.co`;
+export const NEW_WRITES_PUBLISHABLE_KEY =
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imhwcm1pY3dobGFhcWZnc2h1Y2VjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjkwNDkwODgsImV4cCI6MjA4NDYyNTA4OH0.Lk72yBKNj3sRjf5E5DQ8TLBfXB2tbjTpAAb075hbMa4';
+
+/** Obsolete refs — purge/migrate to agtcyx; never used for primary auth. */
+export const OBSOLETE_AUTH_REFS = ['eabvbtkxdbttjpdpbmuw'] as const;
+
+/** Baked env refs that must redirect to agtcyx for login (includes hprmic when used as sole client). */
 export const MISCONFIGURED_AUTH_REFS = [
-  'eabvbtkxdbttjpdpbmuw',
-  'hprmicwhlaaqfgshucec',
+  ...OBSOLETE_AUTH_REFS,
+  NEW_WRITES_PROJECT_ID,
 ] as const;
 
-/** Prior refs that may still have sessions in localStorage after project changes. */
-export const KNOWN_LEGACY_SUPABASE_REFS = MISCONFIGURED_AUTH_REFS;
+/** Prior refs to migrate into agtcyx primary auth key (excludes hprmic — dual-write session). */
+export const KNOWN_LEGACY_SUPABASE_REFS = OBSOLETE_AUTH_REFS;
 
 function parseEnv(value: string | undefined): string {
   if (!value) return '';

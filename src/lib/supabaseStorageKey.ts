@@ -2,6 +2,7 @@ import {
   CANONICAL_SUPABASE_PROJECT_ID,
   getCanonicalProjectRef,
   KNOWN_LEGACY_SUPABASE_REFS,
+  OBSOLETE_AUTH_REFS,
 } from '@/lib/canonicalSupabase';
 
 /**
@@ -161,10 +162,10 @@ export function getStoredAuthUserId(): string | null {
   }
 }
 
-/** Drop hprmic/eabvbt auth keys so they never block agtcyx login. */
+/** Drop obsolete eabvbt auth keys — hprmic session is kept for dual-write. */
 export function clearLegacySupabaseAuthStorage(): void {
   try {
-    for (const ref of KNOWN_LEGACY_SUPABASE_REFS) {
+    for (const ref of OBSOLETE_AUTH_REFS) {
       const key = authStorageKeyForRef(ref);
       localStorage.removeItem(key);
       localStorage.removeItem(`${key}${BACKUP_SUFFIX}`);
@@ -179,7 +180,7 @@ export function purgeWrongProjectAuthSessions(): void {
   try {
     const keys = new Set<string>([
       getSupabaseAuthStorageKey(),
-      ...KNOWN_LEGACY_SUPABASE_REFS.map(authStorageKeyForRef),
+      ...OBSOLETE_AUTH_REFS.map(authStorageKeyForRef),
     ]);
 
     for (const key of keys) {

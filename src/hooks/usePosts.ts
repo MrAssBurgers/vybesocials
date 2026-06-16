@@ -9,6 +9,7 @@ import { toast } from 'sonner';
 import { setCachedProfiles } from '@/lib/profileCache';
 
 import { isValidMediaUrl } from '@/lib/mediaUrl';
+import { ensureHprmicWriteReady, getNewWritesClient } from '@/lib/dualSupabase';
 
 export { isValidMediaUrl };
 
@@ -323,6 +324,16 @@ export function useCreatePost() {
 
       const filteredCaption = filterBlockedContent(data.caption);
 
+      const hprmicProfileId = await ensureHprmicWriteReady(profile.id);
+      if (!hprmicProfileId) {
+        toast.error('Sign out and sign in again with email/password to publish new posts.');
+        throw new Error('hprmic write not ready');
+      }
+
+      const writeClient = getNewWritesClient();
+      const hprmicAuthUserId =
+        (await writeClient.auth.getSession()).data.session?.user?.id ?? profile.user_id;
+
       let publicUrl: string | null = null;
       let mediaUrls: string[] | null = null;
       let thumbnailUrl: string | null = null;
@@ -348,14 +359,14 @@ export function useCreatePost() {
             }
           }
 
-          const fileName = `${profile.user_id}/${Date.now()}-${Math.random().toString(36).slice(2)}.${fileExt}`;
+          const fileName = `${hprmicAuthUserId}/${Date.now()}-${Math.random().toString(36).slice(2)}.${fileExt}`;
           const { error: uploadError } = await withTimeout(
-            supabase.storage.from('media').upload(fileName, uploadBlob),
+            writeClient.storage.from('media').upload(fileName, uploadBlob),
             120000,
             'Upload timed out. Check your connection and try again.'
           );
           if (uploadError) throw uploadError;
-          const { data: { publicUrl: url } } = supabase.storage.from('media').getPublicUrl(fileName);
+          const { data: { publicUrl: url } } = writeClient.storage.from('media').getPublicUrl(fileName);
           uploadedUrls.push(url);
         }
         publicUrl = uploadedUrls[0];
@@ -378,14 +389,14 @@ export function useCreatePost() {
           }
         }
 
-        const fileName = `${profile.user_id}/${Date.now()}.${fileExt}`;
+        const fileName = `${hprmicAuthUserId}/${Date.now()}.${fileExt}`;
         const { error: uploadError } = await withTimeout(
-          supabase.storage.from('media').upload(fileName, uploadBlob),
+          writeClient.storage.from('media').upload(fileName, uploadBlob),
           120000,
           'Upload timed out. Check your connection and try again.'
         );
         if (uploadError) throw uploadError;
-        const { data: { publicUrl: url } } = supabase.storage.from('media').getPublicUrl(fileName);
+        const { data: { publicUrl: url } } = writeClient.storage.from('media').getPublicUrl(fileName);
         publicUrl = url;
 
         // Auto-generate video thumbnail if none provided
@@ -397,10 +408,10 @@ export function useCreatePost() {
               'Video thumbnail timed out'
             );
             const thumbExt = getCompressedExtension();
-            const thumbFileName = `${profile.user_id}/thumb_${Date.now()}.${thumbExt}`;
-            const { error: thumbErr } = await supabase.storage.from('media').upload(thumbFileName, thumbBlob, { contentType: `image/${thumbExt}` });
+            const thumbFileName = `${hprmicAuthUserId}/thumb_${Date.now()}.${thumbExt}`;
+            const { error: thumbErr } = await writeClient.storage.from('media').upload(thumbFileName, thumbBlob, { contentType: `image/${thumbExt}` });
             if (!thumbErr) {
-              const { data: { publicUrl: thumbUrl } } = supabase.storage.from('media').getPublicUrl(thumbFileName);
+              const { data: { publicUrl: thumbUrl } } = writeClient.storage.from('media').getPublicUrl(thumbFileName);
               thumbnailUrl = thumbUrl;
             }
           } catch (e) {
@@ -413,20 +424,20 @@ export function useCreatePost() {
       
       if (data.thumbnailFile) {
         const thumbExt = data.thumbnailFile.name.split('.').pop();
-        const thumbFileName = `${profile.user_id}/thumb_${Date.now()}.${thumbExt}`;
-        const { error: thumbError } = await supabase.storage.from('media').upload(thumbFileName, data.thumbnailFile);
+        const thumbFileName = `${hprmicAuthUserId}/thumb_${Date.now()}.${thumbExt}`;
+        const { error: thumbError } = await writeClient.storage.from('media').upload(thumbFileName, data.thumbnailFile);
         if (!thumbError) {
-          const { data: { publicUrl: thumbPublicUrl } } = supabase.storage.from('media').getPublicUrl(thumbFileName);
+          const { data: { publicUrl: thumbPublicUrl } } = writeClient.storage.from('media').getPublicUrl(thumbFileName);
           thumbnailUrl = thumbPublicUrl;
         }
       } else if (data.thumbnailDataUrl) {
         try {
           const response = await fetch(data.thumbnailDataUrl);
           const blob = await response.blob();
-          const thumbFileName = `${profile.user_id}/thumb_${Date.now()}.jpg`;
-          const { error: thumbError } = await supabase.storage.from('media').upload(thumbFileName, blob, { contentType: 'image/jpeg' });
+          const thumbFileName = `${hprmicAuthUserId}/thumb_${Date.now()}.jpg`;
+          const { error: thumbError } = await writeClient.storage.from('media').upload(thumbFileName, blob, { contentType: 'image/jpeg' });
           if (!thumbError) {
-            const { data: { publicUrl: thumbPublicUrl } } = supabase.storage.from('media').getPublicUrl(thumbFileName);
+            const { data: { publicUrl: thumbPublicUrl } } = writeClient.storage.from('media').getPublicUrl(thumbFileName);
             thumbnailUrl = thumbPublicUrl;
           }
         } catch (e) {
@@ -438,10 +449,10 @@ export function useCreatePost() {
       const postType = data.type === 'text' ? 'post' : data.type;
 
       // Create post
-      const { data: post, error } = await supabase
+      const { data: post, error } = await writeClient
         .from('posts')
         .insert({
-          author_id: profile.id,
+          author_id: hprmicProfileId,
           type: postType,
           media_url: publicUrl,
           media_urls: mediaUrls,

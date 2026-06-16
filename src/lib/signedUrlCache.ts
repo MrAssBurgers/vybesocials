@@ -5,6 +5,8 @@
  */
 
 import { supabase } from '@/integrations/supabase/client';
+import { hprmicSupabase } from '@/integrations/supabase/hprmicClient';
+import { NEW_WRITES_PROJECT_ID } from '@/lib/canonicalSupabase';
 import { getSupabaseProjectRef } from '@/lib/supabaseStorageKey';
 import { normalizeMediaUrl } from '@/lib/mediaUrl';
 
@@ -28,6 +30,7 @@ const CURRENT_SUPABASE_PROJECT = getSupabaseProjectRef();
 const LEGACY_SUPABASE_PROJECTS = [
   'eabvbtkxdbttjpdpbmuw',
   'agtcyxjxgkdyoxwxkjth',
+  'hprmicwhlaaqfgshucec',
   'szthqtnbepupjqjxaduu',
 ];
 
@@ -114,7 +117,8 @@ export async function getSignedUrl(publicUrl: string): Promise<string | null> {
       const parsed = parseStorageUrl(url);
       if (!parsed) return url;
 
-      const { data, error } = await supabase.storage
+      const storageClient = url.includes(NEW_WRITES_PROJECT_ID) ? hprmicSupabase : supabase;
+      const { data, error } = await storageClient.storage
         .from(parsed.bucket)
         .createSignedUrl(parsed.path, 3600);
 
@@ -175,27 +179,31 @@ export async function batchSignUrls(urls: (string | null | undefined)[]): Promis
   
   if (urlsToSign.length === 0) return;
   
-  // Group by bucket for efficient batch requests, dedupe paths within bucket
-  const byBucket = new Map<string, Map<string, string>>(); // bucket -> path -> originalUrl
+  // Group by bucket + project for efficient batch requests
+  const byBucket = new Map<string, Map<string, string>>(); // `${project}:${bucket}` -> path -> url
   for (const item of urlsToSign) {
-    let bucketMap = byBucket.get(item.bucket);
+    const projectRef = item.url.includes(NEW_WRITES_PROJECT_ID)
+      ? NEW_WRITES_PROJECT_ID
+      : CURRENT_SUPABASE_PROJECT;
+    const bucketKey = `${projectRef}:${item.bucket}`;
+    let bucketMap = byBucket.get(bucketKey);
     if (!bucketMap) {
       bucketMap = new Map();
-      byBucket.set(item.bucket, bucketMap);
+      byBucket.set(bucketKey, bucketMap);
     }
-    // Only keep first occurrence of each path
     if (!bucketMap.has(item.path)) {
       bucketMap.set(item.path, item.url);
     }
   }
-  
-  // Sign all URLs in parallel by bucket
-  const promises = Array.from(byBucket.entries()).map(async ([bucket, pathMap]) => {
+
+  const promises = Array.from(byBucket.entries()).map(async ([bucketKey, pathMap]) => {
     try {
+      const [projectRef, bucket] = bucketKey.split(':');
       const paths = Array.from(pathMap.keys());
       const originalUrls = Array.from(pathMap.values());
-      
-      const { data, error } = await supabase.storage
+      const storageClient = projectRef === NEW_WRITES_PROJECT_ID ? hprmicSupabase : supabase;
+
+      const { data, error } = await storageClient.storage
         .from(bucket)
         .createSignedUrls(paths, 3600);
       

@@ -1,8 +1,8 @@
 // VYBE Service Worker
-// Version 17.0 — restore Lovable live backend agtcyx (2026-06-16)
+// Version 19.0 — dual Supabase: agtcyx read/auth + hprmic new writes (2026-06-16)
 
-const CACHE_NAME = 'vybe-v18';
-const STATIC_CACHE = 'vybe-static-v18';
+const CACHE_NAME = 'vybe-v19';
+const STATIC_CACHE = 'vybe-static-v19';
 const MEDIA_CACHE = 'vybe-media-v2';
 const SHELL_CACHE = 'vybe-shell-v4';
 const ASSETS_CACHE = 'vybe-assets-v4';
