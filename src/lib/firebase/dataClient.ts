@@ -282,6 +282,8 @@ class QueryBuilder {
 
   private async execute(): Promise<QueryResult> {
     try {
+      if (this.insertRows) return await this.executeInsert(this.insertRows);
+      if (this.upsertRows) return await this.executeUpsert(this.upsertRows, this.upsertConflictKey);
       if (this.updatePayload !== null) return await this.executeUpdate();
       if (this.deleteMode) return await this.executeDelete();
 
