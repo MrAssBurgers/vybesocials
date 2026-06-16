@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { db } from '@/lib/firebase';
+import { invokeFunction } from '@/lib/firebase/functionsService';
 import { toast } from 'sonner';
 import { haptics } from '@/lib/haptics';
 import { getBriefTimeSlot } from '@/lib/briefTimeSlot';
