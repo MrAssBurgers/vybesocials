@@ -149,3 +149,36 @@ firebase deploy --only functions
 - A few admin-only tables (`error_logs`, `email_send_*`, `gifted_premium` writes) deny client writes — the corresponding Cloud Functions (Phase 5) must use the admin SDK.
 
 Say **"start Phase 5"** to begin porting edge functions in priority batches.
+
+---
+
+## Phase 5 — STATUS: 🚧 P0 batch done (2026-06-16)
+
+**Structured Cloud Functions tree (`functions/src/`):**
+- `_shared/admin.ts` — initApp singleton, `db`/`auth`/`messaging`, `requireAuth`/`requireAdmin`, Firestore-backed `rateLimit`.
+- `_shared/lovableAi.ts` — Lovable AI Gateway fetch wrapper (`google/gemini-2.5-flash` default, automatic fallback to `flash-lite`, `X-Lovable-AIG-SDK` header, 429/402 surfaced).
+- `ai.ts` — REAL: `aiChat`, `aiCatchUp`, `aiSmartReplies`, `aiCommentSuggestions`, `aiMessageAssist`, `aiHumanize`, `aiChatSummary`, `aiProfileWriter`, `aiSafetyScan` (+ `scanContentSafety`/`scanVideoSafety`/`moderateContent` aliases), `generateTheme`/`generateAdvancedTheme`, `generateBackground`, `generateCaption`, `dnaChat`, `detectAiContent` (placeholder).
+- `auth.ts` — REAL: `auth2faRequest/Verify/Preauth/VerifyPhone`, `phoneVerifyRequest/Confirm`, `authLoginApproval/Notify/SessionRevoke/Qr`, `manageAccount`, `checkPremiumSubscription` (RevenueCat + `gifted_premium`), `checkDebugSecrets`, `manageSecrets`.
+- `push.ts` — REAL: `sendPushNotification` (FCM multicast + dead-token cleanup), `getVapidKey`, `linkOnesignalUser`, `sendBriefNotification`, `muteSmartPings`, `notifyExpiringStreaks` stub, `sitemapDynamic` (`onRequest`).
+- `realtime.ts` — REAL: `livekitToken`, `communityVoiceToken` (+ `spacesToken` alias), `apiCallsCreateRoom`, `externalPresencePoll`. Dynamic `import('livekit-server-sdk')` keeps cold start light.
+- `social.ts` — REAL: `sharePreview` (`onRequest`, OG tags), `getRankedFeed` (engagement-weighted), `calculateFeedRanking`, `getRecommendations`, `createGroup`, `unsendMessage`, `confirmReferral`, `calculateEarnings`, `rateStickerContent`, `giphySearch`, `fetchPixabaySounds`.
+- `stubs.ts` — registers ~70 not-yet-ported functions (Stripe Connect v2 suite, Spotify OAuth, passkeys, runway/video gen, prewarm-briefs, vybe-agent, etc.) as `not_yet_ported` callables so the client never hits "function not found" during cutover.
+- `index.ts` — re-exports everything + keeps `setAdminClaim`.
+
+**Secrets to set before deploy** (Firebase Console → Functions → Secret Manager, or `firebase functions:secrets:set NAME`):
+- `LOVABLE_API_KEY` (required for all AI functions)
+- `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET`, `LIVEKIT_URL` (calls)
+- `GIPHY_API_KEY`, `PIXABAY_API_KEY` (media)
+- `FIREBASE_VAPID_KEY` (web push)
+- Stripe / Spotify / Resend keys land in Phase 6 batches as their functions get real impls.
+
+**You run:**
+```
+cd functions && npm install
+firebase deploy --only functions
+```
+TypeScript build is clean (`tsc --noEmit` → 0 errors).
+
+**Phase 6 (next):** sweep the ~25 client files that still call `supabase.functions.invoke(...)` / `supabase.from(...)` / `supabase.channel(...)`. Replace with `httpsCallable(functions, 'aiChat')`, direct Firestore SDK calls, and `onSnapshot` listeners. Also port the Stripe Connect batch + passkey batch + email queue from `stubs.ts` to real implementations as their domains get touched.
+
+Say **"start Phase 6"** when ready.
