@@ -7,6 +7,10 @@ import {
   sendEmailVerification,
   sendPasswordResetEmail,
   updateProfile as firebaseUpdateProfile,
+  GoogleAuthProvider,
+  OAuthProvider,
+  signInWithPopup,
+  signInWithRedirect,
   type User as FirebaseUser,
 } from 'firebase/auth';
 import { getFirebaseApp } from './app';
@@ -177,6 +181,38 @@ export const firebaseAuth = {
       return { error: null };
     } catch (err) {
       return { error: toAuthError(err) };
+    }
+  },
+  async signInWithOAuth(
+    provider: 'google' | 'apple',
+    opts?: { extraParams?: Record<string, string>; useRedirect?: boolean }
+  ): Promise<{ data: { session: VybeSession | null }; error: VybeAuthError | null; redirected?: boolean }> {
+    try {
+      let authProvider;
+      if (provider === 'google') {
+        const gp = new GoogleAuthProvider();
+        gp.addScope('email');
+        gp.addScope('profile');
+        if (opts?.extraParams) gp.setCustomParameters(opts.extraParams);
+        authProvider = gp;
+      } else {
+        const ap = new OAuthProvider('apple.com');
+        ap.addScope('email');
+        ap.addScope('name');
+        if (opts?.extraParams) ap.setCustomParameters(opts.extraParams);
+        authProvider = ap;
+      }
+
+      if (opts?.useRedirect) {
+        await signInWithRedirect(auth, authProvider);
+        return { data: { session: null }, error: null, redirected: true };
+      }
+
+      const result = await signInWithPopup(auth, authProvider);
+      const session = await toVybeSession(result.user);
+      return { data: { session }, error: null };
+    } catch (err) {
+      return { data: { session: null }, error: toAuthError(err) };
     }
   },
 };
