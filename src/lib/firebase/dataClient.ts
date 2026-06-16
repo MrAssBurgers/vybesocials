@@ -374,7 +374,7 @@ class QueryBuilder {
   }
 }
 
-export interface QueryResult<T = unknown> {
+export interface QueryResult<T = any> {
   data: T;
   error: VybeAuthError | null;
   count?: number | null;
