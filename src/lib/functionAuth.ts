@@ -62,9 +62,9 @@ export function formatAiChatError(error: unknown, httpStatus?: number): string {
 export async function refreshAuthSessionWithTimeout(
   timeoutMs = REFRESH_SESSION_TIMEOUT_MS,
 ): Promise<Awaited<ReturnType<typeof db.auth.refreshSession>>> {
-  let timer: ReturnType<typeof setTimeout> | undefined;
+  let timer: any;
   const timeoutPromise = new Promise<never>((_, reject) => {
-    timer = window.setTimeout(() => reject(new AuthRefreshTimeoutError()), timeoutMs);
+    timer = setTimeout(() => reject(new AuthRefreshTimeoutError()), timeoutMs);
   });
 
   try {
