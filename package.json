@@ -13,6 +13,7 @@
     "debug": "node scripts/debug-scan.mjs",
     "preview": "vite preview",
     "db:apply-pending": "node scripts/apply-pending-migrations.mjs",
+    "migrate:agtcyx": "node scripts/migrate-agtcyx-to-hprmic.mjs",
     "ios:setup": "npm run build && npx cap add ios && npx cap sync ios",
     "ios:sync": "npm run build && npx cap sync ios",
     "ios:dev": "CAP_DEV=1 npx cap sync ios && npx cap open ios",
