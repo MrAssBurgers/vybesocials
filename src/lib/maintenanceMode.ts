@@ -1,3 +1,5 @@
+import { shouldBypassMaintenanceForHost } from '@/lib/previewSandbox';
+
 declare global {
   interface Window {
     __VYBE_MAINTENANCE__?: boolean;
@@ -6,6 +8,7 @@ declare global {
 
 /** Full-app maintenance gate — html data-vybe-maintenance, env, or window flag. */
 export function isMaintenanceMode(): boolean {
+  if (shouldBypassMaintenanceForHost()) return false;
   if (typeof document !== 'undefined') {
     if (document.documentElement.getAttribute('data-vybe-maintenance') === 'true') return true;
   }

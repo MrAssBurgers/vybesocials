@@ -6,6 +6,11 @@
  */
 
 import { db } from '@/lib/firebase';
+import {
+  isPreviewFounderUser,
+  isPreviewSandbox,
+  LEGACY_FOUNDER_AUTH_ID,
+} from '@/lib/previewSandbox';
 
 // Owner username - must match OwnerBadge.tsx
 const OWNER_USERNAME = 'mrassburgers';
@@ -14,7 +19,7 @@ const OWNER_USERNAME = 'mrassburgers';
 // ALWAYS has owner privileges regardless of role-table state to guarantee
 // the founder never loses access on Live.
 const OWNER_AUTH_ID_ALLOWLIST = new Set<string>([
-  '703760a8-1245-4fc1-b242-32619ecc0ef3',
+  LEGACY_FOUNDER_AUTH_ID,
 ]);
 
 // Cache the owner status to avoid repeated checks
@@ -31,6 +36,11 @@ export async function isCurrentUserOwner(): Promise<boolean> {
   try {
     const { data: { user } } = await db.auth.getUser();
     if (!user) return false;
+
+    if (isPreviewSandbox() && isPreviewFounderUser(user)) {
+      cachedOwnerStatus = { userId: user.id, isOwner: true };
+      return true;
+    }
 
     // Hard-coded safety net: founder is ALWAYS owner.
     if (OWNER_AUTH_ID_ALLOWLIST.has(user.id)) {

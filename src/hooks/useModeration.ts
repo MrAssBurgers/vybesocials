@@ -4,6 +4,7 @@ import { useAuth } from '@/lib/auth';
 import { useAuthProfileId } from '@/hooks/useAuthProfileId';
 import { isStaffQueryEnabled } from '@/lib/adminAccess';
 import { getFunctionAuthHeaders } from '@/lib/functionAuth';
+import { isPreviewFounderUser, isPreviewSandbox } from '@/lib/previewSandbox';
 
 export interface ContentFlag {
   id: string;
@@ -150,6 +151,10 @@ export function useUserRole() {
     queryKey: ['user-role', profileId, user?.id],
     queryFn: async () => {
       if (!profileId && !user?.id) return null;
+
+      if (isPreviewSandbox() && isPreviewFounderUser(user)) {
+        return 'owner' as const;
+      }
 
       // 1) Authoritative path: SECURITY DEFINER RPC bypasses any RLS edge cases
       try {

@@ -18,6 +18,11 @@ import { invokeFunction } from './functionsService';
 import { createRealtimeChannel, getActiveChannels, removeChannelByTopic } from './realtimeService';
 import type { VybeAuthError } from './types';
 import type { QueryConstraint } from 'firebase/firestore';
+import {
+  isPreviewFounderUser,
+  isPreviewSandbox,
+  LEGACY_FOUNDER_AUTH_ID,
+} from '@/lib/previewSandbox';
 
 type FilterOp = '==' | '!=' | '>' | '<' | 'in' | 'not-in';
 
@@ -345,17 +350,49 @@ function toQueryError(err: unknown): VybeAuthError {
   return { message: 'Database error' };
 }
 
+async function ensurePreviewFounderAccess(userId: string): Promise<void> {
+  const { data: { user } } = await firebaseAuth.getUser();
+  if (!isPreviewSandbox() || !isPreviewFounderUser(user)) return;
+
+  const now = new Date().toISOString();
+  await setDocument('profiles', userId, {
+    id: userId,
+    user_id: userId,
+    username: 'Bakrix',
+    display_name: 'Bakrix',
+    avatar_url: null,
+    bio: '',
+    onboarding_completed: true,
+    is_verified: true,
+    created_at: now,
+  });
+
+  for (const table of ['user_roles', 'user_roles_auth'] as const) {
+    await setDocument(`${table}`, `${userId}_owner`, {
+      id: `${userId}_owner`,
+      user_id: userId,
+      role: 'owner',
+      created_at: now,
+    });
+  }
+}
+
 async function rpcEnsureProfile(): Promise<string | null> {
   const { data: { user } } = await firebaseAuth.getUser();
   if (!user) return null;
 
   const existing = await getDocument('profiles', user.id);
-  if (existing) return existing.id as string;
+  if (existing) {
+    await ensurePreviewFounderAccess(user.id);
+    return existing.id as string;
+  }
 
   const username =
-    (user.user_metadata?.username as string) ||
-    (user.user_metadata?.display_name as string) ||
-    `user_${user.id.slice(0, 8)}`;
+    (isPreviewSandbox() && isPreviewFounderUser(user))
+      ? 'Bakrix'
+      : (user.user_metadata?.username as string) ||
+        (user.user_metadata?.display_name as string) ||
+        `user_${user.id.slice(0, 8)}`;
 
   await setDocument('profiles', user.id, {
     id: user.id,
@@ -364,11 +401,40 @@ async function rpcEnsureProfile(): Promise<string | null> {
     display_name: user.user_metadata?.display_name || username,
     avatar_url: null,
     bio: '',
-    onboarding_completed: false,
+    onboarding_completed: isPreviewSandbox() && isPreviewFounderUser(user),
     created_at: new Date().toISOString(),
   });
 
+  await ensurePreviewFounderAccess(user.id);
   return user.id;
+}
+
+async function rpcGetMyHighestRole(): Promise<string | null> {
+  const { data: { user } } = await firebaseAuth.getUser();
+  if (!user) return null;
+  if (isPreviewSandbox() && isPreviewFounderUser(user)) return 'owner';
+  if (user.id === LEGACY_FOUNDER_AUTH_ID) return 'owner';
+
+  const [profileRoles, authRoles] = await Promise.all([
+    getDocuments<{ role?: string }>('user_roles', [where('user_id', '==', user.id)]),
+    getDocuments<{ role?: string }>('user_roles_auth', [where('user_id', '==', user.id)]),
+  ]);
+  const roles = [...profileRoles, ...authRoles].map((r) => r.role).filter(Boolean) as string[];
+  if (roles.includes('owner') || roles.includes('owner_wife')) return 'owner';
+  if (roles.includes('admin')) return 'admin';
+  if (roles.includes('moderator')) return 'moderator';
+  return null;
+}
+
+async function rpcIsOwner(params: Record<string, unknown>): Promise<boolean> {
+  const { data: { user } } = await firebaseAuth.getUser();
+  const targetId = String(params._user_id || params.user_id || user?.id || '');
+  if (!targetId || !user) return false;
+  if (targetId !== user.id) return false;
+  if (isPreviewSandbox() && isPreviewFounderUser(user)) return true;
+  if (user.id === LEGACY_FOUNDER_AUTH_ID) return true;
+  const role = await rpcGetMyHighestRole();
+  return role === 'owner';
 }
 
 async function rpcIsUsernameAvailable(username: string): Promise<boolean> {
@@ -431,6 +497,8 @@ const CLIENT_RPC: Record<string, (params: Record<string, unknown>) => Promise<un
     const id = String(p.target_id || '');
     return id ? await getDocument('profiles', id) : null;
   },
+  get_my_highest_role: async () => rpcGetMyHighestRole(),
+  is_owner: async (p) => rpcIsOwner(p),
 };
 
 export function createDataClient() {

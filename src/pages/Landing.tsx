@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next';
 import { useAuth, waitForAuthSession } from '@/lib/auth';
 import { getPostLoginPath } from '@/lib/authReturnPath';
 import { isLovablePreviewHost } from '@/lib/lovablePreview';
+import { isSignupDisabledInSandbox } from '@/lib/previewSandbox';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -128,11 +129,13 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
   const pathLower = (typeof window !== 'undefined' ? window.location.pathname : '').toLowerCase();
   const pathSaysSignup = pathLower.includes('signup') || pathLower.includes('sign-up');
   const pathSaysLogin = pathLower.includes('login') || pathLower.includes('signin') || pathLower.includes('sign-in');
-  const [isLogin, setIsLogin] = useState(() =>
-    pathSaysSignup ? false :
+  const signupDisabled = isSignupDisabledInSandbox();
+  const [isLogin, setIsLogin] = useState(() => {
+    if (signupDisabled) return true;
+    return pathSaysSignup ? false :
     pathSaysLogin ? true :
-    modeParam === 'login' || searchParams.get('signup') !== 'true'
-  );
+    modeParam === 'login' || searchParams.get('signup') !== 'true';
+  });
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   
@@ -462,9 +465,11 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
   }
 
   const authPageTitle = isLogin ? 'Welcome back' : 'Join VYBE';
-  const authSubtitle = isLogin
-    ? 'Sign in to pick up where you left off.'
-    : 'Create your account and make it yours.';
+  const authSubtitle = signupDisabled
+    ? 'Preview sandbox — sign in as Bakrix to tweak the app.'
+    : isLogin
+      ? 'Sign in to pick up where you left off.'
+      : 'Create your account and make it yours.';
 
   const footerLinks = [
     { href: '/features', label: 'Features' },
@@ -506,7 +511,7 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
         className="relative z-10 w-full max-w-[400px] mx-auto flex flex-col gap-2 sm:gap-2.5 will-change-transform"
       >
         <p className="text-center text-[10px] font-medium uppercase tracking-[0.14em] text-muted-foreground/75 leading-tight px-1 shrink-0">
-          The Social Platform for Real Connection
+          {signupDisabled ? 'Lovable preview · admin sandbox' : 'The Social Platform for Real Connection'}
         </p>
 
         <motion.div
@@ -863,14 +868,16 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
               </div>
 
               <div className="flex flex-wrap items-center justify-center gap-x-2.5 gap-y-1 text-[10px] text-muted-foreground">
-                <button
-                  type="button"
-                  onClick={handleGuestBrowse}
-                  disabled={loading}
-                  className="hover:text-foreground transition-colors"
-                >
-                  Browse as guest
-                </button>
+                {!signupDisabled && (
+                  <button
+                    type="button"
+                    onClick={handleGuestBrowse}
+                    disabled={loading}
+                    className="hover:text-foreground transition-colors"
+                  >
+                    Browse as guest
+                  </button>
+                )}
                 {isLogin && (
                   <>
                     <span aria-hidden className="text-muted-foreground/30">•</span>
@@ -888,6 +895,7 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
                 <FounderCounter compact />
               </div>
 
+              {!signupDisabled && (
               <p className="text-center text-[11px] text-muted-foreground pt-1.5 border-t border-white/[0.06]">
                 {isLogin ? t('auth.noAccount') : t('auth.hasAccount')}{' '}
                 <button
@@ -898,6 +906,7 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
                   {isLogin ? t('auth.signup') : t('auth.login')}
                 </button>
               </p>
+              )}
               </>
               )}
             </div>

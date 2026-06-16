@@ -28,6 +28,7 @@ import { startHeartbeat, stopHeartbeat } from '@/lib/analytics';
 import { removeRealtimeChannel, subscribePostgresChannel } from '@/lib/realtimeChannel';
 import { normalizeLoginEmail } from '@/lib/loginEmail';
 import { isPasswordRecoveryUrl, redirectToPasswordRecoveryPage } from '@/lib/passwordRecoveryUrl';
+import { isSignupDisabledInSandbox } from '@/lib/previewSandbox';
 
 /** Fail-soft — production may not have deployed sync_signup_username yet. */
 async function trySyncSignupUsername(): Promise<string | null> {
@@ -924,6 +925,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const signUp = async (email: string, password: string, username: string) => {
+    if (isSignupDisabledInSandbox()) {
+      return {
+        error: new Error('Sign-up is disabled on preview. Sign in with your Bakrix account.'),
+        needsEmailConfirmation: false,
+      };
+    }
     try {
       const normalizedEmail = normalizeLoginEmail(email);
       const cleanUsername = normalizeUsername(username);
