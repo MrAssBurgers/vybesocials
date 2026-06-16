@@ -38,7 +38,7 @@ export interface StorageUrlResult {
   data: { publicUrl: string; signedUrl?: string };
 }
 
-export interface FunctionInvokeResult<T = unknown> {
+export interface FunctionInvokeResult<T = any> {
   data: T | null;
   error: VybeAuthError | null;
 }
