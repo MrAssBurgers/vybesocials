@@ -8,6 +8,7 @@ export interface VybeUser {
   user_metadata?: Record<string, unknown>;
   created_at?: string;
   email_confirmed_at?: string | null;
+  identities?: Array<{ provider: string; id?: string; identity_id?: string; [k: string]: any }>;
 }
 
 export interface VybeSession {
@@ -21,6 +22,7 @@ export interface VybeAuthError {
   message: string;
   name?: string;
   status?: number;
+  code?: string;
 }
 
 export interface QueryResult<T> {
@@ -38,7 +40,7 @@ export interface StorageUrlResult {
   data: { publicUrl: string; signedUrl?: string };
 }
 
-export interface FunctionInvokeResult<T = unknown> {
+export interface FunctionInvokeResult<T = any> {
   data: T | null;
   error: VybeAuthError | null;
 }

@@ -55,6 +55,9 @@ class QueryBuilder {
   private countOnly = false;
   private updatePayload: Record<string, unknown> | null = null;
   private deleteMode = false;
+  private insertRows: Record<string, unknown>[] | null = null;
+  private upsertRows: Record<string, unknown>[] | null = null;
+  private upsertConflictKey?: string;
   private matchFilters: Record<string, unknown> = {};
 
   constructor(table: string) {
@@ -98,7 +101,17 @@ class QueryBuilder {
     return this;
   }
 
+  gte(field: string, value: unknown) {
+    this.filters.push({ field, op: '>', value });
+    return this;
+  }
+
   lt(field: string, value: unknown) {
+    this.filters.push({ field, op: '<', value });
+    return this;
+  }
+
+  lte(field: string, value: unknown) {
     this.filters.push({ field, op: '<', value });
     return this;
   }
@@ -111,9 +124,30 @@ class QueryBuilder {
   not(field: string, op: string, value: unknown) {
     if (op === 'in') {
       this.filters.push({ field, op: 'not-in', value });
+    } else {
+      this.filters.push({ field, op: '!=', value });
     }
     return this;
   }
+
+  // Legacy Supabase operators — accepted as best-effort no-ops or loose filters
+  // so admin code compiles during the Firebase migration. Phase 6 ports each call.
+  or(_expr: string) { return this; }
+  filter(field: string, _op: string, value: unknown) {
+    this.filters.push({ field, op: '==', value });
+    return this;
+  }
+  like(_field: string, _pattern: string) { return this; }
+  ilike(_field: string, _pattern: string) { return this; }
+  is(field: string, value: unknown) {
+    this.filters.push({ field, op: '==', value });
+    return this;
+  }
+  contains(_field: string, _value: unknown) { return this; }
+  containedBy(_field: string, _value: unknown) { return this; }
+  overlaps(_field: string, _value: unknown) { return this; }
+  range(_from: number, _to: number) { return this; }
+  textSearch(_field: string, _query: string) { return this; }
 
   order(field: string, opts?: { ascending?: boolean }) {
     this.orders.push({ field, ascending: opts?.ascending ?? true });
@@ -137,25 +171,34 @@ class QueryBuilder {
 
   match(filters: Record<string, unknown>) {
     this.matchFilters = { ...this.matchFilters, ...filters };
+    for (const [k, v] of Object.entries(filters)) this.filters.push({ field: k, op: '==', value: v });
     return this;
   }
 
   insert(rows: Record<string, unknown> | Record<string, unknown>[]) {
-    return this.executeInsert(rows);
+    this.insertRows = Array.isArray(rows) ? rows : [rows];
+    return this;
   }
 
-  upsert(rows: Record<string, unknown> | Record<string, unknown>[], opts?: { onConflict?: string }) {
-    return this.executeUpsert(rows, opts?.onConflict);
+  upsert(
+    rows: Record<string, unknown> | Record<string, unknown>[],
+    opts?: { onConflict?: string; ignoreDuplicates?: boolean },
+  ) {
+    this.upsertRows = Array.isArray(rows) ? rows : [rows];
+    this.upsertConflictKey = opts?.onConflict;
+    return this;
   }
 
   update(payload: Record<string, unknown>) {
     this.updatePayload = payload;
-    return this.executeUpdate();
+    // Chainable: execution deferred to .then() so .eq()/.in() etc. apply.
+    return this;
   }
 
   delete() {
     this.deleteMode = true;
-    return this.executeDelete();
+    // Chainable: execution deferred to .then().
+    return this;
   }
 
   private buildConstraints(): QueryConstraint[] {
@@ -239,6 +282,11 @@ class QueryBuilder {
 
   private async execute(): Promise<QueryResult> {
     try {
+      if (this.insertRows) return await this.executeInsert(this.insertRows);
+      if (this.upsertRows) return await this.executeUpsert(this.upsertRows, this.upsertConflictKey);
+      if (this.updatePayload !== null) return await this.executeUpdate();
+      if (this.deleteMode) return await this.executeDelete();
+
       if (this.countOnly) {
         const rows = await getDocuments(this.table, this.buildConstraints());
         const filtered = this.applyClientFilters(rows as Record<string, unknown>[]);
@@ -337,7 +385,7 @@ class QueryBuilder {
   }
 }
 
-export interface QueryResult<T = unknown> {
+export interface QueryResult<T = any> {
   data: T;
   error: VybeAuthError | null;
   count?: number | null;

@@ -19,11 +19,28 @@ function toError(err: unknown): VybeAuthError {
 
 export function createStorageBucket(bucket: string) {
   return {
-    async upload(path: string, file: File | Blob, _options?: { upsert?: boolean }): Promise<StorageUploadResult> {
+    async upload(
+      path: string,
+      file: File | Blob,
+      _options?: { upsert?: boolean; contentType?: string; cacheControl?: string; duplex?: string },
+    ): Promise<StorageUploadResult> {
       try {
         const storageRef = ref(storage, `${bucket}/${path}`);
-        await uploadBytes(storageRef, file);
+        const metadata = _options?.contentType ? { contentType: _options.contentType } : undefined;
+        await uploadBytes(storageRef, file, metadata);
         return { data: { path }, error: null };
+      } catch (err) {
+        return { data: null, error: toError(err) };
+      }
+    },
+
+    async download(path: string): Promise<{ data: Blob | null; error: VybeAuthError | null }> {
+      try {
+        const storageRef = ref(storage, `${bucket}/${path}`);
+        const url = await getDownloadURL(storageRef);
+        const res = await fetch(url);
+        const blob = await res.blob();
+        return { data: blob, error: null };
       } catch (err) {
         return { data: null, error: toError(err) };
       }
