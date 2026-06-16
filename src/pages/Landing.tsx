@@ -839,16 +839,10 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
                   onClick={async () => {
                     setLoading(true);
                     try {
-                      sessionStorage.setItem('vybe-oauth-pending', 'true');
-                      const { error } = await lovable.auth.signInWithOAuth('apple', {
-                        redirect_uri: getAuthRedirectUrl('/auth/callback'),
-                      });
-                      if (error) {
-                        sessionStorage.removeItem('vybe-oauth-pending');
-                        throw error;
-                      }
+                      const { firebaseAuth } = await import('@/lib/firebase');
+                      const { error } = await firebaseAuth.signInWithOAuth('apple');
+                      if (error) throw error;
                     } catch (error: any) {
-                      sessionStorage.removeItem('vybe-oauth-pending');
                       const msg = getUserFriendlyError(error);
                       if (msg !== '__SUPPRESS__') toast.error(msg);
                       setLoading(false);
