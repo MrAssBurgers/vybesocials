@@ -215,6 +215,25 @@ export const firebaseAuth = {
       return { data: { session: null }, error: toAuthError(err) };
     }
   },
+
+  // ---- Legacy Supabase auth methods (stubbed during Firebase migration) ----
+  // These keep the codebase compiling; Phase 5 ports each caller to the proper
+  // Firebase Auth flow (linkWithPopup, updateEmail, updatePassword, etc.).
+  async signInWithOtp(_payload: { email?: string; phone?: string; options?: any }) {
+    return { data: null, error: { message: 'signInWithOtp not supported on Firebase Auth — use email link or password instead' } };
+  },
+  async verifyOtp(_payload: { email?: string; phone?: string; token: string; type: string }) {
+    return { data: { session: null, user: null }, error: { message: 'verifyOtp not supported on Firebase Auth' } };
+  },
+  async linkIdentity(_payload: { provider: string; options?: any }): Promise<{ data: any; error: VybeAuthError | null }> {
+    return { data: null, error: { message: 'linkIdentity not yet ported to Firebase Auth' } };
+  },
+  async unlinkIdentity(_identity: any): Promise<{ data: any; error: VybeAuthError | null }> {
+    return { data: null, error: { message: 'unlinkIdentity not yet ported to Firebase Auth' } };
+  },
+  async updateUser(_attrs: { email?: string; password?: string; data?: Record<string, unknown> }): Promise<{ data: any; error: VybeAuthError | null }> {
+    return { data: null, error: { message: 'updateUser not yet ported — use Firebase updateEmail/updatePassword/updateProfile directly' } };
+  },
 };
 
 export type { VybeUser as User, VybeSession as Session };
