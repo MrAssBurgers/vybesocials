@@ -7,6 +7,10 @@ import {
   sendEmailVerification,
   sendPasswordResetEmail,
   updateProfile as firebaseUpdateProfile,
+  GoogleAuthProvider,
+  OAuthProvider,
+  signInWithPopup,
+  signInWithRedirect,
   type User as FirebaseUser,
 } from 'firebase/auth';
 import { getFirebaseApp } from './app';
