@@ -1,15 +1,15 @@
 #!/usr/bin/env node
 /**
- * Phase 2 — Export everything from Supabase (agtcyx) to local NDJSON + files.
+ * Phase 2 — Export everything from Supabase (hprmic — the LIVE project) to local NDJSON + files.
  *
  * Run locally (NEVER in CI without secrets review):
- *   AGTCYX_URL=https://agtcyxjxgkdyoxwxkjth.supabase.co \
- *   AGTCYX_SERVICE_ROLE_KEY=<service-role-key-from-Lovable-support> \
+ *   SUPABASE_URL=https://hprmicwhlaaqfgshucec.supabase.co \
+ *   SUPABASE_SERVICE_ROLE_KEY=<service_role from Supabase dashboard → Project Settings → API> \
  *   node scripts/export-supabase.mjs
  *
  * Output:
  *   ./export/tables/<table>.ndjson      — one JSON doc per line
- *   ./export/auth-users.ndjson          — auth.users + identities + password_hash
+ *   ./export/auth-users.ndjson          — auth.users + identities (NO password hashes — see export-auth-hashes.mjs)
  *   ./export/storage/<bucket>/...       — downloaded objects (preserve paths)
  *   ./export/MANIFEST.json              — counts, sizes, timing
  *
@@ -22,10 +22,11 @@ import { createWriteStream } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { pipeline } from 'node:stream/promises';
 
-const URL = process.env.AGTCYX_URL || 'https://agtcyxjxgkdyoxwxkjth.supabase.co';
-const KEY = process.env.AGTCYX_SERVICE_ROLE_KEY;
+const URL = process.env.SUPABASE_URL || process.env.AGTCYX_URL || 'https://hprmicwhlaaqfgshucec.supabase.co';
+const KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.AGTCYX_SERVICE_ROLE_KEY;
 if (!KEY) {
-  console.error('❌ AGTCYX_SERVICE_ROLE_KEY missing. Get it from Lovable support.');
+  console.error('❌ SUPABASE_SERVICE_ROLE_KEY missing.');
+  console.error('   Get it from Supabase Dashboard → project hprmicwhlaaqfgshucec → Project Settings → API → service_role.');
   process.exit(1);
 }
 
