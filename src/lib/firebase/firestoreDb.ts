@@ -49,7 +49,7 @@ export async function getDocument<T extends DocumentData>(
 ): Promise<T | null> {
   const snap = await getDoc(documentRef(table, id));
   if (!snap.exists()) return null;
-  return { id: snap.id, ...snap.data() } as T;
+  return { id: snap.id, ...snap.data() } as unknown as T;
 }
 
 export async function getDocuments<T extends DocumentData>(
@@ -58,7 +58,7 @@ export async function getDocuments<T extends DocumentData>(
 ): Promise<T[]> {
   const q = query(collectionRef(table), ...constraints);
   const snap = await getDocs(q);
-  return snap.docs.map((d) => ({ id: d.id, ...d.data() }) as T);
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() }) as unknown as T);
 }
 
 export async function setDocument(

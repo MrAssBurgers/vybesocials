@@ -13,12 +13,19 @@ export interface PostgresBinding {
   schema?: string;
   table: string;
   filter?: string;
-  callback: (payload: { eventType: string; new: Record<string, unknown>; old: Record<string, unknown> }) => void;
+  callback: (payload: { eventType: string; new: any; old: any }) => void;
 }
 
 export interface RealtimeChannel {
   topic: string;
   unsubscribe: () => void;
+  // Optional chainable methods so RealtimeChannel is duck-type compatible with ChannelBuilder
+  on?: (type: string, config: any, callback?: any) => any;
+  subscribe?: (cb?: (status: string) => void) => any;
+  send?: (payload: any) => Promise<'ok'>;
+  track?: (state: any) => Promise<'ok'>;
+  untrack?: () => Promise<'ok'>;
+  presenceState?: () => Record<string, any[]>;
 }
 
 const activeChannels = new Map<string, RealtimeChannel>();
@@ -45,11 +52,33 @@ export function removeRealtimeChannel(channel: RealtimeChannel | null | undefine
   activeChannels.delete(channel.topic);
 }
 
+export interface ChannelBuilder extends RealtimeChannel {
+  on: (type: string, config: any, callback?: any) => ChannelBuilder;
+  subscribe: (cb?: (status: string) => void) => ChannelBuilder;
+  send: (payload: any) => Promise<'ok'>;
+  track: (state: any) => Promise<'ok'>;
+  untrack: () => Promise<'ok'>;
+  presenceState: () => Record<string, any[]>;
+}
+
+function makeBuilderStub(base: RealtimeChannel): ChannelBuilder {
+  const stub: ChannelBuilder = {
+    ...base,
+    on: () => stub,
+    subscribe: () => stub,
+    send: async () => 'ok' as const,
+    track: async () => 'ok' as const,
+    untrack: async () => 'ok' as const,
+    presenceState: () => ({}),
+  };
+  return stub;
+}
+
 export function subscribePostgresChannel(
   channelName: string,
   bindings: PostgresBinding[],
   onStatus?: (status: string) => void,
-): RealtimeChannel {
+): ChannelBuilder {
   removeChannelByTopic(channelName);
   const topic = channelName.startsWith('realtime:') ? channelName : `realtime:${channelName}`;
 
@@ -82,7 +111,7 @@ export function subscribePostgresChannel(
 
   onStatus?.('SUBSCRIBED');
 
-  const channel: RealtimeChannel = {
+  const base: RealtimeChannel = {
     topic,
     unsubscribe: () => {
       unsubs.forEach((u) => u());
@@ -91,17 +120,9 @@ export function subscribePostgresChannel(
     },
   };
 
+  const channel = makeBuilderStub(base);
   activeChannels.set(topic, channel);
   return channel;
-}
-
-export interface ChannelBuilder extends RealtimeChannel {
-  on: (type: string, config: any, callback?: any) => ChannelBuilder;
-  subscribe: (cb?: (status: string) => void) => ChannelBuilder;
-  send: (payload: any) => Promise<'ok'>;
-  track: (state: any) => Promise<'ok'>;
-  untrack: () => Promise<'ok'>;
-  presenceState: () => Record<string, any[]>;
 }
 
 export function createRealtimeChannel(channelName: string): ChannelBuilder {

@@ -116,8 +116,8 @@ export function useSuggestedFriends() {
         .eq('status', 'accepted')
         .or(`sender_id.eq.${user.id},receiver_id.eq.${user.id}`);
 
-      const myFriendIds = new Set(
-        (myFriends || []).map(f => f.sender_id === user.id ? f.receiver_id : f.sender_id)
+      const myFriendIds = new Set<string>(
+        (myFriends || []).map(f => String(f.sender_id === user.id ? f.receiver_id : f.sender_id))
       );
       myFriendIds.add(user.id); // Exclude self
 
@@ -137,7 +137,7 @@ export function useSuggestedFriends() {
           .limit(50);
 
         for (const f of theirFriends || []) {
-          const fofId = f.sender_id === friendId ? f.receiver_id : f.sender_id;
+          const fofId = String(f.sender_id === friendId ? f.receiver_id : f.sender_id);
           if (myFriendIds.has(fofId)) continue; // Already friends
 
           const existing = fofCounts.get(fofId) || { count: 0, viaFriends: [] };

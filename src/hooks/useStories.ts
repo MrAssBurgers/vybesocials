@@ -240,10 +240,10 @@ export function useCreateStory() {
         data = latest;
       }
       if (data?.author) {
-        data.author.id = legacyAuthorId;
+        data.author.id = authorId;
       }
       if (data) {
-        data.author_id = legacyAuthorId;
+        data.author_id = authorId;
       }
       return data;
     },

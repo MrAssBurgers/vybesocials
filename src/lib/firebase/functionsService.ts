@@ -79,21 +79,33 @@ function toError(err: unknown): VybeAuthError {
 }
 
 /** Invoke a Cloud Function (replaces Supabase edge functions.invoke). */
-export async function invokeFunction<T = any>(
+export function invokeFunction<T = any>(
   name: string,
   body?: Record<string, unknown>,
-): Promise<FunctionInvokeResult<T>> {
+): Promise<FunctionInvokeResult<T>> & {
+  single: () => Promise<FunctionInvokeResult<T>>;
+  maybeSingle: () => Promise<FunctionInvokeResult<T>>;
+} {
   const callableName = FUNCTION_NAME_MAP[name] || name;
-  try {
-    const fn = httpsCallable<Record<string, unknown> | undefined, T>(
-      getFunctionsInstance(),
-      callableName,
-    );
-    const result = await fn(body);
-    return { data: result.data, error: null };
-  } catch (err) {
-    return { data: null, error: toError(err) };
-  }
+  const promise = (async () => {
+    try {
+      const fn = httpsCallable<Record<string, unknown> | undefined, T>(
+        getFunctionsInstance(),
+        callableName,
+      );
+      const result = await fn(body);
+      return { data: result.data, error: null } as FunctionInvokeResult<T>;
+    } catch (err) {
+      return { data: null, error: toError(err) } as FunctionInvokeResult<T>;
+    }
+  })();
+  const enriched = promise as Promise<FunctionInvokeResult<T>> & {
+    single: () => Promise<FunctionInvokeResult<T>>;
+    maybeSingle: () => Promise<FunctionInvokeResult<T>>;
+  };
+  enriched.single = () => promise;
+  enriched.maybeSingle = () => promise;
+  return enriched;
 }
 
 export function getFunctionUrl(functionName: string): string {

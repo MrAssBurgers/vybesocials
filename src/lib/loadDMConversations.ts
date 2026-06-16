@@ -11,7 +11,7 @@ export interface LoadedDMConversation extends Conversation {
 
 export interface LoadDMConversationsResult {
   data: LoadedDMConversation[];
-  error: Error | null;
+  error: { message: string; name?: string } | null;
   profileId: string;
 }
 

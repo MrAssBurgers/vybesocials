@@ -24,7 +24,7 @@ export interface ActionBatchResult {
 }
 
 export type ActionHandler = (
-  action: AgentAction,
+  action: any,
   ctx: ActionHandlerContext,
 ) => Promise<ActionExecutionResult>;
 

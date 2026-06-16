@@ -54,7 +54,7 @@ const tabMotion = {
   initial: { opacity: 0, y: 8, scale: 0.98 },
   animate: { opacity: 1, y: 0, scale: 1 },
   exit: { opacity: 0, y: -6, scale: 0.98 },
-  transition: { type: 'spring', stiffness: 420, damping: 32 },
+  transition: { type: 'spring' as const, stiffness: 420, damping: 32 },
 };
 
 const tabMotionReduced = {
