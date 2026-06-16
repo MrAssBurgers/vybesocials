@@ -4,61 +4,26 @@ import { getFirebaseConfig } from './config';
 import { firebaseAuth } from './authService';
 import type { FunctionInvokeResult, VybeAuthError } from './types';
 
-/** Map legacy Supabase edge function names → Firebase callable export names. */
-const FUNCTION_NAME_MAP: Record<string, string> = {
-  'ai-chat': 'aiChat',
-  'livekit-token': 'livekitToken',
-  'send-push-notification': 'sendPushNotification',
-  'get-ranked-feed': 'getRankedFeed',
-  'get_ranked_feed_v2': 'getRankedFeed',
-  'share-preview': 'sharePreview',
-  'giphy-search': 'giphySearch',
-  'detect-ai-content': 'detectAiContent',
-  'ai-catch-up': 'aiChat',
-  'community-voice-token': 'livekitToken',
-  'spaces-token': 'livekitToken',
-  'generate-advanced-theme': 'aiChat',
-  'generate-theme': 'aiChat',
-  'generate-ar-filter': 'aiChat',
-  'dna-chat': 'aiChat',
-  'dna-autopilot': 'aiChat',
-  'dna-autopilot-revert': 'aiChat',
-  'vybe-agent': 'aiChat',
-  'unsend-message': 'aiChat',
-  'link-onesignal-user': 'sendPushNotification',
-  'mute-smart-pings': 'sendPushNotification',
-  'phone-verify-request': 'aiChat',
-  'phone-verify-confirm': 'aiChat',
-  'auth-2fa-preauth': 'aiChat',
-  'auth-2fa-verify': 'aiChat',
-  'auth-qr': 'aiChat',
-  'check-debug-secrets': 'aiChat',
-  'analyze-bug-report': 'aiChat',
-  'check-runway-status': 'aiChat',
-  'generate-runway-video': 'aiChat',
-  'fetch-pixabay-sounds': 'giphySearch',
-  'spotify-control': 'giphySearch',
-  'spotify-listen-along': 'giphySearch',
-  'spotify-now-playing': 'giphySearch',
-  'spotify-playlists': 'giphySearch',
-  'spotify-disconnect': 'giphySearch',
-  'create-checkout-session': 'aiChat',
-  'create-premium-checkout': 'aiChat',
-  'create-business-checkout': 'aiChat',
-  'create-stripe-connect': 'aiChat',
-  'create-creator-connect': 'aiChat',
-  'check-stripe-connect': 'aiChat',
-  'check-creator-connect': 'aiChat',
-  'create-stripe-dashboard-link': 'aiChat',
-  'process-creator-payout': 'aiChat',
-  'validate-stripe-config': 'aiChat',
-  'handle-email-unsubscribe': 'aiChat',
-  'admin-debug-tools': 'aiChat',
-  'ai-auto-fix': 'aiChat',
-  'auth-login-notify': 'sendPushNotification',
-  'rate-sticker-content': 'detectAiContent',
-  'scan-video-safety': 'detectAiContent',
+/**
+ * Map legacy Supabase edge function names → Firebase callable export names.
+ *
+ * Phase 6: every Cloud Function exported from `functions/src/` (real impl or
+ * Phase-5 stub) uses the camelCase equivalent of its old kebab-case Supabase
+ * name. We just auto-convert here so all ~100 client call sites keep working
+ * without per-name maintenance. Add an entry to OVERRIDES only when the
+ * mapping is *not* a straight kebab→camelCase conversion.
+ */
+const OVERRIDES: Record<string, string> = {
+  get_ranked_feed_v2: 'getRankedFeed',
 };
+
+function kebabToCamel(name: string): string {
+  return name.replace(/[-_]([a-z0-9])/g, (_, c: string) => c.toUpperCase());
+}
+
+function resolveCallableName(name: string): string {
+  return OVERRIDES[name] ?? kebabToCamel(name);
+}
 
 let functionsInstance: ReturnType<typeof getFunctions> | null = null;
 
@@ -86,7 +51,7 @@ export function invokeFunction<T = any>(
   single: () => Promise<FunctionInvokeResult<T>>;
   maybeSingle: () => Promise<FunctionInvokeResult<T>>;
 } {
-  const callableName = FUNCTION_NAME_MAP[name] || name;
+  const callableName = resolveCallableName(name);
   const promise = (async () => {
     try {
       const fn = httpsCallable<Record<string, unknown> | undefined, T>(
