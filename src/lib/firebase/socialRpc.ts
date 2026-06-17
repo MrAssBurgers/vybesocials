@@ -139,7 +139,7 @@ async function rpcGetOwnSensitiveProfile() {
   const uid = await currentAuthUid();
   const profile = uid ? await getProfileByAuthUid(uid) : null;
   if (!profile) return null;
-  const p = profile as Record<string, unknown>;
+  const p = profile as unknown as Record<string, unknown>;
   return {
     user_id: profile.id,
     email: (p.email as string | null | undefined) ?? null,
