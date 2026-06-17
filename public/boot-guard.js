@@ -20,7 +20,7 @@
     /despia|vybeapp|median|gonative|wv\)|; wv\b/.test(ua) ||
     !!(window).Despia ||
     !!(window).__DESPIA__;
-  var STARTUP_TIMEOUT_MS = isNativeWrapper ? 25000 : 20000;
+  var STARTUP_TIMEOUT_MS = isNativeWrapper ? 35000 : 30000;
 
   function isAppReady() {
     return (

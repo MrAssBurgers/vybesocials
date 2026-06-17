@@ -139,14 +139,15 @@ async function rpcGetOwnSensitiveProfile() {
   const uid = await currentAuthUid();
   const profile = uid ? await getProfileByAuthUid(uid) : null;
   if (!profile) return null;
+  const p = profile as unknown as Record<string, unknown>;
   return {
     user_id: profile.id,
-    email: profile?.email ?? null,
-    phone: profile?.phone ?? null,
-    tracking_consent: profile?.tracking_consent ?? null,
-    cookie_consent: profile?.cookie_consent ?? null,
-    crash_report_consent: profile?.crash_report_consent ?? null,
-    ad_personalization: profile?.ad_personalization ?? null,
+    email: (p.email as string | null | undefined) ?? null,
+    phone: (p.phone as string | null | undefined) ?? null,
+    tracking_consent: (p.tracking_consent as boolean | null | undefined) ?? null,
+    cookie_consent: (p.cookie_consent as boolean | null | undefined) ?? null,
+    crash_report_consent: (p.crash_report_consent as boolean | null | undefined) ?? null,
+    ad_personalization: (p.ad_personalization as boolean | null | undefined) ?? null,
   };
 }
 

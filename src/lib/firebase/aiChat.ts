@@ -2,7 +2,6 @@ import type { Content, Part } from 'firebase/ai';
 import { AIError } from 'firebase/ai';
 import { getAuth } from 'firebase/auth';
 import { getChatModelWithSystem } from './aiLogic';
-import { getChatModelWithSystem } from './aiLogic';
 import {
   filterAiChatHistoryForApi,
   type VybeAiChatMessage,
