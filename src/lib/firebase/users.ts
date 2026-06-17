@@ -3,17 +3,28 @@ import {
   getDocuments,
   setDocument,
   updateDocument,
-  query,
   where,
   orderBy,
   firestoreLimit,
 } from './firestoreDb';
 import { firebaseAuth } from './authService';
+import { getProfileByAuthUid, getProfilesByIds } from './profileResolve';
 import type { UserProfile } from './types';
 
 export async function getUserProfile(userId: string): Promise<UserProfile | null> {
-  return getDocument<UserProfile>('profiles', userId);
+  if (!userId) return null;
+
+  const byId = await getDocument<UserProfile>('profiles', userId);
+  if (byId) return byId;
+
+  const byUserId = await getDocuments<UserProfile>('profiles', [
+    where('user_id', '==', userId),
+    firestoreLimit(1),
+  ]);
+  return byUserId[0] ?? null;
 }
+
+export { getProfileByAuthUid, getProfilesByIds, resolveProfileIdFromAuthUid } from './profileResolve';
 
 export async function getUserProfileByUsername(username: string): Promise<UserProfile | null> {
   const rows = await getDocuments<UserProfile>('profiles', [
@@ -24,16 +35,16 @@ export async function getUserProfileByUsername(username: string): Promise<UserPr
 }
 
 export async function ensureUserProfile(
-  userId: string,
+  authUserId: string,
   defaults?: Partial<UserProfile>,
 ): Promise<UserProfile> {
-  const existing = await getUserProfile(userId);
+  const existing = await getProfileByAuthUid(authUserId);
   if (existing) return existing;
 
   const profile: UserProfile = {
-    id: userId,
-    user_id: userId,
-    username: defaults?.username || `user_${userId.slice(0, 8)}`,
+    id: authUserId,
+    user_id: authUserId,
+    username: defaults?.username || `user_${authUserId.slice(0, 8)}`,
     display_name: defaults?.display_name ?? defaults?.username ?? null,
     avatar_url: defaults?.avatar_url ?? null,
     bio: defaults?.bio ?? '',
@@ -41,7 +52,7 @@ export async function ensureUserProfile(
     created_at: new Date().toISOString(),
   };
 
-  await setDocument('profiles', userId, profile);
+  await setDocument('profiles', authUserId, profile);
   return profile;
 }
 
@@ -49,13 +60,15 @@ export async function updateUserProfile(
   userId: string,
   updates: Partial<UserProfile>,
 ): Promise<void> {
-  await updateDocument('profiles', userId, updates);
+  const profile = await getUserProfile(userId);
+  const docId = profile?.id ?? userId;
+  await updateDocument('profiles', docId, updates);
 }
 
 export async function isUsernameAvailable(username: string, excludeUserId?: string): Promise<boolean> {
   const rows = await getDocuments<UserProfile>('profiles', [where('username', '==', username)]);
   if (!rows.length) return true;
-  if (excludeUserId && rows.every((r) => r.id === excludeUserId)) return true;
+  if (excludeUserId && rows.every((r) => r.id === excludeUserId || r.user_id === excludeUserId)) return true;
   return false;
 }
 

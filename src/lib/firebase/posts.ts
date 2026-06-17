@@ -10,7 +10,7 @@ import {
 } from './firestoreDb';
 import { firebaseStorage } from './storageService';
 import { firebaseAuth } from './authService';
-import { getUserProfile } from './users';
+import { getUserProfile, getProfilesByIds } from './users';
 import type { PostDocument } from './types';
 
 type PostRow = PostDocument & {
@@ -72,34 +72,37 @@ export async function listPosts(opts?: {
   const authorIds = [...new Set(posts.map((p) => p.author_id))];
   const postIds = posts.map((p) => p.id);
   const { data: { user } } = await firebaseAuth.getUser();
-  const viewerId = user?.id;
+  const viewerAuthId = user?.id;
+  let viewerProfileId = viewerAuthId;
+  if (viewerAuthId) {
+    const viewer = await getUserProfile(viewerAuthId);
+    if (viewer?.id) viewerProfileId = viewer.id;
+  }
 
-  const [authors, likedRows, bookmarkRows] = await Promise.all([
-    Promise.all(authorIds.map((id) => getUserProfile(id))),
-    viewerId && postIds.length
+  const [authorMap, likedRows, bookmarkRows] = await Promise.all([
+    getProfilesByIds(authorIds),
+    viewerProfileId && postIds.length
       ? getDocuments<{ post_id?: string }>('likes', [
-          where('user_id', '==', viewerId),
+          where('user_id', '==', viewerProfileId),
           where('post_id', 'in', postIds.slice(0, 10)),
         ])
       : Promise.resolve([]),
-    viewerId && postIds.length
+    viewerProfileId && postIds.length
       ? getDocuments<{ post_id?: string }>('bookmarks', [
-          where('user_id', '==', viewerId),
+          where('user_id', '==', viewerProfileId),
           where('post_id', 'in', postIds.slice(0, 10)),
         ])
       : Promise.resolve([]),
   ]);
-
-  const authorMap = new Map(authors.filter(Boolean).map((a) => [a!.id, a!]));
   const likedSet = new Set(likedRows.map((r) => r.post_id).filter(Boolean));
   const bookmarkSet = new Set(bookmarkRows.map((r) => r.post_id).filter(Boolean));
 
   // Extra post IDs beyond Firestore `in` limit of 10 — client filter
-  if (viewerId && postIds.length > 10) {
+  if (viewerProfileId && postIds.length > 10) {
     const extraIds = postIds.slice(10);
     const [extraLikes, extraBookmarks] = await Promise.all([
-      getDocuments<{ post_id?: string }>('likes', [where('user_id', '==', viewerId)]),
-      getDocuments<{ post_id?: string }>('bookmarks', [where('user_id', '==', viewerId)]),
+      getDocuments<{ post_id?: string }>('likes', [where('user_id', '==', viewerProfileId)]),
+      getDocuments<{ post_id?: string }>('bookmarks', [where('user_id', '==', viewerProfileId)]),
     ]);
     for (const r of extraLikes) {
       if (r.post_id && extraIds.includes(r.post_id)) likedSet.add(r.post_id);

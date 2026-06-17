@@ -4,7 +4,11 @@ Use this file as the Lovable -> Cursor handoff each session.
 
 **Links:** [Lovable project](https://lovable.dev/projects/416714c8-d013-4aff-984d-522418a9bbc7) · [Production](https://vybehub.app) · Deploy steps: `DEPLOY.md`
 
-## Current Focus (2026-06-17 — migration user notices)
+## Current Focus (2026-06-17 — mobile load fix / deep scan)
+- **Root cause fixed:** Firestore client mapped `profiles` → empty `users` collection — all profile/post/DM lookups returned nothing after migration
+- **Also fixed:** `ensure_profile` + roles now resolve migrated `profiles.id` via `user_id` (auth UID); chunked Firestore `.in()` queries (>10 ids); parallel DM load; SW **v25**
+- **Deep scan:** build PASS, lint PASS (warnings only); prod Supabase RPCs `is_username_available` / `create_dm_conversation` MISSING — client fallbacks OK
+- **You:** Lovable **Share → Publish** + hard refresh on phone (clear site data if feed still empty)
 - **Done:** Dismissible migration banner on login (`Landing`) + in-app (`AppLayout`); updated invalid-login copy for Firebase migration; `migrate:firebase:seed-migration-notice` seeds founder announcement `firebase-migration-2026-06`
 - **You:** Users on email/password must use **Forgot password** once; OAuth unchanged
 

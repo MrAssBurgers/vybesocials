@@ -25,6 +25,7 @@ import {
 import { isFeedRpc, normalizeRpcFeedRows, runFeedRpc } from './feedRpc';
 import { isSocialRpc, runSocialRpc } from './socialRpc';
 import { isNotYetPortedPayload } from './functionsService';
+import { getProfileByAuthUid, resolveProfileIdFromAuthUid } from './profileResolve';
 
 type FilterOp = '==' | '!=' | '>' | '<' | 'in' | 'not-in';
 
@@ -206,6 +207,9 @@ class QueryBuilder {
   private buildConstraints(): QueryConstraint[] {
     const constraints: QueryConstraint[] = [];
     for (const f of this.filters) {
+      if (f.op === 'in' && Array.isArray(f.value) && f.value.length > 10) {
+        continue;
+      }
       if (f.op === 'in' && Array.isArray(f.value)) {
         if (f.value.length <= 10) {
           constraints.push(where(f.field, 'in', f.value));
@@ -221,6 +225,42 @@ class QueryBuilder {
     }
     if (this.limitN) constraints.push(firestoreLimit(this.limitN));
     return constraints;
+  }
+
+  private getLargeInFilters(): Filter[] {
+    return this.filters.filter(
+      (f) => f.op === 'in' && Array.isArray(f.value) && f.value.length > 10,
+    );
+  }
+
+  private async fetchRows(): Promise<Record<string, unknown>[]> {
+    const largeIn = this.getLargeInFilters();
+    if (!largeIn.length) {
+      return getDocuments(this.table, this.buildConstraints()) as Promise<Record<string, unknown>[]>;
+    }
+
+    const primary = largeIn[0]!;
+    const values = [...new Set((primary.value as unknown[]).filter(Boolean))];
+    const otherConstraints = this.buildConstraints();
+    const chunks: unknown[][] = [];
+    for (let i = 0; i < values.length; i += 10) {
+      chunks.push(values.slice(i, i + 10));
+    }
+
+    const merged = new Map<string, Record<string, unknown>>();
+    await Promise.all(
+      chunks.map(async (chunk) => {
+        const rows = await getDocuments(this.table, [
+          ...otherConstraints,
+          where(primary.field, 'in', chunk),
+        ]);
+        for (const row of rows as Record<string, unknown>[]) {
+          if (row.id) merged.set(String(row.id), row);
+        }
+      }),
+    );
+
+    return [...merged.values()];
   }
 
   private async resolveJoins(rows: Record<string, unknown>[]) {
@@ -291,12 +331,12 @@ class QueryBuilder {
       if (this.deleteMode) return await this.executeDelete();
 
       if (this.countOnly) {
-        const rows = await getDocuments(this.table, this.buildConstraints());
-        const filtered = this.applyClientFilters(rows as Record<string, unknown>[]);
+        const rows = await this.fetchRows();
+        const filtered = this.applyClientFilters(rows);
         return { data: null, error: null, count: filtered.length };
       }
 
-      let rows = await getDocuments(this.table, this.buildConstraints());
+      let rows = await this.fetchRows();
       rows = this.applyClientFilters(rows as Record<string, unknown>[]) as typeof rows;
       const data = await this.resolveJoins(rows as Record<string, unknown>[]);
 
@@ -401,17 +441,17 @@ function toQueryError(err: unknown): VybeAuthError {
   return { message: 'Database error' };
 }
 
-async function ensureFounderOwnerRoles(userId: string): Promise<void> {
+async function ensureFounderOwnerRoles(profileId: string): Promise<void> {
   const { data: { user } } = await firebaseAuth.getUser();
   if (!user || !isPreviewFounderUser(user)) return;
 
   const now = new Date().toISOString();
   for (const table of ['user_roles', 'user_roles_auth'] as const) {
-    const existing = await getDocuments<{ role?: string }>(table, [where('user_id', '==', userId)]);
+    const existing = await getDocuments<{ role?: string }>(table, [where('user_id', '==', profileId)]);
     if (existing.some((r) => r.role === 'owner')) continue;
-    await setDocument(table, `${userId}_owner`, {
-      id: `${userId}_owner`,
-      user_id: userId,
+    await setDocument(table, `${profileId}_owner`, {
+      id: `${profileId}_owner`,
+      user_id: profileId,
       role: 'owner',
       created_at: now,
     });
@@ -422,10 +462,10 @@ async function rpcEnsureProfile(): Promise<string | null> {
   const { data: { user } } = await firebaseAuth.getUser();
   if (!user) return null;
 
-  const existing = await getDocument('profiles', user.id);
-  if (existing) {
-    await ensureFounderOwnerRoles(user.id);
-    return existing.id as string;
+  const existing = await getProfileByAuthUid(user.id);
+  if (existing?.id) {
+    await ensureFounderOwnerRoles(existing.id);
+    return existing.id;
   }
 
   const username =
@@ -453,9 +493,11 @@ async function rpcGetMyHighestRole(): Promise<string | null> {
   if (!user) return null;
   if (isFounderAuthId(user.id)) return 'owner';
 
+  const profileId = (await resolveProfileIdFromAuthUid(user.id)) || user.id;
+
   const [profileRoles, authRoles] = await Promise.all([
-    getDocuments<{ role?: string }>('user_roles', [where('user_id', '==', user.id)]),
-    getDocuments<{ role?: string }>('user_roles_auth', [where('user_id', '==', user.id)]),
+    getDocuments<{ role?: string }>('user_roles', [where('user_id', '==', profileId)]),
+    getDocuments<{ role?: string }>('user_roles_auth', [where('user_id', '==', profileId)]),
   ]);
   const roles = [...profileRoles, ...authRoles].map((r) => r.role).filter(Boolean) as string[];
   if (roles.includes('owner') || roles.includes('owner_wife')) return 'owner';

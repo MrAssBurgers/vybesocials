@@ -33,10 +33,8 @@ function getDb() {
   return db;
 }
 
-/** Map legacy Postgres table names to Firestore collection paths. */
-export const TABLE_TO_COLLECTION: Record<string, string> = {
-  profiles: 'users',
-};
+/** Legacy Postgres table names → Firestore collection paths (1:1 with Lovable import). */
+export const TABLE_TO_COLLECTION: Record<string, string> = {};
 
 export function resolveCollection(table: string): string {
   return TABLE_TO_COLLECTION[table] ?? table;

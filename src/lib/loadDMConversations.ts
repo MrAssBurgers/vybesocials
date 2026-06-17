@@ -55,6 +55,8 @@ async function loadDMConversationsOnce(
 ): Promise<LoadDMConversationsResult> {
   try {
     const effectiveProfileId = (await resolveSessionProfileId(profileId)) ?? profileId;
+    const { data: { session } } = await db.auth.getSession();
+    const authUserId = session?.user?.id;
 
     const { data: membershipData, error: membershipError } = await db
       .from('conversation_members')
@@ -72,23 +74,21 @@ async function loadDMConversationsOnce(
     const userConversationIds = membershipData.map((m) => m.conversation_id);
     const membershipMap = new Map<string, any>(membershipData.map((m: any) => [m.conversation_id, m]));
 
-    const { data: { session } } = await db.auth.getSession();
-    const authUserId = session?.user?.id;
+    const [{ data: hiddenData }, { data: trashedData }, { data: conversationsRaw, error: convError }] =
+      await Promise.all([
+        authUserId
+          ? db.from('hidden_conversations').select('conversation_id').eq('user_id', authUserId)
+          : Promise.resolve({ data: [] as { conversation_id: string }[] }),
+        db.from('trashed_conversations').select('conversation_id').eq('user_id', effectiveProfileId),
+        db
+          .from('conversations')
+          .select('*')
+          .in('id', userConversationIds)
+          .order('updated_at', { ascending: false }),
+      ]);
 
-    const [{ data: hiddenData }, { data: trashedData }] = await Promise.all([
-      authUserId
-        ? db.from('hidden_conversations').select('conversation_id').eq('user_id', authUserId)
-        : Promise.resolve({ data: [] as { conversation_id: string }[] }),
-      db.from('trashed_conversations').select('conversation_id').eq('user_id', effectiveProfileId),
-    ]);
     const hiddenIds = new Set((hiddenData || []).map((h) => h.conversation_id));
     const trashedIds = new Set((trashedData || []).map((t) => t.conversation_id));
-
-    const { data: conversationsRaw, error: convError } = await db
-      .from('conversations')
-      .select('*')
-      .in('id', userConversationIds)
-      .order('updated_at', { ascending: false });
 
     if (convError) {
       console.warn('[DM] conversations query error:', convError.message);
@@ -98,13 +98,26 @@ async function loadDMConversationsOnce(
       return { data: [], error: null, profileId: effectiveProfileId };
     }
 
-    const { data: allMembers, error: membersError } = await db
-      .from('conversation_members')
-      .select('conversation_id, user_id, role, is_muted, is_pinned, last_read_at')
-      .in('conversation_id', userConversationIds);
+    const [{ data: allMembers, error: membersError }, { data: allMessages, error: messagesError }] =
+      await Promise.all([
+        db
+          .from('conversation_members')
+          .select('conversation_id, user_id, role, is_muted, is_pinned, last_read_at')
+          .in('conversation_id', userConversationIds),
+        db
+          .from('messages')
+          .select('id, conversation_id, sender_id, content, media_type, viewed_at, created_at')
+          .in('conversation_id', userConversationIds)
+          .eq('is_deleted', false)
+          .order('created_at', { ascending: false })
+          .limit(Math.min(Math.max(userConversationIds.length * 3, 60), 250)),
+      ]);
 
     if (membersError) {
       console.warn('[DM] all-members query error:', membersError.message);
+    }
+    if (messagesError) {
+      console.warn('[DM] messages query error:', messagesError.message);
     }
 
     const memberUserIds = Array.from(new Set((allMembers || []).map((m) => m.user_id)));
@@ -131,21 +144,6 @@ async function loadDMConversationsOnce(
       ...c,
       members: membersByConv.get(c.id) || [],
     }));
-
-    const convIds = conversationsData.map((c) => c.id);
-    const messageLimit = Math.min(Math.max(convIds.length * 3, 60), 250);
-
-    const { data: allMessages, error: messagesError } = await db
-      .from('messages')
-      .select('id, conversation_id, sender_id, content, media_type, viewed_at, created_at')
-      .in('conversation_id', convIds)
-      .eq('is_deleted', false)
-      .order('created_at', { ascending: false })
-      .limit(messageLimit);
-
-    if (messagesError) {
-      console.warn('[DM] messages query error:', messagesError.message);
-    }
 
     const lastMessageMap = new Map<string, Message>();
     const unreadCountMap = new Map<string, number>();

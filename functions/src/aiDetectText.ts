@@ -9,7 +9,7 @@ const AI_TELLS = [
 ];
 
 function tokenizeSentences(text: string): string[] {
-  return text.replace(/\s+/g, ' ').trim().split(/(?<=[.!?])\s+(?=[A-Z"'\(])/).filter(Boolean);
+  return text.replace(/\s+/g, ' ').trim().split(/(?<=[.!?])\s+(?=[A-Z"'(])/).filter(Boolean);
 }
 
 function wordCount(s: string): number {

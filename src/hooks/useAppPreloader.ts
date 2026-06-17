@@ -152,7 +152,7 @@ export function useAppPreloader() {
         try {
           const authResult = await Promise.race([
             db.auth.getSession(),
-            new Promise((_, reject) => setTimeout(() => reject(new Error('Auth timeout')), 250))
+            new Promise((_, reject) => setTimeout(() => reject(new Error('Auth timeout')), 800))
           ]) as { data: { session: any } };
           session = authResult.data.session;
         } catch {
@@ -213,7 +213,7 @@ export function useAppPreloader() {
         try {
           const result = await Promise.race([
             profilePromise,
-            new Promise((_, reject) => setTimeout(() => reject(new Error('Profile timeout')), 250)),
+            new Promise((_, reject) => setTimeout(() => reject(new Error('Profile timeout')), 800)),
           ]) as any;
           profileData = result?.data || null;
         } catch {
