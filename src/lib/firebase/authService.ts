@@ -15,9 +15,21 @@ import {
   type User as FirebaseUser,
 } from 'firebase/auth';
 import { getFirebaseApp } from './app';
+import { isFirebaseConfigured } from './config';
 import type { VybeSession, VybeUser, VybeAuthError } from './types';
 
-const auth = getAuth(getFirebaseApp());
+let authInstance: ReturnType<typeof getAuth> | null = null;
+
+const NOT_CONFIGURED: VybeAuthError = {
+  message: 'Firebase is not configured. Set VITE_FIREBASE_* variables (see .env.example).',
+  name: 'firebase/not-configured',
+};
+
+function resolveAuth(): ReturnType<typeof getAuth> | null {
+  if (!isFirebaseConfigured()) return null;
+  if (!authInstance) authInstance = getAuth(getFirebaseApp());
+  return authInstance;
+}
 
 function toVybeUser(user: FirebaseUser): VybeUser {
   return {
@@ -56,10 +68,12 @@ type AuthStateCallback = (event: string, session: VybeSession | null) => void;
 
 export const firebaseAuth = {
   get auth() {
-    return auth;
+    return resolveAuth();
   },
 
   async getSession(): Promise<{ data: { session: VybeSession | null }; error: VybeAuthError | null }> {
+    const auth = resolveAuth();
+    if (!auth) return { data: { session: null }, error: NOT_CONFIGURED };
     const user = auth.currentUser;
     if (!user) return { data: { session: null }, error: null };
     try {
@@ -70,12 +84,16 @@ export const firebaseAuth = {
   },
 
   async getUser(): Promise<{ data: { user: VybeUser | null }; error: VybeAuthError | null }> {
+    const auth = resolveAuth();
+    if (!auth) return { data: { user: null }, error: NOT_CONFIGURED };
     const user = auth.currentUser;
     if (!user) return { data: { user: null }, error: null };
     return { data: { user: toVybeUser(user) }, error: null };
   },
 
   async refreshSession(_opts?: { refresh_token?: string }): Promise<{ data: { session: VybeSession | null }; error: VybeAuthError | null }> {
+    const auth = resolveAuth();
+    if (!auth) return { data: { session: null }, error: NOT_CONFIGURED };
     const user = auth.currentUser;
     if (!user) return { data: { session: null }, error: { message: 'Not authenticated' } };
     try {
@@ -91,6 +109,11 @@ export const firebaseAuth = {
   },
 
   onAuthStateChange(callback: AuthStateCallback) {
+    const auth = resolveAuth();
+    if (!auth) {
+      callback('INITIAL_SESSION', null);
+      return { data: { subscription: { unsubscribe: () => {} } } };
+    }
     let initialFired = false;
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (!initialFired) {
@@ -122,6 +145,8 @@ export const firebaseAuth = {
     password: string;
     options?: { emailRedirectTo?: string; data?: Record<string, unknown> };
   }) {
+    const auth = resolveAuth();
+    if (!auth) return { data: { user: null, session: null }, error: NOT_CONFIGURED };
     try {
       const username = payload.options?.data?.username as string | undefined;
       const cred = await createUserWithEmailAndPassword(auth, payload.email, payload.password);
@@ -140,6 +165,8 @@ export const firebaseAuth = {
   },
 
   async signInWithPassword(payload: { email: string; password: string }) {
+    const auth = resolveAuth();
+    if (!auth) return { data: { user: null, session: null }, error: NOT_CONFIGURED };
     try {
       const cred = await signInWithEmailAndPassword(auth, payload.email, payload.password);
       return {
@@ -152,6 +179,8 @@ export const firebaseAuth = {
   },
 
   async resend(payload: { type: string; email: string; options?: { emailRedirectTo?: string } }) {
+    const auth = resolveAuth();
+    if (!auth) return { error: NOT_CONFIGURED };
     const user = auth.currentUser;
     if (!user || user.email !== payload.email) {
       return { error: { message: 'Sign in required to resend verification email' } };
@@ -165,6 +194,8 @@ export const firebaseAuth = {
   },
 
   async signOut(options?: { scope?: 'local' | 'global' }) {
+    const auth = resolveAuth();
+    if (!auth) return { error: NOT_CONFIGURED };
     try {
       if (options?.scope === 'local') {
         return { error: null };
@@ -181,6 +212,8 @@ export const firebaseAuth = {
   },
 
   async resetPasswordForEmail(email: string, redirect?: string | { redirectTo?: string }) {
+    const auth = resolveAuth();
+    if (!auth) return { error: NOT_CONFIGURED };
     try {
       const url = typeof redirect === 'string' ? redirect : redirect?.redirectTo;
       await sendPasswordResetEmail(auth, email, url ? { url } : undefined);
@@ -193,6 +226,8 @@ export const firebaseAuth = {
     provider: 'google' | 'apple',
     opts?: { extraParams?: Record<string, string>; useRedirect?: boolean }
   ): Promise<{ data: { session: VybeSession | null }; error: VybeAuthError | null; redirected?: boolean }> {
+    const auth = resolveAuth();
+    if (!auth) return { data: { session: null }, error: NOT_CONFIGURED };
     try {
       let authProvider;
       if (provider === 'google') {
@@ -238,6 +273,8 @@ export const firebaseAuth = {
     return { data: null, error: { message: 'unlinkIdentity not yet ported to Firebase Auth' } };
   },
   async updateUser(attrs: { email?: string; password?: string; data?: Record<string, unknown> }): Promise<{ data: any; error: VybeAuthError | null }> {
+    const auth = resolveAuth();
+    if (!auth) return { data: null, error: NOT_CONFIGURED };
     const user = auth.currentUser;
     if (!user) return { data: null, error: { message: 'Not authenticated' } };
     try {

@@ -23,6 +23,7 @@ import { isFirebaseConfigured } from "./lib/firebase/config";
 import { initFirebaseAppCheck } from "./lib/firebase/appCheck";
 import { isMaintenanceMode } from "./lib/maintenanceMode";
 import { MaintenanceScreen } from "./components/system/MaintenanceScreen";
+import { FirebaseConfigScreen } from "./components/system/FirebaseConfigScreen";
 
 // Initialize Sentry as early as possible so we capture init-time errors.
 initSentry();
@@ -165,6 +166,12 @@ if (isMaintenanceMode()) {
   root.render(
     <ErrorBoundary scope="maintenance">
       <MaintenanceScreen />
+    </ErrorBoundary>
+  );
+} else if (!isFirebaseConfigured()) {
+  root.render(
+    <ErrorBoundary scope="config">
+      <FirebaseConfigScreen />
     </ErrorBoundary>
   );
 } else {

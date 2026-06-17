@@ -3,6 +3,13 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { db } from '@/lib/firebase';
 import { subscribePostgresChannel, removeRealtimeChannel } from '@/lib/realtimeChannel';
 import { useAuth } from '@/lib/auth';
+import { CANONICAL_PUBLISHABLE_KEY, CANONICAL_SUPABASE_URL } from '@/lib/canonicalSupabase';
+
+const LEGACY_SUPABASE_URL =
+  (import.meta.env.VITE_SUPABASE_URL as string | undefined)?.trim() || CANONICAL_SUPABASE_URL;
+const LEGACY_SUPABASE_ANON_KEY =
+  (import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string | undefined)?.trim() ||
+  CANONICAL_PUBLISHABLE_KEY;
 
 // Debug flag - set to true for dev debugging
 const DEBUG_PRESENCE = import.meta.env.DEV;
@@ -135,12 +142,12 @@ export function usePresence() {
       // bfcache navigations should NOT mark offline — the session stays alive.
       if (e.persisted) return;
       try {
-        fetch(`${import.meta.env.VITE_SUPABASE_URL}/rest/v1/user_presence?user_id=eq.${profile.id}`, {
+        fetch(`${LEGACY_SUPABASE_URL}/rest/v1/user_presence?user_id=eq.${profile.id}`, {
           method: 'PATCH',
           headers: {
             'Content-Type': 'application/json',
-            'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
-            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+            'apikey': LEGACY_SUPABASE_ANON_KEY,
+            'Authorization': `Bearer ${LEGACY_SUPABASE_ANON_KEY}`,
           },
           body: JSON.stringify({ is_online: false, last_seen_at: new Date().toISOString() }),
           keepalive: true,

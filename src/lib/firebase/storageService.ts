@@ -6,9 +6,20 @@ import {
   deleteObject,
 } from 'firebase/storage';
 import { getFirebaseApp } from './app';
+import { isFirebaseConfigured } from './config';
 import type { StorageUploadResult, StorageUrlResult, VybeAuthError } from './types';
 
-const storage = getStorage(getFirebaseApp());
+let storageInstance: ReturnType<typeof getStorage> | null = null;
+
+const NOT_CONFIGURED: VybeAuthError = {
+  message: 'Firebase Storage is not configured. Set VITE_FIREBASE_* variables.',
+};
+
+function resolveStorage(): ReturnType<typeof getStorage> | null {
+  if (!isFirebaseConfigured()) return null;
+  if (!storageInstance) storageInstance = getStorage(getFirebaseApp());
+  return storageInstance;
+}
 
 function toError(err: unknown): VybeAuthError {
   if (err && typeof err === 'object' && 'message' in err) {
@@ -24,6 +35,8 @@ export function createStorageBucket(bucket: string) {
       file: File | Blob,
       _options?: { upsert?: boolean; contentType?: string; cacheControl?: string; duplex?: string },
     ): Promise<StorageUploadResult> {
+      const storage = resolveStorage();
+      if (!storage) return { data: null, error: NOT_CONFIGURED };
       try {
         const storageRef = ref(storage, `${bucket}/${path}`);
         const metadata = _options?.contentType ? { contentType: _options.contentType } : undefined;
@@ -35,6 +48,8 @@ export function createStorageBucket(bucket: string) {
     },
 
     async download(path: string): Promise<{ data: Blob | null; error: VybeAuthError | null }> {
+      const storage = resolveStorage();
+      if (!storage) return { data: null, error: NOT_CONFIGURED };
       try {
         const storageRef = ref(storage, `${bucket}/${path}`);
         const url = await getDownloadURL(storageRef);
@@ -47,6 +62,10 @@ export function createStorageBucket(bucket: string) {
     },
 
     getPublicUrl(path: string): StorageUrlResult {
+      const storage = resolveStorage();
+      if (!storage) {
+        return { data: { publicUrl: '', signedUrl: '' } };
+      }
       const storageRef = ref(storage, `${bucket}/${path}`);
       // Firebase download URLs are resolved async; return path-based placeholder.
       const publicUrl = `gs://${bucket}/${path}`;
@@ -54,6 +73,8 @@ export function createStorageBucket(bucket: string) {
     },
 
     async createSignedUrl(path: string, _expiresIn = 3600): Promise<{ data: { signedUrl: string } | null; error: VybeAuthError | null }> {
+      const storage = resolveStorage();
+      if (!storage) return { data: null, error: NOT_CONFIGURED };
       try {
         const storageRef = ref(storage, `${bucket}/${path}`);
         const signedUrl = await getDownloadURL(storageRef);
@@ -64,6 +85,8 @@ export function createStorageBucket(bucket: string) {
     },
 
     async createSignedUrls(paths: string[], expiresIn = 3600): Promise<{ data: Array<{ path: string; signedUrl: string; error?: string | null }> | null; error: VybeAuthError | null }> {
+      const storage = resolveStorage();
+      if (!storage) return { data: null, error: NOT_CONFIGURED };
       try {
         const data = await Promise.all(paths.map(async (p) => {
           try {
@@ -80,6 +103,8 @@ export function createStorageBucket(bucket: string) {
     },
 
     async remove(paths: string[]): Promise<{ error: VybeAuthError | null }> {
+      const storage = resolveStorage();
+      if (!storage) return { error: NOT_CONFIGURED };
       try {
         await Promise.all(paths.map((p) => deleteObject(ref(storage, `${bucket}/${p}`))));
         return { error: null };
@@ -100,6 +125,8 @@ export const firebaseStorage = {
   },
 
   async resolveDownloadUrl(bucket: string, path: string): Promise<string | null> {
+    const storage = resolveStorage();
+    if (!storage) return null;
     try {
       return await getDownloadURL(ref(storage, `${bucket}/${path}`));
     } catch {

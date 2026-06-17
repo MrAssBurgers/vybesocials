@@ -4,6 +4,30 @@ Use this file as the Lovable -> Cursor handoff each session.
 
 **Links:** [Lovable project](https://lovable.dev/projects/416714c8-d013-4aff-984d-522418a9bbc7) · [Production](https://vybehub.app) · Deploy steps: `DEPLOY.md`
 
+## Deep scan (2026-06-17 — migration regression)
+
+| Check | Result | Notes |
+|-------|--------|-------|
+| `npm run debug` | **PASS** | build, lint, CSS, edge refs OK |
+| `npm run build` | **PASS** | |
+| `npm run lint` | **PASS** | 4 pre-existing warnings only |
+| Feed RPC non-array crash | **PASS** | `feedRpc.ts` + `mapFeedRows` guard arrays; empty feed on failure |
+| Firebase lazy init | **FIXED** | `authService.ts`, `storageService.ts` — no import-time throw |
+| Missing Firebase env | **FIXED** | `FirebaseConfigScreen` in `main.tsx` (clear error, not white screen) |
+| Maintenance gate preview bypass | **PASS** | `index.html` Lovable hosts → `data-vybe-maintenance="false"` |
+| Production vybehub.app maintenance | **GATED** | `data-vybe-maintenance="true"` until Baron flips + Publish |
+| Client `functions.invoke` vs `functions/src` | **PASS** | 66 invoked names, 0 missing exports |
+| Supabase edge refs (local) | **PASS** | 70 referenced, all exist in `supabase/functions/` |
+| Supabase prod RPCs | **PARTIAL** | `is_username_available`, `create_dm_conversation` MISSING on hprmic — **client-side fallbacks in `dataClient.ts` cover these** |
+| `VITE_SUPABASE_URL` without fallback | **PARTIAL** | 8 admin/music/Spotify/debug files still direct; `usePresence`, `Unsubscribe` now use canonical fallback |
+| Broken media URLs | **DEGRADED** | `SafeMedia`/`MediaFallback` + `normalizeMediaUrl` — UI won't crash |
+| Password reset flow | **PASS** | `authReset.ts` → Firebase `sendPasswordResetEmail` + `ResetPassword.tsx` oobCode |
+| Founder UID dual honor | **PASS** | `oXZZXoceCdOaCKekqNrDhCfJ90M2` + legacy `703760a8-…` in `previewSandbox.ts` |
+
+**Fixes this scan:** lazy Firebase auth/storage init, `FirebaseConfigScreen`, canonical Supabase fallbacks in `usePresence.ts` + `Unsubscribe.tsx`.
+
+**Next 3 tasks:** (1) Baron: Lovable env + flip maintenance + Publish, (2) `firebase deploy --only functions`, (3) finish storage migration + port remaining 8 Supabase URL callers.
+
 ## Current Focus (2026-06-16 — Firebase go-live on vybehub.app)
 
 - **Goal:** Point production at **Firebase `vybe-daaab`** (Firestore ~14,927 docs, Auth 152 seeded UIDs, partial Storage).

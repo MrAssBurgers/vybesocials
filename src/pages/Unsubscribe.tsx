@@ -4,11 +4,15 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Loader2, MailX, CheckCircle2, AlertCircle } from 'lucide-react';
 import { db } from '@/lib/firebase';
+import { CANONICAL_PUBLISHABLE_KEY, CANONICAL_SUPABASE_URL } from '@/lib/canonicalSupabase';
 
 type Status = 'validating' | 'valid' | 'already' | 'invalid' | 'submitting' | 'success' | 'error';
 
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string;
-const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string;
+const SUPABASE_URL =
+  (import.meta.env.VITE_SUPABASE_URL as string | undefined)?.trim() || CANONICAL_SUPABASE_URL;
+const SUPABASE_ANON_KEY =
+  (import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string | undefined)?.trim() ||
+  CANONICAL_PUBLISHABLE_KEY;
 
 export default function Unsubscribe() {
   const [params] = useSearchParams();
