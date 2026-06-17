@@ -4,6 +4,13 @@ import { chatCompletion, generateImage } from './_shared/lovableAi.js';
 
 const SECRETS = ['LOVABLE_API_KEY', 'GEMINI_API_KEY'];
 
+async function loadUserProfile(uid: string): Promise<Record<string, unknown>> {
+  const direct = await db.collection('profiles').doc(uid).get();
+  if (direct.exists) return (direct.data() || {}) as Record<string, unknown>;
+  const byUserId = await db.collection('profiles').where('user_id', '==', uid).limit(1).get();
+  return (byUserId.docs[0]?.data() || {}) as Record<string, unknown>;
+}
+
 /** ai-chat — conversational assistant with VYBE DNA context. */
 export const aiChat = onCall({ secrets: SECRETS }, async (request) => {
   const uid = requireAuth(request);
@@ -12,22 +19,36 @@ export const aiChat = onCall({ secrets: SECRETS }, async (request) => {
     (request.data || {}) as { messages?: any[]; aiName?: string; aiPersonality?: string; location?: { city?: string; lat?: number; lng?: number } };
   if (!Array.isArray(messages) || !messages.length) throw new HttpsError('invalid-argument', 'messages required');
 
-  const [dnaSnap, profileSnap] = await Promise.all([
-    db.collection('vybe_dna').doc(uid).get(),
-    db.collection('profiles').doc(uid).get(),
-  ]);
-  const profile = profileSnap.data() || {};
-  const dna = dnaSnap.data() || {};
-  const interests = (profile.interests || profile.onboarding_interests || []) as string[];
-  const name = (aiName || 'VYBE-AI').slice(0, 50);
-  const personality = (aiPersonality || 'A friendly, helpful AI assistant.').slice(0, 500);
-  const loc = location ? `\nLocation: ${location.city || 'Unknown'} (${location.lat?.toFixed?.(2)}, ${location.lng?.toFixed?.(2)}).` : '';
+  try {
+    const [dnaSnap, profile] = await Promise.all([
+      db.collection('vybe_dna').doc(uid).get(),
+      loadUserProfile(uid),
+    ]);
+    const dna = dnaSnap.data() || {};
+    const interests = (profile.interests || profile.onboarding_interests || []) as string[];
+    const name = (aiName || 'VYBE-AI').slice(0, 50);
+    const personality = (aiPersonality || 'A friendly, helpful AI assistant.').slice(0, 500);
+    const loc = location ? `\nLocation: ${location.city || 'Unknown'} (${location.lat?.toFixed?.(2)}, ${location.lng?.toFixed?.(2)}).` : '';
 
-  const system = `You are ${name}. ${personality}\nUser interests: ${interests.slice(0, 10).join(', ') || 'none'}.\nDNA: ${JSON.stringify(dna.personality_vector || {}).slice(0, 400)}${loc}`;
-  const { content } = await chatCompletion({
-    messages: [{ role: 'system', content: system }, ...messages],
-  });
-  return { reply: content };
+    const system = `You are ${name}. ${personality}\nUser interests: ${interests.slice(0, 10).join(', ') || 'none'}.\nDNA: ${JSON.stringify(dna.personality_vector || {}).slice(0, 400)}${loc}`;
+    const sanitized = messages
+      .filter((m) => m && typeof m.content === 'string' && m.content.trim())
+      .slice(-24)
+      .map((m) => ({
+        role: m.role === 'assistant' ? 'assistant' as const : 'user' as const,
+        content: String(m.content).slice(0, 4000),
+      }));
+
+    const { content } = await chatCompletion({
+      messages: [{ role: 'system', content: system }, ...sanitized],
+    });
+    if (!content?.trim()) throw new HttpsError('internal', 'AI returned an empty reply');
+    return { reply: content };
+  } catch (err) {
+    if (err instanceof HttpsError) throw err;
+    console.error('[aiChat]', err);
+    throw new HttpsError('internal', err instanceof Error ? err.message : 'AI chat failed');
+  }
 });
 
 /** ai-catch-up — daily brief generator. */

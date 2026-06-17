@@ -2,6 +2,7 @@ import type { Content, Part } from 'firebase/ai';
 import { AIError } from 'firebase/ai';
 import { getChatModelWithSystem } from './aiLogic';
 import { isAppCheckInitialized } from './appCheck';
+import { firebaseAuth } from './authService';
 import { invokeFunction } from './functionsService';
 import { RATE_LIMITS } from '@/lib/rateLimit';
 
@@ -48,7 +49,8 @@ function buildSystemInstruction(ctx: VybeAiChatContext): string {
   return lines.join('\n\n');
 }
 
-const AI_HISTORY_ERROR_RE = /invalid-content|First Content should be with role/i;
+const AI_HISTORY_ERROR_RE =
+  /invalid-content|First Content should be with role|LOVABLE_API_KEY|GEMINI_API_KEY|^internal$/i;
 
 /** Drop failed AI error bubbles before they pollute the next Gemini request. */
 export function filterAiChatHistoryForApi(messages: VybeAiChatMessage[]): VybeAiChatMessage[] {
@@ -188,19 +190,37 @@ function shouldUseServerAiChat(imageBase64?: string | null): boolean {
 function formatCallableAiError(error: unknown): string {
   if (error && typeof error === 'object') {
     const e = error as { message?: string; name?: string };
+    const code = (e.name || '').replace(/^functions\//, '');
     const msg = e.message || '';
-    if (e.name === 'not_yet_ported' || msg === 'not_yet_ported') {
+
+    if (code === 'not_yet_ported' || msg === 'not_yet_ported') {
       return 'VYBE AI Cloud Function is not deployed yet. Run firebase deploy --only functions:aiChat.';
     }
-    if (/LOVABLE_API_KEY|GEMINI_API_KEY|failed-precondition|not configured/i.test(msg)) {
-      return 'VYBE AI server needs LOVABLE_API_KEY or GEMINI_API_KEY on Firebase Cloud Functions.';
-    }
-    if (/unauthenticated|Not authenticated/i.test(msg)) {
+    if (code === 'unauthenticated' || /unauthenticated|Sign in required|Not authenticated/i.test(msg)) {
       return 'Sign in to use VYBE AI.';
     }
-    if (msg) return msg;
+    if (
+      code === 'failed-precondition' ||
+      /LOVABLE_API_KEY|GEMINI_API_KEY|not configured/i.test(msg)
+    ) {
+      return 'VYBE AI server needs LOVABLE_API_KEY or GEMINI_API_KEY on Firebase Cloud Functions.';
+    }
+    if (code === 'resource-exhausted' || /rate limit/i.test(msg)) {
+      return 'Too many requests. Wait a moment.';
+    }
+    if (code === 'internal' || msg === 'internal') {
+      return 'VYBE AI server failed. Set LOVABLE_API_KEY or GEMINI_API_KEY and redeploy functions:aiChat.';
+    }
+    if (msg && msg !== code) return msg;
   }
   return 'VYBE AI could not respond. Try again in a moment.';
+}
+
+async function ensureSignedInForAi(): Promise<void> {
+  const { data: { session } } = await firebaseAuth.getSession();
+  if (!session?.access_token) {
+    throw new Error('Sign in to use VYBE AI.');
+  }
 }
 
 async function invokeVybeAiChatCallable(
@@ -208,6 +228,8 @@ async function invokeVybeAiChatCallable(
   userText: string,
   context: VybeAiChatContext,
 ): Promise<string> {
+  await ensureSignedInForAi();
+
   const messages = [
     ...filterAiChatHistoryForApi(history).map((m) => ({
       role: m.role,
@@ -303,15 +325,23 @@ export async function streamVybeAiChat(options: StreamVybeAiChatOptions): Promis
 
   const { history, userText, context, onChunk, imageBase64 } = options;
 
-  // Lovable preview / dev: no App Check site key → skip client Gemini, use server aiChat.
+  // Lovable preview / dev: no App Check site key → try server aiChat first, then client Gemini.
   if (shouldUseServerAiChat(imageBase64)) {
     try {
       const reply = await invokeVybeAiChatCallable(history, userText, context);
       onChunk(reply, reply);
       return reply;
     } catch (callableErr) {
-      console.warn('[VYBE AI] Server aiChat failed:', callableErr);
-      throw new Error(formatCallableAiError(callableErr));
+      console.warn('[VYBE AI] Server aiChat failed — trying client Gemini', callableErr);
+      try {
+        return await streamVybeAiChatViaFirebaseAi(options);
+      } catch (clientErr) {
+        const formatted =
+          formatCallableAiError(callableErr) ||
+          formatFirebaseAiError(clientErr) ||
+          'VYBE AI could not respond. Try again in a moment.';
+        throw new Error(formatted);
+      }
     }
   }
 

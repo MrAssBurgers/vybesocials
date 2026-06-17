@@ -37,8 +37,16 @@ function getFunctionsInstance() {
 
 function toError(err: unknown): VybeAuthError {
   if (err && typeof err === 'object') {
-    const e = err as { message?: string; code?: string };
-    return { message: e.message || 'Function error', name: e.code };
+    const e = err as { message?: string; code?: string; details?: unknown };
+    const code = (e.code || '').replace(/^functions\//, '');
+    const detail =
+      typeof e.details === 'string'
+        ? e.details
+        : e.details && typeof e.details === 'object' && 'message' in (e.details as object)
+          ? String((e.details as { message?: unknown }).message || '')
+          : '';
+    const msg = e.message || detail || 'Function error';
+    return { message: msg, name: code || e.code };
   }
   return { message: 'Function error' };
 }

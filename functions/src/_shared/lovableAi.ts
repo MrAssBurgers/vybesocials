@@ -77,7 +77,7 @@ export async function chatCompletion(opts: {
       if (res.status === 402) throw new HttpsError('failed-precondition', 'AI credits exhausted');
       if (res.status < 500) {
         lastErr = `AI ${res.status}: ${await res.text()}`;
-        throw new HttpsError('internal', lastErr);
+        throw new HttpsError('failed-precondition', lastErr);
       }
       lastErr = `AI ${res.status}`;
     }
