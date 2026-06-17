@@ -1,4 +1,9 @@
 import "./lib/bootstrapAuthStorage";
+
+if (typeof window !== 'undefined') {
+  (window as Window & { __VYBE_APP_LOADED__?: boolean }).__VYBE_APP_LOADED__ = true;
+}
+
 import { createRoot } from "react-dom/client";
 import { StrictMode } from "react";
 import App from "./App.tsx";

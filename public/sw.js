@@ -1,8 +1,8 @@
 // VYBE Service Worker
-// Version 30.0 — startup-only boot guard; no runtime blank_shell interrupts
+// Version 31.0 — stable /assets/app.js entry + legacy index-* fallback
 
-const CACHE_NAME = 'vybe-v30';
-const STATIC_CACHE = 'vybe-static-v30';
+const CACHE_NAME = 'vybe-v31';
+const STATIC_CACHE = 'vybe-static-v31';
 const MEDIA_CACHE = 'vybe-media-v2';
 const SHELL_CACHE = 'vybe-shell-v4';
 const ASSETS_CACHE = 'vybe-assets-v4';
@@ -127,11 +127,10 @@ self.addEventListener('fetch', (event) => {
       return;
     }
 
-    // Main entry bundle must be network-first so deploys never serve a stale
-    // broken index-*.js from cache (prevents post-publish black screens).
+    // Stable app entry + legacy hashed entries — always network-first.
     if (
       url.origin === self.location.origin &&
-      /^\/assets\/index-[^/]+\.js$/i.test(url.pathname)
+      (url.pathname === '/assets/app.js' || /^\/assets\/index-[^/]+\.js$/i.test(url.pathname))
     ) {
       event.respondWith(networkFirst(event.request));
       return;

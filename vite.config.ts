@@ -55,6 +55,10 @@ export default defineConfig(({ mode }) => {
     build: {
       rollupOptions: {
         output: {
+          // Stable entry filename — Lovable publish was serving stale index-*.js hashes.
+          entryFileNames: 'assets/app.js',
+          chunkFileNames: 'assets/[name]-[hash].js',
+          assetFileNames: 'assets/[name]-[hash][extname]',
           manualChunks: {
             'vendor-react': ['react', 'react-dom', 'react-router-dom'],
             'vendor-ui': [

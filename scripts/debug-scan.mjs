@@ -158,8 +158,23 @@ async function main() {
 
   section('vybehub.app bundle');
   const html = await fetch('https://vybehub.app/index.html').then((r) => r.text()).catch(() => '');
-  const bundle = html.match(/index-[A-Za-z0-9_-]+\.js/)?.[0] ?? 'unknown';
-  console.log(`index.html bundle: ${bundle}`);
+  const usesStableEntry = html.includes('/assets/app.js');
+  const hashedBundle = html.match(/index-[A-Za-z0-9_-]+\.js/)?.[0] ?? null;
+  const appJsProbe = await probe('https://vybehub.app/assets/app.js');
+  const entryLabel = usesStableEntry ? '/assets/app.js' : hashedBundle ?? 'unknown';
+  console.log(`index.html entry: ${entryLabel}`);
+  console.log(
+    `/assets/app.js: HTTP ${appJsProbe.status} — ${appJsProbe.ok ? 'PASS' : 'FAIL (Lovable Publish needed)'}`,
+  );
+  if (hashedBundle && !usesStableEntry) {
+    const legacyProbe = await probe(`https://vybehub.app/assets/${hashedBundle}`);
+    console.log(
+      `legacy ${hashedBundle}: HTTP ${legacyProbe.status} — ${legacyProbe.ok ? 'served (stale)' : 'missing'}`,
+    );
+    if (legacyProbe.ok && !appJsProbe.ok) {
+      console.log('WARN: prod serves old hashed bundle; fallback loader will try /assets/app.js after publish');
+    }
+  }
 
   section('Reminders');
   console.log('- Web deploy: Lovable → Share → Publish (vybehub.app)');

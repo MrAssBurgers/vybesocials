@@ -387,6 +387,39 @@
       </div>
     </div>
     <div id="root"></div>
+    <!-- Fallback when CDN serves stale hashed index-*.js (Lovable publish mismatch) -->
+    <script>
+      (function () {
+        var STABLE = '/assets/app.js';
+        function loadStableEntry() {
+          if (window.__VYBE_APP_LOADED__) return;
+          if (document.querySelector('script[data-vybe-stable-entry]')) return;
+          var s = document.createElement('script');
+          s.type = 'module';
+          s.crossOrigin = 'anonymous';
+          s.src = STABLE + '?vybe=' + Date.now();
+          s.setAttribute('data-vybe-stable-entry', 'true');
+          s.onload = function () { window.__VYBE_APP_LOADED__ = true; };
+          document.head.appendChild(s);
+        }
+        window.addEventListener('error', function (e) {
+          var file = e.filename || '';
+          if (file.indexOf('/assets/index-') === -1) return;
+          loadStableEntry();
+        }, true);
+        window.addEventListener('unhandledrejection', function (e) {
+          var msg = e.reason instanceof Error ? e.reason.message : String(e.reason || '');
+          if (msg.indexOf('Failed to fetch') !== -1 || msg.indexOf('Importing a module script failed') !== -1) {
+            loadStableEntry();
+          }
+        });
+        setTimeout(function () {
+          var root = document.getElementById('root');
+          var hasPaint = root && (root.textContent || '').replace(/\s+/g, '').length > 12;
+          if (!window.__VYBE_APP_LOADED__ && !hasPaint) loadStableEntry();
+        }, 2000);
+      })();
+    </script>
     <script src="/boot-guard.js"></script>
     <script type="module" src="/src/main.tsx" fetchpriority="high"></script>
   </body>

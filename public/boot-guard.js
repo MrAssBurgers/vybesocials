@@ -174,7 +174,7 @@
   }
 
   function watchBundleScripts() {
-    var scripts = document.querySelectorAll('script[type="module"], script[src*="/assets/index-"]');
+    var scripts = document.querySelectorAll('script[type="module"], script[src*="/assets/app.js"], script[src*="/assets/index-"]');
     for (var i = 0; i < scripts.length; i++) {
       (function (script) {
         script.addEventListener('load', function () { bundleLoaded = true; });

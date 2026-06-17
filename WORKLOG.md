@@ -4,6 +4,12 @@ Use this file as the Lovable -> Cursor handoff each session.
 
 **Links:** [Lovable project](https://lovable.dev/projects/416714c8-d013-4aff-984d-522418a9bbc7) · [Production](https://vybehub.app) · Deploy steps: `DEPLOY.md`
 
+## Current Focus (2026-06-17 — stable deploy entry / prod stale bundle)
+- **Root cause:** Lovable publish serves stale `index-IRTXwZnk.js` in HTML while new builds emit different hashes → users never get fixes; `/assets/app.js` 404 on prod
+- **Fix:** Vite `entryFileNames: assets/app.js`; index.html fallback loader retries stable entry on hash 404; SW **v31** network-first `app.js`; `verify-dist-entry.mjs` in postbuild + `validate:boot`
+- **Prod now:** still `index-IRTXwZnk.js` until **Lovable Publish** — after publish, `curl vybehub.app` should show `/assets/app.js`
+- **You:** Lovable **Share → Publish** + clear site data once
+
 ## Current Focus (2026-06-17 — boot watchdog false positives)
 - **Root cause:** Runtime blank-shell watchdog fired during login→home route transitions + auto cache-reload loop (login flash → recovery → reload)
 - **Fix:** Startup-only boot guard (stops after first paint); removed ShellVisibilityGuard recovery; `data-vybe-app-ready`; VybePageLoader on Suspense; SW v30
