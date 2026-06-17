@@ -1,72 +1,26 @@
-import { memo, useEffect, useState } from "react";
+import { memo, useEffect } from "react";
 import { useLocation } from "react-router-dom";
 import { BottomNav } from "./BottomNav";
-import { isMobileOrTabletViewport } from '@/lib/mobileViewport';
-import { useIsMobileOrTablet } from "@/hooks/use-mobile";
+import { useBottomNavMount } from "@/hooks/useBottomNavMount";
+import { isBottomNavTabRoute } from "@/lib/bottomNavRoutes";
+import { useAuth } from "@/lib/auth";
 import { navVisibility } from "@/lib/navVisibility";
 
 /**
- * Forces BottomNav to mount at the app root on all mobile/tablet viewports.
- * Includes iPad in any orientation.
- * Hides nav when inside a DM conversation.
+ * Mounts BottomNav only on primary tab routes (Instagram-style).
+ * Scroll, keyboard, and immersive overlays still hide it via navVisibility.
  */
-// Routes where bottom nav should be hidden
-const HIDDEN_NAV_ROUTES = ['/', '/onboarding', '/complete-profile', '/upload', '/camera', '/map', '/spaces', '/VYBE-AI'];
-
-function isFullscreenMediaRoute(pathname: string): boolean {
-  return (
-    /^\/watch\/[^/]+/.test(pathname) ||
-    /^\/clips\/[^/]+/.test(pathname)
-  );
-}
-
-function isImmersiveRoute(pathname: string): boolean {
-  return (
-    pathname.startsWith('/spaces/') ||
-    pathname === '/community' ||
-    pathname.startsWith('/messages/new')
-  );
-}
-
 export const RootBottomNavMount = memo(function RootBottomNavMount() {
-  const { isMobileOrTablet } = useIsMobileOrTablet();
   const location = useLocation();
-  const [immersiveHidden, setImmersiveHidden] = useState(false);
+  const { profile } = useAuth();
+  const showNav = useBottomNavMount();
 
   useEffect(() => {
-    return navVisibility.subscribe((visible) => {
-      setImmersiveHidden(!visible);
-    });
-  }, []);
-
-  useEffect(() => {
-    const path = location.pathname;
-    const isMainTab =
-      path === '/home' ||
-      path === '/clips' ||
-      path === '/explore' ||
-      path === '/messages' ||
-      path.startsWith('/settings') ||
-      /^\/u\/[^/]+$/.test(path);
-    if (isMainTab) {
+    if (isBottomNavTabRoute(location.pathname, profile)) {
       navVisibility.forceShow();
       navVisibility.resetScrollHide();
     }
-  }, [location.pathname]);
-  
-  // Hide nav inside any messages sub-route (conversation, new message, etc.)
-  const isInMessagesSubRoute = location.pathname.startsWith('/messages/');
-  
-  // Hide nav on landing, onboarding, and profile completion pages
-  const isHiddenRoute = HIDDEN_NAV_ROUTES.includes(location.pathname);
-  const hideForMedia = isFullscreenMediaRoute(location.pathname);
-  const hideForImmersiveRoute = isImmersiveRoute(location.pathname) && immersiveHidden;
-  const showNav =
-    (isMobileOrTablet || isMobileOrTabletViewport()) &&
-    !isInMessagesSubRoute &&
-    !isHiddenRoute &&
-    !hideForMedia &&
-    !hideForImmersiveRoute;
+  }, [location.pathname, profile]);
 
   if (!showNav) return null;
   return <BottomNav />;

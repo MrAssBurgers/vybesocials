@@ -18,6 +18,7 @@ import { T, TAP, MOTION_CONFIG } from '@/lib/motion';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { useUserPreferences, useUpdatePreferences } from '@/hooks/useUserPreferences';
+import { isOwnProfilePath } from '@/lib/bottomNavRoutes';
 
 function useScrollDirection() {
   const [isVisible, setIsVisible] = useState(true);
@@ -583,13 +584,18 @@ export const BottomNav = memo(forwardRef<HTMLElement, object>(function BottomNav
           >
             {orderedNavItems.map((item) => {
               const path = item.getPath(profile);
-              const isActive =
-                item.id === 'clips'
-                  ? location.pathname === '/clips' ||
-                    location.pathname.startsWith('/clips/') ||
-                    location.pathname === '/watch' ||
-                    location.pathname.startsWith('/watch/')
-                  : location.pathname === path || location.pathname.startsWith(path + '/');
+              const isActive = (() => {
+                if (item.id === 'clips') {
+                  return location.pathname === '/clips';
+                }
+                if (item.id === 'messages') {
+                  return location.pathname === '/messages';
+                }
+                if (item.isProfile) {
+                  return isOwnProfilePath(location.pathname, profile);
+                }
+                return location.pathname === path;
+              })();
               const isHighlighted = highlightedNav === item.tutorialId;
               const badge = item.id === 'messages' ? unreadMessages : 0;
 

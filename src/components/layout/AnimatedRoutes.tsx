@@ -1,6 +1,8 @@
 import { lazy, Suspense, memo, useEffect } from 'react';
 import { Routes, Route, useLocation, Navigate, useParams } from 'react-router-dom';
 import { navVisibility } from '@/lib/navVisibility';
+import { isBottomNavTabRoute } from '@/lib/bottomNavRoutes';
+import { useAuth } from '@/lib/auth';
 import { AnimatePresence, motion } from 'framer-motion';
 import { liquidSpring } from '@/motion/liquidConfig';
 import { MOTION_CONFIG } from '@/lib/motion';
@@ -137,27 +139,20 @@ const PageFallback = memo(() => <VybePageLoader />);
  */
 export function AnimatedRoutes() {
   const location = useLocation();
+  const { profile } = useAuth();
   const debugPanel = useDebugPanel();
   const { isOpen: debugOpen, setIsOpen: setDebugOpen, isAdmin: isDebugAdmin } = debugPanel || { isOpen: false, setIsOpen: () => {}, isAdmin: false };
   
   useDebugCapture();
   usePageTitle();
 
-  // Recover from stuck immersive / scroll-hidden nav when landing on main tabs.
+  // Recover from stuck immersive / scroll-hidden nav when landing on primary tabs.
   useEffect(() => {
-    const path = location.pathname;
-    const isMainTab =
-      path === '/home' ||
-      path === '/clips' ||
-      path === '/explore' ||
-      path === '/messages' ||
-      path.startsWith('/settings') ||
-      /^\/u\/[^/]+$/.test(path);
-    if (isMainTab) {
+    if (isBottomNavTabRoute(location.pathname, profile)) {
       navVisibility.forceShow();
       navVisibility.resetScrollHide();
     }
-  }, [location.pathname]);
+  }, [location.pathname, profile]);
 
   const routeContent = (
     <ErrorBoundary

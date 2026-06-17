@@ -21,6 +21,7 @@ import { navVisibility } from '@/lib/navVisibility';
 import { setThemePreviewLock } from '@/hooks/useCustomTheme';
 import { SelfNowPlayingPill } from '@/components/music/SelfNowPlayingPill';
 import { MigrationAccountNotice } from '@/components/system/MigrationAccountNotice';
+import { useBottomNavMount } from '@/hooks/useBottomNavMount';
 
 interface AppLayoutProps {
   children: ReactNode;
@@ -47,6 +48,8 @@ export const AppLayout = memo(forwardRef<HTMLDivElement, AppLayoutProps>(functio
   const nativePerf = isNativePerfMode();
   const { swipeBackHandlers, swipeProgress } = useSwipeBack(!nativePerf);
   const showLiquidBg = useDefaultLiquidBackground();
+  const bottomNavMounted = useBottomNavMount();
+  const reserveBottomNavSpace = !hideNav && !noPadding && bottomNavMounted;
 
   useEffect(() => bindAppScrollHideContainer(), []);
 
@@ -152,9 +155,9 @@ export const AppLayout = memo(forwardRef<HTMLDivElement, AppLayoutProps>(functio
               marginTop: hideNav || !noPadding ? undefined : 'var(--app-header-height)',
               touchAction: noPadding ? 'pan-y' : undefined,
               paddingBottom:
-                hideNav || noPadding
-                  ? undefined
-                  : 'calc(6rem + env(safe-area-inset-bottom))',
+                reserveBottomNavSpace
+                  ? 'calc(6rem + env(safe-area-inset-bottom))'
+                  : undefined,
               WebkitOverflowScrolling: 'touch',
               overscrollBehaviorY: 'contain',
               transform: !nativePerf && swipeProgress > 0 ? `translateX(${swipeProgress * 60}px)` : undefined,
