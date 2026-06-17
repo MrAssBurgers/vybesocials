@@ -4,6 +4,11 @@ Use this file as the Lovable -> Cursor handoff each session.
 
 **Links:** [Lovable project](https://lovable.dev/projects/416714c8-d013-4aff-984d-522418a9bbc7) · [Production](https://vybehub.app) · Deploy steps: `DEPLOY.md`
 
+## Current Focus (2026-06-17 — go live)
+- **Done:** `index.html` `data-vybe-maintenance="false"` · SW **v21**
+- **You:** Lovable env → all `VITE_FIREBASE_*` + `VITE_MAINTENANCE_MODE=false` → **Share → Publish**
+- **You:** `firebase deploy --only firestore:rules,storage:rules,functions,firestore:indexes --project vybe-daaab`
+
 ## Deep scan (2026-06-17 — migration regression)
 
 | Check | Result | Notes |
@@ -15,7 +20,7 @@ Use this file as the Lovable -> Cursor handoff each session.
 | Firebase lazy init | **FIXED** | `authService.ts`, `storageService.ts` — no import-time throw |
 | Missing Firebase env | **FIXED** | `FirebaseConfigScreen` in `main.tsx` (clear error, not white screen) |
 | Maintenance gate preview bypass | **PASS** | `index.html` Lovable hosts → `data-vybe-maintenance="false"` |
-| Production vybehub.app maintenance | **GATED** | `data-vybe-maintenance="true"` until Baron flips + Publish |
+| Production vybehub.app maintenance | **OFF in repo** | `data-vybe-maintenance="false"` + SW v21 — **Lovable Publish required** |
 | Client `functions.invoke` vs `functions/src` | **PASS** | 66 invoked names, 0 missing exports |
 | Supabase edge refs (local) | **PASS** | 70 referenced, all exist in `supabase/functions/` |
 | Supabase prod RPCs | **PARTIAL** | `is_username_available`, `create_dm_conversation` MISSING on hprmic — **client-side fallbacks in `dataClient.ts` cover these** |
