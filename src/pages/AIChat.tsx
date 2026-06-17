@@ -21,7 +21,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { getEdgeFunctionUrl, getFunctionAuthHeaders, formatAiChatError } from '@/lib/functionAuth';
 import { getCanonicalPublishableKey } from '@/lib/canonicalSupabase';
-import { formatFirebaseAiError, isAiLogicConfigured, streamVybeAiChat } from '@/lib/firebase';
+import { formatFirebaseAiError, filterAiChatHistoryForApi, isAiLogicConfigured, streamVybeAiChat } from '@/lib/firebase';
 import { useVybeAgent, shouldFallbackToAiChat, isAgentAuthError, isAgentUnavailableError } from '@/lib/agent/useVybeAgent';
 import { shouldSkipAgentDueToAuth, clearAgentAuthFailure, messageWantsCloudAgent } from '@/lib/agent/aiChatRouting';
 import { parseLocalAgentPlan } from '@/lib/agent/localAgentCommands';
@@ -375,7 +375,9 @@ export default function AIChat() {
 
       try {
         assistantContent = await streamVybeAiChat({
-          history: messages.map((m) => ({ role: m.role, content: m.content })),
+          history: filterAiChatHistoryForApi(
+            messages.map((m) => ({ role: m.role, content: m.content })),
+          ),
           userText: msgText || 'What is in this image?',
           imageBase64,
           imageMimeType,

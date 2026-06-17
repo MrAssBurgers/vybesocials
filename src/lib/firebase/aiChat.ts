@@ -1,6 +1,6 @@
 import type { Content, Part } from 'firebase/ai';
 import { AIError } from 'firebase/ai';
-import { getChatModel } from './aiLogic';
+import { getChatModelWithSystem } from './aiLogic';
 import { RATE_LIMITS } from '@/lib/rateLimit';
 
 export interface VybeAiChatMessage {
@@ -46,11 +46,20 @@ function buildSystemInstruction(ctx: VybeAiChatContext): string {
   return lines.join('\n\n');
 }
 
+const AI_HISTORY_ERROR_RE = /invalid-content|First Content should be with role/i;
+
+/** Drop failed AI error bubbles before they pollute the next Gemini request. */
+export function filterAiChatHistoryForApi(messages: VybeAiChatMessage[]): VybeAiChatMessage[] {
+  return messages.filter(
+    (m) => !(m.role === 'assistant' && AI_HISTORY_ERROR_RE.test(m.content)),
+  );
+}
+
 /**
  * Gemini chat history must start with `user` and alternate user/model.
  * UI may open with an assistant greeting or have consecutive same-role turns — normalize here.
  */
-function toGeminiHistory(messages: VybeAiChatMessage[]): Content[] {
+export function toGeminiHistory(messages: VybeAiChatMessage[]): Content[] {
   const mapped = messages
     .filter((m) => m.content.trim())
     .slice(-24)
@@ -86,20 +95,38 @@ function toGeminiHistory(messages: VybeAiChatMessage[]): Content[] {
   return normalized;
 }
 
-function buildUserRequest(
+function buildUserParts(
   text: string,
   imageBase64?: string | null,
   imageMimeType?: string | null,
-): Array<string | Part> {
-  const parts: Array<string | Part> = [];
+): Part[] {
+  const parts: Part[] = [];
   const prompt = text.trim() || 'What is in this image? Describe it helpfully.';
-  parts.push(prompt);
+  parts.push({ text: prompt });
   if (imageBase64 && imageMimeType) {
     parts.push({
       inlineData: { data: imageBase64, mimeType: imageMimeType },
     });
   }
   return parts;
+}
+
+function buildGeminiContents(
+  history: VybeAiChatMessage[],
+  userText: string,
+  imageBase64?: string | null,
+  imageMimeType?: string | null,
+): Content[] {
+  const contents: Content[] = [
+    ...toGeminiHistory(filterAiChatHistoryForApi(history)),
+    { role: 'user', parts: buildUserParts(userText, imageBase64, imageMimeType) },
+  ];
+
+  while (contents.length > 0 && contents[0].role !== 'user') {
+    contents.shift();
+  }
+
+  return contents;
 }
 
 function appendStreamText(fullText: string, raw: string): string {
@@ -125,6 +152,8 @@ export function formatFirebaseAiError(error: unknown): string | null {
         return 'Could not reach VYBE AI. Check your connection and try again.';
       case 'response-error':
         return error.message || 'VYBE AI blocked or failed this request. Try rephrasing.';
+      case 'invalid-content':
+        return 'VYBE AI could not read this chat history. Tap Clear Chat and try again.';
       default:
         if (error.message) return error.message;
     }
@@ -153,15 +182,9 @@ export async function streamVybeAiChat(options: StreamVybeAiChatOptions): Promis
     idleMs = 15_000,
   } = options;
 
-  const model = getChatModel();
-  const chat = model.startChat({
-    history: toGeminiHistory(history),
-    systemInstruction: buildSystemInstruction(context),
-  });
-
-  const result = await chat.sendMessageStream(
-    buildUserRequest(userText, imageBase64, imageMimeType),
-  );
+  const model = getChatModelWithSystem(buildSystemInstruction(context));
+  const contents = buildGeminiContents(history, userText, imageBase64, imageMimeType);
+  const result = await model.generateContentStream({ contents });
 
   let fullText = '';
   const deadline = Date.now() + streamDeadlineMs;

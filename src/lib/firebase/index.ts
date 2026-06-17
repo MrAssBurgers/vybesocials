@@ -67,6 +67,7 @@ export {
 export {
   streamVybeAiChat,
   formatFirebaseAiError,
+  filterAiChatHistoryForApi,
   type VybeAiChatMessage,
   type VybeAiChatContext,
 } from './aiChat';

@@ -31,15 +31,28 @@ export function getFirebaseAI(): AI {
   return aiInstance;
 }
 
+const CHAT_GENERATION_CONFIG = {
+  temperature: 0.85,
+  maxOutputTokens: 4096,
+  topP: 0.95,
+  topK: 40,
+} as const;
+
 export function getChatModel(modelId = DEFAULT_CHAT_MODEL): GenerativeModel {
   return getGenerativeModel(getFirebaseAI(), {
     model: modelId,
-    generationConfig: {
-      temperature: 0.85,
-      maxOutputTokens: 4096,
-      topP: 0.95,
-      topK: 40,
-    },
+    generationConfig: { ...CHAT_GENERATION_CONFIG },
+  });
+}
+
+export function getChatModelWithSystem(
+  systemInstruction: string,
+  modelId = DEFAULT_CHAT_MODEL,
+): GenerativeModel {
+  return getGenerativeModel(getFirebaseAI(), {
+    model: modelId,
+    systemInstruction,
+    generationConfig: { ...CHAT_GENERATION_CONFIG },
   });
 }
 
