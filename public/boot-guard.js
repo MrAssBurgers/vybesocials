@@ -1,15 +1,16 @@
 /**
- * Pre-React + runtime blank-screen watchdog.
+ * Boot watchdog — startup only. Does NOT interrupt the app after first successful paint.
  * Inlined into dist/index.html by scripts/inline-boot-guard.mjs on build.
  */
 (function bootGuard() {
   var BOOT_ATTR = 'data-vybe-boot';
+  var APP_READY_ATTR = 'data-vybe-app-ready';
   var RECOVERY_ID = 'vybe-boot-recovery';
   var AUTO_RETRY_KEY = 'vybe.boot.auto-retry';
   var startupTimer = null;
   var pollTimer = null;
   var recoveryShown = false;
-  var blankStreak = 0;
+  var bootEverSucceeded = false;
   var bundleLoaded = false;
   var bundleFailed = false;
   var bootStartedAt = Date.now();
@@ -19,8 +20,14 @@
     /despia|vybeapp|median|gonative|wv\)|; wv\b/.test(ua) ||
     !!(window).Despia ||
     !!(window).__DESPIA__;
-  var STARTUP_TIMEOUT_MS = isNativeWrapper ? 22000 : 18000;
-  var BLANK_STREAK_LIMIT = 8;
+  var STARTUP_TIMEOUT_MS = isNativeWrapper ? 25000 : 20000;
+
+  function isAppReady() {
+    return (
+      bootEverSucceeded ||
+      document.documentElement.getAttribute(APP_READY_ATTR) === 'true'
+    );
+  }
 
   function hideRecovery() {
     var el = document.getElementById(RECOVERY_ID);
@@ -68,27 +75,6 @@
     else reload();
   }
 
-  function autoRetryOrShow(reason, manual) {
-    if (!manual) {
-      try {
-        var tries = parseInt(sessionStorage.getItem(AUTO_RETRY_KEY) || '0', 10);
-        if (tries < 2) {
-          sessionStorage.setItem(AUTO_RETRY_KEY, String(tries + 1));
-          var el = document.getElementById(RECOVERY_ID);
-          var detail = document.getElementById('vybe-boot-recovery-detail');
-          if (el) el.style.display = 'flex';
-          if (detail) {
-            detail.textContent = 'Clearing outdated cache and fetching the latest version…';
-          }
-          recoveryShown = true;
-          setTimeout(clearCacheAndReload, 500);
-          return;
-        }
-      } catch (e) { /* ignore */ }
-    }
-    showRecoveryUi(reason);
-  }
-
   function showRecoveryUi(reason) {
     clearStuckUiState();
     recoveryShown = true;
@@ -100,18 +86,32 @@
     if (!detail) return;
     if (reason === 'startup_timeout') {
       detail.textContent =
-        'Startup timed out — usually a stale cached build. Tap "Clear cache & reload". If it repeats, republish from Lovable with Firebase env vars.';
-    } else if (reason === 'blank_shell') {
-      detail.textContent = 'The app loaded but the screen stayed blank. Clear cache and reload.';
+        'Startup timed out. Tap "Clear cache & reload" once. If it repeats after publishing, check Firebase env vars in Lovable.';
     } else if (reason === 'script_error' || reason === 'chunk_error') {
-      detail.textContent = 'A script failed to load (common after updates). Clear cache and reload.';
+      detail.textContent = 'A script failed to load. Clear cache and reload to get the latest build.';
     } else {
-      detail.textContent = 'Something blocked the UI. Clear cache and reload.';
+      detail.textContent = 'Something blocked startup. Clear cache and reload.';
     }
   }
 
   function showRecovery(reason, manual) {
-    autoRetryOrShow(reason, manual);
+    if (isAppReady() && !manual) return;
+    if (!manual && (reason === 'script_error' || reason === 'chunk_error' || reason === 'startup_timeout')) {
+      try {
+        var tries = parseInt(sessionStorage.getItem(AUTO_RETRY_KEY) || '0', 10);
+        if (tries < 1) {
+          sessionStorage.setItem(AUTO_RETRY_KEY, String(tries + 1));
+          var el = document.getElementById(RECOVERY_ID);
+          var detail = document.getElementById('vybe-boot-recovery-detail');
+          if (el) el.style.display = 'flex';
+          if (detail) detail.textContent = 'Fetching the latest version…';
+          recoveryShown = true;
+          setTimeout(clearCacheAndReload, 600);
+          return;
+        }
+      } catch (e) { /* ignore */ }
+    }
+    showRecoveryUi(reason);
   }
 
   function isRecoveryVisible() {
@@ -124,7 +124,7 @@
     var root = document.getElementById('root');
     if (!root) return false;
     var text = root.textContent || '';
-    return /VYBE/i.test(text) && /Waking up|Checking session|Loading|Ready|Let's go/i.test(text);
+    return /VYBE/i.test(text) && /Waking up|Checking session|Loading|Ready|Let's go|Tip/i.test(text);
   }
 
   function isBundleStillLoading() {
@@ -140,58 +140,36 @@
     if (root.querySelector('[data-vybe-boot-screen]')) return true;
     if (isSplashVisible()) return true;
 
-    var main = document.getElementById('main-content');
-    if (main) {
-      var mainText = (main.textContent || '').replace(/\s+/g, '');
-      if (mainText.length > 12) return true;
-      if (main.querySelector('img, video, canvas, svg, button, a[href], input, textarea')) {
-        return true;
-      }
-    }
-
-    var route = document.querySelector('[data-route-shell]');
-    if (route) {
-      var routeText = (route.textContent || '').replace(/\s+/g, '');
-      if (routeText.length > 12) return true;
+    if (root.querySelector('input, textarea, button, a[href], img, video, canvas, [data-route-shell], #main-content, [data-auth-shell]')) {
+      return true;
     }
 
     var rootText = (root.textContent || '').replace(/\s+/g, '');
-    if (rootText.length > 24) return true;
-
-    return false;
+    return rootText.length > 8;
   }
 
   function markBootReady() {
-    if (hasMeaningfulContent()) {
-      try { sessionStorage.removeItem(AUTO_RETRY_KEY); } catch (e) { /* ignore */ }
-      document.documentElement.setAttribute(BOOT_ATTR, 'ready');
-      hideRecovery();
-      blankStreak = 0;
+    if (!hasMeaningfulContent()) return;
+    bootEverSucceeded = true;
+    try { sessionStorage.removeItem(AUTO_RETRY_KEY); } catch (e) { /* ignore */ }
+    document.documentElement.setAttribute(BOOT_ATTR, 'ready');
+    hideRecovery();
+    if (startupTimer) {
+      clearTimeout(startupTimer);
+      startupTimer = null;
+    }
+    if (pollTimer) {
+      clearInterval(pollTimer);
+      pollTimer = null;
     }
   }
 
   function pollVisibility() {
+    if (isAppReady()) return;
     if (document.visibilityState === 'hidden') return;
     if (isRecoveryVisible()) return;
-
     if (hasMeaningfulContent()) {
-      blankStreak = 0;
       markBootReady();
-      if (startupTimer) {
-        clearTimeout(startupTimer);
-        startupTimer = null;
-      }
-      return;
-    }
-
-    if (isSplashVisible() || isBundleStillLoading()) {
-      blankStreak = 0;
-      return;
-    }
-
-    blankStreak += 1;
-    if (blankStreak >= BLANK_STREAK_LIMIT) {
-      showRecovery('blank_shell');
     }
   }
 
@@ -202,7 +180,7 @@
         script.addEventListener('load', function () { bundleLoaded = true; });
         script.addEventListener('error', function () {
           bundleFailed = true;
-          showRecovery('chunk_error');
+          if (!isAppReady()) showRecovery('chunk_error');
         });
       })(scripts[i]);
     }
@@ -219,15 +197,17 @@
   document.documentElement.setAttribute(BOOT_ATTR, 'pending');
   watchBundleScripts();
 
-  pollTimer = setInterval(pollVisibility, 800);
+  pollTimer = setInterval(pollVisibility, 500);
 
   startupTimer = setTimeout(function () {
+    if (isAppReady()) return;
     if (!hasMeaningfulContent() && !isSplashVisible() && !isBundleStillLoading()) {
       showRecovery('startup_timeout');
     }
   }, STARTUP_TIMEOUT_MS);
 
   window.addEventListener('error', function (event) {
+    if (isAppReady()) return;
     var msg = String(event.message || '');
     var file = String(event.filename || '');
     var isFatal =
@@ -242,6 +222,7 @@
   });
 
   window.addEventListener('unhandledrejection', function (event) {
+    if (isAppReady()) return;
     var reason = event.reason;
     var msg = reason instanceof Error ? reason.message : String(reason || '');
     if (
@@ -257,13 +238,7 @@
   document.addEventListener('DOMContentLoaded', function () {
     var reloadBtn = document.getElementById('vybe-boot-reload');
     var clearBtn = document.getElementById('vybe-boot-clear-cache');
-    if (reloadBtn) {
-      reloadBtn.addEventListener('click', function () { window.location.reload(); });
-    }
-    if (clearBtn) {
-      clearBtn.addEventListener('click', function () {
-        window.__VYBE_CLEAR_CACHE_RELOAD__();
-      });
-    }
+    if (reloadBtn) reloadBtn.addEventListener('click', function () { window.location.reload(); });
+    if (clearBtn) clearBtn.addEventListener('click', function () { window.__VYBE_CLEAR_CACHE_RELOAD__(); });
   });
 })();

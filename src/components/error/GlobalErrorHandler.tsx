@@ -29,14 +29,14 @@ export function GlobalErrorHandler() {
 
       if (!hasContent) {
         showBootRecovery('chunk_error');
+      } else {
+        toast.error('Update available! 🔄', {
+          description: 'Refreshing to get the latest version...',
+          duration: 2000,
+        });
+        clearAppCache();
+        setTimeout(() => window.location.reload(), 2000);
       }
-
-      toast.error('Update available! 🔄', {
-        description: 'Refreshing to get the latest version...',
-        duration: 2000,
-      });
-      clearAppCache();
-      setTimeout(() => window.location.reload(), 2000);
     };
 
     const shouldIgnoreForSelfHeal = (msg: string) => {

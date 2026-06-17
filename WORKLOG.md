@@ -4,6 +4,18 @@ Use this file as the Lovable -> Cursor handoff each session.
 
 **Links:** [Lovable project](https://lovable.dev/projects/416714c8-d013-4aff-984d-522418a9bbc7) · [Production](https://vybehub.app) · Deploy steps: `DEPLOY.md`
 
+## Current Focus (2026-06-17 — boot watchdog false positives)
+- **Root cause:** Runtime blank-shell watchdog fired during login→home route transitions + auto cache-reload loop (login flash → recovery → reload)
+- **Fix:** Startup-only boot guard (stops after first paint); removed ShellVisibilityGuard recovery; `data-vybe-app-ready`; VybePageLoader on Suspense; SW v30
+- **Prod still stale:** vybehub.app on `index-IRTXwZnk.js` until Lovable Publish
+- **You:** Lovable **Share → Publish** + clear site data once
+
+## Current Focus (2026-06-17 — black screen hardening v2)
+- **Root cause:** Boot watchdog treated empty `#app-shell` as success → stopped monitoring → splash faded to transparent void on `#0B0B10`
+- **Fix:** Continuous blank-shell detector (never stops); meaningful-content check; `ShellVisibilityGuard`; splash/app-shell solid bg; aurora fallback gradient; SW **v28**
+- **Prod note:** vybehub.app was still on old bundle (`index-IRTXwZnk.js`, boot-guard 404) — **must Lovable Publish**
+- **You:** Lovable **Share → Publish** + clear site data on phone once
+
 ## Current Focus (2026-06-17 — black screen hardening)
 - **Done:** Pre-React `boot-guard.js` watchdog (recovery UI + clear cache); `main.tsx` try/catch boot; `BootRecoveryScreen`; SW **v27** network-first `index-*.js`; `npm run validate:boot` in debug scan; splash max 1.5s
 - **You:** Lovable **Share → Publish**; clear site data once on phone after publish

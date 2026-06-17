@@ -480,7 +480,7 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
   ] as const;
 
   return (
-    <div className="fixed inset-0 z-50 overflow-hidden overscroll-none flex items-center justify-center px-3 sm:px-4">
+    <div data-auth-shell className="fixed inset-0 z-50 overflow-hidden overscroll-none flex items-center justify-center px-3 sm:px-4">
       {!user && typeof window !== 'undefined' && !isNativeAppShell() && (
         <button
           type="button"

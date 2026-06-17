@@ -1,8 +1,8 @@
 // VYBE Service Worker
-// Version 29.0 — no empty navigation fallback; auto cache-bust boot guard
+// Version 30.0 — startup-only boot guard; no runtime blank_shell interrupts
 
-const CACHE_NAME = 'vybe-v29';
-const STATIC_CACHE = 'vybe-static-v29';
+const CACHE_NAME = 'vybe-v30';
+const STATIC_CACHE = 'vybe-static-v30';
 const MEDIA_CACHE = 'vybe-media-v2';
 const SHELL_CACHE = 'vybe-shell-v4';
 const ASSETS_CACHE = 'vybe-assets-v4';

@@ -74,6 +74,7 @@ const RealtimeSyncMount = () => {
   }, []);
   return ready ? <RealtimeSyncInner /> : null;
 };
+import { VybePageLoader } from '@/components/ui/VybeLoader';
 import { AnimatedRoutes } from "@/components/layout/AnimatedRoutes";
 import { SkipToMain, LiveRegion } from "@/components/a11y/Accessibility";
 import { AppBackgroundProvider } from "@/components/layout/AppBackground";
@@ -95,6 +96,8 @@ import { readSplashCompleted, markSplashCompleted } from "@/lib/splashSession";
 import { navVisibility } from "@/lib/navVisibility";
 import { markBootComplete } from "@/lib/bootGuard";
 import { ShellVisibilityGuard } from "@/components/system/ShellVisibilityGuard";
+
+const APP_READY_ATTR = 'data-vybe-app-ready';
 
 // Lazy-load non-critical overlays and providers to reduce initial bundle
 const EasterEggProvider = lazy(() => import("@/components/easter-eggs/EasterEggProvider").then(m => ({ default: m.EasterEggProvider })));
@@ -216,7 +219,10 @@ function completeInitialSplash(setShowSplash: (v: boolean) => void) {
   navVisibility.forceShow();
   navVisibility.resetScrollHide();
   requestAnimationFrame(() => {
-    requestAnimationFrame(() => markBootComplete());
+    requestAnimationFrame(() => {
+      document.documentElement.setAttribute(APP_READY_ATTR, 'true');
+      markBootComplete();
+    });
   });
 }
 
@@ -413,7 +419,7 @@ function AppWithPreloader() {
         <AppBackgroundProvider>
           <CustomThemeProvider>
             <ThemeTransitionProvider>
-              <Suspense fallback={null}>
+              <Suspense fallback={<VybePageLoader delay={0} />}>
                 <EasterEggProvider>
                   <CallStoreProvider>
                     <StreakProvider>
@@ -430,11 +436,11 @@ function AppWithPreloader() {
                             data-app-shell
                             className="relative z-[1] min-h-dvh bg-background"
                           >
-                          <Suspense fallback={null}>
+                          <Suspense fallback={<VybePageLoader delay={0} />}>
                             <RewardNotificationProvider>
                               <DebugPanelProvider>
                                 <BugRecheckProvider>
-                                <Suspense fallback={null}>
+                                <Suspense fallback={<VybePageLoader delay={0} />}>
                                   <TutorialProvider>
                                     <NavigationRefSetter />
                                     <ScrollRestoration />
