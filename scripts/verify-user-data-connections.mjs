@@ -55,7 +55,7 @@ const TABLES = {
   collab_posts:           ['user_id'],
   collab_post_invites:    ['inviter_id', 'invitee_id', 'user_id'],
   post_collaborators:     ['user_id'],
-  stories: undefined, // covered separately if exists
+  stories:                ['user_id', 'author_id'],
   bookmarks:              ['user_id'],
   story_likes:            ['user_id'],
   notifications:          ['user_id', 'actor_id'],
