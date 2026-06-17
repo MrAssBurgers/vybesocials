@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth';
+import { useAuthProfileId } from '@/hooks/useAuthProfileId';
 
 /**
  * Get mutual friends between current user and target user.
@@ -8,21 +9,21 @@ import { useAuth } from '@/lib/auth';
  */
 export function useMutualFriends(targetUserId?: string) {
   const { user } = useAuth();
+  const profileId = useAuthProfileId();
 
   return useQuery({
-    queryKey: ['mutual-friends', user?.id, targetUserId],
+    queryKey: ['mutual-friends', profileId, targetUserId],
     queryFn: async () => {
-      if (!user?.id || !targetUserId || user.id === targetUserId) return [];
+      if (!profileId || !targetUserId || profileId === targetUserId) return [];
 
-      // Get current user's friends
       const { data: myFriends } = await db
         .from('friend_requests')
         .select('sender_id, receiver_id')
         .eq('status', 'accepted')
-        .or(`sender_id.eq.${user.id},receiver_id.eq.${user.id}`);
+        .or(`sender_id.eq.${profileId},receiver_id.eq.${profileId}`);
 
       const myFriendIds = new Set(
-        (myFriends || []).map(f => f.sender_id === user.id ? f.receiver_id : f.sender_id)
+        (myFriends || []).map(f => f.sender_id === profileId ? f.receiver_id : f.sender_id)
       );
 
       // Get target user's friends
@@ -49,7 +50,7 @@ export function useMutualFriends(targetUserId?: string) {
 
       return profiles || [];
     },
-    enabled: !!user?.id && !!targetUserId && user.id !== targetUserId,
+    enabled: !!profileId && !!targetUserId && profileId !== targetUserId,
     staleTime: 60000,
   });
 }
@@ -93,38 +94,36 @@ function ageWindow(myAge: number): { min: number; max: number } {
  */
 export function useSuggestedFriends() {
   const { user } = useAuth();
+  const profileId = useAuthProfileId();
 
   return useQuery({
-    queryKey: ['suggested-friends', user?.id],
+    queryKey: ['suggested-friends', profileId],
     queryFn: async () => {
-      if (!user?.id) return [];
+      if (!profileId) return [];
 
-      // Resolve my profile id + age from auth.uid()
       const { data: meProfile } = await db
         .from('profiles')
         .select('id, date_of_birth')
-        .eq('user_id', user.id)
+        .eq('id', profileId)
         .maybeSingle();
 
       const myAge = calcAge((meProfile as any)?.date_of_birth);
       const window = myAge !== null ? ageWindow(myAge) : null;
 
-      // Get current user's friends
       const { data: myFriends } = await db
         .from('friend_requests')
         .select('sender_id, receiver_id')
         .eq('status', 'accepted')
-        .or(`sender_id.eq.${user.id},receiver_id.eq.${user.id}`);
+        .or(`sender_id.eq.${profileId},receiver_id.eq.${profileId}`);
 
       const myFriendIds = new Set<string>(
-        (myFriends || []).map(f => String(f.sender_id === user.id ? f.receiver_id : f.sender_id))
+        (myFriends || []).map(f => String(f.sender_id === profileId ? f.receiver_id : f.sender_id))
       );
-      myFriendIds.add(user.id); // Exclude self
+      myFriendIds.add(profileId);
 
-      if (myFriendIds.size <= 1) return []; // No friends yet
+      if (myFriendIds.size <= 1) return [];
 
-      // Get friends of friends
-      const friendIdsArr = [...myFriendIds].filter(id => id !== user.id);
+      const friendIdsArr = [...myFriendIds].filter(id => id !== profileId);
       const fofCounts = new Map<string, { count: number; viaFriends: string[] }>();
 
       // For each friend, get their friends
@@ -178,7 +177,7 @@ export function useSuggestedFriends() {
         .sort((a, b) => b.mutual_count - a.mutual_count)
         .slice(0, 15);
     },
-    enabled: !!user?.id,
+    enabled: !!profileId,
     staleTime: 300000, // 5 min cache
   });
 }
@@ -187,22 +186,21 @@ export function useSuggestedFriends() {
  * Check if friends of friends are attending a specific event
  */
 export function useFriendsAtEvent(eventId?: string) {
-  const { user } = useAuth();
+  const profileId = useAuthProfileId();
 
   return useQuery({
-    queryKey: ['friends-at-event', user?.id, eventId],
+    queryKey: ['friends-at-event', profileId, eventId],
     queryFn: async () => {
-      if (!user?.id || !eventId) return { friends: [], fof: [] };
+      if (!profileId || !eventId) return { friends: [], fof: [] };
 
-      // Get current user's friends
       const { data: myFriends } = await db
         .from('friend_requests')
         .select('sender_id, receiver_id')
         .eq('status', 'accepted')
-        .or(`sender_id.eq.${user.id},receiver_id.eq.${user.id}`);
+        .or(`sender_id.eq.${profileId},receiver_id.eq.${profileId}`);
 
       const myFriendIds = new Set(
-        (myFriends || []).map(f => f.sender_id === user.id ? f.receiver_id : f.sender_id)
+        (myFriends || []).map(f => f.sender_id === profileId ? f.receiver_id : f.sender_id)
       );
 
       // Get event attendees
@@ -234,7 +232,7 @@ export function useFriendsAtEvent(eventId?: string) {
 
         for (const f of theirFriends || []) {
           const fofId = f.sender_id === friendId ? f.receiver_id : f.sender_id;
-          if (myFriendIds.has(fofId) || fofId === user.id) continue;
+          if (myFriendIds.has(fofId) || fofId === profileId) continue;
           if (attendeeIds.has(fofId)) {
             const rsvp = (rsvps || []).find(r => r.user_id === fofId);
             if (rsvp && !fofAtEvent.some(e => e.user_id === fofId)) {
@@ -246,7 +244,7 @@ export function useFriendsAtEvent(eventId?: string) {
 
       return { friends, fof: fofAtEvent };
     },
-    enabled: !!user?.id && !!eventId,
+    enabled: !!profileId && !!eventId,
     staleTime: 60000,
   });
 }

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth';
+import { useAuthProfileId } from '@/hooks/useAuthProfileId';
 
 export interface LearningSignals {
   likes30d: number;
@@ -14,27 +15,26 @@ export interface LearningSignals {
 
 export function useLearningSignals() {
   const { user } = useAuth();
+  const profileId = useAuthProfileId();
   const [data, setData] = useState<LearningSignals | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!user?.id) return;
+    if (!user?.id || !profileId) return;
     let active = true;
     (async () => {
       const since = new Date(Date.now() - 30 * 86400_000).toISOString();
-      // fetch profile.id once for comments lookups (uses profile id)
-      const { data: prof } = await db.from('profiles').select('id').eq('user_id', user.id).maybeSingle();
-      const profId = prof?.id || user.id;
+      const socialId = profileId;
 
       const [likesR, followsR, commentsR, sessionsR, dnaR, recentLikesR, recentFollowsR, recentCommentsR] = await Promise.all([
-        db.from('likes').select('id', { count: 'exact', head: true }).eq('user_id', user.id).gte('created_at', since),
-        db.from('follows').select('id', { count: 'exact', head: true }).eq('follower_id', user.id).gte('created_at', since),
-        db.from('comments').select('id', { count: 'exact', head: true }).eq('user_id', profId).gte('created_at', since),
+        db.from('likes').select('id', { count: 'exact', head: true }).eq('user_id', socialId).gte('created_at', since),
+        db.from('follows').select('id', { count: 'exact', head: true }).eq('follower_id', socialId).gte('created_at', since),
+        db.from('comments').select('id', { count: 'exact', head: true }).eq('user_id', socialId).gte('created_at', since),
         db.from('screen_time_sessions').select('duration_seconds').eq('user_id', user.id).gte('started_at', since),
         db.from('vybe_dna').select('interests,active_hours').eq('user_id', user.id).maybeSingle(),
-        db.from('likes').select('reaction_type,created_at,post_id').eq('user_id', user.id).order('created_at', { ascending: false }).limit(8),
-        db.from('follows').select('following_id,created_at').eq('follower_id', user.id).order('created_at', { ascending: false }).limit(8),
-        db.from('comments').select('text,created_at').eq('user_id', profId).order('created_at', { ascending: false }).limit(6),
+        db.from('likes').select('reaction_type,created_at,post_id').eq('user_id', socialId).order('created_at', { ascending: false }).limit(8),
+        db.from('follows').select('following_id,created_at').eq('follower_id', socialId).order('created_at', { ascending: false }).limit(8),
+        db.from('comments').select('text,created_at').eq('user_id', socialId).order('created_at', { ascending: false }).limit(6),
       ]);
 
       if (!active) return;
@@ -57,7 +57,7 @@ export function useLearningSignals() {
       setLoading(false);
     })();
     return () => { active = false; };
-  }, [user?.id]);
+  }, [user?.id, profileId]);
 
   return { data, loading };
 }
