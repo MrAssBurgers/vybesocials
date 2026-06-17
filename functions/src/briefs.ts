@@ -5,7 +5,7 @@
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { onSchedule } from 'firebase-functions/v2/scheduler';
 import { db, requireAuth, messaging } from './_shared/admin.js';
-import { chatCompletion } from './_shared/lovableAi.js';
+import { chatCompletion } from './_shared/geminiAi.js';
 
 function slot(d = new Date()): 'morning' | 'midday' | 'evening' {
   const h = d.getUTCHours();
@@ -32,7 +32,7 @@ async function generateBrief(uid: string, currentSlot: string) {
   return content;
 }
 
-export const briefTopicDetail = onCall({ secrets: ['LOVABLE_API_KEY'] }, async (request) => {
+export const briefTopicDetail = onCall({ secrets: ['GEMINI_API_KEY'] }, async (request) => {
   const uid = requireAuth(request);
   const { topic } = (request.data || {}) as any;
   if (!topic) throw new HttpsError('invalid-argument', 'topic required');
@@ -47,7 +47,7 @@ export const briefTopicDetail = onCall({ secrets: ['LOVABLE_API_KEY'] }, async (
 });
 
 /** Prewarm briefs for active users — runs every 6 hours. */
-export const prewarmDailyBriefs = onSchedule({ schedule: 'every 6 hours', secrets: ['LOVABLE_API_KEY'] }, async () => {
+export const prewarmDailyBriefs = onSchedule({ schedule: 'every 6 hours', secrets: ['GEMINI_API_KEY'] }, async () => {
   const currentSlot = slot();
   const since = new Date(Date.now() - 7 * 86400_000).toISOString();
   const active = await db.collection('profiles').where('last_active_at', '>=', since).limit(500).get();

@@ -19,13 +19,13 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { getEdgeFunctionUrl, getFunctionAuthHeaders, formatAiChatError } from '@/lib/functionAuth';
-import { getCanonicalPublishableKey } from '@/lib/canonicalSupabase';
-import { formatFirebaseAiError, filterAiChatHistoryForApi, isAiLogicConfigured, streamVybeAiChat } from '@/lib/firebase';
+import { formatAiChatError } from '@/lib/functionAuth';
+import { db, formatFirebaseAiError, filterAiChatHistoryForApi, isAiLogicConfigured, streamVybeAiChat } from '@/lib/firebase';
 import { useVybeAgent, shouldFallbackToAiChat, isAgentAuthError, isAgentUnavailableError } from '@/lib/agent/useVybeAgent';
 import { shouldSkipAgentDueToAuth, clearAgentAuthFailure, messageWantsCloudAgent } from '@/lib/agent/aiChatRouting';
 import { parseLocalAgentPlan } from '@/lib/agent/localAgentCommands';
-import { isAgentMarkedUnavailable, markAgentUnavailable } from '@/lib/agent/agentAvailability';
+import { isAgentMarkedUnavailable } from '@/lib/agent/agentAvailability';
+import { useAgentAvailabilityProbe } from '@/hooks/useAgentAvailabilityProbe';
 import { formatAgentActionSummary } from '@/lib/agent/formatActionSummary';
 import { cn } from '@/lib/utils';
 import { VybeMiniIcon } from '@/components/ui/VybeMiniIcon';
@@ -171,22 +171,7 @@ export default function AIChat() {
   useEffect(() => { setEditName(aiName); setEditPersonality(aiPersonality); }, [aiName, aiPersonality]);
   useEffect(() => { inputRef.current?.focus(); }, []);
 
-  // Skip vybe-agent when edge fn is not deployed (404) — avoids 8s+ delay before ai-chat.
-  useEffect(() => {
-    if (isAgentMarkedUnavailable()) return;
-    fetch(getEdgeFunctionUrl('vybe-agent'), {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        apikey: getCanonicalPublishableKey(),
-      },
-      body: JSON.stringify({ messages: [{ role: 'user', content: 'ping' }] }),
-    })
-      .then((res) => {
-        if (res.status === 404) markAgentUnavailable();
-      })
-      .catch(() => {});
-  }, []);
+  useAgentAvailabilityProbe();
 
   useEffect(() => {
     if (locationEnabled && navigator.geolocation) {
@@ -450,41 +435,12 @@ export default function AIChat() {
     }, 100);
     let acc = '';
     try {
-      const headers = await getFunctionAuthHeaders();
-      const response = await fetch(
-        getEdgeFunctionUrl('ai-humanize'),
-        { method: 'POST', headers, body: JSON.stringify({ text, tone: humanizerTone }) }
-      );
-      if (!response.ok) {
-        if (response.status === 429) { toast.error('Slow down — try again in a moment'); return; }
-        if (response.status === 402) { toast.error('AI credits exhausted'); return; }
-        throw new Error('Humanizer failed');
-      }
-      const reader = response.body?.getReader();
-      const decoder = new TextDecoder();
-      if (!reader) throw new Error('No reader');
-      let buffer = '';
-      let streamDone = false;
-      while (!streamDone) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        buffer += decoder.decode(value, { stream: true });
-        let idx: number;
-        while ((idx = buffer.indexOf('\n')) !== -1) {
-          let line = buffer.slice(0, idx);
-          buffer = buffer.slice(idx + 1);
-          if (line.endsWith('\r')) line = line.slice(0, -1);
-          if (line.startsWith(':') || line.trim() === '') continue;
-          if (!line.startsWith('data: ')) continue;
-          const jsonStr = line.slice(6).trim();
-          if (jsonStr === '[DONE]') { streamDone = true; break; }
-          try {
-            const parsed = JSON.parse(jsonStr);
-            const content = parsed.choices?.[0]?.delta?.content;
-            if (content) { acc += content; setHumanizerOutput(acc); }
-          } catch { buffer = line + '\n' + buffer; break; }
-        }
-      }
+      const { data, error } = await db.functions.invoke('ai-humanize', {
+        body: { text, tone: humanizerTone },
+      });
+      if (error) throw error;
+      acc = typeof data?.result === 'string' ? data.result : '';
+      if (acc) setHumanizerOutput(acc);
       setHumanizerProgress(100);
     } catch (e) {
       console.error(e);
@@ -515,17 +471,8 @@ export default function AIChat() {
       setDetectorStage(s.label);
     }, s.at));
     try {
-      const headers = await getFunctionAuthHeaders();
-      const response = await fetch(
-        getEdgeFunctionUrl('ai-detect-text'),
-        { method: 'POST', headers, body: JSON.stringify({ text }) }
-      );
-      if (!response.ok) {
-        if (response.status === 429) { toast.error('Slow down — try again in a moment'); return; }
-        if (response.status === 402) { toast.error('AI credits exhausted'); return; }
-        throw new Error('Detector failed');
-      }
-      const data = await response.json();
+      const { data, error } = await db.functions.invoke('ai-detect-text', { body: { text } });
+      if (error) throw error;
       setDetectorProgress(100);
       setDetectorStage('Done');
       setDetectorResult(data);

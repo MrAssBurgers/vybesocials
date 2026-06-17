@@ -3,9 +3,16 @@
  */
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { requireAuth, requireAdmin, db } from './_shared/admin.js';
-import { chatCompletion } from './_shared/lovableAi.js';
+import { chatCompletion } from './_shared/geminiAi.js';
+import {
+  AGENT_NAV_PATHS,
+  AGENT_TOOL_NAME,
+  buildVybeAgentActTool,
+  parseAgentPlan,
+  THEME_PRESET_KEYS,
+} from './_shared/agentToolSchema.js';
 
-const SECRETS = ['LOVABLE_API_KEY'];
+const SECRETS = ['GEMINI_API_KEY'];
 
 function simpleAI(systemPrompt: string) {
   return onCall({ secrets: SECRETS }, async (request) => {
@@ -25,7 +32,6 @@ function simpleAI(systemPrompt: string) {
 
 export const aiAdaptiveResponse = simpleAI('Adapt the user message to match the recipient\'s vibe. Return a short reply.');
 export const aiAutoFix = simpleAI('Fix grammar, spelling, and clarity in the user\'s text. Return only the corrected text.');
-export const aiDetectText = simpleAI('Detect what language and intent the input represents. Return JSON: {"language":"en","intent":"...","confidence":0.9}.');
 export const aiEnhancePhoto = simpleAI('Suggest 3 specific photo edits (crop, filter, color) for the described image.');
 export const generateChallenges = simpleAI('Generate 5 short creative challenges in JSON array. Each: {"title","description","difficulty"}.');
 export const generateCustomAnimations = simpleAI('Suggest 3 CSS keyframe animations matching the description. Return JSON: [{"name","keyframes","duration"}].');
@@ -129,22 +135,84 @@ export const dnaAutopilotRevert = onCall(async (request) => {
   return { ok: true };
 });
 
-// Vybe agent / commander
+// Vybe agent / commander — Gemini tool-calling for app control + chat
 export const vybeAgent = onCall({ secrets: SECRETS }, async (request) => {
   const uid = requireAuth(request);
-  const { message, history } = (request.data || {}) as any;
-  const { content } = await chatCompletion({
-    messages: [
-      { role: 'system', content: 'You are the VYBE Agent — a multimodal assistant. Be concise, helpful, and on-brand (Gen-Z, playful).' },
-      ...(Array.isArray(history) ? history.slice(-10) : []),
-      { role: 'user', content: message || '' },
-    ],
-    temperature: 0.7,
+  const {
+    messages,
+    aiName,
+    aiPersonality,
+    location,
+    context,
+  } = (request.data || {}) as {
+    messages?: { role: string; content: string }[];
+    aiName?: string;
+    aiPersonality?: string;
+    location?: { city?: string; lat?: number; lng?: number };
+    context?: {
+      route?: string;
+      layout?: { order?: string[]; hidden?: string[] };
+      currentPreset?: string;
+      widgetCatalog?: string[];
+    };
+  };
+
+  if (!messages?.length) throw new HttpsError('invalid-argument', 'messages required');
+
+  const [dnaSnap, profileSnap, prefsSnap] = await Promise.all([
+    db.collection('vybe_dna').doc(uid).get(),
+    db.collection('profiles').where('user_id', '==', uid).limit(1).get(),
+    db.collection('dna_content_preferences').doc(uid).get(),
+  ]);
+  const dna = dnaSnap.data() || {};
+  const profile = profileSnap.docs[0]?.data() || {};
+  const prefs = prefsSnap.data() || {};
+  const pv = (dna.personality_vector || {}) as Record<string, number>;
+  const interests = (profile.interests || profile.onboarding_interests || []) as string[];
+  const name = (aiName || 'VYBE-AI').slice(0, 50);
+  const personality = (aiPersonality || 'Friendly, helpful, concise.').slice(0, 500);
+  const locCtx = location
+    ? `Location: ${location.city || 'nearby'} (${Number(location.lat).toFixed(2)}, ${Number(location.lng).toFixed(2)}).`
+    : 'Location not enabled.';
+  const widgetCatalog = context?.widgetCatalog?.join(', ') ||
+    'greeting, stories, xp_streak, ai_brief, vybe_dna, wallet, shop, communities, feed';
+
+  const systemPrompt = `You are ${name}, the unified VYBE AI agent — chat companion AND app controller.
+PERSONALITY: ${personality}
+USER: ${profile.display_name || 'friend'}
+DNA: Activity ${Math.round((pv.activity || 0) * 100)}% | Social ${Math.round((pv.social || 0) * 100)}% | Creative ${Math.round((pv.creative || 0) * 100)}%
+Interests: ${interests.slice(0, 10).join(', ') || 'not set'}
+Boosted: ${(prefs.boost_topics || []).join(', ') || 'none'}
+${locCtx}
+APP: route ${context?.route || '/home'} | theme ${context?.currentPreset || 'classic'}
+Widgets visible: ${context?.layout?.order?.filter((id) => !(context?.layout?.hidden || []).includes(id))?.join(', ') || 'default'}
+Widget catalog: ${widgetCatalog}
+Allowed paths: ${AGENT_NAV_PATHS.join(', ')}
+Theme presets: ${THEME_PRESET_KEYS.join(', ')}
+Always call ${AGENT_TOOL_NAME} with message + actions. Pure questions → actions: []. Be concise.`;
+
+  const sanitized = messages.slice(-20).map((m) => ({
+    role: m.role === 'assistant' ? 'assistant' as const : 'user' as const,
+    content: String(m.content || '').slice(0, 4000),
+  }));
+
+  const { toolCalls } = await chatCompletion({
+    model: 'gemini-2.5-flash',
+    messages: [{ role: 'system', content: systemPrompt }, ...sanitized],
+    tools: [buildVybeAgentActTool()],
+    tool_choice: { type: 'function', function: { name: AGENT_TOOL_NAME } },
   });
-  await db.collection('analytics_events').add({
-    user_id: uid, event: 'vybe_agent_query', created_at: new Date().toISOString(),
-  });
-  return { ok: true, content };
+
+  const toolCall = (toolCalls as { function?: { arguments?: string } }[] | undefined)?.[0];
+  if (toolCall?.function?.arguments) {
+    const result = parseAgentPlan(JSON.parse(toolCall.function.arguments));
+    await db.collection('analytics_events').add({
+      user_id: uid, event: 'vybe_agent_query', created_at: new Date().toISOString(),
+    });
+    return result;
+  }
+
+  return { message: 'How can I help?', actions: [] };
 });
 
 export const vybeCommander = onCall({ secrets: SECRETS }, async (request) => {

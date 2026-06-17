@@ -140,7 +140,7 @@ export const checkPremiumSubscription = onCall(async (request) => {
 export const checkDebugSecrets = onCall(async (request) => {
   await requireAdmin(request);
   return {
-    has_lovable_key: !!process.env.LOVABLE_API_KEY,
+    has_gemini_key: !!process.env.GEMINI_API_KEY,
     has_livekit: !!process.env.LIVEKIT_API_KEY,
     has_stripe: !!process.env.STRIPE_SECRET_KEY,
     has_giphy: !!process.env.GIPHY_API_KEY,

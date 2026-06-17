@@ -1,8 +1,8 @@
 import { useCallback } from 'react';
 import { useLocation } from 'react-router-dom';
 import { recordAgentAuthFailure } from '@/lib/agent/aiChatRouting';
-import { getEdgeFunctionUrl, getFunctionAuthHeaders, refreshAuthSessionWithTimeout } from '@/lib/functionAuth';
-import { fetchWithTimeout } from '@/lib/withTimeout';
+import { refreshAuthSessionWithTimeout } from '@/lib/functionAuth';
+import { invokeFunction } from '@/lib/firebase/functionsService';
 import { useHomeLayout, ALL_WIDGETS } from '@/hooks/useHomeLayout';
 import { useAgentActions } from '@/lib/agent/useAgentActions';
 import { markAgentUnavailable, clearAgentUnavailableMark } from '@/lib/agent/agentAvailability';
@@ -25,13 +25,13 @@ export class AgentRequestError extends Error {
   }
 }
 
-/** True when vybe-agent edge fn is missing or unreachable — safe to fall back to ai-chat */
+/** True when vybe-agent is missing or unreachable — safe to fall back to ai-chat */
 export function isAgentUnavailableError(err: unknown): boolean {
   if (err instanceof AgentRequestError) {
     return err.status === 404 || err.status === 502 || err.status === 503;
   }
   if (err instanceof Error) {
-    return /fetch|network|timeout|Failed to fetch|abort/i.test(err.message);
+    return /fetch|network|timeout|Failed to fetch|abort|not_yet_ported/i.test(err.message);
   }
   return false;
 }
@@ -43,7 +43,6 @@ export function isAgentAuthError(err: unknown): boolean {
 /** Whether a failed agent request should fall back to streaming ai-chat instead of stopping */
 export function shouldFallbackToAiChat(err: unknown): boolean {
   if (err instanceof AgentRequestError) {
-    // 401 uses the same JWT gate as ai-chat — fallback would hang or double-fail silently
     if (err.status === 401) return false;
     return (
       err.status === 404 ||
@@ -57,20 +56,6 @@ export function shouldFallbackToAiChat(err: unknown): boolean {
     return /fetch|network|timeout|Failed to fetch|abort/i.test(err.message);
   }
   return true;
-}
-
-async function parseAgentResponseBody(res: Response): Promise<{
-  message?: string;
-  actions?: unknown[];
-  error?: string;
-}> {
-  const text = await res.text();
-  if (!text) return {};
-  try {
-    return JSON.parse(text) as { message?: string; actions?: unknown[]; error?: string };
-  } catch {
-    return { error: text.slice(0, 200) || res.statusText };
-  }
 }
 
 export function useVybeAgent() {
@@ -87,7 +72,7 @@ export function useVybeAgent() {
     };
   }, [layout.hidden, layout.order, location.pathname]);
 
-  const postVybeAgent = useCallback(
+  const callVybeAgent = useCallback(
     async (
       options: {
         messages: AgentChatMessage[];
@@ -97,87 +82,68 @@ export function useVybeAgent() {
         location?: { lat: number; lng: number; city?: string } | null;
       },
       retriedAfterRefresh = false,
-    ): Promise<Response> => {
-      const headers = await getFunctionAuthHeaders();
-      const res = await fetchWithTimeout(
-        getEdgeFunctionUrl('vybe-agent'),
-        {
-          method: 'POST',
-          headers,
-          body: JSON.stringify({
-            messages: options.messages,
-            aiName: options.aiName,
-            aiPersonality: options.aiPersonality,
-            feedDNA: options.feedDNA,
-            location: options.location,
-            context: buildContext(),
-          }),
-        },
-        8_000,
-      );
+    ): Promise<AgentPlan & { error?: string }> => {
+      const { data, error } = await invokeFunction<AgentPlan & { error?: string }>('vybe-agent', {
+        messages: options.messages,
+        aiName: options.aiName,
+        aiPersonality: options.aiPersonality,
+        feedDNA: options.feedDNA,
+        location: options.location,
+        context: buildContext(),
+      });
 
-      if (res.status === 404) {
-        markAgentUnavailable();
-      }
-
-      if (res.status === 401 && !retriedAfterRefresh) {
-        try {
-          const { data: refreshed, error } = await refreshAuthSessionWithTimeout();
-          if (!error && refreshed.session?.access_token) {
-            return postVybeAgent(options, true);
+      if (error) {
+        const code = error.name || '';
+        if (
+          (code === 'unauthenticated' || /unauthenticated|Not authenticated/i.test(error.message)) &&
+          !retriedAfterRefresh
+        ) {
+          try {
+            const { data: refreshed, error: refreshErr } = await refreshAuthSessionWithTimeout();
+            if (!refreshErr && refreshed.session?.access_token) {
+              return callVybeAgent(options, true);
+            }
+          } catch {
+            recordAgentAuthFailure();
           }
-        } catch {
           recordAgentAuthFailure();
+          throw new AgentRequestError('Session expired — sign out and back in, then try again', 401);
         }
-        recordAgentAuthFailure();
+        if (code === 'not_found' || code === 'not_yet_ported') {
+          markAgentUnavailable();
+          throw new AgentRequestError(error.message, 404);
+        }
+        throw new AgentRequestError(error.message, 500);
       }
 
-      return res;
-    },
-    [buildContext, location.pathname],
-  );
-
-  const sendAgentMessage = useCallback(
-    async (options: {
-      messages: AgentChatMessage[];
-      aiName?: string;
-      aiPersonality?: string;
-      feedDNA?: boolean;
-      location?: { lat: number; lng: number; city?: string } | null;
-    }): Promise<AgentPlan & { error?: string }> => {
-      const res = await postVybeAgent(options);
-      const raw = await parseAgentResponseBody(res);
-
-      if (!res.ok) {
-        const msg =
-          res.status === 401
-            ? 'Session expired — sign out and back in, then try again'
-            : raw.error || 'Agent request failed';
-        throw new AgentRequestError(msg, res.status);
+      if (data?.error) {
+        throw new AgentRequestError(data.error, 500);
       }
 
-      const validated = validatePlan(raw);
-      if (validated) {
-        clearAgentUnavailableMark();
-        return validated;
-      }
+      clearAgentUnavailableMark();
+      const validated = validatePlan(data);
+      if (validated) return validated;
 
       const message =
-        typeof raw.message === 'string' && raw.message.trim() ? raw.message.trim() : 'Done!';
-      const actions = (Array.isArray(raw.actions) ? raw.actions : [])
+        typeof data?.message === 'string' && data.message.trim() ? data.message.trim() : 'Done!';
+      const actions = (Array.isArray(data?.actions) ? data.actions : [])
         .map((a) => bus.validateAction(a))
         .filter((a): a is AgentAction => a !== null);
 
       return { message, actions };
     },
-    [postVybeAgent, validatePlan, bus],
+    [buildContext, validatePlan, bus],
+  );
+
+  const sendAgentMessage = useCallback(
+    async (options: Parameters<typeof callVybeAgent>[0]) => callVybeAgent(options),
+    [callVybeAgent],
   );
 
   const sendAndExecute = useCallback(
     async (options: Parameters<typeof sendAgentMessage>[0]) => {
       const plan = await sendAgentMessage(options);
       const batch = await executePlan(plan);
-
       return { ...plan, batch };
     },
     [executePlan, sendAgentMessage],

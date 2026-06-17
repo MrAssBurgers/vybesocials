@@ -20,6 +20,7 @@ import { bindAppScrollHideContainer } from '@/lib/scrollHideSync';
 import { navVisibility } from '@/lib/navVisibility';
 import { setThemePreviewLock } from '@/hooks/useCustomTheme';
 import { SelfNowPlayingPill } from '@/components/music/SelfNowPlayingPill';
+import { MigrationAccountNotice } from '@/components/system/MigrationAccountNotice';
 
 interface AppLayoutProps {
   children: ReactNode;
@@ -38,7 +39,7 @@ export const AppLayout = memo(forwardRef<HTMLDivElement, AppLayoutProps>(functio
   hideNav = false,
   noPadding = false,
 }, ref) {
-  const { loading } = useAuth();
+  const { loading, user } = useAuth();
   const location = useLocation();
   const hasStoredSession = hasStoredSupabaseSession();
   const { isDesktop } = useBreakpoint();
@@ -102,6 +103,7 @@ export const AppLayout = memo(forwardRef<HTMLDivElement, AppLayoutProps>(functio
                   fullWidth ? '' : 'max-w-full',
                 )}
               >
+                {user && <MigrationAccountNotice variant="app" />}
                 {children}
               </div>
             </main>
@@ -159,6 +161,7 @@ export const AppLayout = memo(forwardRef<HTMLDivElement, AppLayoutProps>(functio
               transition: swipeProgress === 0 ? 'transform 0.2s ease-out' : undefined,
             }}
           >
+            {user && <MigrationAccountNotice variant="app" />}
             {children}
           </main>
 

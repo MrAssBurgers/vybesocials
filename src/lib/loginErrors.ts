@@ -1,8 +1,9 @@
-/** User-facing copy when Supabase returns invalid_credentials. */
+const MIGRATION_LOGIN_ERROR =
+  'VYBE was upgraded — your old password will not work. Tap Forgot password to set a new one, or sign in with Google or Apple if you used those.';
+
+/** User-facing copy when auth returns invalid_credentials. */
 export function getLoginCredentialErrorMessage(): string {
-  return (
-    'Invalid email or password. Use Google or Apple if you signed up that way, or tap Forgot password.'
-  );
+  return MIGRATION_LOGIN_ERROR;
 }
 
 export function isInvalidLoginCredentialError(error: unknown): boolean {
@@ -11,7 +12,11 @@ export function isInvalidLoginCredentialError(error: unknown): boolean {
   const code = (err?.code || err?.error_code || '').toLowerCase();
   return (
     code === 'invalid_credentials' ||
+    code === 'auth/invalid-credential' ||
+    code === 'auth/invalid-login-credentials' ||
+    code === 'auth/wrong-password' ||
     msg.includes('invalid login credentials') ||
+    msg.includes('auth/invalid-credential') ||
     (msg.includes('invalid') && msg.includes('credential'))
   );
 }

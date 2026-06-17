@@ -1,8 +1,8 @@
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { db, requireAuth, rateLimit, enforceRateLimit } from './_shared/admin.js';
-import { chatCompletion, generateImage } from './_shared/lovableAi.js';
+import { chatCompletion, generateImage } from './_shared/geminiAi.js';
 
-const SECRETS = ['LOVABLE_API_KEY', 'GEMINI_API_KEY'];
+const SECRETS = ['GEMINI_API_KEY'];
 
 async function loadUserProfile(uid: string): Promise<Record<string, unknown>> {
   const direct = await db.collection('profiles').doc(uid).get();
@@ -121,11 +121,12 @@ export const aiMessageAssist = onCall({ secrets: SECRETS }, async (request) => {
 /** ai-humanize — make AI-sounding text natural. */
 export const aiHumanize = onCall({ secrets: SECRETS }, async (request) => {
   requireAuth(request);
-  const { text } = (request.data || {}) as { text?: string };
+  const { text, tone } = (request.data || {}) as { text?: string; tone?: string };
   if (!text) throw new HttpsError('invalid-argument', 'text required');
+  const toneHint = tone ? `Tone: ${tone}.` : '';
   const { content } = await chatCompletion({
     messages: [
-      { role: 'system', content: 'Rewrite the user text to sound natural and human. Keep meaning. Reply with just the rewritten text.' },
+      { role: 'system', content: `Rewrite text to sound natural and human. ${toneHint} Keep meaning. Reply with only the rewritten text.` },
       { role: 'user', content: text },
     ],
   });
@@ -179,18 +180,62 @@ export const scanContentSafety = aiSafetyScan;
 export const scanVideoSafety = aiSafetyScan;
 export const moderateContent = aiSafetyScan;
 
-/** generate-theme / generate-advanced-theme — palette JSON. */
+/** generate-theme / generate-advanced-theme — full VYBE theme JSON for AI Vybe Designer. */
+const ADVANCED_THEME_SYSTEM = `You are an elite UI theme designer for VYBE social app.
+Return ONLY valid JSON: {"theme":{"colorPrimary":"H S% L%","colorSecondary":"...","colorAccent":"...","bgMain":"...","bgCard":"...","textPrimary":"...","textSecondary":"...","borderRadius":"medium","mode":"dark"|"light","themeName":"creative name","backgroundEffect":"aurora"|"particles"|"none"|"stars","animationSpeed":"normal","animationStyle":"smooth"}}
+Use HSL format without hsl() wrapper. Ensure WCAG contrast — text must be readable on backgrounds.`;
+
 export const generateTheme = onCall({ secrets: SECRETS }, async (request) => {
   requireAuth(request);
-  const { prompt } = (request.data || {}) as { prompt?: string };
+  const {
+    prompt,
+    interests = [],
+    selectedFont,
+    selectedAnimation,
+  } = (request.data || {}) as {
+    prompt?: string;
+    interests?: string[];
+    selectedFont?: string;
+    selectedAnimation?: { speed?: string; style?: string };
+  };
+  const userPrompt = [
+    prompt || 'A calm midnight purple VYBE theme',
+    interests.length ? `Interests: ${interests.slice(0, 8).join(', ')}` : '',
+    selectedFont ? `Font style: ${selectedFont}` : '',
+    selectedAnimation ? `Animation: ${JSON.stringify(selectedAnimation)}` : '',
+  ].filter(Boolean).join('\n');
+
   const { content } = await chatCompletion({
     messages: [
-      { role: 'system', content: 'Return JSON {primary, secondary, accent, background, foreground, muted} as HSL strings.' },
-      { role: 'user', content: prompt || 'A calm midnight purple theme' },
+      { role: 'system', content: ADVANCED_THEME_SYSTEM },
+      { role: 'user', content: userPrompt },
     ],
     response_format: { type: 'json_object' },
   });
-  try { return JSON.parse(content); } catch { return {}; }
+  try {
+    const parsed = JSON.parse(content);
+    const theme = parsed.theme || parsed;
+    if (theme && (theme.colorPrimary || theme.primary)) {
+      return { theme };
+    }
+  } catch { /* fall through */ }
+  return {
+    theme: {
+      colorPrimary: '270 70% 58%',
+      colorSecondary: '200 80% 50%',
+      colorAccent: '320 85% 60%',
+      bgMain: '240 15% 8%',
+      bgCard: '240 12% 12%',
+      textPrimary: '0 0% 98%',
+      textSecondary: '240 5% 65%',
+      borderRadius: 'medium',
+      mode: 'dark',
+      themeName: 'VYBE Midnight',
+      backgroundEffect: 'aurora',
+      animationSpeed: 'normal',
+      animationStyle: 'smooth',
+    },
+  };
 });
 export const generateAdvancedTheme = generateTheme;
 
@@ -216,11 +261,71 @@ export const generateCaption = onCall({ secrets: SECRETS }, async (request) => {
   try { return JSON.parse(content); } catch { return { captions: [] }; }
 });
 
-/** detect-ai-content — graceful no-op when AI keys missing. */
+/** detect-ai-content — VYBE Check: is this post AI-generated? */
 export const detectAiContent = onCall({ secrets: SECRETS }, async (request) => {
-  requireAuth(request);
-  const { post_id, caption } = (request.data || {}) as { post_id?: string; caption?: string };
-  return { is_ai: false, confidence: 0, reason: 'Detection skipped during migration', post_id, caption: !!caption };
+  const uid = requireAuth(request);
+  const { post_id, caption, image_base64, mime_type, content_type } =
+    (request.data || {}) as {
+      post_id?: string;
+      caption?: string;
+      image_base64?: string;
+      mime_type?: string;
+      content_type?: string;
+    };
+
+  if (!image_base64 && !caption) {
+    return { is_ai: false, confidence: 0, reason: 'No content to analyze' };
+  }
+
+  if (post_id) {
+    const postSnap = await db.collection('posts').doc(post_id).get();
+    if (postSnap.exists) {
+      const post = postSnap.data() as { user_id?: string };
+      if (post.user_id && post.user_id !== uid) {
+        const profile = await db.collection('profiles').where('user_id', '==', uid).limit(1).get();
+        const ownerOk = post.user_id === uid || profile.docs.some((d) => d.id === post.user_id);
+        if (!ownerOk) throw new HttpsError('permission-denied', 'not your post');
+      }
+    }
+  }
+
+  const parts: Array<{ type: string; [k: string]: unknown }> = [
+    {
+      type: 'text',
+      text: `Analyze if this ${content_type || 'content'} is AI-generated. Caption: "${caption || ''}". Return JSON only: {"is_ai":boolean,"confidence":0-1,"reason":"short"}`,
+    },
+  ];
+  if (image_base64) {
+    parts.push({
+      type: 'image_url',
+      image_url: { url: `data:${mime_type || 'image/jpeg'};base64,${image_base64}` },
+    });
+  }
+
+  const { content } = await chatCompletion({
+    messages: [{ role: 'user', content: parts }],
+    response_format: { type: 'json_object' },
+    temperature: 0.2,
+  });
+
+  let result = { is_ai: false, confidence: 0, reason: 'Analysis inconclusive' };
+  try {
+    result = { ...result, ...JSON.parse(content) };
+  } catch { /* keep default */ }
+
+  if (post_id) {
+    await db.collection('posts').doc(post_id).set(
+      {
+        is_ai_generated: !!result.is_ai,
+        ai_detection_confidence: result.confidence,
+        ai_detection_reason: result.reason,
+        ai_checked_at: new Date().toISOString(),
+      },
+      { merge: true },
+    );
+  }
+
+  return result;
 });
 
 /** dna-chat — short DNA-aware AI thread. */

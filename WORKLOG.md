@@ -4,6 +4,22 @@ Use this file as the Lovable -> Cursor handoff each session.
 
 **Links:** [Lovable project](https://lovable.dev/projects/416714c8-d013-4aff-984d-522418a9bbc7) · [Production](https://vybehub.app) · Deploy steps: `DEPLOY.md`
 
+## Current Focus (2026-06-17 — migration user notices)
+- **Done:** Dismissible migration banner on login (`Landing`) + in-app (`AppLayout`); updated invalid-login copy for Firebase migration; `migrate:firebase:seed-migration-notice` seeds founder announcement `firebase-migration-2026-06`
+- **You:** Users on email/password must use **Forgot password** once; OAuth unchanged
+
+## Current Focus (2026-06-17 — Firestore import complete)
+- **Done (2026-06-17):** `npm run migrate:firebase:import-lovable` → **14,927 docs** across 208 collections into `vybe-daaab`
+- **Done:** Auth seed → **152/152** Firebase Auth users (same UIDs as Supabase profiles)
+- **Verified:** `--firestore` connectivity scan → **2004/2004 refs (100%)**, 0 orphans; Firestore counts match export (posts 26, messages 843, conversations 139, etc.)
+- **Warnings:** 3 `user_backgrounds` docs dropped oversized inline `image_url` fields (>1MB) — rows imported without those fields
+- **You:** Users use **Forgot password** once (passwords not exported); Lovable **Share → Publish** for Firebase client; optional `migrate:firebase:public-media` for legacy media URLs
+
+## Current Focus (2026-06-17 — AI chat `internal` error)
+- **Done:** AI chat fallback chain — client Gemini → Supabase edge (preview + legacy session only) → Cloud Function; never surfaces raw `internal` in UI (`aiChat.ts`, `aiChatTransports.ts`, `aiChatHistory.ts`); SW **v23**
+- **Blocker:** `aiChat` Cloud Function needs **`GEMINI_API_KEY`** or **`LOVABLE_API_KEY`** in Secret Manager + redeploy; client Gemini needs **Firebase AI Logic** enabled (`firebase init ailogic` for web app)
+- **You:** Lovable **Share → Publish** after pull; set secret + `firebase deploy --only functions:aiChat --project vybe-daaab`; AI chat ⋮ → **Clear Chat** to drop old error bubbles
+
 ## Current Focus (2026-06-17 — go live)
 - **Done:** `index.html` `data-vybe-maintenance="false"` · SW **v21**
 - **Done:** AI chat fix — `toGeminiHistory()` strips leading assistant welcome + normalizes turns for Gemini (`aiChat.ts`)

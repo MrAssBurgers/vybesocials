@@ -1,71 +1,47 @@
+/**
+ * VYBE Cloud Functions — Phase 5 entry point.
+ *
+ * Real implementations live in domain modules (ai, auth, push, realtime,
+ * social). Functions still pending a full port are exported from ./stubs.js
+ * with a `not_yet_ported` response so the client never hits "function not
+ * found" during cutover.
+ *
+ * Function NAMES match the previous Supabase edge function names so client
+ * call sites (`functions.invoke('ai-chat', ...)` etc.) only need their
+ * transport swapped to `httpsCallable(functions, 'aiChat')` in Phase 6 —
+ * names are exported in camelCase to match Firebase conventions, plus the
+ * `setAdminClaim` administration helper.
+ */
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
-import { initializeApp } from 'firebase-admin/app';
-import { getFirestore } from 'firebase-admin/firestore';
-initializeApp();
-const db = getFirestore();
-/** AI chat — replace Supabase ai-chat edge function. */
-export const aiChat = onCall(async (request) => {
-    if (!request.auth)
-        throw new HttpsError('unauthenticated', 'Sign in required');
-    const { message, conversationId } = request.data;
-    if (!message?.trim())
-        throw new HttpsError('invalid-argument', 'message required');
-    // Placeholder — wire Gemini/OpenAI via env secret in production.
-    return {
-        reply: `VYBE AI (Firebase): received your message${conversationId ? ` in ${conversationId}` : ''}.`,
-        conversationId: conversationId || null,
-    };
-});
-/** LiveKit token — replace Supabase livekit-token edge function. */
-export const livekitToken = onCall(async (request) => {
-    if (!request.auth)
-        throw new HttpsError('unauthenticated', 'Sign in required');
-    return { token: null, error: 'Configure LIVEKIT credentials in Firebase secrets' };
-});
-/** Push notification sender — replace send-push-notification. */
-export const sendPushNotification = onCall(async (request) => {
-    if (!request.auth)
-        throw new HttpsError('unauthenticated', 'Sign in required');
-    const { userId, title, body } = request.data;
+import { db, auth, requireAdmin } from './_shared/admin.js';
+export * from './ai.js';
+export * from './aiExtras.js';
+export * from './aiDetectText.js';
+export * from './auth.js';
+export * from './briefs.js';
+export * from './email.js';
+export * from './passkeys.js';
+export * from './push.js';
+export * from './realtime.js';
+export * from './social.js';
+export * from './spotify.js';
+export * from './stripe.js';
+export * from './stubs.js';
+/**
+ * Promote a user to admin via custom claim. Bootstrap the first admin
+ * manually in Firebase Console → Authentication → User → Custom Claims:
+ * `{ "admin": true }`. After that, this callable can manage further admins.
+ */
+export const setAdminClaim = onCall(async (request) => {
+    await requireAdmin(request);
+    const { userId, admin: makeAdmin } = (request.data || {});
     if (!userId)
         throw new HttpsError('invalid-argument', 'userId required');
-    await db.collection('notifications').add({
-        user_id: userId,
-        title: title || 'VYBE',
-        body: body || '',
-        created_at: new Date().toISOString(),
-        read: false,
-    });
+    const user = await auth.getUser(userId);
+    await auth.setCustomUserClaims(userId, { ...(user.customClaims || {}), admin: !!makeAdmin });
+    await db.collection('user_roles').doc(`${userId}_admin`).set({
+        user_id: userId, role: 'admin', enabled: !!makeAdmin, updated_at: new Date().toISOString(),
+    }, { merge: true });
     return { ok: true };
-});
-/** Ranked feed — replace get-ranked-feed RPC. */
-export const getRankedFeed = onCall(async (request) => {
-    if (!request.auth)
-        throw new HttpsError('unauthenticated', 'Sign in required');
-    const limit = Number(request.data?.limit || 50);
-    const snap = await db.collection('posts').orderBy('created_at', 'desc').limit(limit).get();
-    return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
-});
-/** Share preview — replace share-preview edge function. */
-export const sharePreview = onCall(async (request) => {
-    const { postId } = request.data;
-    if (!postId)
-        throw new HttpsError('invalid-argument', 'postId required');
-    const doc = await db.collection('posts').doc(postId).get();
-    if (!doc.exists)
-        throw new HttpsError('not-found', 'Post not found');
-    return { post: { id: doc.id, ...doc.data() } };
-});
-/** Giphy search proxy. */
-export const giphySearch = onCall(async (request) => {
-    if (!request.auth)
-        throw new HttpsError('unauthenticated', 'Sign in required');
-    return { results: [] };
-});
-/** Detect AI content. */
-export const detectAiContent = onCall(async (request) => {
-    if (!request.auth)
-        throw new HttpsError('unauthenticated', 'Sign in required');
-    return { is_ai: false, confidence: 0 };
 });
 //# sourceMappingURL=index.js.map

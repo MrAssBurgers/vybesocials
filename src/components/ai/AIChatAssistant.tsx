@@ -4,8 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { toast } from 'sonner';
-import { getEdgeFunctionUrl, getFunctionAuthHeaders } from '@/lib/functionAuth';
+import { streamVybeAiChat, filterAiChatHistoryForApi } from '@/lib/firebase';
 
 type Message = {
   role: 'user' | 'assistant';
@@ -54,71 +53,20 @@ export function AIChatAssistant() {
     let assistantContent = '';
 
     try {
-      const headers = await getFunctionAuthHeaders();
-      const response = await fetch(
-        getEdgeFunctionUrl('ai-chat'),
-        {
-          method: 'POST',
-          headers,
-          body: JSON.stringify({ messages: [...messages, userMessage] }),
-        }
-      );
-
-      if (!response.ok) {
-        if (response.status === 429) {
-          toast.error('Too many requests. Please wait a moment.');
-          return;
-        }
-        if (response.status === 402) {
-          toast.error('AI credits exhausted.');
-          return;
-        }
-        throw new Error('Failed to get response');
-      }
-
-      const reader = response.body?.getReader();
-      const decoder = new TextDecoder();
-
-      if (!reader) throw new Error('No reader');
-
-      // Add empty assistant message
-      setMessages(prev => [...prev, { role: 'assistant', content: '' }]);
-
-      let buffer = '';
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        buffer += decoder.decode(value, { stream: true });
-
-        let newlineIndex: number;
-        while ((newlineIndex = buffer.indexOf('\n')) !== -1) {
-          let line = buffer.slice(0, newlineIndex);
-          buffer = buffer.slice(newlineIndex + 1);
-
-          if (line.endsWith('\r')) line = line.slice(0, -1);
-          if (line.startsWith(':') || line.trim() === '') continue;
-          if (!line.startsWith('data: ')) continue;
-
-          const jsonStr = line.slice(6).trim();
-          if (jsonStr === '[DONE]') break;
-
-          try {
-            const parsed = JSON.parse(jsonStr);
-            const content = parsed.choices?.[0]?.delta?.content;
-            if (content) {
-              assistantContent += content;
-              setMessages(prev => {
-                const updated = [...prev];
-                updated[updated.length - 1] = { role: 'assistant', content: assistantContent };
-                return updated;
-              });
-            }
-          } catch {
-            // Partial JSON, will be handled on next iteration
-          }
-        }
-      }
+      setMessages((prev) => [...prev, { role: 'assistant', content: '' }]);
+      assistantContent = await streamVybeAiChat({
+        history: filterAiChatHistoryForApi(messages),
+        userText: userMessage.content,
+        context: { aiName: 'VYBE-AI', aiPersonality: 'Friendly and helpful.' },
+        onChunk: (_delta, full) => {
+          assistantContent = full;
+          setMessages((prev) => {
+            const updated = [...prev];
+            updated[updated.length - 1] = { role: 'assistant', content: full };
+            return updated;
+          });
+        },
+      });
     } catch (error) {
       console.error('AI chat error:', error);
       setMessages(prev => [

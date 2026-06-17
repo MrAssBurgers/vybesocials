@@ -20,6 +20,8 @@
     "migrate:firebase:seed-auth": "node scripts/seed-firebase-auth-from-profiles.mjs",
     "migrate:firebase:auth-agtcyx": "node scripts/export-auth-hashes.mjs",
     "migrate:firebase:verify": "node scripts/verify-migration.mjs",
+    "migrate:firebase:verify-connections": "node scripts/verify-user-data-connections.mjs",
+    "migrate:firebase:seed-migration-notice": "node scripts/migrate-firebase/seed-migration-announcement.mjs",
     "ios:setup": "npm run build && npx cap add ios && npx cap sync ios",
     "ios:sync": "npm run build && npx cap sync ios",
     "ios:dev": "CAP_DEV=1 npx cap sync ios && npx cap open ios",

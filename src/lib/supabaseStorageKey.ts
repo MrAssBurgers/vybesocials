@@ -144,6 +144,26 @@ export function hasStoredSupabaseSession(): boolean {
   }
 }
 
+/** Best-effort Supabase access token from any known project ref in localStorage. */
+export function readAnySupabaseAccessToken(): string | null {
+  try {
+    const refs = new Set<string>([
+      getCanonicalProjectRef(),
+      CANONICAL_SUPABASE_PROJECT_ID,
+      ...KNOWN_LEGACY_SUPABASE_REFS,
+    ]);
+    for (const ref of refs) {
+      const raw = readRawSession(authStorageKeyForRef(ref));
+      if (!raw) continue;
+      const token = getAccessTokenFromSessionRaw(raw);
+      if (token) return token;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
 /** Read auth user id from persisted Supabase session (sync, before getSession resolves). */
 export function getStoredAuthUserId(): string | null {
   try {

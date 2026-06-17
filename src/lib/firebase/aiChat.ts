@@ -1,15 +1,18 @@
 import type { Content, Part } from 'firebase/ai';
 import { AIError } from 'firebase/ai';
+import { getAuth } from 'firebase/auth';
 import { getChatModelWithSystem } from './aiLogic';
-import { isAppCheckInitialized } from './appCheck';
-import { firebaseAuth } from './authService';
+import { getChatModelWithSystem } from './aiLogic';
+import {
+  filterAiChatHistoryForApi,
+  type VybeAiChatMessage,
+} from './aiChatHistory';
+import { getFirebaseApp } from './app';
 import { invokeFunction } from './functionsService';
 import { RATE_LIMITS } from '@/lib/rateLimit';
 
-export interface VybeAiChatMessage {
-  role: 'user' | 'assistant';
-  content: string;
-}
+export type { VybeAiChatMessage } from './aiChatHistory';
+export { filterAiChatHistoryForApi } from './aiChatHistory';
 
 export interface VybeAiChatContext {
   aiName: string;
@@ -47,16 +50,6 @@ function buildSystemInstruction(ctx: VybeAiChatContext): string {
     lines.push(`Location context: ${ctx.location.lat.toFixed(2)}, ${ctx.location.lng.toFixed(2)}.`);
   }
   return lines.join('\n\n');
-}
-
-const AI_HISTORY_ERROR_RE =
-  /invalid-content|First Content should be with role|LOVABLE_API_KEY|GEMINI_API_KEY|^internal$/i;
-
-/** Drop failed AI error bubbles before they pollute the next Gemini request. */
-export function filterAiChatHistoryForApi(messages: VybeAiChatMessage[]): VybeAiChatMessage[] {
-  return messages.filter(
-    (m) => !(m.role === 'assistant' && AI_HISTORY_ERROR_RE.test(m.content)),
-  );
 }
 
 /**
@@ -146,7 +139,7 @@ export function formatFirebaseAiError(error: unknown): string | null {
   if (error instanceof AIError) {
     switch (error.code) {
       case 'api-not-enabled':
-        return 'VYBE AI is not enabled yet. Run Firebase AI Logic setup in the Firebase console.';
+        return 'VYBE AI is not enabled yet. In Firebase Console → AI Logic, enable Gemini for your web app (or run `firebase init ailogic`).';
       case 'no-api-key':
       case 'no-app-id':
       case 'no-project-id':
@@ -162,29 +155,23 @@ export function formatFirebaseAiError(error: unknown): string | null {
         if (error.message) return error.message;
     }
   }
-  return null;
-}
-
-function isClientAiTransportError(error: unknown): boolean {
-  if (error instanceof AIError) {
-    return (
-      error.code === 'fetch-error' ||
-      error.code === 'request-error' ||
-      error.code === 'api-not-enabled' ||
-      error.code === 'response-error'
-    );
-  }
   if (error instanceof Error) {
-    return /fetch-error|request-error|PERMISSION_DENIED|API key not valid|Failed to fetch/i.test(
-      error.message,
-    );
+    const msg = error.message?.trim();
+    if (msg === 'internal') {
+      return 'VYBE AI server failed. Set GEMINI_API_KEY and redeploy Cloud Functions.';
+    }
+    if (msg) return msg;
   }
-  return false;
-}
-
-/** Client Gemini needs App Check when Firebase enforces it — use Cloud Function for text chat until configured. */
-function shouldUseServerAiChat(imageBase64?: string | null): boolean {
-  return !imageBase64 && !isAppCheckInitialized();
+  if (error && typeof error === 'object') {
+    const e = error as { message?: string; name?: string };
+    const code = (e.name || '').replace(/^functions\//, '');
+    const msg = e.message || '';
+    if (code === 'internal' || msg === 'internal') {
+      return 'VYBE AI server failed. Set GEMINI_API_KEY and redeploy Cloud Functions.';
+    }
+    if (msg && msg !== code) return msg;
+  }
+  return null;
 }
 
 function formatCallableAiError(error: unknown): string {
@@ -203,13 +190,13 @@ function formatCallableAiError(error: unknown): string {
       code === 'failed-precondition' ||
       /LOVABLE_API_KEY|GEMINI_API_KEY|not configured/i.test(msg)
     ) {
-      return 'VYBE AI server needs LOVABLE_API_KEY or GEMINI_API_KEY on Firebase Cloud Functions.';
+      return 'VYBE AI server needs GEMINI_API_KEY on Firebase Cloud Functions.';
     }
     if (code === 'resource-exhausted' || /rate limit/i.test(msg)) {
       return 'Too many requests. Wait a moment.';
     }
     if (code === 'internal' || msg === 'internal') {
-      return 'VYBE AI server failed. Set LOVABLE_API_KEY or GEMINI_API_KEY and redeploy functions:aiChat.';
+      return 'VYBE AI server failed. Set GEMINI_API_KEY and redeploy Cloud Functions.';
     }
     if (msg && msg !== code) return msg;
   }
@@ -217,10 +204,24 @@ function formatCallableAiError(error: unknown): string {
 }
 
 async function ensureSignedInForAi(): Promise<void> {
-  const { data: { session } } = await firebaseAuth.getSession();
-  if (!session?.access_token) {
+  const auth = getAuth(getFirebaseApp());
+  let user = auth.currentUser;
+  if (!user) {
+    user = await new Promise((resolve) => {
+      const timeout = setTimeout(() => resolve(null), 4000);
+      const unsub = auth.onAuthStateChanged((u) => {
+        if (u) {
+          clearTimeout(timeout);
+          unsub();
+          resolve(u);
+        }
+      });
+    });
+  }
+  if (!user) {
     throw new Error('Sign in to use VYBE AI.');
   }
+  await user.getIdToken(true);
 }
 
 async function invokeVybeAiChatCallable(
@@ -313,8 +314,17 @@ async function streamVybeAiChatViaFirebaseAi(
   return fullText.trim();
 }
 
+function pickUserFacingAiError(...errors: unknown[]): string {
+  for (const err of errors) {
+    const formatted =
+      formatCallableAiError(err) || formatFirebaseAiError(err);
+    if (formatted) return formatted;
+  }
+  return 'VYBE AI could not respond. Try again in a moment.';
+}
+
 /**
- * Stream a VYBE AI chat reply via Firebase AI Logic (Gemini Developer API proxy).
+ * Stream a VYBE AI chat reply — client Gemini first, then Firebase callable.
  */
 export async function streamVybeAiChat(options: StreamVybeAiChatOptions): Promise<string> {
   if (!RATE_LIMITS.aiChat()) {
@@ -323,49 +333,26 @@ export async function streamVybeAiChat(options: StreamVybeAiChatOptions): Promis
     throw err;
   }
 
-  const { history, userText, context, onChunk, imageBase64 } = options;
-
-  // Lovable preview / dev: no App Check site key → try server aiChat first, then client Gemini.
-  if (shouldUseServerAiChat(imageBase64)) {
-    try {
-      const reply = await invokeVybeAiChatCallable(history, userText, context);
-      onChunk(reply, reply);
-      return reply;
-    } catch (callableErr) {
-      console.warn('[VYBE AI] Server aiChat failed — trying client Gemini', callableErr);
-      try {
-        return await streamVybeAiChatViaFirebaseAi(options);
-      } catch (clientErr) {
-        const formatted =
-          formatCallableAiError(callableErr) ||
-          formatFirebaseAiError(clientErr) ||
-          'VYBE AI could not respond. Try again in a moment.';
-        throw new Error(formatted);
-      }
-    }
-  }
+  const errors: unknown[] = [];
 
   try {
     return await streamVybeAiChatViaFirebaseAi(options);
   } catch (clientErr) {
-    if (imageBase64 || !isClientAiTransportError(clientErr)) {
-      const formatted = formatFirebaseAiError(clientErr);
-      if (formatted) throw new Error(formatted);
-      throw clientErr;
+    errors.push(clientErr);
+    if (options.imageBase64) {
+      throw new Error(pickUserFacingAiError(...errors));
     }
-
-    console.warn('[VYBE AI] Client Gemini unavailable — using Cloud Function fallback', clientErr);
-    try {
-      const reply = await invokeVybeAiChatCallable(history, userText, context);
-      onChunk(reply, reply);
-      return reply;
-    } catch (callableErr) {
-      const formatted =
-        formatCallableAiError(callableErr) ||
-        formatFirebaseAiError(clientErr) ||
-        formatFirebaseAiError(callableErr);
-      if (formatted) throw new Error(formatted);
-      throw callableErr;
-    }
+    console.warn('[VYBE AI] Client Gemini failed — trying Cloud Function', clientErr);
   }
+
+  try {
+    const { history, userText, context, onChunk } = options;
+    const reply = await invokeVybeAiChatCallable(history, userText, context);
+    onChunk(reply, reply);
+    return reply;
+  } catch (callableErr) {
+    errors.push(callableErr);
+  }
+
+  throw new Error(pickUserFacingAiError(...errors));
 }

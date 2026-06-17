@@ -17,6 +17,7 @@ import { db, auth, requireAdmin } from './_shared/admin.js';
 
 export * from './ai.js';
 export * from './aiExtras.js';
+export * from './aiDetectText.js';
 export * from './auth.js';
 export * from './briefs.js';
 export * from './email.js';

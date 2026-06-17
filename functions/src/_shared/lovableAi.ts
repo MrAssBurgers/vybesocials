@@ -33,9 +33,9 @@ function resolveGateway(): { apiKey: string; url: string; model: string } {
 }
 
 function lovableImageKey(): string {
-  const k = process.env.LOVABLE_API_KEY;
+  const k = process.env.LOVABLE_API_KEY || process.env.GEMINI_API_KEY;
   if (!k) {
-    throw new HttpsError('failed-precondition', 'LOVABLE_API_KEY not configured for image generation');
+    throw new HttpsError('failed-precondition', 'GEMINI_API_KEY not configured for image generation');
   }
   return k;
 }

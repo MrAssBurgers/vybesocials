@@ -1,5 +1,7 @@
 {
   "projects": {
     "default": "vybe-daaab"
-  }
+  },
+  "targets": {},
+  "etags": {}
 }

@@ -14,8 +14,13 @@ export function getUserFriendlyError(error: any): string {
   }
   
   // Authentication errors
-  if (message.includes('Invalid login credentials')) {
-    return 'Invalid email or password. Use Google or Apple if you signed up that way, or tap Forgot password.';
+  if (
+    message.includes('Invalid login credentials') ||
+    message.includes('auth/invalid-credential') ||
+    message.includes('auth/invalid-login-credentials') ||
+    message.includes('auth/wrong-password')
+  ) {
+    return 'VYBE was upgraded — your old password will not work. Tap Forgot password to set a new one, or sign in with Google or Apple if you used those.';
   }
   if (message.includes('Email not confirmed')) {
     return 'Please verify your email address. Check your inbox or tap "Resend verification".';
