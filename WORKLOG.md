@@ -4,6 +4,11 @@ Use this file as the Lovable -> Cursor handoff each session.
 
 **Links:** [Lovable project](https://lovable.dev/projects/416714c8-d013-4aff-984d-522418a9bbc7) · [Production](https://vybehub.app) · Deploy steps: `DEPLOY.md`
 
+## Current Focus (2026-06-17 — black screen fix)
+- **Root cause:** `main.tsx` called `isPreviewServiceWorkerDisabled()` without importing it → `ReferenceError` on load (any browser with SW) → black screen before React mounts
+- **Fix:** restored import from `serviceWorker.ts`; SW **v26**
+- **You:** Lovable **Share → Publish**; on phone clear site data or hard refresh once
+
 ## Current Focus (2026-06-17 — deep scan / profile-id fixes)
 - **Deep scan (2026-06-17):** build PASS, lint PASS; Firestore connectivity 2004/2004 (100%); no `profiles→users` mapping left; 30 profiles have `id≠user_id` — fixed DM create + social RPCs to resolve `profiles.id` from auth UID
 - **Prod Supabase:** `is_username_available`, `create_dm_conversation` RPCs MISSING on hprmic — client fallbacks in `dataClient.ts` OK

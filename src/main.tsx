@@ -8,7 +8,12 @@ import { initializeAdMob } from "./lib/admob";
 import { isDespiaRuntime } from "./lib/despiaBridge";
 import { syncNativeTrackingConsent } from "./lib/att";
 import { installAttResumeRecovery } from "./lib/attResumeRecovery";
-import { cleanupPreviewServiceWorkers, isLocalDevHost, registerVybeServiceWorker } from "./lib/serviceWorker";
+import {
+  cleanupPreviewServiceWorkers,
+  isLocalDevHost,
+  isPreviewServiceWorkerDisabled,
+  registerVybeServiceWorker,
+} from "./lib/serviceWorker";
 import { warmupAnimations, preloadFramerMotion } from "./lib/animationWarmup";
 import { installFlickerGuardCheck } from "./lib/flickerGuardCheck";
 import { installDespiaRealtimeTransport } from "./lib/installDespiaRealtimeTransport";

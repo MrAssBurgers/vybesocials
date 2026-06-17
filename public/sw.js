@@ -1,8 +1,8 @@
 // VYBE Service Worker
-// Version 25.0 — fix profiles collection + faster mobile load (2026-06-17)
+// Version 26.0 — fix startup crash (missing SW import in main.tsx)
 
-const CACHE_NAME = 'vybe-v25';
-const STATIC_CACHE = 'vybe-static-v25';
+const CACHE_NAME = 'vybe-v26';
+const STATIC_CACHE = 'vybe-static-v26';
 const MEDIA_CACHE = 'vybe-media-v2';
 const SHELL_CACHE = 'vybe-shell-v4';
 const ASSETS_CACHE = 'vybe-assets-v4';
