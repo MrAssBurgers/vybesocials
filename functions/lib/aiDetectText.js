@@ -7,7 +7,7 @@ const AI_TELLS = [
     'in conclusion', "it's important to note", 'a testament to', 'plays a crucial role',
 ];
 function tokenizeSentences(text) {
-    return text.replace(/\s+/g, ' ').trim().split(/(?<=[.!?])\s+(?=[A-Z"'\(])/).filter(Boolean);
+    return text.replace(/\s+/g, ' ').trim().split(/(?<=[.!?])\s+(?=[A-Z"'(])/).filter(Boolean);
 }
 function wordCount(s) {
     return s.trim().split(/\s+/).filter(Boolean).length;

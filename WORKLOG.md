@@ -4,6 +4,33 @@ Use this file as the Lovable -> Cursor handoff each session.
 
 **Links:** [Lovable project](https://lovable.dev/projects/416714c8-d013-4aff-984d-522418a9bbc7) · [Production](https://vybehub.app) · Deploy steps: `DEPLOY.md`
 
+## Current Focus (2026-06-17 — DMs + page load / Firestore rules)
+- **Root cause:** Firestore rules compared `request.auth.uid` to `conversation_members.user_id` / `messages` — but migrated data uses **profiles.id** (legacy UUID). Flat `messages` collection had **no rules** (deny-all). `trashed_conversations` also denied.
+- **Fix:** `profileId()` + `ownsProfileId()` helpers; `user_auth_index` collection; rules for flat `messages`, `conversation_members`, `trashed_conversations`; friend_requests/follows use profile ids
+- **Data repair (live):** `repair-firestore-social.mjs` — 154 auth indexes, 7 member backfills, 101 ghost conversations deleted, 0 orphan posts
+- **Client:** hidden_conversations uses profile id; founder UID updated to `53e0076d-…`
+- **You:** Lovable **Share → Publish** + hard refresh / clear site data once
+
+## Current Focus (2026-06-17 — password reset emails)
+- **Root cause:** `getPasswordResetRedirectUrl()` used `window.location.origin` — users on **`www.vybehub.app`** got `UNAUTHORIZED_DOMAIN` (www not in Firebase Auth allowlist); Firebase default emails also easy to miss vs branded Resend
+- **Fix:** Always use `https://vybehub.app/reset-password` for reset continue URL; new `requestPasswordReset` Cloud Function (Admin link + Resend when configured) with client Firebase fallback; deployed to `vybe-daaab`
+- **You:** Lovable **Share → Publish** (client `authReset.ts` + `authRedirect.ts`); set `RESEND_API_KEY` on Firebase for branded mail:
+  ```bash
+  firebase functions:secrets:set RESEND_API_KEY --project vybe-daaab
+  # then add secrets: ['RESEND_API_KEY'] to requestPasswordReset in auth.ts and redeploy
+  ```
+- Optional: Firebase Console → Auth → Authorized domains → add **`www.vybehub.app`** (redirect now canonical non-www)
+
+## Current Focus (2026-06-17 — Phase 1 Vybe Check + AI stack)
+- **Done:** `startVybeCheck` / `getVybeCheckStatus` — SafeSearch frames, OpenAI moderation/STT (when key set), Gemini borderline, Firestore `vybe_checks` statuses
+- **AI routing:** `functions/src/_shared/aiRouting.ts` — GPT/OpenAI text, Gemini vision, SafeSearch NSFW (no Hive/Rekognition/Sightengine)
+- **Client:** `src/lib/vybeCheck/` frame extraction (1fps / 0.5s short), `VideoUploadScanner` + `useContentSafety` wired
+- **You:** `firebase functions:secrets:set OPENAI_API_KEY` → add to `vybeCheck.ts` SECRETS → redeploy `startVybeCheck`; deploy `firestore:rules`; Lovable Publish
+
+## Current Focus (2026-06-17 — Vybe Check Google Safe Search)
+- **Done:** Vision Safe Search in `aiSafetyScan` Cloud Function (`visionSafeSearch.ts` + `contentSafety.ts`); pipeline: NSFWJS → Safe Search → Gemini; deployed `aiSafetyScan` + aliases to `vybe-daaab`
+- **You:** Lovable Publish; ensure Cloud Functions service account has **Cloud Vision API User** on `vybe-daaab`
+
 ## Current Focus (2026-06-17 — AI App Check 401 fix)
 - **Root cause:** Client Gemini (Firebase AI Logic) sent invalid App Check token → 401; raw SDK error shown in chat
 - **Fix:** Route text chat through `aiChat` Cloud Function first when App Check unverified; v3/Enterprise provider option; debug token works in prod builds; friendly App Check errors

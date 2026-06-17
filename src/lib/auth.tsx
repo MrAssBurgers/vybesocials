@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState, useRef, ReactNode } from 'react';
 import type { User, Session } from '@/lib/firebase';
 import { db } from '@/lib/firebase';
+import { updateUserProfile } from '@/lib/firebase/users';
 import { BannedScreen } from '@/components/auth/BannedScreen';
 import { MemeBanScreen } from '@/components/auth/MemeBanScreen';
 import { setCachedProfile, setCachedCurrentProfile, getCachedCurrentProfile, clearCachedCurrentProfile, clearProfileCache, setActiveAuthUserId, isRawId, stripStaleOnboardingFlagFromDisk, type CachedProfile } from '@/lib/profileCache';
@@ -1045,7 +1046,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     // Optimistic update — flip local state immediately so UI feels instant.
     const previousProfile = profile;
-    const merged = { ...profile, ...updates };
+    const normalizedUpdates = { ...updates };
+    if (updates.username !== undefined) {
+      normalizedUpdates.username = normalizeUsername(String(updates.username));
+    }
+    const merged = { ...profile, ...normalizedUpdates };
     setProfile(merged);
 
     // Update profile cache + invalidate queries optimistically too.
@@ -1065,12 +1070,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     })();
 
     try {
-      const { error } = await db
-        .from('profiles')
-        .update(updates as never)
-        .eq('id', profile.id);
-
-      if (error) throw error;
+      const authUserId = user?.id ?? profile.user_id ?? profile.id;
+      await updateUserProfile(authUserId, updates as Partial<import('@/lib/firebase/types').UserProfile>);
       return { error: null };
     } catch (error) {
       // Roll back on failure

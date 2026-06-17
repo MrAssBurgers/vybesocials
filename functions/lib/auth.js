@@ -1,8 +1,51 @@
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { db, auth, requireAuth, requireAdmin, rateLimit, enforceRateLimit } from './_shared/admin.js';
+import { passwordResetContinueUrl, sendPasswordResetViaResend, toDirectPasswordResetLink, } from './_shared/passwordReset.js';
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 function code() {
     return String(Math.floor(100000 + Math.random() * 900000));
 }
+/**
+ * request-password-reset — generate Firebase reset link + send branded email via Resend.
+ * Unauthenticated; always returns { ok: true } when email format is valid (no enumeration).
+ */
+export const requestPasswordReset = onCall({ cors: true }, async (request) => {
+    const email = String(request.data?.email || '')
+        .trim()
+        .toLowerCase();
+    if (!email || !EMAIL_REGEX.test(email)) {
+        return { ok: true, message: 'If that email exists, we sent a reset link.' };
+    }
+    enforceRateLimit(await rateLimit(`pwd-reset:${email}`, 3, 3600));
+    let userRecord;
+    try {
+        userRecord = await auth.getUserByEmail(email);
+    }
+    catch (err) {
+        const code = err?.code;
+        if (code === 'auth/user-not-found') {
+            return { ok: true, message: 'If that email exists, we sent a reset link.' };
+        }
+        throw err;
+    }
+    const continueUrl = passwordResetContinueUrl();
+    const firebaseLink = await auth.generatePasswordResetLink(email, {
+        url: continueUrl,
+        handleCodeInApp: false,
+    });
+    const actionLink = toDirectPasswordResetLink(firebaseLink, continueUrl);
+    const displayName = userRecord.displayName || undefined;
+    const sent = await sendPasswordResetViaResend(email, actionLink);
+    await db.collection('email_send_log').add({
+        to: email,
+        template: 'reset_password',
+        status: 'sent',
+        sent_at: new Date().toISOString(),
+        provider_id: sent.id || null,
+        name: displayName || null,
+    });
+    return { ok: true, message: 'If that email exists, we sent a reset link.' };
+});
 /** auth-2fa-request — issue a 6-digit code (email channel). */
 export const auth2faRequest = onCall(async (request) => {
     const uid = requireAuth(request);

@@ -1,12 +1,10 @@
 /**
  * Content Safety Hook
- * 
- * Hybrid moderation pipeline:
- * 1. NSFWJS (client-side) - instant sexual content detection
- * 2. Lovable AI (Gemini) - violence, gore, weapons, audio hate speech
- * 3. Keyword scanner - text-based hate speech / threats
- * 
- * The AI second-pass only runs if NSFWJS passes (to save API calls).
+ *
+ * Vybe Check pipeline (Phase 1):
+ * 1. NSFWJS (client) — instant pre-filter
+ * 2. SafeSearch on frames + OpenAI moderation/STT + Gemini borderline (server)
+ * 3. Keyword scanner — text
  */
 
 import { useState, useCallback } from 'react';
@@ -14,7 +12,8 @@ import { db } from '@/lib/firebase';
 import { toast } from 'sonner';
 import { shouldBypassSafety } from '@/lib/ownerBypass';
 import { scanImage as nsfwScanImage, scanVideo as nsfwScanVideo, scanText as nsfwScanText, type ScanResult } from '@/lib/nsfwScanner';
-import { aiScanImage, aiScanVideoFrame, extractVideoFrame, transcribeVideoAudio, aiScanAudioTranscript, type AISafetyResult } from '@/lib/aiSafetyClient';
+import { aiScanImage, type AISafetyResult } from '@/lib/aiSafetyClient';
+import { startVybeCheckFrames, isVybeCheckBlocked } from '@/lib/vybeCheck';
 
 export type SafetyResult = 'scanning' | 'allowed' | 'warned' | 'blocked' | 'error';
 
@@ -172,51 +171,40 @@ export function useContentSafety() {
         return safetyResult;
       }
 
-      // Pass 2: AI scan - extract a key frame + attempt audio transcription
+      // Pass 2: Phase 1 Vybe Check (SafeSearch frames + OpenAI + Gemini borderline)
       setScanPhase('ai-visual');
-      setMessage('Deep scanning video content...');
-      
-      let aiResult: AISafetyResult = { allowed: true, result: 'allowed', categories: [], score: 0, message: '' };
-      let audioTranscript = '';
+      setMessage('Running Vybe Check…');
 
-      try {
-        // Extract a frame for visual AI analysis
-        const frameBlob = await extractVideoFrame(file);
+      const { result: vybeResult, unavailable } = await startVybeCheckFrames(file);
 
-        // Attempt audio transcription
-        setScanPhase('ai-audio');
-        try {
-          audioTranscript = await transcribeVideoAudio(file);
-        } catch {
-          console.warn('Audio transcription unavailable');
-        }
-
-        // Send frame + transcript to AI
-        aiResult = await aiScanVideoFrame(frameBlob, audioTranscript || undefined);
-      } catch (err) {
-        console.warn('AI video scan unavailable, using NSFWJS result only:', err);
-      }
-
-      // If we got a transcript but AI scan was unavailable, check transcript with text scanner
-      if (audioTranscript && aiResult.score === 0) {
-        try {
-          const textAiResult = await aiScanAudioTranscript(audioTranscript);
-          if (textAiResult.score > aiResult.score) {
-            aiResult = textAiResult;
-          }
-        } catch {
-          // Fall back to local text scan
-          const localTextResult = nsfwScanText(audioTranscript);
-          if (localTextResult.score > aiResult.score) {
-            aiResult = {
-              allowed: localTextResult.result === 'allowed',
-              result: localTextResult.result,
-              categories: localTextResult.categories,
-              score: localTextResult.score,
-              message: localTextResult.message,
-            };
-          }
-        }
+      let aiResult: AISafetyResult;
+      if (unavailable || !vybeResult) {
+        aiResult = { allowed: true, result: 'allowed', categories: [], score: 0, message: '' };
+      } else if (isVybeCheckBlocked(vybeResult)) {
+        aiResult = {
+          allowed: false,
+          result: 'blocked',
+          categories: vybeResult.categories,
+          score: vybeResult.score,
+          message: vybeResult.message,
+        };
+      } else if (vybeResult.status === 'limited' || vybeResult.status === 'needs_review') {
+        aiResult = {
+          allowed: true,
+          result: 'warned',
+          categories: vybeResult.categories,
+          score: vybeResult.score,
+          message: vybeResult.message,
+          suggested_age_rating: vybeResult.status === 'limited' ? '13+' : '18+',
+        };
+      } else {
+        aiResult = {
+          allowed: true,
+          result: 'allowed',
+          categories: vybeResult.categories,
+          score: vybeResult.score,
+          message: vybeResult.message,
+        };
       }
 
       setScanPhase('done');
@@ -234,7 +222,7 @@ export function useContentSafety() {
       setResult(merged.result);
       setMessage(merged.message || '');
       setScanDetails({
-        audioTranscript: audioTranscript || undefined,
+        audioTranscript: vybeResult?.transcript,
         visualAnalysis: merged.visualAnalysis,
         audioAnalysis: merged.audioAnalysis,
       });

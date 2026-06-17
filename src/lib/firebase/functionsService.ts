@@ -15,6 +15,7 @@ import type { FunctionInvokeResult, VybeAuthError } from './types';
  */
 const OVERRIDES: Record<string, string> = {
   get_ranked_feed_v2: 'getRankedFeed',
+  'send-reset-email': 'requestPasswordReset',
 };
 
 function kebabToCamel(name: string): string {

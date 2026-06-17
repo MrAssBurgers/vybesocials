@@ -38,7 +38,7 @@ export async function loadDMConversations(
   try {
     const result = await withTimeout(
       loadDMConversationsOnce(profileId, stale),
-      12_000,
+      8_000,
       'Loading chats timed out',
     );
     return result;
@@ -55,8 +55,6 @@ async function loadDMConversationsOnce(
 ): Promise<LoadDMConversationsResult> {
   try {
     const effectiveProfileId = (await resolveSessionProfileId(profileId)) ?? profileId;
-    const { data: { session } } = await db.auth.getSession();
-    const authUserId = session?.user?.id;
 
     const { data: membershipData, error: membershipError } = await db
       .from('conversation_members')
@@ -76,9 +74,7 @@ async function loadDMConversationsOnce(
 
     const [{ data: hiddenData }, { data: trashedData }, { data: conversationsRaw, error: convError }] =
       await Promise.all([
-        authUserId
-          ? db.from('hidden_conversations').select('conversation_id').eq('user_id', authUserId)
-          : Promise.resolve({ data: [] as { conversation_id: string }[] }),
+        db.from('hidden_conversations').select('conversation_id').eq('user_id', effectiveProfileId),
         db.from('trashed_conversations').select('conversation_id').eq('user_id', effectiveProfileId),
         db
           .from('conversations')

@@ -9,6 +9,7 @@ import {
 } from './firestoreDb';
 import { firebaseAuth } from './authService';
 import { getProfileByAuthUid, getProfilesByIds } from './profileResolve';
+import { syncProfileUsername } from './syncProfileUsername';
 import type { UserProfile } from './types';
 
 export async function getUserProfile(userId: string): Promise<UserProfile | null> {
@@ -60,9 +61,19 @@ export async function updateUserProfile(
   userId: string,
   updates: Partial<UserProfile>,
 ): Promise<void> {
-  const profile = await getUserProfile(userId);
-  const docId = profile?.id ?? userId;
-  await updateDocument('profiles', docId, updates);
+  const profile = await getProfileByAuthUid(userId);
+  if (!profile?.id) throw new Error('Profile not found');
+
+  const authUid = profile.user_id || userId;
+  const { username, ...rest } = updates;
+
+  if (username !== undefined) {
+    await syncProfileUsername(authUid, String(username));
+  }
+
+  if (Object.keys(rest).length > 0) {
+    await updateDocument('profiles', profile.id, rest);
+  }
 }
 
 export async function isUsernameAvailable(username: string, excludeUserId?: string): Promise<boolean> {

@@ -1,6 +1,7 @@
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { db, requireAuth, rateLimit, enforceRateLimit } from './_shared/admin.js';
 import { chatCompletion, generateImage } from './_shared/geminiAi.js';
+import { runVybeCheckScan } from './_shared/contentSafety.js';
 
 const SECRETS = ['GEMINI_API_KEY'];
 
@@ -161,19 +162,42 @@ export const aiProfileWriter = onCall({ secrets: SECRETS }, async (request) => {
   return { bio: content };
 });
 
-/** ai-safety-scan / scan-content-safety — light moderation. */
+/** ai-safety-scan / scan-content-safety — Vybe Check (Vision Safe Search + Gemini). */
 export const aiSafetyScan = onCall({ secrets: SECRETS }, async (request) => {
-  requireAuth(request);
-  const { text } = (request.data || {}) as { text?: string };
-  if (!text) return { safe: true };
-  const { content } = await chatCompletion({
-    messages: [
-      { role: 'system', content: 'Classify the text. Return JSON {"safe":bool,"categories":[],"reason":""}. Flag hate, sexual minors, self-harm encouragement, doxing.' },
-      { role: 'user', content: text },
-    ],
-    response_format: { type: 'json_object' },
-  });
-  try { return JSON.parse(content); } catch { return { safe: true }; }
+  const uid = requireAuth(request);
+  enforceRateLimit(await rateLimit(`safety_scan:${uid}`, 30, 60));
+
+  const body = (request.data || {}) as {
+    image_base64?: string;
+    mime_type?: string;
+    audio_transcript?: string;
+    scan_type?: 'image' | 'audio' | 'both';
+    text?: string;
+  };
+
+  const hasPayload =
+    body.image_base64 ||
+    body.audio_transcript?.trim() ||
+    body.text?.trim();
+
+  if (!hasPayload) {
+    return {
+      allowed: true,
+      result: 'allowed',
+      categories: [],
+      score: 0,
+      message: 'Nothing to scan.',
+      suggested_age_rating: 'safe',
+      age_rating_reasons: [],
+    };
+  }
+
+  try {
+    return await runVybeCheckScan(body, process.env.GEMINI_API_KEY);
+  } catch (err) {
+    console.error('[aiSafetyScan]', err);
+    throw new HttpsError('internal', err instanceof Error ? err.message : 'Safety scan failed');
+  }
 });
 
 export const scanContentSafety = aiSafetyScan;

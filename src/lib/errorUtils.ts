@@ -41,6 +41,13 @@ export function getUserFriendlyError(error: any): string {
     return 'That email address looks invalid. Double-check it and try again.';
   }
   if (
+    message.includes('auth/invalid-continue-uri') ||
+    message.includes('invalid-continue-uri') ||
+    message.includes('unauthorized-continue-uri')
+  ) {
+    return "We couldn't send the reset email right now. Please try again in a moment or contact support.";
+  }
+  if (
     error?.code === 'over_email_send_rate_limit' ||
     error?.status === 429 ||
     message.includes('rate limit') ||

@@ -23,15 +23,47 @@ service cloud.firestore {
     function isAdmin() {
       return signedIn() && request.auth.token.admin == true;
     }
+    // Migrated rows use profiles.id (legacy UUID) while user_id holds Firebase Auth uid.
+    function profileId() {
+      return exists(/databases/$(database)/documents/user_auth_index/$(uid()))
+        ? get(/databases/$(database)/documents/user_auth_index/$(uid())).data.profile_id
+        : uid();
+    }
+    function ownsProfileId(pid) {
+      return signedIn() && (
+        pid == uid() ||
+        pid == profileId() ||
+        (pid != null && exists(/databases/$(database)/documents/profiles/$(pid)) &&
+          get(/databases/$(database)/documents/profiles/$(pid)).data.user_id == uid())
+      );
+    }
     function isOwner(field) {
       return signedIn() && resource.data[field] == uid();
+    }
+    function isOwnerProfile(field) {
+      return ownsProfileId(resource.data[field]);
     }
     function willOwn(field) {
       return signedIn() && request.resource.data[field] == uid();
     }
-    function isMember(cid) {
+    function willOwnProfile(field) {
+      return ownsProfileId(request.resource.data[field]);
+    }
+    function isFlatConversationMember(cid) {
       return signedIn() &&
-        exists(/databases/$(database)/documents/conversations/$(cid)/members/$(uid()));
+        exists(/databases/$(database)/documents/conversation_members/$(cid + '_' + profileId()));
+    }
+    function isMember(cid) {
+      return signedIn() && (
+        isFlatConversationMember(cid) ||
+        exists(/databases/$(database)/documents/conversations/$(cid)/members/$(uid()))
+      );
+    }
+
+    // Auth uid → profiles.id lookup (seeded by scripts/migrate-firebase/seed-user-auth-index.mjs)
+    match /user_auth_index/{authUid} {
+      allow read: if signedIn() && authUid == uid();
+      allow write: if false;
     }
 
     // ---------- profiles ----------
@@ -39,78 +71,82 @@ service cloud.firestore {
     match /profiles/{userId} {
       allow read: if signedIn();
       allow create: if signedIn() && userId == uid();
-      allow update: if signedIn() && (userId == uid() || isAdmin());
+      allow update: if signedIn() && (ownsProfileId(userId) || isAdmin());
       allow delete: if isAdmin();
     }
 
     // Profile-scoped subcollections (settings, prefs, etc.)
     match /profiles/{userId}/{sub=**} {
-      allow read, write: if signedIn() && (userId == uid() || isAdmin());
+      allow read, write: if signedIn() && (ownsProfileId(userId) || isAdmin());
     }
 
     // ---------- user roles (read-only to owner; mutation via Cloud Function) ----------
     match /user_roles/{docId} {
-      allow read: if signedIn() && (resource.data.user_id == uid() || isAdmin());
+      allow read: if signedIn() && (ownsProfileId(resource.data.user_id) || isAdmin());
       allow write: if isAdmin();
     }
 
     // ---------- social: follows / blocks / friend requests ----------
     match /follows/{docId} {
       allow read: if signedIn();
-      allow create: if willOwn('follower_id');
-      allow delete: if isOwner('follower_id') || isAdmin();
+      allow create: if willOwnProfile('follower_id');
+      allow delete: if isOwnerProfile('follower_id') || isAdmin();
     }
     match /blocked_users/{docId} {
-      allow read: if isOwner('blocker_id') || isAdmin();
-      allow create: if willOwn('blocker_id');
-      allow delete: if isOwner('blocker_id');
+      allow read: if isOwnerProfile('blocker_id') || isAdmin();
+      allow create: if willOwnProfile('blocker_id');
+      allow delete: if isOwnerProfile('blocker_id');
     }
     match /friend_requests/{docId} {
-      allow read: if signedIn() && (resource.data.sender_id == uid() || resource.data.recipient_id == uid());
-      allow create: if willOwn('sender_id');
-      allow update, delete: if signedIn() && (resource.data.sender_id == uid() || resource.data.recipient_id == uid());
+      allow read: if signedIn() && (
+        ownsProfileId(resource.data.sender_id) || ownsProfileId(resource.data.recipient_id)
+      );
+      allow create: if willOwnProfile('sender_id');
+      allow update, delete: if signedIn() && (
+        ownsProfileId(resource.data.sender_id) || ownsProfileId(resource.data.recipient_id)
+      );
     }
     match /close_friends/{docId} {
-      allow read, write: if isOwner('user_id') || willOwn('user_id');
+      allow read, write: if isOwnerProfile('user_id') || willOwnProfile('user_id');
     }
     match /dismissed_profiles/{docId} {
-      allow read, write: if isOwner('user_id') || willOwn('user_id');
+      allow read, write: if isOwnerProfile('user_id') || willOwnProfile('user_id');
     }
 
     // ---------- posts / comments / reactions ----------
     match /posts/{postId} {
       allow read: if signedIn();
-      allow create: if willOwn('author_id');
-      allow update, delete: if isOwner('author_id') || isAdmin();
+      allow create: if willOwnProfile('author_id');
+      allow update, delete: if isOwnerProfile('author_id') || isAdmin();
     }
     match /comments/{commentId} {
       allow read: if signedIn();
-      allow create: if willOwn('author_id');
-      allow update, delete: if isOwner('author_id') || isAdmin();
+      allow create: if willOwnProfile('author_id');
+      allow update, delete: if isOwnerProfile('author_id') || isAdmin();
     }
     match /comment_likes/{docId} {
       allow read: if signedIn();
-      allow create: if willOwn('user_id');
-      allow delete: if isOwner('user_id');
+      allow create: if willOwnProfile('user_id');
+      allow delete: if isOwnerProfile('user_id');
     }
     match /bookmarks/{docId} {
-      allow read, write: if isOwner('user_id') || willOwn('user_id');
+      allow read, write: if isOwnerProfile('user_id') || willOwnProfile('user_id');
     }
     match /post_reactions/{docId} {
       allow read: if signedIn();
-      allow create: if willOwn('user_id');
-      allow delete: if isOwner('user_id');
+      allow create: if willOwnProfile('user_id');
+      allow delete: if isOwnerProfile('user_id');
     }
     match /post_views/{docId} {
-      allow read: if signedIn() && (resource.data.viewer_id == uid() || isAdmin());
-      allow create: if willOwn('viewer_id');
+      allow read: if signedIn() && (ownsProfileId(resource.data.viewer_id) || isAdmin());
+      allow create: if willOwnProfile('viewer_id');
     }
 
     // ---------- conversations / messages ----------
     match /conversations/{cid} {
       allow read: if isMember(cid) || isAdmin();
-      allow create: if signedIn(); // Cloud Function should validate participants
-      allow update: if isMember(cid);
+      allow create: if signedIn();
+      allow update: if isMember(cid) || isAdmin();
       allow delete: if isAdmin();
 
       match /members/{memberId} {
@@ -119,26 +155,37 @@ service cloud.firestore {
       }
       match /messages/{messageId} {
         allow read: if isMember(cid);
-        allow create: if isMember(cid) && willOwn('sender_id');
+        allow create: if isMember(cid) && willOwnProfile('sender_id');
         allow update, delete: if signedIn() &&
-          (resource.data.sender_id == uid() || isAdmin());
+          (ownsProfileId(resource.data.sender_id) || isAdmin());
       }
-      match /typing/{uid} {
+      match /typing/{typingUid} {
         allow read: if isMember(cid);
-        allow write: if isMember(cid) && uid == request.auth.uid;
+        allow write: if isMember(cid) && typingUid == uid();
       }
     }
-    // Legacy flat conversation_members during cutover
+    // Legacy flat collections (migrated from Supabase)
     match /conversation_members/{docId} {
-      allow read: if signedIn() && resource.data.user_id == uid();
-      allow create: if willOwn('user_id');
-      allow delete: if isOwner('user_id') || isAdmin();
+      allow read: if signedIn() && ownsProfileId(resource.data.user_id);
+      allow create: if willOwnProfile('user_id');
+      allow update: if ownsProfileId(resource.data.user_id);
+      allow delete: if isOwnerProfile('user_id') || isAdmin();
+    }
+    match /messages/{messageId} {
+      allow read: if signedIn() && isFlatConversationMember(resource.data.conversation_id);
+      allow create: if signedIn() &&
+        willOwnProfile('sender_id') &&
+        isFlatConversationMember(request.resource.data.conversation_id);
+      allow update, delete: if ownsProfileId(resource.data.sender_id) || isAdmin();
     }
     match /hidden_conversations/{docId} {
-      allow read, write: if isOwner('user_id') || willOwn('user_id');
+      allow read, write: if isOwnerProfile('user_id') || willOwnProfile('user_id');
+    }
+    match /trashed_conversations/{docId} {
+      allow read, write: if isOwnerProfile('user_id') || willOwnProfile('user_id');
     }
     match /dm_settings/{docId} {
-      allow read, write: if isOwner('user_id') || willOwn('user_id');
+      allow read, write: if isOwnerProfile('user_id') || willOwnProfile('user_id');
     }
 
     // ---------- calls / signaling ----------
@@ -267,6 +314,12 @@ service cloud.firestore {
     match /ad_daily_stats/{id}                { allow read: if isAdmin(); }
     match /ad_credits/{id}                    { allow read: if isOwner('user_id') || isAdmin(); allow write: if isAdmin(); }
     match /contact_hashes/{id}                { allow read, write: if isOwner('user_id') || willOwn('user_id'); }
+
+    // Vybe Check results — users read own; writes via Cloud Functions only
+    match /vybe_checks/{checkId} {
+      allow read: if signedIn() && resource.data.user_id == uid();
+      allow write: if false;
+    }
 
     // ---------- catch-all: deny by default ----------
     match /{document=**} {

@@ -14,6 +14,7 @@
  */
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { db, auth, requireAdmin } from './_shared/admin.js';
+export * from './vybeCheck.js';
 export * from './ai.js';
 export * from './aiExtras.js';
 export * from './aiDetectText.js';

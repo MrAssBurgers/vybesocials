@@ -1,8 +1,7 @@
 /**
  * AI Safety Scan Client
- * 
- * Calls the ai-safety-scan edge function for second-pass moderation.
- * Handles image-to-base64 conversion and audio transcript submission.
+ *
+ * Calls Firebase aiSafetyScan (Vybe Check): Google Safe Search + Gemini.
  */
 
 import { invokeEdgeFeature } from '@/lib/edgeFeature';
@@ -194,7 +193,22 @@ export function transcribeVideoAudio(file: File): Promise<string> {
 import { withTimeout } from '@/lib/withTimeout';
 
 function normalizeSafetyResult(data: Record<string, unknown>): AISafetyResult {
-  const safe = data.safe !== false;
+  const explicitResult = data.result as AISafetyResult['result'] | undefined;
+  if (explicitResult === 'blocked' || explicitResult === 'warned' || explicitResult === 'allowed') {
+    return {
+      allowed: explicitResult !== 'blocked',
+      result: explicitResult,
+      categories: Array.isArray(data.categories) ? (data.categories as string[]) : [],
+      score: Number(data.score || 0),
+      message: String(data.message || data.reason || ''),
+      visual_analysis: data.visual_analysis as string | undefined,
+      audio_analysis: data.audio_analysis as string | undefined,
+      suggested_age_rating: data.suggested_age_rating as AISafetyResult['suggested_age_rating'],
+      age_rating_reasons: data.age_rating_reasons as string[] | undefined,
+    };
+  }
+
+  const safe = data.safe !== false && data.allowed !== false;
   return {
     allowed: safe,
     result: safe ? 'allowed' : 'blocked',

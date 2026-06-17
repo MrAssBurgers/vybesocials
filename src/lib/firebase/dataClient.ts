@@ -17,6 +17,7 @@ import { firebaseStorage } from './storageService';
 import { invokeFunction } from './functionsService';
 import { createRealtimeChannel, getActiveChannels, removeChannelByTopic } from './realtimeService';
 import type { VybeAuthError } from './types';
+import type { UserProfile } from './types';
 import type { QueryConstraint } from 'firebase/firestore';
 import {
   isPreviewFounderUser,
@@ -26,6 +27,8 @@ import { isFeedRpc, normalizeRpcFeedRows, runFeedRpc } from './feedRpc';
 import { isSocialRpc, runSocialRpc } from './socialRpc';
 import { isNotYetPortedPayload } from './functionsService';
 import { getProfileByAuthUid, resolveProfileIdFromAuthUid } from './profileResolve';
+import { syncProfileUsername } from './syncProfileUsername';
+import { isGeneratedUsername, normalizeUsername } from '@/lib/username';
 
 type FilterOp = '==' | '!=' | '>' | '<' | 'in' | 'not-in';
 
@@ -464,6 +467,11 @@ async function rpcEnsureProfile(): Promise<string | null> {
 
   const existing = await getProfileByAuthUid(user.id);
   if (existing?.id) {
+    await setDocument('user_auth_index', user.id, {
+      profile_id: existing.id,
+      username: existing.username || null,
+      updated_at: new Date().toISOString(),
+    });
     await ensureFounderOwnerRoles(existing.id);
     return existing.id;
   }
@@ -482,6 +490,12 @@ async function rpcEnsureProfile(): Promise<string | null> {
     bio: '',
     onboarding_completed: false,
     created_at: new Date().toISOString(),
+  });
+
+  await setDocument('user_auth_index', user.id, {
+    profile_id: user.id,
+    username,
+    updated_at: new Date().toISOString(),
   });
 
   await ensureFounderOwnerRoles(user.id);
@@ -566,8 +580,40 @@ async function rpcGetPublicUserCount(): Promise<number> {
 const CLIENT_RPC: Record<string, (params: Record<string, unknown>) => Promise<unknown>> = {
   ensure_profile: async () => rpcEnsureProfile(),
   sync_signup_username: async () => {
-    await rpcEnsureProfile();
-    return null;
+    const profileId = await rpcEnsureProfile();
+    const { data: { user } } = await firebaseAuth.getUser();
+    if (!user) return null;
+
+    const profile = profileId ? await getDocument<UserProfile>('profiles', profileId) : null;
+    const current = profile?.username ?? null;
+
+    const meta = user.user_metadata || {};
+    const desired = normalizeUsername(
+      (meta.username as string) || (meta.display_name as string) || '',
+    );
+
+    if (!desired || isGeneratedUsername(desired)) {
+      return current;
+    }
+
+    if (current && !isGeneratedUsername(current) && normalizeUsername(current) !== desired) {
+      return current;
+    }
+
+    if (current && normalizeUsername(current) === desired) {
+      return current;
+    }
+
+    const available = await rpcIsUsernameAvailable(desired);
+    const takenByOther =
+      !available &&
+      normalizeUsername(current || '') !== desired;
+    if (takenByOther) {
+      return current;
+    }
+
+    await syncProfileUsername(user.id, desired);
+    return desired;
   },
   claim_profile_by_email: async () => rpcEnsureProfile(),
   is_username_available: async (p) => rpcIsUsernameAvailable(String(p.username || p._username || '')),

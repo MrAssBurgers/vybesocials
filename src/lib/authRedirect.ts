@@ -36,7 +36,7 @@ export function getAuthRedirectUrl(path = '/auth/callback'): string {
   return `${origin}${cleanPath}`;
 }
 
-/** Password reset links must use production HTTPS on native shells. */
+/** Password reset links always use canonical production HTTPS (vybehub.app, not www). */
 export function getPasswordResetRedirectUrl(): string {
-  return getAuthRedirectUrl('/reset-password');
+  return `${PRODUCTION_ORIGIN}/reset-password`;
 }

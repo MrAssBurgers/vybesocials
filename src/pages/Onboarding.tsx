@@ -13,6 +13,7 @@ import { AIVybeDesigner } from '@/components/onboarding/AIVybeDesigner';
 import { LegalAcceptance } from '@/components/onboarding/LegalAcceptance';
 import { useAuth } from '@/lib/auth';
 import { db } from '@/lib/firebase';
+import { updateUserProfile } from '@/lib/firebase/users';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { VybeMiniIcon } from '@/components/ui/VybeMiniIcon';
 import { toast } from 'sonner';
@@ -81,13 +82,14 @@ async function persistOnboardingSkip(
     finalUsername = normalizeUsername(syncedUsername);
   }
 
-  const runUpdate = (uname: string) =>
-    db
-      .from('profiles')
-      .update({ onboarding_completed: true, username: uname })
-      .eq('user_id', userId)
-      .select('username')
-      .maybeSingle();
+  const runUpdate = async (uname: string) => {
+    try {
+      await updateUserProfile(userId, { onboarding_completed: true, username: uname });
+      return { data: { username: uname }, error: null };
+    } catch (err) {
+      return { data: null, error: err as Error };
+    }
+  };
 
   let { data, error } = await runUpdate(finalUsername);
 
@@ -267,36 +269,18 @@ export default function Onboarding({ onInviteNavigate, isInviteMode = false }: O
 
       await ensureProfileRow(user.id);
 
-      const { data: updatedRow, error } = await db
-        .from('profiles')
-        .update({
-          username: finalUsername?.toLowerCase(),
-          first_name: profileData.firstName,
-          last_name: profileData.lastName,
-          display_name: finalDisplayName,
-          bio: profileData.bio,
-          link_url: profileData.linkUrl,
-          avatar_url: avatarUrl,
-          interests: interests,
-          date_of_birth: dateOfBirth?.toISOString().split('T')[0] || null,
-          onboarding_completed: true,
-        })
-        .eq('user_id', user.id)
-        .select('id, onboarding_completed, username')
-        .maybeSingle();
-
-      if (error) {
-        if (error.code === '23505' && error.message?.includes('profiles_username_key')) {
-          toast.error('That username is already taken. Please go back and choose another.');
-          setLoading(false);
-          return;
-        }
-        throw error;
-      }
-
-      if (!updatedRow) {
-        throw new Error('Profile update did not apply. Please try again.');
-      }
+      await updateUserProfile(user.id, {
+        username: finalUsername?.toLowerCase(),
+        first_name: profileData.firstName,
+        last_name: profileData.lastName,
+        display_name: finalDisplayName,
+        bio: profileData.bio,
+        link_url: profileData.linkUrl,
+        avatar_url: avatarUrl,
+        interests: interests,
+        date_of_birth: dateOfBirth?.toISOString().split('T')[0] || null,
+        onboarding_completed: true,
+      } as any);
 
       if (legalAccepted) {
         await db.from('legal_acceptances').upsert([

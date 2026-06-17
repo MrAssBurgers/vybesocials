@@ -4,7 +4,7 @@ import { Shield, Upload, Music, Film, Check, AlertTriangle, X, Loader2, RefreshC
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { db } from '@/lib/firebase';
-import { scanVideo as nsfwScanVideo } from '@/lib/nsfwScanner';
+import { startVybeCheckVideo, isVybeCheckBlocked } from '@/lib/vybeCheck';
 import { cn } from '@/lib/utils';
 
 interface VideoUploadScannerProps {
@@ -37,11 +37,10 @@ const STEP_INFO: Record<ScanStep, { label: string; icon: React.ComponentType<{ c
  * Video Upload Scanner - Uploads and scans videos for safety
  * 
  * Flow:
- * 1. Upload to private/quarantine location
- * 2. Scan video frames for inappropriate content
- * 3. Scan audio for hate speech/slurs
- * 4. If safe, finalize and return URL
- * 5. If blocked, delete and show error
+ * 1. Upload to quarantine/
+ * 2. Vybe Check (SafeSearch frames + OpenAI STT/moderation + Gemini borderline)
+ * 3. If safe, move to public videos/
+ * 4. If blocked, delete quarantine copy
  */
 export const VideoUploadScanner = memo(function VideoUploadScanner({
   file,
@@ -74,20 +73,32 @@ export const VideoUploadScanner = memo(function VideoUploadScanner({
       
       setState(s => ({ ...s, uploadProgress: 100, progress: 30 }));
 
-      // Step 2: Scan video frames (client-side NSFWJS)
+      // Step 2: Phase 1 Vybe Check — SafeSearch frames + OpenAI STT/moderation + Gemini borderline
       setState(s => ({ ...s, step: 'scanning-video', progress: 40 }));
-      
-      let videoResult: string = 'safe';
-      let videoMessage: string = '';
-      try {
-        const scanResult = await nsfwScanVideo(file);
-        videoResult = scanResult.result === 'blocked' ? 'blocked' : scanResult.result === 'warned' ? 'warned' : 'safe';
-        videoMessage = scanResult.message;
-      } catch (err) {
-        console.error('Video scan error:', err);
+
+      let videoResult: 'safe' | 'warned' | 'blocked' = 'safe';
+      let videoMessage = '';
+
+      const { result: vybeResult, unavailable } = await startVybeCheckVideo({
+        file,
+        storagePath: quarantinePath,
+      });
+
+      if (unavailable || !vybeResult) {
+        videoMessage = 'Vybe Check unavailable — try again shortly.';
+        videoResult = 'blocked';
+      } else if (isVybeCheckBlocked(vybeResult)) {
+        videoResult = 'blocked';
+        videoMessage = vybeResult.message || 'Video contains inappropriate content';
+      } else if (vybeResult.status === 'limited' || vybeResult.status === 'needs_review') {
+        videoResult = 'warned';
+        videoMessage = vybeResult.message;
+      } else {
+        videoResult = 'safe';
+        videoMessage = vybeResult.message || 'Video passed Vybe Check.';
       }
 
-      setState(s => ({ ...s, videoScanResult: videoResult as any, progress: 60 }));
+      setState(s => ({ ...s, step: 'scanning-audio', videoScanResult: videoResult, progress: 70 }));
 
       // Check if video content is blocked
       if (videoResult === 'blocked') {
@@ -102,10 +113,8 @@ export const VideoUploadScanner = memo(function VideoUploadScanner({
         return;
       }
 
-      // Step 3: Audio scan skipped (NSFWJS handles visual content only)
-      // Audio hate-speech detection requires transcription which needs an external API
-      // For standalone mode, we rely on the visual scan + text moderation on comments
-      setState(s => ({ ...s, step: 'scanning-audio', audioScanResult: 'safe', progress: 85 }));
+      // Step 3: Audio handled server-side (OpenAI STT + moderation) during Vybe Check
+      setState(s => ({ ...s, audioScanResult: videoResult === 'blocked' ? 'blocked' : 'safe', progress: 85 }));
 
       // Step 4: Move to public location
       setState(s => ({ ...s, step: 'finalizing', progress: 90 }));
