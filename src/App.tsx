@@ -94,6 +94,7 @@ import { syncNativeTrackingConsent } from "@/lib/att";
 import { readSplashCompleted, markSplashCompleted } from "@/lib/splashSession";
 import { navVisibility } from "@/lib/navVisibility";
 import { markBootComplete } from "@/lib/bootGuard";
+import { ShellVisibilityGuard } from "@/components/system/ShellVisibilityGuard";
 
 // Lazy-load non-critical overlays and providers to reduce initial bundle
 const EasterEggProvider = lazy(() => import("@/components/easter-eggs/EasterEggProvider").then(m => ({ default: m.EasterEggProvider })));
@@ -214,7 +215,9 @@ function completeInitialSplash(setShowSplash: (v: boolean) => void) {
   ensureAppShellVisible();
   navVisibility.forceShow();
   navVisibility.resetScrollHide();
-  markBootComplete();
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => markBootComplete());
+  });
 }
 
 // Background brief pre-fetcher (needs auth context)
@@ -310,11 +313,6 @@ function AppWithPreloader() {
     return () => clearTimeout(absoluteMax);
   }, [showSplash]);
 
-  // Belt-and-suspenders: never leave boot watchdog in pending state.
-  useEffect(() => {
-    markBootComplete();
-  }, []);
-
   // Ensure WebView is visible after splash (App Review 2.1a blank launch on iPad).
   useEffect(() => {
     if (showSplash) return;
@@ -390,6 +388,7 @@ function AppWithPreloader() {
 
   return (
     <>
+      <ShellVisibilityGuard />
       <SplashScreen isVisible={showSplash} />
       {welcomeBack && (
         <WelcomeBackSplash
@@ -429,7 +428,7 @@ function AppWithPreloader() {
                           <div
                             id="app-shell"
                             data-app-shell
-                            className="relative z-[1] min-h-dvh bg-transparent"
+                            className="relative z-[1] min-h-dvh bg-background"
                           >
                           <Suspense fallback={null}>
                             <RewardNotificationProvider>

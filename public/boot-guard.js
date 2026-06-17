@@ -1,88 +1,106 @@
 /**
- * Pre-React boot watchdog — runs before the Vite module bundle.
- * If main.tsx fails to parse/execute or React never paints, show recovery UI
- * instead of an empty black screen (all devices: web, PWA, Despia WebView).
+ * Pre-React + runtime blank-screen watchdog.
+ * Must be inlined in index.html AND kept at public/boot-guard.js (same file).
  */
 (function bootGuard() {
   var BOOT_ATTR = 'data-vybe-boot';
   var RECOVERY_ID = 'vybe-boot-recovery';
-  var watchdogTimer = null;
+  var startupTimer = null;
   var pollTimer = null;
-  var bootComplete = false;
   var recoveryShown = false;
+  var blankStreak = 0;
 
   var ua = (navigator.userAgent || '').toLowerCase();
   var isNativeWrapper =
     /despia|vybeapp|median|gonative|wv\)|; wv\b/.test(ua) ||
     !!(window).Despia ||
     !!(window).__DESPIA__;
-  var BOOT_TIMEOUT_MS = isNativeWrapper ? 14000 : 10000;
+  var STARTUP_TIMEOUT_MS = isNativeWrapper ? 14000 : 10000;
+  var BLANK_STREAK_LIMIT = 5;
 
   function hideRecovery() {
     var el = document.getElementById(RECOVERY_ID);
     if (el) el.style.display = 'none';
+    recoveryShown = false;
+  }
+
+  function clearStuckUiState() {
+    try {
+      document.body.classList.remove('splash-visible', 'vybe-incoming-call-active', 'hide-bottom-nav');
+      document.body.style.overflow = '';
+      document.body.style.position = '';
+      document.body.style.top = '';
+      document.body.style.width = '';
+      document.documentElement.style.overflow = '';
+      var root = document.getElementById('root');
+      if (root) {
+        root.style.visibility = '';
+        root.style.opacity = '';
+        root.style.display = '';
+      }
+    } catch (e) { /* ignore */ }
   }
 
   function showRecovery(reason) {
-    if (bootComplete || recoveryShown) return;
+    clearStuckUiState();
     recoveryShown = true;
     var el = document.getElementById(RECOVERY_ID);
     if (!el) return;
     el.style.display = 'flex';
     document.documentElement.setAttribute(BOOT_ATTR, 'failed');
     var detail = document.getElementById('vybe-boot-recovery-detail');
-    if (detail && reason) {
-      detail.textContent = reason === 'startup_timeout'
-        ? 'The app took too long to start. This is usually a cached update — try clearing cache.'
-        : 'Something blocked startup. Reload or clear cache to recover.';
+    if (!detail) return;
+    if (reason === 'startup_timeout') {
+      detail.textContent = 'The app took too long to start. This is usually a cached update — try clearing cache.';
+    } else if (reason === 'blank_shell') {
+      detail.textContent = 'The app loaded but nothing appeared on screen. Reload or clear cache to recover.';
+    } else if (reason === 'script_error' || reason === 'chunk_error') {
+      detail.textContent = 'A script failed to load (often after an update). Clear cache and reload.';
+    } else {
+      detail.textContent = 'Something blocked the UI. Reload or clear cache to continue.';
     }
-    try {
-      document.body.classList.remove('splash-visible');
-      var root = document.getElementById('root');
-      if (root) {
-        root.style.visibility = '';
-        root.style.opacity = '';
-      }
-    } catch (e) { /* ignore */ }
   }
 
-  function clearTimers() {
-    if (watchdogTimer) clearTimeout(watchdogTimer);
-    if (pollTimer) clearInterval(pollTimer);
-    watchdogTimer = null;
-    pollTimer = null;
+  function isRecoveryVisible() {
+    var el = document.getElementById(RECOVERY_ID);
+    return !!(el && el.style.display === 'flex');
   }
 
-  function markComplete() {
-    if (bootComplete) return;
-    bootComplete = true;
-    clearTimers();
-    hideRecovery();
-    document.documentElement.setAttribute(BOOT_ATTR, 'ready');
+  function isSplashVisible() {
+    return document.body.classList.contains('splash-visible');
   }
 
-  function isAppVisible() {
-    if (bootComplete) return true;
+  /** True when users see real UI — not an empty transparent shell on black. */
+  function hasMeaningfulContent() {
     var root = document.getElementById('root');
     if (!root) return false;
+
     if (root.querySelector('[data-vybe-boot-screen]')) return true;
-    if (document.getElementById('app-shell')) return true;
-    if (root.querySelector('[data-app-shell]')) return true;
-    if (root.querySelector('[role="alert"]')) return true;
-    var text = (root.textContent || '').replace(/\s+/g, '');
-    if (text.length > 8) return true;
-    var kids = root.children;
-    for (var i = 0; i < kids.length; i++) {
-      var rect = kids[i].getBoundingClientRect();
-      if (rect.width > 0 && rect.height > 0) return true;
+    if (isSplashVisible()) return true;
+
+    var main = document.getElementById('main-content');
+    if (main) {
+      var mainText = (main.textContent || '').replace(/\s+/g, '');
+      if (mainText.length > 20) return true;
+      if (main.querySelector('img, video, canvas, svg, button, a[href], input, textarea, [role="main"]')) {
+        return true;
+      }
     }
+
+    var route = document.querySelector('[data-route-shell]');
+    if (route) {
+      var routeText = (route.textContent || '').replace(/\s+/g, '');
+      if (routeText.length > 20) return true;
+    }
+
+    var rootText = (root.textContent || '').replace(/\s+/g, '');
+    if (rootText.length > 40) return true;
+
     return false;
   }
 
   function clearCacheAndReload() {
-    var reload = function () {
-      window.location.reload();
-    };
+    var reload = function () { window.location.reload(); };
     var tasks = [];
     try {
       if ('serviceWorker' in navigator) {
@@ -100,34 +118,62 @@
         );
       }
     } catch (e) { /* ignore */ }
-    if (tasks.length) {
-      Promise.all(tasks).finally(reload);
-    } else {
-      reload();
+    if (tasks.length) Promise.all(tasks).finally(reload);
+    else reload();
+  }
+
+  function markBootReady() {
+    if (hasMeaningfulContent()) {
+      document.documentElement.setAttribute(BOOT_ATTR, 'ready');
+      hideRecovery();
+      blankStreak = 0;
     }
   }
 
-  window.__VYBE_MARK_BOOT_COMPLETE__ = markComplete;
+  function pollVisibility() {
+    if (document.visibilityState === 'hidden') return;
+    if (isRecoveryVisible()) return;
+
+    if (hasMeaningfulContent()) {
+      blankStreak = 0;
+      markBootReady();
+      if (startupTimer) {
+        clearTimeout(startupTimer);
+        startupTimer = null;
+      }
+      return;
+    }
+
+    if (isSplashVisible()) {
+      blankStreak = 0;
+      return;
+    }
+
+    blankStreak += 1;
+    if (blankStreak >= BLANK_STREAK_LIMIT) {
+      showRecovery('blank_shell');
+    }
+  }
+
+  window.__VYBE_MARK_BOOT_COMPLETE__ = markBootReady;
   window.__VYBE_SHOW_BOOT_RECOVERY__ = showRecovery;
   window.__VYBE_CLEAR_CACHE_RELOAD__ = clearCacheAndReload;
+  window.__VYBE_HAS_MEANINGFUL_CONTENT__ = hasMeaningfulContent;
 
   document.documentElement.setAttribute(BOOT_ATTR, 'pending');
 
-  pollTimer = setInterval(function () {
-    if (isAppVisible()) markComplete();
-  }, 400);
+  pollTimer = setInterval(pollVisibility, 800);
 
-  watchdogTimer = setTimeout(function () {
-    if (!bootComplete && !isAppVisible()) {
+  startupTimer = setTimeout(function () {
+    if (!hasMeaningfulContent() && !isSplashVisible()) {
       showRecovery('startup_timeout');
     }
-  }, BOOT_TIMEOUT_MS);
+  }, STARTUP_TIMEOUT_MS);
 
   window.addEventListener('error', function (event) {
-    if (bootComplete) return;
     var msg = String(event.message || '');
     var file = String(event.filename || '');
-    var isBootFatal =
+    var isFatal =
       file.indexOf('/assets/') !== -1 ||
       file.indexOf('main') !== -1 ||
       msg.indexOf('Loading chunk') !== -1 ||
@@ -135,17 +181,17 @@
       msg.indexOf('Importing a module script failed') !== -1 ||
       msg.indexOf('is not defined') !== -1 ||
       msg.indexOf('Unexpected token') !== -1;
-    if (isBootFatal) showRecovery('script_error');
+    if (isFatal && !hasMeaningfulContent()) showRecovery('script_error');
   });
 
   window.addEventListener('unhandledrejection', function (event) {
-    if (bootComplete) return;
     var reason = event.reason;
     var msg = reason instanceof Error ? reason.message : String(reason || '');
     if (
-      msg.indexOf('Loading chunk') !== -1 ||
-      msg.indexOf('Failed to fetch') !== -1 ||
-      msg.indexOf('Importing a module script failed') !== -1
+      (msg.indexOf('Loading chunk') !== -1 ||
+        msg.indexOf('Failed to fetch') !== -1 ||
+        msg.indexOf('Importing a module script failed') !== -1) &&
+      !hasMeaningfulContent()
     ) {
       showRecovery('chunk_error');
     }

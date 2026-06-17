@@ -1,8 +1,8 @@
 // VYBE Service Worker
-// Version 27.0 — boot guard + network-first main entry bundle
+// Version 28.0 — runtime blank-shell watchdog + network-first entry bundle
 
-const CACHE_NAME = 'vybe-v27';
-const STATIC_CACHE = 'vybe-static-v27';
+const CACHE_NAME = 'vybe-v28';
+const STATIC_CACHE = 'vybe-static-v28';
 const MEDIA_CACHE = 'vybe-media-v2';
 const SHELL_CACHE = 'vybe-shell-v4';
 const ASSETS_CACHE = 'vybe-assets-v4';

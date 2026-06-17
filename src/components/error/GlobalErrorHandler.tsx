@@ -4,6 +4,7 @@ import { useErrorReporter } from '@/hooks/useErrorReporter';
 import { useAutoBugReporter } from '@/hooks/useAutoBugReporter';
 import { toast } from 'sonner';
 import { trackError, clearAppCache } from '@/lib/selfHealingMonitor';
+import { showBootRecovery } from '@/lib/bootGuard';
 
 export function GlobalErrorHandler() {
   useErrorReporter();
@@ -14,16 +15,28 @@ export function GlobalErrorHandler() {
     // No online/offline toasts — silent background reconnect.
     // Reconnect logic still runs via reconnectManager; we just don't surface UI.
 
-    // Handle chunk loading errors
+    // Handle chunk loading errors — show recovery if shell is blank
     const handleChunkError = (event: ErrorEvent) => {
-      if (event.message?.includes('Loading chunk') || event.message?.includes('Failed to fetch')) {
-        toast.error('Update available! 🔄', {
-          description: 'Refreshing to get the latest version...',
-          duration: 2000,
-        });
-        clearAppCache();
-        setTimeout(() => window.location.reload(), 2000);
+      const isChunk =
+        event.message?.includes('Loading chunk') ||
+        event.message?.includes('Failed to fetch') ||
+        event.message?.includes('Importing a module script failed');
+      if (!isChunk) return;
+
+      const hasContent =
+        typeof window.__VYBE_HAS_MEANINGFUL_CONTENT__ === 'function' &&
+        window.__VYBE_HAS_MEANINGFUL_CONTENT__();
+
+      if (!hasContent) {
+        showBootRecovery('chunk_error');
       }
+
+      toast.error('Update available! 🔄', {
+        description: 'Refreshing to get the latest version...',
+        duration: 2000,
+      });
+      clearAppCache();
+      setTimeout(() => window.location.reload(), 2000);
     };
 
     const shouldIgnoreForSelfHeal = (msg: string) => {

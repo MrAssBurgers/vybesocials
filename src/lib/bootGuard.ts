@@ -7,6 +7,7 @@ declare global {
     __VYBE_MARK_BOOT_COMPLETE__?: () => void;
     __VYBE_SHOW_BOOT_RECOVERY__?: (reason?: string) => void;
     __VYBE_CLEAR_CACHE_RELOAD__?: () => void;
+    __VYBE_HAS_MEANINGFUL_CONTENT__?: () => boolean;
   }
 }
 

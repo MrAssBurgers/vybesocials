@@ -49,8 +49,8 @@ export const SplashScreen = memo(function SplashScreen({ isVisible }: SplashScre
           initial={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           transition={{ duration: reduceMotion ? 0.12 : 0.22, ease: 'easeOut' }}
-          className="fixed inset-0 flex flex-col items-center justify-center bg-background overflow-hidden"
-          style={{ zIndex: 2147483647 }}
+          className="fixed inset-0 flex flex-col items-center justify-center overflow-hidden"
+          style={{ zIndex: 2147483647, background: '#0B0B10' }}
         >
           {!reduceMotion && (
             <div className="absolute inset-0 pointer-events-none overflow-hidden opacity-60">

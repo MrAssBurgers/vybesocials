@@ -180,8 +180,6 @@ function renderVybeApp() {
       </StrictMode>,
     );
   }
-
-  markBootComplete();
 }
 
 try {
