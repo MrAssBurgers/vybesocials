@@ -190,6 +190,14 @@ function renderVybeApp() {
 try {
   runPreRenderInit();
   renderVybeApp();
+  // Mark boot complete as soon as React has had a chance to mount the first frame.
+  // Don't wait for splash dismissal / auth resolution — the watchdog only cares
+  // that meaningful UI is on screen, which is true the moment the splash renders.
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      try { markBootComplete(); } catch { /* ignore */ }
+    });
+  });
 } catch (error) {
   console.error("[VYBE] Fatal boot error:", error);
   showBootRecovery("react_boot_error");
