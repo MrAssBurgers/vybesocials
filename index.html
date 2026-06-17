@@ -371,7 +371,19 @@
       })();
     </script>
     <div id="vybe-aurora-mount" aria-hidden="true"></div>
+    <div id="vybe-boot-recovery" role="alert" aria-live="assertive" style="display:none;position:fixed;inset:0;z-index:2147483647;align-items:center;justify-content:center;padding:1.5rem;text-align:center;background:#07070c;color:#fafafa;font-family:system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
+      <div style="max-width:22rem;">
+        <p style="display:inline-block;margin:0 0 1rem;padding:0.35rem 0.9rem;border-radius:9999px;border:1px solid rgba(139,92,246,0.35);background:rgba(139,92,246,0.12);color:#ddd6fe;font-size:0.875rem;font-weight:500;">Startup recovery</p>
+        <h1 style="margin:0 0 0.75rem;font-size:1.5rem;font-weight:700;">VYBE didn&rsquo;t load</h1>
+        <p id="vybe-boot-recovery-detail" style="margin:0 0 1.25rem;font-size:0.95rem;line-height:1.55;color:#d4d4d8;">Reload or clear cache to continue.</p>
+        <div style="display:flex;flex-direction:column;gap:0.65rem;">
+          <button id="vybe-boot-reload" type="button" style="border:0;border-radius:9999px;padding:0.7rem 1rem;font-size:0.9rem;font-weight:600;background:#8b5cf6;color:#fff;">Reload</button>
+          <button id="vybe-boot-clear-cache" type="button" style="border:1px solid #3f3f46;border-radius:9999px;padding:0.7rem 1rem;font-size:0.9rem;font-weight:600;background:transparent;color:#fafafa;">Clear cache &amp; reload</button>
+        </div>
+      </div>
+    </div>
     <div id="root"></div>
+    <script src="/boot-guard.js"></script>
     <script type="module" src="/src/main.tsx" fetchpriority="high"></script>
   </body>
 </html>

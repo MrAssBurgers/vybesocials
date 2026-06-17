@@ -65,6 +65,11 @@ async function main() {
   const css = run('npm', ['run', 'validate:css'], { stdio: 'pipe' });
   console.log(css.ok ? 'PASS npm run validate:css' : 'WARN validate:css');
 
+  section('Frontend — boot entry');
+  const boot = run('npm', ['run', 'validate:boot'], { stdio: 'pipe' });
+  console.log(boot.ok ? 'PASS npm run validate:boot' : `FAIL npm run validate:boot (exit ${boot.code})`);
+  if (!boot.ok) console.log(boot.out.trim());
+
   section('Edge functions — local vs client references');
   const fnDir = join(root, 'supabase/functions');
   const localFns = new Set(

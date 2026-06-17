@@ -4,6 +4,10 @@ Use this file as the Lovable -> Cursor handoff each session.
 
 **Links:** [Lovable project](https://lovable.dev/projects/416714c8-d013-4aff-984d-522418a9bbc7) · [Production](https://vybehub.app) · Deploy steps: `DEPLOY.md`
 
+## Current Focus (2026-06-17 — black screen hardening)
+- **Done:** Pre-React `boot-guard.js` watchdog (recovery UI + clear cache); `main.tsx` try/catch boot; `BootRecoveryScreen`; SW **v27** network-first `index-*.js`; `npm run validate:boot` in debug scan; splash max 1.5s
+- **You:** Lovable **Share → Publish**; clear site data once on phone after publish
+
 ## Current Focus (2026-06-17 — black screen fix)
 - **Root cause:** `main.tsx` called `isPreviewServiceWorkerDisabled()` without importing it → `ReferenceError` on load (any browser with SW) → black screen before React mounts
 - **Fix:** restored import from `serviceWorker.ts`; SW **v26**

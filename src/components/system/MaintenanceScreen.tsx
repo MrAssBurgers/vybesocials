@@ -11,7 +11,7 @@ export function MaintenanceScreen() {
   }, []);
 
   return (
-    <div className="min-h-[100dvh] flex flex-col items-center justify-center px-6 py-12 text-center bg-[#07070c] text-foreground overflow-hidden relative">
+    <div data-vybe-boot-screen className="min-h-[100dvh] flex flex-col items-center justify-center px-6 py-12 text-center bg-[#07070c] text-foreground overflow-hidden relative">
       <div
         className="pointer-events-none absolute inset-0 opacity-60"
         aria-hidden

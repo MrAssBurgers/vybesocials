@@ -10,6 +10,7 @@
     "build:dev": "vite build --mode development",
     "lint": "eslint .",
     "validate:css": "node scripts/validate-css.mjs",
+    "validate:boot": "node scripts/check-boot-entry.mjs",
     "debug": "node scripts/debug-scan.mjs",
     "migrate:agtcyx": "node scripts/migrate-agtcyx-to-hprmic.mjs",
     "migrate:firebase:export": "node scripts/export-supabase.mjs",

@@ -93,6 +93,7 @@ import { ATT_RESUME_EVENT, ensureAppShellVisible } from "@/lib/attResumeRecovery
 import { syncNativeTrackingConsent } from "@/lib/att";
 import { readSplashCompleted, markSplashCompleted } from "@/lib/splashSession";
 import { navVisibility } from "@/lib/navVisibility";
+import { markBootComplete } from "@/lib/bootGuard";
 
 // Lazy-load non-critical overlays and providers to reduce initial bundle
 const EasterEggProvider = lazy(() => import("@/components/easter-eggs/EasterEggProvider").then(m => ({ default: m.EasterEggProvider })));
@@ -213,6 +214,7 @@ function completeInitialSplash(setShowSplash: (v: boolean) => void) {
   ensureAppShellVisible();
   navVisibility.forceShow();
   navVisibility.resetScrollHide();
+  markBootComplete();
 }
 
 // Background brief pre-fetcher (needs auth context)
@@ -304,9 +306,14 @@ function AppWithPreloader() {
     const absoluteMax = setTimeout(() => {
       syncNativeTrackingConsent();
       completeInitialSplash(setShowSplash);
-    }, isNativePerfMode() ? 1600 : 2000);
+    }, isNativePerfMode() ? 1200 : 1500);
     return () => clearTimeout(absoluteMax);
   }, [showSplash]);
+
+  // Belt-and-suspenders: never leave boot watchdog in pending state.
+  useEffect(() => {
+    markBootComplete();
+  }, []);
 
   // Ensure WebView is visible after splash (App Review 2.1a blank launch on iPad).
   useEffect(() => {

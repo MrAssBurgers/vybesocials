@@ -1,8 +1,8 @@
 // VYBE Service Worker
-// Version 26.0 — fix startup crash (missing SW import in main.tsx)
+// Version 27.0 — boot guard + network-first main entry bundle
 
-const CACHE_NAME = 'vybe-v26';
-const STATIC_CACHE = 'vybe-static-v26';
+const CACHE_NAME = 'vybe-v27';
+const STATIC_CACHE = 'vybe-static-v27';
 const MEDIA_CACHE = 'vybe-media-v2';
 const SHELL_CACHE = 'vybe-shell-v4';
 const ASSETS_CACHE = 'vybe-assets-v4';
@@ -124,6 +124,16 @@ self.addEventListener('fetch', (event) => {
     // Cache-first for media/fonts (immutable assets)
     if (CACHE_FIRST_PATTERNS.some((p) => url.href.includes(p))) {
       event.respondWith(cacheFirst(event.request, MEDIA_CACHE));
+      return;
+    }
+
+    // Main entry bundle must be network-first so deploys never serve a stale
+    // broken index-*.js from cache (prevents post-publish black screens).
+    if (
+      url.origin === self.location.origin &&
+      /^\/assets\/index-[^/]+\.js$/i.test(url.pathname)
+    ) {
+      event.respondWith(networkFirst(event.request));
       return;
     }
 
