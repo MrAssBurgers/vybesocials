@@ -4,7 +4,7 @@ import { useAuth } from '@/lib/auth';
 import { useAuthProfileId } from '@/hooks/useAuthProfileId';
 import { isStaffQueryEnabled } from '@/lib/adminAccess';
 import { invokeEdgeFeature } from '@/lib/edgeFeature';
-import { isPreviewFounderUser, isPreviewSandbox } from '@/lib/previewSandbox';
+import { isPreviewFounderUser, isFounderAuthId } from '@/lib/previewSandbox';
 
 export interface ContentFlag {
   id: string;
@@ -152,7 +152,7 @@ export function useUserRole() {
     queryFn: async () => {
       if (!profileId && !user?.id) return null;
 
-      if (isPreviewSandbox() && isPreviewFounderUser(user)) {
+      if (isFounderAuthId(user?.id) || isPreviewFounderUser(user)) {
         return 'owner' as const;
       }
 

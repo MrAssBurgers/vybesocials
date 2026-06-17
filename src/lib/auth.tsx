@@ -13,7 +13,6 @@ import { hasStoredSupabaseSession, getStoredAuthUserId, clearLegacySupabaseAuthS
 import { setWasLoggedIn } from '@/lib/wasLoggedIn';
 import { getAuthRedirectUrl } from '@/lib/authRedirect';
 import { isDespiaRuntime } from '@/lib/despiaBridge';
-import { isLovablePreviewHost } from '@/lib/lovablePreview';
 import { refreshSupabaseSession } from '@/lib/supabaseAuthRefresh';
 import { clearFunctionAuthHeadersCache } from '@/lib/functionAuth';
 import { logEvent } from '@/lib/debugLogger';
@@ -28,7 +27,6 @@ import { startHeartbeat, stopHeartbeat } from '@/lib/analytics';
 import { removeRealtimeChannel, subscribePostgresChannel } from '@/lib/realtimeChannel';
 import { normalizeLoginEmail } from '@/lib/loginEmail';
 import { isPasswordRecoveryUrl, redirectToPasswordRecoveryPage } from '@/lib/passwordRecoveryUrl';
-import { isSignupDisabledInSandbox } from '@/lib/previewSandbox';
 
 /** Fail-soft — production may not have deployed sync_signup_username yet. */
 async function trySyncSignupUsername(): Promise<string | null> {
@@ -45,14 +43,10 @@ async function trySyncSignupUsername(): Promise<string | null> {
 const TOKEN_REFRESH_MARGIN_MS = 5 * 60 * 1000;
 
 function getStoredSessionRefreshTimeoutMs(): number {
-  if (isLovablePreviewHost()) return 12000;
   return isDespiaRuntime() ? 15000 : 8000;
 }
 
 function getAuthInitTimeouts() {
-  if (isLovablePreviewHost()) {
-    return { safetyMs: 8000, getSessionMs: 5000 };
-  }
   return { safetyMs: 3500, getSessionMs: 2500 };
 }
 
@@ -744,7 +738,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (!hasStoredSupabaseSession()) return;
 
       const now = Date.now();
-      const debounceMs = isLovablePreviewHost() ? 5000 : 2000;
+      const debounceMs = 2000;
       if (now - lastResumeRefreshAt < debounceMs) return;
       lastResumeRefreshAt = now;
 
@@ -925,12 +919,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const signUp = async (email: string, password: string, username: string) => {
-    if (isSignupDisabledInSandbox()) {
-      return {
-        error: new Error('Sign-up is disabled on preview. Sign in with your Bakrix account.'),
-        needsEmailConfirmation: false,
-      };
-    }
     try {
       const normalizedEmail = normalizeLoginEmail(email);
       const cleanUsername = normalizeUsername(username);

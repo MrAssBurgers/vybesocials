@@ -5,11 +5,9 @@ import { Sparkles } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { haptics } from '@/lib/haptics';
 import { useFloatingControlVisibility } from '@/hooks/useFloatingControlVisibility';
-import { isLovablePreviewHost } from '@/lib/lovablePreview';
 
 /** Floating entry to unified VYBE AI agent (/VYBE-AI). */
 export function VYBECommandBar() {
-  const hideInPreview = isLovablePreviewHost();
   const navigate = useNavigate();
   const location = useLocation();
   const controlVisible = useFloatingControlVisibility();
@@ -19,7 +17,7 @@ export function VYBECommandBar() {
     navigate('/VYBE-AI');
   }, [navigate]);
 
-  if (hideInPreview || location.pathname === '/VYBE-AI') return null;
+  if (location.pathname === '/VYBE-AI') return null;
 
   return (
     <AnimatePresence>

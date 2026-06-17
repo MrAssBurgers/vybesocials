@@ -1,18 +1,7 @@
 import { isDespiaRuntime } from '@/lib/despiaBridge';
 
-const PREVIEW_HOST_TOKENS = ['preview'];
-
 export function isPreviewServiceWorkerDisabled() {
-  if (typeof window === 'undefined') return false;
-
-  const { hostname, search } = window.location;
-  const params = new URLSearchParams(search);
-
-  return (
-    PREVIEW_HOST_TOKENS.some((token) => hostname.includes(token)) ||
-    hostname.endsWith('.lovableproject.com') ||
-    params.has('__lovable_token')
-  );
+  return false;
 }
 
 export function isLocalDevHost(): boolean {
@@ -22,12 +11,11 @@ export function isLocalDevHost(): boolean {
 }
 
 /**
- * Register the VYBE service worker on production HTTPS and local dev.
- * Skips Despia localhost shells (despia-local mode) and Lovable preview hosts.
+ * Register the VYBE service worker on vybehub.app and Lovable preview (same live backend).
+ * Skips Despia localhost shells (despia-local mode) and local Vite dev.
  */
 export function shouldRegisterServiceWorker(): boolean {
   if (typeof window === 'undefined' || !('serviceWorker' in navigator)) return false;
-  if (isPreviewServiceWorkerDisabled()) return false;
 
   const { hostname } = window.location;
 
@@ -36,12 +24,17 @@ export function shouldRegisterServiceWorker(): boolean {
     return false;
   }
 
-  // Production PWA: browser install + Despia URL mode loading vybehub.app.
-  if (hostname === 'vybehub.app' || hostname === 'www.vybehub.app') {
+  // Production + Lovable preview admin mirror of vybehub.app.
+  if (
+    hostname === 'vybehub.app' ||
+    hostname === 'www.vybehub.app' ||
+    hostname.endsWith('.lovableproject.com') ||
+    hostname.endsWith('.lovable.app')
+  ) {
     return true;
   }
 
-  // Local Vite dev — no service worker (avoids stale cache fighting HMR; prod uses SW on vybehub.app).
+  // Local Vite dev — no service worker (avoids stale cache fighting HMR).
   if (import.meta.env.DEV && (hostname === 'localhost' || hostname === '127.0.0.1')) {
     return false;
   }

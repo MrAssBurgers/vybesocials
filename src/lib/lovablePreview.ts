@@ -1,9 +1,8 @@
 /**
- * Detect Lovable editor / sandbox hosts where we skip production 2FA gates
- * and use direct Supabase password sign-in.
+ * Detect Lovable editor / preview hosts (for logging and OneSignal domain quirks).
  *
- * Local Vite (127.0.0.1 / localhost) is NOT a preview host — it should match
- * production vybehub.app auth flows. Keep in sync with auth-2fa-preauth preview bypass regex.
+ * Product behavior matches vybehub.app on these hosts — same Firebase backend, auth,
+ * maintenance gate, and UI. Local Vite (127.0.0.1 / localhost) also matches production.
  */
 export function isLovablePreviewHost(): boolean {
   if (typeof window === 'undefined') return false;

@@ -1,8 +1,8 @@
 // VYBE Service Worker
-// Version 20.0 — single Supabase: hprmic primary post-migration (2026-06-16)
+// Version 24.0 — Lovable preview matches vybehub.app (2026-06-17)
 
-const CACHE_NAME = 'vybe-v23';
-const STATIC_CACHE = 'vybe-static-v23';
+const CACHE_NAME = 'vybe-v24';
+const STATIC_CACHE = 'vybe-static-v24';
 const MEDIA_CACHE = 'vybe-media-v2';
 const SHELL_CACHE = 'vybe-shell-v4';
 const ASSETS_CACHE = 'vybe-assets-v4';

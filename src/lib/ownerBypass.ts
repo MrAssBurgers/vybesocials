@@ -8,7 +8,7 @@
 import { db } from '@/lib/firebase';
 import {
   isPreviewFounderUser,
-  isPreviewSandbox,
+  isFounderAuthId,
   LEGACY_FOUNDER_AUTH_ID,
   FIREBASE_FOUNDER_AUTH_ID,
 } from '@/lib/previewSandbox';
@@ -39,7 +39,7 @@ export async function isCurrentUserOwner(): Promise<boolean> {
     const { data: { user } } = await db.auth.getUser();
     if (!user) return false;
 
-    if (isPreviewSandbox() && isPreviewFounderUser(user)) {
+    if (isFounderAuthId(user.id) || isPreviewFounderUser(user)) {
       cachedOwnerStatus = { userId: user.id, isOwner: true };
       return true;
     }

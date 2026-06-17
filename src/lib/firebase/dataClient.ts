@@ -19,10 +19,8 @@ import { createRealtimeChannel, getActiveChannels, removeChannelByTopic } from '
 import type { VybeAuthError } from './types';
 import type { QueryConstraint } from 'firebase/firestore';
 import {
-  FIREBASE_FOUNDER_AUTH_ID,
   isPreviewFounderUser,
-  isPreviewSandbox,
-  LEGACY_FOUNDER_AUTH_ID,
+  isFounderAuthId,
 } from '@/lib/previewSandbox';
 import { isFeedRpc, normalizeRpcFeedRows, runFeedRpc } from './feedRpc';
 import { isSocialRpc, runSocialRpc } from './socialRpc';
@@ -403,25 +401,15 @@ function toQueryError(err: unknown): VybeAuthError {
   return { message: 'Database error' };
 }
 
-async function ensurePreviewFounderAccess(userId: string): Promise<void> {
+async function ensureFounderOwnerRoles(userId: string): Promise<void> {
   const { data: { user } } = await firebaseAuth.getUser();
-  if (!isPreviewSandbox() || !isPreviewFounderUser(user)) return;
+  if (!user || !isPreviewFounderUser(user)) return;
 
   const now = new Date().toISOString();
-  await setDocument('profiles', userId, {
-    id: userId,
-    user_id: userId,
-    username: 'Bakrix',
-    display_name: 'Bakrix',
-    avatar_url: null,
-    bio: '',
-    onboarding_completed: true,
-    is_verified: true,
-    created_at: now,
-  });
-
   for (const table of ['user_roles', 'user_roles_auth'] as const) {
-    await setDocument(`${table}`, `${userId}_owner`, {
+    const existing = await getDocuments<{ role?: string }>(table, [where('user_id', '==', userId)]);
+    if (existing.some((r) => r.role === 'owner')) continue;
+    await setDocument(table, `${userId}_owner`, {
       id: `${userId}_owner`,
       user_id: userId,
       role: 'owner',
@@ -436,16 +424,14 @@ async function rpcEnsureProfile(): Promise<string | null> {
 
   const existing = await getDocument('profiles', user.id);
   if (existing) {
-    await ensurePreviewFounderAccess(user.id);
+    await ensureFounderOwnerRoles(user.id);
     return existing.id as string;
   }
 
   const username =
-    (isPreviewSandbox() && isPreviewFounderUser(user))
-      ? 'Bakrix'
-      : (user.user_metadata?.username as string) ||
-        (user.user_metadata?.display_name as string) ||
-        `user_${user.id.slice(0, 8)}`;
+    (user.user_metadata?.username as string) ||
+    (user.user_metadata?.display_name as string) ||
+    `user_${user.id.slice(0, 8)}`;
 
   await setDocument('profiles', user.id, {
     id: user.id,
@@ -454,20 +440,18 @@ async function rpcEnsureProfile(): Promise<string | null> {
     display_name: user.user_metadata?.display_name || username,
     avatar_url: null,
     bio: '',
-    onboarding_completed: isPreviewSandbox() && isPreviewFounderUser(user),
+    onboarding_completed: false,
     created_at: new Date().toISOString(),
   });
 
-  await ensurePreviewFounderAccess(user.id);
+  await ensureFounderOwnerRoles(user.id);
   return user.id;
 }
 
 async function rpcGetMyHighestRole(): Promise<string | null> {
   const { data: { user } } = await firebaseAuth.getUser();
   if (!user) return null;
-  if (isPreviewSandbox() && isPreviewFounderUser(user)) return 'owner';
-  if (user.id === LEGACY_FOUNDER_AUTH_ID) return 'owner';
-  if (user.id === FIREBASE_FOUNDER_AUTH_ID) return 'owner';
+  if (isFounderAuthId(user.id)) return 'owner';
 
   const [profileRoles, authRoles] = await Promise.all([
     getDocuments<{ role?: string }>('user_roles', [where('user_id', '==', user.id)]),
@@ -485,8 +469,7 @@ async function rpcIsOwner(params: Record<string, unknown>): Promise<boolean> {
   const targetId = String(params._user_id || params.user_id || user?.id || '');
   if (!targetId || !user) return false;
   if (targetId !== user.id) return false;
-  if (isPreviewSandbox() && isPreviewFounderUser(user)) return true;
-  if (user.id === LEGACY_FOUNDER_AUTH_ID) return true;
+  if (isFounderAuthId(user.id)) return true;
   const role = await rpcGetMyHighestRole();
   return role === 'owner';
 }

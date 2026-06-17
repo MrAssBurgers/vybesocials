@@ -4,7 +4,6 @@ import { Cookie, X } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '@/lib/auth';
 import { db } from '@/lib/firebase';
-import { isLovablePreviewHost } from '@/lib/lovablePreview';
 
 const COOKIE_CONSENT_KEY = 'vybe-cookie-consent';
 
@@ -13,7 +12,6 @@ export function CookieConsentBanner() {
   const { profile } = useAuth();
 
   useEffect(() => {
-    if (isLovablePreviewHost()) return;
     // Already answered locally — done
     if (localStorage.getItem(COOKIE_CONSENT_KEY)) return;
 

@@ -1,5 +1,4 @@
 import { db } from '@/lib/firebase';
-import { isLovablePreviewHost } from '@/lib/lovablePreview';
 import { refreshSupabaseSession } from '@/lib/supabaseAuthRefresh';
 import { hasStoredSupabaseSession } from '@/lib/supabaseStorageKey';
 import { setWasLoggedIn } from '@/lib/wasLoggedIn';
@@ -27,10 +26,9 @@ async function refreshIfNeeded(force = false) {
   await refreshSupabaseSession();
 }
 
-/** Keeps Supabase sessions warm on native shells (iOS/Android WebView). Skipped on Lovable preview. */
+/** Keeps auth sessions warm on native shells and web (including Lovable preview). */
 export function installAuthSessionKeepAlive(): void {
   if (installed || typeof window === 'undefined') return;
-  if (isLovablePreviewHost()) return;
 
   installed = true;
 

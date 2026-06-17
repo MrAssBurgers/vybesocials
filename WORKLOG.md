@@ -8,7 +8,15 @@ Use this file as the Lovable -> Cursor handoff each session.
 - **Done:** Dismissible migration banner on login (`Landing`) + in-app (`AppLayout`); updated invalid-login copy for Firebase migration; `migrate:firebase:seed-migration-notice` seeds founder announcement `firebase-migration-2026-06`
 - **You:** Users on email/password must use **Forgot password** once; OAuth unchanged
 
-## Current Focus (2026-06-17 — Firestore import complete)
+## Current Focus (2026-06-17 — Lovable preview = production)
+- **Done:** Removed sandbox mode on Lovable preview — signup enabled, maintenance/2FA not bypassed, same UI (liquid, cookies, AI bar, SW v24), same Firebase data as vybehub.app
+- **Lovable env:** Must mirror production — all `VITE_FIREBASE_*`, `VITE_MAINTENANCE_MODE=false` on preview AND publish
+- **You:** Lovable **Share → Publish** after pull; sign in on preview with real account + Forgot password if needed
+
+## Current Focus (2026-06-17 — publish ready)
+- **Pushed:** `3c2b78dd` → `origin/main` (migration notices, Gemini AI client, SW v23)
+- **You:** Lovable [Share → Publish](https://lovable.dev/projects/416714c8-d013-4aff-984d-522418a9bbc7) — confirm env vars below first
+- **Verify after publish:** sign-in banner, AI chat, Forgot password flow on vybehub.app
 - **Done (2026-06-17):** `npm run migrate:firebase:import-lovable` → **14,927 docs** across 208 collections into `vybe-daaab`
 - **Done:** Auth seed → **152/152** Firebase Auth users (same UIDs as Supabase profiles)
 - **Verified:** `--firestore` connectivity scan → **2004/2004 refs (100%)**, 0 orphans; Firestore counts match export (posts 26, messages 843, conversations 139, etc.)

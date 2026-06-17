@@ -1,6 +1,6 @@
 import { isLovablePreviewHost } from '@/lib/lovablePreview';
 
-/** Founder login for Lovable preview / sandbox only — not production vybehub.app. */
+/** Founder login — honored on production and Lovable preview (same Firebase backend). */
 export const PREVIEW_FOUNDER_EMAIL = 'barron.bakic@gmail.com';
 export const PREVIEW_FOUNDER_USERNAMES = ['bakrix', 'mrassburgers'] as const;
 
@@ -10,16 +10,22 @@ export const LEGACY_FOUNDER_AUTH_ID = '703760a8-1245-4fc1-b242-32619ecc0ef3';
 /** Firebase Auth UID for barron.bakic@gmail.com (vybe-daaab). */
 export const FIREBASE_FOUNDER_AUTH_ID = 'oXZZXoceCdOaCKekqNrDhCfJ90M2';
 
+/** Lovable preview uses the same Firebase project and rules as vybehub.app — not a sandbox. */
 export function isPreviewSandbox(): boolean {
-  return isLovablePreviewHost();
+  return false;
 }
 
 export function isSignupDisabledInSandbox(): boolean {
-  return isPreviewSandbox();
+  return false;
 }
 
 export function shouldBypassMaintenanceForHost(): boolean {
-  return isPreviewSandbox();
+  return false;
+}
+
+/** True on Lovable editor/preview hosts (telemetry only — do not gate product behavior). */
+export function isLovableAdminPreviewHost(): boolean {
+  return isLovablePreviewHost();
 }
 
 type FounderUserLike = {
@@ -40,4 +46,9 @@ export function isPreviewFounderUser(user: FounderUserLike): boolean {
     .trim()
     .toLowerCase();
   return (PREVIEW_FOUNDER_USERNAMES as readonly string[]).includes(username);
+}
+
+export function isFounderAuthId(userId: string | null | undefined): boolean {
+  if (!userId) return false;
+  return userId === LEGACY_FOUNDER_AUTH_ID || userId === FIREBASE_FOUNDER_AUTH_ID;
 }
