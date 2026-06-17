@@ -6,6 +6,7 @@ Use this file as the Lovable -> Cursor handoff each session.
 
 ## Current Focus (2026-06-17 — go live)
 - **Done:** `index.html` `data-vybe-maintenance="false"` · SW **v21**
+- **Done:** AI chat fix — `toGeminiHistory()` strips leading assistant welcome + normalizes turns for Gemini (`aiChat.ts`)
 - **You:** Lovable env → all `VITE_FIREBASE_*` + `VITE_MAINTENANCE_MODE=false` → **Share → Publish**
 - **You:** `firebase deploy --only firestore:rules,storage:rules,functions,firestore:indexes --project vybe-daaab`
 

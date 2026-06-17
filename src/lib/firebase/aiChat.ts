@@ -46,14 +46,44 @@ function buildSystemInstruction(ctx: VybeAiChatContext): string {
   return lines.join('\n\n');
 }
 
+/**
+ * Gemini chat history must start with `user` and alternate user/model.
+ * UI may open with an assistant greeting or have consecutive same-role turns — normalize here.
+ */
 function toGeminiHistory(messages: VybeAiChatMessage[]): Content[] {
-  return messages
+  const mapped = messages
     .filter((m) => m.content.trim())
     .slice(-24)
     .map((m) => ({
-      role: m.role === 'assistant' ? 'model' : 'user',
+      role: (m.role === 'assistant' ? 'model' : 'user') as 'user' | 'model',
       parts: [{ text: m.content }],
     }));
+
+  // Drop leading assistant/model turns (e.g. welcome bubble before first user message).
+  let start = 0;
+  while (start < mapped.length && mapped[start].role === 'model') {
+    start += 1;
+  }
+  const sliced = mapped.slice(start);
+
+  const normalized: Content[] = [];
+  for (const turn of sliced) {
+    const prev = normalized[normalized.length - 1];
+    if (prev && prev.role === turn.role) {
+      const a = prev.parts[0]?.text ?? '';
+      const b = turn.parts[0]?.text ?? '';
+      prev.parts = [{ text: `${a}\n\n${b}` }];
+    } else {
+      normalized.push({ role: turn.role, parts: [{ text: turn.parts[0]?.text ?? '' }] });
+    }
+  }
+
+  // If the last history turn is user, the upcoming sendMessage is also user — drop trailing user.
+  while (normalized.length > 0 && normalized[normalized.length - 1].role === 'user') {
+    normalized.pop();
+  }
+
+  return normalized;
 }
 
 function buildUserRequest(
