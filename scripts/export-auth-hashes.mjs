@@ -14,10 +14,14 @@ import { writeFile, mkdir, unlink } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 
-const DB = process.env.SUPABASE_DB_URL;
+const DB =
+  process.env.SUPABASE_DB_URL ||
+  process.env.AGTCYX_DB_URL ||
+  process.env.HPRMIC_DB_URL;
 if (!DB) {
-  console.error('❌ SUPABASE_DB_URL missing.');
-  console.error('   Supabase Dashboard → hprmic → Project Settings → Database → Connection string (pooling OFF).');
+  console.error('❌ SUPABASE_DB_URL missing (or AGTCYX_DB_URL for live auth export).');
+  console.error('   Supabase Dashboard → Project Settings → Database → Connection string (pooling OFF).');
+  console.error('   agtcyx live users: db.agtcyxjxgkdyoxwxkjth.supabase.co (needs Lovable support password).');
   process.exit(1);
 }
 
@@ -47,7 +51,7 @@ console.log('📤 Dumping auth.users password hashes from hprmic...');
 
 let raw;
 try {
-  raw = execSync(`psql "${DB}" -v ON_ERROR_STOP=1 -t -A -f "${sqlPath}"`, {
+  raw = execSync(`psql "${DB}" -v ON_ERROR_STOP=1 -t -A -P pager=off -f "${sqlPath}"`, {
     maxBuffer: 256 * 1024 * 1024,
     encoding: 'utf8',
   });
@@ -71,7 +75,13 @@ const users = raw
       return null;
     }
   })
-  .filter(Boolean);
+  .filter(Boolean)
+  .map((user) => {
+    if (typeof user.passwordHash === 'string') {
+      user.passwordHash = user.passwordHash.replace(/\s/g, '');
+    }
+    return user;
+  });
 
 const payload = { users };
 await writeFile('./export/firebase-users.json', JSON.stringify(payload, null, 2));

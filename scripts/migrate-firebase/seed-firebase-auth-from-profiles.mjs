@@ -27,9 +27,9 @@ for (let i = 0; i < profiles.length; i += 1000) chunks.push(profiles.slice(i, i 
 let ok = 0, fail = 0
 for (const [i, chunk] of chunks.entries()) {
   const users = chunk
-    .filter(p => p.id) // UID required
+    .filter(p => p.user_id || p.id)
     .map(p => ({
-      uid: p.id,                              // preserve Supabase auth UID
+      uid: String(p.user_id || p.id),
       email: p.email || undefined,
       displayName: p.display_name || p.username || undefined,
       photoURL: p.avatar_url || undefined,

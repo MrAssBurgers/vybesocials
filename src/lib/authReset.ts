@@ -1,7 +1,7 @@
 import { db } from '@/lib/firebase';
 import { getPasswordResetRedirectUrl } from '@/lib/authRedirect';
 
-/** Supabase Auth recovery email — works on agtcyx without edge secrets. */
+/** Firebase Auth password reset email (action link → /reset-password?oobCode=…). */
 export async function requestPasswordReset(email: string): Promise<void> {
   const normalized = email.trim().toLowerCase();
   const redirectTo = getPasswordResetRedirectUrl();

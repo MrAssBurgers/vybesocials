@@ -7,6 +7,7 @@ import {
   sendEmailVerification,
   sendPasswordResetEmail,
   updateProfile as firebaseUpdateProfile,
+  updatePassword as firebaseUpdatePassword,
   GoogleAuthProvider,
   OAuthProvider,
   signInWithPopup,
@@ -236,8 +237,18 @@ export const firebaseAuth = {
   async unlinkIdentity(_identity: any): Promise<{ data: any; error: VybeAuthError | null }> {
     return { data: null, error: { message: 'unlinkIdentity not yet ported to Firebase Auth' } };
   },
-  async updateUser(_attrs: { email?: string; password?: string; data?: Record<string, unknown> }): Promise<{ data: any; error: VybeAuthError | null }> {
-    return { data: null, error: { message: 'updateUser not yet ported — use Firebase updateEmail/updatePassword/updateProfile directly' } };
+  async updateUser(attrs: { email?: string; password?: string; data?: Record<string, unknown> }): Promise<{ data: any; error: VybeAuthError | null }> {
+    const user = auth.currentUser;
+    if (!user) return { data: null, error: { message: 'Not authenticated' } };
+    try {
+      if (attrs.password) await firebaseUpdatePassword(user, attrs.password);
+      if (attrs.data?.display_name) {
+        await firebaseUpdateProfile(user, { displayName: String(attrs.data.display_name) });
+      }
+      return { data: { user: toVybeUser(user) }, error: null };
+    } catch (err) {
+      return { data: null, error: toAuthError(err) };
+    }
   },
 };
 

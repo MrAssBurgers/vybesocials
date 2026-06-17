@@ -110,7 +110,7 @@ export const firebaseStorage = {
   /** Parse legacy Supabase storage URLs and resolve to Firebase download URL when possible. */
   async resolveMediaUrl(url: string): Promise<string> {
     if (!url) return url;
-    if (url.startsWith('http') && !url.includes('db.co/storage')) return url;
+    if (url.startsWith('http') && !url.includes('/storage/v1/object/')) return url;
 
     const publicMatch = url.match(/\/storage\/v1\/object\/public\/([^/]+)\/(.+)$/);
     if (publicMatch) {

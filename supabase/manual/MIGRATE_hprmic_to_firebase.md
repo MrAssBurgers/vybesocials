@@ -100,6 +100,50 @@ Writes `./export/VERIFY.json`. Exit code `0` = all row counts match.
 
 ---
 
+## Lovable Cloud JSON export (recommended for table data)
+
+If Lovable provided `lovable-cloud-export.zip` (208 tables, full row data):
+
+```bash
+unzip lovable-cloud-export.zip -d export/
+npm run migrate:firebase:import-lovable
+```
+
+---
+
+## Public media (no service_role)
+
+Migrates public Supabase storage URLs found in the Lovable export:
+
+```bash
+npm run migrate:firebase:public-media
+```
+
+Legacy projects (`eabvbt`, `agtcyx`, `szthqtnbepupjqjxaduu`) often return 403/400 without **agtcyx service_role**. Get that key from Lovable support, then:
+
+```bash
+export AGTCYX_URL=https://agtcyxjxgkdyoxwxkjth.supabase.co
+export AGTCYX_SERVICE_ROLE_KEY='<from Lovable>'
+node scripts/export-supabase.mjs --storage-only
+GOOGLE_APPLICATION_CREDENTIALS=./secrets/firebase-admin.json npm run migrate:firebase:import
+```
+
+---
+
+## Live auth users (~31 on agtcyx)
+
+hprmic `auth.users` may only have 1 row; profiles in Firestore can outnumber logins. Export bcrypt hashes from **agtcyx** DB:
+
+```bash
+export AGTCYX_DB_URL='postgres://postgres:<password>@db.agtcyxjxgkdyoxwxkjth.supabase.co:5432/postgres'
+npm run migrate:firebase:auth-agtcyx
+firebase auth:import ./export/firebase-users.json --hash-algo=BCRYPT --project=vybe-daaab
+```
+
+Password is only available via **Lovable support** (not in Cloud UI for agtcyx).
+
+---
+
 ## Troubleshooting
 
 | Error | Fix |

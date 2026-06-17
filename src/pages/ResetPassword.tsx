@@ -7,12 +7,33 @@ import { Label } from '@/components/ui/label';
 import { VYBELogo } from '@/components/ui/VYBELogo';
 import { Eye, EyeOff, Lock, CheckCircle, Loader2, AlertTriangle } from 'lucide-react';
 import { db } from '@/lib/firebase';
+import { getFirebaseApp } from '@/lib/firebase/app';
+import { confirmPasswordReset, getAuth, verifyPasswordResetCode } from 'firebase/auth';
 import { toast } from 'sonner';
 
-async function establishRecoverySession(): Promise<{ ok: true } | { ok: false; message: string }> {
+function getFirebaseResetOobCode(url: URL): string | null {
+  const mode = url.searchParams.get('mode');
+  const oobCode = url.searchParams.get('oobCode');
+  return mode === 'resetPassword' && oobCode ? oobCode : null;
+}
+
+async function establishRecoverySession(): Promise<
+  { ok: true; oobCode?: string } | { ok: false; message: string }
+> {
   const url = new URL(window.location.href);
   const hashParams = new URLSearchParams(url.hash.replace(/^#/, ''));
   const queryParams = url.searchParams;
+
+  const firebaseOobCode = getFirebaseResetOobCode(url);
+  if (firebaseOobCode) {
+    try {
+      await verifyPasswordResetCode(getAuth(getFirebaseApp()), firebaseOobCode);
+      window.history.replaceState(null, '', url.pathname);
+      return { ok: true, oobCode: firebaseOobCode };
+    } catch {
+      return { ok: false, message: 'Invalid or expired reset link. Please request a new one.' };
+    }
+  }
 
   const code = queryParams.get('code') || hashParams.get('code');
   const tokenHash = queryParams.get('token_hash');
@@ -60,6 +81,7 @@ export default function ResetPassword() {
   const [error, setError] = useState<string | null>(null);
   const [checking, setChecking] = useState(true);
   const [tokenValid, setTokenValid] = useState(false);
+  const [firebaseOobCode, setFirebaseOobCode] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -87,6 +109,7 @@ export default function ResetPassword() {
       const result = await establishRecoverySession();
       if (cancelled) return;
       if (result.ok) {
+        if ('oobCode' in result && result.oobCode) setFirebaseOobCode(result.oobCode);
         finishOk();
         return;
       }
@@ -120,8 +143,12 @@ export default function ResetPassword() {
     setLoading(true);
 
     try {
-      const { error } = await db.auth.updateUser({ password });
-      if (error) throw error;
+      if (firebaseOobCode) {
+        await confirmPasswordReset(getAuth(getFirebaseApp()), firebaseOobCode, password);
+      } else {
+        const { error } = await db.auth.updateUser({ password });
+        if (error) throw error;
+      }
 
       setSuccess(true);
       toast.success('Password updated successfully!');

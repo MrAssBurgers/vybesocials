@@ -187,26 +187,40 @@ async function listAllObjects(bucket, prefix = '') {
   return out;
 }
 
+const STORAGE_ONLY = process.argv.includes('--storage-only');
+const TABLES_ONLY = process.argv.includes('--tables-only');
+if (STORAGE_ONLY && TABLES_ONLY) {
+  console.error('Use only one of --storage-only or --tables-only');
+  process.exit(1);
+}
+
 async function main() {
   await ensureDir(TABLE_DIR);
   await ensureDir(STORAGE_DIR);
   const start = Date.now();
   console.log(`📤 Exporting from ${URL}\n`);
 
-  console.log('📋 Tables:');
-  const tableResults = [];
-  for (const t of TABLES) {
-    process.stdout.write(`  → ${t}... `);
-    const r = await exportTable(t);
-    console.log(r.error ? `❌ ${r.error}` : `${r.rows} rows`);
-    tableResults.push(r);
+  let tableResults = [];
+  let authCount = 0;
+  let storageSummary = [];
+
+  if (!STORAGE_ONLY) {
+    console.log('📋 Tables:');
+    for (const t of TABLES) {
+      process.stdout.write(`  → ${t}... `);
+      const r = await exportTable(t);
+      console.log(r.error ? `❌ ${r.error}` : `${r.rows} rows`);
+      tableResults.push(r);
+    }
+
+    console.log('\n👤 Auth users:');
+    authCount = await exportAuthUsers();
   }
 
-  console.log('\n👤 Auth users:');
-  const authCount = await exportAuthUsers();
-
-  console.log('\n📦 Storage:');
-  const storageSummary = await exportStorage();
+  if (!TABLES_ONLY) {
+    console.log('\n📦 Storage:');
+    storageSummary = await exportStorage();
+  }
 
   const manifest = {
     exported_at: new Date().toISOString(),

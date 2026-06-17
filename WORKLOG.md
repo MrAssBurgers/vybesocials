@@ -4,7 +4,93 @@ Use this file as the Lovable -> Cursor handoff each session.
 
 **Links:** [Lovable project](https://lovable.dev/projects/416714c8-d013-4aff-984d-522418a9bbc7) · [Production](https://vybehub.app) · Deploy steps: `DEPLOY.md`
 
-## Current Focus (2026-06-16 — Firebase AI Logic Phase 1–2)
+## Current Focus (2026-06-16 — Firebase go-live on vybehub.app)
+
+- **Goal:** Point production at **Firebase `vybe-daaab`** (Firestore ~14,927 docs, Auth 152 seeded UIDs, partial Storage).
+- **Local migration done:** Lovable export imported; auth seeded via `scripts/migrate-firebase/seed-firebase-auth-from-profiles.mjs` (no passwords — Lovable platform limit).
+- **Prod blockers (vybehub.app):**
+  1. **`index.html`** — `data-vybe-maintenance="true"` shows static “Under reconstruction” on vybehub.app (preview hosts bypass).
+  2. **Lovable env** — `VITE_FIREBASE_*` not set in Cloud (see checklist below); `.env.example` is source of truth.
+  3. **~25 client files** still call **`VITE_SUPABASE_URL` edge functions** (AI captions, moderation, LiveKit, Stripe validate, etc.) — core feed/auth/data is Firebase; these features fail until Cloud Functions deployed + callers ported (Phase 3).
+  4. **Media gap** — only 9 agtcyx storage files in Firebase; most legacy media on `eabvbt` / `szthqtnbepupjqjxaduu` not migrated (avatars/posts may 404 until `migrate:firebase:public-media` + agtcyx service_role).
+- **Code fix (this session):** Firebase password reset — `ResetPassword.tsx` handles `?mode=resetPassword&oobCode=`; `authService.updateUser({ password })` ported for settings flow.
+
+### End users — reclaim account + content
+
+| Situation | What to do |
+|-----------|------------|
+| **Email/password (migrated profile exists)** | Go to [vybehub.app](https://vybehub.app) → **Forgot password** → enter same email as before → open email link → set new password → sign in. **UID is preserved** — posts, DMs, profile in Firestore reattach automatically. Old Supabase password does **not** carry over. |
+| **Google / Apple sign-in** | Sign in with same provider + email. Firebase links OAuth to the seeded UID when email matches. |
+| **New email, never had VYBE** | Sign up normally after maintenance is lifted. |
+| **Founder (Bakrix)** | Email: `barron.bakic@gmail.com` · Firebase UID: `oXZZXoceCdOaCKekqNrDhCfJ90M2` · Legacy Supabase UID: `703760a8-1245-4fc1-b242-32619ecc0ef3` · Username: **Bakrix**. Use Forgot password or Google once Firebase is live. Owner role is honored for both UIDs in `previewSandbox.ts` / `ownerBypass.ts`. |
+| **Missing photos/videos** | Content rows exist in Firestore; media files may still point at unmigrated Supabase URLs — expected until storage migration completes. |
+
+### Baron — go live checklist (Lovable Publish)
+
+**A. Firebase Console (`vybe-daaab`)**
+
+- [ ] Authentication → Sign-in method: **Email/Password**, **Google** (Apple if used)
+- [ ] Authentication → Settings → Authorized domains: **`vybehub.app`**, **`www.vybehub.app`**
+- [ ] Authentication → Templates → Password reset action URL: `https://vybehub.app/reset-password`
+- [ ] Firestore + Storage rules: `firebase deploy --only firestore:rules,storage:rules`
+- [ ] Cloud Functions (stubs): `firebase deploy --only functions` — required for `invokeFunction` callers
+- [ ] App Check reCAPTCHA Enterprise registered (needed before enforcing AI Logic)
+
+**B. Lovable → Project → Environment variables** (values from Firebase Console → Project settings → Your apps → Web app; do not commit)
+
+| Variable | Example / notes |
+|----------|-----------------|
+| `VITE_FIREBASE_API_KEY` | Web API key |
+| `VITE_FIREBASE_AUTH_DOMAIN` | `vybe-daaab.firebaseapp.com` |
+| `VITE_FIREBASE_PROJECT_ID` | `vybe-daaab` |
+| `VITE_FIREBASE_STORAGE_BUCKET` | `vybe-daaab.firebasestorage.app` |
+| `VITE_FIREBASE_MESSAGING_SENDER_ID` | `728651793473` |
+| `VITE_FIREBASE_APP_ID` | Web app ID (`1:728651793473:web:…`) |
+| `VITE_FIREBASE_MEASUREMENT_ID` | Optional Analytics |
+| `VITE_FIREBASE_FUNCTIONS_REGION` | `us-central1` |
+| `VITE_FIREBASE_VAPID_KEY` | Cloud Messaging → Web push key |
+| `VITE_FIREBASE_APP_CHECK_RECAPTCHA_SITE_KEY` | App Check site key |
+| `VITE_MAINTENANCE_MODE` | `false` |
+| `VITE_PUBLIC_WEBAUTHN_RP_ID` | `vybehub.app` |
+| `VITE_PUBLIC_WEBAUTHN_RP_NAME` | `VYBE` |
+| `VITE_OFFLINE_MODE` | `pwa` |
+
+Optional (legacy edge features until Phase 3): keep `VITE_SUPABASE_URL` + `VITE_SUPABASE_PUBLISHABLE_KEY` pointing at **agtcyx** for AI/moderation/LiveKit calls that still fetch Supabase edge URLs.
+
+**C. Repo (before Publish)**
+
+- [ ] Set `index.html` line 3: `data-vybe-maintenance="false"`
+- [ ] Git push → confirm commit in Lovable
+
+**D. Lovable → Share → Publish**
+
+- [ ] Wait for build → confirm [vybehub.app](https://vybehub.app) loads app (not maintenance screen)
+- [ ] Hard refresh / clear site data / private window
+- [ ] Smoke: Forgot password → reset → login → feed + profile load
+- [ ] Optional: `curl -s https://vybehub.app/despia/local.json | head -3`
+
+**E. Post-launch media (optional, local)**
+
+```bash
+# agtcyx service_role from Lovable support → then:
+npm run migrate:firebase:public-media
+GOOGLE_APPLICATION_CREDENTIALS=./secrets/firebase-admin.json npm run migrate:firebase:import
+```
+
+### Honest gaps
+
+- **Passwords:** Not exportable from Lovable; all email users must **Forgot password** once.
+- **Media:** Most storage not in Firebase yet; broken thumbnails until migration.
+- **Edge functions:** ~25 direct Supabase URL fetches remain; AI captions, brief detail, moderation, group create, presence, Stripe validate, Spotify callback, etc. need Firebase Cloud Functions + client port or temporary agtcyx env.
+- **DEPLOY.md** still documents Supabase agtcyx — update when cutover is confirmed.
+
+### Next 3 Tasks
+
+1. **Baron:** Lovable env + flip maintenance + Publish (checklist above)
+2. **Baron:** Forgot password smoke test as Bakrix; confirm Firestore feed/DMs
+3. **Phase 3:** Port remaining `VITE_SUPABASE_URL` edge calls; finish storage migration
+
+## Prior Focus (2026-06-16 — hprmic → Firebase data migration)
 - **Goal:** Gemini via Firebase proxy + App Check; streaming multimodal VYBE AI chat.
 - **Done:** `appCheck.ts`, `aiLogic.ts`, `aiSchemas.ts`, `aiChat.ts`; `AIChat.tsx` uses `streamVybeAiChat` (no Supabase `ai-chat` fetch); App Check init in `main.tsx`
 - **You:** Firebase Console → register Web App Check (reCAPTCHA Enterprise) → add `VITE_FIREBASE_APP_CHECK_RECAPTCHA_SITE_KEY` to `.env` + Lovable → run `npx firebase-tools init ailogic` if not done → enforce App Check when ready
@@ -43,9 +129,9 @@ Use this file as the Lovable -> Cursor handoff each session.
 **Yes** — hprmic-primary client + SW v20 until Lovable Publish.
 
 ## Next 3 Tasks
-1. **You:** Register Web App Check + set `VITE_FIREBASE_APP_CHECK_RECAPTCHA_SITE_KEY` → Lovable Publish
-2. **Phase 3:** Migrate captions, comments, DM assist to `getJsonModel` + AI Logic
-3. **Phase 3:** Vybe Agent structured JSON + daily brief (server-enriched)
+1. **You:** Run hprmic → Firebase migration locally (`MIGRATE_hprmic_to_firebase.md` Steps 1–6)
+2. **You:** Lovable env → all `VITE_FIREBASE_*` → Publish when `VERIFY.json` is green
+3. **Phase 3:** Migrate remaining Supabase edge calls + AI Logic (captions, brief, DM assist)
 
 ## Current Focus (2026-06-16 — dual Supabase: agtcyx legacy + hprmic new writes)
 - **Legacy (read + auth):** `agtcyxjxgkdyoxwxkjth` — existing users, Bakrix, posts, DMs, feed (Lovable live DB).
