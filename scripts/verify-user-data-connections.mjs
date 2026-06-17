@@ -61,7 +61,6 @@ const TABLES = {
   notifications:          ['user_id', 'actor_id'],
 };
 
-if (!('stories' in TABLES)) TABLES.stories = ['user_id', 'author_id'];
 
 const filesPresent = new Set(readdirSync(EXPORT));
 const report = [];
