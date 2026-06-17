@@ -1,6 +1,7 @@
 import type { Content, Part } from 'firebase/ai';
 import { AIError } from 'firebase/ai';
 import { getChatModelWithSystem } from './aiLogic';
+import { invokeFunction } from './functionsService';
 import { RATE_LIMITS } from '@/lib/rateLimit';
 
 export interface VybeAiChatMessage {
@@ -149,6 +150,9 @@ export function formatFirebaseAiError(error: unknown): string | null {
         return 'VYBE AI is not configured. Check Firebase environment variables.';
       case 'fetch-error':
       case 'request-error':
+        if (/app check|appcheck|limited.use/i.test(error.message)) {
+          return 'VYBE AI needs App Check configured. Add VITE_FIREBASE_APP_CHECK_RECAPTCHA_SITE_KEY in Lovable env.';
+        }
         return 'Could not reach VYBE AI. Check your connection and try again.';
       case 'response-error':
         return error.message || 'VYBE AI blocked or failed this request. Try rephrasing.';
@@ -161,16 +165,53 @@ export function formatFirebaseAiError(error: unknown): string | null {
   return null;
 }
 
-/**
- * Stream a VYBE AI chat reply via Firebase AI Logic (Gemini Developer API proxy).
- */
-export async function streamVybeAiChat(options: StreamVybeAiChatOptions): Promise<string> {
-  if (!RATE_LIMITS.aiChat()) {
-    const err = new Error('Too many requests. Wait a moment.');
-    Object.assign(err, { status: 429 });
-    throw err;
+function isClientAiTransportError(error: unknown): boolean {
+  if (error instanceof AIError) {
+    return (
+      error.code === 'fetch-error' ||
+      error.code === 'request-error' ||
+      error.code === 'api-not-enabled' ||
+      error.code === 'response-error'
+    );
   }
+  if (error instanceof Error) {
+    return /fetch-error|request-error|PERMISSION_DENIED|API key not valid|Failed to fetch/i.test(
+      error.message,
+    );
+  }
+  return false;
+}
 
+async function invokeVybeAiChatCallable(
+  history: VybeAiChatMessage[],
+  userText: string,
+  context: VybeAiChatContext,
+): Promise<string> {
+  const messages = [
+    ...filterAiChatHistoryForApi(history).map((m) => ({
+      role: m.role,
+      content: m.content,
+    })),
+    { role: 'user' as const, content: userText || 'What is in this image?' },
+  ];
+
+  const { data, error } = await invokeFunction<{ reply?: string }>('ai-chat', {
+    messages,
+    aiName: context.aiName,
+    aiPersonality: context.aiPersonality,
+    feedDNA: context.feedDNA,
+    location: context.location,
+  });
+
+  if (error) throw error;
+  const reply = typeof data?.reply === 'string' ? data.reply.trim() : '';
+  if (!reply) throw new Error('VYBE AI returned an empty reply.');
+  return reply;
+}
+
+async function streamVybeAiChatViaFirebaseAi(
+  options: StreamVybeAiChatOptions,
+): Promise<string> {
   const {
     history,
     userText,
@@ -227,4 +268,38 @@ export async function streamVybeAiChat(options: StreamVybeAiChatOptions): Promis
   }
 
   return fullText.trim();
+}
+
+/**
+ * Stream a VYBE AI chat reply via Firebase AI Logic (Gemini Developer API proxy).
+ */
+export async function streamVybeAiChat(options: StreamVybeAiChatOptions): Promise<string> {
+  if (!RATE_LIMITS.aiChat()) {
+    const err = new Error('Too many requests. Wait a moment.');
+    Object.assign(err, { status: 429 });
+    throw err;
+  }
+
+  const { history, userText, context, onChunk, imageBase64 } = options;
+
+  try {
+    return await streamVybeAiChatViaFirebaseAi(options);
+  } catch (clientErr) {
+    if (imageBase64 || !isClientAiTransportError(clientErr)) {
+      const formatted = formatFirebaseAiError(clientErr);
+      if (formatted) throw new Error(formatted);
+      throw clientErr;
+    }
+
+    console.warn('[VYBE AI] Client Gemini unavailable — using Cloud Function fallback', clientErr);
+    try {
+      const reply = await invokeVybeAiChatCallable(history, userText, context);
+      onChunk(reply, reply);
+      return reply;
+    } catch (callableErr) {
+      const formatted = formatFirebaseAiError(clientErr) || formatFirebaseAiError(callableErr);
+      if (formatted) throw new Error(formatted);
+      throw callableErr;
+    }
+  }
 }

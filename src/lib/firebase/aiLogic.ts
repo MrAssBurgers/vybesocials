@@ -7,6 +7,7 @@ import {
   type Schema,
 } from 'firebase/ai';
 import { getFirebaseApp } from './app';
+import { isAppCheckInitialized } from './appCheck';
 import { isFirebaseConfigured } from './config';
 
 let aiInstance: AI | null = null;
@@ -23,10 +24,14 @@ export function getFirebaseAI(): AI {
     throw new Error('Firebase is not configured');
   }
   if (!aiInstance) {
-    aiInstance = getAI(getFirebaseApp(), {
+    const options: NonNullable<Parameters<typeof getAI>[1]> = {
       backend: new GoogleAIBackend(),
-      useLimitedUseAppCheckTokens: true,
-    });
+    };
+    // Limited-use tokens require App Check — without it the SDK throws fetch-error.
+    if (isAppCheckInitialized()) {
+      options.useLimitedUseAppCheckTokens = true;
+    }
+    aiInstance = getAI(getFirebaseApp(), options);
   }
   return aiInstance;
 }
