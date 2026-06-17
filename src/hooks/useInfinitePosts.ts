@@ -35,22 +35,28 @@ const PAGE_SIZE = 15; // Load 15 more when scrolling
 const STALE_TIME = 5 * 60 * 1000; // 5 minutes - show cached instantly, background refresh
 const GC_TIME = 1000 * 60 * 60 * 24 * 14; // 14 days - keep feed cached for offline
 
-// Transform RPC result to Post format
-function transformPost(row: any): Post & { view_count?: number } {
+// Transform RPC result to Post format — returns null for malformed rows.
+function transformPost(row: any): Post | null {
+  if (!row?.id) return null;
+  const authorId = row.author_id || row.author?.id || '';
+  const username =
+    row.author_username ||
+    row.author?.username ||
+    (authorId ? `user_${String(authorId).slice(0, 8)}` : 'unknown');
   return {
     id: row.id,
-    type: row.type,
-    media_url: row.media_url,
-    thumbnail_url: row.thumbnail_url,
+    type: row.type || 'post',
+    media_url: row.media_url || '',
+    thumbnail_url: row.thumbnail_url ?? null,
     caption: row.caption || '',
     tags: row.tags || [],
-    created_at: row.created_at,
-    is_pinned: row.is_pinned,
+    created_at: row.created_at || new Date().toISOString(),
+    is_pinned: !!row.is_pinned,
     view_count: row.view_count || 0,
     author: {
-      id: row.author_id,
-      username: row.author_username,
-      avatar_url: row.author_avatar_url,
+      id: authorId,
+      username,
+      avatar_url: row.author_avatar_url ?? row.author?.avatar_url ?? null,
     },
     like_count: Number(row.like_count) || 0,
     comment_count: Number(row.comment_count) || 0,
@@ -58,6 +64,12 @@ function transformPost(row: any): Post & { view_count?: number } {
     is_bookmarked: row.is_bookmarked || false,
     reaction_type: row.reaction_type || null,
   };
+}
+
+function mapFeedRows(rows: unknown): Post[] {
+  return (Array.isArray(rows) ? rows : [])
+    .map(transformPost)
+    .filter((p): p is Post => p !== null);
 }
 
 /**
@@ -121,9 +133,7 @@ async function fetchPersonalizedPosts(
   } as any);
 
   if (!error && data?.length) {
-    return (data as any[])
-      .map(transformPost)
-      .filter((p) => !blocked.has(p.author?.id));
+    return mapFeedRows(data).filter((p) => !blocked.has(p.author?.id));
   }
 
   if (error) {
@@ -138,11 +148,14 @@ async function fetchPersonalizedPosts(
     p_limit: limit,
   });
 
-  if (fallbackError) throw fallbackError;
+  if (fallbackError) {
+    console.warn('[Feed] get_posts_with_counts fallback failed:', fallbackError.message);
+    return [];
+  }
 
-  return (fallback || [])
-    .map(transformPost)
-    .filter((p) => p.author?.id !== profileId && !blocked.has(p.author?.id));
+  return mapFeedRows(fallback).filter(
+    (p) => p.author?.id !== profileId && !blocked.has(p.author?.id),
+  );
 }
 
 export function useInfinitePosts(
@@ -171,9 +184,12 @@ export function useInfinitePosts(
         p_limit: limit,
       });
 
-      if (error) throw error;
+      if (error) {
+        console.warn('[Feed] get_posts_with_counts failed:', error.message);
+        return { posts: [], nextPage: null, totalLoaded: offset };
+      }
 
-      let posts = (data || []).map(transformPost);
+      let posts = mapFeedRows(data);
 
       // For non-profile (feed) views: hide your own posts and posts from blocked users.
       if (!isProfileView && profileId) {
@@ -235,9 +251,12 @@ export function useInfiniteFollowingPosts(
         p_limit: limit,
       });
 
-      if (error) throw error;
+      if (error) {
+        console.warn('[Feed] get_following_posts_with_counts failed:', error.message);
+        return { posts: [], nextPage: null };
+      }
 
-      let posts = (data || []).map(transformPost);
+      let posts = mapFeedRows(data);
 
       // Hide your own posts and blocked users from the Following feed.
       const blocked = new Set(blockedIds);
@@ -382,28 +401,11 @@ export function usePersonalizedFeed(
           p_page: pageParam,
           p_page_size: limit,
         } as any);
-        if (error) throw error;
-        const posts = (data || []).map((r: any) => ({
-          id: r.post_id ?? r.id,
-          type: r.post_type ?? r.type,
-          media_url: r.media_url,
-          thumbnail_url: r.thumbnail_url,
-          caption: r.caption || '',
-          tags: r.tags || [],
-          created_at: r.created_at,
-          is_pinned: !!r.is_pinned,
-          view_count: r.view_count || 0,
-          author: {
-            id: r.author_id,
-            username: r.author_username,
-            avatar_url: r.author_avatar || r.author_avatar_url,
-          },
-          like_count: Number(r.like_count) || 0,
-          comment_count: Number(r.comment_count) || 0,
-          is_liked: !!r.is_liked,
-          is_bookmarked: !!r.is_bookmarked,
-          reaction_type: r.reaction_type || null,
-        } as Post));
+        if (error) {
+          console.warn('[Feed] get_trending_feed failed:', error.message);
+          return { posts: [], nextPage: null };
+        }
+        const posts = mapFeedRows(data);
         presignPostMedia(posts).then(() => preloadSignedMedia(posts)).catch(() => {});
         return { posts, nextPage: posts.length >= limit ? pageParam + 1 : null };
       }

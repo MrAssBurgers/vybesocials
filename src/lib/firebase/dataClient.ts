@@ -24,6 +24,7 @@ import {
   isPreviewSandbox,
   LEGACY_FOUNDER_AUTH_ID,
 } from '@/lib/previewSandbox';
+import { isFeedRpc, normalizeRpcFeedRows, runFeedRpc } from './feedRpc';
 
 type FilterOp = '==' | '!=' | '>' | '<' | 'in' | 'not-in';
 
@@ -567,6 +568,35 @@ export function createDataClient() {
             return { data, error: null } as any;
           } catch (err) {
             return { data: null, error: toQueryError(err) } as any;
+          }
+        })();
+        const enriched = promise as Promise<any> & {
+          single: () => Promise<any>;
+          maybeSingle: () => Promise<any>;
+        };
+        enriched.single = () => promise;
+        enriched.maybeSingle = () => promise;
+        return enriched;
+      }
+
+      // Feed RPCs: Cloud Function → Firestore client fallback → empty array (preview-safe).
+      if (isFeedRpc(name)) {
+        const promise = (async () => {
+          try {
+            const remote = await invokeFunction(name, params);
+            if (!remote.error) {
+              const rows = normalizeRpcFeedRows(remote.data);
+              if (rows) return { data: rows, error: null } as any;
+            }
+          } catch (err) {
+            console.warn(`[Feed RPC] ${name} cloud call failed:`, err);
+          }
+          try {
+            const rows = await runFeedRpc(name, params);
+            return { data: rows, error: null } as any;
+          } catch (err) {
+            console.warn(`[Feed RPC] ${name} client fallback failed:`, err);
+            return { data: [], error: null } as any;
           }
         })();
         const enriched = promise as Promise<any> & {

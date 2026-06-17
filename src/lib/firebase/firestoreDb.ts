@@ -19,8 +19,19 @@ import {
   type Unsubscribe,
 } from 'firebase/firestore';
 import { getFirebaseApp } from './app';
+import { isFirebaseConfigured } from './config';
 
-const db = getFirestore(getFirebaseApp());
+let db: ReturnType<typeof getFirestore> | null = null;
+
+function getDb() {
+  if (!isFirebaseConfigured()) {
+    throw new Error('Firebase is not configured');
+  }
+  if (!db) {
+    db = getFirestore(getFirebaseApp());
+  }
+  return db;
+}
 
 /** Map legacy Postgres table names to Firestore collection paths. */
 export const TABLE_TO_COLLECTION: Record<string, string> = {
@@ -32,15 +43,15 @@ export function resolveCollection(table: string): string {
 }
 
 export function getFirestoreDb() {
-  return db;
+  return getDb();
 }
 
 export function collectionRef(table: string) {
-  return collection(db, resolveCollection(table));
+  return collection(getDb(), resolveCollection(table));
 }
 
 export function documentRef(table: string, id: string) {
-  return doc(db, resolveCollection(table), id);
+  return doc(getDb(), resolveCollection(table), id);
 }
 
 export async function getDocument<T extends DocumentData>(
@@ -86,7 +97,7 @@ export async function batchSet(
   table: string,
   rows: Array<{ id?: string; data: DocumentData }>,
 ): Promise<void> {
-  const batch = writeBatch(db);
+  const batch = writeBatch(getDb());
   for (const row of rows) {
     const id = row.id || doc(collectionRef(table)).id;
     batch.set(documentRef(table, id), {

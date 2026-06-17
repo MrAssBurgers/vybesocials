@@ -11,20 +11,26 @@ const PAGE_SIZE = 15;
 const STALE_TIME = 5 * 60 * 1000;
 const RADIUS_MILES = 25;
 
-function transformPost(row: any): Post {
+function transformPost(row: any): Post | null {
+  if (!row?.id) return null;
+  const authorId = row.author_id || row.author?.id || '';
+  const username =
+    row.author_username ||
+    row.author?.username ||
+    (authorId ? `user_${String(authorId).slice(0, 8)}` : 'unknown');
   return {
     id: row.id,
-    type: row.type,
-    media_url: row.media_url,
-    thumbnail_url: row.thumbnail_url,
+    type: row.type || 'post',
+    media_url: row.media_url || '',
+    thumbnail_url: row.thumbnail_url ?? null,
     caption: row.caption || '',
     tags: row.tags || [],
-    created_at: row.created_at,
-    is_pinned: row.is_pinned,
+    created_at: row.created_at || new Date().toISOString(),
+    is_pinned: !!row.is_pinned,
     author: {
-      id: row.author_id,
-      username: row.author_username,
-      avatar_url: row.author_avatar_url,
+      id: authorId,
+      username,
+      avatar_url: row.author_avatar_url ?? row.author?.avatar_url ?? null,
     },
     like_count: Number(row.like_count) || 0,
     comment_count: Number(row.comment_count) || 0,
@@ -119,7 +125,7 @@ export function useLocalFeed(options?: { enabled?: boolean }) {
           return fetchFallbackFeed(offset, profileId);
         }
 
-        const posts = (data || []).map(transformPost);
+        const posts = (data || []).map(transformPost).filter((p): p is Post => p !== null);
         return {
           posts,
           nextPage: posts.length >= PAGE_SIZE ? pageParam + 1 : null,
@@ -153,8 +159,13 @@ async function fetchFallbackFeed(offset: number, userId?: string): Promise<{ pos
     p_limit: PAGE_SIZE,
   });
 
-  if (error) throw error;
-  const posts = (data || []).map(transformPost);
+  if (error) {
+    console.warn('[LocalFeed] get_posts_with_counts fallback failed:', error.message);
+    return { posts: [], nextPage: null };
+  }
+  const posts = (data || [])
+    .map(transformPost)
+    .filter((p): p is Post => p !== null && !!p.id);
   return {
     posts,
     nextPage: posts.length >= PAGE_SIZE ? (offset / PAGE_SIZE) + 1 : null,

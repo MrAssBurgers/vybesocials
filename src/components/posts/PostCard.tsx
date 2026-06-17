@@ -587,7 +587,7 @@ export const PostCard = memo(function PostCard({ post, eager = false }: PostCard
               <Avatar className="h-10 w-10 border-2 border-background">
                 <AvatarImage src={signedAvatarUrl || undefined} />
                 <AvatarFallback className="bg-secondary text-secondary-foreground">
-                  {post.author.username[0].toUpperCase()}
+                  {post.author.username?.[0]?.toUpperCase() ?? '?'}
                 </AvatarFallback>
               </Avatar>
             </div>

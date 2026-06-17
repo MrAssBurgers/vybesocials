@@ -120,10 +120,10 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
 
   const queryClient = useQueryClient();
   const forYouPosts = useMemo(() => {
-    const personalized = (forYouData?.pages.flatMap(page => page.posts) || [])
-      .filter(post => post.type === 'post' || post.type === 'video');
-    const following = (followingData?.pages.flatMap(page => page.posts) || [])
-      .filter(post => post.type === 'post' || post.type === 'video');
+    const personalized = (forYouData?.pages.flatMap(page => page.posts ?? []) || [])
+      .filter((post): post is Post => !!post?.id && (post.type === 'post' || post.type === 'video'));
+    const following = (followingData?.pages.flatMap(page => page.posts ?? []) || [])
+      .filter((post): post is Post => !!post?.id && (post.type === 'post' || post.type === 'video'));
     
     // Merge and deduplicate by post ID
     const seen = new Set<string>();
