@@ -247,6 +247,8 @@ async function invokeVybeAiChatCallable(
   history: VybeAiChatMessage[],
   userText: string,
   context: VybeAiChatContext,
+  imageBase64?: string | null,
+  imageMimeType?: string | null,
 ): Promise<string> {
   await ensureSignedInForAi();
 
@@ -264,6 +266,8 @@ async function invokeVybeAiChatCallable(
     aiPersonality: context.aiPersonality,
     feedDNA: context.feedDNA,
     location: context.location,
+    imageBase64: imageBase64 || undefined,
+    imageMimeType: imageMimeType || undefined,
   });
 
   if (error) throw error;
@@ -348,14 +352,9 @@ function pickUserFacingAiError(...errors: unknown[]): string {
   return 'VYBE AI could not respond. Try again in a moment.';
 }
 
-function shouldTryClientGeminiFirst(options: StreamVybeAiChatOptions): boolean {
-  if (options.imageBase64) return true;
-  return isAppCheckTokenVerified();
-}
-
 /**
- * Stream a VYBE AI chat reply — Cloud Function first when App Check is not verified,
- * then client Gemini for streaming or multimodal when App Check works.
+ * Stream a VYBE AI chat reply — always via Cloud Function so usage limits and BYOK apply.
+ * Client-side Gemini is not used (prevents bypassing daily quotas).
  */
 export async function streamVybeAiChat(options: StreamVybeAiChatOptions): Promise<string> {
   if (!RATE_LIMITS.aiChat()) {
@@ -364,42 +363,9 @@ export async function streamVybeAiChat(options: StreamVybeAiChatOptions): Promis
     throw err;
   }
 
-  const errors: unknown[] = [];
-
-  async function tryCallable(): Promise<string | null> {
-    try {
-      const { history, userText, context, onChunk } = options;
-      const reply = await invokeVybeAiChatCallable(history, userText, context);
-      onChunk(reply, reply);
-      return reply;
-    } catch (err) {
-      errors.push(err);
-      return null;
-    }
-  }
-
-  async function tryClient(): Promise<string | null> {
-    try {
-      return await streamVybeAiChatViaFirebaseAi(options);
-    } catch (err) {
-      errors.push(err);
-      return null;
-    }
-  }
-
-  if (!shouldTryClientGeminiFirst(options)) {
-    const callable = await tryCallable();
-    if (callable) return callable;
-    const client = await tryClient();
-    if (client) return client;
-  } else {
-    const client = await tryClient();
-    if (client) return client;
-    if (!options.imageBase64) {
-      const callable = await tryCallable();
-      if (callable) return callable;
-    }
-  }
-
-  throw new Error(pickUserFacingAiError(...errors));
+  await ensureSignedInForAi();
+  const { history, userText, context, onChunk, imageBase64, imageMimeType } = options;
+  const reply = await invokeVybeAiChatCallable(history, userText, context, imageBase64, imageMimeType);
+  onChunk(reply, reply);
+  return reply;
 }

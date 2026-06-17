@@ -12,8 +12,8 @@ import { isFirebaseConfigured } from './config';
 
 let aiInstance: AI | null = null;
 
-/** Default chat model — override later via Remote Config if needed. */
-export const DEFAULT_CHAT_MODEL = 'gemini-2.5-flash';
+/** Default chat model — cheapest tier for cost control. */
+export const DEFAULT_CHAT_MODEL = 'gemini-2.5-flash-lite';
 
 export function isAiLogicConfigured(): boolean {
   return isFirebaseConfigured();
@@ -38,7 +38,7 @@ export function getFirebaseAI(): AI {
 
 const CHAT_GENERATION_CONFIG = {
   temperature: 0.85,
-  maxOutputTokens: 4096,
+  maxOutputTokens: 1024,
   topP: 0.95,
   topK: 40,
 } as const;

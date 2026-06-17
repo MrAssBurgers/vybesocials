@@ -11,6 +11,7 @@ import {
   Bell, 
   Globe, 
   HelpCircle,
+  Bot,
   Code2,
   ChevronRight,
   Shield,
@@ -31,6 +32,7 @@ export type SettingsCategory =
   | 'security'
   | 'connections' 
   | 'subscription'
+  | 'ai'
   | 'appearance' 
   | 'themes' 
   | 'feedback' 
@@ -56,6 +58,7 @@ const CATEGORY_META: Record<SettingsCategory, SettingsCategoryMeta> = {
   security:      { id: 'security', labelKey: 'Security & 2FA', icon: Shield, descKey: 'Two-factor and devices', tile: 'from-emerald-400 to-green-600' },
   connections:   { id: 'connections', labelKey: 'settingsNav.connections', icon: Link2, descKey: 'settingsNav.connectionsDesc', tile: 'from-violet-400 to-purple-600' },
   subscription:  { id: 'subscription', labelKey: 'settingsNav.subscription', icon: Crown, descKey: 'settingsNav.subscriptionDesc', tile: 'from-amber-400 to-orange-500' },
+  ai:            { id: 'ai', labelKey: 'VYBE AI', icon: Bot, descKey: 'Usage limits & your API key', tile: 'from-indigo-400 to-violet-600' },
   appearance:    { id: 'appearance', labelKey: 'settingsNav.appearance', icon: Palette, descKey: 'settingsNav.appearanceDesc', tile: 'from-fuchsia-400 to-pink-600' },
   themes:        { id: 'themes', labelKey: 'settingsNav.themes', icon: Sparkles, descKey: 'settingsNav.themesDesc', tile: 'from-purple-400 to-indigo-600' },
   feedback:      { id: 'feedback', labelKey: 'settingsNav.feedback', icon: Vibrate, descKey: 'settingsNav.feedbackDesc', tile: 'from-orange-400 to-red-500' },
@@ -80,7 +83,7 @@ const BASE_GROUPS: SettingsGroup[] = [
   { title: 'Account', items: ['profile', 'privacy', 'security', 'connections'] },
   { title: 'Personalization', items: ['themes', 'appearance', 'language'] },
   { title: 'Notifications & Sounds', items: ['notifications', 'feedback'] },
-  { title: 'Membership', items: ['subscription'] },
+  { title: 'Membership', items: ['subscription', 'ai'] },
   { title: 'Wellbeing', items: ['parental', 'screentime'] },
   { title: 'Support', items: ['help'] },
 ];

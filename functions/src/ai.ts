@@ -1,6 +1,12 @@
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { db, requireAuth, rateLimit, enforceRateLimit } from './_shared/admin.js';
 import { chatCompletion, generateImage } from './_shared/geminiAi.js';
+import {
+  CHEAP_CHAT_MODEL,
+  enforceAiQuota,
+  getUserAiApiKey,
+  resolveProfileIdFromAuth,
+} from './_shared/aiQuota.js';
 import { runVybeCheckScan } from './_shared/contentSafety.js';
 
 const SECRETS = ['GEMINI_API_KEY'];
@@ -14,16 +20,29 @@ async function loadUserProfile(uid: string): Promise<Record<string, unknown>> {
 
 /** ai-chat — conversational assistant with VYBE DNA context. */
 export const aiChat = onCall({ secrets: SECRETS }, async (request) => {
-  const uid = requireAuth(request);
-  enforceRateLimit(await rateLimit(`aichat:${uid}`, 15, 60));
-  const { messages, aiName, aiPersonality, location } =
-    (request.data || {}) as { messages?: any[]; aiName?: string; aiPersonality?: string; location?: { city?: string; lat?: number; lng?: number } };
+  const authUid = requireAuth(request);
+  enforceRateLimit(await rateLimit(`aichat:${authUid}`, 12, 60));
+  const profileId = await resolveProfileIdFromAuth(authUid);
+  const byokKey =
+    (await getUserAiApiKey(profileId, 'google')) ||
+    (await getUserAiApiKey(profileId, 'openai'));
+  const quota = await enforceAiQuota(profileId, 'chat');
+
+  const { messages, aiName, aiPersonality, location, imageBase64, imageMimeType } =
+    (request.data || {}) as {
+      messages?: any[];
+      aiName?: string;
+      aiPersonality?: string;
+      location?: { city?: string; lat?: number; lng?: number };
+      imageBase64?: string;
+      imageMimeType?: string;
+    };
   if (!Array.isArray(messages) || !messages.length) throw new HttpsError('invalid-argument', 'messages required');
 
   try {
     const [dnaSnap, profile] = await Promise.all([
-      db.collection('vybe_dna').doc(uid).get(),
-      loadUserProfile(uid),
+      db.collection('vybe_dna').doc(profileId).get(),
+      loadUserProfile(authUid),
     ]);
     const dna = dnaSnap.data() || {};
     const interests = (profile.interests || profile.onboarding_interests || []) as string[];
@@ -34,17 +53,50 @@ export const aiChat = onCall({ secrets: SECRETS }, async (request) => {
     const system = `You are ${name}. ${personality}\nUser interests: ${interests.slice(0, 10).join(', ') || 'none'}.\nDNA: ${JSON.stringify(dna.personality_vector || {}).slice(0, 400)}${loc}`;
     const sanitized = messages
       .filter((m) => m && typeof m.content === 'string' && m.content.trim())
-      .slice(-24)
+      .slice(-16)
       .map((m) => ({
         role: m.role === 'assistant' ? 'assistant' as const : 'user' as const,
-        content: String(m.content).slice(0, 4000),
+        content: String(m.content).slice(0, 3000),
       }));
 
+    const imgB64 = typeof imageBase64 === 'string' ? imageBase64.slice(0, 2_500_000) : '';
+    const imgMime = typeof imageMimeType === 'string' ? imageMimeType.slice(0, 64) : '';
+    let chatMessages: Parameters<typeof chatCompletion>[0]['messages'] = [
+      { role: 'system', content: system },
+      ...sanitized,
+    ];
+    if (imgB64 && imgMime.startsWith('image/') && chatMessages.length > 0) {
+      const last = chatMessages[chatMessages.length - 1];
+      if (last.role === 'user') {
+        chatMessages = [
+          ...chatMessages.slice(0, -1),
+          {
+            role: 'user',
+            content: [
+              { type: 'text', text: typeof last.content === 'string' ? last.content : 'What is in this image?' },
+              { type: 'image_url', image_url: { url: `data:${imgMime};base64,${imgB64}` } },
+            ],
+          },
+        ];
+      }
+    }
+
     const { content } = await chatCompletion({
-      messages: [{ role: 'system', content: system }, ...sanitized],
+      messages: chatMessages,
+      model: CHEAP_CHAT_MODEL,
+      max_tokens: 768,
+      temperature: 0.75,
+      apiKey: byokKey || undefined,
     });
     if (!content?.trim()) throw new HttpsError('internal', 'AI returned an empty reply');
-    return { reply: content };
+    return {
+      reply: content,
+      quota: {
+        chat: quota.chat,
+        hasByok: quota.hasByok,
+        isPremium: quota.isPremium,
+      },
+    };
   } catch (err) {
     if (err instanceof HttpsError) throw err;
     console.error('[aiChat]', err);
@@ -78,7 +130,14 @@ export const aiCatchUp = onCall({ secrets: SECRETS, timeoutSeconds: 60 }, async 
 
 /** ai-smart-replies — three short reply suggestions for a chat. */
 export const aiSmartReplies = onCall({ secrets: SECRETS }, async (request) => {
-  requireAuth(request);
+  const authUid = requireAuth(request);
+  enforceRateLimit(await rateLimit(`aismart:${authUid}`, 20, 60));
+  const profileId = await resolveProfileIdFromAuth(authUid);
+  const byokKey =
+    (await getUserAiApiKey(profileId, 'google')) ||
+    (await getUserAiApiKey(profileId, 'openai'));
+  await enforceAiQuota(profileId, 'smart_replies');
+
   const { lastMessage, context } = (request.data || {}) as { lastMessage?: string; context?: string };
   if (!lastMessage) throw new HttpsError('invalid-argument', 'lastMessage required');
   const { content } = await chatCompletion({
@@ -87,6 +146,10 @@ export const aiSmartReplies = onCall({ secrets: SECRETS }, async (request) => {
       { role: 'user', content: `Last message: ${lastMessage}\nContext: ${context || ''}` },
     ],
     response_format: { type: 'json_object' },
+    model: CHEAP_CHAT_MODEL,
+    max_tokens: 200,
+    temperature: 0.6,
+    apiKey: byokKey || undefined,
   });
   try { return JSON.parse(content); } catch { return { replies: [] }; }
 });
@@ -107,15 +170,30 @@ export const aiCommentSuggestions = onCall({ secrets: SECRETS }, async (request)
 
 /** ai-message-assist — rewrite/translate/tone-adjust. */
 export const aiMessageAssist = onCall({ secrets: SECRETS }, async (request) => {
-  requireAuth(request);
+  const authUid = requireAuth(request);
+  enforceRateLimit(await rateLimit(`aiassist:${authUid}`, 20, 60));
+  const profileId = await resolveProfileIdFromAuth(authUid);
+  const byokKey =
+    (await getUserAiApiKey(profileId, 'google')) ||
+    (await getUserAiApiKey(profileId, 'openai'));
+  await enforceAiQuota(profileId, 'assist');
+
   const { text, mode = 'improve', targetLang } = (request.data || {}) as { text?: string; mode?: string; targetLang?: string };
   if (!text) throw new HttpsError('invalid-argument', 'text required');
   const prompt = mode === 'translate'
     ? `Translate to ${targetLang || 'English'}: ${text}`
     : mode === 'shorten' ? `Shorten without losing meaning: ${text}`
     : mode === 'formal' ? `Rewrite formally: ${text}`
+    : mode === 'friendlier' ? `Rewrite in a warmer, friendlier tone. Keep the user's voice: ${text}`
+    : mode === 'grammar' ? `Fix grammar and spelling only. Return corrected text: ${text}`
     : `Improve clarity & tone: ${text}`;
-  const { content } = await chatCompletion({ messages: [{ role: 'user', content: prompt }] });
+  const { content } = await chatCompletion({
+    messages: [{ role: 'user', content: prompt }],
+    model: CHEAP_CHAT_MODEL,
+    max_tokens: 400,
+    temperature: 0.5,
+    apiKey: byokKey || undefined,
+  });
   return { result: content };
 });
 

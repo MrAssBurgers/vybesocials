@@ -1,10 +1,7 @@
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { db, auth, requireAuth, requireAdmin, rateLimit, enforceRateLimit } from './_shared/admin.js';
-import {
-  passwordResetContinueUrl,
-  sendPasswordResetViaResend,
-  toDirectPasswordResetLink,
-} from './_shared/passwordReset.js';
+import { passwordResetContinueUrl } from './_shared/passwordReset.js';
+import { sendFirebasePasswordResetEmail } from './_shared/firebaseAuthEmail.js';
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -13,7 +10,7 @@ function code(): string {
 }
 
 /**
- * request-password-reset — generate Firebase reset link + send branded email via Resend.
+ * request-password-reset — send via Firebase Auth (branded Console templates).
  * Unauthenticated; always returns { ok: true } when email format is valid (no enumeration).
  */
 export const requestPasswordReset = onCall({ cors: true }, async (request) => {
@@ -27,9 +24,8 @@ export const requestPasswordReset = onCall({ cors: true }, async (request) => {
 
   enforceRateLimit(await rateLimit(`pwd-reset:${email}`, 3, 3600));
 
-  let userRecord;
   try {
-    userRecord = await auth.getUserByEmail(email);
+    await sendFirebasePasswordResetEmail(email, passwordResetContinueUrl());
   } catch (err: unknown) {
     const code = (err as { code?: string })?.code;
     if (code === 'auth/user-not-found') {
@@ -38,21 +34,20 @@ export const requestPasswordReset = onCall({ cors: true }, async (request) => {
     throw err;
   }
 
-  const continueUrl = passwordResetContinueUrl();
-  const firebaseLink = await auth.generatePasswordResetLink(email, {
-    url: continueUrl,
-    handleCodeInApp: false,
-  });
-  const actionLink = toDirectPasswordResetLink(firebaseLink, continueUrl);
-  const displayName = userRecord.displayName || undefined;
+  let displayName: string | undefined;
+  try {
+    const userRecord = await auth.getUserByEmail(email);
+    displayName = userRecord.displayName || undefined;
+  } catch {
+    // ignore — email may not exist (anti-enumeration)
+  }
 
-  const sent = await sendPasswordResetViaResend(email, actionLink);
   await db.collection('email_send_log').add({
     to: email,
     template: 'reset_password',
     status: 'sent',
     sent_at: new Date().toISOString(),
-    provider_id: sent.id || null,
+    provider: 'firebase_auth',
     name: displayName || null,
   });
 

@@ -222,7 +222,8 @@ service cloud.firestore {
       allow delete: if isOwner('user_id') || isAdmin();
     }
     match /push_tokens/{id} {
-      allow read, write: if isOwner('user_id') || willOwn('user_id');
+      allow read, write: if isOwnerProfile('user_id') || willOwnProfile('user_id') ||
+        (signedIn() && (resource.data.user_id == uid() || request.resource.data.user_id == uid()));
     }
 
     // ---------- user-owned generic ----------
@@ -300,6 +301,11 @@ service cloud.firestore {
 
     // ---------- explicit deny-all admin-only tables (Cloud Functions handle these) ----------
     match /app_secrets/{id}                   { allow read, write: if false; }
+    match /user_ai_keys/{id}                  { allow read, write: if false; }
+    match /ai_usage/{profileId} {
+      allow read: if ownsProfileId(profileId);
+      allow write: if false;
+    }
     match /encryption_keys/{id}               { allow read, write: if false; }
     match /error_logs/{id}                    { allow read, write: if isAdmin(); }
     match /email_send_log/{id}                { allow read, write: if isAdmin(); }

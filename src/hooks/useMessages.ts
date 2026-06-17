@@ -416,11 +416,8 @@ export function useSendMessage() {
         toast.info('Message queued — will send when you\'re back online', { duration: 3500 });
       }
 
-      // Push notifications are handled server-side by the
-      // `on_message_insert_notify` AFTER INSERT trigger on `messages`, which
-      // fires `send-push-notification` for every recipient via pg_net. The
-      // previous client-side fan-out here caused duplicate pushes and only
-      // worked while the sender's tab was alive, so it has been removed.
+      // Push notifications are sent server-side by Firestore triggers
+      // (`onDmMessageCreated` / `onCallCreated` Cloud Functions).
     },
   });
 }

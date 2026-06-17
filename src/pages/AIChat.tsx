@@ -23,6 +23,7 @@ import { formatAiChatError } from '@/lib/functionAuth';
 import { db, formatFirebaseAiError, filterAiChatHistoryForApi, isAiLogicConfigured, streamVybeAiChat } from '@/lib/firebase';
 import { useVybeAgent, shouldFallbackToAiChat, isAgentAuthError, isAgentUnavailableError } from '@/lib/agent/useVybeAgent';
 import { shouldSkipAgentDueToAuth, clearAgentAuthFailure, messageWantsCloudAgent } from '@/lib/agent/aiChatRouting';
+import { useAiUsage } from '@/hooks/useAiUsage';
 import { parseLocalAgentPlan } from '@/lib/agent/localAgentCommands';
 import { isAgentMarkedUnavailable } from '@/lib/agent/agentAvailability';
 import { useAgentAvailabilityProbe } from '@/hooks/useAgentAvailabilityProbe';
@@ -104,6 +105,7 @@ async function imageToBase64(file: File, maxSize = 1024): Promise<{ base64: stri
 export default function AIChat() {
   const navigate = useNavigate();
   const { sendAndExecute, executePlan } = useVybeAgent();
+  const { usage, refresh: refreshAiUsage, chatRemaining, chatExhausted } = useAiUsage();
   const streamingContentRef = useRef('');
   
   const [aiName, setAiName] = useState(() => loadSetting(AI_NAME_KEY, 'VYBE-AI'));
@@ -262,6 +264,11 @@ export default function AIChat() {
     const msgText = (text || input).trim();
     if ((!msgText && !selectedImage) || isLoading) return;
 
+    if (chatExhausted) {
+      toast.error('Daily AI limit reached. Add your API key in Settings → VYBE AI.');
+      return;
+    }
+
     const appendAssistantReply = (content: string) => {
       const reply = content.trim() || "Something went wrong. Try again in a moment.";
       setMessages(prev => [...prev, { role: 'assistant', content: reply, timestamp: new Date() }]);
@@ -393,6 +400,7 @@ export default function AIChat() {
       appendAssistantReply(assistantContent.trim() || "I couldn't generate a reply. Try again.");
       setStreamingText('');
       streamingContentRef.current = '';
+      void refreshAiUsage();
     } catch (error) {
       console.error('AI chat error:', error);
       const fbMsg = formatFirebaseAiError(error);
@@ -402,7 +410,7 @@ export default function AIChat() {
     } finally {
       setIsLoading(false);
     }
-  }, [input, isLoading, messages, aiName, aiPersonality, feedDNA, userLocation, selectedImage, imagePreview, clearImage, sendAndExecute, executePlan]);
+  }, [input, isLoading, messages, aiName, aiPersonality, feedDNA, userLocation, selectedImage, imagePreview, clearImage, sendAndExecute, executePlan, chatExhausted, refreshAiUsage]);
 
   const clearChat = useCallback(() => {
     setMessages([{ role: 'assistant', content: `Fresh start! I'm ${aiName}, ready when you are ✨`, timestamp: new Date() }]);
@@ -559,6 +567,22 @@ export default function AIChat() {
           className="flex-1 overflow-y-auto overscroll-contain px-3 pb-4 space-y-3 ai-chat-messages"
           style={{ paddingTop: 'var(--app-floating-header-scroll)' }}
         >
+          {!usage.loading && !usage.hasByok && (
+            <div className="px-1 py-2 rounded-xl bg-muted/50 border border-border/50 text-xs text-muted-foreground flex items-center justify-between gap-2">
+              <span>
+                {chatExhausted
+                  ? 'Daily AI limit reached.'
+                  : `${chatRemaining} free chat message${chatRemaining === 1 ? '' : 's'} left today`}
+              </span>
+              <button
+                type="button"
+                className="text-primary font-medium shrink-0"
+                onClick={() => navigate('/settings?tab=ai')}
+              >
+                {chatExhausted ? 'Add API key' : 'Manage'}
+              </button>
+            </div>
+          )}
           {messages.map((message, index) => {
             const isOwn = message.role === 'user';
             return (

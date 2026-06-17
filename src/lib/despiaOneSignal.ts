@@ -1,5 +1,6 @@
 import { db } from '@/lib/firebase';
-import { despiaCall, isDespiaRuntime, isAndroidUA } from '@/lib/despiaBridge';
+import { isDespiaRuntime, despiaCall, isAndroidUA, isIOSUA } from '@/lib/despiaBridge';
+import { syncNativePushTokens, detectNativePushPlatform, upsertNativePushTokens } from '@/lib/pushTokenRegistry';
 
 const PLAYER_ID_KEYS = [
   'oneSignalPlayerId',
@@ -89,12 +90,20 @@ export async function resolveCurrentOneSignalExternalId(): Promise<string | null
 export async function persistDespiaPushToken(profileId: string, playerId = ''): Promise<void> {
   if (!/^[0-9a-f-]{36}$/i.test(profileId)) return;
   const token = playerId || `despia:${profileId}`;
-  const { error } = await db.from('push_tokens').upsert({
-    user_id: profileId,
-    platform: 'despia',
-    token,
-  }, { onConflict: 'user_id,platform' });
-  if (error) throw error;
+  const platform = isIOSUA() ? 'ios' : isAndroidUA() ? 'android' : 'despia';
+  await upsertNativePushTokens(profileId, {
+    fcmToken: token.startsWith('despia:') ? null : token,
+    platform: platform as 'ios' | 'android',
+  });
+  // Keep legacy despia placeholder row for OneSignal external_id routing
+  if (token.startsWith('despia:')) {
+    const { error } = await db.from('push_tokens').upsert({
+      user_id: profileId,
+      platform: 'despia',
+      token,
+    }, { onConflict: 'user_id,platform' });
+    if (error) throw error;
+  }
 }
 
 export async function linkOneSignalUser(profileId: string, subscriptionId?: string): Promise<boolean> {
@@ -245,6 +254,7 @@ export async function ensureDespiaOneSignalLinked(
 
   if (playerId && persistToken) {
     await persistDespiaPushToken(externalId, playerId);
+    await syncNativePushTokens(externalId, playerId).catch(() => {});
     await linkOneSignalUser(externalId, playerId);
   }
 

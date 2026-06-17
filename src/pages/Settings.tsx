@@ -22,6 +22,7 @@ import { PrivacySection } from '@/components/settings/PrivacySection';
 import { SecuritySection } from '@/components/settings/SecuritySection';
 import { ConnectionsSection } from '@/components/settings/ConnectionsSection';
 import { SubscriptionSection } from '@/components/settings/SubscriptionSection';
+import { AiKeySection } from '@/components/settings/AiKeySection';
 import { AppearanceSection } from '@/components/settings/AppearanceSection';
 import { ThemesSection } from '@/components/settings/ThemesSection';
 import { FeedbackSection } from '@/components/settings/FeedbackSection';
@@ -53,6 +54,7 @@ const CATEGORY_TITLES: Record<SettingsCategory, string> = {
   security: 'Security & 2FA',
   connections: 'settingsNav.connectedAccounts',
   subscription: 'settingsNav.subscription',
+  ai: 'VYBE AI',
   appearance: 'settingsNav.appearance',
   themes: 'settingsNav.customThemes',
   feedback: 'settingsNav.feedbackAndSounds',
@@ -112,6 +114,8 @@ const SettingsPage = forwardRef<HTMLDivElement, React.ComponentPropsWithoutRef<'
         return <ConnectionsSection />;
       case 'subscription':
         return <SubscriptionSection />;
+      case 'ai':
+        return <AiKeySection />;
       case 'appearance':
         return <AppearanceSection />;
       case 'themes':

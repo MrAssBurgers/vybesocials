@@ -23,6 +23,7 @@
     "migrate:firebase:verify": "node scripts/verify-migration.mjs",
     "migrate:firebase:verify-connections": "node scripts/verify-user-data-connections.mjs",
     "migrate:firebase:seed-migration-notice": "node scripts/migrate-firebase/seed-migration-announcement.mjs",
+    "firebase:sync-email-templates": "node scripts/firebase/sync-auth-email-templates.mjs",
     "ios:setup": "npm run build && npx cap add ios && npx cap sync ios",
     "ios:sync": "npm run build && npx cap sync ios",
     "ios:dev": "CAP_DEV=1 npx cap sync ios && npx cap open ios",

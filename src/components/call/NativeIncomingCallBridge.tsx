@@ -7,6 +7,7 @@ import {
   registerNativeIncomingCallListeners,
 } from '@/lib/nativeIncomingCall';
 import { fetchRingingCall } from '@/lib/notificationActions';
+import { syncNativePushTokens } from '@/lib/pushTokenRegistry';
 
 /**
  * Bridges Capacitor CallKit / Android full-screen incoming call UI
@@ -20,6 +21,9 @@ export function NativeIncomingCallBridge() {
     if (!authReady || !profile?.id) return;
 
     void ensureIncomingCallPermissions();
+    if (profile?.id) {
+      void syncNativePushTokens(profile.id).catch(() => {});
+    }
 
     let cancelled = false;
     let cleanupListeners: (() => void) | undefined;

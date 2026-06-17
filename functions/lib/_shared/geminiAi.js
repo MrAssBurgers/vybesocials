@@ -10,9 +10,9 @@ function requireGeminiKey() {
 }
 /** Direct Gemini chat completions (OpenAI-compatible endpoint). */
 export async function chatCompletion(opts) {
-    const apiKey = requireGeminiKey();
+    const apiKey = opts.apiKey?.trim() || requireGeminiKey();
     const models = [
-        ...new Set([opts.model || 'gemini-2.5-flash', 'gemini-2.5-flash', 'gemini-2.5-flash-lite'].filter(Boolean)),
+        ...new Set([opts.model || 'gemini-2.5-flash-lite', 'gemini-2.5-flash-lite', 'gemini-2.5-flash'].filter(Boolean)),
     ];
     let lastErr;
     for (const model of models) {
@@ -27,7 +27,8 @@ export async function chatCompletion(opts) {
                 },
                 body: JSON.stringify({
                     model,
-                    temperature: opts.temperature,
+                    temperature: opts.temperature ?? 0.7,
+                    max_tokens: opts.max_tokens ?? 1024,
                     messages: opts.messages,
                     response_format: opts.response_format,
                     tools: opts.tools,

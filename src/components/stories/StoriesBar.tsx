@@ -46,7 +46,9 @@ export const StoriesBar = memo(function StoriesBar({
       return;
     }
     const update = () => {
-      setPosterSize(computeStoryPosterDimensions(colSpan, rowSpan, el.clientWidth));
+      setPosterSize(
+        computeStoryPosterDimensions(colSpan, rowSpan, el.clientWidth, el.clientHeight),
+      );
     };
     update();
     const ro = new ResizeObserver(update);
@@ -75,7 +77,7 @@ export const StoriesBar = memo(function StoriesBar({
     : null;
 
   const isTall = rowSpan === 2;
-  const avatarSize = Math.max(36, Math.round(posterSize.width * 0.42));
+  const emptyAvatarInset = 6;
 
   const promptStorySignIn = () => {    toast.error('Sign in to post stories');
     navigate('/?mode=login');
@@ -87,14 +89,14 @@ export const StoriesBar = memo(function StoriesBar({
         ref={containerRef}
         className={cn(
           'flex gap-3 px-3 py-3 overflow-x-auto scrollbar-hide w-full min-w-0',
-          colSpan === 2 ? 'justify-start' : 'justify-center',
-          isTall && 'items-stretch min-h-[220px]',
+          colSpan === 2 ? 'justify-start' : 'justify-center items-center',
+          isTall && 'items-center min-h-[200px]',
         )}
         data-tutorial="stories"
       >
         <StoryTile
           posterSize={posterSize}
-          avatarSize={avatarSize}
+          emptyAvatarInset={emptyAvatarInset}
           posterUrl={ownPosterUrl}
           avatarUrl={isGuest ? undefined : ownStoryGroup?.user.avatar_url ?? profile?.avatar_url}
           username={isGuest ? 'Guest' : ownStoryGroup?.user.username ?? profile?.username}
@@ -130,7 +132,7 @@ export const StoriesBar = memo(function StoriesBar({
             <StoryTile
               key={group.user.id}
               posterSize={posterSize}
-              avatarSize={avatarSize}
+              emptyAvatarInset={emptyAvatarInset}
               posterUrl={posterUrl}
               avatarUrl={group.user.avatar_url}
               username={group.user.username}
@@ -162,7 +164,7 @@ export const StoriesBar = memo(function StoriesBar({
 
 interface StoryTileProps {
   posterSize: { width: number; height: number; borderRadius: number };
-  avatarSize: number;
+  emptyAvatarInset?: number;
   posterUrl?: string | null;
   avatarUrl?: string | null;
   username?: string;
@@ -178,7 +180,7 @@ interface StoryTileProps {
 
 const StoryTile = memo(function StoryTile({
   posterSize,
-  avatarSize,
+  emptyAvatarInset = 6,
   posterUrl,
   avatarUrl,
   username,
@@ -221,13 +223,16 @@ const StoryTile = memo(function StoryTile({
           fallbackInitial={username}
         >
           {!hasStory && (
-            <div className="absolute inset-0 flex items-center justify-center">
+            <div
+              className="absolute inset-0 flex items-center justify-center p-1.5"
+              style={{ padding: emptyAvatarInset }}
+            >
               <Avatar
-                className="border border-background/80"
-                style={{ width: avatarSize, height: avatarSize }}
+                className="h-full w-full border border-background/80 shadow-inner"
+                style={{ borderRadius: Math.max(8, posterSize.borderRadius - emptyAvatarInset) }}
               >
                 <AvatarImage src={signedAvatarUrl || avatarUrl || undefined} className="object-cover" />
-                <AvatarFallback className="bg-muted text-muted-foreground text-sm">
+                <AvatarFallback className="bg-muted text-muted-foreground text-2xl font-semibold">
                   {username?.charAt(0).toUpperCase()}
                 </AvatarFallback>
               </Avatar>
@@ -238,9 +243,9 @@ const StoryTile = memo(function StoryTile({
         {showAddButton && !isUploading && (
           <div
             onClick={handleAddClick}
-            className="absolute -bottom-0.5 -right-0.5 z-20 bg-accent rounded-full p-[3px] border-2 border-background cursor-pointer active:scale-95 transition-transform shadow-[0_1px_4px_rgba(0,0,0,0.3)]"
+            className="absolute -bottom-1 -right-1 z-20 bg-accent rounded-full p-1 border-2 border-background cursor-pointer active:scale-95 transition-transform shadow-[0_1px_4px_rgba(0,0,0,0.3)]"
           >
-            <Plus className="h-3.5 w-3.5 text-accent-foreground" strokeWidth={3} />
+            <Plus className="h-4 w-4 text-accent-foreground" strokeWidth={3} />
           </div>
         )}
       </div>

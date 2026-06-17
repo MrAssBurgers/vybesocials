@@ -103,6 +103,7 @@ const APP_READY_ATTR = 'data-vybe-app-ready';
 const EasterEggProvider = lazy(() => import("@/components/easter-eggs/EasterEggProvider").then(m => ({ default: m.EasterEggProvider })));
 const GlobalCallOverlay = lazy(() => import("@/components/call/GlobalCallOverlay").then(m => ({ default: m.GlobalCallOverlay })));
 const NativeIncomingCallBridge = lazy(() => import("@/components/call/NativeIncomingCallBridge").then(m => ({ default: m.NativeIncomingCallBridge })));
+const NativePushTokenBridge = lazy(() => import("@/components/notifications/NativePushTokenBridge").then(m => ({ default: m.NativePushTokenBridge })));
 // PushNotificationPrompt removed — was causing floating bell icon
 const GlobalMessageNotifications = lazy(() => import("@/components/notifications/GlobalMessageNotifications").then(m => ({ default: m.GlobalMessageNotifications })));
 const DespiaOneSignalSync = lazy(() => import("@/components/notifications/DespiaOneSignalSync").then(m => ({ default: m.DespiaOneSignalSync })));
@@ -458,6 +459,7 @@ function AppWithPreloader() {
                                         <AppIconBadgeMount />
                                         <GlobalCallOverlay />
                                         <NativeIncomingCallBridge />
+                                        <NativePushTokenBridge />
                                         <WarningPopup />
                                         <InvitePopup />
                                         <BanCheck />

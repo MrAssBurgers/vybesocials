@@ -332,15 +332,40 @@ export function computeStoryPosterDimensions(
   colSpan: 1 | 2 = 2,
   rowSpan: 1 | 2 = 1,
   containerWidth?: number,
+  containerHeight?: number,
 ): { width: number; height: number; borderRadius: number } {
-  const aspect = 112 / 84;
-  let width = colSpan === 2 ? 92 : 76;
-  if (rowSpan === 2) width += 12;
-  if (containerWidth && colSpan === 2) {
-    const inner = Math.max(0, containerWidth - 32);
-    width = Math.min(108, Math.max(80, Math.round(inner / 3.8)));
+  const aspect = 84 / 112; // width / height (portrait poster)
+
+  let width = colSpan === 2 ? 96 : 80;
+  if (rowSpan === 2) width += 16;
+
+  if (containerWidth) {
+    const inner = Math.max(0, containerWidth - 24);
+    if (colSpan === 2) {
+      width = Math.min(128, Math.max(88, Math.round(inner / 3.2)));
+    } else {
+      width = Math.min(112, Math.max(72, Math.round(inner * 0.85)));
+    }
   }
-  const height = Math.round(width * aspect * (rowSpan === 2 ? 1.12 : 1));
+
+  let height = Math.round(width / aspect);
+
+  // Tall grid cells — grow poster to use available height
+  if (containerHeight && containerHeight > height + 40) {
+    const maxH = Math.min(containerHeight - 36, 240);
+    if (maxH > height) {
+      height = maxH;
+      width = Math.round(height * aspect);
+      if (containerWidth) {
+        const maxW = containerWidth - 16;
+        if (width > maxW) {
+          width = maxW;
+          height = Math.round(width / aspect);
+        }
+      }
+    }
+  }
+
   const borderRadius = Math.max(14, Math.round(width * 0.2));
   return { width, height, borderRadius };
 }

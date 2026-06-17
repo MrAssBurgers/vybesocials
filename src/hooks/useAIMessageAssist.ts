@@ -10,15 +10,15 @@ interface AIAssistResult {
   action: AIAssistAction;
 }
 
+const ACTION_MODE: Record<Exclude<AIAssistAction, 'suggest_reply'>, string> = {
+  rewrite: 'improve',
+  shorter: 'shorten',
+  friendlier: 'friendlier',
+  fix_grammar: 'grammar',
+};
+
 /**
  * VYBE v1.1 - AI Message Assist with User Adaptation
- * 
- * Features:
- * - Adapts to user's communication style
- * - Rewrite message (shorter, clearer, friendlier)
- * - Fix grammar & tone (while keeping user's voice)
- * - Suggest replies (context-aware + style-matched)
- * - Learns from user's messages over time
  */
 export function useAIMessageAssist() {
   const [isProcessing, setIsProcessing] = useState(false);
@@ -36,7 +36,6 @@ export function useAIMessageAssist() {
       return null;
     }
 
-    // Learn from the message being processed
     if (currentText.trim()) {
       learnFromMessage(currentText);
     }
@@ -45,31 +44,41 @@ export function useAIMessageAssist() {
     setError(null);
 
     try {
-      // Use adaptive AI endpoint with user profile
-      const { data, error: fnError } = await db.functions.invoke('ai-adaptive-response', {
+      if (action === 'suggest_reply') {
+        const last = recentMessages?.[recentMessages.length - 1];
+        const { data, error: fnError } = await db.functions.invoke('ai-smart-replies', {
+          body: {
+            lastMessage: last?.content || 'Say hi',
+            context: recentMessages?.slice(-5).map((m) => m.content).join('\n'),
+          },
+        });
+        if (fnError) throw fnError;
+        const result = (data?.replies as string[] | undefined)?.[0] || '';
+        setLastResult({ text: result, action });
+        return result;
+      }
+
+      const { data, error: fnError } = await db.functions.invoke('ai-message-assist', {
         body: {
-          action,
-          userProfile: profile,
-          messages: [
-            { role: 'user', content: currentText || 'Suggest a reply based on context' }
-          ],
-          context: recentMessages?.slice(-5).map(m => m.content).join('\n'),
+          text: currentText,
+          mode: ACTION_MODE[action],
         },
       });
 
       if (fnError) throw fnError;
 
-      const result = data?.result || data?.text || '';
+      const result = data?.result || '';
       setLastResult({ text: result, action });
       return result;
-    } catch (err: any) {
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'AI assist failed';
       console.error('AI Assist error:', err);
-      setError(err?.message || 'AI assist failed');
+      setError(message);
       return null;
     } finally {
       setIsProcessing(false);
     }
-  }, [profile, learnFromMessage]);
+  }, [learnFromMessage]);
 
   const rewrite = useCallback((text: string) => assist('rewrite', text), [assist]);
   const makeShorter = useCallback((text: string) => assist('shorter', text), [assist]);
@@ -94,13 +103,10 @@ export function useAIMessageAssist() {
   };
 }
 
-/**
- * AI Smart Replies - Adaptive suggestions that match user's style
- */
+/** AI Smart Replies - three short suggestions for the last message. */
 export function useAISmartReplies() {
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const { profile } = useUserAdaptation();
 
   const generateReplies = useCallback(async (lastMessage: Message | null) => {
     if (!lastMessage?.content) {
@@ -111,12 +117,9 @@ export function useAISmartReplies() {
     setIsLoading(true);
 
     try {
-      // Use adaptive endpoint with user profile for personalized suggestions
-      const { data, error } = await db.functions.invoke('ai-adaptive-response', {
-        body: { 
-          action: 'smart_replies',
-          context: lastMessage.content,
-          userProfile: profile,
+      const { data, error } = await db.functions.invoke('ai-smart-replies', {
+        body: {
+          lastMessage: lastMessage.content,
         },
       });
 
@@ -129,7 +132,7 @@ export function useAISmartReplies() {
     } finally {
       setIsLoading(false);
     }
-  }, [profile]);
+  }, []);
 
   const clearSuggestions = useCallback(() => setSuggestions([]), []);
 
@@ -167,7 +170,7 @@ export function useAIChatSummary() {
       const result = data?.summary || 'Unable to generate summary';
       setSummary(result);
       return result;
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Chat summary error:', err);
       setSummary('Failed to generate summary');
       return null;

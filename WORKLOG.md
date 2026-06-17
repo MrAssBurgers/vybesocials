@@ -4,6 +4,22 @@ Use this file as the Lovable -> Cursor handoff each session.
 
 **Links:** [Lovable project](https://lovable.dev/projects/416714c8-d013-4aff-984d-522418a9bbc7) · [Production](https://vybehub.app) · Deploy steps: `DEPLOY.md`
 
+## Current Focus (2026-06-17 — AI cost controls + BYOK)
+- **Done:** Server-enforced daily quotas (`ai_usage` Firestore + `functions/src/_shared/aiQuota.ts`); free limits chat 25 / assist 15 / smart replies 20 per day (higher for VYBE+ / gifted premium); premium checks via `gifted_premium` + `subscriptions`
+- **Model:** `gemini-2.5-flash-lite` for `aiChat`, `aiMessageAssist`, `aiSmartReplies` (cheapest tier)
+- **BYOK:** Settings → **VYBE AI** — `saveUserAiKey` / `deleteUserAiKey` / `getAiUsage` deployed; keys server-only (`user_ai_keys` deny-all client rules); BYOK skips daily quota, bills user's Google account
+- **Client:** All chat via `aiChat` callable (removed client Gemini bypass); DM assist wired to `ai-message-assist` + `ai-smart-replies`; usage banner in `/VYBE-AI`
+- **Deployed:** `aiChat`, `aiMessageAssist`, `aiSmartReplies`, `getAiUsage`, `saveUserAiKey`, `deleteUserAiKey`, `firestore:rules`
+- **You:** Lovable **Share → Publish** for client UI; test chat limit + add Google AI Studio key in Settings
+
+## Current Focus (2026-06-17 — deep scan / load verification)
+- **Deep scan (2026-06-17 ~18:13 UTC):** build PASS, lint PASS (fixed `safetyGemini.ts` prefer-const), CSS PASS, boot entry PASS; edge fn refs OK (73/73 local); vybehub.app `/assets/app.js` HTTP 200 + stable entry; vendor chunks 200
+- **Firestore live (`vybe-daaab`):** 2004/2004 refs (100%), 0 orphans; 152 profiles + 152 `user_auth_index`; founder **@mrassburgers** OK (5+ DM memberships); conversations 38 (post ghost cleanup)
+- **Supabase prod RPCs:** `is_username_available` + `create_dm_conversation` MISSING — client fallbacks in `dataClient.ts` OK
+- **Firebase functions:** `requestPasswordReset`, `aiChat`, `startVybeCheck`, `getVybeCheckStatus` deployed
+- **Unpublished local:** Stories tile sizing (`StoriesBar.tsx`, `storyUtils.ts`); prod bundle ~773KB vs local ~786KB — **Lovable Publish** needed
+- **You:** Lovable **Share → Publish** + hard refresh; optional `RESEND_API_KEY` for branded reset emails
+
 ## Current Focus (2026-06-17 — DMs + page load / Firestore rules)
 - **Root cause:** Firestore rules compared `request.auth.uid` to `conversation_members.user_id` / `messages` — but migrated data uses **profiles.id** (legacy UUID). Flat `messages` collection had **no rules** (deny-all). `trashed_conversations` also denied.
 - **Fix:** `profileId()` + `ownsProfileId()` helpers; `user_auth_index` collection; rules for flat `messages`, `conversation_members`, `trashed_conversations`; friend_requests/follows use profile ids

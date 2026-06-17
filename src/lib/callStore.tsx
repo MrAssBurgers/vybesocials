@@ -705,45 +705,8 @@ export function CallStoreProvider({ children }: { children: ReactNode }) {
         remoteAccepted: false,
       });
 
-      // Fan out push notifications truly fire-and-forget. Receiver also has
-      // realtime + 2-5s polling fallback in this same file (lines 285-333),
-      // so push delays/failures never block the caller's UI.
-      void (async () => {
-        try {
-          const targetIds = params.isGroupCall
-            ? (params.participantIds || []).filter((id) => id && id !== profileId)
-            : [params.receiverId];
-
-          const callerName = profile.username || 'Someone';
-          const callTypeLabel = params.callType === 'video' ? 'FaceTime' : 'audio call';
-          const title = params.isGroupCall
-            ? `${params.groupName || 'Group'} • Incoming ${callTypeLabel}`
-            : `Incoming ${callTypeLabel}`;
-          const body = `${callerName} is calling…`;
-
-          for (const userId of targetIds) {
-            db.functions.invoke('send-push-notification', {
-              body: {
-                userId,
-                title,
-                body,
-                url: `/messages/${params.conversationId}?call=${callSession.id}`,
-                tag: `vybe-call-${callSession.id}`,
-                type: 'call',
-                data: {
-                  type: 'call',
-                  callId: callSession.id,
-                  conversationId: params.conversationId,
-                  callType: params.callType,
-                  path: `/messages/${params.conversationId}?call=${callSession.id}`,
-                },
-              },
-            }).catch((e) => console.warn('[CallStore] push notification failed:', e));
-          }
-        } catch (pushErr) {
-          console.warn('[CallStore] push fan-out failed:', pushErr);
-        }
-      })();
+      // Server-side `onCallCreated` Cloud Function sends high-priority FCM to callee(s).
+      // Realtime + polling below remain the in-app fallback.
     } catch (err: any) {
       console.error('[CallStore] Failed to start call:', err);
       premiumSounds.stopAllCallSounds();

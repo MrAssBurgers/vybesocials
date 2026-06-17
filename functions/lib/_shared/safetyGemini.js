@@ -74,7 +74,8 @@ export async function analyzeImageWithGemini(apiKey, base64, mimeType) {
         { inlineData: { mimeType, data: base64 } },
     ], IMAGE_PROMPT);
     const parsed = parseGeminiJson(text);
-    let { score, categories, analysis, suggestedAge, ageReasons } = parsed;
+    let { score, analysis, suggestedAge } = parsed;
+    const { categories, ageReasons } = parsed;
     const sexScore = safetyScores.sexually_explicit || 0;
     if (sexScore >= 0.6 && score < sexScore) {
         score = Math.max(score, sexScore);

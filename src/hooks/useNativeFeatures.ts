@@ -5,6 +5,10 @@ import { Filesystem, Directory } from '@capacitor/filesystem';
 import { LocalNotifications } from '@capacitor/local-notifications';
 import { PushNotifications } from '@capacitor/push-notifications';
 import { isNativePlatform, hapticImpact, hapticNotification } from '@/lib/capacitor';
+import { syncNativePushTokens } from '@/lib/pushTokenRegistry';
+import { fetchRingingCall } from '@/lib/notificationActions';
+import { presentNativeIncomingCall } from '@/lib/nativeIncomingCall';
+import { useAuth } from '@/lib/auth';
 
 export function useNativeCamera() {
   const takePhoto = useCallback(async () => {
@@ -149,6 +153,7 @@ export function useNativeNotifications() {
 }
 
 export function useNativePushNotifications() {
+  const { profile } = useAuth();
   const [token, setToken] = useState<string | null>(null);
   const [permissionStatus, setPermissionStatus] = useState<'prompt' | 'granted' | 'denied'>('prompt');
 
@@ -173,6 +178,11 @@ export function useNativePushNotifications() {
         PushNotifications.addListener('registration', (regToken) => {
           setToken(regToken.value);
           console.log('[Push Native] Token registered:', regToken.value.substring(0, 20) + '...');
+          if (profile?.id) {
+            void syncNativePushTokens(profile.id, regToken.value).catch((err) => {
+              console.warn('[Push Native] token persist failed:', err);
+            });
+          }
         });
 
         // Handle registration error
@@ -183,11 +193,20 @@ export function useNativePushNotifications() {
         // Handle push received while app is in foreground
         PushNotifications.addListener('pushNotificationReceived', (notification) => {
           console.log('[Push Native] Foreground notification:', notification);
+          const data = notification.data || {};
           
           // Haptic feedback based on notification type
-          const notifType = notification.data?.type || 'general';
+          const notifType = data.type || 'general';
           if (notifType === 'call') {
             hapticNotification('warning');
+            const callId = typeof data.callId === 'string' ? data.callId : undefined;
+            if (callId) {
+              void fetchRingingCall(callId).then((call) => {
+                if (!call) return;
+                window.dispatchEvent(new CustomEvent('vybe:incoming-call', { detail: call }));
+                void presentNativeIncomingCall(call);
+              });
+            }
           } else if (notifType === 'dm' || notifType === 'message') {
             hapticNotification('success');
           } else {
@@ -257,7 +276,7 @@ export function useNativePushNotifications() {
     return () => {
       PushNotifications.removeAllListeners();
     };
-  }, []);
+  }, [profile?.id]);
 
   // Clear badge count when app becomes visible
   useEffect(() => {

@@ -1,15 +1,16 @@
 import { onCall, onRequest, HttpsError } from 'firebase-functions/v2/https';
-import { db, messaging, requireAuth, rateLimit, enforceRateLimit } from './_shared/admin.js';
-const FCM_VAPID_KEY = process.env.FIREBASE_VAPID_KEY;
+import { db, requireAuth, rateLimit, enforceRateLimit } from './_shared/admin.js';
+import { dispatchPushToProfile, dispatchCallPushToProfile, dispatchDmPushToProfile } from './_shared/fcmPush.js';
+const VAPID_PUBLIC = process.env.VAPID_PUBLIC_KEY || process.env.FIREBASE_VAPID_KEY;
 /** get-vapid-key — returns the public VAPID key for web push. */
 export const getVapidKey = onCall(async () => {
-    return { vapid_key: FCM_VAPID_KEY || null };
+    return { vapid_key: VAPID_PUBLIC || null, publicKey: VAPID_PUBLIC || null };
 });
-/** send-push-notification — writes notification doc + sends FCM. */
+/** send-push-notification — writes notification doc + sends FCM / Web Push. */
 export const sendPushNotification = onCall(async (request) => {
     const callerUid = requireAuth(request);
     enforceRateLimit(await rateLimit(`push:${callerUid}`, 60, 60));
-    const { userId, title, body, data: payload, url } = (request.data || {});
+    const { userId, title, body, data: payload, url, type, tag, highPriority } = (request.data || {});
     if (!userId)
         throw new HttpsError('invalid-argument', 'userId required');
     await db.collection('notifications').add({
@@ -21,54 +22,72 @@ export const sendPushNotification = onCall(async (request) => {
         created_at: new Date().toISOString(),
         read: false,
     });
-    const tokensSnap = await db.collection('push_tokens').where('user_id', '==', userId).get();
-    const tokens = tokensSnap.docs.map((d) => d.data().token).filter(Boolean);
-    if (!tokens.length)
-        return { ok: true, sent: 0 };
-    const res = await messaging.sendEachForMulticast({
-        tokens,
-        notification: { title: title || 'VYBE', body: body || '' },
-        data: { ...(payload || {}), ...(url ? { url } : {}) },
-        webpush: url ? { fcmOptions: { link: url } } : undefined,
-    });
-    // Clean up invalid tokens
-    const toDelete = [];
-    res.responses.forEach((r, i) => {
-        if (!r.success && (r.error?.code === 'messaging/registration-token-not-registered' || r.error?.code === 'messaging/invalid-registration-token')) {
-            toDelete.push(tokens[i]);
-        }
-    });
-    if (toDelete.length) {
-        const batch = db.batch();
-        const delSnap = await db.collection('push_tokens').where('token', 'in', toDelete.slice(0, 10)).get();
-        delSnap.docs.forEach((d) => batch.delete(d.ref));
-        await batch.commit();
-    }
-    return { ok: true, sent: res.successCount, failed: res.failureCount };
+    const isCall = type === 'call' || !!highPriority;
+    const result = isCall
+        ? await dispatchCallPushToProfile(userId, {
+            title: title || 'VYBE',
+            body: body || '',
+            url,
+            tag,
+            type: 'call',
+            data: payload,
+        })
+        : await dispatchDmPushToProfile(userId, {
+            title: title || 'VYBE',
+            body: body || '',
+            url,
+            tag,
+            type,
+            data: payload,
+        });
+    return {
+        ok: true,
+        sent: result.sent,
+        ...(isCall
+            ? {
+                android: result.android,
+                iosVoip: result.iosVoip,
+                iosFallback: result.iosFallback,
+                web: result.web,
+            }
+            : { fcm: result.fcm, web: result.web }),
+    };
 });
-/** link-onesignal-user — store mapping for legacy OneSignal during cutover. */
+/** Resolve profiles.id from Firebase Auth uid. */
+async function resolveProfileIdForAuth(authUid, explicit) {
+    if (explicit && explicit !== authUid)
+        return explicit;
+    const idx = await db.collection('user_auth_index').doc(authUid).get();
+    const fromIndex = idx.data()?.profile_id;
+    if (fromIndex)
+        return fromIndex;
+    const prof = await db.collection('profiles').where('user_id', '==', authUid).limit(1).get();
+    if (!prof.empty)
+        return prof.docs[0].id;
+    return authUid;
+}
+/** link-onesignal-user — store FCM / VoIP tokens keyed by profile id. */
 export const linkOnesignalUser = onCall(async (request) => {
-    const uid = requireAuth(request);
-    const { onesignal_id, fcm_token, platform } = (request.data || {});
-    await db.collection('push_tokens').doc(`${uid}_${platform || 'web'}`).set({
-        user_id: uid,
+    const authUid = requireAuth(request);
+    const { onesignal_id, fcm_token, platform, voip_token, profile_id, profileId } = (request.data || {});
+    const resolvedProfileId = await resolveProfileIdForAuth(authUid, profile_id || profileId);
+    const resolvedPlatform = (platform || 'web').toLowerCase();
+    await db.collection('push_tokens').doc(`${resolvedProfileId}_${resolvedPlatform}`).set({
+        user_id: resolvedProfileId,
         onesignal_id: onesignal_id || null,
         token: fcm_token || null,
-        platform: platform || 'web',
+        voip_token: voip_token || null,
+        platform: resolvedPlatform,
         updated_at: new Date().toISOString(),
     }, { merge: true });
-    return { ok: true };
+    return { ok: true, success: true };
 });
 /** send-brief-notification — push the user's daily brief. */
 export const sendBriefNotification = onCall(async (request) => {
     const uid = requireAuth(request);
     const { title = 'Your daily brief is ready', body = 'Tap to read what\'s new' } = (request.data || {});
-    const tokens = (await db.collection('push_tokens').where('user_id', '==', uid).get())
-        .docs.map((d) => d.data().token).filter(Boolean);
-    if (!tokens.length)
-        return { ok: true, sent: 0 };
-    const r = await messaging.sendEachForMulticast({ tokens, notification: { title, body } });
-    return { ok: true, sent: r.successCount };
+    const result = await dispatchPushToProfile(uid, { title, body, type: 'brief' });
+    return { ok: true, sent: result.sent };
 });
 /** sitemap-dynamic — public HTTP endpoint serving sitemap.xml. */
 export const sitemapDynamic = onRequest({ cors: true }, async (_req, res) => {
@@ -84,7 +103,6 @@ ${urls}
 /** notify-expiring-streaks — scheduled-ish helper (call via cron later). */
 export const notifyExpiringStreaks = onCall(async (request) => {
     requireAuth(request);
-    // TODO: full streak-window logic. Returns count so callers behave.
     return { notified: 0 };
 });
 /** mute-smart-pings — flip user preference. */

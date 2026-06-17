@@ -24,13 +24,17 @@ export async function chatCompletion(opts: {
   messages: ChatMessage[];
   model?: string;
   temperature?: number;
+  max_tokens?: number;
   response_format?: { type: 'json_object' };
   tools?: unknown[];
   tool_choice?: unknown;
+  apiKey?: string;
 }): Promise<{ content: string; raw: any; toolCalls?: unknown[] }> {
-  const apiKey = requireGeminiKey();
+  const apiKey = opts.apiKey?.trim() || requireGeminiKey();
   const models = [
-    ...new Set([opts.model || 'gemini-2.5-flash', 'gemini-2.5-flash', 'gemini-2.5-flash-lite'].filter(Boolean)),
+    ...new Set(
+      [opts.model || 'gemini-2.5-flash-lite', 'gemini-2.5-flash-lite', 'gemini-2.5-flash'].filter(Boolean),
+    ),
   ];
   let lastErr: string | undefined;
 
@@ -45,7 +49,8 @@ export async function chatCompletion(opts: {
         },
         body: JSON.stringify({
           model,
-          temperature: opts.temperature,
+          temperature: opts.temperature ?? 0.7,
+          max_tokens: opts.max_tokens ?? 1024,
           messages: opts.messages,
           response_format: opts.response_format,
           tools: opts.tools,
