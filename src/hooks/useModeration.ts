@@ -3,7 +3,7 @@ import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth';
 import { useAuthProfileId } from '@/hooks/useAuthProfileId';
 import { isStaffQueryEnabled } from '@/lib/adminAccess';
-import { getFunctionAuthHeaders } from '@/lib/functionAuth';
+import { invokeEdgeFeature } from '@/lib/edgeFeature';
 import { isPreviewFounderUser, isPreviewSandbox } from '@/lib/previewSandbox';
 
 export interface ContentFlag {
@@ -272,22 +272,22 @@ export async function moderateContent(
   contentId: string
 ): Promise<{ allowed: boolean; score: number; requires_review: boolean }> {
   try {
-    const headers = await getFunctionAuthHeaders();
-    const response = await fetch(
-      `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/moderate-content`,
-      {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({ content, content_type: contentType, content_id: contentId }),
-      }
-    );
+    const { data, unavailable } = await invokeEdgeFeature<{
+      allowed?: boolean;
+      safe?: boolean;
+      score?: number;
+      requires_review?: boolean;
+    }>('moderate-content', { content, content_type: contentType, content_id: contentId });
 
-    if (!response.ok) {
-      console.error('Moderation API error:', response.status);
+    if (unavailable || !data) {
       return { allowed: true, score: 0, requires_review: false };
     }
 
-    return await response.json();
+    return {
+      allowed: data.allowed ?? data.safe !== false,
+      score: Number(data.score || 0),
+      requires_review: !!data.requires_review,
+    };
   } catch (error) {
     console.error('Moderation error:', error);
     return { allowed: true, score: 0, requires_review: false };

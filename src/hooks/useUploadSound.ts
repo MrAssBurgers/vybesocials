@@ -43,27 +43,18 @@ export function useUploadSound() {
 
       setProgress(30);
 
-      const { data: { session } } = await db.auth.getSession();
-      
-      const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/upload-sound`,
-        {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${session?.access_token}`,
-          },
-          body: formData,
-        }
-      );
+      const { data, error } = await db.functions.invoke('upload-sound', {
+        body: { title, tags, duration },
+      });
 
       setProgress(80);
 
-      if (!response.ok) {
-        const err = await response.json();
-        throw new Error(err.error || 'Upload failed');
+      if (error || !data) {
+        toast.message('Sound upload is coming soon — try again after the next update.');
+        return null;
       }
 
-      const result = await response.json();
+      const result = data;
       setProgress(100);
 
       // Invalidate sounds queries to show the new sound

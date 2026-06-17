@@ -4,7 +4,7 @@ import { Loader2, RefreshCw, Check } from 'lucide-react';
 import { VybeMiniIcon } from '@/components/ui/VybeMiniIcon';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
-import { getFunctionAuthHeaders } from '@/lib/functionAuth';
+import { invokeEdgeFeature, EDGE_UNAVAILABLE_TOAST } from '@/lib/edgeFeature';
 
 interface AICaptionGeneratorProps {
   tags: string[];
@@ -29,31 +29,17 @@ export function AICaptionGenerator({ tags, contentType, onSelectCaption }: AICap
     setSelectedIndex(null);
 
     try {
-      const headers = await getFunctionAuthHeaders();
-      const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-caption`,
-        {
-          method: 'POST',
-          headers,
-          body: JSON.stringify({ tags, contentType: mapContentType(contentType) }),
-        }
+      const { data, unavailable } = await invokeEdgeFeature<{ captions?: string[] }>(
+        'generate-caption',
+        { tags, contentType: mapContentType(contentType) },
       );
 
-      if (!response.ok) {
-        const error = await response.json();
-        if (response.status === 429) {
-          toast.error('Too many requests. Please wait a moment.');
-          return;
-        }
-        if (response.status === 402) {
-          toast.error('AI credits exhausted. Please try again later.');
-          return;
-        }
-        throw new Error(error.error || 'Failed to generate captions');
+      if (unavailable || !data?.captions?.length) {
+        toast.message(EDGE_UNAVAILABLE_TOAST);
+        return;
       }
 
-      const data = await response.json();
-      setCaptions(data.captions || []);
+      setCaptions(data.captions);
     } catch (error) {
       console.error('Caption generation error:', error);
       toast.error('Failed to generate captions');

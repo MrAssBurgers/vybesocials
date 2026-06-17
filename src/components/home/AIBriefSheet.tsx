@@ -7,6 +7,7 @@ import { RefreshCw, TrendingUp, ExternalLink, AlertCircle, Sun, Moon, Sunset, Me
 import { VybeMiniIcon } from '@/components/ui/VybeMiniIcon';
 import { db } from '@/lib/firebase';
 import { invokeFunction } from '@/lib/firebase/functionsService';
+import { invokeEdgeFeature } from '@/lib/edgeFeature';
 import { useAuth } from '@/lib/auth';
 import { toast } from 'sonner';
 import { haptics } from '@/lib/haptics';
@@ -521,21 +522,14 @@ export function AIBriefSheet({ open, onOpenChange, focusTopic, focusHeadline, no
     setFocusSearchUrl(null);
     (async () => {
       try {
-        const { data: { session } } = await db.auth.getSession();
-        if (!session) { setFocusLoading(false); return; }
-        const res = await fetch(
-          `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/brief-topic-detail`,
-          {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              Authorization: `Bearer ${session.access_token}`,
-            },
-            body: JSON.stringify({ topic: focusTopic, headline: focusHeadline }),
-          },
-        );
-        if (!res.ok) throw new Error('detail failed');
-        const data = await res.json();
+        const { data, unavailable } = await invokeEdgeFeature<{
+          detail?: string;
+          sourceUrl?: string;
+          sourceName?: string;
+          searchUrl?: string;
+        }>('brief-topic-detail', { topic: focusTopic, headline: focusHeadline });
+
+        if (unavailable || !data) throw new Error('detail failed');
         setFocusDetail(data.detail || null);
         setFocusSourceUrl(data.sourceUrl || null);
         setFocusSourceName(data.sourceName || null);

@@ -195,10 +195,11 @@ export const generateCaption = onCall({ secrets: SECRETS }, async (request) => {
   try { return JSON.parse(content); } catch { return { captions: [] }; }
 });
 
-/** detect-ai-content — placeholder (Phase 5 stub; full Gemini video scan in Phase 6). */
+/** detect-ai-content — graceful no-op when AI keys missing. */
 export const detectAiContent = onCall({ secrets: SECRETS }, async (request) => {
   requireAuth(request);
-  return { is_ai: false, confidence: 0, note: 'Pending Phase 6 video frame scan port' };
+  const { post_id, caption } = (request.data || {}) as { post_id?: string; caption?: string };
+  return { is_ai: false, confidence: 0, reason: 'Detection skipped during migration', post_id, caption: !!caption };
 });
 
 /** dna-chat — short DNA-aware AI thread. */

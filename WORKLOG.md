@@ -11,9 +11,10 @@ Use this file as the Lovable -> Cursor handoff each session.
 - **Prod blockers (vybehub.app):**
   1. **`index.html`** — `data-vybe-maintenance="true"` shows static “Under reconstruction” on vybehub.app (preview hosts bypass).
   2. **Lovable env** — `VITE_FIREBASE_*` not set in Cloud (see checklist below); `.env.example` is source of truth.
-  3. **~25 client files** still call **`VITE_SUPABASE_URL` edge functions** (AI captions, moderation, LiveKit, Stripe validate, etc.) — core feed/auth/data is Firebase; these features fail until Cloud Functions deployed + callers ported (Phase 3).
+  3. **~10 client files** still call **`VITE_SUPABASE_URL`** (admin debug, music providers, Spotify callback, presence REST, PWA icons, Stripe validate) — core feed/DMs/social/AI captions now Firebase; deploy Cloud Functions for full AI/push.
   4. **Media gap** — only 9 agtcyx storage files in Firebase; most legacy media on `eabvbt` / `szthqtnbepupjqjxaduu` not migrated (avatars/posts may 404 until `migrate:firebase:public-media` + agtcyx service_role).
-- **Code fix (this session):** Firebase password reset — `ResetPassword.tsx` handles `?mode=resetPassword&oobCode=`; `authService.updateUser({ password })` ported for settings flow.
+- **Code fix (this session):** Firebase implementation sweep — `socialRpc.ts` client fallbacks (profile, DMs, view counts, streaks), extended `feedRpc.ts` pattern in `dataClient.ts`, `invokeFunction` body unwrap + `not_yet_ported` fail-soft, `posts.ts` denormalized like/bookmark counts, `edgeFeature.ts` helper; migrated 15+ AI/moderation/social callers off `VITE_SUPABASE_URL` fetch to Firebase `invokeFunction`; `shareLinks.ts` → Firebase `sharePreview`; Cloud Functions: `giphySearch` trending + graceful empty, `detectAiContent` no-op.
+- **Prior fix:** Lovable preview `/home` crash — `feedRpc.ts`, PostCard author guard; commit `3976d610`.
 
 ### End users — reclaim account + content
 
@@ -81,14 +82,14 @@ GOOGLE_APPLICATION_CREDENTIALS=./secrets/firebase-admin.json npm run migrate:fir
 
 - **Passwords:** Not exportable from Lovable; all email users must **Forgot password** once.
 - **Media:** Most storage not in Firebase yet; broken thumbnails until migration.
-- **Edge functions:** ~25 direct Supabase URL fetches remain; AI captions, brief detail, moderation, group create, presence, Stripe validate, Spotify callback, etc. need Firebase Cloud Functions + client port or temporary agtcyx env.
+- **Edge functions:** ~10 direct Supabase URL fetches remain (admin debug, music sync, Spotify OAuth callback, presence REST, PWA icons, Stripe validate). LiveKit/Stripe/Resend need secrets + `firebase deploy --only functions`.
 - **DEPLOY.md** still documents Supabase agtcyx — update when cutover is confirmed.
 
 ### Next 3 Tasks
 
-1. **Baron:** Lovable env + flip maintenance + Publish (checklist above)
-2. **Baron:** Forgot password smoke test as Bakrix; confirm Firestore feed/DMs
-3. **Phase 3:** Port remaining `VITE_SUPABASE_URL` edge calls; finish storage migration
+1. **Baron:** `firebase deploy --only functions` + Lovable env + flip maintenance + Publish
+2. **Baron:** Deploy Firestore composite indexes (friend_requests status, messages conversation_id+created_at)
+3. **Phase 3:** Port remaining ~10 `VITE_SUPABASE_URL` callers; finish storage migration
 
 ## Prior Focus (2026-06-16 — hprmic → Firebase data migration)
 - **Goal:** Gemini via Firebase proxy + App Check; streaming multimodal VYBE AI chat.

@@ -126,18 +126,28 @@ export const rateStickerContent = onCall(async (request) => {
   return { ok: true };
 });
 
-/** giphy-search — proxy for Giphy. */
+/** giphy-search — proxy for Giphy; returns empty when API key missing. */
 export const giphySearch = onCall({ secrets: ['GIPHY_API_KEY'] }, async (request) => {
   requireAuth(request);
   const key = process.env.GIPHY_API_KEY;
-  if (!key) throw new HttpsError('failed-precondition', 'GIPHY_API_KEY not configured');
-  const { query, limit = 20 } = (request.data || {}) as { query?: string; limit?: number };
-  if (!query) return { results: [] };
-  const url = `https://api.giphy.com/v1/gifs/search?api_key=${key}&q=${encodeURIComponent(query)}&limit=${Math.min(Number(limit), 50)}`;
-  const res = await fetch(url);
-  if (!res.ok) throw new HttpsError('internal', `Giphy ${res.status}`);
-  const data = await res.json();
-  return { results: data.data };
+  const { query, endpoint = 'search', limit = 20 } =
+    (request.data || {}) as { query?: string; endpoint?: string; limit?: number };
+  if (!key) return { results: [] };
+  const lim = Math.min(Number(limit) || 20, 50);
+  const base = endpoint === 'trending'
+    ? `https://api.giphy.com/v1/gifs/trending?api_key=${key}&limit=${lim}&rating=pg-13`
+    : query
+      ? `https://api.giphy.com/v1/gifs/search?api_key=${key}&q=${encodeURIComponent(query)}&limit=${lim}&rating=pg-13`
+      : null;
+  if (!base) return { results: [] };
+  try {
+    const res = await fetch(base);
+    if (!res.ok) return { results: [] };
+    const data = await res.json();
+    return { results: data.data || [] };
+  } catch {
+    return { results: [] };
+  }
 });
 
 /** fetch-pixabay-sounds — proxy. */

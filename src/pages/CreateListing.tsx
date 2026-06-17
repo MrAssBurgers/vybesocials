@@ -12,7 +12,7 @@ import { useCreateListing, LISTING_CATEGORIES, LISTING_CONDITIONS } from '@/hook
 import { useAuth } from '@/lib/auth';
 import { db } from '@/lib/firebase';
 import { toast } from 'sonner';
-import { getFunctionAuthHeaders } from '@/lib/functionAuth';
+import { moderateContent } from '@/hooks/useModeration';
 
 export default function CreateListingPage() {
   const navigate = useNavigate();
@@ -109,27 +109,15 @@ export default function CreateListingPage() {
       const combinedText = `${title.trim()} ${description?.trim() || ''}`;
       
       try {
-        const headers = await getFunctionAuthHeaders();
-        const modResponse = await fetch(
-          `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/moderate-content`,
-          {
-            method: 'POST',
-            headers,
-            body: JSON.stringify({
-              content: combinedText,
-              content_type: 'listing',
-              content_id: 'temp-' + Date.now()
-            })
-          }
+        const modResult = await moderateContent(
+          combinedText,
+          'post',
+          'temp-' + Date.now(),
         );
-
-        if (modResponse.ok) {
-          const modResult = await modResponse.json();
-          if (!modResult.allowed) {
-            toast.error('Content flagged as inappropriate. Please revise and try again.');
-            setUploading(false);
-            return;
-          }
+        if (!modResult.allowed) {
+          toast.error('Content flagged as inappropriate. Please revise and try again.');
+          setUploading(false);
+          return;
         }
       } catch (modError) {
         // Continue if moderation fails - don't block legitimate listings

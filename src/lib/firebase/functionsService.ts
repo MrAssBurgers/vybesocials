@@ -43,6 +43,29 @@ function toError(err: unknown): VybeAuthError {
   return { message: 'Function error' };
 }
 
+/** Unwrap Supabase-style `{ body: payload }` passed by legacy call sites. */
+function normalizeInvokePayload(
+  body?: Record<string, unknown>,
+): Record<string, unknown> | undefined {
+  if (!body) return undefined;
+  if (
+    Object.keys(body).length === 1 &&
+    body.body !== undefined &&
+    typeof body.body === 'object' &&
+    body.body !== null &&
+    !Array.isArray(body.body)
+  ) {
+    return body.body as Record<string, unknown>;
+  }
+  return body;
+}
+
+export function isNotYetPortedPayload(data: unknown): boolean {
+  if (!data || typeof data !== 'object') return false;
+  const obj = data as Record<string, unknown>;
+  return obj.error === 'not_yet_ported' || obj.ok === false;
+}
+
 /** Invoke a Cloud Function (replaces Supabase edge functions.invoke). */
 export function invokeFunction<T = any>(
   name: string,
@@ -52,13 +75,20 @@ export function invokeFunction<T = any>(
   maybeSingle: () => Promise<FunctionInvokeResult<T>>;
 } {
   const callableName = resolveCallableName(name);
+  const payload = normalizeInvokePayload(body);
   const promise = (async () => {
     try {
       const fn = httpsCallable<Record<string, unknown> | undefined, T>(
         getFunctionsInstance(),
         callableName,
       );
-      const result = await fn(body);
+      const result = await fn(payload);
+      if (isNotYetPortedPayload(result.data)) {
+        return {
+          data: null,
+          error: { message: 'not_yet_ported', name: 'not_yet_ported' },
+        } as FunctionInvokeResult<T>;
+      }
       return { data: result.data, error: null } as FunctionInvokeResult<T>;
     } catch (err) {
       return { data: null, error: toError(err) } as FunctionInvokeResult<T>;

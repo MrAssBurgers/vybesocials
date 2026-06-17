@@ -7,7 +7,7 @@ import { useAuth } from '@/lib/auth';
 import { db } from '@/lib/firebase';
 import { PostCard } from '@/components/posts/PostCard';
 import { toast } from 'sonner';
-import { getFunctionAuthHeaders } from '@/lib/functionAuth';
+import { invokeEdgeFeature } from '@/lib/edgeFeature';
 
 interface Post {
   id: string;
@@ -51,31 +51,24 @@ export function AIRecommendations() {
     setIsLoading(true);
     
     try {
-      const [headers, location] = await Promise.all([
-        getFunctionAuthHeaders(),
-        getUserLocation(),
-      ]);
-      const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/get-recommendations`,
-        {
-          method: 'POST',
-          headers,
-          body: JSON.stringify({
-            interests: profile.interests || [],
-            userId: profile.id,
-            location,
-          }),
-        }
-      );
+      const location = await getUserLocation();
+      const { data, unavailable } = await invokeEdgeFeature<{
+        posts?: { id: string }[];
+        recommended_ids?: string[];
+        reason?: string;
+      }>('get-recommendations', {
+        interests: profile.interests || [],
+        userId: profile.id,
+        location,
+      });
 
-      if (!response.ok) {
-        // Fallback to regular posts for any error
+      if (unavailable || !data) {
         await fetchFallbackPosts();
         return;
       }
 
-      const { recommended_ids, reason: aiReason } = await response.json();
-      setReason(aiReason || 'Based on your interests');
+      const recommended_ids = data.recommended_ids || data.posts?.map((p) => p.id) || [];
+      setReason(data.reason || 'Based on your interests');
 
       if (recommended_ids && recommended_ids.length > 0) {
         const { data } = await db

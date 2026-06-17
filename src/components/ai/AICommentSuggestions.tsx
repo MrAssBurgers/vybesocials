@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Sparkles, Loader2, MessageCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
-import { getFunctionAuthHeaders } from '@/lib/functionAuth';
+import { invokeEdgeFeature, EDGE_UNAVAILABLE_TOAST } from '@/lib/edgeFeature';
 import { liquidSpring } from '@/motion/liquidConfig';
 import { triggerHaptic } from '@/lib/haptics';
 
@@ -29,27 +29,17 @@ export const AICommentSuggestions = memo(function AICommentSuggestions({
     triggerHaptic('light');
 
     try {
-      const headers = await getFunctionAuthHeaders();
-      const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ai-comment-suggestions`,
-        {
-          method: 'POST',
-          headers,
-          body: JSON.stringify({
-            postCaption,
-            postTags,
-          }),
-        }
+      const { data, unavailable } = await invokeEdgeFeature<{ comments?: string[]; suggestions?: string[] }>(
+        'ai-comment-suggestions',
+        { postCaption, postTags, postType: 'post' },
       );
 
-      if (!response.ok) {
-        if (response.status === 429) { toast.error('Too many requests. Wait a moment.'); return; }
-        if (response.status === 402) { toast.error('AI credits exhausted.'); return; }
-        throw new Error('Failed to generate');
+      if (unavailable) {
+        toast.message(EDGE_UNAVAILABLE_TOAST);
+        return;
       }
 
-      const data = await response.json();
-      setSuggestions(data.suggestions || []);
+      setSuggestions(data?.suggestions || data?.comments || []);
     } catch (error) {
       console.error('Comment suggestions error:', error);
       toast.error('Failed to generate suggestions');

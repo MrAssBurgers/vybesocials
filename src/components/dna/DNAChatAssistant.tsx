@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { MessageCircle, Send, X, Sparkles, Loader2, Zap } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { db } from '@/lib/firebase';
+import { invokeEdgeFeature, EDGE_UNAVAILABLE_TOAST } from '@/lib/edgeFeature';
 import { useAuth } from '@/lib/auth';
 import { toast } from 'sonner';
 import type { VybeDNA } from '@/hooks/useVybeDNA';
@@ -54,102 +54,30 @@ export function DNAChatAssistant({ dna }: { dna: VybeDNA }) {
     setIsLoading(true);
     setStreamingText('');
 
-    let preferencesUpdated = false;
+    const preferencesUpdated = false;
 
     try {
-      const { data: { session } } = await db.auth.getSession();
-      const res = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/dna-chat`,
+      const { data, unavailable } = await invokeEdgeFeature<{ reply?: string }>(
+        'dna-chat',
         {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${session?.access_token}`,
-            apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
-          },
-          body: JSON.stringify({
-            messages: newMessages.map(m => ({ role: m.role, content: m.content })),
-          }),
-        }
+          message: text.trim(),
+          messages: newMessages.map((m) => ({ role: m.role, content: m.content })),
+        },
       );
 
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.error || 'Failed to get response');
+      if (unavailable || !data?.reply) {
+        toast.message(EDGE_UNAVAILABLE_TOAST);
+        setMessages((prev) => [
+          ...prev,
+          { role: 'assistant', content: 'DNA chat is coming soon — check back after the next update.' },
+        ]);
+        return;
       }
 
-      if (!res.body) throw new Error('No response body');
-
-      const reader = res.body.getReader();
-      const decoder = new TextDecoder();
-      let buffer = '';
-      let accumulated = '';
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        buffer += decoder.decode(value, { stream: true });
-
-        let newlineIndex: number;
-        while ((newlineIndex = buffer.indexOf('\n')) !== -1) {
-          let line = buffer.slice(0, newlineIndex);
-          buffer = buffer.slice(newlineIndex + 1);
-
-          if (line.endsWith('\r')) line = line.slice(0, -1);
-          if (line.startsWith(':') || line.trim() === '') continue;
-          if (!line.startsWith('data: ')) continue;
-
-          const jsonStr = line.slice(6).trim();
-          if (jsonStr === '[DONE]') continue;
-
-          try {
-            const parsed = JSON.parse(jsonStr);
-
-            // Check for our custom preferences metadata
-            if (parsed.preferences_updated) {
-              preferencesUpdated = true;
-              continue;
-            }
-
-            const content = parsed.choices?.[0]?.delta?.content;
-            if (content) {
-              accumulated += content;
-              setStreamingText(accumulated);
-            }
-          } catch {
-            buffer = line + '\n' + buffer;
-            break;
-          }
-        }
-      }
-
-      // Flush remaining buffer
-      if (buffer.trim()) {
-        for (let raw of buffer.split('\n')) {
-          if (!raw) continue;
-          if (raw.endsWith('\r')) raw = raw.slice(0, -1);
-          if (raw.startsWith(':') || raw.trim() === '') continue;
-          if (!raw.startsWith('data: ')) continue;
-          const jsonStr = raw.slice(6).trim();
-          if (jsonStr === '[DONE]') continue;
-          try {
-            const parsed = JSON.parse(jsonStr);
-            if (parsed.preferences_updated) { preferencesUpdated = true; continue; }
-            const content = parsed.choices?.[0]?.delta?.content;
-            if (content) { accumulated += content; setStreamingText(accumulated); }
-          } catch { /* ignore */ }
-        }
-      }
-
-      // Finalize: add the complete assistant message
-      if (accumulated) {
-        setMessages(prev => [...prev, {
-          role: 'assistant',
-          content: accumulated,
-          preferencesUpdated,
-        }]);
-      }
+      setMessages((prev) => [
+        ...prev,
+        { role: 'assistant', content: data.reply!, preferencesUpdated },
+      ]);
 
       if (preferencesUpdated) {
         toast.success('Your feed preferences updated! 🧬');

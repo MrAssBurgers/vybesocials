@@ -194,72 +194,40 @@ export function InvitePopup() {
         return { success: false, error: "You're not logged in. Please sign in and try again.", errorCode: "NO_SESSION" };
       }
       
-      const fnUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/confirm-referral`;
-      
       console.log('[InvitePopup] confirm-referral request', {
         correlationId,
         userId: user?.id,
         profileId: profile?.id,
         inviterProfileId,
         inviterUserId,
-        url: fnUrl,
       });
-      
-      let response: Response;
-      try {
-        response = await fetch(fnUrl, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${activeToken}`,
-            'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
-            'x-correlation-id': correlationId,
-          },
-          body: JSON.stringify({ inviterUserId, inviterProfileId }),
-        });
-      } catch (networkErr) {
-        const msg = networkErr instanceof Error ? networkErr.message : String(networkErr);
-        console.error('[InvitePopup] Fetch failed (network):', msg);
-        return { success: false, error: `Network error: ${msg}`, errorCode: 'NETWORK' };
-      }
-      
-      // Always try to read body — even on non-200
-      let result: Record<string, unknown>;
-      let rawBody: string;
-      try {
-        rawBody = await response.text();
-        result = JSON.parse(rawBody);
-      } catch {
-        console.error('[InvitePopup] Non-JSON response', { status: response.status, body: rawBody! });
+
+      const { data, error } = await db.functions.invoke<Record<string, unknown>>('confirm-referral', {
+        body: { inviterUserId, inviterProfileId, correlationId },
+      });
+
+      if (error) {
         return {
           success: false,
-          error: `Server returned ${response.status} with non-JSON body: ${rawBody!.slice(0, 200)}`,
-          errorCode: 'BAD_RESPONSE',
+          error: error.message || 'Referral confirmation failed',
+          errorCode: error.name || 'INVOKE_ERROR',
         };
       }
-      
-      console.log('[InvitePopup] confirm-referral response', {
-        correlationId,
-        status: response.status,
-        result,
-      });
-      
-      if (!response.ok || result.success === false) {
-        const errorMsg = (result.error as string) || (result.errorMessage as string) || `Server error (${response.status})`;
-        const errorCode = (result.errorCode as string) || 'UNKNOWN';
-        const stepFailed = (result.step as string) || (result.stepFailed as string) || 'unknown';
-        console.error('[InvitePopup] Referral failed', { errorCode, stepFailed, errorMsg, correlationId });
+
+      const result = data || {};
+      if (result.ok === false || result.success === false) {
         return {
           success: false,
-          error: errorMsg,
-          errorCode,
-          stepFailed,
-          steps: result.steps as { redemptionCreated: boolean; rewardGranted: boolean; notificationSent: boolean } | undefined,
+          error: String(result.error || result.message || 'Referral failed'),
+          errorCode: String(result.errorCode || 'UNKNOWN'),
         };
       }
-      
+
       rewardGrantedRef.current = true;
-      return { success: true, steps: result.steps as { redemptionCreated: boolean; rewardGranted: boolean; notificationSent: boolean } };
+      return {
+        success: true,
+        steps: result.steps as { redemptionCreated: boolean; rewardGranted: boolean; notificationSent: boolean } | undefined,
+      };
     } catch (error) {
       const msg = error instanceof Error ? error.message : 'Unknown error';
       console.error('[InvitePopup] Unexpected error in confirmReferral:', msg);

@@ -5,10 +5,7 @@
  * Handles image-to-base64 conversion and audio transcript submission.
  */
 
-import { getFunctionAuthHeaders } from '@/lib/functionAuth';
-import { fetchWithTimeout, withTimeout } from '@/lib/withTimeout';
-
-const FUNCTION_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ai-safety-scan`;
+import { invokeEdgeFeature } from '@/lib/edgeFeature';
 
 export interface AISafetyResult {
   allowed: boolean;
@@ -27,31 +24,17 @@ export interface AISafetyResult {
  */
 export async function aiScanImage(file: File): Promise<AISafetyResult> {
   const base64 = await fileToBase64(file);
-  const headers = await getFunctionAuthHeaders();
+  const { data, unavailable } = await invokeEdgeFeature<Record<string, unknown>>('ai-safety-scan', {
+    image_base64: base64,
+    mime_type: file.type || 'image/jpeg',
+    scan_type: 'image',
+  });
 
-  const response = await fetchWithTimeout(FUNCTION_URL, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify({
-      image_base64: base64,
-      mime_type: file.type || 'image/jpeg',
-      scan_type: 'image',
-    }),
-  }, 15000);
-
-  if (!response.ok) {
-    const body = await response.text().catch(() => '');
-    console.error('[aiScanImage] failed:', response.status, body);
-    if (response.status === 429) {
-      return { allowed: true, result: 'allowed', categories: [], score: 0, message: 'Rate limited, skipping AI scan.' };
-    }
-    if (response.status === 402) {
-      return { allowed: true, result: 'allowed', categories: [], score: 0, message: 'AI credits exhausted. Add funds in workspace settings.' };
-    }
-    return { allowed: true, result: 'allowed', categories: [], score: 0, message: `AI scan unavailable (${response.status}).` };
+  if (unavailable || !data) {
+    return { allowed: true, result: 'allowed', categories: [], score: 0, message: 'AI scan unavailable.' };
   }
 
-  return response.json();
+  return normalizeSafetyResult(data);
 }
 
 /**
@@ -62,55 +45,34 @@ export async function aiScanVideoFrame(
   audioTranscript?: string
 ): Promise<AISafetyResult> {
   const base64 = await blobToBase64(frameBlob);
-  const headers = await getFunctionAuthHeaders();
+  const { data, unavailable } = await invokeEdgeFeature<Record<string, unknown>>('ai-safety-scan', {
+    image_base64: base64,
+    mime_type: 'image/jpeg',
+    audio_transcript: audioTranscript,
+    scan_type: audioTranscript ? 'both' : 'image',
+  });
 
-  const response = await fetchWithTimeout(FUNCTION_URL, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify({
-      image_base64: base64,
-      mime_type: 'image/jpeg',
-      audio_transcript: audioTranscript,
-      scan_type: audioTranscript ? 'both' : 'image',
-    }),
-  }, 15000);
-
-  if (!response.ok) {
-    const body = await response.text().catch(() => '');
-    console.error('[aiScanVideoFrame] failed:', response.status, body);
-    if (response.status === 429) {
-      return { allowed: true, result: 'allowed', categories: [], score: 0, message: 'Rate limited, skipping AI scan.' };
-    }
-    if (response.status === 402) {
-      return { allowed: true, result: 'allowed', categories: [], score: 0, message: 'AI credits exhausted. Add funds in workspace settings.' };
-    }
-    return { allowed: true, result: 'allowed', categories: [], score: 0, message: `AI scan unavailable (${response.status}).` };
+  if (unavailable || !data) {
+    return { allowed: true, result: 'allowed', categories: [], score: 0, message: 'AI scan unavailable.' };
   }
 
-  return response.json();
+  return normalizeSafetyResult(data);
 }
 
 /**
  * Scan audio transcript only
  */
 export async function aiScanAudioTranscript(transcript: string): Promise<AISafetyResult> {
-  const headers = await getFunctionAuthHeaders();
+  const { data, unavailable } = await invokeEdgeFeature<Record<string, unknown>>('ai-safety-scan', {
+    audio_transcript: transcript,
+    scan_type: 'audio',
+  });
 
-  const response = await fetchWithTimeout(FUNCTION_URL, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify({
-      audio_transcript: transcript,
-      scan_type: 'audio',
-    }),
-  }, 15000);
-
-  if (!response.ok) {
-    console.error('AI audio scan failed:', response.status);
+  if (unavailable || !data) {
     return { allowed: true, result: 'allowed', categories: [], score: 0, message: 'Audio scan unavailable.' };
   }
 
-  return response.json();
+  return normalizeSafetyResult(data);
 }
 
 /**
@@ -227,6 +189,23 @@ export function transcribeVideoAudio(file: File): Promise<string> {
       resolve('');
     }
   });
+}
+
+import { withTimeout } from '@/lib/withTimeout';
+
+function normalizeSafetyResult(data: Record<string, unknown>): AISafetyResult {
+  const safe = data.safe !== false;
+  return {
+    allowed: safe,
+    result: safe ? 'allowed' : 'blocked',
+    categories: Array.isArray(data.categories) ? (data.categories as string[]) : [],
+    score: Number(data.score || 0),
+    message: String(data.reason || data.message || ''),
+    visual_analysis: data.visual_analysis as string | undefined,
+    audio_analysis: data.audio_analysis as string | undefined,
+    suggested_age_rating: data.suggested_age_rating as AISafetyResult['suggested_age_rating'],
+    age_rating_reasons: data.age_rating_reasons as string[] | undefined,
+  };
 }
 
 // Helpers

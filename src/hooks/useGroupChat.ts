@@ -71,26 +71,18 @@ export function useCreateGroup() {
 
       console.log('[useCreateGroup] sending payload:', payload);
 
-      const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-group`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${session.access_token}`,
-          },
-          body: JSON.stringify(payload),
-        }
+      const { data, error } = await db.functions.invoke<{ id?: string; conversationId?: string; name?: string }>(
+        'create-group',
+        payload,
       );
 
-      const data = await response.json();
       console.log('[useCreateGroup] response:', data);
 
-      if (!response.ok || data.error) {
-        throw new Error(data.error || 'Failed to create group');
+      if (error || !data) {
+        throw new Error(error?.message || 'Failed to create group');
       }
 
-      return { id: data.id, name: data.name };
+      return { id: data.id || data.conversationId || '', name: data.name || params.name };
     },
     onSuccess: () => {
       invalidateConversationCaches(queryClient);

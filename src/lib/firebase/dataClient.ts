@@ -25,6 +25,8 @@ import {
   LEGACY_FOUNDER_AUTH_ID,
 } from '@/lib/previewSandbox';
 import { isFeedRpc, normalizeRpcFeedRows, runFeedRpc } from './feedRpc';
+import { isSocialRpc, runSocialRpc } from './socialRpc';
+import { isNotYetPortedPayload } from './functionsService';
 
 type FilterOp = '==' | '!=' | '>' | '<' | 'in' | 'not-in';
 
@@ -584,7 +586,7 @@ export function createDataClient() {
         const promise = (async () => {
           try {
             const remote = await invokeFunction(name, params);
-            if (!remote.error) {
+            if (!remote.error && !isNotYetPortedPayload(remote.data)) {
               const rows = normalizeRpcFeedRows(remote.data);
               if (rows) return { data: rows, error: null } as any;
             }
@@ -608,8 +610,55 @@ export function createDataClient() {
         return enriched;
       }
 
-      // Delegate unknown RPCs to Cloud Functions (same name).
-      return invokeFunction(name, params);
+      // Social RPCs: Cloud Function → Firestore client fallback → null/empty (preview-safe).
+      if (isSocialRpc(name)) {
+        const promise = (async () => {
+          try {
+            const remote = await invokeFunction(name, params);
+            if (!remote.error && !isNotYetPortedPayload(remote.data)) {
+              return { data: remote.data, error: null } as any;
+            }
+          } catch (err) {
+            console.warn(`[Social RPC] ${name} cloud call failed:`, err);
+          }
+          try {
+            const data = await runSocialRpc(name, params);
+            return { data, error: null } as any;
+          } catch (err) {
+            console.warn(`[Social RPC] ${name} client fallback failed:`, err);
+            return { data: null, error: null } as any;
+          }
+        })();
+        const enriched = promise as Promise<any> & {
+          single: () => Promise<any>;
+          maybeSingle: () => Promise<any>;
+        };
+        enriched.single = () => promise;
+        enriched.maybeSingle = () => promise;
+        return enriched;
+      }
+
+      // Delegate unknown RPCs to Cloud Functions — fail-soft on stub/missing.
+      const promise = (async () => {
+        try {
+          const remote = await invokeFunction(name, params);
+          if (remote.error || isNotYetPortedPayload(remote.data)) {
+            console.warn(`[RPC] ${name} unavailable:`, remote.error?.message || 'not_yet_ported');
+            return { data: null, error: null } as any;
+          }
+          return { data: remote.data, error: null } as any;
+        } catch (err) {
+          console.warn(`[RPC] ${name} failed:`, err);
+          return { data: null, error: null } as any;
+        }
+      })();
+      const enriched = promise as Promise<any> & {
+        single: () => Promise<any>;
+        maybeSingle: () => Promise<any>;
+      };
+      enriched.single = () => promise;
+      enriched.maybeSingle = () => promise;
+      return enriched;
     },
 
     auth: firebaseAuth,
