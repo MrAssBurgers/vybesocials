@@ -8,6 +8,7 @@ import {
 } from './aiChatHistory';
 import { getFirebaseApp } from './app';
 import { invokeFunction } from './functionsService';
+import { isAppCheckTokenVerified } from './appCheck';
 import { RATE_LIMITS } from '@/lib/rateLimit';
 
 export type { VybeAiChatMessage } from './aiChatHistory';
@@ -131,7 +132,20 @@ function appendStreamText(fullText: string, raw: string): string {
   return fullText + raw;
 }
 
+function isAppCheckAiError(error: unknown): boolean {
+  const msg =
+    error instanceof Error
+      ? error.message
+      : error && typeof error === 'object' && 'message' in error
+        ? String((error as { message?: unknown }).message ?? '')
+        : String(error ?? '');
+  return /app check token is invalid|app-check.*invalid|APP_CHECK/i.test(msg);
+}
+
 export function formatFirebaseAiError(error: unknown): string | null {
+  if (isAppCheckAiError(error)) {
+    return 'VYBE AI security check failed. Retrying via server…';
+  }
   if (error && typeof error === 'object' && 'status' in error && (error as { status: number }).status === 429) {
     return 'Too many requests. Wait a moment.';
   }
@@ -145,6 +159,9 @@ export function formatFirebaseAiError(error: unknown): string | null {
         return 'VYBE AI is not configured. Check Firebase environment variables.';
       case 'fetch-error':
       case 'request-error':
+        if (isAppCheckAiError(error)) {
+          return 'VYBE AI security check failed. Using server fallback.';
+        }
         return 'Could not reach VYBE AI. Check your connection and try again.';
       case 'response-error':
         return error.message || 'VYBE AI blocked or failed this request. Try rephrasing.';
@@ -156,6 +173,9 @@ export function formatFirebaseAiError(error: unknown): string | null {
   }
   if (error instanceof Error) {
     const msg = error.message?.trim();
+    if (msg && isAppCheckAiError(error)) {
+      return 'VYBE AI security check failed. Using server fallback.';
+    }
     if (msg === 'internal') {
       return 'VYBE AI server failed. Set GEMINI_API_KEY and redeploy Cloud Functions.';
     }
@@ -315,15 +335,27 @@ async function streamVybeAiChatViaFirebaseAi(
 
 function pickUserFacingAiError(...errors: unknown[]): string {
   for (const err of errors) {
-    const formatted =
-      formatCallableAiError(err) || formatFirebaseAiError(err);
+    if (isAppCheckAiError(err)) continue;
+    const formatted = formatCallableAiError(err) || formatFirebaseAiError(err);
+    if (formatted && !/retrying via server|using server fallback/i.test(formatted)) {
+      return formatted;
+    }
+  }
+  for (const err of errors) {
+    const formatted = formatCallableAiError(err) || formatFirebaseAiError(err);
     if (formatted) return formatted;
   }
   return 'VYBE AI could not respond. Try again in a moment.';
 }
 
+function shouldTryClientGeminiFirst(options: StreamVybeAiChatOptions): boolean {
+  if (options.imageBase64) return true;
+  return isAppCheckTokenVerified();
+}
+
 /**
- * Stream a VYBE AI chat reply — client Gemini first, then Firebase callable.
+ * Stream a VYBE AI chat reply — Cloud Function first when App Check is not verified,
+ * then client Gemini for streaming or multimodal when App Check works.
  */
 export async function streamVybeAiChat(options: StreamVybeAiChatOptions): Promise<string> {
   if (!RATE_LIMITS.aiChat()) {
@@ -334,23 +366,39 @@ export async function streamVybeAiChat(options: StreamVybeAiChatOptions): Promis
 
   const errors: unknown[] = [];
 
-  try {
-    return await streamVybeAiChatViaFirebaseAi(options);
-  } catch (clientErr) {
-    errors.push(clientErr);
-    if (options.imageBase64) {
-      throw new Error(pickUserFacingAiError(...errors));
+  async function tryCallable(): Promise<string | null> {
+    try {
+      const { history, userText, context, onChunk } = options;
+      const reply = await invokeVybeAiChatCallable(history, userText, context);
+      onChunk(reply, reply);
+      return reply;
+    } catch (err) {
+      errors.push(err);
+      return null;
     }
-    console.warn('[VYBE AI] Client Gemini failed — trying Cloud Function', clientErr);
   }
 
-  try {
-    const { history, userText, context, onChunk } = options;
-    const reply = await invokeVybeAiChatCallable(history, userText, context);
-    onChunk(reply, reply);
-    return reply;
-  } catch (callableErr) {
-    errors.push(callableErr);
+  async function tryClient(): Promise<string | null> {
+    try {
+      return await streamVybeAiChatViaFirebaseAi(options);
+    } catch (err) {
+      errors.push(err);
+      return null;
+    }
+  }
+
+  if (!shouldTryClientGeminiFirst(options)) {
+    const callable = await tryCallable();
+    if (callable) return callable;
+    const client = await tryClient();
+    if (client) return client;
+  } else {
+    const client = await tryClient();
+    if (client) return client;
+    if (!options.imageBase64) {
+      const callable = await tryCallable();
+      if (callable) return callable;
+    }
   }
 
   throw new Error(pickUserFacingAiError(...errors));

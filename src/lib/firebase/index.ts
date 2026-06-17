@@ -47,7 +47,7 @@ export { getFirebaseConfig, isFirebaseConfigured } from './config';
 export { getFirebaseApp } from './app';
 
 // App Check
-export { initFirebaseAppCheck, isAppCheckInitialized } from './appCheck';
+export { initFirebaseAppCheck, isAppCheckInitialized, isAppCheckTokenVerified } from './appCheck';
 
 // Firebase AI Logic
 export {

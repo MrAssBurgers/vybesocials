@@ -7,7 +7,7 @@ import {
   type Schema,
 } from 'firebase/ai';
 import { getFirebaseApp } from './app';
-import { isAppCheckInitialized } from './appCheck';
+import { isAppCheckInitialized, isAppCheckTokenVerified } from './appCheck';
 import { isFirebaseConfigured } from './config';
 
 let aiInstance: AI | null = null;
@@ -27,8 +27,8 @@ export function getFirebaseAI(): AI {
     const options: NonNullable<Parameters<typeof getAI>[1]> = {
       backend: new GoogleAIBackend(),
     };
-    // Limited-use tokens require App Check — without it the SDK throws fetch-error.
-    if (isAppCheckInitialized()) {
+    // Limited-use tokens require a valid App Check token — skip when verification failed.
+    if (isAppCheckInitialized() && isAppCheckTokenVerified()) {
       options.useLimitedUseAppCheckTokens = true;
     }
     aiInstance = getAI(getFirebaseApp(), options);

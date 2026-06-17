@@ -4,6 +4,11 @@ Use this file as the Lovable -> Cursor handoff each session.
 
 **Links:** [Lovable project](https://lovable.dev/projects/416714c8-d013-4aff-984d-522418a9bbc7) · [Production](https://vybehub.app) · Deploy steps: `DEPLOY.md`
 
+## Current Focus (2026-06-17 — AI App Check 401 fix)
+- **Root cause:** Client Gemini (Firebase AI Logic) sent invalid App Check token → 401; raw SDK error shown in chat
+- **Fix:** Route text chat through `aiChat` Cloud Function first when App Check unverified; v3/Enterprise provider option; debug token works in prod builds; friendly App Check errors
+- **You:** Lovable **Share → Publish**; optional Firebase Console → App Check → register `vybehub.app` + match provider (`VITE_FIREBASE_APP_CHECK_PROVIDER`)
+
 ## Current Focus (2026-06-17 — stable deploy entry / prod stale bundle)
 - **Root cause:** Lovable publish serves stale `index-IRTXwZnk.js` in HTML while new builds emit different hashes → users never get fixes; `/assets/app.js` 404 on prod
 - **Fix:** Vite `entryFileNames: assets/app.js`; index.html fallback loader retries stable entry on hash 404; SW **v31** network-first `app.js`; `verify-dist-entry.mjs` in postbuild + `validate:boot`
