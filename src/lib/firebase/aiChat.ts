@@ -1,6 +1,7 @@
 import type { Content, Part } from 'firebase/ai';
 import { AIError } from 'firebase/ai';
 import { getChatModelWithSystem } from './aiLogic';
+import { isAppCheckInitialized } from './appCheck';
 import { invokeFunction } from './functionsService';
 import { RATE_LIMITS } from '@/lib/rateLimit';
 
@@ -150,9 +151,6 @@ export function formatFirebaseAiError(error: unknown): string | null {
         return 'VYBE AI is not configured. Check Firebase environment variables.';
       case 'fetch-error':
       case 'request-error':
-        if (/app check|appcheck|limited.use/i.test(error.message)) {
-          return 'VYBE AI needs App Check configured. Add VITE_FIREBASE_APP_CHECK_RECAPTCHA_SITE_KEY in Lovable env.';
-        }
         return 'Could not reach VYBE AI. Check your connection and try again.';
       case 'response-error':
         return error.message || 'VYBE AI blocked or failed this request. Try rephrasing.';
@@ -180,6 +178,29 @@ function isClientAiTransportError(error: unknown): boolean {
     );
   }
   return false;
+}
+
+/** Client Gemini needs App Check when Firebase enforces it — use Cloud Function for text chat until configured. */
+function shouldUseServerAiChat(imageBase64?: string | null): boolean {
+  return !imageBase64 && !isAppCheckInitialized();
+}
+
+function formatCallableAiError(error: unknown): string {
+  if (error && typeof error === 'object') {
+    const e = error as { message?: string; name?: string };
+    const msg = e.message || '';
+    if (e.name === 'not_yet_ported' || msg === 'not_yet_ported') {
+      return 'VYBE AI Cloud Function is not deployed yet. Run firebase deploy --only functions:aiChat.';
+    }
+    if (/LOVABLE_API_KEY|GEMINI_API_KEY|failed-precondition|not configured/i.test(msg)) {
+      return 'VYBE AI server needs LOVABLE_API_KEY or GEMINI_API_KEY on Firebase Cloud Functions.';
+    }
+    if (/unauthenticated|Not authenticated/i.test(msg)) {
+      return 'Sign in to use VYBE AI.';
+    }
+    if (msg) return msg;
+  }
+  return 'VYBE AI could not respond. Try again in a moment.';
 }
 
 async function invokeVybeAiChatCallable(
@@ -282,6 +303,18 @@ export async function streamVybeAiChat(options: StreamVybeAiChatOptions): Promis
 
   const { history, userText, context, onChunk, imageBase64 } = options;
 
+  // Lovable preview / dev: no App Check site key → skip client Gemini, use server aiChat.
+  if (shouldUseServerAiChat(imageBase64)) {
+    try {
+      const reply = await invokeVybeAiChatCallable(history, userText, context);
+      onChunk(reply, reply);
+      return reply;
+    } catch (callableErr) {
+      console.warn('[VYBE AI] Server aiChat failed:', callableErr);
+      throw new Error(formatCallableAiError(callableErr));
+    }
+  }
+
   try {
     return await streamVybeAiChatViaFirebaseAi(options);
   } catch (clientErr) {
@@ -297,7 +330,10 @@ export async function streamVybeAiChat(options: StreamVybeAiChatOptions): Promis
       onChunk(reply, reply);
       return reply;
     } catch (callableErr) {
-      const formatted = formatFirebaseAiError(clientErr) || formatFirebaseAiError(callableErr);
+      const formatted =
+        formatCallableAiError(callableErr) ||
+        formatFirebaseAiError(clientErr) ||
+        formatFirebaseAiError(callableErr);
       if (formatted) throw new Error(formatted);
       throw callableErr;
     }

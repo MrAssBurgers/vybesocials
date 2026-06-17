@@ -2,7 +2,7 @@ import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { db, requireAuth, rateLimit, enforceRateLimit } from './_shared/admin.js';
 import { chatCompletion, generateImage } from './_shared/lovableAi.js';
 
-const SECRETS = ['LOVABLE_API_KEY'];
+const SECRETS = ['LOVABLE_API_KEY', 'GEMINI_API_KEY'];
 
 /** ai-chat — conversational assistant with VYBE DNA context. */
 export const aiChat = onCall({ secrets: SECRETS }, async (request) => {

@@ -1,6 +1,7 @@
 import { HttpsError } from 'firebase-functions/v2/https';
 
-const GATEWAY_URL = 'https://ai.gateway.lovable.dev/v1/chat/completions';
+const LOVABLE_GATEWAY_URL = 'https://ai.gateway.lovable.dev/v1/chat/completions';
+const GEMINI_OPENAI_URL = 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions';
 const IMAGE_URL = 'https://ai.gateway.lovable.dev/v1/images/generations';
 
 export type ChatMessage = {
@@ -8,13 +9,38 @@ export type ChatMessage = {
   content: string | Array<{ type: string; [k: string]: unknown }>;
 };
 
-function key(): string {
+function resolveGateway(): { apiKey: string; url: string; model: string } {
+  const lovableKey = process.env.LOVABLE_API_KEY;
+  if (lovableKey) {
+    return {
+      apiKey: lovableKey,
+      url: LOVABLE_GATEWAY_URL,
+      model: 'google/gemini-2.5-flash',
+    };
+  }
+  const geminiKey = process.env.GEMINI_API_KEY;
+  if (geminiKey) {
+    return {
+      apiKey: geminiKey,
+      url: GEMINI_OPENAI_URL,
+      model: 'gemini-2.5-flash',
+    };
+  }
+  throw new HttpsError(
+    'failed-precondition',
+    'AI not configured — set LOVABLE_API_KEY or GEMINI_API_KEY on Cloud Functions',
+  );
+}
+
+function lovableImageKey(): string {
   const k = process.env.LOVABLE_API_KEY;
-  if (!k) throw new HttpsError('failed-precondition', 'LOVABLE_API_KEY not configured');
+  if (!k) {
+    throw new HttpsError('failed-precondition', 'LOVABLE_API_KEY not configured for image generation');
+  }
   return k;
 }
 
-/** Call the Lovable AI Gateway with retry/fallback. */
+/** Call Lovable gateway or direct Gemini with retry/fallback. */
 export async function chatCompletion(opts: {
   messages: ChatMessage[];
   model?: string;
@@ -22,17 +48,23 @@ export async function chatCompletion(opts: {
   response_format?: { type: 'json_object' };
   tools?: unknown[];
 }): Promise<{ content: string; raw: any }> {
-  const models = [opts.model || 'google/gemini-2.5-flash', 'google/gemini-2.5-flash-lite'];
+  const gateway = resolveGateway();
+  const fallbacks =
+    gateway.url === LOVABLE_GATEWAY_URL
+      ? ['google/gemini-2.5-flash', 'google/gemini-2.5-flash-lite']
+      : ['gemini-2.5-flash', 'gemini-2.5-flash-lite'];
+  const models = [...new Set([opts.model || gateway.model, ...fallbacks].filter(Boolean))];
   let lastErr: string | undefined;
+
   for (const model of models) {
     for (let attempt = 0; attempt < 3; attempt++) {
       if (attempt > 0) await new Promise((r) => setTimeout(r, 800 * attempt));
-      const res = await fetch(GATEWAY_URL, {
+      const res = await fetch(gateway.url, {
         method: 'POST',
         headers: {
-          Authorization: `Bearer ${key()}`,
+          Authorization: `Bearer ${gateway.apiKey}`,
           'Content-Type': 'application/json',
-          'X-Lovable-AIG-SDK': 'firebase-functions',
+          ...(gateway.url === LOVABLE_GATEWAY_URL ? { 'X-Lovable-AIG-SDK': 'firebase-functions' } : {}),
         },
         body: JSON.stringify({ ...opts, model }),
       });
@@ -57,7 +89,7 @@ export async function generateImage(prompt: string, model = 'google/gemini-2.5-f
   const res = await fetch(IMAGE_URL, {
     method: 'POST',
     headers: {
-      Authorization: `Bearer ${key()}`,
+      Authorization: `Bearer ${lovableImageKey()}`,
       'Content-Type': 'application/json',
       'X-Lovable-AIG-SDK': 'firebase-functions',
     },
