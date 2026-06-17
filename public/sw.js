@@ -1,8 +1,8 @@
 // VYBE Service Worker
-// Version 28.0 — runtime blank-shell watchdog + network-first entry bundle
+// Version 29.0 — no empty navigation fallback; auto cache-bust boot guard
 
-const CACHE_NAME = 'vybe-v28';
-const STATIC_CACHE = 'vybe-static-v28';
+const CACHE_NAME = 'vybe-v29';
+const STATIC_CACHE = 'vybe-static-v29';
 const MEDIA_CACHE = 'vybe-media-v2';
 const SHELL_CACHE = 'vybe-shell-v4';
 const ASSETS_CACHE = 'vybe-assets-v4';
@@ -166,12 +166,8 @@ self.addEventListener('fetch', (event) => {
 async function navigationStrategy(request) {
   const cache = await caches.open(SHELL_CACHE);
   try {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 3000);
-    const networkResponse = await fetch(request, { signal: controller.signal });
-    clearTimeout(timeout);
+    const networkResponse = await fetch(request, { cache: 'no-store' });
     if (networkResponse && networkResponse.ok && networkResponse.type !== 'opaqueredirect') {
-      // Keep a single canonical shell entry keyed to '/'.
       try {
         cache.put(SHELL_URL, networkResponse.clone());
       } catch {
@@ -182,7 +178,12 @@ async function navigationStrategy(request) {
   } catch {
     const cachedShell = (await cache.match(SHELL_URL)) || (await caches.match(SHELL_URL));
     if (cachedShell) return cachedShell;
-    return new Response('', { status: 204 });
+    // Never return 204/empty — that causes a black screen offline.
+    const fallbackHtml = '<!DOCTYPE html><html><head><meta charset="utf-8"><meta http-equiv="refresh" content="0"><title>VYBE</title></head><body style="margin:0;background:#0B0B10;color:#fff;font-family:system-ui;display:flex;align-items:center;justify-content:center;min-height:100vh">Reconnecting…</body></html>';
+    return new Response(fallbackHtml, {
+      status: 200,
+      headers: { 'Content-Type': 'text/html; charset=utf-8' },
+    });
   }
 }
 

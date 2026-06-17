@@ -388,18 +388,6 @@
     </div>
     <div id="root"></div>
     <script src="/boot-guard.js"></script>
-    <script>
-      (function () {
-        if (window.__VYBE_MARK_BOOT_COMPLETE__) return;
-        setTimeout(function () {
-          var hasContent = window.__VYBE_HAS_MEANINGFUL_CONTENT__ && window.__VYBE_HAS_MEANINGFUL_CONTENT__();
-          if (hasContent) return;
-          if (document.body.classList.contains('splash-visible')) return;
-          var el = document.getElementById('vybe-boot-recovery');
-          if (el) el.style.display = 'flex';
-        }, 12000);
-      })();
-    </script>
     <script type="module" src="/src/main.tsx" fetchpriority="high"></script>
   </body>
 </html>

@@ -25,7 +25,8 @@ const mode = readOfflineMode();
 
 if (mode !== 'despia-local') {
   console.log(`[postbuild] Offline mode "${mode}" — PWA service worker only (no despia/local.json)`);
-  process.exit(0);
+  const inline = spawnSync('node', ['scripts/inline-boot-guard.mjs'], { stdio: 'inherit' });
+  process.exit(inline.status ?? 0);
 }
 
 console.log('[postbuild] Offline mode "despia-local" — generating despia/local.json');
