@@ -4,6 +4,12 @@ Use this file as the Lovable -> Cursor handoff each session.
 
 **Links:** [Lovable project](https://lovable.dev/projects/416714c8-d013-4aff-984d-522418a9bbc7) · [Production](https://vybehub.app) · Deploy steps: `DEPLOY.md`
 
+## Current Focus (2026-06-17 — deep scan / profile-id fixes)
+- **Deep scan (2026-06-17):** build PASS, lint PASS; Firestore connectivity 2004/2004 (100%); no `profiles→users` mapping left; 30 profiles have `id≠user_id` — fixed DM create + social RPCs to resolve `profiles.id` from auth UID
+- **Prod Supabase:** `is_username_available`, `create_dm_conversation` RPCs MISSING on hprmic — client fallbacks in `dataClient.ts` OK
+- **vybehub.app bundle:** `index-dHUNkP3m.js` (matches debug scan; Lovable Publish needed for new fixes)
+- **You:** Lovable **Share → Publish** + hard refresh on phone
+
 ## Current Focus (2026-06-17 — mobile load fix / deep scan)
 - **Root cause fixed:** Firestore client mapped `profiles` → empty `users` collection — all profile/post/DM lookups returned nothing after migration
 - **Also fixed:** `ensure_profile` + roles now resolve migrated `profiles.id` via `user_id` (auth UID); chunked Firestore `.in()` queries (>10 ids); parallel DM load; SW **v25**
@@ -37,6 +43,31 @@ Use this file as the Lovable -> Cursor handoff each session.
 - **Done:** AI chat fix — `toGeminiHistory()` strips leading assistant welcome + normalizes turns for Gemini (`aiChat.ts`)
 - **You:** Lovable env → all `VITE_FIREBASE_*` + `VITE_MAINTENANCE_MODE=false` → **Share → Publish**
 - **You:** `firebase deploy --only firestore:rules,storage:rules,functions,firestore:indexes --project vybe-daaab`
+
+## Deep scan (2026-06-17 — full protocol)
+
+| Check | Result | Notes |
+|-------|--------|-------|
+| `npm run debug` | **PASS** | build, lint, CSS, edge refs OK |
+| `npm run build` | **PASS** | |
+| `npm run lint` | **PASS** | 4 pre-existing warnings only |
+| Edge refs local vs `supabase/functions/` | **PASS** | 73 referenced, 123 local, 0 missing |
+| Prod RPC `get_public_user_count` | **PASS** | |
+| Prod RPC `sync_signup_username` | **PASS** | |
+| Prod RPC `ensure_user_level` | **PASS** | HTTP 400 (auth required) |
+| Prod RPC `ensure_profile` | **PASS** | HTTP 400 (auth required) |
+| Prod RPC `is_username_available` | **MISSING** | client fallback in `dataClient.ts` |
+| Prod RPC `create_dm_conversation` | **MISSING** | client fallback in `dataClient.ts` |
+| Prod edge samples (12) | **PASS** | all deployed (401/400 expected) |
+| Firestore `--firestore` verify | **PASS** | 2004/2004 refs, 0 orphans; counts match export |
+| `TABLE_TO_COLLECTION` / `profiles→users` | **PASS** | empty map; reads use `profiles` collection |
+| Auth UID vs `profiles.id` | **FIXED** | 30/153 profiles `id≠user_id`; DM create + social RPCs now resolve profile id |
+| Chunked `.in()` (>10) in `dataClient` | **PASS** | `fetchRows` chunks + `applyClientFilters` |
+| vybehub.app bundle | **PASS** | `index-dHUNkP3m.js` |
+
+**Fixes this scan:** `rpcCreateDmConversation`, `createDmChat`, `socialRpc` (`currentProfileId` for messages/friends/levels/profile reads).
+
+**Next 3 tasks:** (1) Lovable Share → Publish for profile-id DM fixes, (2) audit hooks still using `user.id` on profile-scoped tables (~30 mismatch users), (3) `firebase deploy --only functions` + set `GEMINI_API_KEY` for AI chat.
 
 ## Deep scan (2026-06-17 — migration regression)
 

@@ -8,6 +8,7 @@ import {
 } from './firestoreDb';
 import { firebaseAuth } from './authService';
 import { getUserProfile } from './users';
+import { resolveProfileIdFromAuthUid } from './profileResolve';
 import type { ChatDocument } from './types';
 
 export interface ChatWithMembers extends ChatDocument {
@@ -80,7 +81,8 @@ export async function createDmChat(otherUserId: string): Promise<string> {
   const { data: { user } } = await firebaseAuth.getUser();
   if (!user) throw new Error('Not authenticated');
 
-  const memberIds = [user.id, otherUserId].sort();
+  const myProfileId = (await resolveProfileIdFromAuthUid(user.id)) || user.id;
+  const memberIds = [myProfileId, otherUserId].sort();
   const chatId = memberIds.join('_');
 
   const existing = await getDocument('conversations', chatId);

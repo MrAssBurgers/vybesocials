@@ -525,7 +525,8 @@ async function rpcCreateDmConversation(otherProfileId: string): Promise<string |
   const { data: { user } } = await firebaseAuth.getUser();
   if (!user) return null;
 
-  const memberIds = [user.id, otherProfileId].sort();
+  const myProfileId = (await resolveProfileIdFromAuthUid(user.id)) || user.id;
+  const memberIds = [myProfileId, otherProfileId].sort();
   const chatId = memberIds.join('_');
 
   const existing = await getDocument('conversations', chatId);

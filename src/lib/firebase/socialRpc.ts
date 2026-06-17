@@ -8,6 +8,7 @@ import {
 } from './firestoreDb';
 import { firebaseAuth } from './authService';
 import { getUserProfile, getUserProfileByUsername } from './users';
+import { getProfileByAuthUid, resolveProfileIdFromAuthUid } from './profileResolve';
 
 const SOCIAL_RPC_NAMES = new Set([
   'get_profile_by_username',
@@ -32,9 +33,16 @@ export function isSocialRpc(name: string): boolean {
   return SOCIAL_RPC_NAMES.has(name);
 }
 
-async function currentUserId(): Promise<string | null> {
+async function currentAuthUid(): Promise<string | null> {
   const { data: { user } } = await firebaseAuth.getUser();
   return user?.id ?? null;
+}
+
+/** Social rows use profiles.id; resolve from auth UID when they differ. */
+async function currentProfileId(): Promise<string | null> {
+  const uid = await currentAuthUid();
+  if (!uid) return null;
+  return (await resolveProfileIdFromAuthUid(uid)) || uid;
 }
 
 async function rpcGetProfileByUsername(params: Record<string, unknown>) {
@@ -58,24 +66,24 @@ async function rpcBumpPostImpression(params: Record<string, unknown>) {
 }
 
 async function rpcEnsureUserLevel() {
-  const uid = await currentUserId();
-  if (!uid) return null;
-  const existing = await getDocument('user_levels', uid);
+  const profileId = await currentProfileId();
+  if (!profileId) return null;
+  const existing = await getDocument('user_levels', profileId);
   if (existing) return existing;
   const row = {
-    id: uid,
-    user_id: uid,
+    id: profileId,
+    user_id: profileId,
     level: 1,
     xp: 0,
     total_xp: 0,
     created_at: new Date().toISOString(),
   };
-  await setDocument('user_levels', uid, row);
+  await setDocument('user_levels', profileId, row);
   return row;
 }
 
 async function rpcCanSendDm(params: Record<string, unknown>) {
-  const uid = await currentUserId();
+  const uid = await currentAuthUid();
   const targetId = String(params.other_profile_id || params.target_id || '');
   if (!uid || !targetId) return { allowed: false, reason: 'not_authenticated' };
   return { allowed: true };
@@ -84,10 +92,10 @@ async function rpcCanSendDm(params: Record<string, unknown>) {
 async function rpcEditMessage(params: Record<string, unknown>) {
   const messageId = String(params._message_id || params.message_id || '');
   const content = String(params._content ?? params.content ?? '');
-  const uid = await currentUserId();
-  if (!messageId || !uid) return null;
+  const profileId = await currentProfileId();
+  if (!messageId || !profileId) return null;
   const msg = await getDocument<Record<string, unknown>>('messages', messageId);
-  if (!msg || msg.sender_id !== uid) return null;
+  if (!msg || msg.sender_id !== profileId) return null;
   await updateDocument('messages', messageId, {
     content,
     is_edited: true,
@@ -98,11 +106,11 @@ async function rpcEditMessage(params: Record<string, unknown>) {
 
 async function rpcToggleMessageSaved(params: Record<string, unknown>) {
   const messageId = String(params._message_id || params.message_id || '');
-  const uid = await currentUserId();
-  if (!messageId || !uid) return false;
+  const profileId = await currentProfileId();
+  if (!messageId || !profileId) return false;
   const msg = await getDocument<Record<string, unknown>>('messages', messageId);
   if (!msg) return false;
-  const isSender = msg.sender_id === uid;
+  const isSender = msg.sender_id === profileId;
   const field = isSender ? 'saved_by_sender' : 'saved_by_recipient';
   const next = !msg[field];
   await updateDocument('messages', messageId, {
@@ -114,8 +122,8 @@ async function rpcToggleMessageSaved(params: Record<string, unknown>) {
 
 async function rpcClearConversationMessages(params: Record<string, unknown>) {
   const conversationId = String(params.p_conversation_id || params.conversation_id || '');
-  const uid = await currentUserId();
-  if (!conversationId || !uid) return null;
+  const profileId = await currentProfileId();
+  if (!conversationId || !profileId) return null;
   const messages = await getDocuments<Record<string, unknown>>('messages', [
     where('conversation_id', '==', conversationId),
   ]);
@@ -128,11 +136,11 @@ async function rpcClearConversationMessages(params: Record<string, unknown>) {
 }
 
 async function rpcGetOwnSensitiveProfile() {
-  const uid = await currentUserId();
-  if (!uid) return null;
-  const profile = await getDocument<Record<string, unknown>>('profiles', uid);
+  const uid = await currentAuthUid();
+  const profile = uid ? await getProfileByAuthUid(uid) : null;
+  if (!profile) return null;
   return {
-    user_id: uid,
+    user_id: profile.id,
     email: profile?.email ?? null,
     phone: profile?.phone ?? null,
     tracking_consent: profile?.tracking_consent ?? null,
@@ -143,24 +151,23 @@ async function rpcGetOwnSensitiveProfile() {
 }
 
 async function rpcGetMyPrivateProfile() {
-  const uid = await currentUserId();
+  const uid = await currentAuthUid();
   if (!uid) return null;
-  const profile = await getDocument<Record<string, unknown>>('profiles', uid);
-  return profile;
+  return getProfileByAuthUid(uid);
 }
 
 async function rpcGetMutualFriends(params: Record<string, unknown>) {
-  const uid = await currentUserId();
+  const profileId = await currentProfileId();
   const targetId = String(params.target_id || params.other_profile_id || '');
-  if (!uid || !targetId) return [];
+  if (!profileId || !targetId) return [];
 
   const [mySent, myRecv, theirSent, theirRecv] = await Promise.all([
     getDocuments<{ receiver_id?: string }>('friend_requests', [
-      where('sender_id', '==', uid),
+      where('sender_id', '==', profileId),
       where('status', '==', 'accepted'),
     ]),
     getDocuments<{ sender_id?: string }>('friend_requests', [
-      where('receiver_id', '==', uid),
+      where('receiver_id', '==', profileId),
       where('status', '==', 'accepted'),
     ]),
     getDocuments<{ receiver_id?: string }>('friend_requests', [
