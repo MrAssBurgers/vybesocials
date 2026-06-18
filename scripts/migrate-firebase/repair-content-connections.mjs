@@ -35,7 +35,7 @@ const PROFILE_ID_FIELDS = [
   { collection: 'comments', fields: ['author_id', 'user_id'] },
   { collection: 'bookmarks', fields: ['user_id'] },
   { collection: 'follows', fields: ['follower_id', 'following_id'] },
-  { collection: 'friend_requests', fields: ['sender_id', 'recipient_id'] },
+  { collection: 'friend_requests', fields: ['sender_id', 'receiver_id'] },
   { collection: 'blocked_users', fields: ['blocker_id', 'blocked_id'] },
   { collection: 'close_friends', fields: ['user_id', 'friend_id'] },
   { collection: 'notifications', fields: ['user_id', 'from_user_id', 'actor_id'] },
@@ -66,7 +66,7 @@ const PROFILE_ID_FIELDS = [
   { collection: 'feature_votes', fields: ['user_id'] },
   { collection: 'capture_events', fields: ['user_id'] },
   { collection: 'contact_hashes', fields: ['user_id'] },
-  { collection: 'gifted_premium', fields: ['recipient_id', 'giver_id'] },
+  { collection: 'gifted_premium', fields: ['user_id', 'gifted_by'] },
   { collection: 'creator_profiles', fields: ['user_id'] },
 ];
 

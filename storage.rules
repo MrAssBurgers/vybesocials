@@ -40,6 +40,10 @@ service firebase.storage {
       allow read: if signedIn();
       allow write: if isOwner(userId) && smallEnough();
     }
+    match /announcements/{allPaths=**} {
+      allow read: if signedIn();
+      allow write: if isAdmin() && smallEnough();
+    }
 
     // Public reference assets (write via admin SDK only)
     match /public/{allPaths=**} {

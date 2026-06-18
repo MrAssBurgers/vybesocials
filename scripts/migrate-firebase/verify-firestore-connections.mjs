@@ -21,7 +21,7 @@ const PROFILE_ID_CHECKS = [
   { col: 'messages', fields: ['sender_id'] },
   { col: 'conversation_members', fields: ['user_id'] },
   { col: 'follows', fields: ['follower_id', 'following_id'] },
-  { col: 'friend_requests', fields: ['sender_id', 'recipient_id'] },
+  { col: 'friend_requests', fields: ['sender_id', 'receiver_id'] },
   { col: 'notifications', fields: ['user_id', 'actor_id'] },
   { col: 'push_tokens', fields: ['user_id'] },
   { col: 'user_roles', fields: ['user_id'] },

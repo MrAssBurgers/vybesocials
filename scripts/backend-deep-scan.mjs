@@ -114,6 +114,19 @@ async function firebaseAdminChecks() {
   else fail('Firestore user-data refs', repair.stderr?.slice(0, 200) || 'verify failed');
 }
 
+function checkFirestoreRulesCoverage() {
+  const rulesPath = join(ROOT, 'firestore.rules');
+  if (!existsSync(rulesPath)) {
+    warn('Firestore social rules', 'firestore.rules missing');
+    return;
+  }
+  const rules = readFileSync(rulesPath, 'utf8');
+  const required = ['match /likes/', 'match /friend_requests/', 'receiver_id', 'match /message_requests/', 'match /sounds/', 'match /vybe_dna/'];
+  const missing = required.filter((needle) => !rules.includes(needle));
+  if (missing.length === 0) pass('Firestore social rules', 'likes, friends, DMs, sounds covered');
+  else fail('Firestore social rules', `missing: ${missing.join(', ')}`);
+}
+
 async function main() {
   console.log('VYBE backend deep scan');
   console.log(`Time: ${new Date().toISOString()}\n`);
@@ -167,6 +180,7 @@ async function main() {
   }
 
   await firebaseAdminChecks();
+  checkFirestoreRulesCoverage();
 
   console.log('\n── Results ──');
   for (const r of rows) {

@@ -4,13 +4,19 @@ Use this file as the Lovable -> Cursor handoff each session.
 
 **Links:** [Lovable project](https://lovable.dev/projects/416714c8-d013-4aff-984d-522418a9bbc7) · [Production](https://vybehub.app) · Deploy steps: `DEPLOY.md`
 
+## Current Focus (2026-06-18 — social polish deep scan)
+- **Scan (2026-06-18 ~18:35 UTC):** `npm run backend:scan` — **15 pass, 4 warn, 0 fail** (after social rules fix)
+- **Critical fixes deployed:** Firestore rules for **`likes`** (was deny-all — likes/reactions broken), **`friend_requests`** (`receiver_id` not `recipient_id`), **`message_requests`**, **`sounds`**, **`vybe_dna`**, **`gifted_premium`** (`user_id`/`gifted_by`); Storage **`announcements`** bucket for admin uploads
+- **Data:** `repair-all-users` PASS — 2404/2404 refs, 152/152 auth index, 843 messages, 26 posts
+- **WARN:** vybehub.app bundle **STALE** — [Lovable → Share → Publish](https://lovable.dev/projects/416714c8-d013-4aff-984d-522418a9bbc7) required
+- **You:** Publish + hard refresh once; then test like a post, accept a friend request, send a DM with media
+
 ## Current Focus (2026-06-18 — deep scan)
-- **Scan (2026-06-18 ~17:28 UTC):** build PASS, lint PASS, CSS PASS, boot PASS; edge fn refs 74/74 OK; vybehub.app `/assets/app.js` HTTP 200
-- **Firebase (`vybe-daaab`):** 152/152 auth index, 2404/2404 social refs (100%), 0 orphans — `npm run migrate:firebase:repair-all-users` PASS
-- **Supabase prod RPCs:** `is_username_available`, `create_dm_conversation` MISSING — **client fallbacks OK** in `dataClient.ts`
-- **Fixed:** `get_user_badges_by_profile` + `get_user_primary_badge` Firebase client RPCs (badges were broken post-migration); `_adminInit.mjs` auto-loads `secrets/firebase-admin.json` for repair scripts
-- **Unpublished:** local `dist/assets/app.js` ~786KB — **Lovable Publish** for badge RPC + profile-resolve fixes
-- **Next:** Lovable **Share → Publish** + hard refresh once
+- **Scan (2026-06-18 ~18:11 UTC):** `npm run backend:scan` — **14 pass, 4 warn, 0 fail**
+- **Backend OK:** Firebase 152/152 auth+profiles, 2404/2404 refs, Firestore+Storage rules deployed, 80+ Cloud Functions live, Supabase edge fns OK
+- **WARN:** vybehub.app bundle **STALE** vs local build — prod is **Lovable Cloud** (`x-deployment-id` header); Firebase Hosting deploy fails (upload timeout) and does **not** serve vybehub.app anyway
+- **WARN:** Supabase RPCs `is_username_available`, `create_dm_conversation` missing — Firebase client fallbacks OK
+- **You — unblock prod client:** [Lovable → Share → Publish](https://lovable.dev/projects/416714c8-d013-4aff-984d-522418a9bbc7) (only way to update vybehub.app)
 
 ## Current Focus (2026-06-18 — user data restore / levels + DMs + uploads)
 - **Root cause:** Data was **not deleted** — Firestore **catch-all deny** blocked reads on `user_levels`, `login_streaks`, `message_reactions`, `user_badges`, marketplace tables, etc. Levels/DMs looked empty; uploads failed when profile/level reads failed.

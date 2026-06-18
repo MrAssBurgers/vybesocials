@@ -66,6 +66,13 @@ service cloud.firestore {
         exists(/databases/$(database)/documents/conversations/$(cid)/members/$(uid()))
       );
     }
+    function isFriendRequestParty() {
+      return signedIn() && (
+        ownsProfileId(resource.data.sender_id) ||
+        ownsProfileId(resource.data.get('receiver_id', '')) ||
+        ownsProfileId(resource.data.get('recipient_id', ''))
+      );
+    }
 
     // Auth uid → profiles.id lookup (seeded by scripts/migrate-firebase/seed-user-auth-index.mjs)
     match /user_auth_index/{authUid} {
@@ -202,12 +209,17 @@ service cloud.firestore {
       allow delete: if isOwnerProfile('blocker_id');
     }
     match /friend_requests/{docId} {
+      allow read: if isFriendRequestParty();
+      allow create: if willOwnProfile('sender_id');
+      allow update, delete: if isFriendRequestParty();
+    }
+    match /message_requests/{docId} {
       allow read: if signedIn() && (
-        ownsProfileId(resource.data.sender_id) || ownsProfileId(resource.data.recipient_id)
+        ownsProfileId(resource.data.sender_id) || ownsProfileId(resource.data.receiver_id)
       );
       allow create: if willOwnProfile('sender_id');
-      allow update, delete: if signedIn() && (
-        ownsProfileId(resource.data.sender_id) || ownsProfileId(resource.data.recipient_id)
+      allow update: if signedIn() && (
+        ownsProfileId(resource.data.sender_id) || ownsProfileId(resource.data.receiver_id)
       );
     }
     match /close_friends/{docId} {
@@ -235,6 +247,12 @@ service cloud.firestore {
     }
     match /bookmarks/{docId} {
       allow read, write: if isOwnerProfile('user_id') || willOwnProfile('user_id');
+    }
+    match /likes/{docId} {
+      allow read: if signedIn();
+      allow create: if willOwnProfile('user_id');
+      allow update: if isOwnerProfile('user_id');
+      allow delete: if isOwnerProfile('user_id');
     }
     match /post_reactions/{docId} {
       allow read: if signedIn();
@@ -401,7 +419,23 @@ service cloud.firestore {
     }
     match /business_products/{id}  { allow read: if signedIn(); allow write: if isOwner('owner_id') || willOwn('owner_id') || isAdmin(); }
     match /business_orders/{id}    { allow read: if isOwner('buyer_id') || isOwner('seller_id') || isAdmin(); allow write: if isAdmin(); }
-    match /gifted_premium/{id}     { allow read: if isOwner('recipient_id') || isOwner('giver_id') || isAdmin(); allow create: if willOwn('giver_id'); allow update, delete: if isAdmin(); }
+    match /gifted_premium/{id} {
+      allow read: if ownsUserField('user_id') || ownsUserField('gifted_by') || isAdmin();
+      allow create: if willOwnUserField('gifted_by') || isAdmin();
+      allow update: if ownsUserField('user_id') || ownsUserField('gifted_by') || isAdmin();
+      allow delete: if isAdmin();
+    }
+    match /sounds/{id} {
+      allow read: if signedIn();
+      allow create: if signedIn();
+      allow update, delete: if isAdmin() ||
+        isOwnerProfile('uploader_id') || isOwnerProfile('original_creator_id');
+    }
+    match /vybe_dna/{id} {
+      allow read: if ownsUserField('user_id') || isAdmin();
+      allow create, update: if willOwnUserField('user_id') || isAdmin();
+      allow delete: if isAdmin();
+    }
 
     // ---------- explicit deny-all admin-only tables (Cloud Functions handle these) ----------
     match /app_secrets/{id}                   { allow read, write: if false; }
