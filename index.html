@@ -265,7 +265,14 @@
     
     <!-- Critical inline CSS for faster LCP -->
     <style>
-      :root { background: #0B0B10; color-scheme: dark; }
+      :root {
+        background: #0B0B10;
+        color-scheme: dark;
+        --primary: 330 100% 60%;
+        --accent: 185 100% 50%;
+        --foreground: 0 0% 98%;
+        --muted-foreground: 240 5% 55%;
+      }
       html { background: #0B0B10; color-scheme: dark; }
       html, body { margin: 0; padding: 0; min-height: 100vh; background: #0B0B10; }
       /* Aurora paints in #vybe-aurora-mount (sibling behind #root) */
@@ -287,16 +294,102 @@
         background: #0B0B10;
       }
       #vybe-static-boot {
-        min-height: 100dvh;
+        position: fixed;
+        inset: 0;
+        z-index: 2147483647;
         display: flex;
+        flex-direction: column;
         align-items: center;
         justify-content: center;
+        overflow: hidden;
         background: #0B0B10;
-        color: #a1a1aa;
         font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-        font-size: 0.875rem;
-        letter-spacing: 0.12em;
-        font-weight: 600;
+      }
+      #vybe-static-boot .vybe-splash-glow {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        width: min(260px, 70vw);
+        height: min(260px, 70vw);
+        transform: translate(-50%, -50%);
+        background: radial-gradient(circle, hsl(var(--primary) / 0.22) 0%, hsl(var(--accent) / 0.08) 45%, transparent 70%);
+        opacity: 0.5;
+        pointer-events: none;
+      }
+      #vybe-static-boot .vybe-splash-logo {
+        position: relative;
+        margin-bottom: 1.5rem;
+        width: 96px;
+        height: 96px;
+      }
+      #vybe-static-boot .vybe-splash-title {
+        margin: 0 0 1.25rem;
+        font-size: 1.5rem;
+        font-weight: 800;
+        letter-spacing: -0.02em;
+        background: linear-gradient(135deg, hsl(var(--primary)), hsl(var(--accent)));
+        -webkit-background-clip: text;
+        background-clip: text;
+        -webkit-text-fill-color: transparent;
+        color: transparent;
+      }
+      #vybe-static-boot .vybe-splash-bar-wrap {
+        width: min(16rem, 72vw);
+      }
+      #vybe-static-boot .vybe-splash-bar-track {
+        position: relative;
+        height: 6px;
+        border-radius: 9999px;
+        overflow: hidden;
+        background: hsl(var(--foreground) / 0.1);
+      }
+      #vybe-static-boot .vybe-splash-bar-fill {
+        position: absolute;
+        inset: 0 auto 0 0;
+        width: 100%;
+        border-radius: 9999px;
+        transform-origin: left center;
+        transform: scaleX(0);
+        background: linear-gradient(90deg, hsl(var(--primary)), hsl(var(--accent)));
+        animation: vybe-static-bar 12s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+      }
+      #vybe-static-boot .vybe-splash-meta {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-top: 0.625rem;
+        padding: 0 2px;
+        font-size: 12px;
+      }
+      #vybe-static-boot .vybe-splash-status {
+        color: hsl(var(--muted-foreground) / 0.8);
+        max-width: 70%;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      #vybe-static-boot .vybe-splash-percent {
+        color: hsl(var(--foreground) / 0.8);
+        font-weight: 500;
+        font-variant-numeric: tabular-nums;
+      }
+      #vybe-static-boot .vybe-splash-draw-left,
+      #vybe-static-boot .vybe-splash-draw-right {
+        stroke-dasharray: 100;
+        stroke-dashoffset: 100;
+      }
+      #vybe-static-boot .vybe-splash-draw-left {
+        animation: vybe-splash-draw 0.7s cubic-bezier(0.16, 1, 0.3, 1) 0.15s forwards;
+      }
+      #vybe-static-boot .vybe-splash-draw-right {
+        animation: vybe-splash-draw 0.7s cubic-bezier(0.16, 1, 0.3, 1) 0.35s forwards;
+      }
+      @keyframes vybe-splash-draw {
+        to { stroke-dashoffset: 0; }
+      }
+      @keyframes vybe-static-bar {
+        0% { transform: scaleX(0); }
+        100% { transform: scaleX(0.28); }
       }
       [data-app-shell] {
         min-height: 100dvh;
@@ -328,7 +421,7 @@
   <meta property="og:description" content="VYBE - The Next Generation Social Platform. Share moments, connect with friends, and discover amazing content from creators worldwide.">
   <meta name="twitter:description" content="VYBE - The Next Generation Social Platform. Share moments, connect with friends, and discover amazing content from creators worldwide.">
 </head>
-  <body>
+  <body class="splash-visible">
     <div id="vybe-maintenance-static" role="alert" aria-live="polite">
       <div class="vybe-maint-inner">
         <p class="vybe-maint-badge">Under reconstruction</p>
@@ -403,7 +496,38 @@
         </div>
       </div>
     </div>
-    <div id="root"><div id="vybe-static-boot" aria-hidden="true">VYBE</div></div>
+    <div id="root">
+      <div id="vybe-static-boot" data-vybe-boot-screen aria-live="polite" aria-busy="true">
+        <div class="vybe-splash-glow" aria-hidden="true"></div>
+        <div class="vybe-splash-logo" aria-hidden="true">
+          <svg viewBox="-5 -5 110 110" fill="none" width="96" height="96" aria-hidden="true">
+            <defs>
+              <linearGradient id="vybe-sp-l" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stop-color="hsl(330 100% 60%)" />
+                <stop offset="100%" stop-color="hsl(280 100% 65%)" />
+              </linearGradient>
+              <linearGradient id="vybe-sp-r" x1="100%" y1="0%" x2="0%" y2="100%">
+                <stop offset="0%" stop-color="hsl(185 100% 50%)" />
+                <stop offset="100%" stop-color="hsl(195 100% 55%)" />
+              </linearGradient>
+            </defs>
+            <path d="M18 15 L50 85" stroke="url(#vybe-sp-l)" stroke-width="11" stroke-linecap="round" class="vybe-splash-draw-left" />
+            <path d="M82 15 L50 85" stroke="url(#vybe-sp-r)" stroke-width="11" stroke-linecap="round" class="vybe-splash-draw-right" />
+            <circle cx="50" cy="85" r="3.5" fill="hsl(330 100% 60%)" />
+          </svg>
+        </div>
+        <h1 class="vybe-splash-title">VYBE</h1>
+        <div class="vybe-splash-bar-wrap">
+          <div class="vybe-splash-bar-track">
+            <div class="vybe-splash-bar-fill"></div>
+          </div>
+          <div class="vybe-splash-meta">
+            <span class="vybe-splash-status">Waking up...</span>
+            <span class="vybe-splash-percent">0%</span>
+          </div>
+        </div>
+      </div>
+    </div>
     <!-- Fallback when CDN serves stale hashed index-*.js (Lovable publish mismatch) -->
     <script>
       (function () {

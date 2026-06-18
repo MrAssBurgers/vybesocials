@@ -5,6 +5,17 @@ Use this file as the Lovable -> Cursor handoff each session.
 **Links:** [Lovable project](https://lovable.dev/projects/416714c8-d013-4aff-984d-522418a9bbc7) · [Production](https://vybehub.app) · Deploy steps: `DEPLOY.md`
 
 ## Publish prep (2026-06-18)
+- **Ready:** splash boot fix on `main` (pending push) — static HTML splash replaces plain "VYBE" placeholder before React mounts
+- **Local build:** `npm run build` PASS, `npm run lint` PASS
+- **You:** [Lovable → Share → Publish](https://lovable.dev/projects/416714c8-d013-4aff-984d-522418a9bbc7) then hard refresh once
+
+## Current Focus (2026-06-18 — boot splash placeholder fix)
+- **Root cause:** `#vybe-static-boot` in `index.html` was a minimal centered "VYBE" text shown until React mounted; the real `SplashScreen` only appeared after the JS bundle loaded
+- **Fix:** Replaced static placeholder with full HTML/CSS splash (logo, gradient title, progress bar, "Waking up…"); `data-vybe-boot-screen` + `body.splash-visible` from first paint; solid `#0B0B10` background retained
+- **Tests:** `npm run build` PASS, `npm run lint` PASS
+- **You:** Lovable **Share → Publish** + hard refresh once; cold-load vybehub.app should show animated splash immediately (no plain text screen)
+
+## Publish prep (2026-06-18 — prior)
 - **Ready:** `37d2dc45` on `main` (pushed) — auth/DM/profile post-publish fixes
 - **Local build:** `npm run build` PASS — `dist/assets/app.js` md5 `6f70abe15f885eaa7332e2e5873b996e` (compare after Lovable Publish)
 - **You:** [Lovable → Share → Publish](https://lovable.dev/projects/416714c8-d013-4aff-984d-522418a9bbc7) then hard refresh / clear site data once
