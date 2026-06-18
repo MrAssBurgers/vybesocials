@@ -8,10 +8,10 @@
  *
  * Usage: GOOGLE_APPLICATION_CREDENTIALS=secrets/firebase-admin.json node scripts/migrate-firebase/repair-firestore-social.mjs
  */
-import { initializeApp, getApps } from 'firebase-admin/app';
 import { getFirestore, FieldValue } from 'firebase-admin/firestore';
+import { initFirebaseAdmin } from './_adminInit.mjs';
 
-if (!getApps().length) initializeApp();
+initFirebaseAdmin();
 const db = getFirestore();
 
 const DRY_RUN = process.argv.includes('--dry-run');

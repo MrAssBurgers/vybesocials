@@ -10,17 +10,17 @@
  *   GOOGLE_APPLICATION_CREDENTIALS=secrets/firebase-admin.json \
  *   node scripts/migrate-firebase/repair-all-user-data.mjs
  */
-import { initializeApp, getApps } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
 import { getAuth } from 'firebase-admin/auth';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
+import { initFirebaseAdmin } from './_adminInit.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const DRY_RUN = process.argv.includes('--dry-run');
 
-if (!getApps().length) initializeApp();
+initFirebaseAdmin();
 const db = getFirestore();
 const auth = getAuth();
 

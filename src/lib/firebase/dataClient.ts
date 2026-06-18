@@ -582,6 +582,94 @@ async function rpcCreateDmConversation(otherProfileId: string): Promise<string |
   return chatId;
 }
 
+async function authUserIdForProfileLookup(profileOrAuthId: string): Promise<string> {
+  const profile = await getDocument<UserProfile>('profiles', profileOrAuthId);
+  if (profile?.user_id) return profile.user_id;
+  return profileOrAuthId;
+}
+
+async function rpcGetUserBadgesByProfile(params: Record<string, unknown>) {
+  const profileId = String(params.p_profile_id || '');
+  if (!profileId) return [];
+
+  const authUserId = await authUserIdForProfileLookup(profileId);
+  const lookupIds = [...new Set([authUserId, profileId])];
+  const seen = new Set<string>();
+  const userBadges: Record<string, unknown>[] = [];
+
+  for (const id of lookupIds) {
+    const rows = await getDocuments<Record<string, unknown>>('user_badges', [
+      where('user_id', '==', id),
+    ]);
+    for (const row of rows) {
+      const rid = String(row.id || '');
+      if (!rid || seen.has(rid)) continue;
+      seen.add(rid);
+      userBadges.push(row);
+    }
+  }
+
+  const now = Date.now();
+  const results: Record<string, unknown>[] = [];
+
+  for (const ub of userBadges) {
+    const expiresAt = ub.expires_at ? new Date(String(ub.expires_at)).getTime() : null;
+    if (expiresAt !== null && expiresAt <= now) continue;
+
+    const badge = await getDocument<Record<string, unknown>>('badges', String(ub.badge_id || ''));
+    if (!badge) continue;
+
+    results.push({
+      id: ub.id,
+      user_id: ub.user_id,
+      badge_id: ub.badge_id,
+      is_pinned: ub.is_pinned ?? false,
+      pin_order: ub.pin_order ?? null,
+      is_primary: ub.is_primary ?? false,
+      show_effect: ub.show_effect ?? true,
+      earned_at: ub.earned_at,
+      expires_at: ub.expires_at ?? null,
+      badge_name: badge.name,
+      badge_description: badge.description ?? null,
+      badge_icon: badge.icon,
+      badge_category: badge.category,
+      badge_priority: badge.priority ?? 0,
+      badge_gradient_from: badge.gradient_from ?? null,
+      badge_gradient_to: badge.gradient_to ?? null,
+      badge_gradient_via: badge.gradient_via ?? null,
+      badge_effect: badge.effect ?? null,
+      badge_is_animated: badge.is_animated ?? false,
+    });
+  }
+
+  results.sort(
+    (a, b) => Number(a.badge_priority || 0) - Number(b.badge_priority || 0),
+  );
+  return results;
+}
+
+async function rpcGetUserPrimaryBadge(params: Record<string, unknown>) {
+  const userId = String(params.p_user_id || '');
+  if (!userId) return [];
+
+  const badges = await rpcGetUserBadgesByProfile({ p_profile_id: userId });
+  const primary = badges.find((b) => b.is_primary) || badges[0];
+  if (!primary) return [];
+
+  return [{
+    badge_id: primary.badge_id,
+    name: primary.badge_name,
+    icon: primary.badge_icon,
+    category: primary.badge_category,
+    priority: primary.badge_priority,
+    gradient_from: primary.badge_gradient_from,
+    gradient_to: primary.badge_gradient_to,
+    gradient_via: primary.badge_gradient_via,
+    effect: primary.badge_effect,
+    is_animated: primary.badge_is_animated,
+  }];
+}
+
 async function rpcGetPublicUserCount(): Promise<number> {
   const rows = await getDocuments('profiles');
   return rows.length;
@@ -628,6 +716,8 @@ const CLIENT_RPC: Record<string, (params: Record<string, unknown>) => Promise<un
   claim_profile_by_email: async () => rpcClaimProfileByEmail(),
   is_username_available: async (p) => rpcIsUsernameAvailable(String(p.username || p._username || '')),
   create_dm_conversation: async (p) => rpcCreateDmConversation(String(p.other_profile_id || '')),
+  get_user_badges_by_profile: rpcGetUserBadgesByProfile,
+  get_user_primary_badge: rpcGetUserPrimaryBadge,
   get_public_user_count: async () => rpcGetPublicUserCount(),
   get_profile_by_id: async (p) => {
     const id = String(p.target_id || '');

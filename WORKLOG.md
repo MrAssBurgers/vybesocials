@@ -4,6 +4,14 @@ Use this file as the Lovable -> Cursor handoff each session.
 
 **Links:** [Lovable project](https://lovable.dev/projects/416714c8-d013-4aff-984d-522418a9bbc7) · [Production](https://vybehub.app) · Deploy steps: `DEPLOY.md`
 
+## Current Focus (2026-06-18 — deep scan)
+- **Scan (2026-06-18 ~17:28 UTC):** build PASS, lint PASS, CSS PASS, boot PASS; edge fn refs 74/74 OK; vybehub.app `/assets/app.js` HTTP 200
+- **Firebase (`vybe-daaab`):** 152/152 auth index, 2404/2404 social refs (100%), 0 orphans — `npm run migrate:firebase:repair-all-users` PASS
+- **Supabase prod RPCs:** `is_username_available`, `create_dm_conversation` MISSING — **client fallbacks OK** in `dataClient.ts`
+- **Fixed:** `get_user_badges_by_profile` + `get_user_primary_badge` Firebase client RPCs (badges were broken post-migration); `_adminInit.mjs` auto-loads `secrets/firebase-admin.json` for repair scripts
+- **Unpublished:** local `dist/assets/app.js` ~786KB — **Lovable Publish** for badge RPC + profile-resolve fixes
+- **Next:** Lovable **Share → Publish** + hard refresh once
+
 ## Current Focus (2026-06-18 — user data restore / levels + DMs + uploads)
 - **Root cause:** Data was **not deleted** — Firestore **catch-all deny** blocked reads on `user_levels`, `login_streaks`, `message_reactions`, `user_badges`, marketplace tables, etc. Levels/DMs looked empty; uploads failed when profile/level reads failed.
 - **Live audit (`vybe-daaab`):** 152 profiles, 152 auth index, 843 messages, 71 conversation_members, 26 posts, **6 user_levels** (founder level 23 / 11544 XP intact). @mrassburgers: 16 DMs.

@@ -7,8 +7,8 @@
  *   GOOGLE_APPLICATION_CREDENTIALS=secrets/firebase-admin.json \
  *   node scripts/migrate-firebase/restore-founder-level.mjs [--level=49]
  */
-import { initializeApp, getApps } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
+import { initFirebaseAdmin } from './_adminInit.mjs';
 
 const TARGET_LEVEL = Number(process.argv.find((a) => a.startsWith('--level='))?.split('=')[1] || 49);
 
@@ -16,7 +16,7 @@ const MRASS_PROFILE_ID = 'e78010f2-d5f1-428b-b5df-8fc6b768772d';
 const MRASS_AUTH_UID = '703760a8-1245-4fc1-b242-32619ecc0ef3';
 const LEVEL_DOC_ID = '5dd990ce-3ada-4259-baba-770d549cbacc';
 
-if (!getApps().length) initializeApp();
+initFirebaseAdmin();
 const db = getFirestore();
 
 async function main() {

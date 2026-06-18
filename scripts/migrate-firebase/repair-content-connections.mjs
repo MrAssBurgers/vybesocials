@@ -12,8 +12,8 @@
  *   GOOGLE_APPLICATION_CREDENTIALS=secrets/firebase-admin.json \
  *   node scripts/migrate-firebase/repair-content-connections.mjs [--dry-run]
  */
-import { initializeApp, getApps } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
+import { initFirebaseAdmin } from './_adminInit.mjs';
 
 const DRY_RUN = process.argv.includes('--dry-run');
 
@@ -77,7 +77,7 @@ const AUTH_UID_FIELDS = [
   { collection: 'login_streaks', fields: ['user_id'] },
 ];
 
-if (!getApps().length) initializeApp();
+initFirebaseAdmin();
 const db = getFirestore();
 
 async function buildMaps() {

@@ -6,9 +6,9 @@
  *   GOOGLE_APPLICATION_CREDENTIALS=secrets/firebase-admin.json \
  *   node scripts/migrate-firebase/verify-firestore-connections.mjs
  */
-import { initializeApp, getApps } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
 import { getAuth } from 'firebase-admin/auth';
+import { initFirebaseAdmin } from './_adminInit.mjs';
 
 const DELETED_AUTH_UIDS = new Set([
   '53e0076d-5163-46f5-b711-a58a03393744',
@@ -39,7 +39,7 @@ const AUTH_UID_CHECKS = [
   { col: 'user_badges', fields: ['user_id'] },
 ];
 
-if (!getApps().length) initializeApp();
+initFirebaseAdmin();
 const db = getFirestore();
 const auth = getAuth();
 
