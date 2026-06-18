@@ -25,7 +25,24 @@ export async function claimProfileByEmailForUid(authUid: string): Promise<{
   const indexSnap = await db.collection('user_auth_index').doc(authUid).get();
   if (indexSnap.exists) {
     const profileId = String(indexSnap.data()?.profile_id || '');
-    return { profileId: profileId || null, claimed: false };
+    if (profileId) {
+      const profSnap = await db.collection('profiles').doc(profileId).get();
+      if (profSnap.exists) {
+        const prof = profSnap.data()!;
+        if (prof.user_id !== authUid || (email && prof.email !== email)) {
+          await db.collection('profiles').doc(profileId).set(
+            {
+              user_id: authUid,
+              ...(email ? { email } : {}),
+              updated_at: new Date().toISOString(),
+            },
+            { merge: true },
+          );
+        }
+        await writeAuthIndex(authUid, profileId, prof, email || String(prof.email || ''));
+      }
+      return { profileId, claimed: false };
+    }
   }
 
   const byUserId = await db.collection('profiles').where('user_id', '==', authUid).limit(1).get();

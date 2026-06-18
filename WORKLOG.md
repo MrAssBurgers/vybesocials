@@ -4,6 +4,28 @@ Use this file as the Lovable -> Cursor handoff each session.
 
 **Links:** [Lovable project](https://lovable.dev/projects/416714c8-d013-4aff-984d-522418a9bbc7) · [Production](https://vybehub.app) · Deploy steps: `DEPLOY.md`
 
+## Current Focus (2026-06-18 — user data restore / levels + DMs + uploads)
+- **Root cause:** Data was **not deleted** — Firestore **catch-all deny** blocked reads on `user_levels`, `login_streaks`, `message_reactions`, `user_badges`, marketplace tables, etc. Levels/DMs looked empty; uploads failed when profile/level reads failed.
+- **Live audit (`vybe-daaab`):** 152 profiles, 152 auth index, 843 messages, 71 conversation_members, 26 posts, **6 user_levels** (founder level 23 / 11544 XP intact). @mrassburgers: 16 DMs.
+- **Fix:** Added Firestore rules for user-owned collections (`user_levels`, streaks, badges, locations, message_reactions, listings, invites, …); fixed `stories`/`notifications` to use `ownsProfileId`; profile resolve via `user_auth_index` in `fetchProfile` + `resolveSessionProfileId`; `ensure_user_level` uses auth uid; `repair-all-user-data.mjs` run (152 links, 7 `user_id` syncs).
+- **Deployed:** `firestore:rules` to `vybe-daaab`
+- **Tests:** build PASS, lint PASS
+- **You:** Lovable **Share → Publish** (client profile-resolve fixes) + hard refresh / clear site data once on phone
+
+## Current Focus (2026-06-18 — full user-data reconnection)
+- **Pipeline:** `npm run migrate:firebase:repair-all-users` → all **152** users (auth index, content refs, verify 100%)
+- **Every user on login:** `claimProfileByEmail` redeployed — re-syncs profile + index even when link already exists (OAuth uid drift)
+- **Client:** `claim_profile_by_email` runs on every session boot for all signed-in users (needs Lovable Publish)
+- **Fixed:** 28 profile-id remaps (push_tokens, bug_reports, roles, invites, notifications); 3 auth-uid normalizations; removed 4 stale rows (deleted bakrix/oxzz duplicates)
+- **Verified:** 2404/2404 social refs connected; 152/152 auth index; 26 posts, 843 messages, 71 DMs, 63 badges — all linked to valid profiles
+- **Scripts:** `repair-everything.mjs`, `verify-firestore-connections.mjs`, `repair-content-connections.mjs` (expanded)
+- **You:** Lovable **Share → Publish** + hard refresh once
+
+## Current Focus (2026-06-18 — content → author connections)
+- **Audit:** 26/26 posts `author_id` → valid profile; 843/843 messages; 71/71 DM members; 1393/1394 social refs connected
+- **Fix:** `repair-content-connections.mjs` — backfilled `author_username`/`author_avatar_url` on all 26 posts; synced 5 stories; remapped 1 orphan notification (deleted bakrix uid → mrassburgers)
+- **Scripts:** `repair-content-connections.mjs`, `repair-all-user-data.mjs`, `restore-founder-level.mjs`
+
 ## Current Focus (2026-06-17 — no black screen on refresh / all devices)
 - **Root cause:** On refresh, `sessionStorage` skipped splash while lazy routes loaded → transparent `#app-shell` over `#0B0B10` looked like a black void; boot guard marked ready before shell painted
 - **Fix:** Hard-reload resets splash (`navigationBoot.ts`); splash stays until `#app-shell` has route content; static `VYBE` placeholder in `#root` before React; solid `#0B0B10` on loaders + `[data-app-shell]`; bfcache re-shows splash if shell empty; SW **v32**; boot-guard checks `app-shell`

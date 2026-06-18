@@ -4,6 +4,7 @@ import {
   setCachedCurrentProfile,
   type CachedProfile,
 } from '@/lib/profileCache';
+import { getProfileByAuthUid } from '@/lib/firebase/users';
 
 let memoAuthUserId: string | null = null;
 let memoProfileId: string | null = null;
@@ -31,35 +32,38 @@ export async function resolveSessionProfileId(
 
   inflight = (async () => {
     try {
-      const loadProfile = () =>
-        db
-          .from('profiles')
-          .select('id, user_id, username, avatar_url, display_name')
-          .eq('user_id', authUserId)
-          .maybeSingle();
+      await db.rpc('claim_profile_by_email');
 
-      let { data, error } = await loadProfile();
-
-      // Signed-in users may lack a profiles row (signup trigger lag) — ensure_profile creates it.
-      if (!data?.id) {
-        await db.rpc('claim_profile_by_email');
-        ({ data, error } = await loadProfile());
+      const profile = await getProfileByAuthUid(authUserId);
+      if (!profile?.id) {
+        await db.rpc('ensure_profile');
+        const retry = await getProfileByAuthUid(authUserId);
+        if (!retry?.id) return undefined;
+        memoAuthUserId = authUserId;
+        memoProfileId = retry.id;
+        const payload: CachedProfile = {
+          id: retry.id,
+          user_id: retry.user_id,
+          username: retry.username,
+          display_name: retry.display_name,
+          avatar_url: retry.avatar_url,
+        };
+        setCachedCurrentProfile(payload);
+        return retry.id;
       }
 
-      if (error || !data?.id) return undefined;
-
       memoAuthUserId = authUserId;
-      memoProfileId = data.id;
+      memoProfileId = profile.id;
 
       const payload: CachedProfile = {
-        id: data.id,
-        user_id: data.user_id,
-        username: data.username,
-        display_name: data.display_name,
-        avatar_url: data.avatar_url,
+        id: profile.id,
+        user_id: profile.user_id,
+        username: profile.username,
+        display_name: profile.display_name,
+        avatar_url: profile.avatar_url,
       };
       setCachedCurrentProfile(payload);
-      return data.id;
+      return profile.id;
     } finally {
       inflight = null;
     }

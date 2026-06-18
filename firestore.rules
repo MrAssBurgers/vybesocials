@@ -49,6 +49,13 @@ service cloud.firestore {
     function willOwnProfile(field) {
       return ownsProfileId(request.resource.data[field]);
     }
+    // Rows may store Firebase Auth uid or profiles.id in user_id / owner fields.
+    function ownsUserField(field) {
+      return isOwner(field) || isOwnerProfile(field);
+    }
+    function willOwnUserField(field) {
+      return willOwn(field) || willOwnProfile(field);
+    }
     function isFlatConversationMember(cid) {
       return signedIn() &&
         exists(/databases/$(database)/documents/conversation_members/$(cid + '_' + profileId()));
@@ -84,6 +91,103 @@ service cloud.firestore {
     match /user_roles/{docId} {
       allow read: if signedIn() && (ownsProfileId(resource.data.user_id) || isAdmin());
       allow write: if isAdmin();
+    }
+    match /user_roles_auth/{docId} {
+      allow read: if signedIn() && (ownsProfileId(resource.data.user_id) || isAdmin());
+      allow write: if isAdmin();
+    }
+
+    // ---------- progression / XP / streaks ----------
+    match /user_levels/{docId} {
+      allow read: if signedIn() && (ownsUserField('user_id') || ownsProfileId(docId));
+      allow create: if signedIn() && (willOwnUserField('user_id') || willOwnProfile('user_id'));
+      allow update: if signedIn() && (ownsUserField('user_id') || ownsProfileId(docId));
+      allow delete: if isAdmin();
+    }
+    match /login_streaks/{docId} {
+      allow read, write: if ownsUserField('user_id') || willOwnUserField('user_id') || isAdmin();
+    }
+    match /streaks/{docId} {
+      allow read, write: if ownsUserField('user_id') || willOwnUserField('user_id') || isAdmin();
+    }
+    match /reaction_streaks/{docId} {
+      allow read: if signedIn();
+      allow write: if ownsUserField('user_id') || willOwnUserField('user_id') || isAdmin();
+    }
+    match /challenge_progress/{docId} {
+      allow read, write: if ownsUserField('user_id') || willOwnUserField('user_id') || isAdmin();
+    }
+    match /challenge_rewards/{docId} {
+      allow read, write: if ownsUserField('user_id') || willOwnUserField('user_id') || isAdmin();
+    }
+
+    // ---------- user badges / locations / prefs ----------
+    match /user_badges/{docId} {
+      allow read: if signedIn();
+      allow create: if willOwnUserField('user_id');
+      allow update, delete: if ownsUserField('user_id') || isAdmin();
+    }
+    match /user_locations/{docId} {
+      allow read: if signedIn();
+      allow write: if ownsUserField('user_id') || willOwnUserField('user_id') || isAdmin();
+    }
+    match /user_bans/{docId} {
+      allow read: if ownsUserField('user_id') || isAdmin();
+      allow write: if isAdmin();
+    }
+    match /notification_preferences/{docId} {
+      allow read, write: if ownsUserField('user_id') || willOwnUserField('user_id') || isAdmin();
+    }
+    match /music_settings/{docId} {
+      allow read, write: if ownsUserField('user_id') || willOwnUserField('user_id') || isAdmin();
+    }
+    match /spotify_connections/{docId} {
+      allow read, write: if ownsUserField('user_id') || willOwnUserField('user_id') || isAdmin();
+    }
+
+    // ---------- messages extras ----------
+    match /message_reactions/{docId} {
+      allow read: if signedIn();
+      allow create: if willOwnUserField('user_id');
+      allow delete: if ownsUserField('user_id') || isAdmin();
+    }
+    match /message_pins/{docId} {
+      allow read: if signedIn();
+      allow write: if ownsUserField('user_id') || willOwnUserField('user_id') || isAdmin();
+    }
+    match /saved_messages/{docId} {
+      allow read, write: if ownsUserField('user_id') || willOwnUserField('user_id') || isAdmin();
+    }
+
+    // ---------- marketplace ----------
+    match /listings/{docId} {
+      allow read: if signedIn();
+      allow create: if willOwnUserField('seller_id') || willOwnUserField('user_id');
+      allow update, delete: if ownsUserField('seller_id') || ownsUserField('user_id') || isAdmin();
+    }
+    match /listing_favorites/{docId} {
+      allow read, write: if ownsUserField('user_id') || willOwnUserField('user_id') || isAdmin();
+    }
+    match /seller_ratings/{docId} {
+      allow read: if signedIn();
+      allow create: if willOwnUserField('reviewer_id') || willOwnUserField('user_id');
+      allow update, delete: if isAdmin();
+    }
+
+    // ---------- invites / friend drops ----------
+    match /invites/{docId} {
+      allow read: if signedIn();
+      allow create: if willOwnUserField('inviter_id') || willOwnUserField('user_id');
+      allow update, delete: if ownsUserField('inviter_id') || ownsUserField('user_id') || isAdmin();
+    }
+    match /friend_drops/{docId} {
+      allow read: if signedIn();
+      allow create: if willOwnUserField('sender_id') || willOwnUserField('user_id');
+      allow update, delete: if ownsUserField('sender_id') || ownsUserField('user_id') || isAdmin();
+    }
+    match /reports/{docId} {
+      allow create: if signedIn();
+      allow read, update, delete: if isAdmin();
     }
 
     // ---------- social: follows / blocks / friend requests ----------
@@ -206,20 +310,20 @@ service cloud.firestore {
     // ---------- stories ----------
     match /stories/{id} {
       allow read: if signedIn();
-      allow create: if willOwn('author_id');
-      allow update, delete: if isOwner('author_id') || isAdmin();
+      allow create: if willOwnProfile('author_id');
+      allow update, delete: if isOwnerProfile('author_id') || isAdmin();
     }
     match /story_views/{id} {
-      allow read: if signedIn() && (resource.data.viewer_id == uid() || isAdmin());
-      allow create: if willOwn('viewer_id');
+      allow read: if signedIn() && (ownsProfileId(resource.data.viewer_id) || isAdmin());
+      allow create: if willOwnProfile('viewer_id');
     }
 
     // ---------- notifications / push tokens ----------
     match /notifications/{id} {
-      allow read: if isOwner('user_id') || isAdmin();
-      allow update: if isOwner('user_id'); // mark as read
+      allow read: if ownsUserField('user_id') || isAdmin();
+      allow update: if ownsUserField('user_id'); // mark as read
       allow create: if isAdmin(); // Cloud Functions only via admin SDK
-      allow delete: if isOwner('user_id') || isAdmin();
+      allow delete: if ownsUserField('user_id') || isAdmin();
     }
     match /push_tokens/{id} {
       allow read, write: if isOwnerProfile('user_id') || willOwnProfile('user_id') ||

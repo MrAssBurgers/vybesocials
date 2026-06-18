@@ -66,17 +66,34 @@ async function rpcBumpPostImpression(params: Record<string, unknown>) {
 }
 
 async function rpcEnsureUserLevel() {
+  const uid = await currentAuthUid();
   const profileId = await currentProfileId();
-  if (!profileId) return null;
-  const existing = await getDocument('user_levels', profileId);
-  if (existing) return existing;
+  if (!uid || !profileId) return null;
+
+  const byAuth = await getDocuments<Record<string, unknown>>('user_levels', [
+    where('user_id', '==', uid),
+    firestoreLimit(1),
+  ]);
+  if (byAuth[0]) return byAuth[0];
+
+  const byProfile = await getDocuments<Record<string, unknown>>('user_levels', [
+    where('user_id', '==', profileId),
+    firestoreLimit(1),
+  ]);
+  if (byProfile[0]) return byProfile[0];
+
+  const byDocId = await getDocument('user_levels', profileId);
+  if (byDocId) return byDocId;
+
   const row = {
     id: profileId,
-    user_id: profileId,
-    level: 1,
-    xp: 0,
+    user_id: uid,
+    profile_id: profileId,
+    current_level: 1,
     total_xp: 0,
+    unclaimed_rewards: [],
     created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
   };
   await setDocument('user_levels', profileId, row);
   return row;

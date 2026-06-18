@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useState, useRef, ReactNode } from 'react';
 import type { User, Session } from '@/lib/firebase';
 import { db } from '@/lib/firebase';
-import { updateUserProfile } from '@/lib/firebase/users';
+import { updateUserProfile, getProfileByAuthUid } from '@/lib/firebase/users';
 import { BannedScreen } from '@/components/auth/BannedScreen';
 import { MemeBanScreen } from '@/components/auth/MemeBanScreen';
 import { setCachedProfile, setCachedCurrentProfile, getCachedCurrentProfile, clearCachedCurrentProfile, clearProfileCache, setActiveAuthUserId, isRawId, stripStaleOnboardingFlagFromDisk, type CachedProfile } from '@/lib/profileCache';
@@ -347,6 +347,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const maxRetries = 2;
     
     try {
+      const indexed = await getProfileByAuthUid(userId);
+      if (indexed?.id) {
+        const profileData = indexed as unknown as Profile;
+        setProfile(profileData);
+        persistCurrentProfile(profileData);
+        checkBanStatus(profileData.id);
+        subscribeToBanChanges(profileData.id);
+        return profileData;
+      }
+
       // Prefer array result to avoid throwing when the row doesn't exist
       const { data, error } = await db
         .from('profiles')
@@ -511,6 +521,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const isFreshSignIn = authEvent === 'SIGNED_IN';
 
         try {
+          await db.rpc('claim_profile_by_email');
           const profileId = await resolveSessionProfileId(undefined);
           if (profileId && qc) {
             qc.setQueryData(['session-profile-id', userId], profileId);
