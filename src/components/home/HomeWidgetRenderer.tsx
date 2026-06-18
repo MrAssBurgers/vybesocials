@@ -205,7 +205,7 @@ function WidgetContent({ id, props }: { id: string; props: Props }) {
     case 'ai_brief':
       return <DailyBriefWidget />;
     case 'stories':
-      return <StoriesBar colSpan={colSpan} rowSpan={rowSpan} />;
+      return <StoriesBar colSpan={colSpan} rowSpan={1} />;
     case 'weekly_rhythm':
       return <WeeklyRhythmBanner />;
     case 'vybe_dna':
@@ -613,7 +613,8 @@ export function HomeWidgetRenderer(props: Props) {
             transition={{ type: 'spring', damping: 28, stiffness: 350 }}
             className={cn(
               w?.colSpan === 2 ? 'col-span-2' : 'col-span-1',
-              w?.rowSpan === 2 ? 'row-span-2' : 'row-span-1',
+              w?.rowSpan === 2 && id !== 'stories' ? 'row-span-2' : 'row-span-1',
+              id === 'stories' && 'h-fit self-start',
             )}
           >
             {isEager ? content : <LazyWidget>{content}</LazyWidget>}

@@ -350,22 +350,6 @@ export function computeStoryPosterDimensions(
 
   let height = Math.round(width / aspect);
 
-  // Tall grid cells — grow poster to use available height
-  if (containerHeight && containerHeight > height + 40) {
-    const maxH = Math.min(containerHeight - 36, 240);
-    if (maxH > height) {
-      height = maxH;
-      width = Math.round(height * aspect);
-      if (containerWidth) {
-        const maxW = containerWidth - 16;
-        if (width > maxW) {
-          width = maxW;
-          height = Math.round(width / aspect);
-        }
-      }
-    }
-  }
-
   const borderRadius = Math.max(14, Math.round(width * 0.2));
   return { width, height, borderRadius };
 }

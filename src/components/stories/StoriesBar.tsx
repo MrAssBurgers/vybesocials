@@ -47,7 +47,7 @@ export const StoriesBar = memo(function StoriesBar({
     }
     const update = () => {
       setPosterSize(
-        computeStoryPosterDimensions(colSpan, rowSpan, el.clientWidth, el.clientHeight),
+        computeStoryPosterDimensions(colSpan, rowSpan, el.clientWidth),
       );
     };
     update();
@@ -76,10 +76,10 @@ export const StoriesBar = memo(function StoriesBar({
     ? getStoryPosterUrl(ownStoryGroup.stories[0])
     : null;
 
-  const isTall = rowSpan === 2;
   const emptyAvatarInset = 6;
 
-  const promptStorySignIn = () => {    toast.error('Sign in to post stories');
+  const promptStorySignIn = () => {
+    toast.error('Sign in to post stories');
     navigate('/?mode=login');
   };
 
@@ -88,9 +88,8 @@ export const StoriesBar = memo(function StoriesBar({
       <div
         ref={containerRef}
         className={cn(
-          'flex gap-3 px-3 py-3 overflow-x-auto scrollbar-hide w-full min-w-0',
+          'flex gap-3 px-3 py-1.5 overflow-x-auto scrollbar-hide w-full min-w-0',
           colSpan === 2 ? 'justify-start' : 'justify-center items-center',
-          isTall && 'items-center min-h-[200px]',
         )}
         data-tutorial="stories"
       >
