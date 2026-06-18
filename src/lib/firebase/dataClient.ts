@@ -461,17 +461,32 @@ async function ensureFounderOwnerRoles(profileId: string): Promise<void> {
   }
 }
 
+async function rpcClaimProfileByEmail(): Promise<string | null> {
+  const { data, error } = await invokeFunction<{ profileId?: string | null; claimed?: boolean }>(
+    'claimProfileByEmail',
+  );
+  if (error) {
+    console.warn('[rpc] claimProfileByEmail failed:', error.message);
+    return null;
+  }
+  return data?.profileId ?? null;
+}
+
 async function rpcEnsureProfile(): Promise<string | null> {
   const { data: { user } } = await firebaseAuth.getUser();
   if (!user) return null;
 
+  const claimedId = await rpcClaimProfileByEmail();
+  if (claimedId) {
+    const claimed = await getDocument<UserProfile>('profiles', claimedId);
+    if (claimed?.id) {
+      await ensureFounderOwnerRoles(claimed.id);
+      return claimed.id;
+    }
+  }
+
   const existing = await getProfileByAuthUid(user.id);
   if (existing?.id) {
-    await setDocument('user_auth_index', user.id, {
-      profile_id: existing.id,
-      username: existing.username || null,
-      updated_at: new Date().toISOString(),
-    });
     await ensureFounderOwnerRoles(existing.id);
     return existing.id;
   }
@@ -489,13 +504,8 @@ async function rpcEnsureProfile(): Promise<string | null> {
     avatar_url: null,
     bio: '',
     onboarding_completed: false,
+    email: user.email || null,
     created_at: new Date().toISOString(),
-  });
-
-  await setDocument('user_auth_index', user.id, {
-    profile_id: user.id,
-    username,
-    updated_at: new Date().toISOString(),
   });
 
   await ensureFounderOwnerRoles(user.id);
@@ -615,7 +625,7 @@ const CLIENT_RPC: Record<string, (params: Record<string, unknown>) => Promise<un
     await syncProfileUsername(user.id, desired);
     return desired;
   },
-  claim_profile_by_email: async () => rpcEnsureProfile(),
+  claim_profile_by_email: async () => rpcClaimProfileByEmail(),
   is_username_available: async (p) => rpcIsUsernameAvailable(String(p.username || p._username || '')),
   create_dm_conversation: async (p) => rpcCreateDmConversation(String(p.other_profile_id || '')),
   get_public_user_count: async () => rpcGetPublicUserCount(),

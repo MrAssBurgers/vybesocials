@@ -1,6 +1,7 @@
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { db, auth, requireAuth, requireAdmin, rateLimit, enforceRateLimit } from './_shared/admin.js';
 import { sendPasswordResetEmail, type PasswordResetSendProvider } from './_shared/passwordResetEmail.js';
+import { claimProfileByEmailForUid } from './_shared/claimProfileByEmail.js';
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -52,6 +53,13 @@ export const requestPasswordReset = onCall({ cors: true }, async (request) => {
   });
 
   return { ok: true, message: 'If that email exists, we sent a reset link.' };
+});
+
+/** Link OAuth / new auth uid to migrated profile by email (restores DMs, posts, etc.). */
+export const claimProfileByEmail = onCall({ cors: true }, async (request) => {
+  const uid = requireAuth(request);
+  const result = await claimProfileByEmailForUid(uid);
+  return { profileId: result.profileId, claimed: result.claimed };
 });
 
 /** auth-2fa-request — issue a 6-digit code (email channel). */

@@ -1,9 +1,17 @@
 import { getDocument, getDocuments, where, firestoreLimit } from './firestoreDb';
 import type { UserProfile } from './types';
 
-/** Migrated rows use profiles.id as doc id; user_id holds Firebase Auth uid. */
+type AuthIndexRow = { profile_id?: string };
+
+/** Migrated rows use profiles.id as doc id; user_auth_index maps auth uid → profile id. */
 export async function getProfileByAuthUid(authUid: string): Promise<UserProfile | null> {
   if (!authUid) return null;
+
+  const index = await getDocument<AuthIndexRow>('user_auth_index', authUid);
+  if (index?.profile_id) {
+    const byIndex = await getDocument<UserProfile>('profiles', index.profile_id);
+    if (byIndex) return byIndex;
+  }
 
   const byUserId = await getDocuments<UserProfile>('profiles', [
     where('user_id', '==', authUid),

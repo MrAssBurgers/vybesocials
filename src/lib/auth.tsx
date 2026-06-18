@@ -390,11 +390,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return fetchProfile(userId, retryCount + 1);
       }
 
-      console.log('[Auth] Profile not found, calling ensure_profile...');
+      console.log('[Auth] Profile not found, claiming by email then ensure_profile...');
+      const { data: claimedId } = await db.rpc('claim_profile_by_email');
+      if (claimedId) {
+        const { data: claimedRows } = await db
+          .from('profiles')
+          .select('id, user_id, username, avatar_url, bio, created_at, display_name, link_url, location, is_private, is_verified, interests, language, timezone, coins_balance, onboarding_completed, tutorial_completed, tutorial_skipped, intro_completed, badge_settings, referral_inviter_id')
+          .eq('user_id', userId)
+          .limit(1);
+        if (claimedRows?.[0]) {
+          const profileData = claimedRows[0] as unknown as Profile;
+          setProfile(profileData);
+          persistCurrentProfile(profileData);
+          checkBanStatus(profileData.id);
+          subscribeToBanChanges(profileData.id);
+          return profileData;
+        }
+      }
+
       let { error: ensureError } = await db.rpc('ensure_profile');
       if (ensureError) {
-        console.log('[Auth] ensure_profile failed, trying claim_profile_by_email...', ensureError.message);
-        ({ error: ensureError } = await db.rpc('claim_profile_by_email'));
+        console.log('[Auth] ensure_profile failed, retrying claim_profile_by_email...', ensureError.message);
+        await db.rpc('claim_profile_by_email');
+        ({ error: ensureError } = await db.rpc('ensure_profile'));
       }
 
       if (ensureError) {
@@ -758,10 +776,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
     window.addEventListener('pageshow', onPageShow);
 
-    // Try to extract hash tokens first (redirect OAuth flow on mobile/tablet).
-    // If successful, onAuthStateChange will fire with the session.
-    // If not, fall through to normal getSession() flow.
-    extractHashTokens().then((extracted) => {
+    // Firebase Google/Apple redirect (mobile + native WebView), then legacy hash tokens.
+    void (async () => {
+      try {
+        const { firebaseAuth } = await import('@/lib/firebase/authService');
+        const redirect = await firebaseAuth.completeOAuthRedirectIfNeeded();
+        if (redirect.data.session?.user) {
+          sessionStorage.removeItem('vybe-oauth-pending');
+          void db.rpc('claim_profile_by_email');
+          authInitializedRef.current = true;
+          setLoading(false);
+          setIsInitialized(true);
+          return;
+        }
+      } catch (err) {
+        console.warn('[Auth] Firebase OAuth redirect handling failed:', err);
+      }
+
+      const extracted = await extractHashTokens();
       if (extracted) {
         authInitializedRef.current = true;
         setLoading(false);
@@ -901,7 +933,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         window.clearTimeout(getSessionTimeout);
         void handleGetSession(result);
       });
-    });
+    })();
     // Cleanup on unmount
     return () => {
       document.removeEventListener('visibilitychange', resumeRefresh);

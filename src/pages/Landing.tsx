@@ -13,6 +13,7 @@ import { toast } from 'sonner';
 import { getUserFriendlyError } from '@/lib/errorUtils';
 import { Eye, EyeOff, Mail } from 'lucide-react';
 import { isNativeAppShell } from '@/lib/despiaBridge';
+import { isMobileOrTabletDevice } from '@/lib/deviceDetection';
 import { db } from '@/lib/firebase';
 import { lovable } from '@/integrations/lovable/index';
 import { VYBELogo } from '@/components/ui/VYBELogo';
@@ -402,7 +403,7 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ duration: 0.3, delay: 0.15 }}
-        className="min-h-screen bg-background flex items-center justify-center"
+        className="min-h-screen bg-[#0B0B10] flex items-center justify-center"
       >
         <div className="flex flex-col items-center gap-3">
           <div className="w-8 h-8 rounded-full border-[3px] border-primary/30 border-t-primary animate-spin" />
@@ -768,15 +769,21 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
                   onClick={async () => {
                     setLoading(true);
                     try {
+                      sessionStorage.setItem('vybe-oauth-pending', 'true');
+                      const preferRedirect = isNativeAppShell() || isMobileOrTabletDevice();
                       const { firebaseAuth } = await import('@/lib/firebase');
-                      const { error } = await firebaseAuth.signInWithOAuth('google', {
+                      const { error, redirected } = await firebaseAuth.signInWithOAuth('google', {
                         extraParams: { prompt: 'select_account' },
+                        useRedirect: preferRedirect,
                       });
+                      if (redirected) return;
                       if (error) throw error;
-                      // Popup closed successfully — onAuthStateChanged will pick it up
+                      await db.rpc('claim_profile_by_email');
+                      navigate(resolvePostLoginDestination(profile), { replace: true });
                     } catch (error: any) {
                       const msg = getUserFriendlyError(error);
                       if (msg !== '__SUPPRESS__') toast.error(msg);
+                    } finally {
                       setLoading(false);
                     }
                   }}
@@ -798,12 +805,20 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
                   onClick={async () => {
                     setLoading(true);
                     try {
+                      sessionStorage.setItem('vybe-oauth-pending', 'true');
+                      const preferRedirect = isNativeAppShell() || isMobileOrTabletDevice();
                       const { firebaseAuth } = await import('@/lib/firebase');
-                      const { error } = await firebaseAuth.signInWithOAuth('apple');
+                      const { error, redirected } = await firebaseAuth.signInWithOAuth('apple', {
+                        useRedirect: preferRedirect,
+                      });
+                      if (redirected) return;
                       if (error) throw error;
+                      await db.rpc('claim_profile_by_email');
+                      navigate(resolvePostLoginDestination(profile), { replace: true });
                     } catch (error: any) {
                       const msg = getUserFriendlyError(error);
                       if (msg !== '__SUPPRESS__') toast.error(msg);
+                    } finally {
                       setLoading(false);
                     }
                   }}

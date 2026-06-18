@@ -12,6 +12,7 @@ import {
   OAuthProvider,
   signInWithPopup,
   signInWithRedirect,
+  getRedirectResult,
   type User as FirebaseUser,
 } from 'firebase/auth';
 import { getFirebaseApp } from './app';
@@ -252,6 +253,22 @@ export const firebaseAuth = {
       const result = await signInWithPopup(auth, authProvider);
       const session = await toVybeSession(result.user);
       return { data: { session }, error: null };
+    } catch (err) {
+      return { data: { session: null }, error: toAuthError(err) };
+    }
+  },
+
+  /** Complete Google/Apple redirect sign-in after page reload (mobile / native WebView). */
+  async completeOAuthRedirectIfNeeded(): Promise<{
+    data: { session: VybeSession | null };
+    error: VybeAuthError | null;
+  }> {
+    const auth = resolveAuth();
+    if (!auth) return { data: { session: null }, error: NOT_CONFIGURED };
+    try {
+      const result = await getRedirectResult(auth);
+      if (!result?.user) return { data: { session: null }, error: null };
+      return { data: { session: await toVybeSession(result.user) }, error: null };
     } catch (err) {
       return { data: { session: null }, error: toAuthError(err) };
     }

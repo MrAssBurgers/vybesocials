@@ -42,7 +42,7 @@ export async function resolveSessionProfileId(
 
       // Signed-in users may lack a profiles row (signup trigger lag) — ensure_profile creates it.
       if (!data?.id) {
-        await db.rpc('ensure_profile');
+        await db.rpc('claim_profile_by_email');
         ({ data, error } = await loadProfile());
       }
 

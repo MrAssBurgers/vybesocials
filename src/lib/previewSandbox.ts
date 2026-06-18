@@ -10,6 +10,9 @@ export const LEGACY_FOUNDER_AUTH_ID = '703760a8-1245-4fc1-b242-32619ecc0ef3';
 /** Firebase Auth UID for mrassburgers / barron.bakic@gmail.com (vybe-daaab). */
 export const FIREBASE_FOUNDER_AUTH_ID = '703760a8-1245-4fc1-b242-32619ecc0ef3';
 
+/** Migrated mrassburgers profile id (live Firestore). */
+export const FIREBASE_FOUNDER_PROFILE_ID = 'e78010f2-d5f1-428b-b5df-8fc6b768772d';
+
 /** Lovable preview uses the same Firebase project and rules as vybehub.app — not a sandbox. */
 export function isPreviewSandbox(): boolean {
   return false;
@@ -56,6 +59,7 @@ export function isFounderAuthId(userId: string | null | undefined): boolean {
     userId === LEGACY_FOUNDER_AUTH_ID ||
     userId === FIREBASE_FOUNDER_AUTH_ID ||
     userId === '53e0076d-5163-46f5-b711-a58a03393744' ||
-    userId === 'oXZZXoceCdOaCKekqNrDhCfJ90M2'
+    userId === 'oXZZXoceCdOaCKekqNrDhCfJ90M2' ||
+    userId === FIREBASE_FOUNDER_PROFILE_ID
   );
 }
