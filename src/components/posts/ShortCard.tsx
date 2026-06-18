@@ -18,6 +18,7 @@ import { useAuth } from '@/lib/auth';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { useUserRole } from '@/hooks/useModeration';
+import { isModOrAdminRole } from '@/lib/adminAccess';
 import { useUserRoleById } from '@/hooks/useUserRoleById';
 import { useSignedUrl } from '@/hooks/useSignedUrl';
 import { MediaFallback, MediaSkeleton } from '@/components/ui/MediaFallback';
@@ -252,7 +253,7 @@ export const ShortCard = memo(function ShortCard({ post, isActive, globalMuted =
   if (isHidden) return null;
 
   const isOwnPost = profile?.id === post.author.id;
-  const isAdmin = userRole === 'admin' || userRole === 'moderator';
+  const isAdmin = isModOrAdminRole(userRole);
   // Only the author sees the personal "Delete" item. Mods use Mod Actions →
   // "Delete Post (Mod)" so they never see two delete buttons on the same clip.
   const canDelete = isOwnPost;

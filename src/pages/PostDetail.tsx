@@ -7,6 +7,7 @@ import { ReactionType } from '@/lib/reactions';
 import { useIsModOrAdmin, ModeratorMenuItems, ModeratorDialogs } from '@/components/moderation/ModeratorActionsMenu';
 import { PremiumMemeBanMenuItem, PremiumMemeBanDialog } from '@/components/premium/PremiumMemeBanItems';
 import { useUserRole } from '@/hooks/useModeration';
+import { isModOrAdminRole } from '@/lib/adminAccess';
 import { EditPostDialog } from '@/components/posts/EditPostDialog';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { db } from '@/lib/firebase';
@@ -323,7 +324,7 @@ export default function PostDetailPage() {
   const deleteComment = useDeleteComment();
 
   const isOwnPost = profile?.id === post?.author?.id;
-  const isAdmin = userRole === 'admin' || userRole === 'moderator';
+  const isAdmin = isModOrAdminRole(userRole);
   const canDelete = isOwnPost || isAdmin;
 
   const captionText = (post?.caption || '').trim();

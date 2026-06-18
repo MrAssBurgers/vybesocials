@@ -189,7 +189,7 @@ export default function InviteFriends() {
                 {currentCount}/{nextMilestone.count}
               </span>
             </div>
-            <Progress value={progress} className="h-2" />
+            <Progress value={progress} className="h-2 gradient-animated" />
           </div>
           
           {/* Milestones */}
@@ -201,7 +201,7 @@ export default function InviteFriends() {
                   key={milestone.count}
                   className={`p-3 rounded-xl text-center transition-all ${
                     achieved 
-                      ? 'bg-primary/20 border border-primary/30' 
+                      ? 'gradient-animated border border-primary/30 shadow-[0_0_20px_-6px_hsl(var(--primary)/0.45)]' 
                       : 'bg-muted/30 opacity-60'
                   }`}
                 >

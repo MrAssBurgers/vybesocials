@@ -1985,6 +1985,15 @@ body.has-liquid-bg:not(.has-custom-bg) .dm-sidebar {
     perspective-origin: center center;
   }
 
+  /* During scroll, keep a solid surface behind transparent shells so aurora
+     pause does not flash through to black body. */
+  html.is-scrolling body.has-liquid-bg [data-app-shell],
+  html.is-scrolling body.has-liquid-bg [data-route-shell],
+  html.is-scrolling body.has-liquid-bg #main-content,
+  html.is-scrolling body.has-liquid-bg [data-app-scroll-container="true"] {
+    background-color: hsl(var(--background)) !important;
+  }
+
   /* Pause aurora layers during scroll — include pseudo-elements */
   .is-scrolling .gradient-animated,
   .is-scrolling .gradient-animated::before,

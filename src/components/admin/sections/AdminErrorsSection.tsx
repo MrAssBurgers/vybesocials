@@ -37,21 +37,28 @@ export function AdminErrorsSection() {
         .from('bug_reports')
         .select('id, error_message, page_url, status, created_at, ai_analysis, ai_severity, reporter_id')
         .order('created_at', { ascending: false })
-        .limit(50);
+        .limit(80);
 
       if (filter !== 'all') {
         query = query.eq('status', filter);
       }
-      if (verifiedOnly) {
-        query = query.not('ai_analysis', 'is', null).in('ai_severity', ['medium', 'high', 'critical']);
-        if (filter === 'all') query = query.neq('status', 'fixed');
-      }
 
       const { data: rows, error: queryError } = await query;
       if (queryError) throw queryError;
-      if (!rows?.length) return [];
 
-      const reporterIds = [...new Set(rows.map((r) => r.reporter_id).filter(Boolean))];
+      let filtered = rows || [];
+      if (verifiedOnly) {
+        filtered = filtered.filter(
+          (row) =>
+            row.ai_analysis != null &&
+            ['medium', 'high', 'critical'].includes(String(row.ai_severity || '')) &&
+            (filter === 'all' ? row.status !== 'fixed' : true),
+        );
+      }
+
+      if (!filtered.length) return [];
+
+      const reporterIds = [...new Set(filtered.map((r) => r.reporter_id).filter(Boolean))];
       const { data: profiles } = reporterIds.length
         ? await db
             .from('profiles')
@@ -61,7 +68,7 @@ export function AdminErrorsSection() {
 
       const profileById = new Map((profiles || []).map((p) => [p.id, p]));
 
-      return rows.map((row) => ({
+      return filtered.map((row) => ({
         ...row,
         reporter: profileById.get(row.reporter_id) ?? null,
       }));

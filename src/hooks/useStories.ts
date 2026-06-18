@@ -189,6 +189,8 @@ export function useCreateStory() {
         aspect_ratio: aspectRatio || 0.5625,
         duration: duration,
         poll_data: pollData || null,
+        view_count: 0,
+        expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
       };
 
       const storySelect = `
@@ -365,9 +367,8 @@ export function useCreateStory() {
     },
     onSettled: (_data, _error, _vars, context) => {
       const cacheKey = context?.authorId ?? storiesProfileId;
-      void queryClient.invalidateQueries({ queryKey: ['stories'], refetchType: 'all' });
       if (cacheKey) {
-        void queryClient.refetchQueries({ queryKey: ['stories', cacheKey] });
+        void queryClient.invalidateQueries({ queryKey: ['stories', cacheKey], refetchType: 'active' });
       }
     },
   });

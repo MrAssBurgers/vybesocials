@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 import { VybeMiniIcon } from '@/components/ui/VybeMiniIcon';
 import { useUserRole } from '@/hooks/useModeration';
+import { isModOrAdminRole } from '@/lib/adminAccess';
 import { usePremiumStatus } from '@/hooks/usePremiumStatus';
 import { Button } from '@/components/ui/button';
 import { 
@@ -97,7 +98,7 @@ export const Toybox = memo(function Toybox({
 }: ToyboxProps) {
   const { data: userRole } = useUserRole();
   const { isPremium } = usePremiumStatus();
-  const isModOrAdmin = userRole === 'admin' || userRole === 'moderator';
+  const isModOrAdmin = isModOrAdminRole(userRole);
   const isMobile = useIsMobile();
   const [isOpen, setIsOpen] = useState(false);
   const [showGifPicker, setShowGifPicker] = useState(false);

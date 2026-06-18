@@ -4,6 +4,12 @@ Use this file as the Lovable -> Cursor handoff each session.
 
 **Links:** [Lovable project](https://lovable.dev/projects/416714c8-d013-4aff-984d-522418a9bbc7) · [Production](https://vybehub.app) · Deploy steps: `DEPLOY.md`
 
+## Current Focus (2026-06-18 — Lovable publish verified)
+- **Publish verified (2026-06-18 ~19:17 UTC):** vybehub.app **live** — new deployment `b4009fb3-…`, `app.js` etag `a7d82620…` (was stale `0208ab60…`)
+- **Prod probes:** index + app.js HTTP 200; `get_public_user_count` RPC OK; `/despia/local.json` 200
+- **Backend:** Firestore social rules deployed (likes, friends, DMs); 152/152 users, 2404/2404 refs
+- **You:** Hard refresh once on phone; smoke-test likes, friend requests, DMs, upload
+
 ## Current Focus (2026-06-18 — social polish deep scan)
 - **Scan (2026-06-18 ~18:35 UTC):** `npm run backend:scan` — **15 pass, 4 warn, 0 fail** (after social rules fix)
 - **Critical fixes deployed:** Firestore rules for **`likes`** (was deny-all — likes/reactions broken), **`friend_requests`** (`receiver_id` not `recipient_id`), **`message_requests`**, **`sounds`**, **`vybe_dna`**, **`gifted_premium`** (`user_id`/`gifted_by`); Storage **`announcements`** bucket for admin uploads

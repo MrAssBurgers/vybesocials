@@ -26,6 +26,7 @@ import {
 } from '@/components/ui/select';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useUserRole } from '@/hooks/useModeration';
+import { isModOrAdminRole } from '@/lib/adminAccess';
 import { useWarnUser, useBanUser } from '@/hooks/useModerationActions';
 import { useAuth } from '@/lib/auth';
 import { db } from '@/lib/firebase';
@@ -46,7 +47,7 @@ interface ModeratorActionsMenuProps {
 // Hook to check if user is mod/admin
 export function useIsModOrAdmin() {
   const { data: userRole } = useUserRole();
-  return userRole === 'admin' || userRole === 'moderator';
+  return isModOrAdminRole(userRole);
 }
 
 // Inline menu items component - to be used inside existing DropdownMenuContent

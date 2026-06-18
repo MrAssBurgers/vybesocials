@@ -34,6 +34,7 @@ import { ModBadge } from '@/components/ui/ModBadge';
 import { useTogglePin, PIN_LIMIT } from '@/hooks/usePosts';
 import { usePinnedPostCount } from '@/hooks/usePinnedPostCount';
 import { useUserRole } from '@/hooks/useModeration';
+import { isModOrAdminRole } from '@/lib/adminAccess';
 import { useUserRoleById } from '@/hooks/useUserRoleById';
 import { useFastSignedUrl } from '@/hooks/useFastSignedUrl';
 import { useIsModOrAdmin, ModeratorMenuItems, ModeratorDialogs } from '@/components/moderation/ModeratorActionsMenu';
@@ -370,7 +371,7 @@ export const PostCard = memo(function PostCard({ post, eager = false }: PostCard
 
   // Memoize computed values
   const isOwnPost = useMemo(() => profile?.id === post.author.id, [profile?.id, post.author.id]);
-  const isAdmin = useMemo(() => userRole === 'admin' || userRole === 'moderator', [userRole]);
+  const isAdmin = useMemo(() => isModOrAdminRole(userRole), [userRole]);
   const { data: pinnedCount = 0 } = usePinnedPostCount(isOwnPost ? profile?.id : undefined);
   const atPinCap = isOwnPost && !post.is_pinned && pinnedCount >= PIN_LIMIT;
   // Only the author sees the personal "Delete Post" item. Mods use Mod Actions →

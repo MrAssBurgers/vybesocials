@@ -465,18 +465,18 @@ export function StoryCreator({ onClose }: StoryCreatorProps) {
               </button>
             )}
 
-            {/* Upload overlay */}
+            {/* Upload overlay — full preview frame */}
             <AnimatePresence>
               {isProcessing && (
                 <motion.div
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   exit={{ opacity: 0 }}
-                  className="absolute inset-0 bg-black/60 flex flex-col items-center justify-center gap-4"
+                  className="absolute inset-0 z-20 bg-black/70 flex flex-col items-center justify-center gap-4 px-6"
                 >
                   <Loader2 className="h-10 w-10 text-white animate-spin" />
-                  <p className="text-white font-medium">{getStatusText()}</p>
-                  <div className="w-48">
+                  <p className="text-white font-medium text-center">{getStatusText()}</p>
+                  <div className="w-full max-w-xs">
                     <Progress value={uploadProgress} className="h-2" />
                   </div>
                 </motion.div>
@@ -592,7 +592,7 @@ export function StoryCreator({ onClose }: StoryCreatorProps) {
 
       {/* Footer */}
       {preview && uploadState !== 'error' && (
-        <div className="p-4 space-y-4">
+        <div className="p-4 pb-[max(1rem,env(safe-area-inset-bottom))] space-y-4 flex-shrink-0">
           {/* Close friends toggle */}
           <div className="flex items-center justify-between bg-white/10 rounded-lg p-4">
             <div className="flex items-center gap-3">

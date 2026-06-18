@@ -12,6 +12,7 @@ import { Label } from '@/components/ui/label';
 import { useListing, useToggleFavorite, useListingFavorites, LISTING_CATEGORIES, LISTING_CONDITIONS, useDeleteListing, useSellerRating } from '@/hooks/useMarketplace';
 import { useRealtimeListings } from '@/hooks/useRealtimeListings';
 import { useUserRole } from '@/hooks/useModeration';
+import { isModOrAdminRole } from '@/lib/adminAccess';
 import { useSellerPaymentMethods } from '@/hooks/useMarketplacePayments';
 import { PaymentSheet } from '@/components/marketplace/PaymentSheet';
 import { useAuth } from '@/lib/auth';
@@ -42,7 +43,7 @@ export default function ListingDetailPage() {
   const [isDeleting, setIsDeleting] = useState(false);
   
   const { data: userRole } = useUserRole();
-  const isAdminOrMod = userRole === 'admin' || userRole === 'moderator';
+  const isAdminOrMod = isModOrAdminRole(userRole);
   
   // Enable real-time updates
   useRealtimeListings();

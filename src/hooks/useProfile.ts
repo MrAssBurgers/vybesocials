@@ -3,6 +3,16 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/lib/auth';
 import { setCachedProfile } from '@/lib/profileCache';
 
+/** Supabase RPCs return row arrays; Firebase client fallbacks may return a single object. */
+function firstProfileRow(data: unknown): Record<string, unknown> | null {
+  if (!data) return null;
+  if (Array.isArray(data)) return (data[0] as Record<string, unknown>) ?? null;
+  if (typeof data === 'object' && data !== null && 'id' in data) {
+    return data as Record<string, unknown>;
+  }
+  return null;
+}
+
 interface Profile {
   id: string;
   user_id: string;
@@ -47,12 +57,13 @@ export function useProfileById(profileId: string | undefined) {
         profile = data as unknown as Profile;
       } else {
         const { data: rows, error } = await db.rpc('get_profile_by_id', { target_id: profileId });
-        if (error || !rows?.[0]) {
+        const row = firstProfileRow(rows);
+        if (error || !row) {
           console.warn('[useProfileById] Profile not found:', profileId, error?.message);
           return null;
         }
         profile = {
-          ...rows[0],
+          ...row,
           follower_count: 0,
           following_count: 0,
           post_count: 0,
@@ -114,12 +125,12 @@ export function useProfileByUsername(username: string) {
       const { data: profiles, error } = await db
         .rpc('get_profile_by_username', { target_username: trimmedUsername });
 
-      let profile = profiles?.[0];
+      let profile = firstProfileRow(profiles);
       
       // If not found and looks like a UUID, try ID lookup via RPC (works for guests)
       if (!profile && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(trimmedUsername)) {
         const { data: idProfiles } = await db.rpc('get_profile_by_id', { target_id: trimmedUsername });
-        if (idProfiles?.[0]) profile = idProfiles[0];
+        profile = firstProfileRow(idProfiles);
       }
       
       if (error && !profile) {
