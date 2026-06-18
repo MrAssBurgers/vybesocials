@@ -4,6 +4,11 @@ Use this file as the Lovable -> Cursor handoff each session.
 
 **Links:** [Lovable project](https://lovable.dev/projects/416714c8-d013-4aff-984d-522418a9bbc7) · [Production](https://vybehub.app) · Deploy steps: `DEPLOY.md`
 
+## Publish prep (2026-06-18)
+- **Ready:** `37d2dc45` on `main` (pushed) — auth/DM/profile post-publish fixes
+- **Local build:** `npm run build` PASS — `dist/assets/app.js` md5 `6f70abe15f885eaa7332e2e5873b996e` (compare after Lovable Publish)
+- **You:** [Lovable → Share → Publish](https://lovable.dev/projects/416714c8-d013-4aff-984d-522418a9bbc7) then hard refresh / clear site data once
+
 ## Current Focus (2026-06-18 — post-publish bug fixes)
 - **Root causes:** (1) OAuth redirect marked `authReady` without hydrating user/session → login loop; (2) migrated users had Firebase auth uid used as `profile.id` in cache → DMs empty + wrong lookups; (3) profile RPC returned object not array → "Profile not found"; (4) admin bug reports used multiple Firestore `!=` filters; (5) `aiChat` needed redeploy with `GEMINI_API_KEY` secret
 - **Client fixes:** OAuth session hydrate in `auth.tsx`; profile-id resolution in `useAuthProfileId` / `useDMConversations`; profile lookup fallbacks + case-insensitive username in `useProfile.ts` / `users.ts`; admin bug query client-side filter; story upload UI clipping; scroll black flicker CSS; invite gradient styling; admin mod role via `isModOrAdminRole`
