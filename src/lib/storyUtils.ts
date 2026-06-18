@@ -348,7 +348,7 @@ export function computeStoryPosterDimensions(
     }
   }
 
-  let height = Math.round(width / aspect);
+  const height = Math.round(width / aspect);
 
   const borderRadius = Math.max(14, Math.round(width * 0.2));
   return { width, height, borderRadius };

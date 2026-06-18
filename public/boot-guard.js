@@ -140,6 +140,11 @@
     if (root.querySelector('[data-vybe-boot-screen]')) return true;
     if (isSplashVisible()) return true;
 
+    var shell = document.getElementById('app-shell');
+    if (shell && shell.querySelector('[data-route-shell], #main-content, [data-auth-shell], main, nav[aria-label]')) {
+      return true;
+    }
+
     if (root.querySelector('input, textarea, button, a[href], img, video, canvas, [data-route-shell], #main-content, [data-auth-shell]')) {
       return true;
     }

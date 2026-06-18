@@ -93,6 +93,7 @@ import { SnapARProvider } from "@/components/camera/SnapARProvider";
 import { ATT_RESUME_EVENT, ensureAppShellVisible } from "@/lib/attResumeRecovery";
 import { syncNativeTrackingConsent } from "@/lib/att";
 import { readSplashCompleted, markSplashCompleted } from "@/lib/splashSession";
+import { resetSplashSessionOnHardReload, waitForAppShellPaint, hasAppShellPaint } from "@/lib/navigationBoot";
 import { navVisibility } from "@/lib/navVisibility";
 import { markBootComplete } from "@/lib/bootGuard";
 import { ShellVisibilityGuard } from "@/components/system/ShellVisibilityGuard";
@@ -206,25 +207,32 @@ function ScrollRestoration() {
 const BanCheck = lazy(() => import("@/components/app/BanCheck"));
 
 // Track if initial load has completed (persists across navigations in this tab)
+resetSplashSessionOnHardReload();
 let hasInitialLoadCompleted = readSplashCompleted();
 let splashDismissed = false;
 
 function completeInitialSplash(setShowSplash: (v: boolean) => void) {
   if (splashDismissed) return;
-  splashDismissed = true;
-  setShowSplash(false);
-  hasInitialLoadCompleted = true;
-  markSplashCompleted();
-  document.body.classList.remove('splash-visible');
-  ensureAppShellVisible();
-  navVisibility.forceShow();
-  navVisibility.resetScrollHide();
-  requestAnimationFrame(() => {
+
+  const finish = () => {
+    if (splashDismissed) return;
+    splashDismissed = true;
+    setShowSplash(false);
+    hasInitialLoadCompleted = true;
+    markSplashCompleted();
+    document.body.classList.remove('splash-visible');
+    ensureAppShellVisible();
+    navVisibility.forceShow();
+    navVisibility.resetScrollHide();
     requestAnimationFrame(() => {
-      document.documentElement.setAttribute(APP_READY_ATTR, 'true');
-      markBootComplete();
+      requestAnimationFrame(() => {
+        document.documentElement.setAttribute(APP_READY_ATTR, 'true');
+        markBootComplete();
+      });
     });
-  });
+  };
+
+  void waitForAppShellPaint(isNativePerfMode() ? 2400 : 3200).then(finish);
 }
 
 // Background brief pre-fetcher (needs auth context)
@@ -299,6 +307,22 @@ function AppWithPreloader() {
 
   // Track on-screen keyboard height as --kb-h CSS variable (Android polish)
   useKeyboardHeight();
+
+  // bfcache restore (iOS Safari / some WebViews) — re-show splash if shell is empty.
+  useEffect(() => {
+    const onPageShow = (e: PageTransitionEvent) => {
+      if (!e.persisted) return;
+      ensureAppShellVisible();
+      navVisibility.forceShow();
+      navVisibility.resetScrollHide();
+      if (!hasAppShellPaint()) {
+        splashDismissed = false;
+        setShowSplash(true);
+      }
+    };
+    window.addEventListener('pageshow', onPageShow);
+    return () => window.removeEventListener('pageshow', onPageShow);
+  }, []);
 
   useEffect(() => {
     if (!showSplash) return;

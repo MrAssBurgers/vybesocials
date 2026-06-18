@@ -4,6 +4,12 @@ Use this file as the Lovable -> Cursor handoff each session.
 
 **Links:** [Lovable project](https://lovable.dev/projects/416714c8-d013-4aff-984d-522418a9bbc7) · [Production](https://vybehub.app) · Deploy steps: `DEPLOY.md`
 
+## Current Focus (2026-06-17 — no black screen on refresh / all devices)
+- **Root cause:** On refresh, `sessionStorage` skipped splash while lazy routes loaded → transparent `#app-shell` over `#0B0B10` looked like a black void; boot guard marked ready before shell painted
+- **Fix:** Hard-reload resets splash (`navigationBoot.ts`); splash stays until `#app-shell` has route content; static `VYBE` placeholder in `#root` before React; solid `#0B0B10` on loaders + `[data-app-shell]`; bfcache re-shows splash if shell empty; SW **v32**; boot-guard checks `app-shell`
+- **Tests:** build PASS, lint PASS, `validate:boot` PASS
+- **You:** Lovable **Share → Publish** + hard refresh / clear site data once on phone (native OTA via `despia/local.json`)
+
 ## Current Focus (2026-06-17 — AI cost controls + BYOK)
 - **Done:** Server-enforced daily quotas (`ai_usage` Firestore + `functions/src/_shared/aiQuota.ts`); free limits chat 25 / assist 15 / smart replies 20 per day (higher for VYBE+ / gifted premium); premium checks via `gifted_premium` + `subscriptions`
 - **Model:** `gemini-2.5-flash-lite` for `aiChat`, `aiMessageAssist`, `aiSmartReplies` (cheapest tier)

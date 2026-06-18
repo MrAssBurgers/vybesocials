@@ -1,8 +1,8 @@
 // VYBE Service Worker
-// Version 31.0 — stable /assets/app.js entry + legacy index-* fallback
+// Version 32.0 — refresh splash reset + solid shell backgrounds
 
-const CACHE_NAME = 'vybe-v31';
-const STATIC_CACHE = 'vybe-static-v31';
+const CACHE_NAME = 'vybe-v32';
+const STATIC_CACHE = 'vybe-static-v32';
 const MEDIA_CACHE = 'vybe-media-v2';
 const SHELL_CACHE = 'vybe-shell-v4';
 const ASSETS_CACHE = 'vybe-assets-v4';

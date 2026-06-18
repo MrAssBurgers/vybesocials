@@ -46,6 +46,7 @@ export const SplashScreen = memo(function SplashScreen({ isVisible }: SplashScre
       {isVisible && (
         <motion.div
           key="vybe-splash"
+          data-vybe-boot-screen
           initial={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           transition={{ duration: reduceMotion ? 0.12 : 0.22, ease: 'easeOut' }}

@@ -1,4 +1,4 @@
-const SPLASH_DONE_KEY = 'vybe.splash.done';
+export const SPLASH_DONE_KEY = 'vybe.splash.done';
 
 export function readSplashCompleted(): boolean {
   try {

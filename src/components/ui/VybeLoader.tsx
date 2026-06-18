@@ -120,10 +120,22 @@ export const VybePageLoader = memo(function VybePageLoader({ delay = 350 }: { de
     return () => clearTimeout(t);
   }, [delay]);
 
-  if (!show) return <div className="min-h-screen bg-background" aria-hidden="true" />;
+  if (!show) {
+    return (
+      <div
+        className="min-h-[100dvh] w-full"
+        style={{ background: '#0B0B10' }}
+        aria-hidden="true"
+      />
+    );
+  }
 
   return (
-    <div className="min-h-screen flex items-center justify-center">
+    <div
+      className="min-h-[100dvh] w-full flex items-center justify-center"
+      style={{ background: '#0B0B10' }}
+      data-vybe-boot-screen
+    >
       <LoaderContents />
     </div>
   );
