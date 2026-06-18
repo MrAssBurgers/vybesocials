@@ -302,12 +302,18 @@ export const generateTheme = onCall({ secrets: SECRETS }, async (request) => {
     };
 });
 export const generateAdvancedTheme = generateTheme;
-/** generate-background — image. */
-export const generateBackground = onCall({ secrets: SECRETS, timeoutSeconds: 60 }, async (request) => {
-    requireAuth(request);
+/** generate-background — AI image (quota-gated). */
+export const generateBackground = onCall({ secrets: SECRETS, timeoutSeconds: 90 }, async (request) => {
+    const authUid = requireAuth(request);
+    enforceRateLimit(await rateLimit(`aiimg:${authUid}`, 6, 60));
+    const profileId = await resolveProfileIdFromAuth(authUid);
+    await enforceAiQuota(profileId, 'image_gen');
     const { prompt } = (request.data || {});
-    const url = await generateImage(prompt || 'abstract neon gradient backdrop');
-    return { url };
+    const safePrompt = String(prompt || 'abstract neon gradient backdrop').slice(0, 500);
+    const url = await generateImage(safePrompt);
+    if (!url)
+        throw new HttpsError('unavailable', 'Image generation failed — try again');
+    return { url, prompt: safePrompt };
 });
 /** generate-caption — caption a post. */
 export const generateCaption = onCall({ secrets: SECRETS }, async (request) => {

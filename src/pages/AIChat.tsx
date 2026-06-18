@@ -20,7 +20,7 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { formatAiChatError } from '@/lib/functionAuth';
-import { db, formatFirebaseAiError, filterAiChatHistoryForApi, isAiLogicConfigured, streamVybeAiChat } from '@/lib/firebase';
+import { db, formatFirebaseAiError, filterAiChatHistoryForApi, isAiLogicConfigured, streamVybeAiChat, parseImaginePrompt, generateVybeAiImage } from '@/lib/firebase';
 import { useVybeAgent, shouldFallbackToAiChat, isAgentAuthError, isAgentUnavailableError } from '@/lib/agent/useVybeAgent';
 import { shouldSkipAgentDueToAuth, clearAgentAuthFailure, messageWantsCloudAgent } from '@/lib/agent/aiChatRouting';
 import { useAiUsage } from '@/hooks/useAiUsage';
@@ -61,6 +61,7 @@ function loadSetting(key: string, fallback: string) {
 
 const QUICK_PROMPTS = [
   '✍️ Humanize my essay',
+  '🎨 /imagine neon cyberpunk city at night',
   '📬 Open my messages',
   '🌙 Make my app dark and moody',
   '📝 Help me write a caption',
@@ -105,7 +106,7 @@ async function imageToBase64(file: File, maxSize = 1024): Promise<{ base64: stri
 export default function AIChat() {
   const navigate = useNavigate();
   const { sendAndExecute, executePlan } = useVybeAgent();
-  const { usage, refresh: refreshAiUsage, chatRemaining, chatExhausted } = useAiUsage();
+  const { usage, refresh: refreshAiUsage, chatRemaining, chatExhausted, imageGenRemaining, imageGenExhausted } = useAiUsage();
   const streamingContentRef = useRef('');
   
   const [aiName, setAiName] = useState(() => loadSetting(AI_NAME_KEY, 'VYBE-AI'));
@@ -264,14 +265,18 @@ export default function AIChat() {
     const msgText = (text || input).trim();
     if ((!msgText && !selectedImage) || isLoading) return;
 
-    if (chatExhausted) {
+    if (chatExhausted && !parseImaginePrompt(msgText)) {
       toast.error('Daily AI limit reached. Add your API key in Settings → VYBE AI.');
       return;
     }
+    if (parseImaginePrompt(msgText) && imageGenExhausted) {
+      toast.error('Daily image limit reached. Add your API key in Settings → VYBE AI.');
+      return;
+    }
 
-    const appendAssistantReply = (content: string) => {
+    const appendAssistantReply = (content: string, imageUrl?: string) => {
       const reply = content.trim() || "Something went wrong. Try again in a moment.";
-      setMessages(prev => [...prev, { role: 'assistant', content: reply, timestamp: new Date() }]);
+      setMessages(prev => [...prev, { role: 'assistant', content: reply, timestamp: new Date(), imageUrl }]);
     };
 
     // Build image data if present
@@ -308,6 +313,19 @@ export default function AIChat() {
     streamingContentRef.current = '';
 
     try {
+      const imaginePrompt = !selectedImage ? parseImaginePrompt(msgText) : null;
+      if (imaginePrompt) {
+        try {
+          const url = await generateVybeAiImage(imaginePrompt);
+          appendAssistantReply(`Here's your image — *${imaginePrompt}*`, url);
+          void refreshAiUsage();
+        } catch (aiErr) {
+          const fbMsg = formatFirebaseAiError(aiErr);
+          appendAssistantReply(fbMsg || formatAiChatError(aiErr));
+        }
+        return;
+      }
+
       const chatHistory = messages.map(m => ({ role: m.role, content: m.content })).concat([
         { role: 'user' as const, content: msgText || 'What is in this image?' },
       ]);
@@ -410,7 +428,7 @@ export default function AIChat() {
     } finally {
       setIsLoading(false);
     }
-  }, [input, isLoading, messages, aiName, aiPersonality, feedDNA, userLocation, selectedImage, imagePreview, clearImage, sendAndExecute, executePlan, chatExhausted, refreshAiUsage]);
+  }, [input, isLoading, messages, aiName, aiPersonality, feedDNA, userLocation, selectedImage, imagePreview, clearImage, sendAndExecute, executePlan, chatExhausted, imageGenExhausted, refreshAiUsage]);
 
   const clearChat = useCallback(() => {
     setMessages([{ role: 'assistant', content: `Fresh start! I'm ${aiName}, ready when you are ✨`, timestamp: new Date() }]);

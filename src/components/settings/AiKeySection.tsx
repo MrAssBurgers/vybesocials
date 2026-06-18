@@ -65,6 +65,7 @@ export function AiKeySection() {
       <div className="rounded-2xl border border-border/60 bg-card/50 p-4 space-y-3">
         <p className="text-sm font-medium">Today&apos;s usage (platform AI)</p>
         <UsageRow label="Chat messages" bucket={usage.chat} unlimited={usage.hasByok} />
+        <UsageRow label="Image generation" bucket={usage.image_gen} unlimited={usage.hasByok} />
         <UsageRow label="DM assist" bucket={usage.assist} unlimited={usage.hasByok} />
         <UsageRow label="Smart replies" bucket={usage.smart_replies} unlimited={usage.hasByok} />
         {usage.isPremium && !usage.hasByok && (

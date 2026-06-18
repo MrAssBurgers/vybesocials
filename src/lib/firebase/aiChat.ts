@@ -211,8 +211,8 @@ function formatCallableAiError(error: unknown): string {
     ) {
       return 'VYBE AI server needs GEMINI_API_KEY on Firebase Cloud Functions.';
     }
-    if (code === 'resource-exhausted' || /rate limit/i.test(msg)) {
-      return 'Too many requests. Wait a moment.';
+    if (code === 'resource-exhausted' || /rate limit|daily.*limit/i.test(msg)) {
+      return msg.includes('limit') ? msg : 'Too many requests. Wait a moment.';
     }
     if (code === 'internal' || msg === 'internal') {
       return 'VYBE AI server failed. Set GEMINI_API_KEY and redeploy Cloud Functions.';
@@ -354,7 +354,7 @@ function pickUserFacingAiError(...errors: unknown[]): string {
 
 /**
  * Stream a VYBE AI chat reply — always via Cloud Function so usage limits and BYOK apply.
- * Client-side Gemini is not used (prevents bypassing daily quotas).
+ * Reveals the reply gradually for a typing effect.
  */
 export async function streamVybeAiChat(options: StreamVybeAiChatOptions): Promise<string> {
   if (!RATE_LIMITS.aiChat()) {
@@ -366,6 +366,50 @@ export async function streamVybeAiChat(options: StreamVybeAiChatOptions): Promis
   await ensureSignedInForAi();
   const { history, userText, context, onChunk, imageBase64, imageMimeType } = options;
   const reply = await invokeVybeAiChatCallable(history, userText, context, imageBase64, imageMimeType);
-  onChunk(reply, reply);
+  await revealReplyGradually(reply, onChunk);
   return reply;
+}
+
+/** Type out a completed reply word-by-word (server responses are not streamed). */
+async function revealReplyGradually(
+  reply: string,
+  onChunk: (delta: string, fullText: string) => void,
+): Promise<void> {
+  if (!reply) {
+    onChunk('', '');
+    return;
+  }
+  const parts = reply.split(/(\s+)/);
+  let full = '';
+  for (const part of parts) {
+    if (!part) continue;
+    full += part;
+    onChunk(part, full);
+    const delay = part.length > 4 ? 22 : part.trim() ? 14 : 6;
+    await new Promise((r) => setTimeout(r, delay));
+  }
+}
+
+const IMAGINE_PREFIX = /^\/imagine\s+/i;
+
+export function parseImaginePrompt(text: string): string | null {
+  const match = text.trim().match(IMAGINE_PREFIX);
+  if (!match) return null;
+  const prompt = text.trim().replace(IMAGINE_PREFIX, '').trim();
+  return prompt || null;
+}
+
+/** Generate an image via quota-gated Cloud Function (Gemini image model). */
+export async function generateVybeAiImage(prompt: string): Promise<string> {
+  if (!RATE_LIMITS.aiChat()) {
+    throw Object.assign(new Error('Too many requests. Wait a moment.'), { status: 429 });
+  }
+  await ensureSignedInForAi();
+  const { data, error } = await invokeFunction<{ url?: string }>('generate-background', {
+    prompt: prompt.slice(0, 500),
+  });
+  if (error) throw error;
+  const url = typeof data?.url === 'string' ? data.url.trim() : '';
+  if (!url) throw new Error('No image was generated. Try a different prompt.');
+  return url;
 }

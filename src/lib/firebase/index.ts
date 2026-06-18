@@ -66,6 +66,8 @@ export {
 } from './aiSchemas';
 export {
   streamVybeAiChat,
+  generateVybeAiImage,
+  parseImaginePrompt,
   formatFirebaseAiError,
   filterAiChatHistoryForApi,
   type VybeAiChatMessage,

@@ -28,14 +28,18 @@ Use this file as the Lovable -> Cursor handoff each session.
 - **You:** Lovable **Share → Publish** + hard refresh / clear site data once
 
 ## Current Focus (2026-06-17 — password reset emails)
-- **Root cause:** `getPasswordResetRedirectUrl()` used `window.location.origin` — users on **`www.vybehub.app`** got `UNAUTHORIZED_DOMAIN` (www not in Firebase Auth allowlist); Firebase default emails also easy to miss vs branded Resend
-- **Fix:** Always use `https://vybehub.app/reset-password` for reset continue URL; new `requestPasswordReset` Cloud Function (Admin link + Resend when configured) with client Firebase fallback; deployed to `vybe-daaab`
-- **You:** Lovable **Share → Publish** (client `authReset.ts` + `authRedirect.ts`); set `RESEND_API_KEY` on Firebase for branded mail:
+- **Console lock:** Firebase Auth → Password reset template shows **"This template cannot be edited"** when custom email domain / Identity Platform locks templates — **bypass:** branded HTML via Resend in `passwordResetEmail.ts` (uses Admin `generatePasswordResetLink`, not Console template)
+- **Deployed (2026-06-17):** `requestPasswordReset` — fixed duplicate send bug; flow: `getUserByEmail` → `sendPasswordResetEmail` (Resend if key bound, else `sendOobCode` Firebase default)
+- **Root cause (redirect):** `getPasswordResetRedirectUrl()` used `window.location.origin` — users on **`www.vybehub.app`** got `UNAUTHORIZED_DOMAIN`; canonical continue URL is `https://vybehub.app/reset-password`
+- **You — branded reset (recommended):**
   ```bash
-  firebase functions:secrets:set RESEND_API_KEY --project vybe-daaab
-  # then add secrets: ['RESEND_API_KEY'] to requestPasswordReset in auth.ts and redeploy
+  npx firebase-tools functions:secrets:set RESEND_API_KEY --project vybe-daaab
+  npx firebase-tools functions:secrets:set EMAIL_FROM --project vybe-daaab   # e.g. VYBE <no-reply@vybehub.app>
   ```
-- Optional: Firebase Console → Auth → Authorized domains → add **`www.vybehub.app`** (redirect now canonical non-www)
+  Then add `secrets: ['RESEND_API_KEY']` to `requestPasswordReset` in `functions/src/auth.ts` and redeploy.
+  Verify **vybehub.app** domain in [Resend](https://resend.com/domains) (SPF/DKIM).
+- **You — without Resend:** Firebase sends from `noreply@vybe-daaab.firebaseapp.com`; check spam; user must exist in **Firebase Auth → Users** (not only legacy Supabase)
+- **You:** Lovable **Share → Publish** (`authReset.ts`); optional Authorized domains → **`www.vybehub.app`**
 
 ## Current Focus (2026-06-17 — Phase 1 Vybe Check + AI stack)
 - **Done:** `startVybeCheck` / `getVybeCheckStatus` — SafeSearch frames, OpenAI moderation/STT (when key set), Gemini borderline, Firestore `vybe_checks` statuses

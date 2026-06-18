@@ -2,8 +2,14 @@ import { HttpsError } from 'firebase-functions/v2/https';
 import { db } from './admin.js';
 export const CHEAP_CHAT_MODEL = 'gemini-2.5-flash-lite';
 const LIMITS = {
-    free: { chat: 25, assist: 15, smart_replies: 20 },
-    premium: { chat: 250, assist: 120, smart_replies: 120 },
+    free: { chat: 25, assist: 15, smart_replies: 20, image_gen: 5 },
+    premium: { chat: 250, assist: 120, smart_replies: 120, image_gen: 40 },
+};
+const FIELD_BY_FEATURE = {
+    chat: 'chat_count',
+    assist: 'assist_count',
+    smart_replies: 'smart_replies_count',
+    image_gen: 'image_gen_count',
 };
 function todayUtc() {
     return new Date().toISOString().slice(0, 10);
@@ -44,12 +50,8 @@ export async function getUserAiApiKey(profileId, provider = 'google') {
     const key = typeof data.api_key === 'string' ? data.api_key.trim() : '';
     return key || null;
 }
-function countField(feature) {
-    if (feature === 'chat')
-        return 'chat_count';
-    if (feature === 'assist')
-        return 'assist_count';
-    return 'smart_replies_count';
+function bucketFromUsage(usage, field, limit, stale) {
+    return { used: stale ? 0 : Number(usage[field] || 0), limit };
 }
 export async function readAiQuotaStatus(profileId) {
     const [premium, byokGoogle, byokOpenai, usageSnap] = await Promise.all([
@@ -59,7 +61,7 @@ export async function readAiQuotaStatus(profileId) {
         db.collection('ai_usage').doc(profileId).get(),
     ]);
     const limits = premium ? LIMITS.premium : LIMITS.free;
-    const usage = usageSnap.data() || {};
+    const usage = (usageSnap.data() || {});
     const date = todayUtc();
     const stale = usage.date !== date;
     return {
@@ -67,37 +69,51 @@ export async function readAiQuotaStatus(profileId) {
         isPremium: premium,
         hasByok: !!(byokGoogle || byokOpenai),
         date,
-        chat: { used: stale ? 0 : Number(usage.chat_count || 0), limit: limits.chat },
-        assist: { used: stale ? 0 : Number(usage.assist_count || 0), limit: limits.assist },
-        smart_replies: {
-            used: stale ? 0 : Number(usage.smart_replies_count || 0),
-            limit: limits.smart_replies,
-        },
+        chat: bucketFromUsage(usage, 'chat_count', limits.chat, stale),
+        assist: bucketFromUsage(usage, 'assist_count', limits.assist, stale),
+        smart_replies: bucketFromUsage(usage, 'smart_replies_count', limits.smart_replies, stale),
+        image_gen: bucketFromUsage(usage, 'image_gen_count', limits.image_gen, stale),
     };
+}
+function featureLabel(feature) {
+    if (feature === 'image_gen')
+        return 'image generation';
+    if (feature === 'assist')
+        return 'DM assist';
+    if (feature === 'smart_replies')
+        return 'smart replies';
+    return 'chat';
 }
 /** Throws resource-exhausted when over daily limit (skipped when user BYOK is active). */
 export async function enforceAiQuota(profileId, feature) {
     const status = await readAiQuotaStatus(profileId);
     if (status.hasByok)
         return status;
-    const bucket = feature === 'chat' ? status.chat : feature === 'assist' ? status.assist : status.smart_replies;
+    const bucket = feature === 'chat' ? status.chat
+        : feature === 'assist' ? status.assist
+            : feature === 'image_gen' ? status.image_gen
+                : status.smart_replies;
     if (bucket.used >= bucket.limit) {
-        throw new HttpsError('resource-exhausted', `Daily AI limit reached (${bucket.used}/${bucket.limit}). Add your own API key in Settings or try again tomorrow.`);
+        throw new HttpsError('resource-exhausted', `Daily ${featureLabel(feature)} limit reached (${bucket.used}/${bucket.limit}). Add your Google AI key in Settings → VYBE AI or try again tomorrow.`);
     }
     const ref = db.collection('ai_usage').doc(profileId);
-    const field = countField(feature);
+    const field = FIELD_BY_FEATURE[feature];
     const date = todayUtc();
     await db.runTransaction(async (tx) => {
         const snap = await tx.get(ref);
-        const data = snap.data() || {};
+        const data = (snap.data() || {});
         const reset = data.date !== date;
-        const next = reset ? 1 : Number(data[field] || 0) + 1;
+        const counts = {
+            chat_count: reset ? 0 : Number(data.chat_count || 0),
+            assist_count: reset ? 0 : Number(data.assist_count || 0),
+            smart_replies_count: reset ? 0 : Number(data.smart_replies_count || 0),
+            image_gen_count: reset ? 0 : Number(data.image_gen_count || 0),
+        };
+        counts[field] = (reset ? 0 : counts[field]) + 1;
         tx.set(ref, {
             profile_id: profileId,
             date,
-            chat_count: reset ? (field === 'chat_count' ? 1 : 0) : field === 'chat_count' ? next : Number(data.chat_count || 0),
-            assist_count: reset ? (field === 'assist_count' ? 1 : 0) : field === 'assist_count' ? next : Number(data.assist_count || 0),
-            smart_replies_count: reset ? (field === 'smart_replies_count' ? 1 : 0) : field === 'smart_replies_count' ? next : Number(data.smart_replies_count || 0),
+            ...counts,
             updated_at: new Date().toISOString(),
         }, { merge: true });
     });

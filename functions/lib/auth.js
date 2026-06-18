@@ -1,14 +1,13 @@
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { db, auth, requireAuth, requireAdmin, rateLimit, enforceRateLimit } from './_shared/admin.js';
-import { passwordResetContinueUrl } from './_shared/passwordReset.js';
-import { sendFirebasePasswordResetEmail } from './_shared/firebaseAuthEmail.js';
+import { sendPasswordResetEmail } from './_shared/passwordResetEmail.js';
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 function code() {
     return String(Math.floor(100000 + Math.random() * 900000));
 }
 /**
- * request-password-reset — send via Firebase Auth (branded Console templates).
- * Unauthenticated; always returns { ok: true } when email format is valid (no enumeration).
+ * request-password-reset — branded HTML via Resend when configured, else Firebase default mailer.
+ * Console templates may be locked when custom email domain is pending — this bypasses that.
  */
 export const requestPasswordReset = onCall({ cors: true }, async (request) => {
     const email = String(request.data?.email || '')
@@ -18,8 +17,17 @@ export const requestPasswordReset = onCall({ cors: true }, async (request) => {
         return { ok: true, message: 'If that email exists, we sent a reset link.' };
     }
     enforceRateLimit(await rateLimit(`pwd-reset:${email}`, 3, 3600));
+    let displayName;
     try {
-        await sendFirebasePasswordResetEmail(email, passwordResetContinueUrl());
+        const userRecord = await auth.getUserByEmail(email);
+        displayName = userRecord.displayName || undefined;
+    }
+    catch {
+        return { ok: true, message: 'If that email exists, we sent a reset link.' };
+    }
+    let provider = 'firebase_auth';
+    try {
+        provider = await sendPasswordResetEmail(email);
     }
     catch (err) {
         const code = err?.code;
@@ -28,20 +36,12 @@ export const requestPasswordReset = onCall({ cors: true }, async (request) => {
         }
         throw err;
     }
-    let displayName;
-    try {
-        const userRecord = await auth.getUserByEmail(email);
-        displayName = userRecord.displayName || undefined;
-    }
-    catch {
-        // ignore — email may not exist (anti-enumeration)
-    }
     await db.collection('email_send_log').add({
         to: email,
         template: 'reset_password',
         status: 'sent',
         sent_at: new Date().toISOString(),
-        provider: 'firebase_auth',
+        provider,
         name: displayName || null,
     });
     return { ok: true, message: 'If that email exists, we sent a reset link.' };
