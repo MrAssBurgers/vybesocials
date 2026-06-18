@@ -24,6 +24,7 @@
     "migrate:firebase:verify-connections": "node scripts/verify-user-data-connections.mjs",
     "migrate:firebase:seed-migration-notice": "node scripts/migrate-firebase/seed-migration-announcement.mjs",
     "migrate:firebase:repair-all-users": "node scripts/migrate-firebase/repair-everything.mjs",
+    "backend:scan": "node scripts/backend-deep-scan.mjs",
     "firebase:sync-email-templates": "node scripts/firebase/sync-auth-email-templates.mjs",
     "firebase:configure-auth": "node scripts/firebase/configure-auth.mjs",
     "ios:setup": "npm run build && npx cap add ios && npx cap sync ios",
