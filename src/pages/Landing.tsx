@@ -1,9 +1,9 @@
 import { useState, useEffect, useRef, useLayoutEffect, useCallback } from 'react';
-import { useNavigate, useSearchParams, useLocation } from 'react-router-dom';
+import { useNavigate, useSearchParams, useLocation, Navigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import { useAuth, waitForAuthSession } from '@/lib/auth';
-import { getPostLoginPath } from '@/lib/authReturnPath';
+import { getPostLoginPath, resolvePostLoginDestination } from '@/lib/authReturnPath';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -27,7 +27,6 @@ import { getAuthRedirectUrl } from '@/lib/authRedirect';
 import { normalizeLoginEmail } from '@/lib/loginEmail';
 import { getLoginCredentialErrorMessage, isInvalidLoginCredentialError } from '@/lib/loginErrors';
 import { clearLegacySupabaseAuthStorage } from '@/lib/supabaseStorageKey';
-import { isGeneratedUsername } from '@/lib/username';
 import { VybeLiquidBackground } from '@/components/effects/VybeLiquidBackground';
 import { VybeLiquidTouchOverlay } from '@/components/effects/VybeLiquidTouchOverlay';
 import { VybeLiquidText } from '@/components/ui/VybeLiquidText';
@@ -114,7 +113,7 @@ interface LandingProps {
 
 export default function Landing({ onInviteNavigate, isInviteMode = false }: LandingProps) {
   const { t } = useTranslation();
-  const { user, signIn, signUp, resendVerification, authReady, refreshProfile } = useAuth();
+  const { user, signIn, signUp, resendVerification, authReady, profile } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { triggerTransition } = useThemeTransition();
@@ -244,65 +243,26 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
   // When isInviteMode=true, this component is rendered inline from InviteRedeem
   const location = useLocation();
   const isInviteRoute = location.pathname.startsWith('/invite/');
-  
-  useEffect(() => {
-    // In invite mode, auth check and redirects are handled by parent (InviteRedeem)
-    if (isInviteMode) {
-      console.log('[Landing] In invite mode - auth redirects handled by InviteRedeem');
-      return;
-    }
-
-    if (!authReady) return;
-    if (!user) return;
-
-    // If on invite route or in invite entry mode, don't auto-redirect to home
-    if (isInviteRoute || isInviteEntryMode()) {
-      console.log('[Landing] In invite flow, skipping auto-redirect');
-      return;
-    }
-
-    // Use profile from auth context to avoid race condition on iPad Safari
-    // where a separate Supabase query runs before the JWT is fully established.
-    // Suppress auto-redirect while a 2FA / approval gate decision is in flight
-    // (otherwise on mobile the SIGNED_IN listener races the gate and bypasses it).
-    if (gatePending || loginGate) return;
-
-    let cancelled = false;
-    void (async () => {
-      const fresh = await refreshProfile();
-      if (cancelled) return;
-
-      if (fresh?.onboarding_completed === false || isGeneratedUsername(fresh?.username)) {
-        navigate('/onboarding', { replace: true });
-        return;
-      }
-      if (fresh?.username) {
-        const returnPath = getPostLoginPath('/home');
-        navigate(returnPath, { replace: true });
-        return;
-      }
-      // Session exists but profile still hydrating — don't trap on auth form.
-      navigate(getPostLoginPath('/home'), { replace: true });
-    })();
-
-    return () => { cancelled = true; };
-  }, [user?.id, authReady, navigate, isInviteRoute, isInviteMode, gatePending, loginGate, refreshProfile]);
 
   // Prevent the "login flash": if auth is still resolving, show a loader instead of a blank screen.
   if (!isInviteMode && !authReady) {
     return (
-      <div className="fixed inset-0 z-50 bg-background flex items-center justify-center">
+      <div className="fixed inset-0 z-50 bg-[#0B0B10] flex items-center justify-center">
         <div className="w-8 h-8 rounded-full border-[3px] border-primary/30 border-t-primary animate-spin" />
       </div>
     );
   }
 
-  if (!isInviteMode && authReady && user && !gatePending && !loginGate) {
-    return (
-      <div className="fixed inset-0 z-50 bg-background flex items-center justify-center">
-        <div className="w-8 h-8 rounded-full border-[3px] border-primary/30 border-t-primary animate-spin" />
-      </div>
-    );
+  if (
+    !isInviteMode &&
+    authReady &&
+    user &&
+    !gatePending &&
+    !loginGate &&
+    !isInviteRoute &&
+    !isInviteEntryMode()
+  ) {
+    return <Navigate to={resolvePostLoginDestination(profile)} replace />;
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -357,7 +317,7 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
         if (session.user && !session.user.email_confirmed_at) {
           toast.info('Verify your email to unlock all features.');
         }
-        navTo('home', '/home');
+        navigate(resolvePostLoginDestination(profile), { replace: true });
       } else {
         if (!formData.username.trim()) {
           throw new Error('Username is required');

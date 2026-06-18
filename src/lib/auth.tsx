@@ -1083,7 +1083,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const refreshProfile = async () => {
     const uid = user?.id ?? (await db.auth.getSession()).data.session?.user?.id;
     if (!uid) return null;
-    return (await fetchProfile(uid)) as Profile | null;
+    const result = await Promise.race([
+      fetchProfile(uid),
+      new Promise<null>((resolve) => window.setTimeout(() => resolve(null), 5000)),
+    ]);
+    return result as Profile | null;
   };
 
   // Show banned screen if user is banned

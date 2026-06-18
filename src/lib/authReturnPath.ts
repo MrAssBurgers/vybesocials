@@ -1,3 +1,5 @@
+import { isGeneratedUsername } from '@/lib/username';
+
 const RETURN_PATH_KEY = 'vybe.auth.return_path';
 const LEGACY_ADD_FRIEND_KEY = 'addFriendReturnUrl';
 
@@ -29,4 +31,19 @@ export function consumeAuthReturnPath(): string | null {
 /** Post-login destination (consumes any stashed deep link). */
 export function getPostLoginPath(fallback = '/home'): string {
   return consumeAuthReturnPath() || fallback;
+}
+
+type PostLoginProfile = {
+  onboarding_completed?: boolean | null;
+  username?: string | null;
+} | null | undefined;
+
+/** Sync post-login route — never await profile fetch (avoids infinite spinner). */
+export function resolvePostLoginDestination(profile: PostLoginProfile): string {
+  if (profile) {
+    if (profile.onboarding_completed === false || isGeneratedUsername(profile.username)) {
+      return '/onboarding';
+    }
+  }
+  return getPostLoginPath('/home');
 }

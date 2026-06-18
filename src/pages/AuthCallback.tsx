@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/lib/auth';
+import { resolvePostLoginDestination } from '@/lib/authReturnPath';
 import { isPasswordRecoveryUrl, redirectToPasswordRecoveryPage } from '@/lib/passwordRecoveryUrl';
 
 /**
@@ -92,19 +93,9 @@ export default function AuthCallback() {
 
     if (!user || !profileSettled) return;
 
-    let cancelled = false;
-    void (async () => {
-      const fresh = await refreshProfile();
-      if (cancelled) return;
-      if (!fresh || fresh.onboarding_completed === false || !fresh.username) {
-        navigate('/onboarding', { replace: true });
-      } else {
-        navigate('/home', { replace: true });
-      }
-    })();
-
-    return () => { cancelled = true; };
-  }, [user, profileSettled, timedOut, navigate, refreshProfile]);
+    navigate(resolvePostLoginDestination(profile), { replace: true });
+    void refreshProfile();
+  }, [user, profile, profileSettled, timedOut, navigate, refreshProfile]);
 
   return (
     <div className="min-h-screen bg-background flex items-center justify-center">
