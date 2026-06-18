@@ -44,17 +44,31 @@ export function useProfileById(profileId: string | undefined) {
 
       let profile: Profile | null = null;
 
+      const profileSelect =
+        'id, user_id, username, avatar_url, bio, created_at, display_name, link_url, location, is_private, is_verified, interests, language, timezone, coins_balance, onboarding_completed, tutorial_completed, tutorial_skipped, intro_completed, badge_settings, date_of_birth';
+
       if (currentProfile) {
         const { data, error } = await db
           .from('profiles')
-          .select('id, user_id, username, avatar_url, bio, created_at, display_name, link_url, location, is_private, is_verified, interests, language, timezone, coins_balance, onboarding_completed, tutorial_completed, tutorial_skipped, intro_completed, badge_settings, date_of_birth')
+          .select(profileSelect)
           .eq('id', profileId)
           .maybeSingle();
-        if (error || !data) {
-          console.warn('[useProfileById] Profile not found:', profileId, error?.message);
-          return null;
+        if (!error && data) {
+          profile = data as unknown as Profile;
+        } else {
+          const { data: rows } = await db.rpc('get_profile_by_id', { target_id: profileId });
+          const row = firstProfileRow(rows);
+          if (row) {
+            profile = row as unknown as Profile;
+          } else {
+            const { data: byUserId } = await db
+              .from('profiles')
+              .select(profileSelect)
+              .eq('user_id', profileId)
+              .limit(1);
+            if (byUserId?.[0]) profile = byUserId[0] as unknown as Profile;
+          }
         }
-        profile = data as unknown as Profile;
       } else {
         const { data: rows, error } = await db.rpc('get_profile_by_id', { target_id: profileId });
         const row = firstProfileRow(rows);
@@ -71,7 +85,10 @@ export function useProfileById(profileId: string | undefined) {
         } as Profile;
       }
 
-      if (!profile) return null;
+      if (!profile) {
+        console.warn('[useProfileById] Profile not found:', profileId);
+        return null;
+      }
 
       // Get counts in parallel
       const [followerCount, followingCount, postCount, isFollowing] = await Promise.all([
@@ -120,17 +137,42 @@ export function useProfileByUsername(username: string) {
     queryKey: ['profile', username, currentProfile?.id],
     queryFn: async (): Promise<Profile | null> => {
       const trimmedUsername = username.trim();
+      const normalizedUsername = trimmedUsername.toLowerCase();
       
-      // Try username lookup first
-      const { data: profiles, error } = await db
-        .rpc('get_profile_by_username', { target_username: trimmedUsername });
-
+      // Try username lookup first (exact, then lowercase)
+      let profiles: unknown = null;
+      let error: { message?: string } | null = null;
+      ({ data: profiles, error } = await db.rpc('get_profile_by_username', {
+        target_username: trimmedUsername,
+      }));
       let profile = firstProfileRow(profiles);
+      if (!profile && normalizedUsername !== trimmedUsername) {
+        const retry = await db.rpc('get_profile_by_username', {
+          target_username: normalizedUsername,
+        });
+        profile = firstProfileRow(retry.data);
+        if (!error && retry.error) error = retry.error;
+      }
       
       // If not found and looks like a UUID, try ID lookup via RPC (works for guests)
       if (!profile && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(trimmedUsername)) {
         const { data: idProfiles } = await db.rpc('get_profile_by_id', { target_id: trimmedUsername });
         profile = firstProfileRow(idProfiles);
+      }
+
+      // Authenticated fallback when RPC shape/env mismatches
+      if (!profile && currentProfile) {
+        for (const candidate of [trimmedUsername, normalizedUsername]) {
+          const { data: rows } = await db
+            .from('profiles')
+            .select('id, user_id, username, avatar_url, bio, created_at, display_name, link_url, location, is_private, is_verified, interests, language, timezone, coins_balance, onboarding_completed, tutorial_completed, tutorial_skipped, intro_completed, badge_settings, date_of_birth, feature_on_landing')
+            .eq('username', candidate)
+            .limit(1);
+          if (rows?.[0]) {
+            profile = rows[0] as Record<string, unknown>;
+            break;
+          }
+        }
       }
       
       if (error && !profile) {

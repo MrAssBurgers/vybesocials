@@ -254,6 +254,16 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
     );
   }
 
+  // OAuth redirect in flight — keep spinner until session hydrates (avoids login loop).
+  if (!isInviteMode && isOAuthReturn && !user) {
+    return (
+      <div className="fixed inset-0 z-50 bg-[#0B0B10] flex flex-col items-center justify-center gap-3">
+        <div className="w-8 h-8 rounded-full border-[3px] border-primary/30 border-t-primary animate-spin" />
+        <p className="text-sm text-muted-foreground">Finishing sign-in…</p>
+      </div>
+    );
+  }
+
   if (
     !isInviteMode &&
     authReady &&

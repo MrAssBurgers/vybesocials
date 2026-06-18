@@ -164,9 +164,17 @@ export function readAnySupabaseAccessToken(): string | null {
   }
 }
 
-/** Read auth user id from persisted Supabase session (sync, before getSession resolves). */
+/** Read auth user id from persisted Firebase or Supabase session (sync, before getSession resolves). */
 export function getStoredAuthUserId(): string | null {
   try {
+    for (const key of Object.keys(localStorage)) {
+      if (!key.startsWith('firebase:authUser:')) continue;
+      const raw = localStorage.getItem(key);
+      if (!raw) continue;
+      const parsed = JSON.parse(raw) as { uid?: string };
+      if (typeof parsed?.uid === 'string') return parsed.uid;
+    }
+
     const canonicalKey = getSupabaseAuthStorageKey();
     const keys = [canonicalKey, ...getAllSupabaseAuthStorageKeys().filter((k) => k !== canonicalKey)];
 

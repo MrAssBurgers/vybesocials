@@ -793,6 +793,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const { firebaseAuth } = await import('@/lib/firebase/authService');
         const redirect = await firebaseAuth.completeOAuthRedirectIfNeeded();
         if (redirect.data.session?.user) {
+          const oauthSession = redirect.data.session;
+          setWasLoggedIn(true);
+          setSession(oauthSession);
+          setUser(oauthSession.user);
+          setActiveAuthUserId(oauthSession.user.id);
+          hydrateCachedProfile(oauthSession.user.id);
+          if (oauthSession.expires_at) {
+            scheduleTokenRefresh(oauthSession.expires_at);
+          }
+          bootstrapSessionData(oauthSession.user.id, 'SIGNED_IN');
           sessionStorage.removeItem('vybe-oauth-pending');
           void db.rpc('claim_profile_by_email');
           authInitializedRef.current = true;

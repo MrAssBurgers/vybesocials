@@ -26,6 +26,10 @@ export function useDMConversations(searchQuery: string = '') {
   const { profile, user } = useAuth();
   const queryClient = useQueryClient();
   const cachedProfileId = syncSessionProfileId(profile?.id);
+  const suspectAuthUidAsProfileId = !!(
+    user?.id &&
+    (cachedProfileId === user.id || (profile?.id === user.id && profile?.user_id === user.id))
+  );
 
   const profileResolveQuery = useQuery({
     queryKey: ['session-profile-id', user?.id],
@@ -35,14 +39,17 @@ export function useDMConversations(searchQuery: string = '') {
         8_000,
         'Profile resolve timed out',
       ),
-    enabled: !!user?.id && !cachedProfileId,
+    enabled: !!user?.id && (!cachedProfileId || suspectAuthUidAsProfileId),
     staleTime: 60_000,
     retry: 2,
     retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 4000),
     networkMode: 'always',
   });
 
-  const profileId = cachedProfileId ?? profileResolveQuery.data ?? undefined;
+  const profileId =
+    profileResolveQuery.data ??
+    (suspectAuthUidAsProfileId ? undefined : cachedProfileId) ??
+    undefined;
   const { data: friends, isLoading: friendsLoading } = useFriends();
   const attemptedFriendIdsRef = useRef<Set<string>>(new Set());
   const dmInitialFetchDoneRef = useRef(false);

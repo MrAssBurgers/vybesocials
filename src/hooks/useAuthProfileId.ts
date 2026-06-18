@@ -6,16 +6,23 @@ import { resolveSessionProfileId, syncSessionProfileId } from '@/lib/resolveSess
 export function useAuthProfileId(): string | undefined {
   const { profile, user } = useAuth();
   const cached = syncSessionProfileId(profile?.id);
+  // Migrated users: profile.id must be legacy UUID, not Firebase auth uid.
+  const suspectAuthUidAsProfileId = !!(
+    user?.id &&
+    (cached === user.id || (profile?.id === user.id && profile?.user_id === user.id))
+  );
 
   const resolveQuery = useQuery({
     queryKey: ['session-profile-id', user?.id],
     queryFn: () => resolveSessionProfileId(profile?.id),
-    enabled: !!user?.id && !cached,
+    enabled: !!user?.id && (!cached || suspectAuthUidAsProfileId),
     staleTime: 60_000,
     retry: 2,
     retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 4000),
     networkMode: 'always',
   });
 
-  return cached ?? resolveQuery.data ?? undefined;
+  if (resolveQuery.data) return resolveQuery.data;
+  if (suspectAuthUidAsProfileId) return undefined;
+  return cached ?? undefined;
 }

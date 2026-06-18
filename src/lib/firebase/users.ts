@@ -28,11 +28,25 @@ export async function getUserProfile(userId: string): Promise<UserProfile | null
 export { getProfileByAuthUid, getProfilesByIds, resolveProfileIdFromAuthUid } from './profileResolve';
 
 export async function getUserProfileByUsername(username: string): Promise<UserProfile | null> {
-  const rows = await getDocuments<UserProfile>('profiles', [
-    where('username', '==', username),
+  const trimmed = username.trim();
+  if (!trimmed) return null;
+
+  const exact = await getDocuments<UserProfile>('profiles', [
+    where('username', '==', trimmed),
     firestoreLimit(1),
   ]);
-  return rows[0] ?? null;
+  if (exact[0]) return exact[0];
+
+  const lower = trimmed.toLowerCase();
+  if (lower !== trimmed) {
+    const ci = await getDocuments<UserProfile>('profiles', [
+      where('username', '==', lower),
+      firestoreLimit(1),
+    ]);
+    if (ci[0]) return ci[0];
+  }
+
+  return null;
 }
 
 export async function ensureUserProfile(
