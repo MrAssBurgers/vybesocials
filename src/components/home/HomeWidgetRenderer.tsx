@@ -30,7 +30,6 @@ import { BattlePassWidget } from '@/components/gamification/BattlePassWidget';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/lib/auth';
 import { isFullyLoggedIn } from '@/lib/authReady';
-import { isNativePerfMode } from '@/lib/nativePerfMode';
 import { useAheadMediaPreload } from '@/hooks/useAheadMediaPreload';
 import { FEED_PRELOAD_AHEAD } from '@/lib/performanceConfig';
 import { useFeedOfflineState } from '@/hooks/useFeedOfflineState';
@@ -43,6 +42,7 @@ import {
   dismissFriendLinkSpotlight,
 } from '@/components/feed/FeedOfflineStates';
 import { openFriendLink } from '@/lib/friendLinkUi';
+import { ErrorBoundary } from '@/components/ErrorBoundary';
 
 const FeedAdCard = lazy(() => import('@/components/ads/FeedAdCard').then(m => ({ default: m.FeedAdCard })));
 const MemoizedPostCard = memo(PostCard);
@@ -433,8 +433,14 @@ function InlinePostList({
 
   // Track which post is currently in view so we can preload the next 3 ahead
   const [visibleIndex, setVisibleIndex] = useState(0);
+  const visibleIndexRef = useRef(0);
+  const visibilityRafRef = useRef<number | null>(null);
   const visibilityObserverRef = useRef<IntersectionObserver | null>(null);
   const postRefMap = useRef<Map<number, HTMLElement>>(new Map());
+
+  useEffect(() => {
+    visibleIndexRef.current = visibleIndex;
+  }, [visibleIndex]);
 
   useEffect(() => {
     visibilityObserverRef.current?.disconnect();
@@ -452,14 +458,28 @@ function InlinePostList({
             best = { idx, ratio: entry.intersectionRatio };
           }
         });
-        if (best) setVisibleIndex(best.idx);
+        if (!best || best.idx === visibleIndexRef.current) return;
+        visibleIndexRef.current = best.idx;
+        if (visibilityRafRef.current !== null) {
+          cancelAnimationFrame(visibilityRafRef.current);
+        }
+        visibilityRafRef.current = requestAnimationFrame(() => {
+          visibilityRafRef.current = null;
+          setVisibleIndex(best!.idx);
+        });
       },
       { threshold: [0.3, 0.6] },
     );
 
     visibilityObserverRef.current = observer;
     postRefMap.current.forEach((el) => observer.observe(el));
-    return () => observer.disconnect();
+    return () => {
+      observer.disconnect();
+      if (visibilityRafRef.current !== null) {
+        cancelAnimationFrame(visibilityRafRef.current);
+        visibilityRafRef.current = null;
+      }
+    };
   }, [posts.length]);
 
   const registerPostRef = useCallback((index: number) => (el: HTMLElement | null) => {
@@ -526,7 +546,6 @@ function InlinePostList({
   // Attach the load-more sentinel 5 posts BEFORE the end so the next page
   // is fetched while the user is still scrolling through current content.
   const earlyTriggerIndex = Math.max(0, posts.length - 5);
-  const postIntrinsicHeight = isNativePerfMode() ? 520 : 720;
 
   let rewardCount = 0;
 
@@ -542,18 +561,25 @@ function InlinePostList({
           key={post.id}
           data-post-card
           ref={registerPostRef(index)}
-          style={{
-            contentVisibility: 'auto',
-            containIntrinsicSize: `0 ${postIntrinsicHeight}px`,
-          }}
         >
-          <MemoizedPostCard post={post} eager={index < 2} />
+          <ErrorBoundary
+            scope={`feed-post:${post.id}`}
+            fallback={() => (
+              <div className="rounded-2xl border border-border/30 bg-card/40 p-4 my-2 text-center text-sm text-muted-foreground">
+                Couldn&apos;t load this post.
+              </div>
+            )}
+          >
+            <MemoizedPostCard post={post} eager={index < 2} />
+          </ErrorBoundary>
           {/* Early load-more sentinel — fires 5 posts before the end */}
           {index === earlyTriggerIndex && (
             <div ref={loadMoreRef} aria-hidden className="h-px w-full" />
           )}
           {adPositions.has(index) && (
-            <Suspense fallback={null}><FeedAdCard /></Suspense>
+            <ErrorBoundary scope={`feed-ad:${index}`} fallback={() => null}>
+              <Suspense fallback={null}><FeedAdCard /></Suspense>
+            </ErrorBoundary>
           )}
           {rewardPositions.has(index) && (
             <FeedRewardCard index={rewardCount++} />

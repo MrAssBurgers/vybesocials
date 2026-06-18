@@ -10,12 +10,18 @@ import { getPasswordResetRedirectUrl } from '@/lib/authRedirect';
 export async function requestPasswordReset(email: string): Promise<void> {
   const normalized = email.trim().toLowerCase();
 
-  const { data, error } = await invokeFunction<{ ok?: boolean }>('send-reset-email', {
-    email: normalized,
-  });
+  const { data, error } = await invokeFunction<{ ok?: boolean; message?: string }>(
+    'send-reset-email',
+    { email: normalized },
+  );
 
-  if (!error && data?.ok !== false) {
+  // Only skip client fallback when the callable explicitly confirmed success.
+  if (!error && data?.ok === true) {
     return;
+  }
+
+  if (error) {
+    console.warn('[authReset] Cloud reset failed, trying client SDK:', error.message);
   }
 
   const { error: clientError } = await db.auth.resetPasswordForEmail(normalized, {

@@ -3,6 +3,7 @@ import { db, auth, requireAuth, requireAdmin, rateLimit, enforceRateLimit } from
 import { sendPasswordResetEmail } from './_shared/passwordResetEmail.js';
 import { claimProfileByEmailForUid } from './_shared/claimProfileByEmail.js';
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const RESET_EMAIL_SECRETS = ['RESEND_API_KEY', 'EMAIL_FROM'];
 function code() {
     return String(Math.floor(100000 + Math.random() * 900000));
 }
@@ -10,7 +11,7 @@ function code() {
  * request-password-reset — branded HTML via Resend when configured, else Firebase default mailer.
  * Console templates may be locked when custom email domain is pending — this bypasses that.
  */
-export const requestPasswordReset = onCall({ cors: true }, async (request) => {
+export const requestPasswordReset = onCall({ cors: true, secrets: [...RESET_EMAIL_SECRETS] }, async (request) => {
     const email = String(request.data?.email || '')
         .trim()
         .toLowerCase();

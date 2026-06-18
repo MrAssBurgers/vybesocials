@@ -10,8 +10,9 @@ function code(): string {
 }
 
 /**
- * request-password-reset — branded HTML via Resend when configured, else Firebase default mailer.
- * Console templates may be locked when custom email domain is pending — this bypasses that.
+ * request-password-reset — branded HTML via Resend when RESEND_API_KEY secret is
+ * bound (see WORKLOG), else Firebase default mailer via sendOobCode.
+ * Console templates may be locked when custom email domain is pending — Resend bypasses that.
  */
 export const requestPasswordReset = onCall({ cors: true }, async (request) => {
   const email = String((request.data as { email?: string })?.email || '')

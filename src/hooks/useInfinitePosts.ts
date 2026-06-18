@@ -69,7 +69,7 @@ function transformPost(row: any): Post | null {
 function mapFeedRows(rows: unknown): Post[] {
   return (Array.isArray(rows) ? rows : [])
     .map(transformPost)
-    .filter((p): p is Post => p !== null);
+    .filter((p): p is Post => p !== null && !!p.author?.id);
 }
 
 /**
@@ -335,7 +335,7 @@ export function usePrefetchPosts() {
           p_offset: 0,
           p_limit: INITIAL_PAGE_SIZE,
         } as any);
-        const posts = (data || []).map(transformPost);
+        const posts = mapFeedRows(data);
         if (posts.length > 0) {
           presignPostMedia(posts).then(() => preloadSignedMedia(posts)).catch(() => {});
           queryClient.setQueryData(personalizedKey, {
@@ -352,7 +352,7 @@ export function usePrefetchPosts() {
           p_offset: 0,
           p_limit: INITIAL_PAGE_SIZE,
         });
-        let posts = (data || []).map(transformPost);
+        let posts = mapFeedRows(data);
         posts = posts.filter((p) => p.author?.id !== profileId);
         if (posts.length > 0) {
           presignPostMedia(posts).then(() => preloadSignedMedia(posts)).catch(() => {});
