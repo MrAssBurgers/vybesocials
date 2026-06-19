@@ -222,20 +222,21 @@ export function useProfileByUsername(username: string) {
       ]);
 
       // Cache the profile
+      const p = profile as any;
       setCachedProfile({
-        id: profile.id,
-        username: profile.username,
-        display_name: profile.display_name || null,
-        avatar_url: profile.avatar_url,
+        id: String(p.id),
+        username: String(p.username),
+        display_name: (p.display_name as string | null) || null,
+        avatar_url: (p.avatar_url as string | null) || null,
       });
 
       return {
-        ...profile,
+        ...(profile as any),
         follower_count: followerCount.count || 0,
         following_count: followingCount.count || 0,
         post_count: postCount.count || 0,
         is_following: !!isFollowing.data,
-      };
+      } as any;
     },
     enabled: !!username,
     staleTime: 1000 * 60 * 15, // 15 minutes

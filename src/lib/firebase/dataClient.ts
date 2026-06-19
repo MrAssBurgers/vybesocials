@@ -34,6 +34,7 @@ import {
   findExistingDmBetweenProfiles,
   ensureDmMembershipPair,
 } from '@/lib/dmMembershipRepair';
+import { syncProfileUsername } from './syncProfileUsername';
 
 type FilterOp = '==' | '!=' | '>' | '<' | 'in' | 'not-in';
 
@@ -598,18 +599,18 @@ async function rpcEnsureProfile(): Promise<string | null> {
 
   const claimedId = await rpcClaimProfileByEmail();
   if (claimedId) {
-    const claimed = await getDocument<UserProfile>('profiles', claimedId);
+    const claimed = await getDocument<UserProfile & { email?: string | null }>('profiles', claimedId);
     if (claimed?.id) {
       await setDocument('user_auth_index', user.id, {
         profile_id: claimed.id,
         username: claimed.username || null,
-        email: user.email || claimed.email || null,
+        email: (user as any).email || claimed.email || null,
         updated_at: new Date().toISOString(),
       }, true);
       if (claimed.user_id !== user.id) {
         await setDocument('profiles', claimed.id, {
           user_id: user.id,
-          email: user.email || claimed.email || null,
+          email: (user as any).email || claimed.email || null,
           updated_at: new Date().toISOString(),
         }, true);
       }

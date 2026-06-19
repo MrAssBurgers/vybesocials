@@ -240,7 +240,7 @@ export const firebaseAuth = {
       await sendPasswordResetEmail(
         auth,
         email,
-        url ? { url, handleCodeInApp: true } : { handleCodeInApp: true },
+        url ? { url, handleCodeInApp: true } : undefined,
       );
       return { error: null };
     } catch (err) {

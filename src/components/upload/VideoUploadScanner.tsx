@@ -120,7 +120,7 @@ export const VideoUploadScanner = memo(function VideoUploadScanner({
       }
 
       // Step 3: Audio handled server-side (OpenAI STT + moderation) during Vybe Check
-      setState(s => ({ ...s, audioScanResult: videoResult === 'blocked' ? 'blocked' : 'safe', progress: 85 }));
+      setState(s => ({ ...s, audioScanResult: 'safe', progress: 85 }));
 
       // Step 4: Move to public location
       setState(s => ({ ...s, step: 'finalizing', progress: 90 }));

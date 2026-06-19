@@ -271,7 +271,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const activeBan = !error ? pickActiveBan(data ?? []) : null;
 
     if (activeBan) {
-      setBanInfo(activeBan);
+      setBanInfo({ ...activeBan, reason: activeBan.reason || 'No reason provided' } as BanInfo);
       // Schedule auto-unban when time is up
       scheduleBanExpiry(activeBan.expires_at, activeBan.is_permanent);
     } else {
