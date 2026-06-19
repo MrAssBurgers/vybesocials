@@ -42,28 +42,68 @@ export function shouldRegisterServiceWorker(): boolean {
   return false;
 }
 
+let registrationPromise: Promise<ServiceWorkerRegistration | null> | null = null;
+let updateIntervalStarted = false;
+let loggedRegistration = false;
+
+function logRegistrationOnce(scope: string) {
+  if (loggedRegistration) return;
+  loggedRegistration = true;
+  if (import.meta.env.DEV) {
+    console.log('[VYBE] Service worker registered:', scope);
+  }
+}
+
+/** Single shared registration — safe to call from main.tsx and push hooks. */
 export async function registerVybeServiceWorker(): Promise<ServiceWorkerRegistration | null> {
   if (!shouldRegisterServiceWorker()) return null;
 
-  try {
-    const registration = await navigator.serviceWorker.register('/sw.js', { scope: '/' });
-    console.log('[VYBE] Service worker registered:', registration.scope);
+  if (!registrationPromise) {
+    registrationPromise = (async () => {
+      try {
+        const existing = await navigator.serviceWorker.getRegistration('/');
+        if (existing) {
+          logRegistrationOnce(existing.scope);
+          return existing;
+        }
 
-    setInterval(() => {
-      registration.update().catch(() => {});
-    }, 60 * 60 * 1000);
+        const registration = await navigator.serviceWorker.register('/sw.js', { scope: '/' });
+        logRegistrationOnce(registration.scope);
 
-    return registration;
-  } catch (error) {
-    console.error('[VYBE] Service worker registration failed:', error);
-    return null;
+        if (!updateIntervalStarted) {
+          updateIntervalStarted = true;
+          setInterval(() => {
+            registration.update().catch(() => {});
+          }, 60 * 60 * 1000);
+        }
+
+        return registration;
+      } catch (error) {
+        registrationPromise = null;
+        console.error('[VYBE] Service worker registration failed:', error);
+        return null;
+      }
+    })();
   }
+
+  return registrationPromise;
+}
+
+/** Resolve the app SW without re-registering or logging. */
+export async function getVybeServiceWorkerRegistration(): Promise<ServiceWorkerRegistration | null> {
+  if (!shouldRegisterServiceWorker()) return null;
+  const existing = await navigator.serviceWorker.getRegistration('/');
+  if (existing?.active) return existing;
+  return registerVybeServiceWorker();
 }
 
 export async function cleanupPreviewServiceWorkers() {
   if (typeof window === 'undefined' || !('serviceWorker' in navigator)) {
     return false;
   }
+
+  registrationPromise = null;
+  loggedRegistration = false;
 
   const registrations = await navigator.serviceWorker.getRegistrations();
   if (registrations.length === 0) {

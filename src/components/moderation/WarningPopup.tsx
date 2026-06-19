@@ -4,7 +4,7 @@ import { AlertTriangle, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth';
-import { isPermissionDeniedError, warnOnce } from '@/lib/logOnce';
+import { isPermissionDeniedError, isFirestoreIndexError, warnOnce } from '@/lib/logOnce';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
 interface Warning {
@@ -26,20 +26,22 @@ export function WarningPopup() {
         .from('user_warnings')
         .select('id, reason, created_at, acknowledged')
         .eq('user_id', profile.id)
-        .eq('acknowledged', false)
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      
+        .eq('acknowledged', false);
+
       if (error) {
-        if (isPermissionDeniedError(error)) {
-          warnOnce('warnings-fetch-denied', 'Error fetching warnings:', error);
+        if (isPermissionDeniedError(error) || isFirestoreIndexError(error)) {
+          warnOnce('warnings-fetch', 'Error fetching warnings:', error);
         } else {
           console.error('Error fetching warnings:', error);
         }
         return null;
       }
-      return data as Warning | null;
+
+      const rows = (data as Warning[] | null) ?? [];
+      rows.sort(
+        (a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime(),
+      );
+      return rows[0] ?? null;
     },
     enabled: !!profile?.id,
     refetchInterval: 30000,

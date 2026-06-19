@@ -2,6 +2,12 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## Console spam fix — SW + Firestore indexes (2026-06-19)
+- **SW spam:** singleton `registerVybeServiceWorker()` (deduped promise + log once); push hook uses `getVybeServiceWorkerRegistration()` + `profile?.id` dep (not whole profile object)
+- **Index errors:** `user_warnings` + `user_bans` queries sort client-side (no composite index required); indexes added to `firestore.indexes.json` as backup
+- **Tests:** `npm run build` PASS
+- **You:** Lovable **Share → Publish** + hard refresh
+
 ## Permission spam fix — DMs, presence, warnings (2026-06-19)
 - **Root cause:** `user_presence` + `user_warnings` had no Firestore rules (catch-all deny); conversation reads failed when membership doc IDs used profile UUIDs but rules only checked auth uid paths
 - **Rules:** Added `user_presence`, `user_warnings`, expanded `isMember` / conversation read (member_ids + profileId + uid); staff can manage bans/warnings

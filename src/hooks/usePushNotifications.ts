@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback, useRef } from 'react';
 import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth';
 import { toast } from 'sonner';
-import { isPreviewServiceWorkerDisabled, registerVybeServiceWorker } from '@/lib/serviceWorker';
+import { isPreviewServiceWorkerDisabled, getVybeServiceWorkerRegistration } from '@/lib/serviceWorker';
 import { ensureDespiaOneSignalLinked, relinkDespiaPushInBackground, linkOneSignalUser } from '@/lib/despiaOneSignal';
 import { isDespiaRuntime, openAppSettings } from '@/lib/despiaBridge';
 import { pushBlockedSettingsMessage } from '@/lib/pushSettingsCopy';
@@ -106,9 +106,11 @@ export function usePushNotifications() {
   const [isCheckingSubscription, setIsCheckingSubscription] = useState(true);
   const [permission, setPermission] = useState<NotificationPermission>('default');
   const registrationRef = useRef<ServiceWorkerRegistration | null>(null);
+  const swInitRef = useRef(false);
 
   // Check if push notifications are supported
   useEffect(() => {
+    const profileId = profile?.id;
     const onDespia = isDespiaRuntime();
     const supported = onDespia || (
       'serviceWorker' in navigator &&
@@ -122,33 +124,22 @@ export function usePushNotifications() {
       setPermission(Notification.permission);
     }
 
-    if (supported && profile) {
-      // Hydrate from intent immediately so toggle doesn't flicker off on reload.
-      setIsSubscribed(readIntent(profile.id));
-      if (!onDespia) registerServiceWorker();
-      checkSubscription();
-    } else if (!profile) {
-      setIsCheckingSubscription(false);
+    if (!supported || !profileId) {
+      if (!profileId) setIsCheckingSubscription(false);
+      return;
     }
-  }, [profile]);
 
-  // Register service worker
-  const registerServiceWorker = async () => {
-    try {
-      const registration = await registerVybeServiceWorker();
-      if (!registration) return null;
-      registrationRef.current = registration;
-      console.log('[Push] Service worker registered:', registration.scope);
-      
-      await navigator.serviceWorker.ready;
-      console.log('[Push] Service worker ready');
-      
-      return registration;
-    } catch (error) {
-      console.error('[Push] Service worker registration failed:', error);
-      return null;
+    setIsSubscribed(readIntent(profileId));
+
+    if (!onDespia && !swInitRef.current) {
+      swInitRef.current = true;
+      void getVybeServiceWorkerRegistration().then((registration) => {
+        if (registration) registrationRef.current = registration;
+      });
     }
-  };
+
+    void checkSubscription();
+  }, [profile?.id]);
 
   const checkSubscription = async () => {
     setIsCheckingSubscription(true);
@@ -302,7 +293,8 @@ export function usePushNotifications() {
       // Ensure service worker is registered
       let registration = registrationRef.current;
       if (!registration) {
-        registration = await registerServiceWorker();
+        registration = await getVybeServiceWorkerRegistration();
+        if (registration) registrationRef.current = registration;
       }
       
       if (!registration) {

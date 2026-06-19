@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { db } from '@/lib/firebase';
 import { useAuthProfileId } from '@/hooks/useAuthProfileId';
 import { pickActiveBan } from '@/lib/banUtils';
+import { isFirestoreIndexError, isPermissionDeniedError, warnOnce } from '@/lib/logOnce';
 
 export const useBanStatus = () => {
   const profileId = useAuthProfileId();
@@ -15,16 +16,22 @@ export const useBanStatus = () => {
       const { data, error } = await db
         .from('user_bans')
         .select('*, is_meme_ban, custom_gif_url')
-        .eq('user_id', profileId)
-        .order('created_at', { ascending: false })
-        .limit(10);
+        .eq('user_id', profileId);
 
       if (error) {
-        console.error('Error checking ban status:', error);
+        if (isPermissionDeniedError(error) || isFirestoreIndexError(error)) {
+          warnOnce('ban-status-fetch', 'Error checking ban status:', error);
+        } else {
+          console.error('Error checking ban status:', error);
+        }
         return null;
       }
 
-      return pickActiveBan(data ?? []);
+      const rows = [...(data ?? [])].sort(
+        (a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime(),
+      );
+
+      return pickActiveBan(rows.slice(0, 10));
     },
     enabled: !!profileId,
     networkMode: 'always',

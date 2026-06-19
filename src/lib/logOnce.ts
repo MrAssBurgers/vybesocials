@@ -11,3 +11,8 @@ export function isPermissionDeniedError(error: unknown): boolean {
   const message = error instanceof Error ? error.message : String((error as { message?: string })?.message ?? error ?? '');
   return /missing or insufficient permissions|permission.denied/i.test(message);
 }
+
+export function isFirestoreIndexError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String((error as { message?: string })?.message ?? error ?? '');
+  return /requires an index/i.test(message);
+}
