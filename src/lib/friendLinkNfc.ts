@@ -6,6 +6,7 @@
 
 import { isDespiaRuntime, isAndroidUA, isIOSUA } from '@/lib/despiaBridge';
 import { despiaReadNFC, startDespiaNfcReadLoop } from '@/lib/despiaNFCv2';
+import { mapNfcErrorMessage, preferNativeNfc } from '@/lib/nfcPlatform';
 
 export type FriendLinkTarget = { type: 'drop' | 'user'; id: string };
 
@@ -100,7 +101,7 @@ export async function startFriendLinkNfcSession(
   }
 
   const hasWebNfc =
-    typeof window !== 'undefined' && 'NDEFReader' in window && isAndroidUA() && !isDespiaRuntime();
+    typeof window !== 'undefined' && 'NDEFReader' in window && isAndroidUA() && !preferNativeNfc();
 
   if (hasWebNfc && broadcastUrl) {
     const NDEFReader = (window as Window & { NDEFReader: new () => NDEFReader }).NDEFReader;
@@ -133,8 +134,11 @@ export async function startFriendLinkNfcSession(
 
       ndef.addEventListener('reading', onReading);
       cleanups.push(() => ndef.removeEventListener('reading', onReading));
-    } catch (err) {
+    } catch (err: any) {
       console.warn('[friendLinkNfc] Web NFC session failed:', err);
+      if (err?.name === 'NotSupportedError') {
+        console.warn('[friendLinkNfc]', mapNfcErrorMessage(null, err.name));
+      }
     }
   }
 
@@ -146,9 +150,15 @@ export async function startFriendLinkNfcSession(
 }
 
 /** One-shot read (manual retry button). Uses official single `nfc://read`. */
-export async function scanFriendLinkOnce(): Promise<FriendLinkTarget | null> {
-  if (!isDespiaRuntime()) return null;
+export async function scanFriendLinkOnce(): Promise<{
+  target: FriendLinkTarget | null;
+  error?: string;
+}> {
+  if (!isDespiaRuntime()) return { target: null };
   const result = await despiaReadNFC(60_000);
-  if (result.ok && result.payload) return extractFriendTarget(result.payload);
-  return null;
+  if (result.ok && result.payload) {
+    return { target: extractFriendTarget(result.payload) };
+  }
+  if (result.dismissed) return { target: null };
+  return { target: null, error: result.error };
 }

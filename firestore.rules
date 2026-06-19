@@ -556,6 +556,11 @@ service cloud.firestore {
       allow read: if ownsUserField('user_id') || isAdmin();
       allow create: if willOwnUserField('user_id') || isAdmin();
     }
+    match /marketplace_purchases/{docId} {
+      allow read: if ownsUserField('user_id') || isAdmin();
+      allow create: if willOwnUserField('user_id') || isAdmin();
+      allow update, delete: if isAdmin();
+    }
     match /sounds/{id} {
       allow read: if signedIn();
       allow create: if signedIn();

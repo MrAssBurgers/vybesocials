@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  VYBE Android manifest additions — merge into your native shell.
+
+  Capacitor: copy relevant lines into android/app/src/main/AndroidManifest.xml
+  after `npx cap add android`.
+
+  Despia: send this file to Despia support and confirm NFC addon is ON in the
+  Despia Editor, then publish a new store build.
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- Required for Friend Link tap-to-add and NFC tag programming -->
+    <uses-permission android:name="android.permission.NFC" />
+
+    <!-- Optional hardware — app must install on non-NFC devices (QR fallback) -->
+    <uses-feature android:name="android.hardware.nfc" android:required="false" />
+
+</manifest>

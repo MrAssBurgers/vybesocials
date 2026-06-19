@@ -3,7 +3,6 @@ import { Navigate } from 'react-router-dom';
 import { useAuth } from '@/lib/auth';
 import { isNativeAppShell } from '@/lib/despiaBridge';
 import { isMobileOrTabletDevice } from '@/lib/deviceDetection';
-import { VybePageLoader } from '@/components/ui/VybeLoader';
 
 const VybeHome = lazy(() => import('@/pages/VybeHome'));
 const Landing = lazy(() => import('@/pages/Landing'));
@@ -42,13 +41,13 @@ export default function RootGate() {
   });
   const isMobileApp = useMobileAppEntry();
 
-  if (loading) return <VybePageLoader delay={0} />;
+  if (loading) return null;
   if (user) return <Navigate to="/home" replace />;
 
   const showIntro = !introDone && isMobileApp;
   if (showIntro) {
     return (
-      <Suspense fallback={<VybePageLoader delay={0} />}>
+      <Suspense fallback={null}>
         <MobileIntro onDone={() => setIntroDone(true)} />
       </Suspense>
     );
@@ -56,13 +55,13 @@ export default function RootGate() {
 
   if (isMobileApp) {
     return (
-      <Suspense fallback={<VybePageLoader delay={0} />}>
+      <Suspense fallback={null}>
         <Landing />
       </Suspense>
     );
   }
   return (
-    <Suspense fallback={<VybePageLoader delay={0} />}>
+    <Suspense fallback={null}>
       <VybeHome />
     </Suspense>
   );

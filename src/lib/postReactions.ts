@@ -43,7 +43,7 @@ export async function savePostReaction(params: {
     where('user_id', '==', userId),
     where('post_id', '==', postId),
     firestoreLimit(20),
-  ]);
+  ]).catch(() => [] as { id?: string; created_at?: string }[]);
 
   const createdAt = existing.find((r) => r.created_at)?.created_at || now;
   for (const row of existing) {
@@ -61,26 +61,38 @@ export async function savePostReaction(params: {
     updated_at: now,
   });
 
-  await bumpPostMoodSignal(postId, reactionType);
+  try {
+    await bumpPostMoodSignal(postId, reactionType);
+  } catch (err) {
+    console.warn('[postReactions] mood signal skipped:', err);
+  }
   await recordReactionRankingSignal(userId, postId, reactionType);
 }
 
 async function bumpPostMoodSignal(postId: string, reactionType: ReactionType): Promise<void> {
   const mood = getFeedMoodForReaction(reactionType);
   const signalId = postMoodSignalDocId(postId, mood);
-  const existing = await getDocuments<{ signal_strength?: number }>('post_mood_signals', [
-    where('post_id', '==', postId),
-    where('mood', '==', mood),
-    firestoreLimit(1),
-  ]);
-  const prevStrength = Number(existing[0]?.signal_strength ?? 0);
+  const now = new Date().toISOString();
+  let prevStrength = 0;
+  let prevCreatedAt: string | undefined;
+
+  try {
+    const existing = await getDocuments<{ signal_strength?: number; created_at?: string }>(
+      'post_mood_signals',
+      [where('post_id', '==', postId), where('mood', '==', mood), firestoreLimit(1)],
+    );
+    prevStrength = Number(existing[0]?.signal_strength ?? 0);
+    prevCreatedAt = existing[0]?.created_at;
+  } catch {
+    /* non-fatal */
+  }
 
   await setDocument('post_mood_signals', signalId, {
     id: signalId,
     post_id: postId,
     mood,
     signal_strength: prevStrength + 1,
-    created_at: existing[0] ? (existing[0] as { created_at?: string }).created_at : now,
+    created_at: prevCreatedAt || now,
   });
 }
 

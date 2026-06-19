@@ -12,18 +12,16 @@ import { useMarketplacePurchase } from '@/hooks/useMarketplacePurchase';
 import { useActivateBoost } from '@/hooks/useActiveBoosts';
 import { useEquipItem } from '@/hooks/useLockerItems';
 import { ActiveBoostsBanner } from '@/components/tokens/ActiveBoostsBanner';
+import { PurchaseSuccessModal } from '@/components/tokens/PurchaseSuccessModal';
+import { MARKETPLACE_EQUIP_MAP } from '@/lib/marketplaceEquip';
 import { useAuth } from '@/lib/auth';
+import { useAuthProfileId } from '@/hooks/useAuthProfileId';
 import { useQuery } from '@tanstack/react-query';
 import { db } from '@/lib/firebase';
 import { toast } from 'sonner';
 
 // Maps marketplace item ids -> { equip type, equip value } for permanent cosmetics
-const PERMANENT_EQUIP_MAP: Record<string, { type: 'frame' | 'profile_theme'; value: string }> = {
-  avatar_frame_gold: { type: 'frame', value: 'avatar_frame_gold' },
-  avatar_frame_fire: { type: 'frame', value: 'avatar_frame_fire' },
-  theme_neon: { type: 'profile_theme', value: 'theme_neon' },
-  theme_ocean: { type: 'profile_theme', value: 'theme_ocean' },
-};
+const PERMANENT_EQUIP_MAP = MARKETPLACE_EQUIP_MAP;
 
 // Visual preview component showing how items look on a profile
 const ItemPreview = memo(({ item }: { item: MarketplaceItem }) => {
@@ -129,19 +127,22 @@ const ItemPreview = memo(({ item }: { item: MarketplaceItem }) => {
 
 // Hook to get user's purchased items
 function usePurchasedItems() {
+  const profileId = useAuthProfileId();
   const { user } = useAuth();
+  const ownerId = profileId ?? user?.id;
+
   return useQuery({
-    queryKey: ['marketplace-purchases', user?.id],
+    queryKey: ['marketplace-purchases', ownerId],
     queryFn: async () => {
-      if (!user?.id) return [];
+      if (!ownerId) return [];
       const { data, error } = await db
         .from('marketplace_purchases')
         .select('item_id')
-        .eq('user_id', user.id);
+        .eq('user_id', ownerId);
       if (error) throw error;
       return data.map(p => p.item_id);
     },
-    enabled: !!user?.id,
+    enabled: !!ownerId,
     staleTime: 1000 * 60 * 5,
   });
 }
@@ -219,8 +220,8 @@ const ItemCard = memo(({ item, canAfford, isPremium, onBuy, onActivate, isPurcha
 
 export default function TokenMarketplace() {
   const [tab, setTab] = useState<string>('all');
-  const [showConfetti, setShowConfetti] = useState(false);
   const [showRoulette, setShowRoulette] = useState(false);
+  const [purchaseSuccessItem, setPurchaseSuccessItem] = useState<MarketplaceItem | null>(null);
   const filterCat = tab === 'all' ? undefined : tab as MarketplaceItem['category'];
   const { items, balance, canAfford, isPremium } = useTokenMarketplace(filterCat);
   const purchase = useMarketplacePurchase();
@@ -230,23 +231,34 @@ export default function TokenMarketplace() {
 
   const handleBuy = useCallback((item: MarketplaceItem) => {
     purchase.mutate({ itemId: item.id, cost: item.cost, name: item.name }, {
-      onSuccess: async () => {
-        setShowConfetti(true);
-        setTimeout(() => setShowConfetti(false), 2000);
-
-        // Auto-equip permanent cosmetics so the user instantly sees what they bought
-        const equipSpec = PERMANENT_EQUIP_MAP[item.id];
-        if (equipSpec) {
-          try {
-            await equip.mutateAsync(equipSpec);
-            toast.success(`${item.name} equipped!`);
-          } catch {
-            toast.info(`${item.name} added to your locker`);
-          }
-        }
+      onSuccess: () => {
+        setPurchaseSuccessItem(item);
       },
     });
-  }, [purchase, equip]);
+  }, [purchase]);
+
+  const handleEquipFromModal = useCallback(async () => {
+    if (!purchaseSuccessItem) return;
+    const equipSpec = PERMANENT_EQUIP_MAP[purchaseSuccessItem.id];
+    if (!equipSpec) {
+      setPurchaseSuccessItem(null);
+      return;
+    }
+    try {
+      await equip.mutateAsync(equipSpec);
+      toast.success(`${purchaseSuccessItem.name} equipped!`);
+      setPurchaseSuccessItem(null);
+    } catch {
+      toast.error('Could not equip — try from your locker');
+    }
+  }, [purchaseSuccessItem, equip]);
+
+  const handleLockerFromModal = useCallback(() => {
+    if (purchaseSuccessItem) {
+      toast.success(`${purchaseSuccessItem.name} saved to your locker`);
+    }
+    setPurchaseSuccessItem(null);
+  }, [purchaseSuccessItem]);
 
   const handleActivate = useCallback((item: MarketplaceItem) => {
     // Show the spinning roulette animation for the roulette pack
@@ -265,42 +277,14 @@ export default function TokenMarketplace() {
   return (
     <AppLayout>
       <PageTransition>
-        {/* Confetti overlay */}
-        <AnimatePresence>
-          {showConfetti && (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="fixed inset-0 z-50 pointer-events-none flex items-center justify-center"
-            >
-              <motion.div
-                initial={{ scale: 0 }}
-                animate={{ scale: [0, 1.3, 1] }}
-                transition={{ duration: 0.5 }}
-                className="text-6xl"
-              >
-                🎉
-              </motion.div>
-              {Array.from({ length: 12 }).map((_, i) => (
-                <motion.div
-                  key={i}
-                  initial={{ opacity: 1, scale: 1, x: 0, y: 0 }}
-                  animate={{
-                    opacity: 0,
-                    scale: 0.5,
-                    x: Math.cos((i * Math.PI * 2) / 12) * 120,
-                    y: Math.sin((i * Math.PI * 2) / 12) * 120,
-                  }}
-                  transition={{ duration: 0.8, ease: 'easeOut' }}
-                  className="absolute text-2xl"
-                >
-                  {['✨', '🪙', '💫', '⭐'][i % 4]}
-                </motion.div>
-              ))}
-            </motion.div>
-          )}
-        </AnimatePresence>
+        <PurchaseSuccessModal
+          item={purchaseSuccessItem}
+          open={!!purchaseSuccessItem}
+          onOpenChange={(open) => { if (!open) setPurchaseSuccessItem(null); }}
+          onEquip={handleEquipFromModal}
+          onLocker={handleLockerFromModal}
+          isEquipping={equip.isPending}
+        />
 
         {/* Roulette spin overlay */}
         <AnimatePresence>

@@ -9,6 +9,7 @@
  */
 
 import { despiaCall, isDespiaRuntime } from './despiaBridge';
+import { mapNfcErrorMessage } from './nfcPlatform';
 
 export type NFCEventType = 'read' | 'write' | 'dismissed' | 'error';
 
@@ -114,7 +115,7 @@ export async function despiaReadNFC(timeoutMs = 60_000): Promise<DespiaNFCReadRe
   if (!evt) return { ok: false, error: 'timeout' };
   if (evt.type === 'read') return { ok: true, payload: evt.data ?? '', tagId: evt.id };
   if (evt.type === 'dismissed') return { ok: false, dismissed: true };
-  return { ok: false, error: evt.error || 'nfc_error' };
+  return { ok: false, error: mapNfcErrorMessage(evt.error) };
 }
 
 export interface DespiaNFCWriteResult {
@@ -171,7 +172,7 @@ export function startDespiaNfcReadLoop(options: DespiaNfcReadLoopOptions): () =>
       return;
     }
     if (evt.type === 'error') {
-      options.onError?.(evt.error || 'nfc_error');
+      options.onError?.(mapNfcErrorMessage(evt.error));
       scheduleRearm(options.rearmDelayMs ?? 1200);
     }
   });
@@ -207,5 +208,5 @@ export async function despiaWriteNFC(value: string, timeoutMs = 60_000): Promise
   if (!evt) return { ok: false, error: 'timeout' };
   if (evt.type === 'write') return { ok: true };
   if (evt.type === 'dismissed') return { ok: false, dismissed: true };
-  return { ok: false, error: evt.error || 'write_error' };
+  return { ok: false, error: mapNfcErrorMessage(evt.error) || 'write_error' };
 }

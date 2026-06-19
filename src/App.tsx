@@ -464,7 +464,7 @@ function AppWithPreloader() {
         <AppBackgroundProvider>
           <CustomThemeProvider>
             <ThemeTransitionProvider>
-              <Suspense fallback={<VybePageLoader delay={0} />}>
+              <Suspense fallback={null}>
                 <EasterEggProvider>
                   <CallStoreProvider>
                     <StreakProvider>
@@ -481,11 +481,11 @@ function AppWithPreloader() {
                             data-app-shell
                             className="relative z-[1] min-h-dvh bg-background"
                           >
-                          <Suspense fallback={<VybePageLoader delay={0} />}>
+                          <Suspense fallback={null}>
                             <RewardNotificationProvider>
                               <DebugPanelProvider>
                                 <BugRecheckProvider>
-                                <Suspense fallback={<VybePageLoader delay={0} />}>
+                                <Suspense fallback={null}>
                                   <TutorialProvider>
                                     <NavigationRefSetter />
                                     <ScrollRestoration />

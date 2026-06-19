@@ -111,7 +111,7 @@ export const VybeLoader = memo(function VybeLoader({ className, delay = 350 }: V
 /**
  * Full-page breathing VYBE loader. Used as Suspense fallback for routes.
  */
-export const VybePageLoader = memo(function VybePageLoader({ delay = 350 }: { delay?: number }) {
+export const VybePageLoader = memo(function VybePageLoader({ delay = 1400 }: { delay?: number }) {
   const [show, setShow] = useState(delay === 0);
   const [splashVisible, setSplashVisible] = useState(() =>
     typeof document !== 'undefined' && document.body.classList.contains('splash-visible'),

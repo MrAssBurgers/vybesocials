@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { despiaScanNFC, isDespiaRuntime, isAndroidUA, isIOSUA } from '@/lib/despiaBridge';
+import { mapNfcErrorMessage, preferNativeNfc, showNfcError } from '@/lib/nfcPlatform';
 
 /**
  * Web NFC hook — works on Android Chrome (and Despia Android WebView).
@@ -45,9 +46,8 @@ export function useWebNFC({ onRead, autoStart = false }: UseWebNFCOptions = {}) 
   onReadRef.current = onRead;
 
   useEffect(() => {
-    const hasWeb = typeof window !== 'undefined' && 'NDEFReader' in window;
-    // Despia Android shell exposes a native NFC bridge even without Web NFC.
-    const hasDespia = isDespiaRuntime() && isAndroidUA();
+    const hasWeb = typeof window !== 'undefined' && 'NDEFReader' in window && isAndroidUA() && !preferNativeNfc();
+    const hasDespia = preferNativeNfc();
     setIsAvailable(hasWeb || hasDespia);
   }, []);
 
@@ -77,6 +77,17 @@ export function useWebNFC({ onRead, autoStart = false }: UseWebNFCOptions = {}) 
 
   const start = useCallback(async () => {
     setError(null);
+
+    // Despia native shell: never use Web NFC (blocked in WebViews).
+    if (preferNativeNfc() && isAndroidUA()) {
+      const ok = await tryDespiaBridge();
+      if (ok) return true;
+      const msg = mapNfcErrorMessage('timeout');
+      setError(msg);
+      toast.info(msg);
+      return false;
+    }
+
     if (!('NDEFReader' in window)) {
       // Despia Android: use the native NFC bridge instead.
       if (isDespiaRuntime() && isAndroidUA()) {
@@ -139,12 +150,7 @@ export function useWebNFC({ onRead, autoStart = false }: UseWebNFCOptions = {}) 
         return false;
       }
       const name = err?.name || '';
-      const msg =
-        name === 'NotAllowedError'
-          ? 'NFC permission denied — enable it in app settings'
-          : name === 'NotSupportedError'
-            ? 'NFC is disabled or unavailable on this device'
-            : err?.message || 'Failed to start NFC';
+      const msg = showNfcError(err?.message, name);
       setError(msg);
       toast.error(msg);
       setIsScanning(false);

@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { LiquidBottomSheet } from '@/components/ui/glass/LiquidBottomSheet';
 import { despiaWriteNFC } from '@/lib/despiaNFCv2';
 import { isDespiaRuntime } from '@/lib/despiaBridge';
+import { mapNfcErrorMessage, showNfcError } from '@/lib/nfcPlatform';
 import { haptics } from '@/lib/haptics';
 import { toast } from 'sonner';
 
@@ -59,7 +60,8 @@ export function NFCWriteSheet({
       setPhase('idle');
     } else {
       haptics.error();
-      setError(result.error || 'Could not write tag');
+      const msg = result.error ? showNfcError(result.error) : mapNfcErrorMessage('write_error');
+      setError(msg);
       setPhase('error');
     }
   }, [value, onClose]);

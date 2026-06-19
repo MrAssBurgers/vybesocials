@@ -6,7 +6,9 @@
  * 1. Copy this file to: android/app/src/main/java/app/lovable/plugins/FriendDropPlugin.kt
  * 2. Add to build.gradle (app level):
  *    implementation 'com.google.android.gms:play-services-nearby:19.0.0'
- * 3. Add permissions to AndroidManifest.xml:
+ * 3. Add permissions to AndroidManifest.xml (see native/android/AndroidManifest.xml):
+ *    <uses-permission android:name="android.permission.NFC" />
+ *    <uses-feature android:name="android.hardware.nfc" android:required="false" />
  *    <uses-permission android:name="android.permission.BLUETOOTH" />
  *    <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" />
  *    <uses-permission android:name="android.permission.BLUETOOTH_SCAN" />

@@ -77,32 +77,38 @@ export const StoryPoster = memo(function StoryPoster({
   }
 
   const unviewedBorder = ringGradient;
-  const viewedBorder = 'hsl(var(--muted-foreground) / 0.35)';
+  const ringPad = 3;
 
   if (hasUnviewed) {
     return (
       <div
         className="relative flex-shrink-0"
-        style={{ width: width + 4, height: height + 4 }}
+        style={{ width: width + ringPad * 2, height: height + ringPad * 2 }}
       >
         <motion.div
           className="absolute inset-0"
           style={{
-            borderRadius: borderRadius + 2,
+            borderRadius: borderRadius + ringPad,
             background: unviewedBorder,
-            padding: 2,
+            padding: ringPad,
           }}
           animate={{ rotate: 360 }}
-          transition={{ duration: 3.2, repeat: Infinity, ease: 'linear' }}
+          transition={{ duration: 2.8, repeat: Infinity, ease: 'linear' }}
         >
           <div
             className="h-full w-full bg-background"
-            style={{ borderRadius: borderRadius }}
+            style={{ borderRadius: borderRadius + 1 }}
           />
         </motion.div>
         <div
-          className="absolute inset-[2px] overflow-hidden bg-black"
-          style={{ borderRadius }}
+          className="absolute overflow-hidden bg-black"
+          style={{
+            top: ringPad,
+            left: ringPad,
+            right: ringPad,
+            bottom: ringPad,
+            borderRadius,
+          }}
         >
           {posterUrl ? (
             <img
@@ -125,13 +131,13 @@ export const StoryPoster = memo(function StoryPoster({
 
   return (
     <div
-      className="relative flex-shrink-0"
+      className="relative flex-shrink-0 box-border"
       style={{
-        width: width + 2,
-        height: height + 2,
-        padding: 1,
+        width: width + 4,
+        height: height + 4,
+        padding: 2,
         borderRadius: borderRadius + 2,
-        background: viewedBorder,
+        background: '#000000',
       }}
     >
       <div

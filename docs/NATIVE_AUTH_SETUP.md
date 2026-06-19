@@ -66,12 +66,15 @@ an "unavailable" message.
 ## 5. NFC native permissions
 
 ### Android — add to `AndroidManifest.xml`
+
+Canonical reference: **`native/android/AndroidManifest.xml`** in this repo.
+
 ```xml
 <uses-permission android:name="android.permission.NFC" />
 <uses-feature android:name="android.hardware.nfc" android:required="false" />
 ```
 For Capacitor builds this lives in `android/app/src/main/AndroidManifest.xml`.
-For Despia, ask Despia support to add these to the manifest.
+For Despia, confirm these lines are in the manifest **and** NFC addon is ON in the Despia Editor, then publish a **new store build** (OTA web updates cannot add manifest permissions).
 
 ### iOS — add to `Info.plist`
 ```xml

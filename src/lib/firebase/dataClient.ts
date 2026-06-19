@@ -28,7 +28,11 @@ import { isSocialRpc, runSocialRpc } from './socialRpc';
 import { isNotYetPortedPayload } from './functionsService';
 import { getProfileByAuthUid, resolveProfileIdFromAuthUid } from './profileResolve';
 import { getUserProfile } from './users';
-import { rpcEarnVybeTokens } from './tokenRpc';
+import {
+  rpcEarnVybeTokens,
+  rpcCheckRateLimit,
+  rpcPurchaseMarketplaceItem,
+} from './tokenRpc';
 import { isGeneratedUsername, normalizeUsername } from '@/lib/username';
 import {
   normalizeToProfileId,
@@ -1108,6 +1112,8 @@ const CLIENT_RPC: Record<string, (params: Record<string, unknown>) => Promise<un
   update_login_streak: async (p) => runSocialRpc('update_login_streak', p),
   restore_login_streak: async (p) => runSocialRpc('restore_login_streak', p),
   earn_vybe_tokens: async (p) => rpcEarnVybeTokens(p),
+  check_rate_limit: async (p) => rpcCheckRateLimit(p),
+  purchase_marketplace_item: async (p) => rpcPurchaseMarketplaceItem(p),
 };
 
 export function createDataClient() {

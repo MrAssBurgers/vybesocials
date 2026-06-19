@@ -4,6 +4,9 @@ import { Nfc, Radio, Zap, Check, X, Loader2, Smartphone } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useNFC } from '@/hooks/useNFC';
+import { isDespiaRuntime } from '@/lib/despiaBridge';
+import { despiaReadNFC } from '@/lib/despiaNFCv2';
+import { showNfcError, mapNfcErrorMessage } from '@/lib/nfcPlatform';
 import { useAuth } from '@/lib/auth';
 import { getInviteUrl } from '@/hooks/useInvites';
 import { haptics } from '@/lib/haptics';
@@ -49,18 +52,46 @@ export function NFCInviteShare({ variant = 'button' }: NFCInviteShareProps) {
   }, [isSupported, profile?.username, getStatusMessage]);
 
   const startNFCBroadcast = useCallback(async () => {
-    if (!profile?.username || !window.NDEFReader) return;
-    
+    if (!profile?.username) return;
+
     setPhase('requesting');
     haptics.tap();
-    
-    // Request permission first
+
+    if (isDespiaRuntime()) {
+      setPhase('ready');
+      haptics.impact();
+      toast.success('Hold phones together — tap to share your invite', { duration: 5000 });
+      const result = await despiaReadNFC(60_000);
+      if (result.ok && result.payload) {
+        setPhase('success');
+        haptics.success();
+        toast.success('Phone Tap detected!');
+        setTimeout(() => {
+          setIsOpen(false);
+          setPhase('idle');
+        }, 2000);
+        return;
+      }
+      setPhase('error');
+      haptics.error();
+      if (result.error) toast.error(result.error);
+      else toast.info('No NFC detected — try again');
+      return;
+    }
+
+    if (!window.NDEFReader) {
+      setPhase('error');
+      toast.error('NFC requires the VYBE app or Chrome on Android');
+      return;
+    }
+
+    // Request permission first (Chrome Android Web NFC only)
     const hasPermission = await requestPermission();
     if (!hasPermission) {
       setPhase('error');
       return;
     }
-    
+
     try {
       const ndef = new window.NDEFReader();
       const controller = new AbortController();
@@ -123,7 +154,9 @@ export function NFCInviteShare({ variant = 'button' }: NFCInviteShareProps) {
       haptics.error();
       
       if (error.name === 'NotAllowedError') {
-        toast.error('NFC permission denied');
+        toast.error(showNfcError(null, error.name));
+      } else if (error.name === 'NotSupportedError') {
+        toast.error(mapNfcErrorMessage(null, error.name));
       } else if (error.name !== 'AbortError') {
         console.warn('[NFC Invite] Start failed:', error.message);
       }

@@ -502,12 +502,16 @@ export function AutoFriendDrop() {
       return;
     }
     toast.success('Hold phones together back-to-back', { duration: 4000 });
-    const target = await scanFriendLinkOnce();
+    const { target, error } = await scanFriendLinkOnce();
     if (target) {
       await handleNfcTarget(target);
-    } else {
-      toast.info('No NFC detected — keep phones touching or try QR');
+      return;
     }
+    if (error) {
+      toast.error(error);
+      return;
+    }
+    toast.info('No NFC detected — keep phones touching or try QR');
   }, [handleNfcTarget]);
 
   const handleBumpRef = useRef<() => void>(() => {});

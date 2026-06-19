@@ -130,8 +130,8 @@ const DebugPanel = lazy(() => import("@/components/debug/DebugPanel").then(m => 
 const ProductionDebugPanel = lazy(() => import("@/components/debug/ProductionDebugPanel").then(m => ({ default: m.ProductionDebugPanel })));
 import { useDebugPanel } from '@/contexts/DebugPanelContext';
 
-// Breathing VYBE logo + rotating tips (only renders after 350ms so fast loads don't flash)
-const PageFallback = memo(() => <VybePageLoader />);
+/** Only show loader on very slow route chunks — splash covers normal cold start. */
+const PageFallback = memo(() => <VybePageLoader delay={1600} />);
 
 /**
  * Animated Routes component - provides smooth page transitions

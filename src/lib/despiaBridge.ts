@@ -112,13 +112,13 @@ export async function despiaScanNFC(timeoutMs = 30_000): Promise<string | null> 
   if (!isDespiaRuntime()) return null;
   if (typeof window === 'undefined') return null;
 
-  if (isIOSUA()) {
-    const { despiaReadNFC } = await import('@/lib/despiaNFCv2');
-    const v2 = await despiaReadNFC(timeoutMs);
-    if (v2.ok && v2.payload) return v2.payload;
-    return null;
-  }
+  // Prefer official v2 API (`nfc://read` + `window.onNFCEvent`) on all platforms.
+  const { despiaReadNFC } = await import('@/lib/despiaNFCv2');
+  const v2 = await despiaReadNFC(timeoutMs);
+  if (v2.ok && v2.payload) return v2.payload;
+  if (v2.dismissed) return null;
 
+  // Legacy Android polling for older Despia builds without v2 events.
   if (!isAndroidUA()) return null;
   const w = window as any;
 

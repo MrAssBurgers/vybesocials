@@ -2,6 +2,19 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## Token Shop purchase fix (2026-06-17)
+- **Root cause:** `purchase_marketplace_item` + `check_rate_limit` RPCs existed only in Supabase — Firebase client returned null → "Purchase failed"
+- **Fix:** Client-side Firestore RPC in `tokenRpc.ts` (deduct balance, write `token_transactions` + `marketplace_purchases`); wired in `dataClient.ts`
+- **Rules:** Added `marketplace_purchases` collection rules — **deployed** to `vybe-daaab`
+- **UX:** `PurchaseSuccessModal` with sparkle animation + **Equip now** / **Save to locker**; purchases keyed by profile id (matches locker + token balance)
+- **Tests:** `npm run build` PASS
+- **You:** Lovable **Share → Publish** + hard refresh → Token Shop → buy a theme or frame
+
+## Next 3 Tasks
+1. Lovable Publish → buy item in Token Shop → success modal → Equip now
+2. Profile locker → purchased item appears
+3. Prior mobile UX items (reactions, story rings) if not yet published
+
 ## Mobile UX + data restore sweep (2026-06-19, uncommitted)
 - **Story rings:** Animated gradient outline from uploader's `equipped_profile_theme` (not viewer theme)
 - **Notifications:** Centered transition overlay (fixed Framer vs CSS translate conflict); actor profile lookup via `fetchMemberProfiles`; DM open normalizes auth uid → profile id; fallback to profile if chat fails
