@@ -2,6 +2,20 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## CORS, splash, story posting fix (2026-06-19)
+- **CORS noise:** Login streak + challenge sync RPCs run Firestore client-side only (no cloud callable preflight to `updateLoginStreak` / `syncMyChallengeProgress`)
+- **Login streak:** Real Firestore logic in `socialRpc.ts` (`login_streaks` collection)
+- **Story posting:** `publishStoryMedia` resolves Firebase download URLs (not `gs://`); optimistic upload cleared on error/settled; `mediaUrl` + `useFastSignedUrl` pass through Firebase URLs
+- **Splash:** Inline flex centering on `SplashScreen`; static boot overflow/height in `index.html`; `hideStaticBootSplash()` on dismiss
+- **Permission spam:** `onSnapshot` silently ignores permission-denied; removed unfiltered `messages` INSERT listener; DM convos fetched one-by-one
+- **Tests:** `npm run build` PASS, `npm run lint` PASS (3 pre-existing warnings)
+- **You:** Lovable **Share → Publish** + hard refresh; post a new story + confirm splash centered
+
+## Next 3 Tasks
+1. Lovable Publish → smoke-test splash, story post, console (no CORS streak errors)
+2. Repair old story rows with bad `gs://` URLs if any still stuck
+3. Lovable Publish → full smoke test from prior bug list
+
 ## Console spam fix — SW + Firestore indexes (2026-06-19)
 - **SW spam:** singleton `registerVybeServiceWorker()` (deduped promise + log once); push hook uses `getVybeServiceWorkerRegistration()` + `profile?.id` dep (not whole profile object)
 - **Index errors:** `user_warnings` + `user_bans` queries sort client-side (no composite index required); indexes added to `firestore.indexes.json` as backup

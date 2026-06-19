@@ -293,6 +293,14 @@
         min-height: 100dvh;
         background: #0B0B10;
       }
+      body.splash-visible {
+        overflow: hidden;
+        height: 100dvh;
+      }
+      body.splash-visible #root {
+        min-height: 100dvh;
+        overflow: hidden;
+      }
       #vybe-static-boot {
         position: fixed;
         inset: 0;
@@ -304,6 +312,8 @@
         overflow: hidden;
         background: #0B0B10;
         font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        min-height: 100dvh;
+        height: 100dvh;
       }
       #vybe-static-boot .vybe-splash-glow {
         position: absolute;

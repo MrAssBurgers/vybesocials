@@ -1039,6 +1039,11 @@ const CLIENT_RPC: Record<string, (params: Record<string, unknown>) => Promise<un
   },
   get_my_highest_role: async () => rpcGetMyHighestRole(),
   is_owner: async (p) => rpcIsOwner(p),
+  sync_my_challenge_progress: async () => ({ ok: true }),
+  force_sync_my_challenges: async () => ({ ok: true }),
+  get_login_streak_status: async (p) => runSocialRpc('get_login_streak_status', p),
+  update_login_streak: async (p) => runSocialRpc('update_login_streak', p),
+  restore_login_streak: async (p) => runSocialRpc('restore_login_streak', p),
 };
 
 export function createDataClient() {
@@ -1096,17 +1101,9 @@ export function createDataClient() {
         return enriched;
       }
 
-      // Social RPCs: Cloud Function → Firestore client fallback → null/empty (preview-safe).
+      // Social RPCs: Firestore client only (cloud stubs caused CORS noise on vybehub.app).
       if (isSocialRpc(name)) {
         const promise = (async () => {
-          try {
-            const remote = await invokeFunction(name, params);
-            if (!remote.error && !isNotYetPortedPayload(remote.data)) {
-              return { data: remote.data, error: null } as any;
-            }
-          } catch (err) {
-            console.warn(`[Social RPC] ${name} cloud call failed:`, err);
-          }
           try {
             const data = await runSocialRpc(name, params);
             return { data, error: null } as any;

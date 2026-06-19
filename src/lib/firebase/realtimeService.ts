@@ -91,21 +91,28 @@ export function subscribePostgresChannel(
       ? query(coll, where(parsed.field, '==', parsed.value))
       : query(coll);
 
-    const unsub = onSnapshot(q, (snapshot) => {
-      snapshot.docChanges().forEach((change) => {
-        const eventType =
-          change.type === 'added' ? 'INSERT' :
-          change.type === 'modified' ? 'UPDATE' : 'DELETE';
+    const unsub = onSnapshot(
+      q,
+      (snapshot) => {
+        snapshot.docChanges().forEach((change) => {
+          const eventType =
+            change.type === 'added' ? 'INSERT' :
+            change.type === 'modified' ? 'UPDATE' : 'DELETE';
 
-        if (binding.event !== '*' && binding.event !== eventType) return;
+          if (binding.event !== '*' && binding.event !== eventType) return;
 
-        binding.callback({
-          eventType,
-          new: { id: change.doc.id, ...change.doc.data() },
-          old: change.type === 'removed' ? { id: change.doc.id, ...change.doc.data() } : {},
+          binding.callback({
+            eventType,
+            new: { id: change.doc.id, ...change.doc.data() },
+            old: change.type === 'removed' ? { id: change.doc.id, ...change.doc.data() } : {},
+          });
         });
-      });
-    });
+      },
+      (error) => {
+        if (error.code === 'permission-denied') return;
+        console.warn(`[Realtime] ${binding.table} listener:`, error.message);
+      },
+    );
     unsubs.push(unsub);
   }
 

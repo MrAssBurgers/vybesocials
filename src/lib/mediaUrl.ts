@@ -53,6 +53,10 @@ export function normalizeMediaUrl(url: string | null | undefined): string | null
     return trimmed;
   }
 
+  if (trimmed.startsWith('gs://') || trimmed.includes('firebasestorage.googleapis.com')) {
+    return trimmed;
+  }
+
   const clean = trimmed.replace(/^\/+/, '');
   if (PLACEHOLDER_FILENAMES.has(clean)) return null;
 

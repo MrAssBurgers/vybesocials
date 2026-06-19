@@ -363,13 +363,43 @@ export function useCreateStory() {
       const cacheKey = context?.authorId ?? storiesProfileId;
       if (context?.previousStories && cacheKey) {
         queryClient.setQueryData(['stories', cacheKey], context.previousStories);
+      } else if (cacheKey) {
+        queryClient.setQueryData<StoryGroup[]>(['stories', cacheKey], (old) => {
+          if (!old) return old;
+          return old
+            .map((group) =>
+              group.user.id === cacheKey
+                ? {
+                    ...group,
+                    stories: group.stories.filter((s) => !s.isOptimistic && !s.isUploading),
+                  }
+                : group,
+            )
+            .filter((group) => group.stories.length > 0);
+        });
       }
+      console.warn('[Stories] create failed:', err);
     },
-    onSettled: (_data, _error, _vars, context) => {
+    onSettled: (_data, error, _vars, context) => {
       const cacheKey = context?.authorId ?? storiesProfileId;
-      if (cacheKey) {
-        void queryClient.invalidateQueries({ queryKey: ['stories', cacheKey], refetchType: 'active' });
+      if (!cacheKey) return;
+      if (error) {
+        queryClient.setQueryData<StoryGroup[]>(['stories', cacheKey], (old) => {
+          if (!old) return old;
+          return old
+            .map((group) =>
+              group.user.id === cacheKey
+                ? {
+                    ...group,
+                    stories: group.stories.filter((s) => !s.isOptimistic && !s.isUploading),
+                  }
+                : group,
+            )
+            .filter((group) => group.stories.length > 0);
+        });
+        return;
       }
+      void queryClient.invalidateQueries({ queryKey: ['stories', cacheKey], refetchType: 'active' });
     },
   });
 }

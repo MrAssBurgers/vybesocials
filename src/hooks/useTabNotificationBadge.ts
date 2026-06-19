@@ -145,15 +145,6 @@ export function useTabNotificationBadge() {
     const channel = subscribePostgresChannel('tab-badge-consolidated', [
       {
         event: 'INSERT',
-        table: 'messages',
-        callback: (payload) => {
-          if (payload.new.sender_id !== profileId) {
-            queryClient.invalidateQueries({ queryKey: ['unread-messages-count'] });
-          }
-        },
-      },
-      {
-        event: 'INSERT',
         table: 'notifications',
         filter: `user_id=eq.${profileId}`,
         callback: () => {

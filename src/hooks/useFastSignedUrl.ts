@@ -7,6 +7,7 @@
 import { useState, useEffect, useSyncExternalStore, useRef, useMemo } from 'react';
 import { getCachedSignedUrl, getSignedUrl, needsSigning, batchSignUrls } from '@/lib/signedUrlCache';
 import { normalizeMediaUrl } from '@/lib/mediaUrl';
+import { firebaseStorage } from '@/lib/firebase/storageService';
 
 // Subscribers for reactive updates when cache changes
 const subscribers = new Set<() => void>();
@@ -41,6 +42,17 @@ export function useFastSignedUrl(publicUrl: string | null | undefined): string |
     if (!normalizedUrl) {
       setAsyncUrl(null);
       return;
+    }
+
+    if (
+      normalizedUrl.startsWith('gs://') ||
+      normalizedUrl.includes('firebasestorage.googleapis.com')
+    ) {
+      let cancelled = false;
+      void firebaseStorage.resolveMediaUrl(normalizedUrl).then((url) => {
+        if (!cancelled && url) setAsyncUrl(url);
+      });
+      return () => { cancelled = true; };
     }
     
     if (!needsSigning(normalizedUrl)) {

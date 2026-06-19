@@ -216,19 +216,162 @@ async function rpcBumpReactionStreak() {
 }
 
 async function rpcTrackDailyLogin() {
-  return { ok: true, streak: 1 };
+  return rpcUpdateLoginStreak({});
 }
 
-async function rpcGetLoginStreakStatus() {
-  return { current_streak: 0, longest_streak: 0, can_restore: false };
+function localTodayIso(timezone: string): string {
+  try {
+    return new Intl.DateTimeFormat('en-CA', { timeZone: timezone }).format(new Date());
+  } catch {
+    return new Intl.DateTimeFormat('en-CA').format(new Date());
+  }
 }
 
-async function rpcUpdateLoginStreak() {
-  return { current_streak: 1, longest_streak: 1, xp_awarded: 0 };
+function streakExpiryIso(dateIso: string): string {
+  const d = new Date(`${dateIso}T23:59:59`);
+  d.setDate(d.getDate() + 1);
+  return d.toISOString();
 }
 
-async function rpcRestoreLoginStreak() {
-  return { current_streak: 1, restored: false };
+async function readLoginStreak(profileId: string) {
+  const rows = await getDocuments<Record<string, unknown>>('login_streaks', [
+    where('user_id', '==', profileId),
+    firestoreLimit(1),
+  ]);
+  if (rows[0]) return rows[0];
+  return getDocument<Record<string, unknown>>('login_streaks', profileId);
+}
+
+async function rpcGetLoginStreakStatus(params: Record<string, unknown>) {
+  const profileId = await currentProfileId();
+  if (!profileId) {
+    return { success: false, streak: 0, longest_streak: 0, needs_login_today: false };
+  }
+
+  const timezone = String(params.p_timezone || 'UTC');
+  const today = localTodayIso(timezone);
+  const streak = await readLoginStreak(profileId);
+
+  if (!streak) {
+    return {
+      success: true,
+      streak: 0,
+      longest_streak: 0,
+      needs_login_today: true,
+      hours_remaining: null,
+    };
+  }
+
+  const current = Number(streak.current_streak || 0);
+  const longest = Number(streak.longest_streak || 0);
+  const lastLogin = streak.last_login_date ? String(streak.last_login_date).slice(0, 10) : null;
+  const expiresAt = streak.streak_expires_at ? String(streak.streak_expires_at) : null;
+  const hoursRemaining = expiresAt
+    ? Math.max(0, (Date.parse(expiresAt) - Date.now()) / (1000 * 60 * 60))
+    : null;
+
+  return {
+    success: true,
+    streak: current,
+    longest_streak: longest,
+    needs_login_today: lastLogin !== today,
+    hours_remaining: hoursRemaining,
+    expires_at: expiresAt,
+  };
+}
+
+async function rpcUpdateLoginStreak(params: Record<string, unknown>) {
+  const profileId = await currentProfileId();
+  if (!profileId) {
+    return { success: false, error: 'Not authenticated', streak: 0, longest_streak: 0 };
+  }
+
+  const timezone = String(params.p_timezone || 'UTC');
+  const today = localTodayIso(timezone);
+  const yesterday = (() => {
+    const d = new Date(`${today}T12:00:00`);
+    d.setDate(d.getDate() - 1);
+    return d.toISOString().slice(0, 10);
+  })();
+
+  const existing = await readLoginStreak(profileId);
+  const now = new Date().toISOString();
+
+  if (!existing) {
+    const row = {
+      id: profileId,
+      user_id: profileId,
+      current_streak: 1,
+      longest_streak: 1,
+      last_login_date: today,
+      streak_expires_at: streakExpiryIso(today),
+      created_at: now,
+      updated_at: now,
+    };
+    await setDocument('login_streaks', profileId, row);
+    return {
+      success: true,
+      streak: 1,
+      longest_streak: 1,
+      is_new_day: true,
+      streak_extended: true,
+    };
+  }
+
+  const lastLogin = existing.last_login_date ? String(existing.last_login_date).slice(0, 10) : null;
+  if (lastLogin === today) {
+    return {
+      success: true,
+      streak: Number(existing.current_streak || 0),
+      longest_streak: Number(existing.longest_streak || 0),
+      is_new_day: false,
+      streak_extended: false,
+    };
+  }
+
+  let nextStreak = 1;
+  if (lastLogin === yesterday) {
+    nextStreak = Number(existing.current_streak || 0) + 1;
+  }
+  const longest = Math.max(Number(existing.longest_streak || 0), nextStreak);
+
+  await setDocument('login_streaks', String(existing.id || profileId), {
+    user_id: profileId,
+    current_streak: nextStreak,
+    longest_streak: longest,
+    last_login_date: today,
+    streak_expires_at: streakExpiryIso(today),
+    updated_at: now,
+  });
+
+  return {
+    success: true,
+    streak: nextStreak,
+    longest_streak: longest,
+    is_new_day: true,
+    streak_extended: nextStreak > 1,
+  };
+}
+
+async function rpcRestoreLoginStreak(params: Record<string, unknown>) {
+  const profileId = await currentProfileId();
+  if (!profileId) return { success: false, restored: false, streak: 0 };
+
+  const timezone = String(params.p_timezone || 'UTC');
+  const today = localTodayIso(timezone);
+  const existing = await readLoginStreak(profileId);
+  if (!existing) return { success: false, restored: false, streak: 0 };
+
+  const restored = Math.max(Number(existing.current_streak || 0), 1);
+  await setDocument('login_streaks', String(existing.id || profileId), {
+    user_id: profileId,
+    current_streak: restored,
+    last_login_date: today,
+    streak_expires_at: streakExpiryIso(today),
+    updated_at: new Date().toISOString(),
+  });
+
+  return { success: true, restored: true, streak: restored };
 }
 
 const HANDLERS: Record<string, (p: Record<string, unknown>) => Promise<unknown>> = {
@@ -245,9 +388,9 @@ const HANDLERS: Record<string, (p: Record<string, unknown>) => Promise<unknown>>
   get_mutual_friends: rpcGetMutualFriends,
   bump_reaction_streak: async () => rpcBumpReactionStreak(),
   track_daily_login: async () => rpcTrackDailyLogin(),
-  get_login_streak_status: async () => rpcGetLoginStreakStatus(),
-  update_login_streak: async () => rpcUpdateLoginStreak(),
-  restore_login_streak: async () => rpcRestoreLoginStreak(),
+  get_login_streak_status: rpcGetLoginStreakStatus,
+  update_login_streak: rpcUpdateLoginStreak,
+  restore_login_streak: rpcRestoreLoginStreak,
 };
 
 export async function runSocialRpc(

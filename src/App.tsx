@@ -93,6 +93,7 @@ import { SnapARProvider } from "@/components/camera/SnapARProvider";
 import { ATT_RESUME_EVENT, ensureAppShellVisible } from "@/lib/attResumeRecovery";
 import { syncNativeTrackingConsent } from "@/lib/att";
 import { readSplashCompleted, markSplashCompleted } from "@/lib/splashSession";
+import { hideStaticBootSplash } from "@/lib/splashProgressBridge";
 import { resetSplashSessionOnHardReload, waitForAppShellPaint, hasAppShellPaint } from "@/lib/navigationBoot";
 import { navVisibility } from "@/lib/navVisibility";
 import { markBootComplete } from "@/lib/bootGuard";
@@ -220,6 +221,7 @@ function completeInitialSplash(setShowSplash: (v: boolean) => void) {
     setShowSplash(false);
     hasInitialLoadCompleted = true;
     markSplashCompleted();
+    hideStaticBootSplash();
     document.body.classList.remove('splash-visible');
     ensureAppShellVisible();
     navVisibility.forceShow();

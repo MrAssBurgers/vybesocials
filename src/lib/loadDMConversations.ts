@@ -77,29 +77,32 @@ async function loadDMConversationsOnce(
     const userConversationIds = membershipData.map((m) => m.conversation_id);
     const membershipMap = new Map<string, any>(membershipData.map((m: any) => [m.conversation_id, m]));
 
-    const [{ data: hiddenData }, { data: trashedData }, { data: conversationsRaw, error: convError }] =
-      await Promise.all([
-        db.from('hidden_conversations').select('conversation_id').eq('user_id', effectiveProfileId),
-        db.from('trashed_conversations').select('conversation_id').eq('user_id', effectiveProfileId),
-        db
-          .from('conversations')
-          .select('*')
-          .in('id', userConversationIds)
-          .order('updated_at', { ascending: false }),
-      ]);
+    const [{ data: hiddenData }, { data: trashedData }] = await Promise.all([
+      db.from('hidden_conversations').select('conversation_id').eq('user_id', effectiveProfileId),
+      db.from('trashed_conversations').select('conversation_id').eq('user_id', effectiveProfileId),
+    ]);
 
     const hiddenIds = new Set((hiddenData || []).map((h) => h.conversation_id));
     const trashedIds = new Set((trashedData || []).map((t) => t.conversation_id));
 
-    if (convError) {
-      if (isPermissionDeniedError(convError)) {
-        warnOnce('dm-conversations-denied', '[DM] conversations query error:', convError.message);
-      } else {
-        console.warn('[DM] conversations query error:', convError.message);
-      }
-      return { data: stale, error: convError, profileId: effectiveProfileId };
-    }
-    if (!conversationsRaw?.length) {
+    const conversationResults = await Promise.all(
+      userConversationIds.map(async (conversationId) => {
+        const { data, error } = await db
+          .from('conversations')
+          .select('*')
+          .eq('id', conversationId)
+          .maybeSingle();
+        if (error || !data) return null;
+        return data;
+      }),
+    );
+    const conversationsRaw = conversationResults.filter(Boolean) as Record<string, unknown>[];
+    conversationsRaw.sort(
+      (a, b) =>
+        new Date(String(b.updated_at || 0)).getTime() -
+        new Date(String(a.updated_at || 0)).getTime(),
+    );
+    if (!conversationsRaw.length) {
       return { data: [], error: null, profileId: effectiveProfileId };
     }
 

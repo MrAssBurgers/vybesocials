@@ -1,4 +1,5 @@
 import { db } from '@/lib/firebase';
+import { firebaseStorage } from '@/lib/firebase/storageService';
 import { withTimeout } from '@/lib/withTimeout';
 import {
   compressImage,
@@ -80,16 +81,18 @@ export async function publishStoryMedia({
     );
 
     if (!thumbUploadError) {
-      const { data: { publicUrl: thumbPublicUrl } } = db.storage
-        .from('stories')
-        .getPublicUrl(thumbFileName);
-      thumbnailUrl = thumbPublicUrl || undefined;
+      thumbnailUrl =
+        (await firebaseStorage.resolveDownloadUrl('stories', thumbFileName)) || undefined;
     }
   }
 
-  const { data: { publicUrl } } = db.storage.from('stories').getPublicUrl(fileName);
-  if (!publicUrl) throw new Error('Failed to get public URL');
+  const mediaUrl =
+    (await firebaseStorage.resolveDownloadUrl('stories', fileName)) ||
+    (await firebaseStorage.resolveMediaUrl(`gs://stories/${fileName}`));
+  if (!mediaUrl || mediaUrl.startsWith('gs://')) {
+    throw new Error('Failed to get story media URL after upload');
+  }
 
   onProgress?.(85);
-  return { mediaUrl: publicUrl, thumbnailUrl };
+  return { mediaUrl, thumbnailUrl };
 }
