@@ -13,9 +13,14 @@ import { toast } from 'sonner';
 import { getUserFriendlyError } from '@/lib/errorUtils';
 
 function getFirebaseResetOobCode(url: URL): string | null {
-  const mode = url.searchParams.get('mode');
   const oobCode = url.searchParams.get('oobCode');
-  return mode === 'resetPassword' && oobCode ? oobCode : null;
+  if (!oobCode) return null;
+  const mode = url.searchParams.get('mode');
+  if (mode === 'resetPassword') return oobCode;
+  if (url.pathname === '/reset-password' || url.pathname === '/auth/reset-password') {
+    return oobCode;
+  }
+  return null;
 }
 
 async function establishRecoverySession(): Promise<

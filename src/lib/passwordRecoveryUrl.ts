@@ -10,7 +10,8 @@ export function isPasswordRecoveryUrl(url: URL = new URL(window.location.href)):
   if (hashParams.get('access_token') && hashParams.get('type') === 'recovery') return true;
   // PKCE recovery often lands as ?code= on the redirect URL (no type param).
   if (queryParams.get('code') && RESET_PATHS.has(url.pathname)) return true;
-  // Firebase Auth password reset email (?mode=resetPassword&oobCode=…).
+  // Firebase / branded reset link (?mode=resetPassword&oobCode=… or clean ?oobCode= on reset path).
+  if (queryParams.get('oobCode') && RESET_PATHS.has(url.pathname)) return true;
   if (queryParams.get('mode') === 'resetPassword' && queryParams.get('oobCode')) return true;
   return false;
 }

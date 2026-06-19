@@ -1,7 +1,7 @@
+import { HttpsError } from 'firebase-functions/v2/https';
 import { auth } from './admin.js';
 import { renderAuthEmail, AUTH_EMAIL_SUBJECTS } from './emailTemplates/index.js';
-import { passwordResetContinueUrl } from './passwordReset.js';
-import { sendFirebasePasswordResetEmail } from './firebaseAuthEmail.js';
+import { passwordResetContinueUrl, toCleanPasswordResetLink } from './passwordReset.js';
 const RESEND_URL = 'https://api.resend.com/emails';
 function fromAddr() {
     return process.env.EMAIL_FROM || 'VYBE <no-reply@vybehub.app>';
@@ -27,29 +27,25 @@ async function sendViaResend(to, subject, html) {
     return true;
 }
 /**
- * Branded reset email when Resend is configured; otherwise Firebase's default mailer.
- * Uses Admin generatePasswordResetLink so Console template lock does not matter.
+ * Branded reset email via Resend only — never Firebase's default mailer (sendOobCode).
+ * Uses Admin generatePasswordResetLink + clean vybehub.app URL in recovery.html.
  */
 export async function sendPasswordResetEmail(email) {
     const continueUrl = passwordResetContinueUrl();
-    try {
-        const link = await auth.generatePasswordResetLink(email, {
-            url: continueUrl,
-            handleCodeInApp: true,
-        });
-        const html = renderAuthEmail('recovery', { link, email });
-        const sent = await sendViaResend(email, AUTH_EMAIL_SUBJECTS.recovery, html);
-        if (sent)
-            return 'resend';
+    if (!process.env.RESEND_API_KEY?.trim()) {
+        console.error('[passwordResetEmail] RESEND_API_KEY secret not bound');
+        throw new HttpsError('failed-precondition', 'Password reset email is not configured');
     }
-    catch (err) {
-        const code = err?.code;
-        if (code === 'auth/user-not-found') {
-            throw err;
-        }
-        console.warn('[passwordResetEmail] Admin link + Resend path failed, falling back:', err);
+    const firebaseLink = await auth.generatePasswordResetLink(email, {
+        url: continueUrl,
+        handleCodeInApp: true,
+    });
+    const link = toCleanPasswordResetLink(firebaseLink);
+    const html = renderAuthEmail('recovery', { link, email });
+    const sent = await sendViaResend(email, AUTH_EMAIL_SUBJECTS.recovery, html);
+    if (!sent) {
+        throw new HttpsError('internal', 'Failed to send password reset email');
     }
-    await sendFirebasePasswordResetEmail(email, continueUrl);
-    return 'firebase_auth';
+    return 'resend';
 }
 //# sourceMappingURL=passwordResetEmail.js.map

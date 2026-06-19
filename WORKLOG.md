@@ -3,6 +3,18 @@
 Use this file as the Lovable -> Cursor handoff each session.
 
 **Links:** [Lovable project](https://lovable.dev/projects/416714c8-d013-4aff-984d-522418a9bbc7) · [Production](https://vybehub.app) · Deploy steps: `DEPLOY.md`
+## Branded password reset email (Resend-only) (2026-06-18)
+- **Change:** Removed Firebase default mailer fallback; `requestPasswordReset` sends branded HTML via Resend (`recovery.html`) only when account exists
+- **Links:** `toCleanPasswordResetLink` normalizes reset URLs to `https://vybehub.app/reset-password` (client + server)
+- **Tests:** `functions/` tsc PASS, root `npm run build` PASS
+- **Deploy:** `functions:requestPasswordReset` on `vybe-daaab`
+- **You:** Lovable Publish + smoke-test Forgot password → inbox branded email → custom reset page
+
+## Next 3 Tasks
+1. Lovable Publish → smoke-test Forgot password branded email + `/reset-password` on vybehub.app
+2. Confirm Resend domain verified if mail does not arrive (check spam)
+3. Apply `PENDING_20260530.sql` on prod if still needed for missing Supabase RPCs
+
 
 ## Custom password reset UI (2026-06-18)
 - **Root cause:** Firebase reset links used `handleCodeInApp: false` / `canHandleCodeInApp: false` → users landed on `vybe-daaab.firebaseapp.com` default change-password UI instead of VYBE `/reset-password`

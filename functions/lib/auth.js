@@ -7,9 +7,8 @@ function code() {
     return String(Math.floor(100000 + Math.random() * 900000));
 }
 /**
- * request-password-reset — branded HTML via Resend when RESEND_API_KEY secret is
- * bound (see WORKLOG), else Firebase default mailer via sendOobCode.
- * Console templates may be locked when custom email domain is pending — Resend bypasses that.
+ * request-password-reset — branded HTML via Resend (recovery.html) only.
+ * Admin generatePasswordResetLink + clean vybehub.app URL; never sendOobCode default mailer.
  */
 export const requestPasswordReset = onCall({ cors: true, secrets: ['RESEND_API_KEY', 'EMAIL_FROM'] }, async (request) => {
     const email = String(request.data?.email || '')
@@ -27,7 +26,7 @@ export const requestPasswordReset = onCall({ cors: true, secrets: ['RESEND_API_K
     catch {
         return { ok: true, message: 'If that email exists, we sent a reset link.' };
     }
-    let provider = 'firebase_auth';
+    let provider = 'resend';
     try {
         provider = await sendPasswordResetEmail(email);
     }

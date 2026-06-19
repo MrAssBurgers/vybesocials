@@ -1,11 +1,8 @@
-import { db } from '@/lib/firebase';
 import { invokeFunction } from '@/lib/firebase/functionsService';
-import { getPasswordResetRedirectUrl } from '@/lib/authRedirect';
 
 /**
- * Password reset via Firebase Auth.
- * Tries server-side Identity Toolkit first (reliable from all domains),
- * then client SDK fallback.
+ * Password reset via Cloud Function only (Resend + recovery.html).
+ * Do not call Firebase client sendPasswordResetEmail — that sends the ugly default mailer.
  */
 export async function requestPasswordReset(email: string): Promise<void> {
   const normalized = email.trim().toLowerCase();
@@ -15,17 +12,11 @@ export async function requestPasswordReset(email: string): Promise<void> {
     { email: normalized },
   );
 
-  // Only skip client fallback when the callable explicitly confirmed success.
-  if (!error && data?.ok === true) {
-    return;
-  }
-
   if (error) {
-    console.warn('[authReset] Cloud reset failed, trying client SDK:', error.message);
+    throw new Error(error.message || 'Could not send reset email. Please try again.');
   }
 
-  const { error: clientError } = await db.auth.resetPasswordForEmail(normalized, {
-    redirectTo: getPasswordResetRedirectUrl(),
-  });
-  if (clientError) throw clientError;
+  if (data?.ok !== true) {
+    throw new Error('Could not send reset email. Please try again.');
+  }
 }
