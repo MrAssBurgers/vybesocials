@@ -11,7 +11,7 @@ import { shouldRefetchWhenEmpty, refetchListOnMount } from '@/lib/queryRefetchPo
 import { toast } from 'sonner';
 import { callSounds } from '@/lib/callSounds';
 import { enqueue as outboxEnqueue } from '@/lib/dmOutbox';
-import { ensureFlatConversationMembership, resolveDmActorIds } from '@/lib/dmMembershipRepair';
+import { ensureFlatConversationMembership, normalizeToProfileId } from '@/lib/dmMembershipRepair';
 
 export type ViewMode = 'view_once' | '24h' | 'permanent';
 
@@ -587,7 +587,8 @@ export function useCreateConversation() {
 
       // For 1:1 DMs, use the atomic RPC function
       if (!isGroup && memberIds.length === 1) {
-        const otherUserId = memberIds[0];
+        const rawOtherId = memberIds[0];
+        const otherUserId = (await normalizeToProfileId(rawOtherId)) || rawOtherId;
         
         const { data: conversationId, error: rpcError } = await db
           .rpc('create_dm_conversation', { other_profile_id: otherUserId });

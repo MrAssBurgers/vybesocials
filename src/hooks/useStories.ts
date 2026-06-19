@@ -5,6 +5,7 @@ import { useAuth } from '@/lib/auth';
 import { useAuthProfileId } from '@/hooks/useAuthProfileId';
 import { getEffectiveProfileId } from '@/lib/profileCache';
 import { resolveSessionProfileId, resolveStoryAuthorProfileId } from '@/lib/resolveSessionProfileId';
+import { resolveAuthorIds, fetchMemberProfiles } from '@/lib/dmMembershipRepair';
 import { purgeStuckStoryUploads } from '@/lib/storiesCacheSanitize';
 
 function storiesQueryProfileId(liveProfileId?: string | null, resolvedProfileId?: string) {
@@ -43,6 +44,7 @@ export interface StoryGroup {
     username: string;
     avatar_url: string | null;
     display_name: string | null;
+    equipped_profile_theme?: string | null;
   };
   stories: Story[];
   hasUnviewed: boolean;
@@ -83,19 +85,29 @@ export function useStories() {
       ]);
 
       // Get non-expired stories - ONLY from friends and self
-      const allowedIds = [profileId, ...Array.from(friendIds)];
-      
-      const { data, error } = await db
-        .from('stories')
-        .select(`
-          *,
-          author:profiles!author_id(id, username, avatar_url, display_name)
-        `)
-        .in('author_id', allowedIds)
-        .gt('expires_at', new Date().toISOString())
-        .order('created_at', { ascending: false });
+      const allowedIds = new Set<string>([profileId]);
+      for (const fid of friendIds) {
+        for (const id of await resolveAuthorIds(fid)) allowedIds.add(id);
+      }
 
-      if (error) throw error;
+      const idList = [...allowedIds];
+      const storyRows: Record<string, unknown>[] = [];
+      for (let i = 0; i < idList.length; i += 10) {
+        const chunk = idList.slice(i, i + 10);
+        const { data: chunkRows, error } = await db
+          .from('stories')
+          .select(`
+            *,
+            author:profiles!author_id(id, username, avatar_url, display_name, equipped_profile_theme)
+          `)
+          .in('author_id', chunk)
+          .gt('expires_at', new Date().toISOString())
+          .order('created_at', { ascending: false });
+        if (error) throw error;
+        storyRows.push(...(chunkRows || []));
+      }
+
+      const data = storyRows;
 
       const { data: views } = await db
         .from('story_views')
@@ -115,9 +127,16 @@ export function useStories() {
 
       for (const story of storiesWithViews) {
         const authorId = story.author_id;
+        const authorRow = story.author as StoryGroup['user'] | null;
         if (!groupedMap.has(authorId)) {
           groupedMap.set(authorId, {
-            user: story.author as StoryGroup['user'],
+            user: authorRow || {
+              id: authorId,
+              username: `user_${String(authorId).slice(0, 8)}`,
+              avatar_url: null,
+              display_name: null,
+              equipped_profile_theme: null,
+            },
             stories: [],
             hasUnviewed: false,
           });
@@ -131,6 +150,27 @@ export function useStories() {
 
       // Sort: own stories first, then friends with unviewed, then viewed
       const groups = Array.from(groupedMap.values());
+
+      // Enrich missing authors + equipped themes (author_id may be auth uid).
+      const missingAuthorKeys = groups
+        .filter((g) => !g.user.username || g.user.username.startsWith('user_'))
+        .map((g) => g.user.id);
+      if (missingAuthorKeys.length) {
+        const profileMap = await fetchMemberProfiles(missingAuthorKeys);
+        for (const group of groups) {
+          const prof = profileMap.get(group.user.id);
+          if (prof) {
+            group.user = {
+              id: String(prof.id),
+              username: String(prof.username || group.user.username),
+              avatar_url: (prof.avatar_url as string | null) ?? null,
+              display_name: (prof.display_name as string | null) ?? null,
+              equipped_profile_theme: (prof.equipped_profile_theme as string | null) ?? group.user.equipped_profile_theme ?? null,
+            };
+          }
+        }
+      }
+
       groups.sort((a, b) => {
         // Own stories first
         if (a.user.id === profileId) return -1;

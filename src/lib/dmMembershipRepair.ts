@@ -140,7 +140,7 @@ export async function fetchMemberProfiles(userIds: string[]) {
 
   const { data: byId } = await db
     .from('profiles')
-    .select('id, user_id, username, avatar_url, display_name')
+    .select('id, user_id, username, avatar_url, display_name, equipped_profile_theme')
     .in('id', unique);
   for (const row of byId || []) {
     profileByKey.set(row.id, row);
@@ -151,7 +151,7 @@ export async function fetchMemberProfiles(userIds: string[]) {
   if (missing.length) {
     const { data: byUserId } = await db
       .from('profiles')
-      .select('id, user_id, username, avatar_url, display_name')
+      .select('id, user_id, username, avatar_url, display_name, equipped_profile_theme')
       .in('user_id', missing);
     for (const row of byUserId || []) {
       profileByKey.set(row.id, row);

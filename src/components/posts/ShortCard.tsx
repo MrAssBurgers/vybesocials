@@ -34,6 +34,7 @@ import { ShareSheet } from '@/components/share/ShareSheet';
 import { HoldToShare } from '@/components/share/HoldToShare';
 import { FollowPlusButton } from '@/components/clips/FollowPlusButton';
 import { isValidMediaUrl } from '@/lib/mediaUrl';
+import { usePostReaction } from '@/hooks/usePostReaction';
 
 interface ShortCardProps {
   post: {
@@ -50,6 +51,7 @@ interface ShortCardProps {
     comment_count: number;
     is_liked: boolean;
     is_bookmarked: boolean;
+    reaction_type?: string | null;
     view_count?: number;
   };
   isActive: boolean;
@@ -70,11 +72,21 @@ export const ShortCard = memo(function ShortCard({ post, isActive, globalMuted =
   const [isLoading, setIsLoading] = useState(true);
   const [hasError, setHasError] = useState(false);
   const [isMuted, setIsMuted] = useState(globalMuted);
-  const [isLiked, setIsLiked] = useState(post.is_liked);
-  const [currentReaction, setCurrentReaction] = useState<ReactionType | null>(
-    post.is_liked ? ((post as any).reaction_type as ReactionType || 'like') : null
-  );
-  const [likeCount, setLikeCount] = useState(post.like_count);
+  const reactionPost = post.author
+    ? { ...post, author: post.author }
+    : {
+        id: post.id,
+        is_liked: false,
+        like_count: 0,
+        reaction_type: null,
+        author: { id: '' },
+      };
+  const {
+    isLiked,
+    currentReaction,
+    likeCount,
+    handleReaction: persistReaction,
+  } = usePostReaction(reactionPost);
   const [isBookmarked, setIsBookmarked] = useState(post.is_bookmarked);
   const [showHeart, setShowHeart] = useState(false);
   const [showLikeParticles, setShowLikeParticles] = useState(false);
@@ -263,50 +275,13 @@ export const ShortCard = memo(function ShortCard({ post, isActive, globalMuted =
 
     const wasLiked = currentReaction !== null;
     const newIsLiked = reactionType !== null;
-    const prevReaction = currentReaction;
-    const prevLikeCount = likeCount;
-    
-    setCurrentReaction(reactionType);
-    setIsLiked(newIsLiked);
-    setLikeCount(prev => {
-      if (wasLiked && !newIsLiked) return prev - 1;
-      if (!wasLiked && newIsLiked) return prev + 1;
-      return prev;
-    });
 
     if (newIsLiked && !wasLiked) {
       setShowLikeParticles(true);
       setTimeout(() => setShowLikeParticles(false), 700);
     }
 
-    try {
-      if (newIsLiked) {
-        const { error } = await db.from('likes').upsert(
-          { user_id: profile.id, post_id: post.id, reaction_type: reactionType } as any,
-          { onConflict: 'user_id,post_id', ignoreDuplicates: false }
-        );
-        if (error) throw error;
-        
-        if (!wasLiked && post.author.id !== profile.id) {
-          await db.from('notifications').insert({
-            user_id: post.author.id,
-            type: 'like',
-            actor_id: profile.id,
-            post_id: post.id,
-          });
-        }
-      } else {
-        const { error } = await db.from('likes').delete().match({ user_id: profile.id, post_id: post.id });
-        if (error) throw error;
-      }
-      queryClient.invalidateQueries({ queryKey: ['posts'] });
-    } catch (error) {
-      console.error('Reaction failed:', error);
-      setCurrentReaction(prevReaction);
-      setIsLiked(wasLiked);
-      setLikeCount(prevLikeCount);
-      toast.error('Failed to update reaction');
-    }
+    await persistReaction(reactionType);
   };
 
   const handleBookmark = async () => {

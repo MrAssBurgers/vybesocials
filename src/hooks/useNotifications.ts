@@ -5,6 +5,7 @@ import { db } from '@/lib/firebase';
 import { subscribePostgresChannel, removeRealtimeChannel } from '@/lib/realtimeChannel';
 import { useAuthProfileId } from '@/hooks/useAuthProfileId';
 import { preferredUsername } from '@/lib/displayUser';
+import { fetchMemberProfiles, normalizeToProfileId } from '@/lib/dmMembershipRepair';
 
 // Check notification permission — never auto-request on web to avoid browser bell prompts
 async function requestNotificationPermission(): Promise<boolean> {
@@ -104,28 +105,25 @@ export function useNotifications() {
       });
       if (filtered.length === 0) return [];
 
-      // Batch fetch actor profiles (Firestore `in` max 10)
+      // Batch fetch actor profiles (Firestore `in` max 10) — actor_id may be profile id OR auth uid
       const actorIds = [...new Set(filtered.map((n: any) => n.actor_id).filter(Boolean))];
-      const actorMap = new Map<string, { id: string; username: string; avatar_url: string | null; display_name: string | null }>();
-      for (let i = 0; i < actorIds.length; i += 10) {
-        const chunk = actorIds.slice(i, i + 10);
-        const { data: actors } = await db
-          .from('profiles')
-          .select('id, username, avatar_url, display_name')
-          .in('id', chunk);
-        for (const a of actors || []) {
-          actorMap.set(a.id, a);
-        }
-      }
+      const actorMap = await fetchMemberProfiles(actorIds);
 
       return filtered.map((n: any) => {
         const profile = actorMap.get(n.actor_id);
-        const actor = profile || {
-          id: n.actor_id,
-          username: preferredUsername({ username: n.actor_username }),
-          avatar_url: null,
-          display_name: null,
-        };
+        const actor = profile
+          ? {
+              id: String(profile.id),
+              username: String(profile.username || preferredUsername({ username: n.actor_username })),
+              avatar_url: (profile.avatar_url as string | null) ?? null,
+              display_name: (profile.display_name as string | null) ?? null,
+            }
+          : {
+              id: n.actor_id,
+              username: preferredUsername({ username: n.actor_username }),
+              avatar_url: null,
+              display_name: null,
+            };
         return {
           id: n.id,
           type: n.type as NotificationType,

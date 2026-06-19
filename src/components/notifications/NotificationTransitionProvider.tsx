@@ -171,113 +171,95 @@ export const NotificationTransitionProvider = memo(function NotificationTransiti
               transition={{ duration: 0.4, ease: 'easeOut' }}
             />
 
-            {/* Focal content based on type */}
-            {transition.target.type === 'post' ? (
-              // Post transition: Card preview
-              <motion.div
-                className="absolute flex flex-col items-center justify-center will-change-transform"
-                style={{
-                  left: centerX,
-                  top: centerY,
-                  transform: 'translate(-50%, -50%)',
-                }}
-                initial={{ scale: 0.3, opacity: 0, rotate: -5 }}
-                animate={{ scale: 1, opacity: 1, rotate: 0 }}
-                exit={{ scale: 1.2, opacity: 0 }}
-                transition={{
-                  type: 'spring',
-                  stiffness: 500,
-                  damping: 30,
-                  mass: 0.5,
-                }}
-              >
-                <motion.div 
-                  className="bg-card rounded-2xl p-6 shadow-2xl border border-border flex items-center gap-4"
-                  initial={{ y: 20 }}
-                  animate={{ y: 0 }}
-                >
-                  <div className="w-16 h-16 rounded-xl bg-gradient-to-br from-primary/30 to-accent/30 flex items-center justify-center">
-                    <FileText className="h-8 w-8 text-primary" />
-                  </div>
-                  <div>
-                    <p className="font-semibold text-foreground">Opening post...</p>
-                    <p className="text-sm text-muted-foreground">Loading content</p>
-                  </div>
-                </motion.div>
-              </motion.div>
-            ) : transition.target.type === 'profile' ? (
-              // Profile transition: Avatar slide
-              <motion.div
-                className="absolute flex flex-col items-center justify-center will-change-transform"
-                style={{
-                  left: centerX,
-                  top: centerY,
-                  transform: 'translate(-50%, -50%)',
-                }}
-                initial={{ scale: 0.5, opacity: 0, x: -30 }}
-                animate={{ scale: 1, opacity: 1, x: 0 }}
-                exit={{ scale: 0.8, opacity: 0, x: 30 }}
-                transition={{
-                  type: 'spring',
-                  stiffness: 400,
-                  damping: 28,
-                }}
-              >
-                <Avatar className="h-24 w-24 ring-4 ring-primary/40 ring-offset-4 ring-offset-background shadow-2xl">
-                  <AvatarImage src={transition.target.avatarUrl || undefined} />
-                  <AvatarFallback className="text-3xl bg-gradient-to-br from-primary to-accent text-primary-foreground">
-                    {(transition.target.displayName || transition.target.username)?.[0]?.toUpperCase()}
-                  </AvatarFallback>
-                </Avatar>
-                
+            {/* Focal content — viewport centered (Framer transform overrides CSS translate) */}
+            <div className="fixed inset-0 z-[10000] flex flex-col items-center justify-center pointer-events-none">
+              {transition.target.type === 'post' ? (
                 <motion.div
-                  className="mt-4 text-center"
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.05 }}
+                  className="flex flex-col items-center justify-center"
+                  initial={{ scale: 0.55, opacity: 0, rotate: -5 }}
+                  animate={{ scale: 1, opacity: 1, rotate: 0 }}
+                  transition={{
+                    type: 'spring',
+                    stiffness: 500,
+                    damping: 30,
+                    mass: 0.5,
+                  }}
                 >
-                  <p className="font-bold text-lg text-foreground">
-                    {transition.target.displayName || transition.target.username}
-                  </p>
-                  <p className="text-sm text-muted-foreground">
-                    @{transition.target.username}
-                  </p>
+                  <motion.div
+                    className="bg-card rounded-2xl p-6 shadow-2xl border border-border flex items-center gap-4"
+                    initial={{ y: 20 }}
+                    animate={{ y: 0 }}
+                  >
+                    <div className="w-16 h-16 rounded-xl bg-gradient-to-br from-primary/30 to-accent/30 flex items-center justify-center">
+                      <FileText className="h-8 w-8 text-primary" />
+                    </div>
+                    <div>
+                      <p className="font-semibold text-foreground">Opening post...</p>
+                      <p className="text-sm text-muted-foreground">Loading content</p>
+                    </div>
+                  </motion.div>
                 </motion.div>
-              </motion.div>
-            ) : (
-              // Chat transition: Avatar with message icon (fallback)
-              <motion.div
-                className="absolute flex flex-col items-center justify-center will-change-transform"
-                style={{
-                  left: centerX,
-                  top: centerY,
-                  transform: 'translate(-50%, -50%)',
-                }}
-                initial={{ scale: 0.5, opacity: 0 }}
-                animate={{ scale: 1.1, opacity: 1 }}
-                transition={{
-                  type: 'spring',
-                  stiffness: 400,
-                  damping: 30,
-                }}
-              >
-                <Avatar className="h-20 w-20 ring-4 ring-primary/40 ring-offset-2 ring-offset-background shadow-2xl">
-                  <AvatarImage src={transition.target.avatarUrl || undefined} />
-                  <AvatarFallback className="text-2xl bg-gradient-to-br from-primary to-accent text-primary-foreground">
-                    {(transition.target.displayName || transition.target.username)?.[0]?.toUpperCase()}
-                  </AvatarFallback>
-                </Avatar>
-                
-                <motion.p
-                  className="mt-3 font-semibold text-foreground text-center text-lg"
-                  initial={{ opacity: 0, y: 8 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.05, duration: 0.12 }}
+              ) : transition.target.type === 'profile' ? (
+                <motion.div
+                  className="flex flex-col items-center justify-center"
+                  initial={{ scale: 0.55, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  transition={{
+                    type: 'spring',
+                    stiffness: 400,
+                    damping: 28,
+                  }}
                 >
-                  {transition.target.displayName || transition.target.username}
-                </motion.p>
-              </motion.div>
-            )}
+                  <Avatar className="h-24 w-24 ring-4 ring-primary/40 ring-offset-4 ring-offset-background shadow-2xl">
+                    <AvatarImage src={transition.target.avatarUrl || undefined} />
+                    <AvatarFallback className="text-3xl bg-gradient-to-br from-primary to-accent text-primary-foreground">
+                      {(transition.target.displayName || transition.target.username)?.[0]?.toUpperCase()}
+                    </AvatarFallback>
+                  </Avatar>
+
+                  <motion.div
+                    className="mt-4 text-center px-4 max-w-[85vw]"
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.05 }}
+                  >
+                    <p className="font-bold text-lg text-foreground truncate">
+                      {transition.target.displayName || transition.target.username}
+                    </p>
+                    <p className="text-sm text-muted-foreground truncate">
+                      @{transition.target.username}
+                    </p>
+                  </motion.div>
+                </motion.div>
+              ) : (
+                <motion.div
+                  className="flex flex-col items-center justify-center"
+                  initial={{ scale: 0.55, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  transition={{
+                    type: 'spring',
+                    stiffness: 400,
+                    damping: 30,
+                  }}
+                >
+                  <Avatar className="h-20 w-20 ring-4 ring-primary/40 ring-offset-2 ring-offset-background shadow-2xl">
+                    <AvatarImage src={transition.target.avatarUrl || undefined} />
+                    <AvatarFallback className="text-2xl bg-gradient-to-br from-primary to-accent text-primary-foreground">
+                      {(transition.target.displayName || transition.target.username)?.[0]?.toUpperCase()}
+                    </AvatarFallback>
+                  </Avatar>
+
+                  <motion.p
+                    className="mt-3 font-semibold text-foreground text-center text-lg max-w-[80vw] truncate px-4"
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.05, duration: 0.12 }}
+                  >
+                    {transition.target.displayName || transition.target.username}
+                  </motion.p>
+                </motion.div>
+              )}
+            </div>
 
             {/* Progress indicator */}
             <motion.div

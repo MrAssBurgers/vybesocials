@@ -6,6 +6,8 @@ import { useCreateConversation } from '@/hooks/useMessages';
 import { useChatPrefetch } from '@/hooks/useChatPrefetch';
 import { triggerHaptic } from '@/lib/haptics';
 import { registerMouthZoomTrigger, unregisterMouthZoomTrigger } from '@/lib/mouthZoomBridge';
+import { toast } from 'sonner';
+import { normalizeToProfileId } from '@/lib/dmMembershipRepair';
 
 interface TransitionState {
   isAnimating: boolean;
@@ -67,33 +69,25 @@ export const MouthZoomProvider = memo(function MouthZoomProvider({
     avatarUrl: string | null,
     displayName: string | null,
   ) => {
-    // Haptic feedback immediately
+    const resolvedUserId = (await normalizeToProfileId(userId)) || userId;
+
     triggerHaptic('light');
-    
-    // Start prefetch BEFORE animation
-    prefetchConversation(userId);
-    
-    // Start conversation creation immediately (don't wait)
-    conversationPromiseRef.current = createConversation.mutateAsync({ memberIds: [userId] });
-    
-    // Start animation
+    prefetchConversation(resolvedUserId);
+    conversationPromiseRef.current = createConversation.mutateAsync({ memberIds: [resolvedUserId] });
+
     setTransition({
       isAnimating: true,
       sourceRect: rect,
-      targetUserId: userId,
+      targetUserId: resolvedUserId,
       targetUsername: username,
       targetAvatarUrl: avatarUrl,
       targetDisplayName: displayName,
     });
 
     try {
-      // Wait for conversation creation (should be fast since prefetched)
       const conversation = await conversationPromiseRef.current;
-      
-      // Short delay for animation feel (200ms total)
       await new Promise(resolve => setTimeout(resolve, 180));
-      
-      // Clear overlay before navigation — avoids AnimatePresence/removeChild races.
+
       setTransition({
         isAnimating: false,
         sourceRect: null,
@@ -113,6 +107,13 @@ export const MouthZoomProvider = memo(function MouthZoomProvider({
         targetAvatarUrl: null,
         targetDisplayName: null,
       });
+      const msg = error instanceof Error ? error.message : 'Could not open chat';
+      if (msg.includes('User not found') && username) {
+        toast.error('Could not open chat — opening profile instead');
+        navigate(`/u/${username}`);
+      } else {
+        toast.error(msg.includes('User not found') ? 'User not found' : 'Could not open chat');
+      }
     }
   }, [createConversation, navigate, prefetchConversation]);
 
@@ -140,7 +141,7 @@ export const MouthZoomProvider = memo(function MouthZoomProvider({
     isAnimating: transition.isAnimating,
   };
 
-  // Calculate center position for the animation
+  // Ripple origin from notification row tap
   const centerX = transition.sourceRect 
     ? transition.sourceRect.left + transition.sourceRect.width / 2 
     : 0;
@@ -168,38 +169,40 @@ export const MouthZoomProvider = memo(function MouthZoomProvider({
               transition={{ duration: 0.15 }}
             />
             
-            {/* Avatar focal point - scales up from notification position */}
+            {/* Avatar focal point — viewport centered (Framer scale was breaking translate) */}
             <motion.div
-              className="absolute flex flex-col items-center justify-center will-change-transform"
-              style={{
-                left: centerX,
-                top: centerY,
-                transform: 'translate(-50%, -50%)',
-              }}
-              initial={{ scale: 0.5, opacity: 0 }}
-              animate={{ scale: 1.2, opacity: 1 }}
-              transition={{
-                type: 'spring',
-                stiffness: 400,
-                damping: 30,
-                mass: 0.5,
-              }}
+              className="fixed inset-0 z-[10000] flex flex-col items-center justify-center pointer-events-none"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ duration: 0.12 }}
             >
-              <Avatar className="h-20 w-20 ring-4 ring-primary/40 ring-offset-2 ring-offset-background shadow-2xl">
-                <AvatarImage src={transition.targetAvatarUrl || undefined} />
-                <AvatarFallback className="text-2xl bg-gradient-to-br from-primary to-accent text-primary-foreground">
-                  {(transition.targetDisplayName || transition.targetUsername)?.[0]?.toUpperCase()}
-                </AvatarFallback>
-              </Avatar>
-              
-              <motion.p
-                className="mt-3 font-semibold text-foreground text-center text-lg"
-                initial={{ opacity: 0, y: 8 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.05, duration: 0.12 }}
+              <motion.div
+                className="flex flex-col items-center justify-center"
+                initial={{ scale: 0.55, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                transition={{
+                  type: 'spring',
+                  stiffness: 400,
+                  damping: 30,
+                  mass: 0.5,
+                }}
               >
-                {transition.targetDisplayName || transition.targetUsername}
-              </motion.p>
+                <Avatar className="h-20 w-20 ring-4 ring-primary/40 ring-offset-2 ring-offset-background shadow-2xl">
+                  <AvatarImage src={transition.targetAvatarUrl || undefined} />
+                  <AvatarFallback className="text-2xl bg-gradient-to-br from-primary to-accent text-primary-foreground">
+                    {(transition.targetDisplayName || transition.targetUsername)?.[0]?.toUpperCase()}
+                  </AvatarFallback>
+                </Avatar>
+
+                <motion.p
+                  className="mt-3 font-semibold text-foreground text-center text-lg max-w-[80vw] truncate px-4"
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.05, duration: 0.12 }}
+                >
+                  {transition.targetDisplayName || transition.targetUsername}
+                </motion.p>
+              </motion.div>
             </motion.div>
           </motion.div>
         )}

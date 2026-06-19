@@ -1,6 +1,12 @@
 import { getDocuments, where } from './firestoreDb';
 import { listPosts, type PostWithAuthor } from './posts';
 import { resolveAuthorIds } from '@/lib/dmMembershipRepair';
+import type { ReactionType } from '@/lib/reactions';
+import {
+  DEFAULT_FEED_MOOD_WEIGHTS,
+  getFeedMoodForReaction,
+  type FeedMood,
+} from '@/lib/reactionMoods';
 
 const FEED_RPC_NAMES = new Set([
   'get_posts_with_counts',
@@ -46,7 +52,7 @@ function postToFeedRow(post: PostWithAuthor): Record<string, unknown> {
     comment_count: post.comment_count ?? 0,
     is_liked: post.is_liked ?? false,
     is_bookmarked: post.is_bookmarked ?? false,
-    reaction_type: null,
+    reaction_type: post.reaction_type ?? null,
   };
 }
 
@@ -106,19 +112,107 @@ async function rpcGetPostsWithCounts(params: Record<string, unknown>): Promise<R
 }
 
 async function rpcGetRankedFeed(params: Record<string, unknown>): Promise<Record<string, unknown>[]> {
+  const userId = String(params.p_user_id || '');
   const rows = await loadPostsSlice({
     type: (params.p_content_type as string | null) || undefined,
-    excludeAuthorId: (params.p_user_id as string | null) || undefined,
+    excludeAuthorId: userId || undefined,
     offset: Number(params.p_offset || 0),
     limit: Number(params.p_limit || 15),
   });
-  return rows.sort((a, b) => {
-    const score = (r: Record<string, unknown>) =>
-      Number(r.like_count || 0) * 2 +
-      Number(r.comment_count || 0) * 3 +
-      Number(r.view_count || 0) * 0.1;
-    return score(b) - score(a);
-  });
+
+  if (!userId) {
+    return rows.sort((a, b) => engagementScore(b) - engagementScore(a));
+  }
+
+  const userMoods = await loadUserFeedMoodWeights(userId);
+  const postIds = rows.map((r) => String(r.id));
+  const postMoods = await loadPostMoodSignals(postIds);
+
+  return rows
+    .map((row) => {
+      const base = engagementScore(row);
+      const moodMatch = moodMatchScore(String(row.id), userMoods, postMoods);
+      return { ...row, _rank: base + moodMatch * 2 };
+    })
+    .sort((a, b) => Number(b._rank || 0) - Number(a._rank || 0))
+    .map(({ _rank, ...row }) => row);
+}
+
+function engagementScore(row: Record<string, unknown>): number {
+  return (
+    Number(row.like_count || 0) * 2 +
+    Number(row.comment_count || 0) * 3 +
+    Number(row.view_count || 0) * 0.1
+  );
+}
+
+async function loadUserFeedMoodWeights(userId: string): Promise<Map<FeedMood, number>> {
+  const likes = await getDocuments<{ reaction_type?: string }>('likes', [
+    where('user_id', '==', userId),
+  ]);
+  const weights = new Map<FeedMood, number>(
+    Object.entries(DEFAULT_FEED_MOOD_WEIGHTS) as [FeedMood, number][],
+  );
+
+  for (const like of likes) {
+    const raw = like.reaction_type as ReactionType | undefined;
+    if (!raw) continue;
+    const mood = getFeedMoodForReaction(raw);
+    weights.set(mood, (weights.get(mood) || 0) + 1);
+  }
+  return weights;
+}
+
+async function loadPostMoodSignals(
+  postIds: string[],
+): Promise<Map<string, Map<FeedMood, number>>> {
+  const byPost = new Map<string, Map<FeedMood, number>>();
+  if (!postIds.length) return byPost;
+
+  const signals = await getDocuments<{ post_id?: string; mood?: string; signal_strength?: number }>(
+    'post_mood_signals',
+    [where('post_id', 'in', postIds.slice(0, 10))],
+  );
+
+  for (const signal of signals) {
+    const postId = signal.post_id;
+    const mood = signal.mood as FeedMood | undefined;
+    if (!postId || !mood) continue;
+    const map = byPost.get(postId) || new Map<FeedMood, number>();
+    map.set(mood, Number(signal.signal_strength || 0));
+    byPost.set(postId, map);
+  }
+
+  if (postIds.length > 10) {
+    const rest = await getDocuments<{ post_id?: string; mood?: string; signal_strength?: number }>(
+      'post_mood_signals',
+      [where('post_id', 'in', postIds.slice(10, 20))],
+    );
+    for (const signal of rest) {
+      const postId = signal.post_id;
+      const mood = signal.mood as FeedMood | undefined;
+      if (!postId || !mood) continue;
+      const map = byPost.get(postId) || new Map<FeedMood, number>();
+      map.set(mood, Number(signal.signal_strength || 0));
+      byPost.set(postId, map);
+    }
+  }
+
+  return byPost;
+}
+
+function moodMatchScore(
+  postId: string,
+  userMoods: Map<FeedMood, number>,
+  postMoods: Map<string, Map<FeedMood, number>>,
+): number {
+  const signals = postMoods.get(postId);
+  if (!signals) return 0;
+  let score = 0;
+  for (const [mood, strength] of signals) {
+    score += strength * (userMoods.get(mood) || 0);
+  }
+  return score;
 }
 
 async function rpcGetFollowingPosts(params: Record<string, unknown>): Promise<Record<string, unknown>[]> {

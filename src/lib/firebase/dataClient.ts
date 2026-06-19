@@ -27,6 +27,7 @@ import { isFeedRpc, normalizeRpcFeedRows, runFeedRpc } from './feedRpc';
 import { isSocialRpc, runSocialRpc } from './socialRpc';
 import { isNotYetPortedPayload } from './functionsService';
 import { getProfileByAuthUid, resolveProfileIdFromAuthUid } from './profileResolve';
+import { getUserProfile } from './users';
 import { rpcEarnVybeTokens } from './tokenRpc';
 import { isGeneratedUsername, normalizeUsername } from '@/lib/username';
 import {
@@ -465,13 +466,50 @@ class QueryBuilder {
   private async executeUpsert(rows: Record<string, unknown> | Record<string, unknown>[], conflictKey?: string) {
     try {
       const list = Array.isArray(rows) ? rows : [rows];
-      await batchSet(
-        this.table,
-        list.map((row) => ({
-          id: conflictKey && row[conflictKey] ? String(row[conflictKey]) : (row.id as string | undefined),
-          data: row,
-        })),
+      const conflictFields = conflictKey
+        ? conflictKey.split(',').map((part) => part.trim()).filter(Boolean)
+        : [];
+
+      const prepared = await Promise.all(
+        list.map(async (row) => {
+          let id = row.id ? String(row.id) : undefined;
+
+          if (!id && conflictFields.length === 1) {
+            const v = row[conflictFields[0]!];
+            if (v != null) id = String(v);
+          }
+
+          if (!id && conflictFields.length > 1) {
+            const parts = conflictFields.map((field) => row[field]);
+            if (parts.every((v) => v != null && v !== '')) {
+              id = parts.map(String).join('_');
+            }
+          }
+
+          if (conflictFields.length >= 2) {
+            const constraints: QueryConstraint[] = conflictFields.map((field) =>
+              where(field, '==', row[field]),
+            );
+            constraints.push(firestoreLimit(5));
+            const matches = await getDocuments<Record<string, unknown>>(this.table, constraints);
+            if (matches.length === 1 && matches[0].id) {
+              id = String(matches[0].id);
+            }
+          }
+
+          const now = new Date().toISOString();
+          return {
+            id,
+            data: {
+              ...row,
+              updated_at: now,
+              created_at: row.created_at || now,
+            },
+          };
+        }),
       );
+
+      await batchSet(this.table, prepared);
       return { data: list.length === 1 ? list[0] : list, error: null };
     } catch (err) {
       return { data: null, error: toQueryError(err) };
@@ -869,8 +907,8 @@ async function rpcCreateDmConversation(otherProfileId: string): Promise<string |
   const myProfileId = (await resolveProfileIdFromAuthUid(user.id)) || user.id;
   const resolvedOtherId = (await normalizeToProfileId(otherProfileId)) || otherProfileId;
 
-  const otherProfile = await getDocument<UserProfile>('profiles', resolvedOtherId);
-  if (!otherProfile) throw new Error('User not found');
+  const otherProfile = await getUserProfile(resolvedOtherId);
+  if (!otherProfile?.id) throw new Error('User not found');
   if (myProfileId === resolvedOtherId) throw new Error('Cannot message yourself');
 
   const existing = await findExistingDmBetweenProfiles(myProfileId, resolvedOtherId);

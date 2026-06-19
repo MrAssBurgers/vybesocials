@@ -2,7 +2,21 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
-## DMs, profile posts, daily brief fix (2026-06-19)
+## Mobile UX + data restore sweep (2026-06-19, uncommitted)
+- **Story rings:** Animated gradient outline from uploader's `equipped_profile_theme` (not viewer theme)
+- **Notifications:** Centered transition overlay (fixed Framer vs CSS translate conflict); actor profile lookup via `fetchMemberProfiles`; DM open normalizes auth uid → profile id; fallback to profile if chat fails
+- **Scroll hide:** Bottom nav + Friend Link stay hidden after scroll-down until deliberate scroll-up (~28px accumulated); ignores iOS bounce
+- **Clips follow +:** Shrunk to ~18px TikTok-style badge
+- **Profile posts:** Author join fallback when `author_id` is auth uid
+- **DMs:** Membership query merges profile id + auth uid rows (restores pre-migration conversations)
+- **Tests:** `npm run build` PASS, `npm run lint` PASS (3 pre-existing warnings)
+- **You:** Lovable **Share → Publish** + hard refresh on Samsung
+
+## Next 3 Tasks
+1. Lovable Publish → tap notifications (centered animation, no User not found)
+2. Scroll Home — nav + Friend Link stay down until scroll up
+3. Open old friend profile + DMs — posts and chat history visible
+
 - **DM create:** Firestore rules allow creating peer membership + reading all participants in a thread; `create_dm_conversation` finds legacy UUID chats and repairs flat membership docs
 - **Profile posts:** Query waits for profile id; matches both profile id + auth uid as `author_id`; profile join fallback by `user_id`
 - **Daily brief / AI:** Client `fetchDailyBrief()` assembles stats from Firestore + cloud fallback; `aiCatchUp` Cloud Function returns full BriefData shape (deployed)

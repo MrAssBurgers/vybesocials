@@ -126,6 +126,7 @@ export const StoriesBar = memo(function StoriesBar({
           hasUnviewed={ownStoryGroup?.hasUnviewed}
           hasStory={!!ownStoryGroup}
           isUploading={createStory.isPending || ownStoryUploading}
+          themeGradient={ownStoryGroup?.user.equipped_profile_theme ?? undefined}
           showAddButton
           onClick={() => {
             if (authLoading) return;
@@ -158,6 +159,7 @@ export const StoriesBar = memo(function StoriesBar({
               avatarUrl={group.user.avatar_url}
               username={group.user.username}
               displayName={group.user.display_name}
+              themeGradient={group.user.equipped_profile_theme}
               hasUnviewed={group.hasUnviewed}
               hasStory
               onClick={() => setSelectedGroupIndex(ownStoryGroup ? index + 1 : index)}
@@ -190,6 +192,7 @@ interface StoryTileProps {
   avatarUrl?: string | null;
   username?: string;
   displayName?: string | null;
+  themeGradient?: string | null;
   label?: string;
   hasUnviewed?: boolean;
   hasStory?: boolean;
@@ -206,6 +209,7 @@ const StoryTile = memo(function StoryTile({
   avatarUrl,
   username,
   displayName,
+  themeGradient,
   label,
   hasUnviewed,
   hasStory,
@@ -242,6 +246,7 @@ const StoryTile = memo(function StoryTile({
           isUploading={isUploading}
           posterUrl={resolvedPoster}
           fallbackInitial={username}
+          themeGradient={themeGradient}
         >
           {!hasStory && (
             <div

@@ -102,7 +102,7 @@ export const FollowPlusButton = memo(function FollowPlusButton({
   return (
     <div
       className={cn(
-        'absolute left-1/2 -translate-x-1/2 -bottom-2.5 pointer-events-none',
+        'absolute left-1/2 -translate-x-1/2 -bottom-1.5 pointer-events-none',
         className,
       )}
       style={{ zIndex: 5 }}
@@ -123,8 +123,8 @@ export const FollowPlusButton = memo(function FollowPlusButton({
             transition={{ type: 'spring', stiffness: 380, damping: 22 }}
             whileTap={{ scale: 0.85 }}
             className={cn(
-              'pointer-events-auto relative h-6 w-6 rounded-full',
-              'flex items-center justify-center shadow-lg ring-2 ring-white',
+              'pointer-events-auto relative h-[18px] w-[18px] rounded-full',
+              'flex items-center justify-center shadow-md ring-[1.5px] ring-white/90',
               phase === 'idle'
                 ? 'bg-gradient-to-br from-rose-500 to-pink-600'
                 : 'bg-gradient-to-br from-emerald-400 to-emerald-600',
@@ -141,7 +141,7 @@ export const FollowPlusButton = memo(function FollowPlusButton({
                   transition={{ duration: 0.18 }}
                   className="inline-flex"
                 >
-                  <Plus className="h-3.5 w-3.5 text-white" strokeWidth={3.5} />
+                  <Plus className="h-2.5 w-2.5 text-white" strokeWidth={3} />
                 </motion.span>
               ) : (
                 <motion.span
@@ -152,7 +152,7 @@ export const FollowPlusButton = memo(function FollowPlusButton({
                   transition={{ type: 'spring', stiffness: 500, damping: 18 }}
                   className="inline-flex"
                 >
-                  <Check className="h-3.5 w-3.5 text-white" strokeWidth={3.5} />
+                  <Check className="h-2.5 w-2.5 text-white" strokeWidth={3} />
                 </motion.span>
               )}
             </AnimatePresence>

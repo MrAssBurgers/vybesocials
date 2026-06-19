@@ -8,6 +8,10 @@ type Listener = (visible: boolean) => void;
 
 let scrollVisible = true;
 let lastScrollY = 0;
+/** Stays true after scroll-down until user deliberately scrolls up. */
+let hiddenByScrollDown = false;
+/** Accumulated upward scroll while hidden — avoids iOS bounce re-showing nav. */
+let upwardAccum = 0;
 let ticking = false;
 let cleanup: (() => void) | null = null;
 let boundContainer: HTMLElement | null = null;
@@ -31,17 +35,37 @@ function handleScroll() {
     const currentScrollY = getAppScrollTop();
     const scrollDiff = currentScrollY - lastScrollY;
 
+    if (currentScrollY === lastScrollY) {
+      ticking = false;
+      return;
+    }
+
     if (currentScrollY < 40) {
+      hiddenByScrollDown = false;
+      upwardAccum = 0;
       if (!scrollVisible) {
         scrollVisible = true;
         notify();
       }
-    } else if (Math.abs(scrollDiff) > 8) {
-      const next = scrollDiff < 0;
-      if (next !== scrollVisible) {
-        scrollVisible = next;
+    } else if (scrollDiff > 10) {
+      hiddenByScrollDown = true;
+      upwardAccum = 0;
+      if (scrollVisible) {
+        scrollVisible = false;
         notify();
       }
+    } else if (scrollDiff < 0 && hiddenByScrollDown) {
+      upwardAccum += Math.abs(scrollDiff);
+      if (upwardAccum >= 28) {
+        hiddenByScrollDown = false;
+        upwardAccum = 0;
+        if (!scrollVisible) {
+          scrollVisible = true;
+          notify();
+        }
+      }
+    } else if (scrollDiff > 0) {
+      upwardAccum = 0;
     }
 
     lastScrollY = currentScrollY;
@@ -51,6 +75,8 @@ function handleScroll() {
 
 export function resetScrollHideVisible(): void {
   scrollVisible = true;
+  hiddenByScrollDown = false;
+  upwardAccum = 0;
   lastScrollY = getAppScrollTop();
   notify();
 }

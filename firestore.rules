@@ -312,6 +312,16 @@ service cloud.firestore {
       allow update: if isOwnerProfile('user_id');
       allow delete: if isOwnerProfile('user_id');
     }
+    match /post_mood_signals/{docId} {
+      allow read: if signedIn();
+      allow create, update: if signedIn();
+    }
+    match /user_interactions/{docId} {
+      allow read: if signedIn() && isOwnerProfile('user_id');
+      allow create: if willOwnProfile('user_id');
+      allow update: if isOwnerProfile('user_id');
+      allow delete: if isOwnerProfile('user_id');
+    }
     match /post_reactions/{docId} {
       allow read: if signedIn();
       allow create: if willOwnProfile('user_id');

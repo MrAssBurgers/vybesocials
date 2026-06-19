@@ -31,6 +31,7 @@ export interface PostWithAuthor extends PostDocument {
   comment_count?: number;
   is_liked?: boolean;
   is_bookmarked?: boolean;
+  reaction_type?: string | null;
 }
 
 export async function getPost(postId: string): Promise<PostWithAuthor | null> {
@@ -102,7 +103,7 @@ export async function listPosts(opts?: {
   const [authorMap, likedRows, bookmarkRows] = await Promise.all([
     getProfilesByIds(authorIds),
     viewerProfileId && postIds.length
-      ? getDocuments<{ post_id?: string }>('likes', [
+      ? getDocuments<{ post_id?: string; reaction_type?: string }>('likes', [
           where('user_id', '==', viewerProfileId),
           where('post_id', 'in', postIds.slice(0, 10)),
         ])
@@ -115,17 +116,23 @@ export async function listPosts(opts?: {
       : Promise.resolve([]),
   ]);
   const likedSet = new Set(likedRows.map((r) => r.post_id).filter(Boolean));
+  const reactionByPost = new Map(
+    likedRows.filter((r) => r.post_id).map((r) => [r.post_id!, r.reaction_type ?? null]),
+  );
   const bookmarkSet = new Set(bookmarkRows.map((r) => r.post_id).filter(Boolean));
 
   // Extra post IDs beyond Firestore `in` limit of 10 — client filter
   if (viewerProfileId && postIds.length > 10) {
     const extraIds = postIds.slice(10);
     const [extraLikes, extraBookmarks] = await Promise.all([
-      getDocuments<{ post_id?: string }>('likes', [where('user_id', '==', viewerProfileId)]),
+      getDocuments<{ post_id?: string; reaction_type?: string }>('likes', [where('user_id', '==', viewerProfileId)]),
       getDocuments<{ post_id?: string }>('bookmarks', [where('user_id', '==', viewerProfileId)]),
     ]);
     for (const r of extraLikes) {
-      if (r.post_id && extraIds.includes(r.post_id)) likedSet.add(r.post_id);
+      if (r.post_id && extraIds.includes(r.post_id)) {
+        likedSet.add(r.post_id);
+        reactionByPost.set(r.post_id, r.reaction_type ?? null);
+      }
     }
     for (const r of extraBookmarks) {
       if (r.post_id && extraIds.includes(r.post_id)) bookmarkSet.add(r.post_id);
@@ -150,6 +157,7 @@ export async function listPosts(opts?: {
         comment_count: Number(row.comment_count ?? 0),
         is_liked: likedSet.has(post.id),
         is_bookmarked: bookmarkSet.has(post.id),
+        reaction_type: reactionByPost.get(post.id) ?? null,
       };
     })
     .filter((p): p is any => p !== null) as PostWithAuthor[];

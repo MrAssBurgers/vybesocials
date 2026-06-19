@@ -57,11 +57,27 @@ async function loadDMConversationsOnce(
 ): Promise<LoadDMConversationsResult> {
   try {
     const effectiveProfileId = (await resolveSessionProfileId(profileId)) ?? profileId;
+    const { data: { session } } = await db.auth.getSession();
+    const authUid = session?.user?.id ?? null;
 
-    const { data: membershipData, error: membershipError } = await db
-      .from('conversation_members')
-      .select('conversation_id, last_read_at, is_pinned, is_muted')
-      .eq('user_id', effectiveProfileId);
+    const membershipQueries = [
+      db
+        .from('conversation_members')
+        .select('conversation_id, last_read_at, is_pinned, is_muted')
+        .eq('user_id', effectiveProfileId),
+    ];
+    if (authUid && authUid !== effectiveProfileId) {
+      membershipQueries.push(
+        db
+          .from('conversation_members')
+          .select('conversation_id, last_read_at, is_pinned, is_muted')
+          .eq('user_id', authUid),
+      );
+    }
+
+    const membershipResults = await Promise.all(membershipQueries);
+    const membershipError = membershipResults.find((r) => r.error)?.error ?? null;
+    const membershipRows = membershipResults.flatMap((r) => r.data || []);
 
     if (membershipError) {
       if (isPermissionDeniedError(membershipError)) {
@@ -71,12 +87,18 @@ async function loadDMConversationsOnce(
       }
       return { data: stale, error: membershipError, profileId: effectiveProfileId };
     }
-    if (!membershipData?.length) {
+
+    const membershipMap = new Map<string, any>();
+    for (const row of membershipRows) {
+      if (!membershipMap.has(row.conversation_id)) {
+        membershipMap.set(row.conversation_id, row);
+      }
+    }
+    const userConversationIds = [...membershipMap.keys()];
+
+    if (!userConversationIds.length) {
       return { data: [], error: null, profileId: effectiveProfileId };
     }
-
-    const userConversationIds = membershipData.map((m) => m.conversation_id);
-    const membershipMap = new Map<string, any>(membershipData.map((m: any) => [m.conversation_id, m]));
 
     const [{ data: hiddenData }, { data: trashedData }] = await Promise.all([
       db.from('hidden_conversations').select('conversation_id').eq('user_id', effectiveProfileId),

@@ -2,6 +2,8 @@ import { memo } from 'react';
 import { motion } from 'framer-motion';
 import { cn } from '@/lib/utils';
 
+import { storyRingGradient } from '@/lib/storyThemeRing';
+
 interface StoryPosterProps {
   width?: number;
   height?: number;
@@ -11,6 +13,8 @@ interface StoryPosterProps {
   isUploading?: boolean;
   posterUrl?: string | null;
   fallbackInitial?: string;
+  /** Uploader's equipped theme — animated ring uses this, not the viewer theme. */
+  themeGradient?: string | null;
   children?: React.ReactNode;
 }
 
@@ -30,8 +34,11 @@ export const StoryPoster = memo(function StoryPoster({
   isUploading,
   posterUrl,
   fallbackInitial,
+  themeGradient,
   children,
 }: StoryPosterProps) {
+
+  const ringGradient = storyRingGradient(themeGradient ?? null);
 
   if (isUploading) {
     return (
@@ -40,12 +47,11 @@ export const StoryPoster = memo(function StoryPoster({
           className="absolute inset-0"
           style={{
             borderRadius,
-            background:
-              'conic-gradient(from 0deg, hsl(var(--primary)), hsl(var(--accent)), hsl(var(--primary)))',
+            background: ringGradient,
             padding: 2,
           }}
           animate={{ rotate: 360 }}
-          transition={{ duration: 1.4, repeat: Infinity, ease: 'linear' }}
+          transition={{ duration: 2.8, repeat: Infinity, ease: 'linear' }}
         >
           <div className="h-full w-full bg-background" style={{ borderRadius: borderRadius - 2 }} />
         </motion.div>
@@ -70,20 +76,62 @@ export const StoryPoster = memo(function StoryPoster({
     );
   }
 
-  const unviewedBorder =
-    'linear-gradient(135deg, hsl(48 96% 53%), hsl(var(--accent)), hsl(48 96% 53%))';
+  const unviewedBorder = ringGradient;
   const viewedBorder = 'hsl(var(--muted-foreground) / 0.35)';
+
+  if (hasUnviewed) {
+    return (
+      <div
+        className="relative flex-shrink-0"
+        style={{ width: width + 4, height: height + 4 }}
+      >
+        <motion.div
+          className="absolute inset-0"
+          style={{
+            borderRadius: borderRadius + 2,
+            background: unviewedBorder,
+            padding: 2,
+          }}
+          animate={{ rotate: 360 }}
+          transition={{ duration: 3.2, repeat: Infinity, ease: 'linear' }}
+        >
+          <div
+            className="h-full w-full bg-background"
+            style={{ borderRadius: borderRadius }}
+          />
+        </motion.div>
+        <div
+          className="absolute inset-[2px] overflow-hidden bg-black"
+          style={{ borderRadius }}
+        >
+          {posterUrl ? (
+            <img
+              src={posterUrl}
+              alt=""
+              className="h-full w-full object-cover"
+              loading="lazy"
+              draggable={false}
+            />
+          ) : (
+            <div className="flex h-full w-full items-center justify-center bg-muted text-lg font-semibold text-muted-foreground">
+              {fallbackInitial?.charAt(0).toUpperCase() || '?'}
+            </div>
+          )}
+          {children}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div
       className="relative flex-shrink-0"
       style={{
-        width: width + (hasUnviewed ? 4 : 2),
-        height: height + (hasUnviewed ? 4 : 2),
-        padding: hasUnviewed ? 2 : 1,
+        width: width + 2,
+        height: height + 2,
+        padding: 1,
         borderRadius: borderRadius + 2,
-        background: hasUnviewed ? unviewedBorder : viewedBorder,
-        boxShadow: hasUnviewed ? '0 0 12px hsl(48 96% 53% / 0.25)' : undefined,
+        background: viewedBorder,
       }}
     >
       <div

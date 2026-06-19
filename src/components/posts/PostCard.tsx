@@ -45,6 +45,7 @@ import { useIsGuest, GuestAuthPrompt } from '@/components/auth/GuestAuthPrompt';
 import { PostCarousel } from './PostCarousel';
 import { CommentSheet } from '@/components/comments/CommentSheet';
 import { useInteractionStreakBump } from '@/hooks/useInteractionStreakBump';
+import { usePostReaction } from '@/hooks/usePostReaction';
 import { triggerHaptic } from '@/lib/haptics';
 import { useViewTracking } from '@/hooks/useViewTracking';
 import { useInteractionFeedback } from '@/hooks/useInteractionFeedback';
@@ -346,11 +347,12 @@ export const PostCard = memo(function PostCard({ post, eager = false }: PostCard
   const [menuOpen, setMenuOpen] = useState(false);
   const { data: authorRole } = useUserRoleById(menuOpen ? post.author.id : undefined);
   const isModOrAdmin = useIsModOrAdmin();
-  const [isLiked, setIsLiked] = useState(post.is_liked);
-  const [currentReaction, setCurrentReaction] = useState<ReactionType | null>(
-    post.is_liked ? ((post as any).reaction_type as ReactionType || 'like') : null
-  );
-  const [likeCount, setLikeCount] = useState(post.like_count);
+  const {
+    isLiked,
+    currentReaction,
+    likeCount,
+    handleReaction: persistReaction,
+  } = usePostReaction(post);
   const [isBookmarked, setIsBookmarked] = useState(post.is_bookmarked);
   const [showHeart, setShowHeart] = useState(false);
   const [showLikeParticles, setShowLikeParticles] = useState(false);
@@ -417,52 +419,16 @@ export const PostCard = memo(function PostCard({ post, eager = false }: PostCard
 
     const wasLiked = currentReaction !== null;
     const newIsLiked = reactionType !== null;
-    const prevReaction = currentReaction;
-    const prevIsLiked = isLiked;
-    const prevLikeCount = likeCount;
-    
-    setCurrentReaction(reactionType);
-    setIsLiked(newIsLiked);
-    setLikeCount(prev => {
-      if (wasLiked && !newIsLiked) return prev - 1;
-      if (!wasLiked && newIsLiked) return prev + 1;
-      return prev;
-    });
 
     if (newIsLiked && !wasLiked) {
       triggerHaptic('light');
       setShowLikeParticles(true);
       setTimeout(() => setShowLikeParticles(false), 700);
+      if (post.author.id !== profile.id) bumpStreak(post.author.id);
     }
 
-    try {
-      if (newIsLiked) {
-        const { error } = await db.from('likes').upsert(
-          { user_id: profile.id, post_id: post.id, reaction_type: reactionType } as any,
-          { onConflict: 'user_id,post_id', ignoreDuplicates: false }
-        );
-        if (error) throw error;
-        if (!wasLiked && post.author.id !== profile.id) {
-          await db.from('notifications').insert({
-            user_id: post.author.id,
-            type: 'like',
-            actor_id: profile.id,
-            post_id: post.id,
-          });
-          bumpStreak(post.author.id);
-        }
-      } else {
-        const { error } = await db.from('likes').delete().match({ user_id: profile.id, post_id: post.id });
-        if (error) throw error;
-      }
-    } catch (error) {
-      console.error('[PostCard] reaction failed:', error);
-      setCurrentReaction(prevReaction);
-      setIsLiked(prevIsLiked);
-      setLikeCount(prevLikeCount);
-      toast.error("Couldn't save reaction — try again");
-    }
-  }, [profile, currentReaction, isLiked, likeCount, post.id, post.author.id, isGuest]);
+    await persistReaction(reactionType);
+  }, [isGuest, profile, currentReaction, post.author.id, persistReaction]);
 
   const handleBookmark = useCallback(async () => {
     if (isGuest) {

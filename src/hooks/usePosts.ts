@@ -7,8 +7,7 @@ import { withTimeout } from '@/lib/withTimeout';
 import { moderateContent } from '@/hooks/useModeration';
 import { toast } from 'sonner';
 import { setCachedProfiles } from '@/lib/profileCache';
-import { resolveAuthorIds } from '@/lib/dmMembershipRepair';
-
+import { resolveAuthorIds, fetchMemberProfiles } from '@/lib/dmMembershipRepair';
 import { isValidMediaUrl } from '@/lib/mediaUrl';
 
 export { isValidMediaUrl };
@@ -113,7 +112,11 @@ export function usePosts(
 
       const posts = feedExcludeAuthors
         ? (rawPosts || []).filter((p: any) => !feedExcludeAuthors!.has(p.author_id))
-        : rawPosts;
+        : rawPosts || [];
+
+      const authorProfileMap = await fetchMemberProfiles(
+        [...new Set((posts as any[]).map((p) => p.author_id).filter(Boolean))],
+      );
 
       // Get likes and bookmarks for current user
       let userLikes: string[] = [];
@@ -139,10 +142,21 @@ export function usePosts(
             db.from('comments').select('id', { count: 'exact', head: true }).eq('post_id', post.id),
           ]);
 
-          const author = post.author as unknown as { id: string; username: string; display_name?: string | null; avatar_url: string | null; is_verified?: boolean | null } | null;
+          const joinedAuthor = post.author as unknown as { id: string; username: string; display_name?: string | null; avatar_url: string | null; is_verified?: boolean | null } | null;
+          const fallbackAuthor = authorProfileMap.get(post.author_id);
+          const author = joinedAuthor?.username && !joinedAuthor.username.startsWith('user_')
+            ? joinedAuthor
+            : fallbackAuthor
+              ? {
+                  id: String(fallbackAuthor.id),
+                  username: String(fallbackAuthor.username),
+                  display_name: (fallbackAuthor.display_name as string | null) ?? null,
+                  avatar_url: (fallbackAuthor.avatar_url as string | null) ?? null,
+                  is_verified: (fallbackAuthor.is_verified as boolean | null) ?? null,
+                }
+              : joinedAuthor;
           
-          // Skip posts with no author
-          if (!author) return null;
+          if (!author?.username) return null;
           
           return {
             ...post,

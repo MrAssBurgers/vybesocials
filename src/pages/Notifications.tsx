@@ -748,7 +748,7 @@ function NotificationRow({ notification, index, isRead, isLast }: NotificationRo
       triggerTransition(e, { type: 'post', postId: notification.post_id });
     } else if (shouldGoToChat && notification.actor?.id) {
       startChatTransition(e, notification.actor.id, notification.actor.username, notification.actor.avatar_url, notification.actor.display_name);
-    } else {
+    } else if (notification.actor?.username) {
       triggerTransition(e, { type: 'profile', userId: notification.actor.id, username: notification.actor.username, avatarUrl: notification.actor.avatar_url, displayName: notification.actor.display_name });
     }
   }, [shouldGoToPost, shouldGoToChat, notification, startChatTransition, triggerTransition, navigate]);

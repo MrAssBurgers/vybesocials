@@ -21,6 +21,11 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { GifPicker } from '@/components/chat/GifPicker';
 import { GuestJoinBanner } from '@/components/growth/GuestJoinBanner';
 import {
+  patchReactionInFeedCaches,
+  removePostReaction,
+  savePostReaction,
+} from '@/lib/postReactions';
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -396,29 +401,46 @@ export default function PostDetailPage() {
 
     const wasLiked = currentReaction !== null;
     const newIsLiked = reactionType !== null;
-    
+    const prevReaction = currentReaction;
+    const prevIsLiked = isLiked;
+    const prevLikeCount = likeCount;
+
     setCurrentReaction(reactionType);
     setIsLiked(newIsLiked);
-    setLikeCount(prev => {
+    setLikeCount((prev) => {
       if (wasLiked && !newIsLiked) return prev - 1;
       if (!wasLiked && newIsLiked) return prev + 1;
       return prev;
     });
+    patchReactionInFeedCaches(queryClient, post.id, reactionType);
 
-    if (newIsLiked) {
-      await db.from('likes').upsert(
-        { user_id: profile.id, post_id: post.id, reaction_type: reactionType } as any,
-        { onConflict: 'user_id,post_id', ignoreDuplicates: false }
-      );
-      if (!wasLiked && post.author.id !== profile.id) {
-        await db.from('notifications').insert({
-          user_id: post.author.id, type: 'like', actor_id: profile.id, post_id: post.id,
+    try {
+      if (newIsLiked && reactionType) {
+        await savePostReaction({
+          userId: profile.id,
+          postId: post.id,
+          reactionType,
         });
+        if (!wasLiked && post.author.id !== profile.id) {
+          await db.from('notifications').insert({
+            user_id: post.author.id,
+            type: 'like',
+            actor_id: profile.id,
+            post_id: post.id,
+          });
+        }
+      } else {
+        await removePostReaction(profile.id, post.id);
       }
-    } else {
-      await db.from('likes').delete().match({ user_id: profile.id, post_id: post.id });
+    } catch (error) {
+      console.error('[PostDetail] reaction failed:', error);
+      setCurrentReaction(prevReaction);
+      setIsLiked(prevIsLiked);
+      setLikeCount(prevLikeCount);
+      patchReactionInFeedCaches(queryClient, post.id, prevReaction);
+      toast.error("Couldn't save reaction — try again");
     }
-  }, [profile, currentReaction, post]);
+  }, [profile, currentReaction, isLiked, likeCount, post, queryClient]);
 
   const handleBookmark = async () => {
     if (!profile || !post) return;

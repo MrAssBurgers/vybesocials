@@ -51,8 +51,45 @@ export const MOOD_META: Record<ContentMood, { label: string; emoji: string; desc
 };
 
 /**
- * Get the mood signals for a given reaction type
+ * Feed-ranking mood bucket (matches production `reaction_mood_profiles` + `post_mood_signals`).
+ * Each reaction steers the algorithm toward a different content lane.
  */
+export type FeedMood =
+  | 'general'       // 👍 like — default discovery / uplifting
+  | 'heartwarming'  // ❤️ love — warm, inspiring posts
+  | 'supportive'    // 🥰 care — caring, empathetic content
+  | 'funny'         // 😂 haha
+  | 'shocking'      // 😮 wow
+  | 'emotional'     // 😢 sad
+  | 'controversial'; // 😡 angry
+
+/** Primary feed lane each reaction activates. */
+export const REACTION_FEED_MOOD: Record<ReactionType, FeedMood> = {
+  like:  'general',
+  love:  'heartwarming',
+  care:  'supportive',
+  haha:  'funny',
+  wow:   'shocking',
+  sad:   'emotional',
+  angry: 'controversial',
+};
+
+export function getFeedMoodForReaction(reaction: ReactionType): FeedMood {
+  return REACTION_FEED_MOOD[reaction] || 'general';
+}
+
+/** Cold-start defaults — love/general lane until the user builds a profile. */
+export const DEFAULT_FEED_MOOD_WEIGHTS: Record<FeedMood, number> = {
+  general: 1,
+  heartwarming: 1,
+  supportive: 0,
+  funny: 0,
+  shocking: 0,
+  emotional: 0,
+  controversial: 0,
+};
+
+/** Get the mood signals for a given reaction type */
 export function getMoodsForReaction(reaction: ReactionType): ContentMood[] {
   return REACTION_MOOD_MAP[reaction] || ['informative'];
 }

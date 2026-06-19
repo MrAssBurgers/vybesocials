@@ -27,6 +27,7 @@ import { ClipVideoProgress } from '@/components/clips/ClipVideoProgress';
 import { CLIPS_BOTTOM_UI_OFFSET } from '@/lib/clipsLayout';
 import { isNativePerfMode } from '@/lib/nativePerfMode';
 import { VybeMiniIcon } from '@/components/ui/VybeMiniIcon';
+import { usePostReaction } from '@/hooks/usePostReaction';
 
 interface MobileShortCardProps {
   post: {
@@ -43,6 +44,7 @@ interface MobileShortCardProps {
     comment_count: number;
     is_liked: boolean;
     is_bookmarked: boolean;
+    reaction_type?: string | null;
     view_count?: number;
   };
   isActive: boolean;
@@ -69,11 +71,12 @@ export const MobileShortCard = memo(function MobileShortCard({
   const [isLoading, setIsLoading] = useState(true);
   const [hasError, setHasError] = useState(false);
   const [isMuted, setIsMuted] = useState(globalMuted);
-  const [isLiked, setIsLiked] = useState(post.is_liked);
-  const [currentReaction, setCurrentReaction] = useState<ReactionType | null>(
-    post.is_liked ? ((post as any).reaction_type as ReactionType || 'like') : null
-  );
-  const [likeCount, setLikeCount] = useState(post.like_count);
+  const {
+    isLiked,
+    currentReaction,
+    likeCount,
+    handleReaction: persistReaction,
+  } = usePostReaction(post);
   const [isBookmarked, setIsBookmarked] = useState(post.is_bookmarked);
   const [viewCount, setViewCount] = useState(post.view_count || 0);
   const [isHolding, setIsHolding] = useState(false);
@@ -246,35 +249,8 @@ export const MobileShortCard = memo(function MobileShortCard({
 
   const handleReaction = useCallback(async (reactionType: ReactionType | null) => {
     if (!profile) return;
-
-    const wasLiked = currentReaction !== null;
-    const newIsLiked = reactionType !== null;
-    
-    setCurrentReaction(reactionType);
-    setIsLiked(newIsLiked);
-    setLikeCount(prev => {
-      if (wasLiked && !newIsLiked) return prev - 1;
-      if (!wasLiked && newIsLiked) return prev + 1;
-      return prev;
-    });
-
-    if (newIsLiked) {
-      await db.from('likes').upsert(
-        { user_id: profile.id, post_id: post.id, reaction_type: reactionType } as any,
-        { onConflict: 'user_id,post_id', ignoreDuplicates: false }
-      );
-      if (!wasLiked && post.author.id !== profile.id) {
-        await db.from('notifications').insert({
-          user_id: post.author.id,
-          type: 'like',
-          actor_id: profile.id,
-          post_id: post.id,
-        });
-      }
-    } else {
-      await db.from('likes').delete().match({ user_id: profile.id, post_id: post.id });
-    }
-  }, [profile, currentReaction, post.author.id, post.id]);
+    await persistReaction(reactionType);
+  }, [profile, persistReaction]);
 
   const handleTap = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
