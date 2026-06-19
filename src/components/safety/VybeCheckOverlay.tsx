@@ -2,13 +2,17 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Shield, Check, Rocket, X, AlertTriangle } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { useContentSafety, type SafetyResult } from '@/hooks/useContentSafety';
+import { useContentSafety } from '@/hooks/useContentSafety';
 import { SafetyScanProgress } from '@/components/safety/SafetyScanProgress';
 import { AgeRatingSelector, type AgeRating } from './AgeRatingSelector';
 import { triggerHaptic } from '@/lib/haptics';
 import { shouldBypassSafety } from '@/lib/ownerBypass';
+import { withTimeout } from '@/lib/withTimeout';
+import { toast } from 'sonner';
 
-type Phase = 'scanning' | 'rating' | 'ready' | 'blocked';
+const SCAN_TIMEOUT_MS = 45000;
+
+type Phase = 'scanning' | 'rating' | 'ready' | 'blocked' | 'error';
 
 interface VybeCheckOverlayProps {
   files: File[];
@@ -27,6 +31,7 @@ interface VybeCheckOverlayProps {
 
 export function VybeCheckOverlay({ files, onComplete, onBlocked, onCancel, precomputedResult }: VybeCheckOverlayProps) {
   const [phase, setPhase] = useState<Phase>(precomputedResult ? 'rating' : 'scanning');
+  const [scanError, setScanError] = useState<string | null>(null);
   const [ageRating, setAgeRating] = useState<AgeRating>('safe');
   const ageRatingRef = useRef<AgeRating>('safe');
   const contentSafety = useContentSafety();
@@ -55,39 +60,61 @@ export function VybeCheckOverlay({ files, onComplete, onBlocked, onCancel, preco
     let cancelled = false;
 
     const runScan = async () => {
-      const isOwner = await shouldBypassSafety();
-      if (isOwner) {
-        if (!cancelled) setPhase('rating');
-        return;
+      try {
+        const isOwner = await shouldBypassSafety();
+        if (isOwner) {
+          if (!cancelled) setPhase('rating');
+          return;
+        }
+
+        if (!files.length || !files[0]) {
+          if (!cancelled) setPhase('rating');
+          return;
+        }
+
+        let result;
+        if (files[0].type.startsWith('video/')) {
+          result = await withTimeout(
+            contentSafety.scanVideo(files[0]),
+            SCAN_TIMEOUT_MS,
+            'Vybe Check timed out. Check your connection and try again.',
+          );
+        } else {
+          result = await withTimeout(
+            contentSafety.scanImage(files[0]),
+            SCAN_TIMEOUT_MS,
+            'Vybe Check timed out. Check your connection and try again.',
+          );
+        }
+
+        if (cancelled) return;
+
+        if (result.result === 'blocked') {
+          setPhase('blocked');
+          onBlocked(result.message || 'Content violates community guidelines', result.categories || []);
+          return;
+        }
+
+        if (result.result === 'error') {
+          setScanError(result.message || 'Safety scan failed. Please try again.');
+          setPhase('error');
+          return;
+        }
+
+        if (result.suggestedAgeRating && result.suggestedAgeRating !== 'safe') {
+          setAiMinRating(result.suggestedAgeRating);
+          setAiReasons(result.ageRatingReasons || []);
+        }
+
+        triggerHaptic('light');
+        setPhase('rating');
+      } catch (err) {
+        if (cancelled) return;
+        const message = err instanceof Error ? err.message : 'Safety scan failed. Please try again.';
+        setScanError(message);
+        setPhase('error');
+        toast.error(message);
       }
-
-      if (!files.length || !files[0]) {
-        if (!cancelled) setPhase('rating');
-        return;
-      }
-
-      let result;
-      if (files[0].type.startsWith('video/')) {
-        result = await contentSafety.scanVideo(files[0]);
-      } else {
-        result = await contentSafety.scanImage(files[0]);
-      }
-
-      if (cancelled) return;
-
-      if (result.result === 'blocked') {
-        setPhase('blocked');
-        onBlocked(result.message || 'Content violates community guidelines', result.categories || []);
-        return;
-      }
-
-      if (result.suggestedAgeRating && result.suggestedAgeRating !== 'safe') {
-        setAiMinRating(result.suggestedAgeRating);
-        setAiReasons(result.ageRatingReasons || []);
-      }
-
-      triggerHaptic('light');
-      setPhase('rating');
     };
 
     runScan();
@@ -154,6 +181,34 @@ export function VybeCheckOverlay({ files, onComplete, onBlocked, onCancel, preco
               phase={contentSafety.scanPhase}
               isVideo={files[0]?.type.startsWith('video/')}
             />
+          </motion.div>
+        )}
+
+        {phase === 'error' && (
+          <motion.div
+            key="error"
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.9, y: -20 }}
+            transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
+            className="w-80 space-y-6 text-center"
+          >
+            <div className="w-20 h-20 mx-auto rounded-full bg-red-500/15 flex items-center justify-center">
+              <AlertTriangle className="h-10 w-10 text-red-400" />
+            </div>
+            <div>
+              <p className="text-foreground font-bold text-lg mb-1">Scan didn&apos;t finish</p>
+              <p className="text-muted-foreground text-sm">
+                {scanError || 'Vybe Check timed out. Please try again.'}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={onCancel}
+              className="w-full py-3 rounded-2xl bg-muted text-foreground font-semibold text-sm"
+            >
+              Go back
+            </button>
           </motion.div>
         )}
 

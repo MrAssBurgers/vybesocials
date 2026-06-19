@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { db } from '@/lib/firebase';
 import { startVybeCheckVideo, isVybeCheckBlocked } from '@/lib/vybeCheck';
+import { withTimeout } from '@/lib/withTimeout';
 import { cn } from '@/lib/utils';
 
 interface VideoUploadScannerProps {
@@ -55,6 +56,7 @@ export const VideoUploadScanner = memo(function VideoUploadScanner({
 
   const processVideo = useCallback(async () => {
     try {
+      await withTimeout((async () => {
       // Step 1: Upload to quarantine bucket
       setState(s => ({ ...s, step: 'uploading', progress: 10 }));
       
@@ -62,12 +64,16 @@ export const VideoUploadScanner = memo(function VideoUploadScanner({
       const quarantinePath = `quarantine/${fileName}`;
       
       // Upload with progress tracking
-      const { data: uploadData, error: uploadError } = await db.storage
-        .from('media')
-        .upload(quarantinePath, file, {
-          cacheControl: '3600',
-          upsert: false,
-        });
+      const { error: uploadError } = await withTimeout(
+        db.storage
+          .from('media')
+          .upload(quarantinePath, file, {
+            cacheControl: '3600',
+            upsert: false,
+          }),
+        120000,
+        'Upload timed out. Check your connection and try again.',
+      );
 
       if (uploadError) throw uploadError;
       
@@ -149,15 +155,18 @@ export const VideoUploadScanner = memo(function VideoUploadScanner({
       setTimeout(() => {
         onComplete({ success: true, mediaUrl: urlData.publicUrl });
       }, 1000);
+      })(), 180000, 'Video processing timed out. Please try again.');
 
     } catch (error: any) {
       console.error('Video processing error:', error);
+      const blockReason = error?.message || 'Failed to process video. Please try again.';
       setState(s => ({ 
         ...s, 
         step: 'blocked', 
-        blockReason: 'Failed to process video. Please try again.',
+        blockReason,
         progress: 100 
       }));
+      onComplete({ success: false, error: blockReason });
     }
   }, [file, onComplete]);
 

@@ -440,20 +440,24 @@ export function useCreatePost() {
       const postType = data.type === 'text' ? 'post' : data.type;
 
       // Create post
-      const { data: post, error } = await db
-        .from('posts')
-        .insert({
-          author_id: profile.id,
-          type: postType,
-          media_url: publicUrl,
-          media_urls: mediaUrls,
-          thumbnail_url: thumbnailUrl,
-          caption: filteredCaption,
-          tags: data.tags,
-          age_rating: data.age_rating || 'safe',
-        } as any)
-        .select()
-        .single();
+      const { data: post, error } = await withTimeout(
+        db
+          .from('posts')
+          .insert({
+            author_id: profile.id,
+            type: postType,
+            media_url: publicUrl,
+            media_urls: mediaUrls,
+            thumbnail_url: thumbnailUrl,
+            caption: filteredCaption,
+            tags: data.tags,
+            age_rating: data.age_rating || 'safe',
+          } as any)
+          .select()
+          .single(),
+        60000,
+        'Saving post timed out. Please try again.',
+      );
 
       if (error) throw error;
 

@@ -22,6 +22,7 @@ import { applyPostPublishNavigation } from '@/lib/postPublishNavigation';
 import { triggerHaptic } from '@/lib/haptics';
 import { useComposerDraft } from '@/hooks/useComposerDraft';
 import { DraftBanner } from '@/components/create/DraftBanner';
+import { withTimeout } from '@/lib/withTimeout';
 
 const visibilityOptions = [
   { id: 'public' as const, label: 'Everyone', icon: Globe },
@@ -84,8 +85,16 @@ export function MobilePostComposer({ files: propFiles, previews: propPreviews, c
     (async () => {
       try {
         const result = file.type.startsWith('video/')
-          ? await preScan.scanVideo(file)
-          : await preScan.scanImage(file);
+          ? await withTimeout(
+              preScan.scanVideo(file),
+              45000,
+              'Vybe Check timed out',
+            )
+          : await withTimeout(
+              preScan.scanImage(file),
+              45000,
+              'Vybe Check timed out',
+            );
         if (cancelled) return;
         if (result.result === 'blocked') {
           setPreScanState({
@@ -93,6 +102,11 @@ export function MobilePostComposer({ files: propFiles, previews: propPreviews, c
             message: result.message || 'Content violates community guidelines',
             categories: result.categories || [],
           });
+        } else if (result.result === 'error') {
+          setPreScanState({
+            status: 'idle',
+          });
+          toast.error(result.message || 'Vybe Check failed. You can try again when sharing.');
         } else {
           setPreScanState({
             status: 'safe',
@@ -100,8 +114,11 @@ export function MobilePostComposer({ files: propFiles, previews: propPreviews, c
             ageRatingReasons: result.ageRatingReasons,
           });
         }
-      } catch {
-        if (!cancelled) setPreScanState({ status: 'idle' });
+      } catch (err) {
+        if (!cancelled) {
+          setPreScanState({ status: 'idle' });
+          toast.error(err instanceof Error ? err.message : 'Vybe Check failed');
+        }
       }
     })();
     return () => { cancelled = true; };
@@ -157,6 +174,7 @@ export function MobilePostComposer({ files: propFiles, previews: propPreviews, c
 
   // Tags are optional — only media or caption is required.
   const canSubmit = contentType === 'text' ? caption.trim().length > 0 : localFiles.length > 0;
+  const isPreScanning = localFiles.length > 0 && preScanState.status === 'scanning';
   const currentVisibility = visibilityOptions.find(v => v.id === visibility)!;
 
   const handleSubmit = async () => {
@@ -199,12 +217,17 @@ export function MobilePostComposer({ files: propFiles, previews: propPreviews, c
 
     try {
       pi = setInterval(() => setUploadProgress(prev => Math.min(prev + progressStep, 85)), progressInterval);
-      await createPost.mutateAsync({
-        mediaFile: localFiles.length <= 1 ? localFiles[0] || undefined : undefined,
-        mediaFiles: localFiles.length > 1 ? localFiles : undefined,
-        caption, type: contentType, tags,
-        age_rating: ageRating,
-      });
+
+      await withTimeout(
+        createPost.mutateAsync({
+          mediaFile: localFiles.length <= 1 ? localFiles[0] || undefined : undefined,
+          mediaFiles: localFiles.length > 1 ? localFiles : undefined,
+          caption, type: contentType, tags,
+          age_rating: ageRating,
+        }),
+        180000,
+        'Upload timed out. Check your connection and try again.',
+      );
       if (pi) clearInterval(pi);
       setUploadProgress(100);
       setPublishSuccess(true);
@@ -221,12 +244,15 @@ export function MobilePostComposer({ files: propFiles, previews: propPreviews, c
         (typeof err === 'string' ? err : 'Failed to upload — please try again');
       toast.error(msg.includes('timed out') ? msg : msg || 'Failed to upload. Please try again.');
       setShowCelebration(false);
+      setPublishSuccess(false);
       setIsUploading(false);
       setUploadProgress(0);
     } finally {
       if (pi) clearInterval(pi);
       if (!succeeded) {
-        setTimeout(() => { setIsUploading(false); setUploadProgress(0); }, 500);
+        setShowCelebration(false);
+        setIsUploading(false);
+        setUploadProgress(0);
       }
     }
   };
@@ -307,16 +333,22 @@ export function MobilePostComposer({ files: propFiles, previews: propPreviews, c
           </div>
           <motion.button
             onClick={handleSubmit}
-            disabled={isUploading}
-            whileTap={!isUploading ? { scale: 0.92 } : {}}
+            disabled={isUploading || isPreScanning}
+            whileTap={!isUploading && !isPreScanning ? { scale: 0.92 } : {}}
             className={cn(
               "h-9 px-5 rounded-full text-sm font-bold transition-all duration-300",
-              canSubmit && !isUploading
+              canSubmit && !isUploading && !isPreScanning
                 ? "bg-gradient-to-r from-primary to-accent text-primary-foreground shadow-lg shadow-primary/30"
                 : "bg-muted text-muted-foreground"
             )}
           >
-            {isUploading ? (
+            {isPreScanning ? (
+              <span className="flex items-center gap-1.5">
+                <motion.span className="w-3.5 h-3.5 rounded-full border-2 border-muted-foreground/30 border-t-muted-foreground"
+                  animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 0.6, ease: 'linear' }} />
+                Scanning…
+              </span>
+            ) : isUploading ? (
               <span className="flex items-center gap-1.5">
                 <motion.span className="w-3.5 h-3.5 rounded-full border-2 border-primary-foreground/30 border-t-primary-foreground"
                   animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 0.6, ease: 'linear' }} />

@@ -1,4 +1,5 @@
 import type { ExtractedFrame } from './types';
+import { withTimeout } from '@/lib/withTimeout';
 
 function blobToBase64(blob: Blob): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -29,21 +30,25 @@ function captureFrame(video: HTMLVideoElement, width: number, height: number): P
 }
 
 function seekVideo(video: HTMLVideoElement, time: number): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const onSeeked = () => {
-      video.removeEventListener('seeked', onSeeked);
-      video.removeEventListener('error', onError);
-      resolve();
-    };
-    const onError = () => {
-      video.removeEventListener('seeked', onSeeked);
-      video.removeEventListener('error', onError);
-      reject(new Error('Video seek failed'));
-    };
-    video.addEventListener('seeked', onSeeked);
-    video.addEventListener('error', onError);
-    video.currentTime = time;
-  });
+  return withTimeout(
+    new Promise<void>((resolve, reject) => {
+      const onSeeked = () => {
+        video.removeEventListener('seeked', onSeeked);
+        video.removeEventListener('error', onError);
+        resolve();
+      };
+      const onError = () => {
+        video.removeEventListener('seeked', onSeeked);
+        video.removeEventListener('error', onError);
+        reject(new Error('Video seek failed'));
+      };
+      video.addEventListener('seeked', onSeeked);
+      video.addEventListener('error', onError);
+      video.currentTime = time;
+    }),
+    8000,
+    'Video frame seek timed out',
+  );
 }
 
 /**
@@ -61,10 +66,14 @@ export async function extractVideoFrames(
   video.src = url;
 
   try {
-    await new Promise<void>((resolve, reject) => {
-      video.onloadedmetadata = () => resolve();
-      video.onerror = () => reject(new Error('Failed to load video'));
-    });
+    await withTimeout(
+      new Promise<void>((resolve, reject) => {
+        video.onloadedmetadata = () => resolve();
+        video.onerror = () => reject(new Error('Failed to load video'));
+      }),
+      15000,
+      'Video load timed out',
+    );
 
     const duration = Number.isFinite(video.duration) && video.duration > 0 ? video.duration : 3;
     const intervalSec = duration <= 15 ? 0.5 : 1;

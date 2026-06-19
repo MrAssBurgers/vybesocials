@@ -1516,11 +1516,17 @@ body.has-liquid-bg:not(.has-custom-bg) .dm-sidebar {
   body.has-custom-bg {
     background-color: transparent !important;
   }
-  /* Default liquid aurora — never override an active custom wallpaper upload */
+  /* Default liquid aurora — solid mesh fallback so scroll/content-visibility gaps
+     never flash through to black; aurora mount paints on top. */
   body.has-liquid-bg:not(.has-custom-bg) {
-    background: transparent !important;
-    background-color: transparent !important;
-    background-image: none !important;
+    background-color: #0B0B10 !important;
+    background-image: linear-gradient(
+      145deg,
+      #050508 0%,
+      #0c0618 38%,
+      #060a14 68%,
+      #030306 100%
+    ) !important;
   }
   body.has-custom-bg #root,
   body.has-liquid-bg #root {
@@ -1994,13 +2000,21 @@ body.has-liquid-bg:not(.has-custom-bg) .dm-sidebar {
     perspective-origin: center center;
   }
 
-  /* During scroll, keep a solid surface behind transparent shells so aurora
-     pause does not flash through to black body. */
-  html.is-scrolling body.has-liquid-bg [data-app-shell],
-  html.is-scrolling body.has-liquid-bg [data-route-shell],
-  html.is-scrolling body.has-liquid-bg #main-content,
-  html.is-scrolling body.has-liquid-bg [data-app-scroll-container="true"] {
-    background-color: hsl(var(--background)) !important;
+  /* During scroll keep shells transparent so the static aurora mesh stays visible.
+     Body fallback gradient above prevents black gaps when content-visibility skips paint. */
+  html.is-scrolling body.has-liquid-bg:not(.has-custom-bg) {
+    background-color: #0B0B10 !important;
+    background-image: linear-gradient(
+      145deg,
+      #050508 0%,
+      #0c0618 38%,
+      #060a14 68%,
+      #030306 100%
+    ) !important;
+  }
+
+  html.is-scrolling .vybe-liquid-bg .vybe-liquid-mesh {
+    opacity: 1 !important;
   }
 
   /* Pause aurora layers during scroll — include pseudo-elements */
@@ -2057,7 +2071,9 @@ body.has-liquid-bg:not(.has-custom-bg) .dm-sidebar {
     -webkit-overflow-scrolling: touch;
     overscroll-behavior: contain;
   }
-  .scroller > * {
+  /* Skip content-visibility on the main app scroll container — offscreen skip
+     left transparent holes over the aurora during feed scroll on mobile. */
+  .scroller:not([data-app-scroll-container="true"]) > * {
     content-visibility: auto;
     contain-intrinsic-size: 1px 600px;
   }
@@ -3667,17 +3683,28 @@ html, body, #root {
   background: hsl(var(--background));
 }
 
-/* When login aurora is active, never paint opaque shells over it */
+/* When login aurora is active, keep html/#root transparent so aurora shows through.
+   Body gets a static mesh fallback (not pure black) for scroll/content-visibility gaps. */
 html.vybe-aurora-active,
-html.vybe-aurora-active body,
 html.vybe-aurora-active #root,
 html[data-liquid-bg='true'],
-html[data-liquid-bg='true'] body,
 html[data-liquid-bg='true'] #root,
-body.has-liquid-bg,
 body.has-liquid-bg #root {
   background: transparent !important;
   background-color: transparent !important;
+}
+
+body.has-liquid-bg:not(.has-custom-bg),
+html.vybe-aurora-active body:not(.has-custom-bg),
+html[data-liquid-bg='true'] body:not(.has-custom-bg) {
+  background-color: #0B0B10 !important;
+  background-image: linear-gradient(
+    145deg,
+    #050508 0%,
+    #0c0618 38%,
+    #060a14 68%,
+    #030306 100%
+  ) !important;
 }
 
 html.vybe-aurora-active #root > div,
@@ -3967,10 +3994,15 @@ article, .post-card, .card {
   contain: layout style paint;
 }
 
-/* Images/videos - use content-visibility for off-screen optimization */
+/* Images/videos - content-visibility off inside main feed scroll (prevents black flash) */
 img, video {
   content-visibility: auto;
   contain-intrinsic-size: 300px 300px;
+}
+
+[data-app-scroll-container="true"] img,
+[data-app-scroll-container="true"] video {
+  content-visibility: visible;
 }
 
 /* (reduced-motion handled once globally above) */
