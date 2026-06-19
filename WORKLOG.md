@@ -2,6 +2,11 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## Publish-ready (2026-06-19)
+- **Git:** `1cf08b3c` on `origin/main` (synced; no push needed)
+- **Build:** PASS — local `dist/assets/app.js` md5 `5a7ecf84cbd056aeaee9deb8187b9851`; prod etag `a1c86c6fe328da4bd58ff4c103301133` (mismatch → publish required)
+- **You:** Lovable **Share → Publish** → hard refresh https://vybehub.app
+
 **Links:** [Lovable project](https://lovable.dev/projects/416714c8-d013-4aff-984d-522418a9bbc7) · [Production](https://vybehub.app) · Deploy steps: `DEPLOY.md`
 ## Branded password reset email (Resend-only) (2026-06-18)
 - **Root cause (ugly Firebase email):** (1) Client `authReset.ts` fell back to Firebase SDK `sendPasswordResetEmail` when callable failed → plain text from `noreply@vybe-daaab.firebaseapp.com`; (2) Server fell back to Identity Toolkit `sendOobCode` when Resend failed → same default mailer
