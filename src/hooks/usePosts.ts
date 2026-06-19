@@ -7,6 +7,7 @@ import { withTimeout } from '@/lib/withTimeout';
 import { moderateContent } from '@/hooks/useModeration';
 import { toast } from 'sonner';
 import { setCachedProfiles } from '@/lib/profileCache';
+import { resolveAuthorIds } from '@/lib/dmMembershipRepair';
 
 import { isValidMediaUrl } from '@/lib/mediaUrl';
 
@@ -38,11 +39,18 @@ interface Post {
   is_bookmarked: boolean;
 }
 
-export function usePosts(type?: 'short' | 'post' | 'video', authorId?: string) {
+export function usePosts(
+  type?: 'short' | 'post' | 'video',
+  authorId?: string,
+  options?: { enabled?: boolean },
+) {
   const { profile } = useAuth();
+  const queryEnabled =
+    options?.enabled !== false && (authorId !== undefined ? !!authorId : true);
 
   return useQuery({
     queryKey: ['posts', type, authorId, profile?.id],
+    enabled: queryEnabled,
     queryFn: async (): Promise<Post[]> => {
       // Pinned posts only matter when viewing a specific author's profile.
       // For global/feed views, sort purely by recency so a user pinning a post
@@ -74,22 +82,20 @@ export function usePosts(type?: 'short' | 'post' | 'video', authorId?: string) {
         `);
 
       if (isProfileView) {
-        query = query.order('is_pinned', { ascending: false });
+        const authorIds = await resolveAuthorIds(authorId!);
+        query = authorIds.length <= 10
+          ? query.in('author_id', authorIds)
+          : query.eq('author_id', authorIds[0]!);
       }
-      query = query
-        .order('created_at', { ascending: false })
-        .limit(500); // Explicit limit to avoid default 1000 row limit issues
 
-      // Filter by type if specified, but don't over-filter
+      query = query.order('created_at', { ascending: false }).limit(500);
+
       if (type) {
         query = query.eq('type', type);
       }
 
-      // Filter by author if specified
       let feedExcludeAuthors: Set<string> | null = null;
-      if (isProfileView) {
-        query = query.eq('author_id', authorId!);
-      } else if (profile?.id) {
+      if (!isProfileView && profile?.id) {
         const { data: blocks } = await db
           .from('blocked_users')
           .select('blocked_id')
@@ -157,6 +163,14 @@ export function usePosts(type?: 'short' | 'post' | 'video', authorId?: string) {
         post !== null && isValidMediaUrl(post.media_url)
       );
 
+      if (isProfileView) {
+        validPosts.sort((a, b) => {
+          const pinDiff = Number(b.is_pinned) - Number(a.is_pinned);
+          if (pinDiff !== 0) return pinDiff;
+          return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+        });
+      }
+
       // Cache author profiles for instant lookups
       const authors = validPosts
         .map(p => p.author)
@@ -172,7 +186,6 @@ export function usePosts(type?: 'short' | 'post' | 'video', authorId?: string) {
 
       return validPosts;
     },
-    enabled: true,
   });
 }
 

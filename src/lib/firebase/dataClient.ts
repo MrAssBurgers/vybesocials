@@ -29,6 +29,11 @@ import { isNotYetPortedPayload } from './functionsService';
 import { getProfileByAuthUid, resolveProfileIdFromAuthUid } from './profileResolve';
 import { rpcEarnVybeTokens } from './tokenRpc';
 import { isGeneratedUsername, normalizeUsername } from '@/lib/username';
+import {
+  normalizeToProfileId,
+  findExistingDmBetweenProfiles,
+  ensureDmMembershipPair,
+} from '@/lib/dmMembershipRepair';
 
 type FilterOp = '==' | '!=' | '>' | '<' | 'in' | 'not-in';
 
@@ -347,7 +352,14 @@ class QueryBuilder {
       const relatedMap = new Map<string, Record<string, unknown>>();
       await Promise.all(
         fkValues.map(async (id) => {
-          const doc = await getDocument(join.table, id);
+          let doc = await getDocument(join.table, id);
+          if (!doc && join.table === 'profiles') {
+            const rows = await getDocuments(join.table, [
+              where('user_id', '==', id),
+              firestoreLimit(1),
+            ]);
+            doc = rows[0] ?? null;
+          }
           if (doc) relatedMap.set(id, doc);
         }),
       );
@@ -854,11 +866,21 @@ async function rpcCreateDmConversation(otherProfileId: string): Promise<string |
   if (!user) return null;
 
   const myProfileId = (await resolveProfileIdFromAuthUid(user.id)) || user.id;
-  const memberIds = [myProfileId, otherProfileId].sort();
-  const chatId = memberIds.join('_');
+  const resolvedOtherId = (await normalizeToProfileId(otherProfileId)) || otherProfileId;
 
-  const existing = await getDocument('conversations', chatId);
-  if (existing) return chatId;
+  const otherProfile = await getDocument<UserProfile>('profiles', resolvedOtherId);
+  if (!otherProfile) throw new Error('User not found');
+  if (myProfileId === resolvedOtherId) throw new Error('Cannot message yourself');
+
+  const existing = await findExistingDmBetweenProfiles(myProfileId, resolvedOtherId);
+  if (existing) {
+    await ensureDmMembershipPair(existing, myProfileId, resolvedOtherId);
+    return existing;
+  }
+
+  const memberIds = [myProfileId, resolvedOtherId].sort();
+  const chatId = memberIds.join('_');
+  const now = new Date().toISOString();
 
   await setDocument('conversations', chatId, {
     id: chatId,
@@ -866,8 +888,9 @@ async function rpcCreateDmConversation(otherProfileId: string): Promise<string |
     member_ids: memberIds,
     name: null,
     avatar_url: null,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
+    created_by: myProfileId,
+    created_at: now,
+    updated_at: now,
   });
 
   for (const memberId of memberIds) {
@@ -875,11 +898,12 @@ async function rpcCreateDmConversation(otherProfileId: string): Promise<string |
       id: `${chatId}_${memberId}`,
       conversation_id: chatId,
       user_id: memberId,
-      role: 'member',
+      role: memberId === myProfileId ? 'admin' : 'member',
       is_muted: false,
       is_pinned: false,
       last_read_at: null,
-      created_at: new Date().toISOString(),
+      created_at: now,
+      updated_at: now,
     });
   }
 

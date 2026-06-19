@@ -1,9 +1,78 @@
 import { db } from '@/lib/firebase';
 import { getDocument, setDocument, getDocuments, where, firestoreLimit } from '@/lib/firebase/firestoreDb';
 import { firebaseAuth } from '@/lib/firebase/authService';
-import { resolveProfileIdFromAuthUid } from '@/lib/firebase/profileResolve';
+import { resolveProfileIdFromAuthUid, getUserProfile } from '@/lib/firebase/users';
+import type { UserProfile } from '@/lib/firebase/types';
 
 const repaired = new Set<string>();
+
+/** Resolve a profile id from either profiles.id or auth user_id. */
+export async function normalizeToProfileId(idOrAuthUid: string): Promise<string | null> {
+  if (!idOrAuthUid) return null;
+  const direct = await getDocument<UserProfile>('profiles', idOrAuthUid);
+  if (direct?.id) return direct.id;
+  const rows = await getDocuments<UserProfile>('profiles', [
+    where('user_id', '==', idOrAuthUid),
+    firestoreLimit(1),
+  ]);
+  return rows[0]?.id ?? null;
+}
+
+/** All author_id values that belong to this profile (id + auth uid). */
+export async function resolveAuthorIds(profileOrAuthId: string): Promise<string[]> {
+  const profile = await getUserProfile(profileOrAuthId);
+  const ids = new Set<string>([profileOrAuthId]);
+  if (profile?.id) ids.add(profile.id);
+  if (profile?.user_id) ids.add(profile.user_id);
+  return [...ids];
+}
+
+/**
+ * Find an existing 1:1 DM (deterministic id or legacy UUID conversation).
+ */
+export async function findExistingDmBetweenProfiles(
+  myProfileId: string,
+  otherProfileId: string,
+): Promise<string | null> {
+  const sorted = [myProfileId, otherProfileId].sort();
+  const deterministicId = sorted.join('_');
+  if (await getDocument('conversations', deterministicId)) return deterministicId;
+
+  const otherIds = await resolveAuthorIds(otherProfileId);
+  const myIds = await resolveAuthorIds(myProfileId);
+  const otherSet = new Set(otherIds);
+
+  for (const viewerId of myIds) {
+    const memberships = await getDocuments<Record<string, unknown>>('conversation_members', [
+      where('user_id', '==', viewerId),
+    ]);
+    for (const m of memberships) {
+      const cid = String(m.conversation_id || '');
+      if (!cid) continue;
+      const conv = await getDocument<Record<string, unknown>>('conversations', cid);
+      if (conv?.is_group) continue;
+
+      const members = await getDocuments<Record<string, unknown>>('conversation_members', [
+        where('conversation_id', '==', cid),
+      ]);
+      const memberIds = members.map((row) => String(row.user_id || '')).filter(Boolean);
+      const hasOther = memberIds.some((mid) => otherSet.has(mid));
+      const hasMe = memberIds.some((mid) => myIds.includes(mid));
+      if (hasOther && hasMe && memberIds.length <= 2) return cid;
+    }
+  }
+  return null;
+}
+
+/** Ensure flat membership docs exist for both participants. */
+export async function ensureDmMembershipPair(
+  conversationId: string,
+  profileIdA: string,
+  profileIdB: string,
+): Promise<void> {
+  await ensureFlatConversationMembership(conversationId, profileIdA);
+  await ensureFlatConversationMembership(conversationId, profileIdB);
+}
 
 /**
  * Migrated Supabase rows use random conversation_members doc ids.

@@ -11,6 +11,7 @@ import {
 import { firebaseStorage } from './storageService';
 import { firebaseAuth } from './authService';
 import { getUserProfile, getProfilesByIds } from './users';
+import { resolveAuthorIds } from '@/lib/dmMembershipRepair';
 import type { PostDocument } from './types';
 
 type PostRow = PostDocument & {
@@ -56,11 +57,30 @@ export async function listPosts(opts?: {
 }): Promise<PostWithAuthor[]> {
   const constraints: any[] = [orderBy('created_at', 'desc'), firestoreLimit(opts?.limit ?? 100)];
 
-  if (opts?.authorId) {
-    constraints.unshift(where('author_id', '==', opts.authorId));
-  }
+  let posts: PostDocument[];
 
-  let posts = await getDocuments<PostDocument>('posts', constraints);
+  if (opts?.authorId) {
+    const authorIds = await resolveAuthorIds(opts.authorId);
+    const seen = new Set<string>();
+    posts = [];
+    for (const aid of authorIds) {
+      const batch = await getDocuments<PostDocument>('posts', [
+        where('author_id', '==', aid),
+        orderBy('created_at', 'desc'),
+        firestoreLimit(opts?.limit ?? 100),
+      ]);
+      for (const p of batch) {
+        if (!seen.has(p.id)) {
+          seen.add(p.id);
+          posts.push(p);
+        }
+      }
+    }
+    posts.sort((a, b) => (b.created_at || '').localeCompare(a.created_at || ''));
+    posts = posts.slice(0, opts?.limit ?? 100);
+  } else {
+    posts = await getDocuments<PostDocument>('posts', constraints);
+  }
 
   if (opts?.excludeAuthorId) {
     posts = posts.filter((p) => p.author_id !== opts.excludeAuthorId);
@@ -114,7 +134,7 @@ export async function listPosts(opts?: {
 
   return posts
     .map((post) => {
-      const author = authorMap.get(post.author_id);
+      const author = authorMap.get(post.author_id) ?? null;
       if (!author) return null;
       const row = post as PostRow;
       return {

@@ -2,7 +2,19 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
-## Mobile bug sweep — ads, notifications, posts, clips, AI (2026-06-19)
+## DMs, profile posts, daily brief fix (2026-06-19)
+- **DM create:** Firestore rules allow creating peer membership + reading all participants in a thread; `create_dm_conversation` finds legacy UUID chats and repairs flat membership docs
+- **Profile posts:** Query waits for profile id; matches both profile id + auth uid as `author_id`; profile join fallback by `user_id`
+- **Daily brief / AI:** Client `fetchDailyBrief()` assembles stats from Firestore + cloud fallback; `aiCatchUp` Cloud Function returns full BriefData shape (deployed)
+- **Tests:** `npm run build` PASS
+- **Deploy:** Firestore rules + `functions:aiCatchUp` → `vybe-daaab` SUCCESS
+- **You:** Lovable **Share → Publish** + hard refresh; test Message on a profile, profile posts grid, Daily Brief
+
+## Next 3 Tasks
+1. Lovable Publish → open profile → Message → chat loads with history
+2. Scroll profile posts — only that user's posts, stable (no flash of all posts)
+3. Home → Daily Brief → content + trending items load
+
 - **Ad tokens:** Client `earn_vybe_tokens` RPC writes `vybe_tokens` + `token_transactions`; hooks use profile id; progression only advances after successful earn
 - **Toast spam:** Realtime skips first snapshot; friend requests toast only when `pending`; notifications toast only if created in last 45s
 - **removeChild crash:** Removed `AnimatePresence` from notification mouth-zoom overlays; clear overlay before navigate
@@ -17,6 +29,7 @@ Use this file as the Lovable -> Cursor handoff each session.
 - **Tests:** `npm run build` PASS, `npm run lint` PASS (3 pre-existing warnings)
 - **Blockers:** Spotify OAuth — set `SPOTIFY_CLIENT_ID` + `SPOTIFY_CLIENT_SECRET` in Firebase Secret Manager then redeploy `spotifyOauthStart`; AI server features need `GEMINI_API_KEY` on Cloud Functions + user key in Settings → VYBE AI
 - **You:** Lovable **Share → Publish** + hard refresh on Samsung
+- **Git:** `e2542024` pushed to `origin/main` (2026-06-19)
 
 ## Next 3 Tasks
 1. Lovable Publish → smoke-test ads (tokens stick), notifications (no toast flood), open a post, clips feed, communities

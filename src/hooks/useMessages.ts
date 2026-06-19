@@ -596,19 +596,30 @@ export function useCreateConversation() {
           console.error('create_dm_conversation RPC error:', rpcError);
           throw new Error(rpcError.message || 'Failed to start conversation');
         }
+        if (!conversationId) {
+          throw new Error('Failed to start conversation');
+        }
 
-        // Fetch the full conversation object to return
-        const { data: conv, error: fetchError } = await db
+        await ensureFlatConversationMembership(conversationId, profile.id);
+
+        const { data: conv } = await db
           .from('conversations')
           .select('*')
           .eq('id', conversationId)
-          .single();
+          .maybeSingle();
 
-        if (fetchError || !conv) {
-          throw new Error('Conversation created but could not be fetched');
-        }
+        if (conv) return conv;
 
-        return conv;
+        const memberIds = [profile.id, otherUserId].sort();
+        return {
+          id: conversationId,
+          is_group: false,
+          member_ids: memberIds,
+          name: null,
+          created_by: profile.id,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        };
       }
 
       // For group chats, use the existing multi-step approach

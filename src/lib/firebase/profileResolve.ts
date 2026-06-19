@@ -35,9 +35,29 @@ export async function getProfilesByIds(ids: string[]): Promise<Map<string, UserP
   await Promise.all(
     unique.map(async (id) => {
       const profile = await getDocument<UserProfile>('profiles', id);
-      if (profile?.id) map.set(profile.id, profile);
+      if (profile?.id) {
+        map.set(profile.id, profile);
+        if (profile.user_id) map.set(profile.user_id, profile);
+        map.set(id, profile);
+      }
     }),
   );
+
+  const missing = unique.filter((id) => !map.has(id));
+  if (missing.length) {
+    for (let i = 0; i < missing.length; i += 10) {
+      const chunk = missing.slice(i, i + 10);
+      const rows = await getDocuments<UserProfile>('profiles', [
+        where('user_id', 'in', chunk),
+      ]);
+      for (const profile of rows) {
+        if (profile?.id) {
+          map.set(profile.id, profile);
+          if (profile.user_id) map.set(profile.user_id, profile);
+        }
+      }
+    }
+  }
 
   return map;
 }

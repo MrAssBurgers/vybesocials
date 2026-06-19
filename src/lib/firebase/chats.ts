@@ -9,6 +9,11 @@ import {
 import { firebaseAuth } from './authService';
 import { getUserProfile } from './users';
 import { resolveProfileIdFromAuthUid } from './profileResolve';
+import {
+  normalizeToProfileId,
+  findExistingDmBetweenProfiles,
+  ensureDmMembershipPair,
+} from '@/lib/dmMembershipRepair';
 import type { ChatDocument } from './types';
 
 export interface ChatWithMembers extends ChatDocument {
@@ -82,19 +87,25 @@ export async function createDmChat(otherUserId: string): Promise<string> {
   if (!user) throw new Error('Not authenticated');
 
   const myProfileId = (await resolveProfileIdFromAuthUid(user.id)) || user.id;
-  const memberIds = [myProfileId, otherUserId].sort();
+  const otherId = (await normalizeToProfileId(otherUserId)) || otherUserId;
+
+  const existing = await findExistingDmBetweenProfiles(myProfileId, otherId);
+  if (existing) {
+    await ensureDmMembershipPair(existing, myProfileId, otherId);
+    return existing;
+  }
+
+  const memberIds = [myProfileId, otherId].sort();
   const chatId = memberIds.join('_');
-
-  const existing = await getDocument('conversations', chatId);
-  if (existing) return chatId;
-
   const now = new Date().toISOString();
+
   await setDocument('conversations', chatId, {
     id: chatId,
     is_group: false,
     member_ids: memberIds,
     name: null,
     avatar_url: null,
+    created_by: myProfileId,
     created_at: now,
     updated_at: now,
   });
@@ -104,11 +115,12 @@ export async function createDmChat(otherUserId: string): Promise<string> {
       id: `${chatId}_${memberId}`,
       conversation_id: chatId,
       user_id: memberId,
-      role: 'member',
+      role: memberId === myProfileId ? 'admin' : 'member',
       is_muted: false,
       is_pinned: false,
       last_read_at: null,
       created_at: now,
+      updated_at: now,
     });
   }
 

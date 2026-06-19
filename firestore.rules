@@ -353,8 +353,17 @@ service cloud.firestore {
     }
     // Legacy flat collections (migrated from Supabase)
     match /conversation_members/{docId} {
-      allow read: if signedIn() && ownsProfileId(resource.data.user_id);
-      allow create: if willOwnProfile('user_id');
+      allow read: if signedIn() && (
+        ownsProfileId(resource.data.user_id) ||
+        isConversationParticipant(resource.data.conversation_id)
+      );
+      allow create: if signedIn() && (
+        willOwnProfile('user_id') ||
+        (
+          request.resource.data.conversation_id is string &&
+          profileId() in get(/databases/$(database)/documents/conversations/$(request.resource.data.conversation_id)).data.get('member_ids', [])
+        )
+      );
       allow update: if ownsProfileId(resource.data.user_id);
       allow delete: if isOwnerProfile('user_id') || isAdmin();
     }

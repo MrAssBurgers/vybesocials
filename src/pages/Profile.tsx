@@ -46,7 +46,7 @@ export default function ProfilePage() {
   const { profile: currentProfile } = useAuth();
   const resolvedUsername = username || usernameOrId || currentProfile?.username;
   const { data: profile, isPending: profilePending, isError: profileError, refetch: refetchProfile } = useProfileByUsername(resolvedUsername!);
-  const { data: posts } = usePosts(undefined, profile?.id);
+  const { data: posts } = usePosts(undefined, profile?.id, { enabled: !!profile?.id });
   const { data: savedPosts } = useSavedPosts();
   const follow = useFollow();
   const updateAvatar = useUpdateAvatar();

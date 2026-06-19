@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { RefreshCw, TrendingUp, ExternalLink, AlertCircle, Sun, Moon, Sunset, MessageCircle, Globe, ChevronDown, ChevronRight, Settings, Users, Bell, Flame, Zap, Target, UserPlus, Sparkles, Newspaper } from 'lucide-react';
 import { VybeMiniIcon } from '@/components/ui/VybeMiniIcon';
 import { db } from '@/lib/firebase';
-import { invokeFunction } from '@/lib/firebase/functionsService';
+import { fetchDailyBrief } from '@/lib/firebase/briefRpc';
 import { invokeEdgeFeature } from '@/lib/edgeFeature';
 import { useAuth } from '@/lib/auth';
 import { toast } from 'sonner';
@@ -444,21 +444,17 @@ export function AIBriefSheet({ open, onOpenChange, focusTopic, focusHeadline, no
         bodyPayload.longitude = longitude;
       }
 
-      const { data, error: fnError } = await invokeFunction<any>('ai-catch-up', bodyPayload);
+      const brief = await fetchDailyBrief(session.user.id, {
+        latitude: latitude ?? undefined,
+        longitude: longitude ?? undefined,
+      });
 
       if (progressInterval) clearInterval(progressInterval);
       if (!isBackground) { setLoadingProgress(85); setLoadingStage('ai'); }
 
-      if (fnError || !data) {
-        const msg = String(fnError?.message || '');
-        if (/rate|429/i.test(msg)) { setError('Rate limited. Try again in a moment.'); return; }
-        if (/credit|402/i.test(msg)) { setError('AI credits exhausted.'); return; }
-        throw new Error(msg || 'Failed to get brief');
-      }
-
       if (!isBackground) { setLoadingProgress(95); setLoadingStage('done'); }
 
-      setBriefData(data);
+      setBriefData(brief as BriefData);
       setCachedBrief(data);
       setError(null);
       if (!isBackground) { setLoadingProgress(100); haptics.success(); }

@@ -1,5 +1,6 @@
 import { getDocuments, where } from './firestoreDb';
 import { listPosts, type PostWithAuthor } from './posts';
+import { resolveAuthorIds } from '@/lib/dmMembershipRepair';
 
 const FEED_RPC_NAMES = new Set([
   'get_posts_with_counts',
@@ -58,12 +59,34 @@ async function loadPostsSlice(opts: {
   authorIds?: Set<string>;
 }): Promise<Record<string, unknown>[]> {
   const fetchLimit = Math.min(Math.max(opts.offset + opts.limit + 30, opts.limit), 200);
-  let posts = await listPosts({
-    type: opts.type,
-    authorId: opts.authorId,
-    excludeAuthorId: opts.authorId ? undefined : opts.excludeAuthorId,
-    limit: fetchLimit,
-  });
+  let posts: PostWithAuthor[];
+
+  if (opts.authorId) {
+    const ids = await resolveAuthorIds(opts.authorId);
+    const seen = new Set<string>();
+    posts = [];
+    for (const aid of ids) {
+      const batch = await listPosts({
+        type: opts.type,
+        authorId: aid,
+        limit: fetchLimit,
+      });
+      for (const p of batch) {
+        if (!seen.has(p.id)) {
+          seen.add(p.id);
+          posts.push(p);
+        }
+      }
+    }
+    posts.sort((a, b) => (b.created_at || '').localeCompare(a.created_at || ''));
+  } else {
+    posts = await listPosts({
+      type: opts.type,
+      authorId: undefined,
+      excludeAuthorId: opts.authorId ? undefined : opts.excludeAuthorId,
+      limit: fetchLimit,
+    });
+  }
 
   if (opts.authorIds) {
     posts = posts.filter((p) => opts.authorIds!.has(p.author_id));

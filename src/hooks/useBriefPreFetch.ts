@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { db } from '@/lib/firebase';
-import { invokeFunction } from '@/lib/firebase/functionsService';
+import { fetchDailyBrief } from '@/lib/firebase/briefRpc';
 import { toast } from 'sonner';
 import { haptics } from '@/lib/haptics';
 import { getBriefTimeSlot } from '@/lib/briefTimeSlot';
@@ -96,9 +96,10 @@ async function prefetchBrief(authUserId?: string, force = false): Promise<boolea
       bodyPayload.longitude = longitude;
     }
 
-    const { data, error } = await invokeFunction<any>('ai-catch-up', bodyPayload);
-    if (error || !data) return false;
-
+    const data = await fetchDailyBrief(userId, {
+      latitude: latitude ?? undefined,
+      longitude: longitude ?? undefined,
+    });
     if (data && typeof data.summary === 'string' && data.summary.trim().length > 0) {
       writeBriefCache(data);
       return true;
