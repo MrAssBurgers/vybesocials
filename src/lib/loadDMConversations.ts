@@ -129,19 +129,19 @@ async function loadDMConversationsOnce(
       console.warn('[DM] messages query error:', messagesError.message);
     }
 
-    const memberUserIds = Array.from(new Set((allMembers || []).map((m) => m.user_id)));
+    const memberUserIds = Array.from(new Set((allMembers || []).map((m) => String(m.user_id)))) as string[];
     const profileByKey = await fetchMemberProfiles(memberUserIds);
 
     const membersByConv = new Map<string, any[]>();
     (allMembers || []).forEach((m) => {
-      const arr = membersByConv.get(m.conversation_id) || [];
-      arr.push({ ...m, profile: profileByKey.get(m.user_id) || null });
-      membersByConv.set(m.conversation_id, arr);
+      const arr = membersByConv.get(String(m.conversation_id)) || [];
+      arr.push({ ...m, profile: profileByKey.get(String(m.user_id)) || null });
+      membersByConv.set(String(m.conversation_id), arr);
     });
 
-    const conversationsData = conversationsRaw.map((c) => ({
-      ...c,
-      members: membersByConv.get(c.id) || [],
+    const conversationsData: any[] = conversationsRaw.map((c) => ({
+      ...(c as any),
+      members: membersByConv.get(String((c as any).id)) || [],
     }));
 
     const lastMessageMap = new Map<string, Message>();
@@ -185,7 +185,7 @@ async function loadDMConversationsOnce(
           unread_count: unreadCount,
           _sortTime: lastMessage?.created_at || conv.updated_at,
           _hasUnread: unreadCount > 0,
-        });
+        } as LoadedDMConversation);
       });
 
     result.sort((a, b) => {
