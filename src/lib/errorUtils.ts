@@ -25,6 +25,13 @@ export function getUserFriendlyError(error: any): string {
   if (message.includes('Email not confirmed')) {
     return 'Please verify your email address. Check your inbox or tap "Resend verification".';
   }
+  if (
+    message.includes('auth/expired-action-code') ||
+    message.includes('auth/invalid-action-code') ||
+    (message.toLowerCase().includes('reset') && message.toLowerCase().includes('expired'))
+  ) {
+    return 'This reset link has expired. Request a new one from the login page.';
+  }
   if (message.includes('Email link is invalid') || message.includes('expired')) {
     return 'This verification link has expired. Tap "Resend verification" to get a new one.';
   }

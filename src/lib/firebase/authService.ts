@@ -217,7 +217,11 @@ export const firebaseAuth = {
     if (!auth) return { error: NOT_CONFIGURED };
     try {
       const url = typeof redirect === 'string' ? redirect : redirect?.redirectTo;
-      await sendPasswordResetEmail(auth, email, url ? { url } : undefined);
+      await sendPasswordResetEmail(
+        auth,
+        email,
+        url ? { url, handleCodeInApp: true } : { handleCodeInApp: true },
+      );
       return { error: null };
     } catch (err) {
       return { error: toAuthError(err) };

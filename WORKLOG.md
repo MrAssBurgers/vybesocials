@@ -4,6 +4,18 @@ Use this file as the Lovable -> Cursor handoff each session.
 
 **Links:** [Lovable project](https://lovable.dev/projects/416714c8-d013-4aff-984d-522418a9bbc7) · [Production](https://vybehub.app) · Deploy steps: `DEPLOY.md`
 
+## Custom password reset UI (2026-06-18)
+- **Root cause:** Firebase reset links used `handleCodeInApp: false` / `canHandleCodeInApp: false` → users landed on `vybe-daaab.firebaseapp.com` default change-password UI instead of VYBE `/reset-password`
+- **Fix:** Server (`passwordResetEmail.ts`, `firebaseAuthEmail.ts`) + client SDK fallback (`authService.ts`) now set `handleCodeInApp: true`; continue URL stays `https://vybehub.app/reset-password`; early boot redirect in `bootstrapAuthStorage.ts`; `ResetPassword.tsx` shows account email + friendly errors
+- **Tests:** `npm run build` PASS, `npm run lint` PASS; `functions/` tsc PASS
+- **Deploy:** Redeploy `functions:requestPasswordReset` for server-side link fix; Lovable Publish for client
+- **You:** Lovable **Share → Publish** + hard refresh; smoke-test Forgot password → email link → custom dark reset page (not firebaseapp.com)
+
+## Next 3 Tasks
+1. Lovable Publish → smoke-test Forgot password → `/reset-password` custom UI on vybehub.app
+2. Redeploy `functions:requestPasswordReset` (`npx firebase deploy --only functions:requestPasswordReset --project vybe-daaab`)
+3. Apply `PENDING_20260530.sql` on prod if still needed for missing Supabase RPCs
+
 ## Debug scan + Welcome back overlay fix (2026-06-18)
 - **Scan:** `npm run debug` — build PASS, lint PASS, CSS PASS, boot PASS; edge fn refs OK; prod RPCs `is_username_available` + `create_dm_conversation` MISSING (Firebase fallbacks OK); vybehub.app bundle HTTP 200
 - **Welcome back glitch:** post-login `WelcomeBackSplash` exit used scale/blur while home feed rendered underneath — avatar appeared pinned at top and clipped header/content; fixed with body portal, scroll lock, solid `#0B0B10` backdrop, safe-area padding, opacity-only exit (matches boot splash), burst after dismiss
@@ -25,7 +37,6 @@ Use this file as the Lovable -> Cursor handoff each session.
 - **Tests:** `npm run build` in `functions/` PASS
 
 ## Debug scan + mobile fixes (2026-06-18)
-- **Scan:** `npm run debug` — build PASS, lint PASS, CSS PASS, boot PASS; edge fn refs OK; prod RPCs `is_username_available` + `create_dm_conversation` MISSING (Firebase fallbacks OK); vybehub.app bundle HTTP 200
 - **FYP scroll "page error":** route `ErrorBoundary` ("This page couldn't load") triggered when a single `PostCard` / ad slot threw during infinite scroll — per-post `ErrorBoundary` in feed; removed nested `contentVisibility` wrapper; throttled visibility observer; filter posts missing `author.id`; prefetch null-row guard in `useInfinitePosts`
 - **Forgot password:** `authReset.ts` requires `data?.ok === true`; Resend secrets + redeploy done — see **Resend password reset** section above; branded HTML via Resend when account exists
 - **Tests:** `npm run build` PASS, `npm run lint` PASS (3 pre-existing warnings)

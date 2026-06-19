@@ -7,6 +7,17 @@ import {
   purgeWrongProjectAuthSessions,
   repairSupabaseAuthStorage,
 } from './supabaseStorageKey';
+import { isPasswordRecoveryUrl, redirectToPasswordRecoveryPage } from './passwordRecoveryUrl';
+
+if (typeof window !== 'undefined') {
+  try {
+    if (isPasswordRecoveryUrl()) {
+      redirectToPasswordRecoveryPage();
+    }
+  } catch {
+    /* ignore malformed URL */
+  }
+}
 
 purgeWrongProjectAuthSessions();
 clearLegacySupabaseAuthStorage();

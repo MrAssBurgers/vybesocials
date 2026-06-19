@@ -10,6 +10,7 @@ import { db } from '@/lib/firebase';
 import { getFirebaseApp } from '@/lib/firebase/app';
 import { confirmPasswordReset, getAuth, verifyPasswordResetCode } from 'firebase/auth';
 import { toast } from 'sonner';
+import { getUserFriendlyError } from '@/lib/errorUtils';
 
 function getFirebaseResetOobCode(url: URL): string | null {
   const mode = url.searchParams.get('mode');
@@ -18,7 +19,7 @@ function getFirebaseResetOobCode(url: URL): string | null {
 }
 
 async function establishRecoverySession(): Promise<
-  { ok: true; oobCode?: string } | { ok: false; message: string }
+  { ok: true; oobCode?: string; email?: string } | { ok: false; message: string }
 > {
   const url = new URL(window.location.href);
   const hashParams = new URLSearchParams(url.hash.replace(/^#/, ''));
@@ -27,9 +28,9 @@ async function establishRecoverySession(): Promise<
   const firebaseOobCode = getFirebaseResetOobCode(url);
   if (firebaseOobCode) {
     try {
-      await verifyPasswordResetCode(getAuth(getFirebaseApp()), firebaseOobCode);
+      const email = await verifyPasswordResetCode(getAuth(getFirebaseApp()), firebaseOobCode);
       window.history.replaceState(null, '', url.pathname);
-      return { ok: true, oobCode: firebaseOobCode };
+      return { ok: true, oobCode: firebaseOobCode, email };
     } catch {
       return { ok: false, message: 'Invalid or expired reset link. Please request a new one.' };
     }
@@ -82,6 +83,7 @@ export default function ResetPassword() {
   const [checking, setChecking] = useState(true);
   const [tokenValid, setTokenValid] = useState(false);
   const [firebaseOobCode, setFirebaseOobCode] = useState<string | null>(null);
+  const [accountEmail, setAccountEmail] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -110,6 +112,7 @@ export default function ResetPassword() {
       if (cancelled) return;
       if (result.ok) {
         if ('oobCode' in result && result.oobCode) setFirebaseOobCode(result.oobCode);
+        if ('email' in result && result.email) setAccountEmail(result.email);
         finishOk();
         return;
       }
@@ -153,9 +156,10 @@ export default function ResetPassword() {
       setSuccess(true);
       toast.success('Password updated successfully!');
       setTimeout(() => navigate('/?mode=login'), 2000);
-    } catch (err: any) {
-      setError(err.message || 'Failed to reset password');
-      toast.error(err.message || 'Failed to reset password');
+    } catch (err: unknown) {
+      const message = getUserFriendlyError(err);
+      setError(message);
+      toast.error(message);
     } finally {
       setLoading(false);
     }
@@ -228,7 +232,15 @@ export default function ResetPassword() {
         <div className="flex flex-col items-center mb-6">
           <VYBELogo size="lg" showText={false} className="mb-4" />
           <h1 className="text-2xl font-bold">Reset Password</h1>
-          <p className="text-muted-foreground text-sm mt-1">Enter your new password below</p>
+          <p className="text-muted-foreground text-sm mt-1 text-center">
+            {accountEmail ? (
+              <>
+                Choose a new password for <span className="text-foreground font-medium">{accountEmail}</span>
+              </>
+            ) : (
+              'Enter your new password below'
+            )}
+          </p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">

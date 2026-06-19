@@ -35,7 +35,7 @@ export async function sendPasswordResetEmail(email) {
     try {
         const link = await auth.generatePasswordResetLink(email, {
             url: continueUrl,
-            handleCodeInApp: false,
+            handleCodeInApp: true,
         });
         const html = renderAuthEmail('recovery', { link, email });
         const sent = await sendViaResend(email, AUTH_EMAIL_SUBJECTS.recovery, html);

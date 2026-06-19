@@ -27,7 +27,7 @@ export async function sendFirebasePasswordResetEmail(email: string, continueUrl:
         requestType: 'PASSWORD_RESET',
         email,
         continueUrl,
-        canHandleCodeInApp: false,
+        canHandleCodeInApp: true,
       }),
     },
   );
