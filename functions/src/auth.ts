@@ -14,7 +14,7 @@ function code(): string {
  * bound (see WORKLOG), else Firebase default mailer via sendOobCode.
  * Console templates may be locked when custom email domain is pending — Resend bypasses that.
  */
-export const requestPasswordReset = onCall({ cors: true }, async (request) => {
+export const requestPasswordReset = onCall({ cors: true, secrets: ['RESEND_API_KEY', 'EMAIL_FROM'] }, async (request) => {
   const email = String((request.data as { email?: string })?.email || '')
     .trim()
     .toLowerCase();

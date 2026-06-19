@@ -13,13 +13,21 @@ Use this file as the Lovable -> Cursor handoff each session.
 
 ## Next 3 Tasks
 1. Lovable Publish → smoke-test login welcome overlay + For You scroll on vybehub.app
-2. Set Resend secrets + redeploy `requestPasswordReset` for branded reset emails
+2. Smoke-test Forgot password on vybehub.app with a real account (check inbox/spam); confirm Resend domain verified
 3. Apply `PENDING_20260530.sql` on prod if still needed for missing Supabase RPCs
+
+## Resend password reset (2026-06-18)
+- **Secrets:** `RESEND_API_KEY` + `EMAIL_FROM` (`VYBE <no-reply@vybehub.app>`) set in Firebase Secret Manager (`vybe-daaab`)
+- **Code:** `requestPasswordReset` binds both secrets in `functions/src/auth.ts`
+- **Deploy:** `functions:requestPasswordReset` — SUCCESS (us-central1)
+- **Probe:** callable HTTP 200, `ok: true` (nonexistent test email)
+- **Branded reset:** Resend path active when user exists; verify domain `vybehub.app` in Resend dashboard if mail does not arrive
+- **Tests:** `npm run build` in `functions/` PASS
 
 ## Debug scan + mobile fixes (2026-06-18)
 - **Scan:** `npm run debug` — build PASS, lint PASS, CSS PASS, boot PASS; edge fn refs OK; prod RPCs `is_username_available` + `create_dm_conversation` MISSING (Firebase fallbacks OK); vybehub.app bundle HTTP 200
 - **FYP scroll "page error":** route `ErrorBoundary` ("This page couldn't load") triggered when a single `PostCard` / ad slot threw during infinite scroll — per-post `ErrorBoundary` in feed; removed nested `contentVisibility` wrapper; throttled visibility observer; filter posts missing `author.id`; prefetch null-row guard in `useInfinitePosts`
-- **Forgot password:** `authReset.ts` treated ambiguous cloud responses as success (`data?.ok !== false`) — now requires `data?.ok === true` before skipping client SDK fallback; prod `requestPasswordReset` callable OK (curl); **RESEND_API_KEY / EMAIL_FROM secrets not in Secret Manager** — deploy with secrets blocked until user sets them; Firebase fallback (`noreply@vybe-daaab.firebaseapp.com`) active — check spam
+- **Forgot password:** `authReset.ts` requires `data?.ok === true`; Resend secrets + redeploy done — see **Resend password reset** section above; branded HTML via Resend when account exists
 - **Tests:** `npm run build` PASS, `npm run lint` PASS (3 pre-existing warnings)
 - **Git:** pushed to `origin/main`
 - **You:** Lovable **Share → Publish** + hard refresh; optional branded reset:
@@ -31,7 +39,7 @@ Use this file as the Lovable -> Cursor handoff each session.
 
 ## Next 3 Tasks
 1. Lovable Publish → smoke-test For You scroll (10+ posts) + Forgot password on vybehub.app
-2. Set Resend secrets + redeploy `requestPasswordReset` for branded reset emails
+2. Smoke-test Forgot password on vybehub.app with a real account (check inbox/spam); confirm Resend domain verified
 3. Apply `PENDING_20260530.sql` on prod if still needed for missing Supabase RPCs
 
 ## Publish prep (2026-06-18)
