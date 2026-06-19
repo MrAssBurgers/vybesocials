@@ -138,7 +138,8 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
     match /login_streaks/{docId} {
-      allow read, write: if ownsUserField('user_id') || willOwnUserField('user_id') || isAdmin();
+      allow read, write: if ownsUserField('user_id') || willOwnUserField('user_id')
+        || ownsProfileId(docId) || docId == uid() || isAdmin();
     }
     match /streaks/{docId} {
       allow read, write: if ownsUserField('user_id') || willOwnUserField('user_id') || isAdmin();

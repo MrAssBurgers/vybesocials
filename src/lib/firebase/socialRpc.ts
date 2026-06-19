@@ -233,24 +233,35 @@ function streakExpiryIso(dateIso: string): string {
   return d.toISOString();
 }
 
-async function readLoginStreak(profileId: string) {
-  const rows = await getDocuments<Record<string, unknown>>('login_streaks', [
+async function readLoginStreak(profileId: string, authUid: string | null) {
+  if (authUid) {
+    const byAuth = await getDocuments<Record<string, unknown>>('login_streaks', [
+      where('user_id', '==', authUid),
+      firestoreLimit(1),
+    ]);
+    if (byAuth[0]) return byAuth[0];
+    const byAuthDoc = await getDocument<Record<string, unknown>>('login_streaks', authUid);
+    if (byAuthDoc) return byAuthDoc;
+  }
+
+  const byProfile = await getDocuments<Record<string, unknown>>('login_streaks', [
     where('user_id', '==', profileId),
     firestoreLimit(1),
   ]);
-  if (rows[0]) return rows[0];
+  if (byProfile[0]) return byProfile[0];
   return getDocument<Record<string, unknown>>('login_streaks', profileId);
 }
 
 async function rpcGetLoginStreakStatus(params: Record<string, unknown>) {
   const profileId = await currentProfileId();
+  const authUid = await currentAuthUid();
   if (!profileId) {
     return { success: false, streak: 0, longest_streak: 0, needs_login_today: false };
   }
 
   const timezone = String(params.p_timezone || 'UTC');
   const today = localTodayIso(timezone);
-  const streak = await readLoginStreak(profileId);
+  const streak = await readLoginStreak(profileId, authUid);
 
   if (!streak) {
     return {
@@ -282,7 +293,8 @@ async function rpcGetLoginStreakStatus(params: Record<string, unknown>) {
 
 async function rpcUpdateLoginStreak(params: Record<string, unknown>) {
   const profileId = await currentProfileId();
-  if (!profileId) {
+  const authUid = await currentAuthUid();
+  if (!profileId || !authUid) {
     return { success: false, error: 'Not authenticated', streak: 0, longest_streak: 0 };
   }
 
@@ -294,13 +306,16 @@ async function rpcUpdateLoginStreak(params: Record<string, unknown>) {
     return d.toISOString().slice(0, 10);
   })();
 
-  const existing = await readLoginStreak(profileId);
+  const existing = await readLoginStreak(profileId, authUid);
   const now = new Date().toISOString();
+  const streakOwnerId = authUid;
+  const streakDocId = String(existing?.id || authUid);
 
   if (!existing) {
     const row = {
-      id: profileId,
-      user_id: profileId,
+      id: streakDocId,
+      user_id: streakOwnerId,
+      profile_id: profileId,
       current_streak: 1,
       longest_streak: 1,
       last_login_date: today,
@@ -308,7 +323,7 @@ async function rpcUpdateLoginStreak(params: Record<string, unknown>) {
       created_at: now,
       updated_at: now,
     };
-    await setDocument('login_streaks', profileId, row);
+    await setDocument('login_streaks', streakDocId, row);
     return {
       success: true,
       streak: 1,
@@ -335,8 +350,9 @@ async function rpcUpdateLoginStreak(params: Record<string, unknown>) {
   }
   const longest = Math.max(Number(existing.longest_streak || 0), nextStreak);
 
-  await setDocument('login_streaks', String(existing.id || profileId), {
-    user_id: profileId,
+  await setDocument('login_streaks', streakDocId, {
+    user_id: streakOwnerId,
+    profile_id: profileId,
     current_streak: nextStreak,
     longest_streak: longest,
     last_login_date: today,
@@ -355,16 +371,18 @@ async function rpcUpdateLoginStreak(params: Record<string, unknown>) {
 
 async function rpcRestoreLoginStreak(params: Record<string, unknown>) {
   const profileId = await currentProfileId();
-  if (!profileId) return { success: false, restored: false, streak: 0 };
+  const authUid = await currentAuthUid();
+  if (!profileId || !authUid) return { success: false, restored: false, streak: 0 };
 
   const timezone = String(params.p_timezone || 'UTC');
   const today = localTodayIso(timezone);
-  const existing = await readLoginStreak(profileId);
+  const existing = await readLoginStreak(profileId, authUid);
   if (!existing) return { success: false, restored: false, streak: 0 };
 
   const restored = Math.max(Number(existing.current_streak || 0), 1);
-  await setDocument('login_streaks', String(existing.id || profileId), {
-    user_id: profileId,
+  await setDocument('login_streaks', String(existing.id || authUid), {
+    user_id: authUid,
+    profile_id: profileId,
     current_streak: restored,
     last_login_date: today,
     streak_expires_at: streakExpiryIso(today),

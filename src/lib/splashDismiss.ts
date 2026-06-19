@@ -3,18 +3,21 @@ import { hideStaticBootSplash } from '@/lib/splashProgressBridge';
 
 const APP_READY_ATTR = 'data-vybe-app-ready';
 
-/** Remove boot/splash overlays only — not route loaders (VybePageLoader). */
-export function teardownAllSplashLayers(): void {
+/**
+ * Clear pre-React static boot + document scroll locks.
+ * Never remove React-managed splash nodes — that races AnimatePresence and throws removeChild.
+ */
+export function clearSplashDocumentLocks(): void {
   hideStaticBootSplash();
-
-  document.querySelectorAll('#vybe-static-boot, #vybe-react-splash, [data-vybe-splash-overlay]').forEach((el) => {
-    el.remove();
-  });
-
   document.body.classList.remove('splash-visible');
   document.body.style.overflow = '';
   document.documentElement.style.overflow = '';
   ensureAppShellVisible();
+}
+
+/** @deprecated Use clearSplashDocumentLocks — kept for call-site compatibility. */
+export function teardownAllSplashLayers(): void {
+  clearSplashDocumentLocks();
 }
 
 export function markAppReady(): void {

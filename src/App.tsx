@@ -95,7 +95,7 @@ import { ATT_RESUME_EVENT, ensureAppShellVisible } from "@/lib/attResumeRecovery
 import { syncNativeTrackingConsent } from "@/lib/att";
 import { readSplashCompleted, markSplashCompleted } from "@/lib/splashSession";
 import { hideStaticBootSplash } from "@/lib/splashProgressBridge";
-import { teardownAllSplashLayers, markAppReady } from "@/lib/splashDismiss";
+import { clearSplashDocumentLocks, markAppReady } from "@/lib/splashDismiss";
 import { resetSplashSessionOnHardReload, waitForAppShellPaint, hasAppShellPaint } from "@/lib/navigationBoot";
 import { navVisibility } from "@/lib/navVisibility";
 import { markBootComplete } from "@/lib/bootGuard";
@@ -221,7 +221,7 @@ function completeInitialSplash(setShowSplash: (v: boolean) => void) {
     setShowSplash(false);
     hasInitialLoadCompleted = true;
     markSplashCompleted();
-    teardownAllSplashLayers();
+    clearSplashDocumentLocks();
     navVisibility.forceShow();
     navVisibility.resetScrollHide();
     requestAnimationFrame(() => {
@@ -330,7 +330,7 @@ function AppWithPreloader() {
   useEffect(() => {
     hideStaticBootSplash();
     if (!showSplash) {
-      teardownAllSplashLayers();
+      clearSplashDocumentLocks();
     }
   }, []);
 
