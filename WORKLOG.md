@@ -2,6 +2,19 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## Meme ban expiry fix (2026-06-18)
+- **Root cause:** Firebase `dataClient.or()` is a no-op during migration — `.or(is_permanent.eq.true,expires_at.gt.now)` never filtered; `useBanStatus` + `auth.tsx` returned the newest `user_bans` row even when `expires_at` was in the past (founder @mrassburgers meme ban from 2026-02-02 still displayed in June 2026)
+- **Fix:** `src/lib/banUtils.ts` (`isBanActive`, `pickActiveBan`, `filterActiveBans`); client-side active-only filtering in `useBanStatus`, `auth.tsx` `checkBanStatus`, `useAllBans`, `useUserBans`, `useIsUserBanned`
+- **DB repair:** `scripts/repair-expired-bans.mjs` — deleted 2 expired `user_bans` in Firestore (`vybe-daaab`), including founder `e78010f2-d5f1-428b-b5df-8fc6b768772d`
+- **Tests:** `npm run build` PASS
+- **Git:** pushed to `origin/main`
+- **You:** Lovable **Share → Publish** + hard refresh; smoke-test founder login (no meme ban screen)
+
+## Next 3 Tasks
+1. Lovable Publish → smoke-test founder login + admin bans list (expired bans hidden)
+2. Lovable Publish → smoke-test Forgot password branded email + `/reset-password` on vybehub.app
+3. Apply `PENDING_20260530.sql` on prod if still needed for missing Supabase RPCs
+
 ## Publish-ready (2026-06-19)
 - **Git:** `1cf08b3c` on `origin/main` (synced; no push needed)
 - **Build:** PASS — local `dist/assets/app.js` md5 `5a7ecf84cbd056aeaee9deb8187b9851`; prod etag `a1c86c6fe328da4bd58ff4c103301133` (mismatch → publish required)

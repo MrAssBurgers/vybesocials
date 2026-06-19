@@ -26,6 +26,7 @@ import {
 import { checkUsernameAvailable } from '@/lib/usernameAvailability';
 import { startHeartbeat, stopHeartbeat } from '@/lib/analytics';
 import { removeRealtimeChannel, subscribePostgresChannel } from '@/lib/realtimeChannel';
+import { pickActiveBan } from '@/lib/banUtils';
 import { normalizeLoginEmail } from '@/lib/loginEmail';
 import { isPasswordRecoveryUrl, redirectToPasswordRecoveryPage } from '@/lib/passwordRecoveryUrl';
 
@@ -262,15 +263,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .from('user_bans')
       .select('reason, expires_at, is_permanent, is_meme_ban, custom_gif_url')
       .eq('user_id', profileId)
-      .or(`is_permanent.eq.true,expires_at.gt.${new Date().toISOString()}`)
       .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle();
+      .limit(10);
 
-    if (!error && data) {
-      setBanInfo(data);
+    const activeBan = !error ? pickActiveBan(data ?? []) : null;
+
+    if (activeBan) {
+      setBanInfo(activeBan);
       // Schedule auto-unban when time is up
-      scheduleBanExpiry(data.expires_at, data.is_permanent);
+      scheduleBanExpiry(activeBan.expires_at, activeBan.is_permanent);
     } else {
       setBanInfo(null);
       clearBanExpiryTimer();

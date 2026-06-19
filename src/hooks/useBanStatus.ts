@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { db } from '@/lib/firebase';
 import { useAuthProfileId } from '@/hooks/useAuthProfileId';
+import { pickActiveBan } from '@/lib/banUtils';
 
 export const useBanStatus = () => {
   const profileId = useAuthProfileId();
@@ -15,17 +16,15 @@ export const useBanStatus = () => {
         .from('user_bans')
         .select('*, is_meme_ban, custom_gif_url')
         .eq('user_id', profileId)
-        .or(`is_permanent.eq.true,expires_at.gt.${new Date().toISOString()}`)
         .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
+        .limit(10);
 
       if (error) {
         console.error('Error checking ban status:', error);
         return null;
       }
 
-      return data;
+      return pickActiveBan(data ?? []);
     },
     enabled: !!profileId,
     networkMode: 'always',

@@ -3,6 +3,7 @@ import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth';
 import { useAuthProfileId } from '@/hooks/useAuthProfileId';
 import { isStaffQueryEnabled } from '@/lib/adminAccess';
+import { filterActiveBans, pickActiveBan } from '@/lib/banUtils';
 import { toast } from 'sonner';
 import { isOwner } from '@/components/ui/OwnerBadge';
 
@@ -40,7 +41,7 @@ export function useUserWarnings(userId?: string) {
   });
 }
 
-// Fetch user bans
+// Fetch user bans (active only)
 export function useUserBans(userId?: string) {
   return useQuery({
     queryKey: ['user-bans', userId],
@@ -55,7 +56,7 @@ export function useUserBans(userId?: string) {
         .eq('user_id', userId)
         .order('created_at', { ascending: false });
       if (error) throw error;
-      return data;
+      return filterActiveBans(data ?? []);
     },
     enabled: !!userId,
   });
@@ -94,7 +95,6 @@ export function useAllBans() {
   return useQuery({
     queryKey: ['all-bans'],
     queryFn: async () => {
-      const now = new Date().toISOString();
       const { data, error } = await db
         .from('user_bans')
         .select(`
@@ -102,11 +102,10 @@ export function useAllBans() {
           user:profiles!user_id(id, username, avatar_url),
           banned_by_profile:profiles!banned_by(username)
         `)
-        .or(`is_permanent.eq.true,expires_at.is.null,expires_at.gt.${now}`)
         .order('created_at', { ascending: false })
         .limit(100);
       if (error) throw error;
-      return data;
+      return filterActiveBans(data ?? []);
     },
     enabled: isStaffQueryEnabled(authReady, user, profileId),
     networkMode: 'always',
@@ -121,17 +120,12 @@ export function useIsUserBanned(userId?: string) {
       if (!userId) return false;
       const { data, error } = await db
         .from('user_bans')
-        .select('id, expires_at, is_permanent')
+        .select('id, expires_at, is_permanent, created_at')
         .eq('user_id', userId)
         .order('created_at', { ascending: false })
-        .limit(1);
+        .limit(10);
       if (error) throw error;
-      if (!data || data.length === 0) return false;
-      
-      const ban = data[0];
-      if (ban.is_permanent) return true;
-      if (ban.expires_at && new Date(ban.expires_at) > new Date()) return true;
-      return false;
+      return !!pickActiveBan(data ?? []);
     },
     enabled: !!userId,
   });
