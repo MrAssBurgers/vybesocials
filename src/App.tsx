@@ -89,17 +89,17 @@ import { SplashScreen } from "@/components/ui/SplashScreen";
 import { WelcomeBackSplash } from "@/components/ui/WelcomeBackSplash";
 import { markPersistRestored } from "@/lib/persistRestoreGate";
 import { reviveQueriesInCache } from "@/lib/persistedCollections";
+import { purgeStuckStoryUploads } from "@/lib/storiesCacheSanitize";
 import { SnapARProvider } from "@/components/camera/SnapARProvider";
 import { ATT_RESUME_EVENT, ensureAppShellVisible } from "@/lib/attResumeRecovery";
 import { syncNativeTrackingConsent } from "@/lib/att";
 import { readSplashCompleted, markSplashCompleted } from "@/lib/splashSession";
 import { hideStaticBootSplash } from "@/lib/splashProgressBridge";
+import { teardownAllSplashLayers, markAppReady } from "@/lib/splashDismiss";
 import { resetSplashSessionOnHardReload, waitForAppShellPaint, hasAppShellPaint } from "@/lib/navigationBoot";
 import { navVisibility } from "@/lib/navVisibility";
 import { markBootComplete } from "@/lib/bootGuard";
 import { ShellVisibilityGuard } from "@/components/system/ShellVisibilityGuard";
-
-const APP_READY_ATTR = 'data-vybe-app-ready';
 
 // Lazy-load non-critical overlays and providers to reduce initial bundle
 const EasterEggProvider = lazy(() => import("@/components/easter-eggs/EasterEggProvider").then(m => ({ default: m.EasterEggProvider })));
@@ -221,20 +221,21 @@ function completeInitialSplash(setShowSplash: (v: boolean) => void) {
     setShowSplash(false);
     hasInitialLoadCompleted = true;
     markSplashCompleted();
-    hideStaticBootSplash();
-    document.body.classList.remove('splash-visible');
-    ensureAppShellVisible();
+    teardownAllSplashLayers();
     navVisibility.forceShow();
     navVisibility.resetScrollHide();
     requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        document.documentElement.setAttribute(APP_READY_ATTR, 'true');
-        markBootComplete();
-      });
+      markAppReady();
+      markBootComplete();
     });
   };
 
-  void waitForAppShellPaint(isNativePerfMode() ? 2400 : 3200).then(finish);
+  // Never keep the splash up waiting for paint — hard cap 650ms from dismiss trigger.
+  const hardCap = window.setTimeout(finish, 650);
+  void waitForAppShellPaint(280).finally(() => {
+    window.clearTimeout(hardCap);
+    finish();
+  });
 }
 
 // Background brief pre-fetcher (needs auth context)
@@ -327,8 +328,15 @@ function AppWithPreloader() {
   }, []);
 
   useEffect(() => {
+    hideStaticBootSplash();
+    if (!showSplash) {
+      teardownAllSplashLayers();
+    }
+  }, []);
+
+  useEffect(() => {
     if (!showSplash) return;
-    // Hide splash only when preloader is done AND auth has resolved.
+    // Hide splash when preloader is done AND auth has resolved.
     const preloaderDone = preloadStatus.isComplete;
     const authDone = authResolved;
     if (preloaderDone && authDone) {
@@ -342,7 +350,7 @@ function AppWithPreloader() {
     const absoluteMax = setTimeout(() => {
       syncNativeTrackingConsent();
       completeInitialSplash(setShowSplash);
-    }, isNativePerfMode() ? 1200 : 1500);
+    }, isNativePerfMode() ? 900 : 1100);
     return () => clearTimeout(absoluteMax);
   }, [showSplash]);
 
@@ -531,6 +539,7 @@ const App = memo(() => {
         client={queryClient}
         onSuccess={() => {
           reviveQueriesInCache(queryClient);
+          purgeStuckStoryUploads(queryClient);
           markPersistRestored();
         }}
         onError={() => {

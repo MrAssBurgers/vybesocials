@@ -1,9 +1,11 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useEffect } from 'react';
 import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth';
 import { useAuthProfileId } from '@/hooks/useAuthProfileId';
 import { getEffectiveProfileId } from '@/lib/profileCache';
 import { resolveSessionProfileId, resolveStoryAuthorProfileId } from '@/lib/resolveSessionProfileId';
+import { purgeStuckStoryUploads } from '@/lib/storiesCacheSanitize';
 
 function storiesQueryProfileId(liveProfileId?: string | null, resolvedProfileId?: string) {
   return getEffectiveProfileId(liveProfileId ?? resolvedProfileId);
@@ -50,6 +52,11 @@ export function useStories() {
   const { profile } = useAuth();
   const resolvedProfileId = useAuthProfileId();
   const profileId = storiesQueryProfileId(profile?.id, resolvedProfileId);
+  const queryClient = useQueryClient();
+
+  useEffect(() => {
+    purgeStuckStoryUploads(queryClient, profileId);
+  }, [queryClient, profileId]);
 
   return useQuery({
     queryKey: ['stories', profileId],

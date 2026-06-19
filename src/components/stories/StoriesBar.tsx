@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Plus } from 'lucide-react';
 import { toast } from 'sonner';
+import { useQueryClient } from '@tanstack/react-query';
 import { useStories, useCreateStory } from '@/hooks/useStories';
 import { useAuth } from '@/lib/auth';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -14,6 +15,7 @@ import { batchSignUrls } from '@/lib/signedUrlCache';
 import { useIsGuest } from '@/components/auth/GuestAuthPrompt';
 import { StoryPoster } from './StoryPoster';
 import { computeStoryPosterDimensions, getStoryPosterUrl } from '@/lib/storyUtils';
+import { purgeStuckStoryUploads } from '@/lib/storiesCacheSanitize';
 import { cn } from '@/lib/utils';
 
 interface StoriesBarProps {
@@ -32,6 +34,7 @@ export const StoriesBar = memo(function StoriesBar({
   const canCreateStory = !authLoading && !!user;
   const { data: storyGroups } = useStories();
   const createStory = useCreateStory();
+  const queryClient = useQueryClient();
   const [selectedGroupIndex, setSelectedGroupIndex] = useState<number | null>(null);
   const [showCreator, setShowCreator] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -71,6 +74,25 @@ export const StoriesBar = memo(function StoriesBar({
   const ownStoryGroup = storyGroups?.find((g) => g.user.id === profile?.id);
   const ownStoryUploading = ownStoryGroup?.stories.some((s) => s.isUploading || s.isOptimistic) ?? false;
   const otherGroups = storyGroups?.filter((g) => g.user.id !== profile?.id) || [];
+
+  // Clear orphaned "Posting…" state from failed uploads or persisted cache.
+  useEffect(() => {
+    if (!ownStoryUploading || createStory.isPending) return;
+    const timer = window.setTimeout(() => {
+      purgeStuckStoryUploads(queryClient, profile?.id);
+    }, 400);
+    return () => window.clearTimeout(timer);
+  }, [ownStoryUploading, createStory.isPending, profile?.id, queryClient]);
+
+  useEffect(() => {
+    if (!createStory.isPending) return;
+    const timer = window.setTimeout(() => {
+      createStory.reset();
+      purgeStuckStoryUploads(queryClient, profile?.id);
+      toast.error('Story upload timed out. You can try again.');
+    }, 90000);
+    return () => window.clearTimeout(timer);
+  }, [createStory.isPending, createStory, profile?.id, queryClient]);
 
   const ownPosterUrl = ownStoryGroup?.stories[0]
     ? getStoryPosterUrl(ownStoryGroup.stories[0])

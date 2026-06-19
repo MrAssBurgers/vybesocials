@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { ensureAppShellVisible } from '@/lib/attResumeRecovery';
 import { isNativePerfMode } from '@/lib/nativePerfMode';
 import { subscribeSplashProgress } from '@/lib/splashProgressBridge';
+import { teardownAllSplashLayers } from '@/lib/splashDismiss';
 
 interface SplashScreenProps {
   isVisible: boolean;
@@ -39,13 +40,28 @@ export const SplashScreen = memo(function SplashScreen({ isVisible }: SplashScre
     document.body.style.overflow = '';
     document.body.classList.remove('splash-visible');
     ensureAppShellVisible();
+    teardownAllSplashLayers();
+  }, [isVisible]);
+
+  // Failsafe — if exit animation hangs, tear down splash DOM anyway.
+  useEffect(() => {
+    if (isVisible) return;
+    const t = window.setTimeout(() => teardownAllSplashLayers(), 350);
+    return () => window.clearTimeout(t);
   }, [isVisible]);
 
   return (
-    <AnimatePresence onExitComplete={ensureAppShellVisible}>
+    <AnimatePresence
+      onExitComplete={() => {
+        ensureAppShellVisible();
+        teardownAllSplashLayers();
+      }}
+    >
       {isVisible && (
         <motion.div
           key="vybe-splash"
+          id="vybe-react-splash"
+          data-vybe-splash-overlay
           data-vybe-boot-screen
           initial={{ opacity: 1 }}
           exit={{ opacity: 0 }}

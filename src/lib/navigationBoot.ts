@@ -44,7 +44,7 @@ export function hasAppShellPaint(): boolean {
   const shell = document.getElementById('app-shell');
   if (!shell) return false;
   return !!shell.querySelector(
-    '[data-route-shell], #main-content, [data-auth-shell], main, nav[aria-label], [data-vybe-boot-screen]',
+    '[data-route-shell], #main-content, [data-auth-shell], main, nav[aria-label]',
   );
 }
 

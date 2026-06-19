@@ -2,6 +2,17 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## Splash stuck + story posting lock fix (2026-06-19)
+- **Splash stuck at 100%:** Hard-cap dismiss at ~650ms (was waiting up to 3.2s for paint); `teardownAllSplashLayers()` removes static + React splash; removed default `body.splash-visible` from `index.html`; failsafe DOM cleanup on splash exit
+- **Story "Posting…" stuck:** Strip optimistic/uploading rows from persisted stories cache (serialize + restore + boot purge); auto-clear orphaned uploads in `StoriesBar`; 90s mutation timeout reset
+- **Tests:** `npm run build` PASS, `npm run lint` PASS
+- **You:** Lovable **Share → Publish** + hard refresh
+
+## Next 3 Tasks
+1. Lovable Publish → confirm splash dismisses and story ring no longer stuck on Posting
+2. Post a new story end-to-end
+3. Full smoke test from prior bug list
+
 ## CORS, splash, story posting fix (2026-06-19)
 - **CORS noise:** Login streak + challenge sync RPCs run Firestore client-side only (no cloud callable preflight to `updateLoginStreak` / `syncMyChallengeProgress`)
 - **Login streak:** Real Firestore logic in `socialRpc.ts` (`login_streaks` collection)

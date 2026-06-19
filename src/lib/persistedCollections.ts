@@ -1,5 +1,6 @@
 import type { QueryClient } from '@tanstack/react-query';
 import type { PersistedClient } from '@tanstack/react-query-persist-client';
+import { sanitizeStoriesCacheData, isStoriesQueryKey } from '@/lib/storiesCacheSanitize';
 
 /** Rehydrated React Query cache can deserialize Set/Map as plain objects. */
 
@@ -57,6 +58,9 @@ function queryKeyMatchesFragments(queryKey: readonly unknown[], fragments: strin
 /** Revive Set/Map query data based on query key patterns. */
 export function revivePersistedQueryData(queryKey: readonly unknown[], data: unknown): unknown {
   if (data == null) return data;
+  if (isStoriesQueryKey(queryKey)) {
+    return sanitizeStoriesCacheData(data);
+  }
   if (queryKeyMatchesFragments(queryKey, PERSISTED_SET_KEY_FRAGMENTS)) {
     return normalizePersistedSet(data);
   }

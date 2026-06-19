@@ -2,6 +2,7 @@ import { createAsyncStoragePersister } from '@tanstack/query-async-storage-persi
 import type { PersistedClient } from '@tanstack/react-query-persist-client';
 import { get, set, del } from 'idb-keyval';
 import { revivePersistedClient } from '@/lib/persistedCollections';
+import { isStoriesQueryKey, sanitizeStoriesCacheData } from '@/lib/storiesCacheSanitize';
 
 /**
  * IndexedDB-backed storage adapter for react-query persistence.
@@ -37,10 +38,38 @@ function deserializePersistedClient(cached: string): PersistedClient {
   return revivePersistedClient(parsed);
 }
 
+function serializePersistedClient(client: PersistedClient): string {
+  const queries = client?.clientState?.queries;
+  if (!Array.isArray(queries)) {
+    return JSON.stringify(client);
+  }
+
+  const sanitized: PersistedClient = {
+    ...client,
+    clientState: {
+      ...client.clientState,
+      queries: queries.map((entry) => {
+        if (!entry?.queryKey || !isStoriesQueryKey(entry.queryKey)) return entry;
+        const data = entry.state?.data;
+        if (data == null) return entry;
+        const cleaned = sanitizeStoriesCacheData(data);
+        if (cleaned === data) return entry;
+        return {
+          ...entry,
+          state: { ...entry.state, data: cleaned },
+        };
+      }),
+    },
+  };
+
+  return JSON.stringify(sanitized);
+}
+
 export const queryPersister = createAsyncStoragePersister({
   storage: idbStorage,
   key: 'vybe-react-query-cache',
   throttleTime: 800,
+  serialize: serializePersistedClient,
   deserialize: deserializePersistedClient,
 });
 
