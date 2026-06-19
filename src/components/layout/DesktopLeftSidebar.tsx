@@ -8,7 +8,7 @@ import {
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/lib/auth';
 import { Button } from '@/components/ui/button';
-import { Avatar, AvatarFallback, ProfileAvatarImage } from '@/components/ui/avatar';
+import { Avatar, AvatarFallback, AvatarImage, ProfileAvatarImage } from '@/components/ui/avatar';
 import { Separator } from '@/components/ui/separator';
 import { triggerNavFeedback } from '@/lib/navFeedback';
 import { triggerHaptic } from '@/lib/haptics';

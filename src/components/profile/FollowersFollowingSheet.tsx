@@ -113,7 +113,7 @@ export function FollowersFollowingSheet({
                       <p className="font-medium text-sm truncate">
                         {user.display_name || user.username}
                       </p>
-                      <StyledUsername username={user.username} className="text-xs text-muted-foreground" />
+                      <StyledUsername userId={user.id} username={user.username} className="text-xs text-muted-foreground" />
                     </div>
                   </Link>
                 </li>

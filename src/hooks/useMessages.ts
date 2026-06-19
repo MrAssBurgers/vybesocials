@@ -610,7 +610,7 @@ export function useCreateConversation() {
 
         if (conv) return conv;
 
-        const memberIds = [profile.id, otherUserId].sort();
+        const sortedMemberIds = [profile.id, otherUserId].sort();
         return {
           id: conversationId,
           is_group: false,

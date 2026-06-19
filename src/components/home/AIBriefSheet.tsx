@@ -455,7 +455,7 @@ export function AIBriefSheet({ open, onOpenChange, focusTopic, focusHeadline, no
       if (!isBackground) { setLoadingProgress(95); setLoadingStage('done'); }
 
       setBriefData(brief as BriefData);
-      setCachedBrief(data);
+      setCachedBrief(brief as BriefData);
       setError(null);
       if (!isBackground) { setLoadingProgress(100); haptics.success(); }
     } catch (err) {

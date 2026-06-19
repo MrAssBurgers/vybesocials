@@ -312,7 +312,7 @@ export function useConversationDetail(conversationId: string | undefined) {
 
       if (membersError) throw membersError;
 
-      const memberUserIds = Array.from(new Set((allMembers || []).map((m) => m.user_id)));
+      const memberUserIds = Array.from(new Set((allMembers || []).map((m) => String(m.user_id)))) as string[];
       const profileByKey = await fetchMemberProfiles(memberUserIds);
       const members = (allMembers || []).map((m) => ({
         ...m,

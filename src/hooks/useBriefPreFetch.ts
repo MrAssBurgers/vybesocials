@@ -96,7 +96,7 @@ async function prefetchBrief(authUserId?: string, force = false): Promise<boolea
       bodyPayload.longitude = longitude;
     }
 
-    const data = await fetchDailyBrief(userId, {
+    const data = await fetchDailyBrief(authUserId || session.user.id, {
       latitude: latitude ?? undefined,
       longitude: longitude ?? undefined,
     });
