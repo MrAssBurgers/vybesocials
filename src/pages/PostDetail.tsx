@@ -332,7 +332,7 @@ export default function PostDetailPage() {
           display_name: null,
         },
         comment_count: commentsResult.count || 0,
-      };
+      } as any;
     },
     enabled: !!id,
   });

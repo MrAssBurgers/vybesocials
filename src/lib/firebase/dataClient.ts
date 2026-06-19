@@ -34,6 +34,7 @@ import {
   findExistingDmBetweenProfiles,
   ensureDmMembershipPair,
 } from '@/lib/dmMembershipRepair';
+import { syncProfileUsername } from './syncProfileUsername';
 
 type FilterOp = '==' | '!=' | '>' | '<' | 'in' | 'not-in';
 
