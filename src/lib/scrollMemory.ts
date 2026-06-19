@@ -27,3 +27,16 @@ export function clearAllScrollPositions(): void {
 export function getScrollPosition(routeKey: string): number | undefined {
   return scrollPositions.get(routeKey);
 }
+
+/** Save/restore scroll for nested panes (e.g. chat message list). */
+export function saveElementScrollPosition(key: string, scrollTop: number): void {
+  scrollPositions.set(key, scrollTop);
+}
+
+export function restoreElementScrollPosition(key: string, element: HTMLElement): boolean {
+  const position = scrollPositions.get(key);
+  if (position === undefined) return false;
+  element.scrollTop = position;
+  scrollPositions.delete(key);
+  return true;
+}

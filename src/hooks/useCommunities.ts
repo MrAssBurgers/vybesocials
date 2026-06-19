@@ -60,23 +60,27 @@ export function useMyCommunities() {
     queryFn: async () => {
       if (!profileId) return [];
 
-      const { data, error } = await db
+      const { data: memberships, error: membershipError } = await db
         .from('server_members')
-        .select(`
-          server_id,
-          role,
-          servers:server_id (
-            id, name, description, icon_url, banner_url, cover_url,
-            owner_id, invite_code, is_public, member_count, active_now_count, created_at
-          )
-        `)
+        .select('server_id, role')
         .eq('user_id', profileId);
 
-      if (error) throw error;
-      
-      return (data || []).map((d: any) => ({
-        ...d.servers,
-        myRole: d.role === 'admin' ? 'moderator' : d.role,
+      if (membershipError) throw membershipError;
+      if (!memberships?.length) return [];
+
+      const serverIds = memberships.map((m: { server_id: string }) => m.server_id);
+      const roleByServer = new Map(memberships.map((m: { server_id: string; role: string }) => [m.server_id, m.role]));
+
+      const { data: servers, error: serversError } = await db
+        .from('servers')
+        .select('id, name, description, icon_url, banner_url, cover_url, owner_id, invite_code, is_public, member_count, active_now_count, created_at')
+        .in('id', serverIds);
+
+      if (serversError) throw serversError;
+
+      return (servers || []).map((s: Record<string, unknown>) => ({
+        ...s,
+        myRole: roleByServer.get(String(s.id)) === 'admin' ? 'moderator' : roleByServer.get(String(s.id)),
       })) as (Community & { myRole: CommunityRole })[];
     },
     enabled: !!profileId,

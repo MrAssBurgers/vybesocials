@@ -4,6 +4,7 @@ import type { Conversation, Message } from '@/hooks/useMessages';
 import { isPermissionDeniedError, warnOnce } from '@/lib/logOnce';
 import { resolveSessionProfileId } from '@/lib/resolveSessionProfileId';
 import { withTimeout } from '@/lib/withTimeout';
+import { fetchMemberProfiles } from '@/lib/dmMembershipRepair';
 
 export interface LoadedDMConversation extends Conversation {
   _sortTime: string;
@@ -129,22 +130,12 @@ async function loadDMConversationsOnce(
     }
 
     const memberUserIds = Array.from(new Set((allMembers || []).map((m) => m.user_id)));
-    const { data: memberProfiles, error: profilesError } = memberUserIds.length
-      ? await db
-          .from('profiles')
-          .select('id, user_id, username, avatar_url, display_name')
-          .in('id', memberUserIds)
-      : { data: [], error: null };
+    const profileByKey = await fetchMemberProfiles(memberUserIds);
 
-    if (profilesError) {
-      console.warn('[DM] member profiles query error:', profilesError.message);
-    }
-
-    const profileById = new Map((memberProfiles || []).map((p) => [p.id, p]));
     const membersByConv = new Map<string, any[]>();
     (allMembers || []).forEach((m) => {
       const arr = membersByConv.get(m.conversation_id) || [];
-      arr.push({ ...m, profile: profileById.get(m.user_id) || null });
+      arr.push({ ...m, profile: profileByKey.get(m.user_id) || null });
       membersByConv.set(m.conversation_id, arr);
     });
 

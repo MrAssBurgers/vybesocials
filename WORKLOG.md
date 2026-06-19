@@ -2,6 +2,40 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## Mobile bug sweep — ads, notifications, posts, clips, AI (2026-06-19)
+- **Ad tokens:** Client `earn_vybe_tokens` RPC writes `vybe_tokens` + `token_transactions`; hooks use profile id; progression only advances after successful earn
+- **Toast spam:** Realtime skips first snapshot; friend requests toast only when `pending`; notifications toast only if created in last 45s
+- **removeChild crash:** Removed `AnimatePresence` from notification mouth-zoom overlays; clear overlay before navigate
+- **Notifications load:** Client-side sort (no composite index); Firestore rules for profile-id paths
+- **Posts:** `PostDetail` resilient fetch + separate profile lookup
+- **Clips:** Feed filters to video-only
+- **Communities:** Fixed `useMyCommunities` broken join; server read rules for members
+- **Followers:** Tap Followers/Following on profile opens list sheet
+- **Friend link:** Removed live-sync-unavailable toast spam; NFC session unchanged (needs Despia native on device)
+- **Avatar:** `ProfileAvatarImage` + localStorage cache on profile persist; wired in nav/settings
+- **Firestore rules:** `vybe_tokens`, `token_transactions`, `login_streaks`, `notifications`, server member reads — **deployed** to `vybe-daaab`
+- **Tests:** `npm run build` PASS, `npm run lint` PASS (3 pre-existing warnings)
+- **Blockers:** Spotify OAuth — set `SPOTIFY_CLIENT_ID` + `SPOTIFY_CLIENT_SECRET` in Firebase Secret Manager then redeploy `spotifyOauthStart`; AI server features need `GEMINI_API_KEY` on Cloud Functions + user key in Settings → VYBE AI
+- **You:** Lovable **Share → Publish** + hard refresh on Samsung
+
+## Next 3 Tasks
+1. Lovable Publish → smoke-test ads (tokens stick), notifications (no toast flood), open a post, clips feed, communities
+2. Firebase Secret Manager → add Spotify secrets → `firebase deploy --only functions:spotifyOauthStart`
+3. Settings → save Gemini API key → test AI chat / brief
+
+- **DM open failure:** Migrated `conversation_members` used random doc IDs; message rules expected `${conversationId}_${profileId}`. Added `ensureFlatConversationMembership()` repair on chat open/prefetch; expanded `isConversationParticipant` rules (flat member + conversation `member_ids` + subcollection).
+- **DM profiles:** `fetchMemberProfiles()` resolves members by profile id OR auth uid (fixes Unknown User / missing avatars).
+- **Test push:** Client now awaits OneSignal link before send; `pushDeliveryErrorMessage` understands `{ ok, sent }`; callable returns `success: sent > 0`.
+- **Scroll / background:** Settings + DMs shells transparent under aurora; removed `contain: strict` on native scroll shell; chat scroll only jumps on open/new messages; app scroll restore skips chat threads; settings scroll-to-top only on category change.
+- **Tests:** `npm run build` PASS, `npm run lint` PASS (3 pre-existing warnings)
+- **Deploy:** Firestore rules → `vybe-daaab` SUCCESS
+- **You:** Lovable **Share → Publish** + hard refresh; open a DM, send test push, scroll Settings
+
+## Next 3 Tasks
+1. Deploy Firestore rules + Lovable Publish → open DM on Samsung, confirm messages load
+2. Settings → Send test push after toggling notifications on
+3. Scroll Settings + Home — confirm colorful aurora (no black gaps / jump to top)
+
 ## Splash stuck + story posting lock fix (2026-06-19)
 - **Splash stuck at 100%:** Hard-cap dismiss at ~650ms (was waiting up to 3.2s for paint); `teardownAllSplashLayers()` removes static + React splash; removed default `body.splash-visible` from `index.html`; failsafe DOM cleanup on splash exit
 - **Story "Posting…" stuck:** Strip optimistic/uploading rows from persisted stories cache (serialize + restore + boot purge); auto-clear orphaned uploads in `StoriesBar`; 90s mutation timeout reset

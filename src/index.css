@@ -2505,6 +2505,13 @@ body.has-liquid-bg:not(.has-custom-bg) .dm-sidebar {
     padding: 0.875rem 1rem;
   }
 
+  /* Settings + DMs: let aurora show through — no opaque black scroll gaps */
+  body.has-liquid-bg:not(.has-custom-bg) .settings-shell,
+  body.has-liquid-bg:not(.has-custom-bg) .dm-shell {
+    background: transparent !important;
+    background-color: transparent !important;
+  }
+
   /* Glass Input with color accent */
   .liquid-glass-input {
     background: linear-gradient(
@@ -6255,7 +6262,7 @@ html.native-perf-mode .glass-card {
 html.native-perf-mode .native-scroll-shell {
   -webkit-overflow-scrolling: touch;
   overscroll-behavior-y: contain;
-  contain: strict;
+  contain: layout style;
 }
 
 /* Full-screen incoming call — hide app chrome underneath */

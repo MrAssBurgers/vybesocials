@@ -1,6 +1,6 @@
 import { memo, useState, createContext, useContext, useCallback, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { FileText } from 'lucide-react';
 import { triggerHaptic } from '@/lib/haptics';
@@ -99,36 +99,23 @@ export const NotificationTransitionProvider = memo(function NotificationTransiti
     const animationDuration = target.type === 'chat' ? 280 : 200;
     
     animationTimeoutRef.current = setTimeout(() => {
-      // Navigate based on type
+      setTransition({
+        isAnimating: false,
+        sourceRect: null,
+        target: null,
+      });
+
       switch (target.type) {
         case 'chat':
-          // Chat navigation is handled by MouthZoom separately
-          // This is a fallback
-          if (target.userId) {
-            navigate(`/messages`);
-          }
+          if (target.userId) navigate('/messages');
           break;
         case 'post':
-          if (target.postId) {
-            navigate(`/p/${target.postId}`);
-          }
+          if (target.postId) navigate(`/p/${target.postId}`);
           break;
         case 'profile':
-          if (target.username) {
-            navigate(`/u/${target.username}`);
-          }
+          if (target.username) navigate(`/u/${target.username}`);
           break;
       }
-
-      // Reset after navigation (if still mounted)
-      requestAnimationFrame(() => {
-        if (!isMountedRef.current) return;
-        setTransition({
-          isAnimating: false,
-          sourceRect: null,
-          target: null,
-        });
-      });
     }, animationDuration);
   }, [navigate]);
 
@@ -150,14 +137,12 @@ export const NotificationTransitionProvider = memo(function NotificationTransiti
     <NotificationTransitionContext.Provider value={contextValue}>
       {children}
 
-      {/* Transition Overlay */}
-      <AnimatePresence>
-        {transition.isAnimating && transition.sourceRect && transition.target && (
+      {/* Transition Overlay — no AnimatePresence (prevents removeChild crash on navigate) */}
+      {transition.isAnimating && transition.sourceRect && transition.target && (
           <motion.div
             className="fixed inset-0 z-[9999] pointer-events-none will-change-transform"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
             transition={{ duration: 0.1 }}
           >
             {/* Backdrop with directional blur */}
@@ -321,7 +306,6 @@ export const NotificationTransitionProvider = memo(function NotificationTransiti
             </motion.div>
           </motion.div>
         )}
-      </AnimatePresence>
     </NotificationTransitionContext.Provider>
   );
 });

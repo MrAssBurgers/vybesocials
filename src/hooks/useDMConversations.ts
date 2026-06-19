@@ -15,6 +15,7 @@ import {
 import { refetchListOnMount } from '@/lib/queryRefetchPolicy';
 import { resolveSessionProfileId, syncSessionProfileId } from '@/lib/resolveSessionProfileId';
 import { withTimeout } from '@/lib/withTimeout';
+import { ensureFlatConversationMembership, fetchMemberProfiles, resolveDmActorIds } from '@/lib/dmMembershipRepair';
 
 type DMConversation = LoadedDMConversation;
 
@@ -269,16 +270,30 @@ export function useConversationDetail(conversationId: string | undefined) {
     queryFn: async (): Promise<DMConversation | null> => {
       if (!conversationId) return null;
 
-      const effectiveProfileId = (await resolveSessionProfileId(profile?.id)) ?? profileId;
+      const { profileId: effectiveProfileId } = await resolveDmActorIds(profile?.id ?? profileId);
       if (!effectiveProfileId) return null;
 
-      const cached =
-        queryClient.getQueryData<DMConversation[]>(['dm-conversations', effectiveProfileId])?.find(
-          (c) => c.id === conversationId,
-        ) ??
-        queryClient.getQueryData<DMConversation[]>(['conversations', effectiveProfileId])?.find(
-          (c) => c.id === conversationId,
-        );
+      await ensureFlatConversationMembership(conversationId, effectiveProfileId);
+
+      const findCached = () => {
+        const direct =
+          queryClient.getQueryData<DMConversation[]>(['dm-conversations', effectiveProfileId])?.find(
+            (c) => c.id === conversationId,
+          ) ??
+          queryClient.getQueryData<DMConversation[]>(['conversations', effectiveProfileId])?.find(
+            (c) => c.id === conversationId,
+          );
+        if (direct) return direct;
+        for (const [, data] of queryClient.getQueriesData<DMConversation[]>({
+          queryKey: ['dm-conversations'],
+        })) {
+          const hit = data?.find((c) => c.id === conversationId);
+          if (hit) return hit;
+        }
+        return undefined;
+      };
+
+      const cached = findCached();
       if (cached?.members?.length) return cached;
 
       const { data: conv, error: convError } = await db
@@ -298,17 +313,10 @@ export function useConversationDetail(conversationId: string | undefined) {
       if (membersError) throw membersError;
 
       const memberUserIds = Array.from(new Set((allMembers || []).map((m) => m.user_id)));
-      const { data: memberProfiles } = memberUserIds.length
-        ? await db
-            .from('profiles')
-            .select('id, user_id, username, avatar_url, display_name')
-            .in('id', memberUserIds)
-        : { data: [] as { id: string; user_id: string; username: string; avatar_url: string | null; display_name: string | null }[] };
-
-      const profileById = new Map((memberProfiles || []).map((p) => [p.id, p]));
+      const profileByKey = await fetchMemberProfiles(memberUserIds);
       const members = (allMembers || []).map((m) => ({
         ...m,
-        profile: profileById.get(m.user_id) || null,
+        profile: profileByKey.get(m.user_id) || null,
       }));
 
       return {
@@ -323,15 +331,25 @@ export function useConversationDetail(conversationId: string | undefined) {
     enabled: !!conversationId && !!profileId,
     staleTime: 120_000,
     placeholderData: () => {
-      if (!conversationId || !profileId) return undefined;
-      return (
-        queryClient.getQueryData<DMConversation[]>(['dm-conversations', profileId])?.find(
-          (c) => c.id === conversationId,
-        ) ??
-        queryClient.getQueryData<DMConversation[]>(['conversations', profileId])?.find(
-          (c) => c.id === conversationId,
-        )
-      );
+      if (!conversationId) return undefined;
+      const keys = [profileId, profile?.id].filter(Boolean) as string[];
+      for (const key of keys) {
+        const hit =
+          queryClient.getQueryData<DMConversation[]>(['dm-conversations', key])?.find(
+            (c) => c.id === conversationId,
+          ) ??
+          queryClient.getQueryData<DMConversation[]>(['conversations', key])?.find(
+            (c) => c.id === conversationId,
+          );
+        if (hit) return hit;
+      }
+      for (const [, data] of queryClient.getQueriesData<DMConversation[]>({
+        queryKey: ['dm-conversations'],
+      })) {
+        const hit = data?.find((c) => c.id === conversationId);
+        if (hit) return hit;
+      }
+      return undefined;
     },
     networkMode: 'always',
     retry: 2,

@@ -57,6 +57,7 @@ export const sendPushNotification = onCall(async (request) => {
 
   return {
     ok: true,
+    success: result.sent > 0,
     sent: result.sent,
     ...(isCall
       ? {

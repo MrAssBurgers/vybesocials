@@ -92,6 +92,9 @@ service cloud.firestore {
         exists(/databases/$(database)/documents/conversations/$(cid)/members/$(profileId()))
       );
     }
+    function isConversationParticipant(cid) {
+      return isMember(cid);
+    }
     function isFriendRequestParty() {
       return signedIn() && (
         ownsProfileId(resource.data.sender_id) ||
@@ -138,8 +141,13 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
     match /login_streaks/{docId} {
-      allow read, write: if ownsUserField('user_id') || willOwnUserField('user_id')
-        || ownsProfileId(docId) || docId == uid() || isAdmin();
+      allow read, write: if signedIn() && (
+        ownsUserField('user_id') || willOwnUserField('user_id') ||
+        ownsProfileId(docId) || docId == uid() || docId == profileId() ||
+        resource.data.get('profile_id', '') == profileId() ||
+        request.resource.data.get('profile_id', '') == profileId() ||
+        isAdmin()
+      );
     }
     match /streaks/{docId} {
       allow read, write: if ownsUserField('user_id') || willOwnUserField('user_id') || isAdmin();
@@ -202,6 +210,11 @@ service cloud.firestore {
       allow read: if signedIn();
       allow create: if willOwnUserField('user_id');
       allow delete: if ownsUserField('user_id') || isAdmin();
+    }
+    match /message_views/{docId} {
+      allow read: if signedIn();
+      allow create: if willOwnUserField('user_id') || willOwnProfile('viewer_id');
+      allow update, delete: if ownsUserField('user_id') || ownsProfileId(resource.data.viewer_id) || isAdmin();
     }
     match /message_pins/{docId} {
       allow read: if signedIn();
@@ -346,10 +359,10 @@ service cloud.firestore {
       allow delete: if isOwnerProfile('user_id') || isAdmin();
     }
     match /messages/{messageId} {
-      allow read: if signedIn() && isFlatConversationMember(resource.data.conversation_id);
+      allow read: if signedIn() && isConversationParticipant(resource.data.conversation_id);
       allow create: if signedIn() &&
         willOwnProfile('sender_id') &&
-        isFlatConversationMember(request.resource.data.conversation_id);
+        isConversationParticipant(request.resource.data.conversation_id);
       allow update, delete: if ownsProfileId(resource.data.sender_id) || isAdmin();
     }
     match /hidden_conversations/{docId} {
@@ -390,10 +403,10 @@ service cloud.firestore {
 
     // ---------- notifications / push tokens ----------
     match /notifications/{id} {
-      allow read: if ownsUserField('user_id') || isAdmin();
-      allow update: if ownsUserField('user_id'); // mark as read
-      allow create: if isAdmin(); // Cloud Functions only via admin SDK
-      allow delete: if ownsUserField('user_id') || isAdmin();
+      allow read: if ownsUserField('user_id') || ownsProfileId(resource.data.user_id) || isAdmin();
+      allow update: if ownsUserField('user_id') || ownsProfileId(resource.data.user_id);
+      allow create: if isAdmin();
+      allow delete: if ownsUserField('user_id') || ownsProfileId(resource.data.user_id) || isAdmin();
     }
     match /push_tokens/{id} {
       allow read, write: if isOwnerProfile('user_id') || willOwnProfile('user_id') ||
@@ -473,8 +486,19 @@ service cloud.firestore {
     match /growth_config/{id}     { allow read: if signedIn(); allow write: if isAdmin(); }
 
     // ---------- Discord-style servers ----------
+    function isServerMember(serverId) {
+      return signedIn() && (
+        exists(/databases/$(database)/documents/server_members/$(serverId + '_' + profileId())) ||
+        exists(/databases/$(database)/documents/server_members/$(serverId + '_' + uid()))
+      );
+    }
     match /servers/{docId} {
-      allow read: if signedIn() && (resource.data.is_public == true || ownsProfileId(resource.data.owner_id) || isStaffModerator());
+      allow read: if signedIn() && (
+        resource.data.get('is_public', false) == true ||
+        ownsProfileId(resource.data.owner_id) ||
+        isServerMember(docId) ||
+        isStaffModerator()
+      );
       allow create: if willOwnProfile('owner_id');
       allow update, delete: if ownsProfileId(resource.data.owner_id) || isStaffModerator();
     }
@@ -504,6 +528,14 @@ service cloud.firestore {
       allow create: if willOwnUserField('gifted_by') || isAdmin();
       allow update: if ownsUserField('user_id') || ownsUserField('gifted_by') || isAdmin();
       allow delete: if isAdmin();
+    }
+    match /vybe_tokens/{docId} {
+      allow read: if ownsUserField('user_id') || ownsProfileId(docId) || isAdmin();
+      allow create, update: if willOwnUserField('user_id') || ownsProfileId(docId) || isAdmin();
+    }
+    match /token_transactions/{docId} {
+      allow read: if ownsUserField('user_id') || isAdmin();
+      allow create: if willOwnUserField('user_id') || isAdmin();
     }
     match /sounds/{id} {
       allow read: if signedIn();

@@ -9,7 +9,7 @@ import { cn } from '@/lib/utils';
 import { useAuth } from '@/lib/auth';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Button } from '@/components/ui/button';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Avatar, AvatarFallback, ProfileAvatarImage } from '@/components/ui/avatar';
 import { triggerNavFeedback } from '@/lib/navFeedback';
 import { OwnerBadge, isOwner } from '@/components/ui/OwnerBadge';
 import { FeedbackButton } from '@/components/feedback/FeedbackButton';
@@ -149,7 +149,7 @@ export function Sidebar() {
           className="flex items-center gap-3 mx-2 px-3 py-2.5 rounded-xl bg-muted/30 hover:bg-muted/50 transition-colors group"
         >
           <Avatar className="h-9 w-9 ring-2 ring-primary/20 group-hover:ring-primary/40 transition-all">
-            <AvatarImage src={profile?.avatar_url || undefined} />
+            <ProfileAvatarImage profileId={profile?.id} src={profile?.avatar_url || undefined} />
             <AvatarFallback className="bg-gradient-to-br from-primary/80 to-accent/80 text-primary-foreground font-semibold">
               {profile?.username?.[0]?.toUpperCase() || 'U'}
             </AvatarFallback>

@@ -52,6 +52,12 @@ async function presignPosts(posts: Post[]) {
 
 const CLIPS_PAGE_CLASS = 'vybe-clips-page';
 
+function isClipVideo(post: Post): boolean {
+  const type = String(post.type || '').toLowerCase();
+  if (type === 'image' || type === 'text' || type === 'carousel') return false;
+  return Boolean(post.media_url) && (type === 'short' || type === 'video' || type === 'clip' || !!post.media_url);
+}
+
 export default function ClipsViewer() {
   const { postId } = useParams<{ postId: string }>();
   const navigate = useNavigate();
@@ -141,7 +147,7 @@ export default function ClipsViewer() {
           p_limit: PAGE_SIZE,
         });
         if (error) throw error;
-        const posts = (data || []).map(transformRankedPost).filter(p => p.id !== postId);
+        const posts = (data || []).map(transformRankedPost).filter((p) => p.id !== postId && isClipVideo(p));
         presignPosts(posts).catch(() => {});
         return { posts, nextPage: posts.length >= PAGE_SIZE ? pageParam + 1 : null };
       }
@@ -152,7 +158,7 @@ export default function ClipsViewer() {
         p_page_size: PAGE_SIZE,
       });
       if (error) throw error;
-      const posts = (data || []).map(transformRankedPost).filter(p => p.id !== postId);
+      const posts = (data || []).map(transformRankedPost).filter((p) => p.id !== postId && isClipVideo(p));
       presignPosts(posts).catch(() => {});
       return { posts, nextPage: posts.length >= PAGE_SIZE ? pageParam + 1 : null };
     },
@@ -166,7 +172,7 @@ export default function ClipsViewer() {
   const allClips = useMemo(() => {
     const feed = feedQuery.data?.pages.flatMap(p => p.posts) || [];
     if (!initialPost) return feed;
-    return [initialPost, ...feed];
+    return [initialPost, ...feed.filter(isClipVideo)];
   }, [initialPost, feedQuery.data]);
 
   // ─── State ───

@@ -243,9 +243,8 @@ export function AutoFriendDrop() {
     const drop = await friendDropSync.createDrop();
     if (drop) {
       setActiveDropId(drop.id);
-    } else {
-      toast.error('Live sync unavailable — QR still works to add friends');
     }
+    // Live sync is optional — QR + NFC still work without a drop session.
   }, [profileId, activeDropId, friendDropSync]);
 
   const stopScanning = useCallback(() => {

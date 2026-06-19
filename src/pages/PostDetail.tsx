@@ -265,26 +265,39 @@ export default function PostDetailPage() {
   const { data: post, isLoading: postLoading } = useQuery({
     queryKey: ['post', id, profile?.id],
     queryFn: async () => {
+      if (!id) return null;
+
+      let postRow: Record<string, unknown> | null = null;
+
       const { data, error } = await db
         .from('posts')
-        .select(`
-          id,
-          type,
-          media_url,
-          caption,
-          tags,
-          created_at,
-          author:profiles!author_id (
-            id,
-            username,
-            avatar_url,
-            display_name
-          )
-        `)
+        .select('id, type, media_url, caption, tags, created_at, author_id')
         .eq('id', id)
-        .single();
+        .maybeSingle();
 
-      if (error) throw error;
+      if (!error && data) {
+        postRow = data as Record<string, unknown>;
+      } else {
+        const { data: fallback } = await db
+          .from('posts')
+          .select('*')
+          .eq('id', id)
+          .maybeSingle();
+        postRow = (fallback as Record<string, unknown> | null) ?? null;
+      }
+
+      if (!postRow) return null;
+
+      const authorId = String(postRow.author_id || '');
+      let author: { id: string; username: string; avatar_url: string | null; display_name: string | null } | null = null;
+      if (authorId) {
+        const { data: authorRow } = await db
+          .from('profiles')
+          .select('id, username, avatar_url, display_name')
+          .eq('id', authorId)
+          .maybeSingle();
+        if (authorRow) author = authorRow as typeof author;
+      }
 
       const [likesResult, commentsResult] = await Promise.all([
         db.from('likes').select('id', { count: 'exact', head: true }).eq('post_id', id),
@@ -311,8 +324,13 @@ export default function PostDetailPage() {
       setLikeCount(likesResult.count || 0);
 
       return {
-        ...data,
-        author: data.author as unknown as { id: string; username: string; avatar_url: string | null; display_name: string | null },
+        ...postRow,
+        author: author || {
+          id: authorId,
+          username: 'user',
+          avatar_url: null,
+          display_name: null,
+        },
         comment_count: commentsResult.count || 0,
       };
     },

@@ -83,16 +83,19 @@ export function useNotifications() {
           meta
         `)
         .eq('user_id', profileId)
-        .order('created_at', { ascending: false })
         .limit(30);
 
       if (error) throw error;
       if (!data || data.length === 0) return [];
 
+      const sorted = [...data].sort(
+        (a, b) => Date.parse(String(b.created_at)) - Date.parse(String(a.created_at)),
+      );
+
       // Hide stale Daily Brief pings (>24h old) — they're time-sensitive
       const DAY_MS = 24 * 60 * 60 * 1000;
       const now = Date.now();
-      const filtered = data.filter((n: any) => {
+      const filtered = sorted.filter((n: any) => {
         if (n.subtype === 'brief_item') {
           return now - new Date(n.created_at).getTime() < DAY_MS;
         }
@@ -161,9 +164,12 @@ export function useNotifications() {
         table: 'notifications',
         filter: `user_id=eq.${profileId}`,
         callback: async (payload) => {
-          if (payload.new.actor_id === profileId) {
-            return;
-          }
+          const row = payload.new as { actor_id?: string; created_at?: string; read?: boolean };
+          if (row.actor_id === profileId) return;
+
+          // Only toast genuinely new notifications (not stale rows synced later).
+          const createdMs = row.created_at ? Date.parse(row.created_at) : 0;
+          if (!createdMs || Date.now() - createdMs > 45_000) return;
 
           const { data: actor } = await db
             .from('profiles')

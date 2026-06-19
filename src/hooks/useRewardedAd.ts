@@ -62,12 +62,13 @@ function saveState(userId: string, s: RewardState) {
 }
 
 export function useRewardedAd() {
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
+  const tokenOwnerId = profile?.id ?? user?.id;
   const { canUseDespiaRewardedAds } = useAdEligibility();
   const earn = useEarnTokens();
   const tokens2x = useHasBoost('tokens_2x');
   const [state, setState] = useState<RewardState>(() =>
-    user?.id ? loadState(user.id) : { date: todayKey(), count: 0, lastAt: 0 }
+    tokenOwnerId ? loadState(tokenOwnerId) : { date: todayKey(), count: 0, lastAt: 0 }
   );
   const [now, setNow] = useState(Date.now());
   const [isLoading, setIsLoading] = useState(false);
@@ -81,8 +82,8 @@ export function useRewardedAd() {
 
   // Reload state when user changes
   useEffect(() => {
-    if (user?.id) setState(loadState(user.id));
-  }, [user?.id]);
+    if (tokenOwnerId) setState(loadState(tokenOwnerId));
+  }, [tokenOwnerId]);
 
   // Tick once per second only while a cooldown is active
   const cooldownRemaining = Math.max(0, COOLDOWN_MS - (now - state.lastAt));
@@ -96,10 +97,10 @@ export function useRewardedAd() {
   const onCooldown = cooldownRemaining > 0;
   const capReached = remainingToday <= 0;
   const canWatch =
-    !!user?.id && canUseDespiaRewardedAds && !onCooldown && !capReached && !isLoading;
+    !!tokenOwnerId && canUseDespiaRewardedAds && !onCooldown && !capReached && !isLoading;
 
   const watchAd = useCallback(async () => {
-    if (!user?.id) {
+    if (!tokenOwnerId) {
       toast.error('Please sign in to earn tokens');
       return;
     }
@@ -131,6 +132,7 @@ export function useRewardedAd() {
 
       recordAdImpression();
       const earned = REWARD_PER_AD * (tokens2x ? 2 : 1);
+
       await earn.mutateAsync({
         amount: earned,
         type: 'rewarded_ad',
@@ -143,7 +145,7 @@ export function useRewardedAd() {
         lastAt: Date.now(),
       };
       setState(next);
-      saveState(user.id, next);
+      saveState(tokenOwnerId, next);
       setNow(Date.now());
 
       hapticNotification('success');
@@ -154,7 +156,7 @@ export function useRewardedAd() {
     } finally {
       setIsLoading(false);
     }
-  }, [user?.id, state, capReached, onCooldown, cooldownRemaining, earn, tokens2x]);
+  }, [tokenOwnerId, state, capReached, onCooldown, cooldownRemaining, earn, tokens2x]);
 
   return {
     watchAd,

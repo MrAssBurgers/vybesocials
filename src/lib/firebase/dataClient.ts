@@ -27,7 +27,7 @@ import { isFeedRpc, normalizeRpcFeedRows, runFeedRpc } from './feedRpc';
 import { isSocialRpc, runSocialRpc } from './socialRpc';
 import { isNotYetPortedPayload } from './functionsService';
 import { getProfileByAuthUid, resolveProfileIdFromAuthUid } from './profileResolve';
-import { syncProfileUsername } from './syncProfileUsername';
+import { rpcEarnVybeTokens } from './tokenRpc';
 import { isGeneratedUsername, normalizeUsername } from '@/lib/username';
 
 type FilterOp = '==' | '!=' | '>' | '<' | 'in' | 'not-in';
@@ -1044,6 +1044,7 @@ const CLIENT_RPC: Record<string, (params: Record<string, unknown>) => Promise<un
   get_login_streak_status: async (p) => runSocialRpc('get_login_streak_status', p),
   update_login_streak: async (p) => runSocialRpc('update_login_streak', p),
   restore_login_streak: async (p) => runSocialRpc('restore_login_streak', p),
+  earn_vybe_tokens: async (p) => rpcEarnVybeTokens(p),
 };
 
 export function createDataClient() {

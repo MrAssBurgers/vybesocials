@@ -11,6 +11,7 @@ import { shouldRefetchWhenEmpty, refetchListOnMount } from '@/lib/queryRefetchPo
 import { toast } from 'sonner';
 import { callSounds } from '@/lib/callSounds';
 import { enqueue as outboxEnqueue } from '@/lib/dmOutbox';
+import { ensureFlatConversationMembership, resolveDmActorIds } from '@/lib/dmMembershipRepair';
 
 export type ViewMode = 'view_once' | '24h' | 'permanent';
 
@@ -285,7 +286,12 @@ export function useMessages(conversationId: string | undefined) {
     queryFn: async () => {
       if (!conversationId) return [];
 
-      const viewerId = (await resolveSessionProfileId(profileId)) ?? profileId;
+      const { profileId: actorId } = await resolveDmActorIds(profileId);
+      if (actorId) {
+        await ensureFlatConversationMembership(conversationId, actorId);
+      }
+
+      const viewerId = actorId ?? (await resolveSessionProfileId(profileId)) ?? profileId;
 
       const { data, error } = await db
         .from('messages')

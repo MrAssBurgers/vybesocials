@@ -15,7 +15,7 @@ import { navVisibility } from '@/lib/navVisibility';
 import { resetScrollHideVisible, subscribeScrollHide } from '@/lib/scrollHideSync';
 import { motion, AnimatePresence, Reorder } from 'framer-motion';
 import { T, TAP, MOTION_CONFIG } from '@/lib/motion';
-import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
+import { Avatar, ProfileAvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { useUserPreferences, useUpdatePreferences } from '@/hooks/useUserPreferences';
 import { isOwnProfilePath } from '@/lib/bottomNavRoutes';
@@ -149,7 +149,7 @@ const DraggableNavItem = memo(({
               isActive && "ring-2 ring-primary",
               isEditMode && "animate-pulse"
             )}>
-              <AvatarImage src={profile?.avatar_url || undefined} />
+              <ProfileAvatarImage profileId={profile?.id} src={profile?.avatar_url || undefined} />
               <AvatarFallback className="text-[10px] bg-muted">
                 <User className="h-4 w-4" />
               </AvatarFallback>

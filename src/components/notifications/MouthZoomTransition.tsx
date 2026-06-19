@@ -1,6 +1,6 @@
 import { memo, useCallback, useState, createContext, useContext, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useCreateConversation } from '@/hooks/useMessages';
 import { useChatPrefetch } from '@/hooks/useChatPrefetch';
@@ -93,20 +93,16 @@ export const MouthZoomProvider = memo(function MouthZoomProvider({
       // Short delay for animation feel (200ms total)
       await new Promise(resolve => setTimeout(resolve, 180));
       
-      // Navigate immediately
-      navigate(`/messages/${conversation.id}`, { replace: false });
-      
-      // Cleanup after navigation
-      requestAnimationFrame(() => {
-        setTransition({
-          isAnimating: false,
-          sourceRect: null,
-          targetUserId: null,
-          targetUsername: null,
-          targetAvatarUrl: null,
-          targetDisplayName: null,
-        });
+      // Clear overlay before navigation — avoids AnimatePresence/removeChild races.
+      setTransition({
+        isAnimating: false,
+        sourceRect: null,
+        targetUserId: null,
+        targetUsername: null,
+        targetAvatarUrl: null,
+        targetDisplayName: null,
       });
+      navigate(`/messages/${conversation.id}`, { replace: false });
     } catch (error) {
       console.error('Failed to navigate to chat:', error);
       setTransition({
@@ -156,14 +152,12 @@ export const MouthZoomProvider = memo(function MouthZoomProvider({
     <MouthZoomContext.Provider value={contextValue}>
       {children}
       
-      {/* Lightweight Portal Transition */}
-      <AnimatePresence>
-        {transition.isAnimating && transition.sourceRect && (
+      {/* Lightweight Portal Transition — no AnimatePresence (prevents removeChild crash on navigate) */}
+      {transition.isAnimating && transition.sourceRect && (
           <motion.div
             className="fixed inset-0 z-[9999] pointer-events-none will-change-transform"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
             transition={{ duration: 0.1 }}
           >
             {/* Simple fade backdrop */}
@@ -209,7 +203,6 @@ export const MouthZoomProvider = memo(function MouthZoomProvider({
             </motion.div>
           </motion.div>
         )}
-      </AnimatePresence>
     </MouthZoomContext.Provider>
   );
 });

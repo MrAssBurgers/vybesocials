@@ -28,6 +28,7 @@ import { startHeartbeat, stopHeartbeat } from '@/lib/analytics';
 import { removeRealtimeChannel, subscribePostgresChannel } from '@/lib/realtimeChannel';
 import { pickActiveBan } from '@/lib/banUtils';
 import { normalizeLoginEmail } from '@/lib/loginEmail';
+import { cacheProfileAvatar } from '@/lib/profileAvatarCache';
 import { isPasswordRecoveryUrl, redirectToPasswordRecoveryPage } from '@/lib/passwordRecoveryUrl';
 
 /** Fail-soft — production may not have deployed sync_signup_username yet. */
@@ -145,6 +146,7 @@ function retainCachedProfile(
 }
 
 function persistCurrentProfile(profileData: Profile) {
+  cacheProfileAvatar(profileData.id, profileData.avatar_url);
   const payload = {
     id: profileData.id,
     user_id: profileData.user_id,

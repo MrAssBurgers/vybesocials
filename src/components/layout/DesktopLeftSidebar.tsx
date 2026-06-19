@@ -8,7 +8,7 @@ import {
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/lib/auth';
 import { Button } from '@/components/ui/button';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Avatar, AvatarFallback, ProfileAvatarImage } from '@/components/ui/avatar';
 import { Separator } from '@/components/ui/separator';
 import { triggerNavFeedback } from '@/lib/navFeedback';
 import { triggerHaptic } from '@/lib/haptics';
@@ -195,7 +195,7 @@ export function DesktopLeftSidebar({ collapsed, onCollapsedChange, compact = fal
               className="flex items-center gap-3 p-3 rounded-xl bg-muted/30 hover:bg-muted/50 transition-colors group"
             >
               <Avatar className="h-10 w-10 ring-2 ring-primary/20 group-hover:ring-primary/40 transition-all">
-                <AvatarImage src={profile.avatar_url || undefined} />
+                <ProfileAvatarImage profileId={profile.id} src={profile.avatar_url || undefined} />
                 <AvatarFallback className="bg-gradient-to-br from-primary/80 to-accent/80 text-primary-foreground font-semibold">
                   {profile.username?.[0]?.toUpperCase()}
                 </AvatarFallback>
@@ -272,7 +272,7 @@ export function DesktopLeftSidebar({ collapsed, onCollapsedChange, compact = fal
               <TooltipTrigger asChild>
                 <Link to={`/u/${profile.username}`} className="group">
                   <Avatar className="h-10 w-10 ring-2 ring-primary/20 group-hover:ring-primary/40 transition-all">
-                    <AvatarImage src={profile.avatar_url || undefined} />
+                    <ProfileAvatarImage profileId={profile.id} src={profile.avatar_url || undefined} />
                     <AvatarFallback className="bg-gradient-to-br from-primary/80 to-accent/80 text-primary-foreground text-sm font-semibold">
                       {profile.username?.[0]?.toUpperCase()}
                     </AvatarFallback>

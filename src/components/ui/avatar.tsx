@@ -3,6 +3,7 @@ import * as AvatarPrimitive from "@radix-ui/react-avatar";
 
 import { cn } from "@/lib/utils";
 import { transformedImage } from "@/lib/imageTransform";
+import { getCachedProfileAvatar } from "@/lib/profileAvatarCache";
 
 // Avatar with properly sized ring that matches the avatar container
 const Avatar = React.forwardRef<
@@ -49,4 +50,25 @@ const AvatarFallback = React.forwardRef<
 ));
 AvatarFallback.displayName = AvatarPrimitive.Fallback.displayName;
 
-export { Avatar, AvatarImage, AvatarFallback };
+/** Avatar image that shows cached URL instantly while fresh URL loads. */
+const ProfileAvatarImage = React.forwardRef<
+  React.ElementRef<typeof AvatarPrimitive.Image>,
+  React.ComponentPropsWithoutRef<typeof AvatarPrimitive.Image> & {
+    profileId?: string | null;
+  }
+>(({ profileId, src, className, ...props }, ref) => {
+  const cached = profileId ? getCachedProfileAvatar(profileId) : null;
+  const resolved = src || cached || undefined;
+  const optimized = resolved ? transformedImage(resolved, { width: 128, height: 128 }) : undefined;
+  return (
+    <AvatarPrimitive.Image
+      ref={ref}
+      src={optimized}
+      className={cn("aspect-square h-full w-full object-cover", className)}
+      {...props}
+    />
+  );
+});
+ProfileAvatarImage.displayName = "ProfileAvatarImage";
+
+export { Avatar, AvatarImage, AvatarFallback, ProfileAvatarImage };

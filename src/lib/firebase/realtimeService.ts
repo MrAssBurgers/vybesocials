@@ -91,9 +91,18 @@ export function subscribePostgresChannel(
       ? query(coll, where(parsed.field, '==', parsed.value))
       : query(coll);
 
+    // Firestore emits every existing doc as `added` on first snapshot — skip that pass
+    // so INSERT handlers don't replay historical rows as new events (toast spam).
+    let isInitialSnapshot = true;
+
     const unsub = onSnapshot(
       q,
       (snapshot) => {
+        if (isInitialSnapshot) {
+          isInitialSnapshot = false;
+          return;
+        }
+
         snapshot.docChanges().forEach((change) => {
           const eventType =
             change.type === 'added' ? 'INSERT' :

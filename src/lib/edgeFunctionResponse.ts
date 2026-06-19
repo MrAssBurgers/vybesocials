@@ -52,7 +52,12 @@ export function gateVerifyErrorMessage(code?: string): string {
 }
 
 export function pushDeliveryErrorMessage(payload: Record<string, unknown> | null | undefined): string {
-  if (!payload || payload.success === true) return '';
+  if (!payload) return 'Push was not delivered to any device.';
+
+  const sent = typeof payload.sent === 'number' ? payload.sent : undefined;
+  const delivered =
+    payload.success === true || (payload.ok === true && sent !== undefined && sent > 0);
+  if (delivered) return '';
 
   const err = typeof payload.error === 'string' ? payload.error : '';
   const onesignal = payload.onesignal as Record<string, unknown> | null | undefined;

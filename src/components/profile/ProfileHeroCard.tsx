@@ -21,6 +21,7 @@ import { PremiumMemeBanMenuItem } from '@/components/premium/PremiumMemeBanItems
 import { useUserStatusById } from '@/hooks/useUserStatus';
 import { VybeScore } from '@/components/profile/VybeScore';
 import { useUserAbout } from '@/hooks/useUserAbout';
+import { FollowersFollowingSheet } from '@/components/profile/FollowersFollowingSheet';
 
 function calcAge(birthday?: string | null): number | null {
   if (!birthday) return null;
@@ -84,6 +85,7 @@ export function ProfileHeroCard({
   const age = about?.show_age ? calcAge(birthday) : null;
   const cardRef = useRef<HTMLDivElement>(null);
   const [tilt, setTilt] = useState({ x: 0, y: 0 });
+  const [followListMode, setFollowListMode] = useState<'followers' | 'following' | null>(null);
 
   const showOwnerBadge = badgeSettings.show_owner_badge !== false;
   const showOwnerWifeBadge = badgeSettings.show_owner_wife_badge !== false;
@@ -260,9 +262,26 @@ export function ProfileHeroCard({
         {/* Stats capsules row */}
         <div className="flex items-center gap-1.5 sm:gap-2 mt-4 overflow-x-auto no-scrollbar">
           <StatCapsule value={profile.post_count} label="Posts" />
-          <StatCapsule value={liveFollowerCount} label="Followers" highlight />
-          <StatCapsule value={profile.following_count} label="Following" />
+          <StatCapsule
+            value={liveFollowerCount}
+            label="Followers"
+            highlight
+            onClick={() => setFollowListMode('followers')}
+          />
+          <StatCapsule
+            value={profile.following_count}
+            label="Following"
+            onClick={() => setFollowListMode('following')}
+          />
         </div>
+
+        <FollowersFollowingSheet
+          open={followListMode !== null}
+          onOpenChange={(open) => !open && setFollowListMode(null)}
+          profileId={profile.id}
+          mode={followListMode || 'followers'}
+          username={profile.username}
+        />
 
         {/* Primary actions row — clean, full-width on mobile, matches desktop */}
         {!isOwnProfile && (
@@ -300,17 +319,36 @@ export function ProfileHeroCard({
   );
 }
 
-function StatCapsule({ value, label, highlight }: { value: number; label: string; highlight?: boolean }) {
+function StatCapsule({
+  value,
+  label,
+  highlight,
+  onClick,
+}: {
+  value: number;
+  label: string;
+  highlight?: boolean;
+  onClick?: () => void;
+}) {
+  const className = cn(
+    "flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium transition-colors",
+    highlight
+      ? "bg-primary/15 border border-primary/25 text-primary"
+      : "bg-foreground/5 border border-border/20 text-foreground/80",
+    onClick && "cursor-pointer hover:bg-foreground/10",
+  );
+
+  if (onClick) {
+    return (
+      <button type="button" onClick={onClick} className={className}>
+        <span className="font-bold text-sm">{value}</span>
+        <span className="text-muted-foreground text-[10px] uppercase tracking-wider">{label}</span>
+      </button>
+    );
+  }
+
   return (
-    <motion.div
-      whileTap={{ scale: 0.95 }}
-      className={cn(
-        "flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium transition-colors",
-        highlight
-          ? "bg-primary/15 border border-primary/25 text-primary"
-          : "bg-foreground/5 border border-border/20 text-foreground/80"
-      )}
-    >
+    <motion.div whileTap={{ scale: 0.95 }} className={className}>
       <span className="font-bold text-sm">{value}</span>
       <span className="text-muted-foreground text-[10px] uppercase tracking-wider">{label}</span>
     </motion.div>

@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth';
+import { useAuthProfileId } from '@/hooks/useAuthProfileId';
 import { useDNAPerks } from '@/hooks/useDNAPerks';
 import { useHasBoost } from '@/hooks/useActiveBoosts';
 
@@ -37,26 +38,34 @@ export const TOKEN_RATES = {
 
 export function useTokenBalance() {
   const { user } = useAuth();
+  const profileId = useAuthProfileId();
+  const tokenUserId = profileId ?? user?.id;
 
   return useQuery({
-    queryKey: ['vybe-tokens', user?.id],
+    queryKey: ['vybe-tokens', tokenUserId],
     queryFn: async (): Promise<TokenBalance | null> => {
-      if (!user?.id) return null;
+      if (!tokenUserId) return null;
 
       const { data, error } = await db
         .from('vybe_tokens' as any)
         .select('*')
-        .eq('user_id', user.id)
+        .eq('user_id', tokenUserId)
         .maybeSingle();
 
       if (error && error.code !== 'PGRST116') throw error;
+
+      if (!data) {
+        const { data: byAuth } = user?.id && user.id !== tokenUserId
+          ? await db.from('vybe_tokens' as any).select('*').eq('user_id', user.id).maybeSingle()
+          : { data: null };
+        if (byAuth) return byAuth as unknown as TokenBalance;
+      }
       
-      // Return default if no record exists
       const typedData = data as unknown as TokenBalance | null;
       if (!typedData) {
         return {
           id: '',
-          user_id: user.id,
+          user_id: tokenUserId,
           balance: 0,
           lifetime_earned: 0,
           lifetime_spent: 0,
@@ -66,7 +75,7 @@ export function useTokenBalance() {
       
       return typedData;
     },
-    enabled: !!user?.id,
+    enabled: !!tokenUserId,
     staleTime: 30_000,
   });
 }
@@ -94,7 +103,9 @@ export function useTokenTransactions(limit = 20) {
 }
 
 export function useEarnTokens() {
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
+  const profileId = useAuthProfileId();
+  const tokenUserId = profileId ?? profile?.id ?? user?.id;
   const qc = useQueryClient();
 
   return useMutation({
@@ -109,10 +120,10 @@ export function useEarnTokens() {
       description?: string; 
       referenceId?: string 
     }) => {
-      if (!user?.id) throw new Error('Not authenticated');
+      if (!tokenUserId) throw new Error('Not authenticated');
 
       const { data, error } = await db.rpc('earn_vybe_tokens', {
-        p_user_id: user.id,
+        p_user_id: tokenUserId,
         p_amount: amount,
         p_type: type,
         p_description: description || null,
@@ -120,11 +131,12 @@ export function useEarnTokens() {
       });
 
       if (error) throw error;
-      return data as number; // Returns new balance
+      return data as number;
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['vybe-tokens', user?.id] });
-      qc.invalidateQueries({ queryKey: ['token-transactions', user?.id] });
+      qc.invalidateQueries({ queryKey: ['vybe-tokens', tokenUserId] });
+      qc.invalidateQueries({ queryKey: ['vybe-tokens'] });
+      qc.invalidateQueries({ queryKey: ['token-transactions', tokenUserId] });
     },
   });
 }

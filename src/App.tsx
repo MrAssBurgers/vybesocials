@@ -194,10 +194,20 @@ function ScrollRestoration() {
   const location = useLocation();
   
   useEffect(() => {
-    restoreScrollPosition(location.pathname);
+    const path = location.pathname;
+    const isChatThread = path.startsWith('/messages/') && path !== '/messages/new';
+
+    // Chat threads scroll inside ChatView — restoring #main-content fights that layer.
+    if (isChatThread) {
+      return () => saveScrollPosition(path);
+    }
+
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => restoreScrollPosition(path));
+    });
     
     return () => {
-      saveScrollPosition(location.pathname);
+      saveScrollPosition(path);
     };
   }, [location.pathname]);
   

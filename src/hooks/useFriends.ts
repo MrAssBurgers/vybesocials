@@ -43,8 +43,9 @@ export function useFriendRequests() {
         table: 'friend_requests',
         filter: `receiver_id=eq.${profileId}`,
         callback: async (payload) => {
-          console.log('[FriendRequests] New incoming request:', payload.new);
-          
+          const row = payload.new as { status?: string; sender_id?: string };
+          if (row.status !== 'pending') return;
+
           const { data: sender } = await db
             .from('profiles')
             .select('username, display_name, avatar_url')

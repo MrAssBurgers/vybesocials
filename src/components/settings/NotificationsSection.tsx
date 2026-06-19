@@ -88,14 +88,14 @@ export function NotificationsSection() {
                       haptics.tap();
                       try {
                         if (isDespiaRuntime()) {
-                          void ensureDespiaOneSignalLinked(profile.id, {
+                          await ensureDespiaOneSignalLinked(profile.id, {
                             requestPermission: false,
-                            waitForPlayerIdMs: 2_500,
+                            waitForPlayerIdMs: 4_000,
                             persistToken: true,
                             trigger: 'test-push',
                           });
                         } else {
-                          void linkOneSignalUser(profile.id);
+                          await linkOneSignalUser(profile.id);
                         }
 
                         const result = await db.functions.invoke('send-push-notification', {
@@ -114,7 +114,7 @@ export function NotificationsSection() {
                           });
                           return;
                         }
-                        if (result.error && !payload?.success) {
+                        if (result.error && !payload?.success && !(payload?.ok === true && (payload?.sent as number) > 0)) {
                           throw new Error(errorMessage || result.error.message);
                         }
                         toast.success('Test push sent — check your lock screen!');

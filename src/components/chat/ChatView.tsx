@@ -108,7 +108,7 @@ import { SharedPostBubble } from './SharedPostBubble';
 import { SharedThemeMessageBubble } from '@/components/messages/bubbles/SharedThemeMessageBubble';
 import { format, isToday, isYesterday } from 'date-fns';
 import { cn } from '@/lib/utils';
-import { saveScrollPosition, restoreScrollPosition } from '@/lib/scrollMemory';
+import { saveElementScrollPosition, restoreElementScrollPosition } from '@/lib/scrollMemory';
 import { OnlineIndicator } from '@/components/ui/OnlineIndicator';
 import { useUserOnlineStatus } from '@/hooks/usePresence';
 import { DMSafetyGate } from './DMSafetyGate';
@@ -322,6 +322,8 @@ export function ChatView() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const typingTimeoutRef = useRef<NodeJS.Timeout>();
   const hasMarkedReadRef = useRef<Set<string>>(new Set());
+  const prevMessageCountRef = useRef(0);
+  const openedConversationRef = useRef<string | null>(null);
   const lastReadSyncedForConversationRef = useRef<string | null>(null);
   const messageNotifsClearedForConversationRef = useRef<string | null>(null);
   
@@ -433,35 +435,37 @@ export function ChatView() {
     });
   }, [messages, profileId, conversationId, markViewed]);
 
-  // Save scroll position on unmount so returning from clips preserves position
+  // Save chat scroll position on unmount (clips viewer return path).
   useEffect(() => {
     if (!conversationId) return;
     const container = messagesContainerRef.current;
     return () => {
       if (container) {
-        saveScrollPosition(`chat-${conversationId}`);
+        saveElementScrollPosition(`chat-${conversationId}`, container.scrollTop);
       }
     };
   }, [conversationId]);
 
-  // Scroll to bottom when conversation opens or messages change - instant method
+  // Scroll to bottom on open / new messages — avoid jumping on background refetches.
   useEffect(() => {
     if (!conversationId) return;
-    
-    // Check if we have a saved scroll position (returning from clips viewer)
-    const container = messagesContainerRef.current;
+
     const savedKey = `chat-${conversationId}`;
-    
-    // Scroll immediately without delay for instant feel
-    const scrollToBottom = () => {
-      if (messagesEndRef.current) {
-        messagesEndRef.current.scrollIntoView({ behavior: 'auto', block: 'end' });
+    const prevLen = prevMessageCountRef.current;
+    const currentLen = messages?.length ?? 0;
+    const isNewConversation = openedConversationRef.current !== conversationId;
+    openedConversationRef.current = conversationId;
+    prevMessageCountRef.current = currentLen;
+
+    requestAnimationFrame(() => {
+      const container = messagesContainerRef.current;
+      if (container && isNewConversation && restoreElementScrollPosition(savedKey, container)) {
+        return;
       }
-    };
-    
-    // Use requestAnimationFrame for smoother, immediate scroll
-    requestAnimationFrame(scrollToBottom);
-    
+      if (isNewConversation || currentLen > prevLen) {
+        messagesEndRef.current?.scrollIntoView({ behavior: 'auto', block: 'end' });
+      }
+    });
   }, [conversationId, messages?.length]);
 
   // Enhanced Screenshot detection - desktop keyboard shortcuts + mobile resize detection

@@ -10,10 +10,12 @@ import { VybeMiniIcon } from '@/components/ui/VybeMiniIcon';
 import { Button } from '@/components/ui/button';
 import SmartErrorBoundary from '@/components/error/SmartErrorBoundary';
 import { cn } from '@/lib/utils';
+import { useDefaultLiquidBackground } from '@/hooks/useDefaultLiquidBackground';
 
 function MessagesFallback() {
+  const showLiquidBg = useDefaultLiquidBackground();
   return (
-    <div className="flex flex-col items-center justify-center h-full w-full p-8 text-center bg-background">
+    <div className={cn('flex flex-col items-center justify-center h-full w-full p-8 text-center', showLiquidBg ? 'bg-transparent' : 'bg-background')}>
       <div className="w-16 h-16 rounded-2xl bg-primary/15 flex items-center justify-center mb-4">
         <MessageCircle className="w-8 h-8 text-primary" />
       </div>
@@ -33,6 +35,7 @@ export default function Messages() {
   const { conversationId } = useParams<{ conversationId?: string }>();
   const { isDesktop } = useBreakpoint();
   const isInChat = Boolean(conversationId);
+  const showLiquidBg = useDefaultLiquidBackground();
 
   useLayoutEffect(() => {
     if (isDesktop) return;
@@ -46,7 +49,10 @@ export default function Messages() {
     <AppLayout hideRightSidebar fullWidth hideNav={!isDesktop} noPadding>
       <SmartErrorBoundary fallback={<MessagesFallback />}>
         <div
-          className="dm-shell flex h-full flex-1 min-h-0 w-full max-w-full overflow-hidden bg-background"
+          className={cn(
+            'dm-shell flex h-full flex-1 min-h-0 w-full max-w-full overflow-hidden',
+            showLiquidBg ? 'bg-transparent' : 'bg-background',
+          )}
           style={{ touchAction: 'pan-y', WebkitOverflowScrolling: 'touch' }}
         >
           {/* Conversation list */}

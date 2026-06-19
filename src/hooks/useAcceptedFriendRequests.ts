@@ -63,22 +63,38 @@ export function useAcceptedFriendRequests() {
           sender_id,
           receiver_id,
           updated_at,
-          notified_at,
-          acceptedBy:profiles!friend_requests_receiver_id_fkey(id, username, avatar_url, display_name)
+          notified_at
         `)
         .eq('sender_id', profileId)
         .eq('status', 'accepted')
         .is('notified_at', null)
-        .order('updated_at', { ascending: false })
-        .limit(5);
+        .limit(20);
 
       if (error) {
         console.error('[AcceptedFriendRequests] Error:', error);
         return [];
       }
 
+      const receiverIds = [...new Set((data || []).map((r) => r.receiver_id).filter(Boolean))];
+      const profileMap = new Map<string, Record<string, unknown>>();
+      for (let i = 0; i < receiverIds.length; i += 10) {
+        const chunk = receiverIds.slice(i, i + 10);
+        const { data: profiles } = await db
+          .from('profiles')
+          .select('id, username, avatar_url, display_name')
+          .in('id', chunk);
+        for (const p of profiles || []) profileMap.set(p.id, p);
+      }
+
       const dismissed = readDismissedAcceptedIds();
-      return ((data || []) as AcceptedFriendRequest[]).filter((row) => !dismissed.has(row.id));
+      return ((data || []) as AcceptedFriendRequest[])
+        .map((row) => ({
+          ...row,
+          acceptedBy: profileMap.get(row.receiver_id) as AcceptedFriendRequest['acceptedBy'],
+        }))
+        .filter((row) => !dismissed.has(row.id))
+        .sort((a, b) => Date.parse(b.updated_at) - Date.parse(a.updated_at))
+        .slice(0, 5);
     },
     enabled: !!profileId,
     staleTime: 30000,

@@ -1,4 +1,4 @@
-import { useState, useEffect, forwardRef, lazy, Suspense } from 'react';
+import { useState, useEffect, useRef, forwardRef, lazy, Suspense } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
@@ -16,7 +16,7 @@ import {
   getCategoryMeta,
   SettingsCategory,
 } from '@/components/settings/SettingsNav';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Avatar, AvatarFallback, ProfileAvatarImage } from '@/components/ui/avatar';
 import { ProfileSection } from '@/components/settings/ProfileSection';
 import { PrivacySection } from '@/components/settings/PrivacySection';
 import { SecuritySection } from '@/components/settings/SecuritySection';
@@ -83,10 +83,15 @@ const SettingsPage = forwardRef<HTMLDivElement, React.ComponentPropsWithoutRef<'
 
   const desktopCategory: SettingsCategory = activeCategory || 'profile';
   const mobileView: 'home' | 'detail' = activeCategory ? 'detail' : 'home';
+  const prevCategoryRef = useRef<SettingsCategory | null>(initialTab);
 
-  // Jump back to the top when navigating between settings views
+  // Jump back to the top only when switching settings sections (not on passive re-renders).
   useEffect(() => {
-    document.getElementById('main-content')?.scrollTo({ top: 0 });
+    if (prevCategoryRef.current === activeCategory) return;
+    prevCategoryRef.current = activeCategory;
+    if (activeCategory) {
+      document.getElementById('main-content')?.scrollTo({ top: 0, behavior: 'instant' as ScrollBehavior });
+    }
   }, [activeCategory]);
 
   const handleSignOut = async () => {
@@ -205,7 +210,7 @@ const SettingsPage = forwardRef<HTMLDivElement, React.ComponentPropsWithoutRef<'
                 >
                   <div className="rounded-full p-[2px] bg-gradient-to-br from-primary via-accent to-primary shrink-0">
                     <Avatar className="h-12 w-12 ring-2 ring-background">
-                      <AvatarImage src={profile?.avatar_url || undefined} />
+                      <ProfileAvatarImage profileId={profile?.id} src={profile?.avatar_url || undefined} />
                       <AvatarFallback className="bg-primary text-primary-foreground font-bold">
                         {profile?.username?.[0]?.toUpperCase() || 'U'}
                       </AvatarFallback>

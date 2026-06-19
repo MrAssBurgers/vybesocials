@@ -5,6 +5,7 @@ import { subscribePostgresChannel, removeRealtimeChannel } from '@/lib/realtimeC
 import { useAuth } from '@/lib/auth';
 import { getEffectiveProfileId } from '@/lib/profileCache';
 import type { Message } from '@/hooks/useMessages';
+import { ensureFlatConversationMembership, resolveDmActorIds } from '@/lib/dmMembershipRepair';
 
 const PREFETCH_SELECT = `
   *,
@@ -27,6 +28,11 @@ export function useChatPrefetch() {
     if (cached && cached.length > 0) return;
 
     try {
+      const { profileId: actorId } = await resolveDmActorIds(profile?.id);
+      if (actorId) {
+        await ensureFlatConversationMembership(conversationId, actorId);
+      }
+
       const { data, error } = await db
         .from('messages')
         .select(PREFETCH_SELECT)
@@ -42,7 +48,7 @@ export function useChatPrefetch() {
     } catch (error) {
       console.error('[ChatPrefetch] Messages error:', error);
     }
-  }, [queryClient]);
+  }, [profile?.id, queryClient]);
 
   const prefetchConversation = useCallback(async (otherUserId: string) => {
     if (!profileId || !otherUserId) return;
