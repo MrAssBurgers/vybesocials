@@ -2,6 +2,18 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## Mobile scroll flash + clip upload spinner (2026-06-18)
+- **Bug 1 — scroll black flash:** `is-scrolling` painted opaque `hsl(--background)` on transparent app shells, hiding the aurora mesh; `body.has-liquid-bg` was fully transparent; `content-visibility: auto` on feed posts/scroller children left unpainted holes. Fixed: static purple mesh fallback on body (`#0B0B10` gradient), removed opaque scroll overlay, excluded main scroll container from content-visibility, removed PostCard inline `contentVisibility`.
+- **Bug 2 — clip upload infinite spinner:** Video frame extraction / Vybe Check / Firestore insert could hang with no timeout or error UI. Fixed: timeouts on `extractVideoFrames`, `vybeCheckClient`, `VybeCheckOverlay`, pre-scan + publish in `MobilePostComposer`, post insert in `useCreatePost`; error phase + toast on scan failure; Share disabled while pre-scan running.
+- **Tests:** `npm run build` PASS, `npm run lint` PASS
+- **Git:** `1bd74b56` on `origin/main`
+- **You:** Lovable **Share → Publish** + hard refresh; smoke-test Home scroll (no black flash) + post a clip (completes or shows error within ~3 min)
+
+## Next 3 Tasks
+1. Lovable Publish → smoke-test scroll background + clip upload on vybehub.app mobile
+2. Confirm clip appears in `/clips` after successful publish
+3. Apply `PENDING_20260530.sql` on prod if still needed for missing Supabase RPCs
+
 ## Meme ban expiry fix (2026-06-18)
 - **Root cause:** Firebase `dataClient.or()` is a no-op during migration — `.or(is_permanent.eq.true,expires_at.gt.now)` never filtered; `useBanStatus` + `auth.tsx` returned the newest `user_bans` row even when `expires_at` was in the past (founder @mrassburgers meme ban from 2026-02-02 still displayed in June 2026)
 - **Fix:** `src/lib/banUtils.ts` (`isBanActive`, `pickActiveBan`, `filterActiveBans`); client-side active-only filtering in `useBanStatus`, `auth.tsx` `checkBanStatus`, `useAllBans`, `useUserBans`, `useIsUserBanned`
