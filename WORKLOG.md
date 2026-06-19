@@ -4,11 +4,14 @@ Use this file as the Lovable -> Cursor handoff each session.
 
 **Links:** [Lovable project](https://lovable.dev/projects/416714c8-d013-4aff-984d-522418a9bbc7) · [Production](https://vybehub.app) · Deploy steps: `DEPLOY.md`
 ## Branded password reset email (Resend-only) (2026-06-18)
-- **Change:** Removed Firebase default mailer fallback; `requestPasswordReset` sends branded HTML via Resend (`recovery.html`) only when account exists
-- **Links:** `toCleanPasswordResetLink` normalizes reset URLs to `https://vybehub.app/reset-password` (client + server)
-- **Tests:** `functions/` tsc PASS, root `npm run build` PASS
-- **Deploy:** `functions:requestPasswordReset` on `vybe-daaab`
-- **You:** Lovable Publish + smoke-test Forgot password → inbox branded email → custom reset page
+- **Root cause (ugly Firebase email):** (1) Client `authReset.ts` fell back to Firebase SDK `sendPasswordResetEmail` when callable failed → plain text from `noreply@vybe-daaab.firebaseapp.com`; (2) Server fell back to Identity Toolkit `sendOobCode` when Resend failed → same default mailer
+- **Fix:** Resend-only path — Admin `generatePasswordResetLink` + `recovery.html`; `toCleanPasswordResetLink` → `https://vybehub.app/reset-password?oobCode=…`; client fallback removed; server `sendOobCode` fallback removed
+- **From:** `VYBE <no-reply@vybehub.app>` via Resend (requires domain verified in Resend dashboard)
+- **Tests:** `functions/` tsc PASS, `npm run build` PASS, `npm run lint` PASS (3 pre-existing warnings)
+- **Deploy:** `functions:requestPasswordReset` — SUCCESS (us-central1, 2026-06-18 redeploy)
+- **Probe:** callable HTTP 200 `{"ok":true}` for nonexistent email
+- **Git:** `3dacdf22` on `origin/main`
+- **You:** Lovable **Share → Publish** (client must ship without SDK fallback) + hard refresh; smoke-test Forgot password → branded dark HTML email → `/reset-password` custom UI
 
 ## Next 3 Tasks
 1. Lovable Publish → smoke-test Forgot password branded email + `/reset-password` on vybehub.app
