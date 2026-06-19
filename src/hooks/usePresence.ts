@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { db } from '@/lib/firebase';
 import { subscribePostgresChannel, removeRealtimeChannel } from '@/lib/realtimeChannel';
 import { useAuth } from '@/lib/auth';
+import { isPermissionDeniedError, warnOnce } from '@/lib/logOnce';
 import { CANONICAL_PUBLISHABLE_KEY, CANONICAL_SUPABASE_URL } from '@/lib/canonicalSupabase';
 
 const LEGACY_SUPABASE_URL =
@@ -56,6 +57,10 @@ export function usePresence() {
           logPresence('Transient presence update failure:', error.message);
           return;
         }
+        if (isPermissionDeniedError(error)) {
+          warnOnce('presence-update-denied', '[Presence] Failed to update presence:', error.message);
+          return;
+        }
 
         console.error('[Presence] Failed to update presence:', error.message, error.details);
       } else {
@@ -64,6 +69,10 @@ export function usePresence() {
     } catch (error: any) {
       if (isTransientPresenceError(error)) {
         logPresence('Transient presence update failure:', error?.message || error);
+        return;
+      }
+      if (isPermissionDeniedError(error)) {
+        warnOnce('presence-update-denied', '[Presence] Failed to update presence:', error?.message || error);
         return;
       }
 

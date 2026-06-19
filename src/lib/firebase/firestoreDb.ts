@@ -18,6 +18,7 @@ import {
   type DocumentData,
   type Unsubscribe,
 } from 'firebase/firestore';
+import { sanitizeFirestoreData } from '@/lib/firestoreSanitize';
 import { getFirebaseApp } from './app';
 import { isFirebaseConfigured } from './config';
 
@@ -76,7 +77,11 @@ export async function setDocument(
   data: DocumentData,
   merge = true,
 ): Promise<void> {
-  await setDoc(documentRef(table, id), { ...data, updated_at: new Date().toISOString() }, { merge });
+  const payload = sanitizeFirestoreData({
+    ...data,
+    updated_at: new Date().toISOString(),
+  });
+  await setDoc(documentRef(table, id), payload, { merge });
 }
 
 export async function updateDocument(
@@ -84,7 +89,11 @@ export async function updateDocument(
   id: string,
   data: DocumentData,
 ): Promise<void> {
-  await updateDoc(documentRef(table, id), { ...data, updated_at: new Date().toISOString() });
+  const payload = sanitizeFirestoreData({
+    ...data,
+    updated_at: new Date().toISOString(),
+  });
+  await updateDoc(documentRef(table, id), payload);
 }
 
 export async function deleteDocument(table: string, id: string): Promise<void> {
@@ -98,11 +107,11 @@ export async function batchSet(
   const batch = writeBatch(getDb());
   for (const row of rows) {
     const id = row.id || doc(collectionRef(table)).id;
-    batch.set(documentRef(table, id), {
+    batch.set(documentRef(table, id), sanitizeFirestoreData({
       ...row.data,
       id,
       created_at: row.data.created_at || new Date().toISOString(),
-    }, { merge: true });
+    }), { merge: true });
   }
   await batch.commit();
 }

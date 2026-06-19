@@ -1,6 +1,7 @@
 import type { QueryClient } from '@tanstack/react-query';
 import { db } from '@/lib/firebase';
 import type { Conversation, Message } from '@/hooks/useMessages';
+import { isPermissionDeniedError, warnOnce } from '@/lib/logOnce';
 import { resolveSessionProfileId } from '@/lib/resolveSessionProfileId';
 import { withTimeout } from '@/lib/withTimeout';
 
@@ -62,7 +63,11 @@ async function loadDMConversationsOnce(
       .eq('user_id', effectiveProfileId);
 
     if (membershipError) {
-      console.warn('[DM] membership query error:', membershipError.message);
+      if (isPermissionDeniedError(membershipError)) {
+        warnOnce('dm-membership-denied', '[DM] membership query error:', membershipError.message);
+      } else {
+        console.warn('[DM] membership query error:', membershipError.message);
+      }
       return { data: stale, error: membershipError, profileId: effectiveProfileId };
     }
     if (!membershipData?.length) {
@@ -87,7 +92,11 @@ async function loadDMConversationsOnce(
     const trashedIds = new Set((trashedData || []).map((t) => t.conversation_id));
 
     if (convError) {
-      console.warn('[DM] conversations query error:', convError.message);
+      if (isPermissionDeniedError(convError)) {
+        warnOnce('dm-conversations-denied', '[DM] conversations query error:', convError.message);
+      } else {
+        console.warn('[DM] conversations query error:', convError.message);
+      }
       return { data: stale, error: convError, profileId: effectiveProfileId };
     }
     if (!conversationsRaw?.length) {

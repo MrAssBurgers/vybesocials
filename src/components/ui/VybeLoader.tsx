@@ -113,12 +113,25 @@ export const VybeLoader = memo(function VybeLoader({ className, delay = 350 }: V
  */
 export const VybePageLoader = memo(function VybePageLoader({ delay = 350 }: { delay?: number }) {
   const [show, setShow] = useState(delay === 0);
+  const [splashVisible, setSplashVisible] = useState(() =>
+    typeof document !== 'undefined' && document.body.classList.contains('splash-visible'),
+  );
 
   useEffect(() => {
     if (delay === 0) return;
     const t = setTimeout(() => setShow(true), delay);
     return () => clearTimeout(t);
   }, [delay]);
+
+  useEffect(() => {
+    const sync = () => setSplashVisible(document.body.classList.contains('splash-visible'));
+    sync();
+    const observer = new MutationObserver(sync);
+    observer.observe(document.body, { attributes: true, attributeFilter: ['class'] });
+    return () => observer.disconnect();
+  }, []);
+
+  if (splashVisible) return null;
 
   if (!show) {
     return (

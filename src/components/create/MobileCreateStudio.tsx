@@ -72,7 +72,7 @@ const MAX_RECORDING_DURATION = 60;
 export function MobileCreateStudio({ onClose, initialSound }: MobileCreateStudioProps) {
   const [mode, setMode] = useState<CreateMode>('photo');
   const [phase, setPhase] = useState<'camera' | 'compose'>('camera');
-  const [facingMode, setFacingMode] = useState<'user' | 'environment'>('environment');
+  const [facingMode, setFacingMode] = useState<'user' | 'environment'>('user');
   const [flash, setFlash] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [recordingProgress, setRecordingProgress] = useState(0);

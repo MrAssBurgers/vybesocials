@@ -15,6 +15,7 @@ import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { StyledUsername } from '@/components/ui/StyledUsername';
 import { formatDistanceToNow, differenceInMinutes, differenceInHours, differenceInDays, differenceInWeeks } from 'date-fns';
+import { preferredUsername } from '@/lib/displayUser';
 import { cn } from '@/lib/utils';
 import { usePullToRefresh } from '@/hooks/usePullToRefresh';
 import { useQueryClient } from '@tanstack/react-query';
@@ -205,7 +206,7 @@ function RecentAnnouncementsSection() {
 export default function NotificationsPage() {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
-  const { data: notifications, isLoading, isError: notificationsError, refetch } = useNotifications();
+  const { data: notifications, isLoading, isError: notificationsError, refetch, isFetching } = useNotifications();
   const { data: friendRequests, isError: requestsError, refetch: refetchRequests } = useFriendRequests();
   const markRead = useMarkNotificationsRead();
   const respondToRequest = useRespondToFriendRequest();
@@ -259,6 +260,9 @@ export default function NotificationsPage() {
   const handleDeclineRequest = (requestId: string) => {
     respondToRequest.mutate({ requestId, action: 'decline' });
   };
+
+  const showNotificationsError =
+    notificationsError && !isLoading && !isFetching && !(notifications && notifications.length > 0);
 
   return (
     <NotificationTransitionProvider>
@@ -351,9 +355,11 @@ export default function NotificationsPage() {
             </TabsTrigger>
           </TabsList>
 
-          {(notificationsError || requestsError) && (
+          {(showNotificationsError || (requestsError && activeTab === 'requests')) && (
             <div className="mb-4 rounded-xl border border-destructive/30 bg-destructive/5 p-3 flex items-center justify-between gap-3">
-              <p className="text-sm text-muted-foreground">Couldn&apos;t load notifications.</p>
+              <p className="text-sm text-muted-foreground">
+                {showNotificationsError ? "Couldn't load notifications." : "Couldn't load friend requests."}
+              </p>
               <Button size="sm" variant="secondary" onClick={handleRefresh}>
                 Retry
               </Button>
@@ -365,7 +371,7 @@ export default function NotificationsPage() {
             {/* Recent Announcements */}
             <RecentAnnouncementsSection />
 
-            <AnimatePresence mode="popLayout">
+            <AnimatePresence mode="wait">
               {isLoading && !notifications ? (
                 <motion.div key="skeleton" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="space-y-1">
                   {Array.from({ length: 4 }).map((_, i) => (
@@ -448,7 +454,7 @@ export default function NotificationsPage() {
 
           {/* ─── PRIORITY TAB ─── */}
           <TabsContent value="priority" className="mt-0">
-            <AnimatePresence mode="popLayout">
+            <AnimatePresence mode="wait">
               {groupedPriority.length > 0 ? (
                 <motion.div key="priority" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
                   <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-widest px-3 mb-1">
@@ -486,7 +492,7 @@ export default function NotificationsPage() {
 
           {/* ─── REQUESTS TAB ─── */}
           <TabsContent value="requests" className="mt-0">
-            <AnimatePresence mode="popLayout">
+            <AnimatePresence mode="wait">
               {pendingRequests.length > 0 ? (
                 <motion.div key="requests" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-2">
                   {pendingRequests.map((request, idx) => (
@@ -524,9 +530,9 @@ export default function NotificationsPage() {
                         <div className="flex-1 min-w-0">
                           <Link to={`/u/${request.sender?.username}`}>
                             <p className="font-semibold text-sm truncate">
-                              {request.sender?.display_name || request.sender?.username}
+                              @{request.sender?.username}
                             </p>
-                            <p className="text-xs text-muted-foreground">@{request.sender?.username}</p>
+                            <p className="text-xs text-muted-foreground">Friend request</p>
                           </Link>
                         </div>
                         <div className="flex gap-1.5" onClick={(e) => e.stopPropagation()}>
@@ -603,8 +609,8 @@ function GroupedNotificationRow({ group, index, isRead, isLast }: {
   const firstActor = group.actors[0];
   
   const groupText = actorCount > 1
-    ? `${firstActor.display_name || firstActor.username} and ${actorCount - 1} other${actorCount > 2 ? 's' : ''} ${NOTIFICATION_TEXT[group.type]}`
-    : `${firstActor.display_name || firstActor.username} ${NOTIFICATION_TEXT[group.type]}`;
+    ? `${preferredUsername(firstActor)} and ${actorCount - 1} other${actorCount > 2 ? 's' : ''} ${NOTIFICATION_TEXT[group.type]}`
+    : `${preferredUsername(firstActor)} ${NOTIFICATION_TEXT[group.type]}`;
 
   return (
     <motion.div

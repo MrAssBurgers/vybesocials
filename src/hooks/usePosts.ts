@@ -86,29 +86,28 @@ export function usePosts(type?: 'short' | 'post' | 'video', authorId?: string) {
       }
 
       // Filter by author if specified
+      let feedExcludeAuthors: Set<string> | null = null;
       if (isProfileView) {
         query = query.eq('author_id', authorId!);
       } else if (profile?.id) {
-        // Hide your own posts from feed/global views (still visible on your profile + post detail).
-        query = query.neq('author_id', profile.id);
-
-        // Hide posts from users you've blocked.
         const { data: blocks } = await db
           .from('blocked_users')
           .select('blocked_id')
           .eq('blocker_id', profile.id);
-        const blockedIds = (blocks || []).map((b: any) => b.blocked_id).filter(Boolean);
-        if (blockedIds.length > 0) {
-          query = query.not('author_id', 'in', `(${blockedIds.join(',')})`);
-        }
+        feedExcludeAuthors = new Set((blocks || []).map((b: any) => b.blocked_id).filter(Boolean));
+        feedExcludeAuthors.add(profile.id);
       }
 
-      const { data: posts, error } = await query;
+      const { data: rawPosts, error } = await query;
 
       if (error) {
         console.error('Failed to fetch posts:', error);
         throw error;
       }
+
+      const posts = feedExcludeAuthors
+        ? (rawPosts || []).filter((p: any) => !feedExcludeAuthors!.has(p.author_id))
+        : rawPosts;
 
       // Get likes and bookmarks for current user
       let userLikes: string[] = [];

@@ -2000,19 +2000,7 @@ body.has-liquid-bg:not(.has-custom-bg) .dm-sidebar {
     perspective-origin: center center;
   }
 
-  /* During scroll keep shells transparent so the static aurora mesh stays visible.
-     Body fallback gradient above prevents black gaps when content-visibility skips paint. */
-  html.is-scrolling body.has-liquid-bg:not(.has-custom-bg) {
-    background-color: #0B0B10 !important;
-    background-image: linear-gradient(
-      145deg,
-      #050508 0%,
-      #0c0618 38%,
-      #060a14 68%,
-      #030306 100%
-    ) !important;
-  }
-
+  /* During scroll: pause animations only — do NOT swap body background (causes black flicker). */
   html.is-scrolling .vybe-liquid-bg .vybe-liquid-mesh {
     opacity: 1 !important;
   }
@@ -6288,6 +6276,21 @@ html.native-perf-mode [style*="content-visibility"] {
 html.native-perf-mode .vybe-liquid-bg .vybe-liquid-blob,
 html.native-perf-mode .vybe-liquid-bg .vybe-liquid-bloom {
   display: none !important;
+}
+
+/* Scroll: never flash black — keep mesh visible and skip content-visibility holes */
+html.is-scrolling #vybe-aurora-mount,
+html.is-scrolling .vybe-liquid-bg,
+html.is-scrolling .vybe-liquid-bg .vybe-liquid-mesh {
+  opacity: 1 !important;
+  visibility: visible !important;
+}
+
+html.is-scrolling [data-app-scroll-container="true"],
+html.is-scrolling [data-app-scroll-container="true"] > *,
+html.is-scrolling [data-app-scroll-container="true"] [class*="feed"] {
+  content-visibility: visible !important;
+  contain-intrinsic-size: auto !important;
 }
 
 @media (prefers-reduced-motion: no-preference) {

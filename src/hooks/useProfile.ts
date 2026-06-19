@@ -138,30 +138,11 @@ export function useProfileByUsername(username: string) {
     queryFn: async (): Promise<Profile | null> => {
       const trimmedUsername = username.trim();
       const normalizedUsername = trimmedUsername.toLowerCase();
-      
-      // Try username lookup first (exact, then lowercase)
-      let profiles: unknown = null;
+      let profile: Record<string, unknown> | null = null;
       let error: { message?: string } | null = null;
-      ({ data: profiles, error } = await db.rpc('get_profile_by_username', {
-        target_username: trimmedUsername,
-      }));
-      let profile = firstProfileRow(profiles);
-      if (!profile && normalizedUsername !== trimmedUsername) {
-        const retry = await db.rpc('get_profile_by_username', {
-          target_username: normalizedUsername,
-        });
-        profile = firstProfileRow(retry.data);
-        if (!error && retry.error) error = retry.error;
-      }
-      
-      // If not found and looks like a UUID, try ID lookup via RPC (works for guests)
-      if (!profile && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(trimmedUsername)) {
-        const { data: idProfiles } = await db.rpc('get_profile_by_id', { target_id: trimmedUsername });
-        profile = firstProfileRow(idProfiles);
-      }
 
-      // Authenticated fallback when RPC shape/env mismatches
-      if (!profile && currentProfile) {
+      // Authenticated users: direct Firestore read first (most reliable).
+      if (currentProfile) {
         for (const candidate of [trimmedUsername, normalizedUsername]) {
           const { data: rows } = await db
             .from('profiles')
@@ -173,6 +154,38 @@ export function useProfileByUsername(username: string) {
             break;
           }
         }
+      }
+
+      // RPC fallback for guests or when direct read misses.
+      if (!profile) {
+        let profiles: unknown = null;
+        ({ data: profiles, error } = await db.rpc('get_profile_by_username', {
+          target_username: trimmedUsername,
+        }));
+        profile = firstProfileRow(profiles);
+        if (!profile && normalizedUsername !== trimmedUsername) {
+          const retry = await db.rpc('get_profile_by_username', {
+            target_username: normalizedUsername,
+          });
+          profile = firstProfileRow(retry.data);
+          if (!error && retry.error) error = retry.error;
+        }
+      }
+      
+      // If not found and looks like a UUID, try ID lookup via RPC (works for guests)
+      if (!profile && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(trimmedUsername)) {
+        const { data: idProfiles } = await db.rpc('get_profile_by_id', { target_id: trimmedUsername });
+        profile = firstProfileRow(idProfiles);
+      }
+
+      // Auth uid in URL (legacy links)
+      if (!profile && currentProfile) {
+        const { data: byUserId } = await db
+          .from('profiles')
+          .select('id, user_id, username, avatar_url, bio, created_at, display_name, link_url, location, is_private, is_verified, interests, language, timezone, coins_balance, onboarding_completed, tutorial_completed, tutorial_skipped, intro_completed, badge_settings, date_of_birth, feature_on_landing')
+          .eq('user_id', trimmedUsername)
+          .limit(1);
+        if (byUserId?.[0]) profile = byUserId[0] as Record<string, unknown>;
       }
       
       if (error && !profile) {

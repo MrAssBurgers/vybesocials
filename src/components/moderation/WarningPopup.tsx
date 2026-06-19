@@ -4,6 +4,7 @@ import { AlertTriangle, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth';
+import { isPermissionDeniedError, warnOnce } from '@/lib/logOnce';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
 interface Warning {
@@ -31,13 +32,18 @@ export function WarningPopup() {
         .maybeSingle();
       
       if (error) {
-        console.error('Error fetching warnings:', error);
+        if (isPermissionDeniedError(error)) {
+          warnOnce('warnings-fetch-denied', 'Error fetching warnings:', error);
+        } else {
+          console.error('Error fetching warnings:', error);
+        }
         return null;
       }
       return data as Warning | null;
     },
     enabled: !!profile?.id,
     refetchInterval: 30000,
+    retry: false,
   });
 
   const acknowledgeWarning = useMutation({

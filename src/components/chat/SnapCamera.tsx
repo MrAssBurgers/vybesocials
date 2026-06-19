@@ -49,7 +49,7 @@ export function SnapCamera({ isOpen, onClose, onSend }: VybeCameraProps) {
   const [capturedImage, setCapturedImage] = useState<string | null>(null);
   const [capturedVideo, setCapturedVideo] = useState<string | null>(null);
   const [isVideoMode, setIsVideoMode] = useState(false);
-  const [facingMode, setFacingMode] = useState<'user' | 'environment'>('environment');
+  const [facingMode, setFacingMode] = useState<'user' | 'environment'>('user');
   const [mode, setMode] = useState<'none' | 'text' | 'sticker'>('none');
   const [textOverlays, setTextOverlays] = useState<TextOverlay[]>([]);
   const [currentText, setCurrentText] = useState('');

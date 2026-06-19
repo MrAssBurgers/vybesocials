@@ -2,6 +2,36 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## Permission spam fix — DMs, presence, warnings (2026-06-19)
+- **Root cause:** `user_presence` + `user_warnings` had no Firestore rules (catch-all deny); conversation reads failed when membership doc IDs used profile UUIDs but rules only checked auth uid paths
+- **Rules:** Added `user_presence`, `user_warnings`, expanded `isMember` / conversation read (member_ids + profileId + uid); staff can manage bans/warnings
+- **Client:** `warnOnce` dedupes permission-denied console spam (presence 20s interval, warnings 30s refetch, DM load)
+- **Deploy:** Firestore rules → `vybe-daaab` SUCCESS
+- **Tests:** `npm run build` PASS
+- **You:** Lovable **Share → Publish** + hard refresh; confirm console no longer floods permission errors
+
+## Next 3 Tasks
+1. Lovable Publish → smoke-test DMs load, online presence, warning popup (if any)
+2. Lovable Publish → full smoke test from prior bug list (market, connections, uploads)
+3. Redeploy `functions:spotifyOauthStart` if Spotify still fails
+
+## Prod bug sweep — notifications, market, connections, settings (2026-06-18)
+- **Notifications UI:** fixed overlapping empty/error/list states (`AnimatePresence mode="wait"`); error banner only when truly empty; @username labels (not display_name / user_* placeholders)
+- **Marketplace:** resilient listings fetch (client sort/filter + batched seller profiles — no broken join/order)
+- **Connections:** Spotify OAuth via HTTP `spotifyOauthStart?uid=`; profile-id lookups for spotify/music_settings; Google/Apple `linkIdentity` already in authService (needs Lovable Publish)
+- **Settings saves:** Firestore rules for `user_preferences`, `ai_brief_preferences`, `servers`, `server_members`; sanitize undefined fields before `setDoc` (server create, upserts)
+- **Challenges:** tab label clip fix; expired daily/weekly deleted from Firestore on rotate; desktop sidebar Ranks link removed (Ranks tab stays in Challenges hub)
+- **Scroll / boot:** stronger anti-black-flash CSS during scroll; hide `VybePageLoader` while boot splash visible (no double VYBE logo)
+- **Cameras:** default front camera + mirror on selfie components
+- **Tests:** `npm run build` PASS, `npm run lint` PASS
+- **Deploy:** Firestore rules deployed to `vybe-daaab`
+- **You:** Lovable **Share → Publish** + hard refresh; smoke-test notifications, market, connections, customize layout save, create server, post upload
+
+## Next 3 Tasks
+1. Lovable Publish → full smoke test from user bug list
+2. Redeploy `functions:spotifyOauthStart` if Spotify still fails (callback URL fix)
+3. Set `SPOTIFY_CLIENT_ID` + `SPOTIFY_CLIENT_SECRET` on Firebase if Spotify internal error persists
+
 ## Mobile scroll flash + clip upload spinner (2026-06-18)
 - **Bug 1 — scroll black flash:** `is-scrolling` painted opaque `hsl(--background)` on transparent app shells, hiding the aurora mesh; `body.has-liquid-bg` was fully transparent; `content-visibility: auto` on feed posts/scroller children left unpainted holes. Fixed: static purple mesh fallback on body (`#0B0B10` gradient), removed opaque scroll overlay, excluded main scroll container from content-visibility, removed PostCard inline `contentVisibility`.
 - **Bug 2 — clip upload infinite spinner:** Video frame extraction / Vybe Check / Firestore insert could hang with no timeout or error UI. Fixed: timeouts on `extractVideoFrames`, `vybeCheckClient`, `VybeCheckOverlay`, pre-scan + publish in `MobilePostComposer`, post insert in `useCreatePost`; error phase + toast on scan failure; Share disabled while pre-scan running.
@@ -120,6 +150,16 @@ Use this file as the Lovable -> Cursor handoff each session.
 - **Backend:** Redeployed `functions:aiChat` (GEMINI secret bound)
 - **Tests:** `npm run build` PASS, `npm run lint` PASS (3 pre-existing warnings)
 - **You:** Lovable **Share → Publish** + hard refresh / clear site data once on phone; smoke-test Google login, profile tap, DMs, story post, VYBE-AI chat, admin bug reports
+
+## Current Focus (2026-06-18 — prod bug sweep from screenshots)
+- **Fixed:** Firestore query engine — only one inequality filter per query (was breaking admin bug reports, unread counts, feeds with `neq`+`gt`)
+- **Fixed:** Profile lookup — direct Firestore read first; auth uid fallback; client-side `claimProfileByEmail` when Cloud Function fails
+- **Fixed:** Admin panel — `bug_reports`, `reports`, `content_flags` readable by staff roles (not just Firebase custom claims)
+- **Fixed:** DMs — session profile resolve + stale cache clear on sign-in; unread/typing queries no longer use double inequality
+- **Fixed:** Scroll black flicker — removed body background swap during `is-scrolling`
+- **Fixed:** Invite Friends + story ring — matched `vybe-liquid-button` styling; "Posting…" label no longer clips
+- **Deployed:** Firestore rules live on `vybe-daaab`
+- **You:** Lovable **Share → Publish** + hard refresh; sign out/in once to refresh profile link
 
 ## Current Focus (2026-06-18 — Lovable publish verified)
 - **Publish verified (2026-06-18 ~19:17 UTC):** vybehub.app **live** — new deployment `b4009fb3-…`, `app.js` etag `a7d82620…` (was stale `0208ab60…`)

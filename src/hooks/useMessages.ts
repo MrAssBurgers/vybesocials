@@ -87,15 +87,16 @@ export function useUnreadMessagesCount() {
       let totalUnread = 0;
       for (const membership of memberships) {
         const lastReadAt = membership.last_read_at || '1970-01-01';
-        const { count } = await db
+        const { data: unreadRows } = await db
           .from('messages')
-          .select('id', { count: 'exact', head: true })
+          .select('id, sender_id, created_at')
           .eq('conversation_id', membership.conversation_id)
-          .neq('sender_id', profileId)
           .gt('created_at', lastReadAt)
           .eq('is_deleted', false);
 
-        totalUnread += count || 0;
+        totalUnread += (unreadRows || []).filter(
+          (m: { sender_id?: string }) => m.sender_id !== profileId,
+        ).length;
       }
 
       return totalUnread;
@@ -685,12 +686,15 @@ export function useTypingIndicator(conversationId: string | undefined) {
         callback: async () => {
           const { data } = await db
             .from('typing_indicators')
-            .select('user_id')
+            .select('user_id, started_at')
             .eq('conversation_id', conversationId)
-            .neq('user_id', profile?.id || '')
             .gt('started_at', new Date(Date.now() - 5000).toISOString());
 
-          setTypingUsers(data?.map((t) => t.user_id) || []);
+          setTypingUsers(
+            (data || [])
+              .filter((t) => t.user_id !== profile?.id)
+              .map((t) => t.user_id),
+          );
         },
       },
     ]);

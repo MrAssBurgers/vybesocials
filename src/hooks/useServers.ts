@@ -244,7 +244,7 @@ export function useCreateServer() {
         .from('servers')
         .insert({
           name,
-          description,
+          description: description?.trim() || null,
           owner_id: profile.id,
           is_public: isPublic ?? true,
         })

@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { db } from '@/lib/firebase';
 import { subscribePostgresChannel, removeRealtimeChannel } from '@/lib/realtimeChannel';
 import { useAuthProfileId } from '@/hooks/useAuthProfileId';
-import { toast } from 'sonner';
+import { preferredUsername } from '@/lib/displayUser';
 
 // Check notification permission — never auto-request on web to avoid browser bell prompts
 async function requestNotificationPermission(): Promise<boolean> {
@@ -100,35 +100,47 @@ export function useNotifications() {
       });
       if (filtered.length === 0) return [];
 
-      // Batch fetch all unique actor profiles in one query
-      const actorIds = [...new Set(filtered.map(n => n.actor_id))];
-      const { data: actors } = await db
-        .from('profiles')
-        .select('id, username, avatar_url, display_name')
-        .in('id', actorIds);
+      // Batch fetch actor profiles (Firestore `in` max 10)
+      const actorIds = [...new Set(filtered.map((n: any) => n.actor_id).filter(Boolean))];
+      const actorMap = new Map<string, { id: string; username: string; avatar_url: string | null; display_name: string | null }>();
+      for (let i = 0; i < actorIds.length; i += 10) {
+        const chunk = actorIds.slice(i, i + 10);
+        const { data: actors } = await db
+          .from('profiles')
+          .select('id, username, avatar_url, display_name')
+          .in('id', chunk);
+        for (const a of actors || []) {
+          actorMap.set(a.id, a);
+        }
+      }
 
-      const actorMap = new Map(actors?.map(a => [a.id, a]) || []);
-
-      return filtered.map(n => ({
-        id: n.id,
-        type: n.type as NotificationType,
-        read: n.read,
-        created_at: n.created_at,
-        post_id: n.post_id,
-        reason: (n as any).reason || null,
-        title: (n as any).title || null,
-        body: (n as any).body || null,
-        image_url: (n as any).image_url || null,
-        deep_link: (n as any).deep_link || null,
-        subtype: (n as any).subtype || null,
-        meta: (n as any).meta || null,
-        actor: actorMap.get(n.actor_id) || {
+      return filtered.map((n: any) => {
+        const profile = actorMap.get(n.actor_id);
+        const actor = profile || {
           id: n.actor_id,
-          username: 'unknown',
+          username: preferredUsername({ username: n.actor_username }),
           avatar_url: null,
           display_name: null,
-        },
-      }));
+        };
+        return {
+          id: n.id,
+          type: n.type as NotificationType,
+          read: n.read,
+          created_at: n.created_at,
+          post_id: n.post_id,
+          reason: n.reason || null,
+          title: n.title || null,
+          body: n.body || null,
+          image_url: n.image_url || null,
+          deep_link: n.deep_link || null,
+          subtype: n.subtype || null,
+          meta: n.meta || null,
+          actor: {
+            ...actor,
+            username: preferredUsername(actor),
+          },
+        };
+      });
     },
     enabled: !!profileId,
     staleTime: 60000, // Cache for 1 minute

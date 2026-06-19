@@ -85,7 +85,7 @@ export const spotifyOauthCallback = onRequest({ secrets: SECRETS }, async (req, 
     expires_at: new Date(Date.now() + tok.expires_in * 1000).toISOString(),
     scope: tok.scope, connected_at: new Date().toISOString(),
   }, { merge: true });
-  res.redirect(`${process.env.PUBLIC_SITE_URL || 'https://vybehub.app'}/settings/integrations?spotify=connected`);
+  res.redirect(`${process.env.PUBLIC_SITE_URL || 'https://vybehub.app'}/settings?tab=connections&spotify=connected`);
 });
 
 export const spotifyDisconnect = onCall(async (request) => {

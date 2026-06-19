@@ -118,7 +118,6 @@ export function DesktopLeftSidebar({ collapsed, onCollapsedChange, compact = fal
     { icon: Users, labelKey: 'nav.communities', path: '/community', badge: 0, tutorialId: 'sidebar-community' },
     { icon: ShoppingBag, labelKey: 'sidebar.market', path: '/market', badge: 0, tutorialId: 'sidebar-market' },
     { icon: Calendar, labelKey: 'sidebar.events', path: '/events', badge: 0, tutorialId: 'sidebar-events' },
-    { icon: Trophy, label: 'Ranks', path: '/challenges', badge: 0, tutorialId: 'sidebar-leaderboard' },
   ];
 
   const handleSignOut = async () => {

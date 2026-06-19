@@ -34,23 +34,12 @@ export async function resolveSessionProfileId(
     try {
       await db.rpc('claim_profile_by_email');
 
-      const profile = await getProfileByAuthUid(authUserId);
+      let profile = await getProfileByAuthUid(authUserId);
       if (!profile?.id) {
         await db.rpc('ensure_profile');
-        const retry = await getProfileByAuthUid(authUserId);
-        if (!retry?.id) return undefined;
-        memoAuthUserId = authUserId;
-        memoProfileId = retry.id;
-        const payload: CachedProfile = {
-          id: retry.id,
-          user_id: retry.user_id,
-          username: retry.username,
-          display_name: retry.display_name,
-          avatar_url: retry.avatar_url,
-        };
-        setCachedCurrentProfile(payload);
-        return retry.id;
+        profile = await getProfileByAuthUid(authUserId);
       }
+      if (!profile?.id) return undefined;
 
       memoAuthUserId = authUserId;
       memoProfileId = profile.id;

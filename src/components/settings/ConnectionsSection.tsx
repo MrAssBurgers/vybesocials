@@ -2,6 +2,8 @@ import { useState, useEffect, memo } from 'react';
 import { motion } from 'framer-motion';
 import { Link2, Mail, Check, Plus, Unlink, Loader2 } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
+import { useAuthProfileId } from '@/hooks/useAuthProfileId';
+import { getSpotifyOAuthStartUrl } from '@/lib/spotifyConnect';
 import { db } from '@/lib/firebase';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
@@ -34,6 +36,8 @@ interface ProviderInfo {
 
 export function ConnectionsSection() {
   const { user } = useAuth();
+  const profileId = useAuthProfileId();
+  const ownerId = profileId || user?.id;
   const [providers, setProviders] = useState<ProviderInfo[]>([]);
   const [checking, setChecking] = useState(true);
   const [linking, setLinking] = useState<string | null>(null);
@@ -61,14 +65,14 @@ export function ConnectionsSection() {
         const { data: sp } = await db
           .from('spotify_connections')
           .select('spotify_user_id, display_name, email, avatar_url')
-          .eq('user_id', authUser.id)
+          .eq('user_id', ownerId || authUser.id)
           .maybeSingle();
         setSpotify((sp as any) || null);
 
         const { data: ms } = await db
           .from('music_settings')
           .select('show_listening_activity, show_on_profile, show_in_dms, hide_when_invisible')
-          .eq('user_id', authUser.id)
+          .eq('user_id', ownerId || authUser.id)
           .maybeSingle();
         if (ms) setMusicSettings(ms as any);
 
@@ -99,7 +103,7 @@ export function ConnectionsSection() {
       toast.success(`${linked === 'google' ? 'Google' : 'Apple'} connected`);
       setTimeout(checkLinks, 500);
     }
-  }, []);
+  }, [ownerId]);
 
   const handleLink = async (providerId: string) => {
     setLinking(providerId);
@@ -141,11 +145,10 @@ export function ConnectionsSection() {
   const connectSpotify = async () => {
     setSpotifyBusy(true);
     try {
-      const returnTo = window.location.origin + '/settings?tab=connections&spotify=connected';
-      const { data, error } = await db.functions.invoke('spotify-oauth-start', { body: { returnTo } });
-      if (error) throw error;
-      if (!data?.url) throw new Error('No auth URL returned');
-      window.location.href = data.url;
+      const { data: { user: authUser } } = await db.auth.getUser();
+      const uid = ownerId || authUser?.id;
+      if (!uid) throw new Error('Not signed in');
+      window.location.href = getSpotifyOAuthStartUrl(uid);
     } catch (e: any) {
       toast.error(e.message || 'Could not start Spotify');
       setSpotifyBusy(false);
@@ -169,8 +172,9 @@ export function ConnectionsSection() {
   const updateSetting = async (key: keyof MusicSettingsRow, value: boolean) => {
     setMusicSettings(prev => ({ ...prev, [key]: value }));
     const { data: { user: authUser } } = await db.auth.getUser();
-    if (!authUser) return;
-    await db.from('music_settings').upsert({ user_id: authUser.id, ...musicSettings, [key]: value }, { onConflict: 'user_id' });
+    const uid = ownerId || authUser?.id;
+    if (!uid) return;
+    await db.from('music_settings').upsert({ user_id: uid, ...musicSettings, [key]: value }, { onConflict: 'user_id' });
   };
 
   return (

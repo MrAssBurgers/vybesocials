@@ -687,7 +687,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         if (session?.user) {
           setWasLoggedIn(true);
+          const prevAuthId = getStoredAuthUserId();
           setActiveAuthUserId(session.user.id);
+          if (event === 'SIGNED_IN' || (prevAuthId && prevAuthId !== session.user.id)) {
+            clearCachedCurrentProfile();
+            resetSessionProfileMemo();
+          }
           logEvent('auth', 'Session active, fetching profile', { userId: session.user.id });
           startHeartbeat();
           if (session.expires_at) {

@@ -23,6 +23,21 @@ service cloud.firestore {
     function isAdmin() {
       return signedIn() && request.auth.token.admin == true;
     }
+    function staffRoleDoc(col, role) {
+      return signedIn() && (
+        exists(/databases/$(database)/documents/$(col)/$(profileId() + '_' + role)) ||
+        exists(/databases/$(database)/documents/$(col)/$(uid() + '_' + role))
+      );
+    }
+    function isStaffModerator() {
+      return isAdmin() ||
+        staffRoleDoc('user_roles', 'owner') ||
+        staffRoleDoc('user_roles', 'admin') ||
+        staffRoleDoc('user_roles', 'moderator') ||
+        staffRoleDoc('user_roles_auth', 'owner') ||
+        staffRoleDoc('user_roles_auth', 'admin') ||
+        staffRoleDoc('user_roles_auth', 'moderator');
+    }
     // Migrated rows use profiles.id (legacy UUID) while user_id holds Firebase Auth uid.
     function profileId() {
       return exists(/databases/$(database)/documents/user_auth_index/$(uid()))
@@ -57,13 +72,24 @@ service cloud.firestore {
       return willOwn(field) || willOwnProfile(field);
     }
     function isFlatConversationMember(cid) {
+      return signedIn() && (
+        exists(/databases/$(database)/documents/conversation_members/$(cid + '_' + profileId())) ||
+        exists(/databases/$(database)/documents/conversation_members/$(cid + '_' + uid()))
+      );
+    }
+    function isMemberViaConversationDoc(cid) {
       return signedIn() &&
-        exists(/databases/$(database)/documents/conversation_members/$(cid + '_' + profileId()));
+        exists(/databases/$(database)/documents/conversations/$(cid)) && (
+          profileId() in get(/databases/$(database)/documents/conversations/$(cid)).data.get('member_ids', []) ||
+          uid() in get(/databases/$(database)/documents/conversations/$(cid)).data.get('member_ids', [])
+        );
     }
     function isMember(cid) {
       return signedIn() && (
         isFlatConversationMember(cid) ||
-        exists(/databases/$(database)/documents/conversations/$(cid)/members/$(uid()))
+        isMemberViaConversationDoc(cid) ||
+        exists(/databases/$(database)/documents/conversations/$(cid)/members/$(uid())) ||
+        exists(/databases/$(database)/documents/conversations/$(cid)/members/$(profileId()))
       );
     }
     function isFriendRequestParty() {
@@ -139,8 +165,20 @@ service cloud.firestore {
       allow write: if ownsUserField('user_id') || willOwnUserField('user_id') || isAdmin();
     }
     match /user_bans/{docId} {
-      allow read: if ownsUserField('user_id') || isAdmin();
-      allow write: if isAdmin();
+      allow read: if ownsUserField('user_id') || isStaffModerator();
+      allow write: if isStaffModerator();
+    }
+    match /user_warnings/{docId} {
+      allow read: if ownsUserField('user_id') || isStaffModerator();
+      allow create: if isStaffModerator();
+      allow update: if ownsUserField('user_id') || isStaffModerator();
+      allow delete: if isStaffModerator();
+    }
+    match /user_presence/{docId} {
+      allow read: if signedIn();
+      allow create: if willOwnUserField('user_id');
+      allow update: if ownsUserField('user_id');
+      allow delete: if ownsUserField('user_id') || isAdmin();
     }
     match /notification_preferences/{docId} {
       allow read, write: if ownsUserField('user_id') || willOwnUserField('user_id') || isAdmin();
@@ -150,6 +188,12 @@ service cloud.firestore {
     }
     match /spotify_connections/{docId} {
       allow read, write: if ownsUserField('user_id') || willOwnUserField('user_id') || isAdmin();
+    }
+    match /user_preferences/{docId} {
+      allow read, write: if ownsUserField('user_id') || willOwnUserField('user_id') || docId == uid() || ownsProfileId(docId);
+    }
+    match /ai_brief_preferences/{docId} {
+      allow read, write: if ownsUserField('user_id') || willOwnUserField('user_id') || ownsProfileId(docId);
     }
 
     // ---------- messages extras ----------
@@ -170,7 +214,7 @@ service cloud.firestore {
     match /listings/{docId} {
       allow read: if signedIn();
       allow create: if willOwnUserField('seller_id') || willOwnUserField('user_id');
-      allow update, delete: if ownsUserField('seller_id') || ownsUserField('user_id') || isAdmin();
+      allow update, delete: if ownsUserField('seller_id') || ownsUserField('user_id') || isStaffModerator();
     }
     match /listing_favorites/{docId} {
       allow read, write: if ownsUserField('user_id') || willOwnUserField('user_id') || isAdmin();
@@ -194,7 +238,7 @@ service cloud.firestore {
     }
     match /reports/{docId} {
       allow create: if signedIn();
-      allow read, update, delete: if isAdmin();
+      allow read, update, delete: if isStaffModerator();
     }
 
     // ---------- social: follows / blocks / friend requests ----------
@@ -233,12 +277,12 @@ service cloud.firestore {
     match /posts/{postId} {
       allow read: if signedIn();
       allow create: if willOwnProfile('author_id');
-      allow update, delete: if isOwnerProfile('author_id') || isAdmin();
+      allow update, delete: if isOwnerProfile('author_id') || isStaffModerator();
     }
     match /comments/{commentId} {
       allow read: if signedIn();
       allow create: if willOwnProfile('author_id');
-      allow update, delete: if isOwnerProfile('author_id') || isAdmin();
+      allow update, delete: if isOwnerProfile('author_id') || isStaffModerator();
     }
     match /comment_likes/{docId} {
       allow read: if signedIn();
@@ -266,7 +310,14 @@ service cloud.firestore {
 
     // ---------- conversations / messages ----------
     match /conversations/{cid} {
-      allow read: if isMember(cid) || isAdmin();
+      allow read: if isAdmin() || (
+        signedIn() && (
+          profileId() in resource.data.get('member_ids', []) ||
+          uid() in resource.data.get('member_ids', []) ||
+          isFlatConversationMember(cid) ||
+          isMemberViaConversationDoc(cid)
+        )
+      );
       allow create: if signedIn();
       allow update: if isMember(cid) || isAdmin();
       allow delete: if isAdmin();
@@ -329,7 +380,7 @@ service cloud.firestore {
     match /stories/{id} {
       allow read: if signedIn();
       allow create: if willOwnProfile('author_id');
-      allow update, delete: if isOwnerProfile('author_id') || isAdmin();
+      allow update, delete: if isOwnerProfile('author_id') || isStaffModerator();
     }
     match /story_views/{id} {
       allow read: if signedIn() && (ownsProfileId(resource.data.viewer_id) || isAdmin());
@@ -351,7 +402,7 @@ service cloud.firestore {
     // ---------- user-owned generic ----------
     match /bug_reports/{id} {
       allow create: if signedIn();
-      allow read, update, delete: if isAdmin();
+      allow read, update, delete: if isStaffModerator();
     }
     match /feedback/{id} {
       allow create: if signedIn();
@@ -396,13 +447,41 @@ service cloud.firestore {
 
     // ---------- public-ish reference data ----------
     match /badges/{id}            { allow read: if signedIn(); allow write: if isAdmin(); }
-    match /challenges/{id}        { allow read: if signedIn(); allow write: if isAdmin(); }
+    match /challenges/{id} {
+      allow read: if signedIn();
+      allow create: if isAdmin() || (
+        signedIn() &&
+        request.resource.data.type in ['daily', 'weekly'] &&
+        request.resource.data.is_active == true
+      );
+      allow update: if isAdmin() || (
+        signedIn() &&
+        resource.data.type in ['daily', 'weekly'] &&
+        request.resource.data.is_active == false
+      );
+      allow delete: if isAdmin() || (
+        signedIn() &&
+        resource.data.type in ['daily', 'weekly']
+      );
+    }
     match /challenge_templates/{id} { allow read: if signedIn(); allow write: if isAdmin(); }
     match /announcements/{id}     { allow read: if signedIn(); allow write: if isAdmin(); }
     match /battle_pass_tiers/{id} { allow read: if signedIn(); allow write: if isAdmin(); }
     match /algorithm_settings/{id} { allow read: if signedIn(); allow write: if isAdmin(); }
     match /community_guidelines/{id} { allow read: if signedIn(); allow write: if isAdmin(); }
     match /growth_config/{id}     { allow read: if signedIn(); allow write: if isAdmin(); }
+
+    // ---------- Discord-style servers ----------
+    match /servers/{docId} {
+      allow read: if signedIn() && (resource.data.is_public == true || ownsProfileId(resource.data.owner_id) || isStaffModerator());
+      allow create: if willOwnProfile('owner_id');
+      allow update, delete: if ownsProfileId(resource.data.owner_id) || isStaffModerator();
+    }
+    match /server_members/{docId} {
+      allow read: if signedIn();
+      allow create: if willOwnProfile('user_id');
+      allow update, delete: if ownsProfileId(resource.data.user_id) || isStaffModerator();
+    }
 
     // ---------- commerce ----------
     match /creator_profiles/{id} {
@@ -437,6 +516,44 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
+    // ---------- events / RSVPs ----------
+    match /events/{id} {
+      allow read: if signedIn();
+      allow create: if willOwnProfile('host_id');
+      allow update, delete: if isOwnerProfile('host_id') || isStaffModerator();
+    }
+    match /event_rsvps/{id} {
+      allow read: if signedIn();
+      allow create: if willOwnProfile('user_id');
+      allow update, delete: if isOwnerProfile('user_id') || isStaffModerator();
+    }
+
+    // ---------- security / sessions ----------
+    match /user_2fa_settings/{userId} {
+      allow read, write: if signedIn() && (userId == uid() || ownsProfileId(userId));
+    }
+    match /user_passkeys/{id} {
+      allow read: if signedIn() && (
+        resource.data.user_id == uid() || ownsProfileId(resource.data.user_id)
+      );
+      allow create: if signedIn() && request.resource.data.user_id == uid();
+      allow update, delete: if signedIn() && (
+        resource.data.user_id == uid() || ownsProfileId(resource.data.user_id)
+      );
+    }
+    match /user_sessions/{id} {
+      allow read: if signedIn() && (
+        resource.data.user_id == uid() || ownsProfileId(resource.data.user_id)
+      );
+      allow write: if false;
+    }
+    match /login_history/{id} {
+      allow read: if signedIn() && (
+        resource.data.user_id == uid() || ownsProfileId(resource.data.user_id)
+      );
+      allow write: if false;
+    }
+
     // ---------- explicit deny-all admin-only tables (Cloud Functions handle these) ----------
     match /app_secrets/{id}                   { allow read, write: if false; }
     match /user_ai_keys/{id}                  { allow read, write: if false; }
@@ -452,7 +569,7 @@ service cloud.firestore {
     match /auth_challenges/{id}               { allow read, write: if false; }
     match /account_deletion_requests/{id}     { allow create: if willOwn('user_id'); allow read, update, delete: if isAdmin(); }
     match /content_appeals/{id}               { allow create: if willOwn('user_id'); allow read: if isOwner('user_id') || isAdmin(); allow update, delete: if isAdmin(); }
-    match /content_flags/{id}                 { allow create: if willOwn('reporter_id'); allow read, update, delete: if isAdmin(); }
+    match /content_flags/{id}                 { allow create: if willOwn('reporter_id'); allow read, update, delete: if isStaffModerator(); }
     match /ad_campaigns/{id}                  { allow read: if signedIn(); allow write: if isOwner('owner_id') || willOwn('owner_id') || isAdmin(); }
     match /ad_impressions/{id}                { allow create: if signedIn(); allow read: if isAdmin(); }
     match /ad_daily_stats/{id}                { allow read: if isAdmin(); }

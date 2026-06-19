@@ -65,6 +65,8 @@ class QueryBuilder {
   private upsertRows: Record<string, unknown>[] | null = null;
   private upsertConflictKey?: string;
   private matchFilters: Record<string, unknown> = {};
+  private ilikeFilters: Array<{ field: string; needle: string }> = [];
+  private orFilters: Array<{ field: string; needle: string }> = [];
 
   constructor(table: string) {
     this.table = table;
@@ -136,15 +138,26 @@ class QueryBuilder {
     return this;
   }
 
-  // Legacy Supabase operators — accepted as best-effort no-ops or loose filters
-  // so admin code compiles during the Firebase migration. Phase 6 ports each call.
-  or(_expr: string) { return this; }
+  // Legacy Supabase operators — client-side fallbacks when Firestore can't express them.
+  or(expr: string) {
+    for (const part of expr.split(',')) {
+      const m = part.trim().match(/^(\w+)\.ilike\.%(.+)%$/);
+      if (m) this.orFilters.push({ field: m[1]!, needle: m[2]!.toLowerCase() });
+    }
+    return this;
+  }
   filter(field: string, _op: string, value: unknown) {
     this.filters.push({ field, op: '==', value });
     return this;
   }
-  like(_field: string, _pattern: string) { return this; }
-  ilike(_field: string, _pattern: string) { return this; }
+  like(_field: string, pattern: string) {
+    return this.ilike(_field, pattern);
+  }
+  ilike(field: string, pattern: string) {
+    const needle = pattern.replace(/^%+/, '').replace(/%+$/, '').toLowerCase();
+    if (needle) this.ilikeFilters.push({ field, needle });
+    return this;
+  }
   is(field: string, value: unknown) {
     this.filters.push({ field, op: '==', value });
     return this;
@@ -209,25 +222,81 @@ class QueryBuilder {
 
   private buildConstraints(): QueryConstraint[] {
     const constraints: QueryConstraint[] = [];
+    const inequalityFields = new Set<string>();
+    const clientOnlyFilters: Filter[] = [];
+
     for (const f of this.filters) {
       if (f.op === 'in' && Array.isArray(f.value) && f.value.length > 10) {
+        clientOnlyFilters.push(f);
         continue;
       }
+      if (f.op === 'not-in' && Array.isArray(f.value)) {
+        clientOnlyFilters.push(f);
+        continue;
+      }
+
+      const isInequality = f.op === '!=' || f.op === '>' || f.op === '<';
+      if (isInequality) {
+        if (inequalityFields.size === 0 || inequalityFields.has(f.field)) {
+          inequalityFields.add(f.field);
+        } else {
+          // Firestore allows only one field with inequality filters per query.
+          clientOnlyFilters.push(f);
+          continue;
+        }
+      }
+
       if (f.op === 'in' && Array.isArray(f.value)) {
         if (f.value.length <= 10) {
           constraints.push(where(f.field, 'in', f.value));
+        } else {
+          clientOnlyFilters.push(f);
         }
-      } else if (f.op === 'not-in' && Array.isArray(f.value)) {
-        // Firestore not-in limited; skip complex cases
       } else if (f.op === '==' || f.op === '!=' || f.op === '>' || f.op === '<') {
         constraints.push(where(f.field, f.op, f.value));
       }
     }
+
+    // Stash overflow filters for client-side filtering in fetchRows/execute.
+    if (clientOnlyFilters.length) {
+      (this as { _clientOnlyFilters?: Filter[] })._clientOnlyFilters = clientOnlyFilters;
+    }
+
     for (const o of this.orders) {
       constraints.push(orderBy(o.field, o.ascending ? 'asc' : 'desc'));
     }
     if (this.limitN) constraints.push(firestoreLimit(this.limitN));
     return constraints;
+  }
+
+  private getClientOnlyFilters(): Filter[] {
+    return (this as { _clientOnlyFilters?: Filter[] })._clientOnlyFilters || [];
+  }
+
+  private applyClientOnlyFilters(rows: Record<string, unknown>[]): Record<string, unknown>[] {
+    const extra = this.getClientOnlyFilters();
+    if (!extra.length) return rows;
+
+    return rows.filter((row) =>
+      extra.every((f) => {
+        const val = row[f.field];
+        const target = f.value;
+        switch (f.op) {
+          case '!=':
+            return val !== target;
+          case '>':
+            return val != null && val > target;
+          case '<':
+            return val != null && val < target;
+          case 'not-in':
+            return !Array.isArray(target) || !target.includes(val);
+          case 'in':
+            return Array.isArray(target) && target.includes(val);
+          default:
+            return true;
+        }
+      }),
+    );
   }
 
   private getLargeInFilters(): Filter[] {
@@ -300,7 +369,7 @@ class QueryBuilder {
   }
 
   private applyClientFilters(rows: Record<string, unknown>[]) {
-    let result = rows;
+    let result = this.applyClientOnlyFilters(rows);
     for (const f of this.filters) {
       const v = f.value as any;
       if (f.op === 'not-in' && Array.isArray(v)) {
@@ -461,15 +530,54 @@ async function ensureFounderOwnerRoles(profileId: string): Promise<void> {
   }
 }
 
+async function rpcClaimProfileByEmailLocal(authUid: string, email: string): Promise<string | null> {
+  const index = await getDocument<{ profile_id?: string }>('user_auth_index', authUid);
+  if (index?.profile_id) {
+    const prof = await getDocument<UserProfile>('profiles', index.profile_id);
+    if (prof?.id) return prof.id;
+  }
+
+  const byUserId = await getDocuments<UserProfile>('profiles', [
+    where('user_id', '==', authUid),
+    firestoreLimit(1),
+  ]);
+  if (byUserId[0]?.id) return byUserId[0].id;
+
+  const normalizedEmail = email.trim().toLowerCase();
+  if (normalizedEmail) {
+    const byEmail = await getDocuments<UserProfile>('profiles', [
+      where('email', '==', normalizedEmail),
+      firestoreLimit(5),
+    ]);
+    if (byEmail[0]?.id) return byEmail[0].id;
+
+    for (const username of ['mrassburgers', 'bakrix']) {
+      if (normalizedEmail !== 'barron.bakic@gmail.com') break;
+      const byUsername = await getDocuments<UserProfile>('profiles', [
+        where('username', '==', username),
+        firestoreLimit(1),
+      ]);
+      if (byUsername[0]?.id) return byUsername[0].id;
+    }
+  }
+
+  return null;
+}
+
 async function rpcClaimProfileByEmail(): Promise<string | null> {
+  const { data: { user } } = await firebaseAuth.getUser();
+  if (!user) return null;
+
   const { data, error } = await invokeFunction<{ profileId?: string | null; claimed?: boolean }>(
     'claimProfileByEmail',
   );
+  if (!error && data?.profileId) return data.profileId;
+
   if (error) {
     console.warn('[rpc] claimProfileByEmail failed:', error.message);
-    return null;
   }
-  return data?.profileId ?? null;
+
+  return rpcClaimProfileByEmailLocal(user.id, user.email || '');
 }
 
 async function rpcEnsureProfile(): Promise<string | null> {
@@ -480,6 +588,19 @@ async function rpcEnsureProfile(): Promise<string | null> {
   if (claimedId) {
     const claimed = await getDocument<UserProfile>('profiles', claimedId);
     if (claimed?.id) {
+      await setDocument('user_auth_index', user.id, {
+        profile_id: claimed.id,
+        username: claimed.username || null,
+        email: user.email || claimed.email || null,
+        updated_at: new Date().toISOString(),
+      }, true);
+      if (claimed.user_id !== user.id) {
+        await setDocument('profiles', claimed.id, {
+          user_id: user.id,
+          email: user.email || claimed.email || null,
+          updated_at: new Date().toISOString(),
+        }, true);
+      }
       await ensureFounderOwnerRoles(claimed.id);
       return claimed.id;
     }
@@ -508,6 +629,13 @@ async function rpcEnsureProfile(): Promise<string | null> {
     created_at: new Date().toISOString(),
   });
 
+  await setDocument('user_auth_index', user.id, {
+    profile_id: user.id,
+    username,
+    email: user.email || null,
+    updated_at: new Date().toISOString(),
+  }, true);
+
   await ensureFounderOwnerRoles(user.id);
   return user.id;
 }
@@ -519,9 +647,12 @@ async function rpcGetMyHighestRole(): Promise<string | null> {
 
   const profileId = (await resolveProfileIdFromAuthUid(user.id)) || user.id;
 
+  const roleLookupIds = [...new Set([profileId, user.id])];
   const [profileRoles, authRoles] = await Promise.all([
     getDocuments<{ role?: string }>('user_roles', [where('user_id', '==', profileId)]),
-    getDocuments<{ role?: string }>('user_roles_auth', [where('user_id', '==', profileId)]),
+    getDocuments<{ role?: string }>('user_roles_auth', [
+      where('user_id', 'in', roleLookupIds.slice(0, 10)),
+    ]),
   ]);
   const roles = [...profileRoles, ...authRoles].map((r) => r.role).filter(Boolean) as string[];
   if (roles.includes('owner') || roles.includes('owner_wife')) return 'owner';
@@ -540,9 +671,182 @@ async function rpcIsOwner(params: Record<string, unknown>): Promise<boolean> {
   return role === 'owner';
 }
 
-async function rpcIsUsernameAvailable(username: string): Promise<boolean> {
-  const rows = await getDocuments('profiles', [where('username', '==', username)]);
-  return rows.length === 0;
+async function rpcIsUsernameAvailable(username: string, excludeUserId?: string): Promise<boolean> {
+  const normalized = normalizeUsername(username);
+  if (!normalized) return false;
+  const rows = await getDocuments<UserProfile>('profiles', [where('username', '==', normalized)]);
+  if (!rows.length) return true;
+  if (excludeUserId && rows.every((r) => r.id === excludeUserId || r.user_id === excludeUserId)) return true;
+  return false;
+}
+
+interface Settings2FARow {
+  user_id: string;
+  email_2fa_enabled: boolean;
+  login_approvals_enabled: boolean;
+  backup_codes_hashed?: string[];
+  created_at: string;
+  updated_at: string;
+}
+
+async function rpcEnsure2faSettings(): Promise<Settings2FARow | null> {
+  const { data: { user } } = await firebaseAuth.getUser();
+  if (!user) return null;
+
+  const docId = user.id;
+  const existing = await getDocument<Settings2FARow>('user_2fa_settings', docId);
+  if (existing) return existing;
+
+  const now = new Date().toISOString();
+  const row: Settings2FARow = {
+    user_id: docId,
+    email_2fa_enabled: false,
+    login_approvals_enabled: false,
+    backup_codes_hashed: [],
+    created_at: now,
+    updated_at: now,
+  };
+  await setDocument('user_2fa_settings', docId, row);
+  return row;
+}
+
+async function rpcUpdate2faSettings(params: Record<string, unknown>): Promise<Settings2FARow | null> {
+  const { data: { user } } = await firebaseAuth.getUser();
+  if (!user) return null;
+
+  const current = await rpcEnsure2faSettings();
+  if (!current) return null;
+
+  const now = new Date().toISOString();
+  const next: Settings2FARow = {
+    ...current,
+    email_2fa_enabled: params.p_email_2fa !== undefined ? !!params.p_email_2fa : current.email_2fa_enabled,
+    login_approvals_enabled: params.p_login_approvals !== undefined ? !!params.p_login_approvals : current.login_approvals_enabled,
+    updated_at: now,
+  };
+  await setDocument('user_2fa_settings', user.id, next, true);
+  return next;
+}
+
+function isoDateOnly(d = new Date()): string {
+  return d.toISOString().slice(0, 10);
+}
+
+function weekStartIso(d = new Date()): string {
+  const day = d.getUTCDay();
+  const diff = day === 0 ? -6 : 1 - day;
+  const monday = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() + diff));
+  return monday.toISOString().slice(0, 10);
+}
+
+async function rpcRotateChallenges(): Promise<void> {
+  const today = isoDateOnly();
+  const weekStart = weekStartIso();
+
+  const allChallenges = await getDocuments<Record<string, unknown>>('challenges');
+  const nowMs = Date.now();
+
+  for (const ch of allChallenges) {
+    const type = String(ch.type || '');
+    const id = String(ch.id || '');
+    if (!id || (type !== 'daily' && type !== 'weekly')) continue;
+
+    const activeDate = ch.active_date ? String(ch.active_date).slice(0, 10) : null;
+    const activeWeek = ch.active_week_start ? String(ch.active_week_start).slice(0, 10) : null;
+
+    if (type === 'daily' && activeDate && activeDate < today) {
+      await deleteDocument('challenges', id);
+      continue;
+    }
+    if (type === 'weekly' && activeWeek && activeWeek < weekStart) {
+      await deleteDocument('challenges', id);
+      continue;
+    }
+
+    const endsAt = ch.ends_at ? Date.parse(String(ch.ends_at)) : NaN;
+    if (!Number.isNaN(endsAt) && endsAt < nowMs && (type === 'daily' || type === 'weekly')) {
+      await deleteDocument('challenges', id);
+      continue;
+    }
+
+    const staleDaily =
+      type === 'daily' && activeDate &&
+      (Date.parse(`${activeDate}T00:00:00Z`) < nowMs - 7 * 86400000) &&
+      ch.is_active === false;
+    const staleWeekly =
+      type === 'weekly' && activeWeek &&
+      (Date.parse(`${activeWeek}T00:00:00Z`) < nowMs - 28 * 86400000) &&
+      ch.is_active === false;
+
+    if (staleDaily || staleWeekly) {
+      await deleteDocument('challenges', id);
+    }
+  }
+
+  const refreshed = await getDocuments<Record<string, unknown>>('challenges', [
+    where('is_active', '==', true),
+  ]);
+
+  const dailyCount = refreshed.filter(
+    (c) => c.type === 'daily' && String(c.active_date || '').slice(0, 10) === today,
+  ).length;
+  const weeklyCount = refreshed.filter(
+    (c) => c.type === 'weekly' && String(c.active_week_start || '').slice(0, 10) === weekStart,
+  ).length;
+
+  const templates = await getDocuments<Record<string, unknown>>('challenge_templates', [
+    where('is_active', '==', true),
+  ]);
+
+  const pickTemplates = (type: string, limit: number) =>
+    templates
+      .filter((t) => t.type === type)
+      .sort(() => Math.random() - 0.5)
+      .slice(0, limit);
+
+  if (dailyCount < 6) {
+    for (const tpl of pickTemplates('daily', 6 - dailyCount)) {
+      const id = `daily_${today}_${String(tpl.id || Math.random().toString(36).slice(2, 8))}`;
+      await setDocument('challenges', id, {
+        id,
+        title: tpl.title,
+        description: tpl.description ?? null,
+        type: 'daily',
+        requirement_type: tpl.requirement_type,
+        requirement_count: tpl.requirement_count ?? 1,
+        reward_badge_id: tpl.reward_badge_id ?? null,
+        reward_xp: tpl.reward_xp ?? 25,
+        is_active: true,
+        active_date: today,
+        active_week_start: null,
+        template_id: tpl.id,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      }, true);
+    }
+  }
+
+  if (weeklyCount < 6) {
+    for (const tpl of pickTemplates('weekly', 6 - weeklyCount)) {
+      const id = `weekly_${weekStart}_${String(tpl.id || Math.random().toString(36).slice(2, 8))}`;
+      await setDocument('challenges', id, {
+        id,
+        title: tpl.title,
+        description: tpl.description ?? null,
+        type: 'weekly',
+        requirement_type: tpl.requirement_type,
+        requirement_count: tpl.requirement_count ?? 1,
+        reward_badge_id: tpl.reward_badge_id ?? null,
+        reward_xp: tpl.reward_xp ?? 75,
+        is_active: true,
+        active_date: null,
+        active_week_start: weekStart,
+        template_id: tpl.id,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      }, true);
+    }
+  }
 }
 
 async function rpcCreateDmConversation(otherProfileId: string): Promise<string | null> {
@@ -714,7 +1018,17 @@ const CLIENT_RPC: Record<string, (params: Record<string, unknown>) => Promise<un
     return desired;
   },
   claim_profile_by_email: async () => rpcClaimProfileByEmail(),
-  is_username_available: async (p) => rpcIsUsernameAvailable(String(p.username || p._username || '')),
+  is_username_available: async (p) => {
+    const username = String(p.username || p._username || '');
+    const exclude = p.exclude_user_id ? String(p.exclude_user_id) : undefined;
+    return rpcIsUsernameAvailable(username, exclude);
+  },
+  ensure_2fa_settings: async () => rpcEnsure2faSettings(),
+  update_2fa_settings: async (p) => rpcUpdate2faSettings(p),
+  rotate_challenges: async () => {
+    await rpcRotateChallenges();
+    return null;
+  },
   create_dm_conversation: async (p) => rpcCreateDmConversation(String(p.other_profile_id || '')),
   get_user_badges_by_profile: rpcGetUserBadgesByProfile,
   get_user_primary_badge: rpcGetUserPrimaryBadge,

@@ -84,8 +84,8 @@ export default function InviteFriends() {
           animate={{ opacity: 1, y: 0 }}
           className="text-center space-y-2"
         >
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl gradient-animated mb-4">
-            <Users className="h-8 w-8 text-white" />
+          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl vybe-liquid-button mb-4">
+            <Users className="h-8 w-8 text-white relative z-[1]" />
           </div>
           <h1 className="text-2xl font-bold">Invite Friends</h1>
           <p className="text-muted-foreground">
@@ -132,7 +132,8 @@ export default function InviteFriends() {
               
               <div className="flex gap-2">
                 <Button 
-                  className="flex-1 gradient-animated"
+                  variant="gradient"
+                  className="flex-1"
                   onClick={handleShare}
                 >
                   <Share2 className="h-4 w-4 mr-2" />

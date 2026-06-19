@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth';
+import { useAuthProfileId } from '@/hooks/useAuthProfileId';
 import { useCallback } from 'react';
 
 /**
@@ -49,7 +50,8 @@ function setCache(prefs: UserPreferences) {
 /** Read user preferences (DB-backed, localStorage cached). */
 export function useUserPreferences() {
   const { user } = useAuth();
-  const userId = user?.id;
+  const profileId = useAuthProfileId();
+  const userId = profileId || user?.id;
 
   return useQuery({
     queryKey: ['user-preferences', userId],
@@ -88,11 +90,12 @@ export function useUserPreferences() {
 /** Patch one or more preferences. Optimistic update + DB upsert. */
 export function useUpdatePreferences() {
   const { user } = useAuth();
+  const profileId = useAuthProfileId();
   const qc = useQueryClient();
 
   return useMutation({
     mutationFn: async (patch: Partial<UserPreferences>) => {
-      const userId = user?.id;
+      const userId = profileId || user?.id;
       if (!userId) throw new Error('Not authenticated');
 
       const current = (qc.getQueryData(['user-preferences', userId]) as UserPreferences) ?? { ...DEFAULTS };
@@ -112,7 +115,7 @@ export function useUpdatePreferences() {
       return merged;
     },
     onMutate: async (patch) => {
-      const userId = user?.id;
+      const userId = profileId || user?.id;
       const key = ['user-preferences', userId];
       await qc.cancelQueries({ queryKey: key });
       const prev = qc.getQueryData(key) as UserPreferences | undefined;
@@ -125,7 +128,7 @@ export function useUpdatePreferences() {
       }
     },
     onSettled: () => {
-      qc.invalidateQueries({ queryKey: ['user-preferences', user?.id] });
+      qc.invalidateQueries({ queryKey: ['user-preferences', profileId || user?.id] });
     },
   });
 }

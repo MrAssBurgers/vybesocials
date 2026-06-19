@@ -21,7 +21,7 @@ type CameraState = 'capture' | 'edit' | 'share';
 
 export function Camera({ onClose, initialSound }: CameraProps) {
   const [state, setState] = useState<CameraState>('capture');
-  const [facingMode, setFacingMode] = useState<'user' | 'environment'>('environment');
+  const [facingMode, setFacingMode] = useState<'user' | 'environment'>('user');
   const [flash, setFlash] = useState(false);
   const [currentFilter, setCurrentFilter] = useState('normal');
   const [isRecording, setIsRecording] = useState(false);

@@ -249,8 +249,8 @@ const StoryTile = memo(function StoryTile({
         )}
       </div>
       <span
-        className="text-[11px] font-semibold text-foreground truncate text-center leading-tight drop-shadow-[0_1px_3px_rgba(0,0,0,0.8)]"
-        style={{ width: posterSize.width + 4 }}
+        className="text-[11px] font-semibold text-foreground truncate text-center leading-snug min-h-[2rem] flex items-center justify-center drop-shadow-[0_1px_3px_rgba(0,0,0,0.8)]"
+        style={{ width: posterSize.width + 4, maxWidth: posterSize.width + 8 }}
       >
         {isUploading ? 'Posting...' : label || displayName || username}
       </span>

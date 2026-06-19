@@ -487,7 +487,7 @@ export default function ChallengesHubPage() {
         <Tabs value={activeTab} onValueChange={setActiveTab} className="mb-5">
           <TabsList
             data-no-auto-contrast
-            className="challenges-hub-tabs relative grid w-full grid-cols-5 h-11 p-1 rounded-2xl border border-foreground/[0.08] bg-foreground/[0.04]"
+            className="challenges-hub-tabs relative grid w-full grid-cols-5 h-auto min-h-[3.25rem] p-1 rounded-2xl border border-foreground/[0.08] bg-foreground/[0.04]"
           >
             {(
               [
@@ -504,7 +504,7 @@ export default function ChallengesHubPage() {
                   key={value}
                   value={value}
                   className={cn(
-                    'relative z-10 flex flex-col items-center justify-center gap-0.5 rounded-xl h-full min-w-0 px-0.5 border-0 shadow-none',
+                    'relative z-10 flex flex-col items-center justify-center gap-1 rounded-xl min-h-[2.75rem] py-1 min-w-0 px-0.5 border-0 shadow-none',
                     'bg-transparent hover:bg-foreground/[0.04]',
                     'data-[state=active]:bg-transparent data-[state=active]:border-0 data-[state=active]:shadow-none',
                     isActive ? 'text-primary-foreground' : 'text-muted-foreground',
@@ -518,7 +518,7 @@ export default function ChallengesHubPage() {
                     />
                   )}
                   <Icon className="relative z-10 h-3.5 w-3.5 shrink-0" />
-                  <span className="relative z-10 text-[10px] font-semibold leading-none truncate max-w-full">
+                  <span className="relative z-10 text-[10px] font-semibold leading-tight truncate max-w-full px-0.5">
                     {label}
                   </span>
                 </TabsTrigger>

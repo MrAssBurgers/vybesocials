@@ -8,6 +8,8 @@ import {
   sendPasswordResetEmail,
   updateProfile as firebaseUpdateProfile,
   updatePassword as firebaseUpdatePassword,
+  linkWithPopup,
+  unlink as firebaseUnlink,
   GoogleAuthProvider,
   OAuthProvider,
   signInWithPopup,
@@ -32,7 +34,24 @@ function resolveAuth(): ReturnType<typeof getAuth> | null {
   return authInstance;
 }
 
+function mapProviderId(providerId: string): string {
+  if (providerId === 'google.com') return 'google';
+  if (providerId === 'apple.com') return 'apple';
+  if (providerId === 'password') return 'email';
+  return providerId.replace('.com', '');
+}
+
 function toVybeUser(user: FirebaseUser): VybeUser {
+  const identities = user.providerData.map((p) => ({
+    provider: mapProviderId(p.providerId),
+    identity_id: `${user.uid}-${p.providerId}`,
+    identity_data: {
+      email: p.email,
+      sub: p.uid,
+      provider_id: p.providerId,
+    },
+  }));
+
   return {
     id: user.uid,
     email: user.email,
@@ -41,6 +60,7 @@ function toVybeUser(user: FirebaseUser): VybeUser {
     user_metadata: user.displayName ? { display_name: user.displayName, username: user.displayName } : {},
     created_at: user.metadata.creationTime || new Date().toISOString(),
     email_confirmed_at: user.emailVerified ? new Date().toISOString() : null,
+    identities,
   };
 }
 
@@ -287,11 +307,50 @@ export const firebaseAuth = {
   async verifyOtp(_payload: { email?: string; phone?: string; token?: string; token_hash?: string; type: string }) {
     return { data: { session: null, user: null }, error: { message: 'verifyOtp not supported on Firebase Auth' } };
   },
-  async linkIdentity(_payload: { provider: string; options?: any }): Promise<{ data: any; error: VybeAuthError | null }> {
-    return { data: null, error: { message: 'linkIdentity not yet ported to Firebase Auth' } };
+  async linkIdentity(payload: { provider: string; options?: { redirectTo?: string; useRedirect?: boolean } }): Promise<{ data: any; error: VybeAuthError | null }> {
+    const auth = resolveAuth();
+    if (!auth?.currentUser) return { data: null, error: { message: 'Not authenticated' } };
+    try {
+      let provider: GoogleAuthProvider | OAuthProvider;
+      if (payload.provider === 'google') {
+        provider = new GoogleAuthProvider();
+      } else if (payload.provider === 'apple') {
+        provider = new OAuthProvider('apple.com');
+      } else {
+        return { data: null, error: { message: `Unsupported provider: ${payload.provider}` } };
+      }
+
+      if (payload.options?.useRedirect) {
+        await signInWithRedirect(auth, provider);
+        return { data: { redirected: true }, error: null };
+      }
+
+      const result = await linkWithPopup(auth.currentUser, provider);
+      return { data: { user: toVybeUser(result.user) }, error: null };
+    } catch (err) {
+      const e = toAuthError(err);
+      if (e.name === 'auth/credential-already-in-use') {
+        return { data: null, error: { message: 'This account is already linked to another user.', name: e.name } };
+      }
+      if (e.name === 'auth/provider-already-linked') {
+        return { data: null, error: { message: 'This provider is already linked to your account.', name: e.name } };
+      }
+      return { data: null, error: e };
+    }
   },
-  async unlinkIdentity(_identity: any): Promise<{ data: any; error: VybeAuthError | null }> {
-    return { data: null, error: { message: 'unlinkIdentity not yet ported to Firebase Auth' } };
+  async unlinkIdentity(identity: { provider: string }): Promise<{ data: any; error: VybeAuthError | null }> {
+    const auth = resolveAuth();
+    if (!auth?.currentUser) return { data: null, error: { message: 'Not authenticated' } };
+    try {
+      const providerId =
+        identity.provider === 'google' ? 'google.com'
+          : identity.provider === 'apple' ? 'apple.com'
+            : identity.provider;
+      const result = await firebaseUnlink(auth.currentUser, providerId);
+      return { data: { user: toVybeUser(result) }, error: null };
+    } catch (err) {
+      return { data: null, error: toAuthError(err) };
+    }
   },
   async updateUser(attrs: { email?: string; password?: string; data?: Record<string, unknown> }): Promise<{ data: any; error: VybeAuthError | null }> {
     const auth = resolveAuth();

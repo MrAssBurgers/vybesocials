@@ -76,6 +76,12 @@ export function useChallenges() {
     queryKey: ['challenges'],
     queryFn: async () => {
       const { today, weekStart } = getDateFilters();
+
+      try {
+        await db.rpc('rotate_challenges');
+      } catch (e) {
+        console.warn('rotate_challenges prefetch failed', e);
+      }
       
       // Fetch achievements (no date filter)
       const { data: achievements, error: achError } = await db

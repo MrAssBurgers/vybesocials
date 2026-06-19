@@ -55,39 +55,59 @@ export function useListings(filters?: ListingsFilters) {
   return useQuery({
     queryKey: ['listings', filters],
     queryFn: async () => {
-      let query = db
+      const { data, error } = await db
         .from('listings')
-        .select(`
-          *,
-          seller:profiles!seller_id (
-            id,
-            username,
-            avatar_url,
-            is_verified
-          )
-        `)
-        .eq('status', 'available')
-        .order('created_at', { ascending: false });
+        .select('*')
+        .limit(200);
+
+      if (error) throw error;
+      let rows = ((data as Listing[]) || []).filter(
+        (l) => !l.status || l.status === 'available' || l.status === 'active',
+      );
 
       if (filters?.category) {
-        query = query.eq('category', filters.category);
+        rows = rows.filter((l) => l.category === filters.category);
       }
       if (filters?.condition) {
-        query = query.eq('condition', filters.condition);
+        rows = rows.filter((l) => l.condition === filters.condition);
       }
       if (filters?.minPrice !== undefined) {
-        query = query.gte('price', filters.minPrice);
+        rows = rows.filter((l) => l.price >= (filters.minPrice as number));
       }
       if (filters?.maxPrice !== undefined) {
-        query = query.lte('price', filters.maxPrice);
+        rows = rows.filter((l) => l.price <= (filters.maxPrice as number));
       }
       if (filters?.search) {
-        query = query.or(`title.ilike.%${filters.search}%,description.ilike.%${filters.search}%`);
+        const q = filters.search.toLowerCase();
+        rows = rows.filter(
+          (l) =>
+            l.title?.toLowerCase().includes(q) ||
+            l.description?.toLowerCase().includes(q),
+        );
       }
 
-      const { data, error } = await query;
-      if (error) throw error;
-      return data as Listing[];
+      rows.sort(
+        (a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime(),
+      );
+      rows = rows.slice(0, 100);
+
+      const sellerIds = [...new Set(rows.map((r) => r.seller_id).filter(Boolean))];
+      const sellerMap = new Map<string, Listing['seller']>();
+      for (let i = 0; i < sellerIds.length; i += 10) {
+        const chunk = sellerIds.slice(i, i + 10);
+        const { data: sellers } = await db
+          .from('profiles')
+          .select('id, username, avatar_url, is_verified')
+          .in('id', chunk);
+        for (const s of sellers || []) {
+          sellerMap.set(s.id, s as Listing['seller']);
+        }
+      }
+
+      return rows.map((row) => ({
+        ...row,
+        seller: sellerMap.get(row.seller_id) || undefined,
+      }));
     },
     networkMode: 'always',
     placeholderData: (prev) => prev,
