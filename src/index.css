@@ -82,6 +82,15 @@ body.hide-bottom-nav [data-tutorial-bottomnav] {
   pointer-events: none !important;
 }
 
+/* Post-login welcome overlay — block scroll + hide feed bleed-through during fade */
+body.welcome-back-visible {
+  overflow: hidden !important;
+}
+body.welcome-back-visible #app-shell,
+body.welcome-back-visible [data-app-shell] {
+  pointer-events: none;
+}
+
 /* Splash screen animations — pure CSS, GPU-composited */
 .splash-draw-left,
 .splash-draw-right {

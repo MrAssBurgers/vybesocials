@@ -4,6 +4,18 @@ Use this file as the Lovable -> Cursor handoff each session.
 
 **Links:** [Lovable project](https://lovable.dev/projects/416714c8-d013-4aff-984d-522418a9bbc7) · [Production](https://vybehub.app) · Deploy steps: `DEPLOY.md`
 
+## Debug scan + Welcome back overlay fix (2026-06-18)
+- **Scan:** `npm run debug` — build PASS, lint PASS, CSS PASS, boot PASS; edge fn refs OK; prod RPCs `is_username_available` + `create_dm_conversation` MISSING (Firebase fallbacks OK); vybehub.app bundle HTTP 200
+- **Welcome back glitch:** post-login `WelcomeBackSplash` exit used scale/blur while home feed rendered underneath — avatar appeared pinned at top and clipped header/content; fixed with body portal, scroll lock, solid `#0B0B10` backdrop, safe-area padding, opacity-only exit (matches boot splash), burst after dismiss
+- **Tests:** `npm run build` PASS, `npm run lint` PASS (3 pre-existing warnings)
+- **Git:** pushed to `origin/main`
+- **You:** Lovable **Share → Publish** + hard refresh; smoke-test login → welcome overlay → home feed
+
+## Next 3 Tasks
+1. Lovable Publish → smoke-test login welcome overlay + For You scroll on vybehub.app
+2. Set Resend secrets + redeploy `requestPasswordReset` for branded reset emails
+3. Apply `PENDING_20260530.sql` on prod if still needed for missing Supabase RPCs
+
 ## Debug scan + mobile fixes (2026-06-18)
 - **Scan:** `npm run debug` — build PASS, lint PASS, CSS PASS, boot PASS; edge fn refs OK; prod RPCs `is_username_available` + `create_dm_conversation` MISSING (Firebase fallbacks OK); vybehub.app bundle HTTP 200
 - **FYP scroll "page error":** route `ErrorBoundary` ("This page couldn't load") triggered when a single `PostCard` / ad slot threw during infinite scroll — per-post `ErrorBoundary` in feed; removed nested `contentVisibility` wrapper; throttled visibility observer; filter posts missing `author.id`; prefetch null-row guard in `useInfinitePosts`
