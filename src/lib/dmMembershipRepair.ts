@@ -356,26 +356,37 @@ export async function fetchMemberProfiles(userIds: string[]) {
   if (!unique.length) return new Map<string, Record<string, unknown>>();
 
   const profileByKey = new Map<string, Record<string, unknown>>();
+  const selectFields =
+    'id, user_id, username, avatar_url, display_name, equipped_profile_theme';
 
-  const { data: byId } = await db
-    .from('profiles')
-    .select('id, user_id, username, avatar_url, display_name, equipped_profile_theme')
-    .in('id', unique);
+  const { data: byId } = await db.from('profiles').select(selectFields).in('id', unique);
   for (const row of byId || []) {
-    profileByKey.set(row.id, row);
-    if (row.user_id) profileByKey.set(row.user_id, row);
+    profileByKey.set(String(row.id), row);
+    if (row.user_id) profileByKey.set(String(row.user_id), row);
   }
 
-  const missing = unique.filter((id) => !profileByKey.has(id));
+  let missing = unique.filter((id) => !profileByKey.has(id));
   if (missing.length) {
     const { data: byUserId } = await db
       .from('profiles')
-      .select('id, user_id, username, avatar_url, display_name, equipped_profile_theme')
+      .select(selectFields)
       .in('user_id', missing);
     for (const row of byUserId || []) {
-      profileByKey.set(row.id, row);
-      if (row.user_id) profileByKey.set(row.user_id, row);
+      profileByKey.set(String(row.id), row);
+      if (row.user_id) profileByKey.set(String(row.user_id), row);
     }
+  }
+
+  missing = unique.filter((id) => !profileByKey.has(id));
+  if (missing.length) {
+    await Promise.all(
+      missing.map(async (id) => {
+        const doc = await getDocument<Record<string, unknown>>('profiles', id);
+        if (!doc?.id) return;
+        profileByKey.set(String(doc.id), doc);
+        if (doc.user_id) profileByKey.set(String(doc.user_id), doc);
+      }),
+    );
   }
 
   return profileByKey;

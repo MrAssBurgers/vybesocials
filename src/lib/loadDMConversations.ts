@@ -5,6 +5,10 @@ import { isPermissionDeniedError, warnOnce } from '@/lib/logOnce';
 import { resolveSessionProfileId } from '@/lib/resolveSessionProfileId';
 import { withTimeout } from '@/lib/withTimeout';
 import { fetchMemberProfiles, fetchConversationForViewer, ensureConversationReady } from '@/lib/dmMembershipRepair';
+import {
+  buildConversationMembers,
+  inferOtherUserIdFromConversation,
+} from '@/lib/dmMemberResolve';
 import { fetchMessagesForConversations } from '@/lib/conversationMessagesQuery';
 
 export interface LoadedDMConversation extends Conversation {
@@ -167,15 +171,18 @@ async function loadDMConversationsOnce(
 
     const conversationsData: any[] = conversationsRaw.map((c) => {
       const cid = String((c as any).id);
-      let members = membersByConv.get(cid) || [];
-      if (!members.length && Array.isArray((c as any).member_ids)) {
-        members = ((c as any).member_ids as string[]).map((user_id) => ({
-          conversation_id: cid,
-          user_id,
-          role: 'member',
-          profile: profileByKey.get(user_id) || null,
-        }));
-      }
+      const existing = membersByConv.get(cid) || [];
+      const memberIds = Array.isArray((c as any).member_ids)
+        ? ((c as any).member_ids as string[])
+        : undefined;
+      const members = buildConversationMembers(
+        cid,
+        existing,
+        memberIds,
+        profileByKey,
+        effectiveProfileId,
+        authUid,
+      );
       return { ...(c as any), members };
     });
 
@@ -189,7 +196,11 @@ async function loadDMConversationsOnce(
       }
       const membership = membershipMap.get(msg.conversation_id);
       const lastReadAt = membership?.last_read_at || '1970-01-01';
-      if (msg.sender_id !== effectiveProfileId && msg.created_at > lastReadAt) {
+      if (
+        msg.sender_id !== effectiveProfileId &&
+        msg.sender_id !== authUid &&
+        msg.created_at > lastReadAt
+      ) {
         unreadCountMap.set(
           msg.conversation_id,
           (unreadCountMap.get(msg.conversation_id) || 0) + 1,
@@ -204,11 +215,18 @@ async function loadDMConversationsOnce(
       .filter((conv) => !hiddenIds.has(conv.id) && !trashedIds.has(conv.id))
       .forEach((conv) => {
         if (!conv.is_group) {
-          const otherMember = conv.members?.find((m: any) => m.user_id !== effectiveProfileId);
-          const otherUserId = otherMember?.user_id;
-          if (otherUserId) {
-            if (seenOtherUserIds.has(otherUserId)) return;
-            seenOtherUserIds.add(otherUserId);
+          const otherRawId = inferOtherUserIdFromConversation(
+            conv,
+            effectiveProfileId,
+            authUid,
+          );
+          const otherProfile = otherRawId ? profileByKey.get(otherRawId) : null;
+          const dedupeKey = otherProfile?.id
+            ? String(otherProfile.id)
+            : otherRawId || conv.id;
+          if (dedupeKey) {
+            if (seenOtherUserIds.has(dedupeKey)) return;
+            seenOtherUserIds.add(dedupeKey);
           }
         }
 

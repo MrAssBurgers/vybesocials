@@ -22,6 +22,11 @@ import { useInstantReadClear } from '@/hooks/useMessageNotifications';
 import { useAISmartReplies } from '@/hooks/useAIMessageAssist';
 import { useScreenCapture } from '@/hooks/useScreenCapture';
 import { useAuth } from '@/lib/auth';
+import {
+  displayNameForConversation,
+  isViewerMember,
+  resolveOtherMemberFromConversation,
+} from '@/lib/dmMemberResolve';
 import { useQueryClient } from '@tanstack/react-query';
 import { db } from '@/lib/firebase';
 import { scanVideo as nsfwScanVideo, scanImage as nsfwScanImage } from '@/lib/nsfwScanner';
@@ -329,14 +334,27 @@ export function ChatView() {
   
 
   const isGroupChat = conversation?.is_group || false;
-  const otherMembers = useMemo(() => 
-    conversation?.members?.filter((m) => m.user_id !== profileId) || [],
-    [conversation?.members, profileId]
+  const otherMembers = useMemo(
+    () =>
+      conversation?.members?.filter(
+        (m) => !isViewerMember(m.user_id, profileId, user?.id),
+      ) || [],
+    [conversation?.members, profileId, user?.id],
   );
-  const otherMember = otherMembers[0]?.profile;
-  const displayName = conversation?.is_group
-    ? conversation.name
-    : otherMember?.display_name || otherMember?.username || 'Chat';
+  const resolvedOther = useMemo(
+    () =>
+      conversation
+        ? resolveOtherMemberFromConversation(conversation, profileId, user?.id)
+        : null,
+    [conversation, profileId, user?.id],
+  );
+  const otherMember = resolvedOther?.profile as
+    | { id?: string; username?: string; display_name?: string | null; avatar_url?: string | null; user_id?: string }
+    | null
+    | undefined;
+  const displayName = conversation
+    ? displayNameForConversation(conversation, profileId, user?.id, 'Chat')
+    : 'Chat';
   
   // Get online status for the other member (if DM)
   const presenceQuery = useUserOnlineStatus(

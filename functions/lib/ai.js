@@ -86,28 +86,77 @@ export const aiChat = onCall({ secrets: SECRETS }, async (request) => {
         throw new HttpsError('internal', err instanceof Error ? err.message : 'AI chat failed');
     }
 });
-/** ai-catch-up — daily brief generator. */
-export const aiCatchUp = onCall({ secrets: SECRETS, timeoutSeconds: 60 }, async (request) => {
-    const uid = requireAuth(request);
-    const { interests = [], latitude, longitude } = (request.data || {});
+/** ai-catch-up — daily brief generator (full BriefData shape for client). */
+export const aiCatchUp = onCall({ secrets: SECRETS, timeoutSeconds: 90 }, async (request) => {
+    const authUid = requireAuth(request);
+    const profileId = await resolveProfileIdFromAuth(authUid);
+    const { latitude, longitude } = (request.data || {});
+    const profile = await loadUserProfile(authUid);
+    const prefsSnap = await db.collection('ai_brief_preferences').doc(profileId).get();
+    const prefs = prefsSnap.data() || {};
+    const onboardingInterests = (profile.interests || profile.onboarding_interests || []);
+    const customTopics = prefs.custom_topics || [];
+    const interests = customTopics.length || onboardingInterests.length
+        ? [...new Set([...customTopics, ...onboardingInterests])].slice(0, 7)
+        : ['technology', 'pop culture', 'breaking news'];
     const today = new Date().toISOString().split('T')[0];
-    const locCtx = latitude && longitude ? `\nInclude one local item near ${latitude.toFixed(2)}, ${longitude.toFixed(2)}.` : '';
-    const prompt = `Today is ${today}. Provide 5 brief trending news items for: ${interests.join(', ')}.${locCtx}\nReturn JSON array of {interest, content, sources[], category}.`;
-    const { content } = await chatCompletion({
-        messages: [{ role: 'user', content: prompt }],
-        response_format: { type: 'json_object' },
-    });
+    const locCtx = latitude && longitude
+        ? `\nInclude one local item near ${latitude.toFixed(2)}, ${longitude.toFixed(2)}.`
+        : '';
+    const prompt = `Today is ${today}. Return JSON: {"items":[{"topic":"…","summary":"…","sources":["url"],"category":"interests|local|world"}]}\nTopics: ${interests.join(', ')}.${locCtx}`;
+    let liveUpdates = [];
     try {
-        const parsed = JSON.parse(content);
-        const updates = Array.isArray(parsed) ? parsed : parsed.updates || parsed.items || [];
-        await db.collection('daily_brief_cache').doc(`${uid}_${today}`).set({
-            user_id: uid, date: today, updates, created_at: new Date().toISOString(),
+        const byokKey = (await getUserAiApiKey(profileId, 'google')) ||
+            (await getUserAiApiKey(profileId, 'openai'));
+        const { content } = await chatCompletion({
+            messages: [{ role: 'user', content: prompt }],
+            response_format: { type: 'json_object' },
+            apiKey: byokKey || undefined,
         });
-        return { updates };
+        const parsed = JSON.parse(content);
+        const items = Array.isArray(parsed) ? parsed : parsed.items || parsed.updates || [];
+        liveUpdates = items.map((item) => ({
+            interest: String(item.topic || item.interest || 'News'),
+            content: String(item.summary || item.content || ''),
+            sources: Array.isArray(item.sources) ? item.sources.map(String).filter((u) => u.startsWith('http')) : [],
+            category: item.category ? String(item.category) : 'interests',
+        }));
     }
-    catch {
-        return { updates: [], error: 'parse_failed' };
+    catch (e) {
+        console.warn('[aiCatchUp] news generation failed:', e);
     }
+    const userName = String(profile.display_name || profile.username || 'there');
+    const parts = [];
+    if (liveUpdates.length)
+        parts.push(`${liveUpdates.length} trending topics`);
+    const summary = parts.length > 0
+        ? `Hey ${userName}! ${parts.join(', ')} — tap a story for details.`
+        : `Hey ${userName}! Your brief is ready — check back soon for fresh updates.`;
+    const payload = {
+        summary,
+        hasPosts: false,
+        hasMessages: false,
+        unreadCount: 0,
+        notificationCount: 0,
+        newFollowerCount: 0,
+        recentPostCount: 0,
+        pendingFriendRequests: 0,
+        streak: 0,
+        userLevel: 1,
+        userXp: 0,
+        activeChallenges: [],
+        liveUpdates,
+        hasLiveData: liveUpdates.length > 0,
+        unreadMessagePreviews: [],
+        notificationDetails: [],
+    };
+    await db.collection('daily_brief_cache').doc(`${profileId}_${today}`).set({
+        user_id: profileId,
+        date: today,
+        payload,
+        created_at: new Date().toISOString(),
+    });
+    return payload;
 });
 /** ai-smart-replies — three short reply suggestions for a chat. */
 export const aiSmartReplies = onCall({ secrets: SECRETS }, async (request) => {

@@ -2,6 +2,18 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## DM list Unknown + calls receiver fix (2026-06-20)
+- **Root cause (Unknown rows):** DM list only matched `user_id !== profileId`; when membership rows were self-only (auth uid vs profile id mismatch) or `member_ids` weren't merged, profiles never attached → every row showed "Unknown".
+- **Fix client:** `dmMemberResolve.ts` — auth-aware member matching, merge `member_ids` + deterministic conv id, `getDocument` profile fallback; wired into `loadDMConversations`, `ConversationList`, `ChatView` (calls need resolved `otherMember.id`).
+- **Fix AI preview:** VYBE-AI row hides GEMINI error text in list preview; run `npm run setup:gemini-secrets` for server AI.
+- **Verified:** `npm run build` PASS; `test:social-permissions` 14/14 PASS
+- **You:** commit/push → Lovable **Publish** → hard refresh; `GEMINI_API_KEY=… npm run setup:gemini-secrets` if VYBE-AI still errors
+
+## Next 3 Tasks
+1. Lovable Publish → DMs show real names/avatars (not Unknown); send + call from chat
+2. `GEMINI_API_KEY=… npm run setup:gemini-secrets` for VYBE-AI
+3. Hard refresh / clear site data on phone after publish
+
 ## Lovable publish gate (2026-06-20)
 - Client fixes are **not done** until pushed to `origin/main` with commit SHA in handoff.
 - Never tell user to Lovable Publish without confirming GitHub has the commit.

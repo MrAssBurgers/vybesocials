@@ -55,6 +55,11 @@ import { DMsHeader } from './DMsHeader';
 import { cn } from '@/lib/utils';
 import { navVisibility } from '@/lib/navVisibility';
 import { useAgentAvailabilityProbe } from '@/hooks/useAgentAvailabilityProbe';
+import {
+  displayNameForConversation,
+  isViewerMember,
+  resolveOtherMemberFromConversation,
+} from '@/lib/dmMemberResolve';
 
 const AutisyAIChatRow = memo(function AutisyAIChatRow() {
   const navigate = useNavigate();
@@ -68,7 +73,13 @@ const AutisyAIChatRow = memo(function AutisyAIChatRow() {
       if (stored) {
         const messages = JSON.parse(stored);
         const lastAssistant = messages.filter((m: any) => m.role === 'assistant').pop();
-        if (lastAssistant) return lastAssistant.content;
+        if (lastAssistant?.content) {
+          const text = String(lastAssistant.content);
+          if (/GEMINI_API_KEY|VYBE AI server failed|not configured/i.test(text)) {
+            return "Hey! Tap to chat with me ✨";
+          }
+          return text;
+        }
       }
     } catch {}
     return "Hey! Tap to chat with me ✨";
@@ -414,6 +425,7 @@ export function ConversationList() {
                   key={conv.id}
                   conv={conv}
                   currentUserId={profileId}
+                  viewerAuthUid={user?.id}
                   userStoryMap={userStoryMap}
                   streakMap={streakMap}
                   onlineStatus={onlineStatus}
@@ -431,6 +443,7 @@ export function ConversationList() {
                   key={conv.id}
                   conv={conv}
                   currentUserId={profileId}
+                  viewerAuthUid={user?.id}
                   userStoryMap={userStoryMap}
                   streakMap={streakMap}
                   onlineStatus={onlineStatus}
@@ -788,6 +801,7 @@ const ConversationContent = memo(forwardRef<HTMLDivElement, any>(function Conver
 interface ConversationRowProps {
   conv: Conversation;
   currentUserId?: string;
+  viewerAuthUid?: string;
   userStoryMap: Map<string, StoryGroup>;
   streakMap: Map<string, Streak>;
   onlineStatus: Record<string, boolean>;
@@ -803,6 +817,7 @@ interface ConversationRowProps {
 const ConversationRow = memo(function ConversationRow({
   conv,
   currentUserId,
+  viewerAuthUid,
   userStoryMap,
   streakMap,
   onlineStatus,
@@ -814,8 +829,11 @@ const ConversationRow = memo(function ConversationRow({
   onTrash,
   onOpenStory,
 }: ConversationRowProps) {
-  const otherMemberId = !conv.is_group
-    ? conv.members?.find(m => m.user_id !== currentUserId)?.profile?.id
+  const resolvedOther = !conv.is_group
+    ? resolveOtherMemberFromConversation(conv, currentUserId, viewerAuthUid)
+    : null;
+  const otherMemberId = resolvedOther?.profile?.id
+    ? String(resolvedOther.profile.id)
     : undefined;
   const hasStory = otherMemberId ? userStoryMap.has(otherMemberId) : false;
   const storyGroup = otherMemberId ? userStoryMap.get(otherMemberId) : undefined;
@@ -831,6 +849,7 @@ const ConversationRow = memo(function ConversationRow({
       isOnline={otherMemberId ? onlineStatus[otherMemberId] : false}
       isTyping={isTypingFn(conv.id)}
       currentUserId={currentUserId}
+      viewerAuthUid={viewerAuthUid}
       userRole={otherMemberId ? usersRoles[otherMemberId] : null}
       onTrash={handleTrash}
       hasStory={hasStory}
@@ -849,6 +868,7 @@ interface ConversationItemProps {
   isOnline?: boolean;
   isTyping?: boolean;
   currentUserId?: string;
+  viewerAuthUid?: string;
   userRole?: 'admin' | 'moderator' | 'owner' | null;
   onTrash?: () => void;
   hasStory?: boolean;
@@ -865,6 +885,7 @@ const ConversationItem = memo(forwardRef<HTMLDivElement, ConversationItemProps>(
   isOnline,
   isTyping,
   currentUserId,
+  viewerAuthUid,
   userRole,
   onTrash,
   hasStory,
@@ -996,15 +1017,24 @@ const ConversationItem = memo(forwardRef<HTMLDivElement, ConversationItemProps>(
     };
   }, []);
   
-  const otherMembers = useMemo(() => 
-    conversation.members?.filter((m) => m.user_id !== currentUserId) || [],
-    [conversation.members, currentUserId]
+  const otherMembers = useMemo(
+    () =>
+      conversation.members?.filter(
+        (m) => !isViewerMember(m.user_id, currentUserId, viewerAuthUid),
+      ) || [],
+    [conversation.members, currentUserId, viewerAuthUid],
   );
-  const otherMember = otherMembers[0]?.profile;
-  
-  const displayName = conversation.is_group
-    ? conversation.name
-    : otherMember?.display_name || otherMember?.username || 'Unknown';
+  const resolvedOther = useMemo(
+    () => resolveOtherMemberFromConversation(conversation, currentUserId, viewerAuthUid),
+    [conversation, currentUserId, viewerAuthUid],
+  );
+  const otherMember = resolvedOther?.profile;
+
+  const displayName = displayNameForConversation(
+    conversation,
+    currentUserId,
+    viewerAuthUid,
+  );
   
   const avatarUrl = conversation.is_group
     ? conversation.avatar_url
@@ -1012,7 +1042,9 @@ const ConversationItem = memo(forwardRef<HTMLDivElement, ConversationItemProps>(
   
   const lastMessage = conversation.last_message;
   const unreadCount = conversation.unread_count || 0;
-  const isPinned = conversation.members?.find((m) => m.user_id === currentUserId)?.is_pinned;
+  const isPinned = conversation.members?.find((m) =>
+    isViewerMember(m.user_id, currentUserId, viewerAuthUid),
+  )?.is_pinned;
   const memberCount = conversation.is_group ? (conversation.members?.length || 0) : 0;
 
   const formattedTime = useMemo(() => {
@@ -1020,7 +1052,9 @@ const ConversationItem = memo(forwardRef<HTMLDivElement, ConversationItemProps>(
     return compactTime(lastMessage.created_at);
   }, [lastMessage?.created_at]);
 
-  const isMuted = conversation.members?.find((m) => m.user_id === currentUserId)?.is_muted;
+  const isMuted = conversation.members?.find((m) =>
+    isViewerMember(m.user_id, currentUserId, viewerAuthUid),
+  )?.is_muted;
 
   const handleAvatarClick = (e: React.MouseEvent) => {
     e.stopPropagation();

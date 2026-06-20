@@ -343,7 +343,7 @@ export function useInstantSend(conversationId: string | undefined) {
     viewMode: ViewMode = 'permanent',
     replyToId?: string
   ) => {
-    if (!conversationId || !profile?.id) return;
+    if (!conversationId || !effectiveProfileId) return;
 
     const tempId = generateTempId();
     
@@ -421,7 +421,7 @@ export function useInstantSend(conversationId: string | undefined) {
     replyToId?: string,
     caption?: string
   ) => {
-    if (!conversationId || !profile?.id) return;
+    if (!conversationId || !effectiveProfileId) return;
 
     const tempId = generateTempId();
     const localUrl = URL.createObjectURL(file);
