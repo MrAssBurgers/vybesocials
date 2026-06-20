@@ -115,12 +115,17 @@ export async function ensureFlatConversationMembership(
     const existing = await getDocument('conversation_members', compositeId);
     if (existing) continue;
 
-    const legacyRows = await getDocuments<Record<string, unknown>>('conversation_members', [
-      where('conversation_id', '==', conversationId),
-      where('user_id', '==', memberId),
-      firestoreLimit(1),
-    ]);
-    const legacy = legacyRows[0];
+    let legacy: Record<string, unknown> | undefined;
+    try {
+      const legacyRows = await getDocuments<Record<string, unknown>>('conversation_members', [
+        where('conversation_id', '==', conversationId),
+        where('user_id', '==', memberId),
+        firestoreLimit(1),
+      ]);
+      legacy = legacyRows[0];
+    } catch {
+      // Query may fail when checking another user's legacy membership rows.
+    }
     const now = new Date().toISOString();
 
     await setDocument('conversation_members', compositeId, {

@@ -540,7 +540,7 @@ class QueryBuilder {
 
       return { data, error: null };
     } catch (err) {
-      return { data: null, error: toQueryError(err) };
+      return { data: null, error: toQueryError(err, `${this.table}:select`) };
     }
   }
 
@@ -561,7 +561,7 @@ class QueryBuilder {
       );
       return { data: list.length === 1 ? created[0] : created, error: null };
     } catch (err) {
-      return { data: null, error: toQueryError(err) };
+      return { data: null, error: toQueryError(err, `${this.table}:insert`) };
     }
   }
 
@@ -614,7 +614,7 @@ class QueryBuilder {
       await batchSet(this.table, prepared);
       return { data: list.length === 1 ? list[0] : list, error: null };
     } catch (err) {
-      return { data: null, error: toQueryError(err) };
+      return { data: null, error: toQueryError(err, `${this.table}:upsert`) };
     }
   }
 
@@ -627,7 +627,7 @@ class QueryBuilder {
       );
       return { data: filtered, error: null };
     } catch (err) {
-      return { data: null, error: toQueryError(err) };
+      return { data: null, error: toQueryError(err, `${this.table}:update`) };
     }
   }
 
@@ -647,7 +647,7 @@ class QueryBuilder {
       await Promise.all(filtered.map((r) => deleteDocument(this.table, r.id as string)));
       return { data: null, error: null };
     } catch (err) {
-      return { data: null, error: toQueryError(err) };
+      return { data: null, error: toQueryError(err, `${this.table}:delete`) };
     }
   }
 }
@@ -658,11 +658,14 @@ export interface QueryResult<T = any> {
   count?: number | null;
 }
 
-function toQueryError(err: unknown): VybeAuthError {
+function toQueryError(err: unknown, context?: string): VybeAuthError {
   if (err && typeof err === 'object' && 'code' in err) {
     const code = String((err as { code: string }).code);
     const message = 'message' in err ? String((err as { message: string }).message) : 'Database error';
     if (code === 'permission-denied') {
+      if (import.meta.env.DEV) {
+        console.warn('[Firestore] permission-denied', context || 'unknown', message);
+      }
       return { message: 'Permission denied — sign out and back in, then try again.', code };
     }
     return { message, code };
@@ -1023,7 +1026,6 @@ async function rpcCreateDmConversation(otherProfileId: string): Promise<string |
   const resolvedOtherProfileId = otherProfile.id;
   const otherAuthUid = otherProfile.user_id || null;
 
-  // Rules use profileId(); keep index in sync for migrated UUID profiles.
   const now = new Date().toISOString();
   await setDocument('user_auth_index', user.id, {
     profile_id: myProfileId,

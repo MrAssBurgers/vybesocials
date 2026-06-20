@@ -6,7 +6,7 @@ import { useAuth } from '@/lib/auth';
 import { useAuthProfileId } from '@/hooks/useAuthProfileId';
 import { getEffectiveProfileId } from '@/lib/profileCache';
 import { invalidateConversationCaches } from '@/lib/invalidateConversationCaches';
-import { normalizeToProfileId } from '@/lib/dmMembershipRepair';
+import { normalizeToProfileId, getConversationDoc } from '@/lib/dmMembershipRepair';
 import { firebaseAuth } from '@/lib/firebase/authService';
 import { resolveSessionProfileId } from '@/lib/resolveSessionProfileId';
 import { syncUserAuthIndex } from '@/lib/firebase/profileResolve';
@@ -285,35 +285,10 @@ export function useSendFriendRequest() {
 
   const ensureDirectConversation = async (currentUserId: string, receiverId: string) => {
     const receiverProfileId = (await normalizeToProfileId(receiverId)) || receiverId;
-    const [{ data: myMemberships }, { data: theirMemberships }] = await Promise.all([
-      db
-        .from('conversation_members')
-        .select('conversation_id')
-        .eq('user_id', currentUserId),
-      db
-        .from('conversation_members')
-        .select('conversation_id')
-        .eq('user_id', receiverProfileId),
-    ]);
+    const chatId = [currentUserId, receiverProfileId].sort().join('_');
+    const existing = await getConversationDoc(chatId);
+    if (existing && !existing.is_group) return false;
 
-    const myConversationIds = (myMemberships || []).map((membership) => membership.conversation_id);
-    const theirConversationIds = (theirMemberships || []).map((membership) => membership.conversation_id);
-    const sharedConversationIds = myConversationIds.filter((id) => theirConversationIds.includes(id));
-
-    if (sharedConversationIds.length > 0) {
-      const { data: sharedConversations } = await db
-        .from('conversations')
-        .select('id')
-        .in('id', sharedConversationIds)
-        .eq('is_group', false)
-        .limit(1);
-
-      if ((sharedConversations?.length || 0) > 0) {
-        return false;
-      }
-    }
-
-    // Use the SECURITY DEFINER RPC to create conversation (bypasses RLS safely)
     const { data: conversationId, error: rpcError } = await db.rpc('create_dm_conversation', {
       other_profile_id: receiverProfileId,
     });
