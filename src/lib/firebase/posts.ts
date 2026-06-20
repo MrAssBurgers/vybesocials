@@ -12,6 +12,8 @@ import { firebaseStorage } from './storageService';
 import { firebaseAuth } from './authService';
 import { getUserProfile, getProfilesByIds } from './users';
 import { resolveAuthorIds } from '@/lib/dmMembershipRepair';
+import { likeDocId } from '@/lib/postReactions';
+import { resolveProfileIdFromAuthUid } from './profileResolve';
 import type { PostDocument } from './types';
 
 type PostRow = PostDocument & {
@@ -38,8 +40,36 @@ export async function getPost(postId: string): Promise<PostWithAuthor | null> {
   const post = await getDocument<PostDocument>('posts', postId);
   if (!post) return null;
   const author = await getUserProfile(post.author_id);
+
+  const { data: { user } } = await firebaseAuth.getUser();
+  let is_liked = false;
+  let reaction_type: string | null = null;
+  if (user?.id) {
+    const profileId = (await resolveProfileIdFromAuthUid(user.id)) || user.id;
+    for (const uid of [...new Set([profileId, user.id])]) {
+      const byDoc = await getDocument<{ reaction_type?: string }>('likes', likeDocId(uid, postId));
+      if (byDoc) {
+        is_liked = true;
+        reaction_type = byDoc.reaction_type ?? null;
+        break;
+      }
+      const rows = await getDocuments<{ reaction_type?: string }>('likes', [
+        where('user_id', '==', uid),
+        where('post_id', '==', postId),
+        firestoreLimit(1),
+      ]).catch(() => []);
+      if (rows[0]) {
+        is_liked = true;
+        reaction_type = rows[0].reaction_type ?? null;
+        break;
+      }
+    }
+  }
+
   return {
     ...post,
+    is_liked,
+    reaction_type,
     author: author ? {
       id: author.id,
       username: author.username,
@@ -96,23 +126,40 @@ export async function listPosts(opts?: {
   const viewerAuthId = user?.id;
   let viewerProfileId = viewerAuthId;
   if (viewerAuthId) {
-    const viewer = await getUserProfile(viewerAuthId);
-    if (viewer?.id) viewerProfileId = viewer.id;
+    viewerProfileId = (await resolveProfileIdFromAuthUid(viewerAuthId)) || viewerAuthId;
+  }
+  const viewerLikeUserIds = [...new Set([viewerProfileId, viewerAuthId].filter(Boolean))] as string[];
+
+  async function loadViewerLikes(): Promise<{ post_id?: string; reaction_type?: string }[]> {
+    if (!viewerLikeUserIds.length || !postIds.length) return [];
+    const merged = new Map<string, { post_id?: string; reaction_type?: string }>();
+    for (const uid of viewerLikeUserIds) {
+      const rows =
+        postIds.length <= 10
+          ? await getDocuments<{ post_id?: string; reaction_type?: string }>('likes', [
+              where('user_id', '==', uid),
+              where('post_id', 'in', postIds.slice(0, 10)),
+            ]).catch(() => [])
+          : await getDocuments<{ post_id?: string; reaction_type?: string }>('likes', [
+              where('user_id', '==', uid),
+            ]).catch(() => []);
+      for (const row of rows) {
+        if (row.post_id && postIds.includes(row.post_id)) {
+          merged.set(row.post_id, row);
+        }
+      }
+    }
+    return [...merged.values()];
   }
 
   const [authorMap, likedRows, bookmarkRows] = await Promise.all([
     getProfilesByIds(authorIds),
-    viewerProfileId && postIds.length
-      ? getDocuments<{ post_id?: string; reaction_type?: string }>('likes', [
-          where('user_id', '==', viewerProfileId),
-          where('post_id', 'in', postIds.slice(0, 10)),
-        ])
-      : Promise.resolve([]),
+    loadViewerLikes(),
     viewerProfileId && postIds.length
       ? getDocuments<{ post_id?: string }>('bookmarks', [
           where('user_id', '==', viewerProfileId),
           where('post_id', 'in', postIds.slice(0, 10)),
-        ])
+        ]).catch(() => [])
       : Promise.resolve([]),
   ]);
   const likedSet = new Set(likedRows.map((r) => r.post_id).filter(Boolean));
@@ -121,19 +168,11 @@ export async function listPosts(opts?: {
   );
   const bookmarkSet = new Set(bookmarkRows.map((r) => r.post_id).filter(Boolean));
 
-  // Extra post IDs beyond Firestore `in` limit of 10 — client filter
   if (viewerProfileId && postIds.length > 10) {
     const extraIds = postIds.slice(10);
-    const [extraLikes, extraBookmarks] = await Promise.all([
-      getDocuments<{ post_id?: string; reaction_type?: string }>('likes', [where('user_id', '==', viewerProfileId)]),
-      getDocuments<{ post_id?: string }>('bookmarks', [where('user_id', '==', viewerProfileId)]),
-    ]);
-    for (const r of extraLikes) {
-      if (r.post_id && extraIds.includes(r.post_id)) {
-        likedSet.add(r.post_id);
-        reactionByPost.set(r.post_id, r.reaction_type ?? null);
-      }
-    }
+    const extraBookmarks = await getDocuments<{ post_id?: string }>('bookmarks', [
+      where('user_id', '==', viewerProfileId),
+    ]).catch(() => []);
     for (const r of extraBookmarks) {
       if (r.post_id && extraIds.includes(r.post_id)) bookmarkSet.add(r.post_id);
     }

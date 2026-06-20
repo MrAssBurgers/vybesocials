@@ -2,6 +2,12 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## Published prep (2026-06-19)
+- **Git:** `91025ba6` pushed to `origin/main`
+- **Firestore rules:** deployed to `vybe-daaab` (marketplace_purchases)
+- **Build:** `npm run build` PASS
+- **You:** Lovable → **Share → Publish** → hard refresh `vybehub.app`
+
 ## Token Shop purchase fix (2026-06-17)
 - **Root cause:** `purchase_marketplace_item` + `check_rate_limit` RPCs existed only in Supabase — Firebase client returned null → "Purchase failed"
 - **Fix:** Client-side Firestore RPC in `tokenRpc.ts` (deduct balance, write `token_transactions` + `marketplace_purchases`); wired in `dataClient.ts`

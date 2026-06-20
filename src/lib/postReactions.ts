@@ -19,14 +19,18 @@ export function postMoodSignalDocId(postId: string, mood: string): string {
 
 /** Remove every like row for this user+post (handles legacy random doc ids). */
 export async function removePostReaction(userId: string, postId: string): Promise<void> {
+  const docId = likeDocId(userId, postId);
   const rows = await getDocuments<{ id?: string }>('likes', [
     where('user_id', '==', userId),
     where('post_id', '==', postId),
     firestoreLimit(20),
-  ]);
-  await Promise.all(
-    rows.map((row) => (row.id ? deleteDocument('likes', row.id) : Promise.resolve())),
-  );
+  ]).catch(() => [] as { id?: string }[]);
+
+  const ids = new Set<string>([docId]);
+  for (const row of rows) {
+    if (row.id) ids.add(row.id);
+  }
+  await Promise.all([...ids].map((id) => deleteDocument('likes', id)));
 }
 
 /** Persist reaction + tag post mood + record ranking signal. */
@@ -46,11 +50,6 @@ export async function savePostReaction(params: {
   ]).catch(() => [] as { id?: string; created_at?: string }[]);
 
   const createdAt = existing.find((r) => r.created_at)?.created_at || now;
-  for (const row of existing) {
-    if (row.id && row.id !== docId) {
-      await deleteDocument('likes', row.id);
-    }
-  }
 
   await setDocument('likes', docId, {
     id: docId,
@@ -60,6 +59,12 @@ export async function savePostReaction(params: {
     created_at: createdAt,
     updated_at: now,
   });
+
+  for (const row of existing) {
+    if (row.id && row.id !== docId) {
+      await deleteDocument('likes', row.id);
+    }
+  }
 
   try {
     await bumpPostMoodSignal(postId, reactionType);

@@ -33,6 +33,7 @@ import {
   rpcCheckRateLimit,
   rpcPurchaseMarketplaceItem,
 } from './tokenRpc';
+import { rpcComputeVybeDna } from './dnaRpc';
 import { isGeneratedUsername, normalizeUsername } from '@/lib/username';
 import {
   normalizeToProfileId,
@@ -1114,6 +1115,7 @@ const CLIENT_RPC: Record<string, (params: Record<string, unknown>) => Promise<un
   earn_vybe_tokens: async (p) => rpcEarnVybeTokens(p),
   check_rate_limit: async (p) => rpcCheckRateLimit(p),
   purchase_marketplace_item: async (p) => rpcPurchaseMarketplaceItem(p),
+  compute_vybe_dna: async () => rpcComputeVybeDna(),
 };
 
 export function createDataClient() {
@@ -1142,18 +1144,9 @@ export function createDataClient() {
         return enriched;
       }
 
-      // Feed RPCs: Cloud Function → Firestore client fallback → empty array (preview-safe).
+      // Feed RPCs: Firestore client first (cloud stubs caused CORS noise on vybehub.app).
       if (isFeedRpc(name)) {
         const promise = (async () => {
-          try {
-            const remote = await invokeFunction(name, params);
-            if (!remote.error && !isNotYetPortedPayload(remote.data)) {
-              const rows = normalizeRpcFeedRows(remote.data);
-              if (rows) return { data: rows, error: null } as any;
-            }
-          } catch (err) {
-            console.warn(`[Feed RPC] ${name} cloud call failed:`, err);
-          }
           try {
             const rows = await runFeedRpc(name, params);
             return { data: rows, error: null } as any;

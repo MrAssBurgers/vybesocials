@@ -11,6 +11,8 @@ import {
 
 
 const PUSH_PERM_KEY = 'vybe_push_permission_asked_v1';
+let webOneSignalLinkedFor: string | null = null;
+let webOneSignalLinkInFlight: Promise<void> | null = null;
 type OneSignalApi = {
   login?: (id: string) => Promise<void>;
   logout?: () => Promise<void>;
@@ -85,46 +87,55 @@ export function DespiaOneSignalSync() {
           void import('@/lib/nativeIncomingCall').then((m) => m.ensureIncomingCallPermissions());
         }
 
-        // Web OneSignal SDK bridge — required so web/PWA users receive
-        // pushes targeted via include_aliases.external_id. Safe on hosts
-        // where the SDK didn't load (preview/native/disabled-host).
+        // Web OneSignal SDK — one login+tags pass per external id (avoids 409 conflicts).
         try {
           const w = window as OneSignalDeferredWindow;
           if (!Array.isArray(w.OneSignalDeferred)) {
             w.OneSignalDeferred = [];
           }
-          w.OneSignalDeferred.push(async (OneSignal) => {
-            try {
-              await OneSignal?.login?.(externalId);
-              console.info(`[OneSignal:${trigger}] web login() OK external_id=${externalId}`);
+          if (webOneSignalLinkedFor === externalId && webOneSignalLinkInFlight) {
+            await webOneSignalLinkInFlight;
+            return;
+          }
+          if (webOneSignalLinkedFor === externalId) return;
 
-              // Backup alias: auth.uid → never used by backend push sends, but
-              // lets us look users up in OneSignal dashboard by either ID and
-              // recover bindings if profile.id ever rotates.
+          webOneSignalLinkInFlight = new Promise<void>((resolve) => {
+            w.OneSignalDeferred!.push(async (OneSignal) => {
               try {
-                await OneSignal?.User?.addAlias?.('supabase_auth_uid', authUserId);
-                console.info(`[OneSignal:${trigger}] backup alias supabase_auth_uid=${authUserId} added`);
-              } catch (aliasErr) {
-                console.warn(`[OneSignal:${trigger}] addAlias() failed:`, aliasErr);
-              }
+                if (webOneSignalLinkedFor === externalId) {
+                  resolve();
+                  return;
+                }
+                await OneSignal?.login?.(externalId);
+                console.info(`[OneSignal:${trigger}] web login() OK external_id=${externalId}`);
 
-              // Tags for segments + admin search.
-              const tags: Record<string, string> = {
-                user_id: externalId,           // profile.id (primary)
-                auth_id: authUserId,           // backup
-                profile_id: externalId,        // explicit duplicate for clarity
-              };
-              if (email) tags.email = email;
-              try {
-                await OneSignal?.User?.addTags?.(tags);
-                console.info(`[OneSignal:${trigger}] addTags() OK`, Object.keys(tags));
-              } catch (tagErr) {
-                console.warn(`[OneSignal:${trigger}] addTags() failed:`, tagErr);
+                try {
+                  await OneSignal?.User?.addAlias?.('supabase_auth_uid', authUserId);
+                } catch {
+                  /* alias may already exist */
+                }
+
+                const tags: Record<string, string> = {
+                  user_id: externalId,
+                  auth_id: authUserId,
+                };
+                if (email) tags.email = email;
+                try {
+                  await OneSignal?.User?.addTags?.(tags);
+                  console.info(`[OneSignal:${trigger}] addTags() OK`, Object.keys(tags));
+                } catch {
+                  /* tags may already match — ignore 409 */
+                }
+                webOneSignalLinkedFor = externalId;
+              } catch (loginErr) {
+                console.warn(`[OneSignal:${trigger}] web login() failed:`, loginErr);
+              } finally {
+                resolve();
               }
-            } catch (loginErr) {
-              console.error(`[OneSignal:${trigger}] web login() failed:`, loginErr);
-            }
+            });
           });
+          await webOneSignalLinkInFlight;
+          webOneSignalLinkInFlight = null;
         } catch (err) {
           console.warn(`[OneSignal:${trigger}] deferred queue setup failed:`, err);
         }
@@ -134,6 +145,8 @@ export function DespiaOneSignalSync() {
     };
 
     const clearPlayerId = () => {
+      webOneSignalLinkedFor = null;
+      webOneSignalLinkInFlight = null;
       try {
         const w = window as OneSignalDeferredWindow;
         if (!Array.isArray(w.OneSignalDeferred)) {
@@ -197,11 +210,7 @@ export function DespiaOneSignalSync() {
       });
     };
 
-    db.auth.getUser().then(({ data }) => {
-      void setPlayerIdForAuthUser(data.user?.id, data.user?.email, 'cold-start');
-    }).catch(() => {});
-
-    // Login / signup / token refresh / user updates — all re-link.
+    // INITIAL_SESSION / SIGNED_IN handle linking — skip redundant cold-start pass.
     const { data: { subscription } } = db.auth.onAuthStateChange((event, session) => {
       if (event === 'SIGNED_OUT' || !session?.user?.id) {
         console.log('[OneSignal:signout] clearing player id');
@@ -215,6 +224,7 @@ export function DespiaOneSignalSync() {
         INITIAL_SESSION: 'initial-session',
       };
       const trigger = triggerMap[event] ?? event.toLowerCase();
+      if (event === 'TOKEN_REFRESHED') return;
       void setPlayerIdForAuthUser(session.user.id, session.user.email, trigger);
     });
 

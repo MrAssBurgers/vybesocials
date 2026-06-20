@@ -108,7 +108,16 @@ function rgbToHsl(r: number, g: number, b: number): [number, number, number] {
 function extractColorsFromImage(imageUrl: string): Promise<ExtractedColors> {
   return new Promise((resolve, reject) => {
     const img = new Image();
-    img.crossOrigin = 'anonymous';
+    // Firebase Storage URLs need bucket CORS for canvas reads — skip crossOrigin there.
+    let isFirebaseStorage = false;
+    try {
+      isFirebaseStorage = new URL(imageUrl, window.location.origin).hostname.includes('firebasestorage.googleapis.com');
+    } catch {
+      /* ignore */
+    }
+    if (!isFirebaseStorage) {
+      img.crossOrigin = 'anonymous';
+    }
     
     img.onload = () => {
       const canvas = document.createElement('canvas');

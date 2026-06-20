@@ -1,0 +1,14 @@
+[
+  {
+    "origin": [
+      "https://vybehub.app",
+      "https://www.vybehub.app",
+      "https://416714c8-d013-4aff-984d-522418a9bbc7.lovableproject.com",
+      "http://localhost:5173",
+      "http://127.0.0.1:5173"
+    ],
+    "method": ["GET", "HEAD"],
+    "maxAgeSeconds": 3600,
+    "responseHeader": ["Content-Type", "Content-Length", "Content-Range"]
+  }
+]

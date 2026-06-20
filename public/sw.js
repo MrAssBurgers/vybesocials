@@ -532,18 +532,16 @@ self.addEventListener('notificationclose', (event) => {
   }
 });
 
-// Handle messages from the main app
+// Handle messages from the main app (no console spam — SW logs flood DevTools)
 self.addEventListener('message', (event) => {
-  console.log('[SW] Message received:', event.data);
-  
-  if (event.data.type === 'SKIP_WAITING') {
+  const type = event.data?.type;
+  if (type === 'SKIP_WAITING') {
     self.skipWaiting();
   }
-  
-  // Handle push subscription updates
-  if (event.data.type === 'CHECK_SUBSCRIPTION') {
+
+  if (type === 'CHECK_SUBSCRIPTION') {
     self.registration.pushManager.getSubscription().then((subscription) => {
-      event.source.postMessage({
+      event.source?.postMessage({
         type: 'SUBSCRIPTION_STATUS',
         isSubscribed: !!subscription,
       });

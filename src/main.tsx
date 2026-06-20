@@ -90,9 +90,17 @@ function runPreRenderInit() {
 
   installFlickerGuardCheck();
 
-  const noisyPatterns = ["[WM] No SW registration for postMessage"];
-  const isNoisy = (args: unknown[]) =>
-    typeof args[0] === "string" && noisyPatterns.some((p) => (args[0] as string).includes(p));
+  const noisyPatterns = [
+    "[WM] No SW registration for postMessage",
+    "Op failed (no retry)",
+    "[RPC] compute_vybe_dna unavailable",
+    "[Feed RPC]",
+  ];
+  const isNoisy = (args: unknown[]) => {
+    const first = args[0];
+    if (typeof first !== 'string') return false;
+    return noisyPatterns.some((p) => first.includes(p));
+  };
 
   const originalConsoleError = console.error;
   console.error = (...args: unknown[]) => {
