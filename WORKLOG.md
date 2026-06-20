@@ -6,7 +6,7 @@ Use this file as the Lovable -> Cursor handoff each session.
 - **Reconnect:** stale-only refetch (no invalidate+refetch storm on focus/blip)
 - **DMs:** 180s list cache, idle-deferred friend auto-create, capped presence/status batch (40), fast message prepare, offlineFirst message cache, startTransition on realtime list patches, deferred GlobalRT subscribe (1.2s idle)
 - **Presence:** 30s web / 45s native heartbeat (was 20s)
-- **Git:** pending push → Lovable Publish
+- **Git:** `a2258710` pushed → Lovable Publish
 
 ## Next 3 Tasks
 1. Lovable Publish → feel test: Home scroll, Messages tab, send DM, call
