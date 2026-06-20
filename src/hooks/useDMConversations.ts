@@ -273,7 +273,11 @@ export function useConversationDetail(conversationId: string | undefined) {
       const { profileId: effectiveProfileId } = await resolveDmActorIds(profile?.id ?? profileId);
       if (!effectiveProfileId) return null;
 
-      await ensureConversationReady(conversationId, effectiveProfileId);
+      try {
+        await ensureConversationReady(conversationId, effectiveProfileId);
+      } catch (err) {
+        console.warn('[DM] ensureConversationReady failed:', conversationId, err);
+      }
 
       const findCached = () => {
         const direct =

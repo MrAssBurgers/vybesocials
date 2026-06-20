@@ -452,42 +452,46 @@ class QueryBuilder {
     let enriched = [...rows];
 
     for (const join of this.joins) {
-      const fkValues = [...new Set(
-        enriched.map((r) => r[join.fkColumn] as string).filter(Boolean),
-      )];
+      try {
+        const fkValues = [...new Set(
+          enriched.map((r) => r[join.fkColumn] as string).filter(Boolean),
+        )];
 
-      const relatedMap = new Map<string, Record<string, unknown>>();
-      await Promise.all(
-        fkValues.map(async (id) => {
-          let doc = await getDocument(join.table, id);
-          if (!doc && join.table === 'profiles') {
-            const byUser = await getDocuments(join.table, [
-              where('user_id', '==', id),
-              firestoreLimit(1),
-            ]);
-            doc = byUser[0] ?? null;
-          }
-          if (doc) relatedMap.set(id, doc);
-        }),
-      );
+        const relatedMap = new Map<string, Record<string, unknown>>();
+        await Promise.all(
+          fkValues.map(async (id) => {
+            let doc = await getDocument(join.table, id);
+            if (!doc && join.table === 'profiles') {
+              const byUser = await getDocuments(join.table, [
+                where('user_id', '==', id),
+                firestoreLimit(1),
+              ]);
+              doc = byUser[0] ?? null;
+            }
+            if (doc) relatedMap.set(id, doc);
+          }),
+        );
 
-      if (join.inner) {
-        enriched = enriched.filter((row) => {
-          const fk = row[join.fkColumn] as string;
-          return fk && relatedMap.has(fk);
-        });
-      }
-
-      for (const row of enriched) {
-        const fk = row[join.fkColumn] as string;
-        const related = fk ? relatedMap.get(fk) : null;
-        if (related) {
-          const picked: Record<string, unknown> = { id: related.id };
-          for (const field of join.fields) {
-            if (field in related) picked[field] = related[field];
-          }
-          row[join.alias] = picked;
+        if (join.inner) {
+          enriched = enriched.filter((row) => {
+            const fk = row[join.fkColumn] as string;
+            return fk && relatedMap.has(fk);
+          });
         }
+
+        for (const row of enriched) {
+          const fk = row[join.fkColumn] as string;
+          const related = fk ? relatedMap.get(fk) : null;
+          if (related) {
+            const picked: Record<string, unknown> = { id: related.id };
+            for (const field of join.fields) {
+              if (field in related) picked[field] = related[field];
+            }
+            row[join.alias] = picked;
+          }
+        }
+      } catch (err) {
+        console.warn('[Firestore] join enrichment skipped:', join.table, err);
       }
     }
 

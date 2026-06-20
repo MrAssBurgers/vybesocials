@@ -70,7 +70,6 @@ async function main() {
     query(
       collection(clientDb, 'messages'),
       where('conversation_id', '==', LEGACY_CID),
-      where('is_deleted', '==', false),
       limit(50),
     ),
   );

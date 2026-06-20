@@ -7,6 +7,7 @@ import { useAuthProfileId } from '@/hooks/useAuthProfileId';
 import { getEffectiveProfileId } from '@/lib/profileCache';
 import { resolveSessionProfileId } from '@/lib/resolveSessionProfileId';
 import { syncUserAuthIndex } from '@/lib/firebase/profileResolve';
+import { fetchRecentConversationMessages, fetchMessagesForConversations } from '@/lib/conversationMessagesQuery';
 import { invalidateConversationCaches } from '@/lib/invalidateConversationCaches';
 import { shouldRefetchWhenEmpty, refetchListOnMount } from '@/lib/queryRefetchPolicy';
 import { toast } from 'sonner';
@@ -91,15 +92,17 @@ export function useUnreadMessagesCount() {
       let totalUnread = 0;
       for (const membership of memberships) {
         const lastReadAt = membership.last_read_at || '1970-01-01';
-        const { data: unreadRows } = await db
+        const { data: messageRows } = await db
           .from('messages')
-          .select('id, sender_id, created_at')
+          .select('id, sender_id, created_at, is_deleted')
           .eq('conversation_id', membership.conversation_id)
-          .gt('created_at', lastReadAt)
-          .eq('is_deleted', false);
+          .limit(200);
 
-        totalUnread += (unreadRows || []).filter(
-          (m: { sender_id?: string }) => m.sender_id !== profileId,
+        totalUnread += (messageRows || []).filter(
+          (m: { sender_id?: string; created_at?: string; is_deleted?: boolean }) =>
+            !m.is_deleted &&
+            m.sender_id !== profileId &&
+            (m.created_at || '') > lastReadAt,
         ).length;
       }
 
@@ -165,15 +168,21 @@ export function useConversations() {
 
       // Batch fetch last messages for all conversations
       const convIds = conversations.map(c => c.id);
-      const { data: allMessages } = await db
-        .from('messages')
-        .select('*')
-        .in('conversation_id', convIds)
-        .order('created_at', { ascending: false });
+      const { data: allMessages, error: messagesBatchError } = await fetchMessagesForConversations(
+        convIds,
+        '*',
+        Math.min(Math.max(convIds.length * 5, 100), 500),
+      );
+      if (messagesBatchError) {
+        console.warn('[Conversations] messages batch query failed:', messagesBatchError.message);
+      }
+      const sortedMessages = [...(allMessages || [])].sort(
+        (a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime(),
+      );
 
       // Group messages by conversation and get the latest one
       const lastMessageMap = new Map<string, any>();
-      (allMessages || []).forEach(msg => {
+      (sortedMessages || []).forEach(msg => {
         if (msg.is_deleted) return;
         if (!lastMessageMap.has(msg.conversation_id)) {
           lastMessageMap.set(msg.conversation_id, msg);
@@ -186,7 +195,7 @@ export function useConversations() {
         const memberRecord = c.members?.find((m: any) => m.user_id === profileId);
         const hiddenAt = hiddenResult.data?.find(h => h.conversation_id === c.id);
         // If there's a message after the conversation was hidden, show it
-        const lastMsg = (allMessages || []).find(msg => msg.conversation_id === c.id);
+        const lastMsg = (sortedMessages || []).find(msg => msg.conversation_id === c.id);
         if (lastMsg && hiddenAt) {
           // Note: We'd need hidden_at timestamp to properly check this
           // For now, we show if there's any unread message
@@ -205,8 +214,9 @@ export function useConversations() {
         const lastReadAt = memberRecord?.last_read_at || '1970-01-01';
         
         // Count unread from cached messages
-        const unreadCount = (allMessages || []).filter(
+        const unreadCount = (sortedMessages || []).filter(
           msg => msg.conversation_id === conv.id && 
+                 !msg.is_deleted &&
                  msg.sender_id !== profileId && 
                  msg.created_at > lastReadAt
         ).length;
@@ -300,26 +310,18 @@ export function useMessages(conversationId: string | undefined) {
 
       const viewerId = actorId ?? (await resolveSessionProfileId(profileId)) ?? profileId;
 
-      const { data, error } = await db
-        .from('messages')
-        .select(MESSAGE_SELECT_SLIM)
-        .eq('conversation_id', conversationId)
-        .order('created_at', { ascending: false })
-        .limit(50);
+      let { data, error } = await fetchRecentConversationMessages<Message>(
+        conversationId,
+        MESSAGE_SELECT_SLIM,
+        50,
+      );
 
       if (error && actorId) {
         await ensureFlatConversationMembership(conversationId, actorId);
-        const retry = await db
-          .from('messages')
-          .select('*')
-          .eq('conversation_id', conversationId)
-          .order('created_at', { ascending: false })
-          .limit(50);
+        const retry = await fetchRecentConversationMessages<Message>(conversationId, '*', 50);
         if (!retry.error) {
-          const rows = ((retry.data || []) as Message[]).filter((m) => !m.is_deleted);
-          rows.reverse();
-          const filtered = filterMessagesForViewer(rows, viewerId);
-          return mergePendingOptimisticMessages(queryClient, conversationId, filtered);
+          data = retry.data;
+          error = retry.error;
         }
       }
 

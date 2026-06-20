@@ -5,6 +5,7 @@ import { isPermissionDeniedError, warnOnce } from '@/lib/logOnce';
 import { resolveSessionProfileId } from '@/lib/resolveSessionProfileId';
 import { withTimeout } from '@/lib/withTimeout';
 import { fetchMemberProfiles } from '@/lib/dmMembershipRepair';
+import { fetchMessagesForConversations } from '@/lib/conversationMessagesQuery';
 
 export interface LoadedDMConversation extends Conversation {
   _sortTime: string;
@@ -135,12 +136,11 @@ async function loadDMConversationsOnce(
           .from('conversation_members')
           .select('conversation_id, user_id, role, is_muted, is_pinned, last_read_at')
           .in('conversation_id', userConversationIds),
-        db
-          .from('messages')
-          .select('id, conversation_id, sender_id, content, media_type, viewed_at, created_at, is_deleted')
-          .in('conversation_id', userConversationIds)
-          .order('created_at', { ascending: false })
-          .limit(Math.min(Math.max(userConversationIds.length * 3, 60), 250)),
+        fetchMessagesForConversations(
+          userConversationIds,
+          'id, conversation_id, sender_id, content, media_type, viewed_at, created_at, is_deleted',
+          Math.min(Math.max(userConversationIds.length * 3, 60), 250),
+        ),
       ]);
 
     if (membersError) {

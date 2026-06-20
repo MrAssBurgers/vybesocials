@@ -6,6 +6,7 @@ import { useAuth } from '@/lib/auth';
 import { getEffectiveProfileId } from '@/lib/profileCache';
 import type { Message } from '@/hooks/useMessages';
 import { ensureFlatConversationMembership, resolveDmActorIds } from '@/lib/dmMembershipRepair';
+import { fetchRecentConversationMessages } from '@/lib/conversationMessagesQuery';
 
 const PREFETCH_SELECT = `
   *,
@@ -33,12 +34,11 @@ export function useChatPrefetch() {
         await ensureFlatConversationMembership(conversationId, actorId);
       }
 
-      const { data, error } = await db
-        .from('messages')
-        .select(PREFETCH_SELECT)
-        .eq('conversation_id', conversationId)
-        .order('created_at', { ascending: false })
-        .limit(40);
+      const { data, error } = await fetchRecentConversationMessages<Message>(
+        conversationId,
+        PREFETCH_SELECT,
+        40,
+      );
 
       if (error) throw error;
       if (data) {
