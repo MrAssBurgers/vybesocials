@@ -50,7 +50,7 @@ import {
   type OrPredicate,
 } from './queryFilterCompat';
 
-type FilterOp = '==' | '!=' | '>' | '<' | 'in' | 'not-in';
+type FilterOp = '==' | '!=' | '>' | '<' | '>=' | '<=' | 'in' | 'not-in';
 
 interface Filter {
   field: string;
@@ -62,7 +62,26 @@ interface JoinSpec {
   alias: string;
   table: string;
   foreignKey: string;
+  fkColumn: string;
+  inner: boolean;
   fields: string[];
+}
+
+/** Map Supabase `profiles!posts_author_id_fkey` hints to row column names. */
+function resolveJoinForeignKey(parentTable: string, fkHint: string): { column: string; inner: boolean } {
+  if (fkHint === 'inner') {
+    if (parentTable === 'posts') return { column: 'author_id', inner: true };
+    if (parentTable === 'calls') return { column: 'caller_id', inner: true };
+    if (parentTable === 'comments') return { column: 'author_id', inner: true };
+    return { column: 'user_id', inner: true };
+  }
+  if (fkHint.endsWith('_fkey')) {
+    const stripped = fkHint.replace(/_fkey$/, '');
+    const prefix = `${parentTable}_`;
+    const column = stripped.startsWith(prefix) ? stripped.slice(prefix.length) : stripped;
+    return { column, inner: false };
+  }
+  return { column: fkHint, inner: false };
 }
 
 interface SelectOptions {
@@ -94,7 +113,7 @@ class QueryBuilder {
 
   select(fields = '*', options?: SelectOptions) {
     this.selectFields = fields;
-    if (options?.count === 'exact' && options?.head) {
+    if (options?.count === 'exact') {
       this.countOnly = true;
     }
     this.parseJoins(fields);
@@ -102,13 +121,17 @@ class QueryBuilder {
   }
 
   private parseJoins(fields: string) {
-    const joinRegex = /(\w+):(\w+)!(\w+)\s*\(([^)]+)\)/g;
+    const joinRegex = /(\w+):(\w+)!(inner|\w+)\s*\(([^)]+)\)/g;
     let m: RegExpExecArray | null;
     while ((m = joinRegex.exec(fields)) !== null) {
+      const fkHint = m[3]!;
+      const { column, inner } = resolveJoinForeignKey(this.table, fkHint);
       this.joins.push({
         alias: m[1]!,
         table: m[2]!,
-        foreignKey: m[3]!,
+        foreignKey: fkHint,
+        fkColumn: column,
+        inner,
         fields: m[4]!.split(',').map((f) => f.trim()),
       });
     }
@@ -130,7 +153,7 @@ class QueryBuilder {
   }
 
   gte(field: string, value: unknown) {
-    this.filters.push({ field, op: '>', value });
+    this.filters.push({ field, op: '>=', value });
     return this;
   }
 
@@ -140,7 +163,7 @@ class QueryBuilder {
   }
 
   lte(field: string, value: unknown) {
-    this.filters.push({ field, op: '<', value });
+    this.filters.push({ field, op: '<=', value });
     return this;
   }
 
@@ -263,7 +286,7 @@ class QueryBuilder {
         continue;
       }
 
-      const isInequality = f.op === '!=' || f.op === '>' || f.op === '<';
+      const isInequality = f.op === '!=' || f.op === '>' || f.op === '<' || f.op === '>=' || f.op === '<=';
       if (isInequality) {
         if (inequalityFields.size === 0 || inequalityFields.has(f.field)) {
           inequalityFields.add(f.field);
@@ -280,7 +303,7 @@ class QueryBuilder {
         } else {
           clientOnlyFilters.push(f);
         }
-      } else if (f.op === '==' || f.op === '!=' || f.op === '>' || f.op === '<') {
+      } else if (f.op === '==' || f.op === '!=' || f.op === '>' || f.op === '<' || f.op === '>=' || f.op === '<=') {
         constraints.push(where(f.field, f.op, f.value));
       }
     }
@@ -318,6 +341,10 @@ class QueryBuilder {
             return val != null && val > target;
           case '<':
             return val != null && val < target;
+          case '>=':
+            return val != null && val >= target;
+          case '<=':
+            return val != null && val <= target;
           case 'not-in':
             return !Array.isArray(target) || !target.includes(val);
           case 'in':
@@ -365,13 +392,18 @@ class QueryBuilder {
     return [...merged.values()];
   }
 
+  private async filterMatchingRows(): Promise<Record<string, unknown>[]> {
+    const rows = await this.fetchRows();
+    return this.applyClientFilters(rows as Record<string, unknown>[]);
+  }
+
   private async resolveJoins(rows: Record<string, unknown>[]) {
     if (!this.joins.length) return rows;
-    const enriched = [...rows];
+    let enriched = [...rows];
 
     for (const join of this.joins) {
       const fkValues = [...new Set(
-        enriched.map((r) => r[join.foreignKey] as string).filter(Boolean),
+        enriched.map((r) => r[join.fkColumn] as string).filter(Boolean),
       )];
 
       const relatedMap = new Map<string, Record<string, unknown>>();
@@ -379,18 +411,25 @@ class QueryBuilder {
         fkValues.map(async (id) => {
           let doc = await getDocument(join.table, id);
           if (!doc && join.table === 'profiles') {
-            const rows = await getDocuments(join.table, [
+            const byUser = await getDocuments(join.table, [
               where('user_id', '==', id),
               firestoreLimit(1),
             ]);
-            doc = rows[0] ?? null;
+            doc = byUser[0] ?? null;
           }
           if (doc) relatedMap.set(id, doc);
         }),
       );
 
+      if (join.inner) {
+        enriched = enriched.filter((row) => {
+          const fk = row[join.fkColumn] as string;
+          return fk && relatedMap.has(fk);
+        });
+      }
+
       for (const row of enriched) {
-        const fk = row[join.foreignKey] as string;
+        const fk = row[join.fkColumn] as string;
         const related = fk ? relatedMap.get(fk) : null;
         if (related) {
           const picked: Record<string, unknown> = { id: related.id };
@@ -546,13 +585,12 @@ class QueryBuilder {
 
   private async executeUpdate() {
     try {
-      const constraints = this.buildConstraints();
-      const rows = await getDocuments(this.table, constraints);
+      const filtered = await this.filterMatchingRows();
       const payload = this.updatePayload || {};
       await Promise.all(
-        rows.map((row) => updateDocument(this.table, row.id as string, payload)),
+        filtered.map((row) => updateDocument(this.table, row.id as string, payload)),
       );
-      return { data: rows, error: null };
+      return { data: filtered, error: null };
     } catch (err) {
       return { data: null, error: toQueryError(err) };
     }
@@ -570,10 +608,7 @@ class QueryBuilder {
         return { data: null, error: null };
       }
 
-      const rows = await getDocuments(this.table, this.buildConstraints({ includeLimit: !this.orPredicates.length && !this.ilikeFilters.length }));
-      let filtered = this.applyClientOnlyFilters(rows as Record<string, unknown>[]);
-      filtered = applyIlikeFilters(filtered, this.ilikeFilters);
-      filtered = applyOrPredicates(filtered, this.orPredicates);
+      const filtered = await this.filterMatchingRows();
       await Promise.all(filtered.map((r) => deleteDocument(this.table, r.id as string)));
       return { data: null, error: null };
     } catch (err) {

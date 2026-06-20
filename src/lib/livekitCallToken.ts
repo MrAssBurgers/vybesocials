@@ -17,7 +17,7 @@ export interface LiveKitCallTokenResponse {
 }
 
 const DEPLOY_HINT =
-  'Calls are unavailable — deploy livekit-token on Supabase (Lovable Backend or CLI).';
+  'Calls are unavailable — deploy Firebase Cloud Functions (livekitToken) and set LIVEKIT secrets.';
 
 function isMissingFunctionError(msg: string): boolean {
   const lower = msg.toLowerCase();
@@ -25,7 +25,9 @@ function isMissingFunctionError(msg: string): boolean {
     msg.includes('Failed to send a request') ||
     msg.includes('Failed to fetch') ||
     lower.includes('not found') ||
-    lower.includes('404')
+    lower.includes('not_yet_ported') ||
+    lower.includes('404') ||
+    lower.includes('failed-precondition')
   );
 }
 
@@ -33,12 +35,16 @@ function isMissingFunctionError(msg: string): boolean {
 export async function invokeLiveKitCallToken(
   body: LiveKitCallTokenRequest,
 ): Promise<LiveKitCallTokenResponse> {
-  const result = await db.functions.invoke<LiveKitCallTokenResponse>('livekit-token', { body });
+  const result = await db.functions.invoke<LiveKitCallTokenResponse & { room?: string }>('livekit-token', { body });
   const { payload, errorCode, errorMessage } = await parseEdgeInvokeResult(result);
 
-  const typed = payload as LiveKitCallTokenResponse | null;
+  const typed = payload as (LiveKitCallTokenResponse & { room?: string }) | null;
   if (typed?.token && typed?.url) {
-    return typed;
+    return {
+      token: typed.token,
+      url: typed.url,
+      roomName: typed.roomName || typed.room,
+    };
   }
 
   const msg = errorCode || errorMessage || '';

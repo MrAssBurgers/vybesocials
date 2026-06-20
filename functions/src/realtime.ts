@@ -1,46 +1,91 @@
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { db, requireAuth } from './_shared/admin.js';
+import { resolveProfileIdFromAuth } from './_shared/aiQuota.js';
 
 const SECRETS = ['LIVEKIT_API_KEY', 'LIVEKIT_API_SECRET', 'LIVEKIT_URL'];
 
+async function loadProfileForAuth(authUid: string): Promise<{
+  profileId: string;
+  displayName: string;
+}> {
+  const profileId = await resolveProfileIdFromAuth(authUid);
+  const snap = await db.collection('profiles').doc(profileId).get();
+  const data = snap.data() || {};
+  const displayName =
+    (data.display_name as string) ||
+    (data.username as string) ||
+    'User';
+  return { profileId, displayName };
+}
+
 /** livekit-token — mint a LiveKit access token for a 1:1 or group call. */
 export const livekitToken = onCall({ secrets: SECRETS }, async (request) => {
-  const uid = requireAuth(request);
+  const authUid = requireAuth(request);
   const apiKey = process.env.LIVEKIT_API_KEY;
   const apiSecret = process.env.LIVEKIT_API_SECRET;
   const wsUrl = process.env.LIVEKIT_URL;
   if (!apiKey || !apiSecret || !wsUrl) {
     throw new HttpsError('failed-precondition', 'LIVEKIT_API_KEY/SECRET/URL not configured');
   }
-  const { conversationId, callId, callType = 'audio' } =
-    (request.data || {}) as { conversationId?: string; callId?: string; callType?: 'audio' | 'video' };
-  const room = callId || conversationId;
-  if (!room) throw new HttpsError('invalid-argument', 'conversationId or callId required');
 
-  // Dynamic import keeps cold-start light when livekit isn't used.
+  const {
+    conversationId,
+    callId,
+    callType = 'audio',
+  } = (request.data || {}) as {
+    conversationId?: string;
+    callId?: string;
+    callType?: 'audio' | 'video';
+  };
+
+  if (!conversationId && !callId) {
+    throw new HttpsError('invalid-argument', 'conversationId or callId required');
+  }
+
+  // Match client + legacy Supabase room naming (`call-${conversationId}`).
+  const roomName = conversationId ? `call-${conversationId}` : String(callId);
+
+  const { profileId, displayName } = await loadProfileForAuth(authUid);
+
   const { AccessToken } = await import('livekit-server-sdk');
-  const profile = (await db.collection('profiles').doc(uid).get()).data() || {};
-  const identity = uid;
-  const name = (profile.display_name as string) || (profile.username as string) || 'User';
-  const at = new AccessToken(apiKey, apiSecret, { identity, name, ttl: 60 * 60 });
-  at.addGrant({ room, roomJoin: true, canPublish: true, canSubscribe: true, canPublishData: true });
-  return { token: await at.toJwt(), url: wsUrl, room, callType };
+  const at = new AccessToken(apiKey, apiSecret, {
+    identity: profileId,
+    name: displayName,
+    ttl: 60 * 60,
+  });
+  at.addGrant({
+    room: roomName,
+    roomJoin: true,
+    canPublish: true,
+    canSubscribe: true,
+    canPublishData: true,
+  });
+
+  return {
+    token: await at.toJwt(),
+    url: wsUrl,
+    room: roomName,
+    roomName,
+    callType,
+  };
 });
 
 /** community-voice-token — same minting, scoped to community/channel room name. */
 export const communityVoiceToken = onCall({ secrets: SECRETS }, async (request) => {
-  const uid = requireAuth(request);
+  const authUid = requireAuth(request);
   const { serverId, channelId } = (request.data || {}) as { serverId?: string; channelId?: string };
   if (!serverId || !channelId) throw new HttpsError('invalid-argument', 'serverId and channelId required');
   const apiKey = process.env.LIVEKIT_API_KEY;
   const apiSecret = process.env.LIVEKIT_API_SECRET;
   const wsUrl = process.env.LIVEKIT_URL;
   if (!apiKey || !apiSecret || !wsUrl) throw new HttpsError('failed-precondition', 'LIVEKIT not configured');
+
+  const { profileId } = await loadProfileForAuth(authUid);
   const { AccessToken } = await import('livekit-server-sdk');
-  const room = `comm_${serverId}_${channelId}`;
-  const at = new AccessToken(apiKey, apiSecret, { identity: uid, ttl: 60 * 60 });
-  at.addGrant({ room, roomJoin: true, canPublish: true, canSubscribe: true, canPublishData: true });
-  return { token: await at.toJwt(), url: wsUrl, room };
+  const roomName = `comm_${serverId}_${channelId}`;
+  const at = new AccessToken(apiKey, apiSecret, { identity: profileId, ttl: 60 * 60 });
+  at.addGrant({ room: roomName, roomJoin: true, canPublish: true, canSubscribe: true, canPublishData: true });
+  return { token: await at.toJwt(), url: wsUrl, room: roomName, roomName };
 });
 
 /** spaces-token — alias used by audio spaces UI. */

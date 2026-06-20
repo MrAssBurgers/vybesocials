@@ -5,6 +5,8 @@ import {
   where,
   resolveCollection,
   getFirestoreDb,
+  setDocument,
+  documentRef,
 } from './firestoreDb';
 import type { Unsubscribe } from 'firebase/firestore';
 
@@ -19,7 +21,6 @@ export interface PostgresBinding {
 export interface RealtimeChannel {
   topic: string;
   unsubscribe: () => void;
-  // Optional chainable methods so RealtimeChannel is duck-type compatible with ChannelBuilder
   on?: (type: string, config: any, callback?: any) => any;
   subscribe?: (cb?: (status: string) => void) => any;
   send?: (payload: any) => Promise<'ok'>;
@@ -30,6 +31,8 @@ export interface RealtimeChannel {
 
 const activeChannels = new Map<string, RealtimeChannel>();
 
+type BroadcastHandler = (payload: { payload: unknown }) => void;
+
 function parseFilter(filter?: string): { field: string; value: string } | null {
   if (!filter) return null;
   const m = filter.match(/(\w+)=eq\.(.+)/);
@@ -37,8 +40,12 @@ function parseFilter(filter?: string): { field: string; value: string } | null {
   return { field: m[1]!, value: m[2]! };
 }
 
+function normalizeTopic(channelName: string): string {
+  return channelName.startsWith('realtime:') ? channelName : `realtime:${channelName}`;
+}
+
 export function removeChannelByTopic(channelName: string): void {
-  const topic = channelName.startsWith('realtime:') ? channelName : `realtime:${channelName}`;
+  const topic = normalizeTopic(channelName);
   const existing = activeChannels.get(topic);
   if (existing) {
     existing.unsubscribe();
@@ -61,26 +68,13 @@ export interface ChannelBuilder extends RealtimeChannel {
   presenceState: () => Record<string, any[]>;
 }
 
-function makeBuilderStub(base: RealtimeChannel): ChannelBuilder {
-  const stub: ChannelBuilder = {
-    ...base,
-    on: () => stub,
-    subscribe: () => stub,
-    send: async () => 'ok' as const,
-    track: async () => 'ok' as const,
-    untrack: async () => 'ok' as const,
-    presenceState: () => ({}),
-  };
-  return stub;
-}
-
 export function subscribePostgresChannel(
   channelName: string,
   bindings: PostgresBinding[],
   onStatus?: (status: string) => void,
 ): ChannelBuilder {
   removeChannelByTopic(channelName);
-  const topic = channelName.startsWith('realtime:') ? channelName : `realtime:${channelName}`;
+  const topic = normalizeTopic(channelName);
 
   const unsubs: Unsubscribe[] = [];
 
@@ -91,8 +85,6 @@ export function subscribePostgresChannel(
       ? query(coll, where(parsed.field, '==', parsed.value))
       : query(coll);
 
-    // Firestore emits every existing doc as `added` on first snapshot — skip that pass
-    // so INSERT handlers don't replay historical rows as new events (toast spam).
     let isInitialSnapshot = true;
 
     const unsub = onSnapshot(
@@ -136,19 +128,79 @@ export function subscribePostgresChannel(
     },
   };
 
-  const channel = makeBuilderStub(base);
+  const channel: ChannelBuilder = {
+    ...base,
+    on: () => channel,
+    subscribe: () => channel,
+    send: async () => 'ok' as const,
+    track: async () => 'ok' as const,
+    untrack: async () => 'ok' as const,
+    presenceState: () => ({}),
+  };
+
   activeChannels.set(topic, channel);
   return channel;
 }
 
+function subscribeBroadcastChannel(
+  channelName: string,
+  handlers: Map<string, BroadcastHandler[]>,
+  onStatus?: (status: string) => void,
+): Unsubscribe {
+  const coll = collectionRef('webrtc_signals');
+  const q = query(coll, where('channel', '==', channelName));
+  let isInitial = true;
+
+  return onSnapshot(
+    q,
+    (snapshot) => {
+      if (isInitial) {
+        isInitial = false;
+        onStatus?.('SUBSCRIBED');
+        return;
+      }
+
+      snapshot.docChanges().forEach((change) => {
+        if (change.type !== 'added') return;
+        const data = change.doc.data() as { event?: string; payload?: unknown };
+        const event = data.event || 'signal';
+        const list = handlers.get(event) || [];
+        for (const handler of list) {
+          try {
+            handler({ payload: data.payload });
+          } catch (err) {
+            console.warn('[Realtime] broadcast handler error:', err);
+          }
+        }
+      });
+    },
+    (error) => {
+      if (error.code === 'permission-denied') {
+        console.warn('[Realtime] webrtc_signals permission denied');
+        onStatus?.('CHANNEL_ERROR');
+        return;
+      }
+      console.warn('[Realtime] broadcast listener:', error.message);
+      onStatus?.('CHANNEL_ERROR');
+    },
+  );
+}
+
 export function createRealtimeChannel(channelName: string): ChannelBuilder {
   const bindings: PostgresBinding[] = [];
-  let statusCb: ((status: string) => void) | undefined;
-  let resolved: RealtimeChannel | null = null;
+  const broadcastHandlers = new Map<string, BroadcastHandler[]>();
+  let postgresChannel: RealtimeChannel | null = null;
+  let broadcastUnsub: Unsubscribe | null = null;
+  const topic = normalizeTopic(channelName);
 
   const builder: ChannelBuilder = {
-    topic: channelName.startsWith('realtime:') ? channelName : `realtime:${channelName}`,
-    unsubscribe: () => { resolved?.unsubscribe(); },
+    topic,
+    unsubscribe: () => {
+      broadcastUnsub?.();
+      broadcastUnsub = null;
+      postgresChannel?.unsubscribe();
+      activeChannels.delete(topic);
+    },
     on(type: string, config: any, callback?: any) {
       if (type === 'postgres_changes' && callback) {
         bindings.push({
@@ -158,18 +210,44 @@ export function createRealtimeChannel(channelName: string): ChannelBuilder {
           filter: config.filter,
           callback,
         });
+      } else if (type === 'broadcast' && callback) {
+        const event = config?.event || 'signal';
+        const list = broadcastHandlers.get(event) || [];
+        list.push(callback);
+        broadcastHandlers.set(event, list);
       }
-      // broadcast/presence: no-op in firebase shim
       return builder;
     },
     subscribe(cb?: (status: string) => void) {
-      statusCb = cb;
-      resolved = subscribePostgresChannel(channelName, bindings, statusCb);
-      builder.topic = resolved.topic;
-      builder.unsubscribe = resolved.unsubscribe;
+      if (bindings.length) {
+        postgresChannel = subscribePostgresChannel(channelName, bindings, cb);
+        builder.topic = postgresChannel.topic;
+        builder.unsubscribe = () => {
+          broadcastUnsub?.();
+          postgresChannel?.unsubscribe();
+          activeChannels.delete(topic);
+        };
+      } else if (broadcastHandlers.size > 0) {
+        broadcastUnsub = subscribeBroadcastChannel(channelName, broadcastHandlers, cb);
+      } else {
+        cb?.('SUBSCRIBED');
+      }
+      activeChannels.set(topic, builder);
       return builder;
     },
-    async send(_payload: any) { return 'ok' as const; },
+    async send(payload: any) {
+      if (payload?.type === 'broadcast') {
+        const id = documentRef('webrtc_signals', 'x').id;
+        await setDocument('webrtc_signals', id, {
+          id,
+          channel: channelName,
+          event: payload.event || 'signal',
+          payload: payload.payload ?? null,
+          created_at: new Date().toISOString(),
+        });
+      }
+      return 'ok' as const;
+    },
     async track(_state: any) { return 'ok' as const; },
     async untrack() { return 'ok' as const; },
     presenceState() { return {}; },

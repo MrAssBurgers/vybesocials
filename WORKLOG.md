@@ -2,6 +2,23 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## Deep scan — dataClient + calling (2026-06-17)
+- **dataClient:** Fixed `gte`/`lte` (were `>`/`<`); `count: 'exact'` without `head`; updates apply same client filters as deletes (`.or()` / `.ilike()`); join FK resolution (`profiles!posts_author_id_fkey` → `author_id`); inner joins
+- **Calling P2P:** `realtimeService.ts` now broadcasts WebRTC signals via Firestore `webrtc_signals` (was no-op stub)
+- **Firestore rules:** `calls` use `receiver_id` + `ownsProfileId`; added `webrtc_signals`; expanded `call_signals`; `missed_call` notification type
+- **livekitToken CF:** Room `call-${conversationId}`, identity = profile id, returns `roomName` (code ready; deploy blocked — see blockers)
+- **callStore:** Missed-call notification goes to caller (not callee)
+- **livekitCallToken:** Normalizes `roomName` from `room`; clearer error when LiveKit secrets missing
+- **Tests:** `npm run build` PASS, `npm run lint` PASS (3 pre-existing warnings)
+- **Deploy:** Firestore rules → `vybe-daaab` SUCCESS
+- **Blockers:** `livekitToken` deploy needs Firebase Secret Manager: `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET`, `LIVEKIT_URL`
+- **You:** Lovable **Share → Publish** + hard refresh; test search, friend requests, clip reactions, voice/video calls
+
+## Next 3 Tasks
+1. Lovable Publish → smoke-test search, Quick Add, friend request, reactions
+2. Firebase Secret Manager → add LiveKit secrets → `firebase deploy --only functions:livekitToken`
+3. Test P2P call signaling + LiveKit group call after secrets deployed
+
 ## Published prep (2026-06-19)
 - **Git:** `91025ba6` pushed to `origin/main`
 - **Firestore rules:** deployed to `vybe-daaab` (marketplace_purchases)

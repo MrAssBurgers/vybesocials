@@ -405,16 +405,42 @@ service cloud.firestore {
     // ---------- calls / signaling ----------
     match /calls/{callId} {
       allow read: if signedIn() && (
-        resource.data.caller_id == uid() || resource.data.callee_id == uid() ||
+        ownsProfileId(resource.data.caller_id) ||
+        ownsProfileId(resource.data.receiver_id) ||
+        resource.data.caller_id == uid() ||
+        resource.data.receiver_id == uid() ||
+        profileId() in resource.data.get('participant_ids', []) ||
         uid() in resource.data.get('participant_ids', [])
       );
-      allow create: if willOwn('caller_id');
-      allow update: if signedIn();
+      allow create: if signedIn() && willOwnProfile('caller_id');
+      allow update: if signedIn() && (
+        ownsProfileId(resource.data.caller_id) ||
+        ownsProfileId(resource.data.receiver_id) ||
+        resource.data.caller_id == uid() ||
+        resource.data.receiver_id == uid() ||
+        isAdmin()
+      );
     }
     match /call_signals/{docId} {
-      allow read: if signedIn() && (resource.data.to_user == uid() || resource.data.from_user == uid());
-      allow create: if willOwn('from_user');
-      allow delete: if isOwner('from_user') || isOwner('to_user');
+      allow read: if signedIn() && (
+        ownsProfileId(resource.data.to_profile_id) ||
+        ownsProfileId(resource.data.from_profile_id) ||
+        resource.data.to_user == uid() ||
+        resource.data.from_user == uid()
+      );
+      allow create: if signedIn() && (
+        willOwnProfile('from_profile_id') || willOwn('from_user')
+      );
+      allow delete: if signedIn() && (
+        ownsProfileId(resource.data.from_profile_id) ||
+        isOwner('from_user') ||
+        isOwner('to_user')
+      );
+    }
+    match /webrtc_signals/{docId} {
+      allow read: if signedIn();
+      allow create: if signedIn();
+      allow delete: if isAdmin();
     }
 
     // ---------- stories ----------
@@ -435,7 +461,7 @@ service cloud.firestore {
       allow create: if isAdmin() || (
         signedIn() &&
         willOwnProfile('actor_id') &&
-        request.resource.data.type in ['like', 'comment', 'follow', 'mention', 'friend_request', 'collab', 'share']
+        request.resource.data.type in ['like', 'comment', 'follow', 'mention', 'friend_request', 'collab', 'share', 'missed_call', 'friend_accepted', 'friend_declined']
       );
       allow delete: if ownsUserField('user_id') || ownsProfileId(resource.data.user_id) || isAdmin();
     }

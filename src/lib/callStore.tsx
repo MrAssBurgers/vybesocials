@@ -936,8 +936,8 @@ export function CallStoreProvider({ children }: { children: ReactNode }) {
         await db
           .from('notifications')
           .insert({
-            user_id: profileId,
-            actor_id: currentIncoming.caller.id,
+            user_id: currentIncoming.caller.id,
+            actor_id: profileId,
             type: 'missed_call',
           });
       }
