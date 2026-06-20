@@ -26,7 +26,6 @@ function generateInviteNFCUrl(username: string): string {
 export function NFCInviteShare({ variant = 'button' }: NFCInviteShareProps) {
   const { profile } = useAuth();
   const { 
-    hasWebNFC, 
     isSupported, 
     requestPermission,
     getStatusMessage 
@@ -371,7 +370,7 @@ export function NFCInviteShare({ variant = 'button' }: NFCInviteShareProps) {
   };
 
   // Don't render if NFC not supported
-  if (!hasWebNFC) {
+  if (!isSupported) {
     return null;
   }
 

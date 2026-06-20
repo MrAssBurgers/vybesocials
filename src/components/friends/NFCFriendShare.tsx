@@ -25,7 +25,6 @@ export function NFCFriendShare({ className, variant = 'button' }: NFCFriendShare
   const {
     isSupported,
     isEnabled,
-    hasWebNFC,
     isScanning,
     shareProfile,
     stopScan,
@@ -138,8 +137,8 @@ export function NFCFriendShare({ className, variant = 'button' }: NFCFriendShare
       return;
     }
 
-    if (!hasWebNFC) {
-      toast.error('Phone Tap requires Chrome on Android with NFC enabled.');
+    if (!isSupported) {
+      toast.error(getStatusMessage());
       return;
     }
 
@@ -200,7 +199,7 @@ export function NFCFriendShare({ className, variant = 'button' }: NFCFriendShare
   };
 
   // Don't show if NFC not supported at all
-  if (!isSupported && !hasWebNFC) {
+  if (!isSupported) {
     return null;
   }
 
@@ -227,7 +226,7 @@ export function NFCFriendShare({ className, variant = 'button' }: NFCFriendShare
           variant="outline"
           size="icon"
           className={cn('relative', className)}
-          disabled={!isSupported && !hasWebNFC}
+          disabled={!isSupported}
           onClick={handleNFCButtonClick}
         >
           <Nfc className="h-4 w-4" />
@@ -239,7 +238,7 @@ export function NFCFriendShare({ className, variant = 'button' }: NFCFriendShare
         <Button
           variant="outline"
           className={cn('gap-2', className)}
-          disabled={!isSupported && !hasWebNFC}
+          disabled={!isSupported}
           onClick={handleNFCButtonClick}
         >
           <Nfc className="h-4 w-4" />
@@ -262,7 +261,7 @@ export function NFCFriendShare({ className, variant = 'button' }: NFCFriendShare
 
           <div className="space-y-6 pb-safe">
             {/* NFC Not Supported Message */}
-            {!hasWebNFC && !isSupported && (
+            {!isSupported && (
               <motion.div
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -284,7 +283,7 @@ export function NFCFriendShare({ className, variant = 'button' }: NFCFriendShare
             )}
 
             {/* Idle State - Choose Mode */}
-            {(isEnabled || hasWebNFC) && mode === 'idle' && (
+            {isSupported && mode === 'idle' && (
               <motion.div
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
