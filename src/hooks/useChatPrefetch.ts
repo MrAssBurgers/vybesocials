@@ -7,6 +7,7 @@ import { getEffectiveProfileId } from '@/lib/profileCache';
 import type { Message } from '@/hooks/useMessages';
 import { ensureFlatConversationMembership, resolveDmActorIds, prepareConversationForMessages, isConversationMessagesReady } from '@/lib/dmMembershipRepair';
 import { fetchRecentConversationMessages } from '@/lib/conversationMessagesQuery';
+import { mergeMessagesWithLocalCache, messagesQueryKey } from '@/lib/messagesQueryKey';
 
 const PREFETCH_SELECT = `
   *,
@@ -43,7 +44,11 @@ export function useChatPrefetch() {
       if (error) throw error;
       if (data) {
         const rows = (data as Message[]).filter((m) => !m.is_deleted).reverse();
-        queryClient.setQueryData<Message[]>(['messages', conversationId], rows);
+        // Never blind-replace: an in-flight prefetch can finish right after the user
+        // sends and would wipe the optimistic temp-* bubble without this merge.
+        queryClient.setQueryData<Message[]>(messagesQueryKey(conversationId), () =>
+          mergeMessagesWithLocalCache(queryClient, conversationId, rows),
+        );
       }
     } catch (error) {
       console.error('[ChatPrefetch] Messages error:', error);

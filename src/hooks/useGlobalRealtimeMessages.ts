@@ -61,22 +61,43 @@ function markMessageProcessed(messageId: string) {
 // Track optimistic messages to prevent duplicates for sender
 const pendingOptimisticMessages = new Map<string, { content: string; senderId: string; timestamp: number }>();
 
+function optimisticDedupeKey(conversationId: string, content: string | null | undefined) {
+  return `${conversationId}:${(content || '').trim().slice(0, 50)}`;
+}
+
 export function registerOptimisticMessage(conversationId: string, content: string, senderId: string) {
-  const key = `${conversationId}:${senderId}:${content?.slice(0, 50)}`;
+  const key = optimisticDedupeKey(conversationId, content);
   pendingOptimisticMessages.set(key, { content, senderId, timestamp: Date.now() });
-  
+
   // Auto-cleanup after 10 seconds
   setTimeout(() => pendingOptimisticMessages.delete(key), 10000);
 }
 
-function isOptimisticDuplicate(conversationId: string, content: string, senderId: string): boolean {
-  const key = `${conversationId}:${senderId}:${content?.slice(0, 50)}`;
+function isOptimisticDuplicate(conversationId: string, content: string, _senderId: string): boolean {
+  const key = optimisticDedupeKey(conversationId, content);
   const pending = pendingOptimisticMessages.get(key);
   if (pending && Date.now() - pending.timestamp < 5000) {
     pendingOptimisticMessages.delete(key);
     return true;
   }
   return false;
+}
+
+function matchesOwnOptimisticTemp(
+  message: { id?: string; sender_id?: string; content?: string | null },
+  serverRow: { sender_id?: string; content?: string | null },
+  profileId: string | null,
+  authUid: string | null,
+): boolean {
+  if (typeof message.id !== 'string' || !message.id.startsWith('temp-')) return false;
+
+  const senderMatches =
+    message.sender_id === serverRow.sender_id ||
+    (!!profileId && message.sender_id === profileId) ||
+    (!!authUid && message.sender_id === authUid);
+  if (!senderMatches) return false;
+
+  return (message.content || '').trim() === (serverRow.content || '').trim();
 }
 
 // Connection state for retry logic
@@ -196,13 +217,7 @@ export function useGlobalRealtimeMessages() {
               };
               if (!old?.length) return [row];
               const stripped = old.filter(
-                (m) =>
-                  !(
-                    typeof m.id === 'string' &&
-                    m.id.startsWith('temp-') &&
-                    m.sender_id === newMessage.sender_id &&
-                    m.content === newMessage.content
-                  ),
+                (m) => !matchesOwnOptimisticTemp(m, newMessage, profileId, authUid),
               );
               if (stripped.some((m) => m.id === newMessage.id)) return stripped;
               return [...stripped, row];

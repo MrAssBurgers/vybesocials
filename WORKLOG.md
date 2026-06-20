@@ -2,6 +2,12 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## DM send bubble vanish (2026-06-20)
+- **Root cause:** `useChatPrefetch` blind-replaced the messages cache when a prefetch finished right after send — wiped the optimistic `temp-*` bubble before the server row arrived.
+- **Fix:** Prefetch now uses `mergeMessagesWithLocalCache`; GlobalRT temp dedupe matches auth uid vs profile id + trimmed content.
+- **Verified:** `npm run build` PASS; `test:social-permissions` 15/15 PASS
+- **You:** Commit/push → Lovable Publish → force-quit app → open DM → send (bubble should stay)
+
 ## DM send fix (2026-06-20)
 - **Root cause:** Fast send marked chats "ready" without verified Firestore membership; many DMs had no `conversations/{id}` doc → rules denied message insert.
 - **Fix:** `repairConversationForSend()` creates missing conv doc, syncs `user_auth_index`, seeds composite membership, only marks ready when verified. Wired into `useInstantSend`, outbox, share-to-DM.
