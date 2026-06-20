@@ -1038,6 +1038,10 @@ async function rpcCreateDmConversation(otherProfileId: string): Promise<string |
 
   const existing = await findExistingDmBetweenProfiles(myProfileId, resolvedOtherProfileId);
   if (existing) {
+    await setDocument('conversations', existing, {
+      member_ids: memberIds,
+      updated_at: now,
+    }, true);
     await ensureConversationMembershipVariants(
       existing,
       myProfileId,

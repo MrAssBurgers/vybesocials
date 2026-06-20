@@ -2,18 +2,22 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
-## Permission denied on Message / Add Friend (2026-06-20)
-- **Root cause:** Orphan `conversations` docs from prior half-failed DM creates — creator could **update** but not **read** the doc, so `create_dm_conversation` threw `permission-denied` on retry; friend requests could also fail when `user_auth_index` was stale vs `sender_id`
-- **Fix rules:** `conversations` read allows creator (`isConversationCreatorOf`); `friend_requests` create uses `isFriendRequestSender` (sender_id matches auth uid or profileId())
-- **Fix client:** `syncUserAuthIndex` before friend/DM writes; `getConversationDoc` swallows read errors in DM lookup; `useCreateConversation` syncs index before RPC
-- **Deploy:** Firestore rules → `vybe-daaab` SUCCESS (immediate)
+## Permission denied on Message / Add Friend — REAL FIX (2026-06-20)
+- **Root cause:** Firestore `get()` on **non-existent** docs evaluated read rules using `resource.data` (null) → `permission-denied` instead of "not found". Broke `friend_requests` duplicate check (Add Friend) and `conversation_members` existence check (Message RPC).
+- **Fix rules:** `canReadMissingDoc()` guard on `friend_requests`, `message_requests`, `conversations`, `conversation_members` reads; creator can seed peer members via `isConversationCreatorOf` on create.
+- **Fix client:** Repair `member_ids` on legacy DM before membership seed in `rpcCreateDmConversation`.
+- **Verified:** `node scripts/test-social-permissions.mjs` — 9/9 PASS against live `vybe-daaab` rules (bakrix custom token).
+- **Deploy:** Firestore rules → `vybe-daaab` SUCCESS
 - **Tests:** `npm run build` PASS
-- **You:** Lovable **Share → Publish** → hard refresh → profile **Message** + **Add Friend**
+- **You:** Lovable **Share → Publish** (client RPC tweak) → hard refresh
 
 ## Next 3 Tasks
-1. Lovable Publish → test Message + Add Friend from another user's profile
-2. Confirm no duplicate empty error toasts
-3. Receiver sees friend request in Notifications
+1. Lovable Publish → profile Message + Add Friend
+2. Run `npm run test:social-permissions` after publish smoke test
+3. Repair orphan conversations in prod if any users still stuck (admin script)
+
+## Permission denied on Message / Add Friend (2026-06-20) — superseded
+- Earlier orphan-conversation theory was partial; **missing-doc read rules** were the primary blocker.
 
 ## Friend/DM + stories + onboarding (2026-06-20)
 - **DM retry bug:** Partial failed chats blocked `setDocument` on `conversations` (update denied) — RPC now skips recreate, creator can update, seeds membership for profile id **and** auth uid

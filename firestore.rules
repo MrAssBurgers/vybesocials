@@ -116,6 +116,10 @@ service cloud.firestore {
         ownsProfileId(resource.data.get('recipient_id', ''))
       );
     }
+    // get() on a missing doc leaves resource null — guard before reading resource.data.
+    function canReadMissingDoc(path) {
+      return signedIn() && !exists(path);
+    }
     function conversationData(cid) {
       return get(/databases/$(database)/documents/conversations/$(cid)).data;
     }
@@ -312,14 +316,16 @@ service cloud.firestore {
       allow delete: if isOwnerProfile('blocker_id');
     }
     match /friend_requests/{docId} {
-      allow read: if isFriendRequestParty();
+      allow read: if canReadMissingDoc(/databases/$(database)/documents/friend_requests/$(docId)) ||
+        isFriendRequestParty();
       allow create: if isFriendRequestSender();
       allow update, delete: if isFriendRequestParty();
     }
     match /message_requests/{docId} {
-      allow read: if signedIn() && (
-        ownsProfileId(resource.data.sender_id) || ownsProfileId(resource.data.receiver_id)
-      );
+      allow read: if canReadMissingDoc(/databases/$(database)/documents/message_requests/$(docId)) ||
+        signedIn() && (
+          ownsProfileId(resource.data.sender_id) || ownsProfileId(resource.data.receiver_id)
+        );
       allow create: if willOwnProfile('sender_id');
       allow update: if signedIn() && (
         ownsProfileId(resource.data.sender_id) || ownsProfileId(resource.data.receiver_id)
@@ -379,7 +385,7 @@ service cloud.firestore {
 
     // ---------- conversations / messages ----------
     match /conversations/{cid} {
-      allow read: if isAdmin() || (
+      allow read: if isAdmin() || canReadMissingDoc(/databases/$(database)/documents/conversations/$(cid)) || (
         signedIn() && (
           profileId() in resource.data.get('member_ids', []) ||
           uid() in resource.data.get('member_ids', []) ||
@@ -414,15 +420,19 @@ service cloud.firestore {
     }
     // Legacy flat collections (migrated from Supabase)
     match /conversation_members/{docId} {
-      allow read: if signedIn() && (
-        ownsProfileId(resource.data.user_id) ||
-        isConversationParticipant(resource.data.conversation_id)
-      );
+      allow read: if canReadMissingDoc(/databases/$(database)/documents/conversation_members/$(docId)) ||
+        signedIn() && (
+          ownsProfileId(resource.data.user_id) ||
+          isConversationParticipant(resource.data.conversation_id)
+        );
       allow create: if signedIn() && (
         willOwnProfile('user_id') ||
         (
           request.resource.data.conversation_id is string &&
-          canSeedFlatConversationMember(request.resource.data.conversation_id)
+          (
+            canSeedFlatConversationMember(request.resource.data.conversation_id) ||
+            isConversationCreatorOf(request.resource.data.conversation_id)
+          )
         )
       );
       allow update: if ownsProfileId(resource.data.user_id);
