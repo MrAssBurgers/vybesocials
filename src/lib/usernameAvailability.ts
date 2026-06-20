@@ -22,6 +22,7 @@ function isRpcMissingError(error: { code?: string; message?: string }): boolean 
 /** Check username availability; fail-soft when `is_username_available` RPC is not deployed. */
 export async function checkUsernameAvailable(
   username: string,
+  excludeUserId?: string,
 ): Promise<UsernameAvailabilityResult> {
   const clean = normalizeUsername(username);
   if (!isValidUsernameFormat(clean)) {
@@ -34,6 +35,7 @@ export async function checkUsernameAvailable(
 
   const { data, error } = await db.rpc('is_username_available', {
     p_username: clean,
+    exclude_user_id: excludeUserId,
   });
 
   if (error) {

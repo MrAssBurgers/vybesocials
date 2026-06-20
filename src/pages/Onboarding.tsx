@@ -12,8 +12,8 @@ import { AgeSetup } from '@/components/onboarding/AgeSetup';
 import { AIVybeDesigner } from '@/components/onboarding/AIVybeDesigner';
 import { LegalAcceptance } from '@/components/onboarding/LegalAcceptance';
 import { useAuth } from '@/lib/auth';
-import { db } from '@/lib/firebase';
-import { updateUserProfile } from '@/lib/firebase/users';
+import { db, firebaseStorage } from '@/lib/firebase';
+import { updateUserProfile, getProfileByAuthUid } from '@/lib/firebase/users';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { VybeMiniIcon } from '@/components/ui/VybeMiniIcon';
 import { toast } from 'sonner';
@@ -29,18 +29,11 @@ import {
 const EASE_OUT_EXPO: [number, number, number, number] = [0.16, 1, 0.3, 1];
 
 async function ensureProfileRow(userId: string): Promise<void> {
-  const { error } = await db.rpc('ensure_profile');
-  if (error) {
-    await db.rpc('claim_profile_by_email');
-  }
+  await db.rpc('ensure_profile');
+  await db.rpc('claim_profile_by_email');
 
-  const { data: row } = await db
-    .from('profiles')
-    .select('id')
-    .eq('user_id', userId)
-    .maybeSingle();
-
-  if (!row?.id) {
+  const profile = await getProfileByAuthUid(userId);
+  if (!profile?.id) {
     throw new Error('Could not create your profile. Please try again.');
   }
 }
@@ -189,16 +182,26 @@ export default function Onboarding({ onInviteNavigate, isInviteMode = false }: O
     setUsernameValid(true);
   }, [signupUsername, username]);
 
-  // Seed displayName once on mount only — never overwrite user edits (including clearing).
+  // Seed display name from existing profile only — never copy @username into display name.
   const seededDisplayNameRef = useRef(false);
   useEffect(() => {
     if (seededDisplayNameRef.current) return;
-    const name = needsUsername ? username : (profile?.username || signupUsername);
-    if (name) {
+    const existingDisplay = profile?.display_name?.trim();
+    if (existingDisplay) {
       seededDisplayNameRef.current = true;
-      setProfileData(prev => (prev.displayName ? prev : { ...prev, displayName: name }));
+      setProfileData(prev => (prev.displayName ? prev : { ...prev, displayName: existingDisplay }));
     }
-  }, [username, profile?.username, needsUsername]);
+  }, [profile?.display_name]);
+
+  // Mark username valid when user already has a real handle (non-OAuth placeholder).
+  useEffect(() => {
+    if (needsUsername) return;
+    const existing = normalizeUsername(profile?.username || signupUsername || '');
+    if (existing && !isGeneratedUsername(existing) && isValidUsernameFormat(existing)) {
+      setUsername(existing);
+      setUsernameValid(true);
+    }
+  }, [needsUsername, profile?.username, signupUsername]);
 
   // Step mapping (actual content step)
   const getActualStep = () => needsUsername ? step : step + 1;
@@ -209,11 +212,11 @@ export default function Onboarding({ onInviteNavigate, isInviteMode = false }: O
       case 1: return usernameValid; // Username
       case 2: return dateOfBirth !== null && (userAge === undefined || userAge >= 0); // Age (all ages allowed, under-13 gets parental controls)
       case 3: return interests.length >= 3; // Interests
-      case 4: return profileData.firstName.length > 0 && profileData.lastName.length > 0; // Profile
+      case 4: return usernameValid && profileData.displayName.trim().length > 0 && profileData.firstName.length > 0 && profileData.lastName.length > 0; // Profile
       case 5: return legalAccepted; // Legal
       default: return true;
     }
-  }, [step, needsUsername, usernameValid, dateOfBirth, userAge, interests.length, profileData.firstName.length, profileData.lastName.length, legalAccepted]);
+  }, [step, needsUsername, usernameValid, dateOfBirth, userAge, interests.length, profileData.displayName, profileData.firstName.length, profileData.lastName.length, legalAccepted]);
 
   const handleNext = () => {
     haptics.impact();
@@ -238,23 +241,27 @@ export default function Onboarding({ onInviteNavigate, isInviteMode = false }: O
       let avatarUrl = profile?.avatar_url || null;
       if (profileData.avatarFile) {
         const fileExt = profileData.avatarFile.name.split('.').pop();
-        const fileName = `${user.id}-${Date.now()}.${fileExt}`;
-        
+        const fileName = `${Date.now()}.${fileExt}`;
+        const storagePath = `${user.id}/${fileName}`;
+
         const { error: uploadError } = await db.storage
-          .from('media')
-          .upload(`avatars/${fileName}`, profileData.avatarFile);
-        
-        if (!uploadError) {
-          const { data: urlData } = db.storage
-            .from('media')
-            .getPublicUrl(`avatars/${fileName}`);
-          avatarUrl = urlData.publicUrl;
+          .from('avatars')
+          .upload(storagePath, profileData.avatarFile);
+
+        if (uploadError) {
+          console.warn('[Onboarding] Avatar upload failed:', uploadError.message);
+        } else {
+          avatarUrl = await firebaseStorage.resolveDownloadUrl('avatars', storagePath);
         }
       }
 
-      const chosenUsername = needsUsername
-        ? normalizeUsername(username)
-        : normalizeUsername(profile?.username || signupUsername);
+      const chosenUsername = normalizeUsername(
+        usernameValid && username
+          ? username
+          : needsUsername
+            ? normalizeUsername(username)
+            : normalizeUsername(profile?.username || signupUsername),
+      );
 
       if (!chosenUsername || isGeneratedUsername(chosenUsername)) {
         toast.error('Please choose a username before continuing.');
@@ -263,9 +270,10 @@ export default function Onboarding({ onInviteNavigate, isInviteMode = false }: O
       }
 
       const finalUsername = chosenUsername;
-      const finalDisplayName = profileData.displayName && profileData.displayName !== '' 
-        ? profileData.displayName 
-        : finalUsername || '';
+      const trimmedDisplay = profileData.displayName.trim();
+      const finalDisplayName = trimmedDisplay
+        || [profileData.firstName, profileData.lastName].filter(Boolean).join(' ').trim()
+        || finalUsername;
 
       await ensureProfileRow(user.id);
 
@@ -283,10 +291,13 @@ export default function Onboarding({ onInviteNavigate, isInviteMode = false }: O
       } as any);
 
       if (legalAccepted) {
-        await db.from('legal_acceptances').upsert([
+        const { error: legalError } = await db.from('legal_acceptances').upsert([
           { user_id: user.id, document_type: 'tos', document_version: '2.0' },
           { user_id: user.id, document_type: 'privacy', document_version: '2.0' },
         ], { onConflict: 'user_id,document_type,document_version' });
+        if (legalError) {
+          console.warn('[Onboarding] Legal acceptance save failed:', legalError.message);
+        }
       }
 
       clearSignupUsername();
@@ -299,7 +310,10 @@ export default function Onboarding({ onInviteNavigate, isInviteMode = false }: O
     } catch (error) {
       console.error('Onboarding error:', error);
       haptics.error();
-      toast.error('Something went wrong. Please try again.');
+      const message = error instanceof Error ? error.message : 'Something went wrong. Please try again.';
+      toast.error(
+        import.meta.env.DEV ? message : 'Something went wrong. Please try again.',
+      );
       setLoading(false);
     }
   };
@@ -434,7 +448,10 @@ export default function Onboarding({ onInviteNavigate, isInviteMode = false }: O
           <ProfileSetup
             data={profileData}
             onChange={setProfileData}
-            username={needsUsername ? username : (profile?.username || signupUsername || '')}
+            username={needsUsername ? username : (username || profile?.username || signupUsername || '')}
+            onUsernameChange={setUsername}
+            onUsernameValidChange={setUsernameValid}
+            authUserId={user?.id}
           />
         );
       case 5:

@@ -1087,7 +1087,7 @@ const CLIENT_RPC: Record<string, (params: Record<string, unknown>) => Promise<un
   },
   claim_profile_by_email: async () => rpcClaimProfileByEmail(),
   is_username_available: async (p) => {
-    const username = String(p.username || p._username || '');
+    const username = String(p.username || p.p_username || p._username || '');
     const exclude = p.exclude_user_id ? String(p.exclude_user_id) : undefined;
     return rpcIsUsernameAvailable(username, exclude);
   },

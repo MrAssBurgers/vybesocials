@@ -106,7 +106,15 @@ service cloud.firestore {
     // Auth uid → profiles.id lookup (seeded by scripts/migrate-firebase/seed-user-auth-index.mjs)
     match /user_auth_index/{authUid} {
       allow read: if signedIn() && authUid == uid();
-      allow write: if false;
+      allow create, update: if signedIn() && authUid == uid();
+      allow delete: if false;
+    }
+
+    match /legal_acceptances/{docId} {
+      allow read: if signedIn() && resource.data.user_id == uid();
+      allow create: if signedIn() && request.resource.data.user_id == uid();
+      allow update: if signedIn() && resource.data.user_id == uid();
+      allow delete: if false;
     }
 
     // ---------- profiles ----------
