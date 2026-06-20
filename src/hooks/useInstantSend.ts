@@ -4,6 +4,11 @@ import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth';
 import { Message, ViewMode } from './useMessages';
 import { registerOptimisticMessage } from './useGlobalRealtimeMessages';
+import { resolveSessionProfileId } from '@/lib/resolveSessionProfileId';
+import {
+  prepareConversationForMessages,
+  inferOtherParticipantId,
+} from '@/lib/dmMembershipRepair';
 import { toast } from 'sonner';
 
 export interface PendingMessage {
@@ -207,6 +212,27 @@ export function useInstantSend(conversationId: string | undefined) {
     pendingMessagesRef.current.delete(tempId);
   }, [conversationId, queryClient]);
 
+  const ensureSendReady = useCallback(async (): Promise<string> => {
+    if (!conversationId) throw new Error('No conversation');
+    const senderId = (await resolveSessionProfileId(profile?.id)) || profile?.id;
+    if (!senderId) throw new Error('Not authenticated');
+
+    const cachedConv =
+      queryClient.getQueryData<any[]>(['dm-conversations', senderId])?.find(
+        (c) => c.id === conversationId,
+      ) ??
+      queryClient.getQueryData<any[]>(['conversations', senderId])?.find(
+        (c) => c.id === conversationId,
+      );
+    const otherFromMembers =
+      cachedConv?.members?.find((m: { user_id?: string }) => m.user_id !== senderId)?.user_id;
+    const otherProfileId =
+      otherFromMembers || inferOtherParticipantId(conversationId, senderId) || null;
+
+    await prepareConversationForMessages(conversationId, senderId, otherProfileId);
+    return senderId;
+  }, [conversationId, profile?.id, queryClient]);
+
   // Send a text message instantly
   const sendText = useCallback(async (
     content: string, 
@@ -234,6 +260,7 @@ export function useInstantSend(conversationId: string | undefined) {
     registerOptimisticMessage(conversationId, content, profile.id);
 
     try {
+      const senderId = await ensureSendReady();
       const expiresAt = viewMode === '24h' 
         ? new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
         : null;
@@ -242,8 +269,9 @@ export function useInstantSend(conversationId: string | undefined) {
         .from('messages')
         .insert({
           conversation_id: conversationId,
-          sender_id: profile.id,
+          sender_id: senderId,
           content,
+          message_type: 'text',
           view_mode: viewMode,
           expires_at: expiresAt,
           reply_to_id: replyToId,
@@ -279,7 +307,7 @@ export function useInstantSend(conversationId: string | undefined) {
       toast.error('Message failed to send');
       throw error;
     }
-  }, [conversationId, profile?.id, generateTempId, addOptimisticMessage, confirmMessage, markFailed, getBroadcastChannel]);
+  }, [conversationId, profile?.id, generateTempId, addOptimisticMessage, confirmMessage, markFailed, getBroadcastChannel, ensureSendReady]);
 
   // Send media message
   const sendMedia = useCallback(async (
@@ -310,6 +338,7 @@ export function useInstantSend(conversationId: string | undefined) {
     });
 
     try {
+      const senderId = await ensureSendReady();
       const expiresAt = viewMode === '24h' 
         ? new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
         : null;
@@ -318,9 +347,10 @@ export function useInstantSend(conversationId: string | undefined) {
         .from('messages')
         .insert({
           conversation_id: conversationId,
-          sender_id: profile.id,
+          sender_id: senderId,
           media_url: mediaUrl,
           media_type: mediaType,
+          message_type: mediaType === 'image' ? 'image' : 'media',
           view_mode: viewMode,
           expires_at: expiresAt,
           reply_to_id: replyToId,
@@ -353,7 +383,7 @@ export function useInstantSend(conversationId: string | undefined) {
       markFailed(tempId, error.message || 'Failed to send');
       throw error;
     }
-  }, [conversationId, profile?.id, generateTempId, addOptimisticMessage, confirmMessage, markFailed, getBroadcastChannel]);
+  }, [conversationId, profile?.id, generateTempId, addOptimisticMessage, confirmMessage, markFailed, getBroadcastChannel, ensureSendReady]);
 
   // Send video with optimistic UI and progress tracking
   const sendVideo = useCallback(async (
@@ -436,6 +466,8 @@ export function useInstantSend(conversationId: string | undefined) {
       
       updateProgress(85);
 
+      const senderId = await ensureSendReady();
+
       // Calculate expiry
       const expiresAt = viewMode === '24h' 
         ? new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
@@ -446,10 +478,11 @@ export function useInstantSend(conversationId: string | undefined) {
         .from('messages')
         .insert({
           conversation_id: conversationId,
-          sender_id: profile.id,
+          sender_id: senderId,
           content: caption || null,
           media_url: mediaUrl,
           media_type: 'video',
+          message_type: 'video',
           view_mode: viewMode,
           expires_at: expiresAt,
           reply_to_id: replyToId,
@@ -488,7 +521,7 @@ export function useInstantSend(conversationId: string | undefined) {
       URL.revokeObjectURL(localUrl);
       throw error;
     }
-  }, [conversationId, profile?.id, generateTempId, addOptimisticMessage, confirmMessage, markFailed, getBroadcastChannel]);
+  }, [conversationId, profile?.id, generateTempId, addOptimisticMessage, confirmMessage, markFailed, getBroadcastChannel, ensureSendReady]);
 
   // Retry a failed message
   const retry = useCallback(async (tempId: string) => {

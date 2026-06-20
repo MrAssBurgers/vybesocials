@@ -43,6 +43,8 @@ Before ending a task:
   - tests run
   - blockers
   - next 3 tasks
+- **Push client changes to `origin/main`** before telling the user to Lovable Publish; include commit SHA in handoff.
+- Firebase-only deploys (`vybe-daaab.web.app`) are staging — **vybehub.app requires Lovable Publish**.
 
 ## Deploy Safety
 - Follow `DEPLOY.md`.

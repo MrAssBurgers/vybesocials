@@ -579,7 +579,11 @@ class QueryBuilder {
           return payload;
         }),
       );
-      return { data: list.length === 1 ? created[0] : created, error: null };
+      let data = created as Record<string, unknown>[];
+      if (this.joins.length) {
+        data = await this.resolveJoins(data);
+      }
+      return { data: list.length === 1 ? data[0] : data, error: null };
     } catch (err) {
       return { data: null, error: toQueryError(err, `${this.table}:insert`) };
     }

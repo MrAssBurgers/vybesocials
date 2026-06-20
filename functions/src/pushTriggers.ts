@@ -1,10 +1,50 @@
 import { onDocumentCreated } from 'firebase-functions/v2/firestore';
 import { db } from './_shared/admin.js';
 import { dispatchDmPushToProfile, dispatchCallPushToProfile, messagePreview } from './_shared/fcmPush.js';
+import { resolvePushTargetProfileId } from './_shared/onesignalPush.js';
 
 function asString(value: unknown): string | undefined {
   if (typeof value === 'string' && value.trim()) return value.trim();
   return undefined;
+}
+
+async function resolveProfileRecord(id: string): Promise<{ id: string; user_id?: string; display_name?: string; username?: string; avatar_url?: string } | null> {
+  const direct = await db.collection('profiles').doc(id).get();
+  if (direct.exists) {
+    const data = direct.data() || {};
+    return {
+      id: direct.id,
+      user_id: asString(data.user_id),
+      display_name: asString(data.display_name),
+      username: asString(data.username),
+      avatar_url: asString(data.avatar_url),
+    };
+  }
+  const byAuth = await db.collection('profiles').where('user_id', '==', id).limit(1).get();
+  if (!byAuth.empty) {
+    const doc = byAuth.docs[0];
+    const data = doc.data();
+    return {
+      id: doc.id,
+      user_id: asString(data.user_id),
+      display_name: asString(data.display_name),
+      username: asString(data.username),
+      avatar_url: asString(data.avatar_url),
+    };
+  }
+  return null;
+}
+
+async function senderIdentityIds(senderId: string): Promise<Set<string>> {
+  const ids = new Set<string>([senderId]);
+  const profile = await resolveProfileRecord(senderId);
+  if (profile?.id) ids.add(profile.id);
+  if (profile?.user_id) ids.add(profile.user_id);
+  return ids;
+}
+
+function isSenderMember(senderIds: Set<string>, memberUserId: string): boolean {
+  return senderIds.has(memberUserId);
 }
 
 async function notifyDmRecipients(message: Record<string, unknown>, messageId: string): Promise<void> {
@@ -12,48 +52,70 @@ async function notifyDmRecipients(message: Record<string, unknown>, messageId: s
   if (message.is_optimistic === true) return;
 
   const conversationId = asString(message.conversation_id);
-  const senderId = asString(message.sender_id);
-  if (!conversationId || !senderId) return;
+  const rawSenderId = asString(message.sender_id);
+  if (!conversationId || !rawSenderId) return;
 
-  const [convSnap, senderSnap, membersSnap] = await Promise.all([
+  const senderProfile = await resolveProfileRecord(rawSenderId);
+  const senderIds = await senderIdentityIds(rawSenderId);
+  const canonicalSenderId = senderProfile?.id || rawSenderId;
+  const senderName =
+    asString(senderProfile?.display_name) ||
+    asString(senderProfile?.username) ||
+    'Someone';
+  const senderAvatar = asString(senderProfile?.avatar_url);
+
+  const [convSnap, membersSnap] = await Promise.all([
     db.collection('conversations').doc(conversationId).get(),
-    db.collection('profiles').doc(senderId).get(),
     db.collection('conversation_members').where('conversation_id', '==', conversationId).get(),
   ]);
 
   const conversation = convSnap.data() || {};
-  const sender = senderSnap.data() || {};
-  const senderName = asString(sender.display_name) || asString(sender.username) || 'Someone';
   const isGroup = conversation.is_group === true;
-  const title = isGroup
-    ? (asString(conversation.name) || senderName)
-    : senderName;
+  const title = isGroup ? (asString(conversation.name) || senderName) : senderName;
   const body = messagePreview(message);
   const type = isGroup ? 'group_message' : 'dm';
   const url = `/messages/${conversationId}`;
 
-  const recipients = membersSnap.docs
-    .map((d) => d.data())
-    .filter((m) => asString(m.user_id) && m.user_id !== senderId)
-    .filter((m) => m.is_muted !== true);
+  const recipientUserIds = new Set<string>();
+  for (const doc of membersSnap.docs) {
+    const member = doc.data();
+    const memberUserId = asString(member.user_id);
+    if (!memberUserId || member.is_muted === true) continue;
+    if (isSenderMember(senderIds, memberUserId)) continue;
+    recipientUserIds.add(memberUserId);
+  }
+
+  // Deterministic 1:1 chats may only have member_ids on the conversation doc.
+  if (!recipientUserIds.size) {
+    const memberIds = conversation.member_ids;
+    if (Array.isArray(memberIds)) {
+      for (const id of memberIds) {
+        const pid = asString(id);
+        if (!pid || isSenderMember(senderIds, pid)) continue;
+        recipientUserIds.add(pid);
+      }
+    }
+  }
 
   await Promise.all(
-    recipients.map(async (member) => {
-      const recipientId = asString(member.user_id)!;
+    [...recipientUserIds].map(async (recipientUserId) => {
+      const recipientProfileId = await resolvePushTargetProfileId(recipientUserId);
+
       await db.collection('notifications').add({
-        user_id: recipientId,
+        user_id: recipientProfileId,
+        actor_id: canonicalSenderId,
         title,
         body,
         url,
         type,
         conversation_id: conversationId,
-        sender_id: senderId,
+        sender_id: canonicalSenderId,
         message_id: messageId,
         created_at: new Date().toISOString(),
         read: false,
       });
 
-      await dispatchDmPushToProfile(recipientId, {
+      const pushResult = await dispatchDmPushToProfile(recipientProfileId, {
         title,
         body,
         url,
@@ -61,12 +123,18 @@ async function notifyDmRecipients(message: Record<string, unknown>, messageId: s
         type,
         data: {
           conversationId,
-          senderId,
+          senderId: canonicalSenderId,
           senderName,
+          senderAvatar: senderAvatar || '',
           messageId,
+          preview: body,
           path: url,
         },
       });
+
+      if (pushResult.sent === 0) {
+        console.warn('[onDmMessageCreated] no push targets for', recipientProfileId, conversationId);
+      }
     }),
   );
 }
@@ -120,7 +188,8 @@ async function notifyCallRecipients(call: Record<string, unknown>, callId: strin
 
   await Promise.all(
     [...recipientIds].map(async (recipientId) => {
-      const pushResult = await dispatchCallPushToProfile(recipientId, {
+      const recipientProfileId = await resolvePushTargetProfileId(recipientId);
+      const pushResult = await dispatchCallPushToProfile(recipientProfileId, {
         title,
         body,
         url,
@@ -138,7 +207,7 @@ async function notifyCallRecipients(call: Record<string, unknown>, callId: strin
         },
       });
       if (pushResult.sent === 0) {
-        console.warn('[onCallCreated] no push targets for', recipientId);
+        console.warn('[onCallCreated] no push targets for', recipientProfileId);
       }
     }),
   );

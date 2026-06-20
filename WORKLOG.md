@@ -2,6 +2,20 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## Lovable publish gate (2026-06-20)
+- Client fixes are **not done** until pushed to `origin/main` with commit SHA in handoff.
+- Never tell user to Lovable Publish without confirming GitHub has the commit.
+- vybehub.app stale check: `curl -s https://vybehub.app/assets/app.js | wc -c` should match local build (~832KB).
+
+## DM send + push (2026-06-20)
+- **Send:** `useInstantSend` waits for session profile + `prepareConversationForMessages` before insert
+- **Push:** Firebase `onDmMessageCreated` + OneSignal fan-out (Despia/native) via `onesignalPush.ts`
+- **Deploy:** `firebase deploy --only functions:onDmMessageCreated,functions:sendPushNotification` + OneSignal secrets on `vybe-daaab`
+
+- **Root cause:** Users had `conversation_members` rows but **could not read** `conversations/{id}` until composite membership seeded → list silently empty + ChatView "Couldn't load this conversation"
+- **Fix:** `fetchConversationForViewer()` repairs + synthetic DM metadata; index-free message fetch; member fallback from `member_ids`
+- **Git:** pushed → Lovable **Publish** → hard refresh
+
 ## Publish prep — Spotify + Notifications Requests (2026-06-20)
 - **Spotify:** OAuth redirect `/spotify/callback`; Firebase callback forward; auth-uid connect; `npm run setup:spotify-secrets` (terminal env or flags)
 - **Notifications Requests tab:** `friend_requests` query dropped Firestore `orderBy` (missing index) → client sort; indexes deployed

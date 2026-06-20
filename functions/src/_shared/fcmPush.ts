@@ -1,5 +1,6 @@
 import type { Message, MulticastMessage } from 'firebase-admin/messaging';
 import { db, messaging } from './admin.js';
+import { dispatchOneSignalToProfile, resolvePushTargetProfileId } from './onesignalPush.js';
 
 export interface PushDispatchPayload {
   title: string;
@@ -290,12 +291,13 @@ async function sendDmFcmBatch(tokens: string[], payload: PushDispatchPayload): P
   });
 }
 
-/** DM / social — notification + data on all platforms. */
+/** DM / social — OneSignal (native/Despia) + FCM + Web Push. */
 export async function dispatchDmPushToProfile(
   profileId: string,
   payload: PushDispatchPayload,
-): Promise<{ sent: number; fcm: number; web: number }> {
-  const devices = await getPushDevicesForProfile(profileId);
+): Promise<{ sent: number; fcm: number; web: number; onesignal: number }> {
+  const resolvedId = await resolvePushTargetProfileId(profileId);
+  const devices = await getPushDevicesForProfile(resolvedId);
   const fcmTokens = new Set<string>();
   const webSubs = new Set<string>();
 
@@ -305,11 +307,24 @@ export async function dispatchDmPushToProfile(
     // VoIP token is not used for DMs
   }
 
-  const [fcm, web] = await Promise.all([
+  const [onesignalResult, fcm, web] = await Promise.all([
+    dispatchOneSignalToProfile(resolvedId, {
+      title: payload.title,
+      body: payload.body,
+      url: payload.url,
+      tag: payload.tag,
+      type: payload.type,
+      data: payload.data,
+    }),
     sendDmFcmBatch([...fcmTokens], payload),
     sendWebPushBatch([...webSubs], payload, false),
   ]);
-  return { sent: fcm + web, fcm, web };
+  return {
+    sent: onesignalResult.sent + fcm + web,
+    onesignal: onesignalResult.sent,
+    fcm,
+    web,
+  };
 }
 
 export interface CallPushResult {

@@ -254,6 +254,20 @@ async function main() {
     }
   }
 
+  await run('create message (send path)', async () => {
+    const msgId = `test-${Date.now()}`;
+    await setDoc(doc(clientDb, 'messages', msgId), {
+      id: msgId,
+      conversation_id: chatId,
+      sender_id: ACTOR_PROFILE_ID,
+      content: 'permission test ping',
+      message_type: 'text',
+      view_mode: 'permanent',
+      is_deleted: false,
+      created_at: now,
+    });
+  });
+
   console.log(`\n── Result: ${passed} passed, ${failed} failed ──`);
   process.exit(failed > 0 ? 1 : 0);
 }
