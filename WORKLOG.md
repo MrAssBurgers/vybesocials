@@ -2,6 +2,15 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## Friend/DM + stories + onboarding (2026-06-20)
+- **DM retry bug:** Partial failed chats blocked `setDocument` on `conversations` (update denied) — RPC now skips recreate, creator can update, seeds membership for profile id **and** auth uid
+- **Friend requests:** Normalize receiver to canonical `profiles.id` via `getUserProfile`
+- **Onboarding "Design your VYBE":** Profile refresh redirected to `/home` before `AIVybeDesigner` mounted — fixed with `pendingDesignerRef` + `showAIDesigner` guard
+- **Stories:** Unviewed tiles use uploader theme gradient veil (image hidden/blurred until viewed); ring still uses uploader `equipped_profile_theme`
+- **Deploy:** Firestore rules → `vybe-daaab` SUCCESS
+- **Tests:** `npm run build` PASS, `npm run lint` PASS
+- **You:** Lovable **Share → Publish** → hard refresh → Add Friend, Message, onboarding finish, story rings
+
 ## Friend + DM fix (2026-06-20)
 - **Root cause (DMs):** `conversation_members` create rule required `profileId()` ∈ `member_ids`, but rules `profileId()` falls back to auth uid while `member_ids` stores profile UUIDs → **permission denied** when seeding peer membership
 - **Fix rules:** `canSeedFlatConversationMember` — creator, member_ids match (profile id or uid), or conversation `created_by`

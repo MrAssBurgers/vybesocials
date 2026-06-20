@@ -38,7 +38,7 @@ import { isGeneratedUsername, normalizeUsername } from '@/lib/username';
 import {
   normalizeToProfileId,
   findExistingDmBetweenProfiles,
-  ensureDmMembershipPair,
+  ensureConversationMembershipVariants,
 } from '@/lib/dmMembershipRepair';
 import { syncProfileUsername } from './syncProfileUsername';
 import {
@@ -1020,6 +1020,7 @@ async function rpcCreateDmConversation(otherProfileId: string): Promise<string |
   if (myProfileId === otherProfile.id) throw new Error('Cannot message yourself');
 
   const resolvedOtherProfileId = otherProfile.id;
+  const otherAuthUid = otherProfile.user_id || null;
 
   // Rules use profileId(); keep index in sync for migrated UUID profiles.
   const now = new Date().toISOString();
@@ -1028,39 +1029,50 @@ async function rpcCreateDmConversation(otherProfileId: string): Promise<string |
     updated_at: now,
   }, true);
 
+  const profileMemberIds = [myProfileId, resolvedOtherProfileId].sort();
+  const chatId = profileMemberIds.join('_');
+  const memberIds = [
+    ...new Set([myProfileId, resolvedOtherProfileId, user.id, otherAuthUid].filter(Boolean)),
+  ] as string[];
+
   const existing = await findExistingDmBetweenProfiles(myProfileId, resolvedOtherProfileId);
   if (existing) {
-    await ensureDmMembershipPair(existing, myProfileId, resolvedOtherProfileId);
+    await ensureConversationMembershipVariants(
+      existing,
+      myProfileId,
+      resolvedOtherProfileId,
+      user.id,
+      otherAuthUid,
+    );
     return existing;
   }
 
-  const memberIds = [myProfileId, resolvedOtherProfileId].sort();
-  const chatId = memberIds.join('_');
-
-  await setDocument('conversations', chatId, {
-    id: chatId,
-    is_group: false,
-    member_ids: memberIds,
-    name: null,
-    avatar_url: null,
-    created_by: myProfileId,
-    created_at: now,
-    updated_at: now,
-  });
-
-  for (const memberId of memberIds) {
-    await setDocument('conversation_members', `${chatId}_${memberId}`, {
-      id: `${chatId}_${memberId}`,
-      conversation_id: chatId,
-      user_id: memberId,
-      role: memberId === myProfileId ? 'admin' : 'member',
-      is_muted: false,
-      is_pinned: false,
-      last_read_at: null,
+  const existingConv = await getDocument('conversations', chatId);
+  if (!existingConv) {
+    await setDocument('conversations', chatId, {
+      id: chatId,
+      is_group: false,
+      member_ids: memberIds,
+      name: null,
+      avatar_url: null,
+      created_by: myProfileId,
       created_at: now,
       updated_at: now,
     });
+  } else {
+    await setDocument('conversations', chatId, {
+      member_ids: memberIds,
+      updated_at: now,
+    }, true);
   }
+
+  await ensureConversationMembershipVariants(
+    chatId,
+    myProfileId,
+    resolvedOtherProfileId,
+    user.id,
+    otherAuthUid,
+  );
 
   return chatId;
 }

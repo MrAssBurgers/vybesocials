@@ -2,7 +2,7 @@ import { memo } from 'react';
 import { motion } from 'framer-motion';
 import { cn } from '@/lib/utils';
 
-import { storyRingGradient } from '@/lib/storyThemeRing';
+import { storyRingGradient, storyCoverGradient } from '@/lib/storyThemeRing';
 
 interface StoryPosterProps {
   width?: number;
@@ -39,6 +39,7 @@ export const StoryPoster = memo(function StoryPoster({
 }: StoryPosterProps) {
 
   const ringGradient = storyRingGradient(themeGradient ?? null);
+  const coverGradient = storyCoverGradient(themeGradient ?? null);
 
   if (isUploading) {
     return (
@@ -110,16 +111,22 @@ export const StoryPoster = memo(function StoryPoster({
             borderRadius,
           }}
         >
+          {/* Hide poster until viewed — theme-colored gradient veil (Snapchat-style) */}
+          <div
+            className="absolute inset-0 z-10"
+            style={{ background: coverGradient }}
+            aria-hidden
+          />
           {posterUrl ? (
             <img
               src={posterUrl}
               alt=""
-              className="h-full w-full object-cover"
+              className="h-full w-full object-cover scale-110 blur-2xl opacity-20"
               loading="lazy"
               draggable={false}
             />
           ) : (
-            <div className="flex h-full w-full items-center justify-center bg-muted text-lg font-semibold text-muted-foreground">
+            <div className="flex h-full w-full items-center justify-center bg-muted/30 text-lg font-semibold text-white/80">
               {fallbackInitial?.charAt(0).toUpperCase() || '?'}
             </div>
           )}

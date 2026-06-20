@@ -374,7 +374,12 @@ service cloud.firestore {
         )
       );
       allow create: if signedIn();
-      allow update: if isMember(cid) || isAdmin();
+      allow update: if isMember(cid) || isAdmin() || (
+        signedIn() && (
+          ownsProfileId(resource.data.get('created_by', '')) ||
+          resource.data.get('created_by', '') == uid()
+        )
+      );
       allow delete: if isAdmin();
 
       match /members/{memberId} {

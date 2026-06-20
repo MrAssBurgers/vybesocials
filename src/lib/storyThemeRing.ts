@@ -45,3 +45,12 @@ export function storyRingGradient(themeName: string | null | undefined): string 
   }
   return `conic-gradient(from 0deg, ${colors.join(', ')})`;
 }
+
+/** Linear gradient to hide unviewed story thumbnail until opened. */
+export function storyCoverGradient(themeName: string | null | undefined): string {
+  const colors = themeRingColors(themeName);
+  const a = colors[0] ?? DEFAULT_COLORS[0]!;
+  const b = colors[1] ?? colors[0] ?? DEFAULT_COLORS[1]!;
+  const c = colors[2] ?? colors[0] ?? DEFAULT_COLORS[2]!;
+  return `linear-gradient(145deg, ${a} 0%, ${b} 52%, ${c} 100%)`;
+}

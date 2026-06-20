@@ -104,7 +104,10 @@ export function ProfileHeroCard({
     try {
       const conversation = await createConversation.mutateAsync({ memberIds: [profile.id] });
       navigate(`/messages/${conversation.id}`);
-    } catch { toast.error('Failed to start conversation'); }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Failed to start conversation';
+      toast.error(msg);
+    }
   };
 
   const handleShare = async () => {

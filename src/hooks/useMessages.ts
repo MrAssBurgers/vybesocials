@@ -11,7 +11,9 @@ import { shouldRefetchWhenEmpty, refetchListOnMount } from '@/lib/queryRefetchPo
 import { toast } from 'sonner';
 import { callSounds } from '@/lib/callSounds';
 import { enqueue as outboxEnqueue } from '@/lib/dmOutbox';
-import { ensureFlatConversationMembership, normalizeToProfileId } from '@/lib/dmMembershipRepair';
+import { ensureFlatConversationMembership, normalizeToProfileId, ensureConversationMembershipVariants } from '@/lib/dmMembershipRepair';
+import { getUserProfile } from '@/lib/firebase/users';
+import { firebaseAuth } from '@/lib/firebase/authService';
 
 export type ViewMode = 'view_once' | '24h' | 'permanent';
 
@@ -602,7 +604,15 @@ export function useCreateConversation() {
           throw new Error('Failed to start conversation');
         }
 
-        await ensureFlatConversationMembership(conversationId, myProfileId);
+        const otherProfile = await getUserProfile(otherUserId);
+        const { data: { user: authUser } } = await firebaseAuth.getUser();
+        await ensureConversationMembershipVariants(
+          conversationId,
+          myProfileId,
+          otherUserId,
+          authUser?.id,
+          otherProfile?.user_id,
+        );
 
         const { data: conv } = await db
           .from('conversations')

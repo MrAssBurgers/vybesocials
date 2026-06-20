@@ -64,14 +64,24 @@ export async function findExistingDmBetweenProfiles(
   return null;
 }
 
-/** Ensure flat membership docs exist for both participants. */
+/** Ensure flat membership docs exist for both participants (profile id + auth uid variants). */
 export async function ensureDmMembershipPair(
   conversationId: string,
   profileIdA: string,
   profileIdB: string,
 ): Promise<void> {
-  await ensureFlatConversationMembership(conversationId, profileIdA);
-  await ensureFlatConversationMembership(conversationId, profileIdB);
+  await ensureConversationMembershipVariants(conversationId, profileIdA, profileIdB);
+}
+
+export async function ensureConversationMembershipVariants(
+  conversationId: string,
+  profileIdA: string,
+  profileIdB: string,
+  authUidA?: string | null,
+  authUidB?: string | null,
+): Promise<void> {
+  const ids = [...new Set([profileIdA, profileIdB, authUidA, authUidB].filter(Boolean))] as string[];
+  await Promise.all(ids.map((id) => ensureFlatConversationMembership(conversationId, id)));
 }
 
 /**

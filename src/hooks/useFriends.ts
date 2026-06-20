@@ -8,6 +8,7 @@ import { getEffectiveProfileId } from '@/lib/profileCache';
 import { invalidateConversationCaches } from '@/lib/invalidateConversationCaches';
 import { normalizeToProfileId } from '@/lib/dmMembershipRepair';
 import { resolveSessionProfileId } from '@/lib/resolveSessionProfileId';
+import { getUserProfile } from '@/lib/firebase/users';
 import { toast } from 'sonner';
 
 /** Stable doc id — matches directed pair (sender → receiver). */
@@ -328,15 +329,14 @@ export function useSendFriendRequest() {
         throw new Error('Cannot send a friend request to yourself');
       }
 
-      const { data: receiverData, error: receiverLookupError } = await db.rpc('get_profile_by_id', {
-        target_id: receiverProfileId,
-      });
-      if (receiverLookupError || !receiverData) {
+      const receiverProfile = await getUserProfile(receiverProfileId);
+      if (!receiverProfile?.id) {
         throw new Error('User not found');
       }
+      const normalizedReceiver = receiverProfile.id;
 
-      const outboundId = friendRequestDocId(profileId, receiverProfileId);
-      const inboundId = friendRequestDocId(receiverProfileId, profileId);
+      const outboundId = friendRequestDocId(profileId, normalizedReceiver);
+      const inboundId = friendRequestDocId(normalizedReceiver, profileId);
 
       const [sameDirectionResult, reverseDirectionResult] = await Promise.all([
         db
@@ -360,12 +360,12 @@ export function useSendFriendRequest() {
             .from('friend_requests')
             .select('id, status')
             .eq('sender_id', profileId)
-            .eq('receiver_id', receiverProfileId)
+            .eq('receiver_id', normalizedReceiver)
             .limit(1),
           db
             .from('friend_requests')
             .select('id, status')
-            .eq('sender_id', receiverProfileId)
+            .eq('sender_id', normalizedReceiver)
             .eq('receiver_id', profileId)
             .limit(1),
         ]);
@@ -387,7 +387,7 @@ export function useSendFriendRequest() {
         existingReceivedRequest?.status === 'pending' ||
         existingReceivedRequest?.status === 'accepted'
       ) {
-        const conversationCreated = await ensureDirectConversation(profileId, receiverProfileId);
+        const conversationCreated = await ensureDirectConversation(profileId, normalizedReceiver);
         return { alreadyExists: true, conversationCreated };
       }
 
@@ -404,7 +404,7 @@ export function useSendFriendRequest() {
         const { error: insertError } = await db.from('friend_requests').insert({
           id: outboundId,
           sender_id: profileId,
-          receiver_id: receiverProfileId,
+          receiver_id: normalizedReceiver,
           status: 'pending',
           created_at: now,
           updated_at: now,
@@ -412,7 +412,7 @@ export function useSendFriendRequest() {
 
         if (insertError) {
           if (insertError.code === '23505') {
-            const conversationCreated = await ensureDirectConversation(profileId, receiverProfileId);
+            const conversationCreated = await ensureDirectConversation(profileId, normalizedReceiver);
             return { alreadyExists: true, conversationCreated };
           }
 
@@ -422,7 +422,7 @@ export function useSendFriendRequest() {
 
       try {
         await db.from('notifications').insert({
-          user_id: receiverProfileId,
+          user_id: normalizedReceiver,
           actor_id: profileId,
           type: 'friend_request',
         });
@@ -430,7 +430,7 @@ export function useSendFriendRequest() {
         console.warn('[Friends] friend_request notification failed:', notifyErr);
       }
 
-      const conversationCreated = await ensureDirectConversation(profileId, receiverProfileId);
+      const conversationCreated = await ensureDirectConversation(profileId, normalizedReceiver);
 
       return { alreadyExists: false, conversationCreated };
     },

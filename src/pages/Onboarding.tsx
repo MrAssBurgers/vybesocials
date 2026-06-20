@@ -161,19 +161,22 @@ export default function Onboarding({ onInviteNavigate, isInviteMode = false }: O
   const [dateOfBirth, setDateOfBirth] = useState<Date | null>(null);
   const [userAge, setUserAge] = useState<number | undefined>(undefined);
   const [legalAccepted, setLegalAccepted] = useState(false);
+  const pendingDesignerRef = useRef(false);
 
   // Stale disk cache can show onboarding_completed=false while DB is true — re-fetch before trapping user here.
+  // Never redirect away while "Design your VYBE" (AI designer) is showing or about to show.
   useEffect(() => {
-    if (!user) return;
+    if (!user || showAIDesigner || pendingDesignerRef.current) return;
     let cancelled = false;
     void (async () => {
       const fresh = await refreshProfile();
       if (cancelled || !fresh) return;
-      if (fresh.onboarding_completed !== false) {        navigate('/home', { replace: true });
+      if (fresh.onboarding_completed !== false) {
+        navigate('/home', { replace: true });
       }
     })();
     return () => { cancelled = true; };
-  }, [user?.id, refreshProfile, navigate]);
+  }, [user?.id, refreshProfile, navigate, showAIDesigner]);
 
   // Pre-fill username from signup metadata when profile got a generated placeholder.
   useEffect(() => {
@@ -306,6 +309,7 @@ export default function Onboarding({ onInviteNavigate, isInviteMode = false }: O
 
       setLoading(false);
       haptics.success();
+      pendingDesignerRef.current = true;
       setShowAIDesigner(true);
     } catch (error) {
       console.error('Onboarding error:', error);
@@ -319,6 +323,7 @@ export default function Onboarding({ onInviteNavigate, isInviteMode = false }: O
   };
 
   const handleDesignerComplete = async () => {
+    pendingDesignerRef.current = false;
     await refreshProfile();
     console.log('[Onboarding] Completed, dispatching event');
     window.dispatchEvent(new CustomEvent('onboarding-completed'));
