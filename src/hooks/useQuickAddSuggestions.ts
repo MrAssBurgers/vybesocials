@@ -87,7 +87,7 @@ export function useQuickAddSuggestions(limit = 8) {
         .limit(120) as any;
 
       if (friendIds.length > 0) {
-        query = query.not('id', 'in', `(${friendIds.join(',')})`);
+        query = query.not('id', 'in', friendIds);
       }
 
       const { data: users } = await query;

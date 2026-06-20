@@ -41,6 +41,14 @@ import {
   ensureDmMembershipPair,
 } from '@/lib/dmMembershipRepair';
 import { syncProfileUsername } from './syncProfileUsername';
+import {
+  applyIlikeFilters,
+  applyOrPredicates,
+  CLIENT_FILTER_FETCH_CAP,
+  coerceNotInValue,
+  parseOrExpression,
+  type OrPredicate,
+} from './queryFilterCompat';
 
 type FilterOp = '==' | '!=' | '>' | '<' | 'in' | 'not-in';
 
@@ -78,7 +86,7 @@ class QueryBuilder {
   private upsertConflictKey?: string;
   private matchFilters: Record<string, unknown> = {};
   private ilikeFilters: Array<{ field: string; needle: string }> = [];
-  private orFilters: Array<{ field: string; needle: string }> = [];
+  private orPredicates: OrPredicate[] = [];
 
   constructor(table: string) {
     this.table = table;
@@ -143,7 +151,9 @@ class QueryBuilder {
 
   not(field: string, op: string, value: unknown) {
     if (op === 'in') {
-      this.filters.push({ field, op: 'not-in', value });
+      this.filters.push({ field, op: 'not-in', value: coerceNotInValue(value) });
+    } else if (op === 'is' && value === null) {
+      this.filters.push({ field, op: '!=', value: null });
     } else {
       this.filters.push({ field, op: '!=', value });
     }
@@ -152,10 +162,7 @@ class QueryBuilder {
 
   // Legacy Supabase operators — client-side fallbacks when Firestore can't express them.
   or(expr: string) {
-    for (const part of expr.split(',')) {
-      const m = part.trim().match(/^(\w+)\.ilike\.%(.+)%$/);
-      if (m) this.orFilters.push({ field: m[1]!, needle: m[2]!.toLowerCase() });
-    }
+    this.orPredicates.push(...parseOrExpression(expr));
     return this;
   }
   filter(field: string, _op: string, value: unknown) {
@@ -171,7 +178,11 @@ class QueryBuilder {
     return this;
   }
   is(field: string, value: unknown) {
-    this.filters.push({ field, op: '==', value });
+    if (value === null) {
+      this.filters.push({ field, op: '==', value: null });
+    } else {
+      this.filters.push({ field, op: '==', value });
+    }
     return this;
   }
   contains(_field: string, _value: unknown) { return this; }
@@ -232,7 +243,12 @@ class QueryBuilder {
     return this;
   }
 
-  private buildConstraints(): QueryConstraint[] {
+  private needsClientSideFiltering(): boolean {
+    return this.ilikeFilters.length > 0 || this.orPredicates.length > 0;
+  }
+
+  private buildConstraints(opts?: { includeLimit?: boolean }): QueryConstraint[] {
+    const includeLimit = opts?.includeLimit !== false;
     const constraints: QueryConstraint[] = [];
     const inequalityFields = new Set<string>();
     const clientOnlyFilters: Filter[] = [];
@@ -277,7 +293,9 @@ class QueryBuilder {
     for (const o of this.orders) {
       constraints.push(orderBy(o.field, o.ascending ? 'asc' : 'desc'));
     }
-    if (this.limitN) constraints.push(firestoreLimit(this.limitN));
+    if (includeLimit && this.limitN) {
+      constraints.push(firestoreLimit(this.needsClientSideFiltering() ? CLIENT_FILTER_FETCH_CAP : this.limitN));
+    }
     return constraints;
   }
 
@@ -397,6 +415,11 @@ class QueryBuilder {
       if (f.op === 'in' && Array.isArray(v) && v.length > 10) {
         result = result.filter((r) => v.includes(r[f.field]));
       }
+    }
+    result = applyIlikeFilters(result, this.ilikeFilters);
+    result = applyOrPredicates(result, this.orPredicates);
+    if (this.needsClientSideFiltering() && this.limitN) {
+      result = result.slice(0, this.limitN);
     }
     return result;
   }
@@ -547,8 +570,11 @@ class QueryBuilder {
         return { data: null, error: null };
       }
 
-      const rows = await getDocuments(this.table, this.buildConstraints());
-      await Promise.all(rows.map((r) => deleteDocument(this.table, r.id as string)));
+      const rows = await getDocuments(this.table, this.buildConstraints({ includeLimit: !this.orPredicates.length && !this.ilikeFilters.length }));
+      let filtered = this.applyClientOnlyFilters(rows as Record<string, unknown>[]);
+      filtered = applyIlikeFilters(filtered, this.ilikeFilters);
+      filtered = applyOrPredicates(filtered, this.orPredicates);
+      await Promise.all(filtered.map((r) => deleteDocument(this.table, r.id as string)));
       return { data: null, error: null };
     } catch (err) {
       return { data: null, error: toQueryError(err) };

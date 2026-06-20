@@ -73,6 +73,7 @@ export function usePostReaction(post: PostReactionSource) {
         } else {
           await removePostReaction(profile.id, post.id, user?.id);
         }
+        queryClient.invalidateQueries({ queryKey: ['post-top-reactions', post.id] });
       } catch (error) {
         console.error('[usePostReaction] failed:', error);
         setCurrentReaction(prevReaction);

@@ -23,7 +23,7 @@ import { transformedImage, transformedSrcSet } from '@/lib/imageTransform';
 import { formatDistanceToNow } from 'date-fns';
 import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { EditPostDialog } from './EditPostDialog';
 import { YouTubePlayer } from '@/components/music/YouTubePlayer';
@@ -46,6 +46,7 @@ import { PostCarousel } from './PostCarousel';
 import { CommentSheet } from '@/components/comments/CommentSheet';
 import { useInteractionStreakBump } from '@/hooks/useInteractionStreakBump';
 import { usePostReaction } from '@/hooks/usePostReaction';
+import { getPostTopReactions } from '@/lib/postReactions';
 import { triggerHaptic } from '@/lib/haptics';
 import { useViewTracking } from '@/hooks/useViewTracking';
 import { useInteractionFeedback } from '@/hooks/useInteractionFeedback';
@@ -353,6 +354,18 @@ export const PostCard = memo(function PostCard({ post, eager = false }: PostCard
     likeCount,
     handleReaction: persistReaction,
   } = usePostReaction(post);
+  const { data: topReactions = [] } = useQuery({
+    queryKey: ['post-top-reactions', post.id],
+    queryFn: () => getPostTopReactions(post.id),
+    enabled: likeCount > 0,
+    staleTime: 60_000,
+  });
+  const summaryReactions: ReactionType[] =
+    topReactions.length > 0
+      ? topReactions
+      : currentReaction
+        ? [currentReaction]
+        : [];
   const [isBookmarked, setIsBookmarked] = useState(post.is_bookmarked);
   const [showHeart, setShowHeart] = useState(false);
   const [showLikeParticles, setShowLikeParticles] = useState(false);
@@ -941,7 +954,7 @@ export const PostCard = memo(function PostCard({ post, eager = false }: PostCard
         <div className="px-5 pt-2.5 flex items-center gap-3 text-xs text-muted-foreground">
           {likeCount > 0 && (
             <ReactionSummary
-              reactions={currentReaction ? [currentReaction] : []}
+              reactions={summaryReactions}
               totalCount={likeCount}
             />
           )}

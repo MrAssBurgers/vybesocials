@@ -271,6 +271,18 @@ function FullscreenClipsViewer({
 
   return (
     <div className="fixed inset-0 z-50 bg-background">
+      {/* Close — above clip overlays (MobileShortCard uses z-50) */}
+      <Button
+        variant="ghost"
+        size="icon"
+        className="fixed z-[100] w-10 h-10 rounded-full bg-black/80 border border-border/20 text-foreground hover:bg-black/90 left-4 pointer-events-auto"
+        style={{ top: 'calc(var(--sat, env(safe-area-inset-top, 0px)) + 0.5rem)' }}
+        onClick={onClose}
+        aria-label="Close clips"
+      >
+        <X className="w-5 h-5" />
+      </Button>
+
       <div
         ref={containerRef}
         className="overflow-y-scroll scrollbar-hide bg-background"
@@ -308,23 +320,13 @@ function FullscreenClipsViewer({
           ))}
         </div>
 
-        {/* Close button */}
-        <Button
-          variant="ghost"
-          size="icon"
-          className="fixed z-30 w-10 h-10 rounded-full bg-black/80 border border-border/20 text-foreground hover:bg-black/90 left-4"
-          style={{ top: 'calc(var(--sat, env(safe-area-inset-top, 0px)) + 0.5rem)' }}
-          onClick={onClose}
-        >
-          <X className="w-5 h-5" />
-        </Button>
-
         {/* Tab bar at top - pinned to very top with zero gap */}
-        <div className="fixed top-0 left-0 right-0 z-30 flex justify-center pt-[var(--sat,0px)]">
+        <div className="fixed top-0 left-0 right-0 z-[90] flex justify-center pt-[var(--sat,0px)] pointer-events-none">
           <motion.div
             initial={{ y: -20, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             transition={{ delay: 0.2 }}
+            className="pointer-events-auto"
           >
             <ExploreTabBar viewMode={viewMode} onTabChange={onTabChange} />
           </motion.div>

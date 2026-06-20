@@ -1,6 +1,7 @@
 import { db } from '@/lib/firebase';
 import {
   deleteDocument,
+  getDocument,
   getDocuments,
   setDocument,
   where,
@@ -144,6 +145,30 @@ export async function savePostReaction(params: {
     console.warn('[postReactions] mood signal skipped:', err);
   }
   await recordReactionRankingSignal(userId, postId, reactionType);
+}
+
+/** Top reaction emojis on a post (Facebook-style summary). */
+export async function getPostTopReactions(
+  postId: string,
+  limit = 3,
+): Promise<ReactionType[]> {
+  if (!postId) return [];
+
+  const rows = await getDocuments<{ reaction_type?: string }>('likes', [
+    where('post_id', '==', postId),
+    firestoreLimit(200),
+  ]);
+
+  const counts = new Map<ReactionType, number>();
+  for (const row of rows) {
+    const t = (row.reaction_type as ReactionType) || 'like';
+    counts.set(t, (counts.get(t) || 0) + 1);
+  }
+
+  return [...counts.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, limit)
+    .map(([type]) => type);
 }
 
 /** Load the signed-in viewer's reaction on a post (profile id + auth uid). */
