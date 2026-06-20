@@ -11,6 +11,7 @@ import {
   inferOtherParticipantId,
 } from '@/lib/dmMembershipRepair';
 import { messagesQueryKey, patchMessagesCache } from '@/lib/messagesQueryKey';
+import { withTimeout } from '@/lib/withTimeout';
 import { toast } from 'sonner';
 
 export interface PendingMessage {
@@ -233,19 +234,29 @@ export function useInstantSend(conversationId: string | undefined) {
     const otherProfileId =
       otherFromMembers || inferOtherParticipantId(conversationId, senderId) || null;
 
-    await prepareConversationForMessages(conversationId, senderId, otherProfileId);
+    await withTimeout(
+      prepareConversationForMessages(conversationId, senderId, otherProfileId, { fast: false }),
+      12_000,
+      'Chat setup timed out',
+    ).catch(() =>
+      prepareConversationForMessages(conversationId, senderId, otherProfileId, { fast: true }),
+    );
     sendReadyRef.current = { conversationId, senderId };
     return senderId;
   }, [conversationId, profile?.id, profileId, queryClient]);
 
-  // Pre-warm membership while the chat is open so Send doesn't wait on repair.
-  useEffect(() => {
-    if (!conversationId || !effectiveProfileId) return;
-    sendReadyRef.current = { conversationId, inflight: ensureSendReady().then((id) => {
-      sendReadyRef.current = { conversationId, senderId: id };
-      return id;
-    }) };
-  }, [conversationId, effectiveProfileId, ensureSendReady]);
+  const repairAndSend = useCallback(
+    async (senderId: string, otherProfileId: string | null) => {
+      await withTimeout(
+        prepareConversationForMessages(conversationId!, senderId, otherProfileId, { fast: true }),
+        5_000,
+        'Send setup timed out',
+      ).catch(() => {});
+      sendReadyRef.current = { conversationId, senderId };
+      return senderId;
+    },
+    [conversationId],
+  );
 
   const resolveSenderIdForSend = useCallback(async (): Promise<string> => {
     if (
@@ -257,8 +268,59 @@ export function useInstantSend(conversationId: string | undefined) {
     if (sendReadyRef.current.conversationId === conversationId && sendReadyRef.current.inflight) {
       return sendReadyRef.current.inflight;
     }
+    // Mobile fast path: send with cached profile id immediately; repair runs on open in background.
+    if (effectiveProfileId) {
+      return effectiveProfileId;
+    }
     return ensureSendReady();
-  }, [conversationId, ensureSendReady]);
+  }, [conversationId, effectiveProfileId, ensureSendReady]);
+
+  // Pre-warm membership while the chat is open (background — never blocks Send tap).
+  useEffect(() => {
+    if (!conversationId || !effectiveProfileId) return;
+    sendReadyRef.current = {
+      conversationId,
+      inflight: ensureSendReady().then((id) => {
+        sendReadyRef.current = { conversationId, senderId: id };
+        return id;
+      }),
+    };
+  }, [conversationId, effectiveProfileId, ensureSendReady]);
+
+  const insertMessageWithRetry = useCallback(
+    async (
+      senderId: string,
+      payload: Record<string, unknown>,
+      otherProfileId: string | null,
+    ) => {
+      let result = await db
+        .from('messages')
+        .insert(payload)
+        .select(`
+          *,
+          sender:profiles!sender_id(id, username, avatar_url, display_name)
+        `)
+        .single();
+
+      if (
+        result.error &&
+        (result.error.code === 'permission-denied' ||
+          /permission/i.test(result.error.message || ''))
+      ) {
+        const repairedId = await repairAndSend(senderId, otherProfileId);
+        result = await db
+          .from('messages')
+          .insert({ ...payload, sender_id: repairedId })
+          .select(`
+            *,
+            sender:profiles!sender_id(id, username, avatar_url, display_name)
+          `)
+          .single();
+      }
+      return result;
+    },
+    [repairAndSend],
+  );
 
   // Send a text message instantly
   const sendText = useCallback(async (
@@ -287,27 +349,38 @@ export function useInstantSend(conversationId: string | undefined) {
     registerOptimisticMessage(conversationId, content, effectiveProfileId || profile.id);
 
     try {
-      const senderId = await resolveSenderIdForSend();
+      let senderId = await resolveSenderIdForSend();
+      const cachedConv =
+        queryClient.getQueryData<any[]>(['dm-conversations', senderId])?.find(
+          (c) => c.id === conversationId,
+        ) ??
+        queryClient.getQueryData<any[]>(['conversations', senderId])?.find(
+          (c) => c.id === conversationId,
+        );
+      const otherFromMembers =
+        cachedConv?.members?.find((m: { user_id?: string }) => m.user_id !== senderId)?.user_id;
+      const otherProfileId =
+        otherFromMembers || inferOtherParticipantId(conversationId!, senderId) || null;
+
       const expiresAt = viewMode === '24h' 
         ? new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
         : null;
 
-      const { data, error } = await db
-        .from('messages')
-        .insert({
-          conversation_id: conversationId,
-          sender_id: senderId,
-          content,
-          message_type: 'text',
-          view_mode: viewMode,
-          expires_at: expiresAt,
-          reply_to_id: replyToId,
-        })
-        .select(`
-          *,
-          sender:profiles!sender_id(id, username, avatar_url, display_name)
-        `)
-        .single();
+      const insertPayload = {
+        conversation_id: conversationId,
+        sender_id: senderId,
+        content,
+        message_type: 'text',
+        view_mode: viewMode,
+        expires_at: expiresAt,
+        reply_to_id: replyToId,
+      };
+
+      const { data, error } = await insertMessageWithRetry(
+        senderId,
+        insertPayload,
+        otherProfileId,
+      );
 
       if (error) throw error;
 
@@ -336,7 +409,7 @@ export function useInstantSend(conversationId: string | undefined) {
       toast.error('Message failed to send');
       throw error;
     }
-  }, [conversationId, profile?.id, effectiveProfileId, generateTempId, addOptimisticMessage, confirmMessage, markFailed, getBroadcastChannel, resolveSenderIdForSend]);
+  }, [conversationId, profile?.id, effectiveProfileId, generateTempId, addOptimisticMessage, confirmMessage, markFailed, getBroadcastChannel, resolveSenderIdForSend, insertMessageWithRetry, queryClient]);
 
   // Send media message
   const sendMedia = useCallback(async (
@@ -368,13 +441,15 @@ export function useInstantSend(conversationId: string | undefined) {
 
     try {
       const senderId = await resolveSenderIdForSend();
+      const otherProfileId =
+        inferOtherParticipantId(conversationId!, senderId) || null;
       const expiresAt = viewMode === '24h' 
         ? new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
         : null;
 
-      const { data, error } = await db
-        .from('messages')
-        .insert({
+      const { data, error } = await insertMessageWithRetry(
+        senderId,
+        {
           conversation_id: conversationId,
           sender_id: senderId,
           media_url: mediaUrl,
@@ -383,12 +458,9 @@ export function useInstantSend(conversationId: string | undefined) {
           view_mode: viewMode,
           expires_at: expiresAt,
           reply_to_id: replyToId,
-        })
-        .select(`
-          *,
-          sender:profiles!sender_id(id, username, avatar_url, display_name)
-        `)
-        .single();
+        },
+        otherProfileId,
+      );
 
       if (error) throw error;
 
@@ -414,7 +486,7 @@ export function useInstantSend(conversationId: string | undefined) {
       markFailed(tempId, error.message || 'Failed to send');
       throw error;
     }
-  }, [conversationId, profile?.id, effectiveProfileId, generateTempId, addOptimisticMessage, confirmMessage, markFailed, getBroadcastChannel, resolveSenderIdForSend]);
+  }, [conversationId, profile?.id, effectiveProfileId, generateTempId, addOptimisticMessage, confirmMessage, markFailed, getBroadcastChannel, resolveSenderIdForSend, insertMessageWithRetry]);
 
   // Send video with optimistic UI and progress tracking
   const sendVideo = useCallback(async (

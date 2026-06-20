@@ -56,6 +56,9 @@ import { CallReactions } from './CallReactions';
 import { AudioVisualizer } from './AudioVisualizer';
 
 const INCOMING_CALL_TIMEOUT_SECONDS = 30;
+/** Outbound ring + connect budget (Snapchat-style — don't kill at 30s while still ringing). */
+const OUTBOUND_RING_TIMEOUT_SECONDS = 90;
+const CONNECT_TIMEOUT_SECONDS = 60;
 
 export function GlobalCallOverlay() {
   const { state, acceptCall, endCall, leaveCall, setPhase, setConnectStage, setError, dismissIncoming, switchMode } = useCallStore();
@@ -122,6 +125,27 @@ export function GlobalCallOverlay() {
   const clearJoinTimeout = useCallback(() => {
     if (joinTimeoutRef.current) { clearTimeout(joinTimeoutRef.current); joinTimeoutRef.current = null; }
   }, []);
+
+  const startJoinTimeout = useCallback((call: CallData) => {
+    clearJoinTimeout();
+    const callerRinging =
+      call.isInitiator && call.callMode === 'p2p' && !stateRef.current.remoteAccepted;
+    const timeoutMs = callerRinging
+      ? OUTBOUND_RING_TIMEOUT_SECONDS * 1000
+      : CONNECT_TIMEOUT_SECONDS * 1000;
+
+    joinTimeoutRef.current = setTimeout(() => {
+      if (stateRef.current.phase !== 'joining') return;
+      const stillRinging =
+        call.isInitiator && call.callMode === 'p2p' && !stateRef.current.remoteAccepted;
+      if (stillRinging) {
+        toast.error('No answer');
+      } else {
+        toast.error('Call failed to connect');
+      }
+      endCall();
+    }, timeoutMs);
+  }, [clearJoinTimeout, endCall]);
 
   // ── Track Attachment Helpers ──────────────────────────────
 
@@ -290,7 +314,8 @@ export function GlobalCallOverlay() {
   const connectP2PRef = useRef<((call: CallData) => Promise<void>) | null>(null);
 
   const connectP2P = useCallback(async (call: CallData) => {
-    if (!profileId) return;
+    const localUserId = call.isInitiator ? call.caller.id : (profileId || call.receiver.id);
+    if (!localUserId) return;
 
     // Reset double-end guard
     p2pEndedRef.current = false;
@@ -303,7 +328,7 @@ export function GlobalCallOverlay() {
 
     const p2p = new P2PConnection({
       conversationId: call.conversationId,
-      userId: profileId,
+      userId: localUserId,
       isInitiator: call.isInitiator,
       callType: call.callType,
       onEvent: (evt) => handleP2PEventRef.current(evt),
@@ -506,14 +531,7 @@ export function GlobalCallOverlay() {
     const doJoin = async () => {
       if (cancelled) return;
 
-      clearJoinTimeout();
-      const timeout = INCOMING_CALL_TIMEOUT_SECONDS * 1000;
-      joinTimeoutRef.current = setTimeout(() => {
-        if (stateRef.current.phase === 'joining') {
-          toast.error('Call failed to connect');
-          endCall();
-        }
-      }, timeout);
+      startJoinTimeout(state.call!);
 
       // Preview path: callee already joined signaling before accept.
       if (p2pPreviewRef.current && p2pRef.current && state.call!.callMode === 'p2p') {
@@ -556,7 +574,13 @@ export function GlobalCallOverlay() {
 
     doJoin();
     return () => { cancelled = true; clearJoinTimeout(); };
-  }, [state.phase, state.call?.id, state.call?.callMode, clearJoinTimeout, endCall, connectToRoom, connectP2P]);
+  }, [state.phase, state.call?.id, state.call?.callMode, clearJoinTimeout, endCall, connectToRoom, connectP2P, startJoinTimeout]);
+
+  // Caller answered — switch from ring budget to connect budget.
+  useEffect(() => {
+    if (state.phase !== 'joining' || !state.call?.isInitiator || !state.remoteAccepted) return;
+    startJoinTimeout(state.call);
+  }, [state.remoteAccepted, state.phase, state.call, startJoinTimeout]);
 
   // Handle mode switching (phase === 'switching')
   useEffect(() => {

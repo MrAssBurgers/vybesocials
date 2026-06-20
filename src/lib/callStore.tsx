@@ -612,12 +612,16 @@ export function CallStoreProvider({ children }: { children: ReactNode }) {
 
     const otherProfileId =
       params.receiverId || inferOtherParticipantId(params.conversationId, callerId) || null;
-    await prepareConversationForMessages(params.conversationId, callerId, otherProfileId);
 
     // Starting a brand-new call — drop any stale lingering rejoin chip
     setLingeringCall(null);
     setState({ phase: 'creating', call: null, error: null, connectStage: 'requesting-media' });
     callSounds.startRingback();
+
+    // Repair membership in background — never block the call UI on mobile.
+    void prepareConversationForMessages(params.conversationId, callerId, otherProfileId, {
+      fast: true,
+    }).catch(() => {});
 
     // CRITICAL: release any preloaded camera stream (Friend Link / preview)
     // before the call requests its own stream. Holding the camera elsewhere

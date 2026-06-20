@@ -332,6 +332,7 @@ export async function prepareConversationForMessages(
   conversationId: string,
   profileId: string,
   otherProfileId?: string | null,
+  options?: { fast?: boolean },
 ): Promise<void> {
   if (!conversationId || !profileId) return;
   const readyKey = `${conversationId}:${profileId}`;
@@ -342,8 +343,10 @@ export async function prepareConversationForMessages(
     inferOtherParticipantId(conversationId, profileId) ||
     null;
 
-  for (let attempt = 0; attempt < 4; attempt++) {
-    resetRepairedMembership(conversationId, profileId);
+  const maxAttempts = options?.fast ? 1 : 4;
+
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    if (!options?.fast) resetRepairedMembership(conversationId, profileId);
     await ensureConversationReady(conversationId, profileId, otherId);
 
     const { data: { user } } = await firebaseAuth.getUser();
@@ -357,8 +360,11 @@ export async function prepareConversationForMessages(
       return;
     }
 
-    if (attempt < 3) await sleep(150 * (attempt + 1));
+    if (attempt < maxAttempts - 1) await sleep(150 * (attempt + 1));
   }
+
+  // Fast send path: mark ready after one repair pass so we don't loop on every tap.
+  if (options?.fast) messagesReady.add(readyKey);
 }
 
 export async function resolveDmActorIds(liveProfileId?: string | null): Promise<{
