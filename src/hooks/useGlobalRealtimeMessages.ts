@@ -120,8 +120,9 @@ function patchUsersPresenceCache(
 }
 
 export function useGlobalRealtimeMessages() {
-  const { profile } = useAuth();
+  const { profile, user } = useAuth();
   const profileId = getEffectiveProfileId(profile?.id);
+  const authUid = user?.id ?? profile?.user_id ?? null;
   const queryClient = useQueryClient();
   const channelRef = useRef<ReturnType<typeof db.channel> | null>(null);
   const retryTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -158,7 +159,9 @@ export function useGlobalRealtimeMessages() {
           try {
           const newMessage = payload.new as any;
           const conversationId = newMessage.conversation_id;
-          const isFromCurrentUser = newMessage.sender_id === profileId;
+          const isFromCurrentUser =
+            newMessage.sender_id === profileId ||
+            (!!authUid && newMessage.sender_id === authUid);
           const isViewingConvo = currentConversationId === conversationId;
           
           // Deduplication check
@@ -178,14 +181,36 @@ export function useGlobalRealtimeMessages() {
             });
           }
 
-          // Skip if this is an optimistic duplicate (sender already sees it)
-          if (isFromCurrentUser && isOptimisticDuplicate(conversationId, newMessage.content, newMessage.sender_id)) {
-            if (import.meta.env.DEV) console.log('[GlobalRT] Skipping optimistic duplicate for sender');
-            return;
+          const skipReceiverInsert =
+            isFromCurrentUser &&
+            isOptimisticDuplicate(conversationId, newMessage.content, newMessage.sender_id);
+
+          // Sender viewing this chat: always pin the real server row (replaces temp-* bubble).
+          if (isFromCurrentUser && isViewingConvo) {
+            queryClient.setQueryData<any[]>(['messages', conversationId], (old) => {
+              const row = {
+                ...newMessage,
+                views: [],
+                reactions: [],
+              };
+              if (!old?.length) return [row];
+              const stripped = old.filter(
+                (m) =>
+                  !(
+                    typeof m.id === 'string' &&
+                    m.id.startsWith('temp-') &&
+                    m.sender_id === newMessage.sender_id &&
+                    m.content === newMessage.content
+                  ),
+              );
+              if (stripped.some((m) => m.id === newMessage.id)) return stripped;
+              return [...stripped, row];
+            });
           }
 
-          // If message is from another user, we need to update caches
-          if (!isFromCurrentUser) {
+          if (skipReceiverInsert) {
+            if (import.meta.env.DEV) console.log('[GlobalRT] Skipping optimistic duplicate for sender');
+          } else if (!isFromCurrentUser) {
             // Try to get sender from cached conversation members first
             let sender: any = null;
             const cachedConvos = queryClient.getQueryData<any[]>(['dm-conversations', profileId]) || 
@@ -497,5 +522,5 @@ export function useGlobalRealtimeMessages() {
         broadcastChannelRef.current = null;
       } catch { /* never throw from cleanup */ }
     };
-  }, [setupChannel, profileId]);
+  }, [setupChannel, profileId, authUid]);
 }

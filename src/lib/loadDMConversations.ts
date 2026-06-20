@@ -4,7 +4,7 @@ import type { Conversation, Message } from '@/hooks/useMessages';
 import { isPermissionDeniedError, warnOnce } from '@/lib/logOnce';
 import { resolveSessionProfileId } from '@/lib/resolveSessionProfileId';
 import { withTimeout } from '@/lib/withTimeout';
-import { fetchMemberProfiles, fetchConversationForViewer, ensureConversationReady } from '@/lib/dmMembershipRepair';
+import { fetchMemberProfiles, fetchConversationMetaForList } from '@/lib/dmMembershipRepair';
 import {
   buildConversationMembers,
   inferOtherUserIdFromConversation,
@@ -113,15 +113,9 @@ async function loadDMConversationsOnce(
     const hiddenIds = new Set((hiddenData || []).map((h) => h.conversation_id));
     const trashedIds = new Set((trashedData || []).map((t) => t.conversation_id));
 
-    await Promise.all(
-      userConversationIds.map((conversationId) =>
-        ensureConversationReady(conversationId, effectiveProfileId).catch(() => {}),
-      ),
-    );
-
     const conversationResults = await Promise.all(
       userConversationIds.map((conversationId) =>
-        fetchConversationForViewer(conversationId, effectiveProfileId),
+        fetchConversationMetaForList(conversationId),
       ),
     );
     const conversationsRaw = conversationResults.filter(Boolean) as Record<string, unknown>[];

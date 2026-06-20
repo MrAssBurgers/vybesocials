@@ -43,23 +43,10 @@ export function useRealtimeMessages(conversationId: string | undefined) {
   useEffect(() => {
     if (!conversationId || !profile?.id) return;
 
-    // Debounced refetchers — bursts of reactions/views across the whole app
-    // were invalidating this conversation many times per second, causing the
-    // message list to refetch and flicker on the live site.
-    const scheduleReactionRefetch = () => {
-      if (reactionDebounceRef.current) return;
-      reactionDebounceRef.current = setTimeout(() => {
-        reactionDebounceRef.current = null;
-        queryClient.invalidateQueries({ queryKey: ['messages', conversationId] });
-      }, 600);
-    };
-    const scheduleViewRefetch = () => {
-      if (viewDebounceRef.current) return;
-      viewDebounceRef.current = setTimeout(() => {
-        viewDebounceRef.current = null;
-        queryClient.invalidateQueries({ queryKey: ['messages', conversationId] });
-      }, 800);
-    };
+    // Reaction/view bursts used to invalidate the whole message list and refetch
+    // (with membership repair), causing sent bubbles to vanish and the thread to lag.
+    const scheduleReactionRefetch = () => {};
+    const scheduleViewRefetch = () => {};
 
     // Track message ids that belong to this conversation so we can ignore
     // reaction/view events for unrelated messages.

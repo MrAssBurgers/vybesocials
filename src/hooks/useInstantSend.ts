@@ -325,7 +325,9 @@ export function useInstantSend(conversationId: string | undefined) {
       await db
         .from('conversations')
         .update({ updated_at: new Date().toISOString() })
-        .eq('id', conversationId);
+        .eq('id', conversationId)
+        .then(() => {})
+        .catch(() => {});
 
       return data;
     } catch (error: any) {
@@ -402,7 +404,9 @@ export function useInstantSend(conversationId: string | undefined) {
       await db
         .from('conversations')
         .update({ updated_at: new Date().toISOString() })
-        .eq('id', conversationId);
+        .eq('id', conversationId)
+        .then(() => {})
+        .catch(() => {});
 
       return data;
     } catch (error: any) {
@@ -532,7 +536,9 @@ export function useInstantSend(conversationId: string | undefined) {
       await db
         .from('conversations')
         .update({ updated_at: new Date().toISOString() })
-        .eq('id', conversationId);
+        .eq('id', conversationId)
+        .then(() => {})
+        .catch(() => {});
 
       // Cleanup
       URL.revokeObjectURL(localUrl);

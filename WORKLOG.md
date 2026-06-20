@@ -2,6 +2,18 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## DM perf + message vanish + call permission (2026-06-20)
+- **Root cause (lag):** DM list ran `ensureConversationReady` on every conversation on every load; message refetches re-ran 4× membership repair loops.
+- **Root cause (vanish):** Reaction/view invalidations refetched messages and dropped recently sent rows not yet in fetch; sender realtime skipped own INSERT.
+- **Root cause (call):** `caller_id` used cached profile id without session resolve + membership repair before insert.
+- **Fix:** Fast list load (`fetchConversationMetaForList`), session cache for `prepareConversationForMessages`, merge local sent messages on refetch, GlobalRT pins sender row, callStore resolves caller + repairs membership, silent conv timestamp update.
+- **Verified:** build PASS; `test:social-permissions` 15/15 (incl. calls create)
+
+## Next 3 Tasks
+1. Lovable Publish → test send (bubble stays), call MrAssBurgers, DM list speed
+2. Hard refresh phone after publish
+3. Rotate OneSignal key if exposed in terminal
+
 ## DM list Unknown + calls receiver fix (2026-06-20)
 - **Root cause (Unknown rows):** DM list only matched `user_id !== profileId`; when membership rows were self-only (auth uid vs profile id mismatch) or `member_ids` weren't merged, profiles never attached → every row showed "Unknown".
 - **Fix client:** `dmMemberResolve.ts` — auth-aware member matching, merge `member_ids` + deterministic conv id, `getDocument` profile fallback; wired into `loadDMConversations`, `ConversationList`, `ChatView` (calls need resolved `otherMember.id`).

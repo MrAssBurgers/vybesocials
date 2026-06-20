@@ -25,6 +25,11 @@ import { useSyncCustomSounds } from '@/hooks/useCustomSounds';
 import { warmCallMedia, clearWarmCallMedia } from '@/lib/callMediaWarmup';
 import { invokeLiveKitCallToken } from '@/lib/livekitCallToken';
 import { dismissNativeIncomingCall, presentNativeIncomingCall } from '@/lib/nativeIncomingCall';
+import { resolveSessionProfileId } from '@/lib/resolveSessionProfileId';
+import {
+  prepareConversationForMessages,
+  inferOtherParticipantId,
+} from '@/lib/dmMembershipRepair';
 
 export type CallPhase = 'idle' | 'ringing' | 'creating' | 'joining' | 'connected' | 'ending' | 'switching' | 'error';
 export type CallType = 'audio' | 'video';
@@ -601,8 +606,13 @@ export function CallStoreProvider({ children }: { children: ReactNode }) {
     groupAvatar?: string | null;
     participantIds?: string[];
   }) => {
-    if (!profileId) throw new Error('Not authenticated');
+    const callerId = (await resolveSessionProfileId(profile?.id)) || profileId;
+    if (!callerId) throw new Error('Not authenticated');
     if (globalCallState.phase !== 'idle') return;
+
+    const otherProfileId =
+      params.receiverId || inferOtherParticipantId(params.conversationId, callerId) || null;
+    await prepareConversationForMessages(params.conversationId, callerId, otherProfileId);
 
     // Starting a brand-new call — drop any stale lingering rejoin chip
     setLingeringCall(null);
@@ -633,7 +643,7 @@ export function CallStoreProvider({ children }: { children: ReactNode }) {
         .from('calls')
         .insert({
           conversation_id: params.conversationId,
-          caller_id: profileId,
+          caller_id: callerId,
           receiver_id: params.receiverId,
           call_type: params.callType,
           status: 'ringing',
@@ -678,7 +688,7 @@ export function CallStoreProvider({ children }: { children: ReactNode }) {
         callMode: initialMode,
         conversationId: params.conversationId,
         caller: {
-          id: profileId,
+          id: callerId,
           username: profile?.username || '',
           display_name: profile?.username || '',
           avatar_url: profile?.avatar_url || null,
@@ -716,7 +726,7 @@ export function CallStoreProvider({ children }: { children: ReactNode }) {
       setState({ phase: 'idle', call: null, error: null });
       try { toast.error(err?.message || 'Failed to start call'); } catch {}
     }
-  }, [profileId, profile?.username, profile?.avatar_url, setState]);
+  }, [profileId, profile?.id, profile?.username, profile?.avatar_url, setState]);
 
   /**
    * ACCEPT CALL

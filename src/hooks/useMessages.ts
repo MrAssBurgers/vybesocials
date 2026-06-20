@@ -8,7 +8,7 @@ import { getEffectiveProfileId } from '@/lib/profileCache';
 import { resolveSessionProfileId } from '@/lib/resolveSessionProfileId';
 import { syncUserAuthIndex } from '@/lib/firebase/profileResolve';
 import { fetchRecentConversationMessages, fetchMessagesForConversations } from '@/lib/conversationMessagesQuery';
-import { messagesQueryKey, readMessagesCache } from '@/lib/messagesQueryKey';
+import { messagesQueryKey, readMessagesCache, mergeMessagesWithLocalCache } from '@/lib/messagesQueryKey';
 import { invalidateConversationCaches } from '@/lib/invalidateConversationCaches';
 import { shouldRefetchWhenEmpty, refetchListOnMount } from '@/lib/queryRefetchPolicy';
 import { toast } from 'sonner';
@@ -283,12 +283,7 @@ function mergePendingOptimisticMessages(
   conversationId: string,
   filtered: Message[],
 ): Message[] {
-  const existing = readMessagesCache(queryClient, conversationId);
-  const serverIds = new Set(filtered.map((m) => m.id));
-  const pendingTemps = existing.filter(
-    (m) => typeof m.id === 'string' && m.id.startsWith('temp-') && !serverIds.has(m.id),
-  );
-  return [...filtered, ...pendingTemps];
+  return mergeMessagesWithLocalCache(queryClient, conversationId, filtered);
 }
 
 export function useMessages(conversationId: string | undefined) {

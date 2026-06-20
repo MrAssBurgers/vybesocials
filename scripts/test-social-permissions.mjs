@@ -268,6 +268,22 @@ async function main() {
     });
   });
 
+  await run('create call (1:1 ring path)', async () => {
+    const callId = `test-call-${Date.now()}`;
+    await setDoc(doc(clientDb, 'calls', callId), {
+      id: callId,
+      conversation_id: chatId,
+      caller_id: ACTOR_PROFILE_ID,
+      receiver_id: target.id,
+      call_type: 'audio',
+      status: 'ringing',
+      room_name: `call-${chatId}`,
+      is_group_call: false,
+      call_mode: 'p2p',
+      created_at: now,
+    });
+  });
+
   console.log(`\n── Result: ${passed} passed, ${failed} failed ──`);
   process.exit(failed > 0 ? 1 : 0);
 }

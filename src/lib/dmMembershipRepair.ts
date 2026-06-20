@@ -5,6 +5,12 @@ import { getUserProfile, resolveProfileIdFromAuthUid } from '@/lib/firebase/user
 import type { UserProfile } from '@/lib/firebase/types';
 
 const repaired = new Set<string>();
+/** Conversations verified ready for message read/send this session (skip repair loops). */
+const messagesReady = new Set<string>();
+
+export function resetMessagesReady(conversationId: string, profileId: string): void {
+  messagesReady.delete(`${conversationId}:${profileId}`);
+}
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -127,6 +133,16 @@ export async function fetchConversationForViewer(
     created_at: now,
     updated_at: now,
   };
+}
+
+/** List load: read conversation doc only — no membership writes (fast). */
+export async function fetchConversationMetaForList(
+  conversationId: string,
+): Promise<Record<string, unknown> | null> {
+  if (!conversationId) return null;
+  const doc = await getConversationDoc<Record<string, unknown>>(conversationId);
+  if (doc) return doc;
+  return syntheticDeterministicConversation(conversationId);
 }
 
 /**
@@ -317,6 +333,10 @@ export async function prepareConversationForMessages(
   profileId: string,
   otherProfileId?: string | null,
 ): Promise<void> {
+  if (!conversationId || !profileId) return;
+  const readyKey = `${conversationId}:${profileId}`;
+  if (messagesReady.has(readyKey)) return;
+
   const otherId =
     otherProfileId ||
     inferOtherParticipantId(conversationId, profileId) ||
@@ -332,7 +352,10 @@ export async function prepareConversationForMessages(
     const ready = await Promise.all(
       ids.map((id) => hasCompositeMembership(conversationId, id)),
     );
-    if (ready.some(Boolean)) return;
+    if (ready.some(Boolean)) {
+      messagesReady.add(readyKey);
+      return;
+    }
 
     if (attempt < 3) await sleep(150 * (attempt + 1));
   }
