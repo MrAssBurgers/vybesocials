@@ -2,6 +2,32 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## Social discovery fix (2026-06-20)
+- **VYBE score:** `vybe_scores` / `vybe_score_events` had no Firestore rules (catch-all deny) — added read rules; score hook tries doc id + profile_id
+- **useAuthProfileId:** Returned `undefined` during profile resolve → blocked search, Quick Add, friend requests — now falls back to cached/live profile id
+- **Quick Add:** Firestore query mixed `neq` + `orderBy` (invalid) → empty suggestions — client-side filter + sort fix in dataClient
+- **Hidden discovery:** Defensive filter so broken `.or()` can't hide all users
+- **Friend requests:** Insert now sets `status: 'pending'` + timestamps (Firestore has no column defaults)
+- **Deploy:** Firestore rules → `vybe-daaab` SUCCESS
+- **Tests:** `npm run build` PASS, `npm run lint` PASS
+- **You:** Lovable **Share → Publish** → hard refresh; test profile VYBE score, search, Quick Add, add friend, Message
+
+## Next 3 Tasks
+1. Lovable Publish → search user → add friend → open DM
+2. Profile page → VYBE score visible on other users
+3. Messages → Quick Add shows suggestions
+
+## Publish prep (2026-06-19)
+- **Git:** `84c7e7cf` on `origin/main` (dataClient + calling fixes)
+- **Firebase:** Firestore rules deployed; `livekitToken` deployed with LIVEKIT secrets
+- **Build:** `npm run build` PASS
+- **You:** Lovable → **Share → Publish** → hard refresh `vybehub.app`
+
+## Next 3 Tasks
+1. Lovable Publish → test search, friend requests, reactions, voice/video call
+2. Hard refresh on phone (or clear site data) after publish
+3. Native NFC / Despia features still need a Despia rebuild (not web publish alone)
+
 ## Deep scan — dataClient + calling (2026-06-17)
 - **dataClient:** Fixed `gte`/`lte` (were `>`/`<`); `count: 'exact'` without `head`; updates apply same client filters as deletes (`.or()` / `.ilike()`); join FK resolution (`profiles!posts_author_id_fkey` → `author_id`); inner joins
 - **Calling P2P:** `realtimeService.ts` now broadcasts WebRTC signals via Firestore `webrtc_signals` (was no-op stub)

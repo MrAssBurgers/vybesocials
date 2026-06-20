@@ -18,13 +18,21 @@ export function useVybeScore(profileId: string | undefined) {
     queryKey: ['vybe-score', profileId],
     queryFn: async () => {
       if (!profileId) return 0;
-      const { data, error } = await db
+      // Doc id is profile_id (Supabase PK); try direct read first.
+      const { data: byId, error: byIdError } = await db
         .from('vybe_scores')
-        .select('score')
+        .select('score, profile_id')
         .eq('profile_id', profileId)
         .maybeSingle();
-      if (error) throw error;
-      return Number(data?.score ?? 0);
+      if (!byIdError && byId) return Number(byId.score ?? 0);
+
+      const { data: docRow, error: docError } = await db
+        .from('vybe_scores')
+        .select('score')
+        .eq('id', profileId)
+        .maybeSingle();
+      if (docError && byIdError) throw docError;
+      return Number(docRow?.score ?? byId?.score ?? 0);
     },
     enabled: !!profileId,
     staleTime: 30_000,

@@ -315,9 +315,13 @@ export function useSendFriendRequest() {
 
         if (reviveError) throw reviveError;
       } else {
+        const now = new Date().toISOString();
         const { error: insertError } = await db.from('friend_requests').insert({
           sender_id: profileId,
           receiver_id: receiverId,
+          status: 'pending',
+          created_at: now,
+          updated_at: now,
         });
 
         if (insertError) {

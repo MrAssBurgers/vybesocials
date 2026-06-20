@@ -98,8 +98,9 @@ export function useHiddenFromDiscovery() {
         }
       });
 
-      // Add existing friends
+      // Add existing friends (guard: only rows involving current user)
       friendsResult.data?.forEach(d => {
+        if (d.sender_id !== profileId && d.receiver_id !== profileId) return;
         if (d.sender_id === profileId) {
           hiddenIds.add(d.receiver_id);
         } else {

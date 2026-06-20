@@ -77,23 +77,19 @@ export function useQuickAddSuggestions(limit = 8) {
         return { min: Math.max(18, myAge - 7), max: myAge + 7 };
       })();
 
-      // Build query — fetch recent active users excluding self and friends
-      let query = db
+      // Fetch recent profiles; filter self/friends client-side (avoids Firestore inequality+orderBy conflicts)
+      const { data: users } = await db
         .from('profiles' as any)
-        .select('id, username, display_name, avatar_url, interests, date_of_birth')
-        .neq('id', profileId)
-        .not('username', 'is', null)
+        .select('id, username, display_name, avatar_url, interests, date_of_birth, created_at')
         .order('created_at', { ascending: false })
         .limit(120) as any;
 
-      if (friendIds.length > 0) {
-        query = query.not('id', 'in', friendIds);
-      }
+      const friendIdSet = new Set(friendIds);
 
-      const { data: users } = await query;
       if (!users || users.length === 0) return [];
 
       return (users as any[])
+        .filter((u: any) => u.id !== profileId && u.username && !friendIdSet.has(u.id))
         .filter((u: any) => {
           if (!ageWin) return true;
           const a = calcAge(u.date_of_birth);
@@ -153,6 +149,6 @@ export function useQuickAddSuggestions(limit = 8) {
 
   return {
     suggestions: suggestions.slice(0, limit),
-    isLoading: loadingMutual && loadingGeneral,
+    isLoading: loadingMutual || loadingGeneral,
   };
 }

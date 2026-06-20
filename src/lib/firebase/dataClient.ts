@@ -106,6 +106,7 @@ class QueryBuilder {
   private matchFilters: Record<string, unknown> = {};
   private ilikeFilters: Array<{ field: string; needle: string }> = [];
   private orPredicates: OrPredicate[] = [];
+  private sortClientSide = false;
 
   constructor(table: string) {
     this.table = table;
@@ -267,7 +268,30 @@ class QueryBuilder {
   }
 
   private needsClientSideFiltering(): boolean {
-    return this.ilikeFilters.length > 0 || this.orPredicates.length > 0;
+    return (
+      this.ilikeFilters.length > 0 ||
+      this.orPredicates.length > 0 ||
+      this.sortClientSide ||
+      this.getClientOnlyFilters().length > 0
+    );
+  }
+
+  private applyClientSort(rows: Record<string, unknown>[]): Record<string, unknown>[] {
+    if (!this.sortClientSide || !this.orders.length) return rows;
+    const sorted = [...rows];
+    sorted.sort((a, b) => {
+      for (const o of this.orders) {
+        const av = a[o.field];
+        const bv = b[o.field];
+        if (av === bv) continue;
+        if (av == null) return o.ascending ? 1 : -1;
+        if (bv == null) return o.ascending ? -1 : 1;
+        if (av < bv) return o.ascending ? -1 : 1;
+        if (av > bv) return o.ascending ? 1 : -1;
+      }
+      return 0;
+    });
+    return sorted;
   }
 
   private buildConstraints(opts?: { includeLimit?: boolean }): QueryConstraint[] {
@@ -313,8 +337,17 @@ class QueryBuilder {
       (this as { _clientOnlyFilters?: Filter[] })._clientOnlyFilters = clientOnlyFilters;
     }
 
-    for (const o of this.orders) {
-      constraints.push(orderBy(o.field, o.ascending ? 'asc' : 'desc'));
+    const firestoreInequalityField =
+      inequalityFields.size === 1 ? [...inequalityFields][0] : undefined;
+    this.sortClientSide = !!(
+      firestoreInequalityField &&
+      this.orders.some((o) => o.field !== firestoreInequalityField)
+    );
+
+    if (!this.sortClientSide) {
+      for (const o of this.orders) {
+        constraints.push(orderBy(o.field, o.ascending ? 'asc' : 'desc'));
+      }
     }
     if (includeLimit && this.limitN) {
       constraints.push(firestoreLimit(this.needsClientSideFiltering() ? CLIENT_FILTER_FETCH_CAP : this.limitN));
@@ -457,6 +490,7 @@ class QueryBuilder {
     }
     result = applyIlikeFilters(result, this.ilikeFilters);
     result = applyOrPredicates(result, this.orPredicates);
+    result = this.applyClientSort(result);
     if (this.needsClientSideFiltering() && this.limitN) {
       result = result.slice(0, this.limitN);
     }

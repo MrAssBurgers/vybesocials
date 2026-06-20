@@ -22,7 +22,7 @@ export function useAuthProfileId(): string | undefined {
     networkMode: 'always',
   });
 
+  // Prefer resolved legacy UUID when available; never block social/search while resolving.
   if (resolveQuery.data) return resolveQuery.data;
-  if (suspectAuthUidAsProfileId) return undefined;
-  return cached ?? undefined;
+  return cached ?? profile?.id ?? undefined;
 }

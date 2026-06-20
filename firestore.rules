@@ -170,6 +170,17 @@ service cloud.firestore {
     match /challenge_rewards/{docId} {
       allow read, write: if ownsUserField('user_id') || willOwnUserField('user_id') || isAdmin();
     }
+    // VYBE Score (Snapscore-style) — public read for authed users; writes via triggers/Functions only
+    match /vybe_scores/{docId} {
+      allow read: if signedIn();
+      allow write: if false;
+    }
+    match /vybe_score_events/{docId} {
+      allow read: if signedIn() && (
+        ownsProfileId(resource.data.profile_id) || isAdmin()
+      );
+      allow write: if false;
+    }
 
     // ---------- user badges / locations / prefs ----------
     match /user_badges/{docId} {
