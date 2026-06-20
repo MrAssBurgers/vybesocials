@@ -2,6 +2,13 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## Publish prep — social client (2026-06-20)
+- **Client:** Skip illegal peer `conversation_members` query in Add Friend; legacy membership lookup try/catch; dev-only permission context in dataClient
+- **Git:** pushed to `origin/main` (after this commit)
+- **Rules:** already live on `vybe-daaab`
+- **Tests:** `npm run build` PASS, `test:social-permissions` 9/9 PASS
+- **You:** Lovable **Share → Publish** → hard refresh → Add Friend + Message
+
 ## Permission denied on Message / Add Friend — REAL FIX (2026-06-20)
 - **Root cause:** Firestore `get()` on **non-existent** docs evaluated read rules using `resource.data` (null) → `permission-denied` instead of "not found". Broke `friend_requests` duplicate check (Add Friend) and `conversation_members` existence check (Message RPC).
 - **Fix rules:** `canReadMissingDoc()` guard on `friend_requests`, `message_requests`, `conversations`, `conversation_members` reads; creator can seed peer members via `isConversationCreatorOf` on create.
