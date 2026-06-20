@@ -37,14 +37,15 @@ const GC_TIME = 1000 * 60 * 60 * 24 * 14; // 14 days - keep feed cached for offl
 
 // Transform RPC result to Post format — returns null for malformed rows.
 function transformPost(row: any): Post | null {
-  if (!row?.id) return null;
+  const postId = row?.id || row?.post_id;
+  if (!postId) return null;
   const authorId = row.author_id || row.author?.id || '';
   const username =
     row.author_username ||
     row.author?.username ||
     (authorId ? `user_${String(authorId).slice(0, 8)}` : 'unknown');
   return {
-    id: row.id,
+    id: postId,
     type: row.type || 'post',
     media_url: row.media_url || '',
     thumbnail_url: row.thumbnail_url ?? null,

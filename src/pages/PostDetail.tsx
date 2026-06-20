@@ -24,6 +24,7 @@ import {
   patchReactionInFeedCaches,
   removePostReaction,
   savePostReaction,
+  notifyPostLike,
 } from '@/lib/postReactions';
 import {
   DropdownMenu,
@@ -246,7 +247,7 @@ function CommentActions({ isOwn, commentId, postId, commentText }: {
 export default function PostDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { profile } = useAuth();
+  const { profile, user } = useAuth();
   const [newComment, setNewComment] = useState('');
   const [commentGifUrl, setCommentGifUrl] = useState<string | null>(null);
   const [showGifPicker, setShowGifPicker] = useState(false);
@@ -418,19 +419,19 @@ export default function PostDetailPage() {
       if (newIsLiked && reactionType) {
         await savePostReaction({
           userId: profile.id,
+          authUid: user?.id,
           postId: post.id,
           reactionType,
         });
-        if (!wasLiked && post.author.id !== profile.id) {
-          await db.from('notifications').insert({
-            user_id: post.author.id,
-            type: 'like',
-            actor_id: profile.id,
-            post_id: post.id,
+        if (!wasLiked && post.author.id && post.author.id !== profile.id) {
+          void notifyPostLike({
+            recipientId: post.author.id,
+            actorId: profile.id,
+            postId: post.id,
           });
         }
       } else {
-        await removePostReaction(profile.id, post.id);
+        await removePostReaction(profile.id, post.id, user?.id);
       }
     } catch (error) {
       console.error('[PostDetail] reaction failed:', error);

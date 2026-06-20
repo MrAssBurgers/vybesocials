@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth';
 import type { ReactionType } from '@/lib/reactions';
 import {
   patchReactionInFeedCaches,
   removePostReaction,
   savePostReaction,
+  notifyPostLike,
 } from '@/lib/postReactions';
 import { toast } from 'sonner';
 
@@ -19,7 +19,7 @@ interface PostReactionSource {
 }
 
 export function usePostReaction(post: PostReactionSource) {
-  const { profile } = useAuth();
+  const { profile, user } = useAuth();
   const queryClient = useQueryClient();
   const [isLiked, setIsLiked] = useState(post.is_liked);
   const [currentReaction, setCurrentReaction] = useState<ReactionType | null>(
@@ -37,7 +37,7 @@ export function usePostReaction(post: PostReactionSource) {
 
   const handleReaction = useCallback(
     async (reactionType: ReactionType | null) => {
-      if (!profile?.id) return;
+      if (!profile?.id || !post.id) return;
 
       const wasLiked = currentReaction !== null;
       const newIsLiked = reactionType !== null;
@@ -58,20 +58,20 @@ export function usePostReaction(post: PostReactionSource) {
         if (newIsLiked && reactionType) {
           await savePostReaction({
             userId: profile.id,
+            authUid: user?.id,
             postId: post.id,
             reactionType,
           });
 
-          if (!wasLiked && post.author.id !== profile.id) {
-            await db.from('notifications').insert({
-              user_id: post.author.id,
-              type: 'like',
-              actor_id: profile.id,
-              post_id: post.id,
+          if (!wasLiked && post.author.id && post.author.id !== profile.id) {
+            void notifyPostLike({
+              recipientId: post.author.id,
+              actorId: profile.id,
+              postId: post.id,
             });
           }
         } else {
-          await removePostReaction(profile.id, post.id);
+          await removePostReaction(profile.id, post.id, user?.id);
         }
       } catch (error) {
         console.error('[usePostReaction] failed:', error);
@@ -84,6 +84,7 @@ export function usePostReaction(post: PostReactionSource) {
     },
     [
       profile?.id,
+      user?.id,
       currentReaction,
       isLiked,
       likeCount,

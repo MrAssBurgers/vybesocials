@@ -3,6 +3,7 @@ import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useQuery, useInfiniteQuery } from '@tanstack/react-query';
 import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth';
+import { getViewerPostReaction } from '@/lib/postReactions';
 import { MobileShortCard } from '@/components/posts/MobileShortCard';
 import { ShortCard } from '@/components/posts/ShortCard';
 import { EmptyState } from '@/components/ui/EmptyState';
@@ -19,7 +20,7 @@ const PAGE_SIZE = 15;
 
 function transformRankedPost(row: any): Post {
   return {
-    id: row.post_id || row.id,
+    id: row.id || row.post_id,
     type: row.post_type || row.type,
     media_url: row.media_url,
     thumbnail_url: row.thumbnail_url,
@@ -37,6 +38,7 @@ function transformRankedPost(row: any): Post {
     comment_count: Number(row.comment_count) || 0,
     is_liked: row.is_liked || false,
     is_bookmarked: row.is_bookmarked || false,
+    reaction_type: row.reaction_type ?? null,
   } as Post;
 }
 
@@ -62,7 +64,7 @@ export default function ClipsViewer() {
   const { postId } = useParams<{ postId: string }>();
   const navigate = useNavigate();
   const location = useLocation();
-  const { profile } = useAuth();
+  const { profile, user } = useAuth();
   const { isMobileOrTablet } = useIsMobileOrTablet();
   const { isSlowConnection } = useNetworkStatus();
 
@@ -87,10 +89,12 @@ export default function ClipsViewer() {
 
       if (postErr || !post) return null;
 
-      const [likeRes, commentRes, isLikedRes, isBookmarkedRes] = await Promise.all([
+      const [likeRes, commentRes, viewerReaction, isBookmarkedRes] = await Promise.all([
         db.from('likes').select('id', { count: 'exact', head: true }).eq('post_id', postId),
         db.from('comments').select('id', { count: 'exact', head: true }).eq('post_id', postId),
-        profile ? db.from('likes').select('id').eq('post_id', postId).eq('user_id', profile.id).maybeSingle() : Promise.resolve({ data: null }),
+        profile
+          ? getViewerPostReaction(postId, profile.id, user?.id)
+          : Promise.resolve({ is_liked: false, reaction_type: null }),
         profile ? db.from('bookmarks').select('id').eq('post_id', postId).eq('user_id', profile.id).maybeSingle() : Promise.resolve({ data: null }),
       ]);
 
@@ -111,8 +115,9 @@ export default function ClipsViewer() {
         },
         like_count: likeRes.count || 0,
         comment_count: commentRes.count || 0,
-        is_liked: !!isLikedRes.data,
+        is_liked: viewerReaction.is_liked,
         is_bookmarked: !!isBookmarkedRes.data,
+        reaction_type: viewerReaction.reaction_type,
       };
 
       await presignPosts([result]);

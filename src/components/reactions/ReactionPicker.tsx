@@ -208,6 +208,7 @@ export const ReactionPicker = memo(function ReactionPicker({
   }, []);
 
   const handlePointerDown = useCallback((e: React.PointerEvent) => {
+    e.stopPropagation();
     e.preventDefault();
     (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
     pointerStart.current = { x: e.clientX, y: e.clientY };
@@ -215,6 +216,7 @@ export const ReactionPicker = memo(function ReactionPicker({
   }, [startLongPress]);
 
   const handlePointerUp = useCallback((e: React.PointerEvent) => {
+    e.stopPropagation();
     cancelLongPress();
 
     if (isDragging.current && showPicker) {
@@ -224,19 +226,19 @@ export const ReactionPicker = memo(function ReactionPicker({
         triggerHaptic('medium');
         sounds[reaction.sound]();
         recordEmoji(reaction.emoji);
-        if (currentReaction === reaction.type) {
-          onReact(null);
-        } else {
-          onReact(reaction.type);
-        }
+        const next = currentReaction === reaction.type ? null : reaction.type;
+        void Promise.resolve(onReact(next)).catch((err) => {
+          console.error('[ReactionPicker] onReact failed:', err);
+        });
       }
       setShowPicker(false);
       setHoveredIndex(null);
     } else if (!isLongPress.current && !touchMoved.current) {
-      if (currentReaction) {
-        onReact(null);
-      } else {
-        onReact('like');
+      const next = currentReaction ? null : ('like' as ReactionType);
+      void Promise.resolve(onReact(next)).catch((err) => {
+        console.error('[ReactionPicker] onReact failed:', err);
+      });
+      if (!currentReaction) {
         triggerHaptic('light');
         sounds.pop();
       }
@@ -247,6 +249,7 @@ export const ReactionPicker = memo(function ReactionPicker({
   }, [cancelLongPress, currentReaction, onReact, showPicker, hoveredIndex]);
 
   const handlePointerMove = useCallback((e: React.PointerEvent) => {
+    e.stopPropagation();
     if (pointerStart.current && !isLongPress.current) {
       const dx = e.clientX - pointerStart.current.x;
       const dy = e.clientY - pointerStart.current.y;
@@ -274,13 +277,12 @@ export const ReactionPicker = memo(function ReactionPicker({
     const reaction = getReaction(type);
     sounds[reaction.sound]();
     recordEmoji(reaction.emoji);
-    
-    if (currentReaction === type) {
-      onReact(null);
-    } else {
-      onReact(type);
-    }
-    
+
+    const next = currentReaction === type ? null : type;
+    void Promise.resolve(onReact(next)).catch((err) => {
+      console.error('[ReactionPicker] onReact failed:', err);
+    });
+
     setShowPicker(false);
     setHoveredIndex(null);
   }, [currentReaction, onReact]);

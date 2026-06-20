@@ -424,7 +424,11 @@ service cloud.firestore {
     match /notifications/{id} {
       allow read: if ownsUserField('user_id') || ownsProfileId(resource.data.user_id) || isAdmin();
       allow update: if ownsUserField('user_id') || ownsProfileId(resource.data.user_id);
-      allow create: if isAdmin();
+      allow create: if isAdmin() || (
+        signedIn() &&
+        willOwnProfile('actor_id') &&
+        request.resource.data.type in ['like', 'comment', 'follow', 'mention', 'friend_request', 'collab', 'share']
+      );
       allow delete: if ownsUserField('user_id') || ownsProfileId(resource.data.user_id) || isAdmin();
     }
     match /push_tokens/{id} {
