@@ -7,7 +7,7 @@ Use this file as the Lovable -> Cursor handoff each session.
 - **Root cause (vanish):** Reaction/view invalidations refetched messages and dropped recently sent rows not yet in fetch; sender realtime skipped own INSERT.
 - **Root cause (call):** `caller_id` used cached profile id without session resolve + membership repair before insert.
 - **Fix:** Fast list load (`fetchConversationMetaForList`), session cache for `prepareConversationForMessages`, merge local sent messages on refetch, GlobalRT pins sender row, callStore resolves caller + repairs membership, silent conv timestamp update.
-- **Verified:** build PASS; `test:social-permissions` 15/15 (incl. calls create)
+- **Git:** `98b74a65` pushed → Lovable **Publish** → hard refresh
 
 ## Next 3 Tasks
 1. Lovable Publish → test send (bubble stays), call MrAssBurgers, DM list speed
