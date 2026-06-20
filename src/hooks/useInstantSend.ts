@@ -2,6 +2,7 @@ import { useCallback, useRef, useState, useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth';
+import { useAuthProfileId } from '@/hooks/useAuthProfileId';
 import { Message, ViewMode } from './useMessages';
 import { registerOptimisticMessage } from './useGlobalRealtimeMessages';
 import { resolveSessionProfileId } from '@/lib/resolveSessionProfileId';
@@ -9,6 +10,7 @@ import {
   prepareConversationForMessages,
   inferOtherParticipantId,
 } from '@/lib/dmMembershipRepair';
+import { messagesQueryKey, patchMessagesCache } from '@/lib/messagesQueryKey';
 import { toast } from 'sonner';
 
 export interface PendingMessage {
@@ -32,9 +34,12 @@ export interface PendingMessage {
  */
 export function useInstantSend(conversationId: string | undefined) {
   const { profile } = useAuth();
+  const profileId = useAuthProfileId();
+  const effectiveProfileId = profileId ?? profile?.id;
   const queryClient = useQueryClient();
   
   const pendingMessagesRef = useRef<Map<string, PendingMessage>>(new Map());
+  const sendReadyRef = useRef<{ conversationId?: string; senderId?: string; inflight?: Promise<string> }>({});
   const [videoUploadProgress, setVideoUploadProgress] = useState<Record<string, number>>({});
 
   // Long-lived broadcast channel for instant delivery to receivers viewing this convo.
@@ -85,12 +90,12 @@ export function useInstantSend(conversationId: string | undefined) {
 
   // Add message to cache optimistically
   const addOptimisticMessage = useCallback((tempId: string, message: Partial<Message>) => {
-    if (!conversationId || !profile) return;
+    if (!conversationId || !effectiveProfileId) return;
 
     const optimisticMessage: Message = {
       id: tempId,
       conversation_id: conversationId,
-      sender_id: profile.id,
+      sender_id: effectiveProfileId,
       content: message.content || null,
       media_url: message.media_url || null,
       media_type: message.media_type || null,
@@ -101,17 +106,17 @@ export function useInstantSend(conversationId: string | undefined) {
       reply_to_id: message.reply_to_id || null,
       created_at: new Date().toISOString(),
       sender: {
-        id: profile.id,
-        username: profile.username || '',
-        avatar_url: profile.avatar_url || null,
-        display_name: (profile as any).display_name || profile.username || null,
+        id: effectiveProfileId,
+        username: profile?.username || '',
+        avatar_url: profile?.avatar_url || null,
+        display_name: (profile as any)?.display_name || profile?.username || null,
       },
       views: [],
       reactions: [],
     };
 
-    // Add to messages cache immediately
-    queryClient.setQueryData<Message[]>(['messages', conversationId], (old) => {
+    // Add to messages cache immediately (must match useMessages query key).
+    patchMessagesCache(queryClient, conversationId, (old) => {
       if (!old) return [optimisticMessage];
       return [...old, optimisticMessage];
     });
@@ -128,7 +133,7 @@ export function useInstantSend(conversationId: string | undefined) {
               content: message.content,
               media_type: message.media_type,
               created_at: optimisticMessage.created_at,
-              sender_id: profile.id,
+              sender_id: effectiveProfileId,
             },
             updated_at: optimisticMessage.created_at,
             _sortTime: optimisticMessage.created_at,
@@ -143,11 +148,13 @@ export function useInstantSend(conversationId: string | undefined) {
     };
 
     // Update BOTH conversation query keys immediately for instant sync
-    queryClient.setQueryData<any[]>(['conversations', profile.id], updateConversationList);
-    queryClient.setQueryData<any[]>(['dm-conversations', profile.id], updateConversationList);
+    if (effectiveProfileId) {
+      queryClient.setQueryData<any[]>(['conversations', effectiveProfileId], updateConversationList);
+      queryClient.setQueryData<any[]>(['dm-conversations', effectiveProfileId], updateConversationList);
+    }
 
     return tempId;
-  }, [conversationId, profile, queryClient]);
+  }, [conversationId, effectiveProfileId, profile, queryClient]);
 
   // Replace temp message with real one from server. If the temp was wiped by a
   // background refetch (rare race), append the real message instead of dropping
@@ -155,14 +162,13 @@ export function useInstantSend(conversationId: string | undefined) {
   const confirmMessage = useCallback((tempId: string, realMessage: Message) => {
     if (!conversationId) return;
 
-    queryClient.setQueryData<Message[]>(['messages', conversationId], (old) => {
+    patchMessagesCache(queryClient, conversationId, (old) => {
       if (!old || old.length === 0) return [realMessage];
 
       const realAlreadyPresent = old.some(m => m.id === realMessage.id);
       const tempPresent = old.some(m => m.id === tempId);
 
       if (realAlreadyPresent) {
-        // Drop the temp (if any) — realtime delivered it first.
         return tempPresent ? old.filter(m => m.id !== tempId) : old;
       }
 
@@ -170,8 +176,6 @@ export function useInstantSend(conversationId: string | undefined) {
         return old.map(m => (m.id === tempId ? realMessage : m));
       }
 
-      // Temp was wiped by a refetch and realtime hasn't filled it in yet —
-      // append the confirmed message so the sender always sees it.
       return [...old, realMessage];
     });
 
@@ -182,7 +186,7 @@ export function useInstantSend(conversationId: string | undefined) {
   const markFailed = useCallback((tempId: string, error: string) => {
     if (!conversationId) return;
 
-    queryClient.setQueryData<Message[]>(['messages', conversationId], (old) => {
+    patchMessagesCache(queryClient, conversationId, (old) => {
       if (!old) return old;
       
       return old.map(m => {
@@ -204,7 +208,7 @@ export function useInstantSend(conversationId: string | undefined) {
   const removeMessage = useCallback((tempId: string) => {
     if (!conversationId) return;
 
-    queryClient.setQueryData<Message[]>(['messages', conversationId], (old) => {
+    patchMessagesCache(queryClient, conversationId, (old) => {
       if (!old) return old;
       return old.filter(m => m.id !== tempId);
     });
@@ -230,8 +234,31 @@ export function useInstantSend(conversationId: string | undefined) {
       otherFromMembers || inferOtherParticipantId(conversationId, senderId) || null;
 
     await prepareConversationForMessages(conversationId, senderId, otherProfileId);
+    sendReadyRef.current = { conversationId, senderId };
     return senderId;
-  }, [conversationId, profile?.id, queryClient]);
+  }, [conversationId, profile?.id, profileId, queryClient]);
+
+  // Pre-warm membership while the chat is open so Send doesn't wait on repair.
+  useEffect(() => {
+    if (!conversationId || !effectiveProfileId) return;
+    sendReadyRef.current = { conversationId, inflight: ensureSendReady().then((id) => {
+      sendReadyRef.current = { conversationId, senderId: id };
+      return id;
+    }) };
+  }, [conversationId, effectiveProfileId, ensureSendReady]);
+
+  const resolveSenderIdForSend = useCallback(async (): Promise<string> => {
+    if (
+      sendReadyRef.current.conversationId === conversationId &&
+      sendReadyRef.current.senderId
+    ) {
+      return sendReadyRef.current.senderId;
+    }
+    if (sendReadyRef.current.conversationId === conversationId && sendReadyRef.current.inflight) {
+      return sendReadyRef.current.inflight;
+    }
+    return ensureSendReady();
+  }, [conversationId, ensureSendReady]);
 
   // Send a text message instantly
   const sendText = useCallback(async (
@@ -239,7 +266,7 @@ export function useInstantSend(conversationId: string | undefined) {
     viewMode: ViewMode = 'permanent',
     replyToId?: string
   ) => {
-    if (!conversationId || !profile?.id || !content.trim()) return;
+    if (!conversationId || !effectiveProfileId || !content.trim()) return;
 
     const tempId = generateTempId();
     
@@ -257,10 +284,10 @@ export function useInstantSend(conversationId: string | undefined) {
     // the postgres_changes echo of our own insert can't accidentally remove
     // or duplicate the bubble we just rendered.
     addOptimisticMessage(tempId, { content, view_mode: viewMode, reply_to_id: replyToId });
-    registerOptimisticMessage(conversationId, content, profile.id);
+    registerOptimisticMessage(conversationId, content, effectiveProfileId || profile.id);
 
     try {
-      const senderId = await ensureSendReady();
+      const senderId = await resolveSenderIdForSend();
       const expiresAt = viewMode === '24h' 
         ? new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
         : null;
@@ -307,7 +334,7 @@ export function useInstantSend(conversationId: string | undefined) {
       toast.error('Message failed to send');
       throw error;
     }
-  }, [conversationId, profile?.id, generateTempId, addOptimisticMessage, confirmMessage, markFailed, getBroadcastChannel, ensureSendReady]);
+  }, [conversationId, profile?.id, effectiveProfileId, generateTempId, addOptimisticMessage, confirmMessage, markFailed, getBroadcastChannel, resolveSenderIdForSend]);
 
   // Send media message
   const sendMedia = useCallback(async (
@@ -338,7 +365,7 @@ export function useInstantSend(conversationId: string | undefined) {
     });
 
     try {
-      const senderId = await ensureSendReady();
+      const senderId = await resolveSenderIdForSend();
       const expiresAt = viewMode === '24h' 
         ? new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
         : null;
@@ -383,7 +410,7 @@ export function useInstantSend(conversationId: string | undefined) {
       markFailed(tempId, error.message || 'Failed to send');
       throw error;
     }
-  }, [conversationId, profile?.id, generateTempId, addOptimisticMessage, confirmMessage, markFailed, getBroadcastChannel, ensureSendReady]);
+  }, [conversationId, profile?.id, effectiveProfileId, generateTempId, addOptimisticMessage, confirmMessage, markFailed, getBroadcastChannel, resolveSenderIdForSend]);
 
   // Send video with optimistic UI and progress tracking
   const sendVideo = useCallback(async (
@@ -521,7 +548,7 @@ export function useInstantSend(conversationId: string | undefined) {
       URL.revokeObjectURL(localUrl);
       throw error;
     }
-  }, [conversationId, profile?.id, generateTempId, addOptimisticMessage, confirmMessage, markFailed, getBroadcastChannel, ensureSendReady]);
+  }, [conversationId, profile?.id, effectiveProfileId, generateTempId, addOptimisticMessage, confirmMessage, markFailed, getBroadcastChannel, resolveSenderIdForSend]);
 
   // Retry a failed message
   const retry = useCallback(async (tempId: string) => {

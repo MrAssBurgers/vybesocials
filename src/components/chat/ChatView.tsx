@@ -1230,7 +1230,10 @@ export function ChatView() {
   const messageItems = useMemo(() => {
     if (!messages) return [];
     return messages.map((message, index) => {
-      const isOwn = message.sender_id === profileId;
+      const isOwn =
+        message.sender_id === profileId ||
+        message.sender_id === profile?.id ||
+        message.sender_id === authUserId;
       const prevMessage = index > 0 ? messages[index - 1] : null;
       const showAvatar = !isOwn && (
         index === 0 || 
@@ -1250,7 +1253,7 @@ export function ChatView() {
 
       return { message, isOwn, showAvatar, showTimestamp, sameSender, isMediaTransition, isEmojiOnly };
     });
-  }, [messages, profileId]);
+  }, [messages, profileId, profile?.id, authUserId]);
 
   // Navigate to profile when avatar clicked, or open group info for group chats
   const handleAvatarClick = useCallback(() => {

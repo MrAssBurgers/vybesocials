@@ -8,6 +8,7 @@ import { getEffectiveProfileId } from '@/lib/profileCache';
 import { resolveSessionProfileId } from '@/lib/resolveSessionProfileId';
 import { syncUserAuthIndex } from '@/lib/firebase/profileResolve';
 import { fetchRecentConversationMessages, fetchMessagesForConversations } from '@/lib/conversationMessagesQuery';
+import { messagesQueryKey, readMessagesCache } from '@/lib/messagesQueryKey';
 import { invalidateConversationCaches } from '@/lib/invalidateConversationCaches';
 import { shouldRefetchWhenEmpty, refetchListOnMount } from '@/lib/queryRefetchPolicy';
 import { toast } from 'sonner';
@@ -282,7 +283,7 @@ function mergePendingOptimisticMessages(
   conversationId: string,
   filtered: Message[],
 ): Message[] {
-  const existing = queryClient.getQueryData<Message[]>(['messages', conversationId]) || [];
+  const existing = readMessagesCache(queryClient, conversationId);
   const serverIds = new Set(filtered.map((m) => m.id));
   const pendingTemps = existing.filter(
     (m) => typeof m.id === 'string' && m.id.startsWith('temp-') && !serverIds.has(m.id),
@@ -295,7 +296,7 @@ export function useMessages(conversationId: string | undefined) {
   const queryClient = useQueryClient();
 
   const query = useQuery({
-    queryKey: ['messages', conversationId, profileId],
+    queryKey: messagesQueryKey(conversationId),
     queryFn: async () => {
       if (!conversationId) return [];
 
