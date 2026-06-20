@@ -2,6 +2,19 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## Social DM + Add Friend — orphan conv fix (2026-06-20)
+- **Root cause (chat):** `ensureConversationReady` threw when patching `member_ids` on legacy conversations created by the other user. Chat opened but messages query failed → "Couldn't load this conversation."
+- **Root cause (friends):** Legacy `friend_requests` list lookups could surface permission errors and abort the mutation.
+- **Fix client:** Non-throwing `mergeConversationMemberIds`; seed own composite membership even when peer seed fails; return legacy conversation id from DM RPC; sync `user_auth_index` on profile resolve.
+- **Fix rules:** Conversation update allows self-join via `member_ids`; friend request create uses `ownsProfileId(sender_id)`.
+- **Verified:** orphan participant messages OK; `test:social-permissions` 9/9; `test:conversation-load` OK; rules deployed `vybe-daaab`
+- **You:** Lovable **Share → Publish** → hard refresh → Add Friend + Message
+
+## Next 3 Tasks
+1. Lovable Publish → profile Message loads chat; Add Friend works
+2. Hard refresh / clear site data if still on old bundle
+3. Re-run social permission tests if any user still blocked
+
 ## Conversation load after Message — REAL FIX (2026-06-20)
 - **Root cause:** Legacy migrated DMs use random `conversation_members` doc IDs; rules `isMember()` only matched composite `${convId}_${profileId}` or `member_ids` on conversation doc (often missing on orphans). Message RPC succeeded but `/messages/:id` failed on members/messages queries → "Couldn't load this conversation."
 - **Fix rules:** `isConversationParticipant` includes `isConversationCreatorOf` (creator can read members/messages even without composite doc).

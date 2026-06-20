@@ -68,10 +68,25 @@ export async function findExistingDmBetweenProfiles(
       const memberIds = members.map((row) => String(row.user_id || '')).filter(Boolean);
       const hasOther = memberIds.some((mid) => otherSet.has(mid));
       const hasMe = memberIds.some((mid) => myIds.includes(mid));
-      if (hasOther && hasMe && memberIds.length <= 2) return deterministicId;
+      if (hasOther && hasMe && memberIds.length <= 2) return cid;
     }
   }
   return null;
+}
+
+export async function mergeConversationMemberIds(
+  conversationId: string,
+  memberIds: string[],
+): Promise<void> {
+  try {
+    await setDocument('conversations', conversationId, {
+      member_ids: memberIds,
+      updated_at: new Date().toISOString(),
+    }, true);
+  } catch (err) {
+    // Non-creators cannot always patch member_ids on legacy rows — composite membership is enough.
+    console.warn('[DM] member_ids merge skipped:', conversationId, err);
+  }
 }
 
 const ensureReadyInflight = new Map<string, Promise<void>>();
@@ -103,11 +118,7 @@ export async function ensureConversationReady(
     const memberIds = [
       ...new Set([profileId, otherProfileId, authUid, otherAuthUid].filter(Boolean)),
     ] as string[];
-    const now = new Date().toISOString();
-    await setDocument('conversations', conversationId, {
-      member_ids: memberIds,
-      updated_at: now,
-    }, true);
+    await mergeConversationMemberIds(conversationId, memberIds);
   })();
 
   ensureReadyInflight.set(conversationId, promise);
@@ -172,17 +183,24 @@ export async function ensureFlatConversationMembership(
     }
     const now = new Date().toISOString();
 
-    await setDocument('conversation_members', compositeId, {
-      id: compositeId,
-      conversation_id: conversationId,
-      user_id: memberId,
-      role: (legacy?.role as string) || 'member',
-      is_muted: Boolean(legacy?.is_muted),
-      is_pinned: Boolean(legacy?.is_pinned),
-      last_read_at: (legacy?.last_read_at as string | null) ?? null,
-      created_at: (legacy?.created_at as string) || now,
-      updated_at: now,
-    });
+    try {
+      await setDocument('conversation_members', compositeId, {
+        id: compositeId,
+        conversation_id: conversationId,
+        user_id: memberId,
+        role: (legacy?.role as string) || 'member',
+        is_muted: Boolean(legacy?.is_muted),
+        is_pinned: Boolean(legacy?.is_pinned),
+        last_read_at: (legacy?.last_read_at as string | null) ?? null,
+        created_at: (legacy?.created_at as string) || now,
+        updated_at: now,
+      });
+    } catch (err) {
+      const { data: { user } } = await firebaseAuth.getUser();
+      const isSelf = memberId === profileId || memberId === user?.id;
+      if (isSelf) throw err;
+      console.warn('[DM] peer membership seed skipped:', compositeId, err);
+    }
   }
 
   repaired.add(cacheKey);

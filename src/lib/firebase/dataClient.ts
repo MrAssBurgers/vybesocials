@@ -40,6 +40,7 @@ import {
   findExistingDmBetweenProfiles,
   ensureConversationMembershipVariants,
   getConversationDoc,
+  mergeConversationMemberIds,
 } from '@/lib/dmMembershipRepair';
 import { syncProfileUsername } from './syncProfileUsername';
 import {
@@ -1040,10 +1041,7 @@ async function rpcCreateDmConversation(otherProfileId: string): Promise<string |
 
   const existing = await findExistingDmBetweenProfiles(myProfileId, resolvedOtherProfileId);
   if (existing) {
-    await setDocument('conversations', existing, {
-      member_ids: memberIds,
-      updated_at: now,
-    }, true);
+    await mergeConversationMemberIds(existing, memberIds);
     await ensureConversationMembershipVariants(
       existing,
       myProfileId,
@@ -1055,21 +1053,22 @@ async function rpcCreateDmConversation(otherProfileId: string): Promise<string |
     if (existing !== chatId) {
       const canonical = await getConversationDoc(chatId);
       if (!canonical) {
-        await setDocument('conversations', chatId, {
-          id: chatId,
-          is_group: false,
-          member_ids: memberIds,
-          name: null,
-          avatar_url: null,
-          created_by: myProfileId,
-          created_at: now,
-          updated_at: now,
-        });
+        try {
+          await setDocument('conversations', chatId, {
+            id: chatId,
+            is_group: false,
+            member_ids: memberIds,
+            name: null,
+            avatar_url: null,
+            created_by: myProfileId,
+            created_at: now,
+            updated_at: now,
+          });
+        } catch (err) {
+          console.warn('[DM] canonical conversation create skipped:', err);
+        }
       } else {
-        await setDocument('conversations', chatId, {
-          member_ids: memberIds,
-          updated_at: now,
-        }, true);
+        await mergeConversationMemberIds(chatId, memberIds);
       }
       await ensureConversationMembershipVariants(
         chatId,
@@ -1079,7 +1078,7 @@ async function rpcCreateDmConversation(otherProfileId: string): Promise<string |
         otherAuthUid,
       );
     }
-    return chatId;
+    return existing;
   }
 
   const existingConv = await getConversationDoc(chatId);
@@ -1095,10 +1094,7 @@ async function rpcCreateDmConversation(otherProfileId: string): Promise<string |
       updated_at: now,
     });
   } else {
-    await setDocument('conversations', chatId, {
-      member_ids: memberIds,
-      updated_at: now,
-    }, true);
+    await mergeConversationMemberIds(chatId, memberIds);
   }
 
   await ensureConversationMembershipVariants(

@@ -5,6 +5,7 @@ import {
   type CachedProfile,
 } from '@/lib/profileCache';
 import { getProfileByAuthUid } from '@/lib/firebase/users';
+import { syncUserAuthIndex } from '@/lib/firebase/profileResolve';
 
 let memoAuthUserId: string | null = null;
 let memoProfileId: string | null = null;
@@ -43,6 +44,8 @@ export async function resolveSessionProfileId(
 
       memoAuthUserId = authUserId;
       memoProfileId = profile.id;
+
+      await syncUserAuthIndex(authUserId, profile.id);
 
       const payload: CachedProfile = {
         id: profile.id,

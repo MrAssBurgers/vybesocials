@@ -333,29 +333,37 @@ export function useSendFriendRequest() {
       ]);
 
       // Legacy rows used random ids — fall back to sender/receiver lookup.
-      let legacySent: { data: { id: string; status: string }[] | null } = { data: null };
-      let legacyReceived: { data: { id: string; status: string }[] | null } = { data: null };
+      let legacySent: { data: { id: string; status: string }[] | null; error: unknown } = { data: null, error: null };
+      let legacyReceived: { data: { id: string; status: string }[] | null; error: unknown } = { data: null, error: null };
       if (!sameDirectionResult.data && !reverseDirectionResult.data) {
-        [legacySent, legacyReceived] = await Promise.all([
-          db
-            .from('friend_requests')
-            .select('id, status')
-            .eq('sender_id', profileId)
-            .eq('receiver_id', normalizedReceiver)
-            .limit(1),
-          db
-            .from('friend_requests')
-            .select('id, status')
-            .eq('sender_id', normalizedReceiver)
-            .eq('receiver_id', profileId)
-            .limit(1),
-        ]);
+        try {
+          [legacySent, legacyReceived] = await Promise.all([
+            db
+              .from('friend_requests')
+              .select('id, status')
+              .eq('sender_id', profileId)
+              .eq('receiver_id', normalizedReceiver)
+              .limit(1),
+            db
+              .from('friend_requests')
+              .select('id, status')
+              .eq('sender_id', normalizedReceiver)
+              .eq('receiver_id', profileId)
+              .limit(1),
+          ]);
+        } catch (legacyErr) {
+          console.warn('[Friends] legacy friend_request lookup skipped:', legacyErr);
+        }
       }
 
       if (sameDirectionResult.error) throw sameDirectionResult.error;
       if (reverseDirectionResult.error) throw reverseDirectionResult.error;
-      if (legacySent.error) throw legacySent.error;
-      if (legacyReceived.error) throw legacyReceived.error;
+      if (legacySent.error && !(legacySent.error as { code?: string })?.code?.includes('permission')) {
+        throw legacySent.error;
+      }
+      if (legacyReceived.error && !(legacyReceived.error as { code?: string })?.code?.includes('permission')) {
+        throw legacyReceived.error;
+      }
 
       const existingSentRequest =
         sameDirectionResult.data ||

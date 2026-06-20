@@ -75,7 +75,8 @@ service cloud.firestore {
       return signedIn() && (
         willOwnProfile('sender_id') ||
         request.resource.data.sender_id == uid() ||
-        request.resource.data.sender_id == profileId()
+        request.resource.data.sender_id == profileId() ||
+        ownsProfileId(request.resource.data.sender_id)
       );
     }
     // Rows may store Firebase Auth uid or profiles.id in user_id / owner fields.
@@ -398,7 +399,9 @@ service cloud.firestore {
       allow update: if isMember(cid) || isAdmin() || (
         signedIn() && (
           ownsProfileId(resource.data.get('created_by', '')) ||
-          resource.data.get('created_by', '') == uid()
+          resource.data.get('created_by', '') == uid() ||
+          profileId() in request.resource.data.get('member_ids', []) ||
+          uid() in request.resource.data.get('member_ids', [])
         )
       );
       allow delete: if isAdmin();
