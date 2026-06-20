@@ -2,6 +2,20 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## Conversation load after Message — REAL FIX (2026-06-20)
+- **Root cause:** Legacy migrated DMs use random `conversation_members` doc IDs; rules `isMember()` only matched composite `${convId}_${profileId}` or `member_ids` on conversation doc (often missing on orphans). Message RPC succeeded but `/messages/:id` failed on members/messages queries → "Couldn't load this conversation."
+- **Fix rules:** `isConversationParticipant` includes `isConversationCreatorOf` (creator can read members/messages even without composite doc).
+- **Fix client:** `ensureConversationReady()` repairs composite membership + `member_ids` before chat reads; DM RPC returns deterministic chat id and repairs legacy + canonical conv.
+- **Verified:** `test:social-permissions` 9/9 PASS, `test:conversation-load` legacy chat OK
+- **Deploy:** Firestore rules → `vybe-daaab` SUCCESS
+- **Git:** pushed to `origin/main`
+- **You:** Lovable **Share → Publish** → hard refresh → Message + Add Friend
+
+## Next 3 Tasks
+1. Lovable Publish → profile Message loads chat (not error screen)
+2. Add Friend from profile (no permission blocked)
+3. Re-run `npm run test:social-permissions` + `test:conversation-load` if issues persist
+
 ## Publish prep — social client (2026-06-20)
 - **Client:** Skip illegal peer `conversation_members` query in Add Friend; legacy membership lookup try/catch; dev-only permission context in dataClient
 - **Git:** pushed to `origin/main` (after this commit)
