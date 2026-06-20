@@ -2,6 +2,20 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## DM send fix (2026-06-20)
+- **Root cause:** Fast send marked chats "ready" without verified Firestore membership; many DMs had no `conversations/{id}` doc → rules denied message insert.
+- **Fix:** `repairConversationForSend()` creates missing conv doc, syncs `user_auth_index`, seeds composite membership, only marks ready when verified. Wired into `useInstantSend`, outbox, share-to-DM.
+- **Removed:** False `messagesReady` flag on failed fast repair.
+- **Verified:** build PASS; `test:social-permissions` 15/15 PASS
+- **You:** Lovable Publish → force-quit app → send DM
+
+## Instant boot + DM send + reload nag (2026-06-20)
+- **Black/stuck splash:** Returning users skip splash; dismiss is immediate (no paint wait); native preloader instant; static boot hidden early
+- **Can't message on phone:** Send always runs membership repair + `user_auth_index` sync; 1:1 chat create uses Firebase `createDmChat` (not missing Supabase RPC)
+- **Reload conversations nag:** Removed "Couldn't refresh chats" + slow-load Retry banners; self-heal refetches stale only (no full invalidate)
+- **Verified:** `npm run build` PASS; `test:social-permissions` 15/15 PASS
+- **You:** Lovable **Publish** → force-quit app → reopen → test Messages send
+
 ## App-wide perf pass (2026-06-20)
 - **Reconnect:** stale-only refetch (no invalidate+refetch storm on focus/blip)
 - **DMs:** 180s list cache, idle-deferred friend auto-create, capped presence/status batch (40), fast message prepare, offlineFirst message cache, startTransition on realtime list patches, deferred GlobalRT subscribe (1.2s idle)

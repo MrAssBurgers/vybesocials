@@ -7,10 +7,14 @@ import { Message, ViewMode } from './useMessages';
 import { registerOptimisticMessage } from './useGlobalRealtimeMessages';
 import { resolveSessionProfileId } from '@/lib/resolveSessionProfileId';
 import {
-  prepareConversationForMessages,
   inferOtherParticipantId,
+  isConversationMessagesReady,
+  repairConversationForSend,
+  resetMessagesReady,
 } from '@/lib/dmMembershipRepair';
 import { messagesQueryKey, patchMessagesCache } from '@/lib/messagesQueryKey';
+import { syncUserAuthIndex } from '@/lib/firebase/profileResolve';
+import { firebaseAuth } from '@/lib/firebase/authService';
 import { withTimeout } from '@/lib/withTimeout';
 import { toast } from 'sonner';
 
@@ -222,6 +226,11 @@ export function useInstantSend(conversationId: string | undefined) {
     const senderId = (await resolveSessionProfileId(profile?.id)) || profile?.id;
     if (!senderId) throw new Error('Not authenticated');
 
+    const { data: { user } } = await firebaseAuth.getUser();
+    if (user?.id) {
+      await syncUserAuthIndex(user.id, senderId);
+    }
+
     const cachedConv =
       queryClient.getQueryData<any[]>(['dm-conversations', senderId])?.find(
         (c) => c.id === conversationId,
@@ -235,21 +244,25 @@ export function useInstantSend(conversationId: string | undefined) {
       otherFromMembers || inferOtherParticipantId(conversationId, senderId) || null;
 
     await withTimeout(
-      prepareConversationForMessages(conversationId, senderId, otherProfileId, { fast: false }),
-      12_000,
+      repairConversationForSend(conversationId, senderId, otherProfileId),
+      8_000,
       'Chat setup timed out',
-    ).catch(() =>
-      prepareConversationForMessages(conversationId, senderId, otherProfileId, { fast: true }),
     );
+
+    if (!isConversationMessagesReady(conversationId, senderId)) {
+      throw new Error('Could not prepare chat for sending');
+    }
+
     sendReadyRef.current = { conversationId, senderId };
     return senderId;
   }, [conversationId, profile?.id, profileId, queryClient]);
 
   const repairAndSend = useCallback(
     async (senderId: string, otherProfileId: string | null) => {
+      resetMessagesReady(conversationId!, senderId);
       await withTimeout(
-        prepareConversationForMessages(conversationId!, senderId, otherProfileId, { fast: true }),
-        5_000,
+        repairConversationForSend(conversationId!, senderId, otherProfileId, { force: true }),
+        6_000,
         'Send setup timed out',
       ).catch(() => {});
       sendReadyRef.current = { conversationId, senderId };
@@ -268,12 +281,8 @@ export function useInstantSend(conversationId: string | undefined) {
     if (sendReadyRef.current.conversationId === conversationId && sendReadyRef.current.inflight) {
       return sendReadyRef.current.inflight;
     }
-    // Mobile fast path: send with cached profile id immediately; repair runs on open in background.
-    if (effectiveProfileId) {
-      return effectiveProfileId;
-    }
     return ensureSendReady();
-  }, [conversationId, effectiveProfileId, ensureSendReady]);
+  }, [conversationId, ensureSendReady]);
 
   // Pre-warm membership while the chat is open (background — never blocks Send tap).
   useEffect(() => {

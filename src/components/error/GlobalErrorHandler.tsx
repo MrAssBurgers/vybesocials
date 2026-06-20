@@ -74,7 +74,9 @@ export function GlobalErrorHandler() {
 
     // AI self-heal asked us to refetch all live queries
     const handleSelfHealRefetch = () => {
-      try { queryClient.invalidateQueries(); } catch { /* ignore */ }
+      try {
+        void queryClient.refetchQueries({ type: 'active', stale: true });
+      } catch { /* ignore */ }
     };
 
     window.addEventListener('error', handleChunkError);

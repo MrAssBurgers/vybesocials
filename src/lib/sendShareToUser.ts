@@ -1,4 +1,6 @@
 import { db } from '@/lib/firebase';
+import { createDmChat } from '@/lib/firebase/chats';
+import { repairConversationForSend } from '@/lib/dmMembershipRepair';
 import { recordShareTo } from '@/lib/shareRecency';
 
 /**
@@ -13,10 +15,10 @@ export async function sendThemeToUser(params: {
 }): Promise<boolean> {
   const { recipientProfileId, senderProfileId, sharedThemeId, themeName } = params;
   try {
-    const { data: convId, error: convErr } = await db.rpc('create_dm_conversation', {
-      other_profile_id: recipientProfileId,
-    });
-    if (convErr || !convId) return false;
+    const convId = await createDmChat(recipientProfileId);
+    if (!convId) return false;
+
+    await repairConversationForSend(convId, senderProfileId, recipientProfileId);
 
     const { error: msgErr } = await db.from('messages').insert({
       conversation_id: convId,
@@ -66,10 +68,10 @@ export async function sendShareToUser({
   mediaUrl,
 }: SendShareToUserParams): Promise<boolean> {
   try {
-    const { data: convId, error: convErr } = await db.rpc('create_dm_conversation', {
-      other_profile_id: recipientProfileId,
-    });
-    if (convErr || !convId) return false;
+    const convId = await createDmChat(recipientProfileId);
+    if (!convId) return false;
+
+    await repairConversationForSend(convId, senderProfileId, recipientProfileId);
 
     const isVideo = postType === 'video' || postType === 'short';
 

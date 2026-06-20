@@ -118,8 +118,9 @@ export function useAppPreloader() {
       return;
     }
 
-    // Returning user — skip splash network work; hydrate in background.
+    // Native + returning users — never block on network during splash.
     if (
+      isNativePerfMode() ||
       hasWarmOfflineCache(queryClient) ||
       hasStoredSupabaseSession() ||
       getCachedCurrentProfile()

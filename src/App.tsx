@@ -93,10 +93,11 @@ import { purgeStuckStoryUploads } from "@/lib/storiesCacheSanitize";
 import { SnapARProvider } from "@/components/camera/SnapARProvider";
 import { ATT_RESUME_EVENT, ensureAppShellVisible } from "@/lib/attResumeRecovery";
 import { syncNativeTrackingConsent } from "@/lib/att";
-import { readSplashCompleted, markSplashCompleted } from "@/lib/splashSession";
+import { readSplashCompleted, markSplashCompleted, shouldSkipInitialSplash } from "@/lib/splashSession";
+import { getCachedCurrentProfile } from "@/lib/profileCache";
 import { hideStaticBootSplash } from "@/lib/splashProgressBridge";
 import { clearSplashDocumentLocks, markAppReady } from "@/lib/splashDismiss";
-import { resetSplashSessionOnHardReload, waitForAppShellPaint, hasAppShellPaint } from "@/lib/navigationBoot";
+import { resetSplashSessionOnHardReload, hasAppShellPaint } from "@/lib/navigationBoot";
 import { navVisibility } from "@/lib/navVisibility";
 import { markBootComplete } from "@/lib/bootGuard";
 import { ShellVisibilityGuard } from "@/components/system/ShellVisibilityGuard";
@@ -219,8 +220,9 @@ const BanCheck = lazy(() => import("@/components/app/BanCheck"));
 
 // Track if initial load has completed (persists across navigations in this tab)
 resetSplashSessionOnHardReload();
-let hasInitialLoadCompleted = readSplashCompleted();
-let splashDismissed = false;
+const skipInitialSplash = shouldSkipInitialSplash();
+let hasInitialLoadCompleted = skipInitialSplash || readSplashCompleted();
+let splashDismissed = skipInitialSplash;
 
 function completeInitialSplash(setShowSplash: (v: boolean) => void) {
   if (splashDismissed) return;
@@ -240,12 +242,8 @@ function completeInitialSplash(setShowSplash: (v: boolean) => void) {
     });
   };
 
-  // Never keep the splash up waiting for paint — hard cap 650ms from dismiss trigger.
-  const hardCap = window.setTimeout(finish, 650);
-  void waitForAppShellPaint(280).finally(() => {
-    window.clearTimeout(hardCap);
-    finish();
-  });
+  // Dismiss immediately — never block on paint probes (caused 100% Ready stuck screen).
+  finish();
 }
 
 // Background brief pre-fetcher (needs auth context)
@@ -266,13 +264,22 @@ function BriefPreFetchInit() {
 // we know to keep the splash up until auth resolves (no login flash).
 // Tracks Supabase auth resolution at the App root so the splash can wait for it.
 function useAuthResolved() {
-  const [resolved, setResolved] = useState(false);
-  const [hasSession, setHasSession] = useState(false);
+  const optimistic =
+    skipInitialSplash ||
+    getWasLoggedIn() ||
+    hasStoredSupabaseSession() ||
+    !!getCachedCurrentProfile();
+  const [resolved, setResolved] = useState(optimistic);
+  const [hasSession, setHasSession] = useState(
+    () => optimistic || hasStoredSupabaseSession(),
+  );
   useEffect(() => {
     let cancelled = false;
-    const authTimeoutMs = hasStoredSupabaseSession()
-      ? (isNativePerfMode() ? 700 : 1000)
-      : (isNativePerfMode() ? 1200 : 1800);
+    const authTimeoutMs = optimistic
+      ? (isNativePerfMode() ? 250 : 400)
+      : hasStoredSupabaseSession()
+        ? (isNativePerfMode() ? 500 : 700)
+        : (isNativePerfMode() ? 900 : 1200);
     const forceDone = setTimeout(() => {
       if (!cancelled) setResolved(true);
     }, authTimeoutMs);
@@ -309,7 +316,7 @@ function AppWithPreloader() {
   const preloadStatus = useAppPreloader();
   const { authResolved, hasSession } = useAuthResolved();
   const wasLoggedInRef = useRef(getWasLoggedIn());
-  const [showSplash, setShowSplash] = useState(!hasInitialLoadCompleted);
+  const [showSplash, setShowSplash] = useState(!skipInitialSplash && !hasInitialLoadCompleted);
   const [welcomeBack, setWelcomeBack] = useState<{ username?: string | null; avatarUrl?: string | null } | null>(null);
 
   // Auto-update checker
@@ -360,7 +367,7 @@ function AppWithPreloader() {
     const absoluteMax = setTimeout(() => {
       syncNativeTrackingConsent();
       completeInitialSplash(setShowSplash);
-    }, isNativePerfMode() ? 900 : 1100);
+    }, isNativePerfMode() ? 450 : 600);
     return () => clearTimeout(absoluteMax);
   }, [showSplash]);
 

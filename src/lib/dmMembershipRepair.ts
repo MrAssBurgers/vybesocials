@@ -2,6 +2,7 @@ import { db } from '@/lib/firebase';
 import { getDocument, setDocument, getDocuments, where, firestoreLimit } from '@/lib/firebase/firestoreDb';
 import { firebaseAuth } from '@/lib/firebase/authService';
 import { getUserProfile, resolveProfileIdFromAuthUid } from '@/lib/firebase/users';
+import { syncUserAuthIndex } from '@/lib/firebase/profileResolve';
 import type { UserProfile } from '@/lib/firebase/types';
 
 const repaired = new Set<string>();
@@ -210,6 +211,103 @@ export async function mergeConversationMemberIds(
 
 const ensureReadyInflight = new Map<string, Promise<void>>();
 
+/** Create missing conversation doc so Firestore rules can verify membership on send. */
+export async function ensureConversationDocument(
+  conversationId: string,
+  profileId: string,
+  otherProfileId?: string | null,
+): Promise<void> {
+  if (!conversationId || !profileId) return;
+
+  const otherId =
+    otherProfileId ||
+    inferOtherParticipantId(conversationId, profileId) ||
+    null;
+
+  const existing = await getConversationDoc<Record<string, unknown>>(conversationId);
+  if (existing) {
+    const memberIds = (existing.member_ids as string[]) || [];
+    const merged = [
+      ...new Set([...memberIds, profileId, otherId].filter(Boolean)),
+    ] as string[];
+    if (merged.length > memberIds.length) {
+      await mergeConversationMemberIds(conversationId, merged);
+    }
+    return;
+  }
+
+  const synthetic = syntheticDeterministicConversation(conversationId);
+  const { data: { user } } = await firebaseAuth.getUser();
+  const authUid = user?.id ?? null;
+
+  let memberIds: string[];
+  if (synthetic) {
+    memberIds = [
+      ...new Set([...(synthetic.member_ids as string[]), profileId, otherId, authUid].filter(Boolean)),
+    ] as string[];
+  } else if (otherId) {
+    memberIds = [...new Set([profileId, otherId, authUid].filter(Boolean))] as string[];
+  } else {
+    try {
+      const rows = await getDocuments<Record<string, unknown>>('conversation_members', [
+        where('conversation_id', '==', conversationId),
+        firestoreLimit(10),
+      ]);
+      const fromRows = rows.map((r) => String(r.user_id || '')).filter(Boolean);
+      memberIds = [...new Set([profileId, authUid, ...fromRows].filter(Boolean))] as string[];
+    } catch {
+      memberIds = [...new Set([profileId, authUid].filter(Boolean))] as string[];
+    }
+  }
+
+  const now = new Date().toISOString();
+  try {
+    await setDocument('conversations', conversationId, {
+      id: conversationId,
+      is_group: synthetic ? false : memberIds.length > 2,
+      member_ids: memberIds,
+      name: null,
+      avatar_url: null,
+      created_by: profileId,
+      created_at: now,
+      updated_at: now,
+    });
+  } catch (err) {
+    console.warn('[DM] ensureConversationDocument skipped:', conversationId, err);
+  }
+}
+
+/** Full repair before message insert — doc + membership + auth index. */
+export async function repairConversationForSend(
+  conversationId: string,
+  profileId: string,
+  otherProfileId?: string | null,
+  options?: { force?: boolean },
+): Promise<void> {
+  if (!conversationId || !profileId) return;
+  const readyKey = `${conversationId}:${profileId}`;
+  if (!options?.force && messagesReady.has(readyKey)) return;
+
+  const otherId =
+    otherProfileId ||
+    inferOtherParticipantId(conversationId, profileId) ||
+    null;
+
+  const { data: { user } } = await firebaseAuth.getUser();
+  if (user?.id) {
+    await syncUserAuthIndex(user.id, profileId);
+  }
+
+  await ensureConversationDocument(conversationId, profileId, otherId);
+  await prepareConversationForMessages(conversationId, profileId, otherId, { fast: true });
+
+  if (!messagesReady.has(readyKey)) {
+    resetMessagesReady(conversationId, profileId);
+    resetRepairedMembership(conversationId, profileId);
+    await prepareConversationForMessages(conversationId, profileId, otherId, { fast: false });
+  }
+}
+
 /** Single-flight: composite membership + member_ids before chat reads. */
 export async function ensureConversationReady(
   conversationId: string,
@@ -222,6 +320,8 @@ export async function ensureConversationReady(
 
   const promise = (async () => {
     try {
+      await ensureConversationDocument(conversationId, profileId, otherProfileId);
+
       const { data: { user } } = await firebaseAuth.getUser();
       const authUid = user?.id ?? null;
       const otherProfile = otherProfileId ? await getUserProfile(otherProfileId) : null;
@@ -369,9 +469,6 @@ export async function prepareConversationForMessages(
 
     if (attempt < maxAttempts - 1) await sleep(150 * (attempt + 1));
   }
-
-  // Fast send path: mark ready after one repair pass so we don't loop on every tap.
-  if (options?.fast) messagesReady.add(readyKey);
 }
 
 export async function resolveDmActorIds(liveProfileId?: string | null): Promise<{

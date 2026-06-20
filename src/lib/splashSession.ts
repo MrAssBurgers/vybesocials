@@ -1,4 +1,21 @@
+import { getCachedCurrentProfile } from '@/lib/profileCache';
+import { hasStoredSupabaseSession } from '@/lib/supabaseStorageKey';
+import { getWasLoggedIn } from '@/lib/wasLoggedIn';
+
 export const SPLASH_DONE_KEY = 'vybe.splash.done';
+
+/** Returning users — skip animated splash; hydrate auth/DMs in background. */
+export function shouldSkipInitialSplash(): boolean {
+  if (readSplashCompleted()) return true;
+  try {
+    if (getWasLoggedIn() || hasStoredSupabaseSession() || getCachedCurrentProfile()) {
+      return true;
+    }
+  } catch {
+    /* ignore */
+  }
+  return false;
+}
 
 export function readSplashCompleted(): boolean {
   try {

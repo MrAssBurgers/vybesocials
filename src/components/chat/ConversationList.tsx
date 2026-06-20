@@ -134,16 +134,11 @@ export function ConversationList() {
     isLoading,
     isFetched,
     error: convError,
-    fetchWarning,
     totalUnreadCount,
     refetch: refetchConversations,
     profileId: dmProfileId,
   } = useDMConversations(debouncedSearch);
   const { prefetchMessages } = useChatPrefetch();
-
-  // Show a recoverable retry affordance if the skeleton lingers past 6s.
-  const [slowLoad, setSlowLoad] = useState(false);
-  const [skeletonTimedOut, setSkeletonTimedOut] = useState(false);
 
   useAgentAvailabilityProbe();
   
@@ -204,26 +199,14 @@ export function ConversationList() {
     allConversations.length === 0 &&
     !profileMissing &&
     isLoading &&
-    !skeletonTimedOut;
+    !isFetched;
 
-  useEffect(() => {
-    if (!isLoading || isFetched || allConversations.length > 0) {
-      setSkeletonTimedOut(false);
-      return;
-    }
-    const t = setTimeout(() => {
-      setSkeletonTimedOut(true);
-    }, 12_000);
-    return () => clearTimeout(t);
-  }, [isLoading, isFetched, allConversations.length, dmProfileId, convError]);
+  const showConvRetry =
+    !!convError &&
+    isFetched &&
+    allConversations.length === 0 &&
+    !profileMissing;
 
-  useEffect(() => {
-    if (!isLoading) { setSlowLoad(false); return; }
-    const t = setTimeout(() => setSlowLoad(true), 6000);
-    return () => clearTimeout(t);
-  }, [isLoading]);
-
-  // Get all conversation IDs for typing indicator subscription
   const conversationIds = useMemo(() => 
     allConversations.map(c => c.id),
     [allConversations]
@@ -384,16 +367,6 @@ export function ConversationList() {
 
         {/* Conversations */}
         <div className="pb-3">
-          {(fetchWarning || (convError && allConversations.length > 0)) && (
-            <div className="mx-3 mb-2 rounded-xl border border-border/40 bg-card/40 p-3 flex items-center justify-between gap-3">
-              <div className="text-xs text-muted-foreground">
-                Couldn&apos;t refresh chats. Showing saved list.
-              </div>
-              <Button size="sm" variant="secondary" className="h-7 px-3 text-xs" onClick={() => refetchConversations()}>
-                Retry
-              </Button>
-            </div>
-          )}
           {profileMissing ? (
             <div className="flex flex-col items-center justify-center py-12 text-center px-6 mx-1">
               <p className="text-sm text-muted-foreground mb-4 max-w-[260px]">
@@ -405,16 +378,6 @@ export function ConversationList() {
             </div>
           ) : showListSkeleton ? (
             <div className="space-y-3 px-3 pt-2">
-              {(slowLoad || convError) && (
-                <div className="rounded-xl border border-border/40 bg-card/40 p-3 flex items-center justify-between gap-3">
-                  <div className="text-xs text-muted-foreground">
-                    {convError ? "Couldn't load messages." : slowLoad ? 'Still loading your chats…' : 'Loading your chats…'}
-                  </div>
-                  <Button size="sm" variant="secondary" className="h-7 px-3 text-xs" onClick={() => refetchConversations()}>
-                    Retry
-                  </Button>
-                </div>
-              )}
               {[...Array(5)].map((_, i) => (
                 <div key={i} className="flex items-center gap-3">
                   <Skeleton className="h-12 w-12 rounded-full" />
@@ -484,10 +447,10 @@ export function ConversationList() {
               </div>
               <h3 className="dm-title text-lg font-black mb-1">{t('messages.noConversations')}</h3>
               <p className="text-xs text-muted-foreground mb-5 max-w-[240px]">
-                {convError ? "We couldn't load your chats. Tap Retry below." : "Add friends to start chatting. Your conversations will show up here."}
+                {showConvRetry ? "We couldn't load your chats. Tap Retry below." : "Add friends to start chatting. Your conversations will show up here."}
               </p>
               <div className="flex gap-2">
-                {convError && (
+                {showConvRetry && (
                   <Button variant="secondary" onClick={() => refetchConversations()} className="rounded-full px-4 h-9 text-sm">
                     Retry
                   </Button>

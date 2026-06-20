@@ -10,6 +10,10 @@
 import { get, set } from 'idb-keyval';
 import { db } from '@/lib/firebase';
 import { onReconnect } from '@/lib/reconnectManager';
+import {
+  inferOtherParticipantId,
+  repairConversationForSend,
+} from '@/lib/dmMembershipRepair';
 import type { ViewMode } from '@/hooks/useMessages';
 
 const KEY = 'vybe-dm-outbox-v1';
@@ -81,6 +85,15 @@ export async function getPending(): Promise<OutboxItem[]> {
 
 async function sendOne(item: OutboxItem): Promise<boolean> {
   try {
+    const otherProfileId =
+      inferOtherParticipantId(item.conversationId, item.senderId) || null;
+    await repairConversationForSend(
+      item.conversationId,
+      item.senderId,
+      otherProfileId,
+      { force: true },
+    ).catch(() => {});
+
     const { error } = await db.from('messages').insert({
       conversation_id: item.conversationId,
       sender_id: item.senderId,

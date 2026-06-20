@@ -17,6 +17,7 @@ import { refetchListOnMount } from '@/lib/queryRefetchPolicy';
 import { resolveSessionProfileId, syncSessionProfileId } from '@/lib/resolveSessionProfileId';
 import { withTimeout } from '@/lib/withTimeout';
 import { fetchMemberProfiles, resolveDmActorIds, ensureConversationReady, fetchConversationForViewer, inferOtherParticipantId } from '@/lib/dmMembershipRepair';
+import { createDmChat } from '@/lib/firebase/chats';
 
 type DMConversation = LoadedDMConversation;
 
@@ -136,20 +137,8 @@ export function useDMConversations(searchQuery: string = '') {
       attemptedFriendIdsRef.current.add(friend.id);
 
       try {
-        const { error } = await db.rpc('create_dm_conversation', {
-          other_profile_id: friend.id,
-        });
-        if (error) {
-          // create_dm_conversation may be missing on prod until SQL migration is applied.
-          if (error.code === 'PGRST202' || /could not find the function/i.test(error.message || '')) {
-            console.warn('[DM] create_dm_conversation RPC not deployed — skipping auto-create');
-            continue;
-          }
-          // Allow a retry on next data update if it failed
-          attemptedFriendIdsRef.current.delete(friend.id);
-        } else {
-          created = true;
-        }
+        await createDmChat(friend.id);
+        created = true;
       } catch (error) {
         console.error('Failed to create conversation for friend:', friend.id, error);
         attemptedFriendIdsRef.current.delete(friend.id);

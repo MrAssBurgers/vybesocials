@@ -16,7 +16,7 @@ import { callSounds } from '@/lib/callSounds';
 import { enqueue as outboxEnqueue } from '@/lib/dmOutbox';
 import { ensureFlatConversationMembership, normalizeToProfileId, ensureConversationMembershipVariants, ensureConversationReady, prepareConversationForMessages, inferOtherParticipantId, isConversationMessagesReady } from '@/lib/dmMembershipRepair';
 import { syncSessionProfileId } from '@/lib/resolveSessionProfileId';
-import { getUserProfile } from '@/lib/firebase/users';
+import { createDmChat } from '@/lib/firebase/chats';
 import { firebaseAuth } from '@/lib/firebase/authService';
 
 export type ViewMode = 'view_once' | '24h' | 'permanent';
@@ -643,18 +643,12 @@ export function useCreateConversation() {
         await syncUserAuthIndex(authUser.id, myProfileId);
       }
 
-      // For 1:1 DMs, use the atomic RPC function
+      // For 1:1 DMs, use Firebase client (deterministic id + membership seed)
       if (!isGroup && memberIds.length === 1) {
         const rawOtherId = memberIds[0];
         const otherUserId = (await normalizeToProfileId(rawOtherId)) || rawOtherId;
-        
-        const { data: conversationId, error: rpcError } = await db
-          .rpc('create_dm_conversation', { other_profile_id: otherUserId });
 
-        if (rpcError) {
-          console.error('create_dm_conversation RPC error:', rpcError);
-          throw new Error(rpcError.message || 'Failed to start conversation');
-        }
+        const conversationId = await createDmChat(otherUserId);
         if (!conversationId) {
           throw new Error('Failed to start conversation');
         }
