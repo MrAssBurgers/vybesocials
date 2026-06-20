@@ -5,7 +5,7 @@
  */
 
 import { isDespiaRuntime, isAndroidUA, isIOSUA } from '@/lib/despiaBridge';
-import { despiaReadNFC, startDespiaNfcReadLoop } from '@/lib/despiaNFCv2';
+import { despiaReadNFC, despiaWriteNFC, startDespiaNfcReadLoop } from '@/lib/despiaNFCv2';
 import { mapNfcErrorMessage, preferNativeNfc } from '@/lib/nfcPlatform';
 
 export type FriendLinkTarget = { type: 'drop' | 'user'; id: string };
@@ -42,12 +42,14 @@ export function buildAddFriendUrl(userId: string): string {
 
 export interface FriendLinkNfcSessionOptions {
   /**
-   * Our share URL — used only for Web NFC write-on-read (Chrome Android).
-   * Despia never writes during Friend Link listen (read-only per official API).
+   * Our share URL — used for Web NFC write-on-read (Chrome Android) and optional
+   * deferred native broadcast for Phone Tap (Despia Android).
    */
   broadcastUrl: string;
   onTarget: (target: FriendLinkTarget) => void;
   signal?: AbortSignal;
+  /** Despia Android: after read loop arms, present our URL for peer devices (Phone Tap). */
+  nativeBroadcast?: boolean;
 }
 
 /**
@@ -57,7 +59,7 @@ export interface FriendLinkNfcSessionOptions {
 export async function startFriendLinkNfcSession(
   options: FriendLinkNfcSessionOptions,
 ): Promise<() => void> {
-  const { broadcastUrl, onTarget, signal } = options;
+  const { broadcastUrl, onTarget, signal, nativeBroadcast = false } = options;
   const cleanups: Array<() => void> = [];
   let disposed = false;
 
@@ -98,6 +100,19 @@ export async function startFriendLinkNfcSession(
         },
       }),
     );
+
+    // Phone Tap: deferred write so we don't fire read+write in the same gesture (Despia rule).
+    if (nativeBroadcast && broadcastUrl && isAndroidUA()) {
+      const writeTimer = window.setTimeout(() => {
+        if (disposed || signal?.aborted) return;
+        void despiaWriteNFC(broadcastUrl).then((result) => {
+          if (!result.ok && !result.dismissed && result.error) {
+            console.warn('[friendLinkNfc] native broadcast write:', result.error);
+          }
+        });
+      }, 500);
+      cleanups.push(() => clearTimeout(writeTimer));
+    }
   }
 
   const hasWebNfc =

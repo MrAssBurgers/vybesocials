@@ -61,7 +61,7 @@ export function useWebNFC({ onRead, autoStart = false }: UseWebNFCOptions = {}) 
   }, []);
 
   const tryDespiaBridge = useCallback(async (): Promise<boolean> => {
-    if (!isDespiaRuntime() || !isAndroidUA()) return false;
+    if (!isDespiaRuntime()) return false;
     setIsScanning(true);
     toast.success('Hold a tag near your phone…', { duration: 3000 });
     const payload = await despiaScanNFC();
@@ -79,7 +79,7 @@ export function useWebNFC({ onRead, autoStart = false }: UseWebNFCOptions = {}) 
     setError(null);
 
     // Despia native shell: never use Web NFC (blocked in WebViews).
-    if (preferNativeNfc() && isAndroidUA()) {
+    if (preferNativeNfc()) {
       const ok = await tryDespiaBridge();
       if (ok) return true;
       const msg = mapNfcErrorMessage('timeout');

@@ -1,9 +1,9 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { toast } from 'sonner';
 import { haptics } from '@/lib/haptics';
-import { isDespiaRuntime, despiaScanNFC, openAppSettings, isAndroidUA, isIOSUA } from '@/lib/despiaBridge';
-import { despiaReadNFC, despiaWriteNFC } from '@/lib/despiaNFCv2';
-import { extractFriendTarget, buildFriendDropUrl } from '@/lib/friendLinkNfc';
+import { isDespiaRuntime, openAppSettings, isAndroidUA, isIOSUA } from '@/lib/despiaBridge';
+import { despiaWriteNFC } from '@/lib/despiaNFCv2';
+import { extractFriendTarget, buildFriendDropUrl, startFriendLinkNfcSession } from '@/lib/friendLinkNfc';
 import {
   isWebNfcAvailable,
   mapNfcErrorMessage,
@@ -88,45 +88,6 @@ function isWebNFCSupported(): boolean {
   return isWebNfcAvailable();
 }
 
-// Despia native NFC bridge — available in the wrapped app even when
-// Web NFC permission has been denied. Returns true if a payload was decoded.
-// Prefers the new `nfc://read` + `window.onNFCEvent` contract, falls back to
-// the legacy `nfcread://` polling path on older Despia builds.
-function emitFriendLinkTarget(
-  raw: string,
-  onTagScanned: (userId: string) => void,
-  onDropScanned?: (dropId: string) => void,
-): boolean {
-  const target = extractFriendTarget(raw);
-  if (!target) {
-    const userId = parseFriendAddUrl(raw);
-    if (userId) {
-      onTagScanned(userId);
-      return true;
-    }
-    if (raw.startsWith('vybe:friend:')) {
-      onTagScanned(raw.replace('vybe:friend:', ''));
-      return true;
-    }
-    return false;
-  }
-  if (target.type === 'drop') {
-    onDropScanned?.(target.id);
-    return true;
-  }
-  onTagScanned(target.id);
-  return true;
-}
-
-async function despiaNFCScan(
-  onTagScanned: (userId: string) => void,
-  onDropScanned?: (dropId: string) => void,
-): Promise<boolean> {
-  const v2 = await despiaReadNFC(60_000);
-  if (!v2.ok || !v2.payload) return false;
-  return emitFriendLinkTarget(v2.payload, onTagScanned, onDropScanned);
-}
-
 export function useNFC() {
   const [state, setState] = useState<NFCState>({
     isSupported: false,
@@ -139,6 +100,7 @@ export function useNFC() {
   const abortControllerRef = useRef<AbortController | null>(null);
   const ndefReaderRef = useRef<NDEFReader | null>(null);
   const pendingWriteRef = useRef<string | null>(null);
+  const friendLinkCleanupRef = useRef<(() => void) | null>(null);
 
   const hasWebNFC = isWebNFCSupported();
   const hasDespiaNFC = preferNativeNfc();
@@ -198,20 +160,34 @@ export function useNFC() {
 
   // Start scanning for NFC tags
   const startScan = useCallback(async (onTagScanned: (userId: string) => void): Promise<boolean> => {
-    // Inside the Despia Android shell, prefer the native NFC bridge — it works
-    // even when Web NFC permission has been denied or the WebView blocks it.
+    // Native shell: continuous read loop until stopScan().
     if (hasDespiaNFC) {
+      stopScan();
+      const abort = new AbortController();
+      abortControllerRef.current = abort;
       setState(prev => ({ ...prev, isScanning: true, error: null }));
       haptics.tap();
       toast.success('NFC scanning! Hold your phone near a tag or another device.');
-      const ok = await despiaNFCScan(onTagScanned);
-      setState(prev => ({ ...prev, isScanning: false }));
-      if (!ok) {
-        toast.info('No NFC tag detected — try again or use QR');
-      } else {
-        haptics.success();
+
+      try {
+        const cleanup = await startFriendLinkNfcSession({
+          broadcastUrl: '',
+          signal: abort.signal,
+          onTarget: (target) => {
+            if (target.type === 'user') {
+              haptics.success();
+              onTagScanned(target.id);
+            }
+          },
+        });
+        friendLinkCleanupRef.current = cleanup;
+        return true;
+      } catch (err) {
+        console.error('[NFC] native scan session failed:', err);
+        stopScan();
+        toast.error(mapNfcErrorMessage());
+        return false;
       }
-      return ok;
     }
 
     if (!hasWebNFC || !window.NDEFReader) {
@@ -311,6 +287,8 @@ export function useNFC() {
 
   const stopScan = useCallback(() => {
     console.log('[NFC] Stopping scan');
+    friendLinkCleanupRef.current?.();
+    friendLinkCleanupRef.current = null;
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
       abortControllerRef.current = null;
@@ -411,24 +389,38 @@ export function useNFC() {
   ): Promise<boolean> => {
     const shareUrl = options?.dropId ? buildFriendDropUrl(options.dropId) : generateFriendAddUrl(userId);
 
-    // Native shell: always use Despia bridge (Web NFC is blocked in WebViews).
+    // Native shell: continuous Phone Tap session (read loop + deferred broadcast on Android).
     if (hasDespiaNFC) {
+      stopScan();
+      const abort = new AbortController();
+      abortControllerRef.current = abort;
       setState(prev => ({ ...prev, isScanning: true, isWriteReady: true, error: null }));
       haptics.impact();
       toast.success('NFC Ready! Hold phones together back-to-back.', { duration: 5000 });
-      const ok = await despiaNFCScan(
-        (theirId) => {
-          if (theirId !== userId) onReceive(theirId);
-        },
-        (dropId) => {
-          if (dropId !== options?.dropId) options?.onDropReceive?.(dropId);
-        },
-      );
-      setState(prev => ({ ...prev, isScanning: false, isWriteReady: false }));
-      if (!ok) {
-        toast.info('No NFC tag detected — try again or use QR');
+
+      try {
+        const cleanup = await startFriendLinkNfcSession({
+          broadcastUrl: shareUrl,
+          nativeBroadcast: true,
+          signal: abort.signal,
+          onTarget: (target) => {
+            if (target.type === 'user' && target.id !== userId) {
+              haptics.success();
+              onReceive(target.id);
+            } else if (target.type === 'drop' && target.id !== options?.dropId) {
+              haptics.success();
+              options?.onDropReceive?.(target.id);
+            }
+          },
+        });
+        friendLinkCleanupRef.current = cleanup;
+        return true;
+      } catch (err) {
+        console.error('[NFC] share session failed:', err);
+        stopScan();
+        toast.error(mapNfcErrorMessage());
+        return false;
       }
-      return ok;
     }
 
     if (!hasWebNFC || !window.NDEFReader) {
@@ -538,9 +530,14 @@ export function useNFC() {
 
   // Get a user-friendly status message
   const getStatusMessage = useCallback((): string => {
-    if (nfcSupported) return 'NFC available';
-    if (isIOSUA()) return 'NFC not available in iOS browsers';
-    if (isAndroidUA()) return 'Enable NFC permission for VYBE';
+    if (nfcSupported) {
+      return preferNativeNfc()
+        ? 'Phone Tap ready — enable NFC in Settings if needed'
+        : 'NFC available';
+    }
+    if (preferNativeNfc()) return 'Enable NFC for VYBE in app settings';
+    if (isIOSUA()) return 'NFC not available in iOS browsers — use the VYBE app';
+    if (isAndroidUA()) return 'NFC requires Chrome on Android or the VYBE app';
     return 'NFC only works on Android phones';
   }, [nfcSupported]);
 

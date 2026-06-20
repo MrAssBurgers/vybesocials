@@ -276,6 +276,9 @@ export function NFCFriendShare({ className, variant = 'button' }: NFCFriendShare
                     {getStatusMessage()}
                   </p>
                 </div>
+        <Button variant="outline" onClick={openSettings} className="rounded-xl">
+                  Open NFC Settings
+                </Button>
                 <Button variant="outline" onClick={handleClose}>
                   Close
                 </Button>
