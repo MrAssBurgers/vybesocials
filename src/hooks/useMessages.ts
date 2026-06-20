@@ -583,7 +583,8 @@ export function useCreateConversation() {
       isGroup?: boolean;
       name?: string;
     }) => {
-      if (!profile?.id) throw new Error('Not authenticated');
+      const myProfileId = (await resolveSessionProfileId(profile?.id)) || profile?.id;
+      if (!myProfileId) throw new Error('Not authenticated');
 
       // For 1:1 DMs, use the atomic RPC function
       if (!isGroup && memberIds.length === 1) {
@@ -601,7 +602,7 @@ export function useCreateConversation() {
           throw new Error('Failed to start conversation');
         }
 
-        await ensureFlatConversationMembership(conversationId, profile.id);
+        await ensureFlatConversationMembership(conversationId, myProfileId);
 
         const { data: conv } = await db
           .from('conversations')
@@ -611,13 +612,13 @@ export function useCreateConversation() {
 
         if (conv) return conv;
 
-        const sortedMemberIds = [profile.id, otherUserId].sort();
+        const sortedMemberIds = [myProfileId, otherUserId].sort();
         return {
           id: conversationId,
           is_group: false,
-          member_ids: memberIds,
+          member_ids: sortedMemberIds,
           name: null,
-          created_by: profile.id,
+          created_by: myProfileId,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         };
@@ -629,18 +630,18 @@ export function useCreateConversation() {
         .insert({
           is_group: isGroup,
           name: isGroup ? name : null,
-          created_by: profile.id,
+          created_by: myProfileId,
         })
         .select()
         .single();
 
       if (convError) throw convError;
 
-      const allMemberIds = [...new Set([profile.id, ...memberIds])];
+      const allMemberIds = [...new Set([myProfileId, ...memberIds])];
       const membersToInsert = allMemberIds.map((userId) => ({
         conversation_id: conversation.id,
         user_id: userId,
-        role: userId === profile.id ? 'admin' : 'member',
+        role: userId === myProfileId ? 'admin' : 'member',
       }));
 
       const { error: membersError } = await db

@@ -102,6 +102,18 @@ service cloud.firestore {
         ownsProfileId(resource.data.get('recipient_id', ''))
       );
     }
+    function conversationData(cid) {
+      return get(/databases/$(database)/documents/conversations/$(cid)).data;
+    }
+    function canSeedFlatConversationMember(cid) {
+      return signedIn() &&
+        exists(/databases/$(database)/documents/conversations/$(cid)) && (
+          profileId() in conversationData(cid).get('member_ids', []) ||
+          uid() in conversationData(cid).get('member_ids', []) ||
+          ownsProfileId(conversationData(cid).get('created_by', '')) ||
+          conversationData(cid).get('created_by', '') == uid()
+        );
+    }
 
     // Auth uid → profiles.id lookup (seeded by scripts/migrate-firebase/seed-user-auth-index.mjs)
     match /user_auth_index/{authUid} {
@@ -390,7 +402,7 @@ service cloud.firestore {
         willOwnProfile('user_id') ||
         (
           request.resource.data.conversation_id is string &&
-          profileId() in get(/databases/$(database)/documents/conversations/$(request.resource.data.conversation_id)).data.get('member_ids', [])
+          canSeedFlatConversationMember(request.resource.data.conversation_id)
         )
       );
       allow update: if ownsProfileId(resource.data.user_id);

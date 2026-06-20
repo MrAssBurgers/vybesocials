@@ -2,6 +2,21 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## Friend + DM fix (2026-06-20)
+- **Root cause (DMs):** `conversation_members` create rule required `profileId()` ∈ `member_ids`, but rules `profileId()` falls back to auth uid while `member_ids` stores profile UUIDs → **permission denied** when seeding peer membership
+- **Fix rules:** `canSeedFlatConversationMember` — creator, member_ids match (profile id or uid), or conversation `created_by`
+- **Fix RPC:** `create_dm_conversation` syncs `user_auth_index`, uses resolved profile ids
+- **Friend requests:** Deterministic doc id `{sender}_{receiver}`; normalize receiver profile id; resolve sender via `resolveSessionProfileId`; legacy random-id fallback; notification insert non-blocking
+- **useCreateConversation:** Resolved profile id for membership repair
+- **Deploy:** Firestore rules → `vybe-daaab` SUCCESS
+- **Tests:** `npm run build` PASS, `npm run lint` PASS
+- **You:** Lovable **Share → Publish** → hard refresh → Add Friend + Message on a profile
+
+## Next 3 Tasks
+1. Lovable Publish → add friend from profile → open DM
+2. Messages → Add Friends → search → start chat
+3. Confirm friend request appears in Notifications for receiver
+
 ## Social discovery fix (2026-06-20)
 - **VYBE score:** `vybe_scores` / `vybe_score_events` had no Firestore rules (catch-all deny) — added read rules; score hook tries doc id + profile_id
 - **useAuthProfileId:** Returned `undefined` during profile resolve → blocked search, Quick Add, friend requests — now falls back to cached/live profile id

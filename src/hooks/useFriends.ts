@@ -6,7 +6,22 @@ import { useAuth } from '@/lib/auth';
 import { useAuthProfileId } from '@/hooks/useAuthProfileId';
 import { getEffectiveProfileId } from '@/lib/profileCache';
 import { invalidateConversationCaches } from '@/lib/invalidateConversationCaches';
+import { normalizeToProfileId } from '@/lib/dmMembershipRepair';
+import { resolveSessionProfileId } from '@/lib/resolveSessionProfileId';
 import { toast } from 'sonner';
+
+/** Stable doc id — matches directed pair (sender → receiver). */
+function friendRequestDocId(senderId: string, receiverId: string): string {
+  return `${senderId}_${receiverId}`;
+}
+
+async function resolveActorProfileId(liveProfileId?: string | null): Promise<string> {
+  const resolved = await resolveSessionProfileId(liveProfileId);
+  if (resolved) return resolved;
+  const cached = getEffectiveProfileId(liveProfileId);
+  if (cached) return cached;
+  throw new Error('Profile still loading — try again in a moment');
+}
 
 export interface FriendRequest {
   id: string;
@@ -182,18 +197,53 @@ export function useFriendshipStatus(targetUserId: string | undefined) {
         return { status: 'none' as const, requestId: null };
       }
 
+      const targetProfileId = (await normalizeToProfileId(targetUserId)) || targetUserId;
+      if (profileId === targetProfileId) {
+        return { status: 'none' as const, requestId: null };
+      }
+
+      const outboundId = friendRequestDocId(profileId, targetProfileId);
+      const inboundId = friendRequestDocId(targetProfileId, profileId);
+
+      const { data: sentById } = await db
+        .from('friend_requests')
+        .select('id, status')
+        .eq('id', outboundId)
+        .maybeSingle();
+
+      if (sentById) {
+        return {
+          status: sentById.status === 'accepted' ? 'friends' as const : 'pending_sent' as const,
+          requestId: sentById.id,
+        };
+      }
+
+      const { data: receivedById } = await db
+        .from('friend_requests')
+        .select('id, status')
+        .eq('id', inboundId)
+        .maybeSingle();
+
+      if (receivedById) {
+        return {
+          status: receivedById.status === 'accepted' ? 'friends' as const : 'pending_received' as const,
+          requestId: receivedById.id,
+        };
+      }
+
       // Check if there's a request from current user to target
       const { data: sentRequest } = await db
         .from('friend_requests')
         .select('id, status')
         .eq('sender_id', profileId)
-        .eq('receiver_id', targetUserId)
-        .maybeSingle();
+        .eq('receiver_id', targetProfileId)
+        .limit(1);
 
-      if (sentRequest) {
+      const sentRow = sentRequest?.[0];
+      if (sentRow) {
         return { 
-          status: sentRequest.status === 'accepted' ? 'friends' as const : 'pending_sent' as const,
-          requestId: sentRequest.id 
+          status: sentRow.status === 'accepted' ? 'friends' as const : 'pending_sent' as const,
+          requestId: sentRow.id 
         };
       }
 
@@ -201,14 +251,15 @@ export function useFriendshipStatus(targetUserId: string | undefined) {
       const { data: receivedRequest } = await db
         .from('friend_requests')
         .select('id, status')
-        .eq('sender_id', targetUserId)
+        .eq('sender_id', targetProfileId)
         .eq('receiver_id', profileId)
-        .maybeSingle();
+        .limit(1);
 
-      if (receivedRequest) {
+      const receivedRow = receivedRequest?.[0];
+      if (receivedRow) {
         return { 
-          status: receivedRequest.status === 'accepted' ? 'friends' as const : 'pending_received' as const,
-          requestId: receivedRequest.id 
+          status: receivedRow.status === 'accepted' ? 'friends' as const : 'pending_received' as const,
+          requestId: receivedRow.id 
         };
       }
 
@@ -226,6 +277,7 @@ export function useSendFriendRequest() {
   const queryClient = useQueryClient();
 
   const ensureDirectConversation = async (currentUserId: string, receiverId: string) => {
+    const receiverProfileId = (await normalizeToProfileId(receiverId)) || receiverId;
     const [{ data: myMemberships }, { data: theirMemberships }] = await Promise.all([
       db
         .from('conversation_members')
@@ -234,7 +286,7 @@ export function useSendFriendRequest() {
       db
         .from('conversation_members')
         .select('conversation_id')
-        .eq('user_id', receiverId),
+        .eq('user_id', receiverProfileId),
     ]);
 
     const myConversationIds = (myMemberships || []).map((membership) => membership.conversation_id);
@@ -256,7 +308,7 @@ export function useSendFriendRequest() {
 
     // Use the SECURITY DEFINER RPC to create conversation (bypasses RLS safely)
     const { data: conversationId, error: rpcError } = await db.rpc('create_dm_conversation', {
-      other_profile_id: receiverId,
+      other_profile_id: receiverProfileId,
     });
 
     if (rpcError) {
@@ -269,33 +321,65 @@ export function useSendFriendRequest() {
 
   return useMutation({
     mutationFn: async (receiverId: string) => {
-      const profileId = getEffectiveProfileId(profile?.id);
-      if (!profileId) throw new Error('Profile still loading — try again in a moment');
+      const profileId = await resolveActorProfileId(profile?.id);
+      const receiverProfileId = (await normalizeToProfileId(receiverId)) || receiverId;
 
-      if (receiverId === profileId) {
+      if (receiverProfileId === profileId) {
         throw new Error('Cannot send a friend request to yourself');
       }
+
+      const { data: receiverData, error: receiverLookupError } = await db.rpc('get_profile_by_id', {
+        target_id: receiverProfileId,
+      });
+      if (receiverLookupError || !receiverData) {
+        throw new Error('User not found');
+      }
+
+      const outboundId = friendRequestDocId(profileId, receiverProfileId);
+      const inboundId = friendRequestDocId(receiverProfileId, profileId);
 
       const [sameDirectionResult, reverseDirectionResult] = await Promise.all([
         db
           .from('friend_requests')
           .select('id, status')
-          .eq('sender_id', profileId)
-          .eq('receiver_id', receiverId)
+          .eq('id', outboundId)
           .maybeSingle(),
         db
           .from('friend_requests')
           .select('id, status')
-          .eq('sender_id', receiverId)
-          .eq('receiver_id', profileId)
+          .eq('id', inboundId)
           .maybeSingle(),
       ]);
+
+      // Legacy rows used random ids — fall back to sender/receiver lookup.
+      let legacySent: { data: { id: string; status: string }[] | null } = { data: null };
+      let legacyReceived: { data: { id: string; status: string }[] | null } = { data: null };
+      if (!sameDirectionResult.data && !reverseDirectionResult.data) {
+        [legacySent, legacyReceived] = await Promise.all([
+          db
+            .from('friend_requests')
+            .select('id, status')
+            .eq('sender_id', profileId)
+            .eq('receiver_id', receiverProfileId)
+            .limit(1),
+          db
+            .from('friend_requests')
+            .select('id, status')
+            .eq('sender_id', receiverProfileId)
+            .eq('receiver_id', profileId)
+            .limit(1),
+        ]);
+      }
 
       if (sameDirectionResult.error) throw sameDirectionResult.error;
       if (reverseDirectionResult.error) throw reverseDirectionResult.error;
 
-      const existingSentRequest = sameDirectionResult.data;
-      const existingReceivedRequest = reverseDirectionResult.data;
+      const existingSentRequest =
+        sameDirectionResult.data ||
+        (legacySent.data?.[0] as { id: string; status: string } | undefined);
+      const existingReceivedRequest =
+        reverseDirectionResult.data ||
+        (legacyReceived.data?.[0] as { id: string; status: string } | undefined);
 
       if (
         existingSentRequest?.status === 'pending' ||
@@ -303,22 +387,24 @@ export function useSendFriendRequest() {
         existingReceivedRequest?.status === 'pending' ||
         existingReceivedRequest?.status === 'accepted'
       ) {
-        const conversationCreated = await ensureDirectConversation(profileId, receiverId);
+        const conversationCreated = await ensureDirectConversation(profileId, receiverProfileId);
         return { alreadyExists: true, conversationCreated };
       }
+
+      const now = new Date().toISOString();
 
       if (existingSentRequest?.status === 'declined') {
         const { error: reviveError } = await db
           .from('friend_requests')
-          .update({ status: 'pending' })
+          .update({ status: 'pending', updated_at: now })
           .eq('id', existingSentRequest.id);
 
         if (reviveError) throw reviveError;
       } else {
-        const now = new Date().toISOString();
         const { error: insertError } = await db.from('friend_requests').insert({
+          id: outboundId,
           sender_id: profileId,
-          receiver_id: receiverId,
+          receiver_id: receiverProfileId,
           status: 'pending',
           created_at: now,
           updated_at: now,
@@ -326,7 +412,7 @@ export function useSendFriendRequest() {
 
         if (insertError) {
           if (insertError.code === '23505') {
-            const conversationCreated = await ensureDirectConversation(profileId, receiverId);
+            const conversationCreated = await ensureDirectConversation(profileId, receiverProfileId);
             return { alreadyExists: true, conversationCreated };
           }
 
@@ -334,13 +420,17 @@ export function useSendFriendRequest() {
         }
       }
 
-      await db.from('notifications').insert({
-        user_id: receiverId,
-        actor_id: profileId,
-        type: 'friend_request',
-      });
+      try {
+        await db.from('notifications').insert({
+          user_id: receiverProfileId,
+          actor_id: profileId,
+          type: 'friend_request',
+        });
+      } catch (notifyErr) {
+        console.warn('[Friends] friend_request notification failed:', notifyErr);
+      }
 
-      const conversationCreated = await ensureDirectConversation(profileId, receiverId);
+      const conversationCreated = await ensureDirectConversation(profileId, receiverProfileId);
 
       return { alreadyExists: false, conversationCreated };
     },
@@ -356,7 +446,8 @@ export function useSendFriendRequest() {
     onError: (error: any) => {
       // Silence duplicate key errors (409/23505) - already handled in mutationFn
       if (error?.code === '23505' || error?.message?.includes('duplicate') || error?.message?.includes('already')) return;
-      toast.error('Failed to send friend request');
+      const msg = error instanceof Error ? error.message : String(error?.message || '');
+      toast.error(msg.includes('loading') || msg.includes('not found') || msg.includes('Permission') ? msg : 'Failed to send friend request');
     },
   });
 }
@@ -373,8 +464,7 @@ export function useRespondToFriendRequest() {
       requestId: string;
       action: 'accept' | 'decline';
     }) => {
-      const profileId = getEffectiveProfileId(profile?.id);
-      if (!profileId) throw new Error('Profile still loading — try again in a moment');
+      const profileId = await resolveActorProfileId(profile?.id);
 
       const { data: request, error: requestError } = await db
         .from('friend_requests')
@@ -420,8 +510,7 @@ export function useCancelFriendRequest() {
 
   return useMutation({
     mutationFn: async (requestId: string) => {
-      const profileId = getEffectiveProfileId(profile?.id);
-      if (!profileId) throw new Error('Profile still loading — try again in a moment');
+      const profileId = await resolveActorProfileId(profile?.id);
 
       const { error } = await db
         .from('friend_requests')
@@ -444,8 +533,7 @@ export function useUnfriend() {
 
   return useMutation({
     mutationFn: async (friendId: string) => {
-      const profileId = getEffectiveProfileId(profile?.id);
-      if (!profileId) throw new Error('Profile still loading — try again in a moment');
+      const profileId = await resolveActorProfileId(profile?.id);
 
       // Delete friend request in either direction
       await db

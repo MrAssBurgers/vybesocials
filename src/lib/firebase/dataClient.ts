@@ -658,6 +658,14 @@ export interface QueryResult<T = any> {
 }
 
 function toQueryError(err: unknown): VybeAuthError {
+  if (err && typeof err === 'object' && 'code' in err) {
+    const code = String((err as { code: string }).code);
+    const message = 'message' in err ? String((err as { message: string }).message) : 'Database error';
+    if (code === 'permission-denied') {
+      return { message: 'Permission denied — sign out and back in, then try again.', code };
+    }
+    return { message, code };
+  }
   if (err && typeof err === 'object' && 'message' in err) {
     return { message: (err as { message: string }).message };
   }
@@ -1009,17 +1017,25 @@ async function rpcCreateDmConversation(otherProfileId: string): Promise<string |
 
   const otherProfile = await getUserProfile(resolvedOtherId);
   if (!otherProfile?.id) throw new Error('User not found');
-  if (myProfileId === resolvedOtherId) throw new Error('Cannot message yourself');
+  if (myProfileId === otherProfile.id) throw new Error('Cannot message yourself');
 
-  const existing = await findExistingDmBetweenProfiles(myProfileId, resolvedOtherId);
+  const resolvedOtherProfileId = otherProfile.id;
+
+  // Rules use profileId(); keep index in sync for migrated UUID profiles.
+  const now = new Date().toISOString();
+  await setDocument('user_auth_index', user.id, {
+    profile_id: myProfileId,
+    updated_at: now,
+  }, true);
+
+  const existing = await findExistingDmBetweenProfiles(myProfileId, resolvedOtherProfileId);
   if (existing) {
-    await ensureDmMembershipPair(existing, myProfileId, resolvedOtherId);
+    await ensureDmMembershipPair(existing, myProfileId, resolvedOtherProfileId);
     return existing;
   }
 
-  const memberIds = [myProfileId, resolvedOtherId].sort();
+  const memberIds = [myProfileId, resolvedOtherProfileId].sort();
   const chatId = memberIds.join('_');
-  const now = new Date().toISOString();
 
   await setDocument('conversations', chatId, {
     id: chatId,
