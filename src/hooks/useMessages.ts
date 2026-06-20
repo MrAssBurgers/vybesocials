@@ -14,7 +14,8 @@ import { shouldRefetchWhenEmpty, refetchListOnMount } from '@/lib/queryRefetchPo
 import { toast } from 'sonner';
 import { callSounds } from '@/lib/callSounds';
 import { enqueue as outboxEnqueue } from '@/lib/dmOutbox';
-import { ensureFlatConversationMembership, normalizeToProfileId, ensureConversationMembershipVariants, ensureConversationReady, prepareConversationForMessages, inferOtherParticipantId } from '@/lib/dmMembershipRepair';
+import { ensureFlatConversationMembership, normalizeToProfileId, ensureConversationMembershipVariants, ensureConversationReady, prepareConversationForMessages, inferOtherParticipantId, isConversationMessagesReady } from '@/lib/dmMembershipRepair';
+import { syncSessionProfileId } from '@/lib/resolveSessionProfileId';
 import { getUserProfile } from '@/lib/firebase/users';
 import { firebaseAuth } from '@/lib/firebase/authService';
 
@@ -296,6 +297,7 @@ export function useMessages(conversationId: string | undefined) {
       if (!conversationId) return [];
 
       const actorId =
+        syncSessionProfileId(profileId) ??
         (await resolveSessionProfileId(profileId)) ??
         (await resolveDmActorIds(profileId)).profileId;
       if (!actorId) return [];
@@ -313,7 +315,14 @@ export function useMessages(conversationId: string | undefined) {
       const otherProfileId =
         otherFromMembers || inferOtherParticipantId(conversationId, actorId) || null;
 
-      await prepareConversationForMessages(conversationId, actorId, otherProfileId);
+      if (!isConversationMessagesReady(conversationId, actorId)) {
+        await prepareConversationForMessages(
+          conversationId,
+          actorId,
+          otherProfileId,
+          { fast: true },
+        );
+      }
 
       const viewerId = actorId;
 
@@ -324,7 +333,9 @@ export function useMessages(conversationId: string | undefined) {
       );
 
       if (error) {
-        await prepareConversationForMessages(conversationId, actorId, otherProfileId);
+        await prepareConversationForMessages(conversationId, actorId, otherProfileId, {
+          fast: true,
+        });
         const retryPlain = await fetchRecentConversationMessages<Message>(conversationId, '*', 50);
         if (!retryPlain.error) {
           data = retryPlain.data;
@@ -351,14 +362,13 @@ export function useMessages(conversationId: string | undefined) {
       return mergePendingOptimisticMessages(queryClient, conversationId, filtered);
     },
     enabled: !!conversationId && !!profileId,
-    staleTime: 30000,
+    staleTime: 120_000,
     gcTime: 1000 * 60 * 60 * 24 * 14,
     refetchOnWindowFocus: false,
     refetchOnMount: (query) => shouldRefetchWhenEmpty(query),
-    refetchOnReconnect: true,
+    refetchOnReconnect: false,
     placeholderData: (prev) => prev,
-    // Must reach network on first open — global offlineFirst can pause forever with empty cache.
-    networkMode: 'always',
+    networkMode: 'offlineFirst',
     retry: 2,
     retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 8000),
   });

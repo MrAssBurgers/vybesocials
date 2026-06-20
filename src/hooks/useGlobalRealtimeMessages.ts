@@ -8,13 +8,14 @@
  * - Includes deduplication and retry logic for reliability
  */
 
-import { useEffect, useRef, useCallback, useState } from 'react';
+import { useEffect, useRef, useCallback, useState, startTransition } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth';
 import { getEffectiveProfileId } from '@/lib/profileCache';
 import { callSounds } from '@/lib/callSounds';
 import { removeChannelByTopic, removeRealtimeChannel, subscribePostgresChannel } from '@/lib/realtimeChannel';
+import { scheduleIdleWork } from '@/lib/scheduleIdleWork';
 
 // Track the current conversation globally with a tiny pub/sub so React
 // effects can react to changes (a plain module variable did not trigger
@@ -260,6 +261,7 @@ export function useGlobalRealtimeMessages() {
           }
 
           // Always update conversation lists for both sender and receiver
+          startTransition(() => {
           const updateConversations = (old: any[] | undefined) => {
             if (!old) return old;
             
@@ -313,12 +315,11 @@ export function useGlobalRealtimeMessages() {
           queryClient.setQueryData<any[]>(['dm-conversations', profileId], updateConversations);
 
           // Only invalidate when the conversation is genuinely new to the cache.
-          // The setQueryData patch above already handles known conversations
-          // — invalidating in that case causes a full refetch and visible flicker.
           const cached = queryClient.getQueryData<any[]>(['dm-conversations', profileId]);
           if (cached && !cached.some(c => c.id === conversationId)) {
             scheduleUnknownConvoRefetch(queryClient, profileId);
           }
+          });
           } catch (err) {
             if (import.meta.env.DEV) console.warn('[GlobalRT] INSERT handler failed', err);
           }
@@ -501,8 +502,13 @@ export function useGlobalRealtimeMessages() {
   }, [profileId, queryClient, activeConvoId]);
 
   useEffect(() => {
-    setupChannel();
+    if (!profileId) return;
+    return scheduleIdleWork(() => {
+      void setupChannel();
+    }, 1200);
+  }, [setupChannel, profileId]);
 
+  useEffect(() => {
     return () => {
       setupGenerationRef.current += 1;
       try {
@@ -522,5 +528,5 @@ export function useGlobalRealtimeMessages() {
         broadcastChannelRef.current = null;
       } catch { /* never throw from cleanup */ }
     };
-  }, [setupChannel, profileId, authUid]);
+  }, [profileId]);
 }

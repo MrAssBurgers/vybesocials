@@ -58,12 +58,9 @@ async function probeReachable(): Promise<boolean> {
 }
 
 function fireReconnect(queryClient: QueryClient) {
-  // Refetch EVERY active query the moment we're back online so DMs, feeds,
-  // notifications and everything else repaint without waiting for staleTime.
-  void queryClient.invalidateQueries({ refetchType: 'active' });
-  // Belt-and-suspenders for queries that opted out of refetchOnReconnect.
-  void queryClient.refetchQueries({ type: 'active' });
-  // Flush any mutations (DM sends, reactions, etc.) queued while offline.
+  // Refetch only stale active queries — avoid invalidate+refetch double-storm that
+  // re-skeletons DMs/feeds and makes the app feel laggy after every focus/blip.
+  void queryClient.refetchQueries({ type: 'active', stale: true });
   void queryClient.resumePausedMutations();
   reconnectListeners.forEach((cb) => {
     try {

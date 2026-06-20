@@ -5,7 +5,7 @@ import { subscribePostgresChannel, removeRealtimeChannel } from '@/lib/realtimeC
 import { useAuth } from '@/lib/auth';
 import { getEffectiveProfileId } from '@/lib/profileCache';
 import type { Message } from '@/hooks/useMessages';
-import { ensureFlatConversationMembership, resolveDmActorIds, prepareConversationForMessages } from '@/lib/dmMembershipRepair';
+import { ensureFlatConversationMembership, resolveDmActorIds, prepareConversationForMessages, isConversationMessagesReady } from '@/lib/dmMembershipRepair';
 import { fetchRecentConversationMessages } from '@/lib/conversationMessagesQuery';
 
 const PREFETCH_SELECT = `
@@ -30,8 +30,8 @@ export function useChatPrefetch() {
 
     try {
       const { profileId: actorId } = await resolveDmActorIds(profile?.id);
-      if (actorId) {
-        await prepareConversationForMessages(conversationId, actorId);
+      if (actorId && !isConversationMessagesReady(conversationId, actorId)) {
+        await prepareConversationForMessages(conversationId, actorId, null, { fast: true });
       }
 
       const { data, error } = await fetchRecentConversationMessages<Message>(

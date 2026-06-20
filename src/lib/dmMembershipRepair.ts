@@ -12,6 +12,13 @@ export function resetMessagesReady(conversationId: string, profileId: string): v
   messagesReady.delete(`${conversationId}:${profileId}`);
 }
 
+export function isConversationMessagesReady(
+  conversationId: string,
+  profileId: string,
+): boolean {
+  return messagesReady.has(`${conversationId}:${profileId}`);
+}
+
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 /** Parse the other profile id from deterministic 1:1 ids (`uuidA_uuidB`). */

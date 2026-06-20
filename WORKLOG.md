@@ -2,6 +2,17 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## App-wide perf pass (2026-06-20)
+- **Reconnect:** stale-only refetch (no invalidate+refetch storm on focus/blip)
+- **DMs:** 180s list cache, idle-deferred friend auto-create, capped presence/status batch (40), fast message prepare, offlineFirst message cache, startTransition on realtime list patches, deferred GlobalRT subscribe (1.2s idle)
+- **Presence:** 30s web / 45s native heartbeat (was 20s)
+- **Git:** pending push → Lovable Publish
+
+## Next 3 Tasks
+1. Lovable Publish → feel test: Home scroll, Messages tab, send DM, call
+2. Hard refresh phone after publish
+3. Profile any remaining laggy screen by name
+
 ## DM perf + message vanish + call permission (2026-06-20)
 - **Root cause (lag):** DM list ran `ensureConversationReady` on every conversation on every load; message refetches re-ran 4× membership repair loops.
 - **Root cause (vanish):** Reaction/view invalidations refetched messages and dropped recently sent rows not yet in fetch; sender realtime skipped own INSERT.

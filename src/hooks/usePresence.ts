@@ -5,6 +5,7 @@ import { subscribePostgresChannel, removeRealtimeChannel } from '@/lib/realtimeC
 import { useAuth } from '@/lib/auth';
 import { isPermissionDeniedError, warnOnce } from '@/lib/logOnce';
 import { CANONICAL_PUBLISHABLE_KEY, CANONICAL_SUPABASE_URL } from '@/lib/canonicalSupabase';
+import { presenceHeartbeatMs } from '@/lib/nativePerfMode';
 
 const LEGACY_SUPABASE_URL =
   (import.meta.env.VITE_SUPABASE_URL as string | undefined)?.trim() || CANONICAL_SUPABASE_URL;
@@ -125,8 +126,8 @@ export function usePresence() {
     // Update presence immediately on mount for instant online status
     updatePresence();
 
-    // Update presence every 20 seconds for faster online indicators
-    intervalRef.current = setInterval(updatePresence, 20000);
+    // Update presence on a calm interval — realtime patches keep DM indicators fresh.
+    intervalRef.current = setInterval(updatePresence, presenceHeartbeatMs());
 
     // Visibility: only re-ping presence on visible. We intentionally do NOT
     // flip to offline on hidden — mobile tab-switching, briefly backgrounding
@@ -301,7 +302,7 @@ export function useUsersOnlineStatus(userIds: string[]) {
       return statusMap;
     },
     enabled: userIds.length > 0,
-    staleTime: 10000,
+    staleTime: 30_000,
     // Realtime patches via useGlobalRealtimeMessages presence channel keep this
     // cache fresh — no polling needed.
     refetchInterval: false,

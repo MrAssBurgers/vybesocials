@@ -5,7 +5,6 @@ import { motion, useMotionValue, useTransform, PanInfo, AnimatePresence } from '
 import { useCreateConversation, Conversation } from '@/hooks/useMessages';
 import { useDMConversations, useMarkConversationRead } from '@/hooks/useDMConversations';
 import { useChatPrefetch } from '@/hooks/useChatPrefetch';
-import { useRealtimeConversations } from '@/hooks/useRealtimeMessages';
 import { useOnlineFriends } from '@/hooks/useOnlineFriends';
 import { useAuth } from '@/lib/auth';
 import { useAuthProfileId } from '@/hooks/useAuthProfileId';
@@ -57,6 +56,7 @@ import { navVisibility } from '@/lib/navVisibility';
 import { useAgentAvailabilityProbe } from '@/hooks/useAgentAvailabilityProbe';
 import {
   displayNameForConversation,
+  inferOtherUserIdFromConversation,
   isViewerMember,
   resolveOtherMemberFromConversation,
 } from '@/lib/dmMemberResolve';
@@ -147,8 +147,6 @@ export function ConversationList() {
 
   useAgentAvailabilityProbe();
   
-  // Enable instant realtime updates for conversations
-  useRealtimeConversations();
   const { onlineFriends, onlineCount, isLoading: onlineLoading } = useOnlineFriends();
   const createConversation = useCreateConversation();
   const { data: trashedIds } = useTrashedConversationIds();
@@ -231,21 +229,30 @@ export function ConversationList() {
     [allConversations]
   );
   
-  // Subscribe to typing indicators for all conversations
-  const { isTyping: checkTyping } = useConversationTyping(conversationIds);
+  // Typing indicators — cap tracked conversations to keep realtime light.
+  const typingConversationIds = useMemo(
+    () => conversationIds.slice(0, 30),
+    [conversationIds],
+  );
+  const { isTyping: checkTyping } = useConversationTyping(typingConversationIds);
   
   const otherMemberIds = useMemo(() => {
     if (!allConversations.length || !profileId) return [];
     const ids = new Set<string>();
-    allConversations.forEach((conv) => {
+    const cap = 40;
+    for (const conv of allConversations) {
+      if (ids.size >= cap) break;
+      if (conv.is_group) continue;
+      const otherId = inferOtherUserIdFromConversation(conv, profileId, user?.id);
+      if (otherId) ids.add(otherId);
       conv.members?.forEach((m) => {
-        if (m.user_id !== profileId && m.profile?.id) {
-          ids.add(m.profile.id);
+        if (!isViewerMember(m.user_id, profileId, user?.id) && m.profile?.id) {
+          ids.add(String(m.profile.id));
         }
       });
-    });
-    return Array.from(ids);
-  }, [allConversations, profileId]);
+    }
+    return Array.from(ids).slice(0, cap);
+  }, [allConversations, profileId, user?.id]);
 
   const { data: onlineStatus = {} } = useUsersOnlineStatus(otherMemberIds);
   const { data: usersRoles = {} } = useUsersRoles(otherMemberIds);

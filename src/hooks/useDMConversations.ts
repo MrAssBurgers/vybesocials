@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useCallback, useRef } from 'react';
+import { scheduleIdleWork } from '@/lib/scheduleIdleWork';
 // Track which friend ids we've already tried to create a DM for in this session.
 // Using a module-level set (instead of a ref) means a transient failure can be
 // retried on the next render cycle without being permanently locked out.
@@ -82,13 +83,12 @@ export function useDMConversations(searchQuery: string = '') {
     enabled: !!profileId,
     // Treat persisted data as instantly displayable, then always revalidate
     // in the background on mount so the list is fresh without blocking paint.
-    // Realtime + setQueryData patches keep the list fresh — avoid aggressive
-    // refetches that make the Messages tab visibly reload / flicker.
-    staleTime: 120_000,
+    // Realtime + setQueryData patches keep the list fresh — avoid aggressive refetches.
+    staleTime: 180_000,
     gcTime: 1000 * 60 * 60 * 24 * 14,
     refetchOnWindowFocus: false,
     refetchOnMount: refetchListOnMount,
-    refetchOnReconnect: true,
+    refetchOnReconnect: false,
     placeholderData: (prev) => prev,
     // DM list must reach network on first load — offlineFirst can pause forever
     // with isFetched=false when connectivity is flaky (shows perpetual spinner).
@@ -168,7 +168,9 @@ export function useDMConversations(searchQuery: string = '') {
     if (!friends?.length) return;
     if (conversationsQuery.dataUpdatedAt === lastProcessedUpdateRef.current) return;
     lastProcessedUpdateRef.current = conversationsQuery.dataUpdatedAt;
-    ensureConversationsForFriends();
+    return scheduleIdleWork(() => {
+      void ensureConversationsForFriends();
+    }, 4000);
   }, [
     conversationsQuery.isLoading,
     conversationsQuery.dataUpdatedAt,
