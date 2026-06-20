@@ -39,6 +39,7 @@ import {
   normalizeToProfileId,
   findExistingDmBetweenProfiles,
   ensureConversationMembershipVariants,
+  getConversationDoc,
 } from '@/lib/dmMembershipRepair';
 import { syncProfileUsername } from './syncProfileUsername';
 import {
@@ -1047,7 +1048,7 @@ async function rpcCreateDmConversation(otherProfileId: string): Promise<string |
     return existing;
   }
 
-  const existingConv = await getDocument('conversations', chatId);
+  const existingConv = await getConversationDoc(chatId);
   if (!existingConv) {
     await setDocument('conversations', chatId, {
       id: chatId,

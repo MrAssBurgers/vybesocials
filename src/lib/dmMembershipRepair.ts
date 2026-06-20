@@ -27,6 +27,16 @@ export async function resolveAuthorIds(profileOrAuthId: string): Promise<string[
   return [...ids];
 }
 
+export async function getConversationDoc<T extends Record<string, unknown>>(
+  conversationId: string,
+): Promise<T | null> {
+  try {
+    return await getDocument<T>('conversations', conversationId);
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Find an existing 1:1 DM (deterministic id or legacy UUID conversation).
  */
@@ -36,7 +46,7 @@ export async function findExistingDmBetweenProfiles(
 ): Promise<string | null> {
   const sorted = [myProfileId, otherProfileId].sort();
   const deterministicId = sorted.join('_');
-  if (await getDocument('conversations', deterministicId)) return deterministicId;
+  if (await getConversationDoc(deterministicId)) return deterministicId;
 
   const otherIds = await resolveAuthorIds(otherProfileId);
   const myIds = await resolveAuthorIds(myProfileId);
@@ -49,7 +59,7 @@ export async function findExistingDmBetweenProfiles(
     for (const m of memberships) {
       const cid = String(m.conversation_id || '');
       if (!cid) continue;
-      const conv = await getDocument<Record<string, unknown>>('conversations', cid);
+      const conv = await getConversationDoc<Record<string, unknown>>(cid);
       if (conv?.is_group) continue;
 
       const members = await getDocuments<Record<string, unknown>>('conversation_members', [

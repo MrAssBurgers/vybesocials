@@ -2,6 +2,19 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## Permission denied on Message / Add Friend (2026-06-20)
+- **Root cause:** Orphan `conversations` docs from prior half-failed DM creates — creator could **update** but not **read** the doc, so `create_dm_conversation` threw `permission-denied` on retry; friend requests could also fail when `user_auth_index` was stale vs `sender_id`
+- **Fix rules:** `conversations` read allows creator (`isConversationCreatorOf`); `friend_requests` create uses `isFriendRequestSender` (sender_id matches auth uid or profileId())
+- **Fix client:** `syncUserAuthIndex` before friend/DM writes; `getConversationDoc` swallows read errors in DM lookup; `useCreateConversation` syncs index before RPC
+- **Deploy:** Firestore rules → `vybe-daaab` SUCCESS (immediate)
+- **Tests:** `npm run build` PASS
+- **You:** Lovable **Share → Publish** → hard refresh → profile **Message** + **Add Friend**
+
+## Next 3 Tasks
+1. Lovable Publish → test Message + Add Friend from another user's profile
+2. Confirm no duplicate empty error toasts
+3. Receiver sees friend request in Notifications
+
 ## Friend/DM + stories + onboarding (2026-06-20)
 - **DM retry bug:** Partial failed chats blocked `setDocument` on `conversations` (update denied) — RPC now skips recreate, creator can update, seeds membership for profile id **and** auth uid
 - **Friend requests:** Normalize receiver to canonical `profiles.id` via `getUserProfile`

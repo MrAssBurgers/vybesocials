@@ -1,4 +1,4 @@
-import { getDocument, getDocuments, where, firestoreLimit } from './firestoreDb';
+import { getDocument, getDocuments, setDocument, where, firestoreLimit } from './firestoreDb';
 import type { UserProfile } from './types';
 
 type AuthIndexRow = { profile_id?: string };
@@ -25,6 +25,15 @@ export async function getProfileByAuthUid(authUid: string): Promise<UserProfile 
 export async function resolveProfileIdFromAuthUid(authUid: string): Promise<string | null> {
   const profile = await getProfileByAuthUid(authUid);
   return profile?.id ?? null;
+}
+
+/** Keep user_auth_index aligned so Firestore rules profileId() matches profiles.id. */
+export async function syncUserAuthIndex(authUid: string, profileId: string): Promise<void> {
+  if (!authUid || !profileId) return;
+  await setDocument('user_auth_index', authUid, {
+    profile_id: profileId,
+    updated_at: new Date().toISOString(),
+  }, true);
 }
 
 export async function getProfilesByIds(ids: string[]): Promise<Map<string, UserProfile>> {

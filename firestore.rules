@@ -64,6 +64,20 @@ service cloud.firestore {
     function willOwnProfile(field) {
       return ownsProfileId(request.resource.data[field]);
     }
+    function isConversationCreatorOf(cid) {
+      return signedIn() &&
+        exists(/databases/$(database)/documents/conversations/$(cid)) && (
+          ownsProfileId(conversationData(cid).get('created_by', '')) ||
+          conversationData(cid).get('created_by', '') == uid()
+        );
+    }
+    function isFriendRequestSender() {
+      return signedIn() && (
+        willOwnProfile('sender_id') ||
+        request.resource.data.sender_id == uid() ||
+        request.resource.data.sender_id == profileId()
+      );
+    }
     // Rows may store Firebase Auth uid or profiles.id in user_id / owner fields.
     function ownsUserField(field) {
       return isOwner(field) || isOwnerProfile(field);
@@ -299,7 +313,7 @@ service cloud.firestore {
     }
     match /friend_requests/{docId} {
       allow read: if isFriendRequestParty();
-      allow create: if willOwnProfile('sender_id');
+      allow create: if isFriendRequestSender();
       allow update, delete: if isFriendRequestParty();
     }
     match /message_requests/{docId} {
@@ -370,7 +384,8 @@ service cloud.firestore {
           profileId() in resource.data.get('member_ids', []) ||
           uid() in resource.data.get('member_ids', []) ||
           isFlatConversationMember(cid) ||
-          isMemberViaConversationDoc(cid)
+          isMemberViaConversationDoc(cid) ||
+          isConversationCreatorOf(cid)
         )
       );
       allow create: if signedIn();

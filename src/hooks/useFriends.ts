@@ -7,7 +7,9 @@ import { useAuthProfileId } from '@/hooks/useAuthProfileId';
 import { getEffectiveProfileId } from '@/lib/profileCache';
 import { invalidateConversationCaches } from '@/lib/invalidateConversationCaches';
 import { normalizeToProfileId } from '@/lib/dmMembershipRepair';
+import { firebaseAuth } from '@/lib/firebase/authService';
 import { resolveSessionProfileId } from '@/lib/resolveSessionProfileId';
+import { syncUserAuthIndex } from '@/lib/firebase/profileResolve';
 import { getUserProfile } from '@/lib/firebase/users';
 import { toast } from 'sonner';
 
@@ -18,10 +20,14 @@ function friendRequestDocId(senderId: string, receiverId: string): string {
 
 async function resolveActorProfileId(liveProfileId?: string | null): Promise<string> {
   const resolved = await resolveSessionProfileId(liveProfileId);
-  if (resolved) return resolved;
-  const cached = getEffectiveProfileId(liveProfileId);
-  if (cached) return cached;
-  throw new Error('Profile still loading — try again in a moment');
+  const profileId = resolved || getEffectiveProfileId(liveProfileId);
+  if (!profileId) throw new Error('Profile still loading — try again in a moment');
+
+  const { data: { user } } = await firebaseAuth.getUser();
+  if (user?.id) {
+    await syncUserAuthIndex(user.id, profileId);
+  }
+  return profileId;
 }
 
 export interface FriendRequest {

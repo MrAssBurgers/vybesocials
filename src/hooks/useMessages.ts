@@ -6,6 +6,7 @@ import { useAuth } from '@/lib/auth';
 import { useAuthProfileId } from '@/hooks/useAuthProfileId';
 import { getEffectiveProfileId } from '@/lib/profileCache';
 import { resolveSessionProfileId } from '@/lib/resolveSessionProfileId';
+import { syncUserAuthIndex } from '@/lib/firebase/profileResolve';
 import { invalidateConversationCaches } from '@/lib/invalidateConversationCaches';
 import { shouldRefetchWhenEmpty, refetchListOnMount } from '@/lib/queryRefetchPolicy';
 import { toast } from 'sonner';
@@ -588,6 +589,11 @@ export function useCreateConversation() {
       const myProfileId = (await resolveSessionProfileId(profile?.id)) || profile?.id;
       if (!myProfileId) throw new Error('Not authenticated');
 
+      const { data: { user: authUser } } = await firebaseAuth.getUser();
+      if (authUser?.id) {
+        await syncUserAuthIndex(authUser.id, myProfileId);
+      }
+
       // For 1:1 DMs, use the atomic RPC function
       if (!isGroup && memberIds.length === 1) {
         const rawOtherId = memberIds[0];
@@ -605,7 +611,6 @@ export function useCreateConversation() {
         }
 
         const otherProfile = await getUserProfile(otherUserId);
-        const { data: { user: authUser } } = await firebaseAuth.getUser();
         await ensureConversationMembershipVariants(
           conversationId,
           myProfileId,
