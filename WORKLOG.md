@@ -2,6 +2,20 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## Social + vibe status root fix (2026-06-20)
+- **Root cause (vibe):** `user_statuses` had **no Firestore rules** → catch-all deny on read/write → "Could not update vibe"
+- **Root cause (DM):** `ensureConversationReady` threw on legacy conv repair; membership seed failures blocked chat load
+- **Root cause (Add Friend):** Stale `user_auth_index` + legacy query errors aborting mutation (partially fixed earlier)
+- **Fix rules:** Added `user_statuses` read/write rules (deployed `vybe-daaab`)
+- **Fix client:** Auth profile persist syncs `user_auth_index`; vibe uses `resolveSessionProfileId`; DM repair non-throwing + message query retry; members query soft-fail
+- **Verified:** `test:social-permissions` 11/11 PASS (includes user_statuses)
+- **You:** Lovable **Share → Publish** → hard refresh → Add Friend, Message, Set vibe
+
+## Next 3 Tasks
+1. Lovable Publish → test Quick Add, profile Message, Vibe Check
+2. Hard refresh / clear site data if errors persist
+3. Run `npm run test:social-permissions` after smoke test
+
 ## Social DM + Add Friend — orphan conv fix (2026-06-20)
 - **Root cause (chat):** `ensureConversationReady` threw when patching `member_ids` on legacy conversations created by the other user. Chat opened but messages query failed → "Couldn't load this conversation."
 - **Root cause (friends):** Legacy `friend_requests` list lookups could surface permission errors and abort the mutation.
