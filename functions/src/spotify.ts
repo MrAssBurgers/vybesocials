@@ -5,7 +5,9 @@ import { onCall, onRequest, HttpsError } from 'firebase-functions/v2/https';
 import { db, requireAuth, auth } from './_shared/admin.js';
 
 const SECRETS = ['SPOTIFY_CLIENT_ID', 'SPOTIFY_CLIENT_SECRET'];
-const REDIRECT_URI = () => `${process.env.PUBLIC_SITE_URL || 'https://vybehub.app'}/api/spotify-oauth-callback`;
+const SITE_URL = () => process.env.PUBLIC_SITE_URL || 'https://vybehub.app';
+/** Must match Spotify Developer Dashboard → Redirect URIs */
+const REDIRECT_URI = () => `${SITE_URL()}/spotify/callback`;
 const SCOPES = 'user-read-currently-playing user-read-playback-state user-modify-playback-state playlist-read-private user-read-email';
 
 function clientId() {
@@ -56,6 +58,11 @@ export const spotifyOauthStart = onRequest({ secrets: SECRETS }, async (req, res
 });
 
 export const spotifyOauthCallback = onRequest({ secrets: SECRETS }, async (req, res) => {
+  const oauthError = String(req.query.error || '');
+  if (oauthError) {
+    res.redirect(`${SITE_URL()}/settings?tab=connections&spotify=error&reason=${encodeURIComponent(oauthError)}`);
+    return;
+  }
   const code = String(req.query.code || '');
   const state = String(req.query.state || '');
   if (!code || !state) { res.status(400).send('Missing code/state'); return; }
@@ -85,7 +92,7 @@ export const spotifyOauthCallback = onRequest({ secrets: SECRETS }, async (req, 
     expires_at: new Date(Date.now() + tok.expires_in * 1000).toISOString(),
     scope: tok.scope, connected_at: new Date().toISOString(),
   }, { merge: true });
-  res.redirect(`${process.env.PUBLIC_SITE_URL || 'https://vybehub.app'}/settings?tab=connections&spotify=connected`);
+  res.redirect(`${SITE_URL()}/settings?tab=connections&spotify=connected`);
 });
 
 export const spotifyDisconnect = onCall(async (request) => {

@@ -153,6 +153,18 @@ async function main() {
     void snap.size;
   });
 
+  await run('pending friend_requests (notifications tab)', async () => {
+    const snap = await getDocs(
+      query(
+        collection(clientDb, 'friend_requests'),
+        where('receiver_id', '==', ACTOR_PROFILE_ID),
+        where('status', '==', 'pending'),
+        limit(20),
+      ),
+    );
+    void snap.size;
+  });
+
   await run('messages query (chat load path)', async () => {
     const chatId = sorted.join('_');
     const snap = await getDocs(

@@ -61,11 +61,11 @@ export function ConnectionsSection() {
         const googleIdentity = authUser.identities?.find(i => i.provider === 'google');
         const appleIdentity = authUser.identities?.find(i => i.provider === 'apple');
 
-        // Spotify connection
+        // Spotify connection — keyed by Firebase Auth uid (not profile id)
         const { data: sp } = await db
           .from('spotify_connections')
           .select('spotify_user_id, display_name, email, avatar_url')
-          .eq('user_id', ownerId || authUser.id)
+          .eq('user_id', authUser.id)
           .maybeSingle();
         setSpotify((sp as any) || null);
 
@@ -146,9 +146,8 @@ export function ConnectionsSection() {
     setSpotifyBusy(true);
     try {
       const { data: { user: authUser } } = await db.auth.getUser();
-      const uid = ownerId || authUser?.id;
-      if (!uid) throw new Error('Not signed in');
-      window.location.href = getSpotifyOAuthStartUrl(uid);
+      if (!authUser?.id) throw new Error('Not signed in');
+      window.location.href = getSpotifyOAuthStartUrl(authUser.id);
     } catch (e: any) {
       toast.error(e.message || 'Could not start Spotify');
       setSpotifyBusy(false);

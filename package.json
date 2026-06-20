@@ -29,6 +29,7 @@
     "backend:scan": "node scripts/backend-deep-scan.mjs",
     "firebase:sync-email-templates": "node scripts/firebase/sync-auth-email-templates.mjs",
     "firebase:configure-auth": "node scripts/firebase/configure-auth.mjs",
+    "setup:spotify-secrets": "node scripts/setup-spotify-secrets.mjs",
     "ios:setup": "npm run build && npx cap add ios && npx cap sync ios",
     "ios:sync": "npm run build && npx cap sync ios",
     "ios:dev": "CAP_DEV=1 npx cap sync ios && npx cap open ios",

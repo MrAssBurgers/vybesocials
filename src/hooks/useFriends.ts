@@ -108,33 +108,36 @@ export function useFriendRequests() {
     queryFn: async () => {
       if (!profileId) return { incoming: [], outgoing: [] };
 
-      const { data: incoming, error: inError } = await db
+      const { data: incomingRaw, error: inError } = await db
         .from('friend_requests')
         .select(`
           *,
           sender:profiles!sender_id(id, user_id, username, avatar_url, display_name)
         `)
         .eq('receiver_id', profileId)
-        .eq('status', 'pending')
-        .order('created_at', { ascending: false });
+        .eq('status', 'pending');
 
       if (inError) throw inError;
 
-      const { data: outgoing, error: outError } = await db
+      const { data: outgoingRaw, error: outError } = await db
         .from('friend_requests')
         .select(`
           *,
           receiver:profiles!receiver_id(id, user_id, username, avatar_url, display_name)
         `)
         .eq('sender_id', profileId)
-        .eq('status', 'pending')
-        .order('created_at', { ascending: false });
+        .eq('status', 'pending');
 
       if (outError) throw outError;
 
+      const sortByCreatedDesc = <T extends { created_at?: string }>(rows: T[]) =>
+        [...rows].sort(
+          (a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime(),
+        );
+
       return {
-        incoming: incoming as FriendRequest[],
-        outgoing: outgoing as FriendRequest[],
+        incoming: sortByCreatedDesc(incomingRaw || []) as FriendRequest[],
+        outgoing: sortByCreatedDesc(outgoingRaw || []) as FriendRequest[],
       };
     },
     enabled: !!profileId,

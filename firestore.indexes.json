@@ -47,13 +47,15 @@
       ] },
     { "collectionGroup": "friend_requests", "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "sender_id", "order": "ASCENDING" },
-        { "fieldPath": "status", "order": "ASCENDING" }
+        { "fieldPath": "receiver_id", "order": "ASCENDING" },
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "created_at", "order": "DESCENDING" }
       ] },
     { "collectionGroup": "friend_requests", "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "receiver_id", "order": "ASCENDING" },
-        { "fieldPath": "status", "order": "ASCENDING" }
+        { "fieldPath": "sender_id", "order": "ASCENDING" },
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "created_at", "order": "DESCENDING" }
       ] },
     { "collectionGroup": "messages", "queryScope": "COLLECTION",
       "fields": [

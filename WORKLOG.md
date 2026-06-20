@@ -2,6 +2,16 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## Publish prep — Spotify + Notifications Requests (2026-06-20)
+- **Spotify:** OAuth redirect `/spotify/callback`; Firebase callback forward; auth-uid connect; `npm run setup:spotify-secrets` (terminal env or flags)
+- **Notifications Requests tab:** `friend_requests` query dropped Firestore `orderBy` (missing index) → client sort; indexes deployed
+- **Git:** push then Lovable **Share → Publish** → hard refresh
+
+## Next 3 Tasks
+1. Lovable Publish → Notifications → Requests + Settings → Connect Spotify
+2. Run Spotify secrets if not done: `SPOTIFY_CLIENT_ID=… SPOTIFY_CLIENT_SECRET=… npm run setup:spotify-secrets`
+3. Hard refresh vybehub.app
+
 ## Deep scan — Add Friend + start chat (2026-06-20)
 - **Root cause (chat):** Messages query uses `orderBy('created_at')` → Firestore composite index **never deployed** (`firebase.json` missing `indexes` key) → `failed-precondition` → "Couldn't load this conversation."
 - **Fix client:** `fetchRecentConversationMessages()` — try ordered query, fallback to index-free fetch + client sort; applied in `useMessages`, `loadDMConversations`, `useChatPrefetch`
