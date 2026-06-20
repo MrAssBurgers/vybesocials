@@ -29,6 +29,7 @@ export function NFCFriendShare({ className, variant = 'button' }: NFCFriendShare
     shareProfile,
     stopScan,
     openSettings,
+    requestPermission,
     getStatusMessage,
   } = useNFC();
 
@@ -276,12 +277,14 @@ export function NFCFriendShare({ className, variant = 'button' }: NFCFriendShare
                     {getStatusMessage()}
                   </p>
                 </div>
-        <Button variant="outline" onClick={openSettings} className="rounded-xl">
-                  Open NFC Settings
-                </Button>
-                <Button variant="outline" onClick={handleClose}>
-                  Close
-                </Button>
+                <div className="flex flex-col gap-2">
+                  <Button variant="outline" onClick={openSettings} className="rounded-xl">
+                    Open App Settings
+                  </Button>
+                  <Button variant="outline" onClick={handleClose}>
+                    Close
+                  </Button>
+                </div>
               </motion.div>
             )}
 
@@ -335,6 +338,9 @@ export function NFCFriendShare({ className, variant = 'button' }: NFCFriendShare
                 animate={{ opacity: 1, scale: 1 }}
                 className="text-center space-y-4"
               >
+                <p className="text-xs text-muted-foreground px-4">
+                  If you don&apos;t see the NFC scanner, turn on NFC in phone Settings and update the VYBE app from the store.
+                </p>
                 <div className="relative w-40 h-40 mx-auto">
                   {/* Radar sweep */}
                   <motion.div

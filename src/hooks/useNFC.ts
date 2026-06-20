@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { toast } from 'sonner';
 import { haptics } from '@/lib/haptics';
 import { isDespiaRuntime, openAppSettings, isAndroidUA, isIOSUA } from '@/lib/despiaBridge';
-import { despiaWriteNFC } from '@/lib/despiaNFCv2';
+import { despiaWriteNFC, probeDespiaNfcActivation } from '@/lib/despiaNFCv2';
 import { extractFriendTarget, buildFriendDropUrl, startFriendLinkNfcSession } from '@/lib/friendLinkNfc';
 import {
   isWebNfcAvailable,
@@ -120,10 +120,22 @@ export function useNFC() {
     }));
   }, [hasWebNFC, hasDespiaNFC, nfcSupported]);
 
-  // Request permission — Web NFC only (native Despia does not use browser permission policy).
+  // Despia: no OS permission dialog — calling nfc://read opens the system NFC sheet.
   const requestPermission = useCallback(async (): Promise<boolean> => {
     if (hasDespiaNFC) {
-      return true;
+      const probe = await probeDespiaNfcActivation();
+      if (probe.ok) return true;
+      if (probe.silent) {
+        toast.error(probe.error || 'NFC unavailable in this app build', {
+          duration: 6000,
+          action: { label: 'Settings', onClick: () => void openAppSettings() },
+        });
+        return false;
+      }
+      toast.error(probe.error || mapNfcErrorMessage(), {
+        action: { label: 'Settings', onClick: () => void openAppSettings() },
+      });
+      return false;
     }
 
     if (!hasWebNFC || !window.NDEFReader) {
@@ -163,6 +175,9 @@ export function useNFC() {
     // Native shell: continuous read loop until stopScan().
     if (hasDespiaNFC) {
       stopScan();
+      const allowed = await requestPermission();
+      if (!allowed) return false;
+
       const abort = new AbortController();
       abortControllerRef.current = abort;
       setState(prev => ({ ...prev, isScanning: true, error: null }));
@@ -283,7 +298,7 @@ export function useNFC() {
       }
       return false;
     }
-  }, [hasWebNFC, hasDespiaNFC]);
+  }, [hasWebNFC, hasDespiaNFC, requestPermission]);
 
   const stopScan = useCallback(() => {
     console.log('[NFC] Stopping scan');
@@ -304,6 +319,9 @@ export function useNFC() {
     const friendUrl = generateFriendAddUrl(userId);
 
     if (hasDespiaNFC) {
+      const allowed = await requestPermission();
+      if (!allowed) return false;
+
       setState(prev => ({ ...prev, isScanning: true, isWriteReady: true, error: null }));
       haptics.tap();
       toast.success('NFC ready! Tap a blank tag to program it.');
@@ -379,7 +397,7 @@ export function useNFC() {
       }
       return false;
     }
-  }, [hasWebNFC, hasDespiaNFC]);
+  }, [hasWebNFC, hasDespiaNFC, requestPermission]);
 
   // Bidirectional share - scan and prepare to exchange
   const shareProfile = useCallback(async (
@@ -392,6 +410,9 @@ export function useNFC() {
     // Native shell: continuous Phone Tap session (read loop + deferred broadcast on Android).
     if (hasDespiaNFC) {
       stopScan();
+      const allowed = await requestPermission();
+      if (!allowed) return false;
+
       const abort = new AbortController();
       abortControllerRef.current = abort;
       setState(prev => ({ ...prev, isScanning: true, isWriteReady: true, error: null }));
@@ -508,7 +529,7 @@ export function useNFC() {
       }
       return false;
     }
-  }, [hasWebNFC, hasDespiaNFC, stopScan]);
+  }, [hasWebNFC, hasDespiaNFC, stopScan, requestPermission]);
 
   const openSettings = useCallback(() => {
     if (isDespiaRuntime()) {

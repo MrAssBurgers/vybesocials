@@ -186,10 +186,9 @@ export async function despiaScanNFC(timeoutMs = 30_000): Promise<string | null> 
  */
 export async function openAppSettings(): Promise<void> {
   if (isDespiaRuntime()) {
-    // Despia exposes appsettings:// to jump into the system app permission screen.
-    const ok = await despiaCall('appsettings://');
-    if (ok !== null) return;
-    // Fallback bridge name used by some Despia builds.
+    // Official Despia scheme (see setup.despia.com/native-features/app-settings).
+    await despiaCall('settingsapp://');
+    await despiaCall('appsettings://');
     await despiaCall('opensettings://');
     return;
   }

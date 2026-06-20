@@ -25,10 +25,81 @@ type Listener = (evt: NFCEvent) => boolean; // return true if consumed
 const listeners = new Set<Listener>();
 let installed = false;
 
+let legacyCallbackInstalled = false;
+
+/** Legacy Despia builds invoke `window.readNFCResult` instead of `onNFCEvent`. */
+export function installDespiaNfcLegacyCallback(): void {
+  if (legacyCallbackInstalled || typeof window === 'undefined') return;
+  legacyCallbackInstalled = true;
+  const w = window as Window & {
+    readNFCResult?: (data: string, id?: string, tag?: string) => void;
+    onNFCEvent?: (evt: NFCEvent) => void;
+  };
+  const prev = w.readNFCResult;
+  w.readNFCResult = (data: string, id?: string, tag?: string) => {
+    const payload = typeof data === 'string' ? data.trim() : '';
+    if (payload) {
+      installDespiaNfcDispatcher();
+      w.onNFCEvent?.({ type: 'read', id: id || tag, data: payload });
+    }
+    if (typeof prev === 'function') {
+      try {
+        prev(data, id, tag);
+      } catch {
+        /* ignore */
+      }
+    }
+  };
+}
+
+/** Fire every known Despia NFC read bridge (v2 + legacy). */
+export function triggerDespiaNfcRead(): void {
+  void despiaCall('nfc://read');
+  void despiaCall('readnfc://');
+  void despiaCall('nfcread://');
+}
+
+/**
+ * Opens the system NFC sheet once. Despia has no separate permission dialog —
+ * if this times out with no event, the native build likely lacks the NFC addon.
+ */
+export async function probeDespiaNfcActivation(timeoutMs = 3_000): Promise<{
+  ok: boolean;
+  silent: boolean;
+  error?: string;
+}> {
+  if (!isDespiaRuntime()) return { ok: false, silent: false, error: 'not_despia' };
+
+  installDespiaNfcDispatcher();
+  installDespiaNfcLegacyCallback();
+
+  const pending = once(
+    (evt) => evt.type === 'read' || evt.type === 'dismissed' || evt.type === 'error',
+    timeoutMs,
+  );
+  triggerDespiaNfcRead();
+
+  const evt = await pending;
+  if (!evt) {
+    return {
+      ok: false,
+      silent: true,
+      error:
+        'NFC did not start. Turn on NFC in phone Settings, update the VYBE app from the store, or ask Despia to enable the NFC addon and rebuild.',
+    };
+  }
+  if (evt.type === 'error') {
+    return { ok: false, silent: false, error: mapNfcErrorMessage(evt.error) };
+  }
+  // read or dismissed — native NFC stack responded (sheet was shown).
+  return { ok: true, silent: false };
+}
+
 /** Call once at app startup (see Despia docs). Safe to call multiple times. */
 export function installDespiaNfcDispatcher(): void {
   if (installed || typeof window === 'undefined') return;
   installed = true;
+  installDespiaNfcLegacyCallback();
   const w = window as Window & { onNFCEvent?: (evt: NFCEvent) => void };
   const prev = w.onNFCEvent;
   w.onNFCEvent = (evt: NFCEvent) => {
@@ -110,7 +181,7 @@ export async function despiaReadNFC(timeoutMs = 60_000): Promise<DespiaNFCReadRe
     (evt) => evt.type === 'read' || evt.type === 'dismissed' || evt.type === 'error',
     timeoutMs,
   );
-  void despiaCall('nfc://read');
+  void triggerDespiaNfcRead();
   const evt = await pending;
   if (!evt) return { ok: false, error: 'timeout' };
   if (evt.type === 'read') return { ok: true, payload: evt.data ?? '', tagId: evt.id };
@@ -147,9 +218,10 @@ export function startDespiaNfcReadLoop(options: DespiaNfcReadLoopOptions): () =>
   const armRead = () => {
     if (disposed || readInFlight || options.signal?.aborted) return;
     readInFlight = true;
-    void despiaCall('nfc://read').finally(() => {
+    triggerDespiaNfcRead();
+    window.setTimeout(() => {
       readInFlight = false;
-    });
+    }, 300);
   };
 
   const scheduleRearm = (delayMs: number) => {
