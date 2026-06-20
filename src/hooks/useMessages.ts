@@ -291,7 +291,11 @@ export function useMessages(conversationId: string | undefined) {
 
       const { profileId: actorId } = await resolveDmActorIds(profileId);
       if (actorId) {
-        await ensureConversationReady(conversationId, actorId);
+        try {
+          await ensureConversationReady(conversationId, actorId);
+        } catch (err) {
+          console.warn('[Messages] ensureConversationReady failed:', conversationId, err);
+        }
       }
 
       const viewerId = actorId ?? (await resolveSessionProfileId(profileId)) ?? profileId;
@@ -303,6 +307,22 @@ export function useMessages(conversationId: string | undefined) {
         .eq('is_deleted', false)
         .order('created_at', { ascending: false })
         .limit(50);
+
+      if (error && actorId) {
+        await ensureFlatConversationMembership(conversationId, actorId);
+        const retry = await db
+          .from('messages')
+          .select('*')
+          .eq('conversation_id', conversationId)
+          .order('created_at', { ascending: false })
+          .limit(50);
+        if (!retry.error) {
+          const rows = ((retry.data || []) as Message[]).filter((m) => !m.is_deleted);
+          rows.reverse();
+          const filtered = filterMessagesForViewer(rows, viewerId);
+          return mergePendingOptimisticMessages(queryClient, conversationId, filtered);
+        }
+      }
 
       if (error) throw error;
 

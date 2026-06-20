@@ -61,7 +61,8 @@ export const StatusPicker = memo(function StatusPicker({ trigger }: { trigger?: 
           setOpen(false);
         },
         onError: (err) => {
-          toast.error(err instanceof Error ? err.message : 'Could not update vibe');
+          const msg = err instanceof Error ? err.message : String((err as { message?: string })?.message || '');
+          toast.error(msg.includes('Permission') || msg.includes('loading') ? msg : 'Could not update vibe');
         },
       }
     );
@@ -84,7 +85,8 @@ export const StatusPicker = memo(function StatusPicker({ trigger }: { trigger?: 
           setCustomText('');
         },
         onError: (err) => {
-          toast.error(err instanceof Error ? err.message : 'Could not update vibe');
+          const msg = err instanceof Error ? err.message : String((err as { message?: string })?.message || '');
+          toast.error(msg.includes('Permission') || msg.includes('loading') ? msg : 'Could not update vibe');
         },
       }
     );

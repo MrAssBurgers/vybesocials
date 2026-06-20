@@ -239,6 +239,12 @@ service cloud.firestore {
       allow update: if ownsUserField('user_id');
       allow delete: if ownsUserField('user_id') || isAdmin();
     }
+    match /user_statuses/{docId} {
+      allow read: if signedIn();
+      allow create: if willOwnProfile('user_id') || willOwnUserField('user_id');
+      allow update: if ownsProfileId(resource.data.user_id) || ownsUserField('user_id');
+      allow delete: if ownsProfileId(resource.data.user_id) || ownsUserField('user_id');
+    }
     match /notification_preferences/{docId} {
       allow read, write: if ownsUserField('user_id') || willOwnUserField('user_id') || isAdmin();
     }

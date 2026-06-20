@@ -102,23 +102,27 @@ export async function ensureConversationReady(
   if (inflight) return inflight;
 
   const promise = (async () => {
-    const { data: { user } } = await firebaseAuth.getUser();
-    const authUid = user?.id ?? null;
-    const otherProfile = otherProfileId ? await getUserProfile(otherProfileId) : null;
-    const otherAuthUid = otherProfile?.user_id ?? null;
+    try {
+      const { data: { user } } = await firebaseAuth.getUser();
+      const authUid = user?.id ?? null;
+      const otherProfile = otherProfileId ? await getUserProfile(otherProfileId) : null;
+      const otherAuthUid = otherProfile?.user_id ?? null;
 
-    await ensureConversationMembershipVariants(
-      conversationId,
-      profileId,
-      otherProfileId || profileId,
-      authUid,
-      otherAuthUid,
-    );
+      await ensureConversationMembershipVariants(
+        conversationId,
+        profileId,
+        otherProfileId || profileId,
+        authUid,
+        otherAuthUid,
+      );
 
-    const memberIds = [
-      ...new Set([profileId, otherProfileId, authUid, otherAuthUid].filter(Boolean)),
-    ] as string[];
-    await mergeConversationMemberIds(conversationId, memberIds);
+      const memberIds = [
+        ...new Set([profileId, otherProfileId, authUid, otherAuthUid].filter(Boolean)),
+      ] as string[];
+      await mergeConversationMemberIds(conversationId, memberIds);
+    } catch (err) {
+      console.warn('[DM] ensureConversationReady partial failure:', conversationId, err);
+    }
   })();
 
   ensureReadyInflight.set(conversationId, promise);
@@ -196,10 +200,7 @@ export async function ensureFlatConversationMembership(
         updated_at: now,
       });
     } catch (err) {
-      const { data: { user } } = await firebaseAuth.getUser();
-      const isSelf = memberId === profileId || memberId === user?.id;
-      if (isSelf) throw err;
-      console.warn('[DM] peer membership seed skipped:', compositeId, err);
+      console.warn('[DM] membership seed skipped:', compositeId, err);
     }
   }
 

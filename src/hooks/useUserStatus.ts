@@ -3,6 +3,9 @@ import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth';
 import { useAuthProfileId } from '@/hooks/useAuthProfileId';
 import { normalizePersistedMap } from '@/lib/persistedCollections';
+import { resolveSessionProfileId } from '@/lib/resolveSessionProfileId';
+import { syncUserAuthIndex } from '@/lib/firebase/profileResolve';
+import { firebaseAuth } from '@/lib/firebase/authService';
 
 export interface UserStatus {
   id: string;
@@ -11,6 +14,17 @@ export interface UserStatus {
   text: string;
   expires_at: string | null;
   created_at: string;
+}
+
+async function resolveStatusProfileId(liveProfileId?: string | null): Promise<string> {
+  const profileId = (await resolveSessionProfileId(liveProfileId)) || liveProfileId;
+  if (!profileId) throw new Error('Profile still loading — try again in a moment');
+
+  const { data: { user } } = await firebaseAuth.getUser();
+  if (user?.id) {
+    await syncUserAuthIndex(user.id, profileId);
+  }
+  return profileId;
 }
 
 /** Fetch a single user's active status */
@@ -25,7 +39,6 @@ export function useUserStatusById(userId: string | undefined) {
         .eq('user_id', userId)
         .maybeSingle();
       if (error || !data) return null;
-      // Check if expired
       if (data.expires_at && new Date(data.expires_at) < new Date()) return null;
       return data as unknown as UserStatus;
     },
@@ -61,12 +74,12 @@ export function useBatchUserStatuses(userIds: string[]) {
 
 /** Set or update current user's status */
 export function useSetStatus() {
-  const profileId = useAuthProfileId();
+  const { profile } = useAuth();
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async ({ emoji, text, durationHours }: { emoji: string; text: string; durationHours?: number }) => {
-      if (!profileId) throw new Error('Not authenticated');
+      const profileId = await resolveStatusProfileId(profile?.id);
       const expires_at = durationHours
         ? new Date(Date.now() + durationHours * 60 * 60 * 1000).toISOString()
         : null;
@@ -92,16 +105,17 @@ export function useSetStatus() {
 
 /** Clear current user's status */
 export function useClearStatus() {
-  const profileId = useAuthProfileId();
+  const { profile } = useAuth();
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async () => {
-      if (!profileId) throw new Error('Not authenticated');
-      await db
+      const profileId = await resolveStatusProfileId(profile?.id);
+      const { error } = await db
         .from('user_statuses')
         .delete()
         .eq('user_id', profileId);
+      if (error) throw error;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['user-status'] });

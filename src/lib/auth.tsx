@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useState, useRef, ReactNode } fro
 import type { User, Session } from '@/lib/firebase';
 import { db } from '@/lib/firebase';
 import { updateUserProfile, getProfileByAuthUid } from '@/lib/firebase/users';
+import { syncUserAuthIndex } from '@/lib/firebase/profileResolve';
 import { BannedScreen } from '@/components/auth/BannedScreen';
 import { MemeBanScreen } from '@/components/auth/MemeBanScreen';
 import { setCachedProfile, setCachedCurrentProfile, getCachedCurrentProfile, clearCachedCurrentProfile, clearProfileCache, setActiveAuthUserId, isRawId, stripStaleOnboardingFlagFromDisk, type CachedProfile } from '@/lib/profileCache';
@@ -158,6 +159,9 @@ function persistCurrentProfile(profileData: Profile) {
   };
   setCachedProfile(payload);
   setCachedCurrentProfile(payload);
+  if (profileData.user_id && profileData.id) {
+    void syncUserAuthIndex(profileData.user_id, profileData.id).catch(() => {});
+  }
   requestAnimationFrame(() => {
     prefetchDMConversationsFromNav();
     const qc = (window as any).__REACT_QUERY_CLIENT__;

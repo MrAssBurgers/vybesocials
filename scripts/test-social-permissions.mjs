@@ -24,6 +24,7 @@ import {
   where,
   getDocs,
   connectFirestoreEmulator,
+  limit,
 } from 'firebase/firestore';
 
 function loadEnv() {
@@ -128,6 +129,28 @@ async function main() {
       created_at: now,
       updated_at: now,
     });
+  });
+
+  await run('upsert user_statuses', async () => {
+    await setDoc(
+      doc(clientDb, 'user_statuses', ACTOR_PROFILE_ID),
+      {
+        user_id: ACTOR_PROFILE_ID,
+        emoji: '🎮',
+        text: 'Gaming',
+        expires_at: null,
+        created_at: now,
+        updated_at: now,
+      },
+      { merge: true },
+    );
+  });
+
+  await run('read user_statuses query', async () => {
+    const snap = await getDocs(
+      query(collection(clientDb, 'user_statuses'), where('user_id', '==', ACTOR_PROFILE_ID), limit(1)),
+    );
+    void snap.size;
   });
 
   await run('read conversations deterministic id', async () => {

@@ -310,7 +310,17 @@ export function useConversationDetail(conversationId: string | undefined) {
         .select('conversation_id, user_id, role, is_muted, is_pinned, last_read_at')
         .eq('conversation_id', conversationId);
 
-      if (membersError) throw membersError;
+      if (membersError) {
+        console.warn('[DM] conversation_members query failed:', membersError.message);
+        return {
+          ...conv,
+          members: cached?.members ?? [],
+          last_message: cached?.last_message ?? null,
+          unread_count: cached?.unread_count ?? 0,
+          _sortTime: cached?._sortTime ?? conv.updated_at,
+          _hasUnread: cached?._hasUnread ?? false,
+        } as DMConversation;
+      }
 
       const memberUserIds = Array.from(new Set((allMembers || []).map((m) => String(m.user_id)))) as string[];
       const profileByKey = await fetchMemberProfiles(memberUserIds);
