@@ -397,7 +397,22 @@ class QueryBuilder {
     );
   }
 
+  private async fetchByDocumentIdIfApplicable(): Promise<Record<string, unknown>[] | null> {
+    if (this.ilikeFilters.length || this.orPredicates.length || this.getClientOnlyFilters().length) {
+      return null;
+    }
+    if (this.filters.length !== 1) return null;
+    const f = this.filters[0]!;
+    if (f.field !== 'id' || f.op !== '==') return null;
+
+    const doc = await getDocument(this.table, String(f.value));
+    return doc ? [doc as Record<string, unknown>] : [];
+  }
+
   private async fetchRows(): Promise<Record<string, unknown>[]> {
+    const byId = await this.fetchByDocumentIdIfApplicable();
+    if (byId !== null) return byId;
+
     const largeIn = this.getLargeInFilters();
     if (!largeIn.length) {
       return getDocuments(this.table, this.buildConstraints()) as Promise<Record<string, unknown>[]>;
@@ -556,7 +571,7 @@ class QueryBuilder {
             id,
             created_at: row.created_at || new Date().toISOString(),
           };
-          await setDocument(this.table, id, payload);
+          await setDocument(this.table, id, payload, false);
           return payload;
         }),
       );
@@ -668,6 +683,12 @@ function toQueryError(err: unknown, context?: string): VybeAuthError {
         console.warn('[Firestore] permission-denied', context || 'unknown', message);
       }
       return { message: 'Permission denied — sign out and back in, then try again.', code };
+    }
+    if (code === 'failed-precondition' && /requires an index/i.test(message)) {
+      if (import.meta.env.DEV) {
+        console.warn('[Firestore] missing index', context || 'unknown', message);
+      }
+      return { message: 'Database index is building — try again in a minute.', code };
     }
     return { message, code };
   }
@@ -1039,7 +1060,10 @@ async function rpcCreateDmConversation(otherProfileId: string): Promise<string |
     ...new Set([myProfileId, resolvedOtherProfileId, user.id, otherAuthUid].filter(Boolean)),
   ] as string[];
 
-  const existing = await findExistingDmBetweenProfiles(myProfileId, resolvedOtherProfileId);
+  const existing = await findExistingDmBetweenProfiles(myProfileId, resolvedOtherProfileId).catch((err) => {
+    console.warn('[DM] findExistingDmBetweenProfiles failed:', err);
+    return null;
+  });
   if (existing) {
     await mergeConversationMemberIds(existing, memberIds);
     await ensureConversationMembershipVariants(

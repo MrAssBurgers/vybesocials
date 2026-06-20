@@ -58,7 +58,8 @@
     { "collectionGroup": "messages", "queryScope": "COLLECTION",
       "fields": [
         { "fieldPath": "conversation_id", "order": "ASCENDING" },
-        { "fieldPath": "created_at", "order": "ASCENDING" }
+        { "fieldPath": "is_deleted", "order": "ASCENDING" },
+        { "fieldPath": "created_at", "order": "DESCENDING" }
       ] },
     { "collectionGroup": "likes", "queryScope": "COLLECTION",
       "fields": [

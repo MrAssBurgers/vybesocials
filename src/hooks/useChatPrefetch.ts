@@ -37,13 +37,13 @@ export function useChatPrefetch() {
         .from('messages')
         .select(PREFETCH_SELECT)
         .eq('conversation_id', conversationId)
-        .eq('is_deleted', false)
         .order('created_at', { ascending: false })
         .limit(40);
 
       if (error) throw error;
       if (data) {
-        queryClient.setQueryData<Message[]>(['messages', conversationId], data.reverse() as Message[]);
+        const rows = (data as Message[]).filter((m) => !m.is_deleted).reverse();
+        queryClient.setQueryData<Message[]>(['messages', conversationId], rows);
       }
     } catch (error) {
       console.error('[ChatPrefetch] Messages error:', error);

@@ -137,9 +137,8 @@ async function loadDMConversationsOnce(
           .in('conversation_id', userConversationIds),
         db
           .from('messages')
-          .select('id, conversation_id, sender_id, content, media_type, viewed_at, created_at')
+          .select('id, conversation_id, sender_id, content, media_type, viewed_at, created_at, is_deleted')
           .in('conversation_id', userConversationIds)
-          .eq('is_deleted', false)
           .order('created_at', { ascending: false })
           .limit(Math.min(Math.max(userConversationIds.length * 3, 60), 250)),
       ]);
@@ -170,6 +169,7 @@ async function loadDMConversationsOnce(
     const unreadCountMap = new Map<string, number>();
 
     (allMessages || []).forEach((msg) => {
+      if (msg.is_deleted) return;
       if (!lastMessageMap.has(msg.conversation_id)) {
         lastMessageMap.set(msg.conversation_id, msg as Message);
       }

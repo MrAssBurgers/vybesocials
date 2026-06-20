@@ -2,6 +2,20 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## Deep scan — Add Friend + start chat (2026-06-20)
+- **Root cause (chat):** Messages query used `.eq('is_deleted', false).order('created_at')` → Firestore **missing composite index** (`failed-precondition`) → ChatView shows "Couldn't load this conversation."
+- **Root cause (Add Friend):** Duplicate-check used collection query on `friend_requests` by id instead of direct doc read → missing-doc rules did not apply → `permission-denied`
+- **Fix client:** Remove `is_deleted` from Firestore query (filter client-side); `dataClient` fast-path `.eq('id', x).maybeSingle()` → `getDocument()`; friend legacy lookup treats permission-denied as empty; fixed syntax error in `findExistingDmBetweenProfiles`
+- **Fix indexes:** Added `messages(conversation_id, is_deleted, created_at DESC)` to `firestore.indexes.json` (deployed `vybe-daaab`)
+- **Verified:** `npm run build` PASS; `test:social-permissions` 12/12 PASS; `test-conversation-load` OK
+- **Uncommitted:** client + index + test script changes — **must Publish to vybehub.app**
+- **You:** Lovable **Share → Publish** → hard refresh (Cmd+Shift+R) → Add Friend + Message
+
+## Next 3 Tasks
+1. Lovable Publish → retest Add Friend + profile Message
+2. Hard refresh / clear site data if old bundle cached
+3. Commit + push local fixes if not already on `main`
+
 ## Social + vibe status root fix (2026-06-20)
 - **Root cause (vibe):** `user_statuses` had **no Firestore rules** → catch-all deny on read/write → "Could not update vibe"
 - **Root cause (DM):** `ensureConversationReady` threw on legacy conv repair; membership seed failures blocked chat load

@@ -59,16 +59,20 @@ export async function findExistingDmBetweenProfiles(
     for (const m of memberships) {
       const cid = String(m.conversation_id || '');
       if (!cid) continue;
-      const conv = await getConversationDoc<Record<string, unknown>>(cid);
-      if (conv?.is_group) continue;
+      try {
+        const conv = await getConversationDoc<Record<string, unknown>>(cid);
+        if (conv?.is_group) continue;
 
-      const members = await getDocuments<Record<string, unknown>>('conversation_members', [
-        where('conversation_id', '==', cid),
-      ]);
-      const memberIds = members.map((row) => String(row.user_id || '')).filter(Boolean);
-      const hasOther = memberIds.some((mid) => otherSet.has(mid));
-      const hasMe = memberIds.some((mid) => myIds.includes(mid));
-      if (hasOther && hasMe && memberIds.length <= 2) return cid;
+        const members = await getDocuments<Record<string, unknown>>('conversation_members', [
+          where('conversation_id', '==', cid),
+        ]);
+        const memberIds = members.map((row) => String(row.user_id || '')).filter(Boolean);
+        const hasOther = memberIds.some((mid) => otherSet.has(mid));
+        const hasMe = memberIds.some((mid) => myIds.includes(mid));
+        if (hasOther && hasMe && memberIds.length <= 2) return cid;
+      } catch {
+        // Legacy membership queries can fail when user is not yet a participant.
+      }
     }
   }
   return null;

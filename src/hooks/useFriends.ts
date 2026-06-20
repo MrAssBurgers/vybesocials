@@ -358,12 +358,14 @@ export function useSendFriendRequest() {
 
       if (sameDirectionResult.error) throw sameDirectionResult.error;
       if (reverseDirectionResult.error) throw reverseDirectionResult.error;
-      if (legacySent.error && !(legacySent.error as { code?: string })?.code?.includes('permission')) {
-        throw legacySent.error;
+      if (legacySent.error?.code === 'permission-denied') {
+        legacySent = { data: null, error: null };
       }
-      if (legacyReceived.error && !(legacyReceived.error as { code?: string })?.code?.includes('permission')) {
-        throw legacyReceived.error;
+      if (legacyReceived.error?.code === 'permission-denied') {
+        legacyReceived = { data: null, error: null };
       }
+      if (legacySent.error) throw legacySent.error;
+      if (legacyReceived.error) throw legacyReceived.error;
 
       const existingSentRequest =
         sameDirectionResult.data ||

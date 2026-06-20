@@ -169,12 +169,12 @@ export function useConversations() {
         .from('messages')
         .select('*')
         .in('conversation_id', convIds)
-        .eq('is_deleted', false)
         .order('created_at', { ascending: false });
 
       // Group messages by conversation and get the latest one
       const lastMessageMap = new Map<string, any>();
       (allMessages || []).forEach(msg => {
+        if (msg.is_deleted) return;
         if (!lastMessageMap.has(msg.conversation_id)) {
           lastMessageMap.set(msg.conversation_id, msg);
         }
@@ -304,7 +304,6 @@ export function useMessages(conversationId: string | undefined) {
         .from('messages')
         .select(MESSAGE_SELECT_SLIM)
         .eq('conversation_id', conversationId)
-        .eq('is_deleted', false)
         .order('created_at', { ascending: false })
         .limit(50);
 
@@ -326,9 +325,10 @@ export function useMessages(conversationId: string | undefined) {
 
       if (error) throw error;
 
-      if (data) data.reverse();
+      const rows = ((data || []) as Message[]).filter((m) => !m.is_deleted);
+      rows.reverse();
 
-      const filtered = filterMessagesForViewer((data || []) as Message[], viewerId);
+      const filtered = filterMessagesForViewer(rows, viewerId);
       return mergePendingOptimisticMessages(queryClient, conversationId, filtered);
     },
     enabled: !!conversationId,

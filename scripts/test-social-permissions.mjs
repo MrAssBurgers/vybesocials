@@ -153,6 +153,18 @@ async function main() {
     void snap.size;
   });
 
+  await run('messages query (chat load path)', async () => {
+    const chatId = sorted.join('_');
+    const snap = await getDocs(
+      query(
+        collection(clientDb, 'messages'),
+        where('conversation_id', '==', chatId),
+        limit(50),
+      ),
+    );
+    void snap.size;
+  });
+
   await run('read conversations deterministic id', async () => {
     const snap = await getDoc(doc(clientDb, 'conversations', chatId));
     void snap.exists();
