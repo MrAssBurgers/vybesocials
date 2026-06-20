@@ -4,7 +4,7 @@ import type { Conversation, Message } from '@/hooks/useMessages';
 import { isPermissionDeniedError, warnOnce } from '@/lib/logOnce';
 import { resolveSessionProfileId } from '@/lib/resolveSessionProfileId';
 import { withTimeout } from '@/lib/withTimeout';
-import { fetchMemberProfiles } from '@/lib/dmMembershipRepair';
+import { fetchMemberProfiles, fetchConversationForViewer, ensureConversationReady } from '@/lib/dmMembershipRepair';
 import { fetchMessagesForConversations } from '@/lib/conversationMessagesQuery';
 
 export interface LoadedDMConversation extends Conversation {
@@ -109,16 +109,16 @@ async function loadDMConversationsOnce(
     const hiddenIds = new Set((hiddenData || []).map((h) => h.conversation_id));
     const trashedIds = new Set((trashedData || []).map((t) => t.conversation_id));
 
+    await Promise.all(
+      userConversationIds.map((conversationId) =>
+        ensureConversationReady(conversationId, effectiveProfileId).catch(() => {}),
+      ),
+    );
+
     const conversationResults = await Promise.all(
-      userConversationIds.map(async (conversationId) => {
-        const { data, error } = await db
-          .from('conversations')
-          .select('*')
-          .eq('id', conversationId)
-          .maybeSingle();
-        if (error || !data) return null;
-        return data;
-      }),
+      userConversationIds.map((conversationId) =>
+        fetchConversationForViewer(conversationId, effectiveProfileId),
+      ),
     );
     const conversationsRaw = conversationResults.filter(Boolean) as Record<string, unknown>[];
     conversationsRaw.sort(
@@ -150,8 +150,13 @@ async function loadDMConversationsOnce(
       console.warn('[DM] messages query error:', messagesError.message);
     }
 
-    const memberUserIds = Array.from(new Set((allMembers || []).map((m) => String(m.user_id)))) as string[];
-    const profileByKey = await fetchMemberProfiles(memberUserIds);
+    const memberUserIds = Array.from(new Set((allMembers || []).map((m) => String(m.user_id))));
+    const fallbackMemberIds = conversationsRaw.flatMap((c) =>
+      ((c.member_ids as string[]) || []).map(String),
+    );
+    const profileByKey = await fetchMemberProfiles([
+      ...new Set([...memberUserIds, ...fallbackMemberIds]),
+    ] as string[]);
 
     const membersByConv = new Map<string, any[]>();
     (allMembers || []).forEach((m) => {
@@ -160,10 +165,19 @@ async function loadDMConversationsOnce(
       membersByConv.set(String(m.conversation_id), arr);
     });
 
-    const conversationsData: any[] = conversationsRaw.map((c) => ({
-      ...(c as any),
-      members: membersByConv.get(String((c as any).id)) || [],
-    }));
+    const conversationsData: any[] = conversationsRaw.map((c) => {
+      const cid = String((c as any).id);
+      let members = membersByConv.get(cid) || [];
+      if (!members.length && Array.isArray((c as any).member_ids)) {
+        members = ((c as any).member_ids as string[]).map((user_id) => ({
+          conversation_id: cid,
+          user_id,
+          role: 'member',
+          profile: profileByKey.get(user_id) || null,
+        }));
+      }
+      return { ...(c as any), members };
+    });
 
     const lastMessageMap = new Map<string, Message>();
     const unreadCountMap = new Map<string, number>();

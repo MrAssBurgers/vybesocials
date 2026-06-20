@@ -318,10 +318,20 @@ export function useMessages(conversationId: string | undefined) {
 
       if (error && actorId) {
         await ensureFlatConversationMembership(conversationId, actorId);
-        const retry = await fetchRecentConversationMessages<Message>(conversationId, '*', 50);
-        if (!retry.error) {
-          data = retry.data;
-          error = retry.error;
+        const retryPlain = await fetchRecentConversationMessages<Message>(conversationId, '*', 50);
+        if (!retryPlain.error) {
+          data = retryPlain.data;
+          error = retryPlain.error;
+        } else {
+          const retrySlim = await fetchRecentConversationMessages<Message>(
+            conversationId,
+            'id, conversation_id, sender_id, content, media_url, media_type, view_mode, expires_at, created_at, is_deleted, reply_to_id',
+            50,
+          );
+          if (!retrySlim.error) {
+            data = retrySlim.data;
+            error = retrySlim.error;
+          }
         }
       }
 

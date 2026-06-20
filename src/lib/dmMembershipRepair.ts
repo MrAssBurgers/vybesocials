@@ -37,6 +37,73 @@ export async function getConversationDoc<T extends Record<string, unknown>>(
   }
 }
 
+function syntheticDeterministicConversation(conversationId: string): Record<string, unknown> | null {
+  const parts = conversationId.split('_').filter(Boolean);
+  if (parts.length !== 2) return null;
+  const member_ids = [...parts].sort();
+  const now = new Date().toISOString();
+  return {
+    id: conversationId,
+    is_group: false,
+    member_ids,
+    name: null,
+    avatar_url: null,
+    created_at: now,
+    updated_at: now,
+  };
+}
+
+/** Repair membership, read conversation doc, or synthesize deterministic 1:1 DM metadata. */
+export async function fetchConversationForViewer(
+  conversationId: string,
+  profileId: string,
+  otherProfileId?: string | null,
+): Promise<Record<string, unknown> | null> {
+  if (!conversationId || !profileId) return null;
+
+  try {
+    await ensureConversationReady(conversationId, profileId, otherProfileId);
+  } catch (err) {
+    console.warn('[DM] ensureConversationReady failed:', conversationId, err);
+  }
+
+  const { data, error } = await db
+    .from('conversations')
+    .select('*')
+    .eq('id', conversationId)
+    .maybeSingle();
+
+  if (data) return data as Record<string, unknown>;
+
+  if (error) {
+    try {
+      await ensureFlatConversationMembership(conversationId, profileId);
+    } catch (err) {
+      console.warn('[DM] membership seed failed:', conversationId, err);
+    }
+    const retry = await db
+      .from('conversations')
+      .select('*')
+      .eq('id', conversationId)
+      .maybeSingle();
+    if (retry.data) return retry.data as Record<string, unknown>;
+  }
+
+  const synthetic = syntheticDeterministicConversation(conversationId);
+  if (synthetic) return synthetic;
+
+  const now = new Date().toISOString();
+  return {
+    id: conversationId,
+    is_group: false,
+    member_ids: [],
+    name: null,
+    avatar_url: null,
+    created_at: now,
+    updated_at: now,
+  };
+}
+
 /**
  * Find an existing 1:1 DM (deterministic id or legacy UUID conversation).
  */

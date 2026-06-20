@@ -9,46 +9,24 @@ function sortByCreatedDesc<T extends MessageRow>(rows: T[]): T[] {
   );
 }
 
-function isIndexError(error: VybeAuthError | null | undefined): boolean {
-  return (
-    error?.code === 'failed-precondition' &&
-    /requires an index/i.test(String(error.message || ''))
-  );
-}
-
-/** Latest messages for one conversation — avoids composite-index failures on prod. */
+/** Latest messages for one conversation — index-free Firestore query + client sort. */
 export async function fetchRecentConversationMessages<T extends MessageRow>(
   conversationId: string,
   select: string,
   limit = 50,
 ): Promise<{ data: T[] | null; error: VybeAuthError | null }> {
-  const ordered = await db
+  const fetchLimit = Math.max(limit * 5, 250);
+  const { data, error } = await db
     .from('messages')
     .select(select)
     .eq('conversation_id', conversationId)
-    .order('created_at', { ascending: false })
-    .limit(limit);
+    .limit(fetchLimit);
 
-  if (!ordered.error) {
-    return { data: (ordered.data || []) as T[], error: null };
+  if (error) {
+    return { data: null, error };
   }
 
-  if (!isIndexError(ordered.error)) {
-    return { data: null, error: ordered.error };
-  }
-
-  const fallbackLimit = Math.max(limit * 5, 250);
-  const plain = await db
-    .from('messages')
-    .select(select)
-    .eq('conversation_id', conversationId)
-    .limit(fallbackLimit);
-
-  if (plain.error) {
-    return { data: null, error: plain.error };
-  }
-
-  const rows = sortByCreatedDesc((plain.data || []) as T[]).slice(0, limit);
+  const rows = sortByCreatedDesc((data || []) as T[]).slice(0, limit);
   return { data: rows, error: null };
 }
 

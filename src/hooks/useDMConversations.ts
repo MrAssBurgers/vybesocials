@@ -15,7 +15,7 @@ import {
 import { refetchListOnMount } from '@/lib/queryRefetchPolicy';
 import { resolveSessionProfileId, syncSessionProfileId } from '@/lib/resolveSessionProfileId';
 import { withTimeout } from '@/lib/withTimeout';
-import { fetchMemberProfiles, resolveDmActorIds, ensureConversationReady } from '@/lib/dmMembershipRepair';
+import { fetchMemberProfiles, resolveDmActorIds, ensureConversationReady, fetchConversationForViewer } from '@/lib/dmMembershipRepair';
 
 type DMConversation = LoadedDMConversation;
 
@@ -273,12 +273,6 @@ export function useConversationDetail(conversationId: string | undefined) {
       const { profileId: effectiveProfileId } = await resolveDmActorIds(profile?.id ?? profileId);
       if (!effectiveProfileId) return null;
 
-      try {
-        await ensureConversationReady(conversationId, effectiveProfileId);
-      } catch (err) {
-        console.warn('[DM] ensureConversationReady failed:', conversationId, err);
-      }
-
       const findCached = () => {
         const direct =
           queryClient.getQueryData<DMConversation[]>(['dm-conversations', effectiveProfileId])?.find(
@@ -300,13 +294,7 @@ export function useConversationDetail(conversationId: string | undefined) {
       const cached = findCached();
       if (cached?.members?.length) return cached;
 
-      const { data: conv, error: convError } = await db
-        .from('conversations')
-        .select('*')
-        .eq('id', conversationId)
-        .maybeSingle();
-
-      if (convError) throw convError;
+      const conv = await fetchConversationForViewer(conversationId, effectiveProfileId);
       if (!conv) return null;
 
       const { data: allMembers, error: membersError } = await db
@@ -314,24 +302,32 @@ export function useConversationDetail(conversationId: string | undefined) {
         .select('conversation_id, user_id, role, is_muted, is_pinned, last_read_at')
         .eq('conversation_id', conversationId);
 
-      if (membersError) {
-        console.warn('[DM] conversation_members query failed:', membersError.message);
-        return {
-          ...conv,
-          members: cached?.members ?? [],
-          last_message: cached?.last_message ?? null,
-          unread_count: cached?.unread_count ?? 0,
-          _sortTime: cached?._sortTime ?? conv.updated_at,
-          _hasUnread: cached?._hasUnread ?? false,
-        } as DMConversation;
-      }
+      let members: Array<Record<string, unknown>>;
 
-      const memberUserIds = Array.from(new Set((allMembers || []).map((m) => String(m.user_id)))) as string[];
-      const profileByKey = await fetchMemberProfiles(memberUserIds);
-      const members = (allMembers || []).map((m) => ({
-        ...m,
-        profile: profileByKey.get(m.user_id) || null,
-      }));
+      if (membersError || !allMembers?.length) {
+        if (membersError) {
+          console.warn('[DM] conversation_members query failed:', membersError.message);
+        }
+        const memberIds = [
+          ...new Set(
+            ((conv.member_ids as string[]) || []).filter(Boolean),
+          ),
+        ] as string[];
+        const profileByKey = await fetchMemberProfiles(memberIds);
+        members = memberIds.map((user_id) => ({
+          conversation_id: conversationId,
+          user_id,
+          role: 'member',
+          profile: profileByKey.get(user_id) || null,
+        }));
+      } else {
+        const memberUserIds = Array.from(new Set(allMembers.map((m) => String(m.user_id)))) as string[];
+        const profileByKey = await fetchMemberProfiles(memberUserIds);
+        members = allMembers.map((m) => ({
+          ...m,
+          profile: profileByKey.get(m.user_id) || null,
+        }));
+      }
 
       return {
         ...conv,
