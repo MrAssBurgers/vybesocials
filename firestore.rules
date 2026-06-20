@@ -133,6 +133,22 @@ service cloud.firestore {
           conversationData(cid).get('created_by', '') == uid()
         );
     }
+    // Self-seed composite `${cid}_${profileId}` for legacy DMs missing member_ids on conv doc.
+    function isSelfCompositeMembershipCreate() {
+      return signedIn() &&
+        request.resource.data.conversation_id is string &&
+        request.resource.data.user_id is string &&
+        (
+          (
+            request.resource.id == request.resource.data.conversation_id + '_' + profileId() &&
+            ownsProfileId(request.resource.data.user_id)
+          ) ||
+          (
+            request.resource.id == request.resource.data.conversation_id + '_' + uid() &&
+            request.resource.data.user_id == uid()
+          )
+        );
+    }
 
     // Auth uid → profiles.id lookup (seeded by scripts/migrate-firebase/seed-user-auth-index.mjs)
     match /user_auth_index/{authUid} {
@@ -436,6 +452,7 @@ service cloud.firestore {
         );
       allow create: if signedIn() && (
         willOwnProfile('user_id') ||
+        isSelfCompositeMembershipCreate() ||
         (
           request.resource.data.conversation_id is string &&
           (

@@ -15,7 +15,7 @@ import {
 import { refetchListOnMount } from '@/lib/queryRefetchPolicy';
 import { resolveSessionProfileId, syncSessionProfileId } from '@/lib/resolveSessionProfileId';
 import { withTimeout } from '@/lib/withTimeout';
-import { fetchMemberProfiles, resolveDmActorIds, ensureConversationReady, fetchConversationForViewer } from '@/lib/dmMembershipRepair';
+import { fetchMemberProfiles, resolveDmActorIds, ensureConversationReady, fetchConversationForViewer, inferOtherParticipantId } from '@/lib/dmMembershipRepair';
 
 type DMConversation = LoadedDMConversation;
 
@@ -294,7 +294,17 @@ export function useConversationDetail(conversationId: string | undefined) {
       const cached = findCached();
       if (cached?.members?.length) return cached;
 
-      const conv = await fetchConversationForViewer(conversationId, effectiveProfileId);
+      const otherFromCached = cached?.members?.find(
+        (m) => m.user_id !== effectiveProfileId,
+      )?.user_id;
+      const otherProfileId =
+        otherFromCached || inferOtherParticipantId(conversationId, effectiveProfileId);
+
+      const conv = await fetchConversationForViewer(
+        conversationId,
+        effectiveProfileId,
+        otherProfileId,
+      );
       if (!conv) return null;
 
       const { data: allMembers, error: membersError } = await db

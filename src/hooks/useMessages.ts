@@ -13,7 +13,7 @@ import { shouldRefetchWhenEmpty, refetchListOnMount } from '@/lib/queryRefetchPo
 import { toast } from 'sonner';
 import { callSounds } from '@/lib/callSounds';
 import { enqueue as outboxEnqueue } from '@/lib/dmOutbox';
-import { ensureFlatConversationMembership, normalizeToProfileId, ensureConversationMembershipVariants, ensureConversationReady } from '@/lib/dmMembershipRepair';
+import { ensureFlatConversationMembership, normalizeToProfileId, ensureConversationMembershipVariants, ensureConversationReady, prepareConversationForMessages, inferOtherParticipantId } from '@/lib/dmMembershipRepair';
 import { getUserProfile } from '@/lib/firebase/users';
 import { firebaseAuth } from '@/lib/firebase/authService';
 
@@ -295,20 +295,31 @@ export function useMessages(conversationId: string | undefined) {
   const queryClient = useQueryClient();
 
   const query = useQuery({
-    queryKey: ['messages', conversationId],
+    queryKey: ['messages', conversationId, profileId],
     queryFn: async () => {
       if (!conversationId) return [];
 
-      const { profileId: actorId } = await resolveDmActorIds(profileId);
-      if (actorId) {
-        try {
-          await ensureConversationReady(conversationId, actorId);
-        } catch (err) {
-          console.warn('[Messages] ensureConversationReady failed:', conversationId, err);
-        }
-      }
+      const actorId =
+        (await resolveSessionProfileId(profileId)) ??
+        (await resolveDmActorIds(profileId)).profileId;
+      if (!actorId) return [];
 
-      const viewerId = actorId ?? (await resolveSessionProfileId(profileId)) ?? profileId;
+      const cachedConv =
+        queryClient.getQueryData<Conversation[]>(['dm-conversations', actorId])?.find(
+          (c) => c.id === conversationId,
+        ) ??
+        queryClient.getQueryData<Conversation[]>(['conversations', actorId])?.find(
+          (c) => c.id === conversationId,
+        );
+      const otherFromMembers = cachedConv?.members?.find(
+        (m) => m.user_id !== actorId && m.profile?.id !== actorId,
+      )?.profile?.id ?? cachedConv?.members?.find((m) => m.user_id !== actorId)?.user_id;
+      const otherProfileId =
+        otherFromMembers || inferOtherParticipantId(conversationId, actorId) || null;
+
+      await prepareConversationForMessages(conversationId, actorId, otherProfileId);
+
+      const viewerId = actorId;
 
       let { data, error } = await fetchRecentConversationMessages<Message>(
         conversationId,
@@ -316,8 +327,8 @@ export function useMessages(conversationId: string | undefined) {
         50,
       );
 
-      if (error && actorId) {
-        await ensureFlatConversationMembership(conversationId, actorId);
+      if (error) {
+        await prepareConversationForMessages(conversationId, actorId, otherProfileId);
         const retryPlain = await fetchRecentConversationMessages<Message>(conversationId, '*', 50);
         if (!retryPlain.error) {
           data = retryPlain.data;
@@ -343,7 +354,7 @@ export function useMessages(conversationId: string | undefined) {
       const filtered = filterMessagesForViewer(rows, viewerId);
       return mergePendingOptimisticMessages(queryClient, conversationId, filtered);
     },
-    enabled: !!conversationId,
+    enabled: !!conversationId && !!profileId,
     staleTime: 30000,
     gcTime: 1000 * 60 * 60 * 24 * 14,
     refetchOnWindowFocus: false,

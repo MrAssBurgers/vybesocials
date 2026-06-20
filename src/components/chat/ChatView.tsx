@@ -1273,7 +1273,7 @@ export function ChatView() {
     }
   }, [settings.chat_wallpaper]);
 
-  if (messagesError && !messages?.length) {
+  if (messagesFetched && messagesError && !messages?.length && !conversation) {
     return (
       <div className="flex flex-col h-full items-center justify-center gap-3 p-6 text-center">
         <p className="text-sm text-muted-foreground">Couldn&apos;t load this conversation.</p>
@@ -1317,6 +1317,12 @@ export function ChatView() {
     !!conversation &&
     !messagesFetched &&
     (messagesPending || !messages?.length);
+
+  const messagesLoadFailed =
+    !!conversation &&
+    messagesFetched &&
+    messagesError &&
+    !messages?.length;
 
   if (showConversationSkeleton || showMessagesSkeleton) {
     return (
@@ -1567,6 +1573,14 @@ export function ChatView() {
           touchAction: 'pan-y',
         }}
       >
+        {messagesLoadFailed && (
+          <div className="mb-3 rounded-lg border border-border bg-muted/40 px-3 py-2 text-center">
+            <p className="text-xs text-muted-foreground mb-2">Couldn&apos;t load messages.</p>
+            <Button size="sm" variant="secondary" onClick={() => refetchMessages()}>
+              Try again
+            </Button>
+          </div>
+        )}
         {/* Messages container - extra bottom padding on mobile for bottom nav */}
         <div className="flex flex-col gap-0 pb-[calc(env(safe-area-inset-bottom,0px)+0.75rem)] md:pb-4">
           <AnimatePresence mode="popLayout" initial={false}>

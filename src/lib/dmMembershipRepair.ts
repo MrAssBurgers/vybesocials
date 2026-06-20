@@ -6,6 +6,31 @@ import type { UserProfile } from '@/lib/firebase/types';
 
 const repaired = new Set<string>();
 
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/** Parse the other profile id from deterministic 1:1 ids (`uuidA_uuidB`). */
+export function inferOtherParticipantId(
+  conversationId: string,
+  myProfileId: string,
+): string | null {
+  const parts = conversationId.split('_').filter(Boolean);
+  if (parts.length !== 2) return null;
+  const [a, b] = parts;
+  if (a === myProfileId) return b;
+  if (b === myProfileId) return a;
+  return null;
+}
+
+export function resetRepairedMembership(conversationId: string, profileId: string): void {
+  repaired.delete(`${conversationId}:${profileId}`);
+}
+
+async function hasCompositeMembership(conversationId: string, memberId: string): Promise<boolean> {
+  const compositeId = `${conversationId}_${memberId}`;
+  const existing = await getDocument('conversation_members', compositeId);
+  return !!existing;
+}
+
 /** Resolve a profile id from either profiles.id or auth user_id. */
 export async function normalizeToProfileId(idOrAuthUid: string): Promise<string | null> {
   if (!idOrAuthUid) return null;
@@ -240,10 +265,15 @@ export async function ensureFlatConversationMembership(
   const authUid = user?.id ?? null;
   const ids = [...new Set([profileId, authUid].filter(Boolean))] as string[];
 
+  let seededAny = false;
+
   for (const memberId of ids) {
     const compositeId = `${conversationId}_${memberId}`;
     const existing = await getDocument('conversation_members', compositeId);
-    if (existing) continue;
+    if (existing) {
+      seededAny = true;
+      continue;
+    }
 
     let legacy: Record<string, unknown> | undefined;
     try {
@@ -270,12 +300,42 @@ export async function ensureFlatConversationMembership(
         created_at: (legacy?.created_at as string) || now,
         updated_at: now,
       });
+      seededAny = true;
     } catch (err) {
       console.warn('[DM] membership seed skipped:', compositeId, err);
     }
   }
 
-  repaired.add(cacheKey);
+  if (seededAny || (await hasCompositeMembership(conversationId, profileId))) {
+    repaired.add(cacheKey);
+  }
+}
+
+/** Repair + verify composite membership before message reads (retries transient rule lag). */
+export async function prepareConversationForMessages(
+  conversationId: string,
+  profileId: string,
+  otherProfileId?: string | null,
+): Promise<void> {
+  const otherId =
+    otherProfileId ||
+    inferOtherParticipantId(conversationId, profileId) ||
+    null;
+
+  for (let attempt = 0; attempt < 4; attempt++) {
+    resetRepairedMembership(conversationId, profileId);
+    await ensureConversationReady(conversationId, profileId, otherId);
+
+    const { data: { user } } = await firebaseAuth.getUser();
+    const authUid = user?.id ?? null;
+    const ids = [...new Set([profileId, authUid].filter(Boolean))] as string[];
+    const ready = await Promise.all(
+      ids.map((id) => hasCompositeMembership(conversationId, id)),
+    );
+    if (ready.some(Boolean)) return;
+
+    if (attempt < 3) await sleep(150 * (attempt + 1));
+  }
 }
 
 export async function resolveDmActorIds(liveProfileId?: string | null): Promise<{
