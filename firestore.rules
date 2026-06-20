@@ -107,7 +107,7 @@ service cloud.firestore {
       );
     }
     function isConversationParticipant(cid) {
-      return isMember(cid);
+      return isMember(cid) || isConversationCreatorOf(cid);
     }
     function isFriendRequestParty() {
       return signedIn() && (

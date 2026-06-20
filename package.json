@@ -13,6 +13,7 @@
     "validate:boot": "node scripts/check-boot-entry.mjs && node scripts/verify-dist-entry.mjs",
     "debug": "node scripts/debug-scan.mjs",
     "test:social-permissions": "node scripts/test-social-permissions.mjs",
+    "test:conversation-load": "node scripts/test-conversation-load.mjs",
     "migrate:agtcyx": "node scripts/migrate-agtcyx-to-hprmic.mjs",
     "migrate:firebase:export": "node scripts/export-supabase.mjs",
     "migrate:firebase:auth-hashes": "node scripts/export-auth-hashes.mjs",

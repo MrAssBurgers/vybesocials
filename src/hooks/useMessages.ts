@@ -12,7 +12,7 @@ import { shouldRefetchWhenEmpty, refetchListOnMount } from '@/lib/queryRefetchPo
 import { toast } from 'sonner';
 import { callSounds } from '@/lib/callSounds';
 import { enqueue as outboxEnqueue } from '@/lib/dmOutbox';
-import { ensureFlatConversationMembership, normalizeToProfileId, ensureConversationMembershipVariants } from '@/lib/dmMembershipRepair';
+import { ensureFlatConversationMembership, normalizeToProfileId, ensureConversationMembershipVariants, ensureConversationReady } from '@/lib/dmMembershipRepair';
 import { getUserProfile } from '@/lib/firebase/users';
 import { firebaseAuth } from '@/lib/firebase/authService';
 
@@ -291,7 +291,7 @@ export function useMessages(conversationId: string | undefined) {
 
       const { profileId: actorId } = await resolveDmActorIds(profileId);
       if (actorId) {
-        await ensureFlatConversationMembership(conversationId, actorId);
+        await ensureConversationReady(conversationId, actorId);
       }
 
       const viewerId = actorId ?? (await resolveSessionProfileId(profileId)) ?? profileId;
@@ -610,13 +610,10 @@ export function useCreateConversation() {
           throw new Error('Failed to start conversation');
         }
 
-        const otherProfile = await getUserProfile(otherUserId);
-        await ensureConversationMembershipVariants(
+        await ensureConversationReady(
           conversationId,
           myProfileId,
           otherUserId,
-          authUser?.id,
-          otherProfile?.user_id,
         );
 
         const { data: conv } = await db

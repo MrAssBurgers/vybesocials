@@ -15,7 +15,7 @@ import {
 import { refetchListOnMount } from '@/lib/queryRefetchPolicy';
 import { resolveSessionProfileId, syncSessionProfileId } from '@/lib/resolveSessionProfileId';
 import { withTimeout } from '@/lib/withTimeout';
-import { ensureFlatConversationMembership, fetchMemberProfiles, resolveDmActorIds } from '@/lib/dmMembershipRepair';
+import { fetchMemberProfiles, resolveDmActorIds, ensureConversationReady } from '@/lib/dmMembershipRepair';
 
 type DMConversation = LoadedDMConversation;
 
@@ -273,7 +273,7 @@ export function useConversationDetail(conversationId: string | undefined) {
       const { profileId: effectiveProfileId } = await resolveDmActorIds(profile?.id ?? profileId);
       if (!effectiveProfileId) return null;
 
-      await ensureFlatConversationMembership(conversationId, effectiveProfileId);
+      await ensureConversationReady(conversationId, effectiveProfileId);
 
       const findCached = () => {
         const direct =

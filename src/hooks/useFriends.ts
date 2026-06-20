@@ -354,6 +354,8 @@ export function useSendFriendRequest() {
 
       if (sameDirectionResult.error) throw sameDirectionResult.error;
       if (reverseDirectionResult.error) throw reverseDirectionResult.error;
+      if (legacySent.error) throw legacySent.error;
+      if (legacyReceived.error) throw legacyReceived.error;
 
       const existingSentRequest =
         sameDirectionResult.data ||

@@ -1,7 +1,7 @@
 import { db } from '@/lib/firebase';
 import { getDocument, setDocument, getDocuments, where, firestoreLimit } from '@/lib/firebase/firestoreDb';
 import { firebaseAuth } from '@/lib/firebase/authService';
-import { resolveProfileIdFromAuthUid, getUserProfile } from '@/lib/firebase/users';
+import { getUserProfile, resolveProfileIdFromAuthUid } from '@/lib/firebase/users';
 import type { UserProfile } from '@/lib/firebase/types';
 
 const repaired = new Set<string>();
@@ -68,10 +68,54 @@ export async function findExistingDmBetweenProfiles(
       const memberIds = members.map((row) => String(row.user_id || '')).filter(Boolean);
       const hasOther = memberIds.some((mid) => otherSet.has(mid));
       const hasMe = memberIds.some((mid) => myIds.includes(mid));
-      if (hasOther && hasMe && memberIds.length <= 2) return cid;
+      if (hasOther && hasMe && memberIds.length <= 2) return deterministicId;
     }
   }
   return null;
+}
+
+const ensureReadyInflight = new Map<string, Promise<void>>();
+
+/** Single-flight: composite membership + member_ids before chat reads. */
+export async function ensureConversationReady(
+  conversationId: string,
+  profileId: string,
+  otherProfileId?: string | null,
+): Promise<void> {
+  if (!conversationId || !profileId) return;
+  const inflight = ensureReadyInflight.get(conversationId);
+  if (inflight) return inflight;
+
+  const promise = (async () => {
+    const { data: { user } } = await firebaseAuth.getUser();
+    const authUid = user?.id ?? null;
+    const otherProfile = otherProfileId ? await getUserProfile(otherProfileId) : null;
+    const otherAuthUid = otherProfile?.user_id ?? null;
+
+    await ensureConversationMembershipVariants(
+      conversationId,
+      profileId,
+      otherProfileId || profileId,
+      authUid,
+      otherAuthUid,
+    );
+
+    const memberIds = [
+      ...new Set([profileId, otherProfileId, authUid, otherAuthUid].filter(Boolean)),
+    ] as string[];
+    const now = new Date().toISOString();
+    await setDocument('conversations', conversationId, {
+      member_ids: memberIds,
+      updated_at: now,
+    }, true);
+  })();
+
+  ensureReadyInflight.set(conversationId, promise);
+  try {
+    await promise;
+  } finally {
+    ensureReadyInflight.delete(conversationId);
+  }
 }
 
 /** Ensure flat membership docs exist for both participants (profile id + auth uid variants). */

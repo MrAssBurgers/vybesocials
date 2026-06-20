@@ -1051,7 +1051,35 @@ async function rpcCreateDmConversation(otherProfileId: string): Promise<string |
       user.id,
       otherAuthUid,
     );
-    return existing;
+
+    if (existing !== chatId) {
+      const canonical = await getConversationDoc(chatId);
+      if (!canonical) {
+        await setDocument('conversations', chatId, {
+          id: chatId,
+          is_group: false,
+          member_ids: memberIds,
+          name: null,
+          avatar_url: null,
+          created_by: myProfileId,
+          created_at: now,
+          updated_at: now,
+        });
+      } else {
+        await setDocument('conversations', chatId, {
+          member_ids: memberIds,
+          updated_at: now,
+        }, true);
+      }
+      await ensureConversationMembershipVariants(
+        chatId,
+        myProfileId,
+        resolvedOtherProfileId,
+        user.id,
+        otherAuthUid,
+      );
+    }
+    return chatId;
   }
 
   const existingConv = await getConversationDoc(chatId);
