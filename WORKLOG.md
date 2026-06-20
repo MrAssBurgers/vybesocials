@@ -7,7 +7,7 @@ Use this file as the Lovable -> Cursor handoff each session.
 - **Fix client:** `dmMemberResolve.ts` — auth-aware member matching, merge `member_ids` + deterministic conv id, `getDocument` profile fallback; wired into `loadDMConversations`, `ConversationList`, `ChatView` (calls need resolved `otherMember.id`).
 - **Fix AI preview:** VYBE-AI row hides GEMINI error text in list preview; run `npm run setup:gemini-secrets` for server AI.
 - **Verified:** `npm run build` PASS; `test:social-permissions` 14/14 PASS
-- **You:** commit/push → Lovable **Publish** → hard refresh; `GEMINI_API_KEY=… npm run setup:gemini-secrets` if VYBE-AI still errors
+- **Git:** `9b5e14cf` pushed → Lovable **Publish** → hard refresh
 
 ## Next 3 Tasks
 1. Lovable Publish → DMs show real names/avatars (not Unknown); send + call from chat
