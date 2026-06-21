@@ -31,6 +31,7 @@ export function mergeMessagesWithLocalCache(
   const localOnly = existing.filter((m) => {
     if (serverIds.has(m.id)) return false;
     if (typeof m.id === 'string' && m.id.startsWith('temp-')) return true;
+    if ((m as { _failed?: boolean })._failed) return true;
     const age = Date.now() - new Date(m.created_at || 0).getTime();
     return age < 120_000;
   });
@@ -45,4 +46,15 @@ export function mergeMessagesWithLocalCache(
     (a, b) => new Date(a.created_at || 0).getTime() - new Date(b.created_at || 0).getTime(),
   );
   return merged;
+}
+
+/** Write server rows into cache without dropping in-flight optimistic / failed sends. */
+export function setMessagesCacheFromServer(
+  queryClient: QueryClient,
+  conversationId: string,
+  serverMessages: Message[],
+): void {
+  queryClient.setQueryData<Message[]>(messagesQueryKey(conversationId), () =>
+    mergeMessagesWithLocalCache(queryClient, conversationId, serverMessages),
+  );
 }

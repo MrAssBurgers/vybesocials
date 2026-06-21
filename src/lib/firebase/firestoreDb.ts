@@ -3,8 +3,10 @@ import {
   collection,
   doc,
   getDoc,
+  getDocFromServer,
   getDocs,
   setDoc,
+  waitForPendingWrites,
   updateDoc,
   deleteDoc,
   query,
@@ -60,6 +62,21 @@ export async function getDocument<T extends DocumentData>(
   const snap = await getDoc(documentRef(table, id));
   if (!snap.exists()) return null;
   return { id: snap.id, ...snap.data() } as unknown as T;
+}
+
+/** Read from server only — used to confirm writes were accepted (not just cached locally). */
+export async function getDocumentFromServer<T extends DocumentData>(
+  table: string,
+  id: string,
+): Promise<T | null> {
+  const snap = await getDocFromServer(documentRef(table, id));
+  if (!snap.exists()) return null;
+  return { id: snap.id, ...snap.data() } as unknown as T;
+}
+
+/** Block until pending Firestore writes are acknowledged or rejected by the backend. */
+export async function awaitPendingFirestoreWrites(): Promise<void> {
+  await waitForPendingWrites(getDb());
 }
 
 export async function getDocuments<T extends DocumentData>(

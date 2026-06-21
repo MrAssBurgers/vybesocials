@@ -83,23 +83,6 @@ function isOptimisticDuplicate(conversationId: string, content: string, _senderI
   return false;
 }
 
-function matchesOwnOptimisticTemp(
-  message: { id?: string; sender_id?: string; content?: string | null },
-  serverRow: { sender_id?: string; content?: string | null },
-  profileId: string | null,
-  authUid: string | null,
-): boolean {
-  if (typeof message.id !== 'string' || !message.id.startsWith('temp-')) return false;
-
-  const senderMatches =
-    message.sender_id === serverRow.sender_id ||
-    (!!profileId && message.sender_id === profileId) ||
-    (!!authUid && message.sender_id === authUid);
-  if (!senderMatches) return false;
-
-  return (message.content || '').trim() === (serverRow.content || '').trim();
-}
-
 // Connection state for retry logic
 let retryCount = 0;
 const MAX_RETRIES = 5;
@@ -207,20 +190,16 @@ export function useGlobalRealtimeMessages() {
             isFromCurrentUser &&
             isOptimisticDuplicate(conversationId, newMessage.content, newMessage.sender_id);
 
-          // Sender viewing this chat: always pin the real server row (replaces temp-* bubble).
-          if (isFromCurrentUser && isViewingConvo) {
+          // Sender bubbles on this device are confirmed by useInstantSend after a
+          // server-verified insert. Never strip temp-* here — local Firestore writes
+          // can fire INSERT then DELETE when rules reject, which caused vanishing bubbles.
+          // Other devices / edge paths still need the real row appended (no temp strip).
+          if (isFromCurrentUser && isViewingConvo && !skipReceiverInsert) {
             queryClient.setQueryData<any[]>(['messages', conversationId], (old) => {
-              const row = {
-                ...newMessage,
-                views: [],
-                reactions: [],
-              };
+              const row = { ...newMessage, views: [], reactions: [] };
               if (!old?.length) return [row];
-              const stripped = old.filter(
-                (m) => !matchesOwnOptimisticTemp(m, newMessage, profileId, authUid),
-              );
-              if (stripped.some((m) => m.id === newMessage.id)) return stripped;
-              return [...stripped, row];
+              if (old.some((m) => m.id === newMessage.id)) return old;
+              return [...old, row];
             });
           }
 
@@ -379,9 +358,41 @@ export function useGlobalRealtimeMessages() {
 
           if (!conversationId) return;
 
-          // Remove from cache regardless of which conversation is being viewed
+          const isFromCurrentUser =
+            deletedMessage.sender_id === profileId ||
+            (!!authUid && deletedMessage.sender_id === authUid);
+          const createdMs = new Date(deletedMessage.created_at || 0).getTime();
+          const isRecentOwnSend = isFromCurrentUser && Date.now() - createdMs < 60_000;
+
           queryClient.setQueryData<any[]>(['messages', conversationId], (old) => {
             if (!old) return old;
+
+            // Server rejected a just-sent message — keep a failed bubble instead of wiping.
+            if (isRecentOwnSend) {
+              const content = (deletedMessage.content || '').trim();
+              const matchingTemp = old.find(
+                (m) =>
+                  typeof m.id === 'string' &&
+                  m.id.startsWith('temp-') &&
+                  (m.content || '').trim() === content,
+              );
+              if (matchingTemp) {
+                return old.map((m) =>
+                  m.id === matchingTemp.id
+                    ? ({ ...m, _failed: true, _error: 'Message could not be delivered' } as any)
+                    : m,
+                );
+              }
+              const hadRow = old.some((m) => m.id === deletedMessage.id);
+              if (hadRow) {
+                return old.map((m) =>
+                  m.id === deletedMessage.id
+                    ? ({ ...m, _failed: true, _error: 'Message could not be delivered' } as any)
+                    : m,
+                );
+              }
+            }
+
             return old.filter(m => m.id !== deletedMessage.id);
           });
 

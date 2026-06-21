@@ -2,6 +2,12 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## DM send bubble vanish — server verify (2026-06-20)
+- **Root cause:** Firestore `setDoc` resolved on local cache; GlobalRT stripped the optimistic `temp-*` bubble on local INSERT, then server rule rejection fired DELETE → empty thread. Prefetch race was a secondary cause (fixed in `4ae4a437`).
+- **Fix:** Verify message inserts on server (`waitForPendingWrites` + `getDocFromServer`); stop stripping sender temps in GlobalRT; DELETE marks recent own sends as failed instead of wiping; mark-viewed patches cache (no global messages invalidate).
+- **Verified:** `npm run build` PASS; `test:social-permissions` 15/15 PASS
+- **You:** Commit/push → Lovable Publish → force-quit app → send DM
+
 ## DM send bubble vanish (2026-06-20)
 - **Root cause:** `useChatPrefetch` blind-replaced the messages cache when a prefetch finished right after send — wiped the optimistic `temp-*` bubble before the server row arrived.
 - **Fix:** Prefetch now uses `mergeMessagesWithLocalCache`; GlobalRT temp dedupe matches auth uid vs profile id + trimmed content.

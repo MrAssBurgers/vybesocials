@@ -435,6 +435,7 @@ export function ChatView() {
     if (!messages || !profileId || !conversationId) return;
 
     const unreadMessages = messages.filter((msg) => {
+      if (typeof msg.id === 'string' && msg.id.startsWith('temp-')) return false;
       if (msg.sender_id === profileId) return false;
       if (hasMarkedReadRef.current.has(msg.id)) return false;
       

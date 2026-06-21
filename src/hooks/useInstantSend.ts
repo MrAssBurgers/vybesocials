@@ -168,20 +168,31 @@ export function useInstantSend(conversationId: string | undefined) {
     if (!conversationId) return;
 
     patchMessagesCache(queryClient, conversationId, (old) => {
-      if (!old || old.length === 0) return [realMessage];
+      const tempRow = old?.find((m) => m.id === tempId);
+      const realWithSender = realMessage.sender
+        ? realMessage
+        : tempRow?.sender
+          ? { ...realMessage, sender: tempRow.sender }
+          : realMessage;
 
-      const realAlreadyPresent = old.some(m => m.id === realMessage.id);
+      if (!old || old.length === 0) return [realWithSender];
+
+      const realAlreadyPresent = old.some(m => m.id === realWithSender.id);
       const tempPresent = old.some(m => m.id === tempId);
 
       if (realAlreadyPresent) {
-        return tempPresent ? old.filter(m => m.id !== tempId) : old;
+        return tempPresent
+          ? old.filter(m => m.id !== tempId).map(m =>
+              m.id === realWithSender.id ? { ...m, ...realWithSender, sender: m.sender || realWithSender.sender } : m,
+            )
+          : old;
       }
 
       if (tempPresent) {
-        return old.map(m => (m.id === tempId ? realMessage : m));
+        return old.map(m => (m.id === tempId ? realWithSender : m));
       }
 
-      return [...old, realMessage];
+      return [...old, realWithSender];
     });
 
     pendingMessagesRef.current.delete(tempId);

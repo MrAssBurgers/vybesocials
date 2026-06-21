@@ -2,8 +2,10 @@ import {
   collectionRef,
   documentRef,
   getDocument,
+  getDocumentFromServer,
   getDocuments,
   setDocument,
+  awaitPendingFirestoreWrites,
   updateDocument,
   deleteDocument,
   batchSet,
@@ -576,6 +578,19 @@ class QueryBuilder {
             created_at: row.created_at || new Date().toISOString(),
           };
           await setDocument(this.table, id, payload, false);
+          // Message sends must be confirmed on the server. setDoc resolves after the
+          // local cache write; without this check a rejected rule shows the bubble
+          // briefly then GlobalRT DELETE removes it (looks like "sent then vanished").
+          if (this.table === 'messages') {
+            await awaitPendingFirestoreWrites();
+            const serverRow = await getDocumentFromServer(this.table, id);
+            if (!serverRow) {
+              throw Object.assign(
+                new Error('Message could not be delivered — chat permissions may still be syncing.'),
+                { code: 'permission-denied' },
+              );
+            }
+          }
           return payload;
         }),
       );

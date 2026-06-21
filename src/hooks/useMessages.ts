@@ -536,6 +536,7 @@ export function useMarkMessageViewed() {
   return useMutation({
     mutationFn: async (messageId: string) => {
       if (!profile?.id) throw new Error('Not authenticated');
+      if (typeof messageId === 'string' && messageId.startsWith('temp-')) return;
 
       const { error } = await db
         .from('message_views')
@@ -546,8 +547,23 @@ export function useMarkMessageViewed() {
 
       if (error) throw error;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['messages'] });
+    onSuccess: (_data, messageId) => {
+      if (typeof messageId === 'string' && messageId.startsWith('temp-')) return;
+      const viewedAt = new Date().toISOString();
+      queryClient.setQueriesData<Message[]>({ queryKey: ['messages'] }, (old) => {
+        if (!old?.some((m) => m.id === messageId)) return old;
+        return old.map((m) =>
+          m.id === messageId
+            ? {
+                ...m,
+                views: [
+                  ...(m.views || []).filter((v) => v.user_id !== profile?.id),
+                  { user_id: profile!.id, viewed_at: viewedAt },
+                ],
+              }
+            : m,
+        );
+      });
     },
   });
 }
