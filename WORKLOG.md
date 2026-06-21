@@ -2,6 +2,12 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## Instant chat + Snapchat typing/presence (2026-06-17)
+- **Root cause:** Receiver waited for Firestore INSERT + profile fetch; broadcast only fired after server confirm; GlobalRT deferred 1.2s; header had `isTyping={false}` hardcoded.
+- **Fix:** Optimistic `dm-broadcast` on send (before server); shared `dmBroadcast.ts` channel; sync message append (profile enrich async); typing via broadcast + faster presence poll; LivePresenceBar wired to real typing/in-chat state.
+- **Verified:** `npm run build` PASS
+- **You:** Deploy Firebase hosting or Lovable Publish → open same DM on two devices → type + send
+
 ## Call connect fix (2026-06-21)
 - **Root cause:** 1:1 calls defaulted to P2P (NAT/mobile failure); incoming ring missed when `receiver_id` used auth uid vs profile id; call insert skipped membership repair.
 - **Fix:** Default all calls to LiveKit (`persistent`); dual incoming listeners (profile + auth uid); `repairConversationForSend` before call insert; `startDmCall` Cloud Function fallback; instant LiveKit fallback on ICE fail.

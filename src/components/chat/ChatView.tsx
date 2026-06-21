@@ -190,12 +190,15 @@ export function ChatView() {
   const presentUsers = Array.isArray(rawPresentUsers) ? rawPresentUsers : [];
   const typingUsers = Array.isArray(rawTypingUsers) ? rawTypingUsers : [];
   // Ultra-fast live activity tracking for DMs
-  const { 
-    otherUserActivity, 
-    isOtherUserPresent, 
-    setTyping: setLiveTyping, 
-    setRecordingVoice: setLiveRecordingVoice 
+  const {
+    otherUserActivity,
+    isOtherUserPresent,
+    setTyping: setLiveTyping,
+    setRecordingVoice: setLiveRecordingVoice,
   } = useLiveActivity(conversationId);
+  const isOtherTyping =
+    typingUsers.length > 0 || otherUserActivity?.activity === 'typing';
+  const isOtherInChat = presentUsers.length > 0 || isOtherUserPresent;
   const { notifyScreenshot, notifyCapture, screenshotEvents: rawScreenshotEvents, isRecording } = useScreenshotNotification(conversationId);
   const screenshotEvents = Array.isArray(rawScreenshotEvents) ? rawScreenshotEvents : [];
   
@@ -612,11 +615,8 @@ export function ChatView() {
     }
 
     if (value.length > 0) {
-      // Fire-and-forget — never block keystrokes
-      queueMicrotask(() => {
-        setTyping(true);
-        setLiveTyping(true);
-      });
+      setTyping(true);
+      setLiveTyping(true);
       typingUpdateScheduledRef.current = true;
 
       typingTimeoutRef.current = setTimeout(() => {
@@ -626,10 +626,8 @@ export function ChatView() {
       }, 3000);
     } else {
       typingUpdateScheduledRef.current = false;
-      queueMicrotask(() => {
-        setTyping(false);
-        setLiveTyping(false);
-      });
+      setTyping(false);
+      setLiveTyping(false);
     }
   }, [setTyping, setLiveTyping, conversationId]);
 
@@ -1485,8 +1483,8 @@ export function ChatView() {
               <div className="flex flex-col gap-0.5 min-w-0">
                 <LivePresenceBar
                   isOnline={otherMemberOnline}
-                  isTyping={false}
-                  isInChat={presentUsers.length > 0}
+                  isTyping={isOtherTyping}
+                  isInChat={isOtherInChat}
                   username={otherMember?.username}
                   lastReadAt={lastReadAt}
                 />

@@ -19,6 +19,7 @@ import { withTimeout } from '@/lib/withTimeout';
 import { toast } from 'sonner';
 import { inferOtherUserIdFromConversation } from '@/lib/dmMemberResolve';
 import { sendDmViaCloudFunction, isRetryableSendError } from '@/lib/firebase/dmSendClient';
+import { prewarmDmBroadcastChannel, sendDmBroadcastMessage } from '@/lib/dmBroadcast';
 
 export interface PendingMessage {
   tempId: string;
@@ -49,45 +50,8 @@ export function useInstantSend(conversationId: string | undefined) {
   const sendReadyRef = useRef<{ conversationId?: string; senderId?: string; inflight?: Promise<string> }>({});
   const [videoUploadProgress, setVideoUploadProgress] = useState<Record<string, number>>({});
 
-  // Long-lived broadcast channel for instant delivery to receivers viewing this convo.
-  // Created lazily and kept subscribed; throwaway channels never finish joining
-  // before `.send()` is called, so broadcasts get silently dropped.
-  const broadcastChannelRef = useRef<ReturnType<typeof db.channel> | null>(null);
-  const broadcastConvoIdRef = useRef<string | undefined>(undefined);
-
-  const getBroadcastChannel = useCallback(() => {
-    if (!conversationId) return null;
-    if (broadcastChannelRef.current && broadcastConvoIdRef.current === conversationId) {
-      return broadcastChannelRef.current;
-    }
-    // Conversation changed — tear down old channel
-    if (broadcastChannelRef.current) {
-      try { db.removeChannel(broadcastChannelRef.current); } catch { /* noop */ }
-      broadcastChannelRef.current = null;
-    }
-    const ch = db
-      .channel(`dm-broadcast:${conversationId}`, {
-        config: { broadcast: { ack: false, self: false } },
-      })
-      .subscribe((status) => {
-        if (import.meta.env.DEV) {
-          console.log('[InstantSend] broadcast channel status:', status, conversationId);
-        }
-      });
-    broadcastChannelRef.current = ch;
-    broadcastConvoIdRef.current = conversationId;
-    return ch;
-  }, [conversationId]);
-
-  // Clean up when convo changes or component unmounts
   useEffect(() => {
-    return () => {
-      if (broadcastChannelRef.current) {
-        try { db.removeChannel(broadcastChannelRef.current); } catch { /* noop */ }
-        broadcastChannelRef.current = null;
-        broadcastConvoIdRef.current = undefined;
-      }
-    };
+    prewarmDmBroadcastChannel(conversationId);
   }, [conversationId]);
 
   // Generate a temporary ID for optimistic updates
@@ -127,6 +91,8 @@ export function useInstantSend(conversationId: string | undefined) {
       if (!old) return [optimisticMessage];
       return [...old, optimisticMessage];
     });
+
+    void sendDmBroadcastMessage(conversationId, optimisticMessage as unknown as Record<string, unknown>);
 
     // Helper to update conversation lists
     const updateConversationList = (old: any[] | undefined) => {
@@ -452,7 +418,7 @@ export function useInstantSend(conversationId: string | undefined) {
     onOptimisticAdded?.();
 
     try {
-      let senderId = await resolveSenderIdForSend();
+      const senderId = await resolveSenderIdForSend();
       const otherProfileId = resolveOtherProfileId(senderId);
 
       const expiresAt = viewMode === '24h' 
@@ -481,11 +447,7 @@ export function useInstantSend(conversationId: string | undefined) {
       const messageWithViewMode = { ...data, view_mode: data.view_mode as ViewMode, views: [], reactions: [] };
       confirmMessage(tempId, messageWithViewMode);
 
-      // Broadcast for instant delivery to receiver (long-lived subscribed channel)
-      try {
-        const bc = getBroadcastChannel();
-        await bc?.send({ type: 'broadcast', event: 'new-message', payload: { message: messageWithViewMode } });
-      } catch { /* best-effort */ }
+      void sendDmBroadcastMessage(conversationId, messageWithViewMode as unknown as Record<string, unknown>);
 
       // Update conversation timestamp
       await db
@@ -502,7 +464,7 @@ export function useInstantSend(conversationId: string | undefined) {
       toast.error('Message failed to send');
       throw error;
     }
-  }, [conversationId, profile?.id, effectiveProfileId, generateTempId, addOptimisticMessage, confirmMessage, markFailed, getBroadcastChannel, resolveSenderIdForSend, insertMessageWithRetry, resolveOtherProfileId]);
+  }, [conversationId, profile?.id, effectiveProfileId, generateTempId, addOptimisticMessage, confirmMessage, markFailed, resolveSenderIdForSend, insertMessageWithRetry, resolveOtherProfileId]);
 
   // Send media message
   const sendMedia = useCallback(async (
@@ -560,11 +522,7 @@ export function useInstantSend(conversationId: string | undefined) {
       const messageWithViewMode = { ...data, view_mode: data.view_mode as ViewMode, views: [], reactions: [] };
       confirmMessage(tempId, messageWithViewMode);
 
-      // Broadcast for instant delivery (long-lived subscribed channel)
-      try {
-        const bc = getBroadcastChannel();
-        await bc?.send({ type: 'broadcast', event: 'new-message', payload: { message: messageWithViewMode } });
-      } catch { /* best-effort */ }
+      void sendDmBroadcastMessage(conversationId, messageWithViewMode as unknown as Record<string, unknown>);
 
       await db
         .from('conversations')
@@ -579,7 +537,7 @@ export function useInstantSend(conversationId: string | undefined) {
       markFailed(tempId, error.message || 'Failed to send');
       throw error;
     }
-  }, [conversationId, profile?.id, effectiveProfileId, generateTempId, addOptimisticMessage, confirmMessage, markFailed, getBroadcastChannel, resolveSenderIdForSend, insertMessageWithRetry]);
+  }, [conversationId, profile?.id, effectiveProfileId, generateTempId, addOptimisticMessage, confirmMessage, markFailed, resolveSenderIdForSend, insertMessageWithRetry]);
 
   // Send video with optimistic UI and progress tracking
   const sendVideo = useCallback(async (
@@ -696,6 +654,7 @@ export function useInstantSend(conversationId: string | undefined) {
       // Replace temp with real message
       const messageWithViewMode = { ...data, view_mode: data.view_mode as ViewMode, views: [], reactions: [] };
       confirmMessage(tempId, messageWithViewMode);
+      void sendDmBroadcastMessage(conversationId, messageWithViewMode as unknown as Record<string, unknown>);
 
       // Update conversation timestamp
       await db
@@ -719,7 +678,7 @@ export function useInstantSend(conversationId: string | undefined) {
       URL.revokeObjectURL(localUrl);
       throw error;
     }
-  }, [conversationId, profile?.id, effectiveProfileId, generateTempId, addOptimisticMessage, confirmMessage, markFailed, getBroadcastChannel, resolveSenderIdForSend]);
+  }, [conversationId, profile?.id, effectiveProfileId, generateTempId, addOptimisticMessage, confirmMessage, markFailed, resolveSenderIdForSend]);
 
   // Retry a failed message
   const retry = useCallback(async (tempId: string) => {

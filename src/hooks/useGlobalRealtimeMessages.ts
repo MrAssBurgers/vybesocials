@@ -16,6 +16,8 @@ import { getEffectiveProfileId } from '@/lib/profileCache';
 import { callSounds } from '@/lib/callSounds';
 import { removeChannelByTopic, removeRealtimeChannel, subscribePostgresChannel } from '@/lib/realtimeChannel';
 import { scheduleIdleWork } from '@/lib/scheduleIdleWork';
+import { appendIncomingMessage } from '@/lib/messagesQueryKey';
+import { subscribeDmBroadcastMessages } from '@/lib/dmBroadcast';
 
 // Track the current conversation globally with a tiny pub/sub so React
 // effects can react to changes (a plain module variable did not trigger
@@ -206,29 +208,21 @@ export function useGlobalRealtimeMessages() {
           if (skipReceiverInsert) {
             if (import.meta.env.DEV) console.log('[GlobalRT] Skipping optimistic duplicate for sender');
           } else if (!isFromCurrentUser) {
-            // Try to get sender from cached conversation members first
+            // Resolve sender from cached conversation members — never block on DB fetch.
             let sender: any = null;
-            const cachedConvos = queryClient.getQueryData<any[]>(['dm-conversations', profileId]) || 
+            const cachedConvos = queryClient.getQueryData<any[]>(['dm-conversations', profileId]) ||
                                  queryClient.getQueryData<any[]>(['conversations', profileId]);
-            
+
             if (cachedConvos) {
               const cachedConvo = cachedConvos.find(c => c.id === conversationId);
               if (cachedConvo?.members) {
-                const memberProfile = cachedConvo.members.find((m: any) => m.user_id === newMessage.sender_id)?.profile;
+                const memberProfile = cachedConvo.members.find(
+                  (m: any) => m.user_id === newMessage.sender_id,
+                )?.profile;
                 if (memberProfile) {
                   sender = memberProfile;
                 }
               }
-            }
-
-            // Only fetch from DB if not in cache
-            if (!sender) {
-              const { data: fetchedSender } = await db
-                .from('profiles')
-                .select('id, username, avatar_url, display_name')
-                .eq('id', newMessage.sender_id)
-                .maybeSingle();
-              sender = fetchedSender;
             }
 
             const fullMessage = {
@@ -238,14 +232,28 @@ export function useGlobalRealtimeMessages() {
               reactions: [],
             };
 
-            // If user is viewing this conversation, add message to chat
             if (isViewingConvo) {
-              queryClient.setQueryData<any[]>(['messages', conversationId], (old) => {
-                if (!old) return [fullMessage];
-                // Prevent duplicates
-                if (old.some(m => m.id === newMessage.id)) return old;
-                return [...old, fullMessage];
-              });
+              queryClient.setQueryData<any[]>(['messages', conversationId], (old) =>
+                appendIncomingMessage(old, fullMessage),
+              );
+            }
+
+            if (!sender) {
+              void db
+                .from('profiles')
+                .select('id, username, avatar_url, display_name')
+                .eq('id', newMessage.sender_id)
+                .maybeSingle()
+                .then(({ data: fetchedSender }) => {
+                  if (!fetchedSender) return;
+                  queryClient.setQueryData<any[]>(['messages', conversationId], (old) => {
+                    if (!old?.length) return old;
+                    return old.map((m) =>
+                      m.id === newMessage.id ? { ...m, sender: fetchedSender } : m,
+                    );
+                  });
+                })
+                .catch(() => {});
             }
 
             // Play notification sound if NOT viewing this conversation
@@ -506,7 +514,6 @@ export function useGlobalRealtimeMessages() {
   }, [profileId, queryClient]);
 
   // Broadcast listener for instant delivery on the currently viewed conversation
-  const broadcastChannelRef = useRef<ReturnType<typeof db.channel> | null>(null);
   const [activeConvoId, setActiveConvoId] = useState<string | null>(currentConversationId);
 
   useEffect(() => {
@@ -514,52 +521,29 @@ export function useGlobalRealtimeMessages() {
   }, []);
 
   useEffect(() => {
-    if (!profileId || !activeConvoId) {
-      removeRealtimeChannel(broadcastChannelRef.current);
-      broadcastChannelRef.current = null;
-      return;
-    }
+    if (!profileId || !activeConvoId) return;
 
     const convoId = activeConvoId;
-    removeChannelByTopic(`dm-broadcast:${convoId}`);
+    return subscribeDmBroadcastMessages(convoId, (msg) => {
+      if (!msg?.id || msg.sender_id === profileId || msg.sender_id === authUid) return;
+      if (isMessageProcessed(String(msg.id))) return;
+      markMessageProcessed(String(msg.id));
 
-    const bc = db
-      .channel(`dm-broadcast:${convoId}`)
-      .on('broadcast', { event: 'new-message' }, (payload: any) => {
-        const msg = payload.payload?.message;
-        if (!msg || msg.sender_id === profileId) return; // skip own messages
-        if (isMessageProcessed(msg.id)) return;
-        markMessageProcessed(msg.id);
+      queryClient.setQueryData<any[]>(['messages', convoId], (old) =>
+        appendIncomingMessage(old, msg as any),
+      );
 
-        // Add to chat immediately
-        queryClient.setQueryData<any[]>(['messages', convoId], (old) => {
-          if (!old) return [msg];
-          if (old.some(m => m.id === msg.id)) return old;
-          return [...old, msg];
-        });
-
-        // Play sound if tab not visible
-        if (document.visibilityState !== 'visible') {
-          callSounds.message();
-        }
-      })
-      .subscribe();
-
-    broadcastChannelRef.current = bc;
-
-    return () => {
-      try {
-        removeRealtimeChannel(bc);
-      } catch { /* noop */ }
-      broadcastChannelRef.current = null;
-    };
-  }, [profileId, queryClient, activeConvoId]);
+      if (document.visibilityState !== 'visible') {
+        callSounds.message();
+      }
+    });
+  }, [profileId, authUid, queryClient, activeConvoId]);
 
   useEffect(() => {
     if (!profileId) return;
     return scheduleIdleWork(() => {
       void setupChannel();
-    }, 1200);
+    }, 150);
   }, [setupChannel, profileId]);
 
   useEffect(() => {

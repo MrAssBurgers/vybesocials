@@ -6,6 +6,27 @@ export function messagesQueryKey(conversationId: string | undefined) {
   return ['messages', conversationId] as const;
 }
 
+/** Append or replace an incoming message, dropping matching optimistic temps. */
+export function appendIncomingMessage(
+  old: Message[] | undefined,
+  msg: Message,
+): Message[] {
+  if (!old?.length) return [msg];
+  if (old.some((m) => m.id === msg.id)) return old;
+
+  const withoutReplacedTemp = old.filter((m) => {
+    if (typeof m.id !== 'string' || !m.id.startsWith('temp-')) return true;
+    if (typeof msg.id === 'string' && msg.id.startsWith('temp-')) return true;
+    if (m.sender_id !== msg.sender_id) return true;
+    const sameContent =
+      (m.content && msg.content && m.content === msg.content) ||
+      (m.media_url && msg.media_url && m.media_url === msg.media_url);
+    return !sameContent;
+  });
+
+  return [...withoutReplacedTemp, msg];
+}
+
 /** Patch the message list cache for this conversation. */
 export function patchMessagesCache(
   queryClient: QueryClient,
