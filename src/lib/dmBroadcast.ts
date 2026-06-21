@@ -8,11 +8,21 @@ export interface DmTypingPayload {
   displayName?: string;
 }
 
+export interface DmActivityPayload {
+  userId: string;
+  activity: 'viewing' | 'typing' | 'recording_voice' | 'recording_video' | 'taking_photo' | 'idle';
+  username?: string;
+  displayName?: string;
+  avatarUrl?: string | null;
+}
+
 type BroadcastMessageHandler = (message: Record<string, unknown>) => void;
 type BroadcastTypingHandler = (payload: DmTypingPayload) => void;
+type BroadcastActivityHandler = (payload: DmActivityPayload) => void;
 
 const messageHandlers = new Map<string, Set<BroadcastMessageHandler>>();
 const typingHandlers = new Map<string, Set<BroadcastTypingHandler>>();
+const activityHandlers = new Map<string, Set<BroadcastActivityHandler>>();
 const subscribedConvos = new Set<string>();
 
 function channelName(conversationId: string) {
@@ -47,6 +57,20 @@ function dispatchTyping(conversationId: string, payload: { payload?: DmTypingPay
   }
 }
 
+function dispatchActivity(conversationId: string, payload: { payload?: DmActivityPayload }) {
+  const data = payload.payload;
+  if (!data?.userId) return;
+  const handlers = activityHandlers.get(conversationId);
+  if (!handlers?.size) return;
+  for (const handler of handlers) {
+    try {
+      handler(data);
+    } catch {
+      /* noop */
+    }
+  }
+}
+
 function ensureSubscribed(conversationId: string) {
   if (subscribedConvos.has(conversationId)) return;
   subscribedConvos.add(conversationId);
@@ -57,6 +81,9 @@ function ensureSubscribed(conversationId: string) {
     )
     .on('broadcast', { event: 'typing' }, (p: { payload?: DmTypingPayload }) =>
       dispatchTyping(conversationId, p),
+    )
+    .on('broadcast', { event: 'activity' }, (p: { payload?: DmActivityPayload }) =>
+      dispatchActivity(conversationId, p),
     )
     .subscribe();
 }
@@ -104,6 +131,36 @@ export async function sendDmBroadcastMessage(
       type: 'broadcast',
       event: 'new-message',
       payload: { message },
+    });
+  } catch {
+    /* best-effort */
+  }
+}
+
+export function subscribeDmBroadcastActivity(
+  conversationId: string,
+  handler: BroadcastActivityHandler,
+): () => void {
+  if (!activityHandlers.has(conversationId)) {
+    activityHandlers.set(conversationId, new Set());
+  }
+  activityHandlers.get(conversationId)!.add(handler);
+  ensureSubscribed(conversationId);
+  return () => {
+    activityHandlers.get(conversationId)?.delete(handler);
+  };
+}
+
+export async function sendDmBroadcastActivity(
+  conversationId: string,
+  payload: DmActivityPayload,
+): Promise<void> {
+  prewarmDmBroadcastChannel(conversationId);
+  try {
+    await db.channel(channelName(conversationId)).send({
+      type: 'broadcast',
+      event: 'activity',
+      payload,
     });
   } catch {
     /* best-effort */

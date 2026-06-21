@@ -198,8 +198,9 @@ async function notifyCallRecipients(call, callId) {
         }
     }));
 }
+const ONESIGNAL_SECRETS = ['ONESIGNAL_APP_ID', 'ONESIGNAL_REST_API_KEY'];
 /** Flat messages collection (primary DM path after Firebase migration). */
-export const onDmMessageCreated = onDocumentCreated({ document: 'messages/{messageId}', region: 'us-central1' }, async (event) => {
+export const onDmMessageCreated = onDocumentCreated({ document: 'messages/{messageId}', region: 'us-central1', secrets: [...ONESIGNAL_SECRETS] }, async (event) => {
     const snap = event.data;
     if (!snap)
         return;
@@ -227,7 +228,7 @@ export const onConversationMessageCreated = onDocumentCreated({ document: 'conve
     }
 });
 /** Incoming call ring — high-priority FCM to callee(s). */
-export const onCallCreated = onDocumentCreated({ document: 'calls/{callId}', region: 'us-central1' }, async (event) => {
+export const onCallCreated = onDocumentCreated({ document: 'calls/{callId}', region: 'us-central1', secrets: [...ONESIGNAL_SECRETS] }, async (event) => {
     const snap = event.data;
     if (!snap)
         return;

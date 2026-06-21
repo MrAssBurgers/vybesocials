@@ -15,7 +15,6 @@ import { useAuth } from '@/lib/auth';
 import { getEffectiveProfileId } from '@/lib/profileCache';
 import { callSounds } from '@/lib/callSounds';
 import { removeChannelByTopic, removeRealtimeChannel, subscribePostgresChannel } from '@/lib/realtimeChannel';
-import { scheduleIdleWork } from '@/lib/scheduleIdleWork';
 import { appendIncomingMessage } from '@/lib/messagesQueryKey';
 import { subscribeDmBroadcastMessages } from '@/lib/dmBroadcast';
 
@@ -539,9 +538,7 @@ export function useGlobalRealtimeMessages() {
 
   useEffect(() => {
     if (!profileId) return;
-    return scheduleIdleWork(() => {
-      void setupChannel();
-    }, 150);
+    void setupChannel();
   }, [setupChannel, profileId]);
 
   useEffect(() => {

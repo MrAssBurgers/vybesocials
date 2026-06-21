@@ -81,10 +81,12 @@ async function resolveProfileIdForAuth(authUid: string, explicit?: string): Prom
   return authUid;
 }
 
-/** link-onesignal-user — store FCM / VoIP tokens keyed by profile id. */
-export const linkOnesignalUser = onCall(async (request) => {
+/** link-onesignal-user — register OneSignal external_id + store push tokens. */
+export const linkOnesignalUser = onCall(
+  { secrets: ['ONESIGNAL_APP_ID', 'ONESIGNAL_REST_API_KEY'] },
+  async (request) => {
   const authUid = requireAuth(request);
-  const { onesignal_id, fcm_token, platform, voip_token, profile_id, profileId } =
+  const { onesignal_id, fcm_token, platform, voip_token, profile_id, profileId, subscriptionId } =
     (request.data || {}) as {
       onesignal_id?: string;
       fcm_token?: string;
@@ -92,18 +94,62 @@ export const linkOnesignalUser = onCall(async (request) => {
       voip_token?: string;
       profile_id?: string;
       profileId?: string;
+      subscriptionId?: string;
     };
   const resolvedProfileId = await resolveProfileIdForAuth(authUid, profile_id || profileId);
   const resolvedPlatform = (platform || 'web').toLowerCase();
+  const subId = subscriptionId || onesignal_id || fcm_token;
+
+  const appId = process.env.ONESIGNAL_APP_ID;
+  const restKey = process.env.ONESIGNAL_REST_API_KEY;
+  let onesignalLinked = false;
+
+  if (appId && restKey) {
+    const body: Record<string, unknown> = {
+      identity: { external_id: resolvedProfileId },
+    };
+    if (subId && subId.length >= 8 && !subId.startsWith('despia:')) {
+      body.subscriptions = [{ id: subId, enabled: true }];
+    }
+    try {
+      const res = await fetch(`https://api.onesignal.com/apps/${appId}/users`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Key ${restKey}`,
+          Accept: 'application/json',
+        },
+        body: JSON.stringify(body),
+      });
+      onesignalLinked = res.ok;
+      if (!res.ok) {
+        const errBody = await res.text().catch(() => '');
+        console.warn('[linkOnesignalUser] OneSignal API', res.status, errBody.slice(0, 200));
+      }
+    } catch (err) {
+      console.warn('[linkOnesignalUser] OneSignal request failed', err);
+    }
+  }
+
   await db.collection('push_tokens').doc(`${resolvedProfileId}_${resolvedPlatform}`).set({
     user_id: resolvedProfileId,
-    onesignal_id: onesignal_id || null,
-    token: fcm_token || null,
+    onesignal_id: subId || null,
+    token: fcm_token || subId || null,
     voip_token: voip_token || null,
     platform: resolvedPlatform,
     updated_at: new Date().toISOString(),
   }, { merge: true });
-  return { ok: true, success: true };
+
+  if (subId && !subId.startsWith('despia:')) {
+    await db.collection('push_tokens').doc(`${resolvedProfileId}_despia`).set({
+      user_id: resolvedProfileId,
+      platform: 'despia',
+      token: subId,
+      updated_at: new Date().toISOString(),
+    }, { merge: true });
+  }
+
+  return { ok: true, success: true, linked: onesignalLinked };
 });
 
 /** send-brief-notification — push the user's daily brief. */

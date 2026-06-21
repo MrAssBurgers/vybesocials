@@ -2,6 +2,22 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## Snapchat-grade DMs + push + calls pass (2026-06-21)
+- **Chat load:** Non-blocking message fetch; cached conversation opens instantly; relaxed skeleton gates; GlobalRT mounts immediately (no idle defer).
+- **Realtime:** Optimistic broadcast on send; sync `setCurrentConversationId`; activity/typing broadcasts for live presence.
+- **Avatars:** Signed URLs + member profile fallback on message bubbles.
+- **Presence:** Header shows typing / in chat / in Snap; inline activity bubble; camera mode broadcasts `taking_photo`.
+- **Push:** `linkOnesignalUser` calls OneSignal API; `onCallCreated` + DMs use OneSignal secrets; call push includes OneSignal.
+- **Calls:** Faster incoming poll (2min lookback on first poll); call overlay preloaded after auth.
+- **Deployed:** Firebase hosting ~845KB + `onDmMessageCreated`, `onCallCreated`, `linkOnesignalUser`
+- **You:** Lovable Publish for vybehub.app → Settings → Notifications → enable push → force-quit → test DM + call on two devices
+
+## Sent bubble vanish fix (2026-06-21)
+- **Root cause:** `useRealtimeMessages` hard-deleted messages on `is_deleted` UPDATE, racing GlobalRT failed-bubble logic; optimistic `sender_id` could mismatch insert id so temp wasn't replaced cleanly.
+- **Fix:** Match GlobalRT failed-bubble handling in ConvRT; resolve sender before optimistic add; use `appendIncomingMessage` for temp→real swap; removed pre-confirm optimistic broadcast.
+- **Deployed:** Firebase hosting ~837KB on vybe-daaab.web.app
+- **You:** Lovable Publish for vybehub.app → force-quit → send DM (bubble should stay)
+
 ## Instant chat + Snapchat typing/presence (2026-06-17)
 - **Root cause:** Receiver waited for Firestore INSERT + profile fetch; broadcast only fired after server confirm; GlobalRT deferred 1.2s; header had `isTyping={false}` hardcoded.
 - **Fix:** Optimistic `dm-broadcast` on send (before server); shared `dmBroadcast.ts` channel; sync message append (profile enrich async); typing via broadcast + faster presence poll; LivePresenceBar wired to real typing/in-chat state.

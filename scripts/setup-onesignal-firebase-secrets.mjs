@@ -103,7 +103,7 @@ console.log('\nDeploying push functions…');
 runFirebase([
   'deploy',
   '--only',
-  'functions:onDmMessageCreated,functions:sendPushNotification',
+  'functions:onDmMessageCreated,functions:onCallCreated,functions:sendPushNotification,functions:linkOnesignalUser',
 ]);
 
 console.log(`

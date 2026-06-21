@@ -364,20 +364,26 @@ export function CallStoreProvider({ children }: { children: ReactNode }) {
       },
     );
 
+    let pollCount = 0;
     const poll = async () => {
       if (globalCallState.phase !== 'idle' || globalIncomingCall) {
-        pollTimeoutId = setTimeout(poll, 3000);
+        pollTimeoutId = setTimeout(poll, 2000);
         return;
       }
 
       try {
+        const since =
+          pollCount === 0
+            ? new Date(Date.now() - 120_000).toISOString()
+            : lastPollTime;
+
         for (const rid of receiverIds) {
           const { data: ringingCalls } = await db
             .from('calls')
-            .select('id, status, conversation_id, call_type, room_name, created_at')
+            .select('id, status, conversation_id, call_type, room_name, created_at, caller_id, receiver_id')
             .eq('receiver_id', rid)
             .eq('status', 'ringing')
-            .gt('created_at', lastPollTime)
+            .gt('created_at', since)
             .order('created_at', { ascending: false })
             .limit(1);
 
@@ -387,15 +393,16 @@ export function CallStoreProvider({ children }: { children: ReactNode }) {
           }
         }
 
+        pollCount += 1;
         lastPollTime = new Date().toISOString();
       } catch (err) {
         if (import.meta.env.DEV) console.warn('[CallStore] Poll error:', err);
       }
 
-      pollTimeoutId = setTimeout(poll, isSubscribed ? 4000 : 1200);
+      pollTimeoutId = setTimeout(poll, isSubscribed ? 2500 : 800);
     };
 
-    pollTimeoutId = setTimeout(poll, 2000);
+    pollTimeoutId = setTimeout(poll, 400);
 
     return () => {
       removeRealtimeChannel(channel);

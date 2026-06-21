@@ -1,5 +1,4 @@
 import { usePrefetchBackgrounds } from '@/hooks/useUserBackgrounds';
-import { useGlobalRealtimeMessages } from '@/hooks/useGlobalRealtimeMessages';
 import { useDynamicFavicon } from '@/hooks/useDynamicFavicon';
 import { useDynamicManifest } from '@/hooks/useDynamicManifest';
 import { useRetroactiveSync } from '@/hooks/useRetroactiveSync';
@@ -14,7 +13,6 @@ import { useSessionTracking } from '@/hooks/useSessionTracking';
  */
 export default function DeferredAuthHooks() {
   usePrefetchBackgrounds();
-  useGlobalRealtimeMessages();
   useDynamicFavicon();
   useDynamicManifest();
   useRetroactiveSync();

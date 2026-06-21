@@ -14,6 +14,7 @@ import {
 } from '@/hooks/useMessages';
 import { useConversationDetail } from '@/hooks/useDMConversations';
 import { useAuthProfileId } from '@/hooks/useAuthProfileId';
+import { useSignedUrl } from '@/hooks/useSignedUrl';
 import { useInstantSend } from '@/hooks/useInstantSend';
 import { useRealtimeMessages } from '@/hooks/useRealtimeMessages';
 import { setCurrentConversationId } from '@/hooks/useGlobalRealtimeMessages';
@@ -171,11 +172,17 @@ export function ChatView() {
     }
   }, [messages]);
   
-  // Register current conversation for global realtime updates
-  useEffect(() => {
+  // Register current conversation for global realtime updates (sync — before paint)
+  if (conversationId !== registeredConvoRef.current) {
+    registeredConvoRef.current = conversationId || null;
     setCurrentConversationId(conversationId || null);
-    return () => setCurrentConversationId(null);
-  }, [conversationId]);
+  }
+  useEffect(() => {
+    return () => {
+      registeredConvoRef.current = null;
+      setCurrentConversationId(null);
+    };
+  }, []);
   
   // Enable realtime sync for this specific conversation (reactions, views, etc.)
   useRealtimeMessages(conversationId);
@@ -195,10 +202,17 @@ export function ChatView() {
     isOtherUserPresent,
     setTyping: setLiveTyping,
     setRecordingVoice: setLiveRecordingVoice,
+    setTakingPhoto: setLiveTakingPhoto,
   } = useLiveActivity(conversationId);
   const isOtherTyping =
     typingUsers.length > 0 || otherUserActivity?.activity === 'typing';
-  const isOtherInChat = presentUsers.length > 0 || isOtherUserPresent;
+  const isOtherInChat =
+    presentUsers.length > 0 ||
+    isOtherUserPresent ||
+    otherUserActivity?.activity === 'viewing';
+  const isOtherInCamera =
+    otherUserActivity?.activity === 'taking_photo' ||
+    otherUserActivity?.activity === 'recording_video';
   const { notifyScreenshot, notifyCapture, screenshotEvents: rawScreenshotEvents, isRecording } = useScreenshotNotification(conversationId);
   const screenshotEvents = Array.isArray(rawScreenshotEvents) ? rawScreenshotEvents : [];
   
@@ -291,6 +305,13 @@ export function ChatView() {
   const [showSnapCamera, setShowSnapCamera] = useState(false);
   const [snapInitialStream, setSnapInitialStream] = useState<MediaStream | null>(null);
   const [cameraFirstMode, setCameraFirstMode] = useState(false);
+
+  useEffect(() => {
+    setLiveTakingPhoto(cameraFirstMode || showSnapCamera);
+    return () => {
+      if (cameraFirstMode || showSnapCamera) setLiveTakingPhoto(false);
+    };
+  }, [cameraFirstMode, showSnapCamera, setLiveTakingPhoto]);
   const callStore = useCallStore();
   const handleOpenSnapCamera = useCallback(() => {
     if (callStore.state.phase !== 'idle') {
@@ -332,6 +353,7 @@ export function ChatView() {
   const hasMarkedReadRef = useRef<Set<string>>(new Set());
   const prevMessageCountRef = useRef(0);
   const openedConversationRef = useRef<string | null>(null);
+  const registeredConvoRef = useRef<string | null>(null);
   const lastReadSyncedForConversationRef = useRef<string | null>(null);
   const messageNotifsClearedForConversationRef = useRef<string | null>(null);
   
@@ -1243,6 +1265,23 @@ export function ChatView() {
   }, []);
 
   // Memoize message items to prevent re-renders - using stable keys
+  const memberProfileByUserId = useMemo(() => {
+    const map = new Map<string, NonNullable<Message['sender']>>();
+    for (const member of conversation?.members || []) {
+      if (member.user_id && member.profile) {
+        map.set(member.user_id, member.profile as NonNullable<Message['sender']>);
+        if (member.profile.id) map.set(member.profile.id, member.profile as NonNullable<Message['sender']>);
+      }
+    }
+    if (otherMember?.id) {
+      const om = otherMember as NonNullable<Message['sender']>;
+      map.set(otherMember.id, om);
+      const authId = (otherMember as { user_id?: string }).user_id;
+      if (authId) map.set(authId, om);
+    }
+    return map;
+  }, [conversation?.members, otherMember]);
+
   // Enhanced spacing logic for Instagram/iMessage quality
   const messageItems = useMemo(() => {
     if (!messages) return [];
@@ -1331,13 +1370,16 @@ export function ChatView() {
   }
 
   const showConversationSkeleton =
-    !!conversationId && !conversationFetched && (conversationPending || !conversation);
+    !!conversationId &&
+    !conversationFetched &&
+    conversationPending &&
+    !conversation &&
+    !messages?.length;
   const showMessagesSkeleton =
     !!conversationId &&
-    !!conversation &&
-    !messagesFetched &&
+    !messages?.length &&
     messagesPending &&
-    !messages?.length;
+    !messagesFetched;
 
   const messagesLoadFailed =
     !!conversation &&
@@ -1484,7 +1526,8 @@ export function ChatView() {
                 <LivePresenceBar
                   isOnline={otherMemberOnline}
                   isTyping={isOtherTyping}
-                  isInChat={isOtherInChat}
+                  isInChat={isOtherInChat && !isOtherTyping && !isOtherInCamera}
+                  isInCamera={isOtherInCamera}
                   username={otherMember?.username}
                   lastReadAt={lastReadAt}
                 />
@@ -1708,7 +1751,7 @@ export function ChatView() {
                     message={message}
                     isOwn={isOwn}
                     showAvatar={showAvatar}
-                    sender={message.sender}
+                    sender={message.sender || memberProfileByUserId.get(message.sender_id)}
                     isGroupChat={isGroupChat}
                     onView={() => markViewed.mutate(message.id)}
                     onReaction={handleReaction}
@@ -2348,6 +2391,23 @@ const MessageInputArea = memo(function MessageInputArea({
   );
 });
 
+// Signed avatar for message bubbles (storage URLs need signing)
+const BubbleAvatar = memo(function BubbleAvatar({
+  sender,
+}: {
+  sender?: Message['sender'];
+}) {
+  const signedUrl = useSignedUrl(sender?.avatar_url);
+  return (
+    <Avatar className="h-8 w-8 sm:h-9 sm:w-9 flex-shrink-0 ring-1 ring-background shadow-sm">
+      <AvatarImage src={signedUrl || sender?.avatar_url || undefined} />
+      <AvatarFallback className="text-xs">
+        {sender?.username?.charAt(0).toUpperCase() || '?'}
+      </AvatarFallback>
+    </Avatar>
+  );
+});
+
 // Memoized MessageBubble to prevent unnecessary re-renders
 const MessageBubble = memo(function MessageBubble({ 
   message, 
@@ -2522,10 +2582,7 @@ const MessageBubble = memo(function MessageBubble({
       )}>
         {/* Avatar - only for received messages */}
         {!isOwn && showAvatar && (
-          <Avatar className="h-8 w-8 sm:h-9 sm:w-9 flex-shrink-0 ring-1 ring-background shadow-sm">
-            <AvatarImage src={sender?.avatar_url || undefined} />
-            <AvatarFallback className="text-xs">{sender?.username?.charAt(0).toUpperCase()}</AvatarFallback>
-          </Avatar>
+          <BubbleAvatar sender={sender} />
         )}
         {/* Spacer for consecutive messages from same sender */}
         {!isOwn && !showAvatar && <div className="w-8 sm:w-9 flex-shrink-0" />}

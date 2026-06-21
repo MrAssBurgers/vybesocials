@@ -283,7 +283,7 @@ export function useConversationDetail(conversationId: string | undefined) {
       };
 
       const cached = findCached();
-      if (cached?.members?.length) return cached;
+      if (cached) return cached;
 
       const otherFromCached = cached?.members?.find(
         (m) => m.user_id !== effectiveProfileId,

@@ -98,6 +98,8 @@ export function useInstantSend(conversationId: string | undefined) {
       return [...old, optimisticMessage];
     });
 
+    void sendDmBroadcastMessage(conversationId, optimisticMessage as unknown as Record<string, unknown>);
+
     // Helper to update conversation lists
     const updateConversationList = (old: any[] | undefined) => {
       if (!old) return old;
@@ -329,16 +331,15 @@ export function useInstantSend(conversationId: string | undefined) {
     return ensureSendReady();
   }, [conversationId, ensureSendReady]);
 
-  // Pre-warm membership while the chat is open (background — never blocks Send tap).
+  // Pre-warm sender id in background — never block chat open on full repair.
   useEffect(() => {
     if (!conversationId || !effectiveProfileId) return;
-    sendReadyRef.current = {
-      conversationId,
-      inflight: ensureSendReady().then((id) => {
+    sendReadyRef.current = { conversationId, senderId: effectiveProfileId };
+    void ensureSendReady()
+      .then((id) => {
         sendReadyRef.current = { conversationId, senderId: id };
-        return id;
-      }),
-    };
+      })
+      .catch(() => {});
   }, [conversationId, effectiveProfileId, ensureSendReady]);
 
   const insertMessageWithRetry = useCallback(

@@ -317,17 +317,9 @@ export function useMessages(conversationId: string | undefined) {
       const otherProfileId =
         otherFromMembers || inferOtherParticipantId(conversationId, resolvedActorId) || null;
 
-      if (!isConversationMessagesReady(conversationId, resolvedActorId)) {
-        await prepareConversationForMessages(
-          conversationId,
-          resolvedActorId,
-          otherProfileId,
-          { fast: true },
-        );
-      }
-
       const viewerId = resolvedActorId;
 
+      // Fetch immediately — repair in background only if needed (never block open).
       let { data, error } = await fetchRecentConversationMessages<Message>(
         conversationId,
         MESSAGE_SELECT_SLIM,
@@ -353,6 +345,10 @@ export function useMessages(conversationId: string | undefined) {
             error = retrySlim.error;
           }
         }
+      } else if (!isConversationMessagesReady(conversationId, resolvedActorId)) {
+        void prepareConversationForMessages(conversationId, resolvedActorId, otherProfileId, {
+          fast: true,
+        }).catch(() => {});
       }
 
       if (error) throw error;

@@ -38,10 +38,20 @@ import { useAppPreloader } from "@/hooks/useAppPreloader";
 import { useRealtimeProfiles } from "@/hooks/useRealtimeProfiles";
 import { useKeyboardHeight } from "@/hooks/useKeyboardHeight";
 import { usePostsRealtime } from "@/hooks/usePostsRealtime";
+import { useGlobalRealtimeMessages } from "@/hooks/useGlobalRealtimeMessages";
 import { useSpotifyPresence } from "@/hooks/useSpotifyPresence";
 import { useExternalPresence } from "@/hooks/useExternalPresence";
 const SpotifyPresenceInner = () => { useSpotifyPresence(); useExternalPresence(); return null; };
-const RealtimeSyncInner = () => { useRealtimeProfiles(); usePostsRealtime(); return null; };
+const RealtimeSyncInner = () => {
+  useGlobalRealtimeMessages();
+  useRealtimeProfiles();
+  usePostsRealtime();
+  useEffect(() => {
+    void import('@/components/call/GlobalCallOverlay');
+    void import('@/components/call/NativeIncomingCallBridge');
+  }, []);
+  return null;
+};
 // Mount presence loops AFTER first paint so they don't compete with the
 // critical render path. Saves ~200-400ms on cold load.
 const SpotifyPresenceMount = () => {
@@ -59,21 +69,7 @@ const SpotifyPresenceMount = () => {
   }, []);
   return ready ? <SpotifyPresenceInner /> : null;
 };
-const RealtimeSyncMount = () => {
-  const [ready, setReady] = useState(false);
-  useEffect(() => {
-    const idle = (window as any).requestIdleCallback as
-      | ((cb: () => void, opts?: { timeout: number }) => number)
-      | undefined;
-    if (idle) {
-      const id = idle(() => setReady(true), { timeout: 1800 });
-      return () => (window as any).cancelIdleCallback?.(id);
-    }
-    const t = setTimeout(() => setReady(true), 800);
-    return () => clearTimeout(t);
-  }, []);
-  return ready ? <RealtimeSyncInner /> : null;
-};
+const RealtimeSyncMount = () => <RealtimeSyncInner />;
 import { VybePageLoader } from '@/components/ui/VybeLoader';
 import { AnimatedRoutes } from "@/components/layout/AnimatedRoutes";
 import { SkipToMain, LiveRegion } from "@/components/a11y/Accessibility";

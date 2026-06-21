@@ -345,8 +345,19 @@ export async function dispatchCallPushToProfile(
   profileId: string,
   payload: PushDispatchPayload,
 ): Promise<CallPushResult> {
-  const devices = await getPushDevicesForProfile(profileId);
+  const resolvedId = await resolvePushTargetProfileId(profileId);
+  const devices = await getPushDevicesForProfile(resolvedId);
   const result: CallPushResult = { sent: 0, android: 0, iosVoip: 0, iosFallback: 0, web: 0 };
+
+  const onesignal = await dispatchOneSignalToProfile(resolvedId, {
+    title: payload.title,
+    body: payload.body,
+    url: payload.url,
+    tag: payload.tag || 'vybe-call',
+    type: 'call',
+    data: payload.data,
+  });
+  result.sent += onesignal.sent;
 
   await Promise.all(
     devices.map(async (device) => {

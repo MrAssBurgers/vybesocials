@@ -31,15 +31,24 @@ export function useChatPrefetch() {
 
     try {
       const { profileId: actorId } = await resolveDmActorIds(profile?.id);
-      if (actorId && !isConversationMessagesReady(conversationId, actorId)) {
-        await prepareConversationForMessages(conversationId, actorId, null, { fast: true });
-      }
-
-      const { data, error } = await fetchRecentConversationMessages<Message>(
+      let { data, error } = await fetchRecentConversationMessages<Message>(
         conversationId,
         PREFETCH_SELECT,
         40,
       );
+
+      if (error && actorId) {
+        await prepareConversationForMessages(conversationId, actorId, null, { fast: true });
+        const retry = await fetchRecentConversationMessages<Message>(
+          conversationId,
+          PREFETCH_SELECT,
+          40,
+        );
+        data = retry.data;
+        error = retry.error;
+      } else if (actorId && !isConversationMessagesReady(conversationId, actorId)) {
+        void prepareConversationForMessages(conversationId, actorId, null, { fast: true }).catch(() => {});
+      }
 
       if (error) throw error;
       if (data) {

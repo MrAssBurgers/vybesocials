@@ -3,6 +3,11 @@ import { db } from '@/lib/firebase';
 import { subscribePostgresChannel, removeRealtimeChannel } from '@/lib/realtimeChannel';
 import { useAuth } from '@/lib/auth';
 import { ActivityType } from '@/components/chat/LiveActivityIndicator';
+import {
+  prewarmDmBroadcastChannel,
+  sendDmBroadcastActivity,
+  subscribeDmBroadcastActivity,
+} from '@/lib/dmBroadcast';
 
 interface ActivityUser {
   user_id: string;
@@ -29,13 +34,19 @@ export function useLiveActivity(conversationId: string | undefined) {
   const setActivity = useCallback((activity: ActivityType) => {
     if (!conversationId || !profile?.id) return;
     
-    // Debounce rapid updates (max once per 300ms for same state)
     const now = Date.now();
-    if (now - lastActivityUpdateRef.current < 300 && activity === activityRef.current) return;
+    if (now - lastActivityUpdateRef.current < 200 && activity === activityRef.current) return;
     lastActivityUpdateRef.current = now;
     activityRef.current = activity;
 
-    // Fire-and-forget - don't await, don't block
+    void sendDmBroadcastActivity(conversationId, {
+      userId: profile.id,
+      activity,
+      username: profile.username || '',
+      displayName: (profile as { display_name?: string | null }).display_name || profile.username || '',
+      avatarUrl: profile.avatar_url || null,
+    });
+
     const updateActivity = async () => {
       try {
         if (activity === 'idle') {
@@ -202,8 +213,27 @@ export function useLiveActivity(conversationId: string | undefined) {
     };
 
     // Initial fetch
+    prewarmDmBroadcastChannel(conversationId);
     joinPresence();
     fetchActivity();
+
+    const unsubscribeActivity = subscribeDmBroadcastActivity(conversationId, (payload) => {
+      if (!isMounted) return;
+      if (payload.userId === profile.id) return;
+      if (payload.activity === 'idle') {
+        setOtherUserActivity(null);
+        setIsOtherUserPresent(false);
+        return;
+      }
+      setOtherUserActivity({
+        user_id: payload.userId,
+        username: payload.username || '',
+        avatar_url: payload.avatarUrl ?? null,
+        display_name: payload.displayName || payload.username || null,
+        activity: payload.activity,
+      });
+      setIsOtherUserPresent(true);
+    });
 
     // Fast heartbeat every 1.5 seconds for instant presence updates
     heartbeatRef.current = setInterval(() => {
@@ -244,6 +274,7 @@ export function useLiveActivity(conversationId: string | undefined) {
 
     return () => {
       isMounted = false;
+      unsubscribeActivity();
       if (heartbeatRef.current) {
         clearInterval(heartbeatRef.current);
         heartbeatRef.current = null;

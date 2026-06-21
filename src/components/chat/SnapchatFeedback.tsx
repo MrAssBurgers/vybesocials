@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useSignedUrl } from '@/hooks/useSignedUrl';
 import { cn } from '@/lib/utils';
-import { Eye, Check, CheckCheck, Send, ArrowUp } from 'lucide-react';
+import { Eye, Check, CheckCheck, Send, ArrowUp, Camera } from 'lucide-react';
 
 // Message status types like Snapchat
 export type MessageStatus = 'sending' | 'sent' | 'delivered' | 'opened' | 'screenshot' | 'replayed';
@@ -186,6 +186,7 @@ interface LivePresenceBarProps {
   lastSeen?: string;
   username?: string;
   isInChat?: boolean;
+  isInCamera?: boolean;
   lastReadAt?: string | null;
 }
 
@@ -236,11 +237,13 @@ export const LivePresenceBar = memo(function LivePresenceBar({
   lastSeen,
   username,
   isInChat,
+  isInCamera,
   lastReadAt,
 }: LivePresenceBarProps) {
   const readTimeAgo = useRelativeTime(lastReadAt);
 
   const getStaticStatusText = () => {
+    if (isInCamera) return 'in Snap';
     if (isInChat && !isTyping) return 'in chat';
     if (isOnline && !isTyping) return 'online';
     if (lastSeen) return `last seen ${lastSeen}`;
@@ -263,6 +266,11 @@ export const LivePresenceBar = memo(function LivePresenceBar({
       {isTyping ? (
         <span className="text-xs font-medium text-primary">
           typing<TypingDots />
+        </span>
+      ) : isInCamera ? (
+        <span className="text-xs font-medium text-amber-500 flex items-center gap-1">
+          <Camera className="h-3 w-3" />
+          in Snap
         </span>
       ) : isInChat ? (
         <span className="text-xs font-medium text-green-500">

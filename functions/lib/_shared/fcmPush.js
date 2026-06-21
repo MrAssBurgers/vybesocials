@@ -299,8 +299,18 @@ export async function dispatchDmPushToProfile(profileId, payload) {
  * - Web: high-urgency web push / notification
  */
 export async function dispatchCallPushToProfile(profileId, payload) {
-    const devices = await getPushDevicesForProfile(profileId);
+    const resolvedId = await resolvePushTargetProfileId(profileId);
+    const devices = await getPushDevicesForProfile(resolvedId);
     const result = { sent: 0, android: 0, iosVoip: 0, iosFallback: 0, web: 0 };
+    const onesignal = await dispatchOneSignalToProfile(resolvedId, {
+        title: payload.title,
+        body: payload.body,
+        url: payload.url,
+        tag: payload.tag || 'vybe-call',
+        type: 'call',
+        data: payload.data,
+    });
+    result.sent += onesignal.sent;
     await Promise.all(devices.map(async (device) => {
         const platform = device.platform;
         if (platform === 'android' && device.fcmToken) {
