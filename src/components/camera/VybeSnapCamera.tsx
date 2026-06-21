@@ -140,6 +140,11 @@ export const VybeSnapCamera = forwardRef<HTMLDivElement, VybeSnapCameraProps>(fu
 
         // If parent supplied stream, use it as-is (don't second-guess constraints)
         if (provided && allLive) {
+          const actualFacing =
+            settings?.facingMode === 'environment' ? 'environment' : 'user';
+          if (actualFacing !== facingMode) {
+            setFacingMode(actualFacing);
+          }
           streamRef.current = preloaded;
           setPermissionDenied(false);
           setCameraReady(true);

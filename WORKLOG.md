@@ -2,6 +2,12 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## Instant send + presence + Vybe camera fix (2026-06-21)
+- **Send glitch:** Stopped duplicate append on own Firestore INSERT + broadcast while viewing; `resolveSenderIdForSend` no longer waits 12s on membership repair inflight.
+- **Presence dock:** Relaxed `showPeerPresence`; `chat_presence.activity` field cross-device; fixed profile fetch in `useChatPresence`; peer falls back to viewing from presence poll.
+- **Vybe camera:** Open Snap with front camera only (removed environment preload); sync facingMode from stream; cloud `sendDmMessage` first after upload.
+- **You:** Deploy + hard refresh → two-device test typing dock + instant send + Vybe snap
+
 ## Presence dock + Vybe snap fix (2026-06-21)
 - **Presence:** Removed typing/viewing/Snap indicators from header avatar; new `ChatPresenceDock` above composer (mini pfp + eye / slow typing dots / camera bubble).
 - **Vybe:** Membership repair + `sendDmMessage` cloud fallback on permission denied; no stray text under Vybe cards; clean failed-send chip.

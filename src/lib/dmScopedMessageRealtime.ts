@@ -133,13 +133,7 @@ function handleMessageInsert(ctx: ScopedMessageRealtimeContext, newMessage: any)
     isFromCurrentUser &&
     ctx.isOptimisticDuplicate(conversationId, newMessage.content, newMessage.sender_id);
 
-  if (isFromCurrentUser && isViewingConvo && !skipReceiverInsert) {
-    ctx.queryClient.setQueryData<any[]>(['messages', conversationId], (old) => {
-      const row = { ...newMessage, views: [], reactions: [] };
-      return appendIncomingMessage(old, row);
-    });
-  }
-
+  // Skip own messages while viewing — useInstantSend confirmMessage swaps temp→real.
   if (!skipReceiverInsert && !isFromCurrentUser) {
     let sender: any = null;
     const cachedConvos =
@@ -420,9 +414,12 @@ export function applyBroadcastMessage(
     msg.sender_id === ctx.profileId || (!!ctx.authUid && msg.sender_id === ctx.authUid);
   const isViewingConvo = ctx.getViewingConversationId() === conversationId;
 
-  ctx.queryClient.setQueryData<any[]>(['messages', conversationId], (old) =>
-    appendIncomingMessage(old, msg as any),
-  );
+  // Sender already has optimistic + confirmMessage swap — skip append to avoid glitches.
+  if (!(isFromCurrentUser && isViewingConvo)) {
+    ctx.queryClient.setQueryData<any[]>(['messages', conversationId], (old) =>
+      appendIncomingMessage(old, msg as any),
+    );
+  }
 
   if (!isFromCurrentUser && (!isViewingConvo || document.visibilityState !== 'visible')) {
     callSounds.message();

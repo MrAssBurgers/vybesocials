@@ -32,7 +32,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { db } from '@/lib/firebase';
 import { scanVideo as nsfwScanVideo, scanImage as nsfwScanImage } from '@/lib/nsfwScanner';
 import { repairConversationForSend } from '@/lib/dmMembershipRepair';
-import { sendDmViaCloudFunction, isRetryableSendError } from '@/lib/firebase/dmSendClient';
+import { sendDmViaCloudFunction } from '@/lib/firebase/dmSendClient';
 import { sendDmBroadcastMessage } from '@/lib/dmBroadcast';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
@@ -224,7 +224,9 @@ export function ChatView() {
   }, [isOtherTyping, isOtherInChat, isOtherInCamera, otherUserActivity?.activity]);
 
   const peerActivityUser = useMemo(() => {
-    if (otherUserActivity) return otherUserActivity;
+    if (otherUserActivity && otherUserActivity.activity !== 'idle') {
+      return otherUserActivity;
+    }
     const peer = presentUsers.find((u) => u.user_id !== profileId);
     if (!peer) return null;
     return {
@@ -232,16 +234,15 @@ export function ChatView() {
       username: peer.username,
       avatar_url: peer.avatar_url,
       display_name: peer.display_name,
-      activity: typingUsers.includes(peer.user_id)
-        ? ('typing' as const)
-        : ('viewing' as const),
+      activity: (typingUsers.includes(peer.user_id) || peer.is_typing
+        ? 'typing'
+        : 'viewing') as import('./LiveActivityIndicator').ActivityType,
     };
   }, [otherUserActivity, presentUsers, profileId, typingUsers]);
 
   const showPeerPresence =
     !isGroupChat &&
     !!peerActivityUser &&
-    (isOtherUserPresent || presentUsers.length > 0) &&
     otherPresenceActivity !== 'idle';
   const { notifyScreenshot, notifyCapture, screenshotEvents: rawScreenshotEvents, isRecording } = useScreenshotNotification(conversationId);
   const screenshotEvents = Array.isArray(rawScreenshotEvents) ? rawScreenshotEvents : [];
@@ -353,9 +354,6 @@ export function ChatView() {
     // Open the modal immediately so the user gets feedback; attach stream when ready.
     setSnapInitialStream(null);
     setShowSnapCamera(true);
-    requestCameraStream({ facingMode: 'environment', width: 1920, height: 1080, audio: true })
-      .then((stream) => { if (stream) setSnapInitialStream(stream); })
-      .catch((e) => console.warn('[ChatView] camera preload failed', e));
   }, [callStore.state.phase]);
   const closeSnapCamera = useCallback(() => {
     setShowSnapCamera(false);
@@ -1025,33 +1023,17 @@ export function ChatView() {
         
         uploadFile = new File([videoBlob], `vybe_${Date.now()}.webm`, { type: videoBlob.type || 'video/webm' });
         
-        // PHASE 2: Safety scan (non-blocking - timeout to 'allowed')
-        phase = 'safety-scan';
-        const scanPromise = (async () => {
-          try {
-            const scanResult = await nsfwScanVideo(uploadFile);
-            return scanResult;
-          } catch (err) {
-            console.warn('[VYBE] Video scan timeout/error:', err);
-            return { result: 'allowed' as const };
+        const scanPromise = nsfwScanVideo(uploadFile).catch(() => ({ result: 'allowed' as const }));
+        void scanPromise.then((scanResult) => {
+          if (scanResult?.result === 'blocked') {
+            queryClient.setQueryData<Message[]>(['messages', conversationId], (old) =>
+              old?.filter(m => m.id !== tempId) || []
+            );
+            toast.error(scanResult.message || 'Video blocked by safety filter.', { id: `vybe-${tempId}` });
           }
-        })();
-        
-        const scanResult = await Promise.race([
-          scanPromise,
-          new Promise<{ result: string; message?: string }>((resolve) => setTimeout(() => resolve({ result: 'allowed' }), 15000))
-        ]);
+        });
 
-        if (scanResult?.result === 'blocked') {
-          queryClient.setQueryData<Message[]>(['messages', conversationId], (old) => 
-            old?.filter(m => m.id !== tempId) || []
-          );
-          toast.error(scanResult.message || 'Video contains content that violates community guidelines.', { id: `vybe-${tempId}` });
-          URL.revokeObjectURL(mediaDataUrl);
-          return;
-        }
-
-        // PHASE 3: Upload to storage
+        // PHASE 3: Upload to storage (don't wait on safety scan)
         phase = 'storage-upload';
         const fileName = `${profile.user_id}/${Date.now()}_vybe.webm`;
         const { error: uploadError } = await db.storage
@@ -1089,39 +1071,6 @@ export function ChatView() {
           return;
         }
         
-        // PHASE 2: Safety scan (client-side NSFWJS)
-        phase = 'safety-scan';
-        const byteChars = atob(base64Data);
-        const byteNums = new Array(byteChars.length);
-        for (let i = 0; i < byteChars.length; i++) byteNums[i] = byteChars.charCodeAt(i);
-        const imageBlob = new Blob([new Uint8Array(byteNums)], { type: 'image/jpeg' });
-        const imageFile = new File([imageBlob], 'vybe.jpg', { type: 'image/jpeg' });
-        
-        const scanPromise = (async () => {
-          try {
-            const scanResult = await nsfwScanImage(imageFile);
-            return scanResult;
-          } catch (err) {
-            console.warn('[VYBE] Image scan timeout/error:', err);
-            return { result: 'allowed' as const, message: '' };
-          }
-        })();
-        
-        const scanResult = await Promise.race([
-          scanPromise,
-          new Promise<{ result: string; message?: string }>((resolve) => setTimeout(() => resolve({ result: 'allowed' }), 10000))
-        ]);
-
-        if (scanResult?.result === 'blocked') {
-          queryClient.setQueryData<Message[]>(['messages', conversationId], (old) => 
-            old?.filter(m => m.id !== tempId) || []
-          );
-          toast.error(scanResult.message || 'Image contains content that violates community guidelines.', { id: `vybe-${tempId}` });
-          return;
-        }
-
-        // PHASE 3: Upload image
-        phase = 'storage-upload';
         const byteCharacters = atob(base64Data);
         const byteNumbers = new Array(byteCharacters.length);
         for (let i = 0; i < byteCharacters.length; i++) {
@@ -1129,6 +1078,20 @@ export function ChatView() {
         }
         const byteArray = new Uint8Array(byteNumbers);
         const blob = new Blob([byteArray], { type: 'image/jpeg' });
+        const imageFile = new File([blob], 'vybe.jpg', { type: 'image/jpeg' });
+        void nsfwScanImage(imageFile)
+          .then((scanResult) => {
+            if (scanResult?.result === 'blocked') {
+              queryClient.setQueryData<Message[]>(['messages', conversationId], (old) =>
+                old?.filter(m => m.id !== tempId) || []
+              );
+              toast.error(scanResult.message || 'Image blocked by safety filter.', { id: `vybe-${tempId}` });
+            }
+          })
+          .catch(() => {});
+
+        // PHASE 3: Upload image (don't wait on safety scan)
+        phase = 'storage-upload';
         
         const fileName = `${profile.user_id}/${Date.now()}_vybe.jpg`;
         const { error: uploadError } = await db.storage
@@ -1164,52 +1127,49 @@ export function ChatView() {
         ? new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
         : null;
 
-      await repairConversationForSend(conversationId, profileId, otherMember?.id ?? null).catch(() => {});
-
-      const insertPayload = {
-        conversation_id: conversationId,
-        sender_id: profileId,
-        content: null,
-        media_url: mediaUrl,
-        media_type: 'vybe',
-        message_type: 'text',
-        view_mode: viewMode,
-        expires_at: expiresAt,
-        reply_to_id: replyingTo?.id,
-      };
+      void repairConversationForSend(conversationId, profileId, otherMember?.id ?? null).catch(() => {});
 
       let realMessage: Message | null = null;
 
-      const { data: inserted, error: insertError } = await db
-        .from('messages')
-        .insert(insertPayload)
-        .select(`
-          *,
-          sender:profiles!sender_id(id, username, avatar_url, display_name)
-        `)
-        .single();
+      const cloud = await sendDmViaCloudFunction({
+        conversationId,
+        content: '',
+        viewMode,
+        replyToId: replyingTo?.id ?? null,
+        mediaUrl,
+        mediaType: 'vybe',
+        messageType: 'text',
+      });
 
-      if (insertError && isRetryableSendError(insertError)) {
-        const cloud = await sendDmViaCloudFunction({
-          conversationId,
-          content: '',
-          viewMode,
-          replyToId: replyingTo?.id ?? null,
-          mediaUrl,
-          mediaType: 'vybe',
-          messageType: 'text',
-        });
-        if (cloud.error || !cloud.data) {
-          console.error('[VYBE] Cloud fallback error:', cloud.error);
+      if (cloud.data) {
+        realMessage = cloud.data;
+      } else {
+        const insertPayload = {
+          conversation_id: conversationId,
+          sender_id: profileId,
+          content: null,
+          media_url: mediaUrl,
+          media_type: 'vybe',
+          message_type: 'text',
+          view_mode: viewMode,
+          expires_at: expiresAt,
+          reply_to_id: replyingTo?.id,
+        };
+
+        const { data: inserted, error: insertError } = await db
+          .from('messages')
+          .insert(insertPayload)
+          .select(`
+            *,
+            sender:profiles!sender_id(id, username, avatar_url, display_name)
+          `)
+          .single();
+
+        if (insertError) {
+          console.error('[VYBE] DB insert error:', insertError);
           markFailed(`Send failed: ${cloud.error?.message || insertError.message}`, phase);
           return;
         }
-        realMessage = cloud.data;
-      } else if (insertError) {
-        console.error('[VYBE] DB insert error:', insertError);
-        markFailed(`Send failed: ${insertError.message}`, phase);
-        return;
-      } else {
         realMessage = inserted as Message;
       }
 

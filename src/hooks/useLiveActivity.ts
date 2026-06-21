@@ -63,18 +63,6 @@ export function useLiveActivity(conversationId: string | undefined) {
             .eq('user_id', effectiveProfileId);
         } else {
           await db
-            .from('typing_indicators')
-            .upsert(
-              {
-                id: presenceDocId,
-                conversation_id: conversationId,
-                user_id: effectiveProfileId,
-                started_at: new Date().toISOString(),
-              },
-              { onConflict: 'conversation_id,user_id', ignoreDuplicates: false }
-            );
-          
-          await db
             .from('chat_presence')
             .upsert(
               {
@@ -82,9 +70,30 @@ export function useLiveActivity(conversationId: string | undefined) {
                 conversation_id: conversationId,
                 user_id: effectiveProfileId,
                 last_seen_at: new Date().toISOString(),
+                activity,
               },
               { onConflict: 'conversation_id,user_id' }
             );
+          
+          if (activity === 'typing') {
+            await db
+              .from('typing_indicators')
+              .upsert(
+                {
+                  id: presenceDocId,
+                  conversation_id: conversationId,
+                  user_id: effectiveProfileId,
+                  started_at: new Date().toISOString(),
+                },
+                { onConflict: 'conversation_id,user_id', ignoreDuplicates: false }
+              );
+          } else if (activity !== 'viewing') {
+            await db
+              .from('typing_indicators')
+              .delete()
+              .eq('conversation_id', conversationId)
+              .eq('user_id', effectiveProfileId);
+          }
         }
       } catch (error) {
         // Silent fail - non-critical
@@ -133,7 +142,7 @@ export function useLiveActivity(conversationId: string | undefined) {
 
       const { data: presenceData } = await db
         .from('chat_presence')
-        .select('user_id, last_seen_at')
+        .select('user_id, last_seen_at, activity')
         .eq('conversation_id', conversationId)
         .gt('last_seen_at', tenSecondsAgo);
 
@@ -146,6 +155,20 @@ export function useLiveActivity(conversationId: string | undefined) {
         setOtherUserActivity(null);
         setIsOtherUserPresent(false);
         return;
+      }
+
+      const presenceActivity = (presenceRow as { activity?: string })?.activity;
+      let activity: ActivityType = 'viewing';
+      if (typingRow) {
+        activity = 'typing';
+      } else if (
+        presenceActivity === 'typing' ||
+        presenceActivity === 'taking_photo' ||
+        presenceActivity === 'recording_voice' ||
+        presenceActivity === 'recording_video' ||
+        presenceActivity === 'viewing'
+      ) {
+        activity = presenceActivity as ActivityType;
       }
 
       const { data: peerProfile } = await db
@@ -165,7 +188,7 @@ export function useLiveActivity(conversationId: string | undefined) {
         username: profileRow?.username || '',
         avatar_url: profileRow?.avatar_url ?? null,
         display_name: profileRow?.display_name ?? null,
-        activity: typingRow ? 'typing' : 'viewing',
+        activity,
       });
       setIsOtherUserPresent(true);
     } catch (error) {
@@ -191,6 +214,7 @@ export function useLiveActivity(conversationId: string | undefined) {
               conversation_id: conversationId,
               user_id: effectiveProfileId,
               last_seen_at: new Date().toISOString(),
+              activity: activityRef.current === 'idle' ? 'viewing' : activityRef.current,
             },
             { onConflict: 'conversation_id,user_id' }
           );

@@ -325,11 +325,13 @@ export function useInstantSend(conversationId: string | undefined) {
     ) {
       return sendReadyRef.current.senderId;
     }
-    if (sendReadyRef.current.conversationId === conversationId && sendReadyRef.current.inflight) {
-      return sendReadyRef.current.inflight;
+    if (effectiveProfileId) {
+      sendReadyRef.current = { conversationId, senderId: effectiveProfileId };
+      void ensureSendReady().catch(() => {});
+      return effectiveProfileId;
     }
     return ensureSendReady();
-  }, [conversationId, ensureSendReady]);
+  }, [conversationId, effectiveProfileId, ensureSendReady]);
 
   // Pre-warm sender id in background — never block chat open on full repair.
   useEffect(() => {

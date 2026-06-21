@@ -126,6 +126,7 @@ export function useChatPresence(conversationId: string | undefined) {
               conversation_id: conversationId,
               user_id: profileId,
               last_seen_at: new Date().toISOString(),
+              activity: 'viewing',
             },
             { onConflict: 'conversation_id,user_id' }
           );
@@ -155,10 +156,7 @@ export function useChatPresence(conversationId: string | undefined) {
         
         const { data: presenceData } = await db
           .from('chat_presence')
-          .select(`
-            user_id,
-            profiles:user_id(id, username, avatar_url, display_name)
-          `)
+          .select('user_id, last_seen_at, activity')
           .eq('conversation_id', conversationId)
           .neq('user_id', profileId)
           .gt('last_seen_at', presenceWindow);
@@ -176,12 +174,29 @@ export function useChatPresence(conversationId: string | undefined) {
         const typingSet = new Set<string>((typingData || []).map((t: any) => String(t.user_id)));
         setTypingUsers(Array.from(typingSet));
 
+        const peerIds = [
+          ...new Set(
+            (presenceData || []).map((p: { user_id?: string }) => p.user_id).filter(Boolean) as string[],
+          ),
+        ];
+        const profiles = new Map<string, { username?: string; avatar_url?: string | null; display_name?: string | null }>();
+        await Promise.all(
+          peerIds.map(async (id) => {
+            const { data } = await db
+              .from('profiles')
+              .select('id, username, avatar_url, display_name')
+              .eq('id', id)
+              .maybeSingle();
+            if (data) profiles.set(id, data);
+          }),
+        );
+
         const users: PresenceUser[] = (presenceData || []).map((p: any) => ({
           user_id: p.user_id,
-          username: p.profiles?.username || '',
-          avatar_url: p.profiles?.avatar_url,
-          display_name: p.profiles?.display_name,
-          is_typing: typingSet.has(p.user_id),
+          username: profiles.get(p.user_id)?.username || '',
+          avatar_url: profiles.get(p.user_id)?.avatar_url ?? null,
+          display_name: profiles.get(p.user_id)?.display_name ?? null,
+          is_typing: typingSet.has(p.user_id) || p.activity === 'typing',
         }));
 
         setPresentUsers(users);
