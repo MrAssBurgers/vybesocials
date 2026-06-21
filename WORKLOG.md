@@ -2,6 +2,12 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## Phase 5 — Group presence + read receipts (2026-06-21)
+- **Group presence:** `useChatPresence` accepts multiple peer ids; Firestore + broadcast listeners per member; `ChatPresenceIndicator` shows who's in the thread.
+- **Read receipts:** `usePeerLastReadAt` live listener on peer `conversation_members`; Snapchat-style Delivered/Opened via `SnapchatStatus` on 1:1 own messages.
+- **Verified:** `npm run build` PASS
+- **You:** Lovable Publish → two-device test group presence + read receipts updating live
+
 ## DMs media GIFs instant send read persistence (2026-06-21)
 - **Media/clips:** Public storage URLs load directly (no broken signing); Firebase `resolveMediaUrl` fallback when signed URL fails.
 - **GIFs:** `giphySearch` returns normalized `{ results, next }` (matches client); client normalizes legacy raw Giphy payloads too.

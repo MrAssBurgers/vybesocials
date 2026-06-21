@@ -60,8 +60,10 @@ import { useDMSettings, useMessagePins } from '@/hooks/useDMSettings';
 import { CallButtons } from '@/components/call/CallButtons';
 import { CallSettingsSheet } from '@/components/call/CallSettingsSheet';
 import { useChatPresence } from '@/hooks/useChatPresence';
+import { usePeerLastReadAt } from '@/hooks/usePeerLastReadAt';
 import { ChatPresenceIndicator } from './ChatPresenceIndicator';
-import { LivePresenceBar, ScreenshotAlert } from './SnapchatFeedback';
+import { LivePresenceBar, ScreenshotAlert, SnapchatStatus } from './SnapchatFeedback';
+import { resolveOwnMessageStatus } from '@/lib/messageReadStatus';
 import { ChatPresenceDock, ChatHeaderPresenceAvatar } from './LiveActivityIndicator';
 import { SignedAvatar } from '@/components/ui/SignedAvatar';
 import { CallEventBubble } from './CallEventBubble';
@@ -350,6 +352,14 @@ export function ChatView() {
     | null
     | undefined;
 
+  const groupPeerIds = useMemo(
+    () =>
+      isGroupChat
+        ? otherMembers.map((m) => m.user_id).filter((id) => id && id !== profileId)
+        : [],
+    [isGroupChat, otherMembers, profileId],
+  );
+
   const {
     peerPresence,
     presentUsers,
@@ -360,7 +370,15 @@ export function ChatView() {
     setUploadingImage,
     setUploadingVideo,
     setSendingVybe,
-  } = useChatPresence(conversationId, !isGroupChat ? otherMember?.id : undefined);
+  } = useChatPresence(
+    conversationId,
+    isGroupChat ? groupPeerIds : otherMember?.id,
+  );
+
+  const peerLastReadAt = usePeerLastReadAt(
+    !isGroupChat ? conversationId : undefined,
+    !isGroupChat ? otherMember?.id : undefined,
+  );
 
   const otherPresenceActivity = peerPresence?.activity ?? 'idle';
   const peerActivityUser = peerPresence;
@@ -1704,6 +1722,7 @@ export function ChatView() {
                         ? () => retryMessage(message.id)
                         : undefined
                     }
+                    peerLastReadAt={!isGroupChat ? peerLastReadAt : undefined}
                   />
                 </SwipeToReply>
               </div>
@@ -2337,6 +2356,7 @@ const MessageBubble = memo(function MessageBubble({
   onCloseContextMenu,
   onToggleSaved,
   onRetry,
+  peerLastReadAt,
 }: { 
   message: Message;
   isOwn: boolean;
@@ -2362,6 +2382,7 @@ const MessageBubble = memo(function MessageBubble({
   onCloseContextMenu?: () => void;
   onToggleSaved?: () => void;
   onRetry?: () => void;
+  peerLastReadAt?: string | null;
 }) {
   const [isViewed, setIsViewed] = useState(false);
   const failed = Boolean((message as { _failed?: boolean })._failed);
@@ -2886,23 +2907,11 @@ const MessageBubble = memo(function MessageBubble({
           <span className="text-[10px] text-muted-foreground/50 font-light">
             {format(new Date(message.created_at), 'HH:mm')}
           </span>
-          {isOwn && (
-            <>
-              {hasBeenViewed ? (
-                <div className="flex items-center gap-0.5">
-                  <Eye className="h-3 w-3 text-primary/60" />
-                  {message.views && message.views.length > 0 && (
-                    <>
-                      <span className="text-[9px] font-medium text-primary/60">
-                        Read {format(new Date(message.views[0].viewed_at), 'HH:mm')}
-                      </span>
-                    </>
-                  )}
-                </div>
-              ) : (
-                <Check className="h-2.5 w-2.5 text-muted-foreground/40" />
-              )}
-            </>
+          {isOwn && !isGroupChat && (
+            <SnapchatStatus
+              status={resolveOwnMessageStatus(message, { peerLastReadAt, failed })}
+              animate={false}
+            />
           )}
         </div>
         

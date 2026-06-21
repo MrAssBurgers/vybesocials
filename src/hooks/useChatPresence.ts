@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useAuth } from '@/lib/auth';
 import { useAuthProfileId } from '@/hooks/useAuthProfileId';
 import {
@@ -71,19 +71,54 @@ function broadcastActivity(
   void sendDmBroadcastActivity(conversationId, payload);
 }
 
+function normalizePeerIds(
+  peerProfileIds?: string | string[] | null,
+): string[] {
+  if (!peerProfileIds) return [];
+  const raw = Array.isArray(peerProfileIds) ? peerProfileIds : [peerProfileIds];
+  return [...new Set(raw.filter(Boolean))] as string[];
+}
+
+function mapDocToPeer(
+  doc: UserPresenceDoc | null,
+  peerProfileId: string,
+  conversationId: string,
+): PeerPresence | null {
+  if (!doc) return null;
+  const activity = toUiActivity(doc, conversationId);
+  if (activity === 'offline') return null;
+  return {
+    user_id: peerProfileId,
+    username: doc.username || '',
+    avatar_url: doc.avatar_url ?? null,
+    display_name: doc.display_name ?? null,
+    activity: uiActivityFromState(activity),
+    is_online: doc.online,
+  };
+}
+
 /**
  * Snapchat-style chat presence — Firestore `users/{profileId}` + instant broadcast.
- * No polling; peer updates via onSnapshot.
+ * Supports 1:1 (single peer id) and group chats (array of peer profile ids).
  */
 export function useChatPresence(
   conversationId: string | undefined,
-  peerProfileId?: string | null,
+  peerProfileIds?: string | string[] | null,
 ) {
   const { profile } = useAuth();
   const profileId = useAuthProfileId();
   const effectiveProfileId = profileId ?? profile?.id;
 
-  const [peerPresence, setPeerPresence] = useState<PeerPresence | null>(null);
+  const peerIdsKey = useMemo(
+    () => normalizePeerIds(peerProfileIds).sort().join(','),
+    [peerProfileIds],
+  );
+  const peerIds = useMemo(
+    () => normalizePeerIds(peerProfileIds),
+    [peerIdsKey, peerProfileIds],
+  );
+
+  const [peerMap, setPeerMap] = useState<Map<string, PeerPresence>>(new Map());
   const activityRef = useRef<UserActivityState>('viewing');
   const metaRef = useRef({
     username: profile?.username || '',
@@ -163,23 +198,6 @@ export function useChatPresence(
     [applyActivity],
   );
 
-  const mapPeerDoc = useCallback(
-    (doc: UserPresenceDoc | null): PeerPresence | null => {
-      if (!doc || !peerProfileId || !conversationId) return null;
-      const activity = toUiActivity(doc, conversationId);
-      if (activity === 'offline') return null;
-      return {
-        user_id: doc.user_id,
-        username: doc.username || '',
-        avatar_url: doc.avatar_url ?? null,
-        display_name: doc.display_name ?? null,
-        activity: uiActivityFromState(activity),
-        is_online: doc.online,
-      };
-    },
-    [conversationId, peerProfileId],
-  );
-
   // Own presence: enter chat on mount, leave on unmount.
   useEffect(() => {
     if (!conversationId || !effectiveProfileId) return;
@@ -207,25 +225,43 @@ export function useChatPresence(
     };
   }, [conversationId, effectiveProfileId, applyActivity]);
 
-  // Peer: Firestore listener (primary) + broadcast (same-tab instant).
+  // Peers: Firestore listeners (primary) + broadcast (same-tab instant).
   useEffect(() => {
-    if (!conversationId || !peerProfileId || !effectiveProfileId) return;
-    if (peerProfileId === effectiveProfileId) return;
+    if (!conversationId || !effectiveProfileId || peerIds.length === 0) {
+      setPeerMap(new Map());
+      return;
+    }
+
+    const targets = peerIds.filter((id) => id !== effectiveProfileId);
+    if (targets.length === 0) {
+      setPeerMap(new Map());
+      return;
+    }
 
     let mounted = true;
+    const localMap = new Map<string, PeerPresence>();
 
-    const unsubFirestore = subscribeUserPresence(peerProfileId, (doc) => {
-      if (!mounted) return;
-      setPeerPresence(mapPeerDoc(doc));
-    });
+    const sync = () => {
+      if (mounted) setPeerMap(new Map(localMap));
+    };
+
+    const firestoreUnsubs = targets.map((peerId) =>
+      subscribeUserPresence(peerId, (doc) => {
+        const mapped = mapDocToPeer(doc, peerId, conversationId);
+        if (mapped) localMap.set(peerId, mapped);
+        else localMap.delete(peerId);
+        sync();
+      }),
+    );
 
     const unsubBroadcast = subscribeDmBroadcastActivity(conversationId, (payload) => {
-      if (!mounted || payload.userId !== peerProfileId) return;
+      if (!targets.includes(payload.userId)) return;
       if (payload.activity === 'idle') {
-        setPeerPresence(null);
+        localMap.delete(payload.userId);
+        sync();
         return;
       }
-      setPeerPresence({
+      localMap.set(payload.userId, {
         user_id: payload.userId,
         username: payload.username || '',
         avatar_url: payload.avatarUrl ?? null,
@@ -233,32 +269,50 @@ export function useChatPresence(
         activity: payload.activity as ActivityType,
         is_online: true,
       });
+      sync();
     });
 
     return () => {
       mounted = false;
-      unsubFirestore();
+      firestoreUnsubs.forEach((u) => u());
       unsubBroadcast();
     };
-  }, [conversationId, peerProfileId, effectiveProfileId, mapPeerDoc]);
+  }, [conversationId, effectiveProfileId, peerIdsKey, peerIds]);
 
-  // Legacy shape for group chats / MessageInputArea
-  const presentUsers = peerPresence
-    ? [
-        {
-          user_id: peerPresence.user_id,
-          username: peerPresence.username,
-          avatar_url: peerPresence.avatar_url,
-          display_name: peerPresence.display_name,
-          is_typing: peerPresence.activity === 'typing',
-        },
-      ]
-    : [];
+  const peerPresences = useMemo(() => [...peerMap.values()], [peerMap]);
 
-  const typingUsers = peerPresence?.activity === 'typing' ? [peerPresence.user_id] : [];
+  const peerPresence = useMemo(() => {
+    if (peerPresences.length === 0) return null;
+    if (peerPresences.length === 1) return peerPresences[0] ?? null;
+    return (
+      peerPresences.find((p) => p.activity !== 'viewing' && p.activity !== 'idle') ??
+      peerPresences[0] ??
+      null
+    );
+  }, [peerPresences]);
+
+  const presentUsers = useMemo(
+    () =>
+      peerPresences
+        .filter((p) => p.is_online && p.activity !== 'idle')
+        .map((p) => ({
+          user_id: p.user_id,
+          username: p.username,
+          avatar_url: p.avatar_url,
+          display_name: p.display_name,
+          is_typing: p.activity === 'typing',
+        })),
+    [peerPresences],
+  );
+
+  const typingUsers = useMemo(
+    () => peerPresences.filter((p) => p.activity === 'typing').map((p) => p.user_id),
+    [peerPresences],
+  );
 
   return {
     peerPresence,
+    peerPresences,
     presentUsers,
     typingUsers,
     setTyping,
