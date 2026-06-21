@@ -5,8 +5,8 @@ Use this file as the Lovable -> Cursor handoff each session.
 ## Chat load TDZ hotfix (2026-06-21)
 - **Root cause:** `showPeerPresence` referenced `isGroupChat` before its `const` (line 237 vs 385) → `ReferenceError` on every DM open → SmartErrorBoundary "Couldn't load Messages".
 - **Fix:** Hoist `isGroupChat` immediately after `useConversationDetail`; per-message `LocalErrorBoundary`; `formatDmPreviewContent` for call-event previews (sidebar no longer shows raw JSON).
-- **Verified:** `npm run build` PASS
-- **You:** Deploy Firebase hosting or Lovable Publish → hard refresh → open DM (MrAssBurgers / any thread)
+- **Verified:** `npm run build` PASS; Git `b83bed23` pushed; Firebase hosting deployed
+- **You:** [Lovable → Share → Publish](https://lovable.dev/projects/416714c8-d013-4aff-984d-522418a9bbc7) for vybehub.app → hard refresh → open DM
 
 ## Instant DMs presence call logs HD video (2026-06-21)
 - **Messages:** Scoped Firestore listeners per conversation (global unfiltered query was rules-blocked); broadcast path patches conv list too.
