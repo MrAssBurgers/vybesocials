@@ -95,7 +95,7 @@ export function useInstantSend(conversationId: string | undefined) {
 
   // Add message to cache optimistically
   const addOptimisticMessage = useCallback((tempId: string, message: Partial<Message>) => {
-    if (!conversationId || !effectiveProfileId) return;
+    if (!conversationId || !effectiveProfileId) return false;
 
     const optimisticMessage: Message = {
       id: tempId,
@@ -158,7 +158,7 @@ export function useInstantSend(conversationId: string | undefined) {
       queryClient.setQueryData<any[]>(['dm-conversations', effectiveProfileId], updateConversationList);
     }
 
-    return tempId;
+    return true;
   }, [conversationId, effectiveProfileId, profile, queryClient]);
 
   // Replace temp message with real one from server. If the temp was wiped by a
@@ -200,25 +200,54 @@ export function useInstantSend(conversationId: string | undefined) {
 
   // Mark message as failed
   const markFailed = useCallback((tempId: string, error: string) => {
-    if (!conversationId) return;
-
-    patchMessagesCache(queryClient, conversationId, (old) => {
-      if (!old) return old;
-      
-      return old.map(m => {
-        if (m.id === tempId) {
-          return { ...m, _failed: true, _error: error } as any;
-        }
-        return m;
-      });
-    });
+    if (!conversationId || !effectiveProfileId) return;
 
     const pending = pendingMessagesRef.current.get(tempId);
+
+    patchMessagesCache(queryClient, conversationId, (old) => {
+      const rows = old ?? [];
+      const idx = rows.findIndex((m) => m.id === tempId);
+      if (idx >= 0) {
+        return rows.map((m) =>
+          m.id === tempId ? ({ ...m, _failed: true, _error: error } as any) : m,
+        );
+      }
+
+      if (!pending) return rows.length ? rows : old;
+
+      const failedRow: Message = {
+        id: tempId,
+        conversation_id: conversationId,
+        sender_id: effectiveProfileId,
+        content: pending.content ?? null,
+        media_url: pending.mediaUrl ?? null,
+        media_type: pending.mediaType ?? null,
+        message_type: pending.mediaType ? 'media' : 'text',
+        view_mode: pending.viewMode,
+        expires_at: null,
+        is_deleted: false,
+        reply_to_id: pending.replyToId ?? null,
+        created_at: pending.createdAt,
+        sender: {
+          id: effectiveProfileId,
+          username: profile?.username || '',
+          avatar_url: profile?.avatar_url || null,
+          display_name: (profile as any)?.display_name || profile?.username || null,
+        },
+        views: [],
+        reactions: [],
+        _failed: true,
+        _error: error,
+      } as any;
+
+      return [...rows, failedRow];
+    });
+
     if (pending) {
       pending.status = 'failed';
       pending.error = error;
     }
-  }, [conversationId, queryClient]);
+  }, [conversationId, effectiveProfileId, profile, queryClient]);
 
   // Remove a message from cache
   const removeMessage = useCallback((tempId: string) => {
@@ -346,11 +375,15 @@ export function useInstantSend(conversationId: string | undefined) {
   const sendText = useCallback(async (
     content: string, 
     viewMode: ViewMode = 'permanent',
-    replyToId?: string
+    replyToId?: string,
+    onOptimisticAdded?: () => void,
   ) => {
-    if (!conversationId || !effectiveProfileId || !content.trim()) return;
+    if (!conversationId || !effectiveProfileId || !content.trim()) {
+      throw new Error('Not ready to send yet — try again in a moment.');
+    }
 
     const tempId = generateTempId();
+    const createdAt = new Date().toISOString();
     
     // Track pending message
     pendingMessagesRef.current.set(tempId, {
@@ -359,14 +392,19 @@ export function useInstantSend(conversationId: string | undefined) {
       viewMode,
       replyToId,
       status: 'sending',
-      createdAt: new Date().toISOString(),
+      createdAt,
     });
 
     // Add to UI immediately AND register with the global realtime dedupe so
     // the postgres_changes echo of our own insert can't accidentally remove
     // or duplicate the bubble we just rendered.
-    addOptimisticMessage(tempId, { content, view_mode: viewMode, reply_to_id: replyToId });
+    const added = addOptimisticMessage(tempId, { content, view_mode: viewMode, reply_to_id: replyToId });
+    if (!added) {
+      pendingMessagesRef.current.delete(tempId);
+      throw new Error('Could not show message — try again.');
+    }
     registerOptimisticMessage(conversationId, content, effectiveProfileId || profile.id);
+    onOptimisticAdded?.();
 
     try {
       let senderId = await resolveSenderIdForSend();

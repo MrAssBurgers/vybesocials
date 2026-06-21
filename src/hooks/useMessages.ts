@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { db } from '@/lib/firebase';
 import { subscribePostgresChannel, removeRealtimeChannel } from '@/lib/realtimeChannel';
@@ -288,7 +288,9 @@ function mergePendingOptimisticMessages(
 }
 
 export function useMessages(conversationId: string | undefined) {
+  const { profile } = useAuth();
   const profileId = useAuthProfileId();
+  const actorId = profileId ?? profile?.id;
   const queryClient = useQueryClient();
 
   const query = useQuery({
@@ -296,35 +298,35 @@ export function useMessages(conversationId: string | undefined) {
     queryFn: async () => {
       if (!conversationId) return [];
 
-      const actorId =
-        syncSessionProfileId(profileId) ??
-        (await resolveSessionProfileId(profileId)) ??
-        (await resolveDmActorIds(profileId)).profileId;
-      if (!actorId) return [];
+      const resolvedActorId =
+        syncSessionProfileId(actorId) ??
+        (await resolveSessionProfileId(actorId)) ??
+        (await resolveDmActorIds(actorId)).profileId;
+      if (!resolvedActorId) return [];
 
       const cachedConv =
-        queryClient.getQueryData<Conversation[]>(['dm-conversations', actorId])?.find(
+        queryClient.getQueryData<Conversation[]>(['dm-conversations', resolvedActorId])?.find(
           (c) => c.id === conversationId,
         ) ??
-        queryClient.getQueryData<Conversation[]>(['conversations', actorId])?.find(
+        queryClient.getQueryData<Conversation[]>(['conversations', resolvedActorId])?.find(
           (c) => c.id === conversationId,
         );
       const otherFromMembers = cachedConv?.members?.find(
-        (m) => m.user_id !== actorId && m.profile?.id !== actorId,
-      )?.profile?.id ?? cachedConv?.members?.find((m) => m.user_id !== actorId)?.user_id;
+        (m) => m.user_id !== resolvedActorId && m.profile?.id !== resolvedActorId,
+      )?.profile?.id ?? cachedConv?.members?.find((m) => m.user_id !== resolvedActorId)?.user_id;
       const otherProfileId =
-        otherFromMembers || inferOtherParticipantId(conversationId, actorId) || null;
+        otherFromMembers || inferOtherParticipantId(conversationId, resolvedActorId) || null;
 
-      if (!isConversationMessagesReady(conversationId, actorId)) {
+      if (!isConversationMessagesReady(conversationId, resolvedActorId)) {
         await prepareConversationForMessages(
           conversationId,
-          actorId,
+          resolvedActorId,
           otherProfileId,
           { fast: true },
         );
       }
 
-      const viewerId = actorId;
+      const viewerId = resolvedActorId;
 
       let { data, error } = await fetchRecentConversationMessages<Message>(
         conversationId,
@@ -333,7 +335,7 @@ export function useMessages(conversationId: string | undefined) {
       );
 
       if (error) {
-        await prepareConversationForMessages(conversationId, actorId, otherProfileId, {
+        await prepareConversationForMessages(conversationId, resolvedActorId, otherProfileId, {
           fast: true,
         });
         const retryPlain = await fetchRecentConversationMessages<Message>(conversationId, '*', 50);
@@ -361,7 +363,7 @@ export function useMessages(conversationId: string | undefined) {
       const filtered = filterMessagesForViewer(rows, viewerId);
       return mergePendingOptimisticMessages(queryClient, conversationId, filtered);
     },
-    enabled: !!conversationId && !!profileId,
+    enabled: !!conversationId && !!actorId,
     staleTime: 120_000,
     gcTime: 1000 * 60 * 60 * 24 * 14,
     refetchOnWindowFocus: false,
@@ -376,7 +378,18 @@ export function useMessages(conversationId: string | undefined) {
   // Realtime is now handled by useGlobalRealtimeMessages at the App level
   // This ensures instant updates without duplicate subscriptions
 
-  return query;
+  // Always merge live cache (temp-* / failed sends) — setQueryData patches must show
+  // even when query.data is a stale snapshot.
+  const data = useMemo(() => {
+    if (!conversationId) return query.data;
+    return mergePendingOptimisticMessages(
+      queryClient,
+      conversationId,
+      query.data ?? [],
+    );
+  }, [conversationId, queryClient, query.data, query.dataUpdatedAt]);
+
+  return { ...query, data };
 }
 
 export function useSendMessage() {

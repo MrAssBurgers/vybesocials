@@ -335,8 +335,36 @@ export function useGlobalRealtimeMessages() {
           // This ensures unsend/edit reflects instantly for all participants
           queryClient.setQueryData<any[]>(['messages', conversationId], (old) => {
             if (!old) return old;
-            
+
             if (updatedMessage.is_deleted) {
+              const isFromCurrentUser =
+                updatedMessage.sender_id === profileId ||
+                (!!authUid && updatedMessage.sender_id === authUid);
+              const createdMs = new Date(updatedMessage.created_at || 0).getTime();
+              const isRecentOwnSend = isFromCurrentUser && Date.now() - createdMs < 60_000;
+
+              if (isRecentOwnSend) {
+                const content = (updatedMessage.content || '').trim();
+                const matchingTemp = old.find(
+                  (m) =>
+                    typeof m.id === 'string' &&
+                    m.id.startsWith('temp-') &&
+                    (m.content || '').trim() === content,
+                );
+                if (matchingTemp) {
+                  return old.map((m) =>
+                    m.id === matchingTemp.id
+                      ? ({ ...m, _failed: true, _error: 'Message could not be delivered' } as any)
+                      : m,
+                  );
+                }
+                return old.map((m) =>
+                  m.id === updatedMessage.id
+                    ? ({ ...m, _failed: true, _error: 'Message could not be delivered' } as any)
+                    : m,
+                );
+              }
+
               return old.filter(m => m.id !== updatedMessage.id);
             }
             

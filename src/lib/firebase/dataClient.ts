@@ -583,8 +583,17 @@ class QueryBuilder {
           // briefly then GlobalRT DELETE removes it (looks like "sent then vanished").
           if (this.table === 'messages') {
             await awaitPendingFirestoreWrites();
-            const serverRow = await getDocumentFromServer(this.table, id);
+            let serverRow = await getDocumentFromServer(this.table, id).catch(() => null);
             if (!serverRow) {
+              await new Promise((r) => setTimeout(r, 400));
+              serverRow = await getDocumentFromServer(this.table, id).catch(() => null);
+            }
+            if (!serverRow) {
+              try {
+                await deleteDocument(this.table, id);
+              } catch {
+                /* local ghost cleanup best-effort */
+              }
               throw Object.assign(
                 new Error('Message could not be delivered — chat permissions may still be syncing.'),
                 { code: 'permission-denied' },

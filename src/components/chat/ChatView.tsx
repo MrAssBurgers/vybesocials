@@ -661,16 +661,16 @@ export function ChatView() {
       return;
     }
 
-    messageTextRef.current = '';
-    writeInputDom('');
-    setHasText(false);
-    setTyping(false);
-
     const replyId = replyingTo?.id;
     setReplyingTo(null);
 
     try {
-      await sendText(text, viewMode, replyId);
+      await sendText(text, viewMode, replyId, () => {
+        messageTextRef.current = '';
+        writeInputDom('');
+        setHasText(false);
+        setTyping(false);
+      });
       // Bump reaction streak with recipient (for DMs only)
       if (!isGroupChat && otherMember?.id) {
         bumpStreak(otherMember.id);
@@ -1338,7 +1338,8 @@ export function ChatView() {
     !!conversationId &&
     !!conversation &&
     !messagesFetched &&
-    (messagesPending || !messages?.length);
+    messagesPending &&
+    !messages?.length;
 
   const messagesLoadFailed =
     !!conversation &&
