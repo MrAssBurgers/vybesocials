@@ -2,6 +2,18 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## DM send failure fix (2026-06-20)
+- **Root cause:** Send blocked when membership looked ready in local Firestore cache but wasn't on server; `ensureSendReady` threw before insert; single retry on permission-denied; new DMs missing auth-uid composite membership rows.
+- **Fix:** Server-verify composite membership before marking ready; 3-attempt insert with forced repair; longer server confirm backoff on message insert; `createDmChat` seeds auth uid + `user_auth_index`; soft-fail pre-send repair (inline retry on insert).
+- **Verified:** `npm run build` PASS; `test:social-permissions` 15/15 PASS
+- **You:** Commit/push → Lovable Publish → force-quit → send DM
+
+## DM send bubble vanish — display + send order (2026-06-20)
+- **Root cause:** Input cleared before optimistic bubble pinned; `sendText` could return early without throwing; UI read stale `query.data` instead of merged cache; skeleton hid in-flight sends.
+- **Fix:** Clear input only after optimistic add; throw if send can't start; `useMessages` merges cache on every render; failed sends recreated if cache wiped; softer skeleton gate.
+- **Verified:** build PASS; `test:social-permissions` 15/15 PASS
+- **You:** Lovable Publish (prod still ~790KB vs ~836KB local) → force-quit → send DM
+
 ## DM send bubble vanish — server verify (2026-06-20)
 - **Root cause:** Firestore `setDoc` resolved on local cache; GlobalRT stripped the optimistic `temp-*` bubble on local INSERT, then server rule rejection fired DELETE → empty thread. Prefetch race was a secondary cause (fixed in `4ae4a437`).
 - **Fix:** Verify message inserts on server (`waitForPendingWrites` + `getDocFromServer`); stop stripping sender temps in GlobalRT; DELETE marks recent own sends as failed instead of wiping; mark-viewed patches cache (no global messages invalidate).

@@ -1,5 +1,12 @@
 import { db } from '@/lib/firebase';
-import { getDocument, setDocument, getDocuments, where, firestoreLimit } from '@/lib/firebase/firestoreDb';
+import {
+  getDocument,
+  getDocumentFromServer,
+  setDocument,
+  getDocuments,
+  where,
+  firestoreLimit,
+} from '@/lib/firebase/firestoreDb';
 import { firebaseAuth } from '@/lib/firebase/authService';
 import { getUserProfile, resolveProfileIdFromAuthUid } from '@/lib/firebase/users';
 import { syncUserAuthIndex } from '@/lib/firebase/profileResolve';
@@ -39,8 +46,18 @@ export function resetRepairedMembership(conversationId: string, profileId: strin
   repaired.delete(`${conversationId}:${profileId}`);
 }
 
-async function hasCompositeMembership(conversationId: string, memberId: string): Promise<boolean> {
+async function hasCompositeMembership(
+  conversationId: string,
+  memberId: string,
+  fromServer = false,
+): Promise<boolean> {
   const compositeId = `${conversationId}_${memberId}`;
+  if (fromServer) {
+    const existing = await getDocumentFromServer('conversation_members', compositeId).catch(
+      () => null,
+    );
+    return !!existing;
+  }
   const existing = await getDocument('conversation_members', compositeId);
   return !!existing;
 }
@@ -429,7 +446,12 @@ export async function ensureFlatConversationMembership(
     }
   }
 
-  if (seededAny || (await hasCompositeMembership(conversationId, profileId))) {
+  const verified =
+    seededAny &&
+    (await Promise.all(ids.map((id) => hasCompositeMembership(conversationId, id, true)))).some(
+      Boolean,
+    );
+  if (verified || (await hasCompositeMembership(conversationId, profileId, true))) {
     repaired.add(cacheKey);
   }
 }
@@ -460,7 +482,7 @@ export async function prepareConversationForMessages(
     const authUid = user?.id ?? null;
     const ids = [...new Set([profileId, authUid].filter(Boolean))] as string[];
     const ready = await Promise.all(
-      ids.map((id) => hasCompositeMembership(conversationId, id)),
+      ids.map((id) => hasCompositeMembership(conversationId, id, true)),
     );
     if (ready.some(Boolean)) {
       messagesReady.add(readyKey);

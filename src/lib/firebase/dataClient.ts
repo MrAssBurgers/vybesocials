@@ -583,10 +583,11 @@ class QueryBuilder {
           // briefly then GlobalRT DELETE removes it (looks like "sent then vanished").
           if (this.table === 'messages') {
             await awaitPendingFirestoreWrites();
-            let serverRow = await getDocumentFromServer(this.table, id).catch(() => null);
-            if (!serverRow) {
-              await new Promise((r) => setTimeout(r, 400));
+            let serverRow: Record<string, unknown> | null = null;
+            for (let attempt = 0; attempt < 5; attempt++) {
               serverRow = await getDocumentFromServer(this.table, id).catch(() => null);
+              if (serverRow) break;
+              await new Promise((r) => setTimeout(r, 150 * (attempt + 1)));
             }
             if (!serverRow) {
               try {

@@ -8,7 +8,7 @@ import {
 } from './firestoreDb';
 import { firebaseAuth } from './authService';
 import { getUserProfile } from './users';
-import { resolveProfileIdFromAuthUid } from './profileResolve';
+import { resolveProfileIdFromAuthUid, syncUserAuthIndex } from './profileResolve';
 import {
   normalizeToProfileId,
   findExistingDmBetweenProfiles,
@@ -88,6 +88,7 @@ export async function createDmChat(otherUserId: string): Promise<string> {
 
   const myProfileId = (await resolveProfileIdFromAuthUid(user.id)) || user.id;
   const otherId = (await normalizeToProfileId(otherUserId)) || otherUserId;
+  await syncUserAuthIndex(user.id, myProfileId);
 
   const existing = await findExistingDmBetweenProfiles(myProfileId, otherId);
   if (existing) {
@@ -95,14 +96,19 @@ export async function createDmChat(otherUserId: string): Promise<string> {
     return existing;
   }
 
-  const memberIds = [myProfileId, otherId].sort();
-  const chatId = memberIds.join('_');
+  const profileMemberIds = [myProfileId, otherId].sort();
+  const chatId = profileMemberIds.join('_');
+  const otherProfile = await getUserProfile(otherId);
+  const otherAuthUid = otherProfile?.user_id ?? null;
+  const allMemberIds = [
+    ...new Set([myProfileId, otherId, user.id, otherAuthUid].filter(Boolean)),
+  ] as string[];
   const now = new Date().toISOString();
 
   await setDocument('conversations', chatId, {
     id: chatId,
     is_group: false,
-    member_ids: memberIds,
+    member_ids: allMemberIds,
     name: null,
     avatar_url: null,
     created_by: myProfileId,
@@ -110,7 +116,7 @@ export async function createDmChat(otherUserId: string): Promise<string> {
     updated_at: now,
   });
 
-  for (const memberId of memberIds) {
+  for (const memberId of allMemberIds) {
     await setDocument('conversation_members', `${chatId}_${memberId}`, {
       id: `${chatId}_${memberId}`,
       conversation_id: chatId,

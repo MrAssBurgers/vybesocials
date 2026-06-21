@@ -285,12 +285,16 @@ export function useInstantSend(conversationId: string | undefined) {
 
     await withTimeout(
       repairConversationForSend(conversationId, senderId, otherProfileId),
-      8_000,
+      12_000,
       'Chat setup timed out',
-    );
+    ).catch((err) => {
+      console.warn('[InstantSend] repair before send:', err);
+    });
 
+    // Don't hard-block — insert retries repair on permission-denied. Blocking here
+    // surfaced "Message failed to send" when membership was still propagating.
     if (!isConversationMessagesReady(conversationId, senderId)) {
-      throw new Error('Could not prepare chat for sending');
+      console.warn('[InstantSend] membership not verified yet; attempting send with inline repair');
     }
 
     sendReadyRef.current = { conversationId, senderId };
@@ -302,9 +306,9 @@ export function useInstantSend(conversationId: string | undefined) {
       resetMessagesReady(conversationId!, senderId);
       await withTimeout(
         repairConversationForSend(conversationId!, senderId, otherProfileId, { force: true }),
-        6_000,
+        12_000,
         'Send setup timed out',
-      ).catch(() => {});
+      );
       sendReadyRef.current = { conversationId, senderId };
       return senderId;
     },
@@ -342,31 +346,31 @@ export function useInstantSend(conversationId: string | undefined) {
       payload: Record<string, unknown>,
       otherProfileId: string | null,
     ) => {
-      let result = await db
-        .from('messages')
-        .insert(payload)
-        .select(`
-          *,
-          sender:profiles!sender_id(id, username, avatar_url, display_name)
-        `)
-        .single();
+      let activeSenderId = senderId;
 
-      if (
-        result.error &&
-        (result.error.code === 'permission-denied' ||
-          /permission/i.test(result.error.message || ''))
-      ) {
-        const repairedId = await repairAndSend(senderId, otherProfileId);
-        result = await db
+      for (let attempt = 0; attempt < 3; attempt++) {
+        const result = await db
           .from('messages')
-          .insert({ ...payload, sender_id: repairedId })
+          .insert({ ...payload, sender_id: activeSenderId })
           .select(`
             *,
             sender:profiles!sender_id(id, username, avatar_url, display_name)
           `)
           .single();
+
+        if (!result.error) return result;
+
+        const retryable =
+          result.error.code === 'permission-denied' ||
+          /permission|could not be delivered|chat permissions/i.test(result.error.message || '');
+
+        if (!retryable || attempt === 2) return result;
+
+        activeSenderId = await repairAndSend(activeSenderId, otherProfileId);
+        await new Promise((r) => setTimeout(r, 200 * (attempt + 1)));
       }
-      return result;
+
+      return { data: null, error: { message: 'Failed to send message' } };
     },
     [repairAndSend],
   );
