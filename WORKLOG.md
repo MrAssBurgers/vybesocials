@@ -2,6 +2,13 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## Presence dock + Vybe snap fix (2026-06-21)
+- **Presence:** Removed typing/viewing/Snap indicators from header avatar; new `ChatPresenceDock` above composer (mini pfp + eye / slow typing dots / camera bubble).
+- **Vybe:** Membership repair + `sendDmMessage` cloud fallback on permission denied; no stray text under Vybe cards; clean failed-send chip.
+- **Roles:** `useAllUserRoles` merges `user_roles` + `user_roles_auth` with profile enrichment; search dropdown shows full @username.
+- **Deployed:** Git `59d53034` → Firebase hosting on vybe-daaab.web.app
+- **You:** Lovable Publish for vybehub.app → two-device test presence + Vybe snap send
+
 ## Chat load TDZ hotfix (2026-06-21)
 - **Root cause:** `showPeerPresence` referenced `isGroupChat` before its `const` (line 237 vs 385) → `ReferenceError` on every DM open → SmartErrorBoundary "Couldn't load Messages".
 - **Fix:** Hoist `isGroupChat` immediately after `useConversationDetail`; per-message `LocalErrorBoundary`; `formatDmPreviewContent` for call-event previews (sidebar no longer shows raw JSON).
