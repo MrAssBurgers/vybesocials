@@ -93,7 +93,7 @@ export async function getConversationDoc<T extends Record<string, unknown>>(
   }
 }
 
-function syntheticDeterministicConversation(conversationId: string): Record<string, unknown> | null {
+export function syntheticDeterministicConversation(conversationId: string): Record<string, unknown> | null {
   const parts = conversationId.split('_').filter(Boolean);
   if (parts.length !== 2) return null;
   const member_ids = [...parts].sort();
@@ -157,6 +157,47 @@ export async function fetchConversationForViewer(
     avatar_url: null,
     created_at: now,
     updated_at: now,
+  };
+}
+
+/** Instant ChatView shell when list cache missed — never block the UI on network. */
+export function buildConversationPlaceholder(
+  conversationId: string,
+  viewerProfileId?: string | null,
+): Record<string, unknown> {
+  const meta =
+    syntheticDeterministicConversation(conversationId) ?? {
+      id: conversationId,
+      is_group: false,
+      member_ids: [] as string[],
+      name: null,
+      avatar_url: null,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+
+  const memberIds = [...((meta.member_ids as string[]) || [])].filter(Boolean);
+  if (viewerProfileId && !memberIds.includes(viewerProfileId)) {
+    memberIds.push(viewerProfileId);
+  }
+
+  const members = memberIds.map((user_id) => ({
+    conversation_id: conversationId,
+    user_id,
+    role: 'member',
+    is_muted: false,
+    is_pinned: false,
+    last_read_at: null,
+    profile: null,
+  }));
+
+  return {
+    ...meta,
+    members,
+    last_message: null,
+    unread_count: 0,
+    _sortTime: meta.updated_at,
+    _hasUnread: false,
   };
 }
 

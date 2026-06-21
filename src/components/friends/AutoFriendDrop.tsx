@@ -163,15 +163,14 @@ export function AutoFriendDrop() {
     if (drop.to_user_id) {
       fetchUser(drop.to_user_id).then((scannedUser) => {
         if (scannedUser) {
-          beginFriendLinkExchange({
-            dropId: drop.id,
-            role: 'owner',
-            peer: scannedUser,
-          });
+          setActiveDropId(drop.id);
+          setDropRole('owner');
+          setFoundUser(scannedUser);
+          setPhase('exchanging');
         }
       });
     }
-  }, [beginFriendLinkExchange]);
+  }, []);
 
   const handleOnConfirmed = useCallback(() => {
     if (phase !== 'exchanging') { setPhase('exchanging'); haptics.impact(); }
@@ -581,11 +580,14 @@ export function AutoFriendDrop() {
     const onAnimStart = (e: Event) => {
       const detail = (e as CustomEvent<FriendDropAnimationStartDetail>).detail;
       if (!detail?.dropId || !isActive) return;
-      if (dropRole === 'owner' && detail.role === 'scanner' && activeDropId === detail.dropId) {
-        setSyncStartAt(detail.syncStartAt);
-        setShowSwapAnimation(false);
-        requestAnimationFrame(() => setShowSwapAnimation(true));
-      }
+      if (activeDropId && activeDropId !== detail.dropId) return;
+      if (detail.role !== 'scanner') return;
+
+      setActiveDropId(detail.dropId);
+      setDropRole('owner');
+      setSyncStartAt(detail.syncStartAt);
+      setPhase('exchanging');
+      setShowSwapAnimation(true);
     };
     const onCompleted = (e: Event) => {
       const detail = (e as CustomEvent<FriendDropCompletedDetail>).detail;
@@ -620,7 +622,7 @@ export function AutoFriendDrop() {
       window.removeEventListener(FRIEND_DROP_COMPLETED, onCompleted);
       window.removeEventListener(FRIEND_DROP_CLOSE_SHEET, onCloseSheet);
     };
-  }, [isActive, dropRole, activeDropId, autoCloseAfterSuccess, stopScanning]);
+  }, [isActive, activeDropId, autoCloseAfterSuccess, stopScanning]);
 
   useEffect(() => { return () => { stopScanning(); }; }, [stopScanning]);
 
@@ -768,7 +770,7 @@ export function AutoFriendDrop() {
       )}
 
       <AnimatePresence>
-        {isActive && (
+        {isActive && !showSwapAnimation && (
           <>
             <motion.div
               key="friend-link-backdrop"

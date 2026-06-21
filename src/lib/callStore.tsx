@@ -645,17 +645,18 @@ export function CallStoreProvider({ children }: { children: ReactNode }) {
       console.warn('[CallStore] membership repair before call:', err);
     }
 
-    // CRITICAL: release any preloaded camera stream (Friend Link / preview)
-    // before the call requests its own stream. Holding the camera elsewhere
-    // makes getUserMedia fail and crashes the call.
+    // Release Friend Link / preview camera before LiveKit opens its own tracks.
     try { stopCameraStream(); } catch {}
+    try { clearWarmCallMedia(); } catch {}
 
-    // Pre-warm camera + mic in parallel with DB insert so the moment the
-    // overlay mounts, tracks are already live.
-    const warmupPromise = warmCallMedia(params.callType).then((s) => {
-      if (s) setState((prev) => ({ ...prev, connectStage: 'media-ready' }));
-      return s;
-    });
+    // LiveKit acquires camera/mic itself — pre-warming blocks the caller's device.
+    const warmupPromise =
+      initialMode === 'persistent'
+        ? Promise.resolve(null)
+        : warmCallMedia(params.callType).then((s) => {
+            if (s) setState((prev) => ({ ...prev, connectStage: 'media-ready' }));
+            return s;
+          });
 
     try {
       const roomName = `call-${params.conversationId}`;
@@ -785,10 +786,13 @@ export function CallStoreProvider({ children }: { children: ReactNode }) {
     setIncomingCall(null);
     void dismissNativeIncomingCall(call.id);
 
-    // Pre-warm camera/mic the instant the user taps Accept so by the time
-    // signaling completes, tracks are already live and the in-call UI snaps in.
+    // Release preview/warm streams — LiveKit needs exclusive camera access.
     try { stopCameraStream(); } catch {}
-    const warmupPromise = warmCallMedia(call.callType);
+    try { clearWarmCallMedia(); } catch {}
+    const warmupPromise =
+      call.callMode === 'persistent'
+        ? Promise.resolve(null)
+        : warmCallMedia(call.callType);
 
     // Fire-and-forget DB status update — never block the UI on this
     void db

@@ -2,6 +2,14 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## Chat load + call camera + Friend Link parity (2026-06-21)
+- **Chat "can't load":** `useConversationDetail` always returns placeholder/cached convo (never null); `offlineFirst` network; messages fall back to cache on fetch error; removed full-page error gates in ChatView.
+- **Instant open:** `initialData` from message cache; synthetic conversation shell from deterministic id when list cache misses.
+- **Call camera bias:** Removed `warmCallMedia` for LiveKit (caller device was blocked 12s); `clearWarmCallMedia` + release preview before connect; h1080 + 2.5Mbps publish defaults.
+- **Friend Link sync:** Owner waits for scanner's `syncStartAt` event (no duplicate local schedule); hide sheet during full-screen swap animation so both users see identical NFCSwapAnimation.
+- **Verified:** `npm run build` PASS
+- **You:** Test vybe-daaab.web.app → open DM, video call both ways, Friend Link QR scan; Lovable Publish for vybehub.app
+
 ## Snapchat-grade DMs + push + calls pass (2026-06-21)
 - **Chat load:** Non-blocking message fetch; cached conversation opens instantly; relaxed skeleton gates; GlobalRT mounts immediately (no idle defer).
 - **Realtime:** Optimistic broadcast on send; sync `setCurrentConversationId`; activity/typing broadcasts for live presence.

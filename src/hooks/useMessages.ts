@@ -351,7 +351,13 @@ export function useMessages(conversationId: string | undefined) {
         }).catch(() => {});
       }
 
-      if (error) throw error;
+      if (error) {
+        const cached = readMessagesCache(queryClient, conversationId);
+        if (cached.length) {
+          return mergePendingOptimisticMessages(queryClient, conversationId, cached);
+        }
+        throw error;
+      }
 
       const rows = ((data || []) as Message[]).filter((m) => !m.is_deleted);
       rows.reverse();
@@ -365,6 +371,11 @@ export function useMessages(conversationId: string | undefined) {
     refetchOnWindowFocus: false,
     refetchOnMount: (query) => shouldRefetchWhenEmpty(query),
     refetchOnReconnect: false,
+    initialData: () => {
+      if (!conversationId) return undefined;
+      const cached = readMessagesCache(queryClient, conversationId);
+      return cached.length ? cached : undefined;
+    },
     placeholderData: (prev) => prev,
     networkMode: 'offlineFirst',
     retry: 2,

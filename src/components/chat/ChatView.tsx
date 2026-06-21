@@ -1332,7 +1332,7 @@ export function ChatView() {
     }
   }, [settings.chat_wallpaper]);
 
-  if (messagesFetched && messagesError && !messages?.length && !conversation) {
+  if (messagesFetched && messagesError && !messages?.length && !conversationId) {
     return (
       <div className="flex flex-col h-full items-center justify-center gap-3 p-6 text-center">
         <p className="text-sm text-muted-foreground">Couldn&apos;t load this conversation.</p>
@@ -1346,40 +1346,18 @@ export function ChatView() {
     );
   }
 
-  // Conversation missing or user is not a member — don't spin forever on stale /messages/:id URLs.
-  if (conversationId && conversationFetched && !conversation) {
-    return (
-      <div className="flex flex-col h-full items-center justify-center gap-3 p-6 text-center">
-        <p className="text-sm text-muted-foreground">This conversation isn&apos;t available.</p>
-        <Button size="sm" variant="secondary" onClick={() => navigate('/messages', { replace: true })}>
-          Back to messages
-        </Button>
-      </div>
-    );
-  }
-
-  if (conversationError && !conversation) {
-    return (
-      <div className="flex flex-col h-full items-center justify-center gap-3 p-6 text-center">
-        <p className="text-sm text-muted-foreground">Couldn&apos;t load this conversation.</p>
-        <Button size="sm" variant="ghost" onClick={() => navigate('/messages', { replace: true })}>
-          Back to messages
-        </Button>
-      </div>
-    );
-  }
-
   const showConversationSkeleton =
     !!conversationId &&
-    !conversationFetched &&
-    conversationPending &&
     !conversation &&
-    !messages?.length;
+    !messages?.length &&
+    conversationPending &&
+    !conversationFetched;
   const showMessagesSkeleton =
     !!conversationId &&
     !messages?.length &&
     messagesPending &&
-    !messagesFetched;
+    !messagesFetched &&
+    !conversation;
 
   const messagesLoadFailed =
     !!conversation &&

@@ -39,6 +39,8 @@ import { usePremiumStatus } from '@/hooks/usePremiumStatus';
 import { P2PConnection, P2PEvent } from '@/lib/p2pConnection';
 import { PaywallSheet } from '@/components/premium/PaywallSheet';
 import { triggerHaptic } from '@/lib/haptics';
+import { clearWarmCallMedia } from '@/lib/callMediaWarmup';
+import { stopCameraStream } from '@/hooks/useCameraPreload';
 import {
   Room,
   RoomEvent,
@@ -316,6 +318,9 @@ export function GlobalCallOverlay() {
     const localUserId = call.isInitiator ? call.caller.id : (profileId || call.receiver.id);
     if (!localUserId) return;
 
+    clearWarmCallMedia();
+    try { stopCameraStream(); } catch {}
+
     // Reset double-end guard
     p2pEndedRef.current = false;
 
@@ -375,10 +380,16 @@ export function GlobalCallOverlay() {
       try { await roomRef.current.disconnect(); } catch {}
     }
 
+    clearWarmCallMedia();
+    try { stopCameraStream(); } catch {}
+
     const room = new Room({
       adaptiveStream: true,
       dynacast: true,
-      videoCaptureDefaults: { resolution: VideoPresets.h720.resolution },
+      videoCaptureDefaults: {
+        resolution: VideoPresets.h1080.resolution,
+        facingMode: 'user',
+      },
       // Aggressive reconnection so brief network blips don't drop the call
       reconnectPolicy: {
         nextRetryDelayInMs: (ctx) => {
@@ -387,8 +398,13 @@ export function GlobalCallOverlay() {
           return Math.min(250 * Math.pow(2, ctx.retryCount), 2000);
         },
       },
-      // Faster initial peer connection setup
-      publishDefaults: { simulcast: true },
+      publishDefaults: {
+        simulcast: true,
+        videoEncoding: {
+          maxBitrate: 2_500_000,
+          maxFramerate: 30,
+        },
+      },
     });
 
     roomRef.current = room;
