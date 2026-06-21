@@ -8,7 +8,8 @@ Use this file as the Lovable -> Cursor handoff each session.
 - **LiveKit race fix:** `rescanRemoteTracks` on connect/participant join + delayed retries; `[CallMedia]` structured logging.
 - **Rules:** `users` collection read/write for signed-in users.
 - **Verified:** `npm run build` PASS
-- **You:** Deploy Firestore rules + hosting → two-device presence + first-join video test
+- **Deployed:** Git `0595f107` → Firebase hosting + Firestore rules + `startDmCall` on https://vybe-daaab.web.app; GEMINI secret v6 + `aiChat` live
+- **You:** Lovable Publish for vybehub.app → hard refresh → test presence + VYBE-AI + P2P calls
 
 ## Phase 3 — Calling rebuild (2026-06-21)
 - **Signaling:** `callSignaling.ts` + `callRinging.ts` — Firestore `call_signals` audit trail; 30s ring timeout; distinct decline vs missed states.
