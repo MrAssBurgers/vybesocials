@@ -2,6 +2,13 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## ChatView presence TDZ hotfix (2026-06-21)
+- **Root cause:** Snap-camera `useEffect` referenced `setLiveTakingPhoto` / `setSendingVybe` before `useChatPresence()` defined them → TDZ `ReferenceError` → desktop "Couldn't load Messages" fallback.
+- **Fix:** Call `useChatPresence` right after `otherMember`; move snap-camera effect below hook destructuring.
+- **Verified:** `npm run build` PASS; Git `95ab8b4f` pushed
+- **Deployed:** Firebase hosting on https://vybe-daaab.web.app
+- **You:** Lovable Publish for vybehub.app → hard refresh → open DM (e.g. MrAssBurgers)
+
 ## Phase 4 — Snapchat presence + call defaults (2026-06-21)
 - **Presence:** Firestore `users/{profileId}` doc with onSnapshot listener (no polling); activity states (viewing, typing, Snap, upload, in-call); header pfp + composer dock.
 - **Calls default:** Free **P2P** mode by default; LiveKit persistent only via Stay On Call toggle.
