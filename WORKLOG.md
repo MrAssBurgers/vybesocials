@@ -7,7 +7,7 @@ Use this file as the Lovable -> Cursor handoff each session.
 - **Group dock:** Composer `ChatPresenceDock` for the most active group member (typing, Snap, upload, etc.).
 - **Group receipts:** Delivered/Opened on own group messages; `ReadReceipts` avatars when views exist.
 - **GEMINI:** Redeployed 36 GEMINI-bound Cloud Functions (`setup-gemini-secrets.mjs --deploy-only`).
-- **Deployed:** Git pending → Firebase hosting + AI functions on https://vybe-daaab.web.app
+- **Deployed:** Git `f30c131a` → Firebase hosting + 36 AI functions on https://vybe-daaab.web.app
 - **You:** Lovable Publish → test group header + VYBE-AI smart replies
 
 ## Phase 5 — Group presence + read receipts (2026-06-21)
