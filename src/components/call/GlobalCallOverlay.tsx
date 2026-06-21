@@ -62,11 +62,43 @@ import {
   updateCallDiagnostics,
   isCallDebugEnabled,
 } from '@/lib/callDiagnostics';
+import { logCallMedia } from '@/lib/callMediaLog';
 
 const INCOMING_CALL_TIMEOUT_SECONDS = 30;
 /** Outbound ring budget — align with 30s callee timeout. */
 const OUTBOUND_RING_TIMEOUT_SECONDS = 30;
 const CONNECT_TIMEOUT_SECONDS = 60;
+
+/** Subscribe + attach all remote tracks — fixes first-join race when callee publishes late. */
+function rescanRemoteTracks(
+  room: Room,
+  attachRemoteVideo: (track: MediaStreamTrack) => void,
+  attachRemoteAudio: (track: MediaStreamTrack) => void,
+  reason: string,
+): void {
+  logCallMedia('subscribe_rescan', { reason, remotes: room.remoteParticipants.size });
+  for (const participant of room.remoteParticipants.values()) {
+    for (const pub of participant.trackPublications.values()) {
+      if (pub.kind === Track.Kind.Video && !pub.isSubscribed) {
+        pub.setSubscribed(true);
+        logCallMedia('remote_track_published', { kind: 'video', participant: participant.identity });
+      }
+      if (pub.kind === Track.Kind.Audio && !pub.isSubscribed) {
+        pub.setSubscribed(true);
+        logCallMedia('remote_track_published', { kind: 'audio', participant: participant.identity });
+      }
+      const mt = pub.track?.mediaStreamTrack;
+      if (!mt) continue;
+      if (pub.kind === Track.Kind.Video) {
+        attachRemoteVideo(mt);
+        logCallMedia('remote_video_attached', { participant: participant.identity, reason });
+      } else if (pub.kind === Track.Kind.Audio) {
+        attachRemoteAudio(mt);
+        logCallMedia('remote_audio_attached', { participant: participant.identity, reason });
+      }
+    }
+  }
+}
 
 export function GlobalCallOverlay() {
   const { state, acceptCall, endCall, leaveCall, setPhase, setConnectStage, setError, dismissIncoming, timeoutIncoming, switchMode } = useCallStore();
@@ -452,14 +484,19 @@ export function GlobalCallOverlay() {
       signalingState: 'connecting',
     });
 
+    logCallMedia('room_create', { room: call.roomName, mode: call.callMode });
+
     roomRef.current = room;
 
-    // Track subscribed
-    room.on(RoomEvent.TrackSubscribed, (track, _pub, participant) => {
+    room.on(RoomEvent.TrackSubscribed, (track, pub, participant) => {
       if (participant.isLocal) return;
+      logCallMedia('remote_track_subscribed', { kind: track.kind, participant: participant.identity });
       if (track.kind === Track.Kind.Video) {
         const mt = track.mediaStreamTrack;
-        if (mt) attachRemoteVideo(mt);
+        if (mt) {
+          attachRemoteVideo(mt);
+          logCallMedia('remote_video_attached', { participant: participant.identity, via: 'TrackSubscribed' });
+        }
       } else if (track.kind === Track.Kind.Audio) {
         const mt = track.mediaStreamTrack;
         if (mt) attachRemoteAudio(mt);
@@ -468,9 +505,8 @@ export function GlobalCallOverlay() {
 
     room.on(RoomEvent.TrackPublished, (publication, participant) => {
       if (participant.isLocal) return;
-      if (publication.kind === Track.Kind.Video && !publication.isSubscribed) {
-        publication.setSubscribed(true);
-      }
+      logCallMedia('remote_track_published', { kind: publication.kind, participant: participant.identity });
+      if (!publication.isSubscribed) publication.setSubscribed(true);
     });
 
     room.on(RoomEvent.TrackUnsubscribed, (track) => {
@@ -483,9 +519,13 @@ export function GlobalCallOverlay() {
     });
 
     room.on(RoomEvent.LocalTrackPublished, (publication: LocalTrackPublication) => {
+      logCallMedia('local_track_published', { kind: publication.kind });
       if (publication.kind === Track.Kind.Video) {
         const mt = publication.track?.mediaStreamTrack;
-        if (mt) attachLocalVideo(mt);
+        if (mt) {
+          attachLocalVideo(mt);
+          logCallMedia('camera_init', { width: mt.getSettings?.()?.width });
+        }
       }
     });
 
@@ -497,20 +537,13 @@ export function GlobalCallOverlay() {
     });
 
     room.on(RoomEvent.ParticipantConnected, (participant) => {
+      logCallMedia('participant_connected', { identity: participant.identity });
       setHasRemoteParticipant(true);
       setRemoteUserLeft(false);
       setAutoEndCountdown(0);
       if (autoEndTimerRef.current) { clearTimeout(autoEndTimerRef.current); autoEndTimerRef.current = null; }
       if (countdownIntervalRef.current) { clearInterval(countdownIntervalRef.current); countdownIntervalRef.current = null; }
-      participant.trackPublications.forEach((pub) => {
-        if (pub.kind === Track.Kind.Video && !pub.isSubscribed) {
-          pub.setSubscribed(true);
-        }
-        if (pub.track?.mediaStreamTrack) {
-          if (pub.kind === Track.Kind.Video) attachRemoteVideo(pub.track.mediaStreamTrack);
-          else if (pub.kind === Track.Kind.Audio) attachRemoteAudio(pub.track.mediaStreamTrack);
-        }
-      });
+      rescanRemoteTracks(room, attachRemoteVideo, attachRemoteAudio, 'ParticipantConnected');
     });
 
     room.on(RoomEvent.ParticipantDisconnected, () => {
@@ -584,38 +617,34 @@ export function GlobalCallOverlay() {
       markCallConnected();
       setPhase('connected');
       setIsVideoOff(stateRef.current.call?.callType !== 'video');
+      logCallMedia('room_connected', { room: room.name });
       updateCallDiagnostics({
         connectionState: 'connected',
         signalingState: 'connected',
         iceState: 'connected',
       });
-
-      const remotes = Array.from(room.remoteParticipants.values());
-      if (remotes.length > 0) {
-        setHasRemoteParticipant(true);
-        remotes.forEach(p => {
-          p.trackPublications.forEach(pub => {
-            if (pub.kind === Track.Kind.Video && !pub.isSubscribed) {
-              pub.setSubscribed(true);
-            }
-            if (pub.track && pub.isSubscribed) {
-              const mt = pub.track.mediaStreamTrack;
-              if (pub.kind === Track.Kind.Video && mt) attachRemoteVideo(mt);
-              else if (pub.kind === Track.Kind.Audio && mt) attachRemoteAudio(mt);
-            }
-          });
-        });
-      }
+      rescanRemoteTracks(room, attachRemoteVideo, attachRemoteAudio, 'Connected');
     });
 
     try {
       setConnectStage('connecting-media');
+      logCallMedia('room_connecting', { room: call.roomName });
       await room.connect(call.livekitUrl, call.token, { autoSubscribe: true });
-      await room.localParticipant.setMicrophoneEnabled(true);
-      if (call.callType === 'video') {
-        try { await room.localParticipant.setCameraEnabled(true); } catch (err: any) {
-          setCameraError(err.message || 'Camera failed');
-        }
+      await Promise.all([
+        room.localParticipant.setMicrophoneEnabled(true),
+        call.callType === 'video'
+          ? room.localParticipant.setCameraEnabled(true).catch((err: Error) => {
+              setCameraError(err.message || 'Camera failed');
+            })
+          : Promise.resolve(),
+      ]);
+      rescanRemoteTracks(room, attachRemoteVideo, attachRemoteAudio, 'post-publish');
+      for (const ms of [300, 800, 1500, 3000]) {
+        setTimeout(() => {
+          if (roomRef.current === room) {
+            rescanRemoteTracks(room, attachRemoteVideo, attachRemoteAudio, `retry-${ms}ms`);
+          }
+        }, ms);
       }
     } catch (err: any) {
       console.error('[CallOverlay] LiveKit connect failed:', err);

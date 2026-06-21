@@ -188,6 +188,7 @@ interface LivePresenceBarProps {
   isInChat?: boolean;
   isInCamera?: boolean;
   lastReadAt?: string | null;
+  activity?: string;
 }
 
 // Animated typing dots - CSS based for smoothness
@@ -239,10 +240,25 @@ export const LivePresenceBar = memo(function LivePresenceBar({
   isInChat,
   isInCamera,
   lastReadAt,
+  activity,
 }: LivePresenceBarProps) {
   const readTimeAgo = useRelativeTime(lastReadAt);
 
+  const activityLabel = (() => {
+    switch (activity) {
+      case 'recording_voice': return 'recording audio';
+      case 'uploading_image': return 'sending photo';
+      case 'uploading_video': return 'sending video';
+      case 'sending_vybe': return 'sending Snap';
+      case 'in_call': return 'in call';
+      case 'viewing': return 'in chat';
+      case 'typing': return 'typing';
+      default: return null;
+    }
+  })();
+
   const getStaticStatusText = () => {
+    if (activityLabel) return activityLabel;
     if (isInCamera) return 'in Snap';
     if (isInChat && !isTyping) return 'in chat';
     if (isOnline && !isTyping) return 'online';
@@ -252,30 +268,32 @@ export const LivePresenceBar = memo(function LivePresenceBar({
 
   return (
     <div className="flex items-center gap-1.5">
-      {/* Status dot - only show when online or typing */}
-      {(isTyping || isOnline) && (
+      {(isTyping || isOnline || activity === 'in_call') && (
         <div
           className={cn(
             "w-2 h-2 rounded-full transition-colors duration-200",
-            isTyping ? "bg-primary animate-pulse" : "bg-green-500"
+            isTyping ? "bg-primary animate-pulse" :
+            activity === 'in_call' ? "bg-green-500 animate-pulse" :
+            "bg-green-500"
           )}
         />
       )}
       
-      {/* Status text */}
-      {isTyping ? (
+      {isTyping || activity === 'typing' ? (
         <span className="text-xs font-medium text-primary">
           typing<TypingDots />
         </span>
-      ) : isInCamera ? (
+      ) : activity === 'in_call' ? (
+        <span className="text-xs font-medium text-green-500">in call</span>
+      ) : isInCamera || activity === 'sending_vybe' || activity === 'taking_photo' ? (
         <span className="text-xs font-medium text-amber-500 flex items-center gap-1">
           <Camera className="h-3 w-3" />
           in Snap
         </span>
-      ) : isInChat ? (
-        <span className="text-xs font-medium text-green-500">
-          reading
-        </span>
+      ) : activity === 'uploading_image' || activity === 'uploading_video' ? (
+        <span className="text-xs font-medium text-sky-500">{activityLabel}</span>
+      ) : isInChat || activity === 'viewing' ? (
+        <span className="text-xs font-medium text-green-500">in chat</span>
       ) : readTimeAgo ? (
         <span className="text-xs font-medium text-muted-foreground">
           Read {readTimeAgo}

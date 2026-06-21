@@ -94,7 +94,7 @@ export const startDmCall = onCall({ region: 'us-central1' }, async (request) => 
     const otherProfileId = inferOtherParticipantId(conversationId, callerProfileId) || receiverProfileId;
     await ensureConversationMembershipAdmin(conversationId, callerProfileId, authUid, otherProfileId);
     const callType = data.callType === 'video' ? 'video' : 'audio';
-    const callMode = data.callMode === 'p2p' ? 'p2p' : 'persistent';
+    const callMode = data.callMode === 'persistent' ? 'persistent' : 'p2p';
     const roomName = `call-${conversationId}`;
     const now = new Date().toISOString();
     const ref = db.collection('calls').doc();
@@ -108,6 +108,7 @@ export const startDmCall = onCall({ region: 'us-central1' }, async (request) => 
         room_name: roomName,
         is_group_call: Boolean(data.isGroupCall),
         call_mode: callMode,
+        ring_expires_at: new Date(Date.now() + 30_000).toISOString(),
         created_at: now,
     };
     await ref.set(call);

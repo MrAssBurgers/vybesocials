@@ -127,7 +127,7 @@ export const startDmCall = onCall({ region: 'us-central1' }, async (request) => 
   );
 
   const callType = data.callType === 'video' ? 'video' : 'audio';
-  const callMode = data.callMode === 'p2p' ? 'p2p' : 'persistent';
+  const callMode = data.callMode === 'persistent' ? 'persistent' : 'p2p';
   const roomName = `call-${conversationId}`;
   const now = new Date().toISOString();
 

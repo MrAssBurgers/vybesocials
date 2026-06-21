@@ -10,7 +10,17 @@ export interface DmTypingPayload {
 
 export interface DmActivityPayload {
   userId: string;
-  activity: 'viewing' | 'typing' | 'recording_voice' | 'recording_video' | 'taking_photo' | 'idle';
+  activity:
+    | 'viewing'
+    | 'typing'
+    | 'recording_voice'
+    | 'recording_video'
+    | 'taking_photo'
+    | 'uploading_image'
+    | 'uploading_video'
+    | 'sending_vybe'
+    | 'in_call'
+    | 'idle';
   username?: string;
   displayName?: string;
   avatarUrl?: string | null;

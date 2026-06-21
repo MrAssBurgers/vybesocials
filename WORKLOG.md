@@ -2,6 +2,14 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## Phase 4 — Snapchat presence + call defaults (2026-06-21)
+- **Presence:** Firestore `users/{profileId}` doc with onSnapshot listener (no polling); activity states (viewing, typing, Snap, upload, in-call); header pfp + composer dock.
+- **Calls default:** Free **P2P** mode by default; LiveKit persistent only via Stay On Call toggle.
+- **LiveKit race fix:** `rescanRemoteTracks` on connect/participant join + delayed retries; `[CallMedia]` structured logging.
+- **Rules:** `users` collection read/write for signed-in users.
+- **Verified:** `npm run build` PASS
+- **You:** Deploy Firestore rules + hosting → two-device presence + first-join video test
+
 ## Phase 3 — Calling rebuild (2026-06-21)
 - **Signaling:** `callSignaling.ts` + `callRinging.ts` — Firestore `call_signals` audit trail; 30s ring timeout; distinct decline vs missed states.
 - **Incoming reliability:** 500ms foreground poll; UPDATE listener on `calls`; auto-timeout + native bridge uses `timeoutIncoming`.
@@ -33,7 +41,7 @@ Use this file as the Lovable -> Cursor handoff each session.
 - **Spotify pill:** `spotifyNowPlaying` now upserts `live_music_presence` + returns `{ connected, is_playing, title, … }` (was raw Spotify JSON → pill never showed). Added Firestore rules for `live_music_presence` read/write.
 - **Notifications menu:** Removed `missed_call` rows from bell feed + stopped inserting them on dismiss; missed calls stay as DM `call_event` only. Fixed tap crash when actor missing username; safe `/home` fallback; native push uses SPA `navigateFromNotification` (no full reload "page can't load").
 - **Calls:** Incoming ring still via OneSignal/`onCallCreated` push (phone notification) — ensure push enabled in Settings + Despia linked.
-- **Gemini AI:** Still needs `GEMINI_API_KEY` on Firebase — run `GEMINI_API_KEY=xxx npm run setup:gemini-secrets` (key from https://aistudio.google.com/apikey).
+- **Gemini AI:** `GEMINI_API_KEY` secret v6 set + `aiChat` redeployed (2026-06-21). Hard refresh VYBE-AI; Clear Chat to drop old error bubbles.
 - **Deployed:** Git `8f8d0031` → Firebase hosting + Firestore rules on `vybe-daaab.web.app`; `GEMINI_API_KEY` secret + `aiChat` redeployed
 - **You:** Lovable Publish for vybehub.app → connect Spotify in Settings → test now-playing pill → test notification taps on mobile
 

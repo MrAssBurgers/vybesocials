@@ -7,7 +7,7 @@
  * 
  * Two call modes:
  * - "p2p": Direct WebRTC (fallback / legacy)
- * - "persistent" (default): LiveKit SFU — reliable on mobile/NAT like major social apps
+ * - "persistent": LiveKit SFU — premium "Stay On Call" (opt-in only)
  * 
  * Mode switching: controlled reconnect — tear down old, build new.
  */
@@ -36,6 +36,7 @@ import { startDmCallViaCloudFunction, isRetryableCallError } from '@/lib/firebas
 import { insertCallChatEvent } from '@/lib/callChatMessages';
 import { writeCallSignal } from '@/lib/callSignaling';
 import { CALL_RING_TIMEOUT_MS, markCallDeclined, markCallMissed } from '@/lib/callRinging';
+import { setUserActivity, patchUserPresence } from '@/lib/usersPresenceDoc';
 
 export type CallPhase = 'idle' | 'ringing' | 'creating' | 'joining' | 'connected' | 'ending' | 'switching' | 'error';
 export type CallType = 'audio' | 'video';
@@ -297,7 +298,7 @@ export function CallStoreProvider({ children }: { children: ReactNode }) {
       livekitUrl: '',
       token: '',
       callType: (newCall.call_type as CallType) || 'audio',
-      callMode: (newCall.call_mode as CallMode) || 'persistent',
+      callMode: (newCall.call_mode as CallMode) || 'p2p',
       conversationId: String(newCall.conversation_id || ''),
       caller: stubCaller,
       receiver: stubReceiver,
@@ -348,7 +349,7 @@ export function CallStoreProvider({ children }: { children: ReactNode }) {
         livekitUrl: '',
         token: '',
         callType: data.call_type as CallType,
-        callMode: (data.call_mode as CallMode) || 'persistent',
+        callMode: (data.call_mode as CallMode) || 'p2p',
         conversationId: data.conversation_id,
         caller: (data.caller as CallUser) || stubCaller,
         receiver: (data.receiver as CallUser) || stubReceiver,
@@ -725,8 +726,8 @@ export function CallStoreProvider({ children }: { children: ReactNode }) {
     try { stopCameraStream(); } catch {}
     try { clearWarmCallMedia(); } catch {}
 
-    // LiveKit by default — works through NAT/mobile networks (Instagram/Discord-style).
-    const initialMode: CallMode = 'persistent';
+    // LiveKit by default only when user explicitly selects Stay On Call (premium).
+    const initialMode: CallMode = 'p2p';
 
     // LiveKit acquires camera/mic itself — pre-warming blocks the caller's device.
     const warmupPromise =
@@ -858,6 +859,8 @@ export function CallStoreProvider({ children }: { children: ReactNode }) {
         signalData: { callMode: initialMode, callType: params.callType },
       });
 
+      void setUserActivity(callerId, params.conversationId, 'in_call');
+
       // Server-side `onCallCreated` Cloud Function sends high-priority FCM to callee(s).
       // Realtime + polling below remain the in-app fallback.
     } catch (err: any) {
@@ -905,6 +908,8 @@ export function CallStoreProvider({ children }: { children: ReactNode }) {
       toUserId: call.caller.id,
       signalType: 'accepted',
     });
+
+    if (profileId) void setUserActivity(profileId, call.conversationId, 'in_call');
 
     if (call.callMode === 'persistent') {
       // Flip to 'joining' immediately with media stage so the overlay paints.
@@ -962,6 +967,14 @@ export function CallStoreProvider({ children }: { children: ReactNode }) {
       // Outbound no-answer is handled by markCallMissed in callStore ring timeout.
     }
     callConnectedAt = null;
+
+    if (endedProfileId) {
+      void patchUserPresence(endedProfileId, {
+        in_call: false,
+        current_activity: 'online',
+        active_conversation: null,
+      });
+    }
 
     if (callId) {
       try {

@@ -60,10 +60,9 @@ import { useDMSettings, useMessagePins } from '@/hooks/useDMSettings';
 import { CallButtons } from '@/components/call/CallButtons';
 import { CallSettingsSheet } from '@/components/call/CallSettingsSheet';
 import { useChatPresence } from '@/hooks/useChatPresence';
-import { useLiveActivity } from '@/hooks/useLiveActivity';
 import { ChatPresenceIndicator } from './ChatPresenceIndicator';
 import { LivePresenceBar, ScreenshotAlert } from './SnapchatFeedback';
-import { ChatPresenceDock } from './LiveActivityIndicator';
+import { ChatPresenceDock, ChatHeaderPresenceAvatar } from './LiveActivityIndicator';
 import { SignedAvatar } from '@/components/ui/SignedAvatar';
 import { CallEventBubble } from './CallEventBubble';
 import { AIAssistButton } from './AIAssistButton';
@@ -198,57 +197,6 @@ export function ChatView() {
   const unsendForEveryone = useUnsendForEveryone();
   const deleteForMe = useDeleteForMe();
   const editMessage = useEditMessage();
-  // Use new presence hook for Snapchat-style presence + typing
-  const { presentUsers: rawPresentUsers, typingUsers: rawTypingUsers, setTyping } = useChatPresence(conversationId);
-  const presentUsers = Array.isArray(rawPresentUsers) ? rawPresentUsers : [];
-  const typingUsers = Array.isArray(rawTypingUsers) ? rawTypingUsers : [];
-  // Ultra-fast live activity tracking for DMs
-  const {
-    otherUserActivity,
-    isOtherUserPresent,
-    setTyping: setLiveTyping,
-    setRecordingVoice: setLiveRecordingVoice,
-    setTakingPhoto: setLiveTakingPhoto,
-  } = useLiveActivity(conversationId);
-  const isOtherTyping =
-    typingUsers.length > 0 || otherUserActivity?.activity === 'typing';
-  const isOtherInChat =
-    presentUsers.length > 0 ||
-    isOtherUserPresent ||
-    otherUserActivity?.activity === 'viewing';
-  const isOtherInCamera =
-    otherUserActivity?.activity === 'taking_photo' ||
-    otherUserActivity?.activity === 'recording_video';
-
-  const otherPresenceActivity = useMemo((): import('./LiveActivityIndicator').ActivityType => {
-    if (isOtherTyping || otherUserActivity?.activity === 'typing') return 'typing';
-    if (isOtherInCamera) return 'taking_photo';
-    if (isOtherInChat || otherUserActivity?.activity === 'viewing') return 'viewing';
-    if (otherUserActivity?.activity === 'recording_voice') return 'recording_voice';
-    return 'idle';
-  }, [isOtherTyping, isOtherInChat, isOtherInCamera, otherUserActivity?.activity]);
-
-  const peerActivityUser = useMemo(() => {
-    if (otherUserActivity && otherUserActivity.activity !== 'idle') {
-      return otherUserActivity;
-    }
-    const peer = presentUsers.find((u) => u.user_id !== profileId);
-    if (!peer) return null;
-    return {
-      user_id: peer.user_id,
-      username: peer.username,
-      avatar_url: peer.avatar_url,
-      display_name: peer.display_name,
-      activity: (typingUsers.includes(peer.user_id) || peer.is_typing
-        ? 'typing'
-        : 'viewing') as import('./LiveActivityIndicator').ActivityType,
-    };
-  }, [otherUserActivity, presentUsers, profileId, typingUsers]);
-
-  const showPeerPresence =
-    !isGroupChat &&
-    !!peerActivityUser &&
-    otherPresenceActivity !== 'idle';
   const { notifyScreenshot, notifyCapture, screenshotEvents: rawScreenshotEvents, isRecording } = useScreenshotNotification(conversationId);
   const screenshotEvents = Array.isArray(rawScreenshotEvents) ? rawScreenshotEvents : [];
   
@@ -344,10 +292,12 @@ export function ChatView() {
 
   useEffect(() => {
     setLiveTakingPhoto(cameraFirstMode || showSnapCamera);
+    setSendingVybe(showSnapCamera);
     return () => {
       if (cameraFirstMode || showSnapCamera) setLiveTakingPhoto(false);
+      if (showSnapCamera) setSendingVybe(false);
     };
-  }, [cameraFirstMode, showSnapCamera, setLiveTakingPhoto]);
+  }, [cameraFirstMode, showSnapCamera, setLiveTakingPhoto, setSendingVybe]);
   const callStore = useCallStore();
   const handleOpenSnapCamera = useCallback(() => {
     if (callStore.state.phase !== 'idle') {
@@ -417,6 +367,22 @@ export function ChatView() {
     !isGroupChat ? otherMember?.id : undefined
   );
   const otherMemberOnline = presenceQuery.data?.is_online ?? false;
+
+  const {
+    peerPresence,
+    presentUsers,
+    typingUsers,
+    setTyping,
+    setRecordingVoice: setLiveRecordingVoice,
+    setTakingPhoto: setLiveTakingPhoto,
+    setUploadingImage,
+    setUploadingVideo,
+    setSendingVybe,
+  } = useChatPresence(conversationId, !isGroupChat ? otherMember?.id : undefined);
+
+  const otherPresenceActivity = peerPresence?.activity ?? 'idle';
+  const peerActivityUser = peerPresence;
+  const showPeerPresence = !isGroupChat && !!peerPresence && otherPresenceActivity !== 'idle';
   
   // Get streak with the other user (for DMs)
   const streak = useStreakWithUser(!isGroupChat ? otherMember?.id : undefined);
@@ -669,20 +635,17 @@ export function ChatView() {
 
     if (value.length > 0) {
       setTyping(true);
-      setLiveTyping(true);
       typingUpdateScheduledRef.current = true;
 
       typingTimeoutRef.current = setTimeout(() => {
         typingUpdateScheduledRef.current = false;
         setTyping(false);
-        setLiveTyping(false);
       }, 3000);
     } else {
       typingUpdateScheduledRef.current = false;
       setTyping(false);
-      setLiveTyping(false);
     }
-  }, [setTyping, setLiveTyping, conversationId]);
+  }, [setTyping, conversationId]);
 
   // Append helper used by emoji pickers (still needs to update the DOM input).
   const appendToInput = useCallback((appended: string) => {
@@ -837,9 +800,9 @@ export function ChatView() {
     uploadingRef.current = true;
     setPendingImage({ url: previewUrl, file });
     setIsUploadingMedia(true);
+    setUploadingImage(true);
 
     try {
-      // Guard: ensure profile.user_id (auth ID) exists for storage RLS
       if (!profile.user_id) {
         toast.error('Account not ready yet, please refresh and try again');
         setIsUploadingMedia(false);
@@ -876,9 +839,10 @@ export function ChatView() {
       // Keep preview for retry
     } finally {
       setIsUploadingMedia(false);
+      setUploadingImage(false);
       uploadingRef.current = false;
     }
-  }, [conversationId, profileId, compressImage, sendMediaMessage]);
+  }, [conversationId, profileId, compressImage, sendMediaMessage, setUploadingImage]);
 
   const handleVoiceRecordingComplete = useCallback(async (blob: Blob) => {
     if (!conversationId || !profileId) return;
@@ -1204,7 +1168,7 @@ export function ChatView() {
     if (!conversationId || !profileId) return;
     
     try {
-      // Create a File from the processed blob
+      setUploadingVideo(true);
       const videoFile = new File([processedVideo.blob], 'video.mp4', { type: 'video/mp4' });
       
       await sendVideo(
@@ -1222,8 +1186,10 @@ export function ChatView() {
     } catch (error) {
       console.error('Failed to send video:', error);
       toast.error('Failed to send video');
+    } finally {
+      setUploadingVideo(false);
     }
-  }, [conversationId, profileId, viewMode, replyingTo?.id, sendVideo]);
+  }, [conversationId, profileId, viewMode, replyingTo?.id, sendVideo, setUploadingVideo]);
 
   const handleReply = useCallback((msg: Message) => {
     setReplyingTo(msg);
@@ -1445,20 +1411,14 @@ export function ChatView() {
                 </div>
               </div>
             ) : (
-              <div className="relative flex-shrink-0 group-active:scale-95 transition-transform">
-                <SignedAvatar
-                  src={otherMember?.avatar_url}
-                  alt={otherMember?.display_name || otherMember?.username || 'User'}
-                  fallback={otherMember?.display_name || otherMember?.username || '?'}
-                  className="h-8 w-8 sm:h-9 sm:w-9 ring-1 ring-background shadow-sm"
+              <button onClick={handleAvatarClick} className="relative flex-shrink-0 group-active:scale-95 transition-transform">
+                <ChatHeaderPresenceAvatar
+                  avatarUrl={peerPresence?.avatar_url ?? otherMember?.avatar_url}
+                  fallbackAvatarUrl={otherMember?.avatar_url}
+                  username={otherMember?.username || otherMember?.display_name || ''}
+                  activity={showPeerPresence ? otherPresenceActivity : 'idle'}
                 />
-                {otherMemberOnline && (
-                  <span
-                    className="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full bg-green-500 ring-2 ring-background"
-                    aria-hidden
-                  />
-                )}
-              </div>
+              </button>
             )}
           </button>
 
@@ -1495,10 +1455,15 @@ export function ChatView() {
             ) : (
               <div className="flex flex-col gap-0.5 min-w-0">
                 <LivePresenceBar
-                  isOnline={otherMemberOnline}
-                  isTyping={false}
-                  isInChat={false}
-                  isInCamera={false}
+                  isOnline={otherMemberOnline || !!peerPresence}
+                  isTyping={otherPresenceActivity === 'typing'}
+                  isInChat={otherPresenceActivity === 'viewing'}
+                  isInCamera={
+                    otherPresenceActivity === 'taking_photo' ||
+                    otherPresenceActivity === 'recording_video' ||
+                    otherPresenceActivity === 'sending_vybe'
+                  }
+                  activity={otherPresenceActivity}
                   username={otherMember?.username}
                   lastReadAt={lastReadAt}
                 />

@@ -273,6 +273,16 @@ service cloud.firestore {
       allow update: if ownsUserField('user_id');
       allow delete: if ownsUserField('user_id') || isAdmin();
     }
+    // Snapchat-style per-user activity (online, typing, in-chat, in-call)
+    match /users/{userDocId} {
+      allow read: if signedIn();
+      allow create, update: if signedIn() && (
+        userDocId == profileId() ||
+        userDocId == uid() ||
+        ownsProfileId(userDocId)
+      );
+      allow delete: if ownsProfileId(userDocId) || userDocId == uid() || isAdmin();
+    }
     match /user_statuses/{docId} {
       allow read: if signedIn();
       allow create: if willOwnProfile('user_id') || willOwnUserField('user_id');
