@@ -270,10 +270,9 @@ export function GlobalCallOverlay() {
       case 'ice-failed':
         setP2pFailCount(prev => {
           const newCount = prev + 1;
-          if (newCount >= 2) {
-            console.log('[CallOverlay] ICE failed multiple times, attempting fallback...');
+          if (newCount >= 1) {
+            console.log('[CallOverlay] ICE failed — switching to LiveKit');
             toast('Switching to better connection...', { duration: 3000 });
-            // Use a timeout to avoid calling switchMode during render
             setTimeout(() => {
               switchMode('persistent').catch(() => {
                 toast.error('Connection failed. Please try again.', { duration: 5000 });

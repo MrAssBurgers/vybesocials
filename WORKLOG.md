@@ -2,6 +2,12 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## Call connect fix (2026-06-21)
+- **Root cause:** 1:1 calls defaulted to P2P (NAT/mobile failure); incoming ring missed when `receiver_id` used auth uid vs profile id; call insert skipped membership repair.
+- **Fix:** Default all calls to LiveKit (`persistent`); dual incoming listeners (profile + auth uid); `repairConversationForSend` before call insert; `startDmCall` Cloud Function fallback; instant LiveKit fallback on ICE fail.
+- **Deployed:** `startDmCall`, `livekitToken` (secrets OK), Firebase hosting ~837KB
+- **You:** Test at **vybe-daaab.web.app** now; Lovable Publish for vybehub.app
+
 ## DM send deep fix (2026-06-21)
 - **Scan:** debug/build PASS; `test:social-permissions` 15/15; client insert E2E OK; prod `app.js` stale (~791KB vs ~836KB).
 - **Root cause:** Client membership seed used wrong auth uid for peer rows; server verify too aggressive; no fallback when Firestore rules reject legacy chats.

@@ -6,8 +6,8 @@
  *         idle → ringing (incoming) → joining → connected → ending → idle
  * 
  * Two call modes:
- * - "p2p" (default, free): Direct WebRTC peer-to-peer, no media server
- * - "persistent" (premium): LiveKit SFU, persistent rooms, rejoin support
+ * - "p2p": Direct WebRTC (fallback / legacy)
+ * - "persistent" (default): LiveKit SFU — reliable on mobile/NAT like major social apps
  * 
  * Mode switching: controlled reconnect — tear down old, build new.
  */
@@ -29,7 +29,10 @@ import { resolveSessionProfileId } from '@/lib/resolveSessionProfileId';
 import {
   prepareConversationForMessages,
   inferOtherParticipantId,
+  repairConversationForSend,
+  normalizeToProfileId,
 } from '@/lib/dmMembershipRepair';
+import { startDmCallViaCloudFunction, isRetryableCallError } from '@/lib/firebase/callSendClient';
 
 export type CallPhase = 'idle' | 'ringing' | 'creating' | 'joining' | 'connected' | 'ending' | 'switching' | 'error';
 export type CallType = 'audio' | 'video';
@@ -330,24 +333,28 @@ export function CallStoreProvider({ children }: { children: ReactNode }) {
     return () => window.removeEventListener('vybe:incoming-call', handler);
   }, [setIncomingCall]);
 
-  // Realtime + polling for incoming calls
+  // Realtime + polling for incoming calls (profile id + auth uid — migrated users)
   useEffect(() => {
     if (!profileId) return;
 
     let pollTimeoutId: ReturnType<typeof setTimeout> | null = null;
     let lastPollTime = new Date().toISOString();
     let isSubscribed = false;
+    const authUid = profile?.user_id ?? null;
+    const receiverIds = [...new Set([profileId, authUid].filter(Boolean))] as string[];
+
+    const bindings = receiverIds.flatMap((rid) => [
+      {
+        event: 'INSERT' as const,
+        table: 'calls',
+        filter: `receiver_id=eq.${rid}`,
+        callback: (payload: { new: unknown }) => processIncomingCall(payload.new),
+      },
+    ]);
 
     const channel = subscribePostgresChannel(
       `incoming-calls-${profileId}`,
-      [
-        {
-          event: 'INSERT',
-          table: 'calls',
-          filter: `receiver_id=eq.${profileId}`,
-          callback: (payload) => processIncomingCall(payload.new),
-        },
-      ],
+      bindings,
       (status) => {
         if (status === 'SUBSCRIBED') {
           isSubscribed = true;
@@ -364,17 +371,20 @@ export function CallStoreProvider({ children }: { children: ReactNode }) {
       }
 
       try {
-        const { data: ringingCalls } = await db
-          .from('calls')
-          .select('id, status, conversation_id, call_type, room_name, created_at')
-          .eq('receiver_id', profileId)
-          .eq('status', 'ringing')
-          .gt('created_at', lastPollTime)
-          .order('created_at', { ascending: false })
-          .limit(1);
+        for (const rid of receiverIds) {
+          const { data: ringingCalls } = await db
+            .from('calls')
+            .select('id, status, conversation_id, call_type, room_name, created_at')
+            .eq('receiver_id', rid)
+            .eq('status', 'ringing')
+            .gt('created_at', lastPollTime)
+            .order('created_at', { ascending: false })
+            .limit(1);
 
-        if (ringingCalls && ringingCalls.length > 0) {
-          processIncomingCall(ringingCalls[0]);
+          if (ringingCalls && ringingCalls.length > 0) {
+            processIncomingCall(ringingCalls[0]);
+            break;
+          }
         }
 
         lastPollTime = new Date().toISOString();
@@ -391,7 +401,7 @@ export function CallStoreProvider({ children }: { children: ReactNode }) {
       removeRealtimeChannel(channel);
       if (pollTimeoutId) clearTimeout(pollTimeoutId);
     };
-  }, [profileId, processIncomingCall]);
+  }, [profileId, profile?.user_id, processIncomingCall]);
 
   // Caller: track callee accept/decline while P2P connects immediately in parallel.
   useEffect(() => {
@@ -610,18 +620,23 @@ export function CallStoreProvider({ children }: { children: ReactNode }) {
     if (!callerId) throw new Error('Not authenticated');
     if (globalCallState.phase !== 'idle') return;
 
+    const receiverProfileId =
+      (await normalizeToProfileId(params.receiverId)) || params.receiverId;
+
     const otherProfileId =
-      params.receiverId || inferOtherParticipantId(params.conversationId, callerId) || null;
+      receiverProfileId || inferOtherParticipantId(params.conversationId, callerId) || null;
 
     // Starting a brand-new call — drop any stale lingering rejoin chip
     setLingeringCall(null);
     setState({ phase: 'creating', call: null, error: null, connectStage: 'requesting-media' });
     callSounds.startRingback();
 
-    // Repair membership in background — never block the call UI on mobile.
-    void prepareConversationForMessages(params.conversationId, callerId, otherProfileId, {
-      fast: true,
-    }).catch(() => {});
+    // Repair chat membership before call insert (rules require participant).
+    try {
+      await repairConversationForSend(params.conversationId, callerId, otherProfileId);
+    } catch (err) {
+      console.warn('[CallStore] membership repair before call:', err);
+    }
 
     // CRITICAL: release any preloaded camera stream (Friend Link / preview)
     // before the call requests its own stream. Holding the camera elsewhere
@@ -638,17 +653,18 @@ export function CallStoreProvider({ children }: { children: ReactNode }) {
     try {
       const roomName = `call-${params.conversationId}`;
 
-      // Group calls REQUIRE persistent (LiveKit) mode — P2P is 1:1 only.
-      // Group calling is free for everyone; only 1:1 "Stay-on" persistent mode is Pro.
-      const initialMode: CallMode = params.isGroupCall ? 'persistent' : 'p2p';
+      // LiveKit by default — works through NAT/mobile networks (Instagram/Discord-style).
+      const initialMode: CallMode = 'persistent';
 
-      // Insert call record directly — P2P doesn't need an edge function
-      const { data: callSession, error: callError } = await db
+      let callSession: Record<string, unknown> | null = null;
+      let callError: { message?: string; code?: string } | null = null;
+
+      const insertResult = await db
         .from('calls')
         .insert({
           conversation_id: params.conversationId,
           caller_id: callerId,
-          receiver_id: params.receiverId,
+          receiver_id: receiverProfileId,
           call_type: params.callType,
           status: 'ringing',
           room_name: roomName,
@@ -657,6 +673,25 @@ export function CallStoreProvider({ children }: { children: ReactNode }) {
         })
         .select()
         .single();
+
+      if (insertResult.error || !insertResult.data) {
+        callError = insertResult.error;
+        if (isRetryableCallError(insertResult.error)) {
+          const cloud = await startDmCallViaCloudFunction({
+            conversationId: params.conversationId,
+            receiverId: receiverProfileId,
+            callType: params.callType,
+            isGroupCall: params.isGroupCall,
+            callMode: initialMode,
+          });
+          if (!cloud.error && cloud.data) {
+            callSession = cloud.data;
+            callError = null;
+          }
+        }
+      } else {
+        callSession = insertResult.data as Record<string, unknown>;
+      }
 
       if (callError || !callSession) {
         throw new Error(callError?.message || 'Failed to create call');
@@ -672,7 +707,7 @@ export function CallStoreProvider({ children }: { children: ReactNode }) {
         const tokenData = await invokeLiveKitCallToken({
           conversationId: params.conversationId,
           callType: params.callType,
-          callId: callSession.id,
+          callId: String(callSession.id),
         });
         livekitUrl = tokenData.url;
         token = tokenData.token;
@@ -684,7 +719,7 @@ export function CallStoreProvider({ children }: { children: ReactNode }) {
       try { await Promise.race([warmupPromise, new Promise((r) => setTimeout(r, 1500))]); } catch {}
 
       const callData: CallData = {
-        id: callSession.id,
+        id: String(callSession.id),
         roomName: resolvedRoomName,
         livekitUrl,
         token,
@@ -698,7 +733,7 @@ export function CallStoreProvider({ children }: { children: ReactNode }) {
           avatar_url: profile?.avatar_url || null,
         },
         receiver: {
-          id: params.receiverId,
+          id: receiverProfileId,
           username: params.receiverUsername || '',
           display_name: params.receiverDisplayName || null,
           avatar_url: params.receiverAvatarUrl || null,

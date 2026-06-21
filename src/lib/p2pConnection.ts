@@ -671,10 +671,12 @@ export class P2PConnection {
 
   private sendSignal(message: SignalMessage): void {
     if (!this.signalingChannel) return;
-    this.signalingChannel.send({
+    void this.signalingChannel.send({
       type: 'broadcast',
       event: 'signal',
       payload: message,
+    }).catch((err) => {
+      console.warn('[P2P] Signal send failed:', err);
     });
   }
 

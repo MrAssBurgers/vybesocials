@@ -29,6 +29,7 @@ export * from './pushTriggers.js';
 export * from './realtime.js';
 export * from './social.js';
 export * from './dmSend.js';
+export * from './calls.js';
 export * from './spotify.js';
 export * from './stripe.js';
 export * from './stubs.js';
