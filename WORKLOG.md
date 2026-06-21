@@ -2,6 +2,12 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## Chat crash hotfix (2026-06-21)
+- **Root cause:** `registeredConvoRef` used at line 176 before declared at line 356 → ReferenceError on every chat open → SmartErrorBoundary "Couldn't load Messages".
+- **Fix:** Moved `setCurrentConversationId` into `useEffect([conversationId])`; removed render-time ref access.
+- **Deployed:** Firebase hosting
+- **You:** Hard refresh or Lovable Publish for vybehub.app
+
 ## Chat load + call camera + Friend Link parity (2026-06-21)
 - **Chat "can't load":** `useConversationDetail` always returns placeholder/cached convo (never null); `offlineFirst` network; messages fall back to cache on fetch error; removed full-page error gates in ChatView.
 - **Instant open:** `initialData` from message cache; synthetic conversation shell from deterministic id when list cache misses.
