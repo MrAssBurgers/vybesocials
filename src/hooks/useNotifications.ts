@@ -6,6 +6,14 @@ import { subscribePostgresChannel, removeRealtimeChannel } from '@/lib/realtimeC
 import { useAuthProfileId } from '@/hooks/useAuthProfileId';
 import { preferredUsername } from '@/lib/displayUser';
 import { fetchMemberProfiles, normalizeToProfileId } from '@/lib/dmMembershipRepair';
+import {
+  buildNotificationRoute,
+  navigateFromNotification,
+  normalizeNotificationPayload,
+} from '@/lib/notificationActions';
+import { bellNotificationTag, shouldShowInAppNotification } from '@/lib/inAppNotificationDedupe';
+import { isDespiaRuntime } from '@/lib/despiaBridge';
+import { isNativePlatform } from '@/lib/capacitor';
 
 // Check notification permission — never auto-request on web to avoid browser bell prompts
 async function requestNotificationPermission(): Promise<boolean> {
@@ -34,6 +42,12 @@ function showNativeNotification(title: string, body: string, url?: string) {
 }
 
 export type NotificationType = 'like' | 'comment' | 'follow' | 'friend_request' | 'friend_accepted' | 'friend_declined' | 'message' | 'mention' | 'missed_call' | 'announcement' | 'content_removed' | 'smart_ping';
+
+/** Types handled elsewhere — no bell toast (DMs → chat list; missed calls → DM thread). */
+const SKIP_BELL_TOAST_TYPES = new Set<NotificationType>([
+  'message',
+  'missed_call',
+]);
 
 interface Notification {
   id: string;
@@ -179,6 +193,17 @@ export function useNotifications() {
             .single();
 
           const type = payload.new.type as NotificationType;
+          if (SKIP_BELL_TOAST_TYPES.has(type)) {
+            queryClient.invalidateQueries({ queryKey: ['notifications'] });
+            queryClient.invalidateQueries({ queryKey: ['unread-notifications'] });
+            return;
+          }
+
+          const notificationId = String(payload.new.id || '');
+          if (notificationId && !shouldShowInAppNotification(bellNotificationTag(type, notificationId))) {
+            return;
+          }
+
           const messages: Record<NotificationType, string> = {
             like: 'liked your post',
             comment: 'commented on your post',
@@ -195,11 +220,27 @@ export function useNotifications() {
           };
 
           const message = `${actor?.username || 'Someone'} ${messages[type] || 'interacted with you'}`;
-          
-          toast.info(message, { duration: 4000 });
-          
-          if (document.hidden) {
-            showNativeNotification('VYBE', message, type === 'message' ? '/messages' : '/notifications');
+
+          const route = buildNotificationRoute(
+            normalizeNotificationPayload({
+              type,
+              postId: payload.new.post_id,
+              post_id: payload.new.post_id,
+              deepLink: payload.new.deep_link,
+              path: payload.new.deep_link,
+            }) || { type, action: 'open' },
+          );
+
+          toast.info(message, {
+            duration: 4000,
+            action: {
+              label: 'View',
+              onClick: () => navigateFromNotification(route),
+            },
+          });
+
+          if (document.hidden && !isNativePlatform && !isDespiaRuntime()) {
+            showNativeNotification('VYBE', message, route);
           }
 
           queryClient.invalidateQueries({ queryKey: ['notifications'] });

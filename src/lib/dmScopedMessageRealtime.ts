@@ -5,8 +5,8 @@
 import type { QueryClient } from '@tanstack/react-query';
 import { startTransition } from 'react';
 import { db } from '@/lib/firebase';
-import { callSounds } from '@/lib/callSounds';
 import { appendIncomingMessage } from '@/lib/messagesQueryKey';
+import { maybeShowForegroundDmNotification } from '@/lib/foregroundDmNotification';
 import {
   removeChannelByTopic,
   removeRealtimeChannel,
@@ -129,6 +129,9 @@ function handleMessageInsert(ctx: ScopedMessageRealtimeContext, newMessage: any)
   if (ctx.isMessageProcessed(newMessage.id)) return;
   ctx.markMessageProcessed(newMessage.id);
 
+  // Sender already has optimistic UI + confirmMessage — skip Firestore echo while in thread.
+  if (isFromCurrentUser && isViewingConvo) return;
+
   const skipReceiverInsert =
     isFromCurrentUser &&
     ctx.isOptimisticDuplicate(conversationId, newMessage.content, newMessage.sender_id);
@@ -173,7 +176,12 @@ function handleMessageInsert(ctx: ScopedMessageRealtimeContext, newMessage: any)
     }
 
     if (!isViewingConvo || document.visibilityState !== 'visible') {
-      callSounds.message();
+      void maybeShowForegroundDmNotification({
+        message: newMessage,
+        profileId: ctx.profileId,
+        isViewingConvo,
+        queryClient: ctx.queryClient,
+      });
     }
   }
 
@@ -422,7 +430,12 @@ export function applyBroadcastMessage(
   }
 
   if (!isFromCurrentUser && (!isViewingConvo || document.visibilityState !== 'visible')) {
-    callSounds.message();
+    void maybeShowForegroundDmNotification({
+      message: msg,
+      profileId: ctx.profileId,
+      isViewingConvo,
+      queryClient: ctx.queryClient,
+    });
   }
 
   patchConversationLists(ctx, conversationId, msg, isFromCurrentUser, isViewingConvo);

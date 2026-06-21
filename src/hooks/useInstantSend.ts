@@ -10,15 +10,20 @@ import {
   inferOtherParticipantId,
   isConversationMessagesReady,
   repairConversationForSend,
-  resetMessagesReady,
 } from '@/lib/dmMembershipRepair';
-import { messagesQueryKey, patchMessagesCache, appendIncomingMessage } from '@/lib/messagesQueryKey';
+import { patchMessagesCache, replaceOptimisticMessage } from '@/lib/messagesQueryKey';
 import { syncUserAuthIndex } from '@/lib/firebase/profileResolve';
 import { firebaseAuth } from '@/lib/firebase/authService';
 import { withTimeout } from '@/lib/withTimeout';
 import { toast } from 'sonner';
 import { inferOtherUserIdFromConversation } from '@/lib/dmMemberResolve';
-import { sendDmViaCloudFunction, isRetryableSendError } from '@/lib/firebase/dmSendClient';
+import {
+  bumpConversationUpdatedAt,
+  expiresAtForViewMode,
+  insertDmMessage,
+  isTransientSendError,
+} from '@/lib/dmSendCore';
+import { enqueue as outboxEnqueue } from '@/lib/dmOutbox';
 import { prewarmDmBroadcastChannel, sendDmBroadcastMessage } from '@/lib/dmBroadcast';
 
 export interface PendingMessage {
@@ -135,41 +140,9 @@ export function useInstantSend(conversationId: string | undefined) {
     return true;
   }, [conversationId, effectiveProfileId, profile, queryClient]);
 
-  // Replace temp message with real one from server. If the temp was wiped by a
-  // background refetch (rare race), append the real message instead of dropping
-  // it — that race used to make the sender's bubble visibly disappear.
   const confirmMessage = useCallback((tempId: string, realMessage: Message) => {
     if (!conversationId) return;
-
-    patchMessagesCache(queryClient, conversationId, (old) => {
-      const tempRow = old?.find((m) => m.id === tempId);
-      const realWithSender = realMessage.sender
-        ? realMessage
-        : tempRow?.sender
-          ? { ...realMessage, sender: tempRow.sender }
-          : realMessage;
-
-      if (!old || old.length === 0) return [realWithSender];
-
-      const realAlreadyPresent = old.some(m => m.id === realWithSender.id);
-      const tempPresent = old.some(m => m.id === tempId);
-
-      if (realAlreadyPresent) {
-        const withoutTemp = tempPresent ? old.filter(m => m.id !== tempId) : old;
-        return withoutTemp.map(m =>
-          m.id === realWithSender.id
-            ? { ...m, ...realWithSender, sender: m.sender || realWithSender.sender }
-            : m,
-        );
-      }
-
-      if (tempPresent) {
-        return old.map(m => (m.id === tempId ? realWithSender : m));
-      }
-
-      return appendIncomingMessage(old, realWithSender);
-    });
-
+    replaceOptimisticMessage(queryClient, conversationId, tempId, realMessage);
     pendingMessagesRef.current.delete(tempId);
   }, [conversationId, queryClient]);
 
@@ -280,24 +253,6 @@ export function useInstantSend(conversationId: string | undefined) {
     return senderId;
   }, [conversationId, profile?.id, profile?.user_id, profileId, queryClient]);
 
-  const repairAndSend = useCallback(
-    async (senderId: string, otherProfileId: string | null) => {
-      resetMessagesReady(conversationId!, senderId);
-      try {
-        await withTimeout(
-          repairConversationForSend(conversationId!, senderId, otherProfileId, { force: true }),
-          12_000,
-          'Send setup timed out',
-        );
-      } catch (err) {
-        console.warn('[InstantSend] inline repair failed:', err);
-      }
-      sendReadyRef.current = { conversationId, senderId };
-      return senderId;
-    },
-    [conversationId],
-  );
-
   const resolveOtherProfileId = useCallback(
     (senderId: string) => {
       const cachedConv =
@@ -350,44 +305,12 @@ export function useInstantSend(conversationId: string | undefined) {
       payload: Record<string, unknown>,
       otherProfileId: string | null,
     ) => {
-      let activeSenderId = senderId;
-
-      for (let attempt = 0; attempt < 3; attempt++) {
-        const result = await db
-          .from('messages')
-          .insert({ ...payload, sender_id: activeSenderId })
-          .select(`
-            *,
-            sender:profiles!sender_id(id, username, avatar_url, display_name)
-          `)
-          .single();
-
-        if (!result.error) return result;
-
-        if (!isRetryableSendError(result.error) || attempt === 2) {
-          // Server-side send bypasses client rule edge cases (legacy chats, membership lag).
-          const cloud = await sendDmViaCloudFunction({
-            conversationId: payload.conversation_id as string,
-            content: payload.content as string | undefined,
-            viewMode: (payload.view_mode as ViewMode) || 'permanent',
-            replyToId: (payload.reply_to_id as string | null) ?? null,
-            mediaUrl: (payload.media_url as string | null) ?? null,
-            mediaType: (payload.media_type as string | null) ?? null,
-            messageType: payload.message_type as string | undefined,
-          });
-          if (!cloud.error && cloud.data) {
-            return { data: cloud.data, error: null };
-          }
-          return result;
-        }
-
-        activeSenderId = await repairAndSend(activeSenderId, otherProfileId);
-        await new Promise((r) => setTimeout(r, 250 * (attempt + 1)));
-      }
-
-      return { data: null, error: { message: 'Failed to send message' } };
+      return insertDmMessage(
+        { ...payload, sender_id: senderId } as Parameters<typeof insertDmMessage>[0],
+        { otherProfileId },
+      );
     },
-    [repairAndSend],
+    [],
   );
 
   // Send a text message instantly
@@ -432,9 +355,7 @@ export function useInstantSend(conversationId: string | undefined) {
       const senderId = await resolveSenderIdForSend();
       const otherProfileId = resolveOtherProfileId(senderId);
 
-      const expiresAt = viewMode === '24h' 
-        ? new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
-        : null;
+      const expiresAt = expiresAtForViewMode(viewMode);
 
       const insertPayload = {
         conversation_id: conversationId,
@@ -453,22 +374,27 @@ export function useInstantSend(conversationId: string | undefined) {
       );
 
       if (error) throw error;
+      if (!data) throw new Error('Failed to send message');
 
-      // Replace temp with real message
-      const messageWithViewMode = { ...data, view_mode: data.view_mode as ViewMode, views: [], reactions: [] };
-      confirmMessage(tempId, messageWithViewMode);
-
-      void sendDmBroadcastMessage(conversationId, messageWithViewMode as unknown as Record<string, unknown>);
-
-      // Update conversation timestamp
-      await db
-        .from('conversations')
-        .update({ updated_at: new Date().toISOString() })
-        .eq('id', conversationId)
-        .then(() => {})
-        .catch(() => {});
+      confirmMessage(tempId, data);
+      void sendDmBroadcastMessage(conversationId, data as unknown as Record<string, unknown>);
+      void bumpConversationUpdatedAt(conversationId);
 
     } catch (error: any) {
+      if (isTransientSendError(error) && conversationId && effectiveProfileId) {
+        const pending = pendingMessagesRef.current.get(tempId);
+        void outboxEnqueue({
+          tempId,
+          conversationId,
+          senderId: effectiveProfileId,
+          content: pending?.content,
+          viewMode: pending?.viewMode || viewMode,
+          replyToId: pending?.replyToId,
+          expiresAt: expiresAtForViewMode(viewMode),
+        });
+        toast.info('Message queued — will send when you\'re back online', { duration: 3500 });
+        return;
+      }
       console.error('Failed to send message:', error);
       markFailed(tempId, error.message || 'Failed to send');
       toast.error('Message failed to send');
@@ -508,9 +434,7 @@ export function useInstantSend(conversationId: string | undefined) {
       const senderId = await resolveSenderIdForSend();
       const otherProfileId =
         inferOtherParticipantId(conversationId!, senderId) || null;
-      const expiresAt = viewMode === '24h' 
-        ? new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
-        : null;
+      const expiresAt = expiresAtForViewMode(viewMode);
 
       const { data, error } = await insertMessageWithRetry(
         senderId,
@@ -528,18 +452,11 @@ export function useInstantSend(conversationId: string | undefined) {
       );
 
       if (error) throw error;
+      if (!data) throw new Error('Failed to send media');
 
-      const messageWithViewMode = { ...data, view_mode: data.view_mode as ViewMode, views: [], reactions: [] };
-      confirmMessage(tempId, messageWithViewMode);
-
-      void sendDmBroadcastMessage(conversationId, messageWithViewMode as unknown as Record<string, unknown>);
-
-      await db
-        .from('conversations')
-        .update({ updated_at: new Date().toISOString() })
-        .eq('id', conversationId)
-        .then(() => {})
-        .catch(() => {});
+      confirmMessage(tempId, data);
+      void sendDmBroadcastMessage(conversationId, data as unknown as Record<string, unknown>);
+      void bumpConversationUpdatedAt(conversationId);
 
       return data;
     } catch (error: any) {
@@ -631,16 +548,12 @@ export function useInstantSend(conversationId: string | undefined) {
       updateProgress(85);
 
       const senderId = await ensureSendReady();
+      const otherProfileId = resolveOtherProfileId(senderId);
+      const expiresAt = expiresAtForViewMode(viewMode);
 
-      // Calculate expiry
-      const expiresAt = viewMode === '24h' 
-        ? new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
-        : null;
-
-      // Insert message
-      const { data, error } = await db
-        .from('messages')
-        .insert({
+      const { data, error } = await insertMessageWithRetry(
+        senderId,
+        {
           conversation_id: conversationId,
           sender_id: senderId,
           content: caption || null,
@@ -650,29 +563,17 @@ export function useInstantSend(conversationId: string | undefined) {
           view_mode: viewMode,
           expires_at: expiresAt,
           reply_to_id: replyToId,
-        })
-        .select(`
-          *,
-          sender:profiles!sender_id(id, username, avatar_url, display_name)
-        `)
-        .single();
+        },
+        otherProfileId,
+      );
 
       if (error) throw error;
+      if (!data) throw new Error('Failed to send video');
 
       updateProgress(100);
-
-      // Replace temp with real message
-      const messageWithViewMode = { ...data, view_mode: data.view_mode as ViewMode, views: [], reactions: [] };
-      confirmMessage(tempId, messageWithViewMode);
-      void sendDmBroadcastMessage(conversationId, messageWithViewMode as unknown as Record<string, unknown>);
-
-      // Update conversation timestamp
-      await db
-        .from('conversations')
-        .update({ updated_at: new Date().toISOString() })
-        .eq('id', conversationId)
-        .then(() => {})
-        .catch(() => {});
+      confirmMessage(tempId, data);
+      void sendDmBroadcastMessage(conversationId, data as unknown as Record<string, unknown>);
+      void bumpConversationUpdatedAt(conversationId);
 
       // Cleanup
       URL.revokeObjectURL(localUrl);

@@ -5,7 +5,7 @@ import './styles/liquid.css';
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClient, QueryClientProvider, useQueryClient } from "@tanstack/react-query";
 import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client";
 import { queryPersister, shouldPersistQueryKey } from "@/lib/queryPersister";
 import { startReconnectManager } from "@/lib/reconnectManager";
@@ -43,6 +43,7 @@ import { useSpotifyPresence } from "@/hooks/useSpotifyPresence";
 import { useExternalPresence } from "@/hooks/useExternalPresence";
 const SpotifyPresenceInner = () => { useSpotifyPresence(); useExternalPresence(); return null; };
 const RealtimeSyncInner = () => {
+  const queryClient = useQueryClient();
   useGlobalRealtimeMessages();
   useRealtimeProfiles();
   usePostsRealtime();
@@ -50,6 +51,17 @@ const RealtimeSyncInner = () => {
     void import('@/components/call/GlobalCallOverlay');
     void import('@/components/call/NativeIncomingCallBridge');
   }, []);
+  useEffect(() => {
+    const onOutboxFlush = (event: Event) => {
+      const cid = (event as CustomEvent<{ conversationId?: string }>).detail?.conversationId;
+      if (!cid) return;
+      queryClient.invalidateQueries({ queryKey: ['messages', cid] });
+      queryClient.invalidateQueries({ queryKey: ['dm-conversations'] });
+      queryClient.invalidateQueries({ queryKey: ['conversations'] });
+    };
+    window.addEventListener('vybe:dm-outbox-flush', onOutboxFlush);
+    return () => window.removeEventListener('vybe:dm-outbox-flush', onOutboxFlush);
+  }, [queryClient]);
   return null;
 };
 // Mount presence loops AFTER first paint so they don't compete with the

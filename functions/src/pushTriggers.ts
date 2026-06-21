@@ -114,20 +114,6 @@ async function notifyDmRecipients(message: Record<string, unknown>, messageId: s
     [...recipientUserIds].map(async (recipientUserId) => {
       const recipientProfileId = await resolvePushTargetProfileId(recipientUserId);
 
-      await db.collection('notifications').add({
-        user_id: recipientProfileId,
-        actor_id: canonicalSenderId,
-        title,
-        body,
-        url,
-        type,
-        conversation_id: conversationId,
-        sender_id: canonicalSenderId,
-        message_id: messageId,
-        created_at: new Date().toISOString(),
-        read: false,
-      });
-
       const pushAllowed = await isPushEnabledForProfile(recipientProfileId, 'dms_enabled');
       if (!pushAllowed) return;
 
@@ -276,6 +262,147 @@ export const onCallCreated = onDocumentCreated(
       await notifyCallRecipients(snap.data() as Record<string, unknown>, snap.id);
     } catch (err) {
       console.error('[onCallCreated]', err);
+    }
+  },
+);
+
+const SOCIAL_PUSH_TYPES = new Set([
+  'like',
+  'comment',
+  'follow',
+  'friend_request',
+  'friend_accepted',
+  'friend_declined',
+  'mention',
+  'smart_ping',
+  'announcement',
+  'content_removed',
+]);
+
+const SKIP_BELL_PUSH_TYPES = new Set(['message', 'dm', 'group_message', 'missed_call']);
+
+function prefKeyForNotificationType(type: string): PrefKey | null {
+  switch (type) {
+    case 'like':
+      return 'likes_enabled';
+    case 'comment':
+      return 'comments_enabled';
+    case 'follow':
+    case 'friend_request':
+    case 'friend_accepted':
+    case 'friend_declined':
+      return 'follows_enabled';
+    default:
+      return null;
+  }
+}
+
+function routeForNotificationDoc(n: Record<string, unknown>, type: string): string {
+  const deep = asString(n.deep_link) ?? asString(n.url);
+  if (deep) {
+    if (deep.startsWith('/')) return deep;
+    if (/^https?:\/\//i.test(deep)) {
+      try {
+        const u = new URL(deep);
+        return `${u.pathname}${u.search}${u.hash}`;
+      } catch {
+        return deep;
+      }
+    }
+    return `/${deep}`;
+  }
+  const postId = asString(n.post_id);
+  const conversationId = asString(n.conversation_id);
+  switch (type) {
+    case 'like':
+    case 'comment':
+    case 'mention':
+      return postId ? `/p/${postId}` : '/notifications';
+    case 'friend_request':
+      return '/notifications?tab=requests';
+    case 'friend_accepted':
+    case 'friend_declined':
+      return '/notifications';
+    case 'message':
+    case 'dm':
+    case 'group_message':
+      return conversationId ? `/messages/${conversationId}` : '/messages';
+    default:
+      return '/notifications';
+  }
+}
+
+async function notifySocialPush(notification: Record<string, unknown>, notificationId: string): Promise<void> {
+  const type = (asString(notification.type) || 'general').toLowerCase();
+  if (SKIP_BELL_PUSH_TYPES.has(type)) return;
+  if (!SOCIAL_PUSH_TYPES.has(type) && type !== 'general') return;
+
+  const userId = asString(notification.user_id);
+  if (!userId) return;
+
+  const actorId = asString(notification.actor_id);
+  let actorName = asString(notification.title);
+  if (!actorName && actorId) {
+    const actorSnap = await db.collection('profiles').doc(actorId).get();
+    const actor = actorSnap.data() || {};
+    actorName = asString(actor.display_name) || asString(actor.username) || 'Someone';
+  }
+
+  const title =
+    asString(notification.title) ||
+    (type === 'like' || type === 'comment' || type === 'follow' || type === 'friend_request'
+      ? actorName || 'Someone'
+      : 'VYBE');
+
+  const defaultBodies: Record<string, string> = {
+    like: 'liked your post',
+    comment: 'commented on your post',
+    follow: 'started following you',
+    friend_request: 'sent you a friend request',
+    friend_accepted: 'accepted your friend request',
+    friend_declined: 'declined your friend request',
+    mention: 'mentioned you',
+    smart_ping: 'sent you a notification',
+    announcement: 'posted an announcement',
+    content_removed: 'moderation update',
+  };
+
+  const body = asString(notification.body) || defaultBodies[type] || 'New activity on VYBE';
+  const url = routeForNotificationDoc(notification, type);
+  const postId = asString(notification.post_id);
+
+  const prefKey = prefKeyForNotificationType(type);
+  if (prefKey && !(await isPushEnabledForProfile(userId, prefKey))) return;
+
+  await dispatchDmPushToProfile(userId, {
+    title,
+    body,
+    url,
+    tag: `vybe-${type}-${notificationId}`,
+    type,
+    data: {
+      type,
+      postId: postId || '',
+      post_id: postId || '',
+      path: url,
+      url,
+      actorId: actorId || '',
+      actorName: actorName || '',
+      notificationId,
+    },
+  });
+}
+
+/** Bell-menu social notifications → push (likes, comments, follows, friend requests). */
+export const onSocialNotificationCreated = onDocumentCreated(
+  { document: 'notifications/{notificationId}', region: 'us-central1', secrets: [...ONESIGNAL_SECRETS] },
+  async (event) => {
+    const snap = event.data;
+    if (!snap) return;
+    try {
+      await notifySocialPush(snap.data() as Record<string, unknown>, snap.id);
+    } catch (err) {
+      console.error('[onSocialNotificationCreated]', err);
     }
   },
 );

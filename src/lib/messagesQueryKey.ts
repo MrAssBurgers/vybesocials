@@ -27,6 +27,43 @@ export function appendIncomingMessage(
   return [...withoutReplacedTemp, msg];
 }
 
+/** Replace a temp optimistic row with the confirmed server message. */
+export function replaceOptimisticMessage(
+  queryClient: QueryClient,
+  conversationId: string,
+  tempId: string,
+  realMessage: Message,
+): void {
+  patchMessagesCache(queryClient, conversationId, (old) => {
+    const tempRow = old?.find((m) => m.id === tempId);
+    const realWithSender = realMessage.sender
+      ? realMessage
+      : tempRow?.sender
+        ? { ...realMessage, sender: tempRow.sender }
+        : realMessage;
+
+    if (!old || old.length === 0) return [realWithSender];
+
+    const realAlreadyPresent = old.some((m) => m.id === realWithSender.id);
+    const tempPresent = old.some((m) => m.id === tempId);
+
+    if (realAlreadyPresent) {
+      const withoutTemp = tempPresent ? old.filter((m) => m.id !== tempId) : old;
+      return withoutTemp.map((m) =>
+        m.id === realWithSender.id
+          ? { ...m, ...realWithSender, sender: m.sender || realWithSender.sender }
+          : m,
+      );
+    }
+
+    if (tempPresent) {
+      return old.map((m) => (m.id === tempId ? realWithSender : m));
+    }
+
+    return appendIncomingMessage(old, realWithSender);
+  });
+}
+
 /** Patch the message list cache for this conversation. */
 export function patchMessagesCache(
   queryClient: QueryClient,

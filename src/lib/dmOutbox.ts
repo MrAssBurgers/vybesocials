@@ -8,13 +8,13 @@
  * "sent" — it just delivers when the network is back.
  */
 import { get, set } from 'idb-keyval';
-import { db } from '@/lib/firebase';
 import { onReconnect } from '@/lib/reconnectManager';
 import {
   inferOtherParticipantId,
   repairConversationForSend,
 } from '@/lib/dmMembershipRepair';
 import type { ViewMode } from '@/hooks/useMessages';
+import { insertDmMessage, bumpConversationUpdatedAt } from '@/lib/dmSendCore';
 
 const KEY = 'vybe-dm-outbox-v1';
 
@@ -94,16 +94,19 @@ async function sendOne(item: OutboxItem): Promise<boolean> {
       { force: true },
     ).catch(() => {});
 
-    const { error } = await db.from('messages').insert({
-      conversation_id: item.conversationId,
-      sender_id: item.senderId,
-      content: item.content,
-      media_url: item.mediaUrl,
-      media_type: item.mediaType,
-      view_mode: item.viewMode,
-      expires_at: item.expiresAt,
-      reply_to_id: item.replyToId,
-    });
+    const { error } = await insertDmMessage(
+      {
+        conversation_id: item.conversationId,
+        sender_id: item.senderId,
+        content: item.content,
+        media_url: item.mediaUrl,
+        media_type: item.mediaType,
+        view_mode: item.viewMode,
+        expires_at: item.expiresAt,
+        reply_to_id: item.replyToId,
+      },
+      { otherProfileId },
+    );
     if (error) {
       const msg = (error.message || '').toLowerCase();
       const transient =
@@ -111,14 +114,9 @@ async function sendOne(item: OutboxItem): Promise<boolean> {
         msg.includes('failed to fetch') ||
         msg.includes('timeout') ||
         msg.includes('fetch');
-      // Drop permanently-failed sends (e.g. RLS denied) so they don't loop forever.
       return !transient;
     }
-    // Bump conversation timestamp (best-effort).
-    void db
-      .from('conversations')
-      .update({ updated_at: new Date().toISOString() })
-      .eq('id', item.conversationId);
+    void bumpConversationUpdatedAt(item.conversationId);
     return true;
   } catch {
     return false;
@@ -137,6 +135,11 @@ export async function flush(): Promise<void> {
       const ok = await sendOne(item);
       if (ok) {
         await removeItem(item.tempId);
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(
+            new CustomEvent('vybe:dm-outbox-flush', { detail: { conversationId: item.conversationId } }),
+          );
+        }
       } else {
         // Stop on first transient failure; we'll retry on next reconnect.
         break;

@@ -119,10 +119,13 @@ export function buildNotificationRoute(payload: NormalizedNotificationPayload): 
     case 'security':
       return payload.challengeId ? `/?login-approval=${payload.challengeId}` : '/home';
     case 'friend_request':
+      return '/notifications?tab=requests';
     case 'friend_accepted':
     case 'friend_declined':
     case 'smart_ping':
     case 'mention':
+      return '/notifications';
+    case 'follow':
       return '/notifications';
     case 'like':
     case 'comment':

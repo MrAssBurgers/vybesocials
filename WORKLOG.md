@@ -2,13 +2,28 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## Phase 2 — Notifications (2026-06-21)
+- **Single push path:** DMs/calls push-only (no bell row); social bell rows trigger `onSocialNotificationCreated` push.
+- **Foreground DMs:** Removed duplicate global messages listener; alerts via `foregroundDmNotification` + dedupe.
+- **Bell toasts:** Skip `message`/`missed_call`; View action deep-links via `buildNotificationRoute`.
+- **Docs:** `docs/NOTIFICATIONS.md`
+- **Deploy:** `functions:onSocialNotificationCreated` + redeploy DM/call triggers on `vybe-daaab`
+
+## Phase 1 — DM single source of truth (2026-06-21)
+- **Canonical send:** `src/lib/dmSendCore.ts` (`insertDmMessage`, retry, cloud fallback) — used by `useInstantSend`, `dmOutbox`, Vybe send, share-to-DM.
+- **Removed duplicates:** deleted `useOptimisticMessages`, removed dead `useSendMessage`, dropped duplicate message UPDATE listener from `useRealtimeMessages` (reactions/views only).
+- **Realtime fix:** skip Firestore INSERT echo for own messages while viewing thread (stops double-bubble glitches).
+- **Docs:** `docs/MESSAGING.md` + two-device test checklist.
+- **Verified:** `npm run build` PASS
+- **You:** Lovable Publish → two-device test instant send + offline queue + Vybe snap
+
 ## Spotify UI + notifications + calls + push routing (2026-06-21)
 - **Spotify pill:** `spotifyNowPlaying` now upserts `live_music_presence` + returns `{ connected, is_playing, title, … }` (was raw Spotify JSON → pill never showed). Added Firestore rules for `live_music_presence` read/write.
 - **Notifications menu:** Removed `missed_call` rows from bell feed + stopped inserting them on dismiss; missed calls stay as DM `call_event` only. Fixed tap crash when actor missing username; safe `/home` fallback; native push uses SPA `navigateFromNotification` (no full reload "page can't load").
 - **Calls:** Incoming ring still via OneSignal/`onCallCreated` push (phone notification) — ensure push enabled in Settings + Despia linked.
 - **Gemini AI:** Still needs `GEMINI_API_KEY` on Firebase — run `GEMINI_API_KEY=xxx npm run setup:gemini-secrets` (key from https://aistudio.google.com/apikey).
-- **Deployed:** Firebase hosting + Firestore rules + `spotifyNowPlaying` on `vybe-daaab.web.app`
-- **You:** Lovable Publish for vybehub.app → connect Spotify in Settings → test now-playing pill → test notification taps on mobile → set Gemini key for VYBE-AI chat
+- **Deployed:** Git `8f8d0031` → Firebase hosting + Firestore rules on `vybe-daaab.web.app`; `GEMINI_API_KEY` secret + `aiChat` redeployed
+- **You:** Lovable Publish for vybehub.app → connect Spotify in Settings → test now-playing pill → test notification taps on mobile
 
 ## Instant send + presence + Vybe camera fix (2026-06-21)
 - **Send glitch:** Stopped duplicate append on own Firestore INSERT + broadcast while viewing; `resolveSenderIdForSend` no longer waits 12s on membership repair inflight.

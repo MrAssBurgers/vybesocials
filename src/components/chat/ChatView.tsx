@@ -32,7 +32,12 @@ import { useQueryClient } from '@tanstack/react-query';
 import { db } from '@/lib/firebase';
 import { scanVideo as nsfwScanVideo, scanImage as nsfwScanImage } from '@/lib/nsfwScanner';
 import { repairConversationForSend } from '@/lib/dmMembershipRepair';
-import { sendDmViaCloudFunction } from '@/lib/firebase/dmSendClient';
+import {
+  bumpConversationUpdatedAt,
+  expiresAtForViewMode,
+  insertDmMessage,
+} from '@/lib/dmSendCore';
+import { replaceOptimisticMessage } from '@/lib/messagesQueryKey';
 import { sendDmBroadcastMessage } from '@/lib/dmBroadcast';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
@@ -1119,32 +1124,15 @@ export function ChatView() {
         mediaUrl = publicUrl;
       }
 
-      // PHASE 4: Insert message into database
       phase = 'db-insert';
       console.log('[VYBE] Inserting message with mediaUrl:', mediaUrl?.substring(0, 80));
 
-      const expiresAt = viewMode === '24h'
-        ? new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
-        : null;
+      const expiresAt = expiresAtForViewMode(viewMode);
 
       void repairConversationForSend(conversationId, profileId, otherMember?.id ?? null).catch(() => {});
 
-      let realMessage: Message | null = null;
-
-      const cloud = await sendDmViaCloudFunction({
-        conversationId,
-        content: '',
-        viewMode,
-        replyToId: replyingTo?.id ?? null,
-        mediaUrl,
-        mediaType: 'vybe',
-        messageType: 'text',
-      });
-
-      if (cloud.data) {
-        realMessage = cloud.data;
-      } else {
-        const insertPayload = {
+      const { data: realMessage, error: sendError } = await insertDmMessage(
+        {
           conversation_id: conversationId,
           sender_id: profileId,
           content: null,
@@ -1153,49 +1141,30 @@ export function ChatView() {
           message_type: 'text',
           view_mode: viewMode,
           expires_at: expiresAt,
-          reply_to_id: replyingTo?.id,
-        };
+          reply_to_id: replyingTo?.id ?? null,
+        },
+        { otherProfileId: otherMember?.id ?? null },
+      );
 
-        const { data: inserted, error: insertError } = await db
-          .from('messages')
-          .insert(insertPayload)
-          .select(`
-            *,
-            sender:profiles!sender_id(id, username, avatar_url, display_name)
-          `)
-          .single();
-
-        if (insertError) {
-          console.error('[VYBE] DB insert error:', insertError);
-          markFailed(`Send failed: ${cloud.error?.message || insertError.message}`, phase);
-          return;
-        }
-        realMessage = inserted as Message;
+      if (sendError || !realMessage) {
+        console.error('[VYBE] DB insert error:', sendError);
+        markFailed(`Send failed: ${sendError?.message || 'Unknown error'}`, phase);
+        return;
       }
 
-      console.log('[VYBE] Message inserted successfully:', realMessage?.id);
+      console.log('[VYBE] Message inserted successfully:', realMessage.id);
 
-      // Replace optimistic message with real one
-      queryClient.setQueryData<Message[]>(['messages', conversationId], (old) => {
-        if (!old) return [{ ...realMessage!, view_mode: viewMode, views: [], reactions: [] }];
-        return old.map(m => m.id === tempId
-          ? { ...realMessage!, view_mode: viewMode, views: [], reactions: [] }
-          : m
-        );
+      replaceOptimisticMessage(queryClient, conversationId, tempId, {
+        ...realMessage,
+        view_mode: viewMode,
       });
 
       void sendDmBroadcastMessage(conversationId, {
-        ...realMessage!,
+        ...realMessage,
         view_mode: viewMode,
-        views: [],
-        reactions: [],
       });
 
-      // Update conversation timestamp
-      await db
-        .from('conversations')
-        .update({ updated_at: new Date().toISOString() })
-        .eq('id', conversationId);
+      void bumpConversationUpdatedAt(conversationId);
 
       setReplyingTo(null);
       toast.success(isVideo ? 'Video VYBE sent! 🎬✨' : 'VYBE sent! ✨', { id: `vybe-${tempId}` });

@@ -1,7 +1,7 @@
-import { db } from '@/lib/firebase';
 import { createDmChat } from '@/lib/firebase/chats';
 import { repairConversationForSend } from '@/lib/dmMembershipRepair';
 import { recordShareTo } from '@/lib/shareRecency';
+import { bumpConversationUpdatedAt, insertDmMessage } from '@/lib/dmSendCore';
 
 /**
  * Send a shared theme to a friend as a DM. Mirrors sendShareToUser but uses
@@ -20,20 +20,20 @@ export async function sendThemeToUser(params: {
 
     await repairConversationForSend(convId, senderProfileId, recipientProfileId);
 
-    const { error: msgErr } = await db.from('messages').insert({
-      conversation_id: convId,
-      sender_id: senderProfileId,
-      content: sharedThemeId,
-      media_url: themeName || null,
-      media_type: 'theme',
-      message_type: 'shared_theme',
-    });
+    const { error: msgErr } = await insertDmMessage(
+      {
+        conversation_id: convId,
+        sender_id: senderProfileId,
+        content: sharedThemeId,
+        media_url: themeName || null,
+        media_type: 'theme',
+        message_type: 'shared_theme',
+      },
+      { otherProfileId: recipientProfileId },
+    );
     if (msgErr) return false;
 
-    await db
-      .from('conversations')
-      .update({ updated_at: new Date().toISOString() })
-      .eq('id', convId);
+    await bumpConversationUpdatedAt(convId);
 
     recordShareTo(recipientProfileId);
     return true;
@@ -75,20 +75,20 @@ export async function sendShareToUser({
 
     const isVideo = postType === 'video' || postType === 'short';
 
-    const { error: msgErr } = await db.from('messages').insert({
-      conversation_id: convId,
-      sender_id: senderProfileId,
-      content: postId,
-      media_url: mediaUrl || null,
-      media_type: isVideo ? 'video' : 'image',
-      message_type: 'shared_post',
-    });
+    const { error: msgErr } = await insertDmMessage(
+      {
+        conversation_id: convId,
+        sender_id: senderProfileId,
+        content: postId,
+        media_url: mediaUrl || null,
+        media_type: isVideo ? 'video' : 'image',
+        message_type: 'shared_post',
+      },
+      { otherProfileId: recipientProfileId },
+    );
     if (msgErr) return false;
 
-    await db
-      .from('conversations')
-      .update({ updated_at: new Date().toISOString() })
-      .eq('id', convId);
+    await bumpConversationUpdatedAt(convId);
 
     recordShareTo(recipientProfileId);
     return true;

@@ -13,7 +13,6 @@ import { invalidateConversationCaches } from '@/lib/invalidateConversationCaches
 import { shouldRefetchWhenEmpty, refetchListOnMount } from '@/lib/queryRefetchPolicy';
 import { toast } from 'sonner';
 import { callSounds } from '@/lib/callSounds';
-import { enqueue as outboxEnqueue } from '@/lib/dmOutbox';
 import { ensureFlatConversationMembership, normalizeToProfileId, ensureConversationMembershipVariants, ensureConversationReady, prepareConversationForMessages, inferOtherParticipantId, isConversationMessagesReady, fetchMemberProfiles } from '@/lib/dmMembershipRepair';
 import { syncSessionProfileId } from '@/lib/resolveSessionProfileId';
 import { createDmChat } from '@/lib/firebase/chats';
@@ -440,108 +439,6 @@ export function useMessages(conversationId: string | undefined) {
   }, [conversationId, queryClient, query.data, query.dataUpdatedAt]);
 
   return { ...query, data };
-}
-
-export function useSendMessage() {
-  const { profile } = useAuth();
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: async ({
-      conversationId,
-      content,
-      mediaUrl,
-      mediaType,
-      viewMode = 'permanent',
-      replyToId,
-    }: {
-      conversationId: string;
-      content?: string;
-      mediaUrl?: string;
-      mediaType?: string;
-      viewMode?: ViewMode;
-      replyToId?: string;
-    }) => {
-      if (!profile?.id) throw new Error('Not authenticated');
-
-      const expiresAt = viewMode === '24h' 
-        ? new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
-        : null;
-
-      try {
-        const { data, error } = await db
-          .from('messages')
-          .insert({
-            conversation_id: conversationId,
-            sender_id: profile.id,
-            content,
-            media_url: mediaUrl,
-            media_type: mediaType,
-            view_mode: viewMode,
-            expires_at: expiresAt,
-            reply_to_id: replyToId,
-          })
-          .select()
-          .single();
-
-        if (error) throw error;
-
-        // Update conversation updated_at
-        await db
-          .from('conversations')
-          .update({ updated_at: new Date().toISOString() })
-          .eq('id', conversationId);
-
-        return data;
-      } catch (err: any) {
-        const msg = (err?.message || '').toLowerCase();
-        const isNetwork =
-          (typeof navigator !== 'undefined' && navigator.onLine === false) ||
-          /network|failed to fetch|timeout|fetch/.test(msg);
-        if (isNetwork) {
-          // Queue for automatic delivery when we reconnect.
-          await outboxEnqueue({
-            tempId: `out-${Date.now()}-${Math.random().toString(36).slice(2)}`,
-            conversationId,
-            senderId: profile.id,
-            content,
-            mediaUrl,
-            mediaType,
-            viewMode,
-            replyToId,
-            expiresAt,
-          });
-          // Return a synthetic record so onSuccess fires and UI stays smooth.
-          return {
-            id: `queued-${Date.now()}`,
-            conversation_id: conversationId,
-            sender_id: profile.id,
-            content: content ?? null,
-            media_url: mediaUrl ?? null,
-            media_type: mediaType ?? null,
-            view_mode: viewMode,
-            expires_at: expiresAt,
-            reply_to_id: replyToId ?? null,
-            created_at: new Date().toISOString(),
-            is_deleted: false,
-            _queued: true,
-          } as any;
-        }
-        throw err;
-      }
-    },
-    onSuccess: async (data, variables) => {
-      queryClient.invalidateQueries({ queryKey: ['messages', variables.conversationId] });
-      invalidateConversationCaches(queryClient);
-
-      if ((data as { _queued?: boolean })?._queued) {
-        toast.info('Message queued — will send when you\'re back online', { duration: 3500 });
-      }
-
-      // Push notifications are sent server-side by Firestore triggers
-      // (`onDmMessageCreated` / `onCallCreated` Cloud Functions).
-    },
-  });
 }
 
 export function useUnsendMessage() {
