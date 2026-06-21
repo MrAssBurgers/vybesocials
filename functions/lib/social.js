@@ -133,7 +133,7 @@ export const rateStickerContent = onCall(async (request) => {
     return { ok: true };
 });
 /** giphy-search — proxy for Giphy; returns empty when GIPHY_API_KEY secret is unset. */
-export const giphySearch = onCall(async (request) => {
+export const giphySearch = onCall({ secrets: ['GIPHY_API_KEY'] }, async (request) => {
     requireAuth(request);
     const key = process.env.GIPHY_API_KEY;
     const { query, endpoint = 'search', limit = 30, offset = 0, rating = 'pg-13', } = (request.data || {});

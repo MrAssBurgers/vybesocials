@@ -127,7 +127,7 @@ export const rateStickerContent = onCall(async (request) => {
 });
 
 /** giphy-search — proxy for Giphy; returns empty when GIPHY_API_KEY secret is unset. */
-export const giphySearch = onCall(async (request) => {
+export const giphySearch = onCall({ secrets: ['GIPHY_API_KEY'] }, async (request) => {
   requireAuth(request);
   const key = process.env.GIPHY_API_KEY;
   const {
