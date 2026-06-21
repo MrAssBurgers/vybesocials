@@ -385,8 +385,10 @@ export async function ensureConversationMembershipVariants(
   authUidA?: string | null,
   authUidB?: string | null,
 ): Promise<void> {
-  const ids = [...new Set([profileIdA, profileIdB, authUidA, authUidB].filter(Boolean))] as string[];
-  await Promise.all(ids.map((id) => ensureFlatConversationMembership(conversationId, id)));
+  await Promise.all([
+    ensureFlatConversationMembership(conversationId, profileIdA, authUidA),
+    ensureFlatConversationMembership(conversationId, profileIdB, authUidB),
+  ]);
 }
 
 /**
@@ -395,15 +397,28 @@ export async function ensureConversationMembershipVariants(
  */
 export async function ensureFlatConversationMembership(
   conversationId: string,
-  profileId: string,
+  memberId: string,
+  memberAuthUid?: string | null,
 ): Promise<void> {
-  if (!conversationId || !profileId) return;
-  const cacheKey = `${conversationId}:${profileId}`;
+  if (!conversationId || !memberId) return;
+  const cacheKey = `${conversationId}:${memberId}`;
   if (repaired.has(cacheKey)) return;
 
   const { data: { user } } = await firebaseAuth.getUser();
-  const authUid = user?.id ?? null;
-  const ids = [...new Set([profileId, authUid].filter(Boolean))] as string[];
+  const currentAuthUid = user?.id ?? null;
+  const currentProfileId = user?.id
+    ? (await resolveProfileIdFromAuthUid(user.id)) || user.id
+    : null;
+  const isSelfMember =
+    memberId === currentAuthUid ||
+    memberId === currentProfileId ||
+    memberAuthUid === currentAuthUid;
+
+  const authUidForMember =
+    memberAuthUid ??
+    (isSelfMember ? currentAuthUid : null);
+
+  const ids = [...new Set([memberId, authUidForMember].filter(Boolean))] as string[];
 
   let seededAny = false;
 
@@ -451,7 +466,7 @@ export async function ensureFlatConversationMembership(
     (await Promise.all(ids.map((id) => hasCompositeMembership(conversationId, id, true)))).some(
       Boolean,
     );
-  if (verified || (await hasCompositeMembership(conversationId, profileId, true))) {
+  if (verified || (await hasCompositeMembership(conversationId, memberId, true))) {
     repaired.add(cacheKey);
   }
 }

@@ -584,10 +584,10 @@ class QueryBuilder {
           if (this.table === 'messages') {
             await awaitPendingFirestoreWrites();
             let serverRow: Record<string, unknown> | null = null;
-            for (let attempt = 0; attempt < 5; attempt++) {
+            for (let attempt = 0; attempt < 10; attempt++) {
               serverRow = await getDocumentFromServer(this.table, id).catch(() => null);
               if (serverRow) break;
-              await new Promise((r) => setTimeout(r, 150 * (attempt + 1)));
+              await new Promise((r) => setTimeout(r, 200 * (attempt + 1)));
             }
             if (!serverRow) {
               try {

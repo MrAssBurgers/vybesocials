@@ -17,6 +17,8 @@ import { syncUserAuthIndex } from '@/lib/firebase/profileResolve';
 import { firebaseAuth } from '@/lib/firebase/authService';
 import { withTimeout } from '@/lib/withTimeout';
 import { toast } from 'sonner';
+import { inferOtherUserIdFromConversation } from '@/lib/dmMemberResolve';
+import { sendDmViaCloudFunction, isRetryableSendError } from '@/lib/firebase/dmSendClient';
 
 export interface PendingMessage {
   tempId: string;
@@ -281,7 +283,11 @@ export function useInstantSend(conversationId: string | undefined) {
     const otherFromMembers =
       cachedConv?.members?.find((m: { user_id?: string }) => m.user_id !== senderId)?.user_id;
     const otherProfileId =
-      otherFromMembers || inferOtherParticipantId(conversationId, senderId) || null;
+      (cachedConv &&
+        inferOtherUserIdFromConversation(cachedConv, senderId, profile?.user_id)) ||
+      otherFromMembers ||
+      inferOtherParticipantId(conversationId, senderId) ||
+      null;
 
     await withTimeout(
       repairConversationForSend(conversationId, senderId, otherProfileId),
@@ -299,20 +305,44 @@ export function useInstantSend(conversationId: string | undefined) {
 
     sendReadyRef.current = { conversationId, senderId };
     return senderId;
-  }, [conversationId, profile?.id, profileId, queryClient]);
+  }, [conversationId, profile?.id, profile?.user_id, profileId, queryClient]);
 
   const repairAndSend = useCallback(
     async (senderId: string, otherProfileId: string | null) => {
       resetMessagesReady(conversationId!, senderId);
-      await withTimeout(
-        repairConversationForSend(conversationId!, senderId, otherProfileId, { force: true }),
-        12_000,
-        'Send setup timed out',
-      );
+      try {
+        await withTimeout(
+          repairConversationForSend(conversationId!, senderId, otherProfileId, { force: true }),
+          12_000,
+          'Send setup timed out',
+        );
+      } catch (err) {
+        console.warn('[InstantSend] inline repair failed:', err);
+      }
       sendReadyRef.current = { conversationId, senderId };
       return senderId;
     },
     [conversationId],
+  );
+
+  const resolveOtherProfileId = useCallback(
+    (senderId: string) => {
+      const cachedConv =
+        queryClient.getQueryData<any[]>(['dm-conversations', senderId])?.find(
+          (c) => c.id === conversationId,
+        ) ??
+        queryClient.getQueryData<any[]>(['conversations', senderId])?.find(
+          (c) => c.id === conversationId,
+        );
+      const authUid = profile?.user_id ?? null;
+      return (
+        (cachedConv &&
+          inferOtherUserIdFromConversation(cachedConv, senderId, authUid)) ||
+        inferOtherParticipantId(conversationId!, senderId) ||
+        null
+      );
+    },
+    [conversationId, profile?.user_id, queryClient],
   );
 
   const resolveSenderIdForSend = useCallback(async (): Promise<string> => {
@@ -360,14 +390,25 @@ export function useInstantSend(conversationId: string | undefined) {
 
         if (!result.error) return result;
 
-        const retryable =
-          result.error.code === 'permission-denied' ||
-          /permission|could not be delivered|chat permissions/i.test(result.error.message || '');
-
-        if (!retryable || attempt === 2) return result;
+        if (!isRetryableSendError(result.error) || attempt === 2) {
+          // Server-side send bypasses client rule edge cases (legacy chats, membership lag).
+          const cloud = await sendDmViaCloudFunction({
+            conversationId: payload.conversation_id as string,
+            content: payload.content as string | undefined,
+            viewMode: (payload.view_mode as ViewMode) || 'permanent',
+            replyToId: (payload.reply_to_id as string | null) ?? null,
+            mediaUrl: (payload.media_url as string | null) ?? null,
+            mediaType: (payload.media_type as string | null) ?? null,
+            messageType: payload.message_type as string | undefined,
+          });
+          if (!cloud.error && cloud.data) {
+            return { data: cloud.data, error: null };
+          }
+          return result;
+        }
 
         activeSenderId = await repairAndSend(activeSenderId, otherProfileId);
-        await new Promise((r) => setTimeout(r, 200 * (attempt + 1)));
+        await new Promise((r) => setTimeout(r, 250 * (attempt + 1)));
       }
 
       return { data: null, error: { message: 'Failed to send message' } };
@@ -412,17 +453,7 @@ export function useInstantSend(conversationId: string | undefined) {
 
     try {
       let senderId = await resolveSenderIdForSend();
-      const cachedConv =
-        queryClient.getQueryData<any[]>(['dm-conversations', senderId])?.find(
-          (c) => c.id === conversationId,
-        ) ??
-        queryClient.getQueryData<any[]>(['conversations', senderId])?.find(
-          (c) => c.id === conversationId,
-        );
-      const otherFromMembers =
-        cachedConv?.members?.find((m: { user_id?: string }) => m.user_id !== senderId)?.user_id;
-      const otherProfileId =
-        otherFromMembers || inferOtherParticipantId(conversationId!, senderId) || null;
+      const otherProfileId = resolveOtherProfileId(senderId);
 
       const expiresAt = viewMode === '24h' 
         ? new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
@@ -471,7 +502,7 @@ export function useInstantSend(conversationId: string | undefined) {
       toast.error('Message failed to send');
       throw error;
     }
-  }, [conversationId, profile?.id, effectiveProfileId, generateTempId, addOptimisticMessage, confirmMessage, markFailed, getBroadcastChannel, resolveSenderIdForSend, insertMessageWithRetry, queryClient]);
+  }, [conversationId, profile?.id, effectiveProfileId, generateTempId, addOptimisticMessage, confirmMessage, markFailed, getBroadcastChannel, resolveSenderIdForSend, insertMessageWithRetry, resolveOtherProfileId]);
 
   // Send media message
   const sendMedia = useCallback(async (

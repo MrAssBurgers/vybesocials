@@ -2,6 +2,13 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## DM send deep fix (2026-06-21)
+- **Scan:** debug/build PASS; `test:social-permissions` 15/15; client insert E2E OK; prod `app.js` stale (~791KB vs ~836KB).
+- **Root cause:** Client membership seed used wrong auth uid for peer rows; server verify too aggressive; no fallback when Firestore rules reject legacy chats.
+- **Fix:** `sendDmMessage` Cloud Function (deployed `vybe-daaab`) repairs membership + writes message; client falls back via `sendDmViaCloudFunction`; fixed `ensureConversationMembershipVariants`; 10× server confirm backoff; auth-aware other-member resolve.
+- **Verified:** `npm run build` PASS; `test:social-permissions` 15/15; `functions:sendDmMessage` deployed
+- **You:** Lovable Publish → force-quit → send DM (new + existing chat)
+
 ## DM send failure fix (2026-06-20)
 - **Root cause:** Send blocked when membership looked ready in local Firestore cache but wasn't on server; `ensureSendReady` threw before insert; single retry on permission-denied; new DMs missing auth-uid composite membership rows.
 - **Fix:** Server-verify composite membership before marking ready; 3-attempt insert with forced repair; longer server confirm backoff on message insert; `createDmChat` seeds auth uid + `user_auth_index`; soft-fail pre-send repair (inline retry on insert).
