@@ -18,7 +18,8 @@ export const BattlePassWidget = memo(function BattlePassWidget() {
 
   // Show next 3 tiers from current level
   const currentLevel = levelProgress?.currentLevel || 1;
-  const upcomingTiers = (tiers || [])
+  const tierList = Array.isArray(tiers) ? tiers : [];
+  const upcomingTiers = tierList
     .filter(t => t.level >= currentLevel)
     .slice(0, 4);
 

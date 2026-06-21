@@ -2,8 +2,9 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { db } from '@/lib/firebase';
 import { subscribePostgresChannel, removeRealtimeChannel } from '@/lib/realtimeChannel';
 import { useAuth } from '@/lib/auth';
+import { useAuthProfileId } from '@/hooks/useAuthProfileId';
 import { PRESENCE } from '@/lib/constants';
-import { prewarmDmBroadcastChannel, sendDmBroadcastTyping, subscribeDmBroadcastTyping } from '@/lib/dmBroadcast';
+import { prewarmDmBroadcastChannel, sendDmBroadcastTyping, subscribeDmBroadcastTyping, sendDmBroadcastActivity, subscribeDmBroadcastActivity } from '@/lib/dmBroadcast';
 
 interface PresenceUser {
   user_id: string;
@@ -15,28 +16,32 @@ interface PresenceUser {
 
 export function useChatPresence(conversationId: string | undefined) {
   const { profile, user } = useAuth();
+  const profileId = useAuthProfileId();
+  const effectiveProfileId = profileId ?? profile?.id;
   const authUid = user?.id ?? profile?.user_id ?? null;
   const [presentUsers, setPresentUsers] = useState<PresenceUser[]>([]);
   const [typingUsers, setTypingUsers] = useState<string[]>([]);
   const heartbeatRef = useRef<NodeJS.Timeout | null>(null);
   const conversationIdRef = useRef(conversationId);
-  const profileIdRef = useRef(profile?.id);
+  const profileIdRef = useRef(effectiveProfileId);
   const authUidRef = useRef(authUid);
   const profileMetaRef = useRef({
     username: profile?.username || '',
     displayName: (profile as { display_name?: string | null })?.display_name || profile?.username || '',
+    avatarUrl: profile?.avatar_url || null,
   });
   
   // Keep refs updated
   useEffect(() => {
     conversationIdRef.current = conversationId;
-    profileIdRef.current = profile?.id;
+    profileIdRef.current = effectiveProfileId;
     authUidRef.current = authUid;
-    profileMetaRef.current = {
-      username: profile?.username || '',
-      displayName: (profile as { display_name?: string | null })?.display_name || profile?.username || '',
-    };
-  }, [conversationId, profile?.id, profile?.username, profile, authUid]);
+  profileMetaRef.current = {
+    username: profile?.username || '',
+    displayName: (profile as { display_name?: string | null })?.display_name || profile?.username || '',
+    avatarUrl: profile?.avatar_url || null,
+  };
+  }, [conversationId, effectiveProfileId, profile?.username, profile, authUid]);
 
   // Fast typing indicator - instant updates, no debounce for start
   const typingDebounceRef = useRef<NodeJS.Timeout | null>(null);
@@ -74,6 +79,7 @@ export function useChatPresence(conversationId: string | undefined) {
             .from('typing_indicators')
             .upsert(
               {
+                id: `${cid}_${pid}`,
                 conversation_id: cid,
                 user_id: pid,
                 started_at: new Date().toISOString(),
@@ -102,10 +108,11 @@ export function useChatPresence(conversationId: string | undefined) {
 
   // Setup presence and subscriptions
   useEffect(() => {
-    if (!conversationId || !profile?.id) return;
+    if (!conversationId || !effectiveProfileId) return;
 
     let isMounted = true;
-    const profileId = profile.id;
+    const profileId = effectiveProfileId;
+    const presenceDocId = `${conversationId}_${profileId}`;
 
     // Join presence
     const joinPresence = async () => {
@@ -115,6 +122,7 @@ export function useChatPresence(conversationId: string | undefined) {
           .from('chat_presence')
           .upsert(
             {
+              id: presenceDocId,
               conversation_id: conversationId,
               user_id: profileId,
               last_seen_at: new Date().toISOString(),
@@ -182,16 +190,64 @@ export function useChatPresence(conversationId: string | undefined) {
       }
     };
 
-    // Initial setup
+    // Initial setup — announce viewing + subscribe to peer activity (<100ms via broadcast)
     prewarmDmBroadcastChannel(conversationId);
+    void sendDmBroadcastActivity(conversationId, {
+      userId: profileId,
+      activity: 'viewing',
+      username: profileMetaRef.current.username,
+      displayName: profileMetaRef.current.displayName,
+      avatarUrl: profileMetaRef.current.avatarUrl,
+    });
     joinPresence();
     fetchPresence();
 
     // Fast heartbeat every 2 seconds for responsive presence
-    heartbeatRef.current = setInterval(joinPresence, 2000);
+    heartbeatRef.current = setInterval(() => {
+      joinPresence();
+      void sendDmBroadcastActivity(conversationId, {
+        userId: profileId,
+        activity: 'viewing',
+        username: profileMetaRef.current.username,
+        displayName: profileMetaRef.current.displayName,
+        avatarUrl: profileMetaRef.current.avatarUrl,
+      });
+    }, 2000);
 
     // Poll as a safety net for missed realtime events
     const presencePollRef = setInterval(fetchPresence, 2000);
+
+    const unsubscribeActivityBroadcast = subscribeDmBroadcastActivity(conversationId, (payload) => {
+      if (!isMounted) return;
+      if (payload.userId === profileId || (authUid && payload.userId === authUid)) return;
+
+      if (payload.activity === 'idle') {
+        setPresentUsers((prev) => prev.filter((u) => u.user_id !== payload.userId));
+        setTypingUsers((prev) => prev.filter((id) => id !== payload.userId));
+        return;
+      }
+
+      setPresentUsers((prev) => {
+        const existing = prev.find((u) => u.user_id === payload.userId);
+        const nextUser: PresenceUser = {
+          user_id: payload.userId,
+          username: payload.username || existing?.username || '',
+          avatar_url: payload.avatarUrl ?? existing?.avatar_url ?? null,
+          display_name: payload.displayName || payload.username || existing?.display_name || null,
+          is_typing: payload.activity === 'typing',
+        };
+        if (existing) {
+          return prev.map((u) => (u.user_id === payload.userId ? nextUser : u));
+        }
+        return [...prev, nextUser];
+      });
+
+      if (payload.activity === 'typing') {
+        setTypingUsers((prev) => (prev.includes(payload.userId) ? prev : [...prev, payload.userId]));
+      } else {
+        setTypingUsers((prev) => prev.filter((id) => id !== payload.userId));
+      }
+    });
 
     const unsubscribeTypingBroadcast = subscribeDmBroadcastTyping(conversationId, (payload) => {
       if (!isMounted) return;
@@ -291,6 +347,7 @@ export function useChatPresence(conversationId: string | undefined) {
     // Cleanup
     return () => {
       isMounted = false;
+      unsubscribeActivityBroadcast();
       unsubscribeTypingBroadcast();
       if (heartbeatRef.current) {
         clearInterval(heartbeatRef.current);
@@ -301,7 +358,7 @@ export function useChatPresence(conversationId: string | undefined) {
       removeRealtimeChannel(presenceChannel);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, [conversationId, profile?.id, authUid]);
+  }, [conversationId, effectiveProfileId, authUid]);
 
   return {
     presentUsers,

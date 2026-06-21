@@ -24,6 +24,7 @@ const messageHandlers = new Map<string, Set<BroadcastMessageHandler>>();
 const typingHandlers = new Map<string, Set<BroadcastTypingHandler>>();
 const activityHandlers = new Map<string, Set<BroadcastActivityHandler>>();
 const subscribedConvos = new Set<string>();
+const nativeChannels = new Map<string, BroadcastChannel>();
 
 function channelName(conversationId: string) {
   return `dm-broadcast:${conversationId}`;
@@ -71,7 +72,32 @@ function dispatchActivity(conversationId: string, payload: { payload?: DmActivit
   }
 }
 
+function getNativeChannel(conversationId: string): BroadcastChannel | null {
+  if (typeof BroadcastChannel === 'undefined') return null;
+  let ch = nativeChannels.get(conversationId);
+  if (!ch) {
+    ch = new BroadcastChannel(channelName(conversationId));
+    ch.onmessage = (event: MessageEvent<{ event?: string; payload?: unknown }>) => {
+      const { event: evt, payload } = event.data || {};
+      if (evt === 'new-message') dispatchMessage(conversationId, { payload: payload as { message?: unknown } });
+      if (evt === 'typing') dispatchTyping(conversationId, { payload: payload as DmTypingPayload });
+      if (evt === 'activity') dispatchActivity(conversationId, { payload: payload as DmActivityPayload });
+    };
+    nativeChannels.set(conversationId, ch);
+  }
+  return ch;
+}
+
+function postNative(conversationId: string, event: string, payload: unknown) {
+  try {
+    getNativeChannel(conversationId)?.postMessage({ event, payload });
+  } catch {
+    /* noop */
+  }
+}
+
 function ensureSubscribed(conversationId: string) {
+  getNativeChannel(conversationId);
   if (subscribedConvos.has(conversationId)) return;
   subscribedConvos.add(conversationId);
   removeChannelByTopic(channelName(conversationId));
@@ -126,6 +152,8 @@ export async function sendDmBroadcastMessage(
   message: Record<string, unknown>,
 ): Promise<void> {
   prewarmDmBroadcastChannel(conversationId);
+  dispatchMessage(conversationId, { payload: { message } });
+  postNative(conversationId, 'new-message', { message });
   try {
     await db.channel(channelName(conversationId)).send({
       type: 'broadcast',
@@ -156,6 +184,8 @@ export async function sendDmBroadcastActivity(
   payload: DmActivityPayload,
 ): Promise<void> {
   prewarmDmBroadcastChannel(conversationId);
+  dispatchActivity(conversationId, { payload });
+  postNative(conversationId, 'activity', payload);
   try {
     await db.channel(channelName(conversationId)).send({
       type: 'broadcast',
@@ -172,6 +202,8 @@ export async function sendDmBroadcastTyping(
   payload: DmTypingPayload,
 ): Promise<void> {
   prewarmDmBroadcastChannel(conversationId);
+  dispatchTyping(conversationId, { payload });
+  postNative(conversationId, 'typing', payload);
   try {
     await db.channel(channelName(conversationId)).send({
       type: 'broadcast',

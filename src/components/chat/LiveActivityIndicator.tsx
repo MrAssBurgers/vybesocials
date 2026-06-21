@@ -170,15 +170,21 @@ export const InlineActivityBubble = memo(function InlineActivityBubble({
           </AvatarFallback>
         </Avatar>
         
-        {/* Small activity dot - subtle pulse */}
+        {/* Activity badge on avatar — eye for viewing, icon for Snap/voice */}
         <span
           className={cn(
-            "absolute -bottom-0.5 -right-0.5 h-3.5 w-3.5 rounded-full",
-            "ring-2 ring-background",
-            config.dotColor,
-            "animate-pulse"
+            'absolute -bottom-0.5 -right-0.5 flex items-center justify-center rounded-full ring-2 ring-background shadow-sm',
+            activity === 'viewing' && 'h-3.5 w-3.5 bg-emerald-500',
+            activity === 'taking_photo' && 'h-3.5 w-3.5 bg-amber-500',
+            activity === 'recording_video' && 'h-3.5 w-3.5 bg-violet-500',
+            activity === 'recording_voice' && 'h-3.5 w-3.5 bg-rose-500',
+            activity === 'typing' && 'h-3.5 w-3.5 bg-primary',
+            !['viewing', 'taking_photo', 'recording_video', 'recording_voice', 'typing'].includes(activity) &&
+              cn('h-3.5 w-3.5 animate-pulse', config.dotColor),
           )}
-        />
+        >
+          <Icon className={cn('h-2 w-2 text-white', activity === 'viewing' && 'h-2.5 w-2.5')} />
+        </span>
       </div>
       
       {/* Typing bubble - opacity fade only, no position animation */}

@@ -329,7 +329,8 @@ export function useRealtimeChallengeProgress() {
 export function useNextLevelProgress() {
   const { data: userLevel, isPending: levelPending } = useUserLevel();
   const { data: tiers, isPending: tiersPending } = useVybePassTiers();
-  const isReady = !!userLevel && !!tiers;
+  const tierList = Array.isArray(tiers) ? tiers : [];
+  const isReady = !!userLevel && tierList.length > 0;
 
   if (!isReady) {
     return {
@@ -343,8 +344,8 @@ export function useNextLevelProgress() {
     };
   }
 
-  const currentTier = tiers.find(t => t.level === userLevel.current_level);
-  const nextTier = tiers.find(t => t.level === userLevel.current_level + 1);
+  const currentTier = tierList.find(t => t.level === userLevel.current_level);
+  const nextTier = tierList.find(t => t.level === userLevel.current_level + 1);
   
   const currentLevelXP = currentTier?.xp_required || 0;
   const nextLevelXP = nextTier?.xp_required || currentLevelXP + 500;

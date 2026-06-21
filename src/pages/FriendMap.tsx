@@ -4,6 +4,7 @@ import { ChevronLeft, Navigation, MapPin, Search, Layers, Ghost, X, MessageCircl
 import { useNavigate } from 'react-router-dom';
 
 import { useAuth } from '@/lib/auth';
+import { useAuthProfileId } from '@/hooks/useAuthProfileId';
 import { db } from '@/lib/firebase';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
@@ -294,15 +295,19 @@ function useFriendLocations(friendIds: string[]) {
     staleTime: 10_000,
     queryFn: async (): Promise<LocationRecord[]> => {
       if (!friendIds.length) return [];
+      const nowIso = new Date().toISOString();
       const { data: locationRows, error } = await db
         .from('user_locations')
         .select('id, user_id, latitude, longitude, accuracy, label, updated_at, expires_at, sharing_enabled, status, speed')
         .in('user_id', friendIds)
-        .eq('sharing_enabled', true)
-        .or(`expires_at.is.null,expires_at.gt.${new Date().toISOString()}`);
+        .eq('sharing_enabled', true);
       if (error) throw error;
 
-      const validLocations = (locationRows || []).filter((row) => isValidLatLng(row.latitude, row.longitude));
+      const validLocations = (locationRows || []).filter(
+        (row) =>
+          isValidLatLng(row.latitude, row.longitude) &&
+          (!row.expires_at || String(row.expires_at) > nowIso),
+      );
       if (!validLocations.length) return [];
 
       const profileIds = Array.from(new Set(validLocations.map((row) => row.user_id)));
@@ -425,11 +430,12 @@ function useNominatimSearch(myCoords: [number, number] | null) {
 
 function FriendMapInner() {
   const { profile } = useAuth();
+  const profileId = useAuthProfileId();
   const qc = useQueryClient();
   const navigate = useNavigate();
   const { coords: myCoords, accuracy, sharing, setSharing, speed: mySpeed } = useLocationContext();
 
-  const { data: friendIds = [] } = useFriendIds(profile?.id);
+  const { data: friendIds = [] } = useFriendIds(profileId ?? profile?.id);
   const { data: friends = [] } = useFriendLocations(friendIds);
 
   // Map refs

@@ -412,26 +412,22 @@ export function useInstantSend(conversationId: string | undefined) {
       createdAt,
     });
 
-    let senderId: string;
-    try {
-      senderId = await resolveSenderIdForSend();
-    } catch (err) {
-      pendingMessagesRef.current.delete(tempId);
-      throw err;
-    }
-
-    // Add to UI immediately AND register with the global realtime dedupe so
-    // the postgres_changes echo of our own insert can't accidentally remove
-    // or duplicate the bubble we just rendered.
-    const added = addOptimisticMessage(tempId, { content, view_mode: viewMode, reply_to_id: replyToId }, senderId);
+    // Show bubble immediately — never block paint on membership repair / server round-trip.
+    const added = addOptimisticMessage(
+      tempId,
+      { content, view_mode: viewMode, reply_to_id: replyToId },
+      effectiveProfileId,
+    );
     if (!added) {
       pendingMessagesRef.current.delete(tempId);
       throw new Error('Could not show message — try again.');
     }
-    registerOptimisticMessage(conversationId, content, senderId);
+    registerOptimisticMessage(conversationId, content, effectiveProfileId);
     onOptimisticAdded?.();
 
+    void (async () => {
     try {
+      const senderId = await resolveSenderIdForSend();
       const otherProfileId = resolveOtherProfileId(senderId);
 
       const expiresAt = viewMode === '24h' 
@@ -470,13 +466,12 @@ export function useInstantSend(conversationId: string | undefined) {
         .then(() => {})
         .catch(() => {});
 
-      return data;
     } catch (error: any) {
       console.error('Failed to send message:', error);
       markFailed(tempId, error.message || 'Failed to send');
       toast.error('Message failed to send');
-      throw error;
     }
+    })();
   }, [conversationId, profile?.id, effectiveProfileId, generateTempId, addOptimisticMessage, confirmMessage, markFailed, resolveSenderIdForSend, insertMessageWithRetry, resolveOtherProfileId]);
 
   // Send media message

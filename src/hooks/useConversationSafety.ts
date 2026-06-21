@@ -10,6 +10,8 @@ import { subscribePostgresChannel, removeRealtimeChannel } from '@/lib/realtimeC
 import { useAuth } from '@/lib/auth';
 import { toast } from 'sonner';
 import { useEffect, useCallback, useMemo } from 'react';
+import { repairConversationForSend } from '@/lib/dmMembershipRepair';
+import { useAuthProfileId } from '@/hooks/useAuthProfileId';
 
 interface SafetyOverride {
   id: string;
@@ -44,6 +46,8 @@ function calculateAge(dob: string): number {
 
 export function useConversationSafety(conversationId: string | undefined) {
   const { profile } = useAuth();
+  const profileId = useAuthProfileId();
+  const effectiveProfileId = profileId ?? profile?.id;
   const queryClient = useQueryClient();
 
   // Get user's age via the sensitive profile RPC
@@ -80,7 +84,7 @@ export function useConversationSafety(conversationId: string | undefined) {
       }
       return data as SafetyOverride | null;
     },
-    enabled: !!conversationId && !!profile?.id,
+    enabled: !!conversationId && !!effectiveProfileId,
   });
 
   // Get responses for group chats
@@ -141,14 +145,16 @@ export function useConversationSafety(conversationId: string | undefined) {
   // Request to disable AI filter
   const requestDisable = useMutation({
     mutationFn: async () => {
-      if (!conversationId || !profile?.id) throw new Error('Not ready');
+      if (!conversationId || !effectiveProfileId) throw new Error('Not ready');
       if (isUnder13) throw new Error('Users 12 and under must keep AI filters on');
+
+      await repairConversationForSend(conversationId, effectiveProfileId, null, { force: true }).catch(() => {});
 
       const { data, error } = await db
         .from('conversation_safety_overrides')
         .insert({
           conversation_id: conversationId,
-          requested_by: profile.id,
+          requested_by: effectiveProfileId,
           status: 'pending',
         })
         .select()
@@ -161,12 +167,16 @@ export function useConversationSafety(conversationId: string | undefined) {
       toast.success('AI filter disable request sent');
     },
     onError: (err: Error) => {
-      if (err.message.includes('12 and under')) {
+      const msg = err.message.toLowerCase();
+      if (msg.includes('12 and under')) {
         toast.error('AI filters cannot be disabled for your age group');
-      } else if (err.message.includes('duplicate') || err.message.includes('unique')) {
+      } else if (msg.includes('duplicate') || msg.includes('unique') || msg.includes('already exists')) {
         toast('A request is already pending');
+      } else if (msg.includes('permission') || msg.includes('denied')) {
+        toast.error('Could not send request — chat membership may still be syncing. Try again.');
       } else {
         toast.error('Failed to send request');
+        console.error('[Safety] requestDisable:', err);
       }
     },
   });

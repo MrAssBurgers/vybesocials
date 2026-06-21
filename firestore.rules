@@ -38,6 +38,14 @@ service cloud.firestore {
         staffRoleDoc('user_roles_auth', 'admin') ||
         staffRoleDoc('user_roles_auth', 'moderator');
     }
+    // Owner/admin can manage roles (moderators cannot grant roles).
+    function isStaffAdmin() {
+      return isAdmin() ||
+        staffRoleDoc('user_roles', 'owner') ||
+        staffRoleDoc('user_roles', 'admin') ||
+        staffRoleDoc('user_roles_auth', 'owner') ||
+        staffRoleDoc('user_roles_auth', 'admin');
+    }
     // Migrated rows use profiles.id (legacy UUID) while user_id holds Firebase Auth uid.
     function profileId() {
       return exists(/databases/$(database)/documents/user_auth_index/$(uid()))
@@ -110,6 +118,9 @@ service cloud.firestore {
     function isConversationParticipant(cid) {
       return isMember(cid) || isConversationCreatorOf(cid);
     }
+    function safetyOverrideConversationId(overrideId) {
+      return get(/databases/$(database)/documents/conversation_safety_overrides/$(overrideId)).data.conversation_id;
+    }
     function isFriendRequestParty() {
       return signedIn() && (
         ownsProfileId(resource.data.sender_id) ||
@@ -178,14 +189,21 @@ service cloud.firestore {
       allow read, write: if signedIn() && (ownsProfileId(userId) || isAdmin());
     }
 
-    // ---------- user roles (read-only to owner; mutation via Cloud Function) ----------
+    // ---------- user roles (staff admin manages; moderators read) ----------
     match /user_roles/{docId} {
-      allow read: if signedIn() && (ownsProfileId(resource.data.user_id) || isAdmin());
-      allow write: if isAdmin();
+      allow read: if signedIn() && (
+        ownsProfileId(resource.data.user_id) || isStaffModerator() || isAdmin()
+      );
+      allow create, update, delete: if isStaffAdmin();
     }
     match /user_roles_auth/{docId} {
-      allow read: if signedIn() && (ownsProfileId(resource.data.user_id) || isAdmin());
-      allow write: if isAdmin();
+      allow read: if signedIn() && (
+        resource.data.user_id == uid() ||
+        ownsProfileId(resource.data.user_id) ||
+        isStaffModerator() ||
+        isAdmin()
+      );
+      allow create, update, delete: if isStaffAdmin();
     }
 
     // ---------- progression / XP / streaks ----------
@@ -493,6 +511,24 @@ service cloud.firestore {
         willOwnProfile('user_id') &&
         isConversationParticipant(request.resource.data.conversation_id);
       allow delete: if signedIn() && ownsProfileId(resource.data.user_id);
+    }
+    match /conversation_safety_overrides/{docId} {
+      allow read: if signedIn() && isConversationParticipant(resource.data.conversation_id);
+      allow create: if signedIn() &&
+        willOwnProfile('requested_by') &&
+        isConversationParticipant(request.resource.data.conversation_id) &&
+        request.resource.data.status == 'pending';
+      allow update: if signedIn() && isConversationParticipant(resource.data.conversation_id);
+    }
+    match /conversation_safety_responses/{docId} {
+      allow read: if signedIn() &&
+        exists(/databases/$(database)/documents/conversation_safety_overrides/$(resource.data.override_id)) &&
+        isConversationParticipant(safetyOverrideConversationId(resource.data.override_id));
+      allow create: if signedIn() &&
+        willOwnProfile('user_id') &&
+        request.resource.data.override_id is string &&
+        exists(/databases/$(database)/documents/conversation_safety_overrides/$(request.resource.data.override_id)) &&
+        isConversationParticipant(safetyOverrideConversationId(request.resource.data.override_id));
     }
 
     // ---------- calls / signaling ----------

@@ -217,6 +217,27 @@ export function ChatView() {
     if (otherUserActivity?.activity === 'recording_voice') return 'recording_voice';
     return 'idle';
   }, [isOtherTyping, isOtherInChat, isOtherInCamera, otherUserActivity?.activity]);
+
+  const peerActivityUser = useMemo(() => {
+    if (otherUserActivity) return otherUserActivity;
+    const peer = presentUsers.find((u) => u.user_id !== profileId);
+    if (!peer) return null;
+    return {
+      user_id: peer.user_id,
+      username: peer.username,
+      avatar_url: peer.avatar_url,
+      display_name: peer.display_name,
+      activity: typingUsers.includes(peer.user_id)
+        ? ('typing' as const)
+        : ('viewing' as const),
+    };
+  }, [otherUserActivity, presentUsers, profileId, typingUsers]);
+
+  const showPeerPresence =
+    !isGroupChat &&
+    !!peerActivityUser &&
+    (isOtherUserPresent || presentUsers.length > 0) &&
+    otherPresenceActivity !== 'idle';
   const { notifyScreenshot, notifyCapture, screenshotEvents: rawScreenshotEvents, isRecording } = useScreenshotNotification(conversationId);
   const screenshotEvents = Array.isArray(rawScreenshotEvents) ? rawScreenshotEvents : [];
   
@@ -1507,7 +1528,7 @@ export function ChatView() {
               <div className="flex flex-col gap-0.5 min-w-0">
                 <LivePresenceBar
                   isOnline={otherMemberOnline}
-                  isTyping={false}
+                  isTyping={isOtherTyping}
                   isInChat={isOtherInChat && !isOtherTyping && !isOtherInCamera}
                   isInCamera={isOtherInCamera}
                   username={otherMember?.username}
@@ -1845,16 +1866,12 @@ export function ChatView() {
             )}
           </AnimatePresence>
 
-          {/* Live activity bubble — viewing / Snap (typing shown on header avatar) */}
+          {/* Live activity bubble — viewing / typing / Snap in thread */}
           <AnimatePresence>
-            {!isGroupChat &&
-              otherUserActivity &&
-              isOtherUserPresent &&
-              otherPresenceActivity !== 'typing' &&
-              otherPresenceActivity !== 'idle' && (
+            {showPeerPresence && peerActivityUser && (
               <InlineActivityBubble
-                avatarUrl={otherUserActivity.avatar_url}
-                username={otherUserActivity.username}
+                avatarUrl={peerActivityUser.avatar_url ?? otherMember?.avatar_url}
+                username={peerActivityUser.username || otherMember?.username || ''}
                 activity={otherPresenceActivity}
               />
             )}

@@ -47,18 +47,19 @@ export function useBackgroundLocation(
     const hour = new Date().getHours();
     const status = autoStatus(spd, hour);
     const expiresAt = new Date(now + 60 * 60 * 1000).toISOString(); // 1 hour from now
-    await db
-      .from('user_locations')
-      .upsert({
-        user_id: userId,
-        latitude: lat,
-        longitude: lng,
-        accuracy: acc,
-        sharing_enabled: true,
-        status,
-        speed: spd,
-        expires_at: expiresAt,
-      } as any, { onConflict: 'user_id' });
+      await db
+        .from('user_locations')
+        .upsert({
+          id: userId,
+          user_id: userId,
+          latitude: lat,
+          longitude: lng,
+          accuracy: acc,
+          sharing_enabled: true,
+          status,
+          speed: spd,
+          expires_at: expiresAt,
+        } as any, { onConflict: 'user_id' });
   }, [userId, sharing]);
 
   // Only watch GPS on map routes (or when caller explicitly opts in). Never prompt on app boot.

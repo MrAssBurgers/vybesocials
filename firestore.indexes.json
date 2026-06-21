@@ -78,6 +78,11 @@
       "fields": [
         { "fieldPath": "user_id", "order": "ASCENDING" },
         { "fieldPath": "created_at", "order": "DESCENDING" }
+      ] },
+    { "collectionGroup": "user_locations", "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "sharing_enabled", "order": "ASCENDING" },
+        { "fieldPath": "user_id", "order": "ASCENDING" }
       ] }
   ],
   "fieldOverrides": []

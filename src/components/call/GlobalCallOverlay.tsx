@@ -155,19 +155,24 @@ export function GlobalCallOverlay() {
 
   const attachRemoteVideo = useCallback((track: MediaStreamTrack) => {
     remoteVideoTrackRef.current = track;
+    let attempts = 0;
     const apply = () => {
       const el = remoteVideoRef.current;
       if (!el) return false;
       el.srcObject = new MediaStream([track]);
       el.playsInline = true;
       el.autoplay = true;
+      el.muted = true;
       el.play().catch(() => {});
       setHasRemoteVideo(true);
       return true;
     };
-    if (!apply()) {
-      requestAnimationFrame(() => { apply(); });
-    }
+    if (apply()) return;
+    const retry = () => {
+      if (apply() || attempts++ > 24) return;
+      requestAnimationFrame(retry);
+    };
+    requestAnimationFrame(retry);
   }, []);
 
   useEffect(() => {
@@ -402,21 +407,19 @@ export function GlobalCallOverlay() {
       adaptiveStream: true,
       dynacast: true,
       videoCaptureDefaults: {
-        resolution: VideoPresets.h1440.resolution,
+        resolution: VideoPresets.h1080.resolution,
         facingMode: 'user',
       },
-      // Aggressive reconnection so brief network blips don't drop the call
       reconnectPolicy: {
         nextRetryDelayInMs: (ctx) => {
           if (ctx.retryCount > 8) return null;
-          // 250ms, 500ms, 1s, 1s, 1.5s, 1.5s, 2s, 2s
           return Math.min(250 * Math.pow(2, ctx.retryCount), 2000);
         },
       },
       publishDefaults: {
         simulcast: true,
         videoEncoding: {
-          maxBitrate: 5_000_000,
+          maxBitrate: 3_000_000,
           maxFramerate: 30,
           priority: 'high',
         },
@@ -467,12 +470,21 @@ export function GlobalCallOverlay() {
       }
     });
 
-    room.on(RoomEvent.ParticipantConnected, () => {
+    room.on(RoomEvent.ParticipantConnected, (participant) => {
       setHasRemoteParticipant(true);
       setRemoteUserLeft(false);
       setAutoEndCountdown(0);
       if (autoEndTimerRef.current) { clearTimeout(autoEndTimerRef.current); autoEndTimerRef.current = null; }
       if (countdownIntervalRef.current) { clearInterval(countdownIntervalRef.current); countdownIntervalRef.current = null; }
+      participant.trackPublications.forEach((pub) => {
+        if (pub.kind === Track.Kind.Video && !pub.isSubscribed) {
+          pub.setSubscribed(true);
+        }
+        if (pub.track?.mediaStreamTrack) {
+          if (pub.kind === Track.Kind.Video) attachRemoteVideo(pub.track.mediaStreamTrack);
+          else if (pub.kind === Track.Kind.Audio) attachRemoteAudio(pub.track.mediaStreamTrack);
+        }
+      });
     });
 
     room.on(RoomEvent.ParticipantDisconnected, () => {

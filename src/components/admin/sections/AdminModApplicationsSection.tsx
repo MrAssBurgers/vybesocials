@@ -68,9 +68,13 @@ export function AdminModApplicationsSection() {
       if (status === 'approved') {
         const app = applications.find(a => a.id === id);
         if (app) {
+          const docId = `${app.user_id}_moderator`;
           const { error: roleError } = await db
             .from('user_roles')
-            .upsert({ user_id: app.user_id, role: 'moderator' }, { onConflict: 'user_id,role' });
+            .upsert(
+              { id: docId, user_id: app.user_id, role: 'moderator', created_at: new Date().toISOString() },
+              { onConflict: 'user_id,role' },
+            );
           if (roleError) console.error('Failed to assign role:', roleError);
         }
       }

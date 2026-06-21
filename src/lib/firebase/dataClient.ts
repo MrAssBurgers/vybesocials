@@ -571,7 +571,11 @@ class QueryBuilder {
       const list = Array.isArray(rows) ? rows : [rows];
       const created = await Promise.all(
         list.map(async (row) => {
-          const id = (row.id as string) || documentRef(this.table, 'x').id;
+          let id = row.id ? String(row.id) : undefined;
+          if (!id && (this.table === 'user_roles' || this.table === 'user_roles_auth') && row.user_id && row.role) {
+            id = `${row.user_id}_${row.role}`;
+          }
+          if (!id) id = documentRef(this.table, 'x').id;
           const payload = {
             ...row,
             id,

@@ -1,5 +1,5 @@
 import { memo } from 'react';
-import { Camera, Mic } from 'lucide-react';
+import { Camera, Mic, Eye } from 'lucide-react';
 import { SignedAvatar } from '@/components/ui/SignedAvatar';
 import { cn } from '@/lib/utils';
 import type { ActivityType } from '@/components/chat/LiveActivityIndicator';
@@ -88,6 +88,20 @@ export const PresenceAvatar = memo(function PresenceAvatar({
               style={{ animationDelay: `${i * 150}ms` }}
             />
           ))}
+        </span>
+      )}
+
+      {/* Viewing / in-chat eye badge (Snapchat-style) */}
+      {isViewing && !isTyping && !isInSnap && !isRecordingVoice && (
+        <span
+          className={cn(
+            'absolute -bottom-0.5 -right-0.5 flex items-center justify-center rounded-full',
+            'bg-emerald-500 ring-2 ring-background shadow-sm',
+            badgeSizeClasses[size],
+          )}
+          aria-label="Viewing chat"
+        >
+          <Eye className={cn('text-white', iconSizeClasses[size])} />
         </span>
       )}
 

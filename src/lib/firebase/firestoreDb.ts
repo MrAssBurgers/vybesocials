@@ -37,7 +37,10 @@ function getDb() {
 }
 
 /** Legacy Postgres table names → Firestore collection paths (1:1 with Lovable import). */
-export const TABLE_TO_COLLECTION: Record<string, string> = {};
+export const TABLE_TO_COLLECTION: Record<string, string> = {
+  // Supabase view — stored rows live in `profiles` after Firebase migration
+  public_profiles: 'profiles',
+};
 
 export function resolveCollection(table: string): string {
   return TABLE_TO_COLLECTION[table] ?? table;

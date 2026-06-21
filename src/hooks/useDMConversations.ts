@@ -105,6 +105,11 @@ export function useDMConversations(searchQuery: string = '') {
     retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 4000),
   });
 
+  const conversationList = useMemo(
+    () => (Array.isArray(conversationsQuery.data) ? conversationsQuery.data : []),
+    [conversationsQuery.data],
+  );
+
   // Auto-create conversations for friends who don't have one.
   // Read latest data from the cache on demand so this callback's identity
   // does NOT change every refetch (which was causing a render loop / flicker).
@@ -112,8 +117,8 @@ export function useDMConversations(searchQuery: string = '') {
   const ensureConversationsForFriends = useCallback(async () => {
     if (!profileId || !friends?.length) return;
 
-    const conversations =
-      queryClient.getQueryData<DMConversation[]>(['dm-conversations', profileId]) || [];
+    const raw = queryClient.getQueryData<DMConversation[]>(['dm-conversations', profileId]);
+    const conversations = Array.isArray(raw) ? raw : [];
 
     // Find friends without conversations
     const friendsWithConvos = new Set<string>();
@@ -177,12 +182,12 @@ export function useDMConversations(searchQuery: string = '') {
 
   // Filter conversations by search query
   const filteredConversations = useMemo(() => {
-    if (!conversationsQuery.data) return [];
-    if (!searchQuery.trim()) return conversationsQuery.data;
+    if (conversationList.length === 0) return [];
+    if (!searchQuery.trim()) return conversationList;
 
     const query = searchQuery.toLowerCase().trim();
     
-    return conversationsQuery.data.filter(conv => {
+    return conversationList.filter(conv => {
       // For groups, search by group name
       if (conv.is_group) {
         return conv.name?.toLowerCase().includes(query);
@@ -195,7 +200,7 @@ export function useDMConversations(searchQuery: string = '') {
       
       return username.includes(query) || displayName.includes(query);
     });
-  }, [conversationsQuery.data, searchQuery, profileId]);
+  }, [conversationList, searchQuery, profileId]);
 
   // Split into pinned and unpinned
   const { pinnedConversations, unpinnedConversations } = useMemo(() => {
@@ -216,13 +221,13 @@ export function useDMConversations(searchQuery: string = '') {
 
   // Calculate total unread count
   const totalUnreadCount = useMemo(() => {
-    return (conversationsQuery.data || []).reduce(
+    return conversationList.reduce(
       (sum, conv) => sum + (conv.unread_count || 0), 
       0
     );
-  }, [conversationsQuery.data]);
+  }, [conversationList]);
 
-  const listCount = conversationsQuery.data?.length ?? 0;
+  const listCount = conversationList.length;
   const resolvingProfile =
     !!user?.id && !profileId && (profileResolveQuery.isFetching || profileResolveQuery.isPending);
   // Latch off loading after first fetch settles — prior logs showed loadDM done in <1s but skeleton stuck.

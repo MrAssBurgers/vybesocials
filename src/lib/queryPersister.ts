@@ -128,8 +128,8 @@ export function shouldPersistQueryKey(queryKey: readonly unknown[], data?: unkno
       if (flat.includes('feed') || flat.includes('infinite-posts') || flat.includes('following')) {
         return hasPersistableFeedPages(data);
       }
-      if (data && typeof data === 'object') return Object.keys(data as object).length > 0;
-      return data != null;
+      // List-shaped keys (dm-conversations, etc.) must stay arrays — object snapshots crash render.
+      return false;
     }
     return true;
   } catch {

@@ -46,6 +46,25 @@ const PERSISTED_MAP_KEY_FRAGMENTS = [
   'user-statuses-batch',
 ];
 
+/** Root query-key segments that must deserialize as arrays after persistence restore. */
+const PERSISTED_ARRAY_QUERY_ROOTS = new Set([
+  'dm-conversations',
+  'conversations',
+  'vybe-pass-tiers',
+  'challenges',
+  'claimed-rewards',
+  'challenge-progress',
+]);
+
+export function normalizePersistedArray<T>(data: unknown): T[] {
+  return Array.isArray(data) ? data : [];
+}
+
+function isPersistedArrayQueryKey(queryKey: readonly unknown[]): boolean {
+  const root = queryKey[0];
+  return typeof root === 'string' && PERSISTED_ARRAY_QUERY_ROOTS.has(root);
+}
+
 function queryKeyMatchesFragments(queryKey: readonly unknown[], fragments: string[]): boolean {
   try {
     const flat = JSON.stringify(queryKey).toLowerCase();
@@ -66,6 +85,9 @@ export function revivePersistedQueryData(queryKey: readonly unknown[], data: unk
   }
   if (queryKeyMatchesFragments(queryKey, PERSISTED_MAP_KEY_FRAGMENTS)) {
     return normalizePersistedMap(data);
+  }
+  if (isPersistedArrayQueryKey(queryKey)) {
+    return normalizePersistedArray(data);
   }
   return data;
 }

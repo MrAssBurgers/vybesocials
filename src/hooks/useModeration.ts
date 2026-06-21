@@ -232,9 +232,13 @@ export function useAddUserRole() {
   
   return useMutation({
     mutationFn: async ({ userId, role }: { userId: string; role: 'admin' | 'moderator' }) => {
+      const docId = `${userId}_${role}`;
       const { error } = await db
         .from('user_roles')
-        .insert({ user_id: userId, role });
+        .upsert(
+          { id: docId, user_id: userId, role, created_at: new Date().toISOString() },
+          { onConflict: 'user_id,role' },
+        );
       
       if (error) throw error;
     },

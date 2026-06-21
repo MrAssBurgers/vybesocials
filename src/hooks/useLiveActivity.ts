@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { db } from '@/lib/firebase';
 import { subscribePostgresChannel, removeRealtimeChannel } from '@/lib/realtimeChannel';
 import { useAuth } from '@/lib/auth';
+import { useAuthProfileId } from '@/hooks/useAuthProfileId';
 import { ActivityType } from '@/components/chat/LiveActivityIndicator';
 import {
   prewarmDmBroadcastChannel,
@@ -23,7 +24,10 @@ interface ActivityUser {
  * Updates every 2 seconds for maximum responsiveness
  */
 export function useLiveActivity(conversationId: string | undefined) {
-  const { profile } = useAuth();
+  const { profile, user } = useAuth();
+  const profileId = useAuthProfileId();
+  const effectiveProfileId = profileId ?? profile?.id;
+  const authUid = user?.id ?? profile?.user_id ?? null;
   const [otherUserActivity, setOtherUserActivity] = useState<ActivityUser | null>(null);
   const [isOtherUserPresent, setIsOtherUserPresent] = useState(false);
   const heartbeatRef = useRef<NodeJS.Timeout | null>(null);
@@ -33,7 +37,7 @@ export function useLiveActivity(conversationId: string | undefined) {
 
   // Set my current activity - fire-and-forget (non-blocking)
   const setActivity = useCallback((activity: ActivityType) => {
-    if (!conversationId || !profile?.id) return;
+    if (!conversationId || !effectiveProfileId) return;
     
     const now = Date.now();
     if (now - lastActivityUpdateRef.current < 200 && activity === activityRef.current) return;
@@ -41,13 +45,14 @@ export function useLiveActivity(conversationId: string | undefined) {
     activityRef.current = activity;
 
     void sendDmBroadcastActivity(conversationId, {
-      userId: profile.id,
+      userId: effectiveProfileId,
       activity,
-      username: profile.username || '',
-      displayName: (profile as { display_name?: string | null }).display_name || profile.username || '',
-      avatarUrl: profile.avatar_url || null,
+      username: profile?.username || '',
+      displayName: (profile as { display_name?: string | null }).display_name || profile?.username || '',
+      avatarUrl: profile?.avatar_url || null,
     });
 
+    const presenceDocId = `${conversationId}_${effectiveProfileId}`;
     const updateActivity = async () => {
       try {
         if (activity === 'idle') {
@@ -55,14 +60,15 @@ export function useLiveActivity(conversationId: string | undefined) {
             .from('typing_indicators')
             .delete()
             .eq('conversation_id', conversationId)
-            .eq('user_id', profile.id);
+            .eq('user_id', effectiveProfileId);
         } else {
           await db
             .from('typing_indicators')
             .upsert(
               {
+                id: presenceDocId,
                 conversation_id: conversationId,
-                user_id: profile.id,
+                user_id: effectiveProfileId,
                 started_at: new Date().toISOString(),
               },
               { onConflict: 'conversation_id,user_id', ignoreDuplicates: false }
@@ -72,8 +78,9 @@ export function useLiveActivity(conversationId: string | undefined) {
             .from('chat_presence')
             .upsert(
               {
+                id: presenceDocId,
                 conversation_id: conversationId,
-                user_id: profile.id,
+                user_id: effectiveProfileId,
                 last_seen_at: new Date().toISOString(),
               },
               { onConflict: 'conversation_id,user_id' }
@@ -86,7 +93,7 @@ export function useLiveActivity(conversationId: string | undefined) {
     
     // Execute async but don't wait
     updateActivity();
-  }, [conversationId, profile?.id]);
+  }, [conversationId, effectiveProfileId, profile?.username, profile?.avatar_url, profile]);
 
   // Quick helpers for specific activities
   const setTyping = useCallback((isTyping: boolean) => {
@@ -94,90 +101,85 @@ export function useLiveActivity(conversationId: string | undefined) {
   }, [setActivity]);
 
   const setRecordingVoice = useCallback((isRecording: boolean) => {
-    setActivity(isRecording ? 'recording_voice' : 'idle');
+    setActivity(isRecording ? 'recording_voice' : 'viewing');
   }, [setActivity]);
 
   const setRecordingVideo = useCallback((isRecording: boolean) => {
-    setActivity(isRecording ? 'recording_video' : 'idle');
+    setActivity(isRecording ? 'recording_video' : 'viewing');
   }, [setActivity]);
 
   const setTakingPhoto = useCallback((isTaking: boolean) => {
-    setActivity(isTaking ? 'taking_photo' : 'idle');
+    setActivity(isTaking ? 'taking_photo' : 'viewing');
   }, [setActivity]);
 
   // Fetch other user's activity
   const fetchActivity = useCallback(async () => {
-    if (!conversationId || !profile?.id) return;
+    if (!conversationId || !effectiveProfileId) return;
 
     try {
       const threeSecondsAgo = new Date(Date.now() - 3000).toISOString();
       const tenSecondsAgo = new Date(Date.now() - 10000).toISOString();
+      const selfIds = new Set([effectiveProfileId, authUid].filter(Boolean) as string[]);
 
-      // Check typing indicators (active within 3 seconds)
       const { data: typingData } = await db
         .from('typing_indicators')
-        .select(`
-          user_id,
-          started_at,
-          profiles:user_id(id, username, avatar_url, display_name)
-        `)
+        .select('user_id, started_at')
         .eq('conversation_id', conversationId)
-        .neq('user_id', profile.id)
-        .gt('started_at', threeSecondsAgo)
-        .limit(1);
+        .gt('started_at', threeSecondsAgo);
 
-      // Check presence (active within 10 seconds)
+      const typingRow = (typingData || []).find(
+        (row: { user_id?: string }) => row.user_id && !selfIds.has(String(row.user_id)),
+      );
+
       const { data: presenceData } = await db
         .from('chat_presence')
-        .select(`
-          user_id,
-          last_seen_at,
-          profiles:user_id(id, username, avatar_url, display_name)
-        `)
+        .select('user_id, last_seen_at')
         .eq('conversation_id', conversationId)
-        .neq('user_id', profile.id)
-        .gt('last_seen_at', tenSecondsAgo)
-        .limit(1);
+        .gt('last_seen_at', tenSecondsAgo);
 
-      // Determine activity state
-      if (typingData && typingData.length > 0) {
-        const user = typingData[0];
-        const userProfile = user.profiles as any;
-        setOtherUserActivity({
-          user_id: user.user_id,
-          username: userProfile?.username || '',
-          avatar_url: userProfile?.avatar_url,
-          display_name: userProfile?.display_name,
-          activity: 'typing',
-        });
-        setIsOtherUserPresent(true);
-      } else if (presenceData && presenceData.length > 0) {
-        const user = presenceData[0];
-        const userProfile = user.profiles as any;
-        setOtherUserActivity({
-          user_id: user.user_id,
-          username: userProfile?.username || '',
-          avatar_url: userProfile?.avatar_url,
-          display_name: userProfile?.display_name,
-          activity: 'viewing',
-        });
-        setIsOtherUserPresent(true);
-      } else {
+      const presenceRow = (presenceData || []).find(
+        (row: { user_id?: string }) => row.user_id && !selfIds.has(String(row.user_id)),
+      );
+
+      const peerId = typingRow?.user_id || presenceRow?.user_id;
+      if (!peerId) {
         setOtherUserActivity(null);
         setIsOtherUserPresent(false);
+        return;
       }
+
+      const { data: peerProfile } = await db
+        .from('profiles')
+        .select('id, username, avatar_url, display_name')
+        .eq('id', peerId)
+        .maybeSingle();
+
+      const profileRow = peerProfile as {
+        username?: string;
+        avatar_url?: string | null;
+        display_name?: string | null;
+      } | null;
+
+      setOtherUserActivity({
+        user_id: peerId,
+        username: profileRow?.username || '',
+        avatar_url: profileRow?.avatar_url ?? null,
+        display_name: profileRow?.display_name ?? null,
+        activity: typingRow ? 'typing' : 'viewing',
+      });
+      setIsOtherUserPresent(true);
     } catch (error) {
       // Silent fail
     }
-  }, [conversationId, profile?.id]);
+  }, [conversationId, effectiveProfileId, authUid]);
 
   // Subscribe to realtime changes
   useEffect(() => {
-    if (!conversationId || !profile?.id) return;
+    if (!conversationId || !effectiveProfileId) return;
 
     let isMounted = true;
+    const presenceDocId = `${conversationId}_${effectiveProfileId}`;
 
-    // Join presence immediately
     const joinPresence = async () => {
       if (!isMounted) return;
       try {
@@ -185,8 +187,9 @@ export function useLiveActivity(conversationId: string | undefined) {
           .from('chat_presence')
           .upsert(
             {
+              id: presenceDocId,
               conversation_id: conversationId,
-              user_id: profile.id,
+              user_id: effectiveProfileId,
               last_seen_at: new Date().toISOString(),
             },
             { onConflict: 'conversation_id,user_id' }
@@ -202,12 +205,12 @@ export function useLiveActivity(conversationId: string | undefined) {
           .from('chat_presence')
           .delete()
           .eq('conversation_id', conversationId)
-          .eq('user_id', profile.id);
+          .eq('user_id', effectiveProfileId);
         await db
           .from('typing_indicators')
           .delete()
           .eq('conversation_id', conversationId)
-          .eq('user_id', profile.id);
+          .eq('user_id', effectiveProfileId);
       } catch (error) {
         // Silent fail
       }
@@ -221,7 +224,12 @@ export function useLiveActivity(conversationId: string | undefined) {
 
     const unsubscribeActivity = subscribeDmBroadcastActivity(conversationId, (payload) => {
       if (!isMounted) return;
-      if (payload.userId === profile.id) return;
+      if (
+        payload.userId === effectiveProfileId ||
+        (authUid && payload.userId === authUid)
+      ) {
+        return;
+      }
       lastBroadcastAtRef.current = Date.now();
       if (payload.activity === 'idle') {
         setOtherUserActivity(null);
@@ -241,10 +249,10 @@ export function useLiveActivity(conversationId: string | undefined) {
     // Fallback poll when broadcast silent — primary path is dmBroadcast (<100ms).
     heartbeatRef.current = setInterval(() => {
       joinPresence();
-      if (Date.now() - lastBroadcastAtRef.current > 4000) {
+      if (Date.now() - lastBroadcastAtRef.current > 3000) {
         fetchActivity();
       }
-    }, 5000);
+    }, 2000);
 
     const channel = subscribePostgresChannel(`live-activity:${conversationId}`, [
       {
@@ -289,7 +297,7 @@ export function useLiveActivity(conversationId: string | undefined) {
       removeRealtimeChannel(channel);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, [conversationId, profile?.id, fetchActivity, setActivity]);
+  }, [conversationId, effectiveProfileId, authUid, fetchActivity, setActivity]);
 
   return {
     otherUserActivity,
