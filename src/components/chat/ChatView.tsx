@@ -57,6 +57,7 @@ import { ChatPresenceIndicator } from './ChatPresenceIndicator';
 import { LivePresenceBar, ScreenshotAlert } from './SnapchatFeedback';
 import { InlineActivityBubble } from './LiveActivityIndicator';
 import { PresenceAvatar } from './PresenceAvatar';
+import { CallEventBubble } from './CallEventBubble';
 import { AIAssistButton } from './AIAssistButton';
 import { SmartRepliesBar } from './SmartRepliesBar';
 import { ChatSummarySheet } from './ChatSummarySheet';
@@ -1652,8 +1653,28 @@ export function ChatView() {
             // Check if this is a screenshot or screen recording notification system message
             const isScreenshotNotification = message.message_type === 'screenshot_notification';
             const isRecordingNotification = message.message_type === 'screen_recording_notification';
+            const isCallEvent = message.message_type === 'call_event';
             const isCaptureNotification = isScreenshotNotification || isRecordingNotification;
             
+            if (isCallEvent) {
+              return (
+                <div key={message.id} className={cn(spacingClass, index === 0 && 'pt-0')}>
+                  {showTimestamp && (
+                    <div className="text-center py-5 sm:py-6">
+                      <span className="text-[10px] sm:text-[11px] text-muted-foreground/50 bg-muted/30 px-3 py-1 rounded-full font-medium">
+                        {formatMessageDate(message.created_at)}
+                      </span>
+                    </div>
+                  )}
+                  <CallEventBubble
+                    content={message.content}
+                    isOwn={isOwn}
+                    callTypeHint={message.media_type === 'video' ? 'video' : 'audio'}
+                  />
+                </div>
+              );
+            }
+
             if (isCaptureNotification) {
               const isRecording = message.content?.includes('started') || message.content?.includes('possible');
               const isStopped = message.content?.includes('stopped');

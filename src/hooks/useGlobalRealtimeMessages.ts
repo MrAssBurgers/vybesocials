@@ -8,15 +8,16 @@
  * - Includes deduplication and retry logic for reliability
  */
 
-import { useEffect, useRef, useCallback, useState, startTransition } from 'react';
+import { useEffect, useRef, useCallback, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { db } from '@/lib/firebase';
-import { useAuth } from '@/lib/auth';
 import { getEffectiveProfileId } from '@/lib/profileCache';
-import { callSounds } from '@/lib/callSounds';
 import { removeChannelByTopic, removeRealtimeChannel, subscribePostgresChannel } from '@/lib/realtimeChannel';
-import { appendIncomingMessage } from '@/lib/messagesQueryKey';
 import { subscribeDmBroadcastMessages } from '@/lib/dmBroadcast';
+import {
+  applyBroadcastMessage,
+  setupScopedMessageRealtime,
+  type ScopedMessageRealtimeHandle,
+} from '@/lib/dmScopedMessageRealtime';
 
 // Track the current conversation globally with a tiny pub/sub so React
 // effects can react to changes (a plain module variable did not trigger
@@ -84,12 +85,8 @@ function isOptimisticDuplicate(conversationId: string, content: string, _senderI
   return false;
 }
 
-// Connection state for retry logic
-let retryCount = 0;
-const MAX_RETRIES = 5;
 
-// Debounced refetch for the unknown-conversation case so a burst of
-// realtime messages doesn't trigger N back-to-back full list refetches.
+// Debounced refetch for the unknown-conversation case
 let unknownConvoRefetchTimer: ReturnType<typeof setTimeout> | null = null;
 function scheduleUnknownConvoRefetch(qc: ReturnType<typeof useQueryClient>, profileId: string) {
   if (unknownConvoRefetchTimer) return;
@@ -130,346 +127,21 @@ export function useGlobalRealtimeMessages() {
   const profileId = getEffectiveProfileId(profile?.id);
   const authUid = user?.id ?? profile?.user_id ?? null;
   const queryClient = useQueryClient();
-  const channelRef = useRef<ReturnType<typeof db.channel> | null>(null);
-  const retryTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const setupGenerationRef = useRef(0);
+  const scopedRtRef = useRef<ScopedMessageRealtimeHandle | null>(null);
 
-  const setupChannel = useCallback(async () => {
-    if (!profileId) return;
-    const generation = ++setupGenerationRef.current;
-    const channelName = `global-messages:${profileId}`;
-
-    removeRealtimeChannel(channelRef.current);
-    channelRef.current = null;
-    removeChannelByTopic(channelName);
-
-    // Ensure the Realtime socket carries the current JWT so RLS-filtered
-    // postgres_changes events (e.g. messages INSERT) actually reach us.
-    try {
-      const { data: { session } } = await db.auth.getSession();
-      if (session?.access_token) {
-        db.realtime.setAuth(session.access_token);
-        if (import.meta.env.DEV) console.log('[GlobalRT] setAuth applied');
-      }
-    } catch (e) {
-      if (import.meta.env.DEV) console.warn('[GlobalRT] setAuth failed', e);
-    }
-
-    if (generation !== setupGenerationRef.current) return;
-
-    const channel = subscribePostgresChannel(channelName, [
-      {
-        event: 'INSERT',
-        table: 'messages',
-        callback: async (payload) => {
-          try {
-          const newMessage = payload.new as any;
-          const conversationId = newMessage.conversation_id;
-          const isFromCurrentUser =
-            newMessage.sender_id === profileId ||
-            (!!authUid && newMessage.sender_id === authUid);
-          const isViewingConvo = currentConversationId === conversationId;
-          
-          // Deduplication check
-          if (isMessageProcessed(newMessage.id)) {
-            if (import.meta.env.DEV) console.log('[GlobalRT] Skipping duplicate message:', newMessage.id);
-            return;
-          }
-          markMessageProcessed(newMessage.id);
-          
-          if (import.meta.env.DEV) {
-            console.log('[GlobalRT] Message received:', {
-              id: newMessage.id,
-              from: newMessage.sender_id,
-              conv: conversationId,
-              isFromCurrentUser,
-              isViewingConvo,
-            });
-          }
-
-          const skipReceiverInsert =
-            isFromCurrentUser &&
-            isOptimisticDuplicate(conversationId, newMessage.content, newMessage.sender_id);
-
-          // Sender bubbles on this device are confirmed by useInstantSend after a
-          // server-verified insert. Never strip temp-* here — local Firestore writes
-          // can fire INSERT then DELETE when rules reject, which caused vanishing bubbles.
-          // Other devices / edge paths still need the real row appended (no temp strip).
-          if (isFromCurrentUser && isViewingConvo && !skipReceiverInsert) {
-            queryClient.setQueryData<any[]>(['messages', conversationId], (old) => {
-              const row = { ...newMessage, views: [], reactions: [] };
-              return appendIncomingMessage(old, row);
-            });
-          }
-
-          if (skipReceiverInsert) {
-            if (import.meta.env.DEV) console.log('[GlobalRT] Skipping optimistic duplicate for sender');
-          } else if (!isFromCurrentUser) {
-            // Resolve sender from cached conversation members — never block on DB fetch.
-            let sender: any = null;
-            const cachedConvos = queryClient.getQueryData<any[]>(['dm-conversations', profileId]) ||
-                                 queryClient.getQueryData<any[]>(['conversations', profileId]);
-
-            if (cachedConvos) {
-              const cachedConvo = cachedConvos.find(c => c.id === conversationId);
-              if (cachedConvo?.members) {
-                const memberProfile = cachedConvo.members.find(
-                  (m: any) => m.user_id === newMessage.sender_id,
-                )?.profile;
-                if (memberProfile) {
-                  sender = memberProfile;
-                }
-              }
-            }
-
-            const fullMessage = {
-              ...newMessage,
-              sender,
-              views: [],
-              reactions: [],
-            };
-
-            if (isViewingConvo) {
-              queryClient.setQueryData<any[]>(['messages', conversationId], (old) =>
-                appendIncomingMessage(old, fullMessage),
-              );
-            }
-
-            if (!sender) {
-              void db
-                .from('profiles')
-                .select('id, username, avatar_url, display_name')
-                .eq('id', newMessage.sender_id)
-                .maybeSingle()
-                .then(({ data: fetchedSender }) => {
-                  if (!fetchedSender) return;
-                  queryClient.setQueryData<any[]>(['messages', conversationId], (old) => {
-                    if (!old?.length) return old;
-                    return old.map((m) =>
-                      m.id === newMessage.id ? { ...m, sender: fetchedSender } : m,
-                    );
-                  });
-                })
-                .catch(() => {});
-            }
-
-            // Play notification sound if NOT viewing this conversation
-            if (!isViewingConvo || document.visibilityState !== 'visible') {
-              callSounds.message();
-            }
-          }
-
-          // Always update conversation lists for both sender and receiver
-          startTransition(() => {
-          const updateConversations = (old: any[] | undefined) => {
-            if (!old) return old;
-            
-            const conversationExists = old.some(c => c.id === conversationId);
-            if (!conversationExists) {
-              // Conversation not in cache - trigger refetch
-              return old;
-            }
-            
-            return old.map(conv => {
-              if (conv.id === conversationId) {
-                return {
-                  ...conv,
-                  last_message: {
-                    id: newMessage.id,
-                    content: newMessage.content,
-                    media_type: newMessage.media_type,
-                    media_url: newMessage.media_url,
-                    created_at: newMessage.created_at,
-                    sender_id: newMessage.sender_id,
-                  },
-                  updated_at: newMessage.created_at,
-                  _sortTime: newMessage.created_at,
-                  _hasUnread: !isFromCurrentUser && !isViewingConvo,
-                  unread_count: !isFromCurrentUser && !isViewingConvo 
-                    ? (conv.unread_count || 0) + 1 
-                    : conv.unread_count,
-                };
-              }
-              return conv;
-            }).sort((a, b) => {
-              // Pinned first
-              const aIsPinned = a.members?.find((m: any) => m.user_id === profileId)?.is_pinned;
-              const bIsPinned = b.members?.find((m: any) => m.user_id === profileId)?.is_pinned;
-              if (aIsPinned && !bIsPinned) return -1;
-              if (!aIsPinned && bIsPinned) return 1;
-              
-              // Then unread
-              if (a._hasUnread && !b._hasUnread) return -1;
-              if (!a._hasUnread && b._hasUnread) return 1;
-              
-              // Then by time
-              const timeA = new Date(a._sortTime || a.updated_at).getTime();
-              const timeB = new Date(b._sortTime || b.updated_at).getTime();
-              return timeB - timeA;
-            });
-          };
-
-          // Update ALL conversation query caches
-          queryClient.setQueryData<any[]>(['conversations', profileId], updateConversations);
-          queryClient.setQueryData<any[]>(['dm-conversations', profileId], updateConversations);
-
-          // Only invalidate when the conversation is genuinely new to the cache.
-          const cached = queryClient.getQueryData<any[]>(['dm-conversations', profileId]);
-          if (cached && !cached.some(c => c.id === conversationId)) {
-            scheduleUnknownConvoRefetch(queryClient, profileId);
-          }
-          });
-          } catch (err) {
-            if (import.meta.env.DEV) console.warn('[GlobalRT] INSERT handler failed', err);
-          }
-        },
-      },
-      {
-        event: 'UPDATE',
-        table: 'messages',
-        callback: (payload) => {
-          const updatedMessage = payload.new as any;
-          const conversationId = updatedMessage.conversation_id;
-
-          // Deduplication
-          const updateKey = `update:${updatedMessage.id}:${updatedMessage.updated_at || updatedMessage.edited_at}`;
-          if (isMessageProcessed(updateKey)) return;
-          markMessageProcessed(updateKey);
-
-          // Update message in cache for ALL conversations (not just the one being viewed)
-          // This ensures unsend/edit reflects instantly for all participants
-          queryClient.setQueryData<any[]>(['messages', conversationId], (old) => {
-            if (!old) return old;
-
-            if (updatedMessage.is_deleted) {
-              const isFromCurrentUser =
-                updatedMessage.sender_id === profileId ||
-                (!!authUid && updatedMessage.sender_id === authUid);
-              const createdMs = new Date(updatedMessage.created_at || 0).getTime();
-              const isRecentOwnSend = isFromCurrentUser && Date.now() - createdMs < 60_000;
-
-              if (isRecentOwnSend) {
-                const content = (updatedMessage.content || '').trim();
-                const matchingTemp = old.find(
-                  (m) =>
-                    typeof m.id === 'string' &&
-                    m.id.startsWith('temp-') &&
-                    (m.content || '').trim() === content,
-                );
-                if (matchingTemp) {
-                  return old.map((m) =>
-                    m.id === matchingTemp.id
-                      ? ({ ...m, _failed: true, _error: 'Message could not be delivered' } as any)
-                      : m,
-                  );
-                }
-                return old.map((m) =>
-                  m.id === updatedMessage.id
-                    ? ({ ...m, _failed: true, _error: 'Message could not be delivered' } as any)
-                    : m,
-                );
-              }
-
-              return old.filter(m => m.id !== updatedMessage.id);
-            }
-            
-            return old.map(m => m.id === updatedMessage.id ? { ...m, ...updatedMessage } : m);
-          });
-
-          // Also update conversation list to reflect unsent last message
-          if (updatedMessage.is_deleted) {
-            scheduleUnknownConvoRefetch(queryClient, profileId);
-          }
-        },
-      },
-      {
-        event: 'DELETE',
-        table: 'messages',
-        callback: (payload) => {
-          const deletedMessage = payload.old as any;
-          const conversationId = deletedMessage.conversation_id;
-
-          if (!conversationId) return;
-
-          const isFromCurrentUser =
-            deletedMessage.sender_id === profileId ||
-            (!!authUid && deletedMessage.sender_id === authUid);
-          const createdMs = new Date(deletedMessage.created_at || 0).getTime();
-          const isRecentOwnSend = isFromCurrentUser && Date.now() - createdMs < 60_000;
-
-          queryClient.setQueryData<any[]>(['messages', conversationId], (old) => {
-            if (!old) return old;
-
-            // Server rejected a just-sent message — keep a failed bubble instead of wiping.
-            if (isRecentOwnSend) {
-              const content = (deletedMessage.content || '').trim();
-              const matchingTemp = old.find(
-                (m) =>
-                  typeof m.id === 'string' &&
-                  m.id.startsWith('temp-') &&
-                  (m.content || '').trim() === content,
-              );
-              if (matchingTemp) {
-                return old.map((m) =>
-                  m.id === matchingTemp.id
-                    ? ({ ...m, _failed: true, _error: 'Message could not be delivered' } as any)
-                    : m,
-                );
-              }
-              const hadRow = old.some((m) => m.id === deletedMessage.id);
-              if (hadRow) {
-                return old.map((m) =>
-                  m.id === deletedMessage.id
-                    ? ({ ...m, _failed: true, _error: 'Message could not be delivered' } as any)
-                    : m,
-                );
-              }
-            }
-
-            return old.filter(m => m.id !== deletedMessage.id);
-          });
-
-          // Update conversation list (debounced + scoped)
-          scheduleUnknownConvoRefetch(queryClient, profileId);
-        },
-      },
-    ], (status) => {
-        if (import.meta.env.DEV) console.log('[GlobalRT] Subscription status:', status);
-        if (status === 'SUBSCRIBED') {
-          if (import.meta.env.DEV) console.log('[GlobalRT] ✅ Global realtime connected for user:', profileId);
-          retryCount = 0;
-        }
-        if (status === 'CHANNEL_ERROR') {
-          console.error('[GlobalRT] ❌ Channel error - will retry');
-          
-          if (retryCount < MAX_RETRIES) {
-            const delay = Math.min(1000 * Math.pow(2, retryCount), 30000);
-            retryCount++;
-            if (import.meta.env.DEV) console.log(`[GlobalRT] Retrying in ${delay}ms (attempt ${retryCount}/${MAX_RETRIES})`);
-            
-            if (retryTimeoutRef.current) clearTimeout(retryTimeoutRef.current);
-            retryTimeoutRef.current = setTimeout(() => {
-              removeRealtimeChannel(channelRef.current);
-              channelRef.current = null;
-              removeChannelByTopic(channelName);
-              setupChannel();
-            }, delay);
-          } else {
-            if (import.meta.env.DEV) console.warn('[GlobalRT] Max retries reached, giving up');
-          }
-        }
-        if (status === 'CLOSED') {
-          if (import.meta.env.DEV) console.log('[GlobalRT] Channel closed');
-        }
-      });
-
-    if (generation !== setupGenerationRef.current) {
-      removeRealtimeChannel(channel);
-      return;
-    }
-
-    channelRef.current = channel;
-  }, [profileId, queryClient]);
+  const rtContext = useCallback(
+    () => ({
+      profileId: profileId!,
+      authUid,
+      queryClient,
+      getViewingConversationId: () => currentConversationId,
+      isMessageProcessed,
+      markMessageProcessed,
+      isOptimisticDuplicate,
+      scheduleUnknownConvoRefetch: (pid: string) => scheduleUnknownConvoRefetch(queryClient, pid),
+    }),
+    [profileId, authUid, queryClient],
+  );
 
   // Global presence channel — patches ['user-presence', id] and
   // ['users-presence', ...] caches as soon as anyone toggles online/offline,
@@ -523,41 +195,35 @@ export function useGlobalRealtimeMessages() {
     const convoId = activeConvoId;
     return subscribeDmBroadcastMessages(convoId, (msg) => {
       if (!msg?.id || msg.sender_id === profileId || msg.sender_id === authUid) return;
-      if (isMessageProcessed(String(msg.id))) return;
-      markMessageProcessed(String(msg.id));
+      applyBroadcastMessage(rtContext(), msg);
+    });
+  }, [profileId, authUid, rtContext, activeConvoId]);
 
-      queryClient.setQueryData<any[]>(['messages', convoId], (old) =>
-        appendIncomingMessage(old, msg as any),
-      );
-
-      if (document.visibilityState !== 'visible') {
-        callSounds.message();
+  // Resync scoped listeners when conversation list cache updates
+  useEffect(() => {
+    if (!profileId) return;
+    const unsub = queryClient.getQueryCache().subscribe((event) => {
+      if (event?.type !== 'updated') return;
+      const key = event.query.queryKey;
+      if (key[0] === 'dm-conversations' || key[0] === 'conversations') {
+        scopedRtRef.current?.resync();
       }
     });
-  }, [profileId, authUid, queryClient, activeConvoId]);
+    return unsub;
+  }, [profileId, queryClient]);
 
   useEffect(() => {
     if (!profileId) return;
-    void setupChannel();
-  }, [setupChannel, profileId]);
-
-  useEffect(() => {
+    scopedRtRef.current?.teardown();
+    scopedRtRef.current = setupScopedMessageRealtime(rtContext());
     return () => {
-      setupGenerationRef.current += 1;
-      try {
-        if (retryTimeoutRef.current) {
-          clearTimeout(retryTimeoutRef.current);
-          retryTimeoutRef.current = null;
-        }
-        if (channelRef.current) {
-          if (import.meta.env.DEV) console.log('[GlobalRT] Cleaning up global channel');
-          removeRealtimeChannel(channelRef.current);
-          channelRef.current = null;
-        }
-        if (profileId) {
-          removeChannelByTopic(`global-messages:${profileId}`);
-        }
-      } catch { /* never throw from cleanup */ }
+      scopedRtRef.current?.teardown();
+      scopedRtRef.current = null;
     };
-  }, [profileId]);
+  }, [profileId, rtContext]);
+
+  // Resync when user opens a DM (may not be in list cache yet)
+  useEffect(() => {
+    if (activeConvoId) scopedRtRef.current?.resync();
+  }, [activeConvoId]);
 }

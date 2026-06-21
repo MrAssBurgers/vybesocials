@@ -90,7 +90,7 @@ export function useLiveActivity(conversationId: string | undefined) {
 
   // Quick helpers for specific activities
   const setTyping = useCallback((isTyping: boolean) => {
-    setActivity(isTyping ? 'typing' : 'idle');
+    setActivity(isTyping ? 'typing' : 'viewing');
   }, [setActivity]);
 
   const setRecordingVoice = useCallback((isRecording: boolean) => {
@@ -213,8 +213,9 @@ export function useLiveActivity(conversationId: string | undefined) {
       }
     };
 
-    // Initial fetch
+    // Initial fetch + announce "viewing" to the other user (Snapchat in-chat presence)
     prewarmDmBroadcastChannel(conversationId);
+    setActivity('viewing');
     joinPresence();
     fetchActivity();
 
@@ -278,6 +279,7 @@ export function useLiveActivity(conversationId: string | undefined) {
 
     return () => {
       isMounted = false;
+      setActivity('idle');
       unsubscribeActivity();
       if (heartbeatRef.current) {
         clearInterval(heartbeatRef.current);
@@ -287,7 +289,7 @@ export function useLiveActivity(conversationId: string | undefined) {
       removeRealtimeChannel(channel);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, [conversationId, profile?.id, fetchActivity]);
+  }, [conversationId, profile?.id, fetchActivity, setActivity]);
 
   return {
     otherUserActivity,

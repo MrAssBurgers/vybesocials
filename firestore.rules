@@ -480,6 +480,20 @@ service cloud.firestore {
     match /dm_settings/{docId} {
       allow read, write: if isOwnerProfile('user_id') || willOwnProfile('user_id');
     }
+    match /typing_indicators/{docId} {
+      allow read: if signedIn() && isConversationParticipant(resource.data.conversation_id);
+      allow create, update: if signedIn() &&
+        willOwnProfile('user_id') &&
+        isConversationParticipant(request.resource.data.conversation_id);
+      allow delete: if signedIn() && ownsProfileId(resource.data.user_id);
+    }
+    match /chat_presence/{docId} {
+      allow read: if signedIn() && isConversationParticipant(resource.data.conversation_id);
+      allow create, update: if signedIn() &&
+        willOwnProfile('user_id') &&
+        isConversationParticipant(request.resource.data.conversation_id);
+      allow delete: if signedIn() && ownsProfileId(resource.data.user_id);
+    }
 
     // ---------- calls / signaling ----------
     match /calls/{callId} {

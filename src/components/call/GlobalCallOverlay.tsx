@@ -27,7 +27,7 @@ import { Phone, PhoneOff, Video, Mic, MicOff, VideoOff, Loader2, SlidersHorizont
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
-import { useCallStore, CallData, CallMode } from '@/lib/callStore';
+import { useCallStore, CallData, CallMode, markCallConnected } from '@/lib/callStore';
 
 import { callSounds } from '@/lib/callSounds';
 import { premiumSounds } from '@/lib/premiumSounds';
@@ -155,12 +155,26 @@ export function GlobalCallOverlay() {
 
   const attachRemoteVideo = useCallback((track: MediaStreamTrack) => {
     remoteVideoTrackRef.current = track;
-    const el = remoteVideoRef.current;
-    if (!el) return;
-    el.srcObject = new MediaStream([track]);
-    el.play().catch(() => {});
-    setHasRemoteVideo(true);
+    const apply = () => {
+      const el = remoteVideoRef.current;
+      if (!el) return false;
+      el.srcObject = new MediaStream([track]);
+      el.playsInline = true;
+      el.autoplay = true;
+      el.play().catch(() => {});
+      setHasRemoteVideo(true);
+      return true;
+    };
+    if (!apply()) {
+      requestAnimationFrame(() => { apply(); });
+    }
   }, []);
+
+  useEffect(() => {
+    if (state.phase !== 'connected' && state.phase !== 'joining') return;
+    const track = remoteVideoTrackRef.current;
+    if (track) attachRemoteVideo(track);
+  }, [state.phase, hasRemoteParticipant, attachRemoteVideo]);
 
   const attachRemoteAudio = useCallback((track: MediaStreamTrack) => {
     const el = remoteAudioRef.current;
@@ -192,6 +206,7 @@ export function GlobalCallOverlay() {
         clearJoinTimeout();
         premiumSounds.stopAllCallSounds();
         premiumSounds.callConnect();
+        markCallConnected();
         setPhase('connected');
         // Initial camera state — on for video calls, off for audio calls
         setIsVideoOff(stateRef.current.call?.callType !== 'video');
@@ -387,7 +402,7 @@ export function GlobalCallOverlay() {
       adaptiveStream: true,
       dynacast: true,
       videoCaptureDefaults: {
-        resolution: VideoPresets.h1080.resolution,
+        resolution: VideoPresets.h1440.resolution,
         facingMode: 'user',
       },
       // Aggressive reconnection so brief network blips don't drop the call
@@ -401,8 +416,9 @@ export function GlobalCallOverlay() {
       publishDefaults: {
         simulcast: true,
         videoEncoding: {
-          maxBitrate: 2_500_000,
+          maxBitrate: 5_000_000,
           maxFramerate: 30,
+          priority: 'high',
         },
       },
     });
@@ -410,13 +426,21 @@ export function GlobalCallOverlay() {
     roomRef.current = room;
 
     // Track subscribed
-    room.on(RoomEvent.TrackSubscribed, (track) => {
+    room.on(RoomEvent.TrackSubscribed, (track, _pub, participant) => {
+      if (participant.isLocal) return;
       if (track.kind === Track.Kind.Video) {
         const mt = track.mediaStreamTrack;
         if (mt) attachRemoteVideo(mt);
       } else if (track.kind === Track.Kind.Audio) {
         const mt = track.mediaStreamTrack;
         if (mt) attachRemoteAudio(mt);
+      }
+    });
+
+    room.on(RoomEvent.TrackPublished, (publication, participant) => {
+      if (participant.isLocal) return;
+      if (publication.kind === Track.Kind.Video && !publication.isSubscribed) {
+        publication.setSubscribed(true);
       }
     });
 
@@ -499,6 +523,7 @@ export function GlobalCallOverlay() {
       clearJoinTimeout();
       premiumSounds.stopAllCallSounds();
       premiumSounds.callConnect();
+      markCallConnected();
       setPhase('connected');
       setIsVideoOff(stateRef.current.call?.callType !== 'video');
 
@@ -507,6 +532,9 @@ export function GlobalCallOverlay() {
         setHasRemoteParticipant(true);
         remotes.forEach(p => {
           p.trackPublications.forEach(pub => {
+            if (pub.kind === Track.Kind.Video && !pub.isSubscribed) {
+              pub.setSubscribed(true);
+            }
             if (pub.track && pub.isSubscribed) {
               const mt = pub.track.mediaStreamTrack;
               if (pub.kind === Track.Kind.Video && mt) attachRemoteVideo(mt);

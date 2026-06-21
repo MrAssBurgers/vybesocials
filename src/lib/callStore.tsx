@@ -33,6 +33,7 @@ import {
   normalizeToProfileId,
 } from '@/lib/dmMembershipRepair';
 import { startDmCallViaCloudFunction, isRetryableCallError } from '@/lib/firebase/callSendClient';
+import { insertCallChatEvent } from '@/lib/callChatMessages';
 
 export type CallPhase = 'idle' | 'ringing' | 'creating' | 'joining' | 'connected' | 'ending' | 'switching' | 'error';
 export type CallType = 'audio' | 'video';
@@ -157,6 +158,12 @@ const CallStoreContext = createContext<CallStoreContextType | null>(null);
 let globalCallState: CallStoreState = initialState;
 let globalIncomingCall: CallData | null = null;
 let globalLingeringCall: CallData | null = null;
+let callConnectedAt: number | null = null;
+
+/** Called when media connects — used for call duration in chat log. */
+export function markCallConnected() {
+  callConnectedAt = Date.now();
+}
 
 // ── Auto-reconnect: persistence helpers ───────────────────────
 const SNAPSHOT_KEY = 'vybe-active-call';
@@ -787,6 +794,14 @@ export function CallStoreProvider({ children }: { children: ReactNode }) {
         remoteAccepted: false,
       });
 
+      void insertCallChatEvent({
+        conversationId: params.conversationId,
+        senderId: callerId,
+        kind: 'outgoing',
+        callType: params.callType,
+        callId: String(callSession.id),
+      });
+
       // Server-side `onCallCreated` Cloud Function sends high-priority FCM to callee(s).
       // Realtime + polling below remain the in-app fallback.
     } catch (err: any) {
@@ -866,7 +881,31 @@ export function CallStoreProvider({ children }: { children: ReactNode }) {
 
     premiumSounds.stopAllCallSounds();
 
-    const callId = globalCallState.call?.id || globalLingeringCall?.id;
+    const currentCall = globalCallState.call || globalLingeringCall;
+    const callId = currentCall?.id;
+    const endedProfileId = profileId;
+
+    if (currentCall && callConnectedAt && endedProfileId) {
+      const durationSec = Math.max(1, Math.round((Date.now() - callConnectedAt) / 1000));
+      void insertCallChatEvent({
+        conversationId: currentCall.conversationId,
+        senderId: endedProfileId,
+        kind: 'ended',
+        callType: currentCall.callType,
+        durationSec,
+        callId: currentCall.id,
+      });
+    } else if (currentCall && !callConnectedAt && endedProfileId && currentCall.isInitiator) {
+      void insertCallChatEvent({
+        conversationId: currentCall.conversationId,
+        senderId: endedProfileId,
+        kind: 'no_answer',
+        callType: currentCall.callType,
+        callId: currentCall.id,
+      });
+    }
+    callConnectedAt = null;
+
     if (callId) {
       try {
         await db
@@ -1016,6 +1055,16 @@ export function CallStoreProvider({ children }: { children: ReactNode }) {
         .from('calls')
         .update({ status: 'declined' })
         .eq('id', currentIncoming.id);
+
+      if (profileId) {
+        void insertCallChatEvent({
+          conversationId: currentIncoming.conversationId,
+          senderId: profileId,
+          kind: 'missed',
+          callType: currentIncoming.callType,
+          callId: currentIncoming.id,
+        });
+      }
 
       if (currentIncoming.caller?.id && profileId) {
         await db
