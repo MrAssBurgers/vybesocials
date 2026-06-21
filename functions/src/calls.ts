@@ -142,6 +142,7 @@ export const startDmCall = onCall({ region: 'us-central1' }, async (request) => 
     room_name: roomName,
     is_group_call: Boolean(data.isGroupCall),
     call_mode: callMode,
+    ring_expires_at: new Date(Date.now() + 30_000).toISOString(),
     created_at: now,
   };
 

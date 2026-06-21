@@ -12,6 +12,42 @@ import {
 import { withTimeout } from '@/lib/withTimeout';
 import type { Message, ViewMode } from '@/hooks/useMessages';
 
+const DM_SEND_LOG_KEY = 'vybe-dm-send-log';
+const DM_SEND_LOG_MAX = 100;
+
+export interface DmSendLogEntry {
+  ts: number;
+  op: string;
+  conversationId?: string;
+  tempId?: string;
+  attempt?: number;
+  ok?: boolean;
+  error?: string;
+}
+
+/** Ring buffer of send operations — inspect via sessionStorage in devtools. */
+export function logDmSend(entry: Omit<DmSendLogEntry, 'ts'>): void {
+  const row: DmSendLogEntry = { ts: Date.now(), ...entry };
+  console.info('[dmSend]', row);
+  if (typeof sessionStorage === 'undefined') return;
+  try {
+    const prev = JSON.parse(sessionStorage.getItem(DM_SEND_LOG_KEY) || '[]') as DmSendLogEntry[];
+    prev.unshift(row);
+    sessionStorage.setItem(DM_SEND_LOG_KEY, JSON.stringify(prev.slice(0, DM_SEND_LOG_MAX)));
+  } catch {
+    // ignore quota errors
+  }
+}
+
+export function readDmSendLog(): DmSendLogEntry[] {
+  if (typeof sessionStorage === 'undefined') return [];
+  try {
+    return JSON.parse(sessionStorage.getItem(DM_SEND_LOG_KEY) || '[]') as DmSendLogEntry[];
+  } catch {
+    return [];
+  }
+}
+
 export interface DmInsertPayload {
   conversation_id: string;
   sender_id: string;
@@ -69,6 +105,12 @@ export async function insertDmMessage(
     null;
 
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    logDmSend({
+      op: 'insert_start',
+      conversationId: payload.conversation_id,
+      attempt: attempt + 1,
+    });
+
     const result = await db
       .from('messages')
       .insert({ ...payload, sender_id: senderId })
@@ -76,6 +118,12 @@ export async function insertDmMessage(
       .single();
 
     if (!result.error && result.data) {
+      logDmSend({
+        op: 'insert_ok',
+        conversationId: payload.conversation_id,
+        attempt: attempt + 1,
+        ok: true,
+      });
       return { data: normalizeMessage(result.data as Record<string, unknown>), error: null };
     }
 
@@ -91,8 +139,19 @@ export async function insertDmMessage(
         messageType: payload.message_type,
       });
       if (!cloud.error && cloud.data) {
+        logDmSend({
+          op: 'cloud_fallback_ok',
+          conversationId: payload.conversation_id,
+          ok: true,
+        });
         return { data: cloud.data, error: null };
       }
+      logDmSend({
+        op: 'insert_failed',
+        conversationId: payload.conversation_id,
+        ok: false,
+        error: cloud.error?.message || err?.message,
+      });
       return {
         data: null,
         error: {

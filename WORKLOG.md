@@ -2,6 +2,17 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## Phase 3 — Calling rebuild (2026-06-21)
+- **Signaling:** `callSignaling.ts` + `callRinging.ts` — Firestore `call_signals` audit trail; 30s ring timeout; distinct decline vs missed states.
+- **Incoming reliability:** 500ms foreground poll; UPDATE listener on `calls`; auto-timeout + native bridge uses `timeoutIncoming`.
+- **LiveKit quality:** 1080p / 5Mbps simulcast; improved audio capture (no DTX); adaptive reconnect policy.
+- **P2P fallback:** 1080p constraints + post-ICE HD upgrade; existing Metered TURN retained.
+- **Diagnostics:** `CallDiagnosticsPanel` (dev + `?callDebug=1`) — connection, ICE, bitrate, packet loss, resolution.
+- **Presence:** 15s heartbeat; `profiles.last_active_at` mirror on each ping.
+- **DM send log:** `logDmSend()` ring buffer in `dmSendCore.ts` (sessionStorage + console).
+- **Verified:** `npm run build` PASS
+- **You:** Deploy functions (`startDmCall` ring_expires_at) + Firebase hosting → two-device call test (foreground + background + decline + timeout)
+
 ## Phase 2 — Notifications (2026-06-21)
 - **Single push path:** DMs/calls push-only (no bell row); social bell rows trigger `onSocialNotificationCreated` push.
 - **Foreground DMs:** Removed duplicate global messages listener; alerts via `foregroundDmNotification` + dedupe.

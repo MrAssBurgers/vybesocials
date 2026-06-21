@@ -52,18 +52,24 @@ import {
   VideoPresets,
 } from 'livekit-client';
 import { CallSettingsSheet } from './CallSettingsSheet';
+import { CallDiagnosticsPanel } from './CallDiagnosticsPanel';
 import { MinimizedCallBubble } from './MinimizedCallBubble';
 import { SlideToAnswer } from './SlideToAnswer';
 import { CallReactions } from './CallReactions';
 import { AudioVisualizer } from './AudioVisualizer';
+import {
+  resetCallDiagnostics,
+  updateCallDiagnostics,
+  isCallDebugEnabled,
+} from '@/lib/callDiagnostics';
 
 const INCOMING_CALL_TIMEOUT_SECONDS = 30;
-/** Outbound ring + connect budget (Snapchat-style — don't kill at 30s while still ringing). */
-const OUTBOUND_RING_TIMEOUT_SECONDS = 90;
+/** Outbound ring budget — align with 30s callee timeout. */
+const OUTBOUND_RING_TIMEOUT_SECONDS = 30;
 const CONNECT_TIMEOUT_SECONDS = 60;
 
 export function GlobalCallOverlay() {
-  const { state, acceptCall, endCall, leaveCall, setPhase, setConnectStage, setError, dismissIncoming, switchMode } = useCallStore();
+  const { state, acceptCall, endCall, leaveCall, setPhase, setConnectStage, setError, dismissIncoming, timeoutIncoming, switchMode } = useCallStore();
   const { profile } = useAuth();
   const profileId = useAuthProfileId();
   const { isPremium } = usePremiumStatus();
@@ -91,6 +97,7 @@ export function GlobalCallOverlay() {
   const [hasLocalVideo, setHasLocalVideo] = useState(false);
   const [hasRemoteParticipant, setHasRemoteParticipant] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [diagnosticsOpen, setDiagnosticsOpen] = useState(false);
   const [currentMicId, setCurrentMicId] = useState<string | undefined>();
   const [currentCameraId, setCurrentCameraId] = useState<string | undefined>();
   const [currentSpeakerId, setCurrentSpeakerId] = useState<string | undefined>();
@@ -131,7 +138,7 @@ export function GlobalCallOverlay() {
   const startJoinTimeout = useCallback((call: CallData) => {
     clearJoinTimeout();
     const callerRinging =
-      call.isInitiator && call.callMode === 'p2p' && !stateRef.current.remoteAccepted;
+      call.isInitiator && !stateRef.current.remoteAccepted;
     const timeoutMs = callerRinging
       ? OUTBOUND_RING_TIMEOUT_SECONDS * 1000
       : CONNECT_TIMEOUT_SECONDS * 1000;
@@ -139,12 +146,13 @@ export function GlobalCallOverlay() {
     joinTimeoutRef.current = setTimeout(() => {
       if (stateRef.current.phase !== 'joining') return;
       const stillRinging =
-        call.isInitiator && call.callMode === 'p2p' && !stateRef.current.remoteAccepted;
+        call.isInitiator && !stateRef.current.remoteAccepted;
       if (stillRinging) {
         toast.error('No answer');
-      } else {
-        toast.error('Call failed to connect');
+        // callStore 30s ring timeout marks missed + resets state — avoid overwriting with ended.
+        return;
       }
+      toast.error('Call failed to connect');
       endCall();
     }, timeoutMs);
   }, [clearJoinTimeout, endCall]);
@@ -410,20 +418,38 @@ export function GlobalCallOverlay() {
         resolution: VideoPresets.h1080.resolution,
         facingMode: 'user',
       },
+      audioCaptureDefaults: {
+        echoCancellation: true,
+        noiseSuppression: true,
+        autoGainControl: true,
+      },
       reconnectPolicy: {
         nextRetryDelayInMs: (ctx) => {
-          if (ctx.retryCount > 8) return null;
-          return Math.min(250 * Math.pow(2, ctx.retryCount), 2000);
+          if (ctx.retryCount > 10) return null;
+          return Math.min(250 * Math.pow(2, ctx.retryCount), 3000);
         },
       },
       publishDefaults: {
         simulcast: true,
+        dtx: false,
+        red: true,
         videoEncoding: {
-          maxBitrate: 3_000_000,
+          maxBitrate: 5_000_000,
           maxFramerate: 30,
           priority: 'high',
         },
+        videoSimulcastLayers: [
+          VideoPresets.h1080,
+          VideoPresets.h720,
+          VideoPresets.h540,
+        ],
       },
+    });
+
+    updateCallDiagnostics({
+      connectionType: 'livekit',
+      connectionState: 'connecting',
+      signalingState: 'connecting',
     });
 
     roomRef.current = room;
@@ -518,8 +544,28 @@ export function GlobalCallOverlay() {
       }
     });
 
-    room.on(RoomEvent.Reconnecting, () => setIsReconnecting(true));
-    room.on(RoomEvent.Reconnected, () => setIsReconnecting(false));
+    room.on(RoomEvent.Reconnecting, () => {
+      setIsReconnecting(true);
+      updateCallDiagnostics({ connectionState: 'reconnecting' });
+    });
+    room.on(RoomEvent.Reconnected, () => {
+      setIsReconnecting(false);
+      updateCallDiagnostics({ connectionState: 'connected' });
+    });
+
+    room.on(RoomEvent.ConnectionStateChanged, (connectionState) => {
+      updateCallDiagnostics({ connectionState: String(connectionState) });
+    });
+
+    room.on(RoomEvent.SignalConnected, () => {
+      updateCallDiagnostics({ signalingState: 'connected' });
+    });
+
+    room.on(RoomEvent.ConnectionQualityChanged, (quality, participant) => {
+      if (participant.isLocal) {
+        updateCallDiagnostics({ quality: String(quality) });
+      }
+    });
 
     room.on(RoomEvent.Disconnected, (reason?: DisconnectReason) => {
       clearJoinTimeout();
@@ -538,6 +584,11 @@ export function GlobalCallOverlay() {
       markCallConnected();
       setPhase('connected');
       setIsVideoOff(stateRef.current.call?.callType !== 'video');
+      updateCallDiagnostics({
+        connectionState: 'connected',
+        signalingState: 'connected',
+        iceState: 'connected',
+      });
 
       const remotes = Array.from(room.remoteParticipants.values());
       if (remotes.length > 0) {
@@ -572,6 +623,77 @@ export function GlobalCallOverlay() {
       endCall();
     }
   }, [attachRemoteVideo, attachRemoteAudio, attachLocalVideo, clearJoinTimeout, endCall, setPhase, setConnectStage]);
+
+  // LiveKit stats → diagnostics panel
+  const statsIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  useEffect(() => {
+    if (statsIntervalRef.current) {
+      clearInterval(statsIntervalRef.current);
+      statsIntervalRef.current = null;
+    }
+
+    if (state.phase !== 'connected' && state.phase !== 'joining') {
+      if (state.phase === 'idle') resetCallDiagnostics();
+      return;
+    }
+
+    if (state.call?.callMode !== 'persistent') {
+      updateCallDiagnostics({ connectionType: 'p2p' });
+      return;
+    }
+
+    statsIntervalRef.current = setInterval(async () => {
+      const room = roomRef.current;
+      if (!room) return;
+
+      const localVideo = localVideoRef.current;
+      const w = localVideo?.videoWidth || 0;
+      const h = localVideo?.videoHeight || 0;
+
+      let videoBitrateKbps = 0;
+      let audioBitrateKbps = 0;
+      let packetLossPct = 0;
+      let latencyMs = 0;
+      let turnInUse = false;
+      let iceState = 'unknown';
+
+      try {
+        const engine = (room as unknown as { engine?: { client?: { getPublisherStats?: () => Promise<unknown> } } }).engine;
+        const stats = engine?.client?.getPublisherStats
+          ? await engine.client.getPublisherStats()
+          : null;
+        if (stats && typeof stats === 'object') {
+          const raw = JSON.stringify(stats);
+          turnInUse = /relay|turn/i.test(raw);
+          const lossMatch = raw.match(/fractionLost["']?\s*:\s*([\d.]+)/i);
+          if (lossMatch) packetLossPct = parseFloat(lossMatch[1]) * 100;
+          const rttMatch = raw.match(/roundTripTime["']?\s*:\s*([\d.]+)/i);
+          if (rttMatch) latencyMs = parseFloat(rttMatch[1]) * 1000;
+        }
+      } catch {
+        // Stats API varies by LiveKit version — best-effort only.
+      }
+
+      const pub = room.localParticipant.getTrackPublication(Track.Source.Camera);
+      const dims = pub?.track?.mediaStreamTrack?.getSettings?.();
+      updateCallDiagnostics({
+        connectionType: 'livekit',
+        videoWidth: dims?.width || w,
+        videoHeight: dims?.height || h,
+        videoBitrateKbps,
+        audioBitrateKbps,
+        packetLossPct,
+        latencyMs,
+        turnInUse,
+        iceState,
+        connectionState: String(room.state),
+      });
+    }, 2000);
+
+    return () => {
+      if (statsIntervalRef.current) clearInterval(statsIntervalRef.current);
+    };
+  }, [state.phase, state.call?.callMode]);
 
   // ── Join/Switch Logic ─────────────────────────────────────
 
@@ -1518,7 +1640,20 @@ export function GlobalCallOverlay() {
               {/* Secondary row (smaller) */}
               <div className="inline-flex items-center gap-2 p-1.5 rounded-2xl backdrop-blur-xl bg-black/20 border border-white/[0.05]">
                 {/* Settings */}
-                <motion.button whileTap={{ scale: 0.9 }} onClick={() => { triggerHaptic('light'); setSettingsOpen(true); }} className={cn("h-9 w-9 sm:h-10 sm:w-10 rounded-lg flex-shrink-0 flex items-center justify-center transition-all", "bg-white/10 text-white/70 hover:bg-white/20")}>
+                <motion.button
+                  whileTap={{ scale: 0.9 }}
+                  onClick={() => {
+                    triggerHaptic('light');
+                    if (isCallDebugEnabled()) setDiagnosticsOpen(true);
+                    else setSettingsOpen(true);
+                  }}
+                  onContextMenu={(e) => {
+                    if (!isCallDebugEnabled()) return;
+                    e.preventDefault();
+                    setDiagnosticsOpen(true);
+                  }}
+                  className={cn("h-9 w-9 sm:h-10 sm:w-10 rounded-lg flex-shrink-0 flex items-center justify-center transition-all", "bg-white/10 text-white/70 hover:bg-white/20")}
+                >
                   <SlidersHorizontal className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                 </motion.button>
 
@@ -1606,6 +1741,7 @@ export function GlobalCallOverlay() {
               remoteVideoRef={remoteVideoRef}
               onAccept={handleAccept}
               onDecline={dismissIncoming}
+              onTimeout={timeoutIncoming}
             />
           )}
         </AnimatePresence>,
@@ -1627,6 +1763,10 @@ export function GlobalCallOverlay() {
         isVideoOff={isVideoOff}
       />
 
+      {isCallDebugEnabled() && (
+        <CallDiagnosticsPanel open={diagnosticsOpen} onOpenChange={setDiagnosticsOpen} />
+      )}
+
       {/* Paywall Sheet for non-premium users */}
       <PaywallSheet open={showPaywall} onOpenChange={setShowPaywall} />
     </>
@@ -1641,12 +1781,14 @@ function IncomingCallFullscreen({
   remoteVideoRef,
   onAccept,
   onDecline,
+  onTimeout,
 }: {
   call: CallData;
   hasRemoteVideo?: boolean;
   remoteVideoRef?: React.RefObject<HTMLVideoElement | null>;
   onAccept: () => void;
   onDecline: () => void;
+  onTimeout: () => void;
 }) {
   const [timeLeft, setTimeLeft] = useState(INCOMING_CALL_TIMEOUT_SECONDS);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -1665,6 +1807,8 @@ function IncomingCallFullscreen({
 
   const onDeclineRef = useRef(onDecline);
   onDeclineRef.current = onDecline;
+  const onTimeoutRef = useRef(onTimeout);
+  onTimeoutRef.current = onTimeout;
 
   useEffect(() => {
     document.body.classList.add('vybe-incoming-call-active');
@@ -1679,7 +1823,7 @@ function IncomingCallFullscreen({
     const interval = setInterval(() => {
       setTimeLeft((prev) => {
         if (prev <= 1) {
-          onDeclineRef.current();
+          onTimeoutRef.current();
           return 0;
         }
         return prev - 1;

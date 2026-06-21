@@ -5,7 +5,7 @@
  * - Ready-signal handshake: responder broadcasts 'ready' when subscribed
  * - Cached SDP offer: retransmits the same offer instead of recreating
  * - HD audio constraints: echoCancellation, noiseSuppression, autoGainControl
- * - HD video constraints: 720p, 30fps, front camera default
+ * - HD video constraints: 1080p target, 720p min, adaptive downgrade
  * - Signaling keepalive: 25s ping to prevent Realtime channel staleness
  * - Hangup-only mode: send hangup without cleanup (for linger support)
  */
@@ -185,9 +185,9 @@ export class P2PConnection {
     const videoConstraints: MediaTrackConstraints | boolean = this.callType === 'video'
       ? {
           facingMode: 'user',
-          width: { ideal: 640, min: 320 },
-          height: { ideal: 480, min: 240 },
-          frameRate: { ideal: 24, max: 30 },
+          width: { ideal: 1920, min: 1280 },
+          height: { ideal: 1080, min: 720 },
+          frameRate: { ideal: 30, max: 30 },
         }
       : false;
 
@@ -320,8 +320,8 @@ export class P2PConnection {
         const videoStream = await navigator.mediaDevices.getUserMedia({
           video: {
             facingMode: 'user',
-            width: { ideal: 1280, min: 640 },
-            height: { ideal: 720, min: 480 },
+            width: { ideal: 1920, min: 1280 },
+            height: { ideal: 1080, min: 720 },
             frameRate: { ideal: 30, max: 30 },
           },
         });
@@ -339,6 +339,22 @@ export class P2PConnection {
 
   getLocalStream(): MediaStream | null {
     return this.localStream;
+  }
+
+  /** Bump capture resolution after ICE connects — avoids slow camera open on mobile. */
+  private async upgradeVideoQualityIfPossible(): Promise<void> {
+    if (this.callType !== 'video' || !this.localStream) return;
+    const track = this.localStream.getVideoTracks()[0];
+    if (!track?.applyConstraints) return;
+    try {
+      await track.applyConstraints({
+        width: { ideal: 1920, min: 1280 },
+        height: { ideal: 1080, min: 720 },
+        frameRate: { ideal: 30, max: 30 },
+      });
+    } catch (err) {
+      console.warn('[P2P] HD upgrade skipped:', (err as Error)?.message);
+    }
   }
 
   async switchAudioDevice(deviceId: string): Promise<void> {
@@ -362,8 +378,8 @@ export class P2PConnection {
     const newStream = await navigator.mediaDevices.getUserMedia({
       video: {
         deviceId: { exact: deviceId },
-        width: { ideal: 1280 },
-        height: { ideal: 720 },
+        width: { ideal: 1920 },
+        height: { ideal: 1080 },
         frameRate: { ideal: 30 },
       },
     });
@@ -506,6 +522,7 @@ export class P2PConnection {
             this.onEvent({ type: 'remote-participant-joined' });
           }
           this.onEvent({ type: 'connected' });
+          void this.upgradeVideoQualityIfPossible();
           break;
 
         case 'disconnected':

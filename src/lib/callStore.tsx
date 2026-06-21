@@ -34,6 +34,8 @@ import {
 } from '@/lib/dmMembershipRepair';
 import { startDmCallViaCloudFunction, isRetryableCallError } from '@/lib/firebase/callSendClient';
 import { insertCallChatEvent } from '@/lib/callChatMessages';
+import { writeCallSignal } from '@/lib/callSignaling';
+import { CALL_RING_TIMEOUT_MS, markCallDeclined, markCallMissed } from '@/lib/callRinging';
 
 export type CallPhase = 'idle' | 'ringing' | 'creating' | 'joining' | 'connected' | 'ending' | 'switching' | 'error';
 export type CallType = 'audio' | 'video';
@@ -105,6 +107,7 @@ interface CallStoreContextType {
   setConnectStage: (stage: ConnectStage) => void;
   setError: (error: string | null) => void;
   dismissIncoming: () => void;
+  timeoutIncoming: () => void;
   switchMode: (mode: CallMode) => Promise<void>;
 }
 
@@ -309,6 +312,13 @@ export function CallStoreProvider({ children }: { children: ReactNode }) {
     showCallNotification(stubCaller, quickCall.callType, quickCall.id, quickCall.isGroupCall);
     void presentNativeIncomingCall(quickCall);
 
+    void writeCallSignal({
+      callId: quickCall.id,
+      fromUserId: stubCaller.id,
+      toUserId: stubReceiver.id,
+      signalType: 'ringing',
+    });
+
     void (async () => {
       const [callResult, conversationResult] = await Promise.all([
         db
@@ -382,6 +392,15 @@ export function CallStoreProvider({ children }: { children: ReactNode }) {
         filter: `receiver_id=eq.${rid}`,
         callback: (payload: { new: unknown }) => processIncomingCall(payload.new),
       },
+      {
+        event: 'UPDATE' as const,
+        table: 'calls',
+        filter: `receiver_id=eq.${rid}`,
+        callback: (payload: { new: unknown }) => {
+          const row = payload.new as { id?: string; status?: string };
+          if (row?.status === 'ringing' && row.id) processIncomingCall(payload.new);
+        },
+      },
     ]);
 
     const channel = subscribePostgresChannel(
@@ -431,10 +450,10 @@ export function CallStoreProvider({ children }: { children: ReactNode }) {
         if (import.meta.env.DEV) console.warn('[CallStore] Poll error:', err);
       }
 
-      pollTimeoutId = setTimeout(poll, isSubscribed ? 2500 : 500);
+      pollTimeoutId = setTimeout(poll, document.visibilityState === 'visible' ? 500 : 2000);
     };
 
-    pollTimeoutId = setTimeout(poll, 400);
+    pollTimeoutId = setTimeout(poll, 200);
 
     return () => {
       removeRealtimeChannel(channel);
@@ -442,11 +461,12 @@ export function CallStoreProvider({ children }: { children: ReactNode }) {
     };
   }, [profileId, profile?.user_id, processIncomingCall]);
 
-  // Caller: track callee accept/decline while P2P connects immediately in parallel.
+  // Caller: track callee accept/decline while ringing (all modes).
   useEffect(() => {
     const active = globalCallState.call;
-    if (!profileId || !active?.isInitiator || active.callMode !== 'p2p') return;
+    if (!profileId || !active?.isInitiator) return;
     if (globalCallState.phase !== 'joining' && globalCallState.phase !== 'creating') return;
+    if (globalCallState.remoteAccepted) return;
 
     const callId = active.id;
     const channel = subscribePostgresChannel(
@@ -471,7 +491,31 @@ export function CallStoreProvider({ children }: { children: ReactNode }) {
       ],
     );
 
-    return () => removeRealtimeChannel(channel);
+    const ringStartedAt = Date.now();
+    const timeoutId = setTimeout(() => {
+      if (globalCallState.remoteAccepted) return;
+      if (globalCallState.phase !== 'joining' && globalCallState.phase !== 'creating') return;
+      if (globalCallState.call?.id !== callId) return;
+
+      void markCallMissed(
+        {
+          callId,
+          conversationId: active.conversationId,
+          callType: active.callType,
+          callerId: active.caller.id,
+          receiverId: active.receiver.id,
+          actorProfileId: profileId,
+        },
+        'no_answer',
+      );
+      premiumSounds.stopAllCallSounds();
+      setState(initialState);
+    }, CALL_RING_TIMEOUT_MS);
+
+    return () => {
+      clearTimeout(timeoutId);
+      removeRealtimeChannel(channel);
+    };
   }, [profileId, state.phase, state.call?.id, state.call?.isInitiator, state.call?.callMode, setState]);
 
   // ── AUTO-RECONNECT on page refresh ─────────────────────────
@@ -710,6 +754,10 @@ export function CallStoreProvider({ children }: { children: ReactNode }) {
           room_name: roomName,
           is_group_call: params.isGroupCall || false,
           call_mode: initialMode,
+          participant_ids: params.isGroupCall && params.participantIds?.length
+            ? params.participantIds
+            : undefined,
+          ring_expires_at: new Date(Date.now() + CALL_RING_TIMEOUT_MS).toISOString(),
         })
         .select()
         .single();
@@ -802,6 +850,14 @@ export function CallStoreProvider({ children }: { children: ReactNode }) {
         callId: String(callSession.id),
       });
 
+      void writeCallSignal({
+        callId: String(callSession.id),
+        fromUserId: callerId,
+        toUserId: receiverProfileId,
+        signalType: 'invite',
+        signalData: { callMode: initialMode, callType: params.callType },
+      });
+
       // Server-side `onCallCreated` Cloud Function sends high-priority FCM to callee(s).
       // Realtime + polling below remain the in-app fallback.
     } catch (err: any) {
@@ -843,6 +899,13 @@ export function CallStoreProvider({ children }: { children: ReactNode }) {
         if (error) console.warn('[CallStore] accept status update failed:', error);
       });
 
+    void writeCallSignal({
+      callId: call.id,
+      fromUserId: profileId || call.receiver.id,
+      toUserId: call.caller.id,
+      signalType: 'accepted',
+    });
+
     if (call.callMode === 'persistent') {
       // Flip to 'joining' immediately with media stage so the overlay paints.
       setState({ phase: 'joining', call: { ...call }, error: null, connectStage: 'requesting-media' });
@@ -871,7 +934,7 @@ export function CallStoreProvider({ children }: { children: ReactNode }) {
         if (s) setState((prev) => (prev.phase === 'joining' ? { ...prev, connectStage: 'signaling' } : prev));
       });
     }
-  }, [setState, setIncomingCall]);
+  }, [profileId, setState, setIncomingCall]);
 
   const endCallRef = useRef(false);
   const endCall = useCallback(async () => {
@@ -896,22 +959,26 @@ export function CallStoreProvider({ children }: { children: ReactNode }) {
         callId: currentCall.id,
       });
     } else if (currentCall && !callConnectedAt && endedProfileId && currentCall.isInitiator) {
-      void insertCallChatEvent({
-        conversationId: currentCall.conversationId,
-        senderId: endedProfileId,
-        kind: 'no_answer',
-        callType: currentCall.callType,
-        callId: currentCall.id,
-      });
+      // Outbound no-answer is handled by markCallMissed in callStore ring timeout.
     }
     callConnectedAt = null;
 
     if (callId) {
       try {
-        await db
+        const { data: row } = await db
           .from('calls')
-          .update({ status: 'ended', ended_at: new Date().toISOString() })
-          .eq('id', callId);
+          .select('status')
+          .eq('id', callId)
+          .single();
+        const terminal = (row as { status?: string } | null)?.status;
+        if (terminal === 'missed' || terminal === 'declined') {
+          // Ring timeout / decline already persisted.
+        } else {
+          await db
+            .from('calls')
+            .update({ status: 'ended', ended_at: new Date().toISOString() })
+            .eq('id', callId);
+        }
       } catch (err) {
         console.error('[CallStore] Failed to update call status:', err);
       }
@@ -1049,27 +1116,55 @@ export function CallStoreProvider({ children }: { children: ReactNode }) {
     premiumSounds.stopAllCallSounds();
 
     const currentIncoming = globalIncomingCall;
-    if (currentIncoming?.id) {
+    if (currentIncoming?.id && profileId) {
       void dismissNativeIncomingCall(currentIncoming.id);
-      await db
-        .from('calls')
-        .update({ status: 'declined' })
-        .eq('id', currentIncoming.id);
-
-      if (profileId) {
-        void insertCallChatEvent({
-          conversationId: currentIncoming.conversationId,
-          senderId: profileId,
-          kind: 'missed',
-          callType: currentIncoming.callType,
-          callId: currentIncoming.id,
-        });
-      }
-
+      await markCallDeclined({
+        callId: currentIncoming.id,
+        conversationId: currentIncoming.conversationId,
+        callType: currentIncoming.callType,
+        callerId: currentIncoming.caller.id,
+        receiverId: currentIncoming.receiver.id,
+        actorProfileId: profileId,
+      });
     }
 
     setIncomingCall(null);
   }, [profileId, setIncomingCall]);
+
+  const timeoutIncoming = useCallback(async () => {
+    premiumSounds.stopAllCallSounds();
+
+    const currentIncoming = globalIncomingCall;
+    if (currentIncoming?.id && profileId) {
+      void dismissNativeIncomingCall(currentIncoming.id);
+      await markCallMissed(
+        {
+          callId: currentIncoming.id,
+          conversationId: currentIncoming.conversationId,
+          callType: currentIncoming.callType,
+          callerId: currentIncoming.caller.id,
+          receiverId: currentIncoming.receiver.id,
+          actorProfileId: profileId,
+        },
+        'timeout',
+      );
+    }
+
+    setIncomingCall(null);
+  }, [profileId, setIncomingCall]);
+
+  // Auto-timeout incoming ring after 30s (background / missed native UI).
+  useEffect(() => {
+    if (!incomingCall?.id) return;
+
+    const timeoutId = setTimeout(() => {
+      if (globalIncomingCall?.id === incomingCall.id) {
+        void timeoutIncoming();
+      }
+    }, CALL_RING_TIMEOUT_MS);
+
+    return () => clearTimeout(timeoutId);
+  }, [incomingCall?.id, timeoutIncoming]);
 
   const effectiveState: CallStoreState = incomingCall && state.phase === 'idle'
     ? { phase: 'ringing', call: incomingCall, error: null }
@@ -1087,6 +1182,7 @@ export function CallStoreProvider({ children }: { children: ReactNode }) {
       setConnectStage,
       setError,
       dismissIncoming,
+      timeoutIncoming,
       switchMode,
     }}>
       {children}
@@ -1108,6 +1204,7 @@ export function useCallStore(): CallStoreContextType {
       setConnectStage: () => {},
       setError: () => {},
       dismissIncoming: () => {},
+      timeoutIncoming: () => {},
       switchMode: async () => {},
     };
   }

@@ -15,7 +15,7 @@ import { syncNativePushTokens } from '@/lib/pushTokenRegistry';
  */
 export function NativeIncomingCallBridge() {
   const { authReady, profile } = useAuth();
-  const { acceptCall, dismissIncoming } = useCallStore();
+  const { acceptCall, dismissIncoming, timeoutIncoming } = useCallStore();
 
   useEffect(() => {
     if (!authReady || !profile?.id) return;
@@ -50,7 +50,7 @@ export function NativeIncomingCallBridge() {
       onTimedOut: async (callId) => {
         if (cancelled) return;
         await dismissNativeIncomingCall(callId);
-        dismissIncoming();
+        timeoutIncoming();
       },
     }).then((cleanup) => {
       cleanupListeners = cleanup;
@@ -60,7 +60,7 @@ export function NativeIncomingCallBridge() {
       cancelled = true;
       cleanupListeners?.();
     };
-  }, [authReady, profile?.id, acceptCall, dismissIncoming]);
+  }, [authReady, profile?.id, acceptCall, dismissIncoming, timeoutIncoming]);
 
   return null;
 }

@@ -66,6 +66,16 @@ export function usePresence() {
         console.error('[Presence] Failed to update presence:', error.message, error.details);
       } else {
         logPresence('Presence updated successfully');
+        // Mirror last-active on profile for Firestore-backed queries.
+        void db
+          .from('profiles')
+          .update({ last_active_at: new Date().toISOString() })
+          .eq('id', profile.id)
+          .then(({ error: profileErr }) => {
+            if (profileErr && import.meta.env.DEV) {
+              console.warn('[Presence] profile last_active_at:', profileErr.message);
+            }
+          });
       }
     } catch (error: any) {
       if (isTransientPresenceError(error)) {

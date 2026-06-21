@@ -13,8 +13,8 @@ export const FEATURES = {
 
 // Presence settings
 export const PRESENCE = {
-  ONLINE_THRESHOLD_MS: 2 * 60 * 1000, // 2 minutes
-  HEARTBEAT_INTERVAL_MS: 60 * 1000, // 60 seconds
+  ONLINE_THRESHOLD_MS: 45 * 1000, // ~3 missed heartbeats
+  HEARTBEAT_INTERVAL_MS: 15 * 1000, // 15 seconds — Snapchat-style
   TYPING_TIMEOUT_MS: 3000, // 3 seconds
 } as const;
 

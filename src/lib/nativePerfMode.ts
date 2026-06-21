@@ -5,9 +5,9 @@ export function isNativePerfMode(): boolean {
   return isNativeAppShell();
 }
 
-/** Less frequent presence pings on native — saves battery and DB writes. */
+/** Snapchat-style presence heartbeat — 15s online refresh. */
 export function presenceHeartbeatMs(): number {
-  return isNativeAppShell() ? 45_000 : 30_000;
+  return 15_000;
 }
 
 /** Apply document classes before first paint so CSS can skip heavy effects immediately. */
