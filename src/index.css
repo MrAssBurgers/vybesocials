@@ -3506,6 +3506,11 @@ body.has-liquid-bg:not(.has-custom-bg) .dm-sidebar {
   animation: typing-dot-bounce 1s ease-in-out infinite;
 }
 
+/* Slower, smoother typing dots for composer presence dock */
+.typing-dot-slow {
+  animation: typing-dot-bounce 1.35s ease-in-out infinite;
+}
+
 /* Message pop-in animation for incoming messages */
 @keyframes message-pop-in {
   0% {

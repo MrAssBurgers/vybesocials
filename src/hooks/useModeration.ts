@@ -212,16 +212,51 @@ export function useAllUserRoles() {
   return useQuery({
     queryKey: ['all-user-roles'],
     queryFn: async () => {
-      const { data, error } = await db
-        .from('user_roles')
-        .select(`
-          *,
-          profile:profiles!user_id(id, username, avatar_url, display_name)
-        `)
-        .order('created_at', { ascending: false });
-      
-      if (error) throw error;
-      return data || [];
+      const [rolesRes, authRolesRes] = await Promise.all([
+        db.from('user_roles').select('*').order('created_at', { ascending: false }),
+        db.from('user_roles_auth').select('*').order('created_at', { ascending: false }),
+      ]);
+
+      if (rolesRes.error && authRolesRes.error) throw rolesRes.error;
+
+      const merged = new Map<string, { id: string; user_id: string; role: string; created_at?: string }>();
+      for (const row of rolesRes.data || []) {
+        merged.set(`${row.user_id}_${row.role}`, row);
+      }
+      for (const row of authRolesRes.data || []) {
+        if (!merged.has(`${row.user_id}_${row.role}`)) {
+          merged.set(`${row.user_id}_${row.role}`, row);
+        }
+      }
+
+      const roles = Array.from(merged.values());
+      const profileIds = [...new Set(roles.map((r) => r.user_id).filter(Boolean))];
+
+      const profiles = new Map<string, { id: string; username?: string; avatar_url?: string | null; display_name?: string | null }>();
+      await Promise.all(
+        profileIds.map(async (id) => {
+          const { data } = await db
+            .from('profiles')
+            .select('id, username, avatar_url, display_name')
+            .eq('id', id)
+            .maybeSingle();
+          if (data) {
+            profiles.set(id, data);
+            return;
+          }
+          const { data: byAuth } = await db
+            .from('profiles')
+            .select('id, username, avatar_url, display_name')
+            .eq('user_id', id)
+            .maybeSingle();
+          if (byAuth) profiles.set(id, byAuth);
+        }),
+      );
+
+      return roles.map((row) => ({
+        ...row,
+        profile: profiles.get(row.user_id) ?? null,
+      }));
     },
   });
 }

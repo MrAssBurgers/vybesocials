@@ -135,10 +135,10 @@ export const LiveActivityIndicator = memo(function LiveActivityIndicator({
 });
 
 /**
- * Inline Activity Bubble - compact version for message list
- * Fixed position design - no vertical animations, only opacity fade + dot bounce
+ * Snapchat-style presence dock — mini avatar + activity bubble above the composer.
+ * Shows peer activity (viewing / typing / Snap camera) without cluttering the header.
  */
-export const InlineActivityBubble = memo(function InlineActivityBubble({
+export const ChatPresenceDock = memo(function ChatPresenceDock({
   avatarUrl,
   username,
   activity,
@@ -149,58 +149,56 @@ export const InlineActivityBubble = memo(function InlineActivityBubble({
 }) {
   const signedUrl = useSignedUrl(avatarUrl);
   const config = getActivityConfig(activity);
-  const Icon = config.icon;
 
   if (activity === 'idle') return null;
 
   const showDots = activity === 'typing' || activity === 'recording_voice';
 
   return (
-    // Fixed height container - prevents layout shift
-    <div 
-      className="h-12 flex items-end gap-2.5 mb-2 pl-3"
-      style={{ minHeight: '48px' }}
-    >
-      {/* Avatar - matches message avatar size (h-8 w-8) */}
-      <div className="relative flex-shrink-0 animate-fade-in">
-        <Avatar className="h-8 w-8 ring-2 ring-border/50 shadow-sm">
+    <div className="flex items-end gap-2 px-2.5 sm:px-3 pb-1.5 pt-1 animate-fade-in">
+      <div className="relative flex-shrink-0">
+        <Avatar className="h-7 w-7 ring-2 ring-background shadow-sm">
           <AvatarImage src={signedUrl || undefined} className="object-cover" />
-          <AvatarFallback className="text-xs font-semibold bg-muted">
+          <AvatarFallback className="text-[10px] font-semibold bg-muted">
             {(username || '?').charAt(0).toUpperCase()}
           </AvatarFallback>
         </Avatar>
-        
-        {/* Activity badge on avatar — eye for viewing, icon for Snap/voice */}
-        <span
-          className={cn(
-            'absolute -bottom-0.5 -right-0.5 flex items-center justify-center rounded-full ring-2 ring-background shadow-sm',
-            activity === 'viewing' && 'h-3.5 w-3.5 bg-emerald-500',
-            activity === 'taking_photo' && 'h-3.5 w-3.5 bg-amber-500',
-            activity === 'recording_video' && 'h-3.5 w-3.5 bg-violet-500',
-            activity === 'recording_voice' && 'h-3.5 w-3.5 bg-rose-500',
-            activity === 'typing' && 'h-3.5 w-3.5 bg-primary',
-            !['viewing', 'taking_photo', 'recording_video', 'recording_voice', 'typing'].includes(activity) &&
-              cn('h-3.5 w-3.5 animate-pulse', config.dotColor),
-          )}
-        >
-          <Icon className={cn('h-2 w-2 text-white', activity === 'viewing' && 'h-2.5 w-2.5')} />
-        </span>
       </div>
-      
-      {/* Typing bubble - opacity fade only, no position animation */}
+
       <div
         className={cn(
-          "rounded-2xl rounded-bl-sm px-4 py-2.5 shadow-sm animate-fade-in",
-          "bg-muted/80 backdrop-blur-sm border border-border/30"
+          'rounded-2xl rounded-bl-md px-3.5 py-2 shadow-sm',
+          'bg-muted/85 backdrop-blur-md border border-border/35',
+          config.bgColor,
         )}
       >
-        <div className="flex items-center gap-1.5">
-          <Icon className={cn("h-3.5 w-3.5", config.color)} />
+        <div className="flex items-center gap-2 min-h-[18px]">
+          {activity === 'viewing' && (
+            <Eye className={cn('h-3.5 w-3.5', config.color)} aria-hidden />
+          )}
+          {activity === 'taking_photo' && (
+            <Camera className={cn('h-3.5 w-3.5', config.color)} aria-hidden />
+          )}
+          {activity === 'recording_video' && (
+            <Video className={cn('h-3.5 w-3.5', config.color)} aria-hidden />
+          )}
+          {activity === 'recording_voice' && (
+            <Mic className={cn('h-3.5 w-3.5', config.color)} aria-hidden />
+          )}
           {showDots && (
-            <div className="flex items-center gap-[3px]">
-              <span className={cn("typing-dot-bounce h-1.5 w-1.5 rounded-full", config.dotColor)} style={{ animationDelay: '0ms' }} />
-              <span className={cn("typing-dot-bounce h-1.5 w-1.5 rounded-full", config.dotColor)} style={{ animationDelay: '150ms' }} />
-              <span className={cn("typing-dot-bounce h-1.5 w-1.5 rounded-full", config.dotColor)} style={{ animationDelay: '300ms' }} />
+            <div className="flex items-center gap-[4px]" aria-label="Typing">
+              <span
+                className={cn('typing-dot-slow h-1.5 w-1.5 rounded-full', config.dotColor)}
+                style={{ animationDelay: '0ms' }}
+              />
+              <span
+                className={cn('typing-dot-slow h-1.5 w-1.5 rounded-full', config.dotColor)}
+                style={{ animationDelay: '200ms' }}
+              />
+              <span
+                className={cn('typing-dot-slow h-1.5 w-1.5 rounded-full', config.dotColor)}
+                style={{ animationDelay: '400ms' }}
+              />
             </div>
           )}
         </div>
@@ -208,3 +206,6 @@ export const InlineActivityBubble = memo(function InlineActivityBubble({
     </div>
   );
 });
+
+/** @deprecated Use ChatPresenceDock above the composer instead. */
+export const InlineActivityBubble = ChatPresenceDock;

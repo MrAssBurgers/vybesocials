@@ -78,7 +78,7 @@ export function AdminRolesSection() {
                 }}
               />
               {searchResults.length > 0 && searchTerm.length >= 2 && !selectedUserId && (
-                <div className="absolute top-full left-0 right-0 mt-1 bg-popover border rounded-lg shadow-lg z-10 max-h-40 overflow-y-auto">
+                <div className="absolute top-full left-0 right-0 mt-1 bg-popover border rounded-lg shadow-lg z-50 max-h-48 overflow-y-auto min-w-[220px]">
                   {searchResults.map((user: any) => (
                     <button
                       key={user.id}
@@ -86,13 +86,16 @@ export function AdminRolesSection() {
                         setSelectedUserId(user.id);
                         setSearchTerm(user.username);
                       }}
-                      className="w-full flex items-center gap-2 p-2 hover:bg-muted text-left"
+                      className="w-full flex items-center gap-2 p-2.5 hover:bg-muted text-left min-w-0"
                     >
-                      <Avatar className="h-6 w-6">
+                      <Avatar className="h-6 w-6 shrink-0">
                         <AvatarImage src={user.avatar_url} />
                         <AvatarFallback>{user.username?.[0]?.toUpperCase()}</AvatarFallback>
                       </Avatar>
-                      <span className="text-sm">@{user.username}</span>
+                      <span className="text-sm truncate" title={`@${user.username}`}>
+                        @{user.username}
+                        {user.display_name ? ` · ${user.display_name}` : ''}
+                      </span>
                     </button>
                   ))}
                 </div>

@@ -31,6 +31,9 @@ import {
 import { useQueryClient } from '@tanstack/react-query';
 import { db } from '@/lib/firebase';
 import { scanVideo as nsfwScanVideo, scanImage as nsfwScanImage } from '@/lib/nsfwScanner';
+import { repairConversationForSend } from '@/lib/dmMembershipRepair';
+import { sendDmViaCloudFunction, isRetryableSendError } from '@/lib/firebase/dmSendClient';
+import { sendDmBroadcastMessage } from '@/lib/dmBroadcast';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -55,8 +58,8 @@ import { useChatPresence } from '@/hooks/useChatPresence';
 import { useLiveActivity } from '@/hooks/useLiveActivity';
 import { ChatPresenceIndicator } from './ChatPresenceIndicator';
 import { LivePresenceBar, ScreenshotAlert } from './SnapchatFeedback';
-import { InlineActivityBubble } from './LiveActivityIndicator';
-import { PresenceAvatar } from './PresenceAvatar';
+import { ChatPresenceDock } from './LiveActivityIndicator';
+import { SignedAvatar } from '@/components/ui/SignedAvatar';
 import { CallEventBubble } from './CallEventBubble';
 import { AIAssistButton } from './AIAssistButton';
 import { SmartRepliesBar } from './SmartRepliesBar';
@@ -1156,45 +1159,76 @@ export function ChatView() {
       // PHASE 4: Insert message into database
       phase = 'db-insert';
       console.log('[VYBE] Inserting message with mediaUrl:', mediaUrl?.substring(0, 80));
-      
-      const expiresAt = viewMode === '24h' 
+
+      const expiresAt = viewMode === '24h'
         ? new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
         : null;
 
-      const { data: realMessage, error: insertError } = await db
+      await repairConversationForSend(conversationId, profileId, otherMember?.id ?? null).catch(() => {});
+
+      const insertPayload = {
+        conversation_id: conversationId,
+        sender_id: profileId,
+        content: null,
+        media_url: mediaUrl,
+        media_type: 'vybe',
+        message_type: 'text',
+        view_mode: viewMode,
+        expires_at: expiresAt,
+        reply_to_id: replyingTo?.id,
+      };
+
+      let realMessage: Message | null = null;
+
+      const { data: inserted, error: insertError } = await db
         .from('messages')
-        .insert({
-          conversation_id: conversationId,
-          sender_id: profileId,
-          content: null,
-          media_url: mediaUrl,
-          media_type: 'vybe',
-          message_type: 'text',
-          view_mode: viewMode,
-          expires_at: expiresAt,
-          reply_to_id: replyingTo?.id,
-        })
+        .insert(insertPayload)
         .select(`
           *,
           sender:profiles!sender_id(id, username, avatar_url, display_name)
         `)
         .single();
 
-      if (insertError) {
+      if (insertError && isRetryableSendError(insertError)) {
+        const cloud = await sendDmViaCloudFunction({
+          conversationId,
+          content: '',
+          viewMode,
+          replyToId: replyingTo?.id ?? null,
+          mediaUrl,
+          mediaType: 'vybe',
+          messageType: 'text',
+        });
+        if (cloud.error || !cloud.data) {
+          console.error('[VYBE] Cloud fallback error:', cloud.error);
+          markFailed(`Send failed: ${cloud.error?.message || insertError.message}`, phase);
+          return;
+        }
+        realMessage = cloud.data;
+      } else if (insertError) {
         console.error('[VYBE] DB insert error:', insertError);
         markFailed(`Send failed: ${insertError.message}`, phase);
         return;
+      } else {
+        realMessage = inserted as Message;
       }
 
       console.log('[VYBE] Message inserted successfully:', realMessage?.id);
 
       // Replace optimistic message with real one
       queryClient.setQueryData<Message[]>(['messages', conversationId], (old) => {
-        if (!old) return [{ ...realMessage, view_mode: viewMode, views: [], reactions: [] }];
-        return old.map(m => m.id === tempId 
-          ? { ...realMessage, view_mode: viewMode, views: [], reactions: [] } 
+        if (!old) return [{ ...realMessage!, view_mode: viewMode, views: [], reactions: [] }];
+        return old.map(m => m.id === tempId
+          ? { ...realMessage!, view_mode: viewMode, views: [], reactions: [] }
           : m
         );
+      });
+
+      void sendDmBroadcastMessage(conversationId, {
+        ...realMessage!,
+        view_mode: viewMode,
+        views: [],
+        reactions: [],
       });
 
       // Update conversation timestamp
@@ -1217,7 +1251,7 @@ export function ChatView() {
       
       toast.error(`Failed to send VYBE: ${error?.message || 'Unknown error'}`, { id: `vybe-${tempId}`, duration: 5000 });
     }
-  }, [conversationId, profile, viewMode, replyingTo?.id, queryClient]);
+  }, [conversationId, profile, profileId, viewMode, replyingTo?.id, queryClient, otherMember?.id]);
 
   // Handle video selection - opens the preview modal
   const handleVideoSelect = useCallback((file: File) => {
@@ -1482,16 +1516,20 @@ export function ChatView() {
                 </div>
               </div>
             ) : (
-              <PresenceAvatar
-                src={otherMember?.avatar_url}
-                username={otherMember?.username}
-                displayName={otherMember?.display_name}
-                activity={otherPresenceActivity}
-                size="sm"
-                showOnlineDot
-                isOnline={otherMemberOnline}
-                className="group-active:scale-95 transition-transform"
-              />
+              <div className="relative flex-shrink-0 group-active:scale-95 transition-transform">
+                <SignedAvatar
+                  src={otherMember?.avatar_url}
+                  alt={otherMember?.display_name || otherMember?.username || 'User'}
+                  fallback={otherMember?.display_name || otherMember?.username || '?'}
+                  className="h-8 w-8 sm:h-9 sm:w-9 ring-1 ring-background shadow-sm"
+                />
+                {otherMemberOnline && (
+                  <span
+                    className="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full bg-green-500 ring-2 ring-background"
+                    aria-hidden
+                  />
+                )}
+              </div>
             )}
           </button>
 
@@ -1529,9 +1567,9 @@ export function ChatView() {
               <div className="flex flex-col gap-0.5 min-w-0">
                 <LivePresenceBar
                   isOnline={otherMemberOnline}
-                  isTyping={isOtherTyping}
-                  isInChat={isOtherInChat && !isOtherTyping && !isOtherInCamera}
-                  isInCamera={isOtherInCamera}
+                  isTyping={false}
+                  isInChat={false}
+                  isInCamera={false}
                   username={otherMember?.username}
                   lastReadAt={lastReadAt}
                 />
@@ -1872,17 +1910,6 @@ export function ChatView() {
             )}
           </AnimatePresence>
 
-          {/* Live activity bubble — viewing / typing / Snap in thread */}
-          <AnimatePresence>
-            {showPeerPresence && peerActivityUser && (
-              <InlineActivityBubble
-                avatarUrl={peerActivityUser.avatar_url ?? otherMember?.avatar_url}
-                username={peerActivityUser.username || otherMember?.username || ''}
-                activity={otherPresenceActivity}
-              />
-            )}
-          </AnimatePresence>
-
           {/* Group chat presence indicator */}
           {isGroupChat && presentUsers && presentUsers.length > 0 && (
             <ChatPresenceIndicator
@@ -1952,6 +1979,13 @@ export function ChatView() {
       {/* Input area - wrapped with DM safety for non-group chats */}
       {!isGroupChat && otherMember?.id ? (
         <DMSafetyGate targetUserId={otherMember.id} targetUsername={otherMember.username || ''}>
+          {!isGroupChat && showPeerPresence && peerActivityUser && (
+            <ChatPresenceDock
+              avatarUrl={peerActivityUser.avatar_url ?? otherMember?.avatar_url}
+              username={peerActivityUser.username || otherMember?.username || ''}
+              activity={otherPresenceActivity}
+            />
+          )}
           <MessageInputArea
             hasText={hasText}
             getMessageText={() => messageTextRef.current}
@@ -2009,7 +2043,15 @@ export function ChatView() {
           />
         </DMSafetyGate>
       ) : (
-        <MessageInputArea
+        <>
+          {!isGroupChat && showPeerPresence && peerActivityUser && (
+            <ChatPresenceDock
+              avatarUrl={peerActivityUser.avatar_url ?? otherMember?.avatar_url}
+              username={peerActivityUser.username || otherMember?.username || ''}
+              activity={otherPresenceActivity}
+            />
+          )}
+          <MessageInputArea
           hasText={hasText}
           getMessageText={() => messageTextRef.current}
           appendToInput={appendToInput}
@@ -2064,6 +2106,7 @@ export function ChatView() {
             />
           }
         />
+        </>
       )}
 
       {/* Business Offer Dialog */}
@@ -2403,19 +2446,15 @@ const MessageInputArea = memo(function MessageInputArea({
 // Signed avatar for message bubbles (storage URLs need signing)
 const BubbleAvatar = memo(function BubbleAvatar({
   sender,
-  activity,
 }: {
   sender?: Message['sender'];
-  activity?: import('./LiveActivityIndicator').ActivityType;
 }) {
   return (
-    <PresenceAvatar
+    <SignedAvatar
       src={sender?.avatar_url}
-      username={sender?.username}
-      displayName={sender?.display_name}
-      activity={activity}
-      size="sm"
-      className="h-8 w-8 sm:h-9 sm:w-9"
+      alt={sender?.username || 'User'}
+      fallback={sender?.display_name || sender?.username || '?'}
+      className="h-8 w-8 sm:h-9 sm:w-9 ring-1 ring-background shadow-sm"
     />
   );
 });
@@ -2664,14 +2703,15 @@ const MessageBubble = memo(function MessageBubble({
         <div
           className={cn(
             'relative rounded-[20px] break-words overflow-hidden select-none max-w-full min-w-0 w-fit transition-all duration-200',
-            isEmojiOnly 
+            isVybeMessage && 'bg-transparent p-0 shadow-none border-0',
+            !isVybeMessage && isEmojiOnly 
               ? 'px-3 py-2'
-              : isMediaMessage
+              : !isVybeMessage && isMediaMessage
                 ? 'p-1.5 sm:p-2'
-                : 'px-[14px] py-[10px] sm:px-4 sm:py-3',
-            isOwn 
+                : !isVybeMessage && 'px-[14px] py-[10px] sm:px-4 sm:py-3',
+            !isVybeMessage && isOwn 
               ? 'dm-bubble-sent rounded-br-md' 
-              : 'dm-bubble-received rounded-bl-md',
+              : !isVybeMessage && 'dm-bubble-received rounded-bl-md',
             message.view_mode === 'view_once' && 'bg-gradient-to-r from-orange-500 to-pink-500 text-white',
             message.view_mode === '24h' && isOwn && 'bg-gradient-to-r from-yellow-500 to-orange-500 text-white',
             repliedMessage && 'rounded-t-[14px]',
@@ -2723,7 +2763,16 @@ const MessageBubble = memo(function MessageBubble({
 
           {/* VYBE message - Snapchat style tap to view (view once) */}
           {isVybeMessage && (
-            <div className={message.content ? "mb-2" : ""}>
+            <div>
+              {failed && isOwn ? (
+                <div className="flex items-center gap-2 px-3 py-2.5 rounded-2xl bg-destructive/10 border border-destructive/25 text-destructive text-xs max-w-[min(100%,280px)]">
+                  <Camera className="h-4 w-4 shrink-0" />
+                  <span className="flex-1 leading-snug">
+                    {(message as { _error?: string })._error || 'Could not send VYBE'}
+                  </span>
+                </div>
+              ) : (
+            <>
               {isOwn ? (
                 // Sender sees "Sent" state - cannot view their own VYBE
                 <motion.div 
@@ -2869,6 +2918,8 @@ const MessageBubble = memo(function MessageBubble({
                   }}
                 />
               )}
+            </>
+              )}
             </div>
           )}
 
@@ -2883,7 +2934,7 @@ const MessageBubble = memo(function MessageBubble({
 
           {message.view_mode === 'view_once' && !isOwn && isViewed ? (
             <p className="text-[13px] sm:text-sm italic opacity-75 leading-[1.4]">Message viewed</p>
-          ) : message.content ? (
+          ) : !isVybeMessage && message.content ? (
             <p className={cn(
               "whitespace-pre-wrap leading-[1.4] break-words overflow-wrap-anywhere",
               isEmojiOnly 
