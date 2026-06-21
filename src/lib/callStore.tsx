@@ -1066,15 +1066,6 @@ export function CallStoreProvider({ children }: { children: ReactNode }) {
         });
       }
 
-      if (currentIncoming.caller?.id && profileId) {
-        await db
-          .from('notifications')
-          .insert({
-            user_id: currentIncoming.caller.id,
-            actor_id: profileId,
-            type: 'missed_call',
-          });
-      }
     }
 
     setIncomingCall(null);

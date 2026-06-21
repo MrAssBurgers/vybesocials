@@ -288,6 +288,21 @@ service cloud.firestore {
     match /spotify_connections/{docId} {
       allow read, write: if ownsUserField('user_id') || willOwnUserField('user_id') || isAdmin();
     }
+    match /live_music_presence/{docId} {
+      allow read: if signedIn();
+      allow create: if signedIn() && (
+        request.resource.data.user_id == uid() ||
+        ownsProfileId(request.resource.data.user_id)
+      );
+      allow update: if signedIn() && (
+        resource.data.user_id == uid() ||
+        ownsProfileId(resource.data.user_id)
+      );
+      allow delete: if signedIn() && (
+        resource.data.user_id == uid() ||
+        ownsProfileId(resource.data.user_id)
+      );
+    }
     match /user_preferences/{docId} {
       allow read, write: if ownsUserField('user_id') || willOwnUserField('user_id') || docId == uid() || ownsProfileId(docId);
     }

@@ -109,15 +109,92 @@ export const spotifyDisconnect = onCall(async (request) => {
     await db.collection('spotify_connections').doc(uid).delete();
     return { ok: true };
 });
+async function findSpotifyConnection(uid) {
+    const direct = await db.collection('spotify_connections').doc(uid).get();
+    if (direct.exists)
+        return { id: direct.id, data: direct.data() };
+    const byUser = await db.collection('spotify_connections').where('user_id', '==', uid).limit(1).get();
+    if (!byUser.empty) {
+        const doc = byUser.docs[0];
+        return { id: doc.id, data: doc.data() };
+    }
+    return null;
+}
+function emptyNowPlaying() {
+    return {
+        provider: 'spotify',
+        is_playing: false,
+        track_id: null,
+        title: null,
+        artist: null,
+        album: null,
+        album_art_url: null,
+        duration_ms: null,
+        progress_ms: null,
+        track_url: null,
+        tempo: null,
+        energy: null,
+    };
+}
+/** Poll Spotify + upsert `live_music_presence` (matches legacy Supabase edge fn). */
 export const spotifyNowPlaying = onCall({ secrets: SECRETS }, async (request) => {
     const uid = requireAuth(request);
-    const token = await refreshIfNeeded(uid);
-    const res = await fetch('https://api.spotify.com/v1/me/player/currently-playing', { headers: { Authorization: `Bearer ${token}` } });
-    if (res.status === 204)
-        return { ok: true, playing: false };
-    if (!res.ok)
+    const conn = await findSpotifyConnection(uid);
+    if (!conn)
+        return { connected: false };
+    const token = await refreshIfNeeded(conn.id);
+    const res = await fetch('https://api.spotify.com/v1/me/player/currently-playing', {
+        headers: { Authorization: `Bearer ${token}` },
+    });
+    let payload = emptyNowPlaying();
+    if (res.status === 200) {
+        const j = await res.json();
+        const item = j.item;
+        if (item) {
+            payload = {
+                provider: 'spotify',
+                is_playing: !!j.is_playing,
+                track_id: item.id ?? null,
+                title: item.name ?? null,
+                artist: (item.artists || []).map((a) => a.name).join(', ') || null,
+                album: item.album?.name ?? null,
+                album_art_url: item.album?.images?.[0]?.url ?? null,
+                duration_ms: item.duration_ms ?? null,
+                progress_ms: j.progress_ms ?? 0,
+                track_url: item.external_urls?.spotify ?? null,
+                tempo: null,
+                energy: null,
+            };
+            if (item.id) {
+                try {
+                    const fr = await fetch(`https://api.spotify.com/v1/audio-features/${item.id}`, {
+                        headers: { Authorization: `Bearer ${token}` },
+                    });
+                    if (fr.ok) {
+                        const fj = await fr.json();
+                        payload.tempo = typeof fj.tempo === 'number' ? fj.tempo : null;
+                        payload.energy = typeof fj.energy === 'number' ? fj.energy : null;
+                    }
+                }
+                catch { /* best effort */ }
+            }
+        }
+    }
+    else if (res.status === 401) {
+        throw new HttpsError('unauthenticated', 'token_invalid');
+    }
+    else if (res.status === 429) {
+        throw new HttpsError('resource-exhausted', 'rate_limited');
+    }
+    else if (res.status !== 204) {
         throw new HttpsError('internal', `Spotify ${res.status}`);
-    return { ok: true, playing: true, data: await res.json() };
+    }
+    await db.collection('live_music_presence').doc(uid).set({
+        user_id: uid,
+        ...payload,
+        updated_at: new Date().toISOString(),
+    }, { merge: true });
+    return { connected: true, ...payload };
 });
 export const spotifyControl = onCall({ secrets: SECRETS }, async (request) => {
     const uid = requireAuth(request);

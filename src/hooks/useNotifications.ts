@@ -98,6 +98,8 @@ export function useNotifications() {
       const DAY_MS = 24 * 60 * 60 * 1000;
       const now = Date.now();
       const filtered = sorted.filter((n: any) => {
+        // Missed calls live in the DM thread as call_event rows — not the bell menu
+        if (n.type === 'missed_call') return false;
         if (n.subtype === 'brief_item') {
           return now - new Date(n.created_at).getTime() < DAY_MS;
         }

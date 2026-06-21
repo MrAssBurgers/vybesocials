@@ -720,7 +720,10 @@ function NotificationRow({ notification, index, isRead, isLast }: NotificationRo
   const navigate = useNavigate();
 
   const shouldGoToPost = (notification.type === 'like' || notification.type === 'comment') && notification.post_id;
-  const shouldGoToChat = notification.type === 'message' || notification.type === 'friend_accepted';
+  const shouldGoToChat =
+    notification.type === 'message' ||
+    notification.type === 'friend_accepted' ||
+    notification.type === 'missed_call';
 
   const handleClick = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
@@ -728,6 +731,15 @@ function NotificationRow({ notification, index, isRead, isLast }: NotificationRo
 
     if (notification.type === 'friend_request' && notification.actor?.username) {
       navigate(`/u/${notification.actor.username}`);
+      return;
+    }
+
+    const conversationId =
+      (notification.meta as { conversation_id?: string } | null)?.conversation_id ||
+      (notification.meta as { conversationId?: string } | null)?.conversationId;
+
+    if (conversationId && (notification.type === 'message' || notification.type === 'missed_call')) {
+      navigate(`/messages/${conversationId}`);
       return;
     }
 
@@ -746,11 +758,30 @@ function NotificationRow({ notification, index, isRead, isLast }: NotificationRo
 
     if (shouldGoToPost && notification.post_id) {
       triggerTransition(e, { type: 'post', postId: notification.post_id });
-    } else if (shouldGoToChat && notification.actor?.id) {
-      startChatTransition(e, notification.actor.id, notification.actor.username, notification.actor.avatar_url, notification.actor.display_name);
-    } else if (notification.actor?.username) {
-      triggerTransition(e, { type: 'profile', userId: notification.actor.id, username: notification.actor.username, avatarUrl: notification.actor.avatar_url, displayName: notification.actor.display_name });
+      return;
     }
+    if (shouldGoToChat && notification.actor?.id) {
+      startChatTransition(
+        e,
+        notification.actor.id,
+        notification.actor.username || 'user',
+        notification.actor.avatar_url,
+        notification.actor.display_name,
+      );
+      return;
+    }
+    if (notification.actor?.username) {
+      triggerTransition(e, {
+        type: 'profile',
+        userId: notification.actor.id,
+        username: notification.actor.username,
+        avatarUrl: notification.actor.avatar_url,
+        displayName: notification.actor.display_name,
+      });
+      return;
+    }
+    // Safe fallback — avoid MouthZoom with missing actor (was "page can't load" on mobile)
+    navigate('/home');
   }, [shouldGoToPost, shouldGoToChat, notification, startChatTransition, triggerTransition, navigate]);
 
   const handleMouseEnter = useCallback(() => {
@@ -803,7 +834,7 @@ function NotificationRow({ notification, index, isRead, isLast }: NotificationRo
         <Avatar className="h-11 w-11">
           <AvatarImage src={notification.actor.avatar_url || undefined} />
           <AvatarFallback className="bg-muted text-foreground text-sm font-semibold">
-            {notification.actor.username[0].toUpperCase()}
+            {(notification.actor.username?.[0] || '?').toUpperCase()}
           </AvatarFallback>
         </Avatar>
         <div className={cn(

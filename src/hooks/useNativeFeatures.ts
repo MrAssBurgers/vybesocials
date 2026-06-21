@@ -6,7 +6,12 @@ import { LocalNotifications } from '@capacitor/local-notifications';
 import { PushNotifications } from '@capacitor/push-notifications';
 import { isNativePlatform, hapticImpact, hapticNotification } from '@/lib/capacitor';
 import { syncNativePushTokens } from '@/lib/pushTokenRegistry';
-import { fetchRingingCall } from '@/lib/notificationActions';
+import {
+  buildNotificationRoute,
+  fetchRingingCall,
+  navigateFromNotification,
+  normalizeNotificationPayload,
+} from '@/lib/notificationActions';
 import { presentNativeIncomingCall } from '@/lib/nativeIncomingCall';
 import { useAuth } from '@/lib/auth';
 
@@ -214,49 +219,16 @@ export function useNativePushNotifications() {
           }
         });
 
-        // Handle notification tap - deep link to correct screen
+        // Handle notification tap - deep link to correct screen (SPA-safe)
         PushNotifications.addListener('pushNotificationActionPerformed', (action) => {
           console.log('[Push Native] Action performed:', action);
           const data = action.notification.data || {};
-          
-          let targetUrl = data.url || '/';
-          
-          // Deep link based on notification type
-          switch (data.type) {
-            case 'dm':
-            case 'message':
-            case 'group_message':
-              targetUrl = data.conversationId ? `/messages/${data.conversationId}` : '/messages';
-              break;
-            case 'call':
-              targetUrl = data.conversationId ? `/messages/${data.conversationId}?acceptCall=true` : '/messages';
-              break;
-            case 'friend_request':
-            case 'friend_accepted':
-              targetUrl = '/notifications';
-              break;
-            case 'like':
-            case 'comment':
-              targetUrl = data.postId ? `/p/${data.postId}` : '/notifications';
-              break;
-            case 'marketplace':
-              targetUrl = '/marketplace';
-              break;
-            case 'wallet':
-            case 'tokens':
-              targetUrl = '/wallet';
-              break;
-            case 'dna':
-              targetUrl = '/vybe-dna';
-              break;
-            case 'space':
-              targetUrl = data.spaceId ? `/space/${data.spaceId}` : '/spaces';
-              break;
-          }
-          
-          // Navigate using the window location (works in Capacitor WebView)
-          if (targetUrl && targetUrl !== '/') {
-            window.location.href = targetUrl;
+          const payload = normalizeNotificationPayload({
+            ...data,
+            action: action.actionId || data.action || 'open',
+          });
+          if (payload) {
+            navigateFromNotification(buildNotificationRoute(payload));
           }
         });
 
