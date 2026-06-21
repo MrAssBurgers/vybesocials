@@ -2,6 +2,13 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## Instant DMs presence call logs HD video (2026-06-21)
+- **Messages:** Scoped Firestore listeners per conversation (global unfiltered query was rules-blocked); broadcast path patches conv list too.
+- **Presence:** Firestore rules for `typing_indicators` + `chat_presence`; broadcast `viewing` on chat open; typing → viewing (not idle).
+- **Calls:** Snapchat-style `call_event` rows in thread; two-way remote video attach fix; LiveKit 1440p / 5Mbps.
+- **Deployed:** Git `d309ec2f` → Firebase hosting ~863KB + Firestore rules on `vybe-daaab`
+- **You:** [Lovable → Share → Publish](https://lovable.dev/projects/416714c8-d013-4aff-984d-522418a9bbc7) for vybehub.app (~814KB still stale) → two-device test DMs + video call
+
 ## DMs Calls Presence Push perfection (2026-06-21)
 - **Call crash:** Fixed `initialMode is not defined` (TDZ bug); instant incoming ring stub + 500ms poll fallback.
 - **Presence:** New `PresenceAvatar` on chat header + conv list — typing ring, reading pulse, Snap camera badge; broadcast-first via `dmBroadcast`.
