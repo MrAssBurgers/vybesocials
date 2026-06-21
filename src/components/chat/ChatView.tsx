@@ -290,14 +290,6 @@ export function ChatView() {
   const [snapInitialStream, setSnapInitialStream] = useState<MediaStream | null>(null);
   const [cameraFirstMode, setCameraFirstMode] = useState(false);
 
-  useEffect(() => {
-    setLiveTakingPhoto(cameraFirstMode || showSnapCamera);
-    setSendingVybe(showSnapCamera);
-    return () => {
-      if (cameraFirstMode || showSnapCamera) setLiveTakingPhoto(false);
-      if (showSnapCamera) setSendingVybe(false);
-    };
-  }, [cameraFirstMode, showSnapCamera, setLiveTakingPhoto, setSendingVybe]);
   const callStore = useCallStore();
   const handleOpenSnapCamera = useCallback(() => {
     if (callStore.state.phase !== 'idle') {
@@ -358,15 +350,6 @@ export function ChatView() {
     | { id?: string; username?: string; display_name?: string | null; avatar_url?: string | null; user_id?: string }
     | null
     | undefined;
-  const displayName = conversation
-    ? displayNameForConversation(conversation, profileId, user?.id, 'Chat')
-    : 'Chat';
-  
-  // Get online status for the other member (if DM)
-  const presenceQuery = useUserOnlineStatus(
-    !isGroupChat ? otherMember?.id : undefined
-  );
-  const otherMemberOnline = presenceQuery.data?.is_online ?? false;
 
   const {
     peerPresence,
@@ -383,6 +366,25 @@ export function ChatView() {
   const otherPresenceActivity = peerPresence?.activity ?? 'idle';
   const peerActivityUser = peerPresence;
   const showPeerPresence = !isGroupChat && !!peerPresence && otherPresenceActivity !== 'idle';
+
+  useEffect(() => {
+    setLiveTakingPhoto(cameraFirstMode || showSnapCamera);
+    setSendingVybe(showSnapCamera);
+    return () => {
+      if (cameraFirstMode || showSnapCamera) setLiveTakingPhoto(false);
+      if (showSnapCamera) setSendingVybe(false);
+    };
+  }, [cameraFirstMode, showSnapCamera, setLiveTakingPhoto, setSendingVybe]);
+
+  const displayName = conversation
+    ? displayNameForConversation(conversation, profileId, user?.id, 'Chat')
+    : 'Chat';
+  
+  // Get online status for the other member (if DM)
+  const presenceQuery = useUserOnlineStatus(
+    !isGroupChat ? otherMember?.id : undefined
+  );
+  const otherMemberOnline = presenceQuery.data?.is_online ?? false;
   
   // Get streak with the other user (for DMs)
   const streak = useStreakWithUser(!isGroupChat ? otherMember?.id : undefined);
