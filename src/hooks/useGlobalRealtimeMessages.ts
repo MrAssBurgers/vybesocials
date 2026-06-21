@@ -201,17 +201,33 @@ export function useGlobalRealtimeMessages() {
     });
   }, [profileId, authUid, rtContext, activeConvoId]);
 
-  // Resync scoped listeners when conversation list cache updates
+  // Resync scoped listeners when conversation list cache updates (debounced)
   useEffect(() => {
     if (!profileId) return;
+    let resyncTimer: ReturnType<typeof setTimeout> | null = null;
+    const scheduleResync = () => {
+      if (resyncTimer) return;
+      resyncTimer = setTimeout(() => {
+        resyncTimer = null;
+        void scopedRtRef.current?.resync();
+      }, 250);
+    };
     const unsub = queryClient.getQueryCache().subscribe((event) => {
-      if (event?.type !== 'updated') return;
-      const key = event.query.queryKey;
-      if (key[0] === 'dm-conversations' || key[0] === 'conversations') {
-        scopedRtRef.current?.resync();
+      try {
+        if (event?.type !== 'updated') return;
+        const key = event.query?.queryKey;
+        if (!Array.isArray(key)) return;
+        if (key[0] === 'dm-conversations' || key[0] === 'conversations') {
+          scheduleResync();
+        }
+      } catch (err) {
+        if (import.meta.env.DEV) console.warn('[GlobalRT] cache subscribe failed', err);
       }
     });
-    return unsub;
+    return () => {
+      if (resyncTimer) clearTimeout(resyncTimer);
+      unsub();
+    };
   }, [profileId, queryClient]);
 
   useEffect(() => {

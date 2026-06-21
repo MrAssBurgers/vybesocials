@@ -27,8 +27,23 @@ export class ErrorBoundary extends Component<Props, State> {
   }
 
   componentDidCatch(error: Error, info: { componentStack?: string | null }) {
+    const msg = error?.message || '';
+    const isChunkError =
+      msg.includes('Loading chunk') ||
+      msg.includes('Failed to fetch dynamically imported module') ||
+      msg.includes('Importing a module script failed') ||
+      msg.includes('error loading dynamically imported module') ||
+      msg.includes('Unable to preload CSS');
+
+    if (isChunkError) {
+      if ('caches' in window) {
+        void caches.keys().then((names) => names.forEach((name) => caches.delete(name)));
+      }
+      window.location.reload();
+      return;
+    }
+
     // Forward to Sentry and console for local debugging.
-     
     console.error('[ErrorBoundary]', this.props.scope || 'unknown', error, info);
     captureException(error, {
       scope: this.props.scope || 'unknown',

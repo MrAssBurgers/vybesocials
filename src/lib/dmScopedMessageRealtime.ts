@@ -70,7 +70,7 @@ function patchConversationLists(
 ) {
   startTransition(() => {
     const updateConversations = (old: any[] | undefined) => {
-      if (!old) return old;
+      if (!old || !Array.isArray(old)) return old;
       if (!old.some((c) => c.id === conversationId)) return old;
 
       return old

@@ -1,8 +1,8 @@
 // VYBE Service Worker
-// Version 32.0 — refresh splash reset + solid shell backgrounds
+// Version 33.0 — bust stale lazy chunks after deploy
 
-const CACHE_NAME = 'vybe-v32';
-const STATIC_CACHE = 'vybe-static-v32';
+const CACHE_NAME = 'vybe-v33';
+const STATIC_CACHE = 'vybe-static-v33';
 const MEDIA_CACHE = 'vybe-media-v2';
 const SHELL_CACHE = 'vybe-shell-v4';
 const ASSETS_CACHE = 'vybe-assets-v4';

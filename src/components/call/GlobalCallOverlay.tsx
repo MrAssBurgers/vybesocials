@@ -481,7 +481,7 @@ export function GlobalCallOverlay() {
       if (remoteVideoRef.current) remoteVideoRef.current.srcObject = null;
 
       const isGroupCall = stateRef.current.call?.isGroupCall;
-      const isPersistent = currentMode === 'persistent';
+      const isPersistent = stateRef.current.call?.callMode === 'persistent';
       setRemoteUserLeft(true);
 
       if (isPersistent) {
