@@ -199,9 +199,7 @@ export function useGlobalRealtimeMessages() {
           if (isFromCurrentUser && isViewingConvo && !skipReceiverInsert) {
             queryClient.setQueryData<any[]>(['messages', conversationId], (old) => {
               const row = { ...newMessage, views: [], reactions: [] };
-              if (!old?.length) return [row];
-              if (old.some((m) => m.id === newMessage.id)) return old;
-              return [...old, row];
+              return appendIncomingMessage(old, row);
             });
           }
 
@@ -562,8 +560,6 @@ export function useGlobalRealtimeMessages() {
         if (profileId) {
           removeChannelByTopic(`global-messages:${profileId}`);
         }
-        removeRealtimeChannel(broadcastChannelRef.current);
-        broadcastChannelRef.current = null;
       } catch { /* never throw from cleanup */ }
     };
   }, [profileId]);

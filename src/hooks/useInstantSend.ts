@@ -12,7 +12,7 @@ import {
   repairConversationForSend,
   resetMessagesReady,
 } from '@/lib/dmMembershipRepair';
-import { messagesQueryKey, patchMessagesCache } from '@/lib/messagesQueryKey';
+import { messagesQueryKey, patchMessagesCache, appendIncomingMessage } from '@/lib/messagesQueryKey';
 import { syncUserAuthIndex } from '@/lib/firebase/profileResolve';
 import { firebaseAuth } from '@/lib/firebase/authService';
 import { withTimeout } from '@/lib/withTimeout';
@@ -60,13 +60,19 @@ export function useInstantSend(conversationId: string | undefined) {
   }, []);
 
   // Add message to cache optimistically
-  const addOptimisticMessage = useCallback((tempId: string, message: Partial<Message>) => {
+  const addOptimisticMessage = useCallback((
+    tempId: string,
+    message: Partial<Message>,
+    senderIdOverride?: string,
+  ) => {
     if (!conversationId || !effectiveProfileId) return false;
+
+    const senderId = senderIdOverride || effectiveProfileId;
 
     const optimisticMessage: Message = {
       id: tempId,
       conversation_id: conversationId,
-      sender_id: effectiveProfileId,
+      sender_id: senderId,
       content: message.content || null,
       media_url: message.media_url || null,
       media_type: message.media_type || null,
@@ -77,7 +83,7 @@ export function useInstantSend(conversationId: string | undefined) {
       reply_to_id: message.reply_to_id || null,
       created_at: new Date().toISOString(),
       sender: {
-        id: effectiveProfileId,
+        id: senderId,
         username: profile?.username || '',
         avatar_url: profile?.avatar_url || null,
         display_name: (profile as any)?.display_name || profile?.username || null,
@@ -92,8 +98,6 @@ export function useInstantSend(conversationId: string | undefined) {
       return [...old, optimisticMessage];
     });
 
-    void sendDmBroadcastMessage(conversationId, optimisticMessage as unknown as Record<string, unknown>);
-
     // Helper to update conversation lists
     const updateConversationList = (old: any[] | undefined) => {
       if (!old) return old;
@@ -106,7 +110,7 @@ export function useInstantSend(conversationId: string | undefined) {
               content: message.content,
               media_type: message.media_type,
               created_at: optimisticMessage.created_at,
-              sender_id: effectiveProfileId,
+              sender_id: senderId,
             },
             updated_at: optimisticMessage.created_at,
             _sortTime: optimisticMessage.created_at,
@@ -149,18 +153,19 @@ export function useInstantSend(conversationId: string | undefined) {
       const tempPresent = old.some(m => m.id === tempId);
 
       if (realAlreadyPresent) {
-        return tempPresent
-          ? old.filter(m => m.id !== tempId).map(m =>
-              m.id === realWithSender.id ? { ...m, ...realWithSender, sender: m.sender || realWithSender.sender } : m,
-            )
-          : old;
+        const withoutTemp = tempPresent ? old.filter(m => m.id !== tempId) : old;
+        return withoutTemp.map(m =>
+          m.id === realWithSender.id
+            ? { ...m, ...realWithSender, sender: m.sender || realWithSender.sender }
+            : m,
+        );
       }
 
       if (tempPresent) {
         return old.map(m => (m.id === tempId ? realWithSender : m));
       }
 
-      return [...old, realWithSender];
+      return appendIncomingMessage(old, realWithSender);
     });
 
     pendingMessagesRef.current.delete(tempId);
@@ -406,19 +411,26 @@ export function useInstantSend(conversationId: string | undefined) {
       createdAt,
     });
 
+    let senderId: string;
+    try {
+      senderId = await resolveSenderIdForSend();
+    } catch (err) {
+      pendingMessagesRef.current.delete(tempId);
+      throw err;
+    }
+
     // Add to UI immediately AND register with the global realtime dedupe so
     // the postgres_changes echo of our own insert can't accidentally remove
     // or duplicate the bubble we just rendered.
-    const added = addOptimisticMessage(tempId, { content, view_mode: viewMode, reply_to_id: replyToId });
+    const added = addOptimisticMessage(tempId, { content, view_mode: viewMode, reply_to_id: replyToId }, senderId);
     if (!added) {
       pendingMessagesRef.current.delete(tempId);
       throw new Error('Could not show message — try again.');
     }
-    registerOptimisticMessage(conversationId, content, effectiveProfileId || profile.id);
+    registerOptimisticMessage(conversationId, content, senderId);
     onOptimisticAdded?.();
 
     try {
-      const senderId = await resolveSenderIdForSend();
       const otherProfileId = resolveOtherProfileId(senderId);
 
       const expiresAt = viewMode === '24h' 

@@ -12,7 +12,8 @@ import { Message } from './useMessages';
  * NOTE: Message INSERT/DELETE events are handled by useGlobalRealtimeMessages
  */
 export function useRealtimeMessages(conversationId: string | undefined) {
-  const { profile } = useAuth();
+  const { profile, user } = useAuth();
+  const authUid = user?.id ?? profile?.user_id ?? null;
   const queryClient = useQueryClient();
   const channelRef = useRef<ReturnType<typeof db.channel> | null>(null);
   const reactionDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -29,15 +30,46 @@ export function useRealtimeMessages(conversationId: string | undefined) {
     });
   }, [conversationId, queryClient]);
 
-  // Remove message from cache (soft delete)
-  const removeMessageFromCache = useCallback((messageId: string) => {
+  // Remove message from cache — keep failed bubble for recent own sends (matches GlobalRT).
+  const removeMessageFromCache = useCallback((deletedMessage: { id: string; sender_id?: string; content?: string | null; created_at?: string }) => {
     if (!conversationId) return;
 
     queryClient.setQueryData<Message[]>(['messages', conversationId], (old) => {
       if (!old) return old;
-      return old.filter(m => m.id !== messageId);
+
+      const isFromCurrentUser =
+        deletedMessage.sender_id === profile?.id ||
+        (!!authUid && deletedMessage.sender_id === authUid);
+      const createdMs = new Date(deletedMessage.created_at || 0).getTime();
+      const isRecentOwnSend = isFromCurrentUser && Date.now() - createdMs < 60_000;
+
+      if (isRecentOwnSend) {
+        const content = (deletedMessage.content || '').trim();
+        const matchingTemp = old.find(
+          (m) =>
+            typeof m.id === 'string' &&
+            m.id.startsWith('temp-') &&
+            (m.content || '').trim() === content,
+        );
+        if (matchingTemp) {
+          return old.map((m) =>
+            m.id === matchingTemp.id
+              ? ({ ...m, _failed: true, _error: 'Message could not be delivered' } as Message)
+              : m,
+          );
+        }
+        if (old.some((m) => m.id === deletedMessage.id)) {
+          return old.map((m) =>
+            m.id === deletedMessage.id
+              ? ({ ...m, _failed: true, _error: 'Message could not be delivered' } as Message)
+              : m,
+          );
+        }
+      }
+
+      return old.filter((m) => m.id !== deletedMessage.id);
     });
-  }, [conversationId, queryClient]);
+  }, [conversationId, profile?.id, authUid, queryClient]);
 
   // Subscribe to conversation-specific events (reactions, views, edits)
   useEffect(() => {
@@ -67,7 +99,7 @@ export function useRealtimeMessages(conversationId: string | undefined) {
             const oldMessage = payload.old as any;
             
             if (updatedMessage.is_deleted) {
-              removeMessageFromCache(updatedMessage.id);
+              removeMessageFromCache(updatedMessage);
             } else {
               updateMessageInCache(updatedMessage);
               if (updatedMessage.viewed_at && !oldMessage?.viewed_at) {
@@ -114,7 +146,7 @@ export function useRealtimeMessages(conversationId: string | undefined) {
       removeRealtimeChannel(channelRef.current);
       channelRef.current = null;
     };
-  }, [conversationId, profile?.id, queryClient, updateMessageInCache, removeMessageFromCache]);
+  }, [conversationId, profile?.id, authUid, queryClient, updateMessageInCache, removeMessageFromCache]);
 
   return {
     updateMessageInCache,
