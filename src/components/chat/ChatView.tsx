@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useLayoutEffect, useCallback, memo, useMemo } from 'react';
+import { useState, useRef, useEffect, useLayoutEffect, useCallback, memo, useMemo, type ReactNode } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -137,6 +137,7 @@ import { SafetyFilterRequest } from './SafetyFilterRequest';
 import { SafetyFilterRequestButton } from './SafetyFilterRequestButton';
 import { getTopEmojis, recordEmoji } from '@/lib/frequentEmojis';
 import { NowPlayingInline } from '@/components/music/NowPlayingInline';
+import LocalErrorBoundary from '@/components/error/LocalErrorBoundary';
 const QUICK_REACTIONS = ['❤️', '😂', '😮', '😢', '👍', '🔥'];
 
 // Theme color mapping - now includes both bubble and text classes
@@ -160,6 +161,7 @@ export function ChatView() {
   const bumpStreak = useInteractionStreakBump();
   
   const { data: conversation, isPending: conversationPending, isFetched: conversationFetched, isError: conversationError } = useConversationDetail(conversationId);
+  const isGroupChat = conversation?.is_group || false;
   const { data: messages, isPending: messagesPending, isFetched: messagesFetched, isError: messagesError, refetch: refetchMessages } = useMessages(conversationId);
   const { sendText, sendMedia, sendVideo, retry: retryMessage, removeMessage, videoUploadProgress } = useInstantSend(conversationId);
 
@@ -382,7 +384,6 @@ export function ChatView() {
   const messageNotifsClearedForConversationRef = useRef<string | null>(null);
   
 
-  const isGroupChat = conversation?.is_group || false;
   const otherMembers = useMemo(
     () =>
       conversation?.members?.filter(
@@ -1676,10 +1677,16 @@ export function ChatView() {
             const isRecordingNotification = message.message_type === 'screen_recording_notification';
             const isCallEvent = message.message_type === 'call_event';
             const isCaptureNotification = isScreenshotNotification || isRecordingNotification;
+
+            const wrapMessageRow = (row: ReactNode) => (
+              <LocalErrorBoundary key={message.id} label="chat-message">
+                {row}
+              </LocalErrorBoundary>
+            );
             
             if (isCallEvent) {
-              return (
-                <div key={message.id} className={cn(spacingClass, index === 0 && 'pt-0')}>
+              return wrapMessageRow(
+                <div className={cn(spacingClass, index === 0 && 'pt-0')}>
                   {showTimestamp && (
                     <div className="text-center py-5 sm:py-6">
                       <span className="text-[10px] sm:text-[11px] text-muted-foreground/50 bg-muted/30 px-3 py-1 rounded-full font-medium">
@@ -1700,8 +1707,8 @@ export function ChatView() {
               const isRecording = message.content?.includes('started') || message.content?.includes('possible');
               const isStopped = message.content?.includes('stopped');
               
-              return (
-                <div key={message.id} className={cn(spacingClass, index === 0 && 'pt-0')}>
+              return wrapMessageRow(
+                <div className={cn(spacingClass, index === 0 && 'pt-0')}>
                   {showTimestamp && (
                     <div className="text-center py-5 sm:py-6">
                       <span className="text-[10px] sm:text-[11px] text-muted-foreground/50 bg-muted/30 px-3 py-1 rounded-full font-medium">
@@ -1752,9 +1759,8 @@ export function ChatView() {
               );
             }
             
-            return (
+            return wrapMessageRow(
               <div 
-                key={message.id}
                 className={cn(spacingClass, index === 0 && 'pt-0')}
               >
                 {showTimestamp && (

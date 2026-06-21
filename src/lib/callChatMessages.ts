@@ -38,6 +38,28 @@ export function formatCallEventLabel(meta: CallEventMeta, isOwn: boolean): strin
   }
 }
 
+/** Safe preview text for conversation list / notifications (never throws). */
+export function formatDmPreviewContent(
+  message: {
+    content?: string | null;
+    message_type?: string | null;
+    media_type?: string | null;
+  },
+  isOwn: boolean,
+  maxLen = 40,
+): string {
+  if (message.message_type === 'call_event') {
+    const meta = parseCallEventMeta(message.content);
+    if (meta) return formatCallEventLabel(meta, isOwn);
+    return message.media_type === 'video' ? 'Video call' : 'Audio call';
+  }
+  if (message.message_type === 'screenshot_notification') return 'Screenshot';
+  if (message.message_type === 'screen_recording_notification') return 'Screen recording';
+  if (message.content?.startsWith('e2ee:')) return 'Chat';
+  const text = message.content || 'Media';
+  return text.length > maxLen ? `${text.slice(0, maxLen)}…` : text;
+}
+
 export function parseCallEventMeta(content: string | null | undefined): CallEventMeta | null {
   if (!content) return null;
   try {

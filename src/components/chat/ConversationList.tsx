@@ -42,6 +42,7 @@ import { useIsMobile } from '@/hooks/use-mobile';
 import { useBatchUserStatuses } from '@/hooks/useUserStatus';
 import { getVibeColor } from '@/components/status/StatusPicker';
 import { compactTime } from '@/lib/compactTime';
+import { formatDmPreviewContent } from '@/lib/callChatMessages';
 import { useQuickAddSuggestions } from '@/hooks/useQuickAddSuggestions';
 import { useDismissedQuickAdd } from '@/hooks/useDismissedQuickAdd';
 import { NotesRow } from './NotesRow';
@@ -727,9 +728,7 @@ const ConversationContent = memo(forwardRef<HTMLDivElement, any>(function Conver
                     ? 'Voice note'
                     : lastMessage.media_type === 'gif'
                     ? 'GIF'
-                    : lastMessage.content?.startsWith('e2ee:')
-                    ? 'Chat'
-                    : (lastMessage.content?.slice(0, 40) || 'Media') + (lastMessage.content && lastMessage.content.length > 40 ? '…' : '')}
+                    : formatDmPreviewContent(lastMessage, false)}
                 </p>
               </>
             ) : (otherMember as any)?.user_id ? (
