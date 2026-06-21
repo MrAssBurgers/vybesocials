@@ -5,6 +5,7 @@
  *   GEMINI_API_KEY=your_key npm run setup:gemini-secrets
  *
  *   npm run setup:gemini-secrets -- --key=your_key
+ *   npm run setup:gemini-secrets -- --deploy-only   # skip secret set, redeploy all AI fns
  *
  * Or add GEMINI_API_KEY to `.env`, then run npm run setup:gemini-secrets
  */
@@ -12,6 +13,47 @@ import { existsSync, readFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 
 const PROJECT = process.env.FIREBASE_PROJECT || 'vybe-daaab';
+
+/** All Cloud Functions bound to GEMINI_API_KEY (callable + scheduled). */
+const GEMINI_FUNCTIONS = [
+  'aiChat',
+  'aiCatchUp',
+  'aiSmartReplies',
+  'aiCommentSuggestions',
+  'aiMessageAssist',
+  'aiHumanize',
+  'aiChatSummary',
+  'aiProfileWriter',
+  'aiSafetyScan',
+  'scanContentSafety',
+  'scanVideoSafety',
+  'moderateContent',
+  'generateTheme',
+  'generateAdvancedTheme',
+  'generateBackground',
+  'generateCaption',
+  'detectAiContent',
+  'dnaChat',
+  'aiDetectText',
+  'aiAdaptiveResponse',
+  'aiAutoFix',
+  'aiEnhancePhoto',
+  'generateChallenges',
+  'generateCustomAnimations',
+  'generatePwaIcon',
+  'generateArFilter',
+  'generateAiVideo',
+  'adminAiBuilder',
+  'analyzeBugReport',
+  'analyzeError',
+  'dnaAutopilot',
+  'vybeAgent',
+  'vybeCommander',
+  'startVybeCheck',
+  'briefTopicDetail',
+  'prewarmDailyBriefs',
+  'checkDebugSecrets',
+];
 
 function loadEnvFile() {
   const env = {};
@@ -24,11 +66,14 @@ function loadEnvFile() {
 }
 
 function parseArgs(argv) {
+  let key = null;
+  let deployOnly = false;
   for (const arg of argv) {
-    const m = arg.match(/^--key=(.+)$/);
-    if (m) return m[1];
+    const km = arg.match(/^--key=(.+)$/);
+    if (km) key = km[1];
+    if (arg === '--deploy-only') deployOnly = true;
   }
-  return null;
+  return { key, deployOnly };
 }
 
 function runFirebase(args, input) {
@@ -42,15 +87,16 @@ function runFirebase(args, input) {
   }
 }
 
-const fromArgs = parseArgs(process.argv.slice(2));
+const { key: fromArgs, deployOnly } = parseArgs(process.argv.slice(2));
 const fromFile = loadEnvFile();
 const geminiKey =
   fromArgs ||
   process.env.GEMINI_API_KEY ||
   fromFile.GEMINI_API_KEY;
 
-if (!geminiKey) {
-  console.error(`
+if (!deployOnly) {
+  if (!geminiKey) {
+    console.error(`
 Missing GEMINI_API_KEY. Use any ONE of these:
 
   GEMINI_API_KEY=xxx npm run setup:gemini-secrets
@@ -59,30 +105,27 @@ Missing GEMINI_API_KEY. Use any ONE of these:
 
   Add GEMINI_API_KEY to .env, then run npm run setup:gemini-secrets
 
+  npm run setup:gemini-secrets -- --deploy-only   (secret already set)
+
 Get a key: https://aistudio.google.com/apikey
 `);
-  process.exit(1);
-}
+    process.exit(1);
+  }
 
-console.log(`Setting GEMINI_API_KEY on Firebase project ${PROJECT}…`);
-runFirebase(['functions:secrets:set', 'GEMINI_API_KEY', '--force'], geminiKey);
+  console.log(`Setting GEMINI_API_KEY on Firebase project ${PROJECT}…`);
+  runFirebase(['functions:secrets:set', 'GEMINI_API_KEY', '--force'], geminiKey);
+}
 
 console.log('\nBuilding Cloud Functions…');
 const build = spawnSync('npm', ['run', 'build'], { cwd: 'functions', stdio: 'inherit' });
 if (build.status !== 0) process.exit(build.status ?? 1);
 
-console.log('\nDeploying AI functions (aiChat + helpers)…');
-runFirebase(
-  [
-    'deploy',
-    '--only',
-    'functions:aiChat,functions:aiCatchUp,functions:aiSmartReplies,functions:aiMessageAssist,functions:checkDebugSecrets',
-  ],
-  undefined,
-);
+const onlyArg = GEMINI_FUNCTIONS.map((n) => `functions:${n}`).join(',');
+console.log(`\nDeploying ${GEMINI_FUNCTIONS.length} GEMINI-bound functions…`);
+runFirebase(['deploy', '--only', onlyArg], undefined);
 
 console.log(`
-Done. VYBE-AI should respond after a hard refresh.
+Done. VYBE-AI + smart replies + briefs should use the latest GEMINI secret.
 
-If calls still fail (group / Stay On Call), set LIVEKIT secrets separately.
+Hard refresh the app; Clear Chat in VYBE-AI to drop stale error bubbles.
 `);

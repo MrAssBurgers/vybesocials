@@ -2,6 +2,14 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## Phase 6 — Group polish + full GEMINI redeploy (2026-06-21)
+- **Group header:** `GroupPresenceBar` — live typing / in-chat / Snap activity under group title.
+- **Group dock:** Composer `ChatPresenceDock` for the most active group member (typing, Snap, upload, etc.).
+- **Group receipts:** Delivered/Opened on own group messages; `ReadReceipts` avatars when views exist.
+- **GEMINI:** Redeployed 36 GEMINI-bound Cloud Functions (`setup-gemini-secrets.mjs --deploy-only`).
+- **Deployed:** Git pending → Firebase hosting + AI functions on https://vybe-daaab.web.app
+- **You:** Lovable Publish → test group header + VYBE-AI smart replies
+
 ## Phase 5 — Group presence + read receipts (2026-06-21)
 - **Group presence:** `useChatPresence` accepts multiple peer ids; Firestore + broadcast listeners per member; `ChatPresenceIndicator` shows who's in the thread.
 - **Read receipts:** `usePeerLastReadAt` live listener on peer `conversation_members`; Snapchat-style Delivered/Opened via `SnapchatStatus` on 1:1 own messages.

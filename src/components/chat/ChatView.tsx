@@ -64,7 +64,7 @@ import { usePeerLastReadAt } from '@/hooks/usePeerLastReadAt';
 import { ChatPresenceIndicator } from './ChatPresenceIndicator';
 import { LivePresenceBar, ScreenshotAlert, SnapchatStatus } from './SnapchatFeedback';
 import { resolveOwnMessageStatus } from '@/lib/messageReadStatus';
-import { ChatPresenceDock, ChatHeaderPresenceAvatar } from './LiveActivityIndicator';
+import { ChatPresenceDock, ChatHeaderPresenceAvatar, GroupPresenceBar, pickGroupDockPeer } from './LiveActivityIndicator';
 import { SignedAvatar } from '@/components/ui/SignedAvatar';
 import { CallEventBubble } from './CallEventBubble';
 import { AIAssistButton } from './AIAssistButton';
@@ -362,6 +362,7 @@ export function ChatView() {
 
   const {
     peerPresence,
+    peerPresences,
     presentUsers,
     typingUsers,
     setTyping,
@@ -373,6 +374,11 @@ export function ChatView() {
   } = useChatPresence(
     conversationId,
     isGroupChat ? groupPeerIds : otherMember?.id,
+  );
+
+  const groupDockPeer = useMemo(
+    () => (isGroupChat ? pickGroupDockPeer(peerPresences) : null),
+    [isGroupChat, peerPresences],
   );
 
   const peerLastReadAt = usePeerLastReadAt(
@@ -1422,12 +1428,11 @@ export function ChatView() {
               )}
             </h2>
             {isGroupChat ? (
-              <button
-                onClick={() => setShowGroupInfo(true)}
-                className="text-[11px] sm:text-xs text-muted-foreground leading-tight hover:text-primary transition-colors"
-              >
-                {otherMembers.length + 1} members · Tap for info
-              </button>
+              <GroupPresenceBar
+                peers={peerPresences}
+                memberCount={otherMembers.length + 1}
+                onTapInfo={() => setShowGroupInfo(true)}
+              />
             ) : (
               <div className="flex flex-col gap-0.5 min-w-0">
                 <LivePresenceBar
@@ -1915,6 +1920,13 @@ export function ChatView() {
         </DMSafetyGate>
       ) : (
         <>
+          {isGroupChat && groupDockPeer && (
+            <ChatPresenceDock
+              avatarUrl={groupDockPeer.avatar_url}
+              username={groupDockPeer.username}
+              activity={groupDockPeer.activity}
+            />
+          )}
           {!isGroupChat && showPeerPresence && peerActivityUser && (
             <ChatPresenceDock
               avatarUrl={peerActivityUser.avatar_url ?? otherMember?.avatar_url}
@@ -2907,9 +2919,13 @@ const MessageBubble = memo(function MessageBubble({
           <span className="text-[10px] text-muted-foreground/50 font-light">
             {format(new Date(message.created_at), 'HH:mm')}
           </span>
-          {isOwn && !isGroupChat && (
+          {isOwn && (
             <SnapchatStatus
-              status={resolveOwnMessageStatus(message, { peerLastReadAt, failed })}
+              status={resolveOwnMessageStatus(message, {
+                peerLastReadAt: isGroupChat ? null : peerLastReadAt,
+                failed,
+                isGroupChat,
+              })}
               animate={false}
             />
           )}

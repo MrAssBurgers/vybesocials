@@ -1,4 +1,4 @@
-import { memo } from 'react';
+import { memo, useMemo } from 'react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useSignedUrl } from '@/hooks/useSignedUrl';
 import { cn } from '@/lib/utils';
@@ -172,3 +172,111 @@ export const ChatPresenceDock = memo(function ChatPresenceDock({
 });
 
 export const InlineActivityBubble = ChatPresenceDock;
+
+export interface GroupPresencePeer {
+  user_id: string;
+  username: string;
+  avatar_url: string | null;
+  display_name: string | null;
+  activity: ActivityType;
+}
+
+function formatName(peer: GroupPresencePeer): string {
+  return peer.display_name || peer.username || 'Someone';
+}
+
+/** Live subtitle for group chat headers — typing, in chat, or member count. */
+export const GroupPresenceBar = memo(function GroupPresenceBar({
+  peers,
+  memberCount,
+  onTapInfo,
+}: {
+  peers: GroupPresencePeer[];
+  memberCount: number;
+  onTapInfo?: () => void;
+}) {
+  const active = peers.filter((p) => p.activity !== 'idle');
+  const typing = active.filter((p) => p.activity === 'typing');
+  const inChat = active.filter((p) => p.activity === 'viewing' || p.activity === 'typing');
+
+  const subtitle = useMemo(() => {
+    if (typing.length === 1) {
+      return `${formatName(typing[0]!)} is typing…`;
+    }
+    if (typing.length > 1) {
+      return `${typing.length} people typing…`;
+    }
+    const snap = active.find(
+      (p) =>
+        p.activity === 'taking_photo' ||
+        p.activity === 'sending_vybe' ||
+        p.activity === 'recording_video',
+    );
+    if (snap) return `${formatName(snap)} is sending a Snap…`;
+    const upload = active.find(
+      (p) => p.activity === 'uploading_image' || p.activity === 'uploading_video',
+    );
+    if (upload) return `${formatName(upload)} is sending media…`;
+    if (inChat.length === 1) return `${formatName(inChat[0]!)} is in chat`;
+    if (inChat.length > 1) return `${inChat.length} in chat`;
+    return `${memberCount} members · Tap for info`;
+  }, [active, typing, inChat, memberCount]);
+
+  const showAvatars = inChat.length > 0 && typing.length === 0;
+
+  return (
+    <button
+      type="button"
+      onClick={onTapInfo}
+      className="flex items-center gap-2 text-[11px] sm:text-xs text-muted-foreground leading-tight hover:text-primary transition-colors min-w-0"
+    >
+      {showAvatars && (
+        <span className="flex -space-x-1.5 flex-shrink-0">
+          {inChat.slice(0, 3).map((peer) => (
+            <GroupPresenceAvatar key={peer.user_id} peer={peer} />
+          ))}
+        </span>
+      )}
+      <span className={cn('truncate', typing.length > 0 && 'text-primary font-medium')}>
+        {subtitle}
+      </span>
+    </button>
+  );
+});
+
+const GroupPresenceAvatar = memo(function GroupPresenceAvatar({
+  peer,
+}: {
+  peer: GroupPresencePeer;
+}) {
+  const signedUrl = useSignedUrl(peer.avatar_url);
+  return (
+    <Avatar className="h-5 w-5 ring-2 ring-background">
+      <AvatarImage src={signedUrl || undefined} className="object-cover" />
+      <AvatarFallback className="text-[8px] font-semibold bg-muted">
+        {formatName(peer).charAt(0).toUpperCase()}
+      </AvatarFallback>
+    </Avatar>
+  );
+});
+
+/** Pick the most interesting peer for the group composer presence dock. */
+export function pickGroupDockPeer(peers: GroupPresencePeer[]): GroupPresencePeer | null {
+  if (!peers.length) return null;
+  const priority: ActivityType[] = [
+    'typing',
+    'recording_voice',
+    'taking_photo',
+    'sending_vybe',
+    'uploading_image',
+    'uploading_video',
+    'recording_video',
+    'in_call',
+    'viewing',
+  ];
+  for (const activity of priority) {
+    const match = peers.find((p) => p.activity === activity);
+    if (match) return match;
+  }
+  return null;
+}

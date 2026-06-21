@@ -7,15 +7,16 @@ export function resolveOwnMessageStatus(
   options: {
     peerLastReadAt?: string | null;
     failed?: boolean;
+    isGroupChat?: boolean;
   } = {},
 ): MessageStatus {
-  const { peerLastReadAt, failed } = options;
+  const { peerLastReadAt, failed, isGroupChat } = options;
 
   if (failed) return 'sending';
   if (typeof message.id === 'string' && message.id.startsWith('temp-')) return 'sending';
 
   if (message.views && message.views.length > 0) return 'opened';
-  if (peerLastReadAt && message.created_at && message.created_at <= peerLastReadAt) {
+  if (!isGroupChat && peerLastReadAt && message.created_at && message.created_at <= peerLastReadAt) {
     return 'opened';
   }
 
