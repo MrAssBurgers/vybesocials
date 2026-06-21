@@ -14,7 +14,7 @@ import { shouldRefetchWhenEmpty, refetchListOnMount } from '@/lib/queryRefetchPo
 import { toast } from 'sonner';
 import { callSounds } from '@/lib/callSounds';
 import { enqueue as outboxEnqueue } from '@/lib/dmOutbox';
-import { ensureFlatConversationMembership, normalizeToProfileId, ensureConversationMembershipVariants, ensureConversationReady, prepareConversationForMessages, inferOtherParticipantId, isConversationMessagesReady } from '@/lib/dmMembershipRepair';
+import { ensureFlatConversationMembership, normalizeToProfileId, ensureConversationMembershipVariants, ensureConversationReady, prepareConversationForMessages, inferOtherParticipantId, isConversationMessagesReady, fetchMemberProfiles } from '@/lib/dmMembershipRepair';
 import { syncSessionProfileId } from '@/lib/resolveSessionProfileId';
 import { createDmChat } from '@/lib/firebase/chats';
 import { firebaseAuth } from '@/lib/firebase/authService';
@@ -266,6 +266,34 @@ const MESSAGE_SELECT_SLIM = `
   reactions:message_reactions(user_id, emoji)
 `;
 
+function enrichMessagesWithSenders(
+  messages: Message[],
+  profileByKey: Map<string, Record<string, unknown>>,
+): Message[] {
+  if (!messages.length || !profileByKey.size) return messages;
+  return messages.map((msg) => {
+    if (msg.sender?.username) return msg;
+    const profile = profileByKey.get(msg.sender_id);
+    if (!profile) return msg;
+    return {
+      ...msg,
+      sender: {
+        id: String(profile.id || msg.sender_id),
+        username: String(profile.username || ''),
+        avatar_url: (profile.avatar_url as string | null) ?? null,
+        display_name: (profile.display_name as string | null) ?? null,
+      },
+    };
+  });
+}
+
+async function enrichMessagesFromProfiles(messages: Message[]): Promise<Message[]> {
+  const senderIds = [...new Set(messages.map((m) => m.sender_id).filter(Boolean))];
+  if (!senderIds.length) return messages;
+  const profileByKey = await fetchMemberProfiles(senderIds);
+  return enrichMessagesWithSenders(messages, profileByKey);
+}
+
 function filterMessagesForViewer(messages: Message[], viewerId?: string): Message[] {
   return messages.filter((msg) => {
     if (msg.view_mode === 'view_once' && msg.media_type !== 'vybe' && msg.sender_id !== viewerId) {
@@ -351,6 +379,20 @@ export function useMessages(conversationId: string | undefined) {
         }).catch(() => {});
       }
 
+      if (!error && (!data || data.length === 0)) {
+        await prepareConversationForMessages(conversationId, resolvedActorId, otherProfileId, {
+          fast: false,
+        });
+        const retryEmpty = await fetchRecentConversationMessages<Message>(
+          conversationId,
+          MESSAGE_SELECT_SLIM,
+          50,
+        );
+        if (!retryEmpty.error && retryEmpty.data?.length) {
+          data = retryEmpty.data;
+        }
+      }
+
       if (error) {
         const cached = readMessagesCache(queryClient, conversationId);
         if (cached.length) {
@@ -363,7 +405,8 @@ export function useMessages(conversationId: string | undefined) {
       rows.reverse();
 
       const filtered = filterMessagesForViewer(rows, viewerId);
-      return mergePendingOptimisticMessages(queryClient, conversationId, filtered);
+      const enriched = await enrichMessagesFromProfiles(filtered);
+      return mergePendingOptimisticMessages(queryClient, conversationId, enriched);
     },
     enabled: !!conversationId && !!actorId,
     staleTime: 120_000,

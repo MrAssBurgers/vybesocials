@@ -17,6 +17,7 @@ import { useStreakMap, Streak } from '@/hooks/useStreaks';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { useConversationTyping } from '@/hooks/useConversationTyping';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { PresenceAvatar } from '@/components/chat/PresenceAvatar';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { TypingIndicator } from '@/components/ui/TypingIndicator';
@@ -630,13 +631,18 @@ const ConversationContent = memo(forwardRef<HTMLDivElement, any>(function Conver
                 {hasStory && (
                   <div className={`absolute inset-0 rounded-full ${storyGroup?.hasUnviewed ? 'bg-gradient-to-tr from-primary via-accent to-primary' : 'bg-muted-foreground/25'}`} />
                 )}
-                <Avatar className={`h-full w-full ${hasStory ? 'relative' : ''}`}>
-                  <AvatarImage src={avatarUrl || undefined} />
-                  <AvatarFallback className="text-sm font-semibold">{displayName?.charAt(0).toUpperCase()}</AvatarFallback>
-                </Avatar>
+                <PresenceAvatar
+                  src={avatarUrl}
+                  username={otherMember?.username}
+                  displayName={otherMember?.display_name}
+                  activity={isTyping ? 'typing' : 'idle'}
+                  size="lg"
+                  showOnlineDot
+                  isOnline={isOnline}
+                  className={hasStory ? 'relative h-full w-full' : undefined}
+                />
               </div>
             </AvatarRing>
-            <OnlineIndicator isOnline={isOnline} size="sm" className="absolute -bottom-0.5 -right-0.5" />
           </button>
         )}
         {isPinned && (

@@ -105,7 +105,7 @@ const NativeIncomingCallBridge = lazy(() => import("@/components/call/NativeInco
 const NativePushTokenBridge = lazy(() => import("@/components/notifications/NativePushTokenBridge").then(m => ({ default: m.NativePushTokenBridge })));
 // PushNotificationPrompt removed — was causing floating bell icon
 const GlobalMessageNotifications = lazy(() => import("@/components/notifications/GlobalMessageNotifications").then(m => ({ default: m.GlobalMessageNotifications })));
-const DespiaOneSignalSync = lazy(() => import("@/components/notifications/DespiaOneSignalSync").then(m => ({ default: m.DespiaOneSignalSync })));
+import { DespiaOneSignalSync } from "@/components/notifications/DespiaOneSignalSync";
 const NotificationActionRouter = lazy(() => import("@/components/notifications/NotificationActionRouter").then(m => ({ default: m.NotificationActionRouter })));
 const EnablePushPrompt = lazy(() => import("@/components/notifications/EnablePushPrompt").then(m => ({ default: m.EnablePushPrompt })));
 const SmartPingBridge = lazy(() => import("@/components/notifications/SmartPingBridge").then(m => ({ default: m.SmartPingBridge })));

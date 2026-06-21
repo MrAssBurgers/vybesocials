@@ -47,6 +47,19 @@ function isSenderMember(senderIds: Set<string>, memberUserId: string): boolean {
   return senderIds.has(memberUserId);
 }
 
+type PrefKey = 'dms_enabled' | 'calls_enabled' | 'comments_enabled' | 'likes_enabled' | 'follows_enabled';
+
+async function isPushEnabledForProfile(profileId: string, key: PrefKey): Promise<boolean> {
+  const snap = await db
+    .collection('notification_preferences')
+    .where('user_id', '==', profileId)
+    .limit(1)
+    .get();
+  if (snap.empty) return true;
+  const data = snap.docs[0].data();
+  return data[key] !== false;
+}
+
 async function notifyDmRecipients(message: Record<string, unknown>, messageId: string): Promise<void> {
   if (message.is_deleted === true) return;
   if (message.is_optimistic === true) return;
@@ -114,6 +127,9 @@ async function notifyDmRecipients(message: Record<string, unknown>, messageId: s
         created_at: new Date().toISOString(),
         read: false,
       });
+
+      const pushAllowed = await isPushEnabledForProfile(recipientProfileId, 'dms_enabled');
+      if (!pushAllowed) return;
 
       const pushResult = await dispatchDmPushToProfile(recipientProfileId, {
         title,
@@ -189,6 +205,9 @@ async function notifyCallRecipients(call: Record<string, unknown>, callId: strin
   await Promise.all(
     [...recipientIds].map(async (recipientId) => {
       const recipientProfileId = await resolvePushTargetProfileId(recipientId);
+      const pushAllowed = await isPushEnabledForProfile(recipientProfileId, 'calls_enabled');
+      if (!pushAllowed) return;
+
       const pushResult = await dispatchCallPushToProfile(recipientProfileId, {
         title,
         body,

@@ -2,6 +2,14 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## DMs Calls Presence Push perfection (2026-06-21)
+- **Call crash:** Fixed `initialMode is not defined` (TDZ bug); instant incoming ring stub + 500ms poll fallback.
+- **Presence:** New `PresenceAvatar` on chat header + conv list — typing ring, reading pulse, Snap camera badge; broadcast-first via `dmBroadcast`.
+- **Avatars/history:** `SignedAvatar` + sender profile enrichment; membership repair on empty message fetch; conv detail profile hydration.
+- **Push:** Eager `DespiaOneSignalSync`; OneSignal enabled on `vybe-daaab.web.app`; server respects `dms_enabled`/`calls_enabled`.
+- **Deployed:** Firebase hosting ~859KB + push functions
+- **You:** Lovable Publish for vybehub.app → enable push in Settings → test DM/call on two devices
+
 ## Chat crash hotfix (2026-06-21)
 - **Root cause:** `registeredConvoRef` used at line 176 before declared at line 356 → ReferenceError on every chat open → SmartErrorBoundary "Couldn't load Messages".
 - **Fix:** Moved `setCurrentConversationId` into `useEffect([conversationId])`; removed render-time ref access.

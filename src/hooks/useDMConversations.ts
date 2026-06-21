@@ -303,7 +303,28 @@ export function useConversationDetail(conversationId: string | undefined) {
       if (!effectiveProfileId) return fallback();
 
       const cached = findCachedConversation(effectiveProfileId);
-      if (cached?.members?.length) return cached;
+      if (cached?.members?.length && cached.members.some((m) => m.profile?.username)) {
+        return cached;
+      }
+
+      const enrichCachedMembers = async (base: DMConversation, memberIds: string[]) => {
+        const profileByKey = await fetchMemberProfiles(memberIds);
+        const members = memberIds.map((user_id) => ({
+          conversation_id: conversationId,
+          user_id,
+          role: 'member',
+          is_muted: false,
+          is_pinned: false,
+          last_read_at: null,
+          profile: profileByKey.get(user_id) || null,
+        }));
+        return { ...base, members } as DMConversation;
+      };
+
+      if (cached?.members?.length) {
+        const memberIds = cached.members.map((m) => m.user_id).filter(Boolean);
+        return enrichCachedMembers(cached, memberIds);
+      }
 
       try {
         const otherFromCached = cached?.members?.find(

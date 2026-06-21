@@ -29,6 +29,7 @@ export function useLiveActivity(conversationId: string | undefined) {
   const heartbeatRef = useRef<NodeJS.Timeout | null>(null);
   const activityRef = useRef<ActivityType>('idle');
   const lastActivityUpdateRef = useRef<number>(0);
+  const lastBroadcastAtRef = useRef<number>(0);
 
   // Set my current activity - fire-and-forget (non-blocking)
   const setActivity = useCallback((activity: ActivityType) => {
@@ -220,6 +221,7 @@ export function useLiveActivity(conversationId: string | undefined) {
     const unsubscribeActivity = subscribeDmBroadcastActivity(conversationId, (payload) => {
       if (!isMounted) return;
       if (payload.userId === profile.id) return;
+      lastBroadcastAtRef.current = Date.now();
       if (payload.activity === 'idle') {
         setOtherUserActivity(null);
         setIsOtherUserPresent(false);
@@ -235,11 +237,13 @@ export function useLiveActivity(conversationId: string | undefined) {
       setIsOtherUserPresent(true);
     });
 
-    // Fast heartbeat every 1.5 seconds for instant presence updates
+    // Fallback poll when broadcast silent — primary path is dmBroadcast (<100ms).
     heartbeatRef.current = setInterval(() => {
       joinPresence();
-      fetchActivity();
-    }, 1500);
+      if (Date.now() - lastBroadcastAtRef.current > 4000) {
+        fetchActivity();
+      }
+    }, 5000);
 
     const channel = subscribePostgresChannel(`live-activity:${conversationId}`, [
       {

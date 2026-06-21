@@ -260,7 +260,7 @@ export function CallStoreProvider({ children }: { children: ReactNode }) {
     setIncomingCallInternal(call);
   }, []);
 
-  // Process incoming call (shared by realtime + polling)
+  // Process incoming call (shared by realtime + polling) — ring instantly, enrich in background.
   const processIncomingCall = useCallback(async (newCall: any) => {
     if (newCall.status !== 'ringing') return;
     if (globalCallState.phase !== 'idle') return;
@@ -268,55 +268,80 @@ export function CallStoreProvider({ children }: { children: ReactNode }) {
 
     if (import.meta.env.DEV) console.log('[CallStore] Incoming call:', newCall.id);
 
-    const [callResult, conversationResult] = await Promise.all([
-      db
-        .from('calls')
-        .select(`
-          *,
-          caller:profiles!calls_caller_id_fkey(id, username, display_name, avatar_url),
-          receiver:profiles!calls_receiver_id_fkey(id, username, display_name, avatar_url)
-        `)
-        .eq('id', newCall.id)
-        .single(),
-      db
-        .from('conversations')
-        .select('id, name, avatar_url, is_group')
-        .eq('id', newCall.conversation_id)
-        .single()
-    ]);
+    const stubCaller: CallUser = {
+      id: String(newCall.caller_id || ''),
+      username: '',
+      display_name: null,
+      avatar_url: null,
+    };
+    const stubReceiver: CallUser = {
+      id: String(newCall.receiver_id || ''),
+      username: '',
+      display_name: null,
+      avatar_url: null,
+    };
 
-    const data = callResult.data;
-    const conversation = conversationResult.data;
+    const quickCall: CallData = {
+      id: String(newCall.id),
+      roomName: newCall.room_name || '',
+      livekitUrl: '',
+      token: '',
+      callType: (newCall.call_type as CallType) || 'audio',
+      callMode: (newCall.call_mode as CallMode) || 'persistent',
+      conversationId: String(newCall.conversation_id || ''),
+      caller: stubCaller,
+      receiver: stubReceiver,
+      isInitiator: false,
+      isGroupCall: Boolean(newCall.is_group_call),
+    };
 
-    if (data) {
-      if (globalCallState.phase !== 'idle' || globalIncomingCall) return;
+    if (globalCallState.phase !== 'idle' || globalIncomingCall) return;
+
+    setIncomingCall(quickCall);
+    premiumSounds.startRinging();
+    showCallNotification(stubCaller, quickCall.callType, quickCall.id, quickCall.isGroupCall);
+    void presentNativeIncomingCall(quickCall);
+
+    void (async () => {
+      const [callResult, conversationResult] = await Promise.all([
+        db
+          .from('calls')
+          .select(`
+            *,
+            caller:profiles!calls_caller_id_fkey(id, username, display_name, avatar_url),
+            receiver:profiles!calls_receiver_id_fkey(id, username, display_name, avatar_url)
+          `)
+          .eq('id', newCall.id)
+          .single(),
+        db
+          .from('conversations')
+          .select('id, name, avatar_url, is_group')
+          .eq('id', newCall.conversation_id)
+          .single(),
+      ]);
+
+      const data = callResult.data;
+      const conversation = conversationResult.data;
+      if (!data || globalIncomingCall?.id !== newCall.id) return;
 
       const isGroupCall = data.is_group_call || conversation?.is_group || false;
-      const groupName = conversation?.name || undefined;
-      const groupAvatar = conversation?.avatar_url || null;
-      const callMode = (data.call_mode as CallMode) || 'p2p';
-
-      const callData: CallData = {
+      const enriched: CallData = {
         id: data.id,
         roomName: data.room_name || '',
         livekitUrl: '',
         token: '',
         callType: data.call_type as CallType,
-        callMode,
+        callMode: (data.call_mode as CallMode) || 'persistent',
         conversationId: data.conversation_id,
-        caller: data.caller as CallUser,
-        receiver: data.receiver as CallUser,
+        caller: (data.caller as CallUser) || stubCaller,
+        receiver: (data.receiver as CallUser) || stubReceiver,
         isInitiator: false,
         isGroupCall,
-        groupName,
-        groupAvatar,
+        groupName: conversation?.name || undefined,
+        groupAvatar: conversation?.avatar_url || null,
       };
-
-      setIncomingCall(callData);
-      premiumSounds.startRinging();
-      showCallNotification(data.caller as CallUser, data.call_type as CallType, data.id, isGroupCall, groupName);
-      void presentNativeIncomingCall(callData);
-    }
+      setIncomingCall(enriched);
+    })();
   }, [setIncomingCall]);
 
   // Surface incoming call when user opens a call push / deep link before poll catches it.
@@ -399,7 +424,7 @@ export function CallStoreProvider({ children }: { children: ReactNode }) {
         if (import.meta.env.DEV) console.warn('[CallStore] Poll error:', err);
       }
 
-      pollTimeoutId = setTimeout(poll, isSubscribed ? 2500 : 800);
+      pollTimeoutId = setTimeout(poll, isSubscribed ? 2500 : 500);
     };
 
     pollTimeoutId = setTimeout(poll, 400);
@@ -649,6 +674,9 @@ export function CallStoreProvider({ children }: { children: ReactNode }) {
     try { stopCameraStream(); } catch {}
     try { clearWarmCallMedia(); } catch {}
 
+    // LiveKit by default — works through NAT/mobile networks (Instagram/Discord-style).
+    const initialMode: CallMode = 'persistent';
+
     // LiveKit acquires camera/mic itself — pre-warming blocks the caller's device.
     const warmupPromise =
       initialMode === 'persistent'
@@ -660,9 +688,6 @@ export function CallStoreProvider({ children }: { children: ReactNode }) {
 
     try {
       const roomName = `call-${params.conversationId}`;
-
-      // LiveKit by default — works through NAT/mobile networks (Instagram/Discord-style).
-      const initialMode: CallMode = 'persistent';
 
       let callSession: Record<string, unknown> | null = null;
       let callError: { message?: string; code?: string } | null = null;

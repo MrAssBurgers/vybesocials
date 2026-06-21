@@ -45,6 +45,17 @@ async function senderIdentityIds(senderId) {
 function isSenderMember(senderIds, memberUserId) {
     return senderIds.has(memberUserId);
 }
+async function isPushEnabledForProfile(profileId, key) {
+    const snap = await db
+        .collection('notification_preferences')
+        .where('user_id', '==', profileId)
+        .limit(1)
+        .get();
+    if (snap.empty)
+        return true;
+    const data = snap.docs[0].data();
+    return data[key] !== false;
+}
 async function notifyDmRecipients(message, messageId) {
     if (message.is_deleted === true)
         return;
@@ -108,6 +119,9 @@ async function notifyDmRecipients(message, messageId) {
             created_at: new Date().toISOString(),
             read: false,
         });
+        const pushAllowed = await isPushEnabledForProfile(recipientProfileId, 'dms_enabled');
+        if (!pushAllowed)
+            return;
         const pushResult = await dispatchDmPushToProfile(recipientProfileId, {
             title,
             body,
@@ -176,6 +190,9 @@ async function notifyCallRecipients(call, callId) {
     }
     await Promise.all([...recipientIds].map(async (recipientId) => {
         const recipientProfileId = await resolvePushTargetProfileId(recipientId);
+        const pushAllowed = await isPushEnabledForProfile(recipientProfileId, 'calls_enabled');
+        if (!pushAllowed)
+            return;
         const pushResult = await dispatchCallPushToProfile(recipientProfileId, {
             title,
             body,

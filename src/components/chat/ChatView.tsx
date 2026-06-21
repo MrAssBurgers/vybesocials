@@ -54,8 +54,9 @@ import { CallSettingsSheet } from '@/components/call/CallSettingsSheet';
 import { useChatPresence } from '@/hooks/useChatPresence';
 import { useLiveActivity } from '@/hooks/useLiveActivity';
 import { ChatPresenceIndicator } from './ChatPresenceIndicator';
-import { LivePresenceBar, SnapTypingBubble, ScreenshotAlert } from './SnapchatFeedback';
-import { LiveActivityIndicator, InlineActivityBubble } from './LiveActivityIndicator';
+import { LivePresenceBar, ScreenshotAlert } from './SnapchatFeedback';
+import { InlineActivityBubble } from './LiveActivityIndicator';
+import { PresenceAvatar } from './PresenceAvatar';
 import { AIAssistButton } from './AIAssistButton';
 import { SmartRepliesBar } from './SmartRepliesBar';
 import { ChatSummarySheet } from './ChatSummarySheet';
@@ -207,6 +208,14 @@ export function ChatView() {
   const isOtherInCamera =
     otherUserActivity?.activity === 'taking_photo' ||
     otherUserActivity?.activity === 'recording_video';
+
+  const otherPresenceActivity = useMemo((): import('./LiveActivityIndicator').ActivityType => {
+    if (isOtherTyping || otherUserActivity?.activity === 'typing') return 'typing';
+    if (isOtherInCamera) return 'taking_photo';
+    if (isOtherInChat || otherUserActivity?.activity === 'viewing') return 'viewing';
+    if (otherUserActivity?.activity === 'recording_voice') return 'recording_voice';
+    return 'idle';
+  }, [isOtherTyping, isOtherInChat, isOtherInCamera, otherUserActivity?.activity]);
   const { notifyScreenshot, notifyCapture, screenshotEvents: rawScreenshotEvents, isRecording } = useScreenshotNotification(conversationId);
   const screenshotEvents = Array.isArray(rawScreenshotEvents) ? rawScreenshotEvents : [];
   
@@ -1433,32 +1442,33 @@ export function ChatView() {
             className="relative flex-shrink-0 group"
             aria-label={isGroupChat ? "View group info" : "View profile"}
           >
-            <div className="relative h-8 w-8 sm:h-9 sm:w-9">
-              <div className="absolute inset-0 rounded-full ring-2 ring-primary/20 group-hover:ring-primary/50 transition-all" />
-              <Avatar className="h-full w-full group-active:scale-95 transition-transform">
-                {isGroupChat ? (
-                  conversation?.avatar_url ? (
+            {isGroupChat ? (
+              <div className="relative h-8 w-8 sm:h-9 sm:w-9">
+                <div className="absolute inset-0 rounded-full ring-2 ring-primary/20 group-hover:ring-primary/50 transition-all" />
+                <Avatar className="h-full w-full group-active:scale-95 transition-transform">
+                  {conversation?.avatar_url ? (
                     <AvatarImage src={conversation.avatar_url} />
                   ) : (
                     <AvatarFallback className="text-sm bg-gradient-to-br from-indigo-500 to-purple-600 text-white">
                       <Users className="h-4 w-4" />
                     </AvatarFallback>
-                  )
-                ) : (
-                  <>
-                    <AvatarImage src={otherMember?.avatar_url || undefined} />
-                    <AvatarFallback className="text-sm">{displayName?.charAt(0).toUpperCase()}</AvatarFallback>
-                  </>
-                )}
-              </Avatar>
-            </div>
-            {!isGroupChat && (
-              <OnlineIndicator isOnline={otherMemberOnline} size="sm" className="bottom-0 right-0" />
-            )}
-            {isGroupChat && (
-              <div className="absolute -bottom-0.5 -right-0.5 bg-primary text-primary-foreground text-[9px] font-bold w-5 h-5 flex items-center justify-center rounded-full border-2 border-background">
-                {otherMembers.length + 1}
+                  )}
+                </Avatar>
+                <div className="absolute -bottom-0.5 -right-0.5 bg-primary text-primary-foreground text-[9px] font-bold w-5 h-5 flex items-center justify-center rounded-full border-2 border-background">
+                  {otherMembers.length + 1}
+                </div>
               </div>
+            ) : (
+              <PresenceAvatar
+                src={otherMember?.avatar_url}
+                username={otherMember?.username}
+                displayName={otherMember?.display_name}
+                activity={otherPresenceActivity}
+                size="sm"
+                showOnlineDot
+                isOnline={otherMemberOnline}
+                className="group-active:scale-95 transition-transform"
+              />
             )}
           </button>
 
@@ -1496,7 +1506,7 @@ export function ChatView() {
               <div className="flex flex-col gap-0.5 min-w-0">
                 <LivePresenceBar
                   isOnline={otherMemberOnline}
-                  isTyping={isOtherTyping}
+                  isTyping={false}
                   isInChat={isOtherInChat && !isOtherTyping && !isOtherInCamera}
                   isInCamera={isOtherInCamera}
                   username={otherMember?.username}
@@ -1814,13 +1824,17 @@ export function ChatView() {
             )}
           </AnimatePresence>
 
-          {/* Live activity bubble - shows other user's PFP with activity */}
+          {/* Live activity bubble — viewing / Snap (typing shown on header avatar) */}
           <AnimatePresence>
-            {!isGroupChat && otherUserActivity && isOtherUserPresent && (
+            {!isGroupChat &&
+              otherUserActivity &&
+              isOtherUserPresent &&
+              otherPresenceActivity !== 'typing' &&
+              otherPresenceActivity !== 'idle' && (
               <InlineActivityBubble
                 avatarUrl={otherUserActivity.avatar_url}
                 username={otherUserActivity.username}
-                activity={otherUserActivity.activity}
+                activity={otherPresenceActivity}
               />
             )}
           </AnimatePresence>
@@ -1847,26 +1861,6 @@ export function ChatView() {
             />
           )}
 
-          {/* Inline typing bubble for 1:1 DMs - uses consolidated chat-presence channel */}
-          <AnimatePresence>
-            {!isGroupChat && typingUsers.length > 0 && otherMember && (
-              <motion.div
-                key="typing-bubble"
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: 5 }}
-                transition={{ duration: 0.2 }}
-                className="px-4 py-1"
-              >
-                <SnapTypingBubble
-                  avatarUrl={otherMember.avatar_url}
-                  username={otherMember.username || ''}
-                  displayName={otherMember.display_name}
-                  size="md"
-                />
-              </motion.div>
-            )}
-          </AnimatePresence>
 
           <div ref={messagesEndRef} className="h-1" />
         </div>
@@ -2365,17 +2359,20 @@ const MessageInputArea = memo(function MessageInputArea({
 // Signed avatar for message bubbles (storage URLs need signing)
 const BubbleAvatar = memo(function BubbleAvatar({
   sender,
+  activity,
 }: {
   sender?: Message['sender'];
+  activity?: import('./LiveActivityIndicator').ActivityType;
 }) {
-  const signedUrl = useSignedUrl(sender?.avatar_url);
   return (
-    <Avatar className="h-8 w-8 sm:h-9 sm:w-9 flex-shrink-0 ring-1 ring-background shadow-sm">
-      <AvatarImage src={signedUrl || sender?.avatar_url || undefined} />
-      <AvatarFallback className="text-xs">
-        {sender?.username?.charAt(0).toUpperCase() || '?'}
-      </AvatarFallback>
-    </Avatar>
+    <PresenceAvatar
+      src={sender?.avatar_url}
+      username={sender?.username}
+      displayName={sender?.display_name}
+      activity={activity}
+      size="sm"
+      className="h-8 w-8 sm:h-9 sm:w-9"
+    />
   );
 });
 
