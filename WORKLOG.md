@@ -2,6 +2,15 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## Phase 7 — List presence + clips media + secret audit (2026-06-17)
+- **DM list presence:** `useConversationListPresence` — Firestore live activity on sidebar rows (typing, In chat, In Snap, call, upload); `PresenceAvatar` + preview subtitle via `activityPreviewLabel`.
+- **Shared presence utils:** `src/lib/presenceActivity.ts` — `uiActivityFromState` + preview labels (deduped from `useChatPresence`).
+- **Clips media:** `ensureMediaUrlsReady()` in `signedUrlCache` — batch sign + Firebase `resolveMediaUrl` fallback; used by `ClipsViewer` + `useInfinitePosts`.
+- **Secret audit:** `npm run audit:secrets` checklist; `checkDebugSecrets` callable binds GEMINI/GIPHY/LIVEKIT/STRIPE/Spotify/OneSignal/Resend.
+- **Verified:** `npm run build` PASS; `audit:secrets` — STRIPE_SECRET_KEY missing (optional premium path).
+- **Deployed:** Firebase hosting + `checkDebugSecrets` on https://vybe-daaab.web.app
+- **You:** Lovable Publish → open DMs with friend online → verify list pills + clips feed; set STRIPE secret if checkout needed
+
 ## Phase 6 — Group polish + full GEMINI redeploy (2026-06-21)
 - **Group header:** `GroupPresenceBar` — live typing / in-chat / Snap activity under group title.
 - **Group dock:** Composer `ChatPresenceDock` for the most active group member (typing, Snap, upload, etc.).

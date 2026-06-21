@@ -277,6 +277,42 @@ export async function batchSignUrls(urls: (string | null | undefined)[]): Promis
 }
 
 /**
+ * Batch sign URLs then resolve stubborn legacy paths via Firebase Storage.
+ */
+export async function ensureMediaUrlsReady(urls: (string | null | undefined)[]): Promise<void> {
+  await batchSignUrls(urls);
+
+  const unique = [...new Set(urls.map((u) => normalizeMediaUrl(u)).filter(Boolean) as string[])];
+  if (unique.length === 0) return;
+
+  const needResolve = unique.filter((url) => {
+    if (needsSigning(url)) {
+      return isFailedUrl(url) || !getCachedSignedUrl(url);
+    }
+    if (url.includes('supabase.co') && !url.includes('/object/public/')) {
+      return !getCachedSignedUrl(url);
+    }
+    return false;
+  });
+
+  await Promise.all(
+    needResolve.map(async (url) => {
+      try {
+        const resolved = await firebaseStorage.resolveMediaUrl(url);
+        if (resolved?.startsWith('http')) {
+          cache.set(url, {
+            signedUrl: resolved,
+            expiresAt: Date.now() + CACHE_DURATION,
+          });
+        }
+      } catch {
+        // keep existing failed cache entry
+      }
+    }),
+  );
+}
+
+/**
  * Preload URLs for instant display
  * Call this during app initialization with known URLs
  */

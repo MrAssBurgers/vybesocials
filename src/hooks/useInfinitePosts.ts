@@ -2,7 +2,7 @@ import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query';
 import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth';
 import { useEffect, useRef } from 'react';
-import { batchSignUrls, getCachedSignedUrl, needsSigning } from '@/lib/signedUrlCache';
+import { getCachedSignedUrl, needsSigning, ensureMediaUrlsReady } from '@/lib/signedUrlCache';
 import { useBlockedUserIds } from '@/hooks/useBlockedUsers';
 import { refetchFeedOnMount } from '@/lib/queryRefetchPolicy';
 import { getEffectiveProfileId } from '@/lib/profileCache';
@@ -87,7 +87,7 @@ async function presignPostMedia(posts: Post[]): Promise<void> {
   }
   
   // Batch sign all URLs in one go
-  await batchSignUrls(urls);
+  await ensureMediaUrlsReady(urls);
 }
 
 /**

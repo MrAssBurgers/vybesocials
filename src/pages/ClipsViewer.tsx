@@ -13,7 +13,7 @@ import { useVideoPreload } from '@/hooks/useVideoPreload';
 import { useNetworkStatus } from '@/hooks/useNetworkStatus';
 import { useIsMobileOrTablet } from '@/hooks/use-mobile';
 import { cn } from '@/lib/utils';
-import { batchSignUrls } from '@/lib/signedUrlCache';
+import { ensureMediaUrlsReady } from '@/lib/signedUrlCache';
 import type { Post } from '@/hooks/useInfinitePosts';
 
 const PAGE_SIZE = 15;
@@ -49,7 +49,7 @@ async function presignPosts(posts: Post[]) {
     if (p.thumbnail_url) urls.push(p.thumbnail_url);
     if (p.author?.avatar_url) urls.push(p.author.avatar_url);
   }
-  await batchSignUrls(urls);
+  await ensureMediaUrlsReady(urls);
 }
 
 const CLIPS_PAGE_CLASS = 'vybe-clips-page';

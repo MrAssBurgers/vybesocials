@@ -16,6 +16,9 @@ import { useAcceptedFriendRequests, useDismissAcceptedRequest } from '@/hooks/us
 import { useStreakMap, Streak } from '@/hooks/useStreaks';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { useConversationTyping } from '@/hooks/useConversationTyping';
+import { useConversationListPresence } from '@/hooks/useConversationListPresence';
+import { activityPreviewLabel } from '@/lib/presenceActivity';
+import type { ActivityType } from '@/components/chat/LiveActivityIndicator';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { PresenceAvatar } from '@/components/chat/PresenceAvatar';
 import { Button } from '@/components/ui/button';
@@ -220,6 +223,7 @@ export function ConversationList() {
     [conversationIds],
   );
   const { isTyping: checkTyping } = useConversationTyping(typingConversationIds);
+  const peerActivityByConv = useConversationListPresence(allConversations, profileId, user?.id);
   
   const otherMemberIds = useMemo(() => {
     if (!allConversations.length || !profileId) return [];
@@ -404,6 +408,7 @@ export function ConversationList() {
                   usersRoles={usersRoles}
                   statusMap={statusMap}
                   isTypingFn={checkTyping}
+                  peerActivity={peerActivityByConv.get(conv.id)}
                   onClick={handleConversationClick}
                   onWarm={handleConversationWarm}
                   onTrash={handleTrashConversation}
@@ -422,6 +427,7 @@ export function ConversationList() {
                   usersRoles={usersRoles}
                   statusMap={statusMap}
                   isTypingFn={checkTyping}
+                  peerActivity={peerActivityByConv.get(conv.id)}
                   onClick={handleConversationClick}
                   onWarm={handleConversationWarm}
                   onTrash={handleTrashConversation}
@@ -592,7 +598,7 @@ const ConversationContent = memo(forwardRef<HTMLDivElement, any>(function Conver
   memberCount,
   formattedTime,
   isOnline,
-  isTyping,
+  peerActivity = 'idle',
   currentUserId,
   userRole,
   hasStory,
@@ -602,6 +608,9 @@ const ConversationContent = memo(forwardRef<HTMLDivElement, any>(function Conver
   streak,
   userStatus,
 }, _ref) {
+  const livePreview = activityPreviewLabel(peerActivity);
+  const showLiveActivity = peerActivity !== 'idle' && livePreview;
+
   return (
     <>
       <div className="relative flex-shrink-0">
@@ -636,7 +645,7 @@ const ConversationContent = memo(forwardRef<HTMLDivElement, any>(function Conver
                   src={avatarUrl}
                   username={otherMember?.username}
                   displayName={otherMember?.display_name}
-                  activity={isTyping ? 'typing' : 'idle'}
+                  activity={peerActivity}
                   size="lg"
                   showOnlineDot
                   isOnline={isOnline}
@@ -689,11 +698,15 @@ const ConversationContent = memo(forwardRef<HTMLDivElement, any>(function Conver
 
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-1 min-w-0 flex-1">
-            {isTyping ? (
-              <div className="flex items-center gap-1.5 text-primary">
-                <TypingIndicator size="sm" />
-                <span className="text-xs font-medium">typing…</span>
-              </div>
+            {showLiveActivity ? (
+              peerActivity === 'typing' ? (
+                <div className="flex items-center gap-1.5 text-primary">
+                  <TypingIndicator size="sm" />
+                  <span className="text-xs font-medium">{livePreview}</span>
+                </div>
+              ) : (
+                <p className="dm-convo-preview truncate text-primary font-medium">{livePreview}</p>
+              )
             ) : lastMessage ? (
               <>
                 {lastMessage.sender_id === currentUserId ? (
@@ -734,12 +747,12 @@ const ConversationContent = memo(forwardRef<HTMLDivElement, any>(function Conver
             ) : (otherMember as any)?.user_id ? (
               <NowPlayingInline authUserId={(otherMember as any).user_id} className="truncate dm-convo-preview" />
             ) : null}
-            {!isTyping && !lastMessage && userStatus && !(otherMember as any)?.user_id && (
+            {!showLiveActivity && !lastMessage && userStatus && !(otherMember as any)?.user_id && (
               <p className="dm-convo-preview truncate italic">
                 {userStatus.emoji} {userStatus.text}
               </p>
             )}
-            {!isTyping && !lastMessage && conversation.is_group && (
+            {!showLiveActivity && !lastMessage && conversation.is_group && (
               <p className="dm-convo-preview truncate">Say hi 👋</p>
             )}
           </div>
@@ -783,6 +796,7 @@ interface ConversationRowProps {
   usersRoles: Record<string, 'admin' | 'moderator' | 'owner' | null>;
   statusMap: Map<string, { emoji: string; text: string } | undefined>;
   isTypingFn: (id: string) => boolean;
+  peerActivity?: ActivityType;
   onClick: (id: string) => void;
   onWarm?: (id: string) => void;
   onTrash: (id: string) => void;
@@ -799,6 +813,7 @@ const ConversationRow = memo(function ConversationRow({
   usersRoles,
   statusMap,
   isTypingFn,
+  peerActivity: peerActivityProp,
   onClick,
   onWarm,
   onTrash,
@@ -816,13 +831,15 @@ const ConversationRow = memo(function ConversationRow({
   const handleClick = useCallback(() => onClick(conv.id), [onClick, conv.id]);
   const handleWarm = useCallback(() => onWarm?.(conv.id), [onWarm, conv.id]);
   const handleTrash = useCallback(() => onTrash(conv.id), [onTrash, conv.id]);
+  const peerActivity: ActivityType =
+    peerActivityProp ?? (isTypingFn(conv.id) ? 'typing' : 'idle');
   return (
     <ConversationItem
       conversation={conv}
       onClick={handleClick}
       onWarm={handleWarm}
       isOnline={otherMemberId ? onlineStatus[otherMemberId] : false}
-      isTyping={isTypingFn(conv.id)}
+      peerActivity={peerActivity}
       currentUserId={currentUserId}
       viewerAuthUid={viewerAuthUid}
       userRole={otherMemberId ? usersRoles[otherMemberId] : null}
@@ -841,7 +858,7 @@ interface ConversationItemProps {
   onClick: () => void;
   onWarm?: () => void;
   isOnline?: boolean;
-  isTyping?: boolean;
+  peerActivity?: ActivityType;
   currentUserId?: string;
   viewerAuthUid?: string;
   userRole?: 'admin' | 'moderator' | 'owner' | null;
@@ -858,7 +875,7 @@ const ConversationItem = memo(forwardRef<HTMLDivElement, ConversationItemProps>(
   onClick,
   onWarm,
   isOnline,
-  isTyping,
+  peerActivity = 'idle',
   currentUserId,
   viewerAuthUid,
   userRole,
@@ -1052,7 +1069,7 @@ const ConversationItem = memo(forwardRef<HTMLDivElement, ConversationItemProps>(
     memberCount,
     formattedTime,
     isOnline,
-    isTyping,
+    peerActivity,
     currentUserId,
     userRole,
     hasStory,

@@ -16,6 +16,7 @@ import {
   subscribeDmBroadcastActivity,
   type DmActivityPayload,
 } from '@/lib/dmBroadcast';
+import { uiActivityFromState } from '@/lib/presenceActivity';
 import type { ActivityType } from '@/components/chat/LiveActivityIndicator';
 
 export interface PeerPresence {
@@ -25,31 +26,6 @@ export interface PeerPresence {
   display_name: string | null;
   activity: ActivityType;
   is_online: boolean;
-}
-
-function uiActivityFromState(state: UserActivityState): ActivityType {
-  switch (state) {
-    case 'typing':
-      return 'typing';
-    case 'recording_voice':
-      return 'recording_voice';
-    case 'recording_video':
-      return 'recording_video';
-    case 'taking_photo':
-    case 'sending_vybe':
-      return 'taking_photo';
-    case 'uploading_image':
-      return 'uploading_image';
-    case 'uploading_video':
-      return 'uploading_video';
-    case 'in_call':
-      return 'in_call';
-    case 'viewing':
-    case 'online':
-      return 'viewing';
-    default:
-      return 'idle';
-  }
 }
 
 function broadcastActivity(
