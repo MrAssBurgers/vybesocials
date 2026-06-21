@@ -1,8 +1,12 @@
-import { useEffect, useRef, useCallback } from 'react';
+import { useEffect, useCallback } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { db } from '@/lib/firebase';
 import { subscribePostgresChannel, removeRealtimeChannel } from '@/lib/realtimeChannel';
 import { useAuth } from '@/lib/auth';
+import {
+  getSessionAuthUid,
+  markConversationReadForViewer,
+} from '@/lib/markConversationRead';
 
 /**
  * Mark conversation read + cross-device read sync.
@@ -12,13 +16,13 @@ import { useAuth } from '@/lib/auth';
 export function useInstantReadClear(conversationId: string | undefined) {
   const { profile } = useAuth();
   const queryClient = useQueryClient();
-  const hasMarkedReadRef = useRef<string | null>(null);
 
   const markAsRead = useCallback(async () => {
     if (!conversationId || !profile?.id) return;
-    if (hasMarkedReadRef.current === conversationId) return;
 
-    hasMarkedReadRef.current = conversationId;
+    const convUnread =
+      queryClient.getQueryData<any[]>(['dm-conversations', profile.id])
+        ?.find((c) => c.id === conversationId)?.unread_count ?? 0;
 
     const markReadPatch = (old: any[] | undefined) => {
       if (!old) return old;
@@ -32,18 +36,13 @@ export function useInstantReadClear(conversationId: string | undefined) {
     queryClient.setQueryData<any[]>(['dm-conversations', profile.id], markReadPatch);
     queryClient.setQueryData<any[]>(['conversations', profile.id], markReadPatch);
     queryClient.setQueryData<any[]>(['conversations'], markReadPatch);
-
-    const now = new Date().toISOString();
-    await db
-      .from('conversation_members')
-      .update({ last_read_at: now })
-      .eq('conversation_id', conversationId)
-      .eq('user_id', profile.id);
-
-    queryClient.setQueryData(['unread-messages-count', profile.id], (old: number | undefined) =>
-      Math.max(0, (old || 1) - 1),
+    queryClient.setQueryData<number>(
+      ['unread-messages-count', profile.id],
+      (prev) => (typeof prev === 'number' ? Math.max(0, prev - convUnread) : 0),
     );
-    queryClient.invalidateQueries({ queryKey: ['unread-messages-count', profile.id] });
+
+    const authUid = await getSessionAuthUid();
+    await markConversationReadForViewer(conversationId, profile.id, authUid);
   }, [conversationId, profile?.id, queryClient]);
 
   useEffect(() => {
@@ -55,7 +54,6 @@ export function useInstantReadClear(conversationId: string | undefined) {
   useEffect(() => {
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible' && conversationId) {
-        hasMarkedReadRef.current = null;
         markAsRead();
       }
     };

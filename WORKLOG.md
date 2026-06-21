@@ -2,6 +2,15 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## DMs media GIFs instant send read persistence (2026-06-21)
+- **Media/clips:** Public storage URLs load directly (no broken signing); Firebase `resolveMediaUrl` fallback when signed URL fails.
+- **GIFs:** `giphySearch` returns normalized `{ results, next }` (matches client); client normalizes legacy raw Giphy payloads too.
+- **Instant send:** Composer clears immediately on send (no await); bubble still optimistic.
+- **Unread badges:** `markConversationReadForViewer` writes `last_read_at` on profile + auth uid membership docs; unread count uses max `last_read_at` across duplicate rows.
+- **Verified:** `npm run build` PASS
+- **Deployed:** Git pending → Firebase hosting + `giphySearch` on https://vybe-daaab.web.app
+- **You:** Set `GIPHY_API_KEY` secret for GIF picker → Lovable Publish → hard refresh → test clips + DMs + badge after refresh
+
 ## ChatView presence TDZ hotfix (2026-06-21)
 - **Root cause:** Snap-camera `useEffect` referenced `setLiveTakingPhoto` / `setSendingVybe` before `useChatPresence()` defined them → TDZ `ReferenceError` → desktop "Couldn't load Messages" fallback.
 - **Fix:** Call `useChatPresence` right after `otherMember`; move snap-camera effect below hook destructuring.

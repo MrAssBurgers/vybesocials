@@ -17,6 +17,7 @@ import { ensureFlatConversationMembership, normalizeToProfileId, ensureConversat
 import { syncSessionProfileId } from '@/lib/resolveSessionProfileId';
 import { createDmChat } from '@/lib/firebase/chats';
 import { firebaseAuth } from '@/lib/firebase/authService';
+import { markConversationReadForViewer, getSessionAuthUid } from '@/lib/markConversationRead';
 
 export type ViewMode = 'view_once' | '24h' | 'permanent';
 
@@ -82,27 +83,49 @@ export function useUnreadMessagesCount() {
     queryFn: async () => {
       if (!profileId) return 0;
 
-      // Get conversations the user is part of
-      const { data: memberships } = await db
-        .from('conversation_members')
-        .select('conversation_id, last_read_at')
-        .eq('user_id', profileId);
+      const { data: { session } } = await db.auth.getSession();
+      const authUid = session?.user?.id ?? null;
 
-      if (!memberships?.length) return 0;
+      const membershipQueries = [
+        db
+          .from('conversation_members')
+          .select('conversation_id, last_read_at')
+          .eq('user_id', profileId),
+      ];
+      if (authUid && authUid !== profileId) {
+        membershipQueries.push(
+          db
+            .from('conversation_members')
+            .select('conversation_id, last_read_at')
+            .eq('user_id', authUid),
+        );
+      }
+
+      const membershipResults = await Promise.all(membershipQueries);
+      const membershipRows = membershipResults.flatMap((r) => r.data || []);
+      if (!membershipRows.length) return 0;
+
+      const lastReadByConv = new Map<string, string>();
+      for (const row of membershipRows) {
+        const cid = String(row.conversation_id);
+        const ts = row.last_read_at || '1970-01-01';
+        const prev = lastReadByConv.get(cid);
+        if (!prev || ts > prev) lastReadByConv.set(cid, ts);
+      }
 
       let totalUnread = 0;
-      for (const membership of memberships) {
-        const lastReadAt = membership.last_read_at || '1970-01-01';
+      for (const [conversationId, lastReadAt] of lastReadByConv) {
         const { data: messageRows } = await db
           .from('messages')
           .select('id, sender_id, created_at, is_deleted')
-          .eq('conversation_id', membership.conversation_id)
+          .eq('conversation_id', conversationId)
           .limit(200);
 
         totalUnread += (messageRows || []).filter(
           (m: { sender_id?: string; created_at?: string; is_deleted?: boolean }) =>
             !m.is_deleted &&
             m.sender_id !== profileId &&
+            m.sender_id !== authUid &&
             (m.created_at || '') > lastReadAt,
         ).length;
       }
@@ -1024,14 +1047,8 @@ export function useMarkConversationRead() {
   return useMutation({
     mutationFn: async (conversationId: string) => {
       if (!profile?.id) throw new Error('Not authenticated');
-
-      const { error } = await db
-        .from('conversation_members')
-        .update({ last_read_at: new Date().toISOString() })
-        .eq('conversation_id', conversationId)
-        .eq('user_id', profile.id);
-
-      if (error) throw error;
+      const authUid = await getSessionAuthUid();
+      await markConversationReadForViewer(conversationId, profile.id, authUid);
     },
     onSuccess: () => {
       invalidateConversationCaches(queryClient);
@@ -1079,13 +1096,8 @@ export function useMarkConversationReadByUser() {
       // Mark the first (most recent) DM conversation as read
       const conversationId = dmConversations[0].conversation_id;
 
-      const { error } = await db
-        .from('conversation_members')
-        .update({ last_read_at: new Date().toISOString() })
-        .eq('conversation_id', conversationId)
-        .eq('user_id', profile.id);
-
-      if (error) throw error;
+      const authUid = await getSessionAuthUid();
+      await markConversationReadForViewer(conversationId, profile.id, authUid);
     },
     onSuccess: () => {
       invalidateConversationCaches(queryClient);

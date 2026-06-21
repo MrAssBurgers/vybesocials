@@ -132,30 +132,57 @@ export const rateStickerContent = onCall(async (request) => {
     });
     return { ok: true };
 });
-/** giphy-search — proxy for Giphy; returns empty when API key missing. */
-export const giphySearch = onCall({ secrets: ['GIPHY_API_KEY'] }, async (request) => {
+/** giphy-search — proxy for Giphy; returns empty when GIPHY_API_KEY secret is unset. */
+export const giphySearch = onCall(async (request) => {
     requireAuth(request);
     const key = process.env.GIPHY_API_KEY;
-    const { query, endpoint = 'search', limit = 20 } = (request.data || {});
+    const { query, endpoint = 'search', limit = 30, offset = 0, rating = 'pg-13', } = (request.data || {});
     if (!key)
-        return { results: [] };
-    const lim = Math.min(Number(limit) || 20, 50);
-    const base = endpoint === 'trending'
-        ? `https://api.giphy.com/v1/gifs/trending?api_key=${key}&limit=${lim}&rating=pg-13`
-        : query
-            ? `https://api.giphy.com/v1/gifs/search?api_key=${key}&q=${encodeURIComponent(query)}&limit=${lim}&rating=pg-13`
-            : null;
-    if (!base)
-        return { results: [] };
+        return { results: [], next: 0 };
+    const lim = Math.min(Math.max(Number(limit) || 30, 1), 50);
+    const off = Math.max(Number(offset) || 0, 0);
+    const ratingRaw = typeof rating === 'string' ? rating.toLowerCase() : 'pg-13';
+    const safeRating = ['g', 'pg', 'pg-13', 'r'].includes(ratingRaw) ? ratingRaw : 'pg-13';
+    const params = new URLSearchParams({
+        api_key: key,
+        limit: String(lim),
+        offset: String(off),
+        rating: safeRating,
+        bundle: 'messaging_non_clips',
+    });
+    const ep = endpoint === 'trending' ? 'trending' : 'search';
+    if (ep === 'search') {
+        const q = typeof query === 'string' ? query.trim() : '';
+        if (!q)
+            return { results: [], next: 0 };
+        params.set('q', q.slice(0, 100));
+        params.set('lang', 'en');
+    }
     try {
-        const res = await fetch(base);
+        const res = await fetch(`https://api.giphy.com/v1/gifs/${ep}?${params.toString()}`);
         if (!res.ok)
-            return { results: [] };
+            return { results: [], next: 0 };
         const data = await res.json();
-        return { results: data.data || [] };
+        const items = Array.isArray(data?.data) ? data.data : [];
+        const results = items.map((g) => {
+            const imgs = (g.images || {});
+            const original = imgs.original?.url || '';
+            const fixedHeight = imgs.fixed_height?.url || imgs.fixed_height_small?.url || original;
+            const preview = imgs.fixed_height_small?.url || imgs.preview_gif?.url || fixedHeight;
+            return {
+                id: String(g.id),
+                title: g.title || '',
+                url: original,
+                previewUrl: preview,
+                mediumUrl: fixedHeight,
+            };
+        });
+        const pagination = data?.pagination || {};
+        const next = Number(pagination.offset || 0) + Number(pagination.count || results.length);
+        return { results, next };
     }
     catch {
-        return { results: [] };
+        return { results: [], next: 0 };
     }
 });
 /** fetch-pixabay-sounds — proxy. */

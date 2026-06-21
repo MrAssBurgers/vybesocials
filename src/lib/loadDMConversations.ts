@@ -9,7 +9,7 @@ import {
   buildConversationMembers,
   inferOtherUserIdFromConversation,
 } from '@/lib/dmMemberResolve';
-import { fetchMessagesForConversations } from '@/lib/conversationMessagesQuery';
+import { maxLastReadAt } from '@/lib/markConversationRead';
 
 export interface LoadedDMConversation extends Conversation {
   _sortTime: string;
@@ -93,11 +93,19 @@ async function loadDMConversationsOnce(
       return { data: stale, error: membershipError, profileId: effectiveProfileId };
     }
 
-    const membershipMap = new Map<string, any>();
+    const membershipMap = new Map<string, { last_read_at?: string | null; conversation_id: string }>();
     for (const row of membershipRows) {
-      if (!membershipMap.has(row.conversation_id)) {
-        membershipMap.set(row.conversation_id, row);
+      const cid = String(row.conversation_id);
+      const existing = membershipMap.get(cid);
+      if (!existing) {
+        membershipMap.set(cid, row);
+        continue;
       }
+      const best = maxLastReadAt([existing, row]);
+      membershipMap.set(cid, {
+        ...row,
+        last_read_at: best,
+      });
     }
     const userConversationIds = [...membershipMap.keys()];
 

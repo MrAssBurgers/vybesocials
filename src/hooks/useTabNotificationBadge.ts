@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { db } from '@/lib/firebase';
 import { subscribePostgresChannel, removeRealtimeChannel } from '@/lib/realtimeChannel';
 import { useAuthProfileId } from '@/hooks/useAuthProfileId';
+import { useUnreadMessagesCount } from '@/hooks/useMessages';
 
 /**
  * Discord/Snapchat-style Tab Notification Badge
@@ -13,49 +14,6 @@ import { useAuthProfileId } from '@/hooks/useAuthProfileId';
 
 const ORIGINAL_TITLE = 'VYBE';
 const MAX_DISPLAY_COUNT = 99;
-
-function useUnreadMessagesCount() {
-  const profileId = useAuthProfileId();
-
-  return useQuery({
-    queryKey: ['unread-messages-count', profileId],
-    queryFn: async () => {
-      if (!profileId) return 0;
-
-      const { data: memberships } = await db
-        .from('conversation_members')
-        .select('conversation_id, last_read_at')
-        .eq('user_id', profileId);
-
-      if (!memberships || memberships.length === 0) return 0;
-
-      let totalUnread = 0;
-
-      for (const membership of memberships) {
-        const query = db
-          .from('messages')
-          .select('id', { count: 'exact', head: true })
-          .eq('conversation_id', membership.conversation_id)
-          .neq('sender_id', profileId)
-          .is('deleted_at', null);
-
-        if (membership.last_read_at) {
-          query.gt('created_at', membership.last_read_at);
-        }
-
-        const { count } = await query;
-        totalUnread += count || 0;
-      }
-
-      return totalUnread;
-    },
-    enabled: !!profileId,
-    staleTime: 30000,
-    gcTime: 1000 * 60 * 5,
-    refetchInterval: 60000,
-    refetchOnWindowFocus: true,
-  });
-}
 
 function useUnreadNotificationsCount() {
   const profileId = useAuthProfileId();

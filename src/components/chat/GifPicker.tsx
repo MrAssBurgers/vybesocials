@@ -20,6 +20,30 @@ interface GiphyGif {
   mediumUrl: string;  // fixed-height
 }
 
+function normalizeGiphyItem(g: Record<string, unknown>): GiphyGif | null {
+  if (g.previewUrl && g.url) {
+    return {
+      id: String(g.id),
+      title: String(g.title || ''),
+      url: String(g.url),
+      previewUrl: String(g.previewUrl),
+      mediumUrl: String(g.mediumUrl || g.previewUrl),
+    };
+  }
+  const imgs = (g.images || {}) as Record<string, { url?: string }>;
+  const original = imgs.original?.url || '';
+  if (!original && !g.id) return null;
+  const fixedHeight = imgs.fixed_height?.url || imgs.fixed_height_small?.url || original;
+  const preview = imgs.fixed_height_small?.url || imgs.preview_gif?.url || fixedHeight;
+  return {
+    id: String(g.id),
+    title: String(g.title || ''),
+    url: original,
+    previewUrl: preview,
+    mediumUrl: fixedHeight,
+  };
+}
+
 interface GifPickerProps {
   onSelect: (gifUrl: string) => void;
   onClose: () => void;
@@ -52,8 +76,9 @@ export const GifPicker = memo(function GifPicker({ onSelect, onClose }: GifPicke
         },
       });
       if (error) throw error;
+      const raw = (data?.results || []) as Record<string, unknown>[];
       return {
-        gifs: (data?.results || []) as GiphyGif[],
+        gifs: raw.map(normalizeGiphyItem).filter((g): g is GiphyGif => g !== null),
         next: Number(data?.next || 0),
       };
     } catch (error) {

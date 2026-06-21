@@ -5,6 +5,7 @@
  */
 
 import { db } from '@/lib/firebase';
+import { firebaseStorage } from '@/lib/firebase/storageService';
 import { getSupabaseProjectRef } from '@/lib/supabaseStorageKey';
 import { normalizeMediaUrl } from '@/lib/mediaUrl';
 
@@ -62,13 +63,14 @@ function parseStorageUrl(url: string): { bucket: string; path: string } | null {
 }
 
 /**
- * Check if URL needs signing (is a Supabase storage URL from CURRENT project)
+ * Check if URL needs signing.
+ * Public bucket URLs load directly; only private/signed paths need a token.
  */
 export function needsSigning(url: string | null | undefined): boolean {
   if (!url) return false;
-  // Sign URLs from current or legacy project
-  const isStorageUrl = url.includes('/storage/v1/object/public/') || url.includes('/storage/v1/object/sign/');
-  return isStorageUrl && isProjectUrl(url);
+  if (url.startsWith('gs://') || url.includes('firebasestorage.googleapis.com')) return false;
+  if (url.includes('/storage/v1/object/public/')) return false;
+  return url.includes('/storage/v1/object/sign/') && isProjectUrl(url);
 }
 
 /**
@@ -113,13 +115,38 @@ export async function getSignedUrl(publicUrl: string): Promise<string | null> {
   const request = (async () => {
     try {
       const parsed = parseStorageUrl(url);
-      if (!parsed) return url;
+      if (!parsed) {
+        const resolved = await firebaseStorage.resolveMediaUrl(url);
+        if (resolved && resolved !== url && resolved.startsWith('http')) {
+          cache.set(url, {
+            signedUrl: resolved,
+            expiresAt: Date.now() + CACHE_DURATION,
+          });
+          return resolved;
+        }
+        return url.startsWith('http') ? url : null;
+      }
 
       const { data, error } = await db.storage
         .from(parsed.bucket)
         .createSignedUrl(parsed.path, 3600);
 
       if (error || !data?.signedUrl) {
+        const resolved = await firebaseStorage.resolveMediaUrl(url);
+        if (resolved && resolved.startsWith('http')) {
+          cache.set(url, {
+            signedUrl: resolved,
+            expiresAt: Date.now() + CACHE_DURATION,
+          });
+          return resolved;
+        }
+        if (url.includes('/storage/v1/object/public/')) {
+          cache.set(url, {
+            signedUrl: url,
+            expiresAt: Date.now() + CACHE_DURATION,
+          });
+          return url;
+        }
         cache.set(url, {
           signedUrl: url,
           expiresAt: Date.now() + FAILED_CACHE_DURATION,

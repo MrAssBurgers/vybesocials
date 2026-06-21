@@ -201,7 +201,7 @@ export function ChatView() {
   const screenshotEvents = Array.isArray(rawScreenshotEvents) ? rawScreenshotEvents : [];
   
   // v1.1: Instant read clear - marks as read immediately and clears badges
-  useInstantReadClear(conversationId);
+  const { markAsRead } = useInstantReadClear(conversationId);
   
   // Snapchat-style screen capture detection
   const { setActivelyViewingChat } = useScreenCapture({
@@ -328,7 +328,6 @@ export function ChatView() {
   const hasMarkedReadRef = useRef<Set<string>>(new Set());
   const prevMessageCountRef = useRef(0);
   const openedConversationRef = useRef<string | null>(null);
-  const lastReadSyncedForConversationRef = useRef<string | null>(null);
   const messageNotifsClearedForConversationRef = useRef<string | null>(null);
   
 
@@ -392,66 +391,26 @@ export function ChatView() {
   // Check if user has a business profile for sending offers
   const { data: userBusiness } = useUserBusiness();
 
-  // Clear message notifications + clear the unread badge when opening a conversation
+  // Clear bell notifications from this thread's senders (read state handled by useInstantReadClear)
   useEffect(() => {
     if (!profileId || !conversationId) return;
+    if (messageNotifsClearedForConversationRef.current === conversationId) return;
+    if (otherMembers.length === 0) return;
 
-    // Update last_read_at for unread badge
-    if (lastReadSyncedForConversationRef.current !== conversationId) {
-      lastReadSyncedForConversationRef.current = conversationId;
+    messageNotifsClearedForConversationRef.current = conversationId;
+    const otherMemberIds = otherMembers.map((m) => m.user_id);
 
-      db
-        .from('conversation_members')
-        .update({ last_read_at: new Date().toISOString() })
-        .eq('conversation_id', conversationId)
-        .eq('user_id', profileId)
-        .then(({ error }) => {
-          if (error) {
-            console.error('Failed to set last_read_at:', error);
-            return;
-          }
-          // Patch list caches in-place — invalidating refetches the whole DM list
-          // and causes visible flicker while reading a thread.
-          const convUnread =
-            queryClient.getQueryData<any[]>(['dm-conversations', profileId])
-              ?.find((c) => c.id === conversationId)?.unread_count ?? 0;
-          const patchLists = (old: any[] | undefined) => {
-            if (!old) return old;
-            return old.map((c) =>
-              c.id === conversationId
-                ? { ...c, unread_count: 0, _hasUnread: false }
-                : c,
-            );
-          };
-          queryClient.setQueryData(['dm-conversations', profileId], patchLists);
-          queryClient.setQueryData(['conversations', profileId], patchLists);
-          queryClient.setQueryData<number>(
-            ['unread-messages-count', profileId],
-            (prev) => (typeof prev === 'number' ? Math.max(0, prev - convUnread) : 0),
-          );
-        });
-    }
-
-    // Clear message notifications from senders in this conversation
-    if (messageNotifsClearedForConversationRef.current !== conversationId && otherMembers.length > 0) {
-      messageNotifsClearedForConversationRef.current = conversationId;
-
-      // Get all member IDs from this conversation (excluding current user)
-      const otherMemberIds = otherMembers.map(m => m.user_id);
-
-      // Clear notifications from these specific users
-      db
-        .from('notifications')
-        .update({ read: true })
-        .eq('user_id', profileId)
-        .eq('type', 'message')
-        .eq('read', false)
-        .in('actor_id', otherMemberIds)
-        .then(() => {
-          queryClient.invalidateQueries({ queryKey: ['notifications'] });
-          queryClient.invalidateQueries({ queryKey: ['unread-notifications'] });
-        });
-    }
+    db
+      .from('notifications')
+      .update({ read: true })
+      .eq('user_id', profileId)
+      .eq('type', 'message')
+      .eq('read', false)
+      .in('actor_id', otherMemberIds)
+      .then(() => {
+        queryClient.invalidateQueries({ queryKey: ['notifications'] });
+        queryClient.invalidateQueries({ queryKey: ['unread-notifications'] });
+      });
   }, [conversationId, profileId, queryClient, otherMembers]);
 
   // Auto-mark messages as read (EXCEPT VYBEs which require explicit tap-to-view)
@@ -476,7 +435,9 @@ export function ChatView() {
       hasMarkedReadRef.current.add(msg.id);
       markViewed.mutate(msg.id);
     });
-  }, [messages, profileId, conversationId, markViewed]);
+
+    void markAsRead();
+  }, [messages, profileId, conversationId, markViewed, markAsRead]);
 
   // Save chat scroll position on unmount (clips viewer return path).
   useEffect(() => {
@@ -656,7 +617,7 @@ export function ChatView() {
     handleInputChange(next);
   }, [writeInputDom, handleInputChange]);
 
-  const handleSend = useCallback(async () => {
+  const handleSend = useCallback(() => {
     const raw = messageTextRef.current;
     if (!raw.trim() || !conversationId) return;
 
@@ -680,26 +641,21 @@ export function ChatView() {
     const replyId = replyingTo?.id;
     setReplyingTo(null);
 
-    try {
-      await sendText(text, viewMode, replyId, () => {
-        messageTextRef.current = '';
-        writeInputDom('');
-        setHasText(false);
-        setTyping(false);
-      });
-      // Bump reaction streak with recipient (for DMs only)
+    // Clear composer immediately — don't wait for server round-trip.
+    messageTextRef.current = '';
+    writeInputDom('');
+    setHasText(false);
+    setTyping(false);
+
+    void sendText(text, viewMode, replyId).then(() => {
       if (!isGroupChat && otherMember?.id) {
         bumpStreak(otherMember.id);
       }
-    } catch (err) {
-      // Restore the unsent text so the user doesn't lose what they typed.
+    }).catch(() => {
       messageTextRef.current = text;
       writeInputDom(text);
       setHasText(true);
-      if (replyId) {
-        // Best-effort: nothing to restore reliably here, replyingTo was cleared.
-      }
-    }
+    });
   }, [conversationId, viewMode, replyingTo, setTyping, sendText, editingMessageId, editMessage, isGroupChat, otherMember?.id, bumpStreak, writeInputDom]);
 
 

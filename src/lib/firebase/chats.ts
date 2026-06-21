@@ -14,6 +14,7 @@ import {
   findExistingDmBetweenProfiles,
   ensureDmMembershipPair,
 } from '@/lib/dmMembershipRepair';
+import { markConversationReadForViewer, getSessionAuthUid } from '@/lib/markConversationRead';
 import type { ChatDocument } from './types';
 
 export interface ChatWithMembers extends ChatDocument {
@@ -138,7 +139,6 @@ export async function updateChat(chatId: string, updates: Partial<ChatDocument>)
 }
 
 export async function markChatRead(chatId: string, userId: string): Promise<void> {
-  await updateDocument('conversation_members', `${chatId}_${userId}`, {
-    last_read_at: new Date().toISOString(),
-  });
+  const authUid = await getSessionAuthUid();
+  await markConversationReadForViewer(chatId, userId, authUid);
 }

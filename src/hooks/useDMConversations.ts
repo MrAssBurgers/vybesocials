@@ -16,6 +16,7 @@ import {
 import { refetchListOnMount } from '@/lib/queryRefetchPolicy';
 import { resolveSessionProfileId, syncSessionProfileId } from '@/lib/resolveSessionProfileId';
 import { withTimeout } from '@/lib/withTimeout';
+import { markConversationReadForViewer, getSessionAuthUid } from '@/lib/markConversationRead';
 import {
   fetchMemberProfiles,
   resolveDmActorIds,
@@ -415,14 +416,8 @@ export function useMarkConversationRead() {
   return useMutation({
     mutationFn: async (conversationId: string) => {
       if (!profileId) return;
-
-      const { error } = await db
-        .from('conversation_members')
-        .update({ last_read_at: new Date().toISOString() })
-        .eq('conversation_id', conversationId)
-        .eq('user_id', profileId);
-
-      if (error) throw error;
+      const authUid = await getSessionAuthUid();
+      await markConversationReadForViewer(conversationId, profileId, authUid);
     },
     onSuccess: (_data, conversationId) => {
       if (!profileId) return;
