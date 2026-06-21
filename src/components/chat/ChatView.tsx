@@ -160,6 +160,12 @@ export function ChatView() {
   const { data: conversation, isPending: conversationPending, isFetched: conversationFetched, isError: conversationError } = useConversationDetail(conversationId);
   const { data: messages, isPending: messagesPending, isFetched: messagesFetched, isError: messagesError, refetch: refetchMessages } = useMessages(conversationId);
   const { sendText, sendMedia, sendVideo, retry: retryMessage, removeMessage, videoUploadProgress } = useInstantSend(conversationId);
+
+  // Register current conversation for global realtime updates
+  useEffect(() => {
+    setCurrentConversationId(conversationId || null);
+    return () => setCurrentConversationId(null);
+  }, [conversationId]);
   
   // Batch preload all media URLs for instant rendering
   useEffect(() => {
@@ -171,18 +177,6 @@ export function ChatView() {
       import('@/lib/signedUrlCache').then(({ batchSignUrls }) => batchSignUrls(mediaUrls));
     }
   }, [messages]);
-  
-  // Register current conversation for global realtime updates (sync — before paint)
-  if (conversationId !== registeredConvoRef.current) {
-    registeredConvoRef.current = conversationId || null;
-    setCurrentConversationId(conversationId || null);
-  }
-  useEffect(() => {
-    return () => {
-      registeredConvoRef.current = null;
-      setCurrentConversationId(null);
-    };
-  }, []);
   
   // Enable realtime sync for this specific conversation (reactions, views, etc.)
   useRealtimeMessages(conversationId);
@@ -353,7 +347,6 @@ export function ChatView() {
   const hasMarkedReadRef = useRef<Set<string>>(new Set());
   const prevMessageCountRef = useRef(0);
   const openedConversationRef = useRef<string | null>(null);
-  const registeredConvoRef = useRef<string | null>(null);
   const lastReadSyncedForConversationRef = useRef<string | null>(null);
   const messageNotifsClearedForConversationRef = useRef<string | null>(null);
   
