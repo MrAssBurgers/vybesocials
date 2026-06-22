@@ -176,67 +176,76 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
     agreedToTerms,
   );
 
+  const runOAuthSignIn = useCallback(async (provider: 'google' | 'apple') => {
+    setLoading(true);
+    try {
+      sessionStorage.setItem('vybe-oauth-pending', 'true');
+      sessionStorage.removeItem('vybe-oauth-error');
+      const preferRedirect = isNativeAppShell() || isMobileOrTabletDevice();
+      const { firebaseAuth } = await import('@/lib/firebase');
+      const baseOpts =
+        provider === 'google'
+          ? { extraParams: { prompt: 'select_account' as const }, useRedirect: preferRedirect }
+          : { useRedirect: preferRedirect };
 
-  // Safety: if OAuth pending flag is set but session never establishes,
-  // clear the flag after 5s OR when the user navigates back (page regains focus)
+      let { error, redirected } = await firebaseAuth.signInWithOAuth(provider, baseOpts);
+      if (redirected) return;
+      if (
+        error &&
+        !preferRedirect &&
+        (error.name === 'auth/popup-blocked' || error.name === 'auth/popup-closed-by-user')
+      ) {
+        ({ error, redirected } = await firebaseAuth.signInWithOAuth(provider, {
+          ...baseOpts,
+          useRedirect: true,
+        }));
+        if (redirected) return;
+      }
+      if (error) throw error;
+      await db.rpc('claim_profile_by_email');
+    } catch (error: unknown) {
+      sessionStorage.removeItem('vybe-oauth-pending');
+      const msg = getUserFriendlyError(error);
+      if (msg !== '__SUPPRESS__') toast.error(msg);
+    } finally {
+      if (!sessionStorage.getItem('vybe-oauth-pending')) {
+        setLoading(false);
+      }
+    }
+  }, []);
+
+  // Firebase OAuth redirect does not put tokens in the URL hash — wait for auth to settle.
   useEffect(() => {
     if (!isOAuthReturn) return;
-    
-    // If user arrives (session established), clear immediately
+
     if (user) {
       sessionStorage.removeItem('vybe-oauth-pending');
+      sessionStorage.removeItem('vybe-oauth-error');
       setIsOAuthReturn(false);
       return;
     }
 
-    const clearOAuth = () => {
-      console.log('[Landing] OAuth pending cleared');
+    const oauthError = sessionStorage.getItem('vybe-oauth-error');
+    if (oauthError && authReady) {
+      sessionStorage.removeItem('vybe-oauth-pending');
+      sessionStorage.removeItem('vybe-oauth-error');
+      setIsOAuthReturn(false);
+      setLoading(false);
+      toast.error(oauthError);
+      return;
+    }
+
+    if (!authReady) return;
+
+    const failTimer = setTimeout(() => {
       sessionStorage.removeItem('vybe-oauth-pending');
       setIsOAuthReturn(false);
       setLoading(false);
-    };
+      toast.error('Sign-in did not complete. Please try again.');
+    }, 15000);
 
-    // When user hits "back" from OAuth page, the page regains visibility
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible') {
-        // Small delay to let auth state settle if tokens are coming
-        setTimeout(() => {
-          if (!sessionStorage.getItem('vybe-oauth-pending')) return;
-          // Check if we still have no user after returning
-          const hash = window.location.hash;
-          const hasTokens = hash.includes('access_token') || hash.includes('refresh_token');
-          if (!hasTokens) {
-            clearOAuth();
-          }
-        }, 1500);
-      }
-    };
-
-    // Also handle popstate (browser back button)
-    const handlePopState = () => {
-      setTimeout(() => {
-        const hash = window.location.hash;
-        const hasTokens = hash.includes('access_token') || hash.includes('refresh_token');
-        if (!hasTokens) {
-          clearOAuth();
-        }
-      }, 500);
-    };
-
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    window.addEventListener('pageshow', handleVisibilityChange);
-    window.addEventListener('popstate', handlePopState);
-    
-    // Fallback timeout reduced to 5s
-    const timer = setTimeout(clearOAuth, 5000);
-    
-    return () => {
-      clearTimeout(timer);
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-      window.removeEventListener('pageshow', handleVisibilityChange);
-      window.removeEventListener('popstate', handlePopState);
-    };
-  }, [isOAuthReturn, user]);
+    return () => clearTimeout(failTimer);
+  }, [isOAuthReturn, user, authReady]);
 
   // Redirect if already logged in AND has completed onboarding
   // First-time users (even if authenticated) should see intro if not completed
@@ -776,27 +785,7 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
                   type="button"
                   variant="outline"
                   className="w-full h-8 bg-secondary/20 border-white/10 hover:bg-secondary/35 text-[11px] font-normal px-2"
-                  onClick={async () => {
-                    setLoading(true);
-                    try {
-                      sessionStorage.setItem('vybe-oauth-pending', 'true');
-                      const preferRedirect = isNativeAppShell() || isMobileOrTabletDevice();
-                      const { firebaseAuth } = await import('@/lib/firebase');
-                      const { error, redirected } = await firebaseAuth.signInWithOAuth('google', {
-                        extraParams: { prompt: 'select_account' },
-                        useRedirect: preferRedirect,
-                      });
-                      if (redirected) return;
-                      if (error) throw error;
-                      await db.rpc('claim_profile_by_email');
-                      navigate(resolvePostLoginDestination(profile), { replace: true });
-                    } catch (error: any) {
-                      const msg = getUserFriendlyError(error);
-                      if (msg !== '__SUPPRESS__') toast.error(msg);
-                    } finally {
-                      setLoading(false);
-                    }
-                  }}
+                  onClick={() => void runOAuthSignIn('google')}
                   disabled={loading}
                 >
                   <svg className="w-3.5 h-3.5 mr-1 shrink-0" viewBox="0 0 24 24" aria-hidden>
@@ -812,26 +801,7 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
                   type="button"
                   variant="outline"
                   className="w-full h-8 bg-secondary/20 border-white/10 hover:bg-secondary/35 text-[11px] font-normal px-2"
-                  onClick={async () => {
-                    setLoading(true);
-                    try {
-                      sessionStorage.setItem('vybe-oauth-pending', 'true');
-                      const preferRedirect = isNativeAppShell() || isMobileOrTabletDevice();
-                      const { firebaseAuth } = await import('@/lib/firebase');
-                      const { error, redirected } = await firebaseAuth.signInWithOAuth('apple', {
-                        useRedirect: preferRedirect,
-                      });
-                      if (redirected) return;
-                      if (error) throw error;
-                      await db.rpc('claim_profile_by_email');
-                      navigate(resolvePostLoginDestination(profile), { replace: true });
-                    } catch (error: any) {
-                      const msg = getUserFriendlyError(error);
-                      if (msg !== '__SUPPRESS__') toast.error(msg);
-                    } finally {
-                      setLoading(false);
-                    }
-                  }}
+                  onClick={() => void runOAuthSignIn('apple')}
                   disabled={loading}
                 >
                   <svg className="w-3.5 h-3.5 mr-1 shrink-0" viewBox="0 0 24 24" fill="currentColor" aria-hidden>

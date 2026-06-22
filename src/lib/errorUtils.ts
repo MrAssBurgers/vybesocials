@@ -6,11 +6,32 @@ export function getUserFriendlyError(error: any): string {
   const message = error?.message || error?.toString() || '';
   
   // OAuth popup errors (mobile browsers can't reliably use popups)
-  if (message.includes('Sign in was cancelled')) {
+  if (
+    message.includes('Sign in was cancelled') ||
+    error?.code === 'auth/popup-closed-by-user' ||
+    error?.name === 'auth/popup-closed-by-user'
+  ) {
     return '__SUPPRESS__'; // Not a real error — user closed popup or mobile suspended tab
   }
-  if (message.includes('Popup was blocked')) {
+  if (
+    message.includes('Popup was blocked') ||
+    error?.code === 'auth/popup-blocked' ||
+    error?.name === 'auth/popup-blocked'
+  ) {
     return 'Pop-up blocked. Try opening the app in a new browser tab to sign in.';
+  }
+  if (
+    error?.code === 'auth/unauthorized-domain' ||
+    error?.name === 'auth/unauthorized-domain' ||
+    message.includes('unauthorized-domain')
+  ) {
+    return 'This site is not authorized for Google sign-in yet. Try vybe-daaab.web.app or contact support.';
+  }
+  if (
+    error?.code === 'auth/account-exists-with-different-credential' ||
+    error?.name === 'auth/account-exists-with-different-credential'
+  ) {
+    return 'An account already exists with this email using a different sign-in method. Try email/password or the method you used originally.';
   }
   
   // Authentication errors
@@ -46,6 +67,13 @@ export function getUserFriendlyError(error: any): string {
   }
   if (message.toLowerCase().includes('invalid') && message.toLowerCase().includes('email')) {
     return 'That email address looks invalid. Double-check it and try again.';
+  }
+  if (
+    message.includes('Password reset email is not configured') ||
+    message.includes('Failed to send password reset email') ||
+    (error?.code === 'failed-precondition' && message.toLowerCase().includes('password reset'))
+  ) {
+    return "We couldn't send the reset email right now. Please try again in a moment or contact support.";
   }
   if (
     message.includes('auth/invalid-continue-uri') ||

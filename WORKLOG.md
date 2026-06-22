@@ -2,6 +2,20 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## Password reset fix (2026-06-22)
+- **Symptom:** "Send Reset Link" failed with generic error.
+- **Root cause:** Cloud Function `requestPasswordReset` crashed — `recovery.html` (and other email templates) live in `functions/src/` but `tsc` never copied them to `lib/`, so production threw `ENOENT` on send.
+- **Fix:** `functions/scripts/copy-static-assets.mjs` + `npm run build` copies `*.html` into `lib/_shared/emailTemplates/`; redeployed `requestPasswordReset`.
+- **Verified:** Callable returns `{ ok: true }` for real email (was `INTERNAL` before deploy).
+- **You:** Test Forgot password on login; check inbox/spam for branded VYBE email from `no-reply@vybehub.app`.
+
+- **Symptom:** Google OAuth failed or bounced back to login (especially mobile redirect).
+- **Root cause:** `Landing.tsx` cleared `vybe-oauth-pending` when URL hash lacked Supabase `access_token` — Firebase redirect never uses hash tokens, so spinner/login loop before `getRedirectResult()` finished.
+- **Fix:** Wait for `authReady` + user (15s timeout); surface `vybe-oauth-error` from `auth.tsx` redirect handler; popup-blocked → redirect fallback; clearer Firebase auth error messages in `errorUtils`.
+- **Files:** `src/pages/Landing.tsx`, `src/lib/auth.tsx`, `src/lib/errorUtils.ts`
+- **Verified:** `npm run build` PASS
+- **You:** Test Google on mobile Safari + desktop; ensure `vybehub.app` is in Firebase Auth authorized domains; Lovable Publish for vybehub.app
+
 ## Phase 4 QA — DMs, calls, notifications (2026-06-22)
 - **Automated:** `test:conversation-load` 15/15 PASS, `test:dm-send` 3/3 PASS, `test:social-permissions` 15/15 PASS
 - **Cloud Functions (vybe-daaab):** `sendDmMessage`, `startDmCall`, `livekitToken`, `giphySearch`, `aiSmartReplies` deployed (400/403 without auth = expected)

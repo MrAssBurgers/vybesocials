@@ -804,7 +804,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       try {
         const { firebaseAuth } = await import('@/lib/firebase/authService');
         const redirect = await firebaseAuth.completeOAuthRedirectIfNeeded();
-        if (redirect.data.session?.user) {
+        if (redirect.error) {
+          console.warn('[Auth] Firebase OAuth redirect failed:', redirect.error);
+          const { getUserFriendlyError } = await import('@/lib/errorUtils');
+          const msg = getUserFriendlyError(redirect.error);
+          if (msg !== '__SUPPRESS__') {
+            sessionStorage.setItem('vybe-oauth-error', msg);
+          }
+        } else if (redirect.data.session?.user) {
           const oauthSession = redirect.data.session;
           setWasLoggedIn(true);
           setSession(oauthSession);
@@ -824,6 +831,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
       } catch (err) {
         console.warn('[Auth] Firebase OAuth redirect handling failed:', err);
+        const { getUserFriendlyError } = await import('@/lib/errorUtils');
+        const msg = getUserFriendlyError(err);
+        if (msg !== '__SUPPRESS__') {
+          sessionStorage.setItem('vybe-oauth-error', msg);
+        }
       }
 
       const extracted = await extractHashTokens();
