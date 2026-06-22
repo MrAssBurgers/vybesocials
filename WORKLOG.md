@@ -2,13 +2,19 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## DM conversation import — all users (2026-06-22)
+- **Script:** `npm run migrate:firebase:import-dms` (`scripts/migrate-firebase/import-all-dm-conversations.mjs`)
+- **Ran live:** 56 conversations reconciled; 56 new membership rows (auth uid variants); 149 updated; 0 users with messages missing membership
+- **Firestore totals:** 226 conversation_members, 56 conversations, 890 messages
+- **You:** Hard refresh DMs on phone — every user who ever chatted should see their threads
+
 ## Notifications mobile crash fix (2026-06-17)
 - **Symptom:** Tapping bell / Alerts on mobile showed route error boundary "This page couldn't load".
 - **Root cause:** Render crashes on `/notifications` — unsafe `n.actor.id` in grouping, avatar `username[0].toUpperCase()` on empty names, `formatDistanceToNow` on Firestore Timestamp / invalid `created_at`.
 - **Fix:** `src/lib/parseApiDate.ts`; normalize dates in `useNotifications`; hardened `groupNotifications`, avatar fallbacks, `SmartPingCard` date label.
 - **Verified:** `npm run build` PASS
 - **Deployed:** Firebase hosting https://vybe-daaab.web.app
-- **Git:** pushed to `main` — ready for Lovable Publish
+- **Git:** `5f3d88e3` pushed to `main` — ready for Lovable Publish
 
 ## Stripe live — secrets + 17 Cloud Functions (2026-06-17)
 - **Secrets (Firebase Secret Manager):** `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_WEBHOOK_SECRET_THIN`, `PUBLIC_SITE_URL` (vybehub.app).
