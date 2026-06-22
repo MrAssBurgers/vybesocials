@@ -4,6 +4,7 @@ import { MapPin, Sparkles, Users, TrendingUp, Brain } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { haptics } from '@/lib/haptics';
+import { parseApiDate } from '@/lib/parseApiDate';
 
 interface SmartPingCardProps {
   id: string;
@@ -38,6 +39,15 @@ export function SmartPingCard({
   const cfg = SUBTYPE_META[subtype || ''] || { icon: Sparkles, label: 'Smart', color: 'text-primary' };
   const Icon = cfg.icon;
   const dist = meta?.distance_miles;
+  const createdLabel = (() => {
+    const date = parseApiDate(createdAt);
+    if (!date) return '';
+    try {
+      return formatDistanceToNow(date, { addSuffix: false });
+    } catch {
+      return '';
+    }
+  })();
 
   const handleTap = () => {
     haptics.tap();
@@ -84,7 +94,7 @@ export function SmartPingCard({
             </span>
           )}
           <span className="ml-auto text-[11px] text-muted-foreground">
-            {formatDistanceToNow(new Date(createdAt), { addSuffix: false })}
+            {createdLabel}
           </span>
         </div>
         {title && (

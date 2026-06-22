@@ -17,6 +17,7 @@ import { StyledUsername } from '@/components/ui/StyledUsername';
 import { formatDistanceToNow, differenceInMinutes, differenceInHours, differenceInDays, differenceInWeeks } from 'date-fns';
 import { preferredUsername } from '@/lib/displayUser';
 import { cn } from '@/lib/utils';
+import { avatarInitial, parseApiDate, toIsoDateString } from '@/lib/parseApiDate';
 import { usePullToRefresh } from '@/hooks/usePullToRefresh';
 import { useQueryClient } from '@tanstack/react-query';
 import { useCreateConversation } from '@/hooks/useMessages';
@@ -58,10 +59,11 @@ const NOTIFICATION_TEXT: Record<NotificationType, string> = {
 };
 
 function compactTime(dateStr: string): string {
+  const date = parseApiDate(dateStr);
+  if (!date) return '';
   const now = new Date();
-  const date = new Date(dateStr);
   const mins = differenceInMinutes(now, date);
-  if (mins < 1) return 'now';
+  if (!Number.isFinite(mins) || mins < 1) return 'now';
   if (mins < 60) return `${mins}m`;
   const hrs = differenceInHours(now, date);
   if (hrs < 24) return `${hrs}h`;
@@ -83,18 +85,31 @@ interface GroupedNotification {
 function groupNotifications(notifications: any[]): (GroupedNotification | any)[] {
   const groups: Map<string, GroupedNotification> = new Map();
   const ungroupable: any[] = [];
+
+  const actorId = (actor: { id?: string } | null | undefined) => actor?.id || 'unknown';
+  const actorSnapshot = (actor: any) => ({
+    id: actorId(actor),
+    username: preferredUsername(actor),
+    avatar_url: actor?.avatar_url ?? null,
+    display_name: actor?.display_name ?? null,
+  });
   
   for (const n of notifications) {
+    if (!n) continue;
+    const actor = actorSnapshot(n.actor);
+
     // Group likes and comments by post_id
     if ((n.type === 'like' || n.type === 'comment') && n.post_id) {
       const key = `${n.type}:${n.post_id}`;
       const existing = groups.get(key);
       if (existing) {
-        if (!existing.actors.find(a => a.id === n.actor.id)) {
-          existing.actors.push(n.actor);
+        if (!existing.actors.find((a) => a.id === actor.id)) {
+          existing.actors.push(actor);
         }
-        if (new Date(n.created_at) > new Date(existing.latest_created_at)) {
-          existing.latest_created_at = n.created_at;
+        const createdAt = parseApiDate(n.created_at);
+        const latestAt = parseApiDate(existing.latest_created_at);
+        if (createdAt && (!latestAt || createdAt > latestAt)) {
+          existing.latest_created_at = toIsoDateString(n.created_at);
         }
         if (!n.read) existing.read = false;
         existing.notifications.push(n);
@@ -102,8 +117,8 @@ function groupNotifications(notifications: any[]): (GroupedNotification | any)[]
         groups.set(key, {
           type: n.type,
           post_id: n.post_id,
-          actors: [n.actor],
-          latest_created_at: n.created_at,
+          actors: [actor],
+          latest_created_at: toIsoDateString(n.created_at),
           read: n.read,
           notifications: [n],
         });
@@ -112,11 +127,13 @@ function groupNotifications(notifications: any[]): (GroupedNotification | any)[]
       const key = 'follow';
       const existing = groups.get(key);
       if (existing) {
-        if (!existing.actors.find(a => a.id === n.actor.id)) {
-          existing.actors.push(n.actor);
+        if (!existing.actors.find((a) => a.id === actor.id)) {
+          existing.actors.push(actor);
         }
-        if (new Date(n.created_at) > new Date(existing.latest_created_at)) {
-          existing.latest_created_at = n.created_at;
+        const createdAt = parseApiDate(n.created_at);
+        const latestAt = parseApiDate(existing.latest_created_at);
+        if (createdAt && (!latestAt || createdAt > latestAt)) {
+          existing.latest_created_at = toIsoDateString(n.created_at);
         }
         if (!n.read) existing.read = false;
         existing.notifications.push(n);
@@ -124,14 +141,14 @@ function groupNotifications(notifications: any[]): (GroupedNotification | any)[]
         groups.set(key, {
           type: 'follow',
           post_id: null,
-          actors: [n.actor],
-          latest_created_at: n.created_at,
+          actors: [actor],
+          latest_created_at: toIsoDateString(n.created_at),
           read: n.read,
           notifications: [n],
         });
       }
     } else {
-      ungroupable.push(n);
+      ungroupable.push({ ...n, actor, _single: true });
     }
   }
   
@@ -142,9 +159,9 @@ function groupNotifications(notifications: any[]): (GroupedNotification | any)[]
   ];
   
   result.sort((a, b) => {
-    const aTime = a.latest_created_at || a.created_at;
-    const bTime = b.latest_created_at || b.created_at;
-    return new Date(bTime).getTime() - new Date(aTime).getTime();
+    const aDate = parseApiDate(a.latest_created_at || a.created_at);
+    const bDate = parseApiDate(b.latest_created_at || b.created_at);
+    return (bDate?.getTime() ?? 0) - (aDate?.getTime() ?? 0);
   });
   
   return result;
@@ -523,7 +540,7 @@ export default function NotificationsPage() {
                           <Avatar className="h-12 w-12">
                             <AvatarImage src={request.sender?.avatar_url || undefined} />
                             <AvatarFallback className="bg-primary/10 text-primary font-semibold">
-                              {request.sender?.username?.[0].toUpperCase()}
+                              {avatarInitial(request.sender?.username)}
                             </AvatarFallback>
                           </Avatar>
                         </Link>
@@ -606,7 +623,7 @@ function GroupedNotificationRow({ group, index, isRead, isLast }: {
   const config = ICON_CONFIG[group.type] || ICON_CONFIG.announcement;
   const Icon = config.icon;
   const actorCount = group.actors.length;
-  const firstActor = group.actors[0];
+  const firstActor = group.actors[0] ?? { id: 'unknown', username: 'vybeuser', avatar_url: null, display_name: null };
   
   const groupText = actorCount > 1
     ? `${preferredUsername(firstActor)} and ${actorCount - 1} other${actorCount > 2 ? 's' : ''} ${NOTIFICATION_TEXT[group.type]}`
@@ -630,14 +647,14 @@ function GroupedNotificationRow({ group, index, isRead, isLast }: {
           <Avatar className="h-11 w-11 absolute top-0 left-0">
             <AvatarImage src={firstActor.avatar_url || undefined} />
             <AvatarFallback className="bg-muted text-foreground text-sm font-semibold">
-              {firstActor.username[0].toUpperCase()}
+              {avatarInitial(firstActor.username)}
             </AvatarFallback>
           </Avatar>
           {actorCount > 1 && group.actors[1] && (
             <Avatar className="h-7 w-7 absolute bottom-0 right-0 ring-2 ring-background">
               <AvatarImage src={group.actors[1].avatar_url || undefined} />
               <AvatarFallback className="bg-muted text-foreground text-[10px] font-semibold">
-                {group.actors[1].username[0].toUpperCase()}
+                {avatarInitial(group.actors[1]?.username)}
               </AvatarFallback>
             </Avatar>
           )}
@@ -672,7 +689,7 @@ function GroupedNotificationRow({ group, index, isRead, isLast }: {
               <Link key={actor.id} to={`/u/${actor.username}`} className="flex items-center gap-2 py-1 hover:bg-foreground/[0.03] rounded-lg px-1">
                 <Avatar className="h-6 w-6">
                   <AvatarImage src={actor.avatar_url || undefined} />
-                  <AvatarFallback className="text-[9px]">{actor.username[0].toUpperCase()}</AvatarFallback>
+                  <AvatarFallback className="text-[9px]">{avatarInitial(actor.username)}</AvatarFallback>
                 </Avatar>
                 <span className="text-xs text-muted-foreground">@{actor.username}</span>
               </Link>
@@ -718,6 +735,12 @@ function NotificationRow({ notification, index, isRead, isLast }: NotificationRo
   const { triggerTransition } = useNotificationTransition();
   const { onHover } = useNotificationHoverPrefetch();
   const navigate = useNavigate();
+  const actor = notification.actor ?? {
+    id: 'unknown',
+    username: 'vybeuser',
+    avatar_url: null,
+    display_name: null,
+  };
 
   const shouldGoToPost = (notification.type === 'like' || notification.type === 'comment') && notification.post_id;
   const shouldGoToChat =
@@ -729,8 +752,8 @@ function NotificationRow({ notification, index, isRead, isLast }: NotificationRo
     e.preventDefault();
     e.stopPropagation();
 
-    if (notification.type === 'friend_request' && notification.actor?.username) {
-      navigate(`/u/${notification.actor.username}`);
+    if (notification.type === 'friend_request' && actor.username) {
+      navigate(`/u/${actor.username}`);
       return;
     }
 
@@ -760,33 +783,33 @@ function NotificationRow({ notification, index, isRead, isLast }: NotificationRo
       triggerTransition(e, { type: 'post', postId: notification.post_id });
       return;
     }
-    if (shouldGoToChat && notification.actor?.id) {
+    if (shouldGoToChat && actor.id) {
       startChatTransition(
         e,
-        notification.actor.id,
-        notification.actor.username || 'user',
-        notification.actor.avatar_url,
-        notification.actor.display_name,
+        actor.id,
+        actor.username || 'user',
+        actor.avatar_url,
+        actor.display_name,
       );
       return;
     }
-    if (notification.actor?.username) {
+    if (actor.username) {
       triggerTransition(e, {
         type: 'profile',
-        userId: notification.actor.id,
-        username: notification.actor.username,
-        avatarUrl: notification.actor.avatar_url,
-        displayName: notification.actor.display_name,
+        userId: actor.id,
+        username: actor.username,
+        avatarUrl: actor.avatar_url,
+        displayName: actor.display_name,
       });
       return;
     }
     // Safe fallback — avoid MouthZoom with missing actor (was "page can't load" on mobile)
     navigate('/home');
-  }, [shouldGoToPost, shouldGoToChat, notification, startChatTransition, triggerTransition, navigate]);
+  }, [shouldGoToPost, shouldGoToChat, notification, actor, startChatTransition, triggerTransition, navigate]);
 
   const handleMouseEnter = useCallback(() => {
-    if (shouldGoToChat && notification.actor?.id) onHover(notification.actor.id);
-  }, [shouldGoToChat, notification.actor?.id, onHover]);
+    if (shouldGoToChat && actor.id) onHover(actor.id);
+  }, [shouldGoToChat, actor.id, onHover]);
 
   // Smart pings get their own rich card UI
   if (notification.type === 'smart_ping') {
@@ -832,9 +855,9 @@ function NotificationRow({ notification, index, isRead, isLast }: NotificationRo
       {/* Avatar with icon badge */}
       <div className="relative shrink-0">
         <Avatar className="h-11 w-11">
-          <AvatarImage src={notification.actor.avatar_url || undefined} />
+          <AvatarImage src={actor.avatar_url || undefined} />
           <AvatarFallback className="bg-muted text-foreground text-sm font-semibold">
-            {(notification.actor.username?.[0] || '?').toUpperCase()}
+            {avatarInitial(actor.username)}
           </AvatarFallback>
         </Avatar>
         <div className={cn(
@@ -849,9 +872,9 @@ function NotificationRow({ notification, index, isRead, isLast }: NotificationRo
       <div className="flex-1 min-w-0">
         <p className="text-[13px] leading-snug">
           <StyledUsername
-            userId={notification.actor.id}
-            username={notification.actor.username}
-            displayName={notification.actor.display_name}
+            userId={actor.id}
+            username={actor.username}
+            displayName={actor.display_name}
             className="font-semibold"
           />{' '}
           <span className="text-muted-foreground">{NOTIFICATION_TEXT[notification.type] || ''}</span>

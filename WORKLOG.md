@@ -2,6 +2,14 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## Notifications mobile crash fix (2026-06-17)
+- **Symptom:** Tapping bell / Alerts on mobile showed route error boundary "This page couldn't load".
+- **Root cause:** Render crashes on `/notifications` — unsafe `n.actor.id` in grouping, avatar `username[0].toUpperCase()` on empty names, `formatDistanceToNow` on Firestore Timestamp / invalid `created_at`.
+- **Fix:** `src/lib/parseApiDate.ts`; normalize dates in `useNotifications`; hardened `groupNotifications`, avatar fallbacks, `SmartPingCard` date label.
+- **Verified:** `npm run build` PASS
+- **Deployed:** Firebase hosting https://vybe-daaab.web.app
+- **Git:** pushed to `main` — ready for Lovable Publish
+
 ## Stripe live — secrets + 17 Cloud Functions (2026-06-17)
 - **Secrets (Firebase Secret Manager):** `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_WEBHOOK_SECRET_THIN`, `PUBLIC_SITE_URL` (vybehub.app).
 - **Webhooks:** Auto-created in Stripe → `stripeWebhook`, `connectV2WebhookThin` on us-central1.

@@ -14,6 +14,7 @@ import {
 import { bellNotificationTag, shouldShowInAppNotification } from '@/lib/inAppNotificationDedupe';
 import { isDespiaRuntime } from '@/lib/despiaBridge';
 import { isNativePlatform } from '@/lib/capacitor';
+import { toIsoDateString } from '@/lib/parseApiDate';
 
 // Check notification permission — never auto-request on web to avoid browser bell prompts
 async function requestNotificationPermission(): Promise<boolean> {
@@ -105,7 +106,9 @@ export function useNotifications() {
       if (!data || data.length === 0) return [];
 
       const sorted = [...data].sort(
-        (a, b) => Date.parse(String(b.created_at)) - Date.parse(String(a.created_at)),
+        (a, b) =>
+          Date.parse(toIsoDateString(b.created_at, '1970-01-01T00:00:00.000Z')) -
+          Date.parse(toIsoDateString(a.created_at, '1970-01-01T00:00:00.000Z')),
       );
 
       // Hide stale Daily Brief pings (>24h old) — they're time-sensitive
@@ -115,7 +118,7 @@ export function useNotifications() {
         // Missed calls live in the DM thread as call_event rows — not the bell menu
         if (n.type === 'missed_call') return false;
         if (n.subtype === 'brief_item') {
-          return now - new Date(n.created_at).getTime() < DAY_MS;
+          return now - Date.parse(toIsoDateString(n.created_at)) < DAY_MS;
         }
         return true;
       });
@@ -144,7 +147,7 @@ export function useNotifications() {
           id: n.id,
           type: n.type as NotificationType,
           read: n.read,
-          created_at: n.created_at,
+          created_at: toIsoDateString(n.created_at),
           post_id: n.post_id,
           reason: n.reason || null,
           title: n.title || null,
