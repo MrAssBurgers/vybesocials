@@ -34,6 +34,7 @@
     "setup:onesignal-secrets": "node scripts/setup-onesignal-firebase-secrets.mjs",
     "setup:onesignal-mcp": "node scripts/setup-cursor-onesignal-mcp.mjs",
     "setup:gemini-secrets": "node scripts/setup-gemini-secrets.mjs",
+    "setup:stripe-secrets": "node scripts/setup-stripe-secrets.mjs",
     "audit:secrets": "node scripts/audit-secrets.mjs",
     "ios:setup": "npm run build && npx cap add ios && npx cap sync ios",
     "ios:sync": "npm run build && npx cap sync ios",

@@ -34,6 +34,21 @@ const EXPECTED = [
     setup: 'Set LIVEKIT_API_SECRET in Firebase Secret Manager',
   },
   {
+    name: 'STRIPE_WEBHOOK_SECRET',
+    usedBy: 'stripeWebhook, subscriptions',
+    setup: 'npm run setup:stripe-secrets (auto) or Stripe Dashboard → Webhooks',
+  },
+  {
+    name: 'STRIPE_WEBHOOK_SECRET_THIN',
+    usedBy: 'connectV2WebhookThin (Connect)',
+    setup: 'npm run setup:stripe-secrets (auto) or Stripe Dashboard thin payload',
+  },
+  {
+    name: 'PUBLIC_SITE_URL',
+    usedBy: 'Checkout return URLs, password reset, OAuth',
+    setup: 'npm run setup:stripe-secrets (default https://vybehub.app)',
+  },
+  {
     name: 'STRIPE_SECRET_KEY',
     usedBy: 'Premium / checkout',
     setup: 'Firebase Console → Secret Manager',

@@ -175,14 +175,34 @@ export const checkPremiumSubscription = onCall(async (request) => {
     const active = giftedActive || (subData?.status === 'active');
     return { active, source: giftedActive ? 'gift' : subData?.source || null, expires_at: subData?.expires_at || null };
 });
-/** check-debug-secrets / manage-secrets — admin-only stubs (Cloud Functions Secret Manager handles real ops). */
-export const checkDebugSecrets = onCall(async (request) => {
+/** check-debug-secrets — admin-only runtime secret probe (requires secret bindings). */
+export const checkDebugSecrets = onCall({
+    secrets: [
+        'GEMINI_API_KEY',
+        'GIPHY_API_KEY',
+        'LIVEKIT_API_KEY',
+        'STRIPE_SECRET_KEY',
+        'STRIPE_WEBHOOK_SECRET',
+        'STRIPE_WEBHOOK_SECRET_THIN',
+        'SPOTIFY_CLIENT_ID',
+        'SPOTIFY_CLIENT_SECRET',
+        'ONESIGNAL_REST_API_KEY',
+        'RESEND_API_KEY',
+        'PUBLIC_SITE_URL',
+    ],
+}, async (request) => {
     await requireAdmin(request);
     return {
         has_gemini_key: !!process.env.GEMINI_API_KEY,
+        has_giphy: !!process.env.GIPHY_API_KEY,
         has_livekit: !!process.env.LIVEKIT_API_KEY,
         has_stripe: !!process.env.STRIPE_SECRET_KEY,
-        has_giphy: !!process.env.GIPHY_API_KEY,
+        has_stripe_webhook: !!process.env.STRIPE_WEBHOOK_SECRET,
+        has_stripe_webhook_thin: !!process.env.STRIPE_WEBHOOK_SECRET_THIN,
+        has_public_site_url: !!process.env.PUBLIC_SITE_URL,
+        has_spotify: !!(process.env.SPOTIFY_CLIENT_ID && process.env.SPOTIFY_CLIENT_SECRET),
+        has_onesignal: !!process.env.ONESIGNAL_REST_API_KEY,
+        has_resend: !!process.env.RESEND_API_KEY,
     };
 });
 export const manageSecrets = onCall(async (request) => {

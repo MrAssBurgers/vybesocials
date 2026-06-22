@@ -2,14 +2,30 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## Stripe live — secrets + 17 Cloud Functions (2026-06-17)
+- **Secrets (Firebase Secret Manager):** `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_WEBHOOK_SECRET_THIN`, `PUBLIC_SITE_URL` (vybehub.app).
+- **Webhooks:** Auto-created in Stripe → `stripeWebhook`, `connectV2WebhookThin` on us-central1.
+- **Deployed:** 17 Stripe functions (Connect V2, checkout, tips, payouts, webhooks). `npm run setup:stripe-secrets` for re-runs.
+- **Still needed:** `pk_live_…` publishable key in Admin → Settings → Stripe (or `STRIPE_PUBLISHABLE_KEY=… npm run setup:stripe-secrets`).
+- **Security:** Rotate `STRIPE_SECRET_KEY` in Stripe Dashboard (was pasted in chat).
+
 ## Phase 7 — List presence + clips media + secret audit (2026-06-17)
 - **DM list presence:** `useConversationListPresence` — Firestore live activity on sidebar rows (typing, In chat, In Snap, call, upload); `PresenceAvatar` + preview subtitle via `activityPreviewLabel`.
 - **Shared presence utils:** `src/lib/presenceActivity.ts` — `uiActivityFromState` + preview labels (deduped from `useChatPresence`).
 - **Clips media:** `ensureMediaUrlsReady()` in `signedUrlCache` — batch sign + Firebase `resolveMediaUrl` fallback; used by `ClipsViewer` + `useInfinitePosts`.
 - **Secret audit:** `npm run audit:secrets` checklist; `checkDebugSecrets` callable binds GEMINI/GIPHY/LIVEKIT/STRIPE/Spotify/OneSignal/Resend.
+- **Conv list load:** Batch `.in('id')` for conversation docs (was N parallel reads); 15s timeout; list retry x2; cached-chats warning banner; `useConversationDetail` waits for profileId.
 - **Verified:** `npm run build` PASS; `audit:secrets` — STRIPE_SECRET_KEY missing (optional premium path).
 - **Deployed:** Firebase hosting + `checkDebugSecrets` on https://vybe-daaab.web.app
 - **You:** Lovable Publish → open DMs with friend online → verify list pills + clips feed; set STRIPE secret if checkout needed
+
+## Optional Phase 8+ (not started — polish / long-tail)
+| Track | Scope |
+|-------|--------|
+| **DM polish** | Group read "Opened" per-member; legacy Supabase media bulk migrate; message search |
+| **Platform** | Delete `supabase/` + shim layer; direct Firestore hooks (drop realtime shim); stub Cloud Functions (~70) |
+| **Commerce** | ~~`STRIPE_SECRET_KEY`~~ done — add `pk_live` in Admin Settings |
+| **Go-live** | Lovable Publish vybehub.app; App Check enforce; two-device regression checklist |
 
 ## Phase 6 — Group polish + full GEMINI redeploy (2026-06-21)
 - **Group header:** `GroupPresenceBar` — live typing / in-chat / Snap activity under group title.

@@ -139,10 +139,12 @@ export function ConversationList() {
     isLoading,
     isFetched,
     error: convError,
+    fetchWarning,
     totalUnreadCount,
     refetch: refetchConversations,
     profileId: dmProfileId,
   } = useDMConversations(debouncedSearch);
+  const activeProfileId = dmProfileId ?? profileId;
   const { prefetchMessages } = useChatPrefetch();
 
   useAgentAvailabilityProbe();
@@ -223,25 +225,25 @@ export function ConversationList() {
     [conversationIds],
   );
   const { isTyping: checkTyping } = useConversationTyping(typingConversationIds);
-  const peerActivityByConv = useConversationListPresence(allConversations, profileId, user?.id);
+  const peerActivityByConv = useConversationListPresence(allConversations, activeProfileId, user?.id);
   
   const otherMemberIds = useMemo(() => {
-    if (!allConversations.length || !profileId) return [];
+    if (!allConversations.length || !activeProfileId) return [];
     const ids = new Set<string>();
     const cap = 40;
     for (const conv of allConversations) {
       if (ids.size >= cap) break;
       if (conv.is_group) continue;
-      const otherId = inferOtherUserIdFromConversation(conv, profileId, user?.id);
+      const otherId = inferOtherUserIdFromConversation(conv, activeProfileId, user?.id);
       if (otherId) ids.add(otherId);
       conv.members?.forEach((m) => {
-        if (!isViewerMember(m.user_id, profileId, user?.id) && m.profile?.id) {
+        if (!isViewerMember(m.user_id, activeProfileId, user?.id) && m.profile?.id) {
           ids.add(String(m.profile.id));
         }
       });
     }
     return Array.from(ids).slice(0, cap);
-  }, [allConversations, profileId, user?.id]);
+  }, [allConversations, activeProfileId, user?.id]);
 
   const { data: onlineStatus = {} } = useUsersOnlineStatus(otherMemberIds);
   const { data: usersRoles = {} } = useUsersRoles(otherMemberIds);
@@ -345,6 +347,15 @@ export function ConversationList() {
         }}
       >
 
+        {fetchWarning && allConversations.length > 0 && (
+          <div className="mx-3 mb-2 px-3 py-2 rounded-lg bg-amber-500/10 border border-amber-500/20 flex items-center justify-between gap-2">
+            <p className="text-[11px] text-amber-200/90 truncate">Showing cached chats — refresh failed.</p>
+            <Button variant="ghost" size="sm" className="h-7 px-2 text-[11px] shrink-0" onClick={() => void refetchConversations()}>
+              Retry
+            </Button>
+          </div>
+        )}
+
         {/* Notes Row - Instagram/Snapchat style */}
         <NotesRow />
 
@@ -400,7 +411,7 @@ export function ConversationList() {
                 <ConversationRow
                   key={conv.id}
                   conv={conv}
-                  currentUserId={profileId}
+                  currentUserId={activeProfileId}
                   viewerAuthUid={user?.id}
                   userStoryMap={userStoryMap}
                   streakMap={streakMap}
@@ -419,7 +430,7 @@ export function ConversationList() {
                 <ConversationRow
                   key={conv.id}
                   conv={conv}
-                  currentUserId={profileId}
+                  currentUserId={activeProfileId}
                   viewerAuthUid={user?.id}
                   userStoryMap={userStoryMap}
                   streakMap={streakMap}

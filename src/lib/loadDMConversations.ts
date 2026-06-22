@@ -4,7 +4,7 @@ import type { Conversation, Message } from '@/hooks/useMessages';
 import { isPermissionDeniedError, warnOnce } from '@/lib/logOnce';
 import { resolveSessionProfileId } from '@/lib/resolveSessionProfileId';
 import { withTimeout } from '@/lib/withTimeout';
-import { fetchMemberProfiles, fetchConversationMetaForList } from '@/lib/dmMembershipRepair';
+import { fetchMemberProfiles, fetchConversationMetaForList, syntheticDeterministicConversation } from '@/lib/dmMembershipRepair';
 import {
   buildConversationMembers,
   inferOtherUserIdFromConversation,
@@ -45,7 +45,7 @@ export async function loadDMConversations(
   try {
     const result = await withTimeout(
       loadDMConversationsOnce(profileId, stale),
-      8_000,
+      15_000,
       'Loading chats timed out',
     );
     return result;
@@ -54,6 +54,48 @@ export async function loadDMConversations(
     const error = err instanceof Error ? err : new Error(String(err));
     return { data: stale, error, profileId };
   }
+}
+
+/** Batch-load conversation docs (chunked .in) with synthetic fallback for deterministic 1:1 ids. */
+async function fetchConversationsForList(
+  conversationIds: string[],
+): Promise<Array<Record<string, unknown> | null>> {
+  if (!conversationIds.length) return [];
+
+  const { data, error } = await db
+    .from('conversations')
+    .select('*')
+    .in('id', conversationIds);
+
+  if (error) {
+    console.warn('[DM] batch conversations query error:', error.message);
+    return Promise.all(conversationIds.map((id) => fetchConversationMetaForList(id)));
+  }
+
+  const byId = new Map<string, Record<string, unknown>>();
+  for (const row of data || []) {
+    if (row?.id) byId.set(String(row.id), row as Record<string, unknown>);
+  }
+
+  const fallbackIds: string[] = [];
+  for (const id of conversationIds) {
+    if (byId.has(id) || syntheticDeterministicConversation(id)) continue;
+    fallbackIds.push(id);
+  }
+
+  const fallbackById = new Map<string, Record<string, unknown> | null>();
+  if (fallbackIds.length) {
+    const fallbacks = await Promise.all(
+      fallbackIds.map((id) => fetchConversationMetaForList(id)),
+    );
+    fallbackIds.forEach((id, i) => fallbackById.set(id, fallbacks[i]));
+  }
+
+  return conversationIds.map((id) => {
+    const hit = byId.get(id);
+    if (hit) return hit;
+    return syntheticDeterministicConversation(id) ?? fallbackById.get(id) ?? null;
+  });
 }
 
 async function loadDMConversationsOnce(
@@ -121,11 +163,7 @@ async function loadDMConversationsOnce(
     const hiddenIds = new Set((hiddenData || []).map((h) => h.conversation_id));
     const trashedIds = new Set((trashedData || []).map((t) => t.conversation_id));
 
-    const conversationResults = await Promise.all(
-      userConversationIds.map((conversationId) =>
-        fetchConversationMetaForList(conversationId),
-      ),
-    );
+    const conversationResults = await fetchConversationsForList(userConversationIds);
     const conversationsRaw = conversationResults.filter(Boolean) as Record<string, unknown>[];
     conversationsRaw.sort(
       (a, b) =>

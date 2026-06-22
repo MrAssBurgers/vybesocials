@@ -102,7 +102,7 @@ export function useDMConversations(searchQuery: string = '') {
     // DM list must reach network on first load — offlineFirst can pause forever
     // with isFetched=false when connectivity is flaky (shows perpetual spinner).
     networkMode: 'always',
-    retry: 1,
+    retry: 2,
     retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 4000),
   });
 
@@ -391,7 +391,7 @@ export function useConversationDetail(conversationId: string | undefined) {
         return fallback();
       }
     },
-    enabled: !!conversationId,
+    enabled: !!conversationId && !!profileId,
     staleTime: 120_000,
     placeholderData: () => {
       if (!conversationId) return undefined;
@@ -400,8 +400,8 @@ export function useConversationDetail(conversationId: string | undefined) {
         (buildConversationPlaceholder(conversationId, profileId) as DMConversation)
       );
     },
-    networkMode: 'offlineFirst',
-    retry: 1,
+    networkMode: 'always',
+    retry: 2,
   });
 }
 
