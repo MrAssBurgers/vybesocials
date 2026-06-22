@@ -54,6 +54,11 @@ export function collectionRef(table: string) {
   return collection(getDb(), resolveCollection(table));
 }
 
+/** Auto-generated Firestore document id (never use a fixed placeholder id). */
+export function newDocumentId(table: string): string {
+  return doc(collectionRef(table)).id;
+}
+
 export function documentRef(table: string, id: string) {
   return doc(getDb(), resolveCollection(table), id);
 }

@@ -14,14 +14,29 @@ export function appendIncomingMessage(
   if (!old?.length) return [msg];
   if (old.some((m) => m.id === msg.id)) return old;
 
-  const withoutReplacedTemp = old.filter((m) => {
+  /** Drop only the newest matching optimistic temp for this sender+payload. */
+  const withoutReplacedTemp = old.filter((m, idx, arr) => {
     if (typeof m.id !== 'string' || !m.id.startsWith('temp-')) return true;
     if (typeof msg.id === 'string' && msg.id.startsWith('temp-')) return true;
     if (m.sender_id !== msg.sender_id) return true;
     const sameContent =
       (m.content && msg.content && m.content === msg.content) ||
       (m.media_url && msg.media_url && m.media_url === msg.media_url);
-    return !sameContent;
+    if (!sameContent) return true;
+    // Remove only the last matching temp (most recent optimistic send).
+    for (let i = arr.length - 1; i >= 0; i--) {
+      const candidate = arr[i];
+      if (
+        typeof candidate.id === 'string' &&
+        candidate.id.startsWith('temp-') &&
+        candidate.sender_id === msg.sender_id &&
+        ((candidate.content && msg.content && candidate.content === msg.content) ||
+          (candidate.media_url && msg.media_url && candidate.media_url === msg.media_url))
+      ) {
+        return i !== idx;
+      }
+    }
+    return true;
   });
 
   return [...withoutReplacedTemp, msg];

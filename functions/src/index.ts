@@ -26,6 +26,7 @@ export * from './email.js';
 export * from './passkeys.js';
 export * from './push.js';
 export * from './pushTriggers.js';
+export * from './purgeExpired.js';
 export * from './realtime.js';
 export * from './social.js';
 export * from './dmSend.js';

@@ -17,6 +17,7 @@ import {
   type DmActivityPayload,
 } from '@/lib/dmBroadcast';
 import { uiActivityFromState } from '@/lib/presenceActivity';
+import { notifyPeerTyping } from '@/lib/typingPushNotify';
 import type { ActivityType } from '@/components/chat/LiveActivityIndicator';
 
 export interface PeerPresence {
@@ -128,8 +129,17 @@ export function useChatPresence(
   const setTyping = useCallback(
     (isTyping: boolean) => {
       applyActivity(isTyping ? 'typing' : 'viewing');
+      if (isTyping && conversationId && effectiveProfileId && peerIds.length === 1) {
+        const name =
+          metaRef.current.displayName || metaRef.current.username || 'Someone';
+        notifyPeerTyping({
+          recipientProfileId: peerIds[0]!,
+          senderName: name,
+          conversationId,
+        });
+      }
     },
-    [applyActivity],
+    [applyActivity, conversationId, effectiveProfileId, peerIds],
   );
 
   const setRecordingVoice = useCallback(

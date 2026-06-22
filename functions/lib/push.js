@@ -6,22 +6,28 @@ const VAPID_PUBLIC = process.env.VAPID_PUBLIC_KEY || process.env.FIREBASE_VAPID_
 export const getVapidKey = onCall(async () => {
     return { vapid_key: VAPID_PUBLIC || null, publicKey: VAPID_PUBLIC || null };
 });
-/** send-push-notification — writes notification doc + sends FCM / Web Push. */
-export const sendPushNotification = onCall(async (request) => {
+const ONESIGNAL_SECRETS = ['ONESIGNAL_APP_ID', 'ONESIGNAL_REST_API_KEY'];
+const SKIP_BELL_PUSH_TYPES = new Set(['dm', 'call', 'group_message', 'typing']);
+/** send-push-notification — sends FCM / Web Push (bell row skipped for DM/call/typing). */
+export const sendPushNotification = onCall({ secrets: [...ONESIGNAL_SECRETS] }, async (request) => {
     const callerUid = requireAuth(request);
     enforceRateLimit(await rateLimit(`push:${callerUid}`, 60, 60));
     const { userId, title, body, data: payload, url, type, tag, highPriority } = (request.data || {});
     if (!userId)
         throw new HttpsError('invalid-argument', 'userId required');
-    await db.collection('notifications').add({
-        user_id: userId,
-        title: title || 'VYBE',
-        body: body || '',
-        url: url || null,
-        data: payload || null,
-        created_at: new Date().toISOString(),
-        read: false,
-    });
+    const pushType = type || payload?.type || '';
+    const skipBell = SKIP_BELL_PUSH_TYPES.has(pushType) || payload?.typing === 'true';
+    if (!skipBell) {
+        await db.collection('notifications').add({
+            user_id: userId,
+            title: title || 'VYBE',
+            body: body || '',
+            url: url || null,
+            data: payload || null,
+            created_at: new Date().toISOString(),
+            read: false,
+        });
+    }
     const isCall = type === 'call' || !!highPriority;
     const result = isCall
         ? await dispatchCallPushToProfile(userId, {
@@ -123,7 +129,7 @@ export const linkOnesignalUser = onCall({ secrets: ['ONESIGNAL_APP_ID', 'ONESIGN
     return { ok: true, success: true, linked: onesignalLinked };
 });
 /** send-brief-notification — push the user's daily brief. */
-export const sendBriefNotification = onCall(async (request) => {
+export const sendBriefNotification = onCall({ secrets: [...ONESIGNAL_SECRETS] }, async (request) => {
     const uid = requireAuth(request);
     const { title = 'Your daily brief is ready', body = 'Tap to read what\'s new' } = (request.data || {});
     const result = await dispatchPushToProfile(uid, { title, body, type: 'brief' });

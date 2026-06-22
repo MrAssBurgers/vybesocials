@@ -33,6 +33,21 @@ function isValidExternalId(id: unknown): id is string {
   return !['null', 'undefined', '0', 'guest', 'anonymous', 'false'].includes(trimmed);
 }
 
+async function resolveProfileExternalId(authUserId: string): Promise<string | null> {
+  for (let attempt = 0; attempt < 4; attempt++) {
+    const { data: profile } = await db
+      .from('profiles')
+      .select('id')
+      .eq('user_id', authUserId)
+      .maybeSingle();
+    if (profile?.id && isValidExternalId(profile.id)) return profile.id;
+    if (attempt < 3) {
+      await new Promise((r) => setTimeout(r, 400 * (attempt + 1)));
+    }
+  }
+  return null;
+}
+
 /**
  * Syncs the authenticated Supabase user ID with OneSignal's external user ID
  * via the Despia native bridge, requests push permission on first eligible
@@ -58,15 +73,9 @@ export function DespiaOneSignalSync() {
         // OneSignal external_id MUST match the id used by app push call sites,
         // which is profiles.id (NOT auth.users.id). auth.uid is kept as a
         // backup alias/tag for debugging + fallback lookup only.
-        const { data: profile } = await db
-          .from('profiles')
-          .select('id')
-          .eq('user_id', authUserId)
-          .maybeSingle();
-        const externalId = profile?.id ?? authUserId;
-
-        if (!isValidExternalId(externalId)) {
-          console.warn(`[OneSignal:${trigger}] Skipping — resolved external id invalid:`, externalId);
+        const externalId = await resolveProfileExternalId(authUserId);
+        if (!externalId) {
+          console.warn(`[OneSignal:${trigger}] profile not ready — will retry on foreground`);
           return;
         }
 
@@ -173,21 +182,15 @@ export function DespiaOneSignalSync() {
         const alreadyAsked = localStorage.getItem(PUSH_PERM_KEY);
         if (alreadyAsked) return;
         localStorage.setItem(PUSH_PERM_KEY, String(Date.now()));
-        void db.auth.getUser().then(({ data }) => {
+        void db.auth.getUser().then(async ({ data }) => {
           if (!data.user?.id) return;
-          void db
-            .from('profiles')
-            .select('id')
-            .eq('user_id', data.user.id)
-            .maybeSingle()
-            .then(({ data: profile }) => {
-              const externalId = profile?.id ?? data.user!.id;
-              console.log('[OneSignal:permission-grant] prompting + linking', {
-                primaryExternalId_profileId: externalId,
-                backupAlias_authUid: data.user!.id,
-              });
-              relinkDespiaPushInBackground(externalId, 'permission-grant', true);
-            });
+          const externalId = await resolveProfileExternalId(data.user.id);
+          if (!externalId) return;
+          console.log('[OneSignal:permission-grant] prompting + linking', {
+            primaryExternalId_profileId: externalId,
+            backupAlias_authUid: data.user.id,
+          });
+          relinkDespiaPushInBackground(externalId, 'permission-grant', true);
         });
       } catch (err) {
         console.warn('[OneSignal:permission-grant] failed:', err);
@@ -196,17 +199,11 @@ export function DespiaOneSignalSync() {
 
     const relinkDespiaPush = () => {
       if (!isDespiaRuntime()) return;
-      void db.auth.getUser().then(({ data }) => {
+      void db.auth.getUser().then(async ({ data }) => {
         if (!data.user?.id) return;
-        void db
-          .from('profiles')
-          .select('id')
-          .eq('user_id', data.user.id)
-          .maybeSingle()
-          .then(({ data: profile }) => {
-            const externalId = profile?.id ?? data.user!.id;
-            relinkDespiaPushInBackground(externalId, 'foreground-relink');
-          });
+        const externalId = await resolveProfileExternalId(data.user.id);
+        if (!externalId) return;
+        relinkDespiaPushInBackground(externalId, 'foreground-relink');
       });
     };
 
@@ -224,7 +221,10 @@ export function DespiaOneSignalSync() {
         INITIAL_SESSION: 'initial-session',
       };
       const trigger = triggerMap[event] ?? event.toLowerCase();
-      if (event === 'TOKEN_REFRESHED') return;
+      if (event === 'TOKEN_REFRESHED') {
+        void setPlayerIdForAuthUser(session.user.id, session.user.email, 'token-refresh');
+        return;
+      }
       void setPlayerIdForAuthUser(session.user.id, session.user.email, trigger);
     });
 

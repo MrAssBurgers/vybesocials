@@ -19,6 +19,7 @@ import { useAuth } from '@/lib/auth';
 import { useCreateConversation } from '@/hooks/useMessages';
 import { db } from '@/lib/firebase';
 import { formatDistanceToNow } from 'date-fns';
+import { parseApiDate } from '@/lib/parseApiDate';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { MediaFallback } from '@/components/ui/MediaFallback';
@@ -48,7 +49,7 @@ export default function ListingDetailPage() {
   // Enable real-time updates
   useRealtimeListings();
 
-  const isFavorite = favorites?.some(f => f.id === id) || false;
+  const isFavorite = (favorites || []).some((f) => f?.id === id) || false;
   const isOwner = profile?.id === listing?.seller_id;
   const canDelete = isOwner || isAdminOrMod;
   const category = LISTING_CATEGORIES.find(c => c.value === listing?.category);
@@ -251,7 +252,7 @@ export default function ListingDetailPage() {
           {/* Price & Title */}
           <div>
             <p className="text-3xl font-bold text-primary">
-              {listing.price === 0 ? 'Free' : `$${listing.price.toLocaleString()}`}
+              {listing.price === 0 ? 'Free' : `$${(listing.price ?? 0).toLocaleString()}`}
             </p>
             <h1 className="text-xl font-semibold mt-1">{listing.title}</h1>
           </div>
@@ -293,7 +294,10 @@ export default function ListingDetailPage() {
                   )}
                 </p>
                 <p className="text-sm text-muted-foreground">
-                  Listed {formatDistanceToNow(new Date(listing.created_at), { addSuffix: true })}
+                  Listed {(() => {
+                    const d = parseApiDate(listing.created_at);
+                    return d ? formatDistanceToNow(d, { addSuffix: true }) : 'recently';
+                  })()}
                 </p>
                 {sellerRating && sellerRating.count > 0 && (
                   <p className="text-sm text-yellow-500">
@@ -331,7 +335,7 @@ export default function ListingDetailPage() {
                   onClick={() => setPaymentSheetOpen(true)}
                 >
                   <CreditCard className="h-5 w-5 mr-2" />
-                  Buy Now - ${listing.price.toLocaleString()}
+                  Buy Now - ${(listing.price ?? 0).toLocaleString()}
                 </Button>
               )}
               <Button

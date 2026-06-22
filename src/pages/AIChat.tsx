@@ -265,11 +265,7 @@ export default function AIChat() {
     const msgText = (text || input).trim();
     if ((!msgText && !selectedImage) || isLoading) return;
 
-    if (chatExhausted && !parseImaginePrompt(msgText)) {
-      toast.error('Daily AI limit reached. Add your API key in Settings → VYBE AI.');
-      return;
-    }
-    if (parseImaginePrompt(msgText) && imageGenExhausted) {
+    if (parseImaginePrompt(msgText) && imageGenExhausted && !usage.providers.google) {
       toast.error('Daily image limit reached. Add your API key in Settings → VYBE AI.');
       return;
     }

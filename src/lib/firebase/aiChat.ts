@@ -209,7 +209,13 @@ function formatCallableAiError(error: unknown): string {
       code === 'failed-precondition' ||
       /LOVABLE_API_KEY|GEMINI_API_KEY|not configured/i.test(msg)
     ) {
-      return 'VYBE AI server needs GEMINI_API_KEY on Firebase Cloud Functions.';
+      if (/your api key|invalid.*key|API key not valid|permission denied/i.test(msg)) {
+        return 'Your Google AI API key is invalid or restricted. Update it in Settings → VYBE AI.';
+      }
+      return 'VYBE AI server needs GEMINI_API_KEY on Firebase Cloud Functions, or add your own key in Settings → VYBE AI.';
+    }
+    if (/invalid.*key|API key not valid|403|401/i.test(msg)) {
+      return 'Your Google AI API key is invalid or restricted. Update it in Settings → VYBE AI.';
     }
     if (code === 'resource-exhausted' || /rate limit|daily.*limit/i.test(msg)) {
       return msg.includes('limit') ? msg : 'Too many requests. Wait a moment.';

@@ -1,4 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { toast } from 'sonner';
 import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth';
 import { useAuthProfileId } from '@/hooks/useAuthProfileId';
@@ -247,24 +248,50 @@ export function useListingFavorites() {
     queryFn: async () => {
       if (!profileId) return [];
 
-      const { data, error } = await db
+      const { data: favRows, error: favError } = await db
         .from('listing_favorites')
-        .select(`
-          id,
-          listing:listings (
-            *,
-            seller:profiles!seller_id (
-              id,
-              username,
-              avatar_url,
-              is_verified
-            )
-          )
-        `)
+        .select('listing_id')
         .eq('user_id', profileId);
 
-      if (error) throw error;
-      return data.map(d => d.listing) as Listing[];
+      if (favError) throw favError;
+
+      const listingIds = [
+        ...new Set(
+          (favRows || [])
+            .map((row) => row.listing_id as string)
+            .filter(Boolean),
+        ),
+      ];
+      if (!listingIds.length) return [];
+
+      const listings: Listing[] = [];
+      for (let i = 0; i < listingIds.length; i += 10) {
+        const chunk = listingIds.slice(i, i + 10);
+        const { data: rows, error } = await db
+          .from('listings')
+          .select('*')
+          .in('id', chunk);
+        if (error) throw error;
+        if (rows?.length) listings.push(...(rows as Listing[]));
+      }
+
+      const sellerIds = [...new Set(listings.map((r) => r.seller_id).filter(Boolean))];
+      const sellerMap = new Map<string, Listing['seller']>();
+      for (let i = 0; i < sellerIds.length; i += 10) {
+        const chunk = sellerIds.slice(i, i + 10);
+        const { data: sellers } = await db
+          .from('profiles')
+          .select('id, username, avatar_url, is_verified')
+          .in('id', chunk);
+        for (const s of sellers || []) {
+          sellerMap.set(s.id, s as Listing['seller']);
+        }
+      }
+
+      return listings.map((row) => ({
+        ...row,
+        seller: sellerMap.get(row.seller_id) || undefined,
+      }));
     },
     enabled: !!profileId,
     networkMode: 'always',
@@ -277,7 +304,7 @@ export function useToggleFavorite() {
 
   return useMutation({
     mutationFn: async ({ listingId, isFavorite }: { listingId: string; isFavorite: boolean }) => {
-      if (!profile) throw new Error('Not authenticated');
+      if (!profile) throw new Error('Sign in to save favorites');
 
       if (isFavorite) {
         const { error } = await db
@@ -290,11 +317,15 @@ export function useToggleFavorite() {
         const { error } = await db
           .from('listing_favorites')
           .insert({ user_id: profile.id, listing_id: listingId });
-        if (error) throw error;
+        if (error && !/duplicate|already exists|23505/i.test(error.message || '')) throw error;
       }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['listing-favorites'] });
+    },
+    onError: (error: unknown) => {
+      const msg = error instanceof Error ? error.message : 'Could not update favorite';
+      toast.error(msg);
     },
   });
 }

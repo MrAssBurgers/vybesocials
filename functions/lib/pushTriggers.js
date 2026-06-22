@@ -216,7 +216,7 @@ export const onDmMessageCreated = onDocumentCreated({ document: 'messages/{messa
     }
 });
 /** Subcollection path (future / dual-write). */
-export const onConversationMessageCreated = onDocumentCreated({ document: 'conversations/{cid}/messages/{messageId}', region: 'us-central1' }, async (event) => {
+export const onConversationMessageCreated = onDocumentCreated({ document: 'conversations/{cid}/messages/{messageId}', region: 'us-central1', secrets: [...ONESIGNAL_SECRETS] }, async (event) => {
     const snap = event.data;
     if (!snap)
         return;

@@ -27,6 +27,7 @@ import {
   SheetTitle,
   SheetTrigger,
 } from '@/components/ui/sheet';
+import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { useListings, LISTING_CATEGORIES, LISTING_CONDITIONS, useToggleFavorite, useListingFavorites } from '@/hooks/useMarketplace';
 import { useRealtimeListings } from '@/hooks/useRealtimeListings';
@@ -96,7 +97,7 @@ const ListingCard = memo(function ListingCard({
                 initial={{ scale: 1 }}
                 whileHover={{ scale: 1.05 }}
               >
-                {listing.price === 0 ? 'Free' : `$${listing.price.toLocaleString()}`}
+                {listing.price === 0 ? 'Free' : `$${(listing.price ?? 0).toLocaleString()}`}
               </motion.p>
             </Link>
             <motion.div
@@ -241,7 +242,7 @@ const ListingCard = memo(function ListingCard({
             whileHover={{ scale: 1.05, x: 5 }}
             transition={{ type: 'spring', stiffness: 400 }}
           >
-            {listing.price === 0 ? 'Free' : `$${listing.price.toLocaleString()}`}
+            {listing.price === 0 ? 'Free' : `$${(listing.price ?? 0).toLocaleString()}`}
           </motion.p>
           <h3 className="font-medium truncate">{listing.title}</h3>
         </Link>
@@ -297,9 +298,9 @@ export default function MarketPage() {
   // Enable real-time updates for listings
   useRealtimeListings();
 
-  const favoriteIds = useMemo(() => 
-    new Set(favorites?.map(f => f.id) || []), 
-    [favorites]
+  const favoriteIds = useMemo(
+    () => new Set((favorites || []).map((f) => f?.id).filter(Boolean) as string[]),
+    [favorites],
   );
 
   return (
@@ -559,10 +560,16 @@ export default function MarketPage() {
                   listing={listing}
                   viewMode={viewMode}
                   isFavorite={favoriteIds.has(listing.id)}
-                  onToggleFavorite={() => toggleFavorite.mutate({ 
-                    listingId: listing.id, 
-                    isFavorite: favoriteIds.has(listing.id) 
-                  })}
+                  onToggleFavorite={() => {
+                    if (!profile) {
+                      toast.error('Sign in to save favorites');
+                      return;
+                    }
+                    toggleFavorite.mutate({
+                      listingId: listing.id,
+                      isFavorite: favoriteIds.has(listing.id),
+                    });
+                  }}
                   index={index}
                 />
               ))}

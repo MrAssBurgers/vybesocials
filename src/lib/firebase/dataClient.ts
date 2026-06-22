@@ -1,6 +1,7 @@
 import {
   collectionRef,
   documentRef,
+  newDocumentId,
   getDocument,
   getDocumentFromServer,
   getDocuments,
@@ -575,7 +576,13 @@ class QueryBuilder {
           if (!id && (this.table === 'user_roles' || this.table === 'user_roles_auth') && row.user_id && row.role) {
             id = `${row.user_id}_${row.role}`;
           }
-          if (!id) id = documentRef(this.table, 'x').id;
+          if (!id && this.table === 'listing_favorites' && row.user_id && row.listing_id) {
+            id = `${row.user_id}_${row.listing_id}`;
+          }
+          if (!id && this.table === 'story_likes' && row.user_id && row.story_id) {
+            id = `${row.user_id}_${row.story_id}`;
+          }
+          if (!id) id = newDocumentId(this.table);
           const payload = {
             ...row,
             id,

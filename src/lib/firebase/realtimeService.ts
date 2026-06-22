@@ -7,6 +7,7 @@ import {
   getFirestoreDb,
   setDocument,
   documentRef,
+  newDocumentId,
 } from './firestoreDb';
 import type { Unsubscribe } from 'firebase/firestore';
 
@@ -237,7 +238,7 @@ export function createRealtimeChannel(channelName: string): ChannelBuilder {
     },
     async send(payload: any) {
       if (payload?.type === 'broadcast') {
-        const id = documentRef('webrtc_signals', 'x').id;
+        const id = newDocumentId('webrtc_signals');
         await setDocument('webrtc_signals', id, {
           id,
           channel: channelName,

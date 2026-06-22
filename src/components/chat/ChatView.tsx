@@ -267,7 +267,21 @@ export function ChatView() {
     setHasText(saved.length > 0);
   }, [conversationId]);
 
-  const [viewMode, setViewMode] = useState<ViewMode>('permanent');
+  const [viewMode, setViewMode] = useState<ViewMode>(() => {
+    try {
+      const saved = localStorage.getItem('vybe-dm-view-mode');
+      if (saved === 'permanent' || saved === '24h' || saved === 'view_once') {
+        return saved;
+      }
+    } catch { /* ignore */ }
+    return '24h';
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('vybe-dm-view-mode', viewMode);
+    } catch { /* ignore */ }
+  }, [viewMode]);
   const [showViewModeMenu, setShowViewModeMenu] = useState(false);
   const [isRecordingVoice, setIsRecordingVoice] = useState(false);
   const [isVoiceLocked, setIsVoiceLocked] = useState(false);
@@ -2600,9 +2614,8 @@ const MessageBubble = memo(function MessageBubble({
             message.view_mode === 'view_once' && 'bg-gradient-to-r from-orange-500 to-pink-500 text-white',
             message.view_mode === '24h' && isOwn && 'bg-gradient-to-r from-yellow-500 to-orange-500 text-white',
             repliedMessage && 'rounded-t-[14px]',
-            (message.saved_by_sender || message.saved_by_recipient) && (isOwn
-              ? 'ring-1 ring-primary/70 shadow-[0_0_18px_-4px_hsl(var(--primary)/0.55)]'
-              : 'ring-1 ring-cyan-400/60 shadow-[0_0_18px_-4px_rgba(34,211,238,0.45)]')
+            (message.saved_by_sender || message.saved_by_recipient) &&
+              'ring-2 ring-emerald-400/80 bg-emerald-500/15 shadow-[0_0_20px_-4px_rgba(52,211,153,0.55)]',
           )}
           data-message-id={message.id}
           onClick={(e) => {

@@ -28,6 +28,7 @@ import { CLIPS_BOTTOM_UI_OFFSET } from '@/lib/clipsLayout';
 import { isNativePerfMode } from '@/lib/nativePerfMode';
 import { VybeMiniIcon } from '@/components/ui/VybeMiniIcon';
 import { usePostReaction } from '@/hooks/usePostReaction';
+import { avatarInitial } from '@/lib/parseApiDate';
 
 interface MobileShortCardProps {
   post: {
@@ -467,7 +468,7 @@ export const MobileShortCard = memo(function MobileShortCard({
             <Avatar className="h-11 w-11 sm:h-12 sm:w-12 border-2 border-background shadow-lg">
               <AvatarImage src={signedAvatarUrl || undefined} />
               <AvatarFallback className="bg-primary text-white font-bold text-sm sm:text-base">
-                {post.author.username[0].toUpperCase()}
+                {avatarInitial(post.author?.username)}
               </AvatarFallback>
             </Avatar>
           </Link>
@@ -544,7 +545,7 @@ export const MobileShortCard = memo(function MobileShortCard({
               <Avatar className="h-5 w-5 sm:h-6 sm:w-6 border border-white/50">
                 <AvatarImage src={signedAvatarUrl || undefined} />
                 <AvatarFallback className="bg-primary text-white text-[10px] sm:text-xs font-bold">
-                  {post.author.username[0].toUpperCase()}
+                  {avatarInitial(post.author?.username)}
                 </AvatarFallback>
               </Avatar>
             )}

@@ -53,12 +53,35 @@ export async function getUserAiApiKey(
   profileId: string,
   provider: 'google' | 'openai' = 'google',
 ): Promise<string | null> {
-  const snap = await db.collection('user_ai_keys').doc(`${profileId}_${provider}`).get();
-  if (!snap.exists) return null;
-  const data = snap.data() as { api_key?: string; is_active?: boolean };
-  if (data.is_active === false) return null;
-  const key = typeof data.api_key === 'string' ? data.api_key.trim() : '';
-  return key || null;
+  const readKey = async (id: string): Promise<string | null> => {
+    const snap = await db.collection('user_ai_keys').doc(`${id}_${provider}`).get();
+    if (!snap.exists) return null;
+    const data = snap.data() as { api_key?: string; is_active?: boolean };
+    if (data.is_active === false) return null;
+    const key = typeof data.api_key === 'string' ? data.api_key.trim() : '';
+    return key || null;
+  };
+
+  const direct = await readKey(profileId);
+  if (direct) return direct;
+
+  const prof = await db.collection('profiles').doc(profileId).get();
+  const authUid = prof.data()?.user_id as string | undefined;
+  if (authUid && authUid !== profileId) {
+    const fromAuth = await readKey(authUid);
+    if (fromAuth) return fromAuth;
+  }
+
+  const idx = await db.collection('user_auth_index').where('profile_id', '==', profileId).limit(1).get();
+  if (!idx.empty) {
+    const uid = idx.docs[0].id;
+    if (uid !== profileId) {
+      const fromIndex = await readKey(uid);
+      if (fromIndex) return fromIndex;
+    }
+  }
+
+  return null;
 }
 
 export interface AiUsageBucket {

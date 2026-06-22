@@ -97,11 +97,29 @@ export async function dispatchOneSignalToProfile(
   const callChannelId = process.env.ONESIGNAL_CALL_CHANNEL_ID;
 
   let subscriptionIds = await lookupOneSignalSubscriptionIds(appId, restKey, targetProfileId);
+  if (subscriptionIds.length === 0 && targetProfileId !== profileId) {
+    subscriptionIds = await lookupOneSignalSubscriptionIds(appId, restKey, profileId);
+  }
+  if (subscriptionIds.length === 0) {
+    const prof = await db.collection('profiles').doc(targetProfileId).get();
+    const authUid = asString(prof.data()?.user_id);
+    if (authUid && authUid !== targetProfileId) {
+      subscriptionIds = await lookupOneSignalSubscriptionIds(appId, restKey, authUid);
+    }
+  }
   const tokenSnap = await db.collection('push_tokens').where('user_id', '==', targetProfileId).get();
   if (subscriptionIds.length === 0) {
     subscriptionIds = subscriptionIdsFromPushTokens(
       tokenSnap.docs.map((d) => d.data() as { token?: string }),
     );
+  }
+
+  const externalIds = [targetProfileId];
+  if (profileId !== targetProfileId) externalIds.push(profileId);
+  const profSnap = await db.collection('profiles').doc(targetProfileId).get();
+  const authUidForAlias = asString(profSnap.data()?.user_id);
+  if (authUidForAlias && !externalIds.includes(authUidForAlias)) {
+    externalIds.push(authUidForAlias);
   }
 
   const notificationBase: Record<string, unknown> = {
@@ -138,7 +156,7 @@ export async function dispatchOneSignalToProfile(
     ? {
         ...notificationBase,
         ...channelExtras,
-        include_aliases: { external_id: [targetProfileId] },
+        include_aliases: { external_id: externalIds.slice(0, 20) },
       }
     : {
         ...notificationBase,

@@ -2,7 +2,7 @@ import type { QueryClient } from '@tanstack/react-query';
 import { db } from '@/lib/firebase';
 import type { Conversation, Message } from '@/hooks/useMessages';
 import { isPermissionDeniedError, warnOnce } from '@/lib/logOnce';
-import { resolveSessionProfileId } from '@/lib/resolveSessionProfileId';
+import { resolveSessionProfileId, syncSessionProfileId } from '@/lib/resolveSessionProfileId';
 import { withTimeout } from '@/lib/withTimeout';
 import { fetchMemberProfiles, fetchConversationMetaForList, syntheticDeterministicConversation } from '@/lib/dmMembershipRepair';
 import {
@@ -45,7 +45,7 @@ export async function loadDMConversations(
   try {
     const result = await withTimeout(
       loadDMConversationsOnce(profileId, stale),
-      15_000,
+      35_000,
       'Loading chats timed out',
     );
     return result;
@@ -56,26 +56,37 @@ export async function loadDMConversations(
   }
 }
 
+const FIRESTORE_IN_CHUNK = 10;
+
 /** Batch-load conversation docs (chunked .in) with synthetic fallback for deterministic 1:1 ids. */
 async function fetchConversationsForList(
   conversationIds: string[],
 ): Promise<Array<Record<string, unknown> | null>> {
   if (!conversationIds.length) return [];
 
-  const { data, error } = await db
-    .from('conversations')
-    .select('*')
-    .in('id', conversationIds);
-
-  if (error) {
-    console.warn('[DM] batch conversations query error:', error.message);
-    return Promise.all(conversationIds.map((id) => fetchConversationMetaForList(id)));
-  }
-
   const byId = new Map<string, Record<string, unknown>>();
-  for (const row of data || []) {
-    if (row?.id) byId.set(String(row.id), row as Record<string, unknown>);
+  const chunks: string[][] = [];
+  for (let i = 0; i < conversationIds.length; i += FIRESTORE_IN_CHUNK) {
+    chunks.push(conversationIds.slice(i, i + FIRESTORE_IN_CHUNK));
   }
+
+  await Promise.all(
+    chunks.map(async (chunk) => {
+      const { data, error } = await db.from('conversations').select('*').in('id', chunk);
+      if (error) {
+        console.warn('[DM] conversations chunk query error:', error.message);
+        const fallbacks = await Promise.all(chunk.map((id) => fetchConversationMetaForList(id)));
+        chunk.forEach((id, i) => {
+          const row = fallbacks[i];
+          if (row?.id) byId.set(String(row.id), row);
+        });
+        return;
+      }
+      for (const row of data || []) {
+        if (row?.id) byId.set(String(row.id), row as Record<string, unknown>);
+      }
+    }),
+  );
 
   const fallbackIds: string[] = [];
   for (const id of conversationIds) {
@@ -98,33 +109,48 @@ async function fetchConversationsForList(
   });
 }
 
+async function fetchMembershipRows(profileId: string, authUid: string | null) {
+  const queries = [
+    db
+      .from('conversation_members')
+      .select('conversation_id, last_read_at, is_pinned, is_muted')
+      .eq('user_id', profileId),
+  ];
+  if (authUid && authUid !== profileId) {
+    queries.push(
+      db
+        .from('conversation_members')
+        .select('conversation_id, last_read_at, is_pinned, is_muted')
+        .eq('user_id', authUid),
+    );
+  }
+  const results = await Promise.all(queries);
+  const error = results.find((r) => r.error)?.error ?? null;
+  const rows = results.flatMap((r) => r.data || []);
+  return { rows, error };
+}
+
 async function loadDMConversationsOnce(
   profileId: string,
   stale: LoadedDMConversation[],
 ): Promise<LoadDMConversationsResult> {
   try {
-    const effectiveProfileId = (await resolveSessionProfileId(profileId)) ?? profileId;
+    const effectiveProfileId =
+      syncSessionProfileId(profileId) ??
+      (await resolveSessionProfileId(profileId)) ??
+      profileId;
     const { data: { session } } = await db.auth.getSession();
     const authUid = session?.user?.id ?? null;
 
-    const membershipQueries = [
-      db
-        .from('conversation_members')
-        .select('conversation_id, last_read_at, is_pinned, is_muted')
-        .eq('user_id', effectiveProfileId),
-    ];
-    if (authUid && authUid !== effectiveProfileId) {
-      membershipQueries.push(
-        db
-          .from('conversation_members')
-          .select('conversation_id, last_read_at, is_pinned, is_muted')
-          .eq('user_id', authUid),
-      );
-    }
-
-    const membershipResults = await Promise.all(membershipQueries);
-    const membershipError = membershipResults.find((r) => r.error)?.error ?? null;
-    const membershipRows = membershipResults.flatMap((r) => r.data || []);
+    const [
+      { rows: membershipRows, error: membershipError },
+      { data: hiddenData },
+      { data: trashedData },
+    ] = await Promise.all([
+      fetchMembershipRows(effectiveProfileId, authUid),
+      db.from('hidden_conversations').select('conversation_id').eq('user_id', effectiveProfileId),
+      db.from('trashed_conversations').select('conversation_id').eq('user_id', effectiveProfileId),
+    ]);
 
     if (membershipError) {
       if (isPermissionDeniedError(membershipError)) {
@@ -132,7 +158,10 @@ async function loadDMConversationsOnce(
       } else {
         console.warn('[DM] membership query error:', membershipError.message);
       }
-      return { data: stale, error: membershipError, profileId: effectiveProfileId };
+      if (stale.length > 0) {
+        return { data: stale, error: membershipError, profileId: effectiveProfileId };
+      }
+      return { data: [], error: membershipError, profileId: effectiveProfileId };
     }
 
     const membershipMap = new Map<string, { last_read_at?: string | null; conversation_id: string }>();
@@ -149,16 +178,16 @@ async function loadDMConversationsOnce(
         last_read_at: best,
       });
     }
-    const userConversationIds = [...membershipMap.keys()];
+    let userConversationIds = [...membershipMap.keys()];
 
     if (!userConversationIds.length) {
-      return { data: [], error: null, profileId: effectiveProfileId };
+      if (stale.length > 0) {
+        userConversationIds = stale.map((c) => c.id).filter(Boolean);
+      }
+      if (!userConversationIds.length) {
+        return { data: [], error: null, profileId: effectiveProfileId };
+      }
     }
-
-    const [{ data: hiddenData }, { data: trashedData }] = await Promise.all([
-      db.from('hidden_conversations').select('conversation_id').eq('user_id', effectiveProfileId),
-      db.from('trashed_conversations').select('conversation_id').eq('user_id', effectiveProfileId),
-    ]);
 
     const hiddenIds = new Set((hiddenData || []).map((h) => h.conversation_id));
     const trashedIds = new Set((trashedData || []).map((t) => t.conversation_id));
@@ -174,18 +203,27 @@ async function loadDMConversationsOnce(
       return { data: [], error: null, profileId: effectiveProfileId };
     }
 
-    const [{ data: allMembers, error: membersError }, { data: allMessages, error: messagesError }] =
-      await Promise.all([
-        db
-          .from('conversation_members')
-          .select('conversation_id, user_id, role, is_muted, is_pinned, last_read_at')
-          .in('conversation_id', userConversationIds),
-        fetchMessagesForConversations(
-          userConversationIds,
-          'id, conversation_id, sender_id, content, media_type, viewed_at, created_at, is_deleted',
-          Math.min(Math.max(userConversationIds.length * 3, 60), 250),
-        ),
-      ]);
+    const fallbackMemberIds = conversationsRaw.flatMap((c) =>
+      ((c.member_ids as string[]) || []).map(String),
+    );
+    const profileSeedIds = [...new Set(fallbackMemberIds)] as string[];
+
+    const [
+      { data: allMembers, error: membersError },
+      { data: allMessages, error: messagesError },
+      seededProfiles,
+    ] = await Promise.all([
+      db
+        .from('conversation_members')
+        .select('conversation_id, user_id, role, is_muted, is_pinned, last_read_at')
+        .in('conversation_id', userConversationIds),
+      fetchMessagesForConversations(
+        userConversationIds,
+        'id, conversation_id, sender_id, content, media_type, viewed_at, created_at, is_deleted',
+        Math.min(Math.max(userConversationIds.length * 3, 60), 250),
+      ),
+      profileSeedIds.length ? fetchMemberProfiles(profileSeedIds) : Promise.resolve(new Map()),
+    ]);
 
     if (membersError) {
       console.warn('[DM] all-members query error:', membersError.message);
@@ -195,12 +233,11 @@ async function loadDMConversationsOnce(
     }
 
     const memberUserIds = Array.from(new Set((allMembers || []).map((m) => String(m.user_id))));
-    const fallbackMemberIds = conversationsRaw.flatMap((c) =>
-      ((c.member_ids as string[]) || []).map(String),
-    );
-    const profileByKey = await fetchMemberProfiles([
-      ...new Set([...memberUserIds, ...fallbackMemberIds]),
-    ] as string[]);
+    const missingProfileIds = memberUserIds.filter((id) => !seededProfiles.has(id));
+    const profileByKey =
+      missingProfileIds.length > 0
+        ? await fetchMemberProfiles([...new Set([...profileSeedIds, ...missingProfileIds])])
+        : seededProfiles;
 
     const membersByConv = new Map<string, any[]>();
     (allMembers || []).forEach((m) => {

@@ -97,6 +97,10 @@ export default function CreateListingPage() {
       toast.error('Please select a category');
       return;
     }
+    if (images.length === 0) {
+      toast.error('Add at least one photo of what you are selling');
+      return;
+    }
     if (price && isNaN(parseFloat(price))) {
       toast.error('Please enter a valid price');
       return;

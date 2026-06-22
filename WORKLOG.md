@@ -2,6 +2,26 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## Task batch complete (2026-06-22)
+- **DM send:** Fixed duplicate message doc id (`newDocumentId`) — new messages no longer overwrite same bubble
+- **DM list refresh:** Faster parallel load, 35s timeout, cached-chats banner auto-retry
+- **Push:** OneSignal secrets on `sendPushNotification`/`sendBriefNotification`; auth-uid alias fallback; link only under `profiles.id`; typing push no spurious bell row
+- **VYBE AI:** BYOK key lookup falls back to auth uid; client no longer hard-blocks chat on quota when key may exist; clearer invalid-key errors
+- **Marketplace/clips:** Heart crash fix, listing photo required, safe dates/prices/avatars on Market + ListingDetail + MobileShortCard
+- **Story:** Vybe Check before post; 24h DM default; saved chat green styling; typing push; purgeExpiredMessages scheduled fn
+- **Verified:** `npm run build` PASS, `npm run lint` PASS (warnings only)
+- **Deployed:** Firebase hosting + push/AI functions on https://vybe-daaab.web.app
+- **You:** Lovable Publish vybehub.app; re-enable push in Settings on device; test DM + VYBE AI with your API key
+
+## DM list "cached chats — refresh failed" (2026-06-22)
+- **Symptom:** Amber banner on Messages: "Showing cached chats — refresh failed."
+- **Root cause:** Background `loadDMConversations` often hit 15s timeout or redundant async profile resolve; large conversation batches used slow fallbacks.
+- **Fix:** Skip re-resolve when profile id already cached; parallel membership + hidden/trash + profile prefetch; chunked conversation `.in()` queries; 35s timeout; stale-id fallback when membership empty; reactive soft-error + auto-retry once.
+- **Files:** `src/lib/loadDMConversations.ts`, `src/hooks/useDMConversations.ts`
+- **Verified:** `npm run build` PASS
+- **Deployed:** Firebase hosting https://vybe-daaab.web.app
+- **You:** Hard refresh Messages on phone; banner should clear after load (or after one silent retry)
+
 ## Password reset fix (2026-06-22)
 - **Symptom:** "Send Reset Link" failed with generic error.
 - **Root cause:** Cloud Function `requestPasswordReset` crashed — `recovery.html` (and other email templates) live in `functions/src/` but `tsc` never copied them to `lib/`, so production threw `ENOENT` on send.
