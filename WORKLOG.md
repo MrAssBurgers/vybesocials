@@ -2,6 +2,13 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## Phase 4 QA — DMs, calls, notifications (2026-06-22)
+- **Automated:** `test:conversation-load` 15/15 PASS, `test:dm-send` 3/3 PASS, `test:social-permissions` 15/15 PASS
+- **Cloud Functions (vybe-daaab):** `sendDmMessage`, `startDmCall`, `livekitToken`, `giphySearch`, `aiSmartReplies` deployed (400/403 without auth = expected)
+- **Lint:** Fixed `GlobalCallOverlay` prefer-const; `npm run lint` 0 errors, `npm run build` PASS
+- **Data:** DM import done (269 members); notifications crash fix shipped (`5f3d88e3`)
+- **Manual (two devices):** DM list → open thread → send text/image/GIF → read receipts → call ring/answer → bell/notifications tab
+
 ## DM conversation import — all users (2026-06-22)
 - **Script:** `npm run migrate:firebase:import-dms` (`scripts/migrate-firebase/import-all-dm-conversations.mjs`)
 - **Ran live:** 56 conversations reconciled; 56 new membership rows (auth uid variants); 149 updated; 0 users with messages missing membership

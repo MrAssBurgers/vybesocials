@@ -679,12 +679,12 @@ export function GlobalCallOverlay() {
       const w = localVideo?.videoWidth || 0;
       const h = localVideo?.videoHeight || 0;
 
-      let videoBitrateKbps = 0;
-      let audioBitrateKbps = 0;
+      const videoBitrateKbps = 0;
+      const audioBitrateKbps = 0;
       let packetLossPct = 0;
       let latencyMs = 0;
       let turnInUse = false;
-      let iceState = 'unknown';
+      const iceState = 'unknown';
 
       try {
         const engine = (room as unknown as { engine?: { client?: { getPublisherStats?: () => Promise<unknown> } } }).engine;
