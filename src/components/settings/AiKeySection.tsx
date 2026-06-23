@@ -27,6 +27,7 @@ export function AiKeySection() {
       setApiKey('');
       toast.success('API key saved — AI usage will bill your Google account');
       await refresh();
+      window.dispatchEvent(new CustomEvent('vybe-ai-key-saved'));
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : 'Could not save API key');
     } finally {

@@ -66,6 +66,9 @@ export function useAiUsage() {
 
   useEffect(() => {
     void refresh();
+    const onKeySaved = () => void refresh();
+    window.addEventListener('vybe-ai-key-saved', onKeySaved);
+    return () => window.removeEventListener('vybe-ai-key-saved', onKeySaved);
   }, [refresh]);
 
   const chatRemaining = Math.max(0, usage.chat.limit - usage.chat.used);

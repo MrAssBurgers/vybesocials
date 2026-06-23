@@ -64,19 +64,6 @@ export function useDMConversations(searchQuery: string = '') {
   const { data: friends, isLoading: friendsLoading } = useFriends();
   const attemptedFriendIdsRef = useRef<Set<string>>(new Set());
   const dmInitialFetchDoneRef = useRef(false);
-  const softErrorRetryRef = useRef(false);
-
-  const softErrorQueryKey = profileId
-    ? (['dm-conversations-soft-error', profileId] as const)
-    : null;
-  const { data: fetchWarning = null } = useQuery<string | null>({
-    queryKey: softErrorQueryKey ?? ['dm-conversations-soft-error', 'none'],
-    queryFn: () => null,
-    initialData: null,
-    staleTime: Infinity,
-    gcTime: Infinity,
-    enabled: !!softErrorQueryKey,
-  });
 
   // Fetch all conversations with proper sorting
   const conversationsQuery = useQuery({
@@ -92,22 +79,7 @@ export function useDMConversations(searchQuery: string = '') {
         syncDmListCaches(queryClient, profileId, data);
       }
 
-      const softErrorKey = ['dm-conversations-soft-error', resolvedId] as const;
-      const profileSoftErrorKey =
-        profileId && resolvedId !== profileId
-          ? (['dm-conversations-soft-error', profileId] as const)
-          : null;
-      if (error && data.length > 0) {
-        queryClient.setQueryData(softErrorKey, error.message);
-        if (profileSoftErrorKey) {
-          queryClient.setQueryData(profileSoftErrorKey, error.message);
-        }
-      } else {
-        queryClient.setQueryData(softErrorKey, null);
-        if (profileSoftErrorKey) {
-          queryClient.setQueryData(profileSoftErrorKey, null);
-        }
-      }
+      queryClient.removeQueries({ queryKey: ['dm-conversations-soft-error'] });
 
       if (error && data.length === 0) throw error;
       return data;
@@ -264,19 +236,6 @@ export function useDMConversations(searchQuery: string = '') {
       !!profileId &&
       (conversationsQuery.isPending || !conversationsQuery.isFetched));
 
-  useEffect(() => {
-    if (!fetchWarning || !profileId) {
-      softErrorRetryRef.current = false;
-      return;
-    }
-    if (softErrorRetryRef.current || conversationsQuery.isFetching) return;
-    softErrorRetryRef.current = true;
-    const timer = window.setTimeout(() => {
-      void conversationsQuery.refetch();
-    }, 2500);
-    return () => window.clearTimeout(timer);
-  }, [fetchWarning, profileId, conversationsQuery.isFetching, conversationsQuery]);
-
   return {
     conversations: filteredConversations,
     pinnedConversations,
@@ -286,7 +245,6 @@ export function useDMConversations(searchQuery: string = '') {
     isFetched: conversationsQuery.isFetched,
     isFetching: conversationsQuery.isFetching,
     error: conversationsQuery.error,
-    fetchWarning,
     refetch: conversationsQuery.refetch,
     profileId,
   };

@@ -84,9 +84,7 @@ import {
   Send, 
   Lock,
   MoreVertical,
-  Clock,
   Eye,
-  EyeOff,
   Check,
   RefreshCw,
   X,
@@ -274,7 +272,7 @@ export function ChatView() {
         return saved;
       }
     } catch { /* ignore */ }
-    return '24h';
+    return 'permanent';
   });
 
   useEffect(() => {
@@ -1017,15 +1015,17 @@ export function ChatView() {
         const { data: { publicUrl } } = db.storage
           .from('chat-media')
           .getPublicUrl(fileName);
+
+        const { data: signed } = await db.storage.from('chat-media').createSignedUrl(fileName, 3600);
+        mediaUrl = signed?.signedUrl || publicUrl;
         
         // Validate URL
-        if (!publicUrl || publicUrl.includes('undefined')) {
+        if (!mediaUrl || mediaUrl.includes('undefined')) {
           markFailed('Failed to get media URL', phase);
           URL.revokeObjectURL(mediaDataUrl);
           return;
         }
         
-        mediaUrl = publicUrl;
         URL.revokeObjectURL(mediaDataUrl);
       } else {
         // Image vybe
@@ -1074,20 +1074,21 @@ export function ChatView() {
         const { data: { publicUrl } } = db.storage
           .from('chat-media')
           .getPublicUrl(fileName);
+
+        const { data: signed } = await db.storage.from('chat-media').createSignedUrl(fileName, 3600);
+        mediaUrl = signed?.signedUrl || publicUrl;
         
         // Validate URL
-        if (!publicUrl || publicUrl.includes('undefined')) {
+        if (!mediaUrl || mediaUrl.includes('undefined')) {
           markFailed('Failed to get media URL', phase);
           return;
         }
-        
-        mediaUrl = publicUrl;
       }
 
       phase = 'db-insert';
       console.log('[VYBE] Inserting message with mediaUrl:', mediaUrl?.substring(0, 80));
 
-      const expiresAt = expiresAtForViewMode(viewMode);
+      const expiresAt = expiresAtForViewMode('view_once');
 
       void repairConversationForSend(conversationId, profileId, otherMember?.id ?? null).catch(() => {});
 
@@ -1099,7 +1100,7 @@ export function ChatView() {
           media_url: mediaUrl,
           media_type: 'vybe',
           message_type: 'text',
-          view_mode: viewMode,
+          view_mode: 'view_once',
           expires_at: expiresAt,
           reply_to_id: replyingTo?.id ?? null,
         },
@@ -1116,7 +1117,7 @@ export function ChatView() {
 
       replaceOptimisticMessage(queryClient, conversationId, tempId, {
         ...realMessage,
-        view_mode: viewMode,
+        view_mode: 'view_once',
       });
 
       void sendDmBroadcastMessage(conversationId, {
@@ -2330,11 +2331,6 @@ const MessageInputArea = memo(function MessageInputArea({
           </div>
         )}
 
-        {viewMode !== 'permanent' && !isRecordingVoice && (
-          <p className="text-[10px] sm:text-xs text-muted-foreground mt-1.5 text-center">
-            {viewMode === 'view_once' ? t('messages.viewOnceHint') : t('messages.24hoursHint')}
-          </p>
-        )}
       </div>
     </div>
   );
@@ -2841,18 +2837,6 @@ const MessageBubble = memo(function MessageBubble({
             )} style={{ overflowWrap: 'anywhere', wordBreak: 'break-word' }}>{message.content?.startsWith('e2ee:') ? '🔒 Message from older version' : message.content}</p>
           ) : null}
 
-          {message.view_mode !== 'permanent' && (
-            <div className="flex items-center gap-1 mt-1 opacity-70">
-              {message.view_mode === 'view_once' ? (
-                <EyeOff className="h-2.5 w-2.5" />
-              ) : (
-                <Clock className="h-2.5 w-2.5" />
-              )}
-              <span className="text-[9px]">
-                {message.view_mode === 'view_once' ? 'View once' : '24h'}
-              </span>
-            </div>
-          )}
         </div>
         </div>
         )}

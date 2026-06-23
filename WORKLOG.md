@@ -13,6 +13,12 @@ Use this file as the Lovable -> Cursor handoff each session.
 - **Deployed:** Firebase hosting + push/AI functions on https://vybe-daaab.web.app
 - **You:** Lovable Publish vybehub.app; re-enable push in Settings on device; test DM + VYBE AI with your API key
 
+## Publish (2026-06-22)
+- **Git:** `0ac62d59` pushed to `origin/main`
+- **Firebase staging:** https://vybe-daaab.web.app (hosting redeployed)
+- **vybehub.app:** Still needs **Lovable → Share → Publish** (Cursor cannot click this)
+- **After publish:** Hard refresh on phone; verify `curl -s https://vybehub.app/despia/local.json | head -3` shows fresh `deployed_at`
+
 ## DM list "cached chats — refresh failed" (2026-06-22)
 - **Symptom:** Amber banner on Messages: "Showing cached chats — refresh failed."
 - **Root cause:** Background `loadDMConversations` often hit 15s timeout or redundant async profile resolve; large conversation batches used slow fallbacks.

@@ -78,12 +78,13 @@ async function repairSender(
   conversationId: string,
   senderId: string,
   otherProfileId: string | null,
+  force = false,
 ): Promise<string> {
   resetMessagesReady(conversationId, senderId);
   try {
     await withTimeout(
-      repairConversationForSend(conversationId, senderId, otherProfileId, { force: true }),
-      12_000,
+      repairConversationForSend(conversationId, senderId, otherProfileId, { force }),
+      4_000,
       'Send setup timed out',
     );
   } catch (err) {
@@ -161,7 +162,12 @@ export async function insertDmMessage(
       };
     }
 
-    senderId = await repairSender(payload.conversation_id, senderId, otherProfileId);
+    senderId = await repairSender(
+      payload.conversation_id,
+      senderId,
+      otherProfileId,
+      attempt >= 1,
+    );
     await new Promise((r) => setTimeout(r, 250 * (attempt + 1)));
   }
 

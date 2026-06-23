@@ -7,7 +7,7 @@ import { haptics } from '@/lib/haptics';
 import { useCaptureDetection } from '@/hooks/useCaptureDetection';
 import { CaptureShield } from '@/components/chat/CaptureShield';
 import { useSignedUrl } from '@/hooks/useSignedUrl';
-import { needsSigning, isFailedUrl } from '@/lib/signedUrlCache';
+import { isFailedUrl } from '@/lib/signedUrlCache';
 import { toast } from 'sonner';
 
 interface VybeViewerProps {
@@ -33,15 +33,7 @@ function isVideoUrl(url: string): boolean {
   return lower.includes('.mp4') || lower.includes('.mov') || lower.includes('.webm') || lower.includes('.avi') || lower.includes('video');
 }
 
-/**
- * Check if a URL is a private storage URL that needs signing before it can be displayed.
- */
-function isStorageUrl(url: string): boolean {
-  if (!url) return false;
-  return needsSigning(url);
-}
-
-export function VybeViewer({ 
+export function VybeViewer({
   mediaUrl, 
   messageId,
   senderId,
@@ -70,20 +62,15 @@ export function VybeViewer({
   const [mediaDuration, setMediaDuration] = useState<number>(IMAGE_DURATION);
   const isVideo = isVideoUrl(mediaUrl);
   const hasMedia = !!mediaUrl && mediaUrl.length > 5;
-  
-  // Only sign storage URLs; for data:/blob: URLs use directly
-  const requiresSigning = hasMedia && isStorageUrl(mediaUrl);
-  const signedUrl = useSignedUrl(requiresSigning ? mediaUrl : null);
-  
-  // Determine the display URL:
-  // - For storage URLs: wait for signedUrl, don't use raw mediaUrl
-  // - For data/blob/external URLs: use directly
-  const displayUrl = requiresSigning
-    ? signedUrl  // null until signed, then the signed URL
-    : (hasMedia ? mediaUrl : null);
-  
-  // Are we still waiting for the signed URL?
-  const isSigningPending = requiresSigning && !signedUrl;
+
+  const isDirectUrl =
+    mediaUrl.startsWith('blob:') ||
+    mediaUrl.startsWith('data:') ||
+    (mediaUrl.startsWith('http') && mediaUrl.includes('firebasestorage.googleapis.com'));
+  const signedUrl = useSignedUrl(isDirectUrl || !hasMedia ? null : mediaUrl);
+
+  const displayUrl = isDirectUrl ? mediaUrl : signedUrl;
+  const isSigningPending = hasMedia && !isDirectUrl && !signedUrl;
 
   // Capture detection
   const { captured } = useCaptureDetection({

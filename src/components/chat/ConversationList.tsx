@@ -139,7 +139,6 @@ export function ConversationList() {
     isLoading,
     isFetched,
     error: convError,
-    fetchWarning,
     totalUnreadCount,
     refetch: refetchConversations,
     profileId: dmProfileId,
@@ -346,15 +345,6 @@ export function ConversationList() {
           overscrollBehavior: 'contain',
         }}
       >
-
-        {fetchWarning && allConversations.length > 0 && (
-          <div className="mx-3 mb-2 px-3 py-2 rounded-lg bg-amber-500/10 border border-amber-500/20 flex items-center justify-between gap-2">
-            <p className="text-[11px] text-amber-200/90 truncate">Showing cached chats — refresh failed.</p>
-            <Button variant="ghost" size="sm" className="h-7 px-2 text-[11px] shrink-0" onClick={() => void refetchConversations()}>
-              Retry
-            </Button>
-          </div>
-        )}
 
         {/* Notes Row - Instagram/Snapchat style */}
         <NotesRow />

@@ -1,7 +1,7 @@
 import type { Content, Part } from 'firebase/ai';
 import { AIError } from 'firebase/ai';
 import { getAuth } from 'firebase/auth';
-import { getChatModelWithSystem } from './aiLogic';
+import { getChatModelWithSystem, isAiLogicConfigured } from './aiLogic';
 import {
   filterAiChatHistoryForApi,
   type VybeAiChatMessage,
@@ -246,7 +246,7 @@ async function ensureSignedInForAi(): Promise<void> {
   if (!user) {
     throw new Error('Sign in to use VYBE AI.');
   }
-  await user.getIdToken(true);
+  await user.getIdToken();
 }
 
 async function invokeVybeAiChatCallable(
@@ -359,8 +359,7 @@ function pickUserFacingAiError(...errors: unknown[]): string {
 }
 
 /**
- * Stream a VYBE AI chat reply — always via Cloud Function so usage limits and BYOK apply.
- * Reveals the reply gradually for a typing effect.
+ * Stream a VYBE AI chat reply — Cloud Function (BYOK + quota), Firebase AI Logic fallback.
  */
 export async function streamVybeAiChat(options: StreamVybeAiChatOptions): Promise<string> {
   if (!RATE_LIMITS.aiChat()) {
@@ -371,9 +370,27 @@ export async function streamVybeAiChat(options: StreamVybeAiChatOptions): Promis
 
   await ensureSignedInForAi();
   const { history, userText, context, onChunk, imageBase64, imageMimeType } = options;
-  const reply = await invokeVybeAiChatCallable(history, userText, context, imageBase64, imageMimeType);
-  await revealReplyGradually(reply, onChunk);
-  return reply;
+
+  try {
+    const reply = await invokeVybeAiChatCallable(
+      history,
+      userText,
+      context,
+      imageBase64,
+      imageMimeType,
+    );
+    onChunk(reply, reply);
+    return reply;
+  } catch (callableErr) {
+    if (isAiLogicConfigured()) {
+      try {
+        return await streamVybeAiChatViaFirebaseAi(options);
+      } catch (clientErr) {
+        throw new Error(pickUserFacingAiError(callableErr, clientErr));
+      }
+    }
+    throw new Error(pickUserFacingAiError(callableErr));
+  }
 }
 
 /** Type out a completed reply word-by-word (server responses are not streamed). */

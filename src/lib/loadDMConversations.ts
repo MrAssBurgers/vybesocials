@@ -51,6 +51,9 @@ export async function loadDMConversations(
     return result;
   } catch (err) {
     console.warn('[DM] load failed:', err);
+    if (stale.length > 0) {
+      return { data: stale, error: null, profileId };
+    }
     const error = err instanceof Error ? err : new Error(String(err));
     return { data: stale, error, profileId };
   }
@@ -159,7 +162,7 @@ async function loadDMConversationsOnce(
         console.warn('[DM] membership query error:', membershipError.message);
       }
       if (stale.length > 0) {
-        return { data: stale, error: membershipError, profileId: effectiveProfileId };
+        return { data: stale, error: null, profileId: effectiveProfileId };
       }
       return { data: [], error: membershipError, profileId: effectiveProfileId };
     }
@@ -335,6 +338,9 @@ async function loadDMConversationsOnce(
     return { data: result, error: null, profileId: effectiveProfileId };
   } catch (err) {
     console.warn('[DM] load failed:', err);
+    if (stale.length > 0) {
+      return { data: stale, error: null, profileId };
+    }
     const error = err instanceof Error ? err : new Error(String(err));
     return { data: stale, error, profileId };
   }

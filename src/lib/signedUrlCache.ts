@@ -68,7 +68,8 @@ function parseStorageUrl(url: string): { bucket: string; path: string } | null {
  */
 export function needsSigning(url: string | null | undefined): boolean {
   if (!url) return false;
-  if (url.startsWith('gs://') || url.includes('firebasestorage.googleapis.com')) return false;
+  if (url.startsWith('gs://')) return true;
+  if (url.includes('firebasestorage.googleapis.com')) return false;
   if (url.includes('/storage/v1/object/public/')) return false;
   return url.includes('/storage/v1/object/sign/') && isProjectUrl(url);
 }

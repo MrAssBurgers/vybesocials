@@ -237,7 +237,7 @@ export function useInstantSend(conversationId: string | undefined) {
 
     await withTimeout(
       repairConversationForSend(conversationId, senderId, otherProfileId),
-      12_000,
+      4_000,
       'Chat setup timed out',
     ).catch((err) => {
       console.warn('[InstantSend] repair before send:', err);
