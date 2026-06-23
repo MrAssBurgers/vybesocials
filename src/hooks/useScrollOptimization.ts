@@ -26,7 +26,9 @@ function markScrolling() {
 }
 
 function bindAppScrollContainer() {
-  const next = document.querySelector('[data-app-scroll-container="true"]');
+  const next =
+    document.querySelector('[data-app-scroll-container="true"]') ??
+    document.getElementById('main-content');
   if (next === appScrollContainer) return;
   if (appScrollContainer) {
     appScrollContainer.removeEventListener('scroll', markScrolling);

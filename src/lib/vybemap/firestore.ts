@@ -158,13 +158,17 @@ export function subscribeLiveFriends(friendIdSet: Set<string>, onUpdate: () => v
     where('sharing_enabled', '==', true),
     where('is_ghost', '==', false),
   );
-  return onSnapshot(q, (snap) => {
-    const relevant = snap.docChanges().some((c) => {
-      const uid = (c.doc.data() as { user_id?: string }).user_id;
-      return uid && friendIdSet.has(uid);
-    });
-    if (relevant || snap.docChanges().length === 0) onUpdate();
-  });
+  return onSnapshot(
+    q,
+    (snap) => {
+      const relevant = snap.docChanges().some((c) => {
+        const uid = (c.doc.data() as { user_id?: string }).user_id;
+        return uid && friendIdSet.has(uid);
+      });
+      if (relevant || snap.docChanges().length === 0) onUpdate();
+    },
+    (err) => console.warn('[VybeMap] live location listener:', err.message),
+  );
 }
 
 export async function logLocationAccess(viewerId: string, targetId: string, action: string): Promise<void> {

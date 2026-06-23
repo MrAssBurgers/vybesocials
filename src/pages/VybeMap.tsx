@@ -122,6 +122,7 @@ function VybeMapInner() {
     heatLayerRef.current = L.layerGroup().addTo(map);
     mapRef.current = map;
     map.on('click', () => setSelId(null));
+    requestAnimationFrame(() => map.invalidateSize());
     return () => {
       map.remove();
       mapRef.current = null;
@@ -245,7 +246,10 @@ function VybeMapInner() {
   };
 
   return (
-    <div className="relative h-full w-full overflow-hidden bg-black vybe-map-shell">
+    <div
+      className="fixed inset-0 w-full h-full overflow-hidden bg-black vybe-map-shell"
+      style={{ touchAction: 'none', overscrollBehavior: 'none', zIndex: 9999 }}
+    >
       <style>{`
         .vybe-live-marker{position:relative;width:44px;height:44px;border-radius:9999px;box-shadow:0 0 0 3px var(--ring),0 4px 20px rgba(0,0,0,.4)}
         .vybe-live-avatar{width:100%;height:100%;border-radius:9999px;object-fit:cover;border:2px solid #fff}

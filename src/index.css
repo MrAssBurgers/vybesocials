@@ -568,6 +568,8 @@ body.has-liquid-bg:not(.has-custom-bg) .dm-sidebar {
   box-shadow:
     0 12px 40px hsl(var(--background) / 0.5),
     inset 0 1px 0 hsl(var(--foreground) / 0.08);
+  isolation: isolate;
+  contain: layout paint;
 }
 .home-hero-aurora {
   position: absolute;
@@ -2035,6 +2037,12 @@ body.has-liquid-bg:not(.has-custom-bg) .dm-sidebar {
     transition: none !important;
   }
 
+  /* Freeze aurora parallax while scrolling — moving mesh exposes dark edges */
+  html.is-scrolling .vybe-liquid-parallax {
+    transform: none !important;
+    transition: none !important;
+  }
+
   /* Reduce transition complexity during scroll - target specific classes only */
   .is-scrolling .liquid-glass,
   .is-scrolling .liquid-glass-card,
@@ -2061,10 +2069,9 @@ body.has-liquid-bg:not(.has-custom-bg) .dm-sidebar {
   }
   /* Skip content-visibility on the main app scroll container — offscreen skip
      left transparent holes over the aurora during feed scroll on mobile. */
-  .scroller:not([data-app-scroll-container="true"]) > * {
-    content-visibility: auto;
-    contain-intrinsic-size: 1px 600px;
-  }
+  /* NOTE: Do not apply content-visibility to generic .scroller direct children —
+     desktop #main-content wraps the whole feed in one child; skipping it paints
+     a huge transparent hole (dark aurora flicker) while scrolling. */
 
   /* Enable smooth scrolling everywhere - but not on iOS where it causes issues */
   @supports not (-webkit-touch-callout: none) {
@@ -3994,15 +4001,32 @@ article, .post-card, .card {
   contain: layout style paint;
 }
 
-/* Images/videos - content-visibility off inside main feed scroll (prevents black flash) */
+/* Images/videos — skip content-visibility when aurora shows through scroll areas */
 img, video {
   content-visibility: auto;
   contain-intrinsic-size: 300px 300px;
 }
 
 [data-app-scroll-container="true"] img,
-[data-app-scroll-container="true"] video {
+[data-app-scroll-container="true"] video,
+body.has-liquid-bg img,
+body.has-liquid-bg video,
+body.has-custom-bg img,
+body.has-custom-bg video,
+html.vybe-aurora-active img,
+html.vybe-aurora-active video {
   content-visibility: visible;
+  contain-intrinsic-size: auto;
+}
+
+/* Aurora / wallpaper — never skip paint on scroll-region children (dark mesh flash) */
+body.has-liquid-bg .scroller > *,
+body.has-custom-bg .scroller > *,
+html.vybe-aurora-active .scroller > *,
+body.has-liquid-bg #main-content > *,
+body.has-custom-bg #main-content > * {
+  content-visibility: visible;
+  contain-intrinsic-size: auto;
 }
 
 /* (reduced-motion handled once globally above) */
@@ -6300,7 +6324,11 @@ html.is-scrolling .vybe-liquid-bg .vybe-liquid-mesh {
 
 html.is-scrolling [data-app-scroll-container="true"],
 html.is-scrolling [data-app-scroll-container="true"] > *,
-html.is-scrolling [data-app-scroll-container="true"] [class*="feed"] {
+html.is-scrolling [data-app-scroll-container="true"] [class*="feed"],
+html.is-scrolling #main-content,
+html.is-scrolling #main-content .scroller > *,
+html.is-scrolling .home-shell,
+html.is-scrolling .home-shell > * {
   content-visibility: visible !important;
   contain-intrinsic-size: auto !important;
 }

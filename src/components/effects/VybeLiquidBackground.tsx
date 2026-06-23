@@ -191,7 +191,7 @@ export const VybeLiquidBackground = memo(function VybeLiquidBackground({
       data-allow-animation="true"
       aria-hidden
     >
-      <div className="vybe-liquid-parallax absolute inset-[-8%]">
+      <div className="vybe-liquid-parallax absolute inset-[-20%]">
         <div className="vybe-liquid-mesh absolute inset-0" />
         {!STABLE_APP_BACKGROUND && !isNativePerfMode() && (
           <>

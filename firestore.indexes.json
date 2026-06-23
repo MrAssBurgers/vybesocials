@@ -83,6 +83,21 @@
       "fields": [
         { "fieldPath": "sharing_enabled", "order": "ASCENDING" },
         { "fieldPath": "user_id", "order": "ASCENDING" }
+      ] },
+    { "collectionGroup": "user_live_locations", "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "sharing_enabled", "order": "ASCENDING" },
+        { "fieldPath": "is_ghost", "order": "ASCENDING" }
+      ] },
+    { "collectionGroup": "map_meetups", "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "starts_at", "order": "ASCENDING" }
+      ] },
+    { "collectionGroup": "location_history", "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "user_id", "order": "ASCENDING" },
+        { "fieldPath": "recorded_at", "order": "ASCENDING" }
       ] }
   ],
   "fieldOverrides": []

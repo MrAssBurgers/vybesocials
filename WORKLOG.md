@@ -2,6 +2,20 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## Home scroll flicker fix (2026-06-23)
+- **Bug:** Dark angular patches flickered while scrolling Home (desktop) — `content-visibility: auto` on `.scroller` children + feed images left unpainted holes over the aurora mesh.
+- **Fix:** Removed blanket scroller content-visibility; disable CV on liquid/wallpaper routes; freeze aurora parallax during scroll; wider mesh bleed (`inset -20%`); `#main-content` scroll hooks `is-scrolling`.
+- **Verified:** `npm run build` PASS
+- **Deployed:** https://vybe-daaab.web.app
+
+## VybeMap load fix (2026-06-23)
+- **Bug:** `/map` rendered blank — new `VybeMap` used `h-full` without a sized parent; Leaflet container was 0px tall.
+- **Fix:** Restored full-viewport shell (`fixed inset-0`, z-index 9999) like legacy FriendMap; `map.invalidateSize()` after init.
+- **Indexes:** Added Firestore composite indexes for `user_live_locations`, `map_meetups`, `location_history`.
+- **Verified:** `npm run build` PASS
+- **Deployed:** Firebase hosting + indexes on https://vybe-daaab.web.app
+- **You:** Lovable Publish vybehub.app; hard refresh `/map`
+
 ## Firebase-only cutover (2026-06-23)
 - **Removed:** entire `supabase/` folder, `@supabase/supabase-js`, `src/integrations/supabase/`, legacy shim files
 - **Client:** `legacyAuthStorage.ts` (session migration), Firebase `invokeFunction` for all admin/debug calls
