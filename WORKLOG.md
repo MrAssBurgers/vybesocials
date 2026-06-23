@@ -2,6 +2,11 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## Publish (2026-06-23 batch 3)
+- **Git:** `90228bff` pushed to `origin/main` — VybeMap full-viewport fix, home scroll flicker patch, VybeMap Firestore indexes
+- **Firebase staging:** https://vybe-daaab.web.app (hosting + indexes redeployed)
+- **You:** Lovable → Share → Publish for **vybehub.app**; hard refresh on phone
+
 ## Home scroll flicker fix (2026-06-23)
 - **Bug:** Dark angular patches flickered while scrolling Home (desktop) — `content-visibility: auto` on `.scroller` children + feed images left unpainted holes over the aurora mesh.
 - **Fix:** Removed blanket scroller content-visibility; disable CV on liquid/wallpaper routes; freeze aurora parallax during scroll; wider mesh bleed (`inset -20%`); `#main-content` scroll hooks `is-scrolling`.
