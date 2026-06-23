@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { VybeMiniIcon } from '@/components/ui/VybeMiniIcon';
 import { cn } from '@/lib/utils';
 import { haptics } from '@/lib/haptics';
+import { useDoubleTapCameraFlip } from '@/hooks/useDoubleTapCameraFlip';
 import { SnapOverlayDraggable } from '@/components/camera/SnapOverlayDraggable';
 
 /** @deprecated Legacy DM snap camera — use VybeSnapCamera + VybeSnapEditor for all entry points. */
@@ -131,6 +132,11 @@ export function SnapCamera({ isOpen, onClose, onSend }: VybeCameraProps) {
   const handleSwitchCamera = () => {
     setFacingMode(prev => prev === 'user' ? 'environment' : 'user');
   };
+
+  const onDoubleTapFlip = useDoubleTapCameraFlip(() => {
+    haptics.impact();
+    handleSwitchCamera();
+  });
 
   // Flash effect state
   const [showFlash, setShowFlash] = useState(false);
@@ -620,6 +626,10 @@ export function SnapCamera({ isOpen, onClose, onSend }: VybeCameraProps) {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             className="flex-1 relative"
+            onDoubleClick={(e) => onDoubleTapFlip(e)}
+            onTouchEnd={(e) => {
+              if (e.changedTouches.length === 1 && e.touches.length === 0) onDoubleTapFlip(e);
+            }}
           >
             <video
               ref={videoRef}

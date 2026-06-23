@@ -1,7 +1,7 @@
-import { getSupabaseProjectRef } from '@/lib/supabaseStorageKey';
+import { getFirebaseConfig, isFirebaseConfigured } from '@/lib/firebase/config';
 
-/** Retired Supabase projects still referenced in old seed/migration rows. */
-const LEGACY_SUPABASE_REFS = [
+/** Retired Supabase hosts still referenced in old seed/migration rows. */
+const LEGACY_SUPABASE_HOSTS = [
   'szthqtnbepupjqjxaduu',
   'agtcyxjxgkdyoxwxkjth',
   'hprmicwhlaaqfgshucec',
@@ -15,14 +15,22 @@ const BLOCKED_MEDIA_PATTERNS = [
 
 const PLACEHOLDER_FILENAMES = new Set(['avatar.png', 'avatar.jpg', 'placeholder.png']);
 
-export function getSupabaseStorageBase(): string {
-  const fromEnv = (import.meta.env.VITE_SUPABASE_URL as string | undefined)?.replace(/\/$/, '');
-  if (fromEnv) return fromEnv;
-  return `https://${getSupabaseProjectRef()}.db.co`;
+function firebasePublicUrl(bucket: string, objectPath: string): string {
+  const encoded = encodeURIComponent(objectPath).replace(/%2F/g, '%2F');
+  return `https://firebasestorage.googleapis.com/v0/b/${bucket}/o/${encoded}?alt=media`;
+}
+
+function getStorageBucket(): string | null {
+  try {
+    if (!isFirebaseConfigured()) return null;
+    return getFirebaseConfig().storageBucket;
+  } catch {
+    return null;
+  }
 }
 
 /**
- * Rewrite legacy hosts, resolve bare storage paths, and drop URLs that always 403/400.
+ * Rewrite legacy Supabase storage hosts, resolve bare storage paths, and drop URLs that always 403/400.
  */
 export function normalizeMediaUrl(url: string | null | undefined): string | null {
   if (!url || typeof url !== 'string') return null;
@@ -34,20 +42,31 @@ export function normalizeMediaUrl(url: string | null | undefined): string | null
     return null;
   }
 
-  const base = getSupabaseStorageBase();
-  const currentRef = getSupabaseProjectRef();
+  const bucket = getStorageBucket();
 
-  for (const ref of LEGACY_SUPABASE_REFS) {
-    if (ref === currentRef) continue;
+  // Legacy Supabase public object URL → Firebase Storage
+  const supabasePublic = trimmed.match(
+    /https?:\/\/[^/]+\.supabase\.co\/storage\/v1\/object\/public\/([^/]+)\/(.+)$/i,
+  );
+  if (supabasePublic && bucket) {
+    const objectPath = `${supabasePublic[1]}/${supabasePublic[2]}`;
+    trimmed = firebasePublicUrl(bucket, objectPath);
+  }
+
+  // Legacy .db.co host (old Lovable CDN shim)
+  for (const ref of LEGACY_SUPABASE_HOSTS) {
     if (trimmed.includes(`${ref}.db.co`)) {
-      trimmed = trimmed.replace(`https://${ref}.db.co`, base);
+      const pathMatch = trimmed.match(/\/storage\/v1\/object\/public\/(.+)$/);
+      if (pathMatch && bucket) {
+        trimmed = firebasePublicUrl(bucket, pathMatch[1]!);
+      }
       break;
     }
   }
 
   if (/^https?:\/\//i.test(trimmed)) {
     const filename = trimmed.split('/').pop()?.split('?')[0] || '';
-    if (PLACEHOLDER_FILENAMES.has(filename) && !trimmed.includes('/storage/v1/object/')) {
+    if (PLACEHOLDER_FILENAMES.has(filename) && !trimmed.includes('firebasestorage.googleapis.com')) {
       return null;
     }
     return trimmed;
@@ -60,12 +79,12 @@ export function normalizeMediaUrl(url: string | null | undefined): string | null
   const clean = trimmed.replace(/^\/+/, '');
   if (PLACEHOLDER_FILENAMES.has(clean)) return null;
 
-  if (/^(avatars|media|stories|messages|posts|clips|dm-media)\//i.test(clean)) {
-    return `${base}/storage/v1/object/public/${clean}`;
+  if (bucket && /^(avatars|media|stories|messages|posts|clips|dm-media)\//i.test(clean)) {
+    return firebasePublicUrl(bucket, clean);
   }
 
-  if (/\.(jpe?g|png|webp|gif|mp4|webm|mov|m4v)(\?|$)/i.test(clean)) {
-    return `${base}/storage/v1/object/public/media/${clean}`;
+  if (bucket && /\.(jpe?g|png|webp|gif|mp4|webm|mov|m4v)(\?|$)/i.test(clean)) {
+    return firebasePublicUrl(bucket, `media/${clean}`);
   }
 
   return null;

@@ -11,6 +11,7 @@ import { SoundControls } from '@/components/sounds/SoundControls';
 import { triggerHaptic } from '@/lib/haptics';
 import { navVisibility } from '@/lib/navVisibility';
 import { Sound } from '@/hooks/useSounds';
+import { useDoubleTapCameraFlip } from '@/hooks/useDoubleTapCameraFlip';
 
 interface CameraProps {
   onClose: () => void;
@@ -91,6 +92,8 @@ export function Camera({ onClose, initialSound }: CameraProps) {
     triggerHaptic('light');
     setFacingMode(prev => prev === 'user' ? 'environment' : 'user');
   };
+
+  const onDoubleTapFlip = useDoubleTapCameraFlip(toggleCamera);
 
   // Take photo
   const takePhoto = () => {
@@ -278,6 +281,10 @@ export function Camera({ onClose, initialSound }: CameraProps) {
       {/* Camera View */}
       <div 
         className="flex-1 relative overflow-hidden"
+        onDoubleClick={(e) => onDoubleTapFlip(e)}
+        onTouchEnd={(e) => {
+          if (e.changedTouches.length === 1 && e.touches.length === 0) onDoubleTapFlip(e);
+        }}
         onTouchStart={(e) => {
           const touch = e.touches[0];
           const startX = touch.clientX;

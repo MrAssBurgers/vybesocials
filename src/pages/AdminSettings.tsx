@@ -17,7 +17,6 @@ import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
-import { getFunctionAuthHeaders } from '@/lib/functionAuth';
 import { motion } from 'framer-motion';
 
 // ─── Hooks ───
@@ -288,13 +287,14 @@ export default function AdminSettings() {
   const runValidation = async () => {
     setValidating(true);
     try {
-      const headers = await getFunctionAuthHeaders();
-      const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/validate-stripe-config`, {
-        method: 'POST', headers, body: JSON.stringify({
-          stripe_enabled: enabled, stripe_mode: mode, stripe_publishable_key: publishableKey.trim() || null,
-        }),
+      const { data: result, error } = await db.functions.invoke('validate-stripe-config', {
+        body: {
+          stripe_enabled: enabled,
+          stripe_mode: mode,
+          stripe_publishable_key: publishableKey.trim() || null,
+        },
       });
-      const result = await res.json();
+      if (error) throw error;
       setValidationResult(result);
       setLastValidation(new Date());
     } catch {
@@ -333,19 +333,18 @@ export default function AdminSettings() {
 
       // Auto-validate after save (non-blocking — don't let secret key issues block publishable key saves)
       try {
-        const headers = await getFunctionAuthHeaders();
-        const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/validate-stripe-config`, {
-          method: 'POST', headers, body: JSON.stringify(updateData),
+        const { data: result } = await db.functions.invoke('validate-stripe-config', {
+          body: updateData,
         });
-        const result = await res.json();
-        setValidationResult(result);
-        setLastValidation(new Date());
-        // Only return warnings about the publishable key, not the secret key
-        const pkWarnings = (result.errors || []).filter((e: string) =>
-          e.toLowerCase().includes('publishable')
-        );
-        if (pkWarnings.length > 0) {
-          return { warnings: pkWarnings };
+        if (result) {
+          setValidationResult(result);
+          setLastValidation(new Date());
+          const pkWarnings = (result.errors || []).filter((e: string) =>
+            e.toLowerCase().includes('publishable')
+          );
+          if (pkWarnings.length > 0) {
+            return { warnings: pkWarnings };
+          }
         }
       } catch { /* validation call failed, save still succeeded */ }
       return { warnings: [] };

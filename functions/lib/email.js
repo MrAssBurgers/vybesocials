@@ -131,6 +131,37 @@ export const handleEmailUnsubscribe = onRequest({ cors: true }, async (req, res)
     });
     res.status(200).send(`<html><body style="font-family:system-ui;padding:48px;text-align:center"><h1>Unsubscribed</h1><p>${email} will no longer receive marketing emails.</p></body></html>`);
 });
+/** Token-based unsubscribe (Firestore email_unsubscribe_tokens). */
+export const emailUnsubscribeToken = onCall(async (request) => {
+    const { token, validateOnly } = (request.data || {});
+    if (!token)
+        throw new HttpsError('invalid-argument', 'token required');
+    const snap = await db.collection('email_unsubscribe_tokens').where('token', '==', token).limit(1).get();
+    const doc = snap.docs[0];
+    if (!doc) {
+        return { valid: false, error: 'Invalid or expired token' };
+    }
+    const record = doc.data();
+    if (record.used_at) {
+        return validateOnly
+            ? { valid: false, reason: 'already_unsubscribed' }
+            : { success: false, reason: 'already_unsubscribed' };
+    }
+    if (validateOnly) {
+        return { valid: true };
+    }
+    await doc.ref.update({ used_at: new Date().toISOString() });
+    const email = String(record.email || '').toLowerCase();
+    if (!email) {
+        throw new HttpsError('failed-precondition', 'Token missing email');
+    }
+    await db.collection('suppressed_emails').doc(email).set({
+        email,
+        reason: 'unsubscribe',
+        created_at: new Date().toISOString(),
+    }, { merge: true });
+    return { success: true };
+});
 /** Drain the email_send_state queue. Runs every 5 minutes. */
 export const processEmailQueue = onSchedule({ schedule: 'every 5 minutes', secrets: ['RESEND_API_KEY'] }, async () => {
     const snap = await db.collection('email_send_state')

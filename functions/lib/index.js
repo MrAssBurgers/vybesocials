@@ -33,6 +33,7 @@ export * from './calls.js';
 export * from './spotify.js';
 export * from './stripe.js';
 export * from './stubs.js';
+export * from './vybemap.js';
 /**
  * Promote a user to admin via custom claim. Bootstrap the first admin
  * manually in Firebase Console → Authentication → User → Custom Claims:

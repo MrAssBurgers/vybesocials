@@ -4,14 +4,7 @@ import { db } from '@/lib/firebase';
 import { subscribePostgresChannel, removeRealtimeChannel } from '@/lib/realtimeChannel';
 import { useAuth } from '@/lib/auth';
 import { isPermissionDeniedError, warnOnce } from '@/lib/logOnce';
-import { CANONICAL_PUBLISHABLE_KEY, CANONICAL_SUPABASE_URL } from '@/lib/canonicalSupabase';
 import { presenceHeartbeatMs } from '@/lib/nativePerfMode';
-
-const LEGACY_SUPABASE_URL =
-  (import.meta.env.VITE_SUPABASE_URL as string | undefined)?.trim() || CANONICAL_SUPABASE_URL;
-const LEGACY_SUPABASE_ANON_KEY =
-  (import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string | undefined)?.trim() ||
-  CANONICAL_PUBLISHABLE_KEY;
 
 // Debug flag - set to true for dev debugging
 const DEBUG_PRESENCE = import.meta.env.DEV;
@@ -159,22 +152,8 @@ export function usePresence() {
     // Only mark offline on true page unload (real tab close / hard navigation).
     // Use pagehide which fires reliably on mobile Safari and modern browsers.
     const handlePageHide = (e: PageTransitionEvent) => {
-      // bfcache navigations should NOT mark offline — the session stays alive.
       if (e.persisted) return;
-      try {
-        fetch(`${LEGACY_SUPABASE_URL}/rest/v1/user_presence?user_id=eq.${profile.id}`, {
-          method: 'PATCH',
-          headers: {
-            'Content-Type': 'application/json',
-            'apikey': LEGACY_SUPABASE_ANON_KEY,
-            'Authorization': `Bearer ${LEGACY_SUPABASE_ANON_KEY}`,
-          },
-          body: JSON.stringify({ is_online: false, last_seen_at: new Date().toISOString() }),
-          keepalive: true,
-        });
-      } catch (e) {
-        // Silent fail on unload
-      }
+      void setOffline();
     };
 
     window.addEventListener('pagehide', handlePageHide);

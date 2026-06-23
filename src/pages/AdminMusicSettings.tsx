@@ -9,7 +9,6 @@ import { Badge } from '@/components/ui/badge';
 import { Plus, TestTube, Check, X, Loader2, Music, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { db } from '@/lib/firebase';
-import { getFunctionAuthHeaders } from '@/lib/functionAuth';
 import {
   Dialog,
   DialogContent,
@@ -106,26 +105,16 @@ export default function AdminMusicSettings() {
     setTestingProvider(provider.provider_id);
     
     try {
-      const headers = await getFunctionAuthHeaders();
-      const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/test-music-provider`,
-        {
-          method: 'POST',
-          headers,
-          body: JSON.stringify({
-            // Server looks up the api_key by provider_id — never sent from the client.
-            provider_id: provider.provider_id,
-          }),
-        }
-      );
-
-      const result = await response.json();
+      const { data: result, error } = await db.functions.invoke('test-music-provider', {
+        body: { provider_id: provider.provider_id },
+      });
+      if (error) throw error;
       
-      if (result.success) {
+      if (result?.success) {
         toast.success(`Connection successful! Found ${result.tracks_found} tracks`);
       } else {
-        toast.error(`Connection failed: ${result.error}`);
-        console.error('Test details:', result.details);
+        toast.error(`Connection failed: ${result?.error || 'Unknown error'}`);
+        console.error('Test details:', result?.details);
       }
     } catch (error) {
       console.error('Error testing connection:', error);
@@ -163,25 +152,16 @@ export default function AdminMusicSettings() {
     setSyncingProvider(provider.provider_id);
     
     try {
-      const headers = await getFunctionAuthHeaders();
-      const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/sync-music-providers`,
-        {
-          method: 'POST',
-          headers,
-          body: JSON.stringify({
-            provider_id: provider.provider_id,
-          }),
-        }
-      );
-
-      const result = await response.json();
+      const { data: result, error } = await db.functions.invoke('sync-music-providers', {
+        body: { provider_id: provider.provider_id },
+      });
+      if (error) throw error;
       
-      if (result.success) {
+      if (result?.success) {
         toast.success(`Synced ${result.synced_count} tracks from ${result.provider}`);
       } else {
-        toast.error(`Sync failed: ${result.error}`);
-        console.error('Sync details:', result.details);
+        toast.error(`Sync failed: ${result?.error || 'Unknown error'}`);
+        console.error('Sync details:', result?.details);
       }
     } catch (error) {
       console.error('Error syncing provider:', error);

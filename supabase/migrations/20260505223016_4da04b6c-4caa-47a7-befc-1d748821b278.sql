@@ -1,1 +1,0 @@
-UPDATE public.dna_agent_actions SET reverted = true WHERE action_type = 'layout_change' AND reverted = false;

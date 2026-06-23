@@ -1,1 +1,0 @@
-ALTER TABLE public.messages ADD COLUMN IF NOT EXISTS ciphertext TEXT; ALTER TABLE public.messages ADD COLUMN IF NOT EXISTS nonce TEXT; ALTER TABLE public.messages ADD COLUMN IF NOT EXISTS encryption_algo TEXT;

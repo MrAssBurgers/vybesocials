@@ -255,7 +255,92 @@ service cloud.firestore {
     }
     match /user_locations/{docId} {
       allow read: if signedIn();
-      allow write: if ownsUserField('user_id') || willOwnUserField('user_id') || isAdmin();
+      allow write: if ownsUserField('user_id') || willOwnUserField('user_id') || ownsProfileId(docId) || isAdmin();
+    }
+    // VybeMap — canonical live location (doc id = profiles.id)
+    match /user_live_locations/{profileDocId} {
+      allow read: if signedIn() && resource.data.sharing_enabled == true && resource.data.is_ghost != true;
+      allow read: if signedIn() && ownsProfileId(profileDocId);
+      allow create, update: if signedIn() && ownsProfileId(profileDocId);
+      allow delete: if ownsProfileId(profileDocId) || isAdmin();
+    }
+    match /location_history/{docId} {
+      allow read: if signedIn() && (ownsUserField('user_id') || isAdmin());
+      allow create: if signedIn() && willOwnUserField('user_id');
+      allow update, delete: if isAdmin();
+    }
+    match /location_access_logs/{docId} {
+      allow read: if signedIn() && (ownsUserField('viewer_id') || ownsUserField('target_id') || isAdmin());
+      allow create: if signedIn() && willOwnUserField('viewer_id');
+      allow update, delete: if isAdmin();
+    }
+    match /location_permissions/{docId} {
+      allow read, write: if signedIn() && (ownsUserField('owner_id') || willOwnUserField('owner_id') || isAdmin());
+    }
+    match /map_places/{docId} {
+      allow read: if signedIn();
+      allow create: if signedIn();
+      allow update, delete: if isAdmin();
+    }
+    match /map_check_ins/{docId} {
+      allow read: if signedIn();
+      allow create: if signedIn() && willOwnUserField('user_id');
+      allow update, delete: if ownsUserField('user_id') || isAdmin();
+    }
+    match /map_meetups/{docId} {
+      allow read: if signedIn();
+      allow create: if signedIn() && willOwnUserField('host_id');
+      allow update, delete: if ownsUserField('host_id') || isAdmin();
+    }
+    match /map_meetup_members/{docId} {
+      allow read: if signedIn();
+      allow create: if signedIn() && willOwnUserField('user_id');
+      allow update, delete: if ownsUserField('user_id') || isAdmin();
+    }
+    match /map_story_pins/{docId} {
+      allow read: if signedIn();
+      allow create: if signedIn() && willOwnUserField('user_id');
+      allow update, delete: if ownsUserField('user_id') || isAdmin();
+    }
+    match /map_post_pins/{docId} {
+      allow read: if signedIn();
+      allow create: if signedIn() && willOwnUserField('user_id');
+      allow update, delete: if ownsUserField('user_id') || isAdmin();
+    }
+    match /map_clip_pins/{docId} {
+      allow read: if signedIn();
+      allow create: if signedIn() && willOwnUserField('user_id');
+      allow update, delete: if ownsUserField('user_id') || isAdmin();
+    }
+    match /map_event_pins/{docId} {
+      allow read: if signedIn();
+      allow write: if isAdmin();
+    }
+    match /map_group_maps/{docId} {
+      allow read: if signedIn();
+      allow create: if signedIn() && willOwnUserField('owner_id');
+      allow update, delete: if ownsUserField('owner_id') || isAdmin();
+    }
+    match /map_group_members/{docId} {
+      allow read: if signedIn();
+      allow create: if signedIn() && willOwnUserField('user_id');
+      allow update, delete: if ownsUserField('user_id') || isAdmin();
+    }
+    match /friend_finder_sessions/{docId} {
+      allow read: if signedIn() && (ownsUserField('seeker_id') || ownsUserField('target_id'));
+      allow create: if signedIn() && willOwnUserField('seeker_id');
+      allow update: if signedIn() && (ownsUserField('seeker_id') || ownsUserField('target_id'));
+      allow delete: if isAdmin();
+    }
+    match /map_notification_prefs/{docId} {
+      allow read, write: if signedIn() && (ownsUserField('user_id') || willOwnUserField('user_id') || isAdmin());
+    }
+    match /heatmap_tiles/{cellId} {
+      allow read: if signedIn();
+      allow write: if false;
+    }
+    match /map_access_rate/{docId} {
+      allow read, write: if false;
     }
     match /user_bans/{docId} {
       allow read: if ownsUserField('user_id') || isStaffModerator();

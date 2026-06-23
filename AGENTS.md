@@ -16,6 +16,7 @@ Project operating guidance for AI agents working in this repo.
 - Avoid broad refactors unless requested.
 - Do not modify secrets or auth config without explicit user request.
 - Prefer safe, reversible migrations over destructive database actions.
+- **Backend is Firebase only** — Firestore, Firebase Auth, Cloud Functions, Storage. Do not add Supabase dependencies or SQL migrations.
 
 ## Required Verification After Substantive Changes
 - Run `npm run build`.
@@ -26,14 +27,12 @@ Project operating guidance for AI agents working in this repo.
 When the user says **"do a debug"**, run the full scan (do not skip steps):
 
 1. Read `WORKLOG.md` for current scope and known blockers.
-2. Run `npm run debug` (or `node scripts/debug-scan.mjs`) — build, lint, CSS, edge-function reference check, production RPC/edge probes.
+2. Run `npm run debug` (or `node scripts/debug-scan.mjs`) — build, lint, CSS, Cloud Function reference check, Firebase probes.
 3. Run `npm run build` and `npm run lint` if not already green.
-4. Compare **client-invoked** edge function names to `supabase/functions/` (all must exist locally).
-5. Probe **production** (`hprmicwhlaaqfgshucec`) — live users and auth (see `DEPLOY.md`, `index.html` preconnect):
-   - RPCs: `get_public_user_count`, `sync_signup_username`, `ensure_user_level`
-   - Edge samples: `livekit-token`, `generate-advanced-theme`, `ai-catch-up`, `share-preview`, `community-voice-token`, `auth-2fa-preauth`
-6. Report: pass/fail table, production gaps (404 RPC/functions), uncommitted local changes, exact unblock steps (Lovable Publish, SQL Editor, Backend deploy).
-7. Fix safe code issues in-repo; canonical auth project is **`hprmicwhlaaqfgshucec`** (Lovable live DB; the user has Owner access here).
+4. Compare **client-invoked** function names to `functions/src/` exports (all must exist locally).
+5. Probe **Firebase production** (`vybe-daaab`) — hosting, Firestore rules, sample callables (see `DEPLOY.md`).
+6. Report: pass/fail table, production gaps, uncommitted local changes, exact unblock steps (Lovable Publish, `firebase deploy`).
+7. Fix safe code issues in-repo.
 8. Update `WORKLOG.md` with scan date, results, and next actions.
 
 ## Handoff Standard
@@ -49,6 +48,6 @@ Before ending a task:
 ## Deploy Safety
 - Follow `DEPLOY.md`.
 - **Web production (`vybehub.app`)** is published via **Lovable → Share → Publish**, not Vercel/Netlify CLI in this repo.
-- **Supabase** production project ref: **`hprmicwhlaaqfgshucec`** (Lovable-managed live data; the user has Owner access). Legacy refs `agtcyxjxgkdyoxwxkjth` and `eabvbtkxdbttjpdpbmuw` are NOT accessible to the user — never point client/auth at them.
+- **Firebase project:** `vybe-daaab` (hosting, Firestore, Auth, Functions).
 - Never assume publish credentials are available; verify first.
-- If deployment cannot be completed, provide exact unblock steps (usually Lovable Publish or `npx supabase login`).
+- If deployment cannot be completed, provide exact unblock steps (usually Lovable Publish or `npx firebase login`).

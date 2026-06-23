@@ -11,7 +11,7 @@ import { startVybeCheckFrames, isVybeCheckBlocked } from '@/lib/vybeCheck';
 import { scanImage as nsfwScanImage } from '@/lib/nsfwScanner';
 import { aiScanImage } from '@/lib/aiSafetyClient';
 import { resolveStoryAuthorProfileId } from '@/lib/resolveSessionProfileId';
-import { refreshSupabaseSession } from '@/lib/supabaseAuthRefresh';
+import { refreshFirebaseSession } from '@/lib/firebaseAuthRefresh';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
@@ -204,7 +204,7 @@ export function StoryCreator({ onClose }: StoryCreatorProps) {
         }
       }
 
-      await refreshSupabaseSession(8000);
+      await refreshFirebaseSession(8000);
       const authorProfileId = await resolveStoryAuthorProfileId(effectiveProfileId);
       setUploadState('uploading');
 

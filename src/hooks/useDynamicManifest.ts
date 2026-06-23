@@ -17,11 +17,8 @@ export function useDynamicManifest() {
       
       const primaryEncoded = encodeURIComponent(primaryHSL);
       const accentEncoded = encodeURIComponent(accentHSL);
-      
-      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-      if (!supabaseUrl) return;
-      
-      const iconBase = `${supabaseUrl}/functions/v1/generate-pwa-icon`;
+
+      const iconBase = `${window.location.origin}/pwa-icon`;
       const icon192 = `${iconBase}?size=192&primary=${primaryEncoded}&accent=${accentEncoded}`;
       const icon512 = `${iconBase}?size=512&primary=${primaryEncoded}&accent=${accentEncoded}`;
       const icon192Maskable = `${iconBase}?size=192&primary=${primaryEncoded}&accent=${accentEncoded}&maskable=true`;

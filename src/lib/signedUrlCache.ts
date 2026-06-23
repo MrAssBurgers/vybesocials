@@ -6,7 +6,7 @@
 
 import { db } from '@/lib/firebase';
 import { firebaseStorage } from '@/lib/firebase/storageService';
-import { getSupabaseProjectRef } from '@/lib/supabaseStorageKey';
+import { getFirebaseConfig, isFirebaseConfigured } from '@/lib/firebase/config';
 import { normalizeMediaUrl } from '@/lib/mediaUrl';
 
 interface CacheEntry {
@@ -24,18 +24,25 @@ const CACHE_DURATION = 50 * 60 * 1000;
 // Cache failed URLs for 30 seconds to allow faster recovery from transient failures
 const FAILED_CACHE_DURATION = 30 * 1000;
 
-// Project IDs for URL validation (current + legacy)
-const CURRENT_SUPABASE_PROJECT = getSupabaseProjectRef();
-const LEGACY_SUPABASE_PROJECTS = [
+// Project IDs for URL validation (current Firebase + legacy Supabase hosts)
+function getCurrentProjectId(): string {
+  try {
+    if (isFirebaseConfigured()) return getFirebaseConfig().projectId;
+  } catch { /* */ }
+  return 'vybe-daaab';
+}
+const CURRENT_PROJECT_ID = getCurrentProjectId();
+const LEGACY_HOST_REFS = [
   'eabvbtkxdbttjpdpbmuw',
   'agtcyxjxgkdyoxwxkjth',
   'hprmicwhlaaqfgshucec',
   'szthqtnbepupjqjxaduu',
+  'vybe-daaab',
 ];
 
 function isProjectUrl(url: string): boolean {
-  if (url.includes(CURRENT_SUPABASE_PROJECT)) return true;
-  return LEGACY_SUPABASE_PROJECTS.some((ref) => url.includes(ref));
+  if (url.includes(CURRENT_PROJECT_ID)) return true;
+  return LEGACY_HOST_REFS.some((ref) => url.includes(ref));
 }
 
 /**
@@ -290,7 +297,7 @@ export async function ensureMediaUrlsReady(urls: (string | null | undefined)[]):
     if (needsSigning(url)) {
       return isFailedUrl(url) || !getCachedSignedUrl(url);
     }
-    if (url.includes('supabase.co') && !url.includes('/object/public/')) {
+    if ((url.includes('supabase.co') || url.includes('firebasestorage.googleapis.com')) && !url.includes('/object/public/')) {
       return !getCachedSignedUrl(url);
     }
     return false;

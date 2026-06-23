@@ -11,6 +11,7 @@ import { VybeSnapEditor } from './VybeSnapEditor';
 import { cn } from '@/lib/utils';
 import { haptics } from '@/lib/haptics';
 import { getActiveStream, stopCameraStream } from '@/hooks/useCameraPreload';
+import { useDoubleTapCameraFlip } from '@/hooks/useDoubleTapCameraFlip';
 
 interface RecordingSegment {
   blob: Blob;
@@ -336,6 +337,8 @@ export const VybeSnapCamera = forwardRef<HTMLDivElement, VybeSnapCameraProps>(fu
     setFacingMode(prev => (prev === 'user' ? 'environment' : 'user'));
   }, []);
 
+  const onDoubleTapFlip = useDoubleTapCameraFlip(handleSwitchCamera);
+
   const startRecordingSegment = useCallback(() => {
     if (!streamRef.current) return;
     if (typeof MediaRecorder === 'undefined') {
@@ -656,6 +659,10 @@ export const VybeSnapCamera = forwardRef<HTMLDivElement, VybeSnapCameraProps>(fu
           className="flex-1 relative overflow-hidden"
           onTouchStart={handleTouchStart}
           onTouchMove={handleTouchMove}
+          onTouchEnd={(e) => {
+            if (e.changedTouches.length === 1 && e.touches.length === 0) onDoubleTapFlip(e);
+          }}
+          onDoubleClick={(e) => onDoubleTapFlip(e)}
         >
           {permissionDenied ? (
             <div className="w-full h-full flex flex-col items-center justify-center px-8 text-center">

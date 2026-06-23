@@ -1,5 +1,5 @@
 import { db } from '@/lib/firebase';
-import { getStoredAuthUserId } from '@/lib/supabaseStorageKey';
+import { getStoredAuthUserId } from '@/lib/legacyAuthStorage';
 
 /**
  * Global Profile Cache - Instant identity lookups

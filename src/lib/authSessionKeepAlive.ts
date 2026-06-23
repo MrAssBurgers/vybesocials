@@ -1,6 +1,6 @@
 import { db } from '@/lib/firebase';
-import { refreshSupabaseSession } from '@/lib/supabaseAuthRefresh';
-import { hasStoredSupabaseSession } from '@/lib/supabaseStorageKey';
+import { refreshFirebaseSession } from '@/lib/firebaseAuthRefresh';
+import { hasStoredAuthSession } from '@/lib/legacyAuthStorage';
 import { setWasLoggedIn } from '@/lib/wasLoggedIn';
 
 const REFRESH_INTERVAL_MS = 20 * 60 * 1000;
@@ -12,7 +12,7 @@ let lastResumeAt = 0;
 
 async function refreshIfNeeded(force = false) {
   if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return;
-  if (!hasStoredSupabaseSession()) return;
+  if (!hasStoredAuthSession()) return;
 
   const { data: { session } } = await db.auth.getSession();
   if (session?.user) {
@@ -23,7 +23,7 @@ async function refreshIfNeeded(force = false) {
     }
   }
 
-  await refreshSupabaseSession();
+  await refreshFirebaseSession();
 }
 
 /** Keeps auth sessions warm on native shells and web (including Lovable preview). */

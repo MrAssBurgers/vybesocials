@@ -13,6 +13,7 @@ import { navVisibility } from '@/lib/navVisibility';
 import { toast } from 'sonner';
 import { FullscreenPortal } from '@/components/layout/FullscreenPortal';
 import { captureVideoFrame } from '@/lib/cameraCapture';
+import { useDoubleTapCameraFlip } from '@/hooks/useDoubleTapCameraFlip';
 import { createCameraMediaRecorder, recordingBlobType } from '@/lib/cameraRecording';
 import { acquirePostCameraStream, attachAudioToStream, stopStream } from '@/lib/postCameraStream';
 import { bakeCameraEdits, bakedCameraFileName, type CameraDrawPath, type CameraTextOverlay } from '@/lib/bakeCameraEdits';
@@ -127,6 +128,8 @@ export function Camera({ onClose, showBackArrow = false, onCapture }: CameraProp
     triggerHaptic('light');
     setFacingMode(prev => prev === 'user' ? 'environment' : 'user');
   };
+
+  const onDoubleTapFlip = useDoubleTapCameraFlip(toggleCamera);
 
   const showFilterNameBriefly = (name: string) => {
     setFilterName(name);
@@ -376,6 +379,7 @@ export function Camera({ onClose, showBackArrow = false, onCapture }: CameraProp
       {/* Full-bleed viewfinder */}
       <div
         className="absolute inset-0"
+        onDoubleClick={(e) => onDoubleTapFlip(e)}
         onTouchStart={(e) => {
           // Only handle swipes on the viewfinder itself, not on buttons
           if ((e.target as HTMLElement).closest('button')) return;

@@ -12,6 +12,16 @@ const CURTAIN_ID = 'vybe-chat-shield-curtain';
 let activeCount = 0;
 let listenersAttached = false;
 let restoreTimer: ReturnType<typeof setTimeout> | null = null;
+let blackoutGeneration = 0;
+let lastBlackoutAt = 0;
+
+const MIN_BLACKOUT_MS = 1200;
+const RESTORE_DEBOUNCE_MS = 500;
+
+function isMobileWeb(): boolean {
+  if (typeof navigator === 'undefined') return false;
+  return /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+}
 
 const ENABLE_SCHEMES = [
   'screenshield://on',
@@ -56,11 +66,17 @@ function ensureCurtain(): HTMLDivElement {
 /** Hide chat pixels immediately — must stay synchronous (no React state). */
 export function blackoutChatScreenNow(): void {
   if (typeof document === 'undefined') return;
+  blackoutGeneration += 1;
+  lastBlackoutAt = Date.now();
   document.documentElement.setAttribute('data-chat-shield', 'blocking');
   const curtain = ensureCurtain();
   curtain.style.display = 'block';
-  const root = document.getElementById(CHAT_SHIELD_ROOT_ID);
-  if (root) root.style.visibility = 'hidden';
+  // On desktop, only the curtain flashes — hiding the chat root caused visible flicker
+  // when resize/recording UI retriggered blackout in a tight loop.
+  if (isMobileWeb()) {
+    const root = document.getElementById(CHAT_SHIELD_ROOT_ID);
+    if (root) root.style.visibility = 'hidden';
+  }
 }
 
 export function restoreChatScreen(): void {
@@ -72,10 +88,17 @@ export function restoreChatScreen(): void {
   if (root) root.style.visibility = '';
 }
 
-function scheduleRestore(delayMs = 600): void {
+function scheduleRestore(delayMs = RESTORE_DEBOUNCE_MS): void {
+  const generation = blackoutGeneration;
   if (restoreTimer) clearTimeout(restoreTimer);
   restoreTimer = setTimeout(() => {
     restoreTimer = null;
+    if (generation !== blackoutGeneration) return;
+    const elapsed = Date.now() - lastBlackoutAt;
+    if (elapsed < MIN_BLACKOUT_MS) {
+      scheduleRestore(MIN_BLACKOUT_MS - elapsed);
+      return;
+    }
     if (activeCount > 0 && !document.hidden) restoreChatScreen();
   }, delayMs);
 }
@@ -90,13 +113,13 @@ function isScreenshotShortcut(e: KeyboardEvent): boolean {
 function onKeyDown(e: KeyboardEvent): void {
   if (!isScreenshotShortcut(e)) return;
   blackoutChatScreenNow();
-  scheduleRestore(1200);
+  scheduleRestore();
 }
 
 function onKeyUp(e: KeyboardEvent): void {
   if (e.key !== 'PrintScreen') return;
   blackoutChatScreenNow();
-  scheduleRestore(1200);
+  scheduleRestore();
 }
 
 function onVisibilityChange(): void {
@@ -104,7 +127,7 @@ function onVisibilityChange(): void {
     blackoutChatScreenNow();
     return;
   }
-  scheduleRestore(400);
+  scheduleRestore();
 }
 
 function onPageHide(): void {
@@ -113,10 +136,13 @@ function onPageHide(): void {
 
 let lastHeight = typeof window !== 'undefined' ? window.innerHeight : 0;
 function onResize(): void {
+  // iOS screenshot flash briefly resizes the viewport — desktop recording toolbars
+  // cause the same signal and produced a blackout/restore flicker loop.
+  if (!isMobileWeb()) return;
   const diff = Math.abs(window.innerHeight - lastHeight);
   if (diff > 15 && diff < 120) {
     blackoutChatScreenNow();
-    scheduleRestore(700);
+    scheduleRestore();
   }
   lastHeight = window.innerHeight;
 }
@@ -131,7 +157,9 @@ function attachWebListeners(): void {
   window.addEventListener('keyup', onKeyUp, true);
   document.addEventListener('visibilitychange', onVisibilityChange, true);
   window.addEventListener('pagehide', onPageHide, true);
-  window.addEventListener('resize', onResize, true);
+  if (isMobileWeb()) {
+    window.addEventListener('resize', onResize, true);
+  }
 }
 
 function detachWebListeners(): void {
@@ -142,7 +170,9 @@ function detachWebListeners(): void {
   window.removeEventListener('keyup', onKeyUp, true);
   document.removeEventListener('visibilitychange', onVisibilityChange, true);
   window.removeEventListener('pagehide', onPageHide, true);
-  window.removeEventListener('resize', onResize, true);
+  if (isMobileWeb()) {
+    window.removeEventListener('resize', onResize, true);
+  }
 
   if (restoreTimer) {
     clearTimeout(restoreTimer);

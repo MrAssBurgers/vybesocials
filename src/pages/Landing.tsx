@@ -27,7 +27,7 @@ import { FounderCounter } from '@/components/growth/FounderCounter';
 import { getAuthRedirectUrl } from '@/lib/authRedirect';
 import { normalizeLoginEmail } from '@/lib/loginEmail';
 import { getLoginCredentialErrorMessage, isInvalidLoginCredentialError } from '@/lib/loginErrors';
-import { clearLegacySupabaseAuthStorage } from '@/lib/supabaseStorageKey';
+import { clearObsoleteAuthStorage } from '@/lib/legacyAuthStorage';
 import { VybeLiquidBackground } from '@/components/effects/VybeLiquidBackground';
 import { VybeLiquidTouchOverlay } from '@/components/effects/VybeLiquidTouchOverlay';
 import { VybeLiquidText } from '@/components/ui/VybeLiquidText';
@@ -318,7 +318,7 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
 
         if (error) {
           if (isInvalidLoginCredentialError(error)) {
-            clearLegacySupabaseAuthStorage();
+            clearObsoleteAuthStorage();
             throw createHandledLoginError(getLoginCredentialErrorMessage());
           }
           throw error;
@@ -332,7 +332,7 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
         }
 
         sessionStorage.removeItem('vybe-session-only');
-        clearLegacySupabaseAuthStorage();
+        clearObsoleteAuthStorage();
         toast.success('Welcome back! ✨');
         if (session.user && !session.user.email_confirmed_at) {
           toast.info('Verify your email to unlock all features.');

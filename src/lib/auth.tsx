@@ -11,11 +11,11 @@ import { prefetchDMConversationsFromNav } from '@/lib/loadDMConversations';
 import { warmHomeCachesForProfile } from '@/lib/warmHomeCaches';
 import { resolveSessionProfileId, resetSessionProfileMemo } from '@/lib/resolveSessionProfileId';
 import { resetThemeToDefault } from '@/lib/themeReset';
-import { hasStoredSupabaseSession, getStoredAuthUserId, clearLegacySupabaseAuthStorage } from '@/lib/supabaseStorageKey';
+import { hasStoredAuthSession, getStoredAuthUserId, clearObsoleteAuthStorage } from '@/lib/legacyAuthStorage';
 import { setWasLoggedIn } from '@/lib/wasLoggedIn';
 import { getAuthRedirectUrl } from '@/lib/authRedirect';
 import { isDespiaRuntime } from '@/lib/despiaBridge';
-import { refreshSupabaseSession } from '@/lib/supabaseAuthRefresh';
+import { refreshFirebaseSession } from '@/lib/firebaseAuthRefresh';
 import { clearFunctionAuthHeadersCache } from '@/lib/functionAuth';
 import { logEvent } from '@/lib/debugLogger';
 import {
@@ -74,7 +74,7 @@ function isFatalRefreshError(message: string): boolean {
 }
 
 async function refreshStoredSession(timeoutMs = getStoredSessionRefreshTimeoutMs()) {
-  return refreshSupabaseSession(timeoutMs);
+  return refreshFirebaseSession(timeoutMs);
 }
 
 interface Profile {
@@ -203,7 +203,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<Profile | null>(() => {
-    if (typeof window === 'undefined' || !hasStoredSupabaseSession()) return null;
+    if (typeof window === 'undefined' || !hasStoredAuthSession()) return null;
     const cached = getCachedCurrentProfile();
     if (!cached || isRawId(cached.username)) return null;
     return cachedProfileToProfile(cached);
@@ -321,7 +321,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (delay > 0 && delay < 24 * 60 * 60 * 1000) { // Max 24 hours
       refreshTimerRef.current = setTimeout(async () => {
         try {
-          const { data, error } = await refreshSupabaseSession();
+          const { data, error } = await refreshFirebaseSession();
           if (error) {
             console.error('Token refresh failed:', error);
             if (isFatalRefreshError(error.message)) {
@@ -611,7 +611,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
 
     // Helper: check if there's a stored auth token (session might be refreshing)
-    const hasStoredToken = () => hasStoredSupabaseSession();
+    const hasStoredToken = () => hasStoredAuthSession();
 
     const hydrateCachedProfile = (userId = '') => {
       stripStaleOnboardingFlagFromDisk();
@@ -662,7 +662,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         if (event === 'SIGNED_IN' && session?.user) {
           stripStaleOnboardingFlagFromDisk();
-          clearLegacySupabaseAuthStorage();
+          clearObsoleteAuthStorage();
         }
 
         // ── KEY FIX: Never finalize "no session" from INITIAL_SESSION ──
@@ -710,7 +710,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
           sessionStorage.removeItem('vybe-oauth-pending');
         } else if (event === 'SIGNED_OUT') {
-          if (!explicitSignOutRef.current && hasStoredSupabaseSession()) {
+          if (!explicitSignOutRef.current && hasStoredAuthSession()) {
             logEvent('auth', 'SIGNED_OUT with stored token — attempting recovery');
             const { data: recovered, error: recoverError } = await refreshStoredSession(
               getStoredSessionRefreshTimeoutMs() + 4000,
@@ -777,7 +777,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     let lastResumeRefreshAt = 0;
     const resumeRefresh = () => {
       if (document.visibilityState !== 'visible') return;
-      if (!hasStoredSupabaseSession()) return;
+      if (!hasStoredAuthSession()) return;
 
       const now = Date.now();
       const debounceMs = 2000;
@@ -789,7 +789,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           const expiresMs = session.expires_at * 1000;
           if (expiresMs - Date.now() > 5 * 60 * 1000) return;
         }
-        if (!session?.user) void refreshSupabaseSession();
+        if (!session?.user) void refreshFirebaseSession();
       });
     };
     document.addEventListener('visibilitychange', resumeRefresh);

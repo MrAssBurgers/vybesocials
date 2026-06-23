@@ -6,7 +6,7 @@ import { hasWarmOfflineCache } from '@/lib/offlineCacheProbe';
 import { warmHomeCaches, warmHomeCachesForProfile } from '@/lib/warmHomeCaches';
 import { isPersistRestored, markPersistRestored, onPersistRestored } from '@/lib/persistRestoreGate';
 import { preloadCriticalRoutes, preloadSecondaryRoutes } from '@/lib/routePreloader';
-import { hasStoredSupabaseSession } from '@/lib/supabaseStorageKey';
+import { hasStoredAuthSession } from '@/lib/legacyAuthStorage';
 import { isNativePerfMode } from '@/lib/nativePerfMode';
 import { isSetupRoutePath } from '@/lib/splashSession';
 import { publishSplashProgress } from '@/lib/splashProgressBridge';
@@ -122,7 +122,7 @@ export function useAppPreloader() {
     if (
       isNativePerfMode() ||
       hasWarmOfflineCache(queryClient) ||
-      hasStoredSupabaseSession() ||
+      hasStoredAuthSession() ||
       getCachedCurrentProfile()
     ) {
       console.log('[Preloader] Fast path — instant ready');

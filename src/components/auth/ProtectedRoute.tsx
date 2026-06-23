@@ -1,7 +1,7 @@
 import { ReactNode } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/lib/auth';
-import { hasStoredSupabaseSession } from '@/lib/supabaseStorageKey';
+import { hasStoredAuthSession } from '@/lib/legacyAuthStorage';
 import { stashAuthReturnPath } from '@/lib/authReturnPath';
 
 interface ProtectedRouteProps {
@@ -36,7 +36,7 @@ export function ProtectedRoute({ children, allowGuest }: ProtectedRouteProps) {
   // auth restore just hasn't finished resolving (cold start, slow network,
   // background token refresh). We must NOT bounce them to "/" — that creates
   // the "loading session loop" where DMs redirect to landing then back again.
-  const hasStoredToken = hasStoredSupabaseSession();
+  const hasStoredToken = hasStoredAuthSession();
 
   // Allow guest access to browse-only routes
   if (!user && isGuestAllowedRoute) {

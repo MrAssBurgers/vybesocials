@@ -10,8 +10,20 @@ import { spawnSync } from 'node:child_process';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = join(__dirname, '..');
-const PROD_REF = 'hprmicwhlaaqfgshucec';
-const PROD_URL = `https://${PROD_REF}.supabase.co`;
+
+function envValue(name) {
+  for (const f of ['.env', '.env.local']) {
+    const p = join(root, f);
+    if (!existsSync(p)) continue;
+    const m = readFileSync(p, 'utf8').match(new RegExp(`${name}=(.+)`));
+    if (m) return m[1].trim().replace(/^["']|["']$/g, '');
+  }
+  return '';
+}
+
+const FIREBASE_PROJECT_ID = envValue('VITE_FIREBASE_PROJECT_ID') || 'vybe-daaab';
+const FUNCTIONS_REGION = envValue('VITE_FIREBASE_FUNCTIONS_REGION') || 'us-central1';
+const FUNCTIONS_BASE = `https://${FUNCTIONS_REGION}-${FIREBASE_PROJECT_ID}.cloudfunctions.net`;
 
 function run(cmd, args, opts = {}) {
   const r = spawnSync(cmd, args, { cwd: root, encoding: 'utf8', ...opts });
@@ -20,22 +32,6 @@ function run(cmd, args, opts = {}) {
 
 function section(title) {
   console.log(`\n=== ${title} ===`);
-}
-
-const CANONICAL_HPRMIC_ANON =
-  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imhwcm1pY3dobGFhcWZnc2h1Y2VjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjkwNDkwODgsImV4cCI6MjA4NDYyNTA4OH0.Lk72yBKNj3sRjf5E5DQ8TLBfXB2tbjTpAAb075hbMa4';
-
-function loadAnonKey() {
-  for (const f of ['.env', '.env.local']) {
-    const p = join(root, f);
-    if (!existsSync(p)) continue;
-    const m = readFileSync(p, 'utf8').match(/VITE_SUPABASE_PUBLISHABLE_KEY=(.+)/);
-    if (m) {
-      const key = m[1].trim().replace(/^["']|["']$/g, '');
-      if (key.includes(PROD_REF)) return key;
-    }
-  }
-  return CANONICAL_HPRMIC_ANON;
 }
 
 async function probe(url, opts = {}) {
@@ -48,8 +44,8 @@ async function probe(url, opts = {}) {
 }
 
 async function main() {
-  console.log('VYBE debug scan');
-  console.log(`Production: ${PROD_URL}`);
+  console.log('VYBE debug scan (Firebase)');
+  console.log(`Project: ${FIREBASE_PROJECT_ID}`);
   console.log(`Time: ${new Date().toISOString()}`);
 
   section('Frontend — build');
@@ -70,117 +66,59 @@ async function main() {
   console.log(boot.ok ? 'PASS npm run validate:boot' : `FAIL npm run validate:boot (exit ${boot.code})`);
   if (!boot.ok) console.log(boot.out.trim());
 
-  section('Edge functions — local vs client references');
-  const fnDir = join(root, 'supabase/functions');
+  section('Cloud Functions — local vs client references');
+  const fnDir = join(root, 'functions/src');
   const localFns = new Set(
-    readdirSync(fnDir).filter((d) => !d.startsWith('_') && !d.startsWith('.')),
+    readdirSync(fnDir)
+      .filter((f) => f.endsWith('.ts') && !f.startsWith('_'))
+      .flatMap((f) => {
+        const src = readFileSync(join(fnDir, f), 'utf8');
+        const names = [...src.matchAll(/export const (\w+)/g)].map((m) => m[1]);
+        return names;
+      }),
   );
   const invoked = new Set();
   const rg = run('rg', [
     '-o',
-    "functions\\.invoke\\(['\"]([^'\"]+)|functions/v1/([a-z0-9-]+)",
+    "functions\\.invoke\\(['\"]([a-z0-9_-]+)['\"]",
     'src',
+    '--no-heading',
   ], { stdio: 'pipe' });
   if (rg.ok) {
     for (const line of rg.out.split('\n')) {
-      const m = line.match(/invoke\(['"]([^'"]+)/) || line.match(/functions\/v1\/([a-z0-9-]+)/);
-      if (m?.[1]) invoked.add(m[1]);
+      const m = line.match(/invoke\(['"]([a-z0-9_-]+)['"]/);
+      if (m) invoked.add(m[1]);
     }
   }
-  const missing = [...invoked].filter((n) => !localFns.has(n)).sort();
-  console.log(`Local functions: ${localFns.size}`);
-  console.log(`Referenced from src: ${invoked.size}`);
+  const kebabToCamel = (n) => n.replace(/[-_]([a-z0-9])/g, (_, c) => c.toUpperCase());
+  const missing = [...invoked].filter((name) => !localFns.has(kebabToCamel(name)));
+  console.log(`Client invokes ${invoked.size} function names; ${localFns.size} exports in functions/src`);
   if (missing.length) {
-    console.log('MISSING locally:', missing.join(', '));
+    console.log(`WARN missing local exports for: ${missing.join(', ')}`);
   } else {
-    console.log('OK — all referenced functions exist in supabase/functions/');
+    console.log('OK — referenced callables resolve to functions/src exports');
   }
 
-  section('Production — critical RPCs');
-  const anon = loadAnonKey();
-  const rpcHeaders = {
-    apikey: anon,
-    Authorization: `Bearer ${anon}`,
-    'Content-Type': 'application/json',
-  };
-  for (const rpc of [
-    'get_public_user_count',
-    'sync_signup_username',
-    'ensure_user_level',
-    'is_username_available',
-    'ensure_profile',
-    'create_dm_conversation',
-  ]) {
-    const { status } = await probe(`${PROD_URL}/rest/v1/rpc/${rpc}`, {
-      method: 'POST',
-      headers: rpcHeaders,
-      body: '{}',
-    });
-    const label =
-      status === 200 ? 'OK' :
-      status === 404 ? 'MISSING' :
-      status === 400 ? 'HTTP 400 (auth/body required — OK)' :
-      `HTTP ${status}`;
-    console.log(`${rpc}: ${label}`);
-  }
-
-  section('Production — sample edge functions (anon POST)');
-  const samples = [
-    'ai-chat',
-    'vybe-agent',
-    'livekit-token',
-    'share-preview',
-    'giphy-search',
-    'ai-catch-up',
-    'community-voice-token',
-    'send-push-notification',
-    'link-onesignal-user',
-    'spaces-token',
-    'generate-advanced-theme',
-    'auth-2fa-preauth',
+  section('Production probes (Firebase)');
+  const probes = [
+    ['sharePreview', `${FUNCTIONS_BASE}/sharePreview`],
+    ['livekitToken (callable)', `${FUNCTIONS_BASE}/livekitToken`],
+    ['aiCatchUp (callable)', `${FUNCTIONS_BASE}/aiCatchUp`],
   ];
-  for (const fn of samples) {
-    const { status } = await probe(`${PROD_URL}/functions/v1/${fn}`, {
-      method: 'POST',
-      headers: { apikey: anon, 'Content-Type': 'application/json' },
-      body: '{}',
-    });
-    let note = 'deployed';
-    if (status === 404) note = 'NOT DEPLOYED';
-    else if (status === 401 || status === 403) note = 'deployed (auth required)';
-    else if (status === 400) note = 'deployed (needs body)';
-    console.log(`${fn}: HTTP ${status} — ${note}`);
+  for (const [label, url] of probes) {
+    const r = await probe(url, { method: 'GET' });
+    const status = r.status || r.error || 'ERR';
+    console.log(`${r.ok || r.status === 405 || r.status === 401 ? 'PASS' : 'WARN'} ${label}: HTTP ${status}`);
   }
 
-  section('Git');
-  const st = run('git', ['status', '-sb'], { stdio: 'pipe' });
-  console.log(st.out.trim() || '(clean)');
+  section('Git status');
+  const git = run('git', ['status', '--short'], { stdio: 'pipe' });
+  console.log(git.out.trim() || '(clean)');
 
-  section('vybehub.app bundle');
-  const html = await fetch('https://vybehub.app/index.html').then((r) => r.text()).catch(() => '');
-  const usesStableEntry = html.includes('/assets/app.js');
-  const hashedBundle = html.match(/index-[A-Za-z0-9_-]+\.js/)?.[0] ?? null;
-  const appJsProbe = await probe('https://vybehub.app/assets/app.js');
-  const entryLabel = usesStableEntry ? '/assets/app.js' : hashedBundle ?? 'unknown';
-  console.log(`index.html entry: ${entryLabel}`);
-  console.log(
-    `/assets/app.js: HTTP ${appJsProbe.status} — ${appJsProbe.ok ? 'PASS' : 'FAIL (Lovable Publish needed)'}`,
-  );
-  if (hashedBundle && !usesStableEntry) {
-    const legacyProbe = await probe(`https://vybehub.app/assets/${hashedBundle}`);
-    console.log(
-      `legacy ${hashedBundle}: HTTP ${legacyProbe.status} — ${legacyProbe.ok ? 'served (stale)' : 'missing'}`,
-    );
-    if (legacyProbe.ok && !appJsProbe.ok) {
-      console.log('WARN: prod serves old hashed bundle; fallback loader will try /assets/app.js after publish');
-    }
-  }
-
-  section('Reminders');
-  console.log('- Web deploy: Lovable → Share → Publish (vybehub.app)');
-  console.log(`- Supabase prod ref: ${PROD_REF} (see DEPLOY.md)`);
-  console.log('- Edge functions: deploy on agtcyx (ai-chat, vybe-agent, etc.)');
-  console.log('- SQL: apply supabase/manual/PENDING_20260530.sql on agtcyx if RPCs MISSING');
+  console.log('\n=== Summary ===');
+  console.log('- Backend: Firebase (Firestore + Cloud Functions + Auth)');
+  console.log('- Deploy: firebase deploy --only hosting,firestore:rules,functions');
+  console.log('- Web prod: Lovable → Share → Publish for vybehub.app');
 }
 
 main().catch((e) => {

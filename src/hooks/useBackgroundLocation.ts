@@ -1,8 +1,11 @@
 import { useEffect, useRef, useCallback, useState } from 'react';
-import { db } from '@/lib/firebase';
 import { toast } from 'sonner';
+import { encodeGeohash } from '@/lib/vybemap/geohash';
+import { detectActivity } from '@/lib/vybemap/activity';
+import { upsertLiveLocation, disableLiveLocation, appendLocationHistory } from '@/lib/vybemap/firestore';
 
-const UPSERT_INTERVAL_MS = 15_000;
+const UPSERT_INTERVAL_MS = 5_000;
+const HISTORY_INTERVAL_MS = 60_000;
 const SHARING_PREF_KEY = 'vybe-map-sharing';
 
 function autoStatus(speed: number | null, hour: number): string | null {
@@ -29,8 +32,15 @@ export function useBackgroundLocation(
   const [coords, setCoords] = useState<[number, number] | null>(null);
   const [accuracy, setAccuracy] = useState<number | null>(null);
   const [speed, setSpeed] = useState<number | null>(null);
-  const [sharing, setSharingState] = useState(() => localStorage.getItem(SHARING_PREF_KEY) === 'true');
+  const [sharing, setSharingState] = useState(() => {
+    const stored = localStorage.getItem(SHARING_PREF_KEY);
+    // Default visible on map — users opt into Ghost Mode, not opt out of sharing.
+    if (stored === null) return true;
+    return stored === 'true';
+  });
   const lastUpsert = useRef(0);
+  const lastHistory = useRef(0);
+  const lastPos = useRef<{ lat: number; lng: number } | null>(null);
   const lastSpeed = useRef<number | null>(null);
 
   const setSharing = useCallback((v: boolean) => {
@@ -39,27 +49,53 @@ export function useBackgroundLocation(
   }, []);
 
   // Upsert to DB
-  const upsertLocation = useCallback(async (lat: number, lng: number, acc: number, spd: number | null) => {
+  const upsertLocation = useCallback(async (lat: number, lng: number, acc: number, spd: number | null, heading?: number | null) => {
     if (!userId || !sharing) return;
     const now = Date.now();
     if (now - lastUpsert.current < UPSERT_INTERVAL_MS) return;
     lastUpsert.current = now;
     const hour = new Date().getHours();
     const status = autoStatus(spd, hour);
-    const expiresAt = new Date(now + 60 * 60 * 1000).toISOString(); // 1 hour from now
-      await db
-        .from('user_locations')
-        .upsert({
-          id: userId,
-          user_id: userId,
-          latitude: lat,
-          longitude: lng,
-          accuracy: acc,
-          sharing_enabled: true,
-          status,
-          speed: spd,
-          expires_at: expiresAt,
-        } as any, { onConflict: 'user_id' });
+    const activity_type = detectActivity(spd, status);
+    const geohash = encodeGeohash(lat, lng, 7);
+    let battery_percent: number | undefined;
+    try {
+      const bat = await (navigator as Navigator & { getBattery?: () => Promise<{ level: number }> }).getBattery?.();
+      if (bat) battery_percent = Math.round(bat.level * 100);
+    } catch { /* unsupported */ }
+
+    const expiresAt = new Date(now + 60 * 60 * 1000).toISOString();
+    await upsertLiveLocation(userId, {
+      user_id: userId,
+      latitude: lat,
+      longitude: lng,
+      accuracy: acc,
+      sharing_enabled: true,
+      is_ghost: false,
+      status,
+      speed: spd,
+      heading: heading ?? null,
+      activity_type,
+      geohash,
+      battery_percent: battery_percent ?? null,
+      expires_at: expiresAt,
+      sharing_mode: 'friends',
+    });
+
+    if (now - lastHistory.current > HISTORY_INTERVAL_MS) {
+      lastHistory.current = now;
+      void appendLocationHistory(userId, {
+        latitude: lat,
+        longitude: lng,
+        accuracy: acc,
+        speed: spd,
+        heading: heading ?? null,
+        activity_type,
+        geohash,
+      });
+    }
+
+    lastPos.current = { lat, lng };
   }, [userId, sharing]);
 
   // Only watch GPS on map routes (or when caller explicitly opts in). Never prompt on app boot.
@@ -76,7 +112,7 @@ export function useBackgroundLocation(
       const spd = pos.coords.speed;
       setSpeed(spd);
       lastSpeed.current = spd;
-      upsertLocation(c[0], c[1], pos.coords.accuracy, spd);
+      upsertLocation(c[0], c[1], pos.coords.accuracy, spd, pos.coords.heading);
     };
 
     const onError = (err: GeolocationPositionError) => {
@@ -131,8 +167,15 @@ export function useBackgroundLocation(
   // Disable sharing in DB when toggled off
   useEffect(() => {
     if (sharing || !userId) return;
-    db.from('user_locations').update({ sharing_enabled: false } as any).eq('user_id', userId).then();
+    void disableLiveLocation(userId);
   }, [sharing, userId]);
+
+  // Push location immediately when sharing is turned on (don't wait for 15s throttle).
+  useEffect(() => {
+    if (!sharing || !userId || !coords) return;
+    lastUpsert.current = 0;
+    void upsertLocation(coords[0], coords[1], accuracy ?? 50, speed);
+  }, [sharing, userId, coords, accuracy, speed, upsertLocation]);
 
   return { coords, accuracy, speed, sharing, setSharing };
 }

@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { Mic, Square, Send, X, Loader2 } from 'lucide-react';
@@ -321,11 +321,25 @@ export function VoiceRecorder({ onRecordingComplete, onCancel, isUploading, auto
   );
 }
 
-// Audio message player with waveform
+// Audio message player — iMessage-style pill with smooth waveform
 interface AudioMessageProps {
   src: string;
   duration?: number;
   isOwn?: boolean;
+}
+
+function seedFromString(s: string): number {
+  let h = 0;
+  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
+  return h;
+}
+
+function waveformFromSrc(src: string, bars: number): number[] {
+  let seed = seedFromString(src);
+  return Array.from({ length: bars }, () => {
+    seed = (seed * 1103515245 + 12345) >>> 0;
+    return 0.12 + ((seed % 1000) / 1000) * 0.88;
+  });
 }
 
 export function AudioMessage({ src, isOwn }: AudioMessageProps) {
@@ -333,46 +347,51 @@ export function AudioMessage({ src, isOwn }: AudioMessageProps) {
   const [progress, setProgress] = useState(0);
   const [audioDuration, setAudioDuration] = useState(0);
   const audioRef = useRef<HTMLAudioElement>(null);
+  const waveformBars = useMemo(() => waveformFromSrc(src, 32), [src]);
 
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio) return;
 
-    const handleTimeUpdate = () => {
-      if (audio.duration) {
+    let rafId = 0;
+    const tick = () => {
+      if (audio.duration && isFinite(audio.duration)) {
         setProgress((audio.currentTime / audio.duration) * 100);
       }
+      if (!audio.paused) rafId = requestAnimationFrame(tick);
     };
 
-    const handleLoadedMetadata = () => {
-      setAudioDuration(audio.duration);
+    const handlePlay = () => {
+      cancelAnimationFrame(rafId);
+      rafId = requestAnimationFrame(tick);
     };
-
+    const handlePause = () => cancelAnimationFrame(rafId);
+    const handleLoadedMetadata = () => setAudioDuration(audio.duration);
     const handleEnded = () => {
       setIsPlaying(false);
       setProgress(0);
+      cancelAnimationFrame(rafId);
     };
 
-    audio.addEventListener('timeupdate', handleTimeUpdate);
+    audio.addEventListener('play', handlePlay);
+    audio.addEventListener('pause', handlePause);
     audio.addEventListener('loadedmetadata', handleLoadedMetadata);
     audio.addEventListener('ended', handleEnded);
 
     return () => {
-      audio.removeEventListener('timeupdate', handleTimeUpdate);
+      cancelAnimationFrame(rafId);
+      audio.removeEventListener('play', handlePlay);
+      audio.removeEventListener('pause', handlePause);
       audio.removeEventListener('loadedmetadata', handleLoadedMetadata);
       audio.removeEventListener('ended', handleEnded);
     };
-  }, []);
+  }, [src]);
 
   const togglePlay = () => {
     const audio = audioRef.current;
     if (!audio) return;
-
-    if (isPlaying) {
-      audio.pause();
-    } else {
-      audio.play();
-    }
+    if (isPlaying) audio.pause();
+    else void audio.play();
     setIsPlaying(!isPlaying);
   };
 
@@ -385,39 +404,52 @@ export function AudioMessage({ src, isOwn }: AudioMessageProps) {
   };
 
   const formatTime = (seconds: number) => {
+    if (!seconds || !isFinite(seconds)) return '0:00';
     const mins = Math.floor(seconds / 60);
     const secs = Math.floor(seconds % 60);
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
-  // Generate static waveform pattern
-  const waveformBars = Array.from({ length: 25 }, () => 0.2 + Math.random() * 0.8);
+  const elapsed = (progress / 100) * audioDuration;
 
   return (
-    <div className="flex items-center gap-3 min-w-[180px] sm:min-w-[200px] h-auto py-1">
+    <div
+      className={cn(
+        'flex items-center gap-2.5 min-w-[200px] sm:min-w-[220px] max-w-[280px] px-3 py-2.5 rounded-[22px]',
+        isOwn
+          ? 'bg-gradient-to-br from-violet-600/90 via-fuchsia-600/85 to-pink-500/80 text-white shadow-md shadow-fuchsia-500/10'
+          : 'bg-card/90 border border-border/40 text-foreground shadow-sm backdrop-blur-sm',
+      )}
+    >
       <audio ref={audioRef} src={src} preload="metadata" />
-      
+
       <motion.button
-        whileHover={{ scale: 1.1 }}
-        whileTap={{ scale: 0.9 }}
+        type="button"
+        whileTap={{ scale: 0.92 }}
         onClick={togglePlay}
         className={cn(
-          "w-9 h-9 sm:w-10 sm:h-10 rounded-full flex items-center justify-center flex-shrink-0",
-          isOwn 
-            ? "bg-primary-foreground/20 text-primary-foreground" 
-            : "bg-primary/20 text-primary"
+          'relative w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0',
+          isOwn ? 'bg-white/20' : 'bg-primary/15',
         )}
+        aria-label={isPlaying ? 'Pause voice message' : 'Play voice message'}
       >
+        {isPlaying && (
+          <motion.span
+            className={cn('absolute inset-0 rounded-full', isOwn ? 'bg-white/25' : 'bg-primary/20')}
+            animate={{ scale: [1, 1.35, 1], opacity: [0.5, 0, 0.5] }}
+            transition={{ duration: 1.4, repeat: Infinity, ease: 'easeInOut' }}
+          />
+        )}
         {isPlaying ? (
-          <Square className="h-3.5 w-3.5 sm:h-4 sm:w-4 fill-current" />
+          <Square className="h-3.5 w-3.5 fill-current relative z-10" />
         ) : (
-          <div className="w-0 h-0 border-l-[9px] border-l-current border-y-[6px] border-y-transparent ml-0.5" />
+          <div className="w-0 h-0 border-l-[10px] border-l-current border-y-[6px] border-y-transparent ml-0.5 relative z-10" />
         )}
       </motion.button>
 
-      <div className="flex-1 flex flex-col gap-1.5 min-h-[32px]">
+      <div className="flex-1 min-w-0 flex flex-col gap-1">
         <div
-          className="flex items-center gap-0.5 h-6 cursor-pointer touch-none"
+          className="flex items-end gap-[2px] h-7 cursor-pointer touch-none"
           role="slider"
           aria-label="Voice message progress"
           aria-valuemin={0}
@@ -434,27 +466,26 @@ export function AudioMessage({ src, isOwn }: AudioMessageProps) {
           }}
         >
           {waveformBars.map((height, i) => {
-            const isActive = (i / waveformBars.length) * 100 <= progress;
+            const barProgress = (i / waveformBars.length) * 100;
+            const isActive = barProgress <= progress;
             return (
               <div
                 key={i}
                 className={cn(
-                  "w-[3px] sm:w-1 rounded-full transition-colors duration-100",
+                  'w-[3px] rounded-full transition-colors duration-75',
                   isOwn
-                    ? isActive ? "bg-primary-foreground" : "bg-primary-foreground/30"
-                    : isActive ? "bg-primary" : "bg-primary/30"
+                    ? isActive ? 'bg-white' : 'bg-white/35'
+                    : isActive ? 'bg-primary' : 'bg-primary/25',
                 )}
-                style={{ height: `${Math.max(4, height * 100)}%` }}
+                style={{ height: `${Math.max(4, height * 28)}px` }}
               />
             );
           })}
         </div>
-        <span className={cn(
-          "text-[10px] sm:text-xs",
-          isOwn ? "text-primary-foreground/70" : "text-muted-foreground"
-        )}>
-          {formatTime(isPlaying ? (progress / 100) * audioDuration : audioDuration)}
-        </span>
+        <div className={cn('flex items-center justify-between text-[10px] tabular-nums', isOwn ? 'text-white/75' : 'text-muted-foreground')}>
+          <span className="font-medium tracking-wide">Voice</span>
+          <span>{formatTime(isPlaying ? elapsed : audioDuration)}</span>
+        </div>
       </div>
     </div>
   );

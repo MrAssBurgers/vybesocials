@@ -195,12 +195,14 @@ function enqueueReport(bug: DetectedBug) {
 
 function classifyHttpError(status: number, url: string, body?: string): DetectedBug | null {
   if (!BUG_STATUS_CODES.includes(status)) return null;
-  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
-  const isAppRequest = url.includes(supabaseUrl) || url.startsWith(window.location.origin);
+  const firebaseHosts = ['cloudfunctions.net', 'firebasestorage.googleapis.com', 'googleapis.com'];
+  const isAppRequest =
+    url.startsWith(window.location.origin) ||
+    firebaseHosts.some((host) => url.includes(host));
   if (!isAppRequest) return null;
   if (shouldIgnoreUrl(url)) return null;
 
-  const shortUrl = url.replace(supabaseUrl, '').split('?')[0];
+  const shortUrl = url.replace(window.location.origin, '').split('?')[0];
   const errorSnippet = body?.substring(0, 200) || '';
   const message = `HTTP ${status} from ${shortUrl}${errorSnippet ? ': ' + errorSnippet : ''}`;
   if (shouldIgnore(message)) return null;

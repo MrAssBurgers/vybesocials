@@ -14,8 +14,6 @@ function sharePreviewBase(): string | null {
     const { projectId, functionsRegion } = getFirebaseConfig();
     return `https://${functionsRegion}-${projectId}.cloudfunctions.net/sharePreview`;
   } catch {
-    const ref = import.meta.env.VITE_SUPABASE_PROJECT_ID as string | undefined;
-    if (ref) return `https://${ref}.db.co/functions/v1/share-preview`;
     return null;
   }
 }

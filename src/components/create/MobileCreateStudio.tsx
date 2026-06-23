@@ -25,6 +25,7 @@ import { captureVideoFrameWithAR } from '@/lib/arCapture';
 import { isARSupported, clearARDisabledForSession } from '@/lib/arEngine';
 import { createCameraMediaRecorder, recordingBlobType } from '@/lib/cameraRecording';
 import { acquirePostCameraStream, attachAudioToStream, stopStream } from '@/lib/postCameraStream';
+import { useDoubleTapCameraFlip } from '@/hooks/useDoubleTapCameraFlip';
 import { resolveVideoContentType } from '@/lib/resolveVideoContentType';
 import { toast } from 'sonner';
 
@@ -308,6 +309,14 @@ export function MobileCreateStudio({ onClose, initialSound }: MobileCreateStudio
 
   const handlePinchEnd = useCallback(() => { lastPinchDistRef.current = null; }, []);
 
+  const flipCamera = useCallback(() => {
+    setFacingMode((f) => (f === 'user' ? 'environment' : 'user'));
+    zoomRef.current = 1;
+    setZoomLevel(1);
+  }, []);
+
+  const onDoubleTapFlip = useDoubleTapCameraFlip(flipCamera);
+
   // Take photo with shutter animation
   const takePhoto = useCallback(() => {
     const doCapture = () => {
@@ -523,7 +532,11 @@ export function MobileCreateStudio({ onClose, initialSound }: MobileCreateStudio
       <div
         className="flex-1 relative overflow-hidden"
         onTouchMove={handlePinchMove}
-        onTouchEnd={handlePinchEnd}
+        onTouchEnd={(e) => {
+          handlePinchEnd();
+          if (e.changedTouches.length === 1 && e.touches.length === 0) onDoubleTapFlip(e);
+        }}
+        onDoubleClick={(e) => onDoubleTapFlip(e)}
       >
         <div
           className="absolute inset-0 w-full h-full origin-center transition-transform duration-75"
@@ -681,11 +694,7 @@ export function MobileCreateStudio({ onClose, initialSound }: MobileCreateStudio
         onClose={onClose}
         flash={flash}
         onFlashToggle={() => setFlash(!flash)}
-        onFlipCamera={() => {
-          setFacingMode(f => f === 'user' ? 'environment' : 'user');
-          zoomRef.current = 1;
-          setZoomLevel(1);
-        }}
+        onFlipCamera={flipCamera}
         timer={timer}
         onTimerChange={setTimer}
       />

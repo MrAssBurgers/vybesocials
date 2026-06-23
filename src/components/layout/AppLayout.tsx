@@ -4,7 +4,7 @@ import { MobileHeader } from './MobileHeader';
 import { DesktopLeftSidebar } from './DesktopLeftSidebar';
 import { DesktopRightSidebar } from './DesktopRightSidebar';
 import { useAuth } from '@/lib/auth';
-import { hasStoredSupabaseSession } from '@/lib/supabaseStorageKey';
+import { hasStoredAuthSession } from '@/lib/legacyAuthStorage';
 import { usePresence } from '@/hooks/usePresence';
 import { useScrollOptimization } from '@/hooks/useScrollOptimization';
 import { useScreenTimeTracker } from '@/hooks/useScreenTime';
@@ -42,7 +42,7 @@ export const AppLayout = memo(forwardRef<HTMLDivElement, AppLayoutProps>(functio
 }, ref) {
   const { loading, user } = useAuth();
   const location = useLocation();
-  const hasStoredSession = hasStoredSupabaseSession();
+  const hasStoredSession = hasStoredAuthSession();
   const { isDesktop } = useBreakpoint();
   const [leftCollapsed, setLeftCollapsed] = useState(false);
   const nativePerf = isNativePerfMode();

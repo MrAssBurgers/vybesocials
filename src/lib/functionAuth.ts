@@ -1,6 +1,6 @@
 import type { Session } from '@/lib/firebase';
 import { db } from '@/lib/firebase';
-import { refreshFirebaseSession } from '@/lib/supabaseAuthRefresh';
+import { refreshFirebaseSession } from '@/lib/firebaseAuthRefresh';
 import { getFunctionUrl } from '@/lib/firebase/functionsService';
 import { getFirebaseConfig } from '@/lib/firebase/config';
 

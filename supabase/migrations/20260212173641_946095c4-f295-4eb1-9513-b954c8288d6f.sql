@@ -1,2 +1,0 @@
-DROP POLICY "Users can update their own themes" ON public.user_themes;
-CREATE POLICY "Users can update their own themes" ON public.user_themes FOR UPDATE USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);

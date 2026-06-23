@@ -214,10 +214,13 @@ export function ChatView() {
     enabled: !!conversationId,
     onCapture: (event) => {
       if (import.meta.env.DEV) console.log('[ChatView] Capture detected:', event);
-      if (event.confidence !== 'low') {
+      if (event.confidence === 'low') return;
+      // Desktop web: chatScreenShield already handles keyboard blackout; a second
+      // blackout here stacked with resize heuristics and caused flicker loops.
+      if (event.platform !== 'desktop') {
         blackoutChatScreenNow();
-        notifyCapture(event.type);
       }
+      notifyCapture(event.type);
     }
   });
   
@@ -279,7 +282,7 @@ export function ChatView() {
         return saved;
       }
     } catch { /* ignore */ }
-    return 'permanent';
+    return '24h';
   });
 
   useEffect(() => {
@@ -2057,6 +2060,16 @@ const MessageInputArea = memo(function MessageInputArea({
         />
       )}
       
+      {(viewMode === '24h' || viewMode === 'view_once') && (
+        <div className="mb-2 px-3 py-1.5 rounded-2xl bg-muted/30 border border-border/20 text-center backdrop-blur-sm">
+          <p className="text-[10px] sm:text-xs text-muted-foreground leading-snug">
+            {viewMode === '24h'
+              ? 'Messages automatically delete 24 hours after being opened'
+              : 'View-once messages disappear after you open them'}
+          </p>
+        </div>
+      )}
+
       <div className="dm-composer px-2.5 py-2 sm:px-3 sm:py-2.5 rounded-3xl">
       <input
         ref={fileInputRef}
@@ -2344,8 +2357,9 @@ const MessageBubble = memo(function MessageBubble({
 }) {
   const [isViewed, setIsViewed] = useState(false);
   const failed = Boolean((message as { _failed?: boolean })._failed);
-  const hasAnyViews = message.views && message.views.length > 0;
-  const [vybeViewed, setVybeViewed] = useState(hasAnyViews);
+  const iViewedVybe = Boolean(profileId && message.views?.some((v) => v.user_id === profileId));
+  const recipientViewedVybe = Boolean(message.views?.some((v) => v.user_id !== message.sender_id));
+  const [vybeViewed, setVybeViewed] = useState(isOwn ? recipientViewedVybe : iViewedVybe);
   const [showVybeViewer, setShowVybeViewer] = useState(false);
   const [showContextMenu, setShowContextMenu] = useState(false);
   const [viewerMedia, setViewerMedia] = useState<{ url: string; type: 'image' | 'gif' | 'video'; senderName?: string; timestamp?: string } | null>(null);
@@ -2363,10 +2377,12 @@ const MessageBubble = memo(function MessageBubble({
   }, [showReactions]);
 
   useEffect(() => {
-    if (hasAnyViews && !showVybeViewer) {
+    if (isOwn) {
+      if (recipientViewedVybe) setVybeViewed(true);
+    } else if (iViewedVybe) {
       setVybeViewed(true);
     }
-  }, [hasAnyViews, showVybeViewer]);
+  }, [isOwn, recipientViewedVybe, iViewedVybe]);
 
   const repliedMessage = useMemo(() => 
     message.reply_to_id ? allMessages?.find(m => m.id === message.reply_to_id) : null,
@@ -2665,6 +2681,10 @@ const MessageBubble = memo(function MessageBubble({
                   whileTap={{ scale: 0.98 }}
                   onClick={() => {
                     setShowVybeViewer(true);
+                    if (!vybeViewed) {
+                      setVybeViewed(true);
+                      onView();
+                    }
                   }}
                   className={cn(
                     "relative w-36 h-48 sm:w-40 sm:h-52 rounded-[22px] overflow-hidden",
@@ -2718,7 +2738,10 @@ const MessageBubble = memo(function MessageBubble({
                   onScreenshotDetected={onScreenshotCapture}
                   onClose={() => {
                     setShowVybeViewer(false);
-                    setVybeViewed(true);
+                    if (!vybeViewed) {
+                      setVybeViewed(true);
+                      onView();
+                    }
                   }}
                   onReply={onReply}
                   onViewed={onView}
@@ -2741,13 +2764,11 @@ const MessageBubble = memo(function MessageBubble({
             </div>
           )}
 
-          {/* Voice notes: auto-height with min-height 48px, max width 80% */}
+          {/* Voice notes */}
           {isAudioMessage && (
-            <div className="min-w-[180px] max-w-[80%] min-h-[48px]">
-              <SignedAudioUrl mediaUrl={message.media_url!}>
-                {(url) => url ? <AudioMessage src={url} isOwn={isOwn} /> : <Skeleton className="h-12 w-full rounded-xl" />}
-              </SignedAudioUrl>
-            </div>
+            <SignedAudioUrl mediaUrl={message.media_url!}>
+              {(url) => url ? <AudioMessage src={url} isOwn={isOwn} /> : <Skeleton className="h-14 w-[220px] rounded-[22px]" />}
+            </SignedAudioUrl>
           )}
 
           {message.view_mode === 'view_once' && !isOwn && isViewed ? (

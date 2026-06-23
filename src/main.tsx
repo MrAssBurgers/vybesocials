@@ -24,7 +24,7 @@ import { installFlickerGuardCheck } from "./lib/flickerGuardCheck";
 import { installDespiaRealtimeTransport } from "./lib/installDespiaRealtimeTransport";
 import { initSentry } from "./lib/sentry";
 import { initNativePerfMode } from "./lib/nativePerfMode";
-import { repairSupabaseAuthStorage, clearLegacySupabaseAuthStorage } from "./lib/supabaseStorageKey";
+import { repairLegacyAuthStorage, clearObsoleteAuthStorage } from "./lib/legacyAuthStorage";
 import { installAuthSessionKeepAlive } from "./lib/authSessionKeepAlive";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { installDespiaNfcDispatcher } from "./lib/despiaNFCv2";
@@ -61,8 +61,8 @@ function runPreRenderInit() {
   }
 
   initNativePerfMode();
-  repairSupabaseAuthStorage();
-  clearLegacySupabaseAuthStorage();
+  repairLegacyAuthStorage();
+  clearObsoleteAuthStorage();
   installAuthSessionKeepAlive();
   installDespiaNfcDispatcher();
   installDespiaRewardedAdBridge();

@@ -4,15 +4,8 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Loader2, MailX, CheckCircle2, AlertCircle } from 'lucide-react';
 import { db } from '@/lib/firebase';
-import { CANONICAL_PUBLISHABLE_KEY, CANONICAL_SUPABASE_URL } from '@/lib/canonicalSupabase';
 
 type Status = 'validating' | 'valid' | 'already' | 'invalid' | 'submitting' | 'success' | 'error';
-
-const SUPABASE_URL =
-  (import.meta.env.VITE_SUPABASE_URL as string | undefined)?.trim() || CANONICAL_SUPABASE_URL;
-const SUPABASE_ANON_KEY =
-  (import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string | undefined)?.trim() ||
-  CANONICAL_PUBLISHABLE_KEY;
 
 export default function Unsubscribe() {
   const [params] = useSearchParams();
@@ -27,13 +20,15 @@ export default function Unsubscribe() {
     }
     (async () => {
       try {
-        const res = await fetch(
-          `${SUPABASE_URL}/functions/v1/handle-email-unsubscribe?token=${encodeURIComponent(token)}`,
-          { headers: { apikey: SUPABASE_ANON_KEY } }
-        );
-        const data = await res.json();
-        if (data.valid) setStatus('valid');
-        else if (data.reason === 'already_unsubscribed') setStatus('already');
+        const { data, error: fnError } = await db.functions.invoke('email-unsubscribe-token', {
+          body: { token, validateOnly: true },
+        });
+        if (fnError) {
+          setStatus('invalid');
+          return;
+        }
+        if (data?.valid) setStatus('valid');
+        else if (data?.reason === 'already_unsubscribed') setStatus('already');
         else setStatus('invalid');
       } catch {
         setStatus('invalid');
@@ -45,15 +40,15 @@ export default function Unsubscribe() {
     if (!token) return;
     setStatus('submitting');
     try {
-      const { data, error } = await db.functions.invoke('handle-email-unsubscribe', {
+      const { data, error: fnError } = await db.functions.invoke('email-unsubscribe-token', {
         body: { token },
       });
-      if (error) throw error;
+      if (fnError) throw fnError;
       if (data?.success) setStatus('success');
       else if (data?.reason === 'already_unsubscribed') setStatus('already');
       else setStatus('error');
-    } catch (e: any) {
-      setError(e?.message ?? 'Something went wrong');
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Something went wrong');
       setStatus('error');
     }
   };

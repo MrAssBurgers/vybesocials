@@ -155,7 +155,7 @@ export function ProductionDebugPanel({ isOpen, onClose }: Props) {
   const { logs, network } = useDebugLogs();
   const [stripeSecrets, setStripeSecrets] = useState<Record<string, boolean>>({});
   const [stripeTestResult, setStripeTestResult] = useState<string | null>(null);
-  const [supabaseStatus, setSupabaseStatus] = useState<'connected' | 'disconnected' | 'checking'>('checking');
+  const [firestoreStatus, setFirestoreStatus] = useState<'connected' | 'disconnected' | 'checking'>('checking');
   const [copied, setCopied] = useState(false);
 
   // Database Inspector state
@@ -194,11 +194,11 @@ export function ProductionDebugPanel({ isOpen, onClose }: Props) {
 
   // ── Supabase check ──
   const checkSupabase = useCallback(async () => {
-    setSupabaseStatus('checking');
+    setFirestoreStatus('checking');
     try {
       const { error } = await db.from('profiles').select('id').limit(1);
-      setSupabaseStatus(error ? 'disconnected' : 'connected');
-    } catch { setSupabaseStatus('disconnected'); }
+      setFirestoreStatus(error ? 'disconnected' : 'connected');
+    } catch { setFirestoreStatus('disconnected'); }
   }, []);
 
   useEffect(() => { if (isOpen) checkSupabase(); }, [isOpen, checkSupabase]);
@@ -311,23 +311,17 @@ export function ProductionDebugPanel({ isOpen, onClose }: Props) {
   const executeSql = async (sql: string, blockId: string) => {
     setSqlResults(prev => ({ ...prev, [blockId]: { loading: true } }));
     try {
-      const session = (await db.auth.getSession()).data.session;
-      const resp = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/admin-ai-builder`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${session?.access_token || import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
-        },
-        body: JSON.stringify({ action: 'execute_sql', sql }),
+      const { data, error } = await db.functions.invoke('admin-ai-builder', {
+        body: { prompt: `Execute this SQL on Firestore-backed data (return results as JSON):\n${sql}` },
       });
-      const data = await resp.json();
-      if (data.error) {
-        setSqlResults(prev => ({ ...prev, [blockId]: { loading: false, error: data.error } }));
+      if (error) {
+        setSqlResults(prev => ({ ...prev, [blockId]: { loading: false, error: error.message } }));
       } else {
-        setSqlResults(prev => ({ ...prev, [blockId]: { loading: false, result: data.result } }));
+        setSqlResults(prev => ({ ...prev, [blockId]: { loading: false, result: data?.content || data } }));
       }
-    } catch (err: any) {
-      setSqlResults(prev => ({ ...prev, [blockId]: { loading: false, error: err.message } }));
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      setSqlResults(prev => ({ ...prev, [blockId]: { loading: false, error: message } }));
     }
   };
 
@@ -337,29 +331,23 @@ export function ProductionDebugPanel({ isOpen, onClose }: Props) {
     setSqlEditorResult({ loading: true });
     const start = performance.now();
     try {
-      const sess = (await db.auth.getSession()).data.session;
-      const resp = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/admin-ai-builder`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${sess?.access_token || import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
-        },
-        body: JSON.stringify({ action: 'execute_sql', sql: sqlEditorQuery.trim() }),
+      const { data, error } = await db.functions.invoke('admin-ai-builder', {
+        body: { prompt: `Execute this SQL on Firestore-backed data (return results as JSON):\n${sqlEditorQuery.trim()}` },
       });
-      const data = await resp.json();
       const duration = Math.round(performance.now() - start);
-      if (data.error) {
-        setSqlEditorResult({ loading: false, error: data.error, duration });
+      if (error) {
+        setSqlEditorResult({ loading: false, error: error.message, duration });
         setSqlHistory(prev => [{ query: sqlEditorQuery.trim(), timestamp: Date.now(), success: false, duration }, ...prev].slice(0, 20));
         setSqlConnected('connected');
       } else {
-        setSqlEditorResult({ loading: false, result: data.result, duration });
+        setSqlEditorResult({ loading: false, result: data?.content || data, duration });
         setSqlHistory(prev => [{ query: sqlEditorQuery.trim(), timestamp: Date.now(), success: true, duration }, ...prev].slice(0, 20));
         setSqlConnected('connected');
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       const duration = Math.round(performance.now() - start);
-      setSqlEditorResult({ loading: false, error: err.message, duration });
+      const message = err instanceof Error ? err.message : String(err);
+      setSqlEditorResult({ loading: false, error: message, duration });
       setSqlConnected('error');
     }
   };
@@ -400,60 +388,18 @@ export function ProductionDebugPanel({ isOpen, onClose }: Props) {
     let assistantContent = '';
 
     try {
-      const resp = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/admin-ai-builder`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${(await db.auth.getSession()).data.session?.access_token || import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
-        },
-        body: JSON.stringify({ messages: [...aiMessages, userMsg] }),
+      const conversation = [...aiMessages, userMsg]
+        .map((m) => `${m.role}: ${m.content}`)
+        .join('\n');
+      const { data, error } = await db.functions.invoke('admin-ai-builder', {
+        body: { prompt: conversation },
       });
-
-      if (!resp.ok) {
-        const err = await resp.json().catch(() => ({ error: 'Unknown error' }));
-        throw new Error(err.error || `Error ${resp.status}`);
-      }
-
-      if (!resp.body) throw new Error('No response body');
-      const reader = resp.body.getReader();
-      const decoder = new TextDecoder();
-      let textBuffer = '';
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        textBuffer += decoder.decode(value, { stream: true });
-
-        let newlineIndex: number;
-        while ((newlineIndex = textBuffer.indexOf('\n')) !== -1) {
-          let line = textBuffer.slice(0, newlineIndex);
-          textBuffer = textBuffer.slice(newlineIndex + 1);
-          if (line.endsWith('\r')) line = line.slice(0, -1);
-          if (line.startsWith(':') || line.trim() === '') continue;
-          if (!line.startsWith('data: ')) continue;
-          const jsonStr = line.slice(6).trim();
-          if (jsonStr === '[DONE]') break;
-          try {
-            const parsed = JSON.parse(jsonStr);
-            const content = parsed.choices?.[0]?.delta?.content;
-            if (content) {
-              assistantContent += content;
-              setAiMessages(prev => {
-                const last = prev[prev.length - 1];
-                if (last?.role === 'assistant') {
-                  return prev.map((m, i) => i === prev.length - 1 ? { ...m, content: assistantContent } : m);
-                }
-                return [...prev, { role: 'assistant', content: assistantContent }];
-              });
-            }
-          } catch { 
-            textBuffer = line + '\n' + textBuffer;
-            break;
-          }
-        }
-      }
-    } catch (err: any) {
-      setAiMessages(prev => [...prev, { role: 'assistant', content: `❌ Error: ${err.message}` }]);
+      if (error) throw error;
+      assistantContent = String(data?.content || data?.ok === false ? data?.message : '') || 'No response';
+      setAiMessages(prev => [...prev, { role: 'assistant', content: assistantContent }]);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      setAiMessages(prev => [...prev, { role: 'assistant', content: `❌ Error: ${message}` }]);
     }
 
     setAiLoading(false);
@@ -903,7 +849,7 @@ export function ProductionDebugPanel({ isOpen, onClose }: Props) {
                       <Button variant="ghost" size="sm" className="h-6 text-[10px] px-2 text-foreground/70" onClick={clearNetworkLogs}>Clear</Button>
                     </div>
                   </div>
-                  <Row label="Database Connection" value={supabaseStatus} variant={supabaseStatus === 'connected' ? 'success' : supabaseStatus === 'disconnected' ? 'error' : 'warning'} />
+                  <Row label="Database Connection" value={firestoreStatus} variant={firestoreStatus === 'connected' ? 'success' : firestoreStatus === 'disconnected' ? 'error' : 'warning'} />
                   <div className="max-h-40 overflow-y-auto space-y-1 mt-2">
                     {network.length === 0 ? (
                       <p className="text-[11px] text-foreground/50 text-center py-2">No requests yet.</p>

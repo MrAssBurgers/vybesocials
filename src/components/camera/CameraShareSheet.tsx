@@ -16,7 +16,7 @@ import { useAuth } from '@/lib/auth';
 import { useQueryClient } from '@tanstack/react-query';
 import { publishStoryMedia } from '@/lib/publishStoryMedia';
 import { resolveStoryAuthorProfileId } from '@/lib/resolveSessionProfileId';
-import { refreshSupabaseSession } from '@/lib/supabaseAuthRefresh';
+import { refreshFirebaseSession } from '@/lib/firebaseAuthRefresh';
 import { withTimeout } from '@/lib/withTimeout';
 import { generateStoryThumbnail, validateStoryMedia } from '@/lib/storyUtils';
 
@@ -172,7 +172,7 @@ export function CameraShareSheet({ mediaUrl, mediaType, mediaFile, soundId, soun
           throw new Error(validation.error || 'Invalid story media');
         }
 
-        await refreshSupabaseSession(8000);
+        await refreshFirebaseSession(8000);
         const authorProfileId = await resolveStoryAuthorProfileId(effectiveProfileId);
         const isVideo = mediaType === 'video';
         const thumbnailBlob = isVideo ? await generateStoryThumbnail(file, true) : null;

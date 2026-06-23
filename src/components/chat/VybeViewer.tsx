@@ -64,6 +64,7 @@ export function VybeViewer({
   const isLongPress = useRef(false);
   const startTime = useRef<number>(0);
   const videoRef = useRef<HTMLVideoElement>(null);
+  const progressRef = useRef(0);
   const [mediaDuration, setMediaDuration] = useState<number>(IMAGE_DURATION);
   const isVideo = isVideoUrl(mediaUrl);
   const hasMedia = !!mediaUrl && mediaUrl.length > 5;
@@ -125,14 +126,13 @@ export function VybeViewer({
     return () => clearTimeout(timer);
   }, [isOpen, isSigningPending]);
 
-  // Mark vybe as viewed only AFTER media has loaded successfully
+  // Mark vybe as viewed when opened (Snapchat-style — open = viewed)
   useEffect(() => {
-    if (isOpen && messageId && !isViewed && !hasMarkedViewed && !isOwn && mediaLoaded) {
-      console.log('[VybeViewer] Marking as viewed after successful load');
+    if (isOpen && messageId && !isViewed && !hasMarkedViewed && !isOwn) {
       setHasMarkedViewed(true);
       onViewed?.();
     }
-  }, [isOpen, messageId, isViewed, hasMarkedViewed, isOwn, onViewed, mediaLoaded]);
+  }, [isOpen, messageId, isViewed, hasMarkedViewed, isOwn, onViewed]);
 
   // Handle successful media load
   const handleMediaLoaded = useCallback(() => {
@@ -164,35 +164,37 @@ export function VybeViewer({
     }
   }, [isPaused, isVideo]);
 
-  // Progress timer — only start AFTER media has loaded
+  // Butter-smooth progress via requestAnimationFrame (images + video)
   useEffect(() => {
     if (!isOpen || isPaused || !mediaLoaded) return;
 
-    if (isVideo) {
-      const video = videoRef.current;
-      if (!video) return;
-      const updateProgress = () => {
-        if (video.duration && isFinite(video.duration)) {
-          setProgress((video.currentTime / video.duration) * 100);
-        }
-      };
-      video.addEventListener('timeupdate', updateProgress);
-      return () => video.removeEventListener('timeupdate', updateProgress);
-    }
+    let rafId = 0;
+    const imageStart = performance.now();
 
-    // For images
-    const interval = setInterval(() => {
-      setProgress((prev) => {
-        if (prev >= 100) {
+    const tick = (now: number) => {
+      if (isVideo) {
+        const video = videoRef.current;
+        if (video?.duration && isFinite(video.duration)) {
+          const pct = Math.min(100, (video.currentTime / video.duration) * 100);
+          progressRef.current = pct;
+          setProgress(pct);
+        }
+      } else {
+        const elapsed = now - imageStart;
+        const pct = Math.min(100, (elapsed / mediaDuration) * 100);
+        progressRef.current = pct;
+        setProgress(pct);
+        if (pct >= 100) {
           haptics.impact();
           onClose();
-          return 0;
+          return;
         }
-        return prev + (100 / (mediaDuration / 50));
-      });
-    }, 50);
+      }
+      rafId = requestAnimationFrame(tick);
+    };
 
-    return () => clearInterval(interval);
+    rafId = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(rafId);
   }, [isOpen, isPaused, onClose, isVideo, mediaDuration, mediaLoaded]);
 
   // Long press to pause (for reply)
@@ -372,13 +374,15 @@ export function VybeViewer({
           onMouseDown={handleTouchStart}
           onMouseUp={handleTouchEnd}
         >
-          {/* Progress bar */}
+          {/* Progress bar — GPU scaleX for silky motion */}
           <div className="absolute top-0 left-0 right-0 z-20 p-3 safe-area-inset-top">
-            <div className="h-1 bg-white/20 rounded-full overflow-hidden backdrop-blur-sm">
-              <motion.div
-                className="h-full bg-gradient-to-r from-primary via-white to-accent rounded-full"
-                style={{ width: `${progress}%` }}
-                transition={{ duration: 0.05 }}
+            <div className="h-[3px] bg-white/15 rounded-full overflow-hidden backdrop-blur-sm">
+              <div
+                className="h-full w-full rounded-full bg-gradient-to-r from-violet-400 via-fuchsia-300 to-cyan-300 origin-left will-change-transform"
+                style={{
+                  transform: `scaleX(${Math.max(0.001, progress / 100)})`,
+                  transition: isPaused ? 'none' : 'transform 32ms linear',
+                }}
               />
             </div>
           </div>

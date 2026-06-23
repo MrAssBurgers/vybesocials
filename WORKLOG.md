@@ -2,6 +2,49 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## Firebase-only cutover (2026-06-23)
+- **Removed:** entire `supabase/` folder, `@supabase/supabase-js`, `src/integrations/supabase/`, legacy shim files
+- **Client:** `legacyAuthStorage.ts` (session migration), Firebase `invokeFunction` for all admin/debug calls
+- **Functions:** `emailUnsubscribeToken` callable for unsubscribe page
+- **Verified:** `npm run build` PASS, `npm run lint` PASS
+
+## VybeMap platform (2026-06-23) — Firebase only
+- **Storage:** Firestore (`user_live_locations`, `map_*`, `heatmap_tiles`, etc.) — **no Supabase/SQL migration**
+- **Service:** `src/lib/vybemap/firestore.ts` — native Firestore reads/writes + `onSnapshot` realtime
+- **Rules:** `firestore.rules` — VybeMap collections + privacy (ghost hides from public reads)
+- **Functions:** `functions/src/vybemap.ts` — heatmap aggregation, rate limits, emergency ghost
+- **Code:** `src/pages/VybeMap.tsx`, `src/lib/vybemap/*`, `src/hooks/vybemap/*`, `src/components/vybemap/*`
+- **Location engine:** 5s GPS upserts via `useBackgroundLocation` → `upsertLiveLocation`
+- **Verified:** `npm run build` PASS
+- **You:** Deploy Firestore rules + `vybemap` functions; Lovable Publish vybehub.app
+
+## DM UX batch (2026-06-23)
+- **Vybe snap:** rAF + GPU progress bar; mark viewed on open (persists `message_views`); can't reopen after leaving chat
+- **24h mode:** Default send mode `24h`; composer banner explains auto-delete after open
+- **Voice notes:** Redesigned pill player with deterministic waveform + smooth scrubbing
+- **Unsend:** Direct Postgres soft-delete (fixes `internal` Firebase callable error)
+- **VybeMap:** Sharing defaults on; immediate location upsert; clearer empty state + quick enable
+- **Cameras:** Double-tap preview flips front/back (VybeSnap, Snap, Create, Camera, CameraWithSound)
+- **Verified:** `npm run build` PASS
+
+## Chat shield flicker fix (2026-06-23)
+- **Bug:** Screen recording / macOS capture UI caused chat panel to flash black in a loop (resize heuristics + duplicate blackout + rapid restore).
+- **Fix:** `chatScreenShield.ts` — resize blackout mobile-only; min 1.2s blackout + generation-guarded restore; desktop skips hiding chat root. `ChatView.tsx` — no second blackout on desktop capture events (keyboard shield still flashes curtain).
+- **Verified:** `npm run build` PASS
+- **Next:** Firebase hosting deploy + Lovable Publish vybehub.app
+
+## Publish (2026-06-23 batch 2)
+- **Git:** `f2bf2a64` — active dot polish, LiveKit default calls, sticker Firestore rules, Vybe Check fail-closed, snap gradient UI, notification chime, OneSignal auto-permission on login
+- **Deployed:** Firebase hosting + **Firestore rules** (`user_stickers`) on https://vybe-daaab.web.app
+- **Redeploy:** hosting refreshed again same commit
+- **You:** Lovable Publish vybehub.app; redeploy `startVybeCheck` after `OPENAI_API_KEY` secret set; test call + sticker + push with phone locked
+
+## Publish (2026-06-23)
+- **Git:** `0d3862a5` pushed to `origin/main` — chat screenshot blocking, presence accuracy, screenshot notifier
+- **Firebase staging:** https://vybe-daaab.web.app (hosting redeployed)
+- **vybehub.app:** Still needs **Lovable → Share → Publish** (Cursor cannot click this)
+- **After publish:** Hard refresh on phone; native Despia app pulls OTA from vybehub.app
+
 ## Chat presence + screenshot notifier (2026-06-17)
 - **Presence accuracy:** Stale detection (12s) on Firestore `users/{id}`; heartbeat every 4s while in chat; `pagehide`/`freeze`/background sets `offline` and clears `active_conversation`; broadcast peers expire after 8s unless Firestore confirms.
 - **Screenshot notifier:** Instant DM broadcast (`screenshot` event) + in-chat banner/toast + system message; Vybe viewer screenshots notify sender via `onScreenshotDetected`.

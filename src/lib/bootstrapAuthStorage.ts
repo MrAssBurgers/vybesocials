@@ -1,12 +1,8 @@
 /**
- * Runs before the Supabase client module initializes so localStorage is
- * repaired/migrated before createClient reads the auth storage adapter.
+ * Runs before the Firebase auth client initializes so localStorage is
+ * repaired/migrated before auth reads persisted sessions.
  */
-import {
-  clearLegacySupabaseAuthStorage,
-  purgeWrongProjectAuthSessions,
-  repairSupabaseAuthStorage,
-} from './supabaseStorageKey';
+import { clearObsoleteAuthStorage, repairLegacyAuthStorage } from './legacyAuthStorage';
 import { isPasswordRecoveryUrl, redirectToPasswordRecoveryPage } from './passwordRecoveryUrl';
 
 if (typeof window !== 'undefined') {
@@ -19,6 +15,5 @@ if (typeof window !== 'undefined') {
   }
 }
 
-purgeWrongProjectAuthSessions();
-clearLegacySupabaseAuthStorage();
-repairSupabaseAuthStorage();
+clearObsoleteAuthStorage();
+repairLegacyAuthStorage();

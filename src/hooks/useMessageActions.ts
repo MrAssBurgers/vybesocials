@@ -30,16 +30,31 @@ export function useUnsendForEveryone() {
         return { messageId, conversationId };
       }
 
-      const { data, error } = await db.functions.invoke('unsend-message', {
-        body: { messageId },
-      });
+      const { data: message, error: fetchError } = await db
+        .from('messages')
+        .select('sender_id, conversation_id')
+        .eq('id', messageId)
+        .maybeSingle();
+
+      if (fetchError) throw fetchError;
+      if (!message) throw new Error('Message not found');
+      if (message.sender_id !== profile.id) {
+        throw new Error('You can only unsend your own messages');
+      }
+
+      const { error } = await db
+        .from('messages')
+        .update({
+          is_deleted: true,
+          deleted_at: new Date().toISOString(),
+          content: null,
+          media_url: null,
+        })
+        .eq('id', messageId);
 
       if (error) throw error;
 
-      const conversationId = (data as any)?.conversationId as string | undefined;
-      if (!conversationId) throw new Error('Failed to unsend message');
-
-      return { messageId, conversationId };
+      return { messageId, conversationId: message.conversation_id as string };
     },
     onMutate: async (messageId) => {
       await queryClient.cancelQueries({ queryKey: ['messages'] });

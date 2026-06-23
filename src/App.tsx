@@ -28,7 +28,7 @@ import { AgentActionBusProvider } from "@/lib/agent/actionBus/AgentActionBusProv
 import { useAutoUpdate } from "@/hooks/useAutoUpdate";
 import { useContrastAutoGuard } from "@/hooks/useContrastAutoGuard";
 import { isNativePerfMode } from "@/lib/nativePerfMode";
-import { hasStoredSupabaseSession } from "@/lib/supabaseStorageKey";
+import { hasStoredAuthSession } from "@/lib/legacyAuthStorage";
 import { getWasLoggedIn, setWasLoggedIn } from "@/lib/wasLoggedIn";
 import SmartErrorBoundary from "@/components/error/SmartErrorBoundary";
 import { AppErrorFallback } from "@/components/error/AppErrorFallback";
@@ -275,24 +275,24 @@ function useAuthResolved() {
   const optimistic =
     skipInitialSplash ||
     getWasLoggedIn() ||
-    hasStoredSupabaseSession() ||
+    hasStoredAuthSession() ||
     !!getCachedCurrentProfile();
   const [resolved, setResolved] = useState(optimistic);
   const [hasSession, setHasSession] = useState(
-    () => optimistic || hasStoredSupabaseSession(),
+    () => optimistic || hasStoredAuthSession(),
   );
   useEffect(() => {
     let cancelled = false;
     const authTimeoutMs = optimistic
       ? (isNativePerfMode() ? 250 : 400)
-      : hasStoredSupabaseSession()
+      : hasStoredAuthSession()
         ? (isNativePerfMode() ? 500 : 700)
         : (isNativePerfMode() ? 900 : 1200);
     const forceDone = setTimeout(() => {
       if (!cancelled) setResolved(true);
     }, authTimeoutMs);
 
-    if (hasStoredSupabaseSession()) {
+    if (hasStoredAuthSession()) {
       setHasSession(true);
       setWasLoggedIn(true);
     }
