@@ -1843,7 +1843,10 @@ export function ChatView() {
             onCancelEdit={() => { setEditingMessageId(null); setEditText(''); }}
             showStickerPanel={showStickerPanel}
             setShowStickerPanel={setShowStickerPanel}
-            onSendSticker={async (url) => { await sendMediaMessage(url, 'image'); }}
+            onSendSticker={async (url) => {
+              await sendMediaMessage(url, 'image');
+              setShowStickerPanel(false);
+            }}
             isVoiceLocked={isVoiceLocked}
             setIsVoiceLocked={setIsVoiceLocked}
             voiceLockStartYRef={voiceLockStartYRef}
@@ -1915,7 +1918,10 @@ export function ChatView() {
           onCancelEdit={() => { setEditingMessageId(null); setEditText(''); }}
           showStickerPanel={showStickerPanel}
           setShowStickerPanel={setShowStickerPanel}
-          onSendSticker={async (url) => { await sendMediaMessage(url, 'image'); }}
+          onSendSticker={async (url) => {
+            await sendMediaMessage(url, 'image');
+            setShowStickerPanel(false);
+          }}
           isVoiceLocked={isVoiceLocked}
           setIsVoiceLocked={setIsVoiceLocked}
           voiceLockStartYRef={voiceLockStartYRef}
@@ -2041,7 +2047,7 @@ const MessageInputArea = memo(function MessageInputArea({
   safetyFilterNode?: React.ReactNode;
 }) {
   return (
-    <div className="flex-shrink-0 z-30 bg-transparent px-2 sm:px-3 pt-2 pb-[max(0.5rem,env(safe-area-inset-bottom))]">
+    <div className="relative flex-shrink-0 z-30 bg-transparent px-2 sm:px-3 pt-2 pb-[max(0.5rem,env(safe-area-inset-bottom))]">
       {/* Sticker Panel */}
       {onSendSticker && showStickerPanel && setShowStickerPanel && (
         <StickerPanel
@@ -2655,60 +2661,45 @@ const MessageBubble = memo(function MessageBubble({
               ) : (
                 // Receiver before viewing - tap to open fullscreen
                 <motion.button
-                  whileHover={{ scale: 1.03 }}
-                  whileTap={{ scale: 0.97 }}
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
                   onClick={() => {
                     setShowVybeViewer(true);
                   }}
                   className={cn(
-                    "relative w-36 h-48 sm:w-40 sm:h-52 rounded-2xl overflow-hidden",
-                    "bg-gradient-to-br from-primary via-accent to-primary",
+                    "relative w-36 h-48 sm:w-40 sm:h-52 rounded-[22px] overflow-hidden",
                     "flex flex-col items-center justify-center gap-3",
-                    "shadow-xl shadow-primary/20 border border-white/20",
-                    "cursor-pointer"
+                    "shadow-lg shadow-violet-500/15 border border-white/25",
+                    "cursor-pointer bg-gradient-to-br from-violet-600/95 via-fuchsia-500/90 to-cyan-500/85",
                   )}
                 >
-                  {/* Animated gradient background */}
-                  <motion.div 
-                    className="absolute inset-0"
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/25 via-transparent to-white/10" />
+                  <motion.div
+                    className="absolute inset-0 opacity-40"
                     style={{
+                      background:
+                        'linear-gradient(115deg, transparent 30%, rgba(255,255,255,0.35) 50%, transparent 70%)',
                       backgroundSize: '200% 100%',
-                      backgroundImage: 'linear-gradient(90deg, hsl(var(--gradient-start)) 0%, hsl(var(--gradient-mid)) 12.5%, hsl(var(--gradient-end)) 25%, hsl(var(--gradient-mid)) 37.5%, hsl(var(--gradient-start)) 50%, hsl(var(--gradient-mid)) 62.5%, hsl(var(--gradient-end)) 75%, hsl(var(--gradient-mid)) 87.5%, hsl(var(--gradient-start)) 100%)'
                     }}
-                    animate={{ backgroundPosition: ['0% 50%', '-100% 50%'] }}
-                    transition={{ duration: 8, repeat: Infinity, ease: 'linear' }}
+                    animate={{ backgroundPosition: ['200% 0%', '-200% 0%'] }}
+                    transition={{ duration: 3.5, repeat: Infinity, ease: 'easeInOut' }}
                   />
-                  
-                  {/* Gradient only — no raw storage URL for preview */}
-                  
-                  {/* Tap to view overlay */}
                   <div className="relative z-10 flex flex-col items-center gap-3 text-white">
-                    <motion.div 
-                      className="p-4 rounded-full bg-white/20 backdrop-blur-md border border-white/30"
-                      animate={{ scale: [1, 1.1, 1] }}
-                      transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
+                    <motion.div
+                      className="p-3.5 rounded-full bg-white/15 backdrop-blur-md border border-white/25 shadow-inner"
+                      animate={{ scale: [1, 1.06, 1] }}
+                      transition={{ duration: 2.2, repeat: Infinity, ease: 'easeInOut' }}
                     >
-                      <Camera className="h-7 w-7" />
+                      <Camera className="h-6 w-6" />
                     </motion.div>
                     <div className="flex flex-col items-center">
-                      <span className="text-sm font-bold tracking-wide">TAP TO VIEW</span>
-                      <div className="flex items-center gap-1.5 mt-1 px-2 py-0.5 rounded-full bg-white/10">
+                      <span className="text-sm font-semibold tracking-wide drop-shadow-sm">Tap to view</span>
+                      <div className="flex items-center gap-1.5 mt-1.5 px-2.5 py-0.5 rounded-full bg-white/12 border border-white/20">
                         <Sparkles className="h-3 w-3" />
-                        <span className="text-[10px] font-semibold">VYBE</span>
+                        <span className="text-[10px] font-medium tracking-wider uppercase opacity-90">Vybe</span>
                       </div>
                     </div>
                   </div>
-                  
-                  {/* Enhanced shimmer effect */}
-                  <motion.div
-                    className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent skew-x-12"
-                    animate={{ x: ['-150%', '150%'] }}
-                    transition={{ duration: 2.5, repeat: Infinity, ease: 'easeInOut', repeatDelay: 0.5 }}
-                  />
-                  
-                  {/* Corner glow effects */}
-                  <div className="absolute top-0 left-0 w-20 h-20 bg-white/20 rounded-full blur-2xl -translate-x-1/2 -translate-y-1/2" />
-                  <div className="absolute bottom-0 right-0 w-20 h-20 bg-accent/30 rounded-full blur-2xl translate-x-1/2 translate-y-1/2" />
                 </motion.button>
               )}
               

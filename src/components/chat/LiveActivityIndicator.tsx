@@ -111,14 +111,20 @@ export const ChatHeaderPresenceAvatar = memo(function ChatHeaderPresenceAvatar({
 
   return (
     <div className={cn('relative flex-shrink-0', className)}>
-      <Avatar className={cn('h-8 w-8 sm:h-9 sm:w-9 ring-2 shadow-sm object-cover', inChat ? 'ring-primary/60' : 'ring-background')}>
+      <Avatar className="h-8 w-8 sm:h-9 sm:w-9 ring-1 ring-border/40 shadow-sm object-cover">
         <AvatarImage src={signedUrl || undefined} className="object-cover" />
         <AvatarFallback className="text-sm font-semibold bg-muted">
           {(username || '?').charAt(0).toUpperCase()}
         </AvatarFallback>
       </Avatar>
       {inChat && (
-        <span className={cn('absolute -bottom-0.5 -right-0.5 h-3 w-3 sm:h-3.5 sm:w-3.5 rounded-full ring-2 ring-background', config.dotColor)} />
+        <span
+          className={cn(
+            'absolute bottom-0 right-0 h-2 w-2 sm:h-2.5 sm:w-2.5 rounded-full',
+            'ring-1 ring-white dark:ring-black/80',
+            activity === 'viewing' ? 'bg-emerald-500' : config.dotColor,
+          )}
+        />
       )}
     </div>
   );

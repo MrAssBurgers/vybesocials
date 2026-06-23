@@ -12,7 +12,7 @@ import { transcribeAudioWithOpenAI } from './_shared/openaiStt.js';
 import { runVybeCheckPipeline } from './_shared/vybeCheckPipeline.js';
 import type { VybeCheckFrameInput, VybeCheckRequest, VybeCheckStatus } from './_shared/vybeCheckTypes.js';
 
-const SECRETS = ['GEMINI_API_KEY'];
+const SECRETS = ['GEMINI_API_KEY', 'OPENAI_API_KEY'];
 
 const ffmpegPath = typeof ffmpegStatic === 'string' ? ffmpegStatic : null;
 if (ffmpegPath) {

@@ -89,6 +89,7 @@ export const StickerPanel = memo(function StickerPanel({ open, onClose, onSendSt
     if (deleteMode) return;
     haptics.tap();
     onSendSticker(imageUrl);
+    onClose();
   };
 
   const toggleDeleteMode = useCallback(() => {

@@ -116,8 +116,11 @@ export function useContentSafety() {
       try {
         aiResult = await aiScanImage(file);
       } catch (err) {
-        console.warn('AI safety scan unavailable, using NSFWJS result only:', err);
-        aiResult = { allowed: true, result: 'allowed', categories: [], score: 0, message: '' };
+        console.warn('AI safety scan unavailable:', err);
+        const errorMessage = 'Vybe Check is unavailable. This content cannot be shared right now.';
+        setResult('error');
+        setMessage(errorMessage);
+        return { result: 'error', message: errorMessage };
       }
 
       setScanPhase('done');
@@ -179,7 +182,10 @@ export function useContentSafety() {
 
       let aiResult: AISafetyResult;
       if (unavailable || !vybeResult) {
-        aiResult = { allowed: true, result: 'allowed', categories: [], score: 0, message: '' };
+        const errorMessage = 'Vybe Check is unavailable. This video cannot be shared right now.';
+        setResult('error');
+        setMessage(errorMessage);
+        return { result: 'error', message: errorMessage };
       } else if (isVybeCheckBlocked(vybeResult)) {
         aiResult = {
           allowed: false,

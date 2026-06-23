@@ -30,7 +30,13 @@ export async function aiScanImage(file: File): Promise<AISafetyResult> {
   });
 
   if (unavailable || !data) {
-    return { allowed: true, result: 'allowed', categories: [], score: 0, message: 'AI scan unavailable.' };
+    return {
+      allowed: false,
+      result: 'blocked',
+      categories: ['scan_unavailable'],
+      score: 1,
+      message: 'Vybe Check is unavailable. Content cannot be shared until scanning is restored.',
+    };
   }
 
   return normalizeSafetyResult(data);
@@ -52,7 +58,13 @@ export async function aiScanVideoFrame(
   });
 
   if (unavailable || !data) {
-    return { allowed: true, result: 'allowed', categories: [], score: 0, message: 'AI scan unavailable.' };
+    return {
+      allowed: false,
+      result: 'blocked',
+      categories: ['scan_unavailable'],
+      score: 1,
+      message: 'Vybe Check is unavailable. Content cannot be shared until scanning is restored.',
+    };
   }
 
   return normalizeSafetyResult(data);

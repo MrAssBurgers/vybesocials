@@ -726,8 +726,8 @@ export function CallStoreProvider({ children }: { children: ReactNode }) {
     try { stopCameraStream(); } catch {}
     try { clearWarmCallMedia(); } catch {}
 
-    // LiveKit by default only when user explicitly selects Stay On Call (premium).
-    const initialMode: CallMode = 'p2p';
+    // LiveKit by default — reliable on mobile/NAT; P2P only when user opts in later.
+    const initialMode: CallMode = 'persistent';
 
     // LiveKit acquires camera/mic itself — pre-warming blocks the caller's device.
     const warmupPromise =

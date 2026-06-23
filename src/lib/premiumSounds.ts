@@ -150,27 +150,26 @@ const SOUND_CONFIGS: Record<PremiumSoundType, {
     detune: [0, 5],
   },
   
-  // Message receive - warm subtle pop
+  // Message receive — soft VYBE pop (Snap-style, not sharp)
   messageReceive: {
     category: 'messages',
-    frequencies: [880, 1200], // Warmer than before
-    durations: [0.08, 0.06],
-    volumes: [0.02, 0.015], // Softer
-    types: ['sine', 'sine'],
-    delays: [0, 0.02],
-    detune: [0, 8],
+    frequencies: [784, 988, 1175],
+    durations: [0.09, 0.08, 0.11],
+    volumes: [0.035, 0.028, 0.022],
+    types: ['sine', 'sine', 'triangle'],
+    delays: [0, 0.04, 0.09],
+    detune: [0, 4, -3],
   },
-  
-  // DM Notification - soft glass tap chime
-  // Warm, bubbly, satisfying
+
+  // DM notification — iconic two-note VYBE chime (warm, satisfying)
   notification: {
     category: 'messages',
-    frequencies: [880, 1047, 1319, 1568], // C5-ish range, not too bright
-    durations: [0.15, 0.12, 0.10, 0.20], // Longer tails
-    volumes: [0.08, 0.06, 0.05, 0.04], // 30% quieter
-    types: ['sine', 'sine', 'sine', 'triangle'],
-    delays: [0, 0.05, 0.10, 0.15],
-    detune: [0, 3, 6, -2], // Slight detuning for richness
+    frequencies: [659.25, 987.77, 1318.51],
+    durations: [0.12, 0.14, 0.18],
+    volumes: [0.06, 0.05, 0.035],
+    types: ['sine', 'sine', 'triangle'],
+    delays: [0, 0.07, 0.14],
+    detune: [0, 2, -4],
   },
   
   // UI tap - near-silent tactile click

@@ -226,6 +226,17 @@ export function DespiaOneSignalSync() {
         return;
       }
       void setPlayerIdForAuthUser(session.user.id, session.user.email, trigger);
+      if (
+        isDespiaRuntime() &&
+        (event === 'SIGNED_IN' || event === 'INITIAL_SESSION')
+      ) {
+        void db.auth.getUser().then(async ({ data }) => {
+          if (!data.user?.id) return;
+          const externalId = await resolveProfileExternalId(data.user.id);
+          if (!externalId) return;
+          relinkDespiaPushInBackground(externalId, 'login-auto-permission', true);
+        });
+      }
     });
 
     // Request push permission on the FIRST authenticated user gesture
@@ -257,8 +268,12 @@ export function DespiaOneSignalSync() {
     document.addEventListener('visibilitychange', onVisibility);
     window.addEventListener('despia:push', refresh as EventListener);
 
+    // Re-link push subscription periodically while app is open (keeps background delivery fresh).
+    const relinkInterval = window.setInterval(() => {
+      if (document.visibilityState === 'visible') relinkDespiaPush();
+    }, 5 * 60 * 1000);
 
-    // Despia notification tap handler — routes via React Router using
+    // Despia notification tap handler
     // data.path (preferred) or data.url, and re-emits metadata for listeners.
     // See: https://setup.despia.com (OneSignal reference, onNotificationEvent).
     type DespiaNotificationPayload = {
@@ -312,6 +327,7 @@ export function DespiaOneSignalSync() {
       window.removeEventListener('despia:push', refresh as EventListener);
       window.removeEventListener('pointerdown', onFirstGesture);
       window.removeEventListener('touchstart', onFirstGesture);
+      window.clearInterval(relinkInterval);
       w.onNotificationEvent = previousHandler;
     };
   }, [queryClient]);

@@ -831,6 +831,14 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // Saved DM stickers — owner read/write
+    match /user_stickers/{stickerId} {
+      allow read: if signedIn() && ownsUserField('user_id');
+      allow create: if signedIn() && willOwnUserField('user_id');
+      allow delete: if signedIn() && ownsUserField('user_id');
+      allow update: if false;
+    }
+
     // ---------- catch-all: deny by default ----------
     match /{document=**} {
       allow read, write: if false;
