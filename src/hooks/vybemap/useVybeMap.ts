@@ -19,14 +19,24 @@ import {
   fetchHeatmap,
   fetchMapPlaces,
   fetchEventPins,
+  fetchPlacePosts,
+  createPlacePost,
+  fetchPlacePostComments,
+  createPlacePostComment,
+  fetchFriendCheckIns,
+  joinMeetup,
+  leaveMeetup,
+  fetchMyMeetupMemberships,
   logLocationAccess,
   startFinderSession,
   createCheckIn,
+  createMapSpot,
   createMeetup,
   fetchLocationHistory,
 } from '@/lib/vybemap/firestore';
 import { applyDisplayPositions } from '@/lib/vybemap/smoothing';
 import { isValidLatLng } from '@/lib/vybemap/geo';
+import { fetchMyGroupMaps, createGroupMap, joinGroupMap, fetchGroupMemberIds } from '@/lib/vybemap/mapSocial';
 
 const LAYERS_KEY = 'vybe-map-layers-v2';
 
@@ -160,11 +170,50 @@ export function useCheckIn() {
   const { profile } = useAuth();
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (input: { latitude: number; longitude: number; message?: string }) => {
+    mutationFn: (input: {
+      latitude: number;
+      longitude: number;
+      message?: string;
+      placeId?: string;
+      placeName?: string;
+    }) => {
       if (!profile?.id) throw new Error('Not signed in');
-      return createCheckIn(profile.id, input.latitude, input.longitude, input.message);
+      return createCheckIn(
+        profile.id,
+        input.latitude,
+        input.longitude,
+        input.message,
+        input.placeId,
+        input.placeName,
+      );
     },
-    onSuccess: () => void qc.invalidateQueries({ queryKey: ['vybemap-places'] }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['vybemap-places'] });
+      void qc.invalidateQueries({ queryKey: ['vybemap-friend-checkins'] });
+    },
+  });
+}
+
+export function useCreateMapSpot() {
+  const { profile } = useAuth();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: {
+      name: string;
+      category: string;
+      description?: string;
+      photo_url?: string;
+      latitude: number;
+      longitude: number;
+      vibe_tags?: string[];
+    }) => {
+      if (!profile?.id) throw new Error('Not signed in');
+      return createMapSpot(profile.id, input);
+    },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['vybemap-places'] });
+      void qc.invalidateQueries({ queryKey: ['vybemap-heatmap'] });
+    },
   });
 }
 
@@ -201,4 +250,143 @@ export function useLogLocationAccess() {
     if (!profile?.id || profile.id === targetId) return;
     await logLocationAccess(profile.id, targetId, action);
   }, [profile?.id]);
+}
+
+export function usePlacePosts(placeId?: string) {
+  return useQuery({
+    queryKey: ['vybemap-place-posts', placeId],
+    enabled: !!placeId,
+    staleTime: 15_000,
+    queryFn: () => fetchPlacePosts(placeId!),
+  });
+}
+
+export function useCreatePlacePost() {
+  const { profile } = useAuth();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { placeId: string; content: string; mediaUrl?: string }) => {
+      if (!profile?.id) throw new Error('Not signed in');
+      return createPlacePost(profile.id, input.placeId, input.content, input.mediaUrl);
+    },
+    onSuccess: (_id, { placeId }) => {
+      void qc.invalidateQueries({ queryKey: ['vybemap-place-posts', placeId] });
+      void qc.invalidateQueries({ queryKey: ['vybemap-places'] });
+    },
+  });
+}
+
+export function useFriendCheckIns(friendIds: string[]) {
+  return useQuery({
+    queryKey: ['vybemap-friend-checkins', [...friendIds].sort().join(':')],
+    enabled: friendIds.length > 0,
+    staleTime: 20_000,
+    refetchInterval: 30_000,
+    queryFn: () => fetchFriendCheckIns(friendIds),
+  });
+}
+
+export function useMyMeetupMemberships(profileId?: string) {
+  return useQuery({
+    queryKey: ['vybemap-meetup-memberships', profileId],
+    enabled: !!profileId,
+    staleTime: 30_000,
+    queryFn: () => fetchMyMeetupMemberships(profileId!),
+  });
+}
+
+export function useJoinMeetup() {
+  const { profile } = useAuth();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (meetupId: string) => {
+      if (!profile?.id) throw new Error('Not signed in');
+      return joinMeetup(profile.id, meetupId);
+    },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['vybemap-meetups'] });
+      void qc.invalidateQueries({ queryKey: ['vybemap-meetup-memberships'] });
+    },
+  });
+}
+
+export function useLeaveMeetup() {
+  const { profile } = useAuth();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (meetupId: string) => {
+      if (!profile?.id) throw new Error('Not signed in');
+      return leaveMeetup(profile.id, meetupId);
+    },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['vybemap-meetups'] });
+      void qc.invalidateQueries({ queryKey: ['vybemap-meetup-memberships'] });
+    },
+  });
+}
+
+export function usePlacePostComments(postId?: string) {
+  return useQuery({
+    queryKey: ['vybemap-place-comments', postId],
+    enabled: !!postId,
+    staleTime: 10_000,
+    queryFn: () => fetchPlacePostComments(postId!),
+  });
+}
+
+export function useCreatePlacePostComment() {
+  const { profile } = useAuth();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { postId: string; content: string; placeId: string }) => {
+      if (!profile?.id) throw new Error('Not signed in');
+      return createPlacePostComment(profile.id, input.postId, input.content);
+    },
+    onSuccess: (_id, { postId, placeId }) => {
+      void qc.invalidateQueries({ queryKey: ['vybemap-place-comments', postId] });
+      void qc.invalidateQueries({ queryKey: ['vybemap-place-posts', placeId] });
+    },
+  });
+}
+
+export function useGroupMaps(profileId?: string) {
+  return useQuery({
+    queryKey: ['vybemap-group-maps', profileId],
+    enabled: !!profileId,
+    staleTime: 30_000,
+    queryFn: () => fetchMyGroupMaps(profileId!),
+  });
+}
+
+export function useCreateGroupMap() {
+  const { profile } = useAuth();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { name: string; emoji?: string }) => {
+      if (!profile?.id) throw new Error('Not signed in');
+      return createGroupMap(profile.id, input);
+    },
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ['vybemap-group-maps'] }),
+  });
+}
+
+export function useJoinGroupMap() {
+  const { profile } = useAuth();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (groupId: string) => {
+      if (!profile?.id) throw new Error('Not signed in');
+      return joinGroupMap(profile.id, groupId);
+    },
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ['vybemap-group-maps'] }),
+  });
+}
+
+export function useGroupMemberIds(groupId?: string) {
+  return useQuery({
+    queryKey: ['vybemap-group-members', groupId],
+    enabled: !!groupId,
+    staleTime: 20_000,
+    queryFn: () => fetchGroupMemberIds(groupId!),
+  });
 }

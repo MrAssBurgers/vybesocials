@@ -137,6 +137,16 @@ export const firebaseStorage = {
   /** Parse legacy Supabase storage URLs and resolve to Firebase download URL when possible. */
   async resolveMediaUrl(url: string): Promise<string> {
     if (!url) return url;
+    if (url.startsWith('blob:') || url.startsWith('data:')) return url;
+
+    const fbMatch = url.match(/firebasestorage\.googleapis\.com\/v0\/b\/([^/]+)\/o\/([^?]+)/);
+    if (fbMatch) {
+      const path = decodeURIComponent(fbMatch[2]!.replace(/\+/g, ' '));
+      const resolved = await this.resolveDownloadUrl(fbMatch[1]!, path);
+      if (resolved) return resolved;
+      return url;
+    }
+
     if (url.startsWith('http') && !url.includes('/storage/v1/object/')) return url;
 
     const publicMatch = url.match(/\/storage\/v1\/object\/public\/([^/]+)\/(.+)$/);

@@ -536,23 +536,49 @@ export function useMarkMessageViewed() {
         }, { onConflict: 'message_id,user_id', ignoreDuplicates: true });
 
       if (error) throw error;
+
+      const { data: msg } = await db
+        .from('messages')
+        .select('id, view_mode, saved_by_sender, saved_by_recipient, expires_at, viewed_at')
+        .eq('id', messageId)
+        .maybeSingle();
+
+      if (
+        msg &&
+        msg.view_mode === '24h' &&
+        !msg.saved_by_sender &&
+        !msg.saved_by_recipient &&
+        !msg.expires_at
+      ) {
+        const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+        await db
+          .from('messages')
+          .update({ expires_at: expiresAt, viewed_at: new Date().toISOString() })
+          .eq('id', messageId);
+      }
     },
     onSuccess: (_data, messageId) => {
       if (typeof messageId === 'string' && messageId.startsWith('temp-')) return;
       const viewedAt = new Date().toISOString();
+      const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
       queryClient.setQueriesData<Message[]>({ queryKey: ['messages'] }, (old) => {
         if (!old?.some((m) => m.id === messageId)) return old;
-        return old.map((m) =>
-          m.id === messageId
-            ? {
-                ...m,
-                views: [
-                  ...(m.views || []).filter((v) => v.user_id !== profile?.id),
-                  { user_id: profile!.id, viewed_at: viewedAt },
-                ],
-              }
-            : m,
-        );
+        return old.map((m) => {
+          if (m.id !== messageId) return m;
+          const nextExpires =
+            m.view_mode === '24h' && !m.saved_by_sender && !m.saved_by_recipient
+              ? (m.expires_at || expiresAt)
+              : m.expires_at;
+          return {
+            ...m,
+            viewed_at: m.viewed_at || viewedAt,
+            expires_at: nextExpires,
+            views: [
+              ...(m.views || []).filter((v) => v.user_id !== profile?.id),
+              { user_id: profile!.id, viewed_at: viewedAt },
+            ],
+          };
+        });
       });
     },
   });
@@ -563,6 +589,7 @@ export function useMarkMessageViewed() {
  * Saved messages are exempt from the 48h auto-expiry; both users see the saved state.
  */
 export function useToggleSavedMessage(conversationId?: string) {
+  const { profile } = useAuth();
   const queryClient = useQueryClient();
   return useMutation({
     // Optimistic flip so the badge animates instantly — never wait on RPC.
@@ -570,20 +597,21 @@ export function useToggleSavedMessage(conversationId?: string) {
       if (!conversationId) return;
       await queryClient.cancelQueries({ queryKey: ['messages', conversationId] });
       const previous = queryClient.getQueryData<Message[]>(['messages', conversationId]);
+      const profileId = profile?.id;
       queryClient.setQueryData<Message[]>(['messages', conversationId], (old) => {
         if (!old) return old;
         return old.map((m) => {
           if (m.id !== messageId) return m;
           const wasSaved = !!(m.saved_by_sender || m.saved_by_recipient);
-          // Toggle whichever side was set; if neither, set sender side as a sensible default
-          // (server RPC will replace these values with the authoritative result).
-          const nextSender = wasSaved ? false : (m.saved_by_sender ? false : true);
-          const nextRecipient = wasSaved ? false : !!m.saved_by_recipient;
+          const isSender = m.sender_id === profileId;
+          const nextSender = wasSaved ? false : (isSender ? true : !!m.saved_by_sender);
+          const nextRecipient = wasSaved ? false : (isSender ? !!m.saved_by_recipient : true);
           return {
             ...m,
             saved_by_sender: nextSender,
             saved_by_recipient: nextRecipient,
             saved_at: !wasSaved ? new Date().toISOString() : null,
+            expires_at: !wasSaved ? null : m.expires_at,
           };
         });
       });

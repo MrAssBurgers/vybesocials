@@ -280,7 +280,21 @@ service cloud.firestore {
     match /map_places/{docId} {
       allow read: if signedIn();
       allow create: if signedIn();
-      allow update, delete: if isAdmin();
+      allow update: if signedIn() && (
+        resource.data.created_by == profileId() ||
+        isAdmin()
+      );
+      allow delete: if isAdmin() || (signedIn() && resource.data.created_by == profileId());
+    }
+    match /map_place_posts/{docId} {
+      allow read: if signedIn();
+      allow create: if signedIn() && willOwnUserField('user_id');
+      allow update, delete: if ownsUserField('user_id') || isAdmin();
+    }
+    match /map_place_post_comments/{docId} {
+      allow read: if signedIn();
+      allow create: if signedIn() && willOwnUserField('user_id');
+      allow update, delete: if ownsUserField('user_id') || isAdmin();
     }
     match /map_check_ins/{docId} {
       allow read: if signedIn();
@@ -325,6 +339,10 @@ service cloud.firestore {
       allow read: if signedIn();
       allow create: if signedIn() && willOwnUserField('user_id');
       allow update, delete: if ownsUserField('user_id') || isAdmin();
+    }
+    match /map_location_intel/{docId} {
+      allow read: if signedIn();
+      allow write: if false;
     }
     match /friend_finder_sessions/{docId} {
       allow read: if signedIn() && (ownsUserField('seeker_id') || ownsUserField('target_id'));

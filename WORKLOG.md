@@ -2,6 +2,97 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## VybeMap polish — routing & UX (2026-06-17)
+- **Unified live routing:** all Directions buttons → in-map Mapbox route + ETA bar; Google Maps fallback when no token
+- **Meetup map pins:** tappable labeled markers on canvas (replaced invisible circle layer)
+- **Route UX:** fit bounds on route, loading spinner, dismiss sheets when navigating, squad exit chip
+- **Callable routing:** explicit `researchMapLocation` / `logMapAccess` overrides in functionsService
+- **Intel refresh:** force-refresh hook + failed-state UI in LocationIntelPanel
+- **Verified:** build + lint PASS · deployed staging hosting
+
+## VybeMap Phase 5 — Area Intelligence (2026-06-17)
+- **Vybe Area Intelligence:** Gemini 2.5 + Google Search researches locations for safety, trespassing, private property, access rules, crime context, hazards
+- **Labels:** trespassing, private_property, no_trespassing, construction, closed_area, high_crime, flood_zone, military_restricted, + parking/hours/accessibility tips
+- **Verdicts:** safe / caution / avoid with safety score 0–100; 7-day Firestore cache (`map_location_intel`)
+- **UI:** `LocationIntelPanel` on place pages, meetups, spot drop, live route bar; ⚠️/🚫 badges on map spot markers
+- **Guardrails:** Spot drop + meetup create require acknowledgment when verdict is `avoid`
+- **Callable:** `researchMapLocation` (12/hr rate limit); updates `map_places.intel_summary` when placeId provided
+- **Verified:** `npm run build` PASS · `npm run lint` PASS
+- **Deployed:** staging hosting + rules + `researchMapLocation`
+- **Next:** batch intel prefetch for trending spots; Lovable Publish vybehub.app
+
+## VybeMap Phase 4 — social maps (2026-06-17)
+- **Squad Maps:** `GroupMapSheet` — create/list crew maps; `map_group_maps` + `map_group_members`; squad layer highlights members on map
+- **Live routing:** Mapbox Directions ETA bar (`MapRouteBar`); route line on map; friend card + meetup "Route" uses in-app ETA (falls back to Google Maps without token)
+- **Map waves:** `sendMapWave` → push + bell (`map_wave`); wave button on friend card
+- **Heading toward you:** bearing/speed detection banner on friend card + pulse on map marker
+- **Meetup push:** `onMapMeetupCreated` Cloud Function notifies friends (`map_meetup`); push trigger routes to `/map`
+- **Dock:** Squads tab in `MapBottomDock`
+- **Verified:** `npm run build` PASS · `npm run lint` PASS (3 pre-existing warnings)
+- **Deployed:** https://vybe-daaab.web.app — hosting + Firestore indexes + `onMapMeetupCreated`
+- **Next:** periodic ETA refresh; invite friends to squad from chat; Lovable Publish vybehub.app + `VITE_MAPBOX_ACCESS_TOKEN`
+
+## VybeMap Phase 3 — clean & fresh (2026-06-17)
+- **Meetups:** `MeetupSheet` (join/leave, directions, distance); `MeetupCreateSheet`; member counts; calendar FAB on map
+- **Place social:** threaded comments on place posts; Vybe Check on posts + comments
+- **Map polish:** friend marker clustering at low zoom; removed dead time-machine + groups layer stubs
+- **Cleanup:** deleted `PlaceCardSheet`; stripped dead Vybe Check overlay from `DesktopCreateStudio`
+- **Firestore:** `map_place_post_comments` rules + indexes; `map_check_ins`, `map_meetup_members` indexes
+- **Verified:** `npm run build` PASS · deployed staging https://vybe-daaab.web.app
+- **Next:** group maps layer, Mapbox Directions ETA, meetup push notifications
+
+## Publish (2026-06-17)
+- **Firebase staging live:** https://vybe-daaab.web.app — hosting + Firestore rules/indexes + `startVybeCheck` / `getVybeCheckStatus`
+- **Vybe Check fn:** Gemini 2.5 deployed; OpenAI secret not set (add `OPENAI_API_KEY` for moderation + video STT)
+- **Production vybehub.app:** Push git → **Lovable → Share → Publish** (agents cannot click this)
+- **Lovable env:** Add `VITE_MAPBOX_ACCESS_TOKEN` if map 3D not loading on production
+
+## Vybe Check upgrade (2026-06-17)
+- **Server pipeline:** Gemini 2.5 Flash on all text + vision frames (not borderline-only); SafeSearch + OpenAI moderation; `needs_review` blocks publish
+- **Canonical client:** `runPublishVybeCheck` — NSFWJS pre-filter → server invoke; fail-closed when unavailable
+- **Background publish:** Mobile + Desktop media posts → `enqueuePostUpload` (Vybe Check stage first, then optimize/upload/publish); `UploadProgressBanner` shows status
+- **Wired everywhere:** `useCreatePost`, `postUploadPipeline`, `useContentSafety`, `StoryCreator`, `CameraShareSheet` (story/clip/DM)
+- **Mobile composer:** Share dismisses immediately; pre-scan badge while editing; full check runs in background queue
+- **Verified:** `npm run build` PASS, `npm run lint` PASS, `functions` tsc PASS
+- **You:** Deploy `startVybeCheck` + `getVybeCheckStatus` functions (`GEMINI_API_KEY`, `OPENAI_API_KEY` secrets); Lovable Publish vybehub.app
+
+- **Mapbox token:** `VITE_MAPBOX_ACCESS_TOKEN` in local `.env` + `vite.config.ts` define; **add same var in Lovable** for vybehub.app production
+- **Unified map:** `/map` (FriendMap → VybeMap) now Mapbox-first; Leaflet lazy-loaded fallback only without token
+- **Phase 2 — Vybe Local:** `map_place_posts` feed per spot; friend check-in activity bar + discovery section; check-ins bump place count
+- **Firestore:** rules + indexes for `map_place_posts`, `map_check_ins`
+- **Deployed:** staging hosting + rules + indexes
+- **Security:** Rotate Mapbox token if exposed publicly; never commit `.env`
+
+## VybeMap v2 foundation (2026-06-23)
+- **Mapbox GL JS:** 2D / 3D / satellite / terrain / hybrid styles; 3D buildings + terrain DEM; gyro compass bearing
+- **HUD:** Bottom dock (Layers, Friends, Events, Hotspots, Profile), map style sheet, enhanced ghost mode (15m–24h timers)
+- **Markers:** Live avatar friends w/ username + activity; interpolated positions (existing rAF); color-zone heatmap (blue→red)
+- **Places:** `PlacePageSheet` with live vibe score (Busy/Active/Chill/Quiet), crowd estimate, check-in
+- **Location:** Faster upserts while moving (3s vs 5s foreground)
+- **Fallback:** Leaflet remains when `VITE_MAPBOX_ACCESS_TOKEN` unset + setup banner
+- **Stack note:** Spec lists Expo/RN — production app is React web + Capacitor; Mapbox via `mapbox-gl` on web (native Mapbox SDK = future Capacitor plugin or RN app)
+- **Verified:** `npm run build` PASS
+- **Roadmap phases:** place feeds/comments, group maps, meet-up routing, Vybe Intelligence callables, marker clustering at scale, full Snap-grade 3D globe
+
+## Bug-fix + features batch (2026-06-23 batch 5)
+- **Firebase staging deployed:** https://vybe-daaab.web.app — hosting + Firestore rules (map_places creator updates)
+- **Background upload pipeline:** `postUploadPipeline.ts` + `uploadQueue.ts` + global `UploadProgressBanner` — optimize → Vybe Check → upload → publish; composer dismisses after Share
+- **VybeMap social spots:** `SpotDropSheet` (drop hangout/food/view/party spots with photo), `PlaceCardSheet`, richer spot markers on map, discovery drawer shows descriptions
+- **Verified:** `npm run build` PASS, `npm run lint` PASS
+- **You:** Lovable Publish vybehub.app; test post upload banner + map spot drop on phone
+
+## Bug-fix batch (2026-06-23 batch 4)
+- **Post images:** `resolveMediaUrl` refreshes expired Firebase Storage tokens; `PostCard` shows skeleton while URL resolves.
+- **Home scroll:** Disabled `content-visibility` on media; semi-opaque `#main-content` over liquid bg; freeze swipe parallax while scrolling.
+- **Voice notes:** `AudioMessage` uses signed URL + `playsInline` + play error handling.
+- **Saved message icon:** `rpcToggleMessageSaved` returns full saved-state object (was boolean — wiped UI on mobile).
+- **24h expiry:** Timer starts on open (`useMarkMessageViewed`), not send (`expiresAtForViewMode` returns null for `24h`).
+- **Ephemeral UI:** `EphemeralChatNotice` in DMs/group chats (Snap-style banner).
+- **Find Friend:** Find My–style overlay — radar rings, compass, high-accuracy GPS.
+- **VybeMap gyro:** `deviceorientation` → `map.setBearing()` via `leaflet-rotate`.
+- **Verified:** `npm run build` PASS, `npm run lint` PASS (3 pre-existing warnings)
+- **Roadmap (not this batch):** Snap 3D world map, map hangout social feed, background upload + Vybe Check publish pipeline, full Snap group chat chrome + presence pills.
+
 ## Publish (2026-06-23 batch 3)
 - **Git:** `90228bff` pushed to `origin/main` — VybeMap full-viewport fix, home scroll flicker patch, VybeMap Firestore indexes
 - **Firebase staging:** https://vybe-daaab.web.app (hosting + indexes redeployed)

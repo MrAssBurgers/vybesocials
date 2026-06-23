@@ -6,7 +6,6 @@ import { cn } from '@/lib/utils';
 import { useCreatePost } from '@/hooks/usePosts';
 import { useAuth } from '@/lib/auth';
 import { VybeCheckFailed } from '@/components/safety/VybeCheckFailed';
-import { VybeCheckOverlay } from '@/components/safety/VybeCheckOverlay';
 import { type AgeRating } from '@/components/safety/AgeRatingSelector';
 import { useContentSafety } from '@/hooks/useContentSafety';
 
@@ -23,6 +22,7 @@ import { triggerHaptic } from '@/lib/haptics';
 import { useComposerDraft } from '@/hooks/useComposerDraft';
 import { DraftBanner } from '@/components/create/DraftBanner';
 import { withTimeout } from '@/lib/withTimeout';
+import { enqueuePostUpload } from '@/lib/uploadQueue';
 
 const visibilityOptions = [
   { id: 'public' as const, label: 'Everyone', icon: Globe },
@@ -57,7 +57,6 @@ export function MobilePostComposer({ files: propFiles, previews: propPreviews, c
   const [uploadProgress, setUploadProgress] = useState(0);
   const [visibility, setVisibility] = useState<'public' | 'followers' | 'private'>('public');
   const [showVisibility, setShowVisibility] = useState(false);
-  const [showVybeCheck, setShowVybeCheck] = useState(false);
   const [vybeCheckFailed, setVybeCheckFailed] = useState(false);
   const [scanMessage, setScanMessage] = useState('');
   const [scanCategories, setScanCategories] = useState<string[]>([]);
@@ -174,8 +173,20 @@ export function MobilePostComposer({ files: propFiles, previews: propPreviews, c
 
   // Tags are optional — only media or caption is required.
   const canSubmit = contentType === 'text' ? caption.trim().length > 0 : localFiles.length > 0;
-  const isPreScanning = localFiles.length > 0 && preScanState.status === 'scanning';
   const currentVisibility = visibilityOptions.find(v => v.id === visibility)!;
+
+  useEffect(() => {
+    const onUploadFailed = (e: Event) => {
+      const detail = (e as CustomEvent<{ reason?: string }>).detail;
+      const reason = detail?.reason || '';
+      if (!reason.toLowerCase().includes('vybe check')) return;
+      setScanMessage(reason);
+      setScanCategories(['vybe_check']);
+      setVybeCheckFailed(true);
+    };
+    window.addEventListener('vybe:upload-failed', onUploadFailed);
+    return () => window.removeEventListener('vybe:upload-failed', onUploadFailed);
+  }, []);
 
   const handleSubmit = async () => {
     if (!user) {
@@ -186,23 +197,40 @@ export function MobilePostComposer({ files: propFiles, previews: propPreviews, c
       toast.error(contentType === 'text' ? 'Write something first' : 'Add a photo or video first');
       return;
     }
-    if (localFiles.length > 0 && localFiles[0]) {
-      setShowVybeCheck(true);
+    if (preScanState.status === 'blocked') {
+      setScanMessage(preScanState.message);
+      setScanCategories(preScanState.categories);
+      setVybeCheckFailed(true);
       return;
     }
-    await doPublish('safe');
-  };
-
-  const handleVybeCheckComplete = async (ageRating: AgeRating) => {
-    setShowVybeCheck(false);
-    await doPublish(ageRating);
-  };
-
-  const handleVybeCheckBlocked = (message: string, categories: string[]) => {
-    setShowVybeCheck(false);
-    setScanMessage(message);
-    setScanCategories(categories);
-    setVybeCheckFailed(true);
+    if (localFiles.length > 0) {
+      if (!profile?.id || !profile?.user_id) {
+        toast.error('Please sign in again to post');
+        return;
+      }
+      enqueuePostUpload(
+        {
+          profile: { id: profile.id, user_id: profile.user_id },
+          mediaFile: localFiles.length <= 1 ? localFiles[0] : undefined,
+          mediaFiles: localFiles.length > 1 ? localFiles : undefined,
+          caption,
+          tags,
+          type: contentType,
+        },
+        caption.trim().slice(0, 48) || 'New post',
+      );
+      draft.clear();
+      triggerHaptic('success');
+      toast.success('Publishing in background — Vybe Check running now.');
+      onClose();
+      navigate(applyPostPublishNavigation(contentType));
+      return;
+    }
+    await doPublish(
+      preScanState.status === 'safe' && preScanState.suggestedAgeRating
+        ? preScanState.suggestedAgeRating
+        : 'safe',
+    );
   };
 
   const doPublish = async (ageRating: AgeRating) => {
@@ -278,32 +306,6 @@ export function MobilePostComposer({ files: propFiles, previews: propPreviews, c
     <div className="fixed inset-0 z-[200] flex flex-col bg-background">
       {/* Overlays */}
       <AnimatePresence>
-        {showVybeCheck && (
-          <VybeCheckOverlay
-            files={localFiles}
-            onComplete={handleVybeCheckComplete}
-            onBlocked={handleVybeCheckBlocked}
-            onCancel={() => setShowVybeCheck(false)}
-            precomputedResult={
-              preScanState.status === 'safe'
-                ? {
-                    blocked: false,
-                    suggestedAgeRating: preScanState.suggestedAgeRating ?? null,
-                    ageRatingReasons: preScanState.ageRatingReasons,
-                  }
-                : preScanState.status === 'blocked'
-                ? {
-                    blocked: true,
-                    message: preScanState.message,
-                    categories: preScanState.categories,
-                  }
-                : null
-            }
-          />
-        )}
-      </AnimatePresence>
-
-      <AnimatePresence>
         {showCelebration && (
           <PublishCelebration
             isUploading={isUploading}
@@ -333,22 +335,16 @@ export function MobilePostComposer({ files: propFiles, previews: propPreviews, c
           </div>
           <motion.button
             onClick={handleSubmit}
-            disabled={isUploading || isPreScanning}
-            whileTap={!isUploading && !isPreScanning ? { scale: 0.92 } : {}}
+            disabled={isUploading}
+            whileTap={!isUploading ? { scale: 0.92 } : {}}
             className={cn(
               "h-9 px-5 rounded-full text-sm font-bold transition-all duration-300",
-              canSubmit && !isUploading && !isPreScanning
+              canSubmit && !isUploading
                 ? "bg-gradient-to-r from-primary to-accent text-primary-foreground shadow-lg shadow-primary/30"
                 : "bg-muted text-muted-foreground"
             )}
           >
-            {isPreScanning ? (
-              <span className="flex items-center gap-1.5">
-                <motion.span className="w-3.5 h-3.5 rounded-full border-2 border-muted-foreground/30 border-t-muted-foreground"
-                  animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 0.6, ease: 'linear' }} />
-                Scanning…
-              </span>
-            ) : isUploading ? (
+            {isUploading ? (
               <span className="flex items-center gap-1.5">
                 <motion.span className="w-3.5 h-3.5 rounded-full border-2 border-primary-foreground/30 border-t-primary-foreground"
                   animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 0.6, ease: 'linear' }} />

@@ -66,6 +66,7 @@ import { CHAT_SHIELD_ROOT_ID } from '@/lib/chatScreenShield';
 import { usePeerLastReadAt } from '@/hooks/usePeerLastReadAt';
 import { ChatPresenceIndicator } from './ChatPresenceIndicator';
 import { LivePresenceBar, ScreenshotAlert, SnapchatStatus } from './SnapchatFeedback';
+import { EphemeralChatNotice } from './EphemeralChatNotice';
 import { resolveOwnMessageStatus } from '@/lib/messageReadStatus';
 import { ChatPresenceDock, ChatHeaderPresenceAvatar, GroupPresenceBar, pickGroupDockPeer } from './LiveActivityIndicator';
 import { SignedAvatar } from '@/components/ui/SignedAvatar';
@@ -1503,6 +1504,9 @@ export function ChatView() {
               Try again
             </Button>
           </div>
+        )}
+        {(viewMode === '24h' || viewMode === 'view_once') && (
+          <EphemeralChatNotice viewMode={viewMode} isGroupChat={isGroupChat} />
         )}
         {/* Messages container - extra bottom padding on mobile for bottom nav */}
         <div className="flex flex-col gap-0 pb-[calc(env(safe-area-inset-bottom,0px)+0.75rem)] md:pb-4">

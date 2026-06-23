@@ -254,6 +254,8 @@ const SOCIAL_PUSH_TYPES = new Set([
     'smart_ping',
     'announcement',
     'content_removed',
+    'map_wave',
+    'map_meetup',
 ]);
 const SKIP_BELL_PUSH_TYPES = new Set(['message', 'dm', 'group_message', 'missed_call']);
 function prefKeyForNotificationType(type) {
@@ -303,6 +305,9 @@ function routeForNotificationDoc(n, type) {
         case 'dm':
         case 'group_message':
             return conversationId ? `/messages/${conversationId}` : '/messages';
+        case 'map_wave':
+        case 'map_meetup':
+            return '/map';
         default:
             return '/notifications';
     }
@@ -338,6 +343,8 @@ async function notifySocialPush(notification, notificationId) {
         smart_ping: 'sent you a notification',
         announcement: 'posted an announcement',
         content_removed: 'moderation update',
+        map_wave: 'waved at you on VybeMap',
+        map_meetup: 'started a meetup nearby',
     };
     const body = asString(notification.body) || defaultBodies[type] || 'New activity on VYBE';
     const url = routeForNotificationDoc(notification, type);

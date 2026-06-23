@@ -124,17 +124,29 @@ async function rpcEditMessage(params: Record<string, unknown>) {
 async function rpcToggleMessageSaved(params: Record<string, unknown>) {
   const messageId = String(params._message_id || params.message_id || '');
   const profileId = await currentProfileId();
-  if (!messageId || !profileId) return false;
+  if (!messageId || !profileId) return null;
   const msg = await getDocument<Record<string, unknown>>('messages', messageId);
-  if (!msg) return false;
+  if (!msg) return null;
   const isSender = msg.sender_id === profileId;
-  const field = isSender ? 'saved_by_sender' : 'saved_by_recipient';
+  const senderField = 'saved_by_sender';
+  const recipientField = 'saved_by_recipient';
+  const field = isSender ? senderField : recipientField;
   const next = !msg[field];
-  await updateDocument('messages', messageId, {
+  const patch: Record<string, unknown> = {
     [field]: next,
     saved_at: next ? new Date().toISOString() : null,
-  });
-  return next;
+  };
+  if (next) {
+    patch.expires_at = null;
+  }
+  await updateDocument('messages', messageId, patch);
+  const updated = await getDocument<Record<string, unknown>>('messages', messageId);
+  return {
+    saved_by_sender: !!(updated?.saved_by_sender),
+    saved_by_recipient: !!(updated?.saved_by_recipient),
+    saved_at: (updated?.saved_at as string | null) ?? null,
+    expires_at: (updated?.expires_at as string | null) ?? null,
+  };
 }
 
 async function rpcClearConversationMessages(params: Record<string, unknown>) {

@@ -98,6 +98,31 @@
       "fields": [
         { "fieldPath": "user_id", "order": "ASCENDING" },
         { "fieldPath": "recorded_at", "order": "ASCENDING" }
+      ] },
+    { "collectionGroup": "map_place_posts", "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "place_id", "order": "ASCENDING" },
+        { "fieldPath": "created_at", "order": "DESCENDING" }
+      ] },
+    { "collectionGroup": "map_place_post_comments", "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "post_id", "order": "ASCENDING" },
+        { "fieldPath": "created_at", "order": "ASCENDING" }
+      ] },
+    { "collectionGroup": "map_meetup_members", "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "meetup_id", "order": "ASCENDING" },
+        { "fieldPath": "user_id", "order": "ASCENDING" }
+      ] },
+    { "collectionGroup": "map_group_maps", "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "owner_id", "order": "ASCENDING" },
+        { "fieldPath": "created_at", "order": "DESCENDING" }
+      ] },
+    { "collectionGroup": "map_group_members", "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "group_id", "order": "ASCENDING" },
+        { "fieldPath": "user_id", "order": "ASCENDING" }
       ] }
   ],
   "fieldOverrides": []

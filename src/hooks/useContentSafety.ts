@@ -12,8 +12,8 @@ import { db } from '@/lib/firebase';
 import { toast } from 'sonner';
 import { shouldBypassSafety } from '@/lib/ownerBypass';
 import { scanImage as nsfwScanImage, scanVideo as nsfwScanVideo, scanText as nsfwScanText, type ScanResult } from '@/lib/nsfwScanner';
-import { aiScanImage, type AISafetyResult } from '@/lib/aiSafetyClient';
-import { startVybeCheckFrames, isVybeCheckBlocked } from '@/lib/vybeCheck';
+import { type AISafetyResult } from '@/lib/aiSafetyClient';
+import { fileToVybeFrames, invokeVybeCheck, isVybeCheckBlocked, isVybeCheckReviewBlocked } from '@/lib/vybeCheck';
 
 export type SafetyResult = 'scanning' | 'allowed' | 'warned' | 'blocked' | 'error';
 
@@ -109,18 +109,46 @@ export function useContentSafety() {
         return safetyResult;
       }
 
-      // Pass 2: AI scan for violence/gore/weapons
+      // Pass 2: Server Vybe Check (SafeSearch + OpenAI + Gemini 2.5)
       setScanPhase('ai-visual');
-      setMessage('Deep scanning for harmful content...');
+      setMessage('Running Vybe Check…');
+      const frames = await fileToVybeFrames(file);
+      const { result: vybeResult, unavailable } = await invokeVybeCheck({
+        content_type: 'post',
+        frames,
+      });
+
       let aiResult: AISafetyResult;
-      try {
-        aiResult = await aiScanImage(file);
-      } catch (err) {
-        console.warn('AI safety scan unavailable:', err);
+      if (unavailable || !vybeResult) {
         const errorMessage = 'Vybe Check is unavailable. This content cannot be shared right now.';
         setResult('error');
         setMessage(errorMessage);
         return { result: 'error', message: errorMessage };
+      } else if (isVybeCheckBlocked(vybeResult) || isVybeCheckReviewBlocked(vybeResult)) {
+        aiResult = {
+          allowed: false,
+          result: 'blocked',
+          categories: vybeResult.categories,
+          score: vybeResult.score,
+          message: vybeResult.message,
+        };
+      } else if (vybeResult.status === 'limited') {
+        aiResult = {
+          allowed: true,
+          result: 'warned',
+          categories: vybeResult.categories,
+          score: vybeResult.score,
+          message: vybeResult.message,
+          suggested_age_rating: '13+',
+        };
+      } else {
+        aiResult = {
+          allowed: true,
+          result: 'allowed',
+          categories: vybeResult.categories,
+          score: vybeResult.score,
+          message: vybeResult.message,
+        };
       }
 
       setScanPhase('done');
@@ -178,7 +206,11 @@ export function useContentSafety() {
       setScanPhase('ai-visual');
       setMessage('Running Vybe Check…');
 
-      const { result: vybeResult, unavailable } = await startVybeCheckFrames(file);
+      const frames = await fileToVybeFrames(file);
+      const { result: vybeResult, unavailable } = await invokeVybeCheck({
+        content_type: 'video',
+        frames,
+      });
 
       let aiResult: AISafetyResult;
       if (unavailable || !vybeResult) {
@@ -186,7 +218,7 @@ export function useContentSafety() {
         setResult('error');
         setMessage(errorMessage);
         return { result: 'error', message: errorMessage };
-      } else if (isVybeCheckBlocked(vybeResult)) {
+      } else if (isVybeCheckBlocked(vybeResult) || isVybeCheckReviewBlocked(vybeResult)) {
         aiResult = {
           allowed: false,
           result: 'blocked',
@@ -194,7 +226,7 @@ export function useContentSafety() {
           score: vybeResult.score,
           message: vybeResult.message,
         };
-      } else if (vybeResult.status === 'limited' || vybeResult.status === 'needs_review') {
+      } else if (vybeResult.status === 'limited') {
         aiResult = {
           allowed: true,
           result: 'warned',

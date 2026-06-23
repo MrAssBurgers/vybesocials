@@ -25,6 +25,7 @@ export default defineConfig(({ mode }) => {
     'VITE_FIREBASE_APP_CHECK_PROVIDER',
     'VITE_MAINTENANCE_MODE',
     'VITE_MAINTENANCE_MESSAGE',
+    'VITE_MAPBOX_ACCESS_TOKEN',
   ] as const;
 
   const firebaseDefine = Object.fromEntries(

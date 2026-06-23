@@ -1569,6 +1569,12 @@ body.has-liquid-bg:not(.has-custom-bg) .dm-sidebar {
     background: transparent !important;
     background-color: transparent !important;
   }
+  /* Opaque feed shell — prevents aurora mesh holes flashing through while scrolling */
+  body.has-liquid-bg #main-content,
+  body.has-custom-bg #main-content {
+    background-color: hsl(var(--background) / 0.92) !important;
+    -webkit-overflow-scrolling: touch;
+  }
   /* Sidebars become translucent glass so the backdrop bleeds through */
   body.has-custom-bg .stable-sidebar-surface,
   body.has-liquid-bg .stable-sidebar-surface,
@@ -4001,30 +4007,8 @@ article, .post-card, .card {
   contain: layout style paint;
 }
 
-/* Images/videos — skip content-visibility when aurora shows through scroll areas */
+/* Images/videos — content-visibility caused black holes over aurora during feed scroll */
 img, video {
-  content-visibility: auto;
-  contain-intrinsic-size: 300px 300px;
-}
-
-[data-app-scroll-container="true"] img,
-[data-app-scroll-container="true"] video,
-body.has-liquid-bg img,
-body.has-liquid-bg video,
-body.has-custom-bg img,
-body.has-custom-bg video,
-html.vybe-aurora-active img,
-html.vybe-aurora-active video {
-  content-visibility: visible;
-  contain-intrinsic-size: auto;
-}
-
-/* Aurora / wallpaper — never skip paint on scroll-region children (dark mesh flash) */
-body.has-liquid-bg .scroller > *,
-body.has-custom-bg .scroller > *,
-html.vybe-aurora-active .scroller > *,
-body.has-liquid-bg #main-content > *,
-body.has-custom-bg #main-content > * {
   content-visibility: visible;
   contain-intrinsic-size: auto;
 }

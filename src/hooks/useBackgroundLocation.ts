@@ -52,7 +52,9 @@ export function useBackgroundLocation(
   const upsertLocation = useCallback(async (lat: number, lng: number, acc: number, spd: number | null, heading?: number | null) => {
     if (!userId || !sharing) return;
     const now = Date.now();
-    if (now - lastUpsert.current < UPSERT_INTERVAL_MS) return;
+    const moving = spd != null && spd > 0.5;
+    const minInterval = moving ? 3_000 : UPSERT_INTERVAL_MS;
+    if (now - lastUpsert.current < minInterval) return;
     lastUpsert.current = now;
     const hour = new Date().getHours();
     const status = autoStatus(spd, hour);

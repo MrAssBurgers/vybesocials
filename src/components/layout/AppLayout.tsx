@@ -160,7 +160,9 @@ export const AppLayout = memo(forwardRef<HTMLDivElement, AppLayoutProps>(functio
                   : undefined,
               WebkitOverflowScrolling: 'touch',
               overscrollBehaviorY: 'contain',
-              transform: !nativePerf && swipeProgress > 0 ? `translateX(${swipeProgress * 60}px)` : undefined,
+              transform: !nativePerf && swipeProgress > 0 && !document.documentElement.classList.contains('is-scrolling')
+                ? `translateX(${swipeProgress * 60}px)`
+                : undefined,
               transition: swipeProgress === 0 ? 'transform 0.2s ease-out' : undefined,
             }}
           >

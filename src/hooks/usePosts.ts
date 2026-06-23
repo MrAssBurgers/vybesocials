@@ -9,6 +9,7 @@ import { toast } from 'sonner';
 import { setCachedProfiles } from '@/lib/profileCache';
 import { resolveAuthorIds, fetchMemberProfiles } from '@/lib/dmMembershipRepair';
 import { isValidMediaUrl } from '@/lib/mediaUrl';
+import { runPublishVybeCheck } from '@/lib/vybeCheck/runPublishVybeCheck';
 
 export { isValidMediaUrl };
 
@@ -349,6 +350,19 @@ export function useCreatePost() {
 
       const filteredCaption = filterBlockedContent(data.caption);
 
+      const vybe = await runPublishVybeCheck({
+        caption: filteredCaption,
+        tags: data.tags,
+        mediaFile: data.mediaFile,
+        mediaFiles: data.mediaFiles,
+        contentType: data.type === 'text' ? 'text' : data.type,
+      });
+      if (vybe.blocked || !vybe.allowed) {
+        toast.error(vybe.message || 'Vybe Check did not pass.');
+        throw new Error(vybe.message || 'Vybe Check blocked');
+      }
+      const resolvedAgeRating = data.age_rating || vybe.ageRating;
+
       const authUserId = profile.user_id;
 
       let publicUrl: string | null = null;
@@ -477,7 +491,9 @@ export function useCreatePost() {
             thumbnail_url: thumbnailUrl,
             caption: filteredCaption,
             tags: data.tags,
-            age_rating: data.age_rating || 'safe',
+            age_rating: resolvedAgeRating,
+            vybe_check_id: vybe.checkId ?? null,
+            vybe_check_status: 'approved',
           } as any)
           .select()
           .single(),

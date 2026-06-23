@@ -10,6 +10,16 @@ export type MapLayer =
   | 'heatmap'
   | 'meetups';
 
+export interface MapGroupMap {
+  id: string;
+  name: string;
+  emoji: string;
+  color: string;
+  owner_id: string;
+  created_at: string;
+  member_count?: number;
+}
+
 export type SharingMode =
   | 'precise'
   | 'approximate'
@@ -63,12 +73,118 @@ export interface MapPlace {
   id: string;
   name: string;
   category: string;
+  description?: string | null;
+  photo_url?: string | null;
+  created_by?: string | null;
   latitude: number;
   longitude: number;
   city?: string | null;
   check_in_count: number;
   story_count: number;
+  vibe_tags?: string[];
   metadata?: Record<string, unknown>;
+  intel_summary?: MapPlaceIntelSummary;
+}
+
+export type LocationVerdict = 'safe' | 'caution' | 'avoid';
+
+export type LocationLabelType =
+  | 'trespassing'
+  | 'private_property'
+  | 'no_trespassing'
+  | 'construction'
+  | 'closed_area'
+  | 'after_hours'
+  | 'high_crime'
+  | 'flood_zone'
+  | 'wildfire_risk'
+  | 'protected_wildlife'
+  | 'military_restricted'
+  | 'school_zone'
+  | 'permit_required'
+  | 'no_parking'
+  | 'poorly_lit'
+  | 'well_lit'
+  | 'public_park'
+  | 'business_district'
+  | 'water_hazard';
+
+export interface LocationLabel {
+  type: LocationLabelType | string;
+  severity: 'info' | 'warning' | 'danger';
+  title: string;
+  detail: string;
+}
+
+export interface MapPlaceIntelSummary {
+  safety_score: number;
+  verdict: LocationVerdict;
+  labels: Pick<LocationLabel, 'type' | 'severity' | 'title'>[];
+  researched_at: string;
+}
+
+export interface MapLocationIntel {
+  cache_key: string;
+  latitude: number;
+  longitude: number;
+  place_name?: string | null;
+  safety_score: number;
+  verdict: LocationVerdict;
+  labels: LocationLabel[];
+  summary: string;
+  tips: string[];
+  access_notes?: string | null;
+  typical_hours?: string | null;
+  parking_notes?: string | null;
+  accessibility_notes?: string | null;
+  sources_note?: string | null;
+  researched_at: string;
+  expires_at: string;
+}
+
+export interface MapPlacePost {
+  id: string;
+  place_id: string;
+  user_id: string;
+  content: string;
+  media_url?: string | null;
+  created_at: string;
+  like_count?: number;
+  comment_count?: number;
+  profile?: {
+    username: string | null;
+    display_name: string | null;
+    avatar_url: string | null;
+  } | null;
+}
+
+export interface FriendCheckIn {
+  id: string;
+  user_id: string;
+  place_id?: string | null;
+  place_name?: string | null;
+  message?: string | null;
+  latitude: number;
+  longitude: number;
+  created_at: string;
+  profile?: {
+    username: string | null;
+    display_name: string | null;
+    avatar_url: string | null;
+  } | null;
+}
+
+export interface MapPlacePostComment {
+  id: string;
+  post_id: string;
+  user_id: string;
+  content: string;
+  created_at: string;
+  profile?: {
+    username: string | null;
+    display_name: string | null;
+    avatar_url: string | null;
+  } | null;
 }
 
 export interface MapMeetup {
@@ -81,6 +197,7 @@ export interface MapMeetup {
   dest_label?: string | null;
   starts_at: string;
   status: string;
+  member_count?: number;
   members?: { user_id: string; status: string; eta_minutes?: number | null }[];
 }
 
@@ -153,7 +270,7 @@ export const LAYER_LABELS: Record<MapLayer, string> = {
   events: 'Events',
   trending: 'Trending',
   hotspots: 'Hotspots',
-  groups: 'Groups',
+  groups: 'Squad Maps',
   heatmap: 'Vybe Heat',
   meetups: 'Meetups',
 };

@@ -192,7 +192,7 @@ export async function bumpConversationUpdatedAt(conversationId: string): Promise
 }
 
 export function expiresAtForViewMode(viewMode: ViewMode): string | null {
-  return viewMode === '24h'
-    ? new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
-    : null;
+  // 24h mode: timer starts when the recipient opens the message, not at send time.
+  if (viewMode === '24h') return null;
+  return null;
 }

@@ -131,6 +131,18 @@ export function ConversationOptionsSheet({
       if (error) throw error;
 
        invalidateConversationCaches(queryClient);
+      queryClient.setQueriesData({ queryKey: ['dm-conversations'] }, (old: unknown) => {
+        if (!Array.isArray(old)) return old;
+        return old.map((conv: { id?: string; members?: { user_id?: string; is_pinned?: boolean }[] }) => {
+          if (conv.id !== conversationId) return conv;
+          return {
+            ...conv,
+            members: conv.members?.map((m) =>
+              m.user_id === profile.id ? { ...m, is_pinned: !isPinned } : m,
+            ),
+          };
+        });
+      });
       toast.success(isPinned ? 'Unpinned' : 'Pinned to top');
       onOpenChange(false);
     } catch (error) {

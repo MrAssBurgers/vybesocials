@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { Mic, Square, Send, X, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useFastSignedUrl } from '@/hooks/useFastSignedUrl';
 
 interface VoiceRecorderProps {
   onRecordingComplete: (blob: Blob) => void;
@@ -343,6 +344,10 @@ function waveformFromSrc(src: string, bars: number): number[] {
 }
 
 export function AudioMessage({ src, isOwn }: AudioMessageProps) {
+  const isLocal = src?.startsWith('blob:') || src?.startsWith('data:');
+  const signedUrl = useFastSignedUrl(isLocal ? null : src);
+  const playUrl = isLocal ? src : (signedUrl || src);
+
   const [isPlaying, setIsPlaying] = useState(false);
   const [progress, setProgress] = useState(0);
   const [audioDuration, setAudioDuration] = useState(0);
@@ -385,14 +390,22 @@ export function AudioMessage({ src, isOwn }: AudioMessageProps) {
       audio.removeEventListener('loadedmetadata', handleLoadedMetadata);
       audio.removeEventListener('ended', handleEnded);
     };
-  }, [src]);
+  }, [playUrl]);
 
-  const togglePlay = () => {
+  const togglePlay = async () => {
     const audio = audioRef.current;
-    if (!audio) return;
-    if (isPlaying) audio.pause();
-    else void audio.play();
-    setIsPlaying(!isPlaying);
+    if (!audio || !playUrl) return;
+    try {
+      if (isPlaying) {
+        audio.pause();
+        setIsPlaying(false);
+      } else {
+        await audio.play();
+        setIsPlaying(true);
+      }
+    } catch (err) {
+      console.warn('[AudioMessage] playback failed:', err);
+    }
   };
 
   const seekToProgress = (pct: number) => {
@@ -421,7 +434,7 @@ export function AudioMessage({ src, isOwn }: AudioMessageProps) {
           : 'bg-card/90 border border-border/40 text-foreground shadow-sm backdrop-blur-sm',
       )}
     >
-      <audio ref={audioRef} src={src} preload="metadata" />
+      <audio ref={audioRef} src={playUrl || undefined} preload="metadata" playsInline />
 
       <motion.button
         type="button"

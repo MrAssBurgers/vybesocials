@@ -16,7 +16,7 @@ import {
   firestoreLimit,
 } from '@/lib/firebase/firestoreDb';
 import type { Unsubscribe } from 'firebase/firestore';
-import type { LiveFriend, MapStoryPin, MapPostPin, MapClipPin, MapMeetup, MapPlace, HeatmapCell, MapEventPin } from './types';
+import type { LiveFriend, MapStoryPin, MapPostPin, MapClipPin, MapMeetup, MapPlace, HeatmapCell, MapEventPin, MapPlacePost, MapPlacePostComment, FriendCheckIn } from './types';
 import { encodeGeohash } from './geohash';
 import { isValidLatLng, approximateCoords } from './geo';
 import { detectActivity } from './activity';
@@ -26,6 +26,8 @@ export const COLLECTIONS = {
   history: 'location_history',
   accessLogs: 'location_access_logs',
   places: 'map_places',
+  placePosts: 'map_place_posts',
+  placePostComments: 'map_place_post_comments',
   checkIns: 'map_check_ins',
   meetups: 'map_meetups',
   meetupMembers: 'map_meetup_members',
@@ -210,11 +212,30 @@ export async function fetchMapClips(): Promise<MapClipPin[]> {
 }
 
 export async function fetchMapMeetups(): Promise<MapMeetup[]> {
-  return getDocuments<MapMeetup>(COLLECTIONS.meetups, [
-    where('status', '==', 'active'),
-    orderBy('starts_at', 'asc'),
-    firestoreLimit(40),
+  const [meetups, members] = await Promise.all([
+    getDocuments<MapMeetup>(COLLECTIONS.meetups, [
+      where('status', '==', 'active'),
+      orderBy('starts_at', 'asc'),
+      firestoreLimit(40),
+    ]),
+    getDocuments<{ meetup_id: string; user_id: string; status: string }>(COLLECTIONS.meetupMembers, [
+      firestoreLimit(400),
+    ]),
   ]);
+  const byMeetup = new Map<string, { user_id: string; status: string }[]>();
+  for (const m of members) {
+    const list = byMeetup.get(m.meetup_id) ?? [];
+    list.push({ user_id: m.user_id, status: m.status });
+    byMeetup.set(m.meetup_id, list);
+  }
+  return meetups.map((meetup) => {
+    const mem = byMeetup.get(meetup.id) ?? [];
+    return {
+      ...meetup,
+      members: mem,
+      member_count: mem.length || 1,
+    };
+  });
 }
 
 export async function fetchHeatmap(): Promise<HeatmapCell[]> {
@@ -239,10 +260,19 @@ export async function fetchEventPins(): Promise<MapEventPin[]> {
   return getDocuments<MapEventPin>(COLLECTIONS.eventPins, [firestoreLimit(80)]);
 }
 
-export async function createCheckIn(profileId: string, lat: number, lng: number, message?: string): Promise<void> {
+export async function createCheckIn(
+  profileId: string,
+  lat: number,
+  lng: number,
+  message?: string,
+  placeId?: string,
+  placeName?: string,
+): Promise<void> {
   const id = newDocumentId(COLLECTIONS.checkIns);
   await setDocument(COLLECTIONS.checkIns, id, {
     user_id: profileId,
+    place_id: placeId ?? null,
+    place_name: placeName ?? null,
     latitude: lat,
     longitude: lng,
     message: message ?? null,
@@ -250,6 +280,167 @@ export async function createCheckIn(profileId: string, lat: number, lng: number,
     created_at: new Date().toISOString(),
     geohash: encodeGeohash(lat, lng, 7),
   });
+  if (placeId) {
+    const place = await getDocument<{ check_in_count?: number }>(COLLECTIONS.places, placeId);
+    await setDocument(COLLECTIONS.places, placeId, {
+      check_in_count: ((place?.check_in_count as number) || 0) + 1,
+      updated_at: new Date().toISOString(),
+    }, true);
+  }
+}
+
+export async function fetchPlacePosts(placeId: string): Promise<MapPlacePost[]> {
+  const rows = await getDocuments<MapPlacePost>(COLLECTIONS.placePosts, [
+    where('place_id', '==', placeId),
+    orderBy('created_at', 'desc'),
+    firestoreLimit(40),
+  ]);
+  return attachProfiles(rows);
+}
+
+export async function createPlacePost(
+  profileId: string,
+  placeId: string,
+  content: string,
+  mediaUrl?: string,
+): Promise<string> {
+  const id = newDocumentId(COLLECTIONS.placePosts);
+  await setDocument(COLLECTIONS.placePosts, id, {
+    place_id: placeId,
+    user_id: profileId,
+    content,
+    media_url: mediaUrl ?? null,
+    like_count: 0,
+    comment_count: 0,
+    created_at: new Date().toISOString(),
+  });
+  return id;
+}
+
+async function attachProfiles<T extends { user_id: string }>(
+  rows: T[],
+): Promise<(T & { profile: { username: string | null; display_name: string | null; avatar_url: string | null } | null })[]> {
+  if (!rows.length) return [];
+  const userIds = Array.from(new Set(rows.map((r) => r.user_id)));
+  const profiles = await Promise.all(
+    userIds.map((id) => getDocument<{ username: string | null; display_name: string | null; avatar_url: string | null }>(COLLECTIONS.profiles, id)),
+  );
+  const byId = new Map(userIds.map((id, i) => [id, profiles[i]]));
+  return rows.map((r) => ({ ...r, profile: byId.get(r.user_id) ?? null }));
+}
+
+export async function fetchPlacePostComments(postId: string): Promise<MapPlacePostComment[]> {
+  const rows = await getDocuments<MapPlacePostComment>(COLLECTIONS.placePostComments, [
+    where('post_id', '==', postId),
+    orderBy('created_at', 'asc'),
+    firestoreLimit(50),
+  ]);
+  return attachProfiles(rows);
+}
+
+export async function createPlacePostComment(
+  profileId: string,
+  postId: string,
+  content: string,
+): Promise<string> {
+  const id = newDocumentId(COLLECTIONS.placePostComments);
+  await setDocument(COLLECTIONS.placePostComments, id, {
+    post_id: postId,
+    user_id: profileId,
+    content,
+    created_at: new Date().toISOString(),
+  });
+  const post = await getDocument<{ comment_count?: number }>(COLLECTIONS.placePosts, postId);
+  await setDocument(COLLECTIONS.placePosts, postId, {
+    comment_count: ((post?.comment_count as number) || 0) + 1,
+  }, true);
+  return id;
+}
+
+export async function joinMeetup(profileId: string, meetupId: string): Promise<void> {
+  const existing = await getDocuments<{ id: string }>(COLLECTIONS.meetupMembers, [
+    where('meetup_id', '==', meetupId),
+    where('user_id', '==', profileId),
+    firestoreLimit(1),
+  ]);
+  if (existing.length) return;
+  const id = newDocumentId(COLLECTIONS.meetupMembers);
+  await setDocument(COLLECTIONS.meetupMembers, id, {
+    meetup_id: meetupId,
+    user_id: profileId,
+    status: 'going',
+    joined_at: new Date().toISOString(),
+  });
+}
+
+export async function leaveMeetup(profileId: string, meetupId: string): Promise<void> {
+  const rows = await getDocuments<{ id: string }>(COLLECTIONS.meetupMembers, [
+    where('meetup_id', '==', meetupId),
+    where('user_id', '==', profileId),
+    firestoreLimit(5),
+  ]);
+  await Promise.all(rows.map((r) => setDocument(COLLECTIONS.meetupMembers, r.id, { status: 'left' }, true)));
+}
+
+export async function fetchMyMeetupMemberships(profileId: string): Promise<Set<string>> {
+  const rows = await getDocuments<{ meetup_id: string; status: string }>(COLLECTIONS.meetupMembers, [
+    where('user_id', '==', profileId),
+    firestoreLimit(100),
+  ]);
+  return new Set(rows.filter((r) => r.status === 'going').map((r) => r.meetup_id));
+}
+
+export async function fetchFriendCheckIns(friendIds: string[], limit = 30): Promise<FriendCheckIn[]> {
+  if (!friendIds.length) return [];
+  const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+  const rows = await getDocuments<FriendCheckIn>(COLLECTIONS.checkIns, [
+    where('created_at', '>=', since),
+    orderBy('created_at', 'desc'),
+    firestoreLimit(80),
+  ]);
+  const friendSet = new Set(friendIds);
+  const filtered = rows.filter((r) => friendSet.has(r.user_id)).slice(0, limit);
+  if (!filtered.length) return [];
+  const userIds = Array.from(new Set(filtered.map((r) => r.user_id)));
+  const profiles = await Promise.all(
+    userIds.map((id) => getDocument<{ username: string | null; display_name: string | null; avatar_url: string | null }>(COLLECTIONS.profiles, id)),
+  );
+  const byId = new Map(userIds.map((id, i) => [id, profiles[i]]));
+  return filtered.map((r) => ({ ...r, profile: byId.get(r.user_id) ?? null }));
+}
+
+export async function createMapSpot(
+  profileId: string,
+  input: {
+    name: string;
+    category: string;
+    description?: string;
+    photo_url?: string;
+    latitude: number;
+    longitude: number;
+    vibe_tags?: string[];
+    city?: string;
+  },
+): Promise<string> {
+  const id = newDocumentId(COLLECTIONS.places);
+  await setDocument(COLLECTIONS.places, id, {
+    name: input.name,
+    category: input.category,
+    description: input.description ?? null,
+    photo_url: input.photo_url ?? null,
+    created_by: profileId,
+    latitude: input.latitude,
+    longitude: input.longitude,
+    city: input.city ?? null,
+    vibe_tags: input.vibe_tags ?? [input.category],
+    check_in_count: 1,
+    story_count: 0,
+    geohash: encodeGeohash(input.latitude, input.longitude, 7),
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  });
+  await createCheckIn(profileId, input.latitude, input.longitude, input.description, id, input.name);
+  return id;
 }
 
 export async function createMeetup(

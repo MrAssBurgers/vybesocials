@@ -2,9 +2,37 @@ import { invokeEdgeFeature } from '@/lib/edgeFeature';
 import { withTimeout } from '@/lib/withTimeout';
 import { framesToPayload, extractVideoFrames } from './extractVideoFrames';
 import type { VybeCheckResult } from './types';
+import type { VybeFramePayload } from './fileToVybeFrames';
 
-const VYBE_CHECK_TIMEOUT_MS = 45000;
-const FRAME_EXTRACT_TIMEOUT_MS = 30000;
+/** Background publish can run longer scans (video + STT). */
+const VYBE_CHECK_TIMEOUT_MS = 180_000;
+const FRAME_EXTRACT_TIMEOUT_MS = 120_000;
+
+export type VybeCheckInvokeResult = VybeCheckResult;
+
+export interface VybeCheckInvokeBody {
+  content_type: string;
+  content_id?: string;
+  storage_path?: string;
+  frames?: VybeFramePayload[];
+  text?: {
+    caption?: string;
+    hashtags?: string[];
+    ocr_text?: string;
+    transcript?: string;
+  };
+}
+
+export async function invokeVybeCheck(
+  body: VybeCheckInvokeBody,
+): Promise<{ result: VybeCheckResult | null; unavailable: boolean }> {
+  const { data, unavailable } = await withTimeout(
+    invokeEdgeFeature<VybeCheckResult>('start-vybe-check', body),
+    VYBE_CHECK_TIMEOUT_MS,
+    'Vybe Check timed out',
+  );
+  return { result: data, unavailable };
+}
 
 export interface StartVybeCheckVideoOptions {
   file: File;
@@ -13,7 +41,6 @@ export interface StartVybeCheckVideoOptions {
   caption?: string;
   hashtags?: string[];
   ocrText?: string;
-  /** Pre-extracted frames — skips client extraction when provided. */
   frames?: Awaited<ReturnType<typeof framesToPayload>>;
 }
 
@@ -26,16 +53,7 @@ export async function startVybeCheckFrames(
     FRAME_EXTRACT_TIMEOUT_MS,
     'Video frame extraction timed out',
   );
-  const { data, unavailable } = await withTimeout(
-    invokeEdgeFeature<VybeCheckResult>('start-vybe-check', {
-      content_type: 'video',
-      frames,
-      text,
-    }),
-    VYBE_CHECK_TIMEOUT_MS,
-    'Vybe Check timed out',
-  );
-  return { result: data, unavailable };
+  return invokeVybeCheck({ content_type: 'video', frames, text });
 }
 
 export async function startVybeCheckVideo(
@@ -49,27 +67,26 @@ export async function startVybeCheckVideo(
       'Video frame extraction timed out',
     ));
 
-  const { data, unavailable } = await withTimeout(
-    invokeEdgeFeature<VybeCheckResult>('start-vybe-check', {
-      content_type: 'video',
-      content_id: options.contentId,
-      storage_path: options.storagePath,
-      frames,
-      text: {
-        caption: options.caption,
-        hashtags: options.hashtags,
-        ocr_text: options.ocrText,
-      },
-    }),
-    VYBE_CHECK_TIMEOUT_MS,
-    'Vybe Check timed out',
-  );
-
-  return { result: data, unavailable };
+  return invokeVybeCheck({
+    content_type: 'video',
+    content_id: options.contentId,
+    storage_path: options.storagePath,
+    frames,
+    text: {
+      caption: options.caption,
+      hashtags: options.hashtags,
+      ocr_text: options.ocrText,
+    },
+  });
 }
 
 export function isVybeCheckBlocked(result: VybeCheckResult): boolean {
   return result.status === 'rejected' || !result.allowed;
+}
+
+/** Block publish until human review completes. */
+export function isVybeCheckReviewBlocked(result: VybeCheckResult): boolean {
+  return result.status === 'needs_review' || result.requires_review === true;
 }
 
 export function vybeCheckStatusLabel(status: VybeCheckResult['status']): string {

@@ -1,6 +1,6 @@
 import { motion } from 'framer-motion';
 import { ChevronUp, Flame, MapPin, Users, Video, Calendar, Radio } from 'lucide-react';
-import type { LiveFriend, MapStoryPin, MapClipPin, MapMeetup, MapPlace } from '@/lib/vybemap/types';
+import type { LiveFriend, MapStoryPin, MapClipPin, MapMeetup, MapPlace, FriendCheckIn } from '@/lib/vybemap/types';
 import { cn } from '@/lib/utils';
 
 interface DiscoveryDrawerProps {
@@ -12,14 +12,16 @@ interface DiscoveryDrawerProps {
   meetups: MapMeetup[];
   places: MapPlace[];
   radarLabel: string;
+  friendCheckIns?: FriendCheckIn[];
   onFriendTap: (f: LiveFriend) => void;
   onMeetupTap: (m: MapMeetup) => void;
   onPlaceTap: (p: MapPlace) => void;
+  onCreateMeetup?: () => void;
 }
 
 export function DiscoveryDrawer({
-  open, onToggle, friends, stories, clips, meetups, places, radarLabel,
-  onFriendTap, onMeetupTap, onPlaceTap,
+  open, onToggle, friends, stories, clips, meetups, places, radarLabel, friendCheckIns = [],
+  onFriendTap, onMeetupTap, onPlaceTap, onCreateMeetup,
 }: DiscoveryDrawerProps) {
   return (
     <motion.div
@@ -41,6 +43,28 @@ export function DiscoveryDrawer({
       </button>
 
       <div className="max-h-[55vh] overflow-y-auto bg-black/90 backdrop-blur-2xl px-4 pb-[max(1rem,env(safe-area-inset-bottom))] space-y-5">
+        {friendCheckIns.length > 0 && (
+          <Section icon={MapPin} title="Friend Activity" count={friendCheckIns.length}>
+            {friendCheckIns.slice(0, 8).map((c) => {
+              const name = c.profile?.display_name || c.profile?.username || 'Friend';
+              return (
+                <button key={c.id} type="button" onClick={() => onPlaceTap({
+                  id: c.place_id || c.id,
+                  name: c.place_name || 'Check-in',
+                  category: 'hangout',
+                  latitude: c.latitude,
+                  longitude: c.longitude,
+                  check_in_count: 1,
+                  story_count: 0,
+                })} className="w-full text-left py-2 text-sm text-white/80">
+                  <span className="font-semibold">{name}</span>
+                  {c.place_name ? ` at ${c.place_name}` : c.message ? ` — ${c.message}` : ' is nearby'}
+                </button>
+              );
+            })}
+          </Section>
+        )}
+
         <Section icon={Users} title="Nearby Friends" count={friends.length}>
           <div className="flex gap-3 overflow-x-auto scrollbar-hide py-1">
             {friends.slice(0, 12).map((f) => (
@@ -83,10 +107,16 @@ export function DiscoveryDrawer({
         </Section>
 
         <Section icon={Calendar} title="Meetups" count={meetups.length}>
+          {onCreateMeetup && (
+            <button type="button" onClick={onCreateMeetup}
+              className="w-full mb-2 py-2 rounded-xl border border-dashed border-emerald-500/40 text-xs font-semibold text-emerald-300">
+              + Plan a meetup here
+            </button>
+          )}
           {meetups.map((m) => (
             <button key={m.id} type="button" onClick={() => onMeetupTap(m)} className="w-full text-left p-3 rounded-xl bg-white/5 mb-2">
               <p className="text-sm font-semibold text-white">{m.title}</p>
-              <p className="text-[10px] text-white/40">{m.dest_label || 'Meetup'} · {m.members?.length || 1} going</p>
+              <p className="text-[10px] text-white/40">{m.dest_label || 'Meetup'} · {m.member_count ?? m.members?.length ?? 1} going</p>
             </button>
           ))}
         </Section>
@@ -97,7 +127,9 @@ export function DiscoveryDrawer({
               <MapPin className="h-4 w-4 text-orange-400 shrink-0" />
               <div className="min-w-0">
                 <p className="text-sm text-white truncate">{p.name}</p>
-                <p className="text-[10px] text-white/40">{p.check_in_count} check-ins · {p.category}</p>
+                <p className="text-[10px] text-white/40 line-clamp-1">
+                  {p.description || `${p.check_in_count} vibes · ${p.category}`}
+                </p>
               </div>
             </button>
           ))}

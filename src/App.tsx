@@ -4,6 +4,7 @@ import { db } from '@/lib/firebase';
 import './styles/liquid.css';
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
+import { toast } from 'sonner';
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider, useQueryClient } from "@tanstack/react-query";
 import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client";
@@ -20,6 +21,7 @@ import { DebugPanelProvider } from "@/contexts/DebugPanelContext";
 import { BugRecheckProvider } from "@/contexts/BugRecheckContext";
 import { CallStoreProvider } from "@/lib/callStore";
 import { ConnectionStatusBanner } from "@/components/system/ConnectionStatusBanner";
+import { UploadProgressBanner } from "@/components/upload/UploadProgressBanner";
 import { AccessibilityProvider } from "@/providers/AccessibilityProvider";
 import { GlassIntensityProvider } from "@/components/ui/glass/GlassIntensityProvider";
 import { saveScrollPosition, restoreScrollPosition } from "@/lib/scrollMemory";
@@ -41,7 +43,35 @@ import { usePostsRealtime } from "@/hooks/usePostsRealtime";
 import { useGlobalRealtimeMessages } from "@/hooks/useGlobalRealtimeMessages";
 import { useSpotifyPresence } from "@/hooks/useSpotifyPresence";
 import { useExternalPresence } from "@/hooks/useExternalPresence";
-const SpotifyPresenceInner = () => { useSpotifyPresence(); useExternalPresence(); return null; };
+const UploadQueueSync = () => {
+  const queryClient = useQueryClient();
+  useEffect(() => {
+    const onComplete = () => {
+      queryClient.invalidateQueries({ queryKey: ['posts'] });
+      queryClient.invalidateQueries({
+        predicate: (q) => {
+          const key = JSON.stringify(q.queryKey).toLowerCase();
+          return (
+            key.includes('personalized-feed') ||
+            key.includes('infinite-following') ||
+            key.includes('infinite-posts')
+          );
+        },
+      });
+    };
+    const onFailed = (e: Event) => {
+      const reason = (e as CustomEvent<{ reason?: string }>).detail?.reason;
+      if (reason) toast.error(reason);
+    };
+    window.addEventListener('vybe:upload-complete', onComplete);
+    window.addEventListener('vybe:upload-failed', onFailed);
+    return () => {
+      window.removeEventListener('vybe:upload-complete', onComplete);
+      window.removeEventListener('vybe:upload-failed', onFailed);
+    };
+  }, [queryClient]);
+  return null;
+};
 const RealtimeSyncInner = () => {
   const queryClient = useQueryClient();
   useGlobalRealtimeMessages();
@@ -81,7 +111,12 @@ const SpotifyPresenceMount = () => {
   }, []);
   return ready ? <SpotifyPresenceInner /> : null;
 };
-const RealtimeSyncMount = () => <RealtimeSyncInner />;
+const RealtimeSyncMount = () => (
+  <>
+    <RealtimeSyncInner />
+    <UploadQueueSync />
+  </>
+);
 import { VybePageLoader } from '@/components/ui/VybeLoader';
 import { AnimatedRoutes } from "@/components/layout/AnimatedRoutes";
 import { SkipToMain, LiveRegion } from "@/components/a11y/Accessibility";
@@ -528,6 +563,7 @@ function AppWithPreloader() {
                                         <CookieConsentBanner />
                                         <RatePromptSheet />
                                         <ConnectionStatusBanner />
+                                        <UploadProgressBanner />
                                         <AutoFriendDrop />
                                       </Suspense>
                                     </LocalErrorBoundary>

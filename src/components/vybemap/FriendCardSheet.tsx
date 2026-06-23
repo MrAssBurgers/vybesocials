@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion';
-import { MessageCircle, Navigation, Phone, User, MapPin, Battery, Clock, Sparkles } from 'lucide-react';
+import { MessageCircle, Navigation, Phone, User, MapPin, Battery, Clock, Sparkles, Hand } from 'lucide-react';
 import type { LiveFriend } from '@/lib/vybemap/types';
 import { activityMeta, speedMph } from '@/lib/vybemap/activity';
 import { distanceMiles } from '@/lib/vybemap/geo';
@@ -8,11 +8,15 @@ import { cn } from '@/lib/utils';
 interface FriendCardSheetProps {
   friend: LiveFriend;
   myCoords: [number, number] | null;
+  headingToward?: boolean;
+  routeEtaMinutes?: number | null;
   onClose: () => void;
   onMessage: () => void;
   onNavigate: () => void;
   onFind: () => void;
   onProfile: () => void;
+  onWave?: () => void;
+  onLiveRoute?: () => void;
   onCall?: () => void;
 }
 
@@ -25,7 +29,7 @@ function timeSince(iso: string): string {
 }
 
 export function FriendCardSheet({
-  friend, myCoords, onClose, onMessage, onNavigate, onFind, onProfile, onCall,
+  friend, myCoords, headingToward, routeEtaMinutes, onClose, onMessage, onNavigate, onFind, onProfile, onWave, onLiveRoute, onCall,
 }: FriendCardSheetProps) {
   const name = friend.profile?.display_name || friend.profile?.username || 'Friend';
   const username = friend.profile?.username;
@@ -47,6 +51,15 @@ export function FriendCardSheet({
       <div className="flex justify-center mb-3">
         <div className="w-10 h-1 rounded-full bg-white/20" />
       </div>
+
+      {headingToward && (
+        <div className="mb-3 flex items-center gap-2 rounded-xl bg-cyan-500/15 border border-cyan-400/30 px-3 py-2">
+          <span className="text-lg">🚶‍♂️</span>
+          <p className="text-xs font-semibold text-cyan-200">
+            Heading your way{routeEtaMinutes ? ` · ~${routeEtaMinutes} min` : ''}
+          </p>
+        </div>
+      )}
 
       <div className="flex items-start gap-4">
         <div className="relative shrink-0">
@@ -83,10 +96,11 @@ export function FriendCardSheet({
         </div>
       </div>
 
-      <div className="grid grid-cols-4 gap-2 mt-5">
+      <div className="grid grid-cols-5 gap-2 mt-5">
         <ActionBtn icon={MessageCircle} label="Message" onClick={onMessage} primary />
-        <ActionBtn icon={Navigation} label="Navigate" onClick={onNavigate} />
-        <ActionBtn icon={Sparkles} label="Find" onClick={onFind} highlight />
+        <ActionBtn icon={Navigation} label="Route" onClick={onLiveRoute ?? onNavigate} />
+        <ActionBtn icon={Hand} label="Wave" onClick={onWave ?? onMessage} highlight />
+        <ActionBtn icon={Sparkles} label="Find" onClick={onFind} />
         <ActionBtn icon={User} label="Profile" onClick={onProfile} />
       </div>
       {onCall && (
@@ -104,7 +118,7 @@ function ActionBtn({
 }: {
   icon: typeof MessageCircle;
   label: string;
-  onClick: () => void;
+  onClick?: () => void;
   primary?: boolean;
   highlight?: boolean;
 }) {
@@ -113,14 +127,16 @@ function ActionBtn({
       type="button"
       whileTap={{ scale: 0.95 }}
       onClick={onClick}
+      disabled={!onClick}
       className={cn(
-        'flex flex-col items-center gap-1 py-3 rounded-2xl text-[10px] font-bold',
+        'flex flex-col items-center gap-1 py-2.5 rounded-2xl text-[9px] font-bold',
         primary && 'bg-primary text-primary-foreground',
         highlight && 'bg-gradient-to-br from-violet-500 to-fuchsia-500 text-white',
         !primary && !highlight && 'bg-white/10 text-white',
+        !onClick && 'opacity-40',
       )}
     >
-      <Icon className="h-5 w-5" />
+      <Icon className="h-4 w-4" />
       {label}
     </motion.button>
   );

@@ -7,9 +7,7 @@ import { useAuthProfileId } from '@/hooks/useAuthProfileId';
 import { useAuth } from '@/lib/auth';
 import { withTimeout } from '@/lib/withTimeout';
 import { publishStoryMedia } from '@/lib/publishStoryMedia';
-import { startVybeCheckFrames, isVybeCheckBlocked } from '@/lib/vybeCheck';
-import { scanImage as nsfwScanImage } from '@/lib/nsfwScanner';
-import { aiScanImage } from '@/lib/aiSafetyClient';
+import { runPublishVybeCheck } from '@/lib/vybeCheck';
 import { resolveStoryAuthorProfileId } from '@/lib/resolveSessionProfileId';
 import { refreshFirebaseSession } from '@/lib/firebaseAuthRefresh';
 import { Button } from '@/components/ui/button';
@@ -179,29 +177,16 @@ export function StoryCreator({ onClose }: StoryCreatorProps) {
     setErrorMessage(null);
 
     try {
-      if (mediaInfo.isVideo) {
-        const { result } = await startVybeCheckFrames(selectedFile, {
-          caption: caption.trim() || undefined,
-        });
-        if (result && isVybeCheckBlocked(result)) {
-          setUploadState('error');
-          setErrorMessage(result.message || 'Story did not pass VYBE Check');
-          toast.error(result.message || 'Story blocked — content did not pass VYBE Check');
-          return;
-        }
-      } else {
-        const nsfw = await nsfwScanImage(selectedFile);
-        if (nsfw.result === 'blocked') {
-          setUploadState('error');
-          toast.error(nsfw.message || 'Story blocked — content did not pass VYBE Check');
-          return;
-        }
-        const ai = await aiScanImage(selectedFile);
-        if (ai.result === 'blocked') {
-          setUploadState('error');
-          toast.error(ai.message || 'Story blocked — content did not pass VYBE Check');
-          return;
-        }
+      const vybe = await runPublishVybeCheck({
+        caption: caption.trim(),
+        mediaFile: selectedFile,
+        contentType: 'story',
+      });
+      if (vybe.blocked || !vybe.allowed) {
+        setUploadState('error');
+        setErrorMessage(vybe.message || 'Story did not pass Vybe Check');
+        toast.error(vybe.message || 'Story blocked — Vybe Check did not pass');
+        return;
       }
 
       await refreshFirebaseSession(8000);

@@ -6,7 +6,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
-import { useContentSafety } from '@/hooks/useContentSafety';
+import { runPublishVybeCheck } from '@/lib/vybeCheck/runPublishVybeCheck';
 import { VybeCheckFailed } from '@/components/safety/VybeCheckFailed';
 import { getRecentMessageUsers } from '@/lib/recentMessageUsers';
 import { getShareRankedUserIds, recordShareTo } from '@/lib/shareRecency';
@@ -54,7 +54,6 @@ export function CameraShareSheet({ mediaUrl, mediaType, mediaFile, soundId, soun
   const [scanCategories, setScanCategories] = useState<string[]>([]);
   const [selectedRecipients, setSelectedRecipients] = useState<string[]>([]);
   const { toast } = useToast();
-  const contentSafety = useContentSafety();
   const { profile, user } = useAuth();
   const profileId = useAuthProfileId();
   const effectiveProfileId = profile?.id ?? profileId;
@@ -124,40 +123,23 @@ export function CameraShareSheet({ mediaUrl, mediaType, mediaFile, soundId, soun
 
     setIsSharing(true);
 
-    if (mediaFile) {
-      let scanResult;
-      try {
-        scanResult = await withTimeout(
-          mediaType === 'video'
-            ? contentSafety.scanVideo(mediaFile)
-            : contentSafety.scanImage(mediaFile),
-          30000,
-          'Safety scan timed out',
-        );
-      } catch (scanErr) {
-        const scanMessage = scanErr instanceof Error ? scanErr.message : 'Safety scan failed';        if (selectedDestinations.includes('story') && selectedDestinations.length === 1) {
-          scanResult = { result: 'allowed' as const };
-        } else {
-          setIsSharing(false);
-          toast({ title: 'Scan failed', description: scanMessage, variant: 'destructive' });
-          return;
-        }
-      }
-      if (scanResult.result === 'blocked') {
-        setIsSharing(false);
-        setScanMessage(scanResult.message || 'Content violates community guidelines');
-        setScanCategories(scanResult.categories || []);
-        setVybeCheckFailed(true);
-        return;
-      }
+    const file = await resolveCaptureFile(mediaUrl, mediaType, mediaFile);
 
-      if (scanResult.result === 'error') {
+    if (selectedDestinations.some((d) => d === 'clip' || d === 'story' || d === 'dm')) {
+      const vybe = await withTimeout(
+        runPublishVybeCheck({
+          caption: caption.trim(),
+          mediaFile: file,
+          contentType: selectedDestinations.includes('story') ? 'story' : 'post',
+        }),
+        180_000,
+        'Vybe Check timed out',
+      );
+      if (vybe.blocked || !vybe.allowed) {
         setIsSharing(false);
-        toast({
-          title: 'Scan failed',
-          description: scanResult.message || 'Could not verify content. Try again.',
-          variant: 'destructive',
-        });
+        setScanMessage(vybe.message || 'Content violates community guidelines');
+        setScanCategories(vybe.categories || []);
+        setVybeCheckFailed(true);
         return;
       }
     }
@@ -166,7 +148,6 @@ export function CameraShareSheet({ mediaUrl, mediaType, mediaFile, soundId, soun
 
     if (selectedDestinations.includes('story')) {
       try {
-        const file = await resolveCaptureFile(mediaUrl, mediaType, mediaFile);
         const validation = await validateStoryMedia(file);
         if (!validation.valid) {
           throw new Error(validation.error || 'Invalid story media');

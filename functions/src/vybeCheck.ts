@@ -12,7 +12,8 @@ import { transcribeAudioWithOpenAI } from './_shared/openaiStt.js';
 import { runVybeCheckPipeline } from './_shared/vybeCheckPipeline.js';
 import type { VybeCheckFrameInput, VybeCheckRequest, VybeCheckStatus } from './_shared/vybeCheckTypes.js';
 
-const SECRETS = ['GEMINI_API_KEY', 'OPENAI_API_KEY'];
+/** GEMINI required; OpenAI moderation/STT runs when OPENAI_API_KEY secret is added later. */
+const SECRETS = ['GEMINI_API_KEY'] as const;
 
 const ffmpegPath = typeof ffmpegStatic === 'string' ? ffmpegStatic : null;
 if (ffmpegPath) {
@@ -49,7 +50,7 @@ async function cleanup(path: string) {
 
 /** Phase 1 Vybe Check — SafeSearch frames + OpenAI moderation/STT + Gemini borderline. */
 export const startVybeCheck = onCall(
-  { secrets: SECRETS, timeoutSeconds: 300, memory: '1GiB' },
+  { secrets: [...SECRETS], timeoutSeconds: 300, memory: '1GiB' },
   async (request) => {
     const uid = requireAuth(request);
     enforceRateLimit(await rateLimit(`vybe_check:${uid}`, 20, 60));
@@ -62,7 +63,14 @@ export const startVybeCheck = onCall(
     const now = new Date().toISOString();
 
     if (!frames.length && !body.storage_path) {
-      throw new HttpsError('invalid-argument', 'frames or storage_path required');
+      const hasText =
+        Boolean(text.caption?.trim()) ||
+        Boolean((text.hashtags || []).length) ||
+        Boolean(text.ocr_text?.trim()) ||
+        Boolean(text.transcript?.trim());
+      if (!hasText) {
+        throw new HttpsError('invalid-argument', 'frames, storage_path, or caption text required');
+      }
     }
 
     await db.collection('vybe_checks').doc(checkId).set({

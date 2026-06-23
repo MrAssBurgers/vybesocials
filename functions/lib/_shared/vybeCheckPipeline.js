@@ -1,5 +1,5 @@
 import { scanImageSafeSearch } from './visionSafeSearch.js';
-import { analyzeImageWithGemini } from './safetyGemini.js';
+import { analyzeImageWithGemini, analyzeTextWithGemini } from './safetyGemini.js';
 import { moderateVybeCheckText } from './openaiModeration.js';
 const BORDERLINE_LOW = 0.4;
 const BORDERLINE_HIGH = 0.7;
@@ -89,12 +89,39 @@ export async function runVybeCheckPipeline(opts) {
         }
     }
     let geminiReview;
-    const isBorderline = !hardBlock && score >= BORDERLINE_LOW && score < BORDERLINE_HIGH;
     const worstFrame = framesToScan.find((f) => f.base64);
-    if (isBorderline && opts.geminiApiKey && worstFrame?.base64) {
+    const captionText = [textInput.caption, ...(textInput.hashtags || []), textInput.ocr_text]
+        .filter(Boolean)
+        .join(' ')
+        .trim();
+    // Gemini text — captions, hashtags, transcripts (always when key present).
+    if (opts.geminiApiKey && captionText) {
+        try {
+            const geminiText = await analyzeTextWithGemini(opts.geminiApiKey, captionText);
+            if (geminiText.score > score)
+                score = geminiText.score;
+            categories.push(...geminiText.categories);
+            if (geminiText.score >= BORDERLINE_HIGH)
+                hardBlock = true;
+            geminiReview = {
+                score: geminiText.score,
+                analysis: geminiText.analysis,
+            };
+        }
+        catch (err) {
+            console.error('[VybeCheck] Gemini text review failed:', err);
+        }
+    }
+    // Gemini vision — all image/post/video frames (not only borderline).
+    const runGeminiVision = Boolean(opts.geminiApiKey && worstFrame?.base64) &&
+        (framesToScan.length > 0 || opts.contentType === 'post' || opts.contentType === 'image');
+    if (runGeminiVision && worstFrame?.base64) {
         try {
             const gemini = await analyzeImageWithGemini(opts.geminiApiKey, worstFrame.base64, worstFrame.mime_type || 'image/jpeg');
-            geminiReview = { score: gemini.score, analysis: gemini.analysis };
+            geminiReview = {
+                score: Math.max(geminiReview?.score ?? 0, gemini.score),
+                analysis: [geminiReview?.analysis, gemini.analysis].filter(Boolean).join(' '),
+            };
             if (gemini.score > score)
                 score = gemini.score;
             categories.push(...gemini.categories);
@@ -103,7 +130,7 @@ export async function runVybeCheckPipeline(opts) {
                 hardBlock = true;
         }
         catch (err) {
-            console.error('[VybeCheck] Gemini borderline review failed:', err);
+            console.error('[VybeCheck] Gemini vision review failed:', err);
         }
     }
     const status = decideVybeCheckStatus(score, hardBlock);

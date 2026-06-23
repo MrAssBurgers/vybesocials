@@ -238,6 +238,14 @@ function NaturalAspectImage({ src, caption, eager = false }: { src: string; capt
     }
   }, [hasError, retryCount]);
 
+  if (!src) {
+    return (
+      <div className="w-full aspect-[4/5] bg-muted/20 overflow-hidden">
+        <MediaSkeleton className="w-full h-full" />
+      </div>
+    );
+  }
+
   // Invalid URL - show subtle gradient (never broken icon)
   if (!isValidMediaUrl(src)) {
     return (
@@ -382,6 +390,7 @@ export const PostCard = memo(function PostCard({ post, eager = false }: PostCard
   const [whyOpen, setWhyOpen] = useState(false);
 
   const signedMediaUrl = useFastSignedUrl(post.media_url);
+  const displayMediaUrl = signedMediaUrl || post.media_url || null;
   const signedAvatarUrl = useFastSignedUrl(post.author.avatar_url);
 
   // Memoize computed values
@@ -758,12 +767,12 @@ export const PostCard = memo(function PostCard({ post, eager = false }: PostCard
           >
             {post.type === 'video' ? (
               <SmartErrorBoundary fallback={<div className="w-full aspect-video bg-black" />}>
-                <VideoPlayer src={signedMediaUrl || ''} caption={post.caption} />
+                <VideoPlayer src={displayMediaUrl || ''} caption={post.caption} />
               </SmartErrorBoundary>
             ) : allUrls.length > 1 ? (
               <PostCarousel urls={allUrls} onDoubleTap={handleDoubleTap} />
             ) : (
-              <NaturalAspectImage src={signedMediaUrl || ''} caption={post.caption} eager={eager} />
+              <NaturalAspectImage src={displayMediaUrl || ''} caption={post.caption} eager={eager} />
             )}
             
             {/* Double tap heart animation */}

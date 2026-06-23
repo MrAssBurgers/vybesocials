@@ -9,9 +9,6 @@ import {
 import { cn } from '@/lib/utils';
 import { useCreatePost } from '@/hooks/usePosts';
 import { useAuth } from '@/lib/auth';
-import { useContentSafety } from '@/hooks/useContentSafety';
-import { VybeCheckFailed } from '@/components/safety/VybeCheckFailed';
-import { SafetyScanProgress } from '@/components/safety/SafetyScanProgress';
 import { AICaptionGenerator } from '@/components/ai/AICaptionGenerator';
 import { AIVideoGenerator } from '@/components/ai/AIVideoGenerator';
 import { StyledUsername } from '@/components/ui/StyledUsername';
@@ -20,6 +17,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Camera } from '@/components/camera/Camera';
 import { toast } from 'sonner';
 import { applyPostPublishNavigation } from '@/lib/postPublishNavigation';
+import { enqueuePostUpload } from '@/lib/uploadQueue';
 import { ImageCropEditor } from './editors/ImageCropEditor';
 import { ImageRotateEditor } from './editors/ImageRotateEditor';
 import { ImageFilterEditor } from './editors/ImageFilterEditor';
@@ -39,7 +37,6 @@ export function DesktopCreateStudio({ onClose }: DesktopCreateStudioProps) {
   const navigate = useNavigate();
   const { user, profile } = useAuth();
   const createPost = useCreatePost();
-  const contentSafety = useContentSafety();
 
   const [contentType, setContentType] = useState<'text' | 'post' | 'short' | 'video'>('post');
   const [files, setFiles] = useState<File[]>([]);
@@ -53,10 +50,6 @@ export function DesktopCreateStudio({ onClose }: DesktopCreateStudioProps) {
   const [visibility, setVisibility] = useState<'public' | 'followers' | 'private'>('public');
   const [showCamera, setShowCamera] = useState(false);
   const [showAIVideoGen, setShowAIVideoGen] = useState(false);
-  const [showSafety, setShowSafety] = useState(false);
-  const [vybeCheckFailed, setVybeCheckFailed] = useState(false);
-  const [scanMessage, setScanMessage] = useState('');
-  const [scanCategories, setScanCategories] = useState<string[]>([]);
   const [publishSuccess, setPublishSuccess] = useState(false);
   const [activePreview, setActivePreview] = useState(0);
   const [videoTitle, setVideoTitle] = useState('');
@@ -95,10 +88,7 @@ export function DesktopCreateStudio({ onClose }: DesktopCreateStudioProps) {
     } else {
       setContentType('post');
     }
-
-    // Don't scan on file select — scan at post time
-    contentSafety.reset();
-  }, [contentSafety]);
+  }, []);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const sf = Array.from(e.target.files || []);
@@ -145,38 +135,37 @@ export function DesktopCreateStudio({ onClose }: DesktopCreateStudioProps) {
     if (!canSubmit || !user) return;
     if (contentType === 'video' && !videoTitle.trim()) { toast.error('Add a video title'); return; }
 
-    // Run AI safety scan at post time
-    if (files.length > 0 && files[0]) {
-      setIsUploading(true); setUploadProgress(0);
-      setShowSafety(true);
+    const fc = contentType === 'video'
+      ? `${videoTitle}${videoDescription ? `\n\n${videoDescription}` : ''}${caption ? `\n\n${caption}` : ''}`
+      : caption;
 
-      let scanResult;
-      if (files[0].type.startsWith('video/')) {
-        scanResult = await contentSafety.scanVideo(files[0]);
-      } else {
-        scanResult = await contentSafety.scanImage(files[0]);
-      }
-
-      setShowSafety(false);
-
-      if (scanResult.result === 'blocked') {
-        setIsUploading(false);
-        setScanMessage(scanResult.message || 'Content violates community guidelines');
-        setScanCategories(scanResult.categories || []);
-        setVybeCheckFailed(true);
+    if (files.length > 0) {
+      if (!profile?.id || !profile?.user_id) {
+        toast.error('Please sign in again to post');
         return;
       }
+      enqueuePostUpload(
+        {
+          profile: { id: profile.id, user_id: profile.user_id },
+          mediaFile: files.length <= 1 ? files[0] : undefined,
+          mediaFiles: files.length > 1 ? files : undefined,
+          caption: fc,
+          tags,
+          type: contentType,
+        },
+        fc.trim().slice(0, 48) || 'New post',
+      );
+      toast.success('Publishing in background — Vybe Check running now.');
+      const dest = applyPostPublishNavigation(contentType);
+      setTimeout(() => navigate(dest), 400);
+      return;
     }
 
     setIsUploading(true); setUploadProgress(0);
-    const isLargeFile = files[0] && files[0].size > 5 * 1024 * 1024;
     let pi: ReturnType<typeof setInterval> | null = null;
     try {
-      pi = setInterval(() => setUploadProgress(prev => Math.min(prev + (isLargeFile ? 1 : 5), 85)), isLargeFile ? 500 : 300);
-      const fc = contentType === 'video' ? `${videoTitle}${videoDescription ? `\n\n${videoDescription}` : ''}${caption ? `\n\n${caption}` : ''}` : caption;
+      pi = setInterval(() => setUploadProgress(prev => Math.min(prev + 5, 85)), 300);
       await createPost.mutateAsync({
-        mediaFile: files.length <= 1 ? files[0] || undefined : undefined,
-        mediaFiles: files.length > 1 ? files : undefined,
         caption: fc, type: contentType, tags,
       });
       if (pi) clearInterval(pi);
@@ -236,50 +225,6 @@ export function DesktopCreateStudio({ onClose }: DesktopCreateStudioProps) {
 
   return (
     <div className="h-full flex flex-col" style={{ backgroundColor: 'hsl(var(--background))' }}>
-      {/* Vybe Check Failed overlay */}
-      {vybeCheckFailed && (
-        <VybeCheckFailed
-          message={scanMessage}
-          categories={scanCategories}
-          caption={caption}
-          tags={tags}
-          mediaUrls={previews}
-          contentType={contentType}
-          onEdit={() => setVybeCheckFailed(false)}
-          onAppealComplete={() => { setVybeCheckFailed(false); navigate('/home'); }}
-        />
-      )}
-
-      {/* Safety scan overlay */}
-      <AnimatePresence>
-        {showSafety && contentSafety.isScanning && (
-          <motion.div 
-            initial={{ opacity: 0 }} 
-            animate={{ opacity: 1 }} 
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[110] flex items-center justify-center bg-background/95 backdrop-blur-sm"
-          >
-            <div className="w-80 space-y-6 text-center">
-              <motion.div
-                animate={{ rotate: 360 }}
-                transition={{ duration: 3, repeat: Infinity, ease: 'linear' }}
-                className="w-16 h-16 mx-auto rounded-full bg-primary/10 flex items-center justify-center"
-              >
-                <Sparkles className="h-8 w-8 text-primary" />
-              </motion.div>
-              <div>
-                <p className="text-foreground font-bold text-lg mb-1">Vybe Check</p>
-                <p className="text-muted-foreground text-sm">{contentSafety.message || 'Scanning your content...'}</p>
-              </div>
-              <SafetyScanProgress 
-                phase={contentSafety.scanPhase} 
-                isVideo={files[0]?.type.startsWith('video/')} 
-              />
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
       {/* Success overlay */}
       <AnimatePresence>
         {publishSuccess && (

@@ -17,6 +17,8 @@ const OVERRIDES: Record<string, string> = {
   get_ranked_feed_v2: 'getRankedFeed',
   'send-reset-email': 'requestPasswordReset',
   'email-unsubscribe-token': 'emailUnsubscribeToken',
+  'research-map-location': 'researchMapLocation',
+  'log-map-access': 'logMapAccess',
 };
 
 function kebabToCamel(name: string): string {

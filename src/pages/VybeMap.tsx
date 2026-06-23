@@ -1,13 +1,10 @@
-import { useState, useEffect, useCallback, useRef, useMemo, Component, type ReactNode, type ErrorInfo } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo, lazy, Suspense, Component, type ReactNode, type ErrorInfo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  ChevronLeft, Navigation, MapPin, Layers, Ghost,
-  RefreshCw, Plus, Radar,
+  ChevronLeft, Navigation, MapPin, Layers, Ghost, RefreshCw, Plus, Radar, Calendar,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import L from 'leaflet';
-import 'leaflet/dist/leaflet.css';
-import 'leaflet-rotate';
+import type L from 'leaflet';
 
 import { useAuth } from '@/lib/auth';
 import { useAuthProfileId } from '@/hooks/useAuthProfileId';
@@ -18,23 +15,41 @@ import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { trackMapEvent } from '@/lib/vybemap/analytics';
 import { isValidLatLng } from '@/lib/vybemap/geo';
-import { activityMeta } from '@/lib/vybemap/activity';
-import { LAYER_LABELS, type LiveFriend, type MapLayer, type TimeMachineMode } from '@/lib/vybemap/types';
+import { LAYER_LABELS, type LiveFriend, type MapLayer, type MapPlace, type MapMeetup } from '@/lib/vybemap/types';
 import {
   useMapLayers, useFriendIds, useLiveFriends, useMapStories, useMapPosts,
   useMapClips, useMapMeetups, useMapHeatmap, useMapPlaces, useMapEventPins,
-  useFriendRadar, useStartFindFriend, useCheckIn, useLogLocationAccess,
+  useFriendRadar, useStartFindFriend, useCheckIn, useCreateMapSpot, useLogLocationAccess,
+  useFriendCheckIns, useCreateMeetup, useJoinMeetup, useLeaveMeetup, useMyMeetupMemberships,
+  useGroupMaps, useCreateGroupMap, useGroupMemberIds,
 } from '@/hooks/vybemap/useVybeMap';
 import { FindFriendOverlay } from '@/components/vybemap/FindFriendOverlay';
 import { FriendCardSheet } from '@/components/vybemap/FriendCardSheet';
 import { DiscoveryDrawer } from '@/components/vybemap/DiscoveryDrawer';
+import { SpotDropSheet } from '@/components/vybemap/SpotDropSheet';
+import { PlacePageSheet } from '@/components/vybemap/PlacePageSheet';
+import { MeetupSheet, MeetupCreateSheet } from '@/components/vybemap/MeetupSheet';
+import { FriendActivityBar } from '@/components/vybemap/FriendActivityBar';
+import { GroupMapSheet } from '@/components/vybemap/GroupMapSheet';
+import { MapRouteBar } from '@/components/vybemap/MapRouteBar';
+import { useLocationIntel } from '@/hooks/vybemap/useLocationIntel';
+import { hasMapbox } from '@/lib/vybemap/mapbox/config';
+import type { MapViewMode } from '@/lib/vybemap/mapbox/config';
+import { fetchMapboxRoute } from '@/lib/vybemap/mapbox/directions';
+import { externalDirectionsUrl } from '@/lib/vybemap/mapNavigation';
+import { isHeadingTowardYou } from '@/lib/vybemap/headingToward';
+import { sendMapWave } from '@/lib/vybemap/mapSocial';
+import type { MapGroupMap } from '@/lib/vybemap/types';
+import { VybeMapboxCanvas, useVybeMapFlyTo } from '@/components/vybemap/map/VybeMapboxCanvas';
+import { MapBottomDock } from '@/components/vybemap/hud/MapBottomDock';
+import { GhostModeSheet } from '@/components/vybemap/hud/GhostModeSheet';
+import { MapStyleSheet } from '@/components/vybemap/hud/MapStyleSheet';
 
-const DEFAULT_CENTER: [number, number] = [39.8283, -98.5795];
-const MAP_TILES: Record<string, { url: string; label: string; icon: string }> = {
-  dark: { url: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', label: 'Dark', icon: '🌑' },
-  streets: { url: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', label: 'Streets', icon: '🗺️' },
-  satellite: { url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', label: 'Satellite', icon: '🛰️' },
-};
+const VybeMapLeafletFallback = lazy(() =>
+  import('@/components/vybemap/map/VybeMapLeafletFallback').then((m) => ({
+    default: m.VybeMapLeafletFallback,
+  })),
+);
 
 class MapErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean }> {
   state = { hasError: false };
@@ -61,10 +76,12 @@ function VybeMapInner() {
   const { profile } = useAuth();
   const profileId = useAuthProfileId();
   const { coords: myCoords, sharing, setSharing } = useLocationContext();
+  const useMapbox = hasMapbox();
 
   const { layers, toggleLayer } = useMapLayers();
   const { data: friendIds = [] } = useFriendIds(profileId ?? profile?.id);
-  const { data: friends = [] } = useLiveFriends(friendIds, profileId);
+  const { data: friends = [] } = useLiveFriends(friendIds);
+  const { data: friendCheckIns = [] } = useFriendCheckIns(friendIds);
   const { data: stories = [] } = useMapStories(layers.stories);
   const { data: posts = [] } = useMapPosts(layers.posts);
   const { data: clips = [] } = useMapClips(layers.clips);
@@ -76,29 +93,125 @@ function VybeMapInner() {
   const radar = useFriendRadar(friends, myCoords);
   const startFind = useStartFindFriend();
   const checkIn = useCheckIn();
+  const createSpot = useCreateMapSpot();
+  const createMeetup = useCreateMeetup();
+  const joinMeetup = useJoinMeetup();
+  const leaveMeetup = useLeaveMeetup();
+  const { data: meetupMemberships } = useMyMeetupMemberships(profileId ?? profile?.id);
+  const effectiveId = profileId ?? profile?.id;
+  const { data: groupMaps = [] } = useGroupMaps(effectiveId);
+  const createGroupMap = useCreateGroupMap();
   const logAccess = useLogLocationAccess();
+  const { setMap, flyTo, resetBearing } = useVybeMapFlyTo();
 
   const [selId, setSelId] = useState<string | null>(null);
+  const [selPlace, setSelPlace] = useState<MapPlace | null>(null);
+  const [selMeetup, setSelMeetup] = useState<MapMeetup | null>(null);
+  const [meetupCreateOpen, setMeetupCreateOpen] = useState(false);
+  const [spotDropOpen, setSpotDropOpen] = useState(false);
   const [layersOpen, setLayersOpen] = useState(false);
   const [ghostOpen, setGhostOpen] = useState(false);
   const [discoveryOpen, setDiscoveryOpen] = useState(false);
   const [findMode, setFindMode] = useState<{ friend: LiveFriend; ar: boolean } | null>(null);
-  const [timeMode, setTimeMode] = useState<TimeMachineMode>('now');
   const [teleportQuery, setTeleportQuery] = useState('');
-  const [mapStyle, setMapStyle] = useState('dark');
+  const [mapViewMode, setMapViewMode] = useState<MapViewMode>('3d');
+  const [styleSheetOpen, setStyleSheetOpen] = useState(false);
+  const [squadsOpen, setSquadsOpen] = useState(false);
+  const [activeSquad, setActiveSquad] = useState<MapGroupMap | null>(null);
+  const { data: squadMemberIds = [] } = useGroupMemberIds(activeSquad?.id);
+  const [route, setRoute] = useState<{
+    label: string;
+    dest: [number, number];
+    geometry: GeoJSON.LineString;
+    durationMinutes: number;
+    distanceMiles: number;
+    externalUrl: string;
+  } | null>(null);
+  const [routeLoading, setRouteLoading] = useState(false);
+  const { data: routeDestIntel } = useLocationIntel({
+    latitude: route?.dest[0] ?? 0,
+    longitude: route?.dest[1] ?? 0,
+    placeName: route?.label.replace(/^Route to /, ''),
+    enabled: !!route,
+  });
 
   const mapEl = useRef<HTMLDivElement>(null);
-  const mapRef = useRef<L.Map | null>(null);
-  const tileRef = useRef<L.TileLayer | null>(null);
-  const markersRef = useRef<L.LayerGroup | null>(null);
-  const heatLayerRef = useRef<L.LayerGroup | null>(null);
-  const friendMarkers = useRef<Map<string, L.Marker>>(new Map());
+  const leafletMapRef = useRef<L.Map | null>(null);
+  const ghostTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const safeMyCoords = useMemo(
     () => (myCoords && isValidLatLng(myCoords[0], myCoords[1]) ? myCoords : null),
     [myCoords],
   );
   const sel = useMemo(() => friends.find((f) => f.user_id === selId) || null, [friends, selId]);
+  const squadSet = useMemo(
+    () => (layers.groups && activeSquad ? new Set(squadMemberIds) : undefined),
+    [layers.groups, activeSquad, squadMemberIds],
+  );
+
+  const startLiveRoute = useCallback(async (
+    label: string,
+    dest: [number, number],
+    options?: { dismissSheets?: boolean },
+  ) => {
+    const externalUrl = externalDirectionsUrl(dest[0], dest[1]);
+    if (!safeMyCoords) {
+      window.open(externalUrl, '_blank');
+      return;
+    }
+    if (options?.dismissSheets !== false) {
+      setSelId(null);
+      setSelPlace(null);
+      setSelMeetup(null);
+      setDiscoveryOpen(false);
+      setLayersOpen(false);
+    }
+    setRouteLoading(true);
+    try {
+      const result = await fetchMapboxRoute(safeMyCoords, dest);
+      if (result) {
+        setRoute({
+          label,
+          dest,
+          geometry: result.geometry,
+          durationMinutes: result.durationMinutes,
+          distanceMiles: result.distanceMiles,
+          externalUrl,
+        });
+        triggerHaptic('light');
+      } else {
+        window.open(externalUrl, '_blank');
+        toast.message('Opened directions in Maps');
+      }
+    } catch {
+      window.open(externalUrl, '_blank');
+      toast.error('Could not load live route — opened Maps instead');
+    } finally {
+      setRouteLoading(false);
+    }
+  }, [safeMyCoords]);
+
+  const mapProps = {
+    center: safeMyCoords,
+    layers,
+    friends,
+    stories,
+    posts,
+    clips,
+    meetups,
+    places,
+    eventPins,
+    heatmap,
+    onFriendTap: (f: LiveFriend) => {
+      setSelId(f.user_id);
+      void logAccess(f.user_id, 'friend_tap');
+      trackMapEvent('friend_tap', { userId: f.user_id });
+    },
+    onPlaceTap: (p: MapPlace) => {
+      setSelPlace(p);
+      trackMapEvent('spot_tap', { placeId: p.id });
+    },
+  };
 
   useEffect(() => {
     trackMapEvent('map_open');
@@ -110,109 +223,26 @@ function VybeMapInner() {
     };
   }, []);
 
-  useEffect(() => {
-    const el = mapEl.current;
-    if (!el || mapRef.current) return;
-    const map = L.map(el, { zoomControl: false, attributionControl: false, rotate: true, bearing: 0 } as L.MapOptions).setView(
-      safeMyCoords || DEFAULT_CENTER,
-      safeMyCoords ? 14 : 4,
-    );
-    tileRef.current = L.tileLayer(MAP_TILES[mapStyle].url, { maxZoom: 19 }).addTo(map);
-    markersRef.current = L.layerGroup().addTo(map);
-    heatLayerRef.current = L.layerGroup().addTo(map);
-    mapRef.current = map;
-    map.on('click', () => setSelId(null));
-    requestAnimationFrame(() => map.invalidateSize());
-    return () => {
-      map.remove();
-      mapRef.current = null;
-    };
+  useEffect(() => () => {
+    if (ghostTimerRef.current) clearTimeout(ghostTimerRef.current);
   }, []);
 
-  useEffect(() => {
-    const map = mapRef.current;
-    const layer = markersRef.current;
-    if (!map || !layer) return;
-    layer.clearLayers();
-    friendMarkers.current.clear();
-
-    if (layers.friends) {
-      friends.forEach((f) => {
-        const lat = f.displayLat ?? f.latitude;
-        const lng = f.displayLng ?? f.longitude;
-        const act = activityMeta(f.activity_type || 'stationary');
-        const html = `<div class="vybe-live-marker" style="--ring:${(f.speed || 0) > 0.5 ? '#22c55e' : '#6366f1'}">
-          <img src="${f.profile?.avatar_url || ''}" onerror="this.style.display='none'" class="vybe-live-avatar"/>
-          <span class="vybe-live-emoji">${act.icon}</span>
-        </div>`;
-        const icon = L.divIcon({ html, className: '', iconSize: [48, 48], iconAnchor: [24, 24] });
-        const m = L.marker([lat, lng], { icon }).addTo(layer);
-        m.on('click', () => {
-          setSelId(f.user_id);
-          void logAccess(f.user_id, 'friend_tap');
-          trackMapEvent('friend_tap', { userId: f.user_id });
-        });
-        friendMarkers.current.set(f.user_id, m);
-      });
-    }
-
-    if (layers.stories) {
-      stories.forEach((s) => {
-        L.circleMarker([s.latitude, s.longitude], { radius: 8, color: '#ec4899', fillColor: '#f472b6', fillOpacity: 0.9, weight: 2 }).addTo(layer);
-      });
-    }
-    if (layers.posts) {
-      posts.forEach((p) => {
-        L.circleMarker([p.latitude, p.longitude], { radius: 6, color: '#8b5cf6', fillColor: '#a78bfa', fillOpacity: 0.85, weight: 2 }).addTo(layer);
-      });
-    }
-    if (layers.clips) {
-      clips.forEach((c) => {
-        L.circleMarker([c.latitude, c.longitude], { radius: 7, color: '#06b6d4', fillColor: '#22d3ee', fillOpacity: 0.85, weight: 2 }).addTo(layer);
-      });
-    }
-    if (layers.events) {
-      eventPins.forEach((e) => {
-        L.circleMarker([e.latitude, e.longitude], { radius: 9, color: '#f59e0b', fillColor: '#fbbf24', fillOpacity: 0.9, weight: 2 }).addTo(layer);
-      });
-    }
-    if (layers.meetups) {
-      meetups.forEach((m) => {
-        L.circleMarker([m.dest_latitude, m.dest_longitude], { radius: 10, color: '#10b981', fillColor: '#34d399', fillOpacity: 0.9, weight: 3 }).addTo(layer);
-      });
-    }
-    if (layers.trending || layers.hotspots) {
-      places.slice(0, 30).forEach((p) => {
-        L.circleMarker([p.latitude, p.longitude], { radius: 5 + Math.min(p.check_in_count, 20) / 4, color: '#f97316', fillColor: '#fb923c', fillOpacity: 0.7, weight: 1 }).addTo(layer);
-      });
-    }
-  }, [friends, stories, posts, clips, eventPins, meetups, places, layers, logAccess]);
-
-  useEffect(() => {
-    const hLayer = heatLayerRef.current;
-    if (!hLayer) return;
-    hLayer.clearLayers();
-    if (!layers.heatmap) return;
-    heatmap.forEach((cell) => {
-      const r = 200 + cell.intensity * 400;
-      L.circle([cell.cell_latitude, cell.cell_longitude], {
-        radius: r,
-        color: 'transparent',
-        fillColor: '#a855f7',
-        fillOpacity: Math.min(0.45, cell.intensity / 100),
-        weight: 0,
-      }).addTo(hLayer);
+  const mapFlyTo = useCallback((lat: number, lng: number, zoom = 15) => {
+    if (useMapbox) flyTo(lat, lng, zoom);
+    else import('@/components/vybemap/map/VybeMapLeafletFallback').then(({ leafletFlyTo }) => {
+      leafletFlyTo(leafletMapRef.current, lat, lng, zoom);
     });
-  }, [heatmap, layers.heatmap]);
+  }, [useMapbox, flyTo]);
 
-  useEffect(() => {
-    if (!safeMyCoords || !mapRef.current) return;
-    L.circleMarker(safeMyCoords, { radius: 10, color: '#3b82f6', fillColor: '#60a5fa', fillOpacity: 1, weight: 3 }).addTo(markersRef.current!);
-  }, [safeMyCoords]);
+  const handleMeetupTap = useCallback((m: MapMeetup) => {
+    setSelMeetup(m);
+    mapFlyTo(m.dest_latitude, m.dest_longitude, 15);
+    trackMapEvent('meetup_tap', { meetupId: m.id });
+  }, [mapFlyTo]);
 
   const recenter = () => {
     if (!safeMyCoords) return;
-    mapRef.current?.flyTo(safeMyCoords, 15, { duration: 0.8 });
+    mapFlyTo(safeMyCoords[0], safeMyCoords[1], 15);
     triggerHaptic('light');
   };
 
@@ -223,6 +253,18 @@ function VybeMapInner() {
     setGhostOpen(false);
   };
 
+  const handleGhostDuration = (ms: number) => {
+    if (sharing) setSharing(false);
+    triggerHaptic('medium');
+    toast.success(`Ghost mode for ${Math.round(ms / 60_000)} min`);
+    if (ghostTimerRef.current) clearTimeout(ghostTimerRef.current);
+    ghostTimerRef.current = setTimeout(() => {
+      setSharing(true);
+      toast.success('You\'re live on VybeMap again');
+    }, ms);
+    setGhostOpen(false);
+  };
+
   const handleTeleport = async () => {
     if (!teleportQuery.trim()) return;
     trackMapEvent('teleport', { q: teleportQuery });
@@ -230,7 +272,7 @@ function VybeMapInner() {
       const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(teleportQuery)}`);
       const data = await res.json();
       if (data?.[0]) {
-        mapRef.current?.flyTo([parseFloat(data[0].lat), parseFloat(data[0].lon)], 12, { duration: 1.5 });
+        mapFlyTo(parseFloat(data[0].lat), parseFloat(data[0].lon), 12);
         toast.success(`Teleported to ${data[0].display_name}`);
       }
     } catch {
@@ -238,11 +280,13 @@ function VybeMapInner() {
     }
   };
 
-  const handleCheckIn = () => {
-    if (!safeMyCoords) return;
-    checkIn.mutate({ latitude: safeMyCoords[0], longitude: safeMyCoords[1], message: 'Checked in on VybeMap' }, {
-      onSuccess: () => { toast.success('Checked in!'); trackMapEvent('check_in'); },
-    });
+  const handleDropSpot = () => {
+    if (!safeMyCoords) {
+      toast.error('Enable location to drop a spot');
+      return;
+    }
+    setSpotDropOpen(true);
+    trackMapEvent('spot_drop_open');
   };
 
   return (
@@ -251,15 +295,31 @@ function VybeMapInner() {
       style={{ touchAction: 'none', overscrollBehavior: 'none', zIndex: 9999 }}
     >
       <style>{`
-        .vybe-live-marker{position:relative;width:44px;height:44px;border-radius:9999px;box-shadow:0 0 0 3px var(--ring),0 4px 20px rgba(0,0,0,.4)}
-        .vybe-live-avatar{width:100%;height:100%;border-radius:9999px;object-fit:cover;border:2px solid #fff}
-        .vybe-live-emoji{position:absolute;bottom:-4px;right:-4px;font-size:14px;background:#000;border-radius:9999px;padding:2px}
         .vybe-map-glass{background:rgba(0,0,0,.55);backdrop-filter:blur(16px);border:1px solid rgba(255,255,255,.08)}
       `}</style>
 
-      <div ref={mapEl} className="absolute inset-0" />
+      <div ref={mapEl} className={cn('absolute inset-0', useMapbox && 'pointer-events-none opacity-0')} />
 
-      {/* Top bar */}
+      {useMapbox ? (
+        <VybeMapboxCanvas
+          {...mapProps}
+          mapMode={mapViewMode}
+          onMapReady={setMap}
+          routeGeometry={route?.geometry ?? null}
+          squadMemberIds={squadSet}
+          onMeetupTap={handleMeetupTap}
+        />
+      ) : (
+        <Suspense fallback={null}>
+          <VybeMapLeafletFallback
+            {...mapProps}
+            mapElRef={mapEl}
+            onMapReady={(m) => { leafletMapRef.current = m; }}
+          />
+        </Suspense>
+      )}
+
+      {/* Top HUD */}
       <div className="pointer-events-none absolute inset-x-0 top-0 z-[1000] px-3 pt-[max(var(--sat,0px),8px)]">
         <div className="flex items-center gap-2">
           <button type="button" onClick={() => navigate(-1)} className="pointer-events-auto vybe-map-glass h-10 w-10 rounded-full flex items-center justify-center text-white">
@@ -270,28 +330,19 @@ function VybeMapInner() {
               value={teleportQuery}
               onChange={(e) => setTeleportQuery(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && void handleTeleport()}
-              placeholder="Teleport to city…"
+              placeholder="Search friends, places, cities…"
               className="flex-1 h-10 rounded-full vybe-map-glass px-4 text-sm text-white placeholder:text-white/40 outline-none"
             />
             <button type="button" onClick={() => void handleTeleport()} className="vybe-map-glass h-10 px-3 rounded-full text-xs font-bold text-white">Go</button>
           </div>
+          {useMapbox && (
+            <button type="button" onClick={() => setStyleSheetOpen(true)} className="pointer-events-auto vybe-map-glass h-10 w-10 rounded-full flex items-center justify-center text-white text-[10px] font-bold">
+              3D
+            </button>
+          )}
           <button type="button" onClick={() => setLayersOpen((v) => !v)} className="pointer-events-auto vybe-map-glass h-10 w-10 rounded-full flex items-center justify-center text-white">
             <Layers className="h-4 w-4" />
           </button>
-        </div>
-
-        {/* Time machine */}
-        <div className="pointer-events-auto flex gap-1.5 mt-2 overflow-x-auto scrollbar-hide">
-          {(['now', '1h', '6h', 'yesterday', 'week'] as TimeMachineMode[]).map((m) => (
-            <button
-              key={m}
-              type="button"
-              onClick={() => { setTimeMode(m); trackMapEvent('time_machine', { mode: m }); }}
-              className={cn('shrink-0 rounded-full px-3 py-1 text-[10px] font-bold', timeMode === m ? 'bg-primary text-primary-foreground' : 'vybe-map-glass text-white/70')}
-            >
-              {m === 'now' ? 'Now' : m === '1h' ? '1h ago' : m === '6h' ? '6h ago' : m === 'yesterday' ? 'Yesterday' : 'This week'}
-            </button>
-          ))}
         </div>
 
         {radar.label && (
@@ -299,13 +350,46 @@ function VybeMapInner() {
             <Radar className="h-3.5 w-3.5 text-green-400" /> {radar.label}
           </div>
         )}
+
+        {activeSquad && layers.groups && (
+          <button
+            type="button"
+            onClick={() => { setActiveSquad(null); toggleLayer('groups'); }}
+            className="pointer-events-auto mt-2 inline-flex items-center gap-1.5 rounded-full bg-violet-500/25 border border-violet-400/30 px-3 py-1.5 text-xs font-bold text-violet-200"
+          >
+            {activeSquad.emoji} {activeSquad.name} · tap to exit
+          </button>
+        )}
+
+        {routeLoading && (
+          <div className="pointer-events-auto mt-2 inline-flex items-center gap-1.5 rounded-full vybe-map-glass px-3 py-1.5 text-xs text-white/80">
+            <RefreshCw className="h-3.5 w-3.5 animate-spin" /> Calculating route…
+          </div>
+        )}
+
+        <FriendActivityBar
+          checkIns={friendCheckIns}
+          onTap={(c) => mapFlyTo(c.latitude, c.longitude, 16)}
+        />
       </div>
 
-      {/* Layer panel */}
+      <AnimatePresence>
+        {route && (
+          <MapRouteBar
+            label={route.label}
+            durationMinutes={route.durationMinutes}
+            distanceMiles={route.distanceMiles}
+            destIntel={routeDestIntel}
+            onClose={() => setRoute(null)}
+            onOpenExternal={() => window.open(route.externalUrl, '_blank')}
+          />
+        )}
+      </AnimatePresence>
+
       <AnimatePresence>
         {layersOpen && (
           <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }}
-            className="pointer-events-auto absolute right-3 top-28 z-[1001] w-48 rounded-2xl vybe-map-glass p-2 space-y-1">
+            className="pointer-events-auto absolute right-3 top-36 z-[1001] w-48 rounded-2xl vybe-map-glass p-2 space-y-1">
             {(Object.keys(LAYER_LABELS) as MapLayer[]).map((key) => (
               <button key={key} type="button" onClick={() => { toggleLayer(key); trackMapEvent('layer_toggle', { layer: key }); }}
                 className={cn('w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold', layers[key] ? 'bg-primary/25 text-primary' : 'text-white/60')}>
@@ -317,29 +401,20 @@ function VybeMapInner() {
         )}
       </AnimatePresence>
 
-      {/* Right FABs */}
-      <div className="pointer-events-none absolute right-3 z-[1000] flex flex-col gap-2" style={{ top: '45%' }}>
+      <div className="pointer-events-none absolute right-3 z-[1000] flex flex-col gap-2" style={{ top: '42%' }}>
         <button type="button" onClick={recenter} className="pointer-events-auto vybe-map-glass h-11 w-11 rounded-full flex items-center justify-center text-white"><Navigation className="h-4 w-4" /></button>
         <button type="button" onClick={() => setGhostOpen(true)} className={cn('pointer-events-auto h-11 w-11 rounded-full flex items-center justify-center', sharing ? 'bg-primary text-primary-foreground' : 'vybe-map-glass text-white')}>
           {sharing ? <MapPin className="h-4 w-4" /> : <Ghost className="h-4 w-4" />}
         </button>
-        <button type="button" onClick={handleCheckIn} className="pointer-events-auto vybe-map-glass h-11 w-11 rounded-full flex items-center justify-center text-white"><Plus className="h-4 w-4" /></button>
+        <button type="button" onClick={() => safeMyCoords ? setMeetupCreateOpen(true) : toast.error('Enable location first')} className="pointer-events-auto vybe-map-glass h-11 w-11 rounded-full flex items-center justify-center text-white" title="Plan meetup">
+          <Calendar className="h-4 w-4" />
+        </button>
+        <button type="button" onClick={handleDropSpot} className="pointer-events-auto vybe-map-glass h-11 w-11 rounded-full flex items-center justify-center text-white"><Plus className="h-4 w-4" /></button>
       </div>
 
-      {/* Ghost sheet */}
       <AnimatePresence>
         {ghostOpen && (
-          <>
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[2000] bg-black/50" onClick={() => setGhostOpen(false)} />
-            <motion.div initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
-              className="fixed inset-x-0 bottom-0 z-[2001] rounded-t-3xl bg-black/95 border-t border-white/10 p-6 pb-safe">
-              <h3 className="text-lg font-bold text-white mb-2">Privacy & Ghost Mode</h3>
-              <p className="text-sm text-white/50 mb-4">Precise · Approximate · Friends · Best friends · Group · Temporary · Scheduled · Ghost</p>
-              <button type="button" onClick={toggleSharing} className="w-full py-3 rounded-xl bg-primary font-bold text-primary-foreground">
-                {sharing ? 'Enable Ghost Mode' : 'Share live location'}
-              </button>
-            </motion.div>
-          </>
+          <GhostModeSheet sharing={sharing} onClose={() => setGhostOpen(false)} onToggleSharing={toggleSharing} onGhostDuration={handleGhostDuration} />
         )}
       </AnimatePresence>
 
@@ -348,12 +423,28 @@ function VybeMapInner() {
           <FriendCardSheet
             friend={sel}
             myCoords={safeMyCoords}
+            headingToward={isHeadingTowardYou(sel, safeMyCoords)}
+            routeEtaMinutes={route?.label.includes(sel.profile?.display_name || sel.profile?.username || '') ? route.durationMinutes : null}
             onClose={() => setSelId(null)}
             onMessage={() => navigate('/messages')}
             onNavigate={() => {
               const lat = sel.displayLat ?? sel.latitude;
               const lng = sel.displayLng ?? sel.longitude;
-              window.open(`https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`, '_blank');
+              const name = sel.profile?.display_name || sel.profile?.username || 'Friend';
+              void startLiveRoute(`Route to ${name}`, [lat, lng]);
+            }}
+            onLiveRoute={() => {
+              const lat = sel.displayLat ?? sel.latitude;
+              const lng = sel.displayLng ?? sel.longitude;
+              const name = sel.profile?.display_name || sel.profile?.username || 'Friend';
+              void startLiveRoute(`Route to ${name}`, [lat, lng]);
+            }}
+            onWave={async () => {
+              if (!effectiveId) return;
+              const name = profile?.display_name || profile?.username || 'Someone';
+              await sendMapWave(effectiveId, sel.user_id, name);
+              toast.success(`Waved at ${sel.profile?.username || 'friend'} 👋`);
+              trackMapEvent('map_wave', { to: sel.user_id });
             }}
             onFind={() => {
               void startFind.mutateAsync(sel.user_id);
@@ -367,15 +458,130 @@ function VybeMapInner() {
 
       <AnimatePresence>
         {findMode && safeMyCoords && (
-          <FindFriendOverlay
-            friend={findMode.friend}
-            myCoords={safeMyCoords}
-            arMode={findMode.ar}
-            onClose={() => setFindMode(null)}
-            onFound={() => trackMapEvent('find_friend_found')}
+          <FindFriendOverlay friend={findMode.friend} myCoords={safeMyCoords} arMode={findMode.ar} onClose={() => setFindMode(null)} onFound={() => trackMapEvent('find_friend_found')} />
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {spotDropOpen && safeMyCoords && (
+          <SpotDropSheet
+            coords={safeMyCoords}
+            onClose={() => setSpotDropOpen(false)}
+            onSubmit={async (input) => {
+              await createSpot.mutateAsync({ ...input, latitude: safeMyCoords[0], longitude: safeMyCoords[1] });
+              trackMapEvent('spot_dropped');
+            }}
           />
         )}
       </AnimatePresence>
+
+      <AnimatePresence>
+        {selPlace && (
+          <PlacePageSheet
+            place={selPlace}
+            onClose={() => setSelPlace(null)}
+            onNavigate={() => {
+              void startLiveRoute(selPlace.name, [selPlace.latitude, selPlace.longitude], { dismissSheets: false });
+            }}
+            onCheckIn={() => {
+              checkIn.mutate(
+                {
+                  latitude: selPlace.latitude,
+                  longitude: selPlace.longitude,
+                  message: `At ${selPlace.name}`,
+                  placeId: selPlace.id,
+                  placeName: selPlace.name,
+                },
+                { onSuccess: () => toast.success('Checked in!') },
+              );
+            }}
+          />
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {selMeetup && (
+          <MeetupSheet
+            meetup={selMeetup}
+            myCoords={safeMyCoords}
+            profileId={profileId ?? profile?.id}
+            isMember={meetupMemberships?.has(selMeetup.id) ?? selMeetup.host_id === profile?.id}
+            isHost={selMeetup.host_id === profile?.id}
+            onClose={() => setSelMeetup(null)}
+            onJoin={async () => {
+              await joinMeetup.mutateAsync(selMeetup.id);
+              trackMapEvent('meetup_join', { meetupId: selMeetup.id });
+            }}
+            onLeave={async () => leaveMeetup.mutateAsync(selMeetup.id)}
+            onNavigate={() => {
+              void startLiveRoute(
+                selMeetup.title,
+                [selMeetup.dest_latitude, selMeetup.dest_longitude],
+                { dismissSheets: false },
+              );
+              trackMapEvent('meetup_tap', { meetupId: selMeetup.id, action: 'directions' });
+            }}
+          />
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {meetupCreateOpen && safeMyCoords && (
+          <MeetupCreateSheet
+            coords={safeMyCoords}
+            onClose={() => setMeetupCreateOpen(false)}
+            onSubmit={async ({ title, description }) => {
+              await createMeetup.mutateAsync({
+                title,
+                description,
+                dest_latitude: safeMyCoords[0],
+                dest_longitude: safeMyCoords[1],
+                dest_label: title,
+              });
+              trackMapEvent('meetup_create');
+              if (!layers.meetups) toggleLayer('meetups');
+              setDiscoveryOpen(true);
+            }}
+          />
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {styleSheetOpen && (
+          <MapStyleSheet mode={mapViewMode} onSelect={setMapViewMode} onClose={() => setStyleSheetOpen(false)} />
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {squadsOpen && (
+          <GroupMapSheet
+            groups={groupMaps}
+            onClose={() => setSquadsOpen(false)}
+            onCreate={async (input) => {
+              await createGroupMap.mutateAsync(input);
+              toggleLayer('groups');
+            }}
+            onSelect={(g) => {
+              setActiveSquad(g);
+              toggleLayer('groups');
+              setSquadsOpen(false);
+              toast.success(`${g.name} squad on map`);
+            }}
+          />
+        )}
+      </AnimatePresence>
+
+      <MapBottomDock
+        onLayers={() => setLayersOpen((v) => !v)}
+        onFriends={() => { setDiscoveryOpen(true); setLayersOpen(false); setSquadsOpen(false); }}
+        onSquads={() => { setSquadsOpen(true); setLayersOpen(false); }}
+        onEvents={() => { toggleLayer('events'); setDiscoveryOpen(true); }}
+        onHotspots={() => { toggleLayer('hotspots'); toggleLayer('trending'); setDiscoveryOpen(true); }}
+        onProfile={() => { const u = profile?.username; if (u) navigate(`/u/${u}`); }}
+        onCompass={useMapbox ? resetBearing : undefined}
+        discoveryOpen={discoveryOpen}
+        squadsOpen={squadsOpen || !!activeSquad}
+      />
 
       <DiscoveryDrawer
         open={discoveryOpen}
@@ -386,9 +592,14 @@ function VybeMapInner() {
         meetups={meetups}
         places={places}
         radarLabel={radar.label}
-        onFriendTap={(f) => { setSelId(f.user_id); mapRef.current?.flyTo([f.displayLat ?? f.latitude, f.displayLng ?? f.longitude], 16); }}
-        onMeetupTap={(m) => mapRef.current?.flyTo([m.dest_latitude, m.dest_longitude], 15)}
-        onPlaceTap={(p) => mapRef.current?.flyTo([p.latitude, p.longitude], 15)}
+        friendCheckIns={friendCheckIns}
+        onFriendTap={(f) => { setSelId(f.user_id); mapFlyTo(f.displayLat ?? f.latitude, f.displayLng ?? f.longitude, 16); }}
+        onMeetupTap={(m) => {
+          handleMeetupTap(m);
+          setDiscoveryOpen(false);
+        }}
+        onPlaceTap={(p) => { setSelPlace(p); mapFlyTo(p.latitude, p.longitude, 16); }}
+        onCreateMeetup={() => safeMyCoords ? setMeetupCreateOpen(true) : toast.error('Enable location first')}
       />
     </div>
   );

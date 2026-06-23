@@ -1,10 +1,10 @@
-import { useEffect, useState, useRef, useCallback } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Navigation, X, Camera } from 'lucide-react';
+import { Navigation, X } from 'lucide-react';
+import { useFastSignedUrl } from '@/hooks/useFastSignedUrl';
 import type { LiveFriend } from '@/lib/vybemap/types';
 import { bearingDegrees, distanceFeet, formatDistance, proximityColor } from '@/lib/vybemap/geo';
 import { triggerHaptic } from '@/lib/haptics';
-import { cn } from '@/lib/utils';
 
 interface FindFriendOverlayProps {
   friend: LiveFriend;
@@ -14,17 +14,35 @@ interface FindFriendOverlayProps {
   onFound: () => void;
 }
 
-export function FindFriendOverlay({ friend, myCoords, arMode, onClose, onFound }: FindFriendOverlayProps) {
+export function FindFriendOverlay({ friend, myCoords, onClose, onFound }: FindFriendOverlayProps) {
   const [heading, setHeading] = useState(0);
   const [deviceHeading, setDeviceHeading] = useState<number | null>(null);
+  const [liveCoords, setLiveCoords] = useState(myCoords);
   const lastHapticRef = useRef(0);
   const foundRef = useRef(false);
+  const signedAvatar = useFastSignedUrl(friend.profile?.avatar_url);
 
   const targetLat = friend.displayLat ?? friend.latitude;
   const targetLng = friend.displayLng ?? friend.longitude;
-  const feet = distanceFeet(myCoords, [targetLat, targetLng]);
-  const bearing = bearingDegrees(myCoords, [targetLat, targetLng]);
+  const feet = distanceFeet(liveCoords, [targetLat, targetLng]);
+  const bearing = bearingDegrees(liveCoords, [targetLat, targetLng]);
   const name = friend.profile?.display_name || friend.profile?.username || 'Friend';
+  const color = proximityColor(feet);
+  const found = feet < 80;
+
+  useEffect(() => {
+    setLiveCoords(myCoords);
+  }, [myCoords]);
+
+  useEffect(() => {
+    if (!('geolocation' in navigator)) return;
+    const id = navigator.geolocation.watchPosition(
+      (pos) => setLiveCoords([pos.coords.latitude, pos.coords.longitude]),
+      () => {},
+      { enableHighAccuracy: true, maximumAge: 0, timeout: 15000 },
+    );
+    return () => navigator.geolocation.clearWatch(id);
+  }, []);
 
   useEffect(() => {
     const onOrient = (e: DeviceOrientationEvent) => {
@@ -43,142 +61,86 @@ export function FindFriendOverlay({ friend, myCoords, arMode, onClose, onFound }
 
   useEffect(() => {
     const now = Date.now();
-    if (feet < 150 && !foundRef.current) {
+    if (feet < 80 && !foundRef.current) {
       foundRef.current = true;
       triggerHaptic('success');
       onFound();
-    } else if (feet < 800 && now - lastHapticRef.current > 2000) {
+    } else if (feet < 600 && now - lastHapticRef.current > 1800) {
       lastHapticRef.current = now;
       triggerHaptic('light');
     }
   }, [feet, onFound]);
 
-  const color = proximityColor(feet);
-
-  if (arMode) {
-    return (
-      <ARFindView
-        name={name}
-        feet={feet}
-        heading={heading}
-        avatar={friend.profile?.avatar_url}
-        onClose={onClose}
-        found={feet < 150}
-      />
-    );
-  }
+  const distanceLabel = feet < 80 ? 'Here' : formatDistance(feet);
 
   return (
     <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="fixed inset-0 z-[5000] bg-black flex flex-col items-center justify-center"
+      className="fixed inset-0 z-[5000] flex flex-col bg-[#0a0a0c] text-white"
     >
-      <button type="button" onClick={onClose} className="absolute top-6 right-6 p-3 rounded-full bg-white/10 text-white z-10">
-        <X className="h-6 w-6" />
-      </button>
+      <div className="flex items-center justify-between px-4 pt-[max(env(safe-area-inset-top),12px)] pb-2">
+        <button type="button" onClick={onClose} className="h-10 w-10 rounded-full bg-white/10 flex items-center justify-center">
+          <X className="h-5 w-5" />
+        </button>
+        <span className="text-xs font-semibold tracking-wide text-white/60 uppercase">Find {name.split(' ')[0]}</span>
+        <div className="w-10" />
+      </div>
 
-      <AnimatePresence mode="wait">
-        {feet < 150 ? (
-          <motion.div
-            key="found"
-            initial={{ scale: 0.5, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            className="text-center px-8"
-          >
-            <motion.div
-              animate={{ scale: [1, 1.15, 1] }}
-              transition={{ repeat: Infinity, duration: 1.2 }}
-              className="text-6xl mb-6"
-            >
-              🎉
+      <div className="flex-1 flex flex-col items-center justify-center px-6 gap-8">
+        <AnimatePresence mode="wait">
+          {found ? (
+            <motion.div key="found" initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="text-center">
+              <p className="text-sm text-white/50 mb-2">Arrived</p>
+              <h2 className="text-4xl font-semibold tracking-tight">{name}</h2>
+              <p className="text-emerald-400 mt-2 font-medium">Right nearby</p>
             </motion.div>
-            <h2 className="text-3xl font-black text-white tracking-tight">YOU FOUND THEM</h2>
-            <p className="text-white/60 mt-2">{name} is right here</p>
-          </motion.div>
-        ) : (
-          <motion.div key="hunt" className="flex flex-col items-center gap-8 px-6 w-full max-w-md">
-            <p className="text-xs font-bold tracking-[0.2em] text-white/50 uppercase">Find Friend</p>
-            <p className="text-lg font-bold text-white text-center">
-              {name.toUpperCase()} IS {formatDistance(feet)} AWAY
-            </p>
+          ) : (
+            <motion.div key="hunt" className="flex flex-col items-center gap-6 w-full max-w-sm">
+              <div className="text-center">
+                <p className="text-[11px] uppercase tracking-[0.2em] text-white/40 mb-1">Distance</p>
+                <p className="text-5xl font-light tabular-nums tracking-tight" style={{ color }}>{distanceLabel}</p>
+                <p className="text-sm text-white/45 mt-2">Move your phone — arrow points to {name.split(' ')[0]}</p>
+              </div>
 
-            <div className="relative w-48 h-48">
-              <div className="absolute inset-0 rounded-full border-2 border-white/10" />
-              <motion.div
-                className="absolute inset-0 flex items-start justify-center pt-4"
-                animate={{ rotate: heading }}
-                transition={{ type: 'spring', stiffness: 120, damping: 18 }}
-              >
-                <Navigation className="h-16 w-16 drop-shadow-lg" style={{ color }} fill={color} />
-              </motion.div>
-              {friend.profile?.avatar_url ? (
-                <img src={friend.profile.avatar_url} alt="" className="absolute inset-8 rounded-full object-cover border-4 border-white/20" />
-              ) : (
-                <div className="absolute inset-8 rounded-full bg-gradient-to-br from-violet-500 to-fuchsia-500 flex items-center justify-center text-2xl font-bold text-white">
-                  {name[0]}
+              <div className="relative w-72 h-72">
+                {[1, 2, 3].map((ring) => (
+                  <motion.div
+                    key={ring}
+                    className="absolute inset-0 rounded-full border border-white/10"
+                    style={{ margin: `${ring * 18}px` }}
+                    animate={{ opacity: [0.15, 0.45, 0.15], scale: [1, 1.02, 1] }}
+                    transition={{ duration: 2.4, repeat: Infinity, delay: ring * 0.25 }}
+                  />
+                ))}
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <motion.div
+                    className="absolute inset-0 flex items-start justify-center pt-6"
+                    animate={{ rotate: heading }}
+                    transition={{ type: 'spring', stiffness: 140, damping: 20 }}
+                  >
+                    <Navigation className="h-20 w-20 drop-shadow-2xl" style={{ color }} fill={color} />
+                  </motion.div>
+                  <div className="relative h-20 w-20 rounded-full overflow-hidden border-2 border-white/30 shadow-xl bg-white/5">
+                    {signedAvatar ? (
+                      <img src={signedAvatar} alt="" className="h-full w-full object-cover" />
+                    ) : (
+                      <div className="h-full w-full flex items-center justify-center text-2xl font-bold bg-gradient-to-br from-blue-500 to-cyan-400">
+                        {name[0]?.toUpperCase()}
+                      </div>
+                    )}
+                  </div>
                 </div>
-              )}
-            </div>
-
-            <p className="text-sm text-white/40">Follow the arrow · vibration gets faster as you get closer</p>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </motion.div>
-  );
-}
-
-function ARFindView({
-  name, feet, heading, avatar, onClose, found,
-}: {
-  name: string;
-  feet: number;
-  heading: number;
-  avatar?: string | null;
-  onClose: () => void;
-  found: boolean;
-}) {
-  const videoRef = useRef<HTMLVideoElement>(null);
-
-  useEffect(() => {
-    let stream: MediaStream | null = null;
-    void navigator.mediaDevices?.getUserMedia({ video: { facingMode: 'environment' }, audio: false })
-      .then((s) => {
-        stream = s;
-        if (videoRef.current) {
-          videoRef.current.srcObject = s;
-          void videoRef.current.play();
-        }
-      })
-      .catch(() => { /* AR fallback */ });
-    return () => stream?.getTracks().forEach((t) => t.stop());
-  }, []);
-
-  return (
-    <div className="fixed inset-0 z-[5000] bg-black">
-      <video ref={videoRef} className="absolute inset-0 w-full h-full object-cover" playsInline muted />
-      <div className="absolute inset-0 bg-black/30" />
-      <button type="button" onClick={onClose} className="absolute top-6 right-6 p-3 rounded-full bg-black/50 text-white z-20">
-        <X className="h-6 w-6" />
-      </button>
-      <div className="absolute inset-0 flex flex-col items-center justify-center z-10 pointer-events-none">
-        {found ? (
-          <h2 className="text-4xl font-black text-white drop-shadow-lg">YOU FOUND THEM</h2>
-        ) : (
-          <>
-            <motion.div animate={{ rotate: heading }} transition={{ type: 'spring', stiffness: 100, damping: 15 }}>
-              <Navigation className="h-24 w-24 text-green-400 drop-shadow-2xl" fill="currentColor" />
+              </div>
             </motion.div>
-            <p className="mt-8 text-xl font-bold text-white drop-shadow-md">{name}</p>
-            <p className="text-white/80 font-mono text-lg mt-2">{formatDistance(feet)}</p>
-          </>
-        )}
+          )}
+        </AnimatePresence>
       </div>
-      <div className="absolute bottom-8 left-1/2 -translate-x-1/2 flex items-center gap-2 px-4 py-2 rounded-full bg-black/50 text-white text-xs">
-        <Camera className="h-4 w-4" /> AR Find Mode
-      </div>
-    </div>
+
+      <p className="text-center text-[10px] text-white/30 pb-[max(env(safe-area-inset-bottom),16px)] px-8">
+        High-accuracy GPS + compass · Pulses faster as you get closer
+      </p>
+    </motion.div>
   );
 }
