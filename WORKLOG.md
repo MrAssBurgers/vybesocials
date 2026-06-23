@@ -2,6 +2,14 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## Chat presence + screenshot notifier (2026-06-17)
+- **Presence accuracy:** Stale detection (12s) on Firestore `users/{id}`; heartbeat every 4s while in chat; `pagehide`/`freeze`/background sets `offline` and clears `active_conversation`; broadcast peers expire after 8s unless Firestore confirms.
+- **Screenshot notifier:** Instant DM broadcast (`screenshot` event) + in-chat banner/toast + system message; Vybe viewer screenshots notify sender via `onScreenshotDetected`.
+- **Screenshot blocking:** `useChatScreenShield` + `chatScreenShield.ts` — Despia native `screenshield://` schemes (Android/iOS black capture) + instant web blackout curtain on capture signals; active in all DMs + Vybe viewer.
+- **Files:** `usersPresenceDoc.ts`, `useChatPresence.ts`, `dmBroadcast.ts`, `useMessages.ts`, `ChatView.tsx`, `VybeViewer.tsx`, `chatScreenShield.ts`, `useChatScreenShield.ts`, `CaptureShield.tsx`
+- **Verified:** `npm run build` PASS
+- **Next:** Lovable Publish vybehub.app; test screenshot block in Despia app (should save black); web browser is best-effort blackout
+
 ## Task batch complete (2026-06-22)
 - **DM send:** Fixed duplicate message doc id (`newDocumentId`) — new messages no longer overwrite same bubble
 - **DM list refresh:** Faster parallel load, 35s timeout, cached-chats banner auto-retry

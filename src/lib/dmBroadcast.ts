@@ -26,13 +26,23 @@ export interface DmActivityPayload {
   avatarUrl?: string | null;
 }
 
+export interface DmScreenshotPayload {
+  id: string;
+  userId: string;
+  username?: string;
+  captureType: 'screenshot' | 'screen_recording_start' | 'screen_recording_stop' | 'possible_recording';
+  timestamp: string;
+}
+
 type BroadcastMessageHandler = (message: Record<string, unknown>) => void;
 type BroadcastTypingHandler = (payload: DmTypingPayload) => void;
 type BroadcastActivityHandler = (payload: DmActivityPayload) => void;
+type BroadcastScreenshotHandler = (payload: DmScreenshotPayload) => void;
 
 const messageHandlers = new Map<string, Set<BroadcastMessageHandler>>();
 const typingHandlers = new Map<string, Set<BroadcastTypingHandler>>();
 const activityHandlers = new Map<string, Set<BroadcastActivityHandler>>();
+const screenshotHandlers = new Map<string, Set<BroadcastScreenshotHandler>>();
 const subscribedConvos = new Set<string>();
 const nativeChannels = new Map<string, BroadcastChannel>();
 
@@ -82,6 +92,20 @@ function dispatchActivity(conversationId: string, payload: { payload?: DmActivit
   }
 }
 
+function dispatchScreenshot(conversationId: string, payload: { payload?: DmScreenshotPayload }) {
+  const data = payload.payload;
+  if (!data?.userId) return;
+  const handlers = screenshotHandlers.get(conversationId);
+  if (!handlers?.size) return;
+  for (const handler of handlers) {
+    try {
+      handler(data);
+    } catch {
+      /* noop */
+    }
+  }
+}
+
 function getNativeChannel(conversationId: string): BroadcastChannel | null {
   if (typeof BroadcastChannel === 'undefined') return null;
   let ch = nativeChannels.get(conversationId);
@@ -92,6 +116,7 @@ function getNativeChannel(conversationId: string): BroadcastChannel | null {
       if (evt === 'new-message') dispatchMessage(conversationId, { payload: payload as { message?: unknown } });
       if (evt === 'typing') dispatchTyping(conversationId, { payload: payload as DmTypingPayload });
       if (evt === 'activity') dispatchActivity(conversationId, { payload: payload as DmActivityPayload });
+      if (evt === 'screenshot') dispatchScreenshot(conversationId, { payload: payload as DmScreenshotPayload });
     };
     nativeChannels.set(conversationId, ch);
   }
@@ -120,6 +145,9 @@ function ensureSubscribed(conversationId: string) {
     )
     .on('broadcast', { event: 'activity' }, (p: { payload?: DmActivityPayload }) =>
       dispatchActivity(conversationId, p),
+    )
+    .on('broadcast', { event: 'screenshot' }, (p: { payload?: DmScreenshotPayload }) =>
+      dispatchScreenshot(conversationId, p),
     )
     .subscribe();
 }
@@ -218,6 +246,38 @@ export async function sendDmBroadcastTyping(
     await db.channel(channelName(conversationId)).send({
       type: 'broadcast',
       event: 'typing',
+      payload,
+    });
+  } catch {
+    /* best-effort */
+  }
+}
+
+export function subscribeDmBroadcastScreenshot(
+  conversationId: string,
+  handler: BroadcastScreenshotHandler,
+): () => void {
+  if (!screenshotHandlers.has(conversationId)) {
+    screenshotHandlers.set(conversationId, new Set());
+  }
+  screenshotHandlers.get(conversationId)!.add(handler);
+  ensureSubscribed(conversationId);
+  return () => {
+    screenshotHandlers.get(conversationId)?.delete(handler);
+  };
+}
+
+export async function sendDmBroadcastScreenshot(
+  conversationId: string,
+  payload: DmScreenshotPayload,
+): Promise<void> {
+  prewarmDmBroadcastChannel(conversationId);
+  dispatchScreenshot(conversationId, { payload });
+  postNative(conversationId, 'screenshot', payload);
+  try {
+    await db.channel(channelName(conversationId)).send({
+      type: 'broadcast',
+      event: 'screenshot',
       payload,
     });
   } catch {

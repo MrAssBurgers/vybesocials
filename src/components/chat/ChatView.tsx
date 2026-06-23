@@ -22,6 +22,7 @@ import { useUnsendForEveryone, useDeleteForMe, useEditMessage } from '@/hooks/us
 import { useInstantReadClear } from '@/hooks/useMessageNotifications';
 import { useAISmartReplies } from '@/hooks/useAIMessageAssist';
 import { useScreenCapture } from '@/hooks/useScreenCapture';
+import { blackoutChatScreenNow } from '@/lib/chatScreenShield';
 import { useAuth } from '@/lib/auth';
 import {
   displayNameForConversation,
@@ -60,6 +61,8 @@ import { useDMSettings, useMessagePins } from '@/hooks/useDMSettings';
 import { CallButtons } from '@/components/call/CallButtons';
 import { CallSettingsSheet } from '@/components/call/CallSettingsSheet';
 import { useChatPresence } from '@/hooks/useChatPresence';
+import { useChatScreenShield } from '@/hooks/useChatScreenShield';
+import { CHAT_SHIELD_ROOT_ID } from '@/lib/chatScreenShield';
 import { usePeerLastReadAt } from '@/hooks/usePeerLastReadAt';
 import { ChatPresenceIndicator } from './ChatPresenceIndicator';
 import { LivePresenceBar, ScreenshotAlert, SnapchatStatus } from './SnapchatFeedback';
@@ -197,18 +200,22 @@ export function ChatView() {
   const unsendForEveryone = useUnsendForEveryone();
   const deleteForMe = useDeleteForMe();
   const editMessage = useEditMessage();
-  const { notifyScreenshot, notifyCapture, screenshotEvents: rawScreenshotEvents, isRecording } = useScreenshotNotification(conversationId);
+  const { notifyCapture, screenshotEvents: rawScreenshotEvents, isRecording } = useScreenshotNotification(conversationId);
   const screenshotEvents = Array.isArray(rawScreenshotEvents) ? rawScreenshotEvents : [];
   
   // v1.1: Instant read clear - marks as read immediately and clears badges
   const { markAsRead } = useInstantReadClear(conversationId);
   
+  // Block screenshots — native OS shield + instant web blackout
+  useChatScreenShield(!!conversationId);
+
   // Snapchat-style screen capture detection
   const { setActivelyViewingChat } = useScreenCapture({
     enabled: !!conversationId,
     onCapture: (event) => {
       if (import.meta.env.DEV) console.log('[ChatView] Capture detected:', event);
       if (event.confidence !== 'low') {
+        blackoutChatScreenNow();
         notifyCapture(event.type);
       }
     }
@@ -507,93 +514,6 @@ export function ChatView() {
       }
     });
   }, [conversationId, messages?.length]);
-
-  // Enhanced Screenshot detection - desktop keyboard shortcuts + mobile resize detection
-  useEffect(() => {
-    if (!conversationId) return;
-    
-    // Desktop: Detect PrintScreen and Mac screenshot shortcuts
-    const handleKeyDown = (e: KeyboardEvent) => {
-      console.log('[Screenshot] Key pressed:', e.key, 'meta:', e.metaKey, 'shift:', e.shiftKey);
-      
-      // Windows/Linux PrintScreen
-      if (e.key === 'PrintScreen') {
-        console.log('[Screenshot] PrintScreen detected!');
-        notifyScreenshot();
-        return;
-      }
-      // Mac: Cmd+Shift+3 (full screen) or Cmd+Shift+4 (selection) or Cmd+Shift+5 (menu)
-      if (e.metaKey && e.shiftKey && ['3', '4', '5'].includes(e.key)) {
-        console.log('[Screenshot] Mac shortcut detected!');
-        notifyScreenshot();
-        return;
-      }
-      // Windows: Win+Shift+S (Snipping Tool)
-      if (e.metaKey && e.shiftKey && e.key.toLowerCase() === 's') {
-        console.log('[Screenshot] Win+Shift+S detected!');
-        notifyScreenshot();
-        return;
-      }
-    };
-
-    // Mobile: iOS/Android screenshot detection via resize event
-    let lastHeight = window.innerHeight;
-    let screenshotDebounce: NodeJS.Timeout | null = null;
-    
-    const handleResize = () => {
-      const heightDiff = Math.abs(window.innerHeight - lastHeight);
-      if (heightDiff > 20 && heightDiff < 100) {
-        if (screenshotDebounce) clearTimeout(screenshotDebounce);
-        screenshotDebounce = setTimeout(() => {
-          if (Math.abs(window.innerHeight - lastHeight) < 10) {
-            console.log('[Screenshot] Mobile screenshot detected via resize!');
-            notifyScreenshot();
-          }
-        }, 300);
-      }
-      lastHeight = window.innerHeight;
-    };
-
-    // Clipboard change detection - detects when image is copied to clipboard
-    const handleCopy = (e: ClipboardEvent) => {
-      // Check if clipboard contains image data (screenshot)
-      if (e.clipboardData?.types.includes('image/png')) {
-        console.log('[Screenshot] Clipboard image detected!');
-        notifyScreenshot();
-      }
-    };
-
-    // Focus/blur detection for mobile - some devices blur briefly during screenshot
-    let blurTime = 0;
-    const handleBlur = () => {
-      blurTime = Date.now();
-    };
-    const handleFocus = () => {
-      const blurDuration = Date.now() - blurTime;
-      // Very brief blur (100-500ms) may indicate screenshot on mobile
-      if (blurDuration > 100 && blurDuration < 500) {
-        console.log('[Screenshot] Brief blur detected, possible screenshot');
-        // Uncomment to enable: notifyScreenshot();
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown, true); // Use capture phase
-    window.addEventListener('keyup', handleKeyDown, true);   // Also check keyup for PrintScreen
-    window.addEventListener('resize', handleResize);
-    document.addEventListener('copy', handleCopy);
-    window.addEventListener('blur', handleBlur);
-    window.addEventListener('focus', handleFocus);
-    
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown, true);
-      window.removeEventListener('keyup', handleKeyDown, true);
-      window.removeEventListener('resize', handleResize);
-      document.removeEventListener('copy', handleCopy);
-      window.removeEventListener('blur', handleBlur);
-      window.removeEventListener('focus', handleFocus);
-      if (screenshotDebounce) clearTimeout(screenshotDebounce);
-    };
-  }, [conversationId, notifyScreenshot]);
 
   // Handle typing indicator - instant input, deferred typing updates
   const typingUpdateScheduledRef = useRef(false);
@@ -1335,7 +1255,11 @@ export function ChatView() {
   }
 
   return (
-    <div className="flex flex-col h-full min-h-0 dm-chat-shell relative overflow-hidden" style={{ touchAction: 'pan-y' }}>
+    <div
+      id={CHAT_SHIELD_ROOT_ID}
+      className="flex flex-col h-full min-h-0 dm-chat-shell relative overflow-hidden"
+      style={{ touchAction: 'pan-y' }}
+    >
       {/* DM Image Safety Gate */}
       <AnimatePresence>
         {showImageSafetyGate && pendingSafetyImage && (
@@ -1743,6 +1667,8 @@ export function ChatView() {
                         : undefined
                     }
                     peerLastReadAt={!isGroupChat ? peerLastReadAt : undefined}
+                    conversationId={conversationId}
+                    onScreenshotCapture={() => notifyCapture('screenshot')}
                   />
                 </SwipeToReply>
               </div>
@@ -2379,6 +2305,8 @@ const MessageBubble = memo(function MessageBubble({
   onToggleSaved,
   onRetry,
   peerLastReadAt,
+  conversationId,
+  onScreenshotCapture,
 }: { 
   message: Message;
   isOwn: boolean;
@@ -2405,6 +2333,8 @@ const MessageBubble = memo(function MessageBubble({
   onToggleSaved?: () => void;
   onRetry?: () => void;
   peerLastReadAt?: string | null;
+  conversationId?: string;
+  onScreenshotCapture?: () => void;
 }) {
   const [isViewed, setIsViewed] = useState(false);
   const failed = Boolean((message as { _failed?: boolean })._failed);
@@ -2787,11 +2717,14 @@ const MessageBubble = memo(function MessageBubble({
                 <VybeViewer
                   mediaUrl={message.media_url || ''}
                   messageId={message.id}
+                  senderId={message.sender_id}
+                  conversationId={conversationId}
                   senderName={sender?.username}
                   senderAvatar={sender?.avatar_url}
                   isOpen={showVybeViewer}
                   isViewed={vybeViewed}
                   isOwn={false}
+                  onScreenshotDetected={onScreenshotCapture}
                   onClose={() => {
                     setShowVybeViewer(false);
                     setVybeViewed(true);

@@ -18,6 +18,13 @@ import { syncSessionProfileId } from '@/lib/resolveSessionProfileId';
 import { createDmChat } from '@/lib/firebase/chats';
 import { firebaseAuth } from '@/lib/firebase/authService';
 import { markConversationReadForViewer, getSessionAuthUid } from '@/lib/markConversationRead';
+import {
+  prewarmDmBroadcastChannel,
+  sendDmBroadcastScreenshot,
+  subscribeDmBroadcastScreenshot,
+  type DmScreenshotPayload,
+} from '@/lib/dmBroadcast';
+import { haptics } from '@/lib/haptics';
 
 export type ViewMode = 'view_once' | '24h' | 'permanent';
 
@@ -787,16 +794,41 @@ export function useScreenshotNotification(conversationId: string | undefined) {
   const queryClient = useQueryClient();
   const [screenshotEvents, setScreenshotEvents] = useState<{ id: string; username: string; timestamp: string }[]>([]);
   const [isRecording, setIsRecording] = useState(false);
+  const seenEventIds = useRef(new Set<string>());
+
+  const addScreenshotEvent = useCallback((id: string, username: string, timestamp: string) => {
+    if (seenEventIds.current.has(id)) return;
+    seenEventIds.current.add(id);
+    haptics.warning();
+    toast.warning(`📸 ${username} took a screenshot!`, {
+      icon: '📸',
+      duration: 5000,
+    });
+    setScreenshotEvents((prev) => [...prev, { id, username, timestamp }]);
+  }, []);
+
+  const handleIncomingCapture = useCallback(
+    (payload: DmScreenshotPayload) => {
+      if (!profile?.id || payload.userId === profile.id) return;
+      const username = payload.username || 'Someone';
+      if (payload.captureType === 'screenshot') {
+        addScreenshotEvent(payload.id, username, payload.timestamp);
+        return;
+      }
+      if (payload.captureType === 'screen_recording_start') {
+        toast.warning(`🎥 ${username} started screen recording`, { duration: 5000 });
+        setIsRecording(true);
+      } else if (payload.captureType === 'screen_recording_stop') {
+        toast.info('Screen recording stopped', { duration: 3000 });
+        setIsRecording(false);
+      }
+    },
+    [profile?.id, addScreenshotEvent],
+  );
 
   const notifyCapture = useCallback(async (captureType: CaptureType) => {
-    console.log('[Capture] notifyCapture called, type:', captureType, 'conversationId:', conversationId);
-    
-    if (!conversationId || !profile?.id) {
-      console.log('[Capture] Missing conversationId or profile');
-      return;
-    }
+    if (!conversationId || !profile?.id) return;
 
-    // Determine message content based on capture type
     let content: string;
     let messageType: string;
     switch (captureType) {
@@ -822,54 +854,47 @@ export function useScreenshotNotification(conversationId: string | undefined) {
         return;
     }
 
+    const eventId = crypto.randomUUID();
+    const timestamp = new Date().toISOString();
+
+    void sendDmBroadcastScreenshot(conversationId, {
+      id: eventId,
+      userId: profile.id,
+      username: profile.username || undefined,
+      captureType,
+      timestamp,
+    });
+
     try {
-      // For screenshots, also insert into screenshot_notifications table
       if (captureType === 'screenshot') {
-        console.log('[Capture] Inserting to screenshot_notifications table...');
-        const { error } = await db
-          .from('screenshot_notifications')
-          .insert({
-            conversation_id: conversationId,
-            user_id: profile.id,
-          });
-
-        if (error) {
-          console.error('[Capture] Failed to record screenshot:', error);
-        } else {
-          console.log('[Capture] Screenshot notification recorded successfully');
-        }
-      }
-
-      // Insert system message so it shows in chat history
-      console.log('[Capture] Inserting system message...');
-      const { error: msgError } = await db
-        .from('messages')
-        .insert({
+        await db.from('screenshot_notifications').insert({
           conversation_id: conversationId,
-          sender_id: profile.id,
-          content,
-          message_type: messageType,
+          user_id: profile.id,
         });
-
-      if (msgError) {
-        console.error('[Capture] Failed to insert system message:', msgError);
-      } else {
-        console.log('[Capture] System message inserted successfully');
       }
-      
-      // Invalidate messages to show the new system message
+
+      await db.from('messages').insert({
+        conversation_id: conversationId,
+        sender_id: profile.id,
+        content,
+        message_type: messageType,
+      });
+
       queryClient.invalidateQueries({ queryKey: ['messages', conversationId] });
     } catch (err) {
       console.error('[Capture] Capture notification error:', err);
     }
-  }, [conversationId, profile?.id, queryClient]);
+  }, [conversationId, profile?.id, profile?.username, queryClient]);
 
   // Convenience wrapper for screenshot (backward compatible)
   const notifyScreenshot = useCallback(() => notifyCapture('screenshot'), [notifyCapture]);
 
-  // Listen for screenshot notifications in real-time
+  // Instant screenshot alerts via DM broadcast (works across tabs/devices).
   useEffect(() => {
     if (!conversationId) return;
+
+    prewarmDmBroadcastChannel(conversationId);
+    const unsubBroadcast = subscribeDmBroadcastScreenshot(conversationId, handleIncomingCapture);
 
     const channel = subscribePostgresChannel(`screenshots:${conversationId}`, [
       {
@@ -877,36 +902,29 @@ export function useScreenshotNotification(conversationId: string | undefined) {
         table: 'screenshot_notifications',
         filter: `conversation_id=eq.${conversationId}`,
         callback: async (payload) => {
-          if ((payload.new as any).user_id !== profile?.id) {
-            const { data: user } = await db
-              .from('profiles')
-              .select('username')
-              .eq('id', (payload.new as any).user_id)
-              .single();
+          if ((payload.new as { user_id?: string }).user_id === profile?.id) return;
 
-            const username = user?.username || 'Someone';
-            
-            // Show toast notification
-            toast.warning(`📸 ${username} took a screenshot!`, {
-              icon: '📸',
-              duration: 5000,
-            });
-            
-            // Add to local events for in-chat display
-            setScreenshotEvents(prev => [...prev, {
-              id: (payload.new as any).id,
-              username,
-              timestamp: (payload.new as any).created_at,
-            }]);
-          }
+          const { data: user } = await db
+            .from('profiles')
+            .select('username')
+            .eq('id', (payload.new as { user_id: string }).user_id)
+            .single();
+
+          const username = user?.username || 'Someone';
+          addScreenshotEvent(
+            (payload.new as { id: string }).id,
+            username,
+            (payload.new as { created_at: string }).created_at,
+          );
         },
       },
     ]);
 
     return () => {
+      unsubBroadcast();
       removeRealtimeChannel(channel);
     };
-  }, [conversationId, profile?.id]);
+  }, [conversationId, profile?.id, handleIncomingCapture, addScreenshotEvent]);
 
   // Clear old screenshot events after they've been displayed
   useEffect(() => {

@@ -4,8 +4,10 @@ import { useAuthProfileId } from '@/hooks/useAuthProfileId';
 import {
   enterConversationPresence,
   leaveConversationPresence,
+  markUserBackgrounded,
   setUserActivity,
   subscribeUserPresence,
+  touchConversationPresence,
   toUiActivity,
   type UserActivityState,
   type UserPresenceDoc,
@@ -27,7 +29,11 @@ export interface PeerPresence {
   display_name: string | null;
   activity: ActivityType;
   is_online: boolean;
+  updatedAt: number;
 }
+
+const PRESENCE_HEARTBEAT_MS = 4_000;
+const BROADCAST_PEER_TTL_MS = 8_000;
 
 function broadcastActivity(
   conversationId: string,
@@ -71,6 +77,7 @@ function mapDocToPeer(
     display_name: doc.display_name ?? null,
     activity: uiActivityFromState(activity),
     is_online: doc.online,
+    updatedAt: Date.now(),
   };
 }
 
@@ -184,7 +191,7 @@ export function useChatPresence(
     [applyActivity],
   );
 
-  // Own presence: enter chat on mount, leave on unmount.
+  // Own presence: enter chat on mount, leave on unmount / background / page close.
   useEffect(() => {
     if (!conversationId || !effectiveProfileId) return;
 
@@ -192,22 +199,42 @@ export function useChatPresence(
     void enterConversationPresence(effectiveProfileId, conversationId, metaRef.current);
     broadcastActivity(conversationId, effectiveProfileId, 'viewing', metaRef.current);
 
+    const leaveNow = (backgrounded = false) => {
+      broadcastActivity(conversationId, effectiveProfileId, 'idle', metaRef.current);
+      if (backgrounded) {
+        void markUserBackgrounded(effectiveProfileId);
+      } else {
+        void leaveConversationPresence(effectiveProfileId);
+      }
+    };
+
     const handleVisibility = () => {
       if (document.hidden) {
-        void leaveConversationPresence(effectiveProfileId);
-        broadcastActivity(conversationId, effectiveProfileId, 'idle', metaRef.current);
+        leaveNow(true);
       } else {
         void enterConversationPresence(effectiveProfileId, conversationId, metaRef.current);
         applyActivity(activityRef.current === 'offline' ? 'viewing' : activityRef.current);
       }
     };
 
+    const handlePageHide = () => leaveNow(true);
+    const handleFreeze = () => leaveNow(true);
+
     document.addEventListener('visibilitychange', handleVisibility);
+    window.addEventListener('pagehide', handlePageHide);
+    document.addEventListener('freeze', handleFreeze as EventListener);
+
+    const heartbeat = window.setInterval(() => {
+      if (document.hidden) return;
+      void touchConversationPresence(effectiveProfileId, conversationId);
+    }, PRESENCE_HEARTBEAT_MS);
 
     return () => {
       document.removeEventListener('visibilitychange', handleVisibility);
-      void leaveConversationPresence(effectiveProfileId);
-      broadcastActivity(conversationId, effectiveProfileId, 'idle', metaRef.current);
+      window.removeEventListener('pagehide', handlePageHide);
+      document.removeEventListener('freeze', handleFreeze as EventListener);
+      window.clearInterval(heartbeat);
+      leaveNow(true);
     };
   }, [conversationId, effectiveProfileId, applyActivity]);
 
@@ -225,17 +252,33 @@ export function useChatPresence(
     }
 
     let mounted = true;
-    const localMap = new Map<string, PeerPresence>();
+    const peerDocs = new Map<string, UserPresenceDoc | null>();
+    const broadcastPeers = new Map<string, PeerPresence>();
+
+    const mergePeers = (): Map<string, PeerPresence> => {
+      const next = new Map<string, PeerPresence>();
+      const now = Date.now();
+      for (const peerId of targets) {
+        const fromFirestore = mapDocToPeer(peerDocs.get(peerId) ?? null, peerId, conversationId);
+        if (fromFirestore) {
+          next.set(peerId, fromFirestore);
+          continue;
+        }
+        const broadcast = broadcastPeers.get(peerId);
+        if (broadcast && now - broadcast.updatedAt < BROADCAST_PEER_TTL_MS) {
+          next.set(peerId, broadcast);
+        }
+      }
+      return next;
+    };
 
     const sync = () => {
-      if (mounted) setPeerMap(new Map(localMap));
+      if (mounted) setPeerMap(mergePeers());
     };
 
     const firestoreUnsubs = targets.map((peerId) =>
       subscribeUserPresence(peerId, (doc) => {
-        const mapped = mapDocToPeer(doc, peerId, conversationId);
-        if (mapped) localMap.set(peerId, mapped);
-        else localMap.delete(peerId);
+        peerDocs.set(peerId, doc);
         sync();
       }),
     );
@@ -243,23 +286,40 @@ export function useChatPresence(
     const unsubBroadcast = subscribeDmBroadcastActivity(conversationId, (payload) => {
       if (!targets.includes(payload.userId)) return;
       if (payload.activity === 'idle') {
-        localMap.delete(payload.userId);
+        broadcastPeers.delete(payload.userId);
         sync();
         return;
       }
-      localMap.set(payload.userId, {
-        user_id: payload.userId,
-        username: payload.username || '',
-        avatar_url: payload.avatarUrl ?? null,
-        display_name: payload.displayName || payload.username || null,
-        activity: payload.activity as ActivityType,
-        is_online: true,
-      });
-      sync();
+      const docPeer = mapDocToPeer(peerDocs.get(payload.userId) ?? null, payload.userId, conversationId);
+      if (!docPeer) {
+        broadcastPeers.set(payload.userId, {
+          user_id: payload.userId,
+          username: payload.username || '',
+          avatar_url: payload.avatarUrl ?? null,
+          display_name: payload.displayName || payload.username || null,
+          activity: payload.activity as ActivityType,
+          is_online: true,
+          updatedAt: Date.now(),
+        });
+        sync();
+      }
     });
+
+    const expireInterval = window.setInterval(() => {
+      const now = Date.now();
+      let changed = false;
+      for (const [peerId, peer] of broadcastPeers) {
+        if (now - peer.updatedAt > BROADCAST_PEER_TTL_MS) {
+          broadcastPeers.delete(peerId);
+          changed = true;
+        }
+      }
+      if (changed) sync();
+    }, 2_000);
 
     return () => {
       mounted = false;
+      window.clearInterval(expireInterval);
       firestoreUnsubs.forEach((u) => u());
       unsubBroadcast();
     };

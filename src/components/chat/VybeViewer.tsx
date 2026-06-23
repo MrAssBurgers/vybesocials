@@ -5,6 +5,7 @@ import { X, Reply, Camera, Eye, Download, Loader2 } from 'lucide-react';
 import { VybeMiniIcon } from '@/components/ui/VybeMiniIcon';
 import { haptics } from '@/lib/haptics';
 import { useCaptureDetection } from '@/hooks/useCaptureDetection';
+import { useChatScreenShield } from '@/hooks/useChatScreenShield';
 import { CaptureShield } from '@/components/chat/CaptureShield';
 import { useSignedUrl } from '@/hooks/useSignedUrl';
 import { isFailedUrl } from '@/lib/signedUrlCache';
@@ -14,6 +15,7 @@ interface VybeViewerProps {
   mediaUrl: string;
   messageId?: string;
   senderId?: string;
+  conversationId?: string;
   senderName?: string;
   senderAvatar?: string;
   isOpen: boolean;
@@ -23,6 +25,7 @@ interface VybeViewerProps {
   onReply?: () => void;
   onViewed?: () => void;
   onSave?: () => void;
+  onScreenshotDetected?: () => void;
 }
 
 const IMAGE_DURATION = 5000;
@@ -37,6 +40,7 @@ export function VybeViewer({
   mediaUrl, 
   messageId,
   senderId,
+  conversationId,
   senderName,
   senderAvatar,
   isOpen, 
@@ -46,6 +50,7 @@ export function VybeViewer({
   onReply,
   onViewed,
   onSave,
+  onScreenshotDetected,
 }: VybeViewerProps) {
   const [progress, setProgress] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
@@ -63,6 +68,8 @@ export function VybeViewer({
   const isVideo = isVideoUrl(mediaUrl);
   const hasMedia = !!mediaUrl && mediaUrl.length > 5;
 
+  useChatScreenShield(isOpen && !isOwn);
+
   const isDirectUrl =
     mediaUrl.startsWith('blob:') ||
     mediaUrl.startsWith('data:') ||
@@ -72,13 +79,15 @@ export function VybeViewer({
   const displayUrl = isDirectUrl ? mediaUrl : signedUrl;
   const isSigningPending = hasMedia && !isDirectUrl && !signedUrl;
 
-  // Capture detection
+  // Capture detection — notify snap sender when viewer screenshots
   const { captured } = useCaptureDetection({
     enabled: isOpen && !isOwn,
     senderId,
     mediaId: messageId,
-    onCaptureDetected: (type) => {
-      toast.error('Capture detected', { duration: 2000 });
+    conversationId,
+    onCaptureDetected: () => {
+      haptics.warning();
+      onScreenshotDetected?.();
     },
   });
   

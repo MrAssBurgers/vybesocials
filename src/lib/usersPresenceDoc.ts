@@ -41,6 +41,23 @@ export interface UserPresenceDoc {
 
 const COLLECTION = 'users';
 
+/** Treat presence as stale if not refreshed within this window (app killed / network drop). */
+export const PRESENCE_STALE_MS = 12_000;
+
+function presenceTimestamp(doc: UserPresenceDoc): number {
+  const raw = doc.updated_at || doc.last_seen;
+  if (!raw) return 0;
+  const ms = new Date(raw).getTime();
+  return Number.isFinite(ms) ? ms : 0;
+}
+
+export function isPresenceStale(doc: UserPresenceDoc | null): boolean {
+  if (!doc) return true;
+  const ts = presenceTimestamp(doc);
+  if (!ts) return true;
+  return Date.now() - ts > PRESENCE_STALE_MS;
+}
+
 export function presenceDocId(profileId: string): string {
   return profileId;
 }
@@ -84,7 +101,34 @@ export async function leaveConversationPresence(profileId: string): Promise<void
     typing_in: null,
     recording_in: null,
     uploading_in: null,
+    in_call: false,
     current_activity: 'online',
+  });
+}
+
+/** App backgrounded, screen locked, or tab closed — clear in-chat state everywhere. */
+export async function markUserBackgrounded(profileId: string): Promise<void> {
+  await patchUserPresence(profileId, {
+    online: false,
+    active_conversation: null,
+    typing_in: null,
+    recording_in: null,
+    uploading_in: null,
+    in_call: false,
+    current_activity: 'offline',
+  });
+}
+
+/** Heartbeat while actively in a conversation (keeps last_seen fresh). */
+export async function touchConversationPresence(
+  profileId: string,
+  conversationId: string,
+): Promise<void> {
+  if (!profileId || !conversationId) return;
+  await patchUserPresence(profileId, {
+    online: true,
+    active_conversation: conversationId,
+    last_seen: new Date().toISOString(),
   });
 }
 
@@ -149,6 +193,7 @@ export function toUiActivity(
   conversationId: string,
 ): UserActivityState {
   if (!doc || !doc.online) return 'offline';
+  if (isPresenceStale(doc)) return 'offline';
   if (doc.in_call) return 'in_call';
   if (doc.active_conversation !== conversationId) return 'offline';
 
