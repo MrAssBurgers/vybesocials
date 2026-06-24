@@ -279,8 +279,9 @@ async function loadDMConversationsOnce(
       const membership = membershipMap.get(msg.conversation_id);
       const lastReadAt = membership?.last_read_at || '1970-01-01';
       if (
-        msg.sender_id !== effectiveProfileId &&
-        msg.sender_id !== authUid &&
+        (msg as any).sender_id !== effectiveProfileId &&
+        (msg as any).sender_id !== authUid &&
+
         msg.created_at > lastReadAt
       ) {
         unreadCountMap.set(
