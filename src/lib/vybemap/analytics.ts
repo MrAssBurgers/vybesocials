@@ -23,7 +23,7 @@ export function trackMapEvent(event: MapAnalyticsEvent, props?: Record<string, u
   try {
     void import('@/lib/analytics').then((m) => {
       if (typeof m.trackEvent === 'function') {
-        m.trackEvent(`vybemap_${event}` as any, props);
+        m.trackEvent(`vybemap_${event}` as any, props as any);
       }
     });
   } catch {
