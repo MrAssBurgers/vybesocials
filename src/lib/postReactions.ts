@@ -179,7 +179,7 @@ export async function getViewerPostReaction(
 ): Promise<{ is_liked: boolean; reaction_type: ReactionType | null }> {
   const rows = await findLikeRows(resolveLikeUserIds(profileId, authUid), postId);
   if (!rows.length) return { is_liked: false, reaction_type: null };
-  const raw = rows[0]?.reaction_type as ReactionType | undefined;
+  const raw = (rows[0] as any)?.reaction_type as ReactionType | undefined;
   return { is_liked: true, reaction_type: raw ?? 'like' };
 }
 
