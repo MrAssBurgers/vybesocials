@@ -27,7 +27,7 @@ export async function invokeVybeCheck(
   body: VybeCheckInvokeBody,
 ): Promise<{ result: VybeCheckResult | null; unavailable: boolean }> {
   const { data, unavailable } = await withTimeout(
-    invokeEdgeFeature<VybeCheckResult>('start-vybe-check', body),
+    invokeEdgeFeature<VybeCheckResult>('start-vybe-check', body as unknown as Record<string, unknown>),
     VYBE_CHECK_TIMEOUT_MS,
     'Vybe Check timed out',
   );
