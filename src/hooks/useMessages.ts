@@ -248,7 +248,7 @@ export function useConversations() {
         const unreadCount = (sortedMessages || []).filter(
           msg => msg.conversation_id === conv.id && 
                  !msg.is_deleted &&
-                 msg.sender_id !== profileId && 
+                 (msg as any).sender_id !== profileId && 
                  msg.created_at > lastReadAt
         ).length;
 
