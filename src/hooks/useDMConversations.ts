@@ -314,7 +314,7 @@ export function useConversationDetail(conversationId: string | undefined) {
           last_read_at: null,
           profile: profileByKey.get(user_id) || null,
         }));
-        return { ...base, members } as DMConversation;
+        return { ...base, members } as unknown as DMConversation;
       };
 
       if (cached?.members?.length) {
@@ -387,7 +387,7 @@ export function useConversationDetail(conversationId: string | undefined) {
       if (!conversationId) return undefined;
       return (
         findCachedConversation(profileId) ??
-        (buildConversationPlaceholder(conversationId, profileId) as DMConversation)
+        (buildConversationPlaceholder(conversationId, profileId) as unknown as DMConversation)
       );
     },
     networkMode: 'always',

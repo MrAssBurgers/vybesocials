@@ -126,8 +126,9 @@ export function useStories() {
       const groupedMap = new Map<string, StoryGroup>();
 
       for (const story of storiesWithViews) {
-        const authorId = story.author_id;
-        const authorRow = story.author as StoryGroup['user'] | null;
+        const authorId = (story as any).author_id;
+        const authorRow = (story as any).author as StoryGroup['user'] | null;
+
         if (!groupedMap.has(authorId)) {
           groupedMap.set(authorId, {
             user: authorRow || {

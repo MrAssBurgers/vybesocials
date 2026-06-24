@@ -361,12 +361,13 @@ export function useSendFriendRequest() {
 
       if (sameDirectionResult.error) throw sameDirectionResult.error;
       if (reverseDirectionResult.error) throw reverseDirectionResult.error;
-      if (legacySent.error?.code === 'permission-denied') {
+      if ((legacySent.error as any)?.code === 'permission-denied') {
         legacySent = { data: null, error: null };
       }
-      if (legacyReceived.error?.code === 'permission-denied') {
+      if ((legacyReceived.error as any)?.code === 'permission-denied') {
         legacyReceived = { data: null, error: null };
       }
+
       if (legacySent.error) throw legacySent.error;
       if (legacyReceived.error) throw legacyReceived.error;
 

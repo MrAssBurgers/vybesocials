@@ -214,7 +214,7 @@ export async function batchSignUrls(urls: (string | null | undefined)[]): Promis
   // Group by bucket + project for efficient batch requests
   const byBucket = new Map<string, Map<string, string>>();
   for (const item of urlsToSign) {
-    const bucketKey = `${CURRENT_SUPABASE_PROJECT}:${item.bucket}`;
+    const bucketKey = `${isFirebaseConfigured() ? getFirebaseConfig().projectId : 'firebase'}:${item.bucket}`;
     let bucketMap = byBucket.get(bucketKey);
     if (!bucketMap) {
       bucketMap = new Map();

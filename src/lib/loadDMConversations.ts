@@ -5,6 +5,8 @@ import { isPermissionDeniedError, warnOnce } from '@/lib/logOnce';
 import { resolveSessionProfileId, syncSessionProfileId } from '@/lib/resolveSessionProfileId';
 import { withTimeout } from '@/lib/withTimeout';
 import { fetchMemberProfiles, fetchConversationMetaForList, syntheticDeterministicConversation } from '@/lib/dmMembershipRepair';
+import { fetchMessagesForConversations } from '@/lib/conversationMessagesQuery';
+
 import {
   buildConversationMembers,
   inferOtherUserIdFromConversation,
@@ -239,7 +241,7 @@ async function loadDMConversationsOnce(
     const missingProfileIds = memberUserIds.filter((id) => !seededProfiles.has(id));
     const profileByKey =
       missingProfileIds.length > 0
-        ? await fetchMemberProfiles([...new Set([...profileSeedIds, ...missingProfileIds])])
+        ? await fetchMemberProfiles([...new Set([...profileSeedIds, ...missingProfileIds])] as string[])
         : seededProfiles;
 
     const membersByConv = new Map<string, any[]>();
@@ -277,8 +279,9 @@ async function loadDMConversationsOnce(
       const membership = membershipMap.get(msg.conversation_id);
       const lastReadAt = membership?.last_read_at || '1970-01-01';
       if (
-        msg.sender_id !== effectiveProfileId &&
-        msg.sender_id !== authUid &&
+        (msg as any).sender_id !== effectiveProfileId &&
+        (msg as any).sender_id !== authUid &&
+
         msg.created_at > lastReadAt
       ) {
         unreadCountMap.set(

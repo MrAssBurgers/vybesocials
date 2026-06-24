@@ -199,9 +199,10 @@ export function toUiActivity(
 
   const act = doc.current_activity;
   if (act === 'typing' || doc.typing_in === conversationId) return 'typing';
-  if (act === 'recording_voice' || (doc.recording_in === conversationId && act === 'recording_voice')) {
+  if ((act as string) === 'recording_voice' || (doc.recording_in === conversationId && (act as string) === 'recording_voice')) {
     return 'recording_voice';
   }
+
   if (
     act === 'taking_photo' ||
     act === 'recording_video' ||

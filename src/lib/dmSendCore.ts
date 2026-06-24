@@ -67,7 +67,7 @@ const MESSAGE_SELECT = `
 
 function normalizeMessage(row: Record<string, unknown>): Message {
   return {
-    ...(row as Message),
+    ...(row as unknown as Message),
     view_mode: (row.view_mode || 'permanent') as ViewMode,
     views: [],
     reactions: [],

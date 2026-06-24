@@ -444,7 +444,7 @@ function VybeMapInner() {
               const name = profile?.display_name || profile?.username || 'Someone';
               await sendMapWave(effectiveId, sel.user_id, name);
               toast.success(`Waved at ${sel.profile?.username || 'friend'} 👋`);
-              trackMapEvent('map_wave', { to: sel.user_id });
+              trackMapEvent('map_wave' as any, { to: sel.user_id });
             }}
             onFind={() => {
               void startFind.mutateAsync(sel.user_id);

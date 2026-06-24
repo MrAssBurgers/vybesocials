@@ -231,7 +231,7 @@ export function useConversations() {
           // Note: We'd need hidden_at timestamp to properly check this
           // For now, we show if there's any unread message
           const lastReadAt = memberRecord?.last_read_at || '1970-01-01';
-          return lastMsg.sender_id !== profileId && lastMsg.created_at > lastReadAt;
+          return (lastMsg as any).sender_id !== profileId && lastMsg.created_at > lastReadAt;
         }
         return false;
       });
@@ -248,7 +248,7 @@ export function useConversations() {
         const unreadCount = (sortedMessages || []).filter(
           msg => msg.conversation_id === conv.id && 
                  !msg.is_deleted &&
-                 msg.sender_id !== profileId && 
+                 (msg as any).sender_id !== profileId && 
                  msg.created_at > lastReadAt
         ).length;
 
@@ -358,7 +358,8 @@ export function useMessages(conversationId: string | undefined) {
       const resolvedActorId =
         syncSessionProfileId(actorId) ??
         (await resolveSessionProfileId(actorId)) ??
-        (await resolveDmActorIds(actorId)).profileId;
+        actorId;
+
       if (!resolvedActorId) return [];
 
       const cachedConv =
