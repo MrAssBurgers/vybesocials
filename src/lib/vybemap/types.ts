@@ -251,12 +251,12 @@ export type TimeMachineMode = 'now' | '1h' | '6h' | 'yesterday' | 'week';
 
 export const DEFAULT_LAYERS: Record<MapLayer, boolean> = {
   friends: true,
-  stories: true,
-  posts: true,
-  clips: true,
-  events: true,
-  trending: true,
-  hotspots: true,
+  stories: false,
+  posts: false,
+  clips: false,
+  events: false,
+  trending: false,
+  hotspots: false,
   groups: false,
   heatmap: false,
   meetups: true,

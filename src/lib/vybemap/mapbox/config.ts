@@ -16,7 +16,7 @@ export const MAP_VIEW_MODES: { id: MapViewMode; label: string; icon: string }[] 
 ];
 
 export const MAPBOX_STYLE_URL: Record<MapViewMode, string> = {
-  '2d': 'mapbox://styles/mapbox/dark-v11',
+  '2d': 'mapbox://styles/mapbox/light-v11',
   '3d': 'mapbox://styles/mapbox/standard',
   satellite: 'mapbox://styles/mapbox/satellite-v9',
   terrain: 'mapbox://styles/mapbox/outdoors-v12',

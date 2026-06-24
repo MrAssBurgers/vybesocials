@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback, useState } from 'react';
+import { useEffect, useRef, useCallback, useState, memo } from 'react';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import {
@@ -9,7 +9,6 @@ import {
   type MapViewMode,
 } from '@/lib/vybemap/mapbox/config';
 import { heatmapColor, heatmapOpacity } from '@/lib/vybemap/heatmapColors';
-import { activityMeta } from '@/lib/vybemap/activity';
 import { clusterPoints, type MarkerCluster } from '@/lib/vybemap/clusterMarkers';
 import { isHeadingTowardYou } from '@/lib/vybemap/headingToward';
 import type {
@@ -58,15 +57,13 @@ function isCluster<T extends { id: string }>(
 
 
 function friendMarkerHtml(f: LiveFriend, opts?: { headingToward?: boolean; squad?: boolean }): string {
-  const act = activityMeta(f.activity_type || 'stationary');
-  const ring = opts?.squad ? '#a855f7' : (f.speed || 0) > 0.5 ? '#22c55e' : '#6366f1';
-  const name = f.profile?.display_name || f.profile?.username || '';
+  const ring = opts?.squad ? '#a855f7' : (f.speed || 0) > 0.5 ? '#22c55e' : '#facc15';
   const pulse = opts?.headingToward ? ' vybe-mbx-heading' : '';
-  return `<div class="vybe-mbx-friend${pulse}" style="--ring:${ring}">
-    <img src="${f.profile?.avatar_url || ''}" onerror="this.style.display='none'" class="vybe-mbx-avatar"/>
-    <span class="vybe-mbx-act">${act.icon}</span>
-    ${name ? `<span class="vybe-mbx-name">${name.split(' ')[0]}</span>` : ''}
-  </div>`;
+  const initial = (f.profile?.display_name || f.profile?.username || '?')[0];
+  const avatar = f.profile?.avatar_url
+    ? `<img src="${f.profile.avatar_url}" onerror="this.style.display='none'" class="vybe-mbx-avatar"/>`
+    : `<div class="vybe-mbx-avatar flex items-center justify-center bg-zinc-200 text-zinc-600 font-bold text-lg">${initial}</div>`;
+  return `<div class="vybe-mbx-friend${pulse}" style="--ring:${ring}">${avatar}</div>`;
 }
 
 function spotMarkerHtml(p: MapPlace): string {
@@ -93,7 +90,7 @@ function meetupMarkerHtml(title: string): string {
   </div>`;
 }
 
-export function VybeMapboxCanvas({
+export const VybeMapboxCanvas = memo(function VybeMapboxCanvas({
   center,
   mapMode,
   layers,
@@ -135,11 +132,10 @@ export function VybeMapboxCanvas({
       zoom: center ? 14 : 3.5,
       pitch: pitchForMode(mapMode),
       bearing: 0,
-      antialias: true,
+      antialias: false,
       attributionControl: false,
     });
 
-    map.addControl(new mapboxgl.NavigationControl({ visualizePitch: true }), 'bottom-right');
     mapRef.current = map;
 
     map.on('load', () => {
@@ -511,32 +507,8 @@ export function VybeMapboxCanvas({
     return () => window.removeEventListener('deviceorientation', onOrient, true);
   }, []);
 
-  return (
-    <>
-      <style>{`
-        .vybe-mbx-friend{position:relative;width:48px;height:48px;border-radius:9999px;box-shadow:0 0 0 3px var(--ring),0 4px 20px rgba(0,0,0,.5);cursor:pointer}
-        .vybe-mbx-heading::after{content:'';position:absolute;inset:-6px;border-radius:9999px;border:2px solid #22d3ee;animation:vybe-pulse 1.4s ease-out infinite}
-        @keyframes vybe-pulse{0%,100%{opacity:.2;transform:scale(1)}50%{opacity:1;transform:scale(1.08)}}
-        .vybe-mbx-spot-pulse{animation:vybe-spot-pulse 2s ease-in-out infinite}
-        @keyframes vybe-spot-pulse{0%,100%{box-shadow:0 0 0 3px #f97316,0 4px 16px rgba(249,115,22,.35)}50%{box-shadow:0 0 0 8px rgba(249,115,22,.45),0 4px 24px rgba(236,72,153,.5)}}
-        .vybe-mbx-avatar{width:100%;height:100%;border-radius:9999px;object-fit:cover;border:2px solid #fff}
-        .vybe-mbx-act{position:absolute;bottom:-2px;right:-2px;font-size:13px;background:#000;border-radius:9999px;padding:1px 3px}
-        .vybe-mbx-name{position:absolute;top:-18px;left:50%;transform:translateX(-50%);font-size:9px;font-weight:700;color:#fff;text-shadow:0 1px 4px #000;white-space:nowrap}
-        .vybe-mbx-spot{border-radius:9999px;overflow:hidden;box-shadow:0 0 0 3px #f97316,0 4px 16px rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#f97316,#ec4899);cursor:pointer;font-size:18px}
-        .vybe-mbx-spot-img{width:100%;height:100%;object-fit:cover}
-        .vybe-mbx-spot-wrap{position:relative;display:inline-block}
-        .vybe-mbx-spot-warn{position:absolute;top:-8px;right:-8px;font-size:11px;z-index:2;background:#f59e0b;border-radius:9999px;padding:1px 4px;line-height:1}
-        .vybe-mbx-spot-warn-danger{background:#ef4444}
-        .vybe-mbx-cluster{width:44px;height:44px;border-radius:9999px;background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff;font-size:13px;font-weight:800;display:flex;align-items:center;justify-content:center;box-shadow:0 0 0 3px rgba(255,255,255,.35),0 4px 16px rgba(0,0,0,.45);cursor:pointer}
-        .vybe-mbx-meetup{display:flex;flex-direction:column;align-items:center;cursor:pointer;filter:drop-shadow(0 2px 8px rgba(0,0,0,.5))}
-        .vybe-mbx-meetup-icon{font-size:22px;line-height:1}
-        .vybe-mbx-meetup-label{margin-top:2px;font-size:9px;font-weight:700;color:#fff;background:rgba(16,185,129,.85);padding:2px 6px;border-radius:9999px;white-space:nowrap;max-width:90px;overflow:hidden;text-overflow:ellipsis}
-        .mapboxgl-ctrl-bottom-right{margin-bottom:5rem!important}
-      `}</style>
-      <div ref={containerRef} className="absolute inset-0" />
-    </>
-  );
-}
+  return <div ref={containerRef} className="absolute inset-0" />;
+});
 
 export function useVybeMapFlyTo() {
   const mapRef = useRef<mapboxgl.Map | null>(null);

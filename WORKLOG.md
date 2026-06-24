@@ -2,6 +2,21 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## AI secrets + Vybe AI wiring (2026-06-17)
+- **Gemini redeploy:** `npm run setup:gemini-secrets -- --deploy-only` — 37 GEMINI-bound functions updated (`aiChat`, `aiCatchUp`, `generateCaption`, `startVybeCheck`, etc.)
+- **Vybe Check fix:** `startVybeCheck` now binds `OPENAI_API_KEY` (moderation + video STT); redeployed
+- **Map intel:** `researchMapLocation` added to gemini deploy list + redeployed
+- **Debug probe:** `checkDebugSecrets` now reports `has_openai_key`
+- **Local `.env`:** synced 16 server secrets from Firebase (`GEMINI_API_KEY`, `OPENAI_API_KEY`, LiveKit, Stripe, etc.) — reload editor from disk if stale
+- **Verified:** GEMINI key HTTP 200 against Gemini API · `npm run build` PASS · functions deploy complete
+- **Next:** sign in → VYBE AI chat test · Vybe Check on a video post · Lovable Publish + `VITE_MAPBOX_ACCESS_TOKEN`
+
+## Publish (2026-06-17)
+- **Git:** `ab8c442b` pushed to `origin/main` — VybeMap v2–5, Vybe Check background publish, area intelligence
+- **Firebase staging:** https://vybe-daaab.web.app (hosting + functions already deployed)
+- **You — Lovable Publish vybehub.app:** [Share → Publish](https://lovable.dev/projects/416714c8-d013-4aff-984d-522418a9bbc7) after git sync
+- **Lovable env (required for 3D map + routing):** `VITE_MAPBOX_ACCESS_TOKEN`
+
 ## VybeMap polish — routing & UX (2026-06-17)
 - **Unified live routing:** all Directions buttons → in-map Mapbox route + ETA bar; Google Maps fallback when no token
 - **Meetup map pins:** tappable labeled markers on canvas (replaced invisible circle layer)

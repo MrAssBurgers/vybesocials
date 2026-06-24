@@ -50,6 +50,7 @@ const GEMINI_FUNCTIONS = [
   'vybeAgent',
   'vybeCommander',
   'startVybeCheck',
+  'researchMapLocation',
   'briefTopicDetail',
   'prewarmDailyBriefs',
   'checkDebugSecrets',

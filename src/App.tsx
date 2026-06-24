@@ -72,6 +72,11 @@ const UploadQueueSync = () => {
   }, [queryClient]);
   return null;
 };
+const SpotifyPresenceInner = () => {
+  useSpotifyPresence();
+  useExternalPresence();
+  return null;
+};
 const RealtimeSyncInner = () => {
   const queryClient = useQueryClient();
   useGlobalRealtimeMessages();

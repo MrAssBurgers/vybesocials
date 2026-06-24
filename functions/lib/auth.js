@@ -179,6 +179,7 @@ export const checkPremiumSubscription = onCall(async (request) => {
 export const checkDebugSecrets = onCall({
     secrets: [
         'GEMINI_API_KEY',
+        'OPENAI_API_KEY',
         'GIPHY_API_KEY',
         'LIVEKIT_API_KEY',
         'STRIPE_SECRET_KEY',
@@ -194,6 +195,7 @@ export const checkDebugSecrets = onCall({
     await requireAdmin(request);
     return {
         has_gemini_key: !!process.env.GEMINI_API_KEY,
+        has_openai_key: !!process.env.OPENAI_API_KEY,
         has_giphy: !!process.env.GIPHY_API_KEY,
         has_livekit: !!process.env.LIVEKIT_API_KEY,
         has_stripe: !!process.env.STRIPE_SECRET_KEY,

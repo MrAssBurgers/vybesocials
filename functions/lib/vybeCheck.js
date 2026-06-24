@@ -10,8 +10,8 @@ import ffmpegStatic from 'ffmpeg-static';
 import { db, requireAuth, rateLimit, enforceRateLimit } from './_shared/admin.js';
 import { transcribeAudioWithOpenAI } from './_shared/openaiStt.js';
 import { runVybeCheckPipeline } from './_shared/vybeCheckPipeline.js';
-/** GEMINI required; OpenAI moderation/STT runs when OPENAI_API_KEY secret is added later. */
-const SECRETS = ['GEMINI_API_KEY'];
+/** GEMINI required; OpenAI powers moderation + video STT when secret is bound. */
+const SECRETS = ['GEMINI_API_KEY', 'OPENAI_API_KEY'];
 const ffmpegPath = typeof ffmpegStatic === 'string' ? ffmpegStatic : null;
 if (ffmpegPath) {
     ffmpeg.setFfmpegPath(ffmpegPath);

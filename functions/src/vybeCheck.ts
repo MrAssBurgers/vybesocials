@@ -12,8 +12,8 @@ import { transcribeAudioWithOpenAI } from './_shared/openaiStt.js';
 import { runVybeCheckPipeline } from './_shared/vybeCheckPipeline.js';
 import type { VybeCheckFrameInput, VybeCheckRequest, VybeCheckStatus } from './_shared/vybeCheckTypes.js';
 
-/** GEMINI required; OpenAI moderation/STT runs when OPENAI_API_KEY secret is added later. */
-const SECRETS = ['GEMINI_API_KEY'] as const;
+/** GEMINI required; OpenAI powers moderation + video STT when secret is bound. */
+const SECRETS = ['GEMINI_API_KEY', 'OPENAI_API_KEY'] as const;
 
 const ffmpegPath = typeof ffmpegStatic === 'string' ? ffmpegStatic : null;
 if (ffmpegPath) {
