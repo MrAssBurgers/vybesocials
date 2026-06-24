@@ -358,7 +358,8 @@ export function useMessages(conversationId: string | undefined) {
       const resolvedActorId =
         syncSessionProfileId(actorId) ??
         (await resolveSessionProfileId(actorId)) ??
-        (await resolveDmActorIds(actorId)).profileId;
+        actorId;
+
       if (!resolvedActorId) return [];
 
       const cachedConv =
