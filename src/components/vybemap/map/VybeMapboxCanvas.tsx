@@ -51,10 +51,11 @@ function clusterMarkerHtml(count: number): string {
 }
 
 function isCluster<T extends { id: string }>(
-  item: (T & { friend?: LiveFriend }) | MarkerCluster<T & { friend: LiveFriend }>,
-): item is MarkerCluster<T & { friend: LiveFriend }> {
+  item: (T & { friend?: LiveFriend }) | MarkerCluster<any>,
+): item is MarkerCluster<any> {
   return 'count' in item && 'points' in item;
 }
+
 
 function friendMarkerHtml(f: LiveFriend, opts?: { headingToward?: boolean; squad?: boolean }): string {
   const act = activityMeta(f.activity_type || 'stationary');
