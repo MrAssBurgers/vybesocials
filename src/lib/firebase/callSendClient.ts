@@ -14,7 +14,7 @@ export async function startDmCallViaCloudFunction(payload: StartDmCallPayload): 
 }> {
   const { data, error } = await invokeFunction<{ call: Record<string, unknown> }>(
     'start-dm-call',
-    payload,
+    payload as unknown as Record<string, unknown>,
   ).single();
 
   if (error) {
