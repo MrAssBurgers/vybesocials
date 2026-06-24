@@ -96,7 +96,12 @@ const RealtimeSyncInner = () => {
 };
 // Mount presence loops AFTER first paint so they don't compete with the
 // critical render path. Saves ~200-400ms on cold load.
+const SpotifyPresenceInner = () => {
+  useSpotifyPresence();
+  return null;
+};
 const SpotifyPresenceMount = () => {
+
   const [ready, setReady] = useState(false);
   useEffect(() => {
     const idle = (window as any).requestIdleCallback as
