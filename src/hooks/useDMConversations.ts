@@ -314,7 +314,7 @@ export function useConversationDetail(conversationId: string | undefined) {
           last_read_at: null,
           profile: profileByKey.get(user_id) || null,
         }));
-        return { ...base, members } as DMConversation;
+        return { ...base, members } as unknown as DMConversation;
       };
 
       if (cached?.members?.length) {
