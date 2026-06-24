@@ -114,6 +114,7 @@ export const VybeMapboxCanvas = memo(function VybeMapboxCanvas({
   const friendMarkers = useRef(new Map<string, mapboxgl.Marker>());
   const spotMarkers = useRef(new Map<string, mapboxgl.Marker>());
   const meetupMarkers = useRef(new Map<string, mapboxgl.Marker>());
+  const selfMarker = useRef<mapboxgl.Marker | null>(null);
   const styleLoaded = useRef(false);
   const [mapZoom, setMapZoom] = useState(14);
   const myCoordsRef = useRef(center);
@@ -222,6 +223,26 @@ export const VybeMapboxCanvas = memo(function VybeMapboxCanvas({
       duration: 800,
       essential: true,
     });
+  }, [center?.[0], center?.[1]]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !styleLoaded.current || !center) {
+      selfMarker.current?.remove();
+      selfMarker.current = null;
+      return;
+    }
+    const lngLat: [number, number] = [center[1], center[0]];
+    if (!selfMarker.current) {
+      const el = document.createElement('div');
+      el.className = 'vybe-mbx-self';
+      el.setAttribute('aria-hidden', 'true');
+      selfMarker.current = new mapboxgl.Marker({ element: el, anchor: 'center' })
+        .setLngLat(lngLat)
+        .addTo(map);
+    } else {
+      selfMarker.current.setLngLat(lngLat);
+    }
   }, [center?.[0], center?.[1]]);
 
   useEffect(() => {

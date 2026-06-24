@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef, useMemo, lazy, Suspense, Component, memo, type ReactNode, type ErrorInfo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Navigation, MapPin, RefreshCw } from 'lucide-react';
+import { MapPin, RefreshCw } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import type L from 'leaflet';
 
@@ -40,6 +40,7 @@ import { VybeMapboxCanvas, useVybeMapFlyTo } from '@/components/vybemap/map/Vybe
 import { GhostModeSheet } from '@/components/vybemap/hud/GhostModeSheet';
 import { MapSnapTopBar } from '@/components/vybemap/hud/MapSnapTopBar';
 import { MapSettingsSheet } from '@/components/vybemap/hud/MapSettingsSheet';
+import { MapFloatingActions } from '@/components/vybemap/hud/MapFloatingActions';
 
 const VybeMapLeafletFallback = lazy(() =>
   import('@/components/vybemap/map/VybeMapLeafletFallback').then((m) => ({
@@ -109,7 +110,7 @@ function VybeMapInner() {
   const [ghostOpen, setGhostOpen] = useState(false);
   const [discoveryOpen, setDiscoveryOpen] = useState(false);
   const [findMode, setFindMode] = useState<{ friend: LiveFriend; ar: boolean } | null>(null);
-  const [mapViewMode, setMapViewMode] = useState<MapViewMode>('2d');
+  const [mapViewMode, setMapViewMode] = useState<MapViewMode>(useMapbox ? '3d' : '2d');
   const [squadsOpen, setSquadsOpen] = useState(false);
   const [activeSquad, setActiveSquad] = useState<MapGroupMap | null>(null);
   const { data: squadMemberIds = [] } = useGroupMemberIds(activeSquad?.id);
@@ -289,6 +290,14 @@ function VybeMapInner() {
     trackMapEvent('spot_drop_open');
   };
 
+  const handleFindFriend = useCallback((friend: LiveFriend) => {
+    void startFind.mutateAsync(friend.user_id);
+    setSelId(null);
+    setFindMode({ friend, ar: false });
+    trackMapEvent('find_friend_start');
+    triggerHaptic('medium');
+  }, [startFind]);
+
   return (
     <div
       className="fixed inset-0 w-full h-full overflow-hidden vybe-map-shell"
@@ -315,12 +324,14 @@ function VybeMapInner() {
         </Suspense>
       )}
 
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 h-36 vybe-map-bottom-fade z-[500]" />
+
       <MapSnapTopBar
         onBack={() => navigate(-1)}
         onSearch={(q) => void handleSearch(q)}
         onOpenSettings={() => setSettingsOpen(true)}
         radarLabel={radar.label}
-        showBasicMapBanner={!useMapbox}
+        liveSharing={sharing}
         squadChip={
           activeSquad && layers.groups
             ? { label: `${activeSquad.emoji} ${activeSquad.name}`, onClear: () => { setActiveSquad(null); toggleLayer('groups'); } }
@@ -349,19 +360,15 @@ function VybeMapInner() {
         )}
       </AnimatePresence>
 
-      <div
-        className="pointer-events-none absolute right-3 z-[1000]"
-        style={{ bottom: 'calc(5.75rem + env(safe-area-inset-bottom, 0px))' }}
-      >
-        <button
-          type="button"
-          onClick={recenter}
-          className="pointer-events-auto vybe-map-fab h-12 w-12 flex items-center justify-center"
-          aria-label="Recenter map"
-        >
-          <Navigation className="h-5 w-5" />
-        </button>
-      </div>
+      <MapFloatingActions
+        onRecenter={recenter}
+        onFind={
+          sel && safeMyCoords && !findMode
+            ? () => handleFindFriend(sel)
+            : undefined
+        }
+        findLabel={sel ? `Find ${(sel.profile?.username || sel.profile?.display_name || 'friend').split(' ')[0]}` : 'Find'}
+      />
 
       <AnimatePresence>
         {ghostOpen && (
@@ -419,11 +426,7 @@ function VybeMapInner() {
               toast.success(`Waved at ${sel.profile?.username || 'friend'} 👋`);
               trackMapEvent('map_wave' as any, { to: sel.user_id });
             }}
-            onFind={() => {
-              void startFind.mutateAsync(sel.user_id);
-              setFindMode({ friend: sel, ar: false });
-              trackMapEvent('find_friend_start');
-            }}
+            onFind={() => handleFindFriend(sel)}
             onProfile={() => { const u = sel.profile?.username; if (u) navigate(`/u/${u}`); }}
           />
         )}

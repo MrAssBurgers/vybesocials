@@ -23,7 +23,7 @@ export function DiscoveryDrawer({
   open, onToggle, friends, stories, clips, meetups, places, radarLabel, friendCheckIns = [],
   onFriendTap, onMeetupTap, onPlaceTap, onCreateMeetup,
 }: DiscoveryDrawerProps) {
-  const peekHeight = '4.75rem';
+  const peekHeight = '5.5rem';
 
   return (
     <motion.div
@@ -31,16 +31,16 @@ export function DiscoveryDrawer({
       animate={{ y: open ? 0 : `calc(100% - ${peekHeight})` }}
       transition={{ type: 'spring', damping: 34, stiffness: 340 }}
     >
-      <div className="rounded-t-[1.75rem] bg-white/[0.97] backdrop-blur-2xl shadow-[0_-12px_40px_rgba(0,0,0,0.18)] border-t border-black/5">
+      <div className="vybe-map-sheet !rounded-t-[1.75rem] !shadow-[0_-16px_48px_rgba(0,0,0,0.1)]">
         <button
           type="button"
           onClick={onToggle}
-          className="w-full flex flex-col items-center pt-2.5 pb-1"
+          className="w-full flex flex-col items-center pt-3 pb-1"
         >
-          <div className="w-9 h-1 rounded-full bg-black/12 mb-2" />
-          <div className="flex items-center gap-2 text-[#111] text-sm font-semibold px-4 pb-1">
-            <ChevronUp className={cn('h-4 w-4 text-black/45 transition-transform', open && 'rotate-180')} />
-            {friends.length ? `${friends.length} friends on map` : 'Friends on map'}
+          <div className="w-10 h-1 rounded-full bg-black/10 mb-2" />
+          <div className="flex items-center gap-2 text-[#111] text-[15px] font-bold tracking-tight px-4 pb-1">
+            <ChevronUp className={cn('h-4 w-4 text-black/40 transition-transform', open && 'rotate-180')} />
+            {friends.length ? `${friends.length} friends nearby` : 'Friends on map'}
             {radarLabel && (
               <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-700 font-bold">
                 {radarLabel}

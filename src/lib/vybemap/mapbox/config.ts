@@ -1,5 +1,20 @@
 /** Mapbox access token — get one at https://account.mapbox.com/access-tokens/ */
-export const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN as string | undefined;
+const ENV_TOKEN = (import.meta.env.VITE_MAPBOX_ACCESS_TOKEN as string | undefined)?.trim();
+
+/**
+ * Public Mapbox client token (pk.*) — safe in client bundles when URL-restricted
+ * in the Mapbox dashboard (vybehub.app, *.web.app, localhost).
+ * Used when Lovable/production build omits VITE_MAPBOX_ACCESS_TOKEN.
+ */
+const VYBEMAP_PUBLIC_TOKEN =
+  'pk.eyJ1IjoidnliZXNvY2lhbCIsImEiOiJjbXFyM2Zxam0wcDJzMzJuNGpmczl2bWJvIn0.RTc6z6ye6ZqBtvgMs6Wptg';
+
+function resolveMapboxToken(): string {
+  if (ENV_TOKEN && ENV_TOKEN.length > 10) return ENV_TOKEN;
+  return VYBEMAP_PUBLIC_TOKEN;
+}
+
+export const MAPBOX_TOKEN = resolveMapboxToken();
 
 export function hasMapbox(): boolean {
   return typeof MAPBOX_TOKEN === 'string' && MAPBOX_TOKEN.length > 10;
@@ -16,7 +31,7 @@ export const MAP_VIEW_MODES: { id: MapViewMode; label: string; icon: string }[] 
 ];
 
 export const MAPBOX_STYLE_URL: Record<MapViewMode, string> = {
-  '2d': 'mapbox://styles/mapbox/light-v11',
+  '2d': 'mapbox://styles/mapbox/streets-v12',
   '3d': 'mapbox://styles/mapbox/standard',
   satellite: 'mapbox://styles/mapbox/satellite-v9',
   terrain: 'mapbox://styles/mapbox/outdoors-v12',
@@ -26,7 +41,7 @@ export const MAPBOX_STYLE_URL: Record<MapViewMode, string> = {
 export const DEFAULT_MAP_CENTER: [number, number] = [-98.5795, 39.8283];
 
 export function pitchForMode(mode: MapViewMode): number {
-  if (mode === '3d') return 58;
-  if (mode === 'terrain') return 45;
+  if (mode === '3d') return 52;
+  if (mode === 'terrain') return 42;
   return 0;
 }
