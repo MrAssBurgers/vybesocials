@@ -8,46 +8,48 @@ interface EphemeralChatNoticeProps {
   isGroupChat?: boolean;
   onViewModeChange: (mode: ViewMode) => void;
   className?: string;
+  compact?: boolean;
 }
 
-const VIEW_MODE_OPTIONS: { id: ViewMode; label: string; hint: string }[] = [
-  { id: '24h', label: '24 Hours After Viewing', hint: 'Snaps delete a day after they are opened' },
-  { id: 'view_once', label: 'Immediately After Viewing', hint: 'Disappears right after it is seen' },
-  { id: 'permanent', label: 'Keep Forever', hint: 'Messages stay in the chat' },
+const VIEW_MODE_OPTIONS: { id: ViewMode; label: string; short: string; hint: string }[] = [
+  { id: '24h', label: '24 Hours After Viewing', short: '24h after view', hint: 'Deletes a day after opened' },
+  { id: 'view_once', label: 'Immediately After Viewing', short: 'After viewing', hint: 'Disappears once seen' },
+  { id: 'permanent', label: 'Keep Forever', short: 'Keep forever', hint: 'Messages stay in chat' },
 ];
 
-/** Snapchat-style ephemeral mode chip — tap to change how new messages delete. */
+/** Slim delete-timer chip — tap to change (Snapchat-style). */
 export function EphemeralChatNotice({
   viewMode,
   isGroupChat,
   onViewModeChange,
   className,
+  compact = false,
 }: EphemeralChatNoticeProps) {
   const active = VIEW_MODE_OPTIONS.find((o) => o.id === viewMode) ?? VIEW_MODE_OPTIONS[0]!;
 
   return (
-    <div className={cn('flex flex-col items-center px-4 py-3 text-center', className)}>
+    <div className={cn('dm-chat-header-timer', compact ? 'flex justify-center py-1' : 'flex justify-center px-4 py-2', className)}>
       <Popover>
         <PopoverTrigger asChild>
           <button
             type="button"
-            className="inline-flex items-center gap-2 rounded-full border border-primary/25 bg-gradient-to-r from-primary/15 via-card/80 to-accent/15 px-4 py-2.5 text-[11px] font-semibold text-foreground shadow-[0_4px_24px_hsl(var(--primary)/0.12)] backdrop-blur-md transition-transform active:scale-[0.98] hover:border-primary/40"
+            className="dm-ephemeral-chip"
             aria-label="Change how messages delete"
           >
-            <Clock className="h-3.5 w-3.5 text-primary" />
-            <span>{active.label}</span>
-            <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+            <Clock className="h-3 w-3 shrink-0" />
+            <span>{compact ? active.short : active.label}</span>
+            <ChevronDown className="h-3 w-3 opacity-50 shrink-0" />
           </button>
         </PopoverTrigger>
         <PopoverContent
           align="center"
-          side="top"
-          className="w-72 p-2 rounded-2xl border-border/40 bg-popover/95 backdrop-blur-xl"
+          side="bottom"
+          className="w-64 p-1.5 rounded-xl border-border/50 bg-popover/98 backdrop-blur-xl shadow-xl"
         >
-          <p className="px-2 pb-2 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-            {isGroupChat ? 'Group delete timer' : 'Delete timer for new messages'}
+          <p className="px-2.5 py-1.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+            {isGroupChat ? 'Group timer' : 'New message timer'}
           </p>
-          <div className="space-y-1">
+          <div className="space-y-0.5">
             {VIEW_MODE_OPTIONS.map((option) => {
               const selected = viewMode === option.id;
               return (
@@ -56,17 +58,15 @@ export function EphemeralChatNotice({
                   type="button"
                   onClick={() => onViewModeChange(option.id)}
                   className={cn(
-                    'w-full rounded-xl px-3 py-2.5 text-left transition-colors',
-                    selected
-                      ? 'bg-primary/15 border border-primary/30'
-                      : 'hover:bg-muted/60 border border-transparent',
+                    'w-full rounded-lg px-2.5 py-2 text-left transition-colors',
+                    selected ? 'bg-muted/80' : 'hover:bg-muted/50',
                   )}
                 >
                   <div className="flex items-center justify-between gap-2">
                     <span className="text-sm font-medium">{option.label}</span>
-                    {selected && <Check className="h-4 w-4 text-primary shrink-0" />}
+                    {selected && <Check className="h-3.5 w-3.5 text-primary shrink-0" />}
                   </div>
-                  <p className="text-[11px] text-muted-foreground mt-0.5">{option.hint}</p>
+                  <p className="text-[10px] text-muted-foreground mt-0.5">{option.hint}</p>
                 </button>
               );
             })}

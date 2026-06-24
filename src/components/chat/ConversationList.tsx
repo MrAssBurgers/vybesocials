@@ -144,7 +144,7 @@ export function ConversationList() {
     profileId: dmProfileId,
   } = useDMConversations(debouncedSearch);
   const activeProfileId = dmProfileId ?? profileId;
-  const { prefetchMessages } = useChatPrefetch();
+  const { warmConversation } = useChatPrefetch();
 
   useAgentAvailabilityProbe();
   
@@ -296,13 +296,13 @@ export function ConversationList() {
   }, [unpinnedConversations, chatFilter, profileId, streakMap]);
 
   const handleConversationClick = useCallback((convId: string) => {
-    void prefetchMessages(convId);
+    warmConversation(convId);
     navigate(`/messages/${convId}`);
-  }, [navigate, prefetchMessages]);
+  }, [navigate, warmConversation]);
 
   const handleConversationWarm = useCallback((convId: string) => {
-    void prefetchMessages(convId);
-  }, [prefetchMessages]);
+    warmConversation(convId);
+  }, [warmConversation]);
 
   const handleTrashConversation = useCallback((convId: string) => {
     trashConversation.mutate(convId);
@@ -1126,6 +1126,7 @@ const ConversationItem = memo(forwardRef<HTMLDivElement, ConversationItemProps>(
                 isPinned && 'dm-convo-row--pinned'
               )}
               onClick={handleClick}
+              onPointerEnter={handleWarm}
               onTouchStart={handleTouchStart}
               onTouchMove={handleTouchMove}
               onTouchEnd={handleTouchEnd}
@@ -1166,6 +1167,7 @@ const ConversationItem = memo(forwardRef<HTMLDivElement, ConversationItemProps>(
           isPinned && 'dm-convo-row--pinned'
         )}
         onClick={handleClick}
+        onPointerEnter={handleWarm}
         onTouchStart={handleTouchStart}
         onTouchEnd={handleTouchEnd}
         onMouseDown={handleTouchStart}

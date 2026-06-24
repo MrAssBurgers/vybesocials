@@ -2,9 +2,12 @@ import { HttpsError } from 'firebase-functions/v2/https';
 const GEMINI_OPENAI_URL = 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions';
 const GEMINI_IMAGE_MODEL = 'gemini-2.0-flash-preview-image-generation';
 function requireGeminiKey() {
-    const key = process.env.GEMINI_API_KEY;
+    const key = process.env.GEMINI_API_KEY?.trim();
     if (!key) {
         throw new HttpsError('failed-precondition', 'AI not configured — set GEMINI_API_KEY on Cloud Functions');
+    }
+    if (!key.startsWith('AIza') && !key.startsWith('AQ.')) {
+        throw new HttpsError('failed-precondition', 'GEMINI_API_KEY is invalid — use a Google AI Studio key (AIza…) or access token (AQ.…). Run npm run setup:gemini-secrets.');
     }
     return key;
 }
@@ -42,8 +45,13 @@ export async function chatCompletion(opts) {
                 const toolCalls = message?.tool_calls;
                 return { content, raw, toolCalls };
             }
-            if (res.status === 429)
+            if (res.status === 429) {
+                const body = await res.text();
+                if (/credit|billing|prepay|depleted|quota/i.test(body)) {
+                    throw new HttpsError('resource-exhausted', 'Google AI credits are depleted. Add billing at https://ai.studio/projects or add your own key in Settings → VYBE AI.');
+                }
                 throw new HttpsError('resource-exhausted', 'AI rate limit — try again shortly');
+            }
             if (res.status === 402)
                 throw new HttpsError('failed-precondition', 'AI credits exhausted');
             if (res.status < 500) {

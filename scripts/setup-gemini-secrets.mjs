@@ -113,6 +113,14 @@ Get a key: https://aistudio.google.com/apikey
     process.exit(1);
   }
 
+  if (!geminiKey.startsWith('AIza') && !geminiKey.startsWith('AQ.')) {
+    console.error(`
+GEMINI_API_KEY must be a Google AI Studio API key (starts with "AIza") or access token ("AQ.").
+Get a key at https://aistudio.google.com/apikey
+`);
+    process.exit(1);
+  }
+
   console.log(`Setting GEMINI_API_KEY on Firebase project ${PROJECT}…`);
   runFirebase(['functions:secrets:set', 'GEMINI_API_KEY', '--force'], geminiKey);
 }

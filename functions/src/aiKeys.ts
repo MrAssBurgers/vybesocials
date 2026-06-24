@@ -17,7 +17,7 @@ function normalizeProvider(raw: unknown): 'google' | 'openai' {
 function looksLikeApiKey(provider: 'google' | 'openai', key: string): boolean {
   if (key.length < 20 || key.length > 256) return false;
   if (provider === 'openai') return key.startsWith('sk-');
-  return key.startsWith('AIza') || key.length >= 30;
+  return key.startsWith('AIza') || key.startsWith('AQ.') || key.length >= 30;
 }
 
 /** Daily usage + BYOK flags (no secrets). */

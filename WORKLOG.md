@@ -2,6 +2,18 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## Publish (2026-06-17, latest)
+- **Git:** pushed to `origin/main` — DM open perf, floating pill header, Gemini AQ key + VYBE AI errors
+- **Firebase staging:** https://vybe-daaab.web.app — hosting deployed ✓
+- **You — Lovable Publish vybehub.app:** [Share → Publish](https://lovable.dev/projects/416714c8-d013-4aff-984d-522418a9bbc7) after git sync
+- **Lovable env:** confirm `VITE_MAPBOX_ACCESS_TOKEN`, `VITE_FIREBASE_*` in project secrets
+
+## DM open perf + UI (2026-06-17)
+- **Open lag:** scoped mark-read cache updates; shared `loadConversationMessages` + `prefetchQuery`; hover/touch warm; skip redundant profile enrich; conversation detail `offlineFirst`; message skeleton while loading; lighter `AnimatePresence`
+- **Header:** floating frosted-glass pills (VYBE-AI style); gradient-ring avatar + presence
+- **Gemini:** accept `AQ.` access tokens + `AIza` keys; clearer billing errors; `aiChat` redeployed with secret v10
+- **Verified:** `npm run build` PASS · Firebase hosting deployed
+
 ## UI polish — home bg, DMs, post images (2026-06-17)
 - **Colorful background:** feed cards + home widgets use glass (`card/0.58`) so aurora shows through; DM shell/header transparent on liquid bg
 - **Post images:** fixed Firebase `resolveDownloadUrl` path doubling (migration `bucket/media/...` artifact) + `normalizeMediaUrl` on PostCard display URL

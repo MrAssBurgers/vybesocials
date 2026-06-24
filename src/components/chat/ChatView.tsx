@@ -20,6 +20,7 @@ import { useRealtimeMessages } from '@/hooks/useRealtimeMessages';
 import { setCurrentConversationId } from '@/hooks/useGlobalRealtimeMessages';
 import { useUnsendForEveryone, useDeleteForMe, useEditMessage } from '@/hooks/useMessageActions';
 import { useInstantReadClear } from '@/hooks/useMessageNotifications';
+import { messagesQueryKey } from '@/lib/messagesQueryKey';
 import { useAISmartReplies } from '@/hooks/useAIMessageAssist';
 import { useScreenCapture } from '@/hooks/useScreenCapture';
 import { blackoutChatScreenNow } from '@/lib/chatScreenShield';
@@ -182,20 +183,32 @@ export function ChatView() {
     return () => setCurrentConversationId(null);
   }, [conversationId]);
   
-  // Batch preload all media URLs for instant rendering
+  // Batch preload media URLs when idle — don't compete with first paint.
   useEffect(() => {
     if (!messages || messages.length === 0) return;
     const mediaUrls = messages
       .map(m => m.media_url)
       .filter((url): url is string => !!url && !url.startsWith('blob:') && !url.startsWith('data:'));
-    if (mediaUrls.length > 0) {
+    if (mediaUrls.length === 0) return;
+
+    const run = () => {
       import('@/lib/signedUrlCache').then(({ batchSignUrls }) => batchSignUrls(mediaUrls));
+    };
+    let idleId: number;
+    if (typeof requestIdleCallback !== 'undefined') {
+      idleId = requestIdleCallback(run, { timeout: 2000 });
+    } else {
+      idleId = window.setTimeout(run, 600) as unknown as number;
     }
+    return () => {
+      if (typeof requestIdleCallback !== 'undefined') cancelIdleCallback(idleId);
+      else clearTimeout(idleId);
+    };
   }, [messages]);
   
   // Enable realtime sync for this specific conversation (reactions, views, etc.)
   useRealtimeMessages(conversationId);
-  const markViewed = useMarkMessageViewed();
+  const markViewed = useMarkMessageViewed(conversationId);
   const toggleSaved = useToggleSavedMessage(conversationId);
   const addReaction = useAddReaction();
   const unsendForEveryone = useUnsendForEveryone();
@@ -205,7 +218,7 @@ export function ChatView() {
   const screenshotEvents = Array.isArray(rawScreenshotEvents) ? rawScreenshotEvents : [];
   
   // v1.1: Instant read clear - marks as read immediately and clears badges
-  const { markAsRead } = useInstantReadClear(conversationId);
+  useInstantReadClear(conversationId);
   
   // Block screenshots — native OS shield + instant web blackout
   useChatScreenShield(!!conversationId);
@@ -447,44 +460,137 @@ export function ChatView() {
     messageNotifsClearedForConversationRef.current = conversationId;
     const otherMemberIds = otherMembers.map((m) => m.user_id);
 
-    db
-      .from('notifications')
-      .update({ read: true })
-      .eq('user_id', profileId)
-      .eq('type', 'message')
-      .eq('read', false)
-      .in('actor_id', otherMemberIds)
-      .then(() => {
-        queryClient.invalidateQueries({ queryKey: ['notifications'] });
-        queryClient.invalidateQueries({ queryKey: ['unread-notifications'] });
-      });
+    const run = () => {
+      db
+        .from('notifications')
+        .update({ read: true })
+        .eq('user_id', profileId)
+        .eq('type', 'message')
+        .eq('read', false)
+        .in('actor_id', otherMemberIds)
+        .then(() => {
+          queryClient.invalidateQueries({ queryKey: ['notifications'] });
+          queryClient.invalidateQueries({ queryKey: ['unread-notifications'] });
+        });
+    };
+
+    let idleId: number;
+    if (typeof requestIdleCallback !== 'undefined') {
+      idleId = requestIdleCallback(run, { timeout: 2500 });
+    } else {
+      idleId = window.setTimeout(run, 800) as unknown as number;
+    }
+
+    return () => {
+      if (typeof requestIdleCallback !== 'undefined') cancelIdleCallback(idleId);
+      else clearTimeout(idleId);
+    };
   }, [conversationId, profileId, queryClient, otherMembers]);
+
+  // Batch-mark messages as read after paint — avoids N mutations + cache thrash on open.
+  const flushMessageViews = useCallback(async (messageIds: string[]) => {
+    if (!profile?.id || messageIds.length === 0) return;
+
+    const realIds = messageIds.filter((id) => typeof id === 'string' && !id.startsWith('temp-'));
+    if (realIds.length === 0) return;
+
+    const viewedAt = new Date().toISOString();
+    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+    const idSet = new Set(realIds);
+
+    try {
+      await db.from('message_views').upsert(
+        realIds.map((message_id) => ({ message_id, user_id: profile.id })),
+        { onConflict: 'message_id,user_id', ignoreDuplicates: true },
+      );
+
+      const { data: expiryCandidates } = await db
+        .from('messages')
+        .select('id, view_mode, saved_by_sender, saved_by_recipient, expires_at')
+        .in('id', realIds);
+
+      const needExpiry = (expiryCandidates || []).filter(
+        (m) =>
+          m.view_mode === '24h' &&
+          !m.saved_by_sender &&
+          !m.saved_by_recipient &&
+          !m.expires_at,
+      );
+
+      if (needExpiry.length > 0) {
+        await Promise.all(
+          needExpiry.map((m) =>
+            db
+              .from('messages')
+              .update({ expires_at: expiresAt, viewed_at: viewedAt })
+              .eq('id', m.id),
+          ),
+        );
+      }
+    } catch (err) {
+      if (import.meta.env.DEV) console.warn('[ChatView] batch mark viewed failed:', err);
+    }
+
+    queryClient.setQueryData<Message[]>(messagesQueryKey(conversationId), (old) => {
+      if (!old?.some((m) => idSet.has(m.id))) return old;
+      return old.map((m) => {
+        if (!idSet.has(m.id)) return m;
+        const nextExpires =
+          m.view_mode === '24h' && !m.saved_by_sender && !m.saved_by_recipient
+            ? m.expires_at || expiresAt
+            : m.expires_at;
+        return {
+          ...m,
+          viewed_at: m.viewed_at || viewedAt,
+          expires_at: nextExpires,
+          views: [
+            ...(m.views || []).filter((v) => v.user_id !== profile.id),
+            { user_id: profile.id, viewed_at: viewedAt },
+          ],
+        };
+      });
+    });
+  }, [profile?.id, queryClient, conversationId]);
 
   // Auto-mark messages as read (EXCEPT VYBEs which require explicit tap-to-view)
   useEffect(() => {
     if (!messages || !profileId || !conversationId) return;
 
-    const unreadMessages = messages.filter((msg) => {
-      if (typeof msg.id === 'string' && msg.id.startsWith('temp-')) return false;
-      if (msg.sender_id === profileId) return false;
-      if (hasMarkedReadRef.current.has(msg.id)) return false;
-      
-      // Skip VYBE messages - they require explicit tap-to-view
-      if (msg.media_type === 'vybe') return false;
-      
+    const unreadIds: string[] = [];
+    for (const msg of messages) {
+      if (typeof msg.id === 'string' && msg.id.startsWith('temp-')) continue;
+      if (msg.sender_id === profileId) continue;
+      if (hasMarkedReadRef.current.has(msg.id)) continue;
+      if (msg.media_type === 'vybe') continue;
+
       const hasMyView = msg.views?.some((v) => v.user_id === profileId);
-      return !hasMyView;
-    });
+      if (hasMyView) continue;
 
-    if (unreadMessages.length === 0) return;
-
-    unreadMessages.forEach((msg) => {
       hasMarkedReadRef.current.add(msg.id);
-      markViewed.mutate(msg.id);
-    });
+      unreadIds.push(msg.id);
+    }
 
-    void markAsRead();
-  }, [messages, profileId, conversationId, markViewed, markAsRead]);
+    if (unreadIds.length === 0) return;
+
+    const run = () => {
+      void flushMessageViews(unreadIds);
+    };
+
+    let idleId: number;
+    if (typeof requestIdleCallback !== 'undefined') {
+      idleId = requestIdleCallback(run, { timeout: 1200 });
+    } else {
+      idleId = window.setTimeout(run, 400) as unknown as number;
+    }
+
+    return () => {
+      if (typeof requestIdleCallback !== 'undefined') {
+        cancelIdleCallback(idleId);
+      } else {
+        clearTimeout(idleId);
+      }
+    };
+  }, [messages, profileId, conversationId, flushMessageViews]);
 
   // Save chat scroll position on unmount (clips viewer return path).
   useEffect(() => {
@@ -510,11 +616,12 @@ export function ChatView() {
 
     requestAnimationFrame(() => {
       const container = messagesContainerRef.current;
-      if (container && isNewConversation && restoreElementScrollPosition(savedKey, container)) {
+      if (!container) return;
+      if (isNewConversation && restoreElementScrollPosition(savedKey, container)) {
         return;
       }
       if (isNewConversation || currentLen > prevLen) {
-        messagesEndRef.current?.scrollIntoView({ behavior: 'auto', block: 'end' });
+        container.scrollTop = container.scrollHeight;
       }
     });
   }, [conversationId, messages?.length]);
@@ -1231,32 +1338,14 @@ export function ChatView() {
     !!conversationId &&
     !messages?.length &&
     messagesPending &&
-    !messagesFetched &&
-    !conversation;
+    !messagesFetched;
+  const isChatHydrating = showConversationSkeleton || showMessagesSkeleton;
 
   const messagesLoadFailed =
     !!conversation &&
     messagesFetched &&
     messagesError &&
     !messages?.length;
-
-  if (showConversationSkeleton || showMessagesSkeleton) {
-    return (
-      <div className="flex flex-col h-full">
-        <div className="p-4 border-b border-border flex items-center gap-3">
-          <Skeleton className="h-10 w-10 rounded-full" />
-          <Skeleton className="h-5 w-32" />
-        </div>
-        <div className="flex-1 p-4 space-y-4">
-          {[...Array(5)].map((_, i) => (
-            <div key={i} className={`flex ${i % 2 === 0 ? 'justify-start' : 'justify-end'}`}>
-              <Skeleton className="h-12 w-48 rounded-2xl" />
-            </div>
-          ))}
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div
@@ -1299,105 +1388,107 @@ export function ChatView() {
       </AnimatePresence>
 
 
-      {/* Floating header — clean, no backdrop blur */}
+      {/* Floating pill header — back + profile left, calls + menu right */}
       <header
-        className="dm-chat-header absolute top-0 left-0 right-0 px-3 sm:px-4 pb-3 flex items-center z-20 pointer-events-none"
-        style={{ paddingTop: 'calc(var(--sat, env(safe-area-inset-top, 0px)) + 0.5rem)' }}
+        className="dm-chat-header px-2 sm:px-3"
+        style={{ paddingTop: 'calc(var(--sat, env(safe-area-inset-top, 0px)) + 0.75rem)' }}
       >
-        <div className="pointer-events-auto flex items-center gap-2.5 w-full min-w-0 py-1">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => navigate('/messages')}
-            className="flex-shrink-0 h-8 w-8 rounded-full hover:bg-white/10"
-          >
-            <ArrowLeft className="h-5 w-5" />
-          </Button>
+        <div className="flex items-center gap-2 sm:gap-3 w-full min-w-0">
+          <div className="dm-chat-header-pill dm-chat-header-pill--profile">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => navigate('/messages')}
+              className="flex-shrink-0 h-8 w-8 rounded-full hover:bg-white/10"
+            >
+              <ArrowLeft className="h-5 w-5" />
+            </Button>
 
-          <button
-            onClick={handleAvatarClick}
-            className="relative flex-shrink-0 group"
-            aria-label={isGroupChat ? "View group info" : "View profile"}
-          >
-            {isGroupChat ? (
-              <div className="relative h-8 w-8 sm:h-9 sm:w-9">
-                <div className="absolute inset-0 rounded-full ring-2 ring-primary/20 group-hover:ring-primary/50 transition-all" />
-                <Avatar className="h-full w-full group-active:scale-95 transition-transform">
-                  {conversation?.avatar_url ? (
-                    <AvatarImage src={conversation.avatar_url} />
-                  ) : (
-                    <AvatarFallback className="text-sm bg-gradient-to-br from-indigo-500 to-purple-600 text-white">
-                      <Users className="h-4 w-4" />
-                    </AvatarFallback>
-                  )}
-                </Avatar>
-                <div className="absolute -bottom-0.5 -right-0.5 bg-primary text-primary-foreground text-[9px] font-bold w-5 h-5 flex items-center justify-center rounded-full border-2 border-background">
-                  {otherMembers.length + 1}
+            <button
+              type="button"
+              onClick={handleAvatarClick}
+              className="flex items-center gap-2 sm:gap-2.5 min-w-0 flex-1 text-left group"
+              aria-label={isGroupChat ? 'View group info' : 'View profile'}
+            >
+              {isGroupChat ? (
+                <div className="relative h-8 w-8 sm:h-9 sm:w-9 flex-shrink-0">
+                  <div className="absolute inset-0 rounded-full bg-gradient-to-br from-primary via-accent to-primary opacity-60" />
+                  <div className="absolute inset-[2px] rounded-full overflow-hidden bg-background">
+                    <Avatar className="h-full w-full">
+                      {conversation?.avatar_url ? (
+                        <AvatarImage src={conversation.avatar_url} />
+                      ) : (
+                        <AvatarFallback className="text-sm bg-muted text-foreground">
+                          <Users className="h-4 w-4" />
+                        </AvatarFallback>
+                      )}
+                    </Avatar>
+                  </div>
+                  <div className="absolute -bottom-0.5 -right-0.5 bg-primary text-primary-foreground text-[9px] font-bold w-4 h-4 flex items-center justify-center rounded-full border-2 border-background">
+                    {otherMembers.length + 1}
+                  </div>
                 </div>
-              </div>
-            ) : (
-              <button onClick={handleAvatarClick} className="relative flex-shrink-0 group-active:scale-95 transition-transform">
+              ) : (
                 <ChatHeaderPresenceAvatar
                   avatarUrl={peerPresence?.avatar_url ?? otherMember?.avatar_url}
                   fallbackAvatarUrl={otherMember?.avatar_url}
                   username={otherMember?.username || otherMember?.display_name || ''}
                   activity={showPeerPresence ? otherPresenceActivity : 'idle'}
-                />
-              </button>
-            )}
-          </button>
-
-          <div className="flex-1 min-w-0">
-            <h2 className="dm-chat-header-name text-sm sm:text-base truncate leading-tight flex items-center gap-1.5">
-              {!isGroupChat && otherMember?.id ? (
-                <StyledUsername
-                  userId={otherMember.id}
-                  username={otherMember.username || ''}
-                  displayName={otherMember.display_name}
-                  preferDisplayName={true}
-                />
-              ) : (
-                displayName
-              )}
-              {!isGroupChat && otherMember?.id && isOwner(otherMember.username || '') && <OwnerBadge />}
-              {!isGroupChat && otherMember?.id && isOwnerWife(otherMember.id) && <OwnerWifeRingBadge />}
-              {!isGroupChat && streak && streak.streak_count > 0 && (
-                <StreakIndicator
-                  count={streak.streak_count}
-                  expiresAt={streak.expires_at}
-                  size="sm"
-                  showExpiry
-                />
-              )}
-            </h2>
-            {isGroupChat ? (
-              <GroupPresenceBar
-                peers={peerPresences}
-                memberCount={otherMembers.length + 1}
-                onTapInfo={() => setShowGroupInfo(true)}
-              />
-            ) : (
-              <div className="flex flex-col gap-0.5 min-w-0">
-                <LivePresenceBar
                   isOnline={otherMemberOnline || !!peerPresence}
-                  isTyping={otherPresenceActivity === 'typing'}
-                  isInChat={otherPresenceActivity === 'viewing'}
-                  isInCamera={
-                    otherPresenceActivity === 'taking_photo' ||
-                    otherPresenceActivity === 'recording_video' ||
-                    otherPresenceActivity === 'sending_vybe'
-                  }
-                  activity={otherPresenceActivity}
-                  username={otherMember?.username}
-                  lastReadAt={lastReadAt}
                 />
-                <NowPlayingInline authUserId={(otherMember as any)?.user_id} className="max-w-[240px]" />
+              )}
+
+              <div className="flex-1 min-w-0">
+                <h2 className="font-semibold text-sm sm:text-base truncate leading-tight flex items-center gap-1.5">
+                  {!isGroupChat && otherMember?.id ? (
+                    <StyledUsername
+                      userId={otherMember.id}
+                      username={otherMember.username || ''}
+                      displayName={otherMember.display_name}
+                      preferDisplayName={true}
+                    />
+                  ) : (
+                    displayName
+                  )}
+                  {!isGroupChat && otherMember?.id && isOwner(otherMember.username || '') && <OwnerBadge />}
+                  {!isGroupChat && otherMember?.id && isOwnerWife(otherMember.id) && <OwnerWifeRingBadge />}
+                  {!isGroupChat && streak && streak.streak_count > 0 && (
+                    <StreakIndicator
+                      count={streak.streak_count}
+                      expiresAt={streak.expires_at}
+                      size="sm"
+                      showExpiry
+                    />
+                  )}
+                </h2>
+                {isGroupChat ? (
+                  <GroupPresenceBar
+                    peers={peerPresences}
+                    memberCount={otherMembers.length + 1}
+                    onTapInfo={() => setShowGroupInfo(true)}
+                  />
+                ) : (
+                  <p className="text-[11px] sm:text-xs text-muted-foreground leading-tight truncate flex items-center gap-1 min-w-0">
+                    <LivePresenceBar
+                      isOnline={otherMemberOnline || !!peerPresence}
+                      isTyping={otherPresenceActivity === 'typing'}
+                      isInChat={otherPresenceActivity === 'viewing'}
+                      isInCamera={
+                        otherPresenceActivity === 'taking_photo' ||
+                        otherPresenceActivity === 'recording_video' ||
+                        otherPresenceActivity === 'sending_vybe'
+                      }
+                      activity={otherPresenceActivity}
+                      username={otherMember?.username}
+                      lastReadAt={lastReadAt}
+                    />
+                  </p>
+                )}
               </div>
-            )}
+            </button>
           </div>
 
-          {/* Inline actions: call buttons + overflow menu */}
-          <div className="flex items-center gap-0.5 flex-shrink-0 ml-1">
+          <div className="dm-chat-header-pill dm-chat-header-pill--actions">
             {!isGroupChat && otherMember?.id && (
               <CallButtons
                 conversationId={conversationId!}
@@ -1425,7 +1516,7 @@ export function ChatView() {
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" size="icon" className="flex-shrink-0 h-8 w-8 rounded-full hover:bg-white/10">
-                  <MoreVertical className="h-5 w-5" />
+                  <MoreVertical className="h-4 w-4" />
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="z-50 bg-popover">
@@ -1441,44 +1532,48 @@ export function ChatView() {
           </div>
         </div>
 
-
-
-        {/* DM Feature Sheets - triggered from Toybox */}
-        <VanishThreadsSheet conversationId={conversationId!} open={showVanishThreads} onOpenChange={setShowVanishThreads} />
-        <MemoryPinsSheet conversationId={conversationId!} messages={messages || []} open={showMemoryPins} onOpenChange={setShowMemoryPins} />
-        <ScheduleMessageSheet conversationId={conversationId!} open={showScheduleMessage} onOpenChange={setShowScheduleMessage} />
-        <DMSettingsSheetControlled conversationId={conversationId!} open={showDMSettings} onOpenChange={setShowDMSettings} />
-        
-        {/* Admin Panel Sheet - for moderating users in DMs */}
-        {!isGroupChat && otherMember && (
-          <AdminPanelSheet
-            open={showAdminPanel}
-            onOpenChange={setShowAdminPanel}
-            userId={otherMember.id}
-            username={otherMember.username || 'User'}
-          />
-        )}
-        
-        {/* Group Info Sheet */}
-        {isGroupChat && (
-          <GroupInfoSheet
-            open={showGroupInfo}
-            onOpenChange={setShowGroupInfo}
-            conversationId={conversationId!}
-            groupName={conversation?.name || 'Group Chat'}
-            groupAvatar={conversation?.avatar_url}
-            creatorId={conversation?.members?.find(m => m.role === 'owner')?.user_id}
-          />
-        )}
-
-        {/* Pre-call Media Settings */}
-        <CallSettingsSheet
-          isOpen={showMediaSettings}
-          onOpenChange={setShowMediaSettings}
-          isVideoCall={true}
+        <EphemeralChatNotice
+          viewMode={viewMode}
+          isGroupChat={isGroupChat}
+          onViewModeChange={setViewMode}
+          compact
         />
-        
       </header>
+
+      {/* DM Feature Sheets - triggered from Toybox */}
+      <VanishThreadsSheet conversationId={conversationId!} open={showVanishThreads} onOpenChange={setShowVanishThreads} />
+      <MemoryPinsSheet conversationId={conversationId!} messages={messages || []} open={showMemoryPins} onOpenChange={setShowMemoryPins} />
+      <ScheduleMessageSheet conversationId={conversationId!} open={showScheduleMessage} onOpenChange={setShowScheduleMessage} />
+      <DMSettingsSheetControlled conversationId={conversationId!} open={showDMSettings} onOpenChange={setShowDMSettings} />
+      
+      {/* Admin Panel Sheet - for moderating users in DMs */}
+      {!isGroupChat && otherMember && (
+        <AdminPanelSheet
+          open={showAdminPanel}
+          onOpenChange={setShowAdminPanel}
+          userId={otherMember.id}
+          username={otherMember.username || 'User'}
+        />
+      )}
+      
+      {/* Group Info Sheet */}
+      {isGroupChat && (
+        <GroupInfoSheet
+          open={showGroupInfo}
+          onOpenChange={setShowGroupInfo}
+          conversationId={conversationId!}
+          groupName={conversation?.name || 'Group Chat'}
+          groupAvatar={conversation?.avatar_url}
+          creatorId={conversation?.members?.find(m => m.role === 'owner')?.user_id}
+        />
+      )}
+
+      {/* Pre-call Media Settings */}
+      <CallSettingsSheet
+        isOpen={showMediaSettings}
+        onOpenChange={setShowMediaSettings}
+        isVideoCall={true}
+      />
 
 
       {/* Messages - scrollable area with edge-to-edge bubbles */}
@@ -1486,12 +1581,11 @@ export function ChatView() {
         ref={messagesContainerRef}
         className={cn(
           "dm-chat-messages flex-1 overflow-y-auto overflow-x-hidden min-h-0",
-          "px-3 sm:px-4 pb-3 sm:pb-4",
+          "px-3 sm:px-4 pb-3",
           "scroll-smooth",
           getWallpaperClass()
         )}
         style={{ 
-          paddingTop: 'var(--app-floating-header-scroll)',
           WebkitOverflowScrolling: 'touch',
           overscrollBehavior: 'contain',
           touchAction: 'pan-y',
@@ -1505,14 +1599,17 @@ export function ChatView() {
             </Button>
           </div>
         )}
-        <EphemeralChatNotice
-          viewMode={viewMode}
-          isGroupChat={isGroupChat}
-          onViewModeChange={setViewMode}
-        />
-        {/* Messages container - extra bottom padding on mobile for bottom nav */}
+        {isChatHydrating ? (
+          <div className="flex flex-col gap-3 py-2">
+            {[...Array(4)].map((_, i) => (
+              <div key={i} className={cn('flex', i % 2 === 0 ? 'justify-start' : 'justify-end')}>
+                <Skeleton className="h-11 w-44 rounded-2xl" />
+              </div>
+            ))}
+          </div>
+        ) : (
         <div className="flex flex-col gap-0 pb-[calc(env(safe-area-inset-bottom,0px)+0.75rem)] md:pb-4">
-          <AnimatePresence mode="popLayout" initial={false}>
+          <AnimatePresence mode="sync" initial={false}>
           {messageItems.map(({ message, isOwn, showAvatar, showTimestamp, sameSender, isMediaTransition, isEmojiOnly }, index) => {
             // Instagram/Snapchat spacing rules:
             // Same sender consecutive: 4-6px gap (tight grouping)
@@ -1761,6 +1858,7 @@ export function ChatView() {
 
           <div ref={messagesEndRef} className="h-1" />
         </div>
+        )}
       </div>
 
 
@@ -2056,7 +2154,7 @@ const MessageInputArea = memo(function MessageInputArea({
   safetyFilterNode?: React.ReactNode;
 }) {
   return (
-    <div className="dm-composer-dock relative flex-shrink-0 z-30 bg-transparent px-2 sm:px-3 pt-1">
+    <div className="dm-composer-dock relative flex-shrink-0 z-30">
       {/* Sticker Panel */}
       {onSendSticker && showStickerPanel && setShowStickerPanel && (
         <StickerPanel
@@ -2066,7 +2164,7 @@ const MessageInputArea = memo(function MessageInputArea({
         />
       )}
 
-      <div className="dm-composer px-2 py-2 sm:px-3 sm:py-2.5 rounded-[1.75rem]">
+      <div className="dm-composer">
       <input
         ref={fileInputRef}
         type="file"
@@ -2136,7 +2234,7 @@ const MessageInputArea = memo(function MessageInputArea({
             locked={isVoiceLocked}
           />
         ) : (
-          <div ref={inputContainerRef} className="flex items-center gap-1 sm:gap-2">
+          <div ref={inputContainerRef} className="dm-composer-row">
             {/* Toybox - far left */}
             {!hasText && (
               <Toybox
@@ -2184,7 +2282,7 @@ const MessageInputArea = memo(function MessageInputArea({
                   }, 120);
                 }}
                 placeholder={t('messages.typeMessage')}
-                className="h-10 sm:h-11 text-[15px] rounded-full px-4 border-0 bg-muted/40 focus-visible:ring-1 focus-visible:ring-primary/40"
+                className="dm-composer-input"
               />
             </div>
 
@@ -2195,7 +2293,7 @@ const MessageInputArea = memo(function MessageInputArea({
                     variant="ghost"
                     size="icon"
                     onClick={() => setShowStickerPanel(!showStickerPanel)}
-                    className="flex-shrink-0 h-8 w-8 sm:h-9 sm:w-9 rounded-full"
+                    className="dm-composer-btn"
                   >
                     <Sticker className="h-4 w-4 sm:h-5 sm:w-5" />
                   </Button>
@@ -2242,7 +2340,7 @@ const MessageInputArea = memo(function MessageInputArea({
                         (window as any).__voiceRecorderStop();
                       }
                     }}
-                    className="flex-shrink-0 h-8 w-8 sm:h-9 sm:w-9 rounded-full touch-none"
+                    className="dm-composer-btn touch-none"
                   >
                     <Mic className="h-4 w-4 sm:h-5 sm:w-5" />
                   </Button>
@@ -2253,7 +2351,7 @@ const MessageInputArea = memo(function MessageInputArea({
                 onClick={handleSend}
                 disabled={!hasText || isPending}
                 size="icon"
-                className="flex-shrink-0 h-9 w-9 sm:h-10 sm:w-10 rounded-full"
+                className="dm-composer-btn dm-composer-btn--accent"
               >
                 {isPending ? (
                   <Loader2 className="h-4 w-4 sm:h-5 sm:w-5 animate-spin" />
@@ -2269,7 +2367,7 @@ const MessageInputArea = memo(function MessageInputArea({
                 variant="ghost"
                 size="icon"
                 onClick={onOpenSnapCamera}
-                className="flex-shrink-0 h-9 w-9 sm:h-10 sm:w-10 text-primary hover:bg-primary/10 rounded-full"
+                className="dm-composer-btn dm-composer-btn--accent"
               >
                 <Camera className="h-5 w-5 sm:h-6 sm:w-6" />
               </Button>

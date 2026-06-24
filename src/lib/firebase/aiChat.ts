@@ -186,7 +186,7 @@ export function formatFirebaseAiError(error: unknown): string | null {
     const code = (e.name || '').replace(/^functions\//, '');
     const msg = e.message || '';
     if (code === 'internal' || msg === 'internal') {
-      return 'VYBE AI server failed. Set GEMINI_API_KEY and redeploy Cloud Functions.';
+      return 'VYBE AI server error. Try Clear Chat, then send again. If it persists, check Cloud Functions logs for aiChat.';
     }
     if (msg && msg !== code) return msg;
   }
@@ -217,11 +217,13 @@ function formatCallableAiError(error: unknown): string {
     if (/invalid.*key|API key not valid|403|401/i.test(msg)) {
       return 'Your Google AI API key is invalid or restricted. Update it in Settings → VYBE AI.';
     }
-    if (code === 'resource-exhausted' || /rate limit|daily.*limit/i.test(msg)) {
-      return msg.includes('limit') ? msg : 'Too many requests. Wait a moment.';
+    if (code === 'resource-exhausted' || /rate limit|daily.*limit|credit|billing|depleted/i.test(msg)) {
+      return msg.includes('limit') || /credit|billing|depleted/i.test(msg)
+        ? msg
+        : 'Too many requests. Wait a moment.';
     }
     if (code === 'internal' || msg === 'internal') {
-      return 'VYBE AI server failed. Set GEMINI_API_KEY and redeploy Cloud Functions.';
+      return 'VYBE AI server error. Try Clear Chat, then send again. If it persists, check Cloud Functions logs for aiChat.';
     }
     if (msg && msg !== code) return msg;
   }

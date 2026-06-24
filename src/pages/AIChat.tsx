@@ -613,8 +613,8 @@ export default function AIChat() {
                       'relative rounded-[20px] break-words overflow-hidden max-w-full min-w-0 w-fit',
                       'px-[14px] py-[10px] sm:px-4 sm:py-3 text-[14px] leading-relaxed',
                       isOwn
-                        ? 'bg-primary text-primary-foreground rounded-br-lg'
-                        : 'bg-muted/70 text-foreground rounded-bl-lg'
+                        ? 'dm-bubble-sent rounded-br-md'
+                        : 'dm-bubble-received rounded-bl-md'
                     )}
                   >
                     {message.imageUrl && (

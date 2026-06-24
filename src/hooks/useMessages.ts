@@ -7,14 +7,14 @@ import { useAuthProfileId } from '@/hooks/useAuthProfileId';
 import { getEffectiveProfileId } from '@/lib/profileCache';
 import { resolveSessionProfileId } from '@/lib/resolveSessionProfileId';
 import { syncUserAuthIndex } from '@/lib/firebase/profileResolve';
-import { fetchRecentConversationMessages, fetchMessagesForConversations } from '@/lib/conversationMessagesQuery';
-import { messagesQueryKey, readMessagesCache, mergeMessagesWithLocalCache } from '@/lib/messagesQueryKey';
+import { fetchMessagesForConversations } from '@/lib/conversationMessagesQuery';
+import { messagesQueryKey, readMessagesCache, mergeMessagesWithLocalCache, patchMessagesCache } from '@/lib/messagesQueryKey';
+import { loadConversationMessages } from '@/lib/loadConversationMessages';
 import { invalidateConversationCaches } from '@/lib/invalidateConversationCaches';
 import { shouldRefetchWhenEmpty, refetchListOnMount } from '@/lib/queryRefetchPolicy';
 import { toast } from 'sonner';
 import { callSounds } from '@/lib/callSounds';
-import { ensureFlatConversationMembership, normalizeToProfileId, ensureConversationMembershipVariants, ensureConversationReady, prepareConversationForMessages, inferOtherParticipantId, isConversationMessagesReady, fetchMemberProfiles } from '@/lib/dmMembershipRepair';
-import { syncSessionProfileId } from '@/lib/resolveSessionProfileId';
+import { normalizeToProfileId, ensureConversationReady } from '@/lib/dmMembershipRepair';
 import { createDmChat } from '@/lib/firebase/chats';
 import { firebaseAuth } from '@/lib/firebase/authService';
 import { markConversationReadForViewer, getSessionAuthUid } from '@/lib/markConversationRead';
@@ -288,62 +288,6 @@ export function useConversations() {
   return query;
 }
 
-const MESSAGE_SELECT_SLIM = `
-  *,
-  sender:profiles!sender_id(id, username, avatar_url, display_name),
-  views:message_views(user_id, viewed_at),
-  reactions:message_reactions(user_id, emoji)
-`;
-
-function enrichMessagesWithSenders(
-  messages: Message[],
-  profileByKey: Map<string, Record<string, unknown>>,
-): Message[] {
-  if (!messages.length || !profileByKey.size) return messages;
-  return messages.map((msg) => {
-    if (msg.sender?.username) return msg;
-    const profile = profileByKey.get(msg.sender_id);
-    if (!profile) return msg;
-    return {
-      ...msg,
-      sender: {
-        id: String(profile.id || msg.sender_id),
-        username: String(profile.username || ''),
-        avatar_url: (profile.avatar_url as string | null) ?? null,
-        display_name: (profile.display_name as string | null) ?? null,
-      },
-    };
-  });
-}
-
-async function enrichMessagesFromProfiles(messages: Message[]): Promise<Message[]> {
-  const senderIds = [...new Set(messages.map((m) => m.sender_id).filter(Boolean))];
-  if (!senderIds.length) return messages;
-  const profileByKey = await fetchMemberProfiles(senderIds);
-  return enrichMessagesWithSenders(messages, profileByKey);
-}
-
-function filterMessagesForViewer(messages: Message[], viewerId?: string): Message[] {
-  return messages.filter((msg) => {
-    if (msg.view_mode === 'view_once' && msg.media_type !== 'vybe' && msg.sender_id !== viewerId) {
-      const hasViewed = msg.views?.some((v) => v.user_id === viewerId);
-      if (hasViewed) return false;
-    }
-    if (msg.expires_at && new Date(msg.expires_at) < new Date()) {
-      return false;
-    }
-    return true;
-  });
-}
-
-function mergePendingOptimisticMessages(
-  queryClient: QueryClient,
-  conversationId: string,
-  filtered: Message[],
-): Message[] {
-  return mergeMessagesWithLocalCache(queryClient, conversationId, filtered);
-}
-
 export function useMessages(conversationId: string | undefined) {
   const { profile } = useAuth();
   const profileId = useAuthProfileId();
@@ -354,89 +298,15 @@ export function useMessages(conversationId: string | undefined) {
     queryKey: messagesQueryKey(conversationId),
     queryFn: async () => {
       if (!conversationId) return [];
-
-      const resolvedActorId =
-        syncSessionProfileId(actorId) ??
-        (await resolveSessionProfileId(actorId)) ??
-        actorId;
-
-      if (!resolvedActorId) return [];
-
-      const cachedConv =
-        queryClient.getQueryData<Conversation[]>(['dm-conversations', resolvedActorId])?.find(
-          (c) => c.id === conversationId,
-        ) ??
-        queryClient.getQueryData<Conversation[]>(['conversations', resolvedActorId])?.find(
-          (c) => c.id === conversationId,
-        );
-      const otherFromMembers = cachedConv?.members?.find(
-        (m) => m.user_id !== resolvedActorId && m.profile?.id !== resolvedActorId,
-      )?.profile?.id ?? cachedConv?.members?.find((m) => m.user_id !== resolvedActorId)?.user_id;
-      const otherProfileId =
-        otherFromMembers || inferOtherParticipantId(conversationId, resolvedActorId) || null;
-
-      const viewerId = resolvedActorId;
-
-      // Fetch immediately — repair in background only if needed (never block open).
-      let { data, error } = await fetchRecentConversationMessages<Message>(
-        conversationId,
-        MESSAGE_SELECT_SLIM,
-        50,
-      );
-
-      if (error) {
-        await prepareConversationForMessages(conversationId, resolvedActorId, otherProfileId, {
-          fast: true,
-        });
-        const retryPlain = await fetchRecentConversationMessages<Message>(conversationId, '*', 50);
-        if (!retryPlain.error) {
-          data = retryPlain.data;
-          error = retryPlain.error;
-        } else {
-          const retrySlim = await fetchRecentConversationMessages<Message>(
-            conversationId,
-            'id, conversation_id, sender_id, content, media_url, media_type, view_mode, expires_at, created_at, is_deleted, reply_to_id',
-            50,
-          );
-          if (!retrySlim.error) {
-            data = retrySlim.data;
-            error = retrySlim.error;
-          }
-        }
-      } else if (!isConversationMessagesReady(conversationId, resolvedActorId)) {
-        void prepareConversationForMessages(conversationId, resolvedActorId, otherProfileId, {
-          fast: true,
-        }).catch(() => {});
-      }
-
-      if (!error && (!data || data.length === 0)) {
-        await prepareConversationForMessages(conversationId, resolvedActorId, otherProfileId, {
-          fast: false,
-        });
-        const retryEmpty = await fetchRecentConversationMessages<Message>(
-          conversationId,
-          MESSAGE_SELECT_SLIM,
-          50,
-        );
-        if (!retryEmpty.error && retryEmpty.data?.length) {
-          data = retryEmpty.data;
-        }
-      }
-
-      if (error) {
+      try {
+        return await loadConversationMessages(queryClient, conversationId, actorId);
+      } catch (error) {
         const cached = readMessagesCache(queryClient, conversationId);
         if (cached.length) {
-          return mergePendingOptimisticMessages(queryClient, conversationId, cached);
+          return mergeMessagesWithLocalCache(queryClient, conversationId, cached);
         }
         throw error;
       }
-
-      const rows = ((data || []) as Message[]).filter((m) => !m.is_deleted);
-      rows.reverse();
-
-      const filtered = filterMessagesForViewer(rows, viewerId);
-      const enriched = await enrichMessagesFromProfiles(filtered);
-      return mergePendingOptimisticMessages(queryClient, conversationId, enriched);
     },
     enabled: !!conversationId && !!actorId,
     staleTime: 120_000,
@@ -462,7 +332,7 @@ export function useMessages(conversationId: string | undefined) {
   // even when query.data is a stale snapshot.
   const data = useMemo(() => {
     if (!conversationId) return query.data;
-    return mergePendingOptimisticMessages(
+    return mergeMessagesWithLocalCache(
       queryClient,
       conversationId,
       query.data ?? [],
@@ -520,7 +390,7 @@ export function useUnsendMessage() {
   });
 }
 
-export function useMarkMessageViewed() {
+export function useMarkMessageViewed(conversationId?: string) {
   const { profile } = useAuth();
   const queryClient = useQueryClient();
 
@@ -562,7 +432,7 @@ export function useMarkMessageViewed() {
       if (typeof messageId === 'string' && messageId.startsWith('temp-')) return;
       const viewedAt = new Date().toISOString();
       const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
-      queryClient.setQueriesData<Message[]>({ queryKey: ['messages'] }, (old) => {
+      const patchRow = (old: Message[] | undefined) => {
         if (!old?.some((m) => m.id === messageId)) return old;
         return old.map((m) => {
           if (m.id !== messageId) return m;
@@ -580,7 +450,12 @@ export function useMarkMessageViewed() {
             ],
           };
         });
-      });
+      };
+      if (conversationId) {
+        patchMessagesCache(queryClient, conversationId, patchRow);
+        return;
+      }
+      queryClient.setQueriesData<Message[]>({ queryKey: ['messages'] }, patchRow);
     },
   });
 }

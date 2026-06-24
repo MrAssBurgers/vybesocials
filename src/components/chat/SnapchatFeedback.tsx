@@ -261,7 +261,7 @@ export const LivePresenceBar = memo(function LivePresenceBar({
     if (activityLabel) return activityLabel;
     if (isInCamera) return 'in Snap';
     if (isInChat && !isTyping) return 'in chat';
-    if (isOnline && !isTyping) return 'online';
+    if (isOnline && !isTyping) return 'Active now';
     if (lastSeen) return `last seen ${lastSeen}`;
     return 'offline';
   };

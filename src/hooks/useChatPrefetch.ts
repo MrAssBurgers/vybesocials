@@ -4,17 +4,8 @@ import { db } from '@/lib/firebase';
 import { subscribePostgresChannel, removeRealtimeChannel } from '@/lib/realtimeChannel';
 import { useAuth } from '@/lib/auth';
 import { getEffectiveProfileId } from '@/lib/profileCache';
-import type { Message } from '@/hooks/useMessages';
-import { ensureFlatConversationMembership, resolveDmActorIds, prepareConversationForMessages, isConversationMessagesReady } from '@/lib/dmMembershipRepair';
-import { fetchRecentConversationMessages } from '@/lib/conversationMessagesQuery';
-import { setMessagesCacheFromServer } from '@/lib/messagesQueryKey';
-
-const PREFETCH_SELECT = `
-  *,
-  sender:profiles!sender_id(id, username, avatar_url, display_name),
-  views:message_views(user_id, viewed_at),
-  reactions:message_reactions(user_id, emoji)
-`;
+import { messagesQueryKey, readMessagesCache } from '@/lib/messagesQueryKey';
+import { loadConversationMessages } from '@/lib/loadConversationMessages';
 
 /**
  * Prefetch chat data for instant notification → chat transitions.
@@ -23,44 +14,27 @@ const PREFETCH_SELECT = `
 export function useChatPrefetch() {
   const { profile } = useAuth();
   const profileId = getEffectiveProfileId(profile?.id);
+  const actorId = profile?.id;
   const queryClient = useQueryClient();
 
   const prefetchMessages = useCallback(async (conversationId: string) => {
-    const cached = queryClient.getQueryData<Message[]>(['messages', conversationId]);
-    if (cached && cached.length > 0) return;
+    if (!conversationId) return;
+    const cached = readMessagesCache(queryClient, conversationId);
+    if (cached.length > 0) return;
 
-    try {
-      const { profileId: actorId } = await resolveDmActorIds(profile?.id);
-      let { data, error } = await fetchRecentConversationMessages<Message>(
-        conversationId,
-        PREFETCH_SELECT,
-        40,
-      );
+    await queryClient.prefetchQuery({
+      queryKey: messagesQueryKey(conversationId),
+      queryFn: () => loadConversationMessages(queryClient, conversationId, actorId),
+      staleTime: 120_000,
+    });
+  }, [actorId, queryClient]);
 
-      if (error && actorId) {
-        await prepareConversationForMessages(conversationId, actorId, null, { fast: true });
-        const retry = await fetchRecentConversationMessages<Message>(
-          conversationId,
-          PREFETCH_SELECT,
-          40,
-        );
-        data = retry.data;
-        error = retry.error;
-      } else if (actorId && !isConversationMessagesReady(conversationId, actorId)) {
-        void prepareConversationForMessages(conversationId, actorId, null, { fast: true }).catch(() => {});
-      }
-
-      if (error) throw error;
-      if (data) {
-        const rows = (data as Message[]).filter((m) => !m.is_deleted).reverse();
-        // Never blind-replace: an in-flight prefetch can finish right after the user
-        // sends and would wipe the optimistic temp-* bubble without this merge.
-        setMessagesCacheFromServer(queryClient, conversationId, rows);
-      }
-    } catch (error) {
-      console.error('[ChatPrefetch] Messages error:', error);
-    }
-  }, [profile?.id, queryClient]);
+  const warmConversation = useCallback(
+    (conversationId: string) => {
+      void prefetchMessages(conversationId);
+    },
+    [prefetchMessages],
+  );
 
   const prefetchConversation = useCallback(async (otherUserId: string) => {
     if (!profileId || !otherUserId) return;
@@ -88,7 +62,7 @@ export function useChatPrefetch() {
           .neq('user_id', profileId);
 
         if (otherMembers?.some((m) => m.user_id === otherUserId)) {
-          await prefetchMessages(member.conversation_id);
+          warmConversation(member.conversation_id);
           queryClient.setQueryData(['conversation-by-user', otherUserId], member.conversation_id);
           return;
         }
@@ -96,9 +70,9 @@ export function useChatPrefetch() {
     } catch (error) {
       console.error('[ChatPrefetch] Error:', error);
     }
-  }, [profileId, queryClient, prefetchMessages]);
+  }, [profileId, queryClient, warmConversation]);
 
-  return { prefetchConversation, prefetchMessages };
+  return { prefetchConversation, prefetchMessages, warmConversation };
 }
 
 /**

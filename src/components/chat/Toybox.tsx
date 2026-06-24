@@ -531,17 +531,17 @@ export const Toybox = memo(function Toybox({
         <Drawer open={isOpen} onOpenChange={setIsOpen}>
           <DrawerTrigger asChild>
             <Button
-              variant="outline"
+              variant="ghost"
               size="icon"
               disabled={disabled || isUploading}
-              className="flex-shrink-0 border-primary/50 hover:bg-primary/10 hover:border-primary"
+              className="dm-composer-btn flex-shrink-0"
             >
               <motion.div
                 animate={isOpen ? { rotate: 45 } : { rotate: 0 }}
                 transition={{ duration: 0.2 }}
                 className="relative"
               >
-                <Plus className="h-5 w-5 text-primary" />
+                <Plus className="h-5 w-5" />
               </motion.div>
             </Button>
           </DrawerTrigger>
@@ -560,17 +560,17 @@ export const Toybox = memo(function Toybox({
       <Popover open={isOpen} onOpenChange={setIsOpen}>
         <PopoverTrigger asChild>
           <Button
-            variant="outline"
+            variant="ghost"
             size="icon"
             disabled={disabled || isUploading}
-            className="flex-shrink-0 border-primary/50 hover:bg-primary/10 hover:border-primary"
+            className="dm-composer-btn flex-shrink-0"
           >
             <motion.div
               animate={isOpen ? { rotate: 45 } : { rotate: 0 }}
               transition={{ duration: 0.2 }}
               className="relative"
             >
-              <Plus className="h-5 w-5 text-primary" />
+              <Plus className="h-5 w-5" />
             </motion.div>
           </Button>
         </PopoverTrigger>

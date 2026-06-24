@@ -13,7 +13,7 @@ function looksLikeApiKey(provider, key) {
         return false;
     if (provider === 'openai')
         return key.startsWith('sk-');
-    return key.startsWith('AIza') || key.length >= 30;
+    return key.startsWith('AIza') || key.startsWith('AQ.') || key.length >= 30;
 }
 /** Daily usage + BYOK flags (no secrets). */
 export const getAiUsage = onCall(async (request) => {

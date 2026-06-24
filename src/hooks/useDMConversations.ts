@@ -390,7 +390,12 @@ export function useConversationDetail(conversationId: string | undefined) {
         (buildConversationPlaceholder(conversationId, profileId) as unknown as DMConversation)
       );
     },
-    networkMode: 'always',
+    networkMode: 'offlineFirst',
+    refetchOnMount: (query) => {
+      const data = query.state.data as DMConversation | undefined;
+      if (data?.members?.some((m) => m.profile?.username)) return false;
+      return true;
+    },
     retry: 2,
   });
 }
