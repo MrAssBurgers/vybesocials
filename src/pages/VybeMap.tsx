@@ -110,7 +110,7 @@ function VybeMapInner() {
   const [ghostOpen, setGhostOpen] = useState(false);
   const [discoveryOpen, setDiscoveryOpen] = useState(false);
   const [findMode, setFindMode] = useState<{ friend: LiveFriend; ar: boolean } | null>(null);
-  const [mapViewMode, setMapViewMode] = useState<MapViewMode>(useMapbox ? '3d' : '2d');
+  const [mapViewMode, setMapViewMode] = useState<MapViewMode>('2d');
   const [squadsOpen, setSquadsOpen] = useState(false);
   const [activeSquad, setActiveSquad] = useState<MapGroupMap | null>(null);
   const { data: squadMemberIds = [] } = useGroupMemberIds(activeSquad?.id);
@@ -300,10 +300,10 @@ function VybeMapInner() {
 
   return (
     <div
-      className="fixed inset-0 w-full h-full overflow-hidden vybe-map-shell"
-      style={{ touchAction: 'none', overscrollBehavior: 'none', zIndex: 9999 }}
+      className="fixed inset-0 w-full h-full overflow-hidden vybe-map-shell isolate"
+      style={{ overscrollBehavior: 'none', zIndex: 9999 }}
     >
-      <div ref={mapEl} className={useMapbox ? 'absolute inset-0 pointer-events-none opacity-0' : 'absolute inset-0'} />
+      <div ref={mapEl} className={useMapbox ? 'absolute inset-0 z-0 pointer-events-none opacity-0' : 'absolute inset-0 z-0'} />
 
       {useMapbox ? (
         <VybeMapboxCanvas
@@ -404,7 +404,7 @@ function VybeMapInner() {
             friend={sel}
             myCoords={safeMyCoords}
             headingToward={isHeadingTowardYou(sel, safeMyCoords)}
-            routeEtaMinutes={route?.label.includes(sel.profile?.display_name || sel.profile?.username || '') ? route.durationMinutes : null}
+            routeEtaMinutes={route?.label?.includes(sel.profile?.display_name || sel.profile?.username || '') ? route.durationMinutes : null}
             onClose={() => setSelId(null)}
             onMessage={() => navigate('/messages')}
             onNavigate={() => {
@@ -423,8 +423,7 @@ function VybeMapInner() {
               if (!effectiveId) return;
               const name = profile?.display_name || profile?.username || 'Someone';
               await sendMapWave(effectiveId, sel.user_id, name);
-              toast.success(`Waved at ${sel.profile?.username || 'friend'} 👋`);
-              trackMapEvent('map_wave' as any, { to: sel.user_id });
+              trackMapEvent('map_wave', { to: sel.user_id });
             }}
             onFind={() => handleFindFriend(sel)}
             onProfile={() => { const u = sel.profile?.username; if (u) navigate(`/u/${u}`); }}
@@ -556,7 +555,7 @@ function VybeMapInner() {
           handleMeetupTap(m);
           setDiscoveryOpen(false);
         }}
-        onPlaceTap={(p) => { setSelPlace(p); mapFlyTo(p.latitude, p.longitude, 16); }}
+        onPlaceTap={(p) => setSelPlace(p)}
         onCreateMeetup={() => {
           if (safeMyCoords) setMeetupCreateOpen(true);
           else toast.error('Enable location first');

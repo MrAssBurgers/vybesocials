@@ -2,6 +2,21 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## UI polish — home bg, DMs, post images (2026-06-17)
+- **Colorful background:** feed cards + home widgets use glass (`card/0.58`) so aurora shows through; DM shell/header transparent on liquid bg
+- **Post images:** fixed Firebase `resolveDownloadUrl` path doubling (migration `bucket/media/...` artifact) + `normalizeMediaUrl` on PostCard display URL
+- **DM composer:** glass redesign; fixed dock rides above keyboard via `--kb-h` + `data-dm-active`; removed duplicate “deletes in 24h” banner above input
+- **Ephemeral chip:** tap “24 Hours After Viewing” pill → popover to switch delete timer (Snapchat-style)
+- **Deployed:** https://vybe-daaab.web.app · `npm run build` PASS
+
+## Home crash fix — vybe-daaab.web.app (2026-06-17)
+- **Root cause:** `/home` ErrorBoundary — `DesktopLeftSidebar` hub list did `server.name[0]` when `name` was undefined (desktop layout, lg+ width)
+- **Fix:** `server.name?.[0]` + `HeaderSearch` `result.title?.[0]`; `normalizeMediaUrl` strips doubled Firebase bucket prefix on storage URLs (403 avatars/media)
+- **Deployed:** Firebase hosting https://vybe-daaab.web.app (`AppLayout-8j1_810H.js`)
+- **Verified:** `npm run build` PASS
+- **Still noisy (non-fatal):** OneSignal domain lock (`vybehub.app` only), `authLoginNotify` CORS on staging origin, PWA manifest icon
+- **Next:** hard-refresh staging `/home` · Lovable Publish vybehub.app · add `vybe-daaab.web.app` to OneSignal allowed domains if push needed on staging
+
 ## AI secrets + Vybe AI wiring (2026-06-17)
 - **Gemini redeploy:** `npm run setup:gemini-secrets -- --deploy-only` — 37 GEMINI-bound functions updated (`aiChat`, `aiCatchUp`, `generateCaption`, `startVybeCheck`, etc.)
 - **Vybe Check fix:** `startVybeCheck` now binds `OPENAI_API_KEY` (moderation + video STT); redeployed

@@ -117,6 +117,8 @@ export const VybeMapboxCanvas = memo(function VybeMapboxCanvas({
   const selfMarker = useRef<mapboxgl.Marker | null>(null);
   const styleLoaded = useRef(false);
   const [mapZoom, setMapZoom] = useState(14);
+  const [mapReady, setMapReady] = useState(false);
+  const [mapError, setMapError] = useState<string | null>(null);
   const myCoordsRef = useRef(center);
   myCoordsRef.current = center;
 
@@ -125,6 +127,7 @@ export const VybeMapboxCanvas = memo(function VybeMapboxCanvas({
     if (!el || mapRef.current || !MAPBOX_TOKEN) return;
 
     const initial = center ? [center[1], center[0]] as [number, number] : DEFAULT_MAP_CENTER;
+    let cancelled = false;
 
     const map = new mapboxgl.Map({
       container: el,
@@ -135,20 +138,32 @@ export const VybeMapboxCanvas = memo(function VybeMapboxCanvas({
       bearing: 0,
       antialias: false,
       attributionControl: false,
+      failIfMajorPerformanceCaveat: false,
     });
 
     mapRef.current = map;
 
-    map.on('load', () => {
+    const finishLoad = () => {
+      if (cancelled) return;
       styleLoaded.current = true;
       setMapZoom(map.getZoom());
+      setMapReady(true);
+      setMapError(null);
+      requestAnimationFrame(() => {
+        try { map.resize(); } catch { /* ignore */ }
+      });
+    };
+
+    const addOverlays = () => {
       try {
-        map.addSource('mapbox-dem', {
-          type: 'raster-dem',
-          url: 'mapbox://mapbox.mapbox-terrain-dem-v1',
-          tileSize: 512,
-          maxzoom: 14,
-        });
+        if (!map.getSource('mapbox-dem')) {
+          map.addSource('mapbox-dem', {
+            type: 'raster-dem',
+            url: 'mapbox://mapbox.mapbox-terrain-dem-v1',
+            tileSize: 512,
+            maxzoom: 14,
+          });
+        }
       } catch { /* dem may exist */ }
 
       if (mapMode === 'terrain' || mapMode === '3d') {
@@ -157,35 +172,69 @@ export const VybeMapboxCanvas = memo(function VybeMapboxCanvas({
         } catch { /* optional */ }
       }
 
-      map.addSource('vybe-heatmap', {
-        type: 'geojson',
-        data: { type: 'FeatureCollection', features: [] },
-      });
-      map.addLayer({
-        id: 'vybe-heatmap-glow',
-        type: 'circle',
-        source: 'vybe-heatmap',
-        paint: {
-          'circle-radius': ['interpolate', ['linear'], ['get', 'intensity'], 0, 30, 100, 120],
-          'circle-color': ['get', 'color'],
-          'circle-opacity': ['get', 'opacity'],
-          'circle-blur': 0.6,
-        },
-      });
+      if (!map.getSource('vybe-heatmap')) {
+        map.addSource('vybe-heatmap', {
+          type: 'geojson',
+          data: { type: 'FeatureCollection', features: [] },
+        });
+        map.addLayer({
+          id: 'vybe-heatmap-glow',
+          type: 'circle',
+          source: 'vybe-heatmap',
+          paint: {
+            'circle-radius': ['interpolate', ['linear'], ['get', 'intensity'], 0, 30, 100, 120],
+            'circle-color': ['get', 'color'],
+            'circle-opacity': ['get', 'opacity'],
+            'circle-blur': 0.6,
+          },
+        });
+      }
 
       onMapReady?.(map);
+    };
+
+    map.on('load', () => {
+      finishLoad();
+      addOverlays();
+    });
+
+    map.on('error', (e) => {
+      if (cancelled) return;
+      const msg = e?.error?.message || 'Map failed to load';
+      console.warn('[VybeMapboxCanvas]', msg);
+      if (!styleLoaded.current && mapMode !== '2d') {
+        map.setStyle(MAPBOX_STYLE_URL['2d']);
+        map.once('style.load', () => {
+          finishLoad();
+          addOverlays();
+        });
+        return;
+      }
+      setMapError(msg);
     });
 
     map.on('zoomend', () => setMapZoom(map.getZoom()));
 
+    const ro = new ResizeObserver(() => {
+      try { map.resize(); } catch { /* ignore */ }
+    });
+    ro.observe(el);
+
     return () => {
+      cancelled = true;
+      ro.disconnect();
       friendMarkers.current.forEach((m) => m.remove());
       friendMarkers.current.clear();
       spotMarkers.current.forEach((m) => m.remove());
       spotMarkers.current.clear();
+      meetupMarkers.current.forEach((m) => m.remove());
+      meetupMarkers.current.clear();
+      selfMarker.current?.remove();
+      selfMarker.current = null;
       map.remove();
       mapRef.current = null;
       styleLoaded.current = false;
+      setMapReady(false);
     };
   }, []);
 
@@ -321,18 +370,24 @@ export const VybeMapboxCanvas = memo(function VybeMapboxCanvas({
     if (map.getSource(sid)) {
       (map.getSource(sid) as mapboxgl.GeoJSONSource).setData(data);
     } else {
-      map.addSource(sid, { type: 'geojson', data });
-      map.addLayer({
-        id: lid,
-        type: 'line',
-        source: sid,
-        layout: { 'line-cap': 'round', 'line-join': 'round' },
-        paint: {
-          'line-color': '#8b5cf6',
-          'line-width': 5,
-          'line-opacity': 0.85,
-        },
-      });
+      try {
+        map.addSource(sid, { type: 'geojson', data });
+        if (!map.getLayer(lid)) {
+          map.addLayer({
+            id: lid,
+            type: 'line',
+            source: sid,
+            layout: { 'line-cap': 'round', 'line-join': 'round' },
+            paint: {
+              'line-color': '#8b5cf6',
+              'line-width': 5,
+              'line-opacity': 0.85,
+            },
+          });
+        }
+      } catch (err) {
+        console.warn('[VybeMapboxCanvas] route layer', err);
+      }
     }
     try {
       const coords = routeGeometry.coordinates;
@@ -528,7 +583,21 @@ export const VybeMapboxCanvas = memo(function VybeMapboxCanvas({
     return () => window.removeEventListener('deviceorientation', onOrient, true);
   }, []);
 
-  return <div ref={containerRef} className="absolute inset-0" />;
+  return (
+    <>
+      <div ref={containerRef} className="absolute inset-0 z-0 vybe-map-canvas" />
+      {!mapReady && !mapError && (
+        <div className="pointer-events-none absolute inset-0 z-[1] flex items-center justify-center vybe-map-loading">
+          <div className="vybe-map-loading-pulse" aria-hidden />
+        </div>
+      )}
+      {mapError && (
+        <div className="pointer-events-none absolute inset-0 z-[1] flex items-center justify-center px-8">
+          <p className="text-center text-sm text-white/50 max-w-xs">{mapError}</p>
+        </div>
+      )}
+    </>
+  );
 });
 
 export function useVybeMapFlyTo() {

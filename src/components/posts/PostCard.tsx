@@ -40,6 +40,7 @@ import { useFastSignedUrl } from '@/hooks/useFastSignedUrl';
 import { useIsModOrAdmin, ModeratorMenuItems, ModeratorDialogs } from '@/components/moderation/ModeratorActionsMenu';
 import { PremiumMemeBanMenuItem, PremiumMemeBanDialog } from '@/components/premium/PremiumMemeBanItems';
 import { isValidMediaUrl } from '@/components/ui/SafeMedia';
+import { normalizeMediaUrl } from '@/lib/mediaUrl';
 import { MediaFallback, MediaSkeleton } from '@/components/ui/MediaFallback';
 import { useIsGuest, GuestAuthPrompt } from '@/components/auth/GuestAuthPrompt';
 import { PostCarousel } from './PostCarousel';
@@ -390,7 +391,7 @@ export const PostCard = memo(function PostCard({ post, eager = false }: PostCard
   const [whyOpen, setWhyOpen] = useState(false);
 
   const signedMediaUrl = useFastSignedUrl(post.media_url);
-  const displayMediaUrl = signedMediaUrl || post.media_url || null;
+  const displayMediaUrl = signedMediaUrl || normalizeMediaUrl(post.media_url) || null;
   const signedAvatarUrl = useFastSignedUrl(post.author.avatar_url);
 
   // Memoize computed values
@@ -559,7 +560,7 @@ export const PostCard = memo(function PostCard({ post, eager = false }: PostCard
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       transition={T.enter}
-      className="relative rounded-2xl overflow-hidden bg-card feed-post-card"
+      className="relative rounded-2xl overflow-hidden bg-card/70 backdrop-blur-md border border-foreground/[0.06] feed-post-card"
     >
       {/* Subtle animated VYBE aurora outline (full perimeter, low opacity) */}
       <div aria-hidden className="post-aurora-outline" />

@@ -62,7 +62,7 @@ const SearchResultItem = memo(function SearchResultItem({
       {result.type === 'user' ? (
         <Avatar className="h-10 w-10">
           <AvatarImage src={result.imageUrl || undefined} />
-          <AvatarFallback>{result.title[0]?.toUpperCase()}</AvatarFallback>
+          <AvatarFallback>{result.title?.[0]?.toUpperCase() ?? '?'}</AvatarFallback>
         </Avatar>
       ) : result.type === 'tag' ? (
         <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">

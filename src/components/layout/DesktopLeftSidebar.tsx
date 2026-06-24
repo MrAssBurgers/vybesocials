@@ -410,7 +410,7 @@ export function DesktopLeftSidebar({ collapsed, onCollapsedChange, compact = fal
                         <AvatarImage src={server.icon_url} />
                       ) : (
                         <AvatarFallback className="bg-gradient-to-br from-primary/80 to-accent/80 text-primary-foreground text-xs">
-                          {server.name[0]?.toUpperCase()}
+                          {server.name?.[0]?.toUpperCase() ?? '?'}
                         </AvatarFallback>
                       )}
                     </Avatar>

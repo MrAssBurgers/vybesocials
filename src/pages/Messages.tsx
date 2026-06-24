@@ -38,12 +38,12 @@ export default function Messages() {
   const showLiquidBg = useDefaultLiquidBackground();
 
   useLayoutEffect(() => {
-    if (isDesktop) return;
+    if (!isInChat) return;
     document.documentElement.setAttribute('data-dm-active', 'true');
     return () => {
       document.documentElement.removeAttribute('data-dm-active');
     };
-  }, [isDesktop]);
+  }, [isInChat]);
 
   return (
     <AppLayout hideRightSidebar fullWidth hideNav={!isDesktop} noPadding>

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ChevronLeft, Search, Settings2 } from 'lucide-react';
+import { ChevronLeft, Search, SlidersHorizontal } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface MapSnapTopBarProps {
@@ -30,20 +30,20 @@ export function MapSnapTopBar({
 
   return (
     <div className="pointer-events-none absolute inset-x-0 top-0 z-[1000]">
-      <div className="vybe-map-top-fade px-3 pt-[var(--app-header-top)] pb-6">
-        <div className="flex items-center gap-2.5">
+      <div className="vybe-map-top-fade px-3 pt-[var(--app-header-top)] pb-5">
+        <div className="flex items-center gap-2">
           <button
             type="button"
             onClick={onBack}
-            className="pointer-events-auto vybe-map-pill h-11 w-11 shrink-0 flex items-center justify-center"
+            className="pointer-events-auto vybe-map-pill h-10 w-10 shrink-0 flex items-center justify-center"
             aria-label="Go back"
           >
             <ChevronLeft className="h-5 w-5" />
           </button>
 
           {searchOpen ? (
-            <div className="pointer-events-auto flex flex-1 items-center gap-2 vybe-map-pill h-11 px-3.5">
-              <Search className="h-4 w-4 text-black/35 shrink-0" />
+            <div className="pointer-events-auto flex flex-1 items-center gap-2 vybe-map-pill h-10 px-3">
+              <Search className="h-4 w-4 shrink-0 opacity-60" />
               <input
                 autoFocus
                 value={query}
@@ -52,10 +52,14 @@ export function MapSnapTopBar({
                   if (e.key === 'Enter') submit();
                   if (e.key === 'Escape') setSearchOpen(false);
                 }}
-                placeholder="Search a city or place…"
-                className="flex-1 bg-transparent text-sm text-[#111] placeholder:text-black/35 outline-none min-w-0"
+                placeholder="City, address, or place…"
+                className="flex-1 bg-transparent text-sm outline-none min-w-0"
               />
-              <button type="button" onClick={submit} className="text-xs font-bold text-[#111] px-1">
+              <button
+                type="button"
+                onClick={submit}
+                className="text-[11px] font-bold uppercase tracking-wide opacity-90 px-1"
+              >
                 Go
               </button>
             </div>
@@ -63,26 +67,26 @@ export function MapSnapTopBar({
             <button
               type="button"
               onClick={() => setSearchOpen(true)}
-              className="pointer-events-auto flex flex-1 items-center gap-2.5 vybe-map-pill h-11 px-4 min-w-0"
+              className="pointer-events-auto flex flex-1 items-center gap-2.5 vybe-map-pill h-10 px-3.5 min-w-0"
             >
-              <Search className="h-4 w-4 text-black/30 shrink-0" />
-              <span className="text-sm font-semibold text-black/80 truncate">VybeMap</span>
-              <span className="text-[10px] text-black/35 truncate hidden sm:inline">· search</span>
+              <Search className="h-4 w-4 shrink-0 opacity-50" />
+              <span className="vybe-map-brand text-[15px] truncate">VybeMap</span>
+              <span className="text-[11px] text-white/35 truncate hidden sm:inline">Search places</span>
             </button>
           )}
 
           <button
             type="button"
             onClick={onOpenSettings}
-            className="pointer-events-auto vybe-map-pill h-11 w-11 shrink-0 flex items-center justify-center"
+            className="pointer-events-auto vybe-map-pill h-10 w-10 shrink-0 flex items-center justify-center"
             aria-label="Map settings"
           >
-            <Settings2 className="h-[18px] w-[18px]" />
+            <SlidersHorizontal className="h-[17px] w-[17px]" />
           </button>
         </div>
 
         {(radarLabel || squadChip || liveSharing !== undefined) && (
-          <div className="mt-2.5 flex flex-wrap gap-2">
+          <div className="mt-2 flex flex-wrap gap-1.5">
             {liveSharing !== undefined && (
               <span
                 className={cn(
@@ -90,8 +94,13 @@ export function MapSnapTopBar({
                   liveSharing ? 'vybe-map-status-chip-live' : 'vybe-map-status-chip-ghost',
                 )}
               >
-                <span className={cn('h-1.5 w-1.5 rounded-full', liveSharing ? 'bg-emerald-400' : 'bg-amber-400')} />
-                {liveSharing ? 'You\'re on the map' : 'Ghost mode'}
+                <span
+                  className={cn(
+                    'h-1.5 w-1.5 rounded-full',
+                    liveSharing ? 'bg-emerald-400 shadow-[0_0_6px_hsl(142_70%_55%)]' : 'bg-amber-400',
+                  )}
+                />
+                {liveSharing ? "You're live" : 'Ghost mode'}
               </span>
             )}
             {radarLabel && (

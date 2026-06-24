@@ -1485,7 +1485,7 @@ export function ChatView() {
       <div 
         ref={messagesContainerRef}
         className={cn(
-          "flex-1 overflow-y-auto overflow-x-hidden min-h-0",
+          "dm-chat-messages flex-1 overflow-y-auto overflow-x-hidden min-h-0",
           "px-3 sm:px-4 pb-3 sm:pb-4",
           "scroll-smooth",
           getWallpaperClass()
@@ -1505,9 +1505,11 @@ export function ChatView() {
             </Button>
           </div>
         )}
-        {(viewMode === '24h' || viewMode === 'view_once') && (
-          <EphemeralChatNotice viewMode={viewMode} isGroupChat={isGroupChat} />
-        )}
+        <EphemeralChatNotice
+          viewMode={viewMode}
+          isGroupChat={isGroupChat}
+          onViewModeChange={setViewMode}
+        />
         {/* Messages container - extra bottom padding on mobile for bottom nav */}
         <div className="flex flex-col gap-0 pb-[calc(env(safe-area-inset-bottom,0px)+0.75rem)] md:pb-4">
           <AnimatePresence mode="popLayout" initial={false}>
@@ -2054,7 +2056,7 @@ const MessageInputArea = memo(function MessageInputArea({
   safetyFilterNode?: React.ReactNode;
 }) {
   return (
-    <div className="relative flex-shrink-0 z-30 bg-transparent px-2 sm:px-3 pt-2 pb-[max(0.5rem,env(safe-area-inset-bottom))]">
+    <div className="dm-composer-dock relative flex-shrink-0 z-30 bg-transparent px-2 sm:px-3 pt-1">
       {/* Sticker Panel */}
       {onSendSticker && showStickerPanel && setShowStickerPanel && (
         <StickerPanel
@@ -2063,18 +2065,8 @@ const MessageInputArea = memo(function MessageInputArea({
           onSendSticker={onSendSticker}
         />
       )}
-      
-      {(viewMode === '24h' || viewMode === 'view_once') && (
-        <div className="mb-2 px-3 py-1.5 rounded-2xl bg-muted/30 border border-border/20 text-center backdrop-blur-sm">
-          <p className="text-[10px] sm:text-xs text-muted-foreground leading-snug">
-            {viewMode === '24h'
-              ? 'Messages automatically delete 24 hours after being opened'
-              : 'View-once messages disappear after you open them'}
-          </p>
-        </div>
-      )}
 
-      <div className="dm-composer px-2.5 py-2 sm:px-3 sm:py-2.5 rounded-3xl">
+      <div className="dm-composer px-2 py-2 sm:px-3 sm:py-2.5 rounded-[1.75rem]">
       <input
         ref={fileInputRef}
         type="file"
@@ -2180,14 +2172,19 @@ const MessageInputArea = memo(function MessageInputArea({
               />
             )}
 
-            <div className="flex-1 relative">
+            <div className="flex-1 relative min-w-0">
               <Input
                 ref={inputRef}
                 defaultValue={getMessageText()}
                 onChange={(e) => handleInputChange(e.target.value)}
                 onKeyPress={handleKeyPress}
+                onFocus={() => {
+                  window.setTimeout(() => {
+                    inputRef.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+                  }, 120);
+                }}
                 placeholder={t('messages.typeMessage')}
-                className="h-9 sm:h-10 text-sm rounded-full px-4"
+                className="h-10 sm:h-11 text-[15px] rounded-full px-4 border-0 bg-muted/40 focus-visible:ring-1 focus-visible:ring-primary/40"
               />
             </div>
 

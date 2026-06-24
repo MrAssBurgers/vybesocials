@@ -49,13 +49,13 @@ export function FriendCardSheet({
       className="pointer-events-auto absolute inset-x-0 bottom-0 z-[2000] vybe-map-sheet"
     >
       <div className="flex justify-center pt-3 pb-2">
-        <div className="w-10 h-1 rounded-full bg-black/10" />
+        <div className="vybe-map-drawer-handle" />
       </div>
 
       {headingToward && (
-        <div className="mx-5 mb-3 flex items-center gap-2 rounded-2xl bg-sky-50 border border-sky-100 px-3 py-2.5">
+        <div className="mx-5 mb-3 flex items-center gap-2 rounded-2xl bg-sky-500/12 border border-sky-400/20 px-3 py-2.5">
           <span className="text-lg">🚶‍♂️</span>
-          <p className="text-xs font-semibold text-sky-900">
+          <p className="text-xs font-semibold text-sky-200">
             Heading your way{routeEtaMinutes ? ` · ~${routeEtaMinutes} min` : ''}
           </p>
         </div>
@@ -64,32 +64,32 @@ export function FriendCardSheet({
       <div className="px-5 pb-[max(1rem,env(safe-area-inset-bottom))]">
         <div className="flex items-start gap-4">
           <div className="relative shrink-0">
-            <div className={cn('rounded-full p-[3px]', isLive ? 'vybe-map-avatar-ring-live' : 'bg-black/8')}>
-              <div className="h-[4.5rem] w-[4.5rem] rounded-full overflow-hidden bg-zinc-100 ring-[3px] ring-white shadow-md">
+            <div className={cn('rounded-full p-[3px]', isLive ? 'vybe-map-avatar-ring-live' : 'bg-white/10')}>
+              <div className="h-[4.5rem] w-[4.5rem] rounded-full overflow-hidden bg-zinc-800 ring-[3px] ring-[#121820] shadow-lg">
                 {friend.profile?.avatar_url ? (
                   <img src={friend.profile.avatar_url} alt="" className="h-full w-full object-cover" />
                 ) : (
-                  <div className="h-full w-full flex items-center justify-center text-xl font-bold text-black/35">{name[0]}</div>
+                  <div className="h-full w-full flex items-center justify-center text-xl font-bold text-white/40">{name[0]}</div>
                 )}
               </div>
             </div>
-            <span className="absolute -bottom-0.5 -right-0.5 text-base bg-white rounded-full px-1 shadow-sm">{activity.icon}</span>
+            <span className="absolute -bottom-0.5 -right-0.5 text-base bg-[#121820] rounded-full px-1 shadow-sm">{activity.icon}</span>
           </div>
 
           <div className="flex-1 min-w-0 pt-0.5">
-            <h3 className="text-[1.125rem] font-bold text-[#111] truncate tracking-tight">{name}</h3>
-            {username && <p className="text-sm text-black/40 font-medium">@{username}</p>}
+            <h3 className="text-[1.125rem] font-bold text-white truncate tracking-tight">{name}</h3>
+            {username && <p className="text-sm text-white/40 font-medium">@{username}</p>}
             <div className="flex flex-wrap gap-1.5 mt-2.5">
-              <span className="text-[10px] font-bold px-2.5 py-1 rounded-full bg-black/[0.04] text-black/65">
+              <span className="text-[10px] font-bold px-2.5 py-1 rounded-full bg-white/8 text-white/70">
                 {activity.label}{mph ? ` · ${mph}` : ''}
               </span>
               {dist && (
-                <span className="text-[10px] font-semibold px-2.5 py-1 rounded-full bg-violet-500/10 text-violet-700">
+                <span className="text-[10px] font-semibold px-2.5 py-1 rounded-full bg-violet-500/15 text-violet-300">
                   {dist} mi away
                 </span>
               )}
             </div>
-            <div className="flex gap-3 mt-2 text-[10px] text-black/35 font-medium">
+            <div className="flex gap-3 mt-2 text-[10px] text-white/35 font-medium">
               <span className="flex items-center gap-1"><Clock className="h-3 w-3" />{isLive ? 'Live now' : timeSince(friend.updated_at)}</span>
               {friend.battery_percent != null && (
                 <span className="flex items-center gap-1"><Battery className="h-3 w-3" />{friend.battery_percent}%</span>
@@ -134,7 +134,7 @@ function ActionBtn({
       onClick={onClick}
       disabled={!onClick}
       className={cn(
-        'flex flex-col items-center justify-center gap-1.5 py-3 rounded-2xl text-[10px] font-bold bg-black/[0.04] text-black/75',
+        'flex flex-col items-center justify-center gap-1.5 py-3 rounded-2xl text-[10px] font-bold bg-white/6 text-white/75 border border-white/6',
         !onClick && 'opacity-40',
       )}
     >

@@ -47,7 +47,13 @@ export function VybeMapLeafletFallback({
     mapRef.current = map;
     onMapReady?.(map);
     requestAnimationFrame(() => map.invalidateSize());
-    return () => { map.remove(); mapRef.current = null; };
+    const ro = new ResizeObserver(() => {
+      requestAnimationFrame(() => {
+        try { map.invalidateSize(); } catch { /* ignore */ }
+      });
+    });
+    ro.observe(el);
+    return () => { ro.disconnect(); map.remove(); mapRef.current = null; };
   }, []);
 
   useEffect(() => {

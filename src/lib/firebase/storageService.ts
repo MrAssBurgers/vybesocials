@@ -6,7 +6,7 @@ import {
   deleteObject,
 } from 'firebase/storage';
 import { getFirebaseApp } from './app';
-import { isFirebaseConfigured } from './config';
+import { getFirebaseConfig, isFirebaseConfigured } from './config';
 import type { StorageUploadResult, StorageUrlResult, VybeAuthError } from './types';
 
 let storageInstance: ReturnType<typeof getStorage> | null = null;
@@ -28,6 +28,30 @@ function toError(err: unknown): VybeAuthError {
   return { message: 'Storage error' };
 }
 
+/** Map Supabase-style bucket + path or migrated GCS paths to a Firebase Storage object path. */
+function storageObjectPath(bucket: string, path: string): string {
+  let objectPath = path.replace(/^\/+/, '');
+  try {
+    const configBucket = getFirebaseConfig().storageBucket;
+    const isGcsBucket =
+      bucket === configBucket ||
+      bucket.endsWith('.firebasestorage.app') ||
+      bucket.endsWith('.appspot.com');
+    if (isGcsBucket) {
+      if (objectPath.startsWith(`${bucket}/`)) {
+        objectPath = objectPath.slice(bucket.length + 1);
+      }
+      if (configBucket && objectPath.startsWith(`${configBucket}/`)) {
+        objectPath = objectPath.slice(configBucket.length + 1);
+      }
+      return objectPath;
+    }
+  } catch {
+    /* Firebase not configured — fall through */
+  }
+  return `${bucket}/${objectPath}`;
+}
+
 export function createStorageBucket(bucket: string) {
   return {
     async upload(
@@ -38,7 +62,7 @@ export function createStorageBucket(bucket: string) {
       const storage = resolveStorage();
       if (!storage) return { data: null, error: NOT_CONFIGURED };
       try {
-        const storageRef = ref(storage, `${bucket}/${path}`);
+        const storageRef = ref(storage, storageObjectPath(bucket, path));
         const metadata = _options?.contentType ? { contentType: _options.contentType } : undefined;
         await uploadBytes(storageRef, file, metadata);
         return { data: { path }, error: null };
@@ -51,7 +75,7 @@ export function createStorageBucket(bucket: string) {
       const storage = resolveStorage();
       if (!storage) return { data: null, error: NOT_CONFIGURED };
       try {
-        const storageRef = ref(storage, `${bucket}/${path}`);
+        const storageRef = ref(storage, storageObjectPath(bucket, path));
         const url = await getDownloadURL(storageRef);
         const res = await fetch(url);
         const blob = await res.blob();
@@ -66,7 +90,7 @@ export function createStorageBucket(bucket: string) {
       if (!storage) {
         return { data: { publicUrl: '', signedUrl: '' } };
       }
-      const storageRef = ref(storage, `${bucket}/${path}`);
+      const storageRef = ref(storage, storageObjectPath(bucket, path));
       // Firebase download URLs are resolved async; return path-based placeholder.
       const publicUrl = `gs://${bucket}/${path}`;
       return { data: { publicUrl, signedUrl: publicUrl } };
@@ -76,7 +100,7 @@ export function createStorageBucket(bucket: string) {
       const storage = resolveStorage();
       if (!storage) return { data: null, error: NOT_CONFIGURED };
       try {
-        const storageRef = ref(storage, `${bucket}/${path}`);
+        const storageRef = ref(storage, storageObjectPath(bucket, path));
         const signedUrl = await getDownloadURL(storageRef);
         return { data: { signedUrl }, error: null };
       } catch (err) {
@@ -90,7 +114,7 @@ export function createStorageBucket(bucket: string) {
       try {
         const data = await Promise.all(paths.map(async (p) => {
           try {
-            const u = await getDownloadURL(ref(storage, `${bucket}/${p}`));
+            const u = await getDownloadURL(ref(storage, storageObjectPath(bucket, p)));
             return { path: p, signedUrl: u, error: null };
           } catch (e: any) {
             return { path: p, signedUrl: '', error: e?.message || 'failed' };
@@ -106,7 +130,7 @@ export function createStorageBucket(bucket: string) {
       const storage = resolveStorage();
       if (!storage) return { error: NOT_CONFIGURED };
       try {
-        await Promise.all(paths.map((p) => deleteObject(ref(storage, `${bucket}/${p}`))));
+        await Promise.all(paths.map((p) => deleteObject(ref(storage, storageObjectPath(bucket, p)))));
         return { error: null };
       } catch (err) {
         return { error: toError(err) };
@@ -128,7 +152,7 @@ export const firebaseStorage = {
     const storage = resolveStorage();
     if (!storage) return null;
     try {
-      return await getDownloadURL(ref(storage, `${bucket}/${path}`));
+      return await getDownloadURL(ref(storage, storageObjectPath(bucket, path)));
     } catch {
       return null;
     }

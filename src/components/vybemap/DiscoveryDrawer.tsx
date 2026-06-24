@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion';
-import { ChevronUp, Flame, MapPin, Users, Video, Calendar } from 'lucide-react';
+import { ChevronUp, Flame, MapPin, Users, Video, Calendar, Radio } from 'lucide-react';
 import type { LiveFriend, MapStoryPin, MapClipPin, MapMeetup, MapPlace, FriendCheckIn } from '@/lib/vybemap/types';
 import { cn } from '@/lib/utils';
 
@@ -23,37 +23,50 @@ export function DiscoveryDrawer({
   open, onToggle, friends, stories, clips, meetups, places, radarLabel, friendCheckIns = [],
   onFriendTap, onMeetupTap, onPlaceTap, onCreateMeetup,
 }: DiscoveryDrawerProps) {
-  const peekHeight = '5.5rem';
+  const peekHeight = '5.25rem';
 
   return (
     <motion.div
       className="pointer-events-auto absolute inset-x-0 bottom-0 z-[1500]"
       animate={{ y: open ? 0 : `calc(100% - ${peekHeight})` }}
-      transition={{ type: 'spring', damping: 34, stiffness: 340 }}
+      transition={{ type: 'spring', damping: 36, stiffness: 380 }}
     >
-      <div className="vybe-map-sheet !rounded-t-[1.75rem] !shadow-[0_-16px_48px_rgba(0,0,0,0.1)]">
+      <div className="vybe-map-sheet">
         <button
           type="button"
           onClick={onToggle}
-          className="w-full flex flex-col items-center pt-3 pb-1"
+          className="w-full flex flex-col items-center pt-2.5 pb-0.5"
         >
-          <div className="w-10 h-1 rounded-full bg-black/10 mb-2" />
-          <div className="flex items-center gap-2 text-[#111] text-[15px] font-bold tracking-tight px-4 pb-1">
-            <ChevronUp className={cn('h-4 w-4 text-black/40 transition-transform', open && 'rotate-180')} />
-            {friends.length ? `${friends.length} friends nearby` : 'Friends on map'}
-            {radarLabel && (
-              <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-700 font-bold">
-                {radarLabel}
-              </span>
+          <div className="vybe-map-drawer-handle mb-2.5" />
+          <div className="flex items-center gap-2 text-white text-sm font-semibold tracking-tight px-4 pb-1">
+            <ChevronUp className={cn('h-4 w-4 text-white/40 transition-transform duration-200', open && 'rotate-180')} />
+            {friends.length ? (
+              <>
+                <span>{friends.length} friend{friends.length === 1 ? '' : 's'} nearby</span>
+                {radarLabel && (
+                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-bold border border-emerald-500/25">
+                    {radarLabel}
+                  </span>
+                )}
+              </>
+            ) : (
+              <span className="text-white/70">Friends on map</span>
             )}
           </div>
         </button>
 
-        {/* Snap-style friend rail — always visible in peek */}
         <div className="px-3 pb-3">
-          <div className="flex gap-3 overflow-x-auto scrollbar-hide py-1">
+          <div className="flex gap-2.5 overflow-x-auto scrollbar-hide py-1">
             {friends.length === 0 ? (
-              <p className="text-xs text-black/45 px-2 py-3">Friends who share location will appear here.</p>
+              <div className="vybe-map-empty-rail w-full">
+                <div className="h-9 w-9 rounded-full bg-white/6 flex items-center justify-center shrink-0">
+                  <Radio className="h-4 w-4 text-white/40" />
+                </div>
+                <div className="min-w-0 text-left">
+                  <p className="text-xs font-semibold text-white/80">No friends live yet</p>
+                  <p className="text-[10px] text-white/40 mt-0.5">Friends sharing location show up here</p>
+                </div>
+              </div>
             ) : (
               friends.slice(0, 16).map((f) => {
                 const live = Date.now() - new Date(f.updated_at).getTime() < 120_000;
@@ -63,25 +76,27 @@ export function DiscoveryDrawer({
                     key={f.user_id}
                     type="button"
                     onClick={() => onFriendTap(f)}
-                    className="shrink-0 flex flex-col items-center gap-1.5 w-[4.25rem]"
+                    className="shrink-0 flex flex-col items-center gap-1.5 w-[4rem]"
                   >
                     <div
                       className={cn(
-                        'rounded-full p-[3px]',
-                        live ? 'bg-gradient-to-br from-yellow-400 via-pink-500 to-violet-500' : 'bg-black/15',
+                        'rounded-full p-[2.5px]',
+                        live
+                          ? 'bg-gradient-to-br from-yellow-300 via-pink-500 to-violet-500'
+                          : 'bg-white/15',
                       )}
                     >
-                      <div className="h-14 w-14 rounded-full overflow-hidden bg-[#f4f4f5] ring-2 ring-white">
+                      <div className="h-[3.25rem] w-[3.25rem] rounded-full overflow-hidden bg-zinc-800 ring-2 ring-[#121820]">
                         {f.profile?.avatar_url ? (
                           <img src={f.profile.avatar_url} alt="" className="h-full w-full object-cover" loading="lazy" />
                         ) : (
-                          <div className="h-full w-full flex items-center justify-center text-lg font-bold text-black/50">
+                          <div className="h-full w-full flex items-center justify-center text-base font-bold text-white/50">
                             {name[0]}
                           </div>
                         )}
                       </div>
                     </div>
-                    <span className="text-[10px] font-medium text-black/55 max-w-full truncate">
+                    <span className="text-[10px] font-medium text-white/55 max-w-full truncate">
                       {f.profile?.username || name.split(' ')[0]}
                     </span>
                   </button>
@@ -92,7 +107,7 @@ export function DiscoveryDrawer({
         </div>
 
         {open && (
-          <div className="max-h-[48vh] overflow-y-auto px-4 pb-[max(1rem,env(safe-area-inset-bottom))] space-y-5 border-t border-black/5 pt-4">
+          <div className="max-h-[48vh] overflow-y-auto px-4 pb-[max(1rem,env(safe-area-inset-bottom))] space-y-5 border-t border-white/8 pt-4">
             {friendCheckIns.length > 0 && (
               <Section icon={MapPin} title="Recent activity" count={friendCheckIns.length}>
                 {friendCheckIns.slice(0, 6).map((c) => {
@@ -110,9 +125,9 @@ export function DiscoveryDrawer({
                         check_in_count: 1,
                         story_count: 0,
                       })}
-                      className="w-full text-left py-2 text-sm text-black/75"
+                      className="w-full text-left py-2.5 text-sm text-white/75 rounded-xl hover:bg-white/5 px-2 -mx-2 transition-colors"
                     >
-                      <span className="font-semibold text-black">{name}</span>
+                      <span className="font-semibold text-white">{name}</span>
                       {c.place_name ? ` · ${c.place_name}` : c.message ? ` — ${c.message}` : ' nearby'}
                     </button>
                   );
@@ -124,7 +139,7 @@ export function DiscoveryDrawer({
               <Section icon={Users} title="Stories nearby" count={stories.length}>
                 <HorizScroll>
                   {stories.map((s) => (
-                    <div key={s.id} className="shrink-0 w-16 h-24 rounded-2xl overflow-hidden bg-gradient-to-br from-pink-400 to-violet-500 ring-2 ring-white shadow-sm">
+                    <div key={s.id} className="shrink-0 w-16 h-24 rounded-2xl overflow-hidden bg-gradient-to-br from-pink-500 to-violet-600 ring-2 ring-white/10 shadow-lg">
                       {(s.thumbnail_url || s.media_url) && (
                         <img src={s.thumbnail_url || s.media_url} alt="" className="w-full h-full object-cover" loading="lazy" />
                       )}
@@ -138,7 +153,7 @@ export function DiscoveryDrawer({
               <Section icon={Video} title="Clips nearby" count={clips.length}>
                 <HorizScroll>
                   {clips.map((c) => (
-                    <div key={c.id} className="shrink-0 w-20 h-28 rounded-2xl overflow-hidden bg-black/5 ring-1 ring-black/8">
+                    <div key={c.id} className="shrink-0 w-20 h-28 rounded-2xl overflow-hidden bg-white/5 ring-1 ring-white/10">
                       {c.thumbnail_url && <img src={c.thumbnail_url} alt="" className="w-full h-full object-cover" loading="lazy" />}
                     </div>
                   ))}
@@ -152,7 +167,7 @@ export function DiscoveryDrawer({
                   <button
                     type="button"
                     onClick={onCreateMeetup}
-                    className="w-full mb-2 py-2.5 rounded-2xl border border-dashed border-emerald-500/35 text-xs font-semibold text-emerald-700 bg-emerald-500/5"
+                    className="w-full mb-2 py-2.5 rounded-2xl border border-dashed border-emerald-500/30 text-xs font-semibold text-emerald-300 bg-emerald-500/8 hover:bg-emerald-500/12 transition-colors"
                   >
                     + Plan a meetup
                   </button>
@@ -162,10 +177,10 @@ export function DiscoveryDrawer({
                     key={m.id}
                     type="button"
                     onClick={() => onMeetupTap(m)}
-                    className="w-full text-left p-3 rounded-2xl bg-black/[0.03] mb-2"
+                    className="w-full text-left p-3 rounded-2xl bg-white/5 border border-white/6 mb-2 hover:bg-white/8 transition-colors"
                   >
-                    <p className="text-sm font-semibold text-black">{m.title}</p>
-                    <p className="text-[10px] text-black/45">
+                    <p className="text-sm font-semibold text-white">{m.title}</p>
+                    <p className="text-[10px] text-white/40 mt-0.5">
                       {m.dest_label || 'Meetup'} · {m.member_count ?? m.members?.length ?? 1} going
                     </p>
                   </button>
@@ -176,11 +191,11 @@ export function DiscoveryDrawer({
             {places.length > 0 && (
               <Section icon={Flame} title="Hot spots" count={places.length}>
                 {places.slice(0, 6).map((p) => (
-                  <button key={p.id} type="button" onClick={() => onPlaceTap(p)} className="w-full flex items-center gap-3 py-2 text-left">
-                    <MapPin className="h-4 w-4 text-amber-500 shrink-0" />
+                  <button key={p.id} type="button" onClick={() => onPlaceTap(p)} className="w-full flex items-center gap-3 py-2.5 text-left rounded-xl hover:bg-white/5 px-2 -mx-2 transition-colors">
+                    <MapPin className="h-4 w-4 text-amber-400 shrink-0" />
                     <div className="min-w-0">
-                      <p className="text-sm text-black truncate font-medium">{p.name}</p>
-                      <p className="text-[10px] text-black/40 line-clamp-1">
+                      <p className="text-sm text-white truncate font-medium">{p.name}</p>
+                      <p className="text-[10px] text-white/40 line-clamp-1">
                         {p.description || `${p.check_in_count} check-ins`}
                       </p>
                     </div>
@@ -200,9 +215,9 @@ function Section({ icon: Icon, title, count, children }: { icon: typeof Users; t
   return (
     <div>
       <div className="flex items-center gap-2 mb-2">
-        <Icon className="h-4 w-4 text-black/35" />
-        <h4 className="text-[11px] font-bold text-black/50 uppercase tracking-wider">{title}</h4>
-        {count > 0 && <span className="text-[10px] text-black/30">{count}</span>}
+        <Icon className="h-4 w-4 text-white/35" />
+        <h4 className="text-[10px] font-bold text-white/45 uppercase tracking-widest">{title}</h4>
+        {count > 0 && <span className="text-[10px] text-white/25 tabular-nums">{count}</span>}
       </div>
       {children}
     </div>

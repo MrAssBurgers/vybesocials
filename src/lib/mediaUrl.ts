@@ -44,6 +44,22 @@ export function normalizeMediaUrl(url: string | null | undefined): string | null
 
   const bucket = getStorageBucket();
 
+  // Fix object paths that incorrectly include the bucket id as a prefix (migration artifact).
+  if (bucket) {
+    const bucketPrefix = `${bucket}/`;
+    if (trimmed.startsWith(bucketPrefix)) {
+      trimmed = trimmed.slice(bucketPrefix.length);
+    }
+    const fbObject = trimmed.match(/firebasestorage\.googleapis\.com\/v0\/b\/([^/]+)\/o\/([^?]+)/i);
+    if (fbObject) {
+      let objectPath = decodeURIComponent(fbObject[2]!.replace(/\+/g, ' '));
+      if (objectPath.startsWith(`${fbObject[1]}/`)) {
+        objectPath = objectPath.slice(fbObject[1]!.length + 1);
+        trimmed = firebasePublicUrl(fbObject[1]!, objectPath);
+      }
+    }
+  }
+
   // Legacy Supabase public object URL → Firebase Storage
   const supabasePublic = trimmed.match(
     /https?:\/\/[^/]+\.supabase\.co\/storage\/v1\/object\/public\/([^/]+)\/(.+)$/i,
