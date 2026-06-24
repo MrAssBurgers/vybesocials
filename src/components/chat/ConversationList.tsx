@@ -1184,10 +1184,11 @@ const ConversationItem = memo(forwardRef<HTMLDivElement, ConversationItemProps>(
         open={optionsOpen}
         onOpenChange={setOptionsOpen}
         conversationId={conversation.id}
-        otherUserId={!conversation.is_group ? otherMember?.id : undefined}
-        otherUsername={!conversation.is_group ? otherMember?.username : undefined}
-        otherDisplayName={displayName}
-        otherAvatarUrl={avatarUrl}
+        otherUserId={!conversation.is_group ? (otherMember?.id as string | undefined) : undefined}
+        otherUsername={!conversation.is_group ? (otherMember?.username as string | undefined) : undefined}
+        otherDisplayName={displayName as string}
+        otherAvatarUrl={avatarUrl as string}
+
         isMuted={isMuted}
         isPinned={isPinned}
       />
