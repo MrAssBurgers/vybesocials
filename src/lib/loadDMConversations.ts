@@ -5,6 +5,8 @@ import { isPermissionDeniedError, warnOnce } from '@/lib/logOnce';
 import { resolveSessionProfileId, syncSessionProfileId } from '@/lib/resolveSessionProfileId';
 import { withTimeout } from '@/lib/withTimeout';
 import { fetchMemberProfiles, fetchConversationMetaForList, syntheticDeterministicConversation } from '@/lib/dmMembershipRepair';
+import { fetchMessagesForConversations } from '@/lib/conversationMessagesQuery';
+
 import {
   buildConversationMembers,
   inferOtherUserIdFromConversation,
