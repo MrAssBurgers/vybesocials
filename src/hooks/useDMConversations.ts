@@ -387,7 +387,7 @@ export function useConversationDetail(conversationId: string | undefined) {
       if (!conversationId) return undefined;
       return (
         findCachedConversation(profileId) ??
-        (buildConversationPlaceholder(conversationId, profileId) as DMConversation)
+        (buildConversationPlaceholder(conversationId, profileId) as unknown as DMConversation)
       );
     },
     networkMode: 'always',
