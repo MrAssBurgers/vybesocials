@@ -388,7 +388,7 @@ export function installQueryCacheWriteGuard(queryClient: QueryClient): void {
             const base = queryDataNeedsRevive(queryKey, old)
               ? revivePersistedQueryData(queryKey, old)
               : old;
-            const next = updater(base);
+            const next = (updater as (input: unknown) => unknown)(base);
             if (next === base) return base;
             return queryDataNeedsRevive(queryKey, next)
               ? revivePersistedQueryData(queryKey, next)
