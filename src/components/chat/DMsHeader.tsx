@@ -75,7 +75,7 @@ export function DMsHeader({
 
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-1.5">
-              <VybeWordmark size="sm" as="h1" className="text-[1.125rem] leading-none tracking-tight" />
+              <VybeWordmark size="sm" as="h1" />
               {totalUnreadCount > 0 && (
                 <motion.span
                   initial={{ scale: 0 }}

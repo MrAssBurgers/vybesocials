@@ -2,6 +2,7 @@ import React, { Component, ErrorInfo, ReactNode } from 'react';
 import { RefreshCw, Home, AlertTriangle, Loader2, Bug, Check } from 'lucide-react';
 import { db } from '@/lib/firebase';
 import { reportAppCrash } from '@/lib/bugReportClient';
+import { isRecoverableDmCacheError } from '@/lib/recoverDmQueryCache';
 
 interface Props {
   children: ReactNode;
@@ -90,17 +91,24 @@ class SmartErrorBoundary extends Component<Props, State> {
     }
     this.resetCount += 1;
 
-    // Custom fallback (e.g. Messages): show immediately — auto-reset causes flash loops.
+    // Custom fallback (e.g. Messages): recover DM cache for stack/cache errors, then show fallback.
     if (this.props.fallback) {
-      try {
-        const qc = (window as unknown as { __REACT_QUERY_CLIENT__?: { getQueryCache: () => unknown } }).__REACT_QUERY_CLIENT__;
-        if (qc && typeof (qc as { getQueryCache?: () => unknown }).getQueryCache === 'function') {
-          void import('@/lib/persistedCollections').then(({ reviveQueriesInCache }) => {
-            reviveQueriesInCache(qc as import('@tanstack/react-query').QueryClient);
-          });
+      const recoverable = isRecoverableDmCacheError(error);
+      if (recoverable) {
+        try {
+          const qc = (window as unknown as { __REACT_QUERY_CLIENT__?: import('@tanstack/react-query').QueryClient }).__REACT_QUERY_CLIENT__;
+          if (qc) {
+            void import('@/lib/recoverDmQueryCache').then(({ recoverDmQueryCache }) => {
+              recoverDmQueryCache(qc);
+              this.resetCount = 0;
+              this.resetWindowStart = 0;
+              this.setState({ hasError: false, error: null, errorInfo: null });
+            });
+            return;
+          }
+        } catch {
+          /* fall through to fallback */
         }
-      } catch {
-        /* best effort */
       }
       this.setState({ errorInfo, hasError: true, error });
       return;

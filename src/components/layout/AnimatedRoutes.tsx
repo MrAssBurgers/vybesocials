@@ -3,10 +3,6 @@ import { Routes, Route, useLocation, Navigate, useParams } from 'react-router-do
 import { navVisibility } from '@/lib/navVisibility';
 import { isBottomNavTabRoute } from '@/lib/bottomNavRoutes';
 import { useAuth } from '@/lib/auth';
-import { AnimatePresence, motion } from 'framer-motion';
-import { liquidSpring } from '@/motion/liquidConfig';
-import { MOTION_CONFIG } from '@/lib/motion';
-import { isNativePerfMode } from '@/lib/nativePerfMode';
 import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
 import { PublicOnlyRoute } from '@/components/auth/PublicOnlyRoute';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
@@ -15,7 +11,6 @@ import { preloadCriticalRoutes } from '@/lib/routePreloader';
 import { useDebugCapture } from '@/hooks/useDebugCapture';
 import { usePageTitle } from '@/hooks/usePageTitle';
 import { CrashReportConsent } from '@/components/error/CrashReportConsent';
-import { VybePageLoader } from '@/components/ui/VybeLoader';
 // VYBELogo removed from fallback for instant navigation
 
 /** Legacy /shorts/:postId deep links → canonical /clips/:postId */
@@ -130,8 +125,10 @@ const DebugPanel = lazy(() => import("@/components/debug/DebugPanel").then(m => 
 const ProductionDebugPanel = lazy(() => import("@/components/debug/ProductionDebugPanel").then(m => ({ default: m.ProductionDebugPanel })));
 import { useDebugPanel } from '@/contexts/DebugPanelContext';
 
-/** Only show loader on very slow route chunks — splash covers normal cold start. */
-const PageFallback = memo(() => <VybePageLoader delay={1600} />);
+/** Stable gradient shell — never flashes black while route chunks load. */
+const PageFallback = memo(() => (
+  <div className="page-shell vybe-loading-shell min-h-[100dvh] w-full" aria-hidden="true" />
+));
 
 /**
  * Animated Routes component - provides smooth page transitions
@@ -311,25 +308,9 @@ export function AnimatedRoutes() {
     </ErrorBoundary>
   );
 
-  if (isNativePerfMode()) {
-    return (
-      <div className="min-h-screen bg-transparent" data-route-shell>
-        {routeContent}
-      </div>
-    );
-  }
-
   return (
-    <AnimatePresence mode="popLayout" initial={false}>
-      <motion.div
-        key={location.pathname}
-        initial={false}
-        animate={{ opacity: 1 }}
-        className="min-h-screen bg-transparent"
-        data-route-shell
-      >
-        {routeContent}
-      </motion.div>
-    </AnimatePresence>
+    <div className="min-h-screen bg-transparent" data-route-shell>
+      {routeContent}
+    </div>
   );
 }

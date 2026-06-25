@@ -8,7 +8,8 @@ import {
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/lib/auth';
 import { useAuthProfileId } from '@/hooks/useAuthProfileId';
-import { isStaffQueryEnabled } from '@/lib/adminAccess';
+import { isStaffQueryEnabled, isAdminRole } from '@/lib/adminAccess';
+import { useUserRole } from '@/hooks/useModeration';
 import { db } from '@/lib/firebase';
 import { subscribePostgresChannel, removeRealtimeChannel } from '@/lib/realtimeChannel';
 import { Button } from '@/components/ui/button';
@@ -24,7 +25,9 @@ export function AdminLiveAnalytics() {
   const queryClient = useQueryClient();
   const { user, authReady } = useAuth();
   const profileId = useAuthProfileId();
+  const { data: userRole, isFetched: roleFetched } = useUserRole();
   const staffQueriesEnabled = isStaffQueryEnabled(authReady, user, profileId);
+  const adminQueriesEnabled = staffQueriesEnabled && roleFetched && isAdminRole(userRole);
   const [refreshKey, setRefreshKey] = useState(0);
   const [liveCount, setLiveCount] = useState(0);
   const [activityTab, setActivityTab] = useState<'all' | 'messages' | 'content' | 'social'>('all');
@@ -64,7 +67,8 @@ export function AdminLiveAnalytics() {
         storiesTodayResult,
         // Live metrics
         callsResult,
-        totalUsersResult,
+        profilesTotalResult,
+        authTotalResult,
       ] = await Promise.all([
         // --- Active users (last 10 min to catch between heartbeats) ---
         db.from('chat_presence').select('user_id').gte('last_seen_at', tenMinAgo),
@@ -90,7 +94,10 @@ export function AdminLiveAnalytics() {
         db.from('stories').select('id', { count: 'exact', head: true }).gte('created_at', todayStart),
         // --- Live ---
         db.from('calls').select('id', { count: 'exact', head: true }).eq('status', 'active'),
-        db.rpc('get_auth_users_count'),
+        db.from('profiles').select('id', { count: 'exact', head: true }),
+        adminQueriesEnabled
+          ? db.rpc('get_auth_users_count')
+          : Promise.resolve({ data: null, error: null }),
       ]);
 
       // Combine ALL active user IDs from every source
@@ -122,10 +129,15 @@ export function AdminLiveAnalytics() {
         storiesToday: storiesTodayResult.count || 0,
         // Live
         inCalls: callsResult.count || 0,
-        totalUsers: totalUsersResult.data || 0,
+        totalUsers:
+          adminQueriesEnabled &&
+          !authTotalResult.error &&
+          typeof authTotalResult.data === 'number'
+            ? authTotalResult.data
+            : profilesTotalResult.count || 0,
       };
     },
-    enabled: staffQueriesEnabled,
+    enabled: adminQueriesEnabled,
     networkMode: 'always',
     refetchInterval: 8000, // Faster polling for live feel
   });
@@ -212,7 +224,7 @@ export function AdminLiveAnalytics() {
       activities.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
       return activities.slice(0, 30);
     },
-    enabled: staffQueriesEnabled,
+    enabled: adminQueriesEnabled,
     networkMode: 'always',
     refetchInterval: 5000,
   });

@@ -45,3 +45,25 @@ export function pitchForMode(mode: MapViewMode): number {
   if (mode === 'terrain') return 42;
   return 0;
 }
+
+const MAP_VIEW_MODES_SET = new Set<MapViewMode>(MAP_VIEW_MODES.map((m) => m.id));
+
+export const MAP_VIEW_MODE_STORAGE_KEY = 'vybe-map-view-mode-v1';
+
+export function isMapViewMode(value: unknown): value is MapViewMode {
+  return typeof value === 'string' && MAP_VIEW_MODES_SET.has(value as MapViewMode);
+}
+
+export function readStoredMapViewMode(): MapViewMode {
+  try {
+    const raw = localStorage.getItem(MAP_VIEW_MODE_STORAGE_KEY);
+    if (isMapViewMode(raw)) return raw;
+  } catch { /* ignore */ }
+  return '2d';
+}
+
+export function persistMapViewMode(mode: MapViewMode): void {
+  try {
+    localStorage.setItem(MAP_VIEW_MODE_STORAGE_KEY, mode);
+  } catch { /* ignore */ }
+}

@@ -74,13 +74,7 @@ export function Sidebar() {
             >
               {/* Static active state: avoids hover/background shimmer */}
               {isActive && (
-                <motion.div
-                  layoutId="sidebarNavOutline"
-                  className="absolute inset-0 rounded-xl bg-sidebar-accent border border-primary/20"
-                  initial={{ opacity: 0, scale: 0.95 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  transition={{ type: 'spring', stiffness: 500, damping: 30 }}
-                />
+                <div className="absolute inset-0 rounded-xl bg-sidebar-accent border border-primary/20" />
               )}
               <div className="relative">
                 <Icon className="h-5 w-5 relative z-10" />

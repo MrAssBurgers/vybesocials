@@ -138,10 +138,9 @@ export const WelcomeBackSplash = memo(function WelcomeBackSplash({
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: reduceMotion ? 0.12 : 0.25, ease: 'easeOut' }}
-            className="fixed inset-0 flex flex-col items-center justify-center overflow-hidden overscroll-none"
+            className="fixed inset-0 flex flex-col items-center justify-center overflow-hidden overscroll-none vybe-loading-shell"
             style={{
               zIndex: 2147483646,
-              background: '#0B0B10',
               minHeight: '100dvh',
               paddingTop: 'env(safe-area-inset-top, 0px)',
               paddingBottom: 'env(safe-area-inset-bottom, 0px)',

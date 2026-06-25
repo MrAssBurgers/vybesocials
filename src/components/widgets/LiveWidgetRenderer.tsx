@@ -7,6 +7,7 @@ import { LiveWidget, WidgetType, WIDGET_CATALOG } from '@/hooks/useLiveWidgets';
 import { useTokenBalance } from '@/hooks/useVybeTokens';
 import { useMoodTheme, MOOD_THEMES } from '@/hooks/useMoodMorphing';
 import { cn } from '@/lib/utils';
+import { VybeWordmark } from '@/components/ui/VybeWordmark';
 
 // Clock Widget
 function ClockWidget() {
@@ -35,7 +36,7 @@ function TokenBalanceWidget() {
     <div className="flex items-center gap-2">
       <Coins className="w-5 h-5 text-yellow-500" />
       <span className="text-xl font-bold">{balance?.balance || 0}</span>
-      <span className="text-xs text-muted-foreground">VYBE</span>
+      <VybeWordmark size="xs" className="opacity-70" />
     </div>
   );
 }

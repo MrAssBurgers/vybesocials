@@ -19,8 +19,8 @@ export function AppErrorFallback({
     <div
       className={
         compact
-          ? 'min-h-[200px] bg-background flex flex-col items-center justify-center p-6 gap-4 text-center'
-          : 'min-h-[50dvh] bg-background flex flex-col items-center justify-center p-8 gap-5 text-center'
+          ? 'min-h-[200px] page-shell flex flex-col items-center justify-center p-6 gap-4 text-center'
+          : 'min-h-[50dvh] page-shell vybe-loading-shell flex flex-col items-center justify-center p-8 gap-5 text-center'
       }
     >
       <div className="w-14 h-14 rounded-2xl bg-destructive/10 flex items-center justify-center">

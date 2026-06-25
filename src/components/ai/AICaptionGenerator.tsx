@@ -5,6 +5,7 @@ import { VybeMiniIcon } from '@/components/ui/VybeMiniIcon';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import { invokeEdgeFeature, EDGE_UNAVAILABLE_TOAST } from '@/lib/edgeFeature';
+import { generateCaptionsClient } from '@/lib/aiClientFallback';
 
 interface AICaptionGeneratorProps {
   tags: string[];
@@ -29,13 +30,18 @@ export function AICaptionGenerator({ tags, contentType, onSelectCaption }: AICap
     setSelectedIndex(null);
 
     try {
-      const { data, unavailable } = await invokeEdgeFeature<{ captions?: string[] }>(
+      const { data, unavailable, errorMessage } = await invokeEdgeFeature<{ captions?: string[] }>(
         'generate-caption',
         { tags, contentType: mapContentType(contentType) },
       );
 
-      if (unavailable || !data?.captions?.length) {
-        toast.message(EDGE_UNAVAILABLE_TOAST);
+      if (!data?.captions?.length) {
+        const clientCaptions = await generateCaptionsClient(tags, mapContentType(contentType));
+        if (clientCaptions.length) {
+          setCaptions(clientCaptions);
+          return;
+        }
+        toast.message(data ? 'No captions returned.' : (unavailable ? (errorMessage || EDGE_UNAVAILABLE_TOAST) : EDGE_UNAVAILABLE_TOAST));
         return;
       }
 

@@ -45,6 +45,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
+import { VybeWordmark } from '@/components/ui/VybeWordmark';
 import { 
   DropdownMenu,
   DropdownMenuContent,
@@ -2764,7 +2765,7 @@ const MessageBubble = memo(function MessageBubble({
                       <span className="text-xs font-medium">
                         {vybeViewed ? 'Opened' : 'Sent'}
                       </span>
-                      <span className="text-[9px] opacity-60">VYBE</span>
+                      <VybeWordmark size="xs" className="opacity-60" />
                     </div>
                   </div>
                 </motion.div>
@@ -2786,7 +2787,7 @@ const MessageBubble = memo(function MessageBubble({
                     </div>
                     <div className="flex flex-col">
                       <span className="text-xs font-medium">Opened</span>
-                      <span className="text-[9px] opacity-60">VYBE</span>
+                      <VybeWordmark size="xs" className="opacity-60" />
                     </div>
                   </div>
                 </motion.div>

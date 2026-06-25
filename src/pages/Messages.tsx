@@ -6,6 +6,7 @@ import { useBreakpoint } from '@/hooks/usePlatform';
 import { motion } from 'framer-motion';
 import { Send, Sparkles, MessageCircle, RefreshCw } from 'lucide-react';
 import { VybeMiniIcon } from '@/components/ui/VybeMiniIcon';
+import { VybeWordmark } from '@/components/ui/VybeWordmark';
 import { Button } from '@/components/ui/button';
 import SmartErrorBoundary from '@/components/error/SmartErrorBoundary';
 import LocalErrorBoundary from '@/components/error/LocalErrorBoundary';
@@ -13,25 +14,26 @@ import { DmInboxSafeList } from '@/components/chat/dm-inbox/DmInboxSafeList';
 import { cn } from '@/lib/utils';
 import { useDefaultLiquidBackground } from '@/hooks/useDefaultLiquidBackground';
 import { prepareMessagesRoute } from '@/lib/loadDMConversations';
+import { recoverDmQueryCache } from '@/lib/recoverDmQueryCache';
 import { useAuth } from '@/lib/auth';
 import { useAuthProfileId } from '@/hooks/useAuthProfileId';
 import type { QueryClient } from '@tanstack/react-query';
-import { Skeleton } from '@/components/ui/skeleton';
 
 const ChatView = lazy(() =>
   import('@/components/chat/ChatView').then((m) => ({ default: m.ChatView })),
 );
 
 function MessagesFallback() {
-  const showLiquidBg = useDefaultLiquidBackground();
+  const profileId = useAuthProfileId();
+  const { user } = useAuth();
 
   const handleReload = () => {
     void (async () => {
       try {
         const qc = (window as unknown as { __REACT_QUERY_CLIENT__?: QueryClient }).__REACT_QUERY_CLIENT__;
         if (qc) {
-          qc.clear();
-          prepareMessagesRoute(qc);
+          recoverDmQueryCache(qc, profileId, user?.id);
+          prepareMessagesRoute(qc, profileId, user?.id);
         }
         const { del } = await import('idb-keyval');
         await del('vybe-react-query-cache');
@@ -42,18 +44,31 @@ function MessagesFallback() {
     })();
   };
 
+  const handleSoftRetry = () => {
+    const qc = (window as unknown as { __REACT_QUERY_CLIENT__?: QueryClient }).__REACT_QUERY_CLIENT__;
+    if (qc) {
+      recoverDmQueryCache(qc, profileId, user?.id);
+    }
+    window.location.assign('/messages');
+  };
+
   return (
-    <div className={cn('flex flex-col items-center justify-center h-full w-full p-8 text-center', showLiquidBg ? 'bg-transparent' : 'bg-background')}>
+    <div className="page-shell messages-content flex flex-col items-center justify-center h-full w-full p-8 text-center">
       <div className="w-16 h-16 rounded-2xl bg-primary/15 flex items-center justify-center mb-4">
         <MessageCircle className="w-8 h-8 text-primary" />
       </div>
       <h2 className="text-lg font-semibold mb-2">Couldn't load Messages</h2>
       <p className="text-sm text-muted-foreground mb-5 max-w-xs">
-        Something went wrong opening your DMs. Reload to try again.
+        Your message cache hit a snag. Retry to reopen DMs without losing the rest of the app.
       </p>
-      <Button onClick={handleReload} className="gap-2">
-        <RefreshCw className="w-4 h-4" /> Reload
-      </Button>
+      <div className="flex flex-col sm:flex-row gap-2">
+        <Button onClick={handleSoftRetry} variant="secondary" className="gap-2">
+          <RefreshCw className="w-4 h-4" /> Retry
+        </Button>
+        <Button onClick={handleReload} className="gap-2">
+          <RefreshCw className="w-4 h-4" /> Full reload
+        </Button>
+      </div>
     </div>
   );
 }
@@ -84,8 +99,8 @@ function MessagesInner() {
     <AppLayout hideRightSidebar fullWidth hideNav={!isDesktop} noPadding>
       <div
         className={cn(
-          'dm-shell flex h-full flex-1 min-h-0 w-full max-w-full overflow-hidden',
-          showLiquidBg ? 'bg-transparent' : 'bg-background',
+          'dm-shell messages-content flex h-full flex-1 min-h-0 w-full max-w-full overflow-hidden',
+          showLiquidBg && 'bg-transparent',
         )}
         style={{ touchAction: 'pan-y', WebkitOverflowScrolling: 'touch' }}
       >
@@ -102,13 +117,13 @@ function MessagesInner() {
 
         <div
           className={cn(
-            'flex-1 min-w-0 min-h-0 flex flex-col overflow-hidden relative z-[1]',
+            'messages-scroll flex-1 min-w-0 min-h-0 flex flex-col overflow-hidden relative z-[1]',
             !isInChat && 'hidden md:flex',
           )}
         >
           {isInChat ? (
             <SmartErrorBoundary fallback={<MessagesFallback />}>
-              <Suspense fallback={<Skeleton className="flex-1 w-full h-full rounded-none" />}>
+              <Suspense fallback={<div className="page-shell vybe-loading-shell flex-1 w-full min-h-0" aria-hidden="true" />}>
                 <ChatView />
               </Suspense>
             </SmartErrorBoundary>
@@ -163,7 +178,12 @@ function MessagesInner() {
                   </div>
                 </div>
 
-                <h2 className="dm-title text-2xl font-black mb-2">Your VYBE</h2>
+                <h2 className="flex flex-col items-center gap-2 mb-2">
+                  <span className="text-sm font-semibold tracking-wide text-muted-foreground uppercase">
+                    Your
+                  </span>
+                  <VybeWordmark size="lg" />
+                </h2>
                 <p className="text-sm text-muted-foreground mb-1">Pick a conversation</p>
                 <p className="text-xs text-muted-foreground/70 mb-6">
                   Snaps, voice notes, calls — all in one place

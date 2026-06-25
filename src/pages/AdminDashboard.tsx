@@ -207,7 +207,7 @@ export default function AdminDashboard() {
 
   return (
     <AppLayout hideNav noPadding>
-      <div className="flex h-[100dvh] overflow-hidden">
+      <div className="flex h-[100dvh] overflow-hidden admin-content">
         {/* Back button - mobile/tablet */}
         <Button
           variant="ghost"
@@ -231,12 +231,12 @@ export default function AdminDashboard() {
         <AnimatePresence>
           {(sidebarOpen || window.innerWidth >= 768) && (
             <motion.aside
-              initial={{ x: -280, opacity: 0 }}
-              animate={{ x: 0, opacity: 1 }}
-              exit={{ x: -280, opacity: 0 }}
-              transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.12 }}
               className={cn(
-                "fixed md:relative z-40 h-full w-64 border-r border-border/50 bg-background/80 backdrop-blur-xl",
+                "fixed md:relative z-40 h-full w-64 border-r border-border/50 vybe-glass sidebar",
                 "md:block"
               )}
             >
@@ -352,15 +352,20 @@ export default function AdminDashboard() {
         )}
 
         {/* Main Content */}
-        <main className="flex-1 overflow-y-auto pb-24">
+        <main className="flex-1 overflow-y-auto pb-24 admin-scroll">
           <div className="mx-auto p-4 md:p-6 h-full">
             <AnimatePresence mode="wait">
               <motion.div
                 key={activeSection}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
-                transition={{ duration: 0.2 }}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.12 }}
+                style={{
+                  willChange: 'opacity',
+                  backfaceVisibility: 'hidden',
+                  transform: 'translateZ(0)',
+                }}
               >
                 {renderContent()}
               </motion.div>

@@ -70,11 +70,18 @@ async function resolveReporterProfileId(userId: string): Promise<string | null> 
   const { data: profile } = await db
     .from('profiles')
     .select('id')
-    .or(`id.eq.${userId},user_id.eq.${userId}`)
-    .limit(1)
+    .eq('user_id', userId)
     .maybeSingle();
 
-  return profile?.id || null;
+  if (profile?.id) return profile.id;
+
+  const { data: byId } = await db
+    .from('profiles')
+    .select('id')
+    .eq('id', userId)
+    .maybeSingle();
+
+  return byId?.id || null;
 }
 
 export async function reportAppCrash({

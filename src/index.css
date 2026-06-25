@@ -2,6 +2,18 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Vybe Font — drop VybeFont.woff2 / .otf / .ttf into public/fonts/ */
+@font-face {
+  font-family: 'Vybe Font';
+  src:
+    url('/fonts/VybeFont.woff2') format('woff2'),
+    url('/fonts/VybeFont.otf') format('opentype'),
+    url('/fonts/VybeFont.ttf') format('truetype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: block;
+}
+
 /* Global tap-highlight reset — kills the iPad/iOS Safari yellow/orange overlay
    that appears on tap for buttons, links, framer-motion wrappers, and inputs.
    Must use !important to defeat per-element stacking contexts. */
@@ -174,6 +186,15 @@ html[data-dm-active="true"] nav[aria-label="Bottom navigation"] .liquid-glass-de
 .dm-shell {
   position: relative;
   isolation: isolate;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+}
+
+.gpu-layer {
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  will-change: transform, opacity;
+  contain: paint;
 }
 
 .dm-shell::before {
@@ -203,6 +224,10 @@ html[data-dm-active="true"] nav[aria-label="Bottom navigation"] .liquid-glass-de
   backdrop-filter: blur(28px) saturate(140%);
   -webkit-backdrop-filter: blur(28px) saturate(140%);
   border-right: 1px solid hsl(var(--foreground) / 0.05);
+  isolation: isolate;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  contain: paint;
 }
 
 body.has-liquid-bg:not(.has-custom-bg) .dm-sidebar {
@@ -223,32 +248,80 @@ body.has-liquid-bg:not(.has-custom-bg) .dm-sidebar {
   -webkit-mask-image: linear-gradient(to bottom, black 35%, transparent);
 }
 
-.dm-title,
 .vybe-wordmark {
-  font-family: 'Permanent Marker', 'Brush Script MT', cursive;
+  margin: 0;
+  padding: 0;
+  overflow: visible;
+}
+
+/* Live brush wordmark — full descenders (PNG export was bottom-clipped) */
+.vybe-wordmark-text {
+  display: inline-block;
+  font-family: 'Vybe Font', 'Permanent Marker', cursive;
   font-weight: 400;
-  font-style: italic;
-  letter-spacing: 0.02em;
+  font-style: normal;
+  letter-spacing: -0.04em;
   text-transform: uppercase;
+  line-height: 1.22;
+  padding: 0.06em 0.14em 0.22em;
+  overflow: visible;
+  vertical-align: middle;
+  font-synthesis: none;
+  -webkit-font-smoothing: antialiased;
   background: linear-gradient(
-    95deg,
-    #ff2d8a 0%,
-    #c026d3 22%,
-    #7c3aed 48%,
-    #2563eb 72%,
+    90deg,
+    hsl(var(--primary)) 0%,
+    hsl(var(--primary)) 22%,
+    hsl(var(--accent)) 78%,
+    hsl(var(--accent)) 100%
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+  filter: drop-shadow(0 0 6px hsl(var(--primary) / 0.45))
+    drop-shadow(0 0 14px hsl(var(--accent) / 0.35));
+}
+
+.vybe-wordmark-img {
+  display: block;
+  flex-shrink: 0;
+  max-width: 100%;
+  object-fit: contain;
+  object-position: center center;
+  user-select: none;
+  -webkit-user-drag: none;
+  overflow: visible;
+}
+
+.dm-title {
+  font-family: 'Vybe Font', 'Permanent Marker', cursive;
+  font-weight: 400;
+  font-style: normal;
+  letter-spacing: -0.04em;
+  text-transform: uppercase;
+  line-height: 1.35;
+  background: linear-gradient(
+    90deg,
+    #ff3898 0%,
+    #ff3898 18%,
+    #c44bff 32%,
+    #8b5cf6 48%,
+    #5b5ef0 62%,
+    #3b9cf8 78%,
     #22d3ee 100%
   );
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
-  filter: drop-shadow(0 0 8px rgba(255, 45, 138, 0.45))
-    drop-shadow(0 0 14px rgba(37, 99, 235, 0.35));
-  transform: skewX(-6deg);
+  -webkit-text-fill-color: transparent;
+  filter: drop-shadow(0 0 6px rgba(255, 56, 152, 0.55))
+    drop-shadow(0 0 14px rgba(34, 211, 238, 0.38));
   display: inline-block;
-}
-
-.dm-title {
-  letter-spacing: -0.03em;
+  padding: 0.12em 0.2em 0.22em;
+  overflow: visible;
+  font-synthesis: none;
+  -webkit-font-smoothing: antialiased;
 }
 
 .dm-unread-orb {
@@ -522,6 +595,7 @@ body.has-liquid-bg:not(.has-custom-bg) .dm-sidebar {
 .dm-inbox-hero {
   position: relative;
   flex-shrink: 0;
+  overflow: visible;
 }
 .dm-inbox-hero-aurora {
   position: absolute;
@@ -635,7 +709,11 @@ body.has-liquid-bg:not(.has-custom-bg) .dm-sidebar {
   backdrop-filter: blur(16px) saturate(130%);
   -webkit-backdrop-filter: blur(16px) saturate(130%);
   overflow: hidden;
-  transition: transform 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
+  isolation: isolate;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  contain: paint;
+  transition: transform 0.18s ease, border-color 0.18s ease, opacity 0.18s ease;
 }
 .dm-inbox-card-glow {
   position: absolute;
@@ -652,7 +730,6 @@ body.has-liquid-bg:not(.has-custom-bg) .dm-sidebar {
 }
 .dm-inbox-card:hover {
   border-color: hsl(var(--primary) / 0.22);
-  box-shadow: 0 8px 28px hsl(var(--primary) / 0.12);
 }
 .dm-inbox-card:hover .dm-inbox-card-glow {
   opacity: 1;
@@ -2286,17 +2363,10 @@ body.has-liquid-bg:not(.has-custom-bg) #main-content {
   body.has-custom-bg {
     background-color: transparent !important;
   }
-  /* Default liquid aurora — solid mesh fallback so scroll/content-visibility gaps
-     never flash through to black; aurora mount paints on top. */
+  /* Default liquid aurora — solid fallback only; mesh paints the gradient on top. */
   body.has-liquid-bg:not(.has-custom-bg) {
-    background-color: #0B0B10 !important;
-    background-image: linear-gradient(
-      145deg,
-      #050508 0%,
-      #0c0618 38%,
-      #060a14 68%,
-      #030306 100%
-    ) !important;
+    background-color: #090812 !important;
+    background-image: none !important;
   }
   body.has-custom-bg #root,
   body.has-liquid-bg #root {
@@ -4464,8 +4534,7 @@ html, body, #root {
   background: hsl(var(--background));
 }
 
-/* When login aurora is active, keep html/#root transparent so aurora shows through.
-   Body gets a static mesh fallback (not pure black) for scroll/content-visibility gaps. */
+/* When login aurora is active, keep html/#root transparent so aurora shows through. */
 html.vybe-aurora-active,
 html.vybe-aurora-active #root,
 html[data-liquid-bg='true'],
@@ -4473,19 +4542,6 @@ html[data-liquid-bg='true'] #root,
 body.has-liquid-bg #root {
   background: transparent !important;
   background-color: transparent !important;
-}
-
-body.has-liquid-bg:not(.has-custom-bg),
-html.vybe-aurora-active body:not(.has-custom-bg),
-html[data-liquid-bg='true'] body:not(.has-custom-bg) {
-  background-color: #0B0B10 !important;
-  background-image: linear-gradient(
-    145deg,
-    #050508 0%,
-    #0c0618 38%,
-    #060a14 68%,
-    #030306 100%
-  ) !important;
 }
 
 html.vybe-aurora-active #root > div,
@@ -6243,8 +6299,8 @@ html[data-has-bg-image="true"] nav[aria-label="Bottom navigation"] .liquid-glass
 }
 
 html[data-theme-loading="true"] .bg-clip-text.text-transparent,
-html[data-theme-loading="true"] [style*="background-clip: text"]:not(.vybe-liquid-text):not(.vybe-liquid-text *),
-html[data-theme-loading="true"] [style*="-webkit-background-clip: text"]:not(.vybe-liquid-text):not(.vybe-liquid-text *) {
+html[data-theme-loading="true"] [style*="background-clip: text"]:not(.vybe-liquid-text):not(.vybe-liquid-text *):not(.vybe-wordmark):not(.vybe-splash-title):not(.dm-title),
+html[data-theme-loading="true"] [style*="-webkit-background-clip: text"]:not(.vybe-liquid-text):not(.vybe-liquid-text *):not(.vybe-wordmark):not(.vybe-splash-title):not(.dm-title) {
   -webkit-text-fill-color: currentColor !important;
   color: inherit !important;
   background: none !important;

@@ -222,6 +222,9 @@ function formatCallableAiError(error: unknown): string {
         ? msg
         : 'Too many requests. Wait a moment.';
     }
+    if (code === 'unavailable' || code === 'deadline-exceeded') {
+      return msg && msg !== code ? msg : 'VYBE AI is temporarily unavailable. Try again in a moment.';
+    }
     if (code === 'internal' || msg === 'internal') {
       return 'VYBE AI server error. Try Clear Chat, then send again. If it persists, check Cloud Functions logs for aiChat.';
     }
@@ -348,20 +351,20 @@ async function streamVybeAiChatViaFirebaseAi(
 function pickUserFacingAiError(...errors: unknown[]): string {
   for (const err of errors) {
     if (isAppCheckAiError(err)) continue;
-    const formatted = formatCallableAiError(err) || formatFirebaseAiError(err);
+    const formatted = formatFirebaseAiError(err) || formatCallableAiError(err);
     if (formatted && !/retrying via server|using server fallback/i.test(formatted)) {
       return formatted;
     }
   }
   for (const err of errors) {
-    const formatted = formatCallableAiError(err) || formatFirebaseAiError(err);
+    const formatted = formatFirebaseAiError(err) || formatCallableAiError(err);
     if (formatted) return formatted;
   }
   return 'VYBE AI could not respond. Try again in a moment.';
 }
 
 /**
- * Stream a VYBE AI chat reply — Cloud Function (BYOK + quota), Firebase AI Logic fallback.
+ * Stream a VYBE AI chat reply — Firebase AI Logic first, Cloud Function fallback (BYOK + quota).
  */
 export async function streamVybeAiChat(options: StreamVybeAiChatOptions): Promise<string> {
   if (!RATE_LIMITS.aiChat()) {
@@ -372,6 +375,15 @@ export async function streamVybeAiChat(options: StreamVybeAiChatOptions): Promis
 
   await ensureSignedInForAi();
   const { history, userText, context, onChunk, imageBase64, imageMimeType } = options;
+  const errors: unknown[] = [];
+
+  if (isAiLogicConfigured()) {
+    try {
+      return await streamVybeAiChatViaFirebaseAi(options);
+    } catch (clientErr) {
+      errors.push(clientErr);
+    }
+  }
 
   try {
     const reply = await invokeVybeAiChatCallable(
@@ -384,14 +396,8 @@ export async function streamVybeAiChat(options: StreamVybeAiChatOptions): Promis
     onChunk(reply, reply);
     return reply;
   } catch (callableErr) {
-    if (isAiLogicConfigured()) {
-      try {
-        return await streamVybeAiChatViaFirebaseAi(options);
-      } catch (clientErr) {
-        throw new Error(pickUserFacingAiError(callableErr, clientErr));
-      }
-    }
-    throw new Error(pickUserFacingAiError(callableErr));
+    errors.push(callableErr);
+    throw new Error(pickUserFacingAiError(...errors));
   }
 }
 

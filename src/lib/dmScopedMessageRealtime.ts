@@ -15,6 +15,34 @@ import {
   type RealtimeChannel,
 } from '@/lib/realtimeChannel';
 
+function sanitizeRealtimeMessage(raw: unknown): Record<string, unknown> | null {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+  const row = raw as Record<string, unknown>;
+  const id = typeof row.id === 'string' ? row.id : row.id != null ? String(row.id) : '';
+  const conversationId =
+    typeof row.conversation_id === 'string'
+      ? row.conversation_id
+      : row.conversation_id != null
+        ? String(row.conversation_id)
+        : '';
+  if (!id || !conversationId) return null;
+  return {
+    id,
+    conversation_id: conversationId,
+    sender_id: typeof row.sender_id === 'string' ? row.sender_id : String(row.sender_id ?? ''),
+    content: typeof row.content === 'string' ? row.content : row.content ?? null,
+    media_type: typeof row.media_type === 'string' ? row.media_type : row.media_type ?? null,
+    media_url: typeof row.media_url === 'string' ? row.media_url : row.media_url ?? null,
+    message_type: typeof row.message_type === 'string' ? row.message_type : row.message_type ?? null,
+    created_at:
+      typeof row.created_at === 'string' ? row.created_at : new Date().toISOString(),
+    updated_at: typeof row.updated_at === 'string' ? row.updated_at : row.updated_at ?? null,
+    edited_at: typeof row.edited_at === 'string' ? row.edited_at : row.edited_at ?? null,
+    is_deleted: Boolean(row.is_deleted),
+    expires_at: typeof row.expires_at === 'string' ? row.expires_at : row.expires_at ?? null,
+  };
+}
+
 export interface ScopedMessageRealtimeContext {
   profileId: string;
   authUid: string | null;
@@ -121,7 +149,9 @@ function patchConversationLists(
   });
 }
 
-function handleMessageInsert(ctx: ScopedMessageRealtimeContext, newMessage: any) {
+function handleMessageInsert(ctx: ScopedMessageRealtimeContext, rawMessage: unknown) {
+  const newMessage = sanitizeRealtimeMessage(rawMessage);
+  if (!newMessage) return;
   const conversationId = newMessage.conversation_id;
   const isFromCurrentUser =
     newMessage.sender_id === ctx.profileId ||
@@ -192,7 +222,9 @@ function handleMessageInsert(ctx: ScopedMessageRealtimeContext, newMessage: any)
   patchConversationLists(ctx, conversationId, newMessage, isFromCurrentUser, isViewingConvo);
 }
 
-function handleMessageUpdate(ctx: ScopedMessageRealtimeContext, updatedMessage: any) {
+function handleMessageUpdate(ctx: ScopedMessageRealtimeContext, rawMessage: unknown) {
+  const updatedMessage = sanitizeRealtimeMessage(rawMessage);
+  if (!updatedMessage) return;
   const conversationId = updatedMessage.conversation_id;
   const updateKey = `update:${updatedMessage.id}:${updatedMessage.updated_at || updatedMessage.edited_at}`;
   if (ctx.isMessageProcessed(updateKey)) return;
@@ -240,7 +272,9 @@ function handleMessageUpdate(ctx: ScopedMessageRealtimeContext, updatedMessage: 
   }
 }
 
-function handleMessageDelete(ctx: ScopedMessageRealtimeContext, deletedMessage: any) {
+function handleMessageDelete(ctx: ScopedMessageRealtimeContext, rawMessage: unknown) {
+  const deletedMessage = sanitizeRealtimeMessage(rawMessage);
+  if (!deletedMessage) return;
   const conversationId = deletedMessage.conversation_id;
   if (!conversationId) return;
 

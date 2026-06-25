@@ -15,26 +15,28 @@ export function infiniteQueryHasPosts(data: unknown): boolean {
  * inference of `useInfiniteQuery` to `unknown` (which would break
  * `lastPage.nextPage` / `page.posts` typing across every feed hook).
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function refetchFeedOnMount(query: any): boolean | 'always' {
   return infiniteQueryHasPosts(query?.state?.data) ? false : 'always';
 }
 
 /** Refetch on mount when cached array is empty (messages, lists, etc.). */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function shouldRefetchWhenEmpty(query: any): boolean | 'always' {
   const data = query?.state?.data;
   if (!Array.isArray(data) || data.length === 0) return 'always';
   return false;
 }
 
+import { isPermissionDeniedError } from '@/lib/logOnce';
+
 /** Refetch DM list on mount when never fetched or errored; respect staleTime for empty lists. */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function refetchListOnMount(query: any): boolean | 'always' {
   const data = query?.state?.data;
   const status = query?.state?.status;
   const dataUpdatedAt = query?.state?.dataUpdatedAt as number | undefined;
-  if (status === 'error' && (!Array.isArray(data) || data.length === 0)) return 'always';
+  if (status === 'error') {
+    if (isPermissionDeniedError(query?.state?.error)) return false;
+    if (!Array.isArray(data) || data.length === 0) return 'always';
+  }
   // Only force refetch on the very first load — not on every pending refetch (caused refetch storms + skeleton).
   if (status === 'pending' && !dataUpdatedAt) return 'always';
   if (!Array.isArray(data)) return 'always';

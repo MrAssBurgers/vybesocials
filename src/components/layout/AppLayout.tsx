@@ -10,7 +10,6 @@ import { useScrollOptimization } from '@/hooks/useScrollOptimization';
 import { useScreenTimeTracker } from '@/hooks/useScreenTime';
 import { useBreakpoint } from '@/hooks/usePlatform';
 import { cn } from '@/lib/utils';
-import { useDefaultLiquidBackground } from '@/hooks/useDefaultLiquidBackground';
 import { useSwipeBack } from '@/hooks/useSwipeBack';
 import { isNativePerfMode } from '@/lib/nativePerfMode';
 import { PWAInstallBanner } from '@/components/pwa/PWAInstallBanner';
@@ -47,7 +46,6 @@ export const AppLayout = memo(forwardRef<HTMLDivElement, AppLayoutProps>(functio
   const [leftCollapsed, setLeftCollapsed] = useState(false);
   const nativePerf = isNativePerfMode();
   const { swipeBackHandlers, swipeProgress } = useSwipeBack(!nativePerf);
-  const showLiquidBg = useDefaultLiquidBackground();
   const bottomNavMounted = useBottomNavMount();
   const reserveBottomNavSpace = !hideNav && !noPadding && bottomNavMounted;
 
@@ -66,7 +64,7 @@ export const AppLayout = memo(forwardRef<HTMLDivElement, AppLayoutProps>(functio
 
   if (loading && !hasStoredSession) {
     return (
-      <div className={cn('min-h-screen bg-background', showLiquidBg && 'bg-transparent')}>
+      <div className="vybe-loading-shell app-shell min-h-screen">
         {children}
       </div>
     );
@@ -81,7 +79,7 @@ export const AppLayout = memo(forwardRef<HTMLDivElement, AppLayoutProps>(functio
         >
           Skip to content
         </a>
-        <div ref={ref} className={cn('h-screen w-full overflow-hidden relative bg-background', showLiquidBg && 'bg-transparent')}>
+        <div ref={ref} className="app-shell h-screen w-full overflow-hidden relative bg-transparent">
           <div className="relative z-[1] flex h-screen w-full">
             <DesktopLeftSidebar
               collapsed={leftCollapsed}
@@ -90,8 +88,7 @@ export const AppLayout = memo(forwardRef<HTMLDivElement, AppLayoutProps>(functio
             <main
               id="main-content"
               className={cn(
-                'flex-1 min-w-0 h-screen overflow-x-hidden relative z-[2] bg-background',
-                showLiquidBg && 'bg-transparent',
+                'main-content main-scroll flex-1 min-w-0 h-screen overflow-x-hidden relative z-[2] bg-transparent',
                 noPadding ? 'overflow-hidden' : 'overflow-y-auto scroller',
               )}
               style={{
@@ -121,10 +118,7 @@ export const AppLayout = memo(forwardRef<HTMLDivElement, AppLayoutProps>(functio
   return (
     <div
         ref={ref}
-        className={cn(
-          'h-[100dvh] w-full overflow-hidden overflow-x-hidden relative bg-background',
-          showLiquidBg && 'bg-transparent',
-        )}
+        className="app-shell h-[100dvh] w-full overflow-hidden overflow-x-hidden relative bg-transparent"
         {...(hideNav && noPadding ? {} : swipeBackHandlers)}
       >
         <div className="relative z-[1] flex flex-col h-full min-h-0">
@@ -141,8 +135,7 @@ export const AppLayout = memo(forwardRef<HTMLDivElement, AppLayoutProps>(functio
             id="main-content"
             data-app-scroll-container="true"
             className={cn(
-              'overflow-x-hidden relative z-[2] bg-background',
-              showLiquidBg && 'bg-transparent',
+              'main-content main-scroll overflow-x-hidden relative z-[2] bg-transparent',
               noPadding ? 'overflow-hidden flex flex-col min-h-0' : 'overflow-y-auto scroller native-scroll-shell',
               !hideNav && !noPadding ? 'content-with-header' : '',
             )}

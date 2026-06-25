@@ -4,6 +4,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { LogOut, ArrowLeft, ChevronRight, Loader2 } from 'lucide-react';
 import { VybeMiniIcon } from '@/components/ui/VybeMiniIcon';
+import { VybeWordmark } from '@/components/ui/VybeWordmark';
 import { useAuth } from '@/lib/auth';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { haptics } from '@/lib/haptics';
@@ -164,7 +165,7 @@ const SettingsPage = forwardRef<HTMLDivElement, React.ComponentPropsWithoutRef<'
       <div className="text-center text-muted-foreground">
         <div className="flex items-center justify-center gap-2 mb-1.5">
           <VybeMiniIcon size={28} showSparkles />
-          <span className="font-display font-black text-xl gradient-text tracking-tight">VYBE</span>
+          <VybeWordmark size="md" />
         </div>
         <p className="text-[11px] font-medium uppercase tracking-[0.2em] text-muted-foreground/70">Version {APP_VERSION}</p>
       </div>

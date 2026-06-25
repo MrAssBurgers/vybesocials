@@ -71,8 +71,7 @@ export default function About() {
       >
         <div className="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between">
           <Link to="/" className="flex items-center gap-2">
-            <VYBELogo size="sm" showText={false} />
-            <span className="font-display font-bold text-lg text-foreground">VYBE</span>
+            <VYBELogo size="sm" />
           </Link>
           <nav className="flex items-center gap-4 text-sm text-muted-foreground">
             <Link to="/about" className="text-foreground font-medium">About</Link>

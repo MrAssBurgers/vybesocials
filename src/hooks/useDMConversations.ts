@@ -15,6 +15,7 @@ import {
   type LoadedDMConversation,
 } from '@/lib/loadDMConversations';
 import { refetchListOnMount } from '@/lib/queryRefetchPolicy';
+import { shouldRetryQuery } from '@/lib/logOnce';
 import { syncSessionProfileId } from '@/lib/resolveSessionProfileId';
 import { markConversationReadForViewer, getSessionAuthUid } from '@/lib/markConversationRead';
 import { ensureArray, normalizeDmConversation, normalizeDmConversationList, safeDmMembers, findInQueryArray, readQueryArray } from '@/lib/persistedCollections';
@@ -87,7 +88,7 @@ export function useDMConversations(searchQuery: string = '') {
     // DM list must reach network on first load — offlineFirst can pause forever
     // with isFetched=false when connectivity is flaky (shows perpetual spinner).
     networkMode: 'always',
-    retry: 2,
+    retry: (failureCount, error) => shouldRetryQuery(failureCount, error, 2),
     retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 4000),
   });
 

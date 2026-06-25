@@ -1,0 +1,121 @@
+/* App-wide repaint / black-flicker guard — permanent stable backgrounds */
+
+html,
+body {
+  min-height: 100%;
+  background: #090812;
+  overscroll-behavior: none;
+}
+
+#root {
+  min-height: 100%;
+  background: transparent;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+.vybe-bg {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background:
+    radial-gradient(circle at 20% 20%, rgba(255, 45, 180, 0.24), transparent 32%),
+    radial-gradient(circle at 80% 70%, rgba(0, 200, 255, 0.22), transparent 36%),
+    linear-gradient(135deg, #120018 0%, #081827 100%);
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  pointer-events: none;
+}
+
+/* Aurora mesh is self-contained — skip painting the base gradient underneath */
+html.vybe-aurora-active .vybe-bg,
+html[data-liquid-bg='true'] .vybe-bg,
+body.has-liquid-bg .vybe-bg,
+body.has-custom-bg .vybe-bg {
+  visibility: hidden;
+}
+
+/* Route + layout shells stay transparent — vybe-bg / aurora is the only backdrop */
+[data-route-shell],
+.app-shell,
+.main-content,
+.admin-content,
+.messages-content {
+  background: transparent;
+  min-height: 100dvh;
+}
+
+/* Opaque gradient only for explicit loading / error fallbacks */
+.page-shell,
+.vybe-loading-shell {
+  background:
+    radial-gradient(circle at 20% 20%, rgba(255, 45, 180, 0.16), transparent 35%),
+    linear-gradient(135deg, rgba(20, 5, 35, 0.96), rgba(5, 20, 35, 0.96));
+  min-height: 100dvh;
+}
+
+.vybe-loading-shell {
+  background:
+    radial-gradient(circle at 25% 20%, rgba(255, 45, 180, 0.18), transparent 35%),
+    linear-gradient(135deg, #16051f, #061725);
+}
+
+.app-shell {
+  overflow: hidden;
+}
+
+.main-scroll,
+.admin-scroll,
+.messages-scroll {
+  overflow-y: auto;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+}
+
+.vybe-glass {
+  background: rgba(24, 8, 36, 0.72);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.28);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  transform: translateZ(0);
+  backface-visibility: hidden;
+}
+
+.bottom-nav,
+.sidebar,
+.right-rail,
+.desktop-left-sidebar,
+.desktop-right-sidebar {
+  transform: translateZ(0);
+  backface-visibility: hidden;
+}
+
+/* Layout shells: never animate backdrop-filter or all properties */
+.app-shell,
+[data-route-shell],
+[data-app-shell],
+#main-content,
+.bottom-nav,
+.sidebar,
+.desktop-left-sidebar,
+.desktop-right-sidebar,
+.right-rail,
+.dm-shell,
+.admin-content,
+.messages-content {
+  transition-property: opacity, transform, background-color, border-color;
+  transition-duration: 120ms;
+}
+
+/* Scroll: freeze expensive nav chrome repaints */
+html.is-scrolling .bottom-nav .gradient-animated,
+html.is-scrolling .bottom-nav [class*="animate-"] {
+  animation-play-state: paused !important;
+}
+
+html.is-scrolling .bottom-nav {
+  transition: none !important;
+}

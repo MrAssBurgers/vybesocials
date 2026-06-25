@@ -92,9 +92,9 @@ export function DmInboxView() {
               </Avatar>
             </button>
 
-            <div className="flex-1 min-w-0 pt-0.5">
-              <div className="flex items-center gap-2">
-                <VybeWordmark size="sm" as="h1" className="leading-none" />
+            <div className="flex-1 min-w-0 pt-1 overflow-visible">
+              <div className="flex items-center gap-2 overflow-visible min-h-[28px]">
+                <VybeWordmark size="sm" as="h1" />
                 {totalUnreadCount > 0 && (
                   <motion.span
                     initial={{ scale: 0 }}

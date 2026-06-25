@@ -8,6 +8,7 @@ import { toast } from 'sonner';
 import { useBugRecheck } from '@/contexts/BugRecheckContext';
 import { useUserRole } from '@/hooks/useModeration';
 import { isAdminRole } from '@/lib/adminAccess';
+import { clearAllBugReports, invalidateBugMonitorQueries } from '@/lib/clearBugReports';
 
 
 type BugStatus = 'pending' | 'reviewing' | 'fixed' | 'wont_fix' | 'duplicate';
@@ -26,8 +27,8 @@ export function AdminErrorsSection() {
   const canView = isAdminRole(userRole);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [filter, setFilter] = useState<BugStatus | 'all'>('all');
-  // Error monitor ONLY shows AI-verified bugs — no toggle, no noise.
-  const verifiedOnly = true;
+  // Show all auto-reported bugs — AI triage is informational, not a visibility gate.
+  const verifiedOnly = false;
   const recheck = useBugRecheck();
 
   const { data: bugs = [], isLoading, isError, error, refetch } = useQuery({
@@ -128,6 +129,22 @@ export function AdminErrorsSection() {
       queryClient.invalidateQueries({ queryKey: ['admin-bug-reports-inline'] });
       queryClient.invalidateQueries({ queryKey: ['pending-moderation-count'] });
       toast.success('Bug report deleted');
+    },
+  });
+
+  const fixAllBugs = useMutation({
+    mutationFn: async () => clearAllBugReports(true),
+    onSuccess: async (result) => {
+      await invalidateBugMonitorQueries(queryClient);
+      recheck.abort();
+      toast.success(
+        result.cleared > 0
+          ? `Cleared ${result.cleared} bug${result.cleared === 1 ? '' : 's'}`
+          : 'All bugs already cleared',
+      );
+    },
+    onError: (e: Error) => {
+      toast.error(e.message || 'Fix All failed');
     },
   });
 
@@ -237,53 +254,14 @@ export function AdminErrorsSection() {
               <X className="w-3.5 h-3.5" />
             </Button>
           )}
-          <Button variant="outline" size="sm" onClick={async () => {
-            // Fix All = delete every unfixed bug in batches so the list
-            // actually empties out instead of just changing status.
-            const { count: unfixedCount } = await db
-              .from('bug_reports')
-              .select('id', { count: 'exact', head: true })
-              .neq('status', 'fixed');
-            const total = unfixedCount || 0;
-            if (total === 0) { toast.info('All bugs already cleared'); return; }
-            if (!confirm(`Clear ALL ${total} unfixed bugs from the database? This deletes them permanently.`)) return;
-
-            const toastId = 'fix-all-progress';
-            toast.loading(`Clearing 0/${total}…`, { id: toastId });
-
-            let cleared = 0;
-            const BATCH = 200;
-            // Loop deleting batches until none remain (or RLS blocks)
-            for (let i = 0; i < 50; i++) {
-              const { data: batchIds, error: selErr } = await db
-                .from('bug_reports')
-                .select('id')
-                .neq('status', 'fixed')
-                .limit(BATCH);
-              if (selErr) { toast.error('Failed to read bugs: ' + selErr.message, { id: toastId }); return; }
-              if (!batchIds || batchIds.length === 0) break;
-              const ids = batchIds.map((r: any) => r.id);
-              const { error: delErr, data: deleted } = await db
-                .from('bug_reports')
-                .delete()
-                .in('id', ids)
-                .select('id');
-              if (delErr) { toast.error('Failed to delete: ' + delErr.message, { id: toastId }); return; }
-              const n = deleted?.length || 0;
-              if (n === 0) {
-                toast.error('Delete affected 0 rows — admin permission may be missing.', { id: toastId });
-                return;
-              }
-              cleared += n;
-              toast.loading(`Clearing ${cleared}/${total}…`, { id: toastId });
-              if (n < BATCH) break;
-            }
-
-            await queryClient.invalidateQueries({ queryKey: ['admin-bug-reports-inline'] });
-            await queryClient.refetchQueries({ queryKey: ['pending-moderation-count'] });
-            toast.success(`Cleared ${cleared} bugs`, { id: toastId });
-          }}>
-            <CheckCircle2 className="w-3.5 h-3.5 mr-1" /> Fix All
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={fixAllBugs.isPending || recheck.running}
+            onClick={() => fixAllBugs.mutate()}
+          >
+            <CheckCircle2 className="w-3.5 h-3.5 mr-1" />
+            {fixAllBugs.isPending ? 'Clearing…' : 'Fix All'}
           </Button>
 
           <Button variant="outline" size="sm" onClick={() => refetch()}>

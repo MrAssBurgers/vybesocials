@@ -3,6 +3,7 @@ import { useEffect } from "react";
 import { motion } from "framer-motion";
 import { Home, ArrowLeft } from "lucide-react";
 import { VybeMiniIcon } from "@/components/ui/VybeMiniIcon";
+import { VybeWordmark } from "@/components/ui/VybeWordmark";
 import { Button } from "@/components/ui/button";
 
 const NotFound = () => {
@@ -89,7 +90,7 @@ const NotFound = () => {
             <div className="absolute inset-0 blur-xl bg-primary/30 rounded-full scale-150" />
             <VybeMiniIcon size={32} showSparkles />
           </div>
-          <span className="font-display font-black text-2xl gradient-text">VYBE</span>
+          <VybeWordmark size="lg" />
         </motion.div>
 
         <motion.p

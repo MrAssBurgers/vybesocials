@@ -83,9 +83,31 @@ const IGNORED_PATTERNS = [
   'invalid_credentials',
   'auth-2fa-preauth',
   'Edge function returned 401',
+  'Admin only',
+  'PERMISSION_DENIED',
+  'analyzeBugReport',
+  'analyze-bug-report',
+  'getAuthUsersCount',
+  'get_auth_users_count',
+  'Maximum call stack size exceeded',
+  'permission-denied',
 ];
 
 const BUG_STATUS_CODES = [400, 403, 404, 409, 422, 500, 502, 504];
+
+/** Expected 403s — staff-only endpoints called before role resolves or by auto-triage. */
+function isExpectedStaffHttp403(status: number, url: string, body?: string): boolean {
+  if (status !== 403) return false;
+  const haystack = `${url} ${body || ''}`.toLowerCase();
+  return (
+    haystack.includes('admin only') ||
+    haystack.includes('permission_denied') ||
+    haystack.includes('analyzebugreport') ||
+    haystack.includes('analyze-bug-report') ||
+    haystack.includes('getauthuserscount') ||
+    haystack.includes('get_auth_users_count')
+  );
+}
 
 const IGNORED_URL_PATTERNS = [
   '/auth/',
@@ -127,8 +149,7 @@ async function flushReports() {
     const { data: profile } = await db
       .from('profiles')
       .select('id')
-      .or(`id.eq.${reporterId},user_id.eq.${reporterId}`)
-      .limit(1)
+      .eq('user_id', reporterId)
       .maybeSingle();
     if (profile?.id) profileId = profile.id;
 
@@ -148,16 +169,7 @@ async function flushReports() {
       .insert(rows)
       .select('id');
 
-    // Fire-and-forget AI triage so admins see root-cause + suggested fix in the panel.
-    if (inserted && inserted.length) {
-      for (const row of inserted) {
-        try {
-          void db.functions.invoke('analyze-bug-report', { body: { bugId: row.id } });
-        } catch {
-          // Silent — analysis is best-effort.
-        }
-      }
-    }
+    // Fire-and-forget AI triage is admin-only server-side — skip client invoke.
   } catch {
     // Silent fail — never interrupt the user
   }
@@ -188,12 +200,18 @@ function enqueueReport(bug: DetectedBug) {
 
   if (getConsentState() === false) return;
 
+  // Always surface permission / DM failures in the error monitor.
+  if (/permission denied|\[DM\]/i.test(bug.message)) {
+    reportedKeys.delete(key);
+  }
+
   reportQueue.push(bug);
   if (flushTimer) clearTimeout(flushTimer);
   flushTimer = setTimeout(flushReports, 2000);
 }
 
 function classifyHttpError(status: number, url: string, body?: string): DetectedBug | null {
+  if (isExpectedStaffHttp403(status, url, body)) return null;
   if (!BUG_STATUS_CODES.includes(status)) return null;
   const firebaseHosts = ['cloudfunctions.net', 'firebasestorage.googleapis.com', 'googleapis.com'];
   const isAppRequest =
@@ -214,6 +232,17 @@ function classifyHttpError(status: number, url: string, body?: string): Detected
     userAgent: navigator.userAgent,
     timestamp: Date.now(),
   };
+}
+
+export function clearAutoBugReporterSession(): void {
+  reportedKeys.clear();
+  recentEnqueues.clear();
+  recentEnqueueTimestamps.length = 0;
+  reportQueue.length = 0;
+  if (flushTimer) {
+    clearTimeout(flushTimer);
+    flushTimer = null;
+  }
 }
 
 export function useAutoBugReporter() {

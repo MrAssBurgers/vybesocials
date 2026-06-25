@@ -13,7 +13,6 @@ import { useTrashedConversationIds, useTrashConversation } from '@/hooks/useTras
 import { StoryGroup } from '@/hooks/useStories';
 import { ensureArray, safeDmMembers } from '@/lib/persistedCollections';
 import LocalErrorBoundary from '@/components/error/LocalErrorBoundary';
-import { StoryViewer } from '@/components/stories/StoryViewer';
 import { useAcceptedFriendRequests, useDismissAcceptedRequest } from '@/hooks/useAcceptedFriendRequests';
 import { useStreakMap, Streak } from '@/hooks/useStreaks';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
@@ -521,18 +520,7 @@ export function ConversationList() {
         </CameraMountBoundary>
       )}
 
-      {/* Story viewer disabled while DM list stories are off */}
-      <AnimatePresence>
-        {false && storyViewerIndex !== null && storyGroups.length > 0 && (
-          <LocalErrorBoundary label="dm-story-viewer">
-            <StoryViewer
-              groups={storyGroups}
-              initialGroupIndex={storyViewerIndex}
-              onClose={() => setStoryViewerIndex(null)}
-            />
-          </LocalErrorBoundary>
-        )}
-      </AnimatePresence>
+      {/* Story viewer disabled while DM list stories are off — re-enable when STORY_VIEWER_IN_DM is true */}
     </div>
   );
 }
@@ -1027,6 +1015,10 @@ const ConversationItem = memo(forwardRef<HTMLDivElement, ConversationItemProps>(
     if (isDraggingRef.current) return;
     onClick();
   }, [onClick]);
+
+  const handleWarm = useCallback(() => {
+    onWarm?.();
+  }, [onWarm]);
 
   // Cleanup on unmount
   useEffect(() => {

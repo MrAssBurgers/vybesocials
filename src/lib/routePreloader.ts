@@ -38,6 +38,7 @@ const routeImports: Record<string, () => Promise<any>> = {
   '/streaks': () => import('@/pages/ReactionStreaks'),
   '/roulette': () => import('@/pages/VYBERoulette'),
   '/sounds': () => import('@/pages/Sounds'),
+  '/map': () => import('@/pages/VybeMap'),
 };
 
 // Track which routes have been preloaded
@@ -125,6 +126,7 @@ export function preloadSecondaryRoutes(): void {
       '/howudoin',
       '/invite-friends',
       '/feedback',
+      '/map',
     ];
     
     secondaryRoutes.forEach(route => {

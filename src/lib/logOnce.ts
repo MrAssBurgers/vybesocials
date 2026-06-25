@@ -9,7 +9,17 @@ export function warnOnce(key: string, ...args: unknown[]): void {
 
 export function isPermissionDeniedError(error: unknown): boolean {
   const message = error instanceof Error ? error.message : String((error as { message?: string })?.message ?? error ?? '');
-  return /missing or insufficient permissions|permission.denied/i.test(message);
+  const code = (error as { code?: string })?.code;
+  return (
+    code === 'permission-denied' ||
+    /missing or insufficient permissions|permission denied|permission\.denied/i.test(message)
+  );
+}
+
+/** Stop TanStack Query retries on Firestore permission errors (avoids console spam). */
+export function shouldRetryQuery(failureCount: number, error: unknown, maxAttempts = 2): boolean {
+  if (isPermissionDeniedError(error)) return false;
+  return failureCount < maxAttempts;
 }
 
 export function isFirestoreIndexError(error: unknown): boolean {

@@ -12,6 +12,12 @@ import { cn } from '@/lib/utils';
 
 const SWIPE_THRESHOLD = -72;
 
+const GPU_LAYER_STYLE = {
+  willChange: 'transform, opacity',
+  backfaceVisibility: 'hidden' as const,
+  transform: 'translateZ(0)',
+};
+
 function asDisplayLabel(value: unknown): string | undefined {
   if (typeof value === 'string') {
     const trimmed = value.trim();
@@ -75,7 +81,7 @@ export const SwipeableDmConversationRow = memo(function SwipeableDmConversationR
     if (info.offset.x < SWIPE_THRESHOLD) {
       if (navigator.vibrate) navigator.vibrate([15, 30, 15]);
       setIsDeleting(true);
-      setTimeout(() => handleTrash(), 400);
+      window.setTimeout(() => handleTrash(), 360);
     }
     if (wasHorizontalSwipe) {
       isDraggingRef.current = true;
@@ -166,17 +172,18 @@ export const SwipeableDmConversationRow = memo(function SwipeableDmConversationR
 
   return (
     <>
-      <div className="relative mb-0.5">
+      <div className="relative mb-0.5 gpu-layer">
         <motion.div
-          className="absolute inset-0 flex items-center justify-end pointer-events-none rounded-2xl"
+          className="absolute inset-0 flex items-center justify-end pointer-events-none rounded-2xl gpu-layer"
           style={{
             opacity: deleteBgOpacity,
             visibility: deleteVisibility,
             background: 'hsl(var(--destructive))',
+            ...GPU_LAYER_STYLE,
           }}
         >
           <motion.div
-            style={{ scale: deleteScale, opacity: deleteOpacity }}
+            style={{ scale: deleteScale, opacity: deleteOpacity, ...GPU_LAYER_STYLE }}
             className="flex flex-col items-center gap-0.5 text-destructive-foreground pr-6"
           >
             <Trash2 className="h-5 w-5" />
@@ -185,14 +192,14 @@ export const SwipeableDmConversationRow = memo(function SwipeableDmConversationR
         </motion.div>
 
         <motion.div
-          className="relative overflow-hidden rounded-2xl"
-          style={{ x }}
+          className="relative overflow-hidden rounded-2xl gpu-layer"
+          style={{ x, ...GPU_LAYER_STYLE }}
           drag="x"
           dragConstraints={{ left: -120, right: 0 }}
           dragElastic={0.1}
           dragMomentum={false}
           onDragEnd={handleDragEnd}
-          animate={isDeleting ? { x: -400, opacity: 0, height: 0, marginBottom: 0 } : { x: 0 }}
+          animate={isDeleting ? { x: -400, opacity: 0 } : { x: 0, opacity: 1 }}
           transition={
             isDeleting
               ? { duration: 0.35, ease: [0.4, 0, 0.2, 1] }

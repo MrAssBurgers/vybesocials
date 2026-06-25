@@ -3,27 +3,34 @@ import { motion } from 'framer-motion';
 import { cn } from '@/lib/utils';
 import { liquidSpring } from '@/motion/liquidConfig';
 
+const routeShellMotionStyle = {
+  willChange: 'opacity' as const,
+  backfaceVisibility: 'hidden' as const,
+  transform: 'translateZ(0)',
+};
+
 interface PageTransitionProps {
   children: ReactNode;
   className?: string;
 }
 
-// Apple-style liquid page transition with spring physics
+/** Opacity-only route transition — no scale/position layout shifts. */
 export function PageTransition({ children, className }: PageTransitionProps) {
   return (
     <motion.div
-      initial={{ opacity: 0, y: 10, scale: 0.99 }}
-      animate={{ opacity: 1, y: 0, scale: 1 }}
-      exit={{ opacity: 0, y: -6, scale: 0.99 }}
-      transition={liquidSpring}
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.12 }}
       className={className}
+      style={routeShellMotionStyle}
     >
       {children}
     </motion.div>
   );
 }
 
-// Section transition with liquid spring and stagger delay
+// Section transition — opacity only on large sections
 export function SectionTransition({ 
   children, 
   delay = 0,
@@ -35,13 +42,14 @@ export function SectionTransition({
 }) {
   return (
     <motion.div
-      initial={{ opacity: 0, y: 12, scale: 0.98 }}
-      animate={{ opacity: 1, y: 0, scale: 1 }}
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
       transition={{
-        ...liquidSpring,
+        duration: 0.12,
         delay,
       }}
       className={className}
+      style={routeShellMotionStyle}
     >
       {children}
     </motion.div>

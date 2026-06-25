@@ -2,6 +2,61 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## Deep scan + map settings persistence + perf (2026-06-25)
+- **Debug scan:** build PASS · lint PASS (fixed ConversationList constant-binary + queryRefetchPolicy warnings) · CSS/boot PASS · 66/144 Cloud Functions refs OK · prod probes WARN (400 on sharePreview/livekit/aiCatchUp — expected without auth body)
+- **VybeMap remembers map look:** `useMapViewMode` persists 2D/3D/satellite/terrain/hybrid in `vybe-map-view-mode-v1` — leave on 3D, returns on 3D
+- **Map layers** already persisted in `vybe-map-layers-v2`
+- **Perf:** Fixed infinite RAF loop in `useLiveFriends` (was re-rendering every frame forever); map route preloaded (`/map` in routePreloader + sidebar hover prefetch); live friends poll 8s→12s
+- **Verified:** `npm run build` PASS · `npm run lint` PASS
+- **You:** Hard refresh · Lovable Publish vybehub.app · deploy hosting for staging
+
+## AI theme designer — fast + faithful matching (2026-06-17)
+- **Problem:** Theme generation waited on slow Cloud Function first; vague/unrelated palettes for brand/color prompts
+- **Fix:** New `promptThemeBuilder.ts` — instant parse for brands, hex codes, color names, scenes (sunset, ocean, y2k, etc.); high-confidence prompts return immediately with no network
+- **Pipeline:** Instant parse → parallel client AI (6s) + cloud (5s) with merge into parsed anchors → local prompt palette fallback (never random vibe)
+- **UX:** Design Your Vybe timeout 30s → 12s; toast on instant brand/prompt match
+- **Verified:** `npm run build` PASS
+- **You:** Hard refresh staging · test prompts like "Nike black orange", "#FF0000 and black", "sunset vibes", "Spotify green"
+
+## Bug monitor triage + DM/cache fixes (2026-06-17)
+- **handleWarm is not defined:** `ConversationItem` used `handleWarm` without defining it — added callback from `onWarm` prop
+- **Admin 403 spam:** Stopped client auto-invoke of `analyze-bug-report`; ignore expected staff 403s in auto reporter; gate `BugRecheck` + `AdminLiveAnalytics` on `isAdminRole`; profiles count fallback for total users
+- **Stack overflow /messages:** Stable-reference message cache revive; normalizer try/catch removes corrupt queries; cache buster `vybe-cache-v17`
+- **analyzeBugReport:** Accept `bugId` or `report_id` + CORS on callable
+- **Verified:** `npm run build` PASS · deployed https://vybe-daaab.web.app + `analyzeBugReport`
+- **You:** Hard refresh staging · Lovable Publish vybehub.app (prod still on old Messages bundle) · ensure `user_roles` has owner/admin row for your uid on vybe-daaab · set `GEMINI_API_KEY` on Cloud Functions for AI theme/agent
+
+## Background layer consolidation (2026-06-17)
+- **Problem:** ~11 stacked full-screen paints (duplicate `.vybe-bg`, aurora mount fallback gradient, body gradient, 7 liquid sub-layers)
+- **Fix:** Single boot `.vybe-bg` only (removed React duplicate); `#root` transparent; empty `#vybe-aurora-mount`; hide `.vybe-bg` when aurora/custom wallpaper active; app-shell aurora = mesh + 2 blobs (no bloom/grain); body liquid fallback = solid `#090812` only
+- **VYBE wordmark clip:** PNG export was bottom-cropped — switched to live text (`Vybe Font` / Permanent Marker) + theme gradient + descender padding
+- **Verified:** `npm run build` PASS · deployed https://vybe-daaab.web.app
+- **You:** Hard refresh staging · Lovable Publish vybehub.app for production
+
+## DM permissions, error monitor, wordmark, staging fixes (2026-06-17)
+- **DM permission denied:** Replaced batched `conversations` `.in()` queries (Firestore rules reject list queries) with per-doc reads; membership query uses resolved `profile.id` only; `syncUserAuthIndex` before DM load; stop retries on permission errors; auto-report to `bug_reports`
+- **Add friends slow:** Parallel profile + request lookups; `createDmChat` instead of heavy RPC; fire-and-forget notification insert
+- **Error monitor empty:** `AdminErrorsSection` was filtering to AI-verified only — now shows all pending reports; DM/permission errors reported via `reportAppCrash`
+- **VYBE wordmark:** Text + `dm-title` gradient (user theme primary/accent); extra bottom padding — no PNG clip
+- **get_auth_users_count:** New callable `getAuthUsersCount` with `cors: true` + client RPC; `authLoginNotify`/`authLoginApproval` CORS enabled
+- **OneSignal staging:** Skip web SDK on `vybe-daaab.web.app` / preview hosts
+- **Verified:** `npm run build` PASS
+- **You:** Deploy functions (`getAuthUsersCount`, auth CORS) · hard refresh · sign out/in if DM still denied (refreshes `user_auth_index`)
+
+## App-wide black flicker / repaint guard (2026-06-17)
+- **Symptom:** Center content flashes black on navigate, panel open, scroll, admin section change; side rails stable but main pane repaints
+- **Cause:** `popLayout` route transitions, `#0B0B10` Suspense/loader fallbacks, opaque `bg-background` shells, `layoutId` on nav rails, `transition-all` on large containers
+- **Fix:** Permanent `.vybe-bg` (index.html + App shell); `src/styles/repaint-guard.css` (page-shell, vybe-glass, vybe-loading-shell, scroll containment, repaint hints); opacity-only route transitions (`AnimatedRoutes`, `PageTransition`); stable Suspense fallbacks; `AppLayout` main-content shells; memo `DesktopLeftSidebar`/`DesktopRightSidebar`; removed `layoutId` from BottomNav/Sidebar; admin/Messages stable backgrounds
+- **Verified:** `npm run build` PASS
+- **You:** Chrome DevTools → Rendering → Paint flashing (only clicked elements should flash) · hard refresh · Lovable Publish vybehub.app · `npx -y firebase-tools@latest deploy --only hosting --project vybe-daaab` for staging
+
+## DM crash + flicker fix — React Query loop (2026-06-25)
+- **Symptom:** "Couldn't load Messages" + `RangeError: Maximum call stack size exceeded` in `setQueryData`; black flicker on swipe/drag
+- **Cause:** `installQueryCacheNormalizer` re-wrote DM/stories cache on every update (always new array refs) → infinite `setQueryData` loop; error boundary called `reviveQueriesInCache` making it worse
+- **Fix:** Stable-reference cache revival (`dmConversationListNeedsRevive`, `storyGroupsNeedRevive`); re-entrancy guards; write guard only normalizes corrupt data; `recoverDmQueryCache` for soft recovery; realtime message payload sanitization; GPU compositor layers on DM swipe/shell (transform+opacity only)
+- **Verified:** `npm run build` PASS · deploy vybe-daaab.web.app
+- **You:** Hard refresh · VYBE AI still needs `GEMINI_API_KEY` on Cloud Functions or BYOK in Settings
+
 ## DM page crash fix — route error on /messages (2026-06-25)
 - **Symptom:** "This page couldn't load" when opening DMs (route ErrorBoundary, not inbox fallback)
 - **Cause:** Corrupt persisted DM rows (object `name` / `display_name` rendered as React children); hooks in `Messages()` sat outside child error boundary; heavy `ChatView` static import

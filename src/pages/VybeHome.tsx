@@ -10,6 +10,7 @@ import {
   Globe, Mic, Smile, Phone, GripVertical, Layers, Image as ImageIcon,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { VybeWordmark } from '@/components/ui/VybeWordmark';
 import { usePublicUserCount } from '@/hooks/usePublicUserCount';
 import { useLandingTopCreators } from '@/hooks/useLandingTopCreators';
 import { publicAsset } from '@/lib/publicAsset';
@@ -774,8 +775,8 @@ const VybeHome = memo(function VybeHome() {
       {/* Sticky nav */}
       <header className="sticky top-0 z-50 backdrop-blur-xl bg-[#0B0B10]/80 border-b border-white/5">
         <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
-          <Link to="/vybe-home" className="font-display font-black text-xl tracking-tight">
-            <span className="bg-gradient-to-r from-violet-400 to-cyan-400 bg-clip-text text-transparent">VYBE</span>
+          <Link to="/vybe-home" className="inline-flex">
+            <VybeWordmark size="md" />
           </Link>
           <nav className="hidden md:flex items-center gap-7 text-sm text-white/70">
             <a href="#features" className="hover:text-white transition">Features</a>
@@ -981,7 +982,11 @@ const VybeHome = memo(function VybeHome() {
                 <th className="p-4">Instagram</th>
                 <th className="p-4">Snap</th>
                 <th className="p-4">Discord</th>
-                <th className="p-4 bg-gradient-to-br from-violet-500/20 to-cyan-500/20 rounded-t-xl">VYBE</th>
+                <th className="p-4 bg-gradient-to-br from-violet-500/20 to-cyan-500/20 rounded-t-xl">
+                  <div className="flex justify-center">
+                    <VybeWordmark size="xs" />
+                  </div>
+                </th>
               </tr>
             </thead>
             <tbody className="text-white/80">
@@ -1064,7 +1069,7 @@ const VybeHome = memo(function VybeHome() {
       <footer className="border-t border-white/5 py-10 px-6 text-sm text-white/50">
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row gap-6 justify-between items-center">
           <div className="flex items-center gap-2">
-            <span className="font-display font-black bg-gradient-to-r from-violet-400 to-cyan-400 bg-clip-text text-transparent">VYBE</span>
+            <VybeWordmark size="sm" />
             <span className="text-white/60">© 2026</span>
           </div>
           <div className="flex flex-wrap gap-5">

@@ -28,3 +28,15 @@ export function isLovablePreviewHost(): boolean {
 
   return false;
 }
+
+/** Firebase staging / preview hosting (vybe-daaab.web.app, *.web.app). */
+export function isFirebaseStagingHost(): boolean {
+  if (typeof window === 'undefined') return false;
+  const { hostname } = window.location;
+  return hostname === 'vybe-daaab.web.app' || hostname.endsWith('.web.app');
+}
+
+/** Hosts where OneSignal web SDK domain lock does not apply — skip noisy failures. */
+export function isOneSignalBypassHost(): boolean {
+  return isLovablePreviewHost() || isFirebaseStagingHost();
+}

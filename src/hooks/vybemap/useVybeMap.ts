@@ -37,6 +37,11 @@ import {
 import { applyDisplayPositions } from '@/lib/vybemap/smoothing';
 import { isValidLatLng } from '@/lib/vybemap/geo';
 import { fetchMyGroupMaps, createGroupMap, joinGroupMap, fetchGroupMemberIds } from '@/lib/vybemap/mapSocial';
+import {
+  type MapViewMode,
+  readStoredMapViewMode,
+  persistMapViewMode,
+} from '@/lib/vybemap/mapbox/config';
 
 const LAYERS_KEY = 'vybe-map-layers-v2';
 
@@ -60,6 +65,18 @@ export function useMapLayers() {
   return { layers, toggleLayer, setLayers };
 }
 
+/** Remembers last map look (2D / 3D / satellite / …) across sessions. */
+export function useMapViewMode() {
+  const [mapViewMode, setMapViewModeState] = useState<MapViewMode>(readStoredMapViewMode);
+
+  const setMapViewMode = useCallback((mode: MapViewMode) => {
+    setMapViewModeState(mode);
+    persistMapViewMode(mode);
+  }, []);
+
+  return { mapViewMode, setMapViewMode };
+}
+
 export function useFriendIds(profileId?: string) {
   return useQuery({
     queryKey: ['vybemap-friend-ids', profileId],
@@ -71,25 +88,32 @@ export function useFriendIds(profileId?: string) {
 
 export function useLiveFriends(friendIds: string[]) {
   const qc = useQueryClient();
-  const smoothRef = useRef(0);
+  const smoothRef = useRef(1);
   const [smoothT, setSmoothT] = useState(1);
+  const [smoothTick, setSmoothTick] = useState(0);
   const friendSet = useMemo(() => new Set(friendIds), [friendIds]);
 
-  useEffect(() => {
+  const runSmoothing = useCallback(() => {
     let raf = 0;
+    let active = true;
     const tick = () => {
+      if (!active) return;
       smoothRef.current = Math.min(1, smoothRef.current + 0.08);
       setSmoothT(smoothRef.current);
-      raf = requestAnimationFrame(tick);
+      if (smoothRef.current < 1) raf = requestAnimationFrame(tick);
     };
     raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
+    return () => {
+      active = false;
+      cancelAnimationFrame(raf);
+    };
   }, []);
 
   useEffect(() => {
     if (!friendIds.length) return;
     const unsub = subscribeLiveFriends(friendSet, () => {
       smoothRef.current = 0;
+      setSmoothTick((t) => t + 1);
       void qc.invalidateQueries({ queryKey: ['vybemap-live-friends'] });
     });
     return unsub;
@@ -98,10 +122,16 @@ export function useLiveFriends(friendIds: string[]) {
   const query = useQuery({
     queryKey: ['vybemap-live-friends', [...friendIds].sort().join(':')],
     enabled: friendIds.length > 0,
-    staleTime: 3_000,
-    refetchInterval: 8_000,
+    staleTime: 5_000,
+    refetchInterval: 12_000,
     queryFn: () => fetchLiveFriends(friendIds),
   });
+
+  useEffect(() => {
+    if (!query.data?.length) return;
+    smoothRef.current = 0;
+    return runSmoothing();
+  }, [query.data, smoothTick, runSmoothing]);
 
   const smoothed = useMemo(
     () => applyDisplayPositions(query.data || [], smoothT),

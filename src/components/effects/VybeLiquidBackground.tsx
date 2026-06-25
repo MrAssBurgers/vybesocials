@@ -20,6 +20,9 @@ const BLOB_LAYOUT = [
   { id: 'd', anim: 'vybe-liquid-blob-d', dur: 31, top: '22%', left: '82%', size: 580 },
 ] as const;
 
+/** App shell / auth landing — mesh + two blobs only (fewer repaint layers). */
+const APP_SHELL_BLOB_LAYOUT = BLOB_LAYOUT.filter((blob) => blob.id === 'a' || blob.id === 'b');
+
 function retrigger(el: HTMLElement | null, activeClass: string) {
   if (!el) return;
   el.classList.remove(activeClass);
@@ -167,6 +170,11 @@ export const VybeLiquidBackground = memo(function VybeLiquidBackground({
     return () => window.removeEventListener('pointerdown', onDown, { capture: true });
   }, [interactive, backgroundOnly, triggerTouchResponse]);
 
+  const blobLayout = backgroundOnly ? APP_SHELL_BLOB_LAYOUT : BLOB_LAYOUT;
+  const showAnimatedLayers = !STABLE_APP_BACKGROUND && !isNativePerfMode();
+  const showBloom = showAnimatedLayers && !backgroundOnly;
+  const showGrain = showAnimatedLayers && !backgroundOnly;
+
   const touchEffects = (
     <>
       <div ref={washRef} className="vybe-liquid-wash absolute inset-0" />
@@ -193,10 +201,10 @@ export const VybeLiquidBackground = memo(function VybeLiquidBackground({
     >
       <div className="vybe-liquid-parallax absolute inset-[-20%]">
         <div className="vybe-liquid-mesh absolute inset-0" />
-        {!STABLE_APP_BACKGROUND && !isNativePerfMode() && (
+        {showAnimatedLayers && (
           <>
-            <div className="vybe-liquid-bloom absolute inset-[-15%]" />
-            {BLOB_LAYOUT.map((blob) => (
+            {showBloom && <div className="vybe-liquid-bloom absolute inset-[-15%]" />}
+            {blobLayout.map((blob) => (
               <div
                 key={blob.id}
                 className={cn('vybe-liquid-blob absolute', `vybe-liquid-blob--${blob.id}`)}
@@ -213,9 +221,7 @@ export const VybeLiquidBackground = memo(function VybeLiquidBackground({
         )}
       </div>
 
-      {!STABLE_APP_BACKGROUND && !isNativePerfMode() && (
-        <div className="vybe-liquid-grain absolute inset-0" />
-      )}
+      {showGrain && <div className="vybe-liquid-grain absolute inset-0" />}
 
       {!backgroundOnly && !isNativePerfMode() && touchEffects}
     </div>

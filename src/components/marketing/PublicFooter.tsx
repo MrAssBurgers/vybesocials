@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom';
 import { VybeMiniIcon } from '@/components/ui/VybeMiniIcon';
+import { VybeWordmark } from '@/components/ui/VybeWordmark';
 import { CITIES } from '@/content/cities';
 
 /**
@@ -62,7 +63,7 @@ export function PublicFooter() {
       <div className="flex flex-col sm:flex-row items-center justify-between gap-3 border-t border-border pt-6">
         <Link to="/" className="flex items-center gap-2 text-foreground">
           <VybeMiniIcon className="w-5 h-5" />
-          <span className="font-semibold">VYBE</span>
+          <VybeWordmark size="sm" />
         </Link>
         <p className="text-xs">© {year} Vybe Studios. All rights reserved.</p>
       </div>

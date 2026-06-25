@@ -37,7 +37,7 @@ export const VYBELogo = memo(forwardRef<HTMLDivElement, VYBELogoProps>(function 
   const isSplash = size === 'splash';
 
   return (
-    <div ref={ref} className={cn('flex items-center', gap, className)}>
+    <div ref={ref} className={cn('flex items-end overflow-visible', gap, className)}>
       <motion.div
         whileHover={animated && !isSplash ? { scale: 1.05 } : undefined}
         whileTap={animated && !isSplash ? { scale: 0.95 } : undefined}
@@ -134,7 +134,7 @@ export const VYBELogo = memo(forwardRef<HTMLDivElement, VYBELogoProps>(function 
       </motion.div>
 
       {showText && (
-        <VybeWordmark size={size === 'splash' ? 'xl' : size === '2xl' ? 'lg' : size === 'xl' ? 'md' : 'sm'} />
+        <VybeWordmark size={size === 'splash' ? 'splash' : size === '2xl' ? 'lg' : size === 'xl' ? 'md' : 'sm'} />
       )}
     </div>
   );

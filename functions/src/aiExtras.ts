@@ -72,10 +72,12 @@ export const adminDebugTools = onCall(async (request) => {
   }
 });
 
-export const analyzeBugReport = onCall({ secrets: SECRETS }, async (request) => {
+export const analyzeBugReport = onCall({ secrets: SECRETS, cors: true }, async (request) => {
   await requireAdmin(request);
-  const { report_id } = (request.data || {}) as any;
-  const doc = await db.collection('bug_reports').doc(report_id).get();
+  const { report_id, bugId } = (request.data || {}) as { report_id?: string; bugId?: string };
+  const id = report_id || bugId;
+  if (!id) throw new HttpsError('invalid-argument', 'bugId required');
+  const doc = await db.collection('bug_reports').doc(id).get();
   if (!doc.exists) throw new HttpsError('not-found', 'Bug report not found');
   const { content } = await chatCompletion({
     messages: [

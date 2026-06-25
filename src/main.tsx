@@ -8,6 +8,8 @@ import { createRoot } from "react-dom/client";
 import { StrictMode } from "react";
 import App from "./App.tsx";
 import "./index.css";
+import "./styles/repaint-guard.css";
+import { isOneSignalBypassHost } from "./lib/lovablePreview";
 import { initializeNativePlugins, isNativePlatform } from "./lib/capacitor";
 import { initializeAdMob } from "./lib/admob";
 import { isDespiaRuntime } from "./lib/despiaBridge";
@@ -48,7 +50,10 @@ function runSafeBootStep(label: string, callback: () => void) {
 }
 
 function isPreviewOneSignalDomainError(message: unknown) {
-  return typeof message === "string" && message.includes("Can only be used on: https://vybehub.app");
+  if (typeof message !== "string") return false;
+  if (message.includes("Can only be used on: https://vybehub.app")) return true;
+  if (isOneSignalBypassHost() && message.toLowerCase().includes("onesignal")) return true;
+  return false;
 }
 
 function runPreRenderInit() {

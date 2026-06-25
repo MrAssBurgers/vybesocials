@@ -1,5 +1,6 @@
 import { memo, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { VybeWordmark } from '@/components/ui/VybeWordmark';
 import { ensureAppShellVisible } from '@/lib/attResumeRecovery';
 import { isNativePerfMode } from '@/lib/nativePerfMode';
 import { subscribeSplashProgress } from '@/lib/splashProgressBridge';
@@ -59,10 +60,9 @@ export const SplashScreen = memo(function SplashScreen({ isVisible }: SplashScre
           initial={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           transition={{ duration: reduceMotion ? 0.12 : 0.22, ease: 'easeOut' }}
-          className="fixed inset-0 flex flex-col items-center justify-center overflow-hidden"
+          className="fixed inset-0 flex flex-col items-center justify-center overflow-x-hidden overflow-y-visible vybe-loading-shell"
           style={{
             zIndex: 2147483647,
-            background: '#0B0B10',
             display: 'flex',
             flexDirection: 'column',
             alignItems: 'center',
@@ -106,7 +106,7 @@ export const SplashScreen = memo(function SplashScreen({ isVisible }: SplashScre
             }}
           />
 
-          <div className="mb-6 relative flex items-center justify-center">
+          <div className="mb-6 relative flex flex-col items-center justify-center overflow-visible gap-5">
             <svg viewBox="-5 -5 110 110" fill="none" style={{ width: 96, height: 96 }} aria-hidden>
               <defs>
                 <linearGradient id="sp-l" x1="0%" y1="0%" x2="100%" y2="100%">
@@ -136,17 +136,7 @@ export const SplashScreen = memo(function SplashScreen({ isVisible }: SplashScre
             </svg>
           </div>
 
-          <h1
-            className="text-2xl font-display font-black tracking-tight mb-5"
-            style={{
-              background: 'linear-gradient(135deg, hsl(var(--primary)), hsl(var(--accent)))',
-              WebkitBackgroundClip: 'text',
-              WebkitTextFillColor: 'transparent',
-              backgroundClip: 'text',
-            }}
-          >
-            VYBE
-          </h1>
+          <VybeWordmark size="splash" as="h1" className="mb-5 overflow-visible" />
 
           <div className="w-[min(16rem,72vw)]">
             <div className="relative h-1.5 bg-foreground/[0.1] rounded-full overflow-hidden">

@@ -1,6 +1,6 @@
 import type { QueryClient } from '@tanstack/react-query';
 import type { PersistedClient } from '@tanstack/react-query-persist-client';
-import { sanitizeStoriesCacheData, isStoriesQueryKey } from '@/lib/storiesCacheSanitize';
+import { sanitizeStoriesCacheData, isStoriesQueryKey, storyGroupsNeedRevive } from '@/lib/storiesCacheSanitize';
 
 /** Rehydrated React Query cache can deserialize Set/Map as plain objects. */
 
@@ -114,6 +114,28 @@ export function findInQueryArray<T>(
 }
 
 /** DM rows: persisted cache can deserialize members as `{}` — breaks .filter / for…of in ChatView. */
+export function dmConversationNeedsRevive(conv: unknown): boolean {
+  if (!conv || typeof conv !== 'object' || Array.isArray(conv)) return false;
+  const row = conv as { members?: unknown; name?: unknown; last_message?: unknown };
+  if (row.members != null && !Array.isArray(row.members)) return true;
+  if (row.name != null && typeof row.name !== 'string') return true;
+  const lm = row.last_message;
+  if (lm != null && typeof lm === 'object' && !Array.isArray(lm)) {
+    const last = lm as Record<string, unknown>;
+    if (last.content != null && typeof last.content !== 'string') return true;
+    if (last.message_type != null && typeof last.message_type !== 'string') return true;
+    if (last.media_type != null && typeof last.media_type !== 'string') return true;
+    if (last.sender_id != null && typeof last.sender_id !== 'string') return true;
+    if (last.created_at != null && typeof last.created_at !== 'string') return true;
+  }
+  return false;
+}
+
+export function dmConversationListNeedsRevive(list: unknown): boolean {
+  if (!Array.isArray(list)) return list != null && typeof list === 'object';
+  return list.some(dmConversationNeedsRevive);
+}
+
 export function normalizeDmConversation<T extends { members?: unknown; last_message?: unknown; name?: unknown }>(conv: T): T {
   if (!conv || typeof conv !== 'object') return conv;
   let next = conv;
@@ -126,17 +148,23 @@ export function normalizeDmConversation<T extends { members?: unknown; last_mess
   const lm = conv.last_message;
   if (lm != null && typeof lm === 'object' && !Array.isArray(lm)) {
     const row = lm as Record<string, unknown>;
-    next = {
-      ...next,
-      last_message: {
-        ...row,
-        content: typeof row.content === 'string' ? row.content : null,
-        message_type: typeof row.message_type === 'string' ? row.message_type : null,
-        media_type: typeof row.media_type === 'string' ? row.media_type : null,
-        sender_id: typeof row.sender_id === 'string' ? row.sender_id : null,
-        created_at: typeof row.created_at === 'string' ? row.created_at : null,
-      },
+    const normalizedLast = {
+      ...row,
+      content: typeof row.content === 'string' ? row.content : null,
+      message_type: typeof row.message_type === 'string' ? row.message_type : null,
+      media_type: typeof row.media_type === 'string' ? row.media_type : null,
+      sender_id: typeof row.sender_id === 'string' ? row.sender_id : null,
+      created_at: typeof row.created_at === 'string' ? row.created_at : null,
     };
+    const lastChanged =
+      row.content !== normalizedLast.content ||
+      row.message_type !== normalizedLast.message_type ||
+      row.media_type !== normalizedLast.media_type ||
+      row.sender_id !== normalizedLast.sender_id ||
+      row.created_at !== normalizedLast.created_at;
+    if (lastChanged) {
+      next = { ...next, last_message: normalizedLast };
+    }
   }
   return next;
 }
@@ -144,7 +172,15 @@ export function normalizeDmConversation<T extends { members?: unknown; last_mess
 export function normalizeDmConversationList<T extends { members?: unknown }>(list: unknown): T[] {
   const rows = ensureArray<T>(list);
   if (!rows.length) return rows;
-  return rows.map((c) => normalizeDmConversation(c));
+  if (!dmConversationListNeedsRevive(rows)) return rows;
+
+  let changed = false;
+  const next = rows.map((c) => {
+    const normalized = normalizeDmConversation(c);
+    if (normalized !== c) changed = true;
+    return normalized;
+  });
+  return changed ? next : rows;
 }
 
 export function normalizePersistedArray<T>(data: unknown): T[] {
@@ -190,23 +226,17 @@ export function revivePersistedQueryData(queryKey: readonly unknown[], data: unk
   if (queryKey[0] === 'messages') {
     const arr = ensureArray(data);
     if (!arr.length) return arr;
-    const needsFix =
-      !Array.isArray(data) ||
-      arr.some(
-        (m) =>
-          m &&
-          typeof m === 'object' &&
-          (!Array.isArray((m as { views?: unknown }).views) ||
-            !Array.isArray((m as { reactions?: unknown }).reactions)),
-      );
-    if (!needsFix) return arr;
-    return arr.map((m) => ({
-      ...(m as object),
-      views: Array.isArray((m as { views?: unknown }).views) ? (m as { views: unknown[] }).views : [],
-      reactions: Array.isArray((m as { reactions?: unknown }).reactions)
-        ? (m as { reactions: unknown[] }).reactions
-        : [],
-    }));
+    let changed = false;
+    const next = arr.map((m) => {
+      if (!m || typeof m !== 'object') return m;
+      const row = m as { views?: unknown; reactions?: unknown };
+      const views = Array.isArray(row.views) ? row.views : [];
+      const reactions = Array.isArray(row.reactions) ? row.reactions : [];
+      if (Array.isArray(row.views) && Array.isArray(row.reactions)) return m;
+      changed = true;
+      return { ...(m as object), views, reactions };
+    });
+    return changed ? next : arr;
   }
   if (queryKeyMatchesFragments(queryKey, PERSISTED_ARRAY_KEY_FRAGMENTS)) {
     return ensureArray(data);
@@ -237,14 +267,19 @@ export function revivePersistedClient(client: PersistedClient): PersistedClient 
   };
 }
 
-/** Belt-and-suspenders: re-normalize live cache after persist restore. */
 export function reviveQueriesInCache(queryClient: QueryClient): void {
+  let normalizing = false;
   for (const query of queryClient.getQueryCache().getAll()) {
+    if (normalizing) break;
     const data = query.state.data;
     if (data == null) continue;
     const revived = revivePersistedQueryData(query.queryKey, data);
-    if (revived !== data) {
+    if (revived === data) continue;
+    normalizing = true;
+    try {
       queryClient.setQueryData(query.queryKey, revived);
+    } finally {
+      normalizing = false;
     }
   }
 }
@@ -274,20 +309,65 @@ function queryKeyNeedsRevive(queryKey: readonly unknown[]): boolean {
 }
 
 export function installQueryCacheNormalizer(queryClient: QueryClient): () => void {
+  let normalizing = false;
+
   return queryClient.getQueryCache().subscribe((event) => {
+    if (normalizing) return;
     if (event?.type !== 'updated' && event?.type !== 'added') return;
     const query = event.query;
     const data = query.state.data;
     if (data == null) return;
-    const revived = revivePersistedQueryData(query.queryKey, data);
-    if (revived !== data) {
+    let revived: unknown;
+    try {
+      revived = revivePersistedQueryData(query.queryKey, data);
+    } catch {
+      queryClient.removeQueries({ queryKey: query.queryKey, exact: true });
+      return;
+    }
+    if (revived === data) return;
+
+    normalizing = true;
+    try {
       queryClient.setQueryData(query.queryKey, revived);
+    } finally {
+      normalizing = false;
     }
   });
 }
 
+function queryDataNeedsRevive(queryKey: readonly unknown[], data: unknown): boolean {
+  if (data == null) return false;
+  if (isStoriesQueryKey(queryKey)) return storyGroupsNeedRevive(data);
+  if (queryKeyMatchesFragments(queryKey, PERSISTED_SET_KEY_FRAGMENTS)) {
+    return !(data instanceof Set);
+  }
+  if (queryKeyMatchesFragments(queryKey, PERSISTED_MAP_KEY_FRAGMENTS)) {
+    return !(data instanceof Map);
+  }
+  const root = queryKey[0];
+  if (root === 'dm-conversations' || root === 'conversations') {
+    return dmConversationListNeedsRevive(data);
+  }
+  if (root === 'conversation-detail') {
+    return dmConversationNeedsRevive(data);
+  }
+  if (root === 'messages') {
+    if (!Array.isArray(data)) return true;
+    return data.some(
+      (m) =>
+        m &&
+        typeof m === 'object' &&
+        (!Array.isArray((m as { views?: unknown }).views) ||
+          !Array.isArray((m as { reactions?: unknown }).reactions)),
+    );
+  }
+  if (isPersistedArrayQueryKey(queryKey) || queryKeyMatchesFragments(queryKey, PERSISTED_ARRAY_KEY_FRAGMENTS)) {
+    return !Array.isArray(data);
+  }
+  return false;
+}
+
 /**
- * Normalize on every `setQueryData` for DM/stories/Set/Map keys so corrupt
  * snapshots never reach render (optional chaining does not guard `{}`).
  */
 export function installQueryCacheWriteGuard(queryClient: QueryClient): void {
@@ -305,14 +385,25 @@ export function installQueryCacheWriteGuard(queryClient: QueryClient): void {
         return original(
           queryKey,
           (old) => {
-            const normalizedOld = revivePersistedQueryData(queryKey, old);
-            const next = updater(normalizedOld);
-            return revivePersistedQueryData(queryKey, next);
+            const base = queryDataNeedsRevive(queryKey, old)
+              ? revivePersistedQueryData(queryKey, old)
+              : old;
+            const next = updater(base);
+            if (next === base) return base;
+            return queryDataNeedsRevive(queryKey, next)
+              ? revivePersistedQueryData(queryKey, next)
+              : next;
           },
           options,
         );
       }
-      return original(queryKey, revivePersistedQueryData(queryKey, updater), options);
+      return original(
+        queryKey,
+        queryDataNeedsRevive(queryKey, updater)
+          ? revivePersistedQueryData(queryKey, updater)
+          : updater,
+        options,
+      );
     } finally {
       guarding = false;
     }

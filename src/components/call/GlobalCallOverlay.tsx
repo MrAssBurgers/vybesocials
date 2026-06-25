@@ -27,6 +27,7 @@ import { Phone, PhoneOff, Video, Mic, MicOff, VideoOff, Loader2, SlidersHorizont
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
+import { VybeWordmark } from '@/components/ui/VybeWordmark';
 import { useCallStore, CallData, CallMode, markCallConnected } from '@/lib/callStore';
 
 import { callSounds } from '@/lib/callSounds';
@@ -1962,7 +1963,9 @@ function IncomingCallFullscreen({
             ? `${caller?.display_name || caller?.username || 'Someone'} is calling…`
             : isVideoCall ? 'Video Chat' : 'Audio Call'}
         </motion.p>
-        <p className="mt-3 text-white/40 text-sm">VYBE</p>
+        <div className="mt-3 flex justify-center opacity-40">
+          <VybeWordmark size="sm" />
+        </div>
       </div>
 
       {/* Bottom — slide + quick actions */}

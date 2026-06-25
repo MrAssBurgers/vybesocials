@@ -136,8 +136,7 @@ export const VybePageLoader = memo(function VybePageLoader({ delay = 1400 }: { d
   if (!show) {
     return (
       <div
-        className="min-h-[100dvh] w-full"
-        style={{ background: '#0B0B10' }}
+        className="page-shell vybe-loading-shell min-h-[100dvh] w-full"
         aria-hidden="true"
       />
     );
@@ -145,8 +144,7 @@ export const VybePageLoader = memo(function VybePageLoader({ delay = 1400 }: { d
 
   return (
     <div
-      className="min-h-[100dvh] w-full flex items-center justify-center"
-      style={{ background: '#0B0B10' }}
+      className="page-shell vybe-loading-shell min-h-[100dvh] w-full flex items-center justify-center"
       data-vybe-boot-screen
     >
       <LoaderContents />

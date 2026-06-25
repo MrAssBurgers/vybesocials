@@ -13,6 +13,8 @@
 import { createContext, useContext, useMemo, useRef, useState, useCallback, ReactNode } from 'react';
 import { db } from '@/lib/firebase';
 import { useQueryClient } from '@tanstack/react-query';
+import { useUserRole } from '@/hooks/useModeration';
+import { isAdminRole } from '@/lib/adminAccess';
 
 type BugRecheckState = {
   running: boolean;
@@ -49,6 +51,8 @@ export function BugRecheckProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<BugRecheckState>(initialState);
   const abortRef = useRef(false);
   const queryClient = useQueryClient();
+  const { data: userRole, isFetched: roleFetched } = useUserRole();
+  const isAdmin = roleFetched && isAdminRole(userRole);
 
   const update = useCallback((patch: Partial<BugRecheckState>) => {
     setState((prev) => ({ ...prev, ...patch }));
@@ -56,6 +60,10 @@ export function BugRecheckProvider({ children }: { children: ReactNode }) {
 
   const start = useCallback(async () => {
     if (state.running) return;
+    if (!isAdmin) {
+      update({ running: false, finishedAt: Date.now(), lastError: 'Admin access required' });
+      return;
+    }
     abortRef.current = false;
 
     setState({
@@ -122,7 +130,7 @@ export function BugRecheckProvider({ children }: { children: ReactNode }) {
     } catch (e: any) {
       update({ running: false, finishedAt: Date.now(), lastError: e?.message || 'Re-check failed' });
     }
-  }, [state.running, update, queryClient]);
+  }, [state.running, isAdmin, update, queryClient]);
 
   const abort = useCallback(() => {
     abortRef.current = true;

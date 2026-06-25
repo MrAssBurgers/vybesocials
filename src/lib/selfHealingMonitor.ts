@@ -29,6 +29,12 @@ function normalizeKey(message: string): string {
     .substring(0, 120);
 }
 
+/** Clear session error tracking (after Fix All / manual dismiss). */
+export function clearErrorTracking(): void {
+  errorMap.clear();
+  notifiedKeys.clear();
+}
+
 /** Record an error occurrence and check for patterns */
 export function trackError(message: string): void {
   const key = normalizeKey(message);

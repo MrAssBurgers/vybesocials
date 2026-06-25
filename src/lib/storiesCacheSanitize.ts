@@ -23,19 +23,37 @@ function normalizeStoryGroup(group: StoryGroup | null | undefined): StoryGroup |
   };
 }
 
+export function storyGroupsNeedRevive(groups: unknown): boolean {
+  if (!Array.isArray(groups)) return groups != null && typeof groups === 'object';
+  return groups.some((group) => {
+    if (!group || typeof group !== 'object') return true;
+    const stories = (group as StoryGroup).stories;
+    if (stories != null && !Array.isArray(stories)) return true;
+    const userId = (group as StoryGroup).user?.id;
+    return !userId || typeof userId !== 'string';
+  });
+}
+
 /** Rehydrated cache can deserialize story arrays as `{}` — normalize before any `.filter`/`.forEach`. */
 export function normalizeStoryGroups(groups: unknown): StoryGroup[] {
-  return ensureArray<StoryGroup>(groups)
+  const rows = ensureArray<StoryGroup>(groups);
+  if (!rows.length) return rows;
+  if (!storyGroupsNeedRevive(rows)) return rows;
+  return rows
     .map((group) => normalizeStoryGroup(group))
     .filter((group): group is StoryGroup => group !== null && group.stories.length > 0);
 }
 
 /** Optimistic story rows must never survive reload — they block new posts. */
 export function stripUploadingStories(groups: StoryGroup[] | undefined): StoryGroup[] | undefined {
-  const normalized = normalizeStoryGroups(groups);
-  if (!normalized.length) return normalized.length ? normalized : [];
+  if (!groups?.length) return groups?.length ? groups : [];
 
-  const cleaned = normalized
+  const hasUploading = groups.some((group) =>
+    group.stories?.some((story) => story.isOptimistic || story.isUploading),
+  );
+  if (!hasUploading) return groups;
+
+  const cleaned = groups
     .map((group) => ({
       ...group,
       stories: group.stories.filter((story) => !story.isOptimistic && !story.isUploading),
@@ -50,7 +68,9 @@ export function isStoriesQueryKey(queryKey: readonly unknown[]): boolean {
 }
 
 export function sanitizeStoriesCacheData(data: unknown): unknown {
-  return stripUploadingStories(normalizeStoryGroups(data)) ?? [];
+  const normalized = normalizeStoryGroups(data);
+  const stripped = stripUploadingStories(normalized);
+  return stripped ?? [];
 }
 
 export function purgeStuckStoryUploads(queryClient: QueryClient, profileId?: string | null): void {

@@ -14,7 +14,7 @@ import { trackMapEvent } from '@/lib/vybemap/analytics';
 import { isValidLatLng } from '@/lib/vybemap/geo';
 import { type LiveFriend, type MapPlace, type MapMeetup } from '@/lib/vybemap/types';
 import {
-  useMapLayers, useFriendIds, useLiveFriends, useMapStories, useMapPosts,
+  useMapLayers, useMapViewMode, useFriendIds, useLiveFriends, useMapStories, useMapPosts,
   useMapClips, useMapMeetups, useMapHeatmap, useMapPlaces, useMapEventPins,
   useFriendRadar, useStartFindFriend, useCheckIn, useCreateMapSpot, useLogLocationAccess,
   useFriendCheckIns, useCreateMeetup, useJoinMeetup, useLeaveMeetup, useMyMeetupMemberships,
@@ -30,7 +30,6 @@ import { GroupMapSheet } from '@/components/vybemap/GroupMapSheet';
 import { MapRouteBar } from '@/components/vybemap/MapRouteBar';
 import { useLocationIntel } from '@/hooks/vybemap/useLocationIntel';
 import { hasMapbox } from '@/lib/vybemap/mapbox/config';
-import type { MapViewMode } from '@/lib/vybemap/mapbox/config';
 import { fetchMapboxRoute } from '@/lib/vybemap/mapbox/directions';
 import { externalDirectionsUrl } from '@/lib/vybemap/mapNavigation';
 import { isHeadingTowardYou } from '@/lib/vybemap/headingToward';
@@ -110,7 +109,7 @@ function VybeMapInner() {
   const [ghostOpen, setGhostOpen] = useState(false);
   const [discoveryOpen, setDiscoveryOpen] = useState(false);
   const [findMode, setFindMode] = useState<{ friend: LiveFriend; ar: boolean } | null>(null);
-  const [mapViewMode, setMapViewMode] = useState<MapViewMode>('2d');
+  const { mapViewMode, setMapViewMode } = useMapViewMode();
   const [squadsOpen, setSquadsOpen] = useState(false);
   const [activeSquad, setActiveSquad] = useState<MapGroupMap | null>(null);
   const { data: squadMemberIds = [] } = useGroupMemberIds(activeSquad?.id);

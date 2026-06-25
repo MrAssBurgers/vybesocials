@@ -700,12 +700,12 @@ class QueryBuilder {
 
       if (Object.keys(allFilters).length > 0 && allFilters.id) {
         await deleteDocument(this.table, String(allFilters.id));
-        return { data: null, error: null };
+        return { data: [{ id: allFilters.id }], error: null };
       }
 
       const filtered = await this.filterMatchingRows();
       await Promise.all(filtered.map((r) => deleteDocument(this.table, r.id as string)));
-      return { data: null, error: null };
+      return { data: filtered, error: null };
     } catch (err) {
       return { data: null, error: toQueryError(err, `${this.table}:delete`) };
     }
@@ -1323,6 +1323,11 @@ const CLIENT_RPC: Record<string, (params: Record<string, unknown>) => Promise<un
   get_user_badges_by_profile: rpcGetUserBadgesByProfile,
   get_user_primary_badge: rpcGetUserPrimaryBadge,
   get_public_user_count: async () => rpcGetPublicUserCount(),
+  get_auth_users_count: async () => {
+    const { data, error } = await invokeFunction<number>('get_auth_users_count', {});
+    if (error) throw error;
+    return typeof data === 'number' ? data : 0;
+  },
   get_profile_by_id: async (p) => {
     const id = String(p.target_id || '');
     return id ? await getDocument('profiles', id) : null;

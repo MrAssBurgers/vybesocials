@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { VybeMiniIcon } from '@/components/ui/VybeMiniIcon';
+import { VybeWordmark } from '@/components/ui/VybeWordmark';
 import { cn } from '@/lib/utils';
 import { haptics } from '@/lib/haptics';
 import { useDoubleTapCameraFlip } from '@/hooks/useDoubleTapCameraFlip';
@@ -668,7 +669,7 @@ export function SnapCamera({ isOpen, onClose, onSend }: VybeCameraProps) {
                 transition={{ type: 'spring', stiffness: 500 }}
               >
                 <VybeMiniIcon size={18} showSparkles />
-                <span className="text-sm text-white font-bold tracking-wide">VYBE</span>
+                <VybeWordmark size="sm" />
               </motion.div>
               <Button variant="ghost" size="icon" onClick={handleSwitchCamera} className="text-white bg-black/40 rounded-full backdrop-blur-sm hover:bg-black/60">
                 <SwitchCamera className="h-6 w-6" />
@@ -888,7 +889,7 @@ export function SnapCamera({ isOpen, onClose, onSend }: VybeCameraProps) {
               </Button>
               <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-gradient-to-r from-primary/40 to-accent/40 backdrop-blur-sm">
                 <VybeMiniIcon size={16} showSparkles />
-                <span className="text-xs text-white font-bold">VYBE</span>
+                <VybeWordmark size="xs" />
               </div>
               <div className="flex gap-2">
                 {textOverlays.length > 0 && (

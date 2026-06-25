@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { db } from '@/lib/firebase';
 import { useQueryClient } from '@tanstack/react-query';
+import { isOneSignalBypassHost } from '@/lib/lovablePreview';
 import { relinkDespiaPushInBackground, checkDespiaPushPermission } from '@/lib/despiaOneSignal';
 import { isDespiaRuntime } from '@/lib/despiaBridge';
 import { navigationRef } from '@/lib/navigationRef';
@@ -97,7 +98,10 @@ export function DespiaOneSignalSync() {
         }
 
         // Web OneSignal SDK — one login+tags pass per external id (avoids 409 conflicts).
-        try {
+        if (isOneSignalBypassHost()) {
+          console.info(`[OneSignal:${trigger}] skipped on staging/preview host`);
+        } else {
+          try {
           const w = window as OneSignalDeferredWindow;
           if (!Array.isArray(w.OneSignalDeferred)) {
             w.OneSignalDeferred = [];
@@ -147,6 +151,7 @@ export function DespiaOneSignalSync() {
           webOneSignalLinkInFlight = null;
         } catch (err) {
           console.warn(`[OneSignal:${trigger}] deferred queue setup failed:`, err);
+        }
         }
       } catch (err) {
         console.warn(`[OneSignal:${trigger}] Failed to set player id:`, err);

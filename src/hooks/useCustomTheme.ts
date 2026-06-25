@@ -5,6 +5,7 @@ import { useEffect, useCallback } from 'react';
 import { toast } from 'sonner';
 import { usePremiumStatus } from './usePremiumStatus';
 import { isNativePerfMode } from '@/lib/nativePerfMode';
+import { generateVybeTheme } from '@/lib/aiThemeGeneration';
 
 // Free-tier cooldown for AI theme generation (Pro users skip this)
 const AI_THEME_COOLDOWN_MS = 24 * 60 * 60 * 1000; // 24 hours
@@ -390,9 +391,17 @@ export function useGenerateTheme() {
     mutationFn: async ({
       prompt,
       basePreset = 'classic',
+      selectedVibe,
+      interests,
+      selectedFont,
+      selectedAnimation,
     }: {
       prompt: string;
       basePreset?: string;
+      selectedVibe?: string | null;
+      interests?: string[];
+      selectedFont?: string | null;
+      selectedAnimation?: { speed?: string; style?: string } | null;
     }) => {
       // Free-tier cooldown: 1 AI theme generation per 24h.
       // Pro users skip this entirely.
@@ -408,19 +417,29 @@ export function useGenerateTheme() {
         }
       }
 
-      const { data, error } = await db.functions.invoke('generate-theme', {
-        body: { prompt, basePreset },
+      const result = await generateVybeTheme({
+        prompt,
+        basePreset,
+        selectedVibe,
+        interests,
+        selectedFont,
+        selectedAnimation,
       });
 
-      if (error) throw error;
-      if (data.error) throw new Error(data.error);
-
-      // Stamp cooldown for free users on success
+      // Stamp cooldown for free users on success (any source)
       if (!isPremium) {
         localStorage.setItem(AI_THEME_COOLDOWN_KEY, String(Date.now()));
       }
 
-      return sanitizeThemeTokens(data.theme as ThemeTokens & { themeName: string });
+      if (result.source === 'local' && result.notice) {
+        toast.message(result.notice, { duration: 6000 });
+      } else if (result.source === 'prompt' || result.source === 'brand') {
+        toast.success(`Theme matched: ${(result.theme as { themeName?: string }).themeName || 'Your VYBE'}`);
+      } else if (result.source === 'client' || result.source === 'cloud') {
+        toast.success('Theme generated');
+      }
+
+      return sanitizeThemeTokens(result.theme as ThemeTokens & { themeName: string });
     },
     onError: (error: any) => {
       console.error('Failed to generate theme:', error);
@@ -431,8 +450,10 @@ export function useGenerateTheme() {
         toast.error('Too many requests. Please wait a moment.');
       } else if (msg.includes('credits')) {
         toast.error('AI credits exhausted. Please add funds.');
+      } else if (msg.includes('GEMINI_API_KEY') || msg.includes('VYBE AI') || msg.includes('API key')) {
+        toast.error(msg);
       } else {
-        toast.error('Failed to generate theme. Try again.');
+        toast.error(msg || 'Failed to generate theme. Try again.');
       }
     },
   });

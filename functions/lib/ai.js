@@ -28,11 +28,22 @@ export const aiChat = onCall({ secrets: SECRETS }, async (request) => {
             loadUserProfile(authUid),
         ]);
         const dna = dnaSnap.data() || {};
-        const interests = (profile.interests || profile.onboarding_interests || []);
+        const interestsRaw = profile.interests ?? profile.onboarding_interests ?? [];
+        const interests = (Array.isArray(interestsRaw) ? interestsRaw : [])
+            .map((v) => (typeof v === 'string' ? v : String(v ?? '')))
+            .filter(Boolean)
+            .slice(0, 10);
         const name = (aiName || 'VYBE-AI').slice(0, 50);
         const personality = (aiPersonality || 'A friendly, helpful AI assistant.').slice(0, 500);
         const loc = location ? `\nLocation: ${location.city || 'Unknown'} (${location.lat?.toFixed?.(2)}, ${location.lng?.toFixed?.(2)}).` : '';
-        const system = `You are ${name}. ${personality}\nUser interests: ${interests.slice(0, 10).join(', ') || 'none'}.\nDNA: ${JSON.stringify(dna.personality_vector || {}).slice(0, 400)}${loc}`;
+        let dnaSnippet = '';
+        try {
+            dnaSnippet = JSON.stringify(dna.personality_vector ?? {}).slice(0, 400);
+        }
+        catch {
+            dnaSnippet = '';
+        }
+        const system = `You are ${name}. ${personality}\nUser interests: ${interests.join(', ') || 'none'}.\nDNA: ${dnaSnippet}${loc}`;
         const sanitized = messages
             .filter((m) => m && typeof m.content === 'string' && m.content.trim())
             .slice(-16)
@@ -83,7 +94,14 @@ export const aiChat = onCall({ secrets: SECRETS }, async (request) => {
         if (err instanceof HttpsError)
             throw err;
         console.error('[aiChat]', err);
-        throw new HttpsError('internal', err instanceof Error ? err.message : 'AI chat failed');
+        const msg = err instanceof Error ? err.message : 'AI chat failed';
+        if (/quota|limit|credit|billing|depleted/i.test(msg)) {
+            throw new HttpsError('resource-exhausted', msg);
+        }
+        if (/auth|unauthenticated|permission|invalid.*key|API key/i.test(msg)) {
+            throw new HttpsError('failed-precondition', msg);
+        }
+        throw new HttpsError('unavailable', msg);
     }
 });
 /** ai-catch-up — daily brief generator (full BriefData shape for client). */
@@ -306,32 +324,47 @@ export const scanVideoSafety = aiSafetyScan;
 export const moderateContent = aiSafetyScan;
 /** generate-theme / generate-advanced-theme — full VYBE theme JSON for AI Vybe Designer. */
 const ADVANCED_THEME_SYSTEM = `You are an elite UI theme designer for VYBE social app.
-Return ONLY valid JSON: {"theme":{"colorPrimary":"H S% L%","colorSecondary":"...","colorAccent":"...","bgMain":"...","bgCard":"...","textPrimary":"...","textSecondary":"...","borderRadius":"medium","mode":"dark"|"light","themeName":"creative name","backgroundEffect":"aurora"|"particles"|"none"|"stars","animationSpeed":"normal","animationStyle":"smooth"}}
+When the user names a brand, franchise, sports team, app, or aesthetic — match their REAL official colors and mood as closely as possible (e.g. Nike = black/white/orange, Spotify = #1DB954 green, Coca-Cola = red/white, Tiffany = robin-egg blue).
+When they describe a scene or vibe (sunset beach, cyberpunk Tokyo, cozy coffee shop) — derive a cohesive palette from that scene's dominant colors.
+Return ONLY valid JSON: {"theme":{"colorPrimary":"H S% L%","colorSecondary":"...","colorAccent":"...","bgMain":"...","bgCard":"...","textPrimary":"...","textSecondary":"...","borderColor":"...","borderRadius":"medium","mode":"dark"|"light","themeName":"creative name","backgroundEffect":"aurora"|"particles"|"none"|"stars"|"bubbles","animationSpeed":"normal","animationStyle":"smooth"}}
 Use HSL format without hsl() wrapper. Ensure WCAG contrast — text must be readable on backgrounds.`;
 export const generateTheme = onCall({ secrets: SECRETS }, async (request) => {
-    requireAuth(request);
-    const { prompt, interests = [], selectedFont, selectedAnimation, } = (request.data || {});
+    const authUid = requireAuth(request);
+    enforceRateLimit(await rateLimit(`gentheme:${authUid}`, 12, 60));
+    const profileId = await resolveProfileIdFromAuth(authUid);
+    const byokKey = await getUserAiApiKey(profileId, 'google');
+    const { prompt, basePreset, interests = [], selectedFont, selectedAnimation, } = (request.data || {});
     const userPrompt = [
         prompt || 'A calm midnight purple VYBE theme',
+        basePreset ? `Base preset: ${basePreset}` : '',
         interests.length ? `Interests: ${interests.slice(0, 8).join(', ')}` : '',
         selectedFont ? `Font style: ${selectedFont}` : '',
         selectedAnimation ? `Animation: ${JSON.stringify(selectedAnimation)}` : '',
     ].filter(Boolean).join('\n');
-    const { content } = await chatCompletion({
-        messages: [
-            { role: 'system', content: ADVANCED_THEME_SYSTEM },
-            { role: 'user', content: userPrompt },
-        ],
-        response_format: { type: 'json_object' },
-    });
     try {
-        const parsed = JSON.parse(content);
-        const theme = parsed.theme || parsed;
-        if (theme && (theme.colorPrimary || theme.primary)) {
-            return { theme };
+        const { content } = await chatCompletion({
+            messages: [
+                { role: 'system', content: ADVANCED_THEME_SYSTEM },
+                { role: 'user', content: userPrompt },
+            ],
+            response_format: { type: 'json_object' },
+            apiKey: byokKey || undefined,
+        });
+        try {
+            const parsed = JSON.parse(content);
+            const theme = parsed.theme || parsed;
+            if (theme && (theme.colorPrimary || theme.primary)) {
+                return { theme };
+            }
         }
+        catch { /* fall through */ }
     }
-    catch { /* fall through */ }
+    catch (err) {
+        console.error('[generateTheme]', err);
+        if (err instanceof HttpsError)
+            throw err;
+        throw new HttpsError('failed-precondition', err instanceof Error ? err.message : 'Theme generation failed — set GEMINI_API_KEY or add your key in Settings → VYBE AI');
+    }
     return {
         theme: {
             colorPrimary: '270 70% 58%',
@@ -367,11 +400,15 @@ export const generateBackground = onCall({ secrets: SECRETS, timeoutSeconds: 90 
 /** generate-caption — caption a post. */
 export const generateCaption = onCall({ secrets: SECRETS }, async (request) => {
     requireAuth(request);
-    const { description, vibe } = (request.data || {});
+    const { description, vibe, tags, contentType } = (request.data || {});
+    const tagLine = Array.isArray(tags) ? tags.slice(0, 8).join(', ') : '';
     const { content } = await chatCompletion({
         messages: [
             { role: 'system', content: 'Write 3 short post captions (max 120 chars each). Return JSON {captions:[]}.' },
-            { role: 'user', content: `${description || ''} — vibe: ${vibe || 'casual'}` },
+            {
+                role: 'user',
+                content: `${description || tagLine || 'social post'} — type: ${contentType || 'photo'} — vibe: ${vibe || 'casual'}`,
+            },
         ],
         response_format: { type: 'json_object' },
     });

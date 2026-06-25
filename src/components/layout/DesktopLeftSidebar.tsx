@@ -1,5 +1,6 @@
 import { useState, useCallback, useRef, forwardRef, memo } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { preloadRoute } from '@/lib/routePreloader';
 import { useTranslation } from 'react-i18next';
 import { 
   Home, Compass, MessageCircle, ShoppingBag, Calendar, Bell, Settings, 
@@ -58,6 +59,8 @@ const NavLinkContent = memo(forwardRef<
       ref={ref}
       to={item.path}
       onClick={triggerNavFeedback}
+      onMouseEnter={() => preloadRoute(item.path)}
+      onFocus={() => preloadRoute(item.path)}
       data-tutorial={item.tutorialId}
       className={cn(
         "flex items-center gap-3 rounded-xl transition-colors relative group overflow-hidden",
@@ -90,7 +93,7 @@ const NavLinkContent = memo(forwardRef<
 }));
 NavLinkContent.displayName = 'NavLinkContent';
 
-export function DesktopLeftSidebar({ collapsed, onCollapsedChange, compact = false }: DesktopLeftSidebarProps) {
+export const DesktopLeftSidebar = memo(function DesktopLeftSidebar({ collapsed, onCollapsedChange, compact = false }: DesktopLeftSidebarProps) {
   const { t } = useTranslation();
   const location = useLocation();
   const navigate = useNavigate();
@@ -167,7 +170,7 @@ export function DesktopLeftSidebar({ collapsed, onCollapsedChange, compact = fal
     <TooltipProvider>
       <aside 
         className={cn(
-          "hidden lg:flex flex-col sticky top-0 h-screen shrink-0 z-40 stable-sidebar-surface",
+          "hidden lg:flex flex-col sticky top-0 h-screen shrink-0 z-40 stable-sidebar-surface sidebar desktop-left-sidebar",
           "transition-[width] duration-200 ease-out overflow-hidden",
           "shadow-2xl shadow-background/30",
           "border-r border-border/40",
@@ -452,4 +455,4 @@ export function DesktopLeftSidebar({ collapsed, onCollapsedChange, compact = fal
       </aside>
     </TooltipProvider>
   );
-}
+});

@@ -2,9 +2,11 @@ import type { QueryClient } from '@tanstack/react-query';
 import { db } from '@/lib/firebase';
 import type { Conversation, Message } from '@/hooks/useMessages';
 import { isPermissionDeniedError, warnOnce } from '@/lib/logOnce';
+import { reportAppCrash } from '@/lib/bugReportClient';
 import { normalizeDmConversationList, safeDmMembers, reviveQueriesInCache } from '@/lib/persistedCollections';
 import { purgeStuckStoryUploads } from '@/lib/storiesCacheSanitize';
 import { resolveSessionProfileId, syncSessionProfileId } from '@/lib/resolveSessionProfileId';
+import { syncUserAuthIndex } from '@/lib/firebase/profileResolve';
 import { withTimeout } from '@/lib/withTimeout';
 import { fetchMemberProfiles, fetchConversationMetaForList, syntheticDeterministicConversation, normalizeToProfileId } from '@/lib/dmMembershipRepair';
 import { listUserChats } from '@/lib/firebase/chats';
@@ -108,84 +110,50 @@ export async function loadDMConversations(
   }
 }
 
-const FIRESTORE_IN_CHUNK = 10;
+function reportDmPermissionOnce(message: string, profileId: string) {
+  warnOnce('dm-permission-denied', message);
+  void reportAppCrash({
+    error: message,
+    source: 'dm_conversations',
+    reason: 'DM permission denied',
+    context: { profileId },
+    mode: 'auto',
+  });
+}
 
-/** Batch-load conversation docs (chunked .in) with synthetic fallback for deterministic 1:1 ids. */
+/** Per-document fetch — Firestore list rules reject batched `id in (...)` on conversations. */
 async function fetchConversationsForList(
   conversationIds: string[],
 ): Promise<Array<Record<string, unknown> | null>> {
   if (!conversationIds.length) return [];
 
-  const byId = new Map<string, Record<string, unknown>>();
-  const chunks: string[][] = [];
-  for (let i = 0; i < conversationIds.length; i += FIRESTORE_IN_CHUNK) {
-    chunks.push(conversationIds.slice(i, i + FIRESTORE_IN_CHUNK));
-  }
-
-  await Promise.all(
-    chunks.map(async (chunk) => {
-      const { data, error } = await db.from('conversations').select('*').in('id', chunk);
-      if (error) {
-        console.warn('[DM] conversations chunk query error:', error.message);
-        const fallbacks = await Promise.all(chunk.map((id) => fetchConversationMetaForList(id)));
-        chunk.forEach((id, i) => {
-          const row = fallbacks[i];
-          if (row?.id) byId.set(String(row.id), row);
-        });
-        return;
+  return Promise.all(
+    conversationIds.map(async (id) => {
+      try {
+        const { data, error } = await db.from('conversations').select('*').eq('id', id).maybeSingle();
+        if (data) return data as Record<string, unknown>;
+        if (error && isPermissionDeniedError(error)) {
+          reportDmPermissionOnce(`[DM] conversation read denied: ${id}`, id);
+        } else if (error) {
+          warnOnce(`dm-conv-${id}`, '[DM] conversation fetch error:', error.message);
+        }
+      } catch (err) {
+        if (!isPermissionDeniedError(err)) {
+          console.warn('[DM] conversation fetch failed:', id, err);
+        }
       }
-      for (const row of data || []) {
-        if (row?.id) byId.set(String(row.id), row as Record<string, unknown>);
-      }
+      return syntheticDeterministicConversation(id) ?? (await fetchConversationMetaForList(id));
     }),
   );
-
-  const fallbackIds: string[] = [];
-  for (const id of conversationIds) {
-    if (byId.has(id) || syntheticDeterministicConversation(id)) continue;
-    fallbackIds.push(id);
-  }
-
-  const fallbackById = new Map<string, Record<string, unknown> | null>();
-  if (fallbackIds.length) {
-    const fallbacks = await Promise.all(
-      fallbackIds.map((id) => fetchConversationMetaForList(id)),
-    );
-    fallbackIds.forEach((id, i) => fallbackById.set(id, fallbacks[i]));
-  }
-
-  return conversationIds.map((id) => {
-    const hit = byId.get(id);
-    if (hit) return hit;
-    return syntheticDeterministicConversation(id) ?? fallbackById.get(id) ?? null;
-  });
 }
 
-async function fetchMembershipRows(profileId: string, authUid: string | null) {
-  const userIds = new Set<string>();
-  if (profileId) userIds.add(profileId);
-  if (authUid) userIds.add(authUid);
+async function fetchMembershipRows(profileId: string) {
+  const { data, error } = await db
+    .from('conversation_members')
+    .select('conversation_id, last_read_at, is_pinned, is_muted')
+    .eq('user_id', profileId);
 
-  for (const id of [profileId, authUid]) {
-    if (!id) continue;
-    try {
-      const normalized = await normalizeToProfileId(id);
-      if (normalized) userIds.add(normalized);
-    } catch {
-      /* best effort */
-    }
-  }
-
-  const queries = [...userIds].map((userId) =>
-    db
-      .from('conversation_members')
-      .select('conversation_id, last_read_at, is_pinned, is_muted')
-      .eq('user_id', userId),
-  );
-  const results = await Promise.all(queries);
-  const error = results.find((r) => r.error)?.error ?? null;
-  const rows = results.flatMap((r) => r.data || []);
-  return { rows, error };
+  return { rows: data || [], error };
 }
 
 async function discoverConversationIdsViaChats(
@@ -227,12 +195,16 @@ async function loadDMConversationsOnce(
     const { data: { session } } = await db.auth.getSession();
     const authUid = session?.user?.id ?? null;
 
+    if (authUid && effectiveProfileId) {
+      await syncUserAuthIndex(authUid, effectiveProfileId);
+    }
+
     const [
       { rows: membershipRows, error: membershipError },
       { data: hiddenData },
       { data: trashedData },
     ] = await Promise.all([
-      fetchMembershipRows(effectiveProfileId, authUid),
+      fetchMembershipRows(effectiveProfileId),
       db.from('hidden_conversations').select('conversation_id').eq('user_id', effectiveProfileId),
       db.from('trashed_conversations').select('conversation_id').eq('user_id', effectiveProfileId),
     ]);
@@ -241,7 +213,7 @@ async function loadDMConversationsOnce(
 
     if (membershipError) {
       if (isPermissionDeniedError(membershipError)) {
-        warnOnce('dm-membership-denied', '[DM] membership query error:', membershipError.message);
+        reportDmPermissionOnce(`[DM] membership query denied for ${effectiveProfileId}`, effectiveProfileId);
       } else {
         console.warn('[DM] membership query error:', membershipError.message);
       }

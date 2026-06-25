@@ -22,7 +22,8 @@ import {
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
-import { db } from '@/lib/firebase';
+import { generateVybeTheme } from '@/lib/aiThemeGeneration';
+import { isValidGeneratedTheme, type GeneratedTheme } from '@/lib/localVibeThemes';
 import { useAuth } from '@/lib/auth';
 import { applyThemeTokens, useSaveTheme, setThemePreviewLock, ThemeTokens, sanitizeThemeTokens } from '@/hooks/useCustomTheme';
 import { navVisibility } from '@/lib/navVisibility';
@@ -79,8 +80,7 @@ interface AIVybeDesignerProps {
   onSkip?: () => void;
 }
 
-interface GeneratedTheme extends ThemeTokens {
-  themeName: string;
+interface DesignerTheme extends GeneratedTheme {
   fontFamily?: string;
   fontDisplay?: string;
 }
@@ -101,82 +101,6 @@ const SNAPSHOT_PROPS = [
   '--primary-foreground', '--secondary-foreground', '--accent-foreground',
   '--muted-foreground', '--card-foreground',
 ];
-
-// Curated local themes per vibe — used when the edge function is unreachable
-// so the designer ALWAYS produces a theme.
-const LOCAL_VIBE_THEMES: Record<string, GeneratedTheme> = {
-  chill: {
-    themeName: 'Ocean Drift', colorPrimary: '199 89% 56%', colorSecondary: '217 60% 18%', colorAccent: '174 72% 50%',
-    bgMain: '215 50% 6%', bgCard: '215 45% 10%', bgGradientFrom: '215 55% 5%', bgGradientMid: '205 50% 9%', bgGradientTo: '190 45% 7%',
-    textPrimary: '200 30% 96%', textSecondary: '205 20% 68%', borderColor: '210 40% 18%',
-    neonPink: '330 80% 65%', neonPurple: '260 75% 65%', neonCyan: '185 95% 55%',
-    borderRadius: 'large', mode: 'dark', animationSpeed: 'slow', animationStyle: 'smooth', backgroundEffect: 'bubbles',
-  } as GeneratedTheme,
-  bold: {
-    themeName: 'Voltage Rush', colorPrimary: '16 100% 57%', colorSecondary: '350 85% 22%', colorAccent: '45 100% 55%',
-    bgMain: '340 35% 6%', bgCard: '340 30% 10%', bgGradientFrom: '350 45% 5%', bgGradientMid: '20 50% 9%', bgGradientTo: '340 40% 6%',
-    textPrimary: '20 30% 97%', textSecondary: '20 15% 70%', borderColor: '350 35% 18%',
-    neonPink: '340 100% 60%', neonPurple: '280 90% 62%', neonCyan: '180 100% 50%',
-    borderRadius: 'medium', mode: 'dark', animationSpeed: 'fast', animationStyle: 'bouncy', backgroundEffect: 'particles',
-  } as GeneratedTheme,
-  dark: {
-    themeName: 'Violet Eclipse', colorPrimary: '270 85% 65%', colorSecondary: '260 45% 16%', colorAccent: '300 80% 60%',
-    bgMain: '262 50% 5%', bgCard: '262 45% 9%', bgGradientFrom: '265 55% 4%', bgGradientMid: '280 50% 8%', bgGradientTo: '250 45% 6%',
-    textPrimary: '270 25% 96%', textSecondary: '265 15% 66%', borderColor: '265 40% 17%',
-    neonPink: '320 90% 62%', neonPurple: '275 95% 66%', neonCyan: '200 90% 58%',
-    borderRadius: 'large', mode: 'dark', animationSpeed: 'normal', animationStyle: 'smooth', backgroundEffect: 'stars',
-  } as GeneratedTheme,
-  pastel: {
-    themeName: 'Blush Reverie', colorPrimary: '330 80% 66%', colorSecondary: '315 35% 90%', colorAccent: '265 70% 70%',
-    bgMain: '320 40% 97%', bgCard: '0 0% 100%', bgGradientFrom: '325 50% 98%', bgGradientMid: '300 45% 96%', bgGradientTo: '260 40% 97%',
-    textPrimary: '325 35% 12%', textSecondary: '320 15% 42%', borderColor: '320 30% 88%',
-    neonPink: '335 90% 62%', neonPurple: '275 80% 64%', neonCyan: '195 85% 55%',
-    borderRadius: 'large', mode: 'light', animationSpeed: 'normal', animationStyle: 'smooth', backgroundEffect: 'aurora',
-  } as GeneratedTheme,
-  neon: {
-    themeName: 'Neon District', colorPrimary: '180 100% 50%', colorSecondary: '280 60% 20%', colorAccent: '320 100% 60%',
-    bgMain: '240 30% 5%', bgCard: '240 25% 9%', bgGradientFrom: '245 35% 4%', bgGradientMid: '270 35% 8%', bgGradientTo: '220 30% 6%',
-    textPrimary: '200 30% 97%', textSecondary: '220 15% 68%', borderColor: '240 30% 17%',
-    neonPink: '320 100% 60%', neonPurple: '275 95% 64%', neonCyan: '182 100% 52%',
-    borderRadius: 'small', mode: 'dark', animationSpeed: 'fast', animationStyle: 'snappy', backgroundEffect: 'geometric',
-  } as GeneratedTheme,
-  nature: {
-    themeName: 'Forest Pulse', colorPrimary: '152 65% 45%', colorSecondary: '150 35% 15%', colorAccent: '88 60% 52%',
-    bgMain: '160 35% 5%', bgCard: '158 30% 9%', bgGradientFrom: '162 40% 4%', bgGradientMid: '150 35% 8%', bgGradientTo: '140 30% 6%',
-    textPrimary: '140 25% 96%', textSecondary: '145 15% 66%', borderColor: '152 30% 16%',
-    neonPink: '330 70% 62%', neonPurple: '265 60% 62%', neonCyan: '170 85% 48%',
-    borderRadius: 'large', mode: 'dark', animationSpeed: 'slow', animationStyle: 'smooth', backgroundEffect: 'fireflies',
-  } as GeneratedTheme,
-  minimal: {
-    themeName: 'Monochrome', colorPrimary: '0 0% 15%', colorSecondary: '0 0% 88%', colorAccent: '0 0% 40%',
-    bgMain: '0 0% 99%', bgCard: '0 0% 100%', bgGradientFrom: '0 0% 100%', bgGradientMid: '0 0% 98%', bgGradientTo: '0 0% 97%',
-    textPrimary: '0 0% 8%', textSecondary: '0 0% 42%', borderColor: '0 0% 88%',
-    neonPink: '330 70% 60%', neonPurple: '265 60% 60%', neonCyan: '190 80% 50%',
-    borderRadius: 'small', mode: 'light', animationSpeed: 'instant', animationStyle: 'snappy', backgroundEffect: 'none',
-  } as GeneratedTheme,
-  cozy: {
-    themeName: 'Amber Hours', colorPrimary: '32 95% 55%', colorSecondary: '25 45% 16%', colorAccent: '14 80% 56%',
-    bgMain: '24 35% 6%', bgCard: '24 30% 10%', bgGradientFrom: '26 40% 5%', bgGradientMid: '20 35% 9%', bgGradientTo: '32 30% 7%',
-    textPrimary: '30 35% 96%', textSecondary: '28 18% 68%', borderColor: '26 30% 17%',
-    neonPink: '345 80% 62%', neonPurple: '275 60% 62%', neonCyan: '180 75% 50%',
-    borderRadius: 'large', mode: 'dark', animationSpeed: 'slow', animationStyle: 'smooth', backgroundEffect: 'fireflies',
-  } as GeneratedTheme,
-};
-
-function buildLocalTheme(vibeId: string | null): GeneratedTheme {
-  return { ...(LOCAL_VIBE_THEMES[vibeId || 'dark'] || LOCAL_VIBE_THEMES.dark) };
-}
-
-function isValidTheme(t: any): t is GeneratedTheme {
-  if (!t || typeof t !== 'object') return false;
-  const hasPrimary =
-    typeof t.colorPrimary === 'string' ||
-    typeof t['--primary'] === 'string' ||
-    typeof t.primary === 'string' ||
-    typeof t.tokens?.['--primary'] === 'string' ||
-    typeof t.tokens?.colorPrimary === 'string';
-  return hasPrimary;
-}
 
 /* ── Aurora backdrop — morphs to the selected vibe's colors ── */
 function AuroraBackdrop({ colors, animate }: { colors: [string, string]; animate: boolean }) {
@@ -256,7 +180,7 @@ export function AIVybeDesigner({ interests = [], onComplete, onSkip }: AIVybeDes
   const [selectedAnimation, setSelectedAnimation] = useState<AnimationPresetKey | null>(null);
   const [customPrompt, setCustomPrompt] = useState('');
   const [buildPhase, setBuildPhase] = useState(0);
-  const [generatedTheme, setGeneratedTheme] = useState<GeneratedTheme | null>(null);
+  const [generatedTheme, setGeneratedTheme] = useState<DesignerTheme | null>(null);
   const [showPreviewElements, setShowPreviewElements] = useState(false);
 
   const abortRef = useRef<AbortController | null>(null);
@@ -387,31 +311,28 @@ export function AIVybeDesigner({ interests = [], onComplete, onSkip }: AIVybeDes
     const minBuildTime = BUILD_PHASES.reduce((sum, p) => sum + p.duration, 0);
     const buildStart = Date.now();
 
-    // Resolve a theme: try AI edge function, fall back to the curated local
-    // palette for the selected vibe so the flow NEVER dead-ends.
-    let theme: GeneratedTheme;
+    let theme: DesignerTheme;
     try {
-      const { data, error } = await db.functions.invoke('generate-advanced-theme', {
-        body: {
-          prompt: fullPrompt,
-          interests,
-          includeFont: true,
-          includeEffects: true,
-          selectedFont,
-          selectedAnimation,
-        },
+      const result = await generateVybeTheme({
+        prompt: fullPrompt,
+        selectedVibe,
+        interests,
+        selectedFont,
+        selectedAnimation: selectedAnimation
+          ? ANIMATION_PRESETS[selectedAnimation]
+          : null,
       });
-
-      if (error) throw error;
-      if (data?.error) throw new Error(data.error);
-
-      const aiTheme = data?.theme as GeneratedTheme | undefined;
-      if (!isValidTheme(aiTheme)) throw new Error('Invalid theme response');
-      theme = aiTheme;
+      if (!isValidGeneratedTheme(result.theme)) throw new Error('Invalid theme response');
+      theme = { ...result.theme };
+      if (result.notice && result.source === 'local') {
+        toast.message(result.notice, { duration: 5000 });
+      }
     } catch (err: unknown) {
       if ((err as Error)?.name === 'AbortError') return;
-      console.warn('[AIVybeDesigner] AI generation failed — using local theme', err);
-      theme = buildLocalTheme(selectedVibe);
+      console.warn('[AIVybeDesigner] theme generation failed', err);
+      toast.error(err instanceof Error ? err.message : 'Could not generate theme');
+      setStep('vibe');
+      return;
     }
 
     try {

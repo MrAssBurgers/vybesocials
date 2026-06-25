@@ -138,11 +138,7 @@ const DraggableNavItem = memo(({
               </motion.div>
             )}
             {isActive && !isEditMode && (
-              <motion.div
-                layoutId="nav-indicator"
-                className="absolute -inset-1.5 rounded-xl bg-primary/15"
-                transition={T.indicator}
-              />
+              <div className="absolute -inset-1.5 rounded-xl bg-primary/15" />
             )}
             <Avatar className={cn(
               "h-7 w-7 relative z-10 transition-[box-shadow,transform]",
@@ -192,11 +188,7 @@ const DraggableNavItem = memo(({
             </motion.div>
           )}
           {isActive && !isEditMode && (
-            <motion.div
-              layoutId="nav-indicator"
-              className="absolute -inset-1.5 rounded-xl bg-primary/15"
-              transition={T.indicator}
-            />
+            <div className="absolute -inset-1.5 rounded-xl bg-primary/15" />
           )}
           {isHighlighted && (
             <div className="absolute -inset-2 rounded-xl ring-2 ring-primary ring-offset-2 ring-offset-background animate-pulse" />
@@ -527,17 +519,15 @@ export const BottomNav = memo(forwardRef<HTMLElement, object>(function BottomNav
 
       <motion.nav 
         ref={ref}
-        className="fixed inset-x-0 flex justify-center px-2 pointer-events-none"
+        className="bottom-nav fixed inset-x-0 flex justify-center px-2 pointer-events-none"
         initial={false}
         animate={{
           y: isVisible ? 0 : 140,
           opacity: isVisible ? 1 : 0,
         }}
         transition={{
-          type: 'spring',
-          stiffness: 260,
-          damping: 24,
-          mass: 0.9,
+          duration: 0.12,
+          ease: 'easeOut',
         }}
         style={{
           zIndex: 5002,

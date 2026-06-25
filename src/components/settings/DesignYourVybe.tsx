@@ -157,7 +157,7 @@ export function DesignYourVybe() {
   }, [showConfirmation]);
 
   const generationRunIdRef = useRef(0);
-  const GENERATION_TIMEOUT_MS = 30000;
+  const GENERATION_TIMEOUT_MS = 12000;
 
   // Lock scroll while generating
   useEffect(() => {
@@ -371,6 +371,7 @@ export function DesignYourVybe() {
         generateTheme.mutateAsync({
           prompt: promptValue,
           basePreset: selectedPreset,
+          selectedVibe,
         }),
         GENERATION_TIMEOUT_MS
       );
@@ -406,6 +407,10 @@ export function DesignYourVybe() {
       if (msg.includes('THEME_GENERATION_TIMEOUT')) {
         generateTheme.reset();
         toast.error('Theme generation timed out. Please try again.');
+      } else if (msg.includes('Free plan')) {
+        toast.error(msg);
+      } else {
+        toast.error(msg || 'Failed to generate theme. Please try again.');
       }
     } finally {
       if (generationRunIdRef.current === runId) {

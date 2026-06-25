@@ -6,7 +6,8 @@ import { useAuth } from '@/lib/auth';
 import { useAuthProfileId } from '@/hooks/useAuthProfileId';
 import { getEffectiveProfileId } from '@/lib/profileCache';
 import { invalidateConversationCaches } from '@/lib/invalidateConversationCaches';
-import { normalizeToProfileId, getConversationDoc } from '@/lib/dmMembershipRepair';
+import { normalizeToProfileId } from '@/lib/dmMembershipRepair';
+import { createDmChat } from '@/lib/firebase/chats';
 import { firebaseAuth } from '@/lib/firebase/authService';
 import { resolveSessionProfileId } from '@/lib/resolveSessionProfileId';
 import { syncUserAuthIndex } from '@/lib/firebase/profileResolve';
@@ -295,21 +296,13 @@ export function useSendFriendRequest() {
   const queryClient = useQueryClient();
 
   const ensureDirectConversation = async (currentUserId: string, receiverId: string) => {
-    const receiverProfileId = (await normalizeToProfileId(receiverId)) || receiverId;
-    const chatId = [currentUserId, receiverProfileId].sort().join('_');
-    const existing = await getConversationDoc(chatId);
-    if (existing && !existing.is_group) return false;
-
-    const { data: conversationId, error: rpcError } = await db.rpc('create_dm_conversation', {
-      other_profile_id: receiverProfileId,
-    });
-
-    if (rpcError) {
-      console.error('[Friends] Failed to create DM conversation via RPC:', rpcError);
+    try {
+      await createDmChat(receiverId);
+      return true;
+    } catch (error) {
+      console.error('[Friends] Failed to create DM conversation:', error);
       return false;
     }
-
-    return !!conversationId;
   };
 
   return useMutation({
@@ -321,27 +314,26 @@ export function useSendFriendRequest() {
         throw new Error('Cannot send a friend request to yourself');
       }
 
-      const receiverProfile = await getUserProfile(receiverProfileId);
+      const [receiverProfile, sameDirectionResult, reverseDirectionResult] = await Promise.all([
+        getUserProfile(receiverProfileId),
+        db
+          .from('friend_requests')
+          .select('id, status')
+          .eq('id', friendRequestDocId(profileId, receiverProfileId))
+          .maybeSingle(),
+        db
+          .from('friend_requests')
+          .select('id, status')
+          .eq('id', friendRequestDocId(receiverProfileId, profileId))
+          .maybeSingle(),
+      ]);
+
       if (!receiverProfile?.id) {
         throw new Error('User not found');
       }
       const normalizedReceiver = receiverProfile.id;
-
       const outboundId = friendRequestDocId(profileId, normalizedReceiver);
       const inboundId = friendRequestDocId(normalizedReceiver, profileId);
-
-      const [sameDirectionResult, reverseDirectionResult] = await Promise.all([
-        db
-          .from('friend_requests')
-          .select('id, status')
-          .eq('id', outboundId)
-          .maybeSingle(),
-        db
-          .from('friend_requests')
-          .select('id, status')
-          .eq('id', inboundId)
-          .maybeSingle(),
-      ]);
 
       // Legacy rows used random ids — fall back to sender/receiver lookup.
       let legacySent: { data: { id: string; status: string }[] | null; error: unknown } = { data: null, error: null };
@@ -426,7 +418,7 @@ export function useSendFriendRequest() {
       }
 
       try {
-        await db.from('notifications').insert({
+        void db.from('notifications').insert({
           user_id: normalizedReceiver,
           actor_id: profileId,
           type: 'friend_request',

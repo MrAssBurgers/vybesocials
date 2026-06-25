@@ -61,7 +61,28 @@
     <!-- Preconnect to external origins for faster loading -->
     <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Permanent+Marker&display=swap" rel="stylesheet" />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Permanent+Marker&display=swap"
+      rel="stylesheet"
+    />
+    <script>
+      (function () {
+        try {
+          var root = document.documentElement;
+          var markReady = function () {
+            root.setAttribute('data-vybe-fonts-ready', 'true');
+          };
+          if (document.fonts && document.fonts.load) {
+            document.fonts.load('400 1em "Permanent Marker"').then(markReady, markReady);
+          } else {
+            markReady();
+          }
+          setTimeout(markReady, 600);
+        } catch (e) {
+          document.documentElement.setAttribute('data-vybe-fonts-ready', 'true');
+        }
+      })();
+    </script>
     <link rel="preconnect" href="https://firestore.googleapis.com" crossorigin />
     <link rel="preconnect" href="https://firebasestorage.googleapis.com" crossorigin />
     <link rel="preconnect" href="https://identitytoolkit.googleapis.com" crossorigin />
@@ -271,32 +292,41 @@
     <!-- Critical inline CSS for faster LCP -->
     <style>
       :root {
-        background: #0B0B10;
+        background: #090812;
         color-scheme: dark;
         --primary: 330 100% 60%;
         --accent: 185 100% 50%;
         --foreground: 0 0% 98%;
         --muted-foreground: 240 5% 55%;
       }
-      html { background: #0B0B10; color-scheme: dark; }
-      html, body { margin: 0; padding: 0; min-height: 100vh; background: #0B0B10; }
-      /* Aurora paints in #vybe-aurora-mount (sibling behind #root) */
+      html { background: #090812; color-scheme: dark; }
+      html, body { margin: 0; padding: 0; min-height: 100%; background: #090812; overscroll-behavior: none; }
+      /* Empty portal target — React paints liquid aurora here when active */
       #vybe-aurora-mount {
         position: fixed;
         inset: 0;
         z-index: 0;
         pointer-events: none;
+        background: transparent;
+      }
+      .vybe-bg {
+        position: fixed;
+        inset: 0;
+        z-index: -1;
         background:
-          radial-gradient(ellipse 80% 55% at 50% -5%, rgba(139, 92, 246, 0.18), transparent 55%),
-          radial-gradient(ellipse 55% 40% at 92% 88%, rgba(236, 72, 153, 0.1), transparent 50%),
-          #0B0B10;
+          radial-gradient(circle at 20% 20%, rgba(255, 45, 180, 0.24), transparent 32%),
+          radial-gradient(circle at 80% 70%, rgba(0, 200, 255, 0.22), transparent 36%),
+          linear-gradient(135deg, #120018 0%, #081827 100%);
+        transform: translateZ(0);
+        backface-visibility: hidden;
+        pointer-events: none;
       }
       #root {
         position: relative;
         z-index: 1;
-        min-height: 100vh;
+        min-height: 100%;
         min-height: 100dvh;
-        background: #0B0B10;
+        background: transparent;
       }
       body.splash-visible {
         overflow: hidden;
@@ -304,7 +334,7 @@
       }
       body.splash-visible #root {
         min-height: 100dvh;
-        overflow: hidden;
+        overflow: visible;
       }
       #vybe-static-boot {
         position: fixed;
@@ -314,11 +344,13 @@
         flex-direction: column;
         align-items: center;
         justify-content: center;
-        overflow: hidden;
+        overflow: visible;
         background: #0B0B10;
         font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
         min-height: 100dvh;
         height: 100dvh;
+        padding: 0 clamp(1rem, 5vw, 1.75rem);
+        box-sizing: border-box;
       }
       #vybe-static-boot .vybe-splash-glow {
         position: absolute;
@@ -337,16 +369,42 @@
         width: 96px;
         height: 96px;
       }
-      #vybe-static-boot .vybe-splash-title {
-        margin: 0 0 1.25rem;
-        font-size: 1.5rem;
-        font-weight: 800;
-        letter-spacing: -0.02em;
-        background: linear-gradient(135deg, hsl(var(--primary)), hsl(var(--accent)));
+      #vybe-static-boot .vybe-splash-title-wrap {
+        position: relative;
+        overflow: visible;
+        width: 100%;
+        margin: 0 auto 1.25rem;
+        padding: 0.85rem clamp(1rem, 5vw, 2rem) 0.65rem;
+        box-sizing: border-box;
+        text-align: center;
+      }
+      #vybe-static-boot .vybe-splash-wordmark {
+        display: inline-block;
+        font-family: 'Permanent Marker', cursive;
+        font-size: clamp(2.5rem, 10vw, 3.75rem);
+        font-weight: 400;
+        letter-spacing: -0.04em;
+        line-height: 1.22;
+        padding: 0 0.1em 0.18em;
+        overflow: visible;
+        background: linear-gradient(90deg, hsl(var(--primary)), hsl(var(--accent)));
         -webkit-background-clip: text;
         background-clip: text;
-        -webkit-text-fill-color: transparent;
         color: transparent;
+        -webkit-text-fill-color: transparent;
+      }
+      #vybe-static-boot .vybe-wordmark-img {
+        display: block;
+        margin: 0 auto;
+        height: clamp(2.75rem, 11vw, 4rem);
+        width: auto;
+        max-width: min(92vw, 24rem);
+        object-fit: contain;
+        object-position: center center;
+        opacity: 1;
+      }
+      html[data-vybe-fonts-ready] #vybe-static-boot .vybe-wordmark-img {
+        opacity: 1;
       }
       #vybe-static-boot .vybe-splash-bar-wrap {
         width: min(16rem, 72vw);
@@ -408,7 +466,7 @@
       }
       [data-app-shell] {
         min-height: 100dvh;
-        background-color: #0B0B10;
+        background-color: transparent;
       }
       /* Defensive: block injected pseudo overlays from extensions/ad scripts */
       body::before, body::after { content: none !important; }
@@ -499,6 +557,7 @@
         }
       })();
     </script>
+    <div class="vybe-bg" aria-hidden="true"></div>
     <div id="vybe-aurora-mount" aria-hidden="true"></div>
     <div id="vybe-boot-recovery" role="alert" aria-live="assertive" style="display:none;position:fixed;inset:0;z-index:2147483647;align-items:center;justify-content:center;padding:1.5rem;text-align:center;background:#07070c;color:#fafafa;font-family:system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
       <div style="max-width:22rem;">
@@ -531,7 +590,9 @@
             <circle cx="50" cy="85" r="3.5" fill="hsl(330 100% 60%)" />
           </svg>
         </div>
-        <h1 class="vybe-splash-title">VYBE</h1>
+        <div class="vybe-splash-title-wrap">
+          <span class="vybe-splash-wordmark" aria-hidden="true">VYBE</span>
+        </div>
         <div class="vybe-splash-bar-wrap">
           <div class="vybe-splash-bar-track">
             <div class="vybe-splash-bar-fill"></div>

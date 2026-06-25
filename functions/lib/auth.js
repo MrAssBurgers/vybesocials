@@ -115,7 +115,7 @@ export const phoneVerifyRequest = onCall(async (request) => {
 });
 export const phoneVerifyConfirm = auth2faVerifyPhone;
 /** auth-login-approval — approve a pending device login. */
-export const authLoginApproval = onCall(async (request) => {
+export const authLoginApproval = onCall({ cors: true }, async (request) => {
     const uid = requireAuth(request);
     const { sessionId, approve } = (request.data || {});
     if (!sessionId)
@@ -126,7 +126,7 @@ export const authLoginApproval = onCall(async (request) => {
     return { ok: true };
 });
 /** auth-login-notify — push to existing devices when a new sign-in happens. */
-export const authLoginNotify = onCall(async (request) => {
+export const authLoginNotify = onCall({ cors: true }, async (request) => {
     const uid = requireAuth(request);
     await db.collection('notifications').add({
         user_id: uid, title: 'New sign-in detected', body: 'If this wasn\'t you, secure your account.',
@@ -162,6 +162,18 @@ export const manageAccount = onCall(async (request) => {
         await db.collection('account_deletion_requests').doc(uid).delete();
     }
     return { ok: true };
+});
+/** Staff-only Firebase Auth user count (admin analytics). */
+export const getAuthUsersCount = onCall({ cors: true }, async (request) => {
+    await requireAdmin(request);
+    let total = 0;
+    let pageToken;
+    do {
+        const page = await auth.listUsers(1000, pageToken);
+        total += page.users.length;
+        pageToken = page.pageToken;
+    } while (pageToken);
+    return total;
 });
 /** check-premium-subscription — read RevenueCat-mirrored doc or gifted_premium grants. */
 export const checkPremiumSubscription = onCall(async (request) => {
