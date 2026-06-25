@@ -695,9 +695,18 @@ service cloud.firestore {
       );
     }
     match /webrtc_signals/{docId} {
-      allow read: if signedIn();
-      allow create: if signedIn();
-      allow delete: if isAdmin();
+      allow read: if signedIn() && (
+        resource.data.to_user == uid() ||
+        resource.data.from_user == uid() ||
+        ownsProfileId(resource.data.to_profile_id) ||
+        ownsProfileId(resource.data.from_profile_id)
+      );
+      allow create: if signedIn() && (
+        willOwn('from_user') || willOwnProfile('from_profile_id')
+      );
+      allow delete: if signedIn() && (
+        isOwner('from_user') || isOwner('to_user') || isAdmin()
+      );
     }
 
     // ---------- stories ----------
@@ -760,7 +769,7 @@ service cloud.firestore {
     }
     match /channels/{id} {
       allow read: if signedIn();
-      allow write: if signedIn(); // Cloud Function validates community ownership
+      allow write: if isAdmin();
     }
     match /channel_messages/{id} {
       allow read: if signedIn();
@@ -777,20 +786,7 @@ service cloud.firestore {
     match /badges/{id}            { allow read: if signedIn(); allow write: if isAdmin(); }
     match /challenges/{id} {
       allow read: if signedIn();
-      allow create: if isAdmin() || (
-        signedIn() &&
-        request.resource.data.type in ['daily', 'weekly'] &&
-        request.resource.data.is_active == true
-      );
-      allow update: if isAdmin() || (
-        signedIn() &&
-        resource.data.type in ['daily', 'weekly'] &&
-        request.resource.data.is_active == false
-      );
-      allow delete: if isAdmin() || (
-        signedIn() &&
-        resource.data.type in ['daily', 'weekly']
-      );
+      allow write: if isAdmin();
     }
     match /challenge_templates/{id} { allow read: if signedIn(); allow write: if isAdmin(); }
     match /announcements/{id}     { allow read: if signedIn(); allow write: if isAdmin(); }
