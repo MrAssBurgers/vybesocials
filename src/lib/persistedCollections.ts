@@ -80,7 +80,7 @@ const PERSISTED_ARRAY_KEY_FRAGMENTS = [
   'trashed-conversations',
 ];
 
-export function ensureArray<T>(data: unknown): T[] {
+export function ensureArray<T = any>(data: unknown): T[] {
   if (Array.isArray(data)) return data;
   if (data == null) return [];
   if (typeof data === 'object') {
