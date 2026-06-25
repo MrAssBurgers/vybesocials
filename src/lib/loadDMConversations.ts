@@ -2,9 +2,12 @@ import type { QueryClient } from '@tanstack/react-query';
 import { db } from '@/lib/firebase';
 import type { Conversation, Message } from '@/hooks/useMessages';
 import { isPermissionDeniedError, warnOnce } from '@/lib/logOnce';
+import { normalizeDmConversationList, safeDmMembers, reviveQueriesInCache } from '@/lib/persistedCollections';
+import { purgeStuckStoryUploads } from '@/lib/storiesCacheSanitize';
 import { resolveSessionProfileId, syncSessionProfileId } from '@/lib/resolveSessionProfileId';
 import { withTimeout } from '@/lib/withTimeout';
-import { fetchMemberProfiles, fetchConversationMetaForList, syntheticDeterministicConversation } from '@/lib/dmMembershipRepair';
+import { fetchMemberProfiles, fetchConversationMetaForList, syntheticDeterministicConversation, normalizeToProfileId } from '@/lib/dmMembershipRepair';
+import { listUserChats } from '@/lib/firebase/chats';
 import { fetchMessagesForConversations } from '@/lib/conversationMessagesQuery';
 
 import {
@@ -30,8 +33,52 @@ export function syncDmListCaches(
   profileId: string,
   data: LoadedDMConversation[],
 ): void {
-  queryClient.setQueryData(['dm-conversations', profileId], data);
-  queryClient.setQueryData(['conversations', profileId], data);
+  const normalized = normalizeDmConversationList<LoadedDMConversation>(data);
+  queryClient.setQueryData(['dm-conversations', profileId], normalized);
+  queryClient.setQueryData(['conversations', profileId], normalized);
+}
+
+/** Read + normalize DM list from any warm React Query key (instant /messages paint). */
+export function readDmConversationsCache(
+  queryClient: QueryClient,
+  profileId?: string | null,
+  authUid?: string | null,
+): LoadedDMConversation[] {
+  let best: LoadedDMConversation[] = [];
+
+  const tryKey = (id: string | null | undefined) => {
+    if (!id) return;
+    const primary = normalizeDmConversationList<LoadedDMConversation>(
+      queryClient.getQueryData(['dm-conversations', id]),
+    );
+    if (primary.length > best.length) best = primary;
+    const legacy = normalizeDmConversationList<LoadedDMConversation>(
+      queryClient.getQueryData(['conversations', id]),
+    );
+    if (legacy.length > best.length) best = legacy;
+  };
+
+  tryKey(profileId);
+  tryKey(authUid);
+
+  if (best.length) return best;
+
+  for (const [, data] of queryClient.getQueriesData({ queryKey: ['dm-conversations'] })) {
+    const hit = normalizeDmConversationList<LoadedDMConversation>(data);
+    if (hit.length > best.length) best = hit;
+  }
+  return best;
+}
+
+/** Copy any warm DM list snapshot onto the active profile key. */
+export function seedDmConversationsCache(
+  queryClient: QueryClient,
+  profileId: string,
+  authUid?: string | null,
+): LoadedDMConversation[] {
+  const hit = readDmConversationsCache(queryClient, profileId, authUid);
+  if (hit.length) syncDmListCaches(queryClient, profileId, hit);
+  return hit;
 }
 
 /**
@@ -115,24 +162,57 @@ async function fetchConversationsForList(
 }
 
 async function fetchMembershipRows(profileId: string, authUid: string | null) {
-  const queries = [
+  const userIds = new Set<string>();
+  if (profileId) userIds.add(profileId);
+  if (authUid) userIds.add(authUid);
+
+  for (const id of [profileId, authUid]) {
+    if (!id) continue;
+    try {
+      const normalized = await normalizeToProfileId(id);
+      if (normalized) userIds.add(normalized);
+    } catch {
+      /* best effort */
+    }
+  }
+
+  const queries = [...userIds].map((userId) =>
     db
       .from('conversation_members')
       .select('conversation_id, last_read_at, is_pinned, is_muted')
-      .eq('user_id', profileId),
-  ];
-  if (authUid && authUid !== profileId) {
-    queries.push(
-      db
-        .from('conversation_members')
-        .select('conversation_id, last_read_at, is_pinned, is_muted')
-        .eq('user_id', authUid),
-    );
-  }
+      .eq('user_id', userId),
+  );
   const results = await Promise.all(queries);
   const error = results.find((r) => r.error)?.error ?? null;
   const rows = results.flatMap((r) => r.data || []);
   return { rows, error };
+}
+
+async function discoverConversationIdsViaChats(
+  profileId: string,
+  authUid: string | null,
+): Promise<string[]> {
+  const ids = new Set<string>();
+  const tryIds = new Set<string>([profileId, authUid].filter(Boolean) as string[]);
+  for (const id of [...tryIds]) {
+    try {
+      const normalized = await normalizeToProfileId(id);
+      if (normalized) tryIds.add(normalized);
+    } catch {
+      /* best effort */
+    }
+  }
+  for (const id of tryIds) {
+    try {
+      const chats = await listUserChats(id);
+      for (const chat of chats) {
+        if (chat.id) ids.add(chat.id);
+      }
+    } catch (err) {
+      console.warn('[DM] listUserChats fallback failed:', id, err);
+    }
+  }
+  return [...ids];
 }
 
 async function loadDMConversationsOnce(
@@ -157,6 +237,8 @@ async function loadDMConversationsOnce(
       db.from('trashed_conversations').select('conversation_id').eq('user_id', effectiveProfileId),
     ]);
 
+    const membershipMap = new Map<string, { last_read_at?: string | null; conversation_id: string }>();
+
     if (membershipError) {
       if (isPermissionDeniedError(membershipError)) {
         warnOnce('dm-membership-denied', '[DM] membership query error:', membershipError.message);
@@ -166,10 +248,15 @@ async function loadDMConversationsOnce(
       if (stale.length > 0) {
         return { data: stale, error: null, profileId: effectiveProfileId };
       }
-      return { data: [], error: membershipError, profileId: effectiveProfileId };
+      const discovered = await discoverConversationIdsViaChats(effectiveProfileId, authUid);
+      for (const id of discovered) {
+        membershipMap.set(id, { conversation_id: id, last_read_at: null });
+      }
+      if (!membershipMap.size) {
+        return { data: [], error: membershipError, profileId: effectiveProfileId };
+      }
     }
 
-    const membershipMap = new Map<string, { last_read_at?: string | null; conversation_id: string }>();
     for (const row of membershipRows) {
       const cid = String(row.conversation_id);
       const existing = membershipMap.get(cid);
@@ -184,6 +271,14 @@ async function loadDMConversationsOnce(
       });
     }
     let userConversationIds = [...membershipMap.keys()];
+
+    if (!userConversationIds.length) {
+      const discovered = await discoverConversationIdsViaChats(effectiveProfileId, authUid);
+      for (const id of discovered) {
+        membershipMap.set(id, { conversation_id: id, last_read_at: null });
+      }
+      userConversationIds = [...membershipMap.keys()];
+    }
 
     if (!userConversationIds.length) {
       if (stale.length > 0) {
@@ -326,8 +421,8 @@ async function loadDMConversationsOnce(
       });
 
     result.sort((a, b) => {
-      const aIsPinned = a.members?.find((m) => m.user_id === effectiveProfileId)?.is_pinned;
-      const bIsPinned = b.members?.find((m) => m.user_id === effectiveProfileId)?.is_pinned;
+      const aIsPinned = safeDmMembers(a.members).find((m) => m.user_id === effectiveProfileId)?.is_pinned;
+      const bIsPinned = safeDmMembers(b.members).find((m) => m.user_id === effectiveProfileId)?.is_pinned;
       if (aIsPinned && !bIsPinned) return -1;
       if (!aIsPinned && bIsPinned) return 1;
       if (aIsPinned && bIsPinned) {
@@ -353,12 +448,39 @@ async function loadDMConversationsOnce(
 export async function prefetchDMConversations(
   queryClient: QueryClient,
   profileId: string,
+  authUid?: string | null,
 ): Promise<void> {
-  const cached = queryClient.getQueryData<LoadedDMConversation[]>(['dm-conversations', profileId]);
-  if (Array.isArray(cached) && cached.length > 0) return;
+  const cached = readDmConversationsCache(queryClient, profileId, authUid);
+  if (cached.length > 0) {
+    syncDmListCaches(queryClient, profileId, cached);
+    void loadDMConversations(profileId, cached).then(({ data, profileId: resolvedId }) => {
+      if (data.length > 0) {
+        syncDmListCaches(queryClient, resolvedId, data);
+        if (resolvedId !== profileId) syncDmListCaches(queryClient, profileId, data);
+      }
+    });
+    return;
+  }
 
   const { data, profileId: resolvedId } = await loadDMConversations(profileId, cached);
-  syncDmListCaches(queryClient, resolvedId, data);
+  if (data.length > 0) {
+    syncDmListCaches(queryClient, resolvedId, data);
+    if (resolvedId !== profileId) syncDmListCaches(queryClient, profileId, data);
+  }
+}
+
+/** Sanitize cache + seed DM list before /messages paints. */
+export function prepareMessagesRoute(
+  queryClient: QueryClient,
+  profileId?: string | null,
+  authUid?: string | null,
+): void {
+  reviveQueriesInCache(queryClient);
+  purgeStuckStoryUploads(queryClient, profileId);
+  if (profileId) {
+    seedDmConversationsCache(queryClient, profileId, authUid);
+    void prefetchDMConversations(queryClient, profileId, authUid);
+  }
 }
 
 /** Best-effort prefetch using the global query client (nav hover). */

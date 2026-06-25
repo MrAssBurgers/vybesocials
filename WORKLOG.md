@@ -2,6 +2,93 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## Multi-fix batch — media, hubs, DMs, listings, monitoring, wordmark (2026-06-25)
+- **Media/images/video:** Firebase `?alt=media` URLs without tokens now resolve via `getDownloadURL` (`firebaseStorageNeedsToken` + `useFastSignedUrl`); extra storage prefixes (`hubs/`, `servers/`, `listings/`); `ChatMediaBubble` audio path normalized
+- **Hubs sidebar:** `useMyServers` two-step fetch (memberships → servers) — fixes `?` placeholders from broken nested join
+- **Listing delete:** `useDeleteListing` soft-delete fallback (`status: deleted`) when RLS blocks hard delete
+- **DMs:** Swipe-left delete + long-press options on inbox (`SwipeableDmConversationRow`); `hidden_conversations` uses profile id consistently; `DMSafetyGate` skips gate for active threads + friends list cache; friendship status keeps stale data on refetch
+- **Add Friends dismiss:** `useDismissedQuickAdd` persists on `user.id` key immediately (survives refresh)
+- **Error monitor:** Auto bug reports opt-out (`consent !== false`) instead of opt-in only
+- **VYBE wordmark:** `VybeWordmark` + Permanent Marker brush font + neon gradient (logo, inbox, headers); cache buster `vybe-cache-v15`
+- **Verified:** `npm run build` PASS
+- **You:** Hard refresh · Lovable Publish vybehub.app · test media in feed + DMs, hub sidebar, swipe delete on Messages
+
+## DM inbox redesign — glass cards + sections (2026-06-25)
+- **New:** `DmInboxView` — gradient VYBE hero, search, All/Unread chips, VYBE-AI + New chat lanes, sectioned list (New / Pinned / This week / Earlier), glass conversation cards with unread glow + timestamps
+- **Primary path:** `/messages` uses `DmInboxView` (stable + beautiful); old `ConversationList` kept in repo for swipe/pins/notes re-integration later
+- **Deployed:** https://vybe-daaab.web.app · `npm run build` PASS
+
+## Messages reliability v5 — fail-soft + minimal fallback (2026-06-25)
+- **User report:** Every DMs tap → "Couldn't load Messages" for all users
+- **Fix:**
+  - `useDMConversations` never throws (`throwOnError: false`) — network errors show empty/retry, not crash
+  - `ConversationListMinimal` — if full list throws, users still see chats (LocalErrorBoundary fallback)
+  - `prepareMessagesRoute` on /messages mount — revive cache + seed + prefetch
+  - Membership query failure → `listUserChats` fallback before giving up
+  - Disabled `useStories` on DM list (persisted story cache crash vector)
+  - DMsHeader wrapped in LocalErrorBoundary; cache buster `vybe-cache-v13`
+- **Verified:** `npm run build` PASS · deployed https://vybe-daaab.web.app
+- **You:** Hard refresh once · Lovable Publish vybehub.app for production users
+
+## Messages crash v4 — friends/streaks `{}` cache (2026-06-25)
+- **Still broken:** `friends` + `streaks` persisted as `{}` → `.forEach`/`.filter` throw in `useStreakMap` / `useOnlineFriends` (not in prior revive list)
+- **Fix:** Smarter `ensureArray` (coerce corrupt IDB objects); revive `friends`/`streaks`/friend-requests; hook `select` guards; `listUserChats` fallback when membership query empty; NotesRow boundary; cache buster `vybe-cache-v12`
+- **Verified:** `npm run build` PASS
+- **You:** Hard refresh (Cmd+Shift+R) or Messages Reload once → list should paint · Firebase staging redeploy if testing vybe-daaab.web.app
+
+## Messages video fixes — stories crash, previews, media (2026-06-25)
+- **Video issues:** Home sidebar "No messages yet" on real DMs; Messages left pane "Couldn't load Messages" while chat worked; reload stuck skeleton + generic "Chat" header; media bubbles orange gradient placeholders
+- **Root cause (list crash):** `useStories` in `ConversationList` — persisted `group.stories` as `{}` → `.filter` throw; unsafe `group.user.id`
+- **Fix:** `normalizeStoryGroups` + hardened `stripUploadingStories`; safe `userStoryMap`; `LocalErrorBoundary` on Quick Add + story viewer; sidebar uses `formatDmPreviewContent`; `ChatMediaBubble` runs `normalizeMediaUrl` before signing; `hasCachedList` includes sync cache read; `useConversationDetail` `initialData` from DM cache; cache buster `vybe-cache-v11`
+- **Verified:** `npm run build` PASS
+- **You:** Hard refresh once → `/messages` list + open thread · Lovable Publish vybehub.app
+
+## Messages instant load (2026-06-25)
+- **Problem:** DM list blocked on profile resolve + empty cache threw away stale data; skeleton showed even when cache had rows
+- **Fix:** `readDmConversationsCache` / `seedDmConversationsCache` — sync read from any warm key; `useAuthProfileId` (no query-disable gap); `initialData` + cache-first `isLoading`; background refresh when cache hit; Messages mount seeds + prefetches; cache buster `vybe-cache-v10`
+- **Verified:** `npm run build` PASS
+- **You:** Hard refresh once → Messages should paint list immediately from cache, then refresh in background
+
+## Messages crash — permanent fix v3 (2026-06-25)
+- **Still crashing:** `getQueryData()?.find()` on corrupt `{}` cache (not null — truthy object without `.find`) + `views?.some` / `reactions?.find` on `{}` message rows
+- **Fix:** `readQueryArray` / `findInQueryArray` for all DM cache reads; `safeMessageViews` / `safeMessageReactions`; `normalizeDmConversationList` on hook output; cache buster `vybe-cache-v9`; revive on Messages mount + on error boundary catch
+- **Verified:** `npm run build` PASS
+- **You:** Hard refresh once (clears v8 IDB) → Messages → open a chat
+
+## Messages crash — permanent fix v2 (2026-06-25)
+- **Chat open crash (remaining):** `ConversationItem` + `dmMemberResolve` still called `.find`/`.filter` on `members` when persisted cache had `{}` — list loaded, thread open threw
+- **Permanent patch:**
+  - `safeDmMembers()` used across DM stack (list rows, ChatView, hooks, realtime, load paths)
+  - `installQueryCacheWriteGuard` — normalizes every `setQueryData` for dm/messages/stories/Set/Map keys
+  - `SmartErrorBoundary`: custom fallback shows immediately (no 3× auto-reset flash loop)
+  - Cache buster `vybe-cache-v8`; `reviveQueriesInCache` on chat open in `Messages.tsx`
+- **Verified:** `npm run build` PASS
+- **You:** Hard refresh (or Reload on error screen once) → open a DM · Lovable Publish vybehub.app
+
+## Messages crash — permanent fix (2026-06-25)
+- **List crash:** `stories` / `statusMap` persisted as plain objects
+- **Chat open crash:** `conversation.members` and `messages` as `{}` → `.filter` / `.map` / `for…of` throw when opening a thread
+- **Permanent patch:** `normalizeDmConversation` + `normalizeMessagesCache`; cache normalizer handles `conversation-detail` + `messages`; ChatView uses `safeConversation`; cache buster `vybe-cache-v7`
+- **Deployed:** https://vybe-daaab.web.app
+- **You:** Hard refresh → open a DM · tap Reload once if needed · Lovable Publish vybehub.app
+
+## Messages crash hotfix (2026-06-25)
+- **Root cause:** `DMsHeader` called `statusMap.get()` on React Query persisted cache — `Map` deserializes as a plain object before revive → `TypeError: statusMap.get is not a function` → SmartErrorBoundary "Couldn't load Messages"
+- **Fix:** `useBatchUserStatuses` always returns `normalizePersistedMap`; `DMsHeader` + conversation rows use `safeMapGet`; message `views`/`reactions` normalized after cache merge
+- **Deployed:** https://vybe-daaab.web.app
+- **You:** Lovable Publish vybehub.app · hard refresh Messages tab
+
+## Production fixes — map, DMs, media, camera (2026-06-25)
+- **Media URLs:** `normalizeMediaUrl` resolves bare UUID filenames + `avatar.jpg` to Firebase Storage; fallback bucket `vybe-daaab.firebasestorage.app` when Vite env partial on Lovable; `AvatarImage` no longer falls back to broken relative paths
+- **VybeMap:** Discovery drawer `pointer-events-none` on overlay so map pan/zoom works; recenter toasts when GPS missing; canvas `touch-action: none`
+- **DMs:** `ChatView` error UI when conversation fails to load; sheet mounts gated on `conversationId`
+- **Camera:** hub camera → `/upload`; default **VYBE** (`snap`) filter; story music picker `z-[8000]`; upload camera error toast
+- **Friend link:** tap QR → fullscreen enlarge with spring animation
+- **Verified:** `npm run debug` PASS (build, lint, CSS, boot, function refs) · `npm run build` PASS
+- **Deployed:** Firebase staging https://vybe-daaab.web.app (hosting)
+- **You:** Lovable Publish vybehub.app · confirm Lovable secrets `VITE_FIREBASE_*`, `VITE_MAPBOX_ACCESS_TOKEN`, `VITE_FIREBASE_STORAGE_BUCKET=vybe-daaab.firebasestorage.app`
+- **Next:** test signed-in Vybe Check on post/story · capture exact DM throw if SmartErrorBoundary still loops on vybehub.app
+
 ## Publish (2026-06-17, latest)
 - **Git:** pushed to `origin/main` — DM open perf, floating pill header, Gemini AQ key + VYBE AI errors
 - **Firebase staging:** https://vybe-daaab.web.app — hosting deployed ✓

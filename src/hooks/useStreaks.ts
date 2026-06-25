@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useMemo } from 'react';
 import { db } from '@/lib/firebase';
 import { useAuthProfileId } from '@/hooks/useAuthProfileId';
+import { ensureArray } from '@/lib/persistedCollections';
 
 export interface Streak {
   id: string;
@@ -54,7 +55,10 @@ export function useStreaks() {
     refetchOnWindowFocus: true,
   });
 
-  return query;
+  return {
+    ...query,
+    data: ensureArray<Streak>(query.data),
+  };
 }
 
 export function useStreakWithUser(otherUserId: string | undefined) {
@@ -78,9 +82,10 @@ export function useStreakMap() {
 
   return useMemo(() => {
     const map = new Map<string, Streak>();
-    if (!streaks || !profileId) return map;
+    const rows = ensureArray<Streak>(streaks);
+    if (!rows.length || !profileId) return map;
 
-    streaks.forEach((streak) => {
+    rows.forEach((streak) => {
       const otherUserId =
         streak.user1_id === profileId ? streak.user2_id : streak.user1_id;
       map.set(otherUserId, streak);

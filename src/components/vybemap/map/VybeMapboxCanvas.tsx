@@ -8,6 +8,7 @@ import {
   pitchForMode,
   type MapViewMode,
 } from '@/lib/vybemap/mapbox/config';
+import { normalizeMediaUrl } from '@/lib/mediaUrl';
 import { heatmapColor, heatmapOpacity } from '@/lib/vybemap/heatmapColors';
 import { clusterPoints, type MarkerCluster } from '@/lib/vybemap/clusterMarkers';
 import { isHeadingTowardYou } from '@/lib/vybemap/headingToward';
@@ -61,7 +62,7 @@ function friendMarkerHtml(f: LiveFriend, opts?: { headingToward?: boolean; squad
   const pulse = opts?.headingToward ? ' vybe-mbx-heading' : '';
   const initial = (f.profile?.display_name || f.profile?.username || '?')[0];
   const avatar = f.profile?.avatar_url
-    ? `<img src="${f.profile.avatar_url}" onerror="this.style.display='none'" class="vybe-mbx-avatar"/>`
+    ? `<img src="${normalizeMediaUrl(f.profile.avatar_url) || f.profile.avatar_url}" onerror="this.style.display='none'" class="vybe-mbx-avatar"/>`
     : `<div class="vybe-mbx-avatar flex items-center justify-center bg-zinc-200 text-zinc-600 font-bold text-lg">${initial}</div>`;
   return `<div class="vybe-mbx-friend${pulse}" style="--ring:${ring}">${avatar}</div>`;
 }
@@ -585,7 +586,7 @@ export const VybeMapboxCanvas = memo(function VybeMapboxCanvas({
 
   return (
     <>
-      <div ref={containerRef} className="absolute inset-0 z-0 vybe-map-canvas" />
+      <div ref={containerRef} className="absolute inset-0 z-0 vybe-map-canvas touch-none" />
       {!mapReady && !mapError && (
         <div className="pointer-events-none absolute inset-0 z-[1] flex items-center justify-center vybe-map-loading">
           <div className="vybe-map-loading-pulse" aria-hidden />

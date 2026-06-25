@@ -77,20 +77,32 @@ export function useMyServers() {
     queryFn: async () => {
       if (!profileId) return [];
 
-      const { data, error } = await db
+      const { data: memberships, error: memberError } = await db
         .from('server_members')
-        .select(`
-          server_id,
-          role,
-          servers:server_id (*)
-        `)
+        .select('server_id, role')
         .eq('user_id', profileId);
 
-      if (error) throw error;
-      return (data || []).map((d: any) => ({
-        ...d.servers,
-        myRole: d.role,
-      })) as (Server & { myRole: ServerRole })[];
+      if (memberError) throw memberError;
+      const rows = memberships || [];
+      if (!rows.length) return [];
+
+      const serverIds = [...new Set(rows.map((r: { server_id: string }) => r.server_id).filter(Boolean))];
+      const { data: servers, error: serverError } = await db
+        .from('servers')
+        .select('*')
+        .in('id', serverIds);
+
+      if (serverError) throw serverError;
+
+      const serverMap = new Map((servers || []).map((s: Server) => [s.id, s]));
+      return serverIds
+        .map((id) => {
+          const server = serverMap.get(id);
+          const membership = rows.find((r: { server_id: string }) => r.server_id === id);
+          if (!server?.id || !server?.name) return null;
+          return { ...server, myRole: membership?.role ?? 'member' } as Server & { myRole: ServerRole };
+        })
+        .filter(Boolean) as (Server & { myRole: ServerRole })[];
     },
     enabled: !!profileId,
     networkMode: 'always',

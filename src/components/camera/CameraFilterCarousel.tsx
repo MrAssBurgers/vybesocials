@@ -11,6 +11,7 @@ export interface FilterDef {
 }
 
 export const PRESET_FILTERS: FilterDef[] = [
+  { id: 'snap', name: 'VYBE', css: 'contrast(1.06) saturate(1.28) brightness(1.06) sepia(0.06)', emoji: '✨' },
   { id: 'normal', name: 'Normal', css: '', emoji: '○' },
   { id: 'warm', name: 'Warm', css: 'sepia(0.3) saturate(1.4) brightness(1.1)', emoji: '🌅' },
   { id: 'cool', name: 'Cool', css: 'saturate(0.9) hue-rotate(20deg) brightness(1.05)', emoji: '❄️' },

@@ -4,6 +4,8 @@ import { reportAppCrash } from '@/lib/bugReportClient';
 interface Props {
   children: ReactNode;
   label?: string;
+  /** When set, render this instead of null on error (e.g. minimal DM list). */
+  fallback?: ReactNode;
 }
 
 interface State {
@@ -45,7 +47,7 @@ class LocalErrorBoundary extends Component<Props, State> {
   }
 
   render() {
-    if (this.state.hasError) return null;
+    if (this.state.hasError) return this.props.fallback ?? null;
     return this.props.children;
   }
 }

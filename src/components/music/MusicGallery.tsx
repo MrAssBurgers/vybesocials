@@ -287,7 +287,7 @@ export function MusicGallery({ onSelectTrack, onClose }: MusicGalleryProps) {
 
   if (loading) {
     return (
-      <div className="fixed inset-0 bg-background z-50 flex items-center justify-center">
+      <div className="fixed inset-0 bg-background z-[8000] flex items-center justify-center">
         <div className="text-center">
           <Disc className="h-12 w-12 animate-spin mx-auto mb-4 text-primary" />
           <p className="text-lg font-medium">Loading music gallery...</p>
@@ -301,7 +301,7 @@ export function MusicGallery({ onSelectTrack, onClose }: MusicGalleryProps) {
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="fixed inset-0 bg-background z-50 flex flex-col"
+      className="fixed inset-0 bg-background z-[8000] flex flex-col"
     >
       {/* Header */}
       <div className="flex items-center justify-between p-4 border-b">

@@ -1,5 +1,5 @@
 import { useNavigate, useParams } from 'react-router-dom';
-import { ConversationList } from '@/components/chat/ConversationList';
+import { DmInboxView } from '@/components/chat/dm-inbox/DmInboxView';
 import { ChatView } from '@/components/chat/ChatView';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { useBreakpoint } from '@/hooks/usePlatform';
@@ -11,9 +11,31 @@ import { Button } from '@/components/ui/button';
 import SmartErrorBoundary from '@/components/error/SmartErrorBoundary';
 import { cn } from '@/lib/utils';
 import { useDefaultLiquidBackground } from '@/hooks/useDefaultLiquidBackground';
+import { prepareMessagesRoute } from '@/lib/loadDMConversations';
+import { useAuth } from '@/lib/auth';
+import { useAuthProfileId } from '@/hooks/useAuthProfileId';
+import type { QueryClient } from '@tanstack/react-query';
 
 function MessagesFallback() {
   const showLiquidBg = useDefaultLiquidBackground();
+
+  const handleReload = () => {
+    void (async () => {
+      try {
+        const qc = (window as unknown as { __REACT_QUERY_CLIENT__?: QueryClient }).__REACT_QUERY_CLIENT__;
+        if (qc) {
+          qc.clear();
+          prepareMessagesRoute(qc);
+        }
+        const { del } = await import('idb-keyval');
+        await del('vybe-react-query-cache');
+      } catch {
+        /* best effort */
+      }
+      window.location.reload();
+    })();
+  };
+
   return (
     <div className={cn('flex flex-col items-center justify-center h-full w-full p-8 text-center', showLiquidBg ? 'bg-transparent' : 'bg-background')}>
       <div className="w-16 h-16 rounded-2xl bg-primary/15 flex items-center justify-center mb-4">
@@ -23,7 +45,7 @@ function MessagesFallback() {
       <p className="text-sm text-muted-foreground mb-5 max-w-xs">
         Something went wrong opening your DMs. Reload to try again.
       </p>
-      <Button onClick={() => window.location.reload()} className="gap-2">
+      <Button onClick={handleReload} className="gap-2">
         <RefreshCw className="w-4 h-4" /> Reload
       </Button>
     </div>
@@ -33,21 +55,28 @@ function MessagesFallback() {
 export default function Messages() {
   const navigate = useNavigate();
   const { conversationId } = useParams<{ conversationId?: string }>();
+  const { user } = useAuth();
+  const profileId = useAuthProfileId();
   const { isDesktop } = useBreakpoint();
   const isInChat = Boolean(conversationId);
   const showLiquidBg = useDefaultLiquidBackground();
 
   useLayoutEffect(() => {
+    const qc = (window as unknown as { __REACT_QUERY_CLIENT__?: QueryClient }).__REACT_QUERY_CLIENT__;
+    if (qc) {
+      prepareMessagesRoute(qc, profileId, user?.id);
+    }
+
     if (!isInChat) return;
     document.documentElement.setAttribute('data-dm-active', 'true');
     return () => {
       document.documentElement.removeAttribute('data-dm-active');
     };
-  }, [isInChat]);
+  }, [isInChat, conversationId, profileId, user?.id]);
 
   return (
-    <AppLayout hideRightSidebar fullWidth hideNav={!isDesktop} noPadding>
-      <SmartErrorBoundary fallback={<MessagesFallback />}>
+    <SmartErrorBoundary fallback={<MessagesFallback />}>
+      <AppLayout hideRightSidebar fullWidth hideNav={!isDesktop} noPadding>
         <div
           className={cn(
             'dm-shell flex h-full flex-1 min-h-0 w-full max-w-full overflow-hidden',
@@ -62,9 +91,7 @@ export default function Messages() {
               isInChat ? 'hidden md:flex md:flex-col' : 'flex flex-col',
             )}
           >
-            <SmartErrorBoundary fallback={<MessagesFallback />}>
-              <ConversationList />
-            </SmartErrorBoundary>
+            <DmInboxView />
           </div>
 
           {/* Chat area */}
@@ -161,7 +188,7 @@ export default function Messages() {
             )}
           </div>
         </div>
-      </SmartErrorBoundary>
-    </AppLayout>
+      </AppLayout>
+    </SmartErrorBoundary>
   );
 }

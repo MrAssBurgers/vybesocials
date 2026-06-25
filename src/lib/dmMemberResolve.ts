@@ -1,4 +1,5 @@
 import { inferOtherParticipantId } from '@/lib/dmMembershipRepair';
+import { safeDmMembers } from '@/lib/persistedCollections';
 
 export function isViewerMember(
   memberUserId: string,
@@ -21,7 +22,7 @@ export function inferOtherUserIdFromConversation(
   viewerProfileId: string,
   viewerAuthUid?: string | null,
 ): string | null {
-  const fromMembers = conversation.members?.find(
+  const fromMembers = safeDmMembers(conversation.members).find(
     (m) => !isViewerMember(String(m.user_id), viewerProfileId, viewerAuthUid),
   )?.user_id;
   if (fromMembers) return String(fromMembers);
@@ -103,14 +104,15 @@ export function resolveOtherMemberFromConversation(
   );
   if (!otherUserId) return null;
 
-  const memberRow = conversation.members?.find((m) => {
+  const members = safeDmMembers(conversation.members);
+  const memberRow = members.find((m) => {
     const uid = String(m.user_id);
     return uid === otherUserId || !isViewerMember(uid, viewerProfileId, viewerAuthUid);
   });
 
   const profile =
     memberRow?.profile ||
-    conversation.members?.find((m) => m.user_id === otherUserId)?.profile ||
+    members.find((m) => m.user_id === otherUserId)?.profile ||
     null;
 
   const canonicalId = profile?.id ? String(profile.id) : otherUserId;

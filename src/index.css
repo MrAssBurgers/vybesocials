@@ -223,16 +223,31 @@ body.has-liquid-bg:not(.has-custom-bg) .dm-sidebar {
   -webkit-mask-image: linear-gradient(to bottom, black 35%, transparent);
 }
 
-.dm-title {
+.dm-title,
+.vybe-wordmark {
+  font-family: 'Permanent Marker', 'Brush Script MT', cursive;
+  font-weight: 400;
+  font-style: italic;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
   background: linear-gradient(
-    110deg,
-    hsl(var(--foreground)) 0%,
-    hsl(var(--primary)) 45%,
-    hsl(var(--accent)) 85%
+    95deg,
+    #ff2d8a 0%,
+    #c026d3 22%,
+    #7c3aed 48%,
+    #2563eb 72%,
+    #22d3ee 100%
   );
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
+  filter: drop-shadow(0 0 8px rgba(255, 45, 138, 0.45))
+    drop-shadow(0 0 14px rgba(37, 99, 235, 0.35));
+  transform: skewX(-6deg);
+  display: inline-block;
+}
+
+.dm-title {
   letter-spacing: -0.03em;
 }
 
@@ -499,6 +514,251 @@ body.has-liquid-bg:not(.has-custom-bg) .dm-sidebar {
   color: hsl(var(--foreground) / 0.55);
   font-size: 0.625rem;
   line-height: 1;
+}
+
+/* ========================================
+   VYBE DM Inbox — glass card layout
+   ======================================== */
+.dm-inbox-hero {
+  position: relative;
+  flex-shrink: 0;
+}
+.dm-inbox-hero-aurora {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 90% 80% at 10% -20%, hsl(var(--primary) / 0.22), transparent 55%),
+    radial-gradient(ellipse 70% 60% at 95% 0%, hsl(var(--accent) / 0.16), transparent 50%);
+  mask-image: linear-gradient(to bottom, black 50%, transparent);
+  -webkit-mask-image: linear-gradient(to bottom, black 50%, transparent);
+  pointer-events: none;
+}
+
+.dm-inbox-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.35rem 0.85rem;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: hsl(var(--muted-foreground));
+  background: hsl(var(--foreground) / 0.05);
+  border: 1px solid hsl(var(--foreground) / 0.06);
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+.dm-inbox-chip:hover {
+  background: hsl(var(--foreground) / 0.08);
+  color: hsl(var(--foreground) / 0.9);
+}
+.dm-inbox-chip--active {
+  color: hsl(var(--primary-foreground));
+  background: linear-gradient(135deg, hsl(var(--primary) / 0.95), hsl(var(--accent) / 0.9));
+  border-color: transparent;
+  box-shadow: 0 4px 16px hsl(var(--primary) / 0.35);
+}
+.dm-inbox-chip-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: hsl(var(--primary-foreground));
+  box-shadow: 0 0 8px hsl(var(--primary-foreground) / 0.8);
+}
+
+.dm-inbox-lane {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.85rem;
+  border-radius: 1rem;
+  min-width: 8.5rem;
+  background: hsl(var(--foreground) / 0.05);
+  border: 1px solid hsl(var(--foreground) / 0.07);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  transition: transform 0.15s ease, background 0.15s ease;
+}
+.dm-inbox-lane:active {
+  transform: scale(0.98);
+}
+.dm-inbox-lane-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 0.75rem;
+  background: hsl(var(--primary) / 0.12);
+}
+.dm-inbox-lane-icon--ai {
+  background: linear-gradient(135deg, hsl(var(--primary) / 0.2), hsl(var(--accent) / 0.15));
+}
+.dm-inbox-lane-label {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: hsl(var(--foreground) / 0.92);
+}
+
+.dm-inbox-section-label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.25rem 0.35rem 0.5rem;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: hsl(var(--muted-foreground) / 0.9);
+}
+.dm-inbox-section-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.125rem;
+  height: 1.125rem;
+  padding: 0 0.3rem;
+  border-radius: 9999px;
+  font-size: 0.625rem;
+  font-weight: 700;
+  background: hsl(var(--foreground) / 0.08);
+  color: hsl(var(--muted-foreground));
+}
+
+.dm-inbox-card {
+  position: relative;
+  display: block;
+  width: 100%;
+  padding: 0.75rem 0.85rem;
+  border-radius: 1.125rem;
+  background: hsl(var(--foreground) / 0.04);
+  border: 1px solid hsl(var(--foreground) / 0.07);
+  backdrop-filter: blur(16px) saturate(130%);
+  -webkit-backdrop-filter: blur(16px) saturate(130%);
+  overflow: hidden;
+  transition: transform 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
+}
+.dm-inbox-card-glow {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  background: linear-gradient(
+    125deg,
+    hsl(var(--primary) / 0.12),
+    transparent 40%,
+    hsl(var(--accent) / 0.08)
+  );
+  transition: opacity 0.2s ease;
+  pointer-events: none;
+}
+.dm-inbox-card:hover {
+  border-color: hsl(var(--primary) / 0.22);
+  box-shadow: 0 8px 28px hsl(var(--primary) / 0.12);
+}
+.dm-inbox-card:hover .dm-inbox-card-glow {
+  opacity: 1;
+}
+.dm-inbox-card:active {
+  transform: scale(0.985);
+}
+.dm-inbox-card--unread {
+  background: linear-gradient(
+    135deg,
+    hsl(var(--primary) / 0.14),
+    hsl(var(--foreground) / 0.04) 55%
+  );
+  border-color: hsl(var(--primary) / 0.28);
+  box-shadow: 0 4px 20px hsl(var(--primary) / 0.15);
+}
+.dm-inbox-card--pinned {
+  border-color: hsl(var(--accent) / 0.2);
+}
+
+.dm-inbox-avatar-ring {
+  border-radius: 9999px;
+  padding: 2px;
+  background: hsl(var(--foreground) / 0.08);
+}
+.dm-inbox-avatar-ring--live {
+  background: linear-gradient(135deg, hsl(var(--primary)), hsl(var(--accent)));
+  box-shadow: 0 0 16px hsl(var(--primary) / 0.45);
+}
+.dm-inbox-pin {
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9999px;
+  background: linear-gradient(135deg, hsl(var(--primary)), hsl(var(--accent)));
+  color: hsl(var(--primary-foreground));
+  border: 2px solid hsl(var(--background));
+  box-shadow: 0 2px 8px hsl(var(--primary) / 0.4);
+}
+
+.dm-inbox-name {
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: hsl(var(--foreground) / 0.95);
+  letter-spacing: -0.01em;
+}
+.dm-inbox-name--unread {
+  font-weight: 800;
+  background: linear-gradient(100deg, hsl(var(--foreground)), hsl(var(--primary)), hsl(var(--accent)));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.dm-inbox-preview {
+  font-size: 0.8125rem;
+  color: hsl(var(--muted-foreground));
+}
+.dm-inbox-preview--unread {
+  color: hsl(var(--foreground) / 0.88);
+  font-weight: 500;
+}
+.dm-inbox-time {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: hsl(var(--muted-foreground) / 0.75);
+  font-variant-numeric: tabular-nums;
+}
+.dm-inbox-time--unread {
+  color: hsl(var(--primary));
+}
+.dm-inbox-unread-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.25rem;
+  height: 1.25rem;
+  padding: 0 0.35rem;
+  border-radius: 9999px;
+  font-size: 0.625rem;
+  font-weight: 800;
+  color: hsl(var(--primary-foreground));
+  background: linear-gradient(135deg, hsl(var(--primary)), hsl(var(--accent)));
+  box-shadow: 0 0 12px hsl(var(--primary) / 0.55);
+  flex-shrink: 0;
+}
+
+.dm-inbox-empty-orb {
+  width: 4.5rem;
+  height: 4.5rem;
+  border-radius: 1.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, hsl(var(--primary) / 0.18), hsl(var(--accent) / 0.12));
+  border: 1px solid hsl(var(--primary) / 0.25);
+  box-shadow: 0 12px 40px hsl(var(--primary) / 0.2);
+}
+
+.perf-low .dm-inbox-hero-aurora,
+.perf-low .dm-inbox-card-glow {
+  display: none;
 }
 
 /* Active chat view — solid chrome (no aurora bleed / banding) */
@@ -1349,6 +1609,8 @@ body.has-liquid-bg:not(.has-custom-bg) #main-content {
 .vybe-map-canvas .mapboxgl-map {
   width: 100%;
   height: 100%;
+  pointer-events: auto;
+  touch-action: none;
 }
 
 .vybe-map-canvas .mapboxgl-canvas {

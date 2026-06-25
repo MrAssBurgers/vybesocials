@@ -9,6 +9,7 @@ import {
 } from '@/lib/dmMembershipRepair';
 import { resolveSessionProfileId, syncSessionProfileId } from '@/lib/resolveSessionProfileId';
 import { mergeMessagesWithLocalCache } from '@/lib/messagesQueryKey';
+import { findInQueryArray, safeDmMembers, ensureArray } from '@/lib/persistedCollections';
 
 export const MESSAGE_SELECT_SLIM = `
   *,
@@ -51,7 +52,7 @@ async function enrichMessagesFromProfiles(messages: Message[]): Promise<Message[
 function filterMessagesForViewer(messages: Message[], viewerId?: string): Message[] {
   return messages.filter((msg) => {
     if (msg.view_mode === 'view_once' && msg.media_type !== 'vybe' && msg.sender_id !== viewerId) {
-      const hasViewed = msg.views?.some((v) => v.user_id === viewerId);
+      const hasViewed = ensureArray(msg.views).some((v) => v.user_id === viewerId);
       if (hasViewed) return false;
     }
     if (msg.expires_at && new Date(msg.expires_at) < new Date()) {
@@ -75,17 +76,19 @@ export async function loadConversationMessages(
   if (!resolvedActorId) return [];
 
   const cachedConv =
-    queryClient.getQueryData<Conversation[]>(['dm-conversations', resolvedActorId])?.find(
+    findInQueryArray(
+      queryClient.getQueryData<Conversation[]>(['dm-conversations', resolvedActorId]),
       (c) => c.id === conversationId,
     ) ??
-    queryClient.getQueryData<Conversation[]>(['conversations', resolvedActorId])?.find(
+    findInQueryArray(
+      queryClient.getQueryData<Conversation[]>(['conversations', resolvedActorId]),
       (c) => c.id === conversationId,
     );
   const otherFromMembers =
-    cachedConv?.members?.find(
+    safeDmMembers(cachedConv?.members).find(
       (m) => m.user_id !== resolvedActorId && m.profile?.id !== resolvedActorId,
     )?.profile?.id ??
-    cachedConv?.members?.find((m) => m.user_id !== resolvedActorId)?.user_id;
+    safeDmMembers(cachedConv?.members).find((m) => m.user_id !== resolvedActorId)?.user_id;
   const otherProfileId =
     otherFromMembers || inferOtherParticipantId(conversationId, resolvedActorId) || null;
 

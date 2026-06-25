@@ -7,6 +7,7 @@ import {
   getSessionAuthUid,
   markConversationReadForViewer,
 } from '@/lib/markConversationRead';
+import { findInQueryArray, readQueryArray } from '@/lib/persistedCollections';
 
 /**
  * Mark conversation read + cross-device read sync.
@@ -21,12 +22,15 @@ export function useInstantReadClear(conversationId: string | undefined) {
     if (!conversationId || !profile?.id) return;
 
     const convUnread =
-      queryClient.getQueryData<any[]>(['dm-conversations', profile.id])
-        ?.find((c) => c.id === conversationId)?.unread_count ?? 0;
+      findInQueryArray(
+        queryClient.getQueryData(['dm-conversations', profile.id]),
+        (c) => c.id === conversationId,
+      )?.unread_count ?? 0;
 
-    const markReadPatch = (old: any[] | undefined) => {
-      if (!old) return old;
-      return old.map((conv) =>
+    const markReadPatch = (old: unknown) => {
+      const list = readQueryArray(old);
+      if (!list.length) return list;
+      return list.map((conv) =>
         conv.id === conversationId
           ? { ...conv, unread_count: 0, _hasUnread: false }
           : conv,

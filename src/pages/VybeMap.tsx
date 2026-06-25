@@ -240,7 +240,10 @@ function VybeMapInner() {
   }, [mapFlyTo]);
 
   const recenter = () => {
-    if (!safeMyCoords) return;
+    if (!safeMyCoords) {
+      toast.error('Enable location to center the map on you');
+      return;
+    }
     mapFlyTo(safeMyCoords[0], safeMyCoords[1], 15);
     triggerHaptic('light');
   };
@@ -560,6 +563,7 @@ function VybeMapInner() {
           if (safeMyCoords) setMeetupCreateOpen(true);
           else toast.error('Enable location first');
         }}
+        onCreateMeetup={() => safeMyCoords ? setMeetupCreateOpen(true) : toast.error('Enable location first')}
       />
     </div>
   );

@@ -49,7 +49,7 @@ export function useUserStatusById(userId: string | undefined) {
 
 /** Fetch statuses for multiple user IDs (batch) */
 export function useBatchUserStatuses(userIds: string[]) {
-  return useQuery({
+  const query = useQuery({
     queryKey: ['user-statuses-batch', userIds.sort().join(',')],
     queryFn: async (): Promise<Map<string, UserStatus>> => {
       if (userIds.length === 0) return new Map();
@@ -70,6 +70,11 @@ export function useBatchUserStatuses(userIds: string[]) {
     staleTime: 60_000,
     select: (data) => normalizePersistedMap<UserStatus>(data),
   });
+
+  return {
+    ...query,
+    data: normalizePersistedMap<UserStatus>(query.data),
+  };
 }
 
 /** Set or update current user's status */

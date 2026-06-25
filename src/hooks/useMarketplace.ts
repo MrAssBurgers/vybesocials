@@ -214,6 +214,7 @@ export function useUpdateListing() {
 
 export function useDeleteListing() {
   const queryClient = useQueryClient();
+  const profileId = useAuthProfileId();
 
   return useMutation({
     mutationFn: async (id: string) => {
@@ -223,14 +224,31 @@ export function useDeleteListing() {
         .eq('id', id)
         .select('id');
 
-      if (error) throw error;
-
-      // If RLS prevents deletion, PostgREST returns 204 and data will be empty.
-      if (!data || data.length === 0) {
-        throw new Error('Not allowed to delete this listing');
+      if (!error && data && data.length > 0) {
+        return data[0];
       }
 
-      return data[0];
+      // RLS may block hard delete — soft-delete for the owner instead.
+      if (!profileId) {
+        throw new Error(error?.message || 'Not allowed to delete this listing');
+      }
+
+      const { data: softDeleted, error: softError } = await db
+        .from('listings')
+        .update({
+          status: 'deleted',
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', id)
+        .eq('seller_id', profileId)
+        .select('id');
+
+      if (softError) throw softError;
+      if (!softDeleted || softDeleted.length === 0) {
+        throw new Error(error?.message || 'Not allowed to delete this listing');
+      }
+
+      return softDeleted[0];
     },
     onSuccess: (_data, id) => {
       queryClient.invalidateQueries({ queryKey: ['listings'] });

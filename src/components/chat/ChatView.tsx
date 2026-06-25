@@ -128,7 +128,9 @@ import { SharedPostBubble } from './SharedPostBubble';
 import { SharedThemeMessageBubble } from '@/components/messages/bubbles/SharedThemeMessageBubble';
 import { format, isToday, isYesterday } from 'date-fns';
 import { cn } from '@/lib/utils';
+import { ensureArray, safeDmMembers } from '@/lib/persistedCollections';
 import { saveElementScrollPosition, restoreElementScrollPosition } from '@/lib/scrollMemory';
+import { normalizeMessagesCache, safeMessageViews, safeMessageReactions } from '@/lib/messagesQueryKey';
 import { OnlineIndicator } from '@/components/ui/OnlineIndicator';
 import { useUserOnlineStatus } from '@/hooks/usePresence';
 import { DMSafetyGate } from './DMSafetyGate';
@@ -173,8 +175,10 @@ export function ChatView() {
   const bumpStreak = useInteractionStreakBump();
   
   const { data: conversation, isPending: conversationPending, isFetched: conversationFetched, isError: conversationError } = useConversationDetail(conversationId);
-  const isGroupChat = conversation?.is_group || false;
-  const { data: messages, isPending: messagesPending, isFetched: messagesFetched, isError: messagesError, refetch: refetchMessages } = useMessages(conversationId);
+  const safeConversation = conversation ? { ...conversation, members: ensureArray(conversation.members) } : conversation;
+  const isGroupChat = safeConversation?.is_group || false;
+  const { data: messagesRaw, isPending: messagesPending, isFetched: messagesFetched, isError: messagesError, refetch: refetchMessages } = useMessages(conversationId);
+  const messages = normalizeMessagesCache(messagesRaw);
   const { sendText, sendMedia, sendVideo, retry: retryMessage, removeMessage, videoUploadProgress } = useInstantSend(conversationId);
 
   // Register current conversation for global realtime updates
@@ -257,7 +261,7 @@ export function ChatView() {
     if (!messages || !profileId) return null;
     let latest: string | null = null;
     for (const msg of messages) {
-      if (msg.sender_id === profileId && msg.views) {
+      if (msg.sender_id === profileId && Array.isArray(msg.views)) {
         for (const view of msg.views) {
           if (view.user_id !== profileId && view.viewed_at) {
             if (!latest || view.viewed_at > latest) {
@@ -371,17 +375,17 @@ export function ChatView() {
 
   const otherMembers = useMemo(
     () =>
-      conversation?.members?.filter(
+      safeConversation?.members?.filter(
         (m) => !isViewerMember(m.user_id, profileId, user?.id),
       ) || [],
-    [conversation?.members, profileId, user?.id],
+    [safeConversation?.members, profileId, user?.id],
   );
   const resolvedOther = useMemo(
     () =>
-      conversation
-        ? resolveOtherMemberFromConversation(conversation, profileId, user?.id)
+      safeConversation
+        ? resolveOtherMemberFromConversation(safeConversation, profileId, user?.id)
         : null,
-    [conversation, profileId, user?.id],
+    [safeConversation, profileId, user?.id],
   );
   const otherMember = resolvedOther?.profile as
     | { id?: string; username?: string; display_name?: string | null; avatar_url?: string | null; user_id?: string }
@@ -435,8 +439,8 @@ export function ChatView() {
     };
   }, [cameraFirstMode, showSnapCamera, setLiveTakingPhoto, setSendingVybe]);
 
-  const displayName = conversation
-    ? displayNameForConversation(conversation, profileId, user?.id, 'Chat')
+  const displayName = safeConversation
+    ? displayNameForConversation(safeConversation, profileId, user?.id, 'Chat')
     : 'Chat';
   
   // Get online status for the other member (if DM)
@@ -489,7 +493,7 @@ export function ChatView() {
 
   // Batch-mark messages as read after paint — avoids N mutations + cache thrash on open.
   const flushMessageViews = useCallback(async (messageIds: string[]) => {
-    if (!profile?.id || messageIds.length === 0) return;
+    if (!conversationId || !profile?.id || messageIds.length === 0) return;
 
     const realIds = messageIds.filter((id) => typeof id === 'string' && !id.startsWith('temp-'));
     if (realIds.length === 0) return;
@@ -563,7 +567,7 @@ export function ChatView() {
       if (hasMarkedReadRef.current.has(msg.id)) continue;
       if (msg.media_type === 'vybe') continue;
 
-      const hasMyView = msg.views?.some((v) => v.user_id === profileId);
+      const hasMyView = safeMessageViews(msg).some((v) => v.user_id === profileId);
       if (hasMyView) continue;
 
       hasMarkedReadRef.current.add(msg.id);
@@ -1249,7 +1253,7 @@ export function ChatView() {
   // Memoize message items to prevent re-renders - using stable keys
   const memberProfileByUserId = useMemo(() => {
     const map = new Map<string, NonNullable<Message['sender']>>();
-    for (const member of conversation?.members || []) {
+    for (const member of ensureArray(safeConversation?.members)) {
       if (member.user_id && member.profile) {
         map.set(member.user_id, member.profile as NonNullable<Message['sender']>);
         if (member.profile.id) map.set(member.profile.id, member.profile as NonNullable<Message['sender']>);
@@ -1262,7 +1266,7 @@ export function ChatView() {
       if (authId) map.set(authId, om);
     }
     return map;
-  }, [conversation?.members, otherMember]);
+  }, [safeConversation?.members, otherMember]);
 
   // Enhanced spacing logic for Instagram/iMessage quality
   const messageItems = useMemo(() => {
@@ -1287,7 +1291,12 @@ export function ChatView() {
       const isMediaTransition = (isMediaMessage && !prevIsMedia) || (!isMediaMessage && prevIsMedia);
       
       // Emoji-only detection
-      const isEmojiOnly = message.content && !message.media_url && /^[\p{Emoji}\s]+$/u.test(message.content.trim()) && message.content.trim().length <= 8;
+      const isEmojiOnly =
+        typeof message.content === 'string' &&
+        message.content &&
+        !message.media_url &&
+        /^[\p{Emoji}\s]+$/u.test(message.content.trim()) &&
+        message.content.trim().length <= 8;
 
       return { message, isOwn, showAvatar, showTimestamp, sameSender, isMediaTransition, isEmojiOnly };
     });
@@ -1314,7 +1323,7 @@ export function ChatView() {
     }
   }, [settings.chat_wallpaper]);
 
-  if (messagesFetched && messagesError && !messages?.length && !conversationId) {
+  if (messagesFetched && messagesError && !messages?.length && !!conversationId) {
     return (
       <div className="flex flex-col h-full items-center justify-center gap-3 p-6 text-center">
         <p className="text-sm text-muted-foreground">Couldn&apos;t load this conversation.</p>
@@ -1541,10 +1550,14 @@ export function ChatView() {
       </header>
 
       {/* DM Feature Sheets - triggered from Toybox */}
-      <VanishThreadsSheet conversationId={conversationId!} open={showVanishThreads} onOpenChange={setShowVanishThreads} />
-      <MemoryPinsSheet conversationId={conversationId!} messages={messages || []} open={showMemoryPins} onOpenChange={setShowMemoryPins} />
-      <ScheduleMessageSheet conversationId={conversationId!} open={showScheduleMessage} onOpenChange={setShowScheduleMessage} />
-      <DMSettingsSheetControlled conversationId={conversationId!} open={showDMSettings} onOpenChange={setShowDMSettings} />
+      {conversationId && (
+        <>
+      <VanishThreadsSheet conversationId={conversationId} open={showVanishThreads} onOpenChange={setShowVanishThreads} />
+      <MemoryPinsSheet conversationId={conversationId} messages={messages || []} open={showMemoryPins} onOpenChange={setShowMemoryPins} />
+      <ScheduleMessageSheet conversationId={conversationId} open={showScheduleMessage} onOpenChange={setShowScheduleMessage} />
+      <DMSettingsSheetControlled conversationId={conversationId} open={showDMSettings} onOpenChange={setShowDMSettings} />
+        </>
+      )}
       
       {/* Admin Panel Sheet - for moderating users in DMs */}
       {!isGroupChat && otherMember && (
@@ -1564,7 +1577,7 @@ export function ChatView() {
           conversationId={conversationId!}
           groupName={conversation?.name || 'Group Chat'}
           groupAvatar={conversation?.avatar_url}
-          creatorId={conversation?.members?.find(m => m.role === 'owner')?.user_id}
+          creatorId={safeDmMembers(safeConversation?.members).find(m => m.role === 'owner')?.user_id}
         />
       )}
 
@@ -1902,7 +1915,11 @@ export function ChatView() {
 
       {/* Input area - wrapped with DM safety for non-group chats */}
       {!isGroupChat && otherMember?.id ? (
-        <DMSafetyGate targetUserId={otherMember.id} targetUsername={otherMember.username || ''}>
+        <DMSafetyGate
+          targetUserId={otherMember.id}
+          targetUsername={otherMember.username || ''}
+          hasActiveConversation={Boolean(conversationId)}
+        >
           {!isGroupChat && showPeerPresence && peerActivityUser && (
             <ChatPresenceDock
               avatarUrl={peerActivityUser.avatar_url ?? otherMember?.avatar_url}
@@ -2456,8 +2473,8 @@ const MessageBubble = memo(function MessageBubble({
 }) {
   const [isViewed, setIsViewed] = useState(false);
   const failed = Boolean((message as { _failed?: boolean })._failed);
-  const iViewedVybe = Boolean(profileId && message.views?.some((v) => v.user_id === profileId));
-  const recipientViewedVybe = Boolean(message.views?.some((v) => v.user_id !== message.sender_id));
+  const iViewedVybe = Boolean(profileId && safeMessageViews(message).some((v) => v.user_id === profileId));
+  const recipientViewedVybe = Boolean(safeMessageViews(message).some((v) => v.user_id !== message.sender_id));
   const [vybeViewed, setVybeViewed] = useState(isOwn ? recipientViewedVybe : iViewedVybe);
   const [showVybeViewer, setShowVybeViewer] = useState(false);
   const [showContextMenu, setShowContextMenu] = useState(false);
@@ -2484,7 +2501,7 @@ const MessageBubble = memo(function MessageBubble({
   }, [isOwn, recipientViewedVybe, iViewedVybe]);
 
   const repliedMessage = useMemo(() => 
-    message.reply_to_id ? allMessages?.find(m => m.id === message.reply_to_id) : null,
+    message.reply_to_id ? ensureArray(allMessages).find(m => m.id === message.reply_to_id) : null,
     [message.reply_to_id, allMessages]
   );
 
@@ -2498,7 +2515,7 @@ const MessageBubble = memo(function MessageBubble({
   const hasBeenViewed = message.views && message.views.length > 0;
   
   const uniqueReactions = useMemo(() => {
-    const reactions = message.reactions || [];
+    const reactions = Array.isArray(message.reactions) ? message.reactions : [];
     const userReactionMap = new Map<string, string>();
     
     reactions.forEach(r => {
@@ -2515,7 +2532,7 @@ const MessageBubble = memo(function MessageBubble({
 
   const userReaction = useMemo(() => {
     if (!profileId) return null;
-    return message.reactions?.find(r => r.user_id === profileId)?.emoji || null;
+    return safeMessageReactions(message).find(r => r.user_id === profileId)?.emoji || null;
   }, [message.reactions, profileId]);
 
   const smartEmojis = useMemo(() => getTopEmojis(6), []);

@@ -12,6 +12,7 @@ import { resolveSessionProfileId } from '@/lib/resolveSessionProfileId';
 import { syncUserAuthIndex } from '@/lib/firebase/profileResolve';
 import { getUserProfile } from '@/lib/firebase/users';
 import { toast } from 'sonner';
+import { ensureArray } from '@/lib/persistedCollections';
 
 /** Stable doc id — matches directed pair (sender → receiver). */
 function friendRequestDocId(senderId: string, receiverId: string): string {
@@ -151,7 +152,7 @@ export function useFriendRequests() {
 export function useFriends() {
   const profileId = useAuthProfileId();
 
-  return useQuery({
+  const query = useQuery({
     queryKey: ['friends', profileId],
     queryFn: async () => {
       if (!profileId) return [];
@@ -194,7 +195,13 @@ export function useFriends() {
     networkMode: 'offlineFirst',
     retry: 2,
     retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 8000),
+    select: (data) => ensureArray(data),
   });
+
+  return {
+    ...query,
+    data: ensureArray(query.data),
+  };
 }
 
 export function useFriendshipStatus(targetUserId: string | undefined) {
@@ -276,7 +283,8 @@ export function useFriendshipStatus(targetUserId: string | undefined) {
       return { status: 'none' as const, requestId: null };
     },
     enabled: !!profileId && !!targetUserId,
-    staleTime: 60000, // 1 minute cache
+    staleTime: 60000,
+    placeholderData: (prev) => prev,
     refetchOnMount: false,
     refetchOnWindowFocus: false,
   });

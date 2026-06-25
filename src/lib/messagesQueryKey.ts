@@ -1,7 +1,37 @@
 import type { QueryClient } from '@tanstack/react-query';
 import type { Message } from '@/hooks/useMessages';
+import { ensureArray } from '@/lib/persistedCollections';
 
-/** TanStack Query key for a conversation's message list. */
+/** Ensure views/reactions survive React Query persistence (plain objects). */
+export function normalizeMessageRow(msg: Message): Message {
+  return {
+    ...msg,
+    views: ensureArray(msg.views),
+    reactions: ensureArray(msg.reactions),
+  };
+}
+
+export function safeMessageViews(msg: { views?: unknown }): NonNullable<Message['views']> {
+  return ensureArray(msg.views);
+}
+
+export function safeMessageReactions(msg: { reactions?: unknown }): NonNullable<Message['reactions']> {
+  return ensureArray(msg.reactions);
+}
+
+export function normalizeMessagesList(messages: unknown): Message[] {
+  return ensureArray<Message>(messages).map(normalizeMessageRow);
+}
+
+export function normalizeMessagesCache(messages: unknown): Message[] {
+  const arr = ensureArray<Message>(messages);
+  if (!arr.length) return arr;
+  const needsFix =
+    !Array.isArray(messages) ||
+    arr.some((m) => !Array.isArray(m?.views) || !Array.isArray(m?.reactions));
+  return needsFix ? arr.map(normalizeMessageRow) : arr;
+}
+
 export function messagesQueryKey(conversationId: string | undefined) {
   return ['messages', conversationId] as const;
 }
@@ -89,17 +119,18 @@ export function patchMessagesCache(
 }
 
 export function readMessagesCache(queryClient: QueryClient, conversationId: string): Message[] {
-  return queryClient.getQueryData<Message[]>(messagesQueryKey(conversationId)) || [];
+  return normalizeMessagesCache(queryClient.getQueryData<Message[]>(messagesQueryKey(conversationId)));
 }
 
 /** Merge server fetch with optimistic temps + recently sent messages missing from fetch. */
 export function mergeMessagesWithLocalCache(
   queryClient: QueryClient,
   conversationId: string,
-  serverMessages: Message[],
+  serverMessages: unknown,
 ): Message[] {
+  const server = normalizeMessagesCache(serverMessages);
   const existing = readMessagesCache(queryClient, conversationId);
-  const serverIds = new Set(serverMessages.map((m) => m.id));
+  const serverIds = new Set(server.map((m) => m.id));
 
   const localOnly = existing.filter((m) => {
     if (serverIds.has(m.id)) return false;
@@ -109,16 +140,16 @@ export function mergeMessagesWithLocalCache(
     return age < 120_000;
   });
 
-  if (!localOnly.length) return serverMessages;
+  if (!localOnly.length) return server;
 
-  const merged = [...serverMessages];
+  const merged = [...server];
   for (const m of localOnly) {
     if (!merged.some((x) => x.id === m.id)) merged.push(m);
   }
   merged.sort(
     (a, b) => new Date(a.created_at || 0).getTime() - new Date(b.created_at || 0).getTime(),
   );
-  return merged;
+  return normalizeMessagesCache(merged);
 }
 
 /** Write server rows into cache without dropping in-flight optimistic / failed sends. */

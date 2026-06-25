@@ -5,6 +5,7 @@ import { AppLayout } from '@/components/layout/AppLayout';
 import { MobileCreateStudio } from '@/components/create/MobileCreateStudio';
 import { DesktopCreateStudio } from '@/components/create/DesktopCreateStudio';
 import { CameraMountBoundary } from '@/components/camera/CameraMountBoundary';
+import { toast } from 'sonner';
 
 export default function UploadPage() {
   const { isDesktop } = useBreakpoint();
@@ -19,12 +20,23 @@ export default function UploadPage() {
     };
   }, []);
 
-  const handleClose = () => navigate(-1);
+  const handleClose = () => {
+    if (window.history.length > 1) {
+      navigate(-1);
+    } else {
+      navigate('/home', { replace: true });
+    }
+  };
+
+  const handleCameraError = () => {
+    toast.error('Camera unavailable — try again');
+    handleClose();
+  };
 
   // Mobile/Tablet: Full-screen camera-first experience
   if (!isDesktop) {
     return (
-      <CameraMountBoundary surface="upload-mobile" onError={handleClose}>
+      <CameraMountBoundary surface="upload-mobile" onError={handleCameraError}>
         <MobileCreateStudio onClose={handleClose} />
       </CameraMountBoundary>
     );
@@ -33,7 +45,7 @@ export default function UploadPage() {
   // Desktop: Studio layout with sidebars
   return (
     <AppLayout hideNav noPadding hideRightSidebar fullWidth>
-      <CameraMountBoundary surface="upload-desktop" onError={handleClose}>
+      <CameraMountBoundary surface="upload-desktop" onError={handleCameraError}>
         <DesktopCreateStudio onClose={handleClose} />
       </CameraMountBoundary>
     </AppLayout>

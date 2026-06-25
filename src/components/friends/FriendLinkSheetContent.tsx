@@ -1,6 +1,6 @@
-import { RefObject } from 'react';
+import { RefObject, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Check, Camera, Loader2 } from 'lucide-react';
+import { Check, Camera, Loader2, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -180,6 +180,8 @@ export function FriendLinkSheetContent({
   onStartCamera,
   reduceMotion = false,
 }: FriendLinkSheetContentProps) {
+  const [qrExpanded, setQrExpanded] = useState(false);
+
   if (phase === 'found' && foundUser) {
     return (
       <PhasePanel reduceMotion={reduceMotion} className="gap-3.5 py-1">
@@ -305,7 +307,12 @@ export function FriendLinkSheetContent({
             </motion.div>
           ) : (
             <motion.div key="qr" {...motionProps} className="flex flex-col items-center gap-3">
-              <div className="friend-link-qr-tile relative rounded-2xl bg-white p-2.5 shadow-[0_8px_28px_-8px_hsl(var(--primary)/0.45)] ring-2 ring-primary/20">
+              <button
+                type="button"
+                onClick={() => qrSvg && setQrExpanded(true)}
+                className="friend-link-qr-tile relative rounded-2xl bg-white p-2.5 shadow-[0_8px_28px_-8px_hsl(var(--primary)/0.45)] ring-2 ring-primary/20 transition-transform active:scale-[0.98]"
+                aria-label="Enlarge QR code"
+              >
                 <div className="relative h-[6.25rem] w-[6.25rem]">
                   {qrSvg ? (
                     <>
@@ -330,10 +337,54 @@ export function FriendLinkSheetContent({
                     </div>
                   )}
                 </div>
-              </div>
+              </button>
               <p className="w-full truncate text-center text-sm text-muted-foreground">
-                @{profile?.username}
+                Tap code to enlarge · @{profile?.username}
               </p>
+
+              <AnimatePresence>
+                {qrExpanded && qrSvg && (
+                  <motion.div
+                    className="fixed inset-0 z-[12000] flex items-center justify-center bg-black/75 backdrop-blur-md p-6"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    onClick={() => setQrExpanded(false)}
+                  >
+                    <motion.button
+                      type="button"
+                      className="absolute top-[max(1rem,env(safe-area-inset-top))] right-4 flex h-10 w-10 items-center justify-center rounded-full bg-white/15 text-white"
+                      onClick={() => setQrExpanded(false)}
+                      aria-label="Close enlarged QR code"
+                    >
+                      <X className="h-5 w-5" />
+                    </motion.button>
+                    <motion.div
+                      initial={{ opacity: 0, scale: 0.88, y: 12 }}
+                      animate={{ opacity: 1, scale: 1, y: 0 }}
+                      exit={{ opacity: 0, scale: 0.92, y: 8 }}
+                      transition={{ type: 'spring', stiffness: 380, damping: 32 }}
+                      className="relative rounded-3xl bg-white p-4 shadow-2xl ring-2 ring-primary/25 max-w-[min(88vw,320px)]"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <div
+                        className="w-full aspect-square [&>svg]:h-full [&>svg]:w-full"
+                        dangerouslySetInnerHTML={{ __html: qrSvg }}
+                      />
+                      <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+                        <div className="rounded-2xl bg-white p-1 shadow-lg ring-2 ring-white">
+                          <Avatar className="h-14 w-14 rounded-xl">
+                            <AvatarImage src={profile?.avatar_url || ''} className="rounded-xl object-cover" />
+                            <AvatarFallback className="rounded-xl bg-gradient-to-br from-primary to-accent text-lg font-bold text-primary-foreground">
+                              {profile?.username?.[0]?.toUpperCase()}
+                            </AvatarFallback>
+                          </Avatar>
+                        </div>
+                      </div>
+                    </motion.div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
 
               <ScannerViewport
                 videoRef={videoRef}

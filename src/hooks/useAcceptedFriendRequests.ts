@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { db } from '@/lib/firebase';
 import { useAuthProfileId } from '@/hooks/useAuthProfileId';
+import { ensureArray } from '@/lib/persistedCollections';
 import { toast } from 'sonner';
 
 const DISMISSED_ACCEPTED_KEY = 'vybe-dismissed-accepted-requests';
@@ -49,7 +50,7 @@ interface AcceptedFriendRequest {
 export function useAcceptedFriendRequests() {
   const profileId = useAuthProfileId();
 
-  return useQuery({
+  const query = useQuery({
     queryKey: ['accepted-friend-requests', profileId],
     queryFn: async (): Promise<AcceptedFriendRequest[]> => {
       if (!profileId) return [];
@@ -100,7 +101,13 @@ export function useAcceptedFriendRequests() {
     staleTime: 30000,
     refetchOnWindowFocus: true,
     networkMode: 'always',
+    select: (data) => ensureArray<AcceptedFriendRequest>(data),
   });
+
+  return {
+    ...query,
+    data: ensureArray<AcceptedFriendRequest>(query.data),
+  };
 }
 
 // Dismiss an accepted friend request - marks it as notified in the database permanently

@@ -10,7 +10,9 @@ import { useAuth } from '@/lib/auth';
 import { useAuthProfileId } from '@/hooks/useAuthProfileId';
 import { useUsersOnlineStatus } from '@/hooks/usePresence';
 import { useTrashedConversationIds, useTrashConversation } from '@/hooks/useTrashedConversations';
-import { useStories, StoryGroup } from '@/hooks/useStories';
+import { StoryGroup } from '@/hooks/useStories';
+import { ensureArray, safeDmMembers } from '@/lib/persistedCollections';
+import LocalErrorBoundary from '@/components/error/LocalErrorBoundary';
 import { StoryViewer } from '@/components/stories/StoryViewer';
 import { useAcceptedFriendRequests, useDismissAcceptedRequest } from '@/hooks/useAcceptedFriendRequests';
 import { useStreakMap, Streak } from '@/hooks/useStreaks';
@@ -45,6 +47,7 @@ import { useIsMobile } from '@/hooks/use-mobile';
 import { useBatchUserStatuses } from '@/hooks/useUserStatus';
 import { getVibeColor } from '@/components/status/StatusPicker';
 import { compactTime } from '@/lib/compactTime';
+import { safeMapGet } from '@/lib/persistedCollections';
 import { formatDmPreviewContent } from '@/lib/callChatMessages';
 import { useQuickAddSuggestions } from '@/hooks/useQuickAddSuggestions';
 import { useDismissedQuickAdd } from '@/hooks/useDismissedQuickAdd';
@@ -152,9 +155,11 @@ export function ConversationList() {
   const createConversation = useCreateConversation();
   const { data: trashedIds } = useTrashedConversationIds();
   const trashConversation = useTrashConversation();
-  const { data: storyGroups } = useStories();
+  // Stories disabled on DM list — persisted story cache caused list crashes for some users.
+  const storyGroups: StoryGroup[] = [];
   const { data: pendingRequestCount = 0 } = usePendingRequestCount();
-  const { data: acceptedRequests } = useAcceptedFriendRequests();
+  const { data: acceptedRequestsRaw } = useAcceptedFriendRequests();
+  const acceptedRequests = ensureArray(acceptedRequestsRaw);
   const dismissAccepted = useDismissAcceptedRequest();
   const streakMap = useStreakMap();
   const [isGroupDialogOpen, setIsGroupDialogOpen] = useState(false);
@@ -166,16 +171,17 @@ export function ConversationList() {
   // Create a map of user IDs to story groups for quick lookup
   const userStoryMap = useMemo(() => {
     const map = new Map<string, StoryGroup>();
-    storyGroups?.forEach(group => {
-      map.set(group.user.id, group);
-    });
+    for (const group of storyGroups) {
+      const userId = group?.user?.id;
+      if (userId) map.set(userId, group);
+    }
     return map;
   }, [storyGroups]);
 
   // Open the story viewer for a user (there is no /stories route — the old
   // navigate('/stories/...') call 404'd to NotFound)
   const openStoryForUser = useCallback((userId: string) => {
-    const idx = storyGroups?.findIndex(g => g.user.id === userId) ?? -1;
+    const idx = storyGroups.findIndex((g) => g.user?.id === userId);
     if (idx >= 0) setStoryViewerIndex(idx);
   }, [storyGroups]);
   
@@ -195,17 +201,19 @@ export function ConversationList() {
   }, [profile?.id, pinnedConversations, unpinnedConversations, totalUnreadCount, onlineCount, isLoading, convError]);
 
   // Get user IDs for online status check - memoized
-  const allConversations = useMemo(() => 
-    [...(pinnedConversations || []), ...(unpinnedConversations || [])],
-    [pinnedConversations, unpinnedConversations]
+  const allConversations = useMemo(
+    () => [
+      ...ensureArray(pinnedConversations),
+      ...ensureArray(unpinnedConversations),
+    ],
+    [pinnedConversations, unpinnedConversations],
   );
 
   const profileMissing = !authLoading && !!user && !dmProfileId;
   const showListSkeleton =
     allConversations.length === 0 &&
     !profileMissing &&
-    isLoading &&
-    !isFetched;
+    isLoading;
 
   const showConvRetry =
     !!convError &&
@@ -235,7 +243,7 @@ export function ConversationList() {
       if (conv.is_group) continue;
       const otherId = inferOtherUserIdFromConversation(conv, activeProfileId, user?.id);
       if (otherId) ids.add(otherId);
-      conv.members?.forEach((m) => {
+      safeDmMembers(conv.members).forEach((m) => {
         if (!isViewerMember(m.user_id, activeProfileId, user?.id) && m.profile?.id) {
           ids.add(String(m.profile.id));
         }
@@ -270,12 +278,14 @@ export function ConversationList() {
 
   // Filter conversations based on selected tab
   const filteredPinned = useMemo(() => {
-    if (!pinnedConversations) return [];
-    return pinnedConversations.filter(conv => {
+    const list = ensureArray(pinnedConversations);
+    return list.filter(conv => {
       if (chatFilter === 'unread') return (conv.unread_count || 0) > 0;
       if (chatFilter === 'groups') return conv.is_group;
       if (chatFilter === 'streaks') {
-        const otherMemberId = !conv.is_group ? conv.members?.find(m => m.user_id !== profileId)?.profile?.id : undefined;
+        const otherMemberId = !conv.is_group
+          ? safeDmMembers(conv.members).find((m) => m.user_id !== profileId)?.profile?.id
+          : undefined;
         return otherMemberId ? (streakMap.get(otherMemberId)?.streak_count || 0) > 0 : false;
       }
       return true;
@@ -283,12 +293,14 @@ export function ConversationList() {
   }, [pinnedConversations, chatFilter, profileId, streakMap]);
 
   const filteredUnpinned = useMemo(() => {
-    if (!unpinnedConversations) return [];
-    return unpinnedConversations.filter(conv => {
+    const list = ensureArray(unpinnedConversations);
+    return list.filter(conv => {
       if (chatFilter === 'unread') return (conv.unread_count || 0) > 0;
       if (chatFilter === 'groups') return conv.is_group;
       if (chatFilter === 'streaks') {
-        const otherMemberId = !conv.is_group ? conv.members?.find(m => m.user_id !== profileId)?.profile?.id : undefined;
+        const otherMemberId = !conv.is_group
+          ? safeDmMembers(conv.members).find((m) => m.user_id !== profileId)?.profile?.id
+          : undefined;
         return otherMemberId ? (streakMap.get(otherMemberId)?.streak_count || 0) > 0 : false;
       }
       return true;
@@ -311,16 +323,25 @@ export function ConversationList() {
 
   return (
     <div className="flex flex-col flex-1 min-h-0 w-full min-w-0 overflow-hidden">
-      <DMsHeader
-        searchQuery={searchQuery}
-        onSearchChange={setSearchQuery}
-        chatFilter={chatFilter}
-        onFilterChange={setChatFilter}
-        totalUnreadCount={totalUnreadCount}
-        isTrashOpen={isTrashOpen}
-        onTrashOpenChange={setIsTrashOpen}
-        onCreateGroup={() => setIsGroupDialogOpen(true)}
-      />
+      <LocalErrorBoundary
+        label="dm-header"
+        fallback={
+          <header className="dm-header flex-shrink-0 px-4 pt-[max(0.5rem,var(--sat,env(safe-area-inset-top)))] pb-3">
+            <h1 className="text-[1.125rem] font-bold tracking-tight">Chat</h1>
+          </header>
+        }
+      >
+        <DMsHeader
+          searchQuery={searchQuery}
+          onSearchChange={setSearchQuery}
+          chatFilter={chatFilter}
+          onFilterChange={setChatFilter}
+          totalUnreadCount={totalUnreadCount}
+          isTrashOpen={isTrashOpen}
+          onTrashOpenChange={setIsTrashOpen}
+          onCreateGroup={() => setIsGroupDialogOpen(true)}
+        />
+      </LocalErrorBoundary>
       
       {/* Create Group Dialog */}
       <CreateGroupDialog 
@@ -347,7 +368,9 @@ export function ConversationList() {
       >
 
         {/* Notes Row - Instagram/Snapchat style */}
-        <NotesRow />
+        <LocalErrorBoundary label="dm-notes-row">
+          <NotesRow />
+        </LocalErrorBoundary>
 
         {/* AI Chat Row */}
         <AutisyAIChatRow />
@@ -478,7 +501,9 @@ export function ConversationList() {
 
         {/* Recommended Friends - Snapchat Quick Add style */}
         {!searchQuery && chatFilter === 'all' && (
-          <RecommendedFriendsSection />
+          <LocalErrorBoundary label="dm-quick-add">
+            <RecommendedFriendsSection />
+          </LocalErrorBoundary>
         )}
       </div>
 
@@ -496,14 +521,16 @@ export function ConversationList() {
         </CameraMountBoundary>
       )}
 
-      {/* Story viewer — opened by tapping an avatar with an active story ring */}
+      {/* Story viewer disabled while DM list stories are off */}
       <AnimatePresence>
-        {storyViewerIndex !== null && storyGroups && (
-          <StoryViewer
-            groups={storyGroups}
-            initialGroupIndex={storyViewerIndex}
-            onClose={() => setStoryViewerIndex(null)}
-          />
+        {false && storyViewerIndex !== null && storyGroups.length > 0 && (
+          <LocalErrorBoundary label="dm-story-viewer">
+            <StoryViewer
+              groups={storyGroups}
+              initialGroupIndex={storyViewerIndex}
+              onClose={() => setStoryViewerIndex(null)}
+            />
+          </LocalErrorBoundary>
         )}
       </AnimatePresence>
     </div>
@@ -848,7 +875,7 @@ const ConversationRow = memo(function ConversationRow({
       hasStory={hasStory}
       storyGroup={storyGroup}
       streak={streak}
-      userStatus={otherMemberId ? (statusMap as any).get?.(otherMemberId) : undefined}
+      userStatus={otherMemberId ? safeMapGet(statusMap, otherMemberId) : undefined}
       onOpenStory={onOpenStory}
     />
   );
@@ -1010,12 +1037,13 @@ const ConversationItem = memo(forwardRef<HTMLDivElement, ConversationItemProps>(
     };
   }, []);
   
+  const members = safeDmMembers(conversation.members);
   const otherMembers = useMemo(
     () =>
-      conversation.members?.filter(
+      members.filter(
         (m) => !isViewerMember(m.user_id, currentUserId, viewerAuthUid),
-      ) || [],
-    [conversation.members, currentUserId, viewerAuthUid],
+      ),
+    [members, currentUserId, viewerAuthUid],
   );
   const resolvedOther = useMemo(
     () => resolveOtherMemberFromConversation(conversation, currentUserId, viewerAuthUid),
@@ -1035,17 +1063,17 @@ const ConversationItem = memo(forwardRef<HTMLDivElement, ConversationItemProps>(
   
   const lastMessage = conversation.last_message;
   const unreadCount = conversation.unread_count || 0;
-  const isPinned = conversation.members?.find((m) =>
+  const isPinned = members.find((m) =>
     isViewerMember(m.user_id, currentUserId, viewerAuthUid),
   )?.is_pinned;
-  const memberCount = conversation.is_group ? (conversation.members?.length || 0) : 0;
+  const memberCount = conversation.is_group ? members.length : 0;
 
   const formattedTime = useMemo(() => {
     if (!lastMessage?.created_at) return null;
     return compactTime(lastMessage.created_at);
   }, [lastMessage?.created_at]);
 
-  const isMuted = conversation.members?.find((m) =>
+  const isMuted = members.find((m) =>
     isViewerMember(m.user_id, currentUserId, viewerAuthUid),
   )?.is_muted;
 

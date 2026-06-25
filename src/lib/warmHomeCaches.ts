@@ -246,7 +246,7 @@ export function warmHomeCachesForProfile(
   signCachedProfileMedia();
   warmPersonalizedFeed(queryClient, profileId);
   warmFollowingFeed(queryClient, profileId);
-  void prefetchDMConversations(queryClient, profileId);
+  void prefetchDMConversations(queryClient, profileId, uid);
   warmStories(queryClient, profileId);
   warmNotifications(queryClient, profileId);
   warmUserMeta(queryClient, uid, profileId);

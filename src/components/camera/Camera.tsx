@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, useEffect } from 'react';
+import { useState, useRef, useCallback, useEffect, lazy, Suspense } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, RefreshCw, Zap, ZapOff, Image, Music, Timer, Sparkles, MessageCircle, SlidersHorizontal, Grid3X3, Sun, Contrast } from 'lucide-react';
@@ -17,6 +17,10 @@ import { useDoubleTapCameraFlip } from '@/hooks/useDoubleTapCameraFlip';
 import { createCameraMediaRecorder, recordingBlobType } from '@/lib/cameraRecording';
 import { acquirePostCameraStream, attachAudioToStream, stopStream } from '@/lib/postCameraStream';
 import { bakeCameraEdits, bakedCameraFileName, type CameraDrawPath, type CameraTextOverlay } from '@/lib/bakeCameraEdits';
+
+const MusicGallery = lazy(() =>
+  import('@/components/music/MusicGallery').then((m) => ({ default: m.MusicGallery })),
+);
 
 interface CameraProps {
   onClose: () => void;
@@ -40,7 +44,7 @@ export function Camera({ onClose, showBackArrow = false, onCapture }: CameraProp
   const [state, setState] = useState<CameraState>('capture');
   const [facingMode, setFacingMode] = useState<'user' | 'environment'>('user');
   const [flash, setFlash] = useState(false);
-  const [currentFilter, setCurrentFilter] = useState('normal');
+  const [currentFilter, setCurrentFilter] = useState('snap');
   const [captureMode, setCaptureMode] = useState<CaptureMode>('photo');
   const [isRecording, setIsRecording] = useState(false);
   const [capturedMedia, setCapturedMedia] = useState<{ url: string; type: 'photo' | 'video'; file?: File } | null>(null);
@@ -52,6 +56,7 @@ export function Camera({ onClose, showBackArrow = false, onCapture }: CameraProp
   const [gridEnabled, setGridEnabled] = useState(false);
   const [brightness, setBrightness] = useState(100);
   const [showSoundPicker, setShowSoundPicker] = useState(false);
+  const [showMusicGallery, setShowMusicGallery] = useState(false);
   const [selectedSound, setSelectedSound] = useState<Sound | null>(null);
   const [isSwiping, setIsSwiping] = useState(false);
   const [isBaking, setIsBaking] = useState(false);
@@ -492,7 +497,7 @@ export function Camera({ onClose, showBackArrow = false, onCapture }: CameraProp
         
         <button 
           className="flex flex-col items-center gap-0.5 active:scale-90 transition-transform"
-          onClick={() => { triggerHaptic('light'); setShowSoundPicker(true); }}
+          onClick={() => { triggerHaptic('light'); setShowMusicGallery(true); }}
         >
           <div className={cn(
             "w-10 h-10 rounded-full flex items-center justify-center backdrop-blur-sm",
@@ -679,6 +684,14 @@ export function Camera({ onClose, showBackArrow = false, onCapture }: CameraProp
         onSelectSound={(sound) => setSelectedSound(sound)}
         selectedSoundId={selectedSound?.sound_id}
       />
+      <Suspense fallback={null}>
+        {showMusicGallery && (
+          <MusicGallery
+            onSelectTrack={() => setShowMusicGallery(false)}
+            onClose={() => setShowMusicGallery(false)}
+          />
+        )}
+      </Suspense>
       </div>
     </FullscreenPortal>
   );

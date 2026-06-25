@@ -27,11 +27,11 @@ export function DiscoveryDrawer({
 
   return (
     <motion.div
-      className="pointer-events-auto absolute inset-x-0 bottom-0 z-[1500]"
+      className="pointer-events-none absolute inset-x-0 bottom-0 z-[1500] overflow-hidden"
       animate={{ y: open ? 0 : `calc(100% - ${peekHeight})` }}
       transition={{ type: 'spring', damping: 36, stiffness: 380 }}
     >
-      <div className="vybe-map-sheet">
+      <div className="pointer-events-auto vybe-map-sheet">
         <button
           type="button"
           onClick={onToggle}

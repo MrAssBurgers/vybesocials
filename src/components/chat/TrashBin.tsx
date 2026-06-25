@@ -7,6 +7,7 @@ import {
   usePermanentlyDeleteConversation 
 } from '@/hooks/useTrashedConversations';
 import { useAuth } from '@/lib/auth';
+import { ensureArray, safeDmMembers } from '@/lib/persistedCollections';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -41,7 +42,8 @@ interface TrashBinProps {
 export function TrashBin({ open, onOpenChange, trigger }: TrashBinProps) {
   const { profile } = useAuth();
   const navigate = useNavigate();
-  const { data: trashedConversations, isLoading } = useTrashedConversations();
+  const { data: trashedConversationsRaw, isLoading } = useTrashedConversations();
+  const trashedConversations = ensureArray(trashedConversationsRaw);
   const restoreConversation = useRestoreConversation();
   const permanentlyDelete = usePermanentlyDeleteConversation();
   
@@ -71,7 +73,7 @@ export function TrashBin({ open, onOpenChange, trigger }: TrashBinProps) {
       };
     }
 
-    const otherMember = conversation.members?.find(
+    const otherMember = safeDmMembers(conversation.members).find(
       (m: any) => m.user_id !== profile?.id
     );
     
@@ -108,7 +110,7 @@ export function TrashBin({ open, onOpenChange, trigger }: TrashBinProps) {
                   <div key={i} className="h-16 bg-muted/50 rounded-xl animate-pulse" />
                 ))}
               </div>
-            ) : trashedConversations?.length === 0 ? (
+            ) : trashedConversations.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-16 text-center px-4">
                 <div className="w-16 h-16 rounded-full bg-muted/50 flex items-center justify-center mb-4">
                   <Trash2 className="h-8 w-8 text-muted-foreground" />
@@ -121,7 +123,7 @@ export function TrashBin({ open, onOpenChange, trigger }: TrashBinProps) {
             ) : (
               <div className="p-3 space-y-2">
                 <AnimatePresence mode="popLayout">
-                  {trashedConversations?.map((trashed) => {
+                  {trashedConversations.map((trashed) => {
                     const info = getDisplayInfo(trashed);
                     const daysRemaining = trashed.auto_delete_at
                       ? Math.ceil(

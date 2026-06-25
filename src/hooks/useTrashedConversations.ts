@@ -75,7 +75,7 @@ export function useTrashConversation() {
       await db
         .from('hidden_conversations')
         .delete()
-        .eq('user_id', user.id)
+        .eq('user_id', profileId)
         .eq('conversation_id', conversationId);
 
       const { error } = await db
@@ -201,7 +201,7 @@ export function usePermanentlyDeleteConversation() {
       const { error: hideError } = await db
         .from('hidden_conversations')
         .upsert(
-          { user_id: user.id, conversation_id: conversationId },
+          { user_id: profileId, conversation_id: conversationId },
           { onConflict: 'user_id,conversation_id' },
         );
 
@@ -222,7 +222,7 @@ export function usePermanentlyDeleteConversation() {
 export function useTrashedConversationIds() {
   const profileId = useAuthProfileId();
 
-  return useQuery({
+  const query = useQuery({
     queryKey: ['trashed-conversation-ids', profileId],
     queryFn: async () => {
       if (!profileId) return new Set<string>();
@@ -239,4 +239,9 @@ export function useTrashedConversationIds() {
     staleTime: 30000,
     select: normalizePersistedSet,
   });
+
+  return {
+    ...query,
+    data: normalizePersistedSet(query.data),
+  };
 }

@@ -17,6 +17,7 @@ import { firebaseAuth } from '@/lib/firebase/authService';
 import { withTimeout } from '@/lib/withTimeout';
 import { toast } from 'sonner';
 import { inferOtherUserIdFromConversation } from '@/lib/dmMemberResolve';
+import { findInQueryArray, safeDmMembers } from '@/lib/persistedCollections';
 import {
   bumpConversationUpdatedAt,
   expiresAtForViewMode,
@@ -220,14 +221,10 @@ export function useInstantSend(conversationId: string | undefined) {
     }
 
     const cachedConv =
-      queryClient.getQueryData<any[]>(['dm-conversations', senderId])?.find(
-        (c) => c.id === conversationId,
-      ) ??
-      queryClient.getQueryData<any[]>(['conversations', senderId])?.find(
-        (c) => c.id === conversationId,
-      );
+      findInQueryArray(queryClient.getQueryData<any[]>(['dm-conversations', senderId]), (c) => c.id === conversationId) ??
+      findInQueryArray(queryClient.getQueryData<any[]>(['conversations', senderId]), (c) => c.id === conversationId);
     const otherFromMembers =
-      cachedConv?.members?.find((m: { user_id?: string }) => m.user_id !== senderId)?.user_id;
+      safeDmMembers(cachedConv?.members).find((m: { user_id?: string }) => m.user_id !== senderId)?.user_id;
     const otherProfileId =
       (cachedConv &&
         inferOtherUserIdFromConversation(cachedConv, senderId, profile?.user_id)) ||
@@ -256,12 +253,8 @@ export function useInstantSend(conversationId: string | undefined) {
   const resolveOtherProfileId = useCallback(
     (senderId: string) => {
       const cachedConv =
-        queryClient.getQueryData<any[]>(['dm-conversations', senderId])?.find(
-          (c) => c.id === conversationId,
-        ) ??
-        queryClient.getQueryData<any[]>(['conversations', senderId])?.find(
-          (c) => c.id === conversationId,
-        );
+        findInQueryArray(queryClient.getQueryData<any[]>(['dm-conversations', senderId]), (c) => c.id === conversationId) ??
+        findInQueryArray(queryClient.getQueryData<any[]>(['conversations', senderId]), (c) => c.id === conversationId);
       const authUid = profile?.user_id ?? null;
       return (
         (cachedConv &&

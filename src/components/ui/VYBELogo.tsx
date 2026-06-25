@@ -1,6 +1,7 @@
-import { memo, forwardRef, useMemo } from 'react';
+import { memo, forwardRef } from 'react';
 import { motion } from 'framer-motion';
 import { cn } from '@/lib/utils';
+import { VybeWordmark } from '@/components/ui/VybeWordmark';
 
 interface VYBELogoProps {
   size?: 'sm' | 'md' | 'lg' | 'xl' | '2xl' | 'splash';
@@ -31,12 +32,9 @@ export const VYBELogo = memo(forwardRef<HTMLDivElement, VYBELogoProps>(function 
   className,
   animated = true 
 }, ref) {
-  const { icon, text, gap, strokeWidth } = sizes[size];
+  const { icon, gap, strokeWidth } = sizes[size];
   const uniqueId = `vybe-logo-${++logoIdCounter}`;
   const isSplash = size === 'splash';
-  
-  // Generate stable ID for mobile style injection
-  const styleId = useMemo(() => `vybe-text-${Math.random().toString(36).slice(2, 9)}`, []);
 
   return (
     <div ref={ref} className={cn('flex items-center', gap, className)}>
@@ -136,25 +134,7 @@ export const VYBELogo = memo(forwardRef<HTMLDivElement, VYBELogoProps>(function 
       </motion.div>
 
       {showText && (
-        <>
-          <motion.span 
-            id={styleId}
-            className={cn(
-              'font-display font-black tracking-tight',
-              text
-            )}
-            style={{
-              background: 'linear-gradient(90deg, hsl(var(--primary)) 0%, hsl(var(--neon-purple, var(--primary))) 16.666%, hsl(var(--accent)) 33.333%, hsl(var(--primary)) 50%, hsl(var(--neon-purple, var(--primary))) 66.666%, hsl(var(--accent)) 83.333%, hsl(var(--primary)) 100%)',
-              backgroundSize: '200% 100%',
-              WebkitBackgroundClip: 'text',
-              WebkitTextFillColor: 'transparent',
-              backgroundClip: 'text',
-              animation: animated ? 'gradient-shift 3.2s linear infinite' : 'none',
-            }}
-          >
-            VYBE
-          </motion.span>
-        </>
+        <VybeWordmark size={size === 'splash' ? 'xl' : size === '2xl' ? 'lg' : size === 'xl' ? 'md' : 'sm'} />
       )}
     </div>
   );

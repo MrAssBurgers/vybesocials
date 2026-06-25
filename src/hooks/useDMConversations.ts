@@ -10,13 +10,14 @@ import { useAuthProfileId } from '@/hooks/useAuthProfileId';
 import { useFriends } from '@/hooks/useFriends';
 import {
   loadDMConversations,
+  readDmConversationsCache,
   syncDmListCaches,
   type LoadedDMConversation,
 } from '@/lib/loadDMConversations';
 import { refetchListOnMount } from '@/lib/queryRefetchPolicy';
-import { resolveSessionProfileId, syncSessionProfileId } from '@/lib/resolveSessionProfileId';
-import { withTimeout } from '@/lib/withTimeout';
+import { syncSessionProfileId } from '@/lib/resolveSessionProfileId';
 import { markConversationReadForViewer, getSessionAuthUid } from '@/lib/markConversationRead';
+import { ensureArray, normalizeDmConversation, normalizeDmConversationList, safeDmMembers, findInQueryArray, readQueryArray } from '@/lib/persistedCollections';
 import {
   fetchMemberProfiles,
   resolveDmActorIds,
@@ -34,57 +35,45 @@ type DMConversation = LoadedDMConversation;
  * and provides a sorted, searchable list of conversations
  */
 export function useDMConversations(searchQuery: string = '') {
-  const { profile, user } = useAuth();
+  const { user } = useAuth();
   const queryClient = useQueryClient();
-  const cachedProfileId = syncSessionProfileId(profile?.id);
-  const suspectAuthUidAsProfileId = !!(
-    user?.id &&
-    (cachedProfileId === user.id || (profile?.id === user.id && profile?.user_id === user.id))
-  );
-
-  const profileResolveQuery = useQuery({
-    queryKey: ['session-profile-id', user?.id],
-    queryFn: () =>
-      withTimeout(
-        resolveSessionProfileId(profile?.id),
-        8_000,
-        'Profile resolve timed out',
-      ),
-    enabled: !!user?.id && (!cachedProfileId || suspectAuthUidAsProfileId),
-    staleTime: 60_000,
-    retry: 2,
-    retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 4000),
-    networkMode: 'always',
-  });
-
-  const profileId =
-    profileResolveQuery.data ??
-    (suspectAuthUidAsProfileId ? undefined : cachedProfileId) ??
-    undefined;
-  const { data: friends, isLoading: friendsLoading } = useFriends();
+  const profileId = useAuthProfileId();
+  const { data: friendsRaw, isLoading: friendsLoading } = useFriends();
+  const friends = ensureArray(friendsRaw);
   const attemptedFriendIdsRef = useRef<Set<string>>(new Set());
-  const dmInitialFetchDoneRef = useRef(false);
+
+  const cachedConversations = useMemo(
+    () => readDmConversationsCache(queryClient, profileId, user?.id),
+    [queryClient, profileId, user?.id],
+  );
 
   // Fetch all conversations with proper sorting
   const conversationsQuery = useQuery({
     queryKey: ['dm-conversations', profileId],
-    // No polling - rely on realtime for updates (more stable)
     queryFn: async () => {
       if (!profileId) return [];
-      const prev = queryClient.getQueryData<DMConversation[]>(['dm-conversations', profileId]);
+      const prev = readDmConversationsCache(queryClient, profileId, user?.id);
       const { data, error, profileId: resolvedId } = await loadDMConversations(profileId, prev);
+      const merged = data.length > 0 ? data : prev;
 
-      syncDmListCaches(queryClient, resolvedId, data);
-      if (resolvedId !== profileId) {
-        syncDmListCaches(queryClient, profileId, data);
+      if (merged.length > 0) {
+        syncDmListCaches(queryClient, resolvedId, merged);
+        if (resolvedId !== profileId) {
+          syncDmListCaches(queryClient, profileId, merged);
+        }
       }
 
       queryClient.removeQueries({ queryKey: ['dm-conversations-soft-error'] });
 
-      if (error && data.length === 0) throw error;
-      return data;
+      if (error && merged.length === 0) {
+        console.warn('[DM] list load failed (showing empty):', error.message || error);
+      }
+      return merged;
     },
     enabled: !!profileId,
+    throwOnError: false,
+    initialData: cachedConversations.length > 0 ? cachedConversations : undefined,
+    select: (data) => normalizeDmConversationList<DMConversation>(data),
     // Treat persisted data as instantly displayable, then always revalidate
     // in the background on mount so the list is fresh without blocking paint.
     // Realtime + setQueryData patches keep the list fresh — avoid aggressive refetches.
@@ -93,7 +82,8 @@ export function useDMConversations(searchQuery: string = '') {
     refetchOnWindowFocus: false,
     refetchOnMount: refetchListOnMount,
     refetchOnReconnect: false,
-    placeholderData: (prev) => prev,
+    placeholderData: (prev) =>
+      prev ?? (cachedConversations.length > 0 ? cachedConversations : undefined),
     // DM list must reach network on first load — offlineFirst can pause forever
     // with isFetched=false when connectivity is flaky (shows perpetual spinner).
     networkMode: 'always',
@@ -102,8 +92,8 @@ export function useDMConversations(searchQuery: string = '') {
   });
 
   const conversationList = useMemo(
-    () => (Array.isArray(conversationsQuery.data) ? conversationsQuery.data : []),
-    [conversationsQuery.data],
+    () => normalizeDmConversationList<DMConversation>(conversationsQuery.data ?? cachedConversations),
+    [conversationsQuery.data, cachedConversations],
   );
 
   // Auto-create conversations for friends who don't have one.
@@ -111,17 +101,17 @@ export function useDMConversations(searchQuery: string = '') {
   // does NOT change every refetch (which was causing a render loop / flicker).
   const lastProcessedUpdateRef = useRef<number>(0);
   const ensureConversationsForFriends = useCallback(async () => {
-    if (!profileId || !friends?.length) return;
+    if (!profileId || !friends.length) return;
 
-    const raw = queryClient.getQueryData<DMConversation[]>(['dm-conversations', profileId]);
-    const conversations = Array.isArray(raw) ? raw : [];
+    const raw = readDmConversationsCache(queryClient, profileId, user?.id);
+    const conversations = raw;
 
     // Find friends without conversations
     const friendsWithConvos = new Set<string>();
 
     conversations.forEach(conv => {
       if (!conv.is_group) {
-        conv.members?.forEach(m => {
+        safeDmMembers(conv.members).forEach(m => {
           if (m.user_id !== profileId && m.profile?.id) {
             friendsWithConvos.add(m.profile.id);
           }
@@ -156,7 +146,7 @@ export function useDMConversations(searchQuery: string = '') {
     if (created) {
       queryClient.invalidateQueries({ queryKey: ['dm-conversations', profileId] });
     }
-  }, [profileId, friends, queryClient]);
+  }, [profileId, friends, queryClient, user?.id]);
 
   // Run auto-creation once per data update; gated by dataUpdatedAt so
   // re-renders triggered by other state don't keep firing this effect.
@@ -190,7 +180,7 @@ export function useDMConversations(searchQuery: string = '') {
       }
 
       // For DMs, search by username and display name
-      const otherMember = conv.members?.find(m => m.user_id !== profileId);
+      const otherMember = safeDmMembers(conv.members).find(m => m.user_id !== profileId);
       const username = otherMember?.profile?.username?.toLowerCase() || '';
       const displayName = otherMember?.profile?.display_name?.toLowerCase() || '';
       
@@ -204,7 +194,7 @@ export function useDMConversations(searchQuery: string = '') {
     const unpinned: DMConversation[] = [];
 
     filteredConversations.forEach(conv => {
-      const isPinned = conv.members?.find(m => m.user_id === profileId)?.is_pinned;
+      const isPinned = safeDmMembers(conv.members).find(m => m.user_id === profileId)?.is_pinned;
       if (isPinned) {
         pinned.push(conv);
       } else {
@@ -223,18 +213,12 @@ export function useDMConversations(searchQuery: string = '') {
     );
   }, [conversationList]);
 
-  const listCount = conversationList.length;
-  const resolvingProfile =
-    !!user?.id && !profileId && (profileResolveQuery.isFetching || profileResolveQuery.isPending);
-  // Latch off loading after first fetch settles — prior logs showed loadDM done in <1s but skeleton stuck.
-  if (conversationsQuery.isFetched) {
-    dmInitialFetchDoneRef.current = true;
-  }
+  const hasCachedList = conversationList.length > 0 || cachedConversations.length > 0;
   const isLoading =
-    resolvingProfile ||
-    (!dmInitialFetchDoneRef.current &&
-      !!profileId &&
-      (conversationsQuery.isPending || !conversationsQuery.isFetched));
+    !hasCachedList &&
+    !!profileId &&
+    (conversationsQuery.isPending || conversationsQuery.isFetching) &&
+    !conversationsQuery.isFetched;
 
   return {
     conversations: filteredConversations,
@@ -265,27 +249,35 @@ export function useConversationDetail(conversationId: string | undefined) {
       const keys = [viewerId, profileId, profile?.id].filter(Boolean) as string[];
       for (const key of keys) {
         const hit =
-          queryClient.getQueryData<DMConversation[]>(['dm-conversations', key])?.find(
+          findInQueryArray(
+            queryClient.getQueryData<DMConversation[]>(['dm-conversations', key]),
             (c) => c.id === conversationId,
           ) ??
-          queryClient.getQueryData<DMConversation[]>(['conversations', key])?.find(
+          findInQueryArray(
+            queryClient.getQueryData<DMConversation[]>(['conversations', key]),
             (c) => c.id === conversationId,
           );
-        if (hit) return hit;
+        if (hit) return normalizeDmConversation(hit);
       }
       for (const [, data] of queryClient.getQueriesData<DMConversation[]>({
         queryKey: ['dm-conversations'],
       })) {
-        const hit = data?.find((c) => c.id === conversationId);
-        if (hit) return hit;
+        const hit = ensureArray<DMConversation>(data).find((c) => c.id === conversationId);
+        if (hit) return normalizeDmConversation(hit);
       }
       return undefined;
     },
     [conversationId, profileId, profile?.id, queryClient],
   );
 
-  return useQuery({
+  const initialConversation = useMemo(
+    () => (conversationId ? findCachedConversation(profileId) : undefined),
+    [conversationId, findCachedConversation, profileId],
+  );
+
+  const detailQuery = useQuery({
     queryKey: ['conversation-detail', profileId, conversationId],
+    initialData: initialConversation,
     queryFn: async (): Promise<DMConversation> => {
       if (!conversationId) {
         throw new Error('Missing conversation id');
@@ -299,8 +291,9 @@ export function useConversationDetail(conversationId: string | undefined) {
       if (!effectiveProfileId) return fallback();
 
       const cached = findCachedConversation(effectiveProfileId);
-      if (cached?.members?.length && cached.members.some((m) => m.profile?.username)) {
-        return cached;
+      const cachedMembers = safeDmMembers(cached?.members);
+      if (cachedMembers.length && cachedMembers.some((m) => m.profile?.username)) {
+        return normalizeDmConversation(cached!);
       }
 
       const enrichCachedMembers = async (base: DMConversation, memberIds: string[]) => {
@@ -317,13 +310,13 @@ export function useConversationDetail(conversationId: string | undefined) {
         return { ...base, members } as unknown as DMConversation;
       };
 
-      if (cached?.members?.length) {
-        const memberIds = cached.members.map((m) => m.user_id).filter(Boolean);
+      if (safeDmMembers(cached?.members).length) {
+        const memberIds = safeDmMembers(cached.members).map((m) => m.user_id).filter(Boolean);
         return enrichCachedMembers(cached, memberIds);
       }
 
       try {
-        const otherFromCached = cached?.members?.find(
+        const otherFromCached = safeDmMembers(cached?.members).find(
           (m) => m.user_id !== effectiveProfileId,
         )?.user_id;
         const otherProfileId =
@@ -381,23 +374,28 @@ export function useConversationDetail(conversationId: string | undefined) {
         return fallback();
       }
     },
-    enabled: !!conversationId && !!profileId,
+    enabled: !!conversationId,
     staleTime: 120_000,
     placeholderData: () => {
       if (!conversationId) return undefined;
-      return (
+      const hit =
         findCachedConversation(profileId) ??
-        (buildConversationPlaceholder(conversationId, profileId) as unknown as DMConversation)
-      );
+        (buildConversationPlaceholder(conversationId, profileId) as unknown as DMConversation);
+      return normalizeDmConversation(hit);
     },
     networkMode: 'offlineFirst',
     refetchOnMount: (query) => {
       const data = query.state.data as DMConversation | undefined;
-      if (data?.members?.some((m) => m.profile?.username)) return false;
+      if (ensureArray(data?.members).some((m) => m.profile?.username)) return false;
       return true;
     },
     retry: 2,
   });
+
+  return {
+    ...detailQuery,
+    data: detailQuery.data ? normalizeDmConversation(detailQuery.data) : detailQuery.data,
+  };
 }
 
 /**
@@ -417,9 +415,10 @@ export function useMarkConversationRead() {
     onSuccess: (_data, conversationId) => {
       if (!profileId) return;
       let clearedCount = 0;
-      const patch = (old: DMConversation[] | undefined) => {
-        if (!old) return old;
-        return old.map((c) => {
+      const patch = (old: unknown) => {
+        const list = readQueryArray<DMConversation>(old);
+        if (!list.length) return list;
+        return list.map((c) => {
           if (c.id === conversationId) {
             clearedCount = c.unread_count ?? 0;
             return { ...c, unread_count: 0, _hasUnread: false };

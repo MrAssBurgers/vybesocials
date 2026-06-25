@@ -134,7 +134,7 @@ export async function reportAppCrash({
     // Silent fail — never let reporting trigger another crash
   }
 
-  const hasCrashConsent = mode === 'manual' || getConsentState() === true;
+  const hasCrashConsent = mode === 'manual' || getConsentState() !== false;
   if (!hasCrashConsent || !userId) {
     if (mode === 'auto' && errorLogged) autoReportedCrashKeys.add(fingerprint);
     return { bugReported: false, duplicate: false, errorLogged };

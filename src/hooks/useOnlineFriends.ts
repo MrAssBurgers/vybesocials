@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { useFriends } from './useFriends';
 import { useUsersOnlineStatus } from './usePresence';
+import { ensureArray } from '@/lib/persistedCollections';
 
 export interface OnlineFriend {
   id: string;
@@ -11,11 +12,12 @@ export interface OnlineFriend {
 }
 
 export function useOnlineFriends() {
-  const { data: friends, isLoading: friendsLoading } = useFriends();
+  const { data: friendsRaw, isLoading: friendsLoading } = useFriends();
+  const friends = ensureArray(friendsRaw);
   
   // Get all friend IDs for presence check
   const friendIds = useMemo(() => 
-    (friends || [])
+    friends
       .filter((f): f is NonNullable<typeof f> => f !== null && !!f.id)
       .map(f => f.id),
     [friends]
@@ -25,7 +27,7 @@ export function useOnlineFriends() {
 
   // Filter and map friends with online status
   const onlineFriends = useMemo(() => {
-    if (!friends) return [];
+    if (!friends.length) return [];
     
     return friends
       .filter((f): f is NonNullable<typeof f> => f !== null && !!f.id)
@@ -41,7 +43,7 @@ export function useOnlineFriends() {
 
   // All friends with online status
   const allFriendsWithStatus = useMemo(() => {
-    if (!friends) return [];
+    if (!friends.length) return [];
     
     return friends
       .filter((f): f is NonNullable<typeof f> => f !== null && !!f.id)

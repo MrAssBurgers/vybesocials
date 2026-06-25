@@ -12,6 +12,8 @@ import {
 } from '@/components/ui/alert-dialog';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/lib/auth';
+import { safeDmMembers } from '@/lib/persistedCollections';
+import { formatDmPreviewContent } from '@/lib/callChatMessages';
 
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -144,12 +146,16 @@ export function DesktopRightSidebar() {
   const recentChats = useMemo(() => {
     if (!conversations) return [];
     return conversations.slice(0, 3).map(conv => {
-      const otherMember = conv.members?.find(m => m.user_id !== profileId)?.profile;
+      const otherMember = safeDmMembers(conv.members).find(m => m.user_id !== profileId)?.profile;
+      const lastMsg = conv.last_message;
+      const isOwnLast = Boolean(lastMsg?.sender_id && profileId && lastMsg.sender_id === profileId);
       return {
         id: conv.id,
         name: conv.is_group ? conv.name : otherMember?.display_name || otherMember?.username,
         avatar: conv.is_group ? conv.avatar_url : otherMember?.avatar_url,
-        lastMessage: conv.last_message?.content,
+        lastMessage: lastMsg
+          ? formatDmPreviewContent(lastMsg, isOwnLast, 60)
+          : undefined,
         hasUnread: conv.unread_count > 0,
         isTyping: checkTyping(conv.id),
         otherUserId: conv.is_group ? null : otherMember?.id,

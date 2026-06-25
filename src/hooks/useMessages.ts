@@ -8,7 +8,8 @@ import { getEffectiveProfileId } from '@/lib/profileCache';
 import { resolveSessionProfileId } from '@/lib/resolveSessionProfileId';
 import { syncUserAuthIndex } from '@/lib/firebase/profileResolve';
 import { fetchMessagesForConversations } from '@/lib/conversationMessagesQuery';
-import { messagesQueryKey, readMessagesCache, mergeMessagesWithLocalCache, patchMessagesCache } from '@/lib/messagesQueryKey';
+import { messagesQueryKey, readMessagesCache, mergeMessagesWithLocalCache, patchMessagesCache, normalizeMessagesCache } from '@/lib/messagesQueryKey';
+import { safeDmMembers, ensureArray } from '@/lib/persistedCollections';
 import { loadConversationMessages } from '@/lib/loadConversationMessages';
 import { invalidateConversationCaches } from '@/lib/invalidateConversationCaches';
 import { shouldRefetchWhenEmpty, refetchListOnMount } from '@/lib/queryRefetchPolicy';
@@ -223,7 +224,7 @@ export function useConversations() {
       // Check if any hidden conversations have new messages - unhide them
       const hiddenConvsWithNewMessages = conversationsResult.data.filter(c => {
         if (!hiddenIds.has(c.id)) return false;
-        const memberRecord = c.members?.find((m: any) => m.user_id === profileId);
+        const memberRecord = safeDmMembers(c.members).find((m: any) => m.user_id === profileId);
         const hiddenAt = hiddenResult.data?.find(h => h.conversation_id === c.id);
         // If there's a message after the conversation was hidden, show it
         const lastMsg = (sortedMessages || []).find(msg => msg.conversation_id === c.id);
@@ -241,7 +242,7 @@ export function useConversations() {
 
       // Build final result with unread counts
       const result = finalConversations.map(conv => {
-        const memberRecord = conv.members?.find((m: any) => m.user_id === profileId);
+        const memberRecord = safeDmMembers(conv.members).find((m: any) => m.user_id === profileId);
         const lastReadAt = memberRecord?.last_read_at || '1970-01-01';
         
         // Count unread from cached messages
@@ -331,11 +332,11 @@ export function useMessages(conversationId: string | undefined) {
   // Always merge live cache (temp-* / failed sends) — setQueryData patches must show
   // even when query.data is a stale snapshot.
   const data = useMemo(() => {
-    if (!conversationId) return query.data;
+    if (!conversationId) return normalizeMessagesCache(query.data);
     return mergeMessagesWithLocalCache(
       queryClient,
       conversationId,
-      query.data ?? [],
+      query.data,
     );
   }, [conversationId, queryClient, query.data, query.dataUpdatedAt]);
 
@@ -927,8 +928,8 @@ export function useAddReaction() {
         if (idx === -1) continue;
 
         const target = messages[idx];
-        const existing = target.reactions?.find(r => r.user_id === userId);
-        let nextReactions = target.reactions ? [...target.reactions] : [];
+        const existing = ensureArray(target.reactions).find(r => r.user_id === userId);
+        let nextReactions = [...ensureArray(target.reactions)];
 
         if (existing?.emoji === emoji) {
           // Toggle off

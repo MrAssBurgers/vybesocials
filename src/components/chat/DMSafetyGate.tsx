@@ -1,4 +1,4 @@
-import { useFriendshipStatus, useSendFriendRequest, useRespondToFriendRequest } from '@/hooks/useFriends';
+import { useFriendshipStatus, useSendFriendRequest, useRespondToFriendRequest, useFriends } from '@/hooks/useFriends';
 import { Button } from '@/components/ui/button';
 import { UserPlus, Clock, Check, Users, MessageCircle } from 'lucide-react';
 import { motion } from 'framer-motion';
@@ -9,6 +9,8 @@ import { db } from '@/lib/firebase';
 interface DMSafetyGateProps {
   targetUserId: string;
   targetUsername: string;
+  /** Existing DM thread — never block messaging for active conversations. */
+  hasActiveConversation?: boolean;
   children: React.ReactNode;
 }
 
@@ -17,12 +19,18 @@ interface DMSafetyGateProps {
  * Public accounts can be messaged by anyone.
  * Private accounts require friendship.
  */
-export function DMSafetyGate({ targetUserId, targetUsername, children }: DMSafetyGateProps) {
-  const { data: friendship, isLoading: friendshipLoading } = useFriendshipStatus(targetUserId);
+export function DMSafetyGate({
+  targetUserId,
+  targetUsername,
+  hasActiveConversation = false,
+  children,
+}: DMSafetyGateProps) {
+  const { data: friendship, isLoading: friendshipLoading, isError: friendshipError } =
+    useFriendshipStatus(targetUserId);
+  const { data: friends = [] } = useFriends();
   const sendRequest = useSendFriendRequest();
   const respondToRequest = useRespondToFriendRequest();
 
-  // Check if target user has a public account
   const { data: targetProfile, isLoading: profileLoading } = useQuery({
     queryKey: ['profile-privacy', targetUserId],
     queryFn: async () => {
@@ -37,22 +45,22 @@ export function DMSafetyGate({ targetUserId, targetUsername, children }: DMSafet
   });
 
   const isLoading = friendshipLoading || profileLoading;
+  const isFriendFromList = friends.some((f) => f?.id === targetUserId);
 
-  // Show children immediately while loading - optimistic approach for instant input
-  // This prevents the input bar from appearing delayed
-  if (isLoading) {
+  if (hasActiveConversation || isFriendFromList) {
     return <>{children}</>;
   }
 
-  // Public accounts can be messaged by anyone
+  if (isLoading || friendshipError) {
+    return <>{children}</>;
+  }
+
   const isPublicAccount = targetProfile?.is_private === false;
-  
-  // Friends can always message, or anyone can message public accounts
+
   if (friendship?.status === 'friends' || isPublicAccount) {
     return <>{children}</>;
   }
 
-  // Pending sent - waiting for response
   if (friendship?.status === 'pending_sent') {
     return (
       <motion.div
@@ -70,7 +78,6 @@ export function DMSafetyGate({ targetUserId, targetUsername, children }: DMSafet
     );
   }
 
-  // Pending received - can accept
   if (friendship?.status === 'pending_received' && friendship.requestId) {
     return (
       <motion.div
@@ -84,9 +91,9 @@ export function DMSafetyGate({ targetUserId, targetUsername, children }: DMSafet
           </p>
           <div className="flex gap-2">
             <Button
-              onClick={() => respondToRequest.mutate({ 
-                requestId: friendship.requestId!, 
-                action: 'accept' 
+              onClick={() => respondToRequest.mutate({
+                requestId: friendship.requestId!,
+                action: 'accept',
               })}
               disabled={respondToRequest.isPending}
               className="gap-2"
@@ -96,9 +103,9 @@ export function DMSafetyGate({ targetUserId, targetUsername, children }: DMSafet
             </Button>
             <Button
               variant="outline"
-              onClick={() => respondToRequest.mutate({ 
-                requestId: friendship.requestId!, 
-                action: 'decline' 
+              onClick={() => respondToRequest.mutate({
+                requestId: friendship.requestId!,
+                action: 'decline',
               })}
               disabled={respondToRequest.isPending}
             >
@@ -110,7 +117,6 @@ export function DMSafetyGate({ targetUserId, targetUsername, children }: DMSafet
     );
   }
 
-  // Not friends - show add friend prompt
   return (
     <motion.div
       initial={{ opacity: 0, y: 10 }}
@@ -144,11 +150,11 @@ export function DMSafetyGate({ targetUserId, targetUsername, children }: DMSafet
 /**
  * Badge component to show friendship status in user search results
  */
-export function FriendshipStatusBadge({ 
-  targetUserId, 
-  className 
-}: { 
-  targetUserId: string; 
+export function FriendshipStatusBadge({
+  targetUserId,
+  className,
+}: {
+  targetUserId: string;
   className?: string;
 }) {
   const { data: friendship } = useFriendshipStatus(targetUserId);
@@ -168,9 +174,9 @@ export function FriendshipStatusBadge({
 
   return (
     <span className={cn(
-      "inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium",
+      'inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium',
       config.className,
-      className
+      className,
     )}>
       <Icon className="h-3 w-3" />
       {config.label}

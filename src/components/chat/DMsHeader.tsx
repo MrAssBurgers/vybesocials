@@ -7,10 +7,12 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { StatusPicker } from '@/components/status/StatusPicker';
-import { useBatchUserStatuses } from '@/hooks/useUserStatus';
+import { useBatchUserStatuses, type UserStatus } from '@/hooks/useUserStatus';
 import { useAuthProfileId } from '@/hooks/useAuthProfileId';
+import { VybeWordmark } from '@/components/ui/VybeWordmark';
 import { cn } from '@/lib/utils';
 import { haptics } from '@/lib/haptics';
+import { safeMapGet } from '@/lib/persistedCollections';
 import { TrashBin } from './TrashBin';
 
 export type DMChatFilter = 'all' | 'unread' | 'groups' | 'streaks';
@@ -47,7 +49,7 @@ export function DMsHeader({
   const { profile } = useAuth();
   const profileId = useAuthProfileId();
   const { data: statusMap = new Map() } = useBatchUserStatuses(profileId ? [profileId] : []);
-  const myStatus = profileId ? statusMap.get(profileId) : undefined;
+  const myStatus = profileId ? safeMapGet<UserStatus>(statusMap, profileId) : undefined;
 
   return (
     <header className="dm-header flex-shrink-0 relative">
@@ -73,9 +75,7 @@ export function DMsHeader({
 
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-1.5">
-              <h1 className="text-[1.125rem] font-bold tracking-tight text-foreground">
-                Chat
-              </h1>
+              <VybeWordmark size="sm" as="h1" className="text-[1.125rem] leading-none tracking-tight" />
               {totalUnreadCount > 0 && (
                 <motion.span
                   initial={{ scale: 0 }}

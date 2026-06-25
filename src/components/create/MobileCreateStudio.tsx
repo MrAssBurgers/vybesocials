@@ -86,7 +86,7 @@ export function MobileCreateStudio({ onClose, initialSound }: MobileCreateStudio
   const [selectedTrack, setSelectedTrack] = useState<any>(null);
   const [showMusicGallery, setShowMusicGallery] = useState(false);
   const [soundStartTime, setSoundStartTime] = useState(0);
-  const [currentFilter, setCurrentFilter] = useState('normal');
+  const [currentFilter, setCurrentFilter] = useState('snap');
   const [timer, setTimer] = useState(0);
   const [timerCountdown, setTimerCountdown] = useState<number | null>(null);
   const [zoomLevel, setZoomLevel] = useState(1);

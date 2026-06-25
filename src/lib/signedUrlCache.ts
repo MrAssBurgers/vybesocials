@@ -7,7 +7,7 @@
 import { db } from '@/lib/firebase';
 import { firebaseStorage } from '@/lib/firebase/storageService';
 import { getFirebaseConfig, isFirebaseConfigured } from '@/lib/firebase/config';
-import { normalizeMediaUrl } from '@/lib/mediaUrl';
+import { firebaseStorageNeedsToken, normalizeMediaUrl } from '@/lib/mediaUrl';
 
 interface CacheEntry {
   signedUrl: string;
@@ -89,6 +89,7 @@ export function getCachedSignedUrl(publicUrl: string | null | undefined): string
   const url = normalizeMediaUrl(publicUrl);
   if (!url) return null;
 
+  if (firebaseStorageNeedsToken(url)) return null;
   if (!needsSigning(url)) return url;
 
   const entry = cache.get(url);

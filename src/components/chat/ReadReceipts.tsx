@@ -42,10 +42,11 @@ export function ReadReceipts({
   isGroupChat?: boolean;
   maxDisplay?: number;
 }) {
-  if (!views || views.length === 0) return null;
+  const safeViews = Array.isArray(views) ? views : [];
+  if (safeViews.length === 0) return null;
 
-  const displayedViewers = views.slice(0, maxDisplay);
-  const remainingCount = views.length - maxDisplay;
+  const displayedViewers = safeViews.slice(0, maxDisplay);
+  const remainingCount = safeViews.length - maxDisplay;
 
   return (
     <TooltipProvider>
@@ -78,7 +79,7 @@ export function ReadReceipts({
                 animate={{ opacity: 1, x: 0 }}
                 className="text-[10px] font-medium text-primary"
               >
-                {views.length}
+                {safeViews.length}
               </motion.span>
             </motion.div>
             
@@ -135,7 +136,7 @@ export function ReadReceipts({
             className="space-y-1"
           >
             <p className="text-xs font-medium">Seen by</p>
-            {views.map((view) => (
+            {safeViews.map((view) => (
               <div key={view.id || view.user_id} className="flex items-center gap-2 text-xs">
                 <Avatar className="h-4 w-4">
                   <AvatarImage src={view.profile?.avatar_url || undefined} />

@@ -90,13 +90,28 @@ class SmartErrorBoundary extends Component<Props, State> {
     }
     this.resetCount += 1;
 
+    // Custom fallback (e.g. Messages): show immediately — auto-reset causes flash loops.
+    if (this.props.fallback) {
+      try {
+        const qc = (window as unknown as { __REACT_QUERY_CLIENT__?: { getQueryCache: () => unknown } }).__REACT_QUERY_CLIENT__;
+        if (qc && typeof (qc as { getQueryCache?: () => unknown }).getQueryCache === 'function') {
+          void import('@/lib/persistedCollections').then(({ reviveQueriesInCache }) => {
+            reviveQueriesInCache(qc as import('@tanstack/react-query').QueryClient);
+          });
+        }
+      } catch {
+        /* best effort */
+      }
+      this.setState({ errorInfo, hasError: true, error });
+      return;
+    }
+
     if (this.resetCount > SmartErrorBoundary.RESET_LIMIT) {
       console.warn('[SmartErrorBoundary] Reset loop detected — showing fallback.');
       this.setState({ errorInfo, hasError: true, error });
       return;
     }
 
-    // Single setState call (was two — second one caused the cascade).
     this.setState({ hasError: false, error: null, errorInfo: null });
   }
 

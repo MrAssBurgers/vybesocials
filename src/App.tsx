@@ -136,7 +136,11 @@ import { useBriefPreFetch } from "@/hooks/useBriefPreFetch";
 import { SplashScreen } from "@/components/ui/SplashScreen";
 import { WelcomeBackSplash } from "@/components/ui/WelcomeBackSplash";
 import { markPersistRestored } from "@/lib/persistRestoreGate";
-import { reviveQueriesInCache } from "@/lib/persistedCollections";
+import {
+  reviveQueriesInCache,
+  installQueryCacheNormalizer,
+  installQueryCacheWriteGuard,
+} from "@/lib/persistedCollections";
 import { purgeStuckStoryUploads } from "@/lib/storiesCacheSanitize";
 import { SnapARProvider } from "@/components/camera/SnapARProvider";
 import { ATT_RESUME_EVENT, ensureAppShellVisible } from "@/lib/attResumeRecovery";
@@ -231,13 +235,16 @@ const queryClient = new QueryClient({
 // Expose for error recovery
 (window as any).__REACT_QUERY_CLIENT__ = queryClient;
 
+installQueryCacheWriteGuard(queryClient);
+installQueryCacheNormalizer(queryClient);
+
 // Start global reconnect manager (refreshes active queries the instant
 // connectivity is restored, polls aggressively while offline).
 startReconnectManager(queryClient);
 startOutbox();
 
 // Build-hash based cache buster so deployments invalidate persisted cache.
-const PERSIST_BUSTER = (import.meta as any).env?.VITE_BUILD_ID || 'vybe-cache-v5';
+const PERSIST_BUSTER = (import.meta as any).env?.VITE_BUILD_ID || 'vybe-cache-v15';
 
 function ScrollRestoration() {
   const location = useLocation();

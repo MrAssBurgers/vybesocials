@@ -186,7 +186,7 @@ function enqueueReport(bug: DetectedBug) {
 
   trackError(bug.message);
 
-  if (getConsentState() !== true) return;
+  if (getConsentState() === false) return;
 
   reportQueue.push(bug);
   if (flushTimer) clearTimeout(flushTimer);

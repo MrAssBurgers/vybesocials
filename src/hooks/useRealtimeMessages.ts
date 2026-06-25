@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { db } from '@/lib/firebase';
 import { subscribePostgresChannel, removeRealtimeChannel } from '@/lib/realtimeChannel';
+import { readQueryArray } from '@/lib/persistedCollections';
 import { useAuth } from '@/lib/auth';
 import { Message } from './useMessages';
 
@@ -20,8 +21,8 @@ export function useRealtimeMessages(conversationId: string | undefined) {
     if (!conversationId || !profile?.id) return;
 
     const knownMessageIds = () => {
-      const list = queryClient.getQueryData<Message[]>(['messages', conversationId]);
-      return new Set((list || []).map(m => m.id));
+      const list = readQueryArray<Message>(queryClient.getQueryData(['messages', conversationId]));
+      return new Set(list.map(m => m.id));
     };
 
     const channel = subscribePostgresChannel(

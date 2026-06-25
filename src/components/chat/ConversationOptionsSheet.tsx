@@ -18,6 +18,7 @@ import { db } from '@/lib/firebase';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { invalidateConversationCaches } from '@/lib/invalidateConversationCaches';
+import { safeDmMembers } from '@/lib/persistedCollections';
 import { useAuth } from '@/lib/auth';
 
 interface ConversationOptionsSheetProps {
@@ -137,7 +138,7 @@ export function ConversationOptionsSheet({
           if (conv.id !== conversationId) return conv;
           return {
             ...conv,
-            members: conv.members?.map((m) =>
+            members: safeDmMembers(conv.members).map((m) =>
               m.user_id === profile.id ? { ...m, is_pinned: !isPinned } : m,
             ),
           };

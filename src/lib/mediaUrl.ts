@@ -15,18 +15,24 @@ const BLOCKED_MEDIA_PATTERNS = [
 
 const PLACEHOLDER_FILENAMES = new Set(['avatar.png', 'avatar.jpg', 'placeholder.png']);
 
+/** Production bucket when Vite env is partial (Lovable publish). */
+const FALLBACK_STORAGE_BUCKET = 'vybe-daaab.firebasestorage.app';
+
 function firebasePublicUrl(bucket: string, objectPath: string): string {
   const encoded = encodeURIComponent(objectPath).replace(/%2F/g, '%2F');
   return `https://firebasestorage.googleapis.com/v0/b/${bucket}/o/${encoded}?alt=media`;
 }
 
-function getStorageBucket(): string | null {
+function getStorageBucket(): string {
   try {
-    if (!isFirebaseConfigured()) return null;
-    return getFirebaseConfig().storageBucket;
+    if (isFirebaseConfigured()) {
+      const bucket = getFirebaseConfig().storageBucket;
+      if (bucket) return bucket;
+    }
   } catch {
-    return null;
+    /* use fallback */
   }
+  return FALLBACK_STORAGE_BUCKET;
 }
 
 /**
@@ -95,8 +101,22 @@ export function normalizeMediaUrl(url: string | null | undefined): string | null
   const clean = trimmed.replace(/^\/+/, '');
   if (PLACEHOLDER_FILENAMES.has(clean)) return null;
 
-  if (bucket && /^(avatars|media|stories|messages|posts|clips|dm-media)\//i.test(clean)) {
+  if (
+    bucket &&
+    /^(avatars|media|stories|messages|posts|clips|dm-media|hubs|servers|listings|community)\//i.test(
+      clean,
+    )
+  ) {
     return firebasePublicUrl(bucket, clean);
+  }
+
+  // Bare migration filenames (UUID + extension) — avoid ERR_NAME_NOT_RESOLVED as relative URLs.
+  if (/^[0-9a-f-]{8,}\.(jpe?g|png|webp|gif|heic|mp4|webm|mov|m4v)(\?.*)?$/i.test(clean)) {
+    return firebasePublicUrl(bucket, `media/${clean}`);
+  }
+
+  if (/^avatar\.(jpe?g|png|webp)$/i.test(clean)) {
+    return firebasePublicUrl(bucket, `avatars/${clean}`);
   }
 
   if (bucket && /\.(jpe?g|png|webp|gif|mp4|webm|mov|m4v)(\?|$)/i.test(clean)) {
@@ -108,6 +128,14 @@ export function normalizeMediaUrl(url: string | null | undefined): string | null
 
 export function isValidMediaUrl(url: string | null | undefined): boolean {
   return normalizeMediaUrl(url) !== null;
+}
+
+/** Firebase public URLs without a token often 403 — resolve via getDownloadURL. */
+export function firebaseStorageNeedsToken(url: string | null | undefined): boolean {
+  if (!url || typeof url !== 'string') return false;
+  if (url.startsWith('gs://')) return true;
+  if (!url.includes('firebasestorage.googleapis.com')) return false;
+  return !/[?&]token=/.test(url);
 }
 
 export function shouldPreloadMediaUrl(url: string | null | undefined): boolean {

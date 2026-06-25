@@ -44,20 +44,31 @@ export function formatDmPreviewContent(
     content?: string | null;
     message_type?: string | null;
     media_type?: string | null;
-  },
+  } | null | undefined,
   isOwn: boolean,
   maxLen = 40,
 ): string {
+  if (!message || typeof message !== 'object') return 'Say hey 👋';
+
   if (message.message_type === 'call_event') {
-    const meta = parseCallEventMeta(message.content);
+    const meta = parseCallEventMeta(asPreviewText(message.content));
     if (meta) return formatCallEventLabel(meta, isOwn);
     return message.media_type === 'video' ? 'Video call' : 'Audio call';
   }
   if (message.message_type === 'screenshot_notification') return 'Screenshot';
   if (message.message_type === 'screen_recording_notification') return 'Screen recording';
-  if (message.content?.startsWith('e2ee:')) return 'Chat';
-  const text = message.content || 'Media';
+
+  const raw = asPreviewText(message.content);
+  if (raw.startsWith('e2ee:')) return 'Chat';
+  const text = raw || 'Media';
   return text.length > maxLen ? `${text.slice(0, maxLen)}…` : text;
+}
+
+function asPreviewText(value: unknown): string {
+  if (typeof value === 'string') return value;
+  if (value == null) return '';
+  if (typeof value === 'number' || typeof value === 'boolean') return String(value);
+  return '';
 }
 
 export function parseCallEventMeta(content: string | null | undefined): CallEventMeta | null {

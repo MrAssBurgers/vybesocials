@@ -130,7 +130,7 @@ export const SoundPicker = memo(function SoundPicker({
 
   return (
     <Sheet open={open} onOpenChange={onClose}>
-      <SheetContent side="bottom" className="h-[80vh] p-0">
+      <SheetContent side="bottom" className="h-[80vh] p-0 z-[8000]">
         <SheetHeader className="px-4 py-3 border-b">
           <div className="flex items-center justify-between">
             <SheetTitle className="flex items-center gap-2">

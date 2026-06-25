@@ -6,7 +6,7 @@ import { useAuthProfileId } from '@/hooks/useAuthProfileId';
 import { getEffectiveProfileId } from '@/lib/profileCache';
 import { resolveSessionProfileId, resolveStoryAuthorProfileId } from '@/lib/resolveSessionProfileId';
 import { resolveAuthorIds, fetchMemberProfiles } from '@/lib/dmMembershipRepair';
-import { purgeStuckStoryUploads } from '@/lib/storiesCacheSanitize';
+import { normalizeStoryGroups, purgeStuckStoryUploads } from '@/lib/storiesCacheSanitize';
 
 function storiesQueryProfileId(liveProfileId?: string | null, resolvedProfileId?: string) {
   return getEffectiveProfileId(liveProfileId ?? resolvedProfileId);
@@ -60,7 +60,7 @@ export function useStories() {
     purgeStuckStoryUploads(queryClient, profileId);
   }, [queryClient, profileId]);
 
-  return useQuery({
+  const query = useQuery({
     queryKey: ['stories', profileId],
     queryFn: async () => {
       if (!profileId) return [];
@@ -194,6 +194,11 @@ export function useStories() {
     refetchOnMount: false,
     refetchOnReconnect: false,
   });
+
+  return {
+    ...query,
+    data: normalizeStoryGroups(query.data),
+  };
 }
 
 interface CreateStoryParams {

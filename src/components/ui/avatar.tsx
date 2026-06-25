@@ -4,6 +4,7 @@ import * as AvatarPrimitive from "@radix-ui/react-avatar";
 import { cn } from "@/lib/utils";
 import { transformedImage } from "@/lib/imageTransform";
 import { getCachedProfileAvatar } from "@/lib/profileAvatarCache";
+import { normalizeMediaUrl } from "@/lib/mediaUrl";
 
 // Avatar with properly sized ring that matches the avatar container
 const Avatar = React.forwardRef<
@@ -25,9 +26,10 @@ Avatar.displayName = AvatarPrimitive.Root.displayName;
 const AvatarImage = React.forwardRef<
   React.ElementRef<typeof AvatarPrimitive.Image>,
   React.ComponentPropsWithoutRef<typeof AvatarPrimitive.Image>
->(({ className, ...props }, ref) => (
+>(({ className, src, ...props }, ref) => (
   <AvatarPrimitive.Image
     ref={ref}
+    src={normalizeMediaUrl(src) ?? undefined}
     className={cn("aspect-square h-full w-full object-cover", className)}
     {...props}
   />
@@ -58,7 +60,7 @@ const ProfileAvatarImage = React.forwardRef<
   }
 >(({ profileId, src, className, ...props }, ref) => {
   const cached = profileId ? getCachedProfileAvatar(profileId) : null;
-  const resolved = src || cached || undefined;
+  const resolved = normalizeMediaUrl(src) || src || cached || undefined;
   const optimized = resolved ? transformedImage(resolved, { width: 128, height: 128 }) : undefined;
   return (
     <AvatarPrimitive.Image

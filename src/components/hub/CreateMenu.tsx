@@ -30,7 +30,7 @@ export function CreateMenu({ isOpen, onClose }: CreateMenuProps) {
         break;
       case 'camera':
         onClose();
-        setShowCamera(true);
+        navigate('/upload');
         break;
       case 'hub':
         onClose();

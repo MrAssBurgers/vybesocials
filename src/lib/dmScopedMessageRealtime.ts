@@ -7,6 +7,7 @@ import { startTransition } from 'react';
 import { db } from '@/lib/firebase';
 import { appendIncomingMessage } from '@/lib/messagesQueryKey';
 import { maybeShowForegroundDmNotification } from '@/lib/foregroundDmNotification';
+import { safeDmMembers, ensureArray, readQueryArray } from '@/lib/persistedCollections';
 import {
   removeChannelByTopic,
   removeRealtimeChannel,
@@ -69,11 +70,12 @@ function patchConversationLists(
   isViewingConvo: boolean,
 ) {
   startTransition(() => {
-    const updateConversations = (old: any[] | undefined) => {
-      if (!old || !Array.isArray(old)) return old;
-      if (!old.some((c) => c.id === conversationId)) return old;
+    const updateConversations = (old: unknown) => {
+      const list = readQueryArray<any>(old);
+      if (!list.length) return list;
+      if (!list.some((c) => c.id === conversationId)) return list;
 
-      return old
+      return list
         .map((conv) => {
           if (conv.id !== conversationId) return conv;
           return {
@@ -97,8 +99,8 @@ function patchConversationLists(
           };
         })
         .sort((a, b) => {
-          const aIsPinned = a.members?.find((m: any) => m.user_id === ctx.profileId)?.is_pinned;
-          const bIsPinned = b.members?.find((m: any) => m.user_id === ctx.profileId)?.is_pinned;
+          const aIsPinned = safeDmMembers(a.members).find((m: any) => m.user_id === ctx.profileId)?.is_pinned;
+          const bIsPinned = safeDmMembers(b.members).find((m: any) => m.user_id === ctx.profileId)?.is_pinned;
           if (aIsPinned && !bIsPinned) return -1;
           if (!aIsPinned && bIsPinned) return 1;
           if (a._hasUnread && !b._hasUnread) return -1;
@@ -112,8 +114,8 @@ function patchConversationLists(
     ctx.queryClient.setQueryData<any[]>(['conversations', ctx.profileId], updateConversations);
     ctx.queryClient.setQueryData<any[]>(['dm-conversations', ctx.profileId], updateConversations);
 
-    const cached = ctx.queryClient.getQueryData<any[]>(['dm-conversations', ctx.profileId]);
-    if (cached && !cached.some((c) => c.id === conversationId)) {
+    const cached = readQueryArray(ctx.queryClient.getQueryData(['dm-conversations', ctx.profileId]));
+    if (cached.length && !cached.some((c) => c.id === conversationId)) {
       ctx.scheduleUnknownConvoRefetch(ctx.profileId);
     }
   });
@@ -140,12 +142,14 @@ function handleMessageInsert(ctx: ScopedMessageRealtimeContext, newMessage: any)
   if (!skipReceiverInsert && !isFromCurrentUser) {
     let sender: any = null;
     const cachedConvos =
-      ctx.queryClient.getQueryData<any[]>(['dm-conversations', ctx.profileId]) ||
-      ctx.queryClient.getQueryData<any[]>(['conversations', ctx.profileId]);
+      readQueryArray(
+        ctx.queryClient.getQueryData(['dm-conversations', ctx.profileId]) ??
+          ctx.queryClient.getQueryData(['conversations', ctx.profileId]),
+      );
 
-    if (cachedConvos) {
+    if (cachedConvos.length) {
       const cachedConvo = cachedConvos.find((c) => c.id === conversationId);
-      const memberProfile = cachedConvo?.members?.find(
+      const memberProfile = safeDmMembers(cachedConvo?.members).find(
         (m: any) => m.user_id === newMessage.sender_id,
       )?.profile;
       if (memberProfile) sender = memberProfile;

@@ -6,7 +6,7 @@
 
 import { useState, useEffect, useSyncExternalStore, useRef, useMemo } from 'react';
 import { getCachedSignedUrl, getSignedUrl, needsSigning, batchSignUrls } from '@/lib/signedUrlCache';
-import { normalizeMediaUrl } from '@/lib/mediaUrl';
+import { firebaseStorageNeedsToken, normalizeMediaUrl } from '@/lib/mediaUrl';
 import { firebaseStorage } from '@/lib/firebase/storageService';
 
 // Subscribers for reactive updates when cache changes
@@ -29,11 +29,13 @@ function subscribe(callback: () => void) {
  */
 export function useFastSignedUrl(publicUrl: string | null | undefined): string | null {
   const normalizedUrl = normalizeMediaUrl(publicUrl);
+  const needsFirebaseToken = firebaseStorageNeedsToken(normalizedUrl);
   const cached = useSyncExternalStore(
     subscribe,
     () => getCachedSignedUrl(normalizedUrl),
     () => getCachedSignedUrl(normalizedUrl)
   );
+  const syncCached = cached && !needsFirebaseToken ? cached : null;
   
   const [asyncUrl, setAsyncUrl] = useState<string | null>(null);
   const fetchedRef = useRef<string | null>(null);
@@ -44,10 +46,7 @@ export function useFastSignedUrl(publicUrl: string | null | undefined): string |
       return;
     }
 
-    if (
-      normalizedUrl.startsWith('gs://') ||
-      normalizedUrl.includes('firebasestorage.googleapis.com')
-    ) {
+    if (needsFirebaseToken) {
       let cancelled = false;
       void firebaseStorage.resolveMediaUrl(normalizedUrl).then((url) => {
         if (!cancelled && url) setAsyncUrl(url);
@@ -60,7 +59,7 @@ export function useFastSignedUrl(publicUrl: string | null | undefined): string |
       return;
     }
     
-    if (cached || fetchedRef.current === normalizedUrl) {
+    if (syncCached || fetchedRef.current === normalizedUrl) {
       return;
     }
     
@@ -78,9 +77,9 @@ export function useFastSignedUrl(publicUrl: string | null | undefined): string |
     });
     
     return () => { cancelled = true; };
-  }, [normalizedUrl, cached]);
+  }, [normalizedUrl, syncCached, needsFirebaseToken]);
   
-  return cached || asyncUrl;
+  return syncCached || asyncUrl;
 }
 
 /**

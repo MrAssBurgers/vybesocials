@@ -10,6 +10,7 @@ import { Shield, Eye, Play, RefreshCw, ImageOff } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useSignedUrl } from '@/hooks/useSignedUrl';
+import { normalizeMediaUrl } from '@/lib/mediaUrl';
 import { cn } from '@/lib/utils';
 
 interface ChatMediaBubbleProps {
@@ -38,8 +39,10 @@ export function ChatMediaBubble({
   const [signingTimedOut, setSigningTimedOut] = useState(false);
 
   // For blob/data URLs (optimistic sends), skip signing
-  const isLocalUrl = mediaUrl?.startsWith('blob:') || mediaUrl?.startsWith('data:');
-  const resolvedUrl = useSignedUrl(isLocalUrl ? null : mediaUrl);
+  const normalizedMediaUrl = normalizeMediaUrl(mediaUrl) ?? mediaUrl;
+  const isLocalUrl =
+    normalizedMediaUrl?.startsWith('blob:') || normalizedMediaUrl?.startsWith('data:');
+  const resolvedUrl = useSignedUrl(isLocalUrl ? null : normalizedMediaUrl);
   const displayUrl = isLocalUrl ? mediaUrl : resolvedUrl;
 
   // Timeout: if signing hasn't resolved in 8s, treat as error
@@ -205,7 +208,8 @@ function BlurOverlay({ onReveal }: { onReveal: () => void }) {
  */
 export function SignedAudioUrl({ mediaUrl, children }: { mediaUrl: string; children: (url: string | null) => React.ReactNode }) {
   const isLocalUrl = mediaUrl?.startsWith('blob:') || mediaUrl?.startsWith('data:');
-  const resolvedUrl = useSignedUrl(isLocalUrl ? null : mediaUrl);
+  const normalized = normalizeMediaUrl(mediaUrl) ?? mediaUrl;
+  const resolvedUrl = useSignedUrl(isLocalUrl ? null : normalized);
   const displayUrl = isLocalUrl ? mediaUrl : resolvedUrl;
   return <>{children(displayUrl)}</>;
 }
