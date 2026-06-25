@@ -97,16 +97,16 @@ export function ensureArray<T = any>(data: unknown): T[] {
 }
 
 /** DM member rows — persisted cache can deserialize `members` as `{}`. */
-export function safeDmMembers<T = unknown>(members: unknown): T[] {
+export function safeDmMembers<T = any>(members: unknown): T[] {
   return ensureArray<T>(members);
 }
 
 /** React Query cache can deserialize list queries as `{}` — never call `.find` on raw cache. */
-export function readQueryArray<T>(data: unknown): T[] {
+export function readQueryArray<T = any>(data: unknown): T[] {
   return ensureArray<T>(data);
 }
 
-export function findInQueryArray<T>(
+export function findInQueryArray<T = any>(
   data: unknown,
   predicate: (item: T, index: number) => boolean,
 ): T | undefined {
