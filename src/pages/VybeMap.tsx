@@ -425,7 +425,7 @@ function VybeMapInner() {
               if (!effectiveId) return;
               const name = profile?.display_name || profile?.username || 'Someone';
               await sendMapWave(effectiveId, sel.user_id, name);
-              trackMapEvent('map_wave', { to: sel.user_id });
+              trackMapEvent('map_wave' as any, { to: sel.user_id });
             }}
             onFind={() => handleFindFriend(sel)}
             onProfile={() => { const u = sel.profile?.username; if (u) navigate(`/u/${u}`); }}
