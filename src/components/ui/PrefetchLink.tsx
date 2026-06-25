@@ -2,7 +2,7 @@ import { forwardRef, useCallback } from 'react';
 import { Link, LinkProps, useNavigate } from 'react-router-dom';
 import { preloadRoute } from '@/lib/routePreloader';
 
-interface PrefetchLinkProps extends LinkProps {
+interface PrefetchLinkProps extends Omit<LinkProps, 'prefetch'> {
   prefetch?: boolean;
 }
 

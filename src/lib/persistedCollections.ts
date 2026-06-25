@@ -80,7 +80,7 @@ const PERSISTED_ARRAY_KEY_FRAGMENTS = [
   'trashed-conversations',
 ];
 
-export function ensureArray<T>(data: unknown): T[] {
+export function ensureArray<T = any>(data: unknown): T[] {
   if (Array.isArray(data)) return data;
   if (data == null) return [];
   if (typeof data === 'object') {
@@ -97,16 +97,16 @@ export function ensureArray<T>(data: unknown): T[] {
 }
 
 /** DM member rows — persisted cache can deserialize `members` as `{}`. */
-export function safeDmMembers<T = unknown>(members: unknown): T[] {
+export function safeDmMembers<T = any>(members: unknown): T[] {
   return ensureArray<T>(members);
 }
 
 /** React Query cache can deserialize list queries as `{}` — never call `.find` on raw cache. */
-export function readQueryArray<T>(data: unknown): T[] {
+export function readQueryArray<T = any>(data: unknown): T[] {
   return ensureArray<T>(data);
 }
 
-export function findInQueryArray<T>(
+export function findInQueryArray<T = any>(
   data: unknown,
   predicate: (item: T, index: number) => boolean,
 ): T | undefined {
@@ -388,7 +388,7 @@ export function installQueryCacheWriteGuard(queryClient: QueryClient): void {
             const base = queryDataNeedsRevive(queryKey, old)
               ? revivePersistedQueryData(queryKey, old)
               : old;
-            const next = updater(base);
+            const next = (updater as (input: unknown) => unknown)(base);
             if (next === base) return base;
             return queryDataNeedsRevive(queryKey, next)
               ? revivePersistedQueryData(queryKey, next)

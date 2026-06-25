@@ -97,7 +97,7 @@ export function useMyServers() {
       const serverMap = new Map((servers || []).map((s: Server) => [s.id, s]));
       return serverIds
         .map((id) => {
-          const server = serverMap.get(id);
+          const server = serverMap.get(id) as Server | undefined;
           const membership = rows.find((r: { server_id: string }) => r.server_id === id);
           if (!server?.id || !server?.name) return null;
           return { ...server, myRole: membership?.role ?? 'member' } as Server & { myRole: ServerRole };
