@@ -2,6 +2,12 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## DM page crash fix — route error on /messages (2026-06-25)
+- **Symptom:** "This page couldn't load" when opening DMs (route ErrorBoundary, not inbox fallback)
+- **Cause:** Corrupt persisted DM rows (object `name` / `display_name` rendered as React children); hooks in `Messages()` sat outside child error boundary; heavy `ChatView` static import
+- **Fix:** Always normalize DM list rows; `asDisplayLabel` for conversation names; `useAppBackgroundSafe` (no throw); `MessagesInner` inside `SmartErrorBoundary`; lazy `ChatView`; `LocalErrorBoundary` + `DmInboxSafeList` fallback; cache buster `vybe-cache-v16`
+- **Verified:** `npm run build` PASS · deploy vybe-daaab.web.app
+
 ## Multi-fix batch — media, hubs, DMs, listings, monitoring, wordmark (2026-06-25)
 - **Media/images/video:** Firebase `?alt=media` URLs without tokens now resolve via `getDownloadURL` (`firebaseStorageNeedsToken` + `useFastSignedUrl`); extra storage prefixes (`hubs/`, `servers/`, `listings/`); `ChatMediaBubble` audio path normalized
 - **Hubs sidebar:** `useMyServers` two-step fetch (memberships → servers) — fixes `?` placeholders from broken nested join

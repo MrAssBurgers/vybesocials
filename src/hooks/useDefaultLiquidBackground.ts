@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { useLocation } from 'react-router-dom';
 import { useAuth } from '@/lib/auth';
-import { useAppBackground } from '@/components/layout/AppBackground';
+import { useAppBackgroundSafe } from '@/components/layout/AppBackground';
 import { STABLE_APP_BACKGROUND } from '@/lib/appBackgroundMode';
 import { isAuthLiquidPath, isExcludedLiquidPath } from '@/lib/vybeLiquidPaths';
 
@@ -27,7 +27,7 @@ function canUseDefaultLiquidExperience(hasUserWallpaper: boolean): boolean {
  */
 export function useDefaultLiquidBackground(): boolean {
   const { user } = useAuth();
-  const { hasUserWallpaper } = useAppBackground();
+  const { hasUserWallpaper = false } = useAppBackgroundSafe() ?? {};
   const { pathname } = useLocation();
 
   return useMemo(() => {
@@ -40,7 +40,7 @@ export function useDefaultLiquidBackground(): boolean {
 
 /** Inline aurora on auth Landing — off in stable mode. */
 export function useAuthLandingLiquid(): boolean {
-  const { hasUserWallpaper } = useAppBackground();
+  const { hasUserWallpaper = false } = useAppBackgroundSafe() ?? {};
   const { pathname } = useLocation();
 
   return useMemo(

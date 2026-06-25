@@ -12,6 +12,14 @@ import { cn } from '@/lib/utils';
 
 const SWIPE_THRESHOLD = -72;
 
+function asDisplayLabel(value: unknown): string | undefined {
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    return trimmed || undefined;
+  }
+  return undefined;
+}
+
 interface SwipeableDmConversationRowProps {
   conversation: LoadedDMConversation;
   profileId?: string;
@@ -118,9 +126,9 @@ export const SwipeableDmConversationRow = memo(function SwipeableDmConversationR
       onOpenChange={setOptionsOpen}
       conversationId={conversation.id}
       otherUserId={!conversation.is_group ? otherMember?.id : undefined}
-      otherUsername={!conversation.is_group ? otherMember?.username ?? undefined : undefined}
+      otherUsername={!conversation.is_group ? asDisplayLabel(otherMember?.username) : undefined}
       otherDisplayName={displayName}
-      otherAvatarUrl={otherMember?.avatar_url ?? undefined}
+      otherAvatarUrl={typeof otherMember?.avatar_url === 'string' ? otherMember.avatar_url : undefined}
       isMuted={isMuted}
       isPinned={isPinned}
     />

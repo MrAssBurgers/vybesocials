@@ -114,11 +114,14 @@ export function findInQueryArray<T>(
 }
 
 /** DM rows: persisted cache can deserialize members as `{}` — breaks .filter / for…of in ChatView. */
-export function normalizeDmConversation<T extends { members?: unknown; last_message?: unknown }>(conv: T): T {
+export function normalizeDmConversation<T extends { members?: unknown; last_message?: unknown; name?: unknown }>(conv: T): T {
   if (!conv || typeof conv !== 'object') return conv;
   let next = conv;
   if (conv.members != null && !Array.isArray(conv.members)) {
     next = { ...next, members: ensureArray(conv.members) };
+  }
+  if (conv.name != null && typeof conv.name !== 'string') {
+    next = { ...next, name: null };
   }
   const lm = conv.last_message;
   if (lm != null && typeof lm === 'object' && !Array.isArray(lm)) {
@@ -141,8 +144,6 @@ export function normalizeDmConversation<T extends { members?: unknown; last_mess
 export function normalizeDmConversationList<T extends { members?: unknown }>(list: unknown): T[] {
   const rows = ensureArray<T>(list);
   if (!rows.length) return rows;
-  const needsFix = !Array.isArray(list) || rows.some((c) => c?.members != null && !Array.isArray(c.members));
-  if (!needsFix) return rows;
   return rows.map((c) => normalizeDmConversation(c));
 }
 

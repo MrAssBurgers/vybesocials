@@ -119,6 +119,14 @@ export function resolveOtherMemberFromConversation(
   return { user_id: canonicalId, profile };
 }
 
+function asDisplayLabel(value: unknown): string | undefined {
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    return trimmed || undefined;
+  }
+  return undefined;
+}
+
 export function displayNameForConversation(
   conversation: {
     is_group?: boolean;
@@ -131,7 +139,9 @@ export function displayNameForConversation(
   viewerAuthUid?: string | null,
   fallback = 'Unknown',
 ): string {
-  if (conversation.is_group) return conversation.name || 'Group Chat';
+  if (conversation.is_group) {
+    return asDisplayLabel(conversation.name) || 'Group Chat';
+  }
   const resolved = resolveOtherMemberFromConversation(
     conversation,
     viewerProfileId,
@@ -139,8 +149,8 @@ export function displayNameForConversation(
   );
   const profile = resolved?.profile;
   return (
-    (profile?.display_name as string | undefined) ||
-    (profile?.username as string | undefined) ||
+    asDisplayLabel(profile?.display_name) ||
+    asDisplayLabel(profile?.username) ||
     fallback
   );
 }
