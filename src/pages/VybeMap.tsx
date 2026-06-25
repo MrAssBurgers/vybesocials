@@ -562,7 +562,7 @@ function VybeMapInner() {
           if (safeMyCoords) setMeetupCreateOpen(true);
           else toast.error('Enable location first');
         }}
-        onCreateMeetup={() => safeMyCoords ? setMeetupCreateOpen(true) : toast.error('Enable location first')}
+        
       />
     </div>
   );
