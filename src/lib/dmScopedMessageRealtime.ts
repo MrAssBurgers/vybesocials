@@ -15,7 +15,7 @@ import {
   type RealtimeChannel,
 } from '@/lib/realtimeChannel';
 
-function sanitizeRealtimeMessage(raw: unknown): Record<string, unknown> | null {
+function sanitizeRealtimeMessage(raw: unknown): any {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
   const row = raw as Record<string, unknown>;
   const id = typeof row.id === 'string' ? row.id : row.id != null ? String(row.id) : '';
