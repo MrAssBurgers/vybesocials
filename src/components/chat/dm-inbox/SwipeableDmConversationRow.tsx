@@ -131,7 +131,7 @@ export const SwipeableDmConversationRow = memo(function SwipeableDmConversationR
       open={optionsOpen}
       onOpenChange={setOptionsOpen}
       conversationId={conversation.id}
-      otherUserId={!conversation.is_group ? otherMember?.id : undefined}
+      otherUserId={!conversation.is_group ? (otherMember?.id as string | undefined) : undefined}
       otherUsername={!conversation.is_group ? asDisplayLabel(otherMember?.username) : undefined}
       otherDisplayName={displayName}
       otherAvatarUrl={typeof otherMember?.avatar_url === 'string' ? otherMember.avatar_url : undefined}
