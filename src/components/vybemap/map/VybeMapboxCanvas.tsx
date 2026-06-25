@@ -57,12 +57,28 @@ function isCluster<T extends { id: string }>(
 }
 
 
+function escapeHtml(s: string): string {
+  return String(s).replace(/[&<>"'`=/]/g, (c) => (
+    { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;', '`': '&#96;', '=': '&#61;', '/': '&#47;' }[c] as string
+  ));
+}
+
+function safeImgUrl(raw: string | null | undefined): string | null {
+  if (!raw) return null;
+  const trimmed = String(raw).trim();
+  if (!/^https?:\/\//i.test(trimmed) && !trimmed.startsWith('/') && !trimmed.startsWith('data:image/')) return null;
+  // Reject quotes/whitespace/control chars that could break out of the attribute.
+  if (/["'<>\s]/.test(trimmed)) return null;
+  return trimmed;
+}
+
 function friendMarkerHtml(f: LiveFriend, opts?: { headingToward?: boolean; squad?: boolean }): string {
   const ring = opts?.squad ? '#a855f7' : (f.speed || 0) > 0.5 ? '#22c55e' : '#facc15';
   const pulse = opts?.headingToward ? ' vybe-mbx-heading' : '';
-  const initial = (f.profile?.display_name || f.profile?.username || '?')[0];
-  const avatar = f.profile?.avatar_url
-    ? `<img src="${normalizeMediaUrl(f.profile.avatar_url) || f.profile.avatar_url}" onerror="this.style.display='none'" class="vybe-mbx-avatar"/>`
+  const initial = escapeHtml((f.profile?.display_name || f.profile?.username || '?')[0] || '?');
+  const avatarUrl = safeImgUrl(normalizeMediaUrl(f.profile?.avatar_url || '') || f.profile?.avatar_url || null);
+  const avatar = avatarUrl
+    ? `<img src="${avatarUrl}" onerror="this.style.display='none'" class="vybe-mbx-avatar"/>`
     : `<div class="vybe-mbx-avatar flex items-center justify-center bg-zinc-200 text-zinc-600 font-bold text-lg">${initial}</div>`;
   return `<div class="vybe-mbx-friend${pulse}" style="--ring:${ring}">${avatar}</div>`;
 }
@@ -78,18 +94,20 @@ function spotMarkerHtml(p: MapPlace): string {
       : intel?.verdict === 'caution'
         ? '<span class="vybe-mbx-spot-warn">⚠️</span>'
         : '';
+  const photoUrl = safeImgUrl(p.photo_url);
   return `<div class="vybe-mbx-spot-wrap">${warn}<div class="vybe-mbx-spot${pulse}" style="width:${size}px;height:${size}px">
-    ${p.photo_url ? `<img src="${p.photo_url}" class="vybe-mbx-spot-img"/>` : `<span>${emoji}</span>`}
+    ${photoUrl ? `<img src="${photoUrl}" class="vybe-mbx-spot-img"/>` : `<span>${emoji}</span>`}
   </div></div>`;
 }
 
 function meetupMarkerHtml(title: string): string {
   const short = title.length > 12 ? `${title.slice(0, 11)}…` : title;
-  return `<div class="vybe-mbx-meetup" title="${title.replace(/"/g, '&quot;')}">
+  return `<div class="vybe-mbx-meetup" title="${escapeHtml(title)}">
     <span class="vybe-mbx-meetup-icon">📍</span>
-    <span class="vybe-mbx-meetup-label">${short}</span>
+    <span class="vybe-mbx-meetup-label">${escapeHtml(short)}</span>
   </div>`;
 }
+
 
 export const VybeMapboxCanvas = memo(function VybeMapboxCanvas({
   center,
