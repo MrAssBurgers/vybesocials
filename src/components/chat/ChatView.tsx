@@ -115,9 +115,10 @@ import {
 } from 'lucide-react';
 import { Toybox } from './Toybox';
 import { EmojiPicker } from './EmojiPicker';
-import { VybeSnapCamera } from '@/components/camera/VybeSnapCamera';
-import { CameraMountBoundary } from '@/components/camera/CameraMountBoundary';
-import { requestCameraStream, stopCameraStream } from '@/hooks/useCameraPreload';
+import { openCameraFromGesture, useCameraOverlay } from '@/contexts/CameraOverlayContext';
+import { KeyboardAwareTexter } from '@/components/chat/KeyboardAwareTexter';
+import { Texter } from '@/components/chat/Texter';
+import { stopCameraStream } from '@/hooks/useCameraPreload';
 import { useCallStore } from '@/lib/callStore';
 import { VybeViewer } from './VybeViewer';
 import { CameraFirstOverlay } from './CameraFirstOverlay';
@@ -329,27 +330,10 @@ export function ChatView() {
   const [showGroupInfo, setShowGroupInfo] = useState(false);
   const [showMediaSettings, setShowMediaSettings] = useState(false);
   const [showAdminPanel, setShowAdminPanel] = useState(false);
-  const [showSnapCamera, setShowSnapCamera] = useState(false);
-  const [snapInitialStream, setSnapInitialStream] = useState<MediaStream | null>(null);
   const [cameraFirstMode, setCameraFirstMode] = useState(false);
 
   const callStore = useCallStore();
-  const handleOpenSnapCamera = useCallback(() => {
-    if (callStore.state.phase !== 'idle') {
-      toast.error('End your call to use the camera');
-      return;
-    }
-    try { stopCameraStream(); } catch {}
-    // Kick off media request from inside the tap handler — keep gesture context.
-    // Open the modal immediately so the user gets feedback; attach stream when ready.
-    setSnapInitialStream(null);
-    setShowSnapCamera(true);
-  }, [callStore.state.phase]);
-  const closeSnapCamera = useCallback(() => {
-    setShowSnapCamera(false);
-    setSnapInitialStream(null);
-    try { stopCameraStream(); } catch {}
-  }, []);
+  const { openCamera, isOpen: isCameraOpen } = useCameraOverlay();
   const [showScreenshotAlert, setShowScreenshotAlert] = useState(false);
   const [screenshotUser, setScreenshotUser] = useState<string | undefined>();
   // Video preview state
@@ -364,7 +348,7 @@ export function ChatView() {
   const addSticker = useAddSticker();
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
   const inputContainerRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const typingTimeoutRef = useRef<NodeJS.Timeout>();
@@ -432,13 +416,13 @@ export function ChatView() {
   const showPeerPresence = !isGroupChat && !!peerPresence && otherPresenceActivity !== 'idle';
 
   useEffect(() => {
-    setLiveTakingPhoto(cameraFirstMode || showSnapCamera);
-    setSendingVybe(showSnapCamera);
+    setLiveTakingPhoto(cameraFirstMode || isCameraOpen);
+    setSendingVybe(isCameraOpen);
     return () => {
-      if (cameraFirstMode || showSnapCamera) setLiveTakingPhoto(false);
-      if (showSnapCamera) setSendingVybe(false);
+      if (cameraFirstMode || isCameraOpen) setLiveTakingPhoto(false);
+      if (isCameraOpen) setSendingVybe(false);
     };
-  }, [cameraFirstMode, showSnapCamera, setLiveTakingPhoto, setSendingVybe]);
+  }, [cameraFirstMode, isCameraOpen, setLiveTakingPhoto, setSendingVybe]);
 
   const displayName = safeConversation
     ? displayNameForConversation(safeConversation, profileId, user?.id, 'Chat')
@@ -637,7 +621,7 @@ export function ChatView() {
   // Imperatively writes to the input DOM node so we can clear/append
   // without forcing a parent re-render.
   const writeInputDom = useCallback((value: string) => {
-    const el = inputRef.current as HTMLInputElement | null;
+    const el = inputRef.current;
     if (el && el.value !== value) {
       el.value = value;
     }
@@ -983,8 +967,8 @@ export function ChatView() {
       return [...old, optimisticMessage];
     });
 
-    // Close camera and show toast immediately
-    setShowSnapCamera(false);
+    // Close camera overlay and show toast immediately
+    try { stopCameraStream(); } catch {}
     toast.success(isVideo ? 'Sending video VYBE... 🎬' : 'Sending VYBE... ✨', { id: `vybe-${tempId}` });
 
     // Helper to mark message as failed with specific error
@@ -1178,6 +1162,18 @@ export function ChatView() {
       toast.error(`Failed to send VYBE: ${error?.message || 'Unknown error'}`, { id: `vybe-${tempId}`, duration: 5000 });
     }
   }, [conversationId, profile, profileId, viewMode, replyingTo?.id, queryClient, otherMember?.id]);
+
+  const handleOpenSnapCamera = useCallback(() => {
+    if (callStore.state.phase !== 'idle') {
+      toast.error('End your call to use the camera');
+      return;
+    }
+    openCameraFromGesture(openCamera, 'dm', {
+      onSend: (url, isVideo) => {
+        void handleVybeSend(url, isVideo);
+      },
+    });
+  }, [callStore.state.phase, openCamera, handleVybeSend]);
 
   // Handle video selection - opens the preview modal
   const handleVideoSelect = useCallback((file: File) => {
@@ -1698,12 +1694,12 @@ export function ChatView() {
                     <div className={cn(
                       "flex items-center gap-2 px-4 py-2 rounded-full text-xs font-medium backdrop-blur-sm border",
                       isScreenshotNotification 
-                        ? "bg-amber-500/10 border-amber-500/20 text-amber-600 dark:text-amber-400"
+                        ? "bg-primary/10 border-primary/25 text-foreground"
                         : isRecording
-                          ? "bg-red-500/10 border-red-500/20 text-red-600 dark:text-red-400"
+                          ? "bg-destructive/10 border-destructive/25 text-destructive"
                           : isStopped
                             ? "bg-muted/50 border-border/30 text-muted-foreground"
-                            : "bg-orange-500/10 border-orange-500/20 text-orange-600 dark:text-orange-400"
+                            : "bg-primary/10 border-primary/20 text-muted-foreground"
                     )}>
                       {isScreenshotNotification ? (
                         <Camera className="h-3.5 w-3.5" />
@@ -1890,17 +1886,6 @@ export function ChatView() {
       />
 
       {/* VYBE Camera Modal — only mount when open to avoid heavy AR/MediaPipe init in DM view */}
-      {showSnapCamera && (
-        <CameraMountBoundary onError={closeSnapCamera}>
-          <VybeSnapCamera
-            isOpen={showSnapCamera}
-            onClose={closeSnapCamera}
-            onSend={handleVybeSend}
-            initialStream={snapInitialStream}
-          />
-        </CameraMountBoundary>
-      )}
-
       {/* Video Send Preview Modal */}
       <VideoSendPreview
         open={showVideoPreview}
@@ -1975,6 +1960,7 @@ export function ChatView() {
             isVoiceLocked={isVoiceLocked}
             setIsVoiceLocked={setIsVoiceLocked}
             voiceLockStartYRef={voiceLockStartYRef}
+            messagesContainerRef={messagesContainerRef}
             safetyFilterNode={
               <SafetyFilterRequestButton
                 isSafetyDisabled={conversationSafety.isSafetyDisabled}
@@ -2050,6 +2036,7 @@ export function ChatView() {
           isVoiceLocked={isVoiceLocked}
           setIsVoiceLocked={setIsVoiceLocked}
           voiceLockStartYRef={voiceLockStartYRef}
+          messagesContainerRef={messagesContainerRef}
           safetyFilterNode={
             <SafetyFilterRequestButton
               isSafetyDisabled={conversationSafety.isSafetyDisabled}
@@ -2125,6 +2112,7 @@ const MessageInputArea = memo(function MessageInputArea({
   setIsVoiceLocked,
   voiceLockStartYRef,
   safetyFilterNode,
+  messagesContainerRef,
 }: {
   hasText: boolean;
   getMessageText: () => string;
@@ -2136,7 +2124,7 @@ const MessageInputArea = memo(function MessageInputArea({
   isUploadingMedia: boolean;
   replyingTo: Message | null;
   isPending: boolean;
-  inputRef: React.RefObject<HTMLInputElement>;
+  inputRef: React.RefObject<HTMLTextAreaElement>;
   inputContainerRef: React.RefObject<HTMLDivElement>;
   fileInputRef: React.RefObject<HTMLInputElement>;
   handleInputChange: (value: string) => void;
@@ -2170,231 +2158,146 @@ const MessageInputArea = memo(function MessageInputArea({
   setIsVoiceLocked?: (locked: boolean) => void;
   voiceLockStartYRef?: React.MutableRefObject<number | null>;
   safetyFilterNode?: React.ReactNode;
+  messagesContainerRef?: React.RefObject<HTMLElement | null>;
 }) {
-  return (
-    <div className="dm-composer-dock relative flex-shrink-0 z-30">
-      {/* Sticker Panel */}
-      {onSendSticker && showStickerPanel && setShowStickerPanel && (
-        <StickerPanel
-          open={showStickerPanel}
-          onClose={() => setShowStickerPanel(false)}
-          onSendSticker={onSendSticker}
-        />
+  const headerSlot = (
+    <>
+      {editingMessageId && (
+        <div className="flex items-center gap-2 px-2 py-1.5 mb-2 bg-primary/10 rounded-xl border-l-2 border-primary">
+          <Pencil className="h-3.5 w-3.5 text-primary flex-shrink-0" />
+          <p className="text-[11px] text-primary font-medium flex-1">Editing message</p>
+          <Button variant="ghost" size="icon" className="h-6 w-6" onClick={onCancelEdit}>
+            <X className="h-3 w-3" />
+          </Button>
+        </div>
       )}
-
-      <div className="dm-composer">
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept="image/*"
-        onChange={handleImageSelect}
-        className="hidden"
-      />
-
-        {/* Edit mode banner */}
-        {editingMessageId && (
-          <div className="flex items-center gap-2 px-2 py-1.5 sm:px-3 sm:py-2 mb-2 bg-primary/10 rounded-lg border-l-2 border-primary">
-            <Pencil className="h-3 w-3 sm:h-4 sm:w-4 text-primary flex-shrink-0" />
-            <div className="flex-1 min-w-0">
-              <p className="text-[10px] sm:text-xs text-primary font-medium leading-tight">
-                Editing message
-              </p>
-            </div>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-5 w-5 sm:h-6 sm:w-6 flex-shrink-0"
-              onClick={onCancelEdit}
-            >
-              <X className="h-3 w-3" />
-            </Button>
+      {replyingTo && (
+        <div className="flex items-center gap-2 px-2 py-1.5 mb-2 bg-muted/40 rounded-xl border-l-2 border-primary/80">
+          <CornerUpLeft className="h-3.5 w-3.5 text-primary flex-shrink-0" />
+          <div className="flex-1 min-w-0">
+            <p className="text-[11px] text-primary font-medium">
+              Replying to {replyingTo.sender?.username || 'message'}
+            </p>
+            <p className="text-[10px] text-muted-foreground truncate">
+              {replyingTo.content || (replyingTo.media_type === 'image' ? '📷 Photo' : '🎤 Voice message')}
+            </p>
           </div>
-        )}
+          <Button variant="ghost" size="icon" className="h-6 w-6" onClick={clearReply}>
+            <X className="h-3 w-3" />
+          </Button>
+        </div>
+      )}
+    </>
+  );
 
-        {/* Reply preview - compact on mobile */}
-        {replyingTo && (
-          <div className="flex items-center gap-2 px-2 py-1.5 sm:px-3 sm:py-2 mb-2 bg-muted/50 rounded-lg border-l-2 border-primary">
-            <CornerUpLeft className="h-3 w-3 sm:h-4 sm:w-4 text-primary flex-shrink-0" />
-            <div className="flex-1 min-w-0">
-              <p className="text-[10px] sm:text-xs text-primary font-medium leading-tight">
-                Replying to {replyingTo.sender?.username || 'message'}
-              </p>
-              <p className="text-[10px] sm:text-xs text-muted-foreground truncate leading-tight">
-                {replyingTo.content || (replyingTo.media_type === 'image' ? '📷 Photo' : '🎤 Voice message')}
-              </p>
-            </div>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-5 w-5 sm:h-6 sm:w-6 flex-shrink-0"
-              onClick={clearReply}
-            >
-              <X className="h-3 w-3" />
-            </Button>
-          </div>
-        )}
-
-        {isRecordingVoice ? (
-          <VoiceRecorder
-            onRecordingComplete={(blob) => {
-              setIsRecordingVoice(false);
-              setIsVoiceLocked?.(false);
-              onLiveRecordingChange?.(false);
-              handleVoiceRecordingComplete(blob);
-            }}
-            onCancel={() => {
-              setIsRecordingVoice(false);
-              setIsVoiceLocked?.(false);
-              onLiveRecordingChange?.(false);
-            }}
-            isUploading={isUploadingMedia}
-            autoSend
-            locked={isVoiceLocked}
+  return (
+    <KeyboardAwareTexter scrollContainerRef={messagesContainerRef}>
+      <div className="dm-composer-dock relative flex-shrink-0 z-30 px-3 pt-2 pb-1">
+        {onSendSticker && showStickerPanel && setShowStickerPanel && (
+          <StickerPanel
+            open={showStickerPanel}
+            onClose={() => setShowStickerPanel(false)}
+            onSendSticker={onSendSticker}
           />
-        ) : (
-          <div ref={inputContainerRef} className="dm-composer-row">
-            {/* Toybox - far left */}
-            {!hasText && (
-              <Toybox
-                onImageSelect={async (file) => {
-                  const dt = new DataTransfer();
-                  dt.items.add(file);
-                  handleImageSelect({ target: { files: dt.files } } as React.ChangeEvent<HTMLInputElement>);
-                }}
-                onVideoSelect={(file) => {
-                  handleVideoSelect(file);
-                }}
-                onGifSelect={async (gifUrl) => {
-                  await sendMediaMessage(gifUrl, 'gif');
-                }}
-                onVoiceStart={() => {
-                  setIsRecordingVoice(true);
-                  onLiveRecordingChange?.(true);
-                }}
-                onEmojiSelect={(emoji) => {
-                  appendToInput(emoji);
-                  inputRef.current?.focus();
-                }}
-                isUploading={isUploadingMedia}
-                onOpenVanishThreads={onOpenVanishThreads}
-                onOpenMemoryPins={onOpenMemoryPins}
-                onOpenScheduleMessage={onOpenScheduleMessage}
-                onOpenDMSettings={onOpenDMSettings}
-                onOpenAdminPanel={onOpenAdminPanel}
-                onOpenVybeCamera={onOpenSnapCamera}
-                onCreateOffer={onCreateOffer}
-                hasBusinessProfile={hasBusinessProfile}
-                safetyFilterNode={safetyFilterNode}
-              />
-            )}
-
-            <div className="flex-1 relative min-w-0">
-              <Input
-                ref={inputRef}
-                defaultValue={getMessageText()}
-                onChange={(e) => handleInputChange(e.target.value)}
-                onKeyPress={handleKeyPress}
-                onFocus={() => {
-                  window.setTimeout(() => {
-                    inputRef.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-                  }, 120);
-                }}
-                placeholder={t('messages.typeMessage')}
-                className="dm-composer-input"
-              />
-            </div>
-
-            {!hasText ? (
-              <div className="flex items-center gap-0.5">
-                {setShowStickerPanel && (
-                  <Button 
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => setShowStickerPanel(!showStickerPanel)}
-                    className="dm-composer-btn"
-                  >
-                    <Sticker className="h-4 w-4 sm:h-5 sm:w-5" />
-                  </Button>
-                )}
-                {/* Lock indicator above mic button */}
-                <div className="relative">
-                  {isRecordingVoice && !isVoiceLocked && (
-                    <motion.div
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      className="absolute -top-10 left-1/2 -translate-x-1/2 flex flex-col items-center"
-                    >
-                      <Lock className="h-4 w-4 text-muted-foreground animate-bounce" />
-                    </motion.div>
-                  )}
-                  <Button 
-                    variant="ghost"
-                    size="icon"
-                    onPointerDown={(e) => {
-                      e.preventDefault();
-                      (e.target as HTMLElement).setPointerCapture(e.pointerId);
-                      if (voiceLockStartYRef) voiceLockStartYRef.current = e.clientY;
-                      setIsRecordingVoice(true);
-                      setIsVoiceLocked?.(false);
-                      onLiveRecordingChange?.(true);
-                    }}
-                    onPointerMove={(e) => {
-                      if (!isRecordingVoice || isVoiceLocked || !voiceLockStartYRef?.current) return;
-                      const dy = voiceLockStartYRef.current - e.clientY;
-                      if (dy > 40) {
-                        setIsVoiceLocked?.(true);
-                        voiceLockStartYRef.current = null;
-                      }
-                    }}
-                    onPointerUp={() => {
-                      if (isVoiceLocked) return; // locked mode, don't auto-send
-                      if (isRecordingVoice && (window as any).__voiceRecorderStop) {
-                        (window as any).__voiceRecorderStop();
-                      }
-                    }}
-                    onPointerCancel={() => {
-                      if (isVoiceLocked) return;
-                      if (isRecordingVoice && (window as any).__voiceRecorderStop) {
-                        (window as any).__voiceRecorderStop();
-                      }
-                    }}
-                    className="dm-composer-btn touch-none"
-                  >
-                    <Mic className="h-4 w-4 sm:h-5 sm:w-5" />
-                  </Button>
-                </div>
-              </div>
-            ) : (
-              <Button 
-                onClick={handleSend}
-                disabled={!hasText || isPending}
-                size="icon"
-                className="dm-composer-btn dm-composer-btn--accent"
-              >
-                {isPending ? (
-                  <Loader2 className="h-4 w-4 sm:h-5 sm:w-5 animate-spin" />
-                ) : (
-                  <Send className="h-4 w-4 sm:h-5 sm:w-5" />
-                )}
-              </Button>
-            )}
-
-            {/* Camera button - far right */}
-            {onOpenSnapCamera && (
-              <Button 
-                variant="ghost"
-                size="icon"
-                onClick={onOpenSnapCamera}
-                className="dm-composer-btn dm-composer-btn--accent"
-              >
-                <Camera className="h-5 w-5 sm:h-6 sm:w-6" />
-              </Button>
-            )}
-          </div>
         )}
 
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          onChange={handleImageSelect}
+          className="hidden"
+        />
+
+        <Texter
+          hasText={hasText}
+          getMessageText={getMessageText}
+          appendToInput={appendToInput}
+          inputRef={inputRef}
+          onChange={handleInputChange}
+          onKeyDown={handleKeyPress}
+          onSend={handleSend}
+          onFocus={() => {
+            requestAnimationFrame(() => {
+              inputRef.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+            });
+          }}
+          isPending={isPending}
+          isUploadingMedia={isUploadingMedia}
+          placeholder={t('messages.typeMessage')}
+          headerSlot={headerSlot}
+          onOpenVybeSnap={onOpenSnapCamera}
+          isRecordingVoice={isRecordingVoice}
+          isVoiceLocked={isVoiceLocked}
+          onVoiceHoldStart={() => {
+            if (voiceLockStartYRef) voiceLockStartYRef.current = null;
+            setIsRecordingVoice(true);
+            setIsVoiceLocked?.(false);
+            onLiveRecordingChange?.(true);
+          }}
+          onVoiceHoldEnd={() => {
+            if (isVoiceLocked) return;
+            const stop = (window as Window & { __voiceRecorderStop?: () => void }).__voiceRecorderStop;
+            stop?.();
+          }}
+          onVoiceHoldCancel={() => {
+            setIsRecordingVoice(false);
+            setIsVoiceLocked?.(false);
+            onLiveRecordingChange?.(false);
+          }}
+          onVoiceHoldMove={(clientX, clientY) => {
+            if (!isRecordingVoice || isVoiceLocked || !voiceLockStartYRef) return;
+            if (voiceLockStartYRef.current == null) voiceLockStartYRef.current = clientY;
+            const dy = voiceLockStartYRef.current - clientY;
+            if (dy > 48) {
+              setIsVoiceLocked?.(true);
+              voiceLockStartYRef.current = null;
+            }
+          }}
+          onVoiceRecordingComplete={(blob) => {
+            setIsRecordingVoice(false);
+            setIsVoiceLocked?.(false);
+            onLiveRecordingChange?.(false);
+            handleVoiceRecordingComplete(blob);
+          }}
+          onVoiceRecordingCancel={() => {
+            setIsRecordingVoice(false);
+            setIsVoiceLocked?.(false);
+            onLiveRecordingChange?.(false);
+          }}
+          toyboxProps={{
+            onImageSelect: async (file) => {
+              const dt = new DataTransfer();
+              dt.items.add(file);
+              handleImageSelect({ target: { files: dt.files } } as React.ChangeEvent<HTMLInputElement>);
+            },
+            onVideoSelect: handleVideoSelect,
+            onGifSelect: async (gifUrl) => {
+              await sendMediaMessage(gifUrl, 'gif');
+            },
+            onVoiceStart: () => {
+              setIsRecordingVoice(true);
+              onLiveRecordingChange?.(true);
+            },
+            onEmojiSelect: (emoji) => {
+              appendToInput(emoji);
+              inputRef.current?.focus();
+            },
+            isUploading: isUploadingMedia,
+            onOpenVanishThreads,
+            onOpenMemoryPins,
+            onOpenScheduleMessage,
+            onOpenDMSettings,
+            onOpenAdminPanel,
+            onOpenVybeCamera: onOpenSnapCamera,
+            onCreateOffer,
+            hasBusinessProfile,
+            safetyFilterNode,
+            triggerClassName: 'texter-icon-btn texter-icon-btn--tool',
+          }}
+        />
       </div>
-    </div>
+    </KeyboardAwareTexter>
   );
 });
 
@@ -2676,8 +2579,8 @@ const MessageBubble = memo(function MessageBubble({
             !isVybeMessage && isOwn 
               ? 'dm-bubble-sent rounded-br-md' 
               : !isVybeMessage && 'dm-bubble-received rounded-bl-md',
-            message.view_mode === 'view_once' && 'bg-gradient-to-r from-orange-500 to-pink-500 text-white',
-            message.view_mode === '24h' && isOwn && 'bg-gradient-to-r from-yellow-500 to-orange-500 text-white',
+            !isVybeMessage && isOwn && message.view_mode === 'view_once' && 'ring-1 ring-accent/45',
+            !isVybeMessage && isOwn && message.view_mode === '24h' && 'ring-1 ring-primary/35',
             repliedMessage && 'rounded-t-[14px]',
             (message.saved_by_sender || message.saved_by_recipient) &&
               'ring-2 ring-emerald-400/80 bg-emerald-500/15 shadow-[0_0_20px_-4px_rgba(52,211,153,0.55)]',
@@ -2806,9 +2709,12 @@ const MessageBubble = memo(function MessageBubble({
                   className={cn(
                     "relative w-36 h-48 sm:w-40 sm:h-52 rounded-[22px] overflow-hidden",
                     "flex flex-col items-center justify-center gap-3",
-                    "shadow-lg shadow-violet-500/15 border border-white/25",
-                    "cursor-pointer bg-gradient-to-br from-violet-600/95 via-fuchsia-500/90 to-cyan-500/85",
+                    "shadow-lg shadow-primary/20 border border-primary/25",
+                    "cursor-pointer",
                   )}
+                  style={{
+                    background: 'linear-gradient(145deg, hsl(var(--primary) / 0.92), hsl(var(--accent) / 0.88))',
+                  }}
                 >
                   <div className="absolute inset-0 bg-gradient-to-t from-black/25 via-transparent to-white/10" />
                   <motion.div

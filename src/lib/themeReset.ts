@@ -2,8 +2,35 @@
  * Reset theme CSS variables to default classic theme
  * Used on logout to ensure theme doesn't persist between accounts
  */
+import { resetThemeApplyState } from '@/hooks/useCustomTheme';
+
+const THEME_STORAGE_KEYS = [
+  'vybe-boot-theme',
+  'vybe-equipped-theme',
+  'vybe-custom-theme',
+  'vybe-equipped-theme-id',
+  'vybe-theme-user-id',
+  'vybe-equipped-theme-updated-at',
+] as const;
+
 export function resetThemeToDefault() {
   const root = document.documentElement;
+
+  try {
+    for (const key of THEME_STORAGE_KEYS) {
+      localStorage.removeItem(key);
+    }
+    for (let i = localStorage.length - 1; i >= 0; i--) {
+      const key = localStorage.key(i);
+      if (key?.startsWith('vybe-equipped-theme:')) {
+        localStorage.removeItem(key);
+      }
+    }
+  } catch {
+    /* ignore */
+  }
+
+  resetThemeApplyState();
   
   // Default classic theme values
   const defaults = {

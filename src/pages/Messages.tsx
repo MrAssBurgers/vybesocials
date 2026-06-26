@@ -24,6 +24,7 @@ const ChatView = lazy(() =>
 );
 
 function MessagesFallback() {
+  const navigate = useNavigate();
   const profileId = useAuthProfileId();
   const { user } = useAuth();
 
@@ -48,12 +49,13 @@ function MessagesFallback() {
     const qc = (window as unknown as { __REACT_QUERY_CLIENT__?: QueryClient }).__REACT_QUERY_CLIENT__;
     if (qc) {
       recoverDmQueryCache(qc, profileId, user?.id);
+      prepareMessagesRoute(qc, profileId, user?.id);
     }
-    window.location.assign('/messages');
+    navigate('/messages', { replace: true });
   };
 
   return (
-    <div className="page-shell messages-content flex flex-col items-center justify-center h-full w-full p-8 text-center">
+    <div className="page-shell messages-content messages-scroll flex flex-col items-center justify-center h-full w-full p-8 text-center">
       <div className="w-16 h-16 rounded-2xl bg-primary/15 flex items-center justify-center mb-4">
         <MessageCircle className="w-8 h-8 text-primary" />
       </div>
@@ -62,10 +64,10 @@ function MessagesFallback() {
         Your message cache hit a snag. Retry to reopen DMs without losing the rest of the app.
       </p>
       <div className="flex flex-col sm:flex-row gap-2">
-        <Button onClick={handleSoftRetry} variant="secondary" className="gap-2">
+        <Button onClick={handleSoftRetry} variant="outline" className="gap-2 border-primary/30 bg-primary/10 hover:bg-primary/20">
           <RefreshCw className="w-4 h-4" /> Retry
         </Button>
-        <Button onClick={handleReload} className="gap-2">
+        <Button onClick={handleReload} className="gap-2 bg-gradient-to-r from-primary to-accent text-primary-foreground">
           <RefreshCw className="w-4 h-4" /> Full reload
         </Button>
       </div>

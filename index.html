@@ -18,16 +18,70 @@
           root.classList.remove('light', 'dark');
           root.classList.add(mode === 'light' ? 'light' : 'dark');
 
-          // 2) Cached token snapshot from last session
-          var raw = localStorage.getItem('vybe-boot-theme');
-          if (!raw) return;
-          var vars = JSON.parse(raw);
-          if (!vars || typeof vars !== 'object') return;
-          for (var k in vars) {
-            if (Object.prototype.hasOwnProperty.call(vars, k) && typeof vars[k] === 'string') {
-              root.style.setProperty(k, vars[k]);
+          // 2) Equipped theme tokens — full palette before snapshot (matches bootThemeApply)
+          var themeUid = localStorage.getItem('vybe-theme-user-id');
+          if (!themeUid) {
+            for (var storageKey in localStorage) {
+              if (Object.prototype.hasOwnProperty.call(localStorage, storageKey) && storageKey.indexOf('firebase:authUser:') === 0) {
+                try {
+                  var authUser = JSON.parse(localStorage.getItem(storageKey) || 'null');
+                  if (authUser && authUser.uid) {
+                    themeUid = authUser.uid;
+                    break;
+                  }
+                } catch (ignored) {}
+              }
             }
           }
+          var equippedRaw = themeUid ? localStorage.getItem('vybe-equipped-theme:' + themeUid) : null;
+          if (!equippedRaw) {
+            equippedRaw =
+              localStorage.getItem('vybe-equipped-theme') ||
+              localStorage.getItem('vybe-custom-theme');
+          }
+          if (equippedRaw) {
+            try {
+              var tokens = JSON.parse(equippedRaw);
+              if (tokens && tokens.colorPrimary) {
+                var safe = function (v, fb) {
+                  return v && typeof v === 'string' && v.trim() ? v.trim() : fb;
+                };
+                var bgDefault = mode === 'light' ? '0 0% 98%' : '240 10% 4%';
+                var primary = safe(tokens.colorPrimary, '330 100% 60%');
+                root.style.setProperty('--primary', primary);
+                root.style.setProperty('--secondary', safe(tokens.colorSecondary, '240 10% 12%'));
+                root.style.setProperty('--accent', safe(tokens.colorAccent, '185 100% 50%'));
+                root.style.setProperty('--background', safe(tokens.bgMain, bgDefault));
+                root.style.setProperty('--foreground', safe(tokens.textPrimary, mode === 'light' ? '240 10% 20%' : '0 0% 98%'));
+                root.style.setProperty('--card', safe(tokens.bgCard, mode === 'light' ? '0 0% 100%' : '240 10% 6%'));
+                root.style.setProperty('--vybe-brand-primary', primary);
+                root.style.setProperty('--vybe-brand-secondary', safe(tokens.colorSecondary, '280 100% 60%'));
+                root.style.setProperty('--vybe-brand-accent', safe(tokens.colorAccent, '185 100% 50%'));
+                root.style.setProperty('--neon-pink', safe(tokens.neonPink, primary));
+                root.style.setProperty('--neon-purple', safe(tokens.neonPurple, tokens.colorSecondary));
+                root.style.setProperty('--neon-cyan', safe(tokens.neonCyan, tokens.colorAccent));
+                root.style.setProperty('--gradient-start', safe(tokens.bgGradientFrom, safe(tokens.bgMain, bgDefault)));
+                root.style.setProperty('--gradient-mid', safe(tokens.bgGradientMid, safe(tokens.bgCard, bgDefault)));
+                root.style.setProperty('--gradient-end', safe(tokens.bgGradientTo, safe(tokens.bgMain, bgDefault)));
+              }
+            } catch (ignored) {}
+          }
+
+          // 3) Cached CSS snapshot — only when equipped tokens missing
+          if (!root.style.getPropertyValue('--primary').trim()) {
+            var raw = localStorage.getItem('vybe-boot-theme');
+            if (raw) {
+              var vars = JSON.parse(raw);
+              if (vars && typeof vars === 'object') {
+                for (var k in vars) {
+                  if (Object.prototype.hasOwnProperty.call(vars, k) && typeof vars[k] === 'string') {
+                    root.style.setProperty(k, vars[k]);
+                  }
+                }
+              }
+            }
+          }
+
         } catch (e) { /* fail open — React will paint defaults */ }
       })();
     </script>
@@ -292,16 +346,16 @@
     <!-- Critical inline CSS for faster LCP -->
     <style>
       :root {
-        background: #090812;
+        background: hsl(240 6% 5%);
         color-scheme: dark;
         --primary: 330 100% 60%;
         --accent: 185 100% 50%;
         --foreground: 0 0% 98%;
         --muted-foreground: 240 5% 55%;
       }
-      html { background: #090812; color-scheme: dark; }
-      html, body { margin: 0; padding: 0; min-height: 100%; background: #090812; overscroll-behavior: none; }
-      /* Empty portal target — React paints liquid aurora here when active */
+      html { background: hsl(var(--background, 240 6% 5%)); color-scheme: dark; }
+      html, body { margin: 0; padding: 0; min-height: 100%; background: hsl(var(--background, 240 6% 5%)); overscroll-behavior: none; }
+      /* Single animated backdrop mounts here via AppGlobalLiquidShell */
       #vybe-aurora-mount {
         position: fixed;
         inset: 0;
@@ -309,17 +363,9 @@
         pointer-events: none;
         background: transparent;
       }
+      /* Legacy boot layer — hidden; aurora is the only painted backdrop */
       .vybe-bg {
-        position: fixed;
-        inset: 0;
-        z-index: -1;
-        background:
-          radial-gradient(circle at 20% 20%, rgba(255, 45, 180, 0.24), transparent 32%),
-          radial-gradient(circle at 80% 70%, rgba(0, 200, 255, 0.22), transparent 36%),
-          linear-gradient(135deg, #120018 0%, #081827 100%);
-        transform: translateZ(0);
-        backface-visibility: hidden;
-        pointer-events: none;
+        display: none !important;
       }
       #root {
         position: relative;
@@ -344,13 +390,85 @@
         flex-direction: column;
         align-items: center;
         justify-content: center;
-        overflow: visible;
-        background: #0B0B10;
+        overflow: hidden;
+        background: transparent;
         font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
         min-height: 100dvh;
         height: 100dvh;
         padding: 0 clamp(1rem, 5vw, 1.75rem);
         box-sizing: border-box;
+      }
+      #vybe-static-boot .vybe-boot-ambient {
+        position: absolute;
+        inset: 0;
+        overflow: hidden;
+        pointer-events: none;
+      }
+      #vybe-static-boot .vybe-boot-mesh {
+        position: absolute;
+        inset: 0;
+        background:
+          radial-gradient(ellipse 95% 75% at 18% 22%, hsl(var(--primary) / 0.42), transparent 58%),
+          radial-gradient(ellipse 85% 65% at 82% 78%, hsl(var(--accent) / 0.34), transparent 55%),
+          linear-gradient(145deg, hsl(var(--background)) 0%, hsl(var(--background)) 100%);
+        background-size: 140% 140%, 150% 150%, 100% 100%;
+        animation: vybe-boot-mesh-drift 96s ease-in-out infinite alternate;
+      }
+      #vybe-static-boot .vybe-boot-blob {
+        position: absolute;
+        border-radius: 58% 42% 62% 38% / 48% 58% 42% 52%;
+        transform: translate(-50%, -50%);
+        filter: blur(100px);
+        mix-blend-mode: screen;
+        opacity: 0.55;
+        animation-timing-function: ease-in-out;
+        animation-iteration-count: infinite;
+      }
+      #vybe-static-boot .vybe-boot-blob--a {
+        top: 14%;
+        left: 16%;
+        width: 420px;
+        height: 420px;
+        background: hsl(var(--primary) / 0.55);
+        animation: vybe-boot-blob-a 58s ease-in-out infinite;
+      }
+      #vybe-static-boot .vybe-boot-blob--b {
+        top: 68%;
+        left: 74%;
+        width: 520px;
+        height: 520px;
+        background: hsl(var(--accent) / 0.48);
+        animation: vybe-boot-blob-b 72s ease-in-out infinite;
+      }
+      #vybe-static-boot .vybe-boot-blob--c {
+        top: 42%;
+        left: 48%;
+        width: 360px;
+        height: 360px;
+        background: hsl(var(--secondary, var(--primary)) / 0.42);
+        animation: vybe-boot-blob-c 64s ease-in-out infinite;
+      }
+      @keyframes vybe-boot-mesh-drift {
+        0% { background-position: 0% 0%, 100% 100%, 0% 0%; }
+        100% { background-position: 28% 18%, 72% 82%, 0% 0%; }
+      }
+      @keyframes vybe-boot-blob-a {
+        0%, 100% { transform: translate(-50%, -50%) translate(7vw, -2vh) scale(1); }
+        50% { transform: translate(-50%, -50%) translate(-8vw, 5vh) scale(1.06); }
+      }
+      @keyframes vybe-boot-blob-b {
+        0%, 100% { transform: translate(-50%, -50%) translate(-5vw, 3vh) scale(1.02); }
+        50% { transform: translate(-50%, -50%) translate(10vw, -4vh) scale(1.07); }
+      }
+      @keyframes vybe-boot-blob-c {
+        0%, 100% { transform: translate(-50%, -50%) translate(0, 6vh) scale(0.98); }
+        50% { transform: translate(-50%, -50%) translate(7vw, -5vh) scale(1.06); }
+      }
+      #vybe-static-boot .vybe-splash-logo svg .vybe-splash-draw-left {
+        stroke: hsl(var(--primary));
+      }
+      #vybe-static-boot .vybe-splash-logo svg .vybe-splash-draw-right {
+        stroke: hsl(var(--accent));
       }
       #vybe-static-boot .vybe-splash-glow {
         position: absolute;
@@ -365,12 +483,14 @@
       }
       #vybe-static-boot .vybe-splash-logo {
         position: relative;
+        z-index: 2;
         margin-bottom: 1.5rem;
         width: 96px;
         height: 96px;
       }
       #vybe-static-boot .vybe-splash-title-wrap {
         position: relative;
+        z-index: 2;
         overflow: visible;
         width: 100%;
         margin: 0 auto 1.25rem;
@@ -387,7 +507,12 @@
         line-height: 1.22;
         padding: 0 0.1em 0.18em;
         overflow: visible;
-        background: linear-gradient(90deg, hsl(var(--primary)), hsl(var(--accent)));
+        background: linear-gradient(
+          90deg,
+          hsl(var(--primary)) 0%,
+          hsl(var(--secondary, var(--primary))) 38%,
+          hsl(var(--accent)) 100%
+        );
         -webkit-background-clip: text;
         background-clip: text;
         color: transparent;
@@ -423,7 +548,12 @@
         border-radius: 9999px;
         transform-origin: left center;
         transform: scaleX(0);
-        background: linear-gradient(90deg, hsl(var(--primary)), hsl(var(--accent)));
+        background: linear-gradient(
+          90deg,
+          hsl(var(--primary)) 0%,
+          hsl(var(--secondary, var(--primary))) 38%,
+          hsl(var(--accent)) 100%
+        );
         animation: vybe-static-bar 12s cubic-bezier(0.22, 1, 0.36, 1) forwards;
       }
       #vybe-static-boot .vybe-splash-meta {
@@ -572,22 +702,18 @@
     </div>
     <div id="root">
       <div id="vybe-static-boot" data-vybe-boot-screen aria-live="polite" aria-busy="true">
+        <div class="vybe-boot-ambient" aria-hidden="true">
+          <div class="vybe-boot-mesh"></div>
+          <div class="vybe-boot-blob vybe-boot-blob--a"></div>
+          <div class="vybe-boot-blob vybe-boot-blob--b"></div>
+          <div class="vybe-boot-blob vybe-boot-blob--c"></div>
+        </div>
         <div class="vybe-splash-glow" aria-hidden="true"></div>
         <div class="vybe-splash-logo" aria-hidden="true">
           <svg viewBox="-5 -5 110 110" fill="none" width="96" height="96" aria-hidden="true">
-            <defs>
-              <linearGradient id="vybe-sp-l" x1="0%" y1="0%" x2="100%" y2="100%">
-                <stop offset="0%" stop-color="hsl(330 100% 60%)" />
-                <stop offset="100%" stop-color="hsl(280 100% 65%)" />
-              </linearGradient>
-              <linearGradient id="vybe-sp-r" x1="100%" y1="0%" x2="0%" y2="100%">
-                <stop offset="0%" stop-color="hsl(185 100% 50%)" />
-                <stop offset="100%" stop-color="hsl(195 100% 55%)" />
-              </linearGradient>
-            </defs>
-            <path d="M18 15 L50 85" stroke="url(#vybe-sp-l)" stroke-width="11" stroke-linecap="round" class="vybe-splash-draw-left" />
-            <path d="M82 15 L50 85" stroke="url(#vybe-sp-r)" stroke-width="11" stroke-linecap="round" class="vybe-splash-draw-right" />
-            <circle cx="50" cy="85" r="3.5" fill="hsl(330 100% 60%)" />
+            <path d="M18 15 L50 85" stroke-width="11" stroke-linecap="round" class="vybe-splash-draw-left" />
+            <path d="M82 15 L50 85" stroke-width="11" stroke-linecap="round" class="vybe-splash-draw-right" />
+            <circle cx="50" cy="85" r="3.5" fill="hsl(var(--primary))" />
           </svg>
         </div>
         <div class="vybe-splash-title-wrap">

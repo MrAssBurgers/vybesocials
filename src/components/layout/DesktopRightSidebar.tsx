@@ -364,7 +364,7 @@ export const DesktopRightSidebar = memo(function DesktopRightSidebar() {
             <div className="flex flex-wrap gap-1.5">
               {trendingTags.map((tag) => (
                 <Link key={tag} to={`/explore?q=${encodeURIComponent(tag)}`}>
-                  <Badge variant="secondary" className="hover:bg-primary/20 transition-colors cursor-pointer">
+                  <Badge variant="outline" className="border-primary/25 bg-primary/10 text-foreground hover:bg-primary/20 transition-colors cursor-pointer">
                     {tag}
                   </Badge>
                 </Link>

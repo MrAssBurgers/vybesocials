@@ -7,7 +7,7 @@ import { toast } from 'sonner';
 import { useQueryClient } from '@tanstack/react-query';
 import { useStories, useCreateStory } from '@/hooks/useStories';
 import { useAuth } from '@/lib/auth';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Avatar, AvatarFallback, ProfileAvatarImage } from '@/components/ui/avatar';
 import { StoryViewer } from './StoryViewer';
 import { StoryCreator } from './StoryCreator';
 import { useFastSignedUrl } from '@/hooks/useFastSignedUrl';
@@ -119,7 +119,8 @@ export const StoriesBar = memo(function StoriesBar({
           posterSize={posterSize}
           emptyAvatarInset={emptyAvatarInset}
           posterUrl={ownPosterUrl}
-          avatarUrl={isGuest ? undefined : ownStoryGroup?.user.avatar_url ?? profile?.avatar_url}
+          avatarUrl={isGuest ? undefined : profile?.avatar_url ?? undefined}
+          profileId={profile?.id}
           username={isGuest ? 'Guest' : ownStoryGroup?.user.username ?? profile?.username}
           displayName={isGuest ? null : ownStoryGroup?.user.display_name ?? profile?.display_name ?? null}
           label={isGuest ? 'Add Story' : t('stories.yourStory')}
@@ -190,6 +191,7 @@ interface StoryTileProps {
   emptyAvatarInset?: number;
   posterUrl?: string | null;
   avatarUrl?: string | null;
+  profileId?: string | null;
   username?: string;
   displayName?: string | null;
   themeGradient?: string | null;
@@ -207,6 +209,7 @@ const StoryTile = memo(function StoryTile({
   emptyAvatarInset = 6,
   posterUrl,
   avatarUrl,
+  profileId,
   username,
   displayName,
   themeGradient,
@@ -219,7 +222,6 @@ const StoryTile = memo(function StoryTile({
   onAddClick,
 }: StoryTileProps) {
   const signedPosterUrl = useFastSignedUrl(posterUrl);
-  const signedAvatarUrl = useFastSignedUrl(avatarUrl);
 
   const handleAddClick = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -257,7 +259,12 @@ const StoryTile = memo(function StoryTile({
                 className="h-full w-full border border-background/80 shadow-inner"
                 style={{ borderRadius: Math.max(8, posterSize.borderRadius - emptyAvatarInset) }}
               >
-                <AvatarImage src={signedAvatarUrl || avatarUrl || undefined} className="object-cover" />
+                <ProfileAvatarImage
+                  profileId={profileId}
+                  src={avatarUrl || undefined}
+                  transformSize={256}
+                  className="object-cover"
+                />
                 <AvatarFallback className="bg-muted text-muted-foreground text-2xl font-semibold">
                   {username?.charAt(0).toUpperCase()}
                 </AvatarFallback>

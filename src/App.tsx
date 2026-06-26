@@ -9,6 +9,8 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider, useQueryClient } from "@tanstack/react-query";
 import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client";
 import { queryPersister, shouldPersistQueryKey } from "@/lib/queryPersister";
+import { hydrateThemeFromLocalCaches } from "@/lib/themeHydration";
+import { getStoredAuthUserId } from "@/lib/legacyAuthStorage";
 import { startReconnectManager } from "@/lib/reconnectManager";
 import { startOutbox } from "@/lib/dmOutbox";
 import { BrowserRouter, useLocation } from "react-router-dom";
@@ -39,6 +41,7 @@ import { GlobalErrorHandler } from "@/components/error/GlobalErrorHandler";
 import { useAppPreloader } from "@/hooks/useAppPreloader";
 import { useRealtimeProfiles } from "@/hooks/useRealtimeProfiles";
 import { useKeyboardHeight } from "@/hooks/useKeyboardHeight";
+import { CameraOverlayProvider } from "@/contexts/CameraOverlayContext";
 import { usePostsRealtime } from "@/hooks/usePostsRealtime";
 import { useGlobalRealtimeMessages } from "@/hooks/useGlobalRealtimeMessages";
 import { useSpotifyPresence } from "@/hooks/useSpotifyPresence";
@@ -536,6 +539,7 @@ function AppWithPreloader() {
                         <BrowserRouter>
                         <AgentActionBusProvider>
                         <LocationProvider>
+                          <CameraOverlayProvider>
                           <AppGlobalLiquidShell />
                           <VybeLiquidTouchShell />
                           <div
@@ -587,6 +591,7 @@ function AppWithPreloader() {
                           </Suspense>
                           {/* Touch ripple removed */}
                           </div>
+                          </CameraOverlayProvider>
                         </LocationProvider>
                         </AgentActionBusProvider>
                         </BrowserRouter>
@@ -612,6 +617,7 @@ const App = memo(() => {
         client={queryClient}
         onSuccess={() => {
           reviveQueriesInCache(queryClient);
+          hydrateThemeFromLocalCaches(queryClient, getStoredAuthUserId());
           purgeStuckStoryUploads(queryClient);
           markPersistRestored();
         }}

@@ -6,6 +6,7 @@ export { CameraSafetyGate } from './CameraSafetyGate';
 export { CameraShareSheet } from './CameraShareSheet';
 export { VybeRecordButton } from './VybeRecordButton';
 export { VybeSnapCamera } from './VybeSnapCamera';
+export { UnifiedVybeCamera, UnifiedCameraPreview } from './UnifiedVybeCamera';
 export { VybeSnapEditor } from './VybeSnapEditor';
 export { SnapOverlayDraggable } from './SnapOverlayDraggable';
 export { CameraTopControls } from './CameraTopControls';

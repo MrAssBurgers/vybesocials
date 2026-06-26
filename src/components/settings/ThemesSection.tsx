@@ -1,18 +1,15 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Layout, Brush, Sparkles, Compass, Wand2 } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { Brush, Sparkles, Compass, Wand2 } from 'lucide-react';
 import { ThemeCustomizer } from './ThemeCustomizer';
 import { ThemeGallery } from './ThemeGallery';
 import { ThemeMarketplace } from './ThemeMarketplace';
-import { UIBuilder } from './UIBuilder';
 import { AIVybeDesigner } from '@/components/onboarding/AIVybeDesigner';
 import { MyCurrentVybeCard } from '@/components/themes/MyCurrentVybeCard';
 import { AnimatePresence } from 'framer-motion';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 export function ThemesSection() {
-  const [showUIBuilder, setShowUIBuilder] = useState(false);
   const [showVybeDesigner, setShowVybeDesigner] = useState(false);
 
   return (
@@ -66,15 +63,6 @@ export function ThemesSection() {
 
           <TabsContent value="customize" className="space-y-4 mt-5">
             <ThemeCustomizer />
-
-            <Button
-              variant="outline"
-              onClick={() => setShowUIBuilder(true)}
-              className="w-full h-12 rounded-2xl bg-card/60 backdrop-blur-xl border border-border/50 hover:bg-accent/10 hover:border-primary/40 transition-colors"
-            >
-              <Layout className="w-4 h-4 mr-2" />
-              Design Your Layout
-            </Button>
           </TabsContent>
 
           <TabsContent value="marketplace" className="mt-5">
@@ -86,10 +74,6 @@ export function ThemesSection() {
           </TabsContent>
         </Tabs>
       </div>
-
-      <AnimatePresence>
-        {showUIBuilder && <UIBuilder onClose={() => setShowUIBuilder(false)} />}
-      </AnimatePresence>
 
       <AnimatePresence>
         {showVybeDesigner && (

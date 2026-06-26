@@ -1,6 +1,7 @@
 import type { QueryClient } from '@tanstack/react-query';
 import type { PersistedClient } from '@tanstack/react-query-persist-client';
 import { sanitizeStoriesCacheData, isStoriesQueryKey, storyGroupsNeedRevive } from '@/lib/storiesCacheSanitize';
+import { enrichProfileAvatar } from '@/lib/profileAvatarCache';
 
 /** Rehydrated React Query cache can deserialize Set/Map as plain objects. */
 
@@ -141,6 +142,17 @@ export function normalizeDmConversation<T extends { members?: unknown; last_mess
   let next = conv;
   if (conv.members != null && !Array.isArray(conv.members)) {
     next = { ...next, members: ensureArray(conv.members) };
+  }
+  if (Array.isArray(next.members)) {
+    const members = next.members.map((m) => {
+      if (!m || typeof m !== 'object') return m;
+      const row = m as { profile?: { id?: string; avatar_url?: string | null } | null };
+      if (!row.profile) return m;
+      const enriched = enrichProfileAvatar(row.profile);
+      if (enriched === row.profile) return m;
+      return { ...row, profile: enriched };
+    });
+    next = { ...next, members };
   }
   if (conv.name != null && typeof conv.name !== 'string') {
     next = { ...next, name: null };

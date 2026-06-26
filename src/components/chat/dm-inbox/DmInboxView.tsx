@@ -2,7 +2,7 @@
  * Primary VYBE DM inbox — glass cards, sectioned layout, gradient hero.
  * Stable data path (useDMConversations only).
  */
-import { useMemo, useState, useCallback } from 'react';
+import { useMemo, useState, useCallback, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
@@ -20,12 +20,14 @@ import { ensureArray } from '@/lib/persistedCollections';
 import { organizeDmInbox } from '@/lib/dmInboxOrganize';
 import { SwipeableDmConversationRow } from './SwipeableDmConversationRow';
 import { VybeWordmark } from '@/components/ui/VybeWordmark';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Avatar, AvatarFallback, ProfileAvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { VybeMiniIcon } from '@/components/ui/VybeMiniIcon';
 import { cn } from '@/lib/utils';
+import { resolveProfileAvatarUrl } from '@/lib/profileAvatarCache';
+import { batchSignUrls } from '@/lib/signedUrlCache';
 
 type InboxFilter = 'all' | 'unread';
 
@@ -66,6 +68,18 @@ export function DmInboxView() {
 
   const showSkeleton = isLoading && allRows.length === 0;
 
+  useEffect(() => {
+    const urls = allRows.flatMap((conv) => {
+      if (conv.is_group) {
+        return conv.avatar_url ? [conv.avatar_url] : [];
+      }
+      const other = conv.members?.find((m) => m.user_id !== profileId)?.profile;
+      const url = resolveProfileAvatarUrl(other?.id, other?.avatar_url);
+      return url ? [url] : [];
+    });
+    if (urls.length) batchSignUrls(urls).catch(() => {});
+  }, [allRows, profileId]);
+
   const openChat = useCallback(
     (id: string) => navigate(`/messages/${id}`),
     [navigate],
@@ -85,7 +99,7 @@ export function DmInboxView() {
               aria-label="Your profile"
             >
               <Avatar className="h-10 w-10 ring-2 ring-primary/40 shadow-lg shadow-primary/20">
-                <AvatarImage src={profile?.avatar_url || undefined} />
+                <ProfileAvatarImage profileId={profile?.id} src={profile?.avatar_url || undefined} />
                 <AvatarFallback className="text-xs font-bold bg-gradient-to-br from-primary to-accent text-primary-foreground">
                   {profile?.username?.[0]?.toUpperCase()}
                 </AvatarFallback>

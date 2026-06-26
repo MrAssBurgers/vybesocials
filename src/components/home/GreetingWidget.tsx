@@ -1,11 +1,9 @@
-import { useMemo, useEffect } from 'react';
-import { batchSignUrls } from '@/lib/signedUrlCache';
+import { useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { Sparkles } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { LiveActivityTicker } from './LiveActivityTicker';
-import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
-import { useFastSignedUrl } from '@/hooks/useFastSignedUrl';
+import { Avatar, AvatarFallback, ProfileAvatarImage } from '@/components/ui/avatar';
 import { useNextLevelProgress } from '@/hooks/useVybePass';
 import { VybeMiniIcon } from '@/components/ui/VybeMiniIcon';
 import { isRawId, getCachedCurrentProfile } from '@/lib/profileCache';
@@ -30,14 +28,7 @@ function resolveGreetingProfile(live: ReturnType<typeof useAuth>['profile']) {
 export function GreetingWidget() {
   const { profile: liveProfile } = useAuth();
   const profile = resolveGreetingProfile(liveProfile);
-  const signedAvatar = useFastSignedUrl(profile?.avatar_url ?? null);
   const { currentLevel, isReady: levelReady } = useNextLevelProgress();
-
-  useEffect(() => {
-    if (profile?.avatar_url) {
-      batchSignUrls([profile.avatar_url]).catch(() => {});
-    }
-  }, [profile?.avatar_url]);
 
   const greeting = useMemo(() => {
     const hour = new Date().getHours();
@@ -91,7 +82,11 @@ export function GreetingWidget() {
           <div className="relative flex-shrink-0">
             <div className="home-hero-avatar-ring absolute -inset-1 rounded-full opacity-80" />
             <Avatar className="relative h-14 w-14 sm:h-16 sm:w-16 ring-2 ring-background/80 shadow-lg">
-              <AvatarImage src={signedAvatar || undefined} />
+              <ProfileAvatarImage
+                profileId={profile.id}
+                src={profile.avatar_url || undefined}
+                transformSize={160}
+              />
               <AvatarFallback className="bg-gradient-to-br from-primary/30 to-accent/30 font-bold text-lg">
                 {profile.username?.[0]?.toUpperCase() ?? '?'}
               </AvatarFallback>

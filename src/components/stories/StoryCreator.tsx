@@ -17,8 +17,8 @@ import { Label } from '@/components/ui/label';
 import { Progress } from '@/components/ui/progress';
 import { toast } from 'sonner';
 import { validateStoryMedia, compressImage, generateStoryThumbnail, inferStoryMediaKind } from '@/lib/storyUtils';
-import { Camera } from '@/components/camera/Camera';
 import { FullscreenPortal } from '@/components/layout/FullscreenPortal';
+import { openCameraFromGesture, useCameraOverlay } from '@/contexts/CameraOverlayContext';
 import { useTranslation } from 'react-i18next';
 import { useQueryClient } from '@tanstack/react-query';
 
@@ -50,7 +50,6 @@ function StoryGalleryInput({
 }
 
 type UploadState = 'idle' | 'validating' | 'compressing' | 'uploading' | 'saving' | 'error';
-type CreatorMode = 'select' | 'camera' | 'gallery';
 
 export function StoryCreator({ onClose }: StoryCreatorProps) {
   const { t } = useTranslation();
@@ -59,10 +58,10 @@ export function StoryCreator({ onClose }: StoryCreatorProps) {
   const effectiveProfileId = profile?.id ?? profileId;
   const createStory = useCreateStory();
   const queryClient = useQueryClient();
+  const { openCamera } = useCameraOverlay();
   const coverInputRef = useRef<HTMLInputElement>(null);
   const coverVideoRef = useRef<HTMLVideoElement>(null);
 
-  const [mode, setMode] = useState<CreatorMode>('select');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [thumbnailBlob, setThumbnailBlob] = useState<Blob | null>(null);
@@ -98,7 +97,6 @@ export function StoryCreator({ onClose }: StoryCreatorProps) {
     setUploadProgress(0);
     setErrorMessage(null);
     setMediaInfo(null);
-    setMode('select');
   }, []);
 
   const applyAutoThumbnail = useCallback(async (file: File, isVideo: boolean) => {
@@ -113,6 +111,27 @@ export function StoryCreator({ onClose }: StoryCreatorProps) {
       setIsGeneratingCover(false);
     }
   }, []);
+
+  const handleStoryCamera = useCallback(() => {
+    void openCameraFromGesture(openCamera, 'story', {
+      showBackArrow: true,
+      defaultMode: 'story',
+      onCapture: (media) => {
+        const isVideo = media.type === 'video';
+        if (preview?.startsWith('blob:')) URL.revokeObjectURL(preview);
+        setSelectedFile(media.file);
+        setPreview(media.url);
+        setMediaInfo({
+          aspectRatio: 0.5625,
+          duration: null,
+          isVideo,
+        });
+        setUploadState('idle');
+        setErrorMessage(null);
+        void applyAutoThumbnail(media.file, isVideo);
+      },
+    });
+  }, [applyAutoThumbnail, openCamera, preview]);
 
   const processGalleryFile = useCallback(async (file: File) => {
     setUploadState('validating');
@@ -298,31 +317,6 @@ export function StoryCreator({ onClose }: StoryCreatorProps) {
     }
     return () => document.body.removeAttribute('data-story-upload-active');
   }, [isProcessing]);
-
-  // Show camera view when camera mode is selected
-  if (mode === 'camera') {
-    return (
-      <Camera 
-        onClose={() => setMode('select')} 
-        showBackArrow 
-        onCapture={(media) => {
-          const isVideo = media.type === 'video';
-          if (preview?.startsWith('blob:')) URL.revokeObjectURL(preview);
-          setSelectedFile(media.file);
-          setPreview(media.url);
-          setMediaInfo({
-            aspectRatio: 0.5625,
-            duration: null,
-            isVideo,
-          });
-          setUploadState('idle');
-          setErrorMessage(null);
-          setMode('select');
-          void applyAutoThumbnail(media.file, isVideo);
-        }}
-      />
-    );
-  }
 
   return (
     <FullscreenPortal>
@@ -577,7 +571,7 @@ export function StoryCreator({ onClose }: StoryCreatorProps) {
             <div className="flex gap-6">
               {/* Camera option - opens full camera with filters */}
               <button
-                onClick={() => setMode('camera')}
+                onClick={handleStoryCamera}
                 className="flex flex-col items-center gap-3 p-6 border-2 border-dashed border-white/30 rounded-2xl hover:border-primary/50 hover:bg-white/5 transition-all group"
               >
                 <div className="p-5 bg-gradient-to-br from-primary/20 to-primary/5 rounded-full group-hover:from-primary/30 group-hover:to-primary/10 transition-colors">

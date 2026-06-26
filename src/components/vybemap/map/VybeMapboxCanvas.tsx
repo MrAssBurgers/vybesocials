@@ -44,6 +44,8 @@ export interface VybeMapboxCanvasProps {
   onMapReady?: (map: mapboxgl.Map) => void;
   routeGeometry?: GeoJSON.LineString | null;
   squadMemberIds?: Set<string>;
+  /** When true, map bearing tracks device compass. Pauses while user pans/zooms. */
+  followHeading?: boolean;
 }
 
 function clusterMarkerHtml(count: number): string {
@@ -127,6 +129,7 @@ export const VybeMapboxCanvas = memo(function VybeMapboxCanvas({
   onMapReady,
   routeGeometry,
   squadMemberIds,
+  followHeading = false,
 }: VybeMapboxCanvasProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<mapboxgl.Map | null>(null);
@@ -140,6 +143,16 @@ export const VybeMapboxCanvas = memo(function VybeMapboxCanvas({
   const [mapError, setMapError] = useState<string | null>(null);
   const myCoordsRef = useRef(center);
   myCoordsRef.current = center;
+  const userInteractingRef = useRef(false);
+  const interactPauseRef = useRef<ReturnType<typeof setTimeout>>();
+
+  const pauseFollowWhileInteracting = useCallback(() => {
+    userInteractingRef.current = true;
+    if (interactPauseRef.current) clearTimeout(interactPauseRef.current);
+    interactPauseRef.current = setTimeout(() => {
+      userInteractingRef.current = false;
+    }, 2500);
+  }, []);
 
   useEffect(() => {
     const el = containerRef.current;
@@ -591,16 +604,54 @@ export const VybeMapboxCanvas = memo(function VybeMapboxCanvas({
   }, [stories, posts, clips, eventPins, layers]);
 
   useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapReady) return;
+    map.on('dragstart', pauseFollowWhileInteracting);
+    map.on('zoomstart', pauseFollowWhileInteracting);
+    map.on('rotatestart', pauseFollowWhileInteracting);
+    map.on('pitchstart', pauseFollowWhileInteracting);
+    map.on('touchstart', pauseFollowWhileInteracting);
+    return () => {
+      map.off('dragstart', pauseFollowWhileInteracting);
+      map.off('zoomstart', pauseFollowWhileInteracting);
+      map.off('rotatestart', pauseFollowWhileInteracting);
+      map.off('pitchstart', pauseFollowWhileInteracting);
+      map.off('touchstart', pauseFollowWhileInteracting);
+      if (interactPauseRef.current) clearTimeout(interactPauseRef.current);
+    };
+  }, [mapReady, pauseFollowWhileInteracting]);
+
+  useEffect(() => {
+    if (!followHeading || !mapReady) return;
     const map = mapRef.current as (mapboxgl.Map & { setBearing?: (b: number) => void }) | null;
     if (!map) return;
-    const onOrient = (e: DeviceOrientationEvent) => {
-      const h = (e as DeviceOrientationEvent & { webkitCompassHeading?: number }).webkitCompassHeading
-        ?? (e.alpha != null ? 360 - e.alpha : null);
-      if (h != null) map.setBearing(h);
+
+    const applyHeading = (e: DeviceOrientationEvent) => {
+      if (userInteractingRef.current) return;
+      const h =
+        (e as DeviceOrientationEvent & { webkitCompassHeading?: number }).webkitCompassHeading ??
+        (e.alpha != null ? 360 - e.alpha : null);
+      if (h == null) return;
+      if (typeof map.setBearing === 'function') map.setBearing(h);
+      else map.easeTo({ bearing: h, duration: 120, essential: true });
     };
-    window.addEventListener('deviceorientation', onOrient, true);
-    return () => window.removeEventListener('deviceorientation', onOrient, true);
-  }, []);
+
+    const attach = () => window.addEventListener('deviceorientation', applyHeading, true);
+
+    const req = (DeviceOrientationEvent as unknown as { requestPermission?: () => Promise<string> })
+      .requestPermission;
+    if (typeof req === 'function') {
+      void req()
+        .then((state) => {
+          if (state === 'granted') attach();
+        })
+        .catch(() => {});
+    } else {
+      attach();
+    }
+
+    return () => window.removeEventListener('deviceorientation', applyHeading, true);
+  }, [followHeading, mapReady]);
 
   return (
     <>

@@ -998,13 +998,41 @@ export function DesignYourVybe() {
                             toast.error('Please enter a theme name');
                             return;
                           }
-                          await shareTheme.mutateAsync({
-                            themeName: generatedName,
-                            themeTokens: previewTheme,
-                            description: shareDescription || undefined,
-                          });
-                          setShareDialogOpen(false);
-                          setShareDescription('');
+                          if (!previewTheme) {
+                            toast.error('Generate a theme first');
+                            return;
+                          }
+                          try {
+                            const themeWithSettings = {
+                              ...previewTheme,
+                              animationSpeed,
+                              animationStyle,
+                              backgroundEffect,
+                              backgroundOpacity,
+                              backgroundBlur,
+                              borderRadius,
+                            };
+                            await saveTheme.mutateAsync({
+                              themeTokens: themeWithSettings,
+                              themeName: generatedName,
+                              basePreset: selectedPreset,
+                              silent: true,
+                            });
+                            await shareTheme.mutateAsync({
+                              themeName: generatedName,
+                              themeTokens: themeWithSettings,
+                              description: shareDescription || undefined,
+                              visibility: 'public',
+                              tags: ['community', 'ai-generated'],
+                              category: 'user-created',
+                            });
+                            setShareDialogOpen(false);
+                            setShareDescription('');
+                            toast.success('Published to Theme Marketplace ✨');
+                          } catch (err) {
+                            console.error('[DesignYourVybe] publish failed', err);
+                            toast.error('Could not publish theme. Try saving first, then share again.');
+                          }
                         }}
                         disabled={shareTheme.isPending || !generatedName.trim()}
                       >

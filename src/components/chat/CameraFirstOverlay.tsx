@@ -4,6 +4,7 @@ import { ChevronUp, MessageCircle } from 'lucide-react';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { VybeSnapCamera } from '@/components/camera/VybeSnapCamera';
 import { CameraMountBoundary } from '@/components/camera/CameraMountBoundary';
+import { FullscreenPortal } from '@/components/layout/FullscreenPortal';
 import { haptics } from '@/lib/haptics';
 import { cn } from '@/lib/utils';
 
@@ -55,13 +56,14 @@ export function CameraFirstOverlay({
   if (!isOpen) return null;
 
   return (
+    <FullscreenPortal>
     <AnimatePresence>
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
         transition={{ duration: 0.15 }}
-        className="fixed inset-0 z-[190]"
+        className="fixed inset-0 z-[10050]"
         style={{ willChange: 'transform' }}
       >
         {/* Camera layer */}
@@ -119,5 +121,6 @@ export function CameraFirstOverlay({
         </motion.button>
       </motion.div>
     </AnimatePresence>
+    </FullscreenPortal>
   );
 }

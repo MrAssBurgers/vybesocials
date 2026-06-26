@@ -62,6 +62,8 @@ interface ToyboxProps {
   hasBusinessProfile?: boolean;
   // AI safety filter props
   safetyFilterNode?: React.ReactNode;
+  /** Custom class for the + trigger button (Texter pill) */
+  triggerClassName?: string;
 }
 
 const STICKERS = ['😀', '😂', '🥰', '😎', '🔥', '💯', '🎉', '❤️', '👍', '🙌', '💪', '✨'];
@@ -95,6 +97,7 @@ export const Toybox = memo(function Toybox({
   onCreateOffer,
   hasBusinessProfile,
   safetyFilterNode,
+  triggerClassName,
 }: ToyboxProps) {
   const { data: userRole } = useUserRole();
   const { isPremium } = usePremiumStatus();
@@ -273,6 +276,8 @@ export const Toybox = memo(function Toybox({
   ];
 
   const hasDMFeatures = onOpenVanishThreads || onOpenMemoryPins || onOpenScheduleMessage || onOpenDMSettings || (isModOrAdmin && onOpenAdminPanel) || (hasBusinessProfile && onCreateOffer);
+
+  const triggerBtnClass = triggerClassName ?? 'dm-composer-btn flex-shrink-0';
 
   const ToyboxContent = (
     <div className="p-4 max-h-[70vh] overflow-y-auto">
@@ -534,7 +539,7 @@ export const Toybox = memo(function Toybox({
               variant="ghost"
               size="icon"
               disabled={disabled || isUploading}
-              className="dm-composer-btn flex-shrink-0"
+              className={triggerBtnClass}
             >
               <motion.div
                 animate={isOpen ? { rotate: 45 } : { rotate: 0 }}
@@ -563,7 +568,7 @@ export const Toybox = memo(function Toybox({
             variant="ghost"
             size="icon"
             disabled={disabled || isUploading}
-            className="dm-composer-btn flex-shrink-0"
+            className={triggerBtnClass}
           >
             <motion.div
               animate={isOpen ? { rotate: 45 } : { rotate: 0 }}

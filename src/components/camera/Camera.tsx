@@ -17,6 +17,7 @@ import { useDoubleTapCameraFlip } from '@/hooks/useDoubleTapCameraFlip';
 import { createCameraMediaRecorder, recordingBlobType } from '@/lib/cameraRecording';
 import { acquirePostCameraStream, attachAudioToStream, stopStream } from '@/lib/postCameraStream';
 import { bakeCameraEdits, bakedCameraFileName, type CameraDrawPath, type CameraTextOverlay } from '@/lib/bakeCameraEdits';
+import type { CameraMode, CaptureTarget } from '@/lib/camera/cameraConfig';
 
 const MusicGallery = lazy(() =>
   import('@/components/music/MusicGallery').then((m) => ({ default: m.MusicGallery })),
@@ -28,10 +29,14 @@ interface CameraProps {
   showBackArrow?: boolean;
   /** When provided, bypasses share sheet and returns captured media directly */
   onCapture?: (media: { file: File; url: string; type: 'photo' | 'video' }) => void;
+  initialStream?: MediaStream | null;
+  streamPromise?: Promise<MediaStream | null>;
+  captureTarget?: CaptureTarget;
+  defaultMode?: CameraMode;
 }
 
 type CameraState = 'capture' | 'edit' | 'share';
-type CaptureMode = 'photo' | 'video' | 'story';
+type CaptureMode = CameraMode;
 
 const CAPTURE_MODES: { id: CaptureMode; label: string }[] = [
   { id: 'video', label: 'VIDEO' },
@@ -39,13 +44,23 @@ const CAPTURE_MODES: { id: CaptureMode; label: string }[] = [
   { id: 'story', label: 'STORY' },
 ];
 
-export function Camera({ onClose, showBackArrow = false, onCapture }: CameraProps) {
+export function Camera({
+  onClose,
+  showBackArrow = false,
+  onCapture,
+  initialStream = null,
+  streamPromise,
+  captureTarget = 'hub',
+  defaultMode = 'photo',
+}: CameraProps) {
   const navigate = useNavigate();
   const [state, setState] = useState<CameraState>('capture');
   const [facingMode, setFacingMode] = useState<'user' | 'environment'>('user');
   const [flash, setFlash] = useState(false);
   const [currentFilter, setCurrentFilter] = useState('snap');
-  const [captureMode, setCaptureMode] = useState<CaptureMode>('photo');
+  const [captureMode, setCaptureMode] = useState<CaptureMode>(defaultMode);
+  const [cameraReady, setCameraReady] = useState(false);
+  const [permissionDenied, setPermissionDenied] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [capturedMedia, setCapturedMedia] = useState<{ url: string; type: 'photo' | 'video'; file?: File } | null>(null);
   const [recordingDuration, setRecordingDuration] = useState(0);
@@ -70,6 +85,8 @@ export function Camera({ onClose, showBackArrow = false, onCapture }: CameraProp
   const progressFrameRef = useRef<number | null>(null);
   const progressRef = useRef(0);
   const filterNameTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const consumedInitialStream = useRef(false);
+  const consumedStreamPromise = useRef(false);
 
   useEffect(() => {
     navVisibility.setInCommunityChat(true);
@@ -78,17 +95,34 @@ export function Camera({ onClose, showBackArrow = false, onCapture }: CameraProp
 
   const startCamera = useCallback(async () => {
     try {
+      setPermissionDenied(false);
       stopStream(streamRef.current);
       streamRef.current = null;
-      const stream = await acquirePostCameraStream(facingMode);
+      setCameraReady(false);
+
+      let stream: MediaStream | null = null;
+      if (initialStream && !consumedInitialStream.current) {
+        stream = initialStream;
+        consumedInitialStream.current = true;
+      } else if (streamPromise && !consumedStreamPromise.current) {
+        consumedStreamPromise.current = true;
+        stream = await streamPromise;
+      } else {
+        stream = await acquirePostCameraStream(facingMode);
+      }
       if (!stream) {
-        toast.error('Could not open camera');
+        setPermissionDenied(true);
         return;
       }
       streamRef.current = stream;
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
-        videoRef.current.play().catch(() => {});
+        videoRef.current.onloadedmetadata = () => {
+          videoRef.current?.play().catch(() => {});
+          setCameraReady(true);
+        };
+        await videoRef.current.play().catch(() => {});
+        if (videoRef.current.readyState >= 2) setCameraReady(true);
       }
 
       // Apply torch for rear camera
@@ -103,9 +137,9 @@ export function Camera({ onClose, showBackArrow = false, onCapture }: CameraProp
       }
     } catch (err) {
       console.error('Failed to start camera:', err);
-      toast.error('Could not open camera');
+      setPermissionDenied(true);
     }
-  }, [facingMode, flash]);
+  }, [facingMode, flash, initialStream, streamPromise]);
 
   useEffect(() => {
     startCamera();
@@ -419,9 +453,30 @@ export function Camera({ onClose, showBackArrow = false, onCapture }: CameraProp
           autoPlay playsInline muted
           controls={false}
           disablePictureInPicture
-          className={cn("w-full h-full object-cover bg-black", facingMode === 'user' && "scale-x-[-1]")}
-          style={{ backgroundColor: '#000', filter: combinedFilter }}
+          poster=""
+          className={cn(
+            'w-full h-full object-cover bg-black',
+            facingMode === 'user' && 'scale-x-[-1]',
+            !cameraReady && 'opacity-0',
+          )}
+          style={{ backgroundColor: '#000', filter: combinedFilter, transition: 'opacity 180ms ease-out' }}
         />
+
+        {!cameraReady && !permissionDenied && (
+          <div className="absolute inset-0 bg-black flex items-center justify-center">
+            <div className="h-8 w-8 rounded-full border-2 border-white/30 border-t-white animate-spin" />
+          </div>
+        )}
+
+        {permissionDenied && (
+          <div className="absolute inset-0 bg-black flex flex-col items-center justify-center px-8 text-center">
+            <p className="text-white font-semibold text-lg mb-2">Camera unavailable</p>
+            <p className="text-white/60 text-sm mb-6">Allow camera access in Settings, then try again.</p>
+            <Button variant="outline" className="rounded-xl" onClick={() => void startCamera()}>
+              Try again
+            </Button>
+          </div>
+        )}
 
         {/* Grid overlay */}
         {gridEnabled && (

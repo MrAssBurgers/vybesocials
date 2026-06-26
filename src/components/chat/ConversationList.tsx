@@ -51,8 +51,6 @@ import { formatDmPreviewContent } from '@/lib/callChatMessages';
 import { useQuickAddSuggestions } from '@/hooks/useQuickAddSuggestions';
 import { useDismissedQuickAdd } from '@/hooks/useDismissedQuickAdd';
 import { NotesRow } from './NotesRow';
-import { VybeSnapCamera } from '@/components/camera/VybeSnapCamera';
-import { CameraMountBoundary } from '@/components/camera/CameraMountBoundary';
 import { useSendFriendRequest } from '@/hooks/useFriends';
 import { NowPlayingInline } from '@/components/music/NowPlayingInline';
 import { MessageRequestsBadge } from './MessageRequestsList';
@@ -163,7 +161,6 @@ export function ConversationList() {
   const streakMap = useStreakMap();
   const [isGroupDialogOpen, setIsGroupDialogOpen] = useState(false);
   const [isTrashOpen, setIsTrashOpen] = useState(false);
-  const [showSnapCamera, setShowSnapCamera] = useState(false);
   const [recentUsers, setRecentUsers] = useState<RecentMessageUser[]>([]);
   const [storyViewerIndex, setStoryViewerIndex] = useState<number | null>(null);
   
@@ -505,20 +502,6 @@ export function ConversationList() {
           </LocalErrorBoundary>
         )}
       </div>
-
-      {/* VybeSnap Camera */}
-      {showSnapCamera && (
-        <CameraMountBoundary onError={() => setShowSnapCamera(false)}>
-          <VybeSnapCamera
-            isOpen={showSnapCamera}
-            onClose={() => setShowSnapCamera(false)}
-            onSend={() => {
-              setShowSnapCamera(false);
-              toast.success('Snap saved!');
-            }}
-          />
-        </CameraMountBoundary>
-      )}
 
       {/* Story viewer disabled while DM list stories are off — re-enable when STORY_VIEWER_IN_DM is true */}
     </div>

@@ -28,10 +28,8 @@ import { getAuthRedirectUrl } from '@/lib/authRedirect';
 import { normalizeLoginEmail } from '@/lib/loginEmail';
 import { getLoginCredentialErrorMessage, isInvalidLoginCredentialError } from '@/lib/loginErrors';
 import { clearObsoleteAuthStorage } from '@/lib/legacyAuthStorage';
-import { VybeLiquidBackground } from '@/components/effects/VybeLiquidBackground';
 import { VybeLiquidTouchOverlay } from '@/components/effects/VybeLiquidTouchOverlay';
 import { VybeLiquidText } from '@/components/ui/VybeLiquidText';
-import { useAuthLandingLiquid } from '@/hooks/useDefaultLiquidBackground';
 import { useEmailVerificationPoll } from '@/hooks/useEmailVerificationPoll';
 
 
@@ -121,7 +119,6 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
   
   // Hide bottom nav + lock page scroll while on auth screen
   useAuthPageShell();
-  const showAuthLiquid = useAuthLandingLiquid();
   
   // Check URL params for mode (login vs signup) and intro reset
   const modeParam = searchParams.get('mode');
@@ -473,7 +470,6 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
         </button>
       )}
 
-      {showAuthLiquid && <VybeLiquidBackground interactive backgroundOnly />}
 
       <div
         ref={contentRef}

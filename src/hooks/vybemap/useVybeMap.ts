@@ -42,6 +42,7 @@ import {
   readStoredMapViewMode,
   persistMapViewMode,
 } from '@/lib/vybemap/mapbox/config';
+import { readMapFollowHeading, persistMapFollowHeading } from '@/lib/vybemap/mapFollowHeading';
 
 const LAYERS_KEY = 'vybe-map-layers-v2';
 
@@ -75,6 +76,22 @@ export function useMapViewMode() {
   }, []);
 
   return { mapViewMode, setMapViewMode };
+}
+
+/** Toggle whether map bearing follows device compass (off = free pan/zoom/rotate). */
+export function useMapFollowHeading() {
+  const [followHeading, setFollowState] = useState(readMapFollowHeading);
+
+  const setFollowHeading = useCallback((enabled: boolean) => {
+    setFollowState(enabled);
+    persistMapFollowHeading(enabled);
+  }, []);
+
+  const toggleFollowHeading = useCallback(() => {
+    setFollowHeading(!followHeading);
+  }, [followHeading, setFollowHeading]);
+
+  return { followHeading, setFollowHeading, toggleFollowHeading };
 }
 
 export function useFriendIds(profileId?: string) {

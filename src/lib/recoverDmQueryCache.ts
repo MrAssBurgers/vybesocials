@@ -22,6 +22,7 @@ export function isRecoverableDmCacheError(error: unknown): boolean {
   return (
     /maximum call stack size exceeded/i.test(msg) ||
     /maximum update depth exceeded/i.test(msg) ||
-    /JSON\.stringify|cyclical|circular/i.test(msg)
+    /JSON\.stringify|cyclical|circular/i.test(msg) ||
+    /messagesContainerRef is not defined/i.test(msg)
   );
 }

@@ -1,5 +1,7 @@
 import { motion } from 'framer-motion';
-import { Ghost, Layers, MapPin, Plus, Sparkles, X } from 'lucide-react';
+import { Ghost, Layers, MapPin, Plus, Sparkles, X, Compass } from 'lucide-react';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
 import { MAP_VIEW_MODES, type MapViewMode } from '@/lib/vybemap/mapbox/config';
 import { LAYER_LABELS, type MapLayer } from '@/lib/vybemap/types';
 import { cn } from '@/lib/utils';
@@ -9,6 +11,8 @@ interface MapSettingsSheetProps {
   layers: Record<MapLayer, boolean>;
   sharing: boolean;
   hasMapbox: boolean;
+  followHeading?: boolean;
+  onFollowHeading?: (enabled: boolean) => void;
   onMapMode: (mode: MapViewMode) => void;
   onToggleLayer: (layer: MapLayer) => void;
   onGhost: () => void;
@@ -23,6 +27,8 @@ export function MapSettingsSheet({
   layers,
   sharing,
   hasMapbox,
+  followHeading = false,
+  onFollowHeading,
   onMapMode,
   onToggleLayer,
   onGhost,
@@ -65,6 +71,32 @@ export function MapSettingsSheet({
               <QuickBtn icon={MapPin} label="Plan meetup" onClick={onPlanMeetup} />
             </div>
           </section>
+
+          {hasMapbox && onFollowHeading && (
+            <section>
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-white/40 mb-2">Navigation</p>
+              <div className="flex items-center justify-between gap-3 rounded-2xl border border-white/8 bg-white/4 px-4 py-3">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="h-9 w-9 rounded-xl bg-white/8 flex items-center justify-center shrink-0">
+                    <Compass className="h-4 w-4 text-white/80" />
+                  </div>
+                  <div className="min-w-0">
+                    <Label htmlFor="follow-heading" className="text-sm font-semibold text-white">
+                      Follow phone direction
+                    </Label>
+                    <p className="text-[11px] text-white/45 leading-snug">
+                      Off lets you pan, zoom, and rotate freely
+                    </p>
+                  </div>
+                </div>
+                <Switch
+                  id="follow-heading"
+                  checked={followHeading}
+                  onCheckedChange={onFollowHeading}
+                />
+              </div>
+            </section>
+          )}
 
           {hasMapbox && (
             <section>

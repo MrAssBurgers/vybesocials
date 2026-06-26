@@ -1,11 +1,13 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth';
-import { useEffect, useCallback } from 'react';
+import { useEffect, useLayoutEffect, useCallback } from 'react';
 import { toast } from 'sonner';
 import { usePremiumStatus } from './usePremiumStatus';
 import { isNativePerfMode } from '@/lib/nativePerfMode';
 import { generateVybeTheme } from '@/lib/aiThemeGeneration';
+import { getStoredAuthUserId } from '@/lib/legacyAuthStorage';
+import { prefetchAndApplyUserTheme, persistEquippedThemeTokens, syncEquippedThemeToAccount } from '@/lib/themeHydration';
 
 // Free-tier cooldown for AI theme generation (Pro users skip this)
 const AI_THEME_COOLDOWN_MS = 24 * 60 * 60 * 1000; // 24 hours
@@ -215,6 +217,16 @@ export function useUserTheme() {
     },
     enabled: !!userId,
     staleTime: 60000,
+    initialData: () => {
+      if (!userId) return undefined;
+      const tokens = getEquippedThemeTokens(userId);
+      if (!tokens?.colorPrimary) return undefined;
+      return {
+        user_id: userId,
+        is_active: true,
+        theme_tokens: tokens,
+      };
+    },
   });
 }
 
@@ -224,14 +236,24 @@ const EQUIPPED_THEME_ID_KEY = 'vybe-equipped-theme-id';
 const LEGACY_EQUIPPED_KEY = 'vybe-custom-theme';
 
 /** Read the user's actively equipped theme tokens (localStorage is the live source). */
-export function getEquippedThemeTokens(): ThemeTokens | null {
+export function getEquippedThemeTokens(userId?: string | null): ThemeTokens | null {
   try {
-    const raw =
-      localStorage.getItem(EQUIPPED_THEME_KEY) ||
-      localStorage.getItem(LEGACY_EQUIPPED_KEY);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw) as ThemeTokens;
-    return parsed?.colorPrimary ? parsed : null;
+    const uid =
+      userId ??
+      getStoredAuthUserId() ??
+      (typeof localStorage !== 'undefined' ? localStorage.getItem('vybe-theme-user-id') : null);
+
+    const keys: string[] = [];
+    if (uid) keys.push(`${EQUIPPED_THEME_KEY}:${uid}`);
+    keys.push(EQUIPPED_THEME_KEY, LEGACY_EQUIPPED_KEY);
+
+    for (const key of keys) {
+      const raw = localStorage.getItem(key);
+      if (!raw) continue;
+      const parsed = JSON.parse(raw) as ThemeTokens;
+      if (parsed?.colorPrimary) return parsed;
+    }
+    return null;
   } catch {
     return null;
   }
@@ -240,15 +262,17 @@ export function getEquippedThemeTokens(): ThemeTokens | null {
 /** Persist + apply the equipped theme — single entry point for equip/save. */
 export function equipTheme(
   tokens: ThemeTokens,
-  options?: { themeId?: string | null; silent?: boolean }
+  options?: { themeId?: string | null; silent?: boolean; skipAutoSave?: boolean },
 ) {
-  const json = JSON.stringify(tokens);
-  localStorage.setItem(EQUIPPED_THEME_KEY, json);
-  localStorage.setItem(LEGACY_EQUIPPED_KEY, json);
+  const uid = getStoredAuthUserId();
+  persistEquippedThemeTokens(uid, tokens);
   if (options?.themeId) {
     localStorage.setItem(EQUIPPED_THEME_ID_KEY, options.themeId);
   } else if (options?.themeId === null) {
     localStorage.removeItem(EQUIPPED_THEME_ID_KEY);
+  }
+  if (uid && !options?.skipAutoSave) {
+    syncEquippedThemeToAccount(uid, tokens, { themeName: tokens.themeName });
   }
   _lastAppliedThemeHash = '';
   const resolved = document.documentElement.classList.contains('light') ? 'light' : 'dark';
@@ -261,6 +285,16 @@ export function equipTheme(
 let _lastAppliedThemeHash = '';
 function themeApplyHash(tokens: ThemeTokens, mode: 'dark' | 'light'): string {
   return `${mode}:${tokens.colorPrimary}:${tokens.bgMain}:${tokens.colorAccent}:${tokens.themeName ?? ''}`;
+}
+
+/** Skip redundant re-apply when boot already painted the equipped theme. */
+export function markThemeAppliedFromBoot(tokens: ThemeTokens): void {
+  const mode = document.documentElement.classList.contains('light') ? 'light' : 'dark';
+  _lastAppliedThemeHash = themeApplyHash(adaptThemeToMode(tokens, mode), mode);
+}
+
+export function resetThemeApplyState(): void {
+  _lastAppliedThemeHash = '';
 }
 
 
@@ -319,7 +353,7 @@ export function useSaveTheme() {
     onSuccess: (savedData) => {
       const tokens = savedData.theme_tokens as ThemeTokens;
       // Keep equipped tokens in localStorage so navigation/refetches can't swap themes
-      equipTheme(tokens, { themeId: null, silent: true });
+      equipTheme(tokens, { themeId: null, silent: true, skipAutoSave: true });
 
       queryClient.setQueryData(['user-theme', user?.id], (old: any) => ({
         ...old,
@@ -720,11 +754,17 @@ export function applyThemeTokens(tokens: ThemeTokens, options?: { preserveBackgr
     
     // === SIDEBAR ===
     const sidebarBg = safeHSL(tokens.sidebarBg, bgCard);
+    const primaryHsl = safeHSL(tokens.colorPrimary, defaultPrimary);
+    // Nav/chip highlights follow primary — not raw colorSecondary (often a clashing hue).
+    const sidebarAccent =
+      tokens.mode === 'dark'
+        ? adjustLightness(primaryHsl, -38)
+        : adjustLightness(primaryHsl, 36);
     root.style.setProperty('--sidebar-background', sidebarBg);
     root.style.setProperty('--sidebar-foreground', safeHSL(tokens.textPrimary, defaultText));
-    root.style.setProperty('--sidebar-primary', safeHSL(tokens.colorPrimary, defaultPrimary));
+    root.style.setProperty('--sidebar-primary', primaryHsl);
     root.style.setProperty('--sidebar-primary-foreground', tokens.mode === 'dark' ? '0 0% 100%' : '0 0% 0%');
-    root.style.setProperty('--sidebar-accent', safeHSL(tokens.colorSecondary, '240 10% 12%'));
+    root.style.setProperty('--sidebar-accent', sidebarAccent);
     root.style.setProperty('--sidebar-accent-foreground', safeHSL(tokens.textPrimary, defaultText));
     root.style.setProperty('--sidebar-border', safeHSL(tokens.borderColor, glassBorder));
     root.style.setProperty('--sidebar-ring', safeHSL(tokens.colorPrimary, defaultPrimary));
@@ -858,6 +898,8 @@ export function applyThemeTokens(tokens: ThemeTokens, options?: { preserveBackgr
         if (v) snap[k] = v.trim();
       }
       localStorage.setItem('vybe-boot-theme', JSON.stringify(snap));
+      const uid = getStoredAuthUserId();
+      if (uid) localStorage.setItem('vybe-theme-user-id', uid);
     } catch {
       // best-effort only
     }
@@ -893,25 +935,20 @@ export function applyBackgroundImage(imageUrl: string | null, opacity?: number, 
 let _isApplyingTheme = false;
 
 export function useApplyUserTheme() {
+  const { user } = useAuth();
   const { data: userTheme } = useUserTheme();
 
   const applyForMode = useCallback((resolved: 'dark' | 'light') => {
     if (_isApplyingTheme || _isSavingTheme || _themePreviewLock) return;
 
-    let tokens = getEquippedThemeTokens();
+    let tokens = getEquippedThemeTokens(user?.id);
 
-    // Boot / new device: hydrate localStorage from DB once
-    if (!tokens && userTheme?.is_active && userTheme.theme_tokens) {
+    // Active DB row is source of truth once loaded.
+    if (userTheme?.is_active && userTheme.theme_tokens) {
       const dbTokens = userTheme.theme_tokens as unknown as ThemeTokens;
       if (dbTokens?.colorPrimary) {
+        persistEquippedThemeTokens(user?.id ?? null, dbTokens);
         tokens = dbTokens;
-        try {
-          const json = JSON.stringify(dbTokens);
-          localStorage.setItem(EQUIPPED_THEME_KEY, json);
-          localStorage.setItem(LEGACY_EQUIPPED_KEY, json);
-        } catch {
-          /* ignore */
-        }
       }
     }
 
@@ -929,7 +966,7 @@ export function useApplyUserTheme() {
     } finally {
       setTimeout(() => { _isApplyingTheme = false; }, 50);
     }
-  }, [userTheme]);
+  }, [user?.id, userTheme]);
 
   // Re-adapt equipped theme when light/dark mode changes — same tokens, no DB/localStorage swap
   useEffect(() => {
@@ -949,10 +986,15 @@ export function useApplyUserTheme() {
     return () => observer.disconnect();
   }, [applyForMode]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const resolvedMode = document.documentElement.classList.contains('light') ? 'light' : 'dark';
     applyForMode(resolvedMode);
-  }, [userTheme, applyForMode]);
+
+    const uid = user?.id ?? getStoredAuthUserId();
+    if (uid) {
+      void prefetchAndApplyUserTheme(uid, undefined, { timeoutMs: 4000 });
+    }
+  }, [userTheme, applyForMode, user?.id]);
 
   // Re-apply when another tab or equipTheme updates storage
   useEffect(() => {

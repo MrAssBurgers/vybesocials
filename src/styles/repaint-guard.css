@@ -3,7 +3,7 @@
 html,
 body {
   min-height: 100%;
-  background: #090812;
+  background: hsl(var(--background, 240 6% 5%));
   overscroll-behavior: none;
 }
 
@@ -16,28 +16,12 @@ body {
   box-sizing: border-box;
 }
 
+/* Retired — single portaled VybeLiquidBackground is the only backdrop */
 .vybe-bg {
-  position: fixed;
-  inset: 0;
-  z-index: -1;
-  background:
-    radial-gradient(circle at 20% 20%, rgba(255, 45, 180, 0.24), transparent 32%),
-    radial-gradient(circle at 80% 70%, rgba(0, 200, 255, 0.22), transparent 36%),
-    linear-gradient(135deg, #120018 0%, #081827 100%);
-  transform: translateZ(0);
-  backface-visibility: hidden;
-  pointer-events: none;
+  display: none !important;
 }
 
-/* Aurora mesh is self-contained — skip painting the base gradient underneath */
-html.vybe-aurora-active .vybe-bg,
-html[data-liquid-bg='true'] .vybe-bg,
-body.has-liquid-bg .vybe-bg,
-body.has-custom-bg .vybe-bg {
-  visibility: hidden;
-}
-
-/* Route + layout shells stay transparent — vybe-bg / aurora is the only backdrop */
+/* Route + layout shells stay transparent — aurora is the only backdrop */
 [data-route-shell],
 .app-shell,
 .main-content,
@@ -50,16 +34,59 @@ body.has-custom-bg .vybe-bg {
 /* Opaque gradient only for explicit loading / error fallbacks */
 .page-shell,
 .vybe-loading-shell {
-  background:
-    radial-gradient(circle at 20% 20%, rgba(255, 45, 180, 0.16), transparent 35%),
-    linear-gradient(135deg, rgba(20, 5, 35, 0.96), rgba(5, 20, 35, 0.96));
+  background: hsl(var(--background, 240 6% 5%));
   min-height: 100dvh;
 }
 
 .vybe-loading-shell {
+  background: hsl(var(--background, 240 6% 5%));
+}
+
+/* Boot / splash overlays — transparent so aurora + ambient bubbles show through */
+.vybe-splash-overlay,
+#vybe-static-boot {
+  background: transparent !important;
+}
+
+.vybe-splash-ambient-mesh {
   background:
-    radial-gradient(circle at 25% 20%, rgba(255, 45, 180, 0.18), transparent 35%),
-    linear-gradient(135deg, #16051f, #061725);
+    radial-gradient(ellipse 95% 75% at 18% 22%, hsl(var(--primary) / 0.42), transparent 58%),
+    radial-gradient(ellipse 85% 65% at 82% 78%, hsl(var(--accent) / 0.34), transparent 55%),
+    radial-gradient(ellipse 75% 58% at 55% 48%, hsl(var(--secondary, var(--primary)) / 0.2), transparent 52%),
+    linear-gradient(145deg, hsl(var(--background)) 0%, hsl(var(--card, var(--background)) / 0.88) 45%, hsl(var(--background)) 100%);
+  background-size: 140% 140%, 150% 150%, 130% 130%, 100% 100%;
+  animation: vybe-mesh-color-drift 96s cubic-bezier(0.42, 0, 0.58, 1) infinite alternate;
+}
+
+.vybe-splash-ambient-blob {
+  position: absolute;
+  border-radius: 58% 42% 62% 38% / 48% 58% 42% 52%;
+  transform: translate(-50%, -50%);
+  filter: blur(100px);
+  mix-blend-mode: screen;
+  opacity: 0.55;
+  animation-duration: var(--blob-dur, 60s);
+  animation-timing-function: cubic-bezier(0.42, 0, 0.58, 1);
+  animation-iteration-count: infinite;
+  will-change: transform, border-radius;
+}
+
+.vybe-splash-ambient-blob--a {
+  background: hsl(var(--primary) / 0.55);
+  animation-name: vybe-liquid-blob-a, vybe-blob-shape-a;
+  animation-duration: var(--blob-dur, 58s), calc(var(--blob-dur, 58s) * 1.35);
+}
+
+.vybe-splash-ambient-blob--b {
+  background: hsl(var(--accent) / 0.48);
+  animation-name: vybe-liquid-blob-b, vybe-blob-shape-b;
+  animation-duration: var(--blob-dur, 72s), calc(var(--blob-dur, 72s) * 1.2);
+}
+
+.vybe-splash-ambient-blob--c {
+  background: hsl(var(--secondary, var(--primary)) / 0.42);
+  animation-name: vybe-liquid-blob-c, vybe-blob-shape-c;
+  animation-duration: var(--blob-dur, 64s), calc(var(--blob-dur, 64s) * 1.45);
 }
 
 .app-shell {

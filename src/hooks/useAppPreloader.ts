@@ -11,6 +11,7 @@ import { isNativePerfMode } from '@/lib/nativePerfMode';
 import { isSetupRoutePath } from '@/lib/splashSession';
 import { publishSplashProgress } from '@/lib/splashProgressBridge';
 import { getCachedCurrentProfile } from '@/lib/profileCache';
+import { prefetchAndApplyUserTheme } from '@/lib/themeHydration';
 
 interface PreloadStatus {
   step: string;
@@ -200,6 +201,7 @@ export function useAppPreloader() {
         }
 
         const uid = session.user.id;
+        void prefetchAndApplyUserTheme(uid, queryClient);
 
         // Step 3: Kick off profile fetch but cap how long the splash will wait on it.
         updateStatus('profile');

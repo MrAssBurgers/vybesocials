@@ -74,7 +74,7 @@ export function Sidebar() {
             >
               {/* Static active state: avoids hover/background shimmer */}
               {isActive && (
-                <div className="absolute inset-0 rounded-xl bg-sidebar-accent border border-primary/20" />
+                <div className="absolute inset-0 rounded-xl bg-primary/12 border border-primary/25" />
               )}
               <div className="relative">
                 <Icon className="h-5 w-5 relative z-10" />

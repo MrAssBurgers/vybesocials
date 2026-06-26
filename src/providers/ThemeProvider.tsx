@@ -1,6 +1,7 @@
-import { createContext, useEffect, useState, ReactNode } from 'react';
-import { useApplyUserTheme, useUserTheme, ThemeTokens } from '@/hooks/useCustomTheme';
-import { BackgroundEffects } from '@/components/effects/BackgroundEffects';
+import { createContext, ReactNode, useLayoutEffect } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+import { useApplyUserTheme } from '@/hooks/useCustomTheme';
+import { hydrateThemeFromLocalCaches } from '@/lib/themeHydration';
 
 interface ThemeProviderProps {
   children: ReactNode;
@@ -9,33 +10,20 @@ interface ThemeProviderProps {
 const ThemeContext = createContext<null>(null);
 
 /**
- * CustomThemeProvider - Manages UI theme colors and effects
- * 
- * CRITICAL: This provider only handles UI colors (primary, secondary, accent, etc.)
- * Background images are managed separately by AppBackgroundProvider to ensure
- * theme changes NEVER reset or override the user's background image.
+ * CustomThemeProvider - Manages UI theme colors.
+ * Animated backdrop is a single global layer (AppGlobalLiquidShell / VybeLiquidBackground).
  */
 export function CustomThemeProvider({ children }: ThemeProviderProps) {
-  const { data: userTheme } = useUserTheme();
-  const [bgEffect, setBgEffect] = useState<ThemeTokens['backgroundEffect']>('none');
-  
-  // Apply user's custom theme on mount and when it changes
-  // This only applies UI colors, NOT background images
+  const queryClient = useQueryClient();
+
+  useLayoutEffect(() => {
+    hydrateThemeFromLocalCaches(queryClient);
+  }, [queryClient]);
+
   useApplyUserTheme();
-  
-  // Update background effect when theme changes
-  useEffect(() => {
-    if (userTheme?.is_active && userTheme.theme_tokens) {
-      const tokens = userTheme.theme_tokens as unknown as ThemeTokens;
-      setBgEffect(tokens.backgroundEffect || 'none');
-    } else {
-      setBgEffect('none');
-    }
-  }, [userTheme]);
 
   return (
     <ThemeContext.Provider value={null}>
-      <BackgroundEffects effect={bgEffect || 'none'} />
       {children}
     </ThemeContext.Provider>
   );

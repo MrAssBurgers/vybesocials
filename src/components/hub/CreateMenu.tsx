@@ -2,12 +2,10 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Image, Camera, X, Zap, MapPin } from 'lucide-react';
-import { VybeMiniIcon } from '@/components/ui/VybeMiniIcon';
 import { triggerHaptic } from '@/lib/haptics';
 import { playSound } from '@/lib/sounds';
 import { VYBEHub } from './VYBEHub';
-import { Camera as CameraComponent } from '@/components/camera';
-import { CameraMountBoundary } from '@/components/camera/CameraMountBoundary';
+import { openCameraFromGesture, useCameraOverlay } from '@/contexts/CameraOverlayContext';
 
 interface CreateMenuProps {
   isOpen: boolean;
@@ -17,7 +15,7 @@ interface CreateMenuProps {
 export function CreateMenu({ isOpen, onClose }: CreateMenuProps) {
   const navigate = useNavigate();
   const [showHub, setShowHub] = useState(false);
-  const [showCamera, setShowCamera] = useState(false);
+  const { openCamera } = useCameraOverlay();
 
   const handleAction = (action: 'post' | 'camera' | 'hub' | 'map') => {
     triggerHaptic('medium');
@@ -30,7 +28,7 @@ export function CreateMenu({ isOpen, onClose }: CreateMenuProps) {
         break;
       case 'camera':
         onClose();
-        navigate('/upload');
+        void openCameraFromGesture(openCamera, 'post');
         break;
       case 'hub':
         onClose();
@@ -71,13 +69,6 @@ export function CreateMenu({ isOpen, onClose }: CreateMenuProps) {
     <>
       {/* VYBE Hub Modal */}
       <VYBEHub isOpen={showHub} onClose={() => setShowHub(false)} />
-
-      {/* Camera Fullscreen */}
-      {showCamera && (
-        <CameraMountBoundary onError={() => setShowCamera(false)}>
-          <CameraComponent onClose={() => setShowCamera(false)} />
-        </CameraMountBoundary>
-      )}
 
       <AnimatePresence>
         {isOpen && (

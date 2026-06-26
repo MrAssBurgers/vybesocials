@@ -12,10 +12,10 @@ interface DiscoveryItem {
 }
 
 const items: DiscoveryItem[] = [
-  { icon: <Dna className="h-5 w-5" />, label: 'VYBE DNA', path: '/vybe-dna', gradient: 'from-violet-500/20 to-fuchsia-500/20' },
-  { icon: <Wallet className="h-5 w-5" />, label: 'Wallet', path: '/wallet', gradient: 'from-amber-500/20 to-orange-500/20' },
-  { icon: <ShoppingBag className="h-5 w-5" />, label: 'Shop', path: '/marketplace', gradient: 'from-emerald-500/20 to-teal-500/20' },
-  { icon: <Radio className="h-5 w-5" />, label: 'Communities', path: '/community', gradient: 'from-blue-500/20 to-cyan-500/20' },
+  { icon: <Dna className="h-5 w-5" />, label: 'VYBE DNA', path: '/vybe-dna', gradient: 'from-primary/22 to-accent/14' },
+  { icon: <Wallet className="h-5 w-5" />, label: 'Wallet', path: '/wallet', gradient: 'from-accent/18 to-primary/12' },
+  { icon: <ShoppingBag className="h-5 w-5" />, label: 'Shop', path: '/marketplace', gradient: 'from-primary/16 to-accent/18' },
+  { icon: <Radio className="h-5 w-5" />, label: 'Communities', path: '/community', gradient: 'from-accent/20 to-primary/14' },
 ];
 
 export const DiscoveryCards = memo(function DiscoveryCards() {

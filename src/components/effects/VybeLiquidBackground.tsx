@@ -14,14 +14,18 @@ interface VybeLiquidBackgroundProps {
 }
 
 const BLOB_LAYOUT = [
-  { id: 'a', anim: 'vybe-liquid-blob-a', dur: 25, top: '8%', left: '12%', size: 520 },
-  { id: 'b', anim: 'vybe-liquid-blob-b', dur: 37, top: '62%', left: '78%', size: 640 },
-  { id: 'c', anim: 'vybe-liquid-blob-c', dur: 42, top: '72%', left: '18%', size: 460 },
-  { id: 'd', anim: 'vybe-liquid-blob-d', dur: 31, top: '22%', left: '82%', size: 580 },
+  { id: 'a', anim: 'vybe-liquid-blob-a', dur: 96, top: '8%', left: '12%', size: 520 },
+  { id: 'b', anim: 'vybe-liquid-blob-b', dur: 118, top: '62%', left: '78%', size: 640 },
+  { id: 'c', anim: 'vybe-liquid-blob-c', dur: 132, top: '72%', left: '18%', size: 460 },
+  { id: 'd', anim: 'vybe-liquid-blob-d', dur: 104, top: '22%', left: '82%', size: 580 },
 ] as const;
 
-/** App shell / auth landing — mesh + two blobs only (fewer repaint layers). */
-const APP_SHELL_BLOB_LAYOUT = BLOB_LAYOUT.filter((blob) => blob.id === 'a' || blob.id === 'b');
+/** App shell — three theme blobs; slow, visible lava-lamp drift. */
+const APP_SHELL_BLOB_LAYOUT = [
+  { id: 'a', anim: 'vybe-liquid-blob-a', dur: 58, delay: 0, top: '12%', left: '18%', size: 560 },
+  { id: 'b', anim: 'vybe-liquid-blob-b', dur: 72, delay: -12, top: '68%', left: '72%', size: 680 },
+  { id: 'c', anim: 'vybe-liquid-blob-c', dur: 64, delay: -24, top: '38%', left: '52%', size: 420 },
+] as const;
 
 function retrigger(el: HTMLElement | null, activeClass: string) {
   if (!el) return;
@@ -94,8 +98,7 @@ export const VybeLiquidBackground = memo(function VybeLiquidBackground({
     STABLE_APP_BACKGROUND ||
     isNativePerfMode() ||
     (typeof window !== 'undefined' &&
-      window.matchMedia('(prefers-reduced-motion: reduce)').matches) ||
-    !interactive;
+      window.matchMedia('(prefers-reduced-motion: reduce)').matches);
 
   useEffect(() => {
     const root = rootRef.current;
@@ -172,7 +175,7 @@ export const VybeLiquidBackground = memo(function VybeLiquidBackground({
 
   const blobLayout = backgroundOnly ? APP_SHELL_BLOB_LAYOUT : BLOB_LAYOUT;
   const showAnimatedLayers = !STABLE_APP_BACKGROUND && !isNativePerfMode();
-  const showBloom = showAnimatedLayers && !backgroundOnly;
+  const showBloom = showAnimatedLayers;
   const showGrain = showAnimatedLayers && !backgroundOnly;
 
   const touchEffects = (
@@ -199,11 +202,11 @@ export const VybeLiquidBackground = memo(function VybeLiquidBackground({
       data-allow-animation="true"
       aria-hidden
     >
-      <div className="vybe-liquid-parallax absolute inset-[-20%]">
+      <div className="vybe-liquid-parallax absolute inset-[-24%]">
         <div className="vybe-liquid-mesh absolute inset-0" />
         {showAnimatedLayers && (
           <>
-            {showBloom && <div className="vybe-liquid-bloom absolute inset-[-15%]" />}
+            {showBloom && <div className="vybe-liquid-bloom absolute inset-[-18%]" />}
             {blobLayout.map((blob) => (
               <div
                 key={blob.id}
@@ -214,6 +217,9 @@ export const VybeLiquidBackground = memo(function VybeLiquidBackground({
                   width: blob.size,
                   height: blob.size,
                   ['--blob-dur' as string]: `${blob.dur}s`,
+                  ...('delay' in blob && blob.delay !== undefined
+                    ? { animationDelay: `${blob.delay}s` }
+                    : {}),
                 }}
               />
             ))}

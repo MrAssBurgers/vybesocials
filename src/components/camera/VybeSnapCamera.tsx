@@ -26,6 +26,8 @@ interface VybeSnapCameraProps {
    * the camera component will attach this stream instead of calling getUserMedia
    * itself, preserving the gesture context required by mobile WebViews. */
   initialStream?: MediaStream | null;
+  /** getUserMedia promise kicked off during the tap — attach when resolved. */
+  streamPromise?: Promise<MediaStream | null>;
 }
 
 const MAX_RECORDING_DURATION = 30;
@@ -54,7 +56,7 @@ class CameraErrorBoundary extends Component<
   render() {
     if (this.state.hasError) {
       return (
-        <div className="fixed inset-0 z-[200] bg-black flex flex-col items-center justify-center px-8 text-center">
+        <div className="fixed inset-0 z-[10050] bg-black flex flex-col items-center justify-center px-8 text-center">
           <div className="w-20 h-20 rounded-full bg-white/10 flex items-center justify-center mb-4">
             <X className="h-8 w-8 text-white" />
           </div>
@@ -74,7 +76,7 @@ const isDespia = () => {
   return /despia/i.test(ua);
 };
 
-export const VybeSnapCamera = forwardRef<HTMLDivElement, VybeSnapCameraProps>(function VybeSnapCamera({ isOpen, onClose, onSend, initialStream }, _ref) {
+export const VybeSnapCamera = forwardRef<HTMLDivElement, VybeSnapCameraProps>(function VybeSnapCamera({ isOpen, onClose, onSend, initialStream, streamPromise }, _ref) {
   const [phase, setPhase] = useState<'camera' | 'edit' | 'sending'>('camera');
   const [facingMode, setFacingMode] = useState<'user' | 'environment'>('user');
   const [flashEnabled, setFlashEnabled] = useState(false);
@@ -115,6 +117,31 @@ export const VybeSnapCamera = forwardRef<HTMLDivElement, VybeSnapCameraProps>(fu
   const fileInputRef = useRef<HTMLInputElement>(null);
   const startingRef = useRef(false);
 
+  const attachStream = useCallback((stream: MediaStream) => {
+    const tracks = stream.getTracks();
+    if (tracks.length === 0 || !tracks.every((t) => t.readyState === 'live')) return false;
+
+    const videoTrack = stream.getVideoTracks()[0];
+    const settings = videoTrack?.getSettings?.();
+    const actualFacing = settings?.facingMode === 'environment' ? 'environment' : 'user';
+    if (actualFacing !== facingMode) {
+      setFacingMode(actualFacing);
+    }
+
+    streamRef.current = stream;
+    setPermissionDenied(false);
+    setCameraReady(true);
+    requestAnimationFrame(() => {
+      if (videoRef.current && streamRef.current) {
+        try {
+          videoRef.current.srcObject = streamRef.current;
+          videoRef.current.play().catch(() => {});
+        } catch {}
+      }
+    });
+    return true;
+  }, [facingMode]);
+
   // ── Defensive camera open ──
   const startCamera = useCallback(async () => {
     // Re-entrancy guard: prevents overlapping getUserMedia calls that crash WebViews
@@ -141,37 +168,12 @@ export const VybeSnapCamera = forwardRef<HTMLDivElement, VybeSnapCameraProps>(fu
 
         // If parent supplied stream, use it as-is (don't second-guess constraints)
         if (provided && allLive) {
-          const actualFacing =
-            settings?.facingMode === 'environment' ? 'environment' : 'user';
-          if (actualFacing !== facingMode) {
-            setFacingMode(actualFacing);
-          }
-          streamRef.current = preloaded;
-          setPermissionDenied(false);
-          setCameraReady(true);
-          requestAnimationFrame(() => {
-            if (videoRef.current && streamRef.current) {
-              try {
-                videoRef.current.srcObject = streamRef.current;
-                videoRef.current.play().catch(() => {});
-              } catch {}
-            }
-          });
+          attachStream(preloaded);
           return;
         }
 
         if (allLive && currentFacing === facingMode && hasAudio === soundEnabled) {
-          streamRef.current = preloaded;
-          setPermissionDenied(false);
-          setCameraReady(true);
-          requestAnimationFrame(() => {
-            if (videoRef.current && streamRef.current) {
-              try {
-                videoRef.current.srcObject = streamRef.current;
-                videoRef.current.play().catch(() => {});
-              } catch {}
-            }
-          });
+          attachStream(preloaded);
           return;
         }
         // Do NOT call stopCameraStream() here — that shared global stream may
@@ -249,7 +251,7 @@ export const VybeSnapCamera = forwardRef<HTMLDivElement, VybeSnapCameraProps>(fu
     } finally {
       startingRef.current = false;
     }
-  }, [facingMode, flashEnabled, initialStream]);
+  }, [attachStream, facingMode, flashEnabled, initialStream, soundEnabled]);
 
   // Toggle torch
   useEffect(() => {
@@ -293,14 +295,32 @@ export const VybeSnapCamera = forwardRef<HTMLDivElement, VybeSnapCameraProps>(fu
     setShowMore(false);
 
     if (!getActiveStream() && !streamRef.current) setCameraReady(false);
-    // Defer init one frame so the <video> is mounted before we attach a stream.
-    const id = requestAnimationFrame(() => { startCamera(); });
+
+    let cancelled = false;
+    const boot = async () => {
+      if (initialStream?.active && attachStream(initialStream)) return;
+
+      if (streamPromise) {
+        const stream = await streamPromise;
+        if (cancelled) return;
+        if (stream?.active && attachStream(stream)) return;
+      }
+
+      if (!cancelled) {
+        requestAnimationFrame(() => {
+          if (!cancelled) startCamera();
+        });
+      }
+    };
+
+    void boot();
+
     return () => {
-      cancelAnimationFrame(id);
+      cancelled = true;
       startingRef.current = false;
       stopCamera();
     };
-  }, [isOpen, stopCamera, startCamera]);
+  }, [attachStream, isOpen, initialStream, startCamera, stopCamera, streamPromise]);
 
   useEffect(() => {
     if (!cameraReady) return;
@@ -622,7 +642,7 @@ export const VybeSnapCamera = forwardRef<HTMLDivElement, VybeSnapCameraProps>(fu
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        className="fixed inset-0 z-[200] bg-black flex items-center justify-center"
+        className="fixed inset-0 z-[10050] bg-black flex items-center justify-center"
       >
         <div className="flex flex-col items-center gap-5">
           <motion.div
@@ -640,10 +660,11 @@ export const VybeSnapCamera = forwardRef<HTMLDivElement, VybeSnapCameraProps>(fu
   return (
     <CameraErrorBoundary onClose={handleClose}>
       <motion.div
-        initial={{ opacity: 0 }}
+        initial={false}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        className="fixed inset-0 z-[200] bg-black flex flex-col"
+        transition={{ duration: 0.12 }}
+        className="fixed inset-0 z-[10050] bg-black flex flex-col"
       >
         <canvas ref={canvasRef} className="hidden" />
         <input

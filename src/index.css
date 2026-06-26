@@ -109,10 +109,45 @@ body.welcome-back-visible [data-app-shell] {
 }
 
 /* Splash screen animations — pure CSS, GPU-composited */
+.vybe-logo-path {
+  stroke-dasharray: 100;
+  stroke-dashoffset: 0;
+  opacity: 1;
+}
+
+.vybe-logo-path--left {
+  animation: vybe-logo-draw 0.7s cubic-bezier(0.16, 1, 0.3, 1) 0.15s backwards;
+}
+
+.vybe-logo-path--right {
+  animation: vybe-logo-draw 0.7s cubic-bezier(0.16, 1, 0.3, 1) 0.35s backwards;
+}
+
+.vybe-logo-dot {
+  transform-origin: 50px 88px;
+  animation: vybe-logo-dot-in 0.4s ease-out 0.8s backwards, vybe-logo-dot-pulse 1.8s ease-in-out 1.2s infinite;
+}
+
+@keyframes vybe-logo-draw {
+  from { stroke-dashoffset: 100; opacity: 0; }
+  to { stroke-dashoffset: 0; opacity: 1; }
+}
+
+@keyframes vybe-logo-dot-in {
+  0% { opacity: 0; transform: scale(0); }
+  100% { opacity: 1; transform: scale(1); }
+}
+
+@keyframes vybe-logo-dot-pulse {
+  0%, 100% { transform: scale(1); opacity: 0.9; }
+  50% { transform: scale(1.35); opacity: 1; }
+}
+
 .splash-draw-left,
 .splash-draw-right {
   stroke-dasharray: 100;
-  stroke-dashoffset: 100;
+  stroke-dashoffset: 0;
+  opacity: 1;
 }
 .splash-draw-left {
   animation: splash-draw 0.7s cubic-bezier(0.16, 1, 0.3, 1) 0.15s forwards;
@@ -210,17 +245,16 @@ html[data-dm-active="true"] nav[aria-label="Bottom navigation"] .liquid-glass-de
   opacity: 0.9;
 }
 
-/* Active chat: skip inbox decorative gradients — they band badly through stacked blurs */
+/* Active chat: keep shell aurora visible through glass panes */
 .dm-shell:has(.dm-chat-shell)::before {
-  opacity: 0;
-  visibility: hidden;
+  opacity: 0.65;
 }
 
 .dm-sidebar {
   position: relative;
   z-index: 1;
   min-height: 100%;
-  background: hsl(var(--background) / 0.42);
+  background: hsl(var(--background) / 0.38);
   backdrop-filter: blur(28px) saturate(140%);
   -webkit-backdrop-filter: blur(28px) saturate(140%);
   border-right: 1px solid hsl(var(--foreground) / 0.05);
@@ -231,7 +265,7 @@ html[data-dm-active="true"] nav[aria-label="Bottom navigation"] .liquid-glass-de
 }
 
 body.has-liquid-bg:not(.has-custom-bg) .dm-sidebar {
-  background: hsl(var(--background) / 0.22);
+  background: hsl(var(--background) / 0.18);
 }
 
 .dm-header-aurora {
@@ -271,8 +305,6 @@ body.has-liquid-bg:not(.has-custom-bg) .dm-sidebar {
   background: linear-gradient(
     90deg,
     hsl(var(--primary)) 0%,
-    hsl(var(--primary)) 22%,
-    hsl(var(--accent)) 78%,
     hsl(var(--accent)) 100%
   );
   -webkit-background-clip: text;
@@ -479,11 +511,19 @@ body.has-liquid-bg:not(.has-custom-bg) .dm-sidebar {
   color: transparent;
 }
 
-/* Desktop empty chat pane */
+/* Desktop empty chat pane + active chat column */
+.messages-scroll {
+  background: hsl(var(--background) / 0.38);
+  backdrop-filter: blur(20px) saturate(130%);
+  -webkit-backdrop-filter: blur(20px) saturate(130%);
+}
+
+body.has-liquid-bg:not(.has-custom-bg) .messages-scroll {
+  background: hsl(var(--background) / 0.18);
+}
+
 .dm-empty-pane {
-  background:
-    radial-gradient(ellipse 50% 40% at 50% 40%, hsl(var(--primary) / 0.1), transparent),
-    hsl(var(--background));
+  background: transparent;
 }
 
 .perf-low .dm-header-aurora,
@@ -606,6 +646,9 @@ body.has-liquid-bg:not(.has-custom-bg) .dm-sidebar {
   mask-image: linear-gradient(to bottom, black 50%, transparent);
   -webkit-mask-image: linear-gradient(to bottom, black 50%, transparent);
   pointer-events: none;
+}
+body.has-liquid-bg .dm-inbox-hero-aurora {
+  display: none;
 }
 
 .dm-inbox-chip {
@@ -838,15 +881,17 @@ body.has-liquid-bg:not(.has-custom-bg) .dm-sidebar {
   display: none;
 }
 
-/* Active chat view — solid chrome (no aurora bleed / banding) */
+/* Active chat view — glass shell; liquid aurora shows through */
 .dm-chat-shell {
   position: relative;
   z-index: 1;
-  background: hsl(var(--background));
+  background: hsl(var(--background) / 0.42);
+  backdrop-filter: blur(28px) saturate(140%);
+  -webkit-backdrop-filter: blur(28px) saturate(140%);
   contain: layout style;
 }
 body.has-liquid-bg:not(.has-custom-bg) .dm-chat-shell {
-  background: hsl(var(--background));
+  background: hsl(var(--background) / 0.18);
 }
 .dm-chat-header {
   position: absolute;
@@ -888,45 +933,294 @@ body.has-liquid-bg:not(.has-custom-bg) .dm-chat-shell {
   gap: 0.125rem;
 }
 .dm-chat-messages {
-  background: hsl(var(--background));
+  background: transparent;
   contain: strict;
   padding-top: calc(var(--app-floating-header-scroll) + 2.25rem);
 }
 body.has-liquid-bg:not(.has-custom-bg) .dm-chat-messages {
-  background: hsl(var(--background));
+  background: transparent;
 }
 .dm-composer-dock {
   flex-shrink: 0;
   z-index: 30;
-  border-top: 1px solid hsl(var(--foreground) / 0.07);
-  background: hsl(var(--background));
-  padding: 0.5rem 0.75rem;
-  padding-bottom: max(0.5rem, env(safe-area-inset-bottom, 0px));
-  transition: padding-bottom 0.2s ease-out;
+  border-top: none;
+  background: transparent;
+  padding: 0.35rem 0.75rem max(0.65rem, env(safe-area-inset-bottom, 0px));
+  transition: none;
 }
 body.has-liquid-bg:not(.has-custom-bg) .dm-composer-dock {
-  background: hsl(var(--background));
+  background: transparent;
 }
-/* Keep composer in flex flow until keyboard opens — avoids layout jump on open */
 html[data-dm-active='true'] .dm-composer-dock {
-  position: sticky;
-  bottom: 0;
+  position: relative;
+  bottom: auto;
 }
 html[data-dm-active='true'] body[data-kb-open='true'] .dm-composer-dock {
-  position: fixed;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  padding-bottom: calc(max(0.5rem, env(safe-area-inset-bottom, 0px)) + var(--kb-h, 0px));
+  position: relative;
+  left: auto;
+  right: auto;
+  bottom: auto;
+  padding-bottom: 0;
 }
 @media (min-width: 768px) {
   html[data-dm-active='true'] body[data-kb-open='true'] .dm-composer-dock {
-    position: sticky;
-    padding-bottom: calc(max(0.5rem, env(safe-area-inset-bottom, 0px)) + var(--kb-h, 0px));
+    position: relative;
+    padding-bottom: 0;
   }
 }
+html[data-dm-active='true'] .dm-chat-messages {
+  padding-bottom: calc(var(--texter-stack-h, 4.5rem) + 12px + var(--keyboard-height, var(--kb-h, 0px)));
+}
 html[data-dm-active='true'] body[data-kb-open='true'] .dm-chat-messages {
-  padding-bottom: calc(4.25rem + env(safe-area-inset-bottom, 0px) + var(--kb-h, 0px));
+  padding-bottom: calc(var(--texter-stack-h, 4.5rem) + 12px + var(--keyboard-height, var(--kb-h, 0px)));
+}
+.texter-stack {
+  width: 100%;
+  padding: 0.15rem 0;
+}
+.texter-pill {
+  position: relative;
+  border-radius: 9999px;
+  padding: 1px;
+  background: linear-gradient(
+    135deg,
+    hsl(var(--primary) / 0.55),
+    hsl(var(--accent) / 0.4),
+    hsl(var(--primary) / 0.35)
+  );
+  box-shadow:
+    0 12px 40px hsl(var(--primary) / 0.18),
+    0 4px 16px hsl(0 0% 0% / 0.22),
+    inset 0 1px 0 hsl(0 0% 100% / 0.12);
+}
+.texter-pill__glow {
+  position: absolute;
+  inset: -6px;
+  border-radius: inherit;
+  background: radial-gradient(
+    ellipse 80% 60% at 50% 100%,
+    hsl(var(--primary) / 0.22),
+    transparent 70%
+  );
+  pointer-events: none;
+  z-index: 0;
+  filter: blur(8px);
+}
+.texter-pill__shine {
+  position: absolute;
+  inset: 1px;
+  border-radius: inherit;
+  background: linear-gradient(
+    180deg,
+    hsl(0 0% 100% / 0.14) 0%,
+    hsl(0 0% 100% / 0.04) 28%,
+    transparent 52%
+  );
+  pointer-events: none;
+  z-index: 2;
+}
+.texter-pill__inner {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: flex-end;
+  gap: 0.35rem;
+  min-height: 3.25rem;
+  padding: 0.35rem 0.45rem 0.35rem 0.4rem;
+  border-radius: 9999px;
+  background: linear-gradient(
+    165deg,
+    hsl(var(--glass) / 0.72) 0%,
+    hsl(var(--card) / 0.82) 42%,
+    hsl(var(--glass) / 0.65) 100%
+  );
+  backdrop-filter: blur(28px) saturate(185%);
+  -webkit-backdrop-filter: blur(28px) saturate(185%);
+}
+.texter-pill--cancel {
+  background: linear-gradient(135deg, hsl(var(--destructive) / 0.65), hsl(var(--destructive) / 0.35));
+}
+.texter-pill--cancel .texter-pill__glow {
+  background: radial-gradient(ellipse 80% 60% at 50% 100%, hsl(var(--destructive) / 0.25), transparent 70%);
+}
+.texter-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.2rem;
+  flex-shrink: 0;
+}
+.texter-actions--end {
+  padding-right: 0.05rem;
+}
+.texter-field {
+  display: flex;
+  align-items: center;
+  min-height: 2.5rem;
+  padding: 0 0.15rem;
+}
+.texter-input {
+  width: 100%;
+  resize: none;
+  border: 0;
+  outline: none;
+  background: transparent;
+  box-shadow: none;
+  margin: 0;
+  padding: 0.45rem 0.35rem;
+  font-size: 0.9375rem;
+  line-height: 1.375rem;
+  font-weight: 450;
+  letter-spacing: -0.01em;
+  color: hsl(var(--foreground));
+  caret-color: hsl(var(--primary));
+  max-height: calc(1.375rem * 4 + 0.9rem);
+}
+.texter-input::placeholder {
+  color: hsl(var(--muted-foreground) / 0.72);
+}
+.texter-input:focus {
+  outline: none;
+}
+.texter-input:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.texter-pill--recording {
+  padding: 0.2rem;
+}
+.texter-pill--recording .texter-pill__inner {
+  padding: 0.3rem 0.55rem;
+  min-height: 3rem;
+}
+.texter-pill--recording > .texter-pill__inner > div {
+  background: transparent !important;
+  border-radius: 22px !important;
+  padding: 0.15rem 0.35rem !important;
+  width: 100%;
+}
+.texter-icon-btn {
+  height: 2.5rem;
+  width: 2.5rem;
+  min-width: 2.5rem;
+  border-radius: 9999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: hsl(var(--foreground) / 0.07);
+  color: hsl(var(--foreground) / 0.92);
+  border: 1px solid hsl(var(--foreground) / 0.1);
+  box-shadow: inset 0 1px 0 hsl(0 0% 100% / 0.06);
+  transition:
+    background 0.18s ease,
+    transform 0.12s ease,
+    box-shadow 0.18s ease,
+    border-color 0.18s ease;
+}
+.texter-icon-btn:active {
+  transform: scale(0.92);
+}
+.texter-icon-btn:hover {
+  background: hsl(var(--foreground) / 0.11);
+  border-color: hsl(var(--foreground) / 0.14);
+}
+.texter-icon-btn--tool {
+  color: hsl(var(--foreground) / 0.88);
+}
+.texter-icon-btn--camera {
+  color: hsl(var(--accent));
+  background: linear-gradient(
+    145deg,
+    hsl(var(--accent) / 0.18),
+    hsl(var(--primary) / 0.1)
+  );
+  border-color: hsl(var(--accent) / 0.28);
+}
+.texter-icon-btn--camera:hover {
+  background: linear-gradient(
+    145deg,
+    hsl(var(--accent) / 0.26),
+    hsl(var(--primary) / 0.14)
+  );
+}
+.texter-icon-btn--mic {
+  color: hsl(var(--primary));
+  background: linear-gradient(
+    145deg,
+    hsl(var(--primary) / 0.14),
+    hsl(var(--accent) / 0.08)
+  );
+  border-color: hsl(var(--primary) / 0.22);
+}
+.texter-icon-btn--mic:hover {
+  background: linear-gradient(
+    145deg,
+    hsl(var(--primary) / 0.22),
+    hsl(var(--accent) / 0.12)
+  );
+}
+.texter-icon-btn--cancel {
+  background: hsl(var(--destructive) / 0.18) !important;
+  color: hsl(var(--destructive)) !important;
+  border-color: hsl(var(--destructive) / 0.35) !important;
+}
+.texter-icon-btn--send {
+  background: linear-gradient(135deg, hsl(var(--primary)), hsl(var(--accent)));
+  color: hsl(var(--primary-foreground));
+  border-color: hsl(var(--primary) / 0.35);
+  box-shadow:
+    0 4px 18px hsl(var(--primary) / 0.42),
+    inset 0 1px 0 hsl(0 0% 100% / 0.22);
+}
+.texter-icon-btn--send:hover {
+  box-shadow:
+    0 6px 22px hsl(var(--primary) / 0.5),
+    inset 0 1px 0 hsl(0 0% 100% / 0.28);
+}
+.texter-keyboard-aware {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: calc(env(safe-area-inset-bottom, 0px) + var(--keyboard-height, var(--kb-h, 0px)));
+  z-index: 40;
+  padding-left: max(0.5rem, env(safe-area-inset-left, 0px));
+  padding-right: max(0.5rem, env(safe-area-inset-right, 0px));
+  padding-top: 0.35rem;
+  transition: bottom 0.22s ease-out;
+}
+.texter-keyboard-aware::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 100%;
+  height: 3.5rem;
+  pointer-events: none;
+  background: linear-gradient(
+    to top,
+    hsl(var(--background) / 0.55) 0%,
+    hsl(var(--background) / 0.2) 45%,
+    transparent 100%
+  );
+}
+body.has-liquid-bg:not(.has-custom-bg) .texter-keyboard-aware::before {
+  background: linear-gradient(
+    to top,
+    hsl(var(--background) / 0.42) 0%,
+    hsl(var(--background) / 0.12) 50%,
+    transparent 100%
+  );
+}
+@media (min-width: 768px) {
+  .texter-keyboard-aware {
+    position: sticky;
+    bottom: 0;
+  }
+}
+html[data-dm-active='true'] body[data-kb-open='true'] .texter-keyboard-aware {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: calc(env(safe-area-inset-bottom, 0px) + var(--keyboard-height, var(--kb-h, 0px)));
 }
 /* Pause aurora animation while in a DM — frees GPU for scroll + typing */
 html[data-dm-active='true'] .vybe-liquid-bg .vybe-liquid-blob,
@@ -934,6 +1228,20 @@ html[data-dm-active='true'] .vybe-liquid-bg .vybe-liquid-bloom,
 html[data-dm-active='true'] .vybe-liquid-bg .vybe-liquid-mesh,
 html[data-dm-active='true'] .vybe-liquid-bg .vybe-liquid-parallax {
   animation-play-state: paused !important;
+}
+/* Pause aurora while camera is open — keeps preview smooth */
+html[data-camera-open='true'] .vybe-liquid-bg .vybe-liquid-blob,
+html[data-camera-open='true'] .vybe-liquid-bg .vybe-liquid-bloom,
+html[data-camera-open='true'] .vybe-liquid-bg .vybe-liquid-mesh,
+html[data-camera-open='true'] .vybe-liquid-bg .vybe-liquid-parallax {
+  animation-play-state: paused !important;
+}
+/* Hide app chrome while camera is fullscreen — prevents shutter/chat bleed-through */
+html[data-camera-open='true'] #app-shell,
+html[data-camera-open='true'] [data-app-shell],
+html[data-camera-open='true'] nav[aria-label="Bottom navigation"] {
+  visibility: hidden !important;
+  pointer-events: none !important;
 }
 .dm-composer {
   background: transparent;
@@ -2365,7 +2673,7 @@ body.has-liquid-bg:not(.has-custom-bg) #main-content {
   }
   /* Default liquid aurora — solid fallback only; mesh paints the gradient on top. */
   body.has-liquid-bg:not(.has-custom-bg) {
-    background-color: #090812 !important;
+    background-color: hsl(var(--background)) !important;
     background-image: none !important;
   }
   body.has-custom-bg #root,
@@ -2875,6 +3183,7 @@ body.has-liquid-bg:not(.has-custom-bg) #main-content {
   .is-scrolling .vybe-liquid-bg .vybe-liquid-blob,
   .is-scrolling .vybe-liquid-bg .vybe-liquid-bloom,
   .is-scrolling .vybe-liquid-bg .vybe-liquid-mesh,
+  .is-scrolling .vybe-liquid-bg .vybe-liquid-mesh::after,
   .is-scrolling .vybe-liquid-bg .vybe-liquid-grain,
   .is-scrolling .vybe-liquid-bg .vybe-liquid-parallax {
     animation-play-state: paused !important;
@@ -3450,8 +3759,6 @@ body.has-liquid-bg:not(.has-custom-bg) #main-content {
     background-color: hsl(var(--primary));
     background-image: linear-gradient(
       90deg,
-      hsl(var(--gradient-start)),
-      hsl(var(--gradient-mid)),
       hsl(var(--primary)),
       hsl(var(--accent))
     );
@@ -3477,12 +3784,9 @@ body.has-liquid-bg:not(.has-custom-bg) #main-content {
     /* Tile ends on gradient-start so adjacent repeats never clash (no end→start seam) */
     background-image: repeating-linear-gradient(
       90deg,
-      hsl(var(--gradient-start)) 0%,
-      hsl(var(--gradient-mid)) 12.5%,
-      hsl(var(--primary)) 25%,
-      hsl(var(--accent)) 37.5%,
-      hsl(var(--neon-purple)) 43.75%,
-      hsl(var(--gradient-start)) 50%
+      hsl(var(--primary)) 0%,
+      hsl(var(--accent)) 25%,
+      hsl(var(--primary)) 50%
     );
     animation: vybe-aura-sweep 16s linear infinite;
     will-change: transform;
@@ -6363,11 +6667,19 @@ html[data-theme-loading="true"] [style*="-webkit-background-clip: text"]:not(.vy
   /* Immersive aurora — same priority as auth Landing; beats reduce-motion / perf-low kills */
   .perf-low .vybe-liquid-bg .vybe-liquid-blob,
   .reduce-motion .vybe-liquid-bg .vybe-liquid-blob,
-  .vybe-liquid-bg--static .vybe-liquid-blob {
-    animation-duration: var(--blob-dur, 30s) !important;
+  .vybe-liquid-bg--static .vybe-liquid-blob,
+  .reduce-motion .vybe-splash-ambient-blob,
+  .vybe-splash-ambient-blob {
+    animation-duration: var(--blob-dur, 58s) !important;
     animation-iteration-count: infinite !important;
     animation-play-state: running !important;
-    animation-timing-function: linear !important;
+    animation-timing-function: cubic-bezier(0.42, 0, 0.58, 1) !important;
+  }
+
+  .reduce-motion .vybe-splash-ambient-mesh,
+  .vybe-splash-ambient-mesh {
+    animation-play-state: running !important;
+    animation-iteration-count: infinite !important;
   }
 
   .vybe-liquid-bg .vybe-liquid-bloom,
@@ -6415,7 +6727,7 @@ html[data-theme-loading="true"] [style*="-webkit-background-clip: text"]:not(.vy
 
 .vybe-liquid-bg {
   z-index: 0;
-  background: #050508;
+  background: hsl(var(--background));
   pointer-events: none;
   isolation: isolate;
   --touch-x: 50%;
@@ -6454,107 +6766,150 @@ html[data-theme-loading="true"] [style*="-webkit-background-clip: text"]:not(.vy
 
 .vybe-liquid-bg--static .vybe-liquid-blob,
 .vybe-liquid-bg--static .vybe-liquid-bloom,
-.vybe-liquid-bg--static .vybe-liquid-mesh {
+.vybe-liquid-bg--static .vybe-liquid-mesh,
+.vybe-liquid-bg--static .vybe-liquid-mesh::after {
   animation: none !important;
 }
 
 .vybe-liquid-mesh {
+  position: relative;
+  overflow: hidden;
   background:
-    radial-gradient(ellipse 90% 70% at 18% 22%, rgba(88, 28, 135, 0.45), transparent 58%),
-    radial-gradient(ellipse 80% 60% at 82% 78%, rgba(14, 116, 144, 0.35), transparent 55%),
-    radial-gradient(ellipse 70% 55% at 55% 48%, rgba(219, 39, 119, 0.22), transparent 52%),
-    linear-gradient(145deg, #050508 0%, #0c0618 38%, #060a14 68%, #030306 100%);
+    radial-gradient(ellipse 95% 75% at 18% 22%, hsl(var(--primary) / 0.48), transparent 58%),
+    radial-gradient(ellipse 85% 65% at 82% 78%, hsl(var(--accent) / 0.38), transparent 55%),
+    radial-gradient(ellipse 75% 58% at 55% 48%, hsl(var(--secondary, var(--primary)) / 0.22), transparent 52%),
+    linear-gradient(145deg, hsl(var(--background)) 0%, hsl(var(--card, var(--background)) / 0.88) 45%, hsl(var(--background)) 100%);
+  background-size: 140% 140%, 150% 150%, 130% 130%, 100% 100%;
+  background-repeat: no-repeat;
+  animation: vybe-mesh-color-drift 96s cubic-bezier(0.42, 0, 0.58, 1) infinite alternate;
   transition: opacity 0.35s ease-out;
+}
+
+.vybe-liquid-mesh::after {
+  content: '';
+  position: absolute;
+  inset: -8%;
+  background:
+    radial-gradient(ellipse 70% 55% at 70% 30%, hsl(var(--accent) / 0.2), transparent 62%),
+    radial-gradient(ellipse 65% 50% at 25% 75%, hsl(var(--primary) / 0.16), transparent 58%);
+  background-size: 160% 160%, 145% 145%;
+  animation: vybe-mesh-wash-drift 78s cubic-bezier(0.42, 0, 0.58, 1) infinite alternate-reverse;
+  pointer-events: none;
+  opacity: 0.85;
 }
 
 .vybe-liquid-bg--bright .vybe-liquid-mesh {
   background:
-    radial-gradient(ellipse 85% 65% at 20% 18%, rgba(251, 146, 60, 0.35), transparent 55%),
-    radial-gradient(ellipse 75% 60% at 78% 72%, rgba(59, 130, 246, 0.28), transparent 52%),
-    radial-gradient(ellipse 70% 50% at 48% 55%, rgba(236, 72, 153, 0.22), transparent 50%),
-    radial-gradient(ellipse 60% 45% at 70% 25%, rgba(20, 184, 166, 0.2), transparent 48%),
-    linear-gradient(160deg, #fff7ed 0%, #fdf2f8 35%, #eff6ff 68%, #f0fdfa 100%);
+    radial-gradient(ellipse 90% 70% at 20% 18%, hsl(var(--primary) / 0.34), transparent 55%),
+    radial-gradient(ellipse 80% 62% at 78% 72%, hsl(var(--accent) / 0.28), transparent 52%),
+    radial-gradient(ellipse 72% 52% at 48% 55%, hsl(var(--secondary, var(--primary)) / 0.2), transparent 50%),
+    linear-gradient(160deg, hsl(var(--background)) 0%, hsl(var(--card, var(--background)) / 0.92) 50%, hsl(var(--background)) 100%);
+  background-size: 140% 140%, 150% 150%, 130% 130%, 100% 100%;
 }
 
 .vybe-liquid-bloom {
   background:
-    radial-gradient(circle at 32% 38%, rgba(168, 85, 247, 0.28), transparent 42%),
-    radial-gradient(circle at 68% 58%, rgba(34, 211, 238, 0.22), transparent 38%),
-    radial-gradient(circle at 50% 72%, rgba(236, 72, 153, 0.2), transparent 36%);
+    radial-gradient(circle at 32% 38%, hsl(var(--primary) / 0.32), transparent 44%),
+    radial-gradient(circle at 68% 58%, hsl(var(--accent) / 0.26), transparent 40%),
+    radial-gradient(circle at 50% 72%, hsl(var(--secondary, var(--primary)) / 0.18), transparent 38%);
   mix-blend-mode: screen;
-  filter: blur(64px);
-  opacity: 0.55;
+  filter: blur(72px);
+  opacity: 0.58;
   transform-origin: 50% 50%;
-  animation: vybe-liquid-bloom-spin 52s linear infinite;
+  animation: vybe-liquid-bloom-drift 68s cubic-bezier(0.42, 0, 0.58, 1) infinite;
   transition: opacity 0.35s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .vybe-liquid-bg--bright .vybe-liquid-bloom {
   background:
-    radial-gradient(circle at 28% 35%, rgba(249, 115, 22, 0.26), transparent 40%),
-    radial-gradient(circle at 72% 60%, rgba(59, 130, 246, 0.22), transparent 38%),
-    radial-gradient(circle at 52% 68%, rgba(168, 85, 247, 0.18), transparent 34%);
+    radial-gradient(circle at 28% 35%, hsl(var(--primary) / 0.24), transparent 40%),
+    radial-gradient(circle at 72% 60%, hsl(var(--accent) / 0.2), transparent 38%),
+    radial-gradient(circle at 52% 68%, hsl(var(--secondary, var(--primary)) / 0.14), transparent 34%);
   opacity: 0.48;
 }
 
 .vybe-liquid-blob {
-  border-radius: 50%;
+  border-radius: 58% 42% 62% 38% / 48% 58% 42% 52%;
   transform: translate(-50%, -50%);
-  filter: blur(140px);
+  filter: blur(120px);
   mix-blend-mode: screen;
-  opacity: 0.5;
+  opacity: 0.52;
   animation-duration: var(--blob-dur, 30s);
-  animation-timing-function: linear;
+  animation-timing-function: cubic-bezier(0.37, 0, 0.63, 1);
   animation-iteration-count: infinite;
   transform-origin: center center;
   transition: opacity 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+  will-change: transform, border-radius;
+}
+
+.vybe-liquid-blob--a {
+  animation-name: vybe-liquid-blob-a, vybe-blob-shape-a;
+  animation-duration: var(--blob-dur, 58s), calc(var(--blob-dur, 58s) * 1.35);
+  animation-timing-function: cubic-bezier(0.37, 0, 0.63, 1), ease-in-out;
+  animation-direction: normal, alternate;
+}
+
+.vybe-liquid-blob--b {
+  animation-name: vybe-liquid-blob-b, vybe-blob-shape-b;
+  animation-duration: var(--blob-dur, 72s), calc(var(--blob-dur, 72s) * 1.2);
+  animation-timing-function: cubic-bezier(0.37, 0, 0.63, 1), ease-in-out;
+  animation-direction: normal, alternate;
+}
+
+.vybe-liquid-blob--c {
+  animation-name: vybe-liquid-blob-c, vybe-blob-shape-c;
+  animation-duration: var(--blob-dur, 64s), calc(var(--blob-dur, 64s) * 1.45);
+  animation-timing-function: cubic-bezier(0.37, 0, 0.63, 1), ease-in-out;
+  animation-direction: normal, alternate;
+}
+
+.vybe-liquid-blob--d {
+  animation-name: vybe-liquid-blob-d, vybe-blob-shape-d;
+  animation-duration: var(--blob-dur, 118s), calc(var(--blob-dur, 118s) * 1.25);
+  animation-timing-function: cubic-bezier(0.37, 0, 0.63, 1), ease-in-out;
+  animation-direction: normal, alternate;
 }
 
 .vybe-liquid-bg--boost .vybe-liquid-blob {
-  opacity: 0.64;
+  opacity: 0.68;
   transition-duration: 0.2s;
 }
 
 .vybe-liquid-bg--boost .vybe-liquid-mesh {
-  filter: brightness(1.1) saturate(1.18);
+  filter: brightness(1.08) saturate(1.15);
   transition: filter 0.35s ease-out;
 }
 
-.vybe-liquid-blob--a { animation-name: vybe-liquid-blob-a; }
-.vybe-liquid-blob--b { animation-name: vybe-liquid-blob-b; }
-.vybe-liquid-blob--c { animation-name: vybe-liquid-blob-c; }
-.vybe-liquid-blob--d { animation-name: vybe-liquid-blob-d; }
-
 .vybe-liquid-blob--a {
-  background: radial-gradient(circle, rgba(124, 58, 237, 0.95) 0%, rgba(124, 58, 237, 0) 68%);
+  background: radial-gradient(circle, hsl(var(--primary) / 0.58) 0%, hsl(var(--primary) / 0.12) 42%, transparent 70%);
 }
 
 .vybe-liquid-blob--b {
-  background: radial-gradient(circle, rgba(30, 64, 175, 0.9) 0%, rgba(30, 64, 175, 0) 68%);
+  background: radial-gradient(circle, hsl(var(--accent) / 0.52) 0%, hsl(var(--accent) / 0.1) 40%, transparent 70%);
 }
 
 .vybe-liquid-blob--c {
-  background: radial-gradient(circle, rgba(236, 72, 153, 0.88) 0%, rgba(236, 72, 153, 0) 68%);
+  background: radial-gradient(circle, hsl(var(--secondary, var(--primary)) / 0.46) 0%, transparent 68%);
 }
 
 .vybe-liquid-blob--d {
-  background: radial-gradient(circle, rgba(34, 211, 238, 0.85) 0%, rgba(34, 211, 238, 0) 68%);
+  background: radial-gradient(circle, hsl(var(--accent) / 0.44) 0%, hsl(var(--primary) / 0.14) 38%, transparent 70%);
 }
 
 .vybe-liquid-bg--bright .vybe-liquid-blob--a {
-  background: radial-gradient(circle, rgba(249, 115, 22, 0.9) 0%, rgba(249, 115, 22, 0) 68%);
+  background: radial-gradient(circle, hsl(var(--primary) / 0.45) 0%, transparent 68%);
 }
 
 .vybe-liquid-bg--bright .vybe-liquid-blob--b {
-  background: radial-gradient(circle, rgba(236, 72, 153, 0.85) 0%, rgba(236, 72, 153, 0) 68%);
+  background: radial-gradient(circle, hsl(var(--accent) / 0.4) 0%, transparent 68%);
 }
 
 .vybe-liquid-bg--bright .vybe-liquid-blob--c {
-  background: radial-gradient(circle, rgba(59, 130, 246, 0.82) 0%, rgba(59, 130, 246, 0) 68%);
+  background: radial-gradient(circle, hsl(var(--secondary, var(--primary)) / 0.35) 0%, transparent 68%);
 }
 
 .vybe-liquid-bg--bright .vybe-liquid-blob--d {
-  background: radial-gradient(circle, rgba(20, 184, 166, 0.8) 0%, rgba(168, 85, 247, 0.45) 45%, rgba(20, 184, 166, 0) 68%);
+  background: radial-gradient(circle, hsl(var(--accent) / 0.32) 0%, hsl(var(--primary) / 0.18) 45%, transparent 68%);
 }
 
 .vybe-liquid-grain {
@@ -6773,33 +7128,91 @@ html[data-theme-loading="true"] [style*="-webkit-background-clip: text"]:not(.vy
   to { transform: rotate(360deg) scale(1.03); }
 }
 
-/* Figure-8 / elliptical liquid paths — linear timing, 0%=100% for seamless loops */
+@keyframes vybe-liquid-bloom-drift {
+  0%, 100% {
+    transform: translate(0, 0) rotate(0deg) scale(1);
+    opacity: 0.52;
+  }
+  33% {
+    transform: translate(6%, -4%) rotate(120deg) scale(1.06);
+    opacity: 0.66;
+  }
+  66% {
+    transform: translate(-5%, 5%) rotate(240deg) scale(1.03);
+    opacity: 0.58;
+  }
+}
+
+@keyframes vybe-mesh-color-drift {
+  0% {
+    background-position: 0% 0%, 100% 100%, 50% 50%, 0% 0%;
+    filter: saturate(1) brightness(1);
+  }
+  50% {
+    background-position: 28% 18%, 72% 82%, 62% 38%, 0% 0%;
+    filter: saturate(1.08) brightness(1.04);
+  }
+  100% {
+    background-position: 12% 32%, 88% 68%, 38% 62%, 0% 0%;
+    filter: saturate(1.04) brightness(1.02);
+  }
+}
+
+@keyframes vybe-mesh-wash-drift {
+  0% { background-position: 0% 20%, 100% 80%; opacity: 0.7; }
+  50% { background-position: 35% 55%, 65% 25%; opacity: 0.95; }
+  100% { background-position: 15% 75%, 85% 35%; opacity: 0.75; }
+}
+
+@keyframes vybe-blob-shape-a {
+  0%, 100% { border-radius: 58% 42% 62% 38% / 48% 58% 42% 52%; }
+  50% { border-radius: 42% 58% 38% 62% / 62% 38% 58% 42%; }
+}
+
+@keyframes vybe-blob-shape-b {
+  0%, 100% { border-radius: 48% 52% 58% 42% / 55% 45% 52% 48%; }
+  50% { border-radius: 62% 38% 44% 56% / 40% 60% 48% 52%; }
+}
+
+@keyframes vybe-blob-shape-c {
+  0%, 100% { border-radius: 52% 48% 44% 56% / 58% 42% 55% 45%; }
+  50% { border-radius: 38% 62% 56% 44% / 48% 52% 40% 60%; }
+}
+
+@keyframes vybe-blob-shape-d {
+  0%, 100% { border-radius: 55% 45% 50% 50% / 45% 55% 50% 50%; }
+  50% { border-radius: 45% 55% 62% 38% / 52% 48% 58% 42%; }
+}
+
+/* Organic lava-lamp paths — eased loops with breathing scale */
 @keyframes vybe-liquid-blob-a {
-  0%, 100% { transform: translate(-50%, -50%) translate(5vw, 0) scale(1); }
-  25% { transform: translate(-50%, -50%) translate(0, 3.5vh) scale(1.04); }
-  50% { transform: translate(-50%, -50%) translate(-5vw, 0) scale(1.02); }
-  75% { transform: translate(-50%, -50%) translate(0, -3.5vh) scale(1.05); }
+  0%, 100% { transform: translate(-50%, -50%) translate(7vw, -2vh) scale(1); }
+  20% { transform: translate(-50%, -50%) translate(2vw, 5vh) scale(1.05); }
+  45% { transform: translate(-50%, -50%) translate(-8vw, 3vh) scale(1.03); }
+  70% { transform: translate(-50%, -50%) translate(-3vw, -6vh) scale(1.07); }
+  85% { transform: translate(-50%, -50%) translate(5vw, -3vh) scale(1.04); }
 }
 
 @keyframes vybe-liquid-blob-b {
-  0%, 100% { transform: translate(-50%, -50%) translate(-4vw, 2vh) scale(1); }
-  25% { transform: translate(-50%, -50%) translate(3vw, 5vh) scale(1.05); }
-  50% { transform: translate(-50%, -50%) translate(6vw, -1vh) scale(1.03); }
-  75% { transform: translate(-50%, -50%) translate(-2vw, -4vh) scale(1.06); }
+  0%, 100% { transform: translate(-50%, -50%) translate(-5vw, 3vh) scale(1.02); }
+  18% { transform: translate(-50%, -50%) translate(4vw, 7vh) scale(1.06); }
+  42% { transform: translate(-50%, -50%) translate(10vw, -2vh) scale(1.04); }
+  68% { transform: translate(-50%, -50%) translate(2vw, -7vh) scale(1.08); }
+  88% { transform: translate(-50%, -50%) translate(-7vw, 2vh) scale(1.03); }
 }
 
 @keyframes vybe-liquid-blob-c {
-  0%, 100% { transform: translate(-50%, -50%) translate(0, 4vh) scale(1.02); }
-  25% { transform: translate(-50%, -50%) translate(-6vw, 1vh) scale(1.05); }
-  50% { transform: translate(-50%, -50%) translate(-3vw, -3vh) scale(1.03); }
-  75% { transform: translate(-50%, -50%) translate(5vw, -2vh) scale(1.06); }
+  0%, 100% { transform: translate(-50%, -50%) translate(0, 6vh) scale(0.98); }
+  25% { transform: translate(-50%, -50%) translate(-7vw, 2vh) scale(1.05); }
+  50% { transform: translate(-50%, -50%) translate(-4vw, -5vh) scale(1.02); }
+  75% { transform: translate(-50%, -50%) translate(7vw, -3vh) scale(1.07); }
 }
 
 @keyframes vybe-liquid-blob-d {
-  0%, 100% { transform: translate(-50%, -50%) translate(-3vw, -3vh) scale(1); }
-  25% { transform: translate(-50%, -50%) translate(4vw, 2vh) scale(1.04); }
-  50% { transform: translate(-50%, -50%) translate(6vw, -2vh) scale(1.06); }
-  75% { transform: translate(-50%, -50%) translate(-1vw, 4vh) scale(1.03); }
+  0%, 100% { transform: translate(-50%, -50%) translate(-4vw, -4vh) scale(1); }
+  22% { transform: translate(-50%, -50%) translate(6vw, 3vh) scale(1.04); }
+  48% { transform: translate(-50%, -50%) translate(9vw, -4vh) scale(1.07); }
+  74% { transform: translate(-50%, -50%) translate(-2vw, 5vh) scale(1.03); }
 }
 
 @keyframes vybe-liquid-text-roll {

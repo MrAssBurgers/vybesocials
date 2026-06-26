@@ -1,4 +1,4 @@
-import { Crosshair, Navigation } from 'lucide-react';
+import { Crosshair, Compass, Navigation } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface MapFloatingActionsProps {
@@ -6,6 +6,9 @@ interface MapFloatingActionsProps {
   onFind?: () => void;
   findLabel?: string;
   disabled?: boolean;
+  followHeading?: boolean;
+  onToggleFollowHeading?: () => void;
+  onResetBearing?: () => void;
 }
 
 export function MapFloatingActions({
@@ -13,6 +16,9 @@ export function MapFloatingActions({
   onFind,
   findLabel = 'Find',
   disabled,
+  followHeading,
+  onToggleFollowHeading,
+  onResetBearing,
 }: MapFloatingActionsProps) {
   return (
     <div
@@ -31,6 +37,24 @@ export function MapFloatingActions({
         >
           <Crosshair className="h-4 w-4" />
           {findLabel}
+        </button>
+      )}
+      {onToggleFollowHeading && (
+        <button
+          type="button"
+          onClick={onToggleFollowHeading}
+          onContextMenu={(e) => {
+            e.preventDefault();
+            onResetBearing?.();
+          }}
+          className={cn(
+            'pointer-events-auto vybe-map-fab h-12 w-12 flex items-center justify-center',
+            followHeading && 'ring-2 ring-primary/60 bg-primary/20',
+          )}
+          aria-label={followHeading ? 'Stop following phone direction' : 'Follow phone direction'}
+          title={followHeading ? 'Following direction (tap to unlock)' : 'Follow phone direction'}
+        >
+          <Compass className={cn('h-5 w-5', followHeading && 'text-primary')} />
         </button>
       )}
       <button

@@ -67,7 +67,7 @@ const NavLinkContent = memo(forwardRef<
         "active:scale-[0.98] transition-transform duration-100",
         collapsed ? "px-3 py-3 justify-center" : "px-3 py-2.5",
         isActive
-          ? "text-sidebar-foreground bg-sidebar-accent border border-primary/20"
+          ? "text-sidebar-foreground bg-primary/12 border border-primary/25"
           : "text-foreground/85 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground border border-transparent"
       )}
       {...props}

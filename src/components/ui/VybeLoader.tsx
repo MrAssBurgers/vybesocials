@@ -1,6 +1,7 @@
 import { memo, useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '@/lib/utils';
+import { VYBELogo } from '@/components/ui/VYBELogo';
 import { VYBE_TIPS as TIPS } from './vybeTips';
 
 interface VybeLoaderProps {
@@ -29,39 +30,7 @@ function LoaderContents() {
         className="relative flex items-center justify-center"
         style={{ width: 96, height: 96 }}
       >
-        {/* Soft glow pulsing on same cadence */}
-        <motion.div
-          aria-hidden
-          animate={{ opacity: [0.35, 0.65, 0.35], scale: [0.9, 1.15, 0.9] }}
-          transition={{ duration: 2.2, ease: 'easeInOut', repeat: Infinity }}
-          className="absolute inset-0 pointer-events-none"
-          style={{
-            background:
-              'radial-gradient(circle, hsl(var(--primary) / 0.35) 0%, hsl(var(--accent) / 0.12) 45%, transparent 70%)',
-            filter: 'blur(8px)',
-          }}
-        />
-        <svg viewBox="-5 -5 110 110" fill="none" style={{ width: 80, height: 80, position: 'relative' }}>
-          <defs>
-            <linearGradient id="vl-l" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stopColor="hsl(var(--primary))" />
-              <stop offset="100%" stopColor="hsl(var(--neon-purple, var(--primary)))" />
-            </linearGradient>
-            <linearGradient id="vl-r" x1="100%" y1="0%" x2="0%" y2="100%">
-              <stop offset="0%" stopColor="hsl(var(--accent))" />
-              <stop offset="100%" stopColor="hsl(var(--neon-cyan, var(--accent)))" />
-            </linearGradient>
-            <filter id="vl-glow" x="-30%" y="-30%" width="160%" height="160%">
-              <feGaussianBlur stdDeviation="2" result="blur" />
-              <feMerge>
-                <feMergeNode in="blur" />
-                <feMergeNode in="SourceGraphic" />
-              </feMerge>
-            </filter>
-          </defs>
-          <path d="M18 15 L50 85" stroke="url(#vl-l)" strokeWidth="11" strokeLinecap="round" filter="url(#vl-glow)" />
-          <path d="M82 15 L50 85" stroke="url(#vl-r)" strokeWidth="11" strokeLinecap="round" filter="url(#vl-glow)" />
-        </svg>
+        <VYBELogo size="xl" showText={false} animated />
       </motion.div>
 
       {/* Rotating tip */}

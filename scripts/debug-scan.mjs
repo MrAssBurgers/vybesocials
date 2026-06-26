@@ -36,11 +36,44 @@ function section(title) {
 
 async function probe(url, opts = {}) {
   try {
-    const res = await fetch(url, opts);
-    return { status: res.status, ok: res.ok };
+    const res = await fetch(url, { ...opts, signal: AbortSignal.timeout(15000) });
+    const text = await res.text().catch(() => '');
+    return { status: res.status, ok: res.ok, text: text.slice(0, 240) };
   } catch (e) {
     return { status: 0, ok: false, error: String(e) };
   }
+}
+
+/** Firebase callable — POST empty data; 401/403 = deployed + auth gate; 400 = deployed + validation. */
+async function probeCallable(label, url) {
+  const r = await probe(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ data: {} }),
+  });
+  const deployed =
+    r.status === 401 ||
+    r.status === 403 ||
+    r.status === 400 ||
+    r.text?.includes('UNAUTHENTICATED') ||
+    r.text?.includes('invalid-argument') ||
+    r.text?.includes('Sign in required');
+  return { label, ...r, pass: deployed };
+}
+
+/** Public HTTP function — health probe or expected validation response. */
+async function probeHttp(label, url, { healthQuery = '?probe=1' } = {}) {
+  const health = await probe(`${url}${healthQuery}`);
+  if (health.status === 200) {
+    return { label, ...health, pass: true, detail: 'health ok' };
+  }
+  const bare = await probe(url, { method: 'GET' });
+  const deployed =
+    bare.status === 400 ||
+    bare.status === 404 ||
+    bare.text?.includes('postId required') ||
+    bare.text?.includes('not found');
+  return { label, ...bare, pass: deployed, detail: deployed ? 'http handler' : 'not deployed' };
 }
 
 async function main() {
@@ -100,15 +133,22 @@ async function main() {
   }
 
   section('Production probes (Firebase)');
-  const probes = [
-    ['sharePreview', `${FUNCTIONS_BASE}/sharePreview`],
-    ['livekitToken (callable)', `${FUNCTIONS_BASE}/livekitToken`],
-    ['aiCatchUp (callable)', `${FUNCTIONS_BASE}/aiCatchUp`],
+  const callableProbes = [
+    ['livekitToken', `${FUNCTIONS_BASE}/livekitToken`],
+    ['aiCatchUp', `${FUNCTIONS_BASE}/aiCatchUp`],
   ];
-  for (const [label, url] of probes) {
-    const r = await probe(url, { method: 'GET' });
+  const httpProbes = [['sharePreview', `${FUNCTIONS_BASE}/sharePreview`]];
+
+  for (const [label, url] of httpProbes) {
+    const r = await probeHttp(label, url);
     const status = r.status || r.error || 'ERR';
-    console.log(`${r.ok || r.status === 405 || r.status === 401 ? 'PASS' : 'WARN'} ${label}: HTTP ${status}`);
+    const suffix = r.detail ? ` (${r.detail})` : '';
+    console.log(`${r.pass ? 'PASS' : 'FAIL'} ${label}: HTTP ${status}${suffix}`);
+  }
+  for (const [label, url] of callableProbes) {
+    const r = await probeCallable(label, url);
+    const status = r.status || r.error || 'ERR';
+    console.log(`${r.pass ? 'PASS' : 'FAIL'} ${label} (callable): HTTP ${status}`);
   }
 
   section('Git status');

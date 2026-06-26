@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, useRef, ReactNode } from 'react';
+import { createContext, useContext, useEffect, useMemo, useState, useRef, ReactNode } from 'react';
 import type { User, Session } from '@/lib/firebase';
 import { db } from '@/lib/firebase';
 import { updateUserProfile, getProfileByAuthUid } from '@/lib/firebase/users';
@@ -9,6 +9,7 @@ import { setCachedProfile, setCachedCurrentProfile, getCachedCurrentProfile, cle
 import { clearCachedUserLevel } from '@/lib/userLevelCache';
 import { prefetchDMConversationsFromNav } from '@/lib/loadDMConversations';
 import { warmHomeCachesForProfile } from '@/lib/warmHomeCaches';
+import { prefetchAndApplyUserTheme } from '@/lib/themeHydration';
 import { resolveSessionProfileId, resetSessionProfileMemo } from '@/lib/resolveSessionProfileId';
 import { resetThemeToDefault } from '@/lib/themeReset';
 import { hasStoredAuthSession, getStoredAuthUserId, clearObsoleteAuthStorage } from '@/lib/legacyAuthStorage';
@@ -29,7 +30,7 @@ import { startHeartbeat, stopHeartbeat } from '@/lib/analytics';
 import { removeRealtimeChannel, subscribePostgresChannel } from '@/lib/realtimeChannel';
 import { pickActiveBan } from '@/lib/banUtils';
 import { normalizeLoginEmail } from '@/lib/loginEmail';
-import { cacheProfileAvatar } from '@/lib/profileAvatarCache';
+import { cacheProfileAvatar, resolveProfileAvatarUrl } from '@/lib/profileAvatarCache';
 import { isPasswordRecoveryUrl, redirectToPasswordRecoveryPage } from '@/lib/passwordRecoveryUrl';
 
 /** Fail-soft — production may not have deployed sync_signup_username yet. */
@@ -140,8 +141,13 @@ function retainCachedProfile(
   if (!cached || isRawId(cached.username)) return false;
   if (userId && cached.user_id && cached.user_id !== userId) return false;
   setProfile((prev) => {
-    if (prev?.user_id && userId && prev.user_id !== userId) return cachedProfileToProfile(cached, userId);
-    return prev ?? cachedProfileToProfile(cached, userId);
+    const cachedProfile = cachedProfileToProfile(cached, userId);
+    if (!prev) return cachedProfile;
+    if (prev.user_id && userId && prev.user_id !== userId) return cachedProfile;
+    if (!prev.avatar_url && cachedProfile.avatar_url) {
+      return { ...prev, avatar_url: cachedProfile.avatar_url };
+    }
+    return prev;
   });
   return true;
 }
@@ -526,6 +532,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       void (async () => {
         const qc = (window as any).__REACT_QUERY_CLIENT__;
         const isFreshSignIn = authEvent === 'SIGNED_IN';
+
+        void prefetchAndApplyUserTheme(userId, qc);
 
         try {
           await db.rpc('claim_profile_by_email');
@@ -1167,6 +1175,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return result as Profile | null;
   };
 
+  const resolvedProfile = useMemo(() => {
+    if (!profile) return null;
+    const avatar = resolveProfileAvatarUrl(profile.id, profile.avatar_url);
+    if (avatar === profile.avatar_url) return profile;
+    return { ...profile, avatar_url: avatar ?? profile.avatar_url };
+  }, [profile]);
+
   // Show banned screen if user is banned
   if (banInfo) {
     return banInfo.is_meme_ban ? (
@@ -1184,7 +1199,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     <AuthContext.Provider value={{
       user,
       session,
-      profile,
+      profile: resolvedProfile,
       loading,
       authReady: isInitialized,
       banInfo,

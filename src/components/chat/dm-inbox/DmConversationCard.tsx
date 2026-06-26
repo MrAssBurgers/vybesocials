@@ -6,7 +6,8 @@ import { safeDmMembers } from '@/lib/persistedCollections';
 import { displayNameForConversation } from '@/lib/dmMemberResolve';
 import { formatDmPreviewContent } from '@/lib/callChatMessages';
 import { compactTime } from '@/lib/compactTime';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { resolveProfileAvatarUrl } from '@/lib/profileAvatarCache';
+import { Avatar, AvatarFallback, ProfileAvatarImage } from '@/components/ui/avatar';
 import { cn } from '@/lib/utils';
 
 export interface DmConversationCardProps {
@@ -29,10 +30,13 @@ export const DmConversationCard = memo(function DmConversationCard({
   const unread = conversation.unread_count || 0;
   const isUnread = unread > 0 || conversation._hasUnread;
   const name = displayNameForConversation(conversation, profileId, authUid, 'Chat');
-  const other = !conversation.is_group
-    ? safeDmMembers(conversation.members).find((m) => m.user_id !== profileId)?.profile
+  const otherMember = !conversation.is_group
+    ? safeDmMembers(conversation.members).find((m) => m.user_id !== profileId)
     : null;
-  const avatar = conversation.is_group ? conversation.avatar_url : other?.avatar_url;
+  const other = otherMember?.profile;
+  const avatar = conversation.is_group
+    ? conversation.avatar_url
+    : resolveProfileAvatarUrl(other?.id, other?.avatar_url);
   const isPinned = Boolean(
     safeDmMembers(conversation.members).find((m) => m.user_id === profileId)?.is_pinned,
   );
@@ -81,7 +85,7 @@ export const DmConversationCard = memo(function DmConversationCard({
             {conversation.is_group ? (
               <Avatar className="h-[52px] w-[52px] border-2 border-background/80">
                 {avatar ? (
-                  <AvatarImage src={avatar} />
+                  <ProfileAvatarImage src={avatar} transformSize={128} />
                 ) : (
                   <AvatarFallback className="bg-gradient-to-br from-primary to-accent text-primary-foreground">
                     <Users className="h-5 w-5" />
@@ -90,7 +94,11 @@ export const DmConversationCard = memo(function DmConversationCard({
               </Avatar>
             ) : (
               <Avatar className="h-[52px] w-[52px] border-2 border-background/80">
-                <AvatarImage src={avatar || undefined} />
+                <ProfileAvatarImage
+                  profileId={other?.id}
+                  src={avatar || undefined}
+                  transformSize={128}
+                />
                 <AvatarFallback className="text-sm font-bold bg-gradient-to-br from-primary/90 to-accent/90 text-primary-foreground">
                   {String(name || '?')[0]?.toUpperCase()}
                 </AvatarFallback>

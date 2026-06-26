@@ -29,7 +29,6 @@ export function isExcludedLiquidPath(pathname: string): boolean {
   return (
     pathname === '/upload' ||
     pathname.startsWith('/upload/') ||
-    isImmersiveMediaPath(pathname) ||
-    isAuthLiquidPath(pathname)
+    isImmersiveMediaPath(pathname)
   );
 }

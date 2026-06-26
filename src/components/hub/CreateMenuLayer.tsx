@@ -10,8 +10,7 @@ import { playSound } from "@/lib/sounds";
 import { useIsMobileOrTablet } from "@/hooks/use-mobile";
 import { useUserRole } from "@/hooks/useModeration";
 import { useAuth } from "@/lib/auth";
-import { Camera as CameraComponent } from "@/components/camera";
-import { CameraMountBoundary } from "@/components/camera/CameraMountBoundary";
+import { openCameraFromGesture, useCameraOverlay } from "@/contexts/CameraOverlayContext";
 
 interface CreateMenuLayerProps {
   open: boolean;
@@ -46,9 +45,9 @@ export function CreateMenuLayer({ open, onOpenChange }: CreateMenuLayerProps) {
   const { user } = useAuth();
   const { isMobileOrTablet } = useIsMobileOrTablet();
   const [view, setView] = useState<View>("create");
-  const [showCamera, setShowCamera] = useState(false);
   const surfaceRef = useRef<HTMLDivElement | null>(null);
   const recoverAttemptsRef = useRef(0);
+  const { openCamera } = useCameraOverlay();
   const { data: userRole } = useUserRole();
   const isModOrAdmin = userRole === 'owner' || userRole === 'admin' || userRole === 'moderator';
 
@@ -80,8 +79,8 @@ export function CreateMenuLayer({ open, onOpenChange }: CreateMenuLayerProps) {
           navigate("/?mode=login");
           return;
         }
+        void openCameraFromGesture(openCamera, "hub");
         close();
-        setShowCamera(true);
         return;
       case "hub":
         triggerHaptic("light");
@@ -92,7 +91,7 @@ export function CreateMenuLayer({ open, onOpenChange }: CreateMenuLayerProps) {
         setView("utilities");
         return;
     }
-  }, [close, navigate, user]);
+  }, [close, navigate, user, openCamera]);
 
   const createItems = useMemo(() => [
     { id: "post", icon: Image, label: "Post", subtitle: "Share media", gradient: "from-primary via-accent to-primary" },
@@ -146,12 +145,6 @@ export function CreateMenuLayer({ open, onOpenChange }: CreateMenuLayerProps) {
 
   return createPortal(
     <>
-      {showCamera && (
-        <CameraMountBoundary onError={() => setShowCamera(false)}>
-          <CameraComponent onClose={() => setShowCamera(false)} />
-        </CameraMountBoundary>
-      )}
-
       <AnimatePresence>
         {open && (
           <>

@@ -3,8 +3,9 @@ import * as AvatarPrimitive from "@radix-ui/react-avatar";
 
 import { cn } from "@/lib/utils";
 import { transformedImage } from "@/lib/imageTransform";
-import { getCachedProfileAvatar } from "@/lib/profileAvatarCache";
-import { normalizeMediaUrl } from "@/lib/mediaUrl";
+import { resolveProfileAvatarUrl } from "@/lib/profileAvatarCache";
+import { useFastSignedUrl } from "@/hooks/useFastSignedUrl";
+import { batchSignUrls } from "@/lib/signedUrlCache";
 
 // Avatar with properly sized ring that matches the avatar container
 const Avatar = React.forwardRef<
@@ -29,7 +30,7 @@ const AvatarImage = React.forwardRef<
 >(({ className, src, ...props }, ref) => (
   <AvatarPrimitive.Image
     ref={ref}
-    src={normalizeMediaUrl(src) ?? undefined}
+    src={src}
     className={cn("aspect-square h-full w-full object-cover", className)}
     {...props}
   />
@@ -52,16 +53,32 @@ const AvatarFallback = React.forwardRef<
 ));
 AvatarFallback.displayName = AvatarPrimitive.Fallback.displayName;
 
-/** Avatar image that shows cached URL instantly while fresh URL loads. */
+/** Avatar image — resolves cached URL, signs storage URLs, optimizes size. */
 const ProfileAvatarImage = React.forwardRef<
   React.ElementRef<typeof AvatarPrimitive.Image>,
   React.ComponentPropsWithoutRef<typeof AvatarPrimitive.Image> & {
     profileId?: string | null;
+    /** Optional explicit size for storage transforms (default 128). */
+    transformSize?: number;
   }
->(({ profileId, src, className, ...props }, ref) => {
-  const cached = profileId ? getCachedProfileAvatar(profileId) : null;
-  const resolved = normalizeMediaUrl(src) || src || cached || undefined;
-  const optimized = resolved ? transformedImage(resolved, { width: 128, height: 128 }) : undefined;
+>(({ profileId, src, className, transformSize = 128, ...props }, ref) => {
+  const resolved = React.useMemo(
+    () => resolveProfileAvatarUrl(profileId, src),
+    [profileId, src],
+  );
+  const signed = useFastSignedUrl(resolved);
+  const optimized = React.useMemo(
+    () =>
+      signed
+        ? transformedImage(signed, { width: transformSize, height: transformSize })
+        : undefined,
+    [signed, transformSize],
+  );
+
+  React.useEffect(() => {
+    if (resolved) batchSignUrls([resolved]).catch(() => {});
+  }, [resolved]);
+
   return (
     <AvatarPrimitive.Image
       ref={ref}

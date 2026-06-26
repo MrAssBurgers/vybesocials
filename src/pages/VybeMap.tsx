@@ -14,7 +14,7 @@ import { trackMapEvent } from '@/lib/vybemap/analytics';
 import { isValidLatLng } from '@/lib/vybemap/geo';
 import { type LiveFriend, type MapPlace, type MapMeetup } from '@/lib/vybemap/types';
 import {
-  useMapLayers, useMapViewMode, useFriendIds, useLiveFriends, useMapStories, useMapPosts,
+  useMapLayers, useMapViewMode, useMapFollowHeading, useFriendIds, useLiveFriends, useMapStories, useMapPosts,
   useMapClips, useMapMeetups, useMapHeatmap, useMapPlaces, useMapEventPins,
   useFriendRadar, useStartFindFriend, useCheckIn, useCreateMapSpot, useLogLocationAccess,
   useFriendCheckIns, useCreateMeetup, useJoinMeetup, useLeaveMeetup, useMyMeetupMemberships,
@@ -98,7 +98,7 @@ function VybeMapInner() {
   const { data: groupMaps = [] } = useGroupMaps(effectiveId);
   const createGroupMap = useCreateGroupMap();
   const logAccess = useLogLocationAccess();
-  const { setMap, flyTo } = useVybeMapFlyTo();
+  const { setMap, flyTo, resetBearing } = useVybeMapFlyTo();
 
   const [selId, setSelId] = useState<string | null>(null);
   const [selPlace, setSelPlace] = useState<MapPlace | null>(null);
@@ -110,6 +110,7 @@ function VybeMapInner() {
   const [discoveryOpen, setDiscoveryOpen] = useState(false);
   const [findMode, setFindMode] = useState<{ friend: LiveFriend; ar: boolean } | null>(null);
   const { mapViewMode, setMapViewMode } = useMapViewMode();
+  const { followHeading, setFollowHeading, toggleFollowHeading } = useMapFollowHeading();
   const [squadsOpen, setSquadsOpen] = useState(false);
   const [activeSquad, setActiveSquad] = useState<MapGroupMap | null>(null);
   const { data: squadMemberIds = [] } = useGroupMemberIds(activeSquad?.id);
@@ -311,6 +312,7 @@ function VybeMapInner() {
         <VybeMapboxCanvas
           {...mapProps}
           mapMode={mapViewMode}
+          followHeading={followHeading}
           onMapReady={setMap}
           routeGeometry={route?.geometry ?? null}
           squadMemberIds={squadSet}
@@ -364,6 +366,13 @@ function VybeMapInner() {
 
       <MapFloatingActions
         onRecenter={recenter}
+        followHeading={followHeading}
+        onToggleFollowHeading={() => {
+          toggleFollowHeading();
+          triggerHaptic('light');
+          toast.success(followHeading ? 'Map unlocked — pan & zoom freely' : 'Map follows your direction');
+        }}
+        onResetBearing={resetBearing}
         onFind={
           sel && safeMyCoords && !findMode
             ? () => handleFindFriend(sel)
@@ -385,6 +394,8 @@ function VybeMapInner() {
             layers={layers}
             sharing={sharing}
             hasMapbox={useMapbox}
+            followHeading={followHeading}
+            onFollowHeading={setFollowHeading}
             onMapMode={setMapViewMode}
             onToggleLayer={(key) => { toggleLayer(key); trackMapEvent('layer_toggle', { layer: key }); }}
             onGhost={() => { setSettingsOpen(false); setGhostOpen(true); }}

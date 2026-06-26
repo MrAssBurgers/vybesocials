@@ -14,10 +14,10 @@ import { AIVideoGenerator } from '@/components/ai/AIVideoGenerator';
 import { StyledUsername } from '@/components/ui/StyledUsername';
 import { INTEREST_CATEGORIES, getSuggestedTagsForInterests } from '@/lib/tagCategories';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { Camera } from '@/components/camera/Camera';
 import { toast } from 'sonner';
 import { applyPostPublishNavigation } from '@/lib/postPublishNavigation';
 import { enqueuePostUpload } from '@/lib/uploadQueue';
+import { openCameraFromGesture, useCameraOverlay } from '@/contexts/CameraOverlayContext';
 import { ImageCropEditor } from './editors/ImageCropEditor';
 import { ImageRotateEditor } from './editors/ImageRotateEditor';
 import { ImageFilterEditor } from './editors/ImageFilterEditor';
@@ -37,6 +37,7 @@ export function DesktopCreateStudio({ onClose }: DesktopCreateStudioProps) {
   const navigate = useNavigate();
   const { user, profile } = useAuth();
   const createPost = useCreatePost();
+  const { openCamera } = useCameraOverlay();
 
   const [contentType, setContentType] = useState<'text' | 'post' | 'short' | 'video'>('post');
   const [files, setFiles] = useState<File[]>([]);
@@ -48,7 +49,6 @@ export function DesktopCreateStudio({ onClose }: DesktopCreateStudioProps) {
   const [uploadProgress, setUploadProgress] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
   const [visibility, setVisibility] = useState<'public' | 'followers' | 'private'>('public');
-  const [showCamera, setShowCamera] = useState(false);
   const [showAIVideoGen, setShowAIVideoGen] = useState(false);
   const [publishSuccess, setPublishSuccess] = useState(false);
   const [activePreview, setActivePreview] = useState(0);
@@ -188,6 +188,13 @@ export function DesktopCreateStudio({ onClose }: DesktopCreateStudioProps) {
     if (!tags.includes('ai')) setTags(prev => [...prev, 'ai']);
   }, [handleFileSelect, tags]);
 
+  const handleOpenCamera = useCallback((e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    void openCameraFromGesture(openCamera, 'post', {
+      onCapture: (media) => handleFileSelect([media.file]),
+    });
+  }, [handleFileSelect, openCamera]);
+
   // Editor callbacks
   const handleEditorApply = useCallback((newFile: File) => {
     const newUrl = URL.createObjectURL(newFile);
@@ -206,7 +213,6 @@ export function DesktopCreateStudio({ onClose }: DesktopCreateStudioProps) {
   const isCurrentFileVideo = files[activePreview]?.type?.startsWith('video/');
   const hasMedia = files.length > 0;
 
-  if (showCamera) return <Camera onClose={() => setShowCamera(false)} />;
   if (showAIVideoGen) return <AIVideoGenerator onVideoGenerated={handleAIVideoGenerated} onClose={() => setShowAIVideoGen(false)} />;
 
   // Editor overlays
@@ -338,7 +344,7 @@ export function DesktopCreateStudio({ onClose }: DesktopCreateStudioProps) {
                   <p className="text-xs text-muted-foreground">Up to 10 photos/videos · Carousel supported</p>
                 </div>
                 <div className="flex items-center gap-2 mt-2">
-                  <button onClick={(e) => { e.stopPropagation(); setShowCamera(true); }}
+                  <button onClick={handleOpenCamera}
                     className="flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-medium bg-muted text-muted-foreground hover:bg-accent transition-colors">
                     <CameraIcon className="w-3.5 h-3.5" /> Camera
                   </button>

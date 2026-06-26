@@ -34,7 +34,9 @@ export function useDefaultLiquidBackground(): boolean {
     if (!canUseDefaultLiquidExperience(hasUserWallpaper)) return false;
     if (isExcludedLiquidPath(pathname)) return false;
     if (user) return true;
-    return isGuestAppPath(pathname);
+    if (isGuestAppPath(pathname) || isAuthLiquidPath(pathname)) return true;
+    if (pathname === '/' || pathname === '/landing') return true;
+    return false;
   }, [user, hasUserWallpaper, pathname]);
 }
 

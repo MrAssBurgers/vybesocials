@@ -2,6 +2,10 @@ import { onCall, onRequest, HttpsError } from 'firebase-functions/v2/https';
 import { db, requireAuth } from './_shared/admin.js';
 /** share-preview — public HTTP renderer for shared post links (OG tags). */
 export const sharePreview = onRequest({ cors: true }, async (req, res) => {
+    if (req.method === 'GET' && (req.query.probe === '1' || req.query.health === '1')) {
+        res.status(200).json({ ok: true, fn: 'sharePreview' });
+        return;
+    }
     const postId = req.query.postId || (req.path.split('/').pop() || '');
     if (!postId) {
         res.status(400).send('postId required');

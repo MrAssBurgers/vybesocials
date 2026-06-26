@@ -2,13 +2,92 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## Deep scan — camera fullscreen + theme auto sync (2026-06-26)
+- **Camera glitch:** Vybe Snap shutter bled into DM column — camera mounted inside `#root` stack (not portaled); fixed with `FullscreenPortal` + `z-[10050]` + hide `#app-shell` while `data-camera-open`
+- **Theme slow load:** `prefetchAndApplyUserTheme` bailed when stale localStorage existed — now paints local instantly then always reconciles with `user_themes` DB; `equipTheme` auto-saves to account; DB row is source of truth in `useApplyUserTheme`
+- **Prod probes:** `sharePreview` was wrongly deployed as callable (GET → 400); deleted + redeployed as HTTPS with `?probe=1` health; debug-scan uses POST for callables (401 = PASS)
+- **Debug scan:** build PASS · lint PASS · CSS/boot PASS · 66/144 functions OK · prod probes PASS (sharePreview, livekitToken, aiCatchUp)
+- **Published:** Firebase staging https://vybe-daaab.web.app (hosting + firestore rules + sharePreview, 2026-06-26) · git push pending Lovable Publish for vybehub.app
+- **Shipped:** Firebase staging https://vybe-daaab.web.app (2026-06-26)
+- **Next:** Lovable Publish for vybehub.app · user-verify camera fullscreen on desktop DMs
+
+## Texter liquid-glass redesign (2026-06-26)
+- **Problem:** DM composer looked flat/muddy — shadcn `Textarea` forced `liquid-glass-input` → dark sunken box inside the pill
+- **Fix:** Native `<textarea>` in unified frosted pill; gradient border + shine; themed icon buttons (Toy Box, camera, mic/send); keyboard scrim fade
+- **Camera tap lag:** `openCameraFromGesture` awaited getUserMedia before showing overlay → instant open + `streamPromise` from gesture; pause liquid aurora while camera open
+- **Verified:** `npm run build` PASS · `npm run lint` PASS
+- **Shipped:** Firebase staging https://vybe-daaab.web.app (2026-06-26)
+
+## DM visual cohesion + avatars (2026-06-26)
+- **Bubbles:** Removed hardcoded orange/yellow 24h & view-once overrides — sent bubbles stay primary→accent; ephemeral = subtle ring only
+- **Glass shell:** Chat column + inbox + sidebar share same translucent glass; liquid aurora shows through (no flat black chat pane)
+- **Upload CTA:** `gradient-animated` uses primary→accent only (no bg-gradient-start/mid/neon-purple sweep)
+- **Avatars:** DM list enriches members from avatar cache + batch URL signing; Vybe snap card uses theme gradient
+- **Verified:** `npm run build` PASS · `npm run lint` PASS
+- **Shipped:** Firebase staging https://vybe-daaab.web.app (2026-06-26)
+
+## DM crash + theme cohesion (2026-06-26)
+- **Crash fix:** `MessageInputArea` used `messagesContainerRef` without destructuring it → `ReferenceError` crashed ChatView / showed "Couldn't load Messages"
+- **Theme:** Wordmark gradient primary→accent only; messages column matches inbox glass; Upload aura sweep drops hardcoded neon-purple; DM avatars use `ProfileAvatarImage`
+- **Verified:** `npm run build` PASS · `npm run lint` PASS
+- **Shipped:** Firebase staging https://vybe-daaab.web.app (2026-06-26)
+
+## Theme sync fix — cohesive Vybe palette (2026-06-26)
+- **Problem:** Home UI looked "messed up" — logo/accents pink-cyan but nav active + trending chips orange-brown; stale boot snapshot could block full theme re-apply
+- **Boot:** Equipped tokens always win over `vybe-boot-theme` snapshot; snapshot-only boot no longer marks theme as fully applied; logout clears all theme localStorage keys
+- **Tokens:** `--sidebar-accent` derived from primary (not raw `colorSecondary`); nav active + trending badges use primary tint
+- **UI:** DiscoveryCards gradients use `--primary`/`--accent`; StoriesBar avatar uses same path as sidebar
+- **Verified:** `npm run build` PASS · `npm run lint` PASS
+- **Shipped:** Firebase staging https://vybe-daaab.web.app (2026-06-26)
+
+## Slower bubbles + theme-matched logo (2026-06-17)
+- **Logo fix:** SVG strokes use resolved theme HSL (`useVybeMarkColors`) — WebKit-safe; V mark visible on splash/header; boot static SVG uses CSS stroke colors
+- **No theme snap:** Boot replays `vybe-boot-theme` snapshot + `vybe-equipped-theme` fallback in `index.html`; `ensureBootThemeApplied()` in `main.tsx`; `markThemeAppliedFromBoot()` skips redundant React re-apply; logo reads equipped tokens directly
+- **Fast theme load:** `themeHydration.ts` — per-user equipped cache, prefetch on auth/preloader, hydrate from IndexedDB react-query cache on persist restore; `useUserTheme` initialData from localStorage
+- **Background motion:** Splash overlay transparent + ambient bubbles; blob cycles ~58–72s
+- **Verified:** `npm run build` PASS · `npm run lint` PASS
+- **Shipped:** Firebase staging https://vybe-daaab.web.app (2026-06-17, logo + motion fixes)
+
+## Single Vybe-matched animated background (2026-06-26)
+- **Problem:** 3 competing backdrops on load — static `.vybe-bg` gradient, portaled aurora (hardcoded purple/cyan), plus `BackgroundEffects` from theme
+- **Fix:** One global `VybeLiquidBackground` via `AppGlobalLiquidShell`; mesh/blobs/bloom use `hsl(var(--primary|--accent|--secondary))`; slow 48–100s drift; retired `.vybe-bg`; removed duplicate Landing inline aurora + theme `BackgroundEffects` layer; DM inbox hero aurora hidden when global liquid active
+- **Verified:** `npm run build` PASS · `npm run lint` PASS
+- **Shipped:** Firebase staging https://vybe-daaab.web.app (2026-06-26)
+
+## VybeMap follow toggle + Texter DM composer (2026-06-26)
+- **Map:** Device compass follow is now **off by default** — toggle via compass FAB (right side) or Map settings → "Follow phone direction"; pauses while you pan/zoom/rotate
+- **Texter:** Liquid-glass pill composer (Toy Box, Vybe Snap, voice hold/slide-cancel, send); shared for 1:1 + group DMs
+- **Keyboard:** `KeyboardAwareTexter` tracks `--keyboard-height` / `--texter-stack-h`; Texter fixed above keyboard; message list padding adjusts; auto-scroll on keyboard open
+- **Verified:** `npm run build` PASS · `npm run lint` PASS
+- **Shipped:** Firebase staging https://vybe-daaab.web.app (2026-06-26)
+
+## Camera overlay wiring — remaining entry points (2026-06-17)
+- **Extended overlay API:** `onCapture`, `onDismiss`, `showBackArrow`, `defaultMode` on `OpenCameraOptions`; `UnifiedVybeCamera` routes captures to callback or `/upload`
+- **Wired:** StoryCreator (story camera + onCapture back to preview), DesktopCreateStudio (post capture → studio files), CreateMenu (camera → overlay), hub already on `CreateMenuLayer`
+- **Cleanup:** Removed dead `showSnapCamera` block from ConversationList; removed inline `Camera` mounts from StoryCreator / DesktopCreateStudio / CreateMenu
+- **Verified:** `npm run build` PASS · `npm run lint` PASS
+- **Shipped:** Firebase staging https://vybe-daaab.web.app (hosting + firestore rules, 2026-06-26)
+- **Next:** Lovable → Share → Publish for vybehub.app production · optional Texter full swap in DM composer
+
+## Camera + Texter + theme marketplace fixes (2026-06-25)
+- **Hub camera dead tap:** Global `CameraOverlayProvider` — opens camera inside user gesture with pre-acquired stream; hub/create menu wired to `UnifiedVybeCamera`
+- **Unified camera:** `cameraConfig.ts`, `UnifiedVybeCamera` (DM/Snap → VybeSnapCamera; Hub/Story → Camera); black preview until stream ready (no blurry placeholder)
+- **DM composer:** `KeyboardAwareTexter` wrapper + texter pill styles; Vybe Snap opens shared camera with `captureTarget=dm`
+- **Theme save/publish:** Firestore rules for `user_themes`, `shared_themes`, `saved_themes` (were deny-all → save/share failed silently)
+- **Publish to marketplace:** Design Your Vybe share now saves then publishes with `visibility: public`
+- **Removed:** "Design Your Layout" button (broken UIBuilder entry)
+- **AI themes:** Added Cowboys, Ferrari, Minecraft, Barça, Christmas brand palettes
+- **Verified:** `npm run build` PASS · `npm run lint` PASS
+- **You:** `firebase deploy --only firestore:rules,hosting --project vybe-daaab` · hard refresh · test hub camera + DM keyboard + theme save/share
+
 ## Deep scan + map settings persistence + perf (2026-06-25)
 - **Debug scan:** build PASS · lint PASS (fixed ConversationList constant-binary + queryRefetchPolicy warnings) · CSS/boot PASS · 66/144 Cloud Functions refs OK · prod probes WARN (400 on sharePreview/livekit/aiCatchUp — expected without auth body)
 - **VybeMap remembers map look:** `useMapViewMode` persists 2D/3D/satellite/terrain/hybrid in `vybe-map-view-mode-v1` — leave on 3D, returns on 3D
 - **Map layers** already persisted in `vybe-map-layers-v2`
 - **Perf:** Fixed infinite RAF loop in `useLiveFriends` (was re-rendering every frame forever); map route preloaded (`/map` in routePreloader + sidebar hover prefetch); live friends poll 8s→12s
 - **Verified:** `npm run build` PASS · `npm run lint` PASS
-- **You:** Hard refresh · Lovable Publish vybehub.app · deploy hosting for staging
+- **Shipped:** commit `e7e2e08e` pushed to `main` · Firebase hosting https://vybe-daaab.web.app
+- **You:** Hard refresh staging · **Lovable → Share → Publish** for vybehub.app production
 
 ## AI theme designer — fast + faithful matching (2026-06-17)
 - **Problem:** Theme generation waited on slow Cloud Function first; vague/unrelated palettes for brand/color prompts

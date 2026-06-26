@@ -902,6 +902,30 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // ---------- themes (user customization + marketplace) ----------
+    match /user_themes/{id} {
+      allow read: if signedIn() && ownsUserField('user_id');
+      allow create, update: if signedIn() && willOwnUserField('user_id');
+      allow delete: if signedIn() && ownsUserField('user_id');
+    }
+    match /shared_themes/{id} {
+      allow read: if signedIn() && (
+        resource.data.is_public == true ||
+        isOwnerProfile('creator_id') ||
+        resource.data.creator_id == uid()
+      );
+      allow create: if signedIn() && willOwnProfile('creator_id');
+      allow update, delete: if signedIn() && (
+        isOwnerProfile('creator_id') || isStaffModerator()
+      );
+    }
+    match /saved_themes/{id} {
+      allow read: if signedIn() && willOwnProfile('user_id');
+      allow create: if signedIn() && willOwnProfile('user_id');
+      allow delete: if signedIn() && isOwnerProfile('user_id');
+      allow update: if false;
+    }
+
     // ---------- explicit deny-all admin-only tables (Cloud Functions handle these) ----------
     match /app_secrets/{id}                   { allow read, write: if false; }
     match /user_ai_keys/{id}                  { allow read, write: if false; }
