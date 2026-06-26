@@ -2,15 +2,20 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
-## Push + Vybe Snap + camera filter fixes (2026-06-17)
-- **Push:** DM trigger now resolves 1:1 recipients from `profileA_profileB` conversation ids when membership rows are missing; OneSignal lookup uses `lookupOneSignalSubscriptionIdsForProfile` (auth uid fallback)
-- **Camera:** VYBE filter bakes into captured photos on native WebViews (try/catch, no skip); Vybe Snap defaults to VYBE filter
-- **Vybe Snap send:** DM flow uses direct Send (no broken recipient sheet); emojis/stickers free-drag (x+y) vs text bar-only
+## DM composer + keyboard + Snapchat notifications (2026-06-17)
+- **Composer:** Much higher bottom lift on Despia (`--dm-composer-lift` 3.75rem); presence sits above composer; keyboard polling + height estimate when visualViewport is 0
+- **Vybe Snap:** JPEG compress before upload; skip signed-URL round trip; client push on every DM insert (backup when phone locked)
+- **Push:** OneSignal DMs/calls use `time_sensitive` + longer TTL; client `sendMessagePush` after every successful `insertDmMessage`
+- **UI:** Snapchat-style chat banner toast + notifications list rows (avatar, “sent you a chat”, blue unread dot)
 - **Verified:** `npm run build` PASS · `npm run lint` PASS · functions build PASS
-- **Shipped:** git `72d54587` · Firebase staging https://vybe-daaab.web.app + push triggers (2026-06-17)
+- **Shipped:** git `8af9f349` · Firebase staging https://vybe-daaab.web.app (2026-06-17)
 - **Next:** Lovable → Share → Publish for vybehub.app
 
-- **Push:** Preference-aware delivery (DMs, typing, calls, social toggles); quiet hours; message preview privacy; audible OneSignal alerts; typing type fix
+## Push + Vybe Snap + camera filter fixes (2026-06-17)
+- **Push:** DM trigger resolves 1:1 recipients from conversation ids; OneSignal auth uid fallback
+- **Camera:** VYBE filter on capture; Vybe Snap default VYBE filter; direct Send in DMs; free-drag emojis
+- **Shipped:** git `72d54587` · Firebase staging (2026-06-17)
+
 - **Composer:** Centered texter, 48dp targets, 5-line expand, keyboard spring dock, glass pill polish
 - **Shipped:** git `12039225` · Firebase staging https://vybe-daaab.web.app (2026-06-17)
 
