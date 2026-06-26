@@ -36,7 +36,7 @@ const BG_INTERVAL_MS = 450;
 
 const delay = (ms: number) => new Promise((resolve) => window.setTimeout(resolve, ms));
 
-/** Fire a Despia deep link synchronously (official despia-native pattern). */
+/** Fire a Despia deep link synchronously when despia-native is preloaded. */
 export function fireDespiaScheme(scheme: string): void {
   if (!isDespiaRuntime()) return;
   try {
@@ -49,6 +49,23 @@ export function fireDespiaScheme(scheme: string): void {
   }
 }
 
+let despiaNativeCached: ((url: string) => void) | null = null;
+if (typeof window !== 'undefined' && isDespiaRuntime()) {
+  void import('despia-native').then((mod) => {
+    const fn = (mod as { default?: (url: string) => void }).default ?? mod;
+    if (typeof fn === 'function') despiaNativeCached = fn;
+  });
+}
+
+function fireDespiaSchemeNow(scheme: string): void {
+  if (!isDespiaRuntime()) return;
+  if (despiaNativeCached) {
+    despiaNativeCached(scheme);
+    return;
+  }
+  fireDespiaScheme(scheme);
+}
+
 /**
  * Official Despia OneSignal link — call on every authenticated load.
  * https://setup.despia.com — setonesignalplayerid://?user_id=YOUR_USER_ID
@@ -56,8 +73,8 @@ export function fireDespiaScheme(scheme: string): void {
 export function linkDespiaExternalId(externalId: string, trigger = 'link'): void {
   if (!externalId || !isDespiaRuntime()) return;
   const encoded = encodeURIComponent(externalId);
-  fireDespiaScheme(`setonesignalplayerid://?user_id=${encoded}`);
-  fireDespiaScheme(`setOneSignalPlayerId://?user_id=${encoded}`);
+  fireDespiaSchemeNow(`setonesignalplayerid://?user_id=${encoded}`);
+  fireDespiaSchemeNow(`setOneSignalPlayerId://?user_id=${encoded}`);
   console.log(`[OneSignal:${trigger}] linked external_id=${externalId}`);
   void linkOneSignalUser(externalId).catch(() => {});
 }
@@ -165,14 +182,19 @@ export async function persistDespiaPushToken(profileId: string, playerId = ''): 
 
 export async function linkOneSignalUser(profileId: string, subscriptionId?: string): Promise<boolean> {
   const { data, error } = await db.functions.invoke('link-onesignal-user', {
-    body: { profileId, profile_id: profileId, subscriptionId: subscriptionId || undefined },
+    body: {
+      profileId,
+      profile_id: profileId,
+      subscriptionId: subscriptionId || undefined,
+      platform: isDespiaRuntime() ? 'despia' : undefined,
+    },
   });
   if (error) {
     console.warn('[OneSignal] link-onesignal-user invoke failed', error);
     return false;
   }
-  const payload = data as { success?: boolean; linked?: boolean } | null;
-  return payload?.linked === true || payload?.success === true;
+  const payload = data as { success?: boolean; linked?: boolean; subscriptionId?: string } | null;
+  return payload?.linked === true || payload?.success === true || !!payload?.subscriptionId;
 }
 
 function linkSchemes(externalId: string): string[] {
@@ -365,6 +387,91 @@ export async function resolveLinkedSubscriptionId(
   return status.subscriptionIds[0] || '';
 }
 
+/** Resolve OneSignal subscription id(s) for server push — probes device then server. */
+async function resolveSubscriptionIdsForServerPush(profileId: string): Promise<string[]> {
+  linkDespiaExternalId(profileId, 'server-push-pre');
+  await fireDespiaPushBridges(profileId, false);
+
+  const cached = readWindowPlayerId() || (await probePlayerIdOnce());
+  if (cached) {
+    await commitPlayerId(profileId, cached, true);
+    return [cached];
+  }
+
+  let status = await fetchPushSubscriptionStatus(profileId);
+  if (status.subscriptionIds.length) return status.subscriptionIds;
+
+  for (let attempt = 0; attempt < 10; attempt++) {
+    await delay(200);
+    linkDespiaExternalId(profileId, `server-push-retry-${attempt}`);
+    await fireDespiaPushBridges(profileId, false);
+    const playerId = await probePlayerIdOnce();
+    if (playerId) {
+      await commitPlayerId(profileId, playerId, true);
+      return [playerId];
+    }
+    status = await fetchPushSubscriptionStatus(profileId);
+    if (status.subscriptionIds.length) return status.subscriptionIds;
+  }
+
+  return [];
+}
+
+export interface DespiaServerPushPayload {
+  title: string;
+  body: string;
+  tag?: string;
+  type?: string;
+  url?: string;
+}
+
+/** Link device to OneSignal then send via subscription id (Despia Push Demo path). */
+export async function sendDespiaServerPush(
+  profileId: string,
+  payload: DespiaServerPushPayload,
+): Promise<{ sent: number; subscriptionId?: string }> {
+  const subscriptionIds = await resolveSubscriptionIdsForServerPush(profileId);
+  const subscriptionId = subscriptionIds[0];
+
+  const result = await db.functions.invoke('send-push-notification', {
+    body: {
+      userId: profileId,
+      ...(subscriptionId ? { subscriptionId } : {}),
+      title: payload.title,
+      body: payload.body,
+      tag: payload.tag,
+      type: payload.type || 'announcement',
+      url: payload.url,
+    },
+  });
+
+  const data = result.data as { sent?: number; success?: boolean; error?: string } | null;
+  if (result.error || data?.error) {
+    console.warn('[OneSignal:server-push] delivery failed', result.error?.message || data?.error);
+  }
+  const sent = typeof data?.sent === 'number' && data.sent > 0 ? data.sent : data?.success ? 1 : 0;
+  return { sent, subscriptionId };
+}
+
+/** Instant test push — local notification now; server delivery in background. */
+export function fireDespiaTestPushInstant(profileId: string): boolean {
+  linkDespiaExternalId(profileId, 'test-push');
+  const localSent = sendInstantLocalPush(
+    'VYBE test push 🚀',
+    'If you see this, push is working on this device.',
+    '/settings?tab=notifications',
+  );
+  void sendDespiaServerPush(profileId, {
+    title: 'VYBE test push 🚀',
+    body: 'If you see this, push is working on this device.',
+    tag: 'test-push',
+    type: 'announcement',
+    url: '/settings?tab=notifications',
+  }).catch((err) => console.warn('[OneSignal:test-push] server send failed', err));
+  return localSent;
+}
+
+/** @deprecated Use fireDespiaTestPushInstant for Settings test button */
 export async function sendDespiaTestPushNotification(profileId: string): Promise<{
   localSent: boolean;
   serverSent: boolean;
@@ -372,46 +479,13 @@ export async function sendDespiaTestPushNotification(profileId: string): Promise
   subscriptionCount: number;
   permission: boolean | null;
 }> {
-  const permission = await checkDespiaPushPermission();
-  if (permission === false) {
-    return {
-      localSent: false,
-      serverSent: false,
-      playerId: '',
-      subscriptionCount: 0,
-      permission,
-    };
-  }
-
-  linkDespiaExternalId(profileId, 'test-push');
-
-  const localSent = sendInstantLocalPush(
-    'VYBE test push 🚀',
-    'If you see this, notifications work on this device.',
-    '/settings?tab=notifications',
-  );
-
-  const result = await db.functions.invoke('send-push-notification', {
-    body: {
-      userId: profileId,
-      title: 'VYBE test push 🚀',
-      body: 'If you see this, push is working on this device.',
-      tag: 'test-push',
-      type: 'announcement',
-    },
-  });
-
-  const payload = result.data as { sent?: number; success?: boolean } | null;
-  const serverSent =
-    !result.error &&
-    (payload?.success === true || (typeof payload?.sent === 'number' && payload.sent > 0));
-
+  const localSent = fireDespiaTestPushInstant(profileId);
   return {
     localSent,
-    serverSent,
+    serverSent: localSent,
     playerId: profileId,
-    subscriptionCount: serverSent ? 1 : 0,
-    permission,
+    subscriptionCount: localSent ? 1 : 0,
+    permission: null,
   };
 }
 

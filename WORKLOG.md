@@ -2,6 +2,20 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## Server push linking fix (2026-06-17)
+- **Problem:** Instant test push fired server send without OneSignal subscription id — "not linked" / no delivery
+- **Fix:** `sendDespiaServerPush` resolves subscription (device probe + retries + server lookup), links, sends with `subscriptionId`; `link-onesignal-user` pulls subs from OneSignal when client has none; Despia subscribe/resync uses `relinkDespiaPushInBackground`
+- **Verified:** `npm run build` PASS · `npm run lint` PASS · functions build PASS
+- **Shipped:** Firebase staging https://vybe-daaab.web.app + linkOnesignalUser/sendPushNotification/getPushSubscriptionStatus
+- **Next:** Lovable Publish for vybehub.app
+
+## Instant test push (2026-06-17)
+- **Problem:** Settings "Send me a test push" worked but felt slow — awaited permission check (~600ms) + server round trip before toast
+- **Fix:** `fireDespiaTestPushInstant` — sync local notification via preloaded `despia-native`; server send in background; toast on tap
+- **Verified:** `npm run build` PASS · `npm run lint` PASS
+- **Shipped:** Firebase staging https://vybe-daaab.web.app (2026-06-17)
+- **Next:** Lovable Publish for vybehub.app
+
 ## Despia push — official external_id flow (2026-06-26)
 - **EnablePushPrompt:** Turn-on-notifications dialog on Despia; `acceptDespiaPushPermission` → registerpush + instant `setonesignalplayerid://`
 - **Auth load:** `linkDespiaExternalId` on every login/resume/foreground (Despia docs pattern)

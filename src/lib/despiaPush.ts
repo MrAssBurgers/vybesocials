@@ -6,6 +6,35 @@
 
 import { isDespiaRuntime } from '@/lib/despiaBridge';
 
+type DespiaNativeFn = (url: string) => void;
+
+let despiaNative: DespiaNativeFn | null = null;
+
+if (typeof window !== 'undefined' && isDespiaRuntime()) {
+  void import('despia-native').then((mod) => {
+    const fn = (mod as { default?: DespiaNativeFn }).default ?? mod;
+    if (typeof fn === 'function') despiaNative = fn;
+  });
+}
+
+function fireScheme(scheme: string): boolean {
+  if (!isDespiaRuntime()) return false;
+  if (despiaNative) {
+    despiaNative(scheme);
+    return true;
+  }
+  try {
+    window.location.href = scheme;
+    return true;
+  } catch {
+    void import('despia-native').then((mod) => {
+      const fn = (mod as { default?: DespiaNativeFn }).default ?? mod;
+      if (typeof fn === 'function') fn(scheme);
+    });
+    return true;
+  }
+}
+
 export function isNativeShell(): boolean {
   return isDespiaRuntime();
 }
@@ -36,19 +65,5 @@ export function sendInstantLocalPush(
 
 export function scheduleOfflinePush(opts: OfflinePushOptions): boolean {
   if (!isDespiaRuntime()) return false;
-  const scheme = buildLocalPushScheme(opts);
-  try {
-    void import('despia-native').then((mod) => {
-      const despia = (mod as { default?: (url: string) => void }).default ?? mod;
-      if (typeof despia === 'function') despia(scheme);
-    });
-    return true;
-  } catch {
-    try {
-      window.location.href = scheme;
-      return true;
-    } catch {
-      return false;
-    }
-  }
+  return fireScheme(buildLocalPushScheme(opts));
 }

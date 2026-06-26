@@ -3,9 +3,9 @@ import { useAuth } from '@/lib/auth';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import { db } from '@/lib/firebase';
-import { sendDespiaTestPushNotification, linkOneSignalUser } from '@/lib/despiaOneSignal';
-import { isDespiaRuntime, openAppSettings } from '@/lib/despiaBridge';
-import { pushBlockedSettingsMessage, pushNotLinkedHint } from '@/lib/pushSettingsCopy';
+import { fireDespiaTestPushInstant } from '@/lib/despiaOneSignal';
+import { isDespiaRuntime } from '@/lib/despiaBridge';
+import { pushNotLinkedHint } from '@/lib/pushSettingsCopy';
 import { parseEdgeInvokeResult, pushDeliveryErrorMessage } from '@/lib/edgeFunctionResponse';
 import { haptics } from '@/lib/haptics';
 import { useNotificationPreferences, useUpdateNotificationPreference } from '@/hooks/useNotificationPreferences';
@@ -84,31 +84,20 @@ export function NotificationsSection() {
                     variant="outline"
                     size="sm"
                     className="w-full"
-                    onClick={async () => {
+                    onClick={() => {
                       haptics.tap();
-                      try {
-                        if (isDespiaRuntime()) {
-                          const despia = await sendDespiaTestPushNotification(profile.id);
-                          if (despia.permission === false) {
-                            toast.error(pushBlockedSettingsMessage(), {
-                              action: {
-                                label: 'Open settings',
-                                onClick: () => { void openAppSettings(); },
-                              },
-                            });
-                            return;
-                          }
-                          if (despia.serverSent || despia.localSent) {
-                            toast.success('Test push sent — check your lock screen!');
-                            return;
-                          }
-                          toast.error('Could not send test push yet.', {
-                            description: pushNotLinkedHint(),
-                          });
-                          return;
-                        }
+                      if (isDespiaRuntime() && profile?.id) {
+                        const sent = fireDespiaTestPushInstant(profile.id);
+                        toast.success(
+                          sent
+                            ? 'Test push sent — check your lock screen!'
+                            : 'Could not send test push on this device.',
+                        );
+                        return;
+                      }
 
-                        await linkOneSignalUser(profile.id);
+                      void (async () => {
+                      try {
                         const result = await db.functions.invoke('send-push-notification', {
                           body: {
                             userId: profile.id,
@@ -134,13 +123,13 @@ export function NotificationsSection() {
                         const msg = e instanceof Error ? e.message : 'Could not send test push';
                         toast.error(msg);
                       }
+                      })();
                     }}
                   >
                     Send me a test push
                   </Button>
                   <p className="text-[11px] text-muted-foreground/80 mt-2 leading-relaxed">
-                    If you don't get one within ~10 seconds, push isn't wired to this device yet —
-                    turn the toggle off and back on, or reinstall the app.
+                    On the Despia app you should see it right away. If nothing appears, turn push off and back on.
                   </p>
                 </div>
               )}

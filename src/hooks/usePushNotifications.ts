@@ -3,7 +3,7 @@ import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth';
 import { toast } from 'sonner';
 import { isPreviewServiceWorkerDisabled, getVybeServiceWorkerRegistration } from '@/lib/serviceWorker';
-import { acceptDespiaPushPermission, linkDespiaExternalId, linkOneSignalUser, checkDespiaPushPermission } from '@/lib/despiaOneSignal';
+import { acceptDespiaPushPermission, linkOneSignalUser, checkDespiaPushPermission, relinkDespiaPushInBackground } from '@/lib/despiaOneSignal';
 import { isDespiaRuntime, openAppSettings } from '@/lib/despiaBridge';
 import { pushBlockedSettingsMessage } from '@/lib/pushSettingsCopy';
 
@@ -170,8 +170,8 @@ export function usePushNotifications() {
       // If intent is on but the token row is missing, silently re-link in background.
       if (intent) {
         setIsSubscribed(true);
-        if (!data && isDespiaRuntime()) {
-          linkDespiaExternalId(profile.id, 'background-relink');
+        if (isDespiaRuntime()) {
+          relinkDespiaPushInBackground(profile.id, data ? 'background-resync' : 'background-relink');
         }
       } else {
         setIsSubscribed(!!data);
@@ -228,7 +228,7 @@ export function usePushNotifications() {
 
     const existingPermission = await checkDespiaPushPermission();
     if (existingPermission === true) {
-      linkDespiaExternalId(profile.id, 'permission-grant-resync');
+      relinkDespiaPushInBackground(profile.id, 'permission-grant-resync');
       toast.success('Push notifications enabled!');
       return true;
     }

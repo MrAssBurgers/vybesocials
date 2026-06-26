@@ -149,8 +149,17 @@ export const linkOnesignalUser = onCall(
       subscriptionId?: string;
     };
   const resolvedProfileId = await resolveProfileIdForAuth(authUid, profile_id || profileId);
-  const resolvedPlatform = (platform || 'web').toLowerCase();
-  const subId = subscriptionId || onesignal_id || fcm_token;
+  const resolvedPlatform = (platform || (subscriptionId ? 'despia' : 'web')).toLowerCase();
+  let subId =
+    subscriptionId && subscriptionId.length >= 8 && !subscriptionId.startsWith('despia:')
+      ? subscriptionId
+      : undefined;
+  if (!subId && onesignal_id && onesignal_id.length >= 8 && !onesignal_id.startsWith('despia:')) {
+    subId = onesignal_id;
+  }
+  if (!subId && fcm_token && fcm_token.length >= 8 && !fcm_token.startsWith('despia:')) {
+    subId = fcm_token;
+  }
 
   const appId = process.env.ONESIGNAL_APP_ID;
   const restKey = process.env.ONESIGNAL_REST_API_KEY;
@@ -160,7 +169,7 @@ export const linkOnesignalUser = onCall(
     const linkBody: Record<string, unknown> = {
       identity: { external_id: resolvedProfileId },
     };
-    if (subId && subId.length >= 8 && !subId.startsWith('despia:')) {
+    if (subId) {
       linkBody.subscriptions = [{ id: subId, enabled: true }];
     }
     try {
@@ -174,7 +183,7 @@ export const linkOnesignalUser = onCall(
         body: JSON.stringify(linkBody),
       });
       onesignalLinked = res.ok;
-      if (!res.ok && subId && !subId.startsWith('despia:')) {
+      if (!res.ok && subId) {
         const patchRes = await fetch(
           `https://api.onesignal.com/apps/${appId}/users/by/external_id/${encodeURIComponent(resolvedProfileId)}`,
           {
@@ -202,6 +211,14 @@ export const linkOnesignalUser = onCall(
     } catch (err) {
       console.warn('[linkOnesignalUser] OneSignal request failed', err);
     }
+
+    if (!subId) {
+      const found = await lookupOneSignalSubscriptionIdsForProfile(appId, restKey, resolvedProfileId);
+      if (found.length > 0) {
+        subId = found[0];
+        onesignalLinked = true;
+      }
+    }
   }
 
   await db.collection('push_tokens').doc(`${resolvedProfileId}_${resolvedPlatform}`).set({
@@ -213,7 +230,7 @@ export const linkOnesignalUser = onCall(
     updated_at: new Date().toISOString(),
   }, { merge: true });
 
-  if (subId && !subId.startsWith('despia:')) {
+  if (subId) {
     await db.collection('push_tokens').doc(`${resolvedProfileId}_despia`).set({
       user_id: resolvedProfileId,
       platform: 'despia',
@@ -222,7 +239,12 @@ export const linkOnesignalUser = onCall(
     }, { merge: true });
   }
 
-  return { ok: true, success: onesignalLinked || !!subId, linked: onesignalLinked };
+  return {
+    ok: true,
+    success: onesignalLinked || !!subId,
+    linked: onesignalLinked || !!subId,
+    subscriptionId: subId || null,
+  };
 });
 
 /** get-push-subscription-status — OneSignal subscription ids for profiles.id (Despia test flow). */
