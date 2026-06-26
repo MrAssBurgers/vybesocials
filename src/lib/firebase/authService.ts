@@ -14,7 +14,6 @@ import {
   OAuthProvider,
   signInWithPopup,
   signInWithRedirect,
-  getRedirectResult,
   type User as FirebaseUser,
 } from 'firebase/auth';
 import { getFirebaseApp } from './app';
@@ -287,15 +286,9 @@ export const firebaseAuth = {
     data: { session: VybeSession | null };
     error: VybeAuthError | null;
   }> {
-    const auth = resolveAuth();
-    if (!auth) return { data: { session: null }, error: NOT_CONFIGURED };
-    try {
-      const result = await getRedirectResult(auth);
-      if (!result?.user) return { data: { session: null }, error: null };
-      return { data: { session: await toVybeSession(result.user) }, error: null };
-    } catch (err) {
-      return { data: { session: null }, error: toAuthError(err) };
-    }
+    const { awaitOAuthRedirectCapture } = await import('./oauthRedirect');
+    const captured = await awaitOAuthRedirectCapture();
+    return { data: { session: captured.session }, error: captured.error };
   },
 
   // ---- Legacy Supabase auth methods (stubbed during Firebase migration) ----

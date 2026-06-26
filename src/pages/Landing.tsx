@@ -186,21 +186,35 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
           ? { extraParams: { prompt: 'select_account' as const }, useRedirect: preferRedirect }
           : { useRedirect: preferRedirect };
 
-      let { error, redirected } = await firebaseAuth.signInWithOAuth(provider, baseOpts);
-      if (redirected) return;
+      let oauthResult = await firebaseAuth.signInWithOAuth(provider, baseOpts);
+      if (oauthResult.redirected) return;
       if (
-        error &&
+        oauthResult.error &&
         !preferRedirect &&
-        (error.name === 'auth/popup-blocked' || error.name === 'auth/popup-closed-by-user')
+        (oauthResult.error.name === 'auth/popup-blocked' ||
+          oauthResult.error.name === 'auth/popup-closed-by-user')
       ) {
-        ({ error, redirected } = await firebaseAuth.signInWithOAuth(provider, {
+        oauthResult = await firebaseAuth.signInWithOAuth(provider, {
           ...baseOpts,
           useRedirect: true,
-        }));
-        if (redirected) return;
+        });
+        if (oauthResult.redirected) return;
       }
-      if (error) throw error;
-      await db.rpc('claim_profile_by_email');
+      if (oauthResult.error) throw oauthResult.error;
+
+      if (oauthResult.data.session?.user) {
+        sessionStorage.removeItem('vybe-oauth-pending');
+        toast.success('Welcome back! ✨');
+        const cached = getCachedCurrentProfile();
+        navigate(
+          resolvePostLoginDestination(
+            cached
+              ? { onboarding_completed: cached.onboarding_completed, username: cached.username }
+              : profile,
+          ),
+          { replace: true },
+        );
+      }
     } catch (error: unknown) {
       sessionStorage.removeItem('vybe-oauth-pending');
       const msg = getUserFriendlyError(error);
@@ -210,9 +224,9 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
         setLoading(false);
       }
     }
-  }, []);
+  }, [navigate, profile]);
 
-  // Firebase OAuth redirect does not put tokens in the URL hash — wait for auth to settle.
+  // Firebase OAuth redirect — navigate as soon as session exists.
   useEffect(() => {
     if (!isOAuthReturn) return;
 
@@ -220,6 +234,16 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
       sessionStorage.removeItem('vybe-oauth-pending');
       sessionStorage.removeItem('vybe-oauth-error');
       setIsOAuthReturn(false);
+      const cached = getCachedCurrentProfile();
+      navigate(
+        resolvePostLoginDestination(
+          profile ??
+            (cached
+              ? { onboarding_completed: cached.onboarding_completed, username: cached.username }
+              : null),
+        ),
+        { replace: true },
+      );
       return;
     }
 
@@ -240,10 +264,10 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
       setIsOAuthReturn(false);
       setLoading(false);
       toast.error('Sign-in did not complete. Please try again.');
-    }, 15000);
+    }, 12000);
 
     return () => clearTimeout(failTimer);
-  }, [isOAuthReturn, user, authReady]);
+  }, [isOAuthReturn, user, authReady, profile, navigate]);
 
   // Redirect if already logged in AND has completed onboarding
   // First-time users (even if authenticated) should see intro if not completed
@@ -405,30 +429,6 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
       navigate('/home');
     }
   };
-
-  // If returning from OAuth redirect, hold on a loading screen while session is established.
-  if (isOAuthReturn) {
-    return (
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ duration: 0.3, delay: 0.15 }}
-        className="min-h-screen bg-[#0B0B10] flex items-center justify-center"
-      >
-        <div className="flex flex-col items-center gap-3">
-          <div className="w-8 h-8 rounded-full border-[3px] border-primary/30 border-t-primary animate-spin" />
-          <motion.p
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.2 }}
-            className="text-sm text-muted-foreground"
-          >
-            Signing you in…
-          </motion.p>
-        </div>
-      </motion.div>
-    );
-  }
 
   const authPageTitle = isLogin ? 'Welcome back' : 'Join VYBE';
   const authSubtitle = isLogin

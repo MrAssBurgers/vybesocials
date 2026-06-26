@@ -32,6 +32,7 @@ import { pickActiveBan } from '@/lib/banUtils';
 import { normalizeLoginEmail } from '@/lib/loginEmail';
 import { cacheProfileAvatar, resolveProfileAvatarUrl } from '@/lib/profileAvatarCache';
 import { isPasswordRecoveryUrl, redirectToPasswordRecoveryPage } from '@/lib/passwordRecoveryUrl';
+import { awaitOAuthRedirectCapture, isOAuthRedirectInFlight } from '@/lib/firebase/oauthRedirect';
 
 /** Fail-soft — production may not have deployed sync_signup_username yet. */
 async function trySyncSignupUsername(): Promise<string | null> {
@@ -52,6 +53,9 @@ function getStoredSessionRefreshTimeoutMs(): number {
 }
 
 function getAuthInitTimeouts() {
+  if (isOAuthRedirectInFlight()) {
+    return { safetyMs: 12000, getSessionMs: 10000 };
+  }
   return { safetyMs: 1800, getSessionMs: 1200 };
 }
 
@@ -608,6 +612,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           logEvent('auth', 'INITIAL_SESSION with no session — deferring to getSession');
           return;
         }
+
+        if (event === 'INITIAL_SESSION' && session?.user) {
+          setLoading(false);
+          setIsInitialized(true);
+          authInitializedRef.current = true;
+        }
         
         setSession(session);
         setUser(session?.user ?? null);
@@ -734,42 +744,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
     window.addEventListener('pageshow', onPageShow);
 
-    // Firebase Google/Apple redirect (mobile + native WebView), then legacy hash tokens.
+    // Firebase Google/Apple redirect — await capture started in bootstrapAuthStorage.
     void (async () => {
-      try {
-        const { firebaseAuth } = await import('@/lib/firebase/authService');
-        const redirect = await firebaseAuth.completeOAuthRedirectIfNeeded();
-        if (redirect.error) {
-          console.warn('[Auth] Firebase OAuth redirect failed:', redirect.error);
+      if (isOAuthRedirectInFlight()) {
+        const captured = await awaitOAuthRedirectCapture();
+        if (captured.error) {
+          console.warn('[Auth] Firebase OAuth redirect failed:', captured.error);
           const { getUserFriendlyError } = await import('@/lib/errorUtils');
-          const msg = getUserFriendlyError(redirect.error);
+          const msg = getUserFriendlyError(captured.error);
           if (msg !== '__SUPPRESS__') {
             sessionStorage.setItem('vybe-oauth-error', msg);
           }
-        } else if (redirect.data.session?.user) {
-          const oauthSession = redirect.data.session;
+        } else if (captured.session?.user) {
+          const oauthSession = captured.session;
           setWasLoggedIn(true);
           setSession(oauthSession);
           setUser(oauthSession.user);
           setActiveAuthUserId(oauthSession.user.id);
           hydrateCachedProfile(oauthSession.user.id);
+          startHeartbeat();
           if (oauthSession.expires_at) {
             scheduleTokenRefresh(oauthSession.expires_at);
           }
           bootstrapSessionData(oauthSession.user.id, 'SIGNED_IN');
           sessionStorage.removeItem('vybe-oauth-pending');
-          void db.rpc('claim_profile_by_email');
           authInitializedRef.current = true;
           setLoading(false);
           setIsInitialized(true);
-          return;
-        }
-      } catch (err) {
-        console.warn('[Auth] Firebase OAuth redirect handling failed:', err);
-        const { getUserFriendlyError } = await import('@/lib/errorUtils');
-        const msg = getUserFriendlyError(err);
-        if (msg !== '__SUPPRESS__') {
-          sessionStorage.setItem('vybe-oauth-error', msg);
         }
       }
 
@@ -884,18 +885,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
 
         logEvent('auth', 'getSession resolved', { hasSession: !!session, userId: session?.user?.id });
+
+        let resolvedSession = session;
+        if (!resolvedSession?.user && isOAuthRedirectInFlight()) {
+          const captured = await awaitOAuthRedirectCapture();
+          if (captured.session?.user) resolvedSession = captured.session;
+        }
+        if (!resolvedSession?.user) {
+          const retry = await db.auth.getSession();
+          if (retry.data.session?.user) resolvedSession = retry.data.session;
+        }
+
         authInitializedRef.current = true;
-        setSession(session);
-        setUser(session?.user ?? null);
+        setSession(resolvedSession);
+        setUser(resolvedSession?.user ?? null);
         
-        if (session?.user) {
+        if (resolvedSession?.user) {
           setWasLoggedIn(true);
-          setActiveAuthUserId(session.user.id);
-          hydrateCachedProfile(session.user.id);
-          if (session.expires_at) {
-            scheduleTokenRefresh(session.expires_at);
+          setActiveAuthUserId(resolvedSession.user.id);
+          hydrateCachedProfile(resolvedSession.user.id);
+          if (resolvedSession.expires_at) {
+            scheduleTokenRefresh(resolvedSession.expires_at);
           }
-          bootstrapSessionData(session.user.id, 'INITIAL_SESSION');
+          bootstrapSessionData(resolvedSession.user.id, 'INITIAL_SESSION');
           sessionStorage.removeItem('vybe-oauth-pending');
         }
         
@@ -906,7 +918,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const getSessionTimeout = window.setTimeout(() => {
         if (getSessionHandled) return;
         logEvent('auth', 'getSession timed out — continuing');
-        void handleGetSession({ data: { session: null }, error: null });
+        void (async () => {
+          if (isOAuthRedirectInFlight()) {
+            const captured = await awaitOAuthRedirectCapture();
+            if (captured.session?.user) {
+              void handleGetSession({ data: { session: captured.session }, error: null });
+              return;
+            }
+          }
+          void handleGetSession({ data: { session: null }, error: null });
+        })();
       }, getSessionMs);
 
       db.auth.getSession().then((result) => {
