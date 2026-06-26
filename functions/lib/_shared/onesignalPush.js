@@ -34,6 +34,17 @@ function isActivePushSubscription(sub) {
         return false;
     return sub.enabled !== false && (sub.notification_types ?? 1) > 0;
 }
+export async function lookupOneSignalSubscriptionIdsForProfile(appId, restKey, profileId) {
+    let ids = await lookupOneSignalSubscriptionIds(appId, restKey, profileId);
+    if (ids.length > 0)
+        return ids;
+    const prof = await db.collection('profiles').doc(profileId).get();
+    const authUid = asString(prof.data()?.user_id);
+    if (authUid && authUid !== profileId) {
+        ids = await lookupOneSignalSubscriptionIds(appId, restKey, authUid);
+    }
+    return ids;
+}
 async function lookupOneSignalSubscriptionIds(appId, restKey, externalId) {
     const res = await fetchJsonWithTimeout(`https://api.onesignal.com/apps/${appId}/users/by/external_id/${encodeURIComponent(externalId)}`, { headers: { Authorization: `Key ${restKey}`, Accept: 'application/json' } });
     if (!res.ok)
@@ -52,7 +63,7 @@ function subscriptionIdsFromPushTokens(rows) {
         !token.startsWith('{'));
 }
 /** Despia / native shells — OneSignal external_id = profiles.id (Snapchat-style DM alerts). */
-export async function dispatchOneSignalToProfile(profileId, payload) {
+export async function dispatchOneSignalToProfile(profileId, payload, forcedSubscriptionIds) {
     const appId = process.env.ONESIGNAL_APP_ID;
     const restKey = process.env.ONESIGNAL_REST_API_KEY;
     if (!appId || !restKey)
@@ -72,7 +83,10 @@ export async function dispatchOneSignalToProfile(profileId, payload) {
     const dmChannelId = process.env.ONESIGNAL_DM_CHANNEL_ID;
     const socialChannelId = process.env.ONESIGNAL_SOCIAL_CHANNEL_ID;
     const callChannelId = process.env.ONESIGNAL_CALL_CHANNEL_ID;
-    let subscriptionIds = await lookupOneSignalSubscriptionIds(appId, restKey, targetProfileId);
+    let subscriptionIds = forcedSubscriptionIds?.filter(Boolean) ?? [];
+    if (subscriptionIds.length === 0) {
+        subscriptionIds = await lookupOneSignalSubscriptionIds(appId, restKey, targetProfileId);
+    }
     if (subscriptionIds.length === 0 && targetProfileId !== profileId) {
         subscriptionIds = await lookupOneSignalSubscriptionIds(appId, restKey, profileId);
     }
