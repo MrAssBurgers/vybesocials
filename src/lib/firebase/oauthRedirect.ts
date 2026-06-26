@@ -68,9 +68,16 @@ export function captureOAuthRedirectOnLoad(): Promise<OAuthRedirectCapture> {
       const result = await withTimeout(getRedirectResult(auth), OAUTH_REDIRECT_TIMEOUT_MS);
       if (!result?.user) return { session: null, error: null };
 
-      const { data } = await firebaseAuth.getSession();
-      if (data.session?.user) {
-        return { session: data.session, error: null };
+      const { data: userData } = await firebaseAuth.getUser();
+      if (userData.user) {
+        return {
+          session: {
+            user: userData.user,
+            access_token: '',
+            refresh_token: result.user.refreshToken,
+          },
+          error: null,
+        };
       }
 
       return { session: null, error: { message: 'OAuth redirect completed without session' } };

@@ -88,6 +88,15 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+/** Sync session — never blocks on network (login/navigation must use this first). */
+function buildVybeSessionInstant(user: FirebaseUser): VybeSession {
+  return {
+    user: toVybeUser(user),
+    access_token: '',
+    refresh_token: user.refreshToken,
+  };
+}
+
 async function withAuthTimeout<T>(
   promise: Promise<T>,
   ms: number,
@@ -108,70 +117,50 @@ async function withAuthTimeout<T>(
   }
 }
 
-/** Fast path for login — cached token first, never blocks navigation. */
-async function buildVybeSessionFast(user: FirebaseUser): Promise<VybeSession> {
+/** Best-effort token enrich — capped; returns instant session on any failure. */
+async function enrichSessionToken(
+  session: VybeSession,
+  user: FirebaseUser,
+  timeoutMs = 3000,
+): Promise<VybeSession> {
+  if (session.access_token) return session;
   try {
     const token = await withAuthTimeout(
       user.getIdToken(false),
-      4000,
+      timeoutMs,
       'Token fetch timed out',
     );
-    return {
-      user: toVybeUser(user),
-      access_token: token,
-      refresh_token: user.refreshToken,
-    };
+    return { ...session, access_token: token };
   } catch {
-    return buildVybeSessionFallback(user);
+    return session;
   }
-}
-
-async function sessionFromCurrentUser(auth: ReturnType<typeof getAuth>): Promise<VybeSession | null> {
-  const user = auth?.currentUser;
-  if (!user) return null;
-  return buildVybeSessionFast(user);
 }
 
 async function buildVybeSessionFallback(user: FirebaseUser): Promise<VybeSession> {
-  let token = '';
-  for (let attempt = 0; attempt < 3; attempt++) {
-    try {
-      token = await user.getIdToken(attempt > 0);
-      break;
-    } catch {
-      if (attempt < 2) await sleep(300 * (attempt + 1));
-    }
-  }
-  return {
-    user: toVybeUser(user),
-    access_token: token,
-    refresh_token: user.refreshToken,
-  };
+  return enrichSessionToken(buildVybeSessionInstant(user), user, 2000);
 }
 
-/** Never throw — password/OAuth sign-in must not fail after Firebase accepts credentials. */
+function sessionFromCurrentUser(auth: ReturnType<typeof getAuth>): VybeSession | null {
+  const user = auth?.currentUser;
+  if (!user) return null;
+  return buildVybeSessionInstant(user);
+}
+
+/** Full session with expiry — refresh flows only; always time-capped. */
 async function toVybeSession(user: FirebaseUser): Promise<VybeSession> {
-  for (let attempt = 0; attempt < 3; attempt++) {
-    try {
-      const result = await user.getIdTokenResult();
-      return {
-        user: toVybeUser(user),
-        access_token: result.token,
-        refresh_token: user.refreshToken,
-        expires_at: result.expirationTime
-          ? Math.floor(new Date(result.expirationTime).getTime() / 1000)
-          : undefined,
-      };
-    } catch (err) {
-      const authErr = toAuthError(err);
-      if (attempt < 2 && isRetryableAuthNetworkError(authErr)) {
-        await sleep(400 * (attempt + 1));
-        continue;
-      }
-      return buildVybeSessionFallback(user);
-    }
+  const instant = buildVybeSessionInstant(user);
+  try {
+    const result = await withAuthTimeout(user.getIdTokenResult(), 5000, 'Token fetch timed out');
+    return {
+      ...instant,
+      access_token: result.token,
+      expires_at: result.expirationTime
+        ? Math.floor(new Date(result.expirationTime).getTime() / 1000)
+        : undefined,
+    };
+  } catch {
+    return enrichSessionToken(instant, user, 2000);
   }
-  return buildVybeSessionFallback(user);
 }
 
 type AuthStateCallback = (event: string, session: VybeSession | null) => void;
@@ -186,11 +175,8 @@ export const firebaseAuth = {
     if (!auth) return { data: { session: null }, error: NOT_CONFIGURED };
     const user = auth.currentUser;
     if (!user) return { data: { session: null }, error: null };
-    try {
-      return { data: { session: await toVybeSession(user) }, error: null };
-    } catch (err) {
-      return { data: { session: null }, error: toAuthError(err) };
-    }
+    const instant = buildVybeSessionInstant(user);
+    return { data: { session: await enrichSessionToken(instant, user, 3000) }, error: null };
   },
 
   async getUser(): Promise<{ data: { user: VybeUser | null }; error: VybeAuthError | null }> {
@@ -207,10 +193,11 @@ export const firebaseAuth = {
     const user = auth.currentUser;
     if (!user) return { data: { session: null }, error: { message: 'Not authenticated' } };
     try {
-      await user.getIdToken(true);
+      await withAuthTimeout(user.getIdToken(true), 8000, 'Session refresh timed out');
       return { data: { session: await toVybeSession(user) }, error: null };
     } catch (err) {
-      return { data: { session: null }, error: toAuthError(err) };
+      const instant = buildVybeSessionInstant(user);
+      return { data: { session: instant }, error: toAuthError(err) };
     }
   },
 
@@ -225,32 +212,37 @@ export const firebaseAuth = {
       return { data: { subscription: { unsubscribe: () => {} } } };
     }
     let initialFired = false;
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      void (async () => {
+    const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
+      const emit = (event: string, session: VybeSession | null) => {
         try {
-          if (!initialFired) {
-            initialFired = true;
-            const session = user ? await toVybeSession(user) : null;
-            callback('INITIAL_SESSION', session);
-            return;
-          }
-
-          if (!user) {
-            callback('SIGNED_OUT', null);
-            return;
-          }
-
-          const session = await toVybeSession(user);
-          callback('SIGNED_IN', session);
+          callback(event, session);
         } catch (err) {
-          console.warn('[auth] onAuthStateChanged session build failed:', err);
-          if (user) {
-            callback(initialFired ? 'SIGNED_IN' : 'INITIAL_SESSION', await buildVybeSessionFallback(user));
-          } else {
-            callback('SIGNED_OUT', null);
-          }
+          console.warn('[auth] onAuthStateChange callback error:', err);
         }
-      })();
+      };
+
+      if (!firebaseUser) {
+        if (!initialFired) {
+          initialFired = true;
+          emit('INITIAL_SESSION', null);
+        } else {
+          emit('SIGNED_OUT', null);
+        }
+        return;
+      }
+
+      const instant = buildVybeSessionInstant(firebaseUser);
+      if (!initialFired) {
+        initialFired = true;
+        emit('INITIAL_SESSION', instant);
+      } else {
+        emit('SIGNED_IN', instant);
+      }
+
+      void enrichSessionToken(instant, firebaseUser, 5000).then((enriched) => {
+        if (!enriched.access_token) return;
+        emit('TOKEN_REFRESHED', enriched);
+      });
     });
 
     return {
@@ -274,9 +266,10 @@ export const firebaseAuth = {
         await firebaseUpdateProfile(cred.user, { displayName: username });
       }
       await sendEmailVerification(cred.user);
-      const session = await toVybeSession(cred.user);
+      const session = buildVybeSessionInstant(cred.user);
+      void enrichSessionToken(session, cred.user, 5000);
       return {
-        data: { user: toVybeUser(cred.user), session },
+        data: { user: session.user, session },
         error: null,
       };
     } catch (err) {
@@ -296,14 +289,15 @@ export const firebaseAuth = {
           12000,
           'Sign-in timed out. Check your connection and try again.',
         );
-        const session = await buildVybeSessionFast(cred.user);
+        const session = buildVybeSessionInstant(cred.user);
+        void enrichSessionToken(session, cred.user, 5000);
         return {
-          data: { user: toVybeUser(cred.user), session },
+          data: { user: session.user, session },
           error: null,
         };
       } catch (err) {
         lastErr = toAuthError(err);
-        const recovered = await sessionFromCurrentUser(auth);
+        const recovered = sessionFromCurrentUser(auth);
         if (recovered?.user) {
           return { data: { user: recovered.user, session: recovered }, error: null };
         }
@@ -325,7 +319,7 @@ export const firebaseAuth = {
       }
     }
 
-    const recovered = await sessionFromCurrentUser(auth);
+    const recovered = sessionFromCurrentUser(auth);
     if (recovered?.user) {
       return { data: { user: recovered.user, session: recovered }, error: null };
     }
@@ -408,7 +402,8 @@ export const firebaseAuth = {
       }
 
       const result = await signInWithPopup(auth, authProvider);
-      const session = await toVybeSession(result.user);
+      const session = buildVybeSessionInstant(result.user);
+      void enrichSessionToken(session, result.user, 5000);
       return { data: { session }, error: null };
     } catch (err) {
       return { data: { session: null }, error: toAuthError(err) };

@@ -604,6 +604,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           clearObsoleteAuthStorage();
         }
 
+        if (event === 'TOKEN_REFRESHED' && session?.user) {
+          setSession(session);
+          if (session.access_token) {
+            try {
+              db.realtime.setAuth(session.access_token);
+            } catch { /* noop */ }
+          }
+          if (session.expires_at) {
+            scheduleTokenRefresh(session.expires_at);
+          }
+          return;
+        }
+
         // ── KEY FIX: Never finalize "no session" from INITIAL_SESSION ──
         // INITIAL_SESSION with null session happens when the stored token
         // is expired and a background refresh is in progress. We MUST wait
@@ -1031,58 +1044,48 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
       bootstrapSessionData(session.user.id, 'SIGNED_IN');
       clearOAuthRedirectPending();
+      void db.auth.refreshSession().catch(() => {});
     };
+
+    const normalized = normalizeLoginEmail(email);
 
     try {
       clearOAuthRedirectPending();
-      const normalized = normalizeLoginEmail(email);
-      const { data, error } = await db.auth.signInWithPassword({
+
+      const signInPromise = db.auth.signInWithPassword({
         email: normalized,
         password,
       });
+
+      const { data, error } = await Promise.race([
+        signInPromise,
+        new Promise<Awaited<typeof signInPromise>>((_, reject) => {
+          window.setTimeout(
+            () => reject(new Error('Sign-in timed out. Check your connection and try again.')),
+            15000,
+          );
+        }),
+      ]);
 
       if (data.session?.user) {
         applySession(data.session);
         return { error: null };
       }
 
-      if (error) {
-        const { data: liveSession } = await db.auth.getSession();
-        if (liveSession.session?.user) {
-          applySession(liveSession.session);
-          return { error: null };
-        }
-        const { data: liveUser } = await db.auth.getUser();
-        if (liveUser.user) {
-          applySession({
-            user: liveUser.user,
-            access_token: '',
-            refresh_token: '',
-          });
-          return { error: null };
-        }
-        throw error;
-      }
-
       const { data: liveUser } = await db.auth.getUser();
       if (liveUser.user) {
-        const { data: liveSession } = await db.auth.getSession();
-        applySession(
-          liveSession.session?.user
-            ? liveSession.session
-            : { user: liveUser.user, access_token: '', refresh_token: '' },
-        );
+        applySession({
+          user: liveUser.user,
+          access_token: '',
+          refresh_token: '',
+        });
         return { error: null };
       }
 
+      if (error) throw error;
       return { error: new Error('Sign in did not complete. Please try again.') };
     } catch (error) {
       try {
-        const { data: liveSession } = await db.auth.getSession();
-        if (liveSession.session?.user) {
-          applySession(liveSession.session);
-          return { error: null };
-        }
         const { data: liveUser } = await db.auth.getUser();
         if (liveUser.user) {
           applySession({
