@@ -6,7 +6,7 @@ import { Card } from '@/components/ui/card';
 import { toast } from 'sonner';
 import { db } from '@/lib/firebase';
 import {
-  ensureDespiaOneSignalLinked,
+  connectDespiaPushInstant,
   fetchPushSubscriptionStatus,
   resolveCurrentOneSignalExternalId,
   resolveLinkedSubscriptionId,
@@ -65,7 +65,7 @@ export default function DespiaPushDemo() {
   useEffect(() => {
     if (!isDespia || !externalId) return;
     (async () => {
-      const link = await ensureDespiaOneSignalLinked(externalId, { waitForPlayerIdMs: 1_500 });
+      const link = await connectDespiaPushInstant(externalId, { maxWaitMs: 800 });
       if (link.linked) setLinkedByDevice(true);
       setPushEnabled(link.permission);
       const pid = await resolveLinkedSubscriptionId(externalId, link.playerId);
@@ -85,9 +85,9 @@ export default function DespiaPushDemo() {
     }
     setLinking(true);
     try {
-      const link = await ensureDespiaOneSignalLinked(targetExternalId, {
+      const link = await connectDespiaPushInstant(targetExternalId, {
         requestPermission: true,
-        waitForPlayerIdMs: 2_500,
+        maxWaitMs: 1_400,
       });
       if (link.linked) setLinkedByDevice(true);
       if (link.permission !== null) setPushEnabled(link.permission);
@@ -119,13 +119,13 @@ export default function DespiaPushDemo() {
       const targetExternalId = externalId || (await resolveCurrentOneSignalExternalId()) || '';
       let subscriptionIds = targetExternalId ? (await fetchPushSubscriptionStatus(targetExternalId)).subscriptionIds : [];
       if (!subscriptionIds.length && playerId) {
-        const relinked = await ensureDespiaOneSignalLinked(targetExternalId, {
+        const relinked = await connectDespiaPushInstant(targetExternalId, {
           requestPermission: true,
-          waitForPlayerIdMs: 2_000,
+          maxWaitMs: 1_000,
           persistToken: false,
         });
         if (relinked.permission !== null) setPushEnabled(relinked.permission);
-        const pid = await resolveLinkedSubscriptionId(targetExternalId, relinked.playerId || playerId);
+        const pid = relinked.playerId || playerId;
         if (pid) {
           subscriptionIds = [pid];
           setPlayerId(pid);

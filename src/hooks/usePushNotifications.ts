@@ -3,7 +3,7 @@ import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth';
 import { toast } from 'sonner';
 import { isPreviewServiceWorkerDisabled, getVybeServiceWorkerRegistration } from '@/lib/serviceWorker';
-import { ensureDespiaOneSignalLinked, relinkDespiaPushInBackground, linkOneSignalUser } from '@/lib/despiaOneSignal';
+import { connectDespiaPushInstant, relinkDespiaPushInBackground, linkOneSignalUser, checkDespiaPushPermission } from '@/lib/despiaOneSignal';
 import { isDespiaRuntime, openAppSettings } from '@/lib/despiaBridge';
 import { pushBlockedSettingsMessage } from '@/lib/pushSettingsCopy';
 
@@ -226,9 +226,21 @@ export function usePushNotifications() {
       return false;
     }
 
-    const link = await ensureDespiaOneSignalLinked(profile.id, {
+    const existingPermission = await checkDespiaPushPermission();
+    if (existingPermission === true) {
+      void connectDespiaPushInstant(profile.id, {
+        requestPermission: false,
+        maxWaitMs: 700,
+        persistToken: true,
+        trigger: 'permission-grant-resync',
+      });
+      toast.success('Push notifications enabled!');
+      return true;
+    }
+
+    const link = await connectDespiaPushInstant(profile.id, {
       requestPermission: true,
-      fastReturn: true,
+      maxWaitMs: 1_400,
       persistToken: true,
       trigger: 'permission-grant',
     });
@@ -245,13 +257,9 @@ export function usePushNotifications() {
       return false;
     }
 
-    if (link.playerId) {
-      toast.success('Push notifications enabled!');
-    } else {
-      toast.success('Push enabled — linking this device…', {
-        description: 'You can test push in a few seconds.',
-      });
-    }
+    toast.success(
+      link.playerId ? 'Push notifications enabled!' : 'Push notifications enabled!',
+    );
     return true;
   };
 

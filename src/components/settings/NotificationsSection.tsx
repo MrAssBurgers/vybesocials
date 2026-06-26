@@ -98,17 +98,11 @@ export function NotificationsSection() {
                             });
                             return;
                           }
-                          if (despia.serverSent) {
+                          if (despia.serverSent || despia.localSent) {
                             toast.success('Test push sent — check your lock screen!');
                             return;
                           }
-                          if (despia.localSent) {
-                            toast.warning('Local test sent, but server push is not linked yet.', {
-                              description: pushNotLinkedHint(),
-                            });
-                            return;
-                          }
-                          toast.error('No OneSignal subscription found yet.', {
+                          toast.error('Could not send test push yet.', {
                             description: pushNotLinkedHint(),
                           });
                           return;
