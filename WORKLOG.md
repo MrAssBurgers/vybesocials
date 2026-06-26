@@ -2,6 +2,13 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## Login endless wait fix (2026-06-17)
+- **Problem:** After entering credentials, login spinner never ended — `gatePending` blocked redirect while `signInWithPassword` hung; stale `vybe-oauth-pending` slowed auth init
+- **Fix:** Removed `gatePending` navigation lock; 12s sign-in timeout + fast token path; recover from `auth.currentUser` on timeout; OAuth pending TTL (3 min) + boot cleanup; `INITIAL_SESSION` null unblocks login UI immediately
+- **Debug scan:** build PASS · lint PASS · CSS/boot PASS · prod probes PASS (sharePreview, livekitToken, aiCatchUp)
+- **Shipped:** git pending push · Firebase staging https://vybe-daaab.web.app
+- **Next:** Lovable → Share → Publish for vybehub.app · verify email + Google login on staging
+
 ## Login network error fix (2026-06-17)
 - **Problem:** Email/password login showed "Connection error" when Firebase accepted credentials but ID token fetch failed
 - **Fix:** Resilient `toVybeSession` (retries + fallback token), password login network retries, live-session recovery in `signIn`, safer auth state listener
