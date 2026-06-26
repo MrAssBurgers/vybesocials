@@ -23,7 +23,7 @@ export function notifyPeerTyping(opts: {
     body: 'typing…',
     url: `/messages/${conversationId}`,
     tag: `vybe-typing-${conversationId}`,
-    type: 'dm',
+    type: 'typing',
     data: { conversationId, typing: 'true' },
   }).catch(() => {});
 }

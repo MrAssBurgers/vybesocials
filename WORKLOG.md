@@ -2,11 +2,17 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## Push prefs + DM composer flagship polish (2026-06-17)
+- **Push:** Preference-aware delivery (DMs, typing, calls, social toggles); quiet hours; message preview privacy; audible OneSignal alerts; typing type fix
+- **Composer:** Centered texter, 48dp targets, 5-line expand, keyboard spring dock, glass pill polish
+- **Verified:** `npm run build` PASS · `npm run lint` PASS · functions build PASS
+- **Next:** Lovable Publish for vybehub.app
+
 ## Server push linking fix (2026-06-17)
 - **Problem:** Instant test push fired server send without OneSignal subscription id — "not linked" / no delivery
 - **Fix:** `sendDespiaServerPush` resolves subscription (device probe + retries + server lookup), links, sends with `subscriptionId`; `link-onesignal-user` pulls subs from OneSignal when client has none; Despia subscribe/resync uses `relinkDespiaPushInBackground`
 - **Verified:** `npm run build` PASS · `npm run lint` PASS · functions build PASS
-- **Shipped:** Firebase staging https://vybe-daaab.web.app + linkOnesignalUser/sendPushNotification/getPushSubscriptionStatus
+- **Shipped:** git `b0380b4b` · Firebase staging https://vybe-daaab.web.app + linkOnesignalUser/sendPushNotification/getPushSubscriptionStatus (2026-06-17)
 - **Next:** Lovable Publish for vybehub.app
 
 ## Instant test push (2026-06-17)

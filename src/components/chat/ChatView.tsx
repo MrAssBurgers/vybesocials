@@ -2192,7 +2192,7 @@ const MessageInputArea = memo(function MessageInputArea({
 
   return (
     <KeyboardAwareTexter scrollContainerRef={messagesContainerRef}>
-      <div className="dm-composer-dock relative flex-shrink-0 z-30 px-3 pt-2 pb-1">
+      <div className="dm-composer-dock relative flex-shrink-0 z-30">
         {onSendSticker && showStickerPanel && setShowStickerPanel && (
           <StickerPanel
             open={showStickerPanel}

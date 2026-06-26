@@ -1,7 +1,8 @@
 import { onCall, onRequest, HttpsError } from 'firebase-functions/v2/https';
 import { db, requireAuth, rateLimit, enforceRateLimit } from './_shared/admin.js';
 import { dispatchPushToProfile, dispatchCallPushToProfile, dispatchDmPushToProfile } from './_shared/fcmPush.js';
-import { dispatchOneSignalToProfile, lookupOneSignalSubscriptionIdsForProfile, } from './_shared/onesignalPush.js';
+import { dispatchOneSignalToProfile, lookupOneSignalSubscriptionIdsForProfile, resolvePushTargetProfileId, } from './_shared/onesignalPush.js';
+import { isBlockedByQuietHours, isPushAllowedForType, loadNotificationPreferences, sanitizeDmPushBody, } from './_shared/pushPreferences.js';
 const VAPID_PUBLIC = process.env.VAPID_PUBLIC_KEY || process.env.FIREBASE_VAPID_KEY;
 /** get-vapid-key — returns the public VAPID key for web push. */
 export const getVapidKey = onCall(async () => {
@@ -16,6 +17,17 @@ export const sendPushNotification = onCall({ secrets: [...ONESIGNAL_SECRETS] }, 
     const { userId, title, body, data: payload, url, type, tag, highPriority, subscriptionId, subscriptionIds } = (request.data || {});
     if (!userId)
         throw new HttpsError('invalid-argument', 'userId required');
+    const targetProfileId = await resolvePushTargetProfileId(userId);
+    const prefs = await loadNotificationPreferences(targetProfileId);
+    const pushType = type || payload?.type || 'general';
+    if (!isPushAllowedForType(pushType, prefs)) {
+        return { ok: true, success: false, sent: 0, skipped: 'preference_disabled' };
+    }
+    if (isBlockedByQuietHours(pushType, prefs)) {
+        return { ok: true, success: false, sent: 0, skipped: 'quiet_hours' };
+    }
+    const sanitizedBody = sanitizeDmPushBody(body || '', pushType, prefs);
+    const sanitizedTitle = title || 'VYBE';
     const explicitSubs = [
         subscriptionId,
         ...(Array.isArray(subscriptionIds) ? subscriptionIds : []),
@@ -23,13 +35,12 @@ export const sendPushNotification = onCall({ secrets: [...ONESIGNAL_SECRETS] }, 
         id.length >= 8 &&
         !id.startsWith('despia:') &&
         !id.startsWith('onesignal:'));
-    const pushType = type || payload?.type || '';
     const skipBell = SKIP_BELL_PUSH_TYPES.has(pushType) || payload?.typing === 'true';
     if (!skipBell) {
         await db.collection('notifications').add({
-            user_id: userId,
-            title: title || 'VYBE',
-            body: body || '',
+            user_id: targetProfileId,
+            title: sanitizedTitle,
+            body: sanitizedBody,
             url: url || null,
             data: payload || null,
             created_at: new Date().toISOString(),
@@ -37,9 +48,9 @@ export const sendPushNotification = onCall({ secrets: [...ONESIGNAL_SECRETS] }, 
         });
     }
     if (explicitSubs.length > 0) {
-        const os = await dispatchOneSignalToProfile(userId, {
-            title: title || 'VYBE',
-            body: body || '',
+        const os = await dispatchOneSignalToProfile(targetProfileId, {
+            title: sanitizedTitle,
+            body: sanitizedBody,
             url,
             tag,
             type: pushType || 'announcement',
@@ -54,22 +65,22 @@ export const sendPushNotification = onCall({ secrets: [...ONESIGNAL_SECRETS] }, 
             ...(os.sent === 0 ? { error: 'No push tokens found' } : {}),
         };
     }
-    const isCall = type === 'call' || !!highPriority;
+    const isCall = pushType === 'call' || !!highPriority;
     const result = isCall
-        ? await dispatchCallPushToProfile(userId, {
-            title: title || 'VYBE',
-            body: body || '',
+        ? await dispatchCallPushToProfile(targetProfileId, {
+            title: sanitizedTitle,
+            body: sanitizedBody,
             url,
             tag,
             type: 'call',
             data: payload,
         })
-        : await dispatchDmPushToProfile(userId, {
-            title: title || 'VYBE',
-            body: body || '',
+        : await dispatchDmPushToProfile(targetProfileId, {
+            title: sanitizedTitle,
+            body: sanitizedBody,
             url,
             tag,
-            type,
+            type: pushType,
             data: payload,
         });
     return {

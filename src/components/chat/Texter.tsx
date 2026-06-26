@@ -6,8 +6,9 @@ import { VoiceRecorder } from '@/components/chat/VoiceRecorder';
 import { cn } from '@/lib/utils';
 import { triggerHaptic } from '@/lib/haptics';
 
-const MAX_LINES = 4;
+const MAX_LINES = 5;
 const LINE_HEIGHT_PX = 22;
+const SINGLE_LINE_HEIGHT = LINE_HEIGHT_PX + 16;
 
 export interface TexterProps {
   hasText: boolean;
@@ -31,7 +32,6 @@ export interface TexterProps {
   onVoiceRecordingCancel?: () => void;
   placeholder?: string;
   toyboxProps: React.ComponentProps<typeof Toybox>;
-  /** Banners rendered above the pill (reply, edit, etc.) */
   headerSlot?: ReactNode;
 }
 
@@ -67,7 +67,7 @@ export const Texter = memo(function Texter({
     const el = inputRef.current;
     if (!el) return;
     el.style.height = 'auto';
-    const max = LINE_HEIGHT_PX * MAX_LINES + 14;
+    const max = LINE_HEIGHT_PX * MAX_LINES + 16;
     el.style.height = `${Math.min(el.scrollHeight, max)}px`;
   }, [inputRef]);
 
@@ -110,9 +110,11 @@ export const Texter = memo(function Texter({
         {isRecordingVoice && onVoiceRecordingComplete && onVoiceRecordingCancel ? (
           <motion.div
             key="recording"
-            initial={{ opacity: 0, y: 8 }}
+            layout
+            initial={{ opacity: 0, y: 6 }}
             animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 8 }}
+            exit={{ opacity: 0, y: 6 }}
+            transition={{ type: 'spring', stiffness: 420, damping: 34 }}
             className="texter-pill texter-pill--recording"
           >
             <div className="texter-pill__inner">
@@ -128,17 +130,18 @@ export const Texter = memo(function Texter({
         ) : (
           <motion.div
             key="compose"
-            initial={{ opacity: 0, y: 8, scale: 0.98 }}
+            layout
+            initial={{ opacity: 0, y: 6, scale: 0.99 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 8, scale: 0.98 }}
-            transition={{ type: 'spring', stiffness: 420, damping: 32 }}
+            exit={{ opacity: 0, y: 6, scale: 0.99 }}
+            transition={{ type: 'spring', stiffness: 420, damping: 34 }}
             className={cn('texter-pill', slideCancel && 'texter-pill--cancel')}
           >
             <span className="texter-pill__glow" aria-hidden />
             <span className="texter-pill__shine" aria-hidden />
 
-            <div className="texter-pill__inner">
-              <div className="texter-actions">
+            <motion.div layout className="texter-pill__inner" transition={{ type: 'spring', stiffness: 400, damping: 32 }}>
+              <div className="texter-actions texter-actions--start">
                 <Toybox {...toyboxProps} triggerClassName="texter-icon-btn texter-icon-btn--tool" />
               </div>
 
@@ -159,7 +162,7 @@ export const Texter = memo(function Texter({
                   placeholder={placeholder}
                   disabled={isPending}
                   className="texter-input"
-                  style={{ height: `${LINE_HEIGHT_PX + 12}px` }}
+                  style={{ height: `${SINGLE_LINE_HEIGHT}px` }}
                 />
               </div>
 
@@ -171,62 +174,69 @@ export const Texter = memo(function Texter({
                       triggerHaptic('light');
                       onOpenVybeSnap();
                     }}
-                    className="texter-icon-btn texter-icon-btn--camera shrink-0"
+                    className="texter-icon-btn texter-icon-btn--camera"
                     aria-label="Vybe Snap"
                   >
-                    <Camera className="h-[1.125rem] w-[1.125rem]" strokeWidth={2.25} />
+                    <Camera className="texter-icon-btn__glyph" strokeWidth={2.25} />
                   </button>
                 )}
-                {hasText ? (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      triggerHaptic('medium');
-                      onSend();
-                    }}
-                    disabled={isPending}
-                    className="texter-icon-btn texter-icon-btn--send shrink-0"
-                    aria-label="Send"
-                  >
-                    {isPending ? (
-                      <Loader2 className="h-[1.125rem] w-[1.125rem] animate-spin" />
-                    ) : (
-                      <Send className="h-[1.125rem] w-[1.125rem]" strokeWidth={2.25} />
-                    )}
-                  </button>
-                ) : (
-                  <div className="relative shrink-0">
-                    <AnimatePresence>
-                      {slideCancel && (
-                        <motion.div
-                          initial={{ opacity: 0, x: 8 }}
-                          animate={{ opacity: 1, x: 0 }}
-                          exit={{ opacity: 0 }}
-                          className="absolute -top-9 right-0 flex items-center gap-1 text-[10px] font-semibold text-destructive whitespace-nowrap"
-                        >
-                          <ChevronLeft className="h-3 w-3" />
-                          Release to cancel
-                        </motion.div>
-                      )}
-                    </AnimatePresence>
-                    <button
+                <AnimatePresence mode="wait" initial={false}>
+                  {hasText ? (
+                    <motion.button
+                      key="send"
                       type="button"
-                      className={cn(
-                        'texter-icon-btn texter-icon-btn--mic touch-none',
-                        slideCancel && 'texter-icon-btn--cancel',
-                      )}
-                      aria-label="Voice note"
-                      onPointerDown={handleVoicePointerDown}
-                      onPointerMove={handleVoicePointerMove}
-                      onPointerUp={handleVoicePointerUp}
-                      onPointerCancel={handleVoicePointerUp}
+                      initial={{ opacity: 0, scale: 0.82, rotate: -18 }}
+                      animate={{ opacity: 1, scale: 1, rotate: 0 }}
+                      exit={{ opacity: 0, scale: 0.82, rotate: 18 }}
+                      transition={{ type: 'spring', stiffness: 480, damping: 28 }}
+                      onClick={() => {
+                        triggerHaptic('medium');
+                        onSend();
+                      }}
+                      disabled={isPending}
+                      className="texter-icon-btn texter-icon-btn--send"
+                      aria-label="Send"
                     >
-                      <Mic className="h-[1.125rem] w-[1.125rem]" strokeWidth={2.25} />
-                    </button>
-                  </div>
-                )}
+                      {isPending ? (
+                        <Loader2 className="texter-icon-btn__glyph animate-spin" />
+                      ) : (
+                        <Send className="texter-icon-btn__glyph" strokeWidth={2.25} />
+                      )}
+                    </motion.button>
+                  ) : (
+                    <motion.div key="mic" className="relative" initial={false} animate={{ opacity: 1 }}>
+                      <AnimatePresence>
+                        {slideCancel && (
+                          <motion.div
+                            initial={{ opacity: 0, x: 8 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            exit={{ opacity: 0 }}
+                            className="absolute -top-9 right-0 flex items-center gap-1 text-[10px] font-semibold text-destructive whitespace-nowrap pointer-events-none"
+                          >
+                            <ChevronLeft className="h-3 w-3" />
+                            Release to cancel
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                      <button
+                        type="button"
+                        className={cn(
+                          'texter-icon-btn texter-icon-btn--mic touch-none',
+                          slideCancel && 'texter-icon-btn--cancel',
+                        )}
+                        aria-label="Voice note"
+                        onPointerDown={handleVoicePointerDown}
+                        onPointerMove={handleVoicePointerMove}
+                        onPointerUp={handleVoicePointerUp}
+                        onPointerCancel={handleVoicePointerUp}
+                      >
+                        <Mic className="texter-icon-btn__glyph" strokeWidth={2.25} />
+                      </button>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
               </div>
-            </div>
+            </motion.div>
           </motion.div>
         )}
       </AnimatePresence>

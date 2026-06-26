@@ -10,7 +10,7 @@ import { scheduleOfflinePush, isNativeShell } from '@/lib/despiaPush';
    body: string;
    url?: string;
    tag?: string;
-   type?: 'message' | 'dm' | 'group_message' | 'call' | 'friend_request' | 'friend_accepted' | 'like' | 'comment' | 'general';
+   type?: 'message' | 'dm' | 'group_message' | 'typing' | 'call' | 'friend_request' | 'friend_accepted' | 'like' | 'comment' | 'general';
    data?: Record<string, unknown>;
  }) {
    try {

@@ -1,4 +1,13 @@
 import { db } from './admin.js';
+function pushSoundForType(type) {
+    if (type === 'call') {
+        return { ios_sound: 'ringtone.caf', android_sound: 'ringtone' };
+    }
+    if (type === 'typing') {
+        return { ios_sound: 'default', android_sound: 'default' };
+    }
+    return { ios_sound: 'default', android_sound: 'default' };
+}
 const PUSH_SUBSCRIPTION_TYPES = ['iOSPush', 'AndroidPush', 'ChromePush', 'FirefoxPush', 'SafariPush', 'HuaweiPush'];
 function asString(value) {
     if (typeof value === 'string' && value.trim())
@@ -76,8 +85,6 @@ export async function dispatchOneSignalToProfile(profileId, payload, forcedSubsc
         path: routePath,
         ...(payload.data || {}),
     };
-    const isCall = payload.type === 'call';
-    const isDm = payload.type === 'dm' || payload.type === 'group_message';
     const conversationId = mergedData.conversationId;
     const senderAvatar = mergedData.senderAvatar || mergedData.image_url;
     const dmChannelId = process.env.ONESIGNAL_DM_CHANNEL_ID;
@@ -109,6 +116,9 @@ export async function dispatchOneSignalToProfile(profileId, payload, forcedSubsc
     if (authUidForAlias && !externalIds.includes(authUidForAlias)) {
         externalIds.push(authUidForAlias);
     }
+    const isCall = payload.type === 'call';
+    const isDm = payload.type === 'dm' || payload.type === 'group_message' || payload.type === 'typing';
+    const sounds = pushSoundForType(payload.type);
     const notificationBase = {
         app_id: appId,
         target_channel: 'push',
@@ -121,13 +131,14 @@ export async function dispatchOneSignalToProfile(profileId, payload, forcedSubsc
         url: routePath,
         web_url: routePath,
         data: mergedData,
-        ios_sound: isCall ? 'ringtone.caf' : 'default',
+        ios_sound: sounds.ios_sound,
+        android_sound: sounds.android_sound,
         ios_interruption_level: isCall ? 'time_sensitive' : 'active',
         android_visibility: 1,
         mutable_content: true,
-        content_available: true,
+        content_available: isCall,
         priority: 10,
-        ttl: isCall ? 45 : 86400,
+        ttl: isCall ? 45 : isDm ? 120 : 86400,
         collapse_id: payload.tag || undefined,
         thread_id: isDm && conversationId ? conversationId : undefined,
         android_group: isDm ? 'vybe_chats' : undefined,

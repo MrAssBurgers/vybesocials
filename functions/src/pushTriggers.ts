@@ -2,6 +2,13 @@ import { onDocumentCreated } from 'firebase-functions/v2/firestore';
 import { db } from './_shared/admin.js';
 import { dispatchDmPushToProfile, dispatchCallPushToProfile, messagePreview } from './_shared/fcmPush.js';
 import { resolvePushTargetProfileId } from './_shared/onesignalPush.js';
+import {
+  isBlockedByQuietHours,
+  isPushAllowedForType,
+  loadNotificationPreferences,
+  sanitizeDmPushBody,
+  type NotificationPrefKey,
+} from './_shared/pushPreferences.js';
 
 function asString(value: unknown): string | undefined {
   if (typeof value === 'string' && value.trim()) return value.trim();
@@ -47,19 +54,6 @@ function isSenderMember(senderIds: Set<string>, memberUserId: string): boolean {
   return senderIds.has(memberUserId);
 }
 
-type PrefKey = 'dms_enabled' | 'calls_enabled' | 'comments_enabled' | 'likes_enabled' | 'follows_enabled';
-
-async function isPushEnabledForProfile(profileId: string, key: PrefKey): Promise<boolean> {
-  const snap = await db
-    .collection('notification_preferences')
-    .where('user_id', '==', profileId)
-    .limit(1)
-    .get();
-  if (snap.empty) return true;
-  const data = snap.docs[0].data();
-  return data[key] !== false;
-}
-
 async function notifyDmRecipients(message: Record<string, unknown>, messageId: string): Promise<void> {
   if (message.is_deleted === true) return;
   if (message.is_optimistic === true) return;
@@ -85,7 +79,7 @@ async function notifyDmRecipients(message: Record<string, unknown>, messageId: s
   const conversation = convSnap.data() || {};
   const isGroup = conversation.is_group === true;
   const title = isGroup ? (asString(conversation.name) || senderName) : senderName;
-  const body = messagePreview(message);
+  const rawBody = messagePreview(message);
   const type = isGroup ? 'group_message' : 'dm';
   const url = `/messages/${conversationId}`;
 
@@ -113,9 +107,12 @@ async function notifyDmRecipients(message: Record<string, unknown>, messageId: s
   await Promise.all(
     [...recipientUserIds].map(async (recipientUserId) => {
       const recipientProfileId = await resolvePushTargetProfileId(recipientUserId);
+      const prefs = await loadNotificationPreferences(recipientProfileId);
 
-      const pushAllowed = await isPushEnabledForProfile(recipientProfileId, 'dms_enabled');
-      if (!pushAllowed) return;
+      if (!isPushAllowedForType(type, prefs)) return;
+      if (isBlockedByQuietHours(type, prefs)) return;
+
+      const body = sanitizeDmPushBody(rawBody, type, prefs);
 
       const pushResult = await dispatchDmPushToProfile(recipientProfileId, {
         title,
@@ -191,8 +188,8 @@ async function notifyCallRecipients(call: Record<string, unknown>, callId: strin
   await Promise.all(
     [...recipientIds].map(async (recipientId) => {
       const recipientProfileId = await resolvePushTargetProfileId(recipientId);
-      const pushAllowed = await isPushEnabledForProfile(recipientProfileId, 'calls_enabled');
-      if (!pushAllowed) return;
+      const prefs = await loadNotificationPreferences(recipientProfileId);
+      if (!isPushAllowedForType('call', prefs)) return;
 
       const pushResult = await dispatchCallPushToProfile(recipientProfileId, {
         title,
@@ -283,17 +280,27 @@ const SOCIAL_PUSH_TYPES = new Set([
 
 const SKIP_BELL_PUSH_TYPES = new Set(['message', 'dm', 'group_message', 'missed_call']);
 
-function prefKeyForNotificationType(type: string): PrefKey | null {
+function prefKeyForNotificationType(type: string): NotificationPrefKey | null {
   switch (type) {
     case 'like':
       return 'likes_enabled';
     case 'comment':
       return 'comments_enabled';
     case 'follow':
+      return 'follows_enabled';
     case 'friend_request':
     case 'friend_accepted':
     case 'friend_declined':
-      return 'follows_enabled';
+      return 'friend_requests_enabled';
+    case 'mention':
+      return 'mentions_enabled';
+    case 'announcement':
+      return 'announcements_enabled';
+    case 'map_wave':
+    case 'map_meetup':
+      return 'nearby_enabled';
+    case 'smart_ping':
+      return 'brief_pings_enabled';
     default:
       return null;
   }
@@ -379,7 +386,9 @@ async function notifySocialPush(notification: Record<string, unknown>, notificat
   const postId = asString(notification.post_id);
 
   const prefKey = prefKeyForNotificationType(type);
-  if (prefKey && !(await isPushEnabledForProfile(userId, prefKey))) return;
+  const prefs = await loadNotificationPreferences(userId);
+  if (prefKey && prefs && prefs[prefKey] === false) return;
+  if (isBlockedByQuietHours(type, prefs)) return;
 
   await dispatchDmPushToProfile(userId, {
     title,

@@ -2,6 +2,7 @@ import { onDocumentCreated } from 'firebase-functions/v2/firestore';
 import { db } from './_shared/admin.js';
 import { dispatchDmPushToProfile, dispatchCallPushToProfile, messagePreview } from './_shared/fcmPush.js';
 import { resolvePushTargetProfileId } from './_shared/onesignalPush.js';
+import { isBlockedByQuietHours, isPushAllowedForType, loadNotificationPreferences, sanitizeDmPushBody, } from './_shared/pushPreferences.js';
 function asString(value) {
     if (typeof value === 'string' && value.trim())
         return value.trim();
@@ -45,17 +46,6 @@ async function senderIdentityIds(senderId) {
 function isSenderMember(senderIds, memberUserId) {
     return senderIds.has(memberUserId);
 }
-async function isPushEnabledForProfile(profileId, key) {
-    const snap = await db
-        .collection('notification_preferences')
-        .where('user_id', '==', profileId)
-        .limit(1)
-        .get();
-    if (snap.empty)
-        return true;
-    const data = snap.docs[0].data();
-    return data[key] !== false;
-}
 async function notifyDmRecipients(message, messageId) {
     if (message.is_deleted === true)
         return;
@@ -79,7 +69,7 @@ async function notifyDmRecipients(message, messageId) {
     const conversation = convSnap.data() || {};
     const isGroup = conversation.is_group === true;
     const title = isGroup ? (asString(conversation.name) || senderName) : senderName;
-    const body = messagePreview(message);
+    const rawBody = messagePreview(message);
     const type = isGroup ? 'group_message' : 'dm';
     const url = `/messages/${conversationId}`;
     const recipientUserIds = new Set();
@@ -106,9 +96,12 @@ async function notifyDmRecipients(message, messageId) {
     }
     await Promise.all([...recipientUserIds].map(async (recipientUserId) => {
         const recipientProfileId = await resolvePushTargetProfileId(recipientUserId);
-        const pushAllowed = await isPushEnabledForProfile(recipientProfileId, 'dms_enabled');
-        if (!pushAllowed)
+        const prefs = await loadNotificationPreferences(recipientProfileId);
+        if (!isPushAllowedForType(type, prefs))
             return;
+        if (isBlockedByQuietHours(type, prefs))
+            return;
+        const body = sanitizeDmPushBody(rawBody, type, prefs);
         const pushResult = await dispatchDmPushToProfile(recipientProfileId, {
             title,
             body,
@@ -177,8 +170,8 @@ async function notifyCallRecipients(call, callId) {
     }
     await Promise.all([...recipientIds].map(async (recipientId) => {
         const recipientProfileId = await resolvePushTargetProfileId(recipientId);
-        const pushAllowed = await isPushEnabledForProfile(recipientProfileId, 'calls_enabled');
-        if (!pushAllowed)
+        const prefs = await loadNotificationPreferences(recipientProfileId);
+        if (!isPushAllowedForType('call', prefs))
             return;
         const pushResult = await dispatchCallPushToProfile(recipientProfileId, {
             title,
@@ -265,10 +258,20 @@ function prefKeyForNotificationType(type) {
         case 'comment':
             return 'comments_enabled';
         case 'follow':
+            return 'follows_enabled';
         case 'friend_request':
         case 'friend_accepted':
         case 'friend_declined':
-            return 'follows_enabled';
+            return 'friend_requests_enabled';
+        case 'mention':
+            return 'mentions_enabled';
+        case 'announcement':
+            return 'announcements_enabled';
+        case 'map_wave':
+        case 'map_meetup':
+            return 'nearby_enabled';
+        case 'smart_ping':
+            return 'brief_pings_enabled';
         default:
             return null;
     }
@@ -350,7 +353,10 @@ async function notifySocialPush(notification, notificationId) {
     const url = routeForNotificationDoc(notification, type);
     const postId = asString(notification.post_id);
     const prefKey = prefKeyForNotificationType(type);
-    if (prefKey && !(await isPushEnabledForProfile(userId, prefKey)))
+    const prefs = await loadNotificationPreferences(userId);
+    if (prefKey && prefs && prefs[prefKey] === false)
+        return;
+    if (isBlockedByQuietHours(type, prefs))
         return;
     await dispatchDmPushToProfile(userId, {
         title,
