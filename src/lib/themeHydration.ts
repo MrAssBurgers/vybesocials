@@ -87,7 +87,7 @@ export function syncEquippedThemeToAccount(
         {
           user_id: userId,
           theme_name: meta?.themeName ?? tokens.themeName ?? 'My Vybe',
-          theme_tokens: tokens as Record<string, unknown>,
+          theme_tokens: tokens as unknown as Record<string, unknown>,
           base_preset: meta?.basePreset ?? 'classic',
           is_active: true,
           updated_at: new Date().toISOString(),
