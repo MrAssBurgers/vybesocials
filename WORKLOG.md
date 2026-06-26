@@ -2,6 +2,12 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## Vybe Snap lock + composer keyboard (2026-06-17)
+- **Vybe Snap:** Server-backed view state — tap once, hold-to-replay once, then `view_mode: vybe_locked` (persists after refresh)
+- **Composer:** Desktop no fake keyboard inset (fixes freeze); native lift 7rem + keyboard scroll-into-view
+- **Verified:** `npm run build` PASS · `npm run lint` PASS
+- **Next:** Lovable → Share → Publish for vybehub.app
+
 ## DM composer + keyboard + Snapchat notifications (2026-06-17)
 - **Composer:** Much higher bottom lift on Despia (`--dm-composer-lift` 3.75rem); presence sits above composer; keyboard polling + height estimate when visualViewport is 0
 - **Vybe Snap:** JPEG compress before upload; skip signed-URL round trip; client push on every DM insert (backup when phone locked)

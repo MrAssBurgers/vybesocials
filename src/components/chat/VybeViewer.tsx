@@ -21,6 +21,7 @@ interface VybeViewerProps {
   senderAvatar?: string;
   isOpen: boolean;
   isViewed?: boolean;
+  isReplaySession?: boolean;
   isOwn?: boolean;
   onClose: () => void;
   onReply?: () => void;
@@ -46,6 +47,7 @@ export function VybeViewer({
   senderAvatar,
   isOpen, 
   isViewed = false,
+  isReplaySession = false,
   isOwn = false,
   onClose,
   onReply,
@@ -127,13 +129,13 @@ export function VybeViewer({
     return () => clearTimeout(timer);
   }, [isOpen, isSigningPending]);
 
-  // Mark vybe as viewed when opened (Snapchat-style — open = viewed)
+  // Mark vybe as viewed on first open only (not hold-replay).
   useEffect(() => {
-    if (isOpen && messageId && !isViewed && !hasMarkedViewed && !isOwn) {
+    if (isOpen && messageId && !isViewed && !hasMarkedViewed && !isOwn && !isReplaySession) {
       setHasMarkedViewed(true);
       onViewed?.();
     }
-  }, [isOpen, messageId, isViewed, hasMarkedViewed, isOwn, onViewed]);
+  }, [isOpen, messageId, isViewed, hasMarkedViewed, isOwn, isReplaySession, onViewed]);
 
   // Handle successful media load
   const handleMediaLoaded = useCallback(() => {

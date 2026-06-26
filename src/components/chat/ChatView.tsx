@@ -7,6 +7,7 @@ import {
   useMessages, 
   useScreenshotNotification,
   useMarkMessageViewed,
+  useMarkVybeReplayExhausted,
   useAddReaction,
   useToggleSavedMessage,
   ViewMode,
@@ -35,6 +36,7 @@ import { db } from '@/lib/firebase';
 import { scanVideo as nsfwScanVideo, scanImage as nsfwScanImage } from '@/lib/nsfwScanner';
 import { repairConversationForSend } from '@/lib/dmMembershipRepair';
 import { compressVybeDataUrl } from '@/lib/vybeImageCompress';
+import { getVybeRecipientState } from '@/lib/vybeViewState';
 import {
   bumpConversationUpdatedAt,
   expiresAtForViewMode,
@@ -216,6 +218,7 @@ export function ChatView() {
   // Enable realtime sync for this specific conversation (reactions, views, etc.)
   useRealtimeMessages(conversationId);
   const markViewed = useMarkMessageViewed(conversationId);
+  const markVybeReplayExhausted = useMarkVybeReplayExhausted(conversationId);
   const toggleSaved = useToggleSavedMessage(conversationId);
   const addReaction = useAddReaction();
   const unsendForEveryone = useUnsendForEveryone();
@@ -1799,6 +1802,7 @@ export function ChatView() {
                     peerLastReadAt={!isGroupChat ? peerLastReadAt : undefined}
                     conversationId={conversationId}
                     onScreenshotCapture={() => notifyCapture('screenshot')}
+                    onVybeReplayExhausted={() => markVybeReplayExhausted.mutate(message.id)}
                   />
                 </SwipeToReply>
               </div>
@@ -2368,6 +2372,7 @@ const MessageBubble = memo(function MessageBubble({
   peerLastReadAt,
   conversationId,
   onScreenshotCapture,
+  onVybeReplayExhausted,
 }: { 
   message: Message;
   isOwn: boolean;
@@ -2396,13 +2401,17 @@ const MessageBubble = memo(function MessageBubble({
   peerLastReadAt?: string | null;
   conversationId?: string;
   onScreenshotCapture?: () => void;
+  onVybeReplayExhausted?: () => void;
 }) {
   const [isViewed, setIsViewed] = useState(false);
   const failed = Boolean((message as { _failed?: boolean })._failed);
   const iViewedVybe = Boolean(profileId && safeMessageViews(message).some((v) => v.user_id === profileId));
   const recipientViewedVybe = Boolean(safeMessageViews(message).some((v) => v.user_id !== message.sender_id));
-  const [vybeViewed, setVybeViewed] = useState(isOwn ? recipientViewedVybe : iViewedVybe);
+  const vybeState = getVybeRecipientState(message, profileId);
+  const vybeViewed = isOwn ? recipientViewedVybe : vybeState !== 'unopened';
   const [showVybeViewer, setShowVybeViewer] = useState(false);
+  const [isReplaySession, setIsReplaySession] = useState(false);
+  const replayHoldRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [showContextMenu, setShowContextMenu] = useState(false);
   const [viewerMedia, setViewerMedia] = useState<{ url: string; type: 'image' | 'gif' | 'video'; senderName?: string; timestamp?: string } | null>(null);
   const isContextMenuOpen = showContextMenu || forceShowContextMenu;
@@ -2417,14 +2426,6 @@ const MessageBubble = memo(function MessageBubble({
     // Pill is ~44px tall + 8px gap. Flip if not enough headroom.
     setReactionsFlipBelow(r.top < 64);
   }, [showReactions]);
-
-  useEffect(() => {
-    if (isOwn) {
-      if (recipientViewedVybe) setVybeViewed(true);
-    } else if (iViewedVybe) {
-      setVybeViewed(true);
-    }
-  }, [isOwn, recipientViewedVybe, iViewedVybe]);
 
   const repliedMessage = useMemo(() => 
     message.reply_to_id ? ensureArray(allMessages).find(m => m.id === message.reply_to_id) : null,
@@ -2501,7 +2502,7 @@ const MessageBubble = memo(function MessageBubble({
   const isAudioMessage = message.media_url && message.media_type === 'audio';
   const isMediaMessage = message.media_url && (message.media_type === 'image' || message.media_type === 'gif');
   const isVideoMessage = message.media_url && message.media_type === 'video';
-  const isVybeMessage = message.media_url && message.media_type === 'vybe';
+  const isVybeMessage = message.media_type === 'vybe';
   const isSharedPost = message.message_type === 'shared_post';
   const isSharedTheme = message.message_type === 'shared_theme';
 
@@ -2694,39 +2695,13 @@ const MessageBubble = memo(function MessageBubble({
                     </div>
                   </div>
                 </motion.div>
-              ) : vybeViewed ? (
-                // Receiver after viewing - show "Opened" state like Snapchat
-                <motion.div 
-                  initial={{ opacity: 0, scale: 0.9 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  className={cn(
-                    "relative w-36 h-14 sm:w-40 sm:h-16 rounded-2xl overflow-hidden",
-                    "bg-gradient-to-r from-muted/50 to-muted/30",
-                    "border border-border/30",
-                    "flex items-center justify-center gap-2"
-                  )}
-                >
-                  <div className="flex items-center gap-2 text-muted-foreground">
-                    <div className="p-1.5 rounded-full bg-muted/50">
-                      <Eye className="h-3.5 w-3.5" />
-                    </div>
-                    <div className="flex flex-col">
-                      <span className="text-xs font-medium">Opened</span>
-                      <VybeWordmark size="xs" className="opacity-60" />
-                    </div>
-                  </div>
-                </motion.div>
-              ) : (
-                // Receiver before viewing - tap to open fullscreen
+              ) : vybeState === 'unopened' ? (
                 <motion.button
                   whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.98 }}
                   onClick={() => {
+                    setIsReplaySession(false);
                     setShowVybeViewer(true);
-                    if (!vybeViewed) {
-                      setVybeViewed(true);
-                      onView();
-                    }
                   }}
                   className={cn(
                     "relative w-36 h-48 sm:w-40 sm:h-52 rounded-[22px] overflow-hidden",
@@ -2766,9 +2741,68 @@ const MessageBubble = memo(function MessageBubble({
                     </div>
                   </div>
                 </motion.button>
+              ) : vybeState === 'replay_available' ? (
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  className={cn(
+                    "relative w-36 h-14 sm:w-40 sm:h-16 rounded-2xl overflow-hidden",
+                    "bg-gradient-to-r from-muted/50 to-muted/30",
+                    "border border-border/30",
+                    "flex items-center justify-center gap-2 select-none touch-manipulation",
+                  )}
+                  onPointerDown={() => {
+                    replayHoldRef.current = setTimeout(() => {
+                      setIsReplaySession(true);
+                      setShowVybeViewer(true);
+                    }, 380);
+                  }}
+                  onPointerUp={() => {
+                    if (replayHoldRef.current) {
+                      clearTimeout(replayHoldRef.current);
+                      replayHoldRef.current = null;
+                    }
+                  }}
+                  onPointerLeave={() => {
+                    if (replayHoldRef.current) {
+                      clearTimeout(replayHoldRef.current);
+                      replayHoldRef.current = null;
+                    }
+                  }}
+                >
+                  <div className="flex items-center gap-2 text-muted-foreground">
+                    <div className="p-1.5 rounded-full bg-muted/50">
+                      <Eye className="h-3.5 w-3.5" />
+                    </div>
+                    <div className="flex flex-col">
+                      <span className="text-xs font-medium">Opened</span>
+                      <span className="text-[10px] opacity-70">Hold to replay</span>
+                    </div>
+                  </div>
+                </motion.div>
+              ) : (
+                <motion.div 
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  className={cn(
+                    "relative w-36 h-14 sm:w-40 sm:h-16 rounded-2xl overflow-hidden",
+                    "bg-gradient-to-r from-muted/50 to-muted/30",
+                    "border border-border/30",
+                    "flex items-center justify-center gap-2",
+                  )}
+                >
+                  <div className="flex items-center gap-2 text-muted-foreground">
+                    <div className="p-1.5 rounded-full bg-muted/50">
+                      <Eye className="h-3.5 w-3.5" />
+                    </div>
+                    <div className="flex flex-col">
+                      <span className="text-xs font-medium">Opened</span>
+                      <VybeWordmark size="xs" className="opacity-60" />
+                    </div>
+                  </div>
+                </motion.div>
               )}
               
-              {/* Fullscreen VYBE Viewer - only for receiver */}
               {!isOwn && (
                 <VybeViewer
                   mediaUrl={message.media_url || ''}
@@ -2778,18 +2812,23 @@ const MessageBubble = memo(function MessageBubble({
                   senderName={sender?.username}
                   senderAvatar={sender?.avatar_url}
                   isOpen={showVybeViewer}
-                  isViewed={vybeViewed}
+                  isViewed={vybeState !== 'unopened'}
+                  isReplaySession={isReplaySession}
                   isOwn={false}
                   onScreenshotDetected={onScreenshotCapture}
                   onClose={() => {
                     setShowVybeViewer(false);
-                    if (!vybeViewed) {
-                      setVybeViewed(true);
-                      onView();
+                    if (isReplaySession) {
+                      onVybeReplayExhausted?.();
+                      setIsReplaySession(false);
                     }
                   }}
                   onReply={onReply}
-                  onViewed={onView}
+                  onViewed={() => {
+                    if (!isReplaySession && vybeState === 'unopened') {
+                      onView();
+                    }
+                  }}
                   onSave={async () => {
                     try {
                       const { error } = await db

@@ -56,6 +56,8 @@ export interface Message {
   };
   views?: { user_id: string; viewed_at: string }[];
   reactions?: { user_id: string; emoji: string }[];
+  /** After first Vybe view + one hold-replay, snap can never reopen. */
+  vybe_replay_exhausted?: boolean;
 }
 
 export interface Conversation {
@@ -457,6 +459,37 @@ export function useMarkMessageViewed(conversationId?: string) {
         return;
       }
       queryClient.setQueriesData<Message[]>({ queryKey: ['messages'] }, patchRow);
+    },
+  });
+}
+
+/** Lock Vybe snap after the one allowed hold-replay (persists across refresh). */
+export function useMarkVybeReplayExhausted(conversationId?: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (messageId: string) => {
+      if (!messageId || messageId.startsWith('temp-') || messageId.startsWith('vybe-')) return;
+      const { error } = await db
+        .from('messages')
+        .update({ view_mode: 'vybe_locked', viewed_at: new Date().toISOString() })
+        .eq('id', messageId);
+      if (error) throw error;
+    },
+    onSuccess: (_data, messageId) => {
+      const patchRow = (old: Message[] | undefined) => {
+        if (!old?.some((m) => m.id === messageId)) return old;
+        return old.map((m) =>
+          m.id === messageId
+            ? { ...m, vybe_replay_exhausted: true, view_mode: 'vybe_locked' }
+            : m,
+        );
+      };
+      if (conversationId) {
+        patchMessagesCache(queryClient, conversationId, patchRow);
+      } else {
+        queryClient.setQueriesData<Message[]>({ queryKey: ['messages'] }, patchRow);
+      }
     },
   });
 }

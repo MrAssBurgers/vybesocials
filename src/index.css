@@ -988,10 +988,10 @@ html[data-dm-active='true'] .dm-composer-dock {
   bottom: auto;
 }
 html[data-dm-active='true'] {
-  --dm-composer-lift: max(calc(var(--sab, env(safe-area-inset-bottom, 0px)) + 1rem), 2.75rem);
+  --dm-composer-lift: max(calc(var(--sab, env(safe-area-inset-bottom, 0px)) + 1.25rem), 3rem);
 }
 html[data-native-shell='true'][data-dm-active='true'] {
-  --dm-composer-lift: max(calc(var(--sab, env(safe-area-inset-bottom, 0px)) + 1.5rem), 3.75rem);
+  --dm-composer-lift: max(calc(var(--sab, env(safe-area-inset-bottom, 0px)) + 2.75rem), 7rem);
 }
 html[data-dm-active='true'] body[data-kb-open='true'] .dm-composer-dock {
   position: relative;
@@ -1008,13 +1008,13 @@ html[data-dm-active='true'] body[data-kb-open='true'] .dm-composer-dock {
 }
 html[data-dm-active='true'] .dm-chat-messages {
   padding-bottom: calc(
-    var(--texter-stack-h, 5.5rem) + var(--dm-composer-lift, 1.5rem) + 0.5rem +
+    var(--texter-stack-h, 5.5rem) + var(--dm-composer-lift, 2rem) + 1rem +
       var(--keyboard-height, var(--kb-h, 0px))
   );
 }
 html[data-dm-active='true'] body[data-kb-open='true'] .dm-chat-messages {
   padding-bottom: calc(
-    var(--texter-stack-h, 5.5rem) + var(--dm-composer-lift, 1.5rem) + 0.5rem +
+    var(--texter-stack-h, 5.5rem) + var(--dm-composer-lift, 2rem) + 1rem +
       var(--keyboard-height, var(--kb-h, 0px))
   );
 }
@@ -1251,7 +1251,7 @@ html[data-dm-active='true'] body[data-kb-open='true'] .dm-chat-messages {
   padding-left: max(0.75rem, env(safe-area-inset-left, 0px));
   padding-right: max(0.75rem, env(safe-area-inset-right, 0px));
   padding-top: 0.35rem;
-  padding-bottom: max(0.875rem, calc(var(--sab, env(safe-area-inset-bottom, 0px)) * 0.35));
+  padding-bottom: max(1.35rem, calc(var(--sab, env(safe-area-inset-bottom, 0px)) + 0.85rem));
   transition: bottom 0.28s cubic-bezier(0.32, 0.72, 0, 1);
   will-change: bottom;
 }
