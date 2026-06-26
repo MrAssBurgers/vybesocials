@@ -7,7 +7,8 @@ Use this file as the Lovable -> Cursor handoff each session.
 - **Push server:** `send-push-notification` returns `error: No push tokens found` when `sent=0`; `link-onesignal-user` returns accurate `linked` flag
 - **Bottom nav:** CSS-only hide/show (no Framer Motion fighting scroll); accumulated scroll-down threshold; scroll listener only on `[data-app-scroll-container]`; tab-to-tab no longer resets hide state; removed `is-scrolling` transition kill on nav
 - **Verified:** `npm run build` PASS · `npm run lint` PASS
-- **Next:** Deploy `sendPushNotification` + `linkOnesignalUser` functions · Lovable Publish · keyboard avoidance audit
+- **Shipped:** git `479733a4` pushed · Firebase staging https://vybe-daaab.web.app + `sendPushNotification`/`linkOnesignalUser` (2026-06-26)
+- **Next:** Lovable Publish for vybehub.app · keyboard avoidance audit
 
 ## Flagship UX/perf overhaul — phase 1 (2026-06-26)
 - **Bottom nav:** `bottomNavController.ts` — velocity/distance thresholds, stays hidden until deliberate scroll-up, no touchmove/wheel jitter; `useSyncExternalStore`; AppLayout padding tracks effective nav visibility
