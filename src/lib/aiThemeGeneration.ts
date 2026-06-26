@@ -130,14 +130,9 @@ export async function generateVybeTheme(
     .filter(Boolean)
     .join('\n');
 
-  // High-confidence explicit prompts — return immediately (fast + accurate).
-  // Skip when the user relied on profile/DNA context with no custom description.
-  if (parsed.confidence >= INSTANT_CONFIDENCE && trimmedPrompt.length > 0) {
-    return {
-      theme: sanitizeThemeTokens(parsed.theme),
-      source: brandTheme ? 'brand' : 'prompt',
-    };
-  }
+  // AI-first: always let Gemini design the theme from the prompt.
+  // The locally-parsed `parsed.theme` is only used as a fast fallback if AI fails.
+  void INSTANT_CONFIDENCE;
 
   // Client + cloud in parallel (cap ~6s total, not sequential 11s)
   let cloudError: unknown;
