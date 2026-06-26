@@ -120,6 +120,7 @@ import { Toybox } from './Toybox';
 import { EmojiPicker } from './EmojiPicker';
 import { openCameraFromGesture, useCameraOverlay } from '@/contexts/CameraOverlayContext';
 import { KeyboardAwareTexter } from '@/components/chat/KeyboardAwareTexter';
+import { shouldTrackSoftKeyboard } from '@/lib/keyboardInsets';
 import { Texter } from '@/components/chat/Texter';
 import { stopCameraStream } from '@/hooks/useCameraPreload';
 import { useCallStore } from '@/lib/callStore';
@@ -2244,9 +2245,11 @@ const MessageInputArea = memo(function MessageInputArea({
           onKeyDown={handleKeyPress}
           onSend={handleSend}
           onFocus={() => {
-            requestAnimationFrame(() => {
-              inputRef.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-            });
+            if (shouldTrackSoftKeyboard()) {
+              requestAnimationFrame(() => {
+                inputRef.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+              });
+            }
           }}
           isPending={isPending}
           isUploadingMedia={isUploadingMedia}

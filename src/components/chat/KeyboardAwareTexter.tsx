@@ -1,56 +1,15 @@
 import { useCallback, useEffect, useRef, type ReactNode, type RefObject } from 'react';
-import { isDespiaRuntime } from '@/lib/despiaBridge';
+import {
+  KEYBOARD_INSET_THRESHOLD_PX,
+  measureSoftKeyboardHeight,
+  shouldTrackSoftKeyboard,
+} from '@/lib/keyboardInsets';
 
 interface KeyboardAwareTexterProps {
   children: ReactNode;
   onKeyboardChange?: (keyboardHeight: number) => void;
   onStackHeightChange?: (height: number) => void;
   scrollContainerRef?: RefObject<HTMLElement | null>;
-}
-
-/** Touch-first / native shells — desktop never gets fake keyboard inset. */
-function shouldTrackSoftKeyboard(): boolean {
-  if (typeof window === 'undefined') return false;
-  if (isDespiaRuntime()) return true;
-  const coarse = window.matchMedia('(pointer: coarse)').matches;
-  const narrow = window.innerWidth < 768;
-  return coarse || narrow;
-}
-
-function readCachedKeyboardHeight(): number {
-  const fromRoot = getComputedStyle(document.documentElement).getPropertyValue('--kb-h').trim();
-  return parseFloat(fromRoot) || 0;
-}
-
-function measureKeyboardHeight(): number {
-  if (!shouldTrackSoftKeyboard()) return 0;
-
-  const vv = window.visualViewport;
-  if (vv) {
-    const fromVv = Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
-    if (fromVv > 48) return fromVv;
-  }
-
-  const shrink = Math.max(0, (window.screen.height || window.innerHeight) - window.innerHeight);
-  if (shrink > 48) return shrink;
-
-  const layoutGap = Math.max(0, window.innerHeight - document.documentElement.clientHeight);
-  if (layoutGap > 48) return layoutGap;
-
-  const cached = readCachedKeyboardHeight();
-  if (cached > 48) return cached;
-
-  const focused = document.activeElement;
-  const typing =
-    focused instanceof HTMLTextAreaElement ||
-    focused instanceof HTMLInputElement ||
-    (focused instanceof HTMLElement && focused.isContentEditable);
-
-  if (typing && document.body.dataset.kbOpen === 'true') {
-    return Math.round(window.innerHeight * (isDespiaRuntime() ? 0.42 : 0.36));
-  }
-
-  return 0;
 }
 
 function scrollMessagesToBottom(container: HTMLElement | null | undefined) {
@@ -61,7 +20,7 @@ function scrollMessagesToBottom(container: HTMLElement | null | undefined) {
 }
 
 function scrollComposerIntoView(root: HTMLElement | null | undefined) {
-  if (!root || !shouldTrackSoftKeyboard()) return;
+  if (!root) return;
   requestAnimationFrame(() => {
     root.scrollIntoView({ block: 'end', behavior: 'smooth' });
   });
@@ -72,9 +31,36 @@ function isTextInput(el: EventTarget | null): el is HTMLTextAreaElement | HTMLIn
 }
 
 /**
- * Keyboard-aware DM composer — moves with the soft keyboard on mobile/Despia only.
+ * Keyboard-aware DM composer — mobile / Despia only. Desktop renders a static dock.
  */
 export function KeyboardAwareTexter({
+  children,
+  onKeyboardChange,
+  onStackHeightChange,
+  scrollContainerRef,
+}: KeyboardAwareTexterProps) {
+  const trackKeyboard = shouldTrackSoftKeyboard();
+
+  if (!trackKeyboard) {
+    return (
+      <div className="texter-keyboard-aware texter-keyboard-aware--desktop" data-texter-dock>
+        {children}
+      </div>
+    );
+  }
+
+  return (
+    <MobileKeyboardAwareTexter
+      onKeyboardChange={onKeyboardChange}
+      onStackHeightChange={onStackHeightChange}
+      scrollContainerRef={scrollContainerRef}
+    >
+      {children}
+    </MobileKeyboardAwareTexter>
+  );
+}
+
+function MobileKeyboardAwareTexter({
   children,
   onKeyboardChange,
   onStackHeightChange,
@@ -83,7 +69,7 @@ export function KeyboardAwareTexter({
   const rootRef = useRef<HTMLDivElement>(null);
   const wasOpenRef = useRef(false);
   const pollRef = useRef(0);
-  const trackKeyboard = shouldTrackSoftKeyboard();
+  const stackHRef = useRef(0);
 
   const publishHeights = useCallback(() => {
     const focused = document.activeElement;
@@ -91,8 +77,8 @@ export function KeyboardAwareTexter({
       isTextInput(focused) ||
       (focused instanceof HTMLElement && focused.isContentEditable);
     const kb =
-      trackKeyboard && (typing || document.body.dataset.kbOpen === 'true')
-        ? measureKeyboardHeight()
+      typing || document.body.dataset.kbOpen === 'true'
+        ? measureSoftKeyboardHeight()
         : 0;
 
     const root = document.documentElement;
@@ -100,12 +86,15 @@ export function KeyboardAwareTexter({
     root.style.setProperty('--kb-h', `${kb}px`);
 
     const stackH = rootRef.current?.offsetHeight ?? 0;
-    root.style.setProperty('--texter-stack-h', `${stackH}px`);
+    if (Math.abs(stackH - stackHRef.current) > 0.5) {
+      stackHRef.current = stackH;
+      root.style.setProperty('--texter-stack-h', `${stackH}px`);
+      onStackHeightChange?.(stackH);
+    }
 
     onKeyboardChange?.(kb);
-    onStackHeightChange?.(stackH);
 
-    const open = kb > 0;
+    const open = kb > KEYBOARD_INSET_THRESHOLD_PX;
     if (open) {
       document.body.dataset.kbOpen = 'true';
       if (!wasOpenRef.current) {
@@ -115,7 +104,7 @@ export function KeyboardAwareTexter({
       delete document.body.dataset.kbOpen;
     }
     wasOpenRef.current = open;
-  }, [onKeyboardChange, onStackHeightChange, scrollContainerRef, trackKeyboard]);
+  }, [onKeyboardChange, onStackHeightChange, scrollContainerRef]);
 
   useEffect(() => {
     publishHeights();
@@ -127,11 +116,10 @@ export function KeyboardAwareTexter({
     window.addEventListener('resize', onViewport);
     window.addEventListener('orientationchange', onViewport);
 
-    const ro = new ResizeObserver(publishHeights);
+    const ro = new ResizeObserver(() => publishHeights());
     if (rootRef.current) ro.observe(rootRef.current);
 
     const startKeyboardPoll = () => {
-      if (!trackKeyboard) return;
       cancelAnimationFrame(pollRef.current);
       let frames = 0;
       const tick = () => {
@@ -146,7 +134,7 @@ export function KeyboardAwareTexter({
       if (!isTextInput(e.target) && !(e.target instanceof HTMLElement && e.target.isContentEditable)) {
         return;
       }
-      if (trackKeyboard) document.body.dataset.kbOpen = 'true';
+      document.body.dataset.kbOpen = 'true';
       scrollMessagesToBottom(scrollContainerRef?.current);
       scrollComposerIntoView(rootRef.current);
       startKeyboardPoll();
@@ -185,7 +173,7 @@ export function KeyboardAwareTexter({
       document.documentElement.style.setProperty('--kb-h', '0px');
       delete document.body.dataset.kbOpen;
     };
-  }, [publishHeights, scrollContainerRef, trackKeyboard]);
+  }, [publishHeights, scrollContainerRef]);
 
   return (
     <div ref={rootRef} className="texter-keyboard-aware" data-texter-dock>

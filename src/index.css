@@ -1283,6 +1283,11 @@ body.has-liquid-bg:not(.has-custom-bg) .texter-keyboard-aware::before {
     position: sticky;
     bottom: 0;
   }
+  .texter-keyboard-aware--desktop {
+    position: sticky;
+    bottom: 0;
+    padding-bottom: 0.75rem;
+  }
 }
 html[data-dm-active='true'] body[data-kb-open='true'] .texter-keyboard-aware {
   position: fixed;
