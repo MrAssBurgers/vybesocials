@@ -196,40 +196,39 @@ export const linkOnesignalUser = onCall(
       linkBody.subscriptions = [{ id: subId, enabled: true }];
     }
     try {
-      const res = await fetch(`https://api.onesignal.com/apps/${appId}/users`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Key ${restKey}`,
-          Accept: 'application/json',
-        },
-        body: JSON.stringify(linkBody),
-      });
-      onesignalLinked = res.ok;
-      if (!res.ok && subId) {
-        const patchRes = await fetch(
-          `https://api.onesignal.com/apps/${appId}/users/by/external_id/${encodeURIComponent(resolvedProfileId)}`,
-          {
-            method: 'PATCH',
-            headers: {
-              'Content-Type': 'application/json',
-              Authorization: `Key ${restKey}`,
-              Accept: 'application/json',
-            },
-            body: JSON.stringify({
-              identity: { external_id: resolvedProfileId },
-              subscriptions: [{ id: subId, enabled: true }],
-            }),
+      if (subId) {
+        const res = await fetch(`https://api.onesignal.com/apps/${appId}/users`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Key ${restKey}`,
+            Accept: 'application/json',
           },
-        );
-        onesignalLinked = patchRes.ok;
-        if (!patchRes.ok) {
-          const patchErr = await patchRes.text().catch(() => '');
-          console.warn('[linkOnesignalUser] PATCH', patchRes.status, patchErr.slice(0, 200));
+          body: JSON.stringify(linkBody),
+        });
+        onesignalLinked = res.ok;
+        if (!res.ok) {
+          const patchRes = await fetch(
+            `https://api.onesignal.com/apps/${appId}/users/by/external_id/${encodeURIComponent(resolvedProfileId)}`,
+            {
+              method: 'PATCH',
+              headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Key ${restKey}`,
+                Accept: 'application/json',
+              },
+              body: JSON.stringify({
+                identity: { external_id: resolvedProfileId },
+                subscriptions: [{ id: subId, enabled: true }],
+              }),
+            },
+          );
+          onesignalLinked = patchRes.ok;
+          if (!patchRes.ok) {
+            const patchErr = await patchRes.text().catch(() => '');
+            console.warn('[linkOnesignalUser] PATCH', patchRes.status, patchErr.slice(0, 200));
+          }
         }
-      } else if (!res.ok) {
-        const errBody = await res.text().catch(() => '');
-        console.warn('[linkOnesignalUser] OneSignal API', res.status, errBody.slice(0, 200));
       }
     } catch (err) {
       console.warn('[linkOnesignalUser] OneSignal request failed', err);
@@ -244,17 +243,18 @@ export const linkOnesignalUser = onCall(
     }
   }
 
-  await db.collection('push_tokens').doc(`${resolvedProfileId}_${resolvedPlatform}`).set({
-    user_id: resolvedProfileId,
-    onesignal_id: subId || null,
-    token: fcm_token || subId || null,
-    voip_token: voip_token || null,
-    platform: resolvedPlatform,
-    device_id: deviceId,
-    updated_at: new Date().toISOString(),
-  }, { merge: true });
-
+  // Only persist token docs when we have a real subscription id.
   if (subId) {
+    await db.collection('push_tokens').doc(`${resolvedProfileId}_${resolvedPlatform}`).set({
+      user_id: resolvedProfileId,
+      onesignal_id: subId,
+      token: fcm_token || subId,
+      voip_token: voip_token || null,
+      platform: resolvedPlatform,
+      device_id: deviceId,
+      updated_at: new Date().toISOString(),
+    }, { merge: true });
+
     await db.collection('push_tokens').doc(`${resolvedProfileId}_despia`).set({
       user_id: resolvedProfileId,
       platform: 'despia',
@@ -264,6 +264,23 @@ export const linkOnesignalUser = onCall(
     }, { merge: true });
   }
 
+  const linked = !!subId && onesignalLinked;
+
+  // Remove stale placeholder tokens that block delivery lookups.
+  if (subId) {
+    const staleSnap = await db.collection('push_tokens').where('user_id', '==', resolvedProfileId).get();
+    const batch = db.batch();
+    let deletes = 0;
+    for (const doc of staleSnap.docs) {
+      const token = doc.data().token as string | undefined;
+      if (token && (token.startsWith('despia:') || token.startsWith('onesignal:'))) {
+        batch.delete(doc.ref);
+        deletes++;
+      }
+    }
+    if (deletes > 0) await batch.commit();
+  }
+
   await db.collection('push_registration_logs').add({
     profile_id: resolvedProfileId,
     auth_uid: authUid,
@@ -271,14 +288,14 @@ export const linkOnesignalUser = onCall(
     device_id: deviceId,
     subscription_id: subId || null,
     reason: reason || 'link',
-    linked: onesignalLinked || !!subId,
+    linked,
     created_at: new Date().toISOString(),
   });
 
   return {
     ok: true,
-    success: onesignalLinked || !!subId,
-    linked: onesignalLinked || !!subId,
+    success: linked,
+    linked,
     subscriptionId: subId || null,
   };
 });

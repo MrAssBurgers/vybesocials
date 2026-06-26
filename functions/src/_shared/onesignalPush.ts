@@ -105,7 +105,10 @@ export async function dispatchOneSignalToProfile(
 ): Promise<{ sent: number; mode?: string }> {
   const appId = process.env.ONESIGNAL_APP_ID;
   const restKey = process.env.ONESIGNAL_REST_API_KEY;
-  if (!appId || !restKey) return { sent: 0 };
+  if (!appId || !restKey) {
+    console.warn('[onesignalPush] ONESIGNAL secrets missing — cannot send');
+    return { sent: 0, mode: 'not_configured' };
+  }
 
   const targetProfileId = await resolvePushTargetProfileId(profileId);
   const routePath = payload.url || '/notifications';

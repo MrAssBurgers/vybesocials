@@ -43,6 +43,9 @@ async function isViewingConversation(recipientProfileId, conversationId) {
     if (!presence.exists)
         return false;
     const data = presence.data() || {};
+    // Backgrounded users should still receive push (Despia WebView may not fire visibilitychange).
+    if (data.online === false)
+        return false;
     if (asString(data.active_conversation) !== conversationId)
         return false;
     const updated = asString(data.updated_at) || asString(data.last_seen);

@@ -2,6 +2,13 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## Notification system hardening v2 (2026-06-26)
+- **Root cause:** Placeholder `despia:{profileId}` tokens written before real OneSignal UUID → server had zero delivery targets; `linked:true` returned without subscription; Despia bridge fired before native module loaded; auth uid used as external_id fallback
+- **Fix:** `ensureDespiaDeviceRegistered()` awaits native + polls up to 8s; never persist placeholders; strict `linked` only with real UUID; server deletes stale placeholders on link; smart gate skips suppression when `online:false`; DM client backup push restored; diagnostics show OneSignal errors
+- **Verified:** debug scan PASS · build PASS · lint PASS
+- **Deployed:** https://vybe-daaab.web.app + all push functions (2026-06-26)
+- **Next:** Force-quit app → open diagnostics → Force re-register → test push · Lovable Publish for vybehub.app
+
 ## Notification system hardening (2026-06-17)
 - **Problem:** Push only worked after manual Despia Developer relink; duplicate DM pushes; no server-side "viewing chat" suppression; scattered registration paths racing
 - **Client:** `NotificationRegistrationService` — single mutexed pipeline with exponential backoff; lifecycle hooks (launch, login, token refresh, foreground, network reconnect); removed placeholder `despia:{id}` tokens; `linkDespiaExternalId` profile-id only (no dual auth uid); `relinkDespiaPushInBackground` delegates to service; removed client DM push fallback in `dmSendCore`

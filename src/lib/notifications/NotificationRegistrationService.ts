@@ -5,13 +5,11 @@
 import { db } from '@/lib/firebase';
 import { isDespiaRuntime } from '@/lib/despiaBridge';
 import {
-  acceptDespiaPushPermission,
   checkDespiaPushPermission,
-  fetchDespiaOneSignalPlayerId,
+  ensureDespiaDeviceRegistered,
   fetchPushSubscriptionStatus,
-  fireDespiaScheme,
+  isRealPushSubscriptionId,
   linkOneSignalUser,
-  persistDespiaPushToken,
   readWindowPlayerId,
 } from '@/lib/despiaOneSignal';
 import { isPreviewServiceWorkerDisabled } from '@/lib/serviceWorker';
@@ -21,7 +19,6 @@ import {
   patchPushDiagnostics,
   readPushDiagnostics,
   recordRegistrationAttempt,
-  recordTokenRefresh,
   type PushRegistrationReason,
   type PushRegistrationState,
 } from '@/lib/notifications/pushDiagnostics';
@@ -61,14 +58,22 @@ async function resolveProfileContext(): Promise<{
   const authUserId = data.user?.id;
   if (!authUserId) return null;
 
-  const { data: profile } = await db
-    .from('profiles')
-    .select('id')
-    .eq('user_id', authUserId)
-    .maybeSingle();
+  for (let attempt = 0; attempt < 6; attempt++) {
+    const { data: profile } = await db
+      .from('profiles')
+      .select('id')
+      .eq('user_id', authUserId)
+      .maybeSingle();
 
-  const profileId = profile?.id || authUserId;
-  return { profileId, authUserId };
+    if (profile?.id) {
+      return { profileId: profile.id, authUserId };
+    }
+    if (attempt < 5) await sleep(400 * (attempt + 1));
+  }
+
+  // Never use auth uid as external_id on Despia — server push targets profiles.id.
+  if (isDespiaRuntime()) return null;
+  return { profileId: authUserId, authUserId };
 }
 
 async function linkServerRegistration(
@@ -76,13 +81,15 @@ async function linkServerRegistration(
   subscriptionId: string,
   reason: PushRegistrationReason,
 ): Promise<boolean> {
+  if (!isRealPushSubscriptionId(subscriptionId)) return false;
+
   const deviceId = getOrCreateDeviceId();
   const platform = detectPlatform();
   const { data, error } = await db.functions.invoke('link-onesignal-user', {
     body: {
       profileId,
       profile_id: profileId,
-      subscriptionId: subscriptionId || undefined,
+      subscriptionId,
       platform,
       device_id: deviceId,
       reason,
@@ -92,8 +99,8 @@ async function linkServerRegistration(
     console.warn('[PushReg] link-onesignal-user failed', error);
     return false;
   }
-  const payload = data as { linked?: boolean; success?: boolean; subscriptionId?: string } | null;
-  return !!(payload?.linked || payload?.success || payload?.subscriptionId);
+  const payload = data as { linked?: boolean; subscriptionId?: string } | null;
+  return payload?.linked === true && isRealPushSubscriptionId(payload?.subscriptionId || subscriptionId);
 }
 
 async function registerDespia(
@@ -108,44 +115,29 @@ async function registerDespia(
     platform: 'despia',
   });
 
-  fireDespiaScheme(`setonesignalplayerid://?user_id=${encodeURIComponent(profileId)}`);
-  fireDespiaScheme(`setOneSignalPlayerId://?user_id=${encodeURIComponent(profileId)}`);
+  const result = await ensureDespiaDeviceRegistered(profileId, {
+    requestPermission: options.requestPermission,
+    maxWaitMs: reason === 'permission_granted' ? 10_000 : 8_000,
+    reason,
+  });
 
-  if (options.requestPermission) {
-    const accepted = await acceptDespiaPushPermission(profileId);
-    if (!accepted.granted) {
-      patchPushDiagnostics({ state: 'denied', permission: false });
-      return false;
-    }
-  }
+  patchPushDiagnostics({ permission: result.permission });
 
-  const permission = await checkDespiaPushPermission();
-  patchPushDiagnostics({ permission });
-
-  if (permission === false && !options.requestPermission) {
+  if (result.permission === false && !options.requestPermission) {
     patchPushDiagnostics({ state: 'denied' });
     return false;
   }
 
-  let subscriptionId = readWindowPlayerId();
-  if (!subscriptionId) {
-    subscriptionId = await fetchDespiaOneSignalPlayerId(reason === 'permission_granted' ? 2000 : 800);
-  }
-
-  if (subscriptionId) {
-    await persistDespiaPushToken(profileId, subscriptionId);
-    await linkServerRegistration(profileId, subscriptionId, reason);
-    patchPushDiagnostics({ subscriptionId, state: 'linked' });
-    startBackgroundPlayerSync(profileId, authUserId, ++bgSyncGeneration);
+  if (result.ok && isRealPushSubscriptionId(result.subscriptionId)) {
+    await linkServerRegistration(profileId, result.subscriptionId, reason);
+    patchPushDiagnostics({ subscriptionId: result.subscriptionId, state: 'linked' });
+    startBackgroundPlayerSync(profileId, ++bgSyncGeneration);
     return true;
   }
 
-  // Permission granted but player id not yet available — background sync will finish.
-  void persistDespiaPushToken(profileId, '');
-  await linkServerRegistration(profileId, '', reason);
   patchPushDiagnostics({ state: 'degraded' });
-  startBackgroundPlayerSync(profileId, authUserId, ++bgSyncGeneration);
-  return permission !== false;
+  startBackgroundPlayerSync(profileId, ++bgSyncGeneration);
+  return false;
 }
 
 async function registerWeb(
@@ -175,33 +167,32 @@ async function registerWeb(
 
   patchPushDiagnostics({ permission: Notification.permission === 'granted' });
 
-  // OneSignal web login handled by DespiaOneSignalSync for non-Despia web.
-  const linked = await linkOneSignalUser(profileId);
+  const linked = await linkOneSignalUser(profileId, undefined, reason);
   if (linked) {
     patchPushDiagnostics({ state: 'linked' });
     return true;
   }
 
-  await linkServerRegistration(profileId, '', reason);
-  return Notification.permission === 'granted';
+  const status = await fetchPushSubscriptionStatus(profileId);
+  patchPushDiagnostics({ serverSubscriptionCount: status.count });
+  return status.count > 0;
 }
 
-function startBackgroundPlayerSync(profileId: string, authUserId: string, generation: number): void {
+function startBackgroundPlayerSync(profileId: string, generation: number): void {
   void (async () => {
-    for (let attempt = 1; attempt <= 16; attempt++) {
+    for (let attempt = 1; attempt <= 20; attempt++) {
       if (generation !== bgSyncGeneration) return;
       await sleep(Math.min(BASE_BACKOFF_MS * attempt, 4000));
       if (generation !== bgSyncGeneration) return;
 
       try {
-        fireDespiaScheme(`setonesignalplayerid://?user_id=${encodeURIComponent(profileId)}`);
-        const playerId = readWindowPlayerId() || (await fetchDespiaOneSignalPlayerId(400));
-        if (!playerId) continue;
-
-        await persistDespiaPushToken(profileId, playerId);
-        const linked = await linkServerRegistration(profileId, playerId, 'health_check');
-        if (linked) {
-          patchPushDiagnostics({ subscriptionId: playerId, state: 'linked' });
+        const result = await ensureDespiaDeviceRegistered(profileId, {
+          maxWaitMs: 2_000,
+          reason: 'health_check',
+        });
+        if (result.ok && isRealPushSubscriptionId(result.subscriptionId)) {
+          await linkServerRegistration(profileId, result.subscriptionId, 'health_check');
+          patchPushDiagnostics({ subscriptionId: result.subscriptionId, state: 'linked' });
           recordRegistrationAttempt('health_check', true, `bg attempt ${attempt}`);
           return;
         }
@@ -233,13 +224,15 @@ async function runRegister(
         ? await registerDespia(ctx.profileId, ctx.authUserId, reason, options)
         : await registerWeb(ctx.profileId, ctx.authUserId, reason, options);
 
-      if (ok) break;
-
       const status = await fetchPushSubscriptionStatus(ctx.profileId);
-      patchPushDiagnostics({ serverSubscriptionCount: status.count });
-      if (status.count > 0) {
+      patchPushDiagnostics({ serverSubscriptionCount: status.count, lastRegistrationError: status.error || null });
+
+      if (ok || status.count > 0) {
         ok = true;
-        patchPushDiagnostics({ state: 'linked', subscriptionId: status.subscriptionIds[0] || '' });
+        patchPushDiagnostics({
+          state: 'linked',
+          subscriptionId: status.subscriptionIds[0] || readPushDiagnostics().subscriptionId || readWindowPlayerId(),
+        });
         break;
       }
     } catch (err) {
@@ -253,14 +246,6 @@ async function runRegister(
   }
 
   recordRegistrationAttempt(reason, ok, ok ? undefined : lastErr || 'no subscription');
-
-  if (ok) {
-    const status = await fetchPushSubscriptionStatus(ctx.profileId).catch(() => ({ count: 0, subscriptionIds: [] }));
-    patchPushDiagnostics({
-      serverSubscriptionCount: status.count,
-      subscriptionId: status.subscriptionIds[0] || readPushDiagnostics().subscriptionId,
-    });
-  }
 
   return ok;
 }
@@ -307,7 +292,7 @@ export async function healthCheckPushRegistration(): Promise<boolean> {
   if (!snap.externalUserId) return false;
 
   const status = await fetchPushSubscriptionStatus(snap.externalUserId);
-  patchPushDiagnostics({ serverSubscriptionCount: status.count });
+  patchPushDiagnostics({ serverSubscriptionCount: status.count, lastRegistrationError: status.error || null });
 
   if (status.count > 0) {
     patchPushDiagnostics({ state: 'linked', subscriptionId: status.subscriptionIds[0] || snap.subscriptionId });
@@ -316,7 +301,7 @@ export async function healthCheckPushRegistration(): Promise<boolean> {
 
   if (isDespiaRuntime()) {
     const perm = await checkDespiaPushPermission();
-    if (perm === true) {
+    if (perm === true || perm === null) {
       return registerPushDevice('health_check', { force: true });
     }
   }
@@ -353,7 +338,6 @@ export function installPushRegistrationLifecycle(): () => void {
   window.addEventListener('pageshow', onPageShow);
   window.addEventListener('app-resumed', onAppResumed);
 
-  // Initial launch registration
   void registerPushDevice('app_launch');
 
   return () => {

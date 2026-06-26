@@ -36,7 +36,41 @@ const BG_INTERVAL_MS = 450;
 
 const delay = (ms: number) => new Promise((resolve) => window.setTimeout(resolve, ms));
 
-/** Fire a Despia deep link synchronously when despia-native is preloaded. */
+/** Real OneSignal subscription UUID — not a placeholder. */
+export function isRealPushSubscriptionId(id: string): boolean {
+  const t = id.trim();
+  if (!t || t.length < 8) return false;
+  if (t.startsWith('despia:') || t.startsWith('onesignal:')) return false;
+  return /^[0-9a-f-]{36}$/i.test(t) || (t.length >= 20 && !t.startsWith('{'));
+}
+
+async function awaitDespiaNativeReady(timeoutMs = 3_000): Promise<void> {
+  if (!isDespiaRuntime()) return;
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (despiaNativeCached) return;
+    try {
+      const mod = await import('despia-native');
+      const fn = (mod as { default?: (url: string) => void }).default ?? mod;
+      if (typeof fn === 'function') {
+        despiaNativeCached = fn;
+        return;
+      }
+    } catch {
+      /* retry */
+    }
+    await delay(50);
+  }
+}
+
+/** Fire a Despia deep link — awaits native module when possible. */
+export async function fireDespiaSchemeAsync(scheme: string): Promise<void> {
+  if (!isDespiaRuntime()) return;
+  await awaitDespiaNativeReady();
+  fireDespiaSchemeNow(scheme);
+}
+
+/** @deprecated Prefer fireDespiaSchemeAsync — may no-op if native not loaded yet. */
 export function fireDespiaScheme(scheme: string): void {
   if (!isDespiaRuntime()) return;
   try {
@@ -78,6 +112,16 @@ export function linkDespiaExternalId(externalId: string, trigger = 'link'): void
   console.log(`[OneSignal:${trigger}] linked external_id=${externalId}`);
 }
 
+/** Await native bridge then link external_id (preferred on cold start). */
+export async function linkDespiaExternalIdAsync(externalId: string, trigger = 'link'): Promise<void> {
+  if (!externalId || !isDespiaRuntime()) return;
+  await awaitDespiaNativeReady();
+  for (const url of linkSchemes(externalId)) {
+    await despiaCall(url, [], 400).catch(() => null);
+  }
+  linkDespiaExternalId(externalId, trigger);
+}
+
 /**
  * User tapped "Enable notifications" — register (if needed) then instantly link external_id.
  */
@@ -94,14 +138,19 @@ export async function acceptDespiaPushPermission(externalId: string): Promise<{
   let permission = await checkDespiaPushPermission();
   if (permission !== true) {
     await despiaCall('registerpush://', [], 1_200);
-    linkDespiaExternalId(externalId, 'post-register');
+    await linkDespiaExternalIdAsync(externalId, 'post-register');
     permission = await checkDespiaPushPermission();
   }
 
-  void persistDespiaPushToken(externalId, '').catch(() => {});
-  startBackgroundPlayerIdSync(externalId);
+  await fireDespiaPushBridges(externalId, false);
+  const playerId = readWindowPlayerId() || (await probePlayerIdOnce());
+  if (playerId && isRealPushSubscriptionId(playerId)) {
+    await commitPlayerId(externalId, playerId, true);
+    return { granted: permission === true, linked: true };
+  }
 
-  return { granted: permission === true, linked: true };
+  startBackgroundPlayerIdSync(externalId);
+  return { granted: permission === true, linked: false };
 }
 
 export async function checkDespiaPushPermission(): Promise<boolean | null> {
@@ -154,29 +203,22 @@ export async function resolveCurrentOneSignalExternalId(): Promise<string | null
 
 export async function persistDespiaPushToken(profileId: string, playerId = ''): Promise<void> {
   if (!/^[0-9a-f-]{36}$/i.test(profileId)) return;
-  const platform = isIOSUA() ? 'ios' : isAndroidUA() ? 'android' : 'despia';
-  const token = playerId || `despia:${profileId}`;
-  const hasRealId = playerId.length >= 8 && !playerId.startsWith('despia:');
-
-  if (hasRealId) {
-    await Promise.all([
-      upsertNativePushTokens(profileId, {
-        fcmToken: playerId,
-        platform: platform as 'ios' | 'android',
-      }),
-      db.from('push_tokens').upsert(
-        { user_id: profileId, platform: 'despia', token: playerId },
-        { onConflict: 'user_id,platform' },
-      ),
-    ]);
+  if (!isRealPushSubscriptionId(playerId)) {
+    // Never write despia:{uuid} placeholders — they block server delivery lookups.
     return;
   }
+  const platform = isIOSUA() ? 'ios' : isAndroidUA() ? 'android' : 'despia';
 
-  const { error } = await db.from('push_tokens').upsert(
-    { user_id: profileId, platform: 'despia', token },
-    { onConflict: 'user_id,platform' },
-  );
-  if (error) throw error;
+  await Promise.all([
+    upsertNativePushTokens(profileId, {
+      fcmToken: playerId,
+      platform: platform as 'ios' | 'android',
+    }),
+    db.from('push_tokens').upsert(
+      { user_id: profileId, platform: 'despia', token: playerId },
+      { onConflict: 'user_id,platform' },
+    ),
+  ]);
 }
 
 export async function linkOneSignalUser(profileId: string, subscriptionId?: string, reason = 'client_link'): Promise<boolean> {
@@ -196,7 +238,7 @@ export async function linkOneSignalUser(profileId: string, subscriptionId?: stri
     return false;
   }
   const payload = data as { success?: boolean; linked?: boolean; subscriptionId?: string } | null;
-  return payload?.linked === true || payload?.success === true || !!payload?.subscriptionId;
+  return isRealPushSubscriptionId(payload?.subscriptionId || '') || payload?.linked === true;
 }
 
 function linkSchemes(externalId: string): string[] {
@@ -208,7 +250,7 @@ function linkSchemes(externalId: string): string[] {
 }
 
 /** Fire register + link + player-id probes in parallel. */
-async function fireDespiaPushBridges(externalId: string, includeRegister = true): Promise<void> {
+export async function fireDespiaPushBridges(externalId: string, includeRegister = true): Promise<void> {
   const urls = [
     ...(includeRegister ? REGISTER_SCHEMES : []),
     ...linkSchemes(externalId),
@@ -298,14 +340,15 @@ export async function connectDespiaPushInstant(
   }
 
   linkDespiaExternalId(externalId, options.trigger ?? 'connect');
-  if (options.persistToken !== false) {
-    void persistDespiaPushToken(externalId, '').catch(() => {});
-  }
   startBackgroundPlayerIdSync(externalId);
 
   const permission = await checkDespiaPushPermission();
   const playerId = readWindowPlayerId() || (await probePlayerIdOnce());
-  return { linked: true, playerId, permission };
+  return {
+    linked: isRealPushSubscriptionId(playerId),
+    playerId,
+    permission,
+  };
 }
 
 /** @deprecated Prefer connectDespiaPushInstant */
@@ -350,19 +393,75 @@ export async function fetchDespiaOneSignalPlayerId(waitMs = 0): Promise<string> 
 export async function fetchPushSubscriptionStatus(profileId: string): Promise<{
   subscriptionIds: string[];
   count: number;
+  error?: string;
 }> {
   const { data, error } = await db.functions.invoke('get-push-subscription-status', {
     body: { profileId, profile_id: profileId },
   });
   if (error) {
-    return { subscriptionIds: [], count: 0 };
+    return { subscriptionIds: [], count: 0, error: error.message || 'invoke_failed' };
   }
-  const payload = data as { subscriptionIds?: string[]; count?: number } | null;
+  const payload = data as { subscriptionIds?: string[]; count?: number; error?: string } | null;
+  if (payload?.error) {
+    return { subscriptionIds: [], count: 0, error: payload.error };
+  }
   const subscriptionIds = Array.isArray(payload?.subscriptionIds) ? payload.subscriptionIds : [];
   return {
     subscriptionIds,
     count: typeof payload?.count === 'number' ? payload.count : subscriptionIds.length,
   };
+}
+
+/**
+ * Full Despia registration — await native, link external_id, probe player id, persist + server link.
+ * Returns ok only when a real subscription exists locally or on OneSignal server.
+ */
+export async function ensureDespiaDeviceRegistered(
+  profileId: string,
+  options: { requestPermission?: boolean; maxWaitMs?: number; reason?: string } = {},
+): Promise<{ ok: boolean; subscriptionId: string; permission: boolean | null }> {
+  if (!profileId || !isDespiaRuntime()) {
+    return { ok: false, subscriptionId: '', permission: null };
+  }
+
+  await awaitDespiaNativeReady();
+  await linkDespiaExternalIdAsync(profileId, options.reason ?? 'ensure');
+
+  if (options.requestPermission) {
+    const accepted = await acceptDespiaPushPermission(profileId);
+    if (!accepted.granted) {
+      return { ok: false, subscriptionId: '', permission: false };
+    }
+  }
+
+  const permission = await checkDespiaPushPermission();
+  const deadline = Date.now() + (options.maxWaitMs ?? 8_000);
+  let subscriptionId = readWindowPlayerId();
+
+  while (!isRealPushSubscriptionId(subscriptionId) && Date.now() < deadline) {
+    await fireDespiaPushBridges(profileId, permission !== true);
+    subscriptionId = readWindowPlayerId() || (await probePlayerIdOnce());
+    if (isRealPushSubscriptionId(subscriptionId)) break;
+    await delay(TIGHT_POLL_MS);
+  }
+
+  if (isRealPushSubscriptionId(subscriptionId)) {
+    await commitPlayerId(profileId, subscriptionId, true);
+    return {
+      ok: true,
+      subscriptionId,
+      permission,
+    };
+  }
+
+  const status = await fetchPushSubscriptionStatus(profileId);
+  if (status.count > 0 && status.subscriptionIds[0]) {
+    await commitPlayerId(profileId, status.subscriptionIds[0], true);
+    return { ok: true, subscriptionId: status.subscriptionIds[0], permission };
+  }
+
+  startBackgroundPlayerIdSync(profileId);
+  return { ok: false, subscriptionId: '', permission };
 }
 
 /** Fast resolve — one connect pass + optional server lookup (no 6× retry loop). */

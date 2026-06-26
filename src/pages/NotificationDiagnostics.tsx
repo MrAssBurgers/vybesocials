@@ -10,7 +10,7 @@ import {
   healthCheckPushRegistration,
   registerPushDevice,
 } from '@/lib/notifications/NotificationRegistrationService';
-import { exportPushDebugText, readPushDiagnostics } from '@/lib/notifications/pushDiagnostics';
+import { exportPushDebugText, patchPushDiagnostics, readPushDiagnostics } from '@/lib/notifications/pushDiagnostics';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { toast } from 'sonner';
@@ -41,6 +41,7 @@ export default function NotificationDiagnostics() {
 
   const [snap, setSnap] = useState(() => readPushDiagnostics());
   const [nativePermission, setNativePermission] = useState<boolean | null>(null);
+  const [serverError, setServerError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
@@ -50,7 +51,13 @@ export default function NotificationDiagnostics() {
       setNativePermission(Notification.permission === 'granted');
     }
     setSnap(getPushRegistrationStatus());
-  }, []);
+    if (profile?.id) {
+      const { fetchPushSubscriptionStatus } = await import('@/lib/despiaOneSignal');
+      const status = await fetchPushSubscriptionStatus(profile.id);
+      setServerError(status.error || null);
+      patchPushDiagnostics({ serverSubscriptionCount: status.count });
+    }
+  }, [profile?.id]);
 
   useEffect(() => {
     if (!isAdmin) {
@@ -139,6 +146,7 @@ export default function NotificationDiagnostics() {
           <Row label="Device ID" value={snap.deviceId} />
           <Row label="Player / subscription ID" value={snap.subscriptionId || readWindowPlayerId()} />
           <Row label="Server subscription count" value={snap.serverSubscriptionCount} />
+          <Row label="Server / OneSignal error" value={serverError || snap.lastRegistrationError} />
         </CardContent>
       </Card>
 
