@@ -298,12 +298,21 @@ export function useInstantSend(conversationId: string | undefined) {
       payload: Record<string, unknown>,
       otherProfileId: string | null,
     ) => {
+      const senderName =
+        profile?.display_name || profile?.username || 'Someone';
+      const preview =
+        typeof payload.content === 'string' && payload.content.trim()
+          ? payload.content.trim().slice(0, 80)
+          : undefined;
       return insertDmMessage(
         { ...payload, sender_id: senderId } as Parameters<typeof insertDmMessage>[0],
-        { otherProfileId },
+        {
+          otherProfileId,
+          push: { senderName, preview },
+        },
       );
     },
-    [],
+    [profile?.display_name, profile?.username],
   );
 
   // Send a text message instantly

@@ -34,6 +34,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { db } from '@/lib/firebase';
 import { scanVideo as nsfwScanVideo, scanImage as nsfwScanImage } from '@/lib/nsfwScanner';
 import { repairConversationForSend } from '@/lib/dmMembershipRepair';
+import { compressVybeDataUrl } from '@/lib/vybeImageCompress';
 import {
   bumpConversationUpdatedAt,
   expiresAtForViewMode,
@@ -981,6 +982,11 @@ export function ChatView() {
       toast.error(`Failed: ${error}`, { id: `vybe-${tempId}`, duration: 5000 });
     };
 
+    void repairConversationForSend(conversationId, profileId, otherMember?.id ?? null).catch(() => {});
+
+    const senderPushName =
+      (profile as { display_name?: string }).display_name || profile.username || 'Someone';
+
     try {
       let mediaUrl: string;
       let uploadFile: File;
@@ -1036,8 +1042,7 @@ export function ChatView() {
           .from('chat-media')
           .getPublicUrl(fileName);
 
-        const { data: signed } = await db.storage.from('chat-media').createSignedUrl(fileName, 3600);
-        mediaUrl = signed?.signedUrl || publicUrl;
+        mediaUrl = publicUrl;
         
         // Validate URL
         if (!mediaUrl || mediaUrl.includes('undefined')) {
@@ -1048,21 +1053,30 @@ export function ChatView() {
         
         URL.revokeObjectURL(mediaDataUrl);
       } else {
-        // Image vybe
+        // Image vybe — compress then upload (faster send + faster recipient load)
         phase = 'image-parse';
-        const base64Data = mediaDataUrl.split(',')[1];
-        if (!base64Data || base64Data.length < 10) {
+        if (!mediaDataUrl || mediaDataUrl.length < 10) {
           markFailed('Invalid image data', phase);
           return;
         }
-        
-        const byteCharacters = atob(base64Data);
-        const byteNumbers = new Array(byteCharacters.length);
-        for (let i = 0; i < byteCharacters.length; i++) {
-          byteNumbers[i] = byteCharacters.charCodeAt(i);
+
+        let blob: Blob;
+        try {
+          blob = await compressVybeDataUrl(mediaDataUrl);
+        } catch {
+          const base64Data = mediaDataUrl.split(',')[1];
+          if (!base64Data || base64Data.length < 10) {
+            markFailed('Invalid image data', phase);
+            return;
+          }
+          const byteCharacters = atob(base64Data);
+          const byteNumbers = new Array(byteCharacters.length);
+          for (let i = 0; i < byteCharacters.length; i++) {
+            byteNumbers[i] = byteCharacters.charCodeAt(i);
+          }
+          blob = new Blob([new Uint8Array(byteNumbers)], { type: 'image/jpeg' });
         }
-        const byteArray = new Uint8Array(byteNumbers);
-        const blob = new Blob([byteArray], { type: 'image/jpeg' });
+
         const imageFile = new File([blob], 'vybe.jpg', { type: 'image/jpeg' });
         void nsfwScanImage(imageFile)
           .then((scanResult) => {
@@ -1075,7 +1089,6 @@ export function ChatView() {
           })
           .catch(() => {});
 
-        // PHASE 3: Upload image (don't wait on safety scan)
         phase = 'storage-upload';
         
         const fileName = `${profile.user_id}/${Date.now()}_vybe.jpg`;
@@ -1095,10 +1108,8 @@ export function ChatView() {
           .from('chat-media')
           .getPublicUrl(fileName);
 
-        const { data: signed } = await db.storage.from('chat-media').createSignedUrl(fileName, 3600);
-        mediaUrl = signed?.signedUrl || publicUrl;
+        mediaUrl = publicUrl;
         
-        // Validate URL
         if (!mediaUrl || mediaUrl.includes('undefined')) {
           markFailed('Failed to get media URL', phase);
           return;
@@ -1106,11 +1117,8 @@ export function ChatView() {
       }
 
       phase = 'db-insert';
-      console.log('[VYBE] Inserting message with mediaUrl:', mediaUrl?.substring(0, 80));
 
       const expiresAt = expiresAtForViewMode('view_once');
-
-      void repairConversationForSend(conversationId, profileId, otherMember?.id ?? null).catch(() => {});
 
       const { data: realMessage, error: sendError } = await insertDmMessage(
         {
@@ -1124,7 +1132,13 @@ export function ChatView() {
           expires_at: expiresAt,
           reply_to_id: replyingTo?.id ?? null,
         },
-        { otherProfileId: otherMember?.id ?? null },
+        {
+          otherProfileId: otherMember?.id ?? null,
+          push: {
+            senderName: senderPushName,
+            preview: isVideo ? '🎬 New Snap' : '📸 New Snap',
+          },
+        },
       );
 
       if (sendError || !realMessage) {

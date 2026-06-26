@@ -50,7 +50,7 @@ const NOTIFICATION_TEXT: Record<NotificationType, string> = {
   friend_request: 'sent you a friend request',
   friend_accepted: 'accepted your friend request',
   friend_declined: 'declined your friend request',
-  message: 'sent you a message',
+  message: 'sent you a chat',
   mention: 'mentioned you',
   missed_call: 'tried to call you',
   announcement: 'posted an announcement',
@@ -832,6 +832,58 @@ function NotificationRow({ notification, index, isRead, isLast }: NotificationRo
 
   const config = ICON_CONFIG[notification.type] || ICON_CONFIG.announcement;
   const Icon = config.icon;
+  const isChatNotification =
+    notification.type === 'message' || notification.type === 'missed_call';
+  const chatPreview =
+    notification.body?.trim() ||
+    (notification.type === 'missed_call' ? 'Missed call' : 'New Chat');
+
+  if (isChatNotification) {
+    const displayName = actor.display_name || actor.username || 'Someone';
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: 6 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: index * 0.03, duration: 0.28 }}
+        onMouseEnter={handleMouseEnter}
+        onClick={handleClick}
+        className={cn(
+          'flex items-center gap-3 px-4 py-3.5 cursor-pointer select-none',
+          'transition-colors duration-150 active:bg-foreground/[0.06]',
+          !isLast && 'border-b border-border/15',
+          notification.read && 'opacity-55',
+        )}
+      >
+        <Avatar className="h-12 w-12 flex-shrink-0">
+          <AvatarImage src={actor.avatar_url || undefined} className="object-cover" />
+          <AvatarFallback className="bg-muted text-foreground font-semibold">
+            {avatarInitial(actor.username)}
+          </AvatarFallback>
+        </Avatar>
+
+        <div className="flex-1 min-w-0">
+          <p className="text-[15px] leading-snug truncate">
+            <span className={cn('font-semibold', !notification.read && 'text-foreground')}>
+              {displayName}
+            </span>{' '}
+            <span className="text-muted-foreground font-normal">
+              {notification.type === 'missed_call' ? 'called you' : 'sent you a chat'}
+            </span>
+          </p>
+          <p className="text-[13px] text-muted-foreground/80 truncate mt-0.5">{chatPreview}</p>
+        </div>
+
+        <div className="flex flex-col items-end gap-1.5 flex-shrink-0 pl-1">
+          {!notification.read && (
+            <span className="w-2 h-2 rounded-full bg-[#0095FF] shadow-[0_0_0_2px_hsl(var(--background))]" />
+          )}
+          <span className="text-[11px] text-muted-foreground/60 tabular-nums">
+            {compactTime(notification.created_at)}
+          </span>
+        </div>
+      </motion.div>
+    );
+  }
 
   return (
     <motion.div

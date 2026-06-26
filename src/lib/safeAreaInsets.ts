@@ -56,7 +56,7 @@ function fallbackGap(device: DeviceType): number {
 function fallbackBottom(device: DeviceType): number {
   if (device === 'desktop') return 0;
   // Despia / native WebViews often report 0 for env(safe-area-inset-bottom).
-  return isDespiaRuntime() ? 28 : 12;
+  return isDespiaRuntime() ? 52 : 16;
 }
 
 function fallbackRight(device: DeviceType): number {
@@ -102,6 +102,11 @@ export function applySafeAreaCssVars(
     body.style.setProperty('--sar', `${resolved.right}px`);
     body.style.setProperty('--sab', `${resolved.bottom}px`);
     body.style.setProperty('--sal', `${resolved.left}px`);
+    if (isDespiaRuntime()) {
+      root.setAttribute('data-native-shell', 'true');
+    } else {
+      root.removeAttribute('data-native-shell');
+    }
   };
 
   apply();

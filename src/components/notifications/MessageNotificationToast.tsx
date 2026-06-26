@@ -1,10 +1,8 @@
-import { memo, useCallback, useRef, useState } from 'react';
+import { memo, useCallback } from 'react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
-import { MessageCircle } from 'lucide-react';
 import { navigationRef } from '@/lib/navigationRef';
-import { DMHoldMenu } from '@/components/chat/DMHoldMenu';
 
 interface MessageNotificationToastProps {
   toastId: string | number;
@@ -13,192 +11,58 @@ interface MessageNotificationToastProps {
   senderAvatar: string | null;
   messagePreview: string;
   conversationId: string;
-  messageId?: string;
-  messageContent?: string | null;
-  mediaUrl?: string | null;
-  mediaType?: string | null;
 }
 
 /**
- * Fresh rounded message notification toast
- * Tap navigates to DM, long-press opens the same hold menu as DM bubbles
+ * Snapchat-style in-app chat banner — dark pill, avatar + name + preview, tap to open.
  */
 export const MessageNotificationToast = memo(function MessageNotificationToast({
   toastId,
-  senderId,
   senderName,
   senderAvatar,
   messagePreview,
   conversationId,
-  messageId,
-  messageContent,
-  mediaUrl,
-  mediaType,
 }: MessageNotificationToastProps) {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const [isPressed, setIsPressed] = useState(false);
-  const [showMenu, setShowMenu] = useState(false);
-
-  // Long-press detection
-  const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const touchStartRef = useRef<{ x: number; y: number } | null>(null);
-  const menuOpenedRef = useRef(false);
-  const LONG_PRESS_MS = 400;
-  const MOVE_TOLERANCE = 10;
-
-  const clearLongPress = useCallback(() => {
-    if (longPressTimerRef.current) {
-      clearTimeout(longPressTimerRef.current);
-      longPressTimerRef.current = null;
-    }
-  }, []);
-
   const navigateToDM = useCallback(() => {
     toast.dismiss(toastId);
-    if (navigationRef.current) {
-      navigationRef.current(`/messages/${conversationId}`);
-    } else {
-      window.location.href = `/messages/${conversationId}`;
-    }
+    const route = `/messages/${conversationId}`;
+    if (navigationRef.current) navigationRef.current(route);
+    else window.location.href = route;
   }, [toastId, conversationId]);
 
-  const handleTouchStart = useCallback((e: React.TouchEvent) => {
-    const touch = e.touches[0];
-    touchStartRef.current = { x: touch.clientX, y: touch.clientY };
-    setIsPressed(true);
-    longPressTimerRef.current = setTimeout(() => {
-      menuOpenedRef.current = true;
-      setShowMenu(true);
-      if ('vibrate' in navigator) navigator.vibrate(10);
-    }, LONG_PRESS_MS);
-  }, []);
-
-  const handleTouchMove = useCallback((e: React.TouchEvent) => {
-    if (!touchStartRef.current) return;
-    const touch = e.touches[0];
-    const dx = Math.abs(touch.clientX - touchStartRef.current.x);
-    const dy = Math.abs(touch.clientY - touchStartRef.current.y);
-    if (dx > MOVE_TOLERANCE || dy > MOVE_TOLERANCE) {
-      clearLongPress();
-    }
-  }, [clearLongPress]);
-
-  const handleTouchEnd = useCallback(() => {
-    clearLongPress();
-    setIsPressed(false);
-    touchStartRef.current = null;
-    // If menu was not opened, treat as tap → navigate
-    if (!menuOpenedRef.current) {
-      navigateToDM();
-    }
-  }, [clearLongPress, navigateToDM]);
-
-  const handleClick = useCallback((e: React.MouseEvent) => {
-    // On desktop, click navigates. Menu is via right-click.
-    if (!menuOpenedRef.current) {
-      navigateToDM();
-    }
-  }, [navigateToDM]);
-
-  const handleContextMenu = useCallback((e: React.MouseEvent) => {
-    e.preventDefault();
-    menuOpenedRef.current = true;
-    setShowMenu(true);
-  }, []);
-
-  const handleMenuClose = useCallback(() => {
-    setShowMenu(false);
-    menuOpenedRef.current = false;
-  }, []);
-
   return (
-    <>
-      <div 
-        ref={containerRef}
-        onClick={handleClick}
-        onContextMenu={handleContextMenu}
-        onTouchStart={handleTouchStart}
-        onTouchMove={handleTouchMove}
-        onTouchEnd={handleTouchEnd}
-        onTouchCancel={() => { clearLongPress(); setIsPressed(false); }}
-        className={cn(
-          "flex items-center gap-3 px-4 py-3 w-[320px] max-w-[calc(100vw-2rem)] cursor-pointer",
-          "bg-card/95 backdrop-blur-2xl rounded-[1.25rem]",
-          "border border-primary/15",
-          "shadow-[0_8px_32px_hsl(var(--primary)/0.12),0_2px_8px_hsl(var(--foreground)/0.06)]",
-          "transition-all duration-150 ease-out",
-          "touch-manipulation select-none",
-          isPressed ? "scale-[0.97] shadow-[0_4px_16px_hsl(var(--primary)/0.08)]" : "hover:scale-[1.01]"
-        )}
-        style={{ 
-          outline: 'none',
-          WebkitTapHighlightColor: 'transparent',
-        }}
-        tabIndex={-1}
-      >
-        {/* Primary accent bar */}
-        <div className="absolute left-0 top-3 bottom-3 w-[3px] rounded-full bg-primary" />
-        
-        {/* Avatar with online ring */}
-        <div className="relative flex-shrink-0">
-          <Avatar className="h-10 w-10 ring-2 ring-primary/25 ring-offset-2 ring-offset-card">
-            <AvatarImage src={senderAvatar || undefined} />
-            <AvatarFallback className="bg-primary/15 text-primary text-sm font-bold">
-              {senderName[0]?.toUpperCase()}
-            </AvatarFallback>
-          </Avatar>
-          {/* Live indicator dot */}
-          <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full bg-primary border-2 border-card" />
-        </div>
-        
-        {/* Content */}
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-1.5">
-            <p className="font-bold text-[0.8125rem] text-foreground truncate">
-              {senderName}
-            </p>
-            <span className="text-[10px] text-muted-foreground font-medium">now</span>
-          </div>
-          <p className="text-xs text-muted-foreground truncate mt-0.5 leading-relaxed">
-            {messagePreview}
-          </p>
-        </div>
-        
-        {/* Chat bubble icon */}
-        <div className={cn(
-          "flex-shrink-0 w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center",
-          "transition-all duration-150",
-          isPressed ? "bg-primary/20 scale-90" : ""
-        )}>
-          <MessageCircle className="w-4 h-4 text-primary" />
-        </div>
+    <button
+      type="button"
+      onClick={navigateToDM}
+      className={cn(
+        'flex items-center gap-3 w-[min(100vw-1.25rem,22rem)] mx-auto px-3.5 py-3',
+        'rounded-2xl bg-[#121212]/95 backdrop-blur-xl',
+        'border border-white/10 shadow-[0_12px_40px_rgba(0,0,0,0.45)]',
+        'text-left touch-manipulation select-none active:scale-[0.98] transition-transform',
+      )}
+      style={{ WebkitTapHighlightColor: 'transparent' }}
+    >
+      <Avatar className="h-11 w-11 flex-shrink-0 ring-2 ring-white/15">
+        <AvatarImage src={senderAvatar || undefined} className="object-cover" />
+        <AvatarFallback className="bg-white/10 text-white text-sm font-bold">
+          {senderName[0]?.toUpperCase()}
+        </AvatarFallback>
+      </Avatar>
+
+      <div className="flex-1 min-w-0">
+        <p className="text-[15px] font-semibold text-white truncate leading-tight">
+          {senderName}
+        </p>
+        <p className="text-[13px] text-white/65 truncate mt-0.5 leading-snug">
+          {messagePreview || 'Sent you a chat'}
+        </p>
       </div>
 
-      {/* Shared DM hold menu */}
-      <DMHoldMenu
-        open={showMenu}
-        onClose={handleMenuClose}
-        messageContent={messageContent}
-        mediaUrl={mediaUrl}
-        mediaType={mediaType}
-        isOwn={false}
-        onReaction={() => {
-          // From notification, navigate to DM after reacting
-          handleMenuClose();
-          navigateToDM();
-        }}
-        onReply={() => {
-          handleMenuClose();
-          navigateToDM();
-        }}
-      />
-    </>
+      <span className="text-[11px] font-medium text-white/40 flex-shrink-0">now</span>
+    </button>
   );
 });
 
-/**
- * Show a message notification with smooth entrance
- */
 export function showMessageNotification(
   senderId: string,
   senderName: string,
@@ -210,7 +74,13 @@ export function showMessageNotification(
   mediaUrl?: string | null,
   mediaType?: string | null,
 ) {
-  const toastId = toast.custom(
+  void messageId;
+  void messageContent;
+  void mediaUrl;
+  void mediaType;
+  void senderId;
+
+  return toast.custom(
     (id) => (
       <MessageNotificationToast
         toastId={id}
@@ -219,22 +89,13 @@ export function showMessageNotification(
         senderAvatar={senderAvatar}
         messagePreview={messagePreview}
         conversationId={conversationId}
-        messageId={messageId}
-        messageContent={messageContent}
-        mediaUrl={mediaUrl}
-        mediaType={mediaType}
       />
     ),
     {
-      duration: 4000,
+      duration: 4500,
       position: 'top-center',
-      className: '!bg-transparent !border-none !shadow-none !p-0 !outline-none',
-      style: {
-        outline: 'none',
-        boxShadow: 'none',
-      },
-    }
+      className: '!bg-transparent !border-none !shadow-none !p-0 !outline-none !mt-[calc(var(--sat,env(safe-area-inset-top,0px))+0.35rem)]',
+      style: { outline: 'none', boxShadow: 'none' },
+    },
   );
-  
-  return toastId;
 }

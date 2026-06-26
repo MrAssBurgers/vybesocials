@@ -10,6 +10,7 @@ import {
   resetMessagesReady,
 } from '@/lib/dmMembershipRepair';
 import { withTimeout } from '@/lib/withTimeout';
+import { sendMessagePush } from '@/lib/pushNotifications';
 import type { Message, ViewMode } from '@/hooks/useMessages';
 
 const DM_SEND_LOG_KEY = 'vybe-dm-send-log';
@@ -60,6 +61,53 @@ export interface DmInsertPayload {
   reply_to_id?: string | null;
 }
 
+export interface DmInsertOptions {
+  otherProfileId?: string | null;
+  maxAttempts?: number;
+  /** Fire a push to the peer when server trigger is delayed (phone locked / background). */
+  push?: {
+    senderName: string;
+    preview?: string;
+    isGroup?: boolean;
+    groupName?: string;
+  };
+}
+
+function previewForPush(payload: DmInsertPayload): string {
+  if (payload.content?.trim()) return payload.content.trim().slice(0, 80);
+  switch (payload.media_type) {
+    case 'vybe':
+      return '📸 New Snap';
+    case 'image':
+      return '📷 Photo';
+    case 'video':
+      return '🎬 Video';
+    case 'voice':
+      return '🎤 Voice message';
+    case 'gif':
+      return 'GIF';
+    default:
+      return payload.media_url ? '📎 Media' : 'New message';
+  }
+}
+
+function firePeerPush(
+  payload: DmInsertPayload,
+  otherProfileId: string | null,
+  push?: DmInsertOptions['push'],
+): void {
+  if (!otherProfileId || otherProfileId === payload.sender_id || !push?.senderName) return;
+  const preview = push.preview || previewForPush(payload);
+  void sendMessagePush(
+    otherProfileId,
+    push.senderName,
+    preview,
+    payload.conversation_id,
+    push.isGroup,
+    push.groupName,
+  ).catch(() => {});
+}
+
 const MESSAGE_SELECT = `
   *,
   sender:profiles!sender_id(id, username, avatar_url, display_name)
@@ -96,7 +144,7 @@ async function repairSender(
 /** Insert a DM row with permission retry + cloud-function fallback. */
 export async function insertDmMessage(
   payload: DmInsertPayload,
-  opts?: { otherProfileId?: string | null; maxAttempts?: number },
+  opts?: DmInsertOptions,
 ): Promise<{ data: Message | null; error: { message: string; code?: string } | null }> {
   const maxAttempts = opts?.maxAttempts ?? 3;
   let senderId = payload.sender_id;
@@ -125,6 +173,7 @@ export async function insertDmMessage(
         attempt: attempt + 1,
         ok: true,
       });
+      firePeerPush(payload, otherProfileId, opts?.push);
       return { data: normalizeMessage(result.data as Record<string, unknown>), error: null };
     }
 
@@ -145,6 +194,7 @@ export async function insertDmMessage(
           conversationId: payload.conversation_id,
           ok: true,
         });
+        firePeerPush(payload, otherProfileId, opts?.push);
         return { data: cloud.data, error: null };
       }
       logDmSend({
