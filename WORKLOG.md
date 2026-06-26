@@ -6,6 +6,7 @@ Use this file as the Lovable -> Cursor handoff each session.
 - **Vybe Snap:** Server-backed view state — tap once, hold-to-replay once, then `view_mode: vybe_locked` (persists after refresh)
 - **Composer:** Desktop no fake keyboard inset (fixes freeze); native lift 7rem + keyboard scroll-into-view
 - **Verified:** `npm run build` PASS · `npm run lint` PASS
+- **Shipped:** git `d23f4064` · Firebase staging https://vybe-daaab.web.app (2026-06-17)
 - **Next:** Lovable → Share → Publish for vybehub.app
 
 ## DM composer + keyboard + Snapchat notifications (2026-06-17)
