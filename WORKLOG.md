@@ -2,6 +2,15 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## Notification system hardening (2026-06-17)
+- **Problem:** Push only worked after manual Despia Developer relink; duplicate DM pushes; no server-side "viewing chat" suppression; scattered registration paths racing
+- **Client:** `NotificationRegistrationService` — single mutexed pipeline with exponential backoff; lifecycle hooks (launch, login, token refresh, foreground, network reconnect); removed placeholder `despia:{id}` tokens; `linkDespiaExternalId` profile-id only (no dual auth uid); `relinkDespiaPushInBackground` delegates to service; removed client DM push fallback in `dmSendCore`
+- **Server:** `smartPushGate.ts` — skip push when viewing conversation, muted, or blocked; DM delivery logging to `push_delivery_logs`; `linkOnesignalUser` logs to `push_registration_logs` with `device_id` + `reason`; FCM skips OneSignal UUID tokens (fixes duplicate native push)
+- **Diagnostics:** Admin page `/settings/notification-diagnostics` — permission, tokens, registration history, test push, force re-register, copy debug
+- **Verified:** `npm run build` PASS · `npm run lint` PASS · functions build PASS
+- **Deployed:** Firebase staging https://vybe-daaab.web.app — hosting + `linkOnesignalUser`, `getPushSubscriptionStatus`, `sendPushNotification`, `onDmMessageCreated` (2026-06-17)
+- **Next:** Verify on Despia device without manual relink · Lovable Publish for vybehub.app · extend smart gate to calls/social triggers · rich notification grouping
+
 ## Login endless wait fix (2026-06-17)
 - **Problem:** After entering credentials, login spinner never ended — `gatePending` blocked redirect while `signInWithPassword` hung; stale `vybe-oauth-pending` slowed auth init
 - **Fix:** Removed `gatePending` navigation lock; 12s sign-in timeout + fast token path; recover from `auth.currentUser` on timeout; OAuth pending TTL (3 min) + boot cleanup; `INITIAL_SESSION` null unblocks login UI immediately

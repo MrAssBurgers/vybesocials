@@ -3,6 +3,7 @@ import { db } from './_shared/admin.js';
 import { dispatchDmPushToProfile, dispatchCallPushToProfile, messagePreview } from './_shared/fcmPush.js';
 import { resolvePushTargetProfileId } from './_shared/onesignalPush.js';
 import { isBlockedByQuietHours, isPushAllowedForType, loadNotificationPreferences, sanitizeDmPushBody, } from './_shared/pushPreferences.js';
+import { logPushDelivery, shouldSkipRecipientPush } from './_shared/smartPushGate.js';
 function asString(value) {
     if (typeof value === 'string' && value.trim())
         return value.trim();
@@ -128,6 +129,16 @@ async function notifyDmRecipients(message, messageId) {
             return;
         if (isBlockedByQuietHours(type, prefs))
             return;
+        const gate = await shouldSkipRecipientPush({
+            recipientProfileId,
+            senderProfileId: canonicalSenderId,
+            conversationId,
+            type,
+        });
+        if (gate.skip) {
+            console.info('[onDmMessageCreated] skipped push', recipientProfileId, gate.reason);
+            return;
+        }
         const body = sanitizeDmPushBody(rawBody, type, prefs);
         const pushResult = await dispatchDmPushToProfile(recipientProfileId, {
             title,
@@ -144,6 +155,15 @@ async function notifyDmRecipients(message, messageId) {
                 preview: body,
                 path: url,
             },
+        });
+        await logPushDelivery({
+            profileId: recipientProfileId,
+            type,
+            success: pushResult.sent > 0,
+            channel: pushResult.onesignal > 0 ? 'onesignal' : pushResult.fcm > 0 ? 'fcm' : 'web',
+            conversationId,
+            messageId,
+            ...(pushResult.sent === 0 ? { errorCode: 'no_targets', errorMessage: 'No push tokens found' } : {}),
         });
         if (pushResult.sent === 0) {
             console.warn('[onDmMessageCreated] no push targets for', recipientProfileId, conversationId);

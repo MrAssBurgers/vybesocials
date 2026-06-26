@@ -3,7 +3,8 @@ import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth';
 import { toast } from 'sonner';
 import { isPreviewServiceWorkerDisabled, getVybeServiceWorkerRegistration } from '@/lib/serviceWorker';
-import { acceptDespiaPushPermission, linkOneSignalUser, checkDespiaPushPermission, relinkDespiaPushInBackground } from '@/lib/despiaOneSignal';
+import { acceptDespiaPushPermission, linkOneSignalUser, checkDespiaPushPermission } from '@/lib/despiaOneSignal';
+import { registerPushDevice } from '@/lib/notifications/NotificationRegistrationService';
 import { isDespiaRuntime, openAppSettings } from '@/lib/despiaBridge';
 import { pushBlockedSettingsMessage } from '@/lib/pushSettingsCopy';
 
@@ -171,7 +172,7 @@ export function usePushNotifications() {
       if (intent) {
         setIsSubscribed(true);
         if (isDespiaRuntime()) {
-          relinkDespiaPushInBackground(profile.id, data ? 'background-resync' : 'background-relink');
+          void registerPushDevice('health_check');
         }
       } else {
         setIsSubscribed(!!data);
@@ -205,30 +206,9 @@ export function usePushNotifications() {
     setIsSubscribed(true);
     setPermission('granted');
 
-    try {
-      const { error: tokenError } = await db.from('push_tokens').upsert({
-        user_id: profile.id,
-        token: `despia:${profile.id}`,
-        platform: 'despia',
-      }, { onConflict: 'user_id,platform' });
-      if (tokenError) {
-        console.error('[Push] token upsert failed', tokenError);
-        writeIntent(profile.id, false);
-        setIsSubscribed(false);
-        toast.error('Could not register this device for push. Try again.');
-        return false;
-      }
-    } catch (err) {
-      console.error('[Push] placeholder token insert failed', err);
-      writeIntent(profile.id, false);
-      setIsSubscribed(false);
-      toast.error('Could not register this device for push. Try again.');
-      return false;
-    }
-
     const existingPermission = await checkDespiaPushPermission();
     if (existingPermission === true) {
-      relinkDespiaPushInBackground(profile.id, 'permission-grant-resync');
+      void registerPushDevice('permission_granted');
       toast.success('Push notifications enabled!');
       return true;
     }
@@ -250,6 +230,7 @@ export function usePushNotifications() {
       }
     }
 
+    void registerPushDevice('permission_granted', { requestPermission: true });
     toast.success('Push notifications enabled!');
     return true;
   };

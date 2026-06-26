@@ -67,23 +67,15 @@ function fireDespiaSchemeNow(scheme: string): void {
 }
 
 /**
- * Official Despia OneSignal link — call on every authenticated load.
+ * Official Despia OneSignal link — profile id only (canonical push target).
  * https://setup.despia.com — setonesignalplayerid://?user_id=YOUR_USER_ID
  */
-export function linkDespiaExternalId(externalId: string, trigger = 'link', authUserId?: string): void {
+export function linkDespiaExternalId(externalId: string, trigger = 'link'): void {
   if (!externalId || !isDespiaRuntime()) return;
   const encoded = encodeURIComponent(externalId);
   fireDespiaSchemeNow(`setonesignalplayerid://?user_id=${encoded}`);
   fireDespiaSchemeNow(`setOneSignalPlayerId://?user_id=${encoded}`);
-  if (authUserId && authUserId !== externalId) {
-    const authEnc = encodeURIComponent(authUserId);
-    fireDespiaSchemeNow(`setonesignalplayerid://?user_id=${authEnc}`);
-  }
   console.log(`[OneSignal:${trigger}] linked external_id=${externalId}`);
-  void linkOneSignalUser(externalId).catch(() => {});
-  if (authUserId && authUserId !== externalId) {
-    void linkOneSignalUser(authUserId).catch(() => {});
-  }
 }
 
 /**
@@ -133,7 +125,7 @@ function normalizeId(value: unknown): string {
   return '';
 }
 
-function readWindowPlayerId(): string {
+export function readWindowPlayerId(): string {
   if (typeof window === 'undefined') return '';
   const w = window as unknown as Record<string, unknown>;
   for (const key of PLAYER_ID_KEYS) {
@@ -187,13 +179,16 @@ export async function persistDespiaPushToken(profileId: string, playerId = ''): 
   if (error) throw error;
 }
 
-export async function linkOneSignalUser(profileId: string, subscriptionId?: string): Promise<boolean> {
+export async function linkOneSignalUser(profileId: string, subscriptionId?: string, reason = 'client_link'): Promise<boolean> {
+  const { getOrCreateDeviceId } = await import('@/lib/notifications/pushDiagnostics');
   const { data, error } = await db.functions.invoke('link-onesignal-user', {
     body: {
       profileId,
       profile_id: profileId,
       subscriptionId: subscriptionId || undefined,
       platform: isDespiaRuntime() ? 'despia' : undefined,
+      device_id: getOrCreateDeviceId(),
+      reason,
     },
   });
   if (error) {
@@ -499,9 +494,22 @@ export async function sendDespiaTestPushNotification(profileId: string): Promise
 export function relinkDespiaPushInBackground(
   externalId: string,
   trigger: string,
-  authUserId?: string,
+  _authUserId?: string,
   _requestPermission = false,
 ): void {
-  linkDespiaExternalId(externalId, trigger, authUserId);
-  startBackgroundPlayerIdSync(externalId);
+  void import('@/lib/notifications/NotificationRegistrationService').then(({ registerPushDevice }) => {
+    const reason = mapLegacyTrigger(trigger);
+    void registerPushDevice(reason);
+  });
+}
+
+function mapLegacyTrigger(trigger: string): import('@/lib/notifications/pushDiagnostics').PushRegistrationReason {
+  const t = trigger.toLowerCase();
+  if (t.includes('login') || t.includes('initial-session')) return 'login';
+  if (t.includes('token')) return 'token_refresh';
+  if (t.includes('permission')) return 'permission_granted';
+  if (t.includes('resume') || t.includes('foreground')) return 'foreground';
+  if (t.includes('relink') || t.includes('resync') || t.includes('health')) return 'health_check';
+  if (t.includes('signup')) return 'signup';
+  return 'app_launch';
 }

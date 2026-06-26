@@ -114,9 +114,10 @@ async function resolveProfileIdForAuth(authUid, explicit) {
 /** link-onesignal-user — register OneSignal external_id + store push tokens. */
 export const linkOnesignalUser = onCall({ secrets: ['ONESIGNAL_APP_ID', 'ONESIGNAL_REST_API_KEY'] }, async (request) => {
     const authUid = requireAuth(request);
-    const { onesignal_id, fcm_token, platform, voip_token, profile_id, profileId, subscriptionId } = (request.data || {});
+    const { onesignal_id, fcm_token, platform, voip_token, profile_id, profileId, subscriptionId, device_id, reason } = (request.data || {});
     const resolvedProfileId = await resolveProfileIdForAuth(authUid, profile_id || profileId);
     const resolvedPlatform = (platform || (subscriptionId ? 'despia' : 'web')).toLowerCase();
+    const deviceId = device_id || `${resolvedProfileId}_${resolvedPlatform}`;
     let subId = subscriptionId && subscriptionId.length >= 8 && !subscriptionId.startsWith('despia:')
         ? subscriptionId
         : undefined;
@@ -188,6 +189,7 @@ export const linkOnesignalUser = onCall({ secrets: ['ONESIGNAL_APP_ID', 'ONESIGN
         token: fcm_token || subId || null,
         voip_token: voip_token || null,
         platform: resolvedPlatform,
+        device_id: deviceId,
         updated_at: new Date().toISOString(),
     }, { merge: true });
     if (subId) {
@@ -195,9 +197,20 @@ export const linkOnesignalUser = onCall({ secrets: ['ONESIGNAL_APP_ID', 'ONESIGN
             user_id: resolvedProfileId,
             platform: 'despia',
             token: subId,
+            device_id: deviceId,
             updated_at: new Date().toISOString(),
         }, { merge: true });
     }
+    await db.collection('push_registration_logs').add({
+        profile_id: resolvedProfileId,
+        auth_uid: authUid,
+        platform: resolvedPlatform,
+        device_id: deviceId,
+        subscription_id: subId || null,
+        reason: reason || 'link',
+        linked: onesignalLinked || !!subId,
+        created_at: new Date().toISOString(),
+    });
     return {
         ok: true,
         success: onesignalLinked || !!subId,

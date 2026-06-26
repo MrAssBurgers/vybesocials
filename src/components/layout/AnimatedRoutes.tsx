@@ -118,6 +118,7 @@ const LocalIndex = lazy(() => import("@/pages/LocalIndex"));
 const LocalCity = lazy(() => import("@/pages/LocalCity"));
 const BriefPage = lazy(() => import("@/pages/BriefPage"));
 const SharedThemeLink = lazy(() => import("@/pages/SharedThemeLink"));
+const NotificationDiagnostics = lazy(() => import("@/pages/NotificationDiagnostics"));
 
 // Debug panels — lazy load both
 const DebugPanel = lazy(() => import("@/components/debug/DebugPanel").then(m => ({ default: m.DebugPanel })));
@@ -215,6 +216,7 @@ export function AnimatedRoutes() {
             <Route path="/notifications" element={<ProtectedRoute><Notifications /></ProtectedRoute>} />
             <Route path="/search" element={<ProtectedRoute><SearchPage /></ProtectedRoute>} />
             <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
+            <Route path="/settings/notification-diagnostics" element={<ProtectedRoute><NotificationDiagnostics /></ProtectedRoute>} />
             <Route path="/u/:username" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
             <Route path="/profile/:usernameOrId" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
             <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />

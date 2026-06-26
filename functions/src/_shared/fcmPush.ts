@@ -53,10 +53,16 @@ function isSkippableFcmToken(token: string): boolean {
   return false;
 }
 
+/** OneSignal subscription IDs are UUIDs — must not be sent via FCM (duplicate push). */
+function isOneSignalSubscriptionId(token: string): boolean {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(token.trim());
+}
+
 function looksLikeFcmToken(token: string): boolean {
   const t = token.trim();
   if (isWebPushSubscriptionJson(t)) return false;
   if (isSkippableFcmToken(t)) return false;
+  if (isOneSignalSubscriptionId(t)) return false;
   return t.length >= 20 && !t.startsWith('http');
 }
 

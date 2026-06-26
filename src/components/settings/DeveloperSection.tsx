@@ -145,7 +145,7 @@ export function DeveloperSection() {
         )}
 
         {/* Despia Push Demo */}
-        <div className="mb-4 sm:mb-6">
+        <div className="mb-4 sm:mb-6 space-y-2">
           <Button
             variant="outline"
             className="w-full justify-between h-10 sm:h-12 text-xs sm:text-sm"
@@ -160,6 +160,22 @@ export function DeveloperSection() {
             </span>
             <ChevronRight className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
           </Button>
+          {debugPanel?.isAdmin && (
+            <Button
+              variant="outline"
+              className="w-full justify-between h-10 sm:h-12 text-xs sm:text-sm"
+              onClick={() => {
+                haptics.tap();
+                navigate('/settings/notification-diagnostics');
+              }}
+            >
+              <span className="flex items-center gap-2">
+                <Bell className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                Notification diagnostics
+              </span>
+              <ChevronRight className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+            </Button>
+          )}
         </div>
 
         {/* Feature Flags */}

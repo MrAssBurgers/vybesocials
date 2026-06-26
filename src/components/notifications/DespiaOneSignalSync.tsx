@@ -2,8 +2,14 @@ import { useEffect } from 'react';
 import { db } from '@/lib/firebase';
 import { useQueryClient } from '@tanstack/react-query';
 import { isOneSignalBypassHost } from '@/lib/lovablePreview';
-import { linkDespiaExternalId, relinkDespiaPushInBackground } from '@/lib/despiaOneSignal';
 import { isDespiaRuntime } from '@/lib/despiaBridge';
+import {
+  installPushRegistrationLifecycle,
+  registerPushDevice,
+  unregisterPushDevice,
+  healthCheckPushRegistration,
+} from '@/lib/notifications/NotificationRegistrationService';
+import { recordPushOpened, recordPushReceived } from '@/lib/notifications/pushDiagnostics';
 import { navigationRef } from '@/lib/navigationRef';
 import {
   buildNotificationRoute,
@@ -85,7 +91,13 @@ export function DespiaOneSignalSync() {
         });
 
         if (isDespiaRuntime()) {
-          relinkDespiaPushInBackground(externalId, trigger, authUserId);
+          const regReason =
+            trigger === 'login' || trigger === 'initial-session'
+              ? 'login'
+              : trigger === 'token-refresh'
+                ? 'token_refresh'
+                : 'app_launch';
+          void registerPushDevice(regReason as 'login' | 'token_refresh' | 'app_launch');
           if (trigger === 'login' || trigger === 'initial-session') {
             void import('@/lib/nativeIncomingCall').then((m) => m.ensureIncomingCallPermissions());
           }
@@ -156,6 +168,7 @@ export function DespiaOneSignalSync() {
     const clearPlayerId = () => {
       webOneSignalLinkedFor = null;
       webOneSignalLinkInFlight = null;
+      void unregisterPushDevice();
       try {
         const w = window as OneSignalDeferredWindow;
         if (!Array.isArray(w.OneSignalDeferred)) {
@@ -173,25 +186,13 @@ export function DespiaOneSignalSync() {
     };
 
 
-    const relinkDespiaPush = () => {
-      if (!isDespiaRuntime()) return;
-      void db.auth.getUser().then(async ({ data }) => {
-        if (!data.user?.id) return;
-        const externalId = await resolveProfileExternalId(data.user.id);
-        if (!externalId) return;
-        relinkDespiaPushInBackground(externalId, 'foreground-relink', data.user.id);
-      });
-    };
-
     const relinkOnResume = async () => {
       refresh();
-      if (!isDespiaRuntime()) return;
-      const { data } = await db.auth.getUser();
-      if (!data.user?.id) return;
-      const externalId = await resolveProfileExternalId(data.user.id);
-      if (!externalId) return;
-      relinkDespiaPushInBackground(externalId, 'app-resume', data.user.id);
+      void registerPushDevice('foreground');
+      void healthCheckPushRegistration();
     };
+
+    const teardownLifecycle = installPushRegistrationLifecycle();
 
     // INITIAL_SESSION / SIGNED_IN handle linking — skip redundant cold-start pass.
     const { data: { subscription } } = db.auth.onAuthStateChange((event, session) => {
@@ -231,11 +232,7 @@ export function DespiaOneSignalSync() {
     window.addEventListener('app-resumed', relinkOnResume);
     window.addEventListener('pageshow', relinkOnResume);
     window.addEventListener('despia:push', refresh as EventListener);
-
-    // Re-link push subscription periodically while app is open (keeps background delivery fresh).
-    const relinkInterval = window.setInterval(() => {
-      if (document.visibilityState === 'visible') relinkDespiaPush();
-    }, 5 * 60 * 1000);
+    window.addEventListener('despia:push', () => recordPushReceived());
 
     // Despia notification tap handler
     // data.path (preferred) or data.url, and re-emits metadata for listeners.
@@ -279,19 +276,20 @@ export function DespiaOneSignalSync() {
           }
         }
         refresh();
+        recordPushOpened();
       } catch (err) {
         console.warn('[Despia] onNotificationEvent handler failed:', err);
       }
     };
 
     return () => {
+      teardownLifecycle();
       subscription.unsubscribe();
       window.removeEventListener('focus', refresh);
       document.removeEventListener('visibilitychange', onVisibility);
       window.removeEventListener('app-resumed', relinkOnResume);
       window.removeEventListener('pageshow', relinkOnResume);
       window.removeEventListener('despia:push', refresh as EventListener);
-      window.clearInterval(relinkInterval);
       w.onNotificationEvent = previousHandler;
     };
   }, [queryClient]);
