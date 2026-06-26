@@ -2,7 +2,7 @@ import { useEffect } from 'react';
 import { db } from '@/lib/firebase';
 import { useQueryClient } from '@tanstack/react-query';
 import { isOneSignalBypassHost } from '@/lib/lovablePreview';
-import { relinkDespiaPushInBackground, checkDespiaPushPermission } from '@/lib/despiaOneSignal';
+import { linkDespiaExternalId } from '@/lib/despiaOneSignal';
 import { isDespiaRuntime } from '@/lib/despiaBridge';
 import { navigationRef } from '@/lib/navigationRef';
 import {
@@ -10,8 +10,6 @@ import {
   normalizeNotificationPayload,
 } from '@/lib/notificationActions';
 
-
-const PUSH_PERM_KEY = 'vybe_push_permission_asked_v1';
 let webOneSignalLinkedFor: string | null = null;
 let webOneSignalLinkInFlight: Promise<void> | null = null;
 type OneSignalApi = {
@@ -86,15 +84,12 @@ export function DespiaOneSignalSync() {
           despiaNative: isDespiaRuntime(),
         });
 
-        const permission = await checkDespiaPushPermission();
-        const shouldAskPermission = permission !== true;
-        relinkDespiaPushInBackground(
-          externalId,
-          trigger,
-          shouldAskPermission || trigger === 'login',
-        );
-        if (trigger === 'login' || trigger === 'initial-session') {
-          void import('@/lib/nativeIncomingCall').then((m) => m.ensureIncomingCallPermissions());
+        if (isDespiaRuntime()) {
+          linkDespiaExternalId(externalId, trigger);
+          if (trigger === 'login' || trigger === 'initial-session') {
+            void import('@/lib/nativeIncomingCall').then((m) => m.ensureIncomingCallPermissions());
+          }
+          return;
         }
 
         // Web OneSignal SDK — one login+tags pass per external id (avoids 409 conflicts).
@@ -178,37 +173,13 @@ export function DespiaOneSignalSync() {
     };
 
 
-    const requestPushPermissionOnce = () => {
-      if (!isDespiaRuntime()) {
-        console.log('[OneSignal:permission-grant] skipped — not Despia native');
-        return;
-      }
-      try {
-        const alreadyAsked = localStorage.getItem(PUSH_PERM_KEY);
-        if (alreadyAsked) return;
-        localStorage.setItem(PUSH_PERM_KEY, String(Date.now()));
-        void db.auth.getUser().then(async ({ data }) => {
-          if (!data.user?.id) return;
-          const externalId = await resolveProfileExternalId(data.user.id);
-          if (!externalId) return;
-          console.log('[OneSignal:permission-grant] prompting + linking', {
-            primaryExternalId_profileId: externalId,
-            backupAlias_authUid: data.user.id,
-          });
-          relinkDespiaPushInBackground(externalId, 'permission-grant', true);
-        });
-      } catch (err) {
-        console.warn('[OneSignal:permission-grant] failed:', err);
-      }
-    };
-
-    const relinkDespiaPush = (requestPermission = false) => {
+    const relinkDespiaPush = () => {
       if (!isDespiaRuntime()) return;
       void db.auth.getUser().then(async ({ data }) => {
         if (!data.user?.id) return;
         const externalId = await resolveProfileExternalId(data.user.id);
         if (!externalId) return;
-        relinkDespiaPushInBackground(externalId, 'foreground-relink', requestPermission);
+        linkDespiaExternalId(externalId, 'foreground-relink');
       });
     };
 
@@ -219,17 +190,7 @@ export function DespiaOneSignalSync() {
       if (!data.user?.id) return;
       const externalId = await resolveProfileExternalId(data.user.id);
       if (!externalId) return;
-      const permitted = await checkDespiaPushPermission();
-      if (permitted) {
-        await relinkDespiaPushInBackground(externalId, 'app-resume', false);
-      } else {
-        try {
-          localStorage.removeItem(PUSH_PERM_KEY);
-        } catch {
-          /* ignore */
-        }
-        relinkDespiaPush(true);
-      }
+      linkDespiaExternalId(externalId, 'app-resume');
     };
 
     // INITIAL_SESSION / SIGNED_IN handle linking — skip redundant cold-start pass.
@@ -251,30 +212,7 @@ export function DespiaOneSignalSync() {
         return;
       }
       void setPlayerIdForAuthUser(session.user.id, session.user.email, trigger);
-      if (
-        isDespiaRuntime() &&
-        (event === 'SIGNED_IN' || event === 'INITIAL_SESSION')
-      ) {
-        void db.auth.getUser().then(async ({ data }) => {
-          if (!data.user?.id) return;
-          const externalId = await resolveProfileExternalId(data.user.id);
-          if (!externalId) return;
-          relinkDespiaPushInBackground(externalId, 'login-auto-permission', true);
-        });
-      }
     });
-
-    // Request push permission on the FIRST authenticated user gesture
-    // (touch/click). This is what was missing — Despia auto-registers the
-    // device but never prompts unless we explicitly ask, so brand-new installs
-    // had no push subscription and never received DM/call notifications.
-    const onFirstGesture = () => {
-      requestPushPermissionOnce();
-      window.removeEventListener('pointerdown', onFirstGesture);
-      window.removeEventListener('touchstart', onFirstGesture);
-    };
-    window.addEventListener('pointerdown', onFirstGesture, { once: true, passive: true });
-    window.addEventListener('touchstart', onFirstGesture, { once: true, passive: true });
 
     // Refresh in-app notifications whenever the app regains focus
     // (covers cold-launch from a push tap on Despia/Android).
@@ -353,8 +291,6 @@ export function DespiaOneSignalSync() {
       window.removeEventListener('app-resumed', relinkOnResume);
       window.removeEventListener('pageshow', relinkOnResume);
       window.removeEventListener('despia:push', refresh as EventListener);
-      window.removeEventListener('pointerdown', onFirstGesture);
-      window.removeEventListener('touchstart', onFirstGesture);
       window.clearInterval(relinkInterval);
       w.onNotificationEvent = previousHandler;
     };

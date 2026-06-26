@@ -36,6 +36,58 @@ const BG_INTERVAL_MS = 450;
 
 const delay = (ms: number) => new Promise((resolve) => window.setTimeout(resolve, ms));
 
+/** Fire a Despia deep link synchronously (official despia-native pattern). */
+export function fireDespiaScheme(scheme: string): void {
+  if (!isDespiaRuntime()) return;
+  try {
+    void import('despia-native').then((mod) => {
+      const despia = (mod as { default?: (url: string) => void }).default ?? mod;
+      if (typeof despia === 'function') despia(scheme);
+    });
+  } catch {
+    /* ignore */
+  }
+}
+
+/**
+ * Official Despia OneSignal link — call on every authenticated load.
+ * https://setup.despia.com — setonesignalplayerid://?user_id=YOUR_USER_ID
+ */
+export function linkDespiaExternalId(externalId: string, trigger = 'link'): void {
+  if (!externalId || !isDespiaRuntime()) return;
+  const encoded = encodeURIComponent(externalId);
+  fireDespiaScheme(`setonesignalplayerid://?user_id=${encoded}`);
+  fireDespiaScheme(`setOneSignalPlayerId://?user_id=${encoded}`);
+  console.log(`[OneSignal:${trigger}] linked external_id=${externalId}`);
+  void linkOneSignalUser(externalId).catch(() => {});
+}
+
+/**
+ * User tapped "Enable notifications" — register (if needed) then instantly link external_id.
+ */
+export async function acceptDespiaPushPermission(externalId: string): Promise<{
+  granted: boolean;
+  linked: boolean;
+}> {
+  if (!externalId || !isDespiaRuntime()) {
+    return { granted: false, linked: false };
+  }
+
+  linkDespiaExternalId(externalId, 'pre-register');
+
+  let permission = await checkDespiaPushPermission();
+  if (permission !== true) {
+    await despiaCall('registerpush://', [], 1_200);
+    linkDespiaExternalId(externalId, 'post-register');
+    permission = await checkDespiaPushPermission();
+  }
+
+  void persistDespiaPushToken(externalId, '').catch(() => {});
+  startBackgroundPlayerIdSync(externalId);
+
+  return { granted: permission === true, linked: true };
+}
+
 export async function checkDespiaPushPermission(): Promise<boolean | null> {
   for (const checkUrl of ['checkNativePushPermissions://', 'checknativepushpermissions://']) {
     const permissionResult = await despiaCall(checkUrl, ['nativePushEnabled'], 600);
@@ -164,6 +216,10 @@ async function commitPlayerId(externalId: string, playerId: string, persistToken
   await linkOneSignalUser(externalId, playerId);
 }
 
+function startBackgroundPlayerIdSync(externalId: string): void {
+  startBackgroundPushFinish(externalId, { persistToken: true, trigger: 'bg-sync' });
+}
+
 function startBackgroundPushFinish(
   externalId: string,
   options: { persistToken?: boolean; trigger?: string },
@@ -173,7 +229,8 @@ function startBackgroundPushFinish(
     for (let attempt = 1; attempt <= 12; attempt++) {
       await delay(BG_INTERVAL_MS);
       try {
-        await fireDespiaPushBridges(externalId, attempt <= 2);
+        linkDespiaExternalId(externalId, `${options.trigger ?? 'manual'}:bg-${attempt}`);
+        await fireDespiaPushBridges(externalId, false);
         const playerId = await probePlayerIdOnce();
         if (!playerId) continue;
         await commitPlayerId(externalId, playerId, options.persistToken !== false);
@@ -187,8 +244,7 @@ function startBackgroundPushFinish(
 }
 
 /**
- * Instant Despia + OneSignal connect — native bridges first, server link in parallel.
- * Used on permission grant and test push (no multi-second blocking loops).
+ * Connect push — delegates to official external_id link; optional register on prompt.
  */
 export async function connectDespiaPushInstant(
   externalId: string,
@@ -203,53 +259,29 @@ export async function connectDespiaPushInstant(
     return { linked: false, playerId: '', permission: null };
   }
 
-  const tag = `[OneSignal:${options.trigger ?? 'connect'}]`;
-  const persistToken = options.persistToken !== false;
-  const maxWaitMs = options.maxWaitMs ?? (options.requestPermission ? POST_GRANT_WAIT_MS : 700);
-
-  console.log(`${tag} instant connect`, { externalId, requestPermission: options.requestPermission });
-
-  // Server external_id + native bridges kick off together — never block UI on server first.
-  void linkOneSignalUser(externalId).catch(() => {});
-
-  let permission = await checkDespiaPushPermission();
-
-  if (options.requestPermission && permission !== true) {
-    await Promise.all(REGISTER_SCHEMES.map((url) => despiaCall(url, [], 900)));
-    permission = await checkDespiaPushPermission();
+  if (options.requestPermission) {
+    const accepted = await acceptDespiaPushPermission(externalId);
+    const permission = await checkDespiaPushPermission();
+    const playerId = readWindowPlayerId() || (await probePlayerIdOnce());
+    if (playerId && options.persistToken !== false) {
+      void commitPlayerId(externalId, playerId, true);
+    }
+    return {
+      linked: accepted.linked,
+      playerId,
+      permission,
+    };
   }
 
-  await fireDespiaPushBridges(externalId, options.requestPermission === true);
-
-  let playerId = await probePlayerIdOnce();
-  if (playerId) {
-    await commitPlayerId(externalId, playerId, persistToken);
-    startBackgroundPushFinish(externalId, options);
-    console.log(`${tag} instant hit`, { permission, playerId });
-    return { linked: true, playerId, permission };
-  }
-
-  const deadline = Date.now() + maxWaitMs;
-  while (!playerId && Date.now() < deadline) {
-    await delay(TIGHT_POLL_MS);
-    await fireDespiaPushBridges(externalId, false);
-    playerId = await probePlayerIdOnce();
-  }
-
-  if (playerId) {
-    await commitPlayerId(externalId, playerId, persistToken);
-  } else if (permission === true && persistToken) {
+  linkDespiaExternalId(externalId, options.trigger ?? 'connect');
+  if (options.persistToken !== false) {
     void persistDespiaPushToken(externalId, '').catch(() => {});
   }
+  startBackgroundPlayerIdSync(externalId);
 
-  startBackgroundPushFinish(externalId, options);
-
-  console.log(`${tag} done`, { permission, playerId: playerId || '(background)' });
-  return {
-    linked: !!playerId || permission === true,
-    playerId,
-    permission,
-  };
+  const permission = await checkDespiaPushPermission();
+  const playerId = readWindowPlayerId() || (await probePlayerIdOnce());
+  return { linked: true, playerId, permission };
 }
 
 /** @deprecated Prefer connectDespiaPushInstant */
@@ -340,7 +372,7 @@ export async function sendDespiaTestPushNotification(profileId: string): Promise
   subscriptionCount: number;
   permission: boolean | null;
 }> {
-  let permission = await checkDespiaPushPermission();
+  const permission = await checkDespiaPushPermission();
   if (permission === false) {
     return {
       localSent: false,
@@ -351,19 +383,7 @@ export async function sendDespiaTestPushNotification(profileId: string): Promise
     };
   }
 
-  const link = await connectDespiaPushInstant(profileId, {
-    requestPermission: permission !== true,
-    maxWaitMs: 1_000,
-    persistToken: true,
-    trigger: 'test-push',
-  });
-  permission = link.permission ?? permission;
-
-  const subscriptionId =
-    link.playerId ||
-    readWindowPlayerId() ||
-    (await fetchPushSubscriptionStatus(profileId)).subscriptionIds[0] ||
-    '';
+  linkDespiaExternalId(profileId, 'test-push');
 
   const localSent = sendInstantLocalPush(
     'VYBE test push 🚀',
@@ -374,7 +394,6 @@ export async function sendDespiaTestPushNotification(profileId: string): Promise
   const result = await db.functions.invoke('send-push-notification', {
     body: {
       userId: profileId,
-      ...(subscriptionId ? { subscriptionId } : {}),
       title: 'VYBE test push 🚀',
       body: 'If you see this, push is working on this device.',
       tag: 'test-push',
@@ -390,7 +409,7 @@ export async function sendDespiaTestPushNotification(profileId: string): Promise
   return {
     localSent,
     serverSent,
-    playerId: subscriptionId,
+    playerId: profileId,
     subscriptionCount: serverSent ? 1 : 0,
     permission,
   };
@@ -399,12 +418,8 @@ export async function sendDespiaTestPushNotification(profileId: string): Promise
 export function relinkDespiaPushInBackground(
   externalId: string,
   trigger: string,
-  requestPermission = false,
+  _requestPermission = false,
 ): void {
-  void connectDespiaPushInstant(externalId, {
-    requestPermission,
-    maxWaitMs: requestPermission ? POST_GRANT_WAIT_MS : 0,
-    persistToken: true,
-    trigger,
-  }).catch((err) => console.warn(`[OneSignal:${trigger}] background link failed`, err));
+  linkDespiaExternalId(externalId, trigger);
+  startBackgroundPlayerIdSync(externalId);
 }

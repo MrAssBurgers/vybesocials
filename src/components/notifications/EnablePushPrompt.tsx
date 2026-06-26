@@ -15,7 +15,7 @@ export function EnablePushPrompt() {
           </div>
           <DialogTitle className="text-xl">Turn on notifications</DialogTitle>
           <DialogDescription className="text-center text-muted-foreground">
-            Get DMs, calls, daily briefs, and friend activity in real time. Your device will ask for permission next — tap Allow.
+            Get DMs, calls, and friend activity in real time. Tap Enable — your phone will ask for permission next. When you tap Allow, this device links to your VYBE account instantly.
           </DialogDescription>
         </DialogHeader>
         <div className="flex flex-col gap-2 mt-2">

@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { usePushNotifications } from './usePushNotifications';
 import { useAuth } from '@/lib/auth';
 import { isDespiaRuntime } from '@/lib/despiaBridge';
+import { checkDespiaPushPermission } from '@/lib/despiaOneSignal';
 
 const SNOOZE_KEY = 'vybe_push_prompt_snoozed_until';
 const DISABLED_KEY = 'vybe_push_prompt_disabled';
@@ -32,12 +33,24 @@ export function useEnablePushPrompt() {
 
   const [ready, setReady] = useState(false);
   const [open, setOpen] = useState(false);
+  const [despiaPushEnabled, setDespiaPushEnabled] = useState<boolean | null>(null);
 
-  // Delay first eligibility check ~3s after mount to avoid cold-load slam
   useEffect(() => {
-    const t = setTimeout(() => setReady(true), 3000);
+    const delayMs = isDespiaRuntime() ? 1_500 : 3_000;
+    const t = setTimeout(() => setReady(true), delayMs);
     return () => clearTimeout(t);
   }, []);
+
+  useEffect(() => {
+    if (!ready || !profile?.id || !isDespiaRuntime()) return;
+    void checkDespiaPushPermission().then((enabled) => {
+      setDespiaPushEnabled(enabled);
+      if (enabled === true) {
+        setOpen(false);
+        try { localStorage.setItem(DISABLED_KEY, '1'); } catch { /* */ }
+      }
+    });
+  }, [ready, profile?.id]);
 
   useEffect(() => {
     if (!ready) return;
@@ -45,25 +58,33 @@ export function useEnablePushPrompt() {
     if (!isSupported) return;
     if (isCheckingSubscription) return;
     if (isSubscribed) return;
-    // Only skip when browser/OS explicitly denied — granted without token still prompts relink.
+    if (isDespiaRuntime() && despiaPushEnabled === true) return;
     if (!isDespiaRuntime() && permission === 'denied') return;
     if (isSnoozed()) return;
     setOpen(true);
-  }, [ready, profile?.id, isSupported, isCheckingSubscription, isSubscribed, permission]);
+  }, [
+    ready,
+    profile?.id,
+    isSupported,
+    isCheckingSubscription,
+    isSubscribed,
+    permission,
+    despiaPushEnabled,
+  ]);
 
-  // If user subscribes elsewhere (or browser flips to granted), close and lock
   useEffect(() => {
-    if (isSubscribed || permission === 'granted') {
+    if (isSubscribed || permission === 'granted' || despiaPushEnabled === true) {
       setOpen(false);
-      try { localStorage.setItem(DISABLED_KEY, '1'); } catch {}
+      try { localStorage.setItem(DISABLED_KEY, '1'); } catch { /* */ }
     }
-  }, [isSubscribed, permission]);
+  }, [isSubscribed, permission, despiaPushEnabled]);
 
   const onEnable = useCallback(async () => {
     const ok = await subscribe();
     if (ok) {
       setOpen(false);
-      try { localStorage.setItem(DISABLED_KEY, '1'); } catch {}
+      setDespiaPushEnabled(true);
+      try { localStorage.setItem(DISABLED_KEY, '1'); } catch { /* */ }
     }
   }, [subscribe]);
 
@@ -71,7 +92,7 @@ export function useEnablePushPrompt() {
     try {
       const until = new Date(Date.now() + SNOOZE_DAYS * 86400_000).toISOString();
       localStorage.setItem(SNOOZE_KEY, until);
-    } catch {}
+    } catch { /* */ }
     setOpen(false);
   }, []);
 

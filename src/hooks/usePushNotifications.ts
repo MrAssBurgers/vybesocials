@@ -3,7 +3,7 @@ import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth';
 import { toast } from 'sonner';
 import { isPreviewServiceWorkerDisabled, getVybeServiceWorkerRegistration } from '@/lib/serviceWorker';
-import { connectDespiaPushInstant, relinkDespiaPushInBackground, linkOneSignalUser, checkDespiaPushPermission } from '@/lib/despiaOneSignal';
+import { acceptDespiaPushPermission, linkDespiaExternalId, linkOneSignalUser, checkDespiaPushPermission } from '@/lib/despiaOneSignal';
 import { isDespiaRuntime, openAppSettings } from '@/lib/despiaBridge';
 import { pushBlockedSettingsMessage } from '@/lib/pushSettingsCopy';
 
@@ -171,7 +171,7 @@ export function usePushNotifications() {
       if (intent) {
         setIsSubscribed(true);
         if (!data && isDespiaRuntime()) {
-          relinkDespiaPushInBackground(profile.id, 'background-relink');
+          linkDespiaExternalId(profile.id, 'background-relink');
         }
       } else {
         setIsSubscribed(!!data);
@@ -228,38 +228,29 @@ export function usePushNotifications() {
 
     const existingPermission = await checkDespiaPushPermission();
     if (existingPermission === true) {
-      void connectDespiaPushInstant(profile.id, {
-        requestPermission: false,
-        maxWaitMs: 700,
-        persistToken: true,
-        trigger: 'permission-grant-resync',
-      });
+      linkDespiaExternalId(profile.id, 'permission-grant-resync');
       toast.success('Push notifications enabled!');
       return true;
     }
 
-    const link = await connectDespiaPushInstant(profile.id, {
-      requestPermission: true,
-      maxWaitMs: 1_400,
-      persistToken: true,
-      trigger: 'permission-grant',
-    });
+    const accepted = await acceptDespiaPushPermission(profile.id);
 
-    if (link.permission === false) {
-      toast.error(pushBlockedSettingsMessage(), {
-        action: {
-          label: 'Open settings',
-          onClick: () => { void openAppSettings(); },
-        },
-      });
-      writeIntent(profile.id, false);
-      setIsSubscribed(false);
-      return false;
+    if (!accepted.granted) {
+      const after = await checkDespiaPushPermission();
+      if (after === false) {
+        toast.error(pushBlockedSettingsMessage(), {
+          action: {
+            label: 'Open settings',
+            onClick: () => { void openAppSettings(); },
+          },
+        });
+        writeIntent(profile.id, false);
+        setIsSubscribed(false);
+        return false;
+      }
     }
 
-    toast.success(
-      link.playerId ? 'Push notifications enabled!' : 'Push notifications enabled!',
-    );
+    toast.success('Push notifications enabled!');
     return true;
   };
 
