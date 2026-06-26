@@ -2,8 +2,9 @@ import { useState, useEffect, useRef, useLayoutEffect, useCallback } from 'react
 import { useNavigate, useSearchParams, useLocation, Navigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
-import { useAuth, waitForAuthSession } from '@/lib/auth';
+import { useAuth } from '@/lib/auth';
 import { getPostLoginPath, resolvePostLoginDestination } from '@/lib/authReturnPath';
+import { getCachedCurrentProfile } from '@/lib/profileCache';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -321,20 +322,18 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
           throw error;
         }
 
-        const session = await waitForAuthSession(5000);
-        if (!session?.user) {
-          throw createHandledLoginError(
-            'Signed in but the session did not stick. Close the app fully and try again.',
-          );
-        }
-
         sessionStorage.removeItem('vybe-session-only');
         clearObsoleteAuthStorage();
         toast.success('Welcome back! ✨');
-        if (session.user && !session.user.email_confirmed_at) {
-          toast.info('Verify your email to unlock all features.');
-        }
-        navigate(resolvePostLoginDestination(profile), { replace: true });
+        const cached = getCachedCurrentProfile();
+        navigate(
+          resolvePostLoginDestination(
+            cached
+              ? { onboarding_completed: cached.onboarding_completed, username: cached.username }
+              : profile,
+          ),
+          { replace: true },
+        );
       } else {
         if (!formData.username.trim()) {
           throw new Error('Username is required');
@@ -358,11 +357,6 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
           setAwaitingEmailVerification(true);
           toast.success('Account created! Verify your email to continue.');
           return;
-        }
-
-        const session = await waitForAuthSession();
-        if (!session?.user) {
-          throw new Error('Account created — please sign in to continue.');
         }
 
         toast.success('Welcome to VYBE! 🎉');

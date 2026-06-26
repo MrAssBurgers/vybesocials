@@ -1,23 +1,18 @@
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/lib/auth';
 import { resolvePostLoginDestination } from '@/lib/authReturnPath';
+import { getCachedCurrentProfile } from '@/lib/profileCache';
 import { isPasswordRecoveryUrl, redirectToPasswordRecoveryPage } from '@/lib/passwordRecoveryUrl';
 
 /**
- * OAuth callback page. After the Lovable Cloud OAuth broker redirects here
- * with tokens in the URL hash, the Supabase client's detectSessionInUrl
- * processes them and fires onAuthStateChange → SIGNED_IN. We wait for
- * `user` to appear, then redirect to /home (or /onboarding for new users).
+ * OAuth callback — redirect as soon as auth user exists (profile loads in background).
  */
 export default function AuthCallback() {
-  const { user, authReady, profile, loading, refreshProfile } = useAuth();
+  const { user, authReady, profile } = useAuth();
   const navigate = useNavigate();
   const [timedOut, setTimedOut] = useState(false);
-  const profileCheckTimer = useRef<NodeJS.Timeout | null>(null);
-  const [profileSettled, setProfileSettled] = useState(false);
 
-  // Password recovery links must never be consumed as OAuth sign-in.
   useEffect(() => {
     try {
       if (isPasswordRecoveryUrl(new URL(window.location.href))) {
@@ -28,16 +23,12 @@ export default function AuthCallback() {
     }
   }, []);
 
-  // If the user cancelled the OAuth flow (or the broker returned an error),
-  // the URL will contain ?error=… / #error=… instead of access tokens. In that
-  // case bail to the landing page immediately instead of sitting on the spinner.
   useEffect(() => {
     try {
       const hash = window.location.hash || '';
       const search = window.location.search || '';
-      const combined = `${hash}${search}`;
       const hasError = /(?:^|[?&#])error=/.test(hash) || /(?:^|[?&])error=/.test(search);
-      const hasTokens = /access_token=|refresh_token=|code=|token_hash=/.test(combined);
+      const hasTokens = /access_token=|refresh_token=|code=|token_hash=/.test(`${hash}${search}`);
       if (hasError) {
         sessionStorage.removeItem('vybe-oauth-pending');
         navigate('/', { replace: true });
@@ -55,31 +46,10 @@ export default function AuthCallback() {
     } catch { /* ignore */ }
   }, [navigate]);
 
-  // Safety timeout — if session never establishes after 10s, go to login
   useEffect(() => {
-    const timer = setTimeout(() => setTimedOut(true), 10000);
+    const timer = setTimeout(() => setTimedOut(true), 6000);
     return () => clearTimeout(timer);
   }, []);
-
-  // Once we have a user and auth is no longer loading, wait a beat for profile to load.
-  // If profile is still null after 3s, treat as new user (no profile row).
-  useEffect(() => {
-    if (!user || loading) return;
-
-    if (profile) {
-      setProfileSettled(true);
-      return;
-    }
-
-    // Give profile fetch time to complete
-    profileCheckTimer.current = setTimeout(() => {
-      setProfileSettled(true);
-    }, 3000);
-
-    return () => {
-      if (profileCheckTimer.current) clearTimeout(profileCheckTimer.current);
-    };
-  }, [user, profile, loading]);
 
   useEffect(() => {
     if (user || timedOut) {
@@ -91,11 +61,19 @@ export default function AuthCallback() {
       return;
     }
 
-    if (!user || !profileSettled) return;
+    if (!user || !authReady) return;
 
-    navigate(resolvePostLoginDestination(profile), { replace: true });
-    void refreshProfile();
-  }, [user, profile, profileSettled, timedOut, navigate, refreshProfile]);
+    const cached = getCachedCurrentProfile();
+    navigate(
+      resolvePostLoginDestination(
+        profile ??
+          (cached
+            ? { onboarding_completed: cached.onboarding_completed, username: cached.username }
+            : null),
+      ),
+      { replace: true },
+    );
+  }, [user, authReady, profile, timedOut, navigate]);
 
   return (
     <div className="min-h-screen bg-[#0B0B10] flex items-center justify-center">

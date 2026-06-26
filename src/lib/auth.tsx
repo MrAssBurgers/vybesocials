@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useMemo, useState, useRef, ReactNode } from 'react';
 import type { User, Session } from '@/lib/firebase';
 import { db } from '@/lib/firebase';
-import { updateUserProfile, getProfileByAuthUid } from '@/lib/firebase/users';
+import { updateUserProfile, getProfileByAuthUid, ensureUserProfile } from '@/lib/firebase/users';
 import { syncUserAuthIndex } from '@/lib/firebase/profileResolve';
 import { BannedScreen } from '@/components/auth/BannedScreen';
 import { MemeBanScreen } from '@/components/auth/MemeBanScreen';
@@ -52,7 +52,7 @@ function getStoredSessionRefreshTimeoutMs(): number {
 }
 
 function getAuthInitTimeouts() {
-  return { safetyMs: 3500, getSessionMs: 2500 };
+  return { safetyMs: 1800, getSessionMs: 1200 };
 }
 
 function isFatalRefreshError(message: string): boolean {
@@ -177,8 +177,8 @@ function persistCurrentProfile(profileData: Profile) {
   });
 }
 
-/** Wait until Supabase has a session (post-signup / OAuth race). */
-export async function waitForAuthSession(timeoutMs = 8000): Promise<Session | null> {
+/** Wait until auth session exists (post-signup / OAuth race). */
+export async function waitForAuthSession(timeoutMs = 2500): Promise<Session | null> {
   const initial = (await db.auth.getSession()).data.session;
   if (initial?.user) return initial;
 
@@ -194,11 +194,11 @@ export async function waitForAuthSession(timeoutMs = 8000): Promise<Session | nu
 
     const timer = setTimeout(async () => {
       const { data: { session } } = await db.auth.getSession();
-      finish(session);
+      finish(session?.user ? session : null);
     }, timeoutMs);
 
     const { data: { subscription } } = db.auth.onAuthStateChange((event, session) => {
-      if (session?.user && event !== 'INITIAL_SESSION') {
+      if (session?.user && (event === 'SIGNED_IN' || event === 'INITIAL_SESSION')) {
         finish(session);
       }
     });
@@ -223,6 +223,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Prevent double-triggering from onAuthStateChange + getSession running simultaneously
   const authInitializedRef = useRef(false);
   const explicitSignOutRef = useRef(false);
+  const bootstrapUserRef = useRef<string | null>(null);
 
   // Reject stale cached profile when auth user changes (wrong-user queries break RLS).
   useEffect(() => {
@@ -357,17 +358,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // using the referral.ts utilities with localStorage persistence
 
   const fetchProfile = async (userId: string, retryCount = 0) => {
-    const maxRetries = 2;
+    const maxRetries = 1;
+
+    const applyProfile = (profileData: Profile) => {
+      setProfile(profileData);
+      persistCurrentProfile(profileData);
+      checkBanStatus(profileData.id);
+      subscribeToBanChanges(profileData.id);
+      return profileData;
+    };
     
     try {
       const indexed = await getProfileByAuthUid(userId);
       if (indexed?.id) {
-        const profileData = indexed as unknown as Profile;
-        setProfile(profileData);
-        persistCurrentProfile(profileData);
-        checkBanStatus(profileData.id);
-        subscribeToBanChanges(profileData.id);
-        return profileData;
+        return applyProfile(indexed as unknown as Profile);
       }
 
       // Prefer array result to avoid throwing when the row doesn't exist
@@ -389,131 +393,52 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             normalizeUsername(metaUsername) !== normalizeUsername(profileData.username));
 
         if (shouldSyncSignupUsername) {
-          const syncedUsername = await trySyncSignupUsername();
-          if (syncedUsername && !isGeneratedUsername(syncedUsername)) {
-            profileData.username = syncedUsername;
-            clearSignupUsername();
-          }
+          void trySyncSignupUsername().then((syncedUsername) => {
+            if (syncedUsername && !isGeneratedUsername(syncedUsername)) {
+              setProfile((prev) =>
+                prev?.id === profileData.id ? { ...prev, username: syncedUsername } : prev,
+              );
+            }
+          });
         } else {
           clearSignupUsername();
         }
 
-        setProfile(profileData);
-        persistCurrentProfile(profileData);
-        // Check ban status and subscribe to realtime changes
-        checkBanStatus(profileData.id);
-        subscribeToBanChanges(profileData.id);
-        return profileData;
+        return applyProfile(profileData);
       }
 
-      // Profile may still be creating via DB trigger — wait before fallback RPC.
       if (retryCount < maxRetries) {
-        console.log(`[Auth] Profile not found, waiting for trigger (${retryCount + 1}/${maxRetries})...`);
-        await new Promise(r => setTimeout(r, 400 * (retryCount + 1)));
+        await new Promise((r) => setTimeout(r, 250));
         return fetchProfile(userId, retryCount + 1);
       }
 
-      console.log('[Auth] Profile not found, claiming by email then ensure_profile...');
-      const { data: claimedId } = await db.rpc('claim_profile_by_email');
-      if (claimedId) {
-        const { data: claimedRows } = await db
-          .from('profiles')
-          .select('id, user_id, username, avatar_url, bio, created_at, display_name, link_url, location, is_private, is_verified, interests, language, timezone, coins_balance, onboarding_completed, tutorial_completed, tutorial_skipped, intro_completed, badge_settings, referral_inviter_id')
-          .eq('user_id', userId)
-          .limit(1);
-        if (claimedRows?.[0]) {
-          const profileData = claimedRows[0] as unknown as Profile;
-          setProfile(profileData);
-          persistCurrentProfile(profileData);
-          checkBanStatus(profileData.id);
-          subscribeToBanChanges(profileData.id);
-          return profileData;
+      // Fast local ensure — skip slow claim/ensure RPC chain on login path
+      try {
+        const ensured = await ensureUserProfile(userId);
+        if (ensured?.id) {
+          return applyProfile(ensured as unknown as Profile);
         }
+      } catch (ensureErr) {
+        console.warn('[Auth] ensureUserProfile failed:', ensureErr);
       }
 
-      let { error: ensureError } = await db.rpc('ensure_profile');
-      if (ensureError) {
-        console.log('[Auth] ensure_profile failed, retrying claim_profile_by_email...', ensureError.message);
-        await db.rpc('claim_profile_by_email');
-        ({ error: ensureError } = await db.rpc('ensure_profile'));
-      }
-
-      if (ensureError) {
-        console.error('[Auth] Profile ensure failed:', ensureError);
-        
-        // Retry on failure
-        if (retryCount < maxRetries) {
-          console.log(`[Auth] Retrying fetchProfile (${retryCount + 1}/${maxRetries})...`);
-          await new Promise(r => setTimeout(r, 500 * (retryCount + 1)));
-          return fetchProfile(userId, retryCount + 1);
-        }
-        
-        // Last resort — never cache or persist placeholder usernames.
-        const cached = getCachedCurrentProfile();
-        if (cached && !isRawId(cached.username)) {
-          setProfile((prev) => prev ?? cachedProfileToProfile(cached, userId));
-          window.setTimeout(() => {
-            void fetchProfile(userId, 0);
-          }, 2000);
-          return cached;
-        }
-
-        console.warn('[Auth] Profile unavailable — retrying in background');
+      if (retainCachedProfile(setProfile, userId)) {
         window.setTimeout(() => {
           void fetchProfile(userId, 0);
-        }, 1500);
-        return null;
+        }, 2000);
+        return getCachedCurrentProfile();
       }
 
-      // Fetch the newly created profile
-      const { data: afterEnsure, error: afterEnsureError } = await db
-        .from('profiles')
-        .select('id, user_id, username, avatar_url, bio, created_at, display_name, link_url, location, is_private, is_verified, interests, language, timezone, coins_balance, onboarding_completed, tutorial_completed, tutorial_skipped, intro_completed, badge_settings, referral_inviter_id')
-        .eq('user_id', userId)
-        .limit(1);
-
-      if (!afterEnsureError && afterEnsure?.[0]) {
-        const profileData = afterEnsure[0] as unknown as Profile;
-
-        const { data: { user: authUser } } = await db.auth.getUser();
-        const metaUsername = authUser?.user_metadata?.username;
-        const shouldSyncSignupUsername =
-          isGeneratedUsername(profileData.username) ||
-          (typeof metaUsername === 'string' &&
-            metaUsername.trim() &&
-            normalizeUsername(metaUsername) !== normalizeUsername(profileData.username));
-
-        if (shouldSyncSignupUsername) {
-          const syncedUsername = await trySyncSignupUsername();
-          if (syncedUsername && !isGeneratedUsername(syncedUsername)) {
-            profileData.username = syncedUsername;
-            clearSignupUsername();
-          }
-        } else {
-          clearSignupUsername();
-        }
-
-        setProfile(profileData);
-        persistCurrentProfile(profileData);
-        // Check ban status and subscribe to realtime changes
-        checkBanStatus(profileData.id);
-        subscribeToBanChanges(profileData.id);
-        return profileData;
-      }
-
-      console.error('[Auth] Could not fetch profile after ensure_profile');
-      retainCachedProfile(setProfile, userId);
+      console.warn('[Auth] Profile unavailable — retrying in background');
       window.setTimeout(() => {
         void fetchProfile(userId, 0);
-      }, 2000);
+      }, 1500);
       return null;
     } catch (err) {
       console.error('[Auth] fetchProfile error:', err);
       
-      // Retry on exception
       if (retryCount < maxRetries) {
-        console.log(`[Auth] Retrying fetchProfile after exception (${retryCount + 1}/${maxRetries})...`);
-        await new Promise(r => setTimeout(r, 500 * (retryCount + 1)));
+        await new Promise((r) => setTimeout(r, 300));
         return fetchProfile(userId, retryCount + 1);
       }
       
@@ -525,35 +450,37 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  /** Resolve profile id, warm caches, and refetch active queries after sign-in. */
+  /** Warm caches + profile after sign-in — never blocks navigation. */
   const bootstrapSessionData = (userId: string, authEvent: string) => {
-    // Supabase recommends deferring DB calls out of onAuthStateChange call stack.
-    setTimeout(() => {
+    if (bootstrapUserRef.current === userId && authEvent !== 'SIGNED_IN') return;
+    bootstrapUserRef.current = userId;
+
+    queueMicrotask(() => {
+      const qc = (window as any).__REACT_QUERY_CLIENT__;
+      void prefetchAndApplyUserTheme(userId, qc);
+      void fetchProfile(userId);
+
       void (async () => {
-        const qc = (window as any).__REACT_QUERY_CLIENT__;
-        const isFreshSignIn = authEvent === 'SIGNED_IN';
-
-        void prefetchAndApplyUserTheme(userId, qc);
-
         try {
-          await db.rpc('claim_profile_by_email');
-          const profileId = await resolveSessionProfileId(undefined);
+          const profileId = await Promise.race([
+            resolveSessionProfileId(undefined),
+            new Promise<string | null>((resolve) => window.setTimeout(() => resolve(null), 2000)),
+          ]);
           if (profileId && qc) {
             qc.setQueryData(['session-profile-id', userId], profileId);
             warmHomeCachesForProfile(qc, userId, profileId);
           }
-
-          await fetchProfile(userId);
-
-          if (qc && isFreshSignIn) {
+          if (qc && authEvent === 'SIGNED_IN') {
             void qc.invalidateQueries({ refetchType: 'active' });
           }
         } catch (err) {
           console.error('[Auth] Session bootstrap failed:', err);
-          void fetchProfile(userId);
         }
+
+        // Slow migration RPCs — background only
+        void db.rpc('claim_profile_by_email').catch(() => {});
       })();
-    }, 0);
+    });
   };
 
   useEffect(() => {
@@ -703,7 +630,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setWasLoggedIn(true);
           const prevAuthId = getStoredAuthUserId();
           setActiveAuthUserId(session.user.id);
-          if (event === 'SIGNED_IN' || (prevAuthId && prevAuthId !== session.user.id)) {
+          if (prevAuthId && prevAuthId !== session.user.id) {
             clearCachedCurrentProfile();
             resetSessionProfileMemo();
           }
@@ -1036,7 +963,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       if (data.session?.user) {
-        await trySyncSignupUsername();
+        setWasLoggedIn(true);
+        setSession(data.session);
+        setUser(data.session.user);
+        setActiveAuthUserId(data.session.user.id);
+        authInitializedRef.current = true;
+        setLoading(false);
+        setIsInitialized(true);
+        hydrateCachedProfile(data.session.user.id);
+        if (data.session.expires_at) {
+          scheduleTokenRefresh(data.session.expires_at);
+        }
+        bootstrapSessionData(data.session.user.id, 'SIGNED_IN');
+        void trySyncSignupUsername();
         return { error: null, needsEmailConfirmation: false };
       }
 
@@ -1052,12 +991,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signIn = async (email: string, password: string) => {
     try {
       const normalized = normalizeLoginEmail(email);
-      const { error } = await db.auth.signInWithPassword({
+      const { data, error } = await db.auth.signInWithPassword({
         email: normalized,
         password,
       });
 
       if (error) throw error;
+
+      if (data.session?.user) {
+        setWasLoggedIn(true);
+        setSession(data.session);
+        setUser(data.session.user);
+        setActiveAuthUserId(data.session.user.id);
+        authInitializedRef.current = true;
+        setLoading(false);
+        setIsInitialized(true);
+        hydrateCachedProfile(data.session.user.id);
+        startHeartbeat();
+        if (data.session.expires_at) {
+          scheduleTokenRefresh(data.session.expires_at);
+        }
+        bootstrapSessionData(data.session.user.id, 'SIGNED_IN');
+        sessionStorage.removeItem('vybe-oauth-pending');
+      }
+
       return { error: null };
     } catch (error) {
       return { error: error as Error };

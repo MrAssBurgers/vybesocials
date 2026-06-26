@@ -65,11 +65,10 @@ function toVybeUser(user: FirebaseUser): VybeUser {
 }
 
 async function toVybeSession(user: FirebaseUser): Promise<VybeSession> {
-  const token = await user.getIdToken();
   const result = await user.getIdTokenResult();
   return {
     user: toVybeUser(user),
-    access_token: token,
+    access_token: result.token,
     refresh_token: user.refreshToken,
     expires_at: result.expirationTime
       ? Math.floor(new Date(result.expirationTime).getTime() / 1000)
@@ -136,22 +135,23 @@ export const firebaseAuth = {
       return { data: { subscription: { unsubscribe: () => {} } } };
     }
     let initialFired = false;
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      if (!initialFired) {
-        initialFired = true;
-        const session = user ? await toVybeSession(user) : null;
-        callback('INITIAL_SESSION', session);
-        return;
-      }
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      void (async () => {
+        if (!initialFired) {
+          initialFired = true;
+          const session = user ? await toVybeSession(user) : null;
+          callback('INITIAL_SESSION', session);
+          return;
+        }
 
-      if (!user) {
-        callback('SIGNED_OUT', null);
-        return;
-      }
+        if (!user) {
+          callback('SIGNED_OUT', null);
+          return;
+        }
 
-      const session = await toVybeSession(user);
-      callback('SIGNED_IN', session);
-      callback('TOKEN_REFRESHED', session);
+        const session = await toVybeSession(user);
+        callback('SIGNED_IN', session);
+      })();
     });
 
     return {
