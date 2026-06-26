@@ -123,10 +123,10 @@ export async function dispatchOneSignalToProfile(
 
   let subscriptionIds = forcedSubscriptionIds?.filter(Boolean) ?? [];
   if (subscriptionIds.length === 0) {
-    subscriptionIds = await lookupOneSignalSubscriptionIds(appId, restKey, targetProfileId);
+    subscriptionIds = await lookupOneSignalSubscriptionIdsForProfile(appId, restKey, targetProfileId);
   }
   if (subscriptionIds.length === 0 && targetProfileId !== profileId) {
-    subscriptionIds = await lookupOneSignalSubscriptionIds(appId, restKey, profileId);
+    subscriptionIds = await lookupOneSignalSubscriptionIdsForProfile(appId, restKey, profileId);
   }
   if (subscriptionIds.length === 0) {
     const prof = await db.collection('profiles').doc(targetProfileId).get();

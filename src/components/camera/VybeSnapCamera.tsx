@@ -13,6 +13,8 @@ import { haptics } from '@/lib/haptics';
 import { getActiveStream, stopCameraStream } from '@/hooks/useCameraPreload';
 import { useDoubleTapCameraFlip } from '@/hooks/useDoubleTapCameraFlip';
 
+import { getFilterCSS } from '@/components/camera/CameraFilterCarousel';
+
 interface RecordingSegment {
   blob: Blob;
   duration: number;
@@ -22,6 +24,8 @@ interface VybeSnapCameraProps {
   isOpen: boolean;
   onClose: () => void;
   onSend: (mediaUrl: string, isVideo: boolean) => void;
+  /** When true (DM flow), skip the "Send to" sheet and send to the active chat. */
+  directSend?: boolean;
   /** Optional pre-acquired stream from the original user gesture. When provided,
    * the camera component will attach this stream instead of calling getUserMedia
    * itself, preserving the gesture context required by mobile WebViews. */
@@ -34,6 +38,7 @@ const MAX_RECORDING_DURATION = 30;
 const TIMER_OPTIONS = [0, 3, 10] as const;
 
 const LENS_FILTERS = [
+  { id: 'snap', label: 'VYBE', filter: getFilterCSS('snap') || 'contrast(1.06) saturate(1.28) brightness(1.06) sepia(0.06)' },
   { id: 'none', label: 'Normal', filter: 'none' },
   { id: 'warm', label: 'Warm', filter: 'saturate(1.3) sepia(0.15) brightness(1.05)' },
   { id: 'cool', label: 'Cool', filter: 'saturate(0.9) hue-rotate(10deg) brightness(1.05)' },
@@ -76,7 +81,7 @@ const isDespia = () => {
   return /despia/i.test(ua);
 };
 
-export const VybeSnapCamera = forwardRef<HTMLDivElement, VybeSnapCameraProps>(function VybeSnapCamera({ isOpen, onClose, onSend, initialStream, streamPromise }, _ref) {
+export const VybeSnapCamera = forwardRef<HTMLDivElement, VybeSnapCameraProps>(function VybeSnapCamera({ isOpen, onClose, onSend, directSend = false, initialStream, streamPromise }, _ref) {
   const [phase, setPhase] = useState<'camera' | 'edit' | 'sending'>('camera');
   const [facingMode, setFacingMode] = useState<'user' | 'environment'>('user');
   const [flashEnabled, setFlashEnabled] = useState(false);
@@ -91,7 +96,7 @@ export const VybeSnapCamera = forwardRef<HTMLDivElement, VybeSnapCameraProps>(fu
   const [timerSeconds, setTimerSeconds] = useState<number>(0);
   const [showGrid, setShowGrid] = useState(false);
   const [nightMode, setNightMode] = useState(false);
-  const [selectedFilter, setSelectedFilter] = useState('none');
+  const [selectedFilter, setSelectedFilter] = useState('snap');
   const [timerCountdown, setTimerCountdown] = useState<number | null>(null);
   const [selfieFlash, setSelfieFlash] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
@@ -509,7 +514,13 @@ export const VybeSnapCamera = forwardRef<HTMLDivElement, VybeSnapCameraProps>(fu
     }
 
     const filterObj = LENS_FILTERS.find(f => f.id === selectedFilter);
-    if (filterObj && filterObj.filter !== 'none') ctx.filter = filterObj.filter;
+    if (filterObj && filterObj.filter !== 'none') {
+      try {
+        ctx.filter = filterObj.filter;
+      } catch {
+        ctx.filter = 'none';
+      }
+    }
 
     ctx.drawImage(video, sx, sy, sw, sh, 0, 0, outputWidth, outputHeight);
     ctx.setTransform(1, 0, 0, 1, 0, 0);
@@ -621,6 +632,7 @@ export const VybeSnapCamera = forwardRef<HTMLDivElement, VybeSnapCameraProps>(fu
         <VybeSnapEditor
           mediaUrl={capturedMedia.url}
           mediaType={capturedMedia.type}
+          directSend={directSend}
           onSend={handleEditorSend}
           onCancel={() => {
             setCapturedMedia(null);

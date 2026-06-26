@@ -1,5 +1,3 @@
-import { isNativeAppShell } from '@/lib/despiaBridge';
-
 interface CaptureFrameOptions {
   video: HTMLVideoElement;
   canvas: HTMLCanvasElement;
@@ -9,7 +7,7 @@ interface CaptureFrameOptions {
 
 /**
  * Draw video frame to canvas for photo export.
- * Skips ctx.filter on native shells — some Android WebViews hard-crash on canvas filters.
+ * Applies CSS filters on capture when supported; falls back to unfiltered on WebView errors.
  */
 export function captureVideoFrame({
   video,
@@ -32,10 +30,9 @@ export function captureVideoFrame({
     ctx.scale(-1, 1);
   }
 
-  const useFilter = Boolean(filterCSS) && !isNativeAppShell();
-  if (useFilter) {
+  if (filterCSS) {
     try {
-      ctx.filter = filterCSS!;
+      ctx.filter = filterCSS;
       ctx.drawImage(video, 0, 0);
     } catch {
       ctx.filter = 'none';

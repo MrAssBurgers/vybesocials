@@ -2,11 +2,16 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
-## Push prefs + DM composer flagship polish (2026-06-17)
+## Push + Vybe Snap + camera filter fixes (2026-06-17)
+- **Push:** DM trigger now resolves 1:1 recipients from `profileA_profileB` conversation ids when membership rows are missing; OneSignal lookup uses `lookupOneSignalSubscriptionIdsForProfile` (auth uid fallback)
+- **Camera:** VYBE filter bakes into captured photos on native WebViews (try/catch, no skip); Vybe Snap defaults to VYBE filter
+- **Vybe Snap send:** DM flow uses direct Send (no broken recipient sheet); emojis/stickers free-drag (x+y) vs text bar-only
+- **Verified:** `npm run build` PASS · `npm run lint` PASS · functions build PASS
+- **Next:** Deploy Firebase staging (hosting + pushTriggers) · Lovable Publish for vybehub.app
+
 - **Push:** Preference-aware delivery (DMs, typing, calls, social toggles); quiet hours; message preview privacy; audible OneSignal alerts; typing type fix
 - **Composer:** Centered texter, 48dp targets, 5-line expand, keyboard spring dock, glass pill polish
-- **Verified:** `npm run build` PASS · `npm run lint` PASS · functions build PASS
-- **Next:** Lovable Publish for vybehub.app
+- **Shipped:** git `12039225` · Firebase staging https://vybe-daaab.web.app (2026-06-17)
 
 ## Server push linking fix (2026-06-17)
 - **Problem:** Instant test push fired server send without OneSignal subscription id — "not linked" / no delivery

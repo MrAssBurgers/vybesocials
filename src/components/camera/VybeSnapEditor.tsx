@@ -34,8 +34,14 @@ interface DrawPath {
 interface VybeSnapEditorProps {
   mediaUrl: string;
   mediaType: 'photo' | 'video';
+  /** DM mode — send straight to the open chat without the recipient sheet. */
+  directSend?: boolean;
   onSend: (mediaUrl: string) => void;
   onCancel: () => void;
+}
+
+function isStickerOverlay(overlay: TextOverlay): boolean {
+  return overlay.fontSize >= 40;
 }
 
 const VYBE_COLORS = [
@@ -58,7 +64,7 @@ const TEXT_STYLES: { id: TextStyle; label: string }[] = [
   { id: 'neon', label: 'Neon' },
 ];
 
-export function VybeSnapEditor({ mediaUrl, mediaType, onSend, onCancel }: VybeSnapEditorProps) {
+export function VybeSnapEditor({ mediaUrl, mediaType, directSend = false, onSend, onCancel }: VybeSnapEditorProps) {
   const [mode, setMode] = useState<'none' | 'text' | 'sticker' | 'draw'>('none');
   const [textOverlays, setTextOverlays] = useState<TextOverlay[]>([]);
   const [drawings, setDrawings] = useState<DrawPath[]>([]);
@@ -191,12 +197,12 @@ export function VybeSnapEditor({ mediaUrl, mediaType, onSend, onCancel }: VybeSn
   // Overlay drag — commit position on pointer/touch end (1:1 tracking in SnapOverlayBar)
   const handleOverlayDragStart = useCallback(() => setDragTrashVisible(true), []);
   const handleOverlayDragTrashChange = useCallback((over: boolean) => setDragOverTrash(over), []);
-  const handleOverlayDragEnd = useCallback((id: string, _x: number, y: number, deleted: boolean) => {
+  const handleOverlayDragEnd = useCallback((id: string, x: number, y: number, deleted: boolean) => {
     if (deleted) {
       haptics.impact();
       setTextOverlays(prev => prev.filter(o => o.id !== id));
     } else {
-      setTextOverlays(prev => prev.map(o => (o.id !== id ? o : { ...o, y })));
+      setTextOverlays(prev => prev.map(o => (o.id !== id ? o : { ...o, x, y })));
     }
     setDragTrashVisible(false);
     setDragOverTrash(false);
@@ -230,8 +236,18 @@ export function VybeSnapEditor({ mediaUrl, mediaType, onSend, onCancel }: VybeSn
     });
     textOverlays.forEach(overlay => {
       ctx.save();
-      const yPos = (overlay.y / 100) * h;
       const scaledFontSize = overlay.fontSize * (w / 400) * overlay.scale;
+
+      if (isStickerOverlay(overlay)) {
+        ctx.font = `${scaledFontSize}px sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(overlay.text, (overlay.x / 100) * w, (overlay.y / 100) * h);
+        ctx.restore();
+        return;
+      }
+
+      const yPos = (overlay.y / 100) * h;
       const barHeight = scaledFontSize * 2.2;
 
       ctx.fillStyle = 'rgba(0, 0, 0, 0.35)';
@@ -350,38 +366,44 @@ export function VybeSnapEditor({ mediaUrl, mediaType, onSend, onCancel }: VybeSn
         </svg>
 
         {/* Text/sticker overlays */}
-        {textOverlays.map(overlay => (
+        {textOverlays.map(overlay => {
+          const sticker = isStickerOverlay(overlay);
+          return (
           <SnapOverlayDraggable
             key={overlay.id}
             id={overlay.id}
             x={overlay.x}
             y={overlay.y}
-            mode="bar"
+            mode={sticker ? 'free' : 'bar'}
             containerRef={containerRef}
             trashEnabled
             onDragStart={handleOverlayDragStart}
             onDragTrashChange={handleOverlayDragTrashChange}
             onDragEnd={handleOverlayDragEnd}
             style={{
-              background: overlay.fontSize > 30 ? 'transparent' : 'rgba(0, 0, 0, 0.55)',
-              padding: overlay.fontSize > 30 ? 0 : '6px 14px',
+              background: sticker || overlay.fontSize > 30 ? 'transparent' : 'rgba(0, 0, 0, 0.55)',
+              padding: sticker || overlay.fontSize > 30 ? 0 : '6px 14px',
             }}
           >
             <span
-              className="text-center whitespace-pre-wrap break-words font-medium pointer-events-none"
+              className={cn(
+                'pointer-events-none font-medium',
+                sticker ? 'text-center select-none' : 'text-center whitespace-pre-wrap break-words',
+              )}
               style={{
                 color: overlay.color,
                 fontSize: overlay.fontSize,
                 lineHeight: 1.25,
-                letterSpacing: '-0.01em',
-                maxWidth: '92%',
+                letterSpacing: sticker ? undefined : '-0.01em',
+                maxWidth: sticker ? undefined : '92%',
                 ...getTextStyleCSS(overlay.style, overlay.color),
               }}
             >
               {overlay.text}
             </span>
           </SnapOverlayDraggable>
-        ))}
+          );
+        })}
 
         {/* Drag-to-trash zone */}
         <AnimatePresence>
@@ -669,10 +691,14 @@ export function VybeSnapEditor({ mediaUrl, mediaType, onSend, onCancel }: VybeSn
           >
             <div className="flex items-center justify-end pr-4 pb-5 pointer-events-auto">
               <button
-                onClick={() => { haptics.impact(); setShowSendSheet(true); }}
+                onClick={() => {
+                  haptics.impact();
+                  if (directSend) void handleSend();
+                  else setShowSendSheet(true);
+                }}
                 className="h-12 pl-5 pr-4 rounded-full bg-white text-black flex items-center gap-2 font-semibold text-sm active:scale-95 transition-transform shadow-lg"
               >
-                Send to
+                {directSend ? 'Send' : 'Send to'}
                 <span className="h-8 w-8 rounded-full bg-black flex items-center justify-center">
                   <Send className="h-4 w-4 text-white ml-[1px]" />
                 </span>

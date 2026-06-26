@@ -1906,14 +1906,16 @@ export function ChatView() {
           targetUsername={otherMember.username || ''}
           hasActiveConversation={Boolean(conversationId)}
         >
-          {!isGroupChat && showPeerPresence && peerActivityUser && (
-            <ChatPresenceDock
-              avatarUrl={peerActivityUser.avatar_url ?? otherMember?.avatar_url}
-              username={peerActivityUser.username || otherMember?.username || ''}
-              activity={otherPresenceActivity}
-            />
-          )}
           <MessageInputArea
+            presenceSlot={
+              !isGroupChat && showPeerPresence && peerActivityUser ? (
+                <ChatPresenceDock
+                  avatarUrl={peerActivityUser.avatar_url ?? otherMember?.avatar_url}
+                  username={peerActivityUser.username || otherMember?.username || ''}
+                  activity={otherPresenceActivity}
+                />
+              ) : undefined
+            }
             hasText={hasText}
             getMessageText={() => messageTextRef.current}
             appendToInput={appendToInput}
@@ -1975,21 +1977,22 @@ export function ChatView() {
         </DMSafetyGate>
       ) : (
         <>
-          {isGroupChat && groupDockPeer && (
-            <ChatPresenceDock
-              avatarUrl={groupDockPeer.avatar_url}
-              username={groupDockPeer.username}
-              activity={groupDockPeer.activity}
-            />
-          )}
-          {!isGroupChat && showPeerPresence && peerActivityUser && (
-            <ChatPresenceDock
-              avatarUrl={peerActivityUser.avatar_url ?? otherMember?.avatar_url}
-              username={peerActivityUser.username || otherMember?.username || ''}
-              activity={otherPresenceActivity}
-            />
-          )}
           <MessageInputArea
+          presenceSlot={
+            isGroupChat && groupDockPeer ? (
+              <ChatPresenceDock
+                avatarUrl={groupDockPeer.avatar_url}
+                username={groupDockPeer.username}
+                activity={groupDockPeer.activity}
+              />
+            ) : !isGroupChat && showPeerPresence && peerActivityUser ? (
+              <ChatPresenceDock
+                avatarUrl={peerActivityUser.avatar_url ?? otherMember?.avatar_url}
+                username={peerActivityUser.username || otherMember?.username || ''}
+                activity={otherPresenceActivity}
+              />
+            ) : undefined
+          }
           hasText={hasText}
           getMessageText={() => messageTextRef.current}
           appendToInput={appendToInput}
@@ -2113,6 +2116,7 @@ const MessageInputArea = memo(function MessageInputArea({
   voiceLockStartYRef,
   safetyFilterNode,
   messagesContainerRef,
+  presenceSlot,
 }: {
   hasText: boolean;
   getMessageText: () => string;
@@ -2159,6 +2163,7 @@ const MessageInputArea = memo(function MessageInputArea({
   voiceLockStartYRef?: React.MutableRefObject<number | null>;
   safetyFilterNode?: React.ReactNode;
   messagesContainerRef?: React.RefObject<HTMLElement | null>;
+  presenceSlot?: React.ReactNode;
 }) {
   const headerSlot = (
     <>
@@ -2192,6 +2197,9 @@ const MessageInputArea = memo(function MessageInputArea({
 
   return (
     <KeyboardAwareTexter scrollContainerRef={messagesContainerRef}>
+      {presenceSlot ? (
+        <div className="dm-presence-above-composer">{presenceSlot}</div>
+      ) : null}
       <div className="dm-composer-dock relative flex-shrink-0 z-30">
         {onSendSticker && showStickerPanel && setShowStickerPanel && (
           <StickerPanel

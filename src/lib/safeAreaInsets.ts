@@ -53,6 +53,12 @@ function fallbackGap(device: DeviceType): number {
   return isDespiaRuntime() ? 12 : 8;
 }
 
+function fallbackBottom(device: DeviceType): number {
+  if (device === 'desktop') return 0;
+  // Despia / native WebViews often report 0 for env(safe-area-inset-bottom).
+  return isDespiaRuntime() ? 28 : 12;
+}
+
 function fallbackRight(device: DeviceType): number {
   if (device === 'desktop') return 0;
   return isDespiaRuntime() ? 16 : 12;
@@ -71,7 +77,7 @@ export function resolveSafeAreaInsets(
   return {
     top: Math.max(measured.top, topFloor, viewportTop),
     right: Math.max(measured.right, rightFloor),
-    bottom: Math.max(measured.bottom, 0),
+    bottom: Math.max(measured.bottom, fallbackBottom(device)),
     left: Math.max(measured.left, 0),
     gap,
   };

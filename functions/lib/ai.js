@@ -326,16 +326,72 @@ export const moderateContent = aiSafetyScan;
 const ADVANCED_THEME_SYSTEM = `You are an elite UI theme designer for VYBE social app.
 When the user names a brand, franchise, sports team, app, or aesthetic — match their REAL official colors and mood as closely as possible (e.g. Nike = black/white/orange, Spotify = #1DB954 green, Coca-Cola = red/white, Tiffany = robin-egg blue).
 When they describe a scene or vibe (sunset beach, cyberpunk Tokyo, cozy coffee shop) — derive a cohesive palette from that scene's dominant colors.
+When a "What VYBE knows about this user" block is included — personalize the theme to their profile, Vybe DNA signature colors, interests, bio, and personality. It should feel uniquely theirs, not generic.
 Return ONLY valid JSON: {"theme":{"colorPrimary":"H S% L%","colorSecondary":"...","colorAccent":"...","bgMain":"...","bgCard":"...","textPrimary":"...","textSecondary":"...","borderColor":"...","borderRadius":"medium","mode":"dark"|"light","themeName":"creative name","backgroundEffect":"aurora"|"particles"|"none"|"stars"|"bubbles","animationSpeed":"normal","animationStyle":"smooth"}}
 Use HSL format without hsl() wrapper. Ensure WCAG contrast — text must be readable on backgrounds.`;
+function formatServerThemeContext(input) {
+    const { profile, dna, clientContext } = input;
+    const lines = ['What VYBE knows about this user (personalize the theme to match):'];
+    const username = typeof profile.username === 'string' ? profile.username : '';
+    const displayName = typeof profile.display_name === 'string'
+        ? profile.display_name
+        : typeof profile.displayName === 'string'
+            ? profile.displayName
+            : '';
+    if (displayName || username) {
+        lines.push(`- Name: ${displayName || username}${username ? ` (@${username})` : ''}`);
+    }
+    const bio = typeof profile.bio === 'string' ? profile.bio.trim() : '';
+    if (bio)
+        lines.push(`- Bio: ${bio.slice(0, 280)}`);
+    const interestsRaw = profile.interests ?? profile.onboarding_interests ?? dna.interests ?? [];
+    const interests = (Array.isArray(interestsRaw) ? interestsRaw : [])
+        .map((v) => (typeof v === 'string' ? v : String(v ?? '')))
+        .filter(Boolean)
+        .slice(0, 10);
+    if (interests.length)
+        lines.push(`- Interests: ${interests.join(', ')}`);
+    const signatureColors = Array.isArray(dna.signature_colors) ? dna.signature_colors : [];
+    if (signatureColors.length) {
+        lines.push(`- Vybe DNA signature colors: ${signatureColors.slice(0, 4).join(', ')}`);
+    }
+    if (typeof dna.glyph_pattern === 'string' && dna.glyph_pattern) {
+        lines.push(`- Vybe DNA visual pattern: ${dna.glyph_pattern}`);
+    }
+    const pv = (dna.personality_vector ?? {});
+    if (pv && typeof pv === 'object' && Object.keys(pv).length) {
+        const traits = Object.entries(pv)
+            .sort((a, b) => (b[1] ?? 0) - (a[1] ?? 0))
+            .slice(0, 5)
+            .map(([k, v]) => `${k} ${Math.round((v ?? 0) * 100)}%`)
+            .join(', ');
+        lines.push(`- Personality mix: ${traits}`);
+    }
+    const cc = clientContext || {};
+    if (typeof cc.currentThemeName === 'string' && cc.currentThemeName) {
+        lines.push(`- Current equipped theme: ${cc.currentThemeName} (primary ${cc.currentPrimary || '?'}, accent ${cc.currentAccent || '?'})`);
+    }
+    return lines.length > 1 ? lines.join('\n') : '';
+}
 export const generateTheme = onCall({ secrets: SECRETS }, async (request) => {
     const authUid = requireAuth(request);
     enforceRateLimit(await rateLimit(`gentheme:${authUid}`, 12, 60));
     const profileId = await resolveProfileIdFromAuth(authUid);
     const byokKey = await getUserAiApiKey(profileId, 'google');
-    const { prompt, basePreset, interests = [], selectedFont, selectedAnimation, } = (request.data || {});
+    const { prompt, basePreset, interests = [], selectedFont, selectedAnimation, userContext: clientContext, } = (request.data || {});
+    const [profile, dnaSnap] = await Promise.all([
+        loadUserProfile(authUid),
+        db.collection('vybe_dna').doc(profileId).get(),
+    ]);
+    const dna = (dnaSnap.data() || {});
+    const contextBlock = formatServerThemeContext({
+        profile,
+        dna,
+        clientContext: clientContext,
+    });
     const userPrompt = [
-        prompt || 'A calm midnight purple VYBE theme',
+        prompt || 'Design a personalized VYBE theme based on what you know about me.',
+        contextBlock,
         basePreset ? `Base preset: ${basePreset}` : '',
         interests.length ? `Interests: ${interests.slice(0, 8).join(', ')}` : '',
         selectedFont ? `Font style: ${selectedFont}` : '',
@@ -365,23 +421,7 @@ export const generateTheme = onCall({ secrets: SECRETS }, async (request) => {
             throw err;
         throw new HttpsError('failed-precondition', err instanceof Error ? err.message : 'Theme generation failed — set GEMINI_API_KEY or add your key in Settings → VYBE AI');
     }
-    return {
-        theme: {
-            colorPrimary: '270 70% 58%',
-            colorSecondary: '200 80% 50%',
-            colorAccent: '320 85% 60%',
-            bgMain: '240 15% 8%',
-            bgCard: '240 12% 12%',
-            textPrimary: '0 0% 98%',
-            textSecondary: '240 5% 65%',
-            borderRadius: 'medium',
-            mode: 'dark',
-            themeName: 'VYBE Midnight',
-            backgroundEffect: 'aurora',
-            animationSpeed: 'normal',
-            animationStyle: 'smooth',
-        },
-    };
+    throw new HttpsError('internal', 'Theme AI returned invalid JSON — try a more specific prompt (brand, team, or aesthetic).');
 });
 export const generateAdvancedTheme = generateTheme;
 /** generate-background — AI image (quota-gated). */

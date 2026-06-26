@@ -156,7 +156,7 @@ export const ChatPresenceDock = memo(function ChatPresenceDock({
   const Icon = config.icon;
 
   return (
-    <div className="flex items-end gap-2 px-2.5 sm:px-3 pb-1.5 pt-1 animate-fade-in">
+    <div className="flex items-end gap-2 px-1 sm:px-1.5 pt-0.5 pb-0 animate-fade-in">
       <div className="relative flex-shrink-0">
         <Avatar className="h-8 w-8 ring-2 ring-primary/40 shadow-md">
           <AvatarImage src={signedUrl || undefined} className="object-cover" />

@@ -54,6 +54,61 @@ function isSenderMember(senderIds: Set<string>, memberUserId: string): boolean {
   return senderIds.has(memberUserId);
 }
 
+function inferOtherParticipantId(
+  conversationId: string,
+  senderProfileId: string,
+  senderIds?: Set<string>,
+): string | null {
+  const parts = conversationId.split('_').filter(Boolean);
+  if (parts.length !== 2) return null;
+  const [a, b] = parts;
+  if (senderIds?.has(a)) return b;
+  if (senderIds?.has(b)) return a;
+  if (a === senderProfileId) return b;
+  if (b === senderProfileId) return a;
+  return null;
+}
+
+async function collectDmRecipientIds(
+  conversationId: string,
+  senderIds: Set<string>,
+  conversation: Record<string, unknown>,
+  membersSnap: { docs: Array<{ data: () => Record<string, unknown> }> },
+): Promise<Set<string>> {
+  const recipientUserIds = new Set<string>();
+
+  for (const doc of membersSnap.docs) {
+    const member = doc.data();
+    const memberUserId = asString(member.user_id);
+    if (!memberUserId || member.is_muted === true) continue;
+    if (isSenderMember(senderIds, memberUserId)) continue;
+    recipientUserIds.add(memberUserId);
+  }
+
+  if (!recipientUserIds.size) {
+    const memberIds = conversation.member_ids;
+    if (Array.isArray(memberIds)) {
+      for (const id of memberIds) {
+        const pid = asString(id);
+        if (!pid || isSenderMember(senderIds, pid)) continue;
+        recipientUserIds.add(pid);
+      }
+    }
+  }
+
+  // Deterministic 1:1 chats: profileA_profileB when membership rows are missing.
+  if (!recipientUserIds.size) {
+    for (const senderId of senderIds) {
+      const other = inferOtherParticipantId(conversationId, senderId, senderIds);
+      if (other && !isSenderMember(senderIds, other)) {
+        recipientUserIds.add(other);
+      }
+    }
+  }
+
+  return recipientUserIds;
+}
+
 async function notifyDmRecipients(message: Record<string, unknown>, messageId: string): Promise<void> {
   if (message.is_deleted === true) return;
   if (message.is_optimistic === true) return;
@@ -83,26 +138,12 @@ async function notifyDmRecipients(message: Record<string, unknown>, messageId: s
   const type = isGroup ? 'group_message' : 'dm';
   const url = `/messages/${conversationId}`;
 
-  const recipientUserIds = new Set<string>();
-  for (const doc of membersSnap.docs) {
-    const member = doc.data();
-    const memberUserId = asString(member.user_id);
-    if (!memberUserId || member.is_muted === true) continue;
-    if (isSenderMember(senderIds, memberUserId)) continue;
-    recipientUserIds.add(memberUserId);
-  }
-
-  // Deterministic 1:1 chats may only have member_ids on the conversation doc.
-  if (!recipientUserIds.size) {
-    const memberIds = conversation.member_ids;
-    if (Array.isArray(memberIds)) {
-      for (const id of memberIds) {
-        const pid = asString(id);
-        if (!pid || isSenderMember(senderIds, pid)) continue;
-        recipientUserIds.add(pid);
-      }
-    }
-  }
+  const recipientUserIds = await collectDmRecipientIds(
+    conversationId,
+    senderIds,
+    conversation,
+    membersSnap,
+  );
 
   await Promise.all(
     [...recipientUserIds].map(async (recipientUserId) => {

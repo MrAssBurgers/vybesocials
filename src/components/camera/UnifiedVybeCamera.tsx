@@ -54,6 +54,7 @@ export function UnifiedVybeCamera({
       <VybeSnapCamera
         isOpen
         onClose={onClose}
+        directSend={captureTarget === 'dm'}
         onSend={(url, isVideo) => {
           onSend?.(url, isVideo);
           onClose();
