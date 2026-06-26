@@ -32,7 +32,7 @@ import { pickActiveBan } from '@/lib/banUtils';
 import { normalizeLoginEmail } from '@/lib/loginEmail';
 import { cacheProfileAvatar, resolveProfileAvatarUrl } from '@/lib/profileAvatarCache';
 import { isPasswordRecoveryUrl, redirectToPasswordRecoveryPage } from '@/lib/passwordRecoveryUrl';
-import { awaitOAuthRedirectCapture, isOAuthRedirectInFlight } from '@/lib/firebase/oauthRedirect';
+import { awaitOAuthRedirectCapture, clearOAuthRedirectPending, isOAuthRedirectInFlight } from '@/lib/firebase/oauthRedirect';
 
 /** Fail-soft — production may not have deployed sync_signup_username yet. */
 async function trySyncSignupUsername(): Promise<string | null> {
@@ -54,9 +54,9 @@ function getStoredSessionRefreshTimeoutMs(): number {
 
 function getAuthInitTimeouts() {
   if (isOAuthRedirectInFlight()) {
-    return { safetyMs: 12000, getSessionMs: 10000 };
+    return { safetyMs: 10000, getSessionMs: 8000 };
   }
-  return { safetyMs: 1800, getSessionMs: 1200 };
+  return { safetyMs: 2500, getSessionMs: 2000 };
 }
 
 function isFatalRefreshError(message: string): boolean {
@@ -540,7 +540,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           }
 
           logEvent('auth', 'Session set from hash tokens successfully');
-          sessionStorage.removeItem('vybe-oauth-pending');
+          clearOAuthRedirectPending();
           return true;
         }
       } catch (err) {
@@ -610,6 +610,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // for getSession() or TOKEN_REFRESHED to resolve instead.
         if (event === 'INITIAL_SESSION' && !session) {
           logEvent('auth', 'INITIAL_SESSION with no session — deferring to getSession');
+          // Still unblock the login UI — getSession continues in background.
+          if (!authInitializedRef.current) {
+            authInitializedRef.current = true;
+            setLoading(false);
+            setIsInitialized(true);
+          }
           return;
         }
 
@@ -653,7 +659,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           hydrateCachedProfile(session.user.id);
           bootstrapSessionData(session.user.id, event);
 
-          sessionStorage.removeItem('vybe-oauth-pending');
+          clearOAuthRedirectPending();
         } else if (event === 'SIGNED_OUT') {
           if (!explicitSignOutRef.current && hasStoredAuthSession()) {
             logEvent('auth', 'SIGNED_OUT with stored token — attempting recovery');
@@ -767,7 +773,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             scheduleTokenRefresh(oauthSession.expires_at);
           }
           bootstrapSessionData(oauthSession.user.id, 'SIGNED_IN');
-          sessionStorage.removeItem('vybe-oauth-pending');
+          clearOAuthRedirectPending();
           authInitializedRef.current = true;
           setLoading(false);
           setIsInitialized(true);
@@ -806,7 +812,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               hydrateCachedProfile(refreshed.session.user.id);
               if (refreshed.session.expires_at) scheduleTokenRefresh(refreshed.session.expires_at);
               bootstrapSessionData(refreshed.session.user.id, 'TOKEN_REFRESHED');
-              sessionStorage.removeItem('vybe-oauth-pending');
+              clearOAuthRedirectPending();
               setLoading(false);
               setIsInitialized(true);
               return;
@@ -832,7 +838,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             setProfile(null);
             clearProfileCache();
           }
-          sessionStorage.removeItem('vybe-oauth-pending');
+          clearOAuthRedirectPending();
           authInitializedRef.current = true;
           setLoading(false);
           setIsInitialized(true);
@@ -858,7 +864,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               scheduleTokenRefresh(data.session.expires_at);
             }
             bootstrapSessionData(data.session.user.id, 'TOKEN_REFRESHED');
-            sessionStorage.removeItem('vybe-oauth-pending');
+            clearOAuthRedirectPending();
             setLoading(false);
             setIsInitialized(true);
             return;
@@ -908,7 +914,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             scheduleTokenRefresh(resolvedSession.expires_at);
           }
           bootstrapSessionData(resolvedSession.user.id, 'INITIAL_SESSION');
-          sessionStorage.removeItem('vybe-oauth-pending');
+          clearOAuthRedirectPending();
         }
         
         setLoading(false);
@@ -1010,42 +1016,85 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const signIn = async (email: string, password: string) => {
+    const applySession = (session: Session) => {
+      setWasLoggedIn(true);
+      setSession(session);
+      setUser(session.user);
+      setActiveAuthUserId(session.user.id);
+      authInitializedRef.current = true;
+      setLoading(false);
+      setIsInitialized(true);
+      hydrateCachedProfile(session.user.id);
+      startHeartbeat();
+      if (session.expires_at) {
+        scheduleTokenRefresh(session.expires_at);
+      }
+      bootstrapSessionData(session.user.id, 'SIGNED_IN');
+      clearOAuthRedirectPending();
+    };
+
     try {
-      sessionStorage.removeItem('vybe-oauth-pending');
+      clearOAuthRedirectPending();
       const normalized = normalizeLoginEmail(email);
       const { data, error } = await db.auth.signInWithPassword({
         email: normalized,
         password,
       });
 
+      if (data.session?.user) {
+        applySession(data.session);
+        return { error: null };
+      }
+
       if (error) {
         const { data: liveSession } = await db.auth.getSession();
         if (liveSession.session?.user) {
-          data.session = liveSession.session;
-        } else {
-          throw error;
+          applySession(liveSession.session);
+          return { error: null };
         }
+        const { data: liveUser } = await db.auth.getUser();
+        if (liveUser.user) {
+          applySession({
+            user: liveUser.user,
+            access_token: '',
+            refresh_token: '',
+          });
+          return { error: null };
+        }
+        throw error;
       }
 
-      if (data.session?.user) {
-        setWasLoggedIn(true);
-        setSession(data.session);
-        setUser(data.session.user);
-        setActiveAuthUserId(data.session.user.id);
-        authInitializedRef.current = true;
-        setLoading(false);
-        setIsInitialized(true);
-        hydrateCachedProfile(data.session.user.id);
-        startHeartbeat();
-        if (data.session.expires_at) {
-          scheduleTokenRefresh(data.session.expires_at);
-        }
-        bootstrapSessionData(data.session.user.id, 'SIGNED_IN');
-        sessionStorage.removeItem('vybe-oauth-pending');
+      const { data: liveUser } = await db.auth.getUser();
+      if (liveUser.user) {
+        const { data: liveSession } = await db.auth.getSession();
+        applySession(
+          liveSession.session?.user
+            ? liveSession.session
+            : { user: liveUser.user, access_token: '', refresh_token: '' },
+        );
+        return { error: null };
       }
 
-      return { error: null };
+      return { error: new Error('Sign in did not complete. Please try again.') };
     } catch (error) {
+      try {
+        const { data: liveSession } = await db.auth.getSession();
+        if (liveSession.session?.user) {
+          applySession(liveSession.session);
+          return { error: null };
+        }
+        const { data: liveUser } = await db.auth.getUser();
+        if (liveUser.user) {
+          applySession({
+            user: liveUser.user,
+            access_token: '',
+            refresh_token: '',
+          });
+          return { error: null };
+        }
+      } catch {
+        /* ignore recovery errors */
+      }
       return { error: error as Error };
     }
   };

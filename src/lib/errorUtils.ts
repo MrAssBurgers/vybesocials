@@ -137,6 +137,13 @@ export function getUserFriendlyError(error: any): string {
     return 'Could not reach the sign-in server. Check your connection and try again.';
   }
   if (
+    error?.code === 'auth/timeout' ||
+    error?.name === 'auth/timeout' ||
+    message.includes('timed out')
+  ) {
+    return 'Sign-in timed out. Check your connection and try again.';
+  }
+  if (
     error?.code === 'auth/app-check-token-invalid' ||
     error?.name === 'auth/app-check-token-invalid' ||
     message.includes('app check')

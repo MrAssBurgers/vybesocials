@@ -4,6 +4,7 @@ import { useAuth } from '@/lib/auth';
 import { resolvePostLoginDestination } from '@/lib/authReturnPath';
 import { getCachedCurrentProfile } from '@/lib/profileCache';
 import { isPasswordRecoveryUrl, redirectToPasswordRecoveryPage } from '@/lib/passwordRecoveryUrl';
+import { clearOAuthRedirectPending, isOAuthRedirectInFlight } from '@/lib/firebase/oauthRedirect';
 
 /**
  * OAuth callback — redirect as soon as auth user exists (profile loads in background).
@@ -30,14 +31,14 @@ export default function AuthCallback() {
       const hasError = /(?:^|[?&#])error=/.test(hash) || /(?:^|[?&])error=/.test(search);
       const hasTokens = /access_token=|refresh_token=|code=|token_hash=/.test(`${hash}${search}`);
       if (hasError) {
-        sessionStorage.removeItem('vybe-oauth-pending');
+        clearOAuthRedirectPending();
         navigate('/', { replace: true });
         return;
       }
       if (!hasTokens) {
-        sessionStorage.removeItem('vybe-oauth-pending');
+        clearOAuthRedirectPending();
         const t = setTimeout(() => {
-          if (!sessionStorage.getItem('vybe-oauth-pending')) {
+          if (!isOAuthRedirectInFlight()) {
             navigate('/auth', { replace: true });
           }
         }, 800);
@@ -53,7 +54,7 @@ export default function AuthCallback() {
 
   useEffect(() => {
     if (user || timedOut) {
-      sessionStorage.removeItem('vybe-oauth-pending');
+      clearOAuthRedirectPending();
     }
 
     if (timedOut && !user) {

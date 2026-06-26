@@ -76,14 +76,60 @@ function isRetryableAuthNetworkError(error: VybeAuthError): boolean {
   const msg = (error.message || '').toLowerCase();
   return (
     code === 'auth/network-request-failed' ||
+    code === 'auth/timeout' ||
     msg.includes('network') ||
     msg.includes('failed to fetch') ||
-    msg.includes('fetch')
+    msg.includes('fetch') ||
+    msg.includes('timed out')
   );
 }
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function withAuthTimeout<T>(
+  promise: Promise<T>,
+  ms: number,
+  message: string,
+): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<T>((_, reject) => {
+        timer = setTimeout(() => {
+          reject(Object.assign(new Error(message), { code: 'auth/timeout' }));
+        }, ms);
+      }),
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
+/** Fast path for login — cached token first, never blocks navigation. */
+async function buildVybeSessionFast(user: FirebaseUser): Promise<VybeSession> {
+  try {
+    const token = await withAuthTimeout(
+      user.getIdToken(false),
+      4000,
+      'Token fetch timed out',
+    );
+    return {
+      user: toVybeUser(user),
+      access_token: token,
+      refresh_token: user.refreshToken,
+    };
+  } catch {
+    return buildVybeSessionFallback(user);
+  }
+}
+
+async function sessionFromCurrentUser(auth: ReturnType<typeof getAuth>): Promise<VybeSession | null> {
+  const user = auth?.currentUser;
+  if (!user) return null;
+  return buildVybeSessionFast(user);
 }
 
 async function buildVybeSessionFallback(user: FirebaseUser): Promise<VybeSession> {
@@ -243,16 +289,24 @@ export const firebaseAuth = {
     if (!auth) return { data: { user: null, session: null }, error: NOT_CONFIGURED };
 
     let lastErr: VybeAuthError | null = null;
-    for (let attempt = 0; attempt < 3; attempt++) {
+    for (let attempt = 0; attempt < 2; attempt++) {
       try {
-        const cred = await signInWithEmailAndPassword(auth, payload.email, payload.password);
-        const session = await toVybeSession(cred.user);
+        const cred = await withAuthTimeout(
+          signInWithEmailAndPassword(auth, payload.email, payload.password),
+          12000,
+          'Sign-in timed out. Check your connection and try again.',
+        );
+        const session = await buildVybeSessionFast(cred.user);
         return {
           data: { user: toVybeUser(cred.user), session },
           error: null,
         };
       } catch (err) {
         lastErr = toAuthError(err);
+        const recovered = await sessionFromCurrentUser(auth);
+        if (recovered?.user) {
+          return { data: { user: recovered.user, session: recovered }, error: null };
+        }
         const code = lastErr.name || '';
         if (
           code === 'auth/invalid-credential' ||
@@ -263,12 +317,17 @@ export const firebaseAuth = {
         ) {
           break;
         }
-        if (attempt < 2 && isRetryableAuthNetworkError(lastErr)) {
-          await sleep(500 * (attempt + 1));
+        if (attempt < 1 && isRetryableAuthNetworkError(lastErr)) {
+          await sleep(400);
           continue;
         }
         break;
       }
+    }
+
+    const recovered = await sessionFromCurrentUser(auth);
+    if (recovered?.user) {
+      return { data: { user: recovered.user, session: recovered }, error: null };
     }
     return { data: { user: null, session: null }, error: lastErr };
   },

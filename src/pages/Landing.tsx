@@ -32,6 +32,12 @@ import { clearObsoleteAuthStorage } from '@/lib/legacyAuthStorage';
 import { VybeLiquidTouchOverlay } from '@/components/effects/VybeLiquidTouchOverlay';
 import { VybeLiquidText } from '@/components/ui/VybeLiquidText';
 import { useEmailVerificationPoll } from '@/hooks/useEmailVerificationPoll';
+import {
+  clearOAuthRedirectPending,
+  clearStaleOAuthRedirectPending,
+  isOAuthRedirectInFlight,
+  markOAuthRedirectPending,
+} from '@/lib/firebase/oauthRedirect';
 
 
 // Hide bottom nav on landing page + lock document scroll (auth is one-screen)
@@ -140,8 +146,7 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
   const [isOAuthReturn, setIsOAuthReturn] = useState(() => {
     const hash = window.location.hash;
     const hasHashTokens = hash.includes('access_token') || hash.includes('refresh_token');
-    const isPending = sessionStorage.getItem('vybe-oauth-pending') === 'true';
-    return hasHashTokens || isPending;
+    return hasHashTokens || isOAuthRedirectInFlight();
   });
   const [agreedToTerms, setAgreedToTerms] = useState(false);
   const [rememberMe, setRememberMe] = useState(true);
@@ -154,7 +159,6 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
     approvalDevice?: string;
     approvalLocation?: { city?: string | null; country?: string | null; ip?: string | null };
   }>(null);
-  const [gatePending, setGatePending] = useState(false);
   const [awaitingEmailVerification, setAwaitingEmailVerification] = useState(false);
   useEmailVerificationPoll(awaitingEmailVerification, () => setAwaitingEmailVerification(false));
   const [formData, setFormData] = useState({
@@ -165,7 +169,11 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
 
   const showAuthForm =
     isInviteMode ||
-    (authReady && !user && !gatePending && !loginGate);
+    (authReady && !user && !loginGate);
+
+  useEffect(() => {
+    clearStaleOAuthRedirectPending();
+  }, []);
 
   const { contentRef, scale } = useAuthScreenFit(
     showAuthForm && !isOAuthReturn,
@@ -177,7 +185,7 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
   const runOAuthSignIn = useCallback(async (provider: 'google' | 'apple') => {
     setLoading(true);
     try {
-      sessionStorage.setItem('vybe-oauth-pending', 'true');
+      markOAuthRedirectPending();
       sessionStorage.removeItem('vybe-oauth-error');
       const preferRedirect = isNativeAppShell() || isMobileOrTabletDevice();
       const { firebaseAuth } = await import('@/lib/firebase');
@@ -203,7 +211,7 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
       if (oauthResult.error) throw oauthResult.error;
 
       if (oauthResult.data.session?.user) {
-        sessionStorage.removeItem('vybe-oauth-pending');
+        clearOAuthRedirectPending();
         toast.success('Welcome back! ✨');
         const cached = getCachedCurrentProfile();
         navigate(
@@ -216,11 +224,11 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
         );
       }
     } catch (error: unknown) {
-      sessionStorage.removeItem('vybe-oauth-pending');
+      clearOAuthRedirectPending();
       const msg = getUserFriendlyError(error);
       if (msg !== '__SUPPRESS__') toast.error(msg);
     } finally {
-      if (!sessionStorage.getItem('vybe-oauth-pending')) {
+      if (!isOAuthRedirectInFlight()) {
         setLoading(false);
       }
     }
@@ -231,7 +239,7 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
     if (!isOAuthReturn) return;
 
     if (user) {
-      sessionStorage.removeItem('vybe-oauth-pending');
+      clearOAuthRedirectPending();
       sessionStorage.removeItem('vybe-oauth-error');
       setIsOAuthReturn(false);
       const cached = getCachedCurrentProfile();
@@ -249,7 +257,7 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
 
     const oauthError = sessionStorage.getItem('vybe-oauth-error');
     if (oauthError && authReady) {
-      sessionStorage.removeItem('vybe-oauth-pending');
+      clearOAuthRedirectPending();
       sessionStorage.removeItem('vybe-oauth-error');
       setIsOAuthReturn(false);
       setLoading(false);
@@ -260,7 +268,7 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
     if (!authReady) return;
 
     const failTimer = setTimeout(() => {
-      sessionStorage.removeItem('vybe-oauth-pending');
+      clearOAuthRedirectPending();
       setIsOAuthReturn(false);
       setLoading(false);
       toast.error('Sign-in did not complete. Please try again.');
@@ -299,7 +307,6 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
     !isInviteMode &&
     authReady &&
     user &&
-    !gatePending &&
     !loginGate &&
     !isInviteRoute &&
     !isInviteEntryMode()
@@ -326,8 +333,6 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
 
     try {
       if (isLogin) {
-        setGatePending(true);
-
         const createHandledLoginError = (message: string) => {
           const err = new Error(message) as Error & { isHandledLoginError?: boolean };
           err.isHandledLoginError = true;
@@ -336,7 +341,6 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
 
         const email = normalizeLoginEmail(formData.email);
         const { error } = await signIn(email, formData.password);
-        setGatePending(false);
 
         if (error) {
           if (isInvalidLoginCredentialError(error)) {
@@ -417,7 +421,6 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
       }
     } finally {
       setLoading(false);
-      setGatePending(false);
     }
   };
 
