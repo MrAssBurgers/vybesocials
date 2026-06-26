@@ -2,6 +2,13 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## Login network error fix (2026-06-17)
+- **Problem:** Email/password login showed "Connection error" when Firebase accepted credentials but ID token fetch failed
+- **Fix:** Resilient `toVybeSession` (retries + fallback token), password login network retries, live-session recovery in `signIn`, safer auth state listener
+- **Verified:** `npm run build` PASS · `npm run lint` PASS
+- **Shipped:** git `fe7086a6` pushed · Firebase staging https://vybe-daaab.web.app (2026-06-17)
+- **Next:** Lovable → Share → Publish for vybehub.app · verify login on staging + production
+
 ## Vybe Snap lock + composer keyboard (2026-06-17)
 - **Vybe Snap:** Server-backed view state — tap once, hold-to-replay once, then `view_mode: vybe_locked` (persists after refresh)
 - **Composer:** Desktop no fake keyboard inset (fixes freeze); native lift 7rem + keyboard scroll-into-view
