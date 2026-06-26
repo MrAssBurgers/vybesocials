@@ -1011,13 +1011,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signIn = async (email: string, password: string) => {
     try {
+      sessionStorage.removeItem('vybe-oauth-pending');
       const normalized = normalizeLoginEmail(email);
       const { data, error } = await db.auth.signInWithPassword({
         email: normalized,
         password,
       });
 
-      if (error) throw error;
+      if (error) {
+        const { data: liveSession } = await db.auth.getSession();
+        if (liveSession.session?.user) {
+          data.session = liveSession.session;
+        } else {
+          throw error;
+        }
+      }
 
       if (data.session?.user) {
         setWasLoggedIn(true);

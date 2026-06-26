@@ -130,6 +130,19 @@ export function getUserFriendlyError(error: any): string {
   }
   
   // Network/connection errors
+  if (
+    error?.code === 'auth/network-request-failed' ||
+    error?.name === 'auth/network-request-failed'
+  ) {
+    return 'Could not reach the sign-in server. Check your connection and try again.';
+  }
+  if (
+    error?.code === 'auth/app-check-token-invalid' ||
+    error?.name === 'auth/app-check-token-invalid' ||
+    message.includes('app check')
+  ) {
+    return 'Security check failed. Refresh the page and try again.';
+  }
   if (message.includes('fetch') || message.includes('network') || message.includes('Failed to fetch')) {
     return 'Connection error. Please check your internet and try again.';
   }

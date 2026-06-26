@@ -63,24 +63,69 @@ function toVybeUser(user: FirebaseUser): VybeUser {
   };
 }
 
-async function toVybeSession(user: FirebaseUser): Promise<VybeSession> {
-  const result = await user.getIdTokenResult();
-  return {
-    user: toVybeUser(user),
-    access_token: result.token,
-    refresh_token: user.refreshToken,
-    expires_at: result.expirationTime
-      ? Math.floor(new Date(result.expirationTime).getTime() / 1000)
-      : undefined,
-  };
-}
-
 function toAuthError(err: unknown): VybeAuthError {
   if (err && typeof err === 'object' && 'message' in err) {
     const e = err as { message?: string; code?: string };
     return { message: e.message || 'Auth error', name: e.code };
   }
   return { message: 'Auth error' };
+}
+
+function isRetryableAuthNetworkError(error: VybeAuthError): boolean {
+  const code = (error.name || '').toLowerCase();
+  const msg = (error.message || '').toLowerCase();
+  return (
+    code === 'auth/network-request-failed' ||
+    msg.includes('network') ||
+    msg.includes('failed to fetch') ||
+    msg.includes('fetch')
+  );
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function buildVybeSessionFallback(user: FirebaseUser): Promise<VybeSession> {
+  let token = '';
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      token = await user.getIdToken(attempt > 0);
+      break;
+    } catch {
+      if (attempt < 2) await sleep(300 * (attempt + 1));
+    }
+  }
+  return {
+    user: toVybeUser(user),
+    access_token: token,
+    refresh_token: user.refreshToken,
+  };
+}
+
+/** Never throw — password/OAuth sign-in must not fail after Firebase accepts credentials. */
+async function toVybeSession(user: FirebaseUser): Promise<VybeSession> {
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      const result = await user.getIdTokenResult();
+      return {
+        user: toVybeUser(user),
+        access_token: result.token,
+        refresh_token: user.refreshToken,
+        expires_at: result.expirationTime
+          ? Math.floor(new Date(result.expirationTime).getTime() / 1000)
+          : undefined,
+      };
+    } catch (err) {
+      const authErr = toAuthError(err);
+      if (attempt < 2 && isRetryableAuthNetworkError(authErr)) {
+        await sleep(400 * (attempt + 1));
+        continue;
+      }
+      return buildVybeSessionFallback(user);
+    }
+  }
+  return buildVybeSessionFallback(user);
 }
 
 type AuthStateCallback = (event: string, session: VybeSession | null) => void;
@@ -136,20 +181,29 @@ export const firebaseAuth = {
     let initialFired = false;
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       void (async () => {
-        if (!initialFired) {
-          initialFired = true;
-          const session = user ? await toVybeSession(user) : null;
-          callback('INITIAL_SESSION', session);
-          return;
-        }
+        try {
+          if (!initialFired) {
+            initialFired = true;
+            const session = user ? await toVybeSession(user) : null;
+            callback('INITIAL_SESSION', session);
+            return;
+          }
 
-        if (!user) {
-          callback('SIGNED_OUT', null);
-          return;
-        }
+          if (!user) {
+            callback('SIGNED_OUT', null);
+            return;
+          }
 
-        const session = await toVybeSession(user);
-        callback('SIGNED_IN', session);
+          const session = await toVybeSession(user);
+          callback('SIGNED_IN', session);
+        } catch (err) {
+          console.warn('[auth] onAuthStateChanged session build failed:', err);
+          if (user) {
+            callback(initialFired ? 'SIGNED_IN' : 'INITIAL_SESSION', await buildVybeSessionFallback(user));
+          } else {
+            callback('SIGNED_OUT', null);
+          }
+        }
       })();
     });
 
@@ -187,15 +241,36 @@ export const firebaseAuth = {
   async signInWithPassword(payload: { email: string; password: string }) {
     const auth = resolveAuth();
     if (!auth) return { data: { user: null, session: null }, error: NOT_CONFIGURED };
-    try {
-      const cred = await signInWithEmailAndPassword(auth, payload.email, payload.password);
-      return {
-        data: { user: toVybeUser(cred.user), session: await toVybeSession(cred.user) },
-        error: null,
-      };
-    } catch (err) {
-      return { data: { user: null, session: null }, error: toAuthError(err) };
+
+    let lastErr: VybeAuthError | null = null;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        const cred = await signInWithEmailAndPassword(auth, payload.email, payload.password);
+        const session = await toVybeSession(cred.user);
+        return {
+          data: { user: toVybeUser(cred.user), session },
+          error: null,
+        };
+      } catch (err) {
+        lastErr = toAuthError(err);
+        const code = lastErr.name || '';
+        if (
+          code === 'auth/invalid-credential' ||
+          code === 'auth/wrong-password' ||
+          code === 'auth/user-not-found' ||
+          code === 'auth/invalid-email' ||
+          code === 'auth/user-disabled'
+        ) {
+          break;
+        }
+        if (attempt < 2 && isRetryableAuthNetworkError(lastErr)) {
+          await sleep(500 * (attempt + 1));
+          continue;
+        }
+        break;
+      }
     }
+    return { data: { user: null, session: null }, error: lastErr };
   },
 
   async resend(payload: { type: string; email: string; options?: { emailRedirectTo?: string } }) {
