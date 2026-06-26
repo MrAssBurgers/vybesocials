@@ -7,7 +7,8 @@ Use this file as the Lovable -> Cursor handoff each session.
 - **Camera:** VYBE filter bakes into captured photos on native WebViews (try/catch, no skip); Vybe Snap defaults to VYBE filter
 - **Vybe Snap send:** DM flow uses direct Send (no broken recipient sheet); emojis/stickers free-drag (x+y) vs text bar-only
 - **Verified:** `npm run build` PASS · `npm run lint` PASS · functions build PASS
-- **Next:** Deploy Firebase staging (hosting + pushTriggers) · Lovable Publish for vybehub.app
+- **Shipped:** git `72d54587` · Firebase staging https://vybe-daaab.web.app + push triggers (2026-06-17)
+- **Next:** Lovable → Share → Publish for vybehub.app
 
 - **Push:** Preference-aware delivery (DMs, typing, calls, social toggles); quiet hours; message preview privacy; audible OneSignal alerts; typing type fix
 - **Composer:** Centered texter, 48dp targets, 5-line expand, keyboard spring dock, glass pill polish
