@@ -442,7 +442,7 @@ const BRAND_THEMES: Record<string, GeneratedTheme> = {
 };
 
 const BRAND_ALIASES: Array<{ id: string; pattern: RegExp }> = [
-  { id: 'nike', pattern: /\b(nike|jordan|air max|swoosh)\b/i },
+  { id: 'nike', pattern: /\b(nike|jordan|air max|swoosh|just do it)\b/i },
   { id: 'apple', pattern: /\b(apple|iphone|ios|macbook|ipad)\b/i },
   { id: 'spotify', pattern: /\b(spotify)\b/i },
   { id: 'cocacola', pattern: /\b(coca[\s-]?cola|coke)\b/i },
@@ -461,7 +461,7 @@ const BRAND_ALIASES: Array<{ id: string; pattern: RegExp }> = [
   { id: 'roblox', pattern: /\b(roblox)\b/i },
   { id: 'fortnite', pattern: /\b(fortnite|epic games)\b/i },
   { id: 'cowboys', pattern: /\b(dallas cowboys|cowboys|america'?s team)\b/i },
-  { id: 'ferrari', pattern: /\b(ferrari|scuderia)\b/i },
+  { id: 'ferrari', pattern: /\b(ferrari|scuderia|maranello|prancing horse)\b/i },
   { id: 'minecraft', pattern: /\b(minecraft|creeper|blocky)\b/i },
   { id: 'barcelona', pattern: /\b(barcelona|barça|barca|fc barcelona)\b/i },
   { id: 'christmas', pattern: /\b(christmas|xmas|holiday|santa)\b/i },

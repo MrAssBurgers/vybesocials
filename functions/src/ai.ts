@@ -489,23 +489,10 @@ export const generateTheme = onCall({ secrets: SECRETS }, async (request) => {
     );
   }
 
-  return {
-    theme: {
-      colorPrimary: '270 70% 58%',
-      colorSecondary: '200 80% 50%',
-      colorAccent: '320 85% 60%',
-      bgMain: '240 15% 8%',
-      bgCard: '240 12% 12%',
-      textPrimary: '0 0% 98%',
-      textSecondary: '240 5% 65%',
-      borderRadius: 'medium',
-      mode: 'dark',
-      themeName: 'VYBE Midnight',
-      backgroundEffect: 'aurora',
-      animationSpeed: 'normal',
-      animationStyle: 'smooth',
-    },
-  };
+  throw new HttpsError(
+    'internal',
+    'Theme AI returned invalid JSON — try a more specific prompt (brand, team, or aesthetic).',
+  );
 });
 export const generateAdvancedTheme = generateTheme;
 

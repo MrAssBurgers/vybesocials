@@ -202,14 +202,34 @@ export function DespiaOneSignalSync() {
       }
     };
 
-    const relinkDespiaPush = () => {
+    const relinkDespiaPush = (requestPermission = false) => {
       if (!isDespiaRuntime()) return;
       void db.auth.getUser().then(async ({ data }) => {
         if (!data.user?.id) return;
         const externalId = await resolveProfileExternalId(data.user.id);
         if (!externalId) return;
-        relinkDespiaPushInBackground(externalId, 'foreground-relink');
+        relinkDespiaPushInBackground(externalId, 'foreground-relink', requestPermission);
       });
+    };
+
+    const relinkOnResume = async () => {
+      refresh();
+      if (!isDespiaRuntime()) return;
+      const { data } = await db.auth.getUser();
+      if (!data.user?.id) return;
+      const externalId = await resolveProfileExternalId(data.user.id);
+      if (!externalId) return;
+      const permitted = await checkDespiaPushPermission();
+      if (permitted) {
+        await relinkDespiaPushInBackground(externalId, 'app-resume', false);
+      } else {
+        try {
+          localStorage.removeItem(PUSH_PERM_KEY);
+        } catch {
+          /* ignore */
+        }
+        relinkDespiaPush(true);
+      }
     };
 
     // INITIAL_SESSION / SIGNED_IN handle linking — skip redundant cold-start pass.
@@ -265,12 +285,13 @@ export function DespiaOneSignalSync() {
     };
     const onVisibility = () => {
       if (document.visibilityState === 'visible') {
-        refresh();
-        relinkDespiaPush();
+        void relinkOnResume();
       }
     };
     window.addEventListener('focus', refresh);
     document.addEventListener('visibilitychange', onVisibility);
+    window.addEventListener('app-resumed', relinkOnResume);
+    window.addEventListener('pageshow', relinkOnResume);
     window.addEventListener('despia:push', refresh as EventListener);
 
     // Re-link push subscription periodically while app is open (keeps background delivery fresh).
@@ -329,6 +350,8 @@ export function DespiaOneSignalSync() {
       subscription.unsubscribe();
       window.removeEventListener('focus', refresh);
       document.removeEventListener('visibilitychange', onVisibility);
+      window.removeEventListener('app-resumed', relinkOnResume);
+      window.removeEventListener('pageshow', relinkOnResume);
       window.removeEventListener('despia:push', refresh as EventListener);
       window.removeEventListener('pointerdown', onFirstGesture);
       window.removeEventListener('touchstart', onFirstGesture);

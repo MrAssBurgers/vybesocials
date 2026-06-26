@@ -48,14 +48,18 @@ export const AppLayout = memo(forwardRef<HTMLDivElement, AppLayoutProps>(functio
   const { swipeBackHandlers, swipeProgress } = useSwipeBack(!nativePerf);
   const bottomNavMounted = useBottomNavMount();
   const reserveBottomNavSpace = !hideNav && !noPadding && bottomNavMounted;
+  const [navEffectiveVisible, setNavEffectiveVisible] = useState(true);
 
   useEffect(() => bindAppScrollHideContainer(), []);
 
-  // Recover from overlay flags if a sheet was killed mid-flight (WebView / force-quit).
+  useEffect(() => {
+    return navVisibility.subscribeEffective(setNavEffectiveVisible);
+  }, []);
+
+  // Recover immersive overlay flags only — do not reset scroll-hide on every route.
   useEffect(() => {
     navVisibility.setInDesigner(false);
     setThemePreviewLock(false);
-    navVisibility.resetScrollHide();
   }, [location.pathname]);
 
   usePresence();
@@ -149,7 +153,9 @@ export const AppLayout = memo(forwardRef<HTMLDivElement, AppLayoutProps>(functio
               touchAction: noPadding ? 'pan-y' : undefined,
               paddingBottom:
                 reserveBottomNavSpace
-                  ? 'calc(6rem + env(safe-area-inset-bottom))'
+                  ? navEffectiveVisible
+                    ? 'calc(6rem + env(safe-area-inset-bottom))'
+                    : 'calc(1.25rem + env(safe-area-inset-bottom))'
                   : undefined,
               WebkitOverflowScrolling: 'touch',
               overscrollBehaviorY: 'contain',

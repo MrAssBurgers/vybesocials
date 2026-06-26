@@ -2,12 +2,23 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## Flagship UX/perf overhaul — phase 1 (2026-06-26)
+- **Bottom nav:** `bottomNavController.ts` — velocity/distance thresholds, stays hidden until deliberate scroll-up, no touchmove/wheel jitter; `useSyncExternalStore`; AppLayout padding tracks effective nav visibility
+- **VYBE wordmark:** Stronger contrast — text-stroke + background drop-shadow on light/dark/glass
+- **AI theme:** Brand instant path (Nike/Ferrari/etc. never purple); `preferBaseColors` merge; achromatic primary sanitize fix; cloud purple fallback removed
+- **Push:** Auto relink on `app-resumed` / `pageshow` / visibility; permission re-prompt path when OS grants outside app
+- **Perf monitor:** `performanceMonitor.ts` + Debug Panel FPS/frame/memory (`?vybe_perf=1` or `localStorage vybe_perf_monitor=1`)
+- **Motion:** Standard 150/220/300ms tokens in `motion.ts` + CSS vars
+- **Verified:** `npm run build` PASS · `npm run lint` PASS
+- **Next:** Phase 2 — keyboard avoidance audit all inputs, feed/chat list virtualization, deploy `generateTheme` function
+
 ## Theme generator — personalized from user context (2026-06-26)
 - **Feature:** AI theme generation now uses profile, Vybe DNA, interests, bio, equipped theme, and adaptation hints — not just the typed prompt
 - **Client:** `themeUserContext.ts` + auto-collect in `useGenerateTheme`; Design Your Vybe / Theme Customizer allow blank prompt ("generate from what VYBE knows")
 - **Server:** `generate-theme` cloud function loads profile + `vybe_dna` and injects context block into Gemini prompt
 - **Verified:** `npm run build` PASS · `npm run lint` PASS
 - **Deploy:** Redeploy `generate-theme` function for server-side context on production
+- **Shipped:** git `31513cec` pushed · Firebase staging https://vybe-daaab.web.app + `generateTheme`/`generateAdvancedTheme` (2026-06-26)
 
 ## Instant full-theme boot paint (2026-06-26)
 - **Problem:** Logo showed equipped Vybe colors immediately (reads localStorage) but nav borders, Customize pill, hero cards flashed default theme until React `applyThemeTokens` ran — `index.html` only set ~15 CSS vars and skipped the full `vybe-boot-theme` snapshot when equipped tokens existed

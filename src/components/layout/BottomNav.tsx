@@ -4,7 +4,7 @@ import { preloadRoute } from '@/lib/routePreloader';
 import { cn } from '@/lib/utils';
 import { triggerNavFeedback } from '@/lib/navFeedback';
 import { useUnreadMessagesCount } from '@/hooks/useMessages';
-import { useState, useCallback, useRef, memo, useEffect, forwardRef, useMemo } from 'react';
+import { useState, useCallback, useRef, memo, useEffect, forwardRef, useMemo, useSyncExternalStore } from 'react';
 import { triggerHaptic } from '@/lib/haptics';
 import { playSound } from '@/lib/sounds';
 import { CreateMenuLayer } from '@/components/hub/CreateMenuLayer';
@@ -12,7 +12,7 @@ import { VYBEHub } from '@/components/hub/VYBEHub';
 import { useIsGuest, GuestAuthPrompt } from '@/components/auth/GuestAuthPrompt';
 import { useAuth } from '@/lib/auth';
 import { navVisibility } from '@/lib/navVisibility';
-import { resetScrollHideVisible, subscribeScrollHide } from '@/lib/scrollHideSync';
+import { resetScrollHideVisible, subscribeScrollHide, isScrollHideVisible } from '@/lib/scrollHideSync';
 import { motion, AnimatePresence, Reorder } from 'framer-motion';
 import { T, TAP, MOTION_CONFIG } from '@/lib/motion';
 import { Avatar, ProfileAvatarImage, AvatarFallback } from '@/components/ui/avatar';
@@ -21,23 +21,7 @@ import { useUserPreferences, useUpdatePreferences } from '@/hooks/useUserPrefere
 import { isOwnProfilePath } from '@/lib/bottomNavRoutes';
 
 function useScrollDirection() {
-  const [isVisible, setIsVisible] = useState(true);
-  const location = useLocation();
-
-  useEffect(() => subscribeScrollHide(setIsVisible), []);
-
-  // Never leave nav stuck hidden after route changes or tab switches.
-  useEffect(() => {
-    resetScrollHideVisible();
-  }, [location.pathname]);
-
-  useEffect(() => {
-    const onReset = () => resetScrollHideVisible();
-    window.addEventListener('vybe:nav-scroll-reset', onReset);
-    return () => window.removeEventListener('vybe:nav-scroll-reset', onReset);
-  }, []);
-
-  return isVisible;
+  return useSyncExternalStore(subscribeScrollHide, isScrollHideVisible, () => true);
 }
 
 function useNavVisibility() {
@@ -240,6 +224,12 @@ export const BottomNav = memo(forwardRef<HTMLElement, object>(function BottomNav
     navVisibility.resetScrollHide();
     const t = window.setTimeout(() => setBootGrace(false), 600);
     return () => window.clearTimeout(t);
+  }, []);
+
+  useEffect(() => {
+    const onReset = () => resetScrollHideVisible();
+    window.addEventListener('vybe:nav-scroll-reset', onReset);
+    return () => window.removeEventListener('vybe:nav-scroll-reset', onReset);
   }, []);
 
   // Hide nav when an input/textarea/contenteditable is focused, or when soft keyboard opens
@@ -526,8 +516,8 @@ export const BottomNav = memo(forwardRef<HTMLElement, object>(function BottomNav
           opacity: isVisible ? 1 : 0,
         }}
         transition={{
-          duration: 0.12,
-          ease: 'easeOut',
+          duration: 0.22,
+          ease: [0.16, 1, 0.3, 1],
         }}
         style={{
           zIndex: 5002,

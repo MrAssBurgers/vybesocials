@@ -7,6 +7,11 @@ import { isFeatureEnabled } from '@/lib/featureFlags';
 import { useAuth } from '@/lib/auth';
 import { useQueryClient } from '@tanstack/react-query';
 import { cn } from '@/lib/utils';
+import {
+  isPerfMonitorEnabled,
+  subscribePerformanceMonitor,
+  type PerfSnapshot,
+} from '@/lib/performanceMonitor';
 
 interface DebugStats {
   conversationsLoaded: number;
@@ -15,6 +20,7 @@ interface DebugStats {
   activeCallState: string;
   networkStatus: 'online' | 'offline';
   cacheSize: number;
+  perf: PerfSnapshot | null;
 }
 
 export const DebugPanel = memo(forwardRef<HTMLDivElement, object>(function DebugPanel(_props, ref) {
@@ -26,11 +32,19 @@ export const DebugPanel = memo(forwardRef<HTMLDivElement, object>(function Debug
     activeCallState: 'idle',
     networkStatus: navigator.onLine ? 'online' : 'offline',
     cacheSize: 0,
+    perf: null,
   });
 
   const { profile } = useAuth();
   const queryClient = useQueryClient();
-  const enabled = import.meta.env.DEV && isFeatureEnabled('debug_panel_enabled');
+  const enabled = (import.meta.env.DEV || isPerfMonitorEnabled()) && isFeatureEnabled('debug_panel_enabled');
+
+  useEffect(() => {
+    if (!enabled || !isPerfMonitorEnabled()) return;
+    return subscribePerformanceMonitor((perf) => {
+      setStats((s) => ({ ...s, perf }));
+    });
+  }, [enabled]);
 
   // Update stats periodically
   useEffect(() => {
@@ -185,6 +199,33 @@ export const DebugPanel = memo(forwardRef<HTMLDivElement, object>(function Debug
                 <span>Query Cache</span>
                 <span className="text-muted-foreground">{stats.cacheSize} queries</span>
               </div>
+
+              {stats.perf && (
+                <>
+                  <div className="flex items-center justify-between p-2 rounded bg-muted/30">
+                    <span>FPS</span>
+                    <Badge variant={stats.perf.fps >= 55 ? 'default' : 'destructive'}>
+                      {stats.perf.fps}
+                    </Badge>
+                  </div>
+                  <div className="flex items-center justify-between p-2 rounded bg-muted/30">
+                    <span>Frame time</span>
+                    <span className="text-muted-foreground">{stats.perf.frameMs.toFixed(1)}ms</span>
+                  </div>
+                  <div className="flex items-center justify-between p-2 rounded bg-muted/30">
+                    <span>Dropped / long tasks</span>
+                    <span className="text-muted-foreground">
+                      {stats.perf.droppedFrames} / {stats.perf.longTasks}
+                    </span>
+                  </div>
+                  {stats.perf.memoryMb != null && (
+                    <div className="flex items-center justify-between p-2 rounded bg-muted/30">
+                      <span>JS heap</span>
+                      <span className="text-muted-foreground">{stats.perf.memoryMb} MB</span>
+                    </div>
+                  )}
+                </>
+              )}
             </div>
 
             <div className="mt-3 pt-3 border-t border-border">

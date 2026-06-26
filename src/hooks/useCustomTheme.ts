@@ -554,6 +554,29 @@ function clampHSLLightness(hsl: string | undefined, min: number, max: number, fa
   return `${parts.h} ${parts.s} ${clamped}%`;
 }
 
+function isAchromaticHsl(hsl: string | undefined): boolean {
+  const parts = parseHSLParts(safeHSL(hsl, ''));
+  if (!parts) return false;
+  const sat = parseFloat(parts.s.replace('%', ''));
+  return Number.isFinite(sat) && sat < 10;
+}
+
+function clampPrimaryHsl(
+  value: string | undefined,
+  mode: 'light' | 'dark',
+  fallback: string,
+): string {
+  if (isAchromaticHsl(value)) {
+    return safeHSL(value, fallback);
+  }
+  return clampHSLLightness(
+    value,
+    mode === 'dark' ? 42 : 32,
+    mode === 'dark' ? 72 : 58,
+    fallback,
+  );
+}
+
 const VALID_BG_EFFECTS = new Set<ThemeTokens['backgroundEffect']>([
   'none', 'particles', 'stars', 'bubbles', 'aurora', 'rain', 'snow', 'fireflies', 'geometric',
 ]);
@@ -577,7 +600,7 @@ export function sanitizeThemeTokens(tokens: ThemeTokens): ThemeTokens {
     sanitized.inputText = clampHSLLightness(tokens.inputText, 88, 98, sanitized.textPrimary);
     sanitized.sidebarBg = clampHSLLightness(tokens.sidebarBg, 4, 16, sanitized.bgCard);
     sanitized.navBg = clampHSLLightness(tokens.navBg, 4, 16, sanitized.bgCard);
-    sanitized.colorPrimary = clampHSLLightness(tokens.colorPrimary, 42, 72, '330 100% 60%');
+    sanitized.colorPrimary = clampPrimaryHsl(tokens.colorPrimary, 'dark', '330 100% 60%');
   } else {
     sanitized.bgMain = clampHSLLightness(tokens.bgMain, 92, 100, '0 0% 98%');
     sanitized.bgCard = clampHSLLightness(tokens.bgCard, 96, 100, '0 0% 100%');
@@ -590,7 +613,7 @@ export function sanitizeThemeTokens(tokens: ThemeTokens): ThemeTokens {
     sanitized.inputText = clampHSLLightness(tokens.inputText, 8, 22, sanitized.textPrimary);
     sanitized.sidebarBg = clampHSLLightness(tokens.sidebarBg, 94, 100, sanitized.bgCard);
     sanitized.navBg = clampHSLLightness(tokens.navBg, 94, 100, sanitized.bgCard);
-    sanitized.colorPrimary = clampHSLLightness(tokens.colorPrimary, 32, 58, '330 85% 50%');
+    sanitized.colorPrimary = clampPrimaryHsl(tokens.colorPrimary, 'light', '330 85% 50%');
   }
 
   sanitized.bgGradientFrom = clampHSLLightness(tokens.bgGradientFrom, mode === 'dark' ? 2 : 92, mode === 'dark' ? 14 : 100, sanitized.bgMain);

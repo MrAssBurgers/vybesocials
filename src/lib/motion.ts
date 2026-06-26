@@ -16,13 +16,13 @@ export const MOTION_CONFIG = {
     tactile: { type: 'spring', stiffness: 600, damping: 30 } as const,
   },
 
-  // Duration presets (in seconds) — three canonical durations
+  // Duration presets (in seconds) — flagship app standard
   duration: {
     instant: 0.1,
-    fast: 0.12,   // micro-interactions (taps, hovers)
-    normal: 0.24, // sheets, dropdowns, toasts
-    slow: 0.4,    // page transitions, hero content
-    glacial: 0.6,
+    fast: 0.15,
+    normal: 0.22,
+    slow: 0.3,
+    glacial: 0.45,
   },
 
   // Easing presets — EASE_OUT_EXPO is the project standard

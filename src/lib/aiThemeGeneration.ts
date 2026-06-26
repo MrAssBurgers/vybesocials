@@ -66,17 +66,25 @@ function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
   ]);
 }
 
-function mergeAiTheme(base: GeneratedTheme, ai: GeneratedTheme): GeneratedTheme {
+function mergeAiTheme(
+  base: GeneratedTheme,
+  ai: GeneratedTheme,
+  options?: { preferBaseColors?: boolean },
+): GeneratedTheme {
+  const preferBase = options?.preferBaseColors ?? false;
   return sanitizeThemeTokens({
     ...base,
     ...ai,
     themeName: ai.themeName || base.themeName,
-    colorPrimary: ai.colorPrimary || base.colorPrimary,
-    colorAccent: ai.colorAccent || base.colorAccent,
-    colorSecondary: ai.colorSecondary || base.colorSecondary,
-    bgMain: ai.bgMain || base.bgMain,
-    bgCard: ai.bgCard || base.bgCard,
+    colorPrimary: preferBase ? base.colorPrimary : ai.colorPrimary || base.colorPrimary,
+    colorAccent: preferBase ? base.colorAccent : ai.colorAccent || base.colorAccent,
+    colorSecondary: preferBase ? base.colorSecondary : ai.colorSecondary || base.colorSecondary,
+    bgMain: preferBase ? base.bgMain : ai.bgMain || base.bgMain,
+    bgCard: preferBase ? base.bgCard : ai.bgCard || base.bgCard,
     mode: ai.mode || base.mode,
+    backgroundEffect: ai.backgroundEffect || base.backgroundEffect,
+    animationSpeed: ai.animationSpeed || base.animationSpeed,
+    animationStyle: ai.animationStyle || base.animationStyle,
   });
 }
 
@@ -117,6 +125,7 @@ export async function generateVybeTheme(
   const brandId = detectBrandFromPrompt(effectivePrompt || prompt);
   const brandTheme = brandId ? buildBrandTheme(brandId) : null;
   const brandHint = brandId ? brandThemePromptHint(brandId) : promptThemeAiHint(parsed);
+  const preferBaseColors = Boolean(brandId) || parsed.confidence >= INSTANT_CONFIDENCE;
 
   const userPrompt = [
     effectivePrompt,
@@ -130,9 +139,28 @@ export async function generateVybeTheme(
     .filter(Boolean)
     .join('\n');
 
-  // AI-first: always let Gemini design the theme from the prompt.
-  // The locally-parsed `parsed.theme` is only used as a fast fallback if AI fails.
-  void INSTANT_CONFIDENCE;
+  // Brand / high-confidence prompts — instant return, never generic purple AI.
+  if (brandId && brandTheme) {
+    return {
+      theme: sanitizeThemeTokens(brandTheme),
+      source: 'brand',
+    };
+  }
+
+  if (parsed.confidence >= INSTANT_CONFIDENCE && (trimmedPrompt.length > 0 || effectivePrompt.length > 0)) {
+    return {
+      theme: sanitizeThemeTokens(parsed.theme),
+      source: 'prompt',
+    };
+  }
+
+  // Strong local palette — skip AI (prevents purple override); AI runs for open-ended prompts.
+  if (preferBaseColors && parsed.confidence >= 0.55 && !trimmedPrompt.match(/\b(create|design|personalized|my vybe)\b/i)) {
+    return {
+      theme: sanitizeThemeTokens(parsed.theme),
+      source: 'prompt',
+    };
+  }
 
   // Client + cloud in parallel (cap ~6s total, not sequential 11s)
   let cloudError: unknown;
@@ -173,13 +201,15 @@ export async function generateVybeTheme(
 
   if (clientRaw) {
     return {
-      theme: mergeAiTheme(baseTheme, sanitizeThemeTokens(clientRaw as ThemeTokens)),
+      theme: mergeAiTheme(baseTheme, sanitizeThemeTokens(clientRaw as ThemeTokens), {
+        preferBaseColors,
+      }),
       source: 'client',
     };
   }
   if (cloudTheme) {
     return {
-      theme: mergeAiTheme(baseTheme, sanitizeThemeTokens(cloudTheme)),
+      theme: mergeAiTheme(baseTheme, sanitizeThemeTokens(cloudTheme), { preferBaseColors }),
       source: 'cloud',
     };
   }
