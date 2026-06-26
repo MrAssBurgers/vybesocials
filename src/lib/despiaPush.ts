@@ -36,10 +36,16 @@ export function scheduleOfflinePush(opts: OfflinePushOptions): boolean {
   const t = encodeURIComponent(opts.title);
   const b = encodeURIComponent(opts.body);
   const u = encodeURIComponent(opts.url || (typeof window !== 'undefined' ? window.location.origin : ''));
+  const scheme = `sendlocalpushmsg://push.send?s=${delay}=msg!${b}&!#${t}&!#${u}`;
   try {
-    (window as any).location.href = `sendlocalpushmsg://push.send?s=${delay}=msg!${b}&!#${t}&!#${u}`;
+    window.location.href = scheme;
     return true;
   } catch {
-    return false;
+    try {
+      void import('@/lib/despiaBridge').then(({ despiaCall }) => despiaCall(scheme, [], 800));
+      return true;
+    } catch {
+      return false;
+    }
   }
 }

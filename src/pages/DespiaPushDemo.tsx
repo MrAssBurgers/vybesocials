@@ -7,28 +7,13 @@ import { toast } from 'sonner';
 import { db } from '@/lib/firebase';
 import {
   ensureDespiaOneSignalLinked,
-  fetchDespiaOneSignalPlayerId,
+  fetchPushSubscriptionStatus,
   resolveCurrentOneSignalExternalId,
+  resolveLinkedSubscriptionId,
 } from '@/lib/despiaOneSignal';
 import { despiaCall, isDespiaRuntime } from '@/lib/despiaBridge';
 
-const ONESIGNAL_APP_ID = '85bcf4b4-16fb-4101-90b3-59ca9574e57b';
-// NOTE: client-side key for demo purposes only — never ship a real REST API key in production.
-const ONESIGNAL_REST_KEY =
-  'os_v2_app_qw6pjnaw7naqdeftlhfjk5hfpp7ffcc24keu5mvni4pb3ro253k6c6usokshxlvabzdbe3v63ntvr3szbivddsbfb3r36rftn3vwmvq';
-
 const isDespia = isDespiaRuntime();
-type OneSignalSubscription = { id?: string; type?: string; enabled?: boolean; notification_types?: number | null };
-const delay = (ms: number) => new Promise((resolve) => window.setTimeout(resolve, ms));
-const PUSH_SUBSCRIPTION_TYPES = ['iOSPush', 'AndroidPush', 'ChromePush', 'FirefoxPush', 'SafariPush', 'HuaweiPush'];
-
-const isActivePushSubscription = (subscription: OneSignalSubscription) => {
-  if (!subscription.id || !subscription.type || !PUSH_SUBSCRIPTION_TYPES.includes(subscription.type)) return false;
-  // `enabled` is not always returned by OneSignal's User lookup. Treat only
-  // an explicit false as disabled, and rely on notification_types for the
-  // subscribed/permission state. Positive notification_types means subscribed.
-  return subscription.enabled !== false && (subscription.notification_types ?? 1) > 0;
-};
 
 export default function DespiaPushDemo() {
   const [externalId, setExternalId] = useState('');
@@ -83,11 +68,7 @@ export default function DespiaPushDemo() {
       const link = await ensureDespiaOneSignalLinked(externalId, { waitForPlayerIdMs: 1_500 });
       if (link.linked) setLinkedByDevice(true);
       setPushEnabled(link.permission);
-      let pid = (await resolveSubscriptionIds(externalId))[0] || '';
-      if (!pid) {
-        await fetchDespiaOneSignalPlayerId(1_500);
-        pid = (await resolveSubscriptionIds(externalId))[0] || '';
-      }
+      const pid = await resolveLinkedSubscriptionId(externalId, link.playerId);
       if (pid) setPlayerId(pid);
     })();
   }, [externalId]);
@@ -110,7 +91,7 @@ export default function DespiaPushDemo() {
       });
       if (link.linked) setLinkedByDevice(true);
       if (link.permission !== null) setPushEnabled(link.permission);
-      const pid = await resolveLinkedPlayerId(targetExternalId, link.playerId);
+      const pid = await resolveLinkedSubscriptionId(targetExternalId, link.playerId);
       if (pid) setPlayerId(pid);
       toast.success(pid ? 'Device linked — subscribed push target found.' : 'Device linked — waiting for notification permission to finish.');
     } catch (e: unknown) {
@@ -128,42 +109,6 @@ export default function DespiaPushDemo() {
     }
   };
 
-  // Look up subscription IDs for an external_id via OneSignal's User Identity API.
-  // Only return subscriptions OneSignal says are actively subscribed; raw native
-  // player IDs can point at unsubscribed records and fail sends.
-  const resolveSubscriptionIds = async (extId: string): Promise<string[]> => {
-    try {
-      const url = `https://api.onesignal.com/apps/${ONESIGNAL_APP_ID}/users/by/external_id/${encodeURIComponent(extId)}`;
-      const res = await fetch(url, {
-        headers: {
-          Authorization: `Key ${ONESIGNAL_REST_KEY}`,
-          Accept: 'application/json',
-        },
-      });
-      if (!res.ok) {
-        console.warn('[OneSignal] user lookup failed', res.status, await res.text().catch(() => ''));
-        return [];
-      }
-      const data = await res.json();
-      const subs: OneSignalSubscription[] = Array.isArray(data?.subscriptions) ? data.subscriptions : [];
-      return subs.filter(isActivePushSubscription).map((s) => s.id as string);
-    } catch (e) {
-      console.warn('[OneSignal] user lookup error', e);
-      return [];
-    }
-  };
-
-  const resolveLinkedPlayerId = async (targetExternalId: string, initialId = ''): Promise<string> => {
-    for (let attempt = 0; attempt < 6; attempt += 1) {
-      const lookedUpId = (await resolveSubscriptionIds(targetExternalId))[0] || '';
-      if (lookedUpId) return lookedUpId;
-      await fetchDespiaOneSignalPlayerId(attempt === 0 && !initialId ? 800 : 400);
-      await delay(650);
-      void ensureDespiaOneSignalLinked(targetExternalId, { waitForPlayerIdMs: 0, persistToken: false });
-    }
-    return '';
-  };
-
   const handleSend = async () => {
     if (!externalId && !playerId) {
       toast.error('No target yet.');
@@ -171,51 +116,42 @@ export default function DespiaPushDemo() {
     }
     setSending(true);
     try {
-      const body: Record<string, unknown> = {
-        app_id: ONESIGNAL_APP_ID,
-        target_channel: 'push',
-        headings: { en: title || 'Notification' },
-        contents: { en: message || ' ' },
-      };
-
-      // Always verify against OneSignal before sending. The Despia bridge can
-      // expose a player id before the device is actually subscribed, and sending
-      // that raw id is what caused "All included players are not subscribed".
-      let subscriptionIds = externalId ? await resolveSubscriptionIds(externalId) : [];
+      const targetExternalId = externalId || (await resolveCurrentOneSignalExternalId()) || '';
+      let subscriptionIds = targetExternalId ? (await fetchPushSubscriptionStatus(targetExternalId)).subscriptionIds : [];
       if (!subscriptionIds.length && playerId) {
-        const relinked = await ensureDespiaOneSignalLinked(externalId, {
+        const relinked = await ensureDespiaOneSignalLinked(targetExternalId, {
           requestPermission: true,
           waitForPlayerIdMs: 2_000,
           persistToken: false,
         });
         if (relinked.permission !== null) setPushEnabled(relinked.permission);
-        subscriptionIds = externalId ? await resolveSubscriptionIds(externalId) : [];
+        const pid = await resolveLinkedSubscriptionId(targetExternalId, relinked.playerId || playerId);
+        if (pid) {
+          subscriptionIds = [pid];
+          setPlayerId(pid);
+        }
       }
-      if (subscriptionIds[0]) setPlayerId(subscriptionIds[0]);
 
       if (!subscriptionIds.length) {
         toast.error('No OneSignal subscription found yet — reopen VYBE, then tap Re-link device.');
         return;
       }
 
-      body.include_subscription_ids = subscriptionIds;
-
-      const res = await fetch('https://api.onesignal.com/notifications', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Key ${ONESIGNAL_REST_KEY}`,
+      const result = await db.functions.invoke('send-push-notification', {
+        body: {
+          userId: targetExternalId,
+          subscriptionId: subscriptionIds[0],
+          title: title || 'Notification',
+          body: message || ' ',
+          tag: 'despia-push-demo',
+          type: 'announcement',
         },
-        body: JSON.stringify(body),
       });
-      const json = await res.json();
-      if (!res.ok || json?.errors) {
-        console.error('OneSignal error:', json);
-        toast.error(`Send failed: ${JSON.stringify(json?.errors || json)}`);
-      } else if (json?.recipients === 0) {
-        toast.warning('Sent, but no recipients matched.');
+      const payload = result.data as { sent?: number; success?: boolean; error?: string } | null;
+      if (result.error || !payload?.success) {
+        toast.error(`Send failed: ${payload?.error || result.error?.message || 'unknown error'}`);
       } else {
-        toast.success(`Sent to ${json?.recipients ?? '?'} device(s).`);
+        toast.success(`Sent to ${payload?.sent ?? 1} device(s).`);
       }
     } catch (e: unknown) {
       toast.error(`Network error: ${e instanceof Error ? e.message : String(e)}`);
@@ -301,7 +237,7 @@ export default function DespiaPushDemo() {
             {sending ? 'Sending…' : `Send via ${playerId ? 'player_id' : 'external_id'}`}
           </Button>
           <p className="text-[10px] text-muted-foreground">
-            Demo only — calls OneSignal REST API directly from the browser. Move to an edge function before shipping.
+            Uses the same server push path as Settings → Send me a test push.
           </p>
         </Card>
       </div>

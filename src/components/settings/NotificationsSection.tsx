@@ -3,9 +3,9 @@ import { useAuth } from '@/lib/auth';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import { db } from '@/lib/firebase';
-import { ensureDespiaOneSignalLinked, linkOneSignalUser, runDespiaTestPush } from '@/lib/despiaOneSignal';
-import { isDespiaRuntime } from '@/lib/despiaBridge';
-import { pushBlockedSettingsMessage, pushNotLinkedHint, despiaLocalHint } from '@/lib/pushSettingsCopy';
+import { sendDespiaTestPushNotification, linkOneSignalUser } from '@/lib/despiaOneSignal';
+import { isDespiaRuntime, openAppSettings } from '@/lib/despiaBridge';
+import { pushBlockedSettingsMessage, pushNotLinkedHint } from '@/lib/pushSettingsCopy';
 import { parseEdgeInvokeResult, pushDeliveryErrorMessage } from '@/lib/edgeFunctionResponse';
 import { haptics } from '@/lib/haptics';
 import { useNotificationPreferences, useUpdateNotificationPreference } from '@/hooks/useNotificationPreferences';
@@ -88,18 +88,33 @@ export function NotificationsSection() {
                       haptics.tap();
                       try {
                         if (isDespiaRuntime()) {
-                          const despia = await runDespiaTestPush(profile.id);
+                          const despia = await sendDespiaTestPushNotification(profile.id);
                           if (despia.permission === false) {
-                            toast.error(pushBlockedSettingsMessage());
+                            toast.error(pushBlockedSettingsMessage(), {
+                              action: {
+                                label: 'Open settings',
+                                onClick: () => { void openAppSettings(); },
+                              },
+                            });
+                            return;
+                          }
+                          if (despia.serverSent) {
+                            toast.success('Test push sent — check your lock screen!');
                             return;
                           }
                           if (despia.localSent) {
-                            toast.success('Local test sent — check your notification shade!');
+                            toast.warning('Local test sent, but server push is not linked yet.', {
+                              description: pushNotLinkedHint(),
+                            });
+                            return;
                           }
-                        } else {
-                          await linkOneSignalUser(profile.id);
+                          toast.error('No OneSignal subscription found yet.', {
+                            description: pushNotLinkedHint(),
+                          });
+                          return;
                         }
 
+                        await linkOneSignalUser(profile.id);
                         const result = await db.functions.invoke('send-push-notification', {
                           body: {
                             userId: profile.id,
@@ -112,21 +127,15 @@ export function NotificationsSection() {
                         const { payload, errorMessage } = await parseEdgeInvokeResult(result);
                         const deliveryError = pushDeliveryErrorMessage(payload);
                         if (deliveryError) {
-                          if (isDespiaRuntime()) {
-                            toast.error(deliveryError, {
-                              description: despiaLocalHint(deliveryError),
-                            });
-                          } else {
-                            toast.error(deliveryError, {
-                              description: deliveryError.includes('not linked') ? pushNotLinkedHint() : undefined,
-                            });
-                          }
+                          toast.error(deliveryError, {
+                            description: deliveryError.includes('not linked') ? pushNotLinkedHint() : undefined,
+                          });
                           return;
                         }
                         if (result.error && !payload?.success && !(payload?.ok === true && (payload?.sent as number) > 0)) {
                           throw new Error(errorMessage || result.error.message);
                         }
-                        toast.success('Server test push sent — check your lock screen!');
+                        toast.success('Test push sent — check your lock screen!');
                       } catch (e: unknown) {
                         const msg = e instanceof Error ? e.message : 'Could not send test push';
                         toast.error(msg);

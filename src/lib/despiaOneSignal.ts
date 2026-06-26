@@ -194,6 +194,71 @@ export async function fetchDespiaOneSignalPlayerId(waitMs = 0): Promise<string> 
   return pollPlayerId(externalId, waitMs);
 }
 
+/** Server-side OneSignal subscription lookup (matches Despia Push Demo verify step). */
+export async function fetchPushSubscriptionStatus(profileId: string): Promise<{
+  subscriptionIds: string[];
+  count: number;
+}> {
+  const { data, error } = await db.functions.invoke('get-push-subscription-status', {
+    body: { profileId, profile_id: profileId },
+  });
+  if (error) {
+    console.warn('[OneSignal] get-push-subscription-status failed', error);
+    return { subscriptionIds: [], count: 0 };
+  }
+  const payload = data as { subscriptionIds?: string[]; count?: number } | null;
+  const subscriptionIds = Array.isArray(payload?.subscriptionIds) ? payload.subscriptionIds : [];
+  return {
+    subscriptionIds,
+    count: typeof payload?.count === 'number' ? payload.count : subscriptionIds.length,
+  };
+}
+
+/**
+ * Poll native bridge + server until a real OneSignal subscription id is linked.
+ * Ported from Developer Settings → Despia Push Demo.
+ */
+export async function resolveLinkedSubscriptionId(
+  externalId: string,
+  initialId = '',
+): Promise<string> {
+  if (!isDespiaRuntime() || !externalId) return '';
+
+  let playerId = initialId || (await probePlayerIdOnce());
+  if (playerId) {
+    await persistDespiaPushToken(externalId, playerId);
+    await linkOneSignalUser(externalId, playerId);
+    const status = await fetchPushSubscriptionStatus(externalId);
+    if (status.count > 0) return status.subscriptionIds[0] || playerId;
+    return playerId;
+  }
+
+  for (let attempt = 0; attempt < 6; attempt += 1) {
+    await ensureDespiaOneSignalLinked(externalId, {
+      requestPermission: attempt === 0,
+      waitForPlayerIdMs: attempt === 0 ? 2_500 : 900,
+      fastReturn: false,
+      persistToken: true,
+      trigger: `resolve-sub-${attempt}`,
+    });
+    playerId =
+      (await fetchDespiaOneSignalPlayerId(attempt === 0 ? 800 : 450)) ||
+      (await probePlayerIdOnce());
+    if (playerId) {
+      await persistDespiaPushToken(externalId, playerId);
+      await linkOneSignalUser(externalId, playerId);
+      await delay(650);
+      const status = await fetchPushSubscriptionStatus(externalId);
+      if (status.count > 0) return status.subscriptionIds[0] || playerId;
+      return playerId;
+    }
+    await delay(650);
+  }
+
+  const finalStatus = await fetchPushSubscriptionStatus(externalId);
+  return finalStatus.subscriptionIds[0] || '';
+}
+
 async function primeServerLink(externalId: string, persistToken: boolean): Promise<void> {
   await Promise.all([
     persistToken ? persistDespiaPushToken(externalId, '') : Promise.resolve(),
@@ -269,24 +334,38 @@ export async function ensureDespiaOneSignalLinked(
   return { linked: !!playerId, playerId, permission };
 }
 
-/** Full relink + optional local instant push for Settings → test notification. */
-export async function runDespiaTestPush(profileId: string): Promise<{
+/** Settings → test push — same relink/send path as Despia Push Demo. */
+export async function sendDespiaTestPushNotification(profileId: string): Promise<{
   localSent: boolean;
+  serverSent: boolean;
   playerId: string;
+  subscriptionCount: number;
   permission: boolean | null;
 }> {
-  const permission = await checkNativePushPermission();
+  let permission = await checkNativePushPermission();
+
   if (permission === false) {
-    return { localSent: false, playerId: '', permission };
+    return {
+      localSent: false,
+      serverSent: false,
+      playerId: '',
+      subscriptionCount: 0,
+      permission,
+    };
   }
 
   const link = await ensureDespiaOneSignalLinked(profileId, {
-    requestPermission: false,
-    waitForPlayerIdMs: 8_000,
+    requestPermission: permission !== true,
+    waitForPlayerIdMs: 3_500,
     fastReturn: false,
     persistToken: true,
     trigger: 'test-push',
   });
+  permission = link.permission ?? permission;
+
+  const playerId = await resolveLinkedSubscriptionId(profileId, link.playerId);
+  const status = await fetchPushSubscriptionStatus(profileId);
+  const subscriptionId = status.subscriptionIds[0] || playerId;
 
   const localSent = sendInstantLocalPush(
     'VYBE test push 🚀',
@@ -294,10 +373,52 @@ export async function runDespiaTestPush(profileId: string): Promise<{
     '/settings?tab=notifications',
   );
 
+  if (!subscriptionId) {
+    return {
+      localSent,
+      serverSent: false,
+      playerId: '',
+      subscriptionCount: status.count,
+      permission,
+    };
+  }
+
+  const result = await db.functions.invoke('send-push-notification', {
+    body: {
+      userId: profileId,
+      subscriptionId,
+      title: 'VYBE test push 🚀',
+      body: 'If you see this, push is working on this device.',
+      tag: 'test-push',
+      type: 'announcement',
+    },
+  });
+
+  const payload = result.data as { sent?: number; success?: boolean } | null;
+  const serverSent =
+    !result.error &&
+    (payload?.success === true || (typeof payload?.sent === 'number' && payload.sent > 0));
+
   return {
     localSent,
-    playerId: link.playerId,
-    permission: link.permission ?? permission,
+    serverSent,
+    playerId: subscriptionId,
+    subscriptionCount: Math.max(status.count, serverSent ? 1 : 0),
+    permission,
+  };
+}
+
+/** @deprecated Use sendDespiaTestPushNotification */
+export async function runDespiaTestPush(profileId: string): Promise<{
+  localSent: boolean;
+  playerId: string;
+  permission: boolean | null;
+}> {
+  const result = await sendDespiaTestPushNotification(profileId);
+  return {
+    localSent: result.localSent,
+    playerId: result.playerId,
+    permission: result.permission,
   };
 }
 

@@ -1,6 +1,10 @@
 import { onCall, onRequest, HttpsError } from 'firebase-functions/v2/https';
 import { db, requireAuth, rateLimit, enforceRateLimit } from './_shared/admin.js';
 import { dispatchPushToProfile, dispatchCallPushToProfile, dispatchDmPushToProfile } from './_shared/fcmPush.js';
+import {
+  dispatchOneSignalToProfile,
+  lookupOneSignalSubscriptionIdsForProfile,
+} from './_shared/onesignalPush.js';
 
 const VAPID_PUBLIC = process.env.VAPID_PUBLIC_KEY || process.env.FIREBASE_VAPID_KEY;
 
@@ -19,7 +23,7 @@ export const sendPushNotification = onCall(
   async (request) => {
   const callerUid = requireAuth(request);
   enforceRateLimit(await rateLimit(`push:${callerUid}`, 60, 60));
-  const { userId, title, body, data: payload, url, type, tag, highPriority } =
+  const { userId, title, body, data: payload, url, type, tag, highPriority, subscriptionId, subscriptionIds } =
     (request.data || {}) as {
       userId?: string;
       title?: string;
@@ -29,8 +33,21 @@ export const sendPushNotification = onCall(
       type?: string;
       tag?: string;
       highPriority?: boolean;
+      subscriptionId?: string;
+      subscriptionIds?: string[];
     };
   if (!userId) throw new HttpsError('invalid-argument', 'userId required');
+
+  const explicitSubs = [
+    subscriptionId,
+    ...(Array.isArray(subscriptionIds) ? subscriptionIds : []),
+  ].filter(
+    (id): id is string =>
+      typeof id === 'string' &&
+      id.length >= 8 &&
+      !id.startsWith('despia:') &&
+      !id.startsWith('onesignal:'),
+  );
 
   const pushType = type || payload?.type || '';
   const skipBell =
@@ -45,6 +62,29 @@ export const sendPushNotification = onCall(
       created_at: new Date().toISOString(),
       read: false,
     });
+  }
+
+  if (explicitSubs.length > 0) {
+    const os = await dispatchOneSignalToProfile(
+      userId,
+      {
+        title: title || 'VYBE',
+        body: body || '',
+        url,
+        tag,
+        type: pushType || 'announcement',
+        data: payload,
+      },
+      explicitSubs,
+    );
+    return {
+      ok: os.sent > 0,
+      success: os.sent > 0,
+      sent: os.sent,
+      onesignal: os.sent,
+      mode: os.mode,
+      ...(os.sent === 0 ? { error: 'No push tokens found' } : {}),
+    };
   }
 
   const isCall = type === 'call' || !!highPriority;
@@ -117,11 +157,11 @@ export const linkOnesignalUser = onCall(
   let onesignalLinked = false;
 
   if (appId && restKey) {
-    const body: Record<string, unknown> = {
+    const linkBody: Record<string, unknown> = {
       identity: { external_id: resolvedProfileId },
     };
     if (subId && subId.length >= 8 && !subId.startsWith('despia:')) {
-      body.subscriptions = [{ id: subId, enabled: true }];
+      linkBody.subscriptions = [{ id: subId, enabled: true }];
     }
     try {
       const res = await fetch(`https://api.onesignal.com/apps/${appId}/users`, {
@@ -131,10 +171,31 @@ export const linkOnesignalUser = onCall(
           Authorization: `Key ${restKey}`,
           Accept: 'application/json',
         },
-        body: JSON.stringify(body),
+        body: JSON.stringify(linkBody),
       });
       onesignalLinked = res.ok;
-      if (!res.ok) {
+      if (!res.ok && subId && !subId.startsWith('despia:')) {
+        const patchRes = await fetch(
+          `https://api.onesignal.com/apps/${appId}/users/by/external_id/${encodeURIComponent(resolvedProfileId)}`,
+          {
+            method: 'PATCH',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Key ${restKey}`,
+              Accept: 'application/json',
+            },
+            body: JSON.stringify({
+              identity: { external_id: resolvedProfileId },
+              subscriptions: [{ id: subId, enabled: true }],
+            }),
+          },
+        );
+        onesignalLinked = patchRes.ok;
+        if (!patchRes.ok) {
+          const patchErr = await patchRes.text().catch(() => '');
+          console.warn('[linkOnesignalUser] PATCH', patchRes.status, patchErr.slice(0, 200));
+        }
+      } else if (!res.ok) {
         const errBody = await res.text().catch(() => '');
         console.warn('[linkOnesignalUser] OneSignal API', res.status, errBody.slice(0, 200));
       }
@@ -163,6 +224,41 @@ export const linkOnesignalUser = onCall(
 
   return { ok: true, success: onesignalLinked || !!subId, linked: onesignalLinked };
 });
+
+/** get-push-subscription-status — OneSignal subscription ids for profiles.id (Despia test flow). */
+export const getPushSubscriptionStatus = onCall(
+  { secrets: [...ONESIGNAL_SECRETS] },
+  async (request) => {
+    const authUid = requireAuth(request);
+    const { profile_id, profileId } = (request.data || {}) as {
+      profile_id?: string;
+      profileId?: string;
+    };
+    const resolvedProfileId = await resolveProfileIdForAuth(authUid, profile_id || profileId);
+    const appId = process.env.ONESIGNAL_APP_ID;
+    const restKey = process.env.ONESIGNAL_REST_API_KEY;
+    if (!appId || !restKey) {
+      return {
+        ok: false,
+        profileId: resolvedProfileId,
+        subscriptionIds: [],
+        count: 0,
+        error: 'onesignal_not_configured',
+      };
+    }
+    const subscriptionIds = await lookupOneSignalSubscriptionIdsForProfile(
+      appId,
+      restKey,
+      resolvedProfileId,
+    );
+    return {
+      ok: true,
+      profileId: resolvedProfileId,
+      subscriptionIds,
+      count: subscriptionIds.length,
+    };
+  },
+);
 
 /** send-brief-notification — push the user's daily brief. */
 export const sendBriefNotification = onCall(

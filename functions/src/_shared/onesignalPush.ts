@@ -48,6 +48,22 @@ function isActivePushSubscription(sub: OneSignalSubscription): boolean {
   return sub.enabled !== false && (sub.notification_types ?? 1) > 0;
 }
 
+export async function lookupOneSignalSubscriptionIdsForProfile(
+  appId: string,
+  restKey: string,
+  profileId: string,
+): Promise<string[]> {
+  let ids = await lookupOneSignalSubscriptionIds(appId, restKey, profileId);
+  if (ids.length > 0) return ids;
+
+  const prof = await db.collection('profiles').doc(profileId).get();
+  const authUid = asString(prof.data()?.user_id);
+  if (authUid && authUid !== profileId) {
+    ids = await lookupOneSignalSubscriptionIds(appId, restKey, authUid);
+  }
+  return ids;
+}
+
 async function lookupOneSignalSubscriptionIds(appId: string, restKey: string, externalId: string): Promise<string[]> {
   const res = await fetchJsonWithTimeout(
     `https://api.onesignal.com/apps/${appId}/users/by/external_id/${encodeURIComponent(externalId)}`,
@@ -75,6 +91,7 @@ function subscriptionIdsFromPushTokens(rows: Array<{ token?: string }>): string[
 export async function dispatchOneSignalToProfile(
   profileId: string,
   payload: OneSignalDispatchPayload,
+  forcedSubscriptionIds?: string[],
 ): Promise<{ sent: number; mode?: string }> {
   const appId = process.env.ONESIGNAL_APP_ID;
   const restKey = process.env.ONESIGNAL_REST_API_KEY;
@@ -96,7 +113,10 @@ export async function dispatchOneSignalToProfile(
   const socialChannelId = process.env.ONESIGNAL_SOCIAL_CHANNEL_ID;
   const callChannelId = process.env.ONESIGNAL_CALL_CHANNEL_ID;
 
-  let subscriptionIds = await lookupOneSignalSubscriptionIds(appId, restKey, targetProfileId);
+  let subscriptionIds = forcedSubscriptionIds?.filter(Boolean) ?? [];
+  if (subscriptionIds.length === 0) {
+    subscriptionIds = await lookupOneSignalSubscriptionIds(appId, restKey, targetProfileId);
+  }
   if (subscriptionIds.length === 0 && targetProfileId !== profileId) {
     subscriptionIds = await lookupOneSignalSubscriptionIds(appId, restKey, profileId);
   }
