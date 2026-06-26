@@ -18,6 +18,7 @@ import { createCameraMediaRecorder, recordingBlobType } from '@/lib/cameraRecord
 import { acquirePostCameraStream, attachAudioToStream, stopStream } from '@/lib/postCameraStream';
 import { bakeCameraEdits, bakedCameraFileName, type CameraDrawPath, type CameraTextOverlay } from '@/lib/bakeCameraEdits';
 import type { CameraMode, CaptureTarget } from '@/lib/camera/cameraConfig';
+import { Button } from '@/components/ui/button';
 
 const MusicGallery = lazy(() =>
   import('@/components/music/MusicGallery').then((m) => ({ default: m.MusicGallery })),
