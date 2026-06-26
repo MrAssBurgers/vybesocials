@@ -2,8 +2,14 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## Despia push — official external_id flow (2026-06-26)
+- **EnablePushPrompt:** Turn-on-notifications dialog on Despia; `acceptDespiaPushPermission` → registerpush + instant `setonesignalplayerid://`
+- **Auth load:** `linkDespiaExternalId` on every login/resume/foreground (Despia docs pattern)
+- **Shipped:** git `bb22903e` · Firebase staging https://vybe-daaab.web.app (2026-06-26)
+- **Next:** Lovable Publish for vybehub.app
+
 ## Flagship UX/perf overhaul — phase 2 (2026-06-17)
-- **Push test (Despia):** Settings test now fires instant local notification via Despia bridge + 8s player-id relink before server push; clearer errors when server delivery fails but local works
+- **Push test (Despia):** Settings test uses Despia Push Demo flow — native relink, `get-push-subscription-status`, send by `subscriptionId`; local instant notification fallback
 - **Push server:** `send-push-notification` returns `error: No push tokens found` when `sent=0`; `link-onesignal-user` returns accurate `linked` flag
 - **Bottom nav:** CSS-only hide/show (no Framer Motion fighting scroll); accumulated scroll-down threshold; scroll listener only on `[data-app-scroll-container]`; tab-to-tab no longer resets hide state; removed `is-scrolling` transition kill on nav
 - **Verified:** `npm run build` PASS · `npm run lint` PASS
