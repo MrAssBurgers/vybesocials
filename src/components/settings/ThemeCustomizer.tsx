@@ -154,14 +154,12 @@ export function ThemeCustomizer() {
     });
   }, [animationSpeed, borderRadius, triggerTransition]);
 
-  // Handle AI generation
+  // Handle AI generation — empty prompt uses profile + Vybe DNA via useGenerateTheme
   const handleGenerate = useCallback(async () => {
-    if (!aiPrompt.trim()) return;
-
     setIsGenerating(true);
     try {
       const theme = await generateTheme.mutateAsync({
-        prompt: aiPrompt,
+        prompt: aiPrompt.trim(),
         basePreset: selectedPreset,
       });
 
@@ -275,9 +273,13 @@ export function ThemeCustomizer() {
           <span>AI Theme Designer</span>
         </div>
 
+        <p className="text-xs text-muted-foreground">
+          Leave blank to generate from your profile, Vybe DNA, and interests — or describe a specific vibe.
+        </p>
+
         <div className="relative">
           <Textarea
-            placeholder="Describe your vibe… e.g. 'Ocean sunset with warm oranges'"
+            placeholder="Optional: e.g. 'Ocean sunset with warm oranges' — or tap generate to use what VYBE knows about you"
             value={aiPrompt}
             onChange={(e) => setAiPrompt(e.target.value)}
             className="min-h-[80px] pr-14 resize-none rounded-xl bg-background/40 border-border/50"
@@ -287,7 +289,7 @@ export function ThemeCustomizer() {
             size="sm"
             className="absolute bottom-2 right-2 h-9 w-9 p-0 rounded-xl"
             onClick={handleGenerate}
-            disabled={!aiPrompt.trim() || isGenerating}
+            disabled={isGenerating}
           >
             {isGenerating ? (
               <RefreshCw className="h-4 w-4 animate-spin" />

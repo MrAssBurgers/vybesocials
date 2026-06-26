@@ -1,7 +1,8 @@
 import { createContext, ReactNode, useLayoutEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useApplyUserTheme } from '@/hooks/useCustomTheme';
-import { hydrateThemeFromLocalCaches } from '@/lib/themeHydration';
+import { hydrateThemeFromLocalCaches, kickstartThemeHydration, readRememberedThemeUserId } from '@/lib/themeHydration';
+import { getStoredAuthUserId } from '@/lib/legacyAuthStorage';
 
 interface ThemeProviderProps {
   children: ReactNode;
@@ -17,7 +18,9 @@ export function CustomThemeProvider({ children }: ThemeProviderProps) {
   const queryClient = useQueryClient();
 
   useLayoutEffect(() => {
-    hydrateThemeFromLocalCaches(queryClient);
+    const uid = getStoredAuthUserId() ?? readRememberedThemeUserId();
+    hydrateThemeFromLocalCaches(queryClient, uid);
+    kickstartThemeHydration(queryClient);
   }, [queryClient]);
 
   useApplyUserTheme();

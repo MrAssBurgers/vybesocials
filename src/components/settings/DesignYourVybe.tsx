@@ -33,6 +33,9 @@ import {
   ThemeTokens,
 } from '@/hooks/useCustomTheme';
 import { useShareTheme } from '@/hooks/useSharedThemes';
+import { useAuth } from '@/lib/auth';
+import { useVybeDNA } from '@/hooks/useVybeDNA';
+import { hasThemeUserContext, collectThemeUserContext } from '@/lib/theme/themeUserContext';
 import { cn } from '@/lib/utils';
 import { useThemeTransition } from '@/providers/ThemeTransitionProvider';
 import { useTheme } from '@/lib/theme';
@@ -112,6 +115,8 @@ const BORDER_RADIUS_OPTIONS = [
 
 export function DesignYourVybe() {
   const { data: userTheme, isLoading: isLoadingTheme } = useUserTheme();
+  const { profile } = useAuth();
+  const { data: vybeDna } = useVybeDNA();
   const saveTheme = useSaveTheme();
   const resetTheme = useResetTheme();
   const generateTheme = useGenerateTheme();
@@ -336,19 +341,28 @@ export function DesignYourVybe() {
   };
 
   const handleGenerateTheme = async () => {
-    // Build prompt from vibe selection and custom prompt
-    const vibePrompt = selectedVibe 
-      ? PERSONALITY_VIBES.find(v => v.id === selectedVibe)?.prompt 
+    const vibePrompt = selectedVibe
+      ? PERSONALITY_VIBES.find((v) => v.id === selectedVibe)?.prompt
       : '';
-    
+
+    const themeContext = collectThemeUserContext({
+      profile,
+      dna: vybeDna,
+      equippedTheme: previewTheme ?? (userTheme?.theme_tokens as ThemeTokens | undefined) ?? null,
+    });
+
     const fullPrompt = [
       prompt.trim(),
       vibePrompt,
-      'Create a stunning, immersive theme that transforms the entire app experience'
-    ].filter(Boolean).join('. ');
-    
-    if (!fullPrompt.trim() && !selectedVibe) {
-      toast.error('Please describe your vibe or select a style');
+      !prompt.trim() && !selectedVibe && hasThemeUserContext(themeContext)
+        ? ''
+        : 'Create a stunning, immersive theme that transforms the entire app experience',
+    ]
+      .filter(Boolean)
+      .join('. ');
+
+    if (!fullPrompt.trim() && !selectedVibe && !hasThemeUserContext(themeContext)) {
+      toast.error('Pick a vibe, describe your style, or add interests to your profile');
       return;
     }
 
@@ -588,12 +602,15 @@ export function DesignYourVybe() {
               <div className="space-y-3">
                 <div className="flex items-center gap-2">
                   <Wand2 className="h-4 w-4 text-primary" />
-                  <span className="text-sm font-medium">Describe It (Optional)</span>
+                  <span className="text-sm font-medium">AI VYBE Generator</span>
                 </div>
+                <p className="text-xs text-muted-foreground leading-relaxed">
+                  Uses your profile, Vybe DNA, interests, and current theme — add details below or tap Create to generate from what VYBE already knows.
+                </p>
                 
                 <div className="relative">
                   <Textarea
-                    placeholder="Add more details... e.g., 'Make it glow like a sunset' or 'Add cyberpunk neon effects'"
+                    placeholder="Optional: e.g. 'Make it glow like a sunset' or leave blank to generate from your Vybe DNA"
                     value={prompt}
                     onChange={(e) => setPrompt(e.target.value)}
                     className="min-h-[70px] pr-24 resize-none"
@@ -603,7 +620,7 @@ export function DesignYourVybe() {
                     size="sm"
                     className="absolute bottom-3 right-3 gradient-animated"
                     onClick={handleGenerateTheme}
-                    disabled={(!prompt.trim() && !selectedVibe) || isGenerating}
+                    disabled={isGenerating}
                   >
                     {isGenerating ? (
                       <>

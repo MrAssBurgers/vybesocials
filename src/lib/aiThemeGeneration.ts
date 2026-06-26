@@ -17,6 +17,12 @@ import {
 } from '@/lib/promptThemeBuilder';
 import { generateThemeViaClientAi, formatAiFeatureError } from '@/lib/aiClientFallback';
 import { isAiLogicConfigured } from '@/lib/firebase/aiLogic';
+import {
+  defaultThemePromptFromContext,
+  formatThemeUserContext,
+  hasThemeUserContext,
+  type ThemeUserContext,
+} from '@/lib/theme/themeUserContext';
 
 export type ThemeGenerationSource = 'cloud' | 'client' | 'local' | 'brand' | 'prompt';
 
@@ -27,6 +33,7 @@ export interface GenerateVybeThemeOptions {
   interests?: string[];
   selectedFont?: string | null;
   selectedAnimation?: { speed?: string; style?: string } | null;
+  userContext?: ThemeUserContext | null;
 }
 
 export interface GenerateVybeThemeResult {
@@ -90,17 +97,32 @@ export async function generateVybeTheme(
     interests = [],
     selectedFont,
     selectedAnimation,
+    userContext,
   } = options;
 
-  const parsed = buildThemeFromPrompt(prompt, { selectedVibe, basePreset });
-  const brandId = detectBrandFromPrompt(prompt);
+  const contextBlock = formatThemeUserContext(userContext);
+  const mergedInterests = [
+    ...interests,
+    ...(userContext?.interests ?? []),
+  ]
+    .filter(Boolean)
+    .filter((v, i, arr) => arr.indexOf(v) === i)
+    .slice(0, 10);
+
+  const trimmedPrompt = prompt.trim();
+  const effectivePrompt =
+    trimmedPrompt || (hasThemeUserContext(userContext) ? defaultThemePromptFromContext(userContext) : '');
+
+  const parsed = buildThemeFromPrompt(effectivePrompt || prompt, { selectedVibe, basePreset });
+  const brandId = detectBrandFromPrompt(effectivePrompt || prompt);
   const brandTheme = brandId ? buildBrandTheme(brandId) : null;
   const brandHint = brandId ? brandThemePromptHint(brandId) : promptThemeAiHint(parsed);
 
   const userPrompt = [
-    prompt.trim(),
+    effectivePrompt,
+    contextBlock,
     brandHint,
-    interests.length ? `Interests: ${interests.slice(0, 8).join(', ')}` : '',
+    mergedInterests.length ? `Interests: ${mergedInterests.join(', ')}` : '',
     selectedFont ? `Font style: ${selectedFont}` : '',
     selectedAnimation ? `Animation: ${JSON.stringify(selectedAnimation)}` : '',
     `Base preset: ${basePreset}`,
@@ -108,8 +130,9 @@ export async function generateVybeTheme(
     .filter(Boolean)
     .join('\n');
 
-  // High-confidence prompts — return immediately (fast + accurate)
-  if (parsed.confidence >= INSTANT_CONFIDENCE) {
+  // High-confidence explicit prompts — return immediately (fast + accurate).
+  // Skip when the user relied on profile/DNA context with no custom description.
+  if (parsed.confidence >= INSTANT_CONFIDENCE && trimmedPrompt.length > 0) {
     return {
       theme: sanitizeThemeTokens(parsed.theme),
       source: brandTheme ? 'brand' : 'prompt',
@@ -134,9 +157,10 @@ export async function generateVybeTheme(
     invokeFunction<{ theme?: GeneratedTheme; error?: string }>('generate-theme', {
       prompt: userPrompt,
       basePreset,
-      interests,
+      interests: mergedInterests,
       selectedFont: selectedFont ?? undefined,
       selectedAnimation: selectedAnimation ?? undefined,
+      userContext: userContext ?? undefined,
     }),
     CLOUD_AI_MS,
   )
@@ -167,7 +191,7 @@ export async function generateVybeTheme(
 
   const vibe =
     selectedVibe ||
-    detectVibeFromPrompt(prompt) ||
+    detectVibeFromPrompt(effectivePrompt || prompt) ||
     (basePreset && basePreset !== 'classic' ? basePreset : 'dark');
   const fallback = brandTheme ?? (parsed.confidence >= 0.4 ? parsed.theme : buildLocalVibeTheme(vibe));
 

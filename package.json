@@ -4,8 +4,9 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "vite build",
+    "dev": "npm run build:boot-theme && vite",
+    "build:boot-theme": "node scripts/build-boot-theme.mjs",
+    "build": "npm run build:boot-theme && vite build",
     "postbuild": "node scripts/postbuild-offline.mjs",
     "build:dev": "vite build --mode development",
     "lint": "eslint .",

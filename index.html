@@ -2,89 +2,9 @@
 <!-- Set data-vybe-maintenance="false" when the app is live again -->
 <html lang="en" class="dark" data-vybe-maintenance="false">
   <head>
-    <!-- VYBE pre-boot theme application — runs BEFORE anything paints so the
-         splash screen never flashes default/preset colors before the user's
-         saved theme is loaded by React. We mirror every applyThemeTokens()
-         call to localStorage('vybe-boot-theme') and replay it here. -->
-    <script>
-      (function () {
-        try {
-          var root = document.documentElement;
-          // 1) Mode (dark / light) — set the class before any CSS evaluates
-          var mode = localStorage.getItem('xd-theme') || 'dark';
-          if (mode === 'system') {
-            mode = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-          }
-          root.classList.remove('light', 'dark');
-          root.classList.add(mode === 'light' ? 'light' : 'dark');
-
-          // 2) Equipped theme tokens — full palette before snapshot (matches bootThemeApply)
-          var themeUid = localStorage.getItem('vybe-theme-user-id');
-          if (!themeUid) {
-            for (var storageKey in localStorage) {
-              if (Object.prototype.hasOwnProperty.call(localStorage, storageKey) && storageKey.indexOf('firebase:authUser:') === 0) {
-                try {
-                  var authUser = JSON.parse(localStorage.getItem(storageKey) || 'null');
-                  if (authUser && authUser.uid) {
-                    themeUid = authUser.uid;
-                    break;
-                  }
-                } catch (ignored) {}
-              }
-            }
-          }
-          var equippedRaw = themeUid ? localStorage.getItem('vybe-equipped-theme:' + themeUid) : null;
-          if (!equippedRaw) {
-            equippedRaw =
-              localStorage.getItem('vybe-equipped-theme') ||
-              localStorage.getItem('vybe-custom-theme');
-          }
-          if (equippedRaw) {
-            try {
-              var tokens = JSON.parse(equippedRaw);
-              if (tokens && tokens.colorPrimary) {
-                var safe = function (v, fb) {
-                  return v && typeof v === 'string' && v.trim() ? v.trim() : fb;
-                };
-                var bgDefault = mode === 'light' ? '0 0% 98%' : '240 10% 4%';
-                var primary = safe(tokens.colorPrimary, '330 100% 60%');
-                root.style.setProperty('--primary', primary);
-                root.style.setProperty('--secondary', safe(tokens.colorSecondary, '240 10% 12%'));
-                root.style.setProperty('--accent', safe(tokens.colorAccent, '185 100% 50%'));
-                root.style.setProperty('--background', safe(tokens.bgMain, bgDefault));
-                root.style.setProperty('--foreground', safe(tokens.textPrimary, mode === 'light' ? '240 10% 20%' : '0 0% 98%'));
-                root.style.setProperty('--card', safe(tokens.bgCard, mode === 'light' ? '0 0% 100%' : '240 10% 6%'));
-                root.style.setProperty('--vybe-brand-primary', primary);
-                root.style.setProperty('--vybe-brand-secondary', safe(tokens.colorSecondary, '280 100% 60%'));
-                root.style.setProperty('--vybe-brand-accent', safe(tokens.colorAccent, '185 100% 50%'));
-                root.style.setProperty('--neon-pink', safe(tokens.neonPink, primary));
-                root.style.setProperty('--neon-purple', safe(tokens.neonPurple, tokens.colorSecondary));
-                root.style.setProperty('--neon-cyan', safe(tokens.neonCyan, tokens.colorAccent));
-                root.style.setProperty('--gradient-start', safe(tokens.bgGradientFrom, safe(tokens.bgMain, bgDefault)));
-                root.style.setProperty('--gradient-mid', safe(tokens.bgGradientMid, safe(tokens.bgCard, bgDefault)));
-                root.style.setProperty('--gradient-end', safe(tokens.bgGradientTo, safe(tokens.bgMain, bgDefault)));
-              }
-            } catch (ignored) {}
-          }
-
-          // 3) Cached CSS snapshot — only when equipped tokens missing
-          if (!root.style.getPropertyValue('--primary').trim()) {
-            var raw = localStorage.getItem('vybe-boot-theme');
-            if (raw) {
-              var vars = JSON.parse(raw);
-              if (vars && typeof vars === 'object') {
-                for (var k in vars) {
-                  if (Object.prototype.hasOwnProperty.call(vars, k) && typeof vars[k] === 'string') {
-                    root.style.setProperty(k, vars[k]);
-                  }
-                }
-              }
-            }
-          }
-
-        } catch (e) { /* fail open — React will paint defaults */ }
-      })();
-    </script>
+    <!-- VYBE pre-boot theme — built to public/boot-theme.js (npm run build:boot-theme).
+         Replays vybe-boot-theme snapshot + full equipped derivation before first paint. -->
+    <script src="/boot-theme.js"></script>
 
     <meta charset="UTF-8" />
     <meta name="google-site-verification" content="b3Q9zX83fSqJHGmuLFY17oIIoTvFnoDN6Ba6isHL_B0" />
@@ -131,7 +51,7 @@
           } else {
             markReady();
           }
-          setTimeout(markReady, 600);
+          setTimeout(markReady, 300);
         } catch (e) {
           document.documentElement.setAttribute('data-vybe-fonts-ready', 'true');
         }
@@ -140,6 +60,7 @@
     <link rel="preconnect" href="https://firestore.googleapis.com" crossorigin />
     <link rel="preconnect" href="https://firebasestorage.googleapis.com" crossorigin />
     <link rel="preconnect" href="https://identitytoolkit.googleapis.com" crossorigin />
+    <link rel="preconnect" href="https://us-central1-vybe-daaab.cloudfunctions.net" crossorigin />
     <link rel="preconnect" href="https://api.revenuecat.com" crossorigin />
     <link rel="preconnect" href="https://js.stripe.com" crossorigin />
     <link rel="dns-prefetch" href="https://cdn.gpteng.co" />

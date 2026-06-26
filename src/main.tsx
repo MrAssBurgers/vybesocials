@@ -6,9 +6,11 @@ import App from "./App.tsx";
 import "./index.css";
 import "./styles/repaint-guard.css";
 import { ensureBootThemeApplied } from "./lib/bootThemeApply";
+import { kickstartThemeHydration } from "./lib/themeHydration";
 
 if (typeof window !== 'undefined') {
   ensureBootThemeApplied();
+  kickstartThemeHydration();
   (window as Window & { __VYBE_APP_LOADED__?: boolean }).__VYBE_APP_LOADED__ = true;
 }
 import { isOneSignalBypassHost } from "./lib/lovablePreview";
@@ -59,11 +61,20 @@ function isPreviewOneSignalDomainError(message: unknown) {
 }
 
 function runPreRenderInit() {
-  initSentry();
+  const deferHeavy = (fn: () => void) => {
+    const idle = (window as Window & { requestIdleCallback?: (cb: () => void, opts?: { timeout: number }) => number })
+      .requestIdleCallback;
+    if (idle) idle(fn, { timeout: 2000 });
+    else setTimeout(fn, 1);
+  };
+
+  deferHeavy(() => initSentry());
 
   if (isFirebaseConfigured()) {
-    runSafeBootStep("App Check init", () => {
-      initFirebaseAppCheck();
+    deferHeavy(() => {
+      runSafeBootStep("App Check init", () => {
+        initFirebaseAppCheck();
+      });
     });
   }
 

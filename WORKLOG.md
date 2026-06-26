@@ -2,12 +2,34 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## Theme generator — personalized from user context (2026-06-26)
+- **Feature:** AI theme generation now uses profile, Vybe DNA, interests, bio, equipped theme, and adaptation hints — not just the typed prompt
+- **Client:** `themeUserContext.ts` + auto-collect in `useGenerateTheme`; Design Your Vybe / Theme Customizer allow blank prompt ("generate from what VYBE knows")
+- **Server:** `generate-theme` cloud function loads profile + `vybe_dna` and injects context block into Gemini prompt
+- **Verified:** `npm run build` PASS · `npm run lint` PASS
+- **Deploy:** Redeploy `generate-theme` function for server-side context on production
+
+## Instant full-theme boot paint (2026-06-26)
+- **Problem:** Logo showed equipped Vybe colors immediately (reads localStorage) but nav borders, Customize pill, hero cards flashed default theme until React `applyThemeTokens` ran — `index.html` only set ~15 CSS vars and skipped the full `vybe-boot-theme` snapshot when equipped tokens existed
+- **Fix:** `themePrepaint.ts` + `public/boot-theme.js` (sync script in `<head>`) replays full snapshot then applies complete equipped derivation (`--sidebar-accent`, `--ring`, `--glass`, `--border`, etc.) before first paint; `ensureBootThemeApplied()` uses same path + `markThemeAppliedFromBoot`
+- **Build:** `npm run build:boot-theme` runs before `dev` and `build`
+- **Verified:** `npm run build` PASS · `npm run lint` PASS
+- **Next:** Ship staging + Lovable Publish; hard-refresh and confirm Home nav + Customize match logo on first paint
+
+## Boot + content load performance (2026-06-26)
+- **Splash:** Never blocks on auth/profile/feed network — instant dismiss, all warming in background
+- **Persist:** IndexedDB restore cap 40ms (web) / 80ms (native); on restore → theme hydrate + `warmHomeCaches` immediately
+- **Routes:** Critical route chunks preload immediately (was 2s idle delay)
+- **Boot:** Sentry + App Check deferred to `requestIdleCallback`; faster auth/splash caps
+- **Verified:** `npm run build` PASS · `npm run lint` PASS
+- **Shipped:** Firebase staging https://vybe-daaab.web.app (2026-06-26)
+
 ## Deep scan — camera fullscreen + theme auto sync (2026-06-26)
 - **Camera glitch:** Vybe Snap shutter bled into DM column — camera mounted inside `#root` stack (not portaled); fixed with `FullscreenPortal` + `z-[10050]` + hide `#app-shell` while `data-camera-open`
 - **Theme slow load:** `prefetchAndApplyUserTheme` bailed when stale localStorage existed — now paints local instantly then always reconciles with `user_themes` DB; `equipTheme` auto-saves to account; DB row is source of truth in `useApplyUserTheme`
 - **Prod probes:** `sharePreview` was wrongly deployed as callable (GET → 400); deleted + redeployed as HTTPS with `?probe=1` health; debug-scan uses POST for callables (401 = PASS)
 - **Debug scan:** build PASS · lint PASS · CSS/boot PASS · 66/144 functions OK · prod probes PASS (sharePreview, livekitToken, aiCatchUp)
-- **Published:** Firebase staging https://vybe-daaab.web.app (hosting + firestore rules + sharePreview, 2026-06-26) · git push pending Lovable Publish for vybehub.app
+- **Published:** Firebase staging https://vybe-daaab.web.app (hosting + firestore rules + sharePreview, 2026-06-26) · git `e73f2ec1` pushed to `main` — **you:** Lovable → Share → Publish for vybehub.app
 - **Shipped:** Firebase staging https://vybe-daaab.web.app (2026-06-26)
 - **Next:** Lovable Publish for vybehub.app · user-verify camera fullscreen on desktop DMs
 

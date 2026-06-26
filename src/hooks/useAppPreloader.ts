@@ -1,17 +1,14 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { db } from '@/lib/firebase';
 import { batchSignUrls } from '@/lib/signedUrlCache';
-import { hasWarmOfflineCache } from '@/lib/offlineCacheProbe';
 import { warmHomeCaches, warmHomeCachesForProfile } from '@/lib/warmHomeCaches';
 import { isPersistRestored, markPersistRestored, onPersistRestored } from '@/lib/persistRestoreGate';
 import { preloadCriticalRoutes, preloadSecondaryRoutes } from '@/lib/routePreloader';
-import { hasStoredAuthSession } from '@/lib/legacyAuthStorage';
 import { isNativePerfMode } from '@/lib/nativePerfMode';
 import { isSetupRoutePath } from '@/lib/splashSession';
 import { publishSplashProgress } from '@/lib/splashProgressBridge';
-import { getCachedCurrentProfile } from '@/lib/profileCache';
-import { prefetchAndApplyUserTheme } from '@/lib/themeHydration';
+import { kickstartThemeHydration, prefetchAndApplyUserTheme } from '@/lib/themeHydration';
 
 interface PreloadStatus {
   step: string;
@@ -53,7 +50,7 @@ export function useAppPreloader() {
     const t = setTimeout(() => {
       markPersistRestored();
       setRestoreReady(true);
-    }, isNativePerfMode() ? 120 : 250);
+    }, isNativePerfMode() ? 80 : 40);
     return () => clearTimeout(t);
   }, [restoreReady]);
 
@@ -66,7 +63,7 @@ export function useAppPreloader() {
       setStatus({ step: label, progress: target, isComplete: done });
       return;
     }
-    const duration = Math.max(150, Math.min(delta * 12, 500)); // adaptive duration
+    const duration = Math.max(80, Math.min(delta * 8, 280));
     const startTime = performance.now();
 
     const tick = (now: number) => {
@@ -119,177 +116,20 @@ export function useAppPreloader() {
       return;
     }
 
-    // Native + returning users — never block on network during splash.
-    if (
-      isNativePerfMode() ||
-      hasWarmOfflineCache(queryClient) ||
-      hasStoredAuthSession() ||
-      getCachedCurrentProfile()
-    ) {
-      console.log('[Preloader] Fast path — instant ready');
-      finishPreload('Ready!');
-      requestAnimationFrame(() => {
-        preloadCriticalRoutes();
-        void warmHomeCaches(queryClient);
-      });
-      return;
-    }
+    // Never block splash on network — show UI immediately, warm caches in background.
+    console.log('[Preloader] Instant ready — background warm');
+    updateStatus('init', 0.35);
+    finishPreload('Ready!');
 
-    // Safety timeout — never block the UI on network.
-    const safetyTimeout = setTimeout(() => {
-      finishPreload('Ready!');
-    }, isNativePerfMode() ? 120 : 180);
+    // Theme first — before feed/DM warm (must not wait on getSession).
+    kickstartThemeHydration(queryClient);
 
-    const preload = async () => {
-      const startTime = performance.now();
-      
-      try {
-        // Step 1: Initialize
-        updateStatus('init');
-
-        // Step 2: Check authentication with tight timeout — splash should never wait long.
-        updateStatus('auth');
-
-        let session = null;
-        try {
-          const authResult = await Promise.race([
-            db.auth.getSession(),
-            new Promise((_, reject) => setTimeout(() => reject(new Error('Auth timeout')), 800))
-          ]) as { data: { session: any } };
-          session = authResult.data.session;
-        } catch {
-          /* splash continues — page-level queries hydrate in background */
-        }
-
-        if (!session?.user) {
-          // Guest mode — fire feed/clips fetches in background, don't block splash.
-          updateStatus('feed');
-
-          Promise.allSettled([
-            db.rpc('get_posts_with_counts', {
-              p_type: 'feed_post',
-              p_author_id: null,
-              p_user_id: null,
-              p_offset: 0,
-              p_limit: 30,
-            }),
-            db.rpc('get_posts_with_counts', {
-              p_type: 'clip',
-              p_author_id: null,
-              p_user_id: null,
-              p_offset: 0,
-              p_limit: 20,
-            }),
-          ]).then(([feedResult, clipsResult]) => {
-            if (feedResult.status === 'fulfilled' && feedResult.value.data) {
-              const posts = feedResult.value.data as any[];
-              cacheFeedData(queryClient, posts, null, 'feed_post');
-              const urlsToSign = posts.flatMap(p => [p.media_url, p.author_avatar_url, p.thumbnail_url]).filter(Boolean);
-              batchSignUrls(urlsToSign).catch(() => {});
-            }
-            if (clipsResult.status === 'fulfilled' && clipsResult.value.data) {
-              const clips = clipsResult.value.data as any[];
-              cacheFeedData(queryClient, clips, null, 'clip');
-              const urlsToSign = clips.flatMap(p => [p.media_url, p.author_avatar_url, p.thumbnail_url]).filter(Boolean);
-              batchSignUrls(urlsToSign).catch(() => {});
-            }
-          });
-
-          console.log(`[Preloader] Guest mode ready (non-blocking) - ${(performance.now() - startTime).toFixed(0)}ms`);
-          finishPreload('Ready!');
-          return;
-        }
-
-        const uid = session.user.id;
-        void prefetchAndApplyUserTheme(uid, queryClient);
-
-        // Step 3: Kick off profile fetch but cap how long the splash will wait on it.
-        updateStatus('profile');
-
-        const profilePromise = db
-          .from('profiles')
-          .select('*')
-          .eq('user_id', uid)
-          .maybeSingle();
-
-        let profileData: any = null;
-        try {
-          const result = await Promise.race([
-            profilePromise,
-            new Promise((_, reject) => setTimeout(() => reject(new Error('Profile timeout')), 800)),
-          ]) as any;
-          profileData = result?.data || null;
-        } catch {
-          // Splash continues; the profile query will keep running and hydrate via React Query.
-          console.warn('[Preloader] Profile slow, continuing without blocking');
-        }
-
-        const profileId = profileData?.id;
-        if (profileData) {
-          queryClient.setQueryData(['profile', profileId], profileData);
-        }
-
-        // Step 3b+: warm caches in background — never block splash exit.
-        if (profileId && uid) {
-          warmHomeCachesForProfile(queryClient, uid, profileId, profileData);
-        }
-
-        if (profileId) {
-          Promise.allSettled([
-            db.rpc('get_posts_with_counts', {
-              p_type: null,
-              p_author_id: null,
-              p_user_id: profileId,
-              p_offset: 0,
-              p_limit: 25,
-            }),
-            db.rpc('get_posts_with_counts', {
-              p_type: 'short',
-              p_author_id: null,
-              p_user_id: profileId,
-              p_offset: 0,
-              p_limit: 15,
-            }),
-          ]).then(([feedResult, clipsResult]) => {
-            if (feedResult.status === 'fulfilled' && feedResult.value.data) {
-              const posts = feedResult.value.data as any[];
-              cacheFeedData(queryClient, posts, profileId, null);
-              const urlsToSign = posts.flatMap(p => [p.media_url, p.author_avatar_url, p.thumbnail_url]).filter(Boolean);
-              batchSignUrls(urlsToSign).catch(() => {});
-            }
-            if (clipsResult.status === 'fulfilled' && clipsResult.value.data) {
-              const clips = clipsResult.value.data as any[];
-              cacheFeedData(queryClient, clips, profileId, 'short');
-              const urlsToSign = clips.flatMap(p => [p.media_url, p.author_avatar_url, p.thumbnail_url]).filter(Boolean);
-              batchSignUrls(urlsToSign).catch(() => {});
-            }
-          });
-        }
-
-        finishPreload('Ready!');
-
-        console.log(`[Preloader] Splash ready (non-blocking) - ${(performance.now() - startTime).toFixed(0)}ms`);
-
-        // DEFERRED: Load social data in background (non-blocking).
-        // CRITICAL: gate on profileId — if the profile race timed out above,
-        // profileId is undefined and firing these queries with `undefined`
-        // would produce a flood of `invalid input syntax for type uuid`
-        // 400s on follows / friend_requests / notifications / conversation_members.
-        requestAnimationFrame(() => {
-          preloadCriticalRoutes();
-          void warmHomeCaches(queryClient);
-          setTimeout(() => preloadSecondaryRoutes(), 3000);
-        });
-
-      } catch (error) {
-        console.error('[Preloader] Error:', error);
-        finishPreload('Ready!');
-      } finally {
-        clearTimeout(safetyTimeout);
-      }
-    };
-
-    preload();
+    requestAnimationFrame(() => {
+      preloadCriticalRoutes();
+      void warmHomeCaches(queryClient);
+      void runBackgroundWarm(queryClient);
+      setTimeout(() => preloadSecondaryRoutes(), 1200);
+    });
     
     return () => {
       if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
@@ -353,5 +193,85 @@ function cacheFeedData(
         pageParams: [0],
       }
     );
+  }
+}
+
+/** Background feed/profile warm — never blocks splash. */
+async function runBackgroundWarm(queryClient: QueryClient) {
+  try {
+    const { data: { session } } = await db.auth.getSession();
+    if (!session?.user) {
+      const [feedResult, clipsResult] = await Promise.allSettled([
+        db.rpc('get_posts_with_counts', {
+          p_type: 'feed_post',
+          p_author_id: null,
+          p_user_id: null,
+          p_offset: 0,
+          p_limit: 30,
+        }),
+        db.rpc('get_posts_with_counts', {
+          p_type: 'clip',
+          p_author_id: null,
+          p_user_id: null,
+          p_offset: 0,
+          p_limit: 20,
+        }),
+      ]);
+      if (feedResult.status === 'fulfilled' && feedResult.value.data) {
+        const posts = feedResult.value.data as any[];
+        cacheFeedData(queryClient, posts, null, 'feed_post');
+        batchSignUrls(posts.flatMap((p) => [p.media_url, p.author_avatar_url, p.thumbnail_url]).filter(Boolean)).catch(() => {});
+      }
+      if (clipsResult.status === 'fulfilled' && clipsResult.value.data) {
+        const clips = clipsResult.value.data as any[];
+        cacheFeedData(queryClient, clips, null, 'clip');
+        batchSignUrls(clips.flatMap((p) => [p.media_url, p.author_avatar_url, p.thumbnail_url]).filter(Boolean)).catch(() => {});
+      }
+      return;
+    }
+
+    const uid = session.user.id;
+    void prefetchAndApplyUserTheme(uid, queryClient);
+
+    const { data: profileData } = await db
+      .from('profiles')
+      .select('*')
+      .eq('user_id', uid)
+      .maybeSingle();
+
+    const profileId = profileData?.id;
+    if (profileData && profileId) {
+      queryClient.setQueryData(['profile', profileId], profileData);
+      warmHomeCachesForProfile(queryClient, uid, profileId, profileData);
+
+      const [feedResult, clipsResult] = await Promise.allSettled([
+        db.rpc('get_posts_with_counts', {
+          p_type: null,
+          p_author_id: null,
+          p_user_id: profileId,
+          p_offset: 0,
+          p_limit: 25,
+        }),
+        db.rpc('get_posts_with_counts', {
+          p_type: 'short',
+          p_author_id: null,
+          p_user_id: profileId,
+          p_offset: 0,
+          p_limit: 15,
+        }),
+      ]);
+      if (feedResult.status === 'fulfilled' && feedResult.value.data) {
+        const posts = feedResult.value.data as any[];
+        cacheFeedData(queryClient, posts, profileId, null);
+        batchSignUrls(posts.flatMap((p) => [p.media_url, p.author_avatar_url, p.thumbnail_url]).filter(Boolean)).catch(() => {});
+      }
+      if (clipsResult.status === 'fulfilled' && clipsResult.value.data) {
+        const clips = clipsResult.value.data as any[];
+        cacheFeedData(queryClient, clips, profileId, 'short');
+        batchSignUrls(clips.flatMap((p) => [p.media_url, p.author_avatar_url, p.thumbnail_url]).filter(Boolean)).catch(() => {});
+      }
+    }
+  } catch (error) {
+    console.warn('[Preloader] Background warm failed:', error);
   }
 }

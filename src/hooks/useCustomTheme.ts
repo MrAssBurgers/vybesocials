@@ -1,13 +1,16 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth';
-import { useEffect, useLayoutEffect, useCallback } from 'react';
+import { useEffect, useLayoutEffect, useCallback, useRef } from 'react';
 import { toast } from 'sonner';
 import { usePremiumStatus } from './usePremiumStatus';
 import { isNativePerfMode } from '@/lib/nativePerfMode';
 import { generateVybeTheme } from '@/lib/aiThemeGeneration';
 import { getStoredAuthUserId } from '@/lib/legacyAuthStorage';
 import { prefetchAndApplyUserTheme, persistEquippedThemeTokens, syncEquippedThemeToAccount } from '@/lib/themeHydration';
+import { BOOT_SNAPSHOT_KEY, THEME_SNAPSHOT_KEYS } from '@/lib/theme/themePrepaint';
+import { collectThemeUserContext, type ThemeUserContext } from '@/lib/theme/themeUserContext';
+import type { VybeDNA } from '@/hooks/useVybeDNA';
 
 // Free-tier cooldown for AI theme generation (Pro users skip this)
 const AI_THEME_COOLDOWN_MS = 24 * 60 * 60 * 1000; // 24 hours
@@ -420,6 +423,8 @@ export function useResetTheme() {
 
 export function useGenerateTheme() {
   const { isPremium } = usePremiumStatus();
+  const { profile, user } = useAuth();
+  const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async ({
@@ -429,6 +434,7 @@ export function useGenerateTheme() {
       interests,
       selectedFont,
       selectedAnimation,
+      userContext: userContextOverride,
     }: {
       prompt: string;
       basePreset?: string;
@@ -436,6 +442,7 @@ export function useGenerateTheme() {
       interests?: string[];
       selectedFont?: string | null;
       selectedAnimation?: { speed?: string; style?: string } | null;
+      userContext?: ThemeUserContext | null;
     }) => {
       // Free-tier cooldown: 1 AI theme generation per 24h.
       // Pro users skip this entirely.
@@ -451,6 +458,18 @@ export function useGenerateTheme() {
         }
       }
 
+      const dna = user?.id
+        ? queryClient.getQueryData<VybeDNA>(['vybe-dna', user.id])
+        : undefined;
+      const equipped = getEquippedThemeTokens(user?.id);
+      const userContext =
+        userContextOverride ??
+        collectThemeUserContext({
+          profile,
+          dna,
+          equippedTheme: equipped,
+        });
+
       const result = await generateVybeTheme({
         prompt,
         basePreset,
@@ -458,6 +477,7 @@ export function useGenerateTheme() {
         interests,
         selectedFont,
         selectedAnimation,
+        userContext,
       });
 
       // Stamp cooldown for free users on success (any source)
@@ -878,26 +898,12 @@ export function applyThemeTokens(tokens: ThemeTokens, options?: { preserveBackgr
     // where the app shows preset/default colors before the user's saved
     // theme is fetched. Read by the inline script in index.html.
     try {
-      const snapshotKeys = [
-        '--primary','--secondary','--accent','--ring','--background','--card','--popover',
-        '--gradient-start','--gradient-mid','--gradient-end','--glass','--glass-border',
-        '--muted','--sidebar-background','--sidebar-foreground','--sidebar-primary',
-        '--sidebar-primary-foreground','--sidebar-accent','--sidebar-accent-foreground',
-        '--sidebar-border','--sidebar-ring','--foreground','--muted-foreground',
-        '--card-foreground','--popover-foreground','--primary-foreground',
-        '--secondary-foreground','--accent-foreground','--border','--input',
-        '--input-foreground','--neon-pink','--neon-purple','--neon-cyan',
-        '--vybe-brand-primary','--vybe-brand-secondary','--vybe-brand-accent',
-        '--vybe-brand-pink','--vybe-brand-purple','--vybe-brand-cyan',
-        '--chart-1','--chart-2','--chart-3','--chart-4','--chart-5','--radius',
-        '--light-bg-start','--light-bg-mid',
-      ];
       const snap: Record<string, string> = {};
-      for (const k of snapshotKeys) {
+      for (const k of THEME_SNAPSHOT_KEYS) {
         const v = root.style.getPropertyValue(k);
         if (v) snap[k] = v.trim();
       }
-      localStorage.setItem('vybe-boot-theme', JSON.stringify(snap));
+      localStorage.setItem(BOOT_SNAPSHOT_KEY, JSON.stringify(snap));
       const uid = getStoredAuthUserId();
       if (uid) localStorage.setItem('vybe-theme-user-id', uid);
     } catch {
@@ -936,9 +942,11 @@ let _isApplyingTheme = false;
 
 export function useApplyUserTheme() {
   const { user } = useAuth();
+  const queryClient = useQueryClient();
   const { data: userTheme } = useUserTheme();
+  const didMountApply = useRef(false);
 
-  const applyForMode = useCallback((resolved: 'dark' | 'light') => {
+  const applyForMode = useCallback((resolved: 'dark' | 'light', force = false) => {
     if (_isApplyingTheme || _isSavingTheme || _themePreviewLock) return;
 
     let tokens = getEquippedThemeTokens(user?.id);
@@ -955,7 +963,7 @@ export function useApplyUserTheme() {
     if (!tokens?.colorPrimary) return;
 
     const hash = themeApplyHash(tokens, resolved);
-    if (hash === _lastAppliedThemeHash) return;
+    if (!force && hash === _lastAppliedThemeHash) return;
 
     _isApplyingTheme = true;
     _lastAppliedThemeHash = hash;
@@ -988,13 +996,15 @@ export function useApplyUserTheme() {
 
   useLayoutEffect(() => {
     const resolvedMode = document.documentElement.classList.contains('light') ? 'light' : 'dark';
-    applyForMode(resolvedMode);
+    const forceFirst = !didMountApply.current;
+    didMountApply.current = true;
+    applyForMode(resolvedMode, forceFirst);
 
     const uid = user?.id ?? getStoredAuthUserId();
     if (uid) {
-      void prefetchAndApplyUserTheme(uid, undefined, { timeoutMs: 4000 });
+      void prefetchAndApplyUserTheme(uid, queryClient, { timeoutMs: 6000 });
     }
-  }, [userTheme, applyForMode, user?.id]);
+  }, [userTheme, applyForMode, user?.id, queryClient]);
 
   // Re-apply when another tab or equipTheme updates storage
   useEffect(() => {

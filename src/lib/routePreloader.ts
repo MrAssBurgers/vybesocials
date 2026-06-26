@@ -89,26 +89,24 @@ export function preloadRoute(path: string): void {
  * Call this after initial app load
  */
 export function preloadCriticalRoutes(): void {
-  // Delay slightly to not block initial render
-  requestIdleCallback(() => {
-    const criticalRoutes = [
-      '/messages',
-      '/home',
-      '/explore',
-      '/clips',
-      '/market',
-      '/notifications',
-      '/settings',
-      '/events',
-    ];
-    
-    criticalRoutes.forEach(route => {
-      preloadRoute(route);
-    });
+  const criticalRoutes = [
+    '/messages',
+    '/home',
+    '/explore',
+    '/clips',
+    '/market',
+    '/notifications',
+    '/settings',
+    '/events',
+  ];
 
-    // Preload Framer Motion chunk so first animated route is instant
-    import('framer-motion').catch(() => {});
-  }, { timeout: 2000 });
+  // Start immediately — don't wait for idle (routes were loading 2s late).
+  criticalRoutes.forEach((route) => preloadRoute(route));
+  import('framer-motion').catch(() => {});
+
+  requestIdleCallback(() => {
+    criticalRoutes.forEach((route) => preloadRoute(route));
+  }, { timeout: 800 });
 }
 
 /**

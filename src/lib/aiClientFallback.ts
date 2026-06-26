@@ -6,6 +6,7 @@ import { formatFirebaseAiError } from '@/lib/firebase/aiChat';
 const THEME_SYSTEM = `You are an elite UI theme designer for VYBE social app.
 When the user names a brand, franchise, sports team, app, or aesthetic — match their REAL official colors and mood (Nike=black/white/orange, Spotify=green, Coca-Cola=red, Tiffany=robin-egg blue, etc.).
 When they describe a scene or vibe — derive colors from that scene's dominant palette.
+When a "What VYBE knows about this user" block is provided — personalize the palette to their profile, Vybe DNA signature colors, interests, bio, and personality traits. The theme should feel uniquely theirs.
 Return ONLY valid JSON: {"theme":{"colorPrimary":"H S% L%","colorSecondary":"H S% L%","colorAccent":"H S% L%","bgMain":"H S% L%","bgCard":"H S% L%","textPrimary":"H S% L%","textSecondary":"H S% L%","borderColor":"H S% L%","borderRadius":"medium","mode":"dark"|"light","themeName":"creative name","backgroundEffect":"aurora"|"particles"|"none"|"stars","animationSpeed":"normal","animationStyle":"smooth"}}
 Use HSL without hsl() wrapper. Ensure readable contrast.`;
 

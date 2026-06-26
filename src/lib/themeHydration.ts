@@ -109,8 +109,17 @@ function tokensFromRow(row: UserThemeRow | null | undefined): ThemeTokens | null
 function applyTokensNow(tokens: ThemeTokens, userId?: string | null): void {
   const adapted = adaptThemeToMode(tokens, resolvedMode());
   applyThemeTokens(adapted);
-  markThemeAppliedFromBoot(adapted);
   if (userId) persistEquippedThemeTokens(userId, tokens);
+  markThemeAppliedFromBoot(tokens);
+}
+
+/** Earliest theme path — sync local paint + background DB reconcile (no await). */
+export function kickstartThemeHydration(queryClient?: QueryClient): void {
+  const uid = getStoredAuthUserId() ?? readRememberedThemeUserId();
+  hydrateThemeFromLocalCaches(queryClient, uid);
+  if (uid) {
+    void prefetchAndApplyUserTheme(uid, queryClient, { timeoutMs: 6000 });
+  }
 }
 
 /** Apply equipped / boot snapshot / persisted react-query theme — sync, no network. */

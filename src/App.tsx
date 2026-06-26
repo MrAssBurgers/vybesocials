@@ -9,7 +9,8 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider, useQueryClient } from "@tanstack/react-query";
 import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client";
 import { queryPersister, shouldPersistQueryKey } from "@/lib/queryPersister";
-import { hydrateThemeFromLocalCaches } from "@/lib/themeHydration";
+import { hydrateThemeFromLocalCaches, kickstartThemeHydration } from "@/lib/themeHydration";
+import { warmHomeCaches } from "@/lib/warmHomeCaches";
 import { getStoredAuthUserId } from "@/lib/legacyAuthStorage";
 import { startReconnectManager } from "@/lib/reconnectManager";
 import { startOutbox } from "@/lib/dmOutbox";
@@ -334,10 +335,10 @@ function useAuthResolved() {
   useEffect(() => {
     let cancelled = false;
     const authTimeoutMs = optimistic
-      ? (isNativePerfMode() ? 250 : 400)
+      ? (isNativePerfMode() ? 150 : 200)
       : hasStoredAuthSession()
-        ? (isNativePerfMode() ? 500 : 700)
-        : (isNativePerfMode() ? 900 : 1200);
+        ? (isNativePerfMode() ? 300 : 400)
+        : (isNativePerfMode() ? 600 : 700);
     const forceDone = setTimeout(() => {
       if (!cancelled) setResolved(true);
     }, authTimeoutMs);
@@ -425,7 +426,7 @@ function AppWithPreloader() {
     const absoluteMax = setTimeout(() => {
       syncNativeTrackingConsent();
       completeInitialSplash(setShowSplash);
-    }, isNativePerfMode() ? 450 : 600);
+    }, isNativePerfMode() ? 350 : 400);
     return () => clearTimeout(absoluteMax);
   }, [showSplash]);
 
@@ -618,6 +619,8 @@ const App = memo(() => {
         onSuccess={() => {
           reviveQueriesInCache(queryClient);
           hydrateThemeFromLocalCaches(queryClient, getStoredAuthUserId());
+          kickstartThemeHydration(queryClient);
+          void warmHomeCaches(queryClient);
           purgeStuckStoryUploads(queryClient);
           markPersistRestored();
         }}

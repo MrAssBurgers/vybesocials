@@ -25,6 +25,8 @@ import { cn } from '@/lib/utils';
 import { generateVybeTheme } from '@/lib/aiThemeGeneration';
 import { isValidGeneratedTheme, type GeneratedTheme } from '@/lib/localVibeThemes';
 import { useAuth } from '@/lib/auth';
+import { useVybeDNA } from '@/hooks/useVybeDNA';
+import { collectThemeUserContext, hasThemeUserContext } from '@/lib/theme/themeUserContext';
 import { applyThemeTokens, useSaveTheme, setThemePreviewLock, ThemeTokens, sanitizeThemeTokens } from '@/hooks/useCustomTheme';
 import { navVisibility } from '@/lib/navVisibility';
 import { resetThemeToDefault } from '@/lib/themeReset';
@@ -170,7 +172,8 @@ function AnimatedHeadline({ words, className, reduceMotion }: { words: string[];
 }
 
 export function AIVybeDesigner({ interests = [], onComplete, onSkip }: AIVybeDesignerProps) {
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
+  const { data: vybeDna } = useVybeDNA();
   const saveTheme = useSaveTheme();
   const reduceMotion = useReducedMotion();
 
@@ -290,16 +293,25 @@ export function AIVybeDesigner({ interests = [], onComplete, onSkip }: AIVybeDes
     const fontPref = selectedFont ? `Use ${FONT_PAIRINGS[selectedFont].description} typography` : '';
     const animPref = selectedAnimation ? `Use ${ANIMATION_PRESETS[selectedAnimation].description} motion` : '';
 
+    const themeContext = collectThemeUserContext({
+      profile: { ...profile, interests: interests.length ? interests : profile?.interests },
+      dna: vybeDna,
+    });
+
     const fullPrompt = [
       customPrompt.trim(),
       vibePrompt,
       interestSuggestion,
       fontPref,
       animPref,
-      'Create a stunning theme. Ensure excellent contrast — text must always be readable.',
-    ].filter(Boolean).join('. ');
+      !customPrompt.trim() && !selectedVibe && hasThemeUserContext(themeContext)
+        ? ''
+        : 'Create a stunning theme. Ensure excellent contrast — text must always be readable.',
+    ]
+      .filter(Boolean)
+      .join('. ');
 
-    if (!fullPrompt.trim() || (!selectedVibe && !customPrompt.trim())) {
+    if (!fullPrompt.trim() && !selectedVibe && !hasThemeUserContext(themeContext)) {
       toast.error('Pick a vibe or describe your style first');
       return;
     }
@@ -321,6 +333,7 @@ export function AIVybeDesigner({ interests = [], onComplete, onSkip }: AIVybeDes
         selectedAnimation: selectedAnimation
           ? ANIMATION_PRESETS[selectedAnimation]
           : null,
+        userContext: themeContext,
       });
       if (!isValidGeneratedTheme(result.theme)) throw new Error('Invalid theme response');
       theme = { ...result.theme };
