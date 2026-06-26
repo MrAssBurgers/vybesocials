@@ -7,11 +7,10 @@
  * For server-driven notifications use OneSignal.
  */
 
-const isDespia = typeof navigator !== 'undefined' &&
-  navigator.userAgent.toLowerCase().includes('despia');
+import { isDespiaRuntime } from '@/lib/despiaBridge';
 
 export function isNativeShell(): boolean {
-  return isDespia;
+  return isDespiaRuntime();
 }
 
 export interface OfflinePushOptions {
@@ -22,8 +21,17 @@ export interface OfflinePushOptions {
   url?: string;
 }
 
+/** Instant on-device notification (delay 0) — useful for "test push" in Settings. */
+export function sendInstantLocalPush(
+  title: string,
+  body: string,
+  url?: string,
+): boolean {
+  return scheduleOfflinePush({ delaySeconds: 0, title, body, url });
+}
+
 export function scheduleOfflinePush(opts: OfflinePushOptions): boolean {
-  if (!isDespia) return false;
+  if (!isDespiaRuntime()) return false;
   const delay = Math.max(0, Math.floor(opts.delaySeconds));
   const t = encodeURIComponent(opts.title);
   const b = encodeURIComponent(opts.body);

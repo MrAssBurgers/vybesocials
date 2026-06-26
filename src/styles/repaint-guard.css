@@ -125,7 +125,6 @@ body {
 [data-route-shell],
 [data-app-shell],
 #main-content,
-.bottom-nav,
 .sidebar,
 .desktop-left-sidebar,
 .desktop-right-sidebar,
@@ -141,8 +140,4 @@ body {
 html.is-scrolling .bottom-nav .gradient-animated,
 html.is-scrolling .bottom-nav [class*="animate-"] {
   animation-play-state: paused !important;
-}
-
-html.is-scrolling .bottom-nav {
-  transition: none !important;
 }

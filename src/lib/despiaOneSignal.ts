@@ -1,5 +1,6 @@
 import { db } from '@/lib/firebase';
 import { isDespiaRuntime, despiaCall, isAndroidUA, isIOSUA } from '@/lib/despiaBridge';
+import { sendInstantLocalPush } from '@/lib/despiaPush';
 import { syncNativePushTokens, detectNativePushPlatform, upsertNativePushTokens } from '@/lib/pushTokenRegistry';
 
 const PLAYER_ID_KEYS = [
@@ -108,14 +109,14 @@ export async function persistDespiaPushToken(profileId: string, playerId = ''): 
 
 export async function linkOneSignalUser(profileId: string, subscriptionId?: string): Promise<boolean> {
   const { data, error } = await db.functions.invoke('link-onesignal-user', {
-    body: { profileId, subscriptionId: subscriptionId || undefined },
+    body: { profileId, profile_id: profileId, subscriptionId: subscriptionId || undefined },
   });
   if (error) {
     console.warn('[OneSignal] link-onesignal-user invoke failed', error);
     return false;
   }
-  const payload = data as { success?: boolean } | null;
-  return payload?.success === true;
+  const payload = data as { success?: boolean; linked?: boolean } | null;
+  return payload?.linked === true || payload?.success === true;
 }
 
 /** Fire all native bridges in parallel — much faster than serial awaits. */
@@ -245,7 +246,11 @@ export async function ensureDespiaOneSignalLinked(
     }
     startBackgroundPushFinish(externalId, options);
     console.log(`${tag} fast return`, { permission, playerId: instantPlayerId || '(background)' });
-    return { linked: true, playerId: instantPlayerId, permission };
+    return {
+      linked: !!instantPlayerId || permission === true,
+      playerId: instantPlayerId,
+      permission,
+    };
   }
 
   const defaultWait = options.requestPermission ? 4_500 : 1_200;
@@ -261,7 +266,39 @@ export async function ensureDespiaOneSignalLinked(
   startBackgroundPushFinish(externalId, options);
 
   console.log(`${tag} done`, { permission, playerId: playerId || '(pending background)' });
-  return { linked: true, playerId, permission };
+  return { linked: !!playerId, playerId, permission };
+}
+
+/** Full relink + optional local instant push for Settings → test notification. */
+export async function runDespiaTestPush(profileId: string): Promise<{
+  localSent: boolean;
+  playerId: string;
+  permission: boolean | null;
+}> {
+  const permission = await checkNativePushPermission();
+  if (permission === false) {
+    return { localSent: false, playerId: '', permission };
+  }
+
+  const link = await ensureDespiaOneSignalLinked(profileId, {
+    requestPermission: false,
+    waitForPlayerIdMs: 8_000,
+    fastReturn: false,
+    persistToken: true,
+    trigger: 'test-push',
+  });
+
+  const localSent = sendInstantLocalPush(
+    'VYBE test push 🚀',
+    'If you see this, notifications work on this device.',
+    '/settings?tab=notifications',
+  );
+
+  return {
+    localSent,
+    playerId: link.playerId,
+    permission: link.permission ?? permission,
+  };
 }
 
 /** Non-blocking relink for foreground/cold-start — never stalls UI. */

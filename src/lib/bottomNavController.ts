@@ -1,22 +1,22 @@
 /**
  * BottomNavController — scroll-driven hide/show without jitter.
- * Hides on deliberate scroll-down; stays hidden until intentional scroll-up.
+ * Hides on accumulated scroll-down; stays hidden until intentional scroll-up.
  * Updates DOM data-attribute directly (transform via CSS); React subscribes only on settled state changes.
  */
 import { getAppScrollContainer, getAppScrollTop } from '@/lib/appScrollContainer';
 
 type Listener = (visible: boolean) => void;
 
-const HIDE_DELTA_PX = 22;
+const HIDE_ACCUM_PX = 48;
 const SHOW_ACCUM_PX = 56;
-const NOISE_FLOOR_PX = 4;
+const NOISE_FLOOR_PX = 3;
 const TOP_ALWAYS_SHOW_PX = 36;
 
 let scrollVisible = true;
 let hiddenByScrollDown = false;
+let downAccum = 0;
 let upwardAccum = 0;
 let lastScrollY = 0;
-let lastScrollTime = 0;
 let ticking = false;
 let cleanup: (() => void) | null = null;
 let boundContainer: HTMLElement | null = null;
@@ -52,10 +52,8 @@ function handleScroll() {
   if (ticking) return;
   ticking = true;
   window.requestAnimationFrame(() => {
-    const now = performance.now();
     const currentScrollY = getAppScrollTop();
     const scrollDiff = currentScrollY - lastScrollY;
-    const elapsed = Math.max(now - lastScrollTime, 1);
 
     if (Math.abs(scrollDiff) < NOISE_FLOOR_PX) {
       ticking = false;
@@ -64,28 +62,30 @@ function handleScroll() {
 
     if (currentScrollY <= TOP_ALWAYS_SHOW_PX) {
       hiddenByScrollDown = false;
+      downAccum = 0;
       upwardAccum = 0;
       setVisible(true);
-    } else if (scrollDiff > HIDE_DELTA_PX) {
-      const velocity = scrollDiff / elapsed;
-      if (velocity > 0.15 || scrollDiff > HIDE_DELTA_PX * 1.5) {
+    } else if (scrollDiff > 0) {
+      downAccum += scrollDiff;
+      upwardAccum = 0;
+      if (!hiddenByScrollDown && downAccum >= HIDE_ACCUM_PX) {
         hiddenByScrollDown = true;
-        upwardAccum = 0;
+        downAccum = 0;
         setVisible(false);
       }
     } else if (scrollDiff < 0 && hiddenByScrollDown) {
       upwardAccum += Math.abs(scrollDiff);
+      downAccum = 0;
       if (upwardAccum >= SHOW_ACCUM_PX) {
         hiddenByScrollDown = false;
         upwardAccum = 0;
         setVisible(true);
       }
-    } else if (scrollDiff > 0 && hiddenByScrollDown) {
-      upwardAccum = Math.max(0, upwardAccum - scrollDiff * 0.25);
+    } else if (scrollDiff < 0) {
+      downAccum = 0;
     }
 
     lastScrollY = currentScrollY;
-    lastScrollTime = now;
     ticking = false;
   });
 }
@@ -93,23 +93,17 @@ function handleScroll() {
 export function resetBottomNavScrollVisible(): void {
   scrollVisible = true;
   hiddenByScrollDown = false;
+  downAccum = 0;
   upwardAccum = 0;
   lastScrollY = getAppScrollTop();
-  lastScrollTime = performance.now();
   notify();
 }
 
 function attachContainerListener() {
   if (cleanup) return;
-  const container = getAppScrollContainer();
-  if (container) {
-    boundContainer = container;
-    boundContainer.addEventListener('scroll', handleScroll, { passive: true });
-  }
-  window.addEventListener('scroll', handleScroll, { passive: true });
+  tryBindContainer();
   cleanup = () => {
     boundContainer?.removeEventListener('scroll', handleScroll);
-    window.removeEventListener('scroll', handleScroll);
     boundContainer = null;
     if (rebindTimer) {
       clearInterval(rebindTimer);
@@ -128,12 +122,10 @@ function tryBindContainer() {
   boundContainer = container;
   boundContainer.addEventListener('scroll', handleScroll, { passive: true });
   lastScrollY = getAppScrollTop();
-  lastScrollTime = performance.now();
 }
 
 export function bindBottomNavScrollContainer(): () => void {
   attachContainerListener();
-  tryBindContainer();
   applyDomState(scrollVisible);
   if (!rebindTimer) {
     rebindTimer = setInterval(() => {

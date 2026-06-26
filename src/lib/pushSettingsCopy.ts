@@ -18,3 +18,11 @@ export function pushNotLinkedHint(): string {
   }
   return 'Toggle push off and on, tap Allow when prompted, then try again.';
 }
+
+/** Extra context when local Despia push worked but server delivery failed. */
+export function despiaLocalHint(deliveryError: string): string | undefined {
+  if (deliveryError.includes('not registered') || deliveryError.includes('not linked')) {
+    return 'You may have seen a local test notification. Toggle push off/on, allow permission, wait ~10s, then test again for server delivery.';
+  }
+  return pushNotLinkedHint();
+}

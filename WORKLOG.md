@@ -2,6 +2,13 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## Flagship UX/perf overhaul — phase 2 (2026-06-17)
+- **Push test (Despia):** Settings test now fires instant local notification via Despia bridge + 8s player-id relink before server push; clearer errors when server delivery fails but local works
+- **Push server:** `send-push-notification` returns `error: No push tokens found` when `sent=0`; `link-onesignal-user` returns accurate `linked` flag
+- **Bottom nav:** CSS-only hide/show (no Framer Motion fighting scroll); accumulated scroll-down threshold; scroll listener only on `[data-app-scroll-container]`; tab-to-tab no longer resets hide state; removed `is-scrolling` transition kill on nav
+- **Verified:** `npm run build` PASS · `npm run lint` PASS
+- **Next:** Deploy `sendPushNotification` + `linkOnesignalUser` functions · Lovable Publish · keyboard avoidance audit
+
 ## Flagship UX/perf overhaul — phase 1 (2026-06-26)
 - **Bottom nav:** `bottomNavController.ts` — velocity/distance thresholds, stays hidden until deliberate scroll-up, no touchmove/wheel jitter; `useSyncExternalStore`; AppLayout padding tracks effective nav visibility
 - **VYBE wordmark:** Stronger contrast — text-stroke + background drop-shadow on light/dark/glass
@@ -10,7 +17,8 @@ Use this file as the Lovable -> Cursor handoff each session.
 - **Perf monitor:** `performanceMonitor.ts` + Debug Panel FPS/frame/memory (`?vybe_perf=1` or `localStorage vybe_perf_monitor=1`)
 - **Motion:** Standard 150/220/300ms tokens in `motion.ts` + CSS vars
 - **Verified:** `npm run build` PASS · `npm run lint` PASS
-- **Next:** Phase 2 — keyboard avoidance audit all inputs, feed/chat list virtualization, deploy `generateTheme` function
+- **Shipped:** git `61d4b5cd` pushed · Firebase staging https://vybe-daaab.web.app + `generateTheme` (2026-06-26)
+- **Next:** Lovable Publish for vybehub.app · Phase 2 keyboard/feed perf
 
 ## Theme generator — personalized from user context (2026-06-26)
 - **Feature:** AI theme generation now uses profile, Vybe DNA, interests, bio, equipped theme, and adaptation hints — not just the typed prompt

@@ -1,7 +1,6 @@
-import { lazy, Suspense, memo, useEffect } from 'react';
+import { lazy, Suspense, memo } from 'react';
 import { Routes, Route, useLocation, Navigate, useParams } from 'react-router-dom';
-import { navVisibility } from '@/lib/navVisibility';
-import { isBottomNavTabRoute } from '@/lib/bottomNavRoutes';
+import { useRecoverBottomNavOnTabEnter } from '@/hooks/useRecoverBottomNavOnTabEnter';
 import { useAuth } from '@/lib/auth';
 import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
 import { PublicOnlyRoute } from '@/components/auth/PublicOnlyRoute';
@@ -143,13 +142,8 @@ export function AnimatedRoutes() {
   useDebugCapture();
   usePageTitle();
 
-  // Recover from stuck immersive / scroll-hidden nav when landing on primary tabs.
-  useEffect(() => {
-    if (isBottomNavTabRoute(location.pathname, profile)) {
-      navVisibility.forceShow();
-      navVisibility.resetScrollHide();
-    }
-  }, [location.pathname, profile]);
+  // Recover scroll-hidden nav when returning to primary tabs from immersive routes.
+  useRecoverBottomNavOnTabEnter(profile);
 
   const routeContent = (
     <ErrorBoundary

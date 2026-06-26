@@ -3,9 +3,9 @@ import { useAuth } from '@/lib/auth';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import { db } from '@/lib/firebase';
-import { ensureDespiaOneSignalLinked, linkOneSignalUser } from '@/lib/despiaOneSignal';
+import { ensureDespiaOneSignalLinked, linkOneSignalUser, runDespiaTestPush } from '@/lib/despiaOneSignal';
 import { isDespiaRuntime } from '@/lib/despiaBridge';
-import { pushNotLinkedHint } from '@/lib/pushSettingsCopy';
+import { pushBlockedSettingsMessage, pushNotLinkedHint, despiaLocalHint } from '@/lib/pushSettingsCopy';
 import { parseEdgeInvokeResult, pushDeliveryErrorMessage } from '@/lib/edgeFunctionResponse';
 import { haptics } from '@/lib/haptics';
 import { useNotificationPreferences, useUpdateNotificationPreference } from '@/hooks/useNotificationPreferences';
@@ -88,12 +88,14 @@ export function NotificationsSection() {
                       haptics.tap();
                       try {
                         if (isDespiaRuntime()) {
-                          await ensureDespiaOneSignalLinked(profile.id, {
-                            requestPermission: false,
-                            waitForPlayerIdMs: 4_000,
-                            persistToken: true,
-                            trigger: 'test-push',
-                          });
+                          const despia = await runDespiaTestPush(profile.id);
+                          if (despia.permission === false) {
+                            toast.error(pushBlockedSettingsMessage());
+                            return;
+                          }
+                          if (despia.localSent) {
+                            toast.success('Local test sent — check your notification shade!');
+                          }
                         } else {
                           await linkOneSignalUser(profile.id);
                         }
@@ -104,20 +106,27 @@ export function NotificationsSection() {
                             title: 'VYBE test push 🚀',
                             body: 'If you see this, push is working on this device.',
                             tag: 'test-push',
+                            type: 'announcement',
                           },
                         });
                         const { payload, errorMessage } = await parseEdgeInvokeResult(result);
                         const deliveryError = pushDeliveryErrorMessage(payload);
                         if (deliveryError) {
-                          toast.error(deliveryError, {
-                            description: deliveryError.includes('not linked') ? pushNotLinkedHint() : undefined,
-                          });
+                          if (isDespiaRuntime()) {
+                            toast.error(deliveryError, {
+                              description: despiaLocalHint(deliveryError),
+                            });
+                          } else {
+                            toast.error(deliveryError, {
+                              description: deliveryError.includes('not linked') ? pushNotLinkedHint() : undefined,
+                            });
+                          }
                           return;
                         }
                         if (result.error && !payload?.success && !(payload?.ok === true && (payload?.sent as number) > 0)) {
                           throw new Error(errorMessage || result.error.message);
                         }
-                        toast.success('Test push sent — check your lock screen!');
+                        toast.success('Server test push sent — check your lock screen!');
                       } catch (e: unknown) {
                         const msg = e instanceof Error ? e.message : 'Could not send test push';
                         toast.error(msg);

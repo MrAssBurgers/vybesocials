@@ -221,8 +221,7 @@ export const BottomNav = memo(forwardRef<HTMLElement, object>(function BottomNav
 
   useEffect(() => {
     navVisibility.forceShow();
-    navVisibility.resetScrollHide();
-    const t = window.setTimeout(() => setBootGrace(false), 600);
+    const t = window.setTimeout(() => setBootGrace(false), 400);
     return () => window.clearTimeout(t);
   }, []);
 
@@ -507,23 +506,18 @@ export const BottomNav = memo(forwardRef<HTMLElement, object>(function BottomNav
         )}
       </AnimatePresence>
 
-      <motion.nav 
+      <nav
         ref={ref}
-        className="bottom-nav fixed inset-x-0 flex justify-center px-2 pointer-events-none"
-        initial={false}
-        animate={{
-          y: isVisible ? 0 : 140,
-          opacity: isVisible ? 1 : 0,
-        }}
-        transition={{
-          duration: 0.22,
-          ease: [0.16, 1, 0.3, 1],
-        }}
+        className={cn(
+          'bottom-nav fixed inset-x-0 flex justify-center px-2 pointer-events-none',
+          !isVisible && 'bottom-nav--hidden',
+        )}
         style={{
           zIndex: 5002,
           bottom: 'calc(env(safe-area-inset-bottom, 0px) + 10px)',
         }}
         aria-label="Bottom navigation"
+        aria-hidden={!isVisible}
         data-tutorial-bottomnav
       >
         <div 
@@ -649,7 +643,7 @@ export const BottomNav = memo(forwardRef<HTMLElement, object>(function BottomNav
             })}
           </Reorder.Group>
         </div>
-      </motion.nav>
+      </nav>
     </>
   );
 }));

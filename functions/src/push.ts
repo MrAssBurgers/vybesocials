@@ -70,6 +70,7 @@ export const sendPushNotification = onCall(
     ok: true,
     success: result.sent > 0,
     sent: result.sent,
+    ...(result.sent === 0 ? { error: 'No push tokens found' } : {}),
     ...(isCall
       ? {
           android: (result as { android: number }).android,
@@ -160,7 +161,7 @@ export const linkOnesignalUser = onCall(
     }, { merge: true });
   }
 
-  return { ok: true, success: true, linked: onesignalLinked };
+  return { ok: true, success: onesignalLinked || !!subId, linked: onesignalLinked };
 });
 
 /** send-brief-notification — push the user's daily brief. */
