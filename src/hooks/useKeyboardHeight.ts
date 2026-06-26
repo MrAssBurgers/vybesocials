@@ -19,6 +19,11 @@ export function useKeyboardHeight() {
     const cleanups: Array<() => void> = [];
 
     const applyKeyboardHeight = (kb: number) => {
+      if (document.documentElement.getAttribute('data-dm-active') === 'true') {
+        root.style.setProperty('--kb-h', '0px');
+        delete document.body.dataset.kbOpen;
+        return;
+      }
       const height = kb > KEYBOARD_INSET_THRESHOLD_PX ? kb : 0;
       root.style.setProperty('--kb-h', `${height}px`);
       if (height > 0) document.body.dataset.kbOpen = 'true';

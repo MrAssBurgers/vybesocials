@@ -123,29 +123,17 @@ function onKeyUp(e: KeyboardEvent): void {
 }
 
 function onVisibilityChange(): void {
-  if (document.hidden) {
-    blackoutChatScreenNow();
-    return;
+  // Do not blackout on hide — that hid the whole chat on mobile tab switches and
+  // combined with resize heuristics caused a visible freeze loop in DMs.
+  if (!document.hidden && activeCount > 0) {
+    scheduleRestore();
   }
-  scheduleRestore();
 }
 
 function onPageHide(): void {
-  blackoutChatScreenNow();
+  if (activeCount > 0) blackoutChatScreenNow();
 }
 
-let lastHeight = typeof window !== 'undefined' ? window.innerHeight : 0;
-function onResize(): void {
-  // iOS screenshot flash briefly resizes the viewport — desktop recording toolbars
-  // cause the same signal and produced a blackout/restore flicker loop.
-  if (!isMobileWeb()) return;
-  const diff = Math.abs(window.innerHeight - lastHeight);
-  if (diff > 15 && diff < 120) {
-    blackoutChatScreenNow();
-    scheduleRestore();
-  }
-  lastHeight = window.innerHeight;
-}
 
 function attachWebListeners(): void {
   if (listenersAttached || typeof window === 'undefined') return;
@@ -157,9 +145,8 @@ function attachWebListeners(): void {
   window.addEventListener('keyup', onKeyUp, true);
   document.addEventListener('visibilitychange', onVisibilityChange, true);
   window.addEventListener('pagehide', onPageHide, true);
-  if (isMobileWeb()) {
-    window.addEventListener('resize', onResize, true);
-  }
+  // Resize-based blackout removed — iOS keyboard / DM layout / browser chrome
+  // triggers 15–120px height changes that caused infinite blackout loops on phone.
 }
 
 function detachWebListeners(): void {
@@ -170,9 +157,6 @@ function detachWebListeners(): void {
   window.removeEventListener('keyup', onKeyUp, true);
   document.removeEventListener('visibilitychange', onVisibilityChange, true);
   window.removeEventListener('pagehide', onPageHide, true);
-  if (isMobileWeb()) {
-    window.removeEventListener('resize', onResize, true);
-  }
 
   if (restoreTimer) {
     clearTimeout(restoreTimer);

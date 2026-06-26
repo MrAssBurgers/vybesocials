@@ -272,10 +272,12 @@ export function useScreenCapture({ enabled = true, onCapture }: UseScreenCapture
     const env = environmentRef.current;
     const platform = platformRef.current;
     
-    // Only for iOS PWA/web
+    // Only for iOS PWA/web — skip in DMs (layout/keyboard resize looks like screenshots).
     if (env === 'desktop' || platform !== 'ios') return;
 
     const handleResize = () => {
+      if (document.documentElement.getAttribute('data-dm-active') === 'true') return;
+      if (document.documentElement.getAttribute('data-chat-shield') === 'blocking') return;
       const currentHeight = window.innerHeight;
       const heightDiff = Math.abs(currentHeight - lastWindowHeight.current);
       

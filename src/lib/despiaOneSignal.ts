@@ -70,13 +70,20 @@ function fireDespiaSchemeNow(scheme: string): void {
  * Official Despia OneSignal link — call on every authenticated load.
  * https://setup.despia.com — setonesignalplayerid://?user_id=YOUR_USER_ID
  */
-export function linkDespiaExternalId(externalId: string, trigger = 'link'): void {
+export function linkDespiaExternalId(externalId: string, trigger = 'link', authUserId?: string): void {
   if (!externalId || !isDespiaRuntime()) return;
   const encoded = encodeURIComponent(externalId);
   fireDespiaSchemeNow(`setonesignalplayerid://?user_id=${encoded}`);
   fireDespiaSchemeNow(`setOneSignalPlayerId://?user_id=${encoded}`);
+  if (authUserId && authUserId !== externalId) {
+    const authEnc = encodeURIComponent(authUserId);
+    fireDespiaSchemeNow(`setonesignalplayerid://?user_id=${authEnc}`);
+  }
   console.log(`[OneSignal:${trigger}] linked external_id=${externalId}`);
   void linkOneSignalUser(externalId).catch(() => {});
+  if (authUserId && authUserId !== externalId) {
+    void linkOneSignalUser(authUserId).catch(() => {});
+  }
 }
 
 /**
@@ -492,8 +499,9 @@ export async function sendDespiaTestPushNotification(profileId: string): Promise
 export function relinkDespiaPushInBackground(
   externalId: string,
   trigger: string,
+  authUserId?: string,
   _requestPermission = false,
 ): void {
-  linkDespiaExternalId(externalId, trigger);
+  linkDespiaExternalId(externalId, trigger, authUserId);
   startBackgroundPlayerIdSync(externalId);
 }

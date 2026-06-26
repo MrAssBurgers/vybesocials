@@ -19,12 +19,6 @@ function scrollMessagesToBottom(container: HTMLElement | null | undefined) {
   });
 }
 
-function scrollComposerIntoView(root: HTMLElement | null | undefined) {
-  if (!root) return;
-  requestAnimationFrame(() => {
-    root.scrollIntoView({ block: 'end', behavior: 'smooth' });
-  });
-}
 
 function isTextInput(el: EventTarget | null): el is HTMLTextAreaElement | HTMLInputElement {
   return el instanceof HTMLTextAreaElement || el instanceof HTMLInputElement;
@@ -70,8 +64,12 @@ function MobileKeyboardAwareTexter({
   const wasOpenRef = useRef(false);
   const pollRef = useRef(0);
   const stackHRef = useRef(0);
+  const rafPendingRef = useRef(0);
 
   const publishHeights = useCallback(() => {
+    if (rafPendingRef.current) return;
+    rafPendingRef.current = requestAnimationFrame(() => {
+      rafPendingRef.current = 0;
     const focused = document.activeElement;
     const typing =
       isTextInput(focused) ||
@@ -104,6 +102,7 @@ function MobileKeyboardAwareTexter({
       delete document.body.dataset.kbOpen;
     }
     wasOpenRef.current = open;
+    });
   }, [onKeyboardChange, onStackHeightChange, scrollContainerRef]);
 
   useEffect(() => {
@@ -125,7 +124,7 @@ function MobileKeyboardAwareTexter({
       const tick = () => {
         frames += 1;
         publishHeights();
-        if (frames < 24) pollRef.current = requestAnimationFrame(tick);
+        if (frames < 10) pollRef.current = requestAnimationFrame(tick);
       };
       pollRef.current = requestAnimationFrame(tick);
     };
@@ -136,9 +135,8 @@ function MobileKeyboardAwareTexter({
       }
       document.body.dataset.kbOpen = 'true';
       scrollMessagesToBottom(scrollContainerRef?.current);
-      scrollComposerIntoView(rootRef.current);
       startKeyboardPoll();
-      requestAnimationFrame(publishHeights);
+      publishHeights();
     };
 
     const onFocusOut = () => {
@@ -162,6 +160,7 @@ function MobileKeyboardAwareTexter({
 
     return () => {
       cancelAnimationFrame(pollRef.current);
+      if (rafPendingRef.current) cancelAnimationFrame(rafPendingRef.current);
       vv?.removeEventListener('resize', onViewport);
       vv?.removeEventListener('scroll', onViewport);
       window.removeEventListener('resize', onViewport);

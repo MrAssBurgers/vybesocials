@@ -2,7 +2,7 @@ import { useEffect } from 'react';
 import { db } from '@/lib/firebase';
 import { useQueryClient } from '@tanstack/react-query';
 import { isOneSignalBypassHost } from '@/lib/lovablePreview';
-import { linkDespiaExternalId } from '@/lib/despiaOneSignal';
+import { linkDespiaExternalId, relinkDespiaPushInBackground } from '@/lib/despiaOneSignal';
 import { isDespiaRuntime } from '@/lib/despiaBridge';
 import { navigationRef } from '@/lib/navigationRef';
 import {
@@ -85,7 +85,7 @@ export function DespiaOneSignalSync() {
         });
 
         if (isDespiaRuntime()) {
-          linkDespiaExternalId(externalId, trigger);
+          relinkDespiaPushInBackground(externalId, trigger, authUserId);
           if (trigger === 'login' || trigger === 'initial-session') {
             void import('@/lib/nativeIncomingCall').then((m) => m.ensureIncomingCallPermissions());
           }
@@ -179,7 +179,7 @@ export function DespiaOneSignalSync() {
         if (!data.user?.id) return;
         const externalId = await resolveProfileExternalId(data.user.id);
         if (!externalId) return;
-        linkDespiaExternalId(externalId, 'foreground-relink');
+        relinkDespiaPushInBackground(externalId, 'foreground-relink', data.user.id);
       });
     };
 
@@ -190,7 +190,7 @@ export function DespiaOneSignalSync() {
       if (!data.user?.id) return;
       const externalId = await resolveProfileExternalId(data.user.id);
       if (!externalId) return;
-      linkDespiaExternalId(externalId, 'app-resume');
+      relinkDespiaPushInBackground(externalId, 'app-resume', data.user.id);
     };
 
     // INITIAL_SESSION / SIGNED_IN handle linking — skip redundant cold-start pass.

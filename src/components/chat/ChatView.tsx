@@ -240,8 +240,9 @@ export function ChatView() {
     onCapture: (event) => {
       if (import.meta.env.DEV) console.log('[ChatView] Capture detected:', event);
       if (event.confidence === 'low') return;
-      // Desktop web: chatScreenShield already handles keyboard blackout; a second
-      // blackout here stacked with resize heuristics and caused flicker loops.
+      // Medium-confidence PWA heuristics (resize/visibility) fire on keyboard open
+      // and DM layout shifts — never blackout the whole app for those.
+      if (event.confidence !== 'high') return;
       if (event.platform !== 'desktop') {
         blackoutChatScreenNow();
       }
@@ -1637,7 +1638,6 @@ export function ChatView() {
           </div>
         ) : (
         <div className="flex flex-col gap-0 pb-[calc(env(safe-area-inset-bottom,0px)+0.75rem)] md:pb-4">
-          <AnimatePresence mode="sync" initial={false}>
           {messageItems.map(({ message, isOwn, showAvatar, showTimestamp, sameSender, isMediaTransition, isEmojiOnly }, index) => {
             // Instagram/Snapchat spacing rules:
             // Same sender consecutive: 4-6px gap (tight grouping)
@@ -1809,7 +1809,6 @@ export function ChatView() {
               </div>
             );
           })}
-          </AnimatePresence>
 
           {/* Messages now use instant optimistic updates embedded in the messages array */}
 
