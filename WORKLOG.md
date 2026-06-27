@@ -2,6 +2,12 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## Pill capsule logo v2 (2026-06-17)
+- **Logo:** Replaced stroke paths with filled rotated rounded rects — 512×512 viewBox, 92×340 pills, pink→purple / blue→cyan gradients, white joint bulb r=34
+- **Verified:** `npm run build` PASS · `npm run lint` PASS
+- **Deployed:** https://vybe-daaab.web.app (Firebase hosting, 2026-06-17)
+- **Next:** Lovable → Share → Publish for vybehub.app · verify fat pill V on splash/sidebar
+
 ## Fat capsule logo + splash rehydration (2026-06-17)
 - **Logo:** Replaced thin neon V with fat capsule arms — 240×240 viewBox, stroke 64/72, round caps, soft glow, white joint bulb; theme gradients primary→purple / secondary→cyan; no inner highlights or dark box
 - **Splash:** Real preload pipeline (`splashPreload.ts`) — progress bar tracks auth/theme/profile/feed/routes until ready (not instant 100%)

@@ -2,12 +2,13 @@ import { memo, useId, useMemo } from 'react';
 import { cn } from '@/lib/utils';
 import { useVybeMarkColors } from '@/hooks/useVybeMarkColors';
 import {
-  VYBE_LOGO_GLOW_STROKE,
+  VYBE_LOGO_GLOW_OPACITY,
   VYBE_LOGO_JOINT,
-  VYBE_LOGO_LEFT_PATH,
-  VYBE_LOGO_RIGHT_PATH,
-  VYBE_LOGO_STROKE,
+  VYBE_LOGO_JOINT_OPACITY,
+  VYBE_LOGO_LEFT_ARM,
+  VYBE_LOGO_RIGHT_ARM,
   VYBE_LOGO_VIEWBOX,
+  vybeLogoArmTransform,
 } from '@/lib/vybeLogoGeometry';
 
 export interface VybeLogoProps {
@@ -24,17 +25,40 @@ export interface VybeLogoProps {
 
 function glowBlur(glowIntensity: number, size: number): number {
   const scale = size >= 160 ? 1 : size >= 80 ? 0.85 : size >= 40 ? 0.65 : 0.45;
-  return Math.max(8, 22 * glowIntensity * scale);
+  return Math.max(12, 26 * glowIntensity * scale);
 }
 
 function jointBlur(glowIntensity: number, size: number): number {
   const scale = size >= 160 ? 1 : size >= 80 ? 0.85 : size >= 40 ? 0.65 : 0.45;
-  return Math.max(6, 14 * glowIntensity * scale);
+  return Math.max(10, 22 * glowIntensity * scale);
+}
+
+function PillRect({
+  arm,
+  fill,
+  className,
+}: {
+  arm: typeof VYBE_LOGO_LEFT_ARM;
+  fill: string;
+  className?: string;
+}) {
+  return (
+    <rect
+      x={arm.x}
+      y={arm.y}
+      width={arm.width}
+      height={arm.height}
+      rx={arm.rx}
+      transform={vybeLogoArmTransform(arm)}
+      fill={fill}
+      className={className}
+    />
+  );
 }
 
 /**
- * Fat capsule V — two thick rounded bars overlapping at a soft white joint bulb.
- * left = primary → purple, right = secondary → cyan.
+ * Fat pill V — two thick rotated rounded rectangles overlapping at a soft white joint.
+ * left = pink → purple, right = blue → cyan.
  */
 export const VybeLogo = memo(function VybeLogo({
   size = 48,
@@ -54,7 +78,7 @@ export const VybeLogo = memo(function VybeLogo({
       left: leftColor ?? theme.primary,
       right: rightColor ?? theme.secondary,
       leftDeep: centerColor ?? theme.deepPrimary ?? theme.secondary,
-      rightDeep: theme.accent ?? theme.deepAccent,
+      rightDeep: theme.deepAccent ?? theme.accent,
     }),
     [leftColor, rightColor, centerColor, theme],
   );
@@ -64,14 +88,9 @@ export const VybeLogo = memo(function VybeLogo({
   const filterGlow = `${rawId}-glow`;
   const filterJoint = `${rawId}-joint`;
 
-  const glowOpacity = 0.28 + glowIntensity * 0.17;
+  const glowOpacity = VYBE_LOGO_GLOW_OPACITY * (0.75 + glowIntensity * 0.25);
   const armBlur = glowBlur(glowIntensity, size);
   const bulbBlur = jointBlur(glowIntensity, size);
-
-  const armProps = {
-    strokeLinecap: 'round' as const,
-    strokeLinejoin: 'round' as const,
-  };
 
   return (
     <svg
@@ -90,14 +109,12 @@ export const VybeLogo = memo(function VybeLogo({
       )}
     >
       <defs>
-        <linearGradient id={leftGrad} x1="70" y1="45" x2="120" y2="150" gradientUnits="userSpaceOnUse">
+        <linearGradient id={leftGrad} x1="162" y1="76" x2="256" y2="346" gradientUnits="userSpaceOnUse">
           <stop offset="0%" stopColor={colors.left} />
-          <stop offset="55%" stopColor={colors.left} />
           <stop offset="100%" stopColor={colors.leftDeep} />
         </linearGradient>
-        <linearGradient id={rightGrad} x1="170" y1="45" x2="120" y2="150" gradientUnits="userSpaceOnUse">
+        <linearGradient id={rightGrad} x1="350" y1="76" x2="256" y2="346" gradientUnits="userSpaceOnUse">
           <stop offset="0%" stopColor={colors.right} />
-          <stop offset="50%" stopColor={colors.right} stopOpacity={0.95} />
           <stop offset="100%" stopColor={colors.rightDeep} />
         </linearGradient>
         <filter id={filterGlow} x="-80%" y="-80%" width="260%" height="260%" colorInterpolationFilters="sRGB">
@@ -108,40 +125,32 @@ export const VybeLogo = memo(function VybeLogo({
         </filter>
       </defs>
 
-      {/* Soft outer glow — same paths, wider stroke */}
+      {/* Soft outer glow — same pills, blurred */}
       <g opacity={glowOpacity} filter={`url(#${filterGlow})`}>
-        <path
-          d={VYBE_LOGO_LEFT_PATH}
-          stroke={colors.left}
-          strokeWidth={VYBE_LOGO_GLOW_STROKE}
-          {...armProps}
+        <PillRect
+          arm={VYBE_LOGO_LEFT_ARM}
+          fill={colors.left}
           className={animated ? 'vybe-logo-svg__ambient vybe-logo-svg__ambient--left' : undefined}
         />
-        <path
-          d={VYBE_LOGO_RIGHT_PATH}
-          stroke={colors.rightDeep}
-          strokeWidth={VYBE_LOGO_GLOW_STROKE}
-          {...armProps}
+        <PillRect
+          arm={VYBE_LOGO_RIGHT_ARM}
+          fill={colors.rightDeep}
           className={animated ? 'vybe-logo-svg__ambient vybe-logo-svg__ambient--right' : undefined}
         />
       </g>
 
       {/* Left arm (under) */}
-      <path
-        d={VYBE_LOGO_LEFT_PATH}
-        stroke={`url(#${leftGrad})`}
-        strokeWidth={VYBE_LOGO_STROKE}
-        {...armProps}
-        className={animated ? 'vybe-logo-svg__stroke vybe-logo-svg__stroke--left' : undefined}
+      <PillRect
+        arm={VYBE_LOGO_LEFT_ARM}
+        fill={`url(#${leftGrad})`}
+        className={animated ? 'vybe-logo-svg__arm vybe-logo-svg__arm--left' : undefined}
       />
 
       {/* Right arm (over) */}
-      <path
-        d={VYBE_LOGO_RIGHT_PATH}
-        stroke={`url(#${rightGrad})`}
-        strokeWidth={VYBE_LOGO_STROKE}
-        {...armProps}
-        className={animated ? 'vybe-logo-svg__stroke vybe-logo-svg__stroke--right' : undefined}
+      <PillRect
+        arm={VYBE_LOGO_RIGHT_ARM}
+        fill={`url(#${rightGrad})`}
+        className={animated ? 'vybe-logo-svg__arm vybe-logo-svg__arm--right' : undefined}
       />
 
       {/* Bottom joint bulb */}
@@ -150,7 +159,7 @@ export const VybeLogo = memo(function VybeLogo({
         cy={VYBE_LOGO_JOINT.cy}
         r={VYBE_LOGO_JOINT.r}
         fill="#ffffff"
-        fillOpacity={0.9}
+        fillOpacity={VYBE_LOGO_JOINT_OPACITY}
         filter={`url(#${filterJoint})`}
         className={animated ? 'vybe-logo-svg__vertex' : undefined}
       />

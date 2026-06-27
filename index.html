@@ -626,30 +626,30 @@
         </div>
         <div class="vybe-splash-glow" aria-hidden="true"></div>
         <div class="vybe-splash-logo vybe-logo-svg vybe-logo-svg--animated" aria-hidden="true">
-          <svg viewBox="0 0 240 240" fill="none" width="96" height="96" aria-hidden="true">
+          <svg viewBox="0 0 512 512" fill="none" width="96" height="96" aria-hidden="true">
             <defs>
-              <linearGradient id="vybe-boot-left" x1="70" y1="45" x2="120" y2="150" gradientUnits="userSpaceOnUse">
+              <linearGradient id="vybe-boot-left" x1="162" y1="76" x2="256" y2="346" gradientUnits="userSpaceOnUse">
                 <stop offset="0%" stop-color="hsl(var(--primary))" />
                 <stop offset="100%" stop-color="hsl(var(--neon-purple, var(--secondary, var(--primary))))" />
               </linearGradient>
-              <linearGradient id="vybe-boot-right" x1="170" y1="45" x2="120" y2="150" gradientUnits="userSpaceOnUse">
+              <linearGradient id="vybe-boot-right" x1="350" y1="76" x2="256" y2="346" gradientUnits="userSpaceOnUse">
                 <stop offset="0%" stop-color="hsl(var(--secondary, var(--primary)))" />
                 <stop offset="100%" stop-color="hsl(var(--accent))" />
               </linearGradient>
               <filter id="vybe-boot-glow" x="-80%" y="-80%" width="260%" height="260%">
-                <feGaussianBlur stdDeviation="18" />
+                <feGaussianBlur stdDeviation="26" />
               </filter>
               <filter id="vybe-boot-joint" x="-120%" y="-120%" width="340%" height="340%">
-                <feGaussianBlur stdDeviation="12" />
+                <feGaussianBlur stdDeviation="22" />
               </filter>
             </defs>
             <g opacity="0.45" filter="url(#vybe-boot-glow)">
-              <path d="M 70 45 L 120 150" stroke="hsl(var(--primary))" stroke-width="72" stroke-linecap="round" stroke-linejoin="round" />
-              <path d="M 170 45 L 120 150" stroke="hsl(var(--accent))" stroke-width="72" stroke-linecap="round" stroke-linejoin="round" />
+              <rect x="116" y="76" width="92" height="340" rx="46" transform="rotate(-28 162 246)" fill="hsl(var(--primary))" />
+              <rect x="304" y="76" width="92" height="340" rx="46" transform="rotate(28 350 246)" fill="hsl(var(--accent))" />
             </g>
-            <path d="M 70 45 L 120 150" stroke="url(#vybe-boot-left)" stroke-width="64" stroke-linecap="round" stroke-linejoin="round" />
-            <path d="M 170 45 L 120 150" stroke="url(#vybe-boot-right)" stroke-width="64" stroke-linecap="round" stroke-linejoin="round" />
-            <circle cx="120" cy="150" r="22" fill="#ffffff" fill-opacity="0.9" filter="url(#vybe-boot-joint)" />
+            <rect x="116" y="76" width="92" height="340" rx="46" transform="rotate(-28 162 246)" fill="url(#vybe-boot-left)" />
+            <rect x="304" y="76" width="92" height="340" rx="46" transform="rotate(28 350 246)" fill="url(#vybe-boot-right)" />
+            <circle cx="256" cy="346" r="34" fill="#ffffff" fill-opacity="0.95" filter="url(#vybe-boot-joint)" />
           </svg>
         </div>
         <div class="vybe-splash-title-wrap">

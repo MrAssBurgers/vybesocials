@@ -1,10 +1,11 @@
 import {
-  VYBE_LOGO_GLOW_STROKE,
+  VYBE_LOGO_GLOW_OPACITY,
   VYBE_LOGO_JOINT,
-  VYBE_LOGO_LEFT_PATH,
-  VYBE_LOGO_RIGHT_PATH,
-  VYBE_LOGO_STROKE,
+  VYBE_LOGO_JOINT_OPACITY,
+  VYBE_LOGO_LEFT_ARM,
+  VYBE_LOGO_RIGHT_ARM,
   VYBE_LOGO_VIEWBOX,
+  vybeLogoArmTransform,
 } from '@/lib/vybeLogoGeometry';
 
 export interface VybeLogoSvgColors {
@@ -20,6 +21,13 @@ export interface BuildVybeLogoSvgOptions extends VybeLogoSvgColors {
   idPrefix?: string;
 }
 
+function pillRectMarkup(
+  arm: typeof VYBE_LOGO_LEFT_ARM,
+  fill: string,
+): string {
+  return `<rect x="${arm.x}" y="${arm.y}" width="${arm.width}" height="${arm.height}" rx="${arm.rx}" transform="${vybeLogoArmTransform(arm)}" fill="${fill}"/>`;
+}
+
 /** Static SVG markup — favicon, boot HTML. */
 export function buildVybeLogoSvg({
   leftColor,
@@ -31,17 +39,17 @@ export function buildVybeLogoSvg({
   idPrefix = 'vybe',
 }: BuildVybeLogoSvgOptions): string {
   const p = idPrefix;
-  const armBlur = Math.max(8, 22 * glowIntensity * blurScale);
-  const bulbBlur = Math.max(6, 14 * glowIntensity * blurScale);
-  const glowOpacity = 0.28 + glowIntensity * 0.17;
+  const armBlur = Math.max(12, 26 * glowIntensity * blurScale);
+  const bulbBlur = Math.max(10, 22 * glowIntensity * blurScale);
+  const glowOpacity = VYBE_LOGO_GLOW_OPACITY * (0.75 + glowIntensity * 0.25);
 
   return `<svg viewBox="${VYBE_LOGO_VIEWBOX}" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
   <defs>
-    <linearGradient id="${p}-lg" x1="70" y1="45" x2="120" y2="150" gradientUnits="userSpaceOnUse">
+    <linearGradient id="${p}-lg" x1="162" y1="76" x2="256" y2="346" gradientUnits="userSpaceOnUse">
       <stop offset="0%" stop-color="${leftColor}"/>
       <stop offset="100%" stop-color="${leftDeep}"/>
     </linearGradient>
-    <linearGradient id="${p}-rg" x1="170" y1="45" x2="120" y2="150" gradientUnits="userSpaceOnUse">
+    <linearGradient id="${p}-rg" x1="350" y1="76" x2="256" y2="346" gradientUnits="userSpaceOnUse">
       <stop offset="0%" stop-color="${rightColor}"/>
       <stop offset="100%" stop-color="${rightDeep}"/>
     </linearGradient>
@@ -53,11 +61,11 @@ export function buildVybeLogoSvg({
     </filter>
   </defs>
   <g opacity="${glowOpacity}" filter="url(#${p}-glow)">
-    <path d="${VYBE_LOGO_LEFT_PATH}" stroke="${leftColor}" stroke-width="${VYBE_LOGO_GLOW_STROKE}" stroke-linecap="round" stroke-linejoin="round"/>
-    <path d="${VYBE_LOGO_RIGHT_PATH}" stroke="${rightDeep}" stroke-width="${VYBE_LOGO_GLOW_STROKE}" stroke-linecap="round" stroke-linejoin="round"/>
+    ${pillRectMarkup(VYBE_LOGO_LEFT_ARM, leftColor)}
+    ${pillRectMarkup(VYBE_LOGO_RIGHT_ARM, rightDeep)}
   </g>
-  <path d="${VYBE_LOGO_LEFT_PATH}" stroke="url(#${p}-lg)" stroke-width="${VYBE_LOGO_STROKE}" stroke-linecap="round" stroke-linejoin="round"/>
-  <path d="${VYBE_LOGO_RIGHT_PATH}" stroke="url(#${p}-rg)" stroke-width="${VYBE_LOGO_STROKE}" stroke-linecap="round" stroke-linejoin="round"/>
-  <circle cx="${VYBE_LOGO_JOINT.cx}" cy="${VYBE_LOGO_JOINT.cy}" r="${VYBE_LOGO_JOINT.r}" fill="#ffffff" fill-opacity="0.9" filter="url(#${p}-joint)"/>
+  ${pillRectMarkup(VYBE_LOGO_LEFT_ARM, `url(#${p}-lg)`)}
+  ${pillRectMarkup(VYBE_LOGO_RIGHT_ARM, `url(#${p}-rg)`)}
+  <circle cx="${VYBE_LOGO_JOINT.cx}" cy="${VYBE_LOGO_JOINT.cy}" r="${VYBE_LOGO_JOINT.r}" fill="#ffffff" fill-opacity="${VYBE_LOGO_JOINT_OPACITY}" filter="url(#${p}-joint)"/>
 </svg>`;
 }

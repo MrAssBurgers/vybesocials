@@ -1,25 +1,25 @@
-<svg viewBox="0 0 240 240" fill="none" xmlns="http://www.w3.org/2000/svg">
+<svg viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
   <defs>
-    <linearGradient id="lg" x1="70" y1="45" x2="120" y2="150" gradientUnits="userSpaceOnUse">
+    <linearGradient id="lg" x1="162" y1="76" x2="256" y2="346" gradientUnits="userSpaceOnUse">
       <stop offset="0%" stop-color="#f80a7c"/>
       <stop offset="100%" stop-color="#9333ea"/>
     </linearGradient>
-    <linearGradient id="rg" x1="170" y1="45" x2="120" y2="150" gradientUnits="userSpaceOnUse">
-      <stop offset="0%" stop-color="#a855f7"/>
+    <linearGradient id="rg" x1="350" y1="76" x2="256" y2="346" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#2563eb"/>
       <stop offset="100%" stop-color="#06c0fb"/>
     </linearGradient>
     <filter id="glow" x="-80%" y="-80%" width="260%" height="260%">
-      <feGaussianBlur stdDeviation="18"/>
+      <feGaussianBlur stdDeviation="26"/>
     </filter>
     <filter id="joint" x="-120%" y="-120%" width="340%" height="340%">
-      <feGaussianBlur stdDeviation="12"/>
+      <feGaussianBlur stdDeviation="22"/>
     </filter>
   </defs>
   <g opacity="0.45" filter="url(#glow)">
-    <path d="M 70 45 L 120 150" stroke="#f80a7c" stroke-width="72" stroke-linecap="round" stroke-linejoin="round"/>
-    <path d="M 170 45 L 120 150" stroke="#06c0fb" stroke-width="72" stroke-linecap="round" stroke-linejoin="round"/>
+    <rect x="116" y="76" width="92" height="340" rx="46" transform="rotate(-28 162 246)" fill="#f80a7c"/>
+    <rect x="304" y="76" width="92" height="340" rx="46" transform="rotate(28 350 246)" fill="#06c0fb"/>
   </g>
-  <path d="M 70 45 L 120 150" stroke="url(#lg)" stroke-width="64" stroke-linecap="round" stroke-linejoin="round"/>
-  <path d="M 170 45 L 120 150" stroke="url(#rg)" stroke-width="64" stroke-linecap="round" stroke-linejoin="round"/>
-  <circle cx="120" cy="150" r="22" fill="#ffffff" fill-opacity="0.9" filter="url(#joint)"/>
+  <rect x="116" y="76" width="92" height="340" rx="46" transform="rotate(-28 162 246)" fill="url(#lg)"/>
+  <rect x="304" y="76" width="92" height="340" rx="46" transform="rotate(28 350 246)" fill="url(#rg)"/>
+  <circle cx="256" cy="346" r="34" fill="#ffffff" fill-opacity="0.95" filter="url(#joint)"/>
 </svg>
