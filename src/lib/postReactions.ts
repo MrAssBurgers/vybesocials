@@ -2,8 +2,10 @@ import { db } from '@/lib/firebase';
 import {
   deleteDocument,
   getDocument,
+  getDocumentFromServer,
   getDocuments,
   setDocument,
+  awaitPendingFirestoreWrites,
   where,
   firestoreLimit,
 } from '@/lib/firebase/firestoreDb';
@@ -125,6 +127,12 @@ export async function savePostReaction(params: {
     created_at: createdAt,
     updated_at: now,
   });
+
+  await awaitPendingFirestoreWrites();
+  const confirmed = await getDocumentFromServer('likes', docId);
+  if (!confirmed?.id) {
+    throw new Error('Reaction was not saved — check your connection and try again');
+  }
 
   for (const row of existing) {
     if (row.id && row.id !== docId) {

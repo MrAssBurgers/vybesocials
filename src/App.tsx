@@ -16,6 +16,8 @@ import { startReconnectManager } from "@/lib/reconnectManager";
 import { startOutbox } from "@/lib/dmOutbox";
 import { BrowserRouter, useLocation } from "react-router-dom";
 import { MotionConfig } from "framer-motion";
+import { BUTTER_TRANSITION } from "@/lib/smoothMotion";
+import { PlatformProvider } from "@/providers/PlatformProvider";
 import { AuthProvider } from "@/lib/auth";
 import { ThemeProvider } from "@/lib/theme";
 import { CustomThemeProvider } from "@/providers/ThemeProvider";
@@ -648,11 +650,12 @@ const App = memo(() => {
           <SnapARProvider>
           <GlassIntensityProvider>
             <AccessibilityProvider>
-              {/* Tween defaults remove per-frame spring physics app-wide; components that
-                  need a spring still opt-in explicitly via their own `transition` prop. */}
-              <MotionConfig reducedMotion={isNativePerfMode() ? 'always' : 'user'} transition={{ type: 'tween', ease: [0.22, 1, 0.36, 1], duration: 0.18 }}>
-                <AppWithPreloader />
-              </MotionConfig>
+              {/* Tween defaults — buttery expo-out; springs opt-in per component. */}
+              <PlatformProvider>
+                <MotionConfig reducedMotion="user" transition={BUTTER_TRANSITION}>
+                  <AppWithPreloader />
+                </MotionConfig>
+              </PlatformProvider>
             </AccessibilityProvider>
           </GlassIntensityProvider>
           </SnapARProvider>

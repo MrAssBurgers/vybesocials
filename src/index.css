@@ -344,7 +344,6 @@ html[data-vybe-bottom-nav-scroll='hidden'] .bottom-nav,
     opacity 220ms cubic-bezier(0.16, 1, 0.3, 1);
   transform: translate3d(0, 0, 0);
   opacity: 1;
-  will-change: transform, opacity;
 }
 
 .vybe-wordmark-img {
@@ -4239,12 +4238,7 @@ body.has-liquid-bg:not(.has-custom-bg) #main-content {
     font-family: 'Roboto', 'Noto Sans', system-ui, sans-serif;
   }
   
-  /* Performance tiers */
-  .perf-low * {
-    animation-duration: 0.01ms !important;
-    transition-duration: 0.1s !important;
-  }
-  
+  /* Performance tiers — keep UI transitions smooth; only trim decorative motion */
   .perf-low .gradient-animated,
   .perf-low .seamless-gradient-strip,
   .perf-low .create-button-gradient {

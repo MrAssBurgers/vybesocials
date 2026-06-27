@@ -515,8 +515,8 @@ service cloud.firestore {
     }
     match /comments/{commentId} {
       allow read: if signedIn();
-      allow create: if willOwnProfile('author_id');
-      allow update, delete: if isOwnerProfile('author_id') || isStaffModerator();
+      allow create: if willOwnUserField('user_id') || willOwnUserField('author_id');
+      allow update, delete: if ownsUserField('user_id') || ownsUserField('author_id') || isStaffModerator();
     }
     match /comment_likes/{docId} {
       allow read: if signedIn();
@@ -528,9 +528,8 @@ service cloud.firestore {
     }
     match /likes/{docId} {
       allow read: if signedIn();
-      allow create: if willOwnProfile('user_id');
-      allow update: if isOwnerProfile('user_id');
-      allow delete: if isOwnerProfile('user_id');
+      allow create: if willOwnUserField('user_id');
+      allow update, delete: if ownsUserField('user_id');
     }
     match /post_mood_signals/{docId} {
       allow read: if signedIn();

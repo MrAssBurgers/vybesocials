@@ -327,6 +327,14 @@ self.addEventListener('push', (event) => {
       vibrate = isIOS() ? [] : [100, 30, 100];
       break;
 
+    case 'typing':
+      title = data.senderName || data.title || 'Someone';
+      body = data.body || `${data.senderName || 'Someone'} is typing…`;
+      icon = data.senderAvatar || data.image_url || APP_ICON;
+      tag = `vybe-typing-${data.conversationId || Date.now()}`;
+      vibrate = [];
+      break;
+
     case 'story_like':
       title = data.senderName || data.actorName || data.title || 'Someone';
       body = data.body || 'liked your story';
@@ -418,7 +426,8 @@ self.addEventListener('push', (event) => {
     requireInteraction,
     actions,
     data: {
-      url: data.url || '/',
+      url: data.path || data.url || '/',
+      path: data.path || data.url || '/',
       type: notificationType,
       conversationId: data.conversationId,
       callId: data.callId,
@@ -443,7 +452,7 @@ self.addEventListener('notificationclick', (event) => {
 
   const data = event.notification.data || {};
   const action = event.action;
-  let targetUrl = data.url || '/';
+  let targetUrl = data.path || data.url || '/';
 
   // Handle specific actions
   if (data.type === 'call' || data.type === 'incoming_call') {
@@ -468,9 +477,9 @@ self.addEventListener('notificationclick', (event) => {
       );
       return;
     }
-  } else if (data.type === 'message' || data.type === 'dm' || data.type === 'group_message') {
+  } else if (data.type === 'message' || data.type === 'dm' || data.type === 'group_message' || data.type === 'typing') {
     if (action === 'reply' || action === 'view' || !action) {
-      targetUrl = data.conversationId ? `/messages/${data.conversationId}` : '/messages';
+      targetUrl = data.path || (data.conversationId ? `/messages/${data.conversationId}` : '/messages');
     }
   } else if (data.type === 'friend_request' || data.type === 'friend_accepted') {
     targetUrl = '/notifications';

@@ -2,12 +2,45 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## Unified camera phase 2 — gestures + story fast-post (2026-06-17)
+- **Gestures (`useCameraGestures`):** Swipe down close · swipe up gallery · swipe left memories/gallery · horizontal filter swipe · pinch zoom + indicator · tap-to-focus reticle · double-tap flip (resets zoom)
+- **Capture UX:** `VybeRecordButton` with mode-aware max duration (story 15s, snap/DM 30s, clip/video 60s); gallery button + drawer wired
+- **Story fast-post:** `CameraStoryPostSheet` — capture → edit → caption/close-friends → post (skips generic share sheet when `captureTarget === 'story'`)
+- **Mode tabs:** `modesForTarget()` shows context-appropriate modes per entry point
+- **Verified:** `npm run build` PASS · `npm run lint` PASS
+- **Deployed:** https://vybe-daaab.web.app (Firebase hosting, 2026-06-27)
+- **Next:** Lovable Publish → vybehub.app · push git so Lovable syncs latest
+
+## Reactions, comments, Say Hi, unified camera phase 1 (2026-06-27)
+- **Comments broken:** Firestore rules required `author_id` but client writes `user_id` — permission denied on every insert
+- **Reactions:** Likes rules tightened with `willOwnUserField`; server confirms write after `setDocument`
+- **Say Hi:** Only on empty 1:1 threads with a friend accepted in last 30 days; otherwise shows last message or "Tap to chat"
+- **Unified camera:** All entry points route through `Camera` via `UnifiedVybeCamera` (DM/Snap/Story/Create share one engine)
+- **Verified:** `npm run build` PASS · `npm run lint` PASS · Firestore rules deployed
+- **Next:** Lovable Publish
+
+## Smooth UI / anti-jank pass (2026-06-27)
+- **Root cause:** Native Despia shell had `reduce-motion` + Framer `reducedMotion: 'always'` — killed all CSS/JS transitions (jarring, jittery feel)
+- **Fix:** Removed native reduce-motion; mounted `PlatformProvider` for proper perf tiers; unified buttery expo-out tweens (`smoothMotion.ts`, `smooth-ui.css`); GPU route crossfade; scroll-time animation pause; bottom-nav will-change only while animating
+- **Verified:** `npm run build` PASS · `npm run lint` PASS
+- **Next:** Lovable Publish · feel-test tab switches, feed scroll, DM thread on device
+
+## Notification deep links + call UI + silent sounds (2026-06-27)
+- **Deep links:** `NotificationActionRouter` centralizes all push taps — DMs, typing, calls, login approval, social — routes to correct screen via `data.path` / `conversationId` / `callId`
+- **Typing push:** `"X is typing…"` with chat deep link; passive priority, no sound on lock screen
+- **Calls:** OneSignal Answer/Decline buttons; native full-screen incoming call (CallKit / Android full-screen intent); in-app `GlobalCallOverlay` when foreground
+- **Silent mode:** `deviceSilentMode.ts` gates in-app sounds (`premiumSounds`, `callSounds`) when phone is on silent/vibrate
+- **Verified:** `npm run build` PASS · `npm run lint` PASS · functions build PASS
+- **Deployed:** https://vybe-daaab.web.app + `onCallCreated`, `onDmMessageCreated`, `sendPushNotification` (2026-06-27)
+- **Next:** Lovable → Share → Publish for vybehub.app · test DM/typing/call tap on Despia device · verify lock-screen call UI on physical device
+
 ## Notification system hardening v2 (2026-06-26)
 - **Root cause:** Placeholder `despia:{profileId}` tokens written before real OneSignal UUID → server had zero delivery targets; `linked:true` returned without subscription; Despia bridge fired before native module loaded; auth uid used as external_id fallback
 - **Fix:** `ensureDespiaDeviceRegistered()` awaits native + polls up to 8s; never persist placeholders; strict `linked` only with real UUID; server deletes stale placeholders on link; smart gate skips suppression when `online:false`; DM client backup push restored; diagnostics show OneSignal errors
 - **Verified:** debug scan PASS · build PASS · lint PASS
 - **Deployed:** https://vybe-daaab.web.app + all push functions (2026-06-26)
-- **Next:** Force-quit app → open diagnostics → Force re-register → test push · Lovable Publish for vybehub.app
+- **Shipped:** git `2d4cdcef` pushed · Firebase staging redeployed (2026-06-26)
+- **Next:** Lovable → Share → Publish for vybehub.app · device: Force re-register in notification diagnostics
 
 ## Notification system hardening (2026-06-17)
 - **Problem:** Push only worked after manual Despia Developer relink; duplicate DM pushes; no server-side "viewing chat" suppression; scattered registration paths racing

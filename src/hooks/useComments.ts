@@ -185,8 +185,13 @@ export function useCreateComment() {
     onSuccess: (_, { postId }) => {
       queryClient.invalidateQueries({ queryKey: ['comments', postId] });
       queryClient.invalidateQueries({ queryKey: ['posts'] });
-      // Reward tokens for commenting
       rewardComment();
+    },
+    onError: (error: Error) => {
+      const msg = error.message || 'Failed to post comment';
+      if (!msg.includes('blocked')) {
+        toast.error(msg.includes('permission') ? "Couldn't post comment — try again" : msg);
+      }
     },
   });
 }

@@ -287,33 +287,35 @@ function createTone(
 // Play a premium sound
 export function playPremiumSound(soundType: PremiumSoundType): void {
   const config = SOUND_CONFIGS[soundType];
-  
-  // Check if category is enabled
-  if (!isCategoryEnabled(config.category)) return;
-  
-  // Debounce rapid sounds
-  if (shouldDebounce(soundType, 150)) return;
-  
-  const ctx = getAudioContext();
-  if (!ctx) return;
-  
-  try {
-    const now = ctx.currentTime;
-    
-    config.frequencies.forEach((freq, i) => {
-      createTone(
-        ctx,
-        freq,
-        config.durations[i],
-        config.volumes[i],
-        config.types[i],
-        now + config.delays[i],
-        config.detune?.[i] || 0
-      );
-    });
-  } catch (e) {
-    // Sound generation failed silently
-  }
+  const category = config.category;
+
+  void import('@/lib/deviceSilentMode').then(({ shouldPlayNotificationSound }) =>
+    shouldPlayNotificationSound(category).then((ok) => {
+      if (!ok) return;
+      if (!isCategoryEnabled(category)) return;
+      if (shouldDebounce(soundType, 150)) return;
+
+      const ctx = getAudioContext();
+      if (!ctx) return;
+
+      try {
+        const now = ctx.currentTime;
+        config.frequencies.forEach((freq, i) => {
+          createTone(
+            ctx,
+            freq,
+            config.durations[i],
+            config.volumes[i],
+            config.types[i],
+            now + config.delays[i],
+            config.detune?.[i] || 0,
+          );
+        });
+      } catch {
+        /* ignore */
+      }
+    }),
+  );
 }
 
 // Preview a sound (ignores settings, for settings page)

@@ -1,8 +1,8 @@
 import { useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Camera } from '@/components/camera/Camera';
-import { VybeSnapCamera } from '@/components/camera/VybeSnapCamera';
 import type { CameraMode, CaptureTarget } from '@/lib/camera/cameraConfig';
+import { defaultModeForTarget } from '@/lib/camera/cameraConfig';
 
 export interface UnifiedVybeCameraProps {
   captureTarget: CaptureTarget;
@@ -16,8 +16,8 @@ export interface UnifiedVybeCameraProps {
 }
 
 /**
- * Single camera surface for every entry point.
- * DM/Snap use VybeSnapCamera; Hub/Story/Post/Clip use the full Snapchat-style Camera.
+ * Single camera engine for every entry point (Story, VybeSnap, Create, Profile, etc.).
+ * All surfaces use the same Camera component — identical UI, gestures, and capture flow.
  */
 export function UnifiedVybeCamera({
   captureTarget,
@@ -38,6 +38,11 @@ export function UnifiedVybeCamera({
         onClose();
         return;
       }
+      if (onSend) {
+        onSend(media.url, media.type === 'video');
+        onClose();
+        return;
+      }
       onClose();
       navigate('/upload', {
         state: {
@@ -46,24 +51,8 @@ export function UnifiedVybeCamera({
         },
       });
     },
-    [captureTarget, navigate, onCapture, onClose],
+    [captureTarget, navigate, onCapture, onClose, onSend],
   );
-
-  if (captureTarget === 'dm' || captureTarget === 'snap') {
-    return (
-      <VybeSnapCamera
-        isOpen
-        onClose={onClose}
-        directSend={captureTarget === 'dm'}
-        onSend={(url, isVideo) => {
-          onSend?.(url, isVideo);
-          onClose();
-        }}
-        initialStream={initialStream}
-        streamPromise={streamPromise}
-      />
-    );
-  }
 
   return (
     <Camera
@@ -71,9 +60,11 @@ export function UnifiedVybeCamera({
       initialStream={initialStream}
       streamPromise={streamPromise}
       captureTarget={captureTarget}
-      defaultMode={defaultMode}
+      defaultMode={defaultMode ?? defaultModeForTarget(captureTarget)}
       showBackArrow={showBackArrow}
-      onCapture={handleCapture}
+      onCapture={onCapture ?? (captureTarget !== 'story' ? handleCapture : undefined)}
+      onSend={onSend}
+      directSend={captureTarget === 'dm' || captureTarget === 'snap'}
     />
   );
 }

@@ -4,7 +4,8 @@ import { Users, Pin } from 'lucide-react';
 import type { LoadedDMConversation } from '@/lib/loadDMConversations';
 import { safeDmMembers } from '@/lib/persistedCollections';
 import { displayNameForConversation } from '@/lib/dmMemberResolve';
-import { formatDmPreviewContent } from '@/lib/callChatMessages';
+import { dmConversationPreviewText } from '@/lib/dmPreviewText';
+import { useRecentNewFriendProfileIds } from '@/hooks/useRecentNewFriendProfileIds';
 import { compactTime } from '@/lib/compactTime';
 import { resolveProfileAvatarUrl } from '@/lib/profileAvatarCache';
 import { Avatar, AvatarFallback, ProfileAvatarImage } from '@/components/ui/avatar';
@@ -27,6 +28,7 @@ export const DmConversationCard = memo(function DmConversationCard({
   onWarm,
   index = 0,
 }: DmConversationCardProps) {
+  const { data: recentNewFriendIds = new Set<string>() } = useRecentNewFriendProfileIds();
   const unread = conversation.unread_count || 0;
   const isUnread = unread > 0 || conversation._hasUnread;
   const name = displayNameForConversation(conversation, profileId, authUid, 'Chat');
@@ -42,19 +44,14 @@ export const DmConversationCard = memo(function DmConversationCard({
   );
 
   const lastMsg = conversation.last_message;
-  const preview = (() => {
-    try {
-      return lastMsg
-        ? formatDmPreviewContent(
-            lastMsg,
-            Boolean(lastMsg.sender_id && profileId && lastMsg.sender_id === profileId),
-            56,
-          )
-        : 'Say hey 👋';
-    } catch {
-      return 'Say hey 👋';
-    }
-  })();
+  const preview = dmConversationPreviewText({
+    lastMessage: lastMsg,
+    isGroup: conversation.is_group,
+    profileId,
+    otherProfileId: other?.id,
+    recentNewFriendIds,
+    previewMaxLen: 56,
+  });
 
   const timeLabel = lastMsg?.created_at ? compactTime(lastMsg.created_at) : null;
 

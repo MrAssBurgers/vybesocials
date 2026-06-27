@@ -22,7 +22,7 @@ function markScrolling() {
         document.documentElement.classList.remove('is-scrolling');
       });
     });
-  }, 90);
+  }, 120);
 }
 
 function bindAppScrollContainer() {

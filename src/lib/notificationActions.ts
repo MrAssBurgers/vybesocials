@@ -45,6 +45,27 @@ function normalizeAction(value: unknown): NotificationAction {
   return 'open';
 }
 
+function parseConversationIdFromPath(path?: string): string | undefined {
+  if (!path) return undefined;
+  const match = path.match(/\/messages\/([^/?#]+)/i);
+  return match?.[1];
+}
+
+function parseCallIdFromPath(path?: string): string | undefined {
+  if (!path) return undefined;
+  try {
+    const q = path.includes('?') ? path.slice(path.indexOf('?')) : '';
+    if (q) {
+      const params = new URLSearchParams(q.startsWith('?') ? q.slice(1) : q);
+      const call = params.get('call');
+      if (call) return call;
+    }
+  } catch {
+    /* ignore */
+  }
+  return undefined;
+}
+
 /** Normalize Despia / OneSignal / service-worker payloads into one shape. */
 export function normalizeNotificationPayload(input: unknown): NormalizedNotificationPayload | null {
   const root = parseMaybeJson(input) ?? (typeof input === 'object' && input ? (input as Record<string, unknown>) : null);
@@ -55,6 +76,7 @@ export function normalizeNotificationPayload(input: unknown): NormalizedNotifica
     parseMaybeJson(root.data) ??
     parseMaybeJson(root.additionalData) ??
     parseMaybeJson(root.custom) ??
+    parseMaybeJson(root.custom_data) ??
     {};
 
   const merged = { ...nested, ...root };
@@ -62,10 +84,17 @@ export function normalizeNotificationPayload(input: unknown): NormalizedNotifica
     asString(merged.type) ??
     asString(merged.kind) ??
     asString(merged.notification_type) ??
+    (merged.typing === 'true' || merged.typing === true ? 'typing' : undefined) ??
     'general'
   ).toLowerCase();
 
-  const action = normalizeAction(merged.action ?? merged.button_id ?? merged.buttonId ?? merged.event);
+  const action = normalizeAction(
+    merged.action ??
+      merged.button_id ??
+      merged.buttonId ??
+      merged.actionId ??
+      merged.event,
+  );
 
   let path = asString(merged.path) ?? asString(merged.url) ?? asString(merged.deepLink) ?? asString(merged.deeplink);
   if (path && /^https?:\/\//i.test(path)) {
@@ -75,8 +104,11 @@ export function normalizeNotificationPayload(input: unknown): NormalizedNotifica
     } catch { /* keep as-is */ }
   }
 
-  const callId = asString(merged.callId) ?? asString(merged.call_id);
-  const conversationId = asString(merged.conversationId) ?? asString(merged.conversation_id);
+  const callId = asString(merged.callId) ?? asString(merged.call_id) ?? parseCallIdFromPath(path);
+  const conversationId =
+    asString(merged.conversationId) ??
+    asString(merged.conversation_id) ??
+    parseConversationIdFromPath(path);
   const challengeId =
     asString(merged.challengeId) ??
     asString(merged.challenge_id) ??
@@ -114,6 +146,7 @@ export function buildNotificationRoute(payload: NormalizedNotificationPayload): 
     case 'message':
     case 'dm':
     case 'group_message':
+    case 'typing':
       return payload.conversationId ? `/messages/${payload.conversationId}` : '/messages';
     case 'login_approval':
     case 'security':

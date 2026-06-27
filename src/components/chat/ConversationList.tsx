@@ -14,6 +14,8 @@ import { StoryGroup } from '@/hooks/useStories';
 import { ensureArray, safeDmMembers } from '@/lib/persistedCollections';
 import LocalErrorBoundary from '@/components/error/LocalErrorBoundary';
 import { useAcceptedFriendRequests, useDismissAcceptedRequest } from '@/hooks/useAcceptedFriendRequests';
+import { useRecentNewFriendProfileIds } from '@/hooks/useRecentNewFriendProfileIds';
+import { dmConversationPreviewText } from '@/lib/dmPreviewText';
 import { useStreakMap, Streak } from '@/hooks/useStreaks';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { useConversationTyping } from '@/hooks/useConversationTyping';
@@ -156,6 +158,7 @@ export function ConversationList() {
   const storyGroups: StoryGroup[] = [];
   const { data: pendingRequestCount = 0 } = usePendingRequestCount();
   const { data: acceptedRequestsRaw } = useAcceptedFriendRequests();
+  const { data: recentNewFriendIds = new Set<string>() } = useRecentNewFriendProfileIds();
   const acceptedRequests = ensureArray(acceptedRequestsRaw);
   const dismissAccepted = useDismissAcceptedRequest();
   const streakMap = useStreakMap();
@@ -429,6 +432,7 @@ export function ConversationList() {
                   statusMap={statusMap}
                   isTypingFn={checkTyping}
                   peerActivity={peerActivityByConv.get(conv.id)}
+                  recentNewFriendIds={recentNewFriendIds}
                   onClick={handleConversationClick}
                   onWarm={handleConversationWarm}
                   onTrash={handleTrashConversation}
@@ -448,6 +452,7 @@ export function ConversationList() {
                   statusMap={statusMap}
                   isTypingFn={checkTyping}
                   peerActivity={peerActivityByConv.get(conv.id)}
+                  recentNewFriendIds={recentNewFriendIds}
                   onClick={handleConversationClick}
                   onWarm={handleConversationWarm}
                   onTrash={handleTrashConversation}
@@ -606,9 +611,18 @@ const ConversationContent = memo(forwardRef<HTMLDivElement, any>(function Conver
   otherMember,
   streak,
   userStatus,
+  recentNewFriendIds,
 }, _ref) {
   const livePreview = activityPreviewLabel(peerActivity);
   const showLiveActivity = peerActivity !== 'idle' && livePreview;
+  const emptyPreview = dmConversationPreviewText({
+    lastMessage: null,
+    isGroup: conversation.is_group,
+    profileId: currentUserId,
+    otherProfileId: otherMember?.id as string | undefined,
+    recentNewFriendIds,
+  });
+  const showSayHi = emptyPreview === 'Say hi 👋';
 
   return (
     <>
@@ -743,16 +757,16 @@ const ConversationContent = memo(forwardRef<HTMLDivElement, any>(function Conver
                     : formatDmPreviewContent(lastMessage, false)}
                 </p>
               </>
-            ) : (otherMember as any)?.user_id ? (
+            ) : (otherMember as any)?.user_id && !showSayHi ? (
               <NowPlayingInline authUserId={(otherMember as any).user_id} className="truncate dm-convo-preview" />
             ) : null}
-            {!showLiveActivity && !lastMessage && userStatus && !(otherMember as any)?.user_id && (
+            {!showLiveActivity && !lastMessage && !showSayHi && userStatus && !(otherMember as any)?.user_id && (
               <p className="dm-convo-preview truncate italic">
                 {userStatus.emoji} {userStatus.text}
               </p>
             )}
-            {!showLiveActivity && !lastMessage && conversation.is_group && (
-              <p className="dm-convo-preview truncate">Say hi 👋</p>
+            {!showLiveActivity && !lastMessage && (showSayHi || (!userStatus && !(otherMember as any)?.user_id)) && (
+              <p className="dm-convo-preview truncate">{emptyPreview}</p>
             )}
           </div>
 
@@ -796,6 +810,7 @@ interface ConversationRowProps {
   statusMap: Map<string, { emoji: string; text: string } | undefined>;
   isTypingFn: (id: string) => boolean;
   peerActivity?: ActivityType;
+  recentNewFriendIds?: Set<string>;
   onClick: (id: string) => void;
   onWarm?: (id: string) => void;
   onTrash: (id: string) => void;
@@ -813,6 +828,7 @@ const ConversationRow = memo(function ConversationRow({
   statusMap,
   isTypingFn,
   peerActivity: peerActivityProp,
+  recentNewFriendIds,
   onClick,
   onWarm,
   onTrash,
@@ -847,6 +863,7 @@ const ConversationRow = memo(function ConversationRow({
       storyGroup={storyGroup}
       streak={streak}
       userStatus={otherMemberId ? safeMapGet(statusMap, otherMemberId) : undefined}
+      recentNewFriendIds={recentNewFriendIds}
       onOpenStory={onOpenStory}
     />
   );
@@ -866,6 +883,7 @@ interface ConversationItemProps {
   storyGroup?: StoryGroup;
   streak?: Streak;
   userStatus?: { emoji: string; text: string } | null;
+  recentNewFriendIds?: Set<string>;
   onOpenStory?: (userId: string) => void;
 }
 
@@ -883,6 +901,7 @@ const ConversationItem = memo(forwardRef<HTMLDivElement, ConversationItemProps>(
   storyGroup,
   streak,
   userStatus,
+  recentNewFriendIds,
   onOpenStory,
 }, _ref) {
   const navigate = useNavigate();
@@ -1082,6 +1101,7 @@ const ConversationItem = memo(forwardRef<HTMLDivElement, ConversationItemProps>(
     otherMember,
     streak,
     userStatus,
+    recentNewFriendIds,
   };
 
   // Mobile swipeable version with long-press for options

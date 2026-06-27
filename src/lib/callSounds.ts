@@ -206,21 +206,19 @@ function stopAllSoundsNow(): void {
 
 // Start ringing loop (for incoming calls)
 export function startRinging(): void {
-  stopAllCallSounds();
-  
-  const ctx = getAudioContext();
-  if (!ctx) return;
-  
-  // Play initial ring
-  playPremiumRing(ctx, ctx.currentTime);
-  
-  // Loop every 2.5 seconds (slightly slower, more elegant)
-  ringingInterval = window.setInterval(() => {
-    const c = getAudioContext();
-    if (c) {
-      playPremiumRing(c, c.currentTime);
-    }
-  }, 2500);
+  void import('@/lib/deviceSilentMode').then(({ shouldPlayNotificationSound }) =>
+    shouldPlayNotificationSound('calls').then((ok) => {
+      if (!ok) return;
+      stopAllCallSounds();
+      const ctx = getAudioContext();
+      if (!ctx) return;
+      playPremiumRing(ctx, ctx.currentTime);
+      ringingInterval = window.setInterval(() => {
+        const c = getAudioContext();
+        if (c) playPremiumRing(c, c.currentTime);
+      }, 2500);
+    }),
+  );
 }
 
 // Start ringback loop (for outgoing calls)

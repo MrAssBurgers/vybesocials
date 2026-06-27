@@ -1,0 +1,88 @@
+/* Buttery UI layer — GPU-friendly transitions without killing motion on native */
+
+:root {
+  --vybe-ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --vybe-route-fade: 180ms;
+}
+
+html.native-perf-mode {
+  --vybe-route-fade: 160ms;
+}
+
+/* Route shell crossfade (driven by AnimatedRoutes) */
+[data-route-shell] {
+  opacity: 1;
+  transition: opacity var(--vybe-route-fade) var(--vybe-ease-out);
+  transform: translateZ(0);
+  backface-visibility: hidden;
+}
+
+[data-route-shell].vybe-route-fade {
+  opacity: 0;
+  transition: none;
+}
+
+/* Primary scroll surfaces — compositor promotion, no smooth-scroll jank on iOS */
+#main-content,
+[data-app-scroll-container='true'],
+.main-scroll,
+.native-scroll-shell,
+.scroller {
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: contain;
+}
+
+/* Bottom nav — only hint GPU layers while animating (permanent will-change causes jitter) */
+.bottom-nav {
+  will-change: auto;
+}
+
+.bottom-nav.bottom-nav--hidden,
+html[data-vybe-bottom-nav-scroll='hidden'] .bottom-nav,
+.bottom-nav.vybe-nav-animating {
+  will-change: transform, opacity;
+}
+
+/* During scroll: pause decorative motion, keep opacity/transform transitions */
+html.is-scrolling .gradient-animated,
+html.is-scrolling .gradient-animated::before,
+html.is-scrolling .gradient-animated::after,
+html.is-scrolling .vybe-splash-ambient-mesh,
+html.is-scrolling .vybe-splash-ambient-blob,
+html.is-scrolling .vybe-liquid-bg .vybe-liquid-blob,
+html.is-scrolling .vybe-liquid-bg .vybe-liquid-bloom {
+  animation-play-state: paused !important;
+}
+
+html.is-scrolling .bottom-nav .gradient-animated {
+  animation-play-state: paused !important;
+}
+
+/* Native shell: keep short UI transitions, skip heavy blur */
+html.native-perf-mode:not(.reduce-motion) [data-route-shell],
+html.native-perf-mode:not(.reduce-motion) .bottom-nav,
+html.native-perf-mode:not(.reduce-motion) button,
+html.native-perf-mode:not(.reduce-motion) a,
+html.native-perf-mode:not(.reduce-motion) [role='button'] {
+  transition-timing-function: var(--vybe-ease-out);
+}
+
+/* Tab / list items — prefer transform over layout properties */
+html:not(.reduce-motion) .vybe-interactive {
+  transition:
+    transform 180ms var(--vybe-ease-out),
+    opacity 180ms var(--vybe-ease-out),
+    background-color 120ms ease;
+}
+
+html:not(.reduce-motion) .vybe-interactive:active {
+  transform: scale(0.97);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-route-shell] {
+    transition: none !important;
+  }
+}

@@ -5,19 +5,21 @@ interface UsePinchZoomOptions {
   streamRef: React.RefObject<MediaStream | null>;
   minZoom?: number;
   maxZoom?: number;
+  onZoomChange?: (zoom: number) => void;
 }
 
 /**
  * Hook for pinch-to-zoom on camera viewfinder.
  * Uses CSS transform for smooth visual zoom + native track constraints when available.
  */
-export function usePinchZoom({ videoRef, streamRef, minZoom = 1, maxZoom = 5 }: UsePinchZoomOptions) {
+export function usePinchZoom({ videoRef, streamRef, minZoom = 1, maxZoom = 5, onZoomChange }: UsePinchZoomOptions) {
   const zoomRef = useRef(1);
   const lastDistRef = useRef<number | null>(null);
   const animFrameRef = useRef<number | null>(null);
 
   const applyZoom = useCallback((zoom: number) => {
     zoomRef.current = zoom;
+    onZoomChange?.(zoom);
 
     // Try native track zoom first
     const track = streamRef.current?.getVideoTracks()[0];
@@ -37,7 +39,7 @@ export function usePinchZoom({ videoRef, streamRef, minZoom = 1, maxZoom = 5 }: 
     if (videoRef.current) {
       videoRef.current.style.transform = `scale(${zoom})${videoRef.current.style.transform.includes('scaleX') ? ' scaleX(-1)' : ''}`;
     }
-  }, [videoRef, streamRef, minZoom, maxZoom]);
+  }, [videoRef, streamRef, minZoom, maxZoom, onZoomChange]);
 
   const handleTouchMove = useCallback((e: TouchEvent) => {
     if (e.touches.length < 2) {

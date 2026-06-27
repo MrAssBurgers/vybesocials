@@ -6,6 +6,10 @@ import { cn } from '@/lib/utils';
 import { CameraFilterCarousel, PRESET_FILTERS, getFilterCSS } from './CameraFilterCarousel';
 import { CameraEditor } from './CameraEditor';
 import { CameraShareSheet } from './CameraShareSheet';
+import { CameraStoryPostSheet } from './CameraStoryPostSheet';
+import { VybeRecordButton } from './VybeRecordButton';
+import { CameraZoomIndicator } from './CameraZoom';
+import { GalleryDrawer } from '@/components/create/GalleryDrawer';
 import { SoundPicker } from '@/components/sounds/SoundPicker';
 import { Sound } from '@/hooks/useSounds';
 import { triggerHaptic } from '@/lib/haptics';
@@ -18,6 +22,8 @@ import { createCameraMediaRecorder, recordingBlobType } from '@/lib/cameraRecord
 import { acquirePostCameraStream, attachAudioToStream, stopStream } from '@/lib/postCameraStream';
 import { bakeCameraEdits, bakedCameraFileName, type CameraDrawPath, type CameraTextOverlay } from '@/lib/bakeCameraEdits';
 import type { CameraMode, CaptureTarget } from '@/lib/camera/cameraConfig';
+import { maxRecordingSec, modesForTarget } from '@/lib/camera/cameraConfig';
+import { useCameraGestures } from '@/hooks/useCameraGestures';
 import { Button } from '@/components/ui/button';
 
 const MusicGallery = lazy(() =>
@@ -30,20 +36,25 @@ interface CameraProps {
   showBackArrow?: boolean;
   /** When provided, bypasses share sheet and returns captured media directly */
   onCapture?: (media: { file: File; url: string; type: 'photo' | 'video' }) => void;
+  /** DM / VybeSnap — send media URL directly after capture/edit */
+  onSend?: (mediaUrl: string, isVideo: boolean) => void;
+  directSend?: boolean;
   initialStream?: MediaStream | null;
   streamPromise?: Promise<MediaStream | null>;
   captureTarget?: CaptureTarget;
   defaultMode?: CameraMode;
 }
 
-type CameraState = 'capture' | 'edit' | 'share';
+type CameraState = 'capture' | 'edit' | 'share' | 'story-post';
 type CaptureMode = CameraMode;
 
-const CAPTURE_MODES: { id: CaptureMode; label: string }[] = [
-  { id: 'video', label: 'VIDEO' },
-  { id: 'photo', label: 'PHOTO' },
-  { id: 'story', label: 'STORY' },
-];
+function isVideoCaptureMode(mode: CaptureMode): boolean {
+  return mode === 'video' || mode === 'story' || mode === 'clip';
+}
+
+function isStoryFastPath(target: CaptureTarget, mode: CaptureMode): boolean {
+  return target === 'story' || mode === 'story';
+}
 
 export function Camera({
   onClose,
@@ -53,6 +64,8 @@ export function Camera({
   streamPromise,
   captureTarget = 'hub',
   defaultMode = 'photo',
+  onSend,
+  directSend = false,
 }: CameraProps) {
   const navigate = useNavigate();
   const [state, setState] = useState<CameraState>('capture');
@@ -74,8 +87,12 @@ export function Camera({
   const [showSoundPicker, setShowSoundPicker] = useState(false);
   const [showMusicGallery, setShowMusicGallery] = useState(false);
   const [selectedSound, setSelectedSound] = useState<Sound | null>(null);
-  const [isSwiping, setIsSwiping] = useState(false);
   const [isBaking, setIsBaking] = useState(false);
+  const [showGallery, setShowGallery] = useState(false);
+
+  const modeTabs = modesForTarget(captureTarget);
+  const maxRecSec = maxRecordingSec(captureMode, captureTarget);
+  const recordingProgressPct = Math.min((recordingDuration / maxRecSec) * 100, 100);
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -171,11 +188,39 @@ export function Camera({
 
   const onDoubleTapFlip = useDoubleTapCameraFlip(toggleCamera);
 
+  const openGallery = useCallback(() => setShowGallery(true), []);
+
+  const handleGallerySelect = useCallback((files: File[]) => {
+    const file = files[0];
+    if (!file) return;
+    const isVideo = file.type.startsWith('video/');
+    const url = URL.createObjectURL(file);
+    setCapturedMedia({ url, type: isVideo ? 'video' : 'photo', file });
+    setState('edit');
+  }, []);
+
   const showFilterNameBriefly = (name: string) => {
     setFilterName(name);
     if (filterNameTimerRef.current) clearTimeout(filterNameTimerRef.current);
     filterNameTimerRef.current = setTimeout(() => setFilterName(''), 1200);
   };
+
+  const finalizeCapture = useCallback(
+    (media: { url: string; type: 'photo' | 'video'; file: File }) => {
+      if (onCapture) {
+        onCapture(media);
+        return;
+      }
+      if (onSend && (directSend || captureTarget === 'dm' || captureTarget === 'snap')) {
+        onSend(media.url, media.type === 'video');
+        onClose();
+        return;
+      }
+      setCapturedMedia(media);
+      setState('edit');
+    },
+    [captureTarget, directSend, onCapture, onClose, onSend],
+  );
 
   const handleFilterChange = (filterId: string) => {
     setCurrentFilter(filterId);
@@ -203,8 +248,7 @@ export function Camera({
       if (blob) {
         const dataUrl = URL.createObjectURL(blob);
         const file = new File([blob], 'camera-photo.jpg', { type: 'image/jpeg' });
-        setCapturedMedia({ url: dataUrl, type: 'photo', file });
-        setState('edit');
+        finalizeCapture({ url: dataUrl, type: 'photo', file });
       }
     }, 'image/jpeg', 0.9);
   };
@@ -223,8 +267,7 @@ export function Camera({
         const url = URL.createObjectURL(blob);
         const ext = mimeType.includes('mp4') ? 'mp4' : 'webm';
         const file = new File([blob], `camera-video.${ext}`, { type: mimeType });
-        setCapturedMedia({ url, type: 'video', file });
-        setState('edit');
+        finalizeCapture({ url, type: 'video', file });
       };
       recorder.start(100);
       mediaRecorderRef.current = recorder;
@@ -234,7 +277,7 @@ export function Camera({
       const updateDuration = () => {
         const elapsed = Math.floor((Date.now() - recordingStartTime) / 1000);
         progressRef.current = elapsed;
-        if (elapsed >= 60) stopRecording();
+        if (elapsed >= maxRecSec) stopRecording();
         else progressFrameRef.current = requestAnimationFrame(updateDuration);
       };
       progressFrameRef.current = requestAnimationFrame(updateDuration);
@@ -273,7 +316,7 @@ export function Camera({
   };
 
   const handleCaptureImmediate = () => {
-    if (captureMode === 'video' || captureMode === 'story') {
+    if (isVideoCaptureMode(captureMode)) {
       void startRecording();
     } else {
       takePhoto();
@@ -285,7 +328,7 @@ export function Camera({
       handleTimerCapture();
       return;
     }
-    if (captureMode === 'video' || captureMode === 'story') {
+    if (isVideoCaptureMode(captureMode)) {
       void startRecording();
     } else {
       holdTimerRef.current = setTimeout(() => void startRecording(), 300);
@@ -295,7 +338,7 @@ export function Camera({
   const handleCaptureEnd = () => {
     if (holdTimerRef.current) { clearTimeout(holdTimerRef.current); holdTimerRef.current = null; }
     if (isRecording) stopRecording();
-    else if (captureMode === 'photo' && timerSeconds === 0 && !isSwiping) takePhoto();
+    else if ((captureMode === 'photo' || captureMode === 'snap') && timerSeconds === 0) takePhoto();
   };
 
   const handleFilterSwipe = (direction: number) => {
@@ -307,6 +350,24 @@ export function Camera({
     }
   };
 
+  const {
+    focusPoint,
+    displayZoom,
+    showZoom,
+    onViewfinderTouchStart,
+    onViewfinderClick,
+    onViewfinderDoubleClick,
+  } = useCameraGestures({
+    videoRef,
+    streamRef,
+    onClose,
+    onOpenGallery: openGallery,
+    onOpenMemories: openGallery,
+    onFilterSwipe: (direction) => handleFilterSwipe(direction),
+    onDoubleTapFlip,
+    disabled: isRecording || timerCountdown !== null,
+  });
+
 
   const cycleTimer = () => {
     const options = [0, 3, 5, 10];
@@ -317,8 +378,6 @@ export function Camera({
     toast(`Timer: ${next === 0 ? 'Off' : `${next}s`}`, { duration: 1000 });
   };
 
-  const recordingProgress = Math.min(recordingDuration / 60, 1);
-  const ringCircumference = 2 * Math.PI * 38;
   const combinedFilter = `${getFilterCSS(currentFilter) || 'none'} brightness(${brightness / 100})`;
 
   if (state === 'edit' && capturedMedia) {
@@ -386,8 +445,18 @@ export function Camera({
                 return;
               }
 
+              if (onSend && (directSend || captureTarget === 'dm' || captureTarget === 'snap')) {
+                onSend(url, capturedMedia.type === 'video');
+                onClose();
+                return;
+              }
+
               setCapturedMedia(media);
-              setState('share');
+              if (isStoryFastPath(captureTarget, captureMode)) {
+                setState('story-post');
+              } else {
+                setState('share');
+              }
             } catch (err) {
               const msg = err instanceof Error ? err.message : 'Failed to save edits';
               console.error('[Camera] Failed to bake edits:', err);
@@ -401,6 +470,19 @@ export function Camera({
             setState('capture');
             setTimeout(() => startCamera(), 100);
           }}
+        />
+      </FullscreenPortal>
+    );
+  }
+  if (state === 'story-post' && capturedMedia) {
+    return (
+      <FullscreenPortal>
+        <CameraStoryPostSheet
+          mediaUrl={capturedMedia.url}
+          mediaType={capturedMedia.type}
+          mediaFile={capturedMedia.file}
+          onClose={() => setState('edit')}
+          onComplete={onClose}
         />
       </FullscreenPortal>
     );
@@ -419,35 +501,9 @@ export function Camera({
       {/* Full-bleed viewfinder */}
       <div
         className="absolute inset-0"
-        onDoubleClick={(e) => onDoubleTapFlip(e)}
-        onTouchStart={(e) => {
-          // Only handle swipes on the viewfinder itself, not on buttons
-          if ((e.target as HTMLElement).closest('button')) return;
-          const touch = e.touches[0];
-          const startX = touch.clientX;
-          const startY = touch.clientY;
-          let locked: 'none' | 'horizontal' | 'vertical' = 'none';
-          setIsSwiping(false);
-          const handleTouchMove = (moveE: TouchEvent) => {
-            const dx = Math.abs(moveE.touches[0].clientX - startX);
-            const dy = Math.abs(moveE.touches[0].clientY - startY);
-            if (locked === 'none' && (dx > 10 || dy > 10)) {
-              locked = dx > dy ? 'horizontal' : 'vertical';
-            }
-            if (locked === 'horizontal' && dx > 20) setIsSwiping(true);
-          };
-          const handleTouchEnd = (endE: TouchEvent) => {
-            const diff = endE.changedTouches[0].clientX - startX;
-            if (locked === 'horizontal' && Math.abs(diff) > 50) {
-              handleFilterSwipe(diff > 0 ? -1 : 1);
-            }
-            setIsSwiping(false);
-            document.removeEventListener('touchmove', handleTouchMove);
-            document.removeEventListener('touchend', handleTouchEnd);
-          };
-          document.addEventListener('touchmove', handleTouchMove, { passive: true });
-          document.addEventListener('touchend', handleTouchEnd);
-        }}
+        onClick={onViewfinderClick}
+        onDoubleClick={onViewfinderDoubleClick}
+        onTouchStart={onViewfinderTouchStart}
       >
         <video
           ref={videoRef}
@@ -488,6 +544,20 @@ export function Camera({
             <div className="absolute left-2/3 top-0 bottom-0 w-px bg-white/25" />
           </div>
         )}
+
+        <AnimatePresence>
+          {focusPoint && (
+            <motion.div
+              initial={{ opacity: 0, scale: 1.4 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.8 }}
+              className="absolute z-20 pointer-events-none w-16 h-16 -translate-x-1/2 -translate-y-1/2 border-2 border-yellow-300 rounded-full"
+              style={{ left: `${focusPoint.x}%`, top: `${focusPoint.y}%` }}
+            />
+          )}
+        </AnimatePresence>
+
+        <CameraZoomIndicator zoom={displayZoom} visible={showZoom} />
       </div>
 
       {/* Timer Countdown Overlay */}
@@ -641,52 +711,22 @@ export function Camera({
 
         {/* ─── CAPTURE ROW ─── */}
         <div className="flex items-end justify-between px-5 pb-3">
-          <button className="w-12 h-12 rounded-xl border-2 border-white/30 overflow-hidden bg-white/10 backdrop-blur-sm flex items-center justify-center active:scale-90 transition-transform mb-2">
+          <button
+            type="button"
+            onClick={() => { triggerHaptic('light'); openGallery(); }}
+            className="w-12 h-12 rounded-xl border-2 border-white/30 overflow-hidden bg-white/10 backdrop-blur-sm flex items-center justify-center active:scale-90 transition-transform mb-2"
+          >
             <Image className="h-5 w-5 text-white/70" />
           </button>
 
-          {/* Center: Capture button */}
-          <div className="flex flex-col items-center">
-            <div className="relative">
-              {isRecording && (
-                <svg className="absolute -inset-1.5 w-[84px] h-[84px] -rotate-90" viewBox="0 0 84 84">
-                  <circle cx="42" cy="42" r="38" fill="none" stroke="white" strokeWidth="3" opacity="0.15" />
-                  <motion.circle
-                    cx="42" cy="42" r="38"
-                    fill="none"
-                    stroke="hsl(var(--destructive))"
-                    strokeWidth="3.5"
-                    strokeLinecap="round"
-                    strokeDasharray={ringCircumference}
-                    strokeDashoffset={ringCircumference * (1 - recordingProgress)}
-                    initial={{ strokeDashoffset: ringCircumference }}
-                    animate={{ strokeDashoffset: ringCircumference * (1 - recordingProgress) }}
-                  />
-                </svg>
-              )}
-              <motion.button
-                onPointerDown={handleCaptureStart}
-                onPointerUp={handleCaptureEnd}
-                onPointerLeave={handleCaptureEnd}
-                className={cn(
-                  "w-[72px] h-[72px] rounded-full border-[4px] flex items-center justify-center",
-                  isRecording ? "border-destructive/60" : "border-white"
-                )}
-                style={{ touchAction: 'manipulation' }}
-                whileTap={{ scale: 0.9 }}
-                transition={{ type: 'spring', stiffness: 400, damping: 25 }}
-              >
-                <motion.div
-                  animate={isRecording
-                    ? { width: 28, height: 28, borderRadius: 6 }
-                    : { width: 58, height: 58, borderRadius: 29 }
-                  }
-                  className={cn(isRecording ? "bg-destructive" : "bg-white")}
-                  transition={{ type: 'spring', stiffness: 400, damping: 25 }}
-                />
-              </motion.button>
-            </div>
-          </div>
+          <VybeRecordButton
+            isRecording={isRecording}
+            progress={recordingProgressPct}
+            maxDuration={maxRecSec}
+            onCaptureStart={handleCaptureStart}
+            onCaptureEnd={handleCaptureEnd}
+            disabled={!cameraReady || permissionDenied}
+          />
 
           <button
             onClick={() => navigate('/messages')}
@@ -699,7 +739,7 @@ export function Camera({
         {/* ─── MODE TABS + FILTERS TOGGLE ─── */}
         <div className="pb-safe">
           <div className="flex items-center justify-center gap-1 pb-2">
-            {CAPTURE_MODES.map((mode) => (
+            {modeTabs.map((mode) => (
               <button
                 key={mode.id}
                 onClick={() => { triggerHaptic('light'); setCaptureMode(mode.id); }}
@@ -748,6 +788,12 @@ export function Camera({
           />
         )}
       </Suspense>
+      <GalleryDrawer
+        open={showGallery}
+        onClose={() => setShowGallery(false)}
+        onSelect={handleGallerySelect}
+        layerZIndex={6050}
+      />
       </div>
     </FullscreenPortal>
   );

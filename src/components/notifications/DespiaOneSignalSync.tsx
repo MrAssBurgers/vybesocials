@@ -10,11 +10,10 @@ import {
   healthCheckPushRegistration,
 } from '@/lib/notifications/NotificationRegistrationService';
 import { recordPushOpened, recordPushReceived } from '@/lib/notifications/pushDiagnostics';
-import { navigationRef } from '@/lib/navigationRef';
-import {
-  buildNotificationRoute,
-  normalizeNotificationPayload,
-} from '@/lib/notificationActions';
+import { ingestNotificationFromBridge } from '@/components/notifications/NotificationActionRouter';
+import { normalizeNotificationPayload } from '@/lib/notificationActions';
+import { presentNativeIncomingCall } from '@/lib/nativeIncomingCall';
+import { fetchRingingCall } from '@/lib/notificationActions';
 
 let webOneSignalLinkedFor: string | null = null;
 let webOneSignalLinkInFlight: Promise<void> | null = null;
@@ -232,7 +231,14 @@ export function DespiaOneSignalSync() {
     window.addEventListener('app-resumed', relinkOnResume);
     window.addEventListener('pageshow', relinkOnResume);
     window.addEventListener('despia:push', refresh as EventListener);
-    window.addEventListener('despia:push', () => recordPushReceived());
+    window.addEventListener('despia:push', (event: Event) => {
+      recordPushReceived();
+      const detail = (event as CustomEvent).detail;
+      const payload = normalizeNotificationPayload(detail);
+      if (payload) {
+        window.dispatchEvent(new CustomEvent('vybe:push-received', { detail: payload }));
+      }
+    });
 
     // Despia notification tap handler
     // data.path (preferred) or data.url, and re-emits metadata for listeners.
@@ -252,21 +258,22 @@ export function DespiaOneSignalSync() {
       try {
         const normalized = normalizeNotificationPayload(payload);
         if (normalized) {
-          const route = buildNotificationRoute(normalized);
-          if (navigationRef.current) navigationRef.current(route);
-          else if (route) window.location.assign(route);
-          window.dispatchEvent(new CustomEvent('vybe:notification-action', { detail: normalized }));
+          if (normalized.type === 'call' || normalized.type === 'incoming_call') {
+            void (async () => {
+              if (normalized.callId) {
+                const call = await fetchRingingCall(normalized.callId);
+                if (call) {
+                  window.dispatchEvent(new CustomEvent('vybe:incoming-call', { detail: call }));
+                  void presentNativeIncomingCall(call);
+                }
+              }
+            })();
+          }
+          ingestNotificationFromBridge(normalized);
         } else {
           const target = payload?.path || payload?.url;
-          if (target && navigationRef.current) {
-            let route = target;
-            try {
-              if (/^https?:\/\//i.test(target)) {
-                const u = new URL(target);
-                route = `${u.pathname}${u.search}${u.hash}`;
-              }
-            } catch { /* ignore */ }
-            navigationRef.current(route);
+          if (target) {
+            ingestNotificationFromBridge({ path: target, type: payload?.type, action: payload?.action });
           }
           if (payload?.metadata !== undefined) {
             const meta = typeof payload.metadata === 'string'

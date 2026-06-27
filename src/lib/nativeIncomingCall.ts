@@ -14,7 +14,12 @@ let activeNativeCallId: string | null = null;
 let permissionsRequested = false;
 
 async function getIncomingCallKit() {
-  if (!Capacitor.isNativePlatform()) return null;
+  if (typeof window === 'undefined') return null;
+  const capNative =
+    Capacitor.isNativePlatform() ||
+    isDespiaRuntime() ||
+    Boolean((window as { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor?.isNativePlatform?.());
+  if (!capNative) return null;
   try {
     const mod = await import('@capgo/capacitor-incoming-call-kit');
     return mod.IncomingCallKit;

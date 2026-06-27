@@ -44,9 +44,47 @@ export const MODE_CAROUSEL: { id: CameraMode; label: string }[] = [
   { id: 'story', label: 'STORY' },
 ];
 
+export function maxRecordingSec(mode: CameraMode, target?: CaptureTarget): number {
+  if (mode === 'snap' || target === 'snap' || target === 'dm') return CAMERA_CONFIG.snapMaxVideoLengthSec;
+  if (mode === 'story' || target === 'story') return 15;
+  return CAMERA_CONFIG.maxVideoLengthSec;
+}
+
+export function modesForTarget(target: CaptureTarget): { id: CameraMode; label: string }[] {
+  switch (target) {
+    case 'story':
+      return [
+        { id: 'story', label: 'STORY' },
+        { id: 'photo', label: 'PHOTO' },
+        { id: 'video', label: 'VIDEO' },
+      ];
+    case 'dm':
+    case 'snap':
+      return [
+        { id: 'snap', label: 'SNAP' },
+        { id: 'photo', label: 'PHOTO' },
+        { id: 'video', label: 'VIDEO' },
+      ];
+    case 'clip':
+      return [
+        { id: 'clip', label: 'CLIP' },
+        { id: 'video', label: 'VIDEO' },
+        { id: 'photo', label: 'PHOTO' },
+      ];
+    default:
+      return [
+        { id: 'video', label: 'VIDEO' },
+        { id: 'photo', label: 'PHOTO' },
+        { id: 'story', label: 'STORY' },
+        { id: 'snap', label: 'SNAP' },
+        { id: 'clip', label: 'CLIP' },
+      ];
+  }
+}
+
 export function defaultModeForTarget(target: CaptureTarget): CameraMode {
   if (target === 'story') return 'story';
-  if (target === 'clip') return 'video';
-  if (target === 'dm' || target === 'snap') return 'photo';
+  if (target === 'clip') return 'clip';
+  if (target === 'dm' || target === 'snap') return 'snap';
   return 'photo';
 }

@@ -4,7 +4,7 @@ function pushSoundForType(type) {
         return { ios_sound: 'ringtone.caf', android_sound: 'ringtone' };
     }
     if (type === 'typing') {
-        return { ios_sound: 'default', android_sound: 'default' };
+        return { ios_sound: '', android_sound: undefined };
     }
     return { ios_sound: 'default', android_sound: 'default' };
 }
@@ -148,9 +148,10 @@ export async function dispatchOneSignalToProfile(profileId, payload, forcedSubsc
     if (authUidForAlias && !externalIds.includes(authUidForAlias)) {
         externalIds.push(authUidForAlias);
     }
-    const isCall = payload.type === 'call';
+    const isCall = payload.type === 'call' || payload.type === 'incoming_call';
     const isDm = payload.type === 'dm' || payload.type === 'group_message' || payload.type === 'typing';
-    const sounds = pushSoundForType(payload.type);
+    const isTyping = payload.type === 'typing';
+    const sounds = pushSoundForType(isTyping ? 'typing' : payload.type);
     const collapseId = oneSignalCollapseId(payload.tag, conversationId);
     const threadId = isDm ? oneSignalThreadId(conversationId) : undefined;
     // OneSignal API: do not set `url` alongside web_url/app_url; web_url must be absolute https.
@@ -183,15 +184,29 @@ export async function dispatchOneSignalToProfile(profileId, payload, forcedSubsc
         : isDm
             ? { ...(dmChannelId ? { android_channel_id: dmChannelId } : {}) }
             : { ...(socialChannelId ? { android_channel_id: socialChannelId } : {}) };
+    const callButtons = isCall
+        ? [
+            { id: 'accept', text: 'Answer' },
+            { id: 'decline', text: 'Decline' },
+        ]
+        : undefined;
+    if (isTyping) {
+        notificationBase.priority = 5;
+        notificationBase.ios_interruption_level = 'passive';
+        notificationBase.ios_sound = '';
+        notificationBase.android_sound = undefined;
+    }
     const body = subscriptionIds.length === 0
         ? {
             ...notificationBase,
             ...channelExtras,
+            ...(callButtons ? { buttons: callButtons } : {}),
             include_aliases: { external_id: externalIds.slice(0, 20) },
         }
         : {
             ...notificationBase,
             ...channelExtras,
+            ...(callButtons ? { buttons: callButtons } : {}),
             include_subscription_ids: subscriptionIds,
         };
     try {

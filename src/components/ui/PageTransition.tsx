@@ -2,6 +2,7 @@ import { ReactNode } from 'react';
 import { motion } from 'framer-motion';
 import { cn } from '@/lib/utils';
 import { liquidSpring } from '@/motion/liquidConfig';
+import { BUTTER_TRANSITION } from '@/lib/smoothMotion';
 
 const routeShellMotionStyle = {
   willChange: 'opacity' as const,
@@ -21,7 +22,7 @@ export function PageTransition({ children, className }: PageTransitionProps) {
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      transition={{ duration: 0.12 }}
+      transition={BUTTER_TRANSITION}
       className={className}
       style={routeShellMotionStyle}
     >
@@ -45,7 +46,7 @@ export function SectionTransition({
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       transition={{
-        duration: 0.12,
+        ...BUTTER_TRANSITION,
         delay,
       }}
       className={className}

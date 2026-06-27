@@ -20,10 +20,14 @@ export function notifyPeerTyping(opts: {
   void sendPushNotification({
     userId: recipientProfileId,
     title: senderName || 'Someone',
-    body: 'typing…',
+    body: `${senderName || 'Someone'} is typing…`,
     url: `/messages/${conversationId}`,
     tag: `vybe-typing-${conversationId}`,
     type: 'typing',
-    data: { conversationId, typing: 'true' },
+    data: {
+      conversationId,
+      path: `/messages/${conversationId}`,
+      typing: 'true',
+    },
   }).catch(() => {});
 }

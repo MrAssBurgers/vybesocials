@@ -2,7 +2,7 @@ import { useState, useCallback, useRef } from 'react';
 import { motion, AnimatePresence, PanInfo } from 'framer-motion';
 import { ChevronUp, MessageCircle } from 'lucide-react';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
-import { VybeSnapCamera } from '@/components/camera/VybeSnapCamera';
+import { UnifiedVybeCamera } from '@/components/camera/UnifiedVybeCamera';
 import { CameraMountBoundary } from '@/components/camera/CameraMountBoundary';
 import { FullscreenPortal } from '@/components/layout/FullscreenPortal';
 import { haptics } from '@/lib/haptics';
@@ -68,10 +68,11 @@ export function CameraFirstOverlay({
       >
         {/* Camera layer */}
         <CameraMountBoundary onError={onClose}>
-          <VybeSnapCamera
-            isOpen={isOpen}
+          <UnifiedVybeCamera
+            captureTarget="snap"
             onClose={onClose}
             onSend={onSend}
+            initialStream={undefined}
           />
         </CameraMountBoundary>
 

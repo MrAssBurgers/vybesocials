@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
+import { isNativeAppShell } from '@/lib/despiaBridge';
 
 export type PlatformType = 'ios' | 'android' | 'windows' | 'macos' | 'linux' | 'unknown';
 export type DeviceType = 'mobile' | 'tablet' | 'desktop';
@@ -93,6 +94,9 @@ function detectDevice(): DeviceType {
 
 function detectPerformanceTier(): PerformanceTier {
   if (typeof navigator === 'undefined') return 'medium';
+
+  // Native WebViews report unreliable deviceMemory — treat as medium+ for smooth UI.
+  if (isNativeAppShell()) return 'medium';
   
   // Check hardware concurrency (CPU cores)
   const cores = navigator.hardwareConcurrency || 4;

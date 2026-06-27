@@ -223,13 +223,12 @@ export function useNativePushNotifications() {
         PushNotifications.addListener('pushNotificationActionPerformed', (action) => {
           console.log('[Push Native] Action performed:', action);
           const data = action.notification.data || {};
-          const payload = normalizeNotificationPayload({
-            ...data,
-            action: action.actionId || data.action || 'open',
-          });
-          if (payload) {
-            navigateFromNotification(buildNotificationRoute(payload));
-          }
+          window.dispatchEvent(new CustomEvent('vybe:notification-action', {
+            detail: {
+              ...data,
+              action: action.actionId || data.action || 'open',
+            },
+          }));
         });
 
         // Reset badge count when app is opened

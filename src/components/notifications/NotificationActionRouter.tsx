@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { useAuth } from '@/lib/auth';
 import { useCallStore } from '@/lib/callStore';
+import { presentNativeIncomingCall } from '@/lib/nativeIncomingCall';
 import {
   buildNotificationRoute,
   declineCallById,
@@ -11,6 +12,18 @@ import {
   normalizeNotificationPayload,
   type NormalizedNotificationPayload,
 } from '@/lib/notificationActions';
+import {
+  enqueuePendingNotification,
+  registerPendingNotificationFlusher,
+} from '@/lib/pendingNotificationQueue';
+
+async function presentCallFromPush(payload: NormalizedNotificationPayload): Promise<void> {
+  if (!payload.callId) return;
+  const call = await fetchRingingCall(payload.callId);
+  if (!call) return;
+  window.dispatchEvent(new CustomEvent('vybe:incoming-call', { detail: call }));
+  void presentNativeIncomingCall(call);
+}
 
 /**
  * Central handler for push notification taps + action buttons (Answer/Decline),
@@ -42,16 +55,7 @@ export function NotificationActionRouter() {
       payload.type === 'incoming_call' ||
       !!payload.callId;
 
-    if (isCall && payload.callId && payload.action === 'open') {
-      const call = await fetchRingingCall(payload.callId);
-      if (call) {
-        window.dispatchEvent(new CustomEvent('vybe:incoming-call', { detail: call }));
-      }
-      navigateFromNotification(buildNotificationRoute(payload));
-      return;
-    }
-
-    if (isCall && payload.action === 'decline' && payload.callId) {
+    if (isCall && payload.callId && payload.action === 'decline') {
       await declineCallById(payload.callId);
       dismissIncoming();
       toast('Call declined');
@@ -75,6 +79,12 @@ export function NotificationActionRouter() {
       return;
     }
 
+    if (isCall && payload.callId && payload.action === 'open') {
+      await presentCallFromPush(payload);
+      navigateFromNotification(buildNotificationRoute(payload));
+      return;
+    }
+
     if (payload.type === 'login_approval' || payload.type === 'security') {
       if (payload.challengeId) {
         window.dispatchEvent(
@@ -91,8 +101,26 @@ export function NotificationActionRouter() {
   const ingest = useCallback((raw: unknown) => {
     const payload = normalizeNotificationPayload(raw);
     if (!payload) return;
+
+    if (!authReady) {
+      enqueuePendingNotification(payload);
+      return;
+    }
+
     void handlePayload(payload);
+  }, [authReady, handlePayload]);
+
+  useEffect(() => {
+    return registerPendingNotificationFlusher((payload) => {
+      void handlePayload(payload);
+    });
   }, [handlePayload]);
+
+  // Flush queue when auth becomes ready
+  useEffect(() => {
+    if (!authReady) return;
+    // flusher already registered — re-trigger via ingest noop path not needed
+  }, [authReady]);
 
   // Cold-start / in-app URL deep links
   useEffect(() => {
@@ -129,13 +157,23 @@ export function NotificationActionRouter() {
     const onMetadata = (event: Event) => {
       ingest((event as CustomEvent).detail);
     };
+    const onIncomingPush = (event: Event) => {
+      const detail = (event as CustomEvent).detail;
+      const payload = normalizeNotificationPayload(detail);
+      if (!payload) return;
+      if (payload.type === 'call' || payload.type === 'incoming_call') {
+        void presentCallFromPush(payload);
+      }
+    };
 
     window.addEventListener('vybe:notification-action', onAction);
     window.addEventListener('despia:notification:metadata', onMetadata);
+    window.addEventListener('vybe:push-received', onIncomingPush);
 
     return () => {
       window.removeEventListener('vybe:notification-action', onAction);
       window.removeEventListener('despia:notification:metadata', onMetadata);
+      window.removeEventListener('vybe:push-received', onIncomingPush);
     };
   }, [ingest]);
 
@@ -172,4 +210,11 @@ export function NotificationActionRouter() {
   }, [ingest]);
 
   return null;
+}
+
+/** Called from Despia / native bridges before React auth is ready. */
+export function ingestNotificationFromBridge(raw: unknown): void {
+  const payload = normalizeNotificationPayload(raw);
+  if (!payload) return;
+  enqueuePendingNotification(payload);
 }

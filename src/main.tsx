@@ -5,6 +5,7 @@ import { StrictMode } from "react";
 import App from "./App.tsx";
 import "./index.css";
 import "./styles/repaint-guard.css";
+import "./styles/smooth-ui.css";
 import { ensureBootThemeApplied } from "./lib/bootThemeApply";
 import { kickstartThemeHydration } from "./lib/themeHydration";
 

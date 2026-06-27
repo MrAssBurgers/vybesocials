@@ -1,7 +1,8 @@
-import { lazy, Suspense, memo } from 'react';
+import { lazy, Suspense, memo, useEffect, useRef } from 'react';
 import { Routes, Route, useLocation, Navigate, useParams } from 'react-router-dom';
 import { useRecoverBottomNavOnTabEnter } from '@/hooks/useRecoverBottomNavOnTabEnter';
 import { useAuth } from '@/lib/auth';
+import { shouldSkipRouteFade } from '@/lib/smoothMotion';
 import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
 import { PublicOnlyRoute } from '@/components/auth/PublicOnlyRoute';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
@@ -138,10 +139,26 @@ export function AnimatedRoutes() {
   const location = useLocation();
   const { profile } = useAuth();
   const debugPanel = useDebugPanel();
+  const routeShellRef = useRef<HTMLDivElement>(null);
   const { isOpen: debugOpen, setIsOpen: setDebugOpen, isAdmin: isDebugAdmin } = debugPanel || { isOpen: false, setIsOpen: () => {}, isAdmin: false };
   
   useDebugCapture();
   usePageTitle();
+
+  // Lightweight route crossfade — opacity only, GPU-composited.
+  useEffect(() => {
+    const shell = routeShellRef.current;
+    if (!shell || shouldSkipRouteFade(location.pathname)) return;
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+
+    shell.classList.add('vybe-route-fade');
+    const raf = requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        shell.classList.remove('vybe-route-fade');
+      });
+    });
+    return () => cancelAnimationFrame(raf);
+  }, [location.pathname]);
 
   // Recover scroll-hidden nav when returning to primary tabs from immersive routes.
   useRecoverBottomNavOnTabEnter(profile);
@@ -305,7 +322,7 @@ export function AnimatedRoutes() {
   );
 
   return (
-    <div className="min-h-screen bg-transparent" data-route-shell>
+    <div ref={routeShellRef} className="min-h-screen bg-transparent" data-route-shell>
       {routeContent}
     </div>
   );
