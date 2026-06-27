@@ -2,6 +2,13 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## Professional brand SVG integrated (2026-06-17)
+- **Logo:** Imported `vybe-brand-assets` — `assets/branding/vybe-logo.svg` + `public/branding/vybe-logo.svg` (Figma-drawn geometry, CSS-var theming)
+- **VybeLogo:** Loads asset via `?raw`; `VybeLogo.css` for glow/breathe/press; deleted procedural paths + legacy `assets/brand/*.svg` icons
+- **Verified:** `npm run build` PASS · `npm run lint` PASS
+- **Deployed:** https://vybe-daaab.web.app
+- **Next:** Lovable Publish for vybehub.app
+
 ## Asset-only logo (Figma workflow) (2026-06-17)
 - **Logo:** Deleted procedural geometry (`vybeMarkPaths`, `vybeLogoSvg`); source of truth is `assets/branding/vybe-logo.svg` (placeholder layers + gradients/filters)
 - **VybeLogo:** Loads SVG via `?raw`, themes CSS variables only; animates glow, breathing, press scale

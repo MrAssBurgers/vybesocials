@@ -15,13 +15,12 @@ export function useDynamicFavicon() {
 
       const svg = buildThemedVybeLogoSvg(
         {
-          left: hsl('--primary', '#f80a7c'),
-          right: hsl('--secondary', '#2563eb'),
-          leftDeep: hsl('--neon-purple', '#9333ea'),
-          rightDeep: hsl('--accent', '#06c0fb'),
-          overlap: hsl('--neon-purple', '#6d28d9'),
+          primary: hsl('--primary', '#7C3DFF'),
+          secondary: hsl('--secondary', '#FF3DF2'),
+          accent: hsl('--accent', '#18D6FF'),
+          glow: hsl('--neon-purple', '#A855F7'),
         },
-        0.72,
+        0.85,
         'fav',
       );
 

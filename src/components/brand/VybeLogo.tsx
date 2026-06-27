@@ -3,35 +3,43 @@ import { motion } from 'framer-motion';
 import { cn } from '@/lib/utils';
 import { useVybeMarkColors } from '@/hooks/useVybeMarkColors';
 import {
+  VYBE_LOGO_SVG_RAW,
   uniquifyVybeLogoSvg,
   vybeLogoThemeStyle,
-  VYBE_LOGO_SVG_RAW,
-  VYBE_LOGO_VIEWBOX,
 } from '@/lib/vybeLogoAsset';
+import './VybeLogo.css';
 
 export interface VybeLogoProps {
   size?: number;
   leftColor?: string;
   rightColor?: string;
-  /** Glow intensity 0–1 (ambient opacity + blur). */
-  glow?: number;
+  /** Glow strength 0–1, or boolean to toggle. */
+  glow?: number | boolean;
   /** @deprecated use `glow` */
   glowIntensity?: number;
+  /** Maps to `--vybe-logo-accent` when set. */
+  centerColor?: string;
   animated?: boolean;
   className?: string;
   title?: string;
 }
 
+function resolveGlow(glow: number | boolean | undefined, glowIntensity: number | undefined): number {
+  if (typeof glow === 'boolean') return glow ? 1 : 0;
+  if (typeof glow === 'number') return glow;
+  if (typeof glowIntensity === 'number') return glowIntensity;
+  return 1;
+}
+
 /**
- * Vybe mark — loads geometry from `assets/branding/vybe-logo.svg` only.
- * Themes gradient CSS variables and animates glow / press scale. Never draws paths in code.
- *
- * Web: inline SVG + CSS variables (same workflow as react-native-svg + asset on native).
+ * Vybe mark — geometry from `assets/branding/vybe-logo.svg` only.
+ * Themes CSS variables and animates glow / press scale. Never draws paths in React.
  */
 export const VybeLogo = memo(function VybeLogo({
   size = 48,
   leftColor,
   rightColor,
+  centerColor,
   glow,
   glowIntensity,
   animated = false,
@@ -40,17 +48,17 @@ export const VybeLogo = memo(function VybeLogo({
 }: VybeLogoProps) {
   const theme = useVybeMarkColors();
   const instanceId = useId().replace(/:/g, '');
-  const glowLevel = glow ?? glowIntensity ?? 1;
+  const glowLevel = resolveGlow(glow, glowIntensity);
+  const glowOn = glowLevel > 0;
 
   const colors = useMemo(
     () => ({
-      left: leftColor ?? theme.primary,
-      right: rightColor ?? theme.secondary,
-      leftDeep: theme.deepPrimary ?? theme.secondary,
-      rightDeep: theme.deepAccent ?? theme.accent,
-      overlap: theme.deepPrimary ?? theme.secondary,
+      primary: leftColor ?? theme.primary,
+      secondary: rightColor ?? theme.secondary,
+      accent: centerColor ?? theme.accent,
+      glow: theme.deepPrimary ?? theme.primary,
     }),
-    [leftColor, rightColor, theme],
+    [leftColor, rightColor, centerColor, theme],
   );
 
   const svgMarkup = useMemo(
@@ -59,34 +67,37 @@ export const VybeLogo = memo(function VybeLogo({
   );
 
   const themeStyle = useMemo(
-    () => vybeLogoThemeStyle(colors, glowLevel),
-    [colors, glowLevel],
+    () => ({
+      width: size,
+      height: size,
+      ...vybeLogoThemeStyle(colors, glowLevel),
+    }),
+    [colors, glowLevel, size],
   );
 
   return (
-    <motion.div
+    <motion.span
       role={title ? 'img' : undefined}
       aria-label={title}
       aria-hidden={title ? undefined : true}
-      data-themed-svg="true"
       data-vybe-logo-asset="assets/branding/vybe-logo.svg"
       className={cn(
-        'vybe-logo-root shrink-0 overflow-visible bg-transparent',
-        animated && 'vybe-logo-root--animated',
+        'vybe-logo shrink-0 overflow-visible bg-transparent',
+        glowOn && 'vybe-logo--glow',
+        animated && glowOn && 'vybe-logo--animated',
         className,
       )}
-      style={{ width: size, height: size, ...themeStyle }}
+      style={themeStyle}
       whileTap={animated ? { scale: 0.94 } : undefined}
       transition={{ type: 'spring', stiffness: 420, damping: 22 }}
     >
       <div
-        className="vybe-logo-root__svg h-full w-full [&>svg]:h-full [&>svg]:w-full"
+        className="vybe-logo__svg"
         dangerouslySetInnerHTML={{ __html: svgMarkup }}
       />
       {title ? <span className="sr-only">{title}</span> : null}
-    </motion.div>
+    </motion.span>
   );
 });
 
-export { VYBE_LOGO_VIEWBOX };
 export default VybeLogo;

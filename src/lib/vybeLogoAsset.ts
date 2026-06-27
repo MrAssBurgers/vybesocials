@@ -5,45 +5,41 @@ export const VYBE_LOGO_VIEWBOX = '0 0 512 512';
 export const VYBE_LOGO_SVG_RAW = vybeLogoSvgRaw;
 
 export interface VybeLogoThemeColors {
-  left: string;
-  leftDeep: string;
-  right: string;
-  rightDeep: string;
-  overlap: string;
+  primary: string;
+  secondary: string;
+  accent: string;
+  glow: string;
 }
 
-/** Prefix gradient/filter ids so multiple marks can coexist on one page. */
+/** Prefix all SVG ids so multiple marks can coexist on one page. */
 export function uniquifyVybeLogoSvg(markup: string, instanceId: string): string {
-  return markup
-    .replace(/\bid="vybe-/g, `id="${instanceId}-vybe-`)
-    .replace(/url\(#vybe-/g, `url(#${instanceId}-vybe-`)
-    .replace(/href="#vybe-/g, `href="#${instanceId}-vybe-`);
+  const ids = [...markup.matchAll(/\bid="([^"]+)"/g)].map((match) => match[1]);
+  let result = markup;
+  for (const id of ids) {
+    const prefixed = `${instanceId}-${id}`;
+    result = result.replace(new RegExp(`\\bid="${id}"`, 'g'), `id="${prefixed}"`);
+    result = result.replace(new RegExp(`url\\(#${id}\\)`, 'g'), `url(#${prefixed})`);
+    result = result.replace(new RegExp(`href="#${id}"`, 'g'), `href="#${prefixed}"`);
+  }
+  return result;
 }
 
-export function vybeLogoThemeStyle(colors: VybeLogoThemeColors, glow: number): CSSProperties {
-  const glowOpacity = 0.28 + glow * 0.22;
-  const glowBlur = Math.max(12, 26 * glow);
-  const bloomBlur = Math.max(10, 22 * glow);
-
+export function vybeLogoThemeStyle(colors: VybeLogoThemeColors, glowStrength = 1): CSSProperties {
   return {
-    '--vybe-logo-left': colors.left,
-    '--vybe-logo-left-deep': colors.leftDeep,
-    '--vybe-logo-right': colors.right,
-    '--vybe-logo-right-deep': colors.rightDeep,
-    '--vybe-logo-overlap': colors.overlap,
-    '--vybe-logo-glow-opacity': String(glowOpacity),
-    '--vybe-logo-glow-blur': String(glowBlur),
-    '--vybe-logo-bloom-blur': String(bloomBlur),
+    '--vybe-logo-primary': colors.primary,
+    '--vybe-logo-secondary': colors.secondary,
+    '--vybe-logo-accent': colors.accent,
+    '--vybe-logo-glow': colors.glow,
+    '--vybe-logo-glow-strength': String(Math.max(0, Math.min(1, glowStrength))),
   } as CSSProperties;
 }
 
-/** Themed SVG string for favicon / static boot (inline CSS variables on root svg). */
-export function buildThemedVybeLogoSvg(colors: VybeLogoThemeColors, glow: number, instanceId = 'vybe'): string {
+/** Themed SVG for favicon (geometry from asset; colors via CSS variables on root). */
+export function buildThemedVybeLogoSvg(colors: VybeLogoThemeColors, glowStrength = 1, instanceId = 'fav'): string {
   const svg = uniquifyVybeLogoSvg(VYBE_LOGO_SVG_RAW, instanceId);
-  const style = vybeLogoThemeStyle(colors, glow);
+  const style = vybeLogoThemeStyle(colors, glowStrength);
   const styleAttr = Object.entries(style)
     .map(([key, value]) => `${key}:${value}`)
     .join(';');
-
   return svg.replace('<svg ', `<svg style="${styleAttr}" `);
 }
