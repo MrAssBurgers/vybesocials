@@ -21,6 +21,12 @@ function pushSoundForType(type?: string): { ios_sound: string; android_sound?: s
 
 const PUSH_SUBSCRIPTION_TYPES = ['iOSPush', 'AndroidPush', 'ChromePush', 'FirefoxPush', 'SafariPush', 'HuaweiPush'];
 
+const PUBLIC_APP_ORIGIN = (
+  process.env.PUBLIC_APP_URL ||
+  process.env.VITE_APP_URL ||
+  'https://vybehub.app'
+).replace(/\/$/, '');
+
 function asString(value: unknown): string | undefined {
   if (typeof value === 'string' && value.trim()) return value.trim();
   return undefined;
@@ -97,6 +103,30 @@ function subscriptionIdsFromPushTokens(rows: Array<{ token?: string }>): string[
     );
 }
 
+/** OneSignal collapse_id max 64 bytes — hash long conversation tags. */
+function oneSignalCollapseId(tag?: string, conversationId?: string): string | undefined {
+  const raw = tag || (conversationId ? `dm-${conversationId}` : undefined);
+  if (!raw) return undefined;
+  if (Buffer.byteLength(raw, 'utf8') <= 64) return raw;
+  let hash = 0;
+  for (let i = 0; i < raw.length; i++) {
+    hash = ((hash << 5) - hash + raw.charCodeAt(i)) | 0;
+  }
+  return `vybe-${Math.abs(hash).toString(36)}`.slice(0, 64);
+}
+
+function oneSignalThreadId(conversationId?: string): string | undefined {
+  if (!conversationId) return undefined;
+  if (Buffer.byteLength(conversationId, 'utf8') <= 64) return conversationId;
+  return oneSignalCollapseId(undefined, conversationId);
+}
+
+function toAbsoluteAppUrl(routePath: string): string {
+  const path = routePath.startsWith('/') ? routePath : `/${routePath}`;
+  if (/^https?:\/\//i.test(path)) return path;
+  return `${PUBLIC_APP_ORIGIN}${path}`;
+}
+
 /** Despia / native shells — OneSignal external_id = profiles.id (Snapchat-style DM alerts). */
 export async function dispatchOneSignalToProfile(
   profileId: string,
@@ -112,6 +142,7 @@ export async function dispatchOneSignalToProfile(
 
   const targetProfileId = await resolvePushTargetProfileId(profileId);
   const routePath = payload.url || '/notifications';
+  const absoluteUrl = toAbsoluteAppUrl(routePath);
   const mergedData: Record<string, string> = {
     type: payload.type || 'dm',
     url: routePath,
@@ -156,7 +187,10 @@ export async function dispatchOneSignalToProfile(
   const isCall = payload.type === 'call';
   const isDm = payload.type === 'dm' || payload.type === 'group_message' || payload.type === 'typing';
   const sounds = pushSoundForType(payload.type);
+  const collapseId = oneSignalCollapseId(payload.tag, conversationId);
+  const threadId = isDm ? oneSignalThreadId(conversationId) : undefined;
 
+  // OneSignal API: do not set `url` alongside web_url/app_url; web_url must be absolute https.
   const notificationBase: Record<string, unknown> = {
     app_id: appId,
     target_channel: 'push',
@@ -166,8 +200,8 @@ export async function dispatchOneSignalToProfile(
     big_picture: senderAvatar,
     ios_attachments: senderAvatar ? { id1: senderAvatar } : undefined,
     chrome_web_image: senderAvatar,
-    url: routePath,
-    web_url: routePath,
+    web_url: absoluteUrl,
+    app_url: absoluteUrl,
     data: mergedData,
     ios_sound: sounds.ios_sound,
     android_sound: sounds.android_sound,
@@ -177,8 +211,8 @@ export async function dispatchOneSignalToProfile(
     content_available: isCall,
     priority: isCall || isDm ? 10 : 5,
     ttl: isCall ? 45 : isDm ? 300 : 86400,
-    collapse_id: payload.tag || undefined,
-    thread_id: isDm && conversationId ? conversationId : undefined,
+    collapse_id: collapseId,
+    thread_id: threadId,
     android_group: isDm ? 'vybe_chats' : undefined,
   };
 
@@ -211,9 +245,10 @@ export async function dispatchOneSignalToProfile(
     });
     const json = await res.json().catch(() => null);
     const recipients = Number(json?.recipients ?? 0);
-    const delivered = res.ok && !json?.errors && recipients > 0;
+    const hasErrors = Array.isArray(json?.errors) && json.errors.length > 0;
+    const delivered = res.ok && !hasErrors && (recipients > 0 || !!json?.id);
     if (!delivered) {
-      console.warn('[onesignalPush] delivery weak', targetProfileId, res.status, JSON.stringify(json).slice(0, 200));
+      console.warn('[onesignalPush] delivery weak', targetProfileId, res.status, JSON.stringify(json).slice(0, 400));
     }
     return {
       sent: delivered ? Math.max(recipients, 1) : 0,
