@@ -1,42 +1,14 @@
 <svg viewBox="0 0 320 100" fill="none" xmlns="http://www.w3.org/2000/svg">
   <defs>
-    <linearGradient id="vybe-left" x1="162" y1="76" x2="256" y2="346" gradientUnits="userSpaceOnUse">
-      <stop offset="0%" stop-color="#f80a7c"/>
-      <stop offset="100%" stop-color="#9333ea"/>
-    </linearGradient>
-    <linearGradient id="vybe-right" x1="350" y1="76" x2="256" y2="346" gradientUnits="userSpaceOnUse">
-      <stop offset="0%" stop-color="#2563eb"/>
-      <stop offset="100%" stop-color="#06c0fb"/>
-    </linearGradient>
     <linearGradient id="vybe-text" x1="0%" y1="0%" x2="100%" y2="0%">
       <stop offset="0%" stop-color="#f80a7c"/>
       <stop offset="33%" stop-color="#9333ea"/>
       <stop offset="66%" stop-color="#06c0fb"/>
       <stop offset="100%" stop-color="#2563eb"/>
     </linearGradient>
-    <filter id="vybe-glow" x="-80%" y="-80%" width="260%" height="260%">
-      <feGaussianBlur stdDeviation="26"/>
-    </filter>
-    <filter id="vybe-joint" x="-120%" y="-120%" width="340%" height="340%">
-      <feGaussianBlur stdDeviation="22"/>
-    </filter>
   </defs>
-  <g transform="translate(-96 -156) scale(0.38)">
-    <g opacity="0.45" filter="url(#vybe-glow)">
-      <rect x="116" y="76" width="92" height="340" rx="46" transform="rotate(-28 162 246)" fill="#f80a7c"/>
-      <rect x="304" y="76" width="92" height="340" rx="46" transform="rotate(28 350 246)" fill="#06c0fb"/>
-    </g>
-    <rect x="116" y="76" width="92" height="340" rx="46" transform="rotate(-28 162 246)" fill="url(#vybe-left)"/>
-    <rect x="304" y="76" width="92" height="340" rx="46" transform="rotate(28 350 246)" fill="url(#vybe-right)"/>
-    <circle cx="256" cy="346" r="34" fill="#ffffff" fill-opacity="0.95" filter="url(#vybe-joint)"/>
+  <g transform="translate(-48 -156) scale(0.36)">
+    <use href="../vybe-mark.svg#vybe-mark-left" fill="#f80a7c" opacity="0.4"/>
   </g>
-  <text
-    x="118"
-    y="66"
-    fill="url(#vybe-text)"
-    font-family="Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif"
-    font-size="52"
-    font-weight="900"
-    letter-spacing="-1.5"
-  >VYBE</text>
+  <text x="118" y="66" fill="url(#vybe-text)" font-family="Inter, system-ui, sans-serif" font-size="52" font-weight="900" letter-spacing="-1.5">VYBE</text>
 </svg>

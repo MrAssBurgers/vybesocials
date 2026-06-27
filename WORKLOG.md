@@ -2,6 +2,12 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## Figma-style Bézier mark (2026-06-17)
+- **Logo:** Replaced procedural rects/strokes with canonical Bézier paths (`assets/brand/vybe-mark.svg` → `vybeMarkPaths.ts`); React only themes gradients, glow, specular, overlap mix, joint bloom
+- **Verified:** `npm run build` PASS · `npm run lint` PASS
+- **Deployed:** https://vybe-daaab.web.app (Firebase hosting, 2026-06-17)
+- **Next:** Re-export path from Figma if pixel-tuning needed · Lovable Publish for vybehub.app
+
 ## Pill capsule logo v2 (2026-06-17)
 - **Logo:** Replaced stroke paths with filled rotated rounded rects — 512×512 viewBox, 92×340 pills, pink→purple / blue→cyan gradients, white joint bulb r=34
 - **Verified:** `npm run build` PASS · `npm run lint` PASS

@@ -1,25 +1,29 @@
 <svg viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
   <defs>
-    <linearGradient id="lg" x1="162" y1="76" x2="256" y2="346" gradientUnits="userSpaceOnUse">
-      <stop offset="0%" stop-color="#f80a7c"/>
-      <stop offset="100%" stop-color="#9333ea"/>
+    <linearGradient id="ll" x1="105" y1="64" x2="248" y2="378" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#f80a7c"/><stop offset="100%" stop-color="#9333ea"/>
     </linearGradient>
-    <linearGradient id="rg" x1="350" y1="76" x2="256" y2="346" gradientUnits="userSpaceOnUse">
-      <stop offset="0%" stop-color="#2563eb"/>
-      <stop offset="100%" stop-color="#06c0fb"/>
+    <radialGradient id="lt" cx="42%" cy="38%" r="58%"><stop offset="0%" stop-color="#fff" stop-opacity="0.35"/><stop offset="100%" stop-color="#000" stop-opacity="0.4"/></radialGradient>
+    <linearGradient id="rl" x1="407" y1="64" x2="264" y2="378" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#2563eb"/><stop offset="100%" stop-color="#06c0fb"/>
     </linearGradient>
-    <filter id="glow" x="-80%" y="-80%" width="260%" height="260%">
-      <feGaussianBlur stdDeviation="26"/>
-    </filter>
-    <filter id="joint" x="-120%" y="-120%" width="340%" height="340%">
-      <feGaussianBlur stdDeviation="22"/>
-    </filter>
+    <radialGradient id="rt" cx="58%" cy="38%" r="58%"><stop offset="0%" stop-color="#fff" stop-opacity="0.32"/><stop offset="100%" stop-color="#000" stop-opacity="0.38"/></radialGradient>
+    <linearGradient id="ls" x1="130" y1="70" x2="250" y2="360" gradientUnits="userSpaceOnUse"><stop offset="0%" stop-color="#fff" stop-opacity="0.5"/><stop offset="100%" stop-color="#fff" stop-opacity="0"/></linearGradient>
+    <linearGradient id="rs" x1="382" y1="70" x2="262" y2="360" gradientUnits="userSpaceOnUse"><stop offset="0%" stop-color="#fff" stop-opacity="0.45"/><stop offset="100%" stop-color="#fff" stop-opacity="0"/></linearGradient>
+    <radialGradient id="ov" cx="50%" cy="50%" r="50%"><stop offset="0%" stop-color="#6d28d9" stop-opacity="0.5"/><stop offset="100%" stop-color="#6d28d9" stop-opacity="0"/></radialGradient>
+    <radialGradient id="jn" cx="50%" cy="50%" r="50%"><stop offset="0%" stop-color="#fff"/><stop offset="100%" stop-color="#fff" stop-opacity="0"/></radialGradient>
+    <filter id="gp"><feGaussianBlur stdDeviation="26"/></filter>
+    <filter id="gb"><feGaussianBlur stdDeviation="26"/></filter>
+    <filter id="bl"><feGaussianBlur stdDeviation="22"/></filter>
   </defs>
-  <g opacity="0.45" filter="url(#glow)">
-    <rect x="116" y="76" width="92" height="340" rx="46" transform="rotate(-28 162 246)" fill="#f80a7c"/>
-    <rect x="304" y="76" width="92" height="340" rx="46" transform="rotate(28 350 246)" fill="#06c0fb"/>
-  </g>
-  <rect x="116" y="76" width="92" height="340" rx="46" transform="rotate(-28 162 246)" fill="url(#lg)"/>
-  <rect x="304" y="76" width="92" height="340" rx="46" transform="rotate(28 350 246)" fill="url(#rg)"/>
-  <circle cx="256" cy="346" r="34" fill="#ffffff" fill-opacity="0.95" filter="url(#joint)"/>
+  <path d="M 62.40 84.20 L 192.40 388.20 A 46 46 0 0 1 278.60 351.80 L 148.60 47.80 A 46 46 0 0 1 62.40 84.20 Z" fill="#f80a7c" opacity="0.42" filter="url(#gp)"/>
+  <path d="M 364.40 47.80 L 234.40 351.80 A 46 46 0 0 1 320.60 388.20 L 450.60 84.20 A 46 46 0 0 1 364.40 47.80 Z" fill="#06c0fb" opacity="0.42" filter="url(#gb)"/>
+  <path d="M 62.40 84.20 L 192.40 388.20 A 46 46 0 0 1 278.60 351.80 L 148.60 47.80 A 46 46 0 0 1 62.40 84.20 Z" fill="url(#ll)"/>
+  <path d="M 62.40 84.20 L 192.40 388.20 A 46 46 0 0 1 278.60 351.80 L 148.60 47.80 A 46 46 0 0 1 62.40 84.20 Z" fill="url(#lt)" style="mix-blend-mode:soft-light"/>
+  <ellipse cx="272" cy="338" rx="52" ry="44" fill="url(#ov)" style="mix-blend-mode:multiply"/>
+  <path d="M 364.40 47.80 L 234.40 351.80 A 46 46 0 0 1 320.60 388.20 L 450.60 84.20 A 46 46 0 0 1 364.40 47.80 Z" fill="url(#rl)"/>
+  <path d="M 364.40 47.80 L 234.40 351.80 A 46 46 0 0 1 320.60 388.20 L 450.60 84.20 A 46 46 0 0 1 364.40 47.80 Z" fill="url(#rt)" style="mix-blend-mode:soft-light"/>
+  <path d="M 112.80 63.40 L 242.80 367.40 A 10.12 10.12 0 0 1 261.41 359.44 L 131.41 55.44 A 10.12 10.12 0 0 1 112.80 63.40 Z" fill="url(#ls)" opacity="0.4"/>
+  <path d="M 382.53 56.23 L 252.53 360.23 A 10.12 10.12 0 0 1 271.14 368.19 L 401.14 64.19 A 10.12 10.12 0 0 1 382.53 56.23 Z" fill="url(#rs)" opacity="0.34"/>
+  <circle cx="256" cy="372" r="38" fill="url(#jn)" filter="url(#bl)" opacity="0.95"/>
 </svg>
