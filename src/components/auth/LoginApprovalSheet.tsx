@@ -6,6 +6,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Button } from '@/components/ui/button';
 import { ShieldCheck, ShieldX, MapPin, Smartphone } from 'lucide-react';
 import { toast } from 'sonner';
+import { isSelfInitiatedLoginApproval } from '@/lib/sessionIdentity';
 
 interface PendingApproval {
   id: string;
@@ -37,6 +38,7 @@ export function LoginApprovalSheet() {
       if (row.challenge_type !== 'login_approval') return;
       if (row.status !== 'pending') return;
       if (new Date(row.expires_at).getTime() <= Date.now()) return;
+      if (user && isSelfInitiatedLoginApproval(user.id, row.id, row.metadata)) return;
       if (seenRef.current.has(row.id)) return;
       seenRef.current.add(row.id);
       setPending(row as PendingApproval);

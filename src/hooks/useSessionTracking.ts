@@ -1,24 +1,18 @@
 import { useEffect } from 'react';
 import { useAuth } from '@/lib/auth';
 import { db } from '@/lib/firebase';
+import {
+  getJwtSessionId,
+  rememberCurrentSessionHash,
+  rememberSelfLoginChallenge,
+} from '@/lib/sessionIdentity';
 
 const REVOKE_CHECK_INTERVAL_MS = 15_000;
 
-function getJwtSessionId(accessToken?: string | null): string | null {
-  try {
-    const payload = accessToken?.split('.')[1];
-    if (!payload) return null;
-    const normalized = payload.replace(/-/g, '+').replace(/_/g, '/');
-    return JSON.parse(atob(normalized))?.session_id ?? null;
-  } catch {
-    return null;
-  }
-}
-
 /**
  * Fires auth-login-notify once per session — registers the device in
- * user_sessions, writes login_history, and triggers a "new sign-in" email
- * if this device hasn't been seen before.
+ * user_sessions, writes login_history, and alerts OTHER signed-in devices
+ * when a new login hits the same account (never self on routine sign-in).
  */
 export function useSessionTracking() {
   const { user, authReady } = useAuth();
@@ -48,13 +42,29 @@ export function useSessionTracking() {
       const idKey = `vybe-app-session-id-${user.id}-${sessionKey}`;
       let trackedSessionId: string | null = null;
 
+      if (authSessionId) {
+        rememberCurrentSessionHash(user.id, authSessionId);
+      }
+
       try {
         trackedSessionId = sessionStorage.getItem(idKey);
         if (!sessionStorage.getItem(trackedKey)) {
           const { data } = await db.functions.invoke('auth-login-notify', {
-            body: { method: 'password', deviceFingerprint: authSessionId },
+            body: {
+              method: 'password',
+              deviceFingerprint: authSessionId,
+              userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : undefined,
+            },
           });
-          trackedSessionId = (data as any)?.sessionId || trackedSessionId;
+          const payload = data as {
+            sessionId?: string;
+            challengeId?: string;
+            notified?: boolean;
+          } | null;
+          trackedSessionId = payload?.sessionId || trackedSessionId;
+          if (payload?.challengeId) {
+            rememberSelfLoginChallenge(user.id, payload.challengeId);
+          }
           if (trackedSessionId) sessionStorage.setItem(idKey, trackedSessionId);
           sessionStorage.setItem(trackedKey, String(Date.now()));
         }

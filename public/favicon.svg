@@ -1,41 +1,21 @@
 <svg viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
   <defs>
-    <!-- Primary gradient for left leg - matches VYBE primary/neon-pink -->
-    <linearGradient id="primary-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+    <linearGradient id="vybe-left" x1="22" y1="8" x2="47" y2="92" gradientUnits="userSpaceOnUse">
       <stop offset="0%" stop-color="#ec4899"/>
-      <stop offset="50%" stop-color="#a855f7"/>
       <stop offset="100%" stop-color="#8b5cf6"/>
     </linearGradient>
-    
-    <!-- Accent gradient for right leg - matches VYBE accent/neon-cyan -->
-    <linearGradient id="accent-grad" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#06b6d4"/>
-      <stop offset="50%" stop-color="#22d3ee"/>
-      <stop offset="100%" stop-color="#67e8f9"/>
+    <linearGradient id="vybe-right" x1="78" y1="8" x2="53" y2="92" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#22d3ee"/>
+      <stop offset="100%" stop-color="#2563eb"/>
     </linearGradient>
+    <radialGradient id="vybe-vertex" cx="50" cy="91" r="18" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.98"/>
+      <stop offset="28%" stop-color="#ec4899" stop-opacity="0.55"/>
+      <stop offset="58%" stop-color="#22d3ee" stop-opacity="0.35"/>
+      <stop offset="100%" stop-color="transparent" stop-opacity="0"/>
+    </radialGradient>
   </defs>
-  
-  <!-- Left leg of V - pink/purple gradient -->
-  <path
-    d="M18 12 L50 88"
-    stroke="url(#primary-grad)"
-    stroke-width="14"
-    stroke-linecap="round"
-  />
-  
-  <!-- Right leg of V - cyan/teal gradient -->
-  <path
-    d="M82 12 L50 88"
-    stroke="url(#accent-grad)"
-    stroke-width="14"
-    stroke-linecap="round"
-  />
-  
-  <!-- Bright center point where legs meet -->
-  <circle
-    cx="50"
-    cy="88"
-    r="4"
-    fill="#ffffff"
-  />
+  <path d="M 22 8 L 47 92" stroke="url(#vybe-left)" stroke-width="22" stroke-linecap="round"/>
+  <path d="M 78 8 L 53 92" stroke="url(#vybe-right)" stroke-width="22" stroke-linecap="round"/>
+  <ellipse cx="50" cy="91" rx="14" ry="10" fill="url(#vybe-vertex)"/>
 </svg>

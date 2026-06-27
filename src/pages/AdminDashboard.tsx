@@ -7,7 +7,7 @@ import {
   BarChart3, MessageSquareWarning, Settings, Menu, X, ArrowLeft, Bug
 } from 'lucide-react';
 import { AppLayout } from '@/components/layout/AppLayout';
-import { useUserRole, useReports, useContentFlags, useAllUserRoles } from '@/hooks/useModeration';
+import { useUserRole, useReports, useContentFlags } from '@/hooks/useModeration';
 import { useAllWarnings, useAllBans } from '@/hooks/useModerationActions';
 import { useAuth } from '@/lib/auth';
 import { useAuthProfileId } from '@/hooks/useAuthProfileId';
@@ -352,8 +352,14 @@ export default function AdminDashboard() {
         )}
 
         {/* Main Content */}
-        <main className="flex-1 overflow-y-auto pb-24 admin-scroll">
-          <div className="mx-auto p-4 md:p-6 h-full">
+        <main className={cn(
+          "flex-1 min-h-0 pb-24 admin-scroll",
+          activeSection === 'roles' ? "overflow-hidden flex flex-col" : "overflow-y-auto",
+        )}>
+          <div className={cn(
+            "mx-auto p-4 md:p-6",
+            activeSection === 'roles' && "flex flex-col flex-1 min-h-0 h-full max-w-4xl w-full",
+          )}>
             <AnimatePresence mode="wait">
               <motion.div
                 key={activeSection}
@@ -361,6 +367,7 @@ export default function AdminDashboard() {
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
                 transition={{ duration: 0.12 }}
+                className={cn(activeSection === 'roles' && "flex flex-col flex-1 min-h-0")}
                 style={{
                   willChange: 'opacity',
                   backfaceVisibility: 'hidden',

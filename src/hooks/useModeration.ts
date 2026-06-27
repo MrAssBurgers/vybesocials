@@ -208,10 +208,59 @@ export function useUserRole() {
 }
 
 // Hook to get all user roles for admin management
+type AdminRoleProfile = {
+  id: string;
+  username?: string;
+  avatar_url?: string | null;
+  display_name?: string | null;
+  user_id?: string;
+};
+
+type AdminUserRoleRow = {
+  id: string;
+  user_id: string;
+  role: string;
+  created_at?: string;
+  profile: AdminRoleProfile | null;
+};
+
+async function loadProfilesForRoleUserIds(userIds: string[]): Promise<Map<string, AdminRoleProfile>> {
+  const profiles = new Map<string, AdminRoleProfile>();
+  const unique = [...new Set(userIds.filter(Boolean))];
+  if (!unique.length) return profiles;
+
+  for (let i = 0; i < unique.length; i += 10) {
+    const chunk = unique.slice(i, i + 10);
+    const { data } = await db
+      .from('profiles')
+      .select('id, username, avatar_url, display_name, user_id')
+      .in('id', chunk);
+    for (const row of (data || []) as AdminRoleProfile[]) {
+      profiles.set(row.id, row);
+    }
+  }
+
+  const missing = unique.filter((id) => !profiles.has(id));
+  for (let i = 0; i < missing.length; i += 10) {
+    const chunk = missing.slice(i, i + 10);
+    const { data } = await db
+      .from('profiles')
+      .select('id, username, avatar_url, display_name, user_id')
+      .in('user_id', chunk);
+    for (const row of (data || []) as AdminRoleProfile[]) {
+      if (row.user_id) profiles.set(row.user_id, row);
+      profiles.set(row.id, row);
+    }
+  }
+
+  return profiles;
+}
+
 export function useAllUserRoles() {
   return useQuery({
     queryKey: ['all-user-roles'],
-    queryFn: async () => {
+    staleTime: 30_000,
+    queryFn: async (): Promise<AdminUserRoleRow[]> => {
       const [rolesRes, authRolesRes] = await Promise.all([
         db.from('user_roles').select('*').order('created_at', { ascending: false }),
         db.from('user_roles_auth').select('*').order('created_at', { ascending: false }),
@@ -231,27 +280,7 @@ export function useAllUserRoles() {
 
       const roles = Array.from(merged.values());
       const profileIds = [...new Set(roles.map((r) => r.user_id).filter(Boolean))];
-
-      const profiles = new Map<string, { id: string; username?: string; avatar_url?: string | null; display_name?: string | null }>();
-      await Promise.all(
-        profileIds.map(async (id) => {
-          const { data } = await db
-            .from('profiles')
-            .select('id, username, avatar_url, display_name')
-            .eq('id', id)
-            .maybeSingle();
-          if (data) {
-            profiles.set(id, data);
-            return;
-          }
-          const { data: byAuth } = await db
-            .from('profiles')
-            .select('id, username, avatar_url, display_name')
-            .eq('user_id', id)
-            .maybeSingle();
-          if (byAuth) profiles.set(id, byAuth);
-        }),
-      );
+      const profiles = await loadProfilesForRoleUserIds(profileIds);
 
       return roles.map((row) => ({
         ...row,
@@ -261,25 +290,53 @@ export function useAllUserRoles() {
   });
 }
 
+interface AddUserRoleInput {
+  userId: string;
+  role: 'admin' | 'moderator';
+  profile?: AdminRoleProfile | null;
+}
+
 // Mutation to add a role to a user
 export function useAddUserRole() {
   const queryClient = useQueryClient();
-  
+
   return useMutation({
-    mutationFn: async ({ userId, role }: { userId: string; role: 'admin' | 'moderator' }) => {
+    mutationFn: async ({ userId, role }: AddUserRoleInput) => {
       const docId = `${userId}_${role}`;
-      const { error } = await db
-        .from('user_roles')
-        .upsert(
-          { id: docId, user_id: userId, role, created_at: new Date().toISOString() },
-          { onConflict: 'user_id,role' },
-        );
-      
+      const { error } = await db.from('user_roles').upsert(
+        { id: docId, user_id: userId, role, created_at: new Date().toISOString() },
+        { onConflict: 'user_id,role' },
+      );
       if (error) throw error;
+      return { userId, role, docId };
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['all-user-roles'] });
-      queryClient.invalidateQueries({ queryKey: ['admin-users'] });
+    onMutate: async ({ userId, role, profile }) => {
+      await queryClient.cancelQueries({ queryKey: ['all-user-roles'] });
+      const previous = queryClient.getQueryData<AdminUserRoleRow[]>(['all-user-roles']);
+      const docId = `${userId}_${role}`;
+      queryClient.setQueryData<AdminUserRoleRow[]>(['all-user-roles'], (old = []) => {
+        if (old.some((r) => r.user_id === userId && r.role === role)) return old;
+        return [
+          {
+            id: docId,
+            user_id: userId,
+            role,
+            created_at: new Date().toISOString(),
+            profile: profile ?? null,
+          },
+          ...old,
+        ];
+      });
+      return { previous };
+    },
+    onError: (_err, _vars, context) => {
+      if (context?.previous) {
+        queryClient.setQueryData(['all-user-roles'], context.previous);
+      }
+    },
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: ['all-user-roles'] });
+      void queryClient.invalidateQueries({ queryKey: ['admin-users'] });
     },
   });
 }
@@ -287,7 +344,7 @@ export function useAddUserRole() {
 // Mutation to remove a role from a user
 export function useRemoveUserRole() {
   const queryClient = useQueryClient();
-  
+
   return useMutation({
     mutationFn: async ({ userId, role }: { userId: string; role: 'admin' | 'moderator' }) => {
       const { error } = await db
@@ -295,12 +352,24 @@ export function useRemoveUserRole() {
         .delete()
         .eq('user_id', userId)
         .eq('role', role);
-      
       if (error) throw error;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['all-user-roles'] });
-      queryClient.invalidateQueries({ queryKey: ['admin-users'] });
+    onMutate: async ({ userId, role }) => {
+      await queryClient.cancelQueries({ queryKey: ['all-user-roles'] });
+      const previous = queryClient.getQueryData<AdminUserRoleRow[]>(['all-user-roles']);
+      queryClient.setQueryData<AdminUserRoleRow[]>(['all-user-roles'], (old = []) =>
+        old.filter((r) => !(r.user_id === userId && r.role === role)),
+      );
+      return { previous };
+    },
+    onError: (_err, _vars, context) => {
+      if (context?.previous) {
+        queryClient.setQueryData(['all-user-roles'], context.previous);
+      }
+    },
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: ['all-user-roles'] });
+      void queryClient.invalidateQueries({ queryKey: ['admin-users'] });
     },
   });
 }

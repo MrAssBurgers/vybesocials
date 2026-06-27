@@ -50,6 +50,14 @@ const SKIP_BELL_TOAST_TYPES = new Set<NotificationType>([
   'missed_call',
 ]);
 
+const SKIP_BELL_TOAST_RAW_TYPES = new Set([
+  'security',
+  'login_approval',
+  'sign_in',
+  'sign-in',
+  'new_sign_in',
+]);
+
 interface Notification {
   id: string;
   type: NotificationType;
@@ -196,9 +204,15 @@ export function useNotifications() {
             .single();
 
           const type = payload.new.type as NotificationType;
-          if (SKIP_BELL_TOAST_TYPES.has(type)) {
+          const rawType = String(payload.new.type || '').toLowerCase();
+          if (SKIP_BELL_TOAST_TYPES.has(type) || SKIP_BELL_TOAST_RAW_TYPES.has(rawType)) {
             queryClient.invalidateQueries({ queryKey: ['notifications'] });
             queryClient.invalidateQueries({ queryKey: ['unread-notifications'] });
+            return;
+          }
+
+          // Sign-in alerts without an actor are account-security events — LoginApprovalSheet handles those.
+          if (!payload.new.actor_id && (rawType.includes('sign') || rawType.includes('login') || rawType.includes('security'))) {
             return;
           }
 

@@ -386,10 +386,10 @@
         50% { transform: translate(-50%, -50%) translate(7vw, -5vh) scale(1.06); }
       }
       #vybe-static-boot .vybe-splash-logo svg .vybe-splash-draw-left {
-        stroke: hsl(var(--primary));
+        stroke: url(#vybe-boot-left);
       }
       #vybe-static-boot .vybe-splash-logo svg .vybe-splash-draw-right {
-        stroke: hsl(var(--accent));
+        stroke: url(#vybe-boot-right);
       }
       #vybe-static-boot .vybe-splash-glow {
         position: absolute;
@@ -499,17 +499,31 @@
       }
       #vybe-static-boot .vybe-splash-draw-left,
       #vybe-static-boot .vybe-splash-draw-right {
-        stroke-dasharray: 100;
-        stroke-dashoffset: 100;
+        stroke-dasharray: 120;
+        stroke-dashoffset: 120;
+        opacity: 0;
       }
       #vybe-static-boot .vybe-splash-draw-left {
-        animation: vybe-splash-draw 0.7s cubic-bezier(0.16, 1, 0.3, 1) 0.15s forwards;
+        animation: vybe-splash-draw 0.85s cubic-bezier(0.16, 1, 0.3, 1) 0.12s forwards;
       }
       #vybe-static-boot .vybe-splash-draw-right {
-        animation: vybe-splash-draw 0.7s cubic-bezier(0.16, 1, 0.3, 1) 0.35s forwards;
+        animation: vybe-splash-draw 0.85s cubic-bezier(0.16, 1, 0.3, 1) 0.32s forwards;
+      }
+      #vybe-static-boot .vybe-splash-glow-vertex {
+        transform-origin: 50px 91px;
+        animation: vybe-splash-vertex-in 0.5s cubic-bezier(0.16, 1, 0.3, 1) 0.72s backwards,
+          vybe-splash-vertex-pulse 2.6s ease-in-out 1.35s infinite;
+      }
+      @keyframes vybe-splash-vertex-in {
+        from { opacity: 0; transform: scale(0.35); }
+        to { opacity: 1; transform: scale(1); }
+      }
+      @keyframes vybe-splash-vertex-pulse {
+        0%, 100% { opacity: 0.78; transform: scale(1); }
+        50% { opacity: 1; transform: scale(1.1); }
       }
       @keyframes vybe-splash-draw {
-        to { stroke-dashoffset: 0; }
+        to { stroke-dashoffset: 0; opacity: 1; }
       }
       @keyframes vybe-static-bar {
         0% { transform: scaleX(0); }
@@ -631,10 +645,28 @@
         </div>
         <div class="vybe-splash-glow" aria-hidden="true"></div>
         <div class="vybe-splash-logo" aria-hidden="true">
-          <svg viewBox="-5 -5 110 110" fill="none" width="96" height="96" aria-hidden="true">
-            <path d="M18 15 L50 85" stroke-width="11" stroke-linecap="round" class="vybe-splash-draw-left" />
-            <path d="M82 15 L50 85" stroke-width="11" stroke-linecap="round" class="vybe-splash-draw-right" />
-            <circle cx="50" cy="85" r="3.5" fill="hsl(var(--primary))" />
+          <svg viewBox="0 0 100 100" fill="none" width="96" height="96" aria-hidden="true">
+            <defs>
+              <linearGradient id="vybe-boot-left" x1="22" y1="8" x2="47" y2="92" gradientUnits="userSpaceOnUse">
+                <stop offset="0%" stop-color="hsl(var(--primary))" />
+                <stop offset="100%" stop-color="hsl(var(--secondary, var(--primary)))" />
+              </linearGradient>
+              <linearGradient id="vybe-boot-right" x1="78" y1="8" x2="53" y2="92" gradientUnits="userSpaceOnUse">
+                <stop offset="0%" stop-color="hsl(var(--accent))" />
+                <stop offset="100%" stop-color="hsl(var(--secondary, var(--primary)))" stop-opacity="0.88" />
+              </linearGradient>
+              <radialGradient id="vybe-boot-vertex" cx="50" cy="91" r="18" gradientUnits="userSpaceOnUse">
+                <stop offset="0%" stop-color="#ffffff" stop-opacity="0.98" />
+                <stop offset="28%" stop-color="hsl(var(--primary))" stop-opacity="0.55" />
+                <stop offset="58%" stop-color="hsl(var(--accent))" stop-opacity="0.35" />
+                <stop offset="100%" stop-color="transparent" stop-opacity="0" />
+              </radialGradient>
+            </defs>
+            <path d="M 22 8 L 47 92" stroke-width="22" stroke-linecap="round" class="vybe-splash-draw-left" opacity="0.22" stroke="hsl(var(--primary))" />
+            <path d="M 78 8 L 53 92" stroke-width="22" stroke-linecap="round" class="vybe-splash-draw-right" opacity="0.22" stroke="hsl(var(--accent))" />
+            <path d="M 22 8 L 47 92" stroke-width="22" stroke-linecap="round" class="vybe-splash-draw-left" />
+            <path d="M 78 8 L 53 92" stroke-width="22" stroke-linecap="round" class="vybe-splash-draw-right" />
+            <ellipse cx="50" cy="91" rx="14" ry="10" fill="url(#vybe-boot-vertex)" class="vybe-splash-glow-vertex" />
           </svg>
         </div>
         <div class="vybe-splash-title-wrap">

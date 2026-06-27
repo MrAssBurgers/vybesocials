@@ -114,25 +114,214 @@ export const phoneVerifyRequest = onCall(async (request) => {
     return { ok: true, dev_code: process.env.NODE_ENV === 'production' ? undefined : c };
 });
 export const phoneVerifyConfirm = auth2faVerifyPhone;
-/** auth-login-approval — approve a pending device login. */
+import { dispatchOneSignalToProfile, resolvePushTargetProfileId } from './_shared/onesignalPush.js';
+function asString(value) {
+    if (typeof value === 'string' && value.trim())
+        return value.trim();
+    return undefined;
+}
+function parseDeviceLabel(userAgent) {
+    if (!userAgent)
+        return 'Unknown device';
+    if (/iphone|ipad|ipod/i.test(userAgent))
+        return 'iPhone';
+    if (/android/i.test(userAgent))
+        return 'Android';
+    if (/mac os x/i.test(userAgent))
+        return 'Mac';
+    if (/windows/i.test(userAgent))
+        return 'Windows';
+    if (/linux/i.test(userAgent))
+        return 'Linux';
+    return 'Web browser';
+}
+async function resolveProfileIdForAuthUid(uid) {
+    return resolvePushTargetProfileId(uid);
+}
+async function loadChallenge(challengeId) {
+    const snap = await db.collection('auth_challenges').doc(challengeId).get();
+    if (!snap.exists)
+        return null;
+    return { id: snap.id, ...snap.data() };
+}
+function challengeExpired(expiresAt) {
+    const raw = asString(expiresAt);
+    if (!raw)
+        return true;
+    const ms = Date.parse(raw);
+    return !ms || ms <= Date.now();
+}
+/** auth-login-approval — poll/respond to pending device login (trusted device flow). */
 export const authLoginApproval = onCall({ cors: true }, async (request) => {
-    const uid = requireAuth(request);
-    const { sessionId, approve } = (request.data || {});
-    if (!sessionId)
-        throw new HttpsError('invalid-argument', 'sessionId required');
-    await db.collection('auth_challenges').doc(sessionId).set({
-        user_id: uid, status: approve ? 'approved' : 'denied', resolved_at: new Date().toISOString(),
-    }, { merge: true });
-    return { ok: true };
+    const data = (request.data || {});
+    const action = asString(data.action) || 'respond';
+    if (action === 'poll') {
+        const challengeId = asString(data.challengeId);
+        if (!challengeId)
+            throw new HttpsError('invalid-argument', 'challengeId required');
+        const row = await loadChallenge(challengeId);
+        if (!row || row.challenge_type !== 'login_approval')
+            return { status: 'not_found' };
+        if (challengeExpired(row.expires_at))
+            return { status: 'expired' };
+        const status = asString(row.status) || 'pending';
+        if (status === 'approved') {
+            const meta = (row.metadata || {});
+            const session = meta.pending_session ?? null;
+            return { status: 'approved', session };
+        }
+        if (status === 'denied')
+            return { status: 'denied' };
+        return { status: 'pending' };
+    }
+    if (action === 'respond' || action === 'deny_self') {
+        const uid = requireAuth(request);
+        const challengeId = asString(data.challengeId);
+        const intent = action === 'deny_self' ? 'deny' : asString(data.intent);
+        if (!challengeId || !intent)
+            throw new HttpsError('invalid-argument', 'challengeId and intent required');
+        const row = await loadChallenge(challengeId);
+        if (!row || row.challenge_type !== 'login_approval') {
+            return { error: 'not_found', status: 'not_found' };
+        }
+        if (row.user_id !== uid)
+            throw new HttpsError('permission-denied', 'Not your approval request');
+        if (challengeExpired(row.expires_at))
+            return { error: 'expired', status: 'expired' };
+        if (row.status && row.status !== 'pending')
+            return { error: 'already_resolved', status: row.status };
+        const now = new Date().toISOString();
+        const meta = (row.metadata || {});
+        const requestingSessionId = asString(meta.requesting_session_id);
+        await db.collection('auth_challenges').doc(challengeId).set({
+            status: intent === 'approve' ? 'approved' : 'denied',
+            resolved_at: now,
+            metadata: { ...meta, resolved_by: uid },
+        }, { merge: true });
+        if (intent === 'approve' && requestingSessionId) {
+            await db.collection('user_sessions').doc(requestingSessionId).set({
+                trusted: true,
+                last_seen_at: now,
+            }, { merge: true });
+        }
+        return { ok: true, status: intent === 'approve' ? 'approved' : 'denied' };
+    }
+    throw new HttpsError('invalid-argument', `Unknown action: ${action}`);
 });
-/** auth-login-notify — push to existing devices when a new sign-in happens. */
-export const authLoginNotify = onCall({ cors: true }, async (request) => {
+/**
+ * auth-login-notify — register this session; alert OTHER devices only when a new
+ * sign-in hits an account that already has active sessions elsewhere.
+ */
+export const authLoginNotify = onCall({ cors: true, secrets: ['ONESIGNAL_APP_ID', 'ONESIGNAL_REST_API_KEY'] }, async (request) => {
     const uid = requireAuth(request);
-    await db.collection('notifications').add({
-        user_id: uid, title: 'New sign-in detected', body: 'If this wasn\'t you, secure your account.',
-        created_at: new Date().toISOString(), read: false,
+    const payload = (request.data || {});
+    const sessionHash = asString(payload.deviceFingerprint);
+    const method = asString(payload.method) || 'password';
+    const userAgent = asString(payload.userAgent);
+    const now = new Date().toISOString();
+    const profileId = await resolveProfileIdForAuthUid(uid);
+    const settingsSnap = await db.collection('user_2fa_settings').doc(uid).get();
+    const loginApprovalsEnabled = !!settingsSnap.data()?.login_approvals_enabled;
+    // Known session on this device — refresh heartbeat only, no alerts.
+    if (sessionHash) {
+        const known = await db.collection('user_sessions')
+            .where('user_id', '==', uid)
+            .where('session_token_hash', '==', sessionHash)
+            .limit(1)
+            .get();
+        if (!known.empty) {
+            const doc = known.docs[0];
+            await doc.ref.set({ last_seen_at: now }, { merge: true });
+            return { ok: true, sessionId: doc.id, notified: false, reason: 'known_session' };
+        }
+    }
+    const sessionRef = db.collection('user_sessions').doc();
+    await sessionRef.set({
+        user_id: uid,
+        session_token_hash: sessionHash || null,
+        device_label: parseDeviceLabel(userAgent),
+        user_agent: userAgent || null,
+        trusted: false,
+        created_at: now,
+        last_seen_at: now,
+        revoked_at: null,
     });
-    return { ok: true };
+    await db.collection('login_history').add({
+        user_id: uid,
+        method,
+        success: true,
+        device_label: parseDeviceLabel(userAgent),
+        user_agent: userAgent || null,
+        created_at: now,
+        metadata: { session_id: sessionRef.id, session_hash: sessionHash || null },
+    });
+    const allSessions = await db.collection('user_sessions').where('user_id', '==', uid).get();
+    const otherActiveSessions = allSessions.docs.filter((doc) => {
+        if (doc.id === sessionRef.id)
+            return false;
+        const revoked = doc.data().revoked_at;
+        return !revoked;
+    });
+    // First device or no other active sessions — never alert yourself on sign-in.
+    if (otherActiveSessions.length === 0) {
+        await sessionRef.set({ trusted: true }, { merge: true });
+        return { ok: true, sessionId: sessionRef.id, notified: false, reason: 'first_device' };
+    }
+    // Another device is already signed in — only then notify the account owner.
+    if (!loginApprovalsEnabled) {
+        return { ok: true, sessionId: sessionRef.id, notified: false, reason: 'approvals_disabled' };
+    }
+    const pendingSnap = await db.collection('auth_challenges')
+        .where('user_id', '==', uid)
+        .where('challenge_type', '==', 'login_approval')
+        .where('status', '==', 'pending')
+        .limit(5)
+        .get();
+    const existing = pendingSnap.docs.find((doc) => {
+        const meta = (doc.data().metadata || {});
+        return sessionHash && meta.requesting_session_hash === sessionHash;
+    });
+    if (existing) {
+        return {
+            ok: true,
+            sessionId: sessionRef.id,
+            challengeId: existing.id,
+            notified: false,
+            reason: 'existing_challenge',
+        };
+    }
+    const challengeRef = db.collection('auth_challenges').doc();
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
+    await challengeRef.set({
+        user_id: uid,
+        challenge_type: 'login_approval',
+        status: 'pending',
+        created_at: now,
+        expires_at: expiresAt,
+        metadata: {
+            requesting_session_hash: sessionHash || null,
+            requesting_session_id: sessionRef.id,
+            device: { label: parseDeviceLabel(userAgent), browser: userAgent || null },
+            method,
+        },
+    });
+    await dispatchOneSignalToProfile(profileId, {
+        title: 'Approve sign-in?',
+        body: 'Someone is trying to sign in to your VYBE account.',
+        type: 'login_approval',
+        url: `/?login-approval=${challengeRef.id}`,
+        data: {
+            challengeId: challengeRef.id,
+            challenge_id: challengeRef.id,
+        },
+    });
+    return {
+        ok: true,
+        sessionId: sessionRef.id,
+        challengeId: challengeRef.id,
+        notified: true,
+        reason: 'approval_push',
+    };
 });
 /** auth-session-revoke — revoke all refresh tokens for the caller. */
 export const authSessionRevoke = onCall(async (request) => {
