@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
-import { buildVybeLogoSvg } from '@/lib/vybeLogoSvg';
+import { buildThemedVybeLogoSvg } from '@/lib/vybeLogoAsset';
 
-/** Favicon — inline SVG from the same markup as VybeLogo. */
+/** Favicon — themed copy of assets/branding/vybe-logo.svg (geometry unchanged). */
 export function useDynamicFavicon() {
   useEffect(() => {
     const updateFavicon = () => {
@@ -13,20 +13,17 @@ export function useDynamicFavicon() {
         return raw ? `hsl(${raw})` : fallback;
       };
 
-      const primary = hsl('--primary', '#f80a7c');
-      const secondary = hsl('--secondary', '#a855f7');
-      const accent = hsl('--accent', '#06c0fb');
-      const deepPrimary = hsl('--neon-purple', '#9333ea');
-
-      const svg = buildVybeLogoSvg({
-        leftColor: primary,
-        rightColor: secondary,
-        leftDeep: deepPrimary,
-        rightDeep: accent,
-        glowIntensity: 0.7,
-        blurScale: 0.5,
-        idPrefix: 'fav',
-      });
+      const svg = buildThemedVybeLogoSvg(
+        {
+          left: hsl('--primary', '#f80a7c'),
+          right: hsl('--secondary', '#2563eb'),
+          leftDeep: hsl('--neon-purple', '#9333ea'),
+          rightDeep: hsl('--accent', '#06c0fb'),
+          overlap: hsl('--neon-purple', '#6d28d9'),
+        },
+        0.72,
+        'fav',
+      );
 
       const svgDataUrl = `data:image/svg+xml,${encodeURIComponent(svg)}`;
 
@@ -41,7 +38,6 @@ export function useDynamicFavicon() {
     };
 
     const initialTimer = setTimeout(updateFavicon, 1500);
-
     const handleThemeChange = () => setTimeout(updateFavicon, 50);
 
     window.addEventListener('vybeThemeChange', handleThemeChange);

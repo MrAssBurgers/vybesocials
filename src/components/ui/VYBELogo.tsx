@@ -36,14 +36,13 @@ export const VYBELogo = memo(forwardRef<HTMLDivElement, VYBELogoProps>(function 
     <div ref={ref} className={cn('flex items-center overflow-visible', gap, className)}>
       <motion.div
         whileHover={animated && !isSplash ? { scale: 1.05 } : undefined}
-        whileTap={animated && !isSplash ? { scale: 0.95 } : undefined}
         transition={{ type: 'spring', stiffness: 400, damping: 17 }}
         className="relative flex shrink-0 items-center justify-center overflow-visible"
       >
         <VybeLogo
           size={px}
           animated={animated}
-          glowIntensity={isHero ? 1 : isCompact ? 0.72 : 0.88}
+          glow={isHero ? 1 : isCompact ? 0.72 : 0.88}
         />
       </motion.div>
 

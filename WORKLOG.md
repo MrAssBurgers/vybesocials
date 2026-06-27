@@ -2,6 +2,13 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## Asset-only logo (Figma workflow) (2026-06-17)
+- **Logo:** Deleted procedural geometry (`vybeMarkPaths`, `vybeLogoSvg`); source of truth is `assets/branding/vybe-logo.svg` (placeholder layers + gradients/filters)
+- **VybeLogo:** Loads SVG via `?raw`, themes CSS variables only; animates glow, breathing, press scale
+- **Verified:** `npm run build` PASS · `npm run lint` PASS
+- **Deployed:** https://vybe-daaab.web.app
+- **Next:** Export final paths from Figma into `vybe-logo.svg` · copy to `public/branding/` · Lovable Publish
+
 ## Figma-style Bézier mark (2026-06-17)
 - **Logo:** Replaced procedural rects/strokes with canonical Bézier paths (`assets/brand/vybe-mark.svg` → `vybeMarkPaths.ts`); React only themes gradients, glow, specular, overlap mix, joint bloom
 - **Verified:** `npm run build` PASS · `npm run lint` PASS

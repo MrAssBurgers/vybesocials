@@ -50,7 +50,7 @@ export const VybeLogoMark = memo(function VybeLogoMark({
       {...rest}
       size={size}
       animated={animated}
-      glowIntensity={glowIntensity ?? (glow ? 1 : 0.82)}
+      glow={glowIntensity ?? (glow ? 1 : 0.82)}
       className={cn('relative z-10', className)}
     />
   );

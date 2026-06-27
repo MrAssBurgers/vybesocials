@@ -1,13 +1,7 @@
-# VYBE brand logo exports
+# Brand assets (legacy folder)
 
-Static exports of the in-app VYBE logo (neon gradient V mark).
+The V mark source of truth moved to **`assets/branding/vybe-logo.svg`**.
 
-| File | Description |
-|------|-------------|
-| `vybe-logo-icon.svg` | Icon only, transparent background |
-| `vybe-logo-icon-dark.svg` | Icon on dark rounded square (#0B0B10) — app icon style |
-| `vybe-logo-wordmark.svg` | Icon + VYBE wordmark |
+Export from Figma → paste paths into that file → copy to `public/branding/vybe-logo.svg`.
 
-Source of truth in app: `src/components/ui/VYBELogo.tsx` and `public/favicon.svg`.
-
-Default brand colors: pink/purple (`#ec4899` → `#a855f7`) and cyan (`#06b6d4` → `#22d3ee`).
+Icons in this folder are deprecated; use `VybeLogo` component instead.

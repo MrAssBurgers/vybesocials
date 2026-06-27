@@ -31,7 +31,7 @@ export const VybeMiniIcon = memo(function VybeMiniIcon({
       leftColor={leftColor}
       rightColor={rightColor}
       centerColor={centerColor}
-      glowIntensity={glowIntensity ?? (size >= 32 ? 0.88 : 0.65)}
+      glow={glowIntensity ?? (size >= 32 ? 0.88 : 0.65)}
       className={cn('inline-block', className)}
     />
   );
