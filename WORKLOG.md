@@ -2,6 +2,22 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## Fat capsule logo + splash rehydration (2026-06-17)
+- **Logo:** Replaced thin neon V with fat capsule arms — 240×240 viewBox, stroke 64/72, round caps, soft glow, white joint bulb; theme gradients primary→purple / secondary→cyan; no inner highlights or dark box
+- **Splash:** Real preload pipeline (`splashPreload.ts`) — progress bar tracks auth/theme/profile/feed/routes until ready (not instant 100%)
+- **Sidebar:** Fixed VYBE wordmark clipping on desktop nav
+- **Verified:** `npm run build` PASS · `npm run lint` PASS
+- **Deployed:** https://vybe-daaab.web.app (Firebase hosting, 2026-06-17)
+- **Next:** Lovable → Share → Publish for vybehub.app · verify logo on splash/sidebar at 200px · remove unused PNG mark assets if desired
+
+- **Logo:** New neon pill V — thick rounded strokes, bottom vertex bloom, theme-aware gradients (primary/accent/secondary via `useVybeMarkColors`); smooth draw + glow animations on splash, sidebar, loaders, favicon
+- **Sign-in alerts:** `authLoginNotify` only alerts when other active sessions exist; skips self-initiated login; client skips security toasts on own device
+- **Admin roles:** Fixed scroll (native overflow); optimistic add/remove; batch profile fetch
+- **Verified:** `npm run build` PASS · `npm run lint` PASS · functions build PASS
+- **Deployed:** https://vybe-daaab.web.app + `authLoginNotify`, `authLoginApproval` (2026-06-27)
+- **Shipped:** git `70b251d6` pushed
+- **Next:** Lovable → Share → Publish for vybehub.app · verify new logo on splash/sidebar · test cross-device sign-in alert
+
 ## Unified camera phase 2 — gestures + story fast-post (2026-06-17)
 - **Gestures (`useCameraGestures`):** Swipe down close · swipe up gallery · swipe left memories/gallery · horizontal filter swipe · pinch zoom + indicator · tap-to-focus reticle · double-tap flip (resets zoom)
 - **Capture UX:** `VybeRecordButton` with mode-aware max duration (story 15s, snap/DM 30s, clip/video 60s); gallery button + drawer wired

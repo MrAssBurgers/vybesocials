@@ -50,14 +50,26 @@ export function getVybeMarkColorsFromStorage(): {
   primary: string;
   secondary: string;
   accent: string;
+  deepPrimary: string;
+  deepAccent: string;
 } | null {
   const tokens = getEquippedThemeTokens();
   if (!tokens?.colorPrimary) return null;
   const mode = document.documentElement.classList.contains('light') ? 'light' : 'dark';
   const adapted = adaptThemeToMode(tokens, mode);
+  const readVar = (name: string, fallback: string) => {
+    if (typeof document === 'undefined') return fallback;
+    const raw = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+    return raw ? `hsl(${raw})` : fallback;
+  };
+  const primary = `hsl(${adapted.colorPrimary})`;
+  const secondary = `hsl(${adapted.colorSecondary})`;
+  const accent = `hsl(${adapted.colorAccent})`;
   return {
-    primary: `hsl(${adapted.colorPrimary})`,
-    secondary: `hsl(${adapted.colorSecondary})`,
-    accent: `hsl(${adapted.colorAccent})`,
+    primary,
+    secondary,
+    accent,
+    deepPrimary: readVar('--neon-purple', secondary),
+    deepAccent: readVar('--neon-cyan', accent),
   };
 }

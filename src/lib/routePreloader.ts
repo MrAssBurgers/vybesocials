@@ -89,6 +89,11 @@ export function preloadRoute(path: string): void {
  * Call this after initial app load
  */
 export function preloadCriticalRoutes(): void {
+  void preloadCriticalRoutesAsync(8000);
+}
+
+/** Await critical route chunks (splash / boot). */
+export async function preloadCriticalRoutesAsync(timeoutMs = 5000): Promise<void> {
   const criticalRoutes = [
     '/messages',
     '/home',
@@ -100,13 +105,20 @@ export function preloadCriticalRoutes(): void {
     '/events',
   ];
 
-  // Start immediately — don't wait for idle (routes were loading 2s late).
-  criticalRoutes.forEach((route) => preloadRoute(route));
-  import('framer-motion').catch(() => {});
+  const loads = criticalRoutes.map((route) => {
+    const normalizedPath = route.split('?')[0].split('#')[0];
+    const importFn = routeImports[normalizedPath];
+    if (!importFn) return Promise.resolve();
+    preloadedRoutes.add(normalizedPath);
+    return importFn().catch(() => undefined);
+  });
 
-  requestIdleCallback(() => {
-    criticalRoutes.forEach((route) => preloadRoute(route));
-  }, { timeout: 800 });
+  loads.push(import('framer-motion').catch(() => undefined));
+
+  await Promise.race([
+    Promise.allSettled(loads),
+    new Promise<void>((resolve) => setTimeout(resolve, timeoutMs)),
+  ]);
 }
 
 /**

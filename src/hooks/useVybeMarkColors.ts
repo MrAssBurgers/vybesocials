@@ -6,6 +6,10 @@ export interface VybeMarkColors {
   primary: string;
   secondary: string;
   accent: string;
+  /** Deep violet — left leg bottom (neon-purple) */
+  deepPrimary: string;
+  /** Deep blue — right leg bottom */
+  deepAccent: string;
 }
 
 function readHslVar(name: string): string | null {
@@ -16,17 +20,15 @@ function readHslVar(name: string): string | null {
 
 function readFromDocument(): VybeMarkColors {
   const fromStorage = getVybeMarkColorsFromStorage();
-  if (fromStorage) return fromStorage;
+  const primary = fromStorage?.primary ?? readHslVar('--primary') ?? 'hsl(var(--primary))';
+  const secondary = fromStorage?.secondary ?? readHslVar('--secondary') ?? primary;
+  const accent = fromStorage?.accent ?? readHslVar('--accent') ?? 'hsl(var(--accent))';
+  const deepPrimary =
+    readHslVar('--neon-purple') ?? readHslVar('--vybe-brand-purple') ?? secondary ?? primary;
+  const deepAccent =
+    readHslVar('--neon-cyan') ?? readHslVar('--vybe-brand-cyan') ?? accent;
 
-  const primary = readHslVar('--primary');
-  const secondary = readHslVar('--secondary');
-  const accent = readHslVar('--accent');
-
-  return {
-    primary: primary ?? 'hsl(var(--primary))',
-    secondary: secondary ?? primary ?? 'hsl(var(--secondary, var(--primary)))',
-    accent: accent ?? 'hsl(var(--accent))',
-  };
+  return { primary, secondary, accent, deepPrimary, deepAccent };
 }
 
 /** Resolved HSL strings for SVG strokes — prefers equipped theme tokens (no default flash). */

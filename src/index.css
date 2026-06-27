@@ -112,9 +112,82 @@ body.welcome-back-visible [data-app-shell] {
   pointer-events: none;
 }
 
-/* Splash screen animations — pure CSS, GPU-composited */
+/* VYBE brand mark — SVG neon V + smooth CSS motion (GPU transform/opacity only) */
+.vybe-logo-svg {
+  display: block;
+  isolation: isolate;
+}
+
+.vybe-logo-svg--animated {
+  animation: vybe-logo-svg-enter 0.95s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+}
+
+.vybe-logo-svg--animated .vybe-logo-svg__ambient {
+  animation: vybe-logo-svg-ambient 3.4s ease-in-out 1s infinite alternate;
+}
+
+.vybe-logo-svg--animated .vybe-logo-svg__vertex {
+  transform-origin: 120px 150px;
+  animation: vybe-logo-svg-vertex 2.8s ease-in-out 1.1s infinite;
+}
+
+.vybe-logo-svg--animated .vybe-logo-svg__stroke--left {
+  stroke-dasharray: 116;
+  animation: vybe-logo-svg-draw-left 0.9s cubic-bezier(0.16, 1, 0.3, 1) 0.1s backwards;
+}
+
+.vybe-logo-svg--animated .vybe-logo-svg__stroke--right {
+  stroke-dasharray: 116;
+  animation: vybe-logo-svg-draw-right 0.9s cubic-bezier(0.16, 1, 0.3, 1) 0.28s backwards;
+}
+
+@keyframes vybe-logo-svg-enter {
+  from { opacity: 0; transform: scale(0.88); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes vybe-logo-svg-draw-left {
+  from { stroke-dashoffset: 116; opacity: 0; }
+  to { stroke-dashoffset: 0; opacity: 1; }
+}
+
+@keyframes vybe-logo-svg-draw-right {
+  from { stroke-dashoffset: 116; opacity: 0; }
+  to { stroke-dashoffset: 0; opacity: 1; }
+}
+
+@keyframes vybe-logo-svg-ambient {
+  from { opacity: 0.85; }
+  to { opacity: 1; }
+}
+
+@keyframes vybe-logo-svg-vertex {
+  0%, 100% { opacity: 0.92; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.06); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .vybe-logo-svg--animated {
+    animation: vybe-logo-svg-enter 0.25s ease-out backwards;
+  }
+  .vybe-logo-svg--animated .vybe-logo-svg__ambient,
+  .vybe-logo-svg--animated .vybe-logo-svg__vertex,
+  .vybe-logo-svg--animated .vybe-logo-svg__stroke--left,
+  .vybe-logo-svg--animated .vybe-logo-svg__stroke--right {
+    animation: none;
+    stroke-dashoffset: 0;
+    opacity: 1;
+  }
+}
+
+/* Legacy PNG mark classes — harmless if unused */
+.vybe-logo-mark {
+  isolation: isolate;
+}
+
+/* Legacy SVG draw classes */
 .vybe-logo-path {
-  stroke-dasharray: 120;
+  stroke-dasharray: 116;
   stroke-dashoffset: 0;
   opacity: 1;
 }
@@ -128,7 +201,7 @@ body.welcome-back-visible [data-app-shell] {
 }
 
 .vybe-logo-glow {
-  transform-origin: 50px 91px;
+  transform-origin: 120px 150px;
   animation:
     vybe-logo-glow-in 0.5s cubic-bezier(0.16, 1, 0.3, 1) 0.72s backwards,
     vybe-logo-glow-pulse 2.6s ease-in-out 1.35s infinite;
@@ -143,7 +216,7 @@ body.welcome-back-visible [data-app-shell] {
 }
 
 @keyframes vybe-logo-draw {
-  from { stroke-dashoffset: 120; opacity: 0; }
+  from { stroke-dashoffset: 116; opacity: 0; }
   to { stroke-dashoffset: 0; opacity: 1; }
 }
 
@@ -169,13 +242,13 @@ body.welcome-back-visible [data-app-shell] {
 
 /* Legacy dot — keep for boot HTML that may still reference it briefly */
 .vybe-logo-dot {
-  transform-origin: 50px 91px;
+  transform-origin: 120px 150px;
   animation: vybe-logo-glow-in 0.4s ease-out 0.8s backwards, vybe-logo-glow-pulse 2.6s ease-in-out 1.35s infinite;
 }
 
 .splash-draw-left,
 .splash-draw-right {
-  stroke-dasharray: 120;
+  stroke-dasharray: 116;
   stroke-dashoffset: 0;
   opacity: 1;
 }
@@ -186,7 +259,7 @@ body.welcome-back-visible [data-app-shell] {
   animation: splash-draw 0.85s cubic-bezier(0.16, 1, 0.3, 1) 0.32s forwards;
 }
 .splash-glow {
-  transform-origin: 50px 91px;
+  transform-origin: 120px 150px;
   animation: vybe-logo-glow-in 0.5s cubic-bezier(0.16, 1, 0.3, 1) 0.72s backwards, vybe-logo-glow-pulse 2.6s ease-in-out 1.35s infinite;
 }
 @keyframes splash-draw {

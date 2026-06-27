@@ -2,7 +2,7 @@ import { memo, forwardRef } from 'react';
 import { motion } from 'framer-motion';
 import { cn } from '@/lib/utils';
 import { VybeWordmark } from '@/components/ui/VybeWordmark';
-import { VybeLogoMark } from '@/components/ui/VybeLogoMark';
+import { VybeLogo } from '@/components/brand/VybeLogo';
 
 interface VYBELogoProps {
   size?: 'sm' | 'md' | 'lg' | 'xl' | '2xl' | 'splash';
@@ -12,46 +12,43 @@ interface VYBELogoProps {
 }
 
 const sizes = {
-  sm: { icon: 'w-6 h-6 sm:w-7 sm:h-7', gap: 'gap-1', strokeWidth: 18 },
-  md: { icon: 'w-7 h-7 sm:w-8 sm:h-8', gap: 'gap-1.5', strokeWidth: 19 },
-  lg: { icon: 'w-8 h-8', gap: 'gap-2', strokeWidth: 20 },
-  xl: { icon: 'w-10 h-10', gap: 'gap-2', strokeWidth: 21 },
-  '2xl': { icon: 'w-16 h-16 sm:w-20 sm:h-20', gap: 'gap-3', strokeWidth: 22 },
-  splash: { icon: 'w-24 h-24 sm:w-32 sm:h-32', gap: 'gap-4', strokeWidth: 24 },
+  sm: { px: 28, gap: 'gap-1', wordmark: 'xs' as const },
+  md: { px: 32, gap: 'gap-1.5', wordmark: 'xs' as const },
+  lg: { px: 32, gap: 'gap-2', wordmark: 'sm' as const },
+  xl: { px: 40, gap: 'gap-2', wordmark: 'md' as const },
+  '2xl': { px: 80, gap: 'gap-3', wordmark: 'lg' as const },
+  splash: { px: 128, gap: 'gap-4', wordmark: 'splash' as const },
 };
 
-/**
- * VYBE mark — neon pill V themed to the user's equipped vybe (primary / accent / secondary).
- */
+/** VYBE mark + optional wordmark — wraps brand `VybeLogo` SVG. */
 export const VYBELogo = memo(forwardRef<HTMLDivElement, VYBELogoProps>(function VYBELogo({
   size = 'md',
   showText = true,
   className,
   animated = true,
 }, ref) {
-  const { icon, gap, strokeWidth } = sizes[size];
+  const { px, gap, wordmark } = sizes[size];
   const isSplash = size === 'splash';
+  const isHero = isSplash || size === '2xl';
+  const isCompact = size === 'sm' || size === 'md';
 
   return (
-    <div ref={ref} className={cn('flex items-end overflow-visible', gap, className)}>
+    <div ref={ref} className={cn('flex items-center overflow-visible', gap, className)}>
       <motion.div
         whileHover={animated && !isSplash ? { scale: 1.05 } : undefined}
         whileTap={animated && !isSplash ? { scale: 0.95 } : undefined}
         transition={{ type: 'spring', stiffness: 400, damping: 17 }}
-        className={cn(icon, 'relative flex items-center justify-center')}
-        initial={isSplash && animated ? { scale: 0.72, opacity: 0 } : undefined}
-        animate={isSplash && animated ? { scale: 1, opacity: 1 } : undefined}
+        className="relative flex shrink-0 items-center justify-center overflow-visible"
       >
-        <VybeLogoMark
-          className={cn(icon, 'relative z-10')}
-          strokeWidth={strokeWidth}
+        <VybeLogo
+          size={px}
           animated={animated}
-          glow={isSplash || size === '2xl'}
+          glowIntensity={isHero ? 1 : isCompact ? 0.72 : 0.88}
         />
       </motion.div>
 
       {showText && (
-        <VybeWordmark size={size === 'splash' ? 'splash' : size === '2xl' ? 'lg' : size === 'xl' ? 'md' : 'sm'} />
+        <VybeWordmark size={wordmark} className="shrink-0" />
       )}
     </div>
   );
