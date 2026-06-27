@@ -10,6 +10,7 @@ Use this file as the Lovable -> Cursor handoff each session.
 - **Deployed:** https://vybe-daaab.web.app (Firebase hosting, 2026-06-17)
 - **Next:** Lovable → Share → Publish for vybehub.app · verify logo on splash/sidebar at 200px · remove unused PNG mark assets if desired
 
+## Neon pill logo + sign-in fix + admin roles (2026-06-27)
 - **Logo:** New neon pill V — thick rounded strokes, bottom vertex bloom, theme-aware gradients (primary/accent/secondary via `useVybeMarkColors`); smooth draw + glow animations on splash, sidebar, loaders, favicon
 - **Sign-in alerts:** `authLoginNotify` only alerts when other active sessions exist; skips self-initiated login; client skips security toasts on own device
 - **Admin roles:** Fixed scroll (native overflow); optimistic add/remove; batch profile fetch
