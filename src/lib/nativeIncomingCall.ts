@@ -13,16 +13,17 @@ const INCOMING_CALL_TIMEOUT_MS = 30_000;
 let activeNativeCallId: string | null = null;
 let permissionsRequested = false;
 
-async function getIncomingCallKit() {
+async function getIncomingCallKit(): Promise<{ plugin: any } | null> {
   if (typeof window === 'undefined') return null;
   const capNative =
     Capacitor.isNativePlatform() ||
-    isDespiaRuntime() ||
     Boolean((window as { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor?.isNativePlatform?.());
   if (!capNative) return null;
   try {
     const mod = await import('@capgo/capacitor-incoming-call-kit');
-    return mod.IncomingCallKit;
+    // Wrap so `await getIncomingCallKit()` doesn't invoke the Capacitor proxy's `.then`
+    // (which throws "not implemented on web" outside native shells).
+    return { plugin: mod.IncomingCallKit };
   } catch (err) {
     console.warn('[NativeIncomingCall] plugin unavailable:', err);
     return null;
