@@ -171,7 +171,7 @@ export const DesktopLeftSidebar = memo(function DesktopLeftSidebar({ collapsed, 
       <aside 
         className={cn(
           "hidden lg:flex flex-col sticky top-0 h-screen shrink-0 z-40 stable-sidebar-surface sidebar desktop-left-sidebar",
-          "transition-[width] duration-200 ease-out overflow-x-hidden",
+          "transition-[width] duration-200 ease-out overflow-hidden",
           "shadow-2xl shadow-background/30",
           "border-r border-border/40",
           collapsed 
@@ -181,12 +181,12 @@ export const DesktopLeftSidebar = memo(function DesktopLeftSidebar({ collapsed, 
         data-tutorial-sidebar
         data-no-auto-contrast
       >
-        {/* Brand Row — overflow visible so wordmark + glow are not clipped */}
+        {/* Brand Row */}
         <div className={cn(
-          "flex-shrink-0 flex items-center h-16 overflow-visible",
-          collapsed ? "justify-center px-2" : "px-3"
+          "flex items-center h-16 px-4",
+          collapsed ? "justify-center" : "gap-3"
         )}>
-          <Link to="/home" className="flex items-center overflow-visible" onClick={() => debugPanel?.handleLogoTap()}>
+          <Link to="/home" className="flex items-center gap-2 group" onClick={() => debugPanel?.handleLogoTap()}>
             <VYBELogo size={collapsed ? "sm" : "md"} showText={!collapsed} />
           </Link>
         </div>
@@ -350,7 +350,7 @@ export const DesktopLeftSidebar = memo(function DesktopLeftSidebar({ collapsed, 
         <div className="mx-3 h-px" />
 
         {/* Primary Navigation */}
-        <nav className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden px-2 py-1 space-y-1">
+        <nav className="flex-1 overflow-y-auto px-2 py-1 space-y-1">
           {mainNavItems.map(renderNavItem)}
 
           {/* Moderation Section */}

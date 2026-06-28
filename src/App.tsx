@@ -153,7 +153,7 @@ import { ATT_RESUME_EVENT, ensureAppShellVisible } from "@/lib/attResumeRecovery
 import { syncNativeTrackingConsent } from "@/lib/att";
 import { readSplashCompleted, markSplashCompleted, shouldSkipInitialSplash } from "@/lib/splashSession";
 import { getCachedCurrentProfile } from "@/lib/profileCache";
-import { hideStaticBootSplash, publishSplashProgress } from "@/lib/splashProgressBridge";
+import { hideStaticBootSplash } from "@/lib/splashProgressBridge";
 import { clearSplashDocumentLocks, markAppReady } from "@/lib/splashDismiss";
 import { resetSplashSessionOnHardReload, hasAppShellPaint } from "@/lib/navigationBoot";
 import { navVisibility } from "@/lib/navVisibility";
@@ -414,22 +414,21 @@ function AppWithPreloader() {
 
   useEffect(() => {
     if (!showSplash) return;
-    // Hide splash when rehydration finished AND auth resolved (and bar reached 100%).
-    const preloaderDone = preloadStatus.isComplete && preloadStatus.progress >= 100;
+    // Hide splash when preloader is done AND auth has resolved.
+    const preloaderDone = preloadStatus.isComplete;
     const authDone = authResolved;
     if (preloaderDone && authDone) {
       completeInitialSplash(setShowSplash);
     }
-  }, [preloadStatus.isComplete, preloadStatus.progress, showSplash, authResolved, hasSession]);
+  }, [preloadStatus.isComplete, showSplash, authResolved, hasSession]);
 
   // Never leave splash up after ATT / system sheets (App Review 2.1a blank screen).
   useEffect(() => {
     if (!showSplash) return;
     const absoluteMax = setTimeout(() => {
       syncNativeTrackingConsent();
-      publishSplashProgress(100, "Let's go! ✨");
       completeInitialSplash(setShowSplash);
-    }, isNativePerfMode() ? 14000 : 12000);
+    }, isNativePerfMode() ? 350 : 400);
     return () => clearTimeout(absoluteMax);
   }, [showSplash]);
 
@@ -455,10 +454,7 @@ function AppWithPreloader() {
 
       const attempt = () => {
         if (!showSplashRef.current) return true;
-        if (
-          preloadCompleteRef.current &&
-          authResolvedRef.current
-        ) {
+        if (preloadCompleteRef.current && authResolvedRef.current) {
           completeInitialSplash(setShowSplash);
           return true;
         }

@@ -2,7 +2,7 @@ import { memo, forwardRef } from 'react';
 import { motion } from 'framer-motion';
 import { cn } from '@/lib/utils';
 import { VybeWordmark } from '@/components/ui/VybeWordmark';
-import { VybeLogo } from '@/components/brand/VybeLogo';
+import { useVybeMarkColors } from '@/hooks/useVybeMarkColors';
 
 interface VYBELogoProps {
   size?: 'sm' | 'md' | 'lg' | 'xl' | '2xl' | 'splash';
@@ -12,42 +12,72 @@ interface VYBELogoProps {
 }
 
 const sizes = {
-  sm: { px: 28, gap: 'gap-1', wordmark: 'xs' as const },
-  md: { px: 32, gap: 'gap-1.5', wordmark: 'xs' as const },
-  lg: { px: 32, gap: 'gap-2', wordmark: 'sm' as const },
-  xl: { px: 40, gap: 'gap-2', wordmark: 'md' as const },
-  '2xl': { px: 80, gap: 'gap-3', wordmark: 'lg' as const },
-  splash: { px: 128, gap: 'gap-4', wordmark: 'splash' as const },
+  sm: { icon: 'w-6 h-6 sm:w-7 sm:h-7', text: 'text-sm', gap: 'gap-1', strokeWidth: 16 },
+  md: { icon: 'w-7 h-7 sm:w-8 sm:h-8', text: 'text-base', gap: 'gap-1.5', strokeWidth: 14 },
+  lg: { icon: 'w-8 h-8', text: 'text-lg', gap: 'gap-2', strokeWidth: 13 },
+  xl: { icon: 'w-10 h-10', text: 'text-xl', gap: 'gap-2', strokeWidth: 12 },
+  '2xl': { icon: 'w-16 h-16 sm:w-20 sm:h-20', text: 'text-2xl', gap: 'gap-3', strokeWidth: 12 },
+  splash: { icon: 'w-24 h-24 sm:w-32 sm:h-32', text: 'text-3xl', gap: 'gap-4', strokeWidth: 14 },
 };
 
-/** VYBE mark + optional wordmark — wraps brand `VybeLogo` SVG. */
+/**
+ * VYBE mark — resolved theme HSL on SVG strokes (WebKit-safe).
+ */
 export const VYBELogo = memo(forwardRef<HTMLDivElement, VYBELogoProps>(function VYBELogo({
   size = 'md',
   showText = true,
   className,
   animated = true,
 }, ref) {
-  const { px, gap, wordmark } = sizes[size];
+  const { icon, gap, strokeWidth } = sizes[size];
   const isSplash = size === 'splash';
-  const isHero = isSplash || size === '2xl';
-  const isCompact = size === 'sm' || size === 'md';
+  const colors = useVybeMarkColors();
 
   return (
-    <div ref={ref} className={cn('flex items-center overflow-visible', gap, className)}>
+    <div ref={ref} className={cn('flex items-end overflow-visible', gap, className)}>
       <motion.div
         whileHover={animated && !isSplash ? { scale: 1.05 } : undefined}
+        whileTap={animated && !isSplash ? { scale: 0.95 } : undefined}
         transition={{ type: 'spring', stiffness: 400, damping: 17 }}
-        className="relative flex shrink-0 items-center justify-center overflow-visible"
+        className={cn(icon, 'relative flex items-center justify-center')}
+        initial={isSplash && animated ? { scale: 0.5, opacity: 0 } : undefined}
+        animate={isSplash && animated ? { scale: 1, opacity: 1 } : undefined}
       >
-        <VybeLogo
-          size={px}
-          animated={animated}
-          glow={isHero ? 1 : isCompact ? 0.72 : 0.88}
-        />
+        <svg
+          viewBox="0 0 100 100"
+          fill="none"
+          data-themed-svg="true"
+          className={cn(icon, 'relative z-10 vybe-logo-mark')}
+          style={{
+            filter: isSplash ? 'drop-shadow(0 0 8px hsl(var(--primary) / 0.35))' : 'none',
+          }}
+        >
+          <path
+            d="M18 12 L50 88"
+            stroke={colors.primary}
+            strokeWidth={strokeWidth}
+            strokeLinecap="round"
+            className={animated ? 'vybe-logo-path vybe-logo-path--left' : undefined}
+          />
+          <path
+            d="M82 12 L50 88"
+            stroke={colors.accent}
+            strokeWidth={strokeWidth}
+            strokeLinecap="round"
+            className={animated ? 'vybe-logo-path vybe-logo-path--right' : undefined}
+          />
+          <circle
+            cx="50"
+            cy="88"
+            r={isSplash ? 5 : 4}
+            fill={colors.primary}
+            className={animated ? 'vybe-logo-dot' : undefined}
+          />
+        </svg>
       </motion.div>
 
       {showText && (
-        <VybeWordmark size={wordmark} className="shrink-0" />
+        <VybeWordmark size={size === 'splash' ? 'splash' : size === '2xl' ? 'lg' : size === 'xl' ? 'md' : 'sm'} />
       )}
     </div>
   );

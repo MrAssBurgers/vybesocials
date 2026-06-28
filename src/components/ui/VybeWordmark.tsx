@@ -31,7 +31,7 @@ export const VybeWordmark = memo(function VybeWordmark({
 
   return (
     <Tag
-      className={cn('vybe-wordmark inline-block shrink-0 overflow-visible', className)}
+      className={cn('vybe-wordmark inline-block max-w-full shrink-0 overflow-visible', className)}
       aria-label="VYBE"
     >
       <span className="vybe-wordmark-text" style={{ fontSize }} aria-hidden="true">

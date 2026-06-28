@@ -10,8 +10,10 @@ import {
   getSoundSettings, 
   updateSoundSettings, 
   previewSound,
+  previewBundledSound,
   type SoundSettings 
 } from '@/lib/premiumSounds';
+import { VYBE_SOUNDS } from '@/lib/vybeSoundAssets';
 import { CustomRingtoneUploader } from './CustomRingtoneUploader';
 import { useSyncCustomSounds } from '@/hooks/useCustomSounds';
 
@@ -39,17 +41,23 @@ export function NotificationSoundSection() {
     }
   };
   
-  const handlePreview = (type: 'messages' | 'calls' | 'ui') => {
+  const handlePreview = (type: 'messages' | 'calls' | 'ui' | 'like' | 'comment') => {
     haptics.tap();
     switch (type) {
       case 'messages':
-        previewSound('messageReceive');
+        previewBundledSound(VYBE_SOUNDS.dmReceived);
         break;
       case 'calls':
-        previewSound('callRing');
+        previewBundledSound(VYBE_SOUNDS.callRing);
         break;
       case 'ui':
-        previewSound('toggle');
+        previewBundledSound(VYBE_SOUNDS.sharePost);
+        break;
+      case 'like':
+        previewBundledSound(VYBE_SOUNDS.postLiked);
+        break;
+      case 'comment':
+        previewBundledSound(VYBE_SOUNDS.comment);
         break;
     }
   };
@@ -73,7 +81,7 @@ export function NotificationSoundSection() {
           <div className="flex-1">
             <h3 className="font-semibold text-base mb-1">Sound Effects</h3>
             <p className="text-sm text-muted-foreground">
-              Premium, subtle sounds for a polished experience
+              Custom VYBE sound pack — DMs, likes, comments, calls & shares
             </p>
           </div>
           <Switch 
@@ -97,7 +105,7 @@ export function NotificationSoundSection() {
                 </div>
                 <div>
                   <p className="font-medium text-sm">Messages</p>
-                  <p className="text-xs text-muted-foreground">Send & receive sounds</p>
+                  <p className="text-xs text-muted-foreground">Receive, send & social alerts</p>
                 </div>
               </div>
               <div className="flex items-center gap-2">
@@ -125,7 +133,7 @@ export function NotificationSoundSection() {
                 </div>
                 <div>
                   <p className="font-medium text-sm">Calls</p>
-                  <p className="text-xs text-muted-foreground">Ring, connect & end tones</p>
+                  <p className="text-xs text-muted-foreground">Incoming call ringtone</p>
                 </div>
               </div>
               <div className="flex items-center gap-2">
@@ -153,7 +161,7 @@ export function NotificationSoundSection() {
                 </div>
                 <div>
                   <p className="font-medium text-sm">Interface</p>
-                  <p className="text-xs text-muted-foreground">Taps, toggles & feedback</p>
+                  <p className="text-xs text-muted-foreground">Share & post actions</p>
                 </div>
               </div>
               <div className="flex items-center gap-2">
@@ -171,6 +179,30 @@ export function NotificationSoundSection() {
                   onCheckedChange={handleToggle('ui')}
                 />
               </div>
+            </div>
+
+            {/* Social previews */}
+            <div className="grid grid-cols-2 gap-2 pt-1">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="text-xs"
+                disabled={!settings.messages}
+                onClick={() => handlePreview('like')}
+              >
+                <Play className="h-3 w-3 mr-1" /> Like sound
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="text-xs"
+                disabled={!settings.messages}
+                onClick={() => handlePreview('comment')}
+              >
+                <Play className="h-3 w-3 mr-1" /> Comment sound
+              </Button>
             </div>
           </motion.div>
         )}

@@ -15,6 +15,7 @@ import { bellNotificationTag, shouldShowInAppNotification } from '@/lib/inAppNot
 import { isDespiaRuntime } from '@/lib/despiaBridge';
 import { isNativePlatform } from '@/lib/capacitor';
 import { toIsoDateString } from '@/lib/parseApiDate';
+import { premiumSounds } from '@/lib/premiumSounds';
 
 // Check notification permission — never auto-request on web to avoid browser bell prompts
 async function requestNotificationPermission(): Promise<boolean> {
@@ -219,6 +220,14 @@ export function useNotifications() {
           const notificationId = String(payload.new.id || '');
           if (notificationId && !shouldShowInAppNotification(bellNotificationTag(type, notificationId))) {
             return;
+          }
+
+          if (type === 'like') {
+            premiumSounds.likeNotification();
+          } else if (type === 'comment') {
+            premiumSounds.commentNotification();
+          } else {
+            premiumSounds.vybeNotification();
           }
 
           const messages: Record<NotificationType, string> = {

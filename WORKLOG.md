@@ -2,48 +2,14 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
-## Professional brand SVG integrated (2026-06-17)
-- **Logo:** Imported `vybe-brand-assets` — `assets/branding/vybe-logo.svg` + `public/branding/vybe-logo.svg` (Figma-drawn geometry, CSS-var theming)
-- **VybeLogo:** Loads asset via `?raw`; `VybeLogo.css` for glow/breathe/press; deleted procedural paths + legacy `assets/brand/*.svg` icons
-- **Verified:** `npm run build` PASS · `npm run lint` PASS
-- **Deployed:** https://vybe-daaab.web.app
-- **Next:** Lovable Publish for vybehub.app
-
-## Asset-only logo (Figma workflow) (2026-06-17)
-- **Logo:** Deleted procedural geometry (`vybeMarkPaths`, `vybeLogoSvg`); source of truth is `assets/branding/vybe-logo.svg` (placeholder layers + gradients/filters)
-- **VybeLogo:** Loads SVG via `?raw`, themes CSS variables only; animates glow, breathing, press scale
-- **Verified:** `npm run build` PASS · `npm run lint` PASS
-- **Deployed:** https://vybe-daaab.web.app
-- **Next:** Export final paths from Figma into `vybe-logo.svg` · copy to `public/branding/` · Lovable Publish
-
-## Figma-style Bézier mark (2026-06-17)
-- **Logo:** Replaced procedural rects/strokes with canonical Bézier paths (`assets/brand/vybe-mark.svg` → `vybeMarkPaths.ts`); React only themes gradients, glow, specular, overlap mix, joint bloom
+## Custom VYBE sound pack (2026-06-17)
+- **Assets:** 7 user-provided WAVs optimized → `public/sounds/` (mono 44.1kHz loudnorm): dm-received, dm-sent, post-liked, share-post, comment, call-ring, vybe-notification
+- **Registry:** `src/lib/vybeSoundAssets.ts` — URL map for all bundled sounds
+- **Engine:** `premiumSounds.ts` — bundled WAVs by default; synth fallback for tap/toggle/error/call connect/end; preload on first gesture; respects silent mode + category toggles
+- **Wired:** DM send/receive · call ring (loop) · share success (`ShareSheet`) · bell notifications (like → post-liked, comment → comment, else → vybe-notification) · settings previews (messages/calls/ui + like/comment)
 - **Verified:** `npm run build` PASS · `npm run lint` PASS
 - **Deployed:** https://vybe-daaab.web.app (Firebase hosting, 2026-06-17)
-- **Next:** Re-export path from Figma if pixel-tuning needed · Lovable Publish for vybehub.app
-
-## Pill capsule logo v2 (2026-06-17)
-- **Logo:** Replaced stroke paths with filled rotated rounded rects — 512×512 viewBox, 92×340 pills, pink→purple / blue→cyan gradients, white joint bulb r=34
-- **Verified:** `npm run build` PASS · `npm run lint` PASS
-- **Deployed:** https://vybe-daaab.web.app (Firebase hosting, 2026-06-17)
-- **Next:** Lovable → Share → Publish for vybehub.app · verify fat pill V on splash/sidebar
-
-## Fat capsule logo + splash rehydration (2026-06-17)
-- **Logo:** Replaced thin neon V with fat capsule arms — 240×240 viewBox, stroke 64/72, round caps, soft glow, white joint bulb; theme gradients primary→purple / secondary→cyan; no inner highlights or dark box
-- **Splash:** Real preload pipeline (`splashPreload.ts`) — progress bar tracks auth/theme/profile/feed/routes until ready (not instant 100%)
-- **Sidebar:** Fixed VYBE wordmark clipping on desktop nav
-- **Verified:** `npm run build` PASS · `npm run lint` PASS
-- **Deployed:** https://vybe-daaab.web.app (Firebase hosting, 2026-06-17)
-- **Next:** Lovable → Share → Publish for vybehub.app · verify logo on splash/sidebar at 200px · remove unused PNG mark assets if desired
-
-## Neon pill logo + sign-in fix + admin roles (2026-06-27)
-- **Logo:** New neon pill V — thick rounded strokes, bottom vertex bloom, theme-aware gradients (primary/accent/secondary via `useVybeMarkColors`); smooth draw + glow animations on splash, sidebar, loaders, favicon
-- **Sign-in alerts:** `authLoginNotify` only alerts when other active sessions exist; skips self-initiated login; client skips security toasts on own device
-- **Admin roles:** Fixed scroll (native overflow); optimistic add/remove; batch profile fetch
-- **Verified:** `npm run build` PASS · `npm run lint` PASS · functions build PASS
-- **Deployed:** https://vybe-daaab.web.app + `authLoginNotify`, `authLoginApproval` (2026-06-27)
-- **Shipped:** git `70b251d6` pushed
-- **Next:** Lovable → Share → Publish for vybehub.app · verify new logo on splash/sidebar · test cross-device sign-in alert
+- **Next:** Lovable Publish → vybehub.app · device test all sound categories
 
 ## Unified camera phase 2 — gestures + story fast-post (2026-06-17)
 - **Gestures (`useCameraGestures`):** Swipe down close · swipe up gallery · swipe left memories/gallery · horizontal filter swipe · pinch zoom + indicator · tap-to-focus reticle · double-tap flip (resets zoom)

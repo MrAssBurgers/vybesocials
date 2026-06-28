@@ -18,6 +18,7 @@ import { useSignedUrl } from '@/hooks/useSignedUrl';
 import { navVisibility } from '@/lib/navVisibility';
 import { useQueryClient } from '@tanstack/react-query';
 import { invalidateConversationCaches } from '@/lib/invalidateConversationCaches';
+import { premiumSounds } from '@/lib/premiumSounds';
 import { triggerHaptic } from '@/lib/haptics';
 import { buildPostShareUrl } from '@/lib/shareLinks';
 
@@ -181,7 +182,7 @@ export const ShareSheet = memo(function ShareSheet({
         setFlyingPlanes([]);
         setSelectedFriends(new Set());
         setIsSending(false);
-        
+        premiumSounds.sharePost();
         toast.success(friendIds.length === 1 ? 'Sent!' : `Sent to ${friendIds.length} friends!`);
       }, 600);
     } catch (error) {

@@ -385,28 +385,11 @@
         0%, 100% { transform: translate(-50%, -50%) translate(0, 6vh) scale(0.98); }
         50% { transform: translate(-50%, -50%) translate(7vw, -5vh) scale(1.06); }
       }
-      #vybe-static-boot .vybe-splash-logo {
-        position: relative;
-        z-index: 2;
-        margin-bottom: 1.5rem;
-        width: 96px;
-        height: 96px;
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        isolation: isolate;
+      #vybe-static-boot .vybe-splash-logo svg .vybe-splash-draw-left {
+        stroke: hsl(var(--primary));
       }
-      #vybe-static-boot .vybe-splash-logo svg,
-      #vybe-static-boot .vybe-splash-logo object {
-        display: block;
-        width: 100%;
-        height: 100%;
-        overflow: visible;
-        animation: vybe-boot-logo-enter 0.95s cubic-bezier(0.22, 1, 0.36, 1) backwards;
-      }
-      @keyframes vybe-boot-logo-enter {
-        from { opacity: 0; transform: scale(0.88); }
-        to { opacity: 1; transform: scale(1); }
+      #vybe-static-boot .vybe-splash-logo svg .vybe-splash-draw-right {
+        stroke: hsl(var(--accent));
       }
       #vybe-static-boot .vybe-splash-glow {
         position: absolute;
@@ -415,9 +398,16 @@
         width: min(260px, 70vw);
         height: min(260px, 70vw);
         transform: translate(-50%, -50%);
-        background: radial-gradient(circle, rgba(248, 10, 124, 0.14) 0%, rgba(6, 192, 251, 0.08) 45%, transparent 70%);
-        opacity: 0.65;
+        background: radial-gradient(circle, hsl(var(--primary) / 0.22) 0%, hsl(var(--accent) / 0.08) 45%, transparent 70%);
+        opacity: 0.5;
         pointer-events: none;
+      }
+      #vybe-static-boot .vybe-splash-logo {
+        position: relative;
+        z-index: 2;
+        margin-bottom: 1.5rem;
+        width: 96px;
+        height: 96px;
       }
       #vybe-static-boot .vybe-splash-title-wrap {
         position: relative;
@@ -485,7 +475,7 @@
           hsl(var(--secondary, var(--primary))) 38%,
           hsl(var(--accent)) 100%
         );
-        transition: transform 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+        animation: vybe-static-bar 12s cubic-bezier(0.22, 1, 0.36, 1) forwards;
       }
       #vybe-static-boot .vybe-splash-meta {
         display: flex;
@@ -507,9 +497,23 @@
         font-weight: 500;
         font-variant-numeric: tabular-nums;
       }
+      #vybe-static-boot .vybe-splash-draw-left,
+      #vybe-static-boot .vybe-splash-draw-right {
+        stroke-dasharray: 100;
+        stroke-dashoffset: 100;
+      }
+      #vybe-static-boot .vybe-splash-draw-left {
+        animation: vybe-splash-draw 0.7s cubic-bezier(0.16, 1, 0.3, 1) 0.15s forwards;
+      }
+      #vybe-static-boot .vybe-splash-draw-right {
+        animation: vybe-splash-draw 0.7s cubic-bezier(0.16, 1, 0.3, 1) 0.35s forwards;
+      }
+      @keyframes vybe-splash-draw {
+        to { stroke-dashoffset: 0; }
+      }
       @keyframes vybe-static-bar {
         0% { transform: scaleX(0); }
-        100% { transform: scaleX(0); }
+        100% { transform: scaleX(0.28); }
       }
       [data-app-shell] {
         min-height: 100dvh;
@@ -627,7 +631,11 @@
         </div>
         <div class="vybe-splash-glow" aria-hidden="true"></div>
         <div class="vybe-splash-logo" aria-hidden="true">
-          <object type="image/svg+xml" data="/branding/vybe-logo.svg" width="96" height="96" aria-hidden="true"></object>
+          <svg viewBox="-5 -5 110 110" fill="none" width="96" height="96" aria-hidden="true">
+            <path d="M18 15 L50 85" stroke-width="11" stroke-linecap="round" class="vybe-splash-draw-left" />
+            <path d="M82 15 L50 85" stroke-width="11" stroke-linecap="round" class="vybe-splash-draw-right" />
+            <circle cx="50" cy="85" r="3.5" fill="hsl(var(--primary))" />
+          </svg>
         </div>
         <div class="vybe-splash-title-wrap">
           <span class="vybe-splash-wordmark" aria-hidden="true">VYBE</span>
