@@ -66,14 +66,15 @@ export const DebugPanel = memo(forwardRef<HTMLDivElement, object>(function Debug
       );
       const unread = (unreadQuery?.state?.data as number) || 0;
 
-      setStats({
+      setStats((prev) => ({
+        ...prev,
         conversationsLoaded: conversations?.length || 0,
-        onlineUsers: 0, // Would need presence subscription
+        onlineUsers: 0,
         unreadCount: unread,
-        activeCallState: 'idle', // Would need call store
+        activeCallState: 'idle',
         networkStatus: navigator.onLine ? 'online' : 'offline',
         cacheSize: queries.length,
-      });
+      }));
     };
 
     updateStats();
