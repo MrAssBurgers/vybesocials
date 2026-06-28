@@ -1557,6 +1557,7 @@ export function ChatView() {
             </DropdownMenu>
           </div>
         </div>
+        </div>
 
         <EphemeralChatNotice
           viewMode={viewMode}
