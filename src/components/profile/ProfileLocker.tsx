@@ -354,7 +354,7 @@ export function ProfileLocker() {
     if (!lockerData) return false;
     const key = TAB_TO_EQUIPPED_KEY[activeTab];
     if (!key) return false;
-    return (lockerData[key] as string | null) === item.reward_name;
+    return ((lockerData as any)[key] as string | null) === item.reward_name;
   }, [lockerData, activeTab]);
 
   const equippedCount = [
