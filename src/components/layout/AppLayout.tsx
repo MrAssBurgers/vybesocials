@@ -21,6 +21,7 @@ import { setThemePreviewLock } from '@/hooks/useCustomTheme';
 import { SelfNowPlayingPill } from '@/components/music/SelfNowPlayingPill';
 import { MigrationAccountNotice } from '@/components/system/MigrationAccountNotice';
 import { useBottomNavMount } from '@/hooks/useBottomNavMount';
+import { installKeyboardFocusScroll } from '@/lib/keyboardFocusScroll';
 
 interface AppLayoutProps {
   children: ReactNode;
