@@ -1050,6 +1050,29 @@ html[data-dm-active='true'] body[data-kb-open='true'] .dm-chat-messages {
   padding: 0 0.125rem 0.5rem;
   margin-bottom: 0.125rem;
 }
+
+/* ──────────────────────────────────────────────────────────────────────────
+   Global keyboard avoidance
+   ────────────────────────────────────────────────────────────────────────── */
+:root {
+  --kb-h: 0px;
+  --kb-safe-pad: 12px;
+}
+/* Any fixed/sticky element with `data-keyboard-dock` lifts above the soft
+   keyboard automatically. Used by chat composers, comment bars, sticky form
+   footers, etc. — no per-screen wiring required. */
+[data-keyboard-dock] {
+  transition: transform 220ms cubic-bezier(0.22, 0.8, 0.2, 1);
+  will-change: transform;
+}
+body[data-kb-open='true'] [data-keyboard-dock] {
+  transform: translateY(calc(var(--kb-h) * -1));
+}
+/* Page-level scroll containers get bottom padding so inputs stay reachable
+   above the keyboard even when no dock element is present. */
+body[data-kb-open='true'] [data-app-scroll-container='true'] {
+  scroll-padding-bottom: calc(var(--kb-h) + var(--kb-safe-pad));
+}
 .texter-stack {
   width: 100%;
   padding: 0.15rem 0;
