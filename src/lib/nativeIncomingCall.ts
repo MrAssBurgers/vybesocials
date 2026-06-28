@@ -13,7 +13,7 @@ const INCOMING_CALL_TIMEOUT_MS = 30_000;
 let activeNativeCallId: string | null = null;
 let permissionsRequested = false;
 
-async function getIncomingCallKit(): Promise<{ plugin: any } | null> {
+async function getIncomingCallKit(): Promise<any> {
   if (typeof window === 'undefined') return null;
   const capNative =
     Capacitor.isNativePlatform() ||
@@ -21,9 +21,16 @@ async function getIncomingCallKit(): Promise<{ plugin: any } | null> {
   if (!capNative) return null;
   try {
     const mod = await import('@capgo/capacitor-incoming-call-kit');
+    const plugin: any = mod.IncomingCallKit;
     // Wrap so `await getIncomingCallKit()` doesn't invoke the Capacitor proxy's `.then`
-    // (which throws "not implemented on web" outside native shells).
-    return { plugin: mod.IncomingCallKit };
+    // (which throws "not implemented on web" on non-native runtimes).
+    return {
+      requestPermissions: (...a: any[]) => plugin.requestPermissions(...a),
+      requestFullScreenIntentPermission: (...a: any[]) => plugin.requestFullScreenIntentPermission(...a),
+      showIncomingCall: (...a: any[]) => plugin.showIncomingCall(...a),
+      endCall: (...a: any[]) => plugin.endCall(...a),
+      addListener: (...a: any[]) => plugin.addListener(...a),
+    };
   } catch (err) {
     console.warn('[NativeIncomingCall] plugin unavailable:', err);
     return null;
