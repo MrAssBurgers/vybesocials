@@ -669,7 +669,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             scheduleTokenRefresh(session.expires_at);
           }
 
-          hydrateCachedProfile(session.user.id);
+          /* hydrateCachedProfile handled by listener */
           bootstrapSessionData(session.user.id, event);
 
           clearOAuthRedirectPending();
@@ -872,7 +872,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             setSession(data.session);
             setUser(data.session.user);
             setActiveAuthUserId(data.session.user.id);
-            hydrateCachedProfile(data.session.user.id);
+            /* hydrateCachedProfile handled by listener */
             if (data.session.expires_at) {
               scheduleTokenRefresh(data.session.expires_at);
             }
@@ -1010,7 +1010,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         authInitializedRef.current = true;
         setLoading(false);
         setIsInitialized(true);
-        hydrateCachedProfile(data.session.user.id);
+        /* hydrateCachedProfile handled by listener */
         if (data.session.expires_at) {
           scheduleTokenRefresh(data.session.expires_at);
         }
@@ -1037,7 +1037,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       authInitializedRef.current = true;
       setLoading(false);
       setIsInitialized(true);
-      hydrateCachedProfile(session.user.id);
+      /* hydrateCachedProfile handled by listener */
       startHeartbeat();
       if (session.expires_at) {
         scheduleTokenRefresh(session.expires_at);
