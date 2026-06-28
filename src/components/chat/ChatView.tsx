@@ -1416,7 +1416,7 @@ export function ChatView() {
       {/* Floating pill header — back + profile left, calls + menu right */}
       <header
         className="dm-chat-header px-2 sm:px-3"
-        style={{ paddingTop: 'calc(var(--sat, env(safe-area-inset-top, 0px)) + 0.75rem)' }}
+        style={{ paddingTop: 'max(0.125rem, var(--sat, env(safe-area-inset-top, 0px)))' }}
       >
         <div className="dm-chat-header-row">
         <div className="flex items-center gap-2 sm:gap-3 w-full min-w-0">

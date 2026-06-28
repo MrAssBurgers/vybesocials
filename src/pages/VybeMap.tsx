@@ -71,7 +71,7 @@ function VybeMapInner() {
   const navigate = useNavigate();
   const { profile } = useAuth();
   const profileId = useAuthProfileId();
-  const { coords: myCoords, sharing, setSharing } = useLocationContext();
+  const { coords: myCoords, sharing, setSharing, heading: myHeading } = useLocationContext();
   const useMapbox = hasMapbox();
 
   const { layers, toggleLayer } = useMapLayers();
@@ -313,6 +313,7 @@ function VybeMapInner() {
           {...mapProps}
           mapMode={mapViewMode}
           followHeading={followHeading}
+          userHeading={myHeading}
           onMapReady={setMap}
           routeGeometry={route?.geometry ?? null}
           squadMemberIds={squadSet}

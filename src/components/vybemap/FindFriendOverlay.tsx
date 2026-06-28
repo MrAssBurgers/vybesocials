@@ -1,9 +1,9 @@
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, type CSSProperties } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Navigation, X } from 'lucide-react';
+import { X } from 'lucide-react';
 import { useFastSignedUrl } from '@/hooks/useFastSignedUrl';
 import type { LiveFriend } from '@/lib/vybemap/types';
-import { bearingDegrees, distanceFeet, formatDistance, proximityColor } from '@/lib/vybemap/geo';
+import { bearingDegrees, distanceFeet, formatDistance, lerpAngleDegrees, proximityColor } from '@/lib/vybemap/geo';
 import { triggerHaptic } from '@/lib/haptics';
 
 interface FindFriendOverlayProps {
@@ -15,11 +15,14 @@ interface FindFriendOverlayProps {
 }
 
 export function FindFriendOverlay({ friend, myCoords, onClose, onFound }: FindFriendOverlayProps) {
-  const [heading, setHeading] = useState(0);
+  const [displayHeading, setDisplayHeading] = useState(0);
   const [deviceHeading, setDeviceHeading] = useState<number | null>(null);
   const [liveCoords, setLiveCoords] = useState(myCoords);
   const lastHapticRef = useRef(0);
   const foundRef = useRef(false);
+  const targetHeadingRef = useRef(0);
+  const displayHeadingRef = useRef(0);
+  const rafRef = useRef(0);
   const signedAvatar = useFastSignedUrl(friend.profile?.avatar_url);
 
   const targetLat = friend.displayLat ?? friend.latitude;
@@ -56,8 +59,21 @@ export function FindFriendOverlay({ friend, myCoords, onClose, onFound }: FindFr
 
   useEffect(() => {
     const arrow = deviceHeading != null ? bearing - deviceHeading : bearing;
-    setHeading(arrow);
+    targetHeadingRef.current = ((arrow % 360) + 360) % 360;
   }, [bearing, deviceHeading]);
+
+  useEffect(() => {
+    const tick = () => {
+      const target = targetHeadingRef.current;
+      const current = displayHeadingRef.current;
+      const next = lerpAngleDegrees(current, target, 0.18);
+      displayHeadingRef.current = next;
+      setDisplayHeading(next);
+      rafRef.current = requestAnimationFrame(tick);
+    };
+    rafRef.current = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(rafRef.current);
+  }, []);
 
   useEffect(() => {
     const now = Date.now();
@@ -105,23 +121,17 @@ export function FindFriendOverlay({ friend, myCoords, onClose, onFound }: FindFr
               </div>
 
               <div className="relative w-72 h-72">
-                {[1, 2, 3].map((ring) => (
-                  <motion.div
-                    key={ring}
-                    className="absolute inset-0 rounded-full border border-white/10"
-                    style={{ margin: `${ring * 18}px` }}
-                    animate={{ opacity: [0.15, 0.45, 0.15], scale: [1, 1.02, 1] }}
-                    transition={{ duration: 2.4, repeat: Infinity, delay: ring * 0.25 }}
-                  />
-                ))}
+                <div className="vybe-find-ring" aria-hidden />
+                <div className="vybe-find-ring vybe-find-ring--2" aria-hidden />
+                <div className="vybe-find-ring vybe-find-ring--3" aria-hidden />
                 <div className="absolute inset-0 flex items-center justify-center">
-                  <motion.div
-                    className="absolute inset-0 flex items-start justify-center pt-6"
-                    animate={{ rotate: heading }}
-                    transition={{ type: 'spring', stiffness: 140, damping: 20 }}
+                  <div
+                    className="vybe-find-arrow"
+                    style={{ '--find-heading': `${displayHeading}deg`, '--find-color': color } as CSSProperties}
+                    aria-hidden
                   >
-                    <Navigation className="h-20 w-20 drop-shadow-2xl" style={{ color }} fill={color} />
-                  </motion.div>
+                    <div className="vybe-find-arrow__glyph" />
+                  </div>
                   <div className="relative h-20 w-20 rounded-full overflow-hidden border-2 border-white/30 shadow-xl bg-white/5">
                     {signedAvatar ? (
                       <img src={signedAvatar} alt="" className="h-full w-full object-cover" />

@@ -1015,10 +1015,9 @@ html[data-dm-active='true'] .dm-composer-dock {
   bottom: auto;
 }
 html[data-dm-active='true'] {
-  --dm-composer-lift: max(calc(var(--sab, env(safe-area-inset-bottom, 0px)) + 1.25rem), 3rem);
-}
-html[data-native-shell='true'][data-dm-active='true'] {
-  --dm-composer-lift: max(calc(var(--sab, env(safe-area-inset-bottom, 0px)) + 2.75rem), 7rem);
+  /* Bottom nav is hidden in active chat — only clear home indicator */
+  --dm-composer-lift: 0px;
+  --dm-floating-header-scroll: calc(var(--sat, env(safe-area-inset-top, 0px)) + 3.25rem);
 }
 html[data-dm-active='true'] body[data-kb-open='true'] .dm-composer-dock {
   position: relative;
@@ -1034,14 +1033,15 @@ html[data-dm-active='true'] body[data-kb-open='true'] .dm-composer-dock {
   }
 }
 html[data-dm-active='true'] .dm-chat-messages {
+  padding-top: calc(var(--dm-floating-header-scroll) + 0.625rem);
   padding-bottom: calc(
-    var(--texter-stack-h, 5.5rem) + var(--dm-composer-lift, 2rem) + 1rem +
+    var(--texter-stack-h, 5.5rem) + max(0.5rem, calc(var(--sab, env(safe-area-inset-bottom, 0px)) + 0.375rem)) + 0.35rem +
       var(--keyboard-height, var(--kb-h, 0px))
   );
 }
 html[data-dm-active='true'] body[data-kb-open='true'] .dm-chat-messages {
   padding-bottom: calc(
-    var(--texter-stack-h, 5.5rem) + var(--dm-composer-lift, 2rem) + 1rem +
+    var(--texter-stack-h, 5.5rem) + max(0.5rem, calc(var(--sab, env(safe-area-inset-bottom, 0px)) + 0.375rem)) + 0.35rem +
       var(--keyboard-height, var(--kb-h, 0px))
   );
 }
@@ -1296,12 +1296,12 @@ body[data-kb-open='true'] [data-app-scroll-container='true'] {
   position: fixed;
   left: 0;
   right: 0;
-  bottom: calc(var(--dm-composer-lift, max(var(--sab, env(safe-area-inset-bottom, 0px)), 1rem)) + var(--keyboard-height, var(--kb-h, 0px)));
+  bottom: var(--keyboard-height, var(--kb-h, 0px));
   z-index: 40;
   padding-left: max(0.75rem, env(safe-area-inset-left, 0px));
   padding-right: max(0.75rem, env(safe-area-inset-right, 0px));
-  padding-top: 0.35rem;
-  padding-bottom: max(1.35rem, calc(var(--sab, env(safe-area-inset-bottom, 0px)) + 0.85rem));
+  padding-top: 0.25rem;
+  padding-bottom: max(0.5rem, calc(var(--sab, env(safe-area-inset-bottom, 0px)) + 0.375rem));
   transition: bottom 0.28s cubic-bezier(0.32, 0.72, 0, 1);
   will-change: bottom;
 }
@@ -1343,7 +1343,7 @@ html[data-dm-active='true'] body[data-kb-open='true'] .texter-keyboard-aware {
   position: fixed;
   left: 0;
   right: 0;
-  bottom: calc(var(--dm-composer-lift, max(var(--sab, env(safe-area-inset-bottom, 0px)), 1rem)) + var(--keyboard-height, var(--kb-h, 0px)));
+  bottom: var(--keyboard-height, var(--kb-h, 0px));
 }
 /* Pause aurora animation while in a DM — frees GPU for scroll + typing */
 html[data-dm-active='true'] .vybe-liquid-bg .vybe-liquid-blob,
@@ -2143,27 +2143,132 @@ body.has-liquid-bg:not(.has-custom-bg) #main-content {
 }
 
 .vybe-mbx-self {
-  width: 18px;
-  height: 18px;
-  border-radius: 9999px;
-  background: #2563eb;
-  border: 3px solid #fff;
-  box-shadow: 0 0 0 2px hsl(217 91% 60% / 0.35), 0 4px 16px hsl(0 0% 0% / 0.2);
   position: relative;
+  width: 44px;
+  height: 44px;
+  pointer-events: none;
 }
 
-.vybe-mbx-self::after {
+.vybe-mbx-self__dot {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  z-index: 2;
+  width: 14px;
+  height: 14px;
+  margin: -7px 0 0 -7px;
+  border-radius: 9999px;
+  background: #3b82f6;
+  border: 2.5px solid #fff;
+  box-shadow:
+    0 0 0 1px hsl(217 91% 60% / 0.35),
+    0 2px 8px hsl(0 0% 0% / 0.28);
+}
+
+.vybe-mbx-self__beam {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  z-index: 1;
+  width: 40px;
+  height: 40px;
+  margin: -20px 0 0 -20px;
+  transform: rotate(var(--self-heading, 0deg));
+  transition: transform 0.32s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  will-change: transform;
+}
+
+.vybe-mbx-self__beam::before {
   content: '';
   position: absolute;
-  inset: -10px;
-  border-radius: 9999px;
-  background: hsl(217 91% 60% / 0.2);
-  animation: vybe-self-pulse 2s ease-out infinite;
+  left: 50%;
+  top: 3px;
+  transform: translateX(-50%);
+  width: 14px;
+  height: 14px;
+  background: linear-gradient(180deg, hsl(217 91% 62% / 0.75) 0%, hsl(217 91% 62% / 0.08) 100%);
+  clip-path: polygon(50% 0%, 100% 100%, 0% 100%);
+  border-radius: 2px 2px 0 0;
 }
 
-@keyframes vybe-self-pulse {
-  0%, 100% { transform: scale(0.85); opacity: 0.5; }
-  50% { transform: scale(1); opacity: 0.15; }
+.vybe-mbx-self__pulse {
+  position: absolute;
+  inset: 10px;
+  z-index: 0;
+  border-radius: 9999px;
+  border: 1.5px solid hsl(217 91% 60% / 0.5);
+  animation: vybe-self-ring 2.6s cubic-bezier(0.22, 1, 0.36, 1) infinite;
+}
+
+.vybe-mbx-self--no-heading .vybe-mbx-self__beam {
+  opacity: 0;
+}
+
+@keyframes vybe-self-ring {
+  0% {
+    transform: scale(0.82);
+    opacity: 0.55;
+  }
+  75%,
+  100% {
+    transform: scale(1.28);
+    opacity: 0;
+  }
+}
+
+/* Find-friend compass arrow */
+.vybe-find-arrow {
+  position: relative;
+  width: 4.5rem;
+  height: 4.5rem;
+  transform: rotate(var(--find-heading, 0deg));
+  transition: transform 0.28s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  will-change: transform;
+  filter: drop-shadow(0 4px 14px hsl(0 0% 0% / 0.35));
+}
+
+.vybe-find-arrow__glyph {
+  position: absolute;
+  left: 50%;
+  top: 0;
+  transform: translateX(-50%);
+  width: 18px;
+  height: 52px;
+  background: linear-gradient(180deg, var(--find-color, #38bdf8) 0%, hsl(0 0% 100% / 0.15) 100%);
+  clip-path: polygon(50% 0%, 88% 100%, 50% 78%, 12% 100%);
+  border-radius: 2px;
+}
+
+.vybe-find-ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 9999px;
+  border: 1px solid hsl(0 0% 100% / 0.12);
+  animation: vybe-find-ring 2.4s ease-out infinite;
+}
+
+.vybe-find-ring--2 {
+  inset: 18px;
+  animation-delay: 0.35s;
+}
+
+.vybe-find-ring--3 {
+  inset: 36px;
+  animation-delay: 0.7s;
+}
+
+@keyframes vybe-find-ring {
+  0% {
+    opacity: 0.12;
+    transform: scale(0.98);
+  }
+  45% {
+    opacity: 0.38;
+  }
+  100% {
+    opacity: 0.08;
+    transform: scale(1.02);
+  }
 }
 
 /* Snap-style map markers */

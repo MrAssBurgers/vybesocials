@@ -2,6 +2,28 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## Splash boot crash fix — useAuth outside AuthProvider (2026-06-17)
+- **Symptom:** Full-screen "Something went wrong" / "VYBE hit a snag" on app load
+- **Cause:** `VYBELogo` → `useVybeMarkColors` → `useUserTheme` → `useAuth`, but splash renders before `<AuthProvider>`
+- **Fix:** `useVybeMarkColors` reads equipped theme from storage/CSS + `vybeThemeChange` events only (no auth hook)
+- **Verified:** headless /home no error · `npm run build` PASS · `npm run lint` PASS
+- **Deployed:** https://vybe-daaab.web.app
+
+## VybeMap location puck + Snap-style background tracking (2026-06-17)
+- **Self puck:** Snap-style blue dot + direction beam + clean pulse ring; rotates with GPS/compass heading
+- **Find friend arrow:** Smoothed compass lerp (no jittery spring); custom arrow glyph + calm rings
+- **Background tracking:** GPS watches while live-sharing OR on VybeMap (updates Firestore off-map like Snap Map); visibility-aware refresh
+- **Map follow:** Camera eases to user position when coords update (pauses while panning)
+- **Verified:** `npm run build` PASS · `npm run lint` PASS
+- **Deployed:** https://vybe-daaab.web.app
+
+## DM mobile layout — header + composer inset (2026-06-17)
+- **Problem:** Composer floated ~7rem above bottom (legacy bottom-nav clearance while nav hidden in chat); header sat too low below status bar
+- **Fix:** `--dm-composer-lift: 0` in active chat; composer pins to safe-area bottom + keyboard; DM-specific `--dm-floating-header-scroll`; header uses `--sat` only
+- **Verified:** `npm run build` PASS
+- **Deployed:** https://vybe-daaab.web.app
+- **Next:** device verify on Despia · Lovable Publish
+
 ## Custom VYBE sound pack (2026-06-17)
 - **Assets:** 7 user-provided WAVs optimized → `public/sounds/` (mono 44.1kHz loudnorm): dm-received, dm-sent, post-liked, share-post, comment, call-ring, vybe-notification
 - **Registry:** `src/lib/vybeSoundAssets.ts` — URL map for all bundled sounds

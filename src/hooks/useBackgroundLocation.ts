@@ -20,18 +20,20 @@ export interface LocationState {
   coords: [number, number] | null;
   accuracy: number | null;
   speed: number | null;
+  heading: number | null;
   sharing: boolean;
   setSharing: (v: boolean) => void;
 }
 
 export function useBackgroundLocation(
   userId?: string,
-  options?: { watchPosition?: boolean },
+  options?: { watchOnMap?: boolean },
 ): LocationState {
-  const watchPosition = options?.watchPosition ?? false;
+  const watchOnMap = options?.watchOnMap ?? false;
   const [coords, setCoords] = useState<[number, number] | null>(null);
   const [accuracy, setAccuracy] = useState<number | null>(null);
   const [speed, setSpeed] = useState<number | null>(null);
+  const [heading, setHeading] = useState<number | null>(null);
   const [sharing, setSharingState] = useState(() => {
     const stored = localStorage.getItem(SHARING_PREF_KEY);
     // Default visible on map — users opt into Ghost Mode, not opt out of sharing.
@@ -100,12 +102,20 @@ export function useBackgroundLocation(
     lastPos.current = { lat, lng };
   }, [userId, sharing]);
 
-  // Only watch GPS on map routes (or when caller explicitly opts in). Never prompt on app boot.
+  // Snap-style: keep GPS warm while live on map OR viewing VybeMap (ghost still needs self dot).
+  const shouldWatch = Boolean(userId) && (sharing || watchOnMap);
+
   useEffect(() => {
-    if (!watchPosition || !('geolocation' in navigator)) return;
+    if (!shouldWatch || !('geolocation' in navigator)) return;
     let watchId: number | undefined;
     let fallbackWatchId: number | undefined;
     let fellBack = false;
+
+    const watchOpts = (): PositionOptions => ({
+      enableHighAccuracy: document.visibilityState !== 'hidden',
+      maximumAge: document.visibilityState === 'hidden' ? 25_000 : sharing ? 4_000 : 8_000,
+      timeout: 20_000,
+    });
 
     const onSuccess = (pos: GeolocationPosition) => {
       const c: [number, number] = [pos.coords.latitude, pos.coords.longitude];
@@ -114,7 +124,9 @@ export function useBackgroundLocation(
       const spd = pos.coords.speed;
       setSpeed(spd);
       lastSpeed.current = spd;
-      upsertLocation(c[0], c[1], pos.coords.accuracy, spd, pos.coords.heading);
+      const h = pos.coords.heading;
+      if (h != null && Number.isFinite(h)) setHeading(h);
+      upsertLocation(c[0], c[1], pos.coords.accuracy, spd, h);
     };
 
     const onError = (err: GeolocationPositionError) => {
@@ -153,18 +165,21 @@ export function useBackgroundLocation(
         timeout: 10000,
         maximumAge: 5 * 60 * 1000,
       });
-      watchId = navigator.geolocation.watchPosition(onSuccess, onError, {
-        enableHighAccuracy: true,
-        maximumAge: 0,
-        timeout: 15000,
-      });
+      watchId = navigator.geolocation.watchPosition(onSuccess, onError, watchOpts());
     } catch { /* geolocation not available */ }
 
+    const onVisibility = () => {
+      if (watchId !== undefined) navigator.geolocation.clearWatch(watchId);
+      watchId = navigator.geolocation.watchPosition(onSuccess, onError, watchOpts());
+    };
+    document.addEventListener('visibilitychange', onVisibility);
+
     return () => {
+      document.removeEventListener('visibilitychange', onVisibility);
       if (watchId !== undefined) navigator.geolocation.clearWatch(watchId);
       if (fallbackWatchId !== undefined) navigator.geolocation.clearWatch(fallbackWatchId);
     };
-  }, [watchPosition, sharing, upsertLocation, setSharing]);
+  }, [shouldWatch, sharing, upsertLocation, setSharing]);
 
   // Disable sharing in DB when toggled off
   useEffect(() => {
@@ -179,5 +194,5 @@ export function useBackgroundLocation(
     void upsertLocation(coords[0], coords[1], accuracy ?? 50, speed);
   }, [sharing, userId, coords, accuracy, speed, upsertLocation]);
 
-  return { coords, accuracy, speed, sharing, setSharing };
+  return { coords, accuracy, speed, heading, sharing, setSharing };
 }

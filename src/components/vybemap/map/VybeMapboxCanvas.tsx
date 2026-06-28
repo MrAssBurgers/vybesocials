@@ -44,6 +44,8 @@ export interface VybeMapboxCanvasProps {
   onMapReady?: (map: mapboxgl.Map) => void;
   routeGeometry?: GeoJSON.LineString | null;
   squadMemberIds?: Set<string>;
+  /** Device/GPS heading in degrees (0 = north). */
+  userHeading?: number | null;
   /** When true, map bearing tracks device compass. Pauses while user pans/zooms. */
   followHeading?: boolean;
 }
@@ -110,6 +112,13 @@ function meetupMarkerHtml(title: string): string {
   </div>`;
 }
 
+function applySelfMarkerStyles(el: HTMLElement, headingDeg: number | null, mapBearing: number) {
+  const hasHeading = headingDeg != null && Number.isFinite(headingDeg);
+  const display = hasHeading ? ((headingDeg! - mapBearing + 360) % 360) : 0;
+  el.className = `vybe-mbx-self${hasHeading ? '' : ' vybe-mbx-self--no-heading'}`;
+  el.style.setProperty('--self-heading', `${display}deg`);
+}
+
 
 export const VybeMapboxCanvas = memo(function VybeMapboxCanvas({
   center,
@@ -129,6 +138,7 @@ export const VybeMapboxCanvas = memo(function VybeMapboxCanvas({
   onMapReady,
   routeGeometry,
   squadMemberIds,
+  userHeading = null,
   followHeading = false,
 }: VybeMapboxCanvasProps) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -141,8 +151,12 @@ export const VybeMapboxCanvas = memo(function VybeMapboxCanvas({
   const [mapZoom, setMapZoom] = useState(14);
   const [mapReady, setMapReady] = useState(false);
   const [mapError, setMapError] = useState<string | null>(null);
+  const [mapBearing, setMapBearing] = useState(0);
+  const [deviceHeading, setDeviceHeading] = useState<number | null>(null);
   const myCoordsRef = useRef(center);
   myCoordsRef.current = center;
+  const userHeadingRef = useRef(userHeading);
+  userHeadingRef.current = userHeading;
   const userInteractingRef = useRef(false);
   const interactPauseRef = useRef<ReturnType<typeof setTimeout>>();
 
@@ -299,12 +313,34 @@ export const VybeMapboxCanvas = memo(function VybeMapboxCanvas({
 
   useEffect(() => {
     if (!center || !mapRef.current) return;
+    if (userInteractingRef.current) return;
     mapRef.current.easeTo({
       center: [center[1], center[0]],
-      duration: 800,
+      duration: 650,
       essential: true,
     });
   }, [center?.[0], center?.[1]]);
+
+  const resolvedHeading = userHeading ?? deviceHeading;
+
+  const refreshSelfMarker = useCallback((lngLat: [number, number], bearing: number, heading: number | null) => {
+    const map = mapRef.current;
+    if (!map) return;
+    if (!selfMarker.current) {
+      const el = document.createElement('div');
+      el.setAttribute('aria-hidden', 'true');
+      el.innerHTML =
+        '<div class="vybe-mbx-self__pulse"></div><div class="vybe-mbx-self__beam"></div><div class="vybe-mbx-self__dot"></div>';
+      applySelfMarkerStyles(el, heading, bearing);
+      selfMarker.current = new mapboxgl.Marker({ element: el, anchor: 'center' })
+        .setLngLat(lngLat)
+        .addTo(map);
+    } else {
+      selfMarker.current.setLngLat(lngLat);
+      const el = selfMarker.current.getElement();
+      if (el) applySelfMarkerStyles(el, heading, bearing);
+    }
+  }, []);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -314,17 +350,28 @@ export const VybeMapboxCanvas = memo(function VybeMapboxCanvas({
       return;
     }
     const lngLat: [number, number] = [center[1], center[0]];
-    if (!selfMarker.current) {
-      const el = document.createElement('div');
-      el.className = 'vybe-mbx-self';
-      el.setAttribute('aria-hidden', 'true');
-      selfMarker.current = new mapboxgl.Marker({ element: el, anchor: 'center' })
-        .setLngLat(lngLat)
-        .addTo(map);
-    } else {
-      selfMarker.current.setLngLat(lngLat);
-    }
-  }, [center?.[0], center?.[1]]);
+    refreshSelfMarker(lngLat, mapBearing, resolvedHeading);
+  }, [center?.[0], center?.[1], mapBearing, resolvedHeading, refreshSelfMarker]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapReady) return;
+    const onRotate = () => setMapBearing(map.getBearing());
+    onRotate();
+    map.on('rotate', onRotate);
+    return () => { map.off('rotate', onRotate); };
+  }, [mapReady]);
+
+  useEffect(() => {
+    const onOrient = (e: DeviceOrientationEvent) => {
+      const h =
+        (e as DeviceOrientationEvent & { webkitCompassHeading?: number }).webkitCompassHeading ??
+        (e.alpha != null ? 360 - e.alpha : null);
+      if (h != null && Number.isFinite(h)) setDeviceHeading(h);
+    };
+    window.addEventListener('deviceorientation', onOrient, true);
+    return () => window.removeEventListener('deviceorientation', onOrient, true);
+  }, []);
 
   useEffect(() => {
     const map = mapRef.current;

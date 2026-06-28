@@ -9,6 +9,7 @@ const LocationContext = createContext<LocationState>({
   coords: null,
   accuracy: null,
   speed: null,
+  heading: null,
   sharing: false,
   setSharing: () => {},
 });
@@ -21,8 +22,9 @@ export function LocationProvider({ children }: { children: ReactNode }) {
   const { profile } = useAuth();
   const profileId = useAuthProfileId();
   const { pathname } = useLocation();
-  const watchPosition = isMapRoute(pathname);
-  const location = useBackgroundLocation(profileId ?? profile?.id, { watchPosition });
+  const location = useBackgroundLocation(profileId ?? profile?.id, {
+    watchOnMap: isMapRoute(pathname),
+  });
 
   return (
     <LocationContext.Provider value={location}>

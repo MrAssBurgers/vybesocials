@@ -30,6 +30,12 @@ export function bearingDegrees(from: [number, number], to: [number, number]): nu
   return (Math.atan2(y, x) * 180) / Math.PI;
 }
 
+/** Shortest-path angle interpolation for compass UI. */
+export function lerpAngleDegrees(from: number, to: number, t: number): number {
+  const diff = ((to - from + 540) % 360) - 180;
+  return (from + diff * t + 360) % 360;
+}
+
 export function formatDistance(feet: number): string {
   if (feet < 528) return `${Math.round(feet)} FT`;
   const mi = feet / 5280;

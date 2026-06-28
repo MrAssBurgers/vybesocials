@@ -1,5 +1,4 @@
 import { useLayoutEffect, useState } from 'react';
-import { useUserTheme } from '@/hooks/useCustomTheme';
 import { getVybeMarkColorsFromStorage } from '@/lib/bootThemeApply';
 
 export interface VybeMarkColors {
@@ -29,22 +28,13 @@ function readFromDocument(): VybeMarkColors {
   };
 }
 
-/** Resolved HSL strings for SVG strokes — prefers equipped theme tokens (no default flash). */
+/** Resolved HSL strings for SVG strokes — safe before AuthProvider (splash/boot). */
 export function useVybeMarkColors(): VybeMarkColors {
-  const { data: userTheme } = useUserTheme();
-  const themeStamp = [
-    userTheme?.id,
-    userTheme?.updated_at,
-    (userTheme?.theme_tokens as { colorPrimary?: string } | undefined)?.colorPrimary,
-  ]
-    .filter(Boolean)
-    .join('-');
-
   const [colors, setColors] = useState<VybeMarkColors>(readFromDocument);
 
   useLayoutEffect(() => {
     setColors(readFromDocument());
-  }, [themeStamp]);
+  }, []);
 
   useLayoutEffect(() => {
     const refresh = () => setColors(readFromDocument());
