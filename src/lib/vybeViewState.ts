@@ -11,7 +11,7 @@ export function getVybeRecipientState(
   if (!profileId || message.media_type !== 'vybe') return 'unopened';
   if (
     (message as { vybe_replay_exhausted?: boolean }).vybe_replay_exhausted ||
-    message.view_mode === 'vybe_locked'
+    (message.view_mode as string) === 'vybe_locked'
   ) {
     return 'exhausted';
   }
@@ -23,6 +23,6 @@ export function getVybeRecipientState(
 export function isVybeReplayExhausted(message: Message): boolean {
   return (
     (message as { vybe_replay_exhausted?: boolean }).vybe_replay_exhausted === true ||
-    message.view_mode === 'vybe_locked'
+    (message.view_mode as string) === 'vybe_locked'
   );
 }
