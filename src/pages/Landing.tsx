@@ -893,7 +893,7 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
             if (!session?.access_token || !session?.refresh_token) {
               toast.error('Could not finish signing in. Request a new code and try again.');
               setLoginGate(null);
-              setGatePending(false);
+              /* setGatePending removed */
               return;
             }
             try {
@@ -909,11 +909,11 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
               console.warn('setSession after gate failed', e);
               toast.error('Could not finish signing in. Please try again.');
               setLoginGate(null);
-              setGatePending(false);
+              /* setGatePending removed */
               return;
             }
             setLoginGate(null);
-            setGatePending(false);
+            /* setGatePending removed */
             toast.success('Welcome back! ✨');
             if (isInviteMode && onInviteNavigate) onInviteNavigate('home');
             else navigate(getPostLoginPath('/home'));
@@ -921,7 +921,7 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
           onCancel={() => {
             // No session was ever created on this device — nothing to sign out.
             setLoginGate(null);
-            setGatePending(false);
+            /* setGatePending removed */
           }}
         />
       )}
