@@ -1418,6 +1418,7 @@ export function ChatView() {
         className="dm-chat-header px-2 sm:px-3"
         style={{ paddingTop: 'calc(var(--sat, env(safe-area-inset-top, 0px)) + 0.75rem)' }}
       >
+        <div className="dm-chat-header-row">
         <div className="flex items-center gap-2 sm:gap-3 w-full min-w-0">
           <div className="dm-chat-header-pill dm-chat-header-pill--profile">
             <Button
