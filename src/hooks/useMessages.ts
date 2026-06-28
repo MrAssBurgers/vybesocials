@@ -486,9 +486,9 @@ export function useMarkVybeReplayExhausted(conversationId?: string) {
         );
       };
       if (conversationId) {
-        patchMessagesCache(queryClient, conversationId, patchRow);
+        patchMessagesCache(queryClient, conversationId, patchRow as any);
       } else {
-        queryClient.setQueriesData<Message[]>({ queryKey: ['messages'] }, patchRow);
+        queryClient.setQueriesData<Message[]>({ queryKey: ['messages'] }, patchRow as any);
       }
     },
   });
