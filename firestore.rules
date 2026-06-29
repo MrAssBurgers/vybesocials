@@ -55,11 +55,11 @@ service cloud.firestore {
     function ownsProfileId(pid) {
       return signedIn() && (
         pid == uid() ||
-        pid == profileId() ||
         (pid != null && exists(/databases/$(database)/documents/profiles/$(pid)) &&
           get(/databases/$(database)/documents/profiles/$(pid)).data.user_id == uid())
       );
     }
+
     function isOwner(field) {
       return signedIn() && resource.data[field] == uid();
     }
