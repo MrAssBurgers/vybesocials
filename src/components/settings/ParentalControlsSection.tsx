@@ -12,8 +12,9 @@ import {
   useParentalControls,
   useSetupParentalControls,
   useUpdateParentalControls,
-  verifyPin,
+  useVerifyParentalPin,
 } from '@/hooks/useParentalControls';
+
 import { useTodayScreenTime, formatScreenTime } from '@/hooks/useScreenTime';
 import { useSafetySettings, useUpdateSafetySettings } from '@/hooks/useSafetySettings';
 
