@@ -67,8 +67,8 @@ export const MobileHeader = React.forwardRef<HTMLElement, React.ComponentPropsWi
       <div
         className="pointer-events-auto relative"
         style={{
-          paddingTop: 'var(--app-header-safe, env(safe-area-inset-top, 48px))',
-          paddingBottom: 'var(--app-header-tail, 0.5rem)',
+          paddingTop: 'var(--app-header-safe, env(safe-area-inset-top, 0px))',
+          paddingBottom: '0px',
           paddingLeft: 'var(--app-gutter-x, max(1rem, env(safe-area-inset-left, 0px)))',
           paddingRight: 'var(--app-gutter-x-end, max(1rem, env(safe-area-inset-right, 0px)))',
         }}

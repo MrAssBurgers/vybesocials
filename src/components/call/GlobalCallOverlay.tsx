@@ -1363,7 +1363,7 @@ export function GlobalCallOverlay() {
             WebkitBackdropFilter: 'blur(40px) saturate(150%)',
             isolation: 'isolate',
             paddingTop: 'var(--sat, env(safe-area-inset-top, 0px))',
-            paddingBottom: 'env(safe-area-inset-bottom)',
+            paddingBottom: 'var(--sab, env(safe-area-inset-bottom, 0px))',
           }}
         >
           {/* Animated ambient blobs */}
@@ -1661,7 +1661,7 @@ export function GlobalCallOverlay() {
             animate={{ y: showFooter ? 0 : 100, opacity: showFooter ? 1 : 0 }}
             transition={{ duration: 0.25, ease: [0.25, 0.46, 0.45, 0.94] }}
             className="absolute bottom-0 left-0 right-0 pointer-events-auto"
-            style={{ paddingBottom: 'calc(1.5rem + env(safe-area-inset-bottom))' }}
+            style={{ paddingBottom: 'max(0.75rem, var(--sab, env(safe-area-inset-bottom, 0px)))' }}
             onMouseEnter={handleFooterAreaEnter}
             onMouseLeave={handleFooterAreaLeave}
             onTouchStart={handleFooterAreaEnter}
@@ -1927,10 +1927,10 @@ function IncomingCallFullscreen({
       {/* Top — avatar + identity */}
       <div
         className={cn(
-          'relative z-10 flex flex-col items-center flex-1 justify-center px-6 pt-safe pb-8 transition-opacity duration-300',
+          'relative z-10 flex flex-col items-center flex-1 justify-end px-6 pb-8 transition-opacity duration-300',
           hasRemoteVideo ? 'opacity-0 pointer-events-none' : 'opacity-100',
         )}
-        style={{ paddingTop: 'calc(var(--app-header-safe, env(safe-area-inset-top, 0px)) + 2.5rem)' }}
+        style={{ paddingTop: 'var(--app-header-safe, env(safe-area-inset-top, 0px))' }}
       >
         <motion.div
           animate={{ scale: [1, 1.04, 1] }}
@@ -1970,8 +1970,8 @@ function IncomingCallFullscreen({
 
       {/* Bottom — slide + quick actions */}
       <div
-        className="relative z-10 w-full px-6 pb-safe"
-        style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 1.75rem)' }}
+        className="relative z-10 w-full px-6"
+        style={{ paddingBottom: 'max(0.75rem, var(--sab, env(safe-area-inset-bottom, 0px)))' }}
       >
         <div className="w-full max-w-md mx-auto mb-6">
           <SlideToAnswer

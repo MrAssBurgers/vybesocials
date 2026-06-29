@@ -2,6 +2,21 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## Safe area v2 + location privacy disclosure (2026-06-17)
+- **Problem:** Header not flush under camera; DM composer / profile pill / call UI sitting too high; App Store missing Location disclosure in privacy policy
+- **Fix:** Trust measured `env(safe-area-inset-*)` only (removed inflated Despia bottom fallback ~68px); tightened `--dm-header-stack`, composer `padding-bottom`, call overlay insets; MobileHeader + DM header use `--app-header-safe` only; Privacy v2.1 Section 12 Location Data
+- **Verified:** `npm run build` PASS · `npm run lint` PASS
+- **Uncommitted:** local changes — commit + deploy when ready
+- **You:** Lovable Publish vybehub.app (privacy at `/privacy`) · resubmit App Store privacy review · device-test DM composer + incoming call on Despia
+
+## Mobile safe area + splash polish (2026-06-29)
+- **Problem:** Home header huge top gap; asymmetric width; splash V too far above wordmark; progress bar stuck ~28%
+- **Fix:** Unified `--app-gutter-x` insets; toolbar flush under safe area; splash brand stack + JS-driven progress (removed static 28% CSS cap)
+- **Verified:** `npm run build` PASS · `npm run lint` PASS
+- **Committed:** `29a26d5e` · pushed `main`
+- **Deployed:** https://vybe-daaab.web.app
+- **You:** Lovable → Share → Publish for vybehub.app
+
 ## Despia Google OAuth — oauth:// secure session (2026-06-29)
 - **Problem:** Google sign-in in Despia app opened full Safari to vybehub.app; login never completed in app
 - **Cause:** Capacitor Firebase Auth never runs in Despia WebView (`isNativePlatform` false); fallback used `signInWithPopup` → Safari handoff

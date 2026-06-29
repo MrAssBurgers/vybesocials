@@ -34,28 +34,24 @@ function measureEnvSafeAreaInsets(): MeasuredSafeAreaInsets {
   return insets;
 }
 
-function readVisualViewportTop(): number {
-  if (typeof window === 'undefined') return 0;
-  return window.visualViewport?.offsetTop ?? 0;
-}
-
 function fallbackTop(platform: PlatformType, device: DeviceType): number {
   if (device === 'desktop') return 0;
-
   const native = isDespiaRuntime();
-  if (platform === 'ios') return native ? 47 : 44;
-  if (platform === 'android') return native ? 24 : 24;
+  if (platform === 'ios') return native ? 59 : 47;
+  if (platform === 'android') return native ? 28 : 24;
   return native ? 24 : 20;
 }
 
-function fallbackGap(device: DeviceType): number {
-  if (device === 'desktop') return 0;
+function fallbackGap(_device: DeviceType): number {
   return 0;
 }
 
-function fallbackBottom(device: DeviceType): number {
+function fallbackBottom(platform: PlatformType, device: DeviceType): number {
   if (device === 'desktop') return 0;
-  return isDespiaRuntime() ? 68 : 24;
+  const native = isDespiaRuntime();
+  if (platform === 'ios') return native ? 34 : 20;
+  if (platform === 'android') return native ? 24 : 16;
+  return native ? 20 : 12;
 }
 
 function fallbackRight(_device: DeviceType): number {
@@ -71,18 +67,13 @@ export function resolveSafeAreaInsets(
   platform: PlatformType,
   device: DeviceType,
 ): MeasuredSafeAreaInsets & { gap: number } {
-  const topFloor = fallbackTop(platform, device);
-  const viewportTop = readVisualViewportTop();
   const gap = fallbackGap(device);
 
   return {
-    top:
-      measured.top > 0
-        ? Math.max(measured.top, viewportTop)
-        : Math.max(topFloor, viewportTop),
-    right: Math.max(measured.right, fallbackRight(device)),
-    bottom: Math.max(measured.bottom, fallbackBottom(device)),
-    left: Math.max(measured.left, fallbackLeft(device)),
+    top: measured.top > 0 ? measured.top : fallbackTop(platform, device),
+    right: measured.right > 0 ? measured.right : fallbackRight(device),
+    bottom: measured.bottom > 0 ? measured.bottom : fallbackBottom(platform, device),
+    left: measured.left > 0 ? measured.left : fallbackLeft(device),
     gap,
   };
 }
