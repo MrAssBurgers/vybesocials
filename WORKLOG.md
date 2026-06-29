@@ -2,6 +2,14 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## VYBE AI server error fix (2026-06-17)
+- **Problem:** VYBE AI showed generic "server error" bubble; BYOK key saved but not used (client AI ran first)
+- **Fix:** Server-first routing when BYOK or App Check unverified; BYOK key lookup fallbacks + validate on save; clearer Gemini/BYOK errors; strip error bubbles from history
+- **Verified:** `npm run build` PASS · `npm run lint` PASS · functions build PASS
+- **Committed:** `a9cad8ac` · pushed `main`
+- **Deployed:** https://vybe-daaab.web.app + `aiChat`, `saveUserAiKey`, 38 GEMINI functions
+- **You:** Lovable → Share → Publish vybehub.app · VYBE-AI ⋮ → **Clear Chat** · re-save Google AI key in Settings if restricted · test "hey"
+
 ## DM composer keyboard position (2026-06-17)
 - **Problem:** DM message composer flew too high when typing — not resting just above keyboard like Vybe AI
 - **Fix:** Mobile DM shell `fixed inset-0` like AI; keyboard measure skips `screen.height` fallback when layout already resized; focus scroll uses `scrollTop` not `scrollIntoView`
