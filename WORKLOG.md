@@ -2,6 +2,14 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## Instant DM Delivered + inbox trash (2026-06-17)
+- **Problem:** DMs showed Sent then Delivered after ~1s; trash button missing on DM inbox for deleted chats
+- **Fix:** Optimistic messages show Delivered immediately; stable `_clientKey` prevents bubble remount on server confirm; `DmInboxView` trash header button restored
+- **Verified:** `npm run build` PASS · `npm run lint` PASS
+- **Committed:** `919401e2` · pushed `main`
+- **Deployed:** https://vybe-daaab.web.app
+- **You:** Lovable → Share → Publish for vybehub.app · device-test instant Delivered + trash on Despia
+
 ## Keyboard over-scroll fix — Vybe AI pattern (2026-06-17)
 - **Problem:** DM messages jumped too high when typing; keyboard detection OK but scroll offset wrong
 - **Fix:** Removed DM `KeyboardAwareTexter` fixed dock; unified in-flow flex + `--kb-h` padding (`.vybe-chat-composer` / `.vybe-chat-messages`) matching AI chat; enabled `useKeyboardHeight` in DM; community chat footers aligned
