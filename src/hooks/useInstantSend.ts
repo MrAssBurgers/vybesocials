@@ -369,18 +369,21 @@ export function useInstantSend(conversationId: string | undefined) {
         reply_to_id: replyToId,
       };
 
-      const { data, error } = await insertMessageWithRetry(
+      const insertPromise = insertMessageWithRetry(
         senderId,
         insertPayload,
         otherProfileId,
       );
+
+      void bumpConversationUpdatedAt(conversationId);
+
+      const { data, error } = await insertPromise;
 
       if (error) throw error;
       if (!data) throw new Error('Failed to send message');
 
       confirmMessage(tempId, data);
       void sendDmBroadcastMessage(conversationId, data as unknown as Record<string, unknown>);
-      void bumpConversationUpdatedAt(conversationId);
 
     } catch (error: any) {
       if (isTransientSendError(error) && conversationId && effectiveProfileId) {

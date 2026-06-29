@@ -1048,12 +1048,15 @@ body[data-kb-open='true'] [data-app-scroll-container='true'] {
 /* Vybe AI-style in-flow chat keyboard lift (DM, AI, community) */
 .vybe-chat-composer,
 .ai-chat-composer {
-  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + var(--kb-h, 0px));
+  padding-bottom: calc(
+    env(safe-area-inset-bottom, 0px) + max(0px, calc(var(--kb-h, 0px) - 12px))
+  );
   transition: padding-bottom 0.2s ease-out;
 }
 body[data-kb-open='true'] .vybe-chat-messages,
 body[data-kb-open='true'] .ai-chat-messages {
-  padding-bottom: calc(1rem + var(--kb-h, 0px));
+  /* Composer already grows with --kb-h; only a small scroll tail needed */
+  padding-bottom: 0.5rem;
 }
 .dm-composer-dock.vybe-chat-composer {
   padding-left: 0;

@@ -13,7 +13,13 @@ export function resolveOwnMessageStatus(
   const { peerLastReadAt, failed, isGroupChat } = options;
 
   if (failed) return 'sending';
-  if (typeof message.id === 'string' && message.id.startsWith('temp-')) return 'sending';
+
+  const id = typeof message.id === 'string' ? message.id : '';
+  const pending =
+    id.startsWith('temp-') ||
+    id.startsWith('vybe-') ||
+    Boolean((message as { _sending?: boolean })._sending);
+  if (pending) return 'sent';
 
   if (message.views && message.views.length > 0) return 'opened';
   if (!isGroupChat && peerLastReadAt && message.created_at && message.created_at <= peerLastReadAt) {
