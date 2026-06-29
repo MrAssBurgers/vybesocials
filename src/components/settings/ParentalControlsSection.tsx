@@ -98,22 +98,29 @@ export function ParentalControlsSection() {
             </InputOTPGroup>
           </InputOTP>
           <Button
-            onClick={() => {
-              if (!controls?.pin_hash) return;
-              if (verifyPin(verifyPinInput, controls.pin_hash)) {
-                setUnlocked(true);
-                setVerifyPinInput('');
-                haptics.success();
-              } else {
-                toast.error('Incorrect PIN');
-                haptics.error();
+            onClick={async () => {
+              if (!controls?.has_pin) return;
+              try {
+                const ok = await verifyPinMutation.mutateAsync(verifyPinInput);
+                if (ok) {
+                  setUnlocked(true);
+                  setVerifyPinInput('');
+                  haptics.success();
+                } else {
+                  toast.error('Incorrect PIN');
+                  haptics.error();
+                  setVerifyPinInput('');
+                }
+              } catch {
+                toast.error('Could not verify PIN');
                 setVerifyPinInput('');
               }
             }}
-            disabled={verifyPinInput.length !== 4}
+            disabled={verifyPinInput.length !== 4 || verifyPinMutation.isPending}
           >
             Unlock Controls
           </Button>
+
         </div>
       </motion.div>
     );
