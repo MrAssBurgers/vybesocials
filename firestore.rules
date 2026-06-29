@@ -161,12 +161,17 @@ service cloud.firestore {
         );
     }
 
-    // Auth uid → profiles.id lookup (seeded by scripts/migrate-firebase/seed-user-auth-index.mjs)
+    // Auth uid → profiles.id lookup. Write only when the target profile.user_id matches caller.
     match /user_auth_index/{authUid} {
       allow read: if signedIn() && authUid == uid();
-      allow create, update: if signedIn() && authUid == uid();
+      allow create, update: if signedIn()
+        && authUid == uid()
+        && request.resource.data.profile_id is string
+        && exists(/databases/$(database)/documents/profiles/$(request.resource.data.profile_id))
+        && get(/databases/$(database)/documents/profiles/$(request.resource.data.profile_id)).data.user_id == uid();
       allow delete: if false;
     }
+
 
     match /legal_acceptances/{docId} {
       allow read: if signedIn() && resource.data.user_id == uid();
