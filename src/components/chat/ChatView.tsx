@@ -119,7 +119,6 @@ import {
 import { Toybox } from './Toybox';
 import { EmojiPicker } from './EmojiPicker';
 import { openCameraFromGesture, useCameraOverlay } from '@/contexts/CameraOverlayContext';
-import { KeyboardAwareTexter } from '@/components/chat/KeyboardAwareTexter';
 import { shouldTrackSoftKeyboard } from '@/lib/keyboardInsets';
 import { Texter } from '@/components/chat/Texter';
 import { stopCameraStream } from '@/hooks/useCameraPreload';
@@ -1611,7 +1610,7 @@ export function ChatView() {
       <div 
         ref={messagesContainerRef}
         className={cn(
-          "dm-chat-messages flex-1 overflow-y-auto overflow-x-hidden min-h-0",
+          "dm-chat-messages vybe-chat-messages flex-1 overflow-y-auto overflow-x-hidden min-h-0",
           "px-3 sm:px-4 pb-3",
           "scroll-smooth",
           getWallpaperClass()
@@ -1639,7 +1638,7 @@ export function ChatView() {
             ))}
           </div>
         ) : (
-        <div className="flex flex-col gap-0 pb-[calc(env(safe-area-inset-bottom,0px)+0.75rem)] md:pb-4">
+        <div className="flex flex-col gap-0 pb-4 md:pb-4">
           {messageItems.map(({ message, isOwn, showAvatar, showTimestamp, sameSender, isMediaTransition, isEmojiOnly }, index) => {
             // Instagram/Snapchat spacing rules:
             // Same sender consecutive: 4-6px gap (tight grouping)
@@ -1982,7 +1981,7 @@ export function ChatView() {
             isVoiceLocked={isVoiceLocked}
             setIsVoiceLocked={setIsVoiceLocked}
             voiceLockStartYRef={voiceLockStartYRef}
-            messagesContainerRef={messagesContainerRef}
+            messagesEndRef={messagesEndRef}
             safetyFilterNode={
               <SafetyFilterRequestButton
                 isSafetyDisabled={conversationSafety.isSafetyDisabled}
@@ -2059,7 +2058,7 @@ export function ChatView() {
           isVoiceLocked={isVoiceLocked}
           setIsVoiceLocked={setIsVoiceLocked}
           voiceLockStartYRef={voiceLockStartYRef}
-          messagesContainerRef={messagesContainerRef}
+          messagesEndRef={messagesEndRef}
           safetyFilterNode={
             <SafetyFilterRequestButton
               isSafetyDisabled={conversationSafety.isSafetyDisabled}
@@ -2135,7 +2134,7 @@ const MessageInputArea = memo(function MessageInputArea({
   setIsVoiceLocked,
   voiceLockStartYRef,
   safetyFilterNode,
-  messagesContainerRef,
+  messagesEndRef,
   presenceSlot,
 }: {
   hasText: boolean;
@@ -2182,7 +2181,7 @@ const MessageInputArea = memo(function MessageInputArea({
   setIsVoiceLocked?: (locked: boolean) => void;
   voiceLockStartYRef?: React.MutableRefObject<number | null>;
   safetyFilterNode?: React.ReactNode;
-  messagesContainerRef?: React.RefObject<HTMLElement | null>;
+  messagesEndRef?: React.RefObject<HTMLElement | null>;
   presenceSlot?: React.ReactNode;
 }) {
   const headerSlot = (
@@ -2216,11 +2215,11 @@ const MessageInputArea = memo(function MessageInputArea({
   );
 
   return (
-    <KeyboardAwareTexter scrollContainerRef={messagesContainerRef}>
+    <>
       {presenceSlot ? (
         <div className="dm-presence-above-composer">{presenceSlot}</div>
       ) : null}
-      <div className="dm-composer-dock relative flex-shrink-0 z-30">
+      <div className="dm-composer-dock vybe-chat-composer relative flex-shrink-0 z-30">
         {onSendSticker && showStickerPanel && setShowStickerPanel && (
           <StickerPanel
             open={showStickerPanel}
@@ -2247,9 +2246,9 @@ const MessageInputArea = memo(function MessageInputArea({
           onSend={handleSend}
           onFocus={() => {
             if (shouldTrackSoftKeyboard()) {
-              requestAnimationFrame(() => {
-                inputRef.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-              });
+              window.setTimeout(() => {
+                messagesEndRef?.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+              }, 120);
             }
           }}
           isPending={isPending}
@@ -2327,7 +2326,7 @@ const MessageInputArea = memo(function MessageInputArea({
           }}
         />
       </div>
-    </KeyboardAwareTexter>
+    </>
   );
 });
 

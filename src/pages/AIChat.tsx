@@ -578,7 +578,7 @@ export default function AIChat() {
 
         {/* Messages */}
         <div
-          className="flex-1 overflow-y-auto overscroll-contain px-3 pb-4 space-y-3 ai-chat-messages"
+          className="flex-1 overflow-y-auto overscroll-contain px-3 pb-4 space-y-3 ai-chat-messages vybe-chat-messages"
           style={{ paddingTop: 'var(--app-floating-header-scroll)' }}
         >
           {!usage.loading && !usage.hasByok && (
@@ -722,7 +722,7 @@ export default function AIChat() {
         </AnimatePresence>
 
         {/* Input */}
-        <div className="px-3 py-2.5 border-t border-border/40 bg-card shrink-0 ai-chat-composer">
+        <div className="px-3 py-2.5 border-t border-border/40 bg-card shrink-0 ai-chat-composer vybe-chat-composer">
           <div className="flex items-center gap-1 mb-1.5 px-1">
             {feedDNA && (
               <div className="flex items-center gap-1">

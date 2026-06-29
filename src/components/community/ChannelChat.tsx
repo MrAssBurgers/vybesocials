@@ -103,7 +103,7 @@ export const ChannelChat = memo(function ChannelChat({ channelId, channelName, s
       </div>
 
       {/* Messages */}
-      <ScrollArea className="flex-1 px-2 sm:px-4">
+      <ScrollArea className="flex-1 px-2 sm:px-4 vybe-chat-messages">
         <div className="py-3 sm:py-4">
           {groupedMessages.map((group) => (
             <div key={group.date}>
@@ -159,7 +159,7 @@ export const ChannelChat = memo(function ChannelChat({ channelId, channelName, s
 
       {/* Input - mobile optimized with safe area */}
       {canSend ? (
-        <div className="px-3 sm:px-4 py-2 sm:py-3 border-t border-border bg-background/95 backdrop-blur-sm pb-safe">
+        <div className="px-3 sm:px-4 py-2 sm:py-3 border-t border-border bg-background/95 backdrop-blur-sm vybe-chat-composer">
           <div className="flex items-center gap-2">
             <Input
               value={messageText}

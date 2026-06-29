@@ -45,6 +45,12 @@ function findScrollableAncestor(el: HTMLElement): HTMLElement | null {
   return null;
 }
 
+function isInsideVybeChatComposer(el: HTMLElement): boolean {
+  return Boolean(
+    el.closest('.vybe-chat-composer, .ai-chat-composer, .dm-composer-dock'),
+  );
+}
+
 function ensureVisible(el: HTMLElement) {
   const kb = getKeyboardHeight();
   const visibleBottom = window.innerHeight - kb - PAD;
@@ -83,7 +89,9 @@ export function installKeyboardFocusScroll(): () => void {
 
   const onFocusIn = (e: FocusEvent) => {
     if (!isEditable(e.target)) return;
-    schedule(e.target as HTMLElement);
+    const target = e.target as HTMLElement;
+    if (isInsideVybeChatComposer(target)) return;
+    schedule(target);
   };
 
   const onViewportResize = () => {

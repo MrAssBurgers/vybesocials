@@ -117,7 +117,7 @@ export const RoomChat = memo(function RoomChat({
     <div className="flex flex-col h-full min-h-0 bg-background/50">
       {/* Messages - scrollable area fills remaining space */}
       <div className="flex-1 min-h-0 overflow-hidden">
-        <ScrollArea className="h-full px-3">
+        <ScrollArea className="h-full px-3 vybe-chat-messages">
           <div className="py-4">
             {groupedMessages.map((group) => (
               <div key={group.date}>
@@ -172,7 +172,7 @@ export const RoomChat = memo(function RoomChat({
 
       {/* Input - pinned at bottom via flex shrink-0 */}
       {canPost ? (
-        <div className="shrink-0 px-3 py-3 border-t border-border/50 bg-card/95 backdrop-blur-md pb-safe z-10">
+        <div className="shrink-0 px-3 py-3 border-t border-border/50 bg-card/95 backdrop-blur-md z-10 vybe-chat-composer">
           <div className="flex items-center gap-2">
             <Input
               ref={inputRef}
