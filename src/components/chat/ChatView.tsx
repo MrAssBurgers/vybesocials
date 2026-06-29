@@ -42,7 +42,7 @@ import {
   expiresAtForViewMode,
   insertDmMessage,
 } from '@/lib/dmSendCore';
-import { replaceOptimisticMessage } from '@/lib/messagesQueryKey';
+import { messageRowKey, replaceOptimisticMessage } from '@/lib/messagesQueryKey';
 import { sendDmBroadcastMessage } from '@/lib/dmBroadcast';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
@@ -966,6 +966,7 @@ export function ChatView() {
         views: [],
         reactions: [],
         _sending: true, // Mark as sending
+        _clientKey: tempId,
       } as any;
       
       if (!old) return [optimisticMessage];
@@ -1666,7 +1667,7 @@ export function ChatView() {
             const isCaptureNotification = isScreenshotNotification || isRecordingNotification;
 
             const wrapMessageRow = (row: ReactNode) => (
-              <LocalErrorBoundary key={message.id} label="chat-message">
+              <LocalErrorBoundary key={messageRowKey(message)} label="chat-message">
                 {row}
               </LocalErrorBoundary>
             );
@@ -3068,7 +3069,7 @@ const MessageBubble = memo(function MessageBubble({
   );
 }, (prevProps, nextProps) => {
   return (
-    prevProps.message.id === nextProps.message.id &&
+    messageRowKey(prevProps.message) === messageRowKey(nextProps.message) &&
     prevProps.message.content === nextProps.message.content &&
     (prevProps.message as { _failed?: boolean })._failed === (nextProps.message as { _failed?: boolean })._failed &&
     prevProps.message.is_deleted === nextProps.message.is_deleted &&

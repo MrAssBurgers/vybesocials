@@ -10,10 +10,12 @@ import {
   RefreshCw,
   Search,
   Sparkles,
+  Trash2,
   UserPlus,
   PenLine,
 } from 'lucide-react';
 import { useDMConversations } from '@/hooks/useDMConversations';
+import { useTrashedConversationIds } from '@/hooks/useTrashedConversations';
 import { useAuthProfileId } from '@/hooks/useAuthProfileId';
 import { useAuth } from '@/lib/auth';
 import { ensureArray } from '@/lib/persistedCollections';
@@ -28,6 +30,7 @@ import { VybeMiniIcon } from '@/components/ui/VybeMiniIcon';
 import { cn } from '@/lib/utils';
 import { resolveProfileAvatarUrl } from '@/lib/profileAvatarCache';
 import { batchSignUrls } from '@/lib/signedUrlCache';
+import { TrashBin } from '@/components/chat/TrashBin';
 
 type InboxFilter = 'all' | 'unread';
 
@@ -37,6 +40,9 @@ export function DmInboxView() {
   const profileId = useAuthProfileId();
   const [searchQuery, setSearchQuery] = useState('');
   const [filter, setFilter] = useState<InboxFilter>('all');
+  const [isTrashOpen, setIsTrashOpen] = useState(false);
+  const { data: trashedIds } = useTrashedConversationIds();
+  const trashedCount = trashedIds?.size ?? 0;
 
   const {
     pinnedConversations,
@@ -124,14 +130,33 @@ export function DmInboxView() {
               </p>
             </div>
 
-            <Button
-              size="icon"
-              className="h-10 w-10 rounded-2xl shrink-0 bg-gradient-to-br from-primary to-accent text-primary-foreground shadow-lg shadow-primary/30 hover:opacity-90"
-              onClick={() => navigate('/messages/new')}
-              aria-label="New message"
-            >
-              <PenLine className="h-4 w-4" />
-            </Button>
+            <div className="flex items-center gap-1.5 shrink-0">
+              <TrashBin
+                open={isTrashOpen}
+                onOpenChange={setIsTrashOpen}
+                trigger={
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="relative h-10 w-10 rounded-2xl text-muted-foreground hover:text-foreground hover:bg-foreground/[0.06]"
+                    aria-label="Deleted chats"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                    {trashedCount > 0 && (
+                      <span className="absolute top-1.5 right-1.5 h-2 w-2 rounded-full bg-destructive ring-2 ring-background" />
+                    )}
+                  </Button>
+                }
+              />
+              <Button
+                size="icon"
+                className="h-10 w-10 rounded-2xl bg-gradient-to-br from-primary to-accent text-primary-foreground shadow-lg shadow-primary/30 hover:opacity-90"
+                onClick={() => navigate('/messages/new')}
+                aria-label="New message"
+              >
+                <PenLine className="h-4 w-4" />
+              </Button>
+            </div>
           </div>
 
           <div className="relative mb-3">

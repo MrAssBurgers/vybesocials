@@ -96,6 +96,7 @@ export function useInstantSend(conversationId: string | undefined) {
       },
       views: [],
       reactions: [],
+      _clientKey: tempId,
     };
 
     // Add to messages cache immediately (must match useMessages query key).

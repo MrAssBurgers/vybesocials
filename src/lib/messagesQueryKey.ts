@@ -72,6 +72,11 @@ export function appendIncomingMessage(
   return [...withoutReplacedTemp, msg];
 }
 
+/** Stable list key — survives temp id → server id swap without remounting the bubble. */
+export function messageRowKey(message: { id: string; _clientKey?: string }): string {
+  return message._clientKey ?? message.id;
+}
+
 /** Replace a temp optimistic row with the confirmed server message. */
 export function replaceOptimisticMessage(
   queryClient: QueryClient,
@@ -96,13 +101,20 @@ export function replaceOptimisticMessage(
       const withoutTemp = tempPresent ? old.filter((m) => m.id !== tempId) : old;
       return withoutTemp.map((m) =>
         m.id === realWithSender.id
-          ? { ...m, ...realWithSender, sender: m.sender || realWithSender.sender }
+          ? {
+              ...m,
+              ...realWithSender,
+              _clientKey: m._clientKey ?? tempId,
+              sender: m.sender || realWithSender.sender,
+            }
           : m,
       );
     }
 
     if (tempPresent) {
-      return old.map((m) => (m.id === tempId ? realWithSender : m));
+      return old.map((m) =>
+        m.id === tempId ? { ...realWithSender, _clientKey: tempId } : m,
+      );
     }
 
     return appendIncomingMessage(old, realWithSender);

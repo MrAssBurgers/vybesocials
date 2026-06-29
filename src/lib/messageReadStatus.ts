@@ -19,7 +19,7 @@ export function resolveOwnMessageStatus(
     id.startsWith('temp-') ||
     id.startsWith('vybe-') ||
     Boolean((message as { _sending?: boolean })._sending);
-  if (pending) return 'sent';
+  if (pending) return 'delivered';
 
   if (message.views && message.views.length > 0) return 'opened';
   if (!isGroupChat && peerLastReadAt && message.created_at && message.created_at <= peerLastReadAt) {

@@ -58,6 +58,8 @@ export interface Message {
   reactions?: { user_id: string; emoji: string }[];
   /** After first Vybe view + one hold-replay, snap can never reopen. */
   vybe_replay_exhausted?: boolean;
+  /** Stable React key while optimistic temp id is swapped for server id. */
+  _clientKey?: string;
 }
 
 export interface Conversation {
