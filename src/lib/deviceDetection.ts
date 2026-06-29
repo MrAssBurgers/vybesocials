@@ -3,6 +3,8 @@
  * Keep in sync with `use-mobile.tsx` breakpoints where possible.
  */
 
+import { isNativeAppShell } from '@/lib/despiaBridge';
+
 const TABLET_BREAKPOINT = 1024;
 
 /** Modern iPads often report as Macintosh with touch. */
@@ -43,6 +45,12 @@ export function isMobileSafariBrowser(): boolean {
   const ua = navigator.userAgent;
   if (/CriOS|FxiOS|EdgiOS|OPiOS|OPT\//.test(ua)) return false;
   return /Safari\//i.test(ua) && /Version\//i.test(ua);
+}
+
+/** Desktop browser — popup OAuth; never full-page redirect. */
+export function isDesktopWebBrowser(): boolean {
+  if (typeof window === 'undefined') return false;
+  return !isNativeAppShell() && !isMobileOrTabletDevice();
 }
 
 /**

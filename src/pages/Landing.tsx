@@ -14,7 +14,6 @@ import { toast } from 'sonner';
 import { getUserFriendlyError } from '@/lib/errorUtils';
 import { Eye, EyeOff, Mail } from 'lucide-react';
 import { isNativeAppShell } from '@/lib/despiaBridge';
-import { isMobileOrTabletDevice } from '@/lib/deviceDetection';
 import { db } from '@/lib/firebase';
 import { lovable } from '@/integrations/lovable/index';
 import { VYBELogo } from '@/components/ui/VYBELogo';
@@ -28,7 +27,7 @@ import { FounderCounter } from '@/components/growth/FounderCounter';
 import { getAuthRedirectUrl } from '@/lib/authRedirect';
 import { normalizeLoginEmail } from '@/lib/loginEmail';
 import { getLoginCredentialErrorMessage, isInvalidLoginCredentialError } from '@/lib/loginErrors';
-import { clearObsoleteAuthStorage } from '@/lib/legacyAuthStorage';
+import { clearObsoleteAuthStorage, hasStoredAuthSession } from '@/lib/legacyAuthStorage';
 import { VybeLiquidTouchOverlay } from '@/components/effects/VybeLiquidTouchOverlay';
 import { VybeLiquidText } from '@/components/ui/VybeLiquidText';
 import { useEmailVerificationPoll } from '@/hooks/useEmailVerificationPoll';
@@ -38,6 +37,7 @@ import {
   isOAuthRedirectInFlight,
   markOAuthRedirectPending,
 } from '@/lib/firebase/oauthRedirect';
+import { signInWithOAuthPlatform, shouldUseRedirectOAuth } from '@/lib/nativeOAuth';
 
 
 // Hide bottom nav on landing page + lock document scroll (auth is one-screen)
@@ -167,9 +167,11 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
     username: '',
   });
 
+  const hasStoredSession = hasStoredAuthSession();
+
   const showAuthForm =
     isInviteMode ||
-    (authReady && !user && !loginGate);
+    (!user && !loginGate && (!hasStoredSession || authReady));
 
   useEffect(() => {
     clearStaleOAuthRedirectPending();
@@ -185,29 +187,13 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
   const runOAuthSignIn = useCallback(async (provider: 'google' | 'apple') => {
     setLoading(true);
     try {
-      markOAuthRedirectPending();
       sessionStorage.removeItem('vybe-oauth-error');
-      const preferRedirect = isNativeAppShell() || isMobileOrTabletDevice();
-      const { firebaseAuth } = await import('@/lib/firebase');
-      const baseOpts =
-        provider === 'google'
-          ? { extraParams: { prompt: 'select_account' as const }, useRedirect: preferRedirect }
-          : { useRedirect: preferRedirect };
-
-      let oauthResult = await firebaseAuth.signInWithOAuth(provider, baseOpts);
-      if (oauthResult.redirected) return;
-      if (
-        oauthResult.error &&
-        !preferRedirect &&
-        (oauthResult.error.name === 'auth/popup-blocked' ||
-          oauthResult.error.name === 'auth/popup-closed-by-user')
-      ) {
-        oauthResult = await firebaseAuth.signInWithOAuth(provider, {
-          ...baseOpts,
-          useRedirect: true,
-        });
-        if (oauthResult.redirected) return;
+      if (shouldUseRedirectOAuth()) {
+        markOAuthRedirectPending();
       }
+
+      const oauthResult = await signInWithOAuthPlatform(provider);
+      if (oauthResult.redirected) return;
       if (oauthResult.error) throw oauthResult.error;
 
       if (oauthResult.data.session?.user) {
@@ -272,7 +258,7 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
       setIsOAuthReturn(false);
       setLoading(false);
       toast.error('Sign-in did not complete. Please try again.');
-    }, 12000);
+    }, 18000);
 
     return () => clearTimeout(failTimer);
   }, [isOAuthReturn, user, authReady, profile, navigate]);
@@ -284,8 +270,8 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
   const location = useLocation();
   const isInviteRoute = location.pathname.startsWith('/invite/');
 
-  // Prevent the "login flash": if auth is still resolving, show a loader instead of a blank screen.
-  if (!isInviteMode && !authReady) {
+  // Spinner only while restoring an existing session — logged-out users see the form immediately.
+  if (!isInviteMode && !authReady && hasStoredSession && !isOAuthReturn) {
     return (
       <div className="fixed inset-0 z-50 bg-[#0B0B10] flex items-center justify-center">
         <div className="w-8 h-8 rounded-full border-[3px] border-primary/30 border-t-primary animate-spin" />
@@ -296,9 +282,21 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
   // OAuth redirect in flight — keep spinner until session hydrates (avoids login loop).
   if (!isInviteMode && isOAuthReturn && !user) {
     return (
-      <div className="fixed inset-0 z-50 bg-[#0B0B10] flex flex-col items-center justify-center gap-3">
+      <div className="fixed inset-0 z-50 bg-[#0B0B10] flex flex-col items-center justify-center gap-4 px-6">
         <div className="w-8 h-8 rounded-full border-[3px] border-primary/30 border-t-primary animate-spin" />
-        <p className="text-sm text-muted-foreground">Finishing sign-in…</p>
+        <p className="text-sm text-muted-foreground text-center">Completing sign-in…</p>
+        <Button
+          type="button"
+          variant="secondary"
+          className="rounded-full"
+          onClick={() => {
+            clearOAuthRedirectPending();
+            setIsOAuthReturn(false);
+            setLoading(false);
+          }}
+        >
+          Cancel
+        </Button>
       </div>
     );
   }

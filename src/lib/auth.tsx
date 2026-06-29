@@ -1052,20 +1052,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       clearOAuthRedirectPending();
 
-      const signInPromise = db.auth.signInWithPassword({
+      const { data, error } = await db.auth.signInWithPassword({
         email: normalized,
         password,
       });
-
-      const { data, error } = await Promise.race([
-        signInPromise,
-        new Promise<Awaited<typeof signInPromise>>((_, reject) => {
-          window.setTimeout(
-            () => reject(new Error('Sign-in timed out. Check your connection and try again.')),
-            15000,
-          );
-        }),
-      ]);
 
       if (data.session?.user) {
         applySession(data.session);

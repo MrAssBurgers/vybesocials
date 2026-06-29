@@ -163,8 +163,10 @@ the app needs the permission, or Apple rejects.
 <array>
   <string>vybehub.app</string>
   <string>www.vybehub.app</string>
-  <string>hprmicwhlaaqfgshucec.supabase.co</string>
-  <string>vybeapp.lovable.app</string>
+  <string>vybe-daaab.web.app</string>
+  <string>vybe-daaab.firebaseapp.com</string>
+  <string>identitytoolkit.googleapis.com</string>
+  <string>securetoken.googleapis.com</string>
 </array>
 ```
 
@@ -179,17 +181,48 @@ is present, otherwise iOS crashes the app.
 
 ---
 
-## 6. Sign in with Apple
+## 6. Google & Apple Sign-In (Firebase native)
 
-Already implemented in `src/pages/Landing.tsx` via Lovable Cloud's managed
-Apple provider. After enabling the capability in Xcode (§3.3), no further
-code changes are needed.
+Web OAuth uses popup (desktop) or redirect (mobile Safari). **Native iOS/Android**
+uses `@capacitor-firebase/authentication` so Google/Apple never open a separate
+Safari window — see `src/lib/nativeOAuth.ts` and `capacitor.config.ts`.
 
-In the Apple Developer console:
+### Firebase Console
 
-1. Identifiers → your App ID → enable **Sign in with Apple**
-2. Make sure the Services ID redirect URL points to:
-   `https://hprmicwhlaaqfgshucec.supabase.co/auth/v1/callback`
+1. Authentication → Sign-in method → enable **Google** and **Apple**
+2. Add iOS + Android apps under Project settings if not already present
+3. Authorized domains must include `vybehub.app`, `vybe-daaab.web.app`, `localhost`
+
+### iOS (Capacitor / Despia rebuild required)
+
+1. Download `GoogleService-Info.plist` from Firebase → add to `ios/App/App/`
+2. In Xcode → **Signing & Capabilities** → enable **Sign in with Apple**
+3. Add reversed Google client ID to URL schemes (from plist `REVERSED_CLIENT_ID`):
+
+```xml
+<key>CFBundleURLTypes</key>
+<array>
+  <dict>
+    <key>CFBundleURLSchemes</key>
+    <array>
+      <string>vybe</string>
+      <string>com.googleusercontent.apps.YOUR-CLIENT-ID</string>
+    </array>
+  </dict>
+</array>
+```
+
+4. Run `npx cap sync ios` after `npm install`
+
+### Apple Developer
+
+1. Identifiers → App ID → enable **Sign in with Apple**
+2. Firebase Console → Authentication → Apple → configure Service ID if using web Apple sign-in
+
+### Android
+
+1. Place `google-services.json` in `android/app/`
+2. Run `npx cap sync android`
 
 ---
 

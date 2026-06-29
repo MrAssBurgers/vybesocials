@@ -14,6 +14,7 @@ import {
   OAuthProvider,
   signInWithPopup,
   signInWithRedirect,
+  signInWithCredential,
   type User as FirebaseUser,
 } from 'firebase/auth';
 import { getFirebaseApp } from './app';
@@ -26,6 +27,9 @@ const NOT_CONFIGURED: VybeAuthError = {
   message: 'Firebase is not configured. Set VITE_FIREBASE_* variables (see .env.example).',
   name: 'firebase/not-configured',
 };
+
+/** Single sign-in timeout — used by password login (auth.tsx should not stack another). */
+export const SIGN_IN_TIMEOUT_MS = 12000;
 
 function resolveAuth(): ReturnType<typeof getAuth> | null {
   if (!isFirebaseConfigured()) return null;
@@ -176,7 +180,8 @@ export const firebaseAuth = {
     const user = auth.currentUser;
     if (!user) return { data: { session: null }, error: null };
     const instant = buildVybeSessionInstant(user);
-    return { data: { session: await enrichSessionToken(instant, user, 3000) }, error: null };
+    void enrichSessionToken(instant, user, 3000);
+    return { data: { session: instant }, error: null };
   },
 
   async getUser(): Promise<{ data: { user: VybeUser | null }; error: VybeAuthError | null }> {
@@ -286,7 +291,7 @@ export const firebaseAuth = {
       try {
         const cred = await withAuthTimeout(
           signInWithEmailAndPassword(auth, payload.email, payload.password),
-          12000,
+          SIGN_IN_TIMEOUT_MS,
           'Sign-in timed out. Check your connection and try again.',
         );
         const session = buildVybeSessionInstant(cred.user);
@@ -404,6 +409,53 @@ export const firebaseAuth = {
       const result = await signInWithPopup(auth, authProvider);
       const session = buildVybeSessionInstant(result.user);
       void enrichSessionToken(session, result.user, 5000);
+      return { data: { session }, error: null };
+    } catch (err) {
+      return { data: { session: null }, error: toAuthError(err) };
+    }
+  },
+
+  /** Native Google/Apple via Capacitor Firebase Authentication (no Safari redirect). */
+  async signInWithOAuthNative(
+    provider: 'google' | 'apple',
+  ): Promise<{ data: { session: VybeSession | null }; error: VybeAuthError | null }> {
+    const auth = resolveAuth();
+    if (!auth) return { data: { session: null }, error: NOT_CONFIGURED };
+
+    try {
+      const { FirebaseAuthentication } = await import('@capacitor-firebase/authentication');
+
+      const result =
+        provider === 'google'
+          ? await FirebaseAuthentication.signInWithGoogle()
+          : await FirebaseAuthentication.signInWithApple();
+
+      const firebaseUser = auth.currentUser;
+      if (firebaseUser) {
+        const session = buildVybeSessionInstant(firebaseUser);
+        void enrichSessionToken(session, firebaseUser, 5000);
+        return { data: { session }, error: null };
+      }
+
+      const idToken = result.credential?.idToken;
+      if (!idToken) {
+        return {
+          data: { session: null },
+          error: { message: `${provider === 'google' ? 'Google' : 'Apple'} sign-in did not return credentials` },
+        };
+      }
+
+      const credential =
+        provider === 'google'
+          ? GoogleAuthProvider.credential(idToken, result.credential?.accessToken ?? undefined)
+          : new OAuthProvider('apple.com').credential({
+              idToken,
+              rawNonce: result.credential?.nonce,
+            });
+
+      const userCred = await signInWithCredential(auth, credential);
+      const session = buildVybeSessionInstant(userCred.user);
+      void enrichSessionToken(session, userCred.user, 5000);
       return { data: { session }, error: null };
     } catch (err) {
       return { data: { session: null }, error: toAuthError(err) };

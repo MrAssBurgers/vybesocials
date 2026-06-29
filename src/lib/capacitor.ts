@@ -63,19 +63,30 @@ export async function initializeNativePlugins() {
       }
     });
 
-    // Handle deep links — supports both Universal Links (https://vybehub.app/...)
-    // and the custom URL scheme (vybe://...). Strips the host so /post/abc works.
+    // Handle deep links — Universal Links, custom scheme, OAuth callback return.
     App.addListener('appUrlOpen', ({ url }) => {
-      try {
-        const parsed = new URL(url);
-        const path = parsed.pathname + parsed.search + parsed.hash;
-        if (path && path !== '/') {
-          window.history.pushState({}, '', path);
-          window.dispatchEvent(new PopStateEvent('popstate'));
+      void (async () => {
+        try {
+          const parsed = new URL(url);
+          const path = parsed.pathname + parsed.search + parsed.hash;
+          const isOAuthReturn =
+            path.startsWith('/auth/callback') ||
+            parsed.search.includes('code=') ||
+            parsed.hash.includes('access_token');
+
+          if (isOAuthReturn) {
+            const { firebaseAuth } = await import('@/lib/firebase');
+            await firebaseAuth.completeOAuthRedirectIfNeeded();
+          }
+
+          if (path && path !== '/') {
+            window.history.pushState({}, '', path);
+            window.dispatchEvent(new PopStateEvent('popstate'));
+          }
+        } catch (e) {
+          console.warn('[Capacitor] Bad deep link:', url, e);
         }
-      } catch (e) {
-        console.warn('[Capacitor] Bad deep link:', url, e);
-      }
+      })();
     });
 
     console.log('[Capacitor] Native plugins initialized successfully');

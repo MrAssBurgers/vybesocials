@@ -412,15 +412,32 @@ function AppWithPreloader() {
     }
   }, []);
 
+  const showSplashRef = useRef(showSplash);
+  const preloadCompleteRef = useRef(preloadStatus.isComplete);
+  const authResolvedRef = useRef(authResolved);
+  showSplashRef.current = showSplash;
+  preloadCompleteRef.current = preloadStatus.isComplete;
+  authResolvedRef.current = authResolved;
+
   useEffect(() => {
     if (!showSplash) return;
-    // Hide splash when preloader is done AND auth has resolved.
     const preloaderDone = preloadStatus.isComplete;
     const authDone = authResolved;
     if (preloaderDone && authDone) {
       completeInitialSplash(setShowSplash);
     }
   }, [preloadStatus.isComplete, showSplash, authResolved, hasSession]);
+
+  // After fresh sign-in, dismiss splash quickly — don't wait for full preloader.
+  useEffect(() => {
+    const { data: { subscription } } = db.auth.onAuthStateChange((event) => {
+      if (event !== 'SIGNED_IN' || !showSplashRef.current) return;
+      window.setTimeout(() => {
+        if (showSplashRef.current) completeInitialSplash(setShowSplash);
+      }, 300);
+    });
+    return () => subscription.unsubscribe();
+  }, []);
 
   // Never leave splash up after ATT / system sheets (App Review 2.1a blank screen).
   useEffect(() => {
@@ -439,13 +456,6 @@ function AppWithPreloader() {
     navVisibility.forceShow();
     navVisibility.resetScrollHide();
   }, [showSplash]);
-
-  const showSplashRef = useRef(showSplash);
-  const preloadCompleteRef = useRef(preloadStatus.isComplete);
-  const authResolvedRef = useRef(authResolved);
-  showSplashRef.current = showSplash;
-  preloadCompleteRef.current = preloadStatus.isComplete;
-  authResolvedRef.current = authResolved;
 
   useEffect(() => {
     const dismissSplash = () => {

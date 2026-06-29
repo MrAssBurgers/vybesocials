@@ -1,6 +1,7 @@
 import { getRedirectResult } from 'firebase/auth';
 import { firebaseAuth } from './authService';
 import type { VybeSession, VybeAuthError } from './types';
+import { isMobileOrTabletDevice } from '@/lib/deviceDetection';
 
 export type OAuthRedirectCapture = {
   session: VybeSession | null;
@@ -10,7 +11,11 @@ export type OAuthRedirectCapture = {
 const OAUTH_PENDING_KEY = 'vybe-oauth-pending';
 const OAUTH_PENDING_AT_KEY = 'vybe-oauth-pending-at';
 const OAUTH_PENDING_MAX_MS = 3 * 60 * 1000;
-const OAUTH_REDIRECT_TIMEOUT_MS = 8000;
+
+function getOAuthRedirectTimeoutMs(): number {
+  if (typeof window === 'undefined') return 8000;
+  return isMobileOrTabletDevice() ? 18000 : 8000;
+}
 
 let capturePromise: Promise<OAuthRedirectCapture> | null = null;
 
@@ -65,11 +70,12 @@ export function captureOAuthRedirectOnLoad(): Promise<OAuthRedirectCapture> {
     if (!auth) return { session: null, error: null };
 
     try {
-      const result = await withTimeout(getRedirectResult(auth), OAUTH_REDIRECT_TIMEOUT_MS);
+      const result = await withTimeout(getRedirectResult(auth), getOAuthRedirectTimeoutMs());
       if (!result?.user) return { session: null, error: null };
 
       const { data: userData } = await firebaseAuth.getUser();
       if (userData.user) {
+        clearOAuthRedirectPending();
         return {
           session: {
             user: userData.user,
@@ -82,6 +88,7 @@ export function captureOAuthRedirectOnLoad(): Promise<OAuthRedirectCapture> {
 
       return { session: null, error: { message: 'OAuth redirect completed without session' } };
     } catch (err) {
+      clearOAuthRedirectPending();
       const message = err instanceof Error ? err.message : 'OAuth redirect failed';
       return {
         session: null,

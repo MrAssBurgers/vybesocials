@@ -2,6 +2,13 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## Seamless login fix — native OAuth + faster auth boot (2026-06-29)
+- **Problem:** Slow login; Google opens separate Safari browser on Despia/iOS; spinner before form
+- **Fix:** Platform router `nativeOAuth.ts` — Capacitor Firebase Auth on native shells (no redirect); popup desktop; redirect mobile Safari only; instant login form when logged out; deferred `getSession` token enrich; unified 12s sign-in timeout; OAuth return Cancel + 18s mobile capture; splash dismiss 300ms after SIGNED_IN; deep link OAuth capture in `capacitor.ts`
+- **Deps:** `@capacitor-firebase/authentication@8.3.0`
+- **Verified:** `npm run build` PASS · `npm run lint` PASS
+- **You:** Despia native rebuild (`npx cap sync`) + Firebase iOS/Android OAuth clients · Lovable Publish vybehub.app · test Google on device (no Safari handoff)
+
 ## Home "page couldn't load" — corrupt challenge/pass cache (2026-06-29)
 - **Symptom:** Recurring route error `"This page couldn't load"` on `/home` when logged in (AnimatedRoutes ErrorBoundary)
 - **Cause:** IndexedDB persisted `challenges` / `vybe-pass-tiers` as plain `{}` instead of arrays → `BattlePassWidget` / `useChallengesWithProgress` called `.map`/`.filter` on object and threw
