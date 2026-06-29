@@ -847,12 +847,15 @@ service cloud.firestore {
     }
     match /vybe_tokens/{docId} {
       allow read: if ownsUserField('user_id') || ownsProfileId(docId) || isAdmin();
-      allow create, update: if willOwnUserField('user_id') || ownsProfileId(docId) || isAdmin();
+      // Balance writes restricted to Cloud Functions (admin SDK) to prevent self-minting.
+      allow create, update, delete: if isAdmin();
     }
     match /token_transactions/{docId} {
       allow read: if ownsUserField('user_id') || isAdmin();
-      allow create: if willOwnUserField('user_id') || isAdmin();
+      // Transaction ledger writes restricted to Cloud Functions only.
+      allow create, update, delete: if isAdmin();
     }
+
     match /marketplace_purchases/{docId} {
       allow read: if ownsUserField('user_id') || isAdmin();
       allow create: if willOwnUserField('user_id') || isAdmin();
