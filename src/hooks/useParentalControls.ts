@@ -1,7 +1,10 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { httpsCallable } from 'firebase/functions';
-import { functions } from '@/integrations/firebase/client';
+import { httpsCallable, getFunctions } from 'firebase/functions';
+import { getApp } from 'firebase/app';
 import { useAuth } from '@/lib/auth';
+
+const fns = () => getFunctions(getApp());
+
 
 export interface ParentalControls {
   id?: string;
