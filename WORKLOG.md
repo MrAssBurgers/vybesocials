@@ -7,6 +7,7 @@ Use this file as the Lovable -> Cursor handoff each session.
 - **Cause:** Capacitor Firebase Auth never runs in Despia WebView (`isNativePlatform` false); fallback used `signInWithPopup` → Safari handoff
 - **Fix:** `src/lib/despiaOAuth.ts` — Despia `oauth://?url=...` → ASWebAuthenticationSession; `public/native-callback.html` → `com.despia.vybe://oauth/auth?id_token=...`; Firebase `signInWithCredential`; removed popup fallback for Despia in `nativeOAuth.ts`; separate `vybe-despia-oauth-pending` state
 - **Verified:** `npm run build` PASS · `npm run lint` PASS · `dist/native-callback.html` present
+- **Committed:** `8ca13e0d` · pushed `main`
 - **Deployed:** https://vybe-daaab.web.app
 - **You:** Google Cloud Console → add redirect URI `https://vybehub.app/native-callback.html` · Lovable Publish vybehub.app (callback must be live) · test Google on Despia device (secure sheet, not Safari tab)
 

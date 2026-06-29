@@ -69,8 +69,8 @@ export const MobileHeader = React.forwardRef<HTMLElement, React.ComponentPropsWi
         style={{
           paddingTop: 'var(--app-header-safe, env(safe-area-inset-top, 48px))',
           paddingBottom: 'var(--app-header-tail, 0.5rem)',
-          paddingLeft: 'max(1rem, env(safe-area-inset-left, 0px))',
-          paddingRight: 'max(1rem, calc(1rem + var(--app-header-safe-right, env(safe-area-inset-right, 0px))))',
+          paddingLeft: 'var(--app-gutter-x, max(1rem, env(safe-area-inset-left, 0px)))',
+          paddingRight: 'var(--app-gutter-x-end, max(1rem, env(safe-area-inset-right, 0px)))',
         }}
       >
         {/* Background layer extends below the toolbar and fades out so the
@@ -91,7 +91,6 @@ export const MobileHeader = React.forwardRef<HTMLElement, React.ComponentPropsWi
         />
         <div
           className={cn('flex items-center gap-2.5', TOOLBAR_H)}
-          style={{ marginTop: 'var(--app-header-gap, 0.5rem)' }}
         >
           <Link
             to="/home"

@@ -1,5 +1,5 @@
 import { ensureAppShellVisible } from '@/lib/attResumeRecovery';
-import { hideStaticBootSplash } from '@/lib/splashProgressBridge';
+import { hideStaticBootSplash, publishSplashProgress } from '@/lib/splashProgressBridge';
 
 const APP_READY_ATTR = 'data-vybe-app-ready';
 
@@ -8,6 +8,7 @@ const APP_READY_ATTR = 'data-vybe-app-ready';
  * Never remove React-managed splash nodes — that races AnimatePresence and throws removeChild.
  */
 export function clearSplashDocumentLocks(): void {
+  publishSplashProgress(100, "Let's go! ✨");
   hideStaticBootSplash();
   document.body.classList.remove('splash-visible');
   document.body.style.overflow = '';

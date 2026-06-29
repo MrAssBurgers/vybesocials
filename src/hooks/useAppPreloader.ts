@@ -88,7 +88,6 @@ export function useAppPreloader() {
   }, []);
 
   const finishPreload = useCallback((label = 'Ready!') => {
-    publishSplashProgress(100, label);
     setStatus({ step: label, progress: 100, isComplete: true });
   }, []);
 

@@ -43,14 +43,14 @@ function fallbackTop(platform: PlatformType, device: DeviceType): number {
   if (device === 'desktop') return 0;
 
   const native = isDespiaRuntime();
-  if (platform === 'ios') return native ? 59 : 52;
-  if (platform === 'android') return native ? 52 : 44;
-  return native ? 44 : 36;
+  if (platform === 'ios') return native ? 47 : 44;
+  if (platform === 'android') return native ? 24 : 24;
+  return native ? 24 : 20;
 }
 
 function fallbackGap(device: DeviceType): number {
   if (device === 'desktop') return 0;
-  return isDespiaRuntime() ? 12 : 8;
+  return 0;
 }
 
 function fallbackBottom(device: DeviceType): number {
@@ -58,9 +58,12 @@ function fallbackBottom(device: DeviceType): number {
   return isDespiaRuntime() ? 68 : 24;
 }
 
-function fallbackRight(device: DeviceType): number {
-  if (device === 'desktop') return 0;
-  return isDespiaRuntime() ? 16 : 12;
+function fallbackRight(_device: DeviceType): number {
+  return 0;
+}
+
+function fallbackLeft(_device: DeviceType): number {
+  return 0;
 }
 
 export function resolveSafeAreaInsets(
@@ -70,16 +73,23 @@ export function resolveSafeAreaInsets(
 ): MeasuredSafeAreaInsets & { gap: number } {
   const topFloor = fallbackTop(platform, device);
   const viewportTop = readVisualViewportTop();
-  const rightFloor = fallbackRight(device);
   const gap = fallbackGap(device);
 
   return {
-    top: Math.max(measured.top, topFloor, viewportTop),
-    right: Math.max(measured.right, rightFloor),
+    top:
+      measured.top > 0
+        ? Math.max(measured.top, viewportTop)
+        : Math.max(topFloor, viewportTop),
+    right: Math.max(measured.right, fallbackRight(device)),
     bottom: Math.max(measured.bottom, fallbackBottom(device)),
-    left: Math.max(measured.left, 0),
+    left: Math.max(measured.left, fallbackLeft(device)),
     gap,
   };
+}
+
+function contentGutter(insetPx: number): number {
+  const baseRem = 16;
+  return Math.max(baseRem, insetPx);
 }
 
 export function applySafeAreaCssVars(
@@ -97,6 +107,12 @@ export function applySafeAreaCssVars(
     root.style.setProperty('--app-header-safe', `${resolved.top}px`);
     root.style.setProperty('--app-header-gap', `${resolved.gap}px`);
     root.style.setProperty('--app-header-safe-right', `${resolved.right}px`);
+    root.style.setProperty('--sat', `${resolved.top}px`);
+    root.style.setProperty('--sar', `${resolved.right}px`);
+    root.style.setProperty('--sab', `${resolved.bottom}px`);
+    root.style.setProperty('--sal', `${resolved.left}px`);
+    root.style.setProperty('--app-gutter-x', `${contentGutter(resolved.left)}px`);
+    root.style.setProperty('--app-gutter-x-end', `${contentGutter(resolved.right)}px`);
     body.style.setProperty('--sat', `${resolved.top}px`);
     body.style.setProperty('--sar', `${resolved.right}px`);
     body.style.setProperty('--sab', `${resolved.bottom}px`);
@@ -110,12 +126,12 @@ export function applySafeAreaCssVars(
 
   apply();
   window.addEventListener('resize', apply);
+  window.addEventListener('orientationchange', apply);
   window.visualViewport?.addEventListener('resize', apply);
-  window.visualViewport?.addEventListener('scroll', apply);
 
   return () => {
     window.removeEventListener('resize', apply);
+    window.removeEventListener('orientationchange', apply);
     window.visualViewport?.removeEventListener('resize', apply);
-    window.visualViewport?.removeEventListener('scroll', apply);
   };
 }

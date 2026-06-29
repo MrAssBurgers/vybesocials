@@ -558,7 +558,7 @@ function AppWithPreloader() {
                           <div
                             id="app-shell"
                             data-app-shell
-                            className="relative z-[1] app-shell min-h-dvh overflow-hidden bg-transparent"
+                            className="relative z-[1] app-shell min-h-dvh w-full max-w-full overflow-hidden bg-transparent"
                           >
                           <Suspense fallback={null}>
                             <RewardNotificationProvider>

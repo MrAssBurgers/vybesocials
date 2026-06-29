@@ -5,7 +5,7 @@ import { VYBELogo } from '@/components/ui/VYBELogo';
 import { SplashAmbientBubbles } from '@/components/effects/SplashAmbientBubbles';
 import { ensureAppShellVisible } from '@/lib/attResumeRecovery';
 import { isNativePerfMode } from '@/lib/nativePerfMode';
-import { subscribeSplashProgress } from '@/lib/splashProgressBridge';
+import { subscribeSplashProgress, publishSplashProgress, getLastSplashProgress } from '@/lib/splashProgressBridge';
 import { clearSplashDocumentLocks } from '@/lib/splashDismiss';
 
 interface SplashScreenProps {
@@ -24,11 +24,37 @@ export const SplashScreen = memo(function SplashScreen({ isVisible }: SplashScre
 
   useEffect(() => {
     return subscribeSplashProgress((progress, status) => {
-      if (barRef.current) barRef.current.style.transform = `scaleX(${progress / 100})`;
+      if (barRef.current) {
+        barRef.current.style.transform = `scaleX(${progress / 100})`;
+      }
       if (percentRef.current) percentRef.current.textContent = `${Math.round(progress)}%`;
       if (statusRef.current) statusRef.current.textContent = status;
     });
   }, []);
+
+  // Creep progress while splash is visible (auth/preload may outlast instant preloader).
+  useEffect(() => {
+    if (!isVisible) return;
+
+    const { progress: start } = getLastSplashProgress();
+    let current = Math.max(start, 4);
+    publishSplashProgress(current, 'Waking up...');
+
+    const timer = window.setInterval(() => {
+      if (current >= 92) return;
+      current = Math.min(92, current + 1.2);
+      const label =
+        current < 28 ? 'Waking up...' : current < 58 ? 'Checking session...' : 'Almost ready...';
+      publishSplashProgress(current, label);
+    }, 70);
+
+    return () => clearInterval(timer);
+  }, [isVisible]);
+
+  useEffect(() => {
+    if (isVisible) return;
+    publishSplashProgress(100, "Let's go! ✨");
+  }, [isVisible]);
 
   useEffect(() => {
     if (isVisible) {
@@ -73,12 +99,11 @@ export const SplashScreen = memo(function SplashScreen({ isVisible }: SplashScre
         >
           {!reduceMotion && <SplashAmbientBubbles />}
 
-          <div className="relative z-10 flex flex-col items-center justify-center overflow-visible">
-            <div className="mb-5">
-              <VYBELogo size="splash" showText={false} animated={!reduceMotion} />
+          <div className="relative z-10 flex flex-col items-center justify-center overflow-visible gap-5">
+            <div className="flex flex-col items-center gap-2">
+              <VYBELogo size="splash" showText={false} animated={!reduceMotion} className="[&_svg]:w-20 [&_svg]:h-20 sm:[&_svg]:w-24 sm:[&_svg]:h-24" />
+              <VybeWordmark size="splash" as="h1" className="overflow-visible" />
             </div>
-
-            <VybeWordmark size="splash" as="h1" className="mb-5 overflow-visible" />
 
             <div className="w-[min(16rem,72vw)]">
               <div className="relative h-1.5 bg-foreground/[0.1] rounded-full overflow-hidden">

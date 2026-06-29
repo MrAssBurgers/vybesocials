@@ -509,12 +509,14 @@ export const BottomNav = memo(forwardRef<HTMLElement, object>(function BottomNav
       <nav
         ref={ref}
         className={cn(
-          'bottom-nav fixed inset-x-0 flex justify-center px-2 pointer-events-none',
+          'bottom-nav fixed inset-x-0 flex justify-center pointer-events-none',
           !isVisible && 'bottom-nav--hidden',
         )}
         style={{
           zIndex: 5002,
-          bottom: 'calc(env(safe-area-inset-bottom, 0px) + 10px)',
+          bottom: 'calc(var(--sab, env(safe-area-inset-bottom, 0px)) + 10px)',
+          paddingLeft: 'var(--app-gutter-x, max(0.5rem, env(safe-area-inset-left, 0px)))',
+          paddingRight: 'var(--app-gutter-x-end, max(0.5rem, env(safe-area-inset-right, 0px)))',
         }}
         aria-label="Bottom navigation"
         aria-hidden={!isVisible}

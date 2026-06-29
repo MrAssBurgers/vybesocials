@@ -43,19 +43,22 @@ label {
 
 :root {
   --app-header-safe: env(safe-area-inset-top, 0px);
-  --app-header-gap: 0.5rem;
+  --app-header-gap: 0px;
   --app-header-safe-right: env(safe-area-inset-right, 0px);
   --app-header-toolbar: 2.5rem;
-  --app-header-tail: 0.5rem;
-  --app-header-top: calc(var(--app-header-safe) + var(--app-header-gap));
-  --app-header-height: calc(var(--app-header-safe) + var(--app-header-gap) + var(--app-header-toolbar) + var(--app-header-tail));
+  --app-header-tail: 0.125rem;
+  --app-header-top: var(--app-header-safe);
+  --app-header-height: calc(var(--app-header-safe) + var(--app-header-toolbar) + var(--app-header-tail));
   --app-floating-header-scroll: calc(var(--app-header-height) + 0.5rem);
   --kb-h: 0px;
-  /* Measured safe-area vars (JS overrides on <body>; raw env() reports 0 in some WebViews) */
+  /* Measured safe-area vars (JS overrides on <html> + <body>) */
   --sat: var(--app-header-safe);
   --sar: env(safe-area-inset-right, 0px);
   --sab: env(safe-area-inset-bottom, 0px);
   --sal: env(safe-area-inset-left, 0px);
+  /* Unified horizontal gutters — header, content, bottom nav share these */
+  --app-gutter-x: max(1rem, var(--sal, env(safe-area-inset-left, 0px)));
+  --app-gutter-x-end: max(1rem, var(--sar, env(safe-area-inset-right, 0px)));
   --motion-duration-fast: 150ms;
   --motion-duration-normal: 220ms;
   --motion-duration-large: 300ms;
@@ -67,27 +70,18 @@ label {
   html.device-mobile,
   html.device-tablet,
   html:not(.device-desktop) {
+    --app-header-safe: env(safe-area-inset-top, 0px);
+    --app-header-gap: 0px;
+  }
+
+  html.platform-ios.device-mobile:not([data-native-shell]),
+  html.platform-ios.device-tablet:not([data-native-shell]) {
     --app-header-safe: max(env(safe-area-inset-top, 0px), 44px);
-    --app-header-gap: 0.5rem;
   }
 
-  html.platform-ios.device-mobile,
-  html.platform-ios.device-tablet {
-    --app-header-safe: max(env(safe-area-inset-top, 0px), 54px);
-  }
-
-  html.platform-android.device-mobile,
-  html.platform-android.device-tablet {
-    --app-header-safe: max(env(safe-area-inset-top, 0px), 48px);
-  }
-
-  html.native-perf-mode.platform-android {
-    --app-header-safe: max(env(safe-area-inset-top, 0px), 52px);
-  }
-
-  /* Keep tab content below notch — immersive routes (map, clips) opt out via body class */
-  body:not(.hide-bottom-nav):not(.immersive-route) [data-app-shell] {
-    padding-top: var(--app-header-safe);
+  html.platform-android.device-mobile:not([data-native-shell]),
+  html.platform-android.device-tablet:not([data-native-shell]) {
+    --app-header-safe: max(env(safe-area-inset-top, 0px), 24px);
   }
 }
 
@@ -5264,8 +5258,8 @@ body.has-liquid-bg [data-route-shell] {
 .container-responsive {
   width: 100%;
   max-width: 100%;
-  padding-left: max(env(safe-area-inset-left, 0px), 1rem);
-  padding-right: max(env(safe-area-inset-right, 0px), 1rem);
+  padding-left: var(--app-gutter-x, max(env(safe-area-inset-left, 0px), 1rem));
+  padding-right: var(--app-gutter-x-end, max(env(safe-area-inset-right, 0px), 1rem));
 }
 
 /* Consistent spacing scale */

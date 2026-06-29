@@ -156,8 +156,8 @@ export const AppLayout = memo(forwardRef<HTMLDivElement, AppLayoutProps>(functio
               paddingBottom:
                 reserveBottomNavSpace
                   ? navEffectiveVisible
-                    ? 'calc(6rem + env(safe-area-inset-bottom))'
-                    : 'calc(1.25rem + env(safe-area-inset-bottom))'
+                    ? 'calc(6rem + var(--sab, env(safe-area-inset-bottom, 0px)))'
+                    : 'calc(1.25rem + var(--sab, env(safe-area-inset-bottom, 0px)))'
                   : undefined,
               WebkitOverflowScrolling: 'touch',
               overscrollBehaviorY: 'contain',

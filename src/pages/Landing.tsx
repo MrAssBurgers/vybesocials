@@ -495,7 +495,7 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
         <button
           type="button"
           onClick={() => navigate('/vybe-home')}
-          className="fixed top-[max(0.5rem,var(--sat,0px))] left-[max(0.5rem,env(safe-area-inset-left))] z-30 flex items-center gap-1 px-2.5 py-1 rounded-full bg-background/70 hover:bg-background/90 border border-white/10 text-[11px] text-foreground/80 hover:text-foreground backdrop-blur-md transition"
+          className="fixed top-[max(0.5rem,var(--sat,0px))] left-[var(--app-gutter-x,max(0.5rem,env(safe-area-inset-left,0px)))] z-30 flex items-center gap-1 px-2.5 py-1 rounded-full bg-background/70 hover:bg-background/90 border border-white/10 text-[11px] text-foreground/80 hover:text-foreground backdrop-blur-md transition"
           aria-label="Back to home"
         >
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
