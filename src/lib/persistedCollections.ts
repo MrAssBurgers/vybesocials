@@ -204,6 +204,14 @@ function isPersistedArrayQueryKey(queryKey: readonly unknown[]): boolean {
   return typeof root === 'string' && PERSISTED_ARRAY_QUERY_ROOTS.has(root);
 }
 
+/** List-shaped query keys must never be persisted as plain objects (IDB → `{}` crash on .map). */
+export function mustPersistAsArray(queryKey: readonly unknown[]): boolean {
+  return (
+    isPersistedArrayQueryKey(queryKey) ||
+    queryKeyMatchesFragments(queryKey, PERSISTED_ARRAY_KEY_FRAGMENTS)
+  );
+}
+
 function queryKeyMatchesFragments(queryKey: readonly unknown[], fragments: string[]): boolean {
   try {
     const flat = JSON.stringify(queryKey).toLowerCase();

@@ -2,6 +2,14 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## Home "page couldn't load" — corrupt challenge/pass cache (2026-06-29)
+- **Symptom:** Recurring route error `"This page couldn't load"` on `/home` when logged in (AnimatedRoutes ErrorBoundary)
+- **Cause:** IndexedDB persisted `challenges` / `vybe-pass-tiers` as plain `{}` instead of arrays → `BattlePassWidget` / `useChallengesWithProgress` called `.map`/`.filter` on object and threw
+- **Fix:** `mustPersistAsArray` blocks re-persisting non-array list keys; `select` + `ensureArray` on challenge/pass hooks; per-widget ErrorBoundary on stories + battle pass; cache buster `vybe-cache-v18`
+- **Verified:** `npm run build` PASS · `npm run lint` PASS
+- **Deployed:** https://vybe-daaab.web.app
+- **You:** Hard refresh once (Cmd+Shift+R) or Settings → clear site data · Lovable Publish → vybehub.app
+
 ## Splash boot crash fix — useAuth outside AuthProvider (2026-06-17)
 - **Symptom:** Full-screen "Something went wrong" / "VYBE hit a snag" on app load
 - **Cause:** `VYBELogo` → `useVybeMarkColors` → `useUserTheme` → `useAuth`, but splash renders before `<AuthProvider>`

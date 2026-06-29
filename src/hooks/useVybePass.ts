@@ -3,6 +3,7 @@ import { useEffect, useRef, useCallback } from 'react';
 import { db } from '@/lib/firebase';
 import { subscribePostgresChannel, removeRealtimeChannel } from '@/lib/realtimeChannel';
 import { useAuth } from '@/lib/auth';
+import { ensureArray } from '@/lib/persistedCollections';
 import { toast } from 'sonner';
 import { navigationRef } from '@/lib/navigationRef';
 import { getCachedUserLevel, setCachedUserLevel } from '@/lib/userLevelCache';
@@ -141,6 +142,7 @@ export function useVybePassTiers() {
       return data as VybePassTier[];
     },
     staleTime: 1000 * 60 * 30,
+    select: (data) => ensureArray<VybePassTier>(data),
   });
 }
 

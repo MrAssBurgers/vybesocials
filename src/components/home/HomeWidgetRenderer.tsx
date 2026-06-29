@@ -205,7 +205,11 @@ function WidgetContent({ id, props }: { id: string; props: Props }) {
     case 'ai_brief':
       return <DailyBriefWidget />;
     case 'stories':
-      return <StoriesBar colSpan={colSpan} rowSpan={1} />;
+      return (
+        <ErrorBoundary scope="home:stories" fallback={() => null}>
+          <StoriesBar colSpan={colSpan} rowSpan={1} />
+        </ErrorBoundary>
+      );
     case 'weekly_rhythm':
       return <WeeklyRhythmBanner />;
     case 'vybe_dna':
@@ -255,7 +259,11 @@ function WidgetContent({ id, props }: { id: string; props: Props }) {
     case 'creator_analytics':
       return <CreatorAnalytics />;
     case 'battle_pass':
-      return <BattlePassWidget />;
+      return (
+        <ErrorBoundary scope="home:battle-pass" fallback={() => null}>
+          <BattlePassWidget />
+        </ErrorBoundary>
+      );
     case 'feed':
       return <FeedSection {...props} />;
     default:

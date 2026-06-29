@@ -1,7 +1,7 @@
 import { createAsyncStoragePersister } from '@tanstack/query-async-storage-persister';
 import type { PersistedClient } from '@tanstack/react-query-persist-client';
 import { get, set, del } from 'idb-keyval';
-import { revivePersistedClient } from '@/lib/persistedCollections';
+import { mustPersistAsArray, revivePersistedClient } from '@/lib/persistedCollections';
 import { isStoriesQueryKey, sanitizeStoriesCacheData } from '@/lib/storiesCacheSanitize';
 
 /**
@@ -130,6 +130,9 @@ export function shouldPersistQueryKey(queryKey: readonly unknown[], data?: unkno
       }
       // List-shaped keys (dm-conversations, etc.) must stay arrays — object snapshots crash render.
       return false;
+    }
+    if (mustPersistAsArray(queryKey)) {
+      return Array.isArray(data);
     }
     return true;
   } catch {

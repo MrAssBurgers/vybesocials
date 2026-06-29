@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth';
 import { useAuthProfileId } from '@/hooks/useAuthProfileId';
+import { ensureArray } from '@/lib/persistedCollections';
 
 /**
  * Maps challenge requirement_type to the route where users can complete it
@@ -159,6 +160,7 @@ export function useChallenges() {
     },
     staleTime: 1000 * 60 * 5,
     networkMode: 'always',
+    select: (data) => ensureArray<Challenge>(data),
     // Refetch when window regains focus (handles day/week boundaries)
     refetchOnWindowFocus: true,
   });
@@ -193,6 +195,7 @@ export function useUserChallengeProgress() {
     enabled: !!profileId,
     networkMode: 'always',
     staleTime: 1000 * 60 * 5,
+    select: (data) => ensureArray<ChallengeProgress>(data),
   });
 }
 
@@ -220,11 +223,16 @@ export function useChallengesWithProgress() {
     enabled: !!authUserId,
     networkMode: 'always',
     staleTime: 1000 * 60 * 2,
+    select: (data) => ensureArray<{ challenge_id: string; is_claimed: boolean }>(data),
   });
 
-  const combined = challenges?.map(challenge => {
-    const userProgress = progress?.find(p => p.challenge_id === challenge.id);
-    const reward = claimedRewards?.find(r => r.challenge_id === challenge.id);
+  const challengeList = ensureArray<Challenge>(challenges);
+  const progressList = ensureArray<ChallengeProgress>(progress);
+  const claimedList = ensureArray<{ challenge_id: string; is_claimed: boolean }>(claimedRewards);
+
+  const combined = challengeList.map(challenge => {
+    const userProgress = progressList.find(p => p.challenge_id === challenge.id);
+    const reward = claimedList.find(r => r.challenge_id === challenge.id);
     const isClaimed = reward?.is_claimed === true;
     
     return {
