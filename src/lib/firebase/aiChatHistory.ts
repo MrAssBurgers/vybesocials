@@ -4,7 +4,7 @@ export interface VybeAiChatMessage {
 }
 
 const AI_HISTORY_ERROR_RE =
-  /invalid-content|First Content should be with role|LOVABLE_API_KEY|GEMINI_API_KEY|^internal$|VYBE AI server failed|VYBE AI could not respond|Sign in to use VYBE AI/i;
+  /invalid-content|First Content should be with role|LOVABLE_API_KEY|GEMINI_API_KEY|^internal$|VYBE AI server (failed|error)|VYBE AI could not respond|Sign in to use VYBE AI|Your Google AI key/i;
 
 /** Drop failed AI error bubbles before they pollute the next Gemini request. */
 export function filterAiChatHistoryForApi(messages: VybeAiChatMessage[]): VybeAiChatMessage[] {

@@ -30,6 +30,10 @@ export interface StreamVybeAiChatOptions {
   onChunk: (delta: string, fullText: string) => void;
   streamDeadlineMs?: number;
   idleMs?: number;
+  /** User has BYOK — server callable uses their key. */
+  hasByok?: boolean;
+  /** Skip client Firebase AI Logic and call aiChat first. */
+  serverFirst?: boolean;
 }
 
 function buildSystemInstruction(ctx: VybeAiChatContext): string {
@@ -348,14 +352,38 @@ async function streamVybeAiChatViaFirebaseAi(
   return fullText.trim();
 }
 
-function pickUserFacingAiError(...errors: unknown[]): string {
-  for (const err of errors) {
-    if (isAppCheckAiError(err)) continue;
-    const formatted = formatFirebaseAiError(err) || formatCallableAiError(err);
-    if (formatted && !/retrying via server|using server fallback/i.test(formatted)) {
-      return formatted;
+function pickUserFacingAiError(errors: unknown[], preferCallable = false): string {
+  type Candidate = { formatted: string; score: number };
+  const candidates: Candidate[] = [];
+
+  errors.forEach((err, idx) => {
+    if (isAppCheckAiError(err)) return;
+    const callableMsg = formatCallableAiError(err);
+    const clientMsg = formatFirebaseAiError(err);
+    const formatted = callableMsg || clientMsg;
+    if (!formatted || /retrying via server|using server fallback/i.test(formatted)) return;
+
+    let score = 0;
+    if (err && typeof err === 'object') {
+      const code = String((err as { name?: string }).name || '').replace(/^functions\//, '');
+      if (code && code !== 'internal') score += 12;
+      if (code === 'failed-precondition' || code === 'resource-exhausted') score += 20;
     }
-  }
+    if (/VYBE AI server error\. Try Clear Chat/i.test(formatted)) score -= 8;
+    if (formatted.length > 48) score += 6;
+    // Callable path is index 0 when server-first, last when client-first.
+    const isCallableAttempt = preferCallable
+      ? idx === 0
+      : idx === errors.length - 1 && errors.length > 1;
+    if (isCallableAttempt) score += 18;
+    if (callableMsg && callableMsg === formatted) score += 4;
+
+    candidates.push({ formatted, score });
+  });
+
+  candidates.sort((a, b) => b.score - a.score);
+  if (candidates[0]) return candidates[0].formatted;
+
   for (const err of errors) {
     const formatted = formatFirebaseAiError(err) || formatCallableAiError(err);
     if (formatted) return formatted;
@@ -364,7 +392,8 @@ function pickUserFacingAiError(...errors: unknown[]): string {
 }
 
 /**
- * Stream a VYBE AI chat reply — Firebase AI Logic first, Cloud Function fallback (BYOK + quota).
+ * Stream a VYBE AI chat reply — server callable first when BYOK or App Check unverified,
+ * otherwise Firebase AI Logic with Cloud Function fallback.
  */
 export async function streamVybeAiChat(options: StreamVybeAiChatOptions): Promise<string> {
   if (!RATE_LIMITS.aiChat()) {
@@ -374,18 +403,12 @@ export async function streamVybeAiChat(options: StreamVybeAiChatOptions): Promis
   }
 
   await ensureSignedInForAi();
-  const { history, userText, context, onChunk, imageBase64, imageMimeType } = options;
+  const { history, userText, context, onChunk, imageBase64, imageMimeType, hasByok } = options;
   const errors: unknown[] = [];
+  const serverFirst =
+    options.serverFirst ?? (hasByok || !isAppCheckTokenVerified());
 
-  if (isAiLogicConfigured()) {
-    try {
-      return await streamVybeAiChatViaFirebaseAi(options);
-    } catch (clientErr) {
-      errors.push(clientErr);
-    }
-  }
-
-  try {
+  const tryCallable = async (): Promise<string> => {
     const reply = await invokeVybeAiChatCallable(
       history,
       userText,
@@ -395,10 +418,44 @@ export async function streamVybeAiChat(options: StreamVybeAiChatOptions): Promis
     );
     onChunk(reply, reply);
     return reply;
-  } catch (callableErr) {
-    errors.push(callableErr);
-    throw new Error(pickUserFacingAiError(...errors));
+  };
+
+  const tryClient = async (): Promise<string> => {
+    if (!isAiLogicConfigured()) {
+      throw new Error('VYBE AI client is not configured.');
+    }
+    return streamVybeAiChatViaFirebaseAi(options);
+  };
+
+  if (serverFirst) {
+    try {
+      return await tryCallable();
+    } catch (callableErr) {
+      errors.push(callableErr);
+      if (isAiLogicConfigured()) {
+        try {
+          return await tryClient();
+        } catch (clientErr) {
+          errors.push(clientErr);
+        }
+      }
+    }
+  } else {
+    if (isAiLogicConfigured()) {
+      try {
+        return await tryClient();
+      } catch (clientErr) {
+        errors.push(clientErr);
+      }
+    }
+    try {
+      return await tryCallable();
+    } catch (callableErr) {
+      errors.push(callableErr);
+    }
   }
+
+  throw new Error(pickUserFacingAiError(errors, hasByok || serverFirst));
 }
 
 /** Type out a completed reply word-by-word (server responses are not streamed). */

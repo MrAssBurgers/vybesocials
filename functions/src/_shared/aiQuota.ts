@@ -52,6 +52,7 @@ export async function isPremiumProfile(profileId: string): Promise<boolean> {
 export async function getUserAiApiKey(
   profileId: string,
   provider: 'google' | 'openai' = 'google',
+  authUid?: string,
 ): Promise<string | null> {
   const readKey = async (id: string): Promise<string | null> => {
     const snap = await db.collection('user_ai_keys').doc(`${id}_${provider}`).get();
@@ -62,14 +63,40 @@ export async function getUserAiApiKey(
     return key || null;
   };
 
+  const relinkKey = async (fromId: string, key: string): Promise<void> => {
+    if (fromId === profileId) return;
+    await db.collection('user_ai_keys').doc(`${profileId}_${provider}`).set(
+      {
+        profile_id: profileId,
+        user_id: profileId,
+        provider,
+        api_key: key,
+        is_active: true,
+        updated_at: new Date().toISOString(),
+      },
+      { merge: true },
+    );
+  };
+
   const direct = await readKey(profileId);
   if (direct) return direct;
 
-  const prof = await db.collection('profiles').doc(profileId).get();
-  const authUid = prof.data()?.user_id as string | undefined;
   if (authUid && authUid !== profileId) {
-    const fromAuth = await readKey(authUid);
-    if (fromAuth) return fromAuth;
+    const fromAuthUid = await readKey(authUid);
+    if (fromAuthUid) {
+      await relinkKey(authUid, fromAuthUid);
+      return fromAuthUid;
+    }
+  }
+
+  const prof = await db.collection('profiles').doc(profileId).get();
+  const profileAuthUid = prof.data()?.user_id as string | undefined;
+  if (profileAuthUid && profileAuthUid !== profileId) {
+    const fromAuth = await readKey(profileAuthUid);
+    if (fromAuth) {
+      await relinkKey(profileAuthUid, fromAuth);
+      return fromAuth;
+    }
   }
 
   const idx = await db.collection('user_auth_index').where('profile_id', '==', profileId).limit(1).get();
@@ -77,7 +104,10 @@ export async function getUserAiApiKey(
     const uid = idx.docs[0].id;
     if (uid !== profileId) {
       const fromIndex = await readKey(uid);
-      if (fromIndex) return fromIndex;
+      if (fromIndex) {
+        await relinkKey(uid, fromIndex);
+        return fromIndex;
+      }
     }
   }
 

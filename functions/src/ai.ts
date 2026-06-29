@@ -24,8 +24,10 @@ export const aiChat = onCall({ secrets: SECRETS }, async (request) => {
   enforceRateLimit(await rateLimit(`aichat:${authUid}`, 12, 60));
   const profileId = await resolveProfileIdFromAuth(authUid);
   const byokKey =
-    (await getUserAiApiKey(profileId, 'google')) ||
-    (await getUserAiApiKey(profileId, 'openai'));
+    (await getUserAiApiKey(profileId, 'google', authUid)) ||
+    (await getUserAiApiKey(profileId, 'openai', authUid));
+  const usingByok = !!byokKey;
+  console.info('[aiChat] start', { profileId, hasByok: usingByok, authUid });
   const quota = await enforceAiQuota(profileId, 'chat');
 
   const { messages, aiName, aiPersonality, location, imageBase64, imageMimeType } =
@@ -98,8 +100,11 @@ export const aiChat = onCall({ secrets: SECRETS }, async (request) => {
       max_tokens: 768,
       temperature: 0.75,
       apiKey: byokKey || undefined,
+      usingByok,
     });
-    if (!content?.trim()) throw new HttpsError('internal', 'AI returned an empty reply');
+    if (!content?.trim()) {
+      throw new HttpsError('unavailable', 'AI returned an empty reply — try Clear Chat and send again.');
+    }
     return {
       reply: content,
       quota: {

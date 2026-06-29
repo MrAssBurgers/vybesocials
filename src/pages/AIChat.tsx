@@ -20,7 +20,7 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { formatAiChatError } from '@/lib/functionAuth';
-import { db, formatFirebaseAiError, filterAiChatHistoryForApi, isAiLogicConfigured, streamVybeAiChat, parseImaginePrompt, generateVybeAiImage } from '@/lib/firebase';
+import { db, formatFirebaseAiError, filterAiChatHistoryForApi, isAiLogicConfigured, isAppCheckTokenVerified, streamVybeAiChat, parseImaginePrompt, generateVybeAiImage } from '@/lib/firebase';
 import { useVybeAgent, shouldFallbackToAiChat, isAgentAuthError, isAgentUnavailableError } from '@/lib/agent/useVybeAgent';
 import { shouldSkipAgentDueToAuth, clearAgentAuthFailure, messageWantsCloudAgent } from '@/lib/agent/aiChatRouting';
 import { useAiUsage } from '@/hooks/useAiUsage';
@@ -131,6 +131,7 @@ export default function AIChat() {
   });
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number; city?: string } | null>(null);
   const [showGPSDialog, setShowGPSDialog] = useState(false);
+  const [chatKeyHint, setChatKeyHint] = useState(false);
   
   // Image upload state
   const [selectedImage, setSelectedImage] = useState<File | null>(null);
@@ -393,6 +394,8 @@ export default function AIChat() {
             feedDNA,
             location: userLocation,
           },
+          hasByok: usage.hasByok,
+          serverFirst: usage.hasByok || !isAppCheckTokenVerified(),
           streamDeadlineMs: AI_CHAT_STREAM_MS,
           idleMs: AI_CHAT_STREAM_IDLE_MS,
           onChunk: (_delta, full) => {
@@ -404,6 +407,9 @@ export default function AIChat() {
       } catch (aiErr) {
         const fbMsg = formatFirebaseAiError(aiErr);
         if (fbMsg) {
+          if (usage.providers.google && /key|rejected|restricted|invalid/i.test(fbMsg)) {
+            setChatKeyHint(true);
+          }
           if ((aiErr as { status?: number }).status === 429) toast.error(fbMsg);
           appendAssistantReply(fbMsg);
           return;
@@ -414,19 +420,25 @@ export default function AIChat() {
       appendAssistantReply(assistantContent.trim() || "I couldn't generate a reply. Try again.");
       setStreamingText('');
       streamingContentRef.current = '';
+      setChatKeyHint(false);
       void refreshAiUsage();
     } catch (error) {
       console.error('AI chat error:', error);
       const fbMsg = formatFirebaseAiError(error);
-      appendAssistantReply(fbMsg || formatAiChatError(error));
+      const reply = fbMsg || formatAiChatError(error);
+      if (usage.providers.google && /key|rejected|restricted|invalid/i.test(reply)) {
+        setChatKeyHint(true);
+      }
+      appendAssistantReply(reply);
       setStreamingText('');
       streamingContentRef.current = '';
     } finally {
       setIsLoading(false);
     }
-  }, [input, isLoading, messages, aiName, aiPersonality, feedDNA, userLocation, selectedImage, imagePreview, clearImage, sendAndExecute, executePlan, chatExhausted, imageGenExhausted, refreshAiUsage]);
+  }, [input, isLoading, messages, aiName, aiPersonality, feedDNA, userLocation, selectedImage, imagePreview, clearImage, sendAndExecute, executePlan, chatExhausted, imageGenExhausted, refreshAiUsage, usage.hasByok, usage.providers.google]);
 
   const clearChat = useCallback(() => {
+    setChatKeyHint(false);
     setMessages([{ role: 'assistant', content: `Fresh start! I'm ${aiName}, ready when you are ✨`, timestamp: new Date() }]);
   }, [aiName]);
 
@@ -595,6 +607,16 @@ export default function AIChat() {
               >
                 {chatExhausted ? 'Add API key' : 'Manage'}
               </button>
+            </div>
+          )}
+          {!usage.loading && usage.hasByok && !chatKeyHint && (
+            <div className="px-1 py-2 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-xs text-emerald-700 dark:text-emerald-300">
+              Using your Google AI key for chat.
+            </div>
+          )}
+          {!usage.loading && usage.providers.google && chatKeyHint && (
+            <div className="px-1 py-2 rounded-xl bg-destructive/10 border border-destructive/30 text-xs text-destructive/90">
+              Key saved but server rejected it — remove API restrictions in AI Studio or re-save in Settings → VYBE AI.
             </div>
           )}
           {messages.map((message, index) => {

@@ -56,12 +56,41 @@ export async function chatCompletion(opts) {
                 throw new HttpsError('failed-precondition', 'AI credits exhausted');
             if (res.status < 500) {
                 lastErr = `AI ${res.status}: ${await res.text()}`;
+                if (opts.usingByok && (res.status === 401 || res.status === 403)) {
+                    throw new HttpsError('failed-precondition', 'Your Google AI key was rejected. Remove API restrictions in AI Studio or create a new key in Settings → VYBE AI.');
+                }
                 throw new HttpsError('failed-precondition', lastErr);
             }
             lastErr = `AI ${res.status}`;
         }
     }
     throw new HttpsError('unavailable', lastErr || 'AI unavailable');
+}
+/** Ping Gemini with a BYOK key before persisting it. */
+export async function validateGoogleAiKey(key) {
+    const trimmed = key.trim();
+    if (!trimmed) {
+        throw new HttpsError('invalid-argument', 'apiKey required');
+    }
+    const res = await fetch(GEMINI_OPENAI_URL, {
+        method: 'POST',
+        headers: {
+            Authorization: `Bearer ${trimmed}`,
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            model: 'gemini-2.5-flash-lite',
+            max_tokens: 8,
+            messages: [{ role: 'user', content: 'ping' }],
+        }),
+    });
+    if (res.ok)
+        return;
+    const body = await res.text();
+    if (res.status === 401 || res.status === 403) {
+        throw new HttpsError('failed-precondition', 'Your Google AI key was rejected. Remove API restrictions in AI Studio or create a new key.');
+    }
+    throw new HttpsError('failed-precondition', `Key validation failed (${res.status}): ${body.slice(0, 240)}`);
 }
 /** Generate an image via Gemini image model; returns base64 data URL or null. */
 export async function generateImage(prompt) {

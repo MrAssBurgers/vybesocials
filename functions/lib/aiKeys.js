@@ -1,6 +1,7 @@
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { db, requireAuth } from './_shared/admin.js';
 import { getUserAiApiKey, readAiQuotaStatus, resolveProfileIdFromAuth, } from './_shared/aiQuota.js';
+import { validateGoogleAiKey } from './_shared/geminiAi.js';
 const PROVIDERS = new Set(['google', 'openai']);
 function normalizeProvider(raw) {
     const p = String(raw || 'google').toLowerCase();
@@ -42,6 +43,9 @@ export const saveUserAiKey = onCall(async (request) => {
         throw new HttpsError('invalid-argument', 'apiKey required');
     if (!looksLikeApiKey(provider, key)) {
         throw new HttpsError('invalid-argument', 'That API key format does not look valid');
+    }
+    if (provider === 'google') {
+        await validateGoogleAiKey(key);
     }
     await db.collection('user_ai_keys').doc(`${profileId}_${provider}`).set({
         profile_id: profileId,

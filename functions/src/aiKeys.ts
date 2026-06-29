@@ -5,6 +5,7 @@ import {
   readAiQuotaStatus,
   resolveProfileIdFromAuth,
 } from './_shared/aiQuota.js';
+import { validateGoogleAiKey } from './_shared/geminiAi.js';
 
 const PROVIDERS = new Set(['google', 'openai']);
 
@@ -51,6 +52,10 @@ export const saveUserAiKey = onCall(async (request) => {
   if (!key) throw new HttpsError('invalid-argument', 'apiKey required');
   if (!looksLikeApiKey(provider, key)) {
     throw new HttpsError('invalid-argument', 'That API key format does not look valid');
+  }
+
+  if (provider === 'google') {
+    await validateGoogleAiKey(key);
   }
 
   await db.collection('user_ai_keys').doc(`${profileId}_${provider}`).set({

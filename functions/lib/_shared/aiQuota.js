@@ -40,7 +40,7 @@ export async function isPremiumProfile(profileId) {
     const sub = await db.collection('subscriptions').doc(authUid).get();
     return sub.exists && sub.data()?.status === 'active';
 }
-export async function getUserAiApiKey(profileId, provider = 'google') {
+export async function getUserAiApiKey(profileId, provider = 'google', authUid) {
     const readKey = async (id) => {
         const snap = await db.collection('user_ai_keys').doc(`${id}_${provider}`).get();
         if (!snap.exists)
@@ -51,23 +51,46 @@ export async function getUserAiApiKey(profileId, provider = 'google') {
         const key = typeof data.api_key === 'string' ? data.api_key.trim() : '';
         return key || null;
     };
+    const relinkKey = async (fromId, key) => {
+        if (fromId === profileId)
+            return;
+        await db.collection('user_ai_keys').doc(`${profileId}_${provider}`).set({
+            profile_id: profileId,
+            user_id: profileId,
+            provider,
+            api_key: key,
+            is_active: true,
+            updated_at: new Date().toISOString(),
+        }, { merge: true });
+    };
     const direct = await readKey(profileId);
     if (direct)
         return direct;
-    const prof = await db.collection('profiles').doc(profileId).get();
-    const authUid = prof.data()?.user_id;
     if (authUid && authUid !== profileId) {
-        const fromAuth = await readKey(authUid);
-        if (fromAuth)
+        const fromAuthUid = await readKey(authUid);
+        if (fromAuthUid) {
+            await relinkKey(authUid, fromAuthUid);
+            return fromAuthUid;
+        }
+    }
+    const prof = await db.collection('profiles').doc(profileId).get();
+    const profileAuthUid = prof.data()?.user_id;
+    if (profileAuthUid && profileAuthUid !== profileId) {
+        const fromAuth = await readKey(profileAuthUid);
+        if (fromAuth) {
+            await relinkKey(profileAuthUid, fromAuth);
             return fromAuth;
+        }
     }
     const idx = await db.collection('user_auth_index').where('profile_id', '==', profileId).limit(1).get();
     if (!idx.empty) {
         const uid = idx.docs[0].id;
         if (uid !== profileId) {
             const fromIndex = await readKey(uid);
-            if (fromIndex)
+            if (fromIndex) {
+                await relinkKey(uid, fromIndex);
                 return fromIndex;
+            }
         }
     }
     return null;
