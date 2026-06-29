@@ -47,7 +47,7 @@ export function useParentalControls() {
     queryFn: async () => {
       if (!user) return null;
       const call = httpsCallable<unknown, { controls: ParentalControls | null }>(
-        functions,
+        fns(),
         'getParentalControlsSafe',
       );
       const res = await call({});
@@ -73,7 +73,7 @@ export function useSetupParentalControls() {
     mutationFn: async ({ pin, settings }: { pin: string; settings?: Partial<ParentalControls> }) => {
       if (!user) throw new Error('Not authenticated');
       const call = httpsCallable<unknown, { ok: boolean; controls: ParentalControls }>(
-        functions,
+        fns(),
         'setParentalPin',
       );
       const res = await call({ pin, settings });
@@ -93,7 +93,7 @@ export function useUpdateParentalControls() {
   return useMutation({
     mutationFn: async (updates: Partial<ParentalControls>) => {
       if (!user) throw new Error('Not authenticated');
-      const call = httpsCallable<unknown, { ok: boolean }>(functions, 'updateParentalControls');
+      const call = httpsCallable<unknown, { ok: boolean }>(fns(), 'updateParentalControls');
       await call({ updates });
       return updates as ParentalControls;
     },
@@ -107,7 +107,7 @@ export function useUpdateParentalControls() {
 export function useVerifyParentalPin() {
   return useMutation({
     mutationFn: async (pin: string) => {
-      const call = httpsCallable<unknown, { ok: boolean }>(functions, 'verifyParentalPin');
+      const call = httpsCallable<unknown, { ok: boolean }>(fns(), 'verifyParentalPin');
       const res = await call({ pin });
       return Boolean(res.data?.ok);
     },
