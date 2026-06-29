@@ -93,17 +93,29 @@ export const connectV2BillingPortal = onCall({ secrets: STRIPE_SECRETS }, async 
   return { ok: true, url: session.url };
 });
 
+function safeRedirectPath(input: unknown, fallback: string): string {
+  const s = String(input ?? '').trim();
+  // Only accept same-site relative paths like /checkout/success. Reject //, schemes, backslashes.
+  if (!s) return fallback;
+  if (!s.startsWith('/') || s.startsWith('//') || s.includes('\\') || /^[a-z]+:/i.test(s)) {
+    return fallback;
+  }
+  return s.slice(0, 512);
+}
+
 export const connectV2Checkout = onCall({ secrets: STRIPE_SECRETS }, async (request) => {
   const uid = requireAuth(request);
   const stripe = await getStripe();
-  const { price_id, quantity, mode, creator_account_id, success_url, cancel_url, application_fee_percent } = (request.data || {}) as any;
+  const { price_id, quantity, mode, creator_account_id, success_path, cancel_path, application_fee_percent } = (request.data || {}) as any;
   if (!price_id) throw new HttpsError('invalid-argument', 'price_id required');
   const base = process.env.PUBLIC_SITE_URL || 'https://vybehub.app';
+  const successPath = safeRedirectPath(success_path, '/checkout/success?session_id={CHECKOUT_SESSION_ID}');
+  const cancelPath = safeRedirectPath(cancel_path, '/checkout/cancel');
   const params: any = {
     mode: mode || 'payment',
     line_items: [{ price: price_id, quantity: quantity || 1 }],
-    success_url: success_url || `${base}/checkout/success?session_id={CHECKOUT_SESSION_ID}`,
-    cancel_url: cancel_url || `${base}/checkout/cancel`,
+    success_url: `${base}${successPath}`,
+    cancel_url: `${base}${cancelPath}`,
     metadata: { uid },
   };
   if (creator_account_id) {
@@ -120,17 +132,20 @@ export const connectV2Checkout = onCall({ secrets: STRIPE_SECRETS }, async (requ
 export const connectV2Subscription = onCall({ secrets: STRIPE_SECRETS }, async (request) => {
   const uid = requireAuth(request);
   const stripe = await getStripe();
-  const { price_id, creator_account_id, success_url, cancel_url } = (request.data || {}) as any;
+  const { price_id, creator_account_id, success_path, cancel_path } = (request.data || {}) as any;
   const base = process.env.PUBLIC_SITE_URL || 'https://vybehub.app';
+  const successPath = safeRedirectPath(success_path, '/subscribe/success?session_id={CHECKOUT_SESSION_ID}');
+  const cancelPath = safeRedirectPath(cancel_path, '/subscribe/cancel');
   const session = await stripe.checkout.sessions.create({
     mode: 'subscription',
     line_items: [{ price: price_id, quantity: 1 }],
-    success_url: success_url || `${base}/subscribe/success?session_id={CHECKOUT_SESSION_ID}`,
-    cancel_url: cancel_url || `${base}/subscribe/cancel`,
+    success_url: `${base}${successPath}`,
+    cancel_url: `${base}${cancelPath}`,
     metadata: { uid, creator_account_id: creator_account_id || '' },
   });
   return { ok: true, url: session.url, session_id: session.id };
 });
+
 
 export const connectV2CreateProduct = onCall({ secrets: STRIPE_SECRETS }, async (request) => {
   const uid = requireAuth(request);
