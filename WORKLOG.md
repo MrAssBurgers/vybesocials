@@ -2,6 +2,14 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## Keyboard over-scroll fix — Vybe AI pattern (2026-06-17)
+- **Problem:** DM messages jumped too high when typing; keyboard detection OK but scroll offset wrong
+- **Fix:** Removed DM `KeyboardAwareTexter` fixed dock; unified in-flow flex + `--kb-h` padding (`.vybe-chat-composer` / `.vybe-chat-messages`) matching AI chat; enabled `useKeyboardHeight` in DM; community chat footers aligned
+- **Verified:** `npm run build` PASS · `npm run lint` PASS
+- **Committed:** `dc89f5ef` · pushed `main`
+- **Deployed:** https://vybe-daaab.web.app
+- **You:** Lovable Publish vybehub.app · device-test DM + AI keyboard on Despia
+
 ## Safe area v2 + location privacy disclosure (2026-06-17)
 - **Problem:** Header not flush under camera; DM composer / profile pill / call UI sitting too high; App Store missing Location disclosure in privacy policy
 - **Fix:** Trust measured `env(safe-area-inset-*)` only (removed inflated Despia bottom fallback ~68px); tightened `--dm-header-stack`, composer `padding-bottom`, call overlay insets; MobileHeader + DM header use `--app-header-safe` only; Privacy v2.1 Section 12 Location Data
