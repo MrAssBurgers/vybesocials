@@ -57,6 +57,25 @@ VYBE expects Despia to expose these native bridge URL schemes:
 | Open app settings   | `appsettings://`                | `src/lib/despiaBridge.ts`      |
 | Interstitial ad     | `displayinterstitialad://`      | `src/hooks/useVideoAds.ts`     |
 | In-app purchase     | `revenuecat://purchase`         | `src/hooks/useRevenueCat.ts`   |
+| Google OAuth        | `oauth://?url=...`              | `src/lib/despiaOAuth.ts`       |
+
+**Google OAuth (Despia store builds):** Tap Google → `oauth://` opens
+ASWebAuthenticationSession (iOS) or Chrome Custom Tabs (Android), **not**
+Safari or an embedded WebView. Callback: `https://vybehub.app/native-callback.html`
+→ deeplink `com.despia.vybe://oauth/auth?id_token=...` → Firebase
+`signInWithCredential` in the WebView.
+
+**Google Cloud Console** (OAuth 2.0 Web client for Firebase): add authorized
+redirect URI:
+
+```
+https://vybehub.app/native-callback.html
+```
+
+Optional env overrides (see `.env.example`):
+
+- `VITE_DESPIA_DEEPLINK_SCHEME=com.despia.vybe` — must match Despia app scheme
+- `VITE_FIREBASE_GOOGLE_WEB_CLIENT_ID` — Firebase web client ID (defaults to value in `native/android/google-services.json`)
 
 Confirm with Despia support that ALL of these are enabled for the
 `com.despia.vybe` (Android) and the iOS bundle they assigned you. If any

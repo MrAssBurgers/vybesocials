@@ -18,6 +18,7 @@ import { isOneSignalBypassHost } from "./lib/lovablePreview";
 import { initializeNativePlugins, isNativePlatform } from "./lib/capacitor";
 import { initializeAdMob } from "./lib/admob";
 import { isDespiaRuntime } from "./lib/despiaBridge";
+import { initDespiaOAuthDeepLinkHandler } from "./lib/despiaOAuth";
 import { syncNativeTrackingConsent } from "./lib/att";
 import { installAttResumeRecovery } from "./lib/attResumeRecovery";
 import {
@@ -136,6 +137,7 @@ function runPreRenderInit() {
 
   syncNativeTrackingConsent();
   installAttResumeRecovery();
+  initDespiaOAuthDeepLinkHandler();
 
   if (isNativePlatform) {
     initializeNativePlugins()

@@ -33,6 +33,7 @@ import { normalizeLoginEmail } from '@/lib/loginEmail';
 import { cacheProfileAvatar, resolveProfileAvatarUrl } from '@/lib/profileAvatarCache';
 import { isPasswordRecoveryUrl, redirectToPasswordRecoveryPage } from '@/lib/passwordRecoveryUrl';
 import { awaitOAuthRedirectCapture, clearOAuthRedirectPending, isOAuthRedirectInFlight } from '@/lib/firebase/oauthRedirect';
+import { isDespiaOAuthInFlight } from '@/lib/despiaOAuth';
 
 /** Fail-soft — production may not have deployed sync_signup_username yet. */
 async function trySyncSignupUsername(): Promise<string | null> {
@@ -53,7 +54,7 @@ function getStoredSessionRefreshTimeoutMs(): number {
 }
 
 function getAuthInitTimeouts() {
-  if (isOAuthRedirectInFlight()) {
+  if (isOAuthRedirectInFlight() || isDespiaOAuthInFlight()) {
     return { safetyMs: 10000, getSessionMs: 8000 };
   }
   return { safetyMs: 2500, getSessionMs: 2000 };

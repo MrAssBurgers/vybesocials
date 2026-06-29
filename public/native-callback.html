@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Signing in…</title>
+  <style>
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #0B0B10;
+      color: #a1a1aa;
+      font-family: system-ui, -apple-system, sans-serif;
+    }
+  </style>
+</head>
+<body>
+  <p>Completing sign-in…</p>
+  <script>
+    (function () {
+      var DEFAULT_SCHEME = 'com.despia.vybe';
+
+      function decodeState(state) {
+        if (!state) return null;
+        try {
+          var padded = state.replace(/-/g, '+').replace(/_/g, '/');
+          while (padded.length % 4) padded += '=';
+          return JSON.parse(atob(padded));
+        } catch (e) {
+          return null;
+        }
+      }
+
+      function getParams() {
+        var params = new URLSearchParams(window.location.search);
+        if (window.location.hash && window.location.hash.length > 1) {
+          var hash = window.location.hash.charAt(0) === '#' ? window.location.hash.slice(1) : window.location.hash;
+          new URLSearchParams(hash).forEach(function (value, key) {
+            params.set(key, value);
+          });
+        }
+        return params;
+      }
+
+      function redirectToApp(scheme, query) {
+        var deeplink = scheme + '://oauth/auth' + (query ? '?' + query : '');
+        window.location.replace(deeplink);
+      }
+
+      var params = getParams();
+      var stateObj = decodeState(params.get('state'));
+      var scheme = (stateObj && stateObj.scheme) || DEFAULT_SCHEME;
+      var idToken = params.get('id_token');
+      var error = params.get('error');
+      var state = params.get('state') || '';
+
+      if (error) {
+        var errQuery = 'error=' + encodeURIComponent(error) + '&state=' + encodeURIComponent(state);
+        var errDesc = params.get('error_description');
+        if (errDesc) errQuery += '&error_description=' + encodeURIComponent(errDesc);
+        redirectToApp(scheme, errQuery);
+        return;
+      }
+
+      if (idToken) {
+        var okQuery =
+          'id_token=' + encodeURIComponent(idToken) +
+          '&state=' + encodeURIComponent(state);
+        redirectToApp(scheme, okQuery);
+        return;
+      }
+
+      redirectToApp(scheme, 'error=missing_token&state=' + encodeURIComponent(state));
+    })();
+  </script>
+</body>
+</html>

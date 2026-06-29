@@ -5,6 +5,11 @@ import { resolvePostLoginDestination } from '@/lib/authReturnPath';
 import { getCachedCurrentProfile } from '@/lib/profileCache';
 import { isPasswordRecoveryUrl, redirectToPasswordRecoveryPage } from '@/lib/passwordRecoveryUrl';
 import { clearOAuthRedirectPending, isOAuthRedirectInFlight } from '@/lib/firebase/oauthRedirect';
+import {
+  clearDespiaOAuthPending,
+  isDespiaOAuthReturnUrl,
+  tryCompleteDespiaOAuthFromCurrentUrl,
+} from '@/lib/despiaOAuth';
 
 /**
  * OAuth callback — redirect as soon as auth user exists (profile loads in background).
@@ -22,6 +27,11 @@ export default function AuthCallback() {
     } catch {
       /* ignore */
     }
+  }, []);
+
+  useEffect(() => {
+    if (!isDespiaOAuthReturnUrl(window.location.href)) return;
+    void tryCompleteDespiaOAuthFromCurrentUrl();
   }, []);
 
   useEffect(() => {
@@ -55,6 +65,7 @@ export default function AuthCallback() {
   useEffect(() => {
     if (user || timedOut) {
       clearOAuthRedirectPending();
+      clearDespiaOAuthPending();
     }
 
     if (timedOut && !user) {

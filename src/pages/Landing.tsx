@@ -38,6 +38,13 @@ import {
   markOAuthRedirectPending,
 } from '@/lib/firebase/oauthRedirect';
 import { signInWithOAuthPlatform, shouldUseRedirectOAuth } from '@/lib/nativeOAuth';
+import {
+  clearDespiaOAuthPending,
+  clearStaleDespiaOAuthPending,
+  isDespiaOAuthInFlight,
+  isDespiaOAuthReturnUrl,
+  tryCompleteDespiaOAuthFromCurrentUrl,
+} from '@/lib/despiaOAuth';
 
 
 // Hide bottom nav on landing page + lock document scroll (auth is one-screen)
@@ -146,7 +153,8 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
   const [isOAuthReturn, setIsOAuthReturn] = useState(() => {
     const hash = window.location.hash;
     const hasHashTokens = hash.includes('access_token') || hash.includes('refresh_token');
-    return hasHashTokens || isOAuthRedirectInFlight();
+    const hasDespiaTokens = isDespiaOAuthReturnUrl(window.location.href);
+    return hasHashTokens || hasDespiaTokens || isOAuthRedirectInFlight() || isDespiaOAuthInFlight();
   });
   const [agreedToTerms, setAgreedToTerms] = useState(false);
   const [rememberMe, setRememberMe] = useState(true);
@@ -175,6 +183,27 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
 
   useEffect(() => {
     clearStaleOAuthRedirectPending();
+    clearStaleDespiaOAuthPending();
+  }, []);
+
+  // Complete Despia oauth:// return (deeplink lands on /auth?id_token=...).
+  useEffect(() => {
+    const finishDespiaOAuth = (detail?: { error?: { message?: string } | null }) => {
+      if (detail?.error?.message) {
+        sessionStorage.setItem('vybe-oauth-error', detail.error.message);
+      }
+      setIsOAuthReturn(true);
+    };
+
+    void tryCompleteDespiaOAuthFromCurrentUrl().then((result) => {
+      if (result) finishDespiaOAuth(result);
+    });
+
+    const onComplete = (event: Event) => {
+      finishDespiaOAuth((event as CustomEvent).detail);
+    };
+    window.addEventListener('despia-oauth-complete', onComplete);
+    return () => window.removeEventListener('despia-oauth-complete', onComplete);
   }, []);
 
   const { contentRef, scale } = useAuthScreenFit(
@@ -194,10 +223,15 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
 
       const oauthResult = await signInWithOAuthPlatform(provider);
       if (oauthResult.redirected) return;
+      if (oauthResult.pending) {
+        setIsOAuthReturn(true);
+        return;
+      }
       if (oauthResult.error) throw oauthResult.error;
 
       if (oauthResult.data.session?.user) {
         clearOAuthRedirectPending();
+        clearDespiaOAuthPending();
         toast.success('Welcome back! ✨');
         const cached = getCachedCurrentProfile();
         navigate(
@@ -211,10 +245,11 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
       }
     } catch (error: unknown) {
       clearOAuthRedirectPending();
+      clearDespiaOAuthPending();
       const msg = getUserFriendlyError(error);
       if (msg !== '__SUPPRESS__') toast.error(msg);
     } finally {
-      if (!isOAuthRedirectInFlight()) {
+      if (!isOAuthRedirectInFlight() && !isDespiaOAuthInFlight()) {
         setLoading(false);
       }
     }
@@ -226,6 +261,7 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
 
     if (user) {
       clearOAuthRedirectPending();
+      clearDespiaOAuthPending();
       sessionStorage.removeItem('vybe-oauth-error');
       setIsOAuthReturn(false);
       const cached = getCachedCurrentProfile();
@@ -244,6 +280,7 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
     const oauthError = sessionStorage.getItem('vybe-oauth-error');
     if (oauthError && authReady) {
       clearOAuthRedirectPending();
+      clearDespiaOAuthPending();
       sessionStorage.removeItem('vybe-oauth-error');
       setIsOAuthReturn(false);
       setLoading(false);
@@ -255,6 +292,7 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
 
     const failTimer = setTimeout(() => {
       clearOAuthRedirectPending();
+      clearDespiaOAuthPending();
       setIsOAuthReturn(false);
       setLoading(false);
       toast.error('Sign-in did not complete. Please try again.');

@@ -181,11 +181,20 @@ is present, otherwise iOS crashes the app.
 
 ---
 
-## 6. Google & Apple Sign-In (Firebase native)
+## 6. Google & Apple Sign-In
 
-Web OAuth uses popup (desktop) or redirect (mobile Safari). **Native iOS/Android**
-uses `@capacitor-firebase/authentication` so Google/Apple never open a separate
-Safari window — see `src/lib/nativeOAuth.ts` and `capacitor.config.ts`.
+| Platform | Google | Apple |
+|----------|--------|-------|
+| **Despia app** (App Store / Play) | `oauth://` secure session via `src/lib/despiaOAuth.ts` — no Safari handoff | iOS WebKit in-WebView; Android uses standard Firebase popup |
+| **Mobile Safari** | Full-page redirect | Redirect |
+| **Desktop web** | Popup | Popup |
+| **Self-built Capacitor** (Xcode) | `@capacitor-firebase/authentication` native picker | Same plugin |
+
+Despia Google flow: WebView → `oauth://?url=...` → Google account picker in
+secure sheet → `https://vybehub.app/native-callback.html` →
+`com.despia.vybe://oauth/auth?id_token=...` → Firebase sign-in in app.
+
+See `docs/NATIVE_AUTH_SETUP.md` for Google Cloud redirect URI and deeplink scheme.
 
 ### Firebase Console
 
@@ -193,7 +202,7 @@ Safari window — see `src/lib/nativeOAuth.ts` and `capacitor.config.ts`.
 2. Add iOS + Android apps under Project settings if not already present
 3. Authorized domains must include `vybehub.app`, `vybe-daaab.web.app`, `localhost`
 
-### iOS (Capacitor / Despia rebuild required)
+### iOS (self-built Capacitor only — Despia uses oauth:// OTA)
 
 1. Download `GoogleService-Info.plist` from Firebase → add to `ios/App/App/`
 2. In Xcode → **Signing & Capabilities** → enable **Sign in with Apple**

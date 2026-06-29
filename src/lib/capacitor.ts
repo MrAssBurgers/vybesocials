@@ -69,6 +69,16 @@ export async function initializeNativePlugins() {
         try {
           const parsed = new URL(url);
           const path = parsed.pathname + parsed.search + parsed.hash;
+
+          const { isDespiaOAuthReturnUrl, completeDespiaOAuthFromUrl } = await import('@/lib/despiaOAuth');
+          if (isDespiaOAuthReturnUrl(url)) {
+            const result = await completeDespiaOAuthFromUrl(url);
+            if (result.error) {
+              sessionStorage.setItem('vybe-oauth-error', result.error.message);
+            }
+            window.dispatchEvent(new CustomEvent('despia-oauth-complete', { detail: result }));
+          }
+
           const isOAuthReturn =
             path.startsWith('/auth/callback') ||
             parsed.search.includes('code=') ||

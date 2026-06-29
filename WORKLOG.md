@@ -2,12 +2,22 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## Despia Google OAuth — oauth:// secure session (2026-06-29)
+- **Problem:** Google sign-in in Despia app opened full Safari to vybehub.app; login never completed in app
+- **Cause:** Capacitor Firebase Auth never runs in Despia WebView (`isNativePlatform` false); fallback used `signInWithPopup` → Safari handoff
+- **Fix:** `src/lib/despiaOAuth.ts` — Despia `oauth://?url=...` → ASWebAuthenticationSession; `public/native-callback.html` → `com.despia.vybe://oauth/auth?id_token=...`; Firebase `signInWithCredential`; removed popup fallback for Despia in `nativeOAuth.ts`; separate `vybe-despia-oauth-pending` state
+- **Verified:** `npm run build` PASS · `npm run lint` PASS · `dist/native-callback.html` present
+- **Deployed:** https://vybe-daaab.web.app
+- **You:** Google Cloud Console → add redirect URI `https://vybehub.app/native-callback.html` · Lovable Publish vybehub.app (callback must be live) · test Google on Despia device (secure sheet, not Safari tab)
+
 ## Seamless login fix — native OAuth + faster auth boot (2026-06-29)
 - **Problem:** Slow login; Google opens separate Safari browser on Despia/iOS; spinner before form
 - **Fix:** Platform router `nativeOAuth.ts` — Capacitor Firebase Auth on native shells (no redirect); popup desktop; redirect mobile Safari only; instant login form when logged out; deferred `getSession` token enrich; unified 12s sign-in timeout; OAuth return Cancel + 18s mobile capture; splash dismiss 300ms after SIGNED_IN; deep link OAuth capture in `capacitor.ts`
 - **Deps:** `@capacitor-firebase/authentication@8.3.0`
 - **Verified:** `npm run build` PASS · `npm run lint` PASS
-- **You:** Despia native rebuild (`npx cap sync`) + Firebase iOS/Android OAuth clients · Lovable Publish vybehub.app · test Google on device (no Safari handoff)
+- **Committed:** `2acdbe7b` · pushed `main`
+- **Deployed:** https://vybe-daaab.web.app
+- **You:** Lovable → Share → Publish for vybehub.app · Despia native rebuild (`npx cap sync`) + Firebase iOS/Android OAuth clients · test Google on device (no Safari handoff)
 
 ## Home "page couldn't load" — corrupt challenge/pass cache (2026-06-29)
 - **Symptom:** Recurring route error `"This page couldn't load"` on `/home` when logged in (AnimatedRoutes ErrorBoundary)
