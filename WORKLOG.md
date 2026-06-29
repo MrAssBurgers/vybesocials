@@ -2,6 +2,14 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## DM composer keyboard position (2026-06-17)
+- **Problem:** DM message composer flew too high when typing — not resting just above keyboard like Vybe AI
+- **Fix:** Mobile DM shell `fixed inset-0` like AI; keyboard measure skips `screen.height` fallback when layout already resized; focus scroll uses `scrollTop` not `scrollIntoView`
+- **Verified:** `npm run build` PASS · `npm run lint` PASS
+- **Committed:** `ca268680` · pushed `main`
+- **Deployed:** https://vybe-daaab.web.app
+- **You:** Lovable → Share → Publish for vybehub.app · device-test DM composer on Despia
+
 ## Instant DM Delivered + inbox trash (2026-06-17)
 - **Problem:** DMs showed Sent then Delivered after ~1s; trash button missing on DM inbox for deleted chats
 - **Fix:** Optimistic messages show Delivered immediately; stable `_clientKey` prevents bubble remount on server confirm; `DmInboxView` trash header button restored
