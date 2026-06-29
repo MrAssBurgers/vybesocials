@@ -916,6 +916,17 @@ body.has-liquid-bg .dm-inbox-hero-aurora {
   -webkit-backdrop-filter: blur(28px) saturate(140%);
   contain: layout style;
 }
+/* Mobile DM: full-viewport flex shell like Vybe AI (fixed inset-0) so --kb-h
+   padding on the composer lands right above the keyboard, not double-lifted. */
+@media (max-width: 767px) {
+  html[data-dm-active='true'] .dm-chat-shell {
+    position: fixed;
+    inset: 0;
+    z-index: 100;
+    height: auto;
+    min-height: 0;
+  }
+}
 body.has-liquid-bg:not(.has-custom-bg) .dm-chat-shell {
   background: hsl(var(--background) / 0.18);
 }

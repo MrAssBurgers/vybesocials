@@ -1983,6 +1983,7 @@ export function ChatView() {
             setIsVoiceLocked={setIsVoiceLocked}
             voiceLockStartYRef={voiceLockStartYRef}
             messagesEndRef={messagesEndRef}
+            messagesContainerRef={messagesContainerRef}
             safetyFilterNode={
               <SafetyFilterRequestButton
                 isSafetyDisabled={conversationSafety.isSafetyDisabled}
@@ -2060,6 +2061,7 @@ export function ChatView() {
           setIsVoiceLocked={setIsVoiceLocked}
           voiceLockStartYRef={voiceLockStartYRef}
           messagesEndRef={messagesEndRef}
+          messagesContainerRef={messagesContainerRef}
           safetyFilterNode={
             <SafetyFilterRequestButton
               isSafetyDisabled={conversationSafety.isSafetyDisabled}
@@ -2136,6 +2138,7 @@ const MessageInputArea = memo(function MessageInputArea({
   voiceLockStartYRef,
   safetyFilterNode,
   messagesEndRef,
+  messagesContainerRef,
   presenceSlot,
 }: {
   hasText: boolean;
@@ -2183,6 +2186,7 @@ const MessageInputArea = memo(function MessageInputArea({
   voiceLockStartYRef?: React.MutableRefObject<number | null>;
   safetyFilterNode?: React.ReactNode;
   messagesEndRef?: React.RefObject<HTMLElement | null>;
+  messagesContainerRef?: React.RefObject<HTMLElement | null>;
   presenceSlot?: React.ReactNode;
 }) {
   const headerSlot = (
@@ -2248,7 +2252,10 @@ const MessageInputArea = memo(function MessageInputArea({
           onFocus={() => {
             if (shouldTrackSoftKeyboard()) {
               window.setTimeout(() => {
-                messagesEndRef?.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+                const scroller = messagesContainerRef?.current;
+                if (scroller) {
+                  scroller.scrollTop = scroller.scrollHeight;
+                }
               }, 120);
             }
           }}

@@ -16,8 +16,14 @@ export function measureSoftKeyboardHeight(): number {
 
   const vv = window.visualViewport;
   if (vv) {
-    const fromVv = Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
-    if (fromVv > KEYBOARD_INSET_THRESHOLD_PX) return fromVv;
+    const layoutH = document.documentElement.clientHeight;
+    const fromLayout = Math.max(0, layoutH - vv.height - vv.offsetTop);
+    const fromInner = Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
+    const kb = Math.max(fromLayout, fromInner);
+    if (kb > KEYBOARD_INSET_THRESHOLD_PX) return kb;
+    // Layout already resized for the keyboard — do not fall back to screen.height
+    // or we double-lift in-flow composers (DM) on Despia / Android WebViews.
+    return 0;
   }
 
   const shrink = Math.max(0, (window.screen.height || window.innerHeight) - window.innerHeight);
