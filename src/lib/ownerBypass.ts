@@ -9,20 +9,15 @@ import { db } from '@/lib/firebase';
 import {
   isPreviewFounderUser,
   isFounderAuthId,
-  LEGACY_FOUNDER_AUTH_ID,
-  FIREBASE_FOUNDER_AUTH_ID,
+  FOUNDER_AUTH_IDS,
 } from '@/lib/previewSandbox';
 
 // Owner username - must match OwnerBadge.tsx
 const OWNER_USERNAME = 'mrassburgers';
 
-// Permanent owner auth ID — @Bakrix (barron.bakic@gmail.com). This account
-// ALWAYS has owner privileges regardless of role-table state to guarantee
-// the founder never loses access on Live.
-const OWNER_AUTH_ID_ALLOWLIST = new Set<string>([
-  LEGACY_FOUNDER_AUTH_ID,
-  FIREBASE_FOUNDER_AUTH_ID,
-]);
+// Permanent owner auth ID allowlist — sourced from build-time env (no PII in bundle).
+const OWNER_AUTH_ID_ALLOWLIST = new Set<string>(FOUNDER_AUTH_IDS);
+
 
 // Cache the owner status to avoid repeated checks
 let cachedOwnerStatus: { userId: string; isOwner: boolean } | null = null;
