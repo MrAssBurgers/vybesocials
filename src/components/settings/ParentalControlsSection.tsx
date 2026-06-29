@@ -42,6 +42,8 @@ export function ParentalControlsSection() {
   const [confirmPin, setConfirmPin] = useState('');
   const [unlocked, setUnlocked] = useState(false);
   const [verifyPinInput, setVerifyPinInput] = useState('');
+  const verifyPinMutation = useVerifyParentalPin();
+
 
   const hasControls = !!controls;
   const isActive = controls?.is_active ?? false;
