@@ -1,6 +1,20 @@
 import { onCall, onRequest, HttpsError } from 'firebase-functions/v2/https';
 import { db, requireAuth } from './_shared/admin.js';
 
+function escapeHtml(input: unknown): string {
+  return String(input ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+function safeImageUrl(url: unknown, fallback: string): string {
+  const s = String(url ?? '').trim();
+  if (/^https:\/\/[^\s"'<>]+$/i.test(s)) return s;
+  return fallback;
+}
+
 /** share-preview — public HTTP renderer for shared post links (OG tags). */
 export const sharePreview = onRequest({ cors: true }, async (req, res) => {
   if (req.method === 'GET' && (req.query.probe === '1' || req.query.health === '1')) {
@@ -8,24 +22,27 @@ export const sharePreview = onRequest({ cors: true }, async (req, res) => {
     return;
   }
 
-  const postId = (req.query.postId as string) || (req.path.split('/').pop() || '');
+  const rawId = (req.query.postId as string) || (req.path.split('/').pop() || '');
+  const postId = rawId.replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 128);
   if (!postId) { res.status(400).send('postId required'); return; }
   const doc = await db.collection('posts').doc(postId).get();
   if (!doc.exists) { res.status(404).send('not found'); return; }
   const post: any = doc.data();
-  const title = (post.title || 'A post on VYBE').slice(0, 80);
-  const desc = (post.caption || '').slice(0, 160);
-  const image = post.cover_url || post.media_url || 'https://vybehub.app/og-default.png';
+  const title = escapeHtml((post.title || 'A post on VYBE').slice(0, 80));
+  const desc = escapeHtml((post.caption || '').slice(0, 160));
+  const image = escapeHtml(safeImageUrl(post.cover_url || post.media_url, 'https://vybehub.app/og-default.png'));
+  const safePostId = encodeURIComponent(postId);
   res.set('Content-Type', 'text/html').send(`<!doctype html><html><head>
 <meta charset="utf-8"/><title>${title}</title>
 <meta property="og:title" content="${title}"/>
 <meta property="og:description" content="${desc}"/>
 <meta property="og:image" content="${image}"/>
-<meta property="og:url" content="https://vybehub.app/post/${postId}"/>
+<meta property="og:url" content="https://vybehub.app/post/${safePostId}"/>
 <meta name="twitter:card" content="summary_large_image"/>
-<meta http-equiv="refresh" content="0; url=https://vybehub.app/post/${postId}"/>
-</head><body><a href="https://vybehub.app/post/${postId}">Open in VYBE</a></body></html>`);
+<meta http-equiv="refresh" content="0; url=https://vybehub.app/post/${safePostId}"/>
+</head><body><a href="https://vybehub.app/post/${safePostId}">Open in VYBE</a></body></html>`);
 });
+
 
 /** get-ranked-feed — engagement-weighted recent posts. */
 export const getRankedFeed = onCall(async (request) => {
