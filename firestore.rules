@@ -538,8 +538,10 @@ service cloud.firestore {
     }
     match /post_mood_signals/{docId} {
       allow read: if signedIn();
-      allow create, update: if signedIn();
+      // Writes restricted to Cloud Functions (admin SDK) to protect ranking integrity.
+      allow create, update, delete: if isAdmin();
     }
+
     match /user_interactions/{docId} {
       allow read: if signedIn() && isOwnerProfile('user_id');
       allow create: if willOwnProfile('user_id');
