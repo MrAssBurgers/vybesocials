@@ -6,8 +6,9 @@ Use this file as the Lovable -> Cursor handoff each session.
 - **Problem:** Header not flush under camera; DM composer / profile pill / call UI sitting too high; App Store missing Location disclosure in privacy policy
 - **Fix:** Trust measured `env(safe-area-inset-*)` only (removed inflated Despia bottom fallback ~68px); tightened `--dm-header-stack`, composer `padding-bottom`, call overlay insets; MobileHeader + DM header use `--app-header-safe` only; Privacy v2.1 Section 12 Location Data
 - **Verified:** `npm run build` PASS · `npm run lint` PASS
-- **Uncommitted:** local changes — commit + deploy when ready
-- **You:** Lovable Publish vybehub.app (privacy at `/privacy`) · resubmit App Store privacy review · device-test DM composer + incoming call on Despia
+- **Committed:** `2f72758f` · pushed `main`
+- **Deployed:** https://vybe-daaab.web.app
+- **You:** Lovable → Share → Publish for vybehub.app (privacy at `/privacy`) · resubmit App Store privacy review · device-test DM composer + incoming call on Despia
 
 ## Mobile safe area + splash polish (2026-06-29)
 - **Problem:** Home header huge top gap; asymmetric width; splash V too far above wordmark; progress bar stuck ~28%
