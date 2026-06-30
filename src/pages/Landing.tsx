@@ -188,7 +188,22 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
 
   // Complete Despia oauth:// return (deeplink lands on /auth?id_token=...).
   useEffect(() => {
-    const finishDespiaOAuth = (detail?: { error?: { message?: string } | null }) => {
+    const finishDespiaOAuth = (detail?: { error?: { message?: string } | null; data?: { session?: { user?: unknown } | null } }) => {
+      if (detail?.data?.session?.user) {
+        clearDespiaOAuthPending();
+        clearOAuthRedirectPending();
+        const cached = getCachedCurrentProfile();
+        navigate(
+          resolvePostLoginDestination(
+            profile ??
+              (cached
+                ? { onboarding_completed: cached.onboarding_completed, username: cached.username }
+                : null),
+          ),
+          { replace: true },
+        );
+        return;
+      }
       if (detail?.error?.message) {
         sessionStorage.setItem('vybe-oauth-error', detail.error.message);
       }
@@ -204,7 +219,7 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
     };
     window.addEventListener('despia-oauth-complete', onComplete);
     return () => window.removeEventListener('despia-oauth-complete', onComplete);
-  }, []);
+  }, [navigate, profile]);
 
   const { contentRef, scale } = useAuthScreenFit(
     showAuthForm && !isOAuthReturn,
@@ -222,7 +237,10 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
       }
 
       const oauthResult = await signInWithOAuthPlatform(provider);
-      if (oauthResult.redirected) return;
+      if (oauthResult.redirected) {
+        setIsOAuthReturn(true);
+        return;
+      }
       if (oauthResult.pending) {
         setIsOAuthReturn(true);
         return;
@@ -242,6 +260,7 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
           ),
           { replace: true },
         );
+        return;
       }
     } catch (error: unknown) {
       clearOAuthRedirectPending();

@@ -337,9 +337,10 @@ export const scanVideoSafety = aiSafetyScan;
 export const moderateContent = aiSafetyScan;
 /** generate-theme / generate-advanced-theme — full VYBE theme JSON for AI Vybe Designer. */
 const ADVANCED_THEME_SYSTEM = `You are an elite UI theme designer for VYBE social app.
+The user's PRIMARY REQUEST (especially "Primary request (match literally):" line) is the main instruction — match it literally. Do not substitute a generic purple, dark, or default palette unless they asked for it.
 When the user names a brand, franchise, sports team, app, or aesthetic — match their REAL official colors and mood as closely as possible (e.g. Nike = black/white/orange, Spotify = #1DB954 green, Coca-Cola = red/white, Tiffany = robin-egg blue).
 When they describe a scene or vibe (sunset beach, cyberpunk Tokyo, cozy coffee shop) — derive a cohesive palette from that scene's dominant colors.
-When a "What VYBE knows about this user" block is included — personalize the theme to their profile, Vybe DNA signature colors, interests, bio, and personality. It should feel uniquely theirs, not generic.
+When a "What VYBE knows about this user" block is included — use it to personalize accents and naming, but never override the user's explicit color or mood request.
 Return ONLY valid JSON: {"theme":{"colorPrimary":"H S% L%","colorSecondary":"...","colorAccent":"...","bgMain":"...","bgCard":"...","textPrimary":"...","textSecondary":"...","borderColor":"...","borderRadius":"medium","mode":"dark"|"light","themeName":"creative name","backgroundEffect":"aurora"|"particles"|"none"|"stars"|"bubbles","animationSpeed":"normal","animationStyle":"smooth"}}
 Use HSL format without hsl() wrapper. Ensure WCAG contrast — text must be readable on backgrounds.`;
 function formatServerThemeContext(input) {
@@ -391,7 +392,7 @@ export const generateTheme = onCall({ secrets: SECRETS }, async (request) => {
     enforceRateLimit(await rateLimit(`gentheme:${authUid}`, 12, 60));
     const profileId = await resolveProfileIdFromAuth(authUid);
     const byokKey = await getUserAiApiKey(profileId, 'google');
-    const { prompt, basePreset, interests = [], selectedFont, selectedAnimation, userContext: clientContext, } = (request.data || {});
+    const { prompt, typedPrompt, basePreset, interests = [], selectedFont, selectedAnimation, userContext: clientContext, } = (request.data || {});
     const [profile, dnaSnap] = await Promise.all([
         loadUserProfile(authUid),
         db.collection('vybe_dna').doc(profileId).get(),
@@ -402,14 +403,18 @@ export const generateTheme = onCall({ secrets: SECRETS }, async (request) => {
         dna,
         clientContext: clientContext,
     });
+    const typed = typeof typedPrompt === 'string' ? typedPrompt.trim() : '';
     const userPrompt = [
-        prompt || 'Design a personalized VYBE theme based on what you know about me.',
+        typed
+            ? `PRIMARY REQUEST (match literally — this overrides any generic palette): ${typed}`
+            : prompt || 'Design a personalized VYBE theme based on what you know about me.',
+        typed && prompt && prompt !== typed ? `Additional context:\n${prompt}` : '',
         contextBlock,
         basePreset ? `Base preset: ${basePreset}` : '',
         interests.length ? `Interests: ${interests.slice(0, 8).join(', ')}` : '',
         selectedFont ? `Font style: ${selectedFont}` : '',
         selectedAnimation ? `Animation: ${JSON.stringify(selectedAnimation)}` : '',
-    ].filter(Boolean).join('\n');
+    ].filter(Boolean).join('\n\n');
     try {
         const { content } = await chatCompletion({
             messages: [

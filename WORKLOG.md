@@ -2,6 +2,28 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## AI theme designer — prompt matching fix (2026-06-17)
+- **Problem:** Typed prompts returned generic purple/wrong palettes — local keyword matcher skipped Gemini
+- **Fix:** `typedPrompt` forces cloud AI (22s); AI colors win in merge; brand instant path kept; server prompt prioritizes literal user request
+- **Verified:** `npm run build` PASS · `npm run lint` PASS · functions build PASS
+- **Deployed:** https://vybe-daaab.web.app + `generateTheme` / `generateAdvancedTheme`
+- **You:** Settings → Themes → try "cherry cola sunset", "rainy tokyo neon", "Spotify green"
+
+## Google/Apple instant OAuth sign-in (2026-06-17)
+- **Problem:** Google/Apple sign-in opened another page but never logged user in
+- **Cause:** `getRedirectResult` only ran when sessionStorage pending flag survived OAuth round-trip (often cleared on mobile); AuthCallback cleared pending too early; mobile non-Safari forced slow redirect instead of popup
+- **Fix:** Always capture Firebase redirect on boot + pageshow; pending flag mirrored to localStorage; popup on Android Chrome/desktop; AuthCallback completes Firebase redirect; Despia deeplink navigates immediately on success
+- **Verified:** `npm run build` PASS · `npm run lint` PASS
+- **Deployed:** https://vybe-daaab.web.app
+- **You:** Hard refresh · test Google + Apple on phone browser + Despia app
+
+## Colorful wallpaper restore (2026-06-17)
+- **Problem:** DMs/Settings looked flat black — opaque `#main-content` (0.92) covered aurora app-wide; DM chat shell semi-opaque; native Despia hid all blobs
+- **Fix:** Opaque main-content only on Home feed (`.home-shell`); DM chat shell transparent glass; native perf shows static theme blobs + slow mesh drift; DM keeps mesh color drift (blobs paused)
+- **Verified:** `npm run build` PASS
+- **Deployed:** https://vybe-daaab.web.app
+- **You:** Hard refresh staging · check DMs + Settings + Home scroll
+
 ## Platform GEMINI for all VYBE AI chat (2026-06-17)
 - **Problem:** User wanted shared env `GEMINI_API_KEY` for everyone, not personal BYOK blocking chat
 - **Fix:** `aiChat` always uses platform secret unless `usePersonalKey`; client always server-first

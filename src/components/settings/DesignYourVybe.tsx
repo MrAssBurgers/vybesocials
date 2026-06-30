@@ -162,7 +162,7 @@ export function DesignYourVybe() {
   }, [showConfirmation]);
 
   const generationRunIdRef = useRef(0);
-  const GENERATION_TIMEOUT_MS = 12000;
+  const GENERATION_TIMEOUT_MS = 25000;
 
   // Lock scroll while generating
   useEffect(() => {
@@ -384,6 +384,7 @@ export function DesignYourVybe() {
       const theme = await withTimeout(
         generateTheme.mutateAsync({
           prompt: promptValue,
+          typedPrompt: prompt.trim(),
           basePreset: selectedPreset,
           selectedVibe,
         }),

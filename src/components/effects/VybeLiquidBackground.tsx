@@ -174,8 +174,10 @@ export const VybeLiquidBackground = memo(function VybeLiquidBackground({
   }, [interactive, backgroundOnly, triggerTouchResponse]);
 
   const blobLayout = backgroundOnly ? APP_SHELL_BLOB_LAYOUT : BLOB_LAYOUT;
+  const showStaticColorLayers = isNativePerfMode() && backgroundOnly;
   const showAnimatedLayers = !STABLE_APP_BACKGROUND && !isNativePerfMode();
-  const showBloom = showAnimatedLayers;
+  const showColorBlobs = showAnimatedLayers || showStaticColorLayers;
+  const showBloom = showColorBlobs;
   const showGrain = showAnimatedLayers && !backgroundOnly;
 
   const touchEffects = (
@@ -204,7 +206,7 @@ export const VybeLiquidBackground = memo(function VybeLiquidBackground({
     >
       <div className="vybe-liquid-parallax absolute inset-[-24%]">
         <div className="vybe-liquid-mesh absolute inset-0" />
-        {showAnimatedLayers && (
+        {showColorBlobs && (
           <>
             {showBloom && <div className="vybe-liquid-bloom absolute inset-[-18%]" />}
             {blobLayout.map((blob) => (

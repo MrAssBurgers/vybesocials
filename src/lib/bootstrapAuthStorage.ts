@@ -4,7 +4,7 @@
  */
 import { clearObsoleteAuthStorage, repairLegacyAuthStorage } from './legacyAuthStorage';
 import { isPasswordRecoveryUrl, redirectToPasswordRecoveryPage } from './passwordRecoveryUrl';
-import { captureOAuthRedirectOnLoad, clearStaleOAuthRedirectPending, isOAuthRedirectInFlight } from '@/lib/firebase/oauthRedirect';
+import { captureOAuthRedirectOnLoad, clearStaleOAuthRedirectPending } from '@/lib/firebase/oauthRedirect';
 
 if (typeof window !== 'undefined') {
   try {
@@ -20,6 +20,6 @@ clearObsoleteAuthStorage();
 repairLegacyAuthStorage();
 clearStaleOAuthRedirectPending();
 
-if (typeof window !== 'undefined' && isOAuthRedirectInFlight()) {
+if (typeof window !== 'undefined') {
   captureOAuthRedirectOnLoad();
 }

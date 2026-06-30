@@ -3,7 +3,7 @@
  * on self-built shells, popup on desktop, redirect on mobile Safari only.
  */
 import { isDespiaRuntime, isNativeAppShell } from '@/lib/despiaBridge';
-import { isDesktopWebBrowser, isEmbeddedAppleWebView } from '@/lib/deviceDetection';
+import { isEmbeddedAppleWebView, isMobileSafariBrowser } from '@/lib/deviceDetection';
 import { isNativePlatform } from '@/lib/capacitor';
 import { signInWithGoogleDespia } from '@/lib/despiaOAuth';
 import type { VybeAuthError, VybeSession } from '@/lib/firebase/types';
@@ -24,7 +24,8 @@ export function shouldUseNativeOAuth(): boolean {
 
 export function shouldUseRedirectOAuth(): boolean {
   if (isNativeAppShell()) return false;
-  return !isDesktopWebBrowser();
+  // Popup works on desktop + Android Chrome — redirect only where popups are blocked (Mobile Safari).
+  return isMobileSafariBrowser();
 }
 
 export function shouldUseDespiaOAuth(provider: OAuthProviderId): boolean {

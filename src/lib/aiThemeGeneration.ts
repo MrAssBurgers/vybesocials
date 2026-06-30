@@ -28,6 +28,8 @@ export type ThemeGenerationSource = 'cloud' | 'client' | 'local' | 'brand' | 'pr
 
 export interface GenerateVybeThemeOptions {
   prompt: string;
+  /** Raw textarea value — when set, always run Gemini instead of local keyword match. */
+  typedPrompt?: string;
   basePreset?: string;
   selectedVibe?: string | null;
   interests?: string[];
@@ -40,11 +42,13 @@ export interface GenerateVybeThemeResult {
   theme: GeneratedTheme;
   source: ThemeGenerationSource;
   notice?: string;
+  /** True when user typed a prompt but AI paths failed. */
+  aiFallback?: boolean;
 }
 
 const CLIENT_AI_MS = 6000;
-const CLOUD_AI_MS = 5000;
-/** Instant return when prompt clearly specifies colors/brand/scene. */
+const CLOUD_AI_MS = 22000;
+/** Instant return when prompt clearly specifies colors/brand/scene (no typed prompt). */
 const INSTANT_CONFIDENCE = 0.72;
 
 function normalizeCallableTheme(data: unknown): GeneratedTheme | null {
@@ -66,21 +70,17 @@ function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
   ]);
 }
 
-function mergeAiTheme(
-  base: GeneratedTheme,
-  ai: GeneratedTheme,
-  options?: { preferBaseColors?: boolean },
-): GeneratedTheme {
-  const preferBase = options?.preferBaseColors ?? false;
+/** Merge AI theme — AI colors always win when Gemini succeeded. */
+function mergeAiTheme(base: GeneratedTheme, ai: GeneratedTheme): GeneratedTheme {
   return sanitizeThemeTokens({
     ...base,
     ...ai,
     themeName: ai.themeName || base.themeName,
-    colorPrimary: preferBase ? base.colorPrimary : ai.colorPrimary || base.colorPrimary,
-    colorAccent: preferBase ? base.colorAccent : ai.colorAccent || base.colorAccent,
-    colorSecondary: preferBase ? base.colorSecondary : ai.colorSecondary || base.colorSecondary,
-    bgMain: preferBase ? base.bgMain : ai.bgMain || base.bgMain,
-    bgCard: preferBase ? base.bgCard : ai.bgCard || base.bgCard,
+    colorPrimary: ai.colorPrimary || base.colorPrimary,
+    colorAccent: ai.colorAccent || base.colorAccent,
+    colorSecondary: ai.colorSecondary || base.colorSecondary,
+    bgMain: ai.bgMain || base.bgMain,
+    bgCard: ai.bgCard || base.bgCard,
     mode: ai.mode || base.mode,
     backgroundEffect: ai.backgroundEffect || base.backgroundEffect,
     animationSpeed: ai.animationSpeed || base.animationSpeed,
@@ -89,17 +89,18 @@ function mergeAiTheme(
 }
 
 /**
- * Fast + faithful theme generation:
- * 1) Instant parse (brand / hex / color words / scenes) — no network
- * 2) Optional client AI refine (6s cap) — skipped when instant confidence is high
- * 3) Optional cloud AI (5s cap) — only if client fails
- * 4) Always returns prompt-derived palette, never a random unrelated vibe
+ * Theme generation:
+ * 1) Typed prompt → always call cloud AI (local parse = hints only)
+ * 2) No typed prompt → instant brand / high-confidence local parse
+ * 3) Cloud-first (22s), optional client refine in parallel
+ * 4) Local fallback only when AI fails
  */
 export async function generateVybeTheme(
   options: GenerateVybeThemeOptions,
 ): Promise<GenerateVybeThemeResult> {
   const {
     prompt,
+    typedPrompt,
     basePreset = 'classic',
     selectedVibe,
     interests = [],
@@ -107,6 +108,9 @@ export async function generateVybeTheme(
     selectedAnimation,
     userContext,
   } = options;
+
+  const hasTypedPrompt = (typedPrompt ?? '').trim().length > 0;
+  const typedText = (typedPrompt ?? '').trim();
 
   const contextBlock = formatThemeUserContext(userContext);
   const mergedInterests = [
@@ -122,13 +126,12 @@ export async function generateVybeTheme(
     trimmedPrompt || (hasThemeUserContext(userContext) ? defaultThemePromptFromContext(userContext) : '');
 
   const parsed = buildThemeFromPrompt(effectivePrompt || prompt, { selectedVibe, basePreset });
-  const brandId = detectBrandFromPrompt(effectivePrompt || prompt);
+  const brandId = detectBrandFromPrompt(hasTypedPrompt ? typedText : effectivePrompt || prompt);
   const brandTheme = brandId ? buildBrandTheme(brandId) : null;
   const brandHint = brandId ? brandThemePromptHint(brandId) : promptThemeAiHint(parsed);
-  const preferBaseColors = Boolean(brandId) || parsed.confidence >= INSTANT_CONFIDENCE;
 
   const userPrompt = [
-    effectivePrompt,
+    hasTypedPrompt ? `Primary request (match literally): ${typedText}` : effectivePrompt,
     contextBlock,
     brandHint,
     mergedInterests.length ? `Interests: ${mergedInterests.join(', ')}` : '',
@@ -139,7 +142,7 @@ export async function generateVybeTheme(
     .filter(Boolean)
     .join('\n');
 
-  // Brand / high-confidence prompts — instant return, never generic purple AI.
+  // Known brands — instant palette even when user typed the brand name.
   if (brandId && brandTheme) {
     return {
       theme: sanitizeThemeTokens(brandTheme),
@@ -147,38 +150,24 @@ export async function generateVybeTheme(
     };
   }
 
-  if (parsed.confidence >= INSTANT_CONFIDENCE && (trimmedPrompt.length > 0 || effectivePrompt.length > 0)) {
-    return {
-      theme: sanitizeThemeTokens(parsed.theme),
-      source: 'prompt',
-    };
+  // Instant paths — only when user did not type a custom prompt in the textarea.
+  if (!hasTypedPrompt) {
+    if (parsed.confidence >= INSTANT_CONFIDENCE && effectivePrompt.length > 0) {
+      return {
+        theme: sanitizeThemeTokens(parsed.theme),
+        source: 'prompt',
+      };
+    }
   }
 
-  // Strong local palette — skip AI (prevents purple override); AI runs for open-ended prompts.
-  if (preferBaseColors && parsed.confidence >= 0.55 && !trimmedPrompt.match(/\b(create|design|personalized|my vybe)\b/i)) {
-    return {
-      theme: sanitizeThemeTokens(parsed.theme),
-      source: 'prompt',
-    };
-  }
-
-  // Client + cloud in parallel (cap ~6s total, not sequential 11s)
+  // Typed prompt or open-ended — run AI (cloud-first, client optional parallel).
   let cloudError: unknown;
   const baseTheme = parsed.theme;
-
-  const clientPromise = isAiLogicConfigured()
-    ? withTimeout(generateThemeViaClientAi(userPrompt), CLIENT_AI_MS)
-        .then((raw) => (raw && isValidGeneratedTheme(raw) ? raw : null))
-        .catch((err) => {
-          cloudError = err;
-          console.warn('[generateVybeTheme] client AI failed', err);
-          return null;
-        })
-    : Promise.resolve(null);
 
   const cloudPromise = withTimeout(
     invokeFunction<{ theme?: GeneratedTheme; error?: string }>('generate-theme', {
       prompt: userPrompt,
+      typedPrompt: hasTypedPrompt ? typedText : undefined,
       basePreset,
       interests: mergedInterests,
       selectedFont: selectedFont ?? undefined,
@@ -192,25 +181,34 @@ export async function generateVybeTheme(
       return normalizeCallableTheme(data);
     })
     .catch((err) => {
-      cloudError = cloudError ?? err;
+      cloudError = err;
       console.warn('[generateVybeTheme] cloud failed', err);
       return null;
     });
 
-  const [clientRaw, cloudTheme] = await Promise.all([clientPromise, cloudPromise]);
+  const clientPromise =
+    isAiLogicConfigured() && !hasTypedPrompt
+      ? withTimeout(generateThemeViaClientAi(userPrompt), CLIENT_AI_MS)
+          .then((raw) => (raw && isValidGeneratedTheme(raw) ? raw : null))
+          .catch((err) => {
+            cloudError = cloudError ?? err;
+            console.warn('[generateVybeTheme] client AI failed', err);
+            return null;
+          })
+      : Promise.resolve(null);
 
-  if (clientRaw) {
-    return {
-      theme: mergeAiTheme(baseTheme, sanitizeThemeTokens(clientRaw as ThemeTokens), {
-        preferBaseColors,
-      }),
-      source: 'client',
-    };
-  }
+  const [cloudTheme, clientRaw] = await Promise.all([cloudPromise, clientPromise]);
+
   if (cloudTheme) {
     return {
-      theme: mergeAiTheme(baseTheme, sanitizeThemeTokens(cloudTheme), { preferBaseColors }),
+      theme: mergeAiTheme(baseTheme, sanitizeThemeTokens(cloudTheme)),
       source: 'cloud',
+    };
+  }
+  if (clientRaw) {
+    return {
+      theme: mergeAiTheme(baseTheme, sanitizeThemeTokens(clientRaw as ThemeTokens)),
+      source: 'client',
     };
   }
 
@@ -221,8 +219,12 @@ export async function generateVybeTheme(
   const fallback = brandTheme ?? (parsed.confidence >= 0.4 ? parsed.theme : buildLocalVibeTheme(vibe));
 
   const cloudMsg = formatAiFeatureError(cloudError, '');
-  const notice =
-    cloudMsg && (cloudMsg.includes('GEMINI') || cloudMsg.includes('VYBE AI') || cloudMsg.includes('timeout'))
+  const aiFailed = hasTypedPrompt;
+  const notice = aiFailed
+    ? cloudMsg && (cloudMsg.includes('GEMINI') || cloudMsg.includes('VYBE AI') || cloudMsg.includes('timeout'))
+      ? `AI couldn't run — applied best local match. ${cloudMsg}`
+      : "AI couldn't run — applied best local match from your words. Check connection or try again."
+    : cloudMsg && (cloudMsg.includes('GEMINI') || cloudMsg.includes('VYBE AI') || cloudMsg.includes('timeout'))
       ? `Applied colors from your prompt. ${cloudMsg.includes('timeout') ? 'AI timed out — ' : ''}Palette matched locally.`
       : parsed.confidence >= 0.4
         ? undefined
@@ -232,5 +234,6 @@ export async function generateVybeTheme(
     theme: sanitizeThemeTokens(fallback),
     source: brandTheme ? 'brand' : parsed.confidence >= 0.4 ? 'prompt' : 'local',
     notice,
+    aiFallback: aiFailed,
   };
 }

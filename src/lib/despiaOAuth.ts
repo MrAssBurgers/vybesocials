@@ -62,31 +62,78 @@ export function decodeOAuthState(state: string | null): { scheme: string; nonce:
 }
 
 export function markDespiaOAuthPending(): void {
-  if (typeof sessionStorage === 'undefined') return;
+  if (typeof window === 'undefined') return;
+  const at = String(Date.now());
   sessionStorage.setItem(DESPIA_OAUTH_PENDING_KEY, 'true');
-  sessionStorage.setItem(DESPIA_OAUTH_PENDING_AT_KEY, String(Date.now()));
+  sessionStorage.setItem(DESPIA_OAUTH_PENDING_AT_KEY, at);
+  try {
+    localStorage.setItem(DESPIA_OAUTH_PENDING_KEY, 'true');
+    localStorage.setItem(DESPIA_OAUTH_PENDING_AT_KEY, at);
+  } catch {
+    /* ignore */
+  }
 }
 
 export function clearDespiaOAuthPending(): void {
-  if (typeof sessionStorage === 'undefined') return;
+  if (typeof window === 'undefined') return;
   sessionStorage.removeItem(DESPIA_OAUTH_PENDING_KEY);
   sessionStorage.removeItem(DESPIA_OAUTH_PENDING_AT_KEY);
   sessionStorage.removeItem(DESPIA_OAUTH_NONCE_KEY);
+  try {
+    localStorage.removeItem(DESPIA_OAUTH_PENDING_KEY);
+    localStorage.removeItem(DESPIA_OAUTH_PENDING_AT_KEY);
+  } catch {
+    /* ignore */
+  }
 }
 
 export function clearStaleDespiaOAuthPending(): void {
-  if (typeof sessionStorage === 'undefined') return;
-  if (sessionStorage.getItem(DESPIA_OAUTH_PENDING_KEY) !== 'true') return;
-  const at = Number(sessionStorage.getItem(DESPIA_OAUTH_PENDING_AT_KEY) || '0');
+  if (typeof window === 'undefined') return;
+  const pending =
+    sessionStorage.getItem(DESPIA_OAUTH_PENDING_KEY) === 'true' ||
+    (() => {
+      try {
+        return localStorage.getItem(DESPIA_OAUTH_PENDING_KEY) === 'true';
+      } catch {
+        return false;
+      }
+    })();
+  if (!pending) return;
+  const at =
+    Number(sessionStorage.getItem(DESPIA_OAUTH_PENDING_AT_KEY) || '0') ||
+    (() => {
+      try {
+        return Number(localStorage.getItem(DESPIA_OAUTH_PENDING_AT_KEY) || '0');
+      } catch {
+        return 0;
+      }
+    })();
   if (!at || Date.now() - at > DESPIA_OAUTH_PENDING_MAX_MS) {
     clearDespiaOAuthPending();
   }
 }
 
 export function isDespiaOAuthInFlight(): boolean {
-  if (typeof sessionStorage === 'undefined') return false;
-  if (sessionStorage.getItem(DESPIA_OAUTH_PENDING_KEY) !== 'true') return false;
-  const at = Number(sessionStorage.getItem(DESPIA_OAUTH_PENDING_AT_KEY) || '0');
+  if (typeof window === 'undefined') return false;
+  const pending =
+    sessionStorage.getItem(DESPIA_OAUTH_PENDING_KEY) === 'true' ||
+    (() => {
+      try {
+        return localStorage.getItem(DESPIA_OAUTH_PENDING_KEY) === 'true';
+      } catch {
+        return false;
+      }
+    })();
+  if (!pending) return false;
+  const at =
+    Number(sessionStorage.getItem(DESPIA_OAUTH_PENDING_AT_KEY) || '0') ||
+    (() => {
+      try {
+        return Number(localStorage.getItem(DESPIA_OAUTH_PENDING_AT_KEY) || '0');
+      } catch {
+        return 0;
+      }
+    })();
   if (at && Date.now() - at > DESPIA_OAUTH_PENDING_MAX_MS) {
     clearDespiaOAuthPending();
     return false;
@@ -208,7 +255,11 @@ export async function completeDespiaOAuthFromUrl(url: string): Promise<DespiaOAu
     if (sessionError) {
       return { data: { session: null }, error: sessionError };
     }
-    return { data: { session: data.session }, error: null };
+    const completion = { data: { session: data.session }, error: null };
+    if (data.session?.user) {
+      window.dispatchEvent(new CustomEvent('despia-oauth-complete', { detail: completion }));
+    }
+    return completion;
   } catch (err) {
     clearDespiaOAuthPending();
     const message = err instanceof Error ? err.message : 'Google sign-in failed';

@@ -764,34 +764,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
     window.addEventListener('pageshow', onPageShow);
 
-    // Firebase Google/Apple redirect — await capture started in bootstrapAuthStorage.
+    // Firebase Google/Apple redirect — capture starts in bootstrapAuthStorage (always).
     void (async () => {
-      if (isOAuthRedirectInFlight()) {
-        const captured = await awaitOAuthRedirectCapture();
-        if (captured.error) {
-          console.warn('[Auth] Firebase OAuth redirect failed:', captured.error);
-          const { getUserFriendlyError } = await import('@/lib/errorUtils');
-          const msg = getUserFriendlyError(captured.error);
-          if (msg !== '__SUPPRESS__') {
-            sessionStorage.setItem('vybe-oauth-error', msg);
-          }
-        } else if (captured.session?.user) {
-          const oauthSession = captured.session;
-          setWasLoggedIn(true);
-          setSession(oauthSession);
-          setUser(oauthSession.user);
-          setActiveAuthUserId(oauthSession.user.id);
-          hydrateCachedProfile(oauthSession.user.id);
-          startHeartbeat();
-          if (oauthSession.expires_at) {
-            scheduleTokenRefresh(oauthSession.expires_at);
-          }
-          bootstrapSessionData(oauthSession.user.id, 'SIGNED_IN');
-          clearOAuthRedirectPending();
-          authInitializedRef.current = true;
-          setLoading(false);
-          setIsInitialized(true);
+      const captured = await awaitOAuthRedirectCapture();
+      if (captured.error) {
+        console.warn('[Auth] Firebase OAuth redirect failed:', captured.error);
+        const { getUserFriendlyError } = await import('@/lib/errorUtils');
+        const msg = getUserFriendlyError(captured.error);
+        if (msg !== '__SUPPRESS__') {
+          sessionStorage.setItem('vybe-oauth-error', msg);
         }
+      } else if (captured.session?.user) {
+        const oauthSession = captured.session;
+        setWasLoggedIn(true);
+        setSession(oauthSession);
+        setUser(oauthSession.user);
+        setActiveAuthUserId(oauthSession.user.id);
+        hydrateCachedProfile(oauthSession.user.id);
+        startHeartbeat();
+        if (oauthSession.expires_at) {
+          scheduleTokenRefresh(oauthSession.expires_at);
+        }
+        bootstrapSessionData(oauthSession.user.id, 'SIGNED_IN');
+        clearOAuthRedirectPending();
+        authInitializedRef.current = true;
+        setLoading(false);
+        setIsInitialized(true);
       }
 
       const extracted = await extractHashTokens();

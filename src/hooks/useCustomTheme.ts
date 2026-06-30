@@ -429,6 +429,7 @@ export function useGenerateTheme() {
   return useMutation({
     mutationFn: async ({
       prompt,
+      typedPrompt,
       basePreset = 'classic',
       selectedVibe,
       interests,
@@ -437,6 +438,7 @@ export function useGenerateTheme() {
       userContext: userContextOverride,
     }: {
       prompt: string;
+      typedPrompt?: string;
       basePreset?: string;
       selectedVibe?: string | null;
       interests?: string[];
@@ -472,6 +474,7 @@ export function useGenerateTheme() {
 
       const result = await generateVybeTheme({
         prompt,
+        typedPrompt,
         basePreset,
         selectedVibe,
         interests,
@@ -485,7 +488,9 @@ export function useGenerateTheme() {
         localStorage.setItem(AI_THEME_COOLDOWN_KEY, String(Date.now()));
       }
 
-      if (result.source === 'local' && result.notice) {
+      if (result.aiFallback && result.notice) {
+        toast.message(result.notice, { duration: 7000 });
+      } else if (result.source === 'local' && result.notice) {
         toast.message(result.notice, { duration: 6000 });
       } else if (result.source === 'prompt' || result.source === 'brand') {
         toast.success(`Theme matched: ${(result.theme as { themeName?: string }).themeName || 'Your VYBE'}`);

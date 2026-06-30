@@ -28,32 +28,64 @@ function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
   ]);
 }
 
+function readPendingAt(): number {
+  if (typeof window === 'undefined') return 0;
+  const fromSession = Number(sessionStorage.getItem(OAUTH_PENDING_AT_KEY) || '0');
+  if (fromSession) return fromSession;
+  try {
+    return Number(localStorage.getItem(OAUTH_PENDING_AT_KEY) || '0');
+  } catch {
+    return 0;
+  }
+}
+
+function isPendingFlagSet(): boolean {
+  if (typeof window === 'undefined') return false;
+  if (sessionStorage.getItem(OAUTH_PENDING_KEY) === 'true') return true;
+  try {
+    return localStorage.getItem(OAUTH_PENDING_KEY) === 'true';
+  } catch {
+    return false;
+  }
+}
+
 export function markOAuthRedirectPending(): void {
-  if (typeof sessionStorage === 'undefined') return;
+  if (typeof window === 'undefined') return;
+  const at = String(Date.now());
   sessionStorage.setItem(OAUTH_PENDING_KEY, 'true');
-  sessionStorage.setItem(OAUTH_PENDING_AT_KEY, String(Date.now()));
+  sessionStorage.setItem(OAUTH_PENDING_AT_KEY, at);
+  try {
+    localStorage.setItem(OAUTH_PENDING_KEY, 'true');
+    localStorage.setItem(OAUTH_PENDING_AT_KEY, at);
+  } catch {
+    /* ignore */
+  }
 }
 
 export function clearOAuthRedirectPending(): void {
-  if (typeof sessionStorage === 'undefined') return;
+  if (typeof window === 'undefined') return;
   sessionStorage.removeItem(OAUTH_PENDING_KEY);
   sessionStorage.removeItem(OAUTH_PENDING_AT_KEY);
+  try {
+    localStorage.removeItem(OAUTH_PENDING_KEY);
+    localStorage.removeItem(OAUTH_PENDING_AT_KEY);
+  } catch {
+    /* ignore */
+  }
 }
 
 /** Drop stale flags left from abandoned OAuth attempts (prevents auth init hang). */
 export function clearStaleOAuthRedirectPending(): void {
-  if (typeof sessionStorage === 'undefined') return;
-  if (sessionStorage.getItem(OAUTH_PENDING_KEY) !== 'true') return;
-  const at = Number(sessionStorage.getItem(OAUTH_PENDING_AT_KEY) || '0');
+  if (!isPendingFlagSet()) return;
+  const at = readPendingAt();
   if (!at || Date.now() - at > OAUTH_PENDING_MAX_MS) {
     clearOAuthRedirectPending();
   }
 }
 
 function isOAuthReturnPending(): boolean {
-  if (typeof sessionStorage === 'undefined') return false;
-  if (sessionStorage.getItem(OAUTH_PENDING_KEY) !== 'true') return false;
-  const at = Number(sessionStorage.getItem(OAUTH_PENDING_AT_KEY) || '0');
+  if (!isPendingFlagSet()) return false;
+  const at = readPendingAt();
   if (at && Date.now() - at > OAUTH_PENDING_MAX_MS) {
     clearOAuthRedirectPending();
     return false;
@@ -73,22 +105,15 @@ export function captureOAuthRedirectOnLoad(): Promise<OAuthRedirectCapture> {
       const result = await withTimeout(getRedirectResult(auth), getOAuthRedirectTimeoutMs());
       if (!result?.user) return { session: null, error: null };
 
-      const { data: userData } = await firebaseAuth.getUser();
-      if (userData.user) {
+      const { data: sessionData } = await firebaseAuth.getSession();
+      if (sessionData.session?.user) {
         clearOAuthRedirectPending();
-        return {
-          session: {
-            user: userData.user,
-            access_token: '',
-            refresh_token: result.user.refreshToken,
-          },
-          error: null,
-        };
+        return { session: sessionData.session, error: null };
       }
 
       return { session: null, error: { message: 'OAuth redirect completed without session' } };
     } catch (err) {
-      clearOAuthRedirectPending();
+      if (isPendingFlagSet()) clearOAuthRedirectPending();
       const message = err instanceof Error ? err.message : 'OAuth redirect failed';
       return {
         session: null,
@@ -110,7 +135,14 @@ export function isOAuthRedirectInFlight(): boolean {
 
 if (typeof window !== 'undefined') {
   clearStaleOAuthRedirectPending();
-  if (isOAuthReturnPending()) {
-    captureOAuthRedirectOnLoad();
-  }
+  // Always probe Firebase redirect result on boot — sessionStorage pending flag is often
+  // cleared during the Google round-trip on mobile Safari.
+  captureOAuthRedirectOnLoad();
+
+  window.addEventListener('pageshow', (event) => {
+    if (event.persisted) {
+      capturePromise = null;
+      captureOAuthRedirectOnLoad();
+    }
+  });
 }

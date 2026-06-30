@@ -327,6 +327,7 @@ export function AIVybeDesigner({ interests = [], onComplete, onSkip }: AIVybeDes
     try {
       const result = await generateVybeTheme({
         prompt: fullPrompt,
+        typedPrompt: customPrompt.trim(),
         selectedVibe,
         interests,
         selectedFont,
@@ -337,7 +338,7 @@ export function AIVybeDesigner({ interests = [], onComplete, onSkip }: AIVybeDes
       });
       if (!isValidGeneratedTheme(result.theme)) throw new Error('Invalid theme response');
       theme = { ...result.theme };
-      if (result.notice && result.source === 'local') {
+      if (result.notice && (result.source === 'local' || result.aiFallback)) {
         toast.message(result.notice, { duration: 5000 });
       }
     } catch (err: unknown) {

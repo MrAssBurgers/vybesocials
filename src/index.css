@@ -246,7 +246,7 @@ html[data-dm-active="true"] nav[aria-label="Bottom navigation"] .liquid-glass-de
 
 /* Active chat: keep shell aurora visible through glass panes */
 .dm-shell:has(.dm-chat-shell)::before {
-  opacity: 0.65;
+  opacity: 0.9;
 }
 
 .dm-sidebar {
@@ -928,7 +928,9 @@ body.has-liquid-bg .dm-inbox-hero-aurora {
   }
 }
 body.has-liquid-bg:not(.has-custom-bg) .dm-chat-shell {
-  background: hsl(var(--background) / 0.18);
+  background: transparent;
+  backdrop-filter: blur(22px) saturate(155%);
+  -webkit-backdrop-filter: blur(22px) saturate(155%);
 }
 .dm-chat-header {
   position: absolute;
@@ -1343,10 +1345,9 @@ body.has-liquid-bg:not(.has-custom-bg) .texter-keyboard-aware::before {
     padding-bottom: 0.75rem;
   }
 }
-/* Pause aurora animation while in a DM — frees GPU for scroll + typing */
+/* Pause aurora blobs while in a DM — frees GPU for scroll + typing; mesh keeps color drift */
 html[data-dm-active='true'] .vybe-liquid-bg .vybe-liquid-blob,
 html[data-dm-active='true'] .vybe-liquid-bg .vybe-liquid-bloom,
-html[data-dm-active='true'] .vybe-liquid-bg .vybe-liquid-mesh,
 html[data-dm-active='true'] .vybe-liquid-bg .vybe-liquid-parallax {
   animation-play-state: paused !important;
 }
@@ -2941,9 +2942,9 @@ body.has-liquid-bg:not(.has-custom-bg) #main-content {
     background: transparent !important;
     background-color: transparent !important;
   }
-  /* Opaque feed shell — prevents aurora mesh holes flashing through while scrolling */
-  body.has-liquid-bg #main-content,
-  body.has-custom-bg #main-content {
+  /* Opaque Home feed shell only — prevents aurora mesh holes while scrolling Home */
+  body.has-liquid-bg #main-content:has(.home-shell),
+  body.has-custom-bg #main-content:has(.home-shell) {
     background-color: hsl(var(--background) / 0.92) !important;
     -webkit-overflow-scrolling: touch;
   }
@@ -7751,9 +7752,14 @@ html.native-perf-mode [style*="content-visibility"] {
   contain-intrinsic-size: 0 520px;
 }
 
-html.native-perf-mode .vybe-liquid-bg .vybe-liquid-blob,
+/* Native shell: static colorful blobs (no drift) — mesh paints the gradient */
+html.native-perf-mode .vybe-liquid-bg .vybe-liquid-blob {
+  opacity: 0.44;
+  filter: blur(96px);
+}
 html.native-perf-mode .vybe-liquid-bg .vybe-liquid-bloom {
-  display: none !important;
+  opacity: 0.42;
+  filter: blur(64px);
 }
 
 /* Scroll: never flash black — keep mesh visible and skip content-visibility holes */
@@ -7781,6 +7787,15 @@ html.is-scrolling .home-shell > * {
   html.native-perf-mode .vybe-liquid-bg--static .vybe-liquid-blob,
   html.native-perf-mode .vybe-liquid-bg--static .vybe-liquid-bloom {
     animation: none !important;
+  }
+
+  /* Native static aurora — slow mesh drift only (no blob motion) */
+  html.native-perf-mode .vybe-liquid-bg--static .vybe-liquid-mesh {
+    animation: vybe-mesh-color-drift 120s cubic-bezier(0.42, 0, 0.58, 1) infinite alternate !important;
+  }
+
+  html.native-perf-mode .vybe-liquid-bg--static .vybe-liquid-mesh::after {
+    animation: vybe-mesh-wash-drift 96s cubic-bezier(0.42, 0, 0.58, 1) infinite alternate-reverse !important;
   }
 
   html.native-perf-mode html.vybe-liquid-touch-active .vybe-liquid-touch-layer,

@@ -160,6 +160,7 @@ export function ThemeCustomizer() {
     try {
       const theme = await generateTheme.mutateAsync({
         prompt: aiPrompt.trim(),
+        typedPrompt: aiPrompt.trim(),
         basePreset: selectedPreset,
       });
 

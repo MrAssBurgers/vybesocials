@@ -5,6 +5,7 @@ import { resolvePostLoginDestination } from '@/lib/authReturnPath';
 import { getCachedCurrentProfile } from '@/lib/profileCache';
 import { isPasswordRecoveryUrl, redirectToPasswordRecoveryPage } from '@/lib/passwordRecoveryUrl';
 import { clearOAuthRedirectPending, isOAuthRedirectInFlight } from '@/lib/firebase/oauthRedirect';
+import { firebaseAuth } from '@/lib/firebase';
 import {
   clearDespiaOAuthPending,
   isDespiaOAuthReturnUrl,
@@ -34,28 +35,32 @@ export default function AuthCallback() {
     void tryCompleteDespiaOAuthFromCurrentUrl();
   }, []);
 
+  // Firebase redirect may land here — complete before routing away.
+  useEffect(() => {
+    void firebaseAuth.completeOAuthRedirectIfNeeded();
+  }, []);
+
   useEffect(() => {
     try {
       const hash = window.location.hash || '';
       const search = window.location.search || '';
       const hasError = /(?:^|[?&#])error=/.test(hash) || /(?:^|[?&])error=/.test(search);
-      const hasTokens = /access_token=|refresh_token=|code=|token_hash=/.test(`${hash}${search}`);
+      const hasLegacyTokens = /access_token=|refresh_token=|code=|token_hash=/.test(`${hash}${search}`);
       if (hasError) {
         clearOAuthRedirectPending();
         navigate('/', { replace: true });
         return;
       }
-      if (!hasTokens) {
-        clearOAuthRedirectPending();
+      if (!hasLegacyTokens) {
         const t = setTimeout(() => {
-          if (!isOAuthRedirectInFlight()) {
+          if (!user && authReady && !isOAuthRedirectInFlight()) {
             navigate('/auth', { replace: true });
           }
-        }, 800);
+        }, 4000);
         return () => clearTimeout(t);
       }
     } catch { /* ignore */ }
-  }, [navigate]);
+  }, [navigate, user, authReady]);
 
   useEffect(() => {
     const timer = setTimeout(() => setTimedOut(true), 6000);
