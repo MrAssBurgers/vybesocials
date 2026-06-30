@@ -16,7 +16,7 @@ let permissionsRequested = false;
 async function getIncomingCallKit(): Promise<any> {
   if (typeof window === 'undefined') return null;
   const capNative =
-    Capacitor.isNativePlatform() ||
+    (Capacitor.getPlatform?.() !== 'web' && Capacitor.isNativePlatform()) ||
     Boolean((window as { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor?.isNativePlatform?.());
   if (!capNative) return null;
   try {

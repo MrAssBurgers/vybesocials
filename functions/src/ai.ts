@@ -381,6 +381,54 @@ When a "What VYBE knows about this user" block is included — use it to persona
 Return ONLY valid JSON: {"theme":{"colorPrimary":"H S% L%","colorSecondary":"...","colorAccent":"...","bgMain":"...","bgCard":"...","textPrimary":"...","textSecondary":"...","borderColor":"...","borderRadius":"medium","mode":"dark"|"light","themeName":"creative name","backgroundEffect":"aurora"|"particles"|"none"|"stars"|"bubbles","animationSpeed":"normal","animationStyle":"smooth"}}
 Use HSL format without hsl() wrapper. Ensure WCAG contrast — text must be readable on backgrounds.`;
 
+function parseJsonObject<T>(raw: string): T | null {
+  const trimmed = String(raw || '').trim().replace(/^```(?:json)?/i, '').replace(/```$/i, '').trim();
+  try { return JSON.parse(trimmed) as T; } catch {}
+  const start = trimmed.indexOf('{');
+  const end = trimmed.lastIndexOf('}');
+  if (start < 0 || end <= start) return null;
+  try { return JSON.parse(trimmed.slice(start, end + 1)) as T; } catch { return null; }
+}
+
+const HSL_RE = /^\d{1,3}\s+\d{1,3}%\s+\d{1,3}%$/;
+
+function validTheme(theme: unknown): theme is Record<string, unknown> {
+  return Boolean(
+    theme &&
+      typeof theme === 'object' &&
+      typeof (theme as Record<string, unknown>).colorPrimary === 'string' &&
+      HSL_RE.test((theme as Record<string, string>).colorPrimary),
+  );
+}
+
+function fallbackThemeFromPrompt(prompt: string): Record<string, unknown> {
+  const p = prompt.toLowerCase();
+  const pick = (name: string, primary: string, secondary: string, accent: string, mode: 'dark' | 'light' = 'dark') => ({
+    colorPrimary: primary,
+    colorSecondary: secondary,
+    colorAccent: accent,
+    bgMain: mode === 'light' ? '0 0% 98%' : '225 25% 7%',
+    bgCard: mode === 'light' ? '0 0% 100%' : '225 22% 12%',
+    textPrimary: mode === 'light' ? '224 24% 10%' : '0 0% 98%',
+    textSecondary: mode === 'light' ? '224 10% 38%' : '220 12% 72%',
+    borderColor: mode === 'light' ? '220 13% 88%' : '220 18% 22%',
+    borderRadius: 'medium',
+    mode,
+    themeName: name,
+    backgroundEffect: 'aurora',
+    animationSpeed: 'normal',
+    animationStyle: 'smooth',
+  });
+  if (/spotify/.test(p)) return pick('Spotify VYBE', '141 73% 42%', '145 63% 28%', '0 0% 100%');
+  if (/nike|adidas|apple|monochrome|black\s+and\s+white/.test(p)) return pick('Monochrome VYBE', '0 0% 96%', '0 0% 12%', '24 100% 55%');
+  if (/coca|coke|youtube|netflix|red/.test(p)) return pick('Crimson VYBE', '0 84% 50%', '0 70% 36%', '42 100% 58%');
+  if (/tiffany|aqua|teal|ocean|beach/.test(p)) return pick('Aqua VYBE', '178 68% 52%', '199 89% 56%', '32 95% 55%');
+  if (/sunset|orange|gold|amber/.test(p)) return pick('Sunset VYBE', '28 96% 56%', '335 82% 57%', '48 100% 62%');
+  if (/forest|green|nature/.test(p)) return pick('Forest VYBE', '152 65% 45%', '120 36% 28%', '82 72% 54%');
+  if (/pink|rose|barbie/.test(p)) return pick('Rose VYBE', '330 80% 66%', '300 72% 54%', '24 100% 70%');
+  return pick('Custom VYBE', '270 85% 65%', '199 89% 56%', '330 100% 60%');
+}
+
 function formatServerThemeContext(input: {
   profile: Record<string, unknown>;
   dna: Record<string, unknown>;
@@ -497,26 +545,18 @@ export const generateTheme = onCall({ secrets: SECRETS }, async (request) => {
       max_tokens: typed ? TOKEN_BUDGET.creative : TOKEN_BUDGET.standard,
       apiKey: byokKey,
     });
-    try {
-      const parsed = JSON.parse(content);
-      const theme = parsed.theme || parsed;
-      if (theme && (theme.colorPrimary || theme.primary)) {
-        return { theme };
-      }
-    } catch { /* fall through */ }
+    const parsed = parseJsonObject<{ theme?: Record<string, unknown> } & Record<string, unknown>>(content);
+    const theme = parsed?.theme || parsed;
+    if (validTheme(theme)) return { theme };
+    console.warn('[generateTheme] AI returned non-theme JSON; using prompt fallback', { len: content?.length || 0 });
   } catch (err) {
     console.error('[generateTheme]', err);
-    if (err instanceof HttpsError) throw err;
-    throw new HttpsError(
-      'failed-precondition',
-      err instanceof Error ? err.message : 'Theme generation failed — set GEMINI_API_KEY or add your key in Settings → VYBE AI',
-    );
+    // Theme generation should never hard-fail the settings page. If the model,
+    // key, or JSON formatter misbehaves, return a deterministic prompt-matched
+    // theme and let the client keep moving.
   }
 
-  throw new HttpsError(
-    'internal',
-    'Theme AI returned invalid JSON — try a more specific prompt (brand, team, or aesthetic).',
-  );
+  return { theme: fallbackThemeFromPrompt(userPrompt), fallback: true };
 });
 export const generateAdvancedTheme = generateTheme;
 

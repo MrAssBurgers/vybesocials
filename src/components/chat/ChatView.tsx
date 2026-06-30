@@ -44,7 +44,7 @@ import {
 } from '@/lib/dmSendCore';
 import { messageRowKey, replaceOptimisticMessage } from '@/lib/messagesQueryKey';
 import { sendDmBroadcastMessage } from '@/lib/dmBroadcast';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -1440,15 +1440,20 @@ export function ChatView() {
                 <div className="relative h-8 w-8 sm:h-9 sm:w-9 flex-shrink-0">
                   <div className="absolute inset-0 rounded-full bg-gradient-to-br from-primary via-accent to-primary opacity-60" />
                   <div className="absolute inset-[2px] rounded-full overflow-hidden bg-background">
-                    <Avatar className="h-full w-full">
-                      {conversation?.avatar_url ? (
-                        <AvatarImage src={conversation.avatar_url} />
-                      ) : (
+                    {conversation?.avatar_url ? (
+                      <SignedAvatar
+                        src={conversation.avatar_url}
+                        fallback="G"
+                        className="h-full w-full"
+                        fallbackClassName="text-sm bg-muted text-foreground"
+                      />
+                    ) : (
+                      <Avatar className="h-full w-full">
                         <AvatarFallback className="text-sm bg-muted text-foreground">
                           <Users className="h-4 w-4" />
                         </AvatarFallback>
-                      )}
-                    </Avatar>
+                      </Avatar>
+                    )}
                   </div>
                   <div className="absolute -bottom-0.5 -right-0.5 bg-primary text-primary-foreground text-[9px] font-bold w-4 h-4 flex items-center justify-center rounded-full border-2 border-background">
                     {otherMembers.length + 1}
@@ -2189,6 +2194,7 @@ const MessageInputArea = memo(function MessageInputArea({
   messagesContainerRef?: React.RefObject<HTMLElement | null>;
   presenceSlot?: React.ReactNode;
 }) {
+  const messageScrollerRef = messagesContainerRef;
   const headerSlot = (
     <>
       {editingMessageId && (
@@ -2252,7 +2258,7 @@ const MessageInputArea = memo(function MessageInputArea({
           onFocus={() => {
             if (shouldTrackSoftKeyboard()) {
               window.setTimeout(() => {
-                const scroller = messagesContainerRef?.current;
+                const scroller = messageScrollerRef?.current;
                 if (scroller) {
                   scroller.scrollTop = scroller.scrollHeight;
                 }

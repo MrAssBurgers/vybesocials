@@ -371,7 +371,7 @@ export function AudioMessage({ src, isOwn }: AudioMessageProps) {
       rafId = requestAnimationFrame(tick);
     };
     const handlePause = () => cancelAnimationFrame(rafId);
-    const handleLoadedMetadata = () => setAudioDuration(audio.duration);
+    const handleLoadedMetadata = () => setAudioDuration(Number.isFinite(audio.duration) ? audio.duration : 0);
     const handleEnded = () => {
       setIsPlaying(false);
       setProgress(0);
@@ -410,9 +410,11 @@ export function AudioMessage({ src, isOwn }: AudioMessageProps) {
 
   const seekToProgress = (pct: number) => {
     const audio = audioRef.current;
-    if (!audio || !audio.duration) return;
+    if (!audio || !Number.isFinite(audio.duration) || audio.duration <= 0) return;
     const next = Math.max(0, Math.min(1, pct));
-    audio.currentTime = next * audio.duration;
+    const nextTime = next * audio.duration;
+    if (!Number.isFinite(nextTime)) return;
+    audio.currentTime = nextTime;
     setProgress(next * 100);
   };
 

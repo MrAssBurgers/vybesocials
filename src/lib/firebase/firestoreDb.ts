@@ -1,5 +1,6 @@
 import {
   getFirestore,
+  initializeFirestore,
   collection,
   doc,
   getDoc,
@@ -31,7 +32,18 @@ function getDb() {
     throw new Error('Firebase is not configured');
   }
   if (!db) {
-    db = getFirestore(getFirebaseApp());
+    const app = getFirebaseApp();
+    try {
+      db = initializeFirestore(app, {
+        ignoreUndefinedProperties: true,
+        // Avoid flaky WebChannel streaming failures that show up as
+        // firestore.googleapis.com/.../Listen|Write/channel 400/404 HTML errors
+        // on hosted previews, mobile WebViews, and restrictive networks.
+        experimentalForceLongPolling: true,
+      });
+    } catch {
+      db = getFirestore(app);
+    }
   }
   return db;
 }

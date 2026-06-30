@@ -177,6 +177,11 @@ function runPreRenderInit() {
           console.info("[VYBE] Service worker disabled for local dev");
           return;
         }
+        if (isPreviewServiceWorkerDisabled()) {
+          await cleanupPreviewServiceWorkers();
+          console.info("[VYBE] Service worker disabled for preview host");
+          return;
+        }
         await registerVybeServiceWorker();
       } catch (error) {
         console.error("[VYBE] Service worker registration failed:", error);

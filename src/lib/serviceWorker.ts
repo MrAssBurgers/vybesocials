@@ -1,7 +1,14 @@
 import { isDespiaRuntime } from '@/lib/despiaBridge';
 
 export function isPreviewServiceWorkerDisabled() {
-  return false;
+  if (typeof window === 'undefined') return false;
+  const { hostname } = window.location;
+  return (
+    hostname.endsWith('.lovableproject.com') ||
+    hostname.endsWith('.lovable.app') ||
+    hostname.endsWith('.web.app') ||
+    hostname.endsWith('.firebaseapp.com')
+  );
 }
 
 export function isLocalDevHost(): boolean {
@@ -24,12 +31,13 @@ export function shouldRegisterServiceWorker(): boolean {
     return false;
   }
 
-  // Production + Lovable preview admin mirror of vybehub.app.
+  if (isPreviewServiceWorkerDisabled()) return false;
+
+  // Production only. Previews often serve /sw.js through a redirect, which
+  // browsers reject and can wedge boot/push initialization.
   if (
     hostname === 'vybehub.app' ||
-    hostname === 'www.vybehub.app' ||
-    hostname.endsWith('.lovableproject.com') ||
-    hostname.endsWith('.lovable.app')
+    hostname === 'www.vybehub.app'
   ) {
     return true;
   }
