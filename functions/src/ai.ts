@@ -551,11 +551,9 @@ export const generateTheme = onCall({ secrets: SECRETS }, async (request) => {
     console.warn('[generateTheme] AI returned non-theme JSON; using prompt fallback', { len: content?.length || 0 });
   } catch (err) {
     console.error('[generateTheme]', err);
-    if (err instanceof HttpsError) throw err;
-    throw new HttpsError(
-      'failed-precondition',
-      err instanceof Error ? err.message : 'Theme generation failed — set GEMINI_API_KEY or add your key in Settings → VYBE AI',
-    );
+    // Theme generation should never hard-fail the settings page. If the model,
+    // key, or JSON formatter misbehaves, return a deterministic prompt-matched
+    // theme and let the client keep moving.
   }
 
   return { theme: fallbackThemeFromPrompt(userPrompt), fallback: true };

@@ -62,6 +62,29 @@ async function getDespia(): Promise<any> {
   return despiaMod;
 }
 
+function isReadyDespiaValue(val: unknown): boolean {
+  if (val === undefined || val === 'n/a') return false;
+  if (Array.isArray(val) && val.length === 0) return false;
+  if (val && typeof val === 'object' && !Array.isArray(val) && Object.keys(val as Record<string, unknown>).length === 0) return false;
+  return true;
+}
+
+function safeDespiaSig(val: unknown): string {
+  if (val === undefined) return 'u';
+  if (val === null) return 'n';
+  if (typeof val !== 'object') return `${typeof val}:${String(val)}`;
+  try { return `o:${JSON.stringify(val)}`; } catch { return 'o:[unserializable]'; }
+}
+
+function dispatchDespiaCommand(url: string): void {
+  const w = window as any;
+  try {
+    w.despia = url;
+  } catch {
+    void getDespia().then((despia) => despia(url)).catch(() => null);
+  }
+}
+
 /**
  * Fire a Despia deep link. Returns the parsed callback payload (if any) or null.
  * Safe to call outside Despia — resolves null.
@@ -73,12 +96,42 @@ export async function despiaCall(
 ): Promise<Record<string, any> | null> {
   if (!isDespiaRuntime()) return null;
   try {
-    const despia = await getDespia();
-    const result: any = await Promise.race([
-      expectKeys.length ? despia(url, expectKeys) : despia(url),
-      new Promise((resolve) => setTimeout(() => resolve(null), timeoutMs)),
-    ]);
-    return result || null;
+    if (!expectKeys.length) {
+      dispatchDespiaCommand(url);
+      return null;
+    }
+
+    const w = window as any;
+    const initial = new Map(expectKeys.map((key) => [key, safeDespiaSig(w[key])]));
+    dispatchDespiaCommand(url);
+
+    return await new Promise<Record<string, any> | null>((resolve) => {
+      const started = Date.now();
+      let settled = false;
+      let poll = 0;
+      let timer = 0;
+      const finish = (value: Record<string, any> | null) => {
+        if (settled) return;
+        settled = true;
+        if (poll) clearInterval(poll);
+        if (timer) clearTimeout(timer);
+        resolve(value);
+      };
+      const check = () => {
+        const values: Record<string, any> = {};
+        for (const key of expectKeys) {
+          const value = w[key];
+          if (isReadyDespiaValue(value) && safeDespiaSig(value) !== initial.get(key)) {
+            values[key] = value;
+          }
+        }
+        if (Object.keys(values).length) finish(values);
+        else if (Date.now() - started >= timeoutMs) finish(null);
+      };
+      poll = window.setInterval(check, 75);
+      timer = window.setTimeout(() => finish(null), timeoutMs + 25);
+      check();
+    });
   } catch (err) {
     console.warn('[despiaBridge] call failed', url, err);
     return null;
