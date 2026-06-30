@@ -2,6 +2,13 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## Platform GEMINI for all VYBE AI chat (2026-06-17)
+- **Problem:** User wanted shared env `GEMINI_API_KEY` for everyone, not personal BYOK blocking chat
+- **Fix:** `aiChat` always uses platform secret unless `usePersonalKey`; client always server-first
+- **Deployed:** https://vybe-daaab.web.app + `aiChat`
+- **Committed:** `aed22872` · pushed `main`
+- **You:** Lovable Publish vybehub.app · Clear Chat in VYBE-AI · test message
+
 ## VYBE AI server error fix (2026-06-17)
 - **Problem:** VYBE AI showed generic "server error" bubble; BYOK key saved but not used (client AI ran first)
 - **Fix:** Server-first routing when BYOK or App Check unverified; BYOK key lookup fallbacks + validate on save; clearer Gemini/BYOK errors; strip error bubbles from history
