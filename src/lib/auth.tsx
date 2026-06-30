@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useMemo, useState, useRef, ReactNode } from 'react';
+import { createContext, useContext, useEffect, useMemo, useState, useRef, useCallback, ReactNode } from 'react';
 import type { User, Session } from '@/lib/firebase';
 import { db } from '@/lib/firebase';
 import { updateUserProfile, getProfileByAuthUid, ensureUserProfile } from '@/lib/firebase/users';
@@ -115,6 +115,8 @@ interface AuthContextType {
   banInfo: BanInfo | null;
   signUp: (email: string, password: string, username: string) => Promise<{ error: Error | null; needsEmailConfirmation?: boolean }>;
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
+  /** Apply Firebase OAuth session immediately (popup / redirect completion). */
+  applyOAuthSession: (session: Session) => void;
   resendVerification: (email: string) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
   updateProfile: (updates: Partial<Profile>) => Promise<{ error: Error | null }>;
@@ -488,6 +490,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
   };
 
+  const applyOAuthSession = useCallback((oauthSession: Session) => {
+    setWasLoggedIn(true);
+    setSession(oauthSession);
+    setUser(oauthSession.user);
+    setActiveAuthUserId(oauthSession.user.id);
+    authInitializedRef.current = true;
+    setLoading(false);
+    setIsInitialized(true);
+    startHeartbeat();
+    if (oauthSession.expires_at) {
+      scheduleTokenRefresh(oauthSession.expires_at);
+    }
+    bootstrapSessionData(oauthSession.user.id, 'SIGNED_IN');
+    clearOAuthRedirectPending();
+    void db.auth.refreshSession().catch(() => {});
+  }, []);
+
   useEffect(() => {
     // ──────────────────────────────────────────────────────────────────────
     // STEP 0: Explicitly extract OAuth tokens from URL hash.
@@ -781,18 +800,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           sessionStorage.setItem('vybe-oauth-error', msg);
         }
       } else if (captured.session?.user) {
-        const oauthSession = captured.session;
-        setWasLoggedIn(true);
-        setSession(oauthSession);
-        setUser(oauthSession.user);
-        setActiveAuthUserId(oauthSession.user.id);
-        hydrateCachedProfile(oauthSession.user.id);
-        startHeartbeat();
-        if (oauthSession.expires_at) {
-          scheduleTokenRefresh(oauthSession.expires_at);
-        }
-        bootstrapSessionData(oauthSession.user.id, 'SIGNED_IN');
-        clearOAuthRedirectPending();
+        applyOAuthSession(captured.session);
+        hydrateCachedProfile(captured.session.user.id);
         authInitializedRef.current = true;
         setLoading(false);
         setIsInitialized(true);
@@ -1034,23 +1043,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const signIn = async (email: string, password: string) => {
-    const applySession = (session: Session) => {
-      setWasLoggedIn(true);
-      setSession(session);
-      setUser(session.user);
-      setActiveAuthUserId(session.user.id);
-      authInitializedRef.current = true;
-      setLoading(false);
-      setIsInitialized(true);
-      /* hydrateCachedProfile handled by listener */
-      startHeartbeat();
-      if (session.expires_at) {
-        scheduleTokenRefresh(session.expires_at);
-      }
-      bootstrapSessionData(session.user.id, 'SIGNED_IN');
-      clearOAuthRedirectPending();
-      void db.auth.refreshSession().catch(() => {});
-    };
+    const applySession = applyOAuthSession;
 
     const normalized = normalizeLoginEmail(email);
 
@@ -1238,6 +1231,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       banInfo,
       signUp,
       signIn,
+      applyOAuthSession,
       resendVerification,
       signOut,
       updateProfile,

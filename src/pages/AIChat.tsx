@@ -20,9 +20,9 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { formatAiChatError } from '@/lib/functionAuth';
-import { db, formatFirebaseAiError, filterAiChatHistoryForApi, isAiLogicConfigured, streamVybeAiChat, parseImaginePrompt, generateVybeAiImage } from '@/lib/firebase';
+import { db, formatFirebaseAiError, filterAiChatHistoryForApi, streamVybeAiChat, parseImaginePrompt, generateVybeAiImage } from '@/lib/firebase';
 import { useVybeAgent, shouldFallbackToAiChat, isAgentAuthError, isAgentUnavailableError } from '@/lib/agent/useVybeAgent';
-import { shouldSkipAgentDueToAuth, clearAgentAuthFailure, messageWantsCloudAgent } from '@/lib/agent/aiChatRouting';
+import { shouldSkipAgentDueToAuth, clearAgentAuthFailure, messageWantsCloudAgent, stripLeadingEmojiForAgent } from '@/lib/agent/aiChatRouting';
 import { useAiUsage } from '@/hooks/useAiUsage';
 import { parseLocalAgentPlan } from '@/lib/agent/localAgentCommands';
 import { isAgentMarkedUnavailable } from '@/lib/agent/agentAvailability';
@@ -327,9 +327,11 @@ export default function AIChat() {
         { role: 'user' as const, content: msgText || 'What is in this image?' },
       ]);
 
+      const agentText = stripLeadingEmojiForAgent(msgText);
+
       // Local agent (open messages, themes) — no edge fn required
       if (!imageBase64) {
-        const localPlan = parseLocalAgentPlan(msgText);
+        const localPlan = parseLocalAgentPlan(agentText);
         if (localPlan) {
           const batch = await executePlan(localPlan);
           const summary = formatAgentActionSummary(batch);
@@ -342,7 +344,7 @@ export default function AIChat() {
         !imageBase64 &&
         !shouldSkipAgentDueToAuth() &&
         !isAgentMarkedUnavailable() &&
-        messageWantsCloudAgent(msgText);
+        messageWantsCloudAgent(agentText);
 
       if (useAgentPath) {
         try {
@@ -362,7 +364,7 @@ export default function AIChat() {
             appendAssistantReply(formatAiChatError(agentErr));
             return;
           }
-          const localFallback = parseLocalAgentPlan(msgText);
+          const localFallback = parseLocalAgentPlan(agentText);
           if (localFallback) {
             const batch = await executePlan(localFallback);
             const summary = formatAgentActionSummary(batch);
@@ -371,11 +373,6 @@ export default function AIChat() {
           }
           // Fall through to streaming ai-chat
         }
-      }
-
-      if (!isAiLogicConfigured()) {
-        appendAssistantReply('VYBE AI requires Firebase configuration. Check your environment variables.');
-        return;
       }
 
       setStreamingText('');

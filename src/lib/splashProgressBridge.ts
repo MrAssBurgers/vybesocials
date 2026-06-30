@@ -7,6 +7,14 @@ const listeners = new Set<SplashProgressListener>();
 let lastProgress = 0;
 let lastStatus = 'Waking up...';
 
+declare global {
+  interface Window {
+    __vybeSplashProgress?: number;
+    __vybeSplashStatus?: string;
+    __vybePublishSplashProgress?: (progress: number, status: string) => void;
+  }
+}
+
 function applyToStaticBoot(progress: number, status: string): void {
   const boot = document.getElementById('vybe-static-boot');
   if (!boot) return;
@@ -19,10 +27,24 @@ function applyToStaticBoot(progress: number, status: string): void {
 
   if (fill) {
     fill.style.animation = 'none';
+    fill.style.transition = 'none';
     fill.style.transform = `scaleX(${scale})`;
   }
   if (statusEl) statusEl.textContent = status;
   if (pctEl) pctEl.textContent = `${Math.round(clamped)}%`;
+}
+
+function readStaticBootProgress(): { progress: number; status: string } | null {
+  const boot = document.getElementById('vybe-static-boot');
+  if (!boot) return null;
+  const pctEl = boot.querySelector('.vybe-splash-percent');
+  const statusEl = boot.querySelector('.vybe-splash-status');
+  const parsed = Number.parseInt((pctEl?.textContent || '').replace('%', ''), 10);
+  if (!Number.isFinite(parsed)) return null;
+  return {
+    progress: parsed,
+    status: (statusEl?.textContent || lastStatus).trim() || lastStatus,
+  };
 }
 
 export function getLastSplashProgress(): { progress: number; status: string } {
@@ -46,11 +68,32 @@ export function publishSplashProgress(progress: number, status: string): void {
 
 export function hideStaticBootSplash(): void {
   const boot = document.getElementById('vybe-static-boot');
-  if (boot) boot.remove();
+  if (!boot) return;
+  boot.classList.add('vybe-static-boot-fade');
+  window.setTimeout(() => {
+    boot.remove();
+  }, 240);
 }
 
 export function subscribeSplashProgress(listener: SplashProgressListener): () => void {
   listeners.add(listener);
   listener(lastProgress, lastStatus);
   return () => listeners.delete(listener);
+}
+
+if (typeof window !== 'undefined') {
+  if (typeof window.__vybeSplashProgress === 'number') {
+    lastProgress = window.__vybeSplashProgress;
+  }
+  if (typeof window.__vybeSplashStatus === 'string' && window.__vybeSplashStatus) {
+    lastStatus = window.__vybeSplashStatus;
+  } else {
+    const fromDom = readStaticBootProgress();
+    if (fromDom) {
+      lastProgress = fromDom.progress;
+      lastStatus = fromDom.status;
+    }
+  }
+
+  window.__vybePublishSplashProgress = publishSplashProgress;
 }

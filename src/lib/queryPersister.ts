@@ -97,6 +97,9 @@ const EPHEMERAL_KEY_FRAGMENTS = [
   'messages',
   'unread-messages',
   'unread-messages-count',
+  // Equipped Vybe lives in localStorage (vybe-equipped-theme*); persisting user-theme
+  // replays stale DB rows over the boot-painted theme and causes a visible flash.
+  'user-theme',
 ];
 
 // Keys whose persisted snapshot must be non-empty to be worth replaying.

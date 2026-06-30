@@ -93,6 +93,8 @@ label {
 /* Hide bottom nav on splash, landing, and intro pages — pointer-events only; opacity handled by nav motion */
 body.splash-visible nav[aria-label="Bottom navigation"],
 body.splash-visible [data-tutorial-bottomnav],
+body.splash-visible #app-shell,
+body.splash-visible [data-app-shell],
 body.hide-bottom-nav nav[aria-label="Bottom navigation"],
 body.hide-bottom-nav [data-tutorial-bottomnav] {
   pointer-events: none !important;
@@ -287,6 +289,12 @@ body.has-liquid-bg:not(.has-custom-bg) .dm-sidebar {
   overflow: visible;
 }
 
+.vybe-splash-brand-stack {
+  gap: 0;
+  overflow: visible;
+  padding-bottom: 0.25rem;
+}
+
 /* Live brush wordmark — high contrast on glass/gradients */
 .vybe-wordmark-text {
   display: inline-block;
@@ -295,8 +303,8 @@ body.has-liquid-bg:not(.has-custom-bg) .dm-sidebar {
   font-style: normal;
   letter-spacing: -0.04em;
   text-transform: uppercase;
-  line-height: 1.22;
-  padding: 0.06em 0.14em 0.22em;
+  line-height: 1.3;
+  padding: 0.06em 0.14em 0.32em;
   overflow: visible;
   vertical-align: middle;
   font-synthesis: none;
@@ -344,9 +352,11 @@ html[data-vybe-bottom-nav-scroll='hidden'] .bottom-nav,
 .vybe-wordmark-img {
   display: block;
   flex-shrink: 0;
+  width: auto;
+  height: auto;
   max-width: 100%;
   object-fit: contain;
-  object-position: center center;
+  object-position: center bottom;
   user-select: none;
   -webkit-user-drag: none;
   overflow: visible;

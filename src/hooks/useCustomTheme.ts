@@ -7,8 +7,8 @@ import { usePremiumStatus } from './usePremiumStatus';
 import { isNativePerfMode } from '@/lib/nativePerfMode';
 import { generateVybeTheme } from '@/lib/aiThemeGeneration';
 import { getStoredAuthUserId } from '@/lib/legacyAuthStorage';
-import { prefetchAndApplyUserTheme, persistEquippedThemeTokens, syncEquippedThemeToAccount } from '@/lib/themeHydration';
-import { BOOT_SNAPSHOT_KEY, THEME_SNAPSHOT_KEYS } from '@/lib/theme/themePrepaint';
+import { prefetchAndApplyUserTheme, persistEquippedThemeTokens, syncEquippedThemeToAccount, runAfterSplashDismiss, reconcileUserThemeRowWithEquipped } from '@/lib/themeHydration';
+import { BOOT_SNAPSHOT_KEY, THEME_SNAPSHOT_KEYS, adaptThemeToMode } from '@/lib/theme/themePrepaint';
 import { collectThemeUserContext, type ThemeUserContext } from '@/lib/theme/themeUserContext';
 import type { VybeDNA } from '@/hooks/useVybeDNA';
 
@@ -220,6 +220,7 @@ export function useUserTheme() {
     },
     enabled: !!userId,
     staleTime: 60000,
+    select: (data) => reconcileUserThemeRowWithEquipped(data, userId) ?? undefined,
     initialData: () => {
       if (!userId) return undefined;
       const tokens = getEquippedThemeTokens(userId);
@@ -294,6 +295,12 @@ function themeApplyHash(tokens: ThemeTokens, mode: 'dark' | 'light'): string {
 export function markThemeAppliedFromBoot(tokens: ThemeTokens): void {
   const mode = document.documentElement.classList.contains('light') ? 'light' : 'dark';
   _lastAppliedThemeHash = themeApplyHash(adaptThemeToMode(tokens, mode), mode);
+}
+
+export function isThemeAlreadyApplied(tokens: ThemeTokens, resolved?: 'dark' | 'light'): boolean {
+  if (!_lastAppliedThemeHash) return false;
+  const mode = resolved ?? (document.documentElement.classList.contains('light') ? 'light' : 'dark');
+  return themeApplyHash(adaptThemeToMode(tokens, mode), mode) === _lastAppliedThemeHash;
 }
 
 export function resetThemeApplyState(): void {
@@ -664,76 +671,7 @@ function invertLightness(hsl: string): string {
   return hsl;
 }
 
-// Helper to shift lightness toward light or dark range
-function shiftToMode(hsl: string, targetMode: 'light' | 'dark', type: 'bg' | 'text' | 'border' | 'accent'): string {
-  try {
-    const parts = hsl.split(' ');
-    if (parts.length < 3) return hsl;
-    const h = parts[0];
-    const s = parts[1];
-    const l = parseFloat(parts[2].replace('%', ''));
-    if (isNaN(l)) return hsl;
-
-    let newL = l;
-    if (targetMode === 'light') {
-      // For light mode: backgrounds should be bright, text should be dark
-      if (type === 'bg') newL = Math.max(88, Math.min(100, 100 - l * 0.15));
-      else if (type === 'text') newL = Math.max(5, Math.min(35, 100 - l));
-      else if (type === 'border') newL = Math.max(75, Math.min(92, 100 - l * 0.3));
-      else newL = Math.max(30, Math.min(60, l)); // accents stay vivid
-    } else {
-      // For dark mode: backgrounds should be dark, text should be bright
-      if (type === 'bg') newL = Math.max(2, Math.min(15, l * 0.15));
-      else if (type === 'text') newL = Math.max(85, Math.min(98, 100 - l));
-      else if (type === 'border') newL = Math.max(12, Math.min(25, l * 0.3));
-      else newL = Math.max(45, Math.min(70, l)); // accents stay vivid
-    }
-    return `${h} ${s} ${newL}%`;
-  } catch {}
-  return hsl;
-}
-
-/**
- * Adapt a set of VYBE theme tokens to a target mode (dark/light).
- * Keeps the same hue/saturation palette but shifts lightness values
- * so the theme looks natural in the target mode.
- */
-export function adaptThemeToMode(tokens: ThemeTokens, targetMode: 'dark' | 'light'): ThemeTokens {
-  // If the theme already matches the target mode, return as-is
-  if (tokens.mode === targetMode) return tokens;
-
-  return {
-    ...tokens,
-    mode: targetMode,
-    // Primary colors keep their hue but adjust slightly for contrast
-    colorPrimary: tokens.colorPrimary, // Keep primary vibrant
-    colorSecondary: shiftToMode(tokens.colorSecondary, targetMode, 'accent'),
-    colorAccent: tokens.colorAccent, // Keep accent vibrant
-    // Backgrounds
-    bgMain: shiftToMode(tokens.bgMain, targetMode, 'bg'),
-    bgCard: shiftToMode(tokens.bgCard, targetMode, 'bg'),
-    bgGradientFrom: tokens.bgGradientFrom ? shiftToMode(tokens.bgGradientFrom, targetMode, 'bg') : undefined,
-    bgGradientMid: tokens.bgGradientMid ? shiftToMode(tokens.bgGradientMid, targetMode, 'bg') : undefined,
-    bgGradientTo: tokens.bgGradientTo ? shiftToMode(tokens.bgGradientTo, targetMode, 'bg') : undefined,
-    // Glass & nav
-    glassBg: tokens.glassBg ? shiftToMode(tokens.glassBg, targetMode, 'bg') : undefined,
-    glassBorder: tokens.glassBorder ? shiftToMode(tokens.glassBorder, targetMode, 'border') : undefined,
-    sidebarBg: tokens.sidebarBg ? shiftToMode(tokens.sidebarBg, targetMode, 'bg') : undefined,
-    navBg: tokens.navBg ? shiftToMode(tokens.navBg, targetMode, 'bg') : undefined,
-    inputBg: tokens.inputBg ? shiftToMode(tokens.inputBg, targetMode, 'border') : undefined,
-    // Text
-    textPrimary: shiftToMode(tokens.textPrimary, targetMode, 'text'),
-    textSecondary: shiftToMode(tokens.textSecondary, targetMode, 'text'),
-    inputText: tokens.inputText ? shiftToMode(tokens.inputText, targetMode, 'text') : undefined,
-    buttonText: tokens.buttonText ? shiftToMode(tokens.buttonText, targetMode, 'text') : undefined,
-    // Borders
-    borderColor: tokens.borderColor ? shiftToMode(tokens.borderColor, targetMode, 'border') : undefined,
-    // Neons stay vibrant
-    neonPink: tokens.neonPink,
-    neonPurple: tokens.neonPurple,
-    neonCyan: tokens.neonCyan,
-  };
-}
+export { adaptThemeToMode } from '@/lib/theme/themePrepaint';
 
 /**
  * Apply theme tokens to CSS variables.
@@ -977,20 +915,17 @@ export function useApplyUserTheme() {
   const applyForMode = useCallback((resolved: 'dark' | 'light', force = false) => {
     if (_isApplyingTheme || _isSavingTheme || _themePreviewLock) return;
 
+    // Equipped localStorage is the live source — never let stale user-theme cache override it.
     let tokens = getEquippedThemeTokens(user?.id);
 
-    // Active DB row is source of truth once loaded.
-    if (userTheme?.is_active && userTheme.theme_tokens) {
+    if (!tokens?.colorPrimary && userTheme?.is_active && userTheme.theme_tokens) {
       const dbTokens = userTheme.theme_tokens as unknown as ThemeTokens;
-      if (dbTokens?.colorPrimary) {
-        persistEquippedThemeTokens(user?.id ?? null, dbTokens);
-        tokens = dbTokens;
-      }
+      if (dbTokens?.colorPrimary) tokens = dbTokens;
     }
 
     if (!tokens?.colorPrimary) return;
 
-    const hash = themeApplyHash(tokens, resolved);
+    const hash = themeApplyHash(adaptThemeToMode(tokens, resolved), resolved);
     if (!force && hash === _lastAppliedThemeHash) return;
 
     _isApplyingTheme = true;
@@ -1024,13 +959,15 @@ export function useApplyUserTheme() {
 
   useLayoutEffect(() => {
     const resolvedMode = document.documentElement.classList.contains('light') ? 'light' : 'dark';
-    const forceFirst = !didMountApply.current;
+    const shouldForce = !didMountApply.current && !_lastAppliedThemeHash;
     didMountApply.current = true;
-    applyForMode(resolvedMode, forceFirst);
+    applyForMode(resolvedMode, shouldForce);
 
     const uid = user?.id ?? getStoredAuthUserId();
     if (uid) {
-      void prefetchAndApplyUserTheme(uid, queryClient, { timeoutMs: 6000 });
+      runAfterSplashDismiss(() => {
+        void prefetchAndApplyUserTheme(uid, queryClient, { timeoutMs: 6000 });
+      });
     }
   }, [userTheme, applyForMode, user?.id, queryClient]);
 

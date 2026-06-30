@@ -2,6 +2,24 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## Publish — splash, theme flash, AI, OAuth (2026-06-30)
+- **Splash:** Single static boot layer; snappier progress; mesh matches aurora; no duplicate React splash
+- **Theme flash:** Equipped localStorage wins over stale `user-theme` cache; stop persisting user-theme; boot prepaint adapts light/dark
+- **AI:** Typed theme client Gemini fallback; chat without client-config gate; clearer errors
+- **OAuth:** `applyOAuthSession()` instant popup/redirect session apply
+- **Verified:** `npm run build` PASS · `npm run lint` PASS
+- **Staging:** https://vybe-daaab.web.app (Firebase hosting)
+- **You:** Lovable → Share → Publish for **vybehub.app**
+
+## Publish — splash branding, AI input, instant OAuth (2026-06-17)
+- **Splash:** Brand wordmark image on static boot + React splash (`/brand/vybe-wordmark-transparent.png`, preloaded)
+- **AI theme:** Typed prompts cloud-first → client Gemini fallback when cloud fails; “couldn’t run” only when both fail
+- **AI chat:** Removed client-config gate before server chat; emoji strip on quick prompts; clearer sign-in error
+- **OAuth:** `applyOAuthSession()` — popup applies session before navigate; faster redirect auth poll
+- **Verified:** `npm run build` PASS · `npm run lint` PASS · `verify:gemini --from-firebase` PASS
+- **Deployed:** https://vybe-daaab.web.app + `generateTheme` + `aiChat`
+- **You:** Lovable → Share → Publish for **vybehub.app**
+
 ## Publish — Google OAuth freeze fix (2026-06-17)
 - **Fix:** Wait for `authStateReady` before `getRedirectResult`; capture after auth listener; mark pending on all redirects; recover session if Firebase already signed in
 - **Verified:** `npm run build` PASS

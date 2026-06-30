@@ -41,7 +41,65 @@ type ThemeTokensLike = {
   neonPurple?: string;
   neonCyan?: string;
   borderRadius?: string;
+  mode?: 'light' | 'dark';
 };
+
+function shiftToMode(hsl: string, targetMode: 'dark' | 'light', type: 'bg' | 'text' | 'border' | 'accent'): string {
+  try {
+    const parts = hsl.split(' ');
+    if (parts.length < 3) return hsl;
+    const h = parts[0];
+    const s = parts[1];
+    const l = parseFloat(parts[2].replace('%', ''));
+    if (Number.isNaN(l)) return hsl;
+
+    let newL = l;
+    if (targetMode === 'light') {
+      if (type === 'bg') newL = Math.max(88, Math.min(100, 100 - l * 0.15));
+      else if (type === 'text') newL = Math.max(5, Math.min(35, 100 - l));
+      else if (type === 'border') newL = Math.max(75, Math.min(92, 100 - l * 0.3));
+      else newL = Math.max(30, Math.min(60, l));
+    } else {
+      if (type === 'bg') newL = Math.max(2, Math.min(15, l * 0.15));
+      else if (type === 'text') newL = Math.max(85, Math.min(98, 100 - l));
+      else if (type === 'border') newL = Math.max(12, Math.min(25, l * 0.3));
+      else newL = Math.max(45, Math.min(70, l));
+    }
+    return `${h} ${s} ${newL}%`;
+  } catch {
+    return hsl;
+  }
+}
+
+/** Adapt equipped tokens to xd-theme mode — must run before first paint. */
+export function adaptThemeToMode<T extends ThemeTokensLike>(tokens: T, targetMode: 'dark' | 'light'): T {
+  if (tokens.mode === targetMode) return tokens;
+
+  return {
+    ...tokens,
+    mode: targetMode,
+    colorPrimary: tokens.colorPrimary,
+    colorSecondary: shiftToMode(tokens.colorSecondary ?? '240 10% 12%', targetMode, 'accent'),
+    colorAccent: tokens.colorAccent,
+    bgMain: shiftToMode(tokens.bgMain ?? '240 10% 4%', targetMode, 'bg'),
+    bgCard: shiftToMode(tokens.bgCard ?? '240 10% 6%', targetMode, 'bg'),
+    bgGradientFrom: tokens.bgGradientFrom ? shiftToMode(tokens.bgGradientFrom, targetMode, 'bg') : undefined,
+    bgGradientMid: tokens.bgGradientMid ? shiftToMode(tokens.bgGradientMid, targetMode, 'bg') : undefined,
+    bgGradientTo: tokens.bgGradientTo ? shiftToMode(tokens.bgGradientTo, targetMode, 'bg') : undefined,
+    glassBg: tokens.glassBg ? shiftToMode(tokens.glassBg, targetMode, 'bg') : undefined,
+    glassBorder: tokens.glassBorder ? shiftToMode(tokens.glassBorder, targetMode, 'border') : undefined,
+    sidebarBg: tokens.sidebarBg ? shiftToMode(tokens.sidebarBg, targetMode, 'bg') : undefined,
+    inputBg: tokens.inputBg ? shiftToMode(tokens.inputBg, targetMode, 'border') : undefined,
+    textPrimary: shiftToMode(tokens.textPrimary ?? '0 0% 98%', targetMode, 'text'),
+    textSecondary: shiftToMode(tokens.textSecondary ?? '240 5% 55%', targetMode, 'text'),
+    inputText: tokens.inputText ? shiftToMode(tokens.inputText, targetMode, 'text') : undefined,
+    buttonText: tokens.buttonText ? shiftToMode(tokens.buttonText, targetMode, 'text') : undefined,
+    borderColor: tokens.borderColor ? shiftToMode(tokens.borderColor, targetMode, 'border') : undefined,
+    neonPink: tokens.neonPink,
+    neonPurple: tokens.neonPurple,
+    neonCyan: tokens.neonCyan,
+  } as T;
+}
 
 const BORDER_RADIUS_MAP: Record<string, string> = {
   small: '0.375rem',
@@ -255,16 +313,18 @@ export function prepaintThemeFromStorage(): boolean {
   if (typeof document === 'undefined') return false;
 
   const mode = resolveBootMode();
+  const root = document.documentElement;
   applyBootModeClass(mode);
-
-  const snapshot = readBootSnapshot();
-  const hadSnapshot = snapshot ? applyBootSnapshot(snapshot) : false;
+  root.setAttribute('data-vybe-boot-mode', mode);
 
   const equipped = readEquippedTokensFromStorage();
   if (equipped?.colorPrimary) {
-    applyThemeCssVars(equipped, mode);
+    applyThemeCssVars(adaptThemeToMode(equipped, mode), mode);
     return true;
   }
 
-  return hadSnapshot;
+  const snapshot = readBootSnapshot();
+  if (snapshot) return applyBootSnapshot(snapshot);
+
+  return false;
 }

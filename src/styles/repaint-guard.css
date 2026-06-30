@@ -48,10 +48,22 @@ body {
   background: hsl(var(--background, 240 6% 5%));
 }
 
-/* Boot / splash overlays — transparent so aurora + ambient bubbles show through */
-.vybe-splash-overlay,
+/* Boot splash — ambient mesh inside #vybe-static-boot is the background (no flat overlay). */
 #vybe-static-boot {
   background: transparent !important;
+}
+
+/* React splash coordinator is invisible; keep rule for any legacy overlay nodes */
+.vybe-splash-overlay {
+  background: transparent !important;
+}
+
+/* Keep routed UI hidden until splash dismisses — prevents content showing through aurora */
+body.splash-visible #app-shell,
+body.splash-visible [data-app-shell],
+body.splash-visible [data-vybe-liquid-bg] {
+  visibility: hidden !important;
+  pointer-events: none !important;
 }
 
 .vybe-splash-ambient-mesh {

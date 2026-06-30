@@ -43,9 +43,14 @@ export function shouldPreferAiChatDirect(
   return false;
 }
 
+/** Strip leading emoji / symbols so quick-prompt chips match typed equivalents. */
+export function stripLeadingEmojiForAgent(text: string): string {
+  return text.replace(/^[\s\p{Extended_Pictographic}]+/u, '').trim();
+}
+
 /** Only call vybe-agent edge fn when the user wants app control (not casual chat). */
 export function messageWantsCloudAgent(text: string): boolean {
-  const t = text.trim().toLowerCase();
+  const t = stripLeadingEmojiForAgent(text).toLowerCase();
   if (!t) return false;
   return /\b(open|go to|show me|take me|navigate|switch to|apply|theme|widget|hide|show|reorder|dark mode|minimal|midnight|neon)\b/.test(t);
 }

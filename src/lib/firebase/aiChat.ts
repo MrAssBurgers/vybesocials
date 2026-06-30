@@ -252,7 +252,7 @@ async function ensureSignedInForAi(): Promise<void> {
     });
   }
   if (!user) {
-    throw new Error('Sign in to use VYBE AI.');
+    throw new Error('Sign in to chat with VYBE AI — open Settings or tap your profile to log in.');
   }
   await user.getIdToken();
 }

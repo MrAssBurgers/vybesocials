@@ -1,7 +1,7 @@
 import { createContext, ReactNode, useLayoutEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useApplyUserTheme } from '@/hooks/useCustomTheme';
-import { hydrateThemeFromLocalCaches, kickstartThemeHydration, readRememberedThemeUserId } from '@/lib/themeHydration';
+import { hydrateThemeFromLocalCaches, kickstartThemeHydration, reconcileUserThemeCache, readRememberedThemeUserId } from '@/lib/themeHydration';
 import { getStoredAuthUserId } from '@/lib/legacyAuthStorage';
 
 interface ThemeProviderProps {
@@ -19,7 +19,15 @@ export function CustomThemeProvider({ children }: ThemeProviderProps) {
 
   useLayoutEffect(() => {
     const uid = getStoredAuthUserId() ?? readRememberedThemeUserId();
-    hydrateThemeFromLocalCaches(queryClient, uid);
+    const bootPainted =
+      typeof document !== 'undefined' &&
+      document.documentElement.hasAttribute('data-vybe-theme-painted');
+
+    if (bootPainted) {
+      reconcileUserThemeCache(queryClient, uid);
+    } else {
+      hydrateThemeFromLocalCaches(queryClient, uid);
+    }
     kickstartThemeHydration(queryClient);
   }, [queryClient]);
 

@@ -55,37 +55,45 @@ export function useAppPreloader() {
     const t = setTimeout(() => {
       markPersistRestored();
       setRestoreReady(true);
-    }, isNativePerfMode() ? 120 : 80);
+    }, isNativePerfMode() ? 40 : 0);
     return () => clearTimeout(t);
   }, [restoreReady]);
 
   const animateTo = useCallback((target: number, label: string, done = false) => {
     const start = currentProgress.current;
     const delta = target - start;
-    if (delta <= 0 && !done) {
-      publishSplashProgress(target, label);
-      setStatus({ step: label, progress: target, isComplete: done });
+
+    const commit = (value: number) => {
+      currentProgress.current = value;
+      publishSplashProgress(value, label);
+      setStatus({ step: label, progress: value, isComplete: done });
+    };
+
+    if (delta <= 0) {
+      commit(done ? target : Math.max(start, target));
       return;
     }
-    const duration = Math.max(100, Math.min(delta * 10, 420));
+
+    // Small steps snap instantly; large jumps use a short tween (no CSS transition lag).
+    if (delta <= 8) {
+      commit(target);
+      return;
+    }
+
+    const duration = Math.min(140, Math.max(60, delta * 3));
     const startTime = performance.now();
 
     const tick = (now: number) => {
-      const elapsed = now - startTime;
-      const t = Math.min(elapsed / duration, 1);
-      const eased = 1 - Math.pow(1 - t, 3);
-      const value = Math.round(start + delta * eased);
-      currentProgress.current = value;
-      publishSplashProgress(value, label);
-      setStatus({ step: label, progress: value, isComplete: done && t >= 1 });
+      const t = Math.min((now - startTime) / duration, 1);
+      const value = Math.round(start + delta * t);
+      commit(value);
       if (t < 1) {
         animFrameRef.current = requestAnimationFrame(tick);
       } else {
-        currentProgress.current = target;
-        publishSplashProgress(target, label);
-        setStatus({ step: label, progress: target, isComplete: done });
+        commit(target);
       }
     };
+
     if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
     animFrameRef.current = requestAnimationFrame(tick);
   }, []);
@@ -122,7 +130,7 @@ export function useAppPreloader() {
       preloadCriticalRoutes();
 
       updateStatus('auth', 0.15);
-      const authMs = isNativePerfMode() ? 2800 : 3500;
+      const authMs = isNativePerfMode() ? 1800 : 2200;
       const { data: { session } } = await withTimeout(
         db.auth.getSession(),
         authMs,
@@ -147,7 +155,7 @@ export function useAppPreloader() {
 
         const profileResult = await withTimeout(
           db.from('profiles').select('*').eq('user_id', uid).maybeSingle(),
-          isNativePerfMode() ? 2800 : 3500,
+          isNativePerfMode() ? 1800 : 2200,
           { data: null, error: null },
         );
         if (cancelled) return;

@@ -160,44 +160,55 @@ export async function generateVybeTheme(
     }
   }
 
-  // Typed prompt or open-ended — run AI (cloud-first, client optional parallel).
+  // Typed prompt or open-ended — run AI (cloud-first, client fallback when cloud fails).
   let cloudError: unknown;
   const baseTheme = parsed.theme;
 
-  const cloudPromise = withTimeout(
-    invokeFunction<{ theme?: GeneratedTheme; error?: string }>('generate-theme', {
-      prompt: userPrompt,
-      typedPrompt: hasTypedPrompt ? typedText : undefined,
-      basePreset,
-      interests: mergedInterests,
-      selectedFont: selectedFont ?? undefined,
-      selectedAnimation: selectedAnimation ?? undefined,
-      userContext: userContext ?? undefined,
-    }),
-    CLOUD_AI_MS,
-  )
-    .then(({ data, error }) => {
-      if (error) throw new Error(error.message || 'Theme generation failed');
-      return normalizeCallableTheme(data);
-    })
-    .catch((err) => {
-      cloudError = err;
-      console.warn('[generateVybeTheme] cloud failed', err);
-      return null;
-    });
+  const runCloudAi = (): Promise<GeneratedTheme | null> =>
+    withTimeout(
+      invokeFunction<{ theme?: GeneratedTheme; error?: string }>('generate-theme', {
+        prompt: userPrompt,
+        typedPrompt: hasTypedPrompt ? typedText : undefined,
+        basePreset,
+        interests: mergedInterests,
+        selectedFont: selectedFont ?? undefined,
+        selectedAnimation: selectedAnimation ?? undefined,
+        userContext: userContext ?? undefined,
+      }),
+      CLOUD_AI_MS,
+    )
+      .then(({ data, error }) => {
+        if (error) throw new Error(error.message || 'Theme generation failed');
+        return normalizeCallableTheme(data);
+      })
+      .catch((err) => {
+        cloudError = err;
+        console.warn('[generateVybeTheme] cloud failed', err);
+        return null;
+      });
 
-  const clientPromise =
-    isAiLogicConfigured() && !hasTypedPrompt
-      ? withTimeout(generateThemeViaClientAi(userPrompt), CLIENT_AI_MS)
-          .then((raw) => (raw && isValidGeneratedTheme(raw) ? raw : null))
-          .catch((err) => {
-            cloudError = cloudError ?? err;
-            console.warn('[generateVybeTheme] client AI failed', err);
-            return null;
-          })
-      : Promise.resolve(null);
+  const runClientAi = (): Promise<GeneratedTheme | null> => {
+    if (!isAiLogicConfigured()) return Promise.resolve(null);
+    return withTimeout(generateThemeViaClientAi(userPrompt), CLIENT_AI_MS)
+      .then((raw) => (raw && isValidGeneratedTheme(raw) ? raw : null))
+      .catch((err) => {
+        cloudError = cloudError ?? err;
+        console.warn('[generateVybeTheme] client AI failed', err);
+        return null;
+      });
+  };
 
-  const [cloudTheme, clientRaw] = await Promise.all([cloudPromise, clientPromise]);
+  let cloudTheme: GeneratedTheme | null = null;
+  let clientRaw: GeneratedTheme | null = null;
+
+  if (hasTypedPrompt) {
+    cloudTheme = await runCloudAi();
+    if (!cloudTheme) {
+      clientRaw = await runClientAi();
+    }
+  } else {
+    [cloudTheme, clientRaw] = await Promise.all([runCloudAi(), runClientAi()]);
+  }
 
   if (cloudTheme) {
     return {
@@ -219,7 +230,7 @@ export async function generateVybeTheme(
   const fallback = brandTheme ?? (parsed.confidence >= 0.4 ? parsed.theme : buildLocalVibeTheme(vibe));
 
   const cloudMsg = formatAiFeatureError(cloudError, '');
-  const aiFailed = hasTypedPrompt;
+  const aiFailed = hasTypedPrompt && !cloudTheme && !clientRaw;
   const notice = aiFailed
     ? cloudMsg && (cloudMsg.includes('GEMINI') || cloudMsg.includes('VYBE AI') || cloudMsg.includes('timeout'))
       ? `AI couldn't run — applied best local match. ${cloudMsg}`

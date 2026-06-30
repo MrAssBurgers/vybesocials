@@ -9,6 +9,7 @@ import {
   applyThemeTokens,
   equipTheme,
   getEquippedThemeTokens,
+  isThemeAlreadyApplied,
   markThemeAppliedFromBoot,
   type ThemeTokens,
 } from '@/hooks/useCustomTheme';
@@ -107,10 +108,53 @@ function tokensFromRow(row: UserThemeRow | null | undefined): ThemeTokens | null
 }
 
 function applyTokensNow(tokens: ThemeTokens, userId?: string | null): void {
-  const adapted = adaptThemeToMode(tokens, resolvedMode());
+  const mode = resolvedMode();
+  const adapted = adaptThemeToMode(tokens, mode);
+  if (isThemeAlreadyApplied(adapted, mode)) {
+    markThemeAppliedFromBoot(tokens);
+    return;
+  }
   applyThemeTokens(adapted);
   if (userId) persistEquippedThemeTokens(userId, tokens);
   markThemeAppliedFromBoot(tokens);
+}
+
+/** Align react-query user-theme cache with equipped localStorage (no CSS repaint). */
+export function reconcileUserThemeCache(queryClient: QueryClient | undefined, userId?: string | null): void {
+  if (!queryClient) return;
+  const uid = userId ?? getStoredAuthUserId() ?? readRememberedThemeUserId();
+  if (!uid) return;
+  const row = buildInitialUserThemeRow(uid);
+  if (row) queryClient.setQueryData(['user-theme', uid], row);
+}
+
+function isBootThemePainted(): boolean {
+  return typeof document !== 'undefined' && document.documentElement.hasAttribute('data-vybe-theme-painted');
+}
+
+/** Run after boot splash dismisses — avoids swapping theme colors mid-splash. */
+export function runAfterSplashDismiss(fn: () => void): void {
+  if (typeof document === 'undefined') {
+    fn();
+    return;
+  }
+  if (!document.body.classList.contains('splash-visible')) {
+    fn();
+    return;
+  }
+  let settled = false;
+  const run = () => {
+    if (settled) return;
+    settled = true;
+    observer.disconnect();
+    clearTimeout(fallback);
+    requestAnimationFrame(fn);
+  };
+  const observer = new MutationObserver(() => {
+    if (!document.body.classList.contains('splash-visible')) run();
+  });
+  observer.observe(document.body, { attributes: true, attributeFilter: ['class'] });
+  const fallback = window.setTimeout(run, 8000);
 }
 
 /** Earliest theme path — sync local paint + background DB reconcile (no await). */
@@ -118,7 +162,9 @@ export function kickstartThemeHydration(queryClient?: QueryClient): void {
   const uid = getStoredAuthUserId() ?? readRememberedThemeUserId();
   hydrateThemeFromLocalCaches(queryClient, uid);
   if (uid) {
-    void prefetchAndApplyUserTheme(uid, queryClient, { timeoutMs: 6000 });
+    runAfterSplashDismiss(() => {
+      void prefetchAndApplyUserTheme(uid, queryClient, { timeoutMs: 6000 });
+    });
   }
 }
 
@@ -130,17 +176,23 @@ export function hydrateThemeFromLocalCaches(queryClient?: QueryClient, userId?: 
 
   const equipped = getEquippedThemeTokens(uid ?? undefined);
   if (equipped?.colorPrimary) {
-    applyTokensNow(equipped, uid);
+    reconcileUserThemeCache(queryClient, uid);
+    if (!isBootThemePainted() || !isThemeAlreadyApplied(equipped)) {
+      applyTokensNow(equipped, uid);
+    } else {
+      markThemeAppliedFromBoot(equipped);
+    }
     return true;
   }
 
-  // Snapshot-only boot paint — still attempt network/cache hydrate below.
-  ensureBootThemeApplied();
+  if (!isBootThemePainted()) {
+    ensureBootThemeApplied();
+  }
 
   if (queryClient && uid) {
     const cached = queryClient.getQueryData(['user-theme', uid]) as UserThemeRow | undefined;
     const tokens = tokensFromRow(cached);
-    if (tokens) {
+    if (tokens && !isThemeAlreadyApplied(tokens)) {
       applyTokensNow(tokens, uid);
       return true;
     }
@@ -209,4 +261,29 @@ export function buildInitialUserThemeRow(userId: string): UserThemeRow | undefin
     is_active: true,
     theme_tokens: tokens,
   };
+}
+
+/** Prefer equipped localStorage over stale persisted/DB rows (prevents boot theme flash). */
+export function reconcileUserThemeRowWithEquipped(
+  row: UserThemeRow | null | undefined,
+  userId: string | undefined,
+): UserThemeRow | null {
+  if (!userId) return row ?? null;
+  const equipped = getEquippedThemeTokens(userId);
+  if (!equipped?.colorPrimary) return row ?? null;
+
+  const equippedRow: UserThemeRow = {
+    user_id: userId,
+    is_active: true,
+    theme_tokens: equipped,
+  };
+
+  if (!row?.theme_tokens) return equippedRow;
+
+  const dbTokens = row.theme_tokens as ThemeTokens;
+  if (themeTokenFingerprint(equipped) === themeTokenFingerprint(dbTokens)) {
+    return row;
+  }
+
+  return { ...row, is_active: true, theme_tokens: equipped };
 }

@@ -126,7 +126,7 @@ interface LandingProps {
 
 export default function Landing({ onInviteNavigate, isInviteMode = false }: LandingProps) {
   const { t } = useTranslation();
-  const { user, signIn, signUp, resendVerification, authReady, profile } = useAuth();
+  const { user, signIn, signUp, resendVerification, authReady, profile, applyOAuthSession } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { triggerTransition } = useThemeTransition();
@@ -245,6 +245,7 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
       if (oauthResult.error) throw oauthResult.error;
 
       if (oauthResult.data.session?.user) {
+        applyOAuthSession(oauthResult.data.session);
         clearOAuthRedirectPending();
         clearDespiaOAuthPending();
         toast.success('Welcome back! ✨');
@@ -269,7 +270,7 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
         setLoading(false);
       }
     }
-  }, [navigate, profile]);
+  }, [navigate, profile, applyOAuthSession]);
 
   // Firebase OAuth redirect — navigate as soon as session exists.
   useEffect(() => {

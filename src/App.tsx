@@ -9,7 +9,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider, useQueryClient } from "@tanstack/react-query";
 import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client";
 import { queryPersister, shouldPersistQueryKey } from "@/lib/queryPersister";
-import { hydrateThemeFromLocalCaches, kickstartThemeHydration } from "@/lib/themeHydration";
+import { kickstartThemeHydration, reconcileUserThemeCache } from "@/lib/themeHydration";
 import { warmHomeCaches } from "@/lib/warmHomeCaches";
 import { getStoredAuthUserId } from "@/lib/legacyAuthStorage";
 import { startReconnectManager } from "@/lib/reconnectManager";
@@ -285,7 +285,7 @@ const skipInitialSplash = shouldSkipInitialSplash();
 let hasInitialLoadCompleted = skipInitialSplash || readSplashCompleted();
 let splashDismissed = skipInitialSplash;
 const splashShownAt = typeof performance !== 'undefined' ? performance.now() : Date.now();
-const MIN_SPLASH_MS = 1100;
+const MIN_SPLASH_MS = 650;
 
 function completeInitialSplash(setShowSplash: (v: boolean) => void) {
   if (splashDismissed) return;
@@ -309,7 +309,7 @@ function completeInitialSplash(setShowSplash: (v: boolean) => void) {
   const elapsed = (typeof performance !== 'undefined' ? performance.now() : Date.now()) - splashShownAt;
   const holdMs = Math.max(0, MIN_SPLASH_MS - elapsed);
   window.setTimeout(() => {
-    window.setTimeout(finish, isNativePerfMode() ? 220 : 320);
+    window.setTimeout(finish, isNativePerfMode() ? 120 : 160);
   }, holdMs);
 }
 
@@ -636,7 +636,7 @@ const App = memo(() => {
         client={queryClient}
         onSuccess={() => {
           reviveQueriesInCache(queryClient);
-          hydrateThemeFromLocalCaches(queryClient, getStoredAuthUserId());
+          reconcileUserThemeCache(queryClient, getStoredAuthUserId());
           kickstartThemeHydration(queryClient);
           void warmHomeCaches(queryClient);
           purgeStuckStoryUploads(queryClient);
