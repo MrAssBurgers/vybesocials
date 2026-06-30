@@ -2,6 +2,18 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## Publish — Google OAuth freeze fix (2026-06-17)
+- **Fix:** Wait for `authStateReady` before `getRedirectResult`; capture after auth listener; mark pending on all redirects; recover session if Firebase already signed in
+- **Verified:** `npm run build` PASS
+- **Staging:** https://vybe-daaab.web.app (Firebase hosting)
+- **You:** Lovable → Share → Publish for **vybehub.app** production
+
+## Publish — splash + AI routing (2026-06-30)
+- **Committed:** `3e4350e8` · pushed `main`
+- **Staging:** https://vybe-daaab.web.app (Firebase hosting)
+- **Functions:** AI + `startVybeCheck` already on vybe-daaab (GEMINI + OPENAI secrets)
+- **You:** Lovable → Share → Publish for **vybehub.app** production
+
 ## Cost-aware AI routing (2026-06-17)
 - **Strategy:** Gemini lite first (cheapest) → auto-escalate to flash on 5xx/empty; flash for chat, typed themes, agent tools; OpenAI only for Vybe Check moderation/STT (skipped if key invalid)
 - **Fix:** Token caps per task; Google BYOK only (no OpenAI sk- sent to Gemini); invalid OPENAI_API_KEY fails open to Gemini safety

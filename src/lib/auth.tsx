@@ -32,7 +32,7 @@ import { pickActiveBan } from '@/lib/banUtils';
 import { normalizeLoginEmail } from '@/lib/loginEmail';
 import { cacheProfileAvatar, resolveProfileAvatarUrl } from '@/lib/profileAvatarCache';
 import { isPasswordRecoveryUrl, redirectToPasswordRecoveryPage } from '@/lib/passwordRecoveryUrl';
-import { awaitOAuthRedirectCapture, clearOAuthRedirectPending, isOAuthRedirectInFlight } from '@/lib/firebase/oauthRedirect';
+import { awaitOAuthRedirectCapture, clearOAuthRedirectPending, isOAuthRedirectInFlight, recoverOAuthSessionIfSignedIn } from '@/lib/firebase/oauthRedirect';
 import { isDespiaOAuthInFlight } from '@/lib/despiaOAuth';
 
 /** Fail-soft — production may not have deployed sync_signup_username yet. */
@@ -764,9 +764,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
     window.addEventListener('pageshow', onPageShow);
 
-    // Firebase Google/Apple redirect — capture starts in bootstrapAuthStorage (always).
+    // Firebase Google/Apple redirect — listener is registered above; then capture redirect result.
     void (async () => {
-      const captured = await awaitOAuthRedirectCapture();
+      let captured = await awaitOAuthRedirectCapture();
+      if (!captured.session?.user && !captured.error && isOAuthRedirectInFlight()) {
+        for (let attempt = 0; attempt < 12 && !captured.session?.user; attempt++) {
+          await new Promise((resolve) => setTimeout(resolve, 250));
+          captured = await recoverOAuthSessionIfSignedIn();
+        }
+      }
       if (captured.error) {
         console.warn('[Auth] Firebase OAuth redirect failed:', captured.error);
         const { getUserFriendlyError } = await import('@/lib/errorUtils');

@@ -93,35 +93,86 @@ function isOAuthReturnPending(): boolean {
   return true;
 }
 
-/** Start getRedirectResult as early as possible (before React mounts). */
+/** URL hints that we just returned from Google/Apple OAuth redirect. */
+export function isLikelyFirebaseOAuthReturnUrl(): boolean {
+  if (typeof window === 'undefined') return false;
+  const search = window.location.search || '';
+  const hash = window.location.hash || '';
+  const combined = `${search}${hash}`;
+  return (
+    /[?&]state=/.test(search) ||
+    /[?&]code=/.test(search) ||
+    /[?&]error=/.test(combined) ||
+    hash.includes('access_token') ||
+    hash.includes('id_token')
+  );
+}
+
+function shouldTryOAuthRecovery(): boolean {
+  return isOAuthReturnPending() || isLikelyFirebaseOAuthReturnUrl();
+}
+
+async function waitForAuthInstance(): Promise<ReturnType<typeof firebaseAuth.auth>> {
+  let auth = firebaseAuth.auth;
+  for (let i = 0; i < 40 && !auth; i++) {
+    await new Promise((resolve) => setTimeout(resolve, 25));
+    auth = firebaseAuth.auth;
+  }
+  return auth;
+}
+
+async function sessionFromCurrentUser(): Promise<VybeSession | null> {
+  const { data } = await firebaseAuth.getSession();
+  return data.session?.user ? data.session : null;
+}
+
+async function captureRedirectResult(): Promise<OAuthRedirectCapture> {
+  const auth = await waitForAuthInstance();
+  if (!auth) return { session: null, error: null };
+
+  try {
+    if (auth.authStateReady) {
+      await auth.authStateReady();
+    }
+
+    const recovering = shouldTryOAuthRecovery();
+    if (recovering) {
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    }
+
+    const result = await withTimeout(getRedirectResult(auth), getOAuthRedirectTimeoutMs());
+    if (result?.user) {
+      const session = await sessionFromCurrentUser();
+      if (session?.user) {
+        clearOAuthRedirectPending();
+        return { session, error: null };
+      }
+      return { session: null, error: { message: 'OAuth redirect completed without session' } };
+    }
+
+    if (recovering && auth.currentUser) {
+      const session = await sessionFromCurrentUser();
+      if (session?.user) {
+        clearOAuthRedirectPending();
+        return { session, error: null };
+      }
+    }
+
+    return { session: null, error: null };
+  } catch (err) {
+    if (isPendingFlagSet()) clearOAuthRedirectPending();
+    const message = err instanceof Error ? err.message : 'OAuth redirect failed';
+    return {
+      session: null,
+      error: { message, name: (err as { code?: string }).code },
+    };
+  }
+}
+
+/** Start getRedirectResult after auth listener is registered (auth.tsx). */
 export function captureOAuthRedirectOnLoad(): Promise<OAuthRedirectCapture> {
   if (capturePromise) return capturePromise;
-
-  capturePromise = (async (): Promise<OAuthRedirectCapture> => {
-    const auth = firebaseAuth.auth;
-    if (!auth) return { session: null, error: null };
-
-    try {
-      const result = await withTimeout(getRedirectResult(auth), getOAuthRedirectTimeoutMs());
-      if (!result?.user) return { session: null, error: null };
-
-      const { data: sessionData } = await firebaseAuth.getSession();
-      if (sessionData.session?.user) {
-        clearOAuthRedirectPending();
-        return { session: sessionData.session, error: null };
-      }
-
-      return { session: null, error: { message: 'OAuth redirect completed without session' } };
-    } catch (err) {
-      if (isPendingFlagSet()) clearOAuthRedirectPending();
-      const message = err instanceof Error ? err.message : 'OAuth redirect failed';
-      return {
-        session: null,
-        error: { message, name: (err as { code?: string }).code },
-      };
-    }
-  })();
-
+  capturePromise = captureRedirectResult();
   return capturePromise;
 }
 
@@ -133,11 +184,21 @@ export function isOAuthRedirectInFlight(): boolean {
   return isOAuthReturnPending();
 }
 
+/** Poll when getRedirectResult returned null but Firebase may already have signed in. */
+export async function recoverOAuthSessionIfSignedIn(): Promise<OAuthRedirectCapture> {
+  if (!shouldTryOAuthRecovery()) return { session: null, error: null };
+  const auth = await waitForAuthInstance();
+  if (!auth?.currentUser) return { session: null, error: null };
+  const session = await sessionFromCurrentUser();
+  if (session?.user) {
+    clearOAuthRedirectPending();
+    return { session, error: null };
+  }
+  return { session: null, error: null };
+}
+
 if (typeof window !== 'undefined') {
   clearStaleOAuthRedirectPending();
-  // Always probe Firebase redirect result on boot — sessionStorage pending flag is often
-  // cleared during the Google round-trip on mobile Safari.
-  captureOAuthRedirectOnLoad();
 
   window.addEventListener('pageshow', (event) => {
     if (event.persisted) {

@@ -4,7 +4,7 @@ import { useAuth } from '@/lib/auth';
 import { resolvePostLoginDestination } from '@/lib/authReturnPath';
 import { getCachedCurrentProfile } from '@/lib/profileCache';
 import { isPasswordRecoveryUrl, redirectToPasswordRecoveryPage } from '@/lib/passwordRecoveryUrl';
-import { clearOAuthRedirectPending, isOAuthRedirectInFlight } from '@/lib/firebase/oauthRedirect';
+import { clearOAuthRedirectPending, isLikelyFirebaseOAuthReturnUrl, isOAuthRedirectInFlight } from '@/lib/firebase/oauthRedirect';
 import { firebaseAuth } from '@/lib/firebase';
 import {
   clearDespiaOAuthPending,
@@ -51,7 +51,7 @@ export default function AuthCallback() {
         navigate('/', { replace: true });
         return;
       }
-      if (!hasLegacyTokens) {
+      if (!hasLegacyTokens && !isLikelyFirebaseOAuthReturnUrl() && !isOAuthRedirectInFlight()) {
         const t = setTimeout(() => {
           if (!user && authReady && !isOAuthRedirectInFlight()) {
             navigate('/auth', { replace: true });

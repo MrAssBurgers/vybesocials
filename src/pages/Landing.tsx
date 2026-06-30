@@ -34,10 +34,10 @@ import { useEmailVerificationPoll } from '@/hooks/useEmailVerificationPoll';
 import {
   clearOAuthRedirectPending,
   clearStaleOAuthRedirectPending,
+  isLikelyFirebaseOAuthReturnUrl,
   isOAuthRedirectInFlight,
-  markOAuthRedirectPending,
 } from '@/lib/firebase/oauthRedirect';
-import { signInWithOAuthPlatform, shouldUseRedirectOAuth } from '@/lib/nativeOAuth';
+import { signInWithOAuthPlatform } from '@/lib/nativeOAuth';
 import {
   clearDespiaOAuthPending,
   clearStaleDespiaOAuthPending,
@@ -154,7 +154,7 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
     const hash = window.location.hash;
     const hasHashTokens = hash.includes('access_token') || hash.includes('refresh_token');
     const hasDespiaTokens = isDespiaOAuthReturnUrl(window.location.href);
-    return hasHashTokens || hasDespiaTokens || isOAuthRedirectInFlight() || isDespiaOAuthInFlight();
+    return hasHashTokens || hasDespiaTokens || isOAuthRedirectInFlight() || isDespiaOAuthInFlight() || isLikelyFirebaseOAuthReturnUrl();
   });
   const [agreedToTerms, setAgreedToTerms] = useState(false);
   const [rememberMe, setRememberMe] = useState(true);
@@ -232,9 +232,6 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
     setLoading(true);
     try {
       sessionStorage.removeItem('vybe-oauth-error');
-      if (shouldUseRedirectOAuth()) {
-        markOAuthRedirectPending();
-      }
 
       const oauthResult = await signInWithOAuthPlatform(provider);
       if (oauthResult.redirected) {
@@ -306,8 +303,6 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
       toast.error(oauthError);
       return;
     }
-
-    if (!authReady) return;
 
     const failTimer = setTimeout(() => {
       clearOAuthRedirectPending();
