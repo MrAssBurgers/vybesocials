@@ -16,11 +16,20 @@ export const aiChat = onCall({ secrets: SECRETS }, async (request) => {
     const authUid = requireAuth(request);
     enforceRateLimit(await rateLimit(`aichat:${authUid}`, 12, 60));
     const profileId = await resolveProfileIdFromAuth(authUid);
-    const byokKey = (await getUserAiApiKey(profileId, 'google', authUid)) ||
-        (await getUserAiApiKey(profileId, 'openai', authUid));
+    const usePersonalKey = Boolean(request.data?.usePersonalKey);
+    const byokKey = usePersonalKey
+        ? (await getUserAiApiKey(profileId, 'google', authUid)) ||
+            (await getUserAiApiKey(profileId, 'openai', authUid))
+        : null;
     const usingByok = !!byokKey;
-    console.info('[aiChat] start', { profileId, hasByok: usingByok, authUid });
-    const quota = await enforceAiQuota(profileId, 'chat');
+    console.info('[aiChat] start', {
+        profileId,
+        hasByok: usingByok,
+        usePersonalKey,
+        keySource: usingByok ? 'byok' : 'platform',
+        authUid,
+    });
+    const quota = await enforceAiQuota(profileId, 'chat', { ignoreByok: !usePersonalKey });
     const { messages, aiName, aiPersonality, location, imageBase64, imageMimeType } = (request.data || {});
     if (!Array.isArray(messages) || !messages.length)
         throw new HttpsError('invalid-argument', 'messages required');

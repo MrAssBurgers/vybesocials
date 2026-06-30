@@ -172,9 +172,13 @@ function featureLabel(feature: AiFeature): string {
 }
 
 /** Throws resource-exhausted when over daily limit (skipped when user BYOK is active). */
-export async function enforceAiQuota(profileId: string, feature: AiFeature): Promise<AiQuotaStatus> {
+export async function enforceAiQuota(
+  profileId: string,
+  feature: AiFeature,
+  options?: { ignoreByok?: boolean },
+): Promise<AiQuotaStatus> {
   const status = await readAiQuotaStatus(profileId);
-  if (status.hasByok) return status;
+  if (status.hasByok && !options?.ignoreByok) return status;
 
   const bucket =
     feature === 'chat' ? status.chat

@@ -8,7 +8,6 @@ import {
 } from './aiChatHistory';
 import { getFirebaseApp } from './app';
 import { invokeFunction } from './functionsService';
-import { isAppCheckTokenVerified } from './appCheck';
 import { RATE_LIMITS } from '@/lib/rateLimit';
 
 export type { VybeAiChatMessage } from './aiChatHistory';
@@ -283,6 +282,7 @@ async function invokeVybeAiChatCallable(
     location: context.location,
     imageBase64: imageBase64 || undefined,
     imageMimeType: imageMimeType || undefined,
+    usePersonalKey: false,
   });
 
   if (error) throw error;
@@ -392,8 +392,9 @@ function pickUserFacingAiError(errors: unknown[], preferCallable = false): strin
 }
 
 /**
- * Stream a VYBE AI chat reply — server callable first when BYOK or App Check unverified,
- * otherwise Firebase AI Logic with Cloud Function fallback.
+ * Stream a VYBE AI chat reply — always uses the shared platform GEMINI_API_KEY
+ * via the aiChat Cloud Function (server-first). Client Firebase AI Logic is
+ * only a last-resort fallback if the callable fails.
  */
 export async function streamVybeAiChat(options: StreamVybeAiChatOptions): Promise<string> {
   if (!RATE_LIMITS.aiChat()) {
@@ -403,10 +404,9 @@ export async function streamVybeAiChat(options: StreamVybeAiChatOptions): Promis
   }
 
   await ensureSignedInForAi();
-  const { history, userText, context, onChunk, imageBase64, imageMimeType, hasByok } = options;
+  const { history, userText, context, onChunk, imageBase64, imageMimeType } = options;
   const errors: unknown[] = [];
-  const serverFirst =
-    options.serverFirst ?? (hasByok || !isAppCheckTokenVerified());
+  const serverFirst = options.serverFirst ?? true;
 
   const tryCallable = async (): Promise<string> => {
     const reply = await invokeVybeAiChatCallable(
@@ -455,7 +455,7 @@ export async function streamVybeAiChat(options: StreamVybeAiChatOptions): Promis
     }
   }
 
-  throw new Error(pickUserFacingAiError(errors, hasByok || serverFirst));
+  throw new Error(pickUserFacingAiError(errors, true));
 }
 
 /** Type out a completed reply word-by-word (server responses are not streamed). */

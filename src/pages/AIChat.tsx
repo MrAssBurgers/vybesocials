@@ -20,7 +20,7 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { formatAiChatError } from '@/lib/functionAuth';
-import { db, formatFirebaseAiError, filterAiChatHistoryForApi, isAiLogicConfigured, isAppCheckTokenVerified, streamVybeAiChat, parseImaginePrompt, generateVybeAiImage } from '@/lib/firebase';
+import { db, formatFirebaseAiError, filterAiChatHistoryForApi, isAiLogicConfigured, streamVybeAiChat, parseImaginePrompt, generateVybeAiImage } from '@/lib/firebase';
 import { useVybeAgent, shouldFallbackToAiChat, isAgentAuthError, isAgentUnavailableError } from '@/lib/agent/useVybeAgent';
 import { shouldSkipAgentDueToAuth, clearAgentAuthFailure, messageWantsCloudAgent } from '@/lib/agent/aiChatRouting';
 import { useAiUsage } from '@/hooks/useAiUsage';
@@ -394,8 +394,7 @@ export default function AIChat() {
             feedDNA,
             location: userLocation,
           },
-          hasByok: usage.hasByok,
-          serverFirst: usage.hasByok || !isAppCheckTokenVerified(),
+          serverFirst: true,
           streamDeadlineMs: AI_CHAT_STREAM_MS,
           idleMs: AI_CHAT_STREAM_IDLE_MS,
           onChunk: (_delta, full) => {
@@ -607,11 +606,6 @@ export default function AIChat() {
               >
                 {chatExhausted ? 'Add API key' : 'Manage'}
               </button>
-            </div>
-          )}
-          {!usage.loading && usage.hasByok && !chatKeyHint && (
-            <div className="px-1 py-2 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-xs text-emerald-700 dark:text-emerald-300">
-              Using your Google AI key for chat.
             </div>
           )}
           {!usage.loading && usage.providers.google && chatKeyHint && (
