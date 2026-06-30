@@ -44,8 +44,6 @@ import { MaintenanceScreen } from "./components/system/MaintenanceScreen";
 import { FirebaseConfigScreen } from "./components/system/FirebaseConfigScreen";
 import { BootRecoveryScreen } from "./components/system/BootRecoveryScreen";
 import { markBootComplete, showBootRecovery } from "./lib/bootGuard";
-import { hideStaticBootSplash } from "./lib/splashProgressBridge";
-import { shouldSkipInitialSplash } from "./lib/splashSession";
 
 function runSafeBootStep(label: string, callback: () => void) {
   try {
@@ -220,9 +218,6 @@ function renderVybeApp() {
 
 try {
   runPreRenderInit();
-  if (shouldSkipInitialSplash()) {
-    hideStaticBootSplash();
-  }
   renderVybeApp();
   // Maintenance/config screens have no splash — mark boot ready immediately.
   if (isMaintenanceMode() || !isFirebaseConfigured()) {

@@ -1,6 +1,7 @@
 import { HttpsError } from 'firebase-functions/v2/https';
 import { db } from './admin.js';
-export const CHEAP_CHAT_MODEL = 'gemini-2.5-flash-lite';
+/** Re-export cost routing — use modelForTier / TOKEN_BUDGET from aiModels.ts */
+export { CHEAP_CHAT_MODEL, QUALITY_CHAT_MODEL } from './aiModels.js';
 const LIMITS = {
     free: { chat: 25, assist: 15, smart_replies: 20, image_gen: 5 },
     premium: { chat: 250, assist: 120, smart_replies: 120, image_gen: 40 },
@@ -94,6 +95,11 @@ export async function getUserAiApiKey(profileId, provider = 'google', authUid) {
         }
     }
     return null;
+}
+/** Google BYOK only — OpenAI keys must not be sent to the Gemini API. */
+export async function getGeminiByokKey(profileId, authUid) {
+    const key = await getUserAiApiKey(profileId, 'google', authUid);
+    return key || undefined;
 }
 function bucketFromUsage(usage, field, limit, stale) {
     return { used: stale ? 0 : Number(usage[field] || 0), limit };

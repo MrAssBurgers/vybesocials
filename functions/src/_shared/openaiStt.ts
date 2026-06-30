@@ -1,13 +1,15 @@
 /**
- * OpenAI Speech-to-Text (Whisper) — Phase 1 video audio transcription.
+ * OpenAI Speech-to-Text (Whisper) — Vybe Check video audio only (skip when key invalid).
  */
+
+import { isOpenAiKeyCachedInvalid, markOpenAiKeyInvalid } from './openaiModeration.js';
 
 export async function transcribeAudioWithOpenAI(
   apiKey: string,
   audioBuffer: Buffer,
   mimeType = 'audio/mpeg',
 ): Promise<string> {
-  if (!audioBuffer.length) return '';
+  if (!audioBuffer.length || isOpenAiKeyCachedInvalid()) return '';
 
   const ext = mimeType.includes('wav') ? 'wav' : mimeType.includes('webm') ? 'webm' : 'mp3';
   const bytes = new Uint8Array(audioBuffer);
@@ -25,6 +27,11 @@ export async function transcribeAudioWithOpenAI(
 
   if (!res.ok) {
     const body = await res.text();
+    if (res.status === 401 || res.status === 403) {
+      markOpenAiKeyInvalid();
+      console.warn('[openaiStt] OPENAI_API_KEY invalid — skipping transcription');
+      return '';
+    }
     console.error('[openaiStt]', res.status, body.slice(0, 300));
     throw new Error(`OpenAI transcription failed: ${res.status}`);
   }

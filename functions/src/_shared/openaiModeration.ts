@@ -14,12 +14,26 @@ function maxCategoryScore(scores: Record<string, number>): number {
   return Math.max(0, ...Object.values(scores));
 }
 
+let openAiKeyUsable: boolean | null = null;
+
+export function isOpenAiKeyCachedInvalid(): boolean {
+  return openAiKeyUsable === false;
+}
+
+export function markOpenAiKeyInvalid(): void {
+  openAiKeyUsable = false;
+}
+
 export async function moderateTextWithOpenAI(
   apiKey: string,
   input: string,
 ): Promise<OpenAiModerationResult> {
   const trimmed = input.trim();
   if (!trimmed) {
+    return { flagged: false, score: 0, categories: [], category_scores: {} };
+  }
+
+  if (openAiKeyUsable === false) {
     return { flagged: false, score: 0, categories: [], category_scores: {} };
   }
 
@@ -34,10 +48,16 @@ export async function moderateTextWithOpenAI(
 
   if (!res.ok) {
     const body = await res.text();
+    if (res.status === 401 || res.status === 403) {
+      openAiKeyUsable = false;
+      console.warn('[openaiModeration] OPENAI_API_KEY invalid — using Gemini-only Vybe Check');
+      return { flagged: false, score: 0, categories: [], category_scores: {} };
+    }
     console.error('[openaiModeration]', res.status, body.slice(0, 300));
     throw new Error(`OpenAI moderation failed: ${res.status}`);
   }
 
+  openAiKeyUsable = true;
   const data = (await res.json()) as {
     results?: Array<{
       flagged?: boolean;

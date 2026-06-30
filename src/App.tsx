@@ -153,8 +153,8 @@ import { ATT_RESUME_EVENT, ensureAppShellVisible } from "@/lib/attResumeRecovery
 import { syncNativeTrackingConsent } from "@/lib/att";
 import { readSplashCompleted, markSplashCompleted, shouldSkipInitialSplash } from "@/lib/splashSession";
 import { getCachedCurrentProfile } from "@/lib/profileCache";
-import { hideStaticBootSplash } from "@/lib/splashProgressBridge";
 import { clearSplashDocumentLocks, markAppReady } from "@/lib/splashDismiss";
+import { publishSplashProgress } from "@/lib/splashProgressBridge";
 import { resetSplashSessionOnHardReload, hasAppShellPaint } from "@/lib/navigationBoot";
 import { navVisibility } from "@/lib/navVisibility";
 import { markBootComplete } from "@/lib/bootGuard";
@@ -284,6 +284,8 @@ resetSplashSessionOnHardReload();
 const skipInitialSplash = shouldSkipInitialSplash();
 let hasInitialLoadCompleted = skipInitialSplash || readSplashCompleted();
 let splashDismissed = skipInitialSplash;
+const splashShownAt = typeof performance !== 'undefined' ? performance.now() : Date.now();
+const MIN_SPLASH_MS = 1100;
 
 function completeInitialSplash(setShowSplash: (v: boolean) => void) {
   if (splashDismissed) return;
@@ -303,8 +305,12 @@ function completeInitialSplash(setShowSplash: (v: boolean) => void) {
     });
   };
 
-  // Dismiss immediately — never block on paint probes (caused 100% Ready stuck screen).
-  finish();
+  publishSplashProgress(100, "Let's go! ✨");
+  const elapsed = (typeof performance !== 'undefined' ? performance.now() : Date.now()) - splashShownAt;
+  const holdMs = Math.max(0, MIN_SPLASH_MS - elapsed);
+  window.setTimeout(() => {
+    window.setTimeout(finish, isNativePerfMode() ? 220 : 320);
+  }, holdMs);
 }
 
 // Background brief pre-fetcher (needs auth context)
@@ -406,11 +412,9 @@ function AppWithPreloader() {
   }, []);
 
   useEffect(() => {
-    hideStaticBootSplash();
-    if (!showSplash) {
-      clearSplashDocumentLocks();
-    }
-  }, []);
+    if (showSplash) return;
+    clearSplashDocumentLocks();
+  }, [showSplash]);
 
   const showSplashRef = useRef(showSplash);
   const preloadCompleteRef = useRef(preloadStatus.isComplete);
@@ -428,24 +432,26 @@ function AppWithPreloader() {
     }
   }, [preloadStatus.isComplete, showSplash, authResolved, hasSession]);
 
-  // After fresh sign-in, dismiss splash quickly — don't wait for full preloader.
+  // After fresh sign-in, dismiss splash once preload + auth gates pass.
   useEffect(() => {
     const { data: { subscription } } = db.auth.onAuthStateChange((event) => {
       if (event !== 'SIGNED_IN' || !showSplashRef.current) return;
       window.setTimeout(() => {
-        if (showSplashRef.current) completeInitialSplash(setShowSplash);
-      }, 300);
+        if (showSplashRef.current && preloadCompleteRef.current && authResolvedRef.current) {
+          completeInitialSplash(setShowSplash);
+        }
+      }, 400);
     });
     return () => subscription.unsubscribe();
   }, []);
 
-  // Never leave splash up after ATT / system sheets (App Review 2.1a blank screen).
+  // Safety cap — never leave splash up indefinitely (slow networks / ATT sheets).
   useEffect(() => {
     if (!showSplash) return;
     const absoluteMax = setTimeout(() => {
       syncNativeTrackingConsent();
       completeInitialSplash(setShowSplash);
-    }, isNativePerfMode() ? 350 : 400);
+    }, isNativePerfMode() ? 10000 : 12000);
     return () => clearTimeout(absoluteMax);
   }, [showSplash]);
 

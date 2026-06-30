@@ -16,19 +16,25 @@ interface PreloadStatus {
   isComplete: boolean;
 }
 
-// Weighted preload steps — progress is computed from cumulative weights
 const PRELOAD_STEPS = [
-  { key: 'init', label: 'Waking up...', weight: 5 },
-  { key: 'auth', label: 'Checking session...', weight: 10 },
-  { key: 'profile', label: 'Loading profile...', weight: 10 },
-  { key: 'feed', label: 'Getting your feed...', weight: 25 },
-  { key: 'clips', label: 'Loading clips...', weight: 20 },
-  { key: 'social', label: 'Syncing social...', weight: 20 },
+  { key: 'init', label: 'Waking up...', weight: 8 },
+  { key: 'auth', label: 'Checking session...', weight: 14 },
+  { key: 'profile', label: 'Loading profile...', weight: 14 },
+  { key: 'feed', label: 'Getting your feed...', weight: 22 },
+  { key: 'clips', label: 'Loading clips...', weight: 18 },
+  { key: 'social', label: 'Syncing social...', weight: 14 },
   { key: 'final', label: 'Final touches...', weight: 5 },
-  { key: 'ready', label: 'Let\'s go! ✨', weight: 5 },
+  { key: 'ready', label: "Let's go! ✨", weight: 5 },
 ];
 
 const TOTAL_WEIGHT = PRELOAD_STEPS.reduce((s, step) => s + step.weight, 0);
+
+function withTimeout<T>(promise: Promise<T>, ms: number, fallback: T): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((resolve) => window.setTimeout(() => resolve(fallback), ms)),
+  ]);
+}
 
 export function useAppPreloader() {
   const queryClient = useQueryClient();
@@ -44,17 +50,15 @@ export function useAppPreloader() {
 
   useEffect(() => onPersistRestored(() => setRestoreReady(true)), []);
 
-  // Never block cold start if IndexedDB restore is slow or unavailable (private mode).
   useEffect(() => {
     if (restoreReady) return;
     const t = setTimeout(() => {
       markPersistRestored();
       setRestoreReady(true);
-    }, isNativePerfMode() ? 80 : 40);
+    }, isNativePerfMode() ? 120 : 80);
     return () => clearTimeout(t);
   }, [restoreReady]);
 
-  // Smoothly animate progress to a target value
   const animateTo = useCallback((target: number, label: string, done = false) => {
     const start = currentProgress.current;
     const delta = target - start;
@@ -63,13 +67,12 @@ export function useAppPreloader() {
       setStatus({ step: label, progress: target, isComplete: done });
       return;
     }
-    const duration = Math.max(80, Math.min(delta * 8, 280));
+    const duration = Math.max(100, Math.min(delta * 10, 420));
     const startTime = performance.now();
 
     const tick = (now: number) => {
       const elapsed = now - startTime;
       const t = Math.min(elapsed / duration, 1);
-      // ease-out cubic
       const eased = 1 - Math.pow(1 - t, 3);
       const value = Math.round(start + delta * eased);
       currentProgress.current = value;
@@ -87,19 +90,15 @@ export function useAppPreloader() {
     animFrameRef.current = requestAnimationFrame(tick);
   }, []);
 
-  const finishPreload = useCallback((label = 'Ready!') => {
-    setStatus({ step: label, progress: 100, isComplete: true });
-  }, []);
-
   const updateStatus = useCallback((stepKey: string, partialProgress?: number) => {
-    const stepIndex = PRELOAD_STEPS.findIndex(s => s.key === stepKey);
+    const stepIndex = PRELOAD_STEPS.findIndex((s) => s.key === stepKey);
     if (stepIndex === -1) return;
 
     const step = PRELOAD_STEPS[stepIndex];
     const progressBefore = PRELOAD_STEPS.slice(0, stepIndex).reduce((acc, s) => acc + s.weight, 0);
-    const stepProgress = partialProgress !== undefined ? (step.weight * partialProgress) : step.weight;
+    const stepProgress = partialProgress !== undefined ? step.weight * partialProgress : step.weight;
     const target = Math.min(Math.round(((progressBefore + stepProgress) / TOTAL_WEIGHT) * 100), 100);
-    
+
     animateTo(target, step.label, stepKey === 'ready');
   }, [animateTo]);
 
@@ -110,40 +109,97 @@ export function useAppPreloader() {
 
     const path = typeof window !== 'undefined' ? window.location.pathname : '';
     if (isSetupRoutePath(path)) {
-      console.log('[Preloader] Setup route fast path — instant ready');
-      finishPreload('Ready!');
+      updateStatus('init', 1);
+      updateStatus('ready', 1);
       return;
     }
 
-    // Never block splash on network — show UI immediately, warm caches in background.
-    console.log('[Preloader] Instant ready — background warm');
-    updateStatus('init', 0.35);
-    finishPreload('Ready!');
+    let cancelled = false;
 
-    // Theme first — before feed/DM warm (must not wait on getSession).
-    kickstartThemeHydration(queryClient);
-
-    requestAnimationFrame(() => {
+    const run = async () => {
+      updateStatus('init', 0.4);
+      kickstartThemeHydration(queryClient);
       preloadCriticalRoutes();
-      void warmHomeCaches(queryClient);
-      void runBackgroundWarm(queryClient);
-      setTimeout(() => preloadSecondaryRoutes(), 1200);
+
+      updateStatus('auth', 0.15);
+      const authMs = isNativePerfMode() ? 2800 : 3500;
+      const { data: { session } } = await withTimeout(
+        db.auth.getSession(),
+        authMs,
+        { data: { session: null } },
+      );
+      if (cancelled) return;
+      updateStatus('auth', 1);
+
+      if (!session?.user) {
+        updateStatus('profile', 1);
+        updateStatus('feed', 0.2);
+        await warmGuestFeed(queryClient, (p) => {
+          if (!cancelled) updateStatus('feed', 0.2 + p * 0.8);
+        });
+        if (cancelled) return;
+        updateStatus('clips', 1);
+        updateStatus('social', 1);
+      } else {
+        const uid = session.user.id;
+        updateStatus('profile', 0.25);
+        void prefetchAndApplyUserTheme(uid, queryClient);
+
+        const profileResult = await withTimeout(
+          db.from('profiles').select('*').eq('user_id', uid).maybeSingle(),
+          isNativePerfMode() ? 2800 : 3500,
+          { data: null, error: null },
+        );
+        if (cancelled) return;
+        updateStatus('profile', 1);
+
+        const profileData = profileResult.data;
+        const profileId = profileData?.id;
+        if (profileData && profileId) {
+          queryClient.setQueryData(['profile', profileId], profileData);
+          warmHomeCachesForProfile(queryClient, uid, profileId, profileData);
+        }
+
+        updateStatus('feed', 0.15);
+        await warmUserFeed(queryClient, profileId ?? null, uid, (p) => {
+          if (!cancelled) updateStatus('feed', 0.15 + p * 0.85);
+        });
+        if (cancelled) return;
+        updateStatus('clips', 1);
+        updateStatus('social', 1);
+      }
+
+      updateStatus('final', 1);
+      updateStatus('ready', 1);
+
+      requestAnimationFrame(() => {
+        void warmHomeCaches(queryClient);
+        setTimeout(() => preloadSecondaryRoutes(), 1200);
+      });
+    };
+
+    void run().catch((error) => {
+      console.warn('[Preloader] Boot warm failed:', error);
+      if (!cancelled) {
+        publishSplashProgress(100, "Let's go! ✨");
+        setStatus({ step: "Let's go! ✨", progress: 100, isComplete: true });
+      }
     });
-    
+
     return () => {
+      cancelled = true;
       if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
     };
-  }, [restoreReady, queryClient, updateStatus, animateTo, finishPreload]);
+  }, [restoreReady, queryClient, updateStatus]);
 
   return status;
 }
 
-// Helper function to cache feed data in the correct format
 function cacheFeedData(
-  queryClient: ReturnType<typeof useQueryClient>,
+  queryClient: QueryClient,
   posts: any[],
   userId: string | null,
-  type: string
+  type: string,
 ) {
   const transformedPosts = posts.map((row) => ({
     id: row.id,
@@ -166,111 +222,106 @@ function cacheFeedData(
     is_bookmarked: row.is_bookmarked || false,
   }));
 
-  // Cache with the correct query key format
   queryClient.setQueryData(
     ['infinite-posts', type, undefined, userId],
     {
-      pages: [{ 
-        posts: transformedPosts, 
-        nextPage: transformedPosts.length >= 20 ? 1 : null, 
-        totalLoaded: transformedPosts.length 
+      pages: [{
+        posts: transformedPosts,
+        nextPage: transformedPosts.length >= 20 ? 1 : null,
+        totalLoaded: transformedPosts.length,
       }],
       pageParams: [0],
-    }
+    },
   );
 
-  // Also cache for generic feed query
   if (type === 'feed_post') {
     queryClient.setQueryData(
       ['infinite-posts', undefined, undefined, userId],
       {
-        pages: [{ 
-          posts: transformedPosts, 
-          nextPage: transformedPosts.length >= 30 ? 1 : null, 
-          totalLoaded: transformedPosts.length 
+        pages: [{
+          posts: transformedPosts,
+          nextPage: transformedPosts.length >= 30 ? 1 : null,
+          totalLoaded: transformedPosts.length,
         }],
         pageParams: [0],
-      }
+      },
     );
   }
 }
 
-/** Background feed/profile warm — never blocks splash. */
-async function runBackgroundWarm(queryClient: QueryClient) {
-  try {
-    const { data: { session } } = await db.auth.getSession();
-    if (!session?.user) {
-      const [feedResult, clipsResult] = await Promise.allSettled([
-        db.rpc('get_posts_with_counts', {
-          p_type: 'feed_post',
-          p_author_id: null,
-          p_user_id: null,
-          p_offset: 0,
-          p_limit: 30,
-        }),
-        db.rpc('get_posts_with_counts', {
-          p_type: 'clip',
-          p_author_id: null,
-          p_user_id: null,
-          p_offset: 0,
-          p_limit: 20,
-        }),
-      ]);
-      if (feedResult.status === 'fulfilled' && feedResult.value.data) {
-        const posts = feedResult.value.data as any[];
-        cacheFeedData(queryClient, posts, null, 'feed_post');
-        batchSignUrls(posts.flatMap((p) => [p.media_url, p.author_avatar_url, p.thumbnail_url]).filter(Boolean)).catch(() => {});
-      }
-      if (clipsResult.status === 'fulfilled' && clipsResult.value.data) {
-        const clips = clipsResult.value.data as any[];
-        cacheFeedData(queryClient, clips, null, 'clip');
-        batchSignUrls(clips.flatMap((p) => [p.media_url, p.author_avatar_url, p.thumbnail_url]).filter(Boolean)).catch(() => {});
-      }
-      return;
-    }
-
-    const uid = session.user.id;
-    void prefetchAndApplyUserTheme(uid, queryClient);
-
-    const { data: profileData } = await db
-      .from('profiles')
-      .select('*')
-      .eq('user_id', uid)
-      .maybeSingle();
-
-    const profileId = profileData?.id;
-    if (profileData && profileId) {
-      queryClient.setQueryData(['profile', profileId], profileData);
-      warmHomeCachesForProfile(queryClient, uid, profileId, profileData);
-
-      const [feedResult, clipsResult] = await Promise.allSettled([
-        db.rpc('get_posts_with_counts', {
-          p_type: null,
-          p_author_id: null,
-          p_user_id: profileId,
-          p_offset: 0,
-          p_limit: 25,
-        }),
-        db.rpc('get_posts_with_counts', {
-          p_type: 'short',
-          p_author_id: null,
-          p_user_id: profileId,
-          p_offset: 0,
-          p_limit: 15,
-        }),
-      ]);
-      if (feedResult.status === 'fulfilled' && feedResult.value.data) {
-        const posts = feedResult.value.data as any[];
-        cacheFeedData(queryClient, posts, profileId, null);
-        batchSignUrls(posts.flatMap((p) => [p.media_url, p.author_avatar_url, p.thumbnail_url]).filter(Boolean)).catch(() => {});
-      }
-      if (clipsResult.status === 'fulfilled' && clipsResult.value.data) {
-        const clips = clipsResult.value.data as any[];
-        cacheFeedData(queryClient, clips, profileId, 'short');
-        batchSignUrls(clips.flatMap((p) => [p.media_url, p.author_avatar_url, p.thumbnail_url]).filter(Boolean)).catch(() => {});
-      }
-    }
-  } catch (error) {
-    console.warn('[Preloader] Background warm failed:', error);
+async function warmGuestFeed(
+  queryClient: QueryClient,
+  onProgress: (fraction: number) => void,
+) {
+  onProgress(0.1);
+  const [feedResult, clipsResult] = await Promise.allSettled([
+    db.rpc('get_posts_with_counts', {
+      p_type: 'feed_post',
+      p_author_id: null,
+      p_user_id: null,
+      p_offset: 0,
+      p_limit: 30,
+    }),
+    db.rpc('get_posts_with_counts', {
+      p_type: 'clip',
+      p_author_id: null,
+      p_user_id: null,
+      p_offset: 0,
+      p_limit: 20,
+    }),
+  ]);
+  onProgress(0.65);
+  if (feedResult.status === 'fulfilled' && feedResult.value.data) {
+    const posts = feedResult.value.data as any[];
+    cacheFeedData(queryClient, posts, null, 'feed_post');
+    batchSignUrls(posts.flatMap((p) => [p.media_url, p.author_avatar_url, p.thumbnail_url]).filter(Boolean)).catch(() => {});
   }
+  if (clipsResult.status === 'fulfilled' && clipsResult.value.data) {
+    const clips = clipsResult.value.data as any[];
+    cacheFeedData(queryClient, clips, null, 'clip');
+    batchSignUrls(clips.flatMap((p) => [p.media_url, p.author_avatar_url, p.thumbnail_url]).filter(Boolean)).catch(() => {});
+  }
+  onProgress(1);
+}
+
+async function warmUserFeed(
+  queryClient: QueryClient,
+  profileId: string | null,
+  uid: string,
+  onProgress: (fraction: number) => void,
+) {
+  if (!profileId) {
+    onProgress(1);
+    return;
+  }
+
+  onProgress(0.1);
+  const [feedResult, clipsResult] = await Promise.allSettled([
+    db.rpc('get_posts_with_counts', {
+      p_type: null,
+      p_author_id: null,
+      p_user_id: profileId,
+      p_offset: 0,
+      p_limit: 25,
+    }),
+    db.rpc('get_posts_with_counts', {
+      p_type: 'short',
+      p_author_id: null,
+      p_user_id: profileId,
+      p_offset: 0,
+      p_limit: 15,
+    }),
+  ]);
+  onProgress(0.7);
+  if (feedResult.status === 'fulfilled' && feedResult.value.data) {
+    const posts = feedResult.value.data as any[];
+    cacheFeedData(queryClient, posts, profileId, null);
+    batchSignUrls(posts.flatMap((p) => [p.media_url, p.author_avatar_url, p.thumbnail_url]).filter(Boolean)).catch(() => {});
+  }
+  if (clipsResult.status === 'fulfilled' && clipsResult.value.data) {
+    const clips = clipsResult.value.data as any[];
+    cacheFeedData(queryClient, clips, profileId, 'short');
+    batchSignUrls(clips.flatMap((p) => [p.media_url, p.author_avatar_url, p.thumbnail_url]).filter(Boolean)).catch(() => {});
+  }
+  onProgress(1);
 }

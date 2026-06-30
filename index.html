@@ -298,6 +298,10 @@
       body.splash-visible {
         overflow: hidden;
         height: 100dvh;
+        background:
+          radial-gradient(ellipse 95% 75% at 18% 22%, hsl(var(--primary) / 0.18), transparent 58%),
+          radial-gradient(ellipse 85% 65% at 82% 78%, hsl(var(--accent) / 0.14), transparent 55%),
+          hsl(var(--background, 240 6% 5%));
       }
       body.splash-visible #root {
         min-height: 100dvh;
@@ -550,7 +554,7 @@
   <meta property="og:description" content="VYBE - The Next Generation Social Platform. Share moments, connect with friends, and discover amazing content from creators worldwide.">
   <meta name="twitter:description" content="VYBE - The Next Generation Social Platform. Share moments, connect with friends, and discover amazing content from creators worldwide.">
 </head>
-  <body>
+  <body class="splash-visible">
     <div id="vybe-maintenance-static" role="alert" aria-live="polite">
       <div class="vybe-maint-inner">
         <p class="vybe-maint-badge">Under reconstruction</p>
@@ -626,8 +630,7 @@
         </div>
       </div>
     </div>
-    <div id="root">
-      <div id="vybe-static-boot" data-vybe-boot-screen aria-live="polite" aria-busy="true">
+    <div id="vybe-static-boot" data-vybe-boot-screen aria-live="polite" aria-busy="true">
         <div class="vybe-boot-ambient" aria-hidden="true">
           <div class="vybe-boot-mesh"></div>
           <div class="vybe-boot-blob vybe-boot-blob--a"></div>
@@ -657,7 +660,7 @@
           </div>
         </div>
       </div>
-    </div>
+    <div id="root"></div>
     <script>
       (function () {
         var p = 0;

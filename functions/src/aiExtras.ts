@@ -4,6 +4,7 @@
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { requireAuth, requireAdmin, db } from './_shared/admin.js';
 import { chatCompletion } from './_shared/geminiAi.js';
+import { modelForTier, TOKEN_BUDGET } from './_shared/aiModels.js';
 import {
   AGENT_NAV_PATHS,
   AGENT_TOOL_NAME,
@@ -25,6 +26,8 @@ function simpleAI(systemPrompt: string) {
         { role: 'user', content: typeof input === 'string' ? input : JSON.stringify(input) + (context ? `\nContext: ${JSON.stringify(context).slice(0, 600)}` : '') },
       ],
       temperature: 0.5,
+      model: modelForTier('micro'),
+      max_tokens: TOKEN_BUDGET.standard,
     });
     return { ok: true, content };
   });
@@ -51,6 +54,8 @@ export const adminAiBuilder = onCall({ secrets: SECRETS }, async (request) => {
       { role: 'system', content: 'You are an admin assistant for VYBE. Help with operational tasks: SQL hints, user queries, data fixes. Be precise.' },
       { role: 'user', content: prompt || '' },
     ],
+    model: modelForTier('standard'),
+    max_tokens: TOKEN_BUDGET.creative,
   });
   return { ok: true, content };
 });
@@ -84,6 +89,8 @@ export const analyzeBugReport = onCall({ secrets: SECRETS, cors: true }, async (
       { role: 'system', content: 'Analyze a bug report. Identify likely root cause, severity, and suggested fix. Be concise (3 bullets).' },
       { role: 'user', content: JSON.stringify(doc.data()).slice(0, 4000) },
     ],
+    model: modelForTier('micro'),
+    max_tokens: TOKEN_BUDGET.standard,
   });
   await doc.ref.update({ ai_analysis: content, analyzed_at: new Date().toISOString() });
   return { ok: true, content };
@@ -97,6 +104,8 @@ export const analyzeError = onCall({ secrets: SECRETS }, async (request) => {
       { role: 'system', content: 'Diagnose a JS/TS error. Provide likely cause + 1 fix in 3 sentences.' },
       { role: 'user', content: `Error: ${error_message}\n\nStack: ${(stack || '').slice(0, 2000)}` },
     ],
+    model: modelForTier('micro'),
+    max_tokens: TOKEN_BUDGET.summary,
   });
   return { ok: true, content };
 });
@@ -115,6 +124,8 @@ export const dnaAutopilot = onCall({ secrets: SECRETS }, async (request) => {
     ],
     response_format: { type: 'json_object' },
     temperature: 0.6,
+    model: modelForTier('micro'),
+    max_tokens: TOKEN_BUDGET.standard,
   });
   let actions: any[] = [];
   try { actions = JSON.parse(content); } catch { actions = []; }
@@ -199,7 +210,8 @@ Always call ${AGENT_TOOL_NAME} with message + actions. Pure questions → action
   }));
 
   const { toolCalls } = await chatCompletion({
-    model: 'gemini-2.5-flash',
+    model: modelForTier('creative'),
+    max_tokens: TOKEN_BUDGET.creative,
     messages: [{ role: 'system', content: systemPrompt }, ...sanitized],
     tools: [buildVybeAgentActTool()],
     tool_choice: { type: 'function', function: { name: AGENT_TOOL_NAME } },
@@ -226,6 +238,8 @@ export const vybeCommander = onCall({ secrets: SECRETS }, async (request) => {
       { role: 'user', content: command || '' },
     ],
     response_format: { type: 'json_object' },
+    model: modelForTier('standard'),
+    max_tokens: TOKEN_BUDGET.creative,
   });
   return { ok: true, plan: content };
 });

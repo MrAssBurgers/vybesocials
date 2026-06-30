@@ -3,7 +3,8 @@ import { db } from './admin.js';
 
 export type AiFeature = 'chat' | 'assist' | 'smart_replies' | 'image_gen';
 
-export const CHEAP_CHAT_MODEL = 'gemini-2.5-flash-lite';
+/** Re-export cost routing — use modelForTier / TOKEN_BUDGET from aiModels.ts */
+export { CHEAP_CHAT_MODEL, QUALITY_CHAT_MODEL } from './aiModels.js';
 
 const LIMITS = {
   free: { chat: 25, assist: 15, smart_replies: 20, image_gen: 5 },
@@ -112,6 +113,15 @@ export async function getUserAiApiKey(
   }
 
   return null;
+}
+
+/** Google BYOK only — OpenAI keys must not be sent to the Gemini API. */
+export async function getGeminiByokKey(
+  profileId: string,
+  authUid?: string,
+): Promise<string | undefined> {
+  const key = await getUserAiApiKey(profileId, 'google', authUid);
+  return key || undefined;
 }
 
 export interface AiUsageBucket {

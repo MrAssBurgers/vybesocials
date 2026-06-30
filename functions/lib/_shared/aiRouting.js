@@ -1,34 +1,30 @@
 /**
- * Phase 1 VYBE AI routing — which provider handles which feature.
- * Secrets: GEMINI_API_KEY, OPENAI_API_KEY (Firebase Secret Manager).
- * ElevenLabs: future voice — not wired in Phase 1.
+ * Cost-aware AI routing — right tool for each job, cheapest model that still works.
+ *
+ * Gemini (GEMINI_API_KEY):
+ *   - lite  → smart replies, DM assist, captions, briefs, summaries (auto-escalates to flash on 5xx)
+ *   - flash → VYBE AI chat, typed theme prompts, agent tools, safety review
+ *
+ * OpenAI (OPENAI_API_KEY) — optional, very cheap per call:
+ *   - omni-moderation → Vybe Check text only (skipped gracefully if key invalid)
+ *   - whisper-1       → Vybe Check video transcription only
+ *
+ * Google Cloud Vision → NSFW frame scan (not LLM billing)
  */
 export const AI_ROUTING = {
-    /** GPT-5.x via OpenAI — captions, assistant, summaries, profiles, spam, appeals */
-    openai: {
-        captions: true,
-        aiAssistant: true,
-        searchSummaries: true,
-        userInterestProfiles: true,
-        spamChecks: true,
-        appeals: true,
-        moderation: true,
-        speechToText: true,
-    },
-    /** Gemini — camera AI, image understanding, OCR, visual search, borderline review */
     gemini: {
-        cameraAi: true,
-        imageUnderstanding: true,
-        ocr: true,
-        visualSearch: true,
-        borderlineImageVideoReview: true,
+        micro: ['aiSmartReplies', 'aiMessageAssist', 'aiHumanize', 'generateCaption', 'aiCatchUp', 'briefs'],
+        standard: ['aiChat', 'dnaChat', 'detectAiContent'],
+        creative: ['generateTheme'],
+        image: ['generateBackground'],
+        safety: ['aiSafetyScan', 'scanContentSafety'],
     },
-    /** Google Cloud Vision Safe Search — NSFW frame detection */
-    safeSearch: {
-        imageNsfw: true,
-        videoFrameScan: true,
+    openai: {
+        moderation: ['startVybeCheck', 'vybeCheckPipeline'],
+        speechToText: ['startVybeCheck'],
     },
-    /** Explicitly excluded Phase 1 */
-    excluded: ['hive', 'aws_rekognition', 'sightengine'],
+    vision: {
+        safeSearch: ['startVybeCheck'],
+    },
 };
 //# sourceMappingURL=aiRouting.js.map

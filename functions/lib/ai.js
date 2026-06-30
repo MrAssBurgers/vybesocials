@@ -1,7 +1,8 @@
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { db, requireAuth, rateLimit, enforceRateLimit } from './_shared/admin.js';
 import { chatCompletion, generateImage } from './_shared/geminiAi.js';
-import { CHEAP_CHAT_MODEL, enforceAiQuota, getUserAiApiKey, resolveProfileIdFromAuth, } from './_shared/aiQuota.js';
+import { modelForTier, TOKEN_BUDGET } from './_shared/aiModels.js';
+import { enforceAiQuota, getGeminiByokKey, resolveProfileIdFromAuth, } from './_shared/aiQuota.js';
 import { runVybeCheckScan } from './_shared/contentSafety.js';
 const SECRETS = ['GEMINI_API_KEY'];
 async function loadUserProfile(uid) {
@@ -17,10 +18,7 @@ export const aiChat = onCall({ secrets: SECRETS }, async (request) => {
     enforceRateLimit(await rateLimit(`aichat:${authUid}`, 12, 60));
     const profileId = await resolveProfileIdFromAuth(authUid);
     const usePersonalKey = Boolean(request.data?.usePersonalKey);
-    const byokKey = usePersonalKey
-        ? (await getUserAiApiKey(profileId, 'google', authUid)) ||
-            (await getUserAiApiKey(profileId, 'openai', authUid))
-        : null;
+    const byokKey = usePersonalKey ? await getGeminiByokKey(profileId, authUid) : undefined;
     const usingByok = !!byokKey;
     console.info('[aiChat] start', {
         profileId,
@@ -85,10 +83,10 @@ export const aiChat = onCall({ secrets: SECRETS }, async (request) => {
         }
         const { content } = await chatCompletion({
             messages: chatMessages,
-            model: CHEAP_CHAT_MODEL,
-            max_tokens: 768,
+            model: modelForTier('standard'),
+            max_tokens: TOKEN_BUDGET.chat,
             temperature: 0.75,
-            apiKey: byokKey || undefined,
+            apiKey: byokKey,
             usingByok,
         });
         if (!content?.trim()) {
@@ -137,12 +135,13 @@ export const aiCatchUp = onCall({ secrets: SECRETS, timeoutSeconds: 90 }, async 
     const prompt = `Today is ${today}. Return JSON: {"items":[{"topic":"…","summary":"…","sources":["url"],"category":"interests|local|world"}]}\nTopics: ${interests.join(', ')}.${locCtx}`;
     let liveUpdates = [];
     try {
-        const byokKey = (await getUserAiApiKey(profileId, 'google')) ||
-            (await getUserAiApiKey(profileId, 'openai'));
+        const byokKey = await getGeminiByokKey(profileId, authUid);
         const { content } = await chatCompletion({
             messages: [{ role: 'user', content: prompt }],
             response_format: { type: 'json_object' },
-            apiKey: byokKey || undefined,
+            model: modelForTier('micro'),
+            max_tokens: TOKEN_BUDGET.standard,
+            apiKey: byokKey,
         });
         const parsed = JSON.parse(content);
         const items = Array.isArray(parsed) ? parsed : parsed.items || parsed.updates || [];
@@ -194,8 +193,7 @@ export const aiSmartReplies = onCall({ secrets: SECRETS }, async (request) => {
     const authUid = requireAuth(request);
     enforceRateLimit(await rateLimit(`aismart:${authUid}`, 20, 60));
     const profileId = await resolveProfileIdFromAuth(authUid);
-    const byokKey = (await getUserAiApiKey(profileId, 'google')) ||
-        (await getUserAiApiKey(profileId, 'openai'));
+    const byokKey = await getGeminiByokKey(profileId, authUid);
     await enforceAiQuota(profileId, 'smart_replies');
     const { lastMessage, context } = (request.data || {});
     if (!lastMessage)
@@ -206,10 +204,10 @@ export const aiSmartReplies = onCall({ secrets: SECRETS }, async (request) => {
             { role: 'user', content: `Last message: ${lastMessage}\nContext: ${context || ''}` },
         ],
         response_format: { type: 'json_object' },
-        model: CHEAP_CHAT_MODEL,
-        max_tokens: 200,
+        model: modelForTier('micro'),
+        max_tokens: TOKEN_BUDGET.short,
         temperature: 0.6,
-        apiKey: byokKey || undefined,
+        apiKey: byokKey,
     });
     try {
         return JSON.parse(content);
@@ -228,6 +226,8 @@ export const aiCommentSuggestions = onCall({ secrets: SECRETS }, async (request)
             { role: 'user', content: `Post (${postType || 'post'}): ${postCaption || '(no caption)'}` },
         ],
         response_format: { type: 'json_object' },
+        model: modelForTier('micro'),
+        max_tokens: TOKEN_BUDGET.short,
     });
     try {
         return JSON.parse(content);
@@ -241,8 +241,7 @@ export const aiMessageAssist = onCall({ secrets: SECRETS }, async (request) => {
     const authUid = requireAuth(request);
     enforceRateLimit(await rateLimit(`aiassist:${authUid}`, 20, 60));
     const profileId = await resolveProfileIdFromAuth(authUid);
-    const byokKey = (await getUserAiApiKey(profileId, 'google')) ||
-        (await getUserAiApiKey(profileId, 'openai'));
+    const byokKey = await getGeminiByokKey(profileId, authUid);
     await enforceAiQuota(profileId, 'assist');
     const { text, mode = 'improve', targetLang } = (request.data || {});
     if (!text)
@@ -256,10 +255,10 @@ export const aiMessageAssist = onCall({ secrets: SECRETS }, async (request) => {
                         : `Improve clarity & tone: ${text}`;
     const { content } = await chatCompletion({
         messages: [{ role: 'user', content: prompt }],
-        model: CHEAP_CHAT_MODEL,
-        max_tokens: 400,
+        model: modelForTier('micro'),
+        max_tokens: TOKEN_BUDGET.standard,
         temperature: 0.5,
-        apiKey: byokKey || undefined,
+        apiKey: byokKey,
     });
     return { result: content };
 });
@@ -275,6 +274,8 @@ export const aiHumanize = onCall({ secrets: SECRETS }, async (request) => {
             { role: 'system', content: `Rewrite text to sound natural and human. ${toneHint} Keep meaning. Reply with only the rewritten text.` },
             { role: 'user', content: text },
         ],
+        model: modelForTier('micro'),
+        max_tokens: TOKEN_BUDGET.standard,
     });
     return { result: content };
 });
@@ -290,6 +291,8 @@ export const aiChatSummary = onCall({ secrets: SECRETS }, async (request) => {
             { role: 'system', content: 'Summarize this chat in 2-3 short sentences.' },
             { role: 'user', content: transcript },
         ],
+        model: modelForTier('micro'),
+        max_tokens: TOKEN_BUDGET.summary,
     });
     return { summary: content };
 });
@@ -302,6 +305,8 @@ export const aiProfileWriter = onCall({ secrets: SECRETS }, async (request) => {
             { role: 'system', content: 'Write a 120-char-max profile bio. Return only the bio text.' },
             { role: 'user', content: `Vibe: ${vibe}. Interests: ${interests.join(', ')}` },
         ],
+        model: modelForTier('micro'),
+        max_tokens: TOKEN_BUDGET.micro,
     });
     return { bio: content };
 });
@@ -391,7 +396,7 @@ export const generateTheme = onCall({ secrets: SECRETS }, async (request) => {
     const authUid = requireAuth(request);
     enforceRateLimit(await rateLimit(`gentheme:${authUid}`, 12, 60));
     const profileId = await resolveProfileIdFromAuth(authUid);
-    const byokKey = await getUserAiApiKey(profileId, 'google');
+    const byokKey = await getGeminiByokKey(profileId, authUid);
     const { prompt, typedPrompt, basePreset, interests = [], selectedFont, selectedAnimation, userContext: clientContext, } = (request.data || {});
     const [profile, dnaSnap] = await Promise.all([
         loadUserProfile(authUid),
@@ -416,13 +421,16 @@ export const generateTheme = onCall({ secrets: SECRETS }, async (request) => {
         selectedAnimation ? `Animation: ${JSON.stringify(selectedAnimation)}` : '',
     ].filter(Boolean).join('\n\n');
     try {
+        const themeTier = typed ? 'creative' : 'micro';
         const { content } = await chatCompletion({
             messages: [
                 { role: 'system', content: ADVANCED_THEME_SYSTEM },
                 { role: 'user', content: userPrompt },
             ],
             response_format: { type: 'json_object' },
-            apiKey: byokKey || undefined,
+            model: modelForTier(themeTier),
+            max_tokens: typed ? TOKEN_BUDGET.creative : TOKEN_BUDGET.standard,
+            apiKey: byokKey,
         });
         try {
             const parsed = JSON.parse(content);
@@ -469,6 +477,8 @@ export const generateCaption = onCall({ secrets: SECRETS }, async (request) => {
             },
         ],
         response_format: { type: 'json_object' },
+        model: modelForTier('micro'),
+        max_tokens: TOKEN_BUDGET.short,
     });
     try {
         return JSON.parse(content);
@@ -511,6 +521,8 @@ export const detectAiContent = onCall({ secrets: SECRETS }, async (request) => {
     const { content } = await chatCompletion({
         messages: [{ role: 'user', content: parts }],
         response_format: { type: 'json_object' },
+        model: modelForTier('standard'),
+        max_tokens: TOKEN_BUDGET.short,
         temperature: 0.2,
     });
     let result = { is_ai: false, confidence: 0, reason: 'Analysis inconclusive' };
@@ -540,6 +552,8 @@ export const dnaChat = onCall({ secrets: SECRETS }, async (request) => {
             { role: 'system', content: `You are the user's DNA mirror. Personality vector: ${JSON.stringify(dna.personality_vector || {}).slice(0, 400)}` },
             { role: 'user', content: message },
         ],
+        model: modelForTier('standard'),
+        max_tokens: TOKEN_BUDGET.chat,
     });
     return { reply: content };
 });

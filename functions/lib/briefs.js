@@ -6,6 +6,7 @@ import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { onSchedule } from 'firebase-functions/v2/scheduler';
 import { db, requireAuth, messaging } from './_shared/admin.js';
 import { chatCompletion } from './_shared/geminiAi.js';
+import { modelForTier, TOKEN_BUDGET } from './_shared/aiModels.js';
 function slot(d = new Date()) {
     const h = d.getUTCHours();
     if (h < 11)
@@ -25,6 +26,8 @@ async function generateBrief(uid, currentSlot) {
             { role: 'user', content: `User DNA: ${JSON.stringify(dna).slice(0, 800)}\nPrefs: ${JSON.stringify(prefs).slice(0, 400)}\nSlot: ${currentSlot}` },
         ],
         temperature: 0.7,
+        model: modelForTier('micro'),
+        max_tokens: TOKEN_BUDGET.standard,
     });
     await db.collection('daily_brief_cache').doc(`${uid}_${currentSlot}`).set({
         user_id: uid, slot: currentSlot, content, generated_at: new Date().toISOString(),
@@ -42,6 +45,8 @@ export const briefTopicDetail = onCall({ secrets: ['GEMINI_API_KEY'] }, async (r
             { role: 'user', content: `Topic: ${topic}\nUser: ${uid}` },
         ],
         temperature: 0.6,
+        model: modelForTier('micro'),
+        max_tokens: TOKEN_BUDGET.summary,
     });
     return { ok: true, content };
 });

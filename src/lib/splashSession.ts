@@ -1,20 +1,8 @@
-import { getCachedCurrentProfile } from '@/lib/profileCache';
-import { hasStoredAuthSession } from '@/lib/legacyAuthStorage';
-import { getWasLoggedIn } from '@/lib/wasLoggedIn';
-
 export const SPLASH_DONE_KEY = 'vybe.splash.done';
 
-/** Returning users — skip animated splash; hydrate auth/DMs in background. */
+/** Skip only when splash already finished this tab session (in-app navigation). */
 export function shouldSkipInitialSplash(): boolean {
-  if (readSplashCompleted()) return true;
-  try {
-    if (getWasLoggedIn() || hasStoredAuthSession() || getCachedCurrentProfile()) {
-      return true;
-    }
-  } catch {
-    /* ignore */
-  }
-  return false;
+  return readSplashCompleted();
 }
 
 export function readSplashCompleted(): boolean {

@@ -5,7 +5,7 @@ import { VYBELogo } from '@/components/ui/VYBELogo';
 import { SplashAmbientBubbles } from '@/components/effects/SplashAmbientBubbles';
 import { ensureAppShellVisible } from '@/lib/attResumeRecovery';
 import { isNativePerfMode } from '@/lib/nativePerfMode';
-import { subscribeSplashProgress, publishSplashProgress, getLastSplashProgress } from '@/lib/splashProgressBridge';
+import { subscribeSplashProgress, publishSplashProgress, hideStaticBootSplash } from '@/lib/splashProgressBridge';
 import { clearSplashDocumentLocks } from '@/lib/splashDismiss';
 
 interface SplashScreenProps {
@@ -32,44 +32,28 @@ export const SplashScreen = memo(function SplashScreen({ isVisible }: SplashScre
     });
   }, []);
 
-  // Creep progress while splash is visible (auth/preload may outlast instant preloader).
-  useEffect(() => {
-    if (!isVisible) return;
-
-    const { progress: start } = getLastSplashProgress();
-    let current = Math.max(start, 4);
-    publishSplashProgress(current, 'Waking up...');
-
-    const timer = window.setInterval(() => {
-      if (current >= 92) return;
-      current = Math.min(92, current + 1.2);
-      const label =
-        current < 28 ? 'Waking up...' : current < 58 ? 'Checking session...' : 'Almost ready...';
-      publishSplashProgress(current, label);
-    }, 70);
-
-    return () => clearInterval(timer);
-  }, [isVisible]);
-
   useEffect(() => {
     if (isVisible) return;
     publishSplashProgress(100, "Let's go! ✨");
-  }, [isVisible]);
-
-  useEffect(() => {
-    if (isVisible) {
-      document.body.style.overflow = 'hidden';
-      document.body.classList.add('splash-visible');
-      return () => {
-        document.body.style.overflow = '';
-        document.body.classList.remove('splash-visible');
-      };
-    }
-
     document.body.style.overflow = '';
     document.body.classList.remove('splash-visible');
     ensureAppShellVisible();
     clearSplashDocumentLocks();
+  }, [isVisible]);
+
+  useEffect(() => {
+    if (!isVisible) return;
+    document.body.style.overflow = 'hidden';
+    document.body.classList.add('splash-visible');
+    // Hand off from pre-React static boot once React splash has painted.
+    const handoff = requestAnimationFrame(() => {
+      requestAnimationFrame(() => hideStaticBootSplash());
+    });
+    return () => {
+      cancelAnimationFrame(handoff);
+      document.body.style.overflow = '';
+      document.body.classList.remove('splash-visible');
+    };
   }, [isVisible]);
 
   return (

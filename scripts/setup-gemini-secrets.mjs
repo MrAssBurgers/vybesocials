@@ -9,8 +9,8 @@
  *
  * Or add GEMINI_API_KEY to `.env`, then run npm run setup:gemini-secrets
  */
-import { existsSync, readFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
+import { loadProjectEnv } from './load-env.mjs';
 
 const PROJECT = process.env.FIREBASE_PROJECT || 'vybe-daaab';
 
@@ -57,13 +57,7 @@ const GEMINI_FUNCTIONS = [
 ];
 
 function loadEnvFile() {
-  const env = {};
-  if (!existsSync('.env')) return env;
-  for (const line of readFileSync('.env', 'utf8').split('\n')) {
-    const m = line.match(/^([A-Z0-9_]+)=(.*)$/);
-    if (m) env[m[1]] = m[2].trim();
-  }
-  return env;
+  return loadProjectEnv();
 }
 
 function parseArgs(argv) {

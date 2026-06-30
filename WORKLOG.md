@@ -2,10 +2,28 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
-## AI theme designer — prompt matching fix (2026-06-17)
+## Cost-aware AI routing (2026-06-17)
+- **Strategy:** Gemini lite first (cheapest) → auto-escalate to flash on 5xx/empty; flash for chat, typed themes, agent tools; OpenAI only for Vybe Check moderation/STT (skipped if key invalid)
+- **Fix:** Token caps per task; Google BYOK only (no OpenAI sk- sent to Gemini); invalid OPENAI_API_KEY fails open to Gemini safety
+- **Deployed:** 38 GEMINI Cloud Functions on vybe-daaab
+- **You:** `GEMINI_API_KEY` in `.env` → `npm run setup:gemini-secrets` · optional valid `OPENAI_API_KEY` for Vybe Check
+
+## AI features + GEMINI key audit (2026-06-17)
+- **Finding:** Local `.env` has `VITE_FIREBASE_API_KEY` but no `GEMINI_API_KEY` — these are different keys
+- **Production:** `GEMINI_API_KEY` in Firebase Secret Manager — **PASS** (`npm run verify:gemini -- --from-firebase`)
+- **Fix:** Default chat model → `gemini-2.5-flash` (flash-lite was returning 503); redeployed 38 GEMINI functions
+- **Added:** `npm run verify:gemini` + clearer `.env.example` section for `GEMINI_API_KEY`
+- **You:** Add `GEMINI_API_KEY=AIza...` to `.env` (from https://aistudio.google.com/apikey) · `npm run verify:gemini` · hard refresh · VYBE-AI → Clear Chat · test chat + theme designer
+
+- **Problem:** Black screen for several seconds on cold start; returning users skipped splash entirely; progress bar hit "ready" instantly without rehydrating
+- **Fix:** `#vybe-static-boot` moved outside `#root` (React no longer wipes it); `splash-visible` + aurora body bg from first paint; always show splash on cold open (not skipped for stored sessions); preloader runs auth → profile → feed warm with weighted progress; min ~1.1s splash + fade at 100% before dismiss; safety cap 10–12s
+- **Verified:** `npm run build` PASS · `npm run lint` PASS
+- **Next:** deploy staging hosting · cold-start test on Despia/device · Lovable Publish vybehub.app
+
 - **Problem:** Typed prompts returned generic purple/wrong palettes — local keyword matcher skipped Gemini
 - **Fix:** `typedPrompt` forces cloud AI (22s); AI colors win in merge; brand instant path kept; server prompt prioritizes literal user request
 - **Verified:** `npm run build` PASS · `npm run lint` PASS · functions build PASS
+- **Committed:** `4df56460` · pushed `main`
 - **Deployed:** https://vybe-daaab.web.app + `generateTheme` / `generateAdvancedTheme`
 - **You:** Settings → Themes → try "cherry cola sunset", "rainy tokyo neon", "Spotify green"
 
