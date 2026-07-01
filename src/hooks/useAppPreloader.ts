@@ -131,10 +131,10 @@ export function useAppPreloader() {
 
       updateStatus('auth', 0.15);
       const authMs = isNativePerfMode() ? 1800 : 2200;
-      const { data: { session } } = await withTimeout(
+      const { data: { session } } = await withTimeout<any>(
         db.auth.getSession(),
         authMs,
-        { data: { session: null } },
+        { data: { session: null }, error: null },
       );
       if (cancelled) return;
       updateStatus('auth', 1);
@@ -153,8 +153,8 @@ export function useAppPreloader() {
         updateStatus('profile', 0.25);
         void prefetchAndApplyUserTheme(uid, queryClient);
 
-        const profileResult = await withTimeout(
-          db.from('profiles').select('*').eq('user_id', uid).maybeSingle(),
+        const profileResult = await withTimeout<any>(
+          db.from('profiles').select('*').eq('user_id', uid).maybeSingle() as unknown as Promise<any>,
           isNativePerfMode() ? 1800 : 2200,
           { data: null, error: null },
         );
