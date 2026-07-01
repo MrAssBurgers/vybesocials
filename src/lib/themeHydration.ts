@@ -34,6 +34,8 @@ type UserThemeRow = {
   user_id?: string;
   is_active?: boolean;
   theme_tokens?: ThemeTokens | Record<string, unknown>;
+  theme_name?: string | null;
+  base_preset?: string | null;
 };
 
 function resolvedMode(): 'dark' | 'light' {
