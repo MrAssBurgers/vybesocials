@@ -112,7 +112,7 @@ function shouldTryOAuthRecovery(): boolean {
   return isOAuthReturnPending() || isLikelyFirebaseOAuthReturnUrl();
 }
 
-async function waitForAuthInstance(): Promise<ReturnType<typeof firebaseAuth.auth>> {
+async function waitForAuthInstance(): Promise<NonNullable<typeof firebaseAuth.auth>> {
   let auth = firebaseAuth.auth;
   for (let i = 0; i < 10 && !auth; i++) {
     await new Promise((resolve) => setTimeout(resolve, 25));
