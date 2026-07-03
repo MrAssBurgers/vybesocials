@@ -2,6 +2,8 @@ import { createContext, useContext, useEffect, useState, ReactNode } from 'react
 import { getHapticsEnabled, setHapticsEnabled as setHapticsStorage } from '@/lib/haptics';
 import { getSoundsEnabled, setSoundsEnabled as setSoundsStorage } from '@/lib/sounds';
 
+import { reinforceSplashTheme } from '@/lib/theme/themePrepaint';
+
 type Theme = 'dark' | 'light' | 'system';
 type MotionIntensity = 'calm' | 'normal';
 type GlassIntensity = 'calm' | 'normal' | 'max';
@@ -83,6 +85,9 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     if (currentMode !== resolved) {
       root.classList.remove('light', 'dark');
       root.classList.add(resolved);
+      if (document.body.classList.contains('splash-visible')) {
+        reinforceSplashTheme();
+      }
     }
     localStorage.setItem('xd-theme', theme);
   }, [theme]);
@@ -127,6 +132,9 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
       if (currentMode !== resolved) {
         root.classList.remove('light', 'dark');
         root.classList.add(resolved);
+        if (document.body.classList.contains('splash-visible')) {
+          reinforceSplashTheme();
+        }
       }
     };
 

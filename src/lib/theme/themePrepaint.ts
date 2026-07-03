@@ -2,7 +2,14 @@
  * Synchronous theme prepaint — runs in index.html boot script before first paint.
  * Keep in sync with applyThemeTokens() in useCustomTheme.ts.
  */
-export const BOOT_SNAPSHOT_KEY = 'vybe-boot-theme';
+import {
+  BOOT_SNAPSHOT_KEY,
+  readEquippedThemeTokens,
+  readBootSnapshot,
+  type EquippedThemeTokens,
+} from '@/lib/theme/equippedThemeStorage';
+
+export { BOOT_SNAPSHOT_KEY } from '@/lib/theme/equippedThemeStorage';
 
 export const THEME_SNAPSHOT_KEYS = [
   '--primary', '--secondary', '--accent', '--ring', '--background', '--card', '--popover',
@@ -19,30 +26,20 @@ export const THEME_SNAPSHOT_KEYS = [
   '--light-bg-start', '--light-bg-mid',
 ] as const;
 
-type ThemeTokensLike = {
-  colorPrimary?: string;
-  colorSecondary?: string;
-  colorAccent?: string;
-  bgMain?: string;
-  bgCard?: string;
-  bgGradientFrom?: string;
-  bgGradientMid?: string;
-  bgGradientTo?: string;
-  glassBg?: string;
-  glassBorder?: string;
-  sidebarBg?: string;
-  textPrimary?: string;
-  textSecondary?: string;
-  borderColor?: string;
-  inputBg?: string;
-  inputText?: string;
-  buttonText?: string;
-  neonPink?: string;
-  neonPurple?: string;
-  neonCyan?: string;
-  borderRadius?: string;
-  mode?: 'light' | 'dark';
-};
+/** Vars required by #vybe-static-boot mesh, wordmark, and progress bar. */
+export const SPLASH_THEME_VAR_KEYS = [
+  '--primary',
+  '--secondary',
+  '--accent',
+  '--background',
+  '--card',
+  '--foreground',
+  '--muted-foreground',
+] as const;
+
+export const SPLASH_BOOT_ID = 'vybe-static-boot';
+
+type ThemeTokensLike = EquippedThemeTokens;
 
 function shiftToMode(hsl: string, targetMode: 'dark' | 'light', type: 'bg' | 'text' | 'border' | 'accent'): string {
   try {
@@ -129,23 +126,16 @@ function adjustLightness(hsl: string, amount: number): string {
   return hsl;
 }
 
-export function readBootSnapshot(): Record<string, string> | null {
-  try {
-    const raw = localStorage.getItem(BOOT_SNAPSHOT_KEY);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw) as Record<string, string>;
-    return parsed && typeof parsed === 'object' ? parsed : null;
-  } catch {
-    return null;
-  }
-}
+export { readBootSnapshot } from '@/lib/theme/equippedThemeStorage';
 
-export function applyBootSnapshot(snapshot: Record<string, string>): boolean {
-  const root = document.documentElement;
+export function applyBootSnapshot(
+  snapshot: Record<string, string>,
+  target: HTMLElement = document.documentElement,
+): boolean {
   let applied = false;
   for (const [key, value] of Object.entries(snapshot)) {
     if (typeof value === 'string' && value.trim()) {
-      root.style.setProperty(key, value.trim());
+      target.style.setProperty(key, value.trim());
       applied = true;
     }
   }
@@ -169,48 +159,16 @@ export function applyBootModeClass(mode: 'dark' | 'light'): void {
   root.classList.add(mode);
 }
 
-export function getThemeUserIdFromStorage(): string | null {
-  try {
-    const remembered = localStorage.getItem('vybe-theme-user-id');
-    if (remembered) return remembered;
-
-    for (const storageKey of Object.keys(localStorage)) {
-      if (!storageKey.startsWith('firebase:authUser:')) continue;
-      try {
-        const authUser = JSON.parse(localStorage.getItem(storageKey) || 'null') as { uid?: string } | null;
-        if (authUser?.uid) return authUser.uid;
-      } catch {
-        /* ignore */
-      }
-    }
-    return null;
-  } catch {
-    return null;
-  }
-}
-
-export function readEquippedTokensFromStorage(): ThemeTokensLike | null {
-  try {
-    const uid = getThemeUserIdFromStorage();
-    const keys: string[] = [];
-    if (uid) keys.push(`vybe-equipped-theme:${uid}`);
-    keys.push('vybe-equipped-theme', 'vybe-custom-theme');
-
-    for (const key of keys) {
-      const raw = localStorage.getItem(key);
-      if (!raw) continue;
-      const parsed = JSON.parse(raw) as ThemeTokensLike;
-      if (parsed?.colorPrimary) return parsed;
-    }
-    return null;
-  } catch {
-    return null;
-  }
-}
+export { resolveThemeUserId as getThemeUserIdFromStorage } from '@/lib/theme/equippedThemeStorage';
+export { readEquippedThemeTokens as readEquippedTokensFromStorage } from '@/lib/theme/equippedThemeStorage';
 
 /** Full CSS variable paint from equipped tokens — mirrors applyThemeTokens(). */
-export function applyThemeCssVars(tokens: ThemeTokensLike, mode: 'dark' | 'light'): void {
-  const root = document.documentElement;
+export function applyThemeCssVars(
+  tokens: ThemeTokensLike,
+  mode: 'dark' | 'light',
+  target: HTMLElement = document.documentElement,
+): void {
+  const root = target;
   const defaultDark = '240 10% 4%';
   const defaultLight = '0 0% 98%';
   const defaultPrimary = '330 100% 60%';
@@ -305,8 +263,83 @@ export function applyThemeCssVars(tokens: ThemeTokensLike, mode: 'dark' | 'light
   }
 }
 
+export function getSplashBootElement(): HTMLElement | null {
+  if (typeof document === 'undefined') return null;
+  return document.getElementById(SPLASH_BOOT_ID);
+}
+
+export function isSplashVisible(): boolean {
+  return typeof document !== 'undefined' && document.body.classList.contains('splash-visible');
+}
+
+function copyRootSplashVarsToElement(el: HTMLElement): boolean {
+  const root = document.documentElement;
+  let applied = false;
+  for (const key of SPLASH_THEME_VAR_KEYS) {
+    const value = root.style.getPropertyValue(key);
+    if (value?.trim()) {
+      el.style.setProperty(key, value.trim());
+      applied = true;
+    }
+  }
+  return applied;
+}
+
 /**
- * Earliest paint path: snapshot (full vars) then equipped tokens (full derivation).
+ * Paint equipped theme vars on #vybe-static-boot so the loading screen is immune
+ * to :root classic defaults from index.css overwriting html inline vars.
+ */
+export function applySplashScopedTheme(): boolean {
+  const boot = getSplashBootElement();
+  if (!boot) return false;
+
+  const mode = resolveBootMode();
+  const equipped = readEquippedThemeTokens();
+  if (equipped?.colorPrimary) {
+    applyThemeCssVars(adaptThemeToMode(equipped, mode), mode, boot);
+    return true;
+  }
+
+  const snapshot = readBootSnapshot();
+  if (snapshot) {
+    const splashSnap: Record<string, string> = {};
+    for (const key of SPLASH_THEME_VAR_KEYS) {
+      const value = snapshot[key];
+      if (value?.trim()) splashSnap[key] = value.trim();
+    }
+    if (applyBootSnapshot(splashSnap, boot)) return true;
+  }
+
+  return copyRootSplashVarsToElement(boot);
+}
+
+/** Re-stamp html + splash-scoped vars (no React, no full applyThemeTokens). */
+export function reinforceSplashTheme(): boolean {
+  const painted = prepaintThemeFromStorage();
+  const scoped = applySplashScopedTheme();
+  return painted || scoped;
+}
+
+/** Capture inline CSS vars on html into vybe-boot-theme for the next cold boot. */
+export function writeBootSnapshotFromDocument(): void {
+  if (typeof document === 'undefined') return;
+  const root = document.documentElement;
+  const snap: Record<string, string> = {};
+  for (const key of THEME_SNAPSHOT_KEYS) {
+    const value = root.style.getPropertyValue(key);
+    if (value) snap[key] = value.trim();
+  }
+  if (!snap['--primary']?.trim()) return;
+  try {
+    localStorage.setItem(BOOT_SNAPSHOT_KEY, JSON.stringify(snap));
+    localStorage.setItem('vybe-boot-theme-updated-at', String(Date.now()));
+  } catch {
+    /* ignore */
+  }
+}
+
+/**
+ * Earliest paint path: equipped tokens first, snapshot fallback.
  * Called from public/boot-theme.js before React/CSS bundle loads.
  */
 export function prepaintThemeFromStorage(): boolean {
@@ -317,14 +350,19 @@ export function prepaintThemeFromStorage(): boolean {
   applyBootModeClass(mode);
   root.setAttribute('data-vybe-boot-mode', mode);
 
-  const equipped = readEquippedTokensFromStorage();
+  const equipped = readEquippedThemeTokens();
   if (equipped?.colorPrimary) {
     applyThemeCssVars(adaptThemeToMode(equipped, mode), mode);
+    applySplashScopedTheme();
     return true;
   }
 
   const snapshot = readBootSnapshot();
-  if (snapshot) return applyBootSnapshot(snapshot);
+  if (snapshot) {
+    const applied = applyBootSnapshot(snapshot);
+    if (applied) applySplashScopedTheme();
+    return applied;
+  }
 
   return false;
 }

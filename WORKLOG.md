@@ -2,7 +2,30 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
-## Publish — splash, theme flash, AI, OAuth (2026-06-30)
+## Publish — splash zero-flicker (2026-07-01)
+- **Fix:** Loading screen theme vars scoped on `#vybe-static-boot` (immune to index.css :root); no full `applyThemeTokens` during splash — lightweight `reinforceSplashTheme()` only; full apply after splash dismiss
+- **Verified:** `npm run build` PASS · `npm run lint` PASS
+- **Staging:** https://vybe-daaab.web.app
+
+## Publish — splash theme flash fix (2026-07-01)
+- **Fix:** Hard refresh no longer dips equipped → classic → equipped — early theme boot before App graph, CSS-aware skip check, force equipped re-apply during splash
+- **Verified:** `npm run build` PASS · `npm run lint` PASS
+- **Staging:** https://vybe-daaab.web.app
+- **You:** Hard-refresh with equipped Vybe; then Lovable Publish for **vybehub.app**
+
+## Publish — splash theme simple fix (2026-07-01)
+- **Fix:** Reverted over-engineered splash lock that re-applied stale classic snapshot mid-splash. Boot + splash now always paint equipped localStorage first; query-cache theme apply deferred until splash dismisses.
+- **Verified:** `npm run build` PASS · `npm run lint` PASS
+- **Staging:** https://vybe-daaab.web.app
+- **You:** Hard-refresh with equipped Vybe — splash should stay your colors
+
+## Publish — splash theme persistence fix (2026-07-01)
+- **Fix:** Equipped Vybe stays on splash after refresh — equipped wins over stale `vybe-boot-theme` snapshot; `data-vybe-theme-painted` only when vars applied; unified fingerprint + splash downgrade guard; self-heal snapshot when mismatch detected at boot
+- **Verified:** `npm run build:boot-theme` PASS · `npm run build` PASS · `npm run lint` PASS
+- **Staging:** https://vybe-daaab.web.app (Firebase hosting deploy)
+- **You:** Hard-refresh staging with non-classic equipped Vybe; then Lovable → Share → Publish for **vybehub.app**
+
+## Publish — splash theme lock (2026-06-30)
 - **Splash:** Single static boot layer; snappier progress; mesh matches aurora; no duplicate React splash
 - **Theme flash:** Equipped localStorage wins over stale `user-theme` cache; stop persisting user-theme; boot prepaint adapts light/dark
 - **AI:** Typed theme client Gemini fallback; chat without client-config gate; clearer errors

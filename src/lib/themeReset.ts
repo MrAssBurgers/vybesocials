@@ -11,6 +11,7 @@ const THEME_STORAGE_KEYS = [
   'vybe-equipped-theme-id',
   'vybe-theme-user-id',
   'vybe-equipped-theme-updated-at',
+  'vybe-boot-theme-updated-at',
 ] as const;
 
 export function resetThemeToDefault() {

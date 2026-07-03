@@ -2,18 +2,11 @@ import "./lib/bootstrapAuthStorage";
 
 import { createRoot } from "react-dom/client";
 import { StrictMode } from "react";
-import App from "./App.tsx";
 import "./index.css";
 import "./styles/repaint-guard.css";
 import "./styles/smooth-ui.css";
-import { ensureBootThemeApplied } from "./lib/bootThemeApply";
-import { kickstartThemeHydration } from "./lib/themeHydration";
-
-if (typeof window !== 'undefined') {
-  ensureBootThemeApplied();
-  kickstartThemeHydration();
-  (window as Window & { __VYBE_APP_LOADED__?: boolean }).__VYBE_APP_LOADED__ = true;
-}
+import "./earlyThemeBoot";
+import App from "./App.tsx";
 import { isOneSignalBypassHost } from "./lib/lovablePreview";
 import { initializeNativePlugins, isNativePlatform } from "./lib/capacitor";
 import { initializeAdMob } from "./lib/admob";

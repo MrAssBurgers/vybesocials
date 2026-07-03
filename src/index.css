@@ -6835,8 +6835,8 @@ html[data-has-bg-image="true"] nav[aria-label="Bottom navigation"] .liquid-glass
 }
 
 html[data-theme-loading="true"] .bg-clip-text.text-transparent,
-html[data-theme-loading="true"] [style*="background-clip: text"]:not(.vybe-liquid-text):not(.vybe-liquid-text *):not(.vybe-wordmark):not(.vybe-splash-title):not(.dm-title),
-html[data-theme-loading="true"] [style*="-webkit-background-clip: text"]:not(.vybe-liquid-text):not(.vybe-liquid-text *):not(.vybe-wordmark):not(.vybe-splash-title):not(.dm-title) {
+html[data-theme-loading="true"] [style*="background-clip: text"]:not(.vybe-liquid-text):not(.vybe-liquid-text *):not(.vybe-wordmark):not(.vybe-splash-title):not(.vybe-splash-wordmark):not(.dm-title),
+html[data-theme-loading="true"] [style*="-webkit-background-clip: text"]:not(.vybe-liquid-text):not(.vybe-liquid-text *):not(.vybe-wordmark):not(.vybe-splash-title):not(.vybe-splash-wordmark):not(.dm-title) {
   -webkit-text-fill-color: currentColor !important;
   color: inherit !important;
   background: none !important;

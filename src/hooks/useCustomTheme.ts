@@ -8,7 +8,9 @@ import { isNativePerfMode } from '@/lib/nativePerfMode';
 import { generateVybeTheme } from '@/lib/aiThemeGeneration';
 import { getStoredAuthUserId } from '@/lib/legacyAuthStorage';
 import { prefetchAndApplyUserTheme, persistEquippedThemeTokens, syncEquippedThemeToAccount, runAfterSplashDismiss, reconcileUserThemeRowWithEquipped } from '@/lib/themeHydration';
-import { BOOT_SNAPSHOT_KEY, THEME_SNAPSHOT_KEYS, adaptThemeToMode } from '@/lib/theme/themePrepaint';
+import { readEquippedThemeTokens, resolveThemeUserId } from '@/lib/theme/equippedThemeStorage';
+import { BOOT_SNAPSHOT_KEY, BOOT_SNAPSHOT_UPDATED_AT_KEY } from '@/lib/theme/equippedThemeStorage';
+import { THEME_SNAPSHOT_KEYS, adaptThemeToMode, reinforceSplashTheme } from '@/lib/theme/themePrepaint';
 import { collectThemeUserContext, type ThemeUserContext } from '@/lib/theme/themeUserContext';
 import type { VybeDNA } from '@/hooks/useVybeDNA';
 
@@ -241,26 +243,9 @@ const LEGACY_EQUIPPED_KEY = 'vybe-custom-theme';
 
 /** Read the user's actively equipped theme tokens (localStorage is the live source). */
 export function getEquippedThemeTokens(userId?: string | null): ThemeTokens | null {
-  try {
-    const uid =
-      userId ??
-      getStoredAuthUserId() ??
-      (typeof localStorage !== 'undefined' ? localStorage.getItem('vybe-theme-user-id') : null);
-
-    const keys: string[] = [];
-    if (uid) keys.push(`${EQUIPPED_THEME_KEY}:${uid}`);
-    keys.push(EQUIPPED_THEME_KEY, LEGACY_EQUIPPED_KEY);
-
-    for (const key of keys) {
-      const raw = localStorage.getItem(key);
-      if (!raw) continue;
-      const parsed = JSON.parse(raw) as ThemeTokens;
-      if (parsed?.colorPrimary) return parsed;
-    }
-    return null;
-  } catch {
-    return null;
-  }
+  const uid = resolveThemeUserId(userId);
+  const tokens = readEquippedThemeTokens(uid);
+  return tokens?.colorPrimary ? (tokens as ThemeTokens) : null;
 }
 
 /** Persist + apply the equipped theme — single entry point for equip/save. */
@@ -291,6 +276,17 @@ function themeApplyHash(tokens: ThemeTokens, mode: 'dark' | 'light'): string {
   return `${mode}:${tokens.colorPrimary}:${tokens.bgMain}:${tokens.colorAccent}:${tokens.themeName ?? ''}`;
 }
 
+function normalizeHsl(value: string): string {
+  return value.trim().replace(/\s+/g, ' ');
+}
+
+function rootPrimaryMatches(tokens: ThemeTokens, mode: 'dark' | 'light'): boolean {
+  if (typeof document === 'undefined') return true;
+  const expected = adaptThemeToMode(tokens, mode).colorPrimary?.trim();
+  const painted = getComputedStyle(document.documentElement).getPropertyValue('--primary').trim();
+  return Boolean(expected && painted && normalizeHsl(painted) === normalizeHsl(expected));
+}
+
 /** Skip redundant re-apply when boot already painted the equipped theme. */
 export function markThemeAppliedFromBoot(tokens: ThemeTokens): void {
   const mode = document.documentElement.classList.contains('light') ? 'light' : 'dark';
@@ -298,8 +294,9 @@ export function markThemeAppliedFromBoot(tokens: ThemeTokens): void {
 }
 
 export function isThemeAlreadyApplied(tokens: ThemeTokens, resolved?: 'dark' | 'light'): boolean {
-  if (!_lastAppliedThemeHash) return false;
   const mode = resolved ?? (document.documentElement.classList.contains('light') ? 'light' : 'dark');
+  if (!rootPrimaryMatches(tokens, mode)) return false;
+  if (!_lastAppliedThemeHash) return false;
   return themeApplyHash(adaptThemeToMode(tokens, mode), mode) === _lastAppliedThemeHash;
 }
 
@@ -870,6 +867,7 @@ export function applyThemeTokens(tokens: ThemeTokens, options?: { preserveBackgr
         if (v) snap[k] = v.trim();
       }
       localStorage.setItem(BOOT_SNAPSHOT_KEY, JSON.stringify(snap));
+      localStorage.setItem(BOOT_SNAPSHOT_UPDATED_AT_KEY, String(Date.now()));
       const uid = getStoredAuthUserId();
       if (uid) localStorage.setItem('vybe-theme-user-id', uid);
     } catch {
@@ -915,6 +913,11 @@ export function useApplyUserTheme() {
   const applyForMode = useCallback((resolved: 'dark' | 'light', force = false) => {
     if (_isApplyingTheme || _isSavingTheme || _themePreviewLock) return;
 
+    if (typeof document !== 'undefined' && document.body.classList.contains('splash-visible')) {
+      reinforceSplashTheme();
+      return;
+    }
+
     // Equipped localStorage is the live source — never let stale user-theme cache override it.
     let tokens = getEquippedThemeTokens(user?.id);
 
@@ -946,6 +949,10 @@ export function useApplyUserTheme() {
         if (mutation.type === 'attributes' && mutation.attributeName === 'class') {
           const resolved = document.documentElement.classList.contains('light') ? 'light' : 'dark';
           requestAnimationFrame(() => {
+            if (document.body.classList.contains('splash-visible')) {
+              reinforceSplashTheme();
+              return;
+            }
             _lastAppliedThemeHash = '';
             applyForMode(resolved);
           });
@@ -959,13 +966,21 @@ export function useApplyUserTheme() {
 
   useLayoutEffect(() => {
     const resolvedMode = document.documentElement.classList.contains('light') ? 'light' : 'dark';
-    const shouldForce = !didMountApply.current && !_lastAppliedThemeHash;
+    const splashVisible = document.body.classList.contains('splash-visible');
     didMountApply.current = true;
-    applyForMode(resolvedMode, shouldForce);
+    if (splashVisible) {
+      reinforceSplashTheme();
+    } else {
+      const shouldForce = !_lastAppliedThemeHash;
+      applyForMode(resolvedMode, shouldForce);
+    }
 
     const uid = user?.id ?? getStoredAuthUserId();
     if (uid) {
       runAfterSplashDismiss(() => {
+        _lastAppliedThemeHash = '';
+        const resolved = document.documentElement.classList.contains('light') ? 'light' : 'dark';
+        applyForMode(resolved, true);
         void prefetchAndApplyUserTheme(uid, queryClient, { timeoutMs: 6000 });
       });
     }
@@ -974,6 +989,10 @@ export function useApplyUserTheme() {
   // Re-apply when another tab or equipTheme updates storage
   useEffect(() => {
     const onEquipped = () => {
+      if (document.body.classList.contains('splash-visible')) {
+        reinforceSplashTheme();
+        return;
+      }
       _lastAppliedThemeHash = '';
       const resolved = document.documentElement.classList.contains('light') ? 'light' : 'dark';
       applyForMode(resolved);

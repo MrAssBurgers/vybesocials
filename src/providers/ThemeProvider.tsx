@@ -3,6 +3,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useApplyUserTheme } from '@/hooks/useCustomTheme';
 import { hydrateThemeFromLocalCaches, kickstartThemeHydration, reconcileUserThemeCache, readRememberedThemeUserId } from '@/lib/themeHydration';
 import { getStoredAuthUserId } from '@/lib/legacyAuthStorage';
+import { reinforceSplashTheme } from '@/lib/theme/themePrepaint';
 
 interface ThemeProviderProps {
   children: ReactNode;
@@ -18,6 +19,10 @@ export function CustomThemeProvider({ children }: ThemeProviderProps) {
   const queryClient = useQueryClient();
 
   useLayoutEffect(() => {
+    if (typeof document !== 'undefined' && document.body.classList.contains('splash-visible')) {
+      reinforceSplashTheme();
+    }
+
     const uid = getStoredAuthUserId() ?? readRememberedThemeUserId();
     const bootPainted =
       typeof document !== 'undefined' &&

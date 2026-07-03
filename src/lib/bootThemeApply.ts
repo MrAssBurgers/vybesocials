@@ -10,6 +10,8 @@ import {
 } from '@/hooks/useCustomTheme';
 import {
   applyBootSnapshot,
+  applySplashScopedTheme,
+  isSplashVisible,
   prepaintThemeFromStorage,
   readBootSnapshot,
 } from '@/lib/theme/themePrepaint';
@@ -22,27 +24,37 @@ export function applyEquippedThemeSync(tokens: ThemeTokens): void {
 
 /**
  * Call as early as possible (main.tsx, before createRoot).
- * Snapshot paints instantly; equipped tokens reconcile on top (full applyThemeTokens).
+ * During splash: lightweight prepaint only. After splash: full applyThemeTokens.
  */
 export function ensureBootThemeApplied(): boolean {
   if (typeof document === 'undefined') return false;
 
-  // Same path as index.html boot-theme.js (idempotent).
-  prepaintThemeFromStorage();
+  const splashActive = isSplashVisible();
+  const painted = prepaintThemeFromStorage();
+  applySplashScopedTheme();
 
   const equipped = getEquippedThemeTokens();
   if (equipped?.colorPrimary) {
-    applyEquippedThemeSync(equipped);
+    if (!splashActive) {
+      applyEquippedThemeSync(equipped);
+    }
     markThemeAppliedFromBoot(equipped);
+    document.documentElement.setAttribute('data-vybe-theme-painted', 'true');
     return true;
   }
 
   const snapshot = readBootSnapshot();
   if (snapshot && applyBootSnapshot(snapshot)) {
+    applySplashScopedTheme();
+    document.documentElement.setAttribute('data-vybe-theme-painted', 'true');
     return true;
   }
 
-  return false;
+  if (painted) {
+    document.documentElement.setAttribute('data-vybe-theme-painted', 'true');
+  }
+
+  return painted;
 }
 
 /** HSL strings for SVG logo strokes — always from equipped tokens when available. */

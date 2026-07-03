@@ -14,6 +14,7 @@ import {
   type ThemeTokens,
 } from '@/hooks/useCustomTheme';
 import { ensureBootThemeApplied } from '@/lib/bootThemeApply';
+import { isSplashVisible, reinforceSplashTheme } from '@/lib/theme/themePrepaint';
 
 function themeTokenFingerprint(tokens: ThemeTokens): string {
   return [
@@ -44,6 +45,10 @@ function resolvedMode(): 'dark' | 'light' {
 
 function scopedEquippedKey(userId: string): string {
   return `${EQUIPPED_THEME_KEY}:${userId}`;
+}
+
+function isSplashVisibleOnBody(): boolean {
+  return isSplashVisible();
 }
 
 export function rememberThemeUserId(userId: string): void {
@@ -110,6 +115,11 @@ function tokensFromRow(row: UserThemeRow | null | undefined): ThemeTokens | null
 }
 
 function applyTokensNow(tokens: ThemeTokens, userId?: string | null): void {
+  if (isSplashVisibleOnBody()) {
+    reinforceSplashTheme();
+    return;
+  }
+
   const mode = resolvedMode();
   const adapted = adaptThemeToMode(tokens, mode);
   if (isThemeAlreadyApplied(adapted, mode)) {
@@ -179,7 +189,8 @@ export function hydrateThemeFromLocalCaches(queryClient?: QueryClient, userId?: 
   const equipped = getEquippedThemeTokens(uid ?? undefined);
   if (equipped?.colorPrimary) {
     reconcileUserThemeCache(queryClient, uid);
-    if (!isBootThemePainted() || !isThemeAlreadyApplied(equipped)) {
+    const splash = isSplashVisibleOnBody();
+    if (!isBootThemePainted() || !isThemeAlreadyApplied(equipped) || splash) {
       applyTokensNow(equipped, uid);
     } else {
       markThemeAppliedFromBoot(equipped);
@@ -191,7 +202,8 @@ export function hydrateThemeFromLocalCaches(queryClient?: QueryClient, userId?: 
     ensureBootThemeApplied();
   }
 
-  if (queryClient && uid) {
+  // Never apply stale persisted query cache during splash — equipped localStorage is source of truth.
+  if (queryClient && uid && !isSplashVisibleOnBody()) {
     const cached = queryClient.getQueryData(['user-theme', uid]) as UserThemeRow | undefined;
     const tokens = tokensFromRow(cached);
     if (tokens && !isThemeAlreadyApplied(tokens)) {
@@ -217,7 +229,6 @@ export function prefetchAndApplyUserTheme(
   const timeoutMs = options?.timeoutMs ?? 2500;
 
   const task = (async () => {
-    // Instant paint from local cache — never block on network.
     hydrateThemeFromLocalCaches(queryClient, userId);
 
     try {
