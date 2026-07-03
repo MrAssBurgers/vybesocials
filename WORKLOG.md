@@ -2,6 +2,12 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## Publish gate — remove obsolete Cloud migrations (2026-07-03)
+- **Root cause:** This app is Firebase-only, but a restored `supabase/` folder contained pending SQL migrations; Lovable Publish was trying to sync an unused Cloud schema path and returning the generic internal publish error.
+- **Fix:** Removed the obsolete `supabase/` directory so production publish only builds the current Firebase-backed React app.
+- **Verified:** `npm run build` PASS · `npm run lint` PASS · security scan has no open findings.
+- **Next:** Lovable Publish → verify `vybehub.app` updates, then hard refresh devices.
+
 ## Publish — splash zero-flicker (2026-07-01)
 - **Fix:** Loading screen theme vars scoped on `#vybe-static-boot` (immune to index.css :root); no full `applyThemeTokens` during splash — lightweight `reinforceSplashTheme()` only; full apply after splash dismiss
 - **Verified:** `npm run build` PASS · `npm run lint` PASS
