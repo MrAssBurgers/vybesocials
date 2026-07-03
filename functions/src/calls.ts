@@ -52,6 +52,12 @@ async function ensureConversationMembershipAdmin(
   const convRef = db.collection('conversations').doc(conversationId);
   const convSnap = await convRef.get();
   if (!convSnap.exists) {
+    const parts = conversationId.split('_').filter(Boolean);
+    const callerInId =
+      parts.length === 2 && (parts[0] === senderProfileId || parts[1] === senderProfileId);
+    if (!callerInId) {
+      throw new HttpsError('permission-denied', 'Not a participant of this conversation');
+    }
     await convRef.set({
       id: conversationId,
       is_group: false,
@@ -64,7 +70,25 @@ async function ensureConversationMembershipAdmin(
     });
   } else {
     const existing = (convSnap.data()?.member_ids as string[]) || [];
-    const merged = [...new Set([...existing, ...memberIds])];
+    let isExistingMember =
+      existing.includes(senderProfileId) || existing.includes(senderAuthUid);
+    if (!isExistingMember) {
+      const memberDoc = await db
+        .collection('conversation_members')
+        .doc(`${conversationId}_${senderProfileId}`)
+        .get();
+      const authMemberDoc = memberDoc.exists
+        ? memberDoc
+        : await db
+            .collection('conversation_members')
+            .doc(`${conversationId}_${senderAuthUid}`)
+            .get();
+      isExistingMember = authMemberDoc.exists;
+    }
+    if (!isExistingMember) {
+      throw new HttpsError('permission-denied', 'Not a member of this conversation');
+    }
+    const merged = [...new Set([...existing, senderProfileId, senderAuthUid])];
     if (merged.length !== existing.length) {
       await convRef.set({ member_ids: merged, updated_at: now }, { merge: true });
     }
