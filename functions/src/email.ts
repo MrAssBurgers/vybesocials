@@ -4,7 +4,7 @@
  */
 import { onCall, onRequest, HttpsError } from 'firebase-functions/v2/https';
 import { onSchedule } from 'firebase-functions/v2/scheduler';
-import { db, requireAuth, requireAdmin } from './_shared/admin.js';
+import { db, requireAuth, requireAdmin, auth, rateLimit, enforceRateLimit } from './_shared/admin.js';
 import crypto from 'node:crypto';
 
 const RESEND_URL = 'https://api.resend.com/emails';
