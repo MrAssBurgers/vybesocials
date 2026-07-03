@@ -49,6 +49,29 @@ export const sendPushNotification = onCall(
   const prefs = await loadNotificationPreferences(targetProfileId);
   const pushType = type || payload?.type || 'general';
 
+  // Authorization: only admins may send arbitrary title/body to arbitrary users.
+  // Non-admin, non-self callers are restricted to an allow-list of interaction
+  // types and title/body is rendered server-side to prevent phishing pushes.
+  const callerProfileId = await resolvePushTargetProfileId(callerUid).catch(() => callerUid);
+  const isSelf = callerProfileId === targetProfileId || callerUid === targetProfileId;
+  let isAdmin = request.auth?.token?.admin === true;
+  if (!isAdmin && !isSelf) {
+    const roleSnap = await db.collection('user_roles')
+      .where('user_id', '==', callerUid)
+      .where('role', 'in', ['admin', 'owner'])
+      .limit(1).get();
+    isAdmin = !roleSnap.empty;
+  }
+
+  const ALLOWED_USER_TYPES = new Set([
+    'dm', 'call', 'group_message', 'typing', 'like', 'comment', 'follow', 'mention', 'reaction',
+  ]);
+  if (!isAdmin && !isSelf) {
+    if (!ALLOWED_USER_TYPES.has(pushType)) {
+      throw new HttpsError('permission-denied', 'This notification type may only be sent by the server');
+    }
+  }
+
   if (!isPushAllowedForType(pushType, prefs)) {
     return { ok: true, success: false, sent: 0, skipped: 'preference_disabled' };
   }
@@ -56,8 +79,55 @@ export const sendPushNotification = onCall(
     return { ok: true, success: false, sent: 0, skipped: 'quiet_hours' };
   }
 
-  const sanitizedBody = sanitizeDmPushBody(body || '', pushType, prefs);
-  const sanitizedTitle = title || 'VYBE';
+  // Fetch caller display name to render server-side copy for user-triggered pushes.
+  let renderedTitle = title || 'VYBE';
+  let renderedBody = body || '';
+  if (!isAdmin && !isSelf) {
+    const callerProfile = await db.collection('profiles').doc(callerProfileId).get().catch(() => null);
+    const cd = callerProfile?.data() as any;
+    const senderName = cd?.display_name || cd?.username || 'Someone';
+    switch (pushType) {
+      case 'dm':
+      case 'group_message':
+        renderedTitle = senderName;
+        renderedBody = 'sent you a message';
+        break;
+      case 'call':
+        renderedTitle = senderName;
+        renderedBody = 'is calling you';
+        break;
+      case 'typing':
+        renderedTitle = senderName;
+        renderedBody = 'is typing…';
+        break;
+      case 'like':
+        renderedTitle = 'VYBE';
+        renderedBody = `${senderName} liked your post`;
+        break;
+      case 'reaction':
+        renderedTitle = 'VYBE';
+        renderedBody = `${senderName} reacted to your post`;
+        break;
+      case 'comment':
+        renderedTitle = 'VYBE';
+        renderedBody = `${senderName} commented on your post`;
+        break;
+      case 'follow':
+        renderedTitle = 'VYBE';
+        renderedBody = `${senderName} followed you`;
+        break;
+      case 'mention':
+        renderedTitle = 'VYBE';
+        renderedBody = `${senderName} mentioned you`;
+        break;
+      default:
+        renderedTitle = 'VYBE';
+        renderedBody = '';
+    }
+  }
+
+  const sanitizedBody = sanitizeDmPushBody(renderedBody, pushType, prefs);
+  const sanitizedTitle = renderedTitle;
 
   const explicitSubs = [
     subscriptionId,
