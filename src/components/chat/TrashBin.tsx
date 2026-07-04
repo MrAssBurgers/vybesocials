@@ -1,12 +1,11 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   useTrashedConversations, 
   useRestoreConversation, 
   usePermanentlyDeleteConversation 
 } from '@/hooks/useTrashedConversations';
-import { useAuth } from '@/lib/auth';
+import { useAuthProfileId } from '@/hooks/useAuthProfileId';
 import { ensureArray, safeDmMembers } from '@/lib/persistedCollections';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
@@ -40,14 +39,17 @@ interface TrashBinProps {
 }
 
 export function TrashBin({ open, onOpenChange, trigger }: TrashBinProps) {
-  const { profile } = useAuth();
-  const navigate = useNavigate();
-  const { data: trashedConversationsRaw, isLoading } = useTrashedConversations();
+  const profileId = useAuthProfileId();
+  const { data: trashedConversationsRaw, isLoading, refetch } = useTrashedConversations();
   const trashedConversations = ensureArray(trashedConversationsRaw);
   const restoreConversation = useRestoreConversation();
   const permanentlyDelete = usePermanentlyDeleteConversation();
   
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (open) void refetch();
+  }, [open, refetch]);
 
   const handleRestore = async (conversationId: string, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -74,7 +76,7 @@ export function TrashBin({ open, onOpenChange, trigger }: TrashBinProps) {
     }
 
     const otherMember = safeDmMembers(conversation.members).find(
-      (m: any) => m.user_id !== profile?.id
+      (m: any) => m.user_id !== profileId
     );
     
     return {

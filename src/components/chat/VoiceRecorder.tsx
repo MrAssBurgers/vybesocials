@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Button } from '@/components/ui/button';
-import { Mic, Square, Send, X, Loader2 } from 'lucide-react';
+import { Mic, Square, Send, X, Loader2, Trash2, RotateCcw } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useFastSignedUrl } from '@/hooks/useFastSignedUrl';
 
@@ -9,9 +9,9 @@ interface VoiceRecorderProps {
   onRecordingComplete: (blob: Blob) => void;
   onCancel: () => void;
   isUploading?: boolean;
-  /** When true, auto-sends on stop (hold-to-record mode) */
+  /** When true, auto-sends on stop (legacy hold-to-send mode) */
   autoSend?: boolean;
-  /** When true, recording is locked (user dragged up) - shows send/cancel buttons */
+  /** When true, recording is locked (user dragged up) - hands-free recording */
   locked?: boolean;
 }
 
@@ -19,16 +19,38 @@ export function VoiceRecorder({ onRecordingComplete, onCancel, isUploading, auto
   const [isRecording, setIsRecording] = useState(false);
   const [duration, setDuration] = useState(0);
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
+  const [isPlayingPreview, setIsPlayingPreview] = useState(false);
   const [waveformData, setWaveformData] = useState<number[]>(new Array(40).fill(0));
   
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const mediaStreamRef = useRef<MediaStream | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
   const animationRef = useRef<number>();
   const chunksRef = useRef<Blob[]>([]);
   const intervalRef = useRef<NodeJS.Timeout>();
+  const previewAudioRef = useRef<HTMLAudioElement | null>(null);
   const autoSendRef = useRef(autoSend);
   autoSendRef.current = autoSend;
+
+  const previewUrl = useMemo(
+    () => (audioBlob ? URL.createObjectURL(audioBlob) : null),
+    [audioBlob],
+  );
+
+  useEffect(() => {
+    return () => {
+      if (previewUrl) URL.revokeObjectURL(previewUrl);
+    };
+  }, [previewUrl]);
+
+  const stopPreviewPlayback = useCallback(() => {
+    const audio = previewAudioRef.current;
+    if (!audio) return;
+    audio.pause();
+    audio.currentTime = 0;
+    setIsPlayingPreview(false);
+  }, []);
 
   const closeAudioContext = useCallback(() => {
     const ctx = audioContextRef.current;
@@ -37,11 +59,20 @@ export function VoiceRecorder({ onRecordingComplete, onCancel, isUploading, auto
     ctx.close().catch(() => undefined);
   }, []);
 
+  const releaseMediaStream = useCallback(() => {
+    mediaStreamRef.current?.getTracks().forEach((track) => track.stop());
+    mediaStreamRef.current = null;
+  }, []);
+
   const startRecording = useCallback(async () => {
     try {
+      stopPreviewPlayback();
+      setAudioBlob(null);
+      setIsPlayingPreview(false);
+
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      mediaStreamRef.current = stream;
       
-      // Setup audio context for visualization
       const audioContext = new AudioContext();
       const analyser = audioContext.createAnalyser();
       const source = audioContext.createMediaStreamSource(stream);
@@ -51,7 +82,6 @@ export function VoiceRecorder({ onRecordingComplete, onCancel, isUploading, auto
       audioContextRef.current = audioContext;
       analyserRef.current = analyser;
       
-      // Setup media recorder
       const mediaRecorder = new MediaRecorder(stream);
       mediaRecorderRef.current = mediaRecorder;
       chunksRef.current = [];
@@ -63,18 +93,19 @@ export function VoiceRecorder({ onRecordingComplete, onCancel, isUploading, auto
       };
       
       mediaRecorder.onstop = () => {
+        releaseMediaStream();
         const blob = new Blob(chunksRef.current, { type: 'audio/webm' });
-        stream.getTracks().forEach(track => track.stop());
         
         if (autoSendRef.current) {
-          // In hold-to-record mode, send immediately if recording was >0.3s
           if (blob.size > 0) {
             onRecordingComplete(blob);
           } else {
             onCancel();
           }
-        } else {
+        } else if (blob.size > 0) {
           setAudioBlob(blob);
+        } else {
+          onCancel();
         }
       };
       
@@ -82,19 +113,16 @@ export function VoiceRecorder({ onRecordingComplete, onCancel, isUploading, auto
       setIsRecording(true);
       setDuration(0);
       
-      // Duration timer
       intervalRef.current = setInterval(() => {
         setDuration(d => d + 1);
       }, 1000);
       
-      // Waveform animation
       const updateWaveform = () => {
         if (!analyserRef.current) return;
         
         const dataArray = new Uint8Array(analyserRef.current.frequencyBinCount);
         analyserRef.current.getByteFrequencyData(dataArray);
         
-        // Sample 40 values from the frequency data
         const samples: number[] = [];
         const step = Math.floor(dataArray.length / 40);
         for (let i = 0; i < 40; i++) {
@@ -110,7 +138,7 @@ export function VoiceRecorder({ onRecordingComplete, onCancel, isUploading, auto
       console.error('Failed to start recording:', error);
       onCancel();
     }
-  }, [onRecordingComplete, onCancel]);
+  }, [onRecordingComplete, onCancel, releaseMediaStream, stopPreviewPlayback]);
 
   const stopRecording = useCallback(() => {
     if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
@@ -127,43 +155,75 @@ export function VoiceRecorder({ onRecordingComplete, onCancel, isUploading, auto
     }
   }, [closeAudioContext]);
 
-  /** Called externally by hold-to-record to stop and auto-send */
   const stopAndSend = useCallback(() => {
     stopRecording();
   }, [stopRecording]);
 
-  // Expose stopAndSend for parent component
   useEffect(() => {
     (window as any).__voiceRecorderStop = stopAndSend;
     return () => { delete (window as any).__voiceRecorderStop; };
   }, [stopAndSend]);
 
   const handleSend = useCallback(() => {
+    stopPreviewPlayback();
     if (audioBlob) {
       onRecordingComplete(audioBlob);
     }
-  }, [audioBlob, onRecordingComplete]);
+  }, [audioBlob, onRecordingComplete, stopPreviewPlayback]);
 
   const handleCancel = useCallback(() => {
-    stopRecording();
+    stopPreviewPlayback();
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
+      mediaRecorderRef.current.stop();
+    }
+    releaseMediaStream();
+    setIsRecording(false);
     setAudioBlob(null);
     setDuration(0);
     setWaveformData(new Array(40).fill(0));
+    if (intervalRef.current) clearInterval(intervalRef.current);
+    if (animationRef.current) cancelAnimationFrame(animationRef.current);
+    closeAudioContext();
     onCancel();
-  }, [stopRecording, onCancel]);
+  }, [closeAudioContext, onCancel, releaseMediaStream, stopPreviewPlayback]);
 
-  // Auto-start recording when component mounts
+  const handleRestart = useCallback(() => {
+    stopPreviewPlayback();
+    setAudioBlob(null);
+    setDuration(0);
+    setWaveformData(new Array(40).fill(0));
+    void startRecording();
+  }, [startRecording, stopPreviewPlayback]);
+
+  const togglePreviewPlayback = useCallback(async () => {
+    const audio = previewAudioRef.current;
+    if (!audio || !previewUrl) return;
+    try {
+      if (isPlayingPreview) {
+        audio.pause();
+        setIsPlayingPreview(false);
+      } else {
+        await audio.play();
+        setIsPlayingPreview(true);
+      }
+    } catch (err) {
+      console.warn('[VoiceRecorder] preview playback failed:', err);
+    }
+  }, [isPlayingPreview, previewUrl]);
+
   useEffect(() => {
     startRecording();
   }, [startRecording]);
 
   useEffect(() => {
     return () => {
+      stopPreviewPlayback();
       if (intervalRef.current) clearInterval(intervalRef.current);
       if (animationRef.current) cancelAnimationFrame(animationRef.current);
+      releaseMediaStream();
       closeAudioContext();
     };
-  }, [closeAudioContext]);
+  }, [closeAudioContext, releaseMediaStream, stopPreviewPlayback]);
 
   const formatDuration = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
@@ -171,153 +231,164 @@ export function VoiceRecorder({ onRecordingComplete, onCancel, isUploading, auto
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
+  const inPreview = Boolean(audioBlob) && !isRecording;
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: 20 }}
-      className="flex items-center gap-3 p-3 bg-muted/50 rounded-xl"
+      className="flex items-center gap-2 p-3 bg-muted/50 rounded-xl relative"
     >
-      {/* Cancel button */}
-      <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}>
-        <Button 
-          variant="ghost" 
-          size="icon" 
-          onClick={handleCancel}
-          className="h-8 w-8 text-muted-foreground hover:text-destructive"
-        >
-          <X className="h-4 w-4" />
-        </Button>
-      </motion.div>
+      {previewUrl && (
+        <audio
+          ref={previewAudioRef}
+          src={previewUrl}
+          preload="metadata"
+          playsInline
+          onEnded={() => setIsPlayingPreview(false)}
+          className="hidden"
+        />
+      )}
 
-      {/* Waveform visualization */}
-      <div className="flex-1 flex items-center gap-0.5 h-8">
-        {waveformData.map((value, i) => (
-          <motion.div
-            key={i}
-            className={cn(
-              "w-1 rounded-full",
-              isRecording ? "bg-destructive" : "bg-primary"
-            )}
-            animate={{
-              height: Math.max(4, value * 28),
-            }}
-            transition={{ duration: 0.05 }}
-          />
-        ))}
-      </div>
-
-      {/* Duration */}
-      <motion.span 
-        className={cn(
-          "text-sm font-mono min-w-[45px]",
-          isRecording && "text-destructive"
-        )}
-        animate={isRecording ? { opacity: [1, 0.5, 1] } : {}}
-        transition={isRecording ? { repeat: Infinity, duration: 1 } : {}}
-      >
-        {formatDuration(duration)}
-      </motion.span>
-
-      {/* Record/Stop/Send button — hidden in autoSend mode (unless locked) */}
-      {(!autoSend || locked) && (
+      {inPreview ? (
         <>
-          {!audioBlob ? (
-            <>
-              {locked && isRecording ? (
-                /* Locked mode: show send and cancel */
-                <div className="flex items-center gap-1.5">
-                  <motion.div whileTap={{ scale: 0.9 }}>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={handleCancel}
-                      className="h-9 w-9 rounded-full text-muted-foreground hover:text-destructive"
-                    >
-                      <X className="h-4 w-4" />
-                    </Button>
-                  </motion.div>
-                  <motion.div
-                    initial={{ scale: 0 }}
-                    animate={{ scale: 1 }}
-                    whileTap={{ scale: 0.9 }}
-                  >
-                    <Button
-                      size="icon"
-                      onClick={() => {
-                        stopRecording();
-                        // After stop, onstop will fire and auto-send since autoSendRef is true
-                      }}
-                      className="h-10 w-10 rounded-full"
-                    >
-                      <Send className="h-5 w-5" />
-                    </Button>
-                  </motion.div>
-                </div>
-              ) : (
-                <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}>
-                  <Button
-                    variant={isRecording ? "destructive" : "default"}
-                    size="icon"
-                    onClick={isRecording ? stopRecording : startRecording}
-                    className="h-10 w-10 rounded-full"
-                  >
-                    {isRecording ? (
-                      <Square className="h-4 w-4" />
-                    ) : (
-                      <Mic className="h-5 w-5" />
-                    )}
-                  </Button>
-                </motion.div>
-              )}
-            </>
-          ) : (
-            <motion.div 
-              initial={{ scale: 0 }}
-              animate={{ scale: 1 }}
-              whileHover={{ scale: 1.1 }} 
-              whileTap={{ scale: 0.9 }}
-            >
-              <Button
-                size="icon"
-                onClick={handleSend}
-                disabled={isUploading}
-                className="h-10 w-10 rounded-full"
-              >
-                {isUploading ? (
-                  <Loader2 className="h-5 w-5 animate-spin" />
-                ) : (
-                  <Send className="h-5 w-5" />
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={handleCancel}
+            className="h-9 w-9 text-muted-foreground hover:text-destructive shrink-0"
+            aria-label="Discard voice note"
+          >
+            <Trash2 className="h-4 w-4" />
+          </Button>
+
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={handleRestart}
+            className="h-9 w-9 text-muted-foreground shrink-0"
+            aria-label="Record again"
+          >
+            <RotateCcw className="h-4 w-4" />
+          </Button>
+
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={togglePreviewPlayback}
+            className="h-10 w-10 rounded-full shrink-0"
+            aria-label={isPlayingPreview ? 'Pause preview' : 'Play preview'}
+          >
+            {isPlayingPreview ? (
+              <Square className="h-4 w-4" />
+            ) : (
+              <div className="w-0 h-0 border-l-[10px] border-l-current border-y-[6px] border-y-transparent ml-0.5" />
+            )}
+          </Button>
+
+          <div className="flex-1 min-w-0 text-center">
+            <p className="text-xs font-medium text-foreground">Voice note ready</p>
+            <p className="text-[11px] text-muted-foreground tabular-nums">{formatDuration(duration)}</p>
+          </div>
+
+          <Button
+            size="icon"
+            onClick={handleSend}
+            disabled={isUploading}
+            className="h-10 w-10 rounded-full shrink-0"
+            aria-label="Send voice note"
+          >
+            {isUploading ? (
+              <Loader2 className="h-5 w-5 animate-spin" />
+            ) : (
+              <Send className="h-5 w-5" />
+            )}
+          </Button>
+        </>
+      ) : (
+        <>
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            onClick={handleCancel}
+            className="h-8 w-8 text-muted-foreground hover:text-destructive shrink-0"
+            aria-label="Cancel recording"
+          >
+            <X className="h-4 w-4" />
+          </Button>
+
+          <div className="flex-1 flex items-center gap-0.5 h-8 min-w-0">
+            {waveformData.map((value, i) => (
+              <motion.div
+                key={i}
+                className={cn(
+                  "w-1 rounded-full",
+                  isRecording ? "bg-destructive" : "bg-primary"
                 )}
-              </Button>
+                animate={{
+                  height: Math.max(4, value * 28),
+                }}
+                transition={{ duration: 0.05 }}
+              />
+            ))}
+          </div>
+
+          <motion.span 
+            className={cn(
+              "text-sm font-mono min-w-[45px] tabular-nums shrink-0",
+              isRecording && "text-destructive"
+            )}
+            animate={isRecording ? { opacity: [1, 0.5, 1] } : {}}
+            transition={isRecording ? { repeat: Infinity, duration: 1 } : {}}
+          >
+            {formatDuration(duration)}
+          </motion.span>
+
+          {locked && isRecording && (
+            <Button
+              size="icon"
+              onClick={stopRecording}
+              className="h-10 w-10 rounded-full shrink-0"
+              aria-label="Stop recording"
+            >
+              <Square className="h-4 w-4" />
+            </Button>
+          )}
+
+          {!autoSend && !locked && isRecording && (
+            <motion.div 
+              animate={{ opacity: [0.5, 1, 0.5] }}
+              transition={{ repeat: Infinity, duration: 1.5 }}
+              className="text-[11px] text-muted-foreground whitespace-nowrap shrink-0 hidden sm:block"
+            >
+              Release to preview
             </motion.div>
           )}
+
+          {autoSend && !locked && isRecording && (
+            <motion.div 
+              animate={{ opacity: [0.5, 1, 0.5] }}
+              transition={{ repeat: Infinity, duration: 1.5 }}
+              className="text-[11px] text-muted-foreground whitespace-nowrap shrink-0 hidden sm:block"
+            >
+              Release to send
+            </motion.div>
+          )}
+
+          <AnimatePresence>
+            {isRecording && (
+              <motion.div
+                initial={{ scale: 0 }}
+                animate={{ scale: [1, 1.2, 1] }}
+                exit={{ scale: 0 }}
+                transition={{ repeat: Infinity, duration: 1 }}
+                className="absolute top-2 right-2 w-3 h-3 bg-destructive rounded-full"
+              />
+            )}
+          </AnimatePresence>
         </>
       )}
-
-      {/* In autoSend mode (not locked), show a hint */}
-      {autoSend && !locked && isRecording && (
-        <motion.div 
-          animate={{ opacity: [0.5, 1, 0.5] }}
-          transition={{ repeat: Infinity, duration: 1.5 }}
-          className="text-xs text-muted-foreground whitespace-nowrap"
-        >
-          Release to send
-        </motion.div>
-      )}
-
-      {/* Recording indicator */}
-      <AnimatePresence>
-        {isRecording && (
-          <motion.div
-            initial={{ scale: 0 }}
-            animate={{ scale: [1, 1.2, 1] }}
-            exit={{ scale: 0 }}
-            transition={{ repeat: Infinity, duration: 1 }}
-            className="absolute top-2 right-2 w-3 h-3 bg-destructive rounded-full"
-          />
-        )}
-      </AnimatePresence>
     </motion.div>
   );
 }

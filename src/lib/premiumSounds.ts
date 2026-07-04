@@ -1,8 +1,12 @@
 // Premium Sound System — bundled WAV assets + synthesized fallback for UI micro-sounds
 
 import { ALL_VYBE_SOUND_URLS, VYBE_SOUNDS } from './vybeSoundAssets';
-
-type SoundCategory = 'messages' | 'calls' | 'ui';
+import {
+  getSoundOutputBus,
+  resolveBundledGain,
+  resolveSynthGain,
+  type SoundMixCategory,
+} from './soundMix';
 type PremiumSoundType =
   | 'messageSend'
   | 'messageReceive'
@@ -23,6 +27,8 @@ export interface SoundSettings {
   messages: boolean;
   calls: boolean;
   ui: boolean;
+  /** 0–100 perceived loudness (default 72). */
+  volume: number;
 }
 
 export interface CustomSoundConfig {
@@ -35,13 +41,13 @@ const DEFAULT_SETTINGS: SoundSettings = {
   messages: true,
   calls: true,
   ui: true,
+  volume: 72,
 };
 
 const BUNDLED_BY_TYPE: Partial<Record<PremiumSoundType, string>> = {
   messageSend: VYBE_SOUNDS.dmSent,
   messageReceive: VYBE_SOUNDS.dmReceived,
   notification: VYBE_SOUNDS.dmReceived,
-  success: VYBE_SOUNDS.sharePost,
   callRing: VYBE_SOUNDS.callRing,
 };
 
@@ -49,7 +55,17 @@ export function getSoundSettings(): SoundSettings {
   if (typeof window === 'undefined') return DEFAULT_SETTINGS;
   try {
     const stored = localStorage.getItem(SOUND_SETTINGS_KEY);
-    if (stored) return { ...DEFAULT_SETTINGS, ...JSON.parse(stored) };
+    if (stored) {
+      const parsed = JSON.parse(stored) as Partial<SoundSettings>;
+      return {
+        ...DEFAULT_SETTINGS,
+        ...parsed,
+        volume:
+          typeof parsed.volume === 'number'
+            ? Math.max(20, Math.min(100, parsed.volume))
+            : DEFAULT_SETTINGS.volume,
+      };
+    }
   } catch { /* ignore */ }
   return DEFAULT_SETTINGS;
 }
@@ -82,7 +98,7 @@ export function clearCustomSound(type: 'message_tone' | 'call_ringtone'): void {
   localStorage.setItem(CUSTOM_SOUNDS_KEY, JSON.stringify(current));
 }
 
-function isCategoryEnabled(category: SoundCategory): boolean {
+function isCategoryEnabled(category: SoundMixCategory): boolean {
   const settings = getSoundSettings();
   if (!settings.master) return false;
   return settings[category];
@@ -167,7 +183,8 @@ async function loadBuffer(url: string): Promise<AudioBuffer | null> {
 export async function playCustomAudio(
   url: string,
   loop = false,
-  volume = 0.92,
+  volume?: number,
+  category: SoundMixCategory = 'messages',
 ): Promise<{ stop: () => void } | null> {
   const ctx = getAudioContext();
   if (!ctx) return null;
@@ -176,16 +193,24 @@ export async function playCustomAudio(
     if (!buffer) return null;
     const source = ctx.createBufferSource();
     const gain = ctx.createGain();
+    const bus = getSoundOutputBus(ctx);
     source.buffer = buffer;
     source.loop = loop;
-    gain.gain.value = volume;
+    const peak = resolveBundledGain(url, category, volume);
+    const now = ctx.currentTime;
+    gain.gain.setValueAtTime(0.0001, now);
+    gain.gain.linearRampToValueAtTime(peak, now + 0.012);
     source.connect(gain);
-    gain.connect(ctx.destination);
+    gain.connect(bus);
     source.start();
     return {
       stop: () => {
         try {
-          source.stop();
+          const t = ctx.currentTime;
+          gain.gain.cancelScheduledValues(t);
+          gain.gain.setValueAtTime(gain.gain.value, t);
+          gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.04);
+          source.stop(t + 0.05);
         } catch { /* already stopped */ }
       },
     };
@@ -196,7 +221,7 @@ export async function playCustomAudio(
 
 async function playBundledUrl(
   url: string,
-  category: SoundCategory,
+  category: SoundMixCategory,
   options?: { loop?: boolean; volume?: number; debounceMs?: number },
 ): Promise<{ stop: () => void } | null> {
   const debounceMs = options?.debounceMs ?? 150;
@@ -208,12 +233,12 @@ async function playBundledUrl(
   if (!ok || !isCategoryEnabled(category)) return null;
 
   void preloadVybeSounds();
-  return playCustomAudio(url, options?.loop ?? false, options?.volume ?? 0.92);
+  return playCustomAudio(url, options?.loop ?? false, options?.volume, category);
 }
 
 function playSynth(soundType: PremiumSoundType): void {
   const configs: Record<PremiumSoundType, {
-    category: SoundCategory;
+    category: SoundMixCategory;
     frequencies: number[];
     durations: number[];
     volumes: number[];
@@ -221,16 +246,16 @@ function playSynth(soundType: PremiumSoundType): void {
     delays: number[];
     detune?: number[];
   }> = {
-    messageSend: { category: 'messages', frequencies: [600, 800], durations: [0.05, 0.04], volumes: [0.008, 0.005], types: ['sine', 'sine'], delays: [0, 0.015], detune: [0, 5] },
-    messageReceive: { category: 'messages', frequencies: [784, 988, 1175], durations: [0.09, 0.08, 0.11], volumes: [0.035, 0.028, 0.022], types: ['sine', 'sine', 'triangle'], delays: [0, 0.04, 0.09], detune: [0, 4, -3] },
-    notification: { category: 'messages', frequencies: [659.25, 987.77, 1318.51], durations: [0.12, 0.14, 0.18], volumes: [0.06, 0.05, 0.035], types: ['sine', 'sine', 'triangle'], delays: [0, 0.07, 0.14], detune: [0, 2, -4] },
-    tap: { category: 'ui', frequencies: [500], durations: [0.03], volumes: [0.006], types: ['sine'], delays: [0] },
-    toggle: { category: 'ui', frequencies: [400, 550], durations: [0.04, 0.03], volumes: [0.01, 0.007], types: ['sine', 'sine'], delays: [0, 0.02], detune: [0, 4] },
-    success: { category: 'ui', frequencies: [440, 523, 659], durations: [0.10, 0.10, 0.14], volumes: [0.018, 0.015, 0.02], types: ['sine', 'sine', 'sine'], delays: [0, 0.06, 0.12], detune: [0, 2, -2] },
-    error: { category: 'ui', frequencies: [180, 150], durations: [0.12, 0.15], volumes: [0.02, 0.015], types: ['sine', 'sine'], delays: [0, 0.08] },
-    callRing: { category: 'calls', frequencies: [392, 494, 587], durations: [0.18, 0.15, 0.12], volumes: [0.03, 0.025, 0.02], types: ['sine', 'sine', 'sine'], delays: [0, 0.1, 0.2], detune: [0, 3, -3] },
-    callConnect: { category: 'calls', frequencies: [392, 494, 587, 784], durations: [0.12, 0.12, 0.12, 0.18], volumes: [0.025, 0.02, 0.025, 0.015], types: ['sine', 'sine', 'sine', 'sine'], delays: [0, 0.08, 0.16, 0.24], detune: [0, 2, 4, 0] },
-    callEnd: { category: 'calls', frequencies: [587, 494, 392], durations: [0.10, 0.10, 0.14], volumes: [0.02, 0.02, 0.015], types: ['sine', 'sine', 'sine'], delays: [0, 0.08, 0.16] },
+    messageSend: { category: 'messages', frequencies: [620, 740], durations: [0.04, 0.035], volumes: [0.006, 0.004], types: ['sine', 'sine'], delays: [0, 0.012], detune: [0, 3] },
+    messageReceive: { category: 'messages', frequencies: [880, 1174.66], durations: [0.07, 0.12], volumes: [0.012, 0.01], types: ['sine', 'triangle'], delays: [0, 0.05], detune: [0, -2] },
+    notification: { category: 'messages', frequencies: [783.99, 987.77], durations: [0.08, 0.14], volumes: [0.014, 0.011], types: ['sine', 'sine'], delays: [0, 0.06], detune: [0, 2] },
+    tap: { category: 'ui', frequencies: [620], durations: [0.022], volumes: [0.0045], types: ['sine'], delays: [0] },
+    toggle: { category: 'ui', frequencies: [480, 640], durations: [0.028, 0.022], volumes: [0.005, 0.0035], types: ['sine', 'sine'], delays: [0, 0.016], detune: [0, 3] },
+    success: { category: 'ui', frequencies: [523.25, 659.25, 783.99], durations: [0.07, 0.07, 0.1], volumes: [0.008, 0.007, 0.009], types: ['sine', 'sine', 'sine'], delays: [0, 0.05, 0.1], detune: [0, 1, -1] },
+    error: { category: 'ui', frequencies: [220, 185], durations: [0.09, 0.11], volumes: [0.009, 0.007], types: ['sine', 'sine'], delays: [0, 0.06] },
+    callRing: { category: 'calls', frequencies: [440, 554.37, 659.25], durations: [0.16, 0.14, 0.12], volumes: [0.014, 0.012, 0.01], types: ['sine', 'sine', 'sine'], delays: [0, 0.09, 0.18], detune: [0, 2, -2] },
+    callConnect: { category: 'calls', frequencies: [523.25, 659.25, 783.99], durations: [0.1, 0.1, 0.16], volumes: [0.012, 0.01, 0.008], types: ['sine', 'sine', 'sine'], delays: [0, 0.07, 0.14], detune: [0, 2, 0] },
+    callEnd: { category: 'calls', frequencies: [587.33, 493.88, 392], durations: [0.08, 0.08, 0.12], volumes: [0.01, 0.009, 0.007], types: ['sine', 'sine', 'sine'], delays: [0, 0.07, 0.14] },
   };
 
   const config = configs[soundType];
@@ -240,20 +265,26 @@ function playSynth(soundType: PremiumSoundType): void {
       if (shouldDebounce(soundType, 150)) return;
       const ctx = getAudioContext();
       if (!ctx) return;
+      const bus = getSoundOutputBus(ctx);
       const now = ctx.currentTime;
       config.frequencies.forEach((freq, i) => {
         const osc = ctx.createOscillator();
+        const toneFilter = ctx.createBiquadFilter();
+        toneFilter.type = 'lowpass';
+        toneFilter.frequency.value = 4200;
+        toneFilter.Q.value = 0.5;
         const gain = ctx.createGain();
-        osc.connect(gain);
-        gain.connect(ctx.destination);
+        osc.connect(toneFilter);
+        toneFilter.connect(gain);
+        gain.connect(bus);
         osc.type = config.types[i];
         osc.frequency.setValueAtTime(freq, now);
         osc.detune.setValueAtTime(config.detune?.[i] || 0, now);
         const dur = config.durations[i];
-        const vol = config.volumes[i];
+        const vol = resolveSynthGain(config.category, config.volumes[i]);
         const start = now + config.delays[i];
         gain.gain.setValueAtTime(0, start);
-        gain.gain.linearRampToValueAtTime(vol, start + Math.min(0.015, dur * 0.2));
+        gain.gain.linearRampToValueAtTime(vol, start + Math.min(0.012, dur * 0.25));
         gain.gain.exponentialRampToValueAtTime(0.0001, start + dur);
         osc.start(start);
         osc.stop(start + dur + 0.02);
@@ -277,14 +308,18 @@ export function playPremiumSound(soundType: PremiumSoundType): void {
 export function previewSound(soundType: PremiumSoundType): void {
   const bundled = BUNDLED_BY_TYPE[soundType];
   if (bundled) {
-    void playCustomAudio(bundled, false, 1);
+    const category =
+      soundType === 'callRing' || soundType === 'callConnect' || soundType === 'callEnd'
+        ? 'calls'
+        : 'messages';
+    void playCustomAudio(bundled, false, undefined, category);
     return;
   }
   playSynth(soundType);
 }
 
-export function previewBundledSound(url: string): void {
-  void playCustomAudio(url, false, 1);
+export function previewBundledSound(url: string, category: SoundMixCategory = 'messages'): void {
+  void playCustomAudio(url, false, undefined, category);
 }
 
 let messageDebounceTimer: ReturnType<typeof setTimeout> | null = null;
@@ -298,7 +333,7 @@ export function playMessageReceiveSound(): void {
     if (pendingMessageCount <= 0) return;
     const custom = getCustomSounds();
     if (custom.message_tone) {
-      void playCustomAudio(custom.message_tone);
+      void playCustomAudio(custom.message_tone, false, undefined, 'messages');
     } else {
       void playBundledUrl(VYBE_SOUNDS.dmReceived, 'messages', { debounceMs: 200 });
     }
@@ -310,7 +345,7 @@ export function playNotificationSound(): void {
   if (!isCategoryEnabled('messages')) return;
   const custom = getCustomSounds();
   if (custom.message_tone) {
-    void playCustomAudio(custom.message_tone);
+    void playCustomAudio(custom.message_tone, false, undefined, 'messages');
     return;
   }
   void playBundledUrl(VYBE_SOUNDS.dmReceived, 'messages');
@@ -343,11 +378,11 @@ export async function startRinging(): Promise<void> {
 
   const custom = getCustomSounds();
   if (custom.call_ringtone) {
-    customRingPlayer = await playCustomAudio(custom.call_ringtone, true);
+    customRingPlayer = await playCustomAudio(custom.call_ringtone, true, undefined, 'calls');
     return;
   }
 
-  bundledRingPlayer = await playBundledUrl(VYBE_SOUNDS.callRing, 'calls', { loop: true, volume: 0.88, debounceMs: 0 });
+  bundledRingPlayer = await playBundledUrl(VYBE_SOUNDS.callRing, 'calls', { loop: true, debounceMs: 0 });
   if (!bundledRingPlayer) {
     playPremiumSound('callRing');
     callRingInterval = setInterval(() => playPremiumSound('callRing'), 2000);
@@ -357,7 +392,7 @@ export async function startRinging(): Promise<void> {
 export async function startRingback(): Promise<void> {
   if (!isCategoryEnabled('calls')) return;
   stopAllCallSounds();
-  bundledRingPlayer = await playBundledUrl(VYBE_SOUNDS.callRing, 'calls', { loop: true, volume: 0.75, debounceMs: 0 });
+  bundledRingPlayer = await playBundledUrl(VYBE_SOUNDS.callRing, 'calls', { loop: true, debounceMs: 0 });
   if (!bundledRingPlayer) {
     playPremiumSound('callRing');
     ringbackInterval = setInterval(() => playPremiumSound('callRing'), 3000);
@@ -410,7 +445,7 @@ export const premiumSounds = {
   sharePost: playSharePostSound,
   tap: () => playPremiumSound('tap'),
   toggle: () => playPremiumSound('toggle'),
-  success: () => playSharePostSound(),
+  success: () => playPremiumSound('success'),
   error: () => playPremiumSound('error'),
   startRinging,
   startRingback,

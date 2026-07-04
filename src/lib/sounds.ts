@@ -13,6 +13,8 @@ export function playSound(type: SoundType): void {
       premiumSounds.tap();
       break;
     case 'pop':
+      premiumSounds.toggle();
+      break;
     case 'success':
       premiumSounds.success();
       break;
@@ -31,7 +33,7 @@ export function playSound(type: SoundType): void {
 // Specific sound triggers (backward compatible API)
 export const sounds = {
   tap: () => premiumSounds.tap(),
-  pop: () => premiumSounds.success(),
+  pop: () => premiumSounds.toggle(),
   success: () => premiumSounds.success(),
   send: () => premiumSounds.messageSend(),
   receive: () => premiumSounds.messageReceive(),

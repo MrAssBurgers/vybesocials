@@ -58,6 +58,12 @@ export function formatDmPreviewContent(
   if (message.message_type === 'screenshot_notification') return 'Screenshot';
   if (message.message_type === 'screen_recording_notification') return 'Screen recording';
 
+  if (message.media_type === 'vybe') return 'Snap';
+  if (message.media_type === 'image') return 'Photo';
+  if (message.media_type === 'video') return 'Video';
+  if (message.media_type === 'audio') return 'Voice note';
+  if (message.media_type === 'gif') return 'GIF';
+
   const raw = asPreviewText(message.content);
   if (raw.startsWith('e2ee:')) return 'Chat';
   const text = raw || 'Media';

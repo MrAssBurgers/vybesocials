@@ -39,11 +39,13 @@ export function dmConversationPreviewText(opts: {
 
   if (lastMessage) {
     try {
-      return formatDmPreviewContent(
-        lastMessage,
-        Boolean(lastMessage.sender_id && profileId && lastMessage.sender_id === profileId),
-        previewMaxLen,
+      const isOwn = Boolean(
+        lastMessage.sender_id &&
+          profileId &&
+          (lastMessage.sender_id === profileId),
       );
+      const text = formatDmPreviewContent(lastMessage, isOwn, previewMaxLen);
+      return isOwn ? `You: ${text}` : text;
     } catch {
       return lastMessage.content?.slice(0, previewMaxLen) || 'Message';
     }

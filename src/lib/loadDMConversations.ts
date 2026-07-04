@@ -10,7 +10,10 @@ import { syncUserAuthIndex } from '@/lib/firebase/profileResolve';
 import { withTimeout } from '@/lib/withTimeout';
 import { fetchMemberProfiles, fetchConversationMetaForList, syntheticDeterministicConversation, normalizeToProfileId } from '@/lib/dmMembershipRepair';
 import { listUserChats } from '@/lib/firebase/chats';
-import { fetchMessagesForConversations } from '@/lib/conversationMessagesQuery';
+import {
+  fetchLatestMessagePerConversation,
+  fetchMessagesForConversations,
+} from '@/lib/conversationMessagesQuery';
 
 import {
   buildConversationMembers,
@@ -283,6 +286,7 @@ async function loadDMConversationsOnce(
     const [
       { data: allMembers, error: membersError },
       { data: allMessages, error: messagesError },
+      { data: latestMessages, error: latestMessagesError },
       seededProfiles,
     ] = await Promise.all([
       db
@@ -294,6 +298,7 @@ async function loadDMConversationsOnce(
         'id, conversation_id, sender_id, content, media_type, viewed_at, created_at, is_deleted',
         Math.min(Math.max(userConversationIds.length * 3, 60), 250),
       ),
+      fetchLatestMessagePerConversation(userConversationIds),
       profileSeedIds.length ? fetchMemberProfiles(profileSeedIds) : Promise.resolve(new Map()),
     ]);
 
@@ -302,6 +307,9 @@ async function loadDMConversationsOnce(
     }
     if (messagesError) {
       console.warn('[DM] messages query error:', messagesError.message);
+    }
+    if (latestMessagesError) {
+      console.warn('[DM] latest message query error:', latestMessagesError.message);
     }
 
     const memberUserIds = Array.from(new Set((allMembers || []).map((m) => String(m.user_id))));
@@ -338,10 +346,16 @@ async function loadDMConversationsOnce(
     const lastMessageMap = new Map<string, Message>();
     const unreadCountMap = new Map<string, number>();
 
+    (latestMessages || []).forEach((msg) => {
+      if (msg.is_deleted || !msg.conversation_id) return;
+      lastMessageMap.set(String(msg.conversation_id), msg as Message);
+    });
+
     (allMessages || []).forEach((msg) => {
       if (msg.is_deleted) return;
-      if (!lastMessageMap.has(msg.conversation_id)) {
-        lastMessageMap.set(msg.conversation_id, msg as Message);
+      const cid = String(msg.conversation_id);
+      if (!lastMessageMap.has(cid)) {
+        lastMessageMap.set(cid, msg as Message);
       }
       const membership = membershipMap.get(msg.conversation_id);
       const lastReadAt = membership?.last_read_at || '1970-01-01';

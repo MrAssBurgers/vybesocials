@@ -122,7 +122,6 @@ export const Texter = memo(function Texter({
                 onRecordingComplete={onVoiceRecordingComplete}
                 onCancel={onVoiceRecordingCancel}
                 isUploading={isUploadingMedia}
-                autoSend
                 locked={isVoiceLocked}
               />
             </div>

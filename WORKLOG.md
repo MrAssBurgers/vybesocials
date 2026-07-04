@@ -2,6 +2,12 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## Publish — DMs, voice notes, sound mix (2026-07-04)
+- **DMs:** Trash bin shows deleted chats (Firestore-safe query + optimistic cache); inbox shows last message preview; voice notes pause on release with play/delete/restart/send
+- **Sounds:** Central mix bus, lower bundled volumes, pop/tap no longer uses share-post WAV, overall volume slider in settings
+- **Verified:** `npm run build` PASS · `npm run lint` PASS
+- **You:** Lovable → Share → Publish for **vybehub.app**
+
 ## Publish gate — restored empty Cloud config removed (2026-07-04)
 - **Root cause:** The obsolete `supabase/` directory had been restored again, now with only `config.toml`; Lovable Publish can still detect that folder as a backend sync target and fail with the generic internal publish error.
 - **Fix:** Removed the restored empty `supabase/` directory, then added one targeted migration after the fresh security scan showed Live still had broad storage write policies for media, announcements, and sounds.
@@ -14,10 +20,12 @@ Use this file as the Lovable -> Cursor handoff each session.
 - **Verified:** `npm run build` PASS · `npm run lint` PASS · security scan has no open findings.
 - **Next:** Lovable Publish → verify `vybehub.app` updates, then hard refresh devices.
 
-## Publish — splash zero-flicker (2026-07-01)
+## Publish — splash zero-flicker (2026-07-02)
 - **Fix:** Loading screen theme vars scoped on `#vybe-static-boot` (immune to index.css :root); no full `applyThemeTokens` during splash — lightweight `reinforceSplashTheme()` only; full apply after splash dismiss
 - **Verified:** `npm run build` PASS · `npm run lint` PASS
-- **Staging:** https://vybe-daaab.web.app
+- **Committed:** `514922a5` · pushed `main`
+- **Staging:** https://vybe-daaab.web.app (Firebase hosting deploy)
+- **You:** Hard-refresh staging with equipped Vybe; then **Lovable → Share → Publish** for **vybehub.app**
 
 ## Publish — splash theme flash fix (2026-07-01)
 - **Fix:** Hard refresh no longer dips equipped → classic → equipped — early theme boot before App graph, CSS-aware skip check, force equipped re-apply during splash

@@ -44,5 +44,35 @@ export async function fetchMessagesForConversations<T extends MessageRow>(
     .in('conversation_id', conversationIds)
     .limit(rowLimit);
 
-  return { data: (data || []) as T[], error };
+  const rows = sortByCreatedDesc((data || []) as T[]);
+  return { data: rows, error };
+}
+
+const LATEST_MSG_SELECT =
+  'id, conversation_id, sender_id, content, media_type, viewed_at, created_at, is_deleted, message_type';
+
+/** One latest non-deleted message per conversation (reliable inbox previews). */
+export async function fetchLatestMessagePerConversation<T extends MessageRow>(
+  conversationIds: string[],
+): Promise<{ data: T[]; error: VybeAuthError | null }> {
+  if (!conversationIds.length) return { data: [], error: null };
+
+  const BATCH = 10;
+  const latest: T[] = [];
+
+  for (let i = 0; i < conversationIds.length; i += BATCH) {
+    const chunk = conversationIds.slice(i, i + BATCH);
+    const chunkResults = await Promise.all(
+      chunk.map((conversationId) =>
+        fetchRecentConversationMessages<T>(conversationId, LATEST_MSG_SELECT, 1),
+      ),
+    );
+    for (const result of chunkResults) {
+      if (result.error) return { data: latest, error: result.error };
+      const row = result.data?.find((msg) => !msg.is_deleted);
+      if (row) latest.push(row);
+    }
+  }
+
+  return { data: latest, error: null };
 }

@@ -49,7 +49,6 @@ import { useBatchUserStatuses } from '@/hooks/useUserStatus';
 import { getVibeColor } from '@/components/status/StatusPicker';
 import { compactTime } from '@/lib/compactTime';
 import { safeMapGet } from '@/lib/persistedCollections';
-import { formatDmPreviewContent } from '@/lib/callChatMessages';
 import { useQuickAddSuggestions } from '@/hooks/useQuickAddSuggestions';
 import { useDismissedQuickAdd } from '@/hooks/useDismissedQuickAdd';
 import { NotesRow } from './NotesRow';
@@ -615,14 +614,17 @@ const ConversationContent = memo(forwardRef<HTMLDivElement, any>(function Conver
 }, _ref) {
   const livePreview = activityPreviewLabel(peerActivity);
   const showLiveActivity = peerActivity !== 'idle' && livePreview;
-  const emptyPreview = dmConversationPreviewText({
-    lastMessage: null,
+  const messagePreview = dmConversationPreviewText({
+    lastMessage,
     isGroup: conversation.is_group,
     profileId: currentUserId,
     otherProfileId: otherMember?.id as string | undefined,
     recentNewFriendIds,
   });
-  const showSayHi = emptyPreview === 'Say hi 👋';
+  const showSayHi = messagePreview === 'Say hi 👋';
+  const showEmptyPreview =
+    !lastMessage &&
+    (showSayHi || messagePreview === 'Tap to chat' || messagePreview === 'No messages yet');
 
   return (
     <>
@@ -721,42 +723,7 @@ const ConversationContent = memo(forwardRef<HTMLDivElement, any>(function Conver
                 <p className="dm-convo-preview truncate text-primary font-medium">{livePreview}</p>
               )
             ) : lastMessage ? (
-              <>
-                {lastMessage.sender_id === currentUserId ? (
-                  lastMessage.media_type === 'vybe' ? (
-                    <span className="dm-convo-status-icon text-red-400">▶</span>
-                  ) : lastMessage.media_type === 'audio' ? (
-                    <span className="dm-convo-status-icon text-purple-400">▶</span>
-                  ) : (
-                    <span className="dm-convo-status-icon">▶</span>
-                  )
-                ) : (
-                  lastMessage.media_type === 'vybe' ? (
-                    <span className="dm-convo-status-icon text-red-400">◼</span>
-                  ) : lastMessage.media_type === 'audio' ? (
-                    <span className="dm-convo-status-icon text-purple-400">◼</span>
-                  ) : (
-                    <span className="dm-convo-status-icon">◼</span>
-                  )
-                )}
-                <p className="dm-convo-preview truncate flex-1 min-w-0">
-                  {lastMessage.sender_id === currentUserId
-                    ? lastMessage.viewed_at
-                      ? 'Opened'
-                      : 'Delivered'
-                    : lastMessage.media_type === 'vybe'
-                    ? 'New Snap'
-                    : lastMessage.media_type === 'image'
-                    ? 'Photo'
-                    : lastMessage.media_type === 'video'
-                    ? 'Video'
-                    : lastMessage.media_type === 'audio'
-                    ? 'Voice note'
-                    : lastMessage.media_type === 'gif'
-                    ? 'GIF'
-                    : formatDmPreviewContent(lastMessage, false)}
-                </p>
-              </>
+              <p className="dm-convo-preview truncate flex-1 min-w-0">{messagePreview}</p>
             ) : (otherMember as any)?.user_id && !showSayHi ? (
               <NowPlayingInline authUserId={(otherMember as any).user_id} className="truncate dm-convo-preview" />
             ) : null}
@@ -765,8 +732,8 @@ const ConversationContent = memo(forwardRef<HTMLDivElement, any>(function Conver
                 {userStatus.emoji} {userStatus.text}
               </p>
             )}
-            {!showLiveActivity && !lastMessage && (showSayHi || (!userStatus && !(otherMember as any)?.user_id)) && (
-              <p className="dm-convo-preview truncate">{emptyPreview}</p>
+            {!showLiveActivity && !lastMessage && (showEmptyPreview || (!userStatus && !(otherMember as any)?.user_id)) && (
+              <p className="dm-convo-preview truncate">{messagePreview}</p>
             )}
           </div>
 

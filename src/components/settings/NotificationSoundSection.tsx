@@ -4,6 +4,7 @@ import { Bell, MessageCircle, Phone, Volume2, VolumeX, Play, ChevronDown, Music 
 import { VybeMiniIcon } from '@/components/ui/VybeMiniIcon';
 import { Switch } from '@/components/ui/switch';
 import { Button } from '@/components/ui/button';
+import { Slider } from '@/components/ui/slider';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { haptics } from '@/lib/haptics';
 import { 
@@ -45,21 +46,28 @@ export function NotificationSoundSection() {
     haptics.tap();
     switch (type) {
       case 'messages':
-        previewBundledSound(VYBE_SOUNDS.dmReceived);
+        previewBundledSound(VYBE_SOUNDS.dmReceived, 'messages');
         break;
       case 'calls':
-        previewBundledSound(VYBE_SOUNDS.callRing);
+        previewBundledSound(VYBE_SOUNDS.callRing, 'calls');
         break;
       case 'ui':
-        previewBundledSound(VYBE_SOUNDS.sharePost);
+        previewSound('tap');
         break;
       case 'like':
-        previewBundledSound(VYBE_SOUNDS.postLiked);
+        previewBundledSound(VYBE_SOUNDS.postLiked, 'messages');
         break;
       case 'comment':
-        previewBundledSound(VYBE_SOUNDS.comment);
+        previewBundledSound(VYBE_SOUNDS.comment, 'messages');
         break;
     }
+  };
+
+  const handleVolumeChange = (value: number[]) => {
+    const volume = value[0] ?? settings.volume;
+    const next = { ...settings, volume };
+    setSettings(next);
+    updateSoundSettings({ volume });
   };
 
   return (
@@ -179,6 +187,26 @@ export function NotificationSoundSection() {
                   onCheckedChange={handleToggle('ui')}
                 />
               </div>
+            </div>
+
+            <div className="p-3 rounded-xl bg-muted/30 space-y-3">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="font-medium text-sm">Overall volume</p>
+                  <p className="text-xs text-muted-foreground">Fine-tune how loud effects feel</p>
+                </div>
+                <span className="text-xs tabular-nums text-muted-foreground w-10 text-right">
+                  {settings.volume}%
+                </span>
+              </div>
+              <Slider
+                value={[settings.volume]}
+                min={20}
+                max={100}
+                step={1}
+                onValueChange={handleVolumeChange}
+                onValueCommit={() => previewSound('tap')}
+              />
             </div>
 
             {/* Social previews */}
