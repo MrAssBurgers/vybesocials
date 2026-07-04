@@ -4,7 +4,6 @@
  */
 import { useMemo, useState, useCallback, useEffect, startTransition } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { useQueryClient } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
 import {
   MessageCircle,
@@ -21,6 +20,7 @@ import { useAuthProfileId } from '@/hooks/useAuthProfileId';
 import { useAuth } from '@/lib/auth';
 import { ensureArray } from '@/lib/persistedCollections';
 import { organizeDmInbox } from '@/lib/dmInboxOrganize';
+import { resolveOtherMemberFromConversation } from '@/lib/dmMemberResolve';
 import { SwipeableDmConversationRow } from './SwipeableDmConversationRow';
 import { VybeWordmark } from '@/components/ui/VybeWordmark';
 import { Avatar, AvatarFallback, ProfileAvatarImage } from '@/components/ui/avatar';
@@ -33,14 +33,12 @@ import { resolveProfileAvatarUrl } from '@/lib/profileAvatarCache';
 import { batchSignUrls } from '@/lib/signedUrlCache';
 import { TrashBin } from '@/components/chat/TrashBin';
 import { useChatPrefetch } from '@/hooks/useChatPrefetch';
-import { warmDmConversationBatch } from '@/lib/warmDmConversation';
 
 type InboxFilter = 'all' | 'unread';
 
 export function DmInboxView() {
   const navigate = useNavigate();
   const { conversationId: activeConversationId } = useParams<{ conversationId?: string }>();
-  const queryClient = useQueryClient();
   const { profile, user } = useAuth();
   const profileId = useAuthProfileId();
   const { warmConversation } = useChatPrefetch();
@@ -83,24 +81,19 @@ export function DmInboxView() {
       if (conv.is_group) {
         return conv.avatar_url ? [conv.avatar_url] : [];
       }
-      const other = conv.members?.find((m) => m.user_id !== profileId)?.profile;
-      const url = resolveProfileAvatarUrl(other?.id, other?.avatar_url);
+      const resolved = resolveOtherMemberFromConversation(conv, profileId, user?.id);
+      const other = resolved?.profile;
+      const otherProfileId = other?.id ? String(other.id) : resolved?.user_id;
+      const url = resolveProfileAvatarUrl(
+        otherProfileId,
+        other?.avatar_url as string | null | undefined,
+      );
       return url ? [url] : [];
     });
     if (urls.length) batchSignUrls(urls).catch(() => {});
-  }, [allRows, profileId]);
+  }, [allRows, profileId, user?.id]);
 
   const showSkeleton = isLoading && allRows.length === 0;
-
-  useEffect(() => {
-    if (!profileId || allRows.length === 0) return;
-    warmDmConversationBatch(
-      queryClient,
-      allRows.slice(0, 8).map((c) => c.id),
-      profileId,
-      profileId,
-    );
-  }, [allRows, profileId, queryClient]);
 
   const handleConversationWarm = useCallback(
     (convId: string) => {

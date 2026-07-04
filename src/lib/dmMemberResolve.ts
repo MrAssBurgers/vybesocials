@@ -97,25 +97,33 @@ export function resolveOtherMemberFromConversation(
 ): { user_id: string; profile: Record<string, unknown> | null } | null {
   if (!viewerProfileId) return null;
 
+  const members = safeDmMembers(conversation.members);
+  const nonViewerMembers = members.filter(
+    (m) => !isViewerMember(String(m.user_id), viewerProfileId, viewerAuthUid),
+  );
+
   const otherUserId = inferOtherUserIdFromConversation(
     conversation,
     viewerProfileId,
     viewerAuthUid,
   );
-  if (!otherUserId) return null;
 
-  const members = safeDmMembers(conversation.members);
-  const memberRow = members.find((m) => {
-    const uid = String(m.user_id);
-    return uid === otherUserId || !isViewerMember(uid, viewerProfileId, viewerAuthUid);
-  });
+  if (!nonViewerMembers.length) {
+    if (!otherUserId) return null;
+    return { user_id: otherUserId, profile: null };
+  }
 
-  const profile =
-    memberRow?.profile ||
-    members.find((m) => m.user_id === otherUserId)?.profile ||
-    null;
+  const memberRow =
+    (otherUserId
+      ? nonViewerMembers.find((m) => String(m.user_id) === otherUserId)
+      : undefined) ??
+    (otherUserId
+      ? nonViewerMembers.find((m) => m.profile?.id && String(m.profile.id) === otherUserId)
+      : undefined) ??
+    nonViewerMembers[0];
 
-  const canonicalId = profile?.id ? String(profile.id) : otherUserId;
+  const profile = (memberRow?.profile as Record<string, unknown> | null) ?? null;
+  const canonicalId = profile?.id ? String(profile.id) : String(memberRow.user_id);
   return { user_id: canonicalId, profile };
 }
 

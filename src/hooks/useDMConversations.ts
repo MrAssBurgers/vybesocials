@@ -29,6 +29,8 @@ import {
   buildConversationPlaceholder,
 } from '@/lib/dmMembershipRepair';
 import { createDmChat } from '@/lib/firebase/chats';
+import { warmDmConversationBatch } from '@/lib/warmDmConversation';
+import { resolveOtherMemberFromConversation, isViewerMember } from '@/lib/dmMemberResolve';
 
 type DMConversation = LoadedDMConversation;
 
@@ -117,6 +119,16 @@ export function useDMConversations(searchQuery: string = '') {
     return base.map((conv) => enrichLastMessageFromThreadCache(conv, queryClient));
   }, [conversationsQuery.data, cachedConversations, queryClient]);
 
+  useEffect(() => {
+    if (!profileId || conversationList.length === 0) return;
+    warmDmConversationBatch(
+      queryClient,
+      conversationList.map((c) => c.id),
+      profileId,
+      profileId,
+    );
+  }, [conversationList, profileId, queryClient]);
+
   // Auto-create conversations for friends who don't have one.
   // Read latest data from the cache on demand so this callback's identity
   // does NOT change every refetch (which was causing a render loop / flicker).
@@ -133,8 +145,8 @@ export function useDMConversations(searchQuery: string = '') {
     conversations.forEach(conv => {
       if (!conv.is_group) {
         safeDmMembers(conv.members).forEach(m => {
-          if (m.user_id !== profileId && m.profile?.id) {
-            friendsWithConvos.add(m.profile.id);
+          if (!isViewerMember(String(m.user_id), profileId, user?.id) && m.profile?.id) {
+            friendsWithConvos.add(String(m.profile.id));
           }
         });
       }
@@ -201,13 +213,13 @@ export function useDMConversations(searchQuery: string = '') {
       }
 
       // For DMs, search by username and display name
-      const otherMember = safeDmMembers(conv.members).find(m => m.user_id !== profileId);
-      const username = otherMember?.profile?.username?.toLowerCase() || '';
-      const displayName = otherMember?.profile?.display_name?.toLowerCase() || '';
+      const resolved = resolveOtherMemberFromConversation(conv, profileId, user?.id);
+      const username = String(resolved?.profile?.username || '').toLowerCase();
+      const displayName = String(resolved?.profile?.display_name || '').toLowerCase();
       
       return username.includes(query) || displayName.includes(query);
     });
-  }, [conversationList, searchQuery, profileId]);
+  }, [conversationList, searchQuery, profileId, user?.id]);
 
   // Split into pinned and unpinned
   const { pinnedConversations, unpinnedConversations } = useMemo(() => {

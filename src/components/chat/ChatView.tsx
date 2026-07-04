@@ -1498,7 +1498,7 @@ export function ChatView() {
                 </div>
               ) : (
                 <ChatHeaderPresenceAvatar
-                  avatarUrl={peerPresence?.avatar_url ?? otherMember?.avatar_url}
+                  avatarUrl={otherMember?.avatar_url ?? peerPresence?.avatar_url}
                   fallbackAvatarUrl={otherMember?.avatar_url}
                   username={otherMember?.username || otherMember?.display_name || ''}
                   activity={showPeerPresence ? otherPresenceActivity : 'idle'}

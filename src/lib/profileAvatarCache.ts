@@ -2,27 +2,27 @@ import { getCachedCurrentProfile, getCachedProfile } from '@/lib/profileCache';
 
 const AVATAR_CACHE_KEY = 'vybe_profile_avatar_v1';
 
-/** Single source for avatar URL — live prop, avatar cache, profile cache, current user disk cache. */
+/** Single source for avatar URL — live prop, avatar cache, profile cache; never bleed current user into other profiles. */
 export function resolveProfileAvatarUrl(
   profileId: string | null | undefined,
   avatarUrl: string | null | undefined,
 ): string | null | undefined {
   if (avatarUrl) return avatarUrl;
 
-  if (profileId) {
-    const fromAvatarCache = getCachedProfileAvatar(profileId);
-    if (fromAvatarCache) return fromAvatarCache;
+  if (!profileId) return avatarUrl ?? null;
 
-    const fromProfileCache = getCachedProfile(profileId)?.avatar_url;
-    if (fromProfileCache) return fromProfileCache;
-  }
+  const fromAvatarCache = getCachedProfileAvatar(profileId);
+  if (fromAvatarCache) return fromAvatarCache;
+
+  const fromProfileCache = getCachedProfile(profileId)?.avatar_url;
+  if (fromProfileCache) return fromProfileCache;
 
   const current = getCachedCurrentProfile();
-  if (current?.avatar_url && (!profileId || current.id === profileId)) {
+  if (current?.id === profileId && current.avatar_url) {
     return current.avatar_url;
   }
 
-  return avatarUrl;
+  return avatarUrl ?? null;
 }
 
 export function cacheProfileAvatar(profileId: string, avatarUrl: string | null | undefined): void {

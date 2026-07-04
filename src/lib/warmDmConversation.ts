@@ -53,6 +53,12 @@ export function seedConversationDetailCache(
   if (!conversationId || !profileId) return;
 
   const detailKey = ['conversation-detail', profileId, conversationId] as const;
+  const cached = findCachedDmConversation(queryClient, conversationId, profileId);
+  if (cached) {
+    queryClient.setQueryData(detailKey, normalizeDmConversation(cached));
+    return;
+  }
+
   const existing = queryClient.getQueryData<DMConversation>(detailKey);
   if (
     existing?.members?.length &&
@@ -61,10 +67,7 @@ export function seedConversationDetailCache(
     return;
   }
 
-  const cached = findCachedDmConversation(queryClient, conversationId, profileId);
-  const seed =
-    cached ??
-    (buildConversationPlaceholder(conversationId, profileId) as unknown as DMConversation);
+  const seed = buildConversationPlaceholder(conversationId, profileId) as unknown as DMConversation;
   queryClient.setQueryData(detailKey, normalizeDmConversation(seed));
 }
 
@@ -95,14 +98,15 @@ export function warmDmConversationBatch(
   profileId?: string | null,
   actorId?: string | null,
 ): void {
-  conversationIds.forEach((id, index) => {
-    if (index === 0) {
+  const unique = [...new Set(conversationIds.filter(Boolean))];
+  unique.forEach((id, index) => {
+    if (index < 6) {
       warmDmConversation(queryClient, id, profileId, actorId);
       return;
     }
     scheduleIdleWork(
       () => warmDmConversation(queryClient, id, profileId, actorId),
-      400 + index * 100,
+      150 + (index - 6) * 75,
     );
   });
 }

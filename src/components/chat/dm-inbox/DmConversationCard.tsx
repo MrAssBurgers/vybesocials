@@ -3,7 +3,7 @@ import { motion } from 'framer-motion';
 import { Users, Pin } from 'lucide-react';
 import type { LoadedDMConversation } from '@/lib/loadDMConversations';
 import { safeDmMembers } from '@/lib/persistedCollections';
-import { displayNameForConversation } from '@/lib/dmMemberResolve';
+import { displayNameForConversation, resolveOtherMemberFromConversation } from '@/lib/dmMemberResolve';
 import { dmConversationPreviewText } from '@/lib/dmPreviewText';
 import { useRecentNewFriendProfileIds } from '@/hooks/useRecentNewFriendProfileIds';
 import { compactTime } from '@/lib/compactTime';
@@ -34,13 +34,14 @@ export const DmConversationCard = memo(function DmConversationCard({
   const unread = conversation.unread_count || 0;
   const isUnread = unread > 0 || conversation._hasUnread;
   const name = displayNameForConversation(conversation, profileId, authUid, 'Chat');
-  const otherMember = !conversation.is_group
-    ? safeDmMembers(conversation.members).find((m) => m.user_id !== profileId)
+  const resolvedOther = !conversation.is_group
+    ? resolveOtherMemberFromConversation(conversation, profileId, authUid)
     : null;
-  const other = otherMember?.profile;
+  const other = resolvedOther?.profile;
+  const otherProfileId = other?.id ? String(other.id) : resolvedOther?.user_id;
   const avatar = conversation.is_group
     ? conversation.avatar_url
-    : resolveProfileAvatarUrl(other?.id, other?.avatar_url);
+    : resolveProfileAvatarUrl(otherProfileId, other?.avatar_url as string | null | undefined);
   const isPinned = Boolean(
     safeDmMembers(conversation.members).find((m) => m.user_id === profileId)?.is_pinned,
   );
@@ -51,7 +52,7 @@ export const DmConversationCard = memo(function DmConversationCard({
     isGroup: conversation.is_group,
     profileId,
     authUid,
-    otherProfileId: other?.id,
+    otherProfileId: otherProfileId,
     recentNewFriendIds,
     previewMaxLen: 56,
   });
@@ -99,7 +100,7 @@ export const DmConversationCard = memo(function DmConversationCard({
             ) : (
               <Avatar className="h-[52px] w-[52px] border-2 border-background/80">
                 <ProfileAvatarImage
-                  profileId={other?.id}
+                  profileId={otherProfileId}
                   src={avatar || undefined}
                   transformSize={128}
                 />

@@ -2,6 +2,23 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## Foundation roadmap (target: 10/10)
+
+| Phase | Focus | Status |
+|-------|--------|--------|
+| 1 | CI + unit tests on DM identity/avatar | In progress |
+| 2 | Publish avatar fix + warm-all chats | Pending publish |
+| 3 | Split `ChatView` / `GlobalCallOverlay` into modules | Not started |
+| 4 | Integration tests (`test:conversation-load`, `test:dm-send`) in CI | Not started |
+| 5 | DEPLOY.md → Firebase-only alignment | Not started |
+| 6 | Bundle splits (Map, Calls) + perf budget | Not started |
+
+## DM avatar + instant open fix (2026-07-04)
+- **Wrong PFP:** `resolveProfileAvatarUrl` no longer falls back to current user when `profileId` is missing; member resolution excludes auth uid duplicate rows
+- **Instant all chats:** Prefetch/warm entire inbox on load (first 6 parallel, rest staggered idle)
+- **Verified:** `npm run build` PASS · `npm run lint` PASS
+- **Next:** Publish + verify each inbox row shows correct avatar
+
 ## DM chat switch — follow-up (2026-07-04)
 - **Root cause:** Every sidebar click re-ran full `prepareMessagesRoute` (DM list refetch storm); scroll jumped after paint; no active-row highlight; thread/header could lag one frame behind cache
 - **Fix:** Route prep once per session; `useLayoutEffect` scroll before paint; sync cache thread + header; active inbox row styling; `startTransition` navigate; message list keyed by `conversationId`
