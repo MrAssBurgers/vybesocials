@@ -282,13 +282,13 @@ export function ConversationList() {
       if (chatFilter === 'groups') return conv.is_group;
       if (chatFilter === 'streaks') {
         const otherMemberId = !conv.is_group
-          ? safeDmMembers(conv.members).find((m) => m.user_id !== profileId)?.profile?.id
+          ? (resolveOtherMemberFromConversation(conv, profileId, user?.id)?.profile?.id as string | undefined)
           : undefined;
         return otherMemberId ? (streakMap.get(otherMemberId)?.streak_count || 0) > 0 : false;
       }
       return true;
     });
-  }, [pinnedConversations, chatFilter, profileId, streakMap]);
+  }, [pinnedConversations, chatFilter, profileId, user?.id, streakMap]);
 
   const filteredUnpinned = useMemo(() => {
     const list = ensureArray(unpinnedConversations);
@@ -297,13 +297,13 @@ export function ConversationList() {
       if (chatFilter === 'groups') return conv.is_group;
       if (chatFilter === 'streaks') {
         const otherMemberId = !conv.is_group
-          ? safeDmMembers(conv.members).find((m) => m.user_id !== profileId)?.profile?.id
+          ? (resolveOtherMemberFromConversation(conv, profileId, user?.id)?.profile?.id as string | undefined)
           : undefined;
         return otherMemberId ? (streakMap.get(otherMemberId)?.streak_count || 0) > 0 : false;
       }
       return true;
     });
-  }, [unpinnedConversations, chatFilter, profileId, streakMap]);
+  }, [unpinnedConversations, chatFilter, profileId, user?.id, streakMap]);
 
   const handleConversationClick = useCallback((convId: string) => {
     warmConversation(convId);

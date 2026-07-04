@@ -6,8 +6,8 @@ import { useNavigate } from 'react-router-dom';
 import { MessageCircle, RefreshCw } from 'lucide-react';
 import { useDMConversations } from '@/hooks/useDMConversations';
 import { useAuthProfileId } from '@/hooks/useAuthProfileId';
-import { ensureArray, safeDmMembers } from '@/lib/persistedCollections';
-import { displayNameForConversation } from '@/lib/dmMemberResolve';
+import { ensureArray } from '@/lib/persistedCollections';
+import { displayNameForConversation, resolveOtherMemberFromConversation } from '@/lib/dmMemberResolve';
 import { dmConversationPreviewText } from '@/lib/dmPreviewText';
 import { useRecentNewFriendProfileIds } from '@/hooks/useRecentNewFriendProfileIds';
 import { Button } from '@/components/ui/button';
@@ -61,7 +61,7 @@ export function DmInboxSafeList() {
           lastMessage: conv.last_message,
           isGroup: conv.is_group,
           profileId,
-          otherProfileId: safeDmMembers(conv.members).find((m) => m.user_id !== profileId)?.profile?.id,
+          otherProfileId: resolveOtherMemberFromConversation(conv, profileId)?.profile?.id as string | undefined,
           recentNewFriendIds,
           previewMaxLen: 48,
         });

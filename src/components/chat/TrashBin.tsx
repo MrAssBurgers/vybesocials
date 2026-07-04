@@ -6,7 +6,9 @@ import {
   usePermanentlyDeleteConversation 
 } from '@/hooks/useTrashedConversations';
 import { useAuthProfileId } from '@/hooks/useAuthProfileId';
-import { ensureArray, safeDmMembers } from '@/lib/persistedCollections';
+import { useAuth } from '@/lib/auth';
+import { ensureArray } from '@/lib/persistedCollections';
+import { resolveOtherMemberFromConversation } from '@/lib/dmMemberResolve';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -40,6 +42,7 @@ interface TrashBinProps {
 
 export function TrashBin({ open, onOpenChange, trigger }: TrashBinProps) {
   const profileId = useAuthProfileId();
+  const { user } = useAuth();
   const { data: trashedConversationsRaw, isLoading, refetch } = useTrashedConversations();
   const trashedConversations = ensureArray(trashedConversationsRaw);
   const restoreConversation = useRestoreConversation();
@@ -75,9 +78,7 @@ export function TrashBin({ open, onOpenChange, trigger }: TrashBinProps) {
       };
     }
 
-    const otherMember = safeDmMembers(conversation.members).find(
-      (m: any) => m.user_id !== profileId
-    );
+    const otherMember = resolveOtherMemberFromConversation(conversation, profileId, user?.id);
     
     return {
       name: otherMember?.profile?.display_name || otherMember?.profile?.username || 'Unknown',

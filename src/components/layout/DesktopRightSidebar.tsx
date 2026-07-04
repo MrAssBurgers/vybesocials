@@ -12,7 +12,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/lib/auth';
-import { safeDmMembers } from '@/lib/persistedCollections';
+import { resolveOtherMemberFromConversation } from '@/lib/dmMemberResolve';
 import { formatDmPreviewContent } from '@/lib/callChatMessages';
 
 import { Button } from '@/components/ui/button';
@@ -100,7 +100,7 @@ export const DesktopRightSidebar = memo(function DesktopRightSidebar() {
   const { t } = useTranslation();
   const location = useLocation();
   const navigate = useNavigate();
-  const { profile, signOut } = useAuth();
+  const { profile, user, signOut } = useAuth();
 
   const handleSignOut = async () => {
     await signOut();
@@ -146,7 +146,7 @@ export const DesktopRightSidebar = memo(function DesktopRightSidebar() {
   const recentChats = useMemo(() => {
     if (!conversations) return [];
     return conversations.slice(0, 3).map(conv => {
-      const otherMember = safeDmMembers(conv.members).find(m => m.user_id !== profileId)?.profile;
+      const otherMember = resolveOtherMemberFromConversation(conv, profileId, user?.id)?.profile;
       const lastMsg = conv.last_message;
       const isOwnLast = Boolean(lastMsg?.sender_id && profileId && lastMsg.sender_id === profileId);
       return {
@@ -162,7 +162,7 @@ export const DesktopRightSidebar = memo(function DesktopRightSidebar() {
         isGroup: conv.is_group,
       };
     });
-  }, [conversations, profileId, checkTyping]);
+  }, [conversations, profileId, user?.id, checkTyping]);
 
   // Get upcoming events (filter for future events) - memoized
   const upcomingEvents = useMemo(() => {
