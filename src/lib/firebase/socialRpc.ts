@@ -132,12 +132,31 @@ async function rpcToggleMessageSaved(params: Record<string, unknown>) {
   const recipientField = 'saved_by_recipient';
   const field = isSender ? senderField : recipientField;
   const next = !msg[field];
+  const nextSender = isSender ? next : !!msg[senderField];
+  const nextRecipient = !isSender ? next : !!msg[recipientField];
+  const stillSaved = nextSender || nextRecipient;
   const patch: Record<string, unknown> = {
     [field]: next,
-    saved_at: next ? new Date().toISOString() : null,
+    saved_at: stillSaved ? ((msg.saved_at as string | null) || new Date().toISOString()) : null,
   };
   if (next) {
     patch.expires_at = null;
+  } else if (msg.view_mode === '24h') {
+    const viewedAt =
+      (msg.viewed_at as string | null) ||
+      (Array.isArray(msg.views)
+        ? (msg.views as { user_id?: string; viewed_at?: string }[]).find(
+            (v) => v.user_id !== msg.sender_id,
+          )?.viewed_at
+        : null) ||
+      null;
+    if (viewedAt) {
+      patch.expires_at = new Date(
+        new Date(viewedAt).getTime() + 24 * 60 * 60 * 1000,
+      ).toISOString();
+    } else if (msg.expires_at) {
+      patch.expires_at = msg.expires_at;
+    }
   }
   await updateDocument('messages', messageId, patch);
   const updated = await getDocument<Record<string, unknown>>('messages', messageId);

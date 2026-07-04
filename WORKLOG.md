@@ -2,6 +2,11 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## DM stability, tap-to-save, text flicker (2026-07-04)
+- **Was:** Background full-history hydrate froze thread on open; save toggle cleared both users' flags; 24h unsave didn't restore expiry; contrast guard + `transition-all` flickered DM text
+- **Now:** Recent-only open + scroll-up pagination only; skeleton skipped when cache has messages; scroll-to-bottom on append only; per-user save helper + server expiry restore; DM thread shielded from contrast guard; targeted bubble transitions
+- **Verified:** `npm run test` PASS · `npm run lint` PASS · `npm run build` PASS
+
 ## DM instant open — fast recent-first load (2026-07-04)
 - **Was:** Opening a chat paginated up to ~2,400 messages before paint
 - **Now:** Single round-trip recent fetch (200 msgs) for instant open; full history hydrates in background; inbox last_message seeds thread at tap

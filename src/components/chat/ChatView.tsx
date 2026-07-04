@@ -23,6 +23,7 @@ import { useUnsendForEveryone, useDeleteForMe, useEditMessage } from '@/hooks/us
 import { useInstantReadClear } from '@/hooks/useMessageNotifications';
 import { useOlderMessages } from '@/hooks/useOlderMessages';
 import { messagesQueryKey, readMessagesCache } from '@/lib/messagesQueryKey';
+import { isSavedByViewer } from '@/lib/messageSaveToggle';
 import { findCachedDmConversation } from '@/lib/warmDmConversation';
 import { useAISmartReplies } from '@/hooks/useAIMessageAssist';
 import { useScreenCapture } from '@/hooks/useScreenCapture';
@@ -379,7 +380,7 @@ export function ChatView() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const typingTimeoutRef = useRef<NodeJS.Timeout>();
   const hasMarkedReadRef = useRef<Set<string>>(new Set());
-  const prevMessageCountRef = useRef(0);
+  const prevLastMessageIdRef = useRef<string | null>(null);
   const openedConversationRef = useRef<string | null>(null);
   const messageNotifsClearedForConversationRef = useRef<string | null>(null);
 
@@ -639,7 +640,8 @@ export function ChatView() {
     };
   }, [conversationId]);
 
-  // Scroll to bottom on open / new messages — before paint to avoid visible jump.
+  // Scroll to bottom on open / append at bottom — not when older messages prepend.
+  const lastThreadMessageId = threadMessages[threadMessages.length - 1]?.id ?? null;
   useLayoutEffect(() => {
     if (!conversationId) return;
 
@@ -647,24 +649,23 @@ export function ChatView() {
     const isNewConversation = openedConversationRef.current !== conversationId;
     if (isNewConversation) {
       openedConversationRef.current = conversationId;
-      prevMessageCountRef.current = 0;
+      prevLastMessageIdRef.current = null;
     }
 
     const container = messagesContainerRef.current;
     if (!container) return;
 
-    const currentLen = threadMessages.length;
-    const prevLen = prevMessageCountRef.current;
+    const prevLastId = prevLastMessageIdRef.current;
 
     if (isNewConversation && restoreElementScrollPosition(savedKey, container)) {
-      prevMessageCountRef.current = currentLen;
+      prevLastMessageIdRef.current = lastThreadMessageId;
       return;
     }
-    if (isNewConversation || currentLen > prevLen) {
+    if (isNewConversation || (lastThreadMessageId && lastThreadMessageId !== prevLastId)) {
       container.scrollTop = container.scrollHeight;
     }
-    prevMessageCountRef.current = currentLen;
-  }, [conversationId, threadMessages.length]);
+    prevLastMessageIdRef.current = lastThreadMessageId;
+  }, [conversationId, lastThreadMessageId]);
 
   const handleMessagesScroll = useCallback(() => {
     const container = messagesContainerRef.current;
@@ -1415,19 +1416,20 @@ export function ChatView() {
     );
   }
 
+  const cachedMessagesLen = conversationId ? readMessagesCache(queryClient, conversationId).length : 0;
+  const hasThreadContent = threadMessages.length > 0 || cachedMessagesLen > 0;
   const showConversationSkeleton =
     !!conversationId &&
     !activeConversation &&
-    !threadMessages.length &&
+    !hasThreadContent &&
     conversationPending &&
     !conversationFetched &&
     !cachedConversation;
   const showMessagesSkeleton =
     !!conversationId &&
-    !threadMessages.length &&
+    !hasThreadContent &&
     messagesPending &&
-    !messagesFetched &&
-    !readMessagesCache(queryClient, conversationId).length;
+    !messagesFetched;
   const isChatHydrating = showConversationSkeleton || showMessagesSkeleton;
 
   const messagesLoadFailed =
@@ -1480,6 +1482,7 @@ export function ChatView() {
       {/* Floating pill header — back + profile left, calls + menu right */}
       <header
         className="dm-chat-header px-2 sm:px-3"
+        data-no-auto-contrast
         style={{ paddingTop: 'var(--app-header-safe, env(safe-area-inset-top, 0px))' }}
       >
         <div className="dm-chat-header-row">
@@ -1685,6 +1688,7 @@ export function ChatView() {
           "scroll-smooth",
           getWallpaperClass()
         )}
+        data-no-auto-contrast
         style={{ 
           WebkitOverflowScrolling: 'touch',
           overscrollBehavior: 'contain',
@@ -2573,7 +2577,8 @@ const MessageBubble = memo(function MessageBubble({
     setShowContextMenu(true);
   }, []);
 
-  const handleMediaTap = useCallback(() => {
+  const handleMediaTap = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
     if (isContextMenuOpen) return;
     if (message.media_url && (message.media_type === 'image' || message.media_type === 'gif' || message.media_type === 'video')) {
       setViewerMedia({
@@ -2592,6 +2597,7 @@ const MessageBubble = memo(function MessageBubble({
   const isVybeMessage = message.media_type === 'vybe';
   const isSharedPost = message.message_type === 'shared_post';
   const isSharedTheme = message.message_type === 'shared_theme';
+  const mySaved = profileId ? isSavedByViewer(message, profileId) : false;
 
   return (
     <div 
@@ -2679,7 +2685,7 @@ const MessageBubble = memo(function MessageBubble({
         {/* Saved-state derived flags */}
         <div
           className={cn(
-            'relative rounded-[20px] break-words overflow-hidden select-none max-w-full min-w-0 w-fit transition-all duration-200',
+            'relative rounded-[20px] break-words overflow-hidden select-none max-w-full min-w-0 w-fit transition-[border-color,box-shadow,background-color] duration-200',
             isVybeMessage && 'bg-transparent p-0 shadow-none border-0',
             !isVybeMessage && isEmojiOnly 
               ? 'px-3 py-2'
@@ -2692,7 +2698,7 @@ const MessageBubble = memo(function MessageBubble({
             !isVybeMessage && isOwn && message.view_mode === 'view_once' && 'ring-1 ring-accent/45',
             !isVybeMessage && isOwn && message.view_mode === '24h' && 'ring-1 ring-primary/35',
             repliedMessage && 'rounded-t-[14px]',
-            (message.saved_by_sender || message.saved_by_recipient) &&
+            mySaved &&
               'ring-2 ring-emerald-400/80 bg-emerald-500/15 shadow-[0_0_20px_-4px_rgba(52,211,153,0.55)]',
           )}
           data-message-id={message.id}
@@ -2713,7 +2719,7 @@ const MessageBubble = memo(function MessageBubble({
 
           {/* Image/GIF message (not for shared posts - they use SharedPostBubble) */}
           {isMediaMessage && !isSharedPost && (
-            <div onClick={handleMediaTap} className="cursor-pointer">
+            <div onClick={handleMediaTap} data-no-tap-save className="cursor-pointer">
               <ChatMediaBubble
                 mediaUrl={message.media_url!}
                 mediaType={message.media_type as 'image' | 'gif'}
@@ -2726,7 +2732,7 @@ const MessageBubble = memo(function MessageBubble({
 
           {/* Video message - regular DM video (not shared posts) */}
           {isVideoMessage && !isSharedPost && (
-            <div onClick={handleMediaTap} className="cursor-pointer">
+            <div onClick={handleMediaTap} data-no-tap-save className="cursor-pointer">
               <ChatMediaBubble
                 mediaUrl={message.media_url!}
                 mediaType="video"
@@ -3122,7 +3128,7 @@ const MessageBubble = memo(function MessageBubble({
           } : undefined}
           onSaveSticker={isMediaMessage && message.media_url && onSaveSticker ? () => onSaveSticker(message.media_url!) : undefined}
           onToggleKeep={onToggleSaved ? () => { onToggleSaved(); closeContextMenu(); } : undefined}
-          isKept={!!(message.saved_by_sender || message.saved_by_recipient)}
+          isKept={mySaved}
         />
 
         {/* Fullscreen image/video viewer */}
@@ -3164,6 +3170,7 @@ const MessageBubble = memo(function MessageBubble({
     prevProps.forceShowContextMenu === nextProps.forceShowContextMenu &&
     prevProps.message.saved_by_sender === nextProps.message.saved_by_sender &&
     prevProps.message.saved_by_recipient === nextProps.message.saved_by_recipient &&
+    prevProps.message.expires_at === nextProps.message.expires_at &&
     JSON.stringify(prevProps.message.reactions) === JSON.stringify(nextProps.message.reactions) &&
     JSON.stringify(prevProps.message.views) === JSON.stringify(nextProps.message.views)
   );

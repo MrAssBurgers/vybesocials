@@ -8,8 +8,7 @@ import {
   fetchMemberProfiles,
 } from '@/lib/dmMembershipRepair';
 import { resolveSessionProfileId, syncSessionProfileId } from '@/lib/resolveSessionProfileId';
-import { mergeMessagesWithLocalCache, messagesQueryKey, readMessagesCache } from '@/lib/messagesQueryKey';
-import { scheduleIdleWork } from '@/lib/scheduleIdleWork';
+import { mergeMessagesWithLocalCache } from '@/lib/messagesQueryKey';
 import { findInQueryArray, safeDmMembers, ensureArray } from '@/lib/persistedCollections';
 
 export const MESSAGE_SELECT_SLIM = `
@@ -207,30 +206,6 @@ export async function loadConversationMessages(
   const filtered = filterMessagesForViewer(rows, resolvedActorId);
   const enriched = await enrichMessagesFromProfiles(filtered);
   return mergeMessagesWithLocalCache(queryClient, conversationId, enriched);
-}
-
-/** After instant recent load, backfill older messages without blocking paint. */
-export function hydrateConversationHistoryBackground(
-  queryClient: QueryClient,
-  conversationId: string,
-  actorId?: string | null,
-): () => void {
-  return scheduleIdleWork(() => {
-    const current = readMessagesCache(queryClient, conversationId);
-    if (current.length >= CHAT_MAX_MESSAGE_HISTORY) return;
-
-    void loadConversationMessages(queryClient, conversationId, actorId, {
-      recentOnly: false,
-      maxMessages: CHAT_MAX_MESSAGE_HISTORY,
-    })
-      .then((full) => {
-        if (full.length <= current.length) return;
-        queryClient.setQueryData<Message[]>(messagesQueryKey(conversationId), (old) =>
-          mergeMessagesWithLocalCache(queryClient, conversationId, full),
-        );
-      })
-      .catch(() => {});
-  }, 400);
 }
 
 function sortChronological(messages: Message[]): Message[] {

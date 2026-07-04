@@ -10,7 +10,8 @@ import { syncUserAuthIndex } from '@/lib/firebase/profileResolve';
 import { fetchMessagesForConversations } from '@/lib/conversationMessagesQuery';
 import { messagesQueryKey, readMessagesCache, mergeMessagesWithLocalCache, patchMessagesCache, normalizeMessagesCache } from '@/lib/messagesQueryKey';
 import { safeDmMembers, ensureArray } from '@/lib/persistedCollections';
-import { loadConversationMessages, hydrateConversationHistoryBackground } from '@/lib/loadConversationMessages';
+import { applyMessageSaveToggle } from '@/lib/messageSaveToggle';
+import { loadConversationMessages } from '@/lib/loadConversationMessages';
 import { CHAT_INITIAL_MESSAGE_LIMIT } from '@/lib/conversationMessagesQuery';
 import { invalidateConversationCaches } from '@/lib/invalidateConversationCaches';
 import { shouldRefetchWhenEmpty, refetchListOnMount } from '@/lib/queryRefetchPolicy';
@@ -349,12 +350,6 @@ export function useMessages(conversationId: string | undefined) {
     );
   }, [conversationId, queryClient, query.data, query.dataUpdatedAt]);
 
-  useEffect(() => {
-    if (!conversationId || !actorId) return;
-    if (!readMessagesCache(queryClient, conversationId).length) return;
-    return hydrateConversationHistoryBackground(queryClient, conversationId, actorId);
-  }, [conversationId, actorId, queryClient, query.dataUpdatedAt]);
-
   return { ...query, data };
 }
 
@@ -523,20 +518,9 @@ export function useToggleSavedMessage(conversationId?: string) {
       const profileId = profile?.id;
       queryClient.setQueryData<Message[]>(['messages', conversationId], (old) => {
         if (!old) return old;
-        return old.map((m) => {
-          if (m.id !== messageId) return m;
-          const wasSaved = !!(m.saved_by_sender || m.saved_by_recipient);
-          const isSender = m.sender_id === profileId;
-          const nextSender = wasSaved ? false : (isSender ? true : !!m.saved_by_sender);
-          const nextRecipient = wasSaved ? false : (isSender ? !!m.saved_by_recipient : true);
-          return {
-            ...m,
-            saved_by_sender: nextSender,
-            saved_by_recipient: nextRecipient,
-            saved_at: !wasSaved ? new Date().toISOString() : null,
-            expires_at: !wasSaved ? null : m.expires_at,
-          };
-        });
+        const profileId = profile?.id;
+        if (!profileId) return old;
+        return old.map((m) => (m.id === messageId ? applyMessageSaveToggle(m, profileId) : m));
       });
       return { previous };
     },
