@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Camera, ChevronLeft, Loader2, Mic, Send } from 'lucide-react';
 import { Toybox } from '@/components/chat/Toybox';
 import { VoiceRecorder } from '@/components/chat/VoiceRecorder';
+import { VoiceNoteReviewBar } from '@/components/chat/VoiceNoteReviewBar';
 import { cn } from '@/lib/utils';
 import { triggerHaptic } from '@/lib/haptics';
 
@@ -62,6 +63,7 @@ export const Texter = memo(function Texter({
   const voiceStart = useRef<{ x: number; y: number } | null>(null);
   const cancelVoiceRef = useRef(false);
   const [slideCancel, setSlideCancel] = useState(false);
+  const [voiceReview, setVoiceReview] = useState<{ blob: Blob; duration: number } | null>(null);
 
   const autoResize = useCallback(() => {
     const el = inputRef.current;
@@ -77,6 +79,7 @@ export const Texter = memo(function Texter({
     voiceStart.current = { x: e.clientX, y: e.clientY };
     cancelVoiceRef.current = false;
     setSlideCancel(false);
+    setVoiceReview(null);
     triggerHaptic('light');
     onVoiceHoldStart();
   };
@@ -94,6 +97,7 @@ export const Texter = memo(function Texter({
     if (cancelVoiceRef.current || slideCancel) {
       onVoiceHoldCancel?.();
       onVoiceRecordingCancel?.();
+      setVoiceReview(null);
     } else if (!isVoiceLocked) {
       onVoiceHoldEnd();
     }
@@ -102,12 +106,41 @@ export const Texter = memo(function Texter({
     cancelVoiceRef.current = false;
   };
 
+  const clearVoiceReview = () => {
+    setVoiceReview(null);
+    onVoiceRecordingCancel?.();
+  };
+
   return (
     <div className="texter-stack w-full">
       {headerSlot}
 
       <AnimatePresence mode="wait">
-        {isRecordingVoice && onVoiceRecordingComplete && onVoiceRecordingCancel ? (
+        {voiceReview && onVoiceRecordingComplete ? (
+          <motion.div
+            key="voice-review"
+            layout
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 8 }}
+            className="w-full"
+          >
+            <VoiceNoteReviewBar
+              blob={voiceReview.blob}
+              durationSeconds={voiceReview.duration}
+              isUploading={isUploadingMedia}
+              onSend={() => {
+                onVoiceRecordingComplete(voiceReview.blob);
+                setVoiceReview(null);
+              }}
+              onDiscard={clearVoiceReview}
+              onRecordAgain={() => {
+                setVoiceReview(null);
+                onVoiceHoldStart();
+              }}
+            />
+          </motion.div>
+        ) : isRecordingVoice && onVoiceRecordingComplete && onVoiceRecordingCancel ? (
           <motion.div
             key="recording"
             layout
@@ -121,6 +154,10 @@ export const Texter = memo(function Texter({
               <VoiceRecorder
                 onRecordingComplete={onVoiceRecordingComplete}
                 onCancel={onVoiceRecordingCancel}
+                onReviewReady={(blob, duration) => {
+                  setVoiceReview({ blob, duration });
+                  onVoiceRecordingCancel?.();
+                }}
                 isUploading={isUploadingMedia}
                 locked={isVoiceLocked}
               />

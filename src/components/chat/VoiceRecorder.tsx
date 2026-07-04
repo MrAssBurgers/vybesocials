@@ -9,13 +9,22 @@ interface VoiceRecorderProps {
   onRecordingComplete: (blob: Blob) => void;
   onCancel: () => void;
   isUploading?: boolean;
+  /** When hold ends, parent shows review UI (no auto-send) */
+  onReviewReady?: (blob: Blob, durationSeconds: number) => void;
   /** When true, auto-sends on stop (legacy hold-to-send mode) */
   autoSend?: boolean;
   /** When true, recording is locked (user dragged up) - hands-free recording */
   locked?: boolean;
 }
 
-export function VoiceRecorder({ onRecordingComplete, onCancel, isUploading, autoSend, locked }: VoiceRecorderProps) {
+export function VoiceRecorder({
+  onRecordingComplete,
+  onCancel,
+  isUploading: _isUploading,
+  onReviewReady,
+  autoSend,
+  locked,
+}: VoiceRecorderProps) {
   const [isRecording, setIsRecording] = useState(false);
   const [duration, setDuration] = useState(0);
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
@@ -30,7 +39,15 @@ export function VoiceRecorder({ onRecordingComplete, onCancel, isUploading, auto
   const chunksRef = useRef<Blob[]>([]);
   const intervalRef = useRef<NodeJS.Timeout>();
   const previewAudioRef = useRef<HTMLAudioElement | null>(null);
+  const durationRef = useRef(0);
+  const startedRef = useRef(false);
+  const onCompleteRef = useRef(onRecordingComplete);
+  const onCancelRef = useRef(onCancel);
+  const onReviewReadyRef = useRef(onReviewReady);
   const autoSendRef = useRef(autoSend);
+  onCompleteRef.current = onRecordingComplete;
+  onCancelRef.current = onCancel;
+  onReviewReadyRef.current = onReviewReady;
   autoSendRef.current = autoSend;
 
   const previewUrl = useMemo(
@@ -95,26 +112,30 @@ export function VoiceRecorder({ onRecordingComplete, onCancel, isUploading, auto
       mediaRecorder.onstop = () => {
         releaseMediaStream();
         const blob = new Blob(chunksRef.current, { type: 'audio/webm' });
-        
-        if (autoSendRef.current) {
-          if (blob.size > 0) {
-            onRecordingComplete(blob);
-          } else {
-            onCancel();
-          }
-        } else if (blob.size > 0) {
-          setAudioBlob(blob);
-        } else {
-          onCancel();
+
+        if (blob.size <= 0) {
+          onCancelRef.current();
+          return;
         }
+        if (autoSendRef.current) {
+          onCompleteRef.current(blob);
+          return;
+        }
+        if (onReviewReadyRef.current) {
+          onReviewReadyRef.current(blob, durationRef.current);
+          return;
+        }
+        setAudioBlob(blob);
       };
       
       mediaRecorder.start(100);
       setIsRecording(true);
       setDuration(0);
+      durationRef.current = 0;
       
       intervalRef.current = setInterval(() => {
-        setDuration(d => d + 1);
+        durationRef.current += 1;
+        setDuration((d) => d + 1);
       }, 1000);
       
       const updateWaveform = () => {
@@ -136,9 +157,9 @@ export function VoiceRecorder({ onRecordingComplete, onCancel, isUploading, auto
       
     } catch (error) {
       console.error('Failed to start recording:', error);
-      onCancel();
+      onCancelRef.current();
     }
-  }, [onRecordingComplete, onCancel, releaseMediaStream, stopPreviewPlayback]);
+  }, [releaseMediaStream, stopPreviewPlayback]);
 
   const stopRecording = useCallback(() => {
     if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
@@ -212,7 +233,9 @@ export function VoiceRecorder({ onRecordingComplete, onCancel, isUploading, auto
   }, [isPlayingPreview, previewUrl]);
 
   useEffect(() => {
-    startRecording();
+    if (startedRef.current) return;
+    startedRef.current = true;
+    void startRecording();
   }, [startRecording]);
 
   useEffect(() => {

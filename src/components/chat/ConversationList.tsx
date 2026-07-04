@@ -618,6 +618,7 @@ const ConversationContent = memo(forwardRef<HTMLDivElement, any>(function Conver
     lastMessage,
     isGroup: conversation.is_group,
     profileId: currentUserId,
+    authUid: viewerAuthUid,
     otherProfileId: otherMember?.id as string | undefined,
     recentNewFriendIds,
   });

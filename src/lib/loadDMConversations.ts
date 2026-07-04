@@ -345,6 +345,7 @@ async function loadDMConversationsOnce(
 
     const lastMessageMap = new Map<string, Message>();
     const unreadCountMap = new Map<string, number>();
+    const staleById = new Map(stale.map((c) => [String(c.id), c]));
 
     (latestMessages || []).forEach((msg) => {
       if (msg.is_deleted || !msg.conversation_id) return;
@@ -394,7 +395,10 @@ async function loadDMConversationsOnce(
           }
         }
 
-        const lastMessage = lastMessageMap.get(conv.id) || null;
+        const lastMessage =
+          lastMessageMap.get(String(conv.id)) ??
+          staleById.get(String(conv.id))?.last_message ??
+          null;
         const unreadCount = unreadCountMap.get(conv.id) || 0;
 
         result.push({
@@ -418,6 +422,21 @@ async function loadDMConversationsOnce(
       if (!a._hasUnread && b._hasUnread) return 1;
       return new Date(b._sortTime).getTime() - new Date(a._sortTime).getTime();
     });
+
+    const missingLastMessageIds = result.filter((c) => !c.last_message).map((c) => c.id);
+    if (missingLastMessageIds.length > 0) {
+      const { data: backfill } = await fetchLatestMessagePerConversation<Message>(missingLastMessageIds);
+      for (const msg of backfill) {
+        if (msg.is_deleted || !msg.conversation_id) continue;
+        const conv = result.find((c) => String(c.id) === String(msg.conversation_id));
+        if (conv) {
+          conv.last_message = msg;
+          if (!conv._sortTime || msg.created_at > conv._sortTime) {
+            conv._sortTime = msg.created_at;
+          }
+        }
+      }
+    }
 
     return { data: result, error: null, profileId: effectiveProfileId };
   } catch (err) {

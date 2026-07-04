@@ -19,6 +19,7 @@ import { shouldRetryQuery } from '@/lib/logOnce';
 import { syncSessionProfileId } from '@/lib/resolveSessionProfileId';
 import { markConversationReadForViewer, getSessionAuthUid } from '@/lib/markConversationRead';
 import { ensureArray, normalizeDmConversation, normalizeDmConversationList, safeDmMembers, findInQueryArray, readQueryArray } from '@/lib/persistedCollections';
+import { readMessagesCache } from '@/lib/messagesQueryKey';
 import {
   fetchMemberProfiles,
   resolveDmActorIds,
@@ -30,6 +31,23 @@ import {
 import { createDmChat } from '@/lib/firebase/chats';
 
 type DMConversation = LoadedDMConversation;
+
+function enrichLastMessageFromThreadCache(
+  conv: DMConversation,
+  queryClient: ReturnType<typeof useQueryClient>,
+): DMConversation {
+  if (conv.last_message?.created_at) return conv;
+  const thread = readMessagesCache(queryClient, conv.id);
+  const latest = thread
+    .filter((m) => !m.is_deleted)
+    .sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime())[0];
+  if (!latest) return conv;
+  return {
+    ...conv,
+    last_message: latest,
+    _sortTime: latest.created_at || conv._sortTime,
+  };
+}
 
 /**
  * Hook that ensures all friends have DM conversations
@@ -92,10 +110,12 @@ export function useDMConversations(searchQuery: string = '') {
     retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 4000),
   });
 
-  const conversationList = useMemo(
-    () => normalizeDmConversationList<DMConversation>(conversationsQuery.data ?? cachedConversations),
-    [conversationsQuery.data, cachedConversations],
-  );
+  const conversationList = useMemo(() => {
+    const base = normalizeDmConversationList<DMConversation>(
+      conversationsQuery.data ?? cachedConversations,
+    );
+    return base.map((conv) => enrichLastMessageFromThreadCache(conv, queryClient));
+  }, [conversationsQuery.data, cachedConversations, queryClient]);
 
   // Auto-create conversations for friends who don't have one.
   // Read latest data from the cache on demand so this callback's identity

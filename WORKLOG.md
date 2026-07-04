@@ -2,10 +2,18 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## Publish — DM previews + voice review UI (2026-07-04)
+- **DMs:** Inbox shows latest message per chat (backfill fetch, thread cache, auth uid matching)
+- **Voice:** Hold-to-record opens dedicated review bar (Listen / discard / re-record / send); fixed recorder restart loop
+- **Verified:** `npm run build` PASS · `npm run lint` PASS
+- **You:** Lovable → Share → Publish for **vybehub.app**
+
 ## Publish — DMs, voice notes, sound mix (2026-07-04)
 - **DMs:** Trash bin shows deleted chats (Firestore-safe query + optimistic cache); inbox shows last message preview; voice notes pause on release with play/delete/restart/send
 - **Sounds:** Central mix bus, lower bundled volumes, pop/tap no longer uses share-post WAV, overall volume slider in settings
 - **Verified:** `npm run build` PASS · `npm run lint` PASS
+- **Committed:** `75c72719` · pushed `main`
+- **Staging:** https://vybe-daaab.web.app (Firebase hosting deploy)
 - **You:** Lovable → Share → Publish for **vybehub.app**
 
 ## Publish gate — restored empty Cloud config removed (2026-07-04)

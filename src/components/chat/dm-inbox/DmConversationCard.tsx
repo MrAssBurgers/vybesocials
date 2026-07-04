@@ -48,6 +48,7 @@ export const DmConversationCard = memo(function DmConversationCard({
     lastMessage: lastMsg,
     isGroup: conversation.is_group,
     profileId,
+    authUid,
     otherProfileId: other?.id,
     recentNewFriendIds,
     previewMaxLen: 56,

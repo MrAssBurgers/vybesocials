@@ -31,18 +31,19 @@ export function dmConversationPreviewText(opts: {
   lastMessage?: Message | null;
   isGroup?: boolean;
   profileId?: string;
+  authUid?: string;
   otherProfileId?: string;
   recentNewFriendIds?: Set<string>;
   previewMaxLen?: number;
 }): string {
-  const { lastMessage, isGroup, profileId, otherProfileId, recentNewFriendIds, previewMaxLen = 56 } = opts;
+  const { lastMessage, isGroup, profileId, authUid, otherProfileId, recentNewFriendIds, previewMaxLen = 56 } = opts;
 
   if (lastMessage) {
     try {
+      const senderId = lastMessage.sender_id;
       const isOwn = Boolean(
-        lastMessage.sender_id &&
-          profileId &&
-          (lastMessage.sender_id === profileId),
+        senderId &&
+          ((profileId && senderId === profileId) || (authUid && senderId === authUid)),
       );
       const text = formatDmPreviewContent(lastMessage, isOwn, previewMaxLen);
       return isOwn ? `You: ${text}` : text;
