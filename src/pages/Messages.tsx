@@ -1,4 +1,4 @@
-import { useLayoutEffect } from 'react';
+import { useLayoutEffect, useRef, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { DmInboxView } from '@/components/chat/dm-inbox/DmInboxView';
 import { AppLayout } from '@/components/layout/AppLayout';
@@ -81,14 +81,20 @@ function MessagesInner() {
   const { isDesktop } = useBreakpoint();
   const isInChat = Boolean(conversationId);
   const showLiquidBg = useDefaultLiquidBackground();
+  const routePreparedRef = useRef(false);
+
+  useEffect(() => {
+    routePreparedRef.current = false;
+  }, [profileId, user?.id]);
 
   useLayoutEffect(() => {
     const qc = (window as unknown as { __REACT_QUERY_CLIENT__?: QueryClient }).__REACT_QUERY_CLIENT__;
-    if (qc) {
+    if (qc && profileId && !routePreparedRef.current) {
       prepareMessagesRoute(qc, profileId, user?.id);
-      if (conversationId) {
-        warmDmConversation(qc, conversationId, profileId, profileId);
-      }
+      routePreparedRef.current = true;
+    }
+    if (qc && conversationId) {
+      warmDmConversation(qc, conversationId, profileId, profileId);
     }
 
     if (!isInChat) return;

@@ -22,6 +22,7 @@ import { setCurrentConversationId } from '@/hooks/useGlobalRealtimeMessages';
 import { useUnsendForEveryone, useDeleteForMe, useEditMessage } from '@/hooks/useMessageActions';
 import { useInstantReadClear } from '@/hooks/useMessageNotifications';
 import { messagesQueryKey, readMessagesCache } from '@/lib/messagesQueryKey';
+import { findCachedDmConversation } from '@/lib/warmDmConversation';
 import { useAISmartReplies } from '@/hooks/useAIMessageAssist';
 import { useScreenCapture } from '@/hooks/useScreenCapture';
 import { blackoutChatScreenNow } from '@/lib/chatScreenShield';
@@ -180,10 +181,22 @@ export function ChatView() {
   const bumpStreak = useInteractionStreakBump();
   
   const { data: conversation, isPending: conversationPending, isFetched: conversationFetched, isError: conversationError } = useConversationDetail(conversationId);
-  const safeConversation = conversation ? { ...conversation, members: ensureArray(conversation.members) } : conversation;
+  const cachedConversation = useMemo(
+    () => (conversationId ? findCachedDmConversation(queryClient, conversationId, profileId) : undefined),
+    [conversationId, profileId, queryClient, conversation],
+  );
+  const activeConversation = conversation ?? cachedConversation;
+  const safeConversation = activeConversation ? { ...activeConversation, members: ensureArray(activeConversation.members) } : activeConversation;
   const isGroupChat = safeConversation?.is_group || false;
   const { data: messagesRaw, isPending: messagesPending, isFetched: messagesFetched, isError: messagesError, refetch: refetchMessages } = useMessages(conversationId);
   const messages = normalizeMessagesCache(messagesRaw);
+  const threadMessages = useMemo(() => {
+    if (!conversationId) return [] as Message[];
+    const cached = readMessagesCache(queryClient, conversationId);
+    const live = messages?.length ? messages : cached;
+    if (!live.length) return live;
+    return live.filter((m) => !m.conversation_id || m.conversation_id === conversationId);
+  }, [conversationId, messages, queryClient, messagesRaw]);
   const { sendText, sendMedia, sendVideo, retry: retryMessage, removeMessage, videoUploadProgress } = useInstantSend(conversationId);
 
   // Register current conversation for global realtime updates
@@ -617,28 +630,32 @@ export function ChatView() {
     };
   }, [conversationId]);
 
-  // Scroll to bottom on open / new messages — avoid jumping on background refetches.
-  useEffect(() => {
+  // Scroll to bottom on open / new messages — before paint to avoid visible jump.
+  useLayoutEffect(() => {
     if (!conversationId) return;
 
     const savedKey = `chat-${conversationId}`;
-    const prevLen = prevMessageCountRef.current;
-    const currentLen = messages?.length ?? 0;
     const isNewConversation = openedConversationRef.current !== conversationId;
-    openedConversationRef.current = conversationId;
-    prevMessageCountRef.current = currentLen;
+    if (isNewConversation) {
+      openedConversationRef.current = conversationId;
+      prevMessageCountRef.current = 0;
+    }
 
-    requestAnimationFrame(() => {
-      const container = messagesContainerRef.current;
-      if (!container) return;
-      if (isNewConversation && restoreElementScrollPosition(savedKey, container)) {
-        return;
-      }
-      if (isNewConversation || currentLen > prevLen) {
-        container.scrollTop = container.scrollHeight;
-      }
-    });
-  }, [conversationId, messages?.length]);
+    const container = messagesContainerRef.current;
+    if (!container) return;
+
+    const currentLen = threadMessages.length;
+    const prevLen = prevMessageCountRef.current;
+
+    if (isNewConversation && restoreElementScrollPosition(savedKey, container)) {
+      prevMessageCountRef.current = currentLen;
+      return;
+    }
+    if (isNewConversation || currentLen > prevLen) {
+      container.scrollTop = container.scrollHeight;
+    }
+    prevMessageCountRef.current = currentLen;
+  }, [conversationId, threadMessages.length]);
 
   // Handle typing indicator - instant input, deferred typing updates
   const typingUpdateScheduledRef = useRef(false);
@@ -1306,13 +1323,13 @@ export function ChatView() {
 
   // Enhanced spacing logic for Instagram/iMessage quality
   const messageItems = useMemo(() => {
-    if (!messages) return [];
-    return messages.map((message, index) => {
+    if (!threadMessages.length) return [];
+    return threadMessages.map((message, index) => {
       const isOwn =
         message.sender_id === profileId ||
         message.sender_id === profile?.id ||
         message.sender_id === authUserId;
-      const prevMessage = index > 0 ? messages[index - 1] : null;
+      const prevMessage = index > 0 ? threadMessages[index - 1] : null;
       const showAvatar = !isOwn && (
         index === 0 || 
         prevMessage?.sender_id !== message.sender_id
@@ -1336,7 +1353,7 @@ export function ChatView() {
 
       return { message, isOwn, showAvatar, showTimestamp, sameSender, isMediaTransition, isEmojiOnly };
     });
-  }, [messages, profileId, profile?.id, authUserId]);
+  }, [threadMessages, profileId, profile?.id, authUserId]);
 
   // Navigate to profile when avatar clicked, or open group info for group chats
   const handleAvatarClick = useCallback(() => {
@@ -1375,24 +1392,22 @@ export function ChatView() {
 
   const showConversationSkeleton =
     !!conversationId &&
-    !conversation &&
-    !messages?.length &&
-    !readMessagesCache(queryClient, conversationId).length &&
+    !activeConversation &&
+    !threadMessages.length &&
     conversationPending &&
     !conversationFetched;
   const showMessagesSkeleton =
     !!conversationId &&
-    !messages?.length &&
-    !readMessagesCache(queryClient, conversationId).length &&
+    !threadMessages.length &&
     messagesPending &&
     !messagesFetched;
   const isChatHydrating = showConversationSkeleton || showMessagesSkeleton;
 
   const messagesLoadFailed =
-    !!conversation &&
+    !!activeConversation &&
     messagesFetched &&
     messagesError &&
-    !messages?.length;
+    !threadMessages.length;
 
   return (
     <div
@@ -1462,9 +1477,9 @@ export function ChatView() {
                 <div className="relative h-8 w-8 sm:h-9 sm:w-9 flex-shrink-0">
                   <div className="absolute inset-0 rounded-full bg-gradient-to-br from-primary via-accent to-primary opacity-60" />
                   <div className="absolute inset-[2px] rounded-full overflow-hidden bg-background">
-                    {conversation?.avatar_url ? (
+                    {safeConversation?.avatar_url ? (
                       <SignedAvatar
-                        src={conversation.avatar_url}
+                        src={safeConversation.avatar_url}
                         fallback="G"
                         className="h-full w-full"
                         fallbackClassName="text-sm bg-muted text-foreground"
@@ -1666,7 +1681,7 @@ export function ChatView() {
             ))}
           </div>
         ) : (
-        <div className="flex flex-col gap-0 pb-4 md:pb-4">
+        <div key={conversationId} className="flex flex-col gap-0 pb-4 md:pb-4">
           {messageItems.map(({ message, isOwn, showAvatar, showTimestamp, sameSender, isMediaTransition, isEmojiOnly }, index) => {
             // Instagram/Snapchat spacing rules:
             // Same sender consecutive: 4-6px gap (tight grouping)

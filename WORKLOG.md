@@ -2,6 +2,12 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## DM chat switch — follow-up (2026-07-04)
+- **Root cause:** Every sidebar click re-ran full `prepareMessagesRoute` (DM list refetch storm); scroll jumped after paint; no active-row highlight; thread/header could lag one frame behind cache
+- **Fix:** Route prep once per session; `useLayoutEffect` scroll before paint; sync cache thread + header; active inbox row styling; `startTransition` navigate; message list keyed by `conversationId`
+- **Verified:** `npm run build` PASS · `npm run lint` PASS
+- **Next:** Hard-refresh staging and re-test sidebar switching; publish when confirmed
+
 ## DM chat switch — Snapchat-style instant open (2026-07-04)
 - **Prefetch:** `warmDmConversation` seeds header + messages cache on touch/hover, inbox batch-warms top 8 chats
 - **Navigation:** Eager `ChatView` load (no lazy Suspense flash); removed cross-thread `placeholderData` bleed

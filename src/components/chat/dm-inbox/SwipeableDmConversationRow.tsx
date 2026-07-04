@@ -30,6 +30,7 @@ interface SwipeableDmConversationRowProps {
   conversation: LoadedDMConversation;
   profileId?: string;
   authUid?: string;
+  isActive?: boolean;
   onClick: () => void;
   onWarm?: () => void;
   index?: number;
@@ -39,6 +40,7 @@ export const SwipeableDmConversationRow = memo(function SwipeableDmConversationR
   conversation,
   profileId,
   authUid,
+  isActive,
   onClick,
   onWarm,
   index = 0,
@@ -160,6 +162,7 @@ export const SwipeableDmConversationRow = memo(function SwipeableDmConversationR
             conversation={conversation}
             profileId={profileId}
             authUid={authUid}
+            isActive={isActive}
             onClick={handleClick}
             onWarm={onWarm}
             index={index}
@@ -219,6 +222,7 @@ export const SwipeableDmConversationRow = memo(function SwipeableDmConversationR
               conversation={conversation}
               profileId={profileId}
               authUid={authUid}
+              isActive={isActive}
               onClick={handleClick}
               onWarm={onWarm}
               index={index}

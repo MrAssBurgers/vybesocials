@@ -15,6 +15,7 @@ export interface DmConversationCardProps {
   conversation: LoadedDMConversation;
   profileId?: string;
   authUid?: string;
+  isActive?: boolean;
   onClick: () => void;
   onWarm?: () => void;
   index?: number;
@@ -24,6 +25,7 @@ export const DmConversationCard = memo(function DmConversationCard({
   conversation,
   profileId,
   authUid,
+  isActive,
   onClick,
   onWarm,
   index = 0,
@@ -69,6 +71,7 @@ export const DmConversationCard = memo(function DmConversationCard({
       }}
       className={cn(
         'dm-inbox-card group w-full text-left',
+        isActive && 'dm-inbox-card--active',
         isUnread && 'dm-inbox-card--unread',
         isPinned && 'dm-inbox-card--pinned',
       )}

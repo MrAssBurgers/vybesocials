@@ -2,8 +2,8 @@
  * Primary VYBE DM inbox — glass cards, sectioned layout, gradient hero.
  * Stable data path (useDMConversations only).
  */
-import { useMemo, useState, useCallback, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useMemo, useState, useCallback, useEffect, startTransition } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
 import {
@@ -39,6 +39,7 @@ type InboxFilter = 'all' | 'unread';
 
 export function DmInboxView() {
   const navigate = useNavigate();
+  const { conversationId: activeConversationId } = useParams<{ conversationId?: string }>();
   const queryClient = useQueryClient();
   const { profile, user } = useAuth();
   const profileId = useAuthProfileId();
@@ -110,10 +111,13 @@ export function DmInboxView() {
 
   const openChat = useCallback(
     (id: string) => {
+      if (id === activeConversationId) return;
       warmConversation(id);
-      navigate(`/messages/${id}`);
+      startTransition(() => {
+        navigate(`/messages/${id}`);
+      });
     },
-    [navigate, warmConversation],
+    [navigate, warmConversation, activeConversationId],
   );
 
   return (
@@ -264,6 +268,7 @@ export function DmInboxView() {
                       profileId={profileId}
                       authUid={user?.id}
                       index={i}
+                      isActive={conv.id === activeConversationId}
                       onClick={() => openChat(conv.id)}
                       onWarm={() => handleConversationWarm(conv.id)}
                     />
