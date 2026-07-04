@@ -64,6 +64,9 @@ export const DmConversationCard = memo(function DmConversationCard({
       transition={{ delay: Math.min(index * 0.03, 0.24), duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
       onClick={onClick}
       onPointerEnter={onWarm}
+      onPointerDown={(e) => {
+        if (e.button === 0 || e.pointerType === 'touch') onWarm?.();
+      }}
       className={cn(
         'dm-inbox-card group w-full text-left',
         isUnread && 'dm-inbox-card--unread',

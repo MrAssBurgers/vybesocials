@@ -21,7 +21,7 @@ import { useRealtimeMessages } from '@/hooks/useRealtimeMessages';
 import { setCurrentConversationId } from '@/hooks/useGlobalRealtimeMessages';
 import { useUnsendForEveryone, useDeleteForMe, useEditMessage } from '@/hooks/useMessageActions';
 import { useInstantReadClear } from '@/hooks/useMessageNotifications';
-import { messagesQueryKey } from '@/lib/messagesQueryKey';
+import { messagesQueryKey, readMessagesCache } from '@/lib/messagesQueryKey';
 import { useAISmartReplies } from '@/hooks/useAIMessageAssist';
 import { useScreenCapture } from '@/hooks/useScreenCapture';
 import { blackoutChatScreenNow } from '@/lib/chatScreenShield';
@@ -361,6 +361,26 @@ export function ChatView() {
   const prevMessageCountRef = useRef(0);
   const openedConversationRef = useRef<string | null>(null);
   const messageNotifsClearedForConversationRef = useRef<string | null>(null);
+
+  // Reset ephemeral UI when switching threads — avoids stale reply/edit/recording state.
+  useEffect(() => {
+    if (!conversationId) return;
+    setReplyingTo(null);
+    setActiveReactionMessageId(null);
+    setShowContextMenuMessageId(null);
+    setEditingMessageId(null);
+    setEditText('');
+    setIsRecordingVoice(false);
+    setIsVoiceLocked(false);
+    setShowViewModeMenu(false);
+    setShowStickerPanel(false);
+    setShowVideoPreview(false);
+    setPendingVideoFile(null);
+    setPendingImage(null);
+    setShowImageSafetyGate(false);
+    setPendingSafetyImage(null);
+    clearSuggestions();
+  }, [conversationId, clearSuggestions]);
   
 
   const otherMembers = useMemo(
@@ -1357,11 +1377,13 @@ export function ChatView() {
     !!conversationId &&
     !conversation &&
     !messages?.length &&
+    !readMessagesCache(queryClient, conversationId).length &&
     conversationPending &&
     !conversationFetched;
   const showMessagesSkeleton =
     !!conversationId &&
     !messages?.length &&
+    !readMessagesCache(queryClient, conversationId).length &&
     messagesPending &&
     !messagesFetched;
   const isChatHydrating = showConversationSkeleton || showMessagesSkeleton;

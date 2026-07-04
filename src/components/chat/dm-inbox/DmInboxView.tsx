@@ -4,6 +4,7 @@
  */
 import { useMemo, useState, useCallback, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
 import {
   MessageCircle,
@@ -31,13 +32,17 @@ import { cn } from '@/lib/utils';
 import { resolveProfileAvatarUrl } from '@/lib/profileAvatarCache';
 import { batchSignUrls } from '@/lib/signedUrlCache';
 import { TrashBin } from '@/components/chat/TrashBin';
+import { useChatPrefetch } from '@/hooks/useChatPrefetch';
+import { warmDmConversationBatch } from '@/lib/warmDmConversation';
 
 type InboxFilter = 'all' | 'unread';
 
 export function DmInboxView() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const { profile, user } = useAuth();
   const profileId = useAuthProfileId();
+  const { warmConversation } = useChatPrefetch();
   const [searchQuery, setSearchQuery] = useState('');
   const [filter, setFilter] = useState<InboxFilter>('all');
   const [isTrashOpen, setIsTrashOpen] = useState(false);
@@ -72,8 +77,6 @@ export function DmInboxView() {
     [filteredRows, profileId],
   );
 
-  const showSkeleton = isLoading && allRows.length === 0;
-
   useEffect(() => {
     const urls = allRows.flatMap((conv) => {
       if (conv.is_group) {
@@ -86,9 +89,31 @@ export function DmInboxView() {
     if (urls.length) batchSignUrls(urls).catch(() => {});
   }, [allRows, profileId]);
 
+  const showSkeleton = isLoading && allRows.length === 0;
+
+  useEffect(() => {
+    if (!profileId || allRows.length === 0) return;
+    warmDmConversationBatch(
+      queryClient,
+      allRows.slice(0, 8).map((c) => c.id),
+      profileId,
+      profileId,
+    );
+  }, [allRows, profileId, queryClient]);
+
+  const handleConversationWarm = useCallback(
+    (convId: string) => {
+      warmConversation(convId);
+    },
+    [warmConversation],
+  );
+
   const openChat = useCallback(
-    (id: string) => navigate(`/messages/${id}`),
-    [navigate],
+    (id: string) => {
+      warmConversation(id);
+      navigate(`/messages/${id}`);
+    },
+    [navigate, warmConversation],
   );
 
   return (
@@ -240,6 +265,7 @@ export function DmInboxView() {
                       authUid={user?.id}
                       index={i}
                       onClick={() => openChat(conv.id)}
+                      onWarm={() => handleConversationWarm(conv.id)}
                     />
                   ))}
                 </div>

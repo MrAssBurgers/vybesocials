@@ -1,4 +1,4 @@
-import { lazy, Suspense, useLayoutEffect } from 'react';
+import { useLayoutEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { DmInboxView } from '@/components/chat/dm-inbox/DmInboxView';
 import { AppLayout } from '@/components/layout/AppLayout';
@@ -13,15 +13,13 @@ import LocalErrorBoundary from '@/components/error/LocalErrorBoundary';
 import { DmInboxSafeList } from '@/components/chat/dm-inbox/DmInboxSafeList';
 import { cn } from '@/lib/utils';
 import { useDefaultLiquidBackground } from '@/hooks/useDefaultLiquidBackground';
+import { ChatView } from '@/components/chat/ChatView';
 import { prepareMessagesRoute } from '@/lib/loadDMConversations';
+import { warmDmConversation } from '@/lib/warmDmConversation';
 import { recoverDmQueryCache } from '@/lib/recoverDmQueryCache';
 import { useAuth } from '@/lib/auth';
 import { useAuthProfileId } from '@/hooks/useAuthProfileId';
 import type { QueryClient } from '@tanstack/react-query';
-
-const ChatView = lazy(() =>
-  import('@/components/chat/ChatView').then((m) => ({ default: m.ChatView })),
-);
 
 function MessagesFallback() {
   const navigate = useNavigate();
@@ -88,6 +86,9 @@ function MessagesInner() {
     const qc = (window as unknown as { __REACT_QUERY_CLIENT__?: QueryClient }).__REACT_QUERY_CLIENT__;
     if (qc) {
       prepareMessagesRoute(qc, profileId, user?.id);
+      if (conversationId) {
+        warmDmConversation(qc, conversationId, profileId, profileId);
+      }
     }
 
     if (!isInChat) return;
@@ -125,9 +126,7 @@ function MessagesInner() {
         >
           {isInChat ? (
             <SmartErrorBoundary fallback={<MessagesFallback />}>
-              <Suspense fallback={<div className="page-shell vybe-loading-shell flex-1 w-full min-h-0" aria-hidden="true" />}>
-                <ChatView />
-              </Suspense>
+              <ChatView />
             </SmartErrorBoundary>
           ) : (
             <div className="dm-empty-pane hidden md:flex flex-1 w-full min-h-0 items-center justify-center relative overflow-hidden">

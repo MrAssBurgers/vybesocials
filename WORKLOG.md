@@ -2,10 +2,19 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## DM chat switch — Snapchat-style instant open (2026-07-04)
+- **Prefetch:** `warmDmConversation` seeds header + messages cache on touch/hover, inbox batch-warms top 8 chats
+- **Navigation:** Eager `ChatView` load (no lazy Suspense flash); removed cross-thread `placeholderData` bleed
+- **ChatView:** Cache-first skeleton skip; reset reply/edit/recording state on thread switch
+- **Verified:** `npm run build` PASS · `npm run lint` PASS
+- **Next:** Manual test tap between DMs on mobile + desktop; publish when ready
+
 ## Publish — DM previews + voice review UI (2026-07-04)
 - **DMs:** Inbox shows latest message per chat (backfill fetch, thread cache, auth uid matching)
 - **Voice:** Hold-to-record opens dedicated review bar (Listen / discard / re-record / send); fixed recorder restart loop
 - **Verified:** `npm run build` PASS · `npm run lint` PASS
+- **Committed:** `fa3cb9f4` · pushed `main`
+- **Staging:** https://vybe-daaab.web.app (Firebase hosting deploy)
 - **You:** Lovable → Share → Publish for **vybehub.app**
 
 ## Publish — DMs, voice notes, sound mix (2026-07-04)

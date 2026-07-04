@@ -4,8 +4,7 @@ import { db } from '@/lib/firebase';
 import { subscribePostgresChannel, removeRealtimeChannel } from '@/lib/realtimeChannel';
 import { useAuth } from '@/lib/auth';
 import { getEffectiveProfileId } from '@/lib/profileCache';
-import { messagesQueryKey, readMessagesCache } from '@/lib/messagesQueryKey';
-import { loadConversationMessages } from '@/lib/loadConversationMessages';
+import { warmDmConversation } from '@/lib/warmDmConversation';
 
 /**
  * Prefetch chat data for instant notification → chat transitions.
@@ -19,21 +18,14 @@ export function useChatPrefetch() {
 
   const prefetchMessages = useCallback(async (conversationId: string) => {
     if (!conversationId) return;
-    const cached = readMessagesCache(queryClient, conversationId);
-    if (cached.length > 0) return;
-
-    await queryClient.prefetchQuery({
-      queryKey: messagesQueryKey(conversationId),
-      queryFn: () => loadConversationMessages(queryClient, conversationId, actorId),
-      staleTime: 120_000,
-    });
-  }, [actorId, queryClient]);
+    warmDmConversation(queryClient, conversationId, profileId, actorId);
+  }, [actorId, profileId, queryClient]);
 
   const warmConversation = useCallback(
     (conversationId: string) => {
-      void prefetchMessages(conversationId);
+      warmDmConversation(queryClient, conversationId, profileId, actorId);
     },
-    [prefetchMessages],
+    [actorId, profileId, queryClient],
   );
 
   const prefetchConversation = useCallback(async (otherUserId: string) => {
