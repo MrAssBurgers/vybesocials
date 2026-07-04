@@ -1,6 +1,6 @@
 import type { QueryClient } from '@tanstack/react-query';
 import type { Conversation, Message } from '@/hooks/useMessages';
-import { fetchFullConversationMessageHistory, fetchRecentConversationMessages, CHAT_INITIAL_MESSAGE_LIMIT } from '@/lib/conversationMessagesQuery';
+import { fetchFullConversationMessageHistory, fetchRecentConversationMessages, CHAT_INITIAL_MESSAGE_LIMIT, CHAT_MAX_MESSAGE_HISTORY } from '@/lib/conversationMessagesQuery';
 import {
   inferOtherParticipantId,
   isConversationMessagesReady,
@@ -8,7 +8,8 @@ import {
   fetchMemberProfiles,
 } from '@/lib/dmMembershipRepair';
 import { resolveSessionProfileId, syncSessionProfileId } from '@/lib/resolveSessionProfileId';
-import { mergeMessagesWithLocalCache } from '@/lib/messagesQueryKey';
+import { mergeMessagesWithLocalCache, messagesQueryKey, readMessagesCache } from '@/lib/messagesQueryKey';
+import { scheduleIdleWork } from '@/lib/scheduleIdleWork';
 import { findInQueryArray, safeDmMembers, ensureArray } from '@/lib/persistedCollections';
 
 export const MESSAGE_SELECT_SLIM = `
@@ -17,6 +18,21 @@ export const MESSAGE_SELECT_SLIM = `
   views:message_views(user_id, viewed_at),
   reactions:message_reactions(user_id, emoji)
 `;
+
+/** Lighter select for instant open / prefetch — views load on background hydrate. */
+export const MESSAGE_SELECT_WARM = `
+  id, conversation_id, sender_id, content, media_url, media_type, message_type,
+  view_mode, expires_at, is_deleted, reply_to_id, created_at, edited_at, viewed_at,
+  saved_by_sender, saved_by_recipient, vybe_replay_exhausted,
+  sender:profiles!sender_id(id, username, avatar_url, display_name)
+`;
+
+export type LoadConversationMessagesOptions = {
+  maxMessages?: number;
+  /** Single round trip — instant thread paint. Default true. */
+  recentOnly?: boolean;
+  select?: string;
+};
 
 function enrichMessagesWithSenders(
   messages: Message[],
@@ -62,14 +78,19 @@ function filterMessagesForViewer(messages: Message[], viewerId?: string): Messag
   });
 }
 
-/** Shared fetch for useMessages + chat prefetch — one code path, warm cache before navigate. */
+/** Shared fetch for useMessages + chat prefetch — fast recent first, full history in background. */
 export async function loadConversationMessages(
   queryClient: QueryClient,
   conversationId: string,
   actorId?: string | null,
-  options?: { maxMessages?: number },
+  options?: LoadConversationMessagesOptions,
 ): Promise<Message[]> {
-  const maxMessages = options?.maxMessages ?? CHAT_INITIAL_MESSAGE_LIMIT * 12;
+  const recentOnly = options?.recentOnly ?? true;
+  const maxMessages =
+    options?.maxMessages ??
+    (recentOnly ? CHAT_INITIAL_MESSAGE_LIMIT : CHAT_MAX_MESSAGE_HISTORY);
+  const select =
+    options?.select ?? (recentOnly ? MESSAGE_SELECT_WARM : MESSAGE_SELECT_SLIM);
   const resolvedActorId =
     syncSessionProfileId(actorId) ??
     (await resolveSessionProfileId(actorId)) ??
@@ -94,9 +115,49 @@ export async function loadConversationMessages(
   const otherProfileId =
     otherFromMembers || inferOtherParticipantId(conversationId, resolvedActorId) || null;
 
+  const runRepair = (fast: boolean) => {
+    void prepareConversationForMessages(conversationId, resolvedActorId, otherProfileId, {
+      fast,
+    }).catch(() => {});
+  };
+
+  if (recentOnly) {
+    let { data, error } = await fetchRecentConversationMessages<Message>(
+      conversationId,
+      select,
+      maxMessages,
+    );
+
+    if (error) {
+      await prepareConversationForMessages(conversationId, resolvedActorId, otherProfileId, {
+        fast: true,
+      });
+      const retry = await fetchRecentConversationMessages<Message>(
+        conversationId,
+        MESSAGE_SELECT_WARM,
+        maxMessages,
+      );
+      data = retry.data;
+      error = retry.error;
+    } else if (!isConversationMessagesReady(conversationId, resolvedActorId)) {
+      runRepair(true);
+    }
+
+    if (error) throw error;
+
+    if (!data?.length) {
+      runRepair(true);
+    }
+
+    const rows = ((data || []) as Message[]).filter((m) => !m.is_deleted);
+    const filtered = filterMessagesForViewer(rows, resolvedActorId);
+    const enriched = await enrichMessagesFromProfiles(filtered);
+    return mergeMessagesWithLocalCache(queryClient, conversationId, sortChronological(enriched));
+  }
+
   let { data, error } = await fetchFullConversationMessageHistory<Message>(
     conversationId,
-    MESSAGE_SELECT_SLIM,
+    select,
     maxMessages,
   );
 
@@ -106,7 +167,7 @@ export async function loadConversationMessages(
     });
     const retryPlain = await fetchFullConversationMessageHistory<Message>(
       conversationId,
-      '*',
+      MESSAGE_SELECT_SLIM,
       maxMessages,
     );
     if (!retryPlain.error) {
@@ -115,7 +176,7 @@ export async function loadConversationMessages(
     } else {
       const retryRecent = await fetchRecentConversationMessages<Message>(
         conversationId,
-        'id, conversation_id, sender_id, content, media_url, media_type, view_mode, expires_at, created_at, is_deleted, reply_to_id',
+        MESSAGE_SELECT_WARM,
         CHAT_INITIAL_MESSAGE_LIMIT,
       );
       if (!retryRecent.error) {
@@ -124,22 +185,18 @@ export async function loadConversationMessages(
       }
     }
   } else if (!isConversationMessagesReady(conversationId, resolvedActorId)) {
-    void prepareConversationForMessages(conversationId, resolvedActorId, otherProfileId, {
-      fast: true,
-    }).catch(() => {});
+    runRepair(true);
   }
 
   if (!error && (!data || data.length === 0)) {
-    await prepareConversationForMessages(conversationId, resolvedActorId, otherProfileId, {
-      fast: false,
-    });
-    const retryEmpty = await fetchFullConversationMessageHistory<Message>(
+    runRepair(true);
+    const retryEmpty = await fetchRecentConversationMessages<Message>(
       conversationId,
-      MESSAGE_SELECT_SLIM,
-      maxMessages,
+      MESSAGE_SELECT_WARM,
+      CHAT_INITIAL_MESSAGE_LIMIT,
     );
     if (!retryEmpty.error && retryEmpty.data?.length) {
-      data = retryEmpty.data;
+      data = sortChronological(retryEmpty.data as Message[]);
     }
   }
 
@@ -150,6 +207,30 @@ export async function loadConversationMessages(
   const filtered = filterMessagesForViewer(rows, resolvedActorId);
   const enriched = await enrichMessagesFromProfiles(filtered);
   return mergeMessagesWithLocalCache(queryClient, conversationId, enriched);
+}
+
+/** After instant recent load, backfill older messages without blocking paint. */
+export function hydrateConversationHistoryBackground(
+  queryClient: QueryClient,
+  conversationId: string,
+  actorId?: string | null,
+): () => void {
+  return scheduleIdleWork(() => {
+    const current = readMessagesCache(queryClient, conversationId);
+    if (current.length >= CHAT_MAX_MESSAGE_HISTORY) return;
+
+    void loadConversationMessages(queryClient, conversationId, actorId, {
+      recentOnly: false,
+      maxMessages: CHAT_MAX_MESSAGE_HISTORY,
+    })
+      .then((full) => {
+        if (full.length <= current.length) return;
+        queryClient.setQueryData<Message[]>(messagesQueryKey(conversationId), (old) =>
+          mergeMessagesWithLocalCache(queryClient, conversationId, full),
+        );
+      })
+      .catch(() => {});
+  }, 400);
 }
 
 function sortChronological(messages: Message[]): Message[] {

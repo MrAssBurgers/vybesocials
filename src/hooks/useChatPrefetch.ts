@@ -22,8 +22,8 @@ export function useChatPrefetch() {
   }, [actorId, profileId, queryClient]);
 
   const warmConversation = useCallback(
-    (conversationId: string) => {
-      warmDmConversation(queryClient, conversationId, profileId, actorId);
+    (conversationId: string, priority: 'high' | 'normal' = 'high') => {
+      warmDmConversation(queryClient, conversationId, profileId, actorId, priority);
     },
     [actorId, profileId, queryClient],
   );

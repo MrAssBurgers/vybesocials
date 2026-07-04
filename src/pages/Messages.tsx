@@ -94,7 +94,7 @@ function MessagesInner() {
       routePreparedRef.current = true;
     }
     if (qc && conversationId) {
-      warmDmConversation(qc, conversationId, profileId, profileId);
+      warmDmConversation(qc, conversationId, profileId, profileId, 'high');
     }
 
     if (!isInChat) return;

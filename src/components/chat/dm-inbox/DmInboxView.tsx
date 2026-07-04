@@ -97,7 +97,7 @@ export function DmInboxView() {
 
   const handleConversationWarm = useCallback(
     (convId: string) => {
-      warmConversation(convId);
+      warmConversation(convId, 'high');
     },
     [warmConversation],
   );
@@ -105,7 +105,7 @@ export function DmInboxView() {
   const openChat = useCallback(
     (id: string) => {
       if (id === activeConversationId) return;
-      warmConversation(id);
+      warmConversation(id, 'high');
       startTransition(() => {
         navigate(`/messages/${id}`);
       });

@@ -10,7 +10,7 @@ import { syncUserAuthIndex } from '@/lib/firebase/profileResolve';
 import { fetchMessagesForConversations } from '@/lib/conversationMessagesQuery';
 import { messagesQueryKey, readMessagesCache, mergeMessagesWithLocalCache, patchMessagesCache, normalizeMessagesCache } from '@/lib/messagesQueryKey';
 import { safeDmMembers, ensureArray } from '@/lib/persistedCollections';
-import { loadConversationMessages } from '@/lib/loadConversationMessages';
+import { loadConversationMessages, hydrateConversationHistoryBackground } from '@/lib/loadConversationMessages';
 import { CHAT_INITIAL_MESSAGE_LIMIT } from '@/lib/conversationMessagesQuery';
 import { invalidateConversationCaches } from '@/lib/invalidateConversationCaches';
 import { shouldRefetchWhenEmpty, refetchListOnMount } from '@/lib/queryRefetchPolicy';
@@ -300,7 +300,9 @@ export function useMessages(conversationId: string | undefined) {
     queryFn: async () => {
       if (!conversationId) return [];
       try {
-        return await loadConversationMessages(queryClient, conversationId, actorId);
+        return await loadConversationMessages(queryClient, conversationId, actorId, {
+          recentOnly: true,
+        });
       } catch (error) {
         const cached = readMessagesCache(queryClient, conversationId);
         if (cached.length) {
@@ -346,6 +348,12 @@ export function useMessages(conversationId: string | undefined) {
       query.data,
     );
   }, [conversationId, queryClient, query.data, query.dataUpdatedAt]);
+
+  useEffect(() => {
+    if (!conversationId || !actorId) return;
+    if (!readMessagesCache(queryClient, conversationId).length) return;
+    return hydrateConversationHistoryBackground(queryClient, conversationId, actorId);
+  }, [conversationId, actorId, queryClient, query.dataUpdatedAt]);
 
   return { ...query, data };
 }

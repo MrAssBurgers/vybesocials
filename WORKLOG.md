@@ -2,6 +2,11 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## DM instant open — fast recent-first load (2026-07-04)
+- **Was:** Opening a chat paginated up to ~2,400 messages before paint
+- **Now:** Single round-trip recent fetch (200 msgs) for instant open; full history hydrates in background; inbox last_message seeds thread at tap
+- **Verified:** `npm run test` PASS · `npm run lint` PASS · `npm run build` PASS
+
 ## DM inbox flicker fix (2026-07-04)
 - **Was:** Sidebar rows re-faded on every reorder (entrance animation + section remounts + opacity CSS transition on read/active)
 - **Now:** Stable flat list keys, layout-only motion, deferred read patches, no skeleton flash when cache exists
