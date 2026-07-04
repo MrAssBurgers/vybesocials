@@ -7,7 +7,9 @@ Use this file as the Lovable -> Cursor handoff each session.
 - **Navigation:** Eager `ChatView` load (no lazy Suspense flash); removed cross-thread `placeholderData` bleed
 - **ChatView:** Cache-first skeleton skip; reset reply/edit/recording state on thread switch
 - **Verified:** `npm run build` PASS · `npm run lint` PASS
-- **Next:** Manual test tap between DMs on mobile + desktop; publish when ready
+- **Committed:** `c5159169` · pushed `main`
+- **Staging:** https://vybe-daaab.web.app (Firebase hosting deploy)
+- **You:** Lovable → Share → Publish for **vybehub.app**
 
 ## Publish — DM previews + voice review UI (2026-07-04)
 - **DMs:** Inbox shows latest message per chat (backfill fetch, thread cache, auth uid matching)
