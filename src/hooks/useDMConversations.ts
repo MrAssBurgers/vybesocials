@@ -30,6 +30,7 @@ import {
 } from '@/lib/dmMembershipRepair';
 import { createDmChat } from '@/lib/firebase/chats';
 import { warmDmConversationBatch } from '@/lib/warmDmConversation';
+import { getDmConversationSortTime } from '@/lib/dmConversationSort';
 import { resolveOtherMemberFromConversation, isViewerMember } from '@/lib/dmMemberResolve';
 
 type DMConversation = LoadedDMConversation;
@@ -44,6 +45,10 @@ function enrichLastMessageFromThreadCache(
     .filter((m) => !m.is_deleted)
     .sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime())[0];
   if (!latest) return conv;
+  const existingSort = conv._sortTime || conv.last_message?.created_at || '';
+  if (existingSort && latest.created_at <= existingSort) {
+    return { ...conv, last_message: latest };
+  }
   return {
     ...conv,
     last_message: latest,
@@ -399,7 +404,7 @@ export function useConversationDetail(conversationId: string | undefined) {
           members,
           last_message: cached?.last_message ?? null,
           unread_count: cached?.unread_count ?? 0,
-          _sortTime: cached?._sortTime ?? conv.updated_at,
+          _sortTime: cached?._sortTime ?? getDmConversationSortTime(conv as DMConversation),
           _hasUnread: cached?._hasUnread ?? false,
         } as DMConversation;
       } catch (err) {

@@ -19,7 +19,7 @@ import { callSounds } from '@/lib/callSounds';
 import { normalizeToProfileId, ensureConversationReady } from '@/lib/dmMembershipRepair';
 import { createDmChat } from '@/lib/firebase/chats';
 import { firebaseAuth } from '@/lib/firebase/authService';
-import { markConversationReadForViewer, getSessionAuthUid } from '@/lib/markConversationRead';
+import { getDmConversationSortTime, patchDmConversationActivity, sortDmConversations } from '@/lib/dmConversationSort';
 import {
   prewarmDmBroadcastChannel,
   sendDmBroadcastScreenshot,
@@ -264,19 +264,14 @@ export function useConversations() {
           ...conv,
           last_message: lastMessage,
           unread_count: unreadCount,
-          // Add sort key for proper ordering by last message time
-          _sortTime: lastMessage?.created_at || conv.updated_at,
+          _sortTime: getDmConversationSortTime({
+            ...conv,
+            last_message: lastMessage,
+          } as Conversation & { _sortTime?: string }),
         };
       });
 
-      // Sort by last message time (most recent first)
-      result.sort((a, b) => {
-        const timeA = new Date(a._sortTime).getTime();
-        const timeB = new Date(b._sortTime).getTime();
-        return timeB - timeA;
-      });
-
-      return result as Conversation[];
+      return sortDmConversations(result, profileId) as Conversation[];
     },
     enabled: !!profileId,
     staleTime: 60000, // 1 minute cache

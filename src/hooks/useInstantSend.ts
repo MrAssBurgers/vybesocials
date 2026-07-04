@@ -17,6 +17,7 @@ import { firebaseAuth } from '@/lib/firebase/authService';
 import { withTimeout } from '@/lib/withTimeout';
 import { toast } from 'sonner';
 import { inferOtherUserIdFromConversation } from '@/lib/dmMemberResolve';
+import { patchDmConversationActivity, sortDmConversations } from '@/lib/dmConversationSort';
 import { findInQueryArray, safeDmMembers } from '@/lib/persistedCollections';
 import {
   bumpConversationUpdatedAt,
@@ -110,27 +111,20 @@ export function useInstantSend(conversationId: string | undefined) {
     // Helper to update conversation lists
     const updateConversationList = (old: any[] | undefined) => {
       if (!old) return old;
-      
-      return old.map(conv => {
-        if (conv.id === conversationId) {
-          return {
-            ...conv,
-            last_message: {
-              content: message.content,
-              media_type: message.media_type,
-              created_at: optimisticMessage.created_at,
-              sender_id: senderId,
-            },
-            updated_at: optimisticMessage.created_at,
-            _sortTime: optimisticMessage.created_at,
-          };
-        }
-        return conv;
-      }).sort((a, b) => {
-        const timeA = new Date(a._sortTime || a.updated_at).getTime();
-        const timeB = new Date(b._sortTime || b.updated_at).getTime();
-        return timeB - timeA;
+
+      const updated = old.map((conv) => {
+        if (conv.id !== conversationId) return conv;
+        return patchDmConversationActivity(conv, {
+          id: tempId,
+          content: message.content ?? null,
+          media_type: message.media_type ?? null,
+          media_url: message.media_url ?? null,
+          message_type: message.media_type ? 'media' : 'text',
+          created_at: optimisticMessage.created_at,
+          sender_id: senderId,
+        });
       });
+      return sortDmConversations(updated, effectiveProfileId);
     };
 
     // Update BOTH conversation query keys immediately for instant sync

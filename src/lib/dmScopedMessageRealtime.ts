@@ -7,7 +7,8 @@ import { startTransition } from 'react';
 import { db } from '@/lib/firebase';
 import { appendIncomingMessage } from '@/lib/messagesQueryKey';
 import { maybeShowForegroundDmNotification } from '@/lib/foregroundDmNotification';
-import { safeDmMembers, ensureArray, readQueryArray } from '@/lib/persistedCollections';
+import { patchDmConversationActivity, sortDmConversations } from '@/lib/dmConversationSort';
+import { readQueryArray } from '@/lib/persistedCollections';
 import {
   removeChannelByTopic,
   removeRealtimeChannel,
@@ -106,41 +107,33 @@ function patchConversationLists(
       return list
         .map((conv) => {
           if (conv.id !== conversationId) return conv;
+          const patched = patchDmConversationActivity(conv, {
+            id: newMessage.id,
+            content: newMessage.content,
+            media_type: newMessage.media_type,
+            media_url: newMessage.media_url,
+            message_type: newMessage.message_type,
+            created_at: newMessage.created_at,
+            sender_id: newMessage.sender_id,
+          });
           return {
-            ...conv,
-            last_message: {
-              id: newMessage.id,
-              content: newMessage.content,
-              media_type: newMessage.media_type,
-              media_url: newMessage.media_url,
-              message_type: newMessage.message_type,
-              created_at: newMessage.created_at,
-              sender_id: newMessage.sender_id,
-            },
-            updated_at: newMessage.created_at,
-            _sortTime: newMessage.created_at,
+            ...patched,
             _hasUnread: !isFromCurrentUser && !isViewingConvo,
             unread_count:
               !isFromCurrentUser && !isViewingConvo
                 ? (conv.unread_count || 0) + 1
                 : conv.unread_count,
           };
-        })
-        .sort((a, b) => {
-          const aIsPinned = safeDmMembers(a.members).find((m: any) => m.user_id === ctx.profileId)?.is_pinned;
-          const bIsPinned = safeDmMembers(b.members).find((m: any) => m.user_id === ctx.profileId)?.is_pinned;
-          if (aIsPinned && !bIsPinned) return -1;
-          if (!aIsPinned && bIsPinned) return 1;
-          if (a._hasUnread && !b._hasUnread) return -1;
-          if (!a._hasUnread && b._hasUnread) return 1;
-          const timeA = new Date(a._sortTime || a.updated_at).getTime();
-          const timeB = new Date(b._sortTime || b.updated_at).getTime();
-          return timeB - timeA;
         });
     };
 
-    ctx.queryClient.setQueryData<any[]>(['conversations', ctx.profileId], updateConversations);
-    ctx.queryClient.setQueryData<any[]>(['dm-conversations', ctx.profileId], updateConversations);
+    const sorted = (old: unknown) => {
+      const updated = updateConversations(old);
+      return sortDmConversations(updated, ctx.profileId);
+    };
+
+    ctx.queryClient.setQueryData<any[]>(['conversations', ctx.profileId], sorted);
+    ctx.queryClient.setQueryData<any[]>(['dm-conversations', ctx.profileId], sorted);
 
     const cached = readQueryArray(ctx.queryClient.getQueryData(['dm-conversations', ctx.profileId]));
     if (cached.length && !cached.some((c) => c.id === conversationId)) {

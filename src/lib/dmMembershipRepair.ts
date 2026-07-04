@@ -196,7 +196,7 @@ export function buildConversationPlaceholder(
     members,
     last_message: null,
     unread_count: 0,
-    _sortTime: meta.updated_at,
+    _sortTime: meta.created_at ?? meta.updated_at,
     _hasUnread: false,
   };
 }
@@ -259,7 +259,6 @@ export async function mergeConversationMemberIds(
   try {
     await setDocument('conversations', conversationId, {
       member_ids: memberIds,
-      updated_at: new Date().toISOString(),
     }, true);
   } catch (err) {
     // Non-creators cannot always patch member_ids on legacy rows — composite membership is enough.

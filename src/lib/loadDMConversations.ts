@@ -20,6 +20,7 @@ import {
   inferOtherUserIdFromConversation,
 } from '@/lib/dmMemberResolve';
 import { maxLastReadAt } from '@/lib/markConversationRead';
+import { getDmConversationSortTime, sortDmConversations } from '@/lib/dmConversationSort';
 
 export interface LoadedDMConversation extends Conversation {
   _sortTime: string;
@@ -405,40 +406,34 @@ async function loadDMConversationsOnce(
           ...conv,
           last_message: lastMessage,
           unread_count: unreadCount,
-          _sortTime: lastMessage?.created_at || conv.updated_at,
+          _sortTime: getDmConversationSortTime({
+            ...conv,
+            last_message: lastMessage,
+          } as LoadedDMConversation),
           _hasUnread: unreadCount > 0,
         } as LoadedDMConversation);
       });
 
-    result.sort((a, b) => {
-      const aIsPinned = safeDmMembers(a.members).find((m) => m.user_id === effectiveProfileId)?.is_pinned;
-      const bIsPinned = safeDmMembers(b.members).find((m) => m.user_id === effectiveProfileId)?.is_pinned;
-      if (aIsPinned && !bIsPinned) return -1;
-      if (!aIsPinned && bIsPinned) return 1;
-      if (aIsPinned && bIsPinned) {
-        return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
-      }
-      if (a._hasUnread && !b._hasUnread) return -1;
-      if (!a._hasUnread && b._hasUnread) return 1;
-      return new Date(b._sortTime).getTime() - new Date(a._sortTime).getTime();
-    });
+    let sorted = sortDmConversations(result, effectiveProfileId);
 
-    const missingLastMessageIds = result.filter((c) => !c.last_message).map((c) => c.id);
+    const missingLastMessageIds = sorted.filter((c) => !c.last_message).map((c) => c.id);
     if (missingLastMessageIds.length > 0) {
       const { data: backfill } = await fetchLatestMessagePerConversation<Message>(missingLastMessageIds);
       for (const msg of backfill) {
         if (msg.is_deleted || !msg.conversation_id) continue;
-        const conv = result.find((c) => String(c.id) === String(msg.conversation_id));
+        const conv = sorted.find((c) => String(c.id) === String(msg.conversation_id));
         if (conv) {
           conv.last_message = msg;
-          if (!conv._sortTime || msg.created_at > conv._sortTime) {
-            conv._sortTime = msg.created_at;
+          const nextSort = getDmConversationSortTime(conv);
+          if (!conv._sortTime || nextSort > conv._sortTime) {
+            conv._sortTime = nextSort;
           }
         }
       }
+      sorted = sortDmConversations(sorted, effectiveProfileId);
     }
 
-    return { data: result, error: null, profileId: effectiveProfileId };
+    return { data: sorted, error: null, profileId: effectiveProfileId };
   } catch (err) {
     console.warn('[DM] load failed:', err);
     if (stale.length > 0) {

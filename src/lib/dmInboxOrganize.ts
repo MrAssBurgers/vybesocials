@@ -1,4 +1,5 @@
 import type { LoadedDMConversation } from '@/lib/loadDMConversations';
+import { compareDmConversations, getDmConversationSortTime } from '@/lib/dmConversationSort';
 import { safeDmMembers, ensureArray } from '@/lib/persistedCollections';
 
 export type DmInboxSectionId = 'unread' | 'pinned' | 'recent' | 'all';
@@ -9,10 +10,12 @@ export interface DmInboxSection {
   conversations: LoadedDMConversation[];
 }
 
-function sortByActivity(a: LoadedDMConversation, b: LoadedDMConversation): number {
-  const ta = new Date(a._sortTime || a.updated_at || 0).getTime();
-  const tb = new Date(b._sortTime || b.updated_at || 0).getTime();
-  return tb - ta;
+function sortByActivity(
+  a: LoadedDMConversation,
+  b: LoadedDMConversation,
+  profileId?: string,
+): number {
+  return compareDmConversations(a, b, profileId);
 }
 
 function isPinnedForViewer(conv: LoadedDMConversation, profileId?: string): boolean {
@@ -41,7 +44,7 @@ export function organizeDmInbox(
   for (const conv of safeRows) {
     const hasUnread = (conv.unread_count || 0) > 0 || conv._hasUnread;
     const pinnedRow = isPinnedForViewer(conv, profileId);
-    const sortMs = new Date(conv._sortTime || conv.updated_at || 0).getTime();
+    const sortMs = new Date(getDmConversationSortTime(conv)).getTime();
 
     if (hasUnread) {
       unread.push(conv);
@@ -54,10 +57,10 @@ export function organizeDmInbox(
     }
   }
 
-  unread.sort(sortByActivity);
-  pinned.sort(sortByActivity);
-  recent.sort(sortByActivity);
-  rest.sort(sortByActivity);
+  unread.sort((a, b) => sortByActivity(a, b, profileId));
+  pinned.sort((a, b) => sortByActivity(a, b, profileId));
+  recent.sort((a, b) => sortByActivity(a, b, profileId));
+  rest.sort((a, b) => sortByActivity(a, b, profileId));
 
   const sections: DmInboxSection[] = [];
   if (unread.length) sections.push({ id: 'unread', label: 'New', conversations: unread });
@@ -69,7 +72,7 @@ export function organizeDmInbox(
     sections.push({
       id: 'all',
       label: 'Chats',
-      conversations: [...safeRows].sort(sortByActivity),
+      conversations: [...safeRows].sort((a, b) => sortByActivity(a, b, profileId)),
     });
   }
 

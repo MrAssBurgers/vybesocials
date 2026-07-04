@@ -2,6 +2,11 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## Snapchat-style DM recents ordering (2026-07-04)
+- **Was:** Opening a chat could bump inbox order via `updated_at` repair + unread-tier sorting
+- **Now:** Inbox order uses last message time only; view/read clears badge without reorder; send/receive still moves chat to top
+- **Verified:** `npm run test` PASS · `npm run lint` PASS · `npm run build` PASS
+
 ## DM full message history (2026-07-04)
 - **Was:** Threads capped at 50 messages — older history never loaded
 - **Now:** Paginated fetch up to 2,500 messages on open; scroll-up loads more; prefetch keeps 200 for speed then full fetch on open
