@@ -20,6 +20,7 @@ Project operating guidance for AI agents working in this repo.
 
 ## Required Verification After Substantive Changes
 - Run `npm run build`.
+- Run `npm run test` (DM identity, avatar cache, and other foundation unit tests).
 - If relevant, run `npm run lint`.
 - Manually verify impacted user flow.
 

@@ -103,5 +103,10 @@ export default defineConfig(({ mode }) => {
         'zod', 'react-hook-form', '@hookform/resolvers/zod',
       ],
     },
+    test: {
+      environment: 'jsdom',
+      setupFiles: ['./src/test/setup.ts'],
+      include: ['src/**/*.test.ts'],
+    },
   };
 });
