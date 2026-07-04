@@ -6,6 +6,9 @@ Use this file as the Lovable -> Cursor handoff each session.
 - **Was:** Background full-history hydrate froze thread on open; save toggle cleared both users' flags; 24h unsave didn't restore expiry; contrast guard + `transition-all` flickered DM text
 - **Now:** Recent-only open + scroll-up pagination only; skeleton skipped when cache has messages; scroll-to-bottom on append only; per-user save helper + server expiry restore; DM thread shielded from contrast guard; targeted bubble transitions
 - **Verified:** `npm run test` PASS · `npm run lint` PASS · `npm run build` PASS
+- **Committed:** `94d5c0c1` · pushed `main`
+- **Staging:** https://vybe-daaab.web.app (Firebase hosting deploy)
+- **You:** Lovable → Share → Publish for **vybehub.app**
 
 ## DM instant open — fast recent-first load (2026-07-04)
 - **Was:** Opening a chat paginated up to ~2,400 messages before paint
