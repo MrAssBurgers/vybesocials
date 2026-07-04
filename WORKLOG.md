@@ -2,6 +2,11 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## DM full message history (2026-07-04)
+- **Was:** Threads capped at 50 messages — older history never loaded
+- **Now:** Paginated fetch up to 2,500 messages on open; scroll-up loads more; prefetch keeps 200 for speed then full fetch on open
+- **Verified:** `npm run test` PASS · `npm run lint` PASS · `npm run build` PASS
+
 ## Foundation roadmap (target: 10/10)
 
 | Phase | Focus | Status |

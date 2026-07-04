@@ -1,6 +1,6 @@
 import type { QueryClient } from '@tanstack/react-query';
 import type { Conversation, Message } from '@/hooks/useMessages';
-import { fetchRecentConversationMessages } from '@/lib/conversationMessagesQuery';
+import { fetchFullConversationMessageHistory, fetchRecentConversationMessages, CHAT_INITIAL_MESSAGE_LIMIT } from '@/lib/conversationMessagesQuery';
 import {
   inferOtherParticipantId,
   isConversationMessagesReady,
@@ -67,7 +67,9 @@ export async function loadConversationMessages(
   queryClient: QueryClient,
   conversationId: string,
   actorId?: string | null,
+  options?: { maxMessages?: number },
 ): Promise<Message[]> {
+  const maxMessages = options?.maxMessages ?? CHAT_INITIAL_MESSAGE_LIMIT * 12;
   const resolvedActorId =
     syncSessionProfileId(actorId) ??
     (await resolveSessionProfileId(actorId)) ??
@@ -92,29 +94,33 @@ export async function loadConversationMessages(
   const otherProfileId =
     otherFromMembers || inferOtherParticipantId(conversationId, resolvedActorId) || null;
 
-  let { data, error } = await fetchRecentConversationMessages<Message>(
+  let { data, error } = await fetchFullConversationMessageHistory<Message>(
     conversationId,
     MESSAGE_SELECT_SLIM,
-    50,
+    maxMessages,
   );
 
   if (error) {
     await prepareConversationForMessages(conversationId, resolvedActorId, otherProfileId, {
       fast: true,
     });
-    const retryPlain = await fetchRecentConversationMessages<Message>(conversationId, '*', 50);
+    const retryPlain = await fetchFullConversationMessageHistory<Message>(
+      conversationId,
+      '*',
+      maxMessages,
+    );
     if (!retryPlain.error) {
       data = retryPlain.data;
       error = retryPlain.error;
     } else {
-      const retrySlim = await fetchRecentConversationMessages<Message>(
+      const retryRecent = await fetchRecentConversationMessages<Message>(
         conversationId,
         'id, conversation_id, sender_id, content, media_url, media_type, view_mode, expires_at, created_at, is_deleted, reply_to_id',
-        50,
+        CHAT_INITIAL_MESSAGE_LIMIT,
       );
-      if (!retrySlim.error) {
-        data = retrySlim.data;
-        error = retrySlim.error;
+      if (!retryRecent.error) {
+        data = sortChronological((retryRecent.data || []) as Message[]);
+        error = retryRecent.error;
       }
     }
   } else if (!isConversationMessagesReady(conversationId, resolvedActorId)) {
@@ -127,10 +133,10 @@ export async function loadConversationMessages(
     await prepareConversationForMessages(conversationId, resolvedActorId, otherProfileId, {
       fast: false,
     });
-    const retryEmpty = await fetchRecentConversationMessages<Message>(
+    const retryEmpty = await fetchFullConversationMessageHistory<Message>(
       conversationId,
       MESSAGE_SELECT_SLIM,
-      50,
+      maxMessages,
     );
     if (!retryEmpty.error && retryEmpty.data?.length) {
       data = retryEmpty.data;
@@ -140,9 +146,14 @@ export async function loadConversationMessages(
   if (error) throw error;
 
   const rows = ((data || []) as Message[]).filter((m) => !m.is_deleted);
-  rows.reverse();
 
   const filtered = filterMessagesForViewer(rows, resolvedActorId);
   const enriched = await enrichMessagesFromProfiles(filtered);
   return mergeMessagesWithLocalCache(queryClient, conversationId, enriched);
+}
+
+function sortChronological(messages: Message[]): Message[] {
+  return [...messages].sort(
+    (a, b) => new Date(a.created_at || 0).getTime() - new Date(b.created_at || 0).getTime(),
+  );
 }

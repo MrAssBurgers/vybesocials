@@ -21,6 +21,7 @@ import { useRealtimeMessages } from '@/hooks/useRealtimeMessages';
 import { setCurrentConversationId } from '@/hooks/useGlobalRealtimeMessages';
 import { useUnsendForEveryone, useDeleteForMe, useEditMessage } from '@/hooks/useMessageActions';
 import { useInstantReadClear } from '@/hooks/useMessageNotifications';
+import { useOlderMessages } from '@/hooks/useOlderMessages';
 import { messagesQueryKey, readMessagesCache } from '@/lib/messagesQueryKey';
 import { findCachedDmConversation } from '@/lib/warmDmConversation';
 import { useAISmartReplies } from '@/hooks/useAIMessageAssist';
@@ -190,6 +191,13 @@ export function ChatView() {
   const isGroupChat = safeConversation?.is_group || false;
   const { data: messagesRaw, isPending: messagesPending, isFetched: messagesFetched, isError: messagesError, refetch: refetchMessages } = useMessages(conversationId);
   const messages = normalizeMessagesCache(messagesRaw);
+  const {
+    loadOlderMessages,
+    isLoadingOlder,
+    hasMoreOlder,
+    resetOlderState,
+  } = useOlderMessages(conversationId);
+  const scrollHeightBeforeOlderRef = useRef(0);
   const threadMessages = useMemo(() => {
     if (!conversationId) return [] as Message[];
     const cached = readMessagesCache(queryClient, conversationId);
@@ -393,7 +401,8 @@ export function ChatView() {
     setShowImageSafetyGate(false);
     setPendingSafetyImage(null);
     clearSuggestions();
-  }, [conversationId, clearSuggestions]);
+    resetOlderState();
+  }, [conversationId, clearSuggestions, resetOlderState]);
   
 
   const otherMembers = useMemo(
@@ -656,6 +665,22 @@ export function ChatView() {
     }
     prevMessageCountRef.current = currentLen;
   }, [conversationId, threadMessages.length]);
+
+  const handleMessagesScroll = useCallback(() => {
+    const container = messagesContainerRef.current;
+    if (!container || !hasMoreOlder || isLoadingOlder) return;
+    if (container.scrollTop > 140) return;
+
+    scrollHeightBeforeOlderRef.current = container.scrollHeight;
+    void loadOlderMessages().then(() => {
+      requestAnimationFrame(() => {
+        const scroller = messagesContainerRef.current;
+        if (!scroller) return;
+        const delta = scroller.scrollHeight - scrollHeightBeforeOlderRef.current;
+        if (delta > 0) scroller.scrollTop += delta;
+      });
+    });
+  }, [hasMoreOlder, isLoadingOlder, loadOlderMessages]);
 
   // Handle typing indicator - instant input, deferred typing updates
   const typingUpdateScheduledRef = useRef(false);
@@ -1663,6 +1688,7 @@ export function ChatView() {
           overscrollBehavior: 'contain',
           touchAction: 'pan-y',
         }}
+        onScroll={handleMessagesScroll}
       >
         {messagesLoadFailed && (
           <div className="mb-3 rounded-lg border border-border bg-muted/40 px-3 py-2 text-center">
@@ -1682,6 +1708,11 @@ export function ChatView() {
           </div>
         ) : (
         <div key={conversationId} className="flex flex-col gap-0 pb-4 md:pb-4">
+          {isLoadingOlder && threadMessages.length > 0 && (
+            <div className="py-2 text-center">
+              <span className="text-[11px] text-muted-foreground">Loading earlier messages…</span>
+            </div>
+          )}
           {messageItems.map(({ message, isOwn, showAvatar, showTimestamp, sameSender, isMediaTransition, isEmojiOnly }, index) => {
             // Instagram/Snapchat spacing rules:
             // Same sender consecutive: 4-6px gap (tight grouping)

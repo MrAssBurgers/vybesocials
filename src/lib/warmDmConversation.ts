@@ -2,6 +2,7 @@ import type { QueryClient } from '@tanstack/react-query';
 import { prewarmDmBroadcastChannel } from '@/lib/dmBroadcast';
 import { loadConversationMessages } from '@/lib/loadConversationMessages';
 import type { LoadedDMConversation } from '@/lib/loadDMConversations';
+import { CHAT_INITIAL_MESSAGE_LIMIT } from '@/lib/conversationMessagesQuery';
 import { messagesQueryKey, readMessagesCache } from '@/lib/messagesQueryKey';
 import { buildConversationPlaceholder } from '@/lib/dmMembershipRepair';
 import {
@@ -83,11 +84,14 @@ export function warmDmConversation(
   prewarmDmBroadcastChannel(conversationId);
   seedConversationDetailCache(queryClient, conversationId, profileId);
 
-  if (readMessagesCache(queryClient, conversationId).length > 0) return;
+  if (readMessagesCache(queryClient, conversationId).length >= CHAT_INITIAL_MESSAGE_LIMIT) return;
 
   void queryClient.prefetchQuery({
     queryKey: messagesQueryKey(conversationId),
-    queryFn: () => loadConversationMessages(queryClient, conversationId, actorId),
+    queryFn: () =>
+      loadConversationMessages(queryClient, conversationId, actorId, {
+        maxMessages: CHAT_INITIAL_MESSAGE_LIMIT,
+      }),
     staleTime: 120_000,
   });
 }

@@ -11,6 +11,7 @@ import { fetchMessagesForConversations } from '@/lib/conversationMessagesQuery';
 import { messagesQueryKey, readMessagesCache, mergeMessagesWithLocalCache, patchMessagesCache, normalizeMessagesCache } from '@/lib/messagesQueryKey';
 import { safeDmMembers, ensureArray } from '@/lib/persistedCollections';
 import { loadConversationMessages } from '@/lib/loadConversationMessages';
+import { CHAT_INITIAL_MESSAGE_LIMIT } from '@/lib/conversationMessagesQuery';
 import { invalidateConversationCaches } from '@/lib/invalidateConversationCaches';
 import { shouldRefetchWhenEmpty, refetchListOnMount } from '@/lib/queryRefetchPolicy';
 import { toast } from 'sonner';
@@ -317,7 +318,15 @@ export function useMessages(conversationId: string | undefined) {
     staleTime: 120_000,
     gcTime: 1000 * 60 * 60 * 24 * 14,
     refetchOnWindowFocus: false,
-    refetchOnMount: (query) => shouldRefetchWhenEmpty(query),
+    refetchOnMount: (query) => {
+      const decision = shouldRefetchWhenEmpty(query);
+      if (decision !== false) return decision;
+      const cached = query?.state?.data;
+      if (Array.isArray(cached) && cached.length > 0 && cached.length < CHAT_INITIAL_MESSAGE_LIMIT) {
+        return true;
+      }
+      return false;
+    },
     refetchOnReconnect: false,
     initialData: () => {
       if (!conversationId) return undefined;
