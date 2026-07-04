@@ -2,6 +2,11 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## DM inbox flicker fix (2026-07-04)
+- **Was:** Sidebar rows re-faded on every reorder (entrance animation + section remounts + opacity CSS transition on read/active)
+- **Now:** Stable flat list keys, layout-only motion, deferred read patches, no skeleton flash when cache exists
+- **Verified:** `npm run test` PASS · `npm run lint` PASS · `npm run build` PASS
+
 ## Snapchat-style DM recents ordering (2026-07-04)
 - **Was:** Opening a chat could bump inbox order via `updated_at` repair + unread-tier sorting
 - **Now:** Inbox order uses last message time only; view/read clears badge without reorder; send/receive still moves chat to top

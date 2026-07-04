@@ -78,3 +78,28 @@ export function organizeDmInbox(
 
   return sections;
 }
+
+export type DmInboxRow =
+  | { type: 'header'; id: DmInboxSectionId; label: string; count: number }
+  | { type: 'conversation'; conversation: LoadedDMConversation };
+
+/** Flat list with section headers — keeps stable `conv.id` keys when rows change sections. */
+export function buildFlatInboxRows(
+  rows: LoadedDMConversation[],
+  profileId?: string,
+): DmInboxRow[] {
+  const sections = organizeDmInbox(rows, profileId);
+  const flat: DmInboxRow[] = [];
+  for (const section of sections) {
+    flat.push({
+      type: 'header',
+      id: section.id,
+      label: section.label,
+      count: section.conversations.length,
+    });
+    for (const conversation of section.conversations) {
+      flat.push({ type: 'conversation', conversation });
+    }
+  }
+  return flat;
+}

@@ -18,7 +18,6 @@ export interface DmConversationCardProps {
   isActive?: boolean;
   onClick: () => void;
   onWarm?: () => void;
-  index?: number;
 }
 
 export const DmConversationCard = memo(function DmConversationCard({
@@ -28,7 +27,6 @@ export const DmConversationCard = memo(function DmConversationCard({
   isActive,
   onClick,
   onWarm,
-  index = 0,
 }: DmConversationCardProps) {
   const { data: recentNewFriendIds = new Set<string>() } = useRecentNewFriendProfileIds();
   const unread = conversation.unread_count || 0;
@@ -62,9 +60,8 @@ export const DmConversationCard = memo(function DmConversationCard({
   return (
     <motion.button
       type="button"
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: Math.min(index * 0.03, 0.24), duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
+      layout="position"
+      initial={false}
       onClick={onClick}
       onPointerEnter={onWarm}
       onPointerDown={(e) => {

@@ -124,15 +124,15 @@ export function useDMConversations(searchQuery: string = '') {
     return base.map((conv) => enrichLastMessageFromThreadCache(conv, queryClient));
   }, [conversationsQuery.data, cachedConversations, queryClient]);
 
+  const conversationIdsKey = useMemo(
+    () => [...new Set(conversationList.map((c) => c.id))].sort().join('\0'),
+    [conversationList],
+  );
+
   useEffect(() => {
-    if (!profileId || conversationList.length === 0) return;
-    warmDmConversationBatch(
-      queryClient,
-      conversationList.map((c) => c.id),
-      profileId,
-      profileId,
-    );
-  }, [conversationList, profileId, queryClient]);
+    if (!profileId || !conversationIdsKey) return;
+    warmDmConversationBatch(queryClient, conversationIdsKey.split('\0'), profileId, profileId);
+  }, [conversationIdsKey, profileId, queryClient]);
 
   // Auto-create conversations for friends who don't have one.
   // Read latest data from the cache on demand so this callback's identity

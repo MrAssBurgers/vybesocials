@@ -1,4 +1,4 @@
-import { useEffect, useCallback } from 'react';
+import { useEffect, useCallback, startTransition } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { db } from '@/lib/firebase';
 import { subscribePostgresChannel, removeRealtimeChannel } from '@/lib/realtimeChannel';
@@ -37,13 +37,15 @@ export function useInstantReadClear(conversationId: string | undefined) {
       );
     };
 
-    queryClient.setQueryData<any[]>(['dm-conversations', profile.id], markReadPatch);
-    queryClient.setQueryData<any[]>(['conversations', profile.id], markReadPatch);
-    queryClient.setQueryData<any[]>(['conversations'], markReadPatch);
-    queryClient.setQueryData<number>(
-      ['unread-messages-count', profile.id],
-      (prev) => (typeof prev === 'number' ? Math.max(0, prev - convUnread) : 0),
-    );
+    startTransition(() => {
+      queryClient.setQueryData<any[]>(['dm-conversations', profile.id], markReadPatch);
+      queryClient.setQueryData<any[]>(['conversations', profile.id], markReadPatch);
+      queryClient.setQueryData<any[]>(['conversations'], markReadPatch);
+      queryClient.setQueryData<number>(
+        ['unread-messages-count', profile.id],
+        (prev) => (typeof prev === 'number' ? Math.max(0, prev - convUnread) : 0),
+      );
+    });
 
     const authUid = await getSessionAuthUid();
     await markConversationReadForViewer(conversationId, profile.id, authUid);

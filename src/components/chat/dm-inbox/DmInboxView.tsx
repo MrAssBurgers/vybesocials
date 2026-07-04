@@ -4,7 +4,7 @@
  */
 import { useMemo, useState, useCallback, useEffect, startTransition } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { motion } from 'framer-motion';
+import { motion, LayoutGroup } from 'framer-motion';
 import {
   MessageCircle,
   RefreshCw,
@@ -19,7 +19,7 @@ import { useTrashedConversationIds } from '@/hooks/useTrashedConversations';
 import { useAuthProfileId } from '@/hooks/useAuthProfileId';
 import { useAuth } from '@/lib/auth';
 import { ensureArray } from '@/lib/persistedCollections';
-import { organizeDmInbox } from '@/lib/dmInboxOrganize';
+import { buildFlatInboxRows } from '@/lib/dmInboxOrganize';
 import { resolveOtherMemberFromConversation } from '@/lib/dmMemberResolve';
 import { SwipeableDmConversationRow } from './SwipeableDmConversationRow';
 import { VybeWordmark } from '@/components/ui/VybeWordmark';
@@ -71,8 +71,8 @@ export function DmInboxView() {
     return allRows.filter((c) => (c.unread_count || 0) > 0 || c._hasUnread);
   }, [allRows, filter]);
 
-  const sections = useMemo(
-    () => organizeDmInbox(filteredRows, profileId),
+  const inboxRows = useMemo(
+    () => buildFlatInboxRows(filteredRows, profileId),
     [filteredRows, profileId],
   );
 
@@ -245,31 +245,29 @@ export function DmInboxView() {
               <Skeleton key={i} className="h-[72px] w-full rounded-2xl opacity-60" />
             ))}
           </div>
-        ) : sections.length > 0 ? (
-          <div className="space-y-4 pt-1">
-            {sections.map((section, sectionIdx) => (
-              <section key={`${section.id}-${sectionIdx}`}>
-                <div className="dm-inbox-section-label">
-                  <span>{section.label}</span>
-                  <span className="dm-inbox-section-count">{section.conversations.length}</span>
-                </div>
-                <div className="space-y-2">
-                  {section.conversations.map((conv, i) => (
-                    <SwipeableDmConversationRow
-                      key={conv.id}
-                      conversation={conv}
-                      profileId={profileId}
-                      authUid={user?.id}
-                      index={i}
-                      isActive={conv.id === activeConversationId}
-                      onClick={() => openChat(conv.id)}
-                      onWarm={() => handleConversationWarm(conv.id)}
-                    />
-                  ))}
-                </div>
-              </section>
-            ))}
-          </div>
+        ) : inboxRows.length > 0 ? (
+          <LayoutGroup>
+            <div className="space-y-2 pt-1">
+              {inboxRows.map((row) =>
+                row.type === 'header' ? (
+                  <div key={`header-${row.id}`} className="dm-inbox-section-label first:mt-0 mt-3">
+                    <span>{row.label}</span>
+                    <span className="dm-inbox-section-count">{row.count}</span>
+                  </div>
+                ) : (
+                  <SwipeableDmConversationRow
+                    key={row.conversation.id}
+                    conversation={row.conversation}
+                    profileId={profileId}
+                    authUid={user?.id}
+                    isActive={row.conversation.id === activeConversationId}
+                    onClick={() => openChat(row.conversation.id)}
+                    onWarm={() => handleConversationWarm(row.conversation.id)}
+                  />
+                ),
+              )}
+            </div>
+          </LayoutGroup>
         ) : (
           <div className="dm-inbox-empty flex flex-col items-center justify-center py-16 px-6 text-center">
             <div className="dm-inbox-empty-orb mb-5">

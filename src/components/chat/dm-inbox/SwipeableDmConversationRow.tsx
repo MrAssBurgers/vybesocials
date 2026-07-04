@@ -33,7 +33,6 @@ interface SwipeableDmConversationRowProps {
   isActive?: boolean;
   onClick: () => void;
   onWarm?: () => void;
-  index?: number;
 }
 
 export const SwipeableDmConversationRow = memo(function SwipeableDmConversationRow({
@@ -43,7 +42,6 @@ export const SwipeableDmConversationRow = memo(function SwipeableDmConversationR
   isActive,
   onClick,
   onWarm,
-  index = 0,
 }: SwipeableDmConversationRowProps) {
   const isMobile = useIsMobile();
   const trashConversation = useTrashConversation();
@@ -165,7 +163,6 @@ export const SwipeableDmConversationRow = memo(function SwipeableDmConversationR
             isActive={isActive}
             onClick={handleClick}
             onWarm={onWarm}
-            index={index}
           />
         </div>
         {optionsSheet}
@@ -225,7 +222,6 @@ export const SwipeableDmConversationRow = memo(function SwipeableDmConversationR
               isActive={isActive}
               onClick={handleClick}
               onWarm={onWarm}
-              index={index}
             />
           </div>
         </motion.div>

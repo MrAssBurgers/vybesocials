@@ -1420,12 +1420,14 @@ export function ChatView() {
     !activeConversation &&
     !threadMessages.length &&
     conversationPending &&
-    !conversationFetched;
+    !conversationFetched &&
+    !cachedConversation;
   const showMessagesSkeleton =
     !!conversationId &&
     !threadMessages.length &&
     messagesPending &&
-    !messagesFetched;
+    !messagesFetched &&
+    !readMessagesCache(queryClient, conversationId).length;
   const isChatHydrating = showConversationSkeleton || showMessagesSkeleton;
 
   const messagesLoadFailed =
