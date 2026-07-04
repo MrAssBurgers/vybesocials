@@ -5,7 +5,7 @@ Use this file as the Lovable -> Cursor handoff each session.
 ## Publish gate — restored empty Cloud config removed (2026-07-04)
 - **Root cause:** The obsolete `supabase/` directory had been restored again, now with only `config.toml`; Lovable Publish can still detect that folder as a backend sync target and fail with the generic internal publish error.
 - **Fix:** Removed the restored `supabase/` directory again so publish treats this as the current Firebase-backed React app only.
-- **Verified:** Local production build was already green before removal; running build again after cleanup.
+- **Verified:** `npm run build` PASS · `npm run lint` PASS · `supabase/` absent after cleanup · fresh security scan returned warnings only.
 - **Next:** Lovable Publish → verify `vybehub.app` updates, then hard refresh devices.
 
 ## Publish gate — remove obsolete Cloud migrations (2026-07-03)
