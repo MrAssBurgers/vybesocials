@@ -2,6 +2,16 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## FriendLink Nearby fallback — AirDrop-style, no NFC required (2026-07-05)
+- **Why:** some phones have no NFC; web/WebView can't do phone-to-phone Bluetooth, so the fallback is realtime presence discovery that looks/feels like AirDrop
+- **New:** `src/lib/friendLinkNearby.ts` (coarse ~165m location cells, presence freshness) + `src/hooks/useNearbyFriendLink.ts` — publishes a short-lived presence doc to new `friend_link_nearby` Firestore collection (doc id = profile id, 20s heartbeat, 65s stale window, deleted on close), streams peers in same + 8 adjacent cells via realtime bindings + initial seed query
+- **AutoFriendDrop:** new `tapMode: 'nfc' | 'nearby'` — NFC always tried first; phones without NFC (`isNfcSupported()`) open straight into Nearby; after 3s of waiting on an NFC tap a "Friendlink not working? Click here." link fades in under the status line and switches to Nearby; mode resets each open
+- **Sheet UI:** Nearby mode shows a radar scene (own avatar + CSS pulse rings, perf-mode/reduced-motion aware) and discovered people as tappable gradient-ring avatar bubbles (spring pop-in); tapping a bubble runs the existing auto-add handshake (friend request + drop confirm + DM + success animation); location denied/unavailable → friendly message + retry
+- **Rules:** `friend_link_nearby` — read signed-in, write own `user_id` only; **deployed** to vybe-daaab
+- **Verified:** typecheck PASS · 49 tests PASS · lint PASS · build PASS
+- **You:** Lovable → Share → Publish for **vybehub.app**; manual two-device check (NFC phone → hint at 3s → Nearby; two accounts same location see each other's bubbles)
+- **Next:** consider TTL cleanup job for stale `friend_link_nearby` docs; optional sound/haptic when a peer appears
+
 ## Buttery-smooth pass — scroll/animation/input jank (2026-07-05)
 - **Feed scroll:** `InlinePostList` now caches one stable ref-callback per post index — previously every visible-post change re-created every row's ref, forcing React to detach/re-attach refs across the whole feed on each scroll step
 - **PostCard:** action buttons + tag pills use targeted `transition-[transform,background-color]` instead of `transition-all` (browser no longer watches box-shadow/filter on the most-rendered component); same fix in `CommentItem`/`CommentThread` (`transition-[filter]` for safety blur) and Explore clip overlays

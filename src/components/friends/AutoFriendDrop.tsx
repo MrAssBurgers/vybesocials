@@ -25,7 +25,9 @@ import { isNativePerfMode } from '@/lib/nativePerfMode';
 import { isFullyLoggedIn } from '@/lib/authReady';
 import { buildFriendDropUrl, buildAddFriendUrl, type FriendLinkTarget, extractFriendTarget } from '@/lib/friendLinkNfc';
 import { scanFriendLinkOnce } from '@/lib/friendLinkNfc';
+import { isNfcSupported } from '@/lib/nfcPlatform';
 import { useFriendLinkNfcSession } from '@/hooks/useFriendLinkNfcSession';
+import { useNearbyFriendLink, type NearbyFriendPeer } from '@/hooks/useNearbyFriendLink';
 import { FRIEND_LINK_OPEN_EVENT } from '@/lib/friendLinkUi';
 import {
   FRIEND_DROP_ANIMATION_START,
@@ -48,6 +50,10 @@ import { isCameraSafeMode } from '@/lib/cameraSafeMode';
 
 type DropPhase = 'idle' | 'activated' | 'found' | 'exchanging' | 'success';
 type ActiveTab = 'tap' | 'qr';
+type TapMode = 'nfc' | 'nearby';
+
+/** Delay before offering the Nearby fallback while waiting on an NFC tap. */
+const NFC_FALLBACK_HINT_MS = 3000;
 
 interface FoundUser {
   id: string;
@@ -75,6 +81,10 @@ export function AutoFriendDrop() {
   const [foundUser, setFoundUser] = useState<FoundUser | null>(null);
   const [activeDropId, setActiveDropId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<ActiveTab>('tap');
+  // NFC is always tried first; phones without NFC go straight to Nearby.
+  const nfcCapable = useMemo(() => isNfcSupported(), []);
+  const [tapMode, setTapMode] = useState<TapMode>(nfcCapable ? 'nfc' : 'nearby');
+  const [showFallbackHint, setShowFallbackHint] = useState(false);
   const [qrSvg, setQrSvg] = useState('');
   const [cameraActive, setCameraActive] = useState(false);
   const [cameraStarting, setCameraStarting] = useState(false);
@@ -354,10 +364,60 @@ export function AutoFriendDrop() {
   });
 
   useFriendLinkNfcSession({
-    enabled: isActive && activeTab === 'tap' && phase === 'activated' && !nativeFriendDrop.isAvailable,
+    enabled:
+      isActive &&
+      activeTab === 'tap' &&
+      phase === 'activated' &&
+      tapMode === 'nfc' &&
+      !nativeFriendDrop.isAvailable,
     broadcastUrl: nfcBroadcastUrl,
     onTarget: handleNfcTarget,
   });
+
+  // AirDrop-style fallback — presence-based discovery for phones without NFC
+  // (or when the user reports NFC isn't working).
+  const nearby = useNearbyFriendLink({
+    enabled:
+      isActive &&
+      activeTab === 'tap' &&
+      phase === 'activated' &&
+      tapMode === 'nearby' &&
+      !nativeFriendDrop.isAvailable,
+    profileId,
+    username: profile?.username,
+    displayName: (profile as { display_name?: string | null } | null)?.display_name ?? null,
+    avatarUrl: profile?.avatar_url ?? null,
+  });
+
+  // NFC gets NFC_FALLBACK_HINT_MS to connect; then offer the Nearby switch.
+  useEffect(() => {
+    if (!isActive || activeTab !== 'tap' || phase !== 'activated' || tapMode !== 'nfc' || !nfcCapable || nativeFriendDrop.isAvailable) {
+      setShowFallbackHint(false);
+      return;
+    }
+    const timer = setTimeout(() => setShowFallbackHint(true), NFC_FALLBACK_HINT_MS);
+    return () => clearTimeout(timer);
+  }, [isActive, activeTab, phase, tapMode, nfcCapable, nativeFriendDrop.isAvailable]);
+
+  const switchToNearby = useCallback(() => {
+    haptics.tap();
+    setShowFallbackHint(false);
+    setTapMode('nearby');
+  }, []);
+
+  const handleNearbyPeerTap = useCallback(
+    (peer: NearbyFriendPeer) => {
+      if (exchangeLockRef.current || completingRef.current) return;
+      setFoundUser({
+        id: peer.userId,
+        username: peer.username,
+        display_name: peer.displayName,
+        avatar_url: peer.avatarUrl,
+      });
+      handleAutoAdd(peer.userId);
+    },
+    [handleAutoAdd],
+  );
 
   const handleClose = useCallback(() => {
     haptics.tap();
@@ -528,11 +588,13 @@ export function AutoFriendDrop() {
     await requestMotionPermission();
     setIsActive(true);
     setActiveTab('tap');
+    setTapMode(nfcCapable ? 'nfc' : 'nearby');
+    setShowFallbackHint(false);
     haptics.impact();
     setPhase('activated');
     setTimeout(() => haptics.success(), 300);
     void ensureFriendDrop();
-  }, [profileId, user, friendDropSync, requestMotionPermission, isActive, ensureFriendDrop]);
+  }, [profileId, user, friendDropSync, requestMotionPermission, isActive, ensureFriendDrop, nfcCapable]);
 
   useEffect(() => {
     if (!isActive || phase !== 'activated' || !profileId) return;
@@ -554,6 +616,8 @@ export function AutoFriendDrop() {
         const nextTab = tab === 'qr' || tab === 'tap' ? tab : 'tap';
         setIsActive(true);
         setActiveTab(nextTab);
+        setTapMode(nfcCapable ? 'nfc' : 'nearby');
+        setShowFallbackHint(false);
         setPhase('activated');
         haptics.impact();
         if (profileId && user) {
@@ -566,7 +630,7 @@ export function AutoFriendDrop() {
     };
     window.addEventListener(FRIEND_LINK_OPEN_EVENT, onOpen);
     return () => window.removeEventListener(FRIEND_LINK_OPEN_EVENT, onOpen);
-  }, [profileId, user, authLoading, ensureFriendDrop, requestMotionPermission, startCamera]);
+  }, [profileId, user, authLoading, ensureFriendDrop, requestMotionPermission, startCamera, nfcCapable]);
 
   const handleAddFriend = useCallback(async () => {
     if (!foundUser || completingRef.current) return;
@@ -697,11 +761,11 @@ export function AutoFriendDrop() {
       setActiveTab(tab);
       if (tab === 'qr') {
         startCamera();
-      } else if (tab === 'tap' && !nativeFriendDrop.isAvailable) {
+      } else if (tab === 'tap' && !nativeFriendDrop.isAvailable && tapMode === 'nfc') {
         void retryNfcScan();
       }
     },
-    [nativeFriendDrop.isAvailable, retryNfcScan, startCamera],
+    [nativeFriendDrop.isAvailable, retryNfcScan, startCamera, tapMode],
   );
 
   if (!isFullyLoggedIn(user, profile, authLoading)) return null;
@@ -843,9 +907,15 @@ export function AutoFriendDrop() {
                   profile={profile}
                   foundUser={foundUser}
                   tapListening={tapListening}
+                  tapMode={tapMode}
+                  showFallbackHint={showFallbackHint}
+                  onSwitchToNearby={switchToNearby}
+                  nearbyStatus={nearby.status}
+                  onRetryNearby={nearby.retry}
+                  onNearbyPeerTap={handleNearbyPeerTap}
                   qrSvg={qrSvg}
                   qrLoading={!profileId || (!qrSvg && friendDropSync.isCreating)}
-                  nearbyPeers={nativeFriendDrop.nearbyPeers}
+                  nearbyPeers={tapMode === 'nearby' ? nearby.peers : nativeFriendDrop.nearbyPeers}
                   videoRef={videoRef}
                   canvasRef={canvasRef}
                   cameraActive={cameraActive}

@@ -9,6 +9,8 @@ import { cn } from '@/lib/utils';
 
 type DropPhase = 'idle' | 'activated' | 'found' | 'exchanging' | 'success';
 type ActiveTab = 'tap' | 'qr';
+type TapMode = 'nfc' | 'nearby';
+type NearbyStatus = 'idle' | 'locating' | 'searching' | 'denied' | 'unavailable' | 'error';
 
 interface FoundUser {
   id: string;
@@ -38,6 +40,12 @@ interface FriendLinkSheetContentProps {
   } | null;
   foundUser: FoundUser | null;
   tapListening: boolean;
+  tapMode: TapMode;
+  showFallbackHint: boolean;
+  onSwitchToNearby: () => void;
+  nearbyStatus: NearbyStatus;
+  onRetryNearby: () => void;
+  onNearbyPeerTap: (peer: NearbyPeer) => void;
   qrSvg: string;
   qrLoading: boolean;
   nearbyPeers: NearbyPeer[];
@@ -138,6 +146,85 @@ function ScannerViewport({
   );
 }
 
+/** AirDrop-style radar — your avatar in the middle, pulse rings sweeping out. */
+function NearbyRadarScene({
+  profile,
+  status,
+  reduceMotion,
+}: {
+  profile: { username?: string; avatar_url?: string | null } | null;
+  status: NearbyStatus;
+  reduceMotion: boolean;
+}) {
+  const live = status === 'searching' || status === 'locating';
+  return (
+    <div
+      className={cn(
+        'friend-link-radar relative mx-auto flex h-[8.5rem] w-full items-center justify-center overflow-hidden rounded-2xl border border-primary/15 bg-gradient-to-br from-primary/[0.08] via-transparent to-accent/[0.08]',
+        live && !reduceMotion && 'friend-link-radar--live',
+      )}
+    >
+      <span className="friend-link-radar-ring friend-link-radar-ring--a" aria-hidden />
+      <span className="friend-link-radar-ring friend-link-radar-ring--b" aria-hidden />
+      <span className="friend-link-radar-ring friend-link-radar-ring--c" aria-hidden />
+      <span className="relative rounded-full p-[2px] bg-gradient-to-br from-primary to-accent shadow-[0_8px_24px_-6px_hsl(var(--primary)/0.5)]">
+        <Avatar className="h-14 w-14 ring-2 ring-background">
+          <AvatarImage src={profile?.avatar_url || ''} className="object-cover" />
+          <AvatarFallback className="text-sm font-semibold">
+            {profile?.username?.[0]?.toUpperCase()}
+          </AvatarFallback>
+        </Avatar>
+      </span>
+    </div>
+  );
+}
+
+function NearbyStatusLine({
+  status,
+  hasPeers,
+  onRetry,
+}: {
+  status: NearbyStatus;
+  hasPeers: boolean;
+  onRetry: () => void;
+}) {
+  if (status === 'denied' || status === 'unavailable' || status === 'error') {
+    const message =
+      status === 'denied'
+        ? 'Allow location access to find friends nearby'
+        : status === 'unavailable'
+          ? 'Nearby needs location — try the QR code instead'
+          : 'Nearby hit a snag — try again';
+    return (
+      <div className="flex flex-col items-center gap-1.5">
+        <p className="text-center text-sm font-medium text-muted-foreground">{message}</p>
+        <button
+          type="button"
+          onClick={onRetry}
+          className="rounded-full bg-foreground px-3.5 py-1 text-xs font-medium text-background touch-manipulation active:scale-95 transition-transform"
+        >
+          Try again
+        </button>
+      </div>
+    );
+  }
+  return (
+    <p className="text-center text-sm font-medium text-muted-foreground">
+      {status === 'locating' ? (
+        'Getting ready…'
+      ) : hasPeers ? (
+        <>
+          <span className="text-primary">Found friends</span> — tap someone to add
+        </>
+      ) : (
+        <>
+          <span className="text-primary">Searching</span> — looking for people nearby
+        </>
+      )}
+    </p>
+  );
+}
+
 function PhasePanel({
   children,
   className,
@@ -169,6 +256,12 @@ export function FriendLinkSheetContent({
   profile,
   foundUser,
   tapListening,
+  tapMode,
+  showFallbackHint,
+  onSwitchToNearby,
+  nearbyStatus,
+  onRetryNearby,
+  onNearbyPeerTap,
   qrSvg,
   qrLoading,
   nearbyPeers,
@@ -268,6 +361,51 @@ export function FriendLinkSheetContent({
       <div className="relative">
         <AnimatePresence mode="wait" initial={false}>
           {activeTab === 'tap' ? (
+            tapMode === 'nearby' ? (
+              <motion.div key="tap-nearby" {...motionProps} className="space-y-3">
+                <NearbyRadarScene
+                  profile={profile}
+                  status={nearbyStatus}
+                  reduceMotion={reduceMotion}
+                />
+                <NearbyStatusLine
+                  status={nearbyStatus}
+                  hasPeers={nearbyPeers.length > 0}
+                  onRetry={onRetryNearby}
+                />
+                {nearbyPeers.length > 0 && (
+                  <div className="flex flex-wrap items-start justify-center gap-x-4 gap-y-3 pt-0.5">
+                    {nearbyPeers.map((peer, index) => (
+                      <motion.button
+                        key={peer.peerId}
+                        type="button"
+                        initial={reduceMotion ? { opacity: 0 } : { opacity: 0, scale: 0.6, y: 8 }}
+                        animate={{ opacity: 1, scale: 1, y: 0 }}
+                        transition={
+                          reduceMotion
+                            ? { duration: 0.08 }
+                            : { type: 'spring', stiffness: 420, damping: 26, delay: Math.min(index * 0.06, 0.3) }
+                        }
+                        className="flex w-16 flex-col items-center gap-1.5 touch-manipulation active:scale-95 transition-transform"
+                        onClick={() => onNearbyPeerTap(peer)}
+                      >
+                        <span className="rounded-full p-[2px] bg-gradient-to-br from-primary to-accent shadow-[0_6px_18px_-6px_hsl(var(--primary)/0.55)]">
+                          <Avatar className="h-14 w-14 ring-2 ring-background">
+                            <AvatarImage src={peer.avatarUrl || ''} className="object-cover" />
+                            <AvatarFallback className="text-sm font-semibold">
+                              {peer.username[0]?.toUpperCase()}
+                            </AvatarFallback>
+                          </Avatar>
+                        </span>
+                        <span className="w-full truncate text-center text-[11px] font-medium leading-tight">
+                          {peer.displayName || peer.username}
+                        </span>
+                      </motion.button>
+                    ))}
+                  </div>
+                )}
+              </motion.div>
+            ) : (
             <motion.div key="tap" {...motionProps} className="space-y-3">
               <FriendLinkTapAnimation
                 active={tapListening}
@@ -284,6 +422,27 @@ export function FriendLinkSheetContent({
                   'Getting ready…'
                 )}
               </p>
+              <AnimatePresence>
+                {showFallbackHint && (
+                  <motion.div
+                    key="fallback-hint"
+                    initial={reduceMotion ? { opacity: 0 } : { opacity: 0, y: 6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0 }}
+                    transition={reduceMotion ? { duration: 0.08 } : { duration: 0.3, ease: 'easeOut' }}
+                    className="flex justify-center"
+                  >
+                    <button
+                      type="button"
+                      onClick={onSwitchToNearby}
+                      className="min-h-[2.25rem] rounded-full px-3 py-1 text-xs text-muted-foreground touch-manipulation transition-colors active:bg-primary/10"
+                    >
+                      Friendlink not working?{' '}
+                      <span className="font-semibold text-primary underline underline-offset-2">Click here.</span>
+                    </button>
+                  </motion.div>
+                )}
+              </AnimatePresence>
               {nearbyPeers.length > 0 && (
                 <div className="space-y-1">
                   {nearbyPeers.map((peer) => (
@@ -305,6 +464,7 @@ export function FriendLinkSheetContent({
                 </div>
               )}
             </motion.div>
+            )
           ) : (
             <motion.div key="qr" {...motionProps} className="flex flex-col items-center gap-3">
               <button

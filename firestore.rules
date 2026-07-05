@@ -473,6 +473,12 @@ service cloud.firestore {
       allow create: if willOwnUserField('sender_id') || willOwnUserField('user_id');
       allow update, delete: if ownsUserField('sender_id') || ownsUserField('user_id') || isAdmin();
     }
+    // Short-lived presence docs for the FriendLink "Nearby" fallback (no-NFC phones).
+    match /friend_link_nearby/{docId} {
+      allow read: if signedIn();
+      allow create, update: if willOwnUserField('user_id');
+      allow delete: if ownsUserField('user_id') || isAdmin();
+    }
     match /reports/{docId} {
       allow create: if signedIn();
       allow read, update, delete: if isStaffModerator();
