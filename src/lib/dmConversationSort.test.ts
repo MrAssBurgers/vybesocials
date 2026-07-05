@@ -131,6 +131,8 @@ describe('patchDmConversationActivity', () => {
       id: 'm1',
       content: 'yo',
       media_type: null,
+      media_url: null,
+      message_type: 'text',
       created_at: '2026-07-04T12:00:00.000Z',
       sender_id: profileId,
     });

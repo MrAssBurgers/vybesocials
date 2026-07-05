@@ -151,14 +151,18 @@ export const DesktopRightSidebar = memo(function DesktopRightSidebar() {
       const isOwnLast = Boolean(lastMsg?.sender_id && profileId && lastMsg.sender_id === profileId);
       return {
         id: conv.id,
-        name: conv.is_group ? conv.name : otherMember?.display_name || otherMember?.username,
-        avatar: conv.is_group ? conv.avatar_url : otherMember?.avatar_url,
+        name: (conv.is_group
+          ? conv.name
+          : otherMember?.display_name || otherMember?.username) as string | undefined,
+        avatar: (conv.is_group ? conv.avatar_url : otherMember?.avatar_url) as
+          | string
+          | undefined,
         lastMessage: lastMsg
           ? formatDmPreviewContent(lastMsg, isOwnLast, 60)
           : undefined,
         hasUnread: conv.unread_count > 0,
         isTyping: checkTyping(conv.id),
-        otherUserId: conv.is_group ? null : otherMember?.id,
+        otherUserId: conv.is_group ? null : ((otherMember?.id as string | undefined) ?? null),
         isGroup: conv.is_group,
       };
     });

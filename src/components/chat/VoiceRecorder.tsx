@@ -20,7 +20,7 @@ interface VoiceRecorderProps {
 export function VoiceRecorder({
   onRecordingComplete,
   onCancel,
-  isUploading: _isUploading,
+  isUploading,
   onReviewReady,
   autoSend,
   locked,

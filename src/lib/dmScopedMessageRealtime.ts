@@ -8,7 +8,7 @@ import { db } from '@/lib/firebase';
 import { appendIncomingMessage } from '@/lib/messagesQueryKey';
 import { maybeShowForegroundDmNotification } from '@/lib/foregroundDmNotification';
 import { patchDmConversationActivity, sortDmConversations } from '@/lib/dmConversationSort';
-import { readQueryArray } from '@/lib/persistedCollections';
+import { readQueryArray, safeDmMembers } from '@/lib/persistedCollections';
 import {
   removeChannelByTopic,
   removeRealtimeChannel,

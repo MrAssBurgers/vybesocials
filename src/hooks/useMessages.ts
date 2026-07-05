@@ -18,6 +18,7 @@ import { shouldRefetchWhenEmpty, refetchListOnMount } from '@/lib/queryRefetchPo
 import { toast } from 'sonner';
 import { callSounds } from '@/lib/callSounds';
 import { normalizeToProfileId, ensureConversationReady } from '@/lib/dmMembershipRepair';
+import { markConversationReadForViewer, getSessionAuthUid } from '@/lib/markConversationRead';
 import { createDmChat } from '@/lib/firebase/chats';
 import { firebaseAuth } from '@/lib/firebase/authService';
 import { getDmConversationSortTime, patchDmConversationActivity, sortDmConversations } from '@/lib/dmConversationSort';

@@ -4,8 +4,8 @@ import { safeDmMembers } from '@/lib/persistedCollections';
 
 type SortableConversation = Pick<
   LoadedDMConversation,
-  'id' | 'created_at' | 'updated_at' | 'last_message' | '_sortTime' | 'members'
->;
+  'id' | 'created_at' | 'updated_at' | 'last_message' | 'members'
+> & { _sortTime?: string | null };
 
 /** Message activity only — never conversation.updated_at (bumped on view/repair). */
 export function getDmConversationSortTime(conv: SortableConversation): string {

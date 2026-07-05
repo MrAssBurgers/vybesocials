@@ -2,6 +2,16 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## Deep foundation scan + fixes (2026-07-04)
+- **Scan:** `npm run debug` PASS · `backend:scan` 15 pass → all pass after fixes · functions build PASS · production probes healthy
+- **Type errors fixed (17):** missing imports (`markConversationReadForViewer`/`getSessionAuthUid` in `useMessages`, `safeDmMembers` in `dmScopedMessageRealtime`), `viewerAuthUid` never passed through `ConversationContent` (inbox previews used wrong viewer), voice-note send spinner never showed (`isUploading` renamed away), unsafe casts in `useDMConversations`/`useTrashedConversations`/`DesktopRightSidebar`, test fixture gaps
+- **CI hardened:** new `npm run typecheck` script + CI step — type errors can no longer land silently (build/lint didn't catch these)
+- **Firestore data repair:** deleted 35 junk self-referencing `conversation_members` rows + 1 test `friend_requests/x` doc; stripped own-id from 28 `member_ids` arrays (backup: `scripts/migrate-firebase/backups/`); verify now 100% connected, 0 orphans
+- **New tool:** `scripts/migrate-firebase/cleanup-selfref-members.mjs` (dry-run by default)
+- **Verified:** typecheck PASS · 19 tests PASS · lint PASS · build PASS
+- **Staging:** https://vybe-daaab.web.app
+- **You:** Lovable → Share → Publish for **vybehub.app** (backend scan flagged prod bundle STALE)
+
 ## DM Snapchat parity — full history + reliable tap-to-save (2026-07-04)
 - **Was:** Scroll-up pagination used an unordered scan capped at ~400 rows (long threads hit a wall); tap-to-save relied on `onClick`, which iOS Safari drops on non-interactive elements (only long-press menu worked); `scroll-smooth` animated every pin-to-bottom; new incoming messages yanked reader out of history
 - **Now:** Server-ordered pages via `conversation_id + created_at` index (exact pagination, index-free fallback); tap detection moved into the SwipeToReply pointer state machine (`onTap` fires on clean release — works on iOS/desktop); scroll-up preload at 600px; pin-to-bottom only for own sends or near-bottom; older pages survive recent refetches in cache merge; history cap raised to 10k

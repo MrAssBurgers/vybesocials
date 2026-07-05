@@ -69,13 +69,13 @@ async function enrichTrashedRows(
     membersByConv.set(cid, list);
   });
 
-  const profileIds = [
+  const profileIds: string[] = [
     ...new Set(
       (membersResult.data || [])
         .map((member) => String(member.user_id))
         .filter(Boolean),
     ),
-  ];
+  ] as string[];
   const profiles = profileIds.length ? await fetchMemberProfiles(profileIds) : new Map();
 
   return rows.map((row) => {

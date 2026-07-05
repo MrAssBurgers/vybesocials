@@ -404,7 +404,7 @@ export function useConversationDetail(conversationId: string | undefined) {
           members,
           last_message: cached?.last_message ?? null,
           unread_count: cached?.unread_count ?? 0,
-          _sortTime: cached?._sortTime ?? getDmConversationSortTime(conv as DMConversation),
+          _sortTime: cached?._sortTime ?? getDmConversationSortTime(conv as unknown as DMConversation),
           _hasUnread: cached?._hasUnread ?? false,
         } as DMConversation;
       } catch (err) {
