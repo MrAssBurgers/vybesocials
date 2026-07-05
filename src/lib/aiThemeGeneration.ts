@@ -48,8 +48,6 @@ export interface GenerateVybeThemeResult {
 
 const CLIENT_AI_MS = 6000;
 const CLOUD_AI_MS = 22000;
-/** Instant return when prompt clearly specifies colors/brand/scene (no typed prompt). */
-const INSTANT_CONFIDENCE = 0.72;
 
 function normalizeCallableTheme(data: unknown): GeneratedTheme | null {
   if (!data || typeof data !== 'object') return null;
@@ -89,11 +87,11 @@ function mergeAiTheme(base: GeneratedTheme, ai: GeneratedTheme): GeneratedTheme 
 }
 
 /**
- * Theme generation:
- * 1) Typed prompt → always call cloud AI (local parse = hints only)
- * 2) No typed prompt → instant brand / high-confidence local parse
- * 3) Cloud-first (22s), optional client refine in parallel
- * 4) Local fallback only when AI fails
+ * Theme generation — AI-first, always:
+ * 1) Every request (typed or generated) runs cloud AI so colors are designed
+ *    from whatever the user described — no canned/remembered palettes
+ * 2) Cloud-first (22s), client AI as backup
+ * 3) Local brand/keyword palettes are used ONLY when both AI paths fail
  */
 export async function generateVybeTheme(
   options: GenerateVybeThemeOptions,
@@ -142,25 +140,9 @@ export async function generateVybeTheme(
     .filter(Boolean)
     .join('\n');
 
-  // Known brands — instant palette even when user typed the brand name.
-  if (brandId && brandTheme) {
-    return {
-      theme: sanitizeThemeTokens(brandTheme),
-      source: 'brand',
-    };
-  }
-
-  // Instant paths — only when user did not type a custom prompt in the textarea.
-  if (!hasTypedPrompt) {
-    if (parsed.confidence >= INSTANT_CONFIDENCE && effectivePrompt.length > 0) {
-      return {
-        theme: sanitizeThemeTokens(parsed.theme),
-        source: 'prompt',
-      };
-    }
-  }
-
-  // Typed prompt or open-ended — run AI (cloud-first, client fallback when cloud fails).
+  // Always regenerate with AI — canned brand/keyword palettes are only used
+  // as a last resort when the AI itself fails. The AI designs colors from
+  // whatever the user described (brand, scene, object, vibe — anything).
   let cloudError: unknown;
   const baseTheme = parsed.theme;
 

@@ -2,6 +2,13 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## AI Theme Designer — AI-first always, no canned palettes (2026-07-05)
+- **User ask:** never "remember" colors — every generation should be designed fresh by AI from whatever the user typed (brand, scene, object, anything)
+- **Was:** `src/lib/aiThemeGeneration.ts` short-circuited before AI: known brand names returned hardcoded palettes from `brandThemePalettes.ts`, and high-confidence keyword parses (≥0.72) returned local `promptThemeBuilder` palettes — the AI never ran for those inputs
+- **Now:** both instant-return paths removed — cloud AI runs for every request (typed or profile-generated); brand hints still ride along in the prompt as context; canned brand/keyword palettes survive only as the last-resort fallback when both cloud + client AI fail
+- **Verified:** typecheck PASS · 49 tests PASS · build PASS · staging deployed
+- **You:** Lovable → Share → Publish for **vybehub.app** (client change)
+
 ## AI Theme Designer — themes now actually match the prompt (2026-07-05)
 - **Root cause:** `gemini-2.5-flash` is a thinking model — it silently spent the entire `max_tokens` budget (1024) on internal reasoning, so theme JSON came back truncated (`finish_reason: length`) → server fell back to generic keyword palettes for every typed prompt
 - **Fix 1:** `functions/src/_shared/geminiAi.ts` `chatCompletion` now sends `reasoning_effort: 'none'` (helps every short structured AI call: themes, captions, safety scans)
