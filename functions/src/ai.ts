@@ -378,8 +378,8 @@ The user's PRIMARY REQUEST (especially "Primary request (match literally):" line
 When the user names a brand, franchise, sports team, app, or aesthetic — match their REAL official colors and mood as closely as possible (e.g. Nike = black/white/orange, Spotify = #1DB954 green, Coca-Cola = red/white, Tiffany = robin-egg blue).
 When they describe a scene or vibe (sunset beach, cyberpunk Tokyo, cozy coffee shop) — derive a cohesive palette from that scene's dominant colors.
 When a "What VYBE knows about this user" block is included — use it to personalize accents and naming, but never override the user's explicit color or mood request.
-Return ONLY valid JSON: {"theme":{"colorPrimary":"H S% L%","colorSecondary":"...","colorAccent":"...","bgMain":"...","bgCard":"...","textPrimary":"...","textSecondary":"...","borderColor":"...","borderRadius":"medium","mode":"dark"|"light","themeName":"creative name","backgroundEffect":"aurora"|"particles"|"none"|"stars"|"bubbles","animationSpeed":"normal","animationStyle":"smooth"}}
-Use HSL format without hsl() wrapper. Ensure WCAG contrast — text must be readable on backgrounds.`;
+Return ONLY valid JSON: {"theme":{"colorPrimary":"330 100% 50%","colorSecondary":"280 60% 40%","colorAccent":"45 100% 60%","bgMain":"240 12% 8%","bgCard":"240 10% 14%","textPrimary":"0 0% 96%","textSecondary":"240 8% 70%","borderColor":"240 10% 24%","borderRadius":"medium","mode":"dark"|"light","themeName":"creative name","backgroundEffect":"aurora"|"particles"|"none"|"stars"|"bubbles","animationSpeed":"normal","animationStyle":"smooth"}}
+Every color must be a bare HSL triplet exactly like "330 100% 50%" (hue 0-360, saturation %, lightness %) — no hsl() wrapper, no letters, no hex. The example colors above are only format samples; pick colors that match the request. Ensure WCAG contrast — text must be readable on backgrounds.`;
 
 function parseJsonObject<T>(raw: string): T | null {
   const trimmed = String(raw || '').trim().replace(/^```(?:json)?/i, '').replace(/```$/i, '').trim();
@@ -391,6 +391,58 @@ function parseJsonObject<T>(raw: string): T | null {
 }
 
 const HSL_RE = /^\d{1,3}\s+\d{1,3}%\s+\d{1,3}%$/;
+
+const THEME_COLOR_KEYS = [
+  'colorPrimary',
+  'colorSecondary',
+  'colorAccent',
+  'bgMain',
+  'bgCard',
+  'textPrimary',
+  'textSecondary',
+  'borderColor',
+] as const;
+
+function hexToHslTriplet(hex: string): string {
+  const full = hex.length === 3 ? hex.split('').map((c) => c + c).join('') : hex;
+  const r = parseInt(full.slice(0, 2), 16) / 255;
+  const g = parseInt(full.slice(2, 4), 16) / 255;
+  const b = parseInt(full.slice(4, 6), 16) / 255;
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+  const l = (max + min) / 2;
+  let h = 0;
+  let s = 0;
+  if (max !== min) {
+    const d = max - min;
+    s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+    if (max === r) h = ((g - b) / d + (g < b ? 6 : 0)) / 6;
+    else if (max === g) h = ((b - r) / d + 2) / 6;
+    else h = ((r - g) / d + 4) / 6;
+  }
+  return `${Math.round(h * 360)} ${Math.round(s * 100)}% ${Math.round(l * 100)}%`;
+}
+
+/** Coerce near-miss color formats — "hsl(325, 85%, 50%)", "H 325 S 85% L 50%", "#ff2d78" — into bare HSL triplets. */
+function normalizeThemeColor(value: unknown): unknown {
+  if (typeof value !== 'string') return value;
+  const v = value.trim();
+  if (HSL_RE.test(v)) return v;
+  const hex = v.match(/^#?([0-9a-f]{6}|[0-9a-f]{3})$/i);
+  if (hex) return hexToHslTriplet(hex[1]!);
+  const cleaned = v.replace(/^hsla?\(/i, '').replace(/\)$/, '').replace(/,/g, ' ');
+  const m = cleaned.match(/^h?\s*(\d{1,3})(?:deg)?\s+s?\s*(\d{1,3})%?\s+l?\s*(\d{1,3})%?/i);
+  if (m) return `${m[1]} ${m[2]}% ${m[3]}%`;
+  return value;
+}
+
+function normalizeThemeColors(theme: Record<string, unknown>): Record<string, unknown> {
+  const out = { ...theme };
+  for (const key of THEME_COLOR_KEYS) {
+    if (key in out) out[key] = normalizeThemeColor(out[key]);
+  }
+  return out;
+}
 
 function validTheme(theme: unknown): theme is Record<string, unknown> {
   return Boolean(
@@ -546,8 +598,11 @@ export const generateTheme = onCall({ secrets: SECRETS }, async (request) => {
       apiKey: byokKey,
     });
     const parsed = parseJsonObject<{ theme?: Record<string, unknown> } & Record<string, unknown>>(content);
-    const theme = parsed?.theme || parsed;
-    if (validTheme(theme)) return { theme };
+    const rawTheme = parsed?.theme || parsed;
+    if (rawTheme && typeof rawTheme === 'object') {
+      const theme = normalizeThemeColors(rawTheme as Record<string, unknown>);
+      if (validTheme(theme)) return { theme };
+    }
     console.warn('[generateTheme] AI returned non-theme JSON; using prompt fallback', { len: content?.length || 0 });
   } catch (err) {
     console.error('[generateTheme]', err);

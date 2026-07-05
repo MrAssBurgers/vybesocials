@@ -37,6 +37,10 @@ export async function chatCompletion(opts) {
                     model,
                     temperature: opts.temperature ?? 0.7,
                     max_tokens: opts.max_tokens ?? 768,
+                    // Gemini 2.5 thinking models silently spend the whole max_tokens
+                    // budget on reasoning, returning empty/truncated content for short
+                    // structured tasks. None of our calls benefit from thinking.
+                    reasoning_effort: 'none',
                     messages: opts.messages,
                     response_format: opts.response_format,
                     tools: opts.tools,

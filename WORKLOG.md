@@ -2,6 +2,14 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## AI Theme Designer — themes now actually match the prompt (2026-07-05)
+- **Root cause:** `gemini-2.5-flash` is a thinking model — it silently spent the entire `max_tokens` budget (1024) on internal reasoning, so theme JSON came back truncated (`finish_reason: length`) → server fell back to generic keyword palettes for every typed prompt
+- **Fix 1:** `functions/src/_shared/geminiAi.ts` `chatCompletion` now sends `reasoning_effort: 'none'` (helps every short structured AI call: themes, captions, safety scans)
+- **Fix 2:** `functions/src/ai.ts` theme system prompt uses concrete HSL examples ("330 100% 50%") instead of the literal "H S% L%" placeholder the model sometimes copied; new `normalizeThemeColors` coerces near-miss outputs (hsl() wrappers, "H 325 S 85% L 50%", hex) into bare HSL triplets before validation
+- **Deployed:** `generateTheme` + `generateAdvancedTheme` to vybe-daaab (clean deploy, no quota errors)
+- **Verified end-to-end (authed test user, since deleted):** "onlyfans" → OnlyFans Classic (hot pink 330 100% 50%) · "cyberpunk tokyo at night" → Neon Tokyo Nights (violet, dark) · "soft pastel light mode with lavender" → Lavender Pastel (270 50% 75%, light) — all real AI themes, zero fallbacks, ~2.5s response
+- **No client changes** — nothing to publish on Lovable for this fix
+
 ## FriendLink Nearby fallback — AirDrop-style, no NFC required (2026-07-05)
 - **Why:** some phones have no NFC; web/WebView can't do phone-to-phone Bluetooth, so the fallback is realtime presence discovery that looks/feels like AirDrop
 - **New:** `src/lib/friendLinkNearby.ts` (coarse ~165m location cells, presence freshness) + `src/hooks/useNearbyFriendLink.ts` — publishes a short-lived presence doc to new `friend_link_nearby` Firestore collection (doc id = profile id, 20s heartbeat, 65s stale window, deleted on close), streams peers in same + 8 adjacent cells via realtime bindings + initial seed query
