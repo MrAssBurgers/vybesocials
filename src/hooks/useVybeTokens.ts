@@ -4,25 +4,16 @@ import { useAuth } from '@/lib/auth';
 import { useAuthProfileId } from '@/hooks/useAuthProfileId';
 import { useDNAPerks } from '@/hooks/useDNAPerks';
 import { useHasBoost } from '@/hooks/useActiveBoosts';
+import {
+  applyTokenMultiplier,
+  parseTokenBalance,
+  parseTokenTransaction,
+  type TokenBalance,
+  type TokenTransaction,
+} from '@/lib/tokenMath';
 
-export interface TokenBalance {
-  id: string;
-  user_id: string;
-  balance: number;
-  lifetime_earned: number;
-  lifetime_spent: number;
-  updated_at: string;
-}
-
-export interface TokenTransaction {
-  id: string;
-  user_id: string;
-  amount: number;
-  transaction_type: string;
-  description: string | null;
-  reference_id: string | null;
-  created_at: string;
-}
+export type { TokenBalance, TokenTransaction };
+export { parseTokenBalance };
 
 // Token earning rates
 export const TOKEN_RATES = {
@@ -47,7 +38,7 @@ export function useTokenBalance() {
       if (!tokenUserId) return null;
 
       const { data, error } = await db
-        .from('vybe_tokens' as any)
+        .from('vybe_tokens')
         .select('*')
         .eq('user_id', tokenUserId)
         .maybeSingle();
@@ -56,24 +47,14 @@ export function useTokenBalance() {
 
       if (!data) {
         const { data: byAuth } = user?.id && user.id !== tokenUserId
-          ? await db.from('vybe_tokens' as any).select('*').eq('user_id', user.id).maybeSingle()
+          ? await db.from('vybe_tokens').select('*').eq('user_id', user.id).maybeSingle()
           : { data: null };
-        if (byAuth) return byAuth as unknown as TokenBalance;
+        if (byAuth) return parseTokenBalance(byAuth, tokenUserId);
+        // No wallet row yet — zero balance until the first earn creates one.
+        return parseTokenBalance(null, tokenUserId);
       }
-      
-      const typedData = data as unknown as TokenBalance | null;
-      if (!typedData) {
-        return {
-          id: '',
-          user_id: tokenUserId,
-          balance: 0,
-          lifetime_earned: 0,
-          lifetime_spent: 0,
-        updated_at: new Date().toISOString(),
-        };
-      }
-      
-      return typedData;
+
+      return parseTokenBalance(data, tokenUserId);
     },
     enabled: !!tokenUserId,
     staleTime: 30_000,
@@ -89,14 +70,16 @@ export function useTokenTransactions(limit = 20) {
       if (!user?.id) return [];
 
       const { data, error } = await db
-        .from('token_transactions' as any)
+        .from('token_transactions')
         .select('*')
         .eq('user_id', user.id)
         .order('created_at', { ascending: false })
         .limit(limit);
 
       if (error) throw error;
-      return (data || []) as unknown as TokenTransaction[];
+      return ((data as unknown[]) || [])
+        .map(parseTokenTransaction)
+        .filter((t): t is TokenTransaction => t !== null);
     },
     enabled: !!user?.id,
   });
@@ -131,7 +114,8 @@ export function useEarnTokens() {
       });
 
       if (error) throw error;
-      return data as number;
+      const newBalance = Number(data);
+      return Number.isFinite(newBalance) ? newBalance : 0;
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['vybe-tokens', tokenUserId] });
@@ -151,7 +135,7 @@ export function useTokenReward() {
 
   // DNA multiplier × active 2x token boost from token shop
   const applyMultiplier = (base: number) =>
-    Math.round(base * perks.tokenMultiplier * (tokens2x ? 2 : 1));
+    applyTokenMultiplier(base, perks.tokenMultiplier, tokens2x);
 
   return {
     rewardPost: () => earn.mutate({ amount: applyMultiplier(TOKEN_RATES.post_created), type: 'post_created', description: 'Created a post' }),

@@ -22,11 +22,9 @@ export interface GridLayoutConfig {
 
 export type LayoutVariant = 'mobile' | 'desktop';
 
-const DEFAULT_ENABLED = new Set([
-  'greeting', 'stories', 'xp_streak', 'ai_brief',
-  'vybe_dna', 'wallet', 'shop', 'communities',
-  'weekly_rhythm', 'feed',
-]);
+// Social-first default: greeting, stories, feed. Other widgets are opt-in via
+// the Customize flow; saved layouts in user prefs are untouched.
+const DEFAULT_ENABLED = new Set(['greeting', 'stories', 'feed']);
 
 function parseConfig(saved: Partial<GridLayoutConfig> | undefined): GridLayoutConfig {
   const savedWidgets = saved?.widgets;

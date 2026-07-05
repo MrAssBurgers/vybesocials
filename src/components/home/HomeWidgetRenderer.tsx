@@ -1,6 +1,6 @@
 import { memo, type ReactNode, useRef, useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Sparkles, Globe, Dna, Wallet, ShoppingBag, Radio, MapPin, PenSquare } from 'lucide-react';
+import { Sparkles, Globe, Dna, Wallet, ShoppingBag, Radio, MapPin, UserPlus } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { PostCard } from '@/components/posts/PostCard';
 import { PostSkeletonList } from '@/components/posts/PostSkeleton';
@@ -68,28 +68,41 @@ function LazyWidget({ children }: { children: ReactNode }) {
   return <div ref={ref}>{visible ? children : <div className="h-24" />}</div>;
 }
 
-/* ── "Post your first VYBE" CTA for new users ── */
-function FirstPostCTA() {
-  const navigate = useNavigate();
+/**
+ * Single empty-feed CTA for new users. Replaces the old competing stack
+ * (FriendLinkSpotlight + FirstPostCTA + generic empty state) with one clear
+ * "find friends" action — an empty For You feed means you have no friends yet.
+ */
+function FindFriendsCTA({ onExplore }: { onExplore: () => void }) {
   return (
     <motion.div
-      initial={{ opacity: 0, y: 10 }}
+      initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
-      className="home-first-post-cta mx-2 p-5 text-center rounded-3xl"
+      className="flex flex-col items-center py-14 px-4 text-center"
     >
-      <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-primary/25 to-accent/20 flex items-center justify-center mx-auto mb-3 ring-1 ring-primary/20">
-        <PenSquare className="h-5 w-5 text-primary" />
+      <div className="w-20 h-20 rounded-3xl bg-gradient-to-br from-primary/25 to-accent/20 flex items-center justify-center mb-5 ring-1 ring-primary/20 shadow-lg">
+        <motion.div animate={{ y: [0, -4, 0] }} transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}>
+          <UserPlus className="h-8 w-8 text-primary" />
+        </motion.div>
       </div>
-      <h3 className="home-hero-title text-base mb-1">Share your first VYBE</h3>
-      <p className="text-xs text-muted-foreground mb-4 max-w-[200px] mx-auto">
-        Post a photo, video, or thought to get started
+      <h3 className="home-hero-title text-base mb-1">Find your friends</h3>
+      <p className="text-sm text-muted-foreground max-w-[250px] mx-auto mb-5 leading-relaxed">
+        Your feed fills up as you add friends. Tap phones with Friend Link — you&apos;re connected instantly.
       </p>
       <Button
-        onClick={() => navigate('/upload')}
-        className="rounded-full px-6 h-9 text-sm"
+        onClick={() => openFriendLink('tap')}
+        className="rounded-full px-7 h-10 text-sm bg-gradient-to-r from-primary to-accent text-primary-foreground shadow-md"
       >
-        Create Post
+        <UserPlus className="h-4 w-4 mr-2" />
+        Find friends
       </Button>
+      <button
+        type="button"
+        onClick={onExplore}
+        className="mt-3 text-xs text-muted-foreground hover:text-foreground transition-colors"
+      >
+        or explore trending posts
+      </button>
     </motion.div>
   );
 }
@@ -284,10 +297,13 @@ function FeedSection({
   const [showFriendLinkSpotlight, setShowFriendLinkSpotlight] = useState(
     () => !getFriendLinkSpotlightDismissed(),
   );
+  // Empty For You feed = new user. FindFriendsCTA already promotes Friend Link,
+  // so the spotlight banner only shows once the feed has content.
+  const forYouEmpty = !forYouLoading && forYouPosts.length === 0;
 
   return (
     <div className="pb-6 px-1" data-tutorial="feed-area">
-      {loggedIn && showFriendLinkSpotlight && activeTab === 'foryou' && (
+      {loggedIn && showFriendLinkSpotlight && activeTab === 'foryou' && !forYouEmpty && (
         <FriendLinkSpotlight
           onOpen={() => openFriendLink('tap')}
           onDismiss={() => {
@@ -342,9 +358,6 @@ function FeedSection({
         )}
 
         <TabsContent value="foryou" className="space-y-4" forceMount style={{ display: activeTab === 'foryou' ? 'block' : 'none' }}>
-          {!forYouLoading && forYouPosts.length === 0 && (
-            <FirstPostCTA />
-          )}
           <InlinePostList
             posts={forYouPosts}
             isLoading={forYouLoading}
@@ -357,6 +370,7 @@ function FeedSection({
             emptyText="No posts yet. Follow creators or check Global!"
             onExplore={() => navigate('/explore')}
             showAds={showAds}
+            emptyOverride={<FindFriendsCTA onExplore={() => navigate('/explore')} />}
           />
         </TabsContent>
 
@@ -397,7 +411,7 @@ function FeedSection({
 }
 
 function InlinePostList({
-  posts, isLoading, isRefreshing, isError, onRetry, isFetchingNext, loadMoreRef, emptyIcon, emptyText, onExplore, showAds,
+  posts, isLoading, isRefreshing, isError, onRetry, isFetchingNext, loadMoreRef, emptyIcon, emptyText, onExplore, showAds, emptyOverride,
 }: {
   posts: Post[];
   isLoading: boolean;
@@ -410,6 +424,8 @@ function InlinePostList({
   emptyText: string;
   onExplore?: () => void;
   showAds: boolean;
+  /** Replaces the generic empty state (e.g. the new-user find-friends CTA). */
+  emptyOverride?: ReactNode;
 }) {
   const { data: dnaPrefs } = useDNAPreferences();
   const adPositions = useMemo(() => {
@@ -521,6 +537,7 @@ function InlinePostList({
     );
   }
   if (!isLoading && posts.length === 0) {
+    if (emptyOverride) return <>{emptyOverride}</>;
     const iconMap: Record<string, { icon: typeof Sparkles; gradient: string }> = {
       '✨': { icon: Sparkles, gradient: 'from-violet-500/20 to-fuchsia-500/20' },
       '📍': { icon: MapPin, gradient: 'from-orange-500/20 to-amber-500/20' },

@@ -20,7 +20,7 @@ const routeImports: Record<string, () => Promise<any>> = {
   '/settings': () => import('@/pages/Settings'),
   '/events': () => import('@/pages/Events'),
   '/community': () => import('@/pages/Community'),
-  '/spaces': () => import('@/pages/Spaces'),
+  '/spaces': () => import('@/pages/VYBESpaces'),
   '/upload': () => import('@/pages/Upload'),
   '/challenges': () => import('@/pages/ChallengesHub'),
   '/badges': () => import('@/pages/BadgeLibrary'),

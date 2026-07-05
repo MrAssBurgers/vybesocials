@@ -44,6 +44,43 @@ interface HomePageProps {
   isInviteMode?: boolean;
 }
 
+const CUSTOMIZE_HINT_KEY = 'vybe-home-customize-hint-seen';
+
+/**
+ * One-time hint under the Customize pill so the opt-in widgets (wallet, shop,
+ * DNA, XP…) stay discoverable after the social-first default slimmed the home.
+ */
+function CustomizeHomeHint({ customizerOpen }: { customizerOpen: boolean }) {
+  const [show, setShow] = useState(() => {
+    try {
+      return localStorage.getItem(CUSTOMIZE_HINT_KEY) !== '1';
+    } catch {
+      return false;
+    }
+  });
+
+  useEffect(() => {
+    if (!customizerOpen) return;
+    // Opening the customizer counts as discovering it.
+    try { localStorage.setItem(CUSTOMIZE_HINT_KEY, '1'); } catch { /* private mode */ }
+    setShow(false);
+  }, [customizerOpen]);
+
+  if (!show || customizerOpen) return null;
+
+  return (
+    <motion.p
+      initial={{ opacity: 0, y: -2 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.3, delay: 0.15 }}
+      className="text-center text-[11px] text-muted-foreground -mt-1 pb-1 px-4"
+      data-no-auto-contrast
+    >
+      Tap Customize to add widgets — wallet, shop, VYBE DNA and more
+    </motion.p>
+  );
+}
+
 export default function HomePage({ isInviteMode = false }: HomePageProps) {
   const navigate = useNavigate();
   const { user, profile, loading: authLoading, refreshProfile } = useAuth();
@@ -354,6 +391,7 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
               </motion.button>
             </div>
           )}
+          <CustomizeHomeHint customizerOpen={customizerOpen} />
 
           {/* Dynamic ordered widget list */}
           <HomeWidgetRenderer

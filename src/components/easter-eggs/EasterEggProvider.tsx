@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, ReactNode } from 'react';
+import { createContext, useContext, ReactNode } from 'react';
 import { 
   useEasterEggs, 
   useKonamiCode, 
@@ -10,6 +10,7 @@ import {
 } from '@/hooks/useEasterEggs';
 import { Confetti } from './Confetti';
 import { RainbowOverlay } from './RainbowOverlay';
+import LocalErrorBoundary from '@/components/error/LocalErrorBoundary';
 
 interface EasterEggContextType {
   eggs: EasterEgg[];
@@ -29,18 +30,18 @@ export function useEasterEggContext() {
   return ctx;
 }
 
-export function EasterEggProvider({ children }: { children: ReactNode }) {
-  const {
-    eggs,
-    unlockedCount,
-    totalCount,
-    unlockEgg,
-    isUnlocked,
-    rainbowMode,
-    triggerRainbow,
-    confetti,
-  } = useEasterEggs();
-
+/** Gesture/time detectors + celebration overlays — crash here just turns eggs off. */
+function EasterEggEffects({
+  unlockEgg,
+  triggerRainbow,
+  rainbowMode,
+  confetti,
+}: {
+  unlockEgg: (id: string) => boolean;
+  triggerRainbow: () => void;
+  rainbowMode: boolean;
+  confetti: boolean;
+}) {
   // Konami code
   useKonamiCode(() => {
     unlockEgg('konami');
@@ -76,6 +77,26 @@ export function EasterEggProvider({ children }: { children: ReactNode }) {
   });
 
   return (
+    <>
+      {rainbowMode && <RainbowOverlay />}
+      {confetti && <Confetti />}
+    </>
+  );
+}
+
+export function EasterEggProvider({ children }: { children: ReactNode }) {
+  const {
+    eggs,
+    unlockedCount,
+    totalCount,
+    unlockEgg,
+    isUnlocked,
+    rainbowMode,
+    triggerRainbow,
+    confetti,
+  } = useEasterEggs();
+
+  return (
     <EasterEggContext.Provider value={{
       eggs,
       unlockedCount,
@@ -86,8 +107,14 @@ export function EasterEggProvider({ children }: { children: ReactNode }) {
       triggerRainbow,
     }}>
       {children}
-      {rainbowMode && <RainbowOverlay />}
-      {confetti && <Confetti />}
+      <LocalErrorBoundary label="EasterEggEffects">
+        <EasterEggEffects
+          unlockEgg={unlockEgg}
+          triggerRainbow={triggerRainbow}
+          rainbowMode={rainbowMode}
+          confetti={confetti}
+        />
+      </LocalErrorBoundary>
     </EasterEggContext.Provider>
   );
 }

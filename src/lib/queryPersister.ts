@@ -33,9 +33,29 @@ const idbStorage = {
   },
 };
 
+/** Minimal valid client — used when the persisted cache is corrupt. */
+function emptyPersistedClient(): PersistedClient {
+  return {
+    timestamp: 0,
+    buster: '',
+    clientState: { mutations: [], queries: [] },
+  };
+}
+
 function deserializePersistedClient(cached: string): PersistedClient {
-  const parsed = JSON.parse(cached) as PersistedClient;
-  return revivePersistedClient(parsed);
+  try {
+    const parsed = JSON.parse(cached) as PersistedClient;
+    if (!parsed || typeof parsed !== 'object' || !parsed.clientState) {
+      return emptyPersistedClient();
+    }
+    return revivePersistedClient(parsed);
+  } catch {
+    // Corrupt persisted cache (truncated write, quota kill, bad JSON) must not
+    // throw at boot — a stale-but-empty cache beats a white screen. Drop it so
+    // the next persist writes a clean snapshot.
+    void idbStorage.removeItem('vybe-react-query-cache');
+    return emptyPersistedClient();
+  }
 }
 
 function serializePersistedClient(client: PersistedClient): string {

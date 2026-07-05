@@ -1,6 +1,7 @@
 import { useEffect, useCallback } from 'react';
 import { Capacitor } from '@capacitor/core';
 import { Purchases as PurchasesNative } from '@revenuecat/purchases-capacitor';
+import type { PurchasesPackage } from '@revenuecat/purchases-capacitor';
 import { initRevenueCat, getPurchases, resetRevenueCat } from '@/lib/revenuecat';
 import { useAuth } from '@/lib/auth';
 import { isDespiaAppShell } from '@/lib/platformPayments';
@@ -11,10 +12,21 @@ const isNative = () => {
   try { return Capacitor.isNativePlatform(); } catch { return false; }
 };
 
+type DespiaInvoke = (url: string) => Promise<unknown>;
+
+/**
+ * Packages can come from the web SDK (identifier) or be native-shaped
+ * (product.identifier) when running inside an app shell.
+ */
+function resolveProductId(rcPackage: RCPackage): string | null {
+  const pkg = rcPackage as RCPackage & { product?: { identifier?: string } };
+  return pkg.product?.identifier || pkg.identifier || null;
+}
+
 async function launchDespiaPurchase(rcPackage: RCPackage, appUserId?: string): Promise<CustomerInfo | null> {
   const m = await import('despia-native');
-  const despia = (m as any).default || m;
-  const productId = (rcPackage as any)?.product?.identifier || (rcPackage as any)?.identifier;
+  const despia = ((m as { default?: DespiaInvoke }).default ?? m) as DespiaInvoke;
+  const productId = resolveProductId(rcPackage);
   if (!productId) throw new Error('Purchase product unavailable');
   const externalId = encodeURIComponent(appUserId || 'anonymous');
   const product = encodeURIComponent(productId);
@@ -106,7 +118,11 @@ export function useRevenueCat() {
 
   const purchase = useCallback(async (rcPackage: RCPackage) => {
     if (isNative()) {
-      const result = await PurchasesNative.purchasePackage({ aPackage: rcPackage as any });
+      // On native, offerings were fetched from the Capacitor SDK, so the
+      // package IS a PurchasesPackage — the web type is just our shared alias.
+      const result = await PurchasesNative.purchasePackage({
+        aPackage: rcPackage as unknown as PurchasesPackage,
+      });
       const info = result.customerInfo as unknown as CustomerInfo;
       qc.setQueryData(['rc-customer-info', userId ?? 'anon'], info);
       return info;

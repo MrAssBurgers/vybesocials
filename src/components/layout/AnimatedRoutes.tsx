@@ -1,4 +1,4 @@
-import { lazy, Suspense, memo, useEffect, useRef } from 'react';
+import { lazy, Suspense, memo, useEffect, useRef, type ReactNode } from 'react';
 import { Routes, Route, useLocation, Navigate, useParams } from 'react-router-dom';
 import { useRecoverBottomNavOnTabEnter } from '@/hooks/useRecoverBottomNavOnTabEnter';
 import { useAuth } from '@/lib/auth';
@@ -17,6 +17,27 @@ import { CrashReportConsent } from '@/components/error/CrashReportConsent';
 function ShortsPostRedirect() {
   const { postId } = useParams<{ postId: string }>();
   return <Navigate to={`/clips/${postId}`} replace />;
+}
+
+/**
+ * Per-route boundary for critical tabs. A crash inside one tab renders an
+ * in-page retry while the shell (nav, overlays, other tabs) keeps working.
+ */
+function RouteBoundary({ name, children }: { name: string; children: ReactNode }) {
+  return (
+    <ErrorBoundary
+      scope={`tab:${name}`}
+      fallback={(reset) => (
+        <AppErrorFallback
+          title="This page couldn't load"
+          description="Something went wrong here. Try again — the rest of the app still works."
+          onRetry={reset}
+        />
+      )}
+    >
+      {children}
+    </ErrorBoundary>
+  );
 }
 
 // Lazy-load all pages to reduce unused JavaScript in the initial bundle
@@ -61,7 +82,6 @@ const CreateEvent = lazy(() => import("@/pages/CreateEvent"));
 const AdminDashboard = lazy(() => import("@/pages/AdminDashboard"));
 const AdminMusicSettings = lazy(() => import("@/pages/AdminMusicSettings"));
 const Community = lazy(() => import("@/pages/Community"));
-const Spaces = lazy(() => import("@/pages/Spaces"));
 const Watch = lazy(() => import("@/pages/Watch"));
 const VideoBrowse = lazy(() => import("@/pages/VideoBrowse"));
 const ClipsViewer = lazy(() => import("@/pages/ClipsViewer"));
@@ -217,7 +237,7 @@ export function AnimatedRoutes() {
             <Route path="/invite/:identifier" element={<InviteRedeem />} />
             
             {/* CRITICAL ROUTES - Eagerly loaded, instant navigation */}
-            <Route path="/home" element={<ProtectedRoute><Home /></ProtectedRoute>} />
+            <Route path="/home" element={<ProtectedRoute><RouteBoundary name="home"><Home /></RouteBoundary></ProtectedRoute>} />
             <Route path="/brief" element={<ProtectedRoute><BriefPage /></ProtectedRoute>} />
             <Route path="/brief/*" element={<Navigate to="/brief" replace />} />
             <Route path="/welcome" element={<ProtectedRoute><AppWelcome /></ProtectedRoute>} />
@@ -227,16 +247,16 @@ export function AnimatedRoutes() {
             <Route path="/shorts/:postId" element={<ShortsPostRedirect />} />
             <Route path="/explore" element={<ProtectedRoute><Explore /></ProtectedRoute>} />
             <Route path="/market" element={<ProtectedRoute><Market /></ProtectedRoute>} />
-            <Route path="/messages" element={<ProtectedRoute><Messages /></ProtectedRoute>} />
-            <Route path="/messages/requests" element={<ProtectedRoute><MessageRequestsPage /></ProtectedRoute>} />
-            <Route path="/messages/:conversationId" element={<ProtectedRoute><Messages /></ProtectedRoute>} />
-            <Route path="/notifications" element={<ProtectedRoute><Notifications /></ProtectedRoute>} />
+            <Route path="/messages" element={<ProtectedRoute><RouteBoundary name="messages"><Messages /></RouteBoundary></ProtectedRoute>} />
+            <Route path="/messages/requests" element={<ProtectedRoute><RouteBoundary name="messages"><MessageRequestsPage /></RouteBoundary></ProtectedRoute>} />
+            <Route path="/messages/:conversationId" element={<ProtectedRoute><RouteBoundary name="messages"><Messages /></RouteBoundary></ProtectedRoute>} />
+            <Route path="/notifications" element={<ProtectedRoute><RouteBoundary name="notifications"><Notifications /></RouteBoundary></ProtectedRoute>} />
             <Route path="/search" element={<ProtectedRoute><SearchPage /></ProtectedRoute>} />
             <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
             <Route path="/settings/notification-diagnostics" element={<ProtectedRoute><NotificationDiagnostics /></ProtectedRoute>} />
-            <Route path="/u/:username" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
-            <Route path="/profile/:usernameOrId" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
-            <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
+            <Route path="/u/:username" element={<ProtectedRoute><RouteBoundary name="profile"><Profile /></RouteBoundary></ProtectedRoute>} />
+            <Route path="/profile/:usernameOrId" element={<ProtectedRoute><RouteBoundary name="profile"><Profile /></RouteBoundary></ProtectedRoute>} />
+            <Route path="/profile" element={<ProtectedRoute><RouteBoundary name="profile"><Profile /></RouteBoundary></ProtectedRoute>} />
             
             {/* Secondary routes - lazy loaded but prefetched */}
             <Route path="/upload" element={<ProtectedRoute><Upload /></ProtectedRoute>} />
@@ -254,7 +274,6 @@ export function AnimatedRoutes() {
             <Route path="/events/new" element={<ProtectedRoute><CreateEvent /></ProtectedRoute>} />
             <Route path="/admin" element={<ProtectedRoute><AdminDashboard /></ProtectedRoute>} />
             <Route path="/community" element={<ProtectedRoute><Community /></ProtectedRoute>} />
-            <Route path="/spaces" element={<ProtectedRoute><Spaces /></ProtectedRoute>} />
             <Route path="/watch" element={<ProtectedRoute><VideoBrowse /></ProtectedRoute>} />
             <Route path="/watch/:id" element={<ProtectedRoute><Watch /></ProtectedRoute>} />
             <Route path="/clips/:postId" element={<ProtectedRoute><ClipsViewer /></ProtectedRoute>} />

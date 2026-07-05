@@ -159,6 +159,7 @@ import { resetSplashSessionOnHardReload, hasAppShellPaint } from "@/lib/navigati
 import { navVisibility } from "@/lib/navVisibility";
 import { markBootComplete } from "@/lib/bootGuard";
 import { ShellVisibilityGuard } from "@/components/system/ShellVisibilityGuard";
+import { AppUpdateOverlay } from "@/components/app/AppUpdateOverlay";
 
 // Lazy-load non-critical overlays and providers to reduce initial bundle
 const EasterEggProvider = lazy(() => import("@/components/easter-eggs/EasterEggProvider").then(m => ({ default: m.EasterEggProvider })));
@@ -533,16 +534,25 @@ function AppWithPreloader() {
         />
       )}
       <GlobalErrorHandler />
+      <LocalErrorBoundary label="AppUpdateOverlay">
+        <AppUpdateOverlay />
+      </LocalErrorBoundary>
       <AuthProvider>
-        <SpotifyPresenceMount />
-        <RealtimeSyncMount />
+        <LocalErrorBoundary label="SpotifyPresenceMount">
+          <SpotifyPresenceMount />
+        </LocalErrorBoundary>
+        <LocalErrorBoundary label="RealtimeSyncMount">
+          <RealtimeSyncMount />
+        </LocalErrorBoundary>
         <LocalErrorBoundary label="DeferredAuthHooks">
           <Suspense fallback={null}><DeferredAuthHooks /></Suspense>
         </LocalErrorBoundary>
         <LocalErrorBoundary label="LoginApprovalSheet">
           <Suspense fallback={null}><LoginApprovalSheet /></Suspense>
         </LocalErrorBoundary>
-        <BriefPreFetchInit />
+        <LocalErrorBoundary label="BriefPreFetchInit">
+          <BriefPreFetchInit />
+        </LocalErrorBoundary>
         
         {/* AppBackgroundProvider: Persistent background layer that survives theme changes */}
         <AppBackgroundProvider>

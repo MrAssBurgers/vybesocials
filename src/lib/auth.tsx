@@ -34,6 +34,7 @@ import { cacheProfileAvatar, resolveProfileAvatarUrl } from '@/lib/profileAvatar
 import { isPasswordRecoveryUrl, redirectToPasswordRecoveryPage } from '@/lib/passwordRecoveryUrl';
 import { awaitOAuthRedirectCapture, clearOAuthRedirectPending, isOAuthRedirectInFlight, recoverOAuthSessionIfSignedIn } from '@/lib/firebase/oauthRedirect';
 import { isDespiaOAuthInFlight } from '@/lib/despiaOAuth';
+import { captureException } from '@/lib/sentry';
 
 /** Fail-soft — production may not have deployed sync_signup_username yet. */
 async function trySyncSignupUsername(): Promise<string | null> {
@@ -484,8 +485,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           console.error('[Auth] Session bootstrap failed:', err);
         }
 
-        // Slow migration RPCs — background only
-        void db.rpc('claim_profile_by_email').catch(() => {});
+        // Slow migration RPCs — background only, but never invisible: a failed
+        // claim means the user may be on an orphaned profile.
+        void db.rpc('claim_profile_by_email').catch((err: unknown) => {
+          console.warn('[Auth] claim_profile_by_email failed:', err);
+          captureException(err, { scope: 'auth:claim_profile_by_email', userId });
+        });
       })();
     });
   };
@@ -1116,9 +1121,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     clearCachedUserLevel();
 
     // 2) Clear local Supabase session synchronously (no network round-trip).
-    //    The global revoke happens in the background.
-    void db.auth.signOut({ scope: 'local' as any }).catch(() => {});
-    void db.auth.signOut().catch(() => {});
+    //    The global revoke happens in the background. Local state is already
+    //    cleared above, so a failure here only means the server token lives on —
+    //    log it so "signed out but still receiving pushes" is diagnosable.
+    void db.auth.signOut({ scope: 'local' as any }).catch((err: unknown) => {
+      console.warn('[Auth] Local signOut failed (state already cleared):', err);
+    });
+    void db.auth.signOut().catch((err: unknown) => {
+      console.warn('[Auth] Global signOut (token revoke) failed:', err);
+      captureException(err, { scope: 'auth:signOut:global' });
+    });
 
     // 3) Defer all theme/DOM/localStorage cleanup so it never blocks the navigate.
     queueMicrotask(() => {

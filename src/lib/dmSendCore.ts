@@ -239,7 +239,11 @@ export async function bumpConversationUpdatedAt(conversationId: string): Promise
     .update({ updated_at: new Date().toISOString() })
     .eq('id', conversationId)
     .then(() => {})
-    .catch(() => {});
+    .catch((err: unknown) => {
+      // Message already sent — a failed bump only makes inbox sort stale.
+      // Log it so "conversation stuck at the bottom" is diagnosable.
+      console.warn('[DMSend] conversation updated_at bump failed:', conversationId, err);
+    });
 }
 
 export function expiresAtForViewMode(viewMode: ViewMode): string | null {

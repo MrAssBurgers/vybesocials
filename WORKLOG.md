@@ -2,6 +2,18 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## High-End Social Foundation Pass (2026-07-05)
+- **Fault isolation (Phase 1):** `SpotifyPresenceMount`/`RealtimeSyncMount`/`BriefPreFetchInit` now wrapped in `LocalErrorBoundary`; gamification providers (easter eggs, streak popup, reward modals/realtime, tutorial overlay) isolate their risky effects behind boundaries — a crash degrades to "feature off" instead of blanking the app; per-route boundaries on `/home`, `/messages`, `/notifications`, `/profile` with in-page retry; `ErrorBoundary` auto-resets on route change (crashed tab no longer sticks); `queryPersister` deserialization guarded — corrupt IndexedDB cache is dropped instead of throwing at boot; guarded `useEasterEggs` localStorage `JSON.parse`
+- **Deploy safety:** `AppUpdateOverlay` mounted; SW update flow posts `SKIP_WAITING` + one controlled reload on controllerchange (guarded against first-install and loops); hashed `.js` chunks now network-first with cache fallback in `sw.js` (v34, assets cache v5) — stale-chunk white screens after deploy eliminated
+- **Surfaced errors (Phase 2):** `claim_profile_by_email` failure → warn + Sentry; global signOut revoke failure → warn + Sentry (local state still clears); DM membership repair failures in `useInstantSend` (2 sites) + `dmOutbox` → logged; `bumpConversationUpdatedAt` failure → logged (stale inbox sort now diagnosable)
+- **Social-first home (Phase 3):** default widgets slimmed to greeting + stories + feed (`useHomeLayout` DEFAULT_ORDER/HIDDEN, `useGridLayout` DEFAULT_ENABLED) — saved layouts untouched; one-time "Tap Customize to add widgets" hint; empty For You feed now shows ONE `FindFriendsCTA` (Friend Link) replacing FriendLinkSpotlight + FirstPostCTA + generic empty-state stack; duplicate `/spaces` route removed — `/spaces` now serves `VYBESpaces` (live audio, matches `SpaceRoom` back-nav), dead `Spaces` route/import dropped, preloader updated
+- **Speed + money trust (Phase 4):** `VybeMapboxCanvas` lazy-loaded — map page chunk is now 79 kB (mapbox-gl's 1.5 MB loads after HUD paints); `useVybeMapFlyTo` extracted to its own module (type-only mapbox import); `useVybeTokens` re-typed via new pure `src/lib/tokenMath.ts` (parse + multiplier, no `as any`); `useRevenueCat` casts replaced with typed product-id resolution + documented native package bridge; engagement score extracted to pure `src/lib/feedEngagementScore.ts`
+- **Tests:** +30 new (tokenMath 13, feedEngagementScore 7, messagesQueryKey 10) — 49 total PASS
+- **Verified:** typecheck PASS · 49 tests PASS · lint PASS · build PASS
+- **Staging:** https://vybe-daaab.web.app (hosting deployed)
+- **You:** Lovable → Share → Publish for **vybehub.app**
+- **Next:** split `ChatView.tsx` (3.2k lines) / `GlobalCallOverlay.tsx` (2k) in a dedicated session; integration tests in CI; feed ad/reward cadence tuning (product call)
+
 ## Map follow fix + app-wide perf pass (2026-07-05)
 - **Map:** GPS follow now stops permanently when you pan/zoom away (real gestures only, via `originalEvent` check); only the recenter button re-engages follow (`flyToUser` + `vybe:resume-follow`); tapping meetups/friends no longer re-arms follow
 - **Auth context memoized:** stable API wrappers via ref — every `useAuth()` consumer (all PostCards etc.) no longer re-renders on each AuthProvider render

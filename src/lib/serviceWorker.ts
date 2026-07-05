@@ -53,6 +53,51 @@ export function shouldRegisterServiceWorker(): boolean {
 let registrationPromise: Promise<ServiceWorkerRegistration | null> | null = null;
 let updateIntervalStarted = false;
 let loggedRegistration = false;
+let updateFlowWired = false;
+let reloadingForUpdate = false;
+
+/**
+ * Deploy-safety flow: when a new SW is installed and waiting, tell it to
+ * SKIP_WAITING, then reload once on controllerchange so the page never keeps
+ * running old code that references deleted hashed chunks (white-screen path).
+ * AppUpdateOverlay listens for `vybe-app-update` / controllerchange and covers
+ * the transition visually.
+ */
+function wireUpdateFlow(registration: ServiceWorkerRegistration) {
+  if (updateFlowWired) return;
+  updateFlowWired = true;
+
+  const promoteWaitingWorker = (worker: ServiceWorker | null) => {
+    if (!worker) return;
+    try {
+      window.dispatchEvent(new CustomEvent('vybe-app-update'));
+    } catch { /* overlay is cosmetic */ }
+    worker.postMessage({ type: 'SKIP_WAITING' });
+  };
+
+  // A worker may already be waiting from a previous visit.
+  promoteWaitingWorker(registration.waiting);
+
+  registration.addEventListener('updatefound', () => {
+    const newWorker = registration.installing;
+    if (!newWorker) return;
+    newWorker.addEventListener('statechange', () => {
+      // Only promote when an old controller exists — first install shouldn't reload.
+      if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+        promoteWaitingWorker(newWorker);
+      }
+    });
+  });
+
+  // Distinguish "update replaced the controller" from the very first claim.
+  const hadController = Boolean(navigator.serviceWorker.controller);
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (reloadingForUpdate || !hadController) return;
+    reloadingForUpdate = true;
+    // Give AppUpdateOverlay a beat to paint before the refresh.
+    setTimeout(() => window.location.reload(), 900);
+  });
+}
 
 function logRegistrationOnce(scope: string) {
   if (loggedRegistration) return;
@@ -72,11 +117,13 @@ export async function registerVybeServiceWorker(): Promise<ServiceWorkerRegistra
         const existing = await navigator.serviceWorker.getRegistration('/');
         if (existing) {
           logRegistrationOnce(existing.scope);
+          wireUpdateFlow(existing);
           return existing;
         }
 
         const registration = await navigator.serviceWorker.register('/sw.js', { scope: '/' });
         logRegistrationOnce(registration.scope);
+        wireUpdateFlow(registration);
 
         if (!updateIntervalStarted) {
           updateIntervalStarted = true;

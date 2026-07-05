@@ -1,11 +1,11 @@
 // VYBE Service Worker
-// Version 33.0 — bust stale lazy chunks after deploy
+// Version 34.0 — network-first JS chunks + SKIP_WAITING update flow
 
-const CACHE_NAME = 'vybe-v37';
-const STATIC_CACHE = 'vybe-static-v37';
+const CACHE_NAME = 'vybe-v38';
+const STATIC_CACHE = 'vybe-static-v38';
 const MEDIA_CACHE = 'vybe-media-v2';
 const SHELL_CACHE = 'vybe-shell-v4';
-const ASSETS_CACHE = 'vybe-assets-v4';
+const ASSETS_CACHE = 'vybe-assets-v5';
 const SHELL_URL = '/';
 const ASSETS_CACHE_MAX = 180;
 const APP_ICON = '/icons/icon-192x192.png';
@@ -136,11 +136,22 @@ self.addEventListener('fetch', (event) => {
       return;
     }
 
-    // Same-origin JS/CSS/font chunks (with or without content hash) — stale
-    // while revalidate so the app shell can boot offline after one online visit.
+    // Hashed JS chunks — network-first with cache fallback. Serving a stale
+    // chunk after a deploy is the main white-screen path; only fall back to
+    // cache when offline.
     if (
       url.origin === self.location.origin &&
-      /\.(?:js|mjs|css|woff2?|ttf|otf)(?:\?.*)?$/i.test(url.pathname)
+      /\.(?:js|mjs)(?:\?.*)?$/i.test(url.pathname)
+    ) {
+      event.respondWith(networkFirstCached(event.request, ASSETS_CACHE, ASSETS_CACHE_MAX));
+      return;
+    }
+
+    // Same-origin CSS/font chunks — stale while revalidate so the app shell
+    // can boot offline after one online visit.
+    if (
+      url.origin === self.location.origin &&
+      /\.(?:css|woff2?|ttf|otf)(?:\?.*)?$/i.test(url.pathname)
     ) {
       event.respondWith(staleWhileRevalidateCapped(event.request, ASSETS_CACHE, ASSETS_CACHE_MAX));
       return;
@@ -214,6 +225,31 @@ async function staleWhileRevalidateCapped(request, cacheName, maxEntries) {
   }
   const network = await networkPromise;
   return network || new Response('', { status: 504 });
+}
+
+// Network-first for JS chunks: fresh code wins, cached copy keeps offline boot
+// working, and successful fetches refresh the capped assets cache.
+async function networkFirstCached(request, cacheName, maxEntries) {
+  const cache = await caches.open(cacheName);
+  try {
+    const response = await fetch(request);
+    if (response && response.ok) {
+      try {
+        await cache.put(request, response.clone());
+        const keys = await cache.keys();
+        if (keys.length > maxEntries) {
+          const excess = keys.length - maxEntries;
+          for (let i = 0; i < excess; i++) await cache.delete(keys[i]);
+        }
+      } catch {
+        /* ignore quota */
+      }
+    }
+    return response;
+  } catch {
+    const cached = await cache.match(request);
+    return cached || new Response('', { status: 504 });
+  }
 }
 
 // Strategy: Network first, fallback to cache, then lightweight empty response

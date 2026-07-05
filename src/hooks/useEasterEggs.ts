@@ -47,8 +47,13 @@ const EASTER_EGGS: EasterEgg[] = [
 
 export function useEasterEggs() {
   const [unlockedEggs, setUnlockedEggs] = useState<Set<string>>(() => {
-    const stored = localStorage.getItem('xd_easter_eggs');
-    return stored ? new Set(JSON.parse(stored)) : new Set();
+    try {
+      const stored = localStorage.getItem('xd_easter_eggs');
+      return stored ? new Set(JSON.parse(stored)) : new Set();
+    } catch {
+      // Corrupt localStorage must not crash the provider at mount.
+      return new Set();
+    }
   });
   const [rainbowMode, setRainbowMode] = useState(false);
   const [confetti, setConfetti] = useState(false);

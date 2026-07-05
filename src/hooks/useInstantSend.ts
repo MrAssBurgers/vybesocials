@@ -270,7 +270,11 @@ export function useInstantSend(conversationId: string | undefined) {
     }
     if (effectiveProfileId) {
       sendReadyRef.current = { conversationId, senderId: effectiveProfileId };
-      void ensureSendReady().catch(() => {});
+      // Background repair — the send itself retries inline, but a repair
+      // failure here is the earliest signal that membership is broken.
+      void ensureSendReady().catch((err) => {
+        console.warn('[InstantSend] background membership repair failed:', err);
+      });
       return effectiveProfileId;
     }
     return ensureSendReady();
@@ -284,7 +288,9 @@ export function useInstantSend(conversationId: string | undefined) {
       .then((id) => {
         sendReadyRef.current = { conversationId, senderId: id };
       })
-      .catch(() => {});
+      .catch((err) => {
+        console.warn('[InstantSend] pre-warm membership repair failed:', err);
+      });
   }, [conversationId, effectiveProfileId, ensureSendReady]);
 
   const insertMessageWithRetry = useCallback(

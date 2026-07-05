@@ -51,6 +51,14 @@ export class ErrorBoundary extends Component<Props, State> {
     });
   }
 
+  componentDidUpdate(prevProps: Props) {
+    // Route-scoped boundaries: navigating to a different route should clear
+    // the previous route's crash instead of showing a stale fallback.
+    if (this.state.error && prevProps.scope !== this.props.scope) {
+      this.setState({ error: null });
+    }
+  }
+
   reset = () => this.setState({ error: null });
 
   render() {

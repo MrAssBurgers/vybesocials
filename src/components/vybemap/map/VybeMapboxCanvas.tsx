@@ -734,25 +734,5 @@ export const VybeMapboxCanvas = memo(function VybeMapboxCanvas({
   );
 });
 
-export function useVybeMapFlyTo() {
-  const mapRef = useRef<mapboxgl.Map | null>(null);
-  const setMap = useCallback((map: mapboxgl.Map) => { mapRef.current = map; }, []);
-  /** Fly to a point of interest — GPS follow stays off so the camera doesn't fight back. */
-  const flyTo = useCallback((lat: number, lng: number, zoom = 15) => {
-    const map = mapRef.current;
-    if (!map) return;
-    try { map.fire('vybe:pause-follow'); } catch { /* custom event */ }
-    map.flyTo({ center: [lng, lat], zoom, duration: 1200, essential: true });
-  }, []);
-  /** Recenter on the user and re-engage GPS follow (recenter button only). */
-  const flyToUser = useCallback((lat: number, lng: number, zoom = 15) => {
-    const map = mapRef.current;
-    if (!map) return;
-    try { map.fire('vybe:resume-follow'); } catch { /* custom event */ }
-    map.flyTo({ center: [lng, lat], zoom, duration: 1200, essential: true });
-  }, []);
-  const resetBearing = useCallback(() => {
-    mapRef.current?.easeTo({ bearing: 0, pitch: pitchForMode('2d'), duration: 600 });
-  }, []);
-  return { setMap, flyTo, flyToUser, resetBearing };
-}
+// useVybeMapFlyTo moved to ./useVybeMapFlyTo so pages can control the camera
+// without statically importing this module (and mapbox-gl with it).

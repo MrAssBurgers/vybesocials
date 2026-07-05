@@ -94,54 +94,8 @@ export function useNotInterested() {
   });
 }
 
-// Calculate engagement score for ranking
-// dnaFeedBoostPercent: if the post author has a Creator DNA perk, their posts get boosted
-function calculateEngagementScore(post: any, userInteractions: Map<string, any>, dnaFeedBoostPercent = 0): number {
-  const baseScore = 100;
-  let score = baseScore;
-
-  // Recency decay (posts older than 7 days get lower scores)
-  const ageHours = (Date.now() - new Date(post.created_at).getTime()) / (1000 * 60 * 60);
-  const recencyMultiplier = Math.max(0.3, 1 - (ageHours / (24 * 7)) * 0.7);
-  
-  // Engagement signals weighted: shares > watch_time > saves > comments > likes
-  const likeWeight = 1;
-  const commentWeight = 3;
-  const viewWeight = 0.1;
-  const shareWeight = 5;
-  const saveWeight = 4;
-  
-  score += (post.like_count || 0) * likeWeight;
-  score += (post.comment_count || 0) * commentWeight;
-  score += (post.view_count || 0) * viewWeight;
-  score += (post.share_count || 0) * shareWeight;
-  score += (post.save_count || 0) * saveWeight;
-
-  // Apply recency
-  score *= recencyMultiplier;
-
-  // Check user's past interactions with this creator
-  const creatorInteractions = userInteractions.get(post.author.id);
-  if (creatorInteractions) {
-    // Boost posts from creators user has interacted with positively
-    if (creatorInteractions.likes > 0) score *= 1.3;
-    if (creatorInteractions.comments > 0) score *= 1.4;
-    if (creatorInteractions.saves > 0) score *= 1.5;
-  }
-
-  // DNA Creator Spotlight perk: boost own posts in discovery
-  if (dnaFeedBoostPercent > 0) {
-    score *= (1 + dnaFeedBoostPercent / 100);
-  }
-
-  // Penalize if user marked similar content as "not interested"
-  const notInterestedCount = userInteractions.get('not_interested_' + post.id);
-  if (notInterestedCount) {
-    score *= 0.1; // Heavy penalty
-  }
-
-  return score;
-}
+// Engagement scoring lives in src/lib/feedEngagementScore.ts (pure + tested).
+export { calculateEngagementScore } from '@/lib/feedEngagementScore';
 
 // Re-export from useInfinitePosts for backwards compatibility
 export { usePersonalizedFeed } from './useInfinitePosts';

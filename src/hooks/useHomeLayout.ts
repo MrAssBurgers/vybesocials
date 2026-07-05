@@ -29,8 +29,13 @@ export const ALL_WIDGETS: WidgetDef[] = [
   { id: 'feed',           label: 'Feed',           icon: '📰', description: 'Posts from your community', defaultCol: 2 },
 ];
 
-const DEFAULT_ORDER = ['greeting', 'stories', 'xp_streak', 'ai_brief', 'vybe_dna', 'wallet', 'shop', 'communities'];
-const DEFAULT_HIDDEN: string[] = [];
+// Social-first default: greeting, stories, feed. Everything else (wallet, shop,
+// DNA, XP, brief, rhythm, communities…) stays available via Customize — defaults
+// only; saved layouts in user prefs are untouched.
+const DEFAULT_ORDER = ['greeting', 'stories', 'feed'];
+const DEFAULT_HIDDEN: string[] = ALL_WIDGETS
+  .map((w) => w.id)
+  .filter((id) => !DEFAULT_ORDER.includes(id));
 
 export interface HomeLayout {
   order: string[];

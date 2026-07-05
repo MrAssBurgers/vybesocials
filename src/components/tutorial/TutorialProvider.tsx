@@ -5,6 +5,7 @@ import { db } from '@/lib/firebase';
 import { useTutorialLayout, TutorialLayoutMode } from '@/hooks/useTutorialLayout';
 import { TutorialStep, getStepsForLayout } from './tutorialSteps';
 import { TutorialOverlay } from './TutorialOverlay';
+import LocalErrorBoundary from '@/components/error/LocalErrorBoundary';
 
 interface TutorialContextType {
   isOpen: boolean;
@@ -334,16 +335,18 @@ export function TutorialProvider({ children }: { children: ReactNode }) {
   return (
     <TutorialContext.Provider value={contextValue}>
       {children}
-      <TutorialOverlay
-        isOpen={isOpen && !isLoading}
-        currentStep={currentStep}
-        steps={steps}
-        layoutMode={layoutMode}
-        totalSteps={steps.length}
-        onNext={nextStep}
-        onPrev={prevStep}
-        onSkip={skipTutorial}
-      />
+      <LocalErrorBoundary label="TutorialOverlay">
+        <TutorialOverlay
+          isOpen={isOpen && !isLoading}
+          currentStep={currentStep}
+          steps={steps}
+          layoutMode={layoutMode}
+          totalSteps={steps.length}
+          onNext={nextStep}
+          onPrev={prevStep}
+          onSkip={skipTutorial}
+        />
+      </LocalErrorBoundary>
     </TutorialContext.Provider>
   );
 }

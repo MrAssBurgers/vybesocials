@@ -92,7 +92,11 @@ async function sendOne(item: OutboxItem): Promise<boolean> {
       item.senderId,
       otherProfileId,
       { force: true },
-    ).catch(() => {});
+    ).catch((err) => {
+      // The insert below retries repair inline; log so a queued message that
+      // never sends is traceable to a membership repair failure.
+      console.warn('[Outbox] membership repair before send failed:', err);
+    });
 
     const { error } = await insertDmMessage(
       {

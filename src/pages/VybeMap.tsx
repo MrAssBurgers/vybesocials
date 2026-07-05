@@ -35,17 +35,33 @@ import { externalDirectionsUrl } from '@/lib/vybemap/mapNavigation';
 import { isHeadingTowardYou } from '@/lib/vybemap/headingToward';
 import { sendMapWave } from '@/lib/vybemap/mapSocial';
 import type { MapGroupMap } from '@/lib/vybemap/types';
-import { VybeMapboxCanvas, useVybeMapFlyTo } from '@/components/vybemap/map/VybeMapboxCanvas';
+import { useVybeMapFlyTo } from '@/components/vybemap/map/useVybeMapFlyTo';
 import { GhostModeSheet } from '@/components/vybemap/hud/GhostModeSheet';
 import { MapSnapTopBar } from '@/components/vybemap/hud/MapSnapTopBar';
 import { MapSettingsSheet } from '@/components/vybemap/hud/MapSettingsSheet';
 import { MapFloatingActions } from '@/components/vybemap/hud/MapFloatingActions';
+
+// Lazy — mapbox-gl is ~1MB; the map shell/HUD paints instantly while it loads.
+const VybeMapboxCanvas = lazy(() =>
+  import('@/components/vybemap/map/VybeMapboxCanvas').then((m) => ({
+    default: m.VybeMapboxCanvas,
+  })),
+);
 
 const VybeMapLeafletFallback = lazy(() =>
   import('@/components/vybemap/map/VybeMapLeafletFallback').then((m) => ({
     default: m.VybeMapLeafletFallback,
   })),
 );
+
+/** Same pulse the canvas shows while the style loads — no flash of nothing. */
+function MapCanvasLoading() {
+  return (
+    <div className="pointer-events-none absolute inset-0 z-[1] flex items-center justify-center vybe-map-loading">
+      <div className="vybe-map-loading-pulse" aria-hidden />
+    </div>
+  );
+}
 
 class MapErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean }> {
   state = { hasError: false };
@@ -311,16 +327,18 @@ function VybeMapInner() {
       <div ref={mapEl} className={useMapbox ? 'absolute inset-0 z-0 pointer-events-none opacity-0' : 'absolute inset-0 z-0'} />
 
       {useMapbox ? (
-        <VybeMapboxCanvas
-          {...mapProps}
-          mapMode={mapViewMode}
-          followHeading={followHeading}
-          userHeading={myHeading}
-          onMapReady={setMap}
-          routeGeometry={route?.geometry ?? null}
-          squadMemberIds={squadSet}
-          onMeetupTap={handleMeetupTap}
-        />
+        <Suspense fallback={<MapCanvasLoading />}>
+          <VybeMapboxCanvas
+            {...mapProps}
+            mapMode={mapViewMode}
+            followHeading={followHeading}
+            userHeading={myHeading}
+            onMapReady={setMap}
+            routeGeometry={route?.geometry ?? null}
+            squadMemberIds={squadSet}
+            onMeetupTap={handleMeetupTap}
+          />
+        </Suspense>
       ) : (
         <Suspense fallback={null}>
           <VybeMapLeafletFallback

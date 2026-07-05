@@ -6,6 +6,7 @@ import { LevelUpModal, LevelUpReward } from './LevelUpModal';
 import { useEquipItem } from '@/hooks/useLockerItems';
 import { useAuth } from '@/lib/auth';
 import { toast } from 'sonner';
+import LocalErrorBoundary from '@/components/error/LocalErrorBoundary';
 
 interface LevelUpData {
   oldLevel: number;
@@ -89,15 +90,6 @@ export function RewardNotificationProvider({ children }: RewardNotificationProvi
     setLevelUpOpen(true);
   }, [isOnboardingComplete, tiers]);
 
-  // Subscribe to realtime reward updates - shows modal when challenge completes
-  useRealtimeChallengeRewards(
-    (reward) => showRewardModal(reward),
-    (data) => showLevelUp(data),
-  );
-
-  useRealtimeLevelUpdates();
-  useRealtimeChallengeProgress();
-
   return (
     <RewardNotificationContext.Provider
       value={{
@@ -108,6 +100,59 @@ export function RewardNotificationProvider({ children }: RewardNotificationProvi
       }}
     >
       {children}
+      <LocalErrorBoundary label="RewardNotificationOverlays">
+        <RewardRealtimeAndModals
+          pendingReward={pendingReward}
+          modalOpen={modalOpen}
+          dismissRewardModal={dismissRewardModal}
+          showRewardModal={showRewardModal}
+          showLevelUp={showLevelUp}
+          levelUpOpen={levelUpOpen}
+          setLevelUpOpen={setLevelUpOpen}
+          levelUpData={levelUpData}
+          navigate={navigate}
+          equipItem={equipItem}
+        />
+      </LocalErrorBoundary>
+    </RewardNotificationContext.Provider>
+  );
+}
+
+/** Realtime subscriptions + reward modals — a crash here degrades to "rewards off". */
+function RewardRealtimeAndModals({
+  pendingReward,
+  modalOpen,
+  dismissRewardModal,
+  showRewardModal,
+  showLevelUp,
+  levelUpOpen,
+  setLevelUpOpen,
+  levelUpData,
+  navigate,
+  equipItem,
+}: {
+  pendingReward: ChallengeReward | null;
+  modalOpen: boolean;
+  dismissRewardModal: () => void;
+  showRewardModal: (reward: ChallengeReward) => void;
+  showLevelUp: (data: LevelUpData) => void;
+  levelUpOpen: boolean;
+  setLevelUpOpen: (open: boolean) => void;
+  levelUpData: LevelUpData | null;
+  navigate: ReturnType<typeof useNavigate>;
+  equipItem: ReturnType<typeof useEquipItem>;
+}) {
+  // Subscribe to realtime reward updates - shows modal when challenge completes
+  useRealtimeChallengeRewards(
+    (reward) => showRewardModal(reward),
+    (data) => showLevelUp(data),
+  );
+
+  useRealtimeLevelUpdates();
+  useRealtimeChallengeProgress();
+
+  return (
+    <>
       <RewardClaimModal
         reward={pendingReward}
         open={modalOpen}
@@ -132,6 +177,6 @@ export function RewardNotificationProvider({ children }: RewardNotificationProvi
         newLevel={levelUpData?.newLevel || 1}
         rewards={levelUpData?.rewards || []}
       />
-    </RewardNotificationContext.Provider>
+    </>
   );
 }
