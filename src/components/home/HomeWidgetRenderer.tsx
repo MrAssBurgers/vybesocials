@@ -505,14 +505,24 @@ function InlinePostList({
     };
   }, [posts.length]);
 
-  const registerPostRef = useCallback((index: number) => (el: HTMLElement | null) => {
-    if (el) {
-      el.dataset.postIndex = String(index);
-      postRefMap.current.set(index, el);
-      visibilityObserverRef.current?.observe(el);
-    } else {
-      postRefMap.current.delete(index);
+  // One stable callback per index — a fresh closure per render would make React
+  // detach/re-attach every post's ref on each visibleIndex change during scroll.
+  const postRefCallbacks = useRef<Map<number, (el: HTMLElement | null) => void>>(new Map());
+  const registerPostRef = useCallback((index: number) => {
+    let cb = postRefCallbacks.current.get(index);
+    if (!cb) {
+      cb = (el: HTMLElement | null) => {
+        if (el) {
+          el.dataset.postIndex = String(index);
+          postRefMap.current.set(index, el);
+          visibilityObserverRef.current?.observe(el);
+        } else {
+          postRefMap.current.delete(index);
+        }
+      };
+      postRefCallbacks.current.set(index, cb);
     }
+    return cb;
   }, []);
 
   // Aggressively warm next N posts (images decoded, video first-frame ready)

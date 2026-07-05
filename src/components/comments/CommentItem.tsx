@@ -225,7 +225,7 @@ export const CommentItem = memo(function CommentItem({ comment, postId }: Commen
         <div className="flex items-start justify-between gap-2">
           <div className="flex-1 min-w-0 relative">
             <div className={cn(
-              "transition-all",
+              "transition-[filter]",
               isBlurred && "blur-md select-none pointer-events-none"
             )}>
               <div className="flex items-baseline gap-2 flex-wrap">

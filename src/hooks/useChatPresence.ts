@@ -118,6 +118,14 @@ export function useChatPresence(
     };
   }, [profile?.username, profile?.avatar_url, profile]);
 
+  // Throttle repeated identical activity (e.g. setTyping(true) fires on every
+  // keystroke). Presence goes stale after PRESENCE_STALE_MS (12s), so a 4s
+  // refresh keeps the indicator alive while cutting per-key Firestore writes.
+  const lastActivitySentRef = useRef<{ activity: UserActivityState | null; at: number }>({
+    activity: null,
+    at: 0,
+  });
+
   const applyActivity = useCallback(
     (activity: UserActivityState) => {
       const cid = conversationId;
@@ -125,6 +133,12 @@ export function useChatPresence(
       if (!cid || !pid) return;
 
       activityRef.current = activity;
+
+      const last = lastActivitySentRef.current;
+      const now = Date.now();
+      if (last.activity === activity && now - last.at < 4000) return;
+      lastActivitySentRef.current = { activity, at: now };
+
       const ui = uiActivityFromState(activity);
 
       broadcastActivity(cid, pid, ui, metaRef.current);

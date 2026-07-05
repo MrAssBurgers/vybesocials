@@ -39,6 +39,18 @@ function bindAppScrollContainer() {
   }
 }
 
+// The MutationObserver fires on every DOM change (feed pagination, animations
+// mounting nodes, etc). Coalesce rebind checks to at most one per 500ms so we
+// don't run a document-wide querySelector on every mutation batch.
+let rebindTimer: ReturnType<typeof setTimeout> | null = null;
+function scheduleRebind() {
+  if (rebindTimer) return;
+  rebindTimer = setTimeout(() => {
+    rebindTimer = null;
+    bindAppScrollContainer();
+  }, 500);
+}
+
 /**
  * Lightweight scroll optimization hook - uses passive listeners.
  * SINGLETON: Only one listener set across all components.
@@ -60,7 +72,7 @@ export function useScrollOptimization() {
     window.addEventListener('touchmove', markScrolling, opts);
 
     bindAppScrollContainer();
-    observerRef.current = new MutationObserver(bindAppScrollContainer);
+    observerRef.current = new MutationObserver(scheduleRebind);
     observerRef.current.observe(document.body, { childList: true, subtree: true });
 
     return () => {
@@ -74,6 +86,10 @@ export function useScrollOptimization() {
       observerRef.current?.disconnect();
       observerRef.current = null;
       scrollListenerAttached = false;
+      if (rebindTimer) {
+        clearTimeout(rebindTimer);
+        rebindTimer = null;
+      }
       if (settleTimeout) clearTimeout(settleTimeout);
       if (settleRaf !== null) cancelAnimationFrame(settleRaf);
       isScrolling = false;

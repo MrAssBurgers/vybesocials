@@ -37,7 +37,6 @@ export function StoryViewer({ groups, initialGroupIndex, onClose }: StoryViewerP
   
   const [groupIndex, setGroupIndex] = useState(initialGroupIndex);
   const [storyIndex, setStoryIndex] = useState(0);
-  const [progress, setProgress] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
   const [replyText, setReplyText] = useState('');
   const [showReplyInput, setShowReplyInput] = useState(false);
@@ -80,29 +79,48 @@ export function StoryViewer({ groups, initialGroupIndex, onClose }: StoryViewerP
   const goNextRef = useRef<() => void>(() => {});
   useEffect(() => { goNextRef.current = goNext; });
 
+  // Progress lives in a ref and drives the bar via direct DOM writes — React
+  // state ticks would re-render the entire viewer (header, media, reply UI)
+  // 4x per second for the lifetime of the story.
+  const progressValueRef = useRef(0);
+  const activeBarRef = useRef<HTMLDivElement | null>(null);
+
+  const resetProgress = useCallback(() => {
+    progressValueRef.current = 0;
+    const bar = activeBarRef.current;
+    if (bar) {
+      bar.style.transition = 'none';
+      bar.style.width = '0%';
+    }
+  }, []);
+
   // Progress timer — 4 ticks/sec; the bar's CSS transition keeps it visually
-  // smooth without re-rendering the whole viewer 20x per second.
+  // smooth without re-rendering the whole viewer.
   useEffect(() => {
     if (isPaused || !currentStory) return;
 
     const TICK_MS = 250;
     const interval = setInterval(() => {
-      setProgress((prev) => {
-        if (prev >= 100) {
-          goNextRef.current();
-          return 0;
-        }
-        return prev + (100 / (STORY_DURATION / TICK_MS));
-      });
+      if (progressValueRef.current >= 100) {
+        resetProgress();
+        goNextRef.current();
+        return;
+      }
+      progressValueRef.current += 100 / (STORY_DURATION / TICK_MS);
+      const bar = activeBarRef.current;
+      if (bar) {
+        bar.style.transition = 'width 250ms linear';
+        bar.style.width = `${Math.min(progressValueRef.current, 100)}%`;
+      }
     }, TICK_MS);
 
     return () => clearInterval(interval);
-  }, [isPaused, currentStory, groupIndex, storyIndex, STORY_DURATION]);
+  }, [isPaused, currentStory, groupIndex, storyIndex, STORY_DURATION, resetProgress]);
 
   // Reset progress when story changes
   useEffect(() => {
-    setProgress(0);
-  }, [currentStory?.id]);
+    resetProgress();
+  }, [currentStory?.id, resetProgress]);
 
   const adTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -117,7 +135,7 @@ export function StoryViewer({ groups, initialGroupIndex, onClose }: StoryViewerP
     if (storyIndex < currentGroup.stories.length - 1) {
       setDirection(1);
       setStoryIndex((prev) => prev + 1);
-      setProgress(0);
+      resetProgress();
     } else if (groupIndex < groups.length - 1) {
       groupsSinceAd.current += 1;
       // Show ad interstitial every 3 groups
@@ -134,47 +152,47 @@ export function StoryViewer({ groups, initialGroupIndex, onClose }: StoryViewerP
           setDirection(1);
           setGroupIndex((prev) => prev + 1);
           setStoryIndex(0);
-          setProgress(0);
+          resetProgress();
         }, 5000);
         return;
       }
       setDirection(1);
       setGroupIndex((prev) => prev + 1);
       setStoryIndex(0);
-      setProgress(0);
+      resetProgress();
     } else {
       onClose();
     }
   }, [storyIndex, groupIndex, currentGroup?.stories.length, groups.length, onClose, showAds]);
 
   const goPrev = useCallback(() => {
-    if (progress > 20 && storyIndex === 0 && groupIndex === 0) {
+    if (progressValueRef.current > 20 && storyIndex === 0 && groupIndex === 0) {
       // Just restart current story if near beginning
-      setProgress(0);
+      resetProgress();
       return;
     }
     
     if (storyIndex > 0) {
       setDirection(-1);
       setStoryIndex((prev) => prev - 1);
-      setProgress(0);
+      resetProgress();
     } else if (groupIndex > 0) {
       setDirection(-1);
       setGroupIndex((prev) => prev - 1);
       setStoryIndex(groups[groupIndex - 1].stories.length - 1);
-      setProgress(0);
+      resetProgress();
     } else {
       // Restart first story
-      setProgress(0);
+      resetProgress();
     }
-  }, [storyIndex, groupIndex, groups, progress]);
+  }, [storyIndex, groupIndex, groups, resetProgress]);
 
   const goToNextGroup = useCallback(() => {
     if (groupIndex < groups.length - 1) {
       setDirection(1);
       setGroupIndex((prev) => prev + 1);
       setStoryIndex(0);
-      setProgress(0);
+      resetProgress();
     } else {
       onClose();
     }
@@ -185,7 +203,7 @@ export function StoryViewer({ groups, initialGroupIndex, onClose }: StoryViewerP
       setDirection(-1);
       setGroupIndex((prev) => prev - 1);
       setStoryIndex(0);
-      setProgress(0);
+      resetProgress();
     }
   }, [groupIndex]);
 
@@ -369,9 +387,15 @@ export function StoryViewer({ groups, initialGroupIndex, onClose }: StoryViewerP
           {currentGroup.stories.map((_, i) => (
             <div key={i} className="flex-1 h-0.5 bg-white/30 rounded-full overflow-hidden">
               <div
+                ref={i === storyIndex ? activeBarRef : undefined}
                 className="h-full bg-white rounded-full origin-left"
                 style={{
-                  width: i < storyIndex ? '100%' : i === storyIndex ? `${progress}%` : '0%',
+                  width:
+                    i < storyIndex
+                      ? '100%'
+                      : i === storyIndex
+                        ? `${Math.min(progressValueRef.current, 100)}%`
+                        : '0%',
                   transition: i === storyIndex ? 'width 250ms linear' : undefined,
                 }}
               />
@@ -689,7 +713,7 @@ export function StoryViewer({ groups, initialGroupIndex, onClose }: StoryViewerP
                 setDirection(1);
                 setGroupIndex((prev) => prev + 1);
                 setStoryIndex(0);
-                setProgress(0);
+                resetProgress();
               }}
               className="text-muted-foreground"
             >

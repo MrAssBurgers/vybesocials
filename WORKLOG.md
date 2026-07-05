@@ -2,6 +2,19 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## Buttery-smooth pass — scroll/animation/input jank (2026-07-05)
+- **Feed scroll:** `InlinePostList` now caches one stable ref-callback per post index — previously every visible-post change re-created every row's ref, forcing React to detach/re-attach refs across the whole feed on each scroll step
+- **PostCard:** action buttons + tag pills use targeted `transition-[transform,background-color]` instead of `transition-all` (browser no longer watches box-shadow/filter on the most-rendered component); same fix in `CommentItem`/`CommentThread` (`transition-[filter]` for safety blur) and Explore clip overlays
+- **Scroll infra:** `useScrollOptimization` MutationObserver rebind coalesced to 1 per 500ms (was a document-wide `querySelector` on every DOM mutation batch)
+- **DM thread:** video bubbles now play only while ≥40% on-screen via IntersectionObserver (was `autoPlay` for every message — multiple live decoders while scrolling media-heavy threads); unopened-Vybe tile shimmer/breathe converted from per-frame framer-motion JS to compositor CSS keyframes (auto-paused by `.is-scrolling`); typing presence throttled — repeat `setTyping(true)` skipped within 4s (was a Firestore write per keystroke; 12s stale window keeps indicator live); composer autoResize batched in rAF (was sync layout read/write per keystroke); "last seen Xs ago" ticks 1s only under a minute old, then 30s (was 1s forever)
+- **StoryViewer:** progress bar is now ref + direct DOM width writes — zero React re-renders during playback (was re-rendering the whole viewer 4x/sec)
+- **Explore clips:** fullscreen pager windows video cards to current ±2 (was all mounted); IntersectionObserver no longer torn down + re-attached to every clip on each snap (both `Explore.tsx` and `ExploreClipsSection`); `VideoThumbnail` img now `loading="lazy" decoding="async"`
+- **Home:** `LiveActivityTicker` rotation pauses while tab hidden
+- **Verified:** typecheck PASS · 49 tests PASS · lint PASS · build PASS
+- **Staging:** https://vybe-daaab.web.app (hosting deployed)
+- **You:** Lovable → Share → Publish for **vybehub.app**
+- **Next:** extract memoized `MessageRow` from `ChatView` (stable per-message handlers — needs the planned ChatView split); consider server-generated video thumbnails for Explore; profile on a mid-tier Android device
+
 ## High-End Social Foundation Pass (2026-07-05)
 - **Fault isolation (Phase 1):** `SpotifyPresenceMount`/`RealtimeSyncMount`/`BriefPreFetchInit` now wrapped in `LocalErrorBoundary`; gamification providers (easter eggs, streak popup, reward modals/realtime, tutorial overlay) isolate their risky effects behind boundaries — a crash degrades to "feature off" instead of blanking the app; per-route boundaries on `/home`, `/messages`, `/notifications`, `/profile` with in-page retry; `ErrorBoundary` auto-resets on route change (crashed tab no longer sticks); `queryPersister` deserialization guarded — corrupt IndexedDB cache is dropped instead of throwing at boot; guarded `useEasterEggs` localStorage `JSON.parse`
 - **Deploy safety:** `AppUpdateOverlay` mounted; SW update flow posts `SKIP_WAITING` + one controlled reload on controllerchange (guarded against first-install and loops); hashed `.js` chunks now network-first with cache fallback in `sw.js` (v34, assets cache v5) — stale-chunk white screens after deploy eliminated

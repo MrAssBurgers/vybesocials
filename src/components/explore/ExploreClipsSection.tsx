@@ -77,7 +77,7 @@ const ClipThumbnail = memo(function ClipThumbnail({
       )}
 
       {/* Hover overlay */}
-      <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-all duration-300 flex items-center justify-center">
+      <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors duration-300 flex items-center justify-center">
         <motion.div
           initial={{ opacity: 0, scale: 0.8 }}
           whileHover={{ opacity: 1, scale: 1 }}
@@ -158,7 +158,13 @@ function FullscreenClipViewer({
     }
   }, [startIndex]);
 
-  // IntersectionObserver to track current clip
+  // IntersectionObserver to track current clip. currentIndex is read via ref
+  // so the observer isn't torn down and re-attached to every clip on each snap.
+  const currentIndexRef = useRef(currentIndex);
+  useEffect(() => {
+    currentIndexRef.current = currentIndex;
+  }, [currentIndex]);
+
   useEffect(() => {
     if (!clips?.length) return;
 
@@ -171,7 +177,7 @@ function FullscreenClipViewer({
         entries.forEach((entry) => {
           if (entry.isIntersecting && entry.intersectionRatio >= 0.6) {
             const index = itemRefs.current.findIndex((ref) => ref === entry.target);
-            if (index !== -1 && index !== currentIndex) {
+            if (index !== -1 && index !== currentIndexRef.current) {
               setCurrentIndex(index);
             }
           }
@@ -190,7 +196,7 @@ function FullscreenClipViewer({
     return () => {
       observerRef.current?.disconnect();
     };
-  }, [clips?.length, currentIndex]);
+  }, [clips?.length]);
 
   // Keyboard navigation (desktop)
   useEffect(() => {
@@ -274,12 +280,16 @@ function FullscreenClipViewer({
               }}
             >
               <div className="relative h-full w-full max-w-[500px]">
-                <CardComponent 
-                  post={clip} 
-                  isActive={index === currentIndex}
-                  globalMuted={globalMuted}
-                  onToggleMute={handleToggleMute}
-                />
+                {/* Window to current ±2 — a mounted video card per clip keeps
+                    too many players alive and stutters long sessions. */}
+                {Math.abs(index - currentIndex) <= 2 && (
+                  <CardComponent
+                    post={clip}
+                    isActive={index === currentIndex}
+                    globalMuted={globalMuted}
+                    onToggleMute={handleToggleMute}
+                  />
+                )}
               </div>
             </div>
           ))}
@@ -303,7 +313,7 @@ function FullscreenClipViewer({
               return (
                 <div
                   key={actualIdx}
-                  className="w-1 rounded-full bg-white transition-all duration-200"
+                  className="w-1 rounded-full bg-white transition-[height,opacity] duration-200"
                   style={{
                     height: actualIdx === currentIndex ? 20 : 6,
                     opacity: actualIdx === currentIndex ? 1 : 0.3,

@@ -4,7 +4,7 @@
  */
 import { onCall, onRequest, HttpsError } from 'firebase-functions/v2/https';
 import { onSchedule } from 'firebase-functions/v2/scheduler';
-import { db, requireAuth, requireAdmin } from './_shared/admin.js';
+import { db, requireAuth, requireAdmin, auth, rateLimit, enforceRateLimit } from './_shared/admin.js';
 import crypto from 'node:crypto';
 const RESEND_URL = 'https://api.resend.com/emails';
 function fromAddr() {
@@ -65,17 +65,43 @@ function renderTemplate(template, vars) {
     return fn(vars);
 }
 export const sendTransactionalEmail = onCall({ secrets: ['RESEND_API_KEY'] }, async (request) => {
-    requireAuth(request);
+    const uid = requireAuth(request);
     const { to, template, vars, subject, html, text } = (request.data || {});
     if (!to)
         throw new HttpsError('invalid-argument', 'to required');
+    // Determine admin status (admins may send free-form to any recipient).
+    let isAdmin = request.auth?.token?.admin === true;
+    if (!isAdmin) {
+        const roleSnap = await db.collection('user_roles')
+            .where('user_id', '==', uid)
+            .where('role', 'in', ['admin', 'owner'])
+            .limit(1).get();
+        isAdmin = !roleSnap.empty;
+    }
     let body;
-    if (template)
+    if (template) {
         body = renderTemplate(template, vars || {});
-    else if (subject)
+    }
+    else if (subject) {
+        if (!isAdmin) {
+            throw new HttpsError('permission-denied', 'Free-form email sending is admin only. Use a template.');
+        }
         body = { subject, html: html || `<p>${text || ''}</p>`, text: text || '' };
-    else
+    }
+    else {
         throw new HttpsError('invalid-argument', 'template or subject required');
+    }
+    // Non-admins may only email their own verified auth email.
+    if (!isAdmin) {
+        const userRecord = await auth.getUser(uid).catch(() => null);
+        const ownEmail = userRecord?.email?.toLowerCase();
+        const recipients = (Array.isArray(to) ? to : [to]).map((e) => String(e).toLowerCase());
+        if (!ownEmail || recipients.some((r) => r !== ownEmail)) {
+            throw new HttpsError('permission-denied', 'You may only send templated email to your own address');
+        }
+    }
+    // Per-caller rate limit to prevent abuse (20/hour).
+    enforceRateLimit(await rateLimit(`email:${uid}`, isAdmin ? 500 : 20, 3600));
     const recipient = Array.isArray(to) ? to[0] : to;
     body.html += `<hr><p style="font-size:12px;color:#888">VYBE • <a href="${unsubLink(recipient)}">Unsubscribe</a></p>`;
     const result = await sendViaResend({ to, ...body });

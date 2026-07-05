@@ -2820,24 +2820,18 @@ const MessageBubble = memo(function MessageBubble({
                   }}
                 >
                   <div className="absolute inset-0 bg-gradient-to-t from-black/25 via-transparent to-white/10" />
-                  <motion.div
-                    className="absolute inset-0 opacity-40"
+                  <div
+                    className="absolute inset-0 opacity-40 animate-vybe-unopened-shimmer"
                     style={{
                       background:
                         'linear-gradient(115deg, transparent 30%, rgba(255,255,255,0.35) 50%, transparent 70%)',
                       backgroundSize: '200% 100%',
                     }}
-                    animate={{ backgroundPosition: ['200% 0%', '-200% 0%'] }}
-                    transition={{ duration: 3.5, repeat: Infinity, ease: 'easeInOut' }}
                   />
                   <div className="relative z-10 flex flex-col items-center gap-3 text-white">
-                    <motion.div
-                      className="p-3.5 rounded-full bg-white/15 backdrop-blur-md border border-white/25 shadow-inner"
-                      animate={{ scale: [1, 1.06, 1] }}
-                      transition={{ duration: 2.2, repeat: Infinity, ease: 'easeInOut' }}
-                    >
+                    <div className="p-3.5 rounded-full bg-white/15 backdrop-blur-md border border-white/25 shadow-inner animate-vybe-unopened-breathe">
                       <Camera className="h-6 w-6" />
-                    </motion.div>
+                    </div>
                     <div className="flex flex-col items-center">
                       <span className="text-sm font-semibold tracking-wide drop-shadow-sm">Tap to view</span>
                       <div className="flex items-center gap-1.5 mt-1.5 px-2.5 py-0.5 rounded-full bg-white/12 border border-white/20">

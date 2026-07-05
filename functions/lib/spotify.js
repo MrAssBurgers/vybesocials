@@ -238,6 +238,28 @@ export const spotifyListenAlong = onCall({ secrets: SECRETS }, async (request) =
     const { friend_id } = (request.data || {});
     if (!friend_id)
         throw new HttpsError('invalid-argument', 'friend_id required');
+    if (friend_id === uid)
+        return { ok: false, error: 'cannot_listen_along_self' };
+    // Verify a friend/close-friend relationship between caller and target.
+    const [fr1, fr2, cf1, cf2] = await Promise.all([
+        db.collection('friend_requests')
+            .where('sender_id', '==', uid).where('receiver_id', '==', friend_id).where('status', '==', 'accepted').limit(1).get(),
+        db.collection('friend_requests')
+            .where('sender_id', '==', friend_id).where('receiver_id', '==', uid).where('status', '==', 'accepted').limit(1).get(),
+        db.collection('close_friends').where('owner_id', '==', friend_id).where('friend_id', '==', uid).limit(1).get(),
+        db.collection('close_friends').where('owner_id', '==', uid).where('friend_id', '==', friend_id).limit(1).get(),
+    ]);
+    const isFriend = !fr1.empty || !fr2.empty || !cf1.empty || !cf2.empty;
+    if (!isFriend) {
+        throw new HttpsError('permission-denied', 'Not connected as friends');
+    }
+    // Respect target's music_settings privacy flags.
+    const settingsSnap = await db.collection('music_settings').doc(friend_id).get();
+    const settings = (settingsSnap.data() || {});
+    const shareEnabled = settings.show_listening_activity !== false && settings.show_in_dms !== false;
+    if (!shareEnabled) {
+        return { ok: true, listening: false, error: 'sharing_disabled' };
+    }
     const friendConn = await db.collection('spotify_connections').doc(friend_id).get();
     if (!friendConn.exists)
         return { ok: false, error: 'friend_not_connected' };

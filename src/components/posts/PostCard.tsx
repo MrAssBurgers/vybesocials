@@ -923,7 +923,7 @@ export const PostCard = memo(function PostCard({ post, eager = false }: PostCard
             />
             <button
               onClick={() => { feedback.onComment(); setShowCommentSheet(true); }}
-              className="group relative flex items-center gap-1 h-10 px-2.5 rounded-xl active:scale-90 transition-all hover:bg-foreground/5"
+              className="group relative flex items-center gap-1 h-10 px-2.5 rounded-xl active:scale-90 transition-[transform,background-color] hover:bg-foreground/5"
               aria-label="Comment"
             >
               <MessageCircle className="h-[22px] w-[22px] group-hover:text-[hsl(var(--neon-cyan))] transition-colors" />
@@ -935,7 +935,7 @@ export const PostCard = memo(function PostCard({ post, eager = false }: PostCard
             </button>
             <button
               onClick={() => { feedback.onShare(); handleShare(); }}
-              className="group flex items-center justify-center h-10 w-10 rounded-xl active:scale-90 transition-all hover:bg-foreground/5"
+              className="group flex items-center justify-center h-10 w-10 rounded-xl active:scale-90 transition-[transform,background-color] hover:bg-foreground/5"
               aria-label="Share"
             >
               <Share2 className="h-[22px] w-[22px] group-hover:text-[hsl(var(--neon-purple))] transition-colors" />
@@ -944,7 +944,7 @@ export const PostCard = memo(function PostCard({ post, eager = false }: PostCard
 
           <button
             onClick={handleBookmark}
-            className="relative flex items-center justify-center h-10 w-10 rounded-xl active:scale-90 transition-all hover:bg-foreground/5"
+            className="relative flex items-center justify-center h-10 w-10 rounded-xl active:scale-90 transition-[transform,background-color] hover:bg-foreground/5"
             aria-label="Save"
           >
             <Bookmark
@@ -990,7 +990,7 @@ export const PostCard = memo(function PostCard({ post, eager = false }: PostCard
               <Link
                 key={tag}
                 to={`/explore?tag=${tag}`}
-                className="group relative inline-flex items-center text-[11px] font-semibold px-2.5 py-1 rounded-full border border-foreground/10 bg-foreground/5 hover:bg-foreground/10 transition-all hover:scale-[1.04]"
+                className="group relative inline-flex items-center text-[11px] font-semibold px-2.5 py-1 rounded-full border border-foreground/10 bg-foreground/5 hover:bg-foreground/10 transition-[transform,background-color] hover:scale-[1.04]"
                 style={{
                   color: `hsl(var(--${color}))`,
                   boxShadow: `inset 0 0 0 1px hsl(var(--${color}) / 0.25), 0 0 12px hsl(var(--${color}) / 0.10)`,

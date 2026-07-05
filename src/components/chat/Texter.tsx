@@ -1,4 +1,4 @@
-import { memo, useCallback, useRef, useState, type RefObject, type ReactNode } from 'react';
+import { memo, useCallback, useEffect, useRef, useState, type RefObject, type ReactNode } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Camera, ChevronLeft, Loader2, Mic, Send } from 'lucide-react';
 import { Toybox } from '@/components/chat/Toybox';
@@ -65,13 +65,24 @@ export const Texter = memo(function Texter({
   const [slideCancel, setSlideCancel] = useState(false);
   const [voiceReview, setVoiceReview] = useState<{ blob: Blob; duration: number } | null>(null);
 
+  // Batched in rAF — a synchronous height write + scrollHeight read on every
+  // keystroke forces layout mid-typing, which is felt on mobile keyboards.
+  const resizeRafRef = useRef<number | null>(null);
   const autoResize = useCallback(() => {
-    const el = inputRef.current;
-    if (!el) return;
-    el.style.height = 'auto';
-    const max = LINE_HEIGHT_PX * MAX_LINES + 16;
-    el.style.height = `${Math.min(el.scrollHeight, max)}px`;
+    if (resizeRafRef.current !== null) return;
+    resizeRafRef.current = requestAnimationFrame(() => {
+      resizeRafRef.current = null;
+      const el = inputRef.current;
+      if (!el) return;
+      el.style.height = 'auto';
+      const max = LINE_HEIGHT_PX * MAX_LINES + 16;
+      el.style.height = `${Math.min(el.scrollHeight, max)}px`;
+    });
   }, [inputRef]);
+
+  useEffect(() => () => {
+    if (resizeRafRef.current !== null) cancelAnimationFrame(resizeRafRef.current);
+  }, []);
 
   const handleVoicePointerDown = (e: React.PointerEvent) => {
     e.preventDefault();

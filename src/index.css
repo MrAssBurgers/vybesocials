@@ -5064,6 +5064,23 @@ body.has-liquid-bg:not(.has-custom-bg) #main-content {
   animation: animate-shimmer 1.5s ease-in-out infinite;
 }
 
+/* Unopened Vybe tile — CSS-driven (compositor) instead of framer-motion so the
+   shimmer/breathe loops cost no main-thread JS and auto-pause via .is-scrolling. */
+@keyframes vybe-unopened-shimmer {
+  0% { background-position: 200% 0%; }
+  100% { background-position: -200% 0%; }
+}
+.animate-vybe-unopened-shimmer {
+  animation: vybe-unopened-shimmer 3.5s ease-in-out infinite;
+}
+@keyframes vybe-unopened-breathe {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.06); }
+}
+.animate-vybe-unopened-breathe {
+  animation: vybe-unopened-breathe 2.2s ease-in-out infinite;
+}
+
 /* ===========================================
    MOBILE RESPONSIVE UTILITIES
    Auto-fit, no overflow, perfect alignment

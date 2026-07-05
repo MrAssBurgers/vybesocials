@@ -56,6 +56,13 @@ async function ensureConversationMembershipAdmin(conversationId, senderProfileId
     const convRef = db.collection('conversations').doc(conversationId);
     const convSnap = await convRef.get();
     if (!convSnap.exists) {
+        // Only allow creation when the conversationId encodes the caller as one of
+        // the two designated 1:1 participants. Prevents arbitrary joining by ID.
+        const parts = conversationId.split('_').filter(Boolean);
+        const callerInId = parts.length === 2 && (parts[0] === senderProfileId || parts[1] === senderProfileId);
+        if (!callerInId) {
+            throw new HttpsError('permission-denied', 'Not a participant of this conversation');
+        }
         await convRef.set({
             id: conversationId,
             is_group: memberIds.filter((id) => id !== senderAuthUid && id !== otherAuthUid).length > 2,
@@ -69,7 +76,25 @@ async function ensureConversationMembershipAdmin(conversationId, senderProfileId
     }
     else {
         const existing = convSnap.data()?.member_ids || [];
-        const merged = [...new Set([...existing, ...memberIds])];
+        let isExistingMember = existing.includes(senderProfileId) || existing.includes(senderAuthUid);
+        if (!isExistingMember) {
+            const memberDoc = await db
+                .collection('conversation_members')
+                .doc(`${conversationId}_${senderProfileId}`)
+                .get();
+            const authMemberDoc = memberDoc.exists
+                ? memberDoc
+                : await db
+                    .collection('conversation_members')
+                    .doc(`${conversationId}_${senderAuthUid}`)
+                    .get();
+            isExistingMember = authMemberDoc.exists;
+        }
+        if (!isExistingMember) {
+            throw new HttpsError('permission-denied', 'Not a member of this conversation');
+        }
+        // Only backfill the caller's own IDs, never other user IDs.
+        const merged = [...new Set([...existing, senderProfileId, senderAuthUid])];
         if (merged.length !== existing.length) {
             await convRef.set({ member_ids: merged, updated_at: now }, { merge: true });
         }

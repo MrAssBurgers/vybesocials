@@ -119,7 +119,7 @@ export const CommentThread = memo(function CommentThread({
         {/* Comment content - flat row, no bubble */}
         <div className="relative">
           <div className={cn(
-            "transition-all",
+            "transition-[filter]",
             isBlurred && "blur-md select-none pointer-events-none"
           )}>
             <Link

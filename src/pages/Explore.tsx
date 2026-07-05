@@ -160,7 +160,13 @@ function FullscreenClipsViewer({
     }
   }, [startIndex]);
 
-  // IntersectionObserver to track current clip
+  // IntersectionObserver to track current clip. currentIndex is read via ref
+  // so the observer isn't torn down and re-attached to every clip on each snap.
+  const currentIndexRef = useRef(currentIndex);
+  useEffect(() => {
+    currentIndexRef.current = currentIndex;
+  }, [currentIndex]);
+
   useEffect(() => {
     if (!clips?.length) return;
 
@@ -173,7 +179,7 @@ function FullscreenClipsViewer({
         entries.forEach((entry) => {
           if (entry.isIntersecting && entry.intersectionRatio >= 0.6) {
             const index = itemRefs.current.findIndex((ref) => ref === entry.target);
-            if (index !== -1 && index !== currentIndex) {
+            if (index !== -1 && index !== currentIndexRef.current) {
               setCurrentIndex(index);
             }
           }
@@ -192,7 +198,7 @@ function FullscreenClipsViewer({
     return () => {
       observerRef.current?.disconnect();
     };
-  }, [clips?.length, currentIndex]);
+  }, [clips?.length]);
 
   // Keyboard navigation (desktop)
   useEffect(() => {
@@ -309,12 +315,16 @@ function FullscreenClipsViewer({
               }}
             >
               <div className="relative h-full w-full max-w-[500px]">
-                <CardComponent 
-                  post={clip} 
-                  isActive={index === currentIndex}
-                  globalMuted={globalMuted}
-                  onToggleMute={handleToggleMute}
-                />
+                {/* Window to current ±2 — mounting a video card per clip kept
+                    dozens of players alive and made long sessions stutter. */}
+                {Math.abs(index - currentIndex) <= 2 && (
+                  <CardComponent
+                    post={clip}
+                    isActive={index === currentIndex}
+                    globalMuted={globalMuted}
+                    onToggleMute={handleToggleMute}
+                  />
+                )}
               </div>
             </div>
           ))}

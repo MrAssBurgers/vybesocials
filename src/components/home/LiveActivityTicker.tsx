@@ -60,13 +60,33 @@ export function LiveActivityTicker() {
     return msgs;
   }, [stats]);
 
-  // Cycle through messages
+  // Cycle through messages — paused while the tab is hidden so the ticker
+  // doesn't keep animating (and re-rendering) a page nobody is looking at.
   useEffect(() => {
     if (messages.length <= 1) return;
-    const interval = setInterval(() => {
-      setCurrentIndex(prev => (prev + 1) % messages.length);
-    }, 4000);
-    return () => clearInterval(interval);
+    let interval: ReturnType<typeof setInterval> | null = null;
+    const start = () => {
+      if (interval) return;
+      interval = setInterval(() => {
+        setCurrentIndex(prev => (prev + 1) % messages.length);
+      }, 4000);
+    };
+    const stop = () => {
+      if (interval) {
+        clearInterval(interval);
+        interval = null;
+      }
+    };
+    const onVisibility = () => {
+      if (document.hidden) stop();
+      else start();
+    };
+    onVisibility();
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => {
+      stop();
+      document.removeEventListener('visibilitychange', onVisibility);
+    };
   }, [messages.length]);
 
   if (messages.length === 0) return null;

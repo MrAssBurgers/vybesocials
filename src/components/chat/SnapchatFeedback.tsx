@@ -206,14 +206,23 @@ const TypingDots = memo(function TypingDots() {
   );
 });
 
-// Live relative time hook - updates every second for recent, less often for older
+// Live relative time hook — ticks every second only while the label actually
+// changes per second (< 1 min old), then backs off to 30s so the header isn't
+// re-rendering the whole presence bar every second for the life of the thread.
 function useRelativeTime(timestamp: string | null | undefined): string | null {
   const [now, setNow] = useState(Date.now());
-  
+
   useEffect(() => {
     if (!timestamp) return;
-    const interval = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(interval);
+    let timer: ReturnType<typeof setTimeout>;
+    const tick = () => {
+      const current = Date.now();
+      setNow(current);
+      const ageMs = current - new Date(timestamp).getTime();
+      timer = setTimeout(tick, ageMs < 60_000 ? 1000 : 30_000);
+    };
+    timer = setTimeout(tick, 1000);
+    return () => clearTimeout(timer);
   }, [timestamp]);
   
   return useMemo(() => {

@@ -4,7 +4,7 @@
  * Includes error handling with retry to prevent broken image placeholders.
  */
 
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { Shield, Eye, Play, RefreshCw, ImageOff } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -37,6 +37,28 @@ export function ChatMediaBubble({
   const [loaded, setLoaded] = useState(false);
   const [retryCount, setRetryCount] = useState(0);
   const [signingTimedOut, setSigningTimedOut] = useState(false);
+  const videoRef = useRef<HTMLVideoElement>(null);
+
+  // Only play video bubbles while they're actually on screen. A media-heavy
+  // thread with unconditional autoplay keeps many decoders alive at once and
+  // makes scrolling the conversation stutter.
+  useEffect(() => {
+    if (mediaType !== 'video') return;
+    const video = videoRef.current;
+    if (!video) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          video.play().catch(() => {});
+        } else {
+          video.pause();
+        }
+      },
+      { threshold: 0.4 },
+    );
+    observer.observe(video);
+    return () => observer.disconnect();
+  }, [mediaType, loaded]);
 
   // For blob/data URLs (optimistic sends), skip signing
   const normalizedMediaUrl = normalizeMediaUrl(mediaUrl) ?? mediaUrl;
@@ -118,7 +140,7 @@ export function ChatMediaBubble({
           src={cacheBustedUrl}
           alt={mediaType === 'gif' ? "GIF" : "Shared image"}
           className={cn(
-            "rounded-xl w-auto max-w-full max-h-52 sm:max-h-64 object-cover transition-all select-none",
+            "rounded-xl w-auto max-w-full max-h-52 sm:max-h-64 object-cover transition-[opacity,filter] select-none",
             shouldBlur && "blur-2xl",
             !loaded && "opacity-0 absolute"
           )}
@@ -142,9 +164,10 @@ export function ChatMediaBubble({
         <div className="relative aspect-[9/16] w-32 sm:w-40 overflow-hidden rounded-xl bg-black">
           {!loaded && <Skeleton className="absolute inset-0 rounded-xl" />}
           <video
+            ref={videoRef}
             src={cacheBustedUrl}
             className={cn(
-              "absolute inset-0 w-full h-full object-cover transition-all select-none",
+              "absolute inset-0 w-full h-full object-cover transition-[opacity,filter] select-none",
               shouldBlur && "blur-2xl",
               !loaded && "opacity-0"
             )}
@@ -152,7 +175,6 @@ export function ChatMediaBubble({
             playsInline
             muted
             loop
-            autoPlay
             preload="metadata"
             draggable={false}
             onContextMenu={(e) => e.preventDefault()}

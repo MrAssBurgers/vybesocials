@@ -113,6 +113,8 @@ export const VideoThumbnail = memo(function VideoThumbnail({
       src={displayUrl || ''}
       alt={alt}
       className={cn("w-full h-full object-cover", className)}
+      loading="lazy"
+      decoding="async"
       onError={() => {
         setHasError(true);
         onError?.();
