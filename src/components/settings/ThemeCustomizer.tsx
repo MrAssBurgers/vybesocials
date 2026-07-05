@@ -32,6 +32,8 @@ import {
   THEME_PRESETS,
   ThemeTokens,
 } from '@/hooks/useCustomTheme';
+import { readLastGeneratedTheme, getCustomThemePreset, persistLastGeneratedTheme } from '@/lib/theme/lastGeneratedTheme';
+import { useAuth } from '@/lib/auth';
 import { useAppBackgroundSafe } from '@/components/layout/AppBackground';
 import { useShareTheme } from '@/hooks/useSharedThemes';
 import { useThemeTransition } from '@/providers/ThemeTransitionProvider';
@@ -60,8 +62,20 @@ const PRESET_INFO: Record<string, { name: string; description: string; icon: str
   neon: { name: 'Neon', description: 'Electric glow', icon: '⚡', colors: ['330 100% 60%', '160 100% 50%'] },
   soft: { name: 'Soft', description: 'Warm pastels', icon: '🌸', colors: ['340 65% 55%', '160 50% 50%'] },
   cyberpunk: { name: 'Cyberpunk', description: 'Retro future', icon: '🤖', colors: ['55 100% 50%', '180 100% 50%'] },
-  minimal: { name: 'Minimal', description: 'Clean & simple', icon: '⬛', colors: ['0 0% 15%', '0 0% 40%'] },
+  custom: { name: 'Custom', description: 'Your latest AI theme', icon: '✨', colors: ['330 100% 60%', '185 100% 50%'] },
 };
+
+function normalizeBasePreset(preset?: string | null): string {
+  if (preset === 'minimal') return 'custom';
+  return preset || 'classic';
+}
+
+function resolvePresetTokens(presetKey: string, userId?: string | null): ThemeTokens | null {
+  if (presetKey === 'custom') {
+    return readLastGeneratedTheme(userId) ?? getCustomThemePreset(THEME_PRESETS.classic);
+  }
+  return THEME_PRESETS[presetKey] ?? null;
+}
 
 const ANIMATION_OPTIONS = [
   { value: 'normal', label: 'Normal' },
@@ -78,6 +92,7 @@ const BORDER_RADIUS_OPTIONS = [
 
 export function ThemeCustomizer() {
   const { data: userTheme, isLoading } = useUserTheme();
+  const { profile } = useAuth();
   const saveTheme = useSaveTheme();
   const resetTheme = useResetTheme();
   const generateTheme = useGenerateTheme();
@@ -97,6 +112,9 @@ export function ThemeCustomizer() {
   // Theme settings
   const [animationSpeed, setAnimationSpeed] = useState<'slow' | 'normal' | 'fast' | 'instant'>('normal');
   const [borderRadius, setBorderRadius] = useState<'small' | 'medium' | 'large'>('medium');
+  const [customPresetTokens, setCustomPresetTokens] = useState<ThemeTokens | null>(() =>
+    readLastGeneratedTheme(),
+  );
 
   // Get background state from AppBackground (single source of truth)
   const appBackground = useAppBackgroundSafe();
@@ -106,13 +124,22 @@ export function ThemeCustomizer() {
   useEffect(() => {
     if (userTheme?.theme_tokens && userTheme.is_active) {
       const tokens = userTheme.theme_tokens as unknown as ThemeTokens;
+      const preset = normalizeBasePreset(userTheme.base_preset);
       setCurrentTheme(tokens);
       setThemeName(userTheme.theme_name || '');
-      setSelectedPreset(userTheme.base_preset || 'classic');
+      setSelectedPreset(preset);
       setAnimationSpeed(tokens.animationSpeed || 'normal');
       setBorderRadius(tokens.borderRadius || 'medium');
+      if (preset === 'custom') {
+        persistLastGeneratedTheme(tokens, profile?.id);
+        setCustomPresetTokens(tokens);
+      }
     }
-  }, [userTheme]);
+    if (profile?.id) {
+      const lastCustom = readLastGeneratedTheme(profile.id);
+      if (lastCustom) setCustomPresetTokens(lastCustom);
+    }
+  }, [userTheme, profile?.id]);
 
   // While unsaved changes are previewed, stop useApplyUserTheme from
   // flickering the old saved theme back over the live preview.
@@ -123,13 +150,13 @@ export function ThemeCustomizer() {
 
   // Build current theme with all settings (background is managed by AppBackground, not here)
   const buildTheme = useCallback((): ThemeTokens => {
-    const base = currentTheme || THEME_PRESETS[selectedPreset];
+    const base = currentTheme || resolvePresetTokens(selectedPreset, profile?.id) || THEME_PRESETS.classic;
     return {
       ...base,
       animationSpeed,
       borderRadius,
     };
-  }, [currentTheme, selectedPreset, animationSpeed, borderRadius]);
+  }, [currentTheme, selectedPreset, animationSpeed, borderRadius, profile?.id]);
 
   // Apply theme changes
   const applyChanges = useCallback(() => {
@@ -140,19 +167,31 @@ export function ThemeCustomizer() {
 
   // Handle preset selection
   const handlePresetSelect = useCallback((presetKey: string) => {
-    const preset = THEME_PRESETS[presetKey];
+    if (presetKey === 'custom' && !readLastGeneratedTheme(profile?.id)?.colorPrimary) {
+      toast.error('Generate a theme first — Custom updates after each AI generation');
+      return;
+    }
+
+    const preset = resolvePresetTokens(presetKey, profile?.id);
     if (!preset) return;
 
-    const [primary, accent] = PRESET_INFO[presetKey]?.colors || ['330 100% 60%', '185 100% 50%'];
-    
+    const [primary, accent] =
+      presetKey === 'custom'
+        ? [preset.colorPrimary, preset.colorAccent]
+        : (PRESET_INFO[presetKey]?.colors || ['330 100% 60%', '185 100% 50%']);
+
     triggerTransition(primary, accent, () => {
       setSelectedPreset(presetKey);
       setCurrentTheme({ ...preset, animationSpeed, borderRadius });
-      setThemeName(PRESET_INFO[presetKey]?.name || presetKey);
+      setThemeName(
+        presetKey === 'custom'
+          ? (preset.themeName || 'Custom')
+          : (PRESET_INFO[presetKey]?.name || presetKey),
+      );
       applyThemeTokens({ ...preset, animationSpeed, borderRadius });
       setHasChanges(true);
     });
-  }, [animationSpeed, borderRadius, triggerTransition]);
+  }, [animationSpeed, borderRadius, triggerTransition, profile?.id]);
 
   // Handle AI generation — empty prompt uses profile + Vybe DNA via useGenerateTheme
   const handleGenerate = useCallback(async () => {
@@ -177,6 +216,9 @@ export function ThemeCustomizer() {
         triggerTransition(primary, accent, () => {
           setCurrentTheme(themeWithSettings);
           setThemeName((theme as any).themeName || 'Custom Theme');
+          setSelectedPreset('custom');
+          persistLastGeneratedTheme(themeWithSettings, profile?.id);
+          setCustomPresetTokens(themeWithSettings);
           applyThemeTokens(themeWithSettings);
           setHasChanges(true);
         });
@@ -217,7 +259,7 @@ export function ThemeCustomizer() {
   // Update settings and apply
   const updateSetting = useCallback(<K extends keyof ThemeTokens>(key: K, value: ThemeTokens[K]) => {
     setCurrentTheme(prev => {
-      const base = prev || THEME_PRESETS[selectedPreset];
+      const base = prev || resolvePresetTokens(selectedPreset, profile?.id) || THEME_PRESETS.classic;
       return { ...base, [key]: value };
     });
     setHasChanges(true);
@@ -227,7 +269,7 @@ export function ThemeCustomizer() {
       const theme = buildTheme();
       applyThemeTokens({ ...theme, [key]: value });
     }, 0);
-  }, [selectedPreset, buildTheme]);
+  }, [selectedPreset, buildTheme, profile?.id]);
 
   return (
     <div className="space-y-5">
@@ -306,8 +348,21 @@ export function ThemeCustomizer() {
         <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Quick Presets</Label>
         <div className="grid grid-cols-3 gap-2.5">
           {Object.entries(PRESET_INFO).map(([key, info]) => {
-            const preset = THEME_PRESETS[key];
+            const preset =
+              key === 'custom'
+                ? (customPresetTokens ??
+                  readLastGeneratedTheme(profile?.id) ??
+                  getCustomThemePreset(THEME_PRESETS.classic))
+                : (THEME_PRESETS[key] ?? THEME_PRESETS.classic);
+            const displayInfo =
+              key === 'custom' && customPresetTokens?.themeName
+                ? { ...info, description: customPresetTokens.themeName }
+                : info;
             const isSelected = selectedPreset === key;
+            const swatchColors: [string, string] =
+              key === 'custom'
+                ? [preset.colorPrimary, preset.colorAccent]
+                : info.colors;
 
             return (
               <button
@@ -324,11 +379,11 @@ export function ThemeCustomizer() {
                 <div
                   className="w-full h-10 rounded-xl mb-2 shadow-inner"
                   style={{
-                    background: `linear-gradient(135deg, hsl(${info.colors[0]}), hsl(${info.colors[1]}))`,
+                    background: `linear-gradient(135deg, hsl(${swatchColors[0]}), hsl(${swatchColors[1]}))`,
                   }}
                 />
-                <p className="text-xs font-semibold truncate">{info.name}</p>
-                <p className="text-[10px] text-muted-foreground truncate mt-0.5">{info.description}</p>
+                <p className="text-xs font-semibold truncate">{displayInfo.name}</p>
+                <p className="text-[10px] text-muted-foreground truncate mt-0.5">{displayInfo.description}</p>
 
                 {preset.mode === 'dark' ? (
                   <Moon className="absolute top-2 right-2 h-3 w-3 text-muted-foreground/70" />
@@ -387,7 +442,7 @@ export function ThemeCustomizer() {
               }}
               onColorsExtracted={(colors) => {
                 const newTheme: ThemeTokens = {
-                  ...(currentTheme || THEME_PRESETS[selectedPreset]),
+                  ...(currentTheme || resolvePresetTokens(selectedPreset, profile?.id) || THEME_PRESETS.classic),
                   colorPrimary: colors.primary,
                   colorAccent: colors.accent,
                   colorSecondary: colors.secondary,

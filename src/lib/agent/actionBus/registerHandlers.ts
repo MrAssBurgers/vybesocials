@@ -1,6 +1,7 @@
 import { toast } from 'sonner';
 import { applyThemeTokens, THEME_PRESETS } from '@/hooks/useCustomTheme';
 import type { ThemeTokens } from '@/hooks/useCustomTheme';
+import { readLastGeneratedTheme } from '@/lib/theme/lastGeneratedTheme';
 import { normalizeAgentPath } from '@/lib/agent/agentRoutes';
 import type { AgentActionBus } from '@/lib/agent/actionBus/AgentActionBus';
 import type {
@@ -45,7 +46,11 @@ export function registerAgentActionHandlers(
 
   unsubs.push(
     bus.register('apply_theme', async (action) => {
-      const preset = THEME_PRESETS[action.preset];
+      const presetKey = action.preset === 'minimal' ? 'custom' : action.preset;
+      const preset =
+        presetKey === 'custom'
+          ? readLastGeneratedTheme() ?? THEME_PRESETS.custom
+          : THEME_PRESETS[presetKey];
       if (!preset) return fail(action, `Unknown preset: ${action.preset}`);
       deps.setGlobalTheme(preset.mode === 'light' ? 'light' : 'dark');
       applyThemeTokens(preset);
