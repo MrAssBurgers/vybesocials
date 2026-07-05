@@ -2,6 +2,13 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## DM Snapchat parity — full history + reliable tap-to-save (2026-07-04)
+- **Was:** Scroll-up pagination used an unordered scan capped at ~400 rows (long threads hit a wall); tap-to-save relied on `onClick`, which iOS Safari drops on non-interactive elements (only long-press menu worked); `scroll-smooth` animated every pin-to-bottom; new incoming messages yanked reader out of history
+- **Now:** Server-ordered pages via `conversation_id + created_at` index (exact pagination, index-free fallback); tap detection moved into the SwipeToReply pointer state machine (`onTap` fires on clean release — works on iOS/desktop); scroll-up preload at 600px; pin-to-bottom only for own sends or near-bottom; older pages survive recent refetches in cache merge; history cap raised to 10k
+- **Verified:** `npm run test` PASS · `npm run lint` PASS · `npm run build` PASS
+- **Staging:** https://vybe-daaab.web.app (hosting + firestore indexes deployed)
+- **You:** Lovable → Share → Publish for **vybehub.app**
+
 ## DM stability, tap-to-save, text flicker (2026-07-04)
 - **Was:** Background full-history hydrate froze thread on open; save toggle cleared both users' flags; 24h unsave didn't restore expiry; contrast guard + `transition-all` flickered DM text
 - **Now:** Recent-only open + scroll-up pagination only; skeleton skipped when cache has messages; scroll-to-bottom on append only; per-user save helper + server expiry restore; DM thread shielded from contrast guard; targeted bubble transitions

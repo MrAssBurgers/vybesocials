@@ -7,6 +7,8 @@ interface SwipeToReplyProps {
   children: ReactNode;
   onReply: () => void;
   onLongPress?: () => void;
+  /** Clean tap (no hold, no swipe, no scroll). Receives the element under the pointer. */
+  onTap?: (target: HTMLElement) => void;
   isOwn?: boolean;
   disabled?: boolean;
 }
@@ -35,6 +37,7 @@ export function SwipeToReply({
   children,
   onReply,
   onLongPress,
+  onTap,
   isOwn = false,
   disabled = false,
 }: SwipeToReplyProps) {
@@ -153,11 +156,16 @@ export function SwipeToReply({
       if ('vibrate' in navigator) navigator.vibrate([8, 50, 8]);
     }
 
-    // If state is still 'pending' → it was a clean tap. Let click propagate naturally.
-    // gestureConsumedRef stays false so onClickCapture won't block.
+    // Still 'pending' at release → clean tap. Fire onTap directly from the
+    // pointer event: iOS Safari doesn't synthesize click for non-interactive
+    // elements, so relying on onClick alone drops taps on message bubbles.
+    if (state === 'pending' && !gestureConsumedRef.current && onTap) {
+      const target = e.target instanceof HTMLElement ? e.target : null;
+      if (target) onTap(target);
+    }
 
     cleanup();
-  }, [x, onReply, cleanup]);
+  }, [x, onReply, onTap, cleanup]);
 
   // Attach/detach document listeners when a gesture is active
   useEffect(() => {

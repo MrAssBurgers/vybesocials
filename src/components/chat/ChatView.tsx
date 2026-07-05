@@ -641,7 +641,11 @@ export function ChatView() {
   }, [conversationId]);
 
   // Scroll to bottom on open / append at bottom — not when older messages prepend.
-  const lastThreadMessageId = threadMessages[threadMessages.length - 1]?.id ?? null;
+  const lastThreadMessage = threadMessages[threadMessages.length - 1];
+  const lastThreadMessageId = lastThreadMessage?.id ?? null;
+  const lastThreadMessageIsOwn =
+    !!lastThreadMessage &&
+    (lastThreadMessage.sender_id === profileId || lastThreadMessage.sender_id === profile?.id);
   useLayoutEffect(() => {
     if (!conversationId) return;
 
@@ -661,16 +665,25 @@ export function ChatView() {
       prevLastMessageIdRef.current = lastThreadMessageId;
       return;
     }
-    if (isNewConversation || (lastThreadMessageId && lastThreadMessageId !== prevLastId)) {
+    if (isNewConversation) {
       container.scrollTop = container.scrollHeight;
+    } else if (lastThreadMessageId && lastThreadMessageId !== prevLastId) {
+      // New message at the bottom: follow it if it's ours or we're already near
+      // the bottom. Don't yank the user out of scrolled-up history.
+      const distanceFromBottom =
+        container.scrollHeight - container.scrollTop - container.clientHeight;
+      if (lastThreadMessageIsOwn || distanceFromBottom < 240) {
+        container.scrollTop = container.scrollHeight;
+      }
     }
     prevLastMessageIdRef.current = lastThreadMessageId;
-  }, [conversationId, lastThreadMessageId]);
+  }, [conversationId, lastThreadMessageId, lastThreadMessageIsOwn]);
 
   const handleMessagesScroll = useCallback(() => {
     const container = messagesContainerRef.current;
     if (!container || !hasMoreOlder || isLoadingOlder) return;
-    if (container.scrollTop > 140) return;
+    // Start loading well before the top so scrolling up never hits a wall.
+    if (container.scrollTop > 600) return;
 
     scrollHeightBeforeOlderRef.current = container.scrollHeight;
     void loadOlderMessages().then(() => {
@@ -1685,7 +1698,6 @@ export function ChatView() {
         className={cn(
           "dm-chat-messages vybe-chat-messages flex-1 overflow-y-auto overflow-x-hidden min-h-0",
           "px-3 sm:px-4 pb-3",
-          "scroll-smooth",
           getWallpaperClass()
         )}
         data-no-auto-contrast
@@ -1837,10 +1849,21 @@ export function ChatView() {
                     </span>
                   </div>
                 )}
-                {/* Swipe = reply only, hold = menu only, tap = bubble/media behavior */}
+                {/* Swipe = reply, hold = menu, clean tap on bubble = Snapchat save toggle */}
                 <SwipeToReply
                   onReply={() => handleReply(message)}
                   onLongPress={() => setShowContextMenuMessageId(message.id)}
+                  onTap={
+                    !isGroupChat && !message.id.startsWith('temp-')
+                      ? (target) => {
+                          if (showContextMenuMessageId) return;
+                          if (target.closest('button, a, input, textarea, [data-no-tap-save]')) return;
+                          if (!target.closest('[data-tap-save]')) return;
+                          try { navigator.vibrate?.(8); } catch { /* unsupported */ }
+                          toggleSaved.mutate(message.id);
+                        }
+                      : undefined
+                  }
                   isOwn={isOwn}
                 >
                   <MessageBubble
@@ -2702,17 +2725,7 @@ const MessageBubble = memo(function MessageBubble({
               'ring-2 ring-emerald-400/80 bg-emerald-500/15 shadow-[0_0_20px_-4px_rgba(52,211,153,0.55)]',
           )}
           data-message-id={message.id}
-          onClick={(e) => {
-            // Snapchat-style tap-to-save on 1:1 DMs.
-            if (!onToggleSaved) return;
-            if (isVybeMessage || isSharedPost || isSharedTheme) return;
-            if (isContextMenuOpen) return;
-            const target = e.target as HTMLElement;
-            // Skip interactive children (play button, audio controls, viewer triggers)
-            if (target.closest('button, a, input, textarea, [data-no-tap-save]')) return;
-            try { (navigator as any)?.vibrate?.(8); } catch {}
-            onToggleSaved();
-          }}
+          data-tap-save={onToggleSaved && !isVybeMessage && !isSharedPost && !isSharedTheme ? '' : undefined}
           onContextMenu={handleContextMenu}
           onDoubleClick={onToggleReactions}
         >

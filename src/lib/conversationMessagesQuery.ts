@@ -7,8 +7,8 @@ type MessageRow = { id?: string; created_at?: string; is_deleted?: boolean; conv
 export const CHAT_INITIAL_MESSAGE_LIMIT = 200;
 /** Older pages when scrolling up or completing history. */
 export const CHAT_OLDER_MESSAGE_PAGE = 150;
-/** Hard cap — protects runaway fetches on ancient threads. */
-export const CHAT_MAX_MESSAGE_HISTORY = 2500;
+/** Hard cap — history loads page-by-page on scroll, so this just bounds cache size. */
+export const CHAT_MAX_MESSAGE_HISTORY = 10000;
 
 function sortByCreatedDesc<T extends MessageRow>(rows: T[]): T[] {
   return [...rows].sort(
@@ -34,12 +34,27 @@ function dedupeById<T extends MessageRow>(rows: T[]): T[] {
   return out;
 }
 
-/** Latest messages for one conversation — index-free Firestore query + client sort. */
+/**
+ * Latest messages for one conversation.
+ * Server-ordered page (uses the conversation_id + created_at composite index)
+ * with an index-free client-sort fallback.
+ */
 export async function fetchRecentConversationMessages<T extends MessageRow>(
   conversationId: string,
   select: string,
   limit = CHAT_INITIAL_MESSAGE_LIMIT,
 ): Promise<{ data: T[] | null; error: VybeAuthError | null }> {
+  const ordered = await db
+    .from('messages')
+    .select(select)
+    .eq('conversation_id', conversationId)
+    .order('created_at', { ascending: false })
+    .limit(limit);
+
+  if (!ordered.error) {
+    return { data: sortByCreatedDesc((ordered.data || []) as T[]), error: null };
+  }
+
   const fetchLimit = Math.max(limit * 5, 250);
   const { data, error } = await db
     .from('messages')
@@ -67,6 +82,22 @@ export async function fetchOlderConversationMessages<T extends MessageRow>(
     return { data: [], error: null, hasMore: false };
   }
 
+  // Exact server-ordered page — one extra row tells us if more history exists.
+  const ordered = await db
+    .from('messages')
+    .select(select)
+    .eq('conversation_id', conversationId)
+    .lt('created_at', beforeCreatedAt)
+    .order('created_at', { ascending: false })
+    .limit(limit + 1);
+
+  if (!ordered.error) {
+    const rows = sortByCreatedDesc((ordered.data || []) as T[]);
+    const hasMore = rows.length > limit;
+    return { data: rows.slice(0, limit), error: null, hasMore };
+  }
+
+  // Fallback: index-free scan + client filter (misses history past the scan cap).
   const fetchLimit = Math.max(limit * 8, 400);
   const { data, error } = await db
     .from('messages')

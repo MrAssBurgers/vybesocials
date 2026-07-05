@@ -144,11 +144,19 @@ export function mergeMessagesWithLocalCache(
   const existing = readMessagesCache(queryClient, conversationId);
   const serverIds = new Set(server.map((m) => m.id));
 
+  // Oldest row in the server page — anything older in cache came from
+  // scroll-up pagination and must survive recent-page refetches.
+  const oldestServerTs = server.length
+    ? Math.min(...server.map((m) => new Date(m.created_at || 0).getTime()))
+    : Number.POSITIVE_INFINITY;
+
   const localOnly = existing.filter((m) => {
     if (serverIds.has(m.id)) return false;
     if (typeof m.id === 'string' && m.id.startsWith('temp-')) return true;
     if ((m as { _failed?: boolean })._failed) return true;
-    const age = Date.now() - new Date(m.created_at || 0).getTime();
+    const createdTs = new Date(m.created_at || 0).getTime();
+    if (createdTs < oldestServerTs && !m.is_deleted) return true;
+    const age = Date.now() - createdTs;
     return age < 120_000;
   });
 

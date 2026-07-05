@@ -532,6 +532,8 @@ export function useToggleSavedMessage(conversationId?: string) {
     },
     onSuccess: ({ messageId, saved_by_sender, saved_by_recipient, saved_at, expires_at }) => {
       if (!conversationId) return;
+      // A null RPC row means the server didn't confirm — keep the optimistic state.
+      if (saved_by_sender === undefined && saved_by_recipient === undefined) return;
       queryClient.setQueryData<Message[]>(['messages', conversationId], (old) => {
         if (!old) return old;
         return old.map((m) =>
