@@ -36,6 +36,7 @@ export * from './stripe.js';
 export * from './stubs.js';
 export * from './vybemap.js';
 export * from './parental.js';
+export * from './mcp.js';
 
 
 /**
