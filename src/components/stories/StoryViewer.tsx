@@ -80,19 +80,21 @@ export function StoryViewer({ groups, initialGroupIndex, onClose }: StoryViewerP
   const goNextRef = useRef<() => void>(() => {});
   useEffect(() => { goNextRef.current = goNext; });
 
-  // Progress timer
+  // Progress timer — 4 ticks/sec; the bar's CSS transition keeps it visually
+  // smooth without re-rendering the whole viewer 20x per second.
   useEffect(() => {
     if (isPaused || !currentStory) return;
 
+    const TICK_MS = 250;
     const interval = setInterval(() => {
       setProgress((prev) => {
         if (prev >= 100) {
           goNextRef.current();
           return 0;
         }
-        return prev + (100 / (STORY_DURATION / 50));
+        return prev + (100 / (STORY_DURATION / TICK_MS));
       });
-    }, 50);
+    }, TICK_MS);
 
     return () => clearInterval(interval);
   }, [isPaused, currentStory, groupIndex, storyIndex, STORY_DURATION]);
@@ -366,12 +368,12 @@ export function StoryViewer({ groups, initialGroupIndex, onClose }: StoryViewerP
         <div className="absolute top-2 inset-x-2 flex gap-1 z-10 pointer-events-none">
           {currentGroup.stories.map((_, i) => (
             <div key={i} className="flex-1 h-0.5 bg-white/30 rounded-full overflow-hidden">
-              <motion.div
+              <div
                 className="h-full bg-white rounded-full origin-left"
                 style={{
-                  width: i < storyIndex ? '100%' : i === storyIndex ? `${progress}%` : '0%'
+                  width: i < storyIndex ? '100%' : i === storyIndex ? `${progress}%` : '0%',
+                  transition: i === storyIndex ? 'width 250ms linear' : undefined,
                 }}
-                transition={{ duration: 0.05 }}
               />
             </div>
           ))}

@@ -296,8 +296,12 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
   }, []);
 
   // Only redirect authenticated users to onboarding if DB says incomplete (not stale disk cache).
+  const onboardingCheckedRef = useRef(false);
   useEffect(() => {
     if (authLoading || !user || isInviteMode) return;
+    // One fresh-profile check per session — not on every Home visit.
+    if (onboardingCheckedRef.current) return;
+    onboardingCheckedRef.current = true;
 
     let cancelled = false;
     void (async () => {

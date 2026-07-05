@@ -219,7 +219,7 @@ export function DespiaOneSignalSync() {
     const refresh = () => {
       queryClient.invalidateQueries({ queryKey: ['notifications'] });
       queryClient.invalidateQueries({ queryKey: ['friend-requests'] });
-      queryClient.invalidateQueries({ queryKey: ['unread-notifications-count'] });
+      queryClient.invalidateQueries({ queryKey: ['unread-notifications'] });
     };
     const onVisibility = () => {
       if (document.visibilityState === 'visible') {

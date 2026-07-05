@@ -21,7 +21,7 @@ import { avatarInitial, parseApiDate, toIsoDateString } from '@/lib/parseApiDate
 import { usePullToRefresh } from '@/hooks/usePullToRefresh';
 import { useQueryClient } from '@tanstack/react-query';
 import { useCreateConversation } from '@/hooks/useMessages';
-import { useChatPrefetch, useNotificationChatPrefetch } from '@/hooks/useChatPrefetch';
+import { useChatPrefetch } from '@/hooks/useChatPrefetch';
 import { MouthZoomProvider, useMouthZoom } from '@/components/notifications/MouthZoomTransition';
 import { NotificationTransitionProvider, useNotificationTransition } from '@/components/notifications/NotificationTransitionProvider';
 import { useNotificationHoverPrefetch } from '@/hooks/useMouthZoomTransition';
@@ -232,7 +232,7 @@ export default function NotificationsPage() {
   const [activeTab, setActiveTab] = useState('all');
   const [isRefreshing, setIsRefreshing] = useState(false);
 
-  useNotificationChatPrefetch();
+  // Notification → chat prefetch already runs app-wide via GlobalMessageNotifications.
 
   const handleRefresh = useCallback(async () => {
     setIsRefreshing(true);

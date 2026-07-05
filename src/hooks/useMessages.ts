@@ -128,24 +128,35 @@ export function useUnreadMessagesCount() {
         if (!prev || ts > prev) lastReadByConv.set(cid, ts);
       }
 
-      let totalUnread = 0;
-      for (const [conversationId, lastReadAt] of lastReadByConv) {
-        const { data: messageRows } = await db
-          .from('messages')
-          .select('id, sender_id, created_at, is_deleted')
-          .eq('conversation_id', conversationId)
-          .limit(200);
-
-        totalUnread += (messageRows || []).filter(
-          (m: { sender_id?: string; created_at?: string; is_deleted?: boolean }) =>
-            !m.is_deleted &&
-            m.sender_id !== profileId &&
-            m.sender_id !== authUid &&
-            (m.created_at || '') > lastReadAt,
-        ).length;
+      // Only fetch messages newer than last-read (badge caps at 99 anyway),
+      // in parallel batches — not 200 rows per conversation serially.
+      const entries = [...lastReadByConv.entries()];
+      const counts: number[] = [];
+      const BATCH = 8;
+      for (let i = 0; i < entries.length; i += BATCH) {
+        const chunk = entries.slice(i, i + BATCH);
+        const results = await Promise.all(
+          chunk.map(async ([conversationId, lastReadAt]) => {
+            // DESC order matches the deployed conversation_id+created_at index.
+            const { data: messageRows } = await db
+              .from('messages')
+              .select('id, sender_id, created_at, is_deleted')
+              .eq('conversation_id', conversationId)
+              .gt('created_at', lastReadAt)
+              .order('created_at', { ascending: false })
+              .limit(50);
+            return (messageRows || []).filter(
+              (m: { sender_id?: string; created_at?: string; is_deleted?: boolean }) =>
+                !m.is_deleted &&
+                m.sender_id !== profileId &&
+                m.sender_id !== authUid,
+            ).length;
+          }),
+        );
+        counts.push(...results);
       }
 
-      return totalUnread;
+      return counts.reduce((sum, n) => sum + n, 0);
     },
     enabled: !!profileId,
     staleTime: 30000, // 30 seconds - faster updates for badge sync

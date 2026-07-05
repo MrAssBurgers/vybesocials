@@ -1,49 +1,27 @@
 import { useEffect, useRef } from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { db } from '@/lib/firebase';
+import { useQueryClient } from '@tanstack/react-query';
 import { subscribePostgresChannel, removeRealtimeChannel } from '@/lib/realtimeChannel';
 import { useAuthProfileId } from '@/hooks/useAuthProfileId';
 import { useUnreadMessagesCount } from '@/hooks/useMessages';
+import { useUnreadCount } from '@/hooks/useNotifications';
 
 /**
  * Discord/Snapchat-style Tab Notification Badge
  *
  * Updates the browser tab title to show unread counts.
  * Uses a SINGLE realtime channel instead of 3 separate ones.
+ * Shares the ['unread-notifications'] query with the sidebar badges —
+ * previously this hook ran an identical duplicate query on its own key.
  */
 
 const ORIGINAL_TITLE = 'VYBE';
 const MAX_DISPLAY_COUNT = 99;
 
-function useUnreadNotificationsCount() {
-  const profileId = useAuthProfileId();
-
-  return useQuery({
-    queryKey: ['unread-notifications-count', profileId],
-    queryFn: async () => {
-      if (!profileId) return 0;
-
-      const { count } = await db
-        .from('notifications')
-        .select('id', { count: 'exact', head: true })
-        .eq('user_id', profileId)
-        .eq('read', false);
-
-      return count || 0;
-    },
-    enabled: !!profileId,
-    staleTime: 30000,
-    gcTime: 1000 * 60 * 5,
-    refetchInterval: 60000,
-    refetchOnWindowFocus: true,
-  });
-}
-
 export function useTabNotificationBadge() {
   const profileId = useAuthProfileId();
   const queryClient = useQueryClient();
   const { data: unreadMessages = 0 } = useUnreadMessagesCount();
-  const { data: unreadNotifications = 0 } = useUnreadNotificationsCount();
+  const { data: unreadNotifications = 0 } = useUnreadCount();
   const previousCountRef = useRef<number>(0);
   const flashIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -106,7 +84,7 @@ export function useTabNotificationBadge() {
         table: 'notifications',
         filter: `user_id=eq.${profileId}`,
         callback: () => {
-          queryClient.invalidateQueries({ queryKey: ['unread-notifications-count'] });
+          queryClient.invalidateQueries({ queryKey: ['unread-notifications'] });
         },
       },
       {
@@ -122,7 +100,7 @@ export function useTabNotificationBadge() {
         table: 'notifications',
         filter: `user_id=eq.${profileId}`,
         callback: () => {
-          queryClient.invalidateQueries({ queryKey: ['unread-notifications-count'] });
+          queryClient.invalidateQueries({ queryKey: ['unread-notifications'] });
         },
       },
     ]);

@@ -1208,6 +1208,36 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return { ...profile, avatar_url: avatar ?? profile.avatar_url };
   }, [profile]);
 
+  // Stable context value: auth API functions close over fresh state via a ref,
+  // so consumers only re-render when auth *data* actually changes.
+  const apiRef = useRef({ signUp, signIn, applyOAuthSession, resendVerification, signOut, updateProfile, refreshProfile });
+  apiRef.current = { signUp, signIn, applyOAuthSession, resendVerification, signOut, updateProfile, refreshProfile };
+  const stableApi = useMemo(
+    () => ({
+      signUp: (email: string, password: string, username: string) => apiRef.current.signUp(email, password, username),
+      signIn: (email: string, password: string) => apiRef.current.signIn(email, password),
+      applyOAuthSession: (s: Session) => apiRef.current.applyOAuthSession(s),
+      resendVerification: (email: string) => apiRef.current.resendVerification(email),
+      signOut: () => apiRef.current.signOut(),
+      updateProfile: (updates: Partial<Profile>) => apiRef.current.updateProfile(updates),
+      refreshProfile: () => apiRef.current.refreshProfile(),
+    }),
+    [],
+  );
+
+  const contextValue = useMemo(
+    () => ({
+      user,
+      session,
+      profile: resolvedProfile,
+      loading,
+      authReady: isInitialized,
+      banInfo,
+      ...stableApi,
+    }),
+    [user, session, resolvedProfile, loading, isInitialized, banInfo, stableApi],
+  );
+
   // Show banned screen if user is banned
   if (banInfo) {
     return banInfo.is_meme_ban ? (
@@ -1222,21 +1252,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   return (
-    <AuthContext.Provider value={{
-      user,
-      session,
-      profile: resolvedProfile,
-      loading,
-      authReady: isInitialized,
-      banInfo,
-      signUp,
-      signIn,
-      applyOAuthSession,
-      resendVerification,
-      signOut,
-      updateProfile,
-      refreshProfile,
-    }}>
+    <AuthContext.Provider value={contextValue}>
       {children}
     </AuthContext.Provider>
   );

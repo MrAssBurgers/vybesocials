@@ -159,8 +159,15 @@ export const VybeMapboxCanvas = memo(function VybeMapboxCanvas({
   userHeadingRef.current = userHeading;
   const userInteractingRef = useRef(false);
   const interactPauseRef = useRef<ReturnType<typeof setTimeout>>();
+  // Camera follows your GPS dot until you pan/zoom away; only the recenter
+  // button (vybe:resume-follow) re-engages it. No timed snap-back.
+  const followSelfRef = useRef(true);
 
-  const pauseFollowWhileInteracting = useCallback(() => {
+  const pauseFollowWhileInteracting = useCallback((e?: object) => {
+    // Programmatic camera moves (easeTo/flyTo) also emit zoom/rotate events —
+    // only a real gesture (has originalEvent) should break follow.
+    if (e && 'originalEvent' in e && !(e as { originalEvent?: unknown }).originalEvent) return;
+    followSelfRef.current = false;
     userInteractingRef.current = true;
     if (interactPauseRef.current) clearTimeout(interactPauseRef.current);
     interactPauseRef.current = setTimeout(() => {
@@ -313,7 +320,7 @@ export const VybeMapboxCanvas = memo(function VybeMapboxCanvas({
 
   useEffect(() => {
     if (!center || !mapRef.current) return;
-    if (userInteractingRef.current) return;
+    if (!followSelfRef.current || userInteractingRef.current) return;
     mapRef.current.easeTo({
       center: [center[1], center[0]],
       duration: 650,
@@ -653,17 +660,27 @@ export const VybeMapboxCanvas = memo(function VybeMapboxCanvas({
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !mapReady) return;
+    const resumeFollow = () => {
+      followSelfRef.current = true;
+    };
+    const pauseFollow = () => {
+      followSelfRef.current = false;
+    };
     map.on('dragstart', pauseFollowWhileInteracting);
     map.on('zoomstart', pauseFollowWhileInteracting);
     map.on('rotatestart', pauseFollowWhileInteracting);
     map.on('pitchstart', pauseFollowWhileInteracting);
     map.on('touchstart', pauseFollowWhileInteracting);
+    map.on('vybe:resume-follow' as 'load', resumeFollow);
+    map.on('vybe:pause-follow' as 'load', pauseFollow);
     return () => {
       map.off('dragstart', pauseFollowWhileInteracting);
       map.off('zoomstart', pauseFollowWhileInteracting);
       map.off('rotatestart', pauseFollowWhileInteracting);
       map.off('pitchstart', pauseFollowWhileInteracting);
       map.off('touchstart', pauseFollowWhileInteracting);
+      map.off('vybe:resume-follow' as 'load', resumeFollow);
+      map.off('vybe:pause-follow' as 'load', pauseFollow);
       if (interactPauseRef.current) clearTimeout(interactPauseRef.current);
     };
   }, [mapReady, pauseFollowWhileInteracting]);
@@ -720,11 +737,22 @@ export const VybeMapboxCanvas = memo(function VybeMapboxCanvas({
 export function useVybeMapFlyTo() {
   const mapRef = useRef<mapboxgl.Map | null>(null);
   const setMap = useCallback((map: mapboxgl.Map) => { mapRef.current = map; }, []);
+  /** Fly to a point of interest — GPS follow stays off so the camera doesn't fight back. */
   const flyTo = useCallback((lat: number, lng: number, zoom = 15) => {
-    mapRef.current?.flyTo({ center: [lng, lat], zoom, duration: 1200, essential: true });
+    const map = mapRef.current;
+    if (!map) return;
+    try { map.fire('vybe:pause-follow'); } catch { /* custom event */ }
+    map.flyTo({ center: [lng, lat], zoom, duration: 1200, essential: true });
+  }, []);
+  /** Recenter on the user and re-engage GPS follow (recenter button only). */
+  const flyToUser = useCallback((lat: number, lng: number, zoom = 15) => {
+    const map = mapRef.current;
+    if (!map) return;
+    try { map.fire('vybe:resume-follow'); } catch { /* custom event */ }
+    map.flyTo({ center: [lng, lat], zoom, duration: 1200, essential: true });
   }, []);
   const resetBearing = useCallback(() => {
     mapRef.current?.easeTo({ bearing: 0, pitch: pitchForMode('2d'), duration: 600 });
   }, []);
-  return { setMap, flyTo, resetBearing };
+  return { setMap, flyTo, flyToUser, resetBearing };
 }

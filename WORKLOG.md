@@ -2,6 +2,17 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## Map follow fix + app-wide perf pass (2026-07-05)
+- **Map:** GPS follow now stops permanently when you pan/zoom away (real gestures only, via `originalEvent` check); only the recenter button re-engages follow (`flyToUser` + `vybe:resume-follow`); tapping meetups/friends no longer re-arms follow
+- **Auth context memoized:** stable API wrappers via ref — every `useAuth()` consumer (all PostCards etc.) no longer re-renders on each AuthProvider render
+- **Unread badge query:** was 200 msgs/convo fetched serially every 60s; now only messages newer than last-read, DESC-indexed, parallel batches of 8, cap 50
+- **StoryViewer:** progress ticks 4/sec (was 20/sec) with CSS linear transition — same look, 5x fewer viewer re-renders
+- **Dedup:** removed duplicate `useNotificationChatPrefetch` (Notifications page), merged duplicate unread-notifications count queries into `['unread-notifications']`
+- **Feed:** media preload capped at 4 posts/page (was full page); reward card positions stable across pagination (no more jumping); Home onboarding profile check once per session
+- **Verified:** typecheck PASS · 19 tests PASS · lint PASS · build PASS
+- **Staging:** https://vybe-daaab.web.app
+- **You:** Lovable → Share → Publish for **vybehub.app**
+
 ## Deep foundation scan + fixes (2026-07-04)
 - **Scan:** `npm run debug` PASS · `backend:scan` 15 pass → all pass after fixes · functions build PASS · production probes healthy
 - **Type errors fixed (17):** missing imports (`markConversationReadForViewer`/`getSessionAuthUid` in `useMessages`, `safeDmMembers` in `dmScopedMessageRealtime`), `viewerAuthUid` never passed through `ConversationContent` (inbox previews used wrong viewer), voice-note send spinner never showed (`isUploading` renamed away), unsafe casts in `useDMConversations`/`useTrashedConversations`/`DesktopRightSidebar`, test fixture gaps

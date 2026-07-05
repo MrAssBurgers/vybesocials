@@ -91,9 +91,14 @@ async function presignPostMedia(posts: Post[]): Promise<void> {
 }
 
 /**
- * Preload images AFTER signing - uses cached signed URLs
+ * Preload images AFTER signing - uses cached signed URLs.
+ * Capped to the first few posts of a page — the rest lazy-load in viewport,
+ * so eager-downloading a whole page just competes for bandwidth.
  */
-function preloadSignedMedia(posts: Post[]) {
+const PRELOAD_MEDIA_CAP = 4;
+
+function preloadSignedMedia(allPosts: Post[]) {
+  const posts = allPosts.slice(0, PRELOAD_MEDIA_CAP);
   for (const post of posts) {
     const mediaUrl = post.thumbnail_url || post.media_url;
     if (mediaUrl) {

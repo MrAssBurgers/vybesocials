@@ -425,18 +425,17 @@ function InlinePostList({
     return positions;
   }, [showAds, posts.length, dnaPrefs]);
 
-  // Variable reward injection positions (every 8-15 posts)
+  // Variable reward injection positions (every 8-15 posts).
+  // Positions are generated once and only extended as the feed grows —
+  // regenerating with fresh randomness made reward cards jump on pagination.
+  const rewardStateRef = useRef({ positions: new Set<number>(), next: 7 + Math.floor(Math.random() * 8) });
   const rewardPositions = useMemo(() => {
-    if (posts.length < 8) return new Set<number>();
-    const positions = new Set<number>();
-    let next = 7 + Math.floor(Math.random() * 8); // First at 8-15
-    let rewardIdx = 0;
-    while (next < posts.length) {
-      positions.add(next);
-      rewardIdx++;
-      next += 8 + Math.floor(Math.random() * 8);
+    const state = rewardStateRef.current;
+    while (state.next < posts.length) {
+      state.positions.add(state.next);
+      state.next += 8 + Math.floor(Math.random() * 8);
     }
-    return positions;
+    return new Set(state.positions);
   }, [posts.length]);
 
   // Track which post is currently in view so we can preload the next 3 ahead

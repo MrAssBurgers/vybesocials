@@ -98,7 +98,7 @@ function VybeMapInner() {
   const { data: groupMaps = [] } = useGroupMaps(effectiveId);
   const createGroupMap = useCreateGroupMap();
   const logAccess = useLogLocationAccess();
-  const { setMap, flyTo, resetBearing } = useVybeMapFlyTo();
+  const { setMap, flyTo, flyToUser, resetBearing } = useVybeMapFlyTo();
 
   const [selId, setSelId] = useState<string | null>(null);
   const [selPlace, setSelPlace] = useState<MapPlace | null>(null);
@@ -244,7 +244,9 @@ function VybeMapInner() {
       toast.error('Enable location to center the map on you');
       return;
     }
-    mapFlyTo(safeMyCoords[0], safeMyCoords[1], 15);
+    // Only this button re-engages GPS follow after the user pans away.
+    if (useMapbox) flyToUser(safeMyCoords[0], safeMyCoords[1], 15);
+    else mapFlyTo(safeMyCoords[0], safeMyCoords[1], 15);
     triggerHaptic('light');
   };
 
