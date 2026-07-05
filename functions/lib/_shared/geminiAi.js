@@ -81,6 +81,59 @@ export async function chatCompletion(opts) {
     }
     throw new HttpsError('unavailable', lastErr || 'AI unavailable');
 }
+/**
+ * Google-Search-grounded lookup — the model researches live web results
+ * instead of guessing from memory. Used to find the REAL colors of whatever
+ * the user names (brand, team, place, object) before designing a theme.
+ * Returns plain text findings, or null on any failure (callers proceed without).
+ */
+export async function groundedColorResearch(subject, opts) {
+    const apiKey = opts?.apiKey?.trim() || requireGeminiKey();
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), opts?.timeoutMs ?? 9000);
+    try {
+        const res = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent', {
+            method: 'POST',
+            headers: { 'x-goog-api-key': apiKey, 'Content-Type': 'application/json' },
+            signal: ctrl.signal,
+            body: JSON.stringify({
+                contents: [
+                    {
+                        parts: [
+                            {
+                                text: `What do the colors of "${subject.slice(0, 300)}" look like? ` +
+                                    'If it is a brand, company, app, product, or sports team, give the exact official brand colors as hex codes (primary, secondary, accent). ' +
+                                    'If it is a place, scene, object, character, or aesthetic, describe its dominant real-world colors with approximate hex codes. ' +
+                                    'Also say whether the overall look reads dark or light. Be factual and concise (under 120 words).',
+                            },
+                        ],
+                    },
+                ],
+                tools: [{ google_search: {} }],
+                generationConfig: {
+                    temperature: 0.2,
+                    maxOutputTokens: 512,
+                    thinkingConfig: { thinkingBudget: 0 },
+                },
+            }),
+        });
+        if (!res.ok) {
+            console.warn('[groundedColorResearch] HTTP', res.status, (await res.text()).slice(0, 160));
+            return null;
+        }
+        const data = await res.json();
+        const parts = data?.candidates?.[0]?.content?.parts || [];
+        const text = parts.map((p) => p?.text || '').join(' ').trim();
+        return text || null;
+    }
+    catch (err) {
+        console.warn('[groundedColorResearch] failed:', err instanceof Error ? err.message : err);
+        return null;
+    }
+    finally {
+        clearTimeout(timer);
+    }
+}
 /** Ping Gemini with a BYOK key before persisting it. */
 export async function validateGoogleAiKey(key) {
     const trimmed = key.trim();

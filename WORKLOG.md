@@ -2,6 +2,14 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## AI Theme Designer — real color lookup via Google Search grounding (2026-07-05)
+- **User ask:** typed prompts still got inaccurate colors — the model guessed brand/thing colors from memory (e.g. "onlyfans" → hot pink instead of the real #00AFF0 sky blue); user wants the AI to *look up* the actual colors of whatever they type
+- **New:** `groundedColorResearch()` in `functions/src/_shared/geminiAi.ts` — native Gemini `generateContent` call with the `google_search` tool (thinking budget 0, 9s timeout, returns null on any failure) that researches the real colors (hex codes) of the typed subject via live web search
+- **Wired in:** `generateTheme` runs the lookup in parallel with profile/DNA loads whenever there's a typed prompt, injects the findings as a "VERIFIED COLOR RESEARCH" block into the theme prompt, and the system prompt instructs the model to build the palette from those exact colors
+- **Deployed:** `generateTheme` + `generateAdvancedTheme` to vybe-daaab
+- **Verified end-to-end (authed test user, since deleted):** "onlyfans" → OnlyFans Azure `197 100% 47%` (= #00AFF0 exactly) · "mcdonalds" → red + golden arches yellow · "starbucks" → Starbucks green · "lakers" → purple + gold · "cherry blossoms in kyoto" → pink light theme · "lightning mcqueen" → red — all real colors, zero fallbacks, ~4-6s response
+- **No client changes** — nothing to publish on Lovable for this fix
+
 ## AI Theme Designer — AI-first always, no canned palettes (2026-07-05)
 - **User ask:** never "remember" colors — every generation should be designed fresh by AI from whatever the user typed (brand, scene, object, anything)
 - **Was:** `src/lib/aiThemeGeneration.ts` short-circuited before AI: known brand names returned hardcoded palettes from `brandThemePalettes.ts`, and high-confidence keyword parses (≥0.72) returned local `promptThemeBuilder` palettes — the AI never ran for those inputs

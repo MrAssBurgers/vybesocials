@@ -1,6 +1,6 @@
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { db, requireAuth, rateLimit, enforceRateLimit } from './_shared/admin.js';
-import { chatCompletion, generateImage } from './_shared/geminiAi.js';
+import { chatCompletion, generateImage, groundedColorResearch } from './_shared/geminiAi.js';
 import { modelForTier, TOKEN_BUDGET } from './_shared/aiModels.js';
 import { enforceAiQuota, getGeminiByokKey, resolveProfileIdFromAuth, } from './_shared/aiQuota.js';
 import { runVybeCheckScan } from './_shared/contentSafety.js';
@@ -345,6 +345,7 @@ const ADVANCED_THEME_SYSTEM = `You are an elite UI theme designer for VYBE socia
 The user's PRIMARY REQUEST (especially "Primary request (match literally):" line) is the main instruction — match it literally. Do not substitute a generic purple, dark, or default palette unless they asked for it.
 When the user names a brand, franchise, sports team, app, or aesthetic — match their REAL official colors and mood as closely as possible (e.g. Nike = black/white/orange, Spotify = #1DB954 green, Coca-Cola = red/white, Tiffany = robin-egg blue).
 When they describe a scene or vibe (sunset beach, cyberpunk Tokyo, cozy coffee shop) — derive a cohesive palette from that scene's dominant colors.
+When a "VERIFIED COLOR RESEARCH" block is included — it contains the factual, looked-up colors of the request. Base the palette on those exact colors (convert hex to HSL triplets); do not invent different ones.
 When a "What VYBE knows about this user" block is included — use it to personalize accents and naming, but never override the user's explicit color or mood request.
 Return ONLY valid JSON: {"theme":{"colorPrimary":"330 100% 50%","colorSecondary":"280 60% 40%","colorAccent":"45 100% 60%","bgMain":"240 12% 8%","bgCard":"240 10% 14%","textPrimary":"0 0% 96%","textSecondary":"240 8% 70%","borderColor":"240 10% 24%","borderRadius":"medium","mode":"dark"|"light","themeName":"creative name","backgroundEffect":"aurora"|"particles"|"none"|"stars"|"bubbles","animationSpeed":"normal","animationStyle":"smooth"}}
 Every color must be a bare HSL triplet exactly like "330 100% 50%" (hue 0-360, saturation %, lightness %) — no hsl() wrapper, no letters, no hex. The example colors above are only format samples; pick colors that match the request. Ensure WCAG contrast — text must be readable on backgrounds.`;
@@ -512,9 +513,13 @@ export const generateTheme = onCall({ secrets: SECRETS }, async (request) => {
     const profileId = await resolveProfileIdFromAuth(authUid);
     const byokKey = await getGeminiByokKey(profileId, authUid);
     const { prompt, typedPrompt, basePreset, interests = [], selectedFont, selectedAnimation, userContext: clientContext, } = (request.data || {});
-    const [profile, dnaSnap] = await Promise.all([
+    const typed = typeof typedPrompt === 'string' ? typedPrompt.trim() : '';
+    // Look up the REAL colors of what the user named via Google-Search-grounded
+    // Gemini (runs in parallel with profile loads; skipped when nothing typed).
+    const [profile, dnaSnap, colorResearch] = await Promise.all([
         loadUserProfile(authUid),
         db.collection('vybe_dna').doc(profileId).get(),
+        typed ? groundedColorResearch(typed, { apiKey: byokKey }) : Promise.resolve(null),
     ]);
     const dna = (dnaSnap.data() || {});
     const contextBlock = formatServerThemeContext({
@@ -522,11 +527,13 @@ export const generateTheme = onCall({ secrets: SECRETS }, async (request) => {
         dna,
         clientContext: clientContext,
     });
-    const typed = typeof typedPrompt === 'string' ? typedPrompt.trim() : '';
     const userPrompt = [
         typed
             ? `PRIMARY REQUEST (match literally — this overrides any generic palette): ${typed}`
             : prompt || 'Design a personalized VYBE theme based on what you know about me.',
+        colorResearch
+            ? `VERIFIED COLOR RESEARCH (live web lookup — treat these as the true colors of the request; build the palette from them, converting hex to HSL):\n${colorResearch}`
+            : '',
         typed && prompt && prompt !== typed ? `Additional context:\n${prompt}` : '',
         contextBlock,
         basePreset ? `Base preset: ${basePreset}` : '',
