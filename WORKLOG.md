@@ -2,6 +2,23 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## AI Theme Designer — auto-save + Custom preset slot (2026-07-05)
+- **User ask:** generated themes don't persist when leaving the page; replace Minimal preset with Custom that always reflects the user's latest AI generation
+- **Root cause:** themes only saved on explicit "Keep Theme" tap — preview applied CSS via `applyThemeTokens` but never `equipTheme`/DB until confirm; leaving unlocked preview and `useApplyUserTheme` reverted to old equipped theme
+- **Fix:** `commitTheme()` auto-saves (equip + DB) on every AI generation and preset apply; unmount flush saves any unsaved tweaks; preview lock stays on while `previewTheme` is set
+- **Custom preset:** replaced `minimal` with `custom` in `THEME_PRESETS` + quick presets UI; `vybe-last-generated-theme` localStorage slot updates on each AI gen; Custom card shows latest theme name + 4-color gradient swatch
+- **Verified:** build PASS · 49 tests PASS
+- **You:** Lovable → Share → Publish for **vybehub.app**
+
+## AI Theme Designer — deterministic multi-color mapping (2026-07-05)
+- **User ask:** theme still not accurate enough — if something has 4 colors, all 4 must appear in the theme
+- **Was:** grounded research returned text/JSON but the theme AI still reinterpreted colors and collapsed palettes (e.g. OnlyFans bg ended up white)
+- **Now:** `groundedColorResearchStructured()` returns JSON `{mode, colors:[{name, hex, role}]}` with every distinct color; when 2+ colors found, `buildThemeFromResearchedPalette()` maps them deterministically into `colorPrimary`, `colorSecondary`, `colorAccent`, `bgMain`, `borderColor` (no AI color guessing); AI only names the theme + picks background effect
+- **UI:** theme preview gradient in DesignYourVybe shows all 4 key colors (primary → secondary → accent → border)
+- **Deployed:** `generateTheme` + `generateAdvancedTheme` to vybe-daaab
+- **Verified:** "onlyfans" → blue + dark blue + white accent + dark gray bg + white border (all 4 brand colors) · "lakers" → purple + gold + black + white
+- **You:** Lovable → Share → Publish for **vybehub.app** (client preview gradient change)
+
 ## AI Theme Designer — real color lookup via Google Search grounding (2026-07-05)
 - **User ask:** typed prompts still got inaccurate colors — the model guessed brand/thing colors from memory (e.g. "onlyfans" → hot pink instead of the real #00AFF0 sky blue); user wants the AI to *look up* the actual colors of whatever they type
 - **New:** `groundedColorResearch()` in `functions/src/_shared/geminiAi.ts` — native Gemini `generateContent` call with the `google_search` tool (thinking budget 0, 9s timeout, returns null on any failure) that researches the real colors (hex codes) of the typed subject via live web search
@@ -9,6 +26,7 @@ Use this file as the Lovable -> Cursor handoff each session.
 - **Deployed:** `generateTheme` + `generateAdvancedTheme` to vybe-daaab
 - **Verified end-to-end (authed test user, since deleted):** "onlyfans" → OnlyFans Azure `197 100% 47%` (= #00AFF0 exactly) · "mcdonalds" → red + golden arches yellow · "starbucks" → Starbucks green · "lakers" → purple + gold · "cherry blossoms in kyoto" → pink light theme · "lightning mcqueen" → red — all real colors, zero fallbacks, ~4-6s response
 - **No client changes** — nothing to publish on Lovable for this fix
+- **Publish (2026-07-05):** build PASS · 49 tests PASS · hosting staging deployed · `origin/main` @ `f4f57b82` · backend already live
 
 ## AI Theme Designer — AI-first always, no canned palettes (2026-07-05)
 - **User ask:** never "remember" colors — every generation should be designed fresh by AI from whatever the user typed (brand, scene, object, anything)

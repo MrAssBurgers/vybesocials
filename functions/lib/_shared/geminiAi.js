@@ -81,16 +81,78 @@ export async function chatCompletion(opts) {
     }
     throw new HttpsError('unavailable', lastErr || 'AI unavailable');
 }
+function parseJsonFromModelText(raw) {
+    const trimmed = String(raw || '').trim().replace(/^```(?:json)?/i, '').replace(/```$/i, '').trim();
+    try {
+        return JSON.parse(trimmed);
+    }
+    catch {
+        const start = trimmed.indexOf('{');
+        const end = trimmed.lastIndexOf('}');
+        if (start < 0 || end <= start)
+            return null;
+        try {
+            return JSON.parse(trimmed.slice(start, end + 1));
+        }
+        catch {
+            return null;
+        }
+    }
+}
+function normalizeHex(hex) {
+    const m = hex.trim().match(/^#?([0-9a-f]{6})$/i);
+    return m ? `#${m[1].toUpperCase()}` : null;
+}
+function extractHexColors(text) {
+    const found = text.match(/#[0-9a-fA-F]{6}\b/g) || [];
+    return [...new Set(found.map((h) => h.toUpperCase()))];
+}
+function coerceResearchedPalette(data, fallbackText) {
+    const obj = data && typeof data === 'object' ? data : null;
+    const rawColors = Array.isArray(obj?.colors) ? obj.colors : [];
+    const colors = [];
+    for (const entry of rawColors) {
+        if (!entry || typeof entry !== 'object')
+            continue;
+        const row = entry;
+        const hex = normalizeHex(String(row.hex || ''));
+        if (!hex)
+            continue;
+        const role = String(row.role || '').toLowerCase();
+        const validRole = role === 'primary' ||
+            role === 'secondary' ||
+            role === 'accent' ||
+            role === 'background' ||
+            role === 'neutral'
+            ? role
+            : undefined;
+        colors.push({
+            name: String(row.name || hex).slice(0, 40),
+            hex,
+            role: validRole,
+        });
+    }
+    if (colors.length < 2 && fallbackText) {
+        for (const hex of extractHexColors(fallbackText)) {
+            if (!colors.some((c) => c.hex === hex)) {
+                colors.push({ name: hex, hex });
+            }
+        }
+    }
+    if (colors.length < 2)
+        return null;
+    const mode = obj?.mode === 'light' ? 'light' : 'dark';
+    return { mode, colors: colors.slice(0, 8) };
+}
 /**
- * Google-Search-grounded lookup — the model researches live web results
- * instead of guessing from memory. Used to find the REAL colors of whatever
- * the user names (brand, team, place, object) before designing a theme.
- * Returns plain text findings, or null on any failure (callers proceed without).
+ * Google-Search-grounded lookup returning a structured palette.
+ * Every distinct real color is listed with hex codes so callers can map
+ * them deterministically into theme slots (no AI reinterpretation).
  */
-export async function groundedColorResearch(subject, opts) {
+export async function groundedColorResearchStructured(subject, opts) {
     const apiKey = opts?.apiKey?.trim() || requireGeminiKey();
     const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), opts?.timeoutMs ?? 9000);
+    const timer = setTimeout(() => ctrl.abort(), opts?.timeoutMs ?? 12000);
     try {
         const res = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent', {
             method: 'POST',
@@ -101,38 +163,50 @@ export async function groundedColorResearch(subject, opts) {
                     {
                         parts: [
                             {
-                                text: `What do the colors of "${subject.slice(0, 300)}" look like? ` +
-                                    'If it is a brand, company, app, product, or sports team, give the exact official brand colors as hex codes (primary, secondary, accent). ' +
-                                    'If it is a place, scene, object, character, or aesthetic, describe its dominant real-world colors with approximate hex codes. ' +
-                                    'Also say whether the overall look reads dark or light. Be factual and concise (under 120 words).',
+                                text: `Research the EXACT real-world colors of "${subject.slice(0, 300)}". ` +
+                                    'Return ONLY valid JSON (no markdown): ' +
+                                    '{"mode":"dark"|"light","colors":[{"name":"Blue","hex":"#00AFF0","role":"primary"},...]} ' +
+                                    'Rules: include EVERY distinct official or dominant color (2-6 colors, do not skip any); ' +
+                                    'use precise hex codes from brand guidelines or accurate visual references; ' +
+                                    'role is one of primary, secondary, accent, background, neutral; ' +
+                                    'assign black or dark gray as background (not neutral) for dark-looking brands; ' +
+                                    'mode reflects whether the subject typically appears on dark or light backgrounds.',
                             },
                         ],
                     },
                 ],
                 tools: [{ google_search: {} }],
                 generationConfig: {
-                    temperature: 0.2,
-                    maxOutputTokens: 512,
+                    temperature: 0.1,
+                    maxOutputTokens: 768,
                     thinkingConfig: { thinkingBudget: 0 },
                 },
             }),
         });
         if (!res.ok) {
-            console.warn('[groundedColorResearch] HTTP', res.status, (await res.text()).slice(0, 160));
+            console.warn('[groundedColorResearchStructured] HTTP', res.status, (await res.text()).slice(0, 160));
             return null;
         }
         const data = await res.json();
         const parts = data?.candidates?.[0]?.content?.parts || [];
         const text = parts.map((p) => p?.text || '').join(' ').trim();
-        return text || null;
+        const parsed = parseJsonFromModelText(text);
+        return coerceResearchedPalette(parsed, text);
     }
     catch (err) {
-        console.warn('[groundedColorResearch] failed:', err instanceof Error ? err.message : err);
+        console.warn('[groundedColorResearchStructured] failed:', err instanceof Error ? err.message : err);
         return null;
     }
     finally {
         clearTimeout(timer);
     }
+}
+/** @deprecated Use groundedColorResearchStructured — kept for compatibility. */
+export async function groundedColorResearch(subject, opts) {
+    const palette = await groundedColorResearchStructured(subject, opts);
+    if (!palette)
+        return null;
+    return palette.colors.map((c) => `${c.name}: ${c.hex}${c.role ? ` (${c.role})` : ''}`).join(' · ');
 }
 /** Ping Gemini with a BYOK key before persisting it. */
 export async function validateGoogleAiKey(key) {

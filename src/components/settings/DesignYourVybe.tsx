@@ -28,10 +28,12 @@ import {
   useResetTheme, 
   useGenerateTheme,
   applyThemeTokens,
+  equipTheme,
   setThemePreviewLock,
   THEME_PRESETS,
   ThemeTokens,
 } from '@/hooks/useCustomTheme';
+import { persistLastGeneratedTheme, readLastGeneratedTheme, getCustomThemePreset } from '@/lib/theme/lastGeneratedTheme';
 import { useShareTheme } from '@/hooks/useSharedThemes';
 import { useAuth } from '@/lib/auth';
 import { useVybeDNA } from '@/hooks/useVybeDNA';
@@ -40,6 +42,11 @@ import { cn } from '@/lib/utils';
 import { useThemeTransition } from '@/providers/ThemeTransitionProvider';
 import { useTheme } from '@/lib/theme';
 import { db } from '@/lib/firebase';
+
+function themePaletteGradient(tokens: Pick<ThemeTokens, 'colorPrimary' | 'colorSecondary' | 'colorAccent' | 'borderColor'>) {
+  const border = tokens.borderColor || tokens.colorSecondary;
+  return `linear-gradient(135deg, hsl(${tokens.colorPrimary}) 0%, hsl(${tokens.colorSecondary}) 34%, hsl(${tokens.colorAccent}) 67%, hsl(${border}) 100%)`;
+}
 
 // Personality vibes from AI VYBE Designer - the 8 moods
 const PERSONALITY_VIBES = [
@@ -69,7 +76,7 @@ const PRESET_INFO: Record<string, { name: string; description: string; icon: str
   neon: { name: 'Neon', description: 'Electric purple glow', icon: '⚡' },
   soft: { name: 'Soft', description: 'Warm pastel comfort', icon: '🌸' },
   cyberpunk: { name: 'Cyberpunk', description: 'Yellow & pink future', icon: '🤖' },
-  minimal: { name: 'Minimal', description: 'Clean black & white', icon: '⬛' },
+  custom: { name: 'Custom', description: 'Your latest AI theme', icon: '✨' },
 };
 
 const ANIMATION_SPEEDS = [
@@ -113,6 +120,33 @@ const BORDER_RADIUS_OPTIONS = [
   { value: 'large', label: 'Pill', description: 'Maximum rounding' },
 ] as const;
 
+function themeFingerprint(tokens: ThemeTokens): string {
+  return [
+    tokens.colorPrimary,
+    tokens.colorSecondary,
+    tokens.colorAccent,
+    tokens.bgMain,
+    tokens.mode,
+    tokens.animationSpeed,
+    tokens.animationStyle,
+    tokens.backgroundEffect,
+    tokens.borderRadius,
+    tokens.themeName,
+  ].join('|');
+}
+
+function resolvePresetTokens(presetKey: string, userId?: string | null): ThemeTokens | null {
+  if (presetKey === 'custom') {
+    return readLastGeneratedTheme(userId) ?? getCustomThemePreset(THEME_PRESETS.classic);
+  }
+  return THEME_PRESETS[presetKey] ?? null;
+}
+
+function normalizeBasePreset(preset?: string | null): string {
+  if (preset === 'minimal') return 'custom';
+  return preset || 'classic';
+}
+
 export function DesignYourVybe() {
   const { data: userTheme, isLoading: isLoadingTheme } = useUserTheme();
   const { profile } = useAuth();
@@ -150,16 +184,80 @@ export function DesignYourVybe() {
   
   // Border radius
   const [borderRadius, setBorderRadius] = useState<'small' | 'medium' | 'large'>('medium');
+  const [customPresetTokens, setCustomPresetTokens] = useState<ThemeTokens | null>(() =>
+    readLastGeneratedTheme(),
+  );
 
   // Editable theme name
   const [isEditingName, setIsEditingName] = useState(false);
 
-  // While an unsaved theme preview is on screen, stop useApplyUserTheme from
-  // flickering the old saved theme back over it.
+  const savedThemeHashRef = useRef('');
+  const previewThemeRef = useRef<ThemeTokens | null>(null);
+  const generatedNameRef = useRef('');
+  const selectedPresetRef = useRef('classic');
+  const animationSpeedRef = useRef(animationSpeed);
+  const animationStyleRef = useRef(animationStyle);
+  const backgroundEffectRef = useRef(backgroundEffect);
+  const backgroundOpacityRef = useRef(backgroundOpacity);
+  const backgroundBlurRef = useRef(backgroundBlur);
+  const borderRadiusRef = useRef(borderRadius);
+
+  useEffect(() => { previewThemeRef.current = previewTheme; }, [previewTheme]);
+  useEffect(() => { generatedNameRef.current = generatedName; }, [generatedName]);
+  useEffect(() => { selectedPresetRef.current = selectedPreset; }, [selectedPreset]);
+  useEffect(() => { animationSpeedRef.current = animationSpeed; }, [animationSpeed]);
+  useEffect(() => { animationStyleRef.current = animationStyle; }, [animationStyle]);
+  useEffect(() => { backgroundEffectRef.current = backgroundEffect; }, [backgroundEffect]);
+  useEffect(() => { backgroundOpacityRef.current = backgroundOpacity; }, [backgroundOpacity]);
+  useEffect(() => { backgroundBlurRef.current = backgroundBlur; }, [backgroundBlur]);
+  useEffect(() => { borderRadiusRef.current = borderRadius; }, [borderRadius]);
+
+  const buildThemeWithSettings = useCallback((base: ThemeTokens): ThemeTokens => ({
+    ...base,
+    animationSpeed,
+    animationStyle,
+    backgroundEffect,
+    backgroundOpacity,
+    backgroundBlur,
+    borderRadius,
+  }), [animationSpeed, animationStyle, backgroundEffect, backgroundOpacity, backgroundBlur, borderRadius]);
+
+  /** Persist theme to localStorage + DB so it survives navigation. */
+  const commitTheme = useCallback(async (
+    base: ThemeTokens,
+    name: string,
+    preset: string,
+    options?: { updateCustomSlot?: boolean; silent?: boolean },
+  ) => {
+    const themeWithSettings = buildThemeWithSettings({
+      ...base,
+      themeName: name || base.themeName || 'Custom Theme',
+    });
+
+    equipTheme(themeWithSettings, { silent: true, skipAutoSave: true });
+
+    if (options?.updateCustomSlot !== false && preset === 'custom') {
+      persistLastGeneratedTheme(themeWithSettings, profile?.id);
+      setCustomPresetTokens(themeWithSettings);
+    }
+
+    await saveTheme.mutateAsync({
+      themeTokens: themeWithSettings,
+      themeName: themeWithSettings.themeName || name || 'Custom Theme',
+      basePreset: preset,
+      silent: options?.silent !== false,
+    });
+
+    savedThemeHashRef.current = themeFingerprint(themeWithSettings);
+    setPreviewTheme(themeWithSettings);
+    return themeWithSettings;
+  }, [buildThemeWithSettings, profile?.id, saveTheme]);
+
+  // While a theme preview is active, stop useApplyUserTheme from reverting it.
   useEffect(() => {
-    setThemePreviewLock(showConfirmation);
+    setThemePreviewLock(Boolean(previewTheme));
     return () => setThemePreviewLock(false);
-  }, [showConfirmation]);
+  }, [previewTheme]);
 
   const generationRunIdRef = useRef(0);
   const GENERATION_TIMEOUT_MS = 25000;
@@ -201,11 +299,17 @@ export function DesignYourVybe() {
   // Load user's current theme/preset on mount
   useEffect(() => {
     if (userTheme) {
-      setSelectedPreset(userTheme.base_preset || 'classic');
+      const preset = normalizeBasePreset(userTheme.base_preset);
+      setSelectedPreset(preset);
+      if (profile?.id) {
+        const lastCustom = readLastGeneratedTheme(profile.id);
+        if (lastCustom) setCustomPresetTokens(lastCustom);
+      }
       if (userTheme.theme_tokens && userTheme.is_active) {
         const tokens = userTheme.theme_tokens as unknown as ThemeTokens;
         setPreviewTheme(tokens);
         setGeneratedName(userTheme.theme_name || '');
+        savedThemeHashRef.current = themeFingerprint(tokens);
         // Load saved settings
         setAnimationSpeed(tokens.animationSpeed || 'normal');
         setAnimationStyle(tokens.animationStyle || 'smooth');
@@ -213,37 +317,87 @@ export function DesignYourVybe() {
         setBackgroundOpacity(tokens.backgroundOpacity ?? 30);
         setBackgroundBlur(tokens.backgroundBlur ?? 0);
         setBorderRadius(tokens.borderRadius || 'medium');
+        if (preset === 'custom') {
+          persistLastGeneratedTheme(tokens, profile?.id);
+          setCustomPresetTokens(tokens);
+        }
       }
     }
-  }, [userTheme]);
+  }, [userTheme, profile?.id]);
+
+  const profileIdRef = useRef(profile?.id);
+  useEffect(() => { profileIdRef.current = profile?.id; }, [profile?.id]);
+
+  // Flush unsaved theme tweaks when leaving the page
+  useEffect(() => {
+    return () => {
+      const tokens = previewThemeRef.current;
+      if (!tokens?.colorPrimary) return;
+      const themeWithSettings: ThemeTokens = {
+        ...tokens,
+        animationSpeed: animationSpeedRef.current,
+        animationStyle: animationStyleRef.current,
+        backgroundEffect: backgroundEffectRef.current,
+        backgroundOpacity: backgroundOpacityRef.current,
+        backgroundBlur: backgroundBlurRef.current,
+        borderRadius: borderRadiusRef.current,
+        themeName: generatedNameRef.current || tokens.themeName || 'Custom Theme',
+      };
+      const fingerprint = themeFingerprint(themeWithSettings);
+      if (fingerprint === savedThemeHashRef.current) return;
+
+      equipTheme(themeWithSettings, { silent: true, skipAutoSave: true });
+      const preset = selectedPresetRef.current;
+      if (preset === 'custom') {
+        persistLastGeneratedTheme(themeWithSettings, profileIdRef.current);
+      }
+      const userId = profileIdRef.current;
+      if (userId) {
+        void db.from('user_themes').upsert(
+          {
+            user_id: userId,
+            theme_name: themeWithSettings.themeName,
+            theme_tokens: themeWithSettings as unknown as Record<string, unknown>,
+            base_preset: preset,
+            is_active: true,
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: 'user_id' },
+        );
+      }
+    };
+  }, []);
 
   const handlePresetSelect = (presetKey: string) => {
     try {
-      const preset = THEME_PRESETS[presetKey];
+      if (presetKey === 'custom') {
+        const custom = readLastGeneratedTheme(profile?.id) ?? customPresetTokens;
+        if (!custom?.colorPrimary) {
+          toast.error('Generate a theme first — Custom updates after each AI generation');
+          return;
+        }
+      }
+
+      const preset = resolvePresetTokens(presetKey, profile?.id);
       if (preset) {
-        const themeWithSettings = { 
-          ...preset, 
-          animationSpeed, 
-          animationStyle,
-          backgroundEffect,
-          backgroundOpacity,
-          backgroundBlur,
-          borderRadius,
-        };
-        
+        const themeWithSettings = buildThemeWithSettings(preset);
+        const presetName =
+          presetKey === 'custom'
+            ? (customPresetTokens?.themeName || preset.themeName || 'Custom')
+            : (PRESET_INFO[presetKey]?.name || presetKey);
+
         const primaryColor = preset.colorPrimary || '280 70% 50%';
         const accentColor = preset.colorAccent || '330 80% 60%';
-        
+
         triggerTransition(primaryColor, accentColor, () => {
-          // Sync the global ThemeProvider mode so it doesn't fight applyThemeTokens
           const targetMode = preset.mode === 'light' ? 'light' : 'dark';
           setGlobalTheme(targetMode);
-          
           setSelectedPreset(presetKey);
           setPreviewTheme(themeWithSettings);
-          setGeneratedName(PRESET_INFO[presetKey]?.name || presetKey);
+          setGeneratedName(presetName);
           applyThemeTokens(themeWithSettings);
           setShowConfirmation(true);
+          void commitTheme(themeWithSettings, presetName, presetKey, { updateCustomSlot: presetKey === 'custom' });
         });
       }
     } catch (error) {
@@ -394,20 +548,18 @@ export function DesignYourVybe() {
       if (generationRunIdRef.current !== runId) return;
 
       if (theme && typeof theme === 'object' && 'colorPrimary' in theme && (theme as any).colorPrimary) {
-        const themeWithSettings = {
-          ...(theme as any),
-          animationSpeed,
-          animationStyle,
-          backgroundEffect,
-          backgroundOpacity,
-          backgroundBlur,
-          borderRadius,
-        } as ThemeTokens & { themeName?: string };
+        const themeName = (theme as any).themeName || 'Custom Theme';
+        const themeWithSettings = buildThemeWithSettings({
+          ...(theme as ThemeTokens),
+          themeName,
+        });
 
+        setSelectedPreset('custom');
         setPreviewTheme(themeWithSettings);
-        setGeneratedName((themeWithSettings as any).themeName || 'Custom Theme');
+        setGeneratedName(themeName);
         applyThemeTokens(themeWithSettings);
         setShowConfirmation(true);
+        void commitTheme(themeWithSettings, themeName, 'custom');
         console.debug('[DesignYourVybe] generateTheme:success', { runId });
       } else {
         console.error('[DesignYourVybe] Invalid theme response:', theme);
@@ -443,28 +595,17 @@ export function DesignYourVybe() {
 
   const handleKeepTheme = async () => {
     if (!previewTheme) return;
-    
-    const themeWithSettings = {
-      ...previewTheme,
-      animationSpeed,
-      animationStyle,
-      backgroundEffect,
-      backgroundOpacity,
-      backgroundBlur,
-      borderRadius,
-    };
-    
+
     const primaryColor = previewTheme.colorPrimary || '280 70% 50%';
     const accentColor = previewTheme.colorAccent || '330 80% 60%';
-    
+
     triggerTransition(primaryColor, accentColor, async () => {
-      applyThemeTokens(themeWithSettings);
-      
-      await saveTheme.mutateAsync({
-        themeTokens: themeWithSettings,
-        themeName: generatedName,
-        basePreset: selectedPreset,
-      });
+      await commitTheme(
+        previewTheme,
+        generatedName || previewTheme.themeName || 'Custom Theme',
+        selectedPreset,
+        { silent: false },
+      );
       
       // Save button sound preference locally + to DB
       localStorage.setItem('vybe-button-sound', buttonSound);
@@ -647,9 +788,18 @@ export function DesignYourVybe() {
                 
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                   {Object.entries(PRESET_INFO).map(([key, info]) => {
-                    const preset = THEME_PRESETS[key];
-                    const isSelected = selectedPreset === key && !previewTheme;
-                    
+                    const preset =
+                      key === 'custom'
+                        ? (customPresetTokens ??
+                          readLastGeneratedTheme(profile?.id) ??
+                          getCustomThemePreset(THEME_PRESETS.classic))
+                        : THEME_PRESETS[key];
+                    const displayInfo =
+                      key === 'custom' && customPresetTokens?.themeName
+                        ? { ...info, description: customPresetTokens.themeName }
+                        : info;
+                    const isSelected = selectedPreset === key;
+
                     return (
                       <button
                         key={key}
@@ -665,16 +815,19 @@ export function DesignYourVybe() {
                           <div 
                             className="w-8 h-8 rounded-lg flex items-center justify-center text-sm"
                             style={{ 
-                              background: `linear-gradient(135deg, hsl(${preset.bgMain}), hsl(${preset.bgCard}))`,
+                              background:
+                                key === 'custom'
+                                  ? themePaletteGradient(preset)
+                                  : `linear-gradient(135deg, hsl(${preset.bgMain}), hsl(${preset.bgCard}))`,
                               border: `2px solid hsl(${preset.colorPrimary})`,
                             }}
                           >
-                            {info.icon}
+                            {displayInfo.icon}
                           </div>
                           <div className="flex-1 min-w-0">
-                            <p className="font-medium text-xs truncate">{info.name}</p>
+                            <p className="font-medium text-xs truncate">{displayInfo.name}</p>
                             <p className="text-[10px] text-muted-foreground truncate">
-                              {info.description}
+                              {displayInfo.description}
                             </p>
                           </div>
                         </div>
@@ -910,7 +1063,7 @@ export function DesignYourVybe() {
                   <div 
                     className="w-12 h-12 rounded-xl"
                     style={{ 
-                      background: `linear-gradient(135deg, hsl(${previewTheme.colorPrimary}), hsl(${previewTheme.colorAccent}))` 
+                      background: themePaletteGradient(previewTheme),
                     }}
                   />
                   <div className="flex-1">
@@ -985,7 +1138,7 @@ export function DesignYourVybe() {
                         <div 
                           className="w-16 h-16 rounded-xl"
                           style={{ 
-                            background: `linear-gradient(135deg, hsl(${previewTheme.colorPrimary}), hsl(${previewTheme.colorAccent}))` 
+                            background: themePaletteGradient(previewTheme), 
                           }}
                         />
                         <div className="flex-1 space-y-2">

@@ -1,6 +1,6 @@
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { db, requireAuth, rateLimit, enforceRateLimit } from './_shared/admin.js';
-import { chatCompletion, generateImage, groundedColorResearch } from './_shared/geminiAi.js';
+import { chatCompletion, generateImage, groundedColorResearchStructured, type ResearchedPalette } from './_shared/geminiAi.js';
 import { modelForTier, TOKEN_BUDGET } from './_shared/aiModels.js';
 import {
   enforceAiQuota,
@@ -445,6 +445,140 @@ function normalizeThemeColors(theme: Record<string, unknown>): Record<string, un
   return out;
 }
 
+function parseHslParts(hsl: string): { h: number; s: number; l: number } | null {
+  const m = hsl.match(/^(\d{1,3})\s+(\d{1,3})%\s+(\d{1,3})%$/);
+  if (!m) return null;
+  return { h: Number(m[1]), s: Number(m[2]), l: Number(m[3]) };
+}
+
+function adjustHslLightness(hsl: string, delta: number): string {
+  const parts = parseHslParts(hsl);
+  if (!parts) return hsl;
+  const l = Math.max(0, Math.min(100, parts.l + delta));
+  return `${parts.h} ${parts.s}% ${l}%`;
+}
+
+function pickColorByRole(palette: ResearchedPalette, role: ResearchedPalette['colors'][number]['role']): string | null {
+  const hit = palette.colors.find((c) => c.role === role);
+  return hit?.hex || null;
+}
+
+/** Map every researched hex color into theme slots — no AI reinterpretation. */
+function buildThemeFromResearchedPalette(palette: ResearchedPalette, subject: string): Record<string, unknown> {
+  const hexes = palette.colors
+    .map((c) => {
+      const m = c.hex.trim().match(/^#?([0-9a-f]{6})$/i);
+      return m ? `#${m[1]!.toUpperCase()}` : null;
+    })
+    .filter((h): h is string => Boolean(h));
+  const uniqueHexes = [...new Set(hexes)];
+
+  const withMeta = uniqueHexes.map((hex) => {
+    const hsl = hexToHslTriplet(hex.slice(1));
+    const parts = parseHslParts(hsl)!;
+    return { hex, hsl, ...parts };
+  });
+
+  const byLightness = [...withMeta].sort((a, b) => a.l - b.l);
+  const darkest = byLightness[0]!;
+  const lightest = byLightness[byLightness.length - 1]!;
+  const chromatic = withMeta.filter((c) => c.s > 8 && c.l > 4 && c.l < 96);
+
+  const isLightHex = (hex: string) => (parseHslParts(hexToHslTriplet(hex.slice(1)))?.l ?? 50) > 85;
+  const isDarkHex = (hex: string) => (parseHslParts(hexToHslTriplet(hex.slice(1)))?.l ?? 50) < 22;
+
+  const hasDarkSurface =
+    palette.colors.some((c) => c.role === 'background' && isDarkHex(c.hex)) ||
+    byLightness.some((c) => c.l < 22);
+  const inferredMode: 'dark' | 'light' =
+    hasDarkSurface || (darkest.l < 25 && lightest.l > 75)
+      ? 'dark'
+      : lightest.l > 80 && darkest.l > 28
+        ? 'light'
+        : palette.mode === 'light'
+          ? 'light'
+          : 'dark';
+  const mode = inferredMode;
+
+
+  const primaryHex =
+    pickColorByRole(palette, 'primary') ||
+    chromatic[chromatic.length - 1]?.hex ||
+    withMeta[0]!.hex;
+  const secondaryHex =
+    pickColorByRole(palette, 'secondary') ||
+    chromatic.find((c) => c.hex !== primaryHex)?.hex ||
+    withMeta[1]?.hex ||
+    primaryHex;
+
+  let bgHex =
+    pickColorByRole(palette, 'background') ||
+    byLightness.find((c) => isDarkHex(c.hex))?.hex ||
+    (mode === 'light' ? lightest.hex : darkest.hex);
+  if (mode === 'dark' && isLightHex(bgHex)) {
+    bgHex = byLightness.find((c) => isDarkHex(c.hex))?.hex || darkest.hex;
+  }
+  if (mode === 'light' && isDarkHex(bgHex) && lightest.l > 80) {
+    bgHex = lightest.hex;
+  }
+
+  const usedForSlots = new Set([primaryHex, secondaryHex, bgHex]);
+
+  const accentHex =
+    pickColorByRole(palette, 'accent') ||
+    withMeta.find((c) => !usedForSlots.has(c.hex) && c.s > 12 && (mode === 'dark' ? c.l > 55 : c.l < 55))?.hex ||
+    withMeta.find((c) => !usedForSlots.has(c.hex) && c.s > 12)?.hex ||
+    (mode === 'dark' ? lightest.hex : darkest.hex);
+  usedForSlots.add(accentHex);
+
+  const borderHex =
+    withMeta.find((c) => !usedForSlots.has(c.hex))?.hex ||
+    pickColorByRole(palette, 'neutral') ||
+    secondaryHex;
+
+  const colorPrimary = hexToHslTriplet(primaryHex.slice(1));
+  const colorSecondary = hexToHslTriplet(secondaryHex.slice(1));
+  const colorAccent = hexToHslTriplet(accentHex.slice(1));
+  const bgMain = hexToHslTriplet(bgHex.slice(1));
+  const bgCard = adjustHslLightness(bgMain, mode === 'dark' ? 6 : -4);
+  const borderColor = hexToHslTriplet(borderHex.slice(1));
+  const textPrimary =
+    mode === 'dark'
+      ? hexToHslTriplet(lightest.hex.slice(1))
+      : hexToHslTriplet(darkest.hex.slice(1));
+  const textSecondary = adjustHslLightness(textPrimary, mode === 'dark' ? -28 : 28);
+
+  const themeName = subject
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(' ')
+    .slice(0, 40) || 'Custom VYBE';
+
+  return {
+    colorPrimary,
+    colorSecondary,
+    colorAccent,
+    bgMain,
+    bgCard,
+    textPrimary,
+    textSecondary,
+    borderColor,
+    borderRadius: 'medium',
+    mode,
+    themeName,
+    backgroundEffect: 'aurora',
+    animationSpeed: 'normal',
+    animationStyle: 'smooth',
+  };
+}
+
+function formatResearchedPaletteBlock(palette: ResearchedPalette): string {
+  return palette.colors
+    .map((c) => `- ${c.name}: ${c.hex}${c.role ? ` (${c.role})` : ''}`)
+    .join('\n');
+}
+
 function validTheme(theme: unknown): theme is Record<string, unknown> {
   return Boolean(
     theme &&
@@ -566,10 +700,10 @@ export const generateTheme = onCall({ secrets: SECRETS }, async (request) => {
 
   // Look up the REAL colors of what the user named via Google-Search-grounded
   // Gemini (runs in parallel with profile loads; skipped when nothing typed).
-  const [profile, dnaSnap, colorResearch] = await Promise.all([
+  const [profile, dnaSnap, researchedPalette] = await Promise.all([
     loadUserProfile(authUid),
     db.collection('vybe_dna').doc(profileId).get(),
-    typed ? groundedColorResearch(typed, { apiKey: byokKey }) : Promise.resolve(null),
+    typed ? groundedColorResearchStructured(typed, { apiKey: byokKey }) : Promise.resolve(null),
   ]);
   const dna = (dnaSnap.data() || {}) as Record<string, unknown>;
   const contextBlock = formatServerThemeContext({
@@ -577,6 +711,41 @@ export const generateTheme = onCall({ secrets: SECRETS }, async (request) => {
     dna,
     clientContext: clientContext as Record<string, unknown> | undefined,
   });
+
+  // When lookup finds 2+ real colors, map them deterministically into every
+  // theme slot so all researched colors appear (no AI reinterpretation).
+  if (researchedPalette && researchedPalette.colors.length >= 2) {
+    const exactTheme = buildThemeFromResearchedPalette(researchedPalette, typed);
+    if (validTheme(exactTheme)) {
+      try {
+        const { content } = await chatCompletion({
+          messages: [
+            {
+              role: 'system',
+              content:
+                'Name this UI theme in 2-4 words. Return ONLY JSON: {"themeName":"...","backgroundEffect":"aurora"|"particles"|"none"|"stars"|"bubbles"}',
+            },
+            { role: 'user', content: `Subject: ${typed}` },
+          ],
+          response_format: { type: 'json_object' },
+          model: modelForTier('micro'),
+          max_tokens: TOKEN_BUDGET.short,
+          apiKey: byokKey,
+        });
+        const naming = parseJsonObject<{ themeName?: string; backgroundEffect?: string }>(content);
+        if (naming?.themeName) exactTheme.themeName = String(naming.themeName).slice(0, 48);
+        const fx = naming?.backgroundEffect;
+        if (fx === 'aurora' || fx === 'particles' || fx === 'none' || fx === 'stars' || fx === 'bubbles') {
+          exactTheme.backgroundEffect = fx;
+        }
+      } catch {
+        // naming is optional — exact colors are what matter
+      }
+      return { theme: exactTheme, researched: true };
+    }
+  }
+
+  const colorResearch = researchedPalette ? formatResearchedPaletteBlock(researchedPalette) : null;
 
   const userPrompt = [
     typed

@@ -21,7 +21,7 @@ export const THEME_PRESET_KEYS = [
   'neon',
   'soft',
   'cyberpunk',
-  'minimal',
+  'custom',
 ] as const;
 
 /** auto = execute immediately; confirm = queue for user approval (Phase 2+) */
