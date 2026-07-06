@@ -202,8 +202,8 @@ export function hydrateThemeFromLocalCaches(queryClient?: QueryClient, userId?: 
     ensureBootThemeApplied();
   }
 
-  // Never apply stale persisted query cache during splash — equipped localStorage is source of truth.
-  if (queryClient && uid && !isSplashVisibleOnBody()) {
+  // Never apply stale persisted query cache when equipped local exists.
+  if (queryClient && uid && !isSplashVisibleOnBody() && !equipped?.colorPrimary) {
     const cached = queryClient.getQueryData(['user-theme', uid]) as UserThemeRow | undefined;
     const tokens = tokensFromRow(cached);
     if (tokens && !isThemeAlreadyApplied(tokens)) {
@@ -240,20 +240,32 @@ export function prefetchAndApplyUserTheme(
       ]);
 
       const row = result.data as UserThemeRow | null;
-      const tokens = tokensFromRow(row);
-      if (!tokens) return Boolean(getEquippedThemeTokens(userId)?.colorPrimary);
-
+      const dbTokens = tokensFromRow(row);
       const local = getEquippedThemeTokens(userId);
-      const same =
-        local &&
-        themeTokenFingerprint(local) === themeTokenFingerprint(tokens);
+
+      // Equipped localStorage is the live source on this device — never overwrite it
+      // with a stale DB row (e.g. user just clicked equip before upsert finished).
+      if (local?.colorPrimary) {
+        const reconciled = reconcileUserThemeRowWithEquipped(row, userId);
+        queryClient?.setQueryData(['user-theme', userId], reconciled);
+
+        if (
+          dbTokens &&
+          themeTokenFingerprint(local) !== themeTokenFingerprint(dbTokens)
+        ) {
+          syncEquippedThemeToAccount(userId, local);
+        }
+
+        if (!isThemeAlreadyApplied(local)) {
+          applyTokensNow(local, userId);
+        }
+        return true;
+      }
+
+      if (!dbTokens) return false;
 
       queryClient?.setQueryData(['user-theme', userId], row);
-      if (!same) {
-        equipTheme(tokens, { themeId: row?.id ?? null, silent: true, skipAutoSave: true });
-      } else {
-        persistEquippedThemeTokens(userId, tokens);
-      }
+      equipTheme(dbTokens, { themeId: row?.id ?? null, silent: true, skipAutoSave: true });
       return true;
     } catch {
       return hydrateThemeFromLocalCaches(queryClient, userId);

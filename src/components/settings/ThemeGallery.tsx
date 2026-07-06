@@ -57,7 +57,6 @@ const ThemeCard = memo(function ThemeCard({
   onRename
 }: ThemeCardProps) {
 
-  const tokens = theme.theme_tokens;
   const [isEditing, setIsEditing] = useState(false);
   const [editName, setEditName] = useState(theme.theme_name);
 
@@ -72,6 +71,9 @@ const ThemeCard = memo(function ThemeCard({
     setEditName(theme.theme_name);
     setIsEditing(false);
   };
+
+  const tokens = theme.theme_tokens;
+  if (!tokens?.colorPrimary) return null;
 
   return (
     <div className="relative group">
@@ -276,8 +278,12 @@ export function ThemeGallery() {
 
   // Single action: clicking a theme applies and persists it
   const handleSelectTheme = useCallback((theme: SharedTheme) => {
-    const primaryColor = theme.theme_tokens?.colorPrimary || '280 70% 50%';
-    const accentColor = theme.theme_tokens?.colorAccent || '330 80% 60%';
+    if (!theme.theme_tokens?.colorPrimary) {
+      toast.error('This theme is missing color data and cannot be applied.');
+      return;
+    }
+    const primaryColor = theme.theme_tokens.colorPrimary;
+    const accentColor = theme.theme_tokens.colorAccent || '330 80% 60%';
     
     triggerTransition(primaryColor, accentColor, () => {
       try {
@@ -307,6 +313,15 @@ export function ThemeGallery() {
 
   const savedThemeIds = useMemo(() => savedThemes?.map(t => t.id) || [], [savedThemes]);
 
+  const validMyThemes = useMemo(
+    () => (myThemes ?? []).filter((t) => t.theme_tokens?.colorPrimary),
+    [myThemes],
+  );
+  const validSavedThemes = useMemo(
+    () => (savedThemes ?? []).filter((t) => t.theme_tokens?.colorPrimary),
+    [savedThemes],
+  );
+
   return (
     <div className="space-y-4">
       <Tabs defaultValue="mine" className="w-full">
@@ -328,9 +343,9 @@ export function ThemeGallery() {
         <TabsContent value="mine" className="mt-4">
           {loadingMy ? (
             <ThemeGridSkeleton />
-          ) : myThemes?.length ? (
+          ) : validMyThemes.length ? (
             <div className="grid grid-cols-2 gap-3">
-              {myThemes.map((theme) => (
+              {validMyThemes.map((theme) => (
                 <ThemeCard
                   key={theme.id}
                   theme={theme}
@@ -359,9 +374,9 @@ export function ThemeGallery() {
         <TabsContent value="saved" className="mt-4">
           {loadingSaved ? (
             <ThemeGridSkeleton />
-          ) : savedThemes?.length ? (
+          ) : validSavedThemes.length ? (
             <div className="grid grid-cols-2 gap-3">
-              {savedThemes.map((theme) => (
+              {validSavedThemes.map((theme) => (
                 <ThemeCard
                   key={theme.id}
                   theme={theme}

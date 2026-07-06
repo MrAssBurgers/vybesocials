@@ -71,7 +71,8 @@ const ThemeCard = memo(function ThemeCard({
 }: ThemeCardProps) {
 
   const tokens = theme.theme_tokens;
-  
+  if (!tokens?.colorPrimary) return null;
+
   // Generate preview gradient
   const previewGradient = `linear-gradient(135deg, 
     hsl(${tokens.colorPrimary}) 0%, 
@@ -207,15 +208,15 @@ export const ThemeMarketplace = memo(function ThemeMarketplace() {
   const [importDialogOpen, setImportDialogOpen] = useState(false);
   const [importCodeInput, setImportCodeInput] = useState('');
 
-  // Filter and sort themes
+  // Filter and sort themes — skip rows with missing/invalid tokens (prevents render crash)
   const filteredThemes = publicThemes
+    .filter((theme) => theme.theme_tokens?.colorPrimary)
     .filter(theme => {
       if (selectedCategory === 'all') return true;
-      // Use theme tokens to infer category
       const tokens = theme.theme_tokens;
+      if (!tokens) return false;
       if (selectedCategory === 'dark') return tokens.mode === 'dark';
       if (selectedCategory === 'light') return tokens.mode === 'light';
-      // For other categories, just show all (would need category field in DB)
       return true;
     })
     .sort((a, b) => {
@@ -237,8 +238,12 @@ export const ThemeMarketplace = memo(function ThemeMarketplace() {
   // Select theme - clicking applies and persists
   const handleSelectTheme = useCallback((theme: SharedTheme) => {
     const tokens = theme.theme_tokens;
+    if (!tokens?.colorPrimary) {
+      toast.error('This theme is missing color data and cannot be applied.');
+      return;
+    }
     triggerTransition(
-      tokens.colorPrimary || '280 70% 50%',
+      tokens.colorPrimary,
       tokens.colorAccent || '330 80% 60%',
       () => {
         try {

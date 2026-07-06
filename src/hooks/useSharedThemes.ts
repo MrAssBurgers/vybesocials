@@ -248,8 +248,17 @@ export function useEquipSharedTheme() {
         await db.rpc('increment_theme_downloads', { theme_id: theme.id }).then(() => {}, () => {});
       }
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['user-theme'] });
+    onSuccess: (_data, theme) => {
+      const uid = user?.id;
+      if (uid) {
+        queryClient.setQueryData(['user-theme', uid], {
+          user_id: uid,
+          theme_name: theme.theme_name,
+          theme_tokens: theme.theme_tokens,
+          base_preset: 'shared',
+          is_active: true,
+        });
+      }
       queryClient.invalidateQueries({ queryKey: ['saved-themes'] });
       toast.success('Equipped ✨');
     },

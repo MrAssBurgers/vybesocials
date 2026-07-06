@@ -195,6 +195,31 @@ export const THEME_PRESETS: Record<string, ThemeTokens> = {
     neonPurple: '280 100% 60%',
     neonCyan: '185 100% 50%',
   },
+  /** @deprecated alias — old saves / UI still reference minimal */
+  minimal: {
+    colorPrimary: '330 100% 60%',
+    colorSecondary: '240 10% 12%',
+    colorAccent: '185 100% 50%',
+    bgMain: '240 10% 4%',
+    bgCard: '240 10% 6%',
+    bgGradientFrom: '240 10% 4%',
+    bgGradientMid: '240 10% 8%',
+    bgGradientTo: '240 10% 4%',
+    glassBg: '240 10% 10%',
+    glassBorder: '240 10% 20%',
+    sidebarBg: '240 10% 6%',
+    navBg: '240 10% 6%',
+    inputBg: '240 10% 18%',
+    textPrimary: '0 0% 98%',
+    textSecondary: '240 5% 55%',
+    borderColor: '240 10% 18%',
+    borderRadius: 'medium',
+    mode: 'dark',
+    themeName: 'Custom',
+    neonPink: '330 100% 60%',
+    neonPurple: '280 100% 60%',
+    neonCyan: '185 100% 50%',
+  },
 };
 
 const BORDER_RADIUS_MAP = {
@@ -264,12 +289,11 @@ export function equipTheme(
   if (uid && !options?.skipAutoSave) {
     syncEquippedThemeToAccount(uid, tokens, { themeName: tokens.themeName });
   }
-  _lastAppliedThemeHash = '';
   const resolved = document.documentElement.classList.contains('light') ? 'light' : 'dark';
-  applyThemeTokens(adaptThemeToMode(tokens, resolved));
-  if (!options?.silent) {
-    window.dispatchEvent(new CustomEvent('vybeThemeEquipped', { detail: tokens }));
-  }
+  const adapted = adaptThemeToMode(tokens, resolved);
+  applyThemeTokens(adapted);
+  _lastAppliedThemeHash = themeApplyHash(adapted, resolved);
+  window.dispatchEvent(new CustomEvent('vybeThemeEquipped', { detail: tokens }));
 }
 
 let _lastAppliedThemeHash = '';
@@ -363,11 +387,7 @@ export function useSaveTheme() {
       // Keep equipped tokens in localStorage so navigation/refetches can't swap themes
       equipTheme(tokens, { themeId: null, silent: true, skipAutoSave: true });
 
-      queryClient.setQueryData(['user-theme', user?.id], (old: any) => ({
-        ...old,
-        ...savedData,
-      }));
-      queryClient.invalidateQueries({ queryKey: ['user-theme'] });
+      queryClient.setQueryData(['user-theme', user?.id], savedData);
       if (!(savedData as any).silent) {
         toast.success('Theme saved!');
       }
@@ -909,7 +929,7 @@ export function useApplyUserTheme() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const { data: userTheme } = useUserTheme();
-  const didMountApply = useRef(false);
+  const prefetchedForUserRef = useRef<string | null>(null);
 
   const applyForMode = useCallback((resolved: 'dark' | 'light', force = false) => {
     if (_isApplyingTheme || _isSavingTheme || _themePreviewLock) return;
@@ -965,27 +985,29 @@ export function useApplyUserTheme() {
     return () => observer.disconnect();
   }, [applyForMode]);
 
+  // Paint equipped theme on mount and when DB row first arrives (no local equipped yet).
   useLayoutEffect(() => {
     const resolvedMode = document.documentElement.classList.contains('light') ? 'light' : 'dark';
-    const splashVisible = document.body.classList.contains('splash-visible');
-    didMountApply.current = true;
-    if (splashVisible) {
+    if (document.body.classList.contains('splash-visible')) {
       reinforceSplashTheme();
-    } else {
-      const shouldForce = !_lastAppliedThemeHash;
-      applyForMode(resolvedMode, shouldForce);
+      return;
     }
+    if (getEquippedThemeTokens(user?.id)?.colorPrimary) {
+      applyForMode(resolvedMode);
+      return;
+    }
+    applyForMode(resolvedMode, true);
+  }, [userTheme, applyForMode, user?.id]);
 
+  // Network reconcile once per user per session — not on every user-theme cache touch.
+  useLayoutEffect(() => {
     const uid = user?.id ?? getStoredAuthUserId();
-    if (uid) {
-      runAfterSplashDismiss(() => {
-        _lastAppliedThemeHash = '';
-        const resolved = document.documentElement.classList.contains('light') ? 'light' : 'dark';
-        applyForMode(resolved, true);
-        void prefetchAndApplyUserTheme(uid, queryClient, { timeoutMs: 6000 });
-      });
-    }
-  }, [userTheme, applyForMode, user?.id, queryClient]);
+    if (!uid || prefetchedForUserRef.current === uid) return;
+    prefetchedForUserRef.current = uid;
+    runAfterSplashDismiss(() => {
+      void prefetchAndApplyUserTheme(uid, queryClient, { timeoutMs: 6000 });
+    });
+  }, [user?.id, queryClient]);
 
   // Re-apply when another tab or equipTheme updates storage
   useEffect(() => {
@@ -994,7 +1016,6 @@ export function useApplyUserTheme() {
         reinforceSplashTheme();
         return;
       }
-      _lastAppliedThemeHash = '';
       const resolved = document.documentElement.classList.contains('light') ? 'light' : 'dark';
       applyForMode(resolved);
     };

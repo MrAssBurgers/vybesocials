@@ -26,6 +26,8 @@ import { SubscriptionSection } from '@/components/settings/SubscriptionSection';
 import { AiKeySection } from '@/components/settings/AiKeySection';
 import { AppearanceSection } from '@/components/settings/AppearanceSection';
 import { ThemesSection } from '@/components/settings/ThemesSection';
+import { ErrorBoundary } from '@/components/ErrorBoundary';
+import { AppErrorFallback } from '@/components/error/AppErrorFallback';
 import { FeedbackSection } from '@/components/settings/FeedbackSection';
 import { NotificationsSection } from '@/components/settings/NotificationsSection';
 import { LanguageSection } from '@/components/settings/LanguageSection';
@@ -125,7 +127,21 @@ const SettingsPage = forwardRef<HTMLDivElement, React.ComponentPropsWithoutRef<'
       case 'appearance':
         return <AppearanceSection />;
       case 'themes':
-        return <ThemesSection />;
+        return (
+          <ErrorBoundary
+            scope="settings:themes"
+            fallback={(reset) => (
+              <AppErrorFallback
+                compact
+                title="Themes couldn't load"
+                description="Something went wrong in the theme editor. Try again — other settings still work."
+                onRetry={reset}
+              />
+            )}
+          >
+            <ThemesSection />
+          </ErrorBoundary>
+        );
       case 'feedback':
         return <FeedbackSection />;
       case 'notifications':
