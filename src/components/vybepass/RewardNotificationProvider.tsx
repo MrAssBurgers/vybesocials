@@ -52,7 +52,7 @@ export function RewardNotificationProvider({ children }: RewardNotificationProvi
   const [levelUpData, setLevelUpData] = useState<LevelUpData | null>(null);
   const [levelUpOpen, setLevelUpOpen] = useState(false);
   const [isOnboardingComplete, setIsOnboardingComplete] = useState(false);
-  const { profile } = useAuth();
+  const { profile } = useAuthSafe();
   const { data: tiers } = useVybePassTiers();
   const navigate = useNavigate();
   const equipItem = useEquipItem();
