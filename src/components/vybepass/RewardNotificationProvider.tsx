@@ -5,6 +5,17 @@ import { RewardClaimModal } from './RewardClaimModal';
 import { LevelUpModal, LevelUpReward } from './LevelUpModal';
 import { useEquipItem } from '@/hooks/useLockerItems';
 import { useAuth } from '@/lib/auth';
+
+/** Safe wrapper — never throws if AuthProvider isn't mounted yet (e.g. during
+ *  a lazy-chunk race). Returning null profile just delays reward popups until
+ *  auth is ready, instead of crashing the entire app tree. */
+function useAuthSafe(): { profile: { onboarding_completed?: boolean } | null } {
+  try {
+    return useAuth() as any;
+  } catch {
+    return { profile: null };
+  }
+}
 import { toast } from 'sonner';
 import LocalErrorBoundary from '@/components/error/LocalErrorBoundary';
 
