@@ -13203,6 +13203,7 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      email_queue_dispatch: { Args: never; Returns: undefined }
       email_queue_publish_diagnostic: { Args: never; Returns: Json }
       enqueue_email: {
         Args: { payload: Json; queue_name: string }
@@ -13882,7 +13883,7 @@ export type Database = {
       dna_agent_intensity: "gentle" | "balanced" | "bold"
       dna_agent_mode: "off" | "suggest" | "autonomous"
       group_role: "owner" | "admin" | "member"
-      music_provider: "spotify" | "apple_music" | "youtube" | "steam" | "twitch"
+      music_provider: "spotify" | "apple_music" | "twitch" | "steam" | "youtube"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -14033,7 +14034,7 @@ export const Constants = {
       dna_agent_intensity: ["gentle", "balanced", "bold"],
       dna_agent_mode: ["off", "suggest", "autonomous"],
       group_role: ["owner", "admin", "member"],
-      music_provider: ["spotify", "apple_music", "youtube", "steam", "twitch"],
+      music_provider: ["spotify", "apple_music", "twitch", "steam", "youtube"],
     },
   },
 } as const
