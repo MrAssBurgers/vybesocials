@@ -155,6 +155,8 @@ import { OwnerBadge, isOwner } from '@/components/ui/OwnerBadge';
 import { OwnerWifeRingBadge, isOwnerWife } from '@/components/ui/OwnerWifeRingBadge';
 import { StreakIndicator } from './StreakIndicator';
 import { useStreakWithUser } from '@/hooks/useStreaks';
+import { useFriendshipStatus } from '@/hooks/useFriends';
+import { openFriendProfile } from '@/lib/friendProfileRoutes';
 import { DMImageSafetyGate } from './DMImageSafetyGate';
 import { StyledUsername } from '@/components/ui/StyledUsername';
 import { useUserBusiness } from '@/hooks/useBusinessOffers';
@@ -528,6 +530,7 @@ export function ChatView() {
   
   // Get streak with the other user (for DMs)
   const streak = useStreakWithUser(!isGroupChat ? otherMember?.id : undefined);
+  const { data: dmFriendship } = useFriendshipStatus(!isGroupChat ? otherMember?.id : undefined);
   
   // Check if user has a business profile for sending offers
   const { data: userBusiness } = useUserBusiness();
@@ -1443,9 +1446,12 @@ export function ChatView() {
     if (isGroupChat) {
       setShowGroupInfo(true);
     } else if (otherMember?.username) {
-      navigate(`/u/${otherMember.username}`);
+      openFriendProfile(navigate, {
+        username: otherMember.username,
+        friendshipStatus: dmFriendship?.status ?? 'friends',
+      });
     }
-  }, [isGroupChat, otherMember?.username, navigate]);
+  }, [isGroupChat, otherMember?.username, dmFriendship?.status, navigate]);
 
   // Get chat wallpaper background class
   const getWallpaperClass = useCallback(() => {

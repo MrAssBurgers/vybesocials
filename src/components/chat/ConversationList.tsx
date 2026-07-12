@@ -34,7 +34,7 @@ import { TypingIndicator } from '@/components/ui/TypingIndicator';
 import { db } from '@/lib/firebase';
 import { useQuery } from '@tanstack/react-query';
 import { MessageCircle, Pin, Check, Users, UserPlus, Trash2, X, UserCheck, Camera, Search } from 'lucide-react';
-import { VybeMiniIcon } from '@/components/ui/VybeMiniIcon';
+import { openFriendProfile } from '@/lib/friendProfileRoutes';
 
 import { toast } from 'sonner';
 import { CreateGroupDialog } from './CreateGroupDialog';
@@ -552,7 +552,7 @@ const AcceptedFriendChatRow = memo(function AcceptedFriendChatRow({
       <button
         onClick={(e) => {
           e.stopPropagation();
-          navigate(`/u/${person.username}`);
+          openFriendProfile(navigate, { username: person.username, friendshipStatus: 'friends' });
         }}
         className="relative flex-shrink-0"
       >
@@ -1050,7 +1050,10 @@ const ConversationItem = memo(forwardRef<HTMLDivElement, ConversationItemProps>(
       if (hasStory && storyGroup && onOpenStory) {
         onOpenStory(storyGroup.user.id);
       } else {
-        navigate(`/u/${otherMember.username}`);
+        openFriendProfile(navigate, {
+          username: otherMember.username,
+          friendshipStatus: 'friends',
+        });
       }
     }
   };
@@ -1245,7 +1248,7 @@ const RecommendedFriendsSection = memo(function RecommendedFriendsSection() {
               exit={{ opacity: 0, height: 0, overflow: 'hidden' }}
               className="flex items-center gap-3 px-2 py-2 rounded-xl hover:bg-muted/40 transition-colors"
             >
-              <button onClick={() => navigate(`/u/${person.username}`)} className="flex-shrink-0">
+              <button onClick={() => openFriendProfile(navigate, { username: person.username, friendshipStatus: 'friends' })} className="flex-shrink-0">
                 <Avatar className="h-11 w-11">
                   <AvatarImage src={person.avatar_url || undefined} />
                   <AvatarFallback className="text-sm font-semibold bg-primary/10 text-primary">

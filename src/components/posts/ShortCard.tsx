@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useCallback, memo } from 'react';
 import { Link } from 'react-router-dom';
+import { ProfileLink } from '@/components/profile/ProfileLink';
 import { Heart, MessageCircle, Send as SendIcon, Bookmark, Volume2, VolumeX, Play, MoreVertical, Trash2, Flag, Eye, Pencil } from 'lucide-react';
 import { ReactionPicker } from '@/components/reactions/ReactionPicker';
 import { ReactionType } from '@/lib/reactions';
@@ -532,14 +533,14 @@ export const ShortCard = memo(function ShortCard({ post, isActive, globalMuted =
       <div className="absolute right-3 bottom-24 flex flex-col items-center gap-5 z-10">
         {/* Author avatar with follow + badge */}
         <div className="relative">
-          <Link to={`/u/${post.author.username}`}>
+          <ProfileLink userId={post.author.id} username={post.author.username}>
             <Avatar className="h-12 w-12 border-2 border-white shadow-lg">
               <AvatarImage src={signedAvatarUrl || undefined} />
               <AvatarFallback className="bg-primary text-primary-foreground font-bold">
                 {post.author.username[0]?.toUpperCase()}
               </AvatarFallback>
             </Avatar>
-          </Link>
+          </ProfileLink>
           {post.author?.id && <FollowPlusButton authorId={post.author.id} />}
         </div>
 
@@ -628,14 +629,14 @@ export const ShortCard = memo(function ShortCard({ post, isActive, globalMuted =
 
       {/* Bottom info */}
       <div className="absolute bottom-6 left-4 right-16 z-10">
-        <Link to={`/u/${post.author.username}`} className="flex items-center gap-2 mb-2">
+        <ProfileLink userId={post.author.id} username={post.author.username} className="flex items-center gap-2 mb-2">
           <span className="font-bold text-white text-sm drop-shadow-lg flex items-center gap-1">
             @{post.author.username}
             {isOwner(post.author.id) && <OwnerBadge />}
             {isOwnerWife(post.author.id) && <OwnerWifeRingBadge />}
             {authorRole === 'moderator' && <ModBadge role="moderator" />}
           </span>
-        </Link>
+        </ProfileLink>
         {post.caption && (
           <p className="text-white/90 text-sm line-clamp-2 drop-shadow-lg">{post.caption}</p>
         )}

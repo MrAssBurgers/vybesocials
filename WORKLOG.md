@@ -2,6 +2,18 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## Private Friend Profile — Phase 1 (2026-07-12)
+- **User ask:** Implement complete Private Friend Profile Phase 1 (routing, rules, CF client, UI, privacy settings)
+- **Routing:** `/friend/:username` route + `usePageTitle`; entry points retargeted via `friendProfileRoutes` / `ProfileLink` (ChatView, DmInboxView, ConversationList, VybeMap, GlobalCallOverlay, Search, PostCard, ShortCard, MobileShortCard, MutualFriends*)
+- **Backend:** Firestore rules for `friendship_pairs`, `location_requests`, `location_shares`, `profile_visibility`, `shared_content_index`, `user_safety_settings`, `user_notes`; tightened `user_live_locations`; indexes for location + shared content queries
+- **CF exports:** `friendProfile.ts` + `locationSharing.ts` from `functions/src/index.ts`; client `friendProfileClient.ts` with invoke wrappers
+- **UI:** `FriendProfile.tsx` + `src/components/friend-profile/*` (header, actions, friendship card, map, location request sheet, tabs, more menu); hooks `useFriendProfile`, `useFriendshipPair`, `useLocationShareWithFriend`, `useSharedWithFriend`, `useFriendProfileRealtime`
+- **Privacy:** `FriendProfileVisibilityCard` in Settings → Privacy (`profile_visibility` collection)
+- **Verified:** build PASS · lint PASS · 61 tests PASS (includes `friendProfileRoutes.test.ts`)
+- **Firebase deploy (vybe-daaab):** rules + indexes + 9 friend-profile CFs live
+- **You:** Lovable → sync branch → **Share → Publish** for **vybehub.app**; manual QA `/friend/:username` + location request flow
+- **Next:** Wire `indexSharedContent` from DM share actions so Shared tab auto-populates
+
 ## Challenge auto-rotation — server fix (2026-07-12)
 - **User ask:** Fix challenges not auto-generating (daily/weekly empty)
 - **Root cause:** `rotate_challenges` ran in browser; Firestore `challenges` write = admin only → silent permission-denied

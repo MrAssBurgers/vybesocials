@@ -1,5 +1,6 @@
 import { memo } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { openFriendProfile } from '@/lib/friendProfileRoutes';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
@@ -24,7 +25,7 @@ export const MutualFriendsSheet = memo(function MutualFriendsSheet({
   const createConversation = useCreateConversation();
 
   const handleProfileClick = (username: string) => {
-    navigate(`/u/${username}`);
+    openFriendProfile(navigate, { username, friendshipStatus: 'friends' });
   };
 
   const handleMessage = async (userId: string) => {

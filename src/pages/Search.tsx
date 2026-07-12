@@ -9,7 +9,7 @@ import { cn } from '@/lib/utils';
 import { db } from '@/lib/firebase';
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/lib/auth';
-import { FriendButton } from '@/components/friends/FriendButton';
+import { ProfileLink } from '@/components/profile/ProfileLink';
 import { StyledUsername } from '@/components/ui/StyledUsername';
 import { haptics } from '@/lib/haptics';
 import { useDebounce } from '@/hooks/useDebounce';
@@ -315,8 +315,9 @@ function PersonRow({ person, index }: { person: any; index: number }) {
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: Math.min(index * 0.03, 0.15), duration: 0.2 }}
     >
-      <Link
-        to={`/u/${person.username}`}
+      <ProfileLink
+        userId={person.id}
+        username={person.username}
         className="flex items-center gap-3 p-3 rounded-2xl hover:bg-card/80 transition-all active:scale-[0.98] group border-l-2 border-transparent hover:border-l-primary/30"
       >
         <Avatar className="h-12 w-12 ring-1 ring-border/30 group-hover:ring-primary/30 transition-all">
@@ -330,7 +331,7 @@ function PersonRow({ person, index }: { person: any; index: number }) {
           <p className="text-xs text-muted-foreground truncate">@{person.username}</p>
           {person.bio && <p className="text-xs text-muted-foreground/70 truncate mt-0.5">{person.bio}</p>}
         </div>
-      </Link>
+      </ProfileLink>
     </motion.div>
   );
 }

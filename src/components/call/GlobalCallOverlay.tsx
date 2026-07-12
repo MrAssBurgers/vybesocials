@@ -21,6 +21,7 @@
  */
 
 import { useEffect, useRef, useState, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Phone, PhoneOff, Video, Mic, MicOff, VideoOff, Loader2, SlidersHorizontal, RefreshCw, Minimize2, Crown, Zap, Smile } from 'lucide-react';
@@ -42,6 +43,7 @@ import { PaywallSheet } from '@/components/premium/PaywallSheet';
 import { triggerHaptic } from '@/lib/haptics';
 import { clearWarmCallMedia } from '@/lib/callMediaWarmup';
 import { stopCameraStream } from '@/hooks/useCameraPreload';
+import { openFriendProfile } from '@/lib/friendProfileRoutes';
 import {
   Room,
   RoomEvent,
@@ -102,6 +104,7 @@ function rescanRemoteTracks(
 }
 
 export function GlobalCallOverlay() {
+  const navigate = useNavigate();
   const { state, acceptCall, endCall, leaveCall, setPhase, setConnectStage, setError, dismissIncoming, timeoutIncoming, switchMode } = useCallStore();
   const { profile } = useAuth();
   const profileId = useAuthProfileId();
@@ -1194,6 +1197,14 @@ export function GlobalCallOverlay() {
   const displayAvatar = isGroupCall ? groupAvatar : otherUser?.avatar_url;
   const displayInitial = isGroupCall && groupName ? groupName.charAt(0) : (otherUser?.display_name?.charAt(0) || otherUser?.username?.charAt(0));
   const currentMode = state.call?.callMode || 'p2p';
+
+  const handleOpenCallerProfile = useCallback(() => {
+    if (isGroupCall || !otherUser?.username) return;
+    openFriendProfile(navigate, {
+      username: otherUser.username,
+      friendshipStatus: 'friends',
+    });
+  }, [isGroupCall, otherUser?.username, navigate]);
   
   const isVisible = state.phase !== 'idle';
   const isRinging = state.phase === 'ringing' && !state.call?.isInitiator;
@@ -1538,13 +1549,26 @@ export function GlobalCallOverlay() {
                     transition={{ repeat: Infinity, duration: 3, ease: 'easeInOut' }}
                     className="relative z-10"
                   >
-                    <Avatar className={`h-32 w-32 sm:h-40 sm:w-40 ring-4 ring-white/10 shadow-2xl transition-opacity duration-500 ${remoteUserLeft ? 'opacity-80' : ''}`}>
-                      <AvatarImage src={displayAvatar || undefined} />
-                      <AvatarFallback className="text-4xl sm:text-5xl bg-gradient-to-br from-primary via-purple-500 to-accent text-white font-bold">{displayInitial}</AvatarFallback>
-                    </Avatar>
+                    <button
+                      type="button"
+                      onClick={handleOpenCallerProfile}
+                      className="relative z-10 rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-white/40"
+                      aria-label="View profile"
+                    >
+                      <Avatar className={`h-32 w-32 sm:h-40 sm:w-40 ring-4 ring-white/10 shadow-2xl transition-opacity duration-500 ${remoteUserLeft ? 'opacity-80' : ''}`}>
+                        <AvatarImage src={displayAvatar || undefined} />
+                        <AvatarFallback className="text-4xl sm:text-5xl bg-gradient-to-br from-primary via-purple-500 to-accent text-white font-bold">{displayInitial}</AvatarFallback>
+                      </Avatar>
+                    </button>
                   </motion.div>
                 </div>
-                <h2 className="mt-4 sm:mt-6 text-xl sm:text-2xl font-bold text-white tracking-tight">{displayName}</h2>
+                <button
+                  type="button"
+                  onClick={handleOpenCallerProfile}
+                  className="mt-4 sm:mt-6 text-xl sm:text-2xl font-bold text-white tracking-tight hover:opacity-90"
+                >
+                  {displayName}
+                </button>
                 {!isConnected && (
                   <div className="mt-3 sm:mt-4 flex flex-col items-center">
                     <motion.p

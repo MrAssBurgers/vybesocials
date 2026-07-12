@@ -5,6 +5,7 @@ import { useAuth } from '@/lib/auth';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Users } from 'lucide-react';
+import { openFriendProfile } from '@/lib/friendProfileRoutes';
 import { useNavigate } from 'react-router-dom';
 import { MutualFriendsSheet } from './MutualFriendsSheet';
 
@@ -60,7 +61,7 @@ export const MutualFriendsDisplay = memo(function MutualFriendsDisplay({
   const { data: mutualFriends, isLoading, error } = useMutualFriendsWithUser(targetUserId);
 
   const handleProfileClick = (username: string) => {
-    navigate(`/u/${username}`);
+    openFriendProfile(navigate, { username, friendshipStatus: 'friends' });
   };
 
   // Don't show anything if user is not logged in

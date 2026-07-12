@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useCallback, memo } from 'react';
 import { Link } from 'react-router-dom';
+import { ProfileLink } from '@/components/profile/ProfileLink';
 import { Heart, MessageCircle, Send, Bookmark, Volume2, VolumeX, MoreVertical, Eye } from 'lucide-react';
 import { ReactionPicker } from '@/components/reactions/ReactionPicker';
 import { ReactionType } from '@/lib/reactions';
@@ -464,14 +465,14 @@ export const MobileShortCard = memo(function MobileShortCard({
       >
         {/* Author avatar with follow + badge */}
         <div className="relative">
-          <Link to={`/u/${post.author.username}`} className="story-ring rounded-full">
+          <ProfileLink userId={post.author.id} username={post.author.username} className="story-ring rounded-full">
             <Avatar className="h-11 w-11 sm:h-12 sm:w-12 border-2 border-background shadow-lg">
               <AvatarImage src={signedAvatarUrl || undefined} />
               <AvatarFallback className="bg-primary text-white font-bold text-sm sm:text-base">
                 {avatarInitial(post.author?.username)}
               </AvatarFallback>
             </Avatar>
-          </Link>
+          </ProfileLink>
           <FollowPlusButton authorId={post.author.id} />
         </div>
 
@@ -540,7 +541,7 @@ export const MobileShortCard = memo(function MobileShortCard({
         style={{ bottom: bottomUiOffset }}
       >
         <div className="flex items-center gap-2 mb-1.5 sm:mb-2 flex-wrap">
-          <Link to={`/u/${post.author.username}`} className="flex items-center gap-1.5 sm:gap-2">
+          <ProfileLink userId={post.author.id} username={post.author.username} className="flex items-center gap-1.5 sm:gap-2">
             {!immersiveFlow && (
               <Avatar className="h-5 w-5 sm:h-6 sm:w-6 border border-white/50">
                 <AvatarImage src={signedAvatarUrl || undefined} />
@@ -559,7 +560,7 @@ export const MobileShortCard = memo(function MobileShortCard({
             >
               @{post.author.username}
             </span>
-          </Link>
+          </ProfileLink>
           <div className="flex items-center gap-1 text-white/80 text-xs sm:text-sm">
             <Eye className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
             <span>{formatViewCount(viewCount)}</span>

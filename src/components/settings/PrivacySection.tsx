@@ -10,6 +10,7 @@ import { getUserFriendlyError } from '@/lib/errorUtils';
 import { db } from '@/lib/firebase';
 import { haptics } from '@/lib/haptics';
 import { BlockedUsersCard } from './BlockedUsersCard';
+import { FriendProfileVisibilityCard } from './FriendProfileVisibilityCard';
 import { SettingsSectionCard, SettingsPanel, SettingsToggleRow } from './SettingsUI';
 
 export function PrivacySection() {
@@ -202,7 +203,8 @@ export function PrivacySection() {
         </div>
       </SettingsSectionCard>
 
-      <BlockedUsersCard />
+        <BlockedUsersCard />
+        <FriendProfileVisibilityCard />
     </div>
   );
 }

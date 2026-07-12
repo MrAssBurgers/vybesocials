@@ -68,6 +68,11 @@ export function usePageTitle(customTitle?: string) {
       document.title = `@${username} · VYBE`;
       return;
     }
+    if (path.startsWith('/friend/')) {
+      const username = path.split('/friend/')[1];
+      document.title = `@${username} · Friend · VYBE`;
+      return;
+    }
     if (path.startsWith('/p/')) {
       document.title = 'Post · VYBE';
       return;

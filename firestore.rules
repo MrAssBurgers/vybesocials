@@ -264,8 +264,8 @@ service cloud.firestore {
     }
     // VybeMap — canonical live location (doc id = profiles.id)
     match /user_live_locations/{profileDocId} {
-      allow read: if signedIn() && resource.data.sharing_enabled == true && resource.data.is_ghost != true;
       allow read: if signedIn() && ownsProfileId(profileDocId);
+      allow read: if signedIn() && hasActiveLocationShareFrom(profileDocId);
       allow create, update: if signedIn() && ownsProfileId(profileDocId);
       allow delete: if ownsProfileId(profileDocId) || isAdmin();
     }
@@ -516,6 +516,58 @@ service cloud.firestore {
     }
     match /dismissed_profiles/{docId} {
       allow read, write: if isOwnerProfile('user_id') || willOwnProfile('user_id');
+    }
+
+    // ---------- private friend profile ----------
+    function friendshipPairDocId(a, b) {
+      return a < b ? a + '_' + b : b + '_' + a;
+    }
+    function isFriendshipPairMember() {
+      return signedIn() && (
+        ownsProfileId(resource.data.user_a) ||
+        ownsProfileId(resource.data.user_b)
+      );
+    }
+    function isLocationShareMember() {
+      return signedIn() && (
+        ownsProfileId(resource.data.sharer_id) ||
+        ownsProfileId(resource.data.viewer_id)
+      );
+    }
+    function hasActiveLocationShareFrom(sharerProfileId) {
+      let pairId = friendshipPairDocId(profileId(), sharerProfileId);
+      return signedIn() &&
+        exists(/databases/$(database)/documents/location_shares/$(pairId)) &&
+        get(/databases/$(database)/documents/location_shares/$(pairId)).data.active == true &&
+        get(/databases/$(database)/documents/location_shares/$(pairId)).data.sharer_id == sharerProfileId &&
+        get(/databases/$(database)/documents/location_shares/$(pairId)).data.viewer_id == profileId();
+    }
+    match /friendship_pairs/{pairId} {
+      allow read: if isFriendshipPairMember();
+      allow write: if false;
+    }
+    match /location_requests/{docId} {
+      allow read, write: if false;
+    }
+    match /location_shares/{pairId} {
+      allow read: if isLocationShareMember();
+      allow write: if false;
+    }
+    match /profile_visibility/{ownerId} {
+      allow read, write: if ownsProfileId(ownerId);
+    }
+    match /shared_content_index/{docId} {
+      allow read: if signedIn() && (
+        ownsProfileId(resource.data.user_a) ||
+        ownsProfileId(resource.data.user_b)
+      );
+      allow write: if false;
+    }
+    match /user_safety_settings/{docId} {
+      allow read, write: if ownsUserField('user_id') || willOwnUserField('user_id') || isAdmin();
+    }
+    match /user_notes/{docId} {
+      allow read, write: if ownsUserField('user_id') || willOwnUserField('user_id') || isAdmin();
     }
 
     // ---------- posts / comments / reactions ----------

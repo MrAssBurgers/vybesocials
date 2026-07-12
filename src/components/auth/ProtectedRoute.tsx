@@ -11,7 +11,7 @@ interface ProtectedRouteProps {
 }
 
 // Routes that guests can browse (view-only)
-const GUEST_ALLOWED_ROUTES = ['/home', '/explore', '/clips', '/shorts', '/p/', '/u/'];
+const GUEST_ALLOWED_ROUTES = ['/home', '/explore', '/clips', '/shorts', '/p/', '/u/', '/friend/'];
 
 /**
  * Wrapper component that redirects unauthenticated users to the landing page

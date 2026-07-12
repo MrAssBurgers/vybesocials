@@ -42,6 +42,8 @@ export * from './messageViews.js';
 export * from './transcribeVoice.js';
 export * from './captureEvents.js';
 export * from './challenges.js';
+export * from './friendProfile.js';
+export * from './locationSharing.js';
 
 
 /**

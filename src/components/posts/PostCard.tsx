@@ -1,6 +1,6 @@
 import { useState, useRef, memo, useCallback, useMemo, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Heart, MessageCircle, Share2, Bookmark, MoreHorizontal, Pencil, Trash2, Pin, PinOff, Flag, Volume2, VolumeX, Play, Type, BadgeCheck, Info } from 'lucide-react';
+import { ProfileLink } from '@/components/profile/ProfileLink';
 import { WhyAmISeeingThisDialog } from './WhyAmISeeingThisDialog';
 import { ReactionPicker, ReactionSummary } from '@/components/reactions/ReactionPicker';
 import { ReactionType } from '@/lib/reactions';
@@ -583,7 +583,7 @@ export const PostCard = memo(function PostCard({ post, eager = false }: PostCard
           userId={post.author.id}
           avatarUrl={post.author.avatar_url}
         >
-          <Link to={`/u/${post.author.username}`} className="flex items-center gap-3">
+          <ProfileLink userId={post.author.id} username={post.author.username} className="flex items-center gap-3">
             <div className="story-ring">
               <Avatar className="h-10 w-10 border-2 border-background">
                 <AvatarImage
@@ -621,7 +621,7 @@ export const PostCard = memo(function PostCard({ post, eager = false }: PostCard
                 @{post.author.username} · {formattedDate}
               </p>
             </div>
-          </Link>
+          </ProfileLink>
         </UserProfileHoverCard>
         <div className="flex items-center gap-1">
           <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
@@ -908,14 +908,15 @@ export const PostCard = memo(function PostCard({ post, eager = false }: PostCard
         <div className="px-4 pt-4">
           <p className="text-[15px] leading-relaxed text-foreground/95">
             <UserProfileHoverCard username={post.author.username} userId={post.author.id}>
-              <Link
-                to={`/u/${post.author.username}`}
+              <ProfileLink
+                userId={post.author.id}
+                username={post.author.username}
                 className="font-bold mr-1.5 bg-gradient-to-r from-[hsl(var(--neon-pink))] via-[hsl(var(--neon-purple))] to-[hsl(var(--neon-cyan))] bg-clip-text text-transparent hover:opacity-80 transition-opacity"
                 style={{ WebkitTextFillColor: 'transparent', color: 'hsl(var(--foreground))' }}
                 data-no-auto-contrast
               >
                 {post.author.username}
-              </Link>
+              </ProfileLink>
             </UserProfileHoverCard>
             <span className="whitespace-pre-wrap break-words">{post.caption}</span>
           </p>

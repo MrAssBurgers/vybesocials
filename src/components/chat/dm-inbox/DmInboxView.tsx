@@ -27,6 +27,7 @@ import {
 import { resolveOtherMemberFromConversation } from '@/lib/dmMemberResolve';
 import { SwipeableDmConversationRow } from './SwipeableDmConversationRow';
 import { DmInboxTabs } from './DmInboxTabs';
+import { openFriendProfile } from '@/lib/friendProfileRoutes';
 import { VybeWordmark } from '@/components/ui/VybeWordmark';
 import { Avatar, AvatarFallback, ProfileAvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
@@ -182,7 +183,7 @@ export function DmInboxView() {
           <div className="flex items-start gap-3 mb-3">
             <button
               type="button"
-              onClick={() => profile?.username && navigate(`/u/${profile.username}`)}
+              onClick={() => profile?.username && openFriendProfile(navigate, { username: profile.username, friendshipStatus: 'friends' })}
               className="shrink-0"
               aria-label="Your profile"
             >

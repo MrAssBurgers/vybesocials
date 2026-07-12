@@ -21,7 +21,7 @@ import {
   useGroupMaps, useCreateGroupMap, useGroupMemberIds,
 } from '@/hooks/vybemap/useVybeMap';
 import { FindFriendOverlay } from '@/components/vybemap/FindFriendOverlay';
-import { FriendCardSheet } from '@/components/vybemap/FriendCardSheet';
+import { openFriendProfile } from '@/lib/friendProfileRoutes';
 import { DiscoveryDrawer } from '@/components/vybemap/DiscoveryDrawer';
 import { SpotDropSheet } from '@/components/vybemap/SpotDropSheet';
 import { PlacePageSheet } from '@/components/vybemap/PlacePageSheet';
@@ -460,7 +460,7 @@ function VybeMapInner() {
               trackMapEvent('map_wave' as any, { to: sel.user_id });
             }}
             onFind={() => handleFindFriend(sel)}
-            onProfile={() => { const u = sel.profile?.username; if (u) navigate(`/u/${u}`); }}
+            onProfile={() => { const u = sel.profile?.username; if (u) openFriendProfile(navigate, { username: u, friendshipStatus: 'friends' }); }}
           />
         )}
       </AnimatePresence>
