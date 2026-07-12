@@ -8,9 +8,9 @@ Use this file as the Lovable -> Cursor handoff each session.
 - **Perf A–C:** Clips windowing, lazy ChatView, staggered route preload, vendor chunks; DM listener cap (24), RQ cache patches, lazy LiveKit; feed + thread virtualization, presence cap (30)
 - **DM inbox:** Pointer-based swipe row (no sticky Framer drag); simplified flat conversation cards
 - **Verified:** build PASS · lint PASS · 64 tests PASS
-- **Published:** `origin/main` @ **`29b947ff`**
+- **Published:** `origin/main` @ **`9d9d6168`**
 - **Firebase redeploy:** Not needed — no `functions/src`, rules, or indexes changes in this batch
-- **You:** Lovable → sync `main` @ **`29b947ff`** → **Share → Publish** for **vybehub.app**; hard-refresh; QA `/messages` swipe + long feed scroll
+- **You:** Lovable → sync `main` @ **`9d9d6168`** → **Share → Publish** for **vybehub.app**; hard-refresh; QA `/messages` swipe + long feed scroll
 
 ## DM inbox swipe + row layout revamp (2026-07-12)
 - **User ask:** Fix sticky/janky conversation swipe; simplify row layout; quick seamless-feel wins in inbox
