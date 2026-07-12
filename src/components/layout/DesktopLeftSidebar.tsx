@@ -195,7 +195,7 @@ export const DesktopLeftSidebar = memo(function DesktopLeftSidebar({ collapsed, 
             {/* Profile Link */}
             <Link 
               to={`/u/${profile.username}`} 
-              className="flex items-center gap-3 p-3 rounded-xl bg-muted/30 hover:bg-muted/50 transition-colors group"
+              className="flex items-center gap-3 p-3 rounded-xl liquid-glass-subtle border border-border/30 hover:bg-accent/10 transition-colors group"
             >
               <Avatar className="h-10 w-10 ring-2 ring-primary/20 group-hover:ring-primary/40 transition-all">
                 <ProfileAvatarImage profileId={profile.id} src={profile.avatar_url || undefined} />
@@ -218,7 +218,7 @@ export const DesktopLeftSidebar = memo(function DesktopLeftSidebar({ collapsed, 
             </Link>
             
             {/* Quick Actions */}
-            <div className="grid grid-cols-2 gap-1 p-1 rounded-xl bg-muted/30 border border-border/30">
+            <div className="grid grid-cols-2 gap-1 p-1 rounded-xl liquid-glass-subtle border border-border/30">
               <Link
                 to="/notifications"
                 onClick={triggerNavFeedback}
@@ -264,7 +264,7 @@ export const DesktopLeftSidebar = memo(function DesktopLeftSidebar({ collapsed, 
         )}
 
         {!collapsed && !profile && (
-          <div className="mx-3 mb-3 p-3 rounded-xl bg-muted/30 border border-border/30">
+          <div className="mx-3 mb-3 p-3 rounded-xl liquid-glass-subtle border border-border/30">
             <p className="text-sm text-muted-foreground text-center">{t('sidebar.notSignedIn')}</p>
           </div>
         )}
@@ -286,7 +286,7 @@ export const DesktopLeftSidebar = memo(function DesktopLeftSidebar({ collapsed, 
             </Tooltip>
             
             {/* Collapsed action buttons */}
-            <div className="flex flex-col items-center gap-0.5 p-1 rounded-xl bg-muted/30">
+            <div className="flex flex-col items-center gap-0.5 p-1 rounded-xl liquid-glass-subtle border border-border/30">
               <Tooltip delayDuration={0}>
                 <TooltipTrigger asChild>
                   <Link
@@ -427,7 +427,7 @@ export const DesktopLeftSidebar = memo(function DesktopLeftSidebar({ collapsed, 
                 )}
               </div>
             ) : (
-              <div className="p-3 rounded-xl bg-muted/30 border border-border/30 text-center">
+              <div className="p-3 rounded-xl liquid-glass-subtle border border-border/30 text-center">
                 <Users className="h-5 w-5 mx-auto text-muted-foreground mb-1" />
                 <p className="text-xs text-muted-foreground">
                   {t('sidebar.noHubs')}

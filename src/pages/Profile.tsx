@@ -13,6 +13,7 @@ import { AppLayout } from '@/components/layout/AppLayout';
 import { useAppBackground } from '@/components/layout/AppBackground';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
+import { EmptyState } from '@/components/ui/EmptyState';
 import { ClipsGrid } from '@/components/posts/ClipsGrid';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
@@ -326,7 +327,7 @@ export default function ProfilePage() {
                         transition={{ delay: idx * 0.04, duration: 0.3 }}
                         whileHover={{ scale: 1.03 }}
                         whileTap={{ scale: 0.97 }}
-                        className="aspect-square overflow-hidden bg-muted rounded-xl ring-1 ring-border/10"
+                        className="aspect-square overflow-hidden bg-muted rounded-2xl ring-1 ring-border/10"
                       >
                         {post.type === 'video' ? (
                           <>
@@ -349,7 +350,7 @@ export default function ProfilePage() {
                           </div>
                         )}
                       </motion.div>
-                      <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-4 rounded-xl">
+                      <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-4 rounded-2xl">
                         <span className="font-semibold text-foreground text-sm">❤️ {post.like_count}</span>
                         <span className="font-semibold text-foreground text-sm">💬 {post.comment_count}</span>
                       </div>
@@ -357,7 +358,7 @@ export default function ProfilePage() {
                   ))}
                 </div>
               ) : (
-                <EmptyState emoji="📷" text="No posts yet" />
+                <EmptyState emoji="📷" title="No posts yet" />
               )}
             </motion.div>
           )}
@@ -386,7 +387,7 @@ export default function ProfilePage() {
                         transition={{ delay: idx * 0.04, duration: 0.3 }}
                         whileHover={{ scale: 1.03 }}
                         whileTap={{ scale: 0.97 }}
-                        className="aspect-square overflow-hidden bg-muted rounded-xl ring-1 ring-border/10"
+                        className="aspect-square overflow-hidden bg-muted rounded-2xl ring-1 ring-border/10"
                       >
                         {post.type === 'video' || post.type === 'short' ? (
                           <>
@@ -404,7 +405,7 @@ export default function ProfilePage() {
                           <ProfileGridImage url={post.media_url} alt={post.caption || ''} />
                         )}
                       </motion.div>
-                      <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-4 rounded-xl">
+                      <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-4 rounded-2xl">
                         <span className="font-semibold text-foreground text-sm">❤️ {post.like_count}</span>
                         <span className="font-semibold text-foreground text-sm">💬 {post.comment_count}</span>
                       </div>
@@ -412,7 +413,7 @@ export default function ProfilePage() {
                   ))}
                 </div>
               ) : (
-                <EmptyState emoji="🔖" text="No saved posts yet" subtitle="Posts you save will appear here" />
+                <EmptyState emoji="🔖" title="No saved posts yet" description="Posts you save will appear here" />
               )}
             </motion.div>
           )}
@@ -448,32 +449,6 @@ export default function ProfilePage() {
 function ProfileGridImage({ url, alt }: { url: string; alt: string }) {
   const signedUrl = useSignedUrl(url);
   return <img src={signedUrl || url} alt={alt} className="w-full h-full object-cover" />;
-}
-
-function EmptyState({ emoji, text, subtitle }: { emoji: string; text: string; subtitle?: string }) {
-  const iconMap: Record<string, { icon: typeof Grid; gradient: string }> = {
-    '📷': { icon: Grid, gradient: 'from-cyan-500/20 to-blue-500/20' },
-    '🔖': { icon: Bookmark, gradient: 'from-amber-500/20 to-orange-500/20' },
-  };
-  const cfg = iconMap[emoji];
-  const Icon = cfg?.icon || Grid;
-  const gradient = cfg?.gradient || 'from-primary/20 to-accent/20';
-
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 15 }}
-      animate={{ opacity: 1, y: 0 }}
-      className="flex flex-col items-center py-14 px-4"
-    >
-      <div className={cn("w-16 h-16 rounded-2xl bg-gradient-to-br flex items-center justify-center mb-4 shadow-lg border border-border/10", gradient)}>
-        <motion.div animate={{ y: [0, -3, 0] }} transition={{ duration: 2.5, repeat: Infinity, ease: 'easeInOut' }}>
-          <Icon className="h-7 w-7 text-foreground/60" />
-        </motion.div>
-      </div>
-      <p className="text-sm font-semibold text-foreground mb-0.5">{text}</p>
-      {subtitle && <p className="text-xs text-muted-foreground">{subtitle}</p>}
-    </motion.div>
-  );
 }
 
 function NowPlayingCardWrapper({ authUserId }: { authUserId: string | null | undefined }) {

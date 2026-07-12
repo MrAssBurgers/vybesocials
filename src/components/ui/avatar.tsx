@@ -5,7 +5,8 @@ import { cn } from "@/lib/utils";
 import { transformedImage } from "@/lib/imageTransform";
 import { resolveProfileAvatarUrl } from "@/lib/profileAvatarCache";
 import { useFastSignedUrl } from "@/hooks/useFastSignedUrl";
-import { batchSignUrls } from "@/lib/signedUrlCache";
+import { batchSignUrls, getCachedSignedUrl, needsSigning } from "@/lib/signedUrlCache";
+import { normalizeMediaUrl } from "@/lib/mediaUrl";
 
 // Avatar with properly sized ring that matches the avatar container
 const Avatar = React.forwardRef<
@@ -45,7 +46,7 @@ const AvatarFallback = React.forwardRef<
     ref={ref}
     className={cn(
       "flex h-full w-full items-center justify-center rounded-full",
-      "bg-muted text-muted-foreground font-medium",
+      "bg-secondary/80 text-secondary-foreground font-medium",
       className
     )}
     {...props}
@@ -60,19 +61,25 @@ const ProfileAvatarImage = React.forwardRef<
     profileId?: string | null;
     /** Optional explicit size for storage transforms (default 128). */
     transformSize?: number;
+    /** Above-fold avatars — eager decode, no lazy delay */
+    priority?: boolean;
   }
->(({ profileId, src, className, transformSize = 128, ...props }, ref) => {
+>(({ profileId, src, className, transformSize = 128, priority = false, ...props }, ref) => {
   const resolved = React.useMemo(
     () => resolveProfileAvatarUrl(profileId, src),
     [profileId, src],
   );
   const signed = useFastSignedUrl(resolved);
+  const normalized = normalizeMediaUrl(resolved);
+  const displayRaw =
+    signed ||
+    (normalized && !needsSigning(normalized) ? normalized : getCachedSignedUrl(normalized) || normalized);
   const optimized = React.useMemo(
     () =>
-      signed
-        ? transformedImage(signed, { width: transformSize, height: transformSize })
+      displayRaw
+        ? transformedImage(displayRaw, { width: transformSize, height: transformSize, quality: 82 })
         : undefined,
-    [signed, transformSize],
+    [displayRaw, transformSize],
   );
 
   React.useEffect(() => {
@@ -83,6 +90,9 @@ const ProfileAvatarImage = React.forwardRef<
     <AvatarPrimitive.Image
       ref={ref}
       src={optimized}
+      loading={priority ? 'eager' : 'lazy'}
+      decoding={priority ? 'sync' : 'async'}
+      fetchPriority={priority ? 'high' : 'auto'}
       className={cn("aspect-square h-full w-full object-cover", className)}
       {...props}
     />

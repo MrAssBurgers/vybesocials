@@ -3,6 +3,7 @@
  */
 import { ensureBootThemeApplied } from '@/lib/bootThemeApply';
 import { kickstartThemeHydration } from '@/lib/themeHydration';
+import '@/lib/signedUrlCache';
 
 if (typeof window !== 'undefined') {
   ensureBootThemeApplied();

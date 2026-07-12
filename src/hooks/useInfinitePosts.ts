@@ -2,10 +2,11 @@ import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query';
 import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth';
 import { useEffect, useRef } from 'react';
-import { getCachedSignedUrl, needsSigning, ensureMediaUrlsReady } from '@/lib/signedUrlCache';
+import { ensureMediaUrlsReady } from '@/lib/signedUrlCache';
 import { useBlockedUserIds } from '@/hooks/useBlockedUsers';
 import { refetchFeedOnMount } from '@/lib/queryRefetchPolicy';
 import { getEffectiveProfileId } from '@/lib/profileCache';
+import { preloadFeedPostsMedia } from '@/lib/imagePreload';
 
 export interface Post {
   id: string;
@@ -74,49 +75,32 @@ function mapFeedRows(rows: unknown): Post[] {
 }
 
 /**
- * Batch pre-sign all media URLs for posts
- * This happens BEFORE rendering so images load instantly
- */
-async function presignPostMedia(posts: Post[]): Promise<void> {
-  const urls: string[] = [];
-  
-  for (const post of posts) {
-    if (post.thumbnail_url) urls.push(post.thumbnail_url);
-    if (post.media_url) urls.push(post.media_url);
-    if (post.author?.avatar_url) urls.push(post.author.avatar_url);
-  }
-  
-  // Batch sign all URLs in one go
-  await ensureMediaUrlsReady(urls);
-}
-
-/**
  * Preload images AFTER signing - uses cached signed URLs.
- * Capped to the first few posts of a page — the rest lazy-load in viewport,
- * so eager-downloading a whole page just competes for bandwidth.
+ * Capped to the first few posts of a page — the rest lazy-load in viewport.
  */
-const PRELOAD_MEDIA_CAP = 4;
+const PRELOAD_MEDIA_CAP = 12;
 
-function preloadSignedMedia(allPosts: Post[]) {
-  const posts = allPosts.slice(0, PRELOAD_MEDIA_CAP);
-  for (const post of posts) {
-    const mediaUrl = post.thumbnail_url || post.media_url;
-    if (mediaUrl) {
-      const signedUrl = getCachedSignedUrl(mediaUrl);
-      if (signedUrl && !needsSigning(signedUrl)) {
-        const img = new Image();
-        img.src = signedUrl;
-      }
-    }
-    
-    if (post.author?.avatar_url) {
-      const signedAvatar = getCachedSignedUrl(post.author.avatar_url);
-      if (signedAvatar && !needsSigning(signedAvatar)) {
-        const avatar = new Image();
-        avatar.src = signedAvatar;
-      }
-    }
-  }
+async function preparePostMedia(posts: Post[], eagerCount: number): Promise<void> {
+  if (posts.length === 0) return;
+  const eagerSlice = posts.slice(0, eagerCount);
+  await ensureMediaUrlsReady(
+    eagerSlice.flatMap((post) => [
+      post.thumbnail_url,
+      post.media_url,
+      post.author?.avatar_url,
+    ]),
+  );
+  preloadFeedPostsMedia(eagerSlice, eagerCount);
+
+  const rest = posts.slice(eagerCount);
+  if (rest.length === 0) return;
+  void ensureMediaUrlsReady(
+    rest.flatMap((post) => [
+      post.thumbnail_url,
+      post.media_url,
+      post.author?.avatar_url,
+    ]),
+  ).then(() => preloadFeedPostsMedia(rest, PRELOAD_MEDIA_CAP)).catch(() => {});
 }
 
 /** Primary ranked feed with safe fallback to the legacy posts RPC. */
@@ -205,8 +189,12 @@ export function useInfinitePosts(
         );
       }
 
-      // Non-blocking: sign and preload URLs in background so posts render instantly
-      presignPostMedia(posts).then(() => preloadSignedMedia(posts)).catch(() => {});
+      // Sign + preload above-the-fold media before paint on first page
+      if (isFirstPage && posts.length > 0) {
+        void preparePostMedia(posts, PRELOAD_MEDIA_CAP);
+      } else {
+        void preparePostMedia(posts, 0).catch(() => {});
+      }
 
       const expectedSize = isFirstPage ? INITIAL_PAGE_SIZE : PAGE_SIZE;
       return {
@@ -270,8 +258,11 @@ export function useInfiniteFollowingPosts(
         (p) => p.author?.id !== profileId && !blocked.has(p.author?.id)
       );
 
-      // Non-blocking URL signing
-      presignPostMedia(posts).then(() => preloadSignedMedia(posts)).catch(() => {});
+      if (isFirstPage && posts.length > 0) {
+        void preparePostMedia(posts, PRELOAD_MEDIA_CAP);
+      } else {
+        void preparePostMedia(posts, 0).catch(() => {});
+      }
 
       const expectedSize = isFirstPage ? INITIAL_PAGE_SIZE : PAGE_SIZE;
       return {
@@ -343,7 +334,7 @@ export function usePrefetchPosts() {
         } as any);
         const posts = mapFeedRows(data);
         if (posts.length > 0) {
-          presignPostMedia(posts).then(() => preloadSignedMedia(posts)).catch(() => {});
+          await preparePostMedia(posts, PRELOAD_MEDIA_CAP);
           queryClient.setQueryData(personalizedKey, {
             pages: [{ posts, nextPage: posts.length >= INITIAL_PAGE_SIZE ? 1 : null }],
             pageParams: [0],
@@ -361,7 +352,7 @@ export function usePrefetchPosts() {
         let posts = mapFeedRows(data);
         posts = posts.filter((p) => p.author?.id !== profileId);
         if (posts.length > 0) {
-          presignPostMedia(posts).then(() => preloadSignedMedia(posts)).catch(() => {});
+          await preparePostMedia(posts, PRELOAD_MEDIA_CAP);
           queryClient.setQueryData(followingKey, {
             pages: [{ posts, nextPage: posts.length >= INITIAL_PAGE_SIZE ? 1 : null }],
             pageParams: [0],
@@ -412,13 +403,21 @@ export function usePersonalizedFeed(
           return { posts: [], nextPage: null };
         }
         const posts = mapFeedRows(data);
-        presignPostMedia(posts).then(() => preloadSignedMedia(posts)).catch(() => {});
+        if (pageParam === 0 && posts.length > 0) {
+          void preparePostMedia(posts, PRELOAD_MEDIA_CAP);
+        } else {
+          void preparePostMedia(posts, 0).catch(() => {});
+        }
         return { posts, nextPage: posts.length >= limit ? pageParam + 1 : null };
       }
 
       const posts = await fetchPersonalizedPosts(profileId, type, offset, limit, blocked);
 
-      presignPostMedia(posts).then(() => preloadSignedMedia(posts)).catch(() => {});
+      if (pageParam === 0 && posts.length > 0) {
+        void preparePostMedia(posts, PRELOAD_MEDIA_CAP);
+      } else {
+        void preparePostMedia(posts, 0).catch(() => {});
+      }
 
       return { posts, nextPage: posts.length >= limit ? pageParam + 1 : null };
     },

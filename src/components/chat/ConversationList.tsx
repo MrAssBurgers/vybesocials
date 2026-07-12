@@ -1,3 +1,7 @@
+/**
+ * @deprecated Unrouted legacy inbox — use DmInboxView instead.
+ * Kept for reference; groups/streaks/row presence ported to dm-inbox/.
+ */
 import { useState, useEffect, useMemo, memo, useCallback, useRef, forwardRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';

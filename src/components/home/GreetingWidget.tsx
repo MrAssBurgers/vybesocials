@@ -57,10 +57,10 @@ export function GreetingWidget() {
     return (
       <div className="home-hero relative mx-3 mb-1 overflow-hidden rounded-3xl px-4 py-5">
         <div className="flex items-center gap-4">
-          <Skeleton className="h-14 w-14 rounded-full shrink-0 animate-pulse" />
+          <Skeleton className="h-14 w-14 rounded-full shrink-0" animate={false} />
           <div className="flex-1 space-y-2">
-            <Skeleton className="h-5 w-36 animate-pulse" />
-            <p className="text-xs text-muted-foreground">Loading your profile…</p>
+            <Skeleton className="h-5 w-36" animate={false} />
+            <Skeleton className="h-4 w-28" animate={false} />
           </div>
         </div>
       </div>

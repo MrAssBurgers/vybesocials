@@ -1,4 +1,4 @@
-import { forwardRef, memo, useState, useEffect } from 'react';
+import { forwardRef, memo } from 'react';
 import { cn } from '@/lib/utils';
 
 interface MediaFallbackProps {
@@ -11,36 +11,37 @@ interface MediaFallbackProps {
 
 /**
  * Fallback component for failed/missing media
- * Now shows a subtle gradient instead of a broken placeholder icon
+ * Theme-tinted glass gradient — no flat gray slabs
  */
 export const MediaFallback = memo(forwardRef<HTMLDivElement, MediaFallbackProps>(
   function MediaFallback({ type = 'image', caption, className, subtle = true }, ref) {
-    // By default, show a subtle gradient that blends in rather than a broken icon
     if (subtle) {
       return (
         <div 
           ref={ref}
           className={cn(
-            "w-full h-full bg-gradient-to-br from-muted/80 via-muted/60 to-muted/40",
+            "w-full h-full bg-gradient-to-br from-primary/8 via-card/55 to-accent/6",
+            "backdrop-blur-sm border border-foreground/[0.04]",
             "flex items-end justify-start p-4",
             className
           )}
         >
           {caption && (
             <p className="text-sm text-muted-foreground/80 line-clamp-2 max-w-full">
-              ✨ {caption}
+              {caption}
             </p>
           )}
         </div>
       );
     }
     
-    // Explicit fallback style (only when subtle=false)
     return (
       <div 
         ref={ref}
         className={cn(
-          "w-full h-full flex flex-col items-center justify-center bg-muted/30 text-muted-foreground/50",
+          "w-full h-full flex flex-col items-center justify-center",
+          "bg-gradient-to-br from-card/70 via-muted/30 to-card/50 backdrop-blur-md",
+          "text-muted-foreground/50",
           className
         )}
       >
@@ -64,13 +65,12 @@ export const MediaSkeleton = memo(forwardRef<HTMLDivElement, MediaSkeletonProps>
       <div 
         ref={ref}
         className={cn(
-          "w-full h-full bg-muted/50 relative overflow-hidden",
+          "w-full h-full bg-gradient-to-br from-card/40 via-muted/25 to-card/30 relative overflow-hidden",
           className
         )}
       >
-        {/* Shimmer effect - better perceived loading */}
         <div 
-          className="absolute inset-0 -translate-x-full animate-shimmer bg-gradient-to-r from-transparent via-white/5 to-transparent"
+          className="absolute inset-0 -translate-x-full media-shimmer bg-gradient-to-r from-transparent via-foreground/[0.06] to-transparent"
           style={{ animationDuration: '1.5s' }}
         />
       </div>

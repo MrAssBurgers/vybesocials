@@ -286,7 +286,7 @@ const skipInitialSplash = shouldSkipInitialSplash();
 let hasInitialLoadCompleted = skipInitialSplash || readSplashCompleted();
 let splashDismissed = skipInitialSplash;
 const splashShownAt = typeof performance !== 'undefined' ? performance.now() : Date.now();
-const MIN_SPLASH_MS = 650;
+const MIN_SPLASH_MS = 280;
 
 function completeInitialSplash(setShowSplash: (v: boolean) => void) {
   if (splashDismissed) return;
@@ -310,7 +310,7 @@ function completeInitialSplash(setShowSplash: (v: boolean) => void) {
   const elapsed = (typeof performance !== 'undefined' ? performance.now() : Date.now()) - splashShownAt;
   const holdMs = Math.max(0, MIN_SPLASH_MS - elapsed);
   window.setTimeout(() => {
-    window.setTimeout(finish, isNativePerfMode() ? 120 : 160);
+    window.setTimeout(finish, isNativePerfMode() ? 80 : 100);
   }, holdMs);
 }
 

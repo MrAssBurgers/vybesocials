@@ -9,7 +9,7 @@ export interface CameraGestureOptions {
   onOpenGallery: () => void;
   onOpenMemories?: () => void;
   onFilterSwipe: (direction: -1 | 1) => void;
-  onDoubleTapFlip: (e: React.MouseEvent) => void;
+  onDoubleTapFlip: (e?: { stopPropagation?: () => void; preventDefault?: () => void }) => boolean | void;
   disabled?: boolean;
 }
 
@@ -75,7 +75,14 @@ export function useCameraGestures({
         const diffX = end.clientX - startX;
         const diffY = end.clientY - startY;
 
-        if (locked === 'vertical') {
+        const moved = Math.hypot(diffX, diffY);
+
+        if (locked === 'none' && moved < 24 && endE.touches.length === 0) {
+          onDoubleTapFlip({
+            stopPropagation: () => endE.stopPropagation(),
+            preventDefault: () => endE.preventDefault(),
+          });
+        } else if (locked === 'vertical') {
           if (diffY < -70) {
             triggerHaptic('light');
             onOpenGallery();
@@ -100,7 +107,7 @@ export function useCameraGestures({
       document.addEventListener('touchmove', handleTouchMove, { passive: false });
       document.addEventListener('touchend', handleTouchEnd);
     },
-    [disabled, onClose, onFilterSwipe, onOpenGallery, onOpenMemories, pinchEnd, pinchMove],
+    [disabled, onClose, onDoubleTapFlip, onFilterSwipe, onOpenGallery, onOpenMemories, pinchEnd, pinchMove],
   );
 
   const onViewfinderClick = useCallback(

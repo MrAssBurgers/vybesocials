@@ -97,6 +97,24 @@ Special senders still upload media locally, then call `insertDmMessage()`:
 6. **Permission edge** — New DM thread first message succeeds (cloud fallback if rules lag).
 7. **Typing / presence** — Separate from messaging; should not block send.
 
+## Phase 1 DM extensions (2026-07-12)
+
+Additional Firestore collections (rules + indexes in repo):
+
+| Collection | Purpose |
+|------------|---------|
+| `scheduled_messages` | Client schedules; CF `processDueScheduledMessages` delivers |
+| `locked_chats` | Per-user lock metadata; `LockedChatGate` on web |
+| `dm_reminders` | Follow-up reminders (`useDmReminders`) |
+| `message_transcripts` | Voice transcription status + text |
+| `message_media_rules` | Optional access policy doc per message |
+| `screenshot_notifications` | Capture notification fan-out |
+| `capture_events` | Extended with `event_key` dedupe; CF `onCaptureEventCreated` |
+
+Cloud Functions: `onMessageViewCreated`, `transcribeVoiceMessage`, `processDueScheduledMessages`, `onCaptureEventCreated`.
+
+Active inbox UI: `DmInboxView` + `dm-inbox/` (not `ConversationList.tsx`).
+
 ## Phase 2+ (not in scope)
 
 - Message subcollections migration

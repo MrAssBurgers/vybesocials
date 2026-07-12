@@ -24,11 +24,12 @@ import {
   SharedTheme
 } from '@/hooks/useSharedThemes';
 import { useImportThemeCode } from '@/hooks/useUISettings';
-import { equipTheme } from '@/hooks/useCustomTheme';
+import { persistEquippedUserTheme } from '@/hooks/useCustomTheme';
 import { useThemeTransition } from '@/providers/ThemeTransitionProvider';
 import { useTheme } from '@/lib/theme';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
+import { useQueryClient } from '@tanstack/react-query';
 
 
 const CATEGORIES = [
@@ -184,7 +185,8 @@ const ThemeCard = memo(function ThemeCard({
 export const ThemeMarketplace = memo(function ThemeMarketplace() {
   const { triggerTransition } = useThemeTransition();
   const { setTheme: setGlobalTheme } = useTheme();
-  const { profile } = useAuth();
+  const { profile, user } = useAuth();
+  const queryClient = useQueryClient();
   
   // Data hooks
   const [searchQuery, setSearchQuery] = useState('');
@@ -249,7 +251,14 @@ export const ThemeMarketplace = memo(function ThemeMarketplace() {
         try {
           const targetMode = tokens.mode === 'light' ? 'light' : 'dark';
           setGlobalTheme(targetMode);
-          equipTheme(tokens, { themeId: theme.id });
+          persistEquippedUserTheme(tokens, {
+            themeId: theme.id,
+            queryClient,
+            userId: user?.id,
+            basePreset: 'shared',
+            themeName: theme.theme_name,
+            silent: true,
+          });
           setActiveThemeId(theme.id);
           toast.success(`Theme "${theme.theme_name}" equipped!`);
         } catch (error) {
@@ -257,7 +266,7 @@ export const ThemeMarketplace = memo(function ThemeMarketplace() {
         }
       }
     );
-  }, [triggerTransition, setGlobalTheme]);
+  }, [triggerTransition, setGlobalTheme, queryClient, user?.id]);
 
 
   // Import theme by code

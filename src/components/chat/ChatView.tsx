@@ -117,8 +117,10 @@ import {
   Pencil,
   Sticker,
   Download,
-  Bookmark
+  Bookmark,
+  Search,
 } from 'lucide-react';
+import { format } from 'date-fns';
 import { Toybox } from './Toybox';
 import { EmojiPicker } from './EmojiPicker';
 import { openCameraFromGesture, useCameraOverlay } from '@/contexts/CameraOverlayContext';
@@ -134,7 +136,13 @@ import { VideoBubble } from './VideoBubble';
 import { VideoMessageViewer } from './VideoMessageViewer';
 import { SharedPostBubble } from './SharedPostBubble';
 import { SharedThemeMessageBubble } from '@/components/messages/bubbles/SharedThemeMessageBubble';
-import { format, isToday, isYesterday } from 'date-fns';
+import { formatMessageDate } from './chat-view/formatMessageDate';
+import { ChatComposer as MessageInputArea } from './chat-view/ChatComposer';
+import { ChatSearchSheet } from './ChatSearchSheet';
+import { CaptureAlertPopup } from './CaptureAlertPopup';
+import { buildCaptureEventKey, mapLegacyCaptureType, severityForEventType } from '@/lib/ScreenshotDetectionService';
+import type { CaptureAlertPayload } from '@/lib/ScreenshotDetectionService';
+import { blendDmThemes, type DmThemeMode } from '@/lib/dmThemeBlend';
 import { cn } from '@/lib/utils';
 import { ensureArray, safeDmMembers } from '@/lib/persistedCollections';
 import { saveElementScrollPosition, restoreElementScrollPosition } from '@/lib/scrollMemory';
@@ -282,7 +290,23 @@ export function ChatView() {
   // v1.1: AI Smart Replies
   const { suggestions: smartReplies, generateReplies, clearSuggestions } = useAISmartReplies();
   
-  const { settings } = useDMSettings(conversationId);
+  const { settings, partnerSettings } = useDMSettings(conversationId);
+  const blendedTheme = useMemo(() => {
+    const mode = (settings.theme_mode as DmThemeMode) || 'default';
+    const mine = {
+      primary: '262 83% 58%',
+      secondary: '280 60% 45%',
+      accent: '320 70% 55%',
+      background: '0 0% 7%',
+    };
+    const theirs = {
+      primary: '200 80% 50%',
+      secondary: '210 40% 40%',
+      accent: '190 70% 45%',
+      background: '0 0% 7%',
+    };
+    return blendDmThemes(mine, theirs, mode);
+  }, [settings.theme_mode]);
   const conversationSafety = useConversationSafety(conversationId);
 
   // Compute the latest time the other user read any of our messages
@@ -337,6 +361,25 @@ export function ChatView() {
       localStorage.setItem('vybe-dm-view-mode', viewMode);
     } catch { /* ignore */ }
   }, [viewMode]);
+
+  const captureAlerts = useMemo((): CaptureAlertPayload[] => {
+    return screenshotEvents.map((evt) => {
+      const ts = new Date(evt.timestamp).getTime();
+      const eventType = mapLegacyCaptureType(isRecording ? 'screen_record' : 'screenshot', {
+        isDisappearingMedia: viewMode === 'view_once' || viewMode === 'replay_once',
+      });
+      return {
+        eventType,
+        severity: severityForEventType(eventType),
+        conversationId,
+        capturedByDisplayName: evt.username,
+        timestamp: ts,
+        platform: typeof navigator !== 'undefined' ? navigator.platform : 'web',
+        confidence: 'medium' as const,
+      };
+    });
+  }, [screenshotEvents, conversationId, isRecording, viewMode]);
+
   const [showViewModeMenu, setShowViewModeMenu] = useState(false);
   const [isRecordingVoice, setIsRecordingVoice] = useState(false);
   const [isVoiceLocked, setIsVoiceLocked] = useState(false);
@@ -354,6 +397,7 @@ export function ChatView() {
   const [showMemoryPins, setShowMemoryPins] = useState(false);
   const [showScheduleMessage, setShowScheduleMessage] = useState(false);
   const [showDMSettings, setShowDMSettings] = useState(false);
+  const [showChatSearch, setShowChatSearch] = useState(false);
   const [showGroupInfo, setShowGroupInfo] = useState(false);
   const [showMediaSettings, setShowMediaSettings] = useState(false);
   const [showAdminPanel, setShowAdminPanel] = useState(false);
@@ -1455,7 +1499,12 @@ export function ChatView() {
     <div
       id={CHAT_SHIELD_ROOT_ID}
       className="flex flex-col h-full min-h-0 dm-chat-shell relative overflow-hidden"
-      style={{ touchAction: 'pan-y' }}
+      style={{
+        touchAction: 'pan-y',
+        ...(blendedTheme.wallpaper
+          ? ({ ['--dm-chat-wallpaper' as string]: blendedTheme.wallpaper } as React.CSSProperties)
+          : {}),
+      }}
     >
       {/* DM Image Safety Gate */}
       <AnimatePresence>
@@ -1482,15 +1531,14 @@ export function ChatView() {
         )}
       </AnimatePresence>
 
-      {/* Screenshot alert popup */}
-      <AnimatePresence>
-        {screenshotEvents.length > 0 && (
-          <ScreenshotAlert
-            username={screenshotEvents[screenshotEvents.length - 1]?.username}
-          />
-        )}
-      </AnimatePresence>
+      {/* Capture alert popup */}
+      <CaptureAlertPopup alerts={captureAlerts} />
 
+      <ChatSearchSheet
+        open={showChatSearch}
+        onOpenChange={setShowChatSearch}
+        conversationId={conversationId}
+      />
 
       {/* Floating pill header — back + profile left, calls + menu right */}
       <header
@@ -1600,6 +1648,15 @@ export function ChatView() {
           </div>
 
           <div className="dm-chat-header-pill dm-chat-header-pill--actions">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setShowChatSearch(true)}
+              className="flex-shrink-0 h-8 w-8 rounded-full hover:bg-white/10"
+              aria-label="Search in chat"
+            >
+              <Search className="h-4 w-4" />
+            </Button>
             {!isGroupChat && otherMember?.id && (
               <CallButtons
                 conversationId={conversationId!}
@@ -2193,253 +2250,7 @@ export function ChatView() {
   );
 }
 
-// Extracted MessageInputArea component for reuse
-const MessageInputArea = memo(function MessageInputArea({
-  hasText,
-  getMessageText,
-  appendToInput,
-  viewMode,
-  showViewModeMenu,
-  setShowViewModeMenu,
-  isRecordingVoice,
-  isUploadingMedia,
-  replyingTo,
-  isPending,
-  inputRef,
-  inputContainerRef,
-  fileInputRef,
-  handleInputChange,
-  handleKeyPress,
-  handleSend,
-  handleImageSelect,
-  handleVideoSelect,
-  handleVoiceRecordingComplete,
-  sendMediaMessage,
-  setViewMode,
-  setIsRecordingVoice,
-  onLiveRecordingChange,
-  clearReply,
-  t,
-  onOpenVanishThreads,
-  onOpenMemoryPins,
-  onOpenScheduleMessage,
-  onOpenDMSettings,
-  onOpenAdminPanel,
-  onOpenSnapCamera,
-  onCreateOffer,
-  hasBusinessProfile,
-  presentUsers,
-  typingUserIds,
-  editingMessageId,
-  onCancelEdit,
-  showStickerPanel,
-  setShowStickerPanel,
-  onSendSticker,
-  isVoiceLocked,
-  setIsVoiceLocked,
-  voiceLockStartYRef,
-  safetyFilterNode,
-  messagesEndRef,
-  messagesContainerRef,
-  presenceSlot,
-}: {
-  hasText: boolean;
-  getMessageText: () => string;
-  appendToInput: (s: string) => void;
-  viewMode: ViewMode;
-  showViewModeMenu: boolean;
-  setShowViewModeMenu: (open: boolean) => void;
-  isRecordingVoice: boolean;
-  isUploadingMedia: boolean;
-  replyingTo: Message | null;
-  isPending: boolean;
-  inputRef: React.RefObject<HTMLTextAreaElement>;
-  inputContainerRef: React.RefObject<HTMLDivElement>;
-  fileInputRef: React.RefObject<HTMLInputElement>;
-  handleInputChange: (value: string) => void;
-  handleKeyPress: (e: React.KeyboardEvent) => void;
-  handleSend: () => void;
-  handleImageSelect: (e: React.ChangeEvent<HTMLInputElement>) => void;
-  handleVideoSelect: (file: File) => void;
-  handleVoiceRecordingComplete: (blob: Blob) => void;
-  sendMediaMessage: (mediaUrl: string, mediaType: string) => Promise<void>;
-  setViewMode: (mode: ViewMode) => void;
-  setIsRecordingVoice: (recording: boolean) => void;
-  onLiveRecordingChange?: (recording: boolean) => void;
-  clearReply: () => void;
-  t: (key: string) => string;
-  onOpenVanishThreads?: () => void;
-  onOpenMemoryPins?: () => void;
-  onOpenScheduleMessage?: () => void;
-  onOpenDMSettings?: () => void;
-  onOpenAdminPanel?: () => void;
-  onOpenSnapCamera?: () => void;
-  onCreateOffer?: () => void;
-  hasBusinessProfile?: boolean;
-  presentUsers?: { user_id: string; username: string; avatar_url: string | null; display_name: string | null; is_typing: boolean }[];
-  typingUserIds?: string[];
-  editingMessageId?: string | null;
-  onCancelEdit?: () => void;
-  showStickerPanel?: boolean;
-  setShowStickerPanel?: (open: boolean) => void;
-  onSendSticker?: (imageUrl: string) => void;
-  isVoiceLocked?: boolean;
-  setIsVoiceLocked?: (locked: boolean) => void;
-  voiceLockStartYRef?: React.MutableRefObject<number | null>;
-  safetyFilterNode?: React.ReactNode;
-  messagesEndRef?: React.RefObject<HTMLElement | null>;
-  messagesContainerRef?: React.RefObject<HTMLElement | null>;
-  presenceSlot?: React.ReactNode;
-}) {
-  const messageScrollerRef = messagesContainerRef;
-  const headerSlot = (
-    <>
-      {editingMessageId && (
-        <div className="flex items-center gap-2 px-2 py-1.5 mb-2 bg-primary/10 rounded-xl border-l-2 border-primary">
-          <Pencil className="h-3.5 w-3.5 text-primary flex-shrink-0" />
-          <p className="text-[11px] text-primary font-medium flex-1">Editing message</p>
-          <Button variant="ghost" size="icon" className="h-6 w-6" onClick={onCancelEdit}>
-            <X className="h-3 w-3" />
-          </Button>
-        </div>
-      )}
-      {replyingTo && (
-        <div className="flex items-center gap-2 px-2 py-1.5 mb-2 bg-muted/40 rounded-xl border-l-2 border-primary/80">
-          <CornerUpLeft className="h-3.5 w-3.5 text-primary flex-shrink-0" />
-          <div className="flex-1 min-w-0">
-            <p className="text-[11px] text-primary font-medium">
-              Replying to {replyingTo.sender?.username || 'message'}
-            </p>
-            <p className="text-[10px] text-muted-foreground truncate">
-              {replyingTo.content || (replyingTo.media_type === 'image' ? '📷 Photo' : '🎤 Voice message')}
-            </p>
-          </div>
-          <Button variant="ghost" size="icon" className="h-6 w-6" onClick={clearReply}>
-            <X className="h-3 w-3" />
-          </Button>
-        </div>
-      )}
-    </>
-  );
-
-  return (
-    <>
-      {presenceSlot ? (
-        <div className="dm-presence-above-composer">{presenceSlot}</div>
-      ) : null}
-      <div className="dm-composer-dock vybe-chat-composer relative flex-shrink-0 z-30">
-        {onSendSticker && showStickerPanel && setShowStickerPanel && (
-          <StickerPanel
-            open={showStickerPanel}
-            onClose={() => setShowStickerPanel(false)}
-            onSendSticker={onSendSticker}
-          />
-        )}
-
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept="image/*"
-          onChange={handleImageSelect}
-          className="hidden"
-        />
-
-        <Texter
-          hasText={hasText}
-          getMessageText={getMessageText}
-          appendToInput={appendToInput}
-          inputRef={inputRef}
-          onChange={handleInputChange}
-          onKeyDown={handleKeyPress}
-          onSend={handleSend}
-          onFocus={() => {
-            if (shouldTrackSoftKeyboard()) {
-              window.setTimeout(() => {
-                const scroller = messageScrollerRef?.current;
-                if (scroller) {
-                  scroller.scrollTop = scroller.scrollHeight;
-                }
-              }, 120);
-            }
-          }}
-          isPending={isPending}
-          isUploadingMedia={isUploadingMedia}
-          placeholder={t('messages.typeMessage')}
-          headerSlot={headerSlot}
-          onOpenVybeSnap={onOpenSnapCamera}
-          isRecordingVoice={isRecordingVoice}
-          isVoiceLocked={isVoiceLocked}
-          onVoiceHoldStart={() => {
-            if (voiceLockStartYRef) voiceLockStartYRef.current = null;
-            setIsRecordingVoice(true);
-            setIsVoiceLocked?.(false);
-            onLiveRecordingChange?.(true);
-          }}
-          onVoiceHoldEnd={() => {
-            if (isVoiceLocked) return;
-            const stop = (window as Window & { __voiceRecorderStop?: () => void }).__voiceRecorderStop;
-            stop?.();
-          }}
-          onVoiceHoldCancel={() => {
-            setIsRecordingVoice(false);
-            setIsVoiceLocked?.(false);
-            onLiveRecordingChange?.(false);
-          }}
-          onVoiceHoldMove={(clientX, clientY) => {
-            if (!isRecordingVoice || isVoiceLocked || !voiceLockStartYRef) return;
-            if (voiceLockStartYRef.current == null) voiceLockStartYRef.current = clientY;
-            const dy = voiceLockStartYRef.current - clientY;
-            if (dy > 48) {
-              setIsVoiceLocked?.(true);
-              voiceLockStartYRef.current = null;
-            }
-          }}
-          onVoiceRecordingComplete={(blob) => {
-            setIsRecordingVoice(false);
-            setIsVoiceLocked?.(false);
-            onLiveRecordingChange?.(false);
-            handleVoiceRecordingComplete(blob);
-          }}
-          onVoiceRecordingCancel={() => {
-            setIsRecordingVoice(false);
-            setIsVoiceLocked?.(false);
-            onLiveRecordingChange?.(false);
-          }}
-          toyboxProps={{
-            onImageSelect: async (file) => {
-              const dt = new DataTransfer();
-              dt.items.add(file);
-              handleImageSelect({ target: { files: dt.files } } as React.ChangeEvent<HTMLInputElement>);
-            },
-            onVideoSelect: handleVideoSelect,
-            onGifSelect: async (gifUrl) => {
-              await sendMediaMessage(gifUrl, 'gif');
-            },
-            onVoiceStart: () => {
-              setIsRecordingVoice(true);
-              onLiveRecordingChange?.(true);
-            },
-            onEmojiSelect: (emoji) => {
-              appendToInput(emoji);
-              inputRef.current?.focus();
-            },
-            isUploading: isUploadingMedia,
-            onOpenVanishThreads,
-            onOpenMemoryPins,
-            onOpenScheduleMessage,
-            onOpenDMSettings,
-            onOpenAdminPanel,
-            onOpenVybeCamera: onOpenSnapCamera,
-            onCreateOffer,
-            hasBusinessProfile,
-            safetyFilterNode,
-            triggerClassName: 'texter-icon-btn texter-icon-btn--tool',
-          }}
-        />
-      </div>
-    </>
-  );
-});
+// MessageInputArea lives in ./chat-view/ChatComposer.tsx (imported as MessageInputArea)
 
 // Signed avatar for message bubbles (storage URLs need signing)
 const BubbleAvatar = memo(function BubbleAvatar({
@@ -2951,7 +2762,7 @@ const MessageBubble = memo(function MessageBubble({
           {/* Voice notes */}
           {isAudioMessage && (
             <SignedAudioUrl mediaUrl={message.media_url!}>
-              {(url) => url ? <AudioMessage src={url} isOwn={isOwn} /> : <Skeleton className="h-14 w-[220px] rounded-[22px]" />}
+              {(url) => url ? <AudioMessage src={url} isOwn={isOwn} messageId={message.id} /> : <Skeleton className="h-14 w-[220px] rounded-[22px]" />}
             </SignedAudioUrl>
           )}
 
@@ -3183,15 +2994,5 @@ const MessageBubble = memo(function MessageBubble({
   );
 });
 
-function formatMessageDate(dateStr: string): string {
-  const date = new Date(dateStr);
-  if (isToday(date)) {
-    return format(date, 'HH:mm');
-  } else if (isYesterday(date)) {
-    return `Yesterday ${format(date, 'HH:mm')}`;
-  }
-  return format(date, 'MMM d, HH:mm');
-}
-
-// Optimistic messages are now embedded directly in the messages cache
+// formatMessageDate → ./chat-view/formatMessageDate.ts
 // The OptimisticMessageBubble component is no longer needed

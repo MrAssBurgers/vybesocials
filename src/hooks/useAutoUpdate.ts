@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { isDespiaRuntime } from '@/lib/despiaBridge';
 import { isNativePlatform } from '@/lib/capacitor';
+import { signalAppUpdate, APP_UPDATE_RELOAD_DELAY_MS } from '@/lib/appUpdateBridge';
 
 export function useAutoUpdate() {
   const hasChecked = useRef(false);
@@ -40,17 +41,17 @@ export function useAutoUpdate() {
             new: newVersion
           });
           
-          // Mark that we've reloaded to prevent loop
           sessionStorage.setItem('app-reloaded', 'true');
           sessionStorage.setItem('app-version', newVersion);
           
-          // Clear cache and reload
+          signalAppUpdate();
+
           if ('caches' in window) {
             const cacheNames = await caches.keys();
             await Promise.all(cacheNames.map(name => caches.delete(name)));
           }
           
-          window.location.reload();
+          window.setTimeout(() => window.location.reload(), APP_UPDATE_RELOAD_DELAY_MS);
           return;
         }
         

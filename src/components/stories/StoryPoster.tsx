@@ -15,6 +15,7 @@ interface StoryPosterProps {
   fallbackInitial?: string;
   /** Uploader's equipped theme — animated ring uses this, not the viewer theme. */
   themeGradient?: string | null;
+  priority?: boolean;
   children?: React.ReactNode;
 }
 
@@ -35,9 +36,13 @@ export const StoryPoster = memo(function StoryPoster({
   posterUrl,
   fallbackInitial,
   themeGradient,
+  priority = false,
   children,
 }: StoryPosterProps) {
 
+  const imgLoading = priority ? 'eager' : 'lazy';
+  const imgDecoding = priority ? 'sync' : 'async';
+  const imgFetchPriority = priority ? 'high' : 'auto';
   const ringGradient = storyRingGradient(themeGradient ?? null);
   const coverGradient = storyCoverGradient(themeGradient ?? null);
 
@@ -122,11 +127,16 @@ export const StoryPoster = memo(function StoryPoster({
               src={posterUrl}
               alt=""
               className="h-full w-full object-cover scale-110 blur-2xl opacity-20"
-              loading="lazy"
+              loading={imgLoading}
+              decoding={imgDecoding}
+              fetchPriority={imgFetchPriority}
               draggable={false}
             />
           ) : (
-            <div className="flex h-full w-full items-center justify-center bg-muted/30 text-lg font-semibold text-white/80">
+            <div
+              className="flex h-full w-full items-center justify-center text-lg font-semibold text-white/80"
+              style={{ background: coverGradient }}
+            >
               {fallbackInitial?.charAt(0).toUpperCase() || '?'}
             </div>
           )}
@@ -156,11 +166,16 @@ export const StoryPoster = memo(function StoryPoster({
             src={posterUrl}
             alt=""
             className="h-full w-full object-cover"
-            loading="lazy"
+            loading={imgLoading}
+            decoding={imgDecoding}
+            fetchPriority={imgFetchPriority}
             draggable={false}
           />
         ) : (
-          <div className="flex h-full w-full items-center justify-center bg-muted text-lg font-semibold text-muted-foreground">
+          <div
+            className="flex h-full w-full items-center justify-center text-lg font-semibold text-white/90"
+            style={{ background: coverGradient }}
+          >
             {fallbackInitial?.charAt(0).toUpperCase() || '?'}
           </div>
         )}

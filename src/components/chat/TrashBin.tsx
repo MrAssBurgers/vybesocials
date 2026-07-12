@@ -33,6 +33,8 @@ import {
 import { Trash2, RotateCcw, Users, Clock, AlertTriangle } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { cn } from '@/lib/utils';
+import { Skeleton } from '@/components/ui/skeleton';
+import { EmptyState } from '@/components/ui/EmptyState';
 
 interface TrashBinProps {
   open?: boolean;
@@ -110,19 +112,16 @@ export function TrashBin({ open, onOpenChange, trigger }: TrashBinProps) {
             {isLoading ? (
               <div className="p-4 space-y-3">
                 {[1, 2, 3].map((i) => (
-                  <div key={i} className="h-16 bg-muted/50 rounded-xl animate-pulse" />
+                  <Skeleton key={i} className="h-16 rounded-xl" animate={false} />
                 ))}
               </div>
             ) : trashedConversations.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-16 text-center px-4">
-                <div className="w-16 h-16 rounded-full bg-muted/50 flex items-center justify-center mb-4">
-                  <Trash2 className="h-8 w-8 text-muted-foreground" />
-                </div>
-                <h3 className="font-semibold mb-1">Trash is empty</h3>
-                <p className="text-sm text-muted-foreground">
-                  Deleted chats will appear here
-                </p>
-              </div>
+              <EmptyState
+                icon={<Trash2 className="h-8 w-8" />}
+                title="Trash is empty"
+                description="Deleted chats will appear here"
+                className="py-12"
+              />
             ) : (
               <div className="p-3 space-y-2">
                 <AnimatePresence mode="popLayout">

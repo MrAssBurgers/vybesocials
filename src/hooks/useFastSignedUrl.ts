@@ -9,6 +9,18 @@ import { getCachedSignedUrl, getSignedUrl, needsSigning, batchSignUrls } from '@
 import { firebaseStorageNeedsToken, normalizeMediaUrl } from '@/lib/mediaUrl';
 import { firebaseStorage } from '@/lib/firebase/storageService';
 
+function resolveUrlSync(
+  normalizedUrl: string | null,
+  needsFirebaseToken: boolean,
+): string | null {
+  if (!normalizedUrl) return null;
+  if (needsFirebaseToken) return null;
+  const cached = getCachedSignedUrl(normalizedUrl);
+  if (cached) return cached;
+  if (!needsSigning(normalizedUrl)) return normalizedUrl;
+  return null;
+}
+
 // Subscribers for reactive updates when cache changes
 const subscribers = new Set<() => void>();
 let version = 0;
@@ -37,7 +49,9 @@ export function useFastSignedUrl(publicUrl: string | null | undefined): string |
   );
   const syncCached = cached && !needsFirebaseToken ? cached : null;
   
-  const [asyncUrl, setAsyncUrl] = useState<string | null>(null);
+  const [asyncUrl, setAsyncUrl] = useState<string | null>(() =>
+    resolveUrlSync(normalizedUrl ?? null, needsFirebaseToken),
+  );
   const fetchedRef = useRef<string | null>(null);
   
   useEffect(() => {
@@ -79,7 +93,7 @@ export function useFastSignedUrl(publicUrl: string | null | undefined): string |
     return () => { cancelled = true; };
   }, [normalizedUrl, syncCached, needsFirebaseToken]);
   
-  return syncCached || asyncUrl;
+  return syncCached || asyncUrl || resolveUrlSync(normalizedUrl ?? null, needsFirebaseToken);
 }
 
 /**

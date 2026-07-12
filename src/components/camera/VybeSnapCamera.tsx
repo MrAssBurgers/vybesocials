@@ -1,13 +1,14 @@
 import { useState, useRef, useCallback, useEffect, forwardRef, Component, ReactNode } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  X, SwitchCamera, Zap, ZapOff, Loader2, Timer, Grid3X3,
+  X, Loader2, Timer, Grid3X3,
   Sun, Moon, Image as ImageIcon, Sparkles, MoreHorizontal,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTitle } from '@/components/ui/sheet';
 import { VybeRecordButton } from './VybeRecordButton';
 import { VybeSnapEditor } from './VybeSnapEditor';
+import { CameraTopControls } from './CameraTopControls';
 import { cn } from '@/lib/utils';
 import { haptics } from '@/lib/haptics';
 import { getActiveStream, stopCameraStream } from '@/hooks/useCameraPreload';
@@ -121,6 +122,9 @@ export const VybeSnapCamera = forwardRef<HTMLDivElement, VybeSnapCameraProps>(fu
   const isRecordingRef = useRef(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const startingRef = useRef(false);
+  const suppressFacingRestartRef = useRef(false);
+  const tapStartRef = useRef<{ x: number; y: number } | null>(null);
+  const startCameraRef = useRef<() => Promise<void>>(async () => {});
 
   const attachStream = useCallback((stream: MediaStream) => {
     const tracks = stream.getTracks();
@@ -130,6 +134,7 @@ export const VybeSnapCamera = forwardRef<HTMLDivElement, VybeSnapCameraProps>(fu
     const settings = videoTrack?.getSettings?.();
     const actualFacing = settings?.facingMode === 'environment' ? 'environment' : 'user';
     if (actualFacing !== facingMode) {
+      suppressFacingRestartRef.current = true;
       setFacingMode(actualFacing);
     }
 
@@ -258,6 +263,20 @@ export const VybeSnapCamera = forwardRef<HTMLDivElement, VybeSnapCameraProps>(fu
     }
   }, [attachStream, facingMode, flashEnabled, initialStream, soundEnabled]);
 
+  startCameraRef.current = startCamera;
+
+  // Restart stream when user flips front ↔ back (Snapchat double-tap or flip button).
+  useEffect(() => {
+    if (!isOpen || phase !== 'camera') return;
+    if (suppressFacingRestartRef.current) {
+      suppressFacingRestartRef.current = false;
+      return;
+    }
+    if (!streamRef.current) return;
+    setCameraReady(false);
+    void startCameraRef.current();
+  }, [facingMode, isOpen, phase]);
+
   // Toggle torch
   useEffect(() => {
     if (!streamRef.current || facingMode === 'user') return;
@@ -313,7 +332,7 @@ export const VybeSnapCamera = forwardRef<HTMLDivElement, VybeSnapCameraProps>(fu
 
       if (!cancelled) {
         requestAnimationFrame(() => {
-          if (!cancelled) startCamera();
+          if (!cancelled) void startCameraRef.current();
         });
       }
     };
@@ -325,7 +344,7 @@ export const VybeSnapCamera = forwardRef<HTMLDivElement, VybeSnapCameraProps>(fu
       startingRef.current = false;
       stopCamera();
     };
-  }, [attachStream, isOpen, initialStream, startCamera, stopCamera, streamPromise]);
+  }, [attachStream, isOpen, initialStream, stopCamera, streamPromise]);
 
   useEffect(() => {
     if (!cameraReady) return;
@@ -335,8 +354,11 @@ export const VybeSnapCamera = forwardRef<HTMLDivElement, VybeSnapCameraProps>(fu
     }
   }, [cameraReady]);
 
-  // Pinch-to-zoom
+  // Pinch-to-zoom + tap tracking for double-tap flip
   const handleTouchStart = useCallback((e: React.TouchEvent) => {
+    if (e.touches.length === 1) {
+      tapStartRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+    }
     if (e.touches.length === 2) {
       pinchStartRef.current = Math.hypot(
         e.touches[0].clientX - e.touches[1].clientX,
@@ -363,6 +385,22 @@ export const VybeSnapCamera = forwardRef<HTMLDivElement, VybeSnapCameraProps>(fu
   }, []);
 
   const onDoubleTapFlip = useDoubleTapCameraFlip(handleSwitchCamera);
+
+  const handleViewfinderTouchEnd = useCallback((e: React.TouchEvent) => {
+    pinchStartRef.current = null;
+    if (isRecordingRef.current || timerCountdown !== null) return;
+    if (e.changedTouches.length === 1 && e.touches.length === 0 && tapStartRef.current) {
+      const end = e.changedTouches[0];
+      const moved = Math.hypot(
+        end.clientX - tapStartRef.current.x,
+        end.clientY - tapStartRef.current.y,
+      );
+      tapStartRef.current = null;
+      if (moved < 24) onDoubleTapFlip(e);
+      return;
+    }
+    tapStartRef.current = null;
+  }, [onDoubleTapFlip, timerCountdown]);
 
   const startRecordingSegment = useCallback(() => {
     if (!streamRef.current) return;
@@ -692,9 +730,7 @@ export const VybeSnapCamera = forwardRef<HTMLDivElement, VybeSnapCameraProps>(fu
           className="flex-1 relative overflow-hidden"
           onTouchStart={handleTouchStart}
           onTouchMove={handleTouchMove}
-          onTouchEnd={(e) => {
-            if (e.changedTouches.length === 1 && e.touches.length === 0) onDoubleTapFlip(e);
-          }}
+          onTouchEnd={handleViewfinderTouchEnd}
           onDoubleClick={(e) => onDoubleTapFlip(e)}
         >
           {permissionDenied ? (
@@ -813,44 +849,23 @@ export const VybeSnapCamera = forwardRef<HTMLDivElement, VybeSnapCameraProps>(fu
           </AnimatePresence>
         </div>
 
-        {/* ── Top bar — minimal IG style ── */}
-        <div className="absolute top-0 left-0 right-0 z-20" style={{ paddingTop: 'var(--sat, env(safe-area-inset-top, 0px))' }}>
-          <div className="flex items-center justify-between px-4 pt-3 pb-2">
-            <button
-              onClick={handleClose}
-              className="h-10 w-10 rounded-full flex items-center justify-center active:scale-90 transition-transform"
-              aria-label="Close camera"
-            >
-              <X className="h-7 w-7 text-white drop-shadow-md" strokeWidth={2.25} />
-            </button>
+        <CameraTopControls
+          onClose={handleClose}
+          flash={flashEnabled}
+          onFlashToggle={() => { setFlashEnabled((v) => !v); haptics.impact(); }}
+          onFlipCamera={handleSwitchCamera}
+          timer={timerSeconds}
+          onTimerChange={setTimerSeconds}
+        />
 
-            <div className="flex items-center gap-3">
-              <button
-                onClick={() => { setFlashEnabled(v => !v); haptics.impact(); }}
-                className="h-10 w-10 rounded-full flex items-center justify-center active:scale-90 transition-transform"
-                aria-label="Toggle flash"
-              >
-                {flashEnabled
-                  ? <Zap className="h-6 w-6 text-yellow-300 drop-shadow-md" fill="currentColor" />
-                  : <ZapOff className="h-6 w-6 text-white drop-shadow-md" strokeWidth={2.25} />}
-              </button>
-              <button
-                onClick={handleSwitchCamera}
-                className="h-10 w-10 rounded-full flex items-center justify-center active:scale-90 transition-transform"
-                aria-label="Switch camera"
-              >
-                <SwitchCamera className="h-6 w-6 text-white drop-shadow-md" strokeWidth={2.25} />
-              </button>
-              <button
-                onClick={() => { setShowMore(true); haptics.impact(); }}
-                className="h-10 w-10 rounded-full flex items-center justify-center active:scale-90 transition-transform"
-                aria-label="More options"
-              >
-                <MoreHorizontal className="h-6 w-6 text-white drop-shadow-md" strokeWidth={2.25} />
-              </button>
-            </div>
-          </div>
-        </div>
+        <button
+          type="button"
+          onClick={() => { setShowMore(true); haptics.impact(); }}
+          className="absolute top-safe right-3 z-30 mt-14 min-w-[44px] min-h-[44px] rounded-full bg-black/35 backdrop-blur-xl border border-white/10 flex items-center justify-center active:scale-90 transition-transform"
+          aria-label="More options"
+        >
+          <MoreHorizontal className="h-5 w-5 text-white" strokeWidth={2.25} />
+        </button>
 
         {/* ── Bottom controls ── */}
         <div
@@ -948,7 +963,7 @@ export const VybeSnapCamera = forwardRef<HTMLDivElement, VybeSnapCameraProps>(fu
         <Sheet open={showMore} onOpenChange={setShowMore}>
           <SheetContent
             side="bottom"
-            className="bg-black/95 backdrop-blur-xl border-white/10 rounded-t-3xl text-white pb-safe"
+            className="liquid-glass-depth backdrop-blur-xl border-t border-white/15 rounded-t-3xl text-white pb-safe bg-black/75"
           >
             <SheetTitle className="text-white text-base font-semibold mb-4">Options</SheetTitle>
 

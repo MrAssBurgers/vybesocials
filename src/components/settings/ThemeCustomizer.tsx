@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Palette, 
@@ -22,18 +22,20 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
+import { useQueryClient } from '@tanstack/react-query';
 import { 
   useUserTheme, 
   useSaveTheme, 
   useResetTheme, 
   useGenerateTheme,
   applyThemeTokens,
-  setThemePreviewLock,
+  persistEquippedUserTheme,
   THEME_PRESETS,
   ThemeTokens,
 } from '@/hooks/useCustomTheme';
 import { readLastGeneratedTheme, getCustomThemePreset, persistLastGeneratedTheme } from '@/lib/theme/lastGeneratedTheme';
 import { useAuth } from '@/lib/auth';
+import { useTheme } from '@/lib/theme';
 import { useAppBackgroundSafe } from '@/components/layout/AppBackground';
 import { useShareTheme } from '@/hooks/useSharedThemes';
 import { useThemeTransition } from '@/providers/ThemeTransitionProvider';
@@ -92,12 +94,14 @@ const BORDER_RADIUS_OPTIONS = [
 
 export function ThemeCustomizer() {
   const { data: userTheme, isLoading } = useUserTheme();
-  const { profile } = useAuth();
+  const { profile, user } = useAuth();
+  const queryClient = useQueryClient();
   const saveTheme = useSaveTheme();
   const resetTheme = useResetTheme();
   const generateTheme = useGenerateTheme();
   const shareTheme = useShareTheme();
   const { triggerTransition } = useThemeTransition();
+  const { setTheme: setGlobalTheme } = useTheme();
 
   // State
   const [selectedPreset, setSelectedPreset] = useState('classic');
@@ -115,13 +119,15 @@ export function ThemeCustomizer() {
   const [customPresetTokens, setCustomPresetTokens] = useState<ThemeTokens | null>(() =>
     readLastGeneratedTheme(),
   );
+  const editingRef = useRef(false);
 
   // Get background state from AppBackground (single source of truth)
   const appBackground = useAppBackgroundSafe();
   const backgroundImage = appBackground?.background.imageUrl || null;
 
-  // Load saved theme
+  // Load saved theme — never clobber an in-progress local edit from a stale refetch.
   useEffect(() => {
+    if (editingRef.current || hasChanges) return;
     if (userTheme?.theme_tokens && userTheme.is_active) {
       const tokens = userTheme.theme_tokens as unknown as ThemeTokens;
       const preset = normalizeBasePreset(userTheme.base_preset);
@@ -139,14 +145,33 @@ export function ThemeCustomizer() {
       const lastCustom = readLastGeneratedTheme(profile.id);
       if (lastCustom) setCustomPresetTokens(lastCustom);
     }
-  }, [userTheme, profile?.id]);
+  }, [userTheme, profile?.id, hasChanges]);
 
-  // While unsaved changes are previewed, stop useApplyUserTheme from
-  // flickering the old saved theme back over the live preview.
-  useEffect(() => {
-    setThemePreviewLock(hasChanges);
-    return () => setThemePreviewLock(false);
-  }, [hasChanges]);
+  const commitThemeSelection = useCallback((
+    theme: ThemeTokens,
+    preset: string,
+    name?: string,
+    options?: { toast?: boolean },
+  ) => {
+    const resolvedName =
+      name || theme.themeName || themeName || PRESET_INFO[preset]?.name || 'My Theme';
+    const named: ThemeTokens = {
+      ...theme,
+      themeName: resolvedName,
+    };
+    persistEquippedUserTheme(named, {
+      queryClient,
+      userId: user?.id,
+      basePreset: preset,
+      themeName: resolvedName,
+      silent: true,
+    });
+    editingRef.current = false;
+    setHasChanges(false);
+    if (options?.toast !== false) {
+      toast.success(`${resolvedName} equipped`);
+    }
+  }, [queryClient, user?.id, themeName]);
 
   // Build current theme with all settings (background is managed by AppBackground, not here)
   const buildTheme = useCallback((): ThemeTokens => {
@@ -181,17 +206,22 @@ export function ThemeCustomizer() {
         : (PRESET_INFO[presetKey]?.colors || ['330 100% 60%', '185 100% 50%']);
 
     triggerTransition(primary, accent, () => {
-      setSelectedPreset(presetKey);
-      setCurrentTheme({ ...preset, animationSpeed, borderRadius });
-      setThemeName(
+      const themeWithSettings = { ...preset, animationSpeed, borderRadius };
+      const resolvedName =
         presetKey === 'custom'
           ? (preset.themeName || 'Custom')
-          : (PRESET_INFO[presetKey]?.name || presetKey),
-      );
-      applyThemeTokens({ ...preset, animationSpeed, borderRadius });
-      setHasChanges(true);
+          : (PRESET_INFO[presetKey]?.name || presetKey);
+
+      const targetMode = themeWithSettings.mode === 'light' ? 'light' : 'dark';
+      setGlobalTheme(targetMode);
+
+      setSelectedPreset(presetKey);
+      setCurrentTheme(themeWithSettings);
+      setThemeName(resolvedName);
+      applyThemeTokens(themeWithSettings);
+      commitThemeSelection(themeWithSettings, presetKey, resolvedName);
     });
-  }, [animationSpeed, borderRadius, triggerTransition, profile?.id]);
+  }, [animationSpeed, borderRadius, triggerTransition, profile?.id, commitThemeSelection, setGlobalTheme]);
 
   // Handle AI generation — empty prompt uses profile + Vybe DNA via useGenerateTheme
   const handleGenerate = useCallback(async () => {
@@ -214,13 +244,16 @@ export function ThemeCustomizer() {
         const accent = themeWithSettings.colorAccent || '185 100% 50%';
 
         triggerTransition(primary, accent, () => {
+          const resolvedName = (theme as any).themeName || 'Custom Theme';
+          const targetMode = themeWithSettings.mode === 'light' ? 'light' : 'dark';
+          setGlobalTheme(targetMode);
           setCurrentTheme(themeWithSettings);
-          setThemeName((theme as any).themeName || 'Custom Theme');
+          setThemeName(resolvedName);
           setSelectedPreset('custom');
           persistLastGeneratedTheme(themeWithSettings, profile?.id);
           setCustomPresetTokens(themeWithSettings);
           applyThemeTokens(themeWithSettings);
-          setHasChanges(true);
+          commitThemeSelection(themeWithSettings, 'custom', resolvedName);
         });
       }
     } catch (error) {
@@ -228,18 +261,21 @@ export function ThemeCustomizer() {
     } finally {
       setIsGenerating(false);
     }
-  }, [aiPrompt, selectedPreset, animationSpeed, borderRadius, generateTheme, triggerTransition]);
+  }, [aiPrompt, selectedPreset, animationSpeed, borderRadius, generateTheme, triggerTransition, profile?.id, commitThemeSelection, setGlobalTheme]);
 
-  // Save theme
+  // Save theme (name + DB row) — tokens already equipped via commitThemeSelection
   const handleSave = useCallback(async () => {
     const theme = buildTheme();
-    
+    const name = themeName || theme.themeName || 'My Theme';
+    const preset = selectedPreset;
+
     await saveTheme.mutateAsync({
       themeTokens: theme,
-      themeName: themeName || 'My Theme',
-      basePreset: selectedPreset,
+      themeName: name,
+      basePreset: preset,
     });
 
+    editingRef.current = false;
     setHasChanges(false);
   }, [buildTheme, themeName, selectedPreset, saveTheme]);
 
@@ -253,23 +289,18 @@ export function ThemeCustomizer() {
     setBorderRadius('medium');
     // Clear background via AppBackground
     appBackground?.setBackgroundImage(null);
+    editingRef.current = false;
     setHasChanges(false);
   }, [resetTheme, appBackground]);
 
   // Update settings and apply
   const updateSetting = useCallback(<K extends keyof ThemeTokens>(key: K, value: ThemeTokens[K]) => {
-    setCurrentTheme(prev => {
-      const base = prev || resolvePresetTokens(selectedPreset, profile?.id) || THEME_PRESETS.classic;
-      return { ...base, [key]: value };
-    });
-    setHasChanges(true);
-    
-    // Apply immediately
-    setTimeout(() => {
-      const theme = buildTheme();
-      applyThemeTokens({ ...theme, [key]: value });
-    }, 0);
-  }, [selectedPreset, buildTheme, profile?.id]);
+    const base = currentTheme || resolvePresetTokens(selectedPreset, profile?.id) || THEME_PRESETS.classic;
+    const theme = { ...base, [key]: value, animationSpeed, borderRadius };
+    setCurrentTheme({ ...base, [key]: value });
+    applyThemeTokens(theme);
+    commitThemeSelection(theme, selectedPreset, theme.themeName, { toast: false });
+  }, [selectedPreset, currentTheme, animationSpeed, borderRadius, profile?.id, commitThemeSelection]);
 
   return (
     <div className="space-y-5">
@@ -447,10 +478,12 @@ export function ThemeCustomizer() {
                   colorAccent: colors.accent,
                   colorSecondary: colors.secondary,
                   bgMain: colors.background,
+                  animationSpeed,
+                  borderRadius,
                 };
                 setCurrentTheme(newTheme);
                 applyThemeTokens(newTheme);
-                setHasChanges(true);
+                commitThemeSelection(newTheme, selectedPreset);
               }}
             />
           </div>

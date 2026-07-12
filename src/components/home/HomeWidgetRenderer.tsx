@@ -65,7 +65,7 @@ function LazyWidget({ children }: { children: ReactNode }) {
     return () => observer.disconnect();
   }, []);
 
-  return <div ref={ref}>{visible ? children : <div className="h-24" />}</div>;
+  return <div ref={ref}>{visible ? children : <div className="h-24 rounded-2xl skeleton-shimmer mx-3" aria-hidden />}</div>;
 }
 
 /**
@@ -604,7 +604,7 @@ function InlinePostList({
               </div>
             )}
           >
-            <MemoizedPostCard post={post} eager={index < 2} />
+            <MemoizedPostCard post={post} eager={index < 8} />
           </ErrorBoundary>
           {/* Early load-more sentinel — fires 5 posts before the end */}
           {index === earlyTriggerIndex && (

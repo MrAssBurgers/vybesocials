@@ -1,7 +1,7 @@
 import { useState, useRef, useCallback, useEffect, lazy, Suspense } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, RefreshCw, Zap, ZapOff, Image, Music, Timer, Sparkles, MessageCircle, SlidersHorizontal, Grid3X3, Sun, Contrast } from 'lucide-react';
+import { Zap, ZapOff, Image, Music, Timer, Sparkles, MessageCircle, SlidersHorizontal, Grid3X3, Sun } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { CameraFilterCarousel, PRESET_FILTERS, getFilterCSS } from './CameraFilterCarousel';
 import { CameraEditor } from './CameraEditor';
@@ -9,6 +9,7 @@ import { CameraShareSheet } from './CameraShareSheet';
 import { CameraStoryPostSheet } from './CameraStoryPostSheet';
 import { VybeRecordButton } from './VybeRecordButton';
 import { CameraZoomIndicator } from './CameraZoom';
+import { CameraTopControls } from './CameraTopControls';
 import { GalleryDrawer } from '@/components/create/GalleryDrawer';
 import { SoundPicker } from '@/components/sounds/SoundPicker';
 import { Sound } from '@/hooks/useSounds';
@@ -574,47 +575,42 @@ export function Camera({
         )}
       </AnimatePresence>
 
-      {/* ─── TOP BAR ─── Snapchat style */}
-      <div className="absolute top-0 left-0 right-0 z-10 safe-area-inset-top">
-        <div className="flex items-center justify-between px-4 pt-3 pb-2">
-          <button onClick={onClose} className="w-10 h-10 rounded-full bg-black/30 backdrop-blur-md flex items-center justify-center active:scale-90 transition-transform">
-            {showBackArrow ? (
-              <span className="text-white"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m12 19-7-7 7-7"/><path d="M19 12H5"/></svg></span>
-            ) : (
-              <X className="h-5 w-5 text-white" strokeWidth={2.5} />
-            )}
-          </button>
+      {/* ─── TOP BAR — shared glass controls (Create, DM, Story, etc.) ─── */}
+      <CameraTopControls
+        onClose={onClose}
+        flash={flash}
+        onFlashToggle={() => {
+          triggerHaptic('light');
+          setFlash((v) => !v);
+        }}
+        onFlipCamera={toggleCamera}
+        timer={timerSeconds}
+        onTimerChange={setTimerSeconds}
+        showBackArrow={showBackArrow}
+      />
 
-          <AnimatePresence>
-            {isRecording && (
-              <motion.div
-                initial={{ opacity: 0, scale: 0.8 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.8 }}
-                className="flex items-center gap-2 bg-destructive/80 px-3 py-1 rounded-full backdrop-blur-sm"
-              >
-                <motion.div animate={{ opacity: [1, 0.3, 1] }} transition={{ repeat: Infinity, duration: 1 }} className="w-2 h-2 bg-white rounded-full" />
-                <span className="text-white font-mono text-xs font-medium">
-                  {Math.floor(recordingDuration / 60).toString().padStart(2, '0')}:{(recordingDuration % 60).toString().padStart(2, '0')}
-                </span>
-              </motion.div>
-            )}
-          </AnimatePresence>
-
-          <div className="flex gap-1.5">
-            <button onClick={toggleCamera} className="w-9 h-9 rounded-full bg-black/30 backdrop-blur-md flex items-center justify-center active:scale-90 transition-transform">
-              <RefreshCw className="h-4 w-4 text-white" />
-            </button>
-          </div>
-        </div>
-      </div>
+      <AnimatePresence>
+        {isRecording && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.8 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.8 }}
+            className="absolute top-safe left-1/2 -translate-x-1/2 z-30 flex items-center gap-2 bg-destructive/80 px-3 py-1 rounded-full backdrop-blur-sm pointer-events-none"
+          >
+            <motion.div animate={{ opacity: [1, 0.3, 1] }} transition={{ repeat: Infinity, duration: 1 }} className="w-2 h-2 bg-white rounded-full" />
+            <span className="text-white font-mono text-xs font-medium">
+              {Math.floor(recordingDuration / 60).toString().padStart(2, '0')}:{(recordingDuration % 60).toString().padStart(2, '0')}
+            </span>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* ─── RIGHT SIDE TOOLS ─── Snapchat style with labels */}
       <div className="absolute right-3 top-1/2 -translate-y-1/2 z-10 flex flex-col gap-3">
         <button onClick={() => setFlash(!flash)} className="flex flex-col items-center gap-0.5 active:scale-90 transition-transform">
           <div className={cn(
-            "w-10 h-10 rounded-full flex items-center justify-center backdrop-blur-sm",
-            flash ? "bg-yellow-400/30" : "bg-black/40"
+            "w-10 h-10 rounded-full flex items-center justify-center backdrop-blur-xl border border-white/10",
+            flash ? "bg-yellow-400/30 border-yellow-400/40" : "bg-black/35"
           )}>
             {flash ? <Zap className="h-4.5 w-4.5 text-yellow-400" fill="currentColor" /> : <ZapOff className="h-4.5 w-4.5 text-white" />}
           </div>
@@ -626,8 +622,8 @@ export function Camera({
           onClick={() => { triggerHaptic('light'); setShowMusicGallery(true); }}
         >
           <div className={cn(
-            "w-10 h-10 rounded-full flex items-center justify-center backdrop-blur-sm",
-            selectedSound ? "bg-primary/40" : "bg-black/40"
+            "w-10 h-10 rounded-full flex items-center justify-center backdrop-blur-xl border border-white/10",
+            selectedSound ? "bg-primary/40 border-primary/50" : "bg-black/35"
           )}>
             <Music className="h-4.5 w-4.5 text-white" />
           </div>
@@ -638,7 +634,7 @@ export function Camera({
           onClick={cycleTimer}
           className="flex flex-col items-center gap-0.5 active:scale-90 transition-transform"
         >
-          <div className="w-10 h-10 rounded-full bg-black/40 flex items-center justify-center backdrop-blur-sm relative">
+          <div className="w-10 h-10 rounded-full bg-black/35 backdrop-blur-xl border border-white/10 flex items-center justify-center relative">
             <Timer className="h-4.5 w-4.5 text-white" />
             {timerSeconds > 0 && (
               <span className="absolute -top-0.5 -right-0.5 text-[8px] font-bold bg-primary text-primary-foreground w-3.5 h-3.5 rounded-full flex items-center justify-center">{timerSeconds}</span>
@@ -652,8 +648,8 @@ export function Camera({
           className="flex flex-col items-center gap-0.5 active:scale-90 transition-transform"
         >
           <div className={cn(
-            "w-10 h-10 rounded-full flex items-center justify-center backdrop-blur-sm",
-            gridEnabled ? "bg-white/30" : "bg-black/40"
+            "w-10 h-10 rounded-full flex items-center justify-center backdrop-blur-xl border border-white/10",
+            gridEnabled ? "bg-white/30 border-white/40" : "bg-black/35"
           )}>
             <Grid3X3 className="h-4.5 w-4.5 text-white" />
           </div>
@@ -671,7 +667,7 @@ export function Camera({
           }} 
           className="flex flex-col items-center gap-0.5 active:scale-90 transition-transform"
         >
-          <div className="w-10 h-10 rounded-full bg-black/40 flex items-center justify-center backdrop-blur-sm">
+          <div className="w-10 h-10 rounded-full bg-black/35 backdrop-blur-xl border border-white/10 flex items-center justify-center">
             <Sun className="h-4.5 w-4.5 text-white" />
           </div>
           <span className="text-[9px] text-white/70 font-medium">HDR</span>

@@ -140,7 +140,7 @@ export function Sidebar() {
         {/* Profile Card */}
         <Link
           to={profile ? `/u/${profile.username}` : '/profile'}
-          className="flex items-center gap-3 mx-2 px-3 py-2.5 rounded-xl bg-muted/30 hover:bg-muted/50 transition-colors group"
+          className="flex items-center gap-3 mx-2 px-3 py-2.5 rounded-xl liquid-glass-subtle border border-border/30 hover:bg-accent/10 transition-colors group"
         >
           <Avatar className="h-9 w-9 ring-2 ring-primary/20 group-hover:ring-primary/40 transition-all">
             <ProfileAvatarImage profileId={profile?.id} src={profile?.avatar_url || undefined} />
@@ -169,7 +169,7 @@ export function Sidebar() {
         </Link>
         
         {/* Quick Actions Row */}
-        <div className="flex items-center gap-1.5 mx-2 p-1 rounded-xl bg-muted/30">
+        <div className="flex items-center gap-1.5 mx-2 p-1 rounded-xl liquid-glass-subtle border border-border/30">
           <Link
             to="/notifications"
             onClick={triggerNavFeedback}

@@ -129,6 +129,7 @@ export const StoriesBar = memo(function StoriesBar({
           isUploading={createStory.isPending || ownStoryUploading}
           themeGradient={ownStoryGroup?.user.equipped_profile_theme ?? undefined}
           showAddButton
+          priority
           onClick={() => {
             if (authLoading) return;
             if (!canCreateStory) {
@@ -163,6 +164,7 @@ export const StoriesBar = memo(function StoriesBar({
               themeGradient={group.user.equipped_profile_theme}
               hasUnviewed={group.hasUnviewed}
               hasStory
+              priority={index < 7}
               onClick={() => setSelectedGroupIndex(ownStoryGroup ? index + 1 : index)}
             />
           );
@@ -200,6 +202,8 @@ interface StoryTileProps {
   hasStory?: boolean;
   showAddButton?: boolean;
   isUploading?: boolean;
+  /** Eager-load poster + avatar for above-the-fold tiles. */
+  priority?: boolean;
   onClick: () => void;
   onAddClick?: () => void;
 }
@@ -218,6 +222,7 @@ const StoryTile = memo(function StoryTile({
   hasStory,
   showAddButton,
   isUploading,
+  priority = false,
   onClick,
   onAddClick,
 }: StoryTileProps) {
@@ -249,6 +254,7 @@ const StoryTile = memo(function StoryTile({
           posterUrl={resolvedPoster}
           fallbackInitial={username}
           themeGradient={themeGradient}
+          priority={priority}
         >
           {!hasStory && (
             <div
@@ -264,6 +270,7 @@ const StoryTile = memo(function StoryTile({
                   src={avatarUrl || undefined}
                   transformSize={256}
                   className="object-cover"
+                  priority={priority}
                 />
                 <AvatarFallback className="bg-muted text-muted-foreground text-2xl font-semibold">
                   {username?.charAt(0).toUpperCase()}

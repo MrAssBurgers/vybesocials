@@ -141,7 +141,7 @@ export function SettingsActionRow({
   className?: string;
 } & Omit<ComponentPropsWithoutRef<'button'>, 'title' | 'onClick'>) {
   const rowClass = cn(
-    'settings-action-row w-full flex items-center gap-4 p-4 rounded-xl transition-all active:scale-[0.98]',
+    'settings-action-row w-full flex items-center gap-4 p-4 rounded-xl transition-colors outline-none focus:outline-none',
     variant === 'default' && 'settings-action-row--default',
     variant === 'accent' && 'settings-action-row--accent',
     variant === 'gold' && 'settings-action-row--gold',

@@ -37,6 +37,7 @@ import { useUserRole } from '@/hooks/useModeration';
 import { isModOrAdminRole } from '@/lib/adminAccess';
 import { useUserRoleById } from '@/hooks/useUserRoleById';
 import { useFastSignedUrl } from '@/hooks/useFastSignedUrl';
+import { useProgressiveImageSrc } from '@/hooks/useProgressiveImageSrc';
 import { useIsModOrAdmin, ModeratorMenuItems, ModeratorDialogs } from '@/components/moderation/ModeratorActionsMenu';
 import { PremiumMemeBanMenuItem, PremiumMemeBanDialog } from '@/components/premium/PremiumMemeBanItems';
 import { isValidMediaUrl } from '@/components/ui/SafeMedia';
@@ -222,11 +223,27 @@ function VideoPlayer({ src, caption }: { src: string; caption?: string }) {
 
 // Natural aspect ratio image component - NO black padding, natural sizing
 // NEVER shows broken placeholder - graceful degradation
-function NaturalAspectImage({ src, caption, eager = false }: { src: string; caption?: string; eager?: boolean }) {
-  const [isLoaded, setIsLoaded] = useState(false);
+function NaturalAspectImage({
+  src,
+  thumbnailSrc,
+  caption,
+  eager = false,
+}: {
+  src: string;
+  thumbnailSrc?: string | null;
+  caption?: string;
+  eager?: boolean;
+}) {
   const [hasError, setHasError] = useState(false);
   const [retryCount, setRetryCount] = useState(0);
   const [dimensions, setDimensions] = useState<{ width: number; height: number } | null>(null);
+  const { src: displaySrc } = useProgressiveImageSrc({
+    full: src,
+    thumb: thumbnailSrc,
+    eager,
+    fullWidth: eager ? 960 : 1080,
+    thumbWidth: eager ? 480 : 420,
+  });
 
   // Retry loading up to 2 times with exponential backoff
   useEffect(() => {
@@ -239,7 +256,7 @@ function NaturalAspectImage({ src, caption, eager = false }: { src: string; capt
     }
   }, [hasError, retryCount]);
 
-  if (!src) {
+  if (!src && !displaySrc) {
     return (
       <div className="w-full aspect-[4/5] bg-muted/20 overflow-hidden">
         <MediaSkeleton className="w-full h-full" />
@@ -268,7 +285,6 @@ function NaturalAspectImage({ src, caption, eager = false }: { src: string; capt
   const handleLoad = (e: React.SyntheticEvent<HTMLImageElement>) => {
     const img = e.currentTarget;
     setDimensions({ width: img.naturalWidth, height: img.naturalHeight });
-    setIsLoaded(true);
     setHasError(false);
   };
 
@@ -281,36 +297,27 @@ function NaturalAspectImage({ src, caption, eager = false }: { src: string; capt
 
   return (
     <div className="relative w-full flex items-center justify-center bg-muted/10 overflow-hidden">
-      {/* Blur-up placeholder while loading */}
-      {!isLoaded && (
-        <div className="w-full aspect-square">
-          <div 
-            className="absolute inset-0 bg-gradient-to-br from-primary/10 via-muted/30 to-accent/10 animate-pulse"
-            style={{ filter: 'blur(20px)', transform: 'scale(1.1)' }}
-          />
-          <MediaSkeleton className="absolute inset-0" />
-        </div>
+      {!displaySrc && (
+        <MediaSkeleton className="absolute inset-0 w-full min-h-[200px]" />
       )}
-      <img
-        key={retryCount}
-        src={transformedImage(src, { width: 1440, quality: 88 }) ?? src}
-        srcSet={transformedSrcSet(src, 720, { quality: 88 })}
-        sizes="(max-width: 640px) 100vw, 640px"
-        alt={caption || ''}
-        className={cn(
-          "w-full h-auto transition-opacity duration-300 ease-out",
-          isTall && "max-h-[70vh] w-auto object-contain",
-          isWide && "w-full h-auto",
-          !isTall && !isWide && "w-full h-auto",
-          isLoaded ? "opacity-100 blur-0 scale-100" : "opacity-0 blur-sm scale-[1.02]"
-        )}
-        style={!isLoaded ? { position: 'absolute', top: 0, left: 0 } : undefined}
-        loading={eager ? 'eager' : 'lazy'}
-        decoding="async"
-        fetchPriority={eager ? 'high' : 'auto'}
-        onLoad={handleLoad}
-        onError={() => setHasError(true)}
-      />
+      {displaySrc && (
+        <img
+          key={`${displaySrc}-${retryCount}`}
+          src={displaySrc}
+          alt={caption || ''}
+          className={cn(
+            'w-full h-auto',
+            isTall && 'max-h-[70vh] w-auto object-contain',
+            isWide && 'w-full h-auto',
+            !isTall && !isWide && 'w-full h-auto',
+          )}
+          loading={eager ? 'eager' : 'lazy'}
+          decoding={eager ? 'sync' : 'async'}
+          fetchPriority={eager ? 'high' : 'auto'}
+          onLoad={handleLoad}
+          onError={() => setHasError(true)}
+        />
+      )}
     </div>
   );
 }
@@ -321,6 +328,7 @@ interface PostCardProps {
     type: string;
     media_url: string;
     media_urls?: string[] | null;
+    thumbnail_url?: string | null;
     caption: string;
     tags: string[];
     created_at: string;
@@ -393,6 +401,10 @@ export const PostCard = memo(function PostCard({ post, eager = false }: PostCard
   const signedMediaUrl = useFastSignedUrl(post.media_url);
   const displayMediaUrl = signedMediaUrl || normalizeMediaUrl(post.media_url) || null;
   const signedAvatarUrl = useFastSignedUrl(post.author.avatar_url);
+  const avatarSrc = useMemo(() => {
+    const raw = signedAvatarUrl || normalizeMediaUrl(post.author.avatar_url);
+    return raw ? transformedImage(raw, { width: 80, height: 80, quality: 82 }) : undefined;
+  }, [signedAvatarUrl, post.author.avatar_url]);
 
   // Memoize computed values
   const isOwnPost = useMemo(() => profile?.id === post.author.id, [profile?.id, post.author.id]);
@@ -574,7 +586,12 @@ export const PostCard = memo(function PostCard({ post, eager = false }: PostCard
           <Link to={`/u/${post.author.username}`} className="flex items-center gap-3">
             <div className="story-ring">
               <Avatar className="h-10 w-10 border-2 border-background">
-                <AvatarImage src={signedAvatarUrl || undefined} />
+                <AvatarImage
+                  src={avatarSrc}
+                  loading={eager ? 'eager' : 'lazy'}
+                  decoding={eager ? 'sync' : 'async'}
+                  fetchPriority={eager ? 'high' : 'auto'}
+                />
                 <AvatarFallback className="bg-secondary text-secondary-foreground">
                   {post.author.username?.[0]?.toUpperCase() ?? '?'}
                 </AvatarFallback>
@@ -773,7 +790,12 @@ export const PostCard = memo(function PostCard({ post, eager = false }: PostCard
             ) : allUrls.length > 1 ? (
               <PostCarousel urls={allUrls} onDoubleTap={handleDoubleTap} />
             ) : (
-              <NaturalAspectImage src={displayMediaUrl || ''} caption={post.caption} eager={eager} />
+              <NaturalAspectImage
+                src={displayMediaUrl || ''}
+                thumbnailSrc={post.thumbnail_url}
+                caption={post.caption}
+                eager={eager}
+              />
             )}
             
             {/* Double tap heart animation */}

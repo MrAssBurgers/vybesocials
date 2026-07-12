@@ -79,7 +79,7 @@ export const ExploreVideosGrid = memo(function ExploreVideosGrid({
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: index * 0.04, duration: 0.35, ease: [0.25, 0.1, 0.25, 1] }}
         >
-          <VideoCard post={post} />
+          <VideoCard post={post} priority={index < 3} />
         </motion.div>
       ))}
     </div>

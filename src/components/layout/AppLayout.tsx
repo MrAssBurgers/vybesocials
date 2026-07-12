@@ -61,7 +61,10 @@ export const AppLayout = memo(forwardRef<HTMLDivElement, AppLayoutProps>(functio
   // Recover immersive overlay flags only — do not reset scroll-hide on every route.
   useEffect(() => {
     navVisibility.setInDesigner(false);
-    setThemePreviewLock(false);
+    // Equipped themes persist in localStorage; only clear preview lock outside settings.
+    if (!location.pathname.startsWith('/settings')) {
+      setThemePreviewLock(false);
+    }
   }, [location.pathname]);
 
   usePresence();

@@ -1,6 +1,7 @@
 import { Clock, ChevronDown, Check } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { ViewMode } from '@/hooks/useMessages';
+import { MEDIA_MODE_LABELS, type MediaAccessMode } from '@/lib/dmMediaRules';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 
 interface EphemeralChatNoticeProps {
@@ -12,9 +13,11 @@ interface EphemeralChatNoticeProps {
 }
 
 const VIEW_MODE_OPTIONS: { id: ViewMode; label: string; short: string; hint: string }[] = [
-  { id: '24h', label: '24 Hours After Viewing', short: '24h after view', hint: 'Deletes a day after opened' },
-  { id: 'view_once', label: 'Immediately After Viewing', short: 'After viewing', hint: 'Disappears once seen' },
-  { id: 'permanent', label: 'Keep Forever', short: 'Keep forever', hint: 'Messages stay in chat' },
+  { id: '24h', label: MEDIA_MODE_LABELS.timed, short: '24h after view', hint: 'Deletes a day after opened' },
+  { id: 'view_once', label: MEDIA_MODE_LABELS.view_once, short: 'After viewing', hint: 'Disappears once seen' },
+  { id: 'replay_once', label: MEDIA_MODE_LABELS.replay_once, short: 'Replay once', hint: 'One extra replay allowed' },
+  { id: 'keep', label: MEDIA_MODE_LABELS.keep, short: 'Keep in chat', hint: 'Stays until you delete' },
+  { id: 'permanent', label: MEDIA_MODE_LABELS.permanent, short: 'Keep forever', hint: 'Messages stay in chat' },
 ];
 
 /** Slim delete-timer chip — tap to change (Snapchat-style). */

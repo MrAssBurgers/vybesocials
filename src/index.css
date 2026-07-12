@@ -3910,6 +3910,57 @@ body.has-liquid-bg:not(.has-custom-bg) #main-content {
     padding: 0.875rem 1rem;
   }
 
+  /*
+   * Touch tap leaves :focus on buttons/switches — ring-offset draws an ugly
+   * square box around rounded controls. Kill on touch; keep soft ring for keyboard.
+   */
+  .settings-shell :is(button, a, [role="switch"], [role="tab"], label[for]) {
+    -webkit-tap-highlight-color: transparent !important;
+  }
+
+  .settings-shell :is(button, a, [role="switch"], [role="tab"]):focus {
+    outline: none !important;
+  }
+
+  .settings-shell :is(button, a, [role="switch"], [role="tab"]):focus:not(:focus-visible) {
+    outline: none !important;
+    --tw-ring-offset-shadow: 0 0 #0000 !important;
+    --tw-ring-shadow: 0 0 #0000 !important;
+    box-shadow: none !important;
+  }
+
+  @media (hover: none), (pointer: coarse) {
+    .settings-shell :is(button, a, [role="switch"], [role="tab"]):focus,
+    .settings-shell :is(button, a, [role="switch"], [role="tab"]):focus-visible {
+      outline: none !important;
+      --tw-ring-offset-shadow: 0 0 #0000 !important;
+      --tw-ring-shadow: 0 0 #0000 !important;
+      box-shadow: none !important;
+    }
+  }
+
+  @media (hover: hover) and (pointer: fine) {
+    .settings-shell button:focus-visible,
+    .settings-shell a:focus-visible,
+    .settings-shell [role="switch"]:focus-visible,
+    .settings-shell [role="tab"]:focus-visible {
+      outline: none;
+      box-shadow: 0 0 0 2px hsl(var(--primary) / 0.42);
+      border-radius: inherit;
+    }
+  }
+
+  /* Press feedback — opacity only; scale exposes rectangular bounds on bordered rows */
+  .settings-shell .settings-action-row:active,
+  .settings-shell .settings-segment-btn:active {
+    transform: none !important;
+    opacity: 0.92;
+  }
+
+  .settings-shell .liquid-glass-card > button:active {
+    transform: none !important;
+  }
+
   /* Settings + DMs: let aurora show through — no opaque black scroll gaps */
   body.has-liquid-bg:not(.has-custom-bg) .settings-shell,
   body.has-liquid-bg:not(.has-custom-bg) .dm-shell {
@@ -4536,17 +4587,7 @@ body.has-liquid-bg:not(.has-custom-bg) #main-content {
 }
 
 @layer utilities {
-  /* Skeleton shimmer effect */
-  .skeleton-shimmer {
-    background: linear-gradient(
-      90deg,
-      hsl(var(--muted)) 0%,
-      hsl(var(--muted) / 0.5) 50%,
-      hsl(var(--muted)) 100%
-    );
-    background-size: 200% 100%;
-    animation: shimmer 1.5s infinite;
-  }
+  /* skeleton-shimmer defined below with ::after sweep — avoid duplicate background animation */
 }
 
 @keyframes gradient-marquee {
@@ -5050,8 +5091,8 @@ body.has-liquid-bg:not(.has-custom-bg) #main-content {
   }
 }
 
-/* Shimmer animation for loading states */
-@keyframes animate-shimmer {
+/* Shimmer animation for media loading states */
+@keyframes media-shimmer {
   0% {
     transform: translateX(-100%);
   }
@@ -5060,8 +5101,8 @@ body.has-liquid-bg:not(.has-custom-bg) #main-content {
   }
 }
 
-.animate-shimmer {
-  animation: animate-shimmer 1.5s ease-in-out infinite;
+.media-shimmer {
+  animation: media-shimmer 1.5s ease-in-out infinite;
 }
 
 /* Unopened Vybe tile — CSS-driven (compositor) instead of framer-motion so the
@@ -6185,7 +6226,7 @@ img, video {
   }
 }
 
-.animate-shimmer {
+.animate-badge-bg-shimmer {
   background-size: 200% 100%;
   animation: badge-shimmer 4s linear infinite;
 }

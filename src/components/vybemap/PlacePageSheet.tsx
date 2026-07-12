@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { motion } from 'framer-motion';
 import { MapPin, Users, Navigation, Flame, Send, MessageCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import type { MapPlace } from '@/lib/vybemap/types';
@@ -10,6 +9,7 @@ import { LocationIntelPanel } from '@/components/vybemap/LocationIntelPanel';
 import { containsBlockedContent } from '@/lib/contentModeration';
 import { runPublishVybeCheck } from '@/lib/vybeCheck';
 import { cn } from '@/lib/utils';
+import { MapLiquidSheet } from '@/components/vybemap/MapLiquidSheet';
 
 interface PlacePageSheetProps {
   place: MapPlace;
@@ -119,26 +119,17 @@ export function PlacePageSheet({ place, onClose, onNavigate, onCheckIn }: PlaceP
   };
 
   return (
-    <>
-      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-        className="fixed inset-0 z-[2000] bg-black/40" onClick={onClose} />
-      <motion.div
-        initial={{ y: '100%' }}
-        animate={{ y: 0 }}
-        exit={{ y: '100%' }}
-        transition={{ type: 'spring', damping: 28, stiffness: 300 }}
-        className="fixed inset-x-0 bottom-0 z-[2001] max-h-[88vh] overflow-y-auto rounded-t-3xl bg-black/95 border-t border-white/10"
-      >
-        {place.photo_url ? (
-          <div className="relative h-44">
-            <img src={place.photo_url} alt="" className="w-full h-full object-cover" />
-            <div className="absolute inset-0 bg-gradient-to-t from-black via-black/20 to-transparent" />
-          </div>
-        ) : (
-          <div className="h-24 bg-gradient-to-br from-orange-500/30 to-pink-500/20" />
-        )}
+    <MapLiquidSheet onClose={onClose} maxHeight="88vh" showHandle contentClassName="px-0 pb-0">
+      {place.photo_url ? (
+        <div className="relative h-44">
+          <img src={place.photo_url} alt="" className="w-full h-full object-cover" />
+          <div className="absolute inset-0 bg-gradient-to-t from-background via-background/20 to-transparent" />
+        </div>
+      ) : (
+        <div className="h-24 bg-gradient-to-br from-orange-500/30 to-pink-500/20" />
+      )}
 
-        <div className="p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))]">
+      <div className="px-5 pb-[max(1.25rem,env(safe-area-inset-bottom))]">
           <span className={cn(
             'inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full mb-2',
             vibe.level === 'busy' && 'bg-red-500/20 text-red-300',
@@ -148,11 +139,11 @@ export function PlacePageSheet({ place, onClose, onNavigate, onCheckIn }: PlaceP
           )}>
             {vibe.emoji} {vibe.label} · Vibe {vibe.score}
           </span>
-          <h2 className="text-2xl font-bold text-white">{place.name}</h2>
-          <p className="text-sm text-white/45 capitalize">{place.category}</p>
+          <h2 className="text-2xl font-bold text-foreground">{place.name}</h2>
+          <p className="text-sm text-muted-foreground capitalize">{place.category}</p>
 
           {place.description && (
-            <p className="text-sm text-white/70 mt-3 leading-relaxed">{place.description}</p>
+            <p className="text-sm text-foreground/80 mt-3 leading-relaxed">{place.description}</p>
           )}
 
           <LocationIntelPanel
@@ -169,7 +160,7 @@ export function PlacePageSheet({ place, onClose, onNavigate, onCheckIn }: PlaceP
           </div>
 
           <div className="mt-4">
-            <p className="text-[10px] font-bold uppercase tracking-wider text-white/40 mb-2">Place feed</p>
+            <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-2">Place feed</p>
             <div className="flex gap-2 mb-3">
               <input
                 value={draft}
@@ -177,7 +168,7 @@ export function PlacePageSheet({ place, onClose, onNavigate, onCheckIn }: PlaceP
                 onKeyDown={(e) => e.key === 'Enter' && void submitPost()}
                 placeholder="Share a tip, vibe, or question…"
                 maxLength={280}
-                className="flex-1 h-10 rounded-xl bg-white/8 border border-white/10 px-3 text-sm text-white placeholder:text-white/35 outline-none"
+                className="flex-1 h-10 rounded-xl bg-card/50 border border-border/50 px-3 text-sm text-foreground placeholder:text-muted-foreground outline-none"
               />
               <button
                 type="button"
@@ -238,20 +229,19 @@ export function PlacePageSheet({ place, onClose, onNavigate, onCheckIn }: PlaceP
             )}
           </div>
 
-          <button type="button" onClick={onClose} className="mt-4 w-full py-2 text-xs text-white/35">Close</button>
+          <button type="button" onClick={onClose} className="mt-4 w-full py-2 text-xs text-muted-foreground">Close</button>
         </div>
-      </motion.div>
-    </>
+    </MapLiquidSheet>
   );
 }
 
 function StatCard({ icon: Icon, label, value }: { icon: typeof Users; label: string; value: string }) {
   return (
-    <div className="p-3 rounded-xl bg-white/5 border border-white/8">
-      <div className="flex items-center gap-1.5 text-white/40 text-[10px] font-bold uppercase mb-1">
+    <div className="p-3 rounded-xl liquid-glass-subtle border border-border/40">
+      <div className="flex items-center gap-1.5 text-muted-foreground text-[10px] font-bold uppercase mb-1">
         <Icon className="h-3 w-3" /> {label}
       </div>
-      <p className="text-sm font-semibold text-white">{value}</p>
+      <p className="text-sm font-semibold text-foreground">{value}</p>
     </div>
   );
 }

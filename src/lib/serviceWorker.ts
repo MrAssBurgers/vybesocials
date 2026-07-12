@@ -1,4 +1,5 @@
 import { isDespiaRuntime } from '@/lib/despiaBridge';
+import { signalAppUpdate, APP_UPDATE_RELOAD_DELAY_MS } from '@/lib/appUpdateBridge';
 
 export function isPreviewServiceWorkerDisabled() {
   if (typeof window === 'undefined') return false;
@@ -69,9 +70,7 @@ function wireUpdateFlow(registration: ServiceWorkerRegistration) {
 
   const promoteWaitingWorker = (worker: ServiceWorker | null) => {
     if (!worker) return;
-    try {
-      window.dispatchEvent(new CustomEvent('vybe-app-update'));
-    } catch { /* overlay is cosmetic */ }
+    signalAppUpdate();
     worker.postMessage({ type: 'SKIP_WAITING' });
   };
 
@@ -94,8 +93,8 @@ function wireUpdateFlow(registration: ServiceWorkerRegistration) {
   navigator.serviceWorker.addEventListener('controllerchange', () => {
     if (reloadingForUpdate || !hadController) return;
     reloadingForUpdate = true;
-    // Give AppUpdateOverlay a beat to paint before the refresh.
-    setTimeout(() => window.location.reload(), 900);
+    // Let the fullscreen overlay paint before refresh (avoids half-screen tear).
+    setTimeout(() => window.location.reload(), APP_UPDATE_RELOAD_DELAY_MS);
   });
 }
 

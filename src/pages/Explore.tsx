@@ -23,6 +23,7 @@ import { ExploreVideosGrid } from '@/components/explore/ExploreVideosGrid';
 import { useSmartPreload } from '@/hooks/useSmartPreload';
 import { isValidMediaUrl } from '@/components/ui/SafeMedia';
 import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
+import { MediaSkeleton } from '@/components/ui/MediaFallback';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { ShortCard } from '@/components/posts/ShortCard';
@@ -242,11 +243,8 @@ function FullscreenClipsViewer({
   // Show loading only on initial load with no cached data
   if (isLoading && clips.length === 0) {
     return (
-      <div className="fixed inset-0 z-50 bg-background flex items-center justify-center">
-        <div className="flex flex-col items-center gap-3" data-allow-animation="true">
-          <div className="w-12 h-12 rounded-full bg-muted/50 animate-pulse" />
-          <p className="text-sm text-muted-foreground">Loading clips...</p>
-        </div>
+      <div className="fixed inset-0 z-50 bg-black">
+        <MediaSkeleton className="w-full h-full" />
       </div>
     );
   }

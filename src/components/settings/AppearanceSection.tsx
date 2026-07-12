@@ -43,7 +43,7 @@ export function AppearanceSection() {
                 toast.success(`Switched to ${option.label}`);
               }}
               className={cn(
-                'settings-segment-btn flex flex-col items-center gap-2 p-4 rounded-xl active:scale-95'
+                'settings-segment-btn flex flex-col items-center gap-2 p-4 rounded-xl outline-none focus:outline-none'
               )}
             >
               <div
@@ -89,7 +89,7 @@ export function AppearanceSection() {
                     haptics.tap();
                     setMotionIntensity(option.id as 'calm' | 'normal');
                   }}
-                  className="settings-segment-btn p-3 rounded-xl text-left active:scale-95"
+                  className="settings-segment-btn p-3 rounded-xl text-left outline-none focus:outline-none"
                 >
                   <p className="font-medium text-sm">{option.label}</p>
                   <p className="text-xs text-muted-foreground">{option.desc}</p>
@@ -118,7 +118,7 @@ export function AppearanceSection() {
                     setIntensity(option.id as 'calm' | 'normal' | 'max');
                     toast.success(`Glass set to ${option.label}`);
                   }}
-                  className="settings-segment-btn p-3 rounded-xl text-sm font-medium active:scale-95"
+                  className="settings-segment-btn p-3 rounded-xl text-sm font-medium outline-none focus:outline-none"
                 >
                   {option.label}
                 </button>
@@ -145,7 +145,7 @@ export function AppearanceSection() {
                     setContrast(option.id as 'normal' | 'high');
                     toast.success(`Contrast set to ${option.label}`);
                   }}
-                  className="settings-segment-btn p-3 rounded-xl text-left active:scale-95"
+                  className="settings-segment-btn p-3 rounded-xl text-left outline-none focus:outline-none"
                 >
                   <p className="font-medium text-sm">{option.label}</p>
                   <p className="text-xs text-muted-foreground">{option.desc}</p>

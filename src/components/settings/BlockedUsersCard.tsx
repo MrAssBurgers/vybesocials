@@ -8,7 +8,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import { haptics } from '@/lib/haptics';
-import { EmptyState } from '@/components/ui/empty-state';
+import { EmptyState } from '@/components/ui/EmptyState';
 
 interface BlockedRow {
   blocked_id: string;
@@ -91,7 +91,7 @@ export function BlockedUsersCard() {
         </div>
       ) : rows.length === 0 ? (
         <EmptyState
-          icon={ShieldOff}
+          icon={<ShieldOff className="h-8 w-8 text-muted-foreground" />}
           title="No blocked accounts"
           description="Anyone you block will show up here so you can manage them later."
           className="py-6"

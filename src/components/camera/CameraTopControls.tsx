@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { motion } from 'framer-motion';
-import { X, Zap, ZapOff, SwitchCamera, Timer } from 'lucide-react';
+import { X, Zap, ZapOff, SwitchCamera, Timer, ChevronLeft } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { triggerHaptic } from '@/lib/haptics';
 
@@ -11,6 +11,7 @@ interface CameraTopControlsProps {
   onFlipCamera: () => void;
   timer: number;
   onTimerChange: (seconds: number) => void;
+  showBackArrow?: boolean;
 }
 
 const TIMER_OPTIONS = [0, 3, 10];
@@ -50,6 +51,7 @@ export function CameraTopControls({
   onFlipCamera,
   timer,
   onTimerChange,
+  showBackArrow = false,
 }: CameraTopControlsProps) {
   const cycleTimer = () => {
     triggerHaptic('light');
@@ -60,8 +62,12 @@ export function CameraTopControls({
   return (
     <div className="absolute top-0 left-0 right-0 z-30 pt-safe px-3 pb-6 bg-gradient-to-b from-black/70 via-black/30 to-transparent pointer-events-none">
       <div className="flex items-start justify-between pointer-events-auto">
-        <ControlChip onClick={onClose} label="Close camera">
-          <X className="h-6 w-6" strokeWidth={2.5} />
+        <ControlChip onClick={onClose} label={showBackArrow ? 'Back' : 'Close camera'}>
+          {showBackArrow ? (
+            <ChevronLeft className="h-6 w-6" strokeWidth={2.5} />
+          ) : (
+            <X className="h-6 w-6" strokeWidth={2.5} />
+          )}
         </ControlChip>
 
         <div className="flex items-center gap-2">

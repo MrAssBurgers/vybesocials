@@ -1,16 +1,19 @@
 import { memo, useCallback, useRef, useState } from 'react';
 import { motion, useMotionValue, useTransform, type PanInfo } from 'framer-motion';
-import { Trash2 } from 'lucide-react';
+import { CornerUpLeft, MoreHorizontal, Trash2 } from 'lucide-react';
 import type { LoadedDMConversation } from '@/lib/loadDMConversations';
 import { resolveOtherMemberFromConversation, displayNameForConversation } from '@/lib/dmMemberResolve';
 import { safeDmMembers } from '@/lib/persistedCollections';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { useTrashConversation } from '@/hooks/useTrashedConversations';
+import { useDmInboxActions } from '@/hooks/useDmInboxActions';
 import { ConversationOptionsSheet } from '@/components/chat/ConversationOptionsSheet';
 import { DmConversationCard } from './DmConversationCard';
-import { cn } from '@/lib/utils';
+import type { ActivityType } from '@/components/chat/LiveActivityIndicator';
 
-const SWIPE_THRESHOLD = -72;
+const REPLY_THRESHOLD = 56;
+const MANAGE_THRESHOLD = -48;
+const TRASH_THRESHOLD = -110;
 
 const GPU_LAYER_STYLE = {
   willChange: 'transform, opacity',
@@ -31,7 +34,11 @@ interface SwipeableDmConversationRowProps {
   profileId?: string;
   authUid?: string;
   isActive?: boolean;
+  priority?: boolean;
+  isTyping?: boolean;
+  presenceActivity?: ActivityType;
   onClick: () => void;
+  onQuickReply?: () => void;
   onWarm?: () => void;
 }
 
@@ -40,11 +47,16 @@ export const SwipeableDmConversationRow = memo(function SwipeableDmConversationR
   profileId,
   authUid,
   isActive,
+  priority,
+  isTyping,
+  presenceActivity,
   onClick,
+  onQuickReply,
   onWarm,
 }: SwipeableDmConversationRowProps) {
   const isMobile = useIsMobile();
   const trashConversation = useTrashConversation();
+  const inboxActions = useDmInboxActions(conversation);
   const [optionsOpen, setOptionsOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -53,19 +65,16 @@ export const SwipeableDmConversationRow = memo(function SwipeableDmConversationR
   const touchStartPosRef = useRef<{ x: number; y: number } | null>(null);
 
   const x = useMotionValue(0);
-  const deleteOpacity = useTransform(x, [-120, -40, -15, 0], [1, 0.8, 0, 0]);
-  const deleteScale = useTransform(x, [-120, -40, -15, 0], [1, 0.95, 0.5, 0.3]);
-  const deleteBgOpacity = useTransform(x, [-100, -30, -10, 0], [1, 0.6, 0, 0]);
-  const deleteVisibility = useTransform(x, (v) => (v < -5 ? 'visible' : 'hidden') as 'visible' | 'hidden');
+  const replyOpacity = useTransform(x, [0, 15, REPLY_THRESHOLD], [0, 0.5, 1]);
+  const manageOpacity = useTransform(x, [MANAGE_THRESHOLD, -15, 0], [1, 0.5, 0]);
+  const deleteOpacity = useTransform(x, [-140, TRASH_THRESHOLD, -40, 0], [1, 0.85, 0, 0]);
+  const deleteBgOpacity = useTransform(x, [-120, -35, -10, 0], [1, 0.5, 0, 0]);
 
   const other = !conversation.is_group
     ? resolveOtherMemberFromConversation(conversation, profileId, authUid)
     : null;
   const otherMember = other?.profile;
   const displayName = displayNameForConversation(conversation, profileId, authUid, 'Chat');
-  const myMembership = safeDmMembers(conversation.members).find((m) => m.user_id === profileId);
-  const isPinned = Boolean(myMembership?.is_pinned);
-  const isMuted = Boolean(myMembership?.is_muted);
 
   const handleTrash = useCallback(() => {
     trashConversation.mutate(conversation.id);
@@ -78,7 +87,13 @@ export const SwipeableDmConversationRow = memo(function SwipeableDmConversationR
 
   const handleDragEnd = useCallback((_event: MouseEvent | TouchEvent | PointerEvent, info: PanInfo) => {
     const wasHorizontalSwipe = Math.abs(info.offset.x) > 12;
-    if (info.offset.x < SWIPE_THRESHOLD) {
+    if (info.offset.x >= REPLY_THRESHOLD && onQuickReply) {
+      if (navigator.vibrate) navigator.vibrate(10);
+      onQuickReply();
+    } else if (info.offset.x <= MANAGE_THRESHOLD && info.offset.x > TRASH_THRESHOLD) {
+      if (navigator.vibrate) navigator.vibrate(8);
+      setOptionsOpen(true);
+    } else if (info.offset.x <= TRASH_THRESHOLD) {
       if (navigator.vibrate) navigator.vibrate([15, 30, 15]);
       setIsDeleting(true);
       window.setTimeout(() => handleTrash(), 360);
@@ -89,7 +104,7 @@ export const SwipeableDmConversationRow = memo(function SwipeableDmConversationR
         isDraggingRef.current = false;
       }, 350);
     }
-  }, [handleTrash]);
+  }, [handleTrash, onQuickReply]);
 
   const clearLongPress = useCallback(() => {
     if (longPressTimerRef.current) {
@@ -135,10 +150,39 @@ export const SwipeableDmConversationRow = memo(function SwipeableDmConversationR
       otherUsername={!conversation.is_group ? asDisplayLabel(otherMember?.username) : undefined}
       otherDisplayName={displayName}
       otherAvatarUrl={typeof otherMember?.avatar_url === 'string' ? otherMember.avatar_url : undefined}
-      isMuted={isMuted}
-      isPinned={isPinned}
+      isMuted={inboxActions.isMuted}
+      isPinned={inboxActions.isPinned}
+      onMarkUnread={() => inboxActions.markUnread.mutate()}
+      onArchive={() => inboxActions.archive.mutate()}
+      onTogglePin={() => inboxActions.togglePin.mutate(!inboxActions.isPinned)}
+      onToggleMute={() => inboxActions.toggleMute.mutate(!inboxActions.isMuted)}
+      onToggleLock={() => inboxActions.toggleLock.mutate(true)}
     />
   );
+
+  const card = (
+    <DmConversationCard
+      conversation={conversation}
+      profileId={profileId}
+      authUid={authUid}
+      isActive={isActive}
+      priority={priority}
+      isTyping={isTyping}
+      presenceActivity={presenceActivity}
+      onClick={handleClick}
+      onWarm={onWarm}
+    />
+  );
+
+  const touchHandlers = {
+    onTouchStart: handleTouchStart,
+    onTouchMove: handleTouchMove,
+    onTouchEnd: handleTouchEnd,
+    onMouseDown: handleTouchStart,
+    onMouseMove: handleTouchMove,
+    onMouseUp: handleTouchEnd,
+    onMouseLeave: handleTouchEnd,
+  };
 
   if (!isMobile) {
     return (
@@ -148,22 +192,9 @@ export const SwipeableDmConversationRow = memo(function SwipeableDmConversationR
             e.preventDefault();
             setOptionsOpen(true);
           }}
-          onTouchStart={handleTouchStart}
-          onTouchMove={handleTouchMove}
-          onTouchEnd={handleTouchEnd}
-          onMouseDown={handleTouchStart}
-          onMouseMove={handleTouchMove}
-          onMouseUp={handleTouchEnd}
-          onMouseLeave={handleTouchEnd}
+          {...touchHandlers}
         >
-          <DmConversationCard
-            conversation={conversation}
-            profileId={profileId}
-            authUid={authUid}
-            isActive={isActive}
-            onClick={handleClick}
-            onWarm={onWarm}
-          />
+          {card}
         </div>
         {optionsSheet}
       </>
@@ -174,16 +205,35 @@ export const SwipeableDmConversationRow = memo(function SwipeableDmConversationR
     <>
       <div className="relative mb-0.5 gpu-layer">
         <motion.div
+          className="absolute inset-0 flex items-center justify-start pointer-events-none rounded-2xl gpu-layer pl-4"
+          style={{ opacity: replyOpacity, ...GPU_LAYER_STYLE }}
+        >
+          <div className="flex flex-col items-center gap-0.5 text-primary">
+            <CornerUpLeft className="h-5 w-5" />
+            <span className="text-[10px] font-medium">Reply</span>
+          </div>
+        </motion.div>
+
+        <motion.div
+          className="absolute inset-0 flex items-center justify-end pointer-events-none rounded-2xl gpu-layer pr-4"
+          style={{ opacity: manageOpacity, ...GPU_LAYER_STYLE }}
+        >
+          <div className="flex flex-col items-center gap-0.5 text-muted-foreground">
+            <MoreHorizontal className="h-5 w-5" />
+            <span className="text-[10px] font-medium">More</span>
+          </div>
+        </motion.div>
+
+        <motion.div
           className="absolute inset-0 flex items-center justify-end pointer-events-none rounded-2xl gpu-layer"
           style={{
             opacity: deleteBgOpacity,
-            visibility: deleteVisibility,
             background: 'hsl(var(--destructive))',
             ...GPU_LAYER_STYLE,
           }}
         >
           <motion.div
-            style={{ scale: deleteScale, opacity: deleteOpacity, ...GPU_LAYER_STYLE }}
+            style={{ opacity: deleteOpacity, ...GPU_LAYER_STYLE }}
             className="flex flex-col items-center gap-0.5 text-destructive-foreground pr-6"
           >
             <Trash2 className="h-5 w-5" />
@@ -195,7 +245,7 @@ export const SwipeableDmConversationRow = memo(function SwipeableDmConversationR
           className="relative overflow-hidden rounded-2xl gpu-layer"
           style={{ x, ...GPU_LAYER_STYLE }}
           drag="x"
-          dragConstraints={{ left: -120, right: 0 }}
+          dragConstraints={{ left: -140, right: 72 }}
           dragElastic={0.1}
           dragMomentum={false}
           onDragEnd={handleDragEnd}
@@ -206,24 +256,7 @@ export const SwipeableDmConversationRow = memo(function SwipeableDmConversationR
               : { type: 'spring', stiffness: 400, damping: 35 }
           }
         >
-          <div
-            onTouchStart={handleTouchStart}
-            onTouchMove={handleTouchMove}
-            onTouchEnd={handleTouchEnd}
-            onMouseDown={handleTouchStart}
-            onMouseMove={handleTouchMove}
-            onMouseUp={handleTouchEnd}
-            onMouseLeave={handleTouchEnd}
-          >
-            <DmConversationCard
-              conversation={conversation}
-              profileId={profileId}
-              authUid={authUid}
-              isActive={isActive}
-              onClick={handleClick}
-              onWarm={onWarm}
-            />
-          </div>
+          <div {...touchHandlers}>{card}</div>
         </motion.div>
       </div>
       {optionsSheet}

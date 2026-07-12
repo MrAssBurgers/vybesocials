@@ -37,6 +37,10 @@ export * from './stubs.js';
 export * from './vybemap.js';
 export * from './parental.js';
 export * from './mcp.js';
+export * from './scheduledMessages.js';
+export * from './messageViews.js';
+export * from './transcribeVoice.js';
+export * from './captureEvents.js';
 
 
 /**

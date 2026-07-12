@@ -712,7 +712,7 @@ export function VybeSnapEditor({ mediaUrl, mediaType, directSend = false, onSend
       <Sheet open={showSendSheet} onOpenChange={setShowSendSheet}>
         <SheetContent
           side="bottom"
-          className="bg-black/95 backdrop-blur-xl border-white/10 rounded-t-3xl text-white pb-safe max-h-[60vh]"
+          className="liquid-glass-depth backdrop-blur-xl border-t border-white/15 rounded-t-3xl text-white pb-safe max-h-[60vh] bg-black/75"
         >
           <SheetTitle className="text-white text-base font-semibold mb-3">Send to</SheetTitle>
           <SendToList onPick={handleSend} />

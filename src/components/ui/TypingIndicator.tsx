@@ -43,7 +43,7 @@ export const TypingBubble = memo(function TypingBubble({
   return (
     <div
       className={cn(
-        'inline-flex items-center px-4 py-3 rounded-2xl bg-muted/80',
+        'inline-flex items-center px-4 py-3 rounded-2xl bg-card/60 backdrop-blur-md border border-white/10',
         className
       )}
     >

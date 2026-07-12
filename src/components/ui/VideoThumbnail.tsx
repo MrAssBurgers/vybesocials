@@ -10,6 +10,7 @@ interface VideoThumbnailProps {
   thumbnailUrl?: string | null;
   alt?: string;
   className?: string;
+  priority?: boolean;
   onError?: () => void;
 }
 
@@ -18,6 +19,7 @@ export const VideoThumbnail = memo(function VideoThumbnail({
   thumbnailUrl,
   alt = 'Video thumbnail',
   className,
+  priority = false,
   onError,
 }: VideoThumbnailProps) {
   const cacheKey = videoUrl || '';
@@ -113,8 +115,9 @@ export const VideoThumbnail = memo(function VideoThumbnail({
       src={displayUrl || ''}
       alt={alt}
       className={cn("w-full h-full object-cover", className)}
-      loading="lazy"
-      decoding="async"
+      loading={priority ? 'eager' : 'lazy'}
+      decoding={priority ? 'sync' : 'async'}
+      fetchPriority={priority ? 'high' : 'auto'}
       onError={() => {
         setHasError(true);
         onError?.();

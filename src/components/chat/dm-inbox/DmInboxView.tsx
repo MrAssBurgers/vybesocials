@@ -19,22 +19,31 @@ import { useTrashedConversationIds } from '@/hooks/useTrashedConversations';
 import { useAuthProfileId } from '@/hooks/useAuthProfileId';
 import { useAuth } from '@/lib/auth';
 import { ensureArray } from '@/lib/persistedCollections';
-import { buildFlatInboxRows } from '@/lib/dmInboxOrganize';
+import {
+  buildFlatInboxRows,
+  filterConversationsForTab,
+  type DmInboxTabId,
+} from '@/lib/dmInboxOrganize';
 import { resolveOtherMemberFromConversation } from '@/lib/dmMemberResolve';
 import { SwipeableDmConversationRow } from './SwipeableDmConversationRow';
+import { DmInboxTabs } from './DmInboxTabs';
 import { VybeWordmark } from '@/components/ui/VybeWordmark';
 import { Avatar, AvatarFallback, ProfileAvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { VybeMiniIcon } from '@/components/ui/VybeMiniIcon';
-import { cn } from '@/lib/utils';
 import { resolveProfileAvatarUrl } from '@/lib/profileAvatarCache';
 import { batchSignUrls } from '@/lib/signedUrlCache';
 import { TrashBin } from '@/components/chat/TrashBin';
 import { useChatPrefetch } from '@/hooks/useChatPrefetch';
-
-type InboxFilter = 'all' | 'unread';
+import { useConversationTyping } from '@/hooks/useConversationTyping';
+import { useConversationListPresence } from '@/hooks/useConversationListPresence';
+import { usePendingRequestCount, useMessageRequests } from '@/hooks/useMessageRequests';
+import { useInboxCallConversationIds } from '@/hooks/useInboxCallConversationIds';
+import { useLockedChatIds } from '@/hooks/useLockedChats';
+import { useDmInboxVirtualSlice } from '@/hooks/useDmInboxVirtualSlice';
+import { ChatSearchSheet } from '@/components/chat/ChatSearchSheet';
 
 export function DmInboxView() {
   const navigate = useNavigate();
@@ -43,9 +52,14 @@ export function DmInboxView() {
   const profileId = useAuthProfileId();
   const { warmConversation } = useChatPrefetch();
   const [searchQuery, setSearchQuery] = useState('');
-  const [filter, setFilter] = useState<InboxFilter>('all');
+  const [inboxTab, setInboxTab] = useState<DmInboxTabId>('friends');
+  const [showGlobalSearch, setShowGlobalSearch] = useState(false);
   const [isTrashOpen, setIsTrashOpen] = useState(false);
   const { data: trashedIds } = useTrashedConversationIds();
+  const { data: lockedIds } = useLockedChatIds();
+  const { data: callConvIds } = useInboxCallConversationIds();
+  const { data: pendingRequests = [] } = useMessageRequests();
+  const { data: pendingRequestCount = 0 } = usePendingRequestCount();
   const trashedCount = trashedIds?.size ?? 0;
 
   const {
@@ -62,19 +76,55 @@ export function DmInboxView() {
     () => [
       ...ensureArray(pinnedConversations),
       ...ensureArray(unpinnedConversations),
-    ],
-    [pinnedConversations, unpinnedConversations],
+    ].filter((c) => !lockedIds?.has(c.id)),
+    [pinnedConversations, unpinnedConversations, lockedIds],
+  );
+
+  const requestConversationIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const req of pendingRequests) {
+      const match = allRows.find(
+        (c) =>
+          !c.is_group &&
+          c.members?.some((m) => m.user_id === req.sender_id),
+      );
+      if (match) ids.add(match.id);
+    }
+    return ids;
+  }, [pendingRequests, allRows]);
+
+  const typingConversationIds = useMemo(
+    () => allRows.slice(0, 30).map((c) => c.id),
+    [allRows],
+  );
+  const { isTyping: checkTyping } = useConversationTyping(typingConversationIds);
+  const presenceMap = useConversationListPresence(allRows, profileId, user?.id);
+
+  const tabFilteredRows = useMemo(
+    () =>
+      filterConversationsForTab(
+        allRows,
+        inboxTab,
+        profileId,
+        requestConversationIds,
+        callConvIds,
+      ),
+    [allRows, inboxTab, profileId, requestConversationIds, callConvIds],
   );
 
   const filteredRows = useMemo(() => {
-    if (filter !== 'unread') return allRows;
-    return allRows.filter((c) => (c.unread_count || 0) > 0 || c._hasUnread);
-  }, [allRows, filter]);
+    if (inboxTab !== 'unread') return tabFilteredRows;
+    return tabFilteredRows.filter((c) => (c.unread_count || 0) > 0 || c._hasUnread);
+  }, [tabFilteredRows, inboxTab]);
 
   const inboxRows = useMemo(
     () => buildFlatInboxRows(filteredRows, profileId),
     [filteredRows, profileId],
   );
+
+  const { visible: visibleRows, paddingTop, paddingBottom, onScroll, virtualized } =
+    useDmInboxVirtualSlice(inboxRows);
+  const rowsToRender = virtualized ? visibleRows : inboxRows;
 
   useEffect(() => {
     const urls = allRows.flatMap((conv) => {
@@ -111,6 +161,16 @@ export function DmInboxView() {
       });
     },
     [navigate, warmConversation, activeConversationId],
+  );
+
+  const openChatWithReply = useCallback(
+    (id: string) => {
+      warmConversation(id, 'high');
+      startTransition(() => {
+        navigate(`/messages/${id}?compose=1`);
+      });
+    },
+    [navigate, warmConversation],
   );
 
   return (
@@ -192,25 +252,28 @@ export function DmInboxView() {
           </div>
 
           <div className="flex gap-2 mb-1">
-            {(['all', 'unread'] as const).map((key) => (
-              <button
-                key={key}
-                type="button"
-                onClick={() => setFilter(key)}
-                className={cn(
-                  'dm-inbox-chip',
-                  filter === key && 'dm-inbox-chip--active',
-                )}
-              >
-                {key === 'unread' && totalUnreadCount > 0 && (
-                  <span className="dm-inbox-chip-dot" />
-                )}
-                {key === 'all' ? 'All' : 'Unread'}
-              </button>
-            ))}
+            <DmInboxTabs
+              active={inboxTab}
+              onChange={setInboxTab}
+              badges={{
+                unread: totalUnreadCount,
+                requests: pendingRequestCount,
+                calls: callConvIds?.size ?? 0,
+              }}
+            />
+            <button
+              type="button"
+              onClick={() => setShowGlobalSearch(true)}
+              className="dm-inbox-chip shrink-0"
+              aria-label="Search messages"
+            >
+              <Search className="h-3.5 w-3.5" />
+            </button>
           </div>
         </div>
       </header>
+
+      <ChatSearchSheet open={showGlobalSearch} onOpenChange={setShowGlobalSearch} />
 
       {/* Quick lanes */}
       <div className="px-3 pb-2 flex gap-2 overflow-x-auto no-scrollbar shrink-0">
@@ -238,7 +301,10 @@ export function DmInboxView() {
       </div>
 
       {/* List */}
-      <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden scroller px-3 pb-[calc(5.5rem+env(safe-area-inset-bottom,0px))]">
+      <div
+        className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden scroller px-3 pb-[calc(5.5rem+env(safe-area-inset-bottom,0px))]"
+        onScroll={onScroll}
+      >
         {showSkeleton ? (
           <div className="space-y-3 pt-1">
             {[...Array(6)].map((_, i) => (
@@ -247,25 +313,32 @@ export function DmInboxView() {
           </div>
         ) : inboxRows.length > 0 ? (
           <LayoutGroup>
-            <div className="space-y-2 pt-1">
-              {inboxRows.map((row) =>
-                row.type === 'header' ? (
-                  <div key={`header-${row.id}`} className="dm-inbox-section-label first:mt-0 mt-3">
-                    <span>{row.label}</span>
-                    <span className="dm-inbox-section-count">{row.count}</span>
-                  </div>
-                ) : (
-                  <SwipeableDmConversationRow
-                    key={row.conversation.id}
-                    conversation={row.conversation}
-                    profileId={profileId}
-                    authUid={user?.id}
-                    isActive={row.conversation.id === activeConversationId}
-                    onClick={() => openChat(row.conversation.id)}
-                    onWarm={() => handleConversationWarm(row.conversation.id)}
-                  />
-                ),
-              )}
+            <div className="space-y-2 pt-1" style={{ paddingTop, paddingBottom }}>
+              {(() => {
+                let conversationIndex = 0;
+                return rowsToRender.map((row) =>
+                  row.type === 'header' ? (
+                    <div key={`header-${row.id}`} className="dm-inbox-section-label first:mt-0 mt-3">
+                      <span>{row.label}</span>
+                      <span className="dm-inbox-section-count">{row.count}</span>
+                    </div>
+                  ) : (
+                    <SwipeableDmConversationRow
+                      key={row.conversation.id}
+                      conversation={row.conversation}
+                      profileId={profileId}
+                      authUid={user?.id}
+                      isActive={row.conversation.id === activeConversationId}
+                      priority={conversationIndex++ < 8}
+                      isTyping={checkTyping(row.conversation.id)}
+                      presenceActivity={presenceMap.get(row.conversation.id)}
+                      onClick={() => openChat(row.conversation.id)}
+                      onQuickReply={() => openChatWithReply(row.conversation.id)}
+                      onWarm={() => handleConversationWarm(row.conversation.id)}
+                    />
+                  ),
+                );
+              })()}
             </div>
           </LayoutGroup>
         ) : (

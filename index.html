@@ -7,6 +7,9 @@
     <script src="/boot-theme.js"></script>
 
     <meta charset="UTF-8" />
+    <link rel="preconnect" href="https://firebasestorage.googleapis.com" crossorigin />
+    <link rel="preconnect" href="https://vybe-daaab.firebasestorage.app" crossorigin />
+    <link rel="dns-prefetch" href="https://firebasestorage.googleapis.com" />
     <meta name="google-site-verification" content="b3Q9zX83fSqJHGmuLFY17oIIoTvFnoDN6Ba6isHL_B0" />
 
 
@@ -298,6 +301,20 @@
         overflow: hidden;
         height: 100dvh;
         background: hsl(var(--background, 240 6% 5%));
+      }
+      html.app-update-visible,
+      body.app-update-visible {
+        overflow: hidden !important;
+        height: 100dvh;
+        width: 100%;
+        background: hsl(var(--background, 240 6% 5%));
+        overscroll-behavior: none;
+      }
+      html.app-update-visible #root,
+      html.app-update-visible #app-shell,
+      html.app-update-visible #vybe-aurora-mount {
+        visibility: hidden !important;
+        pointer-events: none !important;
       }
       body.splash-visible #root {
         min-height: 100dvh;

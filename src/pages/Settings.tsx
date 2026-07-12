@@ -223,7 +223,7 @@ const SettingsPage = forwardRef<HTMLDivElement, React.ComponentPropsWithoutRef<'
                     haptics.tap();
                     setActiveCategory('profile');
                   }}
-                  className="w-full liquid-glass-card flex items-center gap-3.5 px-4 py-3.5 mb-5 text-left group"
+                  className="w-full liquid-glass-card flex items-center gap-3.5 px-4 py-3.5 mb-5 text-left group outline-none focus:outline-none"
                 >
                   <div className="rounded-full p-[2px] bg-gradient-to-br from-primary via-accent to-primary shrink-0">
                     <Avatar className="h-12 w-12 ring-2 ring-background">
@@ -288,7 +288,7 @@ const SettingsPage = forwardRef<HTMLDivElement, React.ComponentPropsWithoutRef<'
                       setActiveCategory(null);
                     }}
                     aria-label="Back to settings"
-                    className="w-9 h-9 rounded-full liquid-glass-card flex items-center justify-center active:scale-95 transition-transform shrink-0"
+                    className="w-9 h-9 rounded-full liquid-glass-card flex items-center justify-center transition-colors shrink-0 outline-none focus:outline-none active:opacity-90"
                   >
                     <ArrowLeft className="w-[18px] h-[18px]" />
                   </button>

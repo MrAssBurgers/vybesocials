@@ -11,6 +11,8 @@ import { useFriendRequests, useRespondToFriendRequest } from '@/hooks/useFriends
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
+import { Skeleton } from '@/components/ui/skeleton';
+import { EmptyState as VybeEmptyState } from '@/components/ui/EmptyState';
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { StyledUsername } from '@/components/ui/StyledUsername';
@@ -393,10 +395,10 @@ export default function NotificationsPage() {
                 <motion.div key="skeleton" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="space-y-1">
                   {Array.from({ length: 4 }).map((_, i) => (
                     <div key={i} className="flex items-center gap-3 p-3">
-                      <div className="h-11 w-11 rounded-full bg-muted/40 animate-pulse" />
+                      <Skeleton className="h-11 w-11 rounded-full shrink-0" animate={false} />
                       <div className="flex-1 space-y-2">
-                        <div className="h-3.5 w-3/4 bg-muted/40 rounded animate-pulse" />
-                        <div className="h-3 w-1/3 bg-muted/40 rounded animate-pulse" />
+                        <Skeleton className="h-3.5 w-3/4" animate={false} />
+                        <Skeleton className="h-3 w-1/3" animate={false} />
                       </div>
                     </div>
                   ))}
@@ -460,7 +462,7 @@ export default function NotificationsPage() {
                   )}
                 </motion.div>
               ) : (
-                <EmptyState
+                <VybeEmptyState
                   icon={<Bell className="h-7 w-7 text-muted-foreground" />}
                   title="You're all caught up"
                   description="New notifications will appear here"
@@ -498,7 +500,7 @@ export default function NotificationsPage() {
                   </div>
                 </motion.div>
               ) : (
-                <EmptyState
+                <VybeEmptyState
                   icon={<Sparkles className="h-7 w-7 text-muted-foreground" />}
                   title="No priority notifications"
                   description="Mentions, replies, and friend requests will show here"
@@ -576,7 +578,7 @@ export default function NotificationsPage() {
                   ))}
                 </motion.div>
               ) : (
-                <EmptyState
+                <VybeEmptyState
                   icon={<Users className="h-7 w-7 text-muted-foreground" />}
                   title="No requests"
                   description="Friend requests will show up here"
@@ -589,29 +591,6 @@ export default function NotificationsPage() {
     </AppLayout>
     </MouthZoomProvider>
     </NotificationTransitionProvider>
-  );
-}
-
-// ─── Empty State ───
-function EmptyState({ icon, title, description }: { icon: React.ReactNode; title: string; description: string }) {
-  return (
-    <motion.div
-      key="empty"
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.4, ease: [0.25, 0.1, 0.25, 1] }}
-      className="flex flex-col items-center justify-center py-20 text-center"
-    >
-      <motion.div
-        animate={{ y: [0, -4, 0] }}
-        transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
-        className="h-14 w-14 rounded-2xl bg-muted/60 flex items-center justify-center mb-4"
-      >
-        {icon}
-      </motion.div>
-      <p className="font-semibold text-foreground">{title}</p>
-      <p className="text-sm text-muted-foreground mt-1 max-w-[220px]">{description}</p>
-    </motion.div>
   );
 }
 

@@ -2,6 +2,85 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## VYBE DM System Upgrade — Phase 1 (2026-07-12)
+- **User ask:** Implement DM upgrade plan (smart inbox, media rules, voice transcription, search, lock/remind/schedule, themes, capture alerts) — Firebase only, no ChatView rewrite
+- **Inbox:** `DmInboxTabs` (Friends/Groups/Requests/Unread/Calls), Needs Reply sections + priority sort, typing/presence on rows, virtual slice for 40+ rows, locked chats hidden from list
+- **Swipe:** Bidirectional mobile swipe — right = quick reply, left = more options, far left = delete; `useDmInboxActions` for pin/mute/archive/mark-unread/lock
+- **ChatView extract:** `chat-view/` modules (`ChatComposer`, `ChatHeader`, `ChatMessageList`, `formatMessageDate`, `ChatMediaViewerHost`); `ConversationList` deprecated
+- **Media:** Extended `ViewMode` + `EphemeralChatNotice` modes; `dmMediaRules.ts`; CF `onMessageViewCreated`
+- **Voice:** `message_transcripts` + `useMessageTranscript`; CF `transcribeVoiceMessage`; `AudioMessage` transcript UI
+- **Search:** `ChatSearchSheet` + `useChatSearch` (keyword, type, date filters)
+- **Lock/schedule:** `LockedChatGate`, `dm_reminders`, CF `processDueScheduledMessages`
+- **Themes:** `dmThemeBlend` + `theme_mode` in `dm_settings`; blend wallpaper CSS var on chat shell
+- **Capture:** `CaptureAlertPopup` + `CaptureDetailsSheet`; CF `onCaptureEventCreated` with `event_key` dedupe
+- **Backend:** Firestore rules + indexes for `scheduled_messages`, `locked_chats`, `dm_reminders`, `message_transcripts`, `message_media_rules`, `vanish_*`, `screenshot_notifications`; extended `capture_events` read
+- **Verified:** build PASS · 58 tests PASS
+- **Deploy:** `firebase deploy --only firestore:rules,firestore:indexes,functions` for rules/CFs; Lovable Publish for client (**vybehub.app**)
+- **Next:** Manual QA matrix (view-once, swipe, lock, schedule delivery); Phase 2 NL search + group channels
+
+- **User ask:** Fix camera UI (universal across surfaces); double-tap viewfinder to flip front ↔ back like Snapchat
+- **Double-tap:** `useCameraGestures` now detects mobile double-tap (was desktop-only `onDoubleClick`); movement threshold avoids accidental flips during pinch/swipe; shared `useDoubleTapCameraFlip` hook (320ms window)
+- **Flip stream:** `VybeSnapCamera` restarts `getUserMedia` on `facingMode` change without resetting capture state; boot vs flip effects split
+- **Universal chrome:** `Camera.tsx` + `VybeSnapCamera` use shared `CameraTopControls` (glass chips: close, flash, timer, flip); side tools match same glass style
+- **Verified:** build PASS · 49 tests PASS
+- **You:** Lovable → Share → Publish; open camera from DM/Story/Create — double-tap preview toggles front/back repeatedly
+
+## VYBE Perfection Roadmap — Phase 1 (2026-07-12)
+- **User ask:** Implement perfection roadmap Phase 1 — unified design system + media zero-flash
+- **Map + camera glass:** New `MapLiquidSheet` wrapper; migrated 6 VybeMap sheets off `bg-black/95`; VybeSnapCamera/Editor bottom sheets use `liquid-glass-depth` + `bg-black/75` (viewfinder stays dark)
+- **Desktop sidebars:** `Sidebar` + `DesktopLeftSidebar` clusters → `liquid-glass-subtle border-border/30` (matches right sidebar)
+- **Connect storefront:** `ConnectStorefront` wrapped in `AppLayout` + `PageTransition`; `liquid-glass-card` product tiles; `Skeleton` loading grid; canonical `EmptyState`
+- **Media zero-flash:** DM inbox first 8 threads `ProfileAvatarImage priority`; StoriesBar own tile + first 7 friends priority posters/avatars; Explore grid first row `VideoThumbnail`/`AvatarImage` eager; `ShortCard` already on upgraded `MediaFallback`
+- **Cleanup:** Deleted unused `empty-state.tsx` + dead `settings/DesignYourVybe.tsx` (onboarding version kept)
+- **Verified:** build PASS · 49 tests PASS
+- **You:** Lovable → Share → Publish for **vybehub.app**; manual: VybeMap sheets glass blur, DM inbox avatars no gray flash, `/connect/storefront/...` on-brand
+
+## Quick preset auto-equip + core social polish (2026-07-12)
+- **User ask:** Quick presets should auto-equip on tap; scan app for blocky/ugly UI on core social surfaces
+- **Presets:** `basePreset` threaded through `equipTheme` → `syncEquippedThemeToAccount`; ThemeCustomizer equips on tap with light/dark mode switch, toast, no Save bar; setting tweaks auto-equip silently
+- **Polish:** Fixed `skeleton-shimmer` / `media-shimmer` CSS collisions; upgraded `MediaFallback`, `PostSkeleton`, greeting/feed placeholders; clips loader, DM typing bubble, story loaders, glass DM panels; unified empty/skeleton patterns on Profile, Notifications, Search, Community
+- **Verified:** build PASS · 49 tests PASS
+- **You:** Lovable → Share → Publish; test Settings → Themes quick presets (one tap = equipped, persists on exit)
+
+## Fullscreen app update + butter-smooth load pass (2026-07-12)
+- **User ask:** Everything instant/smooth; "Updating app" UI glitchy and half-screen — make it fullscreen and polished
+- **Update overlay:** `AppUpdateOverlay` now portals to `document.body` at full `100dvh` with safe-area insets; locks scroll + hides `#root`/`#app-shell` via `app-update-visible`; never auto-dismisses before reload; ambient mesh matches boot splash; `appUpdateBridge` coordinates SW + `useAutoUpdate` with 1.5s paint delay before reload
+- **Instant load:** `FEED_PRELOAD_AHEAD` 6; first 8 feed posts eager; boot preloads 12 posts; splash min 280ms; avatars/videos priority skip fade; `ProfileAvatarImage` priority prop
+- **Verified:** build PASS · 49 tests PASS
+- **You:** Lovable → Share → Publish for **vybehub.app**; trigger update (publish new build) — fullscreen overlay should cover entire screen until refresh completes
+
+## Instant image loading — thumb-first + warm cache (2026-07-12)
+- **User ask:** Image loading should feel instant
+- **Fix:** New `useProgressiveImageSrc` — paints thumb (or full) immediately, upgrades to full res in background with no opacity fade; `signedUrlCache` persists to sessionStorage and hydrates at boot; `<link rel="preload">` for eager feed images; feed preloads first 12 posts (high priority first 4); `PostCard`/`NaturalAspectImage` uses progressive src; `OptimizedImage` priority skips shimmer/fade; `index.html` preconnect to Firebase Storage; non-blocking `preparePostMedia` on feed fetch
+- **Verified:** build PASS · 49 tests PASS
+- **You:** Lovable → Share → Publish for **vybehub.app**; hard refresh Home — first 5 posts should show images with no gray flash
+
+## Perceived load speed — images + boot (2026-07-12)
+- **User ask:** Images and content load in too slowly; looks bad
+- **Fix:** Thumbnail blur-up on feed images; sync signed-URL cache on first paint; await sign+preload for first 8 feed posts; `preloadFeedPostsMedia` with resized transforms; parallel feed warm from cached profile during splash; faster splash dismiss (~380ms min); avatar/image fade 100ms; larger lazy-load margin (400px)
+- **Verified:** build PASS · 49 tests PASS
+
+## Themes — scroll flicker fix (2026-07-12)
+- **User ask:** Flicker while scrolling (screen recording in Settings/Themes)
+- **Root cause:** `useApplyUserTheme` MutationObserver reacted to every `html` class change — including `is-scrolling` toggled on every scroll — forcing full `applyThemeTokens()` repaint at scroll start/end
+- **Fix:** Observer now only re-adapts when `light`/`dark` actually changes (`attributeOldValue` diff)
+- **Verified:** build PASS · 49 tests PASS
+
+## Themes — custom theme save/equip stickiness (2026-07-12)
+- **User ask:** Custom themes flash default then switch; selection forgotten on exit; Save reverts to previous theme
+- **Root cause:** `ThemeCustomizer` only previewed via `applyThemeTokens` (never `equipTheme`/localStorage) until explicit Save; stale `userTheme` refetch could overwrite in-progress edits; Gallery/Marketplace equip didn't update react-query cache; `AppLayout` cleared preview lock on every route change
+- **Fix:** New `persistEquippedUserTheme()` — equip + sync query cache; ThemeCustomizer commits on preset tap / AI gen / setting change; guarded load effect when `hasChanges`; Gallery/Marketplace use same helper; `MyCurrentVybeCard` listens to `vybeThemeEquipped`; preview lock only clears outside `/settings`
+- **Verified:** build PASS · 49 tests PASS
+- **You:** Lovable → Share → Publish for **vybehub.app**
+
+## Themes — settings crash + equip stickiness (2026-07-05)
+- **User ask:** Settings → Themes still crashed; equipped theme kept jumping back to old one
+- **Crash fix:** `ThemesSection` lazy-mounts tabs (Browse/Mine no longer force-mount via Radix `forceMount`); invalid `shared_themes` rows skipped; per-tab + settings error boundaries
+- **Equip fix:** `prefetchAndApplyUserTheme` never overwrites local equipped tokens with stale DB — syncs local → DB instead; `useApplyUserTheme` prefetches once per user/session; save/equip mutations update cache without invalidate refetch
+- **Verified:** build PASS · 49 tests PASS
+- **Published:** `origin/main` @ **`c7de8161`** · staging hosting deployed
+- **You:** Lovable → Share → Publish for **vybehub.app**
+
 ## AI Theme Designer — auto-save + Custom preset slot (2026-07-05)
 - **User ask:** generated themes don't persist when leaving the page; replace Minimal preset with Custom that always reflects the user's latest AI generation
 - **Root cause:** themes only saved on explicit "Keep Theme" tap — preview applied CSS via `applyThemeTokens` but never `equipTheme`/DB until confirm; leaving unlocked preview and `useApplyUserTheme` reverted to old equipped theme

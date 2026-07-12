@@ -12,7 +12,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
-import { Trash2, BellOff, Bell, User, Pin, PinOff, MessageSquareX } from 'lucide-react';
+import { Trash2, BellOff, Bell, User, Pin, PinOff, MessageSquareX, Archive, Lock, Mail } from 'lucide-react';
 import { useTrashConversation } from '@/hooks/useTrashedConversations';
 import { db } from '@/lib/firebase';
 import { useQueryClient } from '@tanstack/react-query';
@@ -31,6 +31,11 @@ interface ConversationOptionsSheetProps {
   otherAvatarUrl?: string;
   isMuted?: boolean;
   isPinned?: boolean;
+  onMarkUnread?: () => void;
+  onArchive?: () => void;
+  onTogglePin?: () => void;
+  onToggleMute?: () => void;
+  onToggleLock?: () => void;
 }
 
 export function ConversationOptionsSheet({
@@ -43,6 +48,11 @@ export function ConversationOptionsSheet({
   otherAvatarUrl,
   isMuted = false,
   isPinned = false,
+  onMarkUnread,
+  onArchive,
+  onTogglePin,
+  onToggleMute,
+  onToggleLock,
 }: ConversationOptionsSheetProps) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -184,8 +194,11 @@ export function ConversationOptionsSheet({
             <Button
               variant="ghost"
               className="w-full justify-start gap-3 h-12"
-              onClick={handleTogglePin}
-              disabled={isTogglingPin}
+              onClick={() => {
+                if (onTogglePin) onTogglePin();
+                else void handleTogglePin();
+              }}
+              disabled={isTogglingPin && !onTogglePin}
             >
               {isPinned ? (
                 <>
@@ -203,8 +216,11 @@ export function ConversationOptionsSheet({
             <Button
               variant="ghost"
               className="w-full justify-start gap-3 h-12"
-              onClick={handleToggleMute}
-              disabled={isTogglingMute}
+              onClick={() => {
+                if (onToggleMute) onToggleMute();
+                else void handleToggleMute();
+              }}
+              disabled={isTogglingMute && !onToggleMute}
             >
               {isMuted ? (
                 <>
@@ -218,6 +234,25 @@ export function ConversationOptionsSheet({
                 </>
               )}
             </Button>
+
+            {onMarkUnread && (
+              <Button variant="ghost" className="w-full justify-start gap-3 h-12" onClick={() => { onMarkUnread(); onOpenChange(false); }}>
+                <Mail className="h-5 w-5" />
+                Mark as Unread
+              </Button>
+            )}
+            {onArchive && (
+              <Button variant="ghost" className="w-full justify-start gap-3 h-12" onClick={() => { onArchive(); onOpenChange(false); }}>
+                <Archive className="h-5 w-5" />
+                Archive
+              </Button>
+            )}
+            {onToggleLock && (
+              <Button variant="ghost" className="w-full justify-start gap-3 h-12" onClick={() => { onToggleLock(); onOpenChange(false); }}>
+                <Lock className="h-5 w-5" />
+                Lock Chat
+              </Button>
+            )}
             
             <Button
               variant="ghost"

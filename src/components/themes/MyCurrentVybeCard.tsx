@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Share2, Bookmark, Sparkles, Pencil, Check } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
-import { useUserTheme, THEME_PRESETS, type ThemeTokens } from '@/hooks/useCustomTheme';
+import { useUserTheme, THEME_PRESETS, getEquippedThemeTokens, type ThemeTokens } from '@/hooks/useCustomTheme';
 import { ThemePreviewCanvas } from './ThemePreviewCanvas';
 import { ShareMyThemeSheet } from './ShareMyThemeSheet';
 import { useShareTheme } from '@/hooks/useSharedThemes';
@@ -22,36 +22,30 @@ export function MyCurrentVybeCard() {
   const [localTokens, setLocalTokens] = useState<ThemeTokens | null>(null);
   const snapshot = useShareTheme();
 
-  // Read live equipped theme directly from CSS variables (always in sync with what's applied)
+  // Read live equipped theme from localStorage + CSS vars (stays in sync after equip)
   useEffect(() => {
     const read = () => {
       try {
+        const equipped = getEquippedThemeTokens(profile?.id);
         const root = document.documentElement;
         const cs = getComputedStyle(root);
         const get = (name: string, fallback = '') =>
           (cs.getPropertyValue(name).trim() || fallback);
-
         const isDark = root.classList.contains('dark') || !root.classList.contains('light');
 
-        // Try localStorage first (richest data: animation, fonts, etc.)
-        const raw = localStorage.getItem('vybe-custom-theme');
-        if (raw) {
-          try {
-            const parsed = JSON.parse(raw) as ThemeTokens;
-            // Override with live CSS values so it always reflects what the user sees
-            setLocalTokens({
-              ...parsed,
-              colorPrimary: get('--primary', parsed.colorPrimary),
-              colorAccent: get('--accent', parsed.colorAccent),
-              colorSecondary: get('--secondary', parsed.colorSecondary),
-              bgMain: get('--background', parsed.bgMain),
-              bgCard: get('--card', parsed.bgCard),
-              textPrimary: get('--foreground', parsed.textPrimary),
-              textSecondary: get('--muted-foreground', parsed.textSecondary),
-              mode: isDark ? 'dark' : 'light',
-            });
-            return;
-          } catch {}
+        if (equipped?.colorPrimary) {
+          setLocalTokens({
+            ...equipped,
+            colorPrimary: get('--primary', equipped.colorPrimary),
+            colorAccent: get('--accent', equipped.colorAccent),
+            colorSecondary: get('--secondary', equipped.colorSecondary),
+            bgMain: get('--background', equipped.bgMain),
+            bgCard: get('--card', equipped.bgCard),
+            textPrimary: get('--foreground', equipped.textPrimary),
+            textSecondary: get('--muted-foreground', equipped.textSecondary),
+            mode: isDark ? 'dark' : 'light',
+          });
+          return;
         }
 
         // Build entirely from CSS vars
@@ -69,16 +63,23 @@ export function MyCurrentVybeCard() {
       } catch {}
     };
     read();
+    const onEquipped = () => read();
     const onStorage = (e: StorageEvent) => {
-      if (e.key === 'vybe-custom-theme') read();
+      if (
+        e.key === 'vybe-equipped-theme' ||
+        e.key === 'vybe-custom-theme' ||
+        (e.key?.startsWith('vybe-equipped-theme:') ?? false)
+      ) {
+        read();
+      }
     };
+    window.addEventListener('vybeThemeEquipped', onEquipped);
     window.addEventListener('storage', onStorage);
-    const id = window.setInterval(read, 2000);
     return () => {
+      window.removeEventListener('vybeThemeEquipped', onEquipped);
       window.removeEventListener('storage', onStorage);
-      window.clearInterval(id);
     };
-  }, []);
+  }, [profile?.id]);
 
   const tokens: ThemeTokens = useMemo(() => {
     const fromDb = (userTheme?.theme_tokens as unknown as ThemeTokens) || null;

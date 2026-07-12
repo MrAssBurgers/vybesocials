@@ -183,6 +183,21 @@ export function DMSettingsSheet({ conversationId }: DMSettingsSheetProps) {
                 />
               ))}
             </div>
+            <div className="flex gap-2 flex-wrap">
+              {(['default', 'mine', 'theirs', 'blend'] as const).map((mode) => (
+                <Button
+                  key={mode}
+                  type="button"
+                  size="sm"
+                  variant={settings.theme_mode === mode ? 'default' : 'outline'}
+                  className="rounded-full capitalize"
+                  onClick={() => handleUpdateSettings({ theme_mode: mode })}
+                  disabled={isLoading}
+                >
+                  {mode}
+                </Button>
+              ))}
+            </div>
           </div>
 
           {/* Emotional Pulse */}

@@ -30,7 +30,7 @@ import {
 } from '@/lib/dmBroadcast';
 import { haptics } from '@/lib/haptics';
 
-export type ViewMode = 'view_once' | '24h' | 'permanent';
+export type ViewMode = 'view_once' | 'replay_once' | '24h' | 'permanent' | 'keep' | 'timed';
 
 export interface Message {
   id: string;

@@ -68,7 +68,7 @@ export function DMSafetyGate({
         animate={{ opacity: 1, y: 0 }}
         className="p-4 border-t border-border"
       >
-        <div className="flex items-center justify-center gap-3 py-3 px-4 rounded-2xl bg-muted/50">
+        <div className="flex items-center justify-center gap-3 py-3 px-4 rounded-2xl liquid-glass-card border border-border/40">
           <Clock className="h-5 w-5 text-muted-foreground" />
           <p className="text-sm text-muted-foreground">
             Friend request pending. Waiting for <span className="font-medium text-foreground">@{targetUsername}</span> to accept.
@@ -123,7 +123,7 @@ export function DMSafetyGate({
       animate={{ opacity: 1, y: 0 }}
       className="p-4 border-t border-border"
     >
-      <div className="flex flex-col items-center gap-4 py-6 px-4 rounded-2xl bg-muted/30">
+      <div className="flex flex-col items-center gap-4 py-6 px-4 rounded-2xl liquid-glass-card border border-border/40">
         <div className="flex items-center gap-2 text-muted-foreground">
           <Users className="h-5 w-5" />
           <MessageCircle className="h-5 w-5" />

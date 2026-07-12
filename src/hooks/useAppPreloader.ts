@@ -9,6 +9,8 @@ import { isNativePerfMode } from '@/lib/nativePerfMode';
 import { isSetupRoutePath } from '@/lib/splashSession';
 import { publishSplashProgress } from '@/lib/splashProgressBridge';
 import { kickstartThemeHydration, prefetchAndApplyUserTheme } from '@/lib/themeHydration';
+import { getCachedCurrentProfile } from '@/lib/profileCache';
+import { preloadFeedPostsMedia } from '@/lib/imagePreload';
 
 interface PreloadStatus {
   step: string;
@@ -130,7 +132,7 @@ export function useAppPreloader() {
       preloadCriticalRoutes();
 
       updateStatus('auth', 0.15);
-      const authMs = isNativePerfMode() ? 1800 : 2200;
+      const authMs = isNativePerfMode() ? 1400 : 1600;
       const { data: { session } } = await withTimeout<any>(
         db.auth.getSession(),
         authMs,
@@ -153,25 +155,42 @@ export function useAppPreloader() {
         updateStatus('profile', 0.25);
         void prefetchAndApplyUserTheme(uid, queryClient);
 
+        const cachedProfile = getCachedCurrentProfile();
+        const earlyProfileId = cachedProfile?.id;
+        let feedWarmPromise: Promise<void> | null = null;
+        if (cachedProfile && earlyProfileId) {
+          queryClient.setQueryData(['profile', earlyProfileId], cachedProfile);
+          feedWarmPromise = warmUserFeed(queryClient, earlyProfileId, uid, (p) => {
+            if (!cancelled) updateStatus('feed', 0.15 + p * 0.5);
+          });
+        }
+
         const profileResult = await withTimeout<any>(
           db.from('profiles').select('*').eq('user_id', uid).maybeSingle() as unknown as Promise<any>,
-          isNativePerfMode() ? 1800 : 2200,
+          isNativePerfMode() ? 1400 : 1600,
           { data: null, error: null },
         );
         if (cancelled) return;
         updateStatus('profile', 1);
 
-        const profileData = profileResult.data;
-        const profileId = profileData?.id;
+        const profileData = profileResult.data ?? cachedProfile;
+        const profileId = profileData?.id ?? earlyProfileId;
         if (profileData && profileId) {
           queryClient.setQueryData(['profile', profileId], profileData);
           warmHomeCachesForProfile(queryClient, uid, profileId, profileData);
         }
 
         updateStatus('feed', 0.15);
-        await warmUserFeed(queryClient, profileId ?? null, uid, (p) => {
-          if (!cancelled) updateStatus('feed', 0.15 + p * 0.85);
-        });
+        if (!earlyProfileId || profileId !== earlyProfileId) {
+          await warmUserFeed(queryClient, profileId ?? null, uid, (p) => {
+            if (!cancelled) updateStatus('feed', 0.15 + p * 0.85);
+          });
+        } else if (feedWarmPromise) {
+          await feedWarmPromise;
+          if (!cancelled) updateStatus('feed', 1);
+        } else {
+          updateStatus('feed', 1);
+        }
         if (cancelled) return;
         updateStatus('clips', 1);
         updateStatus('social', 1);
@@ -282,7 +301,15 @@ async function warmGuestFeed(
   if (feedResult.status === 'fulfilled' && feedResult.value.data) {
     const posts = feedResult.value.data as any[];
     cacheFeedData(queryClient, posts, null, 'feed_post');
-    batchSignUrls(posts.flatMap((p) => [p.media_url, p.author_avatar_url, p.thumbnail_url]).filter(Boolean)).catch(() => {});
+    batchSignUrls(posts.flatMap((p) => [p.media_url, p.thumbnail_url, p.author_avatar_url]).filter(Boolean)).catch(() => {});
+    preloadFeedPostsMedia(
+      posts.map((p) => ({
+        media_url: p.media_url,
+        thumbnail_url: p.thumbnail_url,
+        author: { avatar_url: p.author_avatar_url },
+      })),
+      12,
+    );
   }
   if (clipsResult.status === 'fulfilled' && clipsResult.value.data) {
     const clips = clipsResult.value.data as any[];
@@ -324,7 +351,15 @@ async function warmUserFeed(
   if (feedResult.status === 'fulfilled' && feedResult.value.data) {
     const posts = feedResult.value.data as any[];
     cacheFeedData(queryClient, posts, profileId, null);
-    batchSignUrls(posts.flatMap((p) => [p.media_url, p.author_avatar_url, p.thumbnail_url]).filter(Boolean)).catch(() => {});
+    batchSignUrls(posts.flatMap((p) => [p.media_url, p.thumbnail_url, p.author_avatar_url]).filter(Boolean)).catch(() => {});
+    preloadFeedPostsMedia(
+      posts.map((p) => ({
+        media_url: p.media_url,
+        thumbnail_url: p.thumbnail_url,
+        author: { avatar_url: p.author_avatar_url },
+      })),
+      12,
+    );
   }
   if (clipsResult.status === 'fulfilled' && clipsResult.value.data) {
     const clips = clipsResult.value.data as any[];

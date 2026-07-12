@@ -6,51 +6,44 @@ export function PostSkeleton() {
       {/* Header - matches PostCard header exactly */}
       <div className="flex items-center justify-between p-4">
         <div className="flex items-center gap-3">
-          {/* Story ring + Avatar */}
           <div className="story-ring">
-            <Skeleton className="h-10 w-10 rounded-full" />
+            <Skeleton className="h-10 w-10 rounded-full" animate={false} />
           </div>
           <div className="space-y-1.5">
-            <Skeleton className="h-4 w-28" />
-            <Skeleton className="h-3 w-16" />
+            <Skeleton className="h-4 w-28" animate={false} />
+            <Skeleton className="h-3 w-16" animate={false} />
           </div>
         </div>
-        <Skeleton className="h-8 w-8 rounded-lg" />
+        <Skeleton className="h-8 w-8 rounded-lg" animate={false} />
       </div>
 
       {/* Media - aspect-square like PostCard */}
-      <Skeleton className="aspect-square w-full" />
+      <Skeleton className="aspect-square w-full" animate={false} />
 
-      {/* Actions - matches PostCard actions */}
       <div className="p-4 space-y-3">
-        {/* Action buttons row */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <Skeleton className="h-6 w-6 rounded" />
-            <Skeleton className="h-6 w-6 rounded" />
-            <Skeleton className="h-6 w-6 rounded" />
+            <Skeleton className="h-6 w-6 rounded-lg" animate={false} />
+            <Skeleton className="h-6 w-6 rounded-lg" animate={false} />
+            <Skeleton className="h-6 w-6 rounded-lg" animate={false} />
           </div>
-          <Skeleton className="h-6 w-6 rounded" />
+          <Skeleton className="h-6 w-6 rounded-lg" animate={false} />
         </div>
 
-        {/* Likes count */}
-        <Skeleton className="h-4 w-24" />
+        <Skeleton className="h-4 w-24" animate={false} />
 
-        {/* Caption */}
         <div className="space-y-1.5">
-          <Skeleton className="h-4 w-full" />
-          <Skeleton className="h-4 w-3/4" />
+          <Skeleton className="h-4 w-full" animate={false} />
+          <Skeleton className="h-4 w-3/4" animate={false} />
         </div>
 
-        {/* Tags */}
         <div className="flex gap-2">
-          <Skeleton className="h-4 w-12 rounded" />
-          <Skeleton className="h-4 w-16 rounded" />
-          <Skeleton className="h-4 w-10 rounded" />
+          <Skeleton className="h-4 w-12 rounded-md" animate={false} />
+          <Skeleton className="h-4 w-16 rounded-md" animate={false} />
+          <Skeleton className="h-4 w-10 rounded-md" animate={false} />
         </div>
 
-        {/* Comments link */}
-        <Skeleton className="h-4 w-32" />
+        <Skeleton className="h-4 w-32" animate={false} />
       </div>
     </div>
   );

@@ -146,6 +146,7 @@ export function MobileCreateStudio({ onClose, initialSound }: MobileCreateStudio
   const zoomRef = useRef(1);
   const zoomIndicatorTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const mountedRef = useRef(true);
+  const tapStartRef = useRef<{ x: number; y: number } | null>(null);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -316,6 +317,28 @@ export function MobileCreateStudio({ onClose, initialSound }: MobileCreateStudio
   }, []);
 
   const onDoubleTapFlip = useDoubleTapCameraFlip(flipCamera);
+
+  const handleViewfinderTouchStart = useCallback((e: React.TouchEvent) => {
+    if (e.touches.length === 1) {
+      tapStartRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+    }
+  }, []);
+
+  const handleViewfinderTouchEnd = useCallback((e: React.TouchEvent) => {
+    handlePinchEnd();
+    if (isRecordingRef.current || timerCountdown !== null) return;
+    if (e.changedTouches.length === 1 && e.touches.length === 0 && tapStartRef.current) {
+      const end = e.changedTouches[0];
+      const moved = Math.hypot(
+        end.clientX - tapStartRef.current.x,
+        end.clientY - tapStartRef.current.y,
+      );
+      tapStartRef.current = null;
+      if (moved < 24) onDoubleTapFlip(e);
+      return;
+    }
+    tapStartRef.current = null;
+  }, [handlePinchEnd, onDoubleTapFlip, timerCountdown]);
 
   // Take photo with shutter animation
   const takePhoto = useCallback(() => {
@@ -531,11 +554,9 @@ export function MobileCreateStudio({ onClose, initialSound }: MobileCreateStudio
       {/* Camera viewfinder */}
       <div
         className="flex-1 relative overflow-hidden"
+        onTouchStart={handleViewfinderTouchStart}
         onTouchMove={handlePinchMove}
-        onTouchEnd={(e) => {
-          handlePinchEnd();
-          if (e.changedTouches.length === 1 && e.touches.length === 0) onDoubleTapFlip(e);
-        }}
+        onTouchEnd={handleViewfinderTouchEnd}
         onDoubleClick={(e) => onDoubleTapFlip(e)}
       >
         <div

@@ -75,7 +75,7 @@ export const getImageConfig = () => {
 };
 
 // Feed-specific preload buffer — how many posts ahead to fully warm
-export const FEED_PRELOAD_AHEAD = 3;
+export const FEED_PRELOAD_AHEAD = 6;
 
 // Cache configuration
 export const CACHE_CONFIG = {

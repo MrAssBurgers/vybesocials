@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Mic, Square, Send, X, Loader2, Trash2, RotateCcw } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useFastSignedUrl } from '@/hooks/useFastSignedUrl';
+import { useMessageTranscript } from '@/hooks/useMessageTranscript';
 
 interface VoiceRecorderProps {
   onRecordingComplete: (blob: Blob) => void;
@@ -421,6 +422,7 @@ interface AudioMessageProps {
   src: string;
   duration?: number;
   isOwn?: boolean;
+  messageId?: string;
 }
 
 function seedFromString(s: string): number {
@@ -437,10 +439,12 @@ function waveformFromSrc(src: string, bars: number): number[] {
   });
 }
 
-export function AudioMessage({ src, isOwn }: AudioMessageProps) {
+export function AudioMessage({ src, isOwn, messageId }: AudioMessageProps) {
   const isLocal = src?.startsWith('blob:') || src?.startsWith('data:');
   const signedUrl = useFastSignedUrl(isLocal ? null : src);
   const playUrl = isLocal ? src : (signedUrl || src);
+  const { data: transcript } = useMessageTranscript(messageId);
+  const [showTranscript, setShowTranscript] = useState(false);
 
   const [isPlaying, setIsPlaying] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -520,8 +524,10 @@ export function AudioMessage({ src, isOwn }: AudioMessageProps) {
   };
 
   const elapsed = (progress / 100) * audioDuration;
+  const hasTranscript = transcript?.status === 'ready' && transcript.text?.trim();
 
   return (
+    <div className="flex flex-col gap-1 max-w-[280px]">
     <div
       className={cn(
         'flex items-center gap-2.5 min-w-[200px] sm:min-w-[220px] max-w-[280px] px-3 py-2.5 rounded-[22px]',
@@ -596,6 +602,26 @@ export function AudioMessage({ src, isOwn }: AudioMessageProps) {
           <span>{formatTime(isPlaying ? elapsed : audioDuration)}</span>
         </div>
       </div>
+    </div>
+    {messageId && (transcript?.status === 'pending' || hasTranscript) && (
+      <div className="px-1">
+        {transcript?.status === 'pending' && (
+          <p className="text-[10px] text-muted-foreground">Transcribing…</p>
+        )}
+        {hasTranscript && (
+          <button
+            type="button"
+            onClick={() => setShowTranscript((v) => !v)}
+            className="text-[10px] text-primary font-medium"
+          >
+            {showTranscript ? 'Hide transcript' : 'Show transcript'}
+          </button>
+        )}
+        {showTranscript && hasTranscript && (
+          <p className="text-xs text-muted-foreground mt-1 leading-snug">{transcript.text}</p>
+        )}
+      </div>
+    )}
     </div>
   );
 }

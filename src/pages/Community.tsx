@@ -25,6 +25,7 @@ import {
   Sparkles,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Skeleton } from '@/components/ui/skeleton';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { TooltipProvider } from '@/components/ui/tooltip';
@@ -185,7 +186,7 @@ export default function Community() {
                     {communitiesLoading && communities.length === 0 ? (
                       <CommunityGridSkeleton />
                     ) : communities.length === 0 ? (
-                      <EmptyState
+                      <CommunityEmptyPanel
                         icon={Users}
                         title="No communities yet"
                         description="Join or create a community to connect with others"
@@ -225,7 +226,7 @@ export default function Community() {
                     {publicLoading && filteredPublicCommunities.length === 0 ? (
                       <CommunityGridSkeleton />
                     ) : filteredPublicCommunities.length === 0 ? (
-                      <EmptyState
+                      <CommunityEmptyPanel
                         icon={Globe}
                         title={searchQuery ? 'No communities found' : 'No public communities yet'}
                         description={searchQuery ? 'Try a different search' : 'Be the first to create one!'}
@@ -257,7 +258,7 @@ export default function Community() {
   );
 }
 
-function EmptyState({
+function CommunityEmptyPanel({
   icon: Icon,
   title,
   description,
@@ -312,15 +313,15 @@ function CommunityGridSkeleton() {
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: i * 0.1 }}
-          className="rounded-2xl overflow-hidden bg-card/50"
+          className="rounded-2xl overflow-hidden bg-card/50 skeleton-shimmer"
         >
-          <div className="h-28 bg-muted/50 animate-pulse" />
+          <Skeleton className="h-28 w-full rounded-none" animate={false} />
           <div className="p-3.5 space-y-3">
             <div className="flex items-start gap-3">
-              <div className="w-11 h-11 rounded-xl bg-muted/50 animate-pulse -mt-8" />
+              <Skeleton className="w-11 h-11 rounded-xl -mt-8 shrink-0" animate={false} />
               <div className="flex-1 space-y-2 pt-1">
-                <div className="h-3.5 bg-muted/50 animate-pulse rounded w-2/3" />
-                <div className="h-3 bg-muted/50 animate-pulse rounded w-1/2" />
+                <Skeleton className="h-3.5 w-2/3" animate={false} />
+                <Skeleton className="h-3 w-1/2" animate={false} />
               </div>
             </div>
           </div>

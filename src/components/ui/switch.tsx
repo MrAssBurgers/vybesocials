@@ -21,7 +21,8 @@ const Switch = React.forwardRef<
     <SwitchPrimitives.Root
       className={cn(
         "peer inline-flex shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent",
-        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
+        "focus-visible:outline-none",
+        "[@media(hover:hover)_and_(pointer:fine)]:focus-visible:ring-2 [@media(hover:hover)_and_(pointer:fine)]:focus-visible:ring-primary/40 [@media(hover:hover)_and_(pointer:fine)]:focus-visible:ring-offset-0",
         "disabled:cursor-not-allowed disabled:opacity-50",
         "data-[state=checked]:bg-primary data-[state=unchecked]:bg-muted/60",
         "touch-manipulation",

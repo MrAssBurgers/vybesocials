@@ -1,4 +1,4 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth';
 import { useEffect, useLayoutEffect, useCallback, useRef } from 'react';
@@ -277,7 +277,12 @@ export function getEquippedThemeTokens(userId?: string | null): ThemeTokens | nu
 /** Persist + apply the equipped theme — single entry point for equip/save. */
 export function equipTheme(
   tokens: ThemeTokens,
-  options?: { themeId?: string | null; silent?: boolean; skipAutoSave?: boolean },
+  options?: {
+    themeId?: string | null;
+    silent?: boolean;
+    skipAutoSave?: boolean;
+    basePreset?: string;
+  },
 ) {
   const uid = getStoredAuthUserId();
   persistEquippedThemeTokens(uid, tokens);
@@ -287,13 +292,48 @@ export function equipTheme(
     localStorage.removeItem(EQUIPPED_THEME_ID_KEY);
   }
   if (uid && !options?.skipAutoSave) {
-    syncEquippedThemeToAccount(uid, tokens, { themeName: tokens.themeName });
+    syncEquippedThemeToAccount(uid, tokens, {
+      themeName: tokens.themeName,
+      basePreset: options?.basePreset,
+    });
   }
   const resolved = document.documentElement.classList.contains('light') ? 'light' : 'dark';
   const adapted = adaptThemeToMode(tokens, resolved);
   applyThemeTokens(adapted);
   _lastAppliedThemeHash = themeApplyHash(adapted, resolved);
   window.dispatchEvent(new CustomEvent('vybeThemeEquipped', { detail: tokens }));
+}
+
+/** Equip + keep react-query user-theme cache aligned (prevents stale UI reverts). */
+export function persistEquippedUserTheme(
+  tokens: ThemeTokens,
+  options?: {
+    themeId?: string | null;
+    silent?: boolean;
+    skipAutoSave?: boolean;
+    queryClient?: QueryClient;
+    userId?: string | null;
+    basePreset?: string;
+    themeName?: string;
+  },
+): void {
+  const uid = options?.userId ?? getStoredAuthUserId();
+  equipTheme(tokens, {
+    themeId: options?.themeId,
+    silent: options?.silent,
+    skipAutoSave: options?.skipAutoSave,
+    basePreset: options?.basePreset,
+  });
+  if (options?.queryClient && uid) {
+    options.queryClient.setQueryData(['user-theme', uid], {
+      user_id: uid,
+      theme_name: options.themeName ?? tokens.themeName ?? 'My Theme',
+      theme_tokens: tokens,
+      base_preset: options.basePreset ?? 'classic',
+      is_active: true,
+      updated_at: new Date().toISOString(),
+    });
+  }
 }
 
 let _lastAppliedThemeHash = '';
@@ -963,25 +1003,38 @@ export function useApplyUserTheme() {
     }
   }, [user?.id, userTheme]);
 
-  // Re-adapt equipped theme when light/dark mode changes — same tokens, no DB/localStorage swap
+  // Re-adapt equipped theme when light/dark mode changes — ignore is-scrolling etc.
   useEffect(() => {
     const observer = new MutationObserver((mutations) => {
       for (const mutation of mutations) {
-        if (mutation.type === 'attributes' && mutation.attributeName === 'class') {
-          const resolved = document.documentElement.classList.contains('light') ? 'light' : 'dark';
-          requestAnimationFrame(() => {
-            if (document.body.classList.contains('splash-visible')) {
-              reinforceSplashTheme();
-              return;
-            }
-            _lastAppliedThemeHash = '';
-            applyForMode(resolved);
-          });
-          break;
-        }
+        if (mutation.type !== 'attributes' || mutation.attributeName !== 'class') continue;
+
+        const oldClasses = (mutation.oldValue ?? '').split(/\s+/).filter(Boolean);
+        const hadLight = oldClasses.includes('light');
+        const hadDark = oldClasses.includes('dark');
+        const root = document.documentElement;
+        const hasLight = root.classList.contains('light');
+        const hasDark = root.classList.contains('dark');
+
+        if (hadLight === hasLight && hadDark === hasDark) continue;
+
+        const resolved = hasLight ? 'light' : 'dark';
+        requestAnimationFrame(() => {
+          if (document.body.classList.contains('splash-visible')) {
+            reinforceSplashTheme();
+            return;
+          }
+          _lastAppliedThemeHash = '';
+          applyForMode(resolved);
+        });
+        break;
       }
     });
-    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ['class'],
+      attributeOldValue: true,
+    });
     return () => observer.disconnect();
   }, [applyForMode]);
 

@@ -1,8 +1,16 @@
 import type { LoadedDMConversation } from '@/lib/loadDMConversations';
-import { compareDmConversations, getDmConversationSortTime } from '@/lib/dmConversationSort';
+import { compareInboxPriority } from '@/lib/dmInboxPriority';
+import { conversationNeedsReply } from '@/lib/dmNeedsReply';
 import { safeDmMembers, ensureArray } from '@/lib/persistedCollections';
 
-export type DmInboxSectionId = 'unread' | 'pinned' | 'recent' | 'all';
+export type DmInboxSectionId =
+  | 'needs_reply'
+  | 'unread'
+  | 'pinned'
+  | 'recent'
+  | 'all';
+
+export type DmInboxTabId = 'friends' | 'groups' | 'requests' | 'unread' | 'calls';
 
 export interface DmInboxSection {
   id: DmInboxSectionId;
@@ -10,12 +18,12 @@ export interface DmInboxSection {
   conversations: LoadedDMConversation[];
 }
 
-function sortByActivity(
+function sortByPriority(
   a: LoadedDMConversation,
   b: LoadedDMConversation,
   profileId?: string,
 ): number {
-  return compareDmConversations(a, b, profileId);
+  return compareInboxPriority(a, b, profileId);
 }
 
 function isPinnedForViewer(conv: LoadedDMConversation, profileId?: string): boolean {
@@ -23,6 +31,33 @@ function isPinnedForViewer(conv: LoadedDMConversation, profileId?: string): bool
   return Boolean(
     safeDmMembers(conv.members).find((m) => m.user_id === profileId)?.is_pinned,
   );
+}
+
+/** Filter rows for smart inbox tab. */
+export function filterConversationsForTab(
+  rows: LoadedDMConversation[],
+  tab: DmInboxTabId,
+  profileId?: string,
+  requestConversationIds?: Set<string>,
+  callConversationIds?: Set<string>,
+): LoadedDMConversation[] {
+  const safe = ensureArray(rows);
+  switch (tab) {
+    case 'groups':
+      return safe.filter((c) => c.is_group);
+    case 'friends':
+      return safe.filter((c) => !c.is_group);
+    case 'unread':
+      return safe.filter((c) => (c.unread_count || 0) > 0 || c._hasUnread);
+    case 'requests':
+      if (!requestConversationIds?.size) return [];
+      return safe.filter((c) => requestConversationIds.has(c.id));
+    case 'calls':
+      if (!callConversationIds?.size) return [];
+      return safe.filter((c) => callConversationIds.has(c.id));
+    default:
+      return safe;
+  }
 }
 
 /** Group + sort conversations for the iconic VYBE inbox layout. */
@@ -34,6 +69,7 @@ export function organizeDmInbox(
     (c) => c && typeof c === 'object' && typeof c.id === 'string' && c.id.length > 0,
   );
 
+  const needsReply: LoadedDMConversation[] = [];
   const unread: LoadedDMConversation[] = [];
   const pinned: LoadedDMConversation[] = [];
   const recent: LoadedDMConversation[] = [];
@@ -44,9 +80,12 @@ export function organizeDmInbox(
   for (const conv of safeRows) {
     const hasUnread = (conv.unread_count || 0) > 0 || conv._hasUnread;
     const pinnedRow = isPinnedForViewer(conv, profileId);
-    const sortMs = new Date(getDmConversationSortTime(conv)).getTime();
+    const needs = conversationNeedsReply(conv, profileId);
+    const sortMs = new Date(conv.last_message?.created_at ?? conv.created_at ?? 0).getTime();
 
-    if (hasUnread) {
+    if (needs && !pinnedRow) {
+      needsReply.push(conv);
+    } else if (hasUnread && !pinnedRow) {
       unread.push(conv);
     } else if (pinnedRow) {
       pinned.push(conv);
@@ -57,12 +96,19 @@ export function organizeDmInbox(
     }
   }
 
-  unread.sort((a, b) => sortByActivity(a, b, profileId));
-  pinned.sort((a, b) => sortByActivity(a, b, profileId));
-  recent.sort((a, b) => sortByActivity(a, b, profileId));
-  rest.sort((a, b) => sortByActivity(a, b, profileId));
+  const sortFn = (a: LoadedDMConversation, b: LoadedDMConversation) =>
+    sortByPriority(a, b, profileId);
+
+  needsReply.sort(sortFn);
+  unread.sort(sortFn);
+  pinned.sort(sortFn);
+  recent.sort(sortFn);
+  rest.sort(sortFn);
 
   const sections: DmInboxSection[] = [];
+  if (needsReply.length) {
+    sections.push({ id: 'needs_reply', label: 'Needs reply', conversations: needsReply });
+  }
   if (unread.length) sections.push({ id: 'unread', label: 'New', conversations: unread });
   if (pinned.length) sections.push({ id: 'pinned', label: 'Pinned', conversations: pinned });
   if (recent.length) sections.push({ id: 'recent', label: 'This week', conversations: recent });
@@ -72,7 +118,7 @@ export function organizeDmInbox(
     sections.push({
       id: 'all',
       label: 'Chats',
-      conversations: [...safeRows].sort((a, b) => sortByActivity(a, b, profileId)),
+      conversations: [...safeRows].sort(sortFn),
     });
   }
 
@@ -83,7 +129,6 @@ export type DmInboxRow =
   | { type: 'header'; id: DmInboxSectionId; label: string; count: number }
   | { type: 'conversation'; conversation: LoadedDMConversation };
 
-/** Flat list with section headers — keeps stable `conv.id` keys when rows change sections. */
 export function buildFlatInboxRows(
   rows: LoadedDMConversation[],
   profileId?: string,

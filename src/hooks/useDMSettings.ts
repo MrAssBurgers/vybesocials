@@ -13,6 +13,14 @@ export interface DMSettings {
   read_receipt_mode: ReadReceiptMode;
   typing_mode: TypingMode;
   theme: string;
+  theme_mode?: 'default' | 'mine' | 'theirs' | 'blend' | 'custom';
+  theme_tokens?: Record<string, string> | null;
+  capture_alert_prefs?: {
+    popup?: boolean;
+    push?: boolean;
+    sound?: boolean;
+    haptics?: boolean;
+  } | null;
   chat_font: string;
   chat_sound: string;
   chat_wallpaper: string | null;
@@ -66,6 +74,9 @@ export function useDMSettings(conversationId: string | undefined) {
         read_receipt_mode: updates.read_receipt_mode ?? query.data?.read_receipt_mode ?? defaultSettings.read_receipt_mode,
         typing_mode: updates.typing_mode ?? query.data?.typing_mode ?? defaultSettings.typing_mode,
         theme: updates.theme ?? query.data?.theme ?? defaultSettings.theme,
+        theme_mode: updates.theme_mode ?? query.data?.theme_mode ?? 'default',
+        theme_tokens: updates.theme_tokens ?? query.data?.theme_tokens ?? null,
+        capture_alert_prefs: updates.capture_alert_prefs ?? query.data?.capture_alert_prefs ?? null,
         chat_font: updates.chat_font ?? query.data?.chat_font ?? defaultSettings.chat_font,
         chat_sound: updates.chat_sound ?? query.data?.chat_sound ?? defaultSettings.chat_sound,
         chat_wallpaper: updates.chat_wallpaper ?? query.data?.chat_wallpaper ?? defaultSettings.chat_wallpaper,

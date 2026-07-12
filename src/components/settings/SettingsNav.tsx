@@ -147,7 +147,7 @@ export function SettingsHomeList({ onSelect }: SettingsHomeListProps) {
                     onSelect(id);
                   }}
                   className={cn(
-                    'w-full flex items-center gap-3.5 px-4 py-3 text-left transition-colors',
+                    'w-full flex items-center gap-3.5 px-4 py-3 text-left transition-colors outline-none focus:outline-none',
                     'active:bg-muted/50 hover:bg-muted/30',
                     index !== group.items.length - 1 && 'border-b border-foreground/[0.06]'
                   )}
@@ -198,7 +198,7 @@ export function SettingsSidebar({ activeCategory, onCategoryChange }: SettingsSi
                     onCategoryChange(id);
                   }}
                   className={cn(
-                    'relative w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-left transition-colors duration-150',
+                    'relative w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-left transition-colors duration-150 outline-none focus:outline-none',
                     isActive
                       ? 'text-foreground'
                       : 'text-foreground/65 hover:text-foreground hover:bg-muted/40'
@@ -262,7 +262,7 @@ export function SettingsCategoryStrip({
                 onCategoryChange(id);
               }}
               className={cn(
-                'flex items-center gap-2 px-3 py-2 rounded-full flex-shrink-0 transition-all duration-200',
+                'flex items-center gap-2 px-3 py-2 rounded-full flex-shrink-0 transition-colors duration-200 outline-none focus:outline-none',
                 isActive
                   ? 'bg-primary text-primary-foreground shadow-md shadow-primary/25 pl-3 pr-4'
                   : 'bg-muted/40 text-foreground/70 active:bg-muted/60'

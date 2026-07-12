@@ -51,8 +51,8 @@ export function ThemesSection() {
         <motion.button
           type="button"
           onClick={() => setShowVybeDesigner(true)}
-          whileTap={{ scale: 0.98 }}
-          className="relative w-full h-[3.75rem] rounded-2xl overflow-hidden shadow-[0_12px_40px_-12px_hsl(var(--primary)/0.55)] group"
+          whileTap={{ scale: 0.99 }}
+          className="relative w-full h-[3.75rem] rounded-2xl overflow-hidden shadow-[0_12px_40px_-12px_hsl(var(--primary)/0.55)] group outline-none focus:outline-none"
         >
           <div
             aria-hidden
@@ -80,7 +80,7 @@ export function ThemesSection() {
                 type="button"
                 onClick={() => setActiveTab(id)}
                 className={cn(
-                  'inline-flex items-center justify-center gap-1.5 rounded-xl text-xs font-medium transition-colors',
+                  'inline-flex items-center justify-center gap-1.5 rounded-xl text-xs font-medium transition-colors outline-none focus:outline-none',
                   activeTab === id
                     ? 'bg-gradient-to-r from-primary/15 via-accent/10 to-primary/15 border border-primary/25 text-foreground shadow-sm'
                     : 'text-muted-foreground hover:bg-foreground/5',

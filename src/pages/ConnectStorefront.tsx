@@ -12,10 +12,17 @@
  * is used here for demo simplicity.
  */
 
-import { useState, useEffect } from "react";
-import { useParams } from "react-router-dom";
-import { db } from "@/lib/firebase";
-import { toast } from "sonner";
+import { useState, useEffect } from 'react';
+import { useParams } from 'react-router-dom';
+import { ShoppingBag } from 'lucide-react';
+import { db } from '@/lib/firebase';
+import { toast } from 'sonner';
+import { AppLayout } from '@/components/layout/AppLayout';
+import { PageTransition } from '@/components/ui/PageTransition';
+import { Button } from '@/components/ui/button';
+import { Skeleton } from '@/components/ui/skeleton';
+import { EmptyState } from '@/components/ui/EmptyState';
+import { cn } from '@/lib/utils';
 
 interface Product {
   id: string;
@@ -38,7 +45,6 @@ export default function ConnectStorefront() {
   const [loading, setLoading] = useState(true);
   const [buyingId, setBuyingId] = useState<string | null>(null);
 
-  // ── Load products from the connected account ─────────────────────────
   useEffect(() => {
     if (!accountId) return;
 
@@ -47,13 +53,14 @@ export default function ConnectStorefront() {
       try {
         const { data, error } = await db.functions.invoke(
           `connect-v2-list-products?account_id=${accountId}`,
-          { method: "GET" },
+          { method: 'GET' },
         );
         if (error) throw error;
         if (data?.error) throw new Error(data.error);
         setProducts(data.products || []);
-      } catch (e: any) {
-        toast.error(e.message || "Failed to load products");
+      } catch (e: unknown) {
+        const message = e instanceof Error ? e.message : 'Failed to load products';
+        toast.error(message);
       } finally {
         setLoading(false);
       }
@@ -61,12 +68,11 @@ export default function ConnectStorefront() {
     load();
   }, [accountId]);
 
-  // ── Buy a product (direct charge checkout) ───────────────────────────
   const handleBuy = async (product: Product) => {
     if (!accountId || !product.default_price) return;
     setBuyingId(product.id);
     try {
-      const { data, error } = await db.functions.invoke("connect-v2-checkout", {
+      const { data, error } = await db.functions.invoke('connect-v2-checkout', {
         body: {
           account_id: accountId,
           price_id: product.default_price.id,
@@ -76,82 +82,107 @@ export default function ConnectStorefront() {
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
       if (data?.url) window.location.href = data.url;
-    } catch (e: any) {
-      toast.error(e.message || "Checkout failed");
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : 'Checkout failed';
+      toast.error(message);
     } finally {
       setBuyingId(null);
     }
   };
 
-  // ── Format currency ──────────────────────────────────────────────────
   const formatPrice = (amount: number, currency: string) =>
-    new Intl.NumberFormat("en-US", {
-      style: "currency",
+    new Intl.NumberFormat('en-US', {
+      style: 'currency',
       currency: currency.toUpperCase(),
     }).format(amount / 100);
 
-  // ── Render ───────────────────────────────────────────────────────────
-
   return (
-    <div className="min-h-screen bg-background text-foreground p-4 sm:p-8 max-w-4xl mx-auto">
-      <h1 className="text-2xl font-bold mb-2">Storefront</h1>
-      <p className="text-muted-foreground text-sm mb-6">
-        Browse products from this seller.
-      </p>
+    <AppLayout>
+      <PageTransition>
+        <div className="max-w-4xl mx-auto px-4 py-6 sm:py-8">
+          <header className="mb-8">
+            <h1 className="text-2xl font-bold tracking-tight">Storefront</h1>
+            <p className="text-muted-foreground text-sm mt-1">
+              Browse products from this seller.
+            </p>
+          </header>
 
-      {loading ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {[1, 2, 3].map((i) => (
-            <div key={i} className="rounded-xl border border-border bg-card p-5 animate-pulse h-48" />
-          ))}
-        </div>
-      ) : products.length === 0 ? (
-        <div className="rounded-xl border border-border bg-card p-8 text-center text-muted-foreground">
-          No products yet.
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {products.map((product) => (
-            <div
-              key={product.id}
-              className="rounded-xl border border-border bg-card p-5 flex flex-col justify-between"
-            >
-              {/* Product image (if any) */}
-              {product.images?.[0] && (
-                <img
-                  src={product.images[0]}
-                  alt={product.name}
-                  className="w-full h-36 object-cover rounded-lg mb-3"
-                />
-              )}
-
-              <div>
-                <h3 className="font-semibold text-base">{product.name}</h3>
-                {product.description && (
-                  <p className="text-sm text-muted-foreground mt-1 line-clamp-2">
-                    {product.description}
-                  </p>
-                )}
-              </div>
-
-              <div className="mt-4 flex items-center justify-between">
-                <span className="text-lg font-bold">
-                  {product.default_price
-                    ? formatPrice(product.default_price.unit_amount, product.default_price.currency)
-                    : "N/A"}
-                </span>
-                <button
-                  onClick={() => handleBuy(product)}
-                  disabled={buyingId === product.id || !product.default_price}
-                  className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 disabled:opacity-50 transition"
+          {loading ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {Array.from({ length: 6 }).map((_, i) => (
+                <div
+                  key={i}
+                  className="liquid-glass-card rounded-2xl border border-border/30 p-5 space-y-3"
                 >
-                  {buyingId === product.id ? "Loading…" : "Buy"}
-                </button>
-              </div>
+                  <Skeleton className="w-full h-36 rounded-xl" />
+                  <Skeleton className="h-5 w-3/4" />
+                  <Skeleton className="h-4 w-full" />
+                  <div className="flex items-center justify-between pt-2">
+                    <Skeleton className="h-6 w-16" />
+                    <Skeleton className="h-9 w-20 rounded-lg" />
+                  </div>
+                </div>
+              ))}
             </div>
-          ))}
+          ) : products.length === 0 ? (
+            <EmptyState
+              icon={<ShoppingBag className="h-10 w-10 text-primary" />}
+              title="No products yet"
+              description="This seller hasn't listed anything for sale."
+              className="liquid-glass-card rounded-2xl border border-border/30"
+            />
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {products.map((product) => (
+                <article
+                  key={product.id}
+                  className={cn(
+                    'liquid-glass-card rounded-2xl border border-border/30 p-5',
+                    'flex flex-col justify-between gap-4',
+                  )}
+                >
+                  {product.images?.[0] && (
+                    <img
+                      src={product.images[0]}
+                      alt={product.name}
+                      className="w-full h-36 object-cover rounded-xl"
+                      loading="lazy"
+                      decoding="async"
+                    />
+                  )}
+
+                  <div className="flex-1 min-w-0">
+                    <h3 className="font-semibold text-base">{product.name}</h3>
+                    {product.description && (
+                      <p className="text-sm text-muted-foreground mt-1 line-clamp-2">
+                        {product.description}
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-lg font-bold">
+                      {product.default_price
+                        ? formatPrice(
+                            product.default_price.unit_amount,
+                            product.default_price.currency,
+                          )
+                        : 'N/A'}
+                    </span>
+                    <Button
+                      size="sm"
+                      onClick={() => handleBuy(product)}
+                      disabled={buyingId === product.id || !product.default_price}
+                    >
+                      {buyingId === product.id ? 'Loading…' : 'Buy'}
+                    </Button>
+                  </div>
+                </article>
+              ))}
+            </div>
+          )}
         </div>
-      )}
-    </div>
+      </PageTransition>
+    </AppLayout>
   );
 }

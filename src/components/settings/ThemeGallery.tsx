@@ -19,11 +19,12 @@ import {
   useUpdateSharedTheme,
   SharedTheme,
 } from '@/hooks/useSharedThemes';
-import { equipTheme } from '@/hooks/useCustomTheme';
+import { persistEquippedUserTheme } from '@/hooks/useCustomTheme';
 import { useAuth } from '@/lib/auth';
 import { cn } from '@/lib/utils';
 import { useThemeTransition } from '@/providers/ThemeTransitionProvider';
 import { useTheme } from '@/lib/theme';
+import { useQueryClient } from '@tanstack/react-query';
 
 interface ThemeCardProps {
   theme: SharedTheme;
@@ -257,7 +258,8 @@ function ThemeGridSkeleton() {
 }
 
 export function ThemeGallery() {
-  const { profile } = useAuth();
+  const { profile, user } = useAuth();
+  const queryClient = useQueryClient();
   const { triggerTransition } = useThemeTransition();
   const { setTheme: setGlobalTheme } = useTheme();
 
@@ -289,14 +291,21 @@ export function ThemeGallery() {
       try {
         const targetMode = theme.theme_tokens?.mode === 'light' ? 'light' : 'dark';
         setGlobalTheme(targetMode);
-        equipTheme(theme.theme_tokens, { themeId: theme.id });
+        persistEquippedUserTheme(theme.theme_tokens, {
+          themeId: theme.id,
+          queryClient,
+          userId: user?.id,
+          basePreset: 'shared',
+          themeName: theme.theme_name,
+          silent: true,
+        });
         setActiveThemeId(theme.id);
         toast.success(`Theme "${theme.theme_name}" equipped!`);
       } catch (error) {
         console.error('Error applying theme:', error);
       }
     });
-  }, [triggerTransition, setGlobalTheme]);
+  }, [triggerTransition, setGlobalTheme, queryClient, user?.id]);
 
 
   const handleLike = useCallback((themeId: string, isLiked: boolean) => {

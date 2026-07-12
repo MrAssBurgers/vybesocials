@@ -30,7 +30,7 @@ export const OptimizedImage = memo(forwardRef<HTMLImageElement, OptimizedImagePr
     alt,
     ...props 
   }, ref) {
-    const [isLoaded, setIsLoaded] = useState(false);
+    const [isLoaded, setIsLoaded] = useState(priority);
     const [hasError, setHasError] = useState(false);
     const [isInView, setIsInView] = useState(priority);
     const containerRef = useRef<HTMLDivElement>(null);
@@ -51,7 +51,7 @@ export const OptimizedImage = memo(forwardRef<HTMLImageElement, OptimizedImagePr
             observer.disconnect();
           }
         },
-        { rootMargin: '200px', threshold: 0.01 }
+        { rootMargin: '400px', threshold: 0.01 }
       );
 
       observer.observe(element);
@@ -85,8 +85,8 @@ export const OptimizedImage = memo(forwardRef<HTMLImageElement, OptimizedImagePr
     return (
       <div ref={containerRef} className={cn("relative overflow-hidden", aspectClass, className)}>
         {/* Blur placeholder - always visible until loaded */}
-        {!isLoaded && (
-          <div className="absolute inset-0 animate-shimmer bg-gradient-to-r from-muted via-muted-foreground/10 to-muted" />
+        {!isLoaded && !priority && (
+          <div className="absolute inset-0 media-shimmer bg-gradient-to-r from-muted via-muted-foreground/10 to-muted" />
         )}
         
         {/* Thumbnail blur-up (if provided) */}
@@ -100,13 +100,14 @@ export const OptimizedImage = memo(forwardRef<HTMLImageElement, OptimizedImagePr
         )}
         
         {/* Main image - only load when in view */}
-        {isInView && (
+        {(isInView || priority) && (
           <img 
             ref={ref}
             src={signedUrl || src} 
             className={cn(
-              "w-full h-full object-cover transition-opacity duration-300",
-              isLoaded ? "opacity-100" : "opacity-0"
+              "w-full h-full object-cover",
+              !priority && !isLoaded && "opacity-0",
+              (priority || isLoaded) && "opacity-100",
             )} 
             alt={alt || caption || ''}
             onLoad={handleLoad}
@@ -149,7 +150,7 @@ export const OptimizedVideo = memo(forwardRef<HTMLVideoElement, OptimizedVideoPr
     className,
     ...props 
   }, ref) {
-    const [isLoaded, setIsLoaded] = useState(false);
+    const [isLoaded, setIsLoaded] = useState(priority);
     const [hasError, setHasError] = useState(false);
     const [isInView, setIsInView] = useState(priority);
     const containerRef = useRef<HTMLDivElement>(null);
@@ -184,7 +185,7 @@ export const OptimizedVideo = memo(forwardRef<HTMLVideoElement, OptimizedVideoPr
             }
           }
         },
-        { rootMargin: '50px', threshold: 0.5 }
+        { rootMargin: '400px', threshold: 0.01 }
       );
 
       observer.observe(element);

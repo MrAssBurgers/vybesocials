@@ -9,6 +9,9 @@ import { useRecentNewFriendProfileIds } from '@/hooks/useRecentNewFriendProfileI
 import { compactTime } from '@/lib/compactTime';
 import { resolveProfileAvatarUrl } from '@/lib/profileAvatarCache';
 import { Avatar, AvatarFallback, ProfileAvatarImage } from '@/components/ui/avatar';
+import { TypingIndicator } from '@/components/ui/TypingIndicator';
+import { activityPreviewLabel } from '@/lib/presenceActivity';
+import type { ActivityType } from '@/components/chat/LiveActivityIndicator';
 import { cn } from '@/lib/utils';
 
 export interface DmConversationCardProps {
@@ -16,6 +19,9 @@ export interface DmConversationCardProps {
   profileId?: string;
   authUid?: string;
   isActive?: boolean;
+  priority?: boolean;
+  isTyping?: boolean;
+  presenceActivity?: ActivityType;
   onClick: () => void;
   onWarm?: () => void;
 }
@@ -25,6 +31,9 @@ export const DmConversationCard = memo(function DmConversationCard({
   profileId,
   authUid,
   isActive,
+  priority = false,
+  isTyping = false,
+  presenceActivity,
   onClick,
   onWarm,
 }: DmConversationCardProps) {
@@ -87,7 +96,7 @@ export const DmConversationCard = memo(function DmConversationCard({
             {conversation.is_group ? (
               <Avatar className="h-[52px] w-[52px] border-2 border-background/80">
                 {avatar ? (
-                  <ProfileAvatarImage src={avatar} transformSize={128} />
+                  <ProfileAvatarImage src={avatar} transformSize={128} priority={priority} />
                 ) : (
                   <AvatarFallback className="bg-gradient-to-br from-primary to-accent text-primary-foreground">
                     <Users className="h-5 w-5" />
@@ -100,6 +109,7 @@ export const DmConversationCard = memo(function DmConversationCard({
                   profileId={otherProfileId}
                   src={avatar || undefined}
                   transformSize={128}
+                  priority={priority}
                 />
                 <AvatarFallback className="text-sm font-bold bg-gradient-to-br from-primary/90 to-accent/90 text-primary-foreground">
                   {String(name || '?')[0]?.toUpperCase()}
@@ -126,9 +136,18 @@ export const DmConversationCard = memo(function DmConversationCard({
             )}
           </div>
           <div className="flex items-center gap-2 min-w-0">
-            <p className={cn('dm-inbox-preview truncate flex-1', isUnread && 'dm-inbox-preview--unread')}>
-              {preview}
-            </p>
+            {isTyping ? (
+              <div className="flex items-center gap-1.5 flex-1 min-w-0">
+                <TypingIndicator size="sm" />
+                <span className="text-xs text-primary font-medium">typing…</span>
+              </div>
+            ) : presenceActivity && presenceActivity !== 'idle' ? (
+              <p className="text-xs text-primary truncate flex-1">{activityPreviewLabel(presenceActivity)}</p>
+            ) : (
+              <p className={cn('dm-inbox-preview truncate flex-1', isUnread && 'dm-inbox-preview--unread')}>
+                {preview}
+              </p>
+            )}
             {isUnread && (
               <span className="dm-inbox-unread-badge" aria-label={`${unread || 1} unread`}>
                 {unread > 9 ? '9+' : unread || '•'}

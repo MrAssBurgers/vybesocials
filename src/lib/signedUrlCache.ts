@@ -19,6 +19,57 @@ interface CacheEntry {
 const cache = new Map<string, CacheEntry>();
 const pendingRequests = new Map<string, Promise<string | null>>();
 
+const SIGNED_URL_STORAGE_KEY = 'vybe-signed-url-cache-v1';
+const MAX_PERSISTED_ENTRIES = 240;
+let persistTimer: ReturnType<typeof setTimeout> | null = null;
+
+function setCacheEntry(url: string, entry: CacheEntry): void {
+  cache.set(url, entry);
+  if (!entry.failed) schedulePersistSignedUrlCache();
+}
+
+function schedulePersistSignedUrlCache(): void {
+  if (typeof sessionStorage === 'undefined') return;
+  if (persistTimer) return;
+  persistTimer = setTimeout(() => {
+    persistTimer = null;
+    try {
+      const now = Date.now();
+      const payload: Record<string, CacheEntry> = {};
+      cache.forEach((entry, key) => {
+        if (entry.expiresAt > now && !entry.failed) payload[key] = entry;
+      });
+      const keys = Object.keys(payload);
+      if (keys.length > MAX_PERSISTED_ENTRIES) {
+        keys
+          .sort((a, b) => payload[b].expiresAt - payload[a].expiresAt)
+          .slice(MAX_PERSISTED_ENTRIES)
+          .forEach((k) => delete payload[k]);
+      }
+      sessionStorage.setItem(SIGNED_URL_STORAGE_KEY, JSON.stringify(payload));
+    } catch {
+      /* ignore quota */
+    }
+  }, 120);
+}
+
+export function hydrateSignedUrlCacheFromSession(): void {
+  if (typeof sessionStorage === 'undefined') return;
+  try {
+    const raw = sessionStorage.getItem(SIGNED_URL_STORAGE_KEY);
+    if (!raw) return;
+    const payload = JSON.parse(raw) as Record<string, CacheEntry>;
+    const now = Date.now();
+    for (const [key, entry] of Object.entries(payload)) {
+      if (entry?.expiresAt > now && !entry.failed) cache.set(key, entry);
+    }
+  } catch {
+    /* ignore */
+  }
+}
+
+hydrateSignedUrlCacheFromSession();
+
 // Cache for 50 minutes (before 1 hour expiry)
 const CACHE_DURATION = 50 * 60 * 1000;
 // Cache failed URLs for 30 seconds to allow faster recovery from transient failures
@@ -127,7 +178,7 @@ export async function getSignedUrl(publicUrl: string): Promise<string | null> {
       if (!parsed) {
         const resolved = await firebaseStorage.resolveMediaUrl(url);
         if (resolved && resolved !== url && resolved.startsWith('http')) {
-          cache.set(url, {
+          setCacheEntry(url, {
             signedUrl: resolved,
             expiresAt: Date.now() + CACHE_DURATION,
           });
@@ -143,14 +194,14 @@ export async function getSignedUrl(publicUrl: string): Promise<string | null> {
       if (error || !data?.signedUrl) {
         const resolved = await firebaseStorage.resolveMediaUrl(url);
         if (resolved && resolved.startsWith('http')) {
-          cache.set(url, {
+          setCacheEntry(url, {
             signedUrl: resolved,
             expiresAt: Date.now() + CACHE_DURATION,
           });
           return resolved;
         }
         if (url.includes('/storage/v1/object/public/')) {
-          cache.set(url, {
+          setCacheEntry(url, {
             signedUrl: url,
             expiresAt: Date.now() + CACHE_DURATION,
           });
@@ -164,7 +215,7 @@ export async function getSignedUrl(publicUrl: string): Promise<string | null> {
         return null;
       }
 
-      cache.set(url, {
+      setCacheEntry(url, {
         signedUrl: data.signedUrl,
         expiresAt: Date.now() + CACHE_DURATION,
       });
@@ -241,7 +292,7 @@ export async function batchSignUrls(urls: (string | null | undefined)[]): Promis
       if (error || !data) {
         // Cache all as failed to prevent repeated attempts
         for (const url of originalUrls) {
-          cache.set(url, {
+          setCacheEntry(url, {
             signedUrl: url,
             expiresAt: now + FAILED_CACHE_DURATION,
             failed: true,
@@ -256,7 +307,7 @@ export async function batchSignUrls(urls: (string | null | undefined)[]): Promis
         const originalUrl = originalUrls[i];
         
         if (signedUrl) {
-          cache.set(originalUrl, {
+          setCacheEntry(originalUrl, {
             signedUrl,
             expiresAt: now + CACHE_DURATION,
           });
@@ -283,6 +334,7 @@ export async function batchSignUrls(urls: (string | null | undefined)[]): Promis
   });
   
   await Promise.all(promises);
+  schedulePersistSignedUrlCache();
 }
 
 /**
@@ -309,7 +361,7 @@ export async function ensureMediaUrlsReady(urls: (string | null | undefined)[]):
       try {
         const resolved = await firebaseStorage.resolveMediaUrl(url);
         if (resolved?.startsWith('http')) {
-          cache.set(url, {
+          setCacheEntry(url, {
             signedUrl: resolved,
             expiresAt: Date.now() + CACHE_DURATION,
           });

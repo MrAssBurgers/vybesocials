@@ -638,6 +638,43 @@ service cloud.firestore {
     match /dm_settings/{docId} {
       allow read, write: if isOwnerProfile('user_id') || willOwnProfile('user_id');
     }
+    match /scheduled_messages/{docId} {
+      allow read: if signedIn() && ownsProfileId(resource.data.sender_id);
+      allow create: if signedIn() && willOwnProfile('sender_id');
+      allow update, delete: if ownsProfileId(resource.data.sender_id) || isAdmin();
+    }
+    match /locked_chats/{docId} {
+      allow read, write: if isOwnerProfile('user_id') || willOwnProfile('user_id');
+    }
+    match /dm_reminders/{docId} {
+      allow read, write: if isOwnerProfile('user_id') || willOwnProfile('user_id');
+    }
+    match /message_transcripts/{docId} {
+      allow read: if signedIn();
+      allow create, update: if signedIn() || isAdmin();
+      allow delete: if isAdmin();
+    }
+    match /message_media_rules/{docId} {
+      allow read: if signedIn();
+      allow create: if signedIn();
+      allow update, delete: if isAdmin();
+    }
+    match /vanish_threads/{docId} {
+      allow read: if signedIn() && isConversationParticipant(resource.data.conversation_id);
+      allow create: if signedIn() &&
+        willOwnProfile('created_by') &&
+        isConversationParticipant(request.resource.data.conversation_id);
+      allow update, delete: if signedIn() && isConversationParticipant(resource.data.conversation_id);
+    }
+    match /vanish_messages/{docId} {
+      allow read: if signedIn();
+      allow create: if signedIn();
+      allow update, delete: if signedIn() || isAdmin();
+    }
+    match /screenshot_notifications/{docId} {
+      allow read: if isOwnerProfile('user_id') || ownsProfileId(resource.data.recipient_id) || isAdmin();
+      allow create: if signedIn();
+    }
     match /typing_indicators/{docId} {
       allow read: if signedIn() && isConversationParticipant(resource.data.conversation_id);
       allow create, update: if signedIn() &&
@@ -769,8 +806,10 @@ service cloud.firestore {
       allow delete: if isOwner('user_id');
     }
     match /capture_events/{id} {
-      allow create: if willOwn('user_id');
-      allow read: if isOwner('user_id') || isAdmin();
+      allow create: if signedIn() && (willOwn('user_id') || willOwnProfile('captured_by'));
+      allow read: if isOwner('user_id') || ownsProfileId(resource.data.captured_by) || isAdmin() ||
+        (resource.data.conversation_id is string &&
+          isConversationParticipant(resource.data.conversation_id));
     }
 
     // ---------- communities / channels ----------

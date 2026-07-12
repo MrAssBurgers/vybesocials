@@ -28,9 +28,10 @@ interface VideoCardProps {
     duration?: number;
   };
   variant?: 'default' | 'compact' | 'horizontal';
+  priority?: boolean;
 }
 
-export const VideoCard = memo(function VideoCard({ post, variant = 'default' }: VideoCardProps) {
+export const VideoCard = memo(function VideoCard({ post, variant = 'default', priority = false }: VideoCardProps) {
   const [isHovered, setIsHovered] = useState(false);
   
   const signedAvatar = useSignedUrl(post.author.avatar_url);
@@ -62,6 +63,7 @@ export const VideoCard = memo(function VideoCard({ post, variant = 'default' }: 
             videoUrl={post.media_url}
             thumbnailUrl={post.thumbnail_url}
             alt={post.caption}
+            priority={priority}
             className="group-hover:scale-105 transition-transform duration-300"
           />
           {post.duration && (
@@ -91,6 +93,7 @@ export const VideoCard = memo(function VideoCard({ post, variant = 'default' }: 
             videoUrl={post.media_url}
             thumbnailUrl={post.thumbnail_url}
             alt={post.caption}
+            priority={priority}
             className="group-hover:scale-105 transition-transform duration-300"
           />
           {post.duration && (
@@ -121,6 +124,7 @@ export const VideoCard = memo(function VideoCard({ post, variant = 'default' }: 
           videoUrl={post.media_url}
           thumbnailUrl={post.thumbnail_url}
           alt={post.caption}
+          priority={priority}
           className={cn(
             "transition-transform duration-500 ease-out",
             isHovered && "scale-[1.06]"
@@ -161,7 +165,12 @@ export const VideoCard = memo(function VideoCard({ post, variant = 'default' }: 
           onClick={(e) => e.stopPropagation()}
         >
           <Avatar className="h-9 w-9">
-            <AvatarImage src={signedAvatar || undefined} />
+            <AvatarImage
+              src={signedAvatar || undefined}
+              loading={priority ? 'eager' : 'lazy'}
+              decoding={priority ? 'sync' : 'async'}
+              fetchPriority={priority ? 'high' : 'auto'}
+            />
             <AvatarFallback className="bg-primary/10 text-primary text-xs font-semibold">
               {post.author.username[0].toUpperCase()}
             </AvatarFallback>

@@ -14,6 +14,7 @@ import { DmInboxSafeList } from '@/components/chat/dm-inbox/DmInboxSafeList';
 import { cn } from '@/lib/utils';
 import { useDefaultLiquidBackground } from '@/hooks/useDefaultLiquidBackground';
 import { ChatView } from '@/components/chat/ChatView';
+import { LockedChatGate } from '@/components/chat/LockedChatGate';
 import { prepareMessagesRoute } from '@/lib/loadDMConversations';
 import { warmDmConversation } from '@/lib/warmDmConversation';
 import { recoverDmQueryCache } from '@/lib/recoverDmQueryCache';
@@ -132,7 +133,9 @@ function MessagesInner() {
         >
           {isInChat ? (
             <SmartErrorBoundary fallback={<MessagesFallback />}>
-              <ChatView />
+              <LockedChatGate conversationId={conversationId!}>
+                <ChatView />
+              </LockedChatGate>
             </SmartErrorBoundary>
           ) : (
             <div className="dm-empty-pane hidden md:flex flex-1 w-full min-h-0 items-center justify-center relative overflow-hidden">

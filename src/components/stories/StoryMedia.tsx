@@ -1,6 +1,8 @@
 import { useRef, useEffect } from 'react';
 import { useSignedUrl } from '@/hooks/useSignedUrl';
 
+import { MediaSkeleton } from '@/components/ui/MediaFallback';
+
 interface StoryMediaProps {
   mediaUrl: string;
   mediaType: string;
@@ -25,8 +27,8 @@ export function StoryMedia({ mediaUrl, mediaType, isPaused = false }: StoryMedia
 
   if (!signedUrl) {
     return (
-      <div className="w-full h-full bg-muted flex items-center justify-center">
-        <div className="w-8 h-8 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+      <div className="w-full h-full bg-black relative overflow-hidden">
+        <MediaSkeleton className="absolute inset-0 opacity-60" />
       </div>
     );
   }

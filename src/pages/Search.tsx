@@ -15,6 +15,8 @@ import { haptics } from '@/lib/haptics';
 import { useDebounce } from '@/hooks/useDebounce';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
+import { Skeleton } from '@/components/ui/skeleton';
+import { EmptySearch } from '@/components/ui/EmptyState';
 
 const ContactDiscovery = lazy(() => import('@/components/onboarding/ContactDiscovery').then(m => ({ default: m.ContactDiscovery })));
 
@@ -391,10 +393,10 @@ function SearchSkeleton() {
     <div className="space-y-1">
       {Array.from({ length: 5 }).map((_, i) => (
         <div key={i} className="flex items-center gap-3 p-3">
-          <div className="h-12 w-12 rounded-full bg-muted/40 animate-pulse" />
+          <Skeleton className="h-12 w-12 rounded-full shrink-0" animate={false} />
           <div className="flex-1 space-y-2">
-            <div className="h-3.5 w-2/3 bg-muted/40 rounded animate-pulse" />
-            <div className="h-3 w-1/3 bg-muted/40 rounded animate-pulse" />
+            <Skeleton className="h-3.5 w-2/3" animate={false} />
+            <Skeleton className="h-3 w-1/3" animate={false} />
           </div>
         </div>
       ))}
@@ -404,15 +406,6 @@ function SearchSkeleton() {
 
 function EmptyResults({ query, type }: { query: string; type: string }) {
   return (
-    <div className="py-16 text-center">
-      <div className="relative inline-block mb-4">
-        <div className="absolute -inset-4 rounded-2xl bg-gradient-to-br from-primary/5 to-accent/5" />
-        <div className="relative w-16 h-16 rounded-2xl bg-card/80 backdrop-blur-sm border border-border/30 flex items-center justify-center">
-          <SearchIcon className="h-7 w-7 text-muted-foreground/40" />
-        </div>
-      </div>
-      <p className="text-sm font-medium text-foreground">No {type} found</p>
-      <p className="text-xs text-muted-foreground mt-1">Try a different search for "{query}"</p>
-    </div>
+    <EmptySearch query={query || type} />
   );
 }
