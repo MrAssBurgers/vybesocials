@@ -1,6 +1,6 @@
 import { useLayoutEffect, useRef, useEffect, lazy, Suspense } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { DmInboxView } from '@/components/chat/dm-inbox/DmInboxView';
+import { DMInboxPage } from '@/features/dms';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { useBreakpoint } from '@/hooks/usePlatform';
 import { motion } from 'framer-motion';
@@ -154,7 +154,7 @@ function MessagesInner() {
           )}
         >
           <LocalErrorBoundary label="dm-inbox" fallback={<DmInboxSafeList />}>
-            <DmInboxView />
+            <DMInboxPage />
           </LocalErrorBoundary>
         </div>
 

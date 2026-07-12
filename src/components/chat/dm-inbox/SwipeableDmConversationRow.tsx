@@ -10,6 +10,7 @@ import { ConversationOptionsSheet } from '@/components/chat/ConversationOptionsS
 import { DmConversationCard } from './DmConversationCard';
 import { shouldUseListMotion } from '@/lib/performanceConfig';
 import type { ActivityType } from '@/components/chat/LiveActivityIndicator';
+import type { DMConversationPreview } from '@/features/dms/dm.types';
 
 const SWIPE_ACTIVATE_PX = 12;
 const HOLD_MS = 480;
@@ -45,6 +46,7 @@ function clampSwipeX(dx: number): number {
 
 interface SwipeableDmConversationRowProps {
   conversation: LoadedDMConversation;
+  preview?: DMConversationPreview;
   profileId?: string;
   authUid?: string;
   isActive?: boolean;
@@ -58,6 +60,7 @@ interface SwipeableDmConversationRowProps {
 
 export const SwipeableDmConversationRow = memo(function SwipeableDmConversationRow({
   conversation,
+  preview,
   profileId,
   authUid,
   isActive,
@@ -275,6 +278,7 @@ export const SwipeableDmConversationRow = memo(function SwipeableDmConversationR
   const card = (
     <DmConversationCard
       conversation={conversation}
+      preview={preview}
       profileId={profileId}
       authUid={authUid}
       isActive={isActive}
@@ -295,9 +299,20 @@ export const SwipeableDmConversationRow = memo(function SwipeableDmConversationR
           }}
           onPointerEnter={handlePointerEnter}
         >
-          <button type="button" className="dm-inbox-row-tap w-full text-left" onClick={onClick}>
+          <div
+            role="button"
+            tabIndex={0}
+            className="dm-inbox-row-tap w-full text-left"
+            onClick={onClick}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault();
+                onClick();
+              }
+            }}
+          >
             {card}
-          </button>
+          </div>
         </div>
         {optionsSheet}
       </>
