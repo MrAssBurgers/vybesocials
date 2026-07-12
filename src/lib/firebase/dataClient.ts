@@ -957,127 +957,6 @@ async function rpcUpdate2faSettings(params: Record<string, unknown>): Promise<Se
   return next;
 }
 
-function isoDateOnly(d = new Date()): string {
-  return d.toISOString().slice(0, 10);
-}
-
-function weekStartIso(d = new Date()): string {
-  const day = d.getUTCDay();
-  const diff = day === 0 ? -6 : 1 - day;
-  const monday = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() + diff));
-  return monday.toISOString().slice(0, 10);
-}
-
-async function rpcRotateChallenges(): Promise<void> {
-  const today = isoDateOnly();
-  const weekStart = weekStartIso();
-
-  const allChallenges = await getDocuments<Record<string, unknown>>('challenges');
-  const nowMs = Date.now();
-
-  for (const ch of allChallenges) {
-    const type = String(ch.type || '');
-    const id = String(ch.id || '');
-    if (!id || (type !== 'daily' && type !== 'weekly')) continue;
-
-    const activeDate = ch.active_date ? String(ch.active_date).slice(0, 10) : null;
-    const activeWeek = ch.active_week_start ? String(ch.active_week_start).slice(0, 10) : null;
-
-    if (type === 'daily' && activeDate && activeDate < today) {
-      await deleteDocument('challenges', id);
-      continue;
-    }
-    if (type === 'weekly' && activeWeek && activeWeek < weekStart) {
-      await deleteDocument('challenges', id);
-      continue;
-    }
-
-    const endsAt = ch.ends_at ? Date.parse(String(ch.ends_at)) : NaN;
-    if (!Number.isNaN(endsAt) && endsAt < nowMs && (type === 'daily' || type === 'weekly')) {
-      await deleteDocument('challenges', id);
-      continue;
-    }
-
-    const staleDaily =
-      type === 'daily' && activeDate &&
-      (Date.parse(`${activeDate}T00:00:00Z`) < nowMs - 7 * 86400000) &&
-      ch.is_active === false;
-    const staleWeekly =
-      type === 'weekly' && activeWeek &&
-      (Date.parse(`${activeWeek}T00:00:00Z`) < nowMs - 28 * 86400000) &&
-      ch.is_active === false;
-
-    if (staleDaily || staleWeekly) {
-      await deleteDocument('challenges', id);
-    }
-  }
-
-  const refreshed = await getDocuments<Record<string, unknown>>('challenges', [
-    where('is_active', '==', true),
-  ]);
-
-  const dailyCount = refreshed.filter(
-    (c) => c.type === 'daily' && String(c.active_date || '').slice(0, 10) === today,
-  ).length;
-  const weeklyCount = refreshed.filter(
-    (c) => c.type === 'weekly' && String(c.active_week_start || '').slice(0, 10) === weekStart,
-  ).length;
-
-  const templates = await getDocuments<Record<string, unknown>>('challenge_templates', [
-    where('is_active', '==', true),
-  ]);
-
-  const pickTemplates = (type: string, limit: number) =>
-    templates
-      .filter((t) => t.type === type)
-      .sort(() => Math.random() - 0.5)
-      .slice(0, limit);
-
-  if (dailyCount < 6) {
-    for (const tpl of pickTemplates('daily', 6 - dailyCount)) {
-      const id = `daily_${today}_${String(tpl.id || Math.random().toString(36).slice(2, 8))}`;
-      await setDocument('challenges', id, {
-        id,
-        title: tpl.title,
-        description: tpl.description ?? null,
-        type: 'daily',
-        requirement_type: tpl.requirement_type,
-        requirement_count: tpl.requirement_count ?? 1,
-        reward_badge_id: tpl.reward_badge_id ?? null,
-        reward_xp: tpl.reward_xp ?? 25,
-        is_active: true,
-        active_date: today,
-        active_week_start: null,
-        template_id: tpl.id,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      }, true);
-    }
-  }
-
-  if (weeklyCount < 6) {
-    for (const tpl of pickTemplates('weekly', 6 - weeklyCount)) {
-      const id = `weekly_${weekStart}_${String(tpl.id || Math.random().toString(36).slice(2, 8))}`;
-      await setDocument('challenges', id, {
-        id,
-        title: tpl.title,
-        description: tpl.description ?? null,
-        type: 'weekly',
-        requirement_type: tpl.requirement_type,
-        requirement_count: tpl.requirement_count ?? 1,
-        reward_badge_id: tpl.reward_badge_id ?? null,
-        reward_xp: tpl.reward_xp ?? 75,
-        is_active: true,
-        active_date: null,
-        active_week_start: weekStart,
-        template_id: tpl.id,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      }, true);
-    }
-  }
-}
-
 async function rpcCreateDmConversation(otherProfileId: string): Promise<string | null> {
   const { data: { user } } = await firebaseAuth.getUser();
   if (!user) return null;
@@ -1316,8 +1195,13 @@ const CLIENT_RPC: Record<string, (params: Record<string, unknown>) => Promise<un
   ensure_2fa_settings: async () => rpcEnsure2faSettings(),
   update_2fa_settings: async (p) => rpcUpdate2faSettings(p),
   rotate_challenges: async () => {
-    await rpcRotateChallenges();
-    return null;
+    const { data, error } = await invokeFunction<{
+      ok?: boolean;
+      dailyCreated?: number;
+      weeklyCreated?: number;
+    }>('rotate_challenges', {});
+    if (error) throw error;
+    return data;
   },
   create_dm_conversation: async (p) => rpcCreateDmConversation(String(p.other_profile_id || '')),
   get_user_badges_by_profile: rpcGetUserBadgesByProfile,

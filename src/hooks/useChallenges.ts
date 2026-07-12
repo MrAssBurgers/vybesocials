@@ -55,18 +55,23 @@ export interface ChallengeProgress {
 }
 
 /**
- * Get today's date and this week's start in YYYY-MM-DD format
+ * Get today's date and this week's start in YYYY-MM-DD format (UTC — matches server rotation).
  */
 function getDateFilters() {
   const now = new Date();
   const today = now.toISOString().split('T')[0];
-  // Get Monday of current week
-  const day = now.getDay();
+  const day = now.getUTCDay();
   const mondayOffset = day === 0 ? -6 : 1 - day;
-  const monday = new Date(now);
-  monday.setDate(now.getDate() + mondayOffset);
+  const monday = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + mondayOffset));
   const weekStart = monday.toISOString().split('T')[0];
   return { today, weekStart };
+}
+
+async function runRotateChallenges(context: string): Promise<void> {
+  const { error } = await db.rpc('rotate_challenges');
+  if (error) {
+    console.warn(`[challenges] rotate_challenges failed (${context}):`, error.message || error);
+  }
 }
 
 /**
@@ -78,11 +83,7 @@ export function useChallenges() {
     queryFn: async () => {
       const { today, weekStart } = getDateFilters();
 
-      try {
-        await db.rpc('rotate_challenges');
-      } catch (e) {
-        console.warn('rotate_challenges prefetch failed', e);
-      }
+      await runRotateChallenges('prefetch');
       
       // Fetch achievements (no date filter)
       const { data: achievements, error: achError } = await db
@@ -108,18 +109,14 @@ export function useChallenges() {
       // Self-heal: if today's challenges are missing, ask the DB to
       // populate them from the template library, then re-fetch once.
       if (finalDailies.length === 0) {
-        try {
-          await db.rpc('rotate_challenges');
-          const { data: refreshed } = await db
-            .from('challenges')
-            .select('*')
-            .eq('is_active', true)
-            .eq('type', 'daily')
-            .eq('active_date', today);
-          finalDailies = refreshed || [];
-        } catch (e) {
-          console.warn('rotate_challenges self-heal failed', e);
-        }
+        await runRotateChallenges('self-heal');
+        const { data: refreshed } = await db
+          .from('challenges')
+          .select('*')
+          .eq('is_active', true)
+          .eq('type', 'daily')
+          .eq('active_date', today);
+        finalDailies = refreshed || [];
       }
 
       // Final fallback: NULL-dated dailies

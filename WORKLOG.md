@@ -2,6 +2,17 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## Challenge auto-rotation — server fix (2026-07-12)
+- **User ask:** Fix challenges not auto-generating (daily/weekly empty)
+- **Root cause:** `rotate_challenges` ran in browser; Firestore `challenges` write = admin only → silent permission-denied
+- **Fix:** `functions/src/challenges.ts` — `rotateChallengesCore` (Admin SDK), `rotateChallenges` callable, `scheduledRotateChallenges` cron (05:00 UTC daily)
+- **Client:** `dataClient` RPC → `invokeFunction('rotate_challenges')`; removed client-side Firestore writes; `useChallenges` logs RPC errors + UTC week alignment
+- **Data:** `challenge_templates` present in Firestore (20+ docs)
+- **Verified:** functions build PASS · client build/typecheck/lint/test PASS (58)
+- **Firebase deploy:** `rotateChallenges` + `scheduledRotateChallenges` live on **vybe-daaab**
+- **You:** Push client + Lovable Publish for **vybehub.app**; open Challenges hub to confirm daily quests populate
+- **Follow-up:** Port `increment_challenge_progress` / `sync_my_challenge_progress` (still stubbed) if completion/XP broken
+
 ## Publish handoff — welcome-back PFP + CI fix (2026-07-12)
 - **User ask:** Publish client polish + fix CI typecheck on DM inbox tests
 - **Welcome back:** Instant profile photo on sign-in — cache-first splash, `ProfileAvatarImage` priority, boot preloader warms avatar signed URL

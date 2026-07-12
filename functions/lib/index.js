@@ -40,6 +40,7 @@ export * from './scheduledMessages.js';
 export * from './messageViews.js';
 export * from './transcribeVoice.js';
 export * from './captureEvents.js';
+export * from './challenges.js';
 /**
  * Promote a user to admin via custom claim. Bootstrap the first admin
  * manually in Firebase Console → Authentication → User → Custom Claims:
