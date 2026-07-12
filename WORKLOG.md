@@ -11,7 +11,8 @@ Use this file as the Lovable -> Cursor handoff each session.
 - **Privacy:** `FriendProfileVisibilityCard` in Settings → Privacy (`profile_visibility` collection)
 - **Verified:** build PASS · lint PASS · 61 tests PASS (includes `friendProfileRoutes.test.ts`)
 - **Firebase deploy (vybe-daaab):** rules + indexes + 9 friend-profile CFs live
-- **You:** Lovable → sync branch → **Share → Publish** for **vybehub.app**; manual QA `/friend/:username` + location request flow
+- **Published:** `origin/main` @ **`46ec4299`**
+- **You:** Lovable → sync `main` @ **`46ec4299`** → **Share → Publish** for **vybehub.app**; manual QA `/friend/:username` + location request flow
 - **Next:** Wire `indexSharedContent` from DM share actions so Shared tab auto-populates
 
 ## Challenge auto-rotation — server fix (2026-07-12)
