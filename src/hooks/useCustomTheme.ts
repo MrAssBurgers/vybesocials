@@ -974,11 +974,6 @@ export function useApplyUserTheme() {
   const applyForMode = useCallback((resolved: 'dark' | 'light', force = false) => {
     if (_isApplyingTheme || _isSavingTheme || _themePreviewLock) return;
 
-    if (typeof document !== 'undefined' && document.body.classList.contains('splash-visible')) {
-      reinforceSplashTheme();
-      return;
-    }
-
     // Equipped localStorage is the live source — never let stale user-theme cache override it.
     let tokens = getEquippedThemeTokens(user?.id);
 
@@ -987,7 +982,12 @@ export function useApplyUserTheme() {
       if (dbTokens?.colorPrimary) tokens = dbTokens;
     }
 
-    if (!tokens?.colorPrimary) return;
+    if (!tokens?.colorPrimary) {
+      if (typeof document !== 'undefined' && document.body.classList.contains('splash-visible')) {
+        reinforceSplashTheme();
+      }
+      return;
+    }
 
     const hash = themeApplyHash(adaptThemeToMode(tokens, resolved), resolved);
     if (!force && hash === _lastAppliedThemeHash) return;
@@ -1020,7 +1020,10 @@ export function useApplyUserTheme() {
 
         const resolved = hasLight ? 'light' : 'dark';
         requestAnimationFrame(() => {
-          if (document.body.classList.contains('splash-visible')) {
+          if (
+            document.body.classList.contains('splash-visible') &&
+            !getEquippedThemeTokens(user?.id)?.colorPrimary
+          ) {
             reinforceSplashTheme();
             return;
           }
@@ -1041,15 +1044,12 @@ export function useApplyUserTheme() {
   // Paint equipped theme on mount and when DB row first arrives (no local equipped yet).
   useLayoutEffect(() => {
     const resolvedMode = document.documentElement.classList.contains('light') ? 'light' : 'dark';
-    if (document.body.classList.contains('splash-visible')) {
+    const hasEquippedLocal = !!getEquippedThemeTokens(user?.id)?.colorPrimary;
+    if (!hasEquippedLocal && document.body.classList.contains('splash-visible')) {
       reinforceSplashTheme();
       return;
     }
-    if (getEquippedThemeTokens(user?.id)?.colorPrimary) {
-      applyForMode(resolvedMode);
-      return;
-    }
-    applyForMode(resolvedMode, true);
+    applyForMode(resolvedMode, !hasEquippedLocal);
   }, [userTheme, applyForMode, user?.id]);
 
   // Network reconcile once per user per session — not on every user-theme cache touch.
@@ -1057,15 +1057,23 @@ export function useApplyUserTheme() {
     const uid = user?.id ?? getStoredAuthUserId();
     if (!uid || prefetchedForUserRef.current === uid) return;
     prefetchedForUserRef.current = uid;
-    runAfterSplashDismiss(() => {
+    const hasLocal = !!getEquippedThemeTokens(uid)?.colorPrimary;
+    if (hasLocal) {
+      runAfterSplashDismiss(() => {
+        void prefetchAndApplyUserTheme(uid, queryClient, { timeoutMs: 6000 });
+      });
+    } else {
       void prefetchAndApplyUserTheme(uid, queryClient, { timeoutMs: 6000 });
-    });
+    }
   }, [user?.id, queryClient]);
 
   // Re-apply when another tab or equipTheme updates storage
   useEffect(() => {
     const onEquipped = () => {
-      if (document.body.classList.contains('splash-visible')) {
+      if (
+        document.body.classList.contains('splash-visible') &&
+        !getEquippedThemeTokens(user?.id)?.colorPrimary
+      ) {
         reinforceSplashTheme();
         return;
       }

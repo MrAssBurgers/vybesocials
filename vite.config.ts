@@ -83,6 +83,8 @@ export default defineConfig(({ mode }) => {
             'vendor-revenuecat': ['@revenuecat/purchases-js'],
             'vendor-forms': ['react-hook-form', '@hookform/resolvers', 'zod'],
             'vendor-styling': ['class-variance-authority', 'clsx', 'tailwind-merge'],
+            'vendor-mapbox': ['mapbox-gl'],
+            'vendor-livekit': ['livekit-client'],
           },
         },
       },

@@ -29,6 +29,7 @@ import {
 } from '@/components/ui/sheet';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
+import { shouldUseListMotion } from '@/lib/performanceConfig';
 import { useListings, LISTING_CATEGORIES, LISTING_CONDITIONS, useToggleFavorite, useListingFavorites } from '@/hooks/useMarketplace';
 import { useRealtimeListings } from '@/hooks/useRealtimeListings';
 import { useMyBusiness } from '@/hooks/useBusiness';
@@ -49,23 +50,33 @@ const ListingCard = memo(function ListingCard({
   index?: number;
 }) {
   const category = LISTING_CATEGORIES.find(c => c.value === listing.category);
+  const motionEnabled = shouldUseListMotion();
+  const Card = motionEnabled ? motion.div : 'div';
+  const cardMotion = motionEnabled
+    ? {
+        initial: { opacity: 0, x: -20 },
+        animate: { opacity: 1, x: 0 },
+        exit: { opacity: 0, x: 20 },
+        transition: { duration: 0.3, delay: index * 0.05, type: 'spring', stiffness: 400, damping: 25 },
+        whileHover: { scale: 1.01, y: -2 },
+        whileTap: { scale: 0.99 },
+      }
+    : {};
+  const gridMotion = motionEnabled
+    ? {
+        initial: { opacity: 0, scale: 0.9, y: 20 },
+        animate: { opacity: 1, scale: 1, y: 0 },
+        exit: { opacity: 0, scale: 0.9, y: -20 },
+        transition: { duration: 0.4, delay: index * 0.05, type: 'spring', stiffness: 300, damping: 25 },
+        whileHover: { y: -8, scale: 1.02 },
+        whileTap: { scale: 0.98 },
+      }
+    : {};
 
   if (viewMode === 'list') {
     return (
-      <motion.div
-        layout
-        initial={{ opacity: 0, x: -20 }}
-        animate={{ opacity: 1, x: 0 }}
-        exit={{ opacity: 0, x: 20 }}
-        transition={{ 
-          duration: 0.3, 
-          delay: index * 0.05,
-          type: 'spring',
-          stiffness: 400,
-          damping: 25
-        }}
-        whileHover={{ scale: 1.01, y: -2 }}
-        whileTap={{ scale: 0.99 }}
+      <Card
+        {...cardMotion}
         className="liquid-glass-card p-4 flex gap-4"
       >
         <Link to={`/market/${listing.id}`} className="shrink-0">
@@ -141,25 +152,13 @@ const ListingCard = memo(function ListingCard({
             )}
           </div>
         </div>
-      </motion.div>
+      </Card>
     );
   }
 
   return (
-    <motion.div
-      layout
-      initial={{ opacity: 0, scale: 0.9, y: 20 }}
-      animate={{ opacity: 1, scale: 1, y: 0 }}
-      exit={{ opacity: 0, scale: 0.9, y: -20 }}
-      transition={{ 
-        duration: 0.4, 
-        delay: index * 0.05,
-        type: 'spring',
-        stiffness: 300,
-        damping: 25
-      }}
-      whileHover={{ y: -8, scale: 1.02 }}
-      whileTap={{ scale: 0.98 }}
+    <Card
+      {...gridMotion}
       className="liquid-glass-card overflow-hidden group cursor-pointer"
     >
       <Link to={`/market/${listing.id}`} className="block">
@@ -268,7 +267,7 @@ const ListingCard = memo(function ListingCard({
           </Link>
         </motion.div>
       </motion.div>
-    </motion.div>
+    </Card>
   );
 });
 

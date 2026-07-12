@@ -31,7 +31,8 @@ import { Button } from '@/components/ui/button';
 import { useAuth } from '@/lib/auth';
 import { isFullyLoggedIn } from '@/lib/authReady';
 import { useAheadMediaPreload } from '@/hooks/useAheadMediaPreload';
-import { FEED_PRELOAD_AHEAD } from '@/lib/performanceConfig';
+import { FEED_PRELOAD_AHEAD, FEED_POST_ESTIMATE_PX, FEED_VIRTUAL_OVERSCAN, FEED_VIRTUAL_THRESHOLD } from '@/lib/performanceConfig';
+import { useVirtualScrollSlice } from '@/hooks/useVirtualScrollSlice';
 import { useFeedOfflineState } from '@/hooks/useFeedOfflineState';
 import {
   FeedOfflineNoCache,
@@ -454,6 +455,24 @@ function InlinePostList({
     return new Set(state.positions);
   }, [posts.length]);
 
+  const listRef = useRef<HTMLDivElement>(null);
+  const estimatePostHeight = useCallback(() => FEED_POST_ESTIMATE_PX, []);
+
+  const {
+    visible: visiblePosts,
+    visibleStart,
+    paddingTop,
+    paddingBottom,
+    virtualized,
+  } = useVirtualScrollSlice(posts, {
+    threshold: FEED_VIRTUAL_THRESHOLD,
+    estimateHeight: estimatePostHeight,
+    overscan: FEED_VIRTUAL_OVERSCAN,
+    useAppScroll: true,
+    listRef,
+  });
+  const postsToRender = virtualized ? visiblePosts : posts;
+
   // Track which post is currently in view so we can preload the next 3 ahead
   const [visibleIndex, setVisibleIndex] = useState(0);
   const visibleIndexRef = useRef(0);
@@ -464,6 +483,10 @@ function InlinePostList({
   useEffect(() => {
     visibleIndexRef.current = visibleIndex;
   }, [visibleIndex]);
+
+  useEffect(() => {
+    if (virtualized) setVisibleIndex(visibleStart);
+  }, [virtualized, visibleStart]);
 
   useEffect(() => {
     visibilityObserverRef.current?.disconnect();
@@ -590,7 +613,14 @@ function InlinePostList({
       {/* Post Nudge — re-engagement */}
       <PostNudgeWidget />
 
-      {posts.map((post, index) => (
+      <div ref={listRef} className="space-y-4">
+        {virtualized && paddingTop > 0 && (
+          <div aria-hidden style={{ height: paddingTop }} />
+        )}
+
+        {postsToRender.map((post, localIndex) => {
+          const index = virtualized ? visibleStart + localIndex : localIndex;
+          return (
         <div
           key={post.id}
           data-post-card
@@ -607,7 +637,7 @@ function InlinePostList({
             <MemoizedPostCard post={post} eager={index < 8} />
           </ErrorBoundary>
           {/* Early load-more sentinel — fires 5 posts before the end */}
-          {index === earlyTriggerIndex && (
+          {!virtualized && index === earlyTriggerIndex && (
             <div ref={loadMoreRef} aria-hidden className="h-px w-full" />
           )}
           {adPositions.has(index) && (
@@ -619,7 +649,16 @@ function InlinePostList({
             <FeedRewardCard index={rewardCount++} />
           )}
         </div>
-      ))}
+          );
+        })}
+
+        {virtualized && paddingBottom > 0 && (
+          <div aria-hidden style={{ height: paddingBottom }} />
+        )}
+        {virtualized && (
+          <div ref={loadMoreRef} aria-hidden className="h-px w-full" />
+        )}
+      </div>
 
       {/* Caught Up screen after all posts */}
       {!isFetchingNext && posts.length >= 5 && (

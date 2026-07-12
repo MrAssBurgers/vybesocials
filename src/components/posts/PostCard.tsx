@@ -6,6 +6,7 @@ import { ReactionPicker, ReactionSummary } from '@/components/reactions/Reaction
 import { ReactionType } from '@/lib/reactions';
 import { AnimatePresence, motion } from 'framer-motion';
 import { T, MOTION_CONFIG } from '@/lib/motion';
+import { shouldUseListMotion } from '@/lib/performanceConfig';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -566,12 +567,16 @@ export const PostCard = memo(function PostCard({ post, eager = false }: PostCard
 
   if (isHidden) return null;
 
+  const listMotionEnabled = shouldUseListMotion();
+  const PostCardRoot = listMotionEnabled ? motion.article : 'article';
+  const postCardMotionProps = listMotionEnabled
+    ? { initial: { opacity: 0, y: 8 }, animate: { opacity: 1, y: 0 }, transition: T.enter }
+    : {};
+
   return (
-    <motion.article
+    <PostCardRoot
+      {...postCardMotionProps}
       ref={viewRef}
-      initial={{ opacity: 0, y: 8 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={T.enter}
       className="relative rounded-2xl overflow-hidden bg-card/70 backdrop-blur-md border border-foreground/[0.06] feed-post-card"
     >
       {/* Subtle animated VYBE aurora outline (full perimeter, low opacity) */}
@@ -1064,6 +1069,6 @@ export const PostCard = memo(function PostCard({ post, eager = false }: PostCard
         isOpen={showCommentSheet}
         onClose={() => setShowCommentSheet(false)}
       />
-    </motion.article>
+    </PostCardRoot>
   );
 });

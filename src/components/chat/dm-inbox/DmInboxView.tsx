@@ -4,7 +4,7 @@
  */
 import { useMemo, useState, useCallback, useEffect, startTransition } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { motion, LayoutGroup } from 'framer-motion';
+import { motion } from 'framer-motion';
 import {
   MessageCircle,
   RefreshCw,
@@ -99,7 +99,7 @@ export function DmInboxView() {
     [allRows],
   );
   const { isTyping: checkTyping } = useConversationTyping(typingConversationIds);
-  const presenceMap = useConversationListPresence(allRows, profileId, user?.id);
+  const presenceMap = useConversationListPresence(allRows, profileId, user?.id, activeConversationId);
 
   const tabFilteredRows = useMemo(
     () =>
@@ -313,7 +313,6 @@ export function DmInboxView() {
             ))}
           </div>
         ) : inboxRows.length > 0 ? (
-          <LayoutGroup>
             <div className="space-y-2 pt-1" style={{ paddingTop, paddingBottom }}>
               {(() => {
                 let conversationIndex = 0;
@@ -341,7 +340,6 @@ export function DmInboxView() {
                 );
               })()}
             </div>
-          </LayoutGroup>
         ) : (
           <div className="dm-inbox-empty flex flex-col items-center justify-center py-16 px-6 text-center">
             <div className="dm-inbox-empty-orb mb-5">

@@ -15,15 +15,19 @@ function notifyNewPost() {
   newPostListeners.forEach(fn => fn());
 }
 
-/** Shared post query keys — avoids duplicating the list everywhere */
+/** Shared post query keys — active feeds only (skip saved/local on hot UPDATE path). */
 const POST_QUERY_KEYS = [
   ['posts'],
   ['infinite-posts'],
   ['infinite-following-posts'],
   ['following-posts'],
-  ['saved-posts'],
   ['personalized-feed'],
   ['personalized-feed-v2'],
+] as const;
+
+const POST_DELETE_KEYS = [
+  ...POST_QUERY_KEYS,
+  ['saved-posts'],
   ['local-feed'],
 ] as const;
 
@@ -40,11 +44,28 @@ export function usePostsRealtime() {
   const invalidatePostCaches = useCallback((deletedId?: string) => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => {
-      POST_QUERY_KEYS.forEach(key => queryClient.invalidateQueries({ queryKey: [...key] }));
+      POST_DELETE_KEYS.forEach(key => queryClient.invalidateQueries({ queryKey: [...key] }));
       if (deletedId) {
         queryClient.invalidateQueries({ queryKey: ['post', deletedId] });
       }
     }, 300);
+  }, [queryClient]);
+
+  const patchPostUpdate = useCallback((updated: Record<string, unknown>) => {
+    const postId = typeof updated.id === 'string' ? updated.id : null;
+    if (!postId) return;
+    queryClient.setQueryData(['post', postId], (old: unknown) =>
+      old && typeof old === 'object' ? { ...(old as object), ...updated } : old,
+    );
+    const patchList = (old: unknown) => {
+      if (!Array.isArray(old)) return old;
+      return old.map((row: { id?: string }) =>
+        row?.id === postId ? { ...row, ...updated } : row,
+      );
+    };
+    POST_QUERY_KEYS.forEach((key) => {
+      queryClient.setQueriesData({ queryKey: [...key] }, patchList);
+    });
   }, [queryClient]);
 
   useEffect(() => {
@@ -64,7 +85,11 @@ export function usePostsRealtime() {
         {
           event: 'UPDATE',
           table: 'posts',
-          callback: () => { invalidatePostCaches(); },
+          callback: (payload) => {
+            if (payload.new && typeof payload.new === 'object') {
+              patchPostUpdate(payload.new as Record<string, unknown>);
+            }
+          },
         },
       ],
     );
@@ -73,7 +98,7 @@ export function usePostsRealtime() {
       if (debounceRef.current) clearTimeout(debounceRef.current);
       removeRealtimeChannel(channel);
     };
-  }, [queryClient, invalidatePostCaches]);
+  }, [queryClient, invalidatePostCaches, patchPostUpdate]);
 }
 
 /**

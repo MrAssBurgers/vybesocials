@@ -1,4 +1,5 @@
 import { isNativeAppShell } from '@/lib/despiaBridge';
+import { isNativePerfMode } from '@/lib/nativePerfMode';
 
 /**
  * VYBE Performance Configuration
@@ -76,6 +77,28 @@ export const getImageConfig = () => {
 
 // Feed-specific preload buffer — how many posts ahead to fully warm
 export const FEED_PRELOAD_AHEAD = 6;
+
+/** Max per-conversation Firestore message listeners at app root. */
+export const MAX_SCOPED_DM_LISTENERS = 24;
+
+/** Max peer presence subscriptions on DM inbox rows. */
+export const MAX_CONVERSATION_PRESENCE_LISTENERS = 30;
+
+/** Home feed windowing — only mount PostCards near the viewport. */
+export const FEED_VIRTUAL_THRESHOLD = 15;
+export const FEED_POST_ESTIMATE_PX = 520;
+export const FEED_VIRTUAL_OVERSCAN = 4;
+
+/** DM thread windowing for long histories. */
+export const CHAT_VIRTUAL_THRESHOLD = 50;
+export const CHAT_VIRTUAL_OVERSCAN = 6;
+
+/** Skip layout/list framer-motion on native shells and low-end devices. */
+export function shouldUseListMotion(): boolean {
+  if (typeof window === 'undefined') return true;
+  if (isLowEndDevice() || isNativePerfMode()) return false;
+  return !window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+}
 
 // Cache configuration
 export const CACHE_CONFIG = {

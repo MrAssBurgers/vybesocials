@@ -4,32 +4,49 @@ import { subscribeUserPresence, toUiActivity, type UserPresenceDoc } from '@/lib
 import { uiActivityFromState } from '@/lib/presenceActivity';
 import type { ActivityType } from '@/components/chat/LiveActivityIndicator';
 import { inferOtherUserIdFromConversation } from '@/lib/dmMemberResolve';
-
-const MAX_TRACKED = 30;
+import { sortDmConversations } from '@/lib/dmConversationSort';
+import { MAX_CONVERSATION_PRESENCE_LISTENERS } from '@/lib/performanceConfig';
 
 export type ConversationPresenceMap = Map<string, ActivityType>;
 
 /**
  * Live Snapchat-style presence per conversation row (Firestore users/{id}).
+ * Capped to recent + pinned threads (same priority as scoped DM listeners).
  */
 export function useConversationListPresence(
   conversations: Conversation[],
   profileId: string | undefined,
   authUid: string | undefined,
+  activeConversationId?: string | null,
 ): ConversationPresenceMap {
   const targets = useMemo(() => {
     if (!profileId) return [];
+
+    const sorted = sortDmConversations(conversations, profileId);
     const rows: { conversationId: string; peerId: string }[] = [];
-    for (const conv of conversations) {
-      if (rows.length >= MAX_TRACKED) break;
-      if (conv.is_group) continue;
+    const seenPeers = new Set<string>();
+
+    const pushRow = (conv: Conversation) => {
+      if (rows.length >= MAX_CONVERSATION_PRESENCE_LISTENERS) return;
+      if (conv.is_group) return;
       const peerId = inferOtherUserIdFromConversation(conv, profileId, authUid);
-      if (peerId && peerId !== profileId) {
-        rows.push({ conversationId: conv.id, peerId });
-      }
+      if (!peerId || peerId === profileId || seenPeers.has(peerId)) return;
+      seenPeers.add(peerId);
+      rows.push({ conversationId: conv.id, peerId });
+    };
+
+    if (activeConversationId) {
+      const active = sorted.find((c) => c.id === activeConversationId);
+      if (active) pushRow(active);
     }
+
+    for (const conv of sorted) {
+      if (conv.id === activeConversationId) continue;
+      pushRow(conv);
+    }
+
     return rows;
-  }, [conversations, profileId, authUid]);
+  }, [conversations, profileId, authUid, activeConversationId]);
 
   const targetsKey = useMemo(
     () => targets.map((t) => `${t.conversationId}:${t.peerId}`).join('|'),

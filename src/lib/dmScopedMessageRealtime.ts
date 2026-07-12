@@ -9,6 +9,7 @@ import { appendIncomingMessage } from '@/lib/messagesQueryKey';
 import { maybeShowForegroundDmNotification } from '@/lib/foregroundDmNotification';
 import { patchDmConversationActivity, sortDmConversations } from '@/lib/dmConversationSort';
 import { readQueryArray, safeDmMembers } from '@/lib/persistedCollections';
+import { MAX_SCOPED_DM_LISTENERS } from '@/lib/performanceConfig';
 import {
   removeChannelByTopic,
   removeRealtimeChannel,
@@ -55,18 +56,45 @@ export interface ScopedMessageRealtimeContext {
   scheduleUnknownConvoRefetch: (profileId: string) => void;
 }
 
-function collectConversationIds(
+function selectScopedConversationIds(
   queryClient: QueryClient,
   profileId: string,
   getViewingConversationId: () => string | null,
 ): Set<string> {
   const ids = new Set<string>();
-  for (const key of ['dm-conversations', 'conversations'] as const) {
-    const cached = queryClient.getQueryData<any[]>([key, profileId]);
-    cached?.forEach((c) => c?.id && ids.add(c.id));
-  }
   const viewing = getViewingConversationId();
   if (viewing) ids.add(viewing);
+
+  const cached = readQueryArray(
+    queryClient.getQueryData(['dm-conversations', profileId]) ??
+      queryClient.getQueryData(['conversations', profileId]),
+  );
+  const sorted = sortDmConversations(cached, profileId);
+  for (const conv of sorted) {
+    if (ids.size >= MAX_SCOPED_DM_LISTENERS) break;
+    if (conv?.id) ids.add(conv.id);
+  }
+  return ids;
+}
+
+async function selectScopedConversationIdsWithFallback(
+  queryClient: QueryClient,
+  profileId: string,
+  authUid: string | null,
+  getViewingConversationId: () => string | null,
+): Promise<Set<string>> {
+  const ids = selectScopedConversationIds(queryClient, profileId, getViewingConversationId);
+  if (ids.size >= MAX_SCOPED_DM_LISTENERS) return ids;
+
+  try {
+    const fromDb = await fetchMembershipConversationIds(profileId, authUid);
+    for (const id of fromDb) {
+      if (ids.size >= MAX_SCOPED_DM_LISTENERS) break;
+      ids.add(id);
+    }
+  } catch {
+    /* cache-only */
+  }
   return ids;
 }
 
@@ -363,13 +391,12 @@ export function setupScopedMessageRealtime(
   };
 
   const syncConversationListeners = async () => {
-    const ids = collectConversationIds(ctx.queryClient, ctx.profileId, ctx.getViewingConversationId);
-    try {
-      const fromDb = await fetchMembershipConversationIds(ctx.profileId, ctx.authUid);
-      fromDb.forEach((id) => ids.add(id));
-    } catch {
-      /* cache-only fallback */
-    }
+    const ids = await selectScopedConversationIdsWithFallback(
+      ctx.queryClient,
+      ctx.profileId,
+      ctx.authUid,
+      ctx.getViewingConversationId,
+    );
 
     for (const [cid, ch] of convChannels) {
       if (!ids.has(cid)) {

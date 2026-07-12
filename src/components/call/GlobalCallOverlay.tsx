@@ -44,16 +44,8 @@ import { triggerHaptic } from '@/lib/haptics';
 import { clearWarmCallMedia } from '@/lib/callMediaWarmup';
 import { stopCameraStream } from '@/hooks/useCameraPreload';
 import { openFriendProfile } from '@/lib/friendProfileRoutes';
-import {
-  Room,
-  RoomEvent,
-  Track,
-  RemoteParticipant,
-  LocalTrackPublication,
-  ConnectionState,
-  DisconnectReason,
-  VideoPresets,
-} from 'livekit-client';
+import { loadLiveKit, type LiveKitClientModule, type Room } from '@/lib/livekit/loadLiveKit';
+import type { DisconnectReason, LocalTrackPublication } from 'livekit-client';
 import { CallSettingsSheet } from './CallSettingsSheet';
 import { CallDiagnosticsPanel } from './CallDiagnosticsPanel';
 import { MinimizedCallBubble } from './MinimizedCallBubble';
@@ -78,7 +70,9 @@ function rescanRemoteTracks(
   attachRemoteVideo: (track: MediaStreamTrack) => void,
   attachRemoteAudio: (track: MediaStreamTrack) => void,
   reason: string,
+  lk: LiveKitClientModule,
 ): void {
+  const { Track } = lk;
   logCallMedia('subscribe_rescan', { reason, remotes: room.remoteParticipants.size });
   for (const participant of room.remoteParticipants.values()) {
     for (const pub of participant.trackPublications.values()) {
@@ -112,6 +106,7 @@ export function GlobalCallOverlay() {
   
   // Connection refs — only one active at a time
   const roomRef = useRef<Room | null>(null);          // LiveKit (persistent mode)
+  const livekitModuleRef = useRef<LiveKitClientModule | null>(null);
   const p2pRef = useRef<P2PConnection | null>(null);
   const p2pPreviewRef = useRef(false);   // P2P mode
   const isLeavingRef = useRef(false);
@@ -166,6 +161,12 @@ export function GlobalCallOverlay() {
 
   const stateRef = useRef(state);
   useEffect(() => { stateRef.current = state; }, [state]);
+
+  useEffect(() => {
+    if (state.call?.callMode === 'persistent' && state.phase !== 'idle') {
+      void loadLiveKit();
+    }
+  }, [state.call?.callMode, state.phase]);
 
   const clearJoinTimeout = useCallback(() => {
     if (joinTimeoutRef.current) { clearTimeout(joinTimeoutRef.current); joinTimeoutRef.current = null; }
@@ -437,8 +438,12 @@ export function GlobalCallOverlay() {
   // ── LiveKit Connection (persistent mode) ──────────────────
 
   const connectToRoom = useCallback(async (call: CallData) => {
+    const lk = await loadLiveKit();
+    livekitModuleRef.current = lk;
+    const { Room, RoomEvent, Track, VideoPresets } = lk;
+
     if (roomRef.current) {
-      if (roomRef.current.name === call.roomName && roomRef.current.state === ConnectionState.Connected) {
+      if (roomRef.current.name === call.roomName && roomRef.current.state === 'connected') {
         return;
       }
       try { await roomRef.current.disconnect(); } catch {}
@@ -547,7 +552,7 @@ export function GlobalCallOverlay() {
       setAutoEndCountdown(0);
       if (autoEndTimerRef.current) { clearTimeout(autoEndTimerRef.current); autoEndTimerRef.current = null; }
       if (countdownIntervalRef.current) { clearInterval(countdownIntervalRef.current); countdownIntervalRef.current = null; }
-      rescanRemoteTracks(room, attachRemoteVideo, attachRemoteAudio, 'ParticipantConnected');
+      rescanRemoteTracks(room, attachRemoteVideo, attachRemoteAudio, 'ParticipantConnected', lk);
     });
 
     room.on(RoomEvent.ParticipantDisconnected, () => {
@@ -627,7 +632,7 @@ export function GlobalCallOverlay() {
         signalingState: 'connected',
         iceState: 'connected',
       });
-      rescanRemoteTracks(room, attachRemoteVideo, attachRemoteAudio, 'Connected');
+      rescanRemoteTracks(room, attachRemoteVideo, attachRemoteAudio, 'Connected', lk);
     });
 
     try {
@@ -642,11 +647,11 @@ export function GlobalCallOverlay() {
             })
           : Promise.resolve(),
       ]);
-      rescanRemoteTracks(room, attachRemoteVideo, attachRemoteAudio, 'post-publish');
+      rescanRemoteTracks(room, attachRemoteVideo, attachRemoteAudio, 'post-publish', lk);
       for (const ms of [300, 800, 1500, 3000]) {
         setTimeout(() => {
           if (roomRef.current === room) {
-            rescanRemoteTracks(room, attachRemoteVideo, attachRemoteAudio, `retry-${ms}ms`);
+            rescanRemoteTracks(room, attachRemoteVideo, attachRemoteAudio, `retry-${ms}ms`, lk);
           }
         }, ms);
       }
@@ -677,7 +682,8 @@ export function GlobalCallOverlay() {
 
     statsIntervalRef.current = setInterval(async () => {
       const room = roomRef.current;
-      if (!room) return;
+      const lk = livekitModuleRef.current;
+      if (!room || !lk) return;
 
       const localVideo = localVideoRef.current;
       const w = localVideo?.videoWidth || 0;
@@ -707,7 +713,7 @@ export function GlobalCallOverlay() {
         // Stats API varies by LiveKit version — best-effort only.
       }
 
-      const pub = room.localParticipant.getTrackPublication(Track.Source.Camera);
+      const pub = room.localParticipant.getTrackPublication(lk.Track.Source.Camera);
       const dims = pub?.track?.mediaStreamTrack?.getSettings?.();
       updateCallDiagnostics({
         connectionType: 'livekit',
@@ -865,7 +871,7 @@ export function GlobalCallOverlay() {
   // Force cleanup when state resets to idle
   useEffect(() => {
     if (state.phase !== 'idle') return;
-    if (roomRef.current && roomRef.current.state !== ConnectionState.Disconnected) {
+    if (roomRef.current && roomRef.current.state !== 'disconnected') {
       roomRef.current.disconnect();
     }
     if (p2pRef.current) {
@@ -1067,9 +1073,10 @@ export function GlobalCallOverlay() {
       const newOff = !isVideoOff;
       if (state.call?.callMode === 'persistent' && roomRef.current) {
         await roomRef.current.localParticipant.setCameraEnabled(!newOff);
-        // Attach the newly-published local camera track to the PiP preview
         if (!newOff) {
-          const cameraPub = roomRef.current.localParticipant.getTrackPublication(Track.Source.Camera);
+          const lk = livekitModuleRef.current ?? await loadLiveKit();
+          livekitModuleRef.current = lk;
+          const cameraPub = roomRef.current.localParticipant.getTrackPublication(lk.Track.Source.Camera);
           const mt = cameraPub?.track?.mediaStreamTrack;
           if (mt) attachLocalVideo(mt);
         } else {

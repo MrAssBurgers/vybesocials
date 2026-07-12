@@ -27,7 +27,7 @@ import { isValidGeneratedTheme, type GeneratedTheme } from '@/lib/localVibeTheme
 import { useAuth } from '@/lib/auth';
 import { useVybeDNA } from '@/hooks/useVybeDNA';
 import { collectThemeUserContext, hasThemeUserContext } from '@/lib/theme/themeUserContext';
-import { applyThemeTokens, useSaveTheme, setThemePreviewLock, ThemeTokens, sanitizeThemeTokens } from '@/hooks/useCustomTheme';
+import { applyThemeTokens, useSaveTheme, setThemePreviewLock, ThemeTokens, sanitizeThemeTokens, persistEquippedUserTheme } from '@/hooks/useCustomTheme';
 import { navVisibility } from '@/lib/navVisibility';
 import { resetThemeToDefault } from '@/lib/themeReset';
 import {
@@ -377,7 +377,15 @@ export function AIVybeDesigner({ interests = [], onComplete, onSkip }: AIVybeDes
       if (!mountedRef.current) return;
 
       const safeTheme = sanitizeThemeTokens(theme);
-      try { applyThemeTokens(safeTheme); } catch (e) {
+      try {
+        applyThemeTokens(safeTheme);
+        persistEquippedUserTheme(safeTheme, {
+          userId: user?.id ?? profile?.user_id ?? null,
+          basePreset: 'custom',
+          themeName: safeTheme.themeName || theme.themeName || 'My VYBE',
+          silent: true,
+        });
+      } catch (e) {
         console.error('applyThemeTokens failed', e);
         restoreSnapshot();
         toast.error("Couldn't apply that theme. Try another.");

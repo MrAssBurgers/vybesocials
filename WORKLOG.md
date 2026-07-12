@@ -2,6 +2,51 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## DM inbox swipe + row layout revamp (2026-07-12)
+- **User ask:** Fix sticky/janky conversation swipe; simplify row layout; quick seamless-feel wins in inbox
+- **Root cause:** Framer `drag="x"` fought `animate={{ x: 0 }}` snap-back (stuck mid-swipe); nested touch handlers + long-press competed with drag; row `backdrop-filter` + `:active scale` on card inside transformed layer caused compositor jank
+- **Swipe:** Replaced drag prop with pointer gesture state machine (same pattern as `SwipeToReply`) — vertical scroll wins early, manual `x.set()` + explicit `animate(x, 0)` snap-back; `touch-pan-y` on row; `shouldUseListMotion()` gates spring vs fast snap
+- **Layout:** Flattened `DmConversationCard` — avatar / name / preview / time / unread badge only; removed glow layer, glass blur, gradient text, avatar ring wrapper; card is non-interactive `div` (swipe row owns tap)
+- **CSS:** Lighter `.dm-inbox-card` (no backdrop-filter, no active scale); `.dm-inbox-card--swiping` disables transitions during drag; row estimate 68px
+- **Preserved:** Tabs, pin/mute/archive, swipe right = quick reply, left = more, far left = delete, long-press = options
+- **Verified:** build PASS · lint PASS · 64 tests PASS
+- **You:** Mobile QA on `/messages` — swipe should snap back cleanly; scroll list vertically without horizontal stick
+
+## Phase C perf pass — feed + thread virtualization, presence cap (2026-07-12)
+- **User ask:** Phase C — virtualize Home feed + DM message list; cap `useConversationListPresence` (~30 subs)
+- **Home feed:** `useVirtualScrollSlice` on `InlinePostList` — app-scroll windowing at 15+ posts (`FEED_VIRTUAL_THRESHOLD`); only visible PostCards + overscan mount; spacer padding preserves scroll height; load-more sentinel at list bottom when virtualized
+- **DM thread:** Same hook on `ChatView` message list at 50+ messages (`CHAT_VIRTUAL_THRESHOLD`); variable-height estimates per message type; scroll-to-bottom + load-older preserved via existing scrollHeight delta
+- **Presence cap:** `MAX_CONVERSATION_PRESENCE_LISTENERS = 30` in `performanceConfig.ts`; `useConversationListPresence` sorts by pinned + recent activity (`sortDmConversations`), always includes active thread, dedupes peers
+- **Shared:** New `useVirtualScrollSlice.ts`; `useDmInboxVirtualSlice` refactored to use it
+- **Verified:** build PASS · lint PASS · 64 tests PASS
+- **Next (Phase D):** variable-height measure pass for feed/chat estimates; `scrollToMessage` expand visible window; optional `@tanstack/react-virtual` if estimates drift on long sessions
+
+## Phase B perf pass — listener caps, cache patches, lazy LiveKit (2026-07-12)
+- **User ask:** Continue perf work after Phase A — Phase B
+- **DM realtime:** Cap scoped message listeners to **24** recent + active thread (`MAX_SCOPED_DM_LISTENERS` in `performanceConfig.ts`; `dmScopedMessageRealtime.ts`)
+- **React Query:** Narrow invalidations — `useRealtimeProfiles` patches embedded profiles/posts in-place; `usePostsRealtime` UPDATE patches caches; helpers in `invalidateConversationCaches.ts`
+- **LiveKit:** Dynamic import via `loadLiveKit.ts`; `GlobalCallOverlay` loads on persistent call connect + preloads when call active (removes static `livekit-client` from initial bundle path)
+- **Motion:** `shouldUseListMotion()` gates list animations on low-end/native perf mode — `PostCard.tsx`, `Market.tsx` `ListingCard` outer wrappers
+- **Verified:** build PASS · lint PASS · 64 tests PASS
+- **Next (Phase C):** virtualize Home feed + DM message list; cap `useConversationListPresence` (~30 subs)
+
+## Phase A perf pass — smooth / no jank (2026-07-12)
+- **User ask:** App feels glitchy; make it fast and smooth with no lag spikes
+- **Clips:** `/clips` windowing — only mount video players at current ±2 (matches Explore)
+- **Messages:** Lazy-split `ChatView` from inbox with stable `ChatThreadLoadingShell`; preload chunk on thread open
+- **DM inbox:** Removed `LayoutGroup` + `layout` motion on conversation rows (CSS cards only)
+- **Splash preload:** Stagger tab route preloads — active tab first, neighbors idle, rest delayed (no 7-tab burst)
+- **Bundles:** `vendor-mapbox` + `vendor-livekit` manualChunks in Vite
+- **Verified:** build PASS · lint PASS · 64 tests PASS
+- **Next (Phase B):** cap DM realtime listeners, narrow RQ invalidations, dynamic LiveKit import, feed/message virtualization
+
+## Instant VYBE theme boot (2026-07-12)
+- **User ask:** Equipped Vybe theme should load instantly on app open — no classic pink/cyan flash then switch
+- **Fix:** Removed splash deferral when equipped tokens exist in localStorage; full `applyThemeTokens` during splash; cold-device DB hydrate starts immediately when local empty; `earlyThemeBoot` reinforces after CSS load
+- **Persist paths:** AIVybeDesigner + agent `apply_theme`/`generate_theme` now call `persistEquippedUserTheme`/`equipTheme`
+- **Verified:** build PASS · lint PASS · 64 tests PASS (includes `themeHydration.test.ts`)
+- **You:** Lovable Publish after push; hard-refresh after equipping a non-classic preset — colors should be correct from first frame
+
 ## Private Friend Profile — Phase 1 (2026-07-12)
 - **User ask:** Implement complete Private Friend Profile Phase 1 (routing, rules, CF client, UI, privacy settings)
 - **Routing:** `/friend/:username` route + `usePageTitle`; entry points retargeted via `friendProfileRoutes` / `ProfileLink` (ChatView, DmInboxView, ConversationList, VybeMap, GlobalCallOverlay, Search, PostCard, ShortCard, MobileShortCard, MutualFriends*)

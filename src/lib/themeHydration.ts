@@ -115,8 +115,8 @@ function tokensFromRow(row: UserThemeRow | null | undefined): ThemeTokens | null
 }
 
 function applyTokensNow(tokens: ThemeTokens, userId?: string | null): void {
-  if (isSplashVisibleOnBody()) {
-    reinforceSplashTheme();
+  if (!tokens?.colorPrimary) {
+    if (isSplashVisibleOnBody()) reinforceSplashTheme();
     return;
   }
 
@@ -172,11 +172,14 @@ export function runAfterSplashDismiss(fn: () => void): void {
 /** Earliest theme path — sync local paint + background DB reconcile (no await). */
 export function kickstartThemeHydration(queryClient?: QueryClient): void {
   const uid = getStoredAuthUserId() ?? readRememberedThemeUserId();
-  hydrateThemeFromLocalCaches(queryClient, uid);
+  const hydrated = hydrateThemeFromLocalCaches(queryClient, uid);
   if (uid) {
-    runAfterSplashDismiss(() => {
-      void prefetchAndApplyUserTheme(uid, queryClient, { timeoutMs: 6000 });
-    });
+    const prefetch = () => void prefetchAndApplyUserTheme(uid, queryClient, { timeoutMs: 6000 });
+    if (!hydrated || !getEquippedThemeTokens(uid)?.colorPrimary) {
+      prefetch();
+    } else {
+      runAfterSplashDismiss(prefetch);
+    }
   }
 }
 
@@ -265,6 +268,7 @@ export function prefetchAndApplyUserTheme(
       if (!dbTokens) return false;
 
       queryClient?.setQueryData(['user-theme', userId], row);
+      persistEquippedThemeTokens(userId, dbTokens);
       equipTheme(dbTokens, { themeId: row?.id ?? null, silent: true, skipAutoSave: true });
       return true;
     } catch {

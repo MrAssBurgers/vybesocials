@@ -41,6 +41,16 @@ const routeImports: Record<string, () => Promise<any>> = {
   '/map': () => import('@/pages/VybeMap'),
 };
 
+const PRIMARY_TAB_ROUTES = [
+  '/home',
+  '/explore',
+  '/clips',
+  '/market',
+  '/messages',
+  '/notifications',
+  '/settings',
+] as const;
+
 // Track which routes have been preloaded
 const preloadedRoutes = new Set<string>();
 
@@ -66,6 +76,7 @@ export function preloadRoute(path: string): void {
       preloadedRoutes.add(normalizedPath);
     } else if (normalizedPath.startsWith('/messages/')) {
       import('@/pages/Messages').catch(() => {});
+      import('@/components/chat/ChatView').catch(() => {});
       preloadedRoutes.add(normalizedPath);
       prefetchDMConversationsFromNav();
     } else if (normalizedPath.startsWith('/market/')) {
@@ -84,29 +95,44 @@ export function preloadRoute(path: string): void {
   }
 }
 
+function resolveActiveTabRoute(pathname: string): string {
+  const path = pathname.split('?')[0].split('#')[0];
+  const match = PRIMARY_TAB_ROUTES.find(
+    (route) => path === route || path.startsWith(`${route}/`),
+  );
+  return match ?? '/home';
+}
+
+function neighborTabRoutes(activeRoute: string): string[] {
+  const idx = PRIMARY_TAB_ROUTES.indexOf(activeRoute as (typeof PRIMARY_TAB_ROUTES)[number]);
+  if (idx < 0) return [];
+  const neighbors: string[] = [];
+  if (idx > 0) neighbors.push(PRIMARY_TAB_ROUTES[idx - 1]);
+  if (idx < PRIMARY_TAB_ROUTES.length - 1) neighbors.push(PRIMARY_TAB_ROUTES[idx + 1]);
+  return neighbors;
+}
+
 /**
- * Preload all critical routes for instant navigation
- * Call this after initial app load
+ * Preload critical routes for instant navigation — staggered so splash hydration wins.
  */
 export function preloadCriticalRoutes(): void {
-  const criticalRoutes = [
-    '/messages',
-    '/home',
-    '/explore',
-    '/clips',
-    '/market',
-    '/notifications',
-    '/settings',
-    '/events',
-  ];
+  if (typeof window === 'undefined') return;
 
-  // Start immediately — don't wait for idle (routes were loading 2s late).
-  criticalRoutes.forEach((route) => preloadRoute(route));
-  import('framer-motion').catch(() => {});
+  const activeRoute = resolveActiveTabRoute(window.location.pathname);
+  preloadRoute(activeRoute);
+
+  const neighbors = neighborTabRoutes(activeRoute);
+  requestIdleCallback(() => {
+    neighbors.forEach((route) => preloadRoute(route));
+  }, { timeout: 1200 });
 
   requestIdleCallback(() => {
-    criticalRoutes.forEach((route) => preloadRoute(route));
-  }, { timeout: 800 });
+    PRIMARY_TAB_ROUTES.forEach((route, index) => {
+      if (route === activeRoute || neighbors.includes(route)) return;
+      window.setTimeout(() => preloadRoute(route), index * 180);
+    });
+    preloadRoute('/events');
+  }, { timeout: 2800 });
 }
 
 /**
@@ -127,8 +153,8 @@ export function preloadSecondaryRoutes(): void {
       '/map',
     ];
     
-    secondaryRoutes.forEach(route => {
-      preloadRoute(route);
+    secondaryRoutes.forEach((route, index) => {
+      window.setTimeout(() => preloadRoute(route), index * 220);
     });
   }, { timeout: 5000 });
 }

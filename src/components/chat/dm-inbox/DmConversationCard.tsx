@@ -1,5 +1,4 @@
 import { memo } from 'react';
-import { motion } from 'framer-motion';
 import { Users, Pin } from 'lucide-react';
 import type { LoadedDMConversation } from '@/lib/loadDMConversations';
 import { safeDmMembers } from '@/lib/persistedCollections';
@@ -22,8 +21,7 @@ export interface DmConversationCardProps {
   priority?: boolean;
   isTyping?: boolean;
   presenceActivity?: ActivityType;
-  onClick: () => void;
-  onWarm?: () => void;
+  isSwiping?: boolean;
 }
 
 export const DmConversationCard = memo(function DmConversationCard({
@@ -34,8 +32,7 @@ export const DmConversationCard = memo(function DmConversationCard({
   priority = false,
   isTyping = false,
   presenceActivity,
-  onClick,
-  onWarm,
+  isSwiping = false,
 }: DmConversationCardProps) {
   const { data: recentNewFriendIds = new Set<string>() } = useRecentNewFriendProfileIds();
   const unread = conversation.unread_count || 0;
@@ -67,56 +64,50 @@ export const DmConversationCard = memo(function DmConversationCard({
   const timeLabel = lastMsg?.created_at ? compactTime(lastMsg.created_at) : null;
 
   return (
-    <motion.button
-      type="button"
-      layout="position"
-      initial={false}
-      onClick={onClick}
-      onPointerEnter={onWarm}
-      onPointerDown={(e) => {
-        if (e.button === 0 || e.pointerType === 'touch') onWarm?.();
-      }}
+    <div
       className={cn(
-        'dm-inbox-card group w-full text-left',
+        'dm-inbox-card',
         isActive && 'dm-inbox-card--active',
         isUnread && 'dm-inbox-card--unread',
         isPinned && 'dm-inbox-card--pinned',
+        isSwiping && 'dm-inbox-card--swiping',
       )}
     >
-      <div className="dm-inbox-card-glow" aria-hidden />
-
-      <div className="relative flex items-center gap-3.5 min-w-0">
-        <div className="relative flex-shrink-0">
-          <div
-            className={cn(
-              'dm-inbox-avatar-ring',
-              isUnread && 'dm-inbox-avatar-ring--live',
-            )}
-          >
-            {conversation.is_group ? (
-              <Avatar className="h-[52px] w-[52px] border-2 border-background/80">
-                {avatar ? (
-                  <ProfileAvatarImage src={avatar} transformSize={128} priority={priority} />
-                ) : (
-                  <AvatarFallback className="bg-gradient-to-br from-primary to-accent text-primary-foreground">
-                    <Users className="h-5 w-5" />
-                  </AvatarFallback>
-                )}
-              </Avatar>
-            ) : (
-              <Avatar className="h-[52px] w-[52px] border-2 border-background/80">
-                <ProfileAvatarImage
-                  profileId={otherProfileId}
-                  src={avatar || undefined}
-                  transformSize={128}
-                  priority={priority}
-                />
-                <AvatarFallback className="text-sm font-bold bg-gradient-to-br from-primary/90 to-accent/90 text-primary-foreground">
-                  {String(name || '?')[0]?.toUpperCase()}
+      <div className="flex items-center gap-3 min-w-0">
+        <div className="relative shrink-0">
+          {conversation.is_group ? (
+            <Avatar
+              className={cn(
+                'h-12 w-12 border border-border/60',
+                isUnread && 'ring-2 ring-primary/50',
+              )}
+            >
+              {avatar ? (
+                <ProfileAvatarImage src={avatar} transformSize={128} priority={priority} />
+              ) : (
+                <AvatarFallback className="bg-primary/15 text-primary">
+                  <Users className="h-5 w-5" />
                 </AvatarFallback>
-              </Avatar>
-            )}
-          </div>
+              )}
+            </Avatar>
+          ) : (
+            <Avatar
+              className={cn(
+                'h-12 w-12 border border-border/60',
+                isUnread && 'ring-2 ring-primary/50',
+              )}
+            >
+              <ProfileAvatarImage
+                profileId={otherProfileId}
+                src={avatar || undefined}
+                transformSize={128}
+                priority={priority}
+              />
+              <AvatarFallback className="text-sm font-semibold bg-primary/15 text-primary">
+                {String(name || '?')[0]?.toUpperCase()}
+              </AvatarFallback>
+            </Avatar>
+          )}
           {isPinned && (
             <span className="dm-inbox-pin" aria-label="Pinned">
               <Pin className="h-2.5 w-2.5" />
@@ -124,8 +115,8 @@ export const DmConversationCard = memo(function DmConversationCard({
           )}
         </div>
 
-        <div className="flex-1 min-w-0 py-0.5">
-          <div className="flex items-center justify-between gap-2 mb-0.5">
+        <div className="flex-1 min-w-0">
+          <div className="flex items-baseline justify-between gap-2">
             <p className={cn('dm-inbox-name truncate', isUnread && 'dm-inbox-name--unread')}>
               {name}
             </p>
@@ -135,7 +126,7 @@ export const DmConversationCard = memo(function DmConversationCard({
               </span>
             )}
           </div>
-          <div className="flex items-center gap-2 min-w-0">
+          <div className="flex items-center gap-2 min-w-0 mt-0.5">
             {isTyping ? (
               <div className="flex items-center gap-1.5 flex-1 min-w-0">
                 <TypingIndicator size="sm" />
@@ -156,6 +147,6 @@ export const DmConversationCard = memo(function DmConversationCard({
           </div>
         </div>
       </div>
-    </motion.button>
+    </div>
   );
 });

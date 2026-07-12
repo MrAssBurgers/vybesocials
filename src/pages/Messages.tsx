@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, useEffect } from 'react';
+import { useLayoutEffect, useRef, useEffect, lazy, Suspense } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { DmInboxView } from '@/components/chat/dm-inbox/DmInboxView';
 import { AppLayout } from '@/components/layout/AppLayout';
@@ -13,7 +13,6 @@ import LocalErrorBoundary from '@/components/error/LocalErrorBoundary';
 import { DmInboxSafeList } from '@/components/chat/dm-inbox/DmInboxSafeList';
 import { cn } from '@/lib/utils';
 import { useDefaultLiquidBackground } from '@/hooks/useDefaultLiquidBackground';
-import { ChatView } from '@/components/chat/ChatView';
 import { LockedChatGate } from '@/components/chat/LockedChatGate';
 import { prepareMessagesRoute } from '@/lib/loadDMConversations';
 import { warmDmConversation } from '@/lib/warmDmConversation';
@@ -21,6 +20,10 @@ import { recoverDmQueryCache } from '@/lib/recoverDmQueryCache';
 import { useAuth } from '@/lib/auth';
 import { useAuthProfileId } from '@/hooks/useAuthProfileId';
 import type { QueryClient } from '@tanstack/react-query';
+
+const ChatView = lazy(() =>
+  import('@/components/chat/ChatView').then((m) => ({ default: m.ChatView })),
+);
 
 function MessagesFallback() {
   const navigate = useNavigate();
@@ -74,6 +77,35 @@ function MessagesFallback() {
   );
 }
 
+function ChatThreadLoadingShell() {
+  return (
+    <div
+      className="flex flex-col h-full w-full min-h-0 bg-background/80"
+      aria-busy="true"
+      aria-label="Loading conversation"
+    >
+      <div
+        className="dm-chat-header px-3 border-b border-border/20"
+        style={{ paddingTop: 'var(--app-header-safe, env(safe-area-inset-top, 0px))' }}
+      >
+        <div className="flex items-center gap-3 h-14">
+          <div className="h-8 w-8 rounded-full bg-muted/60 animate-pulse" />
+          <div className="h-9 w-9 rounded-full bg-muted/60 animate-pulse" />
+          <div className="flex-1 space-y-2">
+            <div className="h-3.5 w-28 rounded-full bg-muted/60 animate-pulse" />
+            <div className="h-2.5 w-16 rounded-full bg-muted/40 animate-pulse" />
+          </div>
+        </div>
+      </div>
+      <div className="flex-1 min-h-0 p-4 space-y-4">
+        <div className="h-10 w-[58%] rounded-2xl bg-muted/40 animate-pulse" />
+        <div className="h-10 w-[45%] rounded-2xl bg-muted/30 animate-pulse ml-auto" />
+        <div className="h-10 w-[52%] rounded-2xl bg-muted/40 animate-pulse" />
+      </div>
+    </div>
+  );
+}
+
 function MessagesInner() {
   const navigate = useNavigate();
   const { conversationId } = useParams<{ conversationId?: string }>();
@@ -96,6 +128,7 @@ function MessagesInner() {
     }
     if (qc && conversationId) {
       warmDmConversation(qc, conversationId, profileId, profileId, 'high');
+      void import('@/components/chat/ChatView');
     }
 
     if (!isInChat) return;
@@ -134,7 +167,9 @@ function MessagesInner() {
           {isInChat ? (
             <SmartErrorBoundary fallback={<MessagesFallback />}>
               <LockedChatGate conversationId={conversationId!}>
-                <ChatView />
+                <Suspense fallback={<ChatThreadLoadingShell />}>
+                  <ChatView />
+                </Suspense>
               </LockedChatGate>
             </SmartErrorBoundary>
           ) : (

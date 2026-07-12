@@ -170,6 +170,8 @@ import { SafetyFilterRequestButton } from './SafetyFilterRequestButton';
 import { getTopEmojis, recordEmoji } from '@/lib/frequentEmojis';
 import { NowPlayingInline } from '@/components/music/NowPlayingInline';
 import LocalErrorBoundary from '@/components/error/LocalErrorBoundary';
+import { useVirtualScrollSlice } from '@/hooks/useVirtualScrollSlice';
+import { CHAT_VIRTUAL_OVERSCAN, CHAT_VIRTUAL_THRESHOLD } from '@/lib/performanceConfig';
 const QUICK_REACTIONS = ['❤️', '😂', '😮', '😢', '👍', '🔥'];
 
 // Theme color mapping - now includes both bubble and text classes
@@ -1441,6 +1443,47 @@ export function ChatView() {
     });
   }, [threadMessages, profileId, profile?.id, authUserId]);
 
+  type MessageItemRow = (typeof messageItems)[number];
+
+  const estimateMessageHeight = useCallback((item: MessageItemRow) => {
+    const { message, showTimestamp, isEmojiOnly } = item;
+    const isMedia =
+      !!message.media_url &&
+      (message.media_type === 'image' ||
+        message.media_type === 'gif' ||
+        message.media_type === 'video');
+    const isCallEvent = message.message_type === 'call_event';
+    const isCapture =
+      message.message_type === 'screenshot_notification' ||
+      message.message_type === 'screen_recording_notification';
+
+    let h = 10;
+    if (showTimestamp) h += 48;
+    if (isCallEvent || isCapture) h += 44;
+    else if (isMedia) h += 260;
+    else if (message.media_type === 'audio') h += 72;
+    else if (isEmojiOnly) h += 44;
+    else {
+      const len = typeof message.content === 'string' ? message.content.length : 0;
+      h += Math.min(160, 36 + Math.ceil(len / 36) * 20);
+    }
+    return h;
+  }, []);
+
+  const {
+    visible: visibleMessageItems,
+    visibleStart: visibleMessageStart,
+    paddingTop: messagesPaddingTop,
+    paddingBottom: messagesPaddingBottom,
+    virtualized: messagesVirtualized,
+  } = useVirtualScrollSlice(messageItems, {
+    threshold: CHAT_VIRTUAL_THRESHOLD,
+    estimateHeight: estimateMessageHeight,
+    overscan: CHAT_VIRTUAL_OVERSCAN,
+    scrollRef: messagesContainerRef,
+  });
+  const renderedMessageItems = messagesVirtualized ? visibleMessageItems : messageItems;
+
   // Navigate to profile when avatar clicked, or open group info for group chats
   const handleAvatarClick = useCallback(() => {
     if (isGroupChat) {
@@ -1794,7 +1837,12 @@ export function ChatView() {
               <span className="text-[11px] text-muted-foreground">Loading earlier messages…</span>
             </div>
           )}
-          {messageItems.map(({ message, isOwn, showAvatar, showTimestamp, sameSender, isMediaTransition, isEmojiOnly }, index) => {
+          {messagesVirtualized && messagesPaddingTop > 0 && (
+            <div aria-hidden style={{ height: messagesPaddingTop }} />
+          )}
+          {renderedMessageItems.map((item, localIndex) => {
+            const index = messagesVirtualized ? visibleMessageStart + localIndex : localIndex;
+            const { message, isOwn, showAvatar, showTimestamp, sameSender, isMediaTransition, isEmojiOnly } = item;
             // Instagram/Snapchat spacing rules:
             // Same sender consecutive: 4-6px gap (tight grouping)
             // Different sender: 16-20px gap (clear separation)
@@ -2050,6 +2098,9 @@ export function ChatView() {
             />
           )}
 
+          {messagesVirtualized && messagesPaddingBottom > 0 && (
+            <div aria-hidden style={{ height: messagesPaddingBottom }} />
+          )}
 
           <div ref={messagesEndRef} className="h-1" />
         </div>

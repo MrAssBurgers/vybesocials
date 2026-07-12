@@ -356,13 +356,15 @@ export default function ClipsPage() {
               }}
             >
               <div className="relative h-full w-full max-w-full">
-                <CardComponent
-                  post={short}
-                  isActive={index === currentIndex}
-                  globalMuted={globalMuted}
-                  onToggleMute={handleToggleMute}
-                  {...cardProps}
-                />
+                {Math.abs(index - currentIndex) <= 2 && (
+                  <CardComponent
+                    post={short}
+                    isActive={index === currentIndex}
+                    globalMuted={globalMuted}
+                    onToggleMute={handleToggleMute}
+                    {...cardProps}
+                  />
+                )}
               </div>
             </div>
           ))}

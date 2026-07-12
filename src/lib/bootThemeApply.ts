@@ -11,7 +11,6 @@ import {
 import {
   applyBootSnapshot,
   applySplashScopedTheme,
-  isSplashVisible,
   prepaintThemeFromStorage,
   readBootSnapshot,
 } from '@/lib/theme/themePrepaint';
@@ -24,20 +23,17 @@ export function applyEquippedThemeSync(tokens: ThemeTokens): void {
 
 /**
  * Call as early as possible (main.tsx, before createRoot).
- * During splash: lightweight prepaint only. After splash: full applyThemeTokens.
+ * Applies full equipped tokens immediately when cached locally.
  */
 export function ensureBootThemeApplied(): boolean {
   if (typeof document === 'undefined') return false;
 
-  const splashActive = isSplashVisible();
   const painted = prepaintThemeFromStorage();
   applySplashScopedTheme();
 
   const equipped = getEquippedThemeTokens();
   if (equipped?.colorPrimary) {
-    if (!splashActive) {
-      applyEquippedThemeSync(equipped);
-    }
+    applyEquippedThemeSync(equipped);
     markThemeAppliedFromBoot(equipped);
     document.documentElement.setAttribute('data-vybe-theme-painted', 'true');
     return true;

@@ -2,7 +2,10 @@ import { useEffect, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { db } from '@/lib/firebase';
 import { subscribePostgresChannel, removeRealtimeChannel } from '@/lib/realtimeChannel';
-import { invalidateConversationCaches } from '@/lib/invalidateConversationCaches';
+import {
+  patchAuthorOnPostCaches,
+  patchEmbeddedProfileInCaches,
+} from '@/lib/invalidateConversationCaches';
 
 /**
  * Subscribes to real-time profile changes and updates cached profile data.
@@ -37,16 +40,22 @@ export function useRealtimeProfiles() {
           const avatarChanged = oldProfile?.avatar_url !== updatedProfile?.avatar_url;
 
           if (usernameChanged || displayNameChanged || avatarChanged) {
-            if (debounceRef.current) clearTimeout(debounceRef.current);
-            debounceRef.current = setTimeout(() => {
-              queryClient.invalidateQueries({ queryKey: ['posts'] });
-              queryClient.invalidateQueries({ queryKey: ['comments'] });
-              invalidateConversationCaches(queryClient);
-              queryClient.invalidateQueries({ queryKey: ['friends'] });
-              queryClient.invalidateQueries({ queryKey: ['friend-requests'] });
-              queryClient.invalidateQueries({ queryKey: ['followers'] });
-              queryClient.invalidateQueries({ queryKey: ['following'] });
-            }, 500);
+            const patch = {
+              id: updatedProfileId,
+              username: updatedProfile.username,
+              display_name: updatedProfile.display_name,
+              avatar_url: updatedProfile.avatar_url,
+            };
+            patchEmbeddedProfileInCaches(queryClient, updatedProfileId, patch);
+            if (avatarChanged || displayNameChanged || usernameChanged) {
+              patchAuthorOnPostCaches(queryClient, updatedProfileId, patch);
+            }
+            if (usernameChanged) {
+              if (debounceRef.current) clearTimeout(debounceRef.current);
+              debounceRef.current = setTimeout(() => {
+                queryClient.invalidateQueries({ queryKey: ['profile', updatedProfile.username] });
+              }, 500);
+            }
           }
         },
       },
