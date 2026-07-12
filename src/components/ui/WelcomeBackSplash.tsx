@@ -3,10 +3,12 @@ import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Sparkles } from 'lucide-react';
 import { isNativePerfMode } from '@/lib/nativePerfMode';
+import { Avatar, AvatarFallback, ProfileAvatarImage } from '@/components/ui/avatar';
 
 interface WelcomeBackSplashProps {
   username?: string | null;
   avatarUrl?: string | null;
+  profileId?: string | null;
   onComplete: () => void;
 }
 
@@ -48,6 +50,7 @@ function generateParticles(count: number): BurstParticle[] {
 export const WelcomeBackSplash = memo(function WelcomeBackSplash({
   username,
   avatarUrl,
+  profileId,
   onComplete,
 }: WelcomeBackSplashProps) {
   const [visible, setVisible] = useState(true);
@@ -168,9 +171,8 @@ export const WelcomeBackSplash = memo(function WelcomeBackSplash({
 
             <div className="relative z-10 flex flex-col items-center justify-center px-6">
               <motion.div
-                initial={{ scale: 0, opacity: 0, rotate: -10 }}
-                animate={{ scale: 1, opacity: 1, rotate: 0 }}
-                transition={{ delay: 0.15, duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
+                initial={{ scale: 1, opacity: 1 }}
+                animate={{ scale: 1, opacity: 1 }}
                 className="relative mb-5"
               >
                 {!reduceMotion && (
@@ -185,28 +187,24 @@ export const WelcomeBackSplash = memo(function WelcomeBackSplash({
                     }}
                   />
                 )}
-                <div
-                  className="w-20 h-20 rounded-full overflow-hidden ring-2 ring-primary/30"
+                <Avatar
+                  className="w-20 h-20 ring-2 ring-primary/30"
                   style={{
                     background:
                       'linear-gradient(135deg, hsl(var(--primary) / 0.2), hsl(var(--accent) / 0.2))',
                   }}
                 >
-                  {avatarUrl ? (
-                    <img
-                      src={avatarUrl}
-                      alt=""
-                      className="w-full h-full object-cover"
-                      loading="eager"
-                    />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center">
-                      <span className="text-2xl font-bold text-primary/60">
-                        {displayName[0]?.toUpperCase() || 'V'}
-                      </span>
-                    </div>
-                  )}
-                </div>
+                  <ProfileAvatarImage
+                    profileId={profileId}
+                    src={avatarUrl}
+                    priority
+                    transformSize={160}
+                    alt=""
+                  />
+                  <AvatarFallback className="bg-transparent text-2xl font-bold text-primary/60">
+                    {displayName[0]?.toUpperCase() || 'V'}
+                  </AvatarFallback>
+                </Avatar>
               </motion.div>
 
               <motion.div

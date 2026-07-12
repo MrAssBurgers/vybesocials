@@ -9,6 +9,23 @@ import { buildCaptureEventKey, severityForEventType } from '@/lib/ScreenshotDete
 
 const me = 'profile-me';
 
+function member(overrides: {
+  user_id?: string;
+  role?: string;
+  is_muted?: boolean;
+  is_pinned?: boolean;
+  last_read_at?: string | null;
+} = {}) {
+  return {
+    user_id: me,
+    role: 'member',
+    is_pinned: false,
+    is_muted: false,
+    last_read_at: '2026-01-01T00:00:00.000Z',
+    ...overrides,
+  };
+}
+
 function conv(id: string, overrides: Partial<LoadedDMConversation> = {}): LoadedDMConversation {
   return {
     id,
@@ -18,8 +35,9 @@ function conv(id: string, overrides: Partial<LoadedDMConversation> = {}): Loaded
     created_at: '2026-01-01T00:00:00.000Z',
     updated_at: '2026-01-01T00:00:00.000Z',
     unread_count: 0,
+    _sortTime: '2026-01-01T00:00:00.000Z',
     _hasUnread: false,
-    members: [{ user_id: me, is_pinned: false, is_muted: false }],
+    members: [member()],
     last_message: null,
     ...overrides,
   };
@@ -33,7 +51,7 @@ describe('dmInboxPriority', () => {
   });
 
   it('pinned floats above non-pinned', () => {
-    const pinned = conv('a', { members: [{ user_id: me, is_pinned: true }] });
+    const pinned = conv('a', { members: [member({ is_pinned: true })] });
     const normal = conv('b', { unread_count: 5, _hasUnread: true });
     expect(compareInboxPriority(pinned, normal, me)).toBeLessThan(0);
   });
@@ -54,7 +72,7 @@ describe('dmInboxPriority', () => {
         is_deleted: false,
         reply_to_id: null,
       },
-      members: [{ user_id: me, last_read_at: '2026-07-09T12:00:00.000Z' }],
+      members: [member({ last_read_at: '2026-07-09T12:00:00.000Z' })],
     });
     const score = computeInboxPriorityScore({ conv: needs, profileId: me });
     expect(score).toBeGreaterThan(700);

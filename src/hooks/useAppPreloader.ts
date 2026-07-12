@@ -10,6 +10,7 @@ import { isSetupRoutePath } from '@/lib/splashSession';
 import { publishSplashProgress } from '@/lib/splashProgressBridge';
 import { kickstartThemeHydration, prefetchAndApplyUserTheme } from '@/lib/themeHydration';
 import { getCachedCurrentProfile } from '@/lib/profileCache';
+import { resolveProfileAvatarUrl } from '@/lib/profileAvatarCache';
 import { preloadFeedPostsMedia } from '@/lib/imagePreload';
 
 interface PreloadStatus {
@@ -159,6 +160,8 @@ export function useAppPreloader() {
         const earlyProfileId = cachedProfile?.id;
         let feedWarmPromise: Promise<void> | null = null;
         if (cachedProfile && earlyProfileId) {
+          const earlyAvatar = resolveProfileAvatarUrl(earlyProfileId, cachedProfile.avatar_url);
+          if (earlyAvatar) void batchSignUrls([earlyAvatar]);
           queryClient.setQueryData(['profile', earlyProfileId], cachedProfile);
           feedWarmPromise = warmUserFeed(queryClient, earlyProfileId, uid, (p) => {
             if (!cancelled) updateStatus('feed', 0.15 + p * 0.5);

@@ -152,7 +152,9 @@ import { SnapARProvider } from "@/components/camera/SnapARProvider";
 import { ATT_RESUME_EVENT, ensureAppShellVisible } from "@/lib/attResumeRecovery";
 import { syncNativeTrackingConsent } from "@/lib/att";
 import { readSplashCompleted, markSplashCompleted, shouldSkipInitialSplash } from "@/lib/splashSession";
-import { getCachedCurrentProfile } from "@/lib/profileCache";
+import { getCachedCurrentProfile, isRawId } from "@/lib/profileCache";
+import { resolveProfileAvatarUrl } from "@/lib/profileAvatarCache";
+import { batchSignUrls } from "@/lib/signedUrlCache";
 import { clearSplashDocumentLocks, markAppReady } from "@/lib/splashDismiss";
 import { publishSplashProgress } from "@/lib/splashProgressBridge";
 import { resetSplashSessionOnHardReload, hasAppShellPaint } from "@/lib/navigationBoot";
@@ -385,7 +387,11 @@ function AppWithPreloader() {
   const { authResolved, hasSession } = useAuthResolved();
   const wasLoggedInRef = useRef(getWasLoggedIn());
   const [showSplash, setShowSplash] = useState(!skipInitialSplash && !hasInitialLoadCompleted);
-  const [welcomeBack, setWelcomeBack] = useState<{ username?: string | null; avatarUrl?: string | null } | null>(null);
+  const [welcomeBack, setWelcomeBack] = useState<{
+    username?: string | null;
+    avatarUrl?: string | null;
+    profileId?: string | null;
+  } | null>(null);
 
   // Auto-update checker
   useAutoUpdate();
@@ -499,23 +505,43 @@ function AppWithPreloader() {
   // Show welcome-back splash on sign-in (not on initial page load with existing session)
   const signInHandledRef = useRef(false);
   useEffect(() => {
-    const { data: { subscription } } = db.auth.onAuthStateChange(async (event, session) => {
+    const { data: { subscription } } = db.auth.onAuthStateChange((event, session) => {
       // Do not invalidate the full cache — wipes offline feed/DM snapshots.
       if (event === 'SIGNED_IN' && !signInHandledRef.current && hasInitialLoadCompleted) {
         signInHandledRef.current = true;
-        // Fetch minimal profile info for the splash
+
+        const showWelcomeBack = (profile: {
+          id: string;
+          username: string;
+          avatar_url?: string | null;
+        }) => {
+          if (isRawId(profile.username)) return;
+          const avatarUrl = resolveProfileAvatarUrl(profile.id, profile.avatar_url);
+          if (avatarUrl) void batchSignUrls([avatarUrl]);
+          setWelcomeBack({
+            username: profile.username,
+            avatarUrl: avatarUrl ?? profile.avatar_url,
+            profileId: profile.id,
+          });
+        };
+
+        const cached = getCachedCurrentProfile();
+        if (cached?.username) {
+          showWelcomeBack(cached);
+        }
+
         if (session?.user?.id) {
-          try {
-            const { data } = await db
-              .from('profiles')
-              .select('username, avatar_url')
-              .eq('user_id', session.user.id)
-              .limit(1)
-              .maybeSingle();
-            if (data?.username) {
-              setWelcomeBack({ username: data.username, avatarUrl: data.avatar_url });
-            }
-          } catch { /* skip splash on error */ }
+          void (async () => {
+            try {
+              const { data } = await db
+                .from('profiles')
+                .select('id, username, avatar_url')
+                .eq('user_id', session.user.id)
+                .limit(1)
+                .maybeSingle();
+              if (data?.username) showWelcomeBack(data);
+            } catch { /* keep cache-based splash */ }
+          })();
         }
       }
     });
@@ -530,6 +556,7 @@ function AppWithPreloader() {
         <WelcomeBackSplash
           username={welcomeBack.username}
           avatarUrl={welcomeBack.avatarUrl}
+          profileId={welcomeBack.profileId}
           onComplete={() => setWelcomeBack(null)}
         />
       )}

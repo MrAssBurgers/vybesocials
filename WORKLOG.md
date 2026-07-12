@@ -2,6 +2,17 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## Publish handoff — welcome-back PFP + CI fix (2026-07-12)
+- **User ask:** Publish client polish + fix CI typecheck on DM inbox tests
+- **Welcome back:** Instant profile photo on sign-in — cache-first splash, `ProfileAvatarImage` priority, boot preloader warms avatar signed URL
+- **VybeMiniIcon:** Resolved theme HSL via `useVybeMarkColors` (SVG CSS vars did not repaint on theme change)
+- **CI:** `dmInboxPhase1.test.ts` — `member()` helper with `role` + `_sortTime` on fixtures
+- **Functions lib:** Synced tracked `functions/lib/*` exports for DM CFs (already deployed to vybe-daaab)
+- **Verified:** build PASS · typecheck PASS · lint PASS · 58 tests PASS
+- **Published:** `origin/main` @ **`aeef1dde`**
+- **Firebase redeploy:** Not needed — no `functions/src`, rules, or indexes changes since last deploy @ `4b4a25e8`
+- **You:** Lovable → sync `main` → **Share → Publish** for **vybehub.app**
+
 ## VYBE DM System Upgrade — Phase 1 (2026-07-12)
 - **User ask:** Implement DM upgrade plan (smart inbox, media rules, voice transcription, search, lock/remind/schedule, themes, capture alerts) — Firebase only, no ChatView rewrite
 - **Inbox:** `DmInboxTabs` (Friends/Groups/Requests/Unread/Calls), Needs Reply sections + priority sort, typing/presence on rows, virtual slice for 40+ rows, locked chats hidden from list
@@ -15,7 +26,9 @@ Use this file as the Lovable -> Cursor handoff each session.
 - **Capture:** `CaptureAlertPopup` + `CaptureDetailsSheet`; CF `onCaptureEventCreated` with `event_key` dedupe
 - **Backend:** Firestore rules + indexes for `scheduled_messages`, `locked_chats`, `dm_reminders`, `message_transcripts`, `message_media_rules`, `vanish_*`, `screenshot_notifications`; extended `capture_events` read
 - **Verified:** build PASS · 58 tests PASS
-- **Deploy:** `firebase deploy --only firestore:rules,firestore:indexes,functions` for rules/CFs; Lovable Publish for client (**vybehub.app**)
+- **Published:** `origin/main` @ **`4b4a25e8`** (index fix) · **`2912e73b`** (DM Phase 1)
+- **Firebase deploy (vybe-daaab):** rules + indexes + 4 DM CFs live (`processDueScheduledMessages`, `onMessageViewCreated`, `transcribeVoiceMessage`, `onCaptureEventCreated`); 409 resolved by adding `friend_requests` indexes to `firestore.indexes.json`
+- **You:** Lovable → sync `main` @ **`4b4a25e8`** → **Share → Publish** for **vybehub.app**
 - **Next:** Manual QA matrix (view-once, swipe, lock, schedule delivery); Phase 2 NL search + group channels
 
 - **User ask:** Fix camera UI (universal across surfaces); double-tap viewfinder to flip front ↔ back like Snapchat
