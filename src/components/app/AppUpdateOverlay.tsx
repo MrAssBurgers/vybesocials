@@ -40,7 +40,16 @@ export const AppUpdateOverlay = memo(function AppUpdateOverlay() {
     };
 
     const handleVybeUpdate = () => begin();
-    const handleSWUpdate = () => begin();
+    // The very first SW install also fires `controllerchange` (via clients.claim
+    // in public/sw.js). Treating that as an update leaves brand-new visitors
+    // stuck on the "Updating VYBE" overlay forever, because serviceWorker.ts
+    // only schedules a reload when a prior controller existed. Only treat this
+    // event as an update when a controller was already active at mount.
+    const hadControllerAtMount = Boolean(navigator.serviceWorker?.controller);
+    const handleSWUpdate = () => {
+      if (!hadControllerAtMount) return;
+      begin();
+    };
 
     window.addEventListener('vybe-app-update', handleVybeUpdate);
     navigator.serviceWorker?.addEventListener('controllerchange', handleSWUpdate);
