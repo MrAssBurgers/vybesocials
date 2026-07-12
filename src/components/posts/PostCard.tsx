@@ -6,6 +6,23 @@ import { ReactionPicker, ReactionSummary } from '@/components/reactions/Reaction
 import { ReactionType } from '@/lib/reactions';
 import { AnimatePresence, motion } from 'framer-motion';
 import { T, MOTION_CONFIG } from '@/lib/motion';
+import {
+  Play,
+  VolumeX,
+  Volume2,
+  BadgeCheck,
+  Pin,
+  MoreHorizontal,
+  PinOff,
+  Pencil,
+  Trash2,
+  Share2,
+  Info,
+  Flag,
+  Heart,
+  MessageCircle,
+  Bookmark,
+} from 'lucide-react';
 import { shouldUseListMotion } from '@/lib/performanceConfig';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';

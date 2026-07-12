@@ -21,6 +21,7 @@ import {
   useGroupMaps, useCreateGroupMap, useGroupMemberIds,
 } from '@/hooks/vybemap/useVybeMap';
 import { FindFriendOverlay } from '@/components/vybemap/FindFriendOverlay';
+import { FriendCardSheet } from '@/components/vybemap/FriendCardSheet';
 import { openFriendProfile } from '@/lib/friendProfileRoutes';
 import { DiscoveryDrawer } from '@/components/vybemap/DiscoveryDrawer';
 import { SpotDropSheet } from '@/components/vybemap/SpotDropSheet';

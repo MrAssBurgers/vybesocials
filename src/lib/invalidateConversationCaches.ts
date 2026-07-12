@@ -24,12 +24,12 @@ type EmbeddedProfile = {
 };
 
 /** Patch embedded member profiles in list caches — avoids refetching every DM row. */
-export function patchEmbeddedProfileInCaches(
+export function patchEmbeddedProfileInCaches<T extends { members?: unknown }>(
   queryClient: QueryClient,
   profileId: string,
   patch: EmbeddedProfile,
 ): void {
-  const apply = <T extends { members?: unknown }>(old: T[] | undefined): T[] | undefined => {
+  const apply = (old: T[] | undefined): T[] | undefined => {
     if (!old?.length) return old;
     let changed = false;
     const next = old.map((conv) => {

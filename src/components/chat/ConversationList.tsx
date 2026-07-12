@@ -31,6 +31,7 @@ import { PresenceAvatar } from '@/components/chat/PresenceAvatar';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { TypingIndicator } from '@/components/ui/TypingIndicator';
+import { VybeMiniIcon } from '@/components/ui/VybeMiniIcon';
 import { db } from '@/lib/firebase';
 import { useQuery } from '@tanstack/react-query';
 import { MessageCircle, Pin, Check, Users, UserPlus, Trash2, X, UserCheck, Camera, Search } from 'lucide-react';
@@ -1051,7 +1052,7 @@ const ConversationItem = memo(forwardRef<HTMLDivElement, ConversationItemProps>(
         onOpenStory(storyGroup.user.id);
       } else {
         openFriendProfile(navigate, {
-          username: otherMember.username,
+          username: String(otherMember.username ?? ''),
           friendshipStatus: 'friends',
         });
       }

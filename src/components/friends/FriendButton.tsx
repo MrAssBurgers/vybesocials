@@ -23,13 +23,15 @@ interface FriendButtonProps {
   variant?: 'default' | 'outline' | 'ghost';
   size?: 'default' | 'sm' | 'lg' | 'icon';
   showText?: boolean;
+  className?: string;
 }
 
 export const FriendButton = memo(function FriendButton({ 
   userId, 
   variant = 'default',
   size = 'default',
-  showText = true 
+  showText = true,
+  className,
 }: FriendButtonProps) {
   const { t } = useTranslation();
   const { profile } = useAuth();
@@ -53,6 +55,7 @@ export const FriendButton = memo(function FriendButton({
         <Button 
           variant={variant} 
           size={size}
+          className={className}
           onClick={() => setShowAuthPrompt(true)}
         >
           <UserPlus className="h-4 w-4" />
@@ -147,6 +150,7 @@ export const FriendButton = memo(function FriendButton({
     <Button 
       variant={variant} 
       size={size}
+      className={className}
       onClick={() => sendRequest.mutate(userId)}
       disabled={sendRequest.isPending}
     >

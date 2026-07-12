@@ -10,8 +10,8 @@ function mapFeedRow(row: Record<string, unknown>) {
   return {
     id: row.id,
     type: row.type,
-    media_url: row.media_url,
-    thumbnail_url: row.thumbnail_url,
+    media_url: typeof row.media_url === 'string' ? row.media_url : null,
+    thumbnail_url: typeof row.thumbnail_url === 'string' ? row.thumbnail_url : null,
     caption: row.caption || '',
     tags: row.tags || [],
     created_at: row.created_at,
@@ -20,7 +20,7 @@ function mapFeedRow(row: Record<string, unknown>) {
     author: {
       id: row.author_id,
       username: row.author_username,
-      avatar_url: row.author_avatar_url,
+      avatar_url: typeof row.author_avatar_url === 'string' ? row.author_avatar_url : null,
     },
     like_count: Number(row.like_count) || 0,
     comment_count: Number(row.comment_count) || 0,

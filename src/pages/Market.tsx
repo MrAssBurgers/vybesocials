@@ -57,7 +57,7 @@ const ListingCard = memo(function ListingCard({
         initial: { opacity: 0, x: -20 },
         animate: { opacity: 1, x: 0 },
         exit: { opacity: 0, x: 20 },
-        transition: { duration: 0.3, delay: index * 0.05, type: 'spring', stiffness: 400, damping: 25 },
+        transition: { duration: 0.3, delay: index * 0.05, type: 'spring' as const, stiffness: 400, damping: 25 },
         whileHover: { scale: 1.01, y: -2 },
         whileTap: { scale: 0.99 },
       }
@@ -67,7 +67,7 @@ const ListingCard = memo(function ListingCard({
         initial: { opacity: 0, scale: 0.9, y: 20 },
         animate: { opacity: 1, scale: 1, y: 0 },
         exit: { opacity: 0, scale: 0.9, y: -20 },
-        transition: { duration: 0.4, delay: index * 0.05, type: 'spring', stiffness: 300, damping: 25 },
+        transition: { duration: 0.4, delay: index * 0.05, type: 'spring' as const, stiffness: 300, damping: 25 },
         whileHover: { y: -8, scale: 1.02 },
         whileTap: { scale: 0.98 },
       }
