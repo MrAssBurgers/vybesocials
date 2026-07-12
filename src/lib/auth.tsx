@@ -32,7 +32,7 @@ import { pickActiveBan } from '@/lib/banUtils';
 import { normalizeLoginEmail } from '@/lib/loginEmail';
 import { cacheProfileAvatar, resolveProfileAvatarUrl } from '@/lib/profileAvatarCache';
 import { isPasswordRecoveryUrl, redirectToPasswordRecoveryPage } from '@/lib/passwordRecoveryUrl';
-import { awaitOAuthRedirectCapture, clearOAuthRedirectPending, isOAuthRedirectInFlight, recoverOAuthSessionIfSignedIn } from '@/lib/firebase/oauthRedirect';
+import { awaitOAuthRedirectCapture, clearOAuthRedirectPending, isLikelyFirebaseOAuthReturnUrl, isOAuthRedirectInFlight, recoverOAuthSessionIfSignedIn } from '@/lib/firebase/oauthRedirect';
 import { isDespiaOAuthInFlight } from '@/lib/despiaOAuth';
 import { captureException } from '@/lib/sentry';
 
@@ -55,7 +55,11 @@ function getStoredSessionRefreshTimeoutMs(): number {
 }
 
 function getAuthInitTimeouts() {
-  if (isOAuthRedirectInFlight() || isDespiaOAuthInFlight()) {
+  const oauthInFlight =
+    isOAuthRedirectInFlight() ||
+    isDespiaOAuthInFlight() ||
+    isLikelyFirebaseOAuthReturnUrl();
+  if (oauthInFlight) {
     return { safetyMs: 10000, getSessionMs: 8000 };
   }
   return { safetyMs: 2500, getSessionMs: 2000 };
@@ -791,8 +795,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Firebase Google/Apple redirect — listener is registered above; then capture redirect result.
     void (async () => {
       let captured = await awaitOAuthRedirectCapture();
-      if (!captured.session?.user && !captured.error && isOAuthRedirectInFlight()) {
-        for (let attempt = 0; attempt < 12 && !captured.session?.user; attempt++) {
+      const shouldRecoverOAuth =
+        isOAuthRedirectInFlight() || isLikelyFirebaseOAuthReturnUrl();
+      if (!captured.session?.user && !captured.error && shouldRecoverOAuth) {
+        const maxAttempts = isLikelyFirebaseOAuthReturnUrl() ? 24 : 12;
+        for (let attempt = 0; attempt < maxAttempts && !captured.session?.user; attempt++) {
           await new Promise((resolve) => setTimeout(resolve, 250));
           captured = await recoverOAuthSessionIfSignedIn();
         }

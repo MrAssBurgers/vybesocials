@@ -4,7 +4,7 @@ import { useAuth } from '@/lib/auth';
 import { resolvePostLoginDestination } from '@/lib/authReturnPath';
 import { getCachedCurrentProfile } from '@/lib/profileCache';
 import { isPasswordRecoveryUrl, redirectToPasswordRecoveryPage } from '@/lib/passwordRecoveryUrl';
-import { clearOAuthRedirectPending, isLikelyFirebaseOAuthReturnUrl, isOAuthRedirectInFlight } from '@/lib/firebase/oauthRedirect';
+import { clearOAuthRedirectPending, finalizeOAuthRedirectCapture, isLikelyFirebaseOAuthReturnUrl, isOAuthRedirectInFlight } from '@/lib/firebase/oauthRedirect';
 import { firebaseAuth } from '@/lib/firebase';
 import {
   clearDespiaOAuthPending,
@@ -63,22 +63,39 @@ export default function AuthCallback() {
   }, [navigate, user, authReady]);
 
   useEffect(() => {
-    const timer = setTimeout(() => setTimedOut(true), 6000);
+    if (user || timedOut) return;
+
+    const timer = setTimeout(() => {
+      void (async () => {
+        const captured = await finalizeOAuthRedirectCapture();
+        if (captured.session?.user) return;
+        setTimedOut(true);
+      })();
+    }, 6000);
     return () => clearTimeout(timer);
-  }, []);
+  }, [user, timedOut]);
 
   useEffect(() => {
-    if (user || timedOut) {
+    if (!timedOut) return;
+    if (user) {
       clearOAuthRedirectPending();
       clearDespiaOAuthPending();
-    }
-
-    if (timedOut && !user) {
-      navigate('/auth', { replace: true });
       return;
     }
 
-    if (!user || !authReady) return;
+    void (async () => {
+      const captured = await finalizeOAuthRedirectCapture();
+      if (captured.session?.user) return;
+      clearOAuthRedirectPending();
+      clearDespiaOAuthPending();
+      navigate('/auth', { replace: true });
+    })();
+  }, [timedOut, user, navigate]);
+
+  useEffect(() => {
+    if (timedOut || !user) return;
+    clearOAuthRedirectPending();
+    clearDespiaOAuthPending();
 
     const cached = getCachedCurrentProfile();
     navigate(

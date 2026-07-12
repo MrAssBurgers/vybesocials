@@ -34,6 +34,7 @@ import { useEmailVerificationPoll } from '@/hooks/useEmailVerificationPoll';
 import {
   clearOAuthRedirectPending,
   clearStaleOAuthRedirectPending,
+  finalizeOAuthRedirectCapture,
   isLikelyFirebaseOAuthReturnUrl,
   isOAuthRedirectInFlight,
 } from '@/lib/firebase/oauthRedirect';
@@ -306,15 +307,24 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
     }
 
     const failTimer = setTimeout(() => {
-      clearOAuthRedirectPending();
-      clearDespiaOAuthPending();
-      setIsOAuthReturn(false);
-      setLoading(false);
-      toast.error('Sign-in did not complete. Please try again.');
+      void (async () => {
+        const captured = await finalizeOAuthRedirectCapture();
+        if (captured.session?.user) {
+          applyOAuthSession(captured.session);
+          return;
+        }
+        clearOAuthRedirectPending();
+        clearDespiaOAuthPending();
+        setIsOAuthReturn(false);
+        setLoading(false);
+        toast.error(
+          captured.error?.message || 'Sign-in did not complete. Please try again.',
+        );
+      })();
     }, 18000);
 
     return () => clearTimeout(failTimer);
-  }, [isOAuthReturn, user, authReady, profile, navigate]);
+  }, [isOAuthReturn, user, authReady, profile, navigate, applyOAuthSession]);
 
   // Redirect if already logged in AND has completed onboarding
   // First-time users (even if authenticated) should see intro if not completed

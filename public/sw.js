@@ -86,13 +86,30 @@ self.addEventListener('activate', (event) => {
 // Paths that must NEVER be intercepted by the service worker (OAuth redirects, etc.)
 const SW_BYPASS_PATHS = ['/~oauth', '/spotify/callback'];
 
+function shouldBypassServiceWorker(url) {
+  if (SW_BYPASS_PATHS.some((p) => url.pathname.startsWith(p))) return true;
+  if (url.pathname === '/auth' || url.pathname === '/auth/callback') {
+    const q = url.search || '';
+    const h = url.hash || '';
+    const combined = `${q}${h}`;
+    return (
+      /[?&]state=/.test(q) ||
+      /[?&]code=/.test(q) ||
+      /[?&]error=/.test(combined) ||
+      h.includes('access_token') ||
+      h.includes('id_token')
+    );
+  }
+  return false;
+}
+
 // Fetch handler - routing strategy
 self.addEventListener('fetch', (event) => {
   try {
     const url = new URL(event.request.url);
 
     // CRITICAL: Never intercept OAuth redirect paths — must always hit the network
-    if (SW_BYPASS_PATHS.some((p) => url.pathname.startsWith(p))) return;
+    if (shouldBypassServiceWorker(url)) return;
 
     // Force-refresh updated PWA icons
     if (FORCE_REFRESH_PATHS.has(url.pathname)) {

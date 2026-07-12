@@ -188,13 +188,31 @@ export function isOAuthRedirectInFlight(): boolean {
 export async function recoverOAuthSessionIfSignedIn(): Promise<OAuthRedirectCapture> {
   if (!shouldTryOAuthRecovery()) return { session: null, error: null };
   const auth = await waitForAuthInstance();
-  if (!auth?.currentUser) return { session: null, error: null };
-  const session = await sessionFromCurrentUser();
-  if (session?.user) {
-    clearOAuthRedirectPending();
-    return { session, error: null };
+  if (!auth) return { session: null, error: null };
+
+  const maxAttempts = isLikelyFirebaseOAuthReturnUrl() ? 24 : 8;
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    if (auth.currentUser) {
+      const session = await sessionFromCurrentUser();
+      if (session?.user) {
+        clearOAuthRedirectPending();
+        return { session, error: null };
+      }
+    }
+    if (attempt < maxAttempts - 1) {
+      await new Promise((resolve) => setTimeout(resolve, 250));
+    }
   }
   return { session: null, error: null };
+}
+
+/** Last-chance capture before showing login again (Landing / AuthCallback). */
+export async function finalizeOAuthRedirectCapture(): Promise<OAuthRedirectCapture> {
+  if (!shouldTryOAuthRecovery()) return { session: null, error: null };
+  let captured = await awaitOAuthRedirectCapture();
+  if (captured.session?.user || captured.error) return captured;
+  captured = await recoverOAuthSessionIfSignedIn();
+  return captured;
 }
 
 if (typeof window !== 'undefined') {
