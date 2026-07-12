@@ -7,9 +7,9 @@ Use this file as the Lovable -> Cursor handoff each session.
 - **V icon:** `useVybeMarkColors` now reads live `--primary` / `--accent` from painted CSS first (not stale localStorage); MutationObserver refreshes on theme paint + mode class
 - **Images:** `signAndPreloadFeedPosts` + `signAndPreloadProfileAvatar` — sign URLs then decode into browser cache during splash (`useAppPreloader`, `warmHomeCaches`); greeting avatar `priority`; StoriesBar preloads own avatar + story posters
 - **Verified:** build PASS · lint PASS · 64 tests PASS
-- **Published:** `origin/main` @ **`13af6ed5`**
+- **Published:** `origin/main` @ **`1c1a1197`** (code @ `13af6ed5`)
 - **Firebase redeploy:** Not needed — client-only
-- **You:** Lovable → sync `main` @ **`13af6ed5`** → **Share → Publish** for **vybehub.app**; hard-refresh Home — V matches theme, avatars/feed images instant
+- **You:** Lovable → sync `main` @ **`1c1a1197`** → **Share → Publish** for **vybehub.app**; hard-refresh Home — V matches theme, avatars/feed images instant
 
 ## Publish handoff — perf + theme boot + DM inbox swipe (2026-07-12)
 - **User ask:** Publish client batch (instant theme, Phases A–C perf, DM inbox swipe revamp)
