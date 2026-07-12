@@ -15,6 +15,14 @@ import {
 } from '@/hooks/useCustomTheme';
 import { ensureBootThemeApplied } from '@/lib/bootThemeApply';
 import { isSplashVisible, reinforceSplashTheme } from '@/lib/theme/themePrepaint';
+import {
+  EQUIPPED_THEME_KEY,
+  EQUIPPED_THEME_UPDATED_AT_KEY,
+  LEGACY_EQUIPPED_KEY,
+  THEME_USER_ID_KEY,
+  scopedEquippedKey,
+  scopedEquippedUpdatedAtKey,
+} from '@/lib/theme/equippedThemeStorage';
 
 function themeTokenFingerprint(tokens: ThemeTokens): string {
   return [
@@ -26,9 +34,7 @@ function themeTokenFingerprint(tokens: ThemeTokens): string {
   ].join('|');
 }
 
-export const EQUIPPED_THEME_KEY = 'vybe-equipped-theme';
-const LEGACY_EQUIPPED_KEY = 'vybe-custom-theme';
-export const THEME_USER_ID_KEY = 'vybe-theme-user-id';
+export { EQUIPPED_THEME_KEY, THEME_USER_ID_KEY };
 
 type UserThemeRow = {
   id?: string;
@@ -41,10 +47,6 @@ type UserThemeRow = {
 
 function resolvedMode(): 'dark' | 'light' {
   return document.documentElement.classList.contains('light') ? 'light' : 'dark';
-}
-
-function scopedEquippedKey(userId: string): string {
-  return `${EQUIPPED_THEME_KEY}:${userId}`;
 }
 
 function isSplashVisibleOnBody(): boolean {
@@ -67,17 +69,21 @@ export function readRememberedThemeUserId(): string | null {
   }
 }
 
-/** Persist equipped tokens for instant boot (global + per-user). */
+/** Persist equipped tokens for instant boot without crossing account boundaries. */
 export function persistEquippedThemeTokens(userId: string | null | undefined, tokens: ThemeTokens): void {
   try {
     const json = JSON.stringify(tokens);
-    localStorage.setItem(EQUIPPED_THEME_KEY, json);
-    localStorage.setItem(LEGACY_EQUIPPED_KEY, json);
+    const updatedAt = String(Date.now());
     if (userId) {
       localStorage.setItem(scopedEquippedKey(userId), json);
+      localStorage.setItem(scopedEquippedUpdatedAtKey(userId), updatedAt);
       rememberThemeUserId(userId);
+    } else {
+      // Legacy guest themes remain global until an authenticated user equips.
+      localStorage.setItem(EQUIPPED_THEME_KEY, json);
+      localStorage.setItem(LEGACY_EQUIPPED_KEY, json);
+      localStorage.setItem(EQUIPPED_THEME_UPDATED_AT_KEY, updatedAt);
     }
-    localStorage.setItem('vybe-equipped-theme-updated-at', String(Date.now()));
   } catch {
     /* ignore */
   }
@@ -269,7 +275,12 @@ export function prefetchAndApplyUserTheme(
 
       queryClient?.setQueryData(['user-theme', userId], row);
       persistEquippedThemeTokens(userId, dbTokens);
-      equipTheme(dbTokens, { themeId: row?.id ?? null, silent: true, skipAutoSave: true });
+      equipTheme(dbTokens, {
+        userId,
+        themeId: row?.id ?? null,
+        silent: true,
+        skipAutoSave: true,
+      });
       return true;
     } catch {
       return hydrateThemeFromLocalCaches(queryClient, userId);

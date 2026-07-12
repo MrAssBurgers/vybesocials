@@ -226,7 +226,11 @@ export function useEquipSharedTheme() {
       if (!user?.id) throw new Error('Not authenticated');
 
       const { equipTheme } = await import('@/hooks/useCustomTheme');
-      equipTheme(theme.theme_tokens, { themeId: theme.id, silent: true });
+      equipTheme(theme.theme_tokens, {
+        userId: user.id,
+        themeId: theme.id,
+        silent: true,
+      });
 
       await db.from('user_themes').upsert(
         {

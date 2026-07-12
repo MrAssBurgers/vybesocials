@@ -10,6 +10,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { useHomeLayout } from '@/hooks/useHomeLayout';
 import { useGenerateTheme } from '@/hooks/useCustomTheme';
 import { useTheme } from '@/lib/theme';
+import { useAuth } from '@/lib/auth';
 import { AgentActionBus } from '@/lib/agent/actionBus/AgentActionBus';
 import { registerAgentActionHandlers } from '@/lib/agent/actionBus/registerHandlers';
 
@@ -21,6 +22,7 @@ export function AgentActionBusProvider({ children }: { children: ReactNode }) {
   const { layout, toggleWidget, reorderWidgets } = useHomeLayout();
   const generateTheme = useGenerateTheme();
   const { setTheme: setGlobalTheme } = useTheme();
+  const { user } = useAuth();
   const busRef = useRef<AgentActionBus | null>(null);
 
   if (!busRef.current) {
@@ -31,6 +33,7 @@ export function AgentActionBusProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     return registerAgentActionHandlers(bus, {
       navigate,
+      userId: user?.id,
       setGlobalTheme,
       generateTheme: (input) => generateTheme.mutateAsync(input),
       layoutHidden: layout.hidden,
@@ -40,6 +43,7 @@ export function AgentActionBusProvider({ children }: { children: ReactNode }) {
   }, [
     bus,
     navigate,
+    user?.id,
     setGlobalTheme,
     generateTheme,
     layout.hidden,

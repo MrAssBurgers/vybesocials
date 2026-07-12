@@ -14,22 +14,33 @@ const THEME_STORAGE_KEYS = [
   'vybe-boot-theme-updated-at',
 ] as const;
 
-export function resetThemeToDefault() {
-  const root = document.documentElement;
-
+export function clearStoredThemeState(): void {
   try {
     for (const key of THEME_STORAGE_KEYS) {
       localStorage.removeItem(key);
     }
-    for (let i = localStorage.length - 1; i >= 0; i--) {
+    const storageKeys = new Set(Object.keys(localStorage));
+    for (let i = 0; i < localStorage.length; i++) {
       const key = localStorage.key(i);
-      if (key?.startsWith('vybe-equipped-theme:')) {
+      if (key) storageKeys.add(key);
+    }
+    for (const key of storageKeys) {
+      if (
+        key.startsWith('vybe-equipped-theme:') ||
+        key.startsWith('vybe-equipped-theme-updated-at:')
+      ) {
         localStorage.removeItem(key);
       }
     }
   } catch {
     /* ignore */
   }
+}
+
+export function resetThemeToDefault() {
+  const root = document.documentElement;
+
+  clearStoredThemeState();
 
   resetThemeApplyState();
   

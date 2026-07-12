@@ -7,6 +7,7 @@ export const BOOT_SNAPSHOT_KEY = 'vybe-boot-theme';
 export const BOOT_SNAPSHOT_UPDATED_AT_KEY = 'vybe-boot-theme-updated-at';
 
 export const EQUIPPED_THEME_KEY = 'vybe-equipped-theme';
+export const EQUIPPED_THEME_UPDATED_AT_KEY = 'vybe-equipped-theme-updated-at';
 export const LEGACY_EQUIPPED_KEY = 'vybe-custom-theme';
 export const THEME_USER_ID_KEY = 'vybe-theme-user-id';
 
@@ -36,21 +37,32 @@ export type EquippedThemeTokens = {
   themeName?: string;
 };
 
-function scopedEquippedKey(userId: string): string {
+export function scopedEquippedKey(userId: string): string {
   return `${EQUIPPED_THEME_KEY}:${userId}`;
 }
 
-function readScopedEquippedKeys(): string[] {
-  try {
-    return Object.keys(localStorage).filter((key) => key.startsWith(`${EQUIPPED_THEME_KEY}:`));
-  } catch {
-    return [];
-  }
+export function scopedEquippedUpdatedAtKey(userId: string): string {
+  return `${EQUIPPED_THEME_UPDATED_AT_KEY}:${userId}`;
 }
 
-function readFirebaseAuthUid(): string | null {
+export function isEquippedThemeStorageKey(key: string | null): boolean {
+  return Boolean(
+    key === EQUIPPED_THEME_KEY ||
+      key === EQUIPPED_THEME_UPDATED_AT_KEY ||
+      key === LEGACY_EQUIPPED_KEY ||
+      key?.startsWith(`${EQUIPPED_THEME_KEY}:`) ||
+      key?.startsWith(`${EQUIPPED_THEME_UPDATED_AT_KEY}:`),
+  );
+}
+
+function readPersistedFirebaseAuthUid(): string | null {
   try {
-    for (const storageKey of Object.keys(localStorage)) {
+    const storageKeys = new Set(Object.keys(localStorage));
+    for (let index = 0; index < localStorage.length; index++) {
+      const key = localStorage.key(index);
+      if (key) storageKeys.add(key);
+    }
+    for (const storageKey of storageKeys) {
       if (!storageKey.startsWith('firebase:authUser:')) continue;
       try {
         const authUser = JSON.parse(localStorage.getItem(storageKey) || 'null') as { uid?: string } | null;
@@ -68,13 +80,13 @@ function readFirebaseAuthUid(): string | null {
 export function resolveThemeUserId(explicitUserId?: string | null): string | null {
   if (explicitUserId) return explicitUserId;
   try {
-    const remembered = localStorage.getItem(THEME_USER_ID_KEY);
-    if (remembered) return remembered;
+    const persistedFirebaseUid = readPersistedFirebaseAuthUid();
+    if (persistedFirebaseUid) return persistedFirebaseUid;
 
     const storedAuthUid = getStoredAuthUserId();
     if (storedAuthUid) return storedAuthUid;
 
-    return readFirebaseAuthUid();
+    return localStorage.getItem(THEME_USER_ID_KEY);
   } catch {
     return null;
   }
@@ -82,6 +94,10 @@ export function resolveThemeUserId(explicitUserId?: string | null): string | nul
 
 export function readBootSnapshot(): Record<string, string> | null {
   try {
+    const authUid = readPersistedFirebaseAuthUid() ?? getStoredAuthUserId();
+    if (authUid && localStorage.getItem(THEME_USER_ID_KEY) !== authUid) {
+      return null;
+    }
     const raw = localStorage.getItem(BOOT_SNAPSHOT_KEY);
     if (!raw) return null;
     const parsed = JSON.parse(raw) as Record<string, string>;
@@ -91,24 +107,19 @@ export function readBootSnapshot(): Record<string, string> | null {
   }
 }
 
-/** Scoped key first when uid is known; scan vybe-equipped-theme:* as fallback. */
+/**
+ * Authenticated reads are strictly account-scoped. Global keys are only used
+ * for the unauthenticated legacy migration path.
+ */
 export function readEquippedThemeTokens(userId?: string | null): EquippedThemeTokens | null {
   try {
     const uid = resolveThemeUserId(userId);
-    const keys: string[] = [];
-    if (uid) keys.push(scopedEquippedKey(uid));
-    keys.push(EQUIPPED_THEME_KEY, LEGACY_EQUIPPED_KEY);
+    const keys = uid
+      ? [scopedEquippedKey(uid)]
+      : [EQUIPPED_THEME_KEY, LEGACY_EQUIPPED_KEY];
 
     for (const key of keys) {
       const raw = localStorage.getItem(key);
-      if (!raw) continue;
-      const parsed = JSON.parse(raw) as EquippedThemeTokens;
-      if (parsed?.colorPrimary) return parsed;
-    }
-
-    for (const scopedKey of readScopedEquippedKeys()) {
-      if (keys.includes(scopedKey)) continue;
-      const raw = localStorage.getItem(scopedKey);
       if (!raw) continue;
       const parsed = JSON.parse(raw) as EquippedThemeTokens;
       if (parsed?.colorPrimary) return parsed;

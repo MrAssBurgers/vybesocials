@@ -8,10 +8,16 @@ import { isNativePerfMode } from '@/lib/nativePerfMode';
 import { generateVybeTheme } from '@/lib/aiThemeGeneration';
 import { getStoredAuthUserId } from '@/lib/legacyAuthStorage';
 import { prefetchAndApplyUserTheme, persistEquippedThemeTokens, syncEquippedThemeToAccount, runAfterSplashDismiss, reconcileUserThemeRowWithEquipped } from '@/lib/themeHydration';
-import { readEquippedThemeTokens, resolveThemeUserId } from '@/lib/theme/equippedThemeStorage';
-import { BOOT_SNAPSHOT_KEY, BOOT_SNAPSHOT_UPDATED_AT_KEY } from '@/lib/theme/equippedThemeStorage';
+import {
+  BOOT_SNAPSHOT_KEY,
+  BOOT_SNAPSHOT_UPDATED_AT_KEY,
+  isEquippedThemeStorageKey,
+  readEquippedThemeTokens,
+  resolveThemeUserId,
+} from '@/lib/theme/equippedThemeStorage';
 import { THEME_SNAPSHOT_KEYS, adaptThemeToMode, reinforceSplashTheme } from '@/lib/theme/themePrepaint';
 import { collectThemeUserContext, type ThemeUserContext } from '@/lib/theme/themeUserContext';
+import { resetThemeToDefault } from '@/lib/themeReset';
 import type { VybeDNA } from '@/hooks/useVybeDNA';
 
 // Free-tier cooldown for AI theme generation (Pro users skip this)
@@ -262,10 +268,7 @@ export function useUserTheme() {
   });
 }
 
-const EQUIPPED_THEME_KEY = 'vybe-equipped-theme';
 const EQUIPPED_THEME_ID_KEY = 'vybe-equipped-theme-id';
-/** @deprecated use EQUIPPED_THEME_KEY — kept for reads during migration */
-const LEGACY_EQUIPPED_KEY = 'vybe-custom-theme';
 
 /** Read the user's actively equipped theme tokens (localStorage is the live source). */
 export function getEquippedThemeTokens(userId?: string | null): ThemeTokens | null {
@@ -278,13 +281,14 @@ export function getEquippedThemeTokens(userId?: string | null): ThemeTokens | nu
 export function equipTheme(
   tokens: ThemeTokens,
   options?: {
+    userId?: string | null;
     themeId?: string | null;
     silent?: boolean;
     skipAutoSave?: boolean;
     basePreset?: string;
   },
 ) {
-  const uid = getStoredAuthUserId();
+  const uid = resolveThemeUserId(options?.userId);
   persistEquippedThemeTokens(uid, tokens);
   if (options?.themeId) {
     localStorage.setItem(EQUIPPED_THEME_ID_KEY, options.themeId);
@@ -319,6 +323,7 @@ export function persistEquippedUserTheme(
 ): void {
   const uid = options?.userId ?? getStoredAuthUserId();
   equipTheme(tokens, {
+    userId: uid,
     themeId: options?.themeId,
     silent: options?.silent,
     skipAutoSave: options?.skipAutoSave,
@@ -425,7 +430,12 @@ export function useSaveTheme() {
     onSuccess: (savedData) => {
       const tokens = savedData.theme_tokens as ThemeTokens;
       // Keep equipped tokens in localStorage so navigation/refetches can't swap themes
-      equipTheme(tokens, { themeId: null, silent: true, skipAutoSave: true });
+      equipTheme(tokens, {
+        userId: savedData.user_id,
+        themeId: null,
+        silent: true,
+        skipAutoSave: true,
+      });
 
       queryClient.setQueryData(['user-theme', user?.id], savedData);
       if (!(savedData as any).silent) {
@@ -472,11 +482,7 @@ export function useResetTheme() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['user-theme'] });
-      localStorage.removeItem(EQUIPPED_THEME_KEY);
-      localStorage.removeItem(LEGACY_EQUIPPED_KEY);
-      localStorage.removeItem(EQUIPPED_THEME_ID_KEY);
-      _lastAppliedThemeHash = '';
-      applyThemeTokens(THEME_PRESETS.classic);
+      resetThemeToDefault();
       toast.success('Theme reset to default');
     },
     onError: (error: any) => {
@@ -1082,8 +1088,7 @@ export function useApplyUserTheme() {
     };
     const onStorage = (e: StorageEvent) => {
       if (
-        e.key === EQUIPPED_THEME_KEY ||
-        e.key === LEGACY_EQUIPPED_KEY ||
+        isEquippedThemeStorageKey(e.key) ||
         e.key === EQUIPPED_THEME_ID_KEY
       ) {
         onEquipped();

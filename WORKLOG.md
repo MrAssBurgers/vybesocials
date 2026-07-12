@@ -2,6 +2,15 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## Compact inbox + stable themes (2026-07-12)
+- **DM inbox:** Production rows are 80px with 52px avatars, 42px camera targets, a 56px compose FAB, slimmer safe-area header/tabs, one secondary status/preview line, hairline separators, a soft avatar ring, 2px active underline, and light list-level glass. Swipe, camera, profile navigation, tabs, desktop layout, and virtual slicing remain wired; row/header estimates now exactly match 80px/28px and skeletons match the compact geometry.
+- **Theme persistence:** Authenticated reads are strictly scoped to the live Firebase UID; global theme keys are unauthenticated legacy-only. Equip/save/hydration paths pass the authenticated UID, scoped timestamps participate in storage synchronization, and account-mismatched boot snapshots are rejected. Local scoped state remains first-paint authority over Firestore backup.
+- **Theme races/reset:** Auto-Pilot cannot overwrite an explicit equipped theme, mode remains independent from theme identity, and reset cleanup is shared across settings/logout paths and removes scoped tokens/timestamps, boot snapshot, remembered UID, equipped ID, and global legacy state.
+- **Tests:** Added focused coverage for scoped reads, account switching, snapshot isolation, reset cleanup, and the Auto-Pilot guard; completed test storage now implements the standard `length`/`key()` API.
+- **Verified:** `npm run typecheck` PASS · `npm run lint` PASS · `npm run test` PASS (11 files / 71 tests) · `npm run build` PASS · `npm run validate:css` PASS (two pre-existing Tailwind ambiguity warnings).
+- **Blockers/manual QA:** No code blocker and no deploy performed. Device QA remains for `/messages`: safe areas, tabs after reload, swipe/profile/camera targets, FAB hide/clearance, 40+ row virtualization, desktop split pane; also verify cold boot/equip/account-switch/reset/Auto-Pilot theme behavior.
+- **Next 3 tasks:** 1. Run the compact inbox checklist on iPhone and tablet. 2. Test two-account theme switching plus cold launch/reset/Auto-Pilot. 3. After approval, commit/push and use Lovable Publish separately.
+
 ## DM inbox Snapchat-style redesign (2026-07-12)
 - **User ask:** Conversations look bad — make clean/fresh like Snapchat
 - **Header:** Flat “Chat” title, profile avatar, minimal icon actions; removed aurora hero, wordmark, quick-lane chips

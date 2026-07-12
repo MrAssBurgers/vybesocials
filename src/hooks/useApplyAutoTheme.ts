@@ -2,6 +2,10 @@ import { useEffect } from 'react';
 import { db } from '@/lib/firebase';
 import { subscribePostgresChannel, removeRealtimeChannel } from '@/lib/realtimeChannel';
 import { useAuth } from '@/lib/auth';
+import {
+  isEquippedThemeStorageKey,
+  readEquippedThemeTokens,
+} from '@/lib/theme/equippedThemeStorage';
 
 // Convert hex (#RRGGBB) to "h s% l%" string for CSS HSL tokens
 function hexToHsl(hex: string): string | null {
@@ -28,6 +32,13 @@ function hexToHsl(hex: string): string | null {
 
 const APPLIED_VARS = ['--primary', '--accent', '--ring'];
 
+export function shouldApplyAutoTheme(
+  mode: string | null | undefined,
+  userId: string | null | undefined,
+): boolean {
+  return mode === 'autonomous' && !readEquippedThemeTokens(userId)?.colorPrimary;
+}
+
 /**
  * Applies the autonomous DNA Auto-Pilot theme overlay (when mode=autonomous).
  * Listens for changes to dna_auto_theme and pushes signature_colors into CSS vars.
@@ -38,18 +49,32 @@ export function useApplyAutoTheme() {
   useEffect(() => {
     if (!user?.id) return;
     let active = true;
+    let autoThemeApplied = false;
 
     async function apply() {
+      if (readEquippedThemeTokens(user!.id)?.colorPrimary) {
+        // An explicit equip owns theme identity and all palette variables.
+        autoThemeApplied = false;
+        return;
+      }
+
       const [{ data: settings }, { data: theme }] = await Promise.all([
         db.from('dna_agent_settings').select('mode').eq('user_id', user!.id).maybeSingle(),
         db.from('dna_auto_theme').select('*').eq('user_id', user!.id).maybeSingle(),
       ]);
       if (!active) return;
 
-      // only apply in autonomous mode
-      if (settings?.mode !== 'autonomous' || !theme?.signature_colors) {
-        // clear any prior overrides
-        APPLIED_VARS.forEach(v => document.documentElement.style.removeProperty(v));
+      // Re-check after network latency: the user may have equipped a theme meanwhile.
+      if (readEquippedThemeTokens(user!.id)?.colorPrimary) {
+        autoThemeApplied = false;
+        return;
+      }
+
+      if (!shouldApplyAutoTheme(settings?.mode, user!.id) || !theme?.signature_colors) {
+        if (autoThemeApplied) {
+          APPLIED_VARS.forEach(v => document.documentElement.style.removeProperty(v));
+          autoThemeApplied = false;
+        }
         return;
       }
       const colors = theme.signature_colors as string[];
@@ -59,6 +84,7 @@ export function useApplyAutoTheme() {
       if (primary) document.documentElement.style.setProperty('--primary', primary);
       if (accent) document.documentElement.style.setProperty('--accent', accent);
       if (ring) document.documentElement.style.setProperty('--ring', ring);
+      autoThemeApplied = Boolean(primary || accent || ring);
     }
 
     apply();
@@ -67,12 +93,22 @@ export function useApplyAutoTheme() {
       { event: '*', table: 'dna_auto_theme', filter: `user_id=eq.${user.id}`, callback: apply },
       { event: '*', table: 'dna_agent_settings', filter: `user_id=eq.${user.id}`, callback: apply },
     ]);
+    const onThemeStorage = (event: StorageEvent) => {
+      if (isEquippedThemeStorageKey(event.key)) void apply();
+    };
+    const onThemeEquipped = () => void apply();
+    window.addEventListener('storage', onThemeStorage);
+    window.addEventListener('vybeThemeEquipped', onThemeEquipped);
 
     return () => {
       active = false;
       try {
+        window.removeEventListener('storage', onThemeStorage);
+        window.removeEventListener('vybeThemeEquipped', onThemeEquipped);
         removeRealtimeChannel(ch);
-        APPLIED_VARS.forEach(v => document.documentElement.style.removeProperty(v));
+        if (autoThemeApplied && !readEquippedThemeTokens(user.id)?.colorPrimary) {
+          APPLIED_VARS.forEach(v => document.documentElement.style.removeProperty(v));
+        }
       } catch { /* never throw from cleanup */ }
     };
   }, [user?.id]);

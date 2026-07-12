@@ -93,6 +93,10 @@ export const DMConversationRow = memo(function DMConversationRow({
       otherProfileId,
       previewMaxLen: 48,
     });
+  const secondaryLine =
+    statusLine && messagePreview && statusLine !== messagePreview
+      ? `${statusLine} · ${messagePreview}`
+      : statusLine || messagePreview;
 
   const stopRowGesture = (event: React.SyntheticEvent) => {
     event.preventDefault();
@@ -222,12 +226,9 @@ export const DMConversationRow = memo(function DMConversationRow({
             {activityPreviewLabel(activity)}
           </p>
         ) : (
-          <>
-            <p className={cn('dm-inbox-status', unread && 'dm-inbox-preview--unread')}>
-              {statusLine}
-            </p>
-            <p className="dm-inbox-message-preview">{messagePreview}</p>
-          </>
+          <p className={cn('dm-inbox-status', unread && 'dm-inbox-preview--unread')}>
+            {secondaryLine}
+          </p>
         )}
       </div>
 

@@ -12,6 +12,7 @@ import type { AgentAction } from '@/lib/agent/agentToolSchema';
 
 export interface ActionHandlerDeps {
   navigate: (path: string) => void;
+  userId?: string | null;
   setGlobalTheme: (mode: 'light' | 'dark') => void;
   generateTheme: (input: { prompt: string }) => Promise<ThemeTokens>;
   layoutHidden: string[];
@@ -53,7 +54,7 @@ export function registerAgentActionHandlers(
           : THEME_PRESETS[presetKey];
       if (!preset) return fail(action, `Unknown preset: ${action.preset}`);
       deps.setGlobalTheme(preset.mode === 'light' ? 'light' : 'dark');
-      equipTheme(preset, { silent: true });
+      equipTheme(preset, { userId: deps.userId, silent: true });
       toast.success(`Applied ${action.preset} theme`);
       return ok(action);
     }),
@@ -66,7 +67,11 @@ export function registerAgentActionHandlers(
         const theme = await deps.generateTheme({ prompt: action.prompt });
         toast.dismiss(loading);
         deps.setGlobalTheme(theme.mode === 'light' ? 'light' : 'dark');
-        equipTheme(theme, { silent: true, basePreset: 'custom' });
+        equipTheme(theme, {
+          userId: deps.userId,
+          silent: true,
+          basePreset: 'custom',
+        });
         toast.success('Custom theme applied');
         return ok(action);
       } catch {

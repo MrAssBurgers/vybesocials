@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { EQUIPPED_THEME_KEY } from '@/lib/theme/equippedThemeStorage';
+import { scopedEquippedKey } from '@/lib/theme/equippedThemeStorage';
 
 const mocks = vi.hoisted(() => ({
   applyThemeTokens: vi.fn(),
@@ -49,7 +49,7 @@ describe('hydrateThemeFromLocalCaches', () => {
   });
 
   it('applies full equipped theme from localStorage', () => {
-    localStorage.setItem(EQUIPPED_THEME_KEY, JSON.stringify(midnightTokens));
+    localStorage.setItem(scopedEquippedKey('user-1'), JSON.stringify(midnightTokens));
 
     const applied = hydrateThemeFromLocalCaches(undefined, 'user-1');
 
@@ -59,7 +59,7 @@ describe('hydrateThemeFromLocalCaches', () => {
   });
 
   it('applies equipped theme during splash instead of lightweight reinforce only', () => {
-    localStorage.setItem(EQUIPPED_THEME_KEY, JSON.stringify(midnightTokens));
+    localStorage.setItem(scopedEquippedKey('user-1'), JSON.stringify(midnightTokens));
     mocks.isSplashVisible.mockReturnValue(true);
     document.body.classList.add('splash-visible');
 
