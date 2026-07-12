@@ -3577,3 +3577,29 @@ All eight migration phases complete. See `.lovable/plan.md` for per-phase detail
 **Residual work (non-blocking):**
 - Swap presence/typing hooks from legacy realtime shim to direct Firestore `onSnapshot` (small perf win).
 - Delete `supabase/` folder + `src/integrations/supabase/` shim once Firebase impl is battle-tested in production.
+
+---
+
+## 2026-07-12 — OAuth recovery + concept DM inbox
+
+### What changed
+- **OAuth (`9eb8e763`)** — mobile Safari redirect-return URLs now use the extended Firebase Auth recovery window; Landing and AuthCallback perform a final capture before clearing pending state; the service worker bypasses OAuth-bearing `/auth` responses.
+- **DM inbox (`24c8da12`)** — added `src/features/dms/` as the production inbox layer with normalized Firebase previews, persisted glass tabs, 96px neon rows, delivery/streak status, presence/typing, per-row snap camera, preserved swipe actions, virtual slicing, skeletons, and the scroll-aware compose FAB.
+- `Messages.tsx` now mounts `DMInboxPage`; legacy `dm-inbox` entry points remain as thin compatibility re-exports.
+
+### Verification
+- `npm run typecheck` — passed.
+- `npm run lint` — passed.
+- `npm run test` — 10 files / 64 tests passed.
+- `npm run build` — passed.
+- `npm run validate:css` — passed (two pre-existing Tailwind ambiguity warnings).
+
+### Blockers / manual checks
+- Device-only QA remains: iPhone Safari private-tab Google OAuth, safe-area/header, tab persistence, swipe/camera, FAB clearance, and 40+ row scrolling.
+- Confirm `vybehub.app` and `vybe-daaab.web.app` are listed under Firebase Auth Authorized domains.
+- `vybehub.app` still requires Lovable → Share → Publish after the pushed client commit.
+
+### Next 3 tasks
+1. Hard-refresh iPhone Safari and complete Google sign-in from `/auth`.
+2. Run the inbox interaction checklist on iPhone and tablet.
+3. Publish `origin/main` through Lovable and smoke-test `vybehub.app`.
