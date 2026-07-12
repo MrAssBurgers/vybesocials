@@ -9,7 +9,7 @@ Use this file as the Lovable -> Cursor handoff each session.
 - **CI:** `dmInboxPhase1.test.ts` — `member()` helper with `role` + `_sortTime` on fixtures
 - **Functions lib:** Synced tracked `functions/lib/*` exports for DM CFs (already deployed to vybe-daaab)
 - **Verified:** build PASS · typecheck PASS · lint PASS · 58 tests PASS
-- **Published:** `origin/main` @ **`aeef1dde`**
+- **Published:** `origin/main` @ **`dc8b99d1`**
 - **Firebase redeploy:** Not needed — no `functions/src`, rules, or indexes changes since last deploy @ `4b4a25e8`
 - **You:** Lovable → sync `main` → **Share → Publish** for **vybehub.app**
 
