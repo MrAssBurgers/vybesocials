@@ -2,6 +2,13 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## V icon theme sync + instant image preload (2026-07-12)
+- **User ask:** V mark color doesn't match equipped theme; images should appear instantly on Home
+- **V icon:** `useVybeMarkColors` now reads live `--primary` / `--accent` from painted CSS first (not stale localStorage); MutationObserver refreshes on theme paint + mode class
+- **Images:** `signAndPreloadFeedPosts` + `signAndPreloadProfileAvatar` — sign URLs then decode into browser cache during splash (`useAppPreloader`, `warmHomeCaches`); greeting avatar `priority`; StoriesBar preloads own avatar + story posters
+- **Verified:** build PASS · lint PASS · 64 tests PASS
+- **You:** Hard-refresh Home — V should match theme purple/pink; avatar + first feed images should pop in without delay
+
 ## Publish handoff — perf + theme boot + DM inbox swipe (2026-07-12)
 - **User ask:** Publish client batch (instant theme, Phases A–C perf, DM inbox swipe revamp)
 - **Theme boot:** Equipped Vybe theme applies on first paint — no classic pink/cyan flash; cold DB hydrate when local empty

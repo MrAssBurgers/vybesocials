@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { db } from '@/lib/firebase';
-import { batchSignUrls } from '@/lib/signedUrlCache';
 import { warmHomeCaches, warmHomeCachesForProfile } from '@/lib/warmHomeCaches';
 import { isPersistRestored, markPersistRestored, onPersistRestored } from '@/lib/persistRestoreGate';
 import { preloadCriticalRoutes, preloadSecondaryRoutes } from '@/lib/routePreloader';
@@ -11,7 +10,7 @@ import { publishSplashProgress } from '@/lib/splashProgressBridge';
 import { kickstartThemeHydration, prefetchAndApplyUserTheme } from '@/lib/themeHydration';
 import { getCachedCurrentProfile } from '@/lib/profileCache';
 import { resolveProfileAvatarUrl } from '@/lib/profileAvatarCache';
-import { preloadFeedPostsMedia } from '@/lib/imagePreload';
+import { signAndPreloadFeedPosts, signAndPreloadProfileAvatar } from '@/lib/imagePreload';
 
 interface PreloadStatus {
   step: string;
@@ -161,7 +160,7 @@ export function useAppPreloader() {
         let feedWarmPromise: Promise<void> | null = null;
         if (cachedProfile && earlyProfileId) {
           const earlyAvatar = resolveProfileAvatarUrl(earlyProfileId, cachedProfile.avatar_url);
-          if (earlyAvatar) void batchSignUrls([earlyAvatar]);
+          if (earlyAvatar) void signAndPreloadProfileAvatar(earlyAvatar, 192);
           queryClient.setQueryData(['profile', earlyProfileId], cachedProfile);
           feedWarmPromise = warmUserFeed(queryClient, earlyProfileId, uid, (p) => {
             if (!cancelled) updateStatus('feed', 0.15 + p * 0.5);
@@ -304,8 +303,7 @@ async function warmGuestFeed(
   if (feedResult.status === 'fulfilled' && feedResult.value.data) {
     const posts = feedResult.value.data as any[];
     cacheFeedData(queryClient, posts, null, 'feed_post');
-    batchSignUrls(posts.flatMap((p) => [p.media_url, p.thumbnail_url, p.author_avatar_url]).filter(Boolean)).catch(() => {});
-    preloadFeedPostsMedia(
+    await signAndPreloadFeedPosts(
       posts.map((p) => ({
         media_url: p.media_url,
         thumbnail_url: p.thumbnail_url,
@@ -317,7 +315,14 @@ async function warmGuestFeed(
   if (clipsResult.status === 'fulfilled' && clipsResult.value.data) {
     const clips = clipsResult.value.data as any[];
     cacheFeedData(queryClient, clips, null, 'clip');
-    batchSignUrls(clips.flatMap((p) => [p.media_url, p.author_avatar_url, p.thumbnail_url]).filter(Boolean)).catch(() => {});
+    await signAndPreloadFeedPosts(
+      clips.map((p) => ({
+        media_url: p.media_url,
+        thumbnail_url: p.thumbnail_url,
+        author: { avatar_url: p.author_avatar_url },
+      })),
+      8,
+    );
   }
   onProgress(1);
 }
@@ -354,8 +359,7 @@ async function warmUserFeed(
   if (feedResult.status === 'fulfilled' && feedResult.value.data) {
     const posts = feedResult.value.data as any[];
     cacheFeedData(queryClient, posts, profileId, null);
-    batchSignUrls(posts.flatMap((p) => [p.media_url, p.thumbnail_url, p.author_avatar_url]).filter(Boolean)).catch(() => {});
-    preloadFeedPostsMedia(
+    await signAndPreloadFeedPosts(
       posts.map((p) => ({
         media_url: p.media_url,
         thumbnail_url: p.thumbnail_url,
@@ -367,7 +371,14 @@ async function warmUserFeed(
   if (clipsResult.status === 'fulfilled' && clipsResult.value.data) {
     const clips = clipsResult.value.data as any[];
     cacheFeedData(queryClient, clips, profileId, 'short');
-    batchSignUrls(clips.flatMap((p) => [p.media_url, p.author_avatar_url, p.thumbnail_url]).filter(Boolean)).catch(() => {});
+    await signAndPreloadFeedPosts(
+      clips.map((p) => ({
+        media_url: p.media_url,
+        thumbnail_url: p.thumbnail_url,
+        author: { avatar_url: p.author_avatar_url },
+      })),
+      8,
+    );
   }
   onProgress(1);
 }

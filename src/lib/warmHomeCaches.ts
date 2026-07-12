@@ -1,9 +1,10 @@
 import type { QueryClient } from '@tanstack/react-query';
 import { db } from '@/lib/firebase';
-import { batchSignUrls } from '@/lib/signedUrlCache';
 import { getCachedCurrentProfile } from '@/lib/profileCache';
+import { resolveProfileAvatarUrl } from '@/lib/profileAvatarCache';
 import { prefetchDMConversations } from '@/lib/loadDMConversations';
 import { setCachedUserLevel } from '@/lib/userLevelCache';
+import { signAndPreloadFeedPosts, signAndPreloadProfileAvatar } from '@/lib/imagePreload';
 
 function mapFeedRow(row: Record<string, unknown>) {
   return {
@@ -90,8 +91,7 @@ function warmPersonalizedFeed(queryClient: QueryClient, profileId: string) {
       pages: [{ posts, nextPage: posts.length >= 15 ? 1 : null }],
       pageParams: [0],
     });
-    const urls = posts.flatMap((p) => [p.media_url, p.thumbnail_url, p.author?.avatar_url]).filter(Boolean) as string[];
-    batchSignUrls(urls).catch(() => {});
+    void signAndPreloadFeedPosts(posts, 8);
   })();
 }
 
@@ -116,8 +116,7 @@ function warmFollowingFeed(queryClient: QueryClient, profileId: string) {
         pages: [{ posts, nextPage: posts.length >= 15 ? 1 : null }],
         pageParams: [0],
       });
-      const urls = posts.flatMap((p) => [p.media_url, p.thumbnail_url, p.author?.avatar_url]).filter(Boolean) as string[];
-      batchSignUrls(urls).catch(() => {});
+      void signAndPreloadFeedPosts(posts, 8);
     });
 }
 
@@ -135,8 +134,12 @@ function warmStories(queryClient: QueryClient, profileId: string) {
       if (!data?.length) return;
       const storyGroups = processStoriesIntoGroups(data, profileId);
       queryClient.setQueryData(key, storyGroups);
-      const storyUrls = data.flatMap((s: any) => [s.media_url, s.author?.avatar_url]).filter(Boolean);
-      batchSignUrls(storyUrls).catch(() => {});
+      const storyPosts = data.map((s: any) => ({
+        media_url: s.media_url,
+        thumbnail_url: s.thumbnail_url,
+        author: { avatar_url: s.author?.avatar_url },
+      }));
+      void signAndPreloadFeedPosts(storyPosts, 6);
     });
 }
 
@@ -224,9 +227,9 @@ function warmUserMeta(queryClient: QueryClient, uid: string, profileId: string) 
 
 function signCachedProfileMedia() {
   const cached = getCachedCurrentProfile();
-  if (cached?.avatar_url) {
-    batchSignUrls([cached.avatar_url]).catch(() => {});
-  }
+  if (!cached?.id) return;
+  const avatar = resolveProfileAvatarUrl(cached.id, cached.avatar_url);
+  if (avatar) void signAndPreloadProfileAvatar(avatar, 192);
 }
 
 /**
@@ -241,6 +244,11 @@ export function warmHomeCachesForProfile(
 ) {
   if (profileRow) {
     queryClient.setQueryData(['profile', profileId], profileRow);
+    const avatar = resolveProfileAvatarUrl(
+      profileId,
+      (profileRow.avatar_url as string | null | undefined) ?? null,
+    );
+    if (avatar) void signAndPreloadProfileAvatar(avatar, 192);
   }
 
   signCachedProfileMedia();

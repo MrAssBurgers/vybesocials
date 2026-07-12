@@ -86,6 +86,7 @@ export function GreetingWidget() {
                 profileId={profile.id}
                 src={profile.avatar_url || undefined}
                 transformSize={160}
+                priority
               />
               <AvatarFallback className="bg-gradient-to-br from-primary/30 to-accent/30 font-bold text-lg">
                 {profile.username?.[0]?.toUpperCase() ?? '?'}

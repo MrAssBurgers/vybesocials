@@ -1,5 +1,5 @@
 import { transformedImage } from '@/lib/imageTransform';
-import { getCachedSignedUrl } from '@/lib/signedUrlCache';
+import { getCachedSignedUrl, ensureMediaUrlsReady } from '@/lib/signedUrlCache';
 import { normalizeMediaUrl } from '@/lib/mediaUrl';
 
 const injectedPreloads = new Set<string>();
@@ -65,4 +65,31 @@ export function preloadFeedPostsMedia(
       preloadImageUrl(post.author.avatar_url, { width: 96, quality: 80, priority });
     }
   });
+}
+
+/** Sign storage URLs then decode into the browser image cache. */
+export async function signAndPreloadFeedPosts(
+  posts: Parameters<typeof preloadFeedPostsMedia>[0],
+  cap = 12,
+): Promise<void> {
+  if (!posts.length) return;
+  const slice = posts.slice(0, cap);
+  const urls = slice.flatMap((post) => [
+    post.thumbnail_url,
+    post.media_url,
+    post.author?.avatar_url,
+  ]);
+  await ensureMediaUrlsReady(urls);
+  preloadFeedPostsMedia(slice, cap);
+}
+
+/** Profile avatar — sign + high-priority decode for greeting / stories. */
+export async function signAndPreloadProfileAvatar(
+  avatarUrl: string | null | undefined,
+  transformSize = 160,
+): Promise<void> {
+  const normalized = normalizeMediaUrl(avatarUrl);
+  if (!normalized) return;
+  await ensureMediaUrlsReady([normalized]);
+  preloadImageUrl(normalized, { width: transformSize, quality: 85, priority: 'high' });
 }

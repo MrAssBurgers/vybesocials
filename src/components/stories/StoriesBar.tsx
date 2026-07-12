@@ -12,6 +12,8 @@ import { StoryViewer } from './StoryViewer';
 import { StoryCreator } from './StoryCreator';
 import { useFastSignedUrl } from '@/hooks/useFastSignedUrl';
 import { batchSignUrls } from '@/lib/signedUrlCache';
+import { preloadImageUrl, signAndPreloadProfileAvatar } from '@/lib/imagePreload';
+import { resolveProfileAvatarUrl } from '@/lib/profileAvatarCache';
 import { useIsGuest } from '@/components/auth/GuestAuthPrompt';
 import { StoryPoster } from './StoryPoster';
 import { computeStoryPosterDimensions, getStoryPosterUrl } from '@/lib/storyUtils';
@@ -60,6 +62,12 @@ export const StoriesBar = memo(function StoriesBar({
   }, [colSpan, rowSpan]);
 
   useEffect(() => {
+    if (!profile?.id) return;
+    const avatar = resolveProfileAvatarUrl(profile.id, profile.avatar_url);
+    if (avatar) void signAndPreloadProfileAvatar(avatar, 256);
+  }, [profile?.id, profile?.avatar_url]);
+
+  useEffect(() => {
     if (!storyGroups || storyGroups.length === 0) return;
     const urls = storyGroups.flatMap((group) => {
       const latest = group.stories[0];
@@ -67,7 +75,15 @@ export const StoriesBar = memo(function StoriesBar({
       return [poster, group.user.avatar_url].filter(Boolean) as string[];
     });
     if (urls.length > 0) {
-      batchSignUrls(urls).catch(() => {});
+      void batchSignUrls(urls).then(() => {
+        urls.slice(0, 8).forEach((url, index) => {
+          preloadImageUrl(url, {
+            width: index === 0 ? 256 : 128,
+            quality: 80,
+            priority: index < 3 ? 'high' : 'auto',
+          });
+        });
+      });
     }
   }, [storyGroups]);
 

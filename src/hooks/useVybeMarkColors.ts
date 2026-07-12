@@ -13,18 +13,40 @@ function readHslVar(name: string): string | null {
   return raw ? `hsl(${raw})` : null;
 }
 
+function isThemePaintedOnDocument(): boolean {
+  if (typeof document === 'undefined') return false;
+  if (document.documentElement.getAttribute('data-vybe-theme-painted') === 'true') return true;
+  return Boolean(getComputedStyle(document.documentElement).getPropertyValue('--primary').trim());
+}
+
+/** Live CSS vars — matches what is painted on screen (hero, gradients, UI). */
+function readVybeMarkFromDocument(): VybeMarkColors | null {
+  const primary = readHslVar('--primary');
+  const accent = readHslVar('--accent');
+  if (!primary || !accent) return null;
+  return {
+    primary,
+    secondary: readHslVar('--secondary') ?? primary,
+    accent,
+  };
+}
+
 function readFromDocument(): VybeMarkColors {
+  if (isThemePaintedOnDocument()) {
+    const fromDocument = readVybeMarkFromDocument();
+    if (fromDocument) return fromDocument;
+  }
+
   const fromStorage = getVybeMarkColorsFromStorage();
   if (fromStorage) return fromStorage;
 
-  const primary = readHslVar('--primary');
-  const secondary = readHslVar('--secondary');
-  const accent = readHslVar('--accent');
+  const fallback = readVybeMarkFromDocument();
+  if (fallback) return fallback;
 
   return {
-    primary: primary ?? 'hsl(var(--primary))',
-    secondary: secondary ?? primary ?? 'hsl(var(--secondary, var(--primary)))',
-    accent: accent ?? 'hsl(var(--accent))',
+    primary: 'hsl(var(--primary))',
+    secondary: 'hsl(var(--secondary, var(--primary)))',
+    accent: 'hsl(var(--accent))',
   };
 }
 
@@ -40,9 +62,15 @@ export function useVybeMarkColors(): VybeMarkColors {
     const refresh = () => setColors(readFromDocument());
     window.addEventListener('vybeThemeChange', refresh);
     window.addEventListener('vybeThemeEquipped', refresh);
+    const root = document.documentElement;
+    const observer = new MutationObserver(() => {
+      if (isThemePaintedOnDocument()) refresh();
+    });
+    observer.observe(root, { attributes: true, attributeFilter: ['data-vybe-theme-painted', 'class'] });
     return () => {
       window.removeEventListener('vybeThemeChange', refresh);
       window.removeEventListener('vybeThemeEquipped', refresh);
+      observer.disconnect();
     };
   }, []);
 
