@@ -666,25 +666,86 @@ body.has-liquid-bg:not(.has-custom-bg) .messages-scroll {
 }
 
 /* ========================================
-   VYBE DM Inbox — glass card layout
+   VYBE DM Inbox — Snapchat-style flat list
    ======================================== */
 .dm-inbox-hero {
-  position: relative;
   flex-shrink: 0;
-  overflow: visible;
+  border-bottom: 1px solid hsl(var(--foreground) / 0.06);
+  background: hsl(var(--background));
 }
 .dm-inbox-hero-aurora {
-  position: absolute;
-  inset: 0;
-  background:
-    radial-gradient(ellipse 90% 80% at 10% -20%, hsl(var(--primary) / 0.22), transparent 55%),
-    radial-gradient(ellipse 70% 60% at 95% 0%, hsl(var(--accent) / 0.16), transparent 50%);
-  mask-image: linear-gradient(to bottom, black 50%, transparent);
-  -webkit-mask-image: linear-gradient(to bottom, black 50%, transparent);
-  pointer-events: none;
-}
-body.has-liquid-bg .dm-inbox-hero-aurora {
   display: none;
+}
+
+.dm-inbox-title {
+  font-size: 1.375rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+  color: hsl(var(--foreground));
+}
+.dm-inbox-title-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.25rem;
+  height: 1.25rem;
+  padding: 0 0.35rem;
+  border-radius: 9999px;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  color: hsl(var(--primary-foreground));
+  background: hsl(var(--primary));
+}
+
+.dm-inbox-search {
+  background: hsl(var(--foreground) / 0.06);
+  color: hsl(var(--foreground));
+}
+.dm-inbox-search::placeholder {
+  color: hsl(var(--muted-foreground));
+}
+
+.dm-inbox-tabs {
+  display: flex;
+  gap: 0.25rem;
+  overflow-x: auto;
+  padding-bottom: 0.125rem;
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.dm-inbox-tabs::-webkit-scrollbar {
+  display: none;
+}
+.dm-inbox-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex-shrink: 0;
+  padding: 0.5rem 0.75rem;
+  border-radius: 9999px;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: hsl(var(--muted-foreground));
+  background: transparent;
+  transition: color 0.15s ease, background-color 0.15s ease;
+}
+.dm-inbox-tab:hover {
+  color: hsl(var(--foreground) / 0.9);
+  background: hsl(var(--foreground) / 0.04);
+}
+.dm-inbox-tab--active {
+  color: hsl(var(--foreground));
+  background: hsl(var(--foreground) / 0.08);
+}
+.dm-inbox-tab-badge {
+  font-size: 0.625rem;
+  font-weight: 700;
+  color: hsl(var(--muted-foreground));
+  font-variant-numeric: tabular-nums;
+}
+.dm-inbox-tab-badge--active {
+  color: hsl(var(--primary));
 }
 
 .dm-inbox-chip {
@@ -697,192 +758,138 @@ body.has-liquid-bg .dm-inbox-hero-aurora {
   font-weight: 600;
   color: hsl(var(--muted-foreground));
   background: hsl(var(--foreground) / 0.05);
-  border: 1px solid hsl(var(--foreground) / 0.06);
-  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
-}
-.dm-inbox-chip:hover {
-  background: hsl(var(--foreground) / 0.08);
-  color: hsl(var(--foreground) / 0.9);
 }
 .dm-inbox-chip--active {
-  color: hsl(var(--primary-foreground));
-  background: linear-gradient(135deg, hsl(var(--primary) / 0.95), hsl(var(--accent) / 0.9));
-  border-color: transparent;
-  box-shadow: 0 4px 16px hsl(var(--primary) / 0.35);
-}
-.dm-inbox-chip-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: hsl(var(--primary-foreground));
-  box-shadow: 0 0 8px hsl(var(--primary-foreground) / 0.8);
+  color: hsl(var(--foreground));
+  background: hsl(var(--foreground) / 0.08);
 }
 
-.dm-inbox-lane {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.5rem 0.85rem;
-  border-radius: 1rem;
-  min-width: 8.5rem;
-  background: hsl(var(--foreground) / 0.05);
-  border: 1px solid hsl(var(--foreground) / 0.07);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  transition: transform 0.15s ease, background 0.15s ease;
+.dm-inbox-list {
+  background: hsl(var(--background));
 }
-.dm-inbox-lane:active {
-  transform: scale(0.98);
-}
-.dm-inbox-lane-icon {
+.dm-inbox-rows {
   display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 2rem;
-  height: 2rem;
-  border-radius: 0.75rem;
-  background: hsl(var(--primary) / 0.12);
-}
-.dm-inbox-lane-icon--ai {
-  background: linear-gradient(135deg, hsl(var(--primary) / 0.2), hsl(var(--accent) / 0.15));
-}
-.dm-inbox-lane-label {
-  font-size: 0.8125rem;
-  font-weight: 600;
-  color: hsl(var(--foreground) / 0.92);
+  flex-direction: column;
 }
 
 .dm-inbox-section-label {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  padding: 0.25rem 0.35rem 0.5rem;
+  padding: 0.75rem 1rem 0.35rem;
   font-size: 0.6875rem;
   font-weight: 700;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: hsl(var(--muted-foreground) / 0.9);
+  color: hsl(var(--muted-foreground));
 }
 .dm-inbox-section-count {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 1.125rem;
-  height: 1.125rem;
-  padding: 0 0.3rem;
-  border-radius: 9999px;
-  font-size: 0.625rem;
-  font-weight: 700;
-  background: hsl(var(--foreground) / 0.08);
-  color: hsl(var(--muted-foreground));
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: hsl(var(--muted-foreground) / 0.8);
 }
 
 .dm-inbox-swipe-row {
   touch-action: pan-y;
   -webkit-user-select: none;
   user-select: none;
+  border-bottom: 1px solid hsl(var(--foreground) / 0.06);
 }
-
 .dm-inbox-row-tap {
   -webkit-tap-highlight-color: transparent;
+  width: 100%;
+  text-align: left;
+  border-bottom: 1px solid hsl(var(--foreground) / 0.06);
 }
 
 .dm-inbox-card {
   position: relative;
   display: block;
   width: 100%;
-  padding: 0.65rem 0.75rem;
-  border-radius: 1rem;
-  background: hsl(var(--foreground) / 0.04);
-  border: 1px solid hsl(var(--foreground) / 0.07);
-  transition: border-color 0.15s ease, background-color 0.15s ease;
+  padding: 0.625rem 1rem;
+  background: hsl(var(--background));
+  transition: background-color 0.12s ease;
 }
 .dm-inbox-card--swiping {
   transition: none;
 }
-.dm-inbox-card:hover {
-  border-color: hsl(var(--primary) / 0.2);
-}
-.dm-inbox-card--unread {
-  background: hsl(var(--primary) / 0.08);
-  border-color: hsl(var(--primary) / 0.22);
-}
-.dm-inbox-card--pinned {
-  border-color: hsl(var(--accent) / 0.2);
+.dm-inbox-card:active {
+  background: hsl(var(--foreground) / 0.04);
 }
 .dm-inbox-card--active {
-  border-color: hsl(var(--primary) / 0.4);
-  background: hsl(var(--primary) / 0.1);
+  background: hsl(var(--foreground) / 0.05);
 }
-.dm-inbox-pin {
+
+.dm-inbox-unread-dot {
   position: absolute;
-  top: -2px;
-  right: -2px;
-  width: 18px;
-  height: 18px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 9999px;
-  background: linear-gradient(135deg, hsl(var(--primary)), hsl(var(--accent)));
-  color: hsl(var(--primary-foreground));
+  bottom: 1px;
+  right: 1px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: hsl(var(--primary));
   border: 2px solid hsl(var(--background));
-  box-shadow: 0 2px 8px hsl(var(--primary) / 0.4);
 }
 
 .dm-inbox-name {
-  font-size: 0.9375rem;
+  font-size: 1rem;
   font-weight: 600;
-  color: hsl(var(--foreground) / 0.95);
-  letter-spacing: -0.01em;
+  color: hsl(var(--foreground) / 0.92);
+  letter-spacing: -0.015em;
+  line-height: 1.2;
 }
 .dm-inbox-name--unread {
   font-weight: 700;
   color: hsl(var(--foreground));
 }
 .dm-inbox-preview {
-  font-size: 0.8125rem;
+  font-size: 0.875rem;
+  line-height: 1.25;
   color: hsl(var(--muted-foreground));
 }
 .dm-inbox-preview--unread {
-  color: hsl(var(--foreground) / 0.88);
+  color: hsl(var(--foreground) / 0.72);
+  font-weight: 500;
+}
+.dm-inbox-preview--typing,
+.dm-inbox-preview--live {
+  color: hsl(var(--primary));
   font-weight: 500;
 }
 .dm-inbox-time {
-  font-size: 0.6875rem;
-  font-weight: 600;
-  color: hsl(var(--muted-foreground) / 0.75);
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: hsl(var(--muted-foreground) / 0.85);
   font-variant-numeric: tabular-nums;
 }
 .dm-inbox-time--unread {
   color: hsl(var(--primary));
+  font-weight: 600;
 }
 .dm-inbox-unread-badge {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 1.25rem;
-  height: 1.25rem;
-  padding: 0 0.35rem;
+  min-width: 1.375rem;
+  height: 1.375rem;
+  padding: 0 0.4rem;
   border-radius: 9999px;
-  font-size: 0.625rem;
-  font-weight: 800;
+  font-size: 0.6875rem;
+  font-weight: 700;
   color: hsl(var(--primary-foreground));
-  background: linear-gradient(135deg, hsl(var(--primary)), hsl(var(--accent)));
-  box-shadow: 0 0 12px hsl(var(--primary) / 0.55);
+  background: hsl(var(--primary));
   flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
 }
 
-.dm-inbox-empty-orb {
-  width: 4.5rem;
-  height: 4.5rem;
-  border-radius: 1.5rem;
+.dm-inbox-empty-icon {
+  width: 3.5rem;
+  height: 3.5rem;
+  border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, hsl(var(--primary) / 0.18), hsl(var(--accent) / 0.12));
-  border: 1px solid hsl(var(--primary) / 0.25);
-  box-shadow: 0 12px 40px hsl(var(--primary) / 0.2);
+  background: hsl(var(--foreground) / 0.05);
 }
 
 .perf-low .dm-inbox-hero-aurora {

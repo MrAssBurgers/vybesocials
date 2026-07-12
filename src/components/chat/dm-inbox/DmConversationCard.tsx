@@ -58,7 +58,7 @@ export const DmConversationCard = memo(function DmConversationCard({
     authUid,
     otherProfileId: otherProfileId,
     recentNewFriendIds,
-    previewMaxLen: 56,
+    previewMaxLen: 52,
   });
 
   const timeLabel = lastMsg?.created_at ? compactTime(lastMsg.created_at) : null;
@@ -76,72 +76,68 @@ export const DmConversationCard = memo(function DmConversationCard({
       <div className="flex items-center gap-3 min-w-0">
         <div className="relative shrink-0">
           {conversation.is_group ? (
-            <Avatar
-              className={cn(
-                'h-12 w-12 border border-border/60',
-                isUnread && 'ring-2 ring-primary/50',
-              )}
-            >
+            <Avatar className="h-14 w-14">
               {avatar ? (
                 <ProfileAvatarImage src={avatar} transformSize={128} priority={priority} />
               ) : (
-                <AvatarFallback className="bg-primary/15 text-primary">
+                <AvatarFallback className="bg-muted text-muted-foreground">
                   <Users className="h-5 w-5" />
                 </AvatarFallback>
               )}
             </Avatar>
           ) : (
-            <Avatar
-              className={cn(
-                'h-12 w-12 border border-border/60',
-                isUnread && 'ring-2 ring-primary/50',
-              )}
-            >
+            <Avatar className="h-14 w-14">
               <ProfileAvatarImage
                 profileId={otherProfileId}
                 src={avatar || undefined}
                 transformSize={128}
                 priority={priority}
               />
-              <AvatarFallback className="text-sm font-semibold bg-primary/15 text-primary">
+              <AvatarFallback className="text-base font-semibold bg-muted text-foreground">
                 {String(name || '?')[0]?.toUpperCase()}
               </AvatarFallback>
             </Avatar>
           )}
-          {isPinned && (
-            <span className="dm-inbox-pin" aria-label="Pinned">
-              <Pin className="h-2.5 w-2.5" />
-            </span>
+          {isUnread && (
+            <span className="dm-inbox-unread-dot" aria-hidden />
           )}
         </div>
 
-        <div className="flex-1 min-w-0">
-          <div className="flex items-baseline justify-between gap-2">
-            <p className={cn('dm-inbox-name truncate', isUnread && 'dm-inbox-name--unread')}>
-              {name}
-            </p>
+        <div className="flex-1 min-w-0 py-0.5">
+          <div className="flex items-center justify-between gap-2 min-w-0">
+            <div className="flex items-center gap-1.5 min-w-0 flex-1">
+              <p className={cn('dm-inbox-name truncate', isUnread && 'dm-inbox-name--unread')}>
+                {name}
+              </p>
+              {isPinned && (
+                <Pin className="h-3 w-3 shrink-0 text-muted-foreground/70" aria-label="Pinned" />
+              )}
+            </div>
             {timeLabel && (
               <span className={cn('dm-inbox-time shrink-0', isUnread && 'dm-inbox-time--unread')}>
                 {timeLabel}
               </span>
             )}
           </div>
-          <div className="flex items-center gap-2 min-w-0 mt-0.5">
+
+          <div className="flex items-center justify-between gap-2 min-w-0 mt-1">
             {isTyping ? (
               <div className="flex items-center gap-1.5 flex-1 min-w-0">
                 <TypingIndicator size="sm" />
-                <span className="text-xs text-primary font-medium">typing…</span>
+                <span className="dm-inbox-preview dm-inbox-preview--typing">typing…</span>
               </div>
             ) : presenceActivity && presenceActivity !== 'idle' ? (
-              <p className="text-xs text-primary truncate flex-1">{activityPreviewLabel(presenceActivity)}</p>
+              <p className="dm-inbox-preview dm-inbox-preview--live truncate flex-1">
+                {activityPreviewLabel(presenceActivity)}
+              </p>
             ) : (
               <p className={cn('dm-inbox-preview truncate flex-1', isUnread && 'dm-inbox-preview--unread')}>
                 {preview}
               </p>
             )}
-            {isUnread && (
-              <span className="dm-inbox-unread-badge" aria-label={`${unread || 1} unread`}>
-                {unread > 9 ? '9+' : unread || '•'}
+            {isUnread && unread > 0 && (
+              <span className="dm-inbox-unread-badge" aria-label={`${unread} unread`}>
+                {unread > 99 ? '99+' : unread}
               </span>
             )}
           </div>

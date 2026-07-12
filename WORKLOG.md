@@ -2,6 +2,15 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## DM inbox Snapchat-style redesign (2026-07-12)
+- **User ask:** Conversations look bad — make clean/fresh like Snapchat
+- **Header:** Flat “Chat” title, profile avatar, minimal icon actions; removed aurora hero, wordmark, quick-lane chips
+- **List:** Full-bleed rows with hairline dividers (no glass cards/gaps); 56px avatars; name + preview + time layout
+- **Unread:** Blue dot on avatar + count pill (no pink tinted row backgrounds)
+- **Tabs:** Simple pill filters (no gradient chips)
+- **Swipe:** Flat row reveals — horizontal Reply/More/Delete labels
+- **Verified:** typecheck PASS · lint PASS · 64 tests PASS
+
 ## Publish handoff — CI fix + V theme + image preload (2026-07-12)
 - **User ask:** Publish; fix failing GitHub CI verify job
 - **CI fix:** Typecheck errors (missing lucide imports, cache generic `T`, VybeMap/FriendCardSheet, Market motion `as const`, warmHomeCaches types) — `9cf0e974`

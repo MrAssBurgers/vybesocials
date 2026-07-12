@@ -308,43 +308,43 @@ export const SwipeableDmConversationRow = memo(function SwipeableDmConversationR
     <>
       <div className="dm-inbox-swipe-row relative touch-pan-y">
         <motion.div
-          className="absolute inset-0 flex items-center justify-start pointer-events-none rounded-2xl pl-4"
+          className="absolute inset-0 flex items-center justify-start pointer-events-none pl-5 bg-primary/10"
           style={{ opacity: replyOpacity }}
           aria-hidden
         >
-          <div className="flex flex-col items-center gap-0.5 text-primary">
+          <div className="flex items-center gap-2 text-primary">
             <CornerUpLeft className="h-5 w-5" />
-            <span className="text-[10px] font-medium">Reply</span>
+            <span className="text-sm font-semibold">Reply</span>
           </div>
         </motion.div>
 
         <motion.div
-          className="absolute inset-0 flex items-center justify-end pointer-events-none rounded-2xl pr-4"
+          className="absolute inset-0 flex items-center justify-end pointer-events-none pr-5 bg-muted/80"
           style={{ opacity: manageOpacity }}
           aria-hidden
         >
-          <div className="flex flex-col items-center gap-0.5 text-muted-foreground">
+          <div className="flex items-center gap-2 text-foreground/80">
             <MoreHorizontal className="h-5 w-5" />
-            <span className="text-[10px] font-medium">More</span>
+            <span className="text-sm font-semibold">More</span>
           </div>
         </motion.div>
 
         <motion.div
-          className="absolute inset-0 flex items-center justify-end pointer-events-none rounded-2xl bg-destructive"
+          className="absolute inset-0 flex items-center justify-end pointer-events-none bg-destructive"
           style={{ opacity: deleteBgOpacity }}
           aria-hidden
         >
           <motion.div
-            className="flex flex-col items-center gap-0.5 text-destructive-foreground pr-6"
+            className="flex items-center gap-2 text-destructive-foreground pr-5"
             style={{ opacity: deleteOpacity }}
           >
             <Trash2 className="h-5 w-5" />
-            <span className="text-[10px] font-medium">Delete</span>
+            <span className="text-sm font-semibold">Delete</span>
           </motion.div>
         </motion.div>
 
         <motion.div
-          className="relative rounded-2xl"
+          className="relative bg-background"
           style={{ x, opacity: isDeleting ? 0 : 1 }}
           onPointerDown={handlePointerDown}
           onClickCapture={handleClickCapture}

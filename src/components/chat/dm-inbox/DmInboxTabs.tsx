@@ -19,22 +19,24 @@ export function DmInboxTabs({ active, onChange, badges }: DmInboxTabsProps) {
   const tabs: DmInboxTabId[] = ['friends', 'groups', 'requests', 'unread', 'calls'];
 
   return (
-    <div className="flex gap-2 overflow-x-auto no-scrollbar mb-1" role="tablist" aria-label="Inbox filters">
+    <div className="dm-inbox-tabs" role="tablist" aria-label="Inbox filters">
       {tabs.map((tab) => {
         const count = badges?.[tab] ?? 0;
+        const isActive = active === tab;
         return (
           <button
             key={tab}
             type="button"
             role="tab"
-            aria-selected={active === tab}
+            aria-selected={isActive}
             onClick={() => onChange(tab)}
-            className={cn('dm-inbox-chip shrink-0', active === tab && 'dm-inbox-chip--active')}
+            className={cn('dm-inbox-tab', isActive && 'dm-inbox-tab--active')}
           >
-            {count > 0 && tab !== 'friends' && <span className="dm-inbox-chip-dot" />}
-            {TAB_LABELS[tab]}
+            <span>{TAB_LABELS[tab]}</span>
             {count > 0 && (
-              <span className="ml-1 text-[10px] opacity-80">{count > 99 ? '99+' : count}</span>
+              <span className={cn('dm-inbox-tab-badge', isActive && 'dm-inbox-tab-badge--active')}>
+                {count > 99 ? '99+' : count}
+              </span>
             )}
           </button>
         );
