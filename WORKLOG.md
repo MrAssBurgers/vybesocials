@@ -2,6 +2,16 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## Publish handoff — perf + theme boot + DM inbox swipe (2026-07-12)
+- **User ask:** Publish client batch (instant theme, Phases A–C perf, DM inbox swipe revamp)
+- **Theme boot:** Equipped Vybe theme applies on first paint — no classic pink/cyan flash; cold DB hydrate when local empty
+- **Perf A–C:** Clips windowing, lazy ChatView, staggered route preload, vendor chunks; DM listener cap (24), RQ cache patches, lazy LiveKit; feed + thread virtualization, presence cap (30)
+- **DM inbox:** Pointer-based swipe row (no sticky Framer drag); simplified flat conversation cards
+- **Verified:** build PASS · lint PASS · 64 tests PASS
+- **Published:** `origin/main` @ **`29b947ff`**
+- **Firebase redeploy:** Not needed — no `functions/src`, rules, or indexes changes in this batch
+- **You:** Lovable → sync `main` @ **`29b947ff`** → **Share → Publish** for **vybehub.app**; hard-refresh; QA `/messages` swipe + long feed scroll
+
 ## DM inbox swipe + row layout revamp (2026-07-12)
 - **User ask:** Fix sticky/janky conversation swipe; simplify row layout; quick seamless-feel wins in inbox
 - **Root cause:** Framer `drag="x"` fought `animate={{ x: 0 }}` snap-back (stuck mid-swipe); nested touch handlers + long-press competed with drag; row `backdrop-filter` + `:active scale` on card inside transformed layer caused compositor jank
