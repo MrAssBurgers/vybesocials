@@ -10,6 +10,8 @@ Use this file as the Lovable -> Cursor handoff each session.
 - **Tabs:** Simple pill filters (no gradient chips)
 - **Swipe:** Flat row reveals — horizontal Reply/More/Delete labels
 - **Verified:** typecheck PASS · lint PASS · 64 tests PASS
+- **Published:** `origin/main` @ **`ec75b6f2`**
+- **You:** Lovable → sync `main` @ **`ec75b6f2`** → **Share → Publish** for **vybehub.app**; QA `/messages` on mobile
 
 ## Publish handoff — CI fix + V theme + image preload (2026-07-12)
 - **User ask:** Publish; fix failing GitHub CI verify job
