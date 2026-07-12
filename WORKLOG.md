@@ -10,7 +10,8 @@ Use this file as the Lovable -> Cursor handoff each session.
 - **Data:** `challenge_templates` present in Firestore (20+ docs)
 - **Verified:** functions build PASS · client build/typecheck/lint/test PASS (58)
 - **Firebase deploy:** `rotateChallenges` + `scheduledRotateChallenges` live on **vybe-daaab**
-- **You:** Push client + Lovable Publish for **vybehub.app**; open Challenges hub to confirm daily quests populate
+- **Published:** `origin/main` @ **`0f981a97`**
+- **You:** Lovable → sync `main` → **Share → Publish** for **vybehub.app**; open Challenges hub to confirm daily quests populate
 - **Follow-up:** Port `increment_challenge_progress` / `sync_my_challenge_progress` (still stubbed) if completion/XP broken
 
 ## Publish handoff — welcome-back PFP + CI fix (2026-07-12)
