@@ -2,6 +2,15 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## Publish handoff — CI fix + V theme + image preload (2026-07-12)
+- **User ask:** Publish; fix failing GitHub CI verify job
+- **CI fix:** Typecheck errors (missing lucide imports, cache generic `T`, VybeMap/FriendCardSheet, Market motion `as const`, warmHomeCaches types) — `9cf0e974`
+- **Includes:** V mark live-theme sync + splash image preload (`13af6ed5`), full perf A–C + DM inbox swipe (`88ec4399` chain)
+- **Verified:** typecheck PASS · lint PASS · 64 tests PASS · build PASS
+- **Published:** `origin/main` @ **`9cf0e974`**
+- **Firebase redeploy:** Not needed — client-only
+- **You:** Lovable → sync `main` @ **`9cf0e974`** → **Share → Publish** for **vybehub.app**; confirm GitHub CI green
+
 ## V icon theme sync + instant image preload (2026-07-12)
 - **User ask:** V mark color doesn't match equipped theme; images should appear instantly on Home
 - **V icon:** `useVybeMarkColors` now reads live `--primary` / `--accent` from painted CSS first (not stale localStorage); MutationObserver refreshes on theme paint + mode class
