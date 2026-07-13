@@ -3,7 +3,9 @@ import { motion } from 'framer-motion';
 import { Zap, TrendingUp } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { AnimatedNumber } from '@/components/ui/AnimatedNumber';
-import { useVybeScore, useVybeScoreBreakdown, formatVybeScore } from '@/hooks/useVybeScore';
+import { useVybeScore, useVybeScoreBreakdown, useVybeScorePrivacy, updateVybeScorePrivacy, formatVybeScore } from '@/hooks/useVybeScore';
+import { isVybeScoreUiEnabled } from '@/lib/relationshipFeatureFlags';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 
 interface VybeScoreProps {
@@ -37,6 +39,9 @@ const ACTION_LABEL: Record<string, string> = {
 export function VybeScore({ profileId, isOwnProfile, className }: VybeScoreProps) {
   const { data: score = 0, isLoading } = useVybeScore(profileId);
   const [open, setOpen] = useState(false);
+  const scoreUi = isVybeScoreUiEnabled();
+
+  if (!scoreUi && !isOwnProfile) return null;
 
   if (isLoading && score === 0) {
     return (
@@ -85,6 +90,18 @@ function VybeScoreSheet({
   isOwnProfile: boolean;
 }) {
   const { data: breakdown } = useVybeScoreBreakdown(isOwnProfile ? profileId : undefined);
+  const { data: privacy = 'public', refetch: refetchPrivacy } = useVybeScorePrivacy(
+    isOwnProfile ? profileId : undefined,
+  );
+
+  const categoryLabels: Record<string, string> = {
+    social: 'Social',
+    creator: 'Creator',
+    connection: 'Connection',
+    streak: 'Streaks',
+    challenge: 'Challenges',
+    community: 'Community',
+  };
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -105,6 +122,42 @@ function VybeScoreSheet({
 
         {isOwnProfile && breakdown && (
           <div className="mt-2 space-y-3 pb-6">
+            <div className="rounded-2xl border border-border/40 bg-background/40 p-3">
+              <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-2">
+                Categories
+              </p>
+              <ul className="space-y-1">
+                {Object.entries(breakdown.categories).map(([key, value]) => (
+                  <li key={key} className="flex items-center justify-between px-1 py-1">
+                    <span className="text-sm">{categoryLabels[key] || key}</span>
+                    <span className="text-sm font-semibold tabular-nums">{formatVybeScore(value)}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+            <div className="rounded-2xl border border-border/40 bg-background/40 p-3">
+              <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-2">
+                Privacy
+              </p>
+              <Select
+                value={privacy}
+                onValueChange={async (value) => {
+                  await updateVybeScorePrivacy(value as 'public' | 'friends_only' | 'private');
+                  await refetchPrivacy();
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="public">Public</SelectItem>
+                  <SelectItem value="friends_only">Friends only</SelectItem>
+                  <SelectItem value="private">Private</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
             <div className="flex items-center justify-between rounded-2xl border border-border/40 bg-background/40 px-4 py-3">
               <div className="flex items-center gap-2">
                 <TrendingUp className="h-4 w-4 text-emerald-400" />

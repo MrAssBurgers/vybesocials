@@ -17,13 +17,23 @@ export type DmInboxFlag =
   | 'dm_inbox_projection_read'
   | 'dm_inbox_projection_shadow'
   | 'dm_inbox_redesign_ui'
-  | 'dm_inbox_legacy_fallback';
+  | 'dm_inbox_legacy_fallback'
+  | 'relationship_engine_write'
+  | 'relationship_projection_read'
+  | 'relationship_emoji_ui'
+  | 'vybe_score_write'
+  | 'vybe_score_ui';
 
 const DEFAULTS: Record<DmInboxFlag, boolean> = {
   dm_inbox_projection_read: false,
   dm_inbox_projection_shadow: true,
   dm_inbox_redesign_ui: false,
   dm_inbox_legacy_fallback: true,
+  relationship_engine_write: false,
+  relationship_projection_read: false,
+  relationship_emoji_ui: false,
+  vybe_score_write: false,
+  vybe_score_ui: false,
 };
 
 export interface DmInboxRolloutConfig {
@@ -226,6 +236,37 @@ export function isDmInboxRedesignUiEnabled(
  * Load optional Firestore rollout doc. Safe to call on app mount.
  * Doc: app_config/dm_inbox_rollout
  */
+export function isRelationshipProjectionReadEnabled(
+  profileId?: string | null,
+  authUid?: string | null,
+): boolean {
+  const stored = readStorage('relationship_projection_read');
+  if (stored != null) return stored;
+  const fromEnv = envFlag('relationship_projection_read');
+  if (fromEnv != null) return fromEnv;
+  return isInternalDmInboxAccount(profileId, authUid);
+}
+
+export function isRelationshipEmojiUiEnabled(
+  profileId?: string | null,
+  authUid?: string | null,
+): boolean {
+  if (!isRelationshipProjectionReadEnabled(profileId, authUid)) return false;
+  const stored = readStorage('relationship_emoji_ui');
+  if (stored != null) return stored;
+  const fromEnv = envFlag('relationship_emoji_ui');
+  if (fromEnv != null) return fromEnv;
+  return false;
+}
+
+export function isVybeScoreUiEnabled(): boolean {
+  const stored = readStorage('vybe_score_ui');
+  if (stored != null) return stored;
+  const fromEnv = envFlag('vybe_score_ui');
+  if (fromEnv != null) return fromEnv;
+  return DEFAULTS.vybe_score_ui;
+}
+
 export async function loadDmInboxRolloutConfig(): Promise<DmInboxRolloutConfig> {
   try {
     const { getDocument } = await import('@/lib/firebase/firestoreDb');

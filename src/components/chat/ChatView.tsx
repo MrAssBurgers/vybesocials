@@ -181,13 +181,13 @@ export function ChatView() {
   const { conversationId } = useParams<{ conversationId: string }>();
   const navigate = useNavigate();
   const { t } = useTranslation();
-  const { profile, user } = useAuth();
+  const { profile, user, authReady } = useAuth();
   const profileId = useAuthProfileId();
   const authUserId = profile?.user_id ?? user?.id;
   const queryClient = useQueryClient();
   const bumpStreak = useInteractionStreakBump();
   
-  const { data: conversation, isPending: conversationPending, isFetched: conversationFetched, isError: conversationError } = useConversationDetail(conversationId);
+  const { data: conversation, isPending: conversationPending, isFetched: conversationFetched, isError: conversationError, refetch: refetchConversation } = useConversationDetail(conversationId);
   const cachedConversation = useMemo(
     () => (conversationId ? findCachedDmConversation(queryClient, conversationId, profileId) : undefined),
     [conversationId, profileId, queryClient, conversation],
@@ -1224,11 +1224,33 @@ export function ChatView() {
     }
   }, [settings.chat_wallpaper]);
 
+  if (conversationId && authReady && !profileId && !profile?.id) {
+    return (
+      <div className="flex flex-col h-full items-center justify-center gap-2 p-6 text-center">
+        <p className="text-sm text-muted-foreground">Signing in…</p>
+      </div>
+    );
+  }
+
   if (messagesFetched && messagesError && !messages?.length && !!conversationId) {
     return (
       <div className="flex flex-col h-full items-center justify-center gap-3 p-6 text-center">
         <p className="text-sm text-muted-foreground">Couldn&apos;t load this conversation.</p>
         <Button size="sm" variant="secondary" onClick={() => refetchMessages()}>
+          Try again
+        </Button>
+        <Button size="sm" variant="ghost" onClick={() => navigate('/messages')}>
+          Back to messages
+        </Button>
+      </div>
+    );
+  }
+
+  if (conversationFetched && conversationError && !activeConversation && !!conversationId) {
+    return (
+      <div className="flex flex-col h-full items-center justify-center gap-3 p-6 text-center">
+        <p className="text-sm text-muted-foreground">Couldn&apos;t load this chat.</p>
+        <Button size="sm" variant="secondary" onClick={() => refetchConversation()}>
           Try again
         </Button>
         <Button size="sm" variant="ghost" onClick={() => navigate('/messages')}>

@@ -356,6 +356,36 @@ export const sendDmMessage = onCall({ region: 'us-central1' }, async (request) =
     })
         .catch((err) => console.warn('[sendDmMessage] audit write failed', err));
     const sender = await loadProfile(senderProfileId);
+    if (treatAsDirect && otherProfileId) {
+        try {
+            const { mapDmSendToRelationshipEvent, recordRelationshipActivity } = await import('./relationshipEngine.js');
+            const relEvent = mapDmSendToRelationshipEvent(messageType, data.mediaType || null, Boolean(data.replyToId));
+            if (relEvent) {
+                await recordRelationshipActivity({
+                    actorId: senderProfileId,
+                    friendId: otherProfileId,
+                    eventType: relEvent,
+                    sourceId: msgRef.id,
+                    occurredAt: now,
+                });
+                const { applyVybeScoreEvent } = await import('./vybeScore.js');
+                const scoreType = relEvent === 'snap_reply' ? 'snap_reply'
+                    : messageType === 'video' ? 'snap_video_sent'
+                        : 'snap_sent';
+                if (relEvent.startsWith('snap')) {
+                    await applyVybeScoreEvent({
+                        userId: senderProfileId,
+                        eventType: scoreType,
+                        sourceId: msgRef.id,
+                        idempotencyKey: `snap:${msgRef.id}:sender`,
+                    });
+                }
+            }
+        }
+        catch (err) {
+            console.warn('[sendDmMessage] relationship activity skipped', err);
+        }
+    }
     return {
         message: {
             ...message,

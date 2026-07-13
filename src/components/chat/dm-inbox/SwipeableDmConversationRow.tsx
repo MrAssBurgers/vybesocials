@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useRef, useState } from 'react';
+import { memo, useCallback, useRef, useState } from 'react';
 import { motion, useMotionValue, useTransform, animate } from 'framer-motion';
 import { Archive, Mail, MailOpen, Pin, Trash2, VolumeX } from 'lucide-react';
 import {
@@ -12,23 +12,16 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import type { LoadedDMConversation } from '@/lib/loadDMConversations';
-import { resolveOtherMemberFromConversation, displayNameForConversation } from '@/lib/dmMemberResolve';
+import { displayNameForConversation } from '@/lib/dmMemberResolve';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { useTrashConversation } from '@/hooks/useTrashedConversations';
 import { useDmInboxActions } from '@/hooks/useDmInboxActions';
-import { ConversationOptionsSheet } from '@/components/chat/ConversationOptionsSheet';
+import { useConversationRowGesture } from '@/hooks/useConversationRowGesture';
 import { DmConversationCard } from './DmConversationCard';
 import { shouldUseListMotion } from '@/lib/performanceConfig';
 import type { ActivityType } from '@/components/chat/LiveActivityIndicator';
 import type { DMConversationPreview } from '@/features/dms/dm.types';
 import { triggerHaptic } from '@/lib/haptics';
-import { classifyConversationGestureMove } from '@/lib/dmLongPressGesture';
-
-const SWIPE_ACTIVATE_PX = 12;
-const HOLD_MS = 480;
-const HOLD_CANCEL_PX = 8;
-/** Max movement still treated as a tap (open chat / close tray) after classification. */
-const TAP_SLOP_PX = 14;
 
 /** Right swipe — toggle read/unread. */
 const READ_TOGGLE_PX = 64;
@@ -37,21 +30,9 @@ const MAX_SWIPE_RIGHT = 88;
 /** Left swipe — reveal Pin / Mute / Archive tray. */
 const ACTIONS_OPEN_PX = -168;
 const ACTIONS_SNAP_PX = ACTIONS_OPEN_PX / 2;
-/** Destructive (delete) requires dragging well past the tray, then a confirm dialog. */
 const DELETE_ZONE_PX = -228;
 const MAX_SWIPE_LEFT = -260;
 
-type GestureState = 'idle' | 'pending' | 'holding' | 'swiping' | 'scrolling';
-
-function asDisplayLabel(value: unknown): string | undefined {
-  if (typeof value === 'string') {
-    const trimmed = value.trim();
-    return trimmed || undefined;
-  }
-  return undefined;
-}
-
-/** Clamps a proposed absolute row offset with elastic resistance past each zone boundary. */
 function clampSwipeTarget(target: number): number {
   if (target >= 0) {
     const clamped = Math.min(target, MAX_SWIPE_RIGHT);
@@ -78,8 +59,10 @@ interface SwipeableDmConversationRowProps {
   priority?: boolean;
   isTyping?: boolean;
   presenceActivity?: ActivityType;
+  optionsOpenForRow?: boolean;
   onClick: () => void;
   onWarm?: () => void;
+  onOpenOptions: (preview: DMConversationPreview) => void;
 }
 
 export const SwipeableDmConversationRow = memo(function SwipeableDmConversationRow({
@@ -91,46 +74,31 @@ export const SwipeableDmConversationRow = memo(function SwipeableDmConversationR
   priority,
   isTyping,
   presenceActivity,
+  optionsOpenForRow = false,
   onClick,
   onWarm,
+  onOpenOptions,
 }: SwipeableDmConversationRowProps) {
   const isMobile = useIsMobile();
   const listMotionEnabled = shouldUseListMotion();
   const trashConversation = useTrashConversation();
   const inboxActions = useDmInboxActions(conversation);
-  const [optionsOpen, setOptionsOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
-  const [isSwiping, setIsSwiping] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
-  const stateRef = useRef<GestureState>('idle');
-  const startRef = useRef<{ x: number; y: number; pointerId: number } | null>(null);
   const baseXRef = useRef(0);
-  /** Rest position of the row when idle — 0 (closed) or ACTIONS_OPEN_PX (tray revealed). */
   const openXRef = useRef(0);
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const gestureConsumedRef = useRef(false);
 
   const x = useMotionValue(0);
   const readOpacity = useTransform(x, [0, 16, READ_TOGGLE_PX], [0, 0.5, 1]);
   const trayOpacity = useTransform(x, [-20, ACTIONS_OPEN_PX], [0, 1]);
   const deleteOpacity = useTransform(x, [DELETE_ZONE_PX, ACTIONS_OPEN_PX], [1, 0]);
 
-  const other = !conversation.is_group
-    ? resolveOtherMemberFromConversation(conversation, profileId, authUid)
-    : null;
-  const otherMember = other?.profile;
-  const displayName = displayNameForConversation(conversation, profileId, authUid, 'Chat');
+  const displayName = preview?.displayName
+    || displayNameForConversation(conversation, profileId, authUid, 'Chat');
 
   const unreadCountVal = preview?.unreadCount ?? conversation.unread_count ?? 0;
   const isUnread = preview?.isUnread ?? (unreadCountVal > 0 || conversation._hasUnread);
-
-  const clearTimer = useCallback(() => {
-    if (timerRef.current) {
-      clearTimeout(timerRef.current);
-      timerRef.current = null;
-    }
-  }, []);
 
   const snapTo = useCallback(
     (target: number) => {
@@ -142,22 +110,14 @@ export const SwipeableDmConversationRow = memo(function SwipeableDmConversationR
     [listMotionEnabled, x],
   );
 
-  const resetGesture = useCallback(() => {
-    clearTimer();
-    stateRef.current = 'idle';
-    startRef.current = null;
-    gestureConsumedRef.current = false;
-    setIsSwiping(false);
-  }, [clearTimer]);
-
-  const handleTrash = useCallback(() => {
-    trashConversation.mutate(conversation.id);
-  }, [conversation.id, trashConversation]);
-
   const closeTray = useCallback(() => {
     openXRef.current = 0;
     snapTo(0);
   }, [snapTo]);
+
+  const handleTrash = useCallback(() => {
+    trashConversation.mutate(conversation.id);
+  }, [conversation.id, trashConversation]);
 
   const resolveSwipeRelease = useCallback(
     (target: number) => {
@@ -187,159 +147,44 @@ export const SwipeableDmConversationRow = memo(function SwipeableDmConversationR
     [inboxActions, isUnread, snapTo],
   );
 
-  const handleDocumentPointerMove = useCallback(
-    (e: PointerEvent) => {
-      const start = startRef.current;
-      if (!start || e.pointerId !== start.pointerId || isDeleting) return;
+  const openOptions = useCallback(() => {
+    if (!preview) return;
+    onOpenOptions({ ...preview });
+  }, [onOpenOptions, preview]);
 
-      const state = stateRef.current;
-      const dx = e.clientX - start.x;
-      const dy = e.clientY - start.y;
-      const absDx = Math.abs(dx);
-      const absDy = Math.abs(dy);
-
-      if (state === 'holding' || state === 'scrolling') return;
-
-      if (state === 'pending') {
-        const intent = classifyConversationGestureMove(
-          dx,
-          dy,
-          HOLD_CANCEL_PX,
-          SWIPE_ACTIVATE_PX,
-        );
-        if (intent === 'scrolling') {
-          clearTimer();
-          stateRef.current = 'scrolling';
-          return;
-        }
-        if (intent === 'swiping') {
-          clearTimer();
-          stateRef.current = 'swiping';
-          gestureConsumedRef.current = true;
-          setIsSwiping(true);
-        }
-        if (absDx > HOLD_CANCEL_PX || absDy > HOLD_CANCEL_PX) {
-          clearTimer();
-        }
-        return;
-      }
-
-      if (state === 'swiping') {
-        x.set(clampSwipeTarget(baseXRef.current + dx));
-      }
+  const {
+    handlePointerDown,
+    handleClickCapture,
+    openFromKeyboard,
+    isSwiping,
+  } = useConversationRowGesture({
+    disabled: isDeleting,
+    onTap: onClick,
+    onWarm,
+    onHold: openOptions,
+    isTrayOpen: () => openXRef.current !== 0,
+    onCloseTray: closeTray,
+    onSwipeMove: (dx) => {
+      x.set(clampSwipeTarget(baseXRef.current + dx));
     },
-    [clearTimer, isDeleting, x],
-  );
-
-  const handleDocumentPointerUp = useCallback(
-    (e: PointerEvent) => {
-      const start = startRef.current;
-      if (!start || e.pointerId !== start.pointerId) return;
-
-      const state = stateRef.current;
-      const target = x.get();
-      const dx = e.clientX - start.x;
-      const dy = e.clientY - start.y;
-      const absDx = Math.abs(dx);
-      const absDy = Math.abs(dy);
-      const isTap =
-        !gestureConsumedRef.current &&
-        absDx <= TAP_SLOP_PX &&
-        absDy <= TAP_SLOP_PX;
-
-      if (state === 'swiping') {
-        resolveSwipeRelease(target);
-      } else if (isTap && (state === 'pending' || state === 'scrolling')) {
-        if (openXRef.current !== 0) {
-          closeTray();
-        } else {
-          onWarm?.();
-          onClick();
-        }
-      }
-
-      resetGesture();
+    onSwipeEnd: () => {
+      resolveSwipeRelease(x.get());
     },
-    [closeTray, onClick, onWarm, resetGesture, resolveSwipeRelease, x],
-  );
+  });
 
-  useEffect(() => {
-    const doc = document;
-    doc.addEventListener('pointermove', handleDocumentPointerMove);
-    doc.addEventListener('pointerup', handleDocumentPointerUp);
-    doc.addEventListener('pointercancel', resetGesture);
-    return () => {
-      doc.removeEventListener('pointermove', handleDocumentPointerMove);
-      doc.removeEventListener('pointerup', handleDocumentPointerUp);
-      doc.removeEventListener('pointercancel', resetGesture);
-    };
-  }, [handleDocumentPointerMove, handleDocumentPointerUp, resetGesture]);
-
-  const handlePointerDown = useCallback(
+  const handlePointerDownWrapped = useCallback(
     (e: React.PointerEvent<HTMLDivElement>) => {
-      if (isDeleting || e.button !== 0) return;
-      startRef.current = { x: e.clientX, y: e.clientY, pointerId: e.pointerId };
       baseXRef.current = x.get();
-      stateRef.current = 'pending';
-      gestureConsumedRef.current = false;
-      clearTimer();
-      timerRef.current = setTimeout(() => {
-        if (stateRef.current !== 'pending') return;
-        stateRef.current = 'holding';
-        gestureConsumedRef.current = true;
-        triggerHaptic('medium');
-        setOptionsOpen(true);
-      }, HOLD_MS);
+      handlePointerDown(e);
     },
-    [clearTimer, isDeleting, x],
+    [handlePointerDown, x],
   );
-
-  const handleClickCapture = useCallback((e: React.MouseEvent) => {
-    if (!gestureConsumedRef.current) return;
-    e.preventDefault();
-    e.stopPropagation();
-    gestureConsumedRef.current = false;
-  }, []);
-
-  const handlePointerEnter = useCallback(() => {
-    onWarm?.();
-  }, [onWarm]);
 
   const runTrayAction = useCallback((mutate: () => void) => {
     triggerHaptic('light');
     mutate();
     closeTray();
   }, [closeTray]);
-
-  const optionsSheet = (
-    <ConversationOptionsSheet
-      open={optionsOpen}
-      onOpenChange={setOptionsOpen}
-      conversationId={conversation.id}
-      otherUserId={!conversation.is_group ? (otherMember?.id as string | undefined) : undefined}
-      otherUsername={!conversation.is_group ? asDisplayLabel(otherMember?.username) : undefined}
-      otherDisplayName={displayName}
-      otherAvatarUrl={typeof otherMember?.avatar_url === 'string' ? otherMember.avatar_url : undefined}
-      isMuted={inboxActions.isMuted}
-      isPinned={inboxActions.isPinned}
-      isUnread={isUnread}
-      isGroup={conversation.is_group}
-      isOnline={preview?.isOnline}
-      relationshipLabel={
-        preview?.relationshipBadge === 'close_friend'
-          ? 'Best Friends'
-          : preview?.relationshipBadge === 'new_friend'
-            ? 'New Friends'
-            : 'Friends'
-      }
-      onMarkUnread={() => inboxActions.markUnread.mutate()}
-      onMarkRead={() => inboxActions.markRead.mutate()}
-      onArchive={() => inboxActions.archive.mutate()}
-      onTogglePin={() => inboxActions.togglePin.mutate(!inboxActions.isPinned)}
-      onToggleMute={() => inboxActions.toggleMute.mutate(!inboxActions.isMuted)}
-      onToggleLock={() => inboxActions.toggleLock.mutate(true)}
-    />
-  );
 
   const deleteConfirmDialog = (
     <AlertDialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
@@ -383,38 +228,50 @@ export const SwipeableDmConversationRow = memo(function SwipeableDmConversationR
     />
   );
 
+  const rowA11y = {
+    'aria-haspopup': 'dialog' as const,
+    'aria-expanded': optionsOpenForRow,
+    'aria-label': `Open options for ${displayName}`,
+  };
+
+  const handleKeyDown = (event: React.KeyboardEvent) => {
+    if (event.key === 'ContextMenu' || (event.shiftKey && event.key === 'F10')) {
+      event.preventDefault();
+      openFromKeyboard();
+      return;
+    }
+    if (event.key === ' ') {
+      event.preventDefault();
+      openFromKeyboard();
+      return;
+    }
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      onClick();
+    }
+  };
+
   if (!isMobile) {
     return (
       <>
         <div
           onContextMenu={(e) => {
             e.preventDefault();
-            setOptionsOpen(true);
+            openOptions();
           }}
-          onPointerEnter={handlePointerEnter}
+          onPointerEnter={() => onWarm?.()}
         >
           <div
             role="button"
             tabIndex={0}
             className="dm-inbox-row-tap w-full text-left"
             onClick={onClick}
-            onKeyDown={(event) => {
-              if (event.key === 'ContextMenu' || (event.shiftKey && event.key === 'F10')) {
-                event.preventDefault();
-                triggerHaptic('light');
-                setOptionsOpen(true);
-                return;
-              }
-              if (event.key === 'Enter' || event.key === ' ') {
-                event.preventDefault();
-                onClick();
-              }
-            }}
+            onKeyDown={handleKeyDown}
+            {...rowA11y}
           >
             {card}
           </div>
         </div>
-        {optionsSheet}
         {deleteConfirmDialog}
       </>
     );
@@ -435,12 +292,12 @@ export const SwipeableDmConversationRow = memo(function SwipeableDmConversationR
         </motion.div>
 
         <motion.div
-          className="absolute inset-y-0 right-0 flex items-stretch"
+          className="absolute inset-y-0 right-0 flex items-stretch pointer-events-none"
           style={{ opacity: trayOpacity }}
         >
           <button
             type="button"
-            className="dm-inbox-swipe-action dm-inbox-swipe-action--pin dm-vfx-press"
+            className="dm-inbox-swipe-action dm-inbox-swipe-action--pin dm-vfx-press pointer-events-auto"
             onPointerDown={(event) => event.stopPropagation()}
             onClick={() => runTrayAction(() => inboxActions.togglePin.mutate(!inboxActions.isPinned))}
             aria-label={inboxActions.isPinned ? 'Unpin conversation' : 'Pin conversation'}
@@ -450,7 +307,7 @@ export const SwipeableDmConversationRow = memo(function SwipeableDmConversationR
           </button>
           <button
             type="button"
-            className="dm-inbox-swipe-action dm-inbox-swipe-action--mute dm-vfx-press"
+            className="dm-inbox-swipe-action dm-inbox-swipe-action--mute dm-vfx-press pointer-events-auto"
             onPointerDown={(event) => event.stopPropagation()}
             onClick={() => runTrayAction(() => inboxActions.toggleMute.mutate(!inboxActions.isMuted))}
             aria-label={inboxActions.isMuted ? 'Unmute conversation' : 'Mute conversation'}
@@ -460,7 +317,7 @@ export const SwipeableDmConversationRow = memo(function SwipeableDmConversationR
           </button>
           <button
             type="button"
-            className="dm-inbox-swipe-action dm-inbox-swipe-action--archive dm-vfx-press"
+            className="dm-inbox-swipe-action dm-inbox-swipe-action--archive dm-vfx-press pointer-events-auto"
             onPointerDown={(event) => event.stopPropagation()}
             onClick={() => runTrayAction(() => inboxActions.archive.mutate())}
             aria-label="Archive conversation"
@@ -486,27 +343,15 @@ export const SwipeableDmConversationRow = memo(function SwipeableDmConversationR
           tabIndex={0}
           className="relative bg-background dm-inbox-row-tap"
           style={{ x, opacity: isDeleting ? 0 : 1 }}
-          onPointerDown={handlePointerDown}
+          onPointerDown={handlePointerDownWrapped}
           onClickCapture={handleClickCapture}
-          onPointerEnter={handlePointerEnter}
-          onKeyDown={(event) => {
-            if (event.key === 'ContextMenu' || (event.shiftKey && event.key === 'F10')) {
-              event.preventDefault();
-              triggerHaptic('light');
-              setOptionsOpen(true);
-              return;
-            }
-            if (event.key === 'Enter' || event.key === ' ') {
-              event.preventDefault();
-              onClick();
-            }
-          }}
-          aria-label={`Open chat with ${displayName}`}
+          onPointerEnter={() => onWarm?.()}
+          onKeyDown={handleKeyDown}
+          {...rowA11y}
         >
           {card}
         </motion.div>
       </div>
-      {optionsSheet}
       {deleteConfirmDialog}
     </>
   );

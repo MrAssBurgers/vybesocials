@@ -53,6 +53,15 @@ export function mapInboxEntryDoc(
       data.relationship_badge === 'close_friend' || data.relationship_badge === 'new_friend'
         ? data.relationship_badge
         : null,
+    primary_relationship_state:
+      (data.primary_relationship_state as DmInboxEntryDoc['primary_relationship_state']) ?? null,
+    best_friend_rank:
+      typeof data.best_friend_rank === 'number' ? data.best_friend_rank : null,
+    relationship_title: (data.relationship_title as string | null | undefined) ?? null,
+    streak_state: (data.streak_state as DmInboxEntryDoc['streak_state']) ?? null,
+    birthday_state: (data.birthday_state as DmInboxEntryDoc['birthday_state']) ?? null,
+    favorite_state: (data.favorite_state as DmInboxEntryDoc['favorite_state']) ?? null,
+    relationship_updated_at: (data.relationship_updated_at as string | undefined) || undefined,
     is_verified: Boolean(data.is_verified),
     search_tokens: Array.isArray(data.search_tokens)
       ? data.search_tokens.filter((x): x is string => typeof x === 'string')

@@ -13,6 +13,7 @@ import { RelationshipProfileActions } from '@/components/social-profile/Relation
 import { SocialProfileContent } from '@/components/social-profile/SocialProfileContent';
 import { SocialProfileMoreMenu } from '@/components/social-profile/SocialProfileMoreMenu';
 import { CompactProfileSuggestions } from '@/components/social-profile/CompactProfileSuggestions';
+import { RelationshipProfileSection } from '@/components/social-profile/RelationshipProfileSection';
 import { FriendshipCard } from '@/components/friend-profile/FriendshipCard';
 import { FriendMapSection } from '@/components/friend-profile/FriendMapSection';
 import { LocationRequestSheet } from '@/components/friend-profile/LocationRequestSheet';
@@ -119,6 +120,10 @@ export default function RelationshipProfilePage() {
         />
 
         <RelationshipProfileActions profile={profile} mode={mode} />
+
+        {isFriend && (
+          <RelationshipProfileSection friendId={profile.id} friendName={profile.display_name || profile.username} />
+        )}
 
         {isFriend && <FriendshipCard otherProfileId={profile.id} />}
 

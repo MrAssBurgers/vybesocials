@@ -239,6 +239,16 @@
       "fields": [
         { "fieldPath": "sender_id", "order": "ASCENDING" },
         { "fieldPath": "created_at", "order": "ASCENDING" }
+      ] },
+    { "collectionGroup": "relationship_scores", "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "viewer_id", "order": "ASCENDING" },
+        { "fieldPath": "rolling_score", "order": "DESCENDING" }
+      ] },
+    { "collectionGroup": "relationship_scores", "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "viewer_id", "order": "ASCENDING" },
+        { "fieldPath": "last_meaningful_interaction_at", "order": "ASCENDING" }
       ] }
   ],
   "fieldOverrides": []

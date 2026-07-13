@@ -3,7 +3,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { db } from '@/lib/firebase';
 import { subscribePostgresChannel, removeRealtimeChannel } from '@/lib/realtimeChannel';
 import { useAuth } from '@/lib/auth';
-import { getEffectiveProfileId } from '@/lib/profileCache';
+import { useAuthProfileId } from '@/hooks/useAuthProfileId';
 import { warmDmConversation } from '@/lib/warmDmConversation';
 
 /**
@@ -12,17 +12,18 @@ import { warmDmConversation } from '@/lib/warmDmConversation';
  */
 export function useChatPrefetch() {
   const { profile } = useAuth();
-  const profileId = getEffectiveProfileId(profile?.id);
-  const actorId = profile?.id;
+  const profileId = useAuthProfileId();
+  const actorId = profileId ?? profile?.id;
   const queryClient = useQueryClient();
 
   const prefetchMessages = useCallback(async (conversationId: string) => {
-    if (!conversationId) return;
+    if (!conversationId || !actorId) return;
     warmDmConversation(queryClient, conversationId, profileId, actorId);
   }, [actorId, profileId, queryClient]);
 
   const warmConversation = useCallback(
     (conversationId: string, priority: 'high' | 'normal' = 'high') => {
+      if (!actorId) return;
       warmDmConversation(queryClient, conversationId, profileId, actorId, priority);
     },
     [actorId, profileId, queryClient],
@@ -71,8 +72,7 @@ export function useChatPrefetch() {
  * Auto-prefetch chats when notifications arrive
  */
 export function useNotificationChatPrefetch() {
-  const { profile } = useAuth();
-  const profileId = getEffectiveProfileId(profile?.id);
+  const profileId = useAuthProfileId();
   const { prefetchConversation } = useChatPrefetch();
 
   useEffect(() => {

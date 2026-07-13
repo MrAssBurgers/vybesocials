@@ -11,6 +11,7 @@ import { db } from '@/lib/firebase';
 import { haptics } from '@/lib/haptics';
 import { BlockedUsersCard } from './BlockedUsersCard';
 import { FriendProfileVisibilityCard } from './FriendProfileVisibilityCard';
+import { RelationshipEmojiSettings } from './RelationshipEmojiSettings';
 import { SettingsSectionCard, SettingsPanel, SettingsToggleRow } from './SettingsUI';
 
 export function PrivacySection() {
@@ -201,6 +202,10 @@ export function PrivacySection() {
             </div>
           </div>
         </div>
+      </SettingsSectionCard>
+
+      <SettingsSectionCard title="Messages" description="Inbox relationship emojis" delay={0.12}>
+        <RelationshipEmojiSettings />
       </SettingsSectionCard>
 
         <BlockedUsersCard />

@@ -86,6 +86,13 @@ export type DmInboxEntryDoc = {
   needs_reply: boolean;
   streak_count: number;
   relationship_badge: 'close_friend' | 'new_friend' | null;
+  primary_relationship_state: string | null;
+  best_friend_rank: number | null;
+  relationship_title: string | null;
+  streak_state: string | null;
+  birthday_state: string | null;
+  favorite_state: string | null;
+  relationship_updated_at?: string | null;
   is_verified: boolean;
   search_tokens: string[];
   updated_at: string;
@@ -366,6 +373,39 @@ async function buildEntryForViewer(
   });
 
   const relationshipBadge = await resolveRelationshipBadge(viewerId, otherProfileId);
+
+  let relationshipFields = {
+    primary_relationship_state: null as string | null,
+    best_friend_rank: null as number | null,
+    relationship_title: null as string | null,
+    streak_state: null as string | null,
+    birthday_state: null as string | null,
+    favorite_state: null as string | null,
+    streak_count: 0,
+  };
+
+  if (otherProfileId) {
+    try {
+      const { deriveInboxRelationshipFields, isRelationshipEngineWriteEnabled } = await import(
+        './relationshipEngine.js'
+      );
+      if (await isRelationshipEngineWriteEnabled()) {
+        const derived = await deriveInboxRelationshipFields(viewerId, otherProfileId);
+        relationshipFields = {
+          primary_relationship_state: derived.primary_relationship_state,
+          best_friend_rank: derived.best_friend_rank,
+          relationship_title: derived.relationship_title,
+          streak_state: derived.streak_state,
+          birthday_state: derived.birthday_state,
+          favorite_state: derived.favorite_state,
+          streak_count: derived.streak_count,
+        };
+      }
+    } catch (err) {
+      console.warn('[dmInboxProjection] relationship fields skipped', err);
+    }
+  }
+
   const activityAt =
     asString(latestData?.created_at) ||
     asString(conv.updated_at) ||
@@ -401,8 +441,14 @@ async function buildEntryForViewer(
     is_muted: isMuted,
     is_archived: isArchived,
     needs_reply: needsReply,
-    streak_count: 0,
+    streak_count: relationshipFields.streak_count,
     relationship_badge: relationshipBadge,
+    primary_relationship_state: relationshipFields.primary_relationship_state,
+    best_friend_rank: relationshipFields.best_friend_rank,
+    relationship_title: relationshipFields.relationship_title,
+    streak_state: relationshipFields.streak_state,
+    birthday_state: relationshipFields.birthday_state,
+    favorite_state: relationshipFields.favorite_state,
     is_verified: Boolean(primaryOther?.is_verified),
     search_tokens: buildSearchTokens([
       displayName,

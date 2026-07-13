@@ -252,6 +252,43 @@ export const mutateFriendship = onCall({ region: 'us-central1' }, async (request
       read: false,
     }).catch((error) => console.warn('[Friendship] response notification failed', error));
   }
+
+  if (action === 'accept' && result.other_id) {
+    try {
+      const { recordRelationshipActivity } = await import('./relationshipEngine.js');
+      await recordRelationshipActivity({
+        actorId: profileId,
+        friendId: result.other_id,
+        eventType: 'friend_added',
+        sourceId: suppliedRequestId,
+        occurredAt: now,
+      });
+      await recordRelationshipActivity({
+        actorId: result.other_id,
+        friendId: profileId,
+        eventType: 'friend_added',
+        sourceId: `${suppliedRequestId}:reverse`,
+        occurredAt: now,
+      });
+
+      const { applyVybeScoreEvent } = await import('./vybeScore.js');
+      await applyVybeScoreEvent({
+        userId: profileId,
+        eventType: 'friend_accepted',
+        sourceId: suppliedRequestId,
+        idempotencyKey: `friend:${suppliedRequestId}:accepter`,
+      });
+      await applyVybeScoreEvent({
+        userId: result.other_id,
+        eventType: 'friend_accepted',
+        sourceId: `${suppliedRequestId}:sender`,
+        idempotencyKey: `friend:${suppliedRequestId}:sender`,
+      });
+    } catch (err) {
+      console.warn('[Friendship] relationship/score hook failed', err);
+    }
+  }
+
   return { ok: true, request_id: suppliedRequestId, ...result };
 });
 

@@ -2,7 +2,46 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
-## Challenge sync restoration (2026-07-13)
+## Relationship engine + VYBE Score + conversation fix (2026-07-13)
+
+### Phase 0 — Conversation loading (shipped in-repo)
+- `useMessages` / `useDMConversations` → `networkMode: 'always'`
+- `/messages/new` route above `/messages/:conversationId`
+- `useChatPrefetch` uses `useAuthProfileId()`; inbox awaits profile before navigate
+- `ChatView` surfaces `conversationError` + signing-in state
+- **Verified:** build PASS · 208 tests PASS
+
+### Phase 1 — Relationship backend (writes, flag-gated)
+- `functions/src/relationshipEngine.ts` — `recordRelationshipActivity`, streaks, debounced rank recalc, inbox semantic projection sync, scheduled reconciliation
+- Callables: `updateFriendshipPreferences`, `updateFriendshipEmojiPreferences`, `pinFavoriteFriend`, `getRelationshipState`
+- Trigger: `onCallEndedRelationship` on `calls/{callId}` end
+- Hooks: `dmSend`, `friendProfile` accept, `challengeProgress` claim (VYBE Score)
+- `dm_inbox_entries` semantic fields: `primary_relationship_state`, `best_friend_rank`, `streak_state`, etc.
+- Scripts: `scripts/relationship-backfill.mjs`, `scripts/relationship-shadow-compare.mjs`
+- Flag: `app_config/relationship_rollout.relationship_engine_write` (default OFF)
+
+### Phase 2 — Relationship client (flag-gated UI)
+- Flags in `dmInboxFeatureFlags.ts`: `relationship_projection_read`, `relationship_emoji_ui`
+- `relationshipEmojiMap.ts` + inbox row emoji + streak on preview line
+- Best Friends tab uses `best_friend_rank` (not `close_friends`) when projection read on
+- `RelationshipProfileSection` + Settings → Messages → Relationship Emojis
+
+### Phase 3–4 — VYBE Score
+- `functions/src/vybeScore.ts` — idempotent events, daily caps, milestones, rebuild, privacy callable
+- Client `useVybeScore` reads Firestore; `VybeScore` sheet shows categories + privacy (flag `vybe_score_ui`)
+
+### Phase 5 — QA + long-press fix (2026-07-13)
+
+- **Long-press fix:** Lifted `ConversationOptionsSheet` to [`DMConversationList.tsx`](src/features/dms/DMConversationList.tsx) via `useHeldConversationOptions` + `HeldConversationOptionsSheet` (survives virtualization).
+- **Unified gesture:** [`useConversationRowGesture.ts`](src/hooks/useConversationRowGesture.ts) — 450ms hold, 10px slop, tap/swipe/scroll cancel, `didLongPressRef` click suppression.
+- **Row cleanup:** Removed competing camera long-press + avatar `stopPropagation` in [`DMConversationRow.tsx`](src/features/dms/DMConversationRow.tsx); `pointer-events: none` on decorative inbox layers.
+- **Semantic relationship label** in options sheet via [`conversationOptionsLabel.ts`](src/lib/conversationOptionsLabel.ts).
+- **Tests added:** gesture component suite (9), relationship/vybe pure logic, feature-flag rollback (232 total PASS).
+- **Verified:** typecheck PASS · test 232 PASS · lint PASS · build PASS · functions build PASS
+- **Device QA checklist (manual):** hold still · hold+slight move · hold while scrolling · swipe L/R · tap row · tap camera · verify sheet stays open when row scrolls off screen
+
+---
+
 
 - **Restored:** `sync_my_challenge_progress` RPC → `syncMyChallengeProgress` Cloud Function (removed fake `{ ok: true }` stub).
 - **Server CFs:** `functions/src/challengeProgress.ts` — `syncMyChallengeProgress` (60s server cooldown, recalc from trusted activity, never lowers valid progress, returns changes + newly_completed + timestamps), `incrementChallengeProgress`, `claimChallengeReward`. **No** `forceSyncMyChallenges` export.

@@ -1,6 +1,7 @@
 import { startTransition, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useChatPrefetch } from '@/hooks/useChatPrefetch';
+import { resolveSessionProfileId } from '@/lib/resolveSessionProfileId';
 import { DMHeader } from './DMHeader';
 import { DMCategoryTabs } from './DMCategoryTabs';
 import { DMConversationList } from './DMConversationList';
@@ -17,14 +18,15 @@ export function DMInboxPage() {
   );
 
   const openChat = useCallback(
-    (conversationId: string) => {
+    async (conversationId: string) => {
       if (conversationId === inbox.activeConversationId) return;
+      await resolveSessionProfileId(inbox.profileId);
       warm(conversationId);
       startTransition(() => {
         void navigate(`/messages/${conversationId}`);
       });
     },
-    [inbox.activeConversationId, navigate, warm],
+    [inbox.activeConversationId, inbox.profileId, navigate, warm],
   );
 
   return (
@@ -74,7 +76,7 @@ export function DMInboxPage() {
                   other_profile_id: peerUserId,
                 });
                 if (error) throw error;
-                if (convId) openChat(String(convId));
+                if (convId) await openChat(String(convId));
               } catch (error) {
                 console.error(error);
               }

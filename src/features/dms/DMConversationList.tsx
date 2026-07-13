@@ -2,6 +2,8 @@ import { useEffect, useRef, useState, type UIEvent } from 'react';
 import { MessageCircle, RefreshCw, UserPlus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { SwipeableDmConversationRow } from '@/components/chat/dm-inbox/SwipeableDmConversationRow';
+import { HeldConversationOptionsSheet } from '@/components/chat/dm-inbox/HeldConversationOptionsSheet';
+import { useHeldConversationOptions } from '@/hooks/useHeldConversationOptions';
 import { useDmInboxVirtualSlice } from '@/hooks/useDmInboxVirtualSlice';
 import type { DMInboxRow, DmInboxTabId } from './dm.types';
 import type { NearbyFriendStatus } from '@/hooks/useNearbyFriendLink';
@@ -138,6 +140,12 @@ export function DMConversationList({
   const { visible, paddingTop, paddingBottom, onScroll, virtualized } =
     useDmInboxVirtualSlice(rows);
   const renderRows = virtualized ? visible : rows;
+  const {
+    held,
+    openConversationOptions,
+    setOptionsOpen,
+    heldConversationId,
+  } = useHeldConversationOptions();
   const empty = emptyCopy(activeTab, searchQuery, hasError, nearbyStatus);
   const nearbyBusy = nearbyStatus === 'locating' || nearbyStatus === 'searching';
   const filterId = asFilterId(activeTab);
@@ -205,8 +213,10 @@ export function DMConversationList({
                   priority
                   isTyping={row.preview.isTyping}
                   presenceActivity={row.preview.presenceActivity}
+                  optionsOpenForRow={heldConversationId === row.preview.id}
                   onClick={() => onOpen(row.preview.id)}
                   onWarm={() => onWarm(row.preview.id)}
+                  onOpenOptions={openConversationOptions}
                 />
               );
             })}
@@ -245,6 +255,11 @@ export function DMConversationList({
       </div>
       </div>
       <DMComposeButton hidden={composeHidden} />
+      <HeldConversationOptionsSheet
+        open={held.isOpen}
+        preview={held.preview}
+        onOpenChange={setOptionsOpen}
+      />
     </>
   );
 }

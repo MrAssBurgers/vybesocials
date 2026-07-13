@@ -33,7 +33,9 @@ import {
 } from '@/lib/dmInboxShadowCompare';
 import { conversationNeedsReply } from '@/lib/dmNeedsReply';
 import { projectionToLoadedConversation } from '@/lib/dmInboxProjection';
-import { isDmInboxProjectionReadEnabled } from '@/lib/dmInboxFeatureFlags';
+import { isDmInboxProjectionReadEnabled, isRelationshipEmojiUiEnabled, isRelationshipProjectionReadEnabled } from '@/lib/dmInboxFeatureFlags';
+import { pickPrimaryInboxEmoji, resolveStreakDisplay } from '@/lib/relationship/relationshipEmojiMap';
+import { useRelationshipEmojiPreferences } from '@/hooks/useRelationshipEmojiPreferences';
 import { writeStoredInboxFilter } from '@/lib/dmInboxFilterPersistence';
 import type { DMConversationPreview, DMInboxRow, DMStoryState, DmInboxFilterId, DmInboxTabId } from './dm.types';
 
@@ -166,6 +168,37 @@ export function useDMInbox() {
     [closeFriendIdsRaw],
   );
 
+  const relationshipProjectionRead = isRelationshipProjectionReadEnabled(profileId, user?.id);
+  const relationshipEmojiUi = isRelationshipEmojiUiEnabled(profileId, user?.id);
+  const { data: emojiPrefs } = useRelationshipEmojiPreferences(
+    relationshipEmojiUi ? profileId : null,
+  );
+
+  const projectionByConversationId = useMemo(() => {
+    const map = new Map<string, (typeof projection.entries)[number]>();
+    for (const entry of projection.entries) {
+      map.set(entry.conversation_id, entry);
+    }
+    return map;
+  }, [projection.entries]);
+
+  const rankedBestFriendIds = useMemo(() => {
+    if (!relationshipProjectionRead) return new Set<string>();
+    const ids = new Set<string>();
+    for (const entry of projection.entries) {
+      const rank = entry.best_friend_rank;
+      if (
+        rank != null &&
+        rank >= 1 &&
+        rank <= 8 &&
+        entry.other_profile_id
+      ) {
+        ids.add(entry.other_profile_id);
+      }
+    }
+    return ids;
+  }, [projection.entries, relationshipProjectionRead]);
+
   const allConversations = useMemo(() => {
     const legacy = [
       ...ensureArray(query.pinnedConversations),
@@ -273,6 +306,7 @@ export function useDMInbox() {
         requestConversationIds,
         callConversationIds,
         closeFriendIds,
+        rankedBestFriendIds: relationshipProjectionRead ? rankedBestFriendIds : undefined,
         nearbyProfileIds,
         resolveOtherProfileId,
         presenceOnlineIds,
@@ -284,6 +318,8 @@ export function useDMInbox() {
       requestConversationIds,
       callConversationIds,
       closeFriendIds,
+      rankedBestFriendIds,
+      relationshipProjectionRead,
       nearbyProfileIds,
       resolveOtherProfileId,
       presenceOnlineIds,
@@ -334,6 +370,47 @@ export function useDMInbox() {
           ? (lastMessage as { reaction?: string }).reaction
           : undefined;
 
+      const projEntry = projectionByConversationId.get(conversation.id);
+      const relationship = projEntry
+        ? {
+            primary_relationship_state: projEntry.primary_relationship_state,
+            best_friend_rank: projEntry.best_friend_rank,
+            relationship_title: projEntry.relationship_title,
+            streak_count: projEntry.streak_count,
+            streak_state: projEntry.streak_state,
+            birthday_state: projEntry.birthday_state,
+            favorite_state: projEntry.favorite_state,
+          }
+        : undefined;
+
+      const effectiveStreakCount =
+        relationship?.streak_count ?? streakCount ?? 0;
+      const relationshipEmoji =
+        relationshipEmojiUi && relationship
+          ? pickPrimaryInboxEmoji({
+              primaryState: relationship.primary_relationship_state,
+              birthdayState: relationship.birthday_state,
+              streakState: relationship.streak_state,
+              favoriteState: relationship.favorite_state,
+              prefs: emojiPrefs,
+            })
+          : undefined;
+      const streakDisplay =
+        relationshipEmojiUi && relationship
+          ? resolveStreakDisplay(
+              effectiveStreakCount,
+              relationship.streak_state ?? null,
+              emojiPrefs,
+            )
+          : undefined;
+
+      const statusLineWithStreak =
+        streakDisplay && status.line
+          ? `${status.line} · ${streakDisplay}`
+          : streakDisplay && !status.line
+            ? streakDisplay
+            : status.line;
+
       return {
         conversation,
         id: conversation.id,
@@ -368,7 +445,7 @@ export function useDMInbox() {
           recentNewFriendIds,
           previewMaxLen: 48,
         }),
-        statusLine: status.line,
+        statusLine: relationshipEmojiUi ? statusLineWithStreak : status.line,
         statusKind: status.kind,
         deliveryStatus: status.label,
         latestMessageType: String(
@@ -395,8 +472,11 @@ export function useDMInbox() {
         storyState,
         isVerified: Boolean(other?.is_verified),
         relationshipBadge,
+        relationship,
+        relationshipEmoji,
+        streakDisplay,
         quickReaction,
-        fromProjection: false,
+        fromProjection: Boolean(projEntry),
       };
     };
   }, [
@@ -408,6 +488,9 @@ export function useDMInbox() {
     isTyping,
     presenceMap,
     storyStateByProfileId,
+    projectionByConversationId,
+    relationshipEmojiUi,
+    emojiPrefs,
   ]);
 
   const rows = useMemo<DMInboxRow[]>(() => {
@@ -504,12 +587,21 @@ export function useDMInbox() {
   }, [allConversations, callConversationIds]);
 
   const bestFriendCount = useMemo(() => {
+    if (relationshipProjectionRead && rankedBestFriendIds.size) {
+      return rankedBestFriendIds.size;
+    }
     return allConversations.filter((conversation) => {
       if (conversation.is_group) return false;
       const otherId = resolveOtherProfileId(conversation);
       return Boolean(otherId && closeFriendIds.has(otherId));
     }).length;
-  }, [allConversations, closeFriendIds, resolveOtherProfileId]);
+  }, [
+    allConversations,
+    closeFriendIds,
+    resolveOtherProfileId,
+    relationshipProjectionRead,
+    rankedBestFriendIds,
+  ]);
 
   const totalUnreadCount = useMemo(() => {
     return allConversations.reduce((sum, conversation) => {

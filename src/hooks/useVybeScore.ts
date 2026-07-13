@@ -1,13 +1,28 @@
 import { useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { db } from '@/lib/firebase';
-import { subscribePostgresChannel, removeRealtimeChannel } from '@/lib/realtimeChannel';
+import { getDocument, documentRef } from '@/lib/firebase/firestoreDb';
+import { onSnapshot } from 'firebase/firestore';
 import { useAuth } from '@/lib/auth';
+import { isVybeScoreUiEnabled } from '@/lib/relationshipFeatureFlags';
+import { invokeFunction } from '@/lib/firebase/functionsService';
+
+export interface VybeScoreDoc {
+  score?: number;
+  total_score?: number;
+  social_score?: number;
+  creator_score?: number;
+  connection_score?: number;
+  streak_score?: number;
+  challenge_score?: number;
+  community_score?: number;
+}
 
 export interface VybeScoreEvent {
   id: string;
-  action: string;
+  event_type?: string;
+  action?: string;
   points: number;
+  category?: string;
   created_at: string;
 }
 
@@ -18,41 +33,22 @@ export function useVybeScore(profileId: string | undefined) {
     queryKey: ['vybe-score', profileId],
     queryFn: async () => {
       if (!profileId) return 0;
-      // Doc id is profile_id (Supabase PK); try direct read first.
-      const { data: byId, error: byIdError } = await db
-        .from('vybe_scores')
-        .select('score, profile_id')
-        .eq('profile_id', profileId)
-        .maybeSingle();
-      if (!byIdError && byId) return Number(byId.score ?? 0);
-
-      const { data: docRow, error: docError } = await db
-        .from('vybe_scores')
-        .select('score')
-        .eq('id', profileId)
-        .maybeSingle();
-      if (docError && byIdError) throw docError;
-      return Number(docRow?.score ?? byId?.score ?? 0);
+      const doc = await getDocument<VybeScoreDoc>('vybe_scores', profileId);
+      return Number(doc?.total_score ?? doc?.score ?? 0);
     },
     enabled: !!profileId,
     staleTime: 30_000,
   });
 
-  // Realtime: tick up live
   useEffect(() => {
     if (!profileId) return;
-    const channel = subscribePostgresChannel(`vybe-score:${profileId}`, [
-      {
-        event: '*',
-        table: 'vybe_scores',
-        filter: `profile_id=eq.${profileId}`,
-        callback: (payload: any) => {
-          const next = Number(payload.new?.score ?? 0);
-          qc.setQueryData(['vybe-score', profileId], next);
-        },
-      },
-    ]);
-    return () => { removeRealtimeChannel(channel); };
+    const ref = documentRef('vybe_scores', profileId);
+    const unsub = onSnapshot(ref, (snap) => {
+      if (!snap.exists()) return;
+      const data = snap.data() as VybeScoreDoc;
+      qc.setQueryData(['vybe-score', profileId], Number(data.total_score ?? data.score ?? 0));
+    });
+    return () => unsub();
   }, [profileId, qc]);
 
   return query;
@@ -64,32 +60,47 @@ export function useVybeScoreBreakdown(profileId: string | undefined) {
 
   return useQuery({
     queryKey: ['vybe-score-breakdown', profileId],
-    queryFn: async (): Promise<{ today: number; topActions: { action: string; points: number }[] }> => {
-      if (!profileId) return { today: 0, topActions: [] };
-      const since = new Date();
-      since.setHours(0, 0, 0, 0);
-      const { data, error } = await db
-        .from('vybe_score_events')
-        .select('action, points, created_at')
-        .eq('profile_id', profileId)
-        .gte('created_at', since.toISOString())
-        .order('created_at', { ascending: false })
-        .limit(500);
-      if (error) throw error;
-      const today = (data ?? []).reduce((sum: number, r: any) => sum + (r.points ?? 0), 0);
-      const byAction: Record<string, number> = {};
-      for (const r of data ?? []) {
-        byAction[r.action] = (byAction[r.action] ?? 0) + (r.points ?? 0);
-      }
-      const topActions = Object.entries(byAction)
-        .map(([action, points]) => ({ action, points }))
-        .sort((a, b) => b.points - a.points)
-        .slice(0, 5);
-      return { today, topActions };
+    queryFn: async (): Promise<{
+      today: number;
+      topActions: { action: string; points: number }[];
+      categories: Record<string, number>;
+    }> => {
+      if (!profileId) return { today: 0, topActions: [], categories: {} };
+      const scoreDoc = await getDocument<VybeScoreDoc>('vybe_scores', profileId);
+      const categories = {
+        social: Number(scoreDoc?.social_score || 0),
+        creator: Number(scoreDoc?.creator_score || 0),
+        connection: Number(scoreDoc?.connection_score || 0),
+        streak: Number(scoreDoc?.streak_score || 0),
+        challenge: Number(scoreDoc?.challenge_score || 0),
+        community: Number(scoreDoc?.community_score || 0),
+      };
+      return { today: 0, topActions: [], categories };
     },
-    enabled: !!profileId && isOwn, // breakdown visible to owner only (RLS enforced)
+    enabled: !!profileId && isOwn && isVybeScoreUiEnabled(),
     staleTime: 60_000,
   });
+}
+
+export function useVybeScorePrivacy(profileId: string | undefined) {
+  return useQuery({
+    queryKey: ['vybe-score-privacy', profileId],
+    queryFn: async () => {
+      if (!profileId) return 'public' as const;
+      const doc = await getDocument<{ privacy?: string }>('vybe_score_preferences', profileId);
+      const privacy = doc?.privacy;
+      if (privacy === 'friends_only' || privacy === 'private') return privacy;
+      return 'public' as const;
+    },
+    enabled: Boolean(profileId),
+    staleTime: 60_000,
+  });
+}
+
+export async function updateVybeScorePrivacy(
+  privacy: 'public' | 'friends_only' | 'private',
+): Promise<void> {
+  await invokeFunction('updateVybeScorePreferences', { privacy });
 }
 
 export function formatVybeScore(n: number): string {

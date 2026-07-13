@@ -1,14 +1,10 @@
-import { memo, useCallback, useMemo, useRef, useState } from 'react';
+import { memo, useCallback, useMemo } from 'react';
 import {
   Camera,
   Heart,
-  Image as ImageIcon,
-  MapPin,
-  Mic,
   Moon,
   Sparkles,
   Users,
-  Video,
   Zap,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
@@ -28,12 +24,6 @@ import {
   useCameraOverlayOptional,
 } from '@/contexts/CameraOverlayContext';
 import { cn } from '@/lib/utils';
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-} from '@/components/ui/sheet';
 import type { DMConversationPreview } from './dm.types';
 
 export interface DMConversationRowProps {
@@ -69,8 +59,6 @@ export const DMConversationRow = memo(function DMConversationRow({
 }: DMConversationRowProps) {
   const navigate = useNavigate();
   const cameraOverlay = useCameraOverlayOptional();
-  const [captureSheetOpen, setCaptureSheetOpen] = useState(false);
-  const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const resolved = conversation.is_group
     ? null
@@ -111,6 +99,7 @@ export const DMConversationRow = memo(function DMConversationRow({
   const isAway = preview?.isAway ?? false;
   const secondaryAvatarUrl = preview?.secondaryAvatarUrl;
   const relationship = preview?.relationshipBadge;
+  const relationshipEmoji = preview?.relationshipEmoji;
   const quickReaction = preview?.quickReaction;
   const isVerified = preview?.isVerified;
   const ringTone = useMemo(() => ringToneForId(conversation.id), [conversation.id]);
@@ -118,13 +107,6 @@ export const DMConversationRow = memo(function DMConversationRow({
   const stopRowGesture = (event: React.SyntheticEvent) => {
     event.preventDefault();
     event.stopPropagation();
-  };
-
-  const clearLongPress = () => {
-    if (longPressTimer.current) {
-      clearTimeout(longPressTimer.current);
-      longPressTimer.current = null;
-    }
   };
 
   const openProfile = (event: React.SyntheticEvent) => {
@@ -174,9 +156,6 @@ export const DMConversationRow = memo(function DMConversationRow({
           storyState === 'unviewed' && 'dm-inbox-avatar-button--story',
           storyState === 'viewed' && 'dm-inbox-avatar-button--story-viewed',
         )}
-        onPointerDown={(event) => {
-          if (username) event.stopPropagation();
-        }}
         onClick={openProfile}
         aria-label={username ? `Open ${displayName}'s profile` : displayName}
         disabled={!username}
@@ -225,11 +204,19 @@ export const DMConversationRow = memo(function DMConversationRow({
 
       <div className="dm-inbox-row-copy">
         <div className="dm-inbox-name-line">
-          <p className={cn('dm-inbox-name', unread && 'dm-inbox-name--unread')}>{displayName}</p>
-          {relationship === 'close_friend' && (
+          <p className={cn('dm-inbox-name', unread && 'dm-inbox-name--unread')}>
+            {displayName}
+            {relationshipEmoji ? (
+              <span className="dm-inbox-relationship-emoji" aria-hidden>
+                {' '}
+                {relationshipEmoji}
+              </span>
+            ) : null}
+          </p>
+          {!relationshipEmoji && relationship === 'close_friend' && (
             <Zap className="dm-inbox-meta-icon dm-inbox-meta-icon--sparkle" aria-hidden />
           )}
-          {relationship === 'new_friend' && (
+          {!relationshipEmoji && relationship === 'new_friend' && (
             <Sparkles className="dm-inbox-meta-icon dm-inbox-meta-icon--verified" aria-hidden />
           )}
           {isVerified && (
@@ -263,19 +250,12 @@ export const DMConversationRow = memo(function DMConversationRow({
         <button
           type="button"
           className="dm-inbox-camera-button dm-vfx-press"
+          data-dm-camera-shortcut
           onPointerDown={(event) => {
             event.stopPropagation();
-            clearLongPress();
-            longPressTimer.current = setTimeout(() => {
-              setCaptureSheetOpen(true);
-            }, 420);
           }}
-          onPointerUp={clearLongPress}
-          onPointerLeave={clearLongPress}
-          onPointerCancel={clearLongPress}
           onClick={(event) => {
             stopRowGesture(event);
-            if (captureSheetOpen) return;
             launchSnapCamera('default');
           }}
           aria-label={`Send a VYBE to ${displayName}`}
@@ -283,60 +263,6 @@ export const DMConversationRow = memo(function DMConversationRow({
           <Camera />
         </button>
       </div>
-
-      <Sheet open={captureSheetOpen} onOpenChange={setCaptureSheetOpen}>
-        <SheetContent side="bottom" className="dm-inbox-compose-sheet rounded-t-2xl">
-          <SheetHeader>
-            <SheetTitle>Send to {displayName}</SheetTitle>
-          </SheetHeader>
-          <div className="mt-3 flex flex-col gap-1 pb-6">
-            <button
-              type="button"
-              className="dm-inbox-compose-action"
-              onClick={() => {
-                setCaptureSheetOpen(false);
-                launchSnapCamera('photo');
-              }}
-            >
-              <ImageIcon className="h-5 w-5" />
-              <span>Photo</span>
-            </button>
-            <button
-              type="button"
-              className="dm-inbox-compose-action"
-              onClick={() => {
-                setCaptureSheetOpen(false);
-                launchSnapCamera('video');
-              }}
-            >
-              <Video className="h-5 w-5" />
-              <span>Video</span>
-            </button>
-            <button
-              type="button"
-              className="dm-inbox-compose-action"
-              onClick={() => {
-                setCaptureSheetOpen(false);
-                navigate(`/messages/${conversation.id}?voice=1`);
-              }}
-            >
-              <Mic className="h-5 w-5" />
-              <span>Voice</span>
-            </button>
-            <button
-              type="button"
-              className="dm-inbox-compose-action"
-              onClick={() => {
-                setCaptureSheetOpen(false);
-                navigate(`/messages/${conversation.id}?location=1`);
-              }}
-            >
-              <MapPin className="h-5 w-5" />
-              <span>Location</span>
-            </button>
-          </div>
-        </SheetContent>
-      </Sheet>
     </div>
   );
 });

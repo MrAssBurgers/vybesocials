@@ -47,6 +47,8 @@ export interface DmInboxTabFilterOptions {
   requestConversationIds?: Set<string>;
   callConversationIds?: Set<string>;
   closeFriendIds?: Set<string>;
+  /** Server-ranked top-8 best friends (replaces close_friends when flag on). */
+  rankedBestFriendIds?: Set<string>;
   nearbyProfileIds?: Set<string>;
   resolveOtherProfileId?: (conversation: LoadedDMConversation) => string | undefined;
   presenceOnlineIds?: Set<string>;
@@ -159,6 +161,7 @@ export function filterConversationsForTab(
     requestConversationIds: requestIds,
     callConversationIds: callIds,
     closeFriendIds,
+    rankedBestFriendIds,
     nearbyProfileIds,
     resolveOtherProfileId,
   } = options;
@@ -219,13 +222,31 @@ export function filterConversationsForTab(
       return safe.filter(
         (c) => !c.is_group && !(requestIds?.size && requestIds.has(c.id)),
       );
-    case 'best_friends':
+    case 'best_friends': {
+      const ranked = rankedBestFriendIds;
+      if (ranked?.size) {
+        return safe
+          .filter((c) => {
+            if (c.is_group) return false;
+            const otherId = resolveOtherProfileId?.(c);
+            return Boolean(otherId && ranked.has(otherId));
+          })
+          .sort((a, b) => {
+            const aId = resolveOtherProfileId?.(a);
+            const bId = resolveOtherProfileId?.(b);
+            const aRank = aId && ranked.has(aId) ? 1 : 0;
+            const bRank = bId && ranked.has(bId) ? 1 : 0;
+            if (aRank !== bRank) return bRank - aRank;
+            return compareInboxActivity(a, b, profileId);
+          });
+      }
       if (!closeFriendIds?.size) return [];
       return safe.filter((c) => {
         if (c.is_group) return false;
         const otherId = resolveOtherProfileId?.(c);
         return Boolean(otherId && closeFriendIds.has(otherId));
       });
+    }
     case 'nearby':
       if (!nearbyProfileIds?.size) return [];
       return safe.filter((c) => {

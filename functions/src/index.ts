@@ -43,6 +43,8 @@ export * from './transcribeVoice.js';
 export * from './captureEvents.js';
 export * from './challenges.js';
 export * from './challengeProgress.js';
+export * from './relationshipEngine.js';
+export * from './vybeScore.js';
 export * from './friendProfile.js';
 export * from './locationSharing.js';
 export * from './dmInboxProjection.js';

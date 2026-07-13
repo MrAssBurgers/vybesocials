@@ -429,6 +429,19 @@ export const claimChallengeReward = onCall({ region: 'us-central1' }, async (req
     }, { merge: true });
   }
 
+  try {
+    const { applyVybeScoreEvent } = await import('./vybeScore.js');
+    await applyVybeScoreEvent({
+      userId,
+      eventType: 'challenge_completed',
+      sourceId: rewardId,
+      idempotencyKey: `challenge:${rewardId}`,
+      pointsOverride: Math.max(1, Math.round(xpGained / 2)),
+    });
+  } catch (err) {
+    console.warn('[challenge] vybe score hook failed', err);
+  }
+
   return {
     success: true,
     xp_gained: xpGained,

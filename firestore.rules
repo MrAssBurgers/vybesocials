@@ -59,6 +59,11 @@ service cloud.firestore {
           get(/databases/$(database)/documents/profiles/$(pid)).data.user_id == uid())
       );
     }
+    function isParticipantInPair(pairId) {
+      return signedIn() && pairId is string && (
+        pairId.matches('.*' + profileId() + '.*')
+      );
+    }
 
     function isOwner(field) {
       return signedIn() && resource.data[field] == uid();
@@ -271,9 +276,66 @@ service cloud.firestore {
     }
     match /vybe_score_events/{docId} {
       allow read: if signedIn() && (
-        ownsProfileId(resource.data.profile_id) || isAdmin()
+        ownsProfileId(resource.data.user_id) || ownsProfileId(resource.data.profile_id) || isAdmin()
       );
       allow write: if false;
+    }
+    match /vybe_score_daily_limits/{docId} {
+      allow read: if signedIn() && ownsProfileId(resource.data.user_id);
+      allow write: if false;
+    }
+    match /vybe_score_milestones/{docId} {
+      allow read: if signedIn();
+      allow write: if false;
+    }
+    match /vybe_score_adjustments/{docId} {
+      allow read: if signedIn() && ownsProfileId(resource.data.user_id);
+      allow write: if false;
+    }
+    match /vybe_score_preferences/{docId} {
+      allow read: if signedIn();
+      allow write: if false;
+    }
+
+    // Relationship engine — server writes only; viewer-scoped reads
+    match /relationship_scores/{docId} {
+      allow read: if signedIn() && ownsProfileId(resource.data.viewer_id);
+      allow write: if false;
+    }
+    match /relationship_activity_events/{docId} {
+      allow read: if false;
+      allow write: if false;
+    }
+    match /friendship_rankings/{docId} {
+      allow read: if signedIn() && ownsProfileId(resource.data.viewer_id);
+      allow write: if false;
+    }
+    match /friendship_milestones/{docId} {
+      allow read: if signedIn();
+      allow write: if false;
+    }
+    match /friendship_streaks/{docId} {
+      allow read: if signedIn();
+      allow write: if false;
+    }
+    match /friendship_preferences/{docId} {
+      allow read: if signedIn() && ownsProfileId(docId);
+      allow write: if false;
+    }
+    match /friendship_emoji_preferences/{docId} {
+      allow read: if signedIn() && ownsProfileId(docId);
+      allow write: if false;
+    }
+    match /friendship_bonds/{docId} {
+      allow read: if signedIn();
+      allow write: if false;
+    }
+    match /relationship_daily_caps/{docId} {
+      allow read: if false;
+      allow write: if false;
+    }
+    match /_relationship_recalc_pending/{docId} {
+      allow read, write: if false;
     }
 
     // ---------- user badges / locations / prefs ----------

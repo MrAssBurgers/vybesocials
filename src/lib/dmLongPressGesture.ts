@@ -1,10 +1,15 @@
 export type ConversationGestureIntent = 'pending' | 'scrolling' | 'swiping';
 
+export const HOLD_MS = 450;
+export const HOLD_CANCEL_PX = 10;
+export const SWIPE_ACTIVATE_PX = 12;
+export const TAP_SLOP_PX = 14;
+
 export function classifyConversationGestureMove(
   dx: number,
   dy: number,
-  holdCancelPx = 8,
-  swipeActivatePx = 12,
+  holdCancelPx = HOLD_CANCEL_PX,
+  swipeActivatePx = SWIPE_ACTIVATE_PX,
 ): ConversationGestureIntent {
   const absDx = Math.abs(dx);
   const absDy = Math.abs(dy);
@@ -17,8 +22,8 @@ export function shouldOpenConversationHold(
   elapsedMs: number,
   dx: number,
   dy: number,
-  holdMs = 480,
-  holdCancelPx = 8,
+  holdMs = HOLD_MS,
+  holdCancelPx = HOLD_CANCEL_PX,
 ): boolean {
   return (
     elapsedMs >= holdMs &&

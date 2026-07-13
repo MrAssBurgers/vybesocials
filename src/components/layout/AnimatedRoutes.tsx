@@ -254,6 +254,7 @@ export function AnimatedRoutes() {
             <Route path="/messages" element={<ProtectedRoute><RouteBoundary name="messages"><Messages /></RouteBoundary></ProtectedRoute>} />
             <Route path="/messages/search" element={<ProtectedRoute><RouteBoundary name="messages"><MessagesSearchPage /></RouteBoundary></ProtectedRoute>} />
             <Route path="/messages/requests" element={<ProtectedRoute><RouteBoundary name="messages"><MessageRequestsPage /></RouteBoundary></ProtectedRoute>} />
+            <Route path="/messages/new" element={<ProtectedRoute><NewMessage /></ProtectedRoute>} />
             <Route path="/messages/:conversationId" element={<ProtectedRoute><RouteBoundary name="messages"><Messages /></RouteBoundary></ProtectedRoute>} />
             <Route path="/notifications" element={<ProtectedRoute><RouteBoundary name="notifications"><Notifications /></RouteBoundary></ProtectedRoute>} />
             <Route path="/search" element={<ProtectedRoute><SearchPage /></ProtectedRoute>} />
@@ -270,7 +271,6 @@ export function AnimatedRoutes() {
             <Route path="/p/:id" element={<ProtectedRoute><PostDetail /></ProtectedRoute>} />
             <Route path="/onboarding" element={<ProtectedRoute><Onboarding /></ProtectedRoute>} />
             <Route path="/complete-profile" element={<Navigate to="/onboarding" replace />} />
-            <Route path="/messages/new" element={<ProtectedRoute><NewMessage /></ProtectedRoute>} />
             <Route path="/VYBE-AI" element={<ProtectedRoute><AIChat /></ProtectedRoute>} />
             <Route path="/messages/ai-autisy" element={<Navigate to="/VYBE-AI" replace />} />
             <Route path="/feedback" element={<ProtectedRoute><Feedback /></ProtectedRoute>} />

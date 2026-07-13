@@ -421,7 +421,7 @@ export function useConversationDetail(conversationId: string | undefined) {
         (buildConversationPlaceholder(conversationId, profileId) as unknown as DMConversation);
       return normalizeDmConversation(hit);
     },
-    networkMode: 'offlineFirst',
+    networkMode: 'always',
     refetchOnMount: (query) => {
       const data = query.state.data as DMConversation | undefined;
       if (ensureArray(data?.members).some((m) => m.profile?.username)) return false;

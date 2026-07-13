@@ -4,6 +4,7 @@ import type { DmInboxSectionId } from '@/lib/dmInboxOrganize';
 import type { DmInboxStatusKind } from '@/lib/dmInboxStatus';
 import type { MessageRequest } from '@/hooks/useMessageRequests';
 import type { NearbyFriendPeer } from '@/hooks/useNearbyFriendLink';
+import type { InboxRelationshipProjection } from '@/lib/relationship/relationshipTypes';
 
 /** Smart inbox filters (Messages redesign). */
 export type DmInboxFilterId =
@@ -54,6 +55,13 @@ export interface DmInboxEntryDoc {
   needs_reply: boolean;
   streak_count?: number;
   relationship_badge?: 'close_friend' | 'new_friend' | null;
+  primary_relationship_state?: InboxRelationshipProjection['primary_relationship_state'];
+  best_friend_rank?: number | null;
+  relationship_title?: string | null;
+  streak_state?: InboxRelationshipProjection['streak_state'];
+  birthday_state?: InboxRelationshipProjection['birthday_state'];
+  favorite_state?: InboxRelationshipProjection['favorite_state'];
+  relationship_updated_at?: string | null;
   is_verified?: boolean;
   search_tokens?: string[];
   updated_at?: string;
@@ -97,6 +105,9 @@ export interface DMConversationPreview {
   storyState: DMStoryState;
   isVerified?: boolean;
   relationshipBadge?: 'close_friend' | 'new_friend';
+  relationship?: InboxRelationshipProjection;
+  relationshipEmoji?: string;
+  streakDisplay?: string;
   quickReaction?: string;
   /** True when preview was sourced from dm_inbox_entries projection. */
   fromProjection?: boolean;
