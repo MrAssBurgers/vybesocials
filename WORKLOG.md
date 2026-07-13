@@ -2,7 +2,19 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
-## Pre-commit camera + social surfaces (2026-07-13)
+## Challenge sync restoration (2026-07-13)
+
+- **Restored:** `sync_my_challenge_progress` RPC → `syncMyChallengeProgress` Cloud Function (removed fake `{ ok: true }` stub).
+- **Server CFs:** `functions/src/challengeProgress.ts` — `syncMyChallengeProgress` (60s server cooldown, recalc from trusted activity, never lowers valid progress, returns changes + newly_completed + timestamps), `incrementChallengeProgress`, `claimChallengeReward`. **No** `forceSyncMyChallenges` export.
+- **Deleted prod:** `forceSyncMyChallenges` (us-central1) — no remaining app callers.
+- **Index:** `messages(sender_id ASC, created_at ASC)` added to `firestore.indexes.json` and deployed.
+- **Client:** `useChallengeSync` hook (60s client cooldown) — login, app resume, reconnect, Challenges screen open, daily login activity. Manual sync button uses `force: true`.
+- **Callers updated:** `ChallengesHub`, `ProfileSection`, `useRetroactiveSync`, `DeferredAuthHooks`, `useDailyLogin`.
+- **Deployed (vybe-daaab):** indexes ✅ · `syncMyChallengeProgress` ✅ · `incrementChallengeProgress` ✅ · `claimChallengeReward` ✅
+- **Verified:** functions build PASS · client build PASS · test PASS
+- **You:** Lovable Publish for vybehub.app · device QA on Challenges sync + claim XP
+
+---
 
 - **Entry points:** `ConversationOptionsSheet`, `RelationshipProfileActions`, `ChatView`, `DMConversationRow`, `DMComposeButton`, `CreateMenu*`, `StoryCreator` now use `openSnapCamera({ source, conversationId?, recipientIds?, returnRoute?, replyToMessageId? })` — no blob-URL `onSend` / inline `insertDmMessage`.
 - **Global multi-send:** After global camera send, overlay stays open, shows "Sent to N" toast, clears draft, preserves camera side/zoom/flash.
@@ -15,7 +27,9 @@ Use this file as the Lovable -> Cursor handoff each session.
 - **Verified:** typecheck PASS · test PASS (204) · lint PASS · build PASS · functions build PASS · camera-send-enforcement PASS.
 - **Pushed:** `origin/main` @ **`678bcb19`**
 - **Device QA:** manual pass still required (capture, offline, partial failure, back button).
-- **You:** Deploy functions + rules to `vybe-daaab`; Lovable → sync `main` @ **`678bcb19`** → Publish.
+- **Deployed (vybe-daaab, 2026-07-13):** Firestore rules ✅ · indexes ✅ · **`getFriendshipState`** ✅ · **`mutateFriendship`** ✅
+- **Functions fleet:** full `--force` redeploy hit Cloud Run CPU quota in `us-central1` — many unrelated CF updates failed; new friendship callables are live. Orphan challenge CFs (`claimChallengeReward`, etc.) still in prod (delete failed).
+- **You:** Lovable → sync `main` @ **`0d9bb0d1`** → Publish. Request GCP quota increase if you need a full CF fleet refresh.
 
 ---
 

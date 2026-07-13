@@ -89,7 +89,7 @@ export function ProfileSection() {
       // Fire-and-forget: challenge sync + cache invalidation should never
       // block the user from seeing their save complete.
       void (async () => {
-        try { await db.rpc('force_sync_my_challenges'); } catch {}
+        try { await db.rpc('sync_my_challenge_progress'); } catch {}
         queryClient.invalidateQueries({ queryKey: ['challenge-progress'] });
         queryClient.invalidateQueries({ queryKey: ['profile'] });
         queryClient.invalidateQueries({ queryKey: ['profile-by-id'] });

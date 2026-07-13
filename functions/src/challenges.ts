@@ -2,11 +2,11 @@ import { onCall } from 'firebase-functions/v2/https';
 import { onSchedule } from 'firebase-functions/v2/scheduler';
 import { db, requireAuth } from './_shared/admin.js';
 
-function isoDateOnly(d = new Date()): string {
+export function isoDateOnly(d = new Date()): string {
   return d.toISOString().slice(0, 10);
 }
 
-function weekStartIso(d = new Date()): string {
+export function weekStartIso(d = new Date()): string {
   const day = d.getUTCDay();
   const diff = day === 0 ? -6 : 1 - day;
   const monday = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() + diff));

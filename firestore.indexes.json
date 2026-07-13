@@ -234,6 +234,11 @@
       "fields": [
         { "fieldPath": "conversation_id", "order": "ASCENDING" },
         { "fieldPath": "client_message_id", "order": "ASCENDING" }
+      ] },
+    { "collectionGroup": "messages", "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "sender_id", "order": "ASCENDING" },
+        { "fieldPath": "created_at", "order": "ASCENDING" }
       ] }
   ],
   "fieldOverrides": []

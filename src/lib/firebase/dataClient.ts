@@ -1218,8 +1218,11 @@ const CLIENT_RPC: Record<string, (params: Record<string, unknown>) => Promise<un
   },
   get_my_highest_role: async () => rpcGetMyHighestRole(),
   is_owner: async (p) => rpcIsOwner(p),
-  sync_my_challenge_progress: async () => ({ ok: true }),
-  force_sync_my_challenges: async () => ({ ok: true }),
+  sync_my_challenge_progress: async (params = {}) => {
+    const { data, error } = await invokeFunction('sync_my_challenge_progress', params);
+    if (error) throw error;
+    return data ?? { ok: true };
+  },
   get_login_streak_status: async (p) => runSocialRpc('get_login_streak_status', p),
   update_login_streak: async (p) => runSocialRpc('update_login_streak', p),
   restore_login_streak: async (p) => runSocialRpc('restore_login_streak', p),

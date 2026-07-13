@@ -21,7 +21,7 @@ import { VybePassSheet } from '@/components/vybepass/VybePassSheet';
 import { ChallengeDetailSheet } from '@/components/challenges/ChallengeDetailSheet';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
-import { db } from '@/lib/firebase';
+import { useChallengeSync } from '@/hooks/useChallengeSync';
 
 const TYPE_CONFIG = {
   daily: {
@@ -199,6 +199,7 @@ export default function ChallengesHubPage() {
   const [selectedChallenge, setSelectedChallenge] = useState<typeof all[0] | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
   const { dailyTimeLeft, weeklyTimeLeft } = useChallengeCountdown();
+  const { syncChallenges } = useChallengeSync({ syncOnMount: true });
 
   const handleChallengeClick = (challenge: typeof all[0]) => {
     // Always open the detail sheet
@@ -217,13 +218,13 @@ export default function ChallengesHubPage() {
   const handleSyncProgress = async () => {
     setSyncing(true);
     try {
-      const { error } = await db.rpc('force_sync_my_challenges');
-      if (error) throw error;
-      
-      await queryClient.invalidateQueries({ queryKey: ['challenge-progress'] });
-      await queryClient.invalidateQueries({ queryKey: ['unclaimed-rewards'] });
+      const result = await syncChallenges('manual', true);
+      if (result?.skipped_cooldown || result?.skipped_client_cooldown) {
+        toast.message('Synced recently — try again in a minute');
+        return;
+      }
       toast.success('Challenges synced!');
-    } catch (error) {
+    } catch {
       toast.error('Failed to sync challenges');
     } finally {
       setSyncing(false);

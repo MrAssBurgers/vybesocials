@@ -3,6 +3,7 @@ import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth';
 import { useQueryClient } from '@tanstack/react-query';
 import { useTokenReward } from '@/hooks/useVybeTokens';
+import { bumpChallengeProgress, syncChallengeProgressAfterActivity } from '@/lib/challengeProgressClient';
 
 /**
  * Tracks daily login for challenges and grants streak-multiplied XP.
@@ -45,6 +46,8 @@ export function useDailyLoginChallenge() {
         // Invalidate XP/level queries so the UI updates
         queryClient.invalidateQueries({ queryKey: ['user-level'] });
         queryClient.invalidateQueries({ queryKey: ['challenge-progress'] });
+        bumpChallengeProgress('daily_login');
+        syncChallengeProgressAfterActivity(profile.id);
         
         const result = data as { success: boolean; already_logged?: boolean; xp_granted?: number; streak?: number; multiplier?: number } | null;
         

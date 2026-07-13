@@ -2,6 +2,7 @@ import { usePrefetchBackgrounds } from '@/hooks/useUserBackgrounds';
 import { useDynamicFavicon } from '@/hooks/useDynamicFavicon';
 import { useDynamicManifest } from '@/hooks/useDynamicManifest';
 import { useRetroactiveSync } from '@/hooks/useRetroactiveSync';
+import { useChallengeSync } from '@/hooks/useChallengeSync';
 import { useDailyLoginChallenge } from '@/hooks/useDailyLogin';
 import { useCaptureNotifications } from '@/hooks/useCaptureDetection';
 import { useApplyAutoTheme } from '@/hooks/useApplyAutoTheme';
@@ -16,6 +17,7 @@ export default function DeferredAuthHooks() {
   useDynamicFavicon();
   useDynamicManifest();
   useRetroactiveSync();
+  useChallengeSync();
   useDailyLoginChallenge();
   useCaptureNotifications();
   useApplyAutoTheme();
