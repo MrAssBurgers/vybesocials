@@ -21,7 +21,13 @@ export function useSearchPeople(query: string) {
         .or(`username.ilike.%${query}%,display_name.ilike.%${query}%`)
         .limit(30);
       if (error) throw error;
-      return data || [];
+      const rows = data || [];
+      const byUsername = new Map<string, SearchPeopleResult>();
+      for (const row of rows) {
+        const key = String(row.username || row.id).toLowerCase();
+        if (!byUsername.has(key)) byUsername.set(key, row);
+      }
+      return Array.from(byUsername.values());
     },
     enabled: query.length >= 2,
     networkMode: 'always',

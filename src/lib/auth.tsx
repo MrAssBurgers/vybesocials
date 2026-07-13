@@ -424,8 +424,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return fetchProfile(userId, retryCount + 1);
       }
 
-      // Fast local ensure — skip slow claim/ensure RPC chain on login path
+      // Fast local ensure — claim first so we don't orphan a duplicate placeholder.
       try {
+        await db.rpc('claim_profile_by_email').catch(() => undefined);
+        const claimed = await getProfileByAuthUid(userId);
+        if (claimed?.id) {
+          return applyProfile(claimed as unknown as Profile);
+        }
         const ensured = await ensureUserProfile(userId);
         if (ensured?.id) {
           return applyProfile(ensured as unknown as Profile);
@@ -489,12 +494,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           console.error('[Auth] Session bootstrap failed:', err);
         }
 
-        // Slow migration RPCs — background only, but never invisible: a failed
-        // claim means the user may be on an orphaned profile.
-        void db.rpc('claim_profile_by_email').catch((err: unknown) => {
-          console.warn('[Auth] claim_profile_by_email failed:', err);
-          captureException(err, { scope: 'auth:claim_profile_by_email', userId });
-        });
+        // Claim before ensure so we don't create a placeholder authUid profile
+        // that blocks email claim and duplicates accounts in friends/search.
+        void (async () => {
+          try {
+            await db.rpc('claim_profile_by_email');
+            resetSessionProfileMemo();
+            await fetchProfile(userId, 0);
+          } catch (err: unknown) {
+            console.warn('[Auth] claim_profile_by_email failed:', err);
+            captureException(err, { scope: 'auth:claim_profile_by_email', userId });
+          }
+        })();
       })();
     });
   };

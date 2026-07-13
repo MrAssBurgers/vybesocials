@@ -144,21 +144,25 @@ export function warmDmConversation(
   seedConversationDetailCache(queryClient, conversationId, profileId, conversationHint as DMConversation | null);
   seedMessagesFromInboxPreview(queryClient, conversationId, profileId, conversationHint);
 
+  const resolvedActor = actorId ?? profileId;
+  // Seed-only when profile isn't ready — don't block a later actor warm.
+  if (!resolvedActor) return;
+
   if (readMessagesCache(queryClient, conversationId).length >= WARM_SKIP_THRESHOLD) return;
   if (warmInflight.has(conversationId)) return;
   warmInflight.add(conversationId);
 
   const run = () => {
     void queryClient
-      .prefetchQuery({
+      .fetchQuery({
         queryKey: messagesQueryKey(conversationId),
         queryFn: () =>
-          loadConversationMessages(queryClient, conversationId, actorId, {
+          loadConversationMessages(queryClient, conversationId, resolvedActor, {
             recentOnly: true,
             maxMessages: CHAT_INITIAL_MESSAGE_LIMIT,
             select: MESSAGE_SELECT_WARM,
           }),
-        staleTime: 120_000,
+        staleTime: 0,
       })
       .finally(() => {
         warmInflight.delete(conversationId);

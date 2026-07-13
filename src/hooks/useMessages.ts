@@ -14,7 +14,7 @@ import { applyMessageSaveToggle } from '@/lib/messageSaveToggle';
 import { loadConversationMessages, MESSAGE_SELECT_MINIMAL, MESSAGE_SELECT_WARM } from '@/lib/loadConversationMessages';
 import { CHAT_INITIAL_MESSAGE_LIMIT, fetchRecentConversationMessages } from '@/lib/conversationMessagesQuery';
 import { invalidateConversationCaches } from '@/lib/invalidateConversationCaches';
-import { shouldRefetchWhenEmpty, refetchListOnMount } from '@/lib/queryRefetchPolicy';
+import { shouldRefetchWhenEmptyOrSparse, refetchListOnMount } from '@/lib/queryRefetchPolicy';
 import { toast } from 'sonner';
 import { callSounds } from '@/lib/callSounds';
 import { normalizeToProfileId, ensureConversationReady } from '@/lib/dmMembershipRepair';
@@ -344,9 +344,8 @@ export function useMessages(conversationId: string | undefined) {
     gcTime: 1000 * 60 * 60 * 24 * 14,
     refetchOnWindowFocus: false,
     refetchOnMount: (query) => {
-      // Paint from seed/cache; background hydrate covers incompleteness.
-      // Refetching every short seed forces a network stall on every open.
-      return shouldRefetchWhenEmpty(query);
+      // Empty OR inbox preview seed (typically 1 msg) → hydrate in background.
+      return shouldRefetchWhenEmptyOrSparse(query, 8);
     },
     refetchOnReconnect: false,
     initialData: () => {

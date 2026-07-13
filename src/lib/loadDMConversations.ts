@@ -375,6 +375,7 @@ async function loadDMConversationsOnce(
     });
 
     const seenOtherUserIds = new Set<string>();
+    const seenOtherUsernames = new Set<string>();
     const result: LoadedDMConversation[] = [];
 
     conversationsData
@@ -390,9 +391,12 @@ async function loadDMConversationsOnce(
           const dedupeKey = otherProfile?.id
             ? String(otherProfile.id)
             : otherRawId || conv.id;
+          const uname = String(otherProfile?.username || '').toLowerCase();
           if (dedupeKey) {
             if (seenOtherUserIds.has(dedupeKey)) return;
+            if (uname && seenOtherUsernames.has(uname)) return;
             seenOtherUserIds.add(dedupeKey);
+            if (uname) seenOtherUsernames.add(uname);
           }
         }
 

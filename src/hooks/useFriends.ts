@@ -302,9 +302,25 @@ export function useFriends() {
       const friends = [
         ...(asSender || []).map((r) => r.receiver),
         ...(asReceiver || []).map((r) => r.sender),
-      ];
+      ].filter((f): f is NonNullable<typeof f> => Boolean(f?.id));
 
-      return friends;
+      // Dedupe by profile id (same person can appear in both directions / split profiles).
+      const byId = new Map<string, (typeof friends)[number]>();
+      const byUsername = new Map<string, string>();
+      for (const friend of friends) {
+        const id = String(friend.id);
+        const uname = String(friend.username || '').toLowerCase();
+        if (uname && byUsername.has(uname)) {
+          const existingId = byUsername.get(uname)!;
+          // Prefer non-auth-looking usernames already kept; keep first
+          if (byId.has(existingId)) continue;
+        }
+        if (byId.has(id)) continue;
+        byId.set(id, friend);
+        if (uname) byUsername.set(uname, id);
+      }
+
+      return Array.from(byId.values());
     },
     enabled: !!profileId,
     staleTime: 2 * 60 * 1000, // 2 minutes cache
@@ -363,7 +379,18 @@ export function useRecentlyAcceptedFriends(limit = 15) {
         ...(asReceiverRes.data || []).map((r: any) => ({ ...r.sender, accepted_at: r.updated_at || r.created_at })),
       ].filter((f) => f?.id);
 
-      return merged
+      const byId = new Map<string, (typeof merged)[number]>();
+      const byUsername = new Map<string, string>();
+      for (const friend of merged) {
+        const id = String(friend.id);
+        const uname = String(friend.username || '').toLowerCase();
+        if (uname && byUsername.has(uname) && byId.has(byUsername.get(uname)!)) continue;
+        if (byId.has(id)) continue;
+        byId.set(id, friend);
+        if (uname) byUsername.set(uname, id);
+      }
+
+      return Array.from(byId.values())
         .sort((a, b) => new Date(b.accepted_at || 0).getTime() - new Date(a.accepted_at || 0).getTime())
         .slice(0, limit) as RecentlyAcceptedFriend[];
     },

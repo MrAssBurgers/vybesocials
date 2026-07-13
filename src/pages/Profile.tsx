@@ -46,7 +46,24 @@ export default function ProfilePage() {
   const navigate = useNavigate();
   const { profile: currentProfile, user, authReady } = useAuth();
   const resolvedUsername = username || usernameOrId || currentProfile?.username;
-  const { data: profile, isPending: profilePending, isError: profileError, refetch: refetchProfile } = useProfileByUsername(resolvedUsername!);
+  const {
+    data: profileData,
+    isPending: profilePending,
+    isError: profileError,
+    refetch: refetchProfile,
+  } = useProfileByUsername(resolvedUsername || '');
+  // Own /profile: never block forever when username query is disabled/empty.
+  const profile =
+    profileData ??
+    (!username && !usernameOrId && currentProfile
+      ? ({
+          ...currentProfile,
+          follower_count: 0,
+          following_count: 0,
+          post_count: 0,
+          is_following: false,
+        } as NonNullable<typeof profileData>)
+      : undefined);
   const { data: posts } = usePosts(undefined, profile?.id, { enabled: !!profile?.id });
   const { data: savedPosts } = useSavedPosts();
   const follow = useFollow();
@@ -172,7 +189,7 @@ export default function ProfilePage() {
     view_count: post.view_count || 0,
   }));
 
-  if ((!authReady || (user && !resolvedUsername)) && !profile) {
+  if ((!authReady || (user && !resolvedUsername && !currentProfile)) && !profile) {
     return (
       <AppLayout>
         <div className="max-w-lg mx-auto px-4 py-6 space-y-4">
@@ -184,7 +201,7 @@ export default function ProfilePage() {
     );
   }
 
-  if (profilePending && !profile) {
+  if (profilePending && !profile && !!resolvedUsername) {
     return (
       <AppLayout>
         <div className="max-w-lg mx-auto px-4 py-6 space-y-4">
@@ -196,7 +213,7 @@ export default function ProfilePage() {
     );
   }
 
-  if (profileError) {
+  if (profileError && !profile) {
     return (
       <AppLayout>
         <div className="flex flex-col items-center justify-center h-96 space-y-4">

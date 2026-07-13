@@ -1175,9 +1175,8 @@ body.has-liquid-bg:not(.has-custom-bg) .messages-scroll {
 .dm-inbox-card--category-dim {
   opacity: 0.48;
 }
-/* During fling scroll: flatten expensive paint so rows don't flash black plates. */
+/* During fling scroll: drop expensive shadows only — keep normal gradient so rows don't flash dark. */
 html.is-scrolling .dm-inbox-card {
-  background: hsl(var(--background) / 0.92);
   box-shadow: none;
   transition: none;
 }

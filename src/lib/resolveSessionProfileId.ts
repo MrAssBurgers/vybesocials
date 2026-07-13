@@ -33,12 +33,19 @@ export async function resolveSessionProfileId(
 
   inflight = (async () => {
     try {
-      // Fast path: Firestore lookup first. Claim/ensure only if missing —
-      // never block open chat / message warm on claim_profile RPC.
+      // Prefer claim when the only hit is a placeholder (id === auth uid) so we
+      // don't fork into duplicate profiles for the same email.
       let profile = await getProfileByAuthUid(authUserId);
-      if (!profile?.id) {
+      const looksPlaceholder =
+        !!profile?.id &&
+        (profile.id === authUserId ||
+          !profile.username ||
+          String(profile.username).startsWith('user_'));
+
+      if (!profile?.id || looksPlaceholder) {
         await db.rpc('claim_profile_by_email').catch(() => undefined);
-        profile = await getProfileByAuthUid(authUserId);
+        const claimed = await getProfileByAuthUid(authUserId);
+        if (claimed?.id) profile = claimed;
       }
       if (!profile?.id) {
         await db.rpc('ensure_profile').catch(() => undefined);

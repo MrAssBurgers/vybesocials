@@ -49,6 +49,7 @@ export default function RelationshipProfilePage() {
     !username ||
     relationship.profilePending ||
     (relationship.profile &&
+      relationship.profileIdReady &&
       (relationship.relationshipPending || relationship.visibilityPending))
   ) {
     return <ProfileSkeleton />;

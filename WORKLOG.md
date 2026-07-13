@@ -2,6 +2,18 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## DM open + scroll dark + profile hang + dupes + update copy (2026-07-13)
+
+- **Chat open stuck:** Inbox 1-message seed marked RQ fresh + `refetchOnMount` only on empty → never hydrated. Fixed sparse-seed refetch + `fetchQuery` warm (staleTime 0) after seed.
+- **DM scroll dark flash:** `html.is-scrolling .dm-inbox-card` forced opaque `--background` over gradient — removed background swap (shadows only).
+- **Profile hang:** RQ v5 disabled queries stay `isPending` forever — `useFriendProfile` uses `isLoading`; own `/profile` falls back to session profile.
+- **Duplicate accounts:** Claim before ensure on placeholder profiles; friends/search/inbox dedupe by id + username.
+- **Update overlay:** Copy → **“App updated / Please restart the app”**.
+- **Verified:** typecheck · test 270 · build PASS
+- **Next:** Publish when ready (push + hosting + Lovable Publish).
+
+---
+
 ## Instant-load deep scan + fixes (2026-07-13)
 
 - **Goal:** Find / fix cold-start + Messages/image stalls so conversations and avatars paint from cache instantly.

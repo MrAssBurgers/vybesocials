@@ -26,6 +26,21 @@ export function shouldRefetchWhenEmpty(query: any): boolean | 'always' {
   return false;
 }
 
+/**
+ * Inbox seeds often leave only 1 preview message. Force a background hydrate
+ * so opening a chat never sticks on the seed forever (staleTime would otherwise
+ * skip the network).
+ */
+export function shouldRefetchWhenEmptyOrSparse(
+  query: any,
+  minComplete = 8,
+): boolean | 'always' {
+  const data = query?.state?.data;
+  if (!Array.isArray(data) || data.length === 0) return 'always';
+  if (data.length < minComplete) return 'always';
+  return false;
+}
+
 import { isPermissionDeniedError } from '@/lib/logOnce';
 
 /** Refetch DM list on mount when never fetched or errored; respect staleTime for empty lists. */

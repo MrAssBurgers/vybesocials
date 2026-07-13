@@ -59,7 +59,7 @@ export function useFriendProfile(username: string | undefined) {
 
   return {
     profile: profileQuery.data,
-    profilePending: profileQuery.isPending,
+    profilePending: profileQuery.isLoading,
     profileError: profileQuery.isError,
     refetchProfile: profileQuery.refetch,
     friendshipStatus: status,
@@ -67,10 +67,13 @@ export function useFriendProfile(username: string | undefined) {
     isPendingRequest: status === 'pending_sent' || status === 'pending_received',
     isSelf: !!profileId && profileId === targetId,
     isBlocked: status === 'blocked' || blockedQuery.data === true,
-    relationshipPending: relationshipQueriesEnabled && (friendshipQuery.isPending || blockedQuery.isPending),
+    profileIdReady: !!profileId,
+    relationshipPending:
+      relationshipQueriesEnabled &&
+      (friendshipQuery.isLoading || blockedQuery.isLoading),
     relationshipError: friendshipQuery.isError || blockedQuery.isError,
     visibility: visibilityQuery.data,
-    visibilityPending: relationshipQueriesEnabled && visibilityQuery.isPending,
+    visibilityPending: relationshipQueriesEnabled && visibilityQuery.isLoading,
     visibilityError: visibilityQuery.isError,
   };
 }

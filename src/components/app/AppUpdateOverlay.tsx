@@ -6,9 +6,7 @@ import { isNativePerfMode } from '@/lib/nativePerfMode';
 import { clearAppUpdateFlag } from '@/lib/appUpdateBridge';
 
 const STATUS_LINES = [
-  'Downloading latest version…',
-  'Applying improvements…',
-  'Polishing the experience…',
+  'App updated — please restart the app',
   'Almost ready…',
 ];
 
@@ -89,7 +87,7 @@ export const AppUpdateOverlay = memo(function AppUpdateOverlay() {
       role="alertdialog"
       aria-modal="true"
       aria-busy="true"
-      aria-label="Updating VYBE"
+      aria-label="App updated — please restart the app"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       transition={{ duration: reduceMotion ? 0.08 : 0.22, ease: [0.16, 1, 0.3, 1] }}
@@ -158,9 +156,11 @@ export const AppUpdateOverlay = memo(function AppUpdateOverlay() {
         </motion.div>
 
         <div className="text-center space-y-2 px-2">
-          <h2 className="text-2xl font-bold text-foreground tracking-tight">Updating VYBE</h2>
+          <h2 className="text-2xl font-bold text-foreground tracking-tight">
+            App updated
+          </h2>
           <p className="text-sm text-muted-foreground min-h-[1.25rem] transition-opacity duration-300">
-            {STATUS_LINES[statusIndex]}
+            Please restart the app
           </p>
         </div>
 
@@ -180,7 +180,7 @@ export const AppUpdateOverlay = memo(function AppUpdateOverlay() {
           </div>
           <p className="text-[11px] text-center text-muted-foreground flex items-center justify-center gap-1.5">
             <Sparkles className="w-3 h-3 shrink-0 opacity-70" />
-            <span>Just a moment — we&apos;ll be right back</span>
+            <span>{STATUS_LINES[statusIndex]}</span>
           </p>
         </div>
       </div>
