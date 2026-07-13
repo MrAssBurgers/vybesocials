@@ -388,16 +388,21 @@ export const claimChallengeReward = onCall({ region: 'us-central1' }, async (req
   const authUid = requireAuth(request);
   const data = (request.data || {}) as Record<string, unknown>;
   const rewardId = String(data.p_reward_id || '');
-  const userId = String(data.p_user_id || authUid);
   if (!rewardId) throw new HttpsError('invalid-argument', 'p_reward_id required');
 
   const rewardRef = db.collection('challenge_rewards').doc(rewardId);
   const rewardSnap = await rewardRef.get();
   if (!rewardSnap.exists) throw new HttpsError('not-found', 'Reward not found');
   const reward = rewardSnap.data()!;
-  if (reward.user_id !== userId && reward.user_id !== authUid) {
+  // Always credit the authenticated caller (or their resolved profile id).
+  // Never trust a client-supplied p_user_id — it previously allowed
+  // redirecting XP/level updates onto another user's account.
+  const callerProfileId = await resolveProfileId(authUid);
+  if (reward.user_id !== authUid && reward.user_id !== callerProfileId) {
     throw new HttpsError('permission-denied', 'Not your reward');
   }
+  const userId = String(reward.user_id);
+
   if (reward.is_claimed) {
     return { success: true, xp_gained: 0, already_claimed: true };
   }
