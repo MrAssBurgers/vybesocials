@@ -2,7 +2,6 @@ import type { Message } from '@/hooks/useMessages';
 import type { LoadedDMConversation } from '@/lib/loadDMConversations';
 import {
   getInboxLatestMessageAt,
-  sortInboxConversations,
   toInboxSortable,
   compareInboxSortables,
 } from '@/lib/sortInboxConversations';
@@ -33,7 +32,7 @@ export function sortDmConversations<T extends SortableConversation>(
   list: T[],
   profileId?: string | null,
 ): T[] {
-  return sortInboxConversations(list as unknown as LoadedDMConversation[], profileId) as unknown as T[];
+  return [...list].sort((a, b) => compareDmConversations(a, b, profileId));
 }
 
 /** Apply a new last message to a conversation row (send/receive paths). */

@@ -19,7 +19,7 @@ import { useAuthProfileId } from '@/hooks/useAuthProfileId';
 import { useUsersOnlineStatus } from '@/hooks/usePresence';
 import { useTrashedConversationIds, useTrashConversation } from '@/hooks/useTrashedConversations';
 import { StoryGroup } from '@/hooks/useStories';
-import { ensureArray, safeDmMembers } from '@/lib/persistedCollections';
+import { ensureArray, ensureStringSet, safeDmMembers } from '@/lib/persistedCollections';
 import LocalErrorBoundary from '@/components/error/LocalErrorBoundary';
 import { useAcceptedFriendRequests, useDismissAcceptedRequest } from '@/hooks/useAcceptedFriendRequests';
 import { useRecentNewFriendProfileIds } from '@/hooks/useRecentNewFriendProfileIds';
@@ -167,7 +167,10 @@ export function ConversationList() {
   const { data: pendingRequestCount = 0 } = usePendingRequestCount();
   const { data: acceptedRequestsRaw } = useAcceptedFriendRequests();
   const { data: recentNewFriendIdsRaw } = useRecentNewFriendProfileIds();
-  const recentNewFriendIds = new Set<string>(ensureArray<string>(recentNewFriendIdsRaw));
+  const recentNewFriendIds = useMemo(
+    () => ensureStringSet(recentNewFriendIdsRaw),
+    [recentNewFriendIdsRaw],
+  );
   const acceptedRequests = ensureArray(acceptedRequestsRaw);
   const dismissAccepted = useDismissAcceptedRequest();
   const streakMap = useStreakMap();
