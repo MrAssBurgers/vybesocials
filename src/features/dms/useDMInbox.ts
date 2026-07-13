@@ -10,7 +10,6 @@ import { useLockedChatIds } from '@/hooks/useLockedChats';
 import { useMessageRequests, usePendingRequestCount } from '@/hooks/useMessageRequests';
 import { useRecentNewFriendProfileIds } from '@/hooks/useRecentNewFriendProfileIds';
 import { useStreakMap } from '@/hooks/useStreaks';
-import { useStories } from '@/hooks/useStories';
 import { useCloseFriendIds } from '@/hooks/useCloseFriendIds';
 import { useNearbyFriendLink } from '@/hooks/useNearbyFriendLink';
 import {
@@ -86,7 +85,6 @@ export function useDMInbox() {
   const { data: recentNewFriendIds = new Set<string>() } = useRecentNewFriendProfileIds();
   const closeFriendIds = useCloseFriendIds();
   const streakMap = useStreakMap();
-  const { data: storyGroups = [] } = useStories();
   const query = useDMConversations(searchQuery);
   const nearby = useNearbyFriendLink({
     enabled: activeTab === 'nearby',
@@ -121,15 +119,11 @@ export function useDMInbox() {
     [nearby.peers],
   );
 
-  const storyStateByProfileId = useMemo(() => {
-    const map = new Map<string, DMStoryState>();
-    for (const group of storyGroups) {
-      const id = group.user?.id ? String(group.user.id) : undefined;
-      if (!id) continue;
-      map.set(id, group.hasUnviewed ? 'unviewed' : 'viewed');
-    }
-    return map;
-  }, [storyGroups]);
+  // Story rings stay deferred — useStories has historically crashed inbox caches.
+  const storyStateByProfileId = useMemo(
+    () => new Map<string, DMStoryState>(),
+    [],
+  );
 
   const resolveOtherProfileId = useMemo(
     () => (conversation: (typeof allConversations)[number]) => {

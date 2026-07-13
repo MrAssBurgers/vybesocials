@@ -152,7 +152,11 @@ function MessagesInner() {
             !isInChat && 'w-full flex-1',
           )}
         >
-          <LocalErrorBoundary label="dm-inbox" fallback={<DmInboxSafeList />}>
+          <LocalErrorBoundary
+            label="dm-inbox"
+            resetKey={profileId || user?.id || 'anon'}
+            fallback={<DmInboxSafeList />}
+          >
             <DMInboxPage />
           </LocalErrorBoundary>
         </div>

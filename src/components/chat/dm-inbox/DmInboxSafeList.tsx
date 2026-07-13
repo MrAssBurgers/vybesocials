@@ -1,5 +1,6 @@
 /**
- * Minimal DM inbox fallback — same row chrome as production when DMInboxPage errors.
+ * Minimal DM inbox fallback when the primary inbox subtree errors.
+ * Intentionally silent — no “safe mode” banner.
  */
 import { useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -12,10 +13,8 @@ import {
   displayNameForConversation,
   resolveOtherMemberFromConversation,
 } from '@/lib/dmMemberResolve';
-import { dmConversationPreviewText } from '@/lib/dmPreviewText';
 import { dmInboxPreviewStatus } from '@/lib/dmInboxPreviewStatus';
 import { resolveProfileAvatarUrl } from '@/lib/profileAvatarCache';
-import { useRecentNewFriendProfileIds } from '@/hooks/useRecentNewFriendProfileIds';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, ProfileAvatarImage } from '@/components/ui/avatar';
 
@@ -23,7 +22,6 @@ export function DmInboxSafeList() {
   const navigate = useNavigate();
   const profileId = useAuthProfileId();
   const { user } = useAuth();
-  const { data: recentNewFriendIds = new Set<string>() } = useRecentNewFriendProfileIds();
   const { pinnedConversations, unpinnedConversations, isLoading, refetch, error } =
     useDMConversations();
 
@@ -69,9 +67,6 @@ export function DmInboxSafeList() {
 
   return (
     <div className="dm-inbox flex flex-1 min-h-0 flex-col">
-      <div className="dm-inbox-hero flex-shrink-0 px-4 py-3 border-b border-foreground/10">
-        <p className="text-sm text-muted-foreground">Chat list recovered in safe mode.</p>
-      </div>
       <div className="dm-inbox-list scroller flex-1 min-h-0 overflow-y-auto">
         <div className="dm-inbox-rows">
           {rows.map((conv) => {
@@ -87,15 +82,6 @@ export function DmInboxSafeList() {
                   otherProfileId,
                   other?.avatar_url as string | null | undefined,
                 ) || undefined;
-            const preview = dmConversationPreviewText({
-              lastMessage: conv.last_message,
-              isGroup: conv.is_group,
-              profileId,
-              authUid: user?.id,
-              otherProfileId,
-              recentNewFriendIds,
-              previewMaxLen: 48,
-            });
             const statusLine = dmInboxPreviewStatus(conv, profileId, user?.id);
             return (
               <button
@@ -111,9 +97,9 @@ export function DmInboxSafeList() {
                       <ProfileAvatarImage
                         profileId={otherProfileId}
                         src={avatarUrl}
-                        transformSize={160}
+                        transformSize={128}
                       />
-                      <AvatarFallback className="bg-muted text-lg font-semibold">
+                      <AvatarFallback className="bg-muted text-sm font-semibold">
                         {String(name || '?')[0]?.toUpperCase()}
                       </AvatarFallback>
                     </Avatar>
@@ -121,9 +107,6 @@ export function DmInboxSafeList() {
                   <div className="dm-inbox-row-copy">
                     <p className="dm-inbox-name truncate">{name}</p>
                     <p className="dm-inbox-status truncate">{statusLine}</p>
-                    {preview !== statusLine && (
-                      <p className="dm-inbox-message-preview truncate">{preview}</p>
-                    )}
                   </div>
                   <span className="dm-inbox-camera-button" aria-hidden>
                     <Camera />

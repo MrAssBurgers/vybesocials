@@ -6,6 +6,8 @@ interface Props {
   label?: string;
   /** When set, render this instead of null on error (e.g. minimal DM list). */
   fallback?: ReactNode;
+  /** Changing this remounts children after an error (clears sticky safe mode). */
+  resetKey?: string | number | null;
 }
 
 interface State {
@@ -26,6 +28,12 @@ class LocalErrorBoundary extends Component<Props, State> {
 
   static getDerivedStateFromError(): State {
     return { hasError: true };
+  }
+
+  componentDidUpdate(prevProps: Props) {
+    if (this.state.hasError && prevProps.resetKey !== this.props.resetKey) {
+      this.setState({ hasError: false });
+    }
   }
 
   componentDidCatch(error: Error, info: ErrorInfo) {
