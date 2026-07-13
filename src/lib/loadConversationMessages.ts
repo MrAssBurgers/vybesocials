@@ -26,6 +26,13 @@ export const MESSAGE_SELECT_WARM = `
   sender:profiles!sender_id(id, username, avatar_url, display_name)
 `;
 
+/** Index-free fallback when joins or enriched selects fail. */
+export const MESSAGE_SELECT_MINIMAL = `
+  id, conversation_id, sender_id, content, media_url, media_type, message_type,
+  view_mode, expires_at, is_deleted, reply_to_id, created_at, edited_at, viewed_at,
+  saved_by_sender, saved_by_recipient, vybe_replay_exhausted
+`;
+
 export type LoadConversationMessagesOptions = {
   maxMessages?: number;
   /** Single round trip — instant thread paint. Default true. */
@@ -133,7 +140,7 @@ export async function loadConversationMessages(
       });
       const retry = await fetchRecentConversationMessages<Message>(
         conversationId,
-        MESSAGE_SELECT_WARM,
+        MESSAGE_SELECT_MINIMAL,
         maxMessages,
       );
       data = retry.data;

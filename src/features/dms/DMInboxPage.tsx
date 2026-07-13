@@ -6,6 +6,7 @@ import { DMHeader } from './DMHeader';
 import { DMCategoryTabs } from './DMCategoryTabs';
 import { DMConversationList } from './DMConversationList';
 import { useDMInbox } from './useDMInbox';
+import type { LoadedDMConversation } from '@/lib/loadDMConversations';
 
 export function DMInboxPage() {
   const navigate = useNavigate();
@@ -13,15 +14,16 @@ export function DMInboxPage() {
   const inbox = useDMInbox();
 
   const warm = useCallback(
-    (conversationId: string) => warmConversation(conversationId, 'high'),
+    (conversationId: string, conversationHint?: LoadedDMConversation | null) =>
+      warmConversation(conversationId, 'high', conversationHint),
     [warmConversation],
   );
 
   const openChat = useCallback(
-    async (conversationId: string) => {
+    async (conversationId: string, conversationHint?: LoadedDMConversation | null) => {
       if (conversationId === inbox.activeConversationId) return;
       await resolveSessionProfileId(inbox.profileId);
-      warm(conversationId);
+      warm(conversationId, conversationHint);
       startTransition(() => {
         void navigate(`/messages/${conversationId}`);
       });

@@ -11,8 +11,8 @@ import { fetchMessagesForConversations } from '@/lib/conversationMessagesQuery';
 import { messagesQueryKey, readMessagesCache, mergeMessagesWithLocalCache, patchMessagesCache, normalizeMessagesCache } from '@/lib/messagesQueryKey';
 import { safeDmMembers, ensureArray } from '@/lib/persistedCollections';
 import { applyMessageSaveToggle } from '@/lib/messageSaveToggle';
-import { loadConversationMessages } from '@/lib/loadConversationMessages';
-import { CHAT_INITIAL_MESSAGE_LIMIT } from '@/lib/conversationMessagesQuery';
+import { loadConversationMessages, MESSAGE_SELECT_MINIMAL, MESSAGE_SELECT_WARM } from '@/lib/loadConversationMessages';
+import { CHAT_INITIAL_MESSAGE_LIMIT, fetchRecentConversationMessages } from '@/lib/conversationMessagesQuery';
 import { invalidateConversationCaches } from '@/lib/invalidateConversationCaches';
 import { shouldRefetchWhenEmpty, refetchListOnMount } from '@/lib/queryRefetchPolicy';
 import { toast } from 'sonner';
@@ -322,6 +322,14 @@ export function useMessages(conversationId: string | undefined) {
         if (cached.length) {
           return mergeMessagesWithLocalCache(queryClient, conversationId, cached);
         }
+        const minimal = await fetchRecentConversationMessages<Message>(
+          conversationId,
+          MESSAGE_SELECT_MINIMAL,
+          CHAT_INITIAL_MESSAGE_LIMIT,
+        );
+        if (!minimal.error && minimal.data?.length) {
+          return mergeMessagesWithLocalCache(queryClient, conversationId, minimal.data);
+        }
         throw error;
       }
     },
@@ -344,7 +352,7 @@ export function useMessages(conversationId: string | undefined) {
       const cached = readMessagesCache(queryClient, conversationId);
       return cached.length ? cached : undefined;
     },
-    networkMode: 'always',
+    networkMode: 'offlineFirst',
     retry: 2,
     retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 8000),
   });

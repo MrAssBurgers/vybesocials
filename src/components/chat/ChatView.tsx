@@ -24,7 +24,11 @@ import { useInstantReadClear } from '@/hooks/useMessageNotifications';
 import { useOlderMessages } from '@/hooks/useOlderMessages';
 import { messagesQueryKey, readMessagesCache } from '@/lib/messagesQueryKey';
 import { isSavedByViewer } from '@/lib/messageSaveToggle';
-import { findCachedDmConversation } from '@/lib/warmDmConversation';
+import {
+  findCachedDmConversation,
+  seedConversationDetailCache,
+  seedMessagesFromInboxPreview,
+} from '@/lib/warmDmConversation';
 import { useAISmartReplies } from '@/hooks/useAIMessageAssist';
 import { useScreenCapture } from '@/hooks/useScreenCapture';
 import { blackoutChatScreenNow } from '@/lib/chatScreenShield';
@@ -195,7 +199,7 @@ export function ChatView() {
   const activeConversation = conversation ?? cachedConversation;
   const safeConversation = activeConversation ? { ...activeConversation, members: ensureArray(activeConversation.members) } : activeConversation;
   const isGroupChat = safeConversation?.is_group || false;
-  const { data: messagesRaw, isPending: messagesPending, isFetched: messagesFetched, isError: messagesError, refetch: refetchMessages } = useMessages(conversationId);
+  const { data: messagesRaw, isPending: messagesPending, isFetched: messagesFetched, isError: messagesError, isFetching: messagesFetching, refetch: refetchMessages } = useMessages(conversationId);
   const messages = normalizeMessagesCache(messagesRaw);
   const {
     loadOlderMessages,
@@ -218,6 +222,15 @@ export function ChatView() {
     setCurrentConversationId(conversationId || null);
     return () => setCurrentConversationId(null);
   }, [conversationId]);
+
+  // Seed thread preview from inbox / conversation header before network fetch completes.
+  useEffect(() => {
+    if (!conversationId || !profileId) return;
+    seedConversationDetailCache(queryClient, conversationId, profileId, activeConversation);
+    if (activeConversation?.last_message?.id) {
+      seedMessagesFromInboxPreview(queryClient, conversationId, profileId, activeConversation);
+    }
+  }, [conversationId, profileId, queryClient, activeConversation]);
   
   // Batch preload media URLs when idle — don't compete with first paint.
   useEffect(() => {
@@ -1232,7 +1245,7 @@ export function ChatView() {
     );
   }
 
-  if (messagesFetched && messagesError && !messages?.length && !!conversationId) {
+  if (messagesFetched && messagesError && !messagesFetching && !threadMessages.length && !!conversationId) {
     return (
       <div className="flex flex-col h-full items-center justify-center gap-3 p-6 text-center">
         <p className="text-sm text-muted-foreground">Couldn&apos;t load this conversation.</p>
@@ -1280,6 +1293,7 @@ export function ChatView() {
     !!activeConversation &&
     messagesFetched &&
     messagesError &&
+    !messagesFetching &&
     !threadMessages.length;
 
   // Per-conversation theme vars consumed by index.css — wallpaper always

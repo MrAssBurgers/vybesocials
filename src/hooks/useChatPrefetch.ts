@@ -4,6 +4,7 @@ import { db } from '@/lib/firebase';
 import { subscribePostgresChannel, removeRealtimeChannel } from '@/lib/realtimeChannel';
 import { useAuth } from '@/lib/auth';
 import { useAuthProfileId } from '@/hooks/useAuthProfileId';
+import type { LoadedDMConversation } from '@/lib/loadDMConversations';
 import { warmDmConversation } from '@/lib/warmDmConversation';
 
 /**
@@ -22,9 +23,13 @@ export function useChatPrefetch() {
   }, [actorId, profileId, queryClient]);
 
   const warmConversation = useCallback(
-    (conversationId: string, priority: 'high' | 'normal' = 'high') => {
+    (
+      conversationId: string,
+      priority: 'high' | 'normal' = 'high',
+      conversationHint?: LoadedDMConversation | null,
+    ) => {
       if (!actorId) return;
-      warmDmConversation(queryClient, conversationId, profileId, actorId, priority);
+      warmDmConversation(queryClient, conversationId, profileId, actorId, priority, conversationHint);
     },
     [actorId, profileId, queryClient],
   );

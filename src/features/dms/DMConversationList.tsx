@@ -6,6 +6,7 @@ import { HeldConversationOptionsSheet } from '@/components/chat/dm-inbox/HeldCon
 import { useHeldConversationOptions } from '@/hooks/useHeldConversationOptions';
 import { useDmInboxVirtualSlice } from '@/hooks/useDmInboxVirtualSlice';
 import type { DMInboxRow, DmInboxTabId } from './dm.types';
+import type { LoadedDMConversation } from '@/lib/loadDMConversations';
 import type { NearbyFriendStatus } from '@/hooks/useNearbyFriendLink';
 import {
   readFilterScroll,
@@ -27,8 +28,8 @@ interface DMConversationListProps {
   searchQuery: string;
   hasError: boolean;
   nearbyStatus?: NearbyFriendStatus;
-  onOpen: (conversationId: string) => void;
-  onWarm: (conversationId: string) => void;
+  onOpen: (conversationId: string, conversationHint?: LoadedDMConversation | null) => void;
+  onWarm: (conversationId: string, conversationHint?: LoadedDMConversation | null) => void;
   onRetry: () => void;
   onCompose: () => void;
   onOpenNearbyPeer?: (peerUserId: string) => void;
@@ -214,8 +215,8 @@ export function DMConversationList({
                   isTyping={row.preview.isTyping}
                   presenceActivity={row.preview.presenceActivity}
                   optionsOpenForRow={heldConversationId === row.preview.id}
-                  onClick={() => onOpen(row.preview.id)}
-                  onWarm={() => onWarm(row.preview.id)}
+                  onClick={() => onOpen(row.preview.id, row.preview.conversation)}
+                  onWarm={() => onWarm(row.preview.id, row.preview.conversation)}
                   onOpenOptions={openConversationOptions}
                 />
               );

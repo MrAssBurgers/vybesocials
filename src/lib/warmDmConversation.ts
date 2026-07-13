@@ -54,10 +54,16 @@ export function seedConversationDetailCache(
   queryClient: QueryClient,
   conversationId: string,
   profileId?: string | null,
+  conversationHint?: DMConversation | null,
 ): void {
   if (!conversationId || !profileId) return;
 
   const detailKey = ['conversation-detail', profileId, conversationId] as const;
+  if (conversationHint) {
+    queryClient.setQueryData(detailKey, normalizeDmConversation(conversationHint));
+    return;
+  }
+
   const cached = findCachedDmConversation(queryClient, conversationId, profileId);
   if (cached) {
     queryClient.setQueryData(detailKey, normalizeDmConversation(cached));
@@ -76,15 +82,33 @@ export function seedConversationDetailCache(
   queryClient.setQueryData(detailKey, normalizeDmConversation(seed));
 }
 
+type InboxMessageSeed = {
+  last_message?: {
+    id?: string;
+    created_at?: string;
+    conversation_id?: string;
+    sender_id?: string;
+    content?: string | null;
+    media_url?: string | null;
+    message_type?: string;
+    view_mode?: string;
+    expires_at?: string | null;
+    reply_to_id?: string | null;
+  } | null;
+};
+
 /** Instant thread preview from inbox last_message — zero network before navigate. */
 export function seedMessagesFromInboxPreview(
   queryClient: QueryClient,
   conversationId: string,
   profileId?: string | null,
+  conversationHint?: InboxMessageSeed | null,
 ): void {
   if (readMessagesCache(queryClient, conversationId).length > 0) return;
 
-  const conv = findCachedDmConversation(queryClient, conversationId, profileId);
+  const conv =
+    conversationHint ??
+    findCachedDmConversation(queryClient, conversationId, profileId);
   const last = conv?.last_message;
   if (!last?.id || !last.created_at) return;
 
@@ -111,12 +135,13 @@ export function warmDmConversation(
   profileId?: string | null,
   actorId?: string | null,
   priority: 'high' | 'normal' = 'normal',
+  conversationHint?: InboxMessageSeed | DMConversation | null,
 ): void {
   if (!conversationId) return;
 
   prewarmDmBroadcastChannel(conversationId);
-  seedConversationDetailCache(queryClient, conversationId, profileId);
-  seedMessagesFromInboxPreview(queryClient, conversationId, profileId);
+  seedConversationDetailCache(queryClient, conversationId, profileId, conversationHint as DMConversation | null);
+  seedMessagesFromInboxPreview(queryClient, conversationId, profileId, conversationHint);
 
   if (readMessagesCache(queryClient, conversationId).length >= WARM_SKIP_THRESHOLD) return;
   if (warmInflight.has(conversationId)) return;
@@ -152,16 +177,18 @@ export function warmDmConversationBatch(
   conversationIds: string[],
   profileId?: string | null,
   actorId?: string | null,
+  conversationHints?: Map<string, InboxMessageSeed>,
 ): void {
   const unique = [...new Set(conversationIds.filter(Boolean))];
   unique.forEach((id, index) => {
     const priority = index < 12 ? 'high' : 'normal';
+    const hint = conversationHints?.get(id);
     if (index < 12) {
-      warmDmConversation(queryClient, id, profileId, actorId, priority);
+      warmDmConversation(queryClient, id, profileId, actorId, priority, hint);
       return;
     }
     scheduleIdleWork(
-      () => warmDmConversation(queryClient, id, profileId, actorId, 'normal'),
+      () => warmDmConversation(queryClient, id, profileId, actorId, 'normal', hint),
       80 + (index - 12) * 50,
     );
   });
