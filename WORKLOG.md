@@ -10,7 +10,9 @@ Use this file as the Lovable -> Cursor handoff each session.
 - **Duplicate accounts:** Claim before ensure on placeholder profiles; friends/search/inbox dedupe by id + username.
 - **Update overlay:** Copy → **“App updated / Please restart the app”**.
 - **Verified:** typecheck · test 270 · build PASS
-- **Next:** Publish when ready (push + hosting + Lovable Publish).
+- **Published:** `origin/main` @ **`7a3d07da`** · https://vybe-daaab.web.app ✅
+- **Production (vybehub.app):** Lovable → Share → Publish (sync `main` @ `7a3d07da`)
+- **Next:** Hard-refresh staging — open chats hydrate; scroll without dark flash; profile loads; update copy asks restart.
 
 ---
 
