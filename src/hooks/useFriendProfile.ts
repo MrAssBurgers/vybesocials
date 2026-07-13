@@ -45,6 +45,11 @@ export function useFriendProfile(username: string | undefined) {
   useFriendProfileRealtime(targetId);
 
   const status = friendshipQuery.data?.status ?? 'none';
+  // Guests (no profileId) have all relationship/visibility queries disabled.
+  // React Query v5 keeps disabled queries in `pending`, so gate the pending
+  // flags on whether the queries are actually enabled — otherwise guest
+  // visitors to /u/:username see the skeleton forever.
+  const relationshipQueriesEnabled = !!profileId && !!targetId;
 
   useEffect(() => {
     if (status === 'friends' && targetId) {
