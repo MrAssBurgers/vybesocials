@@ -2,10 +2,11 @@ import { useCallback } from 'react';
 import type { DMInboxRow } from '@/features/dms/dm.types';
 import { useVirtualScrollSlice } from '@/hooks/useVirtualScrollSlice';
 
-const ROW_ESTIMATE_PX = 72;
+const ROW_ESTIMATE_PX = 84;
 
 const HEADER_ESTIMATE_PX = 32;
-const INBOX_VIRTUAL_THRESHOLD = 40;
+/** Inbox rows mount real card chrome — windowing caused black gaps on scroll. */
+const INBOX_VIRTUAL_THRESHOLD = 9999;
 const OVERSCAN = 6;
 
 function estimateRowHeight(row: DMInboxRow): number {

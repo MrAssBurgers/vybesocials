@@ -11,7 +11,9 @@ Use this file as the Lovable -> Cursor handoff each session.
 - **Row actions:** Reply chip (needs-reply), callback (calls), story avatar → `StoryViewer`.
 - **Flag:** `dm_inbox_category_bar` (default ON; `localStorage` `vybe-dm-flag:dm_inbox_category_bar`).
 - **Verified:** `npm run test` 247 PASS · `npm run build` PASS
+- **Published:** `origin/main` @ **`970e1e59`** · Firebase hosting `vybe-daaab.web.app` ✅
 - **Manual staging QA:** vybe-daaab.web.app — category switching, counts, scroll persistence, long-press, swipe, lock, new connections section.
+- **Production (vybehub.app):** Lovable → Share → Publish (sync `main` @ `970e1e59` first)
 
 ---
 

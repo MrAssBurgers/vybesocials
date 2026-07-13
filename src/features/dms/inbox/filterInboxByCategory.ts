@@ -12,7 +12,9 @@ function compareActivityEntry(
   b: InboxConversationIndexEntry,
   profileId?: string,
 ): number {
-  return compareInboxActivity(a.conversation, b.conversation, profileId);
+  const byActivity = compareInboxActivity(a.conversation, b.conversation, profileId);
+  if (byActivity !== 0) return byActivity;
+  return a.conversationId.localeCompare(b.conversationId);
 }
 
 function matchesCategory(
@@ -23,7 +25,7 @@ function matchesCategory(
     case 'all':
       return true;
     case 'unread':
-      return entry.isUnread;
+      return entry.isUnread || entry.hasRecentCall;
     case 'needs-reply':
       return entry.needsReply;
     case 'nearby':
@@ -89,7 +91,9 @@ function sortMatches(
   return [...entries].sort((a, b) => {
     const rankDiff = rankWithinCategory(b, category) - rankWithinCategory(a, category);
     if (rankDiff !== 0) return rankDiff;
-    return compareActivityEntry(a, b, profileId);
+    const byActivity = compareActivityEntry(a, b, profileId);
+    if (byActivity !== 0) return byActivity;
+    return a.conversationId.localeCompare(b.conversationId);
   });
 }
 
@@ -131,10 +135,10 @@ export function filterInboxByCategory(
 
   const ordered = effective === 'all' ? sortedMatches : [...sortedMatches, ...sortedNonMatches];
 
-  return ordered.map((entry, position) => ({
+  return ordered.map((entry) => ({
     ...entry,
     categoryMatch: matchesCategory(entry, effective),
-    categoryRank: rankWithinCategory(entry, effective) - position,
+    categoryRank: rankWithinCategory(entry, effective),
   }));
 }
 

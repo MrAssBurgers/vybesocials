@@ -117,7 +117,7 @@ export function buildInboxConversationIndex(input: BuildInboxIndexInput): InboxC
       otherProfileId,
       activityMs: activityMs(conversation),
       storyState,
-      isUnread: isUnread || Boolean(callSummary),
+      isUnread,
       needsReply,
       isMuted: isMutedForViewer(conversation, profileId),
       isGroup: Boolean(conversation.is_group),

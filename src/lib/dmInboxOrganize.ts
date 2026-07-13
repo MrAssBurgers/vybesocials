@@ -100,7 +100,8 @@ export function compareInboxActivity(
   if (aPinned !== bPinned) return bPinned - aPinned;
   const aUnread = a._hasUnread || (a.unread_count || 0) > 0 ? 1 : 0;
   const bUnread = b._hasUnread || (b.unread_count || 0) > 0 ? 1 : 0;
-  return bUnread - aUnread;
+  if (aUnread !== bUnread) return bUnread - aUnread;
+  return a.id.localeCompare(b.id);
 }
 
 function sortPinned(

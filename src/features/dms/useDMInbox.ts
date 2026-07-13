@@ -409,9 +409,20 @@ export function useDMInbox() {
     ],
   );
 
-  const filteredConversations = categoryBarEnabled
-    ? categoryFilter.filtered.map((entry) => entry.conversation)
-    : legacyFilteredConversations;
+  const filteredOrderKey = useMemo(
+    () =>
+      categoryBarEnabled
+        ? categoryFilter.filtered.map((entry) => entry.conversationId).join('\0')
+        : legacyFilteredConversations.map((c) => c.id).join('\0'),
+    [categoryBarEnabled, categoryFilter.filtered, legacyFilteredConversations],
+  );
+
+  const filteredConversations = useMemo(() => {
+    if (categoryBarEnabled) {
+      return categoryFilter.filtered.map((entry) => entry.conversation);
+    }
+    return legacyFilteredConversations;
+  }, [categoryBarEnabled, categoryFilter.filtered, legacyFilteredConversations, filteredOrderKey]);
 
   const toPreview = useMemo(() => {
     return (conversation: (typeof allConversations)[number]): DMConversationPreview => {
@@ -443,8 +454,6 @@ export function useDMInbox() {
         streakCount,
       );
       const lastMessage = conversation.last_message;
-      const activity = presenceMap.get(conversation.id);
-      const isOnline = Boolean(activity && activity !== 'idle');
       const relationshipBadge =
         otherProfileId && closeFriendIds.has(otherProfileId)
           ? ('close_friend' as const)
@@ -550,12 +559,11 @@ export function useDMInbox() {
         isArchived: false,
         needsReply: conversationNeedsReply(conversation, profileId),
         isGroup: conversation.is_group,
-        isTyping: isTyping(conversation.id),
+        isTyping: false,
         typingNames: [],
-        isOnline,
+        isOnline: false,
         isAway: false,
-        presenceState: isOnline ? 'online' : 'offline',
-        presenceActivity: activity,
+        presenceState: 'offline',
         streakCount,
         storyState,
         isVerified: Boolean(other?.is_verified),
@@ -611,8 +619,6 @@ export function useDMInbox() {
     recentNewFriendIds,
     closeFriendIds,
     streakMap,
-    isTyping,
-    presenceMap,
     storyStateByProfileId,
     projectionByConversationId,
     relationshipEmojiUi,
@@ -644,11 +650,15 @@ export function useDMInbox() {
   );
 
   const rows = useMemo<DMInboxRow[]>(() => {
+    const buildConversationRow = (
+      conversation: (typeof allConversations)[number],
+    ): DMInboxRow => ({
+      type: 'conversation' as const,
+      preview: enrichPreview(conversation, toPreview(conversation)),
+    });
+
     if (categoryBarEnabled) {
-      return filteredConversations.map((conversation) => ({
-        type: 'conversation' as const,
-        preview: enrichPreview(conversation, toPreview(conversation)),
-      }));
+      return filteredConversations.map(buildConversationRow);
     }
 
     if (activeTab === 'requests') {
@@ -659,10 +669,7 @@ export function useDMInbox() {
     }
 
     if (activeTab === 'nearby') {
-      const conversationRows: DMInboxRow[] = filteredConversations.map((conversation) => ({
-        type: 'conversation' as const,
-        preview: toPreview(conversation),
-      }));
+      const conversationRows: DMInboxRow[] = filteredConversations.map(buildConversationRow);
       const conversationPeerIds = new Set(
         filteredConversations
           .map((conversation) => resolveOtherProfileId(conversation))
@@ -675,15 +682,13 @@ export function useDMInbox() {
       return conversationRows;
     }
 
-    return filteredConversations.map((conversation) => ({
-      type: 'conversation' as const,
-      preview: toPreview(conversation),
-    }));
+    return filteredConversations.map(buildConversationRow);
   }, [
     categoryBarEnabled,
     activeTab,
     pendingRequests,
     filteredConversations,
+    filteredOrderKey,
     toPreview,
     enrichPreview,
     nearby.peers,
@@ -818,6 +823,8 @@ export function useDMInbox() {
     setSearchQuery,
     rows,
     allConversations,
+    isConversationTyping: isTyping,
+    conversationPresenceMap: presenceMap,
     showSkeleton,
     isFetched: query.isFetched,
     error: query.error,

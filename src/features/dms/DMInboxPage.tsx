@@ -100,6 +100,8 @@ export function DMInboxPage() {
           categoryMatchCount={inbox.categoryMatchCount}
           categoryBarEnabled={inbox.categoryBarEnabled}
           pendingRequests={inbox.pendingRequests}
+          isConversationTyping={inbox.isConversationTyping}
+          conversationPresenceMap={inbox.conversationPresenceMap}
           showSkeleton={inbox.showSkeleton}
           searchQuery={inbox.searchQuery}
           hasError={Boolean(inbox.error && inbox.isFetched)}

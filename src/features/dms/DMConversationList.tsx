@@ -10,7 +10,7 @@ import { StoryViewer } from '@/components/stories/StoryViewer';
 import type { DMInboxRow, DmInboxTabId, InboxCategory } from './dm.types';
 import type { LoadedDMConversation } from '@/lib/loadDMConversations';
 import type { NearbyFriendStatus } from '@/hooks/useNearbyFriendLink';
-import type { MessageRequest } from '@/hooks/useMessageRequests';
+import type { ActivityType } from '@/components/chat/LiveActivityIndicator';
 import {
   readFilterScroll,
   writeFilterScroll,
@@ -33,6 +33,8 @@ interface DMConversationListProps {
   categoryMatchCount?: number;
   categoryBarEnabled?: boolean;
   pendingRequests?: MessageRequest[];
+  isConversationTyping?: (conversationId: string) => boolean;
+  conversationPresenceMap?: Map<string, ActivityType>;
   showSkeleton: boolean;
   searchQuery: string;
   hasError: boolean;
@@ -137,6 +139,8 @@ export function DMConversationList({
   categoryMatchCount = 0,
   categoryBarEnabled = false,
   pendingRequests = [],
+  isConversationTyping,
+  conversationPresenceMap,
   showSkeleton,
   searchQuery,
   hasError,
@@ -255,8 +259,11 @@ export function DMConversationList({
                   authUid={authUid}
                   isActive={row.preview.id === activeConversationId}
                   priority
-                  isTyping={row.preview.isTyping}
-                  presenceActivity={row.preview.presenceActivity}
+                  isTyping={isConversationTyping?.(row.preview.id) ?? row.preview.isTyping}
+                  presenceActivity={
+                    conversationPresenceMap?.get(row.preview.id) ??
+                    row.preview.presenceActivity
+                  }
                   optionsOpenForRow={heldConversationId === row.preview.id}
                   onClick={() => onOpen(row.preview.id, row.preview.conversation)}
                   onWarm={() => onWarm(row.preview.id, row.preview.conversation)}

@@ -1049,7 +1049,6 @@ body.has-liquid-bg:not(.has-custom-bg) .messages-scroll {
   user-select: none;
   border-bottom: none;
   -webkit-tap-highlight-color: transparent;
-  transition: transform 180ms ease, opacity 180ms ease;
 }
 .dm-inbox-card {
   position: relative;
@@ -1139,7 +1138,6 @@ body.has-liquid-bg:not(.has-custom-bg) .messages-scroll {
 }
 .dm-inbox-card--category-dim {
   opacity: 0.48;
-  transition: opacity 220ms ease;
 }
 .dm-inbox-category-bar {
   position: sticky;
