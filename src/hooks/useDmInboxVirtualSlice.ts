@@ -8,7 +8,8 @@ const INBOX_VIRTUAL_THRESHOLD = 40;
 const OVERSCAN = 6;
 
 function estimateRowHeight(row: DMInboxRow): number {
-  return row.type === 'header' ? HEADER_ESTIMATE_PX : ROW_ESTIMATE_PX;
+  if (row.type === 'header') return HEADER_ESTIMATE_PX;
+  return ROW_ESTIMATE_PX;
 }
 
 export function useDmInboxVirtualSlice(rows: DMInboxRow[], enabled = true) {

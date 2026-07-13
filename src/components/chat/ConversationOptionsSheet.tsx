@@ -12,7 +12,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
-import { Trash2, BellOff, Bell, User, Pin, PinOff, MessageSquareX, Archive, Lock, Mail } from 'lucide-react';
+import { Trash2, BellOff, Bell, User, Pin, PinOff, MessageSquareX, Archive, Lock, Mail, Heart } from 'lucide-react';
 import { useTrashConversation } from '@/hooks/useTrashedConversations';
 import { db } from '@/lib/firebase';
 import { useQueryClient } from '@tanstack/react-query';
@@ -20,6 +20,8 @@ import { toast } from 'sonner';
 import { invalidateConversationCaches } from '@/lib/invalidateConversationCaches';
 import { safeDmMembers } from '@/lib/persistedCollections';
 import { useAuth } from '@/lib/auth';
+import { useManageCloseFriend } from '@/hooks/useStories';
+import { useCloseFriendIds } from '@/hooks/useCloseFriendIds';
 
 interface ConversationOptionsSheetProps {
   open: boolean;
@@ -58,11 +60,15 @@ export function ConversationOptionsSheet({
   const queryClient = useQueryClient();
   const trashConversation = useTrashConversation();
    const { profile } = useAuth();
+  const manageCloseFriend = useManageCloseFriend();
+  const { ids: closeFriendIds } = useCloseFriendIds();
+  const isBestFriend = Boolean(otherUserId && closeFriendIds.has(otherUserId));
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [isTogglingMute, setIsTogglingMute] = useState(false);
   const [isTogglingPin, setIsTogglingPin] = useState(false);
   const [isClearing, setIsClearing] = useState(false);
+  const [isTogglingBestFriend, setIsTogglingBestFriend] = useState(false);
 
   const handleDeleteChat = async () => {
     await trashConversation.mutateAsync(conversationId);
@@ -171,6 +177,24 @@ export function ConversationOptionsSheet({
     }
   };
 
+  const handleToggleBestFriend = async () => {
+    if (!otherUserId) return;
+    setIsTogglingBestFriend(true);
+    try {
+      await manageCloseFriend.mutateAsync({
+        friendId: otherUserId,
+        action: isBestFriend ? 'remove' : 'add',
+      });
+      toast.success(isBestFriend ? 'Removed from Best Friends' : 'Added to Best Friends');
+      onOpenChange(false);
+    } catch (error) {
+      console.error('Failed to update best friend:', error);
+      toast.error('Failed to update Best Friends');
+    } finally {
+      setIsTogglingBestFriend(false);
+    }
+  };
+
   return (
     <>
       <Sheet open={open} onOpenChange={onOpenChange}>
@@ -188,6 +212,18 @@ export function ConversationOptionsSheet({
               >
                 <User className="h-5 w-5" />
                 View Profile
+              </Button>
+            )}
+
+            {otherUserId && (
+              <Button
+                variant="ghost"
+                className="w-full justify-start gap-3 h-12"
+                onClick={() => void handleToggleBestFriend()}
+                disabled={isTogglingBestFriend}
+              >
+                <Heart className={`h-5 w-5 ${isBestFriend ? 'fill-current text-pink-500' : ''}`} />
+                {isBestFriend ? 'Remove Best Friend' : 'Add Best Friend'}
               </Button>
             )}
             

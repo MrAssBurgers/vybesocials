@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import type { LoadedDMConversation } from '@/lib/loadDMConversations';
 import { compareInboxPriority, computeInboxPriorityScore } from '@/lib/dmInboxPriority';
-import { organizeDmInbox } from '@/lib/dmInboxOrganize';
+import { filterConversationsForTab, organizeDmInbox } from '@/lib/dmInboxOrganize';
 import { conversationNeedsReply as needsReply } from '@/lib/dmNeedsReply';
 import { maxReplaysForMode, viewModeToMediaMode } from '@/lib/dmMediaRules';
-import { blendDmThemes, contrastRatioFgOnBg, ensureReadableText } from '@/lib/dmThemeBlend';
+import { blendDmThemes, ensureReadableText } from '@/lib/dmThemeBlend';
 import { buildCaptureEventKey, severityForEventType } from '@/lib/ScreenshotDetectionService';
 
 const me = 'profile-me';
@@ -15,6 +15,7 @@ function member(overrides: {
   is_muted?: boolean;
   is_pinned?: boolean;
   last_read_at?: string | null;
+  profile?: { id: string; username?: string; avatar_url?: string | null; display_name?: string | null } | null;
 } = {}) {
   return {
     user_id: me,
@@ -23,7 +24,7 @@ function member(overrides: {
     is_muted: false,
     last_read_at: '2026-01-01T00:00:00.000Z',
     ...overrides,
-  };
+  } as LoadedDMConversation['members'][number];
 }
 
 function conv(id: string, overrides: Partial<LoadedDMConversation> = {}): LoadedDMConversation {
@@ -100,6 +101,96 @@ describe('dmInboxOrganize', () => {
     expect(needsReply(row, me)).toBe(true);
     const sections = organizeDmInbox([row], me);
     expect(sections[0]?.id).toBe('needs_reply');
+  });
+});
+
+describe('filterConversationsForTab', () => {
+  const friend = conv('friend-1', {
+    members: [
+      member(),
+      member({
+        user_id: 'auth-peer',
+        profile: {
+          id: 'profile-peer',
+          username: 'peer',
+          avatar_url: null,
+          display_name: 'Peer',
+        },
+      }),
+    ],
+  });
+  const group = conv('group-1', { is_group: true });
+  const unread = conv('unread-1', { unread_count: 2, _hasUnread: true });
+  const requestThread = conv('request-1', {
+    members: [
+      member(),
+      member({
+        user_id: 'sender-auth',
+        profile: {
+          id: 'sender-profile',
+          username: 'sender',
+          avatar_url: null,
+          display_name: 'Sender',
+        },
+      }),
+    ],
+  });
+
+  const resolveOther = (c: LoadedDMConversation) => {
+    const other = c.members?.find((m) => m.user_id !== me);
+    return other?.profile?.id || other?.user_id;
+  };
+
+  it('friends excludes groups and request threads', () => {
+    const rows = filterConversationsForTab([friend, group, requestThread], 'friends', {
+      requestConversationIds: new Set(['request-1']),
+    });
+    expect(rows.map((r) => r.id)).toEqual(['friend-1']);
+  });
+
+  it('groups only returns group chats', () => {
+    const rows = filterConversationsForTab([friend, group], 'groups');
+    expect(rows.map((r) => r.id)).toEqual(['group-1']);
+  });
+
+  it('best_friends matches close friend profile ids', () => {
+    const rows = filterConversationsForTab([friend, group], 'best_friends', {
+      closeFriendIds: new Set(['profile-peer']),
+      resolveOtherProfileId: resolveOther,
+    });
+    expect(rows.map((r) => r.id)).toEqual(['friend-1']);
+  });
+
+  it('best_friends is empty without close friends', () => {
+    expect(
+      filterConversationsForTab([friend], 'best_friends', {
+        closeFriendIds: new Set(),
+        resolveOtherProfileId: resolveOther,
+      }),
+    ).toEqual([]);
+  });
+
+  it('nearby matches nearby peer profile ids', () => {
+    const rows = filterConversationsForTab([friend], 'nearby', {
+      nearbyProfileIds: new Set(['profile-peer']),
+      resolveOtherProfileId: resolveOther,
+    });
+    expect(rows.map((r) => r.id)).toEqual(['friend-1']);
+  });
+
+  it('unread includes unread and call conversation ids', () => {
+    const callOnly = conv('call-1');
+    const rows = filterConversationsForTab([friend, unread, callOnly], 'unread', {
+      callConversationIds: new Set(['call-1']),
+    });
+    expect(rows.map((r) => r.id).sort()).toEqual(['call-1', 'unread-1']);
+  });
+
+  it('requests returns matched conversation ids', () => {
+    const rows = filterConversationsForTab([friend, requestThread], 'requests', {
+      requestConversationIds: new Set(['request-1']),
+    });
+    expect(rows.map((r) => r.id)).toEqual(['request-1']);
   });
 });
 

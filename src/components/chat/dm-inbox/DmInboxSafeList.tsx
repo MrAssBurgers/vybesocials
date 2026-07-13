@@ -1,201 +1,86 @@
 /**
- * Lightweight fallback if the primary inbox errors.
- * Still shows Chat chrome — never a blank “safe mode” strip.
+ * Fallback if the primary inbox tree errors.
+ * Reuses the same filtered inbox hook so tabs still work.
  */
-import { useCallback, useState } from 'react';
+import { startTransition, useCallback, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Camera, MessageCircle, RefreshCw, Search, UserPlus } from 'lucide-react';
-import { useDMConversations } from '@/hooks/useDMConversations';
-import { useAuthProfileId } from '@/hooks/useAuthProfileId';
-import { useAuth } from '@/lib/auth';
-import { ensureArray } from '@/lib/persistedCollections';
-import {
-  displayNameForConversation,
-  resolveOtherMemberFromConversation,
-} from '@/lib/dmMemberResolve';
-import { resolveDmInboxStatus } from '@/lib/dmInboxStatus';
-import { dmConversationPreviewText } from '@/lib/dmPreviewText';
-import { resolveProfileAvatarUrl } from '@/lib/profileAvatarCache';
-import { openFriendProfile } from '@/lib/friendProfileRoutes';
-import { Button } from '@/components/ui/button';
-import { Avatar, AvatarFallback, ProfileAvatarImage } from '@/components/ui/avatar';
 import { ChatSearchSheet } from '@/components/chat/ChatSearchSheet';
+import { DMHeader } from '@/features/dms/DMHeader';
 import { DMCategoryTabs } from '@/features/dms/DMCategoryTabs';
-import { DMComposeButton } from '@/features/dms/DMComposeButton';
-import type { DmInboxTabId } from '@/features/dms/dm.types';
+import { DMConversationList } from '@/features/dms/DMConversationList';
+import { useDMInbox } from '@/features/dms/useDMInbox';
+import { db } from '@/lib/firebase';
 
 export function DmInboxSafeList() {
   const navigate = useNavigate();
-  const profileId = useAuthProfileId();
-  const { profile, user } = useAuth();
   const [searchOpen, setSearchOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<DmInboxTabId>('friends');
-  const { pinnedConversations, unpinnedConversations, isLoading, refetch, error } =
-    useDMConversations();
-
-  const rows = [
-    ...ensureArray(pinnedConversations),
-    ...ensureArray(unpinnedConversations),
-  ];
+  const inbox = useDMInbox();
 
   const openChat = useCallback(
-    (id: string) => navigate(`/messages/${id}`),
+    (conversationId: string) => {
+      startTransition(() => {
+        void navigate(`/messages/${conversationId}`);
+      });
+    },
     [navigate],
+  );
+
+  const openNearbyPeer = useCallback(
+    (peerUserId: string) => {
+      void (async () => {
+        try {
+          const { data: convId, error } = await db.rpc('create_dm_conversation', {
+            other_profile_id: peerUserId,
+          });
+          if (error) throw error;
+          if (convId) openChat(String(convId));
+        } catch (error) {
+          console.error(error);
+        }
+      })();
+    },
+    [openChat],
   );
 
   return (
     <section className="dm-inbox" aria-label="Direct messages">
       <div className="dm-inbox-column">
-        <header className="dm-inbox-hero">
-          <div className="dm-inbox-header-bar">
-            <div className="dm-inbox-header-side">
-              <button
-                type="button"
-                className="dm-inbox-profile-button"
-                aria-label="Open your profile"
-                onClick={() => {
-                  if (profile?.username) {
-                    openFriendProfile(navigate, {
-                      username: profile.username,
-                      friendshipStatus: 'friends',
-                    });
-                  }
-                }}
-              >
-                <Avatar className="h-11 w-11">
-                  <ProfileAvatarImage
-                    profileId={profile?.id}
-                    src={profile?.avatar_url || undefined}
-                    priority
-                  />
-                  <AvatarFallback className="bg-muted text-sm font-semibold">
-                    {profile?.username?.[0]?.toUpperCase() || 'V'}
-                  </AvatarFallback>
-                </Avatar>
-                <span className="dm-inbox-online-dot" aria-hidden />
-              </button>
-              <button
-                type="button"
-                className="dm-inbox-header-action"
-                onClick={() => setSearchOpen(true)}
-                aria-label="Search chats"
-              >
-                <Search />
-              </button>
-            </div>
-            <div className="dm-inbox-header-title-wrap">
-              <h1 className="dm-inbox-title">Chat</h1>
-            </div>
-            <div className="dm-inbox-header-side dm-inbox-header-side--right">
-              <button
-                type="button"
-                className="dm-inbox-header-action"
-                onClick={() => navigate('/messages/new')}
-                aria-label="New chat"
-              >
-                <UserPlus />
-              </button>
-            </div>
-          </div>
-        </header>
-
-        <DMCategoryTabs active={activeTab} onChange={setActiveTab} />
-
-        <div className="dm-inbox-list scroller">
-          {isLoading && rows.length === 0 ? (
-            <div className="dm-inbox-empty">
-              <p>Loading chats…</p>
-            </div>
-          ) : rows.length === 0 ? (
-            <div className="dm-inbox-empty">
-              <span className="dm-inbox-empty-icon">
-                <MessageCircle />
-              </span>
-              <h2>No chats yet</h2>
-              <p>Message friends, share snaps, and keep the streak alive.</p>
-              {error && (
-                <Button size="sm" variant="secondary" onClick={() => refetch()}>
-                  <RefreshCw className="h-3.5 w-3.5 mr-1.5" />
-                  Retry
-                </Button>
-              )}
-            </div>
-          ) : (
-            <div className="dm-inbox-rows">
-              {rows.map((conv) => {
-                const name = displayNameForConversation(conv, profileId, user?.id, 'Chat');
-                const resolved = !conv.is_group
-                  ? resolveOtherMemberFromConversation(conv, profileId, user?.id)
-                  : null;
-                const other = resolved?.profile;
-                const otherProfileId = other?.id ? String(other.id) : resolved?.user_id;
-                const avatarUrl = conv.is_group
-                  ? conv.avatar_url || undefined
-                  : resolveProfileAvatarUrl(
-                      otherProfileId,
-                      other?.avatar_url as string | null | undefined,
-                    ) || undefined;
-                const status = resolveDmInboxStatus(conv, profileId, user?.id);
-                const StatusIcon = status.Icon;
-                const messagePreview = dmConversationPreviewText({
-                  lastMessage: conv.last_message,
-                  isGroup: conv.is_group,
-                  profileId,
-                  authUid: user?.id,
-                  otherProfileId,
-                  previewMaxLen: 48,
-                });
-                const showPreview =
-                  Boolean(messagePreview) &&
-                  messagePreview !== status.line &&
-                  !messagePreview.startsWith(status.label);
-                return (
-                  <button
-                    key={conv.id}
-                    type="button"
-                    onClick={() => openChat(conv.id)}
-                    className="dm-inbox-row-tap w-full text-left"
-                  >
-                    <div className="dm-inbox-card">
-                      <div className="dm-inbox-avatar-button">
-                        <span className="dm-inbox-avatar-ring" aria-hidden />
-                        <Avatar className="dm-inbox-avatar">
-                          <ProfileAvatarImage
-                            profileId={otherProfileId}
-                            src={avatarUrl}
-                            transformSize={128}
-                          />
-                          <AvatarFallback className="bg-muted text-sm font-semibold">
-                            {String(name || '?')[0]?.toUpperCase()}
-                          </AvatarFallback>
-                        </Avatar>
-                      </div>
-                      <div className="dm-inbox-row-copy">
-                        <p className="dm-inbox-name truncate">{name}</p>
-                        <p className={`dm-inbox-status truncate ${status.toneClass}`}>
-                          <StatusIcon className="dm-inbox-status-icon" aria-hidden />
-                          <span>{status.line}</span>
-                        </p>
-                        {showPreview && (
-                          <p className="dm-inbox-message-preview truncate">{messagePreview}</p>
-                        )}
-                      </div>
-                      <div className="dm-inbox-row-trail">
-                        {status.age ? <span className="dm-inbox-time">{status.age}</span> : null}
-                        <div className="dm-inbox-row-trail-actions">
-                          <span className="dm-inbox-camera-button" aria-hidden>
-                            <Camera />
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-          )}
-        </div>
-        <DMComposeButton />
+        <DMHeader
+          totalUnreadCount={inbox.unreadBadgeCount}
+          onSearch={() => setSearchOpen(true)}
+        />
+        <DMCategoryTabs
+          active={inbox.activeTab}
+          onChange={inbox.setActiveTab}
+          badges={{
+            unread: inbox.unreadBadgeCount,
+            requests: inbox.pendingRequestCount,
+            bestFriends: inbox.bestFriendCount,
+            nearby: inbox.nearbyCount,
+          }}
+        />
+        <DMConversationList
+          rows={inbox.rows}
+          profileId={inbox.profileId}
+          authUid={inbox.user?.id}
+          activeConversationId={inbox.activeConversationId}
+          activeTab={inbox.activeTab}
+          showSkeleton={inbox.showSkeleton}
+          searchQuery={inbox.searchQuery}
+          hasError={Boolean(inbox.error && inbox.isFetched)}
+          nearbyStatus={inbox.nearbyStatus}
+          onOpen={openChat}
+          onQuickReply={(id) => {
+            startTransition(() => {
+              void navigate(`/messages/${id}?compose=1`);
+            });
+          }}
+          onWarm={() => undefined}
+          onRetry={() => void inbox.refetch()}
+          onCompose={() => navigate('/messages/new')}
+          onOpenNearbyPeer={openNearbyPeer}
+          onNearbyRetry={inbox.nearbyRetry}
+        />
       </div>
       <ChatSearchSheet open={searchOpen} onOpenChange={setSearchOpen} />
     </section>

@@ -43,7 +43,7 @@ export function DMInboxPage() {
     <section className="dm-inbox" aria-label="Direct messages">
       <div className="dm-inbox-column">
         <DMHeader
-          totalUnreadCount={inbox.totalUnreadCount}
+          totalUnreadCount={inbox.unreadBadgeCount}
           onSearch={() => setSearchOpen(true)}
         />
         <DMCategoryTabs
@@ -65,11 +65,27 @@ export function DMInboxPage() {
           showSkeleton={inbox.showSkeleton}
           searchQuery={inbox.searchQuery}
           hasError={Boolean(inbox.error && inbox.isFetched)}
+          nearbyStatus={inbox.nearbyStatus}
           onOpen={openChat}
           onQuickReply={openQuickReply}
           onWarm={warm}
           onRetry={() => void inbox.refetch()}
           onCompose={() => navigate('/messages/new')}
+          onOpenNearbyPeer={(peerUserId) => {
+            void (async () => {
+              try {
+                const { db } = await import('@/lib/firebase');
+                const { data: convId, error } = await db.rpc('create_dm_conversation', {
+                  other_profile_id: peerUserId,
+                });
+                if (error) throw error;
+                if (convId) openChat(String(convId));
+              } catch (error) {
+                console.error(error);
+              }
+            })();
+          }}
+          onNearbyRetry={inbox.nearbyRetry}
         />
       </div>
       <ChatSearchSheet open={searchOpen} onOpenChange={setSearchOpen} />

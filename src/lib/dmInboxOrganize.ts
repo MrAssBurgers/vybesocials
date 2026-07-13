@@ -76,7 +76,9 @@ export function filterConversationsForTab(
     case 'groups':
       return safe.filter((c) => c.is_group);
     case 'friends':
-      return safe.filter((c) => !c.is_group);
+      return safe.filter(
+        (c) => !c.is_group && !(requestIds?.size && requestIds.has(c.id)),
+      );
     case 'best_friends':
       if (!closeFriendIds?.size) return [];
       return safe.filter((c) => {
@@ -99,6 +101,7 @@ export function filterConversationsForTab(
           Boolean(callIds?.has(c.id)),
       );
     case 'requests':
+      // Conversation matches are optional — pending requests render as dedicated rows.
       if (!requestIds?.size) return [];
       return safe.filter((c) => requestIds.has(c.id));
     default:

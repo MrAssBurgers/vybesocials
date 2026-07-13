@@ -2,6 +2,8 @@ import type { ActivityType } from '@/components/chat/LiveActivityIndicator';
 import type { LoadedDMConversation } from '@/lib/loadDMConversations';
 import type { DmInboxSectionId, DmInboxTabId } from '@/lib/dmInboxOrganize';
 import type { DmInboxStatusKind } from '@/lib/dmInboxStatus';
+import type { MessageRequest } from '@/hooks/useMessageRequests';
+import type { NearbyFriendPeer } from '@/hooks/useNearbyFriendLink';
 
 export type { DmInboxTabId };
 
@@ -42,7 +44,9 @@ export interface DMConversationPreview {
 
 export type DMInboxRow =
   | { type: 'header'; id: DmInboxSectionId; label: string; count: number }
-  | { type: 'conversation'; preview: DMConversationPreview };
+  | { type: 'conversation'; preview: DMConversationPreview }
+  | { type: 'request'; request: MessageRequest }
+  | { type: 'nearby_peer'; peer: NearbyFriendPeer };
 
 export interface DMInboxBadges {
   unread: number;

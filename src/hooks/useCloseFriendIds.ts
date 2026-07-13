@@ -4,9 +4,13 @@ import { db } from '@/lib/firebase';
 import { useAuthProfileId } from '@/hooks/useAuthProfileId';
 
 /** Set of close-friend profile IDs for the signed-in user. */
-export function useCloseFriendIds(): Set<string> {
+export function useCloseFriendIds(): {
+  ids: Set<string>;
+  isLoading: boolean;
+  isFetched: boolean;
+} {
   const profileId = useAuthProfileId();
-  const { data } = useQuery({
+  const { data, isLoading, isFetched } = useQuery({
     queryKey: ['close-friend-ids', profileId],
     queryFn: async () => {
       if (!profileId) return [] as string[];
@@ -26,5 +30,9 @@ export function useCloseFriendIds(): Set<string> {
     staleTime: 60_000,
   });
 
-  return useMemo(() => new Set(data || []), [data]);
+  return {
+    ids: useMemo(() => new Set(data || []), [data]),
+    isLoading,
+    isFetched,
+  };
 }

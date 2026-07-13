@@ -74,6 +74,23 @@ function secondaryGroupAvatar(
   );
 }
 
+function memberMatchesSender(
+  conversation: {
+    is_group?: boolean;
+    members?: Array<{ user_id: string; profile?: { id?: string } | null }>;
+  },
+  senderId: string,
+  resolveOtherProfileId?: (c: typeof conversation) => string | undefined,
+): boolean {
+  if (conversation.is_group) return false;
+  if (resolveOtherProfileId?.(conversation) === senderId) return true;
+  return safeDmMembers(conversation.members).some((member) => {
+    if (member.user_id === senderId) return true;
+    const profileId = member.profile?.id ? String(member.profile.id) : undefined;
+    return profileId === senderId;
+  });
+}
+
 export function useDMInbox() {
   const { conversationId: activeConversationId } = useParams<{ conversationId?: string }>();
   const { profile, user } = useAuth();
@@ -82,15 +99,19 @@ export function useDMInbox() {
   const [activeTab, setActiveTabState] = useState<DmInboxTabId>(initialTab);
   const { data: lockedIds } = useLockedChatIds();
   const { data: callConversationIds } = useInboxCallConversationIds();
-  const { data: pendingRequests = [] } = useMessageRequests();
+  const { data: pendingRequests = [], isLoading: requestsLoading } = useMessageRequests();
   const { data: pendingRequestCount = 0 } = usePendingRequestCount();
   const { data: recentNewFriendIds = new Set<string>() } = useRecentNewFriendProfileIds();
-  const closeFriendIds = useCloseFriendIds();
+  const {
+    ids: closeFriendIds,
+    isLoading: closeFriendsLoading,
+    isFetched: closeFriendsFetched,
+  } = useCloseFriendIds();
   const streakMap = useStreakMap();
   const { data: storyGroupsRaw } = useStories();
   const query = useDMConversations(searchQuery);
   const nearby = useNearbyFriendLink({
-    enabled: activeTab === 'nearby',
+    enabled: Boolean(profileId),
     profileId,
     username: profile?.username,
     displayName: profile?.display_name,
@@ -104,25 +125,32 @@ export function useDMInbox() {
     [query.pinnedConversations, query.unpinnedConversations, lockedIds],
   );
 
+  const resolveOtherProfileId = useMemo(
+    () => (conversation: (typeof allConversations)[number]) => {
+      if (conversation.is_group) return undefined;
+      const resolved = resolveOtherMemberFromConversation(conversation, profileId, user?.id);
+      const other = resolved?.profile;
+      return other?.id ? String(other.id) : resolved?.user_id;
+    },
+    [profileId, user?.id],
+  );
+
   const requestConversationIds = useMemo(() => {
     const ids = new Set<string>();
     for (const request of pendingRequests) {
-      const match = allConversations.find(
-        (conversation) =>
-          !conversation.is_group &&
-          conversation.members?.some((member) => member.user_id === request.sender_id),
+      const match = allConversations.find((conversation) =>
+        memberMatchesSender(conversation, request.sender_id, resolveOtherProfileId),
       );
       if (match) ids.add(match.id);
     }
     return ids;
-  }, [pendingRequests, allConversations]);
+  }, [pendingRequests, allConversations, resolveOtherProfileId]);
 
   const nearbyProfileIds = useMemo(
     () => new Set(nearby.peers.map((peer) => peer.userId)),
     [nearby.peers],
   );
 
-  // Normalize again at the inbox boundary so corrupt persisted caches never throw.
   const storyStateByProfileId = useMemo(() => {
     const map = new Map<string, DMStoryState>();
     try {
@@ -136,16 +164,6 @@ export function useDMInbox() {
     }
     return map;
   }, [storyGroupsRaw]);
-
-  const resolveOtherProfileId = useMemo(
-    () => (conversation: (typeof allConversations)[number]) => {
-      if (conversation.is_group) return undefined;
-      const resolved = resolveOtherMemberFromConversation(conversation, profileId, user?.id);
-      const other = resolved?.profile;
-      return other?.id ? String(other.id) : resolved?.user_id;
-    },
-    [profileId, user?.id],
-  );
 
   const typingConversationIds = useMemo(
     () => allConversations.slice(0, 30).map((conversation) => conversation.id),
@@ -181,10 +199,8 @@ export function useDMInbox() {
     ],
   );
 
-  const rows = useMemo<DMInboxRow[]>(() => {
-    return buildFlatInboxRows(filteredConversations, profileId).map((row) => {
-      if (row.type === 'header') return row;
-      const conversation = row.conversation;
+  const toPreview = useMemo(() => {
+    return (conversation: (typeof allConversations)[number]): DMConversationPreview => {
       const resolved = conversation.is_group
         ? null
         : resolveOtherMemberFromConversation(conversation, profileId, user?.id);
@@ -227,7 +243,7 @@ export function useDMInbox() {
           ? (lastMessage as { reaction?: string }).reaction
           : undefined;
 
-      const preview: DMConversationPreview = {
+      return {
         conversation,
         id: conversation.id,
         conversationId: conversation.id,
@@ -284,11 +300,8 @@ export function useDMInbox() {
         relationshipBadge,
         quickReaction,
       };
-
-      return { type: 'conversation' as const, preview };
-    });
+    };
   }, [
-    filteredConversations,
     profileId,
     user?.id,
     recentNewFriendIds,
@@ -299,12 +312,78 @@ export function useDMInbox() {
     storyStateByProfileId,
   ]);
 
+  const rows = useMemo<DMInboxRow[]>(() => {
+    if (activeTab === 'requests') {
+      return pendingRequests.map((request) => ({
+        type: 'request' as const,
+        request,
+      }));
+    }
+
+    if (activeTab === 'nearby') {
+      const conversationRows = buildFlatInboxRows(filteredConversations, profileId).map((row) => {
+        if (row.type === 'header') return row;
+        return { type: 'conversation' as const, preview: toPreview(row.conversation) };
+      });
+      const conversationPeerIds = new Set(
+        filteredConversations
+          .map((conversation) => resolveOtherProfileId(conversation))
+          .filter((id): id is string => Boolean(id)),
+      );
+      const peerOnly = nearby.peers
+        .filter((peer) => !conversationPeerIds.has(peer.userId))
+        .map((peer) => ({ type: 'nearby_peer' as const, peer }));
+      if (peerOnly.length && conversationRows.length) {
+        return [
+          ...conversationRows,
+          {
+            type: 'header' as const,
+            id: 'all' as const,
+            label: 'Nearby · new',
+            count: peerOnly.length,
+          },
+          ...peerOnly,
+        ];
+      }
+      if (peerOnly.length) return peerOnly;
+      return conversationRows;
+    }
+
+    return buildFlatInboxRows(filteredConversations, profileId).map((row) => {
+      if (row.type === 'header') return row;
+      return { type: 'conversation' as const, preview: toPreview(row.conversation) };
+    });
+  }, [
+    activeTab,
+    pendingRequests,
+    filteredConversations,
+    profileId,
+    toPreview,
+    nearby.peers,
+    resolveOtherProfileId,
+  ]);
+
   useEffect(() => {
     const urls = rows.flatMap((row) => {
-      if (row.type !== 'conversation') return [];
-      return [row.preview.avatarUrl, row.preview.secondaryAvatarUrl].filter(
-        (value): value is string => Boolean(value),
-      );
+      if (row.type === 'conversation') {
+        return [row.preview.avatarUrl, row.preview.secondaryAvatarUrl].filter(
+          (value): value is string => Boolean(value),
+        );
+      }
+      if (row.type === 'request') {
+        return [
+          resolveProfileAvatarUrl(
+            row.request.sender?.id || row.request.sender_id,
+            row.request.sender?.avatar_url,
+          ),
+        ].filter((value): value is string => Boolean(value));
+      }
+      if (row.type === 'nearby_peer') {
+        return [
+          resolveProfileAvatarUrl(row.peer.userId, row.peer.avatarUrl),
+        ].filter((value): value is string => Boolean(value));
+      }
+      return [];
     });
     if (urls.length) void batchSignUrls(urls);
   }, [rows]);
@@ -319,7 +398,12 @@ export function useDMInbox() {
   };
 
   const unreadBadgeCount = useMemo(() => {
-    let count = query.totalUnreadCount;
+    let count = 0;
+    for (const conversation of allConversations) {
+      if ((conversation.unread_count || 0) > 0 || conversation._hasUnread) {
+        count += 1;
+      }
+    }
     if (callConversationIds?.size) {
       for (const id of callConversationIds) {
         const match = allConversations.find((conversation) => conversation.id === id);
@@ -329,7 +413,28 @@ export function useDMInbox() {
       }
     }
     return count;
-  }, [query.totalUnreadCount, callConversationIds, allConversations]);
+  }, [allConversations, callConversationIds]);
+
+  const bestFriendCount = useMemo(() => {
+    return allConversations.filter((conversation) => {
+      if (conversation.is_group) return false;
+      const otherId = resolveOtherProfileId(conversation);
+      return Boolean(otherId && closeFriendIds.has(otherId));
+    }).length;
+  }, [allConversations, closeFriendIds, resolveOtherProfileId]);
+
+  const totalUnreadCount = useMemo(() => {
+    return allConversations.reduce((sum, conversation) => {
+      if ((conversation.unread_count || 0) > 0) return sum + (conversation.unread_count || 0);
+      if (conversation._hasUnread) return sum + 1;
+      return sum;
+    }, 0);
+  }, [allConversations]);
+
+  const showSkeleton =
+    (query.isLoading && allConversations.length === 0) ||
+    (activeTab === 'best_friends' && closeFriendsLoading && !closeFriendsFetched) ||
+    (activeTab === 'requests' && requestsLoading && pendingRequests.length === 0);
 
   return {
     profile,
@@ -342,16 +447,17 @@ export function useDMInbox() {
     setSearchQuery,
     rows,
     allConversations,
-    showSkeleton: query.isLoading && allConversations.length === 0,
+    showSkeleton,
     isFetched: query.isFetched,
     error: query.error,
     refetch: query.refetch,
-    totalUnreadCount: query.totalUnreadCount,
+    totalUnreadCount,
     pendingRequestCount,
     callCount: callConversationIds?.size ?? 0,
     unreadBadgeCount,
-    bestFriendCount: closeFriendIds.size,
+    bestFriendCount,
     nearbyCount: nearbyProfileIds.size,
     nearbyStatus: nearby.status,
+    nearbyRetry: nearby.retry,
   };
 }

@@ -2,6 +2,14 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## DM inbox tabs deep fix (2026-07-12)
+- **User ask:** Tabs don’t filter / feel broken — deep scan UI + backend and make DMs perfect
+- **Fixes:** Scroll reset on tab change; Requests = first-class accept/decline rows; Nearby always on while inbox mounted + peer cards + locating/denied UX; Best Friend toggle in chat options + invalidate `close-friend-ids`; Friends excludes request threads; unread badge unified with `_hasUnread` + calls; safe list uses `useDMInbox`
+- **Tests:** `filterConversationsForTab` coverage (78 tests)
+- **Verified:** typecheck PASS · lint PASS · test PASS · build PASS
+- **Published:** pending push + Lovable Publish
+- **You:** Lovable → sync `main` → **Share → Publish**; hard-refresh `/messages`; QA each tab
+
 ## Full concept DM inbox restore (2026-07-12)
 - **User ask:** Restore inbox to concept image look — dense neon rows, story rings, full chrome (not compact/basic)
 - **CSS:** 96px rows / 64px avatars / 48px camera / 64px FAB / 80px header / 58px tabs; status+preview typography; reduced-motion; virtual slice 96/32

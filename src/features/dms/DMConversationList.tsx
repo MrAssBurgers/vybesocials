@@ -1,11 +1,14 @@
-import { useRef, useState, type UIEvent } from 'react';
+import { useEffect, useRef, useState, type UIEvent } from 'react';
 import { MessageCircle, RefreshCw, UserPlus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { SwipeableDmConversationRow } from '@/components/chat/dm-inbox/SwipeableDmConversationRow';
 import { useDmInboxVirtualSlice } from '@/hooks/useDmInboxVirtualSlice';
 import type { DMInboxRow, DmInboxTabId } from './dm.types';
+import type { NearbyFriendStatus } from '@/hooks/useNearbyFriendLink';
 import { DMComposeButton } from './DMComposeButton';
 import { DMInboxSkeleton } from './DMInboxSkeleton';
+import { DMRequestRow } from './DMRequestRow';
+import { DMNearbyPeerRow } from './DMNearbyPeerRow';
 
 interface DMConversationListProps {
   rows: DMInboxRow[];
@@ -16,14 +19,22 @@ interface DMConversationListProps {
   showSkeleton: boolean;
   searchQuery: string;
   hasError: boolean;
+  nearbyStatus?: NearbyFriendStatus;
   onOpen: (conversationId: string) => void;
   onQuickReply: (conversationId: string) => void;
   onWarm: (conversationId: string) => void;
   onRetry: () => void;
   onCompose: () => void;
+  onOpenNearbyPeer?: (peerUserId: string) => void;
+  onNearbyRetry?: () => void;
 }
 
-function emptyCopy(tab: DmInboxTabId | undefined, searchQuery: string, hasError: boolean) {
+function emptyCopy(
+  tab: DmInboxTabId | undefined,
+  searchQuery: string,
+  hasError: boolean,
+  nearbyStatus?: NearbyFriendStatus,
+) {
   if (searchQuery) {
     return {
       title: 'No matches',
@@ -40,12 +51,30 @@ function emptyCopy(tab: DmInboxTabId | undefined, searchQuery: string, hasError:
     case 'best_friends':
       return {
         title: 'No best friends yet',
-        body: 'Mark close friends to keep your inner circle here.',
+        body: 'Long-press a chat and tap Best Friend to keep your inner circle here.',
       };
     case 'nearby':
+      if (nearbyStatus === 'locating' || nearbyStatus === 'searching') {
+        return {
+          title: 'Looking around…',
+          body: 'Finding friends near you. Keep location on for a moment.',
+        };
+      }
+      if (nearbyStatus === 'denied' || nearbyStatus === 'unavailable') {
+        return {
+          title: 'Location needed',
+          body: 'Allow location access to see friends nearby.',
+        };
+      }
+      if (nearbyStatus === 'error') {
+        return {
+          title: 'Nearby failed',
+          body: 'Couldn’t check who’s nearby. Try again.',
+        };
+      }
       return {
         title: 'No nearby friends',
-        body: 'Turn on Nearby to see friends close to you.',
+        body: 'When friends are close by, they’ll show up here.',
       };
     case 'groups':
       return {
@@ -60,7 +89,7 @@ function emptyCopy(tab: DmInboxTabId | undefined, searchQuery: string, hasError:
     case 'unread':
       return {
         title: 'You’re all caught up',
-        body: 'No unread chats or missed calls right now.',
+        body: 'No unread chats or recent missed calls right now.',
       };
     default:
       return {
@@ -79,18 +108,30 @@ export function DMConversationList({
   showSkeleton,
   searchQuery,
   hasError,
+  nearbyStatus,
   onOpen,
   onQuickReply,
   onWarm,
   onRetry,
   onCompose,
+  onOpenNearbyPeer,
+  onNearbyRetry,
 }: DMConversationListProps) {
+  const listRef = useRef<HTMLDivElement>(null);
   const lastScrollTop = useRef(0);
   const [composeHidden, setComposeHidden] = useState(false);
   const { visible, paddingTop, paddingBottom, onScroll, virtualized } =
     useDmInboxVirtualSlice(rows);
   const renderRows = virtualized ? visible : rows;
-  const empty = emptyCopy(activeTab, searchQuery, hasError);
+  const empty = emptyCopy(activeTab, searchQuery, hasError, nearbyStatus);
+  const nearbyBusy = nearbyStatus === 'locating' || nearbyStatus === 'searching';
+
+  useEffect(() => {
+    const el = listRef.current;
+    if (el) el.scrollTop = 0;
+    lastScrollTop.current = 0;
+    setComposeHidden(false);
+  }, [activeTab]);
 
   const handleScroll = (event: UIEvent<HTMLDivElement>) => {
     onScroll?.(event);
@@ -105,21 +146,37 @@ export function DMConversationList({
   return (
     <>
       <div
+        ref={listRef}
         className="dm-inbox-list scroller"
         onScroll={handleScroll}
         aria-label="Conversations"
       >
-        {showSkeleton ? (
+        {showSkeleton || (activeTab === 'nearby' && nearbyBusy && rows.length === 0) ? (
           <DMInboxSkeleton />
         ) : rows.length > 0 ? (
           <div className="dm-inbox-rows" style={{ paddingTop, paddingBottom }}>
-            {renderRows.map((row) =>
-              row.type === 'header' ? (
-                <div className="dm-inbox-section-label" key={`header-${row.id}`}>
-                  <span>{row.label}</span>
-                  <span className="dm-inbox-section-count">{row.count}</span>
-                </div>
-              ) : (
+            {renderRows.map((row) => {
+              if (row.type === 'header') {
+                return (
+                  <div className="dm-inbox-section-label" key={`header-${row.id}`}>
+                    <span>{row.label}</span>
+                    <span className="dm-inbox-section-count">{row.count}</span>
+                  </div>
+                );
+              }
+              if (row.type === 'request') {
+                return <DMRequestRow key={`request-${row.request.id}`} request={row.request} />;
+              }
+              if (row.type === 'nearby_peer') {
+                return (
+                  <DMNearbyPeerRow
+                    key={`nearby-${row.peer.userId}`}
+                    peer={row.peer}
+                    onOpen={() => onOpenNearbyPeer?.(row.peer.userId)}
+                  />
+                );
+              }
+              return (
                 <SwipeableDmConversationRow
                   key={row.preview.id}
                   conversation={row.preview.conversation}
@@ -134,8 +191,8 @@ export function DMConversationList({
                   onQuickReply={() => onQuickReply(row.preview.id)}
                   onWarm={() => onWarm(row.preview.id)}
                 />
-              ),
-            )}
+              );
+            })}
           </div>
         ) : (
           <div className="dm-inbox-empty">
@@ -151,6 +208,16 @@ export function DMConversationList({
                   Retry
                 </Button>
               )}
+              {activeTab === 'nearby' &&
+                (nearbyStatus === 'denied' ||
+                  nearbyStatus === 'unavailable' ||
+                  nearbyStatus === 'error') &&
+                onNearbyRetry && (
+                  <Button type="button" variant="secondary" size="sm" onClick={onNearbyRetry}>
+                    <RefreshCw className="mr-1.5 h-4 w-4" />
+                    Try again
+                  </Button>
+                )}
               <Button type="button" variant="secondary" size="sm" onClick={onCompose}>
                 <UserPlus className="mr-1.5 h-4 w-4" />
                 Find friends

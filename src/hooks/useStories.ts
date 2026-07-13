@@ -569,6 +569,7 @@ export function useManageCloseFriend() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['close-friends'] });
+      queryClient.invalidateQueries({ queryKey: ['close-friend-ids'] });
     },
   });
 }
