@@ -44,10 +44,62 @@ async function refreshIfNeeded(uid: string): Promise<string> {
   return tok.access_token;
 }
 
+import crypto from 'node:crypto';
+
+function stateSecret(): string {
+  return process.env.SPOTIFY_STATE_SECRET
+    || process.env.UNSUBSCRIBE_SECRET
+    || `${clientId()}:${clientSecret()}`;
+}
+
+function signState(uid: string): string {
+  const payload = { uid, t: Date.now(), n: crypto.randomBytes(8).toString('hex') };
+  const body = Buffer.from(JSON.stringify(payload)).toString('base64url');
+  const sig = crypto.createHmac('sha256', stateSecret()).update(body).digest('base64url');
+  return `${body}.${sig}`;
+}
+
+function verifyState(state: string): { uid: string; t: number } {
+  const [body, sig] = state.split('.');
+  if (!body || !sig) throw new Error('bad state');
+  const expected = crypto.createHmac('sha256', stateSecret()).update(body).digest('base64url');
+  const a = Buffer.from(sig);
+  const b = Buffer.from(expected);
+  if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) throw new Error('bad sig');
+  const payload = JSON.parse(Buffer.from(body, 'base64url').toString());
+  if (!payload.uid || typeof payload.uid !== 'string') throw new Error('bad uid');
+  if (Date.now() - Number(payload.t || 0) > 10 * 60 * 1000) throw new Error('expired');
+  return payload;
+}
+
+/** Callable: authenticated caller receives a signed authorization URL bound to their uid. */
+export const createSpotifyOauthUrl = onCall({ secrets: SECRETS }, async (request) => {
+  const uid = requireAuth(request);
+  const state = signState(uid);
+  const url = new URL('https://accounts.spotify.com/authorize');
+  url.searchParams.set('client_id', clientId());
+  url.searchParams.set('response_type', 'code');
+  url.searchParams.set('redirect_uri', REDIRECT_URI());
+  url.searchParams.set('scope', SCOPES);
+  url.searchParams.set('state', state);
+  return { url: url.toString() };
+});
+
+/** HTTP entry retained for compatibility — requires a Firebase ID token as `?token=` or Authorization header. */
 export const spotifyOauthStart = onRequest({ secrets: SECRETS }, async (req, res) => {
-  const uid = String(req.query.uid || '');
-  if (!uid) { res.status(400).send('uid required'); return; }
-  const state = Buffer.from(JSON.stringify({ uid, t: Date.now() })).toString('base64url');
+  const authHeader = String(req.headers.authorization || '');
+  const bearer = authHeader.toLowerCase().startsWith('bearer ') ? authHeader.slice(7).trim() : '';
+  const idToken = bearer || String(req.query.token || '');
+  if (!idToken) { res.status(401).send('authentication required'); return; }
+  let uid: string;
+  try {
+    const decoded = await auth.verifyIdToken(idToken);
+    uid = decoded.uid;
+  } catch {
+    res.status(401).send('invalid token');
+    return;
+  }
+  const state = signState(uid);
   const url = new URL('https://accounts.spotify.com/authorize');
   url.searchParams.set('client_id', clientId());
   url.searchParams.set('response_type', 'code');
@@ -68,7 +120,7 @@ export const spotifyOauthCallback = onRequest({ secrets: SECRETS }, async (req, 
   if (!code || !state) { res.status(400).send('Missing code/state'); return; }
   let uid: string;
   try {
-    uid = JSON.parse(Buffer.from(state, 'base64url').toString()).uid;
+    uid = verifyState(state).uid;
     await auth.getUser(uid);
   } catch {
     res.status(400).send('Bad state');

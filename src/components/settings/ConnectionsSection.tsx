@@ -147,12 +147,15 @@ export function ConnectionsSection() {
     try {
       const { data: { user: authUser } } = await db.auth.getUser();
       if (!authUser?.id) throw new Error('Not signed in');
-      window.location.href = getSpotifyOAuthStartUrl(authUser.id);
+      const { data, error } = await db.functions.invoke<{ url?: string }>('create-spotify-oauth-url');
+      if (error || !data?.url) throw new Error(error?.message || 'Could not start Spotify');
+      window.location.href = data.url;
     } catch (e: any) {
       toast.error(e.message || 'Could not start Spotify');
       setSpotifyBusy(false);
     }
   };
+
 
   const disconnectSpotify = async () => {
     setSpotifyBusy(true);
