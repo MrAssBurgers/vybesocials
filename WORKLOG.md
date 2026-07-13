@@ -19,7 +19,8 @@ Use this file as the Lovable -> Cursor handoff each session.
   - DM shadow projection default **off** (extra dual read).
   - GPS watch deferred ~1.8–2.5s after cold start unless already on map.
 - **Verified:** `npm run typecheck` · `npm run test` 270 PASS · `npm run build` PASS
-- **Not published** (await user publish). Staging: push + Firebase hosting when ready; production: Lovable Publish.
+- **Published:** `origin/main` @ **`e98108f6`** · https://vybe-daaab.web.app ✅
+- **Production (vybehub.app):** Lovable → Share → Publish (sync `main` @ `e98108f6`)
 - **Next:**
   1. Hard-refresh staging — splash shorter; inbox/avatars from cache; open chat keeps seed.
   2. Manual QA: Messages scroll + open chat + avatar paint.
