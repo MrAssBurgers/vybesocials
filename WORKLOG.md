@@ -2,6 +2,17 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## Inbox neon glass VFX polish (2026-07-13)
+
+- **User ask:** Keep compact conversation density; upgrade look to match concept mock (neon rings, glass header actions, glow tab underline, richer status/camera/compose VFX).
+- **Kept:** 72px rows, redesign filters, thin separators, capture long-press sheet.
+- **Added:** Ambient primary/accent wash; glowing header avatar ring + Search/Bell/Add/More glass pills; neon tab underline; per-row ring tones; status icon + relationship meta + quick reaction; glowing camera circle + compose bloom; unread tint rail.
+- **Verified:** typecheck PASS · test PASS (120) · build PASS.
+- **Published:** not pushed yet.
+- **Next:** push + Lovable Publish when asked; spot-check glow on device.
+
+---
+
 ## Snapchat-density Messages inbox (2026-07-13)
 
 - **User ask:** Match VYBE Messages inbox to Snapchat compact density/spacing/row behavior; keep VYBE branding, icons, themes, backend. No Snapchat IP assets.

@@ -1,5 +1,16 @@
-import { memo, useCallback, useRef, useState } from 'react';
-import { Camera, Image as ImageIcon, MapPin, Mic, Moon, Users, Video } from 'lucide-react';
+import { memo, useCallback, useMemo, useRef, useState } from 'react';
+import {
+  Camera,
+  Heart,
+  Image as ImageIcon,
+  MapPin,
+  Mic,
+  Moon,
+  Sparkles,
+  Users,
+  Video,
+  Zap,
+} from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
@@ -38,6 +49,14 @@ export interface DMConversationRowProps {
   isTyping?: boolean;
   presenceActivity?: ActivityType;
   isSwiping?: boolean;
+}
+
+function ringToneForId(id: string): 0 | 1 | 2 | 3 {
+  let hash = 0;
+  for (let i = 0; i < id.length; i += 1) {
+    hash = (hash * 31 + id.charCodeAt(i)) >>> 0;
+  }
+  return (hash % 4) as 0 | 1 | 2 | 3;
 }
 
 export const DMConversationRow = memo(function DMConversationRow({
@@ -87,6 +106,7 @@ export const DMConversationRow = memo(function DMConversationRow({
     authUid,
     preview?.streakCount,
   );
+  const StatusIcon = status.Icon;
   const statusLine = typing
     ? 'Typing…'
     : preview?.statusLine || status.line;
@@ -94,6 +114,10 @@ export const DMConversationRow = memo(function DMConversationRow({
   const isOnline = preview?.isOnline ?? Boolean(activity && activity !== 'idle');
   const isAway = preview?.isAway ?? false;
   const secondaryAvatarUrl = preview?.secondaryAvatarUrl;
+  const relationship = preview?.relationshipBadge;
+  const quickReaction = preview?.quickReaction;
+  const isVerified = preview?.isVerified;
+  const ringTone = useMemo(() => ringToneForId(conversation.id), [conversation.id]);
 
   const stopRowGesture = (event: React.SyntheticEvent) => {
     event.preventDefault();
@@ -195,6 +219,7 @@ export const DMConversationRow = memo(function DMConversationRow({
         <span
           className={cn(
             'dm-inbox-avatar-ring',
+            `dm-inbox-avatar-ring--tone-${ringTone}`,
             storyState === 'unviewed' && 'dm-inbox-avatar-ring--story',
           )}
           aria-hidden
@@ -234,7 +259,18 @@ export const DMConversationRow = memo(function DMConversationRow({
       </button>
 
       <div className="dm-inbox-row-copy">
-        <p className={cn('dm-inbox-name', unread && 'dm-inbox-name--unread')}>{displayName}</p>
+        <div className="dm-inbox-name-line">
+          <p className={cn('dm-inbox-name', unread && 'dm-inbox-name--unread')}>{displayName}</p>
+          {relationship === 'close_friend' && (
+            <Zap className="dm-inbox-meta-icon dm-inbox-meta-icon--sparkle" aria-hidden />
+          )}
+          {relationship === 'new_friend' && (
+            <Sparkles className="dm-inbox-meta-icon dm-inbox-meta-icon--verified" aria-hidden />
+          )}
+          {isVerified && (
+            <Heart className="dm-inbox-meta-icon dm-inbox-meta-icon--heart" aria-hidden />
+          )}
+        </div>
         <p
           className={cn(
             'dm-inbox-status',
@@ -243,11 +279,17 @@ export const DMConversationRow = memo(function DMConversationRow({
             typing && 'dm-inbox-preview--typing',
           )}
         >
+          {!typing && <StatusIcon className="dm-inbox-status-icon" aria-hidden />}
           <span>{statusLine}</span>
         </p>
       </div>
 
       <div className="dm-inbox-row-trail">
+        {quickReaction ? (
+          <span className="dm-inbox-quick-reaction" aria-hidden>
+            {quickReaction}
+          </span>
+        ) : null}
         {unreadCount > 0 && (
           <span className="dm-inbox-unread-badge" aria-label={`${unreadCount} unread`}>
             {unreadCount > 99 ? '99+' : unreadCount}

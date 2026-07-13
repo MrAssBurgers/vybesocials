@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { MoreHorizontal, UserPlus } from 'lucide-react';
+import { Bell, MoreHorizontal, Search, UserPlus } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { openFriendProfile } from '@/lib/friendProfileRoutes';
 import { TrashBin } from '@/components/chat/TrashBin';
@@ -48,18 +48,28 @@ export function DMHeader({
                 {profile?.username?.[0]?.toUpperCase() || 'V'}
               </AvatarFallback>
             </Avatar>
+            <span className="dm-inbox-presence-dot" aria-hidden />
           </button>
-          <button
-            type="button"
-            className="dm-inbox-header-title-wrap dm-inbox-header-title-wrap--left"
-            onClick={onSearch}
-            aria-label="Search messages"
-          >
-            <h1 className="dm-inbox-title">Messages</h1>
-          </button>
+          <h1 className="dm-inbox-title">Messages</h1>
         </div>
 
         <div className="dm-inbox-header-side dm-inbox-header-side--right">
+          <button
+            type="button"
+            className="dm-inbox-header-action dm-vfx-press"
+            onClick={onSearch}
+            aria-label="Search messages"
+          >
+            <Search />
+          </button>
+          <button
+            type="button"
+            className="dm-inbox-header-action dm-vfx-press"
+            onClick={() => navigate('/notifications')}
+            aria-label="Notifications"
+          >
+            <Bell />
+          </button>
           <button
             type="button"
             className="dm-inbox-header-action dm-inbox-header-action--badge dm-vfx-press"
