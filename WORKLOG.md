@@ -9,8 +9,10 @@ Use this file as the Lovable -> Cursor handoff each session.
 - **`t?.has is not a function`:** RQ-persisted Set/Map corpses — hardened inbox organize / index builders with `ensureStringSet`/`safeSetHas`/`normalizePersistedMap`; `recent-new-friend-ids` now persists as `string[]`; `inbox-call-summaries` Map revive; Quick Add uses `ensureStringSet`.
 - **Verified:** vitest related PASS · client build PASS · functions `tsc` PASS
 - **Deployed (`vybe-daaab`):** firestore indexes + `syncMyChallengeProgress` / `incrementChallengeProgress` + hosting → https://vybe-daaab.web.app
-- **Note:** new indexes can take minutes to build (Building → Enabled). Client `.has` fix is live on staging; production needs Lovable Publish after commit/push.
-- **Next:** Commit + push `main` when ready; Lovable Publish for vybehub.app; confirm index Enabled in Firebase console; hard-refresh staging Messages and confirm no RetroactiveSync / `.has` spam.
+- **Published:** `origin/main` @ **`6d2ff097`** · https://vybe-daaab.web.app ✅
+- **Production (vybehub.app):** Lovable → Share → Publish (sync `main` @ `6d2ff097`)
+- **Note:** new indexes can take minutes to build (Building → Enabled). Client `.has` fix is live on staging.
+- **Next:** Confirm index Enabled in Firebase console; hard-refresh staging Messages; Lovable Publish for production.
 
 ---
 
