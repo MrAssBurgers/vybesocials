@@ -13395,6 +13395,16 @@ export type Database = {
           stripe_customer_id: string
         }[]
       }
+      get_my_profile_sensitive: {
+        Args: never
+        Returns: {
+          date_of_birth: string
+          email: string
+          phone_number: string
+          phone_verified: boolean
+          stripe_customer_id: string
+        }[]
+      }
       get_own_sensitive_profile: {
         Args: never
         Returns: {
