@@ -9,8 +9,8 @@ Use this file as the Lovable -> Cursor handoff each session.
 - **Rows:** Trail timestamp; status icons, badges, streaks, reactions, presence, secondary avatar, unread bar preserved; name stays plain text; TAP_SLOP open-chat kept
 - **Safe list:** Tabs + compose FAB + message preview parity
 - **Verified:** typecheck PASS · lint PASS · tests PASS · build PASS
-- **Published:** pending push + Lovable Publish
-- **You:** Lovable → sync `main` → **Share → Publish**; hard-refresh `/messages`
+- **Published:** `origin/main` @ **`04d6cced`** — awaiting Lovable Share → Publish
+- **You:** Lovable → sync `main` @ **`04d6cced`** → **Share → Publish**; hard-refresh `/messages`
 
 ## DM inbox richer rows restore (2026-07-12)
 - **User ask:** “where is everything else… make it look better” after compact pass felt empty
