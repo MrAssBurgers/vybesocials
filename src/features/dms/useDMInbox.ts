@@ -10,6 +10,7 @@ import { useLockedChatIds } from '@/hooks/useLockedChats';
 import { useMessageRequests, usePendingRequestCount } from '@/hooks/useMessageRequests';
 import { useRecentNewFriendProfileIds } from '@/hooks/useRecentNewFriendProfileIds';
 import { useStreakMap } from '@/hooks/useStreaks';
+import { useStories } from '@/hooks/useStories';
 import { useCloseFriendIds } from '@/hooks/useCloseFriendIds';
 import { useNearbyFriendLink } from '@/hooks/useNearbyFriendLink';
 import {
@@ -26,6 +27,7 @@ import { resolveDmInboxStatus } from '@/lib/dmInboxStatus';
 import { ensureArray, safeDmMembers } from '@/lib/persistedCollections';
 import { resolveProfileAvatarUrl } from '@/lib/profileAvatarCache';
 import { batchSignUrls } from '@/lib/signedUrlCache';
+import { normalizeStoryGroups } from '@/lib/storiesCacheSanitize';
 import type { DMConversationPreview, DMInboxRow, DMStoryState } from './dm.types';
 
 const TAB_STORAGE_KEY = 'vybe-dm-inbox-tab';
@@ -85,6 +87,7 @@ export function useDMInbox() {
   const { data: recentNewFriendIds = new Set<string>() } = useRecentNewFriendProfileIds();
   const closeFriendIds = useCloseFriendIds();
   const streakMap = useStreakMap();
+  const { data: storyGroupsRaw } = useStories();
   const query = useDMConversations(searchQuery);
   const nearby = useNearbyFriendLink({
     enabled: activeTab === 'nearby',
@@ -119,11 +122,20 @@ export function useDMInbox() {
     [nearby.peers],
   );
 
-  // Story rings stay deferred — useStories has historically crashed inbox caches.
-  const storyStateByProfileId = useMemo(
-    () => new Map<string, DMStoryState>(),
-    [],
-  );
+  // Normalize again at the inbox boundary so corrupt persisted caches never throw.
+  const storyStateByProfileId = useMemo(() => {
+    const map = new Map<string, DMStoryState>();
+    try {
+      for (const group of normalizeStoryGroups(storyGroupsRaw)) {
+        const id = group.user?.id ? String(group.user.id) : undefined;
+        if (!id) continue;
+        map.set(id, group.hasUnviewed ? 'unviewed' : 'viewed');
+      }
+    } catch {
+      return map;
+    }
+    return map;
+  }, [storyGroupsRaw]);
 
   const resolveOtherProfileId = useMemo(
     () => (conversation: (typeof allConversations)[number]) => {

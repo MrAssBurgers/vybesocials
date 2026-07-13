@@ -121,6 +121,7 @@ export const DMConversationRow = memo(function DMConversationRow({
   const relationshipBadge = preview?.relationshipBadge;
   const quickReaction = preview?.quickReaction;
   const streakCount = preview?.streakCount;
+  const trailTime = status.age;
 
   const stopRowGesture = (event: React.SyntheticEvent) => {
     event.preventDefault();
@@ -307,25 +308,28 @@ export const DMConversationRow = memo(function DMConversationRow({
       </div>
 
       <div className="dm-inbox-row-trail">
-        {quickReaction && (
-          <span className="dm-inbox-quick-reaction" aria-hidden>
-            {quickReaction}
-          </span>
-        )}
-        {unreadCount > 0 && (
-          <span className="dm-inbox-unread-badge" aria-label={`${unreadCount} unread`}>
-            {unreadCount > 99 ? '99+' : unreadCount}
-          </span>
-        )}
-        <button
-          type="button"
-          className="dm-inbox-camera-button"
-          onPointerDown={(event) => event.stopPropagation()}
-          onClick={openSnapCamera}
-          aria-label={`Send a snap to ${displayName}`}
-        >
-          <Camera />
-        </button>
+        {trailTime ? <span className="dm-inbox-time">{trailTime}</span> : null}
+        <div className="dm-inbox-row-trail-actions">
+          {quickReaction && (
+            <span className="dm-inbox-quick-reaction" aria-hidden>
+              {quickReaction}
+            </span>
+          )}
+          {unreadCount > 0 && (
+            <span className="dm-inbox-unread-badge" aria-label={`${unreadCount} unread`}>
+              {unreadCount > 99 ? '99+' : unreadCount}
+            </span>
+          )}
+          <button
+            type="button"
+            className="dm-inbox-camera-button"
+            onPointerDown={(event) => event.stopPropagation()}
+            onClick={openSnapCamera}
+            aria-label={`Send a snap to ${displayName}`}
+          >
+            <Camera />
+          </button>
+        </div>
       </div>
     </div>
   );

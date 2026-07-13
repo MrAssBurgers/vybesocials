@@ -2,6 +2,16 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## Full concept DM inbox restore (2026-07-12)
+- **User ask:** Restore inbox to concept image look — dense neon rows, story rings, full chrome (not compact/basic)
+- **CSS:** 96px rows / 64px avatars / 48px camera / 64px FAB / 80px header / 58px tabs; status+preview typography; reduced-motion; virtual slice 96/32
+- **Stories:** Re-enabled `useStories` → `storyStateByProfileId` via `normalizeStoryGroups` + try/catch (no safe-mode crash)
+- **Rows:** Trail timestamp; status icons, badges, streaks, reactions, presence, secondary avatar, unread bar preserved; name stays plain text; TAP_SLOP open-chat kept
+- **Safe list:** Tabs + compose FAB + message preview parity
+- **Verified:** typecheck PASS · lint PASS · tests PASS · build PASS
+- **Published:** pending push + Lovable Publish
+- **You:** Lovable → sync `main` → **Share → Publish**; hard-refresh `/messages`
+
 ## DM inbox richer rows restore (2026-07-12)
 - **User ask:** “where is everything else… make it look better” after compact pass felt empty
 - **Cause:** Compaction hid the message preview line (`display: none`) and dropped it from row markup; safe-mode list also lacked full Chat chrome

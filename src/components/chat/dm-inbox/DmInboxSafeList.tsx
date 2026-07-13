@@ -14,17 +14,22 @@ import {
   resolveOtherMemberFromConversation,
 } from '@/lib/dmMemberResolve';
 import { resolveDmInboxStatus } from '@/lib/dmInboxStatus';
+import { dmConversationPreviewText } from '@/lib/dmPreviewText';
 import { resolveProfileAvatarUrl } from '@/lib/profileAvatarCache';
 import { openFriendProfile } from '@/lib/friendProfileRoutes';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, ProfileAvatarImage } from '@/components/ui/avatar';
 import { ChatSearchSheet } from '@/components/chat/ChatSearchSheet';
+import { DMCategoryTabs } from '@/features/dms/DMCategoryTabs';
+import { DMComposeButton } from '@/features/dms/DMComposeButton';
+import type { DmInboxTabId } from '@/features/dms/dm.types';
 
 export function DmInboxSafeList() {
   const navigate = useNavigate();
   const profileId = useAuthProfileId();
   const { profile, user } = useAuth();
   const [searchOpen, setSearchOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState<DmInboxTabId>('friends');
   const { pinnedConversations, unpinnedConversations, isLoading, refetch, error } =
     useDMConversations();
 
@@ -94,6 +99,8 @@ export function DmInboxSafeList() {
           </div>
         </header>
 
+        <DMCategoryTabs active={activeTab} onChange={setActiveTab} />
+
         <div className="dm-inbox-list scroller">
           {isLoading && rows.length === 0 ? (
             <div className="dm-inbox-empty">
@@ -130,6 +137,18 @@ export function DmInboxSafeList() {
                     ) || undefined;
                 const status = resolveDmInboxStatus(conv, profileId, user?.id);
                 const StatusIcon = status.Icon;
+                const messagePreview = dmConversationPreviewText({
+                  lastMessage: conv.last_message,
+                  isGroup: conv.is_group,
+                  profileId,
+                  authUid: user?.id,
+                  otherProfileId,
+                  previewMaxLen: 48,
+                });
+                const showPreview =
+                  Boolean(messagePreview) &&
+                  messagePreview !== status.line &&
+                  !messagePreview.startsWith(status.label);
                 return (
                   <button
                     key={conv.id}
@@ -157,11 +176,17 @@ export function DmInboxSafeList() {
                           <StatusIcon className="dm-inbox-status-icon" aria-hidden />
                           <span>{status.line}</span>
                         </p>
+                        {showPreview && (
+                          <p className="dm-inbox-message-preview truncate">{messagePreview}</p>
+                        )}
                       </div>
                       <div className="dm-inbox-row-trail">
-                        <span className="dm-inbox-camera-button" aria-hidden>
-                          <Camera />
-                        </span>
+                        {status.age ? <span className="dm-inbox-time">{status.age}</span> : null}
+                        <div className="dm-inbox-row-trail-actions">
+                          <span className="dm-inbox-camera-button" aria-hidden>
+                            <Camera />
+                          </span>
+                        </div>
                       </div>
                     </div>
                   </button>
@@ -170,6 +195,7 @@ export function DmInboxSafeList() {
             </div>
           )}
         </div>
+        <DMComposeButton />
       </div>
       <ChatSearchSheet open={searchOpen} onOpenChange={setSearchOpen} />
     </section>
