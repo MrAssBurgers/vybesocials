@@ -1,19 +1,25 @@
 import type { InboxCategory } from '@/features/dms/dm.types';
 
+/** Primary Snapchat-style filter row (Chat = all via null). */
 export const INBOX_CATEGORIES: InboxCategory[] = [
+  'best-friends',
+  'groups',
   'unread',
+  'active',
+];
+
+/** Extra filters kept for persistence/normalize — opened from More later. */
+export const INBOX_MORE_CATEGORIES: InboxCategory[] = [
   'needs-reply',
   'nearby',
-  'groups',
   'stories',
   'calls',
-  'best-friends',
   'streaks',
   'new',
 ];
 
 export const INBOX_CATEGORY_LABELS: Record<InboxCategory, string> = {
-  all: 'All',
+  all: 'Chat',
   unread: 'Unread',
   'needs-reply': 'Needs Reply',
   nearby: 'Near Me',
@@ -22,6 +28,7 @@ export const INBOX_CATEGORY_LABELS: Record<InboxCategory, string> = {
   calls: 'Calls',
   'best-friends': 'Best Friends',
   streaks: 'Streaks',
+  active: 'Active',
   new: 'New',
 };
 
@@ -44,16 +51,22 @@ export const INBOX_CATEGORY_EMPTY: Record<InboxCategory, { title: string; body: 
     body: 'Your best friends and top-ranked chats show here.',
   },
   streaks: { title: 'No active streaks.', body: 'Snap back daily to build streaks with friends.' },
+  active: { title: 'No friends are online right now.', body: 'When friends come online, they show up here.' },
   new: { title: 'No new people to add right now.', body: 'Friend requests and suggestions appear here.' },
 };
 
 export const INBOX_CATEGORY_SESSION_KEY = 'vybe-dm-inbox-category';
 
+const ALL_KNOWN: InboxCategory[] = [
+  ...INBOX_CATEGORIES,
+  ...INBOX_MORE_CATEGORIES,
+];
+
 export function normalizeInboxCategory(value: string | null | undefined): InboxCategory | null {
   if (!value || value === 'all') return null;
   if (value === 'needs_reply') return 'needs-reply';
   if (value === 'best_friends') return 'best-friends';
-  if (INBOX_CATEGORIES.includes(value as InboxCategory)) {
+  if (ALL_KNOWN.includes(value as InboxCategory)) {
     return value as InboxCategory;
   }
   return null;

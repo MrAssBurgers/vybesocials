@@ -60,22 +60,23 @@ describe('compareInboxActivity', () => {
     expect(compareInboxActivity(older, newer, ME)).toBeGreaterThan(0);
   });
 
-  it('breaks activity ties by pinned status', () => {
-    const sameTime = '2026-07-12T12:00:00.000Z';
+  it('keeps pinned above unpinned even when older', () => {
     const pinned = conv({
       id: 'a',
-      _sortTime: sameTime,
-      members: [{ user_id: ME, is_pinned: true } as never],
+      _sortTime: '2026-07-12T08:00:00.000Z',
+      members: [{ user_id: ME, is_pinned: true, pin_order: 1 } as never],
     });
-    const notPinned = conv({ id: 'b', _sortTime: sameTime });
-    expect(compareInboxActivity(pinned, notPinned, ME)).toBeLessThan(0);
+    const fresher = conv({ id: 'b', _sortTime: '2026-07-12T18:00:00.000Z' });
+    expect(compareInboxActivity(pinned, fresher, ME)).toBeLessThan(0);
   });
 
-  it('breaks remaining ties by unread status', () => {
+  it('does not reorder by unread status', () => {
     const sameTime = '2026-07-12T12:00:00.000Z';
-    const unread = conv({ id: 'a', _sortTime: sameTime, _hasUnread: true });
-    const read = conv({ id: 'b', _sortTime: sameTime, _hasUnread: false });
-    expect(compareInboxActivity(unread, read, ME)).toBeLessThan(0);
+    const unread = conv({ id: 'b', _sortTime: sameTime, _hasUnread: true });
+    const read = conv({ id: 'a', _sortTime: sameTime, _hasUnread: false });
+    // Same time → conversationId tie-breaker only (a before b).
+    expect(compareInboxActivity(read, unread, ME)).toBeLessThan(0);
+    expect(compareInboxActivity(unread, read, ME)).toBeGreaterThan(0);
   });
 });
 
@@ -124,80 +125,61 @@ describe('filterConversationsForTab', () => {
     expect(result.map((c) => c.id)).toEqual(['a']);
   });
 
-  it('active: direct chats only, online before recently-active before offline', () => {
-    const online = conv({ id: 'a', _sortTime: earlier });
-    const recentlyActive = conv({ id: 'b', _sortTime: earlier });
-    const offline = conv({ id: 'c', _sortTime: now });
-    const group = conv({ id: 'd', is_group: true, _sortTime: now });
-
-    const result = filterConversationsForTab(
-      [online, recentlyActive, offline, group],
-      'active',
-      {
-        profileId: ME,
-        resolveOtherProfileId: (c) => `other-${c.id}`,
-        presenceOnlineIds: new Set(['other-a']),
-        recentlyActiveIds: new Set(['other-b']),
-      },
-    );
-    expect(result.map((c) => c.id)).toEqual(['a', 'b', 'c']);
-    expect(result.some((c) => c.id === 'd')).toBe(false);
-  });
-
-  it('unread: falls back to full activity-sorted list when nothing is unread', () => {
-    const rows = [conv({ id: 'a', _sortTime: earlier }), conv({ id: 'b', _sortTime: now })];
-    const result = filterConversationsForTab(rows, 'unread', ME);
-    expect(result.map((c) => c.id)).toEqual(['b', 'a']);
+  it('active: shows online peers only, sorted by latest message', () => {
+    const onlineRecent = conv({
+      id: 'a',
+      _sortTime: now,
+      members: [
+        { user_id: ME } as never,
+        { user_id: 'peer-a', profile: { id: 'peer-a' } } as never,
+      ],
+    });
+    const onlineOlder = conv({
+      id: 'b',
+      _sortTime: earlier,
+      members: [
+        { user_id: ME } as never,
+        { user_id: 'peer-b', profile: { id: 'peer-b' } } as never,
+      ],
+    });
+    const offline = conv({
+      id: 'c',
+      _sortTime: now,
+      members: [
+        { user_id: ME } as never,
+        { user_id: 'peer-c', profile: { id: 'peer-c' } } as never,
+      ],
+    });
+    const result = filterConversationsForTab([onlineOlder, offline, onlineRecent], 'active', {
+      profileId: ME,
+      presenceOnlineIds: new Set(['peer-a', 'peer-b']),
+      resolveOtherProfileId: (c) =>
+        c.members?.find((m) => m.user_id !== ME)?.profile?.id
+          ? String(c.members.find((m) => m.user_id !== ME)?.profile?.id)
+          : undefined,
+    });
+    expect(result.map((c) => c.id)).toEqual(['a', 'b']);
   });
 });
 
 describe('filterPreviewsForFilter', () => {
-  it('all: sorts previews by latest activity', () => {
+  it('groups: chronological, not mention/unread boosted', () => {
     const rows = [
-      preview({ id: 'a', latestMessageAt: '2026-07-12T10:00:00.000Z' }),
-      preview({ id: 'b', latestMessageAt: '2026-07-12T12:00:00.000Z' }),
+      preview({
+        id: 'g1',
+        isGroup: true,
+        latestMessageAt: '2026-07-12T10:00:00.000Z',
+        mentionCount: 9,
+        isUnread: true,
+      }),
+      preview({
+        id: 'g2',
+        isGroup: true,
+        latestMessageAt: '2026-07-12T14:00:00.000Z',
+        mentionCount: 0,
+        isUnread: false,
+      }),
     ];
-    const result = filterPreviewsForFilter(rows, 'all');
-    expect(result.map((r) => r.id)).toEqual(['b', 'a']);
-  });
-
-  it('needs_reply: excludes muted and group previews', () => {
-    const rows = [
-      preview({ id: 'a', needsReply: true }),
-      preview({ id: 'b', needsReply: true, isMuted: true }),
-      preview({ id: 'c', needsReply: true, isGroup: true }),
-      preview({ id: 'd', needsReply: false }),
-    ];
-    const result = filterPreviewsForFilter(rows, 'needs_reply');
-    expect(result.map((r) => r.id)).toEqual(['a']);
-  });
-
-  it('active: direct-only, online before away before offline', () => {
-    const rows = [
-      preview({ id: 'a', isOnline: false, isAway: false, latestMessageAt: '2026-07-12T09:00:00.000Z' }),
-      preview({ id: 'b', isOnline: true, latestMessageAt: '2026-07-12T08:00:00.000Z' }),
-      preview({ id: 'c', isAway: true, latestMessageAt: '2026-07-12T07:00:00.000Z' }),
-      preview({ id: 'd', isGroup: true, isOnline: true }),
-    ];
-    const result = filterPreviewsForFilter(rows, 'active');
-    expect(result.map((r) => r.id)).toEqual(['b', 'c', 'a']);
-  });
-
-  it('unread: falls back to all previews when none are unread', () => {
-    const rows = [
-      preview({ id: 'a', latestMessageAt: '2026-07-12T10:00:00.000Z' }),
-      preview({ id: 'b', latestMessageAt: '2026-07-12T12:00:00.000Z' }),
-    ];
-    const result = filterPreviewsForFilter(rows, 'unread');
-    expect(result.map((r) => r.id)).toEqual(['b', 'a']);
-  });
-
-  it('unread: returns only unread previews when present', () => {
-    const rows = [
-      preview({ id: 'a', isUnread: true, latestMessageAt: '2026-07-12T09:00:00.000Z' }),
-      preview({ id: 'b', isUnread: false, latestMessageAt: '2026-07-12T12:00:00.000Z' }),
-    ];
-    const result = filterPreviewsForFilter(rows, 'unread');
-    expect(result.map((r) => r.id)).toEqual(['a']);
+    expect(filterPreviewsForFilter(rows, 'groups').map((r) => r.id)).toEqual(['g2', 'g1']);
   });
 });

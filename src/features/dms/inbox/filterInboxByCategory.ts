@@ -1,5 +1,8 @@
 import type { InboxCategory } from '@/features/dms/dm.types';
-import { compareInboxActivity } from '@/lib/dmInboxOrganize';
+import {
+  compareInboxSortables,
+  toInboxSortable,
+} from '@/lib/sortInboxConversations';
 import type { InboxConversationIndexEntry } from './buildInboxConversationIndex';
 
 export interface FilteredInboxEntry extends InboxConversationIndexEntry {
@@ -7,14 +10,15 @@ export interface FilteredInboxEntry extends InboxConversationIndexEntry {
   categoryRank: number;
 }
 
-function compareActivityEntry(
+function compareChronoEntry(
   a: InboxConversationIndexEntry,
   b: InboxConversationIndexEntry,
   profileId?: string,
 ): number {
-  const byActivity = compareInboxActivity(a.conversation, b.conversation, profileId);
-  if (byActivity !== 0) return byActivity;
-  return a.conversationId.localeCompare(b.conversationId);
+  return compareInboxSortables(
+    toInboxSortable(a.conversation, profileId),
+    toInboxSortable(b.conversation, profileId),
+  );
 }
 
 function matchesCategory(
@@ -40,6 +44,8 @@ function matchesCategory(
       return entry.isCloseFriend;
     case 'streaks':
       return entry.hasActiveStreak;
+    case 'active':
+      return entry.isPeerOnline;
     case 'new':
       return false;
     default:
@@ -47,59 +53,9 @@ function matchesCategory(
   }
 }
 
-function rankWithinCategory(
-  entry: InboxConversationIndexEntry,
-  category: InboxCategory,
-): number {
-  switch (category) {
-    case 'unread':
-      return entry.activityMs;
-    case 'needs-reply':
-      return -entry.activityMs;
-    case 'nearby':
-      return -entry.nearbyRank * 1_000_000_000_000 + entry.activityMs;
-    case 'groups':
-      return entry.activityMs;
-    case 'stories':
-      return (entry.hasUnviewedStory ? 2 : entry.hasViewedStory ? 1 : 0) * 1_000_000_000_000 + entry.activityMs;
-    case 'calls': {
-      const at = entry.callSummary?.at ? Date.parse(entry.callSummary.at) : 0;
-      return Number.isFinite(at) ? at : entry.activityMs;
-    }
-    case 'best-friends': {
-      const rank = entry.bestFriendRank ?? 99;
-      return -rank * 1_000_000_000_000 + entry.activityMs;
-    }
-    case 'streaks': {
-      const urgencyScore =
-        entry.streakUrgency === 'warning' ? 3 : entry.streakUrgency === 'active' ? 2 : 1;
-      return urgencyScore * 1_000_000_000_000 + entry.streakCount * 1_000_000_000 + entry.activityMs;
-    }
-    default:
-      return entry.activityMs;
-  }
-}
-
-function sortMatches(
-  entries: InboxConversationIndexEntry[],
-  category: InboxCategory,
-  profileId?: string,
-): InboxConversationIndexEntry[] {
-  if (category === 'all') {
-    return [...entries].sort((a, b) => compareActivityEntry(a, b, profileId));
-  }
-  return [...entries].sort((a, b) => {
-    const rankDiff = rankWithinCategory(b, category) - rankWithinCategory(a, category);
-    if (rankDiff !== 0) return rankDiff;
-    const byActivity = compareActivityEntry(a, b, profileId);
-    if (byActivity !== 0) return byActivity;
-    return a.conversationId.localeCompare(b.conversationId);
-  });
-}
-
 /**
- * Soft-dim filter: matching rows first (full opacity), non-matches after (dimmed).
- * `category` null or `all` = all rows match, sorted by recency.
+ * Hard filter + Snapchat chrono sort.
+ * Visible rows never reorder from presence/typing/unread/rank — only message activity / pin.
  */
 export function filterInboxByCategory(
   index: InboxConversationIndexEntry[],
@@ -109,36 +65,20 @@ export function filterInboxByCategory(
   const effective: InboxCategory = category ?? 'all';
 
   if (effective === 'new') {
-    return index.map((entry) => ({
-      ...entry,
-      categoryMatch: false,
-      categoryRank: entry.activityMs,
-    }));
+    return [];
   }
 
-  const matches: InboxConversationIndexEntry[] = [];
-  const nonMatches: InboxConversationIndexEntry[] = [];
-
-  for (const entry of index) {
-    if (matchesCategory(entry, effective)) {
-      matches.push(entry);
-    } else if (effective !== 'all') {
-      nonMatches.push(entry);
-    }
-  }
-
-  const sortedMatches = sortMatches(matches, effective, profileId);
-  const sortedNonMatches =
+  const matches =
     effective === 'all'
-      ? []
-      : [...nonMatches].sort((a, b) => compareActivityEntry(a, b, profileId));
+      ? [...index]
+      : index.filter((entry) => matchesCategory(entry, effective));
 
-  const ordered = effective === 'all' ? sortedMatches : [...sortedMatches, ...sortedNonMatches];
+  const sorted = matches.sort((a, b) => compareChronoEntry(a, b, profileId));
 
-  return ordered.map((entry) => ({
+  return sorted.map((entry) => ({
     ...entry,
-    categoryMatch: matchesCategory(entry, effective),
-    categoryRank: rankWithinCategory(entry, effective),
+    categoryMatch: true,
+    categoryRank: entry.activityMs,
   }));
 }
 

@@ -22,6 +22,7 @@ export function buildInboxCategoryCounts(input: InboxCategoryCountsInput): DMInb
     stories: countCategoryMatches(index, 'stories'),
     calls: countCategoryMatches(index, 'calls'),
     streaks: countCategoryMatches(index, 'streaks'),
+    active: countCategoryMatches(index, 'active'),
     new: pendingRequestCount + suggestionCount,
   };
   return counts;
@@ -57,6 +58,8 @@ export function categoriesWithCounts(
         return { id, count: counts.bestFriends ?? 0 };
       case 'streaks':
         return { id, count: counts.streaks ?? 0 };
+      case 'active':
+        return { id, count: counts.active ?? 0 };
       case 'new':
         return { id, count: counts.new ?? 0 };
       default:

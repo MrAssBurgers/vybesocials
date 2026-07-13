@@ -2,6 +2,17 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## Snapchat-stable DM inbox order + top bar (2026-07-13)
+
+- **Bug:** Rows jumped when presence/typing/unread/rank/streak/projection changed because UI sort used `compareInboxActivity` (activity + unread ties) and category ranks (`bestFriendRank`, story boost, online score on Active).
+- **Sort:** New `sortInboxConversations` — pinned (`pinOrder`) → `latestMessageAt` desc → `conversationId`. Volatile fields never affect order. Load path + category/legacy filters share the same comparator.
+- **Filters:** Hard-filter (not soft-dim). Primary chips: **Chat / Best Friends / Groups / Unread / Active**. Extra categories kept for persistence/More later.
+- **UI:** Centered Chat title + avatar/search left, notifications/add/more right; compact 48px underline text tabs.
+- **Verified:** `npm run test` 269 PASS · `npm run build` PASS
+- **Next:** Publish staging (firebase hosting) + Lovable Publish when ready; optional Needs Reply entry under More.
+
+---
+
 ## Challenge sync 500 + `t?.has` Messages crash (2026-07-13)
 
 - **syncMyChallengeProgress 500:** missing Firestore index `post_reactions(user_id ASC, created_at ASC)`. Added indexes (+ comments/posts/follows/challenges composites). `countActivity` now fail-softs on query errors so one missing index cannot INTERNAL the whole sync.

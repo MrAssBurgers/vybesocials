@@ -2,6 +2,12 @@ import type { LoadedDMConversation } from '@/lib/loadDMConversations';
 import type { DMConversationPreview, DmInboxFilterId } from '@/features/dms/dm.types';
 import { conversationNeedsReply } from '@/lib/dmNeedsReply';
 import { safeDmMembers, ensureArray, ensureStringSet, safeSetHas } from '@/lib/persistedCollections';
+import {
+  sortInboxConversations,
+  sortInboxPreviews,
+  compareInboxSortables,
+  toInboxSortable,
+} from '@/lib/sortInboxConversations';
 
 /** @deprecated Section headers removed in redesign — kept for type compatibility. */
 export type DmInboxSectionId =
@@ -55,12 +61,6 @@ export interface DmInboxTabFilterOptions {
   recentlyActiveIds?: Set<string>;
 }
 
-function activityMs(conv: LoadedDMConversation): number {
-  const raw = conv._sortTime || conv.last_message?.created_at || conv.updated_at || '';
-  const t = Date.parse(raw);
-  return Number.isFinite(t) ? t : 0;
-}
-
 function isPinnedForViewer(conv: LoadedDMConversation, profileId?: string): boolean {
   if (!profileId) return false;
   return Boolean(
@@ -85,63 +85,28 @@ export function isNoiseLatest(conv: LoadedDMConversation): boolean {
 }
 
 /**
- * All: latest activity primary. Pinned / unread are tiny tie-breakers only
- * (±1ms-scale) so old pinned threads never jump above fresher chats.
+ * Snapchat-stable order: pinned (pinOrder) → latest message → conversationId.
+ * Unread / presence / rank must never affect this comparator.
  */
 export function compareInboxActivity(
   a: LoadedDMConversation,
   b: LoadedDMConversation,
   profileId?: string,
 ): number {
-  const byTime = activityMs(b) - activityMs(a);
-  if (byTime !== 0) return byTime;
-  const aPinned = isPinnedForViewer(a, profileId) ? 1 : 0;
-  const bPinned = isPinnedForViewer(b, profileId) ? 1 : 0;
-  if (aPinned !== bPinned) return bPinned - aPinned;
-  const aUnread = a._hasUnread || (a.unread_count || 0) > 0 ? 1 : 0;
-  const bUnread = b._hasUnread || (b.unread_count || 0) > 0 ? 1 : 0;
-  if (aUnread !== bUnread) return bUnread - aUnread;
-  return a.id.localeCompare(b.id);
+  return compareInboxSortables(toInboxSortable(a, profileId), toInboxSortable(b, profileId));
 }
 
 function sortPinned(
   rows: LoadedDMConversation[],
   profileId?: string,
 ): LoadedDMConversation[] {
-  return [...rows].sort((a, b) => {
-    const aOrder = Number(
-      (safeDmMembers(a.members).find((m) => m.user_id === profileId) as { pin_order?: number } | undefined)
-        ?.pin_order ?? 0,
-    );
-    const bOrder = Number(
-      (safeDmMembers(b.members).find((m) => m.user_id === profileId) as { pin_order?: number } | undefined)
-        ?.pin_order ?? 0,
-    );
-    if (aOrder !== bOrder) return Number(aOrder) - Number(bOrder);
-    return compareInboxActivity(a, b, profileId);
-  });
+  return sortInboxConversations(
+    rows.filter((c) => isPinnedForViewer(c, profileId)),
+    profileId,
+  );
 }
 
-function sortActive(
-  rows: LoadedDMConversation[],
-  options: DmInboxTabFilterOptions,
-): LoadedDMConversation[] {
-  const { presenceOnlineIds, recentlyActiveIds, profileId } = options;
-  return [...rows].sort((a, b) => {
-    const aOther = options.resolveOtherProfileId?.(a);
-    const bOther = options.resolveOtherProfileId?.(b);
-    const aOnline = aOther && safeSetHas(presenceOnlineIds, aOther) ? 2 : 0;
-    const bOnline = bOther && safeSetHas(presenceOnlineIds, bOther) ? 2 : 0;
-    const aRecent = aOther && safeSetHas(recentlyActiveIds, aOther) ? 1 : 0;
-    const bRecent = bOther && safeSetHas(recentlyActiveIds, bOther) ? 1 : 0;
-    const aScore = aOnline + aRecent;
-    const bScore = bOnline + bRecent;
-    if (aScore !== bScore) return bScore - aScore;
-    return compareInboxActivity(a, b, profileId);
-  });
-}
-
-/** Filter + sort one continuous list for smart inbox filters. */
+/** Filter + sort one continuous list — always chronological within the filtered set. */
 export function filterConversationsForTab(
   rows: LoadedDMConversation[],
   tab: DmInboxTabId,
@@ -165,160 +130,114 @@ export function filterConversationsForTab(
     rankedBestFriendIds: rankedBestFriendIdsRaw,
     nearbyProfileIds: nearbyProfileIdsRaw,
     resolveOtherProfileId,
+    presenceOnlineIds: presenceOnlineIdsRaw,
   } = options;
   const requestIds = ensureStringSet(requestIdsRaw);
   const callIds = ensureStringSet(callIdsRaw);
   const closeFriendIds = ensureStringSet(closeFriendIdsRaw);
   const rankedBestFriendIds = ensureStringSet(rankedBestFriendIdsRaw);
   const nearbyProfileIds = ensureStringSet(nearbyProfileIdsRaw);
+  const presenceOnlineIds = ensureStringSet(presenceOnlineIdsRaw);
   const safe = ensureArray(rows);
 
+  const chrono = (list: LoadedDMConversation[]) =>
+    sortInboxConversations(list, profileId);
+
   switch (tab) {
-    case 'all': {
-      return [...safe].sort((a, b) => compareInboxActivity(a, b, profileId));
-    }
+    case 'all':
+      return chrono(safe);
     case 'unread': {
       const unread = safe.filter(
         (c) => (c.unread_count || 0) > 0 || c._hasUnread || safeSetHas(callIds, c.id),
       );
-      if (unread.length) {
-        return unread.sort((a, b) => compareInboxActivity(a, b, profileId));
-      }
-      // When nothing is unread, show the full activity-sorted list.
-      return [...safe].sort((a, b) => compareInboxActivity(a, b, profileId));
+      return chrono(unread.length ? unread : safe);
     }
-    case 'needs_reply': {
-      return safe
-        .filter(
+    case 'needs_reply':
+      return chrono(
+        safe.filter(
           (c) =>
             conversationNeedsReply(c, profileId) &&
             !isMutedForViewer(c, profileId) &&
             !isNoiseLatest(c),
-        )
-        .sort((a, b) => compareInboxActivity(a, b, profileId));
-    }
-    case 'groups': {
-      return safe
-        .filter((c) => c.is_group)
-        .sort((a, b) => {
-          const aMention = (a as { mention_count?: number }).mention_count || 0;
-          const bMention = (b as { mention_count?: number }).mention_count || 0;
-          if (aMention !== bMention) return bMention - aMention;
-          const aUnread = a._hasUnread || (a.unread_count || 0) > 0 ? 1 : 0;
-          const bUnread = b._hasUnread || (b.unread_count || 0) > 0 ? 1 : 0;
-          if (aUnread !== bUnread) return bUnread - aUnread;
-          return compareInboxActivity(a, b, profileId);
-        });
-    }
-    case 'pinned': {
-      return sortPinned(
-        safe.filter((c) => isPinnedForViewer(c, profileId)),
-        profileId,
+        ),
       );
-    }
-    case 'active': {
-      // Direct chats only — online → recently active → offline.
-      return sortActive(
-        safe.filter((c) => !c.is_group),
-        options,
+    case 'groups':
+      return chrono(safe.filter((c) => c.is_group));
+    case 'pinned':
+      return sortPinned(safe, profileId);
+    case 'active':
+      return chrono(
+        safe.filter((c) => {
+          if (c.is_group) return false;
+          const otherId = resolveOtherProfileId?.(c);
+          return Boolean(otherId && safeSetHas(presenceOnlineIds, otherId));
+        }),
       );
-    }
-    // Legacy tabs (rollback / pre-redesign)
     case 'friends':
-      return safe.filter(
-        (c) => !c.is_group && !(requestIds.size && requestIds.has(c.id)),
+      return chrono(
+        safe.filter((c) => !c.is_group && !(requestIds.size && requestIds.has(c.id))),
       );
     case 'best_friends': {
-      const ranked = rankedBestFriendIds;
-      if (ranked.size) {
-        return safe
-          .filter((c) => {
+      if (rankedBestFriendIds.size) {
+        return chrono(
+          safe.filter((c) => {
             if (c.is_group) return false;
             const otherId = resolveOtherProfileId?.(c);
-            return Boolean(otherId && ranked.has(otherId));
-          })
-          .sort((a, b) => {
-            const aId = resolveOtherProfileId?.(a);
-            const bId = resolveOtherProfileId?.(b);
-            const aRank = aId && ranked.has(aId) ? 1 : 0;
-            const bRank = bId && ranked.has(bId) ? 1 : 0;
-            if (aRank !== bRank) return bRank - aRank;
-            return compareInboxActivity(a, b, profileId);
-          });
+            return Boolean(otherId && rankedBestFriendIds.has(otherId));
+          }),
+        );
       }
       if (!closeFriendIds.size) return [];
-      return safe.filter((c) => {
-        if (c.is_group) return false;
-        const otherId = resolveOtherProfileId?.(c);
-        return Boolean(otherId && closeFriendIds.has(otherId));
-      });
+      return chrono(
+        safe.filter((c) => {
+          if (c.is_group) return false;
+          const otherId = resolveOtherProfileId?.(c);
+          return Boolean(otherId && closeFriendIds.has(otherId));
+        }),
+      );
     }
     case 'nearby':
       if (!nearbyProfileIds.size) return [];
-      return safe.filter((c) => {
-        if (c.is_group) return false;
-        const otherId = resolveOtherProfileId?.(c);
-        return Boolean(otherId && nearbyProfileIds.has(otherId));
-      });
+      return chrono(
+        safe.filter((c) => {
+          if (c.is_group) return false;
+          const otherId = resolveOtherProfileId?.(c);
+          return Boolean(otherId && nearbyProfileIds.has(otherId));
+        }),
+      );
     case 'requests':
       if (!requestIds.size) return [];
-      return safe.filter((c) => requestIds.has(c.id));
+      return chrono(safe.filter((c) => requestIds.has(c.id)));
     default:
-      return [...safe].sort((a, b) => compareInboxActivity(a, b, profileId));
+      return chrono(safe);
   }
 }
 
-/** Preview-based filter for projection-backed rows (preferred UI path). */
+/** Preview-based filter — same Snapchat chrono rules within each filter. */
 export function filterPreviewsForFilter(
   rows: DMConversationPreview[],
   filter: DmInboxFilterId,
 ): DMConversationPreview[] {
   const safe = ensureArray(rows);
-  const byActivity = (a: DMConversationPreview, b: DMConversationPreview) => {
-    const aT = Date.parse(a.latestMessageAt || '') || 0;
-    const bT = Date.parse(b.latestMessageAt || '') || 0;
-    if (bT !== aT) return bT - aT;
-    if (a.isPinned !== b.isPinned) return Number(b.isPinned) - Number(a.isPinned);
-    return Number(b.isUnread) - Number(a.isUnread);
-  };
+  const chrono = sortInboxPreviews;
 
   switch (filter) {
     case 'all':
-      return [...safe].sort(byActivity);
+      return chrono(safe);
     case 'unread': {
       const unread = safe.filter((r) => r.isUnread || r.unreadCount > 0);
-      return (unread.length ? unread : safe).sort(byActivity);
+      return chrono(unread.length ? unread : safe);
     }
     case 'needs_reply':
-      return safe
-        .filter((r) => r.needsReply && !r.isMuted && !r.isGroup)
-        .sort(byActivity);
+      return chrono(safe.filter((r) => r.needsReply && !r.isMuted && !r.isGroup));
     case 'groups':
-      return safe
-        .filter((r) => r.isGroup)
-        .sort((a, b) => {
-          if (a.mentionCount !== b.mentionCount) return b.mentionCount - a.mentionCount;
-          if (a.isUnread !== b.isUnread) return Number(b.isUnread) - Number(a.isUnread);
-          return byActivity(a, b);
-        });
+      return chrono(safe.filter((r) => r.isGroup));
     case 'pinned':
-      return safe
-        .filter((r) => r.isPinned)
-        .sort((a, b) => {
-          if (a.pinOrder !== b.pinOrder) return a.pinOrder - b.pinOrder;
-          return byActivity(a, b);
-        });
+      return chrono(safe.filter((r) => r.isPinned));
     case 'active':
-      return safe
-        .filter((r) => !r.isGroup)
-        .sort((a, b) => {
-          const score = (r: DMConversationPreview) =>
-            (r.isOnline ? 2 : 0) + (r.isAway ? 1 : 0);
-          const diff = score(b) - score(a);
-          return diff !== 0 ? diff : byActivity(a, b);
-        });
+      return chrono(safe.filter((r) => !r.isGroup && r.isOnline));
     default:
-      return [...safe].sort(byActivity);
+      return chrono(safe);
   }
 }
 
@@ -345,9 +264,7 @@ export function organizeInboxSections(
     {
       id: 'all',
       label: 'All',
-      conversations: [...ensureArray(conversations)].sort((a, b) =>
-        compareInboxActivity(a, b, profileId),
-      ),
+      conversations: sortInboxConversations(ensureArray(conversations), profileId),
     },
   ];
 }

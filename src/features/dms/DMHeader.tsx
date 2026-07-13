@@ -23,7 +23,7 @@ export function DMHeader({
 
   return (
     <header className="dm-inbox-hero dm-inbox-hero--sticky">
-      <div className="dm-inbox-header-bar">
+      <div className="dm-inbox-header-bar dm-inbox-header-bar--snap">
         <div className="dm-inbox-header-side dm-inbox-header-side--start">
           <button
             type="button"
@@ -50,10 +50,6 @@ export function DMHeader({
             </Avatar>
             <span className="dm-inbox-presence-dot" aria-hidden />
           </button>
-          <h1 className="dm-inbox-title">Chat</h1>
-        </div>
-
-        <div className="dm-inbox-header-side dm-inbox-header-side--right">
           <button
             type="button"
             className="dm-inbox-header-action dm-vfx-press"
@@ -62,6 +58,11 @@ export function DMHeader({
           >
             <Search />
           </button>
+        </div>
+
+        <h1 className="dm-inbox-title dm-inbox-title--centered">Chat</h1>
+
+        <div className="dm-inbox-header-side dm-inbox-header-side--right">
           <button
             type="button"
             className="dm-inbox-header-action dm-vfx-press"

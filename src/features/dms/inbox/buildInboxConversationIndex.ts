@@ -29,6 +29,8 @@ export interface InboxConversationIndexEntry {
   hasActiveStreak: boolean;
   hasUnviewedStory: boolean;
   hasViewedStory: boolean;
+  /** Peer currently online — Active filter only; never used for default sort. */
+  isPeerOnline: boolean;
 }
 
 export interface BuildInboxIndexInput {
@@ -43,6 +45,8 @@ export interface BuildInboxIndexInput {
   rankedBestFriendIds: Set<string>;
   bestFriendRankByProfileId?: Map<string, number>;
   projectionStreakStateByConversationId?: Map<string, InboxRelationshipProjection['streak_state']>;
+  /** Online peer profile ids — Active filter membership only. */
+  presenceOnlineIds?: Set<string>;
   resolveOtherProfileId: (conversation: LoadedDMConversation) => string | undefined;
 }
 
@@ -83,6 +87,7 @@ export function buildInboxConversationIndex(input: BuildInboxIndexInput): InboxC
   const nearbyRankByProfileId = normalizePersistedMap<number>(input.nearbyRankByProfileId);
   const closeFriendIds = ensureStringSet(input.closeFriendIds);
   const rankedBestFriendIds = ensureStringSet(input.rankedBestFriendIds);
+  const presenceOnlineIds = ensureStringSet(input.presenceOnlineIds);
   const bestFriendRankByProfileId = normalizePersistedMap<number>(input.bestFriendRankByProfileId);
   const projectionStreakStateByConversationId = normalizePersistedMap<
     InboxRelationshipProjection['streak_state']
@@ -141,6 +146,9 @@ export function buildInboxConversationIndex(input: BuildInboxIndexInput): InboxC
         streakCount > 0 && streakUrgency !== 'expired',
       hasUnviewedStory: storyState === 'unviewed',
       hasViewedStory: storyState === 'viewed',
+      isPeerOnline: Boolean(
+        otherProfileId && safeSetHas(presenceOnlineIds, otherProfileId),
+      ),
     };
   });
 }

@@ -1,6 +1,11 @@
 import type { Message } from '@/hooks/useMessages';
 import type { LoadedDMConversation } from '@/lib/loadDMConversations';
-import { safeDmMembers } from '@/lib/persistedCollections';
+import {
+  getInboxLatestMessageAt,
+  sortInboxConversations,
+  toInboxSortable,
+  compareInboxSortables,
+} from '@/lib/sortInboxConversations';
 
 type SortableConversation = Pick<
   LoadedDMConversation,
@@ -9,45 +14,26 @@ type SortableConversation = Pick<
 
 /** Message activity only — never conversation.updated_at (bumped on view/repair). */
 export function getDmConversationSortTime(conv: SortableConversation): string {
-  return (
-    conv.last_message?.created_at ??
-    conv._sortTime ??
-    conv.created_at ??
-    ''
-  );
+  return getInboxLatestMessageAt(conv as LoadedDMConversation);
 }
 
-function isPinnedForViewer(conv: SortableConversation, profileId?: string | null): boolean {
-  if (!profileId) return false;
-  return Boolean(
-    safeDmMembers(conv.members).find((m) => m.user_id === profileId)?.is_pinned,
-  );
-}
-
-/** Pinned first, then most recent message activity. Unread does not affect order. */
+/** Pinned first (pinOrder), then latest message activity, then id. Unread/presence ignored. */
 export function compareDmConversations(
   a: SortableConversation,
   b: SortableConversation,
   profileId?: string | null,
 ): number {
-  const aPinned = isPinnedForViewer(a, profileId);
-  const bPinned = isPinnedForViewer(b, profileId);
-  if (aPinned && !bPinned) return -1;
-  if (!aPinned && bPinned) return 1;
-  if (aPinned && bPinned) {
-    return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
-  }
-
-  const timeA = new Date(getDmConversationSortTime(a)).getTime();
-  const timeB = new Date(getDmConversationSortTime(b)).getTime();
-  return timeB - timeA;
+  return compareInboxSortables(
+    toInboxSortable(a as LoadedDMConversation, profileId),
+    toInboxSortable(b as LoadedDMConversation, profileId),
+  );
 }
 
 export function sortDmConversations<T extends SortableConversation>(
   list: T[],
   profileId?: string | null,
 ): T[] {
-  return [...list].sort((a, b) => compareDmConversations(a, b, profileId));
+  return sortInboxConversations(list as LoadedDMConversation[], profileId) as T[];
 }
 
 /** Apply a new last message to a conversation row (send/receive paths). */

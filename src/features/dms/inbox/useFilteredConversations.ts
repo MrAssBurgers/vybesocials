@@ -1,6 +1,5 @@
 import { useMemo } from 'react';
 import type { InboxCategory } from '@/features/dms/dm.types';
-import type { LoadedDMConversation } from '@/lib/loadDMConversations';
 import {
   buildInboxConversationIndex,
   type BuildInboxIndexInput,
@@ -8,6 +7,7 @@ import {
 import { filterInboxByCategory, type FilteredInboxEntry } from './filterInboxByCategory';
 import { buildInboxCategoryCounts } from './inboxCategoryCounts';
 import type { DMInboxBadges } from '@/features/dms/dm.types';
+import { ensureStringSet } from '@/lib/persistedCollections';
 
 export interface UseFilteredConversationsInput extends BuildInboxIndexInput {
   category: InboxCategory | null;
@@ -40,18 +40,27 @@ export function useFilteredConversations(
     rankedBestFriendIds,
     bestFriendRankByProfileId,
     projectionStreakStateByConversationId,
+    presenceOnlineIds,
     resolveOtherProfileId,
   } = input;
 
-  const conversationRevisionKey = useMemo(
+  // Order-relevant fields only — unread/presence must not appear here as sort drivers.
+  const conversationOrderKey = useMemo(
     () =>
       conversations
-        .map(
-          (c) =>
-            `${c.id}:${c.last_message?.created_at ?? ''}:${c.unread_count ?? 0}:${c._hasUnread ? 1 : 0}`,
-        )
+        .map((c) => {
+          const membership = c.members?.find((m) => m.user_id === profileId) as
+            | { is_pinned?: boolean; pin_order?: number }
+            | undefined;
+          return `${c.id}:${c.last_message?.created_at ?? c._sortTime ?? ''}:${membership?.is_pinned ? 1 : 0}:${membership?.pin_order ?? ''}`;
+        })
         .join('\0'),
-    [conversations],
+    [conversations, profileId],
+  );
+
+  const presenceKey = useMemo(
+    () => [...ensureStringSet(presenceOnlineIds)].sort().join('\0'),
+    [presenceOnlineIds],
   );
 
   return useMemo(() => {
@@ -67,6 +76,7 @@ export function useFilteredConversations(
       rankedBestFriendIds,
       bestFriendRankByProfileId,
       projectionStreakStateByConversationId,
+      presenceOnlineIds,
       resolveOtherProfileId,
     });
     const filtered = filterInboxByCategory(index, category, profileId);
@@ -88,7 +98,8 @@ export function useFilteredConversations(
     category,
     pendingRequestCount,
     suggestionCount,
-    conversationRevisionKey,
+    conversationOrderKey,
+    presenceKey,
     conversations,
     profileId,
     storyStateByProfileId,
@@ -100,6 +111,7 @@ export function useFilteredConversations(
     rankedBestFriendIds,
     bestFriendRankByProfileId,
     projectionStreakStateByConversationId,
+    presenceOnlineIds,
     resolveOtherProfileId,
   ]);
 }

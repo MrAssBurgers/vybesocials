@@ -26,6 +26,7 @@ export type InboxCategory =
   | 'calls'
   | 'best-friends'
   | 'streaks'
+  | 'active'
   | 'new';
 
 export type InboxStreakUrgency = 'active' | 'warning' | 'expired';
@@ -158,6 +159,7 @@ export interface DMInboxBadges {
   stories?: number;
   calls?: number;
   streaks?: number;
+  active?: number;
   new?: number;
 }
 

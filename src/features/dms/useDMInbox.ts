@@ -24,6 +24,7 @@ import {
 import { dmConversationPreviewText } from '@/lib/dmPreviewText';
 import { resolveDmInboxStatus } from '@/lib/dmInboxStatus';
 import { ensureArray, ensureStringSet, normalizePersistedMap, safeDmMembers } from '@/lib/persistedCollections';
+import { getInboxPinState } from '@/lib/sortInboxConversations';
 import { resolveSessionProfileId } from '@/lib/resolveSessionProfileId';
 import { resolveProfileAvatarUrl } from '@/lib/profileAvatarCache';
 import { batchSignUrls } from '@/lib/signedUrlCache';
@@ -445,6 +446,7 @@ export function useDMInbox() {
     rankedBestFriendIds: relationshipProjectionRead ? rankedBestFriendIds : new Set<string>(),
     bestFriendRankByProfileId,
     projectionStreakStateByConversationId,
+    presenceOnlineIds,
     resolveOtherProfileId,
     category: categoryBarEnabled ? inboxCategories.activeCategory : null,
     pendingRequestCount,
@@ -623,7 +625,7 @@ export function useDMInbox() {
         mentionCount: 0,
         isUnread: unreadCount > 0 || conversation._hasUnread,
         isPinned: Boolean(membership?.is_pinned),
-        pinOrder: 0,
+        pinOrder: getInboxPinState(conversation, profileId).pinOrder,
         isMuted: Boolean(membership?.is_muted),
         isArchived: false,
         needsReply: conversationNeedsReply(conversation, profileId),
