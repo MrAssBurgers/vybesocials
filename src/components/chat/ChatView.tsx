@@ -212,8 +212,9 @@ export function ChatView() {
     if (!conversationId) return [] as Message[];
     const cached = readMessagesCache(queryClient, conversationId);
     const live = messages?.length ? messages : cached;
-    if (!live.length) return live;
-    return live.filter((m) => !m.conversation_id || m.conversation_id === conversationId);
+    const safeLive = ensureArray<Message>(live);
+    if (!safeLive.length) return safeLive;
+    return safeLive.filter((m) => !m.conversation_id || m.conversation_id === conversationId);
   }, [conversationId, messages, queryClient, messagesRaw]);
   const { sendText, sendMedia, sendVideo, retry: retryMessage, removeMessage, videoUploadProgress } = useInstantSend(conversationId);
 

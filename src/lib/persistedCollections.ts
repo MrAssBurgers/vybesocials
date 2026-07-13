@@ -40,6 +40,9 @@ const PERSISTED_SET_KEY_FRAGMENTS = [
   'my-feature-votes',
   'viewed-story-ids',
   'easter-eggs-unlocked',
+  'locked-chats',
+  'inbox-call-conversations',
+  'recent-new-friend-ids',
 ];
 
 /** Query keys whose cached `data` must be a Map after persistence restore. */

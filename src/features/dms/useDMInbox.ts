@@ -359,6 +359,7 @@ export function useDMInbox() {
 
   const toPreview = useMemo(() => {
     return (conversation: (typeof allConversations)[number]): DMConversationPreview => {
+      try {
       const resolved = conversation.is_group
         ? null
         : resolveOtherMemberFromConversation(conversation, profileId, user?.id);
@@ -509,6 +510,44 @@ export function useDMInbox() {
         quickReaction,
         fromProjection: Boolean(projEntry),
       };
+      } catch (error) {
+        console.warn('[useDMInbox] preview build failed', conversation.id, error);
+        const unreadCount = conversation.unread_count || 0;
+        return {
+          conversation,
+          id: conversation.id,
+          conversationId: conversation.id,
+          conversationType: conversation.is_group ? 'group' : 'direct',
+          displayName: displayNameForConversation(
+            conversation,
+            profileId,
+            user?.id,
+            'Chat',
+          ),
+          previewText: 'Tap to chat',
+          statusLine: 'Tap to chat',
+          statusKind: 'start',
+          deliveryStatus: 'Chat',
+          latestMessageType: 'text',
+          unreadCount,
+          mentionCount: 0,
+          isUnread: unreadCount > 0 || conversation._hasUnread,
+          isPinned: false,
+          pinOrder: 0,
+          isMuted: false,
+          isArchived: false,
+          needsReply: false,
+          isGroup: conversation.is_group,
+          isTyping: false,
+          typingNames: [],
+          isOnline: false,
+          isAway: false,
+          presenceState: 'offline',
+          storyState: 'none',
+          isVerified: false,
+          fromProjection: false,
+        };
+      }
     };
   }, [
     profileId,

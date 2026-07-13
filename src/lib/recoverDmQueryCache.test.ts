@@ -7,6 +7,9 @@ describe('isRecoverableDmCacheError', () => {
     expect(isRecoverableDmCacheError(new Error('x.has is not a function'))).toBe(true);
     expect(isRecoverableDmCacheError(new Error('rows.filter is not a function'))).toBe(true);
     expect(isRecoverableDmCacheError(new Error('data is not iterable'))).toBe(true);
+    expect(
+      isRecoverableDmCacheError(new Error("Cannot read properties of undefined (reading 'has')")),
+    ).toBe(true);
   });
 
   it('matches known DM TDZ regressions', () => {

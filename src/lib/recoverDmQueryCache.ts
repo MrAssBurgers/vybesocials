@@ -58,6 +58,7 @@ export function isRecoverableDmCacheError(error: unknown): boolean {
     /\.has is not a function/i.test(msg) ||
     /\.filter is not a function/i.test(msg) ||
     /is not iterable/i.test(msg) ||
+    /Cannot read properties of (undefined|null).*(reading '(has|get)'|\.(has|get))/i.test(msg) ||
     /statusMap\.get is not a function/i.test(msg)
   );
 }

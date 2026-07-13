@@ -13,7 +13,7 @@ import { useDefaultLiquidBackground } from '@/hooks/useDefaultLiquidBackground';
 import { LockedChatGate } from '@/components/chat/LockedChatGate';
 import { prepareMessagesRoute } from '@/lib/loadDMConversations';
 import { warmDmConversation } from '@/lib/warmDmConversation';
-import { recoverDmQueryCache, readLastBoundaryError } from '@/lib/recoverDmQueryCache';
+import { recoverDmQueryCache, readLastBoundaryError, LAST_BOUNDARY_ERROR_KEY } from '@/lib/recoverDmQueryCache';
 import { useAuth } from '@/lib/auth';
 import { useAuthProfileId } from '@/hooks/useAuthProfileId';
 import type { QueryClient } from '@tanstack/react-query';
@@ -57,7 +57,12 @@ function MessagesFallback() {
       recoverDmQueryCache(qc, profileId, user?.id);
       prepareMessagesRoute(qc, profileId, user?.id);
     }
-    navigate('/messages', { replace: true });
+    try {
+      sessionStorage.removeItem(LAST_BOUNDARY_ERROR_KEY);
+    } catch {
+      /* ignore */
+    }
+    window.location.assign('/messages');
   };
 
   return (
@@ -127,6 +132,20 @@ function MessagesInner() {
 
   useEffect(() => {
     routePreparedRef.current = false;
+  }, [profileId, user?.id]);
+
+  useEffect(() => {
+    const lastError = readLastBoundaryError();
+    if (!lastError) return;
+    const qc = (window as unknown as { __REACT_QUERY_CLIENT__?: QueryClient }).__REACT_QUERY_CLIENT__;
+    if (!qc) return;
+    recoverDmQueryCache(qc, profileId, user?.id);
+    prepareMessagesRoute(qc, profileId, user?.id);
+    try {
+      sessionStorage.removeItem(LAST_BOUNDARY_ERROR_KEY);
+    } catch {
+      /* ignore */
+    }
   }, [profileId, user?.id]);
 
   useLayoutEffect(() => {

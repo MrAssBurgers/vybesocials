@@ -3,6 +3,7 @@ import { Lock, Fingerprint } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useLockedChatIds } from '@/hooks/useLockedChats';
+import { ensureStringSet } from '@/lib/persistedCollections';
 
 interface LockedChatGateProps {
   conversationId: string;
@@ -21,8 +22,9 @@ function readStoredPasscode(): string | null {
 
 /** Blocks locked DM threads until passcode unlock (web fallback). */
 export function LockedChatGate({ conversationId, children }: LockedChatGateProps) {
-  const { data: lockedIds } = useLockedChatIds();
-  const isLocked = lockedIds?.has(conversationId) ?? false;
+  const { data: lockedIdsRaw } = useLockedChatIds();
+  const lockedIds = ensureStringSet(lockedIdsRaw);
+  const isLocked = lockedIds.has(conversationId);
   const [unlocked, setUnlocked] = useState(false);
   const [passcode, setPasscode] = useState('');
   const [error, setError] = useState<string | null>(null);
