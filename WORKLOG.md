@@ -7,7 +7,8 @@ Use this file as the Lovable -> Cursor handoff each session.
 - **Cause:** Framer Motion GPU layers + `bg-background` row shells over transparent list → black slabs on fling; sibling `/messages` routes remounted tree; avatar/sign + scroll I/O amplified jank.
 - **Fix:** CSS-transform swipe (no idle Motion); transparent shells; `html.is-scrolling` cheap paint; throttled scroll persist; priority avatars + idle-sign rest; single `/messages/:conversationId?` mount; messages actor refetch; chat bottom pin after seed expand; dedupe stories; pause presence/typing while chat open.
 - **Verified:** `npm run test` 263 PASS · `npm run build` PASS
-- **Published:** pending deploy this session
+- **Published:** `origin/main` @ **`46be36ce`** · https://vybe-daaab.web.app ✅
+- **Production:** Lovable → Share → Publish
 
 ---
 
