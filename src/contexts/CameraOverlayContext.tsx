@@ -101,6 +101,11 @@ export function useCameraOverlay() {
   return ctx;
 }
 
+/** Non-throwing camera overlay access for surfaces that may mount outside the provider. */
+export function useCameraOverlayOptional() {
+  return useContext(CameraOverlayContext);
+}
+
 /** Open camera instantly; start getUserMedia in the same tap (mobile-safe). */
 export function openCameraFromGesture(
   openCamera: (opts: OpenCameraOptions) => void,

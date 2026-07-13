@@ -33,7 +33,7 @@ export function DMHeader({ totalUnreadCount, onSearch }: DMHeaderProps) {
               }
             }}
           >
-            <Avatar className="h-10 w-10">
+            <Avatar className="h-11 w-11">
               <ProfileAvatarImage
                 profileId={profile?.id}
                 src={profile?.avatar_url || undefined}

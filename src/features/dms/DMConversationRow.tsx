@@ -19,7 +19,7 @@ import { Avatar, AvatarFallback, ProfileAvatarImage } from '@/components/ui/avat
 import { TypingIndicator } from '@/components/ui/TypingIndicator';
 import {
   openCameraFromGesture,
-  useCameraOverlay,
+  useCameraOverlayOptional,
 } from '@/contexts/CameraOverlayContext';
 import { insertDmMessage } from '@/lib/dmSendCore';
 import { invalidateConversationCaches } from '@/lib/invalidateConversationCaches';
@@ -51,7 +51,7 @@ export const DMConversationRow = memo(function DMConversationRow({
 }: DMConversationRowProps) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const { openCamera } = useCameraOverlay();
+  const cameraOverlay = useCameraOverlayOptional();
   const resolved = conversation.is_group
     ? null
     : resolveOtherMemberFromConversation(conversation, profileId, authUid);
@@ -93,10 +93,9 @@ export const DMConversationRow = memo(function DMConversationRow({
       otherProfileId,
       previewMaxLen: 48,
     });
-  const secondaryLine =
-    statusLine && messagePreview && statusLine !== messagePreview
-      ? `${statusLine} · ${messagePreview}`
-      : statusLine || messagePreview;
+  const showSeparatePreview = Boolean(
+    messagePreview && messagePreview !== statusLine,
+  );
 
   const stopRowGesture = (event: React.SyntheticEvent) => {
     event.preventDefault();
@@ -115,7 +114,11 @@ export const DMConversationRow = memo(function DMConversationRow({
         toast.error('Sign in to send a snap');
         return;
       }
-      openCameraFromGesture(openCamera, 'dm', {
+      if (!cameraOverlay) {
+        navigate(`/messages/${conversation.id}?camera=1`);
+        return;
+      }
+      openCameraFromGesture(cameraOverlay.openCamera, 'dm', {
         onSend: async (mediaUrl, isVideo) => {
           const result = await insertDmMessage(
             {
@@ -152,7 +155,8 @@ export const DMConversationRow = memo(function DMConversationRow({
       conversation.id,
       conversation.is_group,
       conversation.name,
-      openCamera,
+      cameraOverlay,
+      navigate,
       otherProfileId,
       profileId,
       queryClient,
@@ -226,9 +230,18 @@ export const DMConversationRow = memo(function DMConversationRow({
             {activityPreviewLabel(activity)}
           </p>
         ) : (
-          <p className={cn('dm-inbox-status', unread && 'dm-inbox-preview--unread')}>
-            {secondaryLine}
-          </p>
+          <>
+            {statusLine && (
+              <p className={cn('dm-inbox-status', unread && 'dm-inbox-preview--unread')}>
+                {statusLine}
+              </p>
+            )}
+            {showSeparatePreview && (
+              <p className={cn('dm-inbox-message-preview', unread && 'dm-inbox-preview--unread')}>
+                {messagePreview}
+              </p>
+            )}
+          </>
         )}
       </div>
 

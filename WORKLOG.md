@@ -2,7 +2,15 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
-## Compact inbox + stable themes (2026-07-12)
+## DM inbox concept restore + full-width layout (2026-07-12)
+- **User ask:** Inbox looked like plain fallback list beside giant empty card — restore concept neon-glass design from reference
+- **Layout:** `/messages` inbox is full-width until a chat opens; removed desktop marketing empty pane; split pane only on `lg+` when a thread is active
+- **Visual:** Restored concept measurements — 96px rows, 64px avatars with conic rings, 58px glow tabs, glass header, separate status + preview lines, 48px camera, 64px FAB
+- **Resilience:** `DmInboxSafeList` now uses production row chrome + signed avatars; camera row uses optional overlay hook (no provider crash)
+- **Verified:** typecheck PASS · lint PASS · 71 tests PASS · build PASS
+- **Published:** pending push + Lovable Publish
+- **You:** Lovable → sync `main` → **Share → Publish**; hard-refresh `/messages` — expect full-screen Chat header + tabs + neon rows (not letter-only sidebar)
+
 - **DM inbox:** Production rows are 80px with 52px avatars, 42px camera targets, a 56px compose FAB, slimmer safe-area header/tabs, one secondary status/preview line, hairline separators, a soft avatar ring, 2px active underline, and light list-level glass. Swipe, camera, profile navigation, tabs, desktop layout, and virtual slicing remain wired; row/header estimates now exactly match 80px/28px and skeletons match the compact geometry.
 - **Theme persistence:** Authenticated reads are strictly scoped to the live Firebase UID; global theme keys are unauthenticated legacy-only. Equip/save/hydration paths pass the authenticated UID, scoped timestamps participate in storage synchronization, and account-mismatched boot snapshots are rejected. Local scoped state remains first-paint authority over Firestore backup.
 - **Theme races/reset:** Auto-Pilot cannot overwrite an explicit equipped theme, mode remains independent from theme identity, and reset cleanup is shared across settings/logout paths and removes scoped tokens/timestamps, boot snapshot, remembered UID, equipped ID, and global legacy state.
