@@ -166,7 +166,8 @@ export function ConversationList() {
   const storyGroups: StoryGroup[] = [];
   const { data: pendingRequestCount = 0 } = usePendingRequestCount();
   const { data: acceptedRequestsRaw } = useAcceptedFriendRequests();
-  const { data: recentNewFriendIds = new Set<string>() } = useRecentNewFriendProfileIds();
+  const { data: recentNewFriendIdsRaw } = useRecentNewFriendProfileIds();
+  const recentNewFriendIds = new Set<string>(ensureArray<string>(recentNewFriendIdsRaw));
   const acceptedRequests = ensureArray(acceptedRequestsRaw);
   const dismissAccepted = useDismissAcceptedRequest();
   const streakMap = useStreakMap();
