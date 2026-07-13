@@ -15,6 +15,8 @@ import type { DMConversationPreview } from '@/features/dms/dm.types';
 const SWIPE_ACTIVATE_PX = 12;
 const HOLD_MS = 480;
 const HOLD_CANCEL_PX = 8;
+/** Max movement still treated as a tap (open chat) after vertical scroll classification. */
+const TAP_SLOP_PX = 14;
 const REPLY_THRESHOLD = 56;
 const MANAGE_THRESHOLD = -48;
 const TRASH_THRESHOLD = -110;
@@ -195,6 +197,14 @@ export const SwipeableDmConversationRow = memo(function SwipeableDmConversationR
 
       const state = stateRef.current;
       const offset = x.get();
+      const dx = e.clientX - start.x;
+      const dy = e.clientY - start.y;
+      const absDx = Math.abs(dx);
+      const absDy = Math.abs(dy);
+      const isTap =
+        !gestureConsumedRef.current &&
+        absDx <= TAP_SLOP_PX &&
+        absDy <= TAP_SLOP_PX;
 
       if (state === 'swiping') {
         const shouldSnapBack = runSwipeAction(offset);
@@ -205,7 +215,10 @@ export const SwipeableDmConversationRow = memo(function SwipeableDmConversationR
           gestureConsumedRef.current = true;
           return;
         }
-      } else if (state === 'pending' && !gestureConsumedRef.current) {
+      } else if (
+        (state === 'pending' || state === 'scrolling') &&
+        isTap
+      ) {
         onWarm?.();
         onClick();
       }
@@ -359,11 +372,20 @@ export const SwipeableDmConversationRow = memo(function SwipeableDmConversationR
         </motion.div>
 
         <motion.div
-          className="relative bg-background"
+          role="button"
+          tabIndex={0}
+          className="relative bg-background dm-inbox-row-tap"
           style={{ x, opacity: isDeleting ? 0 : 1 }}
           onPointerDown={handlePointerDown}
           onClickCapture={handleClickCapture}
           onPointerEnter={handlePointerEnter}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter' || event.key === ' ') {
+              event.preventDefault();
+              onClick();
+            }
+          }}
+          aria-label={`Open chat with ${displayName}`}
         >
           {card}
         </motion.div>

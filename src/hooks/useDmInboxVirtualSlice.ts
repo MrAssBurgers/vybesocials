@@ -2,7 +2,7 @@ import { useCallback } from 'react';
 import type { DMInboxRow } from '@/features/dms/dm.types';
 import { useVirtualScrollSlice } from '@/hooks/useVirtualScrollSlice';
 
-const ROW_ESTIMATE_PX = 72;
+const ROW_ESTIMATE_PX = 86;
 const HEADER_ESTIMATE_PX = 26;
 const INBOX_VIRTUAL_THRESHOLD = 40;
 const OVERSCAN = 6;

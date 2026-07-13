@@ -154,10 +154,10 @@ function MessagesInner() {
         >
           <LocalErrorBoundary
             label="dm-inbox"
-            resetKey={profileId || user?.id || 'anon'}
+            resetKey={`dm-inbox-v3:${profileId || user?.id || 'anon'}`}
             fallback={<DmInboxSafeList />}
           >
-            <DMInboxPage />
+            <DMInboxPage key={`dm-inbox-page-v3:${profileId || user?.id || 'anon'}`} />
           </LocalErrorBoundary>
         </div>
 

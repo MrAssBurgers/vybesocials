@@ -2,7 +2,42 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## DM inbox richer rows restore (2026-07-12)
+- **User ask:** “where is everything else… make it look better” after compact pass felt empty
+- **Cause:** Compaction hid the message preview line (`display: none`) and dropped it from row markup; safe-mode list also lacked full Chat chrome
+- **Fix:** Restored status + message preview under names; stronger glass header/tabs/aurora; 86px rows / 52px avatars / 44px camera / 60px FAB; safe list shows Chat header + search (no safe-mode banner); remount key `dm-inbox-v3`
+- **Open-chat fix:** Name was a nested button that `stopPropagation`’d pointerdown (dead zone when no username / stole taps to profile); swipe gesture treated tiny vertical jitter as scroll and skipped `onClick`. Name is plain text again (row opens chat); avatar still opens profile; tap slop opens chat after micro-moves.
+- **Verified:** typecheck PASS · lint PASS · tests PASS · build PASS (open-chat typecheck PASS)
+- **Published:** pending commit/push + Lovable Publish
+- **You:** After push — Lovable sync `main` → **Share → Publish**; hard-refresh `/messages`; tap row body to open chat, avatar for profile
+
 ## Concept DM inbox full visual match (2026-07-12)
+- **User ask:** Match concept image — six tabs, status icons, neon VFX, Best Friends/Nearby; Firebase-only (not Supabase)
+- **Tabs:** Friends / Best Friends / Nearby / Groups / Requests / Unread (Calls merged into Unread); sessionStorage persistence; Calls legacy tab remaps to Unread
+- **Data:** Expanded `DMConversationPreview` with storyState, deliveryStatus, badges, secondary avatar; `resolveDmInboxStatus` + lucide icons; `useCloseFriendIds`; Nearby via `useNearbyFriendLink` when tab active; batched `useStories` for rings
+- **UI/VFX:** Glass rounded tabs, conic neon rings, unread accent bar + badge pulse, status tones, trail camera/reaction, compose FAB above bottom nav; theme CSS variables only
+- **Verified:** typecheck PASS · lint PASS · 71 tests PASS · build PASS
+- **Published:** pending Lovable Publish after push
+- **You:** Lovable → sync `main` → **Share → Publish**; hard-refresh `/messages` — concept tabs + neon rows
+
+## DM inbox concept restore + full-width layout (2026-07-12)
+- **User ask:** Inbox looked like plain fallback list beside giant empty card — restore concept neon-glass design from reference
+- **Layout:** `/messages` inbox is full-width until a chat opens; removed desktop marketing empty pane; split pane only on `lg+` when a thread is active
+- **Visual:** Restored concept measurements — 96px rows, 64px avatars with conic rings, 58px glow tabs, glass header, separate status + preview lines, 48px camera, 64px FAB
+- **Resilience:** `DmInboxSafeList` now uses production row chrome + signed avatars; camera row uses optional overlay hook (no provider crash)
+- **Verified:** typecheck PASS · lint PASS · 71 tests PASS · build PASS
+- **Published:** pending push + Lovable Publish
+- **You:** Lovable → sync `main` → **Share → Publish**; hard-refresh `/messages` — expect full-screen Chat header + tabs + neon rows (not letter-only sidebar)
+
+- **DM inbox:** Production rows are 80px with 52px avatars, 42px camera targets, a 56px compose FAB, slimmer safe-area header/tabs, one secondary status/preview line, hairline separators, a soft avatar ring, 2px active underline, and light list-level glass. Swipe, camera, profile navigation, tabs, desktop layout, and virtual slicing remain wired; row/header estimates now exactly match 80px/28px and skeletons match the compact geometry.
+- **Theme persistence:** Authenticated reads are strictly scoped to the live Firebase UID; global theme keys are unauthenticated legacy-only. Equip/save/hydration paths pass the authenticated UID, scoped timestamps participate in storage synchronization, and account-mismatched boot snapshots are rejected. Local scoped state remains first-paint authority over Firestore backup.
+- **Theme races/reset:** Auto-Pilot cannot overwrite an explicit equipped theme, mode remains independent from theme identity, and reset cleanup is shared across settings/logout paths and removes scoped tokens/timestamps, boot snapshot, remembered UID, equipped ID, and global legacy state.
+- **Tests:** Added focused coverage for scoped reads, account switching, snapshot isolation, reset cleanup, and the Auto-Pilot guard; completed test storage now implements the standard `length`/`key()` API.
+- **Verified:** `npm run typecheck` PASS · `npm run lint` PASS · `npm run test` PASS (11 files / 71 tests) · `npm run build` PASS · `npm run validate:css` PASS (two pre-existing Tailwind ambiguity warnings).
+- **Blockers/manual QA:** No code blocker and no deploy performed. Device QA remains for `/messages`: safe areas, tabs after reload, swipe/profile/camera targets, FAB hide/clearance, 40+ row virtualization, desktop split pane; also verify cold boot/equip/account-switch/reset/Auto-Pilot theme behavior.
+- **Next 3 tasks:** 1. Run the compact inbox checklist on iPhone and tablet. 2. Test two-account theme switching plus cold launch/reset/Auto-Pilot. 3. After approval, commit/push and use Lovable Publish separately.
+
+## DM inbox Snapchat-style redesign (2026-07-12)
 - **User ask:** Match concept image — six tabs, status icons, neon VFX, Best Friends/Nearby; Firebase-only (not Supabase)
 - **Tabs:** Friends / Best Friends / Nearby / Groups / Requests / Unread (Calls merged into Unread); sessionStorage persistence; Calls legacy tab remaps to Unread
 - **Data:** Expanded `DMConversationPreview` with storyState, deliveryStatus, badges, secondary avatar; `resolveDmInboxStatus` + lucide icons; `useCloseFriendIds`; Nearby via `useNearbyFriendLink` when tab active; batched `useStories` for rings

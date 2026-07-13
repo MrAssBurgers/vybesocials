@@ -18,6 +18,7 @@ import {
   resolveOtherMemberFromConversation,
 } from '@/lib/dmMemberResolve';
 import { resolveDmInboxStatus } from '@/lib/dmInboxStatus';
+import { dmConversationPreviewText } from '@/lib/dmPreviewText';
 import { resolveProfileAvatarUrl } from '@/lib/profileAvatarCache';
 import { safeDmMembers } from '@/lib/persistedCollections';
 import { openFriendProfile } from '@/lib/friendProfileRoutes';
@@ -97,6 +98,21 @@ export const DMConversationRow = memo(function DMConversationRow({
   );
   const statusLine = preview?.statusLine || status.line;
   const StatusIcon = status.Icon;
+  const messagePreview =
+    preview?.previewText ||
+    dmConversationPreviewText({
+      lastMessage: conversation.last_message,
+      isGroup: conversation.is_group,
+      profileId,
+      authUid,
+      otherProfileId,
+      previewMaxLen: 48,
+    });
+  const showSeparatePreview = Boolean(
+    messagePreview &&
+      messagePreview !== statusLine &&
+      !messagePreview.startsWith(status.label),
+  );
   const storyState = preview?.storyState || 'none';
   const isOnline = preview?.isOnline ?? Boolean(activity && activity !== 'idle');
   const isAway = preview?.isAway ?? false;
@@ -189,7 +205,10 @@ export const DMConversationRow = memo(function DMConversationRow({
           storyState === 'unviewed' && 'dm-inbox-avatar-button--story',
           storyState === 'viewed' && 'dm-inbox-avatar-button--story-viewed',
         )}
-        onPointerDown={(event) => event.stopPropagation()}
+        onPointerDown={(event) => {
+          // Only steal the gesture when profile navigation can succeed.
+          if (username) event.stopPropagation();
+        }}
         onClick={openProfile}
         aria-label={username ? `Open ${displayName}'s profile` : displayName}
         disabled={!username}
@@ -237,15 +256,7 @@ export const DMConversationRow = memo(function DMConversationRow({
 
       <div className="dm-inbox-row-copy">
         <div className="dm-inbox-name-line">
-          <button
-            type="button"
-            className={cn('dm-inbox-name', unread && 'dm-inbox-name--unread')}
-            onPointerDown={(event) => event.stopPropagation()}
-            onClick={openProfile}
-            disabled={!username}
-          >
-            {displayName}
-          </button>
+          <p className={cn('dm-inbox-name', unread && 'dm-inbox-name--unread')}>{displayName}</p>
           {isVerified && (
             <BadgeCheck className="dm-inbox-meta-icon dm-inbox-meta-icon--verified" aria-label="Verified" />
           )}
@@ -284,6 +295,11 @@ export const DMConversationRow = memo(function DMConversationRow({
                     {streakCount} 🔥
                   </span>
                 ) : null}
+              </p>
+            )}
+            {showSeparatePreview && (
+              <p className={cn('dm-inbox-message-preview', unread && 'dm-inbox-preview--unread')}>
+                {messagePreview}
               </p>
             )}
           </>

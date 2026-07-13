@@ -7,6 +7,7 @@ export function DMInboxSkeleton({ count = 7 }: { count?: number }) {
           <div className="dm-inbox-skeleton-copy">
             <div className="dm-inbox-skeleton-line dm-inbox-skeleton-line--name" />
             <div className="dm-inbox-skeleton-line dm-inbox-skeleton-line--status" />
+            <div className="dm-inbox-skeleton-line dm-inbox-skeleton-line--preview" />
           </div>
           <div className="dm-inbox-skeleton-camera" />
         </div>
