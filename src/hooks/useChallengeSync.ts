@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth';
+import { registerChallengeSyncInvalidator } from '@/lib/challengeProgressClient';
 
 const COOLDOWN_MS = 60_000;
 const STORAGE_PREFIX = 'vybe:challenge-sync:';
@@ -142,6 +143,25 @@ export function useChallengeSync(options?: { syncOnMount?: boolean }) {
     window.addEventListener('online', onOnline);
     return () => window.removeEventListener('online', onOnline);
   }, [runSync, syncUserId]);
+
+  // Periodic auto-sync while the app is in the foreground (respects cooldown).
+  useEffect(() => {
+    if (!syncUserId) return;
+    const tick = () => {
+      if (document.visibilityState === 'visible') {
+        void runSync('interval');
+      }
+    };
+    const id = window.setInterval(tick, COOLDOWN_MS);
+    return () => window.clearInterval(id);
+  }, [runSync, syncUserId]);
+
+  // Invalidate challenge queries when activity-triggered sync completes elsewhere.
+  useEffect(() => {
+    const invalidate = () => invalidateChallengeQueries(queryClient, profileId, authUserId);
+    registerChallengeSyncInvalidator(invalidate);
+    return () => registerChallengeSyncInvalidator(null);
+  }, [authUserId, profileId, queryClient]);
 
   // Optional mount trigger (Challenges screen)
   useEffect(() => {

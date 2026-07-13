@@ -3,6 +3,7 @@ import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth';
 import { useAuthProfileId } from '@/hooks/useAuthProfileId';
 import { ensureArray } from '@/lib/persistedCollections';
+import { syncChallengeProgressAfterActivity } from '@/lib/challengeProgressClient';
 
 /**
  * Maps challenge requirement_type to the route where users can complete it
@@ -294,6 +295,7 @@ export function useUpdateChallengeProgress() {
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['challenge-progress', profile?.id] });
+      syncChallengeProgressAfterActivity(profile?.id);
       if (data.isCompleted && !data.wasAlreadyCompleted) {
         // Invalidate rewards to show the new claimable reward
         queryClient.invalidateQueries({ queryKey: ['unclaimed-rewards', profile?.id] });

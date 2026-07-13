@@ -2,6 +2,7 @@ import { db } from '@/lib/firebase';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/lib/auth';
 import { setCachedProfile } from '@/lib/profileCache';
+import { recordChallengeActivity } from '@/lib/challengeProgressClient';
 
 /** Supabase RPCs return row arrays; Firebase client fallbacks may return a single object. */
 function firstProfileRow(data: unknown): Record<string, unknown> | null {
@@ -274,8 +275,11 @@ export function useFollow() {
         });
       }
     },
-    onSuccess: () => {
+    onSuccess: (_, { isFollowing }) => {
       queryClient.invalidateQueries({ queryKey: ['profile'] });
+      if (!isFollowing) {
+        recordChallengeActivity(profile?.id, 'follow');
+      }
     },
   });
 }

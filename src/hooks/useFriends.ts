@@ -18,6 +18,7 @@ import { firebaseAuth } from '@/lib/firebase/authService';
 import { resolveSessionProfileId } from '@/lib/resolveSessionProfileId';
 import { syncUserAuthIndex } from '@/lib/firebase/profileResolve';
 import { toast } from 'sonner';
+import { recordChallengeActivity } from '@/lib/challengeProgressClient';
 import { ensureArray } from '@/lib/persistedCollections';
 
 /** Stable doc id — matches directed pair (sender → receiver). */
@@ -580,6 +581,10 @@ export function useRespondToFriendRequest() {
       queryClient.invalidateQueries({ queryKey: ['friendship-status'] });
       queryClient.invalidateQueries({ queryKey: ['notifications'] });
       queryClient.invalidateQueries({ queryKey: ['unread-notifications'] });
+      if (variables.action === 'accept') {
+        const profileId = liveProfileId || profile?.id;
+        recordChallengeActivity(profileId, 'friend_added');
+      }
       toast.success(variables.action === 'accept' ? 'Friend request accepted!' : 'Friend request declined');
     },
     onError: (_error, _variables, context) => {

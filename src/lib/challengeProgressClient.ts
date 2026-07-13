@@ -1,5 +1,13 @@
 import { db } from '@/lib/firebase';
 
+type SyncInvalidator = () => void;
+let syncInvalidator: SyncInvalidator | null = null;
+
+/** Registered by useChallengeSync so activity-triggered sync refreshes UI. */
+export function registerChallengeSyncInvalidator(fn: SyncInvalidator | null) {
+  syncInvalidator = fn;
+}
+
 /** Fire-and-forget bump for active challenges matching a requirement type. */
 export function bumpChallengeProgress(requirementType: string, increment = 1): void {
   if (!requirementType) return;
@@ -24,6 +32,33 @@ export function challengeTypeForPost(postType: string): 'post' | 'clip' | 'story
 export function syncChallengeProgressAfterActivity(userId: string | undefined): void {
   if (!userId) return;
   void import('@/hooks/useChallengeSync').then(({ syncChallengeProgress }) =>
-    syncChallengeProgress({ userId }).catch(() => {}),
+    syncChallengeProgress({ userId })
+      .then((result) => {
+        if (result && !result.skipped_cooldown && !result.skipped_client_cooldown) {
+          syncInvalidator?.();
+        }
+      })
+      .catch(() => {}),
   );
+}
+
+/**
+ * Record challenge activity: server increment + auto sync (cooldown-aware).
+ * Call after posts, comments, reactions, follows, DMs, login, etc.
+ */
+export function recordChallengeActivity(
+  profileId: string | undefined,
+  requirementType: string,
+  increment = 1,
+): void {
+  if (!requirementType) return;
+  void db.rpc('increment_challenge_progress', {
+    p_requirement_type: requirementType,
+    p_increment: increment,
+  }).then(({ error }) => {
+    if (error && import.meta.env.DEV) {
+      console.warn('[challenges] increment failed:', requirementType, error.message || error);
+    }
+    syncChallengeProgressAfterActivity(profileId);
+  });
 }

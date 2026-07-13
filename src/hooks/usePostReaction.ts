@@ -8,6 +8,7 @@ import {
   savePostReaction,
   notifyPostLike,
 } from '@/lib/postReactions';
+import { recordChallengeActivity } from '@/lib/challengeProgressClient';
 import { toast } from 'sonner';
 
 interface PostReactionSource {
@@ -70,6 +71,7 @@ export function usePostReaction(post: PostReactionSource) {
               postId: post.id,
             });
           }
+          recordChallengeActivity(profile.id, 'react');
         } else {
           await removePostReaction(profile.id, post.id, user?.id);
         }

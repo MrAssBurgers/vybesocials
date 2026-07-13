@@ -11,6 +11,10 @@ vi.mock('@/lib/pushNotifications', () => ({
   sendMessagePush: vi.fn().mockResolvedValue(undefined),
 }));
 
+vi.mock('@/lib/challengeProgressClient', () => ({
+  recordChallengeActivity: vi.fn(),
+}));
+
 vi.mock('@/lib/firebase', () => ({
   db: {
     from: () => ({

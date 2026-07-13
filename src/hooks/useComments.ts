@@ -7,6 +7,7 @@ import { moderateContent } from '@/hooks/useModeration';
 import { toast } from 'sonner';
 import { useBumpReactionStreak } from './useReactionStreaks';
 import { useTokenReward } from './useVybeTokens';
+import { recordChallengeActivity } from '@/lib/challengeProgressClient';
 
 interface Comment {
   id: string;
@@ -186,6 +187,7 @@ export function useCreateComment() {
       queryClient.invalidateQueries({ queryKey: ['comments', postId] });
       queryClient.invalidateQueries({ queryKey: ['posts'] });
       rewardComment();
+      recordChallengeActivity(profile?.id, 'comment');
     },
     onError: (error: Error) => {
       const msg = error.message || 'Failed to post comment';

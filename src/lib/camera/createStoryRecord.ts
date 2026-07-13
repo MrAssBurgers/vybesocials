@@ -5,6 +5,7 @@
  */
 import { db } from '@/lib/firebase';
 import { resolveStoryAuthorProfileId } from '@/lib/resolveSessionProfileId';
+import { recordChallengeActivity } from '@/lib/challengeProgressClient';
 import type { StoryDestinationId } from '@/lib/camera/recipientSelection';
 
 export interface CreateStoryRecordParams {
@@ -61,4 +62,6 @@ export async function createStoryRecord({
     }
     throw new Error(msg || 'Failed to post story');
   }
+
+  recordChallengeActivity(authorId, 'story');
 }

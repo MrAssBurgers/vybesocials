@@ -13,6 +13,7 @@ import {
   isTransientDmSendFailure,
 } from '@/lib/dmSendErrors';
 import type { Message, ViewMode } from '@/hooks/useMessages';
+import { recordChallengeActivity } from '@/lib/challengeProgressClient';
 
 const DM_SEND_LOG_KEY = 'vybe-dm-send-log';
 const DM_SEND_LOG_MAX = 100;
@@ -156,6 +157,10 @@ export async function insertDmMessage(
         ok: true,
       });
       firePeerPushBackup(payload, otherProfileId, opts?.push);
+      recordChallengeActivity(
+        payload.sender_id,
+        payload.message_type === 'vybe' ? 'snap_sent' : 'message',
+      );
       return { data: cloud.data, error: null };
     }
 

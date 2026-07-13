@@ -10,6 +10,7 @@ import { setCachedProfiles } from '@/lib/profileCache';
 import { resolveAuthorIds, fetchMemberProfiles } from '@/lib/dmMembershipRepair';
 import { isValidMediaUrl } from '@/lib/mediaUrl';
 import { runPublishVybeCheck } from '@/lib/vybeCheck/runPublishVybeCheck';
+import { challengeTypeForPost, recordChallengeActivity } from '@/lib/challengeProgressClient';
 
 export { isValidMediaUrl };
 
@@ -529,7 +530,7 @@ export function useCreatePost() {
 
       return post;
     },
-    onSuccess: () => {
+    onSuccess: (_post, variables) => {
       queryClient.invalidateQueries({ queryKey: ['posts'] });
       queryClient.invalidateQueries({
         predicate: (q) => {
@@ -541,6 +542,7 @@ export function useCreatePost() {
           );
         },
       });
+      recordChallengeActivity(profile?.id, challengeTypeForPost(variables.type));
     },
     onError: (error) => {
       console.error('[usePosts] Create post error:', error.message, error);
