@@ -9,8 +9,9 @@ Use this file as the Lovable -> Cursor handoff each session.
 - **Layout:** Glowing glass conversation panel (rounded top + neon border); stronger ambient wash.
 - **VFX:** Hotter avatar ring bloom (tone variants), glass header pills, magenta tab underline glow, rounded-square camera, vivid status tones, bloom compose FAB.
 - **Verified:** typecheck PASS · test PASS (120) · build PASS.
-- **Published:** not pushed yet.
-- **Next:** publish when asked.
+- **Pushed:** `origin/main` @ **`bf864d99`**
+- **You:** Lovable → sync/confirm `main` @ **`bf864d99`** → **Share → Publish** → hard-refresh https://vybehub.app/messages
+- **Next:** Spot-check Chat title, Friends tabs, glass panel, neon rings on device.
 
 ---
 
