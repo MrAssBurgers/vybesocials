@@ -13259,6 +13259,10 @@ export type Database = {
         Returns: string
       }
       get_auth_users_count: { Args: never; Returns: number }
+      get_business_product_digital_url: {
+        Args: { _product_id: string }
+        Returns: string
+      }
       get_comment_count: { Args: { p_post_id: string }; Returns: number }
       get_creator_level: { Args: { p_profile_id: string }; Returns: number }
       get_creator_revenue_split: {
