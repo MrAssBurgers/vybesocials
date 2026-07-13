@@ -5,8 +5,9 @@ Use this file as the Lovable -> Cursor handoff each session.
 ## Inbox instant paint + open-chat lag (2026-07-13)
 
 - **Cause:** “Signing in…” hid cached rows; openChat awaited profile; inbox flooded 12 high-priority message warms; nearby GPS always on; row `max-height` clipped swipe rows.
-- **Fix:** paint cache before profile resolves; seed from `authUid`; navigate first; idle-warm ≤6 threads; nearby only when that filter is active; defer presence ~700ms; restore row layout CSS.
-- **Published:** `origin/main` @ **`01aa2805`** · https://vybe-daaab.web.app ✅
+- **Follow-up (`0e0190f9`):** sync navigate (no `startTransition`); ChatView paints from cache without profile; stable `conversation-detail` key; messages query enabled without actorId; no per-row/panel glass blur; avatar 404 fails cached 10m; sign only first 24 avatars.
+- **Published:** `origin/main` @ **`0e0190f9`** · https://vybe-daaab.web.app ✅
+- **Note:** Console OneSignal / challenge-sync 500 / missing avatar 404s are staging noise — not the list lag root cause.
 - **Production:** Lovable → Share → Publish
 
 ---
