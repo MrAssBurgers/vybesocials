@@ -2,6 +2,31 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## Instant-load deep scan + fixes (2026-07-13)
+
+- **Goal:** Find / fix cold-start + Messages/image stalls so conversations and avatars paint from cache instantly.
+- **P0 fixes:**
+  - Splash no longer awaits feed media signing (warm in background).
+  - Persist restore backup wait **300–400ms** (was 0–40ms) so IDB hydrate lands before Messages opens empty.
+  - `batchSignUrls` transport errors no longer poison the whole batch for 10 minutes.
+  - `loadConversationMessages` keeps seed cache when `actorId` unresolved (no wipe to `[]`).
+  - `resolveSessionProfileId` reads Firestore first; claim/ensure only if missing (no claim RPC on every open).
+- **P1 fixes:**
+  - Firebase download URLs write into `signedUrlCache`; `getCachedSignedUrl` serves them on next paint.
+  - Avatar disk cache uses in-memory map (no per-row `JSON.parse`).
+  - Priority avatars use `decoding="async"` (was `sync` — main-thread jank).
+  - Messages `refetchOnMount` no longer forces network on short seeds.
+  - DM shadow projection default **off** (extra dual read).
+  - GPS watch deferred ~1.8–2.5s after cold start unless already on map.
+- **Verified:** `npm run typecheck` · `npm run test` 270 PASS · `npm run build` PASS
+- **Not published** (await user publish). Staging: push + Firebase hosting when ready; production: Lovable Publish.
+- **Next:**
+  1. Hard-refresh staging — splash shorter; inbox/avatars from cache; open chat keeps seed.
+  2. Manual QA: Messages scroll + open chat + avatar paint.
+  3. If still laggy: defer `useStories` on inbox until idle; audit ChatView Suspense chunk.
+
+---
+
 ## CI typecheck failures on main (2026-07-13)
 
 - **Cause:** `useRecentNewFriendProfileIds` returns `string[]` but legacy `ConversationList` still typed/defaulted `Set`; `sortDmConversations` used unsafe casts rejected by `tsc`.

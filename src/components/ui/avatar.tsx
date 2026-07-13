@@ -91,7 +91,7 @@ const ProfileAvatarImage = React.forwardRef<
       ref={ref}
       src={optimized}
       loading={priority ? 'eager' : 'lazy'}
-      decoding={priority ? 'sync' : 'async'}
+      decoding="async"
       fetchPriority={priority ? 'high' : 'auto'}
       className={cn("aspect-square h-full w-full object-cover", className)}
       {...props}

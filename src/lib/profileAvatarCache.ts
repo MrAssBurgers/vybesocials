@@ -2,6 +2,29 @@ import { getCachedCurrentProfile, getCachedProfile } from '@/lib/profileCache';
 
 const AVATAR_CACHE_KEY = 'vybe_profile_avatar_v1';
 
+/** In-memory map — avoid JSON.parse(localStorage) on every inbox row. */
+let memoryMap: Record<string, string> | null = null;
+
+function ensureMemoryMap(): Record<string, string> {
+  if (memoryMap) return memoryMap;
+  try {
+    const raw = localStorage.getItem(AVATAR_CACHE_KEY);
+    memoryMap = raw ? (JSON.parse(raw) as Record<string, string>) : {};
+  } catch {
+    memoryMap = {};
+  }
+  return memoryMap;
+}
+
+function persistMemoryMap(): void {
+  if (!memoryMap) return;
+  try {
+    localStorage.setItem(AVATAR_CACHE_KEY, JSON.stringify(memoryMap));
+  } catch {
+    /* ignore */
+  }
+}
+
 /** Single source for avatar URL — live prop, avatar cache, profile cache; never bleed current user into other profiles. */
 export function resolveProfileAvatarUrl(
   profileId: string | null | undefined,
@@ -27,26 +50,20 @@ export function resolveProfileAvatarUrl(
 
 export function cacheProfileAvatar(profileId: string, avatarUrl: string | null | undefined): void {
   if (!profileId || !avatarUrl) return;
-  try {
-    const raw = localStorage.getItem(AVATAR_CACHE_KEY);
-    const map = raw ? (JSON.parse(raw) as Record<string, string>) : {};
-    map[profileId] = avatarUrl;
-    localStorage.setItem(AVATAR_CACHE_KEY, JSON.stringify(map));
-  } catch {
-    /* ignore */
-  }
+  const map = ensureMemoryMap();
+  if (map[profileId] === avatarUrl) return;
+  map[profileId] = avatarUrl;
+  persistMemoryMap();
 }
 
 export function getCachedProfileAvatar(profileId: string | null | undefined): string | null {
   if (!profileId) return null;
-  try {
-    const raw = localStorage.getItem(AVATAR_CACHE_KEY);
-    if (!raw) return null;
-    const map = JSON.parse(raw) as Record<string, string>;
-    return map[profileId] ?? null;
-  } catch {
-    return null;
-  }
+  return ensureMemoryMap()[profileId] ?? null;
+}
+
+/** Test / logout helper — drop in-memory avatar map so disk can rehydrate. */
+export function clearProfileAvatarMemoryCache(): void {
+  memoryMap = null;
 }
 
 /** Merge cached avatar onto a profile row when live URL is missing. */

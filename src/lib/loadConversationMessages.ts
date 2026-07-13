@@ -8,7 +8,7 @@ import {
   fetchMemberProfiles,
 } from '@/lib/dmMembershipRepair';
 import { resolveSessionProfileId, syncSessionProfileId } from '@/lib/resolveSessionProfileId';
-import { mergeMessagesWithLocalCache } from '@/lib/messagesQueryKey';
+import { mergeMessagesWithLocalCache, readMessagesCache } from '@/lib/messagesQueryKey';
 import { findInQueryArray, safeDmMembers, ensureArray } from '@/lib/persistedCollections';
 
 export const MESSAGE_SELECT_SLIM = `
@@ -102,7 +102,12 @@ export async function loadConversationMessages(
     (await resolveSessionProfileId(actorId)) ??
     actorId;
 
-  if (!resolvedActorId) return [];
+  if (!resolvedActorId) {
+    // Never wipe an inbox/open seed when profile isn't ready yet.
+    const existing = readMessagesCache(queryClient, conversationId);
+    if (existing.length) return existing;
+    return [];
+  }
 
   const cachedConv =
     findInQueryArray(

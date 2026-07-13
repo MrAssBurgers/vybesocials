@@ -27,7 +27,7 @@ export type DmInboxFlag =
 
 const DEFAULTS: Record<DmInboxFlag, boolean> = {
   dm_inbox_projection_read: false,
-  dm_inbox_projection_shadow: true,
+  dm_inbox_projection_shadow: false,
   dm_inbox_redesign_ui: false,
   dm_inbox_category_bar: true,
   dm_inbox_legacy_fallback: true,
@@ -176,7 +176,7 @@ export function setDmInboxFlag(flag: DmInboxFlag, value: boolean): void {
 }
 
 /**
- * Shadow compare stays on by default for everyone (logging only).
+ * Shadow compare is opt-in — dual reads fight instant inbox paint.
  */
 export function isDmInboxShadowCompareEnabled(): boolean {
   return getDmInboxFlag('dm_inbox_projection_shadow');

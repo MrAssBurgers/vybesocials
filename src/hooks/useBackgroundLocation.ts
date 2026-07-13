@@ -103,10 +103,39 @@ export function useBackgroundLocation(
   }, [userId, sharing]);
 
   // Snap-style: keep GPS warm while live on map OR viewing VybeMap (ghost still needs self dot).
+  // Defer cold-start GPS until after first paint so Conversations/images aren't blocked by geolocation.
   const shouldWatch = Boolean(userId) && (sharing || watchOnMap);
+  const [gpsReady, setGpsReady] = useState(() => watchOnMap);
 
   useEffect(() => {
-    if (!shouldWatch || !('geolocation' in navigator)) return;
+    if (!shouldWatch) {
+      setGpsReady(false);
+      return;
+    }
+    if (watchOnMap) {
+      setGpsReady(true);
+      return;
+    }
+    let cancelled = false;
+    const arm = () => {
+      if (!cancelled) setGpsReady(true);
+    };
+    if (typeof requestIdleCallback !== 'undefined') {
+      const id = requestIdleCallback(arm, { timeout: 2500 });
+      return () => {
+        cancelled = true;
+        cancelIdleCallback(id);
+      };
+    }
+    const t = setTimeout(arm, 1800);
+    return () => {
+      cancelled = true;
+      clearTimeout(t);
+    };
+  }, [shouldWatch, watchOnMap]);
+
+  useEffect(() => {
+    if (!shouldWatch || !gpsReady || !('geolocation' in navigator)) return;
     let watchId: number | undefined;
     let fallbackWatchId: number | undefined;
     let fellBack = false;
@@ -179,7 +208,7 @@ export function useBackgroundLocation(
       if (watchId !== undefined) navigator.geolocation.clearWatch(watchId);
       if (fallbackWatchId !== undefined) navigator.geolocation.clearWatch(fallbackWatchId);
     };
-  }, [shouldWatch, sharing, upsertLocation, setSharing]);
+  }, [shouldWatch, gpsReady, sharing, upsertLocation, setSharing]);
 
   // Disable sharing in DB when toggled off
   useEffect(() => {

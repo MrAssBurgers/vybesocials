@@ -54,10 +54,12 @@ export function useAppPreloader() {
 
   useEffect(() => {
     if (restoreReady) return;
+    // Wait for real IDB hydrate (PersistQueryClient onSuccess). Backup only —
+    // never force-complete at 0ms or Messages opens against an empty RQ cache.
     const t = setTimeout(() => {
       markPersistRestored();
       setRestoreReady(true);
-    }, isNativePerfMode() ? 40 : 0);
+    }, isNativePerfMode() ? 400 : 300);
     return () => clearTimeout(t);
   }, [restoreReady]);
 
@@ -144,10 +146,9 @@ export function useAppPreloader() {
       if (!session?.user) {
         updateStatus('profile', 1);
         updateStatus('feed', 0.2);
-        await warmGuestFeed(queryClient, (p) => {
-          if (!cancelled) updateStatus('feed', 0.2 + p * 0.8);
-        });
-        if (cancelled) return;
+        // Guest feed warm is background-only — don't hold splash for image signing.
+        void warmGuestFeed(queryClient, () => undefined);
+        updateStatus('feed', 1);
         updateStatus('clips', 1);
         updateStatus('social', 1);
       } else {
@@ -183,16 +184,13 @@ export function useAppPreloader() {
         }
 
         updateStatus('feed', 0.15);
+        // Never block splash on feed media signing — warm in background after dismiss.
         if (!earlyProfileId || profileId !== earlyProfileId) {
-          await warmUserFeed(queryClient, profileId ?? null, uid, (p) => {
-            if (!cancelled) updateStatus('feed', 0.15 + p * 0.85);
-          });
+          void warmUserFeed(queryClient, profileId ?? null, uid, () => undefined);
         } else if (feedWarmPromise) {
-          await feedWarmPromise;
-          if (!cancelled) updateStatus('feed', 1);
-        } else {
-          updateStatus('feed', 1);
+          void feedWarmPromise;
         }
+        updateStatus('feed', 1);
         if (cancelled) return;
         updateStatus('clips', 1);
         updateStatus('social', 1);

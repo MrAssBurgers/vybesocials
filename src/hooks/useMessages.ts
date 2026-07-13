@@ -344,13 +344,9 @@ export function useMessages(conversationId: string | undefined) {
     gcTime: 1000 * 60 * 60 * 24 * 14,
     refetchOnWindowFocus: false,
     refetchOnMount: (query) => {
-      const decision = shouldRefetchWhenEmpty(query);
-      if (decision !== false) return decision;
-      const cached = query?.state?.data;
-      if (Array.isArray(cached) && cached.length > 0 && cached.length < CHAT_INITIAL_MESSAGE_LIMIT) {
-        return true;
-      }
-      return false;
+      // Paint from seed/cache; background hydrate covers incompleteness.
+      // Refetching every short seed forces a network stall on every open.
+      return shouldRefetchWhenEmpty(query);
     },
     refetchOnReconnect: false,
     initialData: () => {

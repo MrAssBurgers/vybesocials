@@ -75,6 +75,16 @@ const CACHE_DURATION = 50 * 60 * 1000;
 // Hard-fail missing avatars for 10 minutes — staging 404s were re-signing every 30s.
 const FAILED_CACHE_DURATION = 10 * 60 * 1000;
 
+/** Write a resolved download URL into the shared memory/session cache. */
+export function cacheSignedUrl(originalUrl: string, signedUrl: string, ttlMs = CACHE_DURATION): void {
+  const key = normalizeMediaUrl(originalUrl) || originalUrl;
+  if (!key || !signedUrl) return;
+  setCacheEntry(key, {
+    signedUrl,
+    expiresAt: Date.now() + ttlMs,
+  });
+}
+
 // Project IDs for URL validation (current Firebase + legacy Supabase hosts)
 function getCurrentProjectId(): string {
   try {
@@ -140,13 +150,14 @@ export function getCachedSignedUrl(publicUrl: string | null | undefined): string
   const url = normalizeMediaUrl(publicUrl);
   if (!url) return null;
 
-  if (firebaseStorageNeedsToken(url)) return null;
-  if (!needsSigning(url)) return url;
-
   const entry = cache.get(url);
   if (entry && entry.expiresAt > Date.now()) {
     return entry.failed ? null : entry.signedUrl;
   }
+
+  // Firebase tokenless URLs still need resolve — do not treat as already public.
+  if (firebaseStorageNeedsToken(url)) return null;
+  if (!needsSigning(url)) return url;
 
   return null;
 }
@@ -301,13 +312,10 @@ export async function batchSignUrls(urls: (string | null | undefined)[]): Promis
       const now = Date.now();
       
       if (error || !data) {
-        // Cache all as failed to prevent repeated attempts
-        for (const url of originalUrls) {
-          setCacheEntry(url, {
-            signedUrl: url,
-            expiresAt: now + FAILED_CACHE_DURATION,
-            failed: true,
-          });
+        // Transport/API failure — do NOT poison the whole batch for 10 minutes.
+        // Leave URLs uncached so the next paint can retry.
+        if (import.meta.env.DEV) {
+          console.warn('[signedUrlCache] batch sign failed (no fail-cache):', error?.message || error);
         }
         return;
       }
@@ -323,7 +331,7 @@ export async function batchSignUrls(urls: (string | null | undefined)[]): Promis
             expiresAt: now + CACHE_DURATION,
           });
         } else {
-          // Individual item failed (404)
+          // Individual item failed (404) — fail-cache only this URL.
           cache.set(originalUrl, {
             signedUrl: originalUrl,
             expiresAt: now + FAILED_CACHE_DURATION,
@@ -331,15 +339,10 @@ export async function batchSignUrls(urls: (string | null | undefined)[]): Promis
           });
         }
       }
-    } catch {
-      // Silent fail - mark all as failed to prevent retries
-      const now = Date.now();
-      for (const url of pathMap.values()) {
-        cache.set(url, {
-          signedUrl: url,
-          expiresAt: now + FAILED_CACHE_DURATION,
-          failed: true,
-        });
+    } catch (err) {
+      // Silent transport fail — retry next time, don't blank avatars for 10m.
+      if (import.meta.env.DEV) {
+        console.warn('[signedUrlCache] batch exception (no fail-cache):', err);
       }
     }
   });

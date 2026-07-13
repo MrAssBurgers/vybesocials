@@ -8,6 +8,7 @@ vi.mock('@/lib/profileCache', () => ({
 import { getCachedCurrentProfile, getCachedProfile } from '@/lib/profileCache';
 import {
   cacheProfileAvatar,
+  clearProfileAvatarMemoryCache,
   getCachedProfileAvatar,
   resolveProfileAvatarUrl,
 } from '@/lib/profileAvatarCache';
@@ -17,6 +18,7 @@ describe('resolveProfileAvatarUrl', () => {
     vi.mocked(getCachedProfile).mockReturnValue(null);
     vi.mocked(getCachedCurrentProfile).mockReturnValue(null);
     localStorage.clear();
+    clearProfileAvatarMemoryCache();
   });
 
   it('prefers an explicit avatar url', () => {

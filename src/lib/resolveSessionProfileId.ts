@@ -33,11 +33,15 @@ export async function resolveSessionProfileId(
 
   inflight = (async () => {
     try {
-      await db.rpc('claim_profile_by_email');
-
+      // Fast path: Firestore lookup first. Claim/ensure only if missing —
+      // never block open chat / message warm on claim_profile RPC.
       let profile = await getProfileByAuthUid(authUserId);
       if (!profile?.id) {
-        await db.rpc('ensure_profile');
+        await db.rpc('claim_profile_by_email').catch(() => undefined);
+        profile = await getProfileByAuthUid(authUserId);
+      }
+      if (!profile?.id) {
+        await db.rpc('ensure_profile').catch(() => undefined);
         profile = await getProfileByAuthUid(authUserId);
       }
       if (!profile?.id) return undefined;
@@ -45,7 +49,7 @@ export async function resolveSessionProfileId(
       memoAuthUserId = authUserId;
       memoProfileId = profile.id;
 
-      await syncUserAuthIndex(authUserId, profile.id);
+      void syncUserAuthIndex(authUserId, profile.id);
 
       const payload: CachedProfile = {
         id: profile.id,
