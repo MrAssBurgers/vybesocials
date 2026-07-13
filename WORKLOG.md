@@ -9,7 +9,9 @@ Use this file as the Lovable -> Cursor handoff each session.
 - **Filters:** Hard-filter (not soft-dim). Primary chips: **Chat / Best Friends / Groups / Unread / Active**. Extra categories kept for persistence/More later.
 - **UI:** Centered Chat title + avatar/search left, notifications/add/more right; compact 48px underline text tabs.
 - **Verified:** `npm run test` 269 PASS · `npm run build` PASS
-- **Next:** Publish staging (firebase hosting) + Lovable Publish when ready; optional Needs Reply entry under More.
+- **Published:** `origin/main` @ **`1e14d6ce`** · https://vybe-daaab.web.app ✅
+- **Production (vybehub.app):** Lovable → Share → Publish (sync `main` @ `1e14d6ce`)
+- **Next:** Manual QA — rows stay put on presence/typing/unread; new message bumps one chat; pins stay top.
 
 ---
 
