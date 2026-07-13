@@ -2,6 +2,19 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## Snapchat-density Messages inbox (2026-07-13)
+
+- **User ask:** Match VYBE Messages inbox to Snapchat compact density/spacing/row behavior; keep VYBE branding, icons, themes, backend. No Snapchat IP assets.
+- **Status line:** `resolveDmInboxStatus` → one line (`Received · 15m · 6 🔥`, `Start a conversation`, group `Name: preview · time`). Empty preview copy no longer says “Tap to chat.”
+- **Row/header:** Compact `DMConversationRow` (name + status + light capture shortcut; long-press → Photo/Video/Voice/Location). Compact `DMHeader` (44px avatar · Messages · Add Friend · More).
+- **CSS:** Rows 72px (68–74), avatars ~50px / 2px ring, 10px online, 14×8 padding, 11px avatar gap, 16/600 name, 13px preview, 38px camera, 42px underline filters, 54px compose above bottom nav. Thin separators, no row cards, reduced glow. Virtual row estimate 72px.
+- **Filters:** Redesign filter set (All / Unread / Needs Reply / Groups / Pinned / Active) forced on for Messages chrome; projection-read flag unchanged.
+- **Verified:** typecheck PASS · test PASS (120) · build PASS.
+- **Published:** not committed/pushed yet.
+- **Next:** commit/push when asked → Lovable Publish; spot-check phone density (8–10 rows visible).
+
+---
+
 ## Rollout — callable send + projection deploy (2026-07-12)
 
 - **Deployed to `vybe-daaab`:**
@@ -11,8 +24,8 @@ Use this file as the Lovable -> Cursor handoff each session.
   4. Backfill ✔ `node scripts/backfill-dm-inbox.mjs` → COMPLETE `totalProcessed=238 totalWrote=219` (~174 live `dm_inbox_entries` after invalid/empty drops)
 - **Rollout config:** `app_config/dm_inbox_rollout` seeded with internal ids (`e78010f2-…`, `wuy7bIoV…`), `projection_read_pct=0`, `redesign_ui_pct=0`, empty `redesign_internal_ids`
 - **Client gates:** shadow on for all; projection read for internal allowlist only; redesign UI off until `redesign_internal_ids` / pct raised (legacy Friends/Nearby/Requests tabs remain default)
-- **Pushed:** `origin/main` @ **`eadb7341`**
-- **You:** Lovable sync `main` @ **`eadb7341`** → **Share → Publish**; QA as internal account (shadow logs + blocked/media/camera); then add your id to `redesign_internal_ids` or raise `redesign_ui_pct` gradually; watch callable latency / duplicates / outbox failures
+- **Pushed:** `origin/main` @ **`21bb72b4`**
+- **You:** Lovable → open project → sync/confirm `main` @ **`21bb72b4`** → **Share → Publish** → hard-refresh https://vybehub.app/messages
 - **Verified:** typecheck · 120 tests · functions + rules/indexes deploy PASS · backfill COMPLETE
 
 ---

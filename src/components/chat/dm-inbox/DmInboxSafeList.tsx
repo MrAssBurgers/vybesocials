@@ -55,7 +55,7 @@ export function DmInboxSafeList() {
         <DMCategoryTabs
           active={inbox.activeTab}
           onChange={inbox.setActiveTab}
-          redesignEnabled={inbox.redesignEnabled}
+          redesignEnabled
           badges={{
             unread: inbox.unreadBadgeCount,
             requests: inbox.pendingRequestCount,

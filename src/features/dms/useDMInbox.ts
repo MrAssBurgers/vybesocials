@@ -33,7 +33,7 @@ import {
 } from '@/lib/dmInboxShadowCompare';
 import { conversationNeedsReply } from '@/lib/dmNeedsReply';
 import { projectionToLoadedConversation } from '@/lib/dmInboxProjection';
-import { isDmInboxProjectionReadEnabled, isDmInboxRedesignUiEnabled } from '@/lib/dmInboxFeatureFlags';
+import { isDmInboxProjectionReadEnabled } from '@/lib/dmInboxFeatureFlags';
 import { writeStoredInboxFilter } from '@/lib/dmInboxFilterPersistence';
 import type { DMConversationPreview, DMInboxRow, DMStoryState, DmInboxFilterId, DmInboxTabId } from './dm.types';
 
@@ -123,11 +123,9 @@ export function useDMInbox() {
   const { conversationId: activeConversationId } = useParams<{ conversationId?: string }>();
   const { profile, user } = useAuth();
   const profileId = useAuthProfileId();
-  const redesignEnabled = isDmInboxRedesignUiEnabled(profileId, user?.id);
+  const redesignEnabled = true;
   const [searchQuery, setSearchQuery] = useState('');
-  const [activeTab, setActiveTabState] = useState<DmInboxTabId>(() =>
-    initialTab(isDmInboxRedesignUiEnabled()),
-  );
+  const [activeTab, setActiveTabState] = useState<DmInboxTabId>(() => initialTab(true));
   const { data: lockedIdsRaw } = useLockedChatIds();
   const { data: callConversationIdsRaw } = useInboxCallConversationIds();
   const { data: pendingRequestsRaw, isLoading: requestsLoading } = useMessageRequests();

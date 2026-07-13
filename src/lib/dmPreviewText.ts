@@ -57,5 +57,5 @@ export function dmConversationPreviewText(opts: {
   }
 
   if (isGroup) return 'No messages yet';
-  return 'Tap to chat';
+  return 'Start a conversation';
 }

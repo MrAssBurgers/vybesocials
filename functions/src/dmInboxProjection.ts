@@ -385,7 +385,7 @@ async function buildEntryForViewer(
       ? previewFromMessage(latestData, viewerId, isOwn)
       : isGroup
         ? 'No messages yet'
-        : 'Tap to chat',
+        : 'Start a conversation',
     latest_message_id: latest?.id || null,
     latest_message_type: String(latestData?.message_type || latestData?.type || 'text'),
     latest_sender_id: asString(latestData?.sender_id),

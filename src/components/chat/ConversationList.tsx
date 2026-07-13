@@ -635,7 +635,7 @@ const ConversationContent = memo(forwardRef<HTMLDivElement, any>(function Conver
   const showSayHi = messagePreview === 'Say hi 👋';
   const showEmptyPreview =
     !lastMessage &&
-    (showSayHi || messagePreview === 'Tap to chat' || messagePreview === 'No messages yet');
+    (showSayHi || messagePreview === 'Tap to chat' || messagePreview === 'Start a conversation' || messagePreview === 'No messages yet');
 
   return (
     <>

@@ -694,7 +694,8 @@ body.has-liquid-bg:not(.has-custom-bg) .messages-scroll {
 }
 
 /* ========================================
-   VYBE DM Inbox — concept glass list
+   VYBE DM Inbox — Snapchat-density list (theme tokens for color)
+   Targets: 68–74px rows · 48–52px avatars · 42px filters · 54px compose
    ======================================== */
 .dm-inbox {
   position: relative;
@@ -705,9 +706,8 @@ body.has-liquid-bg:not(.has-custom-bg) .messages-scroll {
   min-height: 0;
   overflow: hidden;
   background:
-    radial-gradient(circle at 12% -8%, hsl(var(--primary) / 0.22), transparent 42%),
-    radial-gradient(circle at 88% 8%, hsl(var(--accent) / 0.14), transparent 36%),
-    hsl(var(--background) / 0.9);
+    radial-gradient(circle at 10% -12%, hsl(var(--primary) / 0.1), transparent 40%),
+    hsl(var(--background) / 0.96);
 }
 .dm-inbox-column {
   display: flex;
@@ -720,17 +720,12 @@ body.has-liquid-bg:not(.has-custom-bg) .messages-scroll {
 }
 .dm-inbox-hero {
   flex-shrink: 0;
-  min-height: calc(80px + max(var(--sat, 0px), env(safe-area-inset-top, 0px)));
+  min-height: calc(56px + max(var(--sat, 0px), env(safe-area-inset-top, 0px)));
   padding-top: max(var(--sat, 0px), env(safe-area-inset-top, 0px));
   border-bottom: 1px solid var(--dm-theme-divider);
-  background: linear-gradient(
-    180deg,
-    hsl(var(--background) / 0.78),
-    var(--dm-theme-glass)
-  );
-  backdrop-filter: blur(28px) saturate(160%);
-  -webkit-backdrop-filter: blur(28px) saturate(160%);
-  box-shadow: var(--dm-theme-shadow);
+  background: hsl(var(--background) / 0.92);
+  backdrop-filter: blur(18px) saturate(140%);
+  -webkit-backdrop-filter: blur(18px) saturate(140%);
 }
 .dm-inbox-hero--sticky {
   position: sticky;
@@ -742,14 +737,14 @@ body.has-liquid-bg:not(.has-custom-bg) .messages-scroll {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  min-height: 80px;
-  padding: 10px 12px;
+  gap: 10px;
+  min-height: 56px;
+  padding: 6px 14px;
 }
 .dm-inbox-header-side {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
 }
 .dm-inbox-header-side--start {
   min-width: 0;
@@ -758,6 +753,7 @@ body.has-liquid-bg:not(.has-custom-bg) .messages-scroll {
 .dm-inbox-header-side--right {
   justify-content: flex-end;
   flex-shrink: 0;
+  gap: 6px;
 }
 .dm-inbox-header-title-wrap {
   display: flex;
@@ -769,18 +765,11 @@ body.has-liquid-bg:not(.has-custom-bg) .messages-scroll {
   flex-direction: column;
   align-items: flex-start;
   justify-content: center;
-  gap: 2px;
+  gap: 0;
   min-width: 0;
 }
 .dm-inbox-activity-line {
-  margin: 0;
-  font-size: 0.75rem;
-  line-height: 1.2;
-  color: hsl(var(--muted-foreground));
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 42vw;
+  display: none;
 }
 .dm-inbox-header-action--badge {
   position: relative;
@@ -819,28 +808,27 @@ body.has-liquid-bg:not(.has-custom-bg) .messages-scroll {
   outline: none;
 }
 .dm-inbox-title {
-  font-size: 1.55rem;
-  font-weight: 780;
-  line-height: 1;
-  letter-spacing: -0.04em;
+  margin: 0;
+  font-size: 24px;
+  font-weight: 700;
+  line-height: 1.1;
+  letter-spacing: -0.03em;
   color: hsl(var(--foreground));
-  text-shadow: 0 0 24px hsl(var(--primary) / 0.25);
 }
 .dm-inbox-title-badge,
 .dm-inbox-tab-badge {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 20px;
-  height: 20px;
-  padding-inline: 6px;
+  min-width: 16px;
+  height: 16px;
+  padding-inline: 5px;
   border-radius: 999px;
-  background: linear-gradient(135deg, hsl(var(--primary)), hsl(var(--accent)));
+  background: hsl(var(--primary));
   color: hsl(var(--primary-foreground));
   font-size: 10px;
-  font-weight: 800;
+  font-weight: 700;
   font-variant-numeric: tabular-nums;
-  box-shadow: 0 0 14px hsl(var(--primary) / 0.45);
 }
 .dm-inbox-profile-button {
   position: relative;
@@ -848,70 +836,60 @@ body.has-liquid-bg:not(.has-custom-bg) .messages-scroll {
   border-radius: 999px;
   -webkit-tap-highlight-color: transparent;
 }
-.dm-inbox-profile-button::after {
-  content: '';
-  position: absolute;
-  inset: -3px;
-  border-radius: inherit;
-  background: conic-gradient(from 40deg, hsl(var(--primary)), hsl(var(--accent)), hsl(var(--primary)));
-  opacity: 0.55;
-  z-index: -1;
-  filter: blur(0.2px);
+.dm-inbox-header-avatar {
+  width: 44px;
+  height: 44px;
 }
 .dm-inbox-online-dot,
 .dm-inbox-presence-dot {
   position: absolute;
   right: 0;
   bottom: 0;
-  width: 13px;
-  height: 13px;
-  border: 3px solid hsl(var(--background));
+  width: 10px;
+  height: 10px;
+  border: 2px solid hsl(var(--background));
   border-radius: 50%;
   background: var(--dm-theme-online);
-  box-shadow: 0 0 10px var(--dm-theme-online);
 }
 .dm-inbox-header-action {
   display: inline-flex;
-  width: 44px;
-  height: 44px;
+  width: 42px;
+  height: 42px;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  border: 1px solid hsl(var(--foreground) / 0.1);
+  border: none;
   border-radius: 999px;
-  background: hsl(var(--foreground) / 0.06);
-  color: hsl(var(--foreground) / 0.9);
-  box-shadow: inset 0 1px 0 hsl(var(--foreground) / 0.08);
-  transition: color 150ms ease, background-color 150ms ease, transform 150ms ease, box-shadow 150ms ease;
+  background: transparent;
+  color: hsl(var(--foreground) / 0.88);
+  transition: color 140ms ease, background-color 140ms ease, transform 140ms ease;
 }
 .dm-inbox-header-action svg {
-  width: 19px;
-  height: 19px;
+  width: 22px;
+  height: 22px;
 }
 .dm-inbox-header-action:active {
   transform: scale(0.94);
-  background: hsl(var(--primary) / 0.2);
+  background: hsl(var(--primary) / 0.12);
   color: hsl(var(--foreground));
-  box-shadow: 0 0 16px hsl(var(--primary) / 0.28);
 }
 .dm-inbox-tabs-wrap {
   flex-shrink: 0;
-  height: 58px;
-  margin: 0 12px 6px;
-  padding: 0 6px;
-  border: 1px solid hsl(var(--primary) / 0.16);
-  border-radius: 22px;
-  background: var(--dm-theme-nav);
-  backdrop-filter: blur(22px) saturate(150%);
-  -webkit-backdrop-filter: blur(22px) saturate(150%);
-  box-shadow:
-    inset 0 1px 0 hsl(var(--foreground) / 0.08),
-    0 8px 24px hsl(var(--primary) / 0.08);
+  height: 42px;
+  margin: 0;
+  padding: 0 6px 0 10px;
+  border: none;
+  border-bottom: 1px solid var(--dm-theme-divider);
+  border-radius: 0;
+  background: hsl(var(--background) / 0.92);
+  backdrop-filter: blur(18px) saturate(140%);
+  -webkit-backdrop-filter: blur(18px) saturate(140%);
+  box-shadow: none;
 }
 .dm-inbox-tabs {
   display: flex;
   height: 100%;
-  gap: 2px;
+  gap: 0;
   overflow-x: auto;
   -ms-overflow-style: none;
   scrollbar-width: none;
@@ -922,18 +900,18 @@ body.has-liquid-bg:not(.has-custom-bg) .messages-scroll {
 .dm-inbox-tab {
   position: relative;
   display: inline-flex;
-  min-width: 64px;
+  min-width: auto;
   height: 100%;
   align-items: center;
   justify-content: center;
   gap: 5px;
-  flex: 1 0 auto;
+  flex: 0 0 auto;
   padding: 0 12px;
   color: hsl(var(--muted-foreground));
-  font-size: 13px;
-  font-weight: 650;
+  font-size: 14px;
+  font-weight: 600;
   white-space: nowrap;
-  transition: color 160ms ease;
+  transition: color 140ms ease;
 }
 .dm-inbox-tab:hover,
 .dm-inbox-tab--active {
@@ -941,16 +919,16 @@ body.has-liquid-bg:not(.has-custom-bg) .messages-scroll {
 }
 .dm-inbox-tab-glow {
   position: absolute;
-  right: 14px;
-  bottom: 4px;
-  left: 14px;
-  height: 3px;
-  border-radius: 99px;
-  background: linear-gradient(90deg, hsl(var(--primary)), hsl(var(--accent)));
-  box-shadow: 0 0 16px hsl(var(--primary) / 0.85);
+  right: 10px;
+  bottom: 0;
+  left: 10px;
+  height: 2px;
+  border-radius: 1px;
+  background: hsl(var(--primary));
+  box-shadow: none;
   opacity: 0;
-  transform: scaleX(0.35);
-  transition: opacity 180ms ease, transform 180ms ease;
+  transform: scaleX(0.4);
+  transition: opacity 160ms ease, transform 160ms ease;
 }
 .dm-inbox-tab--active .dm-inbox-tab-glow {
   opacity: 1;
@@ -961,7 +939,7 @@ body.has-liquid-bg:not(.has-custom-bg) .messages-scroll {
   min-height: 0;
   overflow-x: hidden;
   overflow-y: auto;
-  padding-bottom: calc(96px + env(safe-area-inset-bottom, 0px));
+  padding-bottom: calc(112px + env(safe-area-inset-bottom, 0px));
   background: transparent;
   overscroll-behavior-y: contain;
 }
@@ -970,21 +948,10 @@ body.has-liquid-bg:not(.has-custom-bg) .messages-scroll {
   flex-direction: column;
 }
 .dm-inbox-section-label {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  height: 32px;
-  padding: 0 16px;
-  color: hsl(var(--muted-foreground));
-  font-size: 10px;
-  font-weight: 800;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
+  display: none;
 }
 .dm-inbox-section-count {
-  color: hsl(var(--primary));
-  font-size: 10px;
-  font-variant-numeric: tabular-nums;
+  display: none;
 }
 .dm-inbox-swipe-row,
 .dm-inbox-row-tap {
@@ -992,46 +959,50 @@ body.has-liquid-bg:not(.has-custom-bg) .messages-scroll {
   touch-action: pan-y;
   -webkit-user-select: none;
   user-select: none;
-  border-bottom: 1px solid var(--dm-theme-divider);
+  border-bottom: 1px solid hsl(var(--foreground) / 0.06);
   -webkit-tap-highlight-color: transparent;
+  transition: transform 180ms ease, opacity 180ms ease;
 }
 .dm-inbox-card {
   position: relative;
   display: grid;
-  grid-template-columns: 68px minmax(0, 1fr) auto;
+  grid-template-columns: 52px minmax(0, 1fr) auto;
   align-items: center;
-  gap: 14px;
+  gap: 11px;
   width: 100%;
-  height: 96px;
-  padding: 0 16px;
+  height: 72px;
+  min-height: 68px;
+  max-height: 74px;
+  padding: 8px 14px;
   background: transparent;
-  transition: background-color 140ms ease, transform 140ms ease;
+  border-radius: 0;
+  box-shadow: none;
+  transition: background-color 140ms ease;
 }
 .dm-inbox-card::before {
   content: '';
   position: absolute;
   left: 0;
-  top: 18px;
-  bottom: 18px;
+  top: 12px;
+  bottom: 12px;
   width: 0;
-  border-radius: 0 3px 3px 0;
-  background: var(--dm-theme-story-ring);
+  border-radius: 0 2px 2px 0;
+  background: hsl(var(--primary));
   opacity: 0;
-  transition: width 160ms ease, opacity 160ms ease;
+  transition: width 140ms ease, opacity 140ms ease;
 }
 .dm-inbox-card:active {
-  background: hsl(var(--primary) / 0.08);
-  transform: scale(0.992);
+  background: hsl(var(--primary) / 0.06);
 }
 .dm-inbox-card--active {
-  background: hsl(var(--primary) / 0.1);
+  background: hsl(var(--primary) / 0.07);
 }
 .dm-inbox-card--unread {
-  background: hsl(var(--primary) / 0.05);
+  background: hsl(var(--primary) / 0.04);
 }
 .dm-inbox-card--unread::before {
-  width: 3px;
-  opacity: 1;
+  width: 2px;
+  opacity: 0.7;
 }
 .dm-inbox-card--swiping {
   transition: none;
@@ -1064,41 +1035,33 @@ body.has-liquid-bg:not(.has-custom-bg) .messages-scroll {
 .dm-inbox-avatar-button {
   position: relative;
   display: grid;
-  width: 68px;
-  height: 68px;
+  width: 52px;
+  height: 52px;
   place-items: center;
   border-radius: 50%;
 }
 .dm-inbox-avatar {
-  width: 64px;
-  height: 64px;
+  width: 50px;
+  height: 50px;
 }
 .dm-inbox-avatar-ring {
   position: absolute;
   inset: 0;
   border-radius: 50%;
-  background: conic-gradient(
-    from 30deg,
-    hsl(var(--primary)),
-    hsl(var(--accent)),
-    hsl(210 90% 62%),
-    hsl(var(--primary))
-  );
-  box-shadow: 0 0 18px hsl(var(--primary) / 0.35);
-  animation: dm-inbox-ring-spin 12s linear infinite;
+  background: hsl(var(--primary));
+  box-shadow: none;
+  animation: none;
 }
 .dm-inbox-avatar-ring--story {
-  box-shadow:
-    0 0 18px var(--dm-theme-glow),
-    0 0 28px hsl(var(--accent) / 0.28);
+  background: var(--dm-theme-story-ring);
 }
 .dm-inbox-avatar-button--story-viewed .dm-inbox-avatar-ring {
-  opacity: 0.45;
-  filter: grayscale(0.2);
+  opacity: 0.4;
+  filter: grayscale(0.15);
 }
 .dm-inbox-avatar-ring::after {
   position: absolute;
-  inset: 3px;
+  inset: 2px;
   border-radius: inherit;
   background: hsl(var(--background));
   content: '';
@@ -1109,20 +1072,19 @@ body.has-liquid-bg:not(.has-custom-bg) .messages-scroll {
 }
 .dm-inbox-avatar-secondary {
   position: absolute;
-  right: -2px;
-  bottom: 4px;
+  right: -6px;
+  bottom: -2px;
   z-index: 3;
-  width: 24px;
-  height: 24px;
+  width: 30px;
+  height: 30px;
   border: 2px solid hsl(var(--background));
   border-radius: 50%;
-  box-shadow: 0 2px 8px hsl(var(--primary) / 0.25);
 }
 .dm-inbox-presence-dot {
-  right: 2px;
-  bottom: 2px;
+  right: 1px;
+  bottom: 1px;
   z-index: 4;
-  box-shadow: 0 0 8px var(--dm-theme-online);
+  box-shadow: none;
 }
 .dm-inbox-away-badge {
   position: absolute;
@@ -1130,8 +1092,8 @@ body.has-liquid-bg:not(.has-custom-bg) .messages-scroll {
   bottom: 0;
   z-index: 4;
   display: grid;
-  width: 18px;
-  height: 18px;
+  width: 16px;
+  height: 16px;
   place-items: center;
   border: 2px solid hsl(var(--background));
   border-radius: 50%;
@@ -1139,8 +1101,8 @@ body.has-liquid-bg:not(.has-custom-bg) .messages-scroll {
   color: hsl(var(--background));
 }
 .dm-inbox-away-badge svg {
-  width: 10px;
-  height: 10px;
+  width: 9px;
+  height: 9px;
 }
 .dm-inbox-row-copy {
   min-width: 0;
@@ -1155,23 +1117,23 @@ body.has-liquid-bg:not(.has-custom-bg) .messages-scroll {
   max-width: 100%;
   overflow: hidden;
   margin: 0;
-  color: hsl(var(--foreground) / 0.96);
-  font-size: 18px;
-  font-weight: 650;
+  color: hsl(var(--foreground) / 0.92);
+  font-size: 16px;
+  font-weight: 600;
   line-height: 1.2;
-  letter-spacing: -0.02em;
+  letter-spacing: -0.01em;
   text-align: left;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 .dm-inbox-name--unread {
   color: hsl(var(--foreground));
-  font-weight: 780;
-  text-shadow: 0 0 18px hsl(var(--primary) / 0.22);
+  font-weight: 700;
+  text-shadow: none;
 }
 .dm-inbox-meta-icon {
-  width: 13px;
-  height: 13px;
+  width: 12px;
+  height: 12px;
   flex-shrink: 0;
   color: hsl(var(--muted-foreground));
 }
@@ -1188,12 +1150,12 @@ body.has-liquid-bg:not(.has-custom-bg) .messages-scroll {
   display: flex;
   min-width: 0;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
   overflow: hidden;
-  margin-top: 5px;
+  margin-top: 2px;
   color: hsl(var(--muted-foreground));
-  font-size: 14px;
-  line-height: 1.15;
+  font-size: 13px;
+  line-height: 1.2;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -1203,24 +1165,24 @@ body.has-liquid-bg:not(.has-custom-bg) .messages-scroll {
   white-space: nowrap;
 }
 .dm-inbox-status-icon {
-  width: 14px;
-  height: 14px;
+  width: 13px;
+  height: 13px;
   flex-shrink: 0;
 }
 .dm-inbox-status-tone--received {
-  color: hsl(280 70% 72%);
+  color: hsl(var(--muted-foreground));
 }
 .dm-inbox-status-tone--sent {
   color: hsl(var(--muted-foreground));
 }
 .dm-inbox-status-tone--delivered {
-  color: hsl(210 90% 68%);
+  color: hsl(var(--muted-foreground));
 }
 .dm-inbox-status-tone--opened {
-  color: hsl(var(--primary));
+  color: hsl(var(--muted-foreground));
 }
 .dm-inbox-status-tone--media {
-  color: hsl(var(--accent));
+  color: hsl(var(--muted-foreground));
 }
 .dm-inbox-status-tone--call {
   color: hsl(0 78% 64%);
@@ -1229,7 +1191,7 @@ body.has-liquid-bg:not(.has-custom-bg) .messages-scroll {
   color: hsl(0 84% 62%);
 }
 .dm-inbox-status-tone--muted {
-  color: hsl(var(--muted-foreground) / 0.8);
+  color: hsl(var(--muted-foreground) / 0.85);
 }
 .dm-inbox-streak {
   flex-shrink: 0;
@@ -1237,30 +1199,30 @@ body.has-liquid-bg:not(.has-custom-bg) .messages-scroll {
 }
 .dm-inbox-message-preview {
   overflow: hidden;
-  margin-top: 3px;
-  color: hsl(var(--muted-foreground) / 0.68);
-  font-size: 11px;
-  line-height: 1.1;
+  margin-top: 2px;
+  color: hsl(var(--muted-foreground) / 0.75);
+  font-size: 12px;
+  line-height: 1.15;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 .dm-inbox-preview--unread {
-  color: hsl(var(--foreground) / 0.78);
+  color: hsl(var(--foreground) / 0.82);
   font-weight: 600;
 }
 .dm-inbox-preview--typing,
 .dm-inbox-preview--live {
   color: hsl(var(--primary));
-  font-weight: 650;
+  font-weight: 600;
 }
 .dm-inbox-row-trail {
   display: inline-flex;
-  flex-direction: column;
-  align-items: flex-end;
-  justify-content: center;
+  flex-direction: row;
+  align-items: center;
+  justify-content: flex-end;
   gap: 8px;
   flex-shrink: 0;
-  min-height: 64px;
+  min-height: 0;
 }
 .dm-inbox-row-trail-actions {
   display: inline-flex;
@@ -1269,93 +1231,91 @@ body.has-liquid-bg:not(.has-custom-bg) .messages-scroll {
 }
 .dm-inbox-time {
   color: hsl(var(--muted-foreground) / 0.78);
-  font-size: 11px;
-  font-weight: 600;
+  font-size: 12px;
+  font-weight: 500;
   font-variant-numeric: tabular-nums;
   letter-spacing: 0.01em;
   line-height: 1;
 }
 .dm-inbox-quick-reaction {
-  font-size: 15px;
-  line-height: 1;
-  filter: drop-shadow(0 0 6px hsl(var(--primary) / 0.3));
+  display: none;
 }
 .dm-inbox-unread-badge {
   display: inline-flex;
-  min-width: 22px;
-  height: 22px;
+  min-width: 18px;
+  height: 18px;
   align-items: center;
   justify-content: center;
-  padding: 0 6px;
+  padding: 0 5px;
   border-radius: 999px;
   background: hsl(var(--primary));
   color: hsl(var(--primary-foreground));
-  font-size: 11px;
-  font-weight: 800;
+  font-size: 10px;
+  font-weight: 700;
   font-variant-numeric: tabular-nums;
-  box-shadow: 0 0 12px hsl(var(--primary) / 0.45);
-  animation: dm-inbox-badge-pulse 1.8s ease-in-out infinite;
+  box-shadow: none;
+  animation: none;
 }
 .dm-inbox-camera-button {
   display: inline-flex;
-  width: 48px;
-  height: 48px;
-  min-width: 48px;
-  min-height: 48px;
+  width: 38px;
+  height: 38px;
+  min-width: 36px;
+  min-height: 36px;
   align-items: center;
   justify-content: center;
-  border: 1px solid hsl(var(--primary) / 0.28);
+  border: none;
   border-radius: 50%;
-  background: hsl(var(--primary) / 0.12);
-  color: hsl(var(--foreground) / 0.92);
-  box-shadow: 0 0 14px hsl(var(--primary) / 0.2);
-  transition: transform 140ms ease, background-color 140ms ease, box-shadow 140ms ease;
+  background: transparent;
+  color: hsl(var(--foreground) / 0.55);
+  box-shadow: none;
+  transition: transform 120ms ease, color 120ms ease, background-color 120ms ease;
 }
 .dm-inbox-camera-button svg {
-  width: 21px;
-  height: 21px;
+  width: 20px;
+  height: 20px;
+  stroke-width: 1.75;
 }
 .dm-inbox-camera-button:active {
   transform: scale(0.92);
-  background: hsl(var(--primary) / 0.24);
-  box-shadow: 0 0 22px hsl(var(--primary) / 0.35);
+  color: hsl(var(--foreground) / 0.9);
+  background: hsl(var(--primary) / 0.1);
+  box-shadow: none;
 }
 .dm-inbox-compose {
   position: absolute;
-  right: 20px;
-  bottom: calc(82px + env(safe-area-inset-bottom, 0px));
+  right: 16px;
+  bottom: calc(76px + env(safe-area-inset-bottom, 0px));
   z-index: 10;
   display: inline-flex;
-  width: 64px;
-  height: 64px;
-  min-width: 64px;
-  min-height: 64px;
+  width: 54px;
+  height: 54px;
+  min-width: 54px;
+  min-height: 54px;
   align-items: center;
   justify-content: center;
-  border: 1px solid hsl(var(--foreground) / 0.18);
+  border: none;
   border-radius: 50%;
   background: linear-gradient(135deg, hsl(var(--primary)), hsl(var(--accent)));
-  box-shadow:
-    0 12px 32px hsl(var(--primary) / 0.48),
-    0 0 28px hsl(var(--accent) / 0.32);
+  box-shadow: 0 6px 18px hsl(var(--primary) / 0.28);
   color: hsl(var(--primary-foreground));
   transition: opacity 180ms ease, transform 180ms ease;
 }
 .dm-inbox-compose svg {
-  width: 26px;
-  height: 26px;
+  width: 22px;
+  height: 22px;
 }
 .dm-inbox-compose--hidden {
   pointer-events: none;
   opacity: 0;
-  transform: translateY(88px) scale(0.84);
+  transform: translateY(72px) scale(0.88);
 }
 @keyframes dm-inbox-ring-spin {
   to { transform: rotate(360deg); }
 }
 @keyframes dm-inbox-badge-pulse {
-  0%, 100% { transform: scale(1); box-shadow: 0 0 12px hsl(var(--primary) / 0.4); }
-  50% { transform: scale(1.06); box-shadow: 0 0 18px hsl(var(--primary) / 0.7); }
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.04); }
 }
 
 /* ========================================
@@ -1477,30 +1437,28 @@ body.has-liquid-bg:not(.has-custom-bg) .messages-scroll {
   animation: dm-inbox-skeleton-pulse 1.4s ease-in-out infinite;
 }
 .dm-inbox-skeleton-avatar {
-  width: 64px;
-  height: 64px;
+  width: 50px;
+  height: 50px;
   flex-shrink: 0;
 }
 .dm-inbox-skeleton-copy {
   flex: 1;
 }
 .dm-inbox-skeleton-line--name {
-  width: 52%;
-  height: 15px;
+  width: 48%;
+  height: 14px;
 }
 .dm-inbox-skeleton-line--status {
-  width: 70%;
-  height: 12px;
-  margin-top: 8px;
-}
-.dm-inbox-skeleton-line--preview {
-  width: 48%;
-  height: 10px;
+  width: 68%;
+  height: 11px;
   margin-top: 6px;
 }
+.dm-inbox-skeleton-line--preview {
+  display: none;
+}
 .dm-inbox-skeleton-camera {
-  width: 48px;
-  height: 48px;
+  width: 38px;
+  height: 38px;
 }
 @keyframes dm-inbox-skeleton-pulse {
   50% { opacity: 0.45; }
@@ -1511,7 +1469,7 @@ body.has-liquid-bg:not(.has-custom-bg) .messages-scroll {
     border-inline: 1px solid hsl(var(--foreground) / 0.07);
   }
   .dm-inbox-card {
-    padding-inline: 24px;
+    padding-inline: 18px;
   }
 }
 @media (min-width: 1024px) {
@@ -1520,13 +1478,18 @@ body.has-liquid-bg:not(.has-custom-bg) .messages-scroll {
   }
 }
 @media (max-width: 390px) {
-  .dm-inbox-header-side--right .dm-inbox-header-action:first-child {
-    display: none;
-  }
   .dm-inbox-card {
-    grid-template-columns: 68px minmax(0, 1fr) auto;
+    grid-template-columns: 48px minmax(0, 1fr) auto;
     gap: 10px;
     padding-inline: 12px;
+  }
+  .dm-inbox-avatar-button {
+    width: 48px;
+    height: 48px;
+  }
+  .dm-inbox-avatar {
+    width: 46px;
+    height: 46px;
   }
 }
 @media (prefers-reduced-motion: reduce) {

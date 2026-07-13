@@ -1,6 +1,6 @@
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { MoreHorizontal, Search, UserPlus } from 'lucide-react';
+import { MoreHorizontal, UserPlus } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { openFriendProfile } from '@/lib/friendProfileRoutes';
 import { TrashBin } from '@/components/chat/TrashBin';
@@ -14,24 +14,12 @@ interface DMHeaderProps {
 }
 
 export function DMHeader({
-  totalUnreadCount,
   pendingRequestCount = 0,
-  activityLine,
   onSearch,
 }: DMHeaderProps) {
   const navigate = useNavigate();
   const { profile } = useAuth();
   const [trashOpen, setTrashOpen] = useState(false);
-
-  const computedActivity = useMemo(() => {
-    if (activityLine) return activityLine;
-    if (totalUnreadCount > 0) {
-      return totalUnreadCount === 1
-        ? '1 unread message'
-        : `${totalUnreadCount > 99 ? '99+' : totalUnreadCount} unread messages`;
-    }
-    return 'All caught up';
-  }, [activityLine, totalUnreadCount]);
 
   return (
     <header className="dm-inbox-hero dm-inbox-hero--sticky">
@@ -50,7 +38,7 @@ export function DMHeader({
               }
             }}
           >
-            <Avatar className="h-11 w-11">
+            <Avatar className="dm-inbox-header-avatar">
               <ProfileAvatarImage
                 profileId={profile?.id}
                 src={profile?.avatar_url || undefined}
@@ -60,23 +48,18 @@ export function DMHeader({
                 {profile?.username?.[0]?.toUpperCase() || 'V'}
               </AvatarFallback>
             </Avatar>
-            <span className="dm-inbox-online-dot" aria-hidden />
           </button>
-          <div className="dm-inbox-header-title-wrap dm-inbox-header-title-wrap--left">
-            <h1 className="dm-inbox-title">Messages</h1>
-            <p className="dm-inbox-activity-line">{computedActivity}</p>
-          </div>
-        </div>
-
-        <div className="dm-inbox-header-side dm-inbox-header-side--right">
           <button
             type="button"
-            className="dm-inbox-header-action dm-vfx-press"
+            className="dm-inbox-header-title-wrap dm-inbox-header-title-wrap--left"
             onClick={onSearch}
             aria-label="Search messages"
           >
-            <Search />
+            <h1 className="dm-inbox-title">Messages</h1>
           </button>
+        </div>
+
+        <div className="dm-inbox-header-side dm-inbox-header-side--right">
           <button
             type="button"
             className="dm-inbox-header-action dm-inbox-header-action--badge dm-vfx-press"
