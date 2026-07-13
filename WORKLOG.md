@@ -8,7 +8,9 @@ Use this file as the Lovable -> Cursor handoff each session.
 - **Fix:** `getInboxLatestMessageAt` uses only `last_message.created_at` (else conversation `created_at`). Projection merge patches unread/profile without rewriting the sort clock unless projection has a **newer real message**. Server projection no longer falls back to `conv.updated_at`.
 - **False online:** ChatView used `isOnline={… || !!peerPresence}` so “viewing” (or any presence object) looked online. Now requires Firestore heartbeat (`peerPresence.is_online`); broadcast no longer forces online; header green dot only when truly online.
 - **Verified:** unit tests + `npm run build` PASS
-- **Next:** Publish staging + Lovable Publish; hard-refresh Messages.
+- **Published:** `origin/main` @ **`3b82fbc4`** · https://vybe-daaab.web.app ✅
+- **Production (vybehub.app):** Lovable → Share → Publish (sync `main` @ `3b82fbc4`)
+- **Next:** Hard-refresh Messages; confirm rows only move on real messages; online only with live heartbeat.
 
 ---
 
