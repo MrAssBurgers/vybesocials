@@ -17,9 +17,9 @@ export function DMRequestRow({ request }: { request: MessageRequest }) {
   const navigate = useNavigate();
   const respond = useRespondToMessageRequest();
   const [busy, setBusy] = useState(false);
-  const name =
-    request.sender?.username ||
-    `User ${request.sender_id.slice(0, 6)}`;
+      const name =
+        request.sender?.username ||
+        `User ${String(request.sender_id || '?').slice(0, 6)}`;
   const avatarUrl = resolveProfileAvatarUrl(
     request.sender?.id || request.sender_id,
     request.sender?.avatar_url,

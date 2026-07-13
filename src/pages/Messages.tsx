@@ -154,10 +154,32 @@ function MessagesInner() {
         >
           <LocalErrorBoundary
             label="dm-inbox"
-            resetKey={`dm-inbox-v3:${profileId || user?.id || 'anon'}`}
-            fallback={<DmInboxSafeList />}
+            resetKey={`dm-inbox-v4:${profileId || user?.id || 'anon'}`}
+            fallback={
+              <LocalErrorBoundary
+                label="dm-inbox-safe"
+                fallback={
+                  <div className="dm-inbox flex flex-1 items-center justify-center p-8 text-center">
+                    <div>
+                      <p className="text-sm text-muted-foreground mb-3">
+                        Chat list hit a snag. Retry to reload.
+                      </p>
+                      <button
+                        type="button"
+                        className="text-sm font-semibold text-primary"
+                        onClick={() => window.location.assign('/messages')}
+                      >
+                        Retry
+                      </button>
+                    </div>
+                  </div>
+                }
+              >
+                <DmInboxSafeList />
+              </LocalErrorBoundary>
+            }
           >
-            <DMInboxPage key={`dm-inbox-page-v3:${profileId || user?.id || 'anon'}`} />
+            <DMInboxPage key={`dm-inbox-page-v4:${profileId || user?.id || 'anon'}`} />
           </LocalErrorBoundary>
         </div>
 

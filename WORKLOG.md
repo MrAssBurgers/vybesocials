@@ -2,6 +2,14 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## Messages crash fix — persisted Set cache (2026-07-12)
+- **User ask:** “Couldn't load Messages” after DM tabs ship
+- **Cause:** React Query persistence turns `Set` into `{}`; `.has()` on call/friend/request sets threw in `useDMInbox`, then SafeList reused the same hook and bubbled to page fallback
+- **Fix:** `ensureStringSet` + normalize pending requests/close friends; harden request row; nested LocalErrorBoundary so safe list can't blank the whole Messages page
+- **Verified:** typecheck PASS · test PASS (79)
+- **Published:** pending push + Lovable Publish
+- **You:** Lovable sync `main` → **Share → Publish**; hard-refresh `/messages` (Retry / Full reload if sticky)
+
 ## DM inbox tabs deep fix (2026-07-12)
 - **User ask:** Tabs don’t filter / feel broken — deep scan UI + backend and make DMs perfect
 - **Fixes:** Scroll reset on tab change; Requests = first-class accept/decline rows; Nearby always on while inbox mounted + peer cards + locating/denied UX; Best Friend toggle in chat options + invalidate `close-friend-ids`; Friends excludes request threads; unread badge unified with `_hasUnread` + calls; safe list uses `useDMInbox`

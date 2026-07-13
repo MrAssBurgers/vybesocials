@@ -237,3 +237,13 @@ describe('ScreenshotDetectionService', () => {
     expect(severityForEventType('screenshot_disappearing_photo')).toBe('high');
   });
 });
+
+describe('ensureStringSet', () => {
+  it('revives persisted empty Set object and string arrays', async () => {
+    const { ensureStringSet } = await import('@/lib/persistedCollections');
+    expect(ensureStringSet({})).toEqual(new Set());
+    expect(ensureStringSet(['a', 'b'])).toEqual(new Set(['a', 'b']));
+    expect(ensureStringSet(new Set(['x']))).toEqual(new Set(['x']));
+    expect(ensureStringSet(null)).toEqual(new Set());
+  });
+});

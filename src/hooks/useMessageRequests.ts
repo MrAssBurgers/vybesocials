@@ -42,10 +42,11 @@ export function useMessageRequests() {
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      return data as MessageRequest[];
+      return (data || []) as MessageRequest[];
     },
     enabled: !!profileId,
     networkMode: 'always',
+    select: (data) => (Array.isArray(data) ? data : []),
   });
 }
 

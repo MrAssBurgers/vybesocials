@@ -24,7 +24,7 @@ import {
 } from '@/lib/dmMemberResolve';
 import { dmConversationPreviewText } from '@/lib/dmPreviewText';
 import { resolveDmInboxStatus } from '@/lib/dmInboxStatus';
-import { ensureArray, safeDmMembers } from '@/lib/persistedCollections';
+import { ensureArray, ensureStringSet, safeDmMembers } from '@/lib/persistedCollections';
 import { resolveProfileAvatarUrl } from '@/lib/profileAvatarCache';
 import { batchSignUrls } from '@/lib/signedUrlCache';
 import { normalizeStoryGroups } from '@/lib/storiesCacheSanitize';
@@ -97,13 +97,13 @@ export function useDMInbox() {
   const profileId = useAuthProfileId();
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTab, setActiveTabState] = useState<DmInboxTabId>(initialTab);
-  const { data: lockedIds } = useLockedChatIds();
-  const { data: callConversationIds } = useInboxCallConversationIds();
-  const { data: pendingRequests = [], isLoading: requestsLoading } = useMessageRequests();
+  const { data: lockedIdsRaw } = useLockedChatIds();
+  const { data: callConversationIdsRaw } = useInboxCallConversationIds();
+  const { data: pendingRequestsRaw, isLoading: requestsLoading } = useMessageRequests();
   const { data: pendingRequestCount = 0 } = usePendingRequestCount();
-  const { data: recentNewFriendIds = new Set<string>() } = useRecentNewFriendProfileIds();
+  const { data: recentNewFriendIdsRaw } = useRecentNewFriendProfileIds();
   const {
-    ids: closeFriendIds,
+    ids: closeFriendIdsRaw,
     isLoading: closeFriendsLoading,
     isFetched: closeFriendsFetched,
   } = useCloseFriendIds();
@@ -118,10 +118,28 @@ export function useDMInbox() {
     avatarUrl: profile?.avatar_url,
   });
 
+  const lockedIds = useMemo(() => ensureStringSet(lockedIdsRaw), [lockedIdsRaw]);
+  const callConversationIds = useMemo(
+    () => ensureStringSet(callConversationIdsRaw),
+    [callConversationIdsRaw],
+  );
+  const pendingRequests = useMemo(
+    () => ensureArray<import('@/hooks/useMessageRequests').MessageRequest>(pendingRequestsRaw),
+    [pendingRequestsRaw],
+  );
+  const recentNewFriendIds = useMemo(
+    () => ensureStringSet(recentNewFriendIdsRaw),
+    [recentNewFriendIdsRaw],
+  );
+  const closeFriendIds = useMemo(
+    () => ensureStringSet(closeFriendIdsRaw),
+    [closeFriendIdsRaw],
+  );
+
   const allConversations = useMemo(
     () =>
       [...ensureArray(query.pinnedConversations), ...ensureArray(query.unpinnedConversations)]
-        .filter((conversation) => !lockedIds?.has(conversation.id)),
+        .filter((conversation) => !lockedIds.has(conversation.id)),
     [query.pinnedConversations, query.unpinnedConversations, lockedIds],
   );
 
@@ -404,7 +422,7 @@ export function useDMInbox() {
         count += 1;
       }
     }
-    if (callConversationIds?.size) {
+    if (callConversationIds.size) {
       for (const id of callConversationIds) {
         const match = allConversations.find((conversation) => conversation.id === id);
         if (!match) continue;
@@ -453,7 +471,7 @@ export function useDMInbox() {
     refetch: query.refetch,
     totalUnreadCount,
     pendingRequestCount,
-    callCount: callConversationIds?.size ?? 0,
+    callCount: callConversationIds.size,
     unreadBadgeCount,
     bestFriendCount,
     nearbyCount: nearbyProfileIds.size,

@@ -61,7 +61,8 @@ export function ConversationOptionsSheet({
   const trashConversation = useTrashConversation();
    const { profile } = useAuth();
   const manageCloseFriend = useManageCloseFriend();
-  const { ids: closeFriendIds } = useCloseFriendIds();
+  const { ids: closeFriendIdsRaw } = useCloseFriendIds();
+  const closeFriendIds = closeFriendIdsRaw instanceof Set ? closeFriendIdsRaw : new Set<string>();
   const isBestFriend = Boolean(otherUserId && closeFriendIds.has(otherUserId));
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showClearConfirm, setShowClearConfirm] = useState(false);

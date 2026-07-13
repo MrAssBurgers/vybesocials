@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { db } from '@/lib/firebase';
 import { useAuthProfileId } from '@/hooks/useAuthProfileId';
+import { ensureArray } from '@/lib/persistedCollections';
 
 /** Set of close-friend profile IDs for the signed-in user. */
 export function useCloseFriendIds(): {
@@ -30,9 +31,10 @@ export function useCloseFriendIds(): {
     staleTime: 60_000,
   });
 
-  return {
-    ids: useMemo(() => new Set(data || []), [data]),
-    isLoading,
-    isFetched,
-  };
+  const ids = useMemo(
+    () => new Set(ensureArray<string>(data).map(String).filter(Boolean)),
+    [data],
+  );
+
+  return { ids, isLoading, isFetched };
 }

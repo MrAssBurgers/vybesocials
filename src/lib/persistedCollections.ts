@@ -97,6 +97,31 @@ export function ensureArray<T = any>(data: unknown): T[] {
   return [];
 }
 
+/**
+ * React Query persistence turns `Set` into `{}` — never call `.has` on raw cache data.
+ * Accepts Set, string[], or object-map keys.
+ */
+export function ensureStringSet(data: unknown): Set<string> {
+  if (data instanceof Set) {
+    return new Set(
+      [...data].map((value) => String(value)).filter(Boolean),
+    );
+  }
+  if (Array.isArray(data)) {
+    return new Set(data.map((value) => String(value)).filter(Boolean));
+  }
+  if (data && typeof data === 'object') {
+    const values = Object.values(data as Record<string, unknown>);
+    // Persisted empty Set often becomes {}.
+    if (!values.length) return new Set();
+    // Array-like object of strings
+    if (values.every((value) => typeof value === 'string' || typeof value === 'number')) {
+      return new Set(values.map((value) => String(value)).filter(Boolean));
+    }
+  }
+  return new Set();
+}
+
 /** DM member rows — persisted cache can deserialize `members` as `{}`. */
 export function safeDmMembers<T = any>(members: unknown): T[] {
   return ensureArray<T>(members);
