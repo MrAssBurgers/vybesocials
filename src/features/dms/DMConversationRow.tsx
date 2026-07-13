@@ -91,6 +91,7 @@ export const DMConversationRow = memo(function DMConversationRow({
     preview?.streakCount,
   );
   const StatusIcon = status.Icon;
+  const statusKind = preview?.statusKind || status.kind;
   const statusLine = typing
     ? 'Typing…'
     : preview?.statusLine || status.line;
@@ -231,7 +232,14 @@ export const DMConversationRow = memo(function DMConversationRow({
             typing && 'dm-inbox-preview--typing',
           )}
         >
-          {!typing && <StatusIcon className="dm-inbox-status-icon" aria-hidden />}
+          {!typing && (
+            <span
+              className={cn('dm-inbox-status-glyph', `dm-inbox-status-glyph--${statusKind}`)}
+              aria-hidden
+            >
+              <StatusIcon className="dm-inbox-status-icon" />
+            </span>
+          )}
           <span>{statusLine}</span>
         </p>
       </div>

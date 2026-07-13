@@ -38,7 +38,9 @@ export function DMNearbyPeerRow({
         <div className="dm-inbox-row-copy">
           <p className="dm-inbox-name">{name}</p>
           <p className="dm-inbox-status dm-inbox-preview--live">
-            <MapPin className="dm-inbox-status-icon" aria-hidden />
+            <span className="dm-inbox-status-glyph dm-inbox-status-glyph--media" aria-hidden>
+              <MapPin className="dm-inbox-status-icon" />
+            </span>
             <span>Nearby right now</span>
           </p>
           <p className="dm-inbox-message-preview">Tap to start a chat</p>

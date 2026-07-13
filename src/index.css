@@ -971,16 +971,16 @@ body.has-liquid-bg:not(.has-custom-bg) .messages-scroll {
 }
 .dm-inbox-tab-glow {
   position: absolute;
-  right: 8px;
-  bottom: 2px;
-  left: 8px;
+  right: 4px;
+  bottom: 1px;
+  left: 4px;
   height: 3px;
   border-radius: 99px;
-  background: linear-gradient(90deg, hsl(var(--primary)), hsl(var(--accent)), hsl(320 90% 65%));
+  background: linear-gradient(90deg, hsl(var(--primary)), hsl(320 90% 62%), hsl(var(--accent)));
   box-shadow:
-    0 0 12px hsl(var(--primary) / 0.95),
-    0 0 24px hsl(var(--accent) / 0.65),
-    0 0 36px hsl(320 90% 65% / 0.35);
+    0 0 14px hsl(var(--primary) / 1),
+    0 0 28px hsl(320 90% 62% / 0.75),
+    0 0 42px hsl(var(--accent) / 0.55);
   opacity: 0;
   transform: scaleX(0.35);
   transition: opacity 180ms ease, transform 180ms ease;
@@ -1032,6 +1032,8 @@ body.has-liquid-bg:not(.has-custom-bg) .messages-scroll {
 .dm-inbox-rows {
   display: flex;
   flex-direction: column;
+  gap: 8px;
+  padding: 6px 12px 0;
 }
 .dm-inbox-section-label {
   display: none;
@@ -1045,7 +1047,7 @@ body.has-liquid-bg:not(.has-custom-bg) .messages-scroll {
   touch-action: pan-y;
   -webkit-user-select: none;
   user-select: none;
-  border-bottom: 1px solid hsl(var(--primary) / 0.08);
+  border-bottom: none;
   -webkit-tap-highlight-color: transparent;
   transition: transform 180ms ease, opacity 180ms ease;
 }
@@ -1056,27 +1058,37 @@ body.has-liquid-bg:not(.has-custom-bg) .messages-scroll {
   align-items: center;
   gap: 11px;
   width: 100%;
-  height: 72px;
-  min-height: 68px;
-  max-height: 74px;
-  padding: 8px 14px;
+  height: 76px;
+  min-height: 72px;
+  max-height: 78px;
+  padding: 10px 14px;
+  border: 1px solid hsl(var(--primary) / 0.22);
+  border-radius: 20px;
   background: linear-gradient(
-    90deg,
-    hsl(var(--primary) / 0.04),
-    transparent 55%
+    135deg,
+    hsl(var(--primary) / 0.1),
+    hsl(var(--background) / 0.42) 42%,
+    hsl(var(--background) / 0.28)
   );
-  border-radius: 0;
-  box-shadow: none;
-  transition: background-color 140ms ease;
+  box-shadow:
+    inset 0 1px 0 hsl(var(--foreground) / 0.06),
+    0 0 18px hsl(var(--primary) / 0.12),
+    0 4px 16px hsl(var(--background) / 0.35);
+  backdrop-filter: blur(12px) saturate(140%);
+  -webkit-backdrop-filter: blur(12px) saturate(140%);
+  transition:
+    background-color 140ms ease,
+    border-color 140ms ease,
+    box-shadow 140ms ease;
 }
 .dm-inbox-card::before {
   content: '';
   position: absolute;
-  left: 0;
-  top: 14px;
-  bottom: 14px;
+  left: 10px;
+  top: 18px;
+  bottom: 18px;
   width: 0;
-  border-radius: 0 3px 3px 0;
+  border-radius: 3px;
   background: linear-gradient(180deg, hsl(var(--primary)), hsl(var(--accent)));
   box-shadow: 0 0 12px hsl(var(--primary) / 0.55);
   opacity: 0;
@@ -1084,18 +1096,38 @@ body.has-liquid-bg:not(.has-custom-bg) .messages-scroll {
   pointer-events: none;
 }
 .dm-inbox-card:active {
-  background: hsl(var(--primary) / 0.07);
+  background: linear-gradient(
+    135deg,
+    hsl(var(--primary) / 0.14),
+    hsl(var(--background) / 0.48) 42%,
+    hsl(var(--background) / 0.32)
+  );
 }
 .dm-inbox-card--active {
-  background: hsl(var(--primary) / 0.08);
+  border-color: hsl(var(--primary) / 0.45);
+  background: linear-gradient(
+    135deg,
+    hsl(var(--primary) / 0.16),
+    hsl(var(--background) / 0.5) 42%,
+    hsl(var(--background) / 0.34)
+  );
+  box-shadow:
+    inset 0 1px 0 hsl(var(--foreground) / 0.08),
+    0 0 24px hsl(var(--primary) / 0.22),
+    0 4px 18px hsl(var(--background) / 0.4);
 }
 .dm-inbox-card--unread {
+  border-color: hsl(var(--primary) / 0.32);
   background: linear-gradient(
-    90deg,
-    hsl(var(--primary) / 0.1),
-    hsl(var(--primary) / 0.03) 48%,
-    transparent
+    135deg,
+    hsl(var(--primary) / 0.16),
+    hsl(var(--primary) / 0.06) 48%,
+    hsl(var(--background) / 0.3)
   );
+  box-shadow:
+    inset 0 1px 0 hsl(var(--foreground) / 0.07),
+    0 0 22px hsl(var(--primary) / 0.18),
+    0 4px 16px hsl(var(--background) / 0.35);
 }
 .dm-inbox-card--unread::before {
   width: 3px;
@@ -1147,34 +1179,38 @@ body.has-liquid-bg:not(.has-custom-bg) .messages-scroll {
   border-radius: 50%;
   background: var(--dm-ring, linear-gradient(135deg, hsl(var(--primary)), hsl(var(--accent))));
   box-shadow:
-    0 0 16px hsl(var(--primary) / 0.65),
-    0 0 32px hsl(var(--accent) / 0.35);
+    0 0 20px hsl(var(--primary) / 0.75),
+    0 0 40px hsl(var(--accent) / 0.45);
   animation: none;
   pointer-events: none;
 }
 .dm-inbox-avatar-ring--tone-0 {
   --dm-ring: linear-gradient(135deg, hsl(var(--primary)), hsl(280 95% 72%));
   box-shadow:
-    0 0 16px hsl(var(--primary) / 0.75),
-    0 0 34px hsl(var(--primary) / 0.4);
+    0 0 20px hsl(var(--primary) / 0.85),
+    0 0 42px hsl(var(--primary) / 0.5),
+    0 0 56px hsl(280 95% 72% / 0.25);
 }
 .dm-inbox-avatar-ring--tone-1 {
   --dm-ring: linear-gradient(135deg, hsl(var(--accent)), hsl(200 95% 62%));
   box-shadow:
-    0 0 16px hsl(var(--accent) / 0.7),
-    0 0 32px hsl(200 95% 62% / 0.4);
+    0 0 20px hsl(var(--accent) / 0.8),
+    0 0 40px hsl(200 95% 62% / 0.5),
+    0 0 54px hsl(200 95% 62% / 0.25);
 }
 .dm-inbox-avatar-ring--tone-2 {
   --dm-ring: linear-gradient(135deg, hsl(38 98% 58%), hsl(18 95% 58%));
   box-shadow:
-    0 0 16px hsl(38 98% 58% / 0.7),
-    0 0 32px hsl(18 95% 58% / 0.35);
+    0 0 20px hsl(38 98% 58% / 0.8),
+    0 0 40px hsl(18 95% 58% / 0.45),
+    0 0 52px hsl(38 98% 58% / 0.22);
 }
 .dm-inbox-avatar-ring--tone-3 {
   --dm-ring: linear-gradient(135deg, hsl(168 85% 48%), hsl(220 90% 62%));
   box-shadow:
-    0 0 16px hsl(168 85% 48% / 0.65),
-    0 0 32px hsl(220 90% 62% / 0.35);
+    0 0 20px hsl(168 85% 48% / 0.75),
+    0 0 40px hsl(220 90% 62% / 0.45),
+    0 0 52px hsl(220 90% 62% / 0.22);
 }
 .dm-inbox-avatar-ring--story {
   background: var(--dm-theme-story-ring);
@@ -1299,22 +1335,79 @@ body.has-liquid-bg:not(.has-custom-bg) .messages-scroll {
   white-space: nowrap;
 }
 .dm-inbox-status-icon {
-  width: 13px;
-  height: 13px;
+  width: 10px;
+  height: 10px;
   flex-shrink: 0;
-  opacity: 0.9;
+  opacity: 1;
+}
+.dm-inbox-status-glyph {
+  display: inline-flex;
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+}
+.dm-inbox-status-glyph--received,
+.dm-inbox-status-glyph--image,
+.dm-inbox-status-glyph--start {
+  border-radius: 4px;
+  background: hsl(280 75% 62% / 0.9);
+  color: hsl(var(--background));
+  box-shadow: 0 0 10px hsl(280 75% 62% / 0.55);
+}
+.dm-inbox-status-glyph--sent {
+  border: 1.5px solid hsl(var(--muted-foreground) / 0.55);
+  border-radius: 50%;
+  background: transparent;
+  color: hsl(var(--muted-foreground));
+}
+.dm-inbox-status-glyph--delivered {
+  border: 1.5px solid hsl(320 85% 68%);
+  border-radius: 50%;
+  background: transparent;
+  color: hsl(320 85% 72%);
+  box-shadow: 0 0 8px hsl(320 85% 68% / 0.35);
+}
+.dm-inbox-status-glyph--opened {
+  border: 1.5px solid hsl(205 95% 62%);
+  border-radius: 50%;
+  background: transparent;
+  color: hsl(205 95% 68%);
+  box-shadow: 0 0 8px hsl(205 95% 62% / 0.35);
+}
+.dm-inbox-status-glyph--video,
+.dm-inbox-status-glyph--voice,
+.dm-inbox-status-glyph--media {
+  border-radius: 4px;
+  background: hsl(var(--accent) / 0.22);
+  color: hsl(var(--accent));
+  box-shadow: 0 0 8px hsl(var(--accent) / 0.3);
+}
+.dm-inbox-status-glyph--call,
+.dm-inbox-status-glyph--danger,
+.dm-inbox-status-glyph--screenshot {
+  border-radius: 4px;
+  background: hsl(0 78% 58% / 0.2);
+  color: hsl(0 84% 62%);
+}
+.dm-inbox-status-glyph--muted {
+  border-radius: 4px;
+  background: hsl(var(--muted-foreground) / 0.15);
+  color: hsl(var(--muted-foreground));
 }
 .dm-inbox-status-tone--received {
-  color: hsl(280 75% 72%);
+  color: hsl(280 80% 76%);
 }
 .dm-inbox-status-tone--sent {
   color: hsl(var(--muted-foreground));
 }
 .dm-inbox-status-tone--delivered {
-  color: hsl(320 85% 72%);
+  color: hsl(320 88% 76%);
 }
 .dm-inbox-status-tone--opened {
-  color: hsl(205 95% 68%);
+  color: hsl(205 95% 72%);
 }
 .dm-inbox-status-tone--media {
   color: hsl(var(--accent));
@@ -1374,9 +1467,9 @@ body.has-liquid-bg:not(.has-custom-bg) .messages-scroll {
   line-height: 1;
 }
 .dm-inbox-quick-reaction {
-  font-size: 18px;
+  font-size: 22px;
   line-height: 1;
-  filter: drop-shadow(0 0 8px hsl(var(--primary) / 0.35));
+  filter: drop-shadow(0 0 10px hsl(var(--primary) / 0.45));
 }
 .dm-inbox-unread-badge {
   display: inline-flex;
@@ -1396,23 +1489,23 @@ body.has-liquid-bg:not(.has-custom-bg) .messages-scroll {
 }
 .dm-inbox-camera-button {
   display: inline-flex;
-  width: 38px;
-  height: 38px;
-  min-width: 36px;
-  min-height: 36px;
+  width: 40px;
+  height: 40px;
+  min-width: 38px;
+  min-height: 38px;
   align-items: center;
   justify-content: center;
-  border: 1px solid hsl(var(--primary) / 0.4);
-  border-radius: 12px;
+  border: 1px solid hsl(var(--primary) / 0.45);
+  border-radius: 14px;
   background: linear-gradient(
     160deg,
-    hsl(var(--foreground) / 0.08),
-    hsl(var(--primary) / 0.14)
+    hsl(var(--foreground) / 0.1),
+    hsl(var(--primary) / 0.18)
   );
-  color: hsl(var(--foreground) / 0.92);
+  color: hsl(var(--foreground) / 0.94);
   box-shadow:
-    inset 0 1px 0 hsl(var(--foreground) / 0.1),
-    0 0 14px hsl(var(--primary) / 0.28);
+    inset 0 1px 0 hsl(var(--foreground) / 0.12),
+    0 0 16px hsl(var(--primary) / 0.32);
   transition: transform 120ms ease, color 120ms ease, background-color 120ms ease, box-shadow 120ms ease, border-color 120ms ease;
 }
 .dm-inbox-camera-button svg {
@@ -1570,13 +1663,26 @@ body.has-liquid-bg:not(.has-custom-bg) .messages-scroll {
   width: 26px;
   height: 26px;
 }
+.dm-inbox-skeleton-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 6px 12px 0;
+}
 .dm-inbox-skeleton-row {
   display: flex;
-  height: 72px;
+  height: 76px;
   align-items: center;
   gap: 11px;
-  padding: 8px 14px;
-  border-bottom: 1px solid hsl(var(--foreground) / 0.06);
+  padding: 10px 14px;
+  border: 1px solid hsl(var(--primary) / 0.14);
+  border-radius: 20px;
+  background: linear-gradient(
+    135deg,
+    hsl(var(--primary) / 0.06),
+    hsl(var(--background) / 0.32)
+  );
+  box-shadow: 0 0 14px hsl(var(--primary) / 0.08);
 }
 .dm-inbox-skeleton-avatar,
 .dm-inbox-skeleton-line,
@@ -1606,8 +1712,9 @@ body.has-liquid-bg:not(.has-custom-bg) .messages-scroll {
   display: none;
 }
 .dm-inbox-skeleton-camera {
-  width: 38px;
-  height: 38px;
+  width: 40px;
+  height: 40px;
+  border-radius: 14px;
 }
 @keyframes dm-inbox-skeleton-pulse {
   50% { opacity: 0.45; }
