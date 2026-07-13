@@ -26,6 +26,11 @@ export interface DMSettings {
   chat_wallpaper: string | null;
   emotional_pulse: EmotionalPulse;
   show_emotional_pulse: boolean;
+  call_notifications: boolean;
+  mention_notifications: boolean;
+  reaction_notifications: boolean;
+  media_auto_download: boolean;
+  disappearing_message_seconds: number | null;
   created_at: string;
   updated_at: string;
 }
@@ -39,6 +44,11 @@ const defaultSettings: Partial<DMSettings> = {
   chat_wallpaper: null,
   emotional_pulse: null,
   show_emotional_pulse: false,
+  call_notifications: true,
+  mention_notifications: true,
+  reaction_notifications: true,
+  media_auto_download: true,
+  disappearing_message_seconds: null,
 };
 
 export function useDMSettings(conversationId: string | undefined) {
@@ -82,6 +92,14 @@ export function useDMSettings(conversationId: string | undefined) {
         chat_wallpaper: updates.chat_wallpaper ?? query.data?.chat_wallpaper ?? defaultSettings.chat_wallpaper,
         emotional_pulse: updates.emotional_pulse ?? query.data?.emotional_pulse ?? defaultSettings.emotional_pulse,
         show_emotional_pulse: updates.show_emotional_pulse ?? query.data?.show_emotional_pulse ?? defaultSettings.show_emotional_pulse,
+        call_notifications: updates.call_notifications ?? query.data?.call_notifications ?? defaultSettings.call_notifications,
+        mention_notifications: updates.mention_notifications ?? query.data?.mention_notifications ?? defaultSettings.mention_notifications,
+        reaction_notifications: updates.reaction_notifications ?? query.data?.reaction_notifications ?? defaultSettings.reaction_notifications,
+        media_auto_download: updates.media_auto_download ?? query.data?.media_auto_download ?? defaultSettings.media_auto_download,
+        disappearing_message_seconds:
+          updates.disappearing_message_seconds !== undefined
+            ? updates.disappearing_message_seconds
+            : query.data?.disappearing_message_seconds ?? defaultSettings.disappearing_message_seconds,
         updated_at: new Date().toISOString(),
       };
 

@@ -9,8 +9,11 @@ import {
 } from 'react';
 import { CameraMountBoundary } from '@/components/camera/CameraMountBoundary';
 import { UnifiedVybeCamera } from '@/components/camera/UnifiedVybeCamera';
+import { SnapSendProgress } from '@/components/camera/SnapSendProgress';
 import { FullscreenPortal } from '@/components/layout/FullscreenPortal';
 import type { CameraMode, CaptureTarget } from '@/lib/camera/cameraConfig';
+import type { CameraLaunchContext } from '@/lib/camera/cameraLaunchContext';
+import { captureTargetForContext } from '@/lib/camera/cameraLaunchContext';
 import { stopCameraStream } from '@/hooks/useCameraPreload';
 
 export interface OpenCameraOptions {
@@ -24,6 +27,8 @@ export interface OpenCameraOptions {
   showBackArrow?: boolean;
   defaultMode?: CameraMode;
   onDismiss?: () => void;
+  /** Snap capture → edit → send flow — every entry point should pass this. */
+  launchContext?: CameraLaunchContext;
 }
 
 interface CameraOverlayContextValue {
@@ -87,10 +92,13 @@ export function CameraOverlayProvider({ children }: { children: ReactNode }) {
               onCapture={state.onCapture}
               showBackArrow={state.showBackArrow}
               defaultMode={state.defaultMode}
+              launchContext={state.launchContext}
             />
           </CameraMountBoundary>
         </FullscreenPortal>
       )}
+      {/* Background snap-send progress (non-blocking, survives overlay close) */}
+      <SnapSendProgress />
     </CameraOverlayContext.Provider>
   );
 }
@@ -127,4 +135,32 @@ export function openCameraFromGesture(
   }
 
   openCamera({ captureTarget, streamPromise, ...extra });
+}
+
+/**
+ * Open the snap capture → edit → send flow for a launch context.
+ * The capture target (recording limits, mode tabs) derives from the context.
+ */
+export function openSnapCamera(
+  openCamera: (opts: OpenCameraOptions) => void,
+  launchContext: CameraLaunchContext,
+  extra?: Partial<OpenCameraOptions>,
+) {
+  openCameraFromGesture(openCamera, captureTargetForContext(launchContext), {
+    launchContext,
+    ...extra,
+  });
+}
+
+/** Hook wrapper — returns a function that opens the snap flow from launch context. */
+export function useOpenSnapCamera() {
+  const ctx = useCameraOverlayOptional();
+  return useCallback(
+    (launchContext: CameraLaunchContext, extra?: Partial<OpenCameraOptions>) => {
+      if (!ctx) return false;
+      openSnapCamera(ctx.openCamera, launchContext, extra);
+      return true;
+    },
+    [ctx],
+  );
 }

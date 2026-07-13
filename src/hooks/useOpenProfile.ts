@@ -7,7 +7,7 @@ import {
 } from '@/lib/friendProfileRoutes';
 import { useFriendshipStatus } from '@/hooks/useFriends';
 
-/** Navigate to the correct public or private profile route. */
+/** Navigate to the canonical relationship-aware profile route. */
 export function useOpenProfile() {
   const navigate = useNavigate();
 
@@ -22,7 +22,7 @@ export function useOpenProfile() {
   );
 }
 
-/** Resolve friendship status then navigate — use when only userId is known. */
+/** Navigate canonically while retaining the legacy status-shaped API. */
 export function useOpenProfileByUserId() {
   const navigate = useNavigate();
 

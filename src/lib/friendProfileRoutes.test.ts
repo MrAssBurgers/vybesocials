@@ -6,9 +6,9 @@ import {
 } from '@/lib/friendProfileRoutes';
 
 describe('friendProfileRoutes', () => {
-  it('routes friends to /friend/', () => {
-    expect(profilePathForFriendship('alice', 'friends')).toBe('/friend/alice');
-    expect(profilePathForFriendship('bob', 'pending_received')).toBe('/friend/bob');
+  it('routes friends to the canonical /u/ route', () => {
+    expect(profilePathForFriendship('alice', 'friends')).toBe('/u/alice');
+    expect(profilePathForFriendship('bob', 'pending_received')).toBe('/u/bob');
   });
 
   it('routes strangers to /u/', () => {

@@ -68,6 +68,7 @@ const SearchPage = lazy(() => import("@/pages/Search"));
 const Settings = lazy(() => import("@/pages/Settings"));
 const Shorts = lazy(() => import("@/pages/Shorts"));
 const Profile = lazy(() => import("@/pages/Profile"));
+const RelationshipProfile = lazy(() => import("@/pages/RelationshipProfile"));
 const FriendProfile = lazy(() => import("@/pages/FriendProfile"));
 
 // Secondary pages - lazy load but prefetch
@@ -258,7 +259,7 @@ export function AnimatedRoutes() {
             <Route path="/search" element={<ProtectedRoute><SearchPage /></ProtectedRoute>} />
             <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
             <Route path="/settings/notification-diagnostics" element={<ProtectedRoute><NotificationDiagnostics /></ProtectedRoute>} />
-            <Route path="/u/:username" element={<ProtectedRoute><RouteBoundary name="profile"><Profile /></RouteBoundary></ProtectedRoute>} />
+            <Route path="/u/:username" element={<ProtectedRoute><RouteBoundary name="profile"><RelationshipProfile /></RouteBoundary></ProtectedRoute>} />
             <Route path="/friend/:username" element={<ProtectedRoute><RouteBoundary name="friend-profile"><FriendProfile /></RouteBoundary></ProtectedRoute>} />
             <Route path="/profile/:usernameOrId" element={<ProtectedRoute><RouteBoundary name="profile"><Profile /></RouteBoundary></ProtectedRoute>} />
             <Route path="/profile" element={<ProtectedRoute><RouteBoundary name="profile"><Profile /></RouteBoundary></ProtectedRoute>} />

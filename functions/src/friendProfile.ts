@@ -1,12 +1,259 @@
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { onSchedule } from 'firebase-functions/v2/scheduler';
-import { db, requireAuth } from './_shared/admin.js';
+import { db, enforceRateLimit, rateLimit, requireAuth } from './_shared/admin.js';
 import {
   areFriends,
   friendshipPairId,
   isBlocked,
   resolveProfileId,
 } from './_shared/friendship.js';
+
+type FriendshipAction = 'send' | 'cancel' | 'accept' | 'decline' | 'unfriend';
+type StoredFriendshipStatus = 'pending' | 'accepted' | 'declined' | 'cancelled';
+
+interface FriendRequestRow {
+  id?: string;
+  sender_id?: string;
+  receiver_id?: string;
+  status?: StoredFriendshipStatus | string;
+  created_at?: string;
+  updated_at?: string;
+}
+
+function requestId(senderId: string, receiverId: string): string {
+  return `${senderId}_${receiverId}`;
+}
+
+function validProfileId(value: unknown): value is string {
+  return typeof value === 'string' && value.length > 0 && value.length <= 160;
+}
+
+async function findLegacyRequest(senderId: string, receiverId: string) {
+  const snap = await db.collection('friend_requests')
+    .where('sender_id', '==', senderId)
+    .where('receiver_id', '==', receiverId)
+    .limit(1)
+    .get();
+  return snap.docs[0] ?? null;
+}
+
+async function loadPairRequests(profileId: string, otherId: string) {
+  const outboundRef = db.collection('friend_requests').doc(requestId(profileId, otherId));
+  const inboundRef = db.collection('friend_requests').doc(requestId(otherId, profileId));
+  const [outbound, inbound] = await Promise.all([outboundRef.get(), inboundRef.get()]);
+  const deterministicActive = [outbound, inbound].some((snap) =>
+    snap.exists && ['pending', 'accepted'].includes(String(snap.data()?.status)),
+  );
+  if (deterministicActive) {
+    return {
+      outbound: outbound.exists ? outbound : null,
+      inbound: inbound.exists ? inbound : null,
+    };
+  }
+
+  const [legacyOutbound, legacyInbound] = await Promise.all([
+    findLegacyRequest(profileId, otherId),
+    findLegacyRequest(otherId, profileId),
+  ]);
+  return {
+    outbound: legacyOutbound || (outbound.exists ? outbound : null),
+    inbound: legacyInbound || (inbound.exists ? inbound : null),
+  };
+}
+
+function canonicalPairState(
+  profileId: string,
+  outbound: FirebaseFirestore.QueryDocumentSnapshot | FirebaseFirestore.DocumentSnapshot | null,
+  inbound: FirebaseFirestore.QueryDocumentSnapshot | FirebaseFirestore.DocumentSnapshot | null,
+) {
+  const rows = [outbound, inbound]
+    .filter((snap): snap is FirebaseFirestore.QueryDocumentSnapshot | FirebaseFirestore.DocumentSnapshot => !!snap?.exists)
+    .map((snap) => ({ id: snap.id, ...(snap.data() as FriendRequestRow) }));
+  const accepted = rows.find((row) => row.status === 'accepted');
+  if (accepted) return { state: 'accepted', request_id: accepted.id };
+  const pending = rows.find((row) => row.status === 'pending');
+  if (pending) {
+    return {
+      state: pending.sender_id === profileId ? 'pending_outgoing' : 'pending_incoming',
+      request_id: pending.id,
+    };
+  }
+  const inactive = rows.find((row) => row.status === 'declined' || row.status === 'cancelled');
+  return inactive
+    ? { state: inactive.status, request_id: inactive.id }
+    : { state: 'none', request_id: null };
+}
+
+/** Authoritative friendship state, including block checks hidden from client queries. */
+export const getFriendshipState = onCall({ region: 'us-central1' }, async (request) => {
+  const authUid = requireAuth(request);
+  const profileId = await resolveProfileId(authUid);
+  const otherId = (request.data || {}).target_profile_id;
+  if (!validProfileId(otherId)) throw new HttpsError('invalid-argument', 'target_profile_id required');
+  if (otherId === profileId) return { state: 'none', request_id: null };
+  if (await isBlocked(profileId, otherId)) return { state: 'blocked', request_id: null };
+
+  const { outbound, inbound } = await loadPairRequests(profileId, otherId);
+  return canonicalPairState(profileId, outbound, inbound);
+});
+
+/**
+ * Canonical friendship mutation boundary. Admin SDK writes intentionally bypass
+ * client rules; every identity check and state transition is enforced here.
+ */
+export const mutateFriendship = onCall({ region: 'us-central1' }, async (request) => {
+  const authUid = requireAuth(request);
+  const profileId = await resolveProfileId(authUid);
+  const data = (request.data || {}) as Record<string, unknown>;
+  const action = data.action as FriendshipAction;
+  if (!['send', 'cancel', 'accept', 'decline', 'unfriend'].includes(action)) {
+    throw new HttpsError('invalid-argument', 'Invalid friendship action');
+  }
+
+  const now = new Date().toISOString();
+  if (action === 'send') {
+    const otherId = data.target_profile_id;
+    if (!validProfileId(otherId)) throw new HttpsError('invalid-argument', 'target_profile_id required');
+    if (otherId === profileId) throw new HttpsError('failed-precondition', 'Cannot friend yourself');
+    const target = await db.collection('profiles').doc(otherId).get();
+    if (!target.exists) throw new HttpsError('not-found', 'User not found');
+    if (await isBlocked(profileId, otherId)) throw new HttpsError('permission-denied', 'Friend request blocked');
+    enforceRateLimit(await rateLimit(`friend-request:${profileId}`, 20, 60));
+
+    const outboundRef = db.collection('friend_requests').doc(requestId(profileId, otherId));
+    const inboundRef = db.collection('friend_requests').doc(requestId(otherId, profileId));
+    const [legacyOutbound, legacyInbound] = await Promise.all([
+      findLegacyRequest(profileId, otherId),
+      findLegacyRequest(otherId, profileId),
+    ]);
+    const legacyActive = [legacyOutbound, legacyInbound].find((snap) =>
+      snap && ['pending', 'accepted'].includes(String(snap.data().status)),
+    );
+    if (legacyActive && legacyActive.id !== outboundRef.id && legacyActive.id !== inboundRef.id) {
+      throw new HttpsError('already-exists', 'Friendship already exists');
+    }
+
+    const result = await db.runTransaction(async (tx) => {
+      const [outbound, inbound, blockedBySender, blockedByReceiver] = await Promise.all([
+        tx.get(outboundRef),
+        tx.get(inboundRef),
+        tx.get(db.collection('blocked_users')
+          .where('blocker_id', '==', profileId)
+          .where('blocked_id', '==', otherId)
+          .limit(1)),
+        tx.get(db.collection('blocked_users')
+          .where('blocker_id', '==', otherId)
+          .where('blocked_id', '==', profileId)
+          .limit(1)),
+      ]);
+      if (!blockedBySender.empty || !blockedByReceiver.empty) {
+        throw new HttpsError('permission-denied', 'Friend request blocked');
+      }
+      const active = [outbound, inbound].find((snap) =>
+        snap.exists && ['pending', 'accepted'].includes(String(snap.data()?.status)),
+      );
+      if (active) return { already_exists: true, request_id: active.id };
+
+      tx.set(outboundRef, {
+        id: outboundRef.id,
+        sender_id: profileId,
+        receiver_id: otherId,
+        status: 'pending',
+        created_at: outbound.data()?.created_at || now,
+        updated_at: now,
+      });
+      return { already_exists: false, request_id: outboundRef.id };
+    });
+
+    if (!result.already_exists) {
+      await db.collection('notifications').add({
+        user_id: otherId,
+        actor_id: profileId,
+        type: 'friend_request',
+        created_at: now,
+        read: false,
+      }).catch((error) => console.warn('[Friendship] request notification failed', error));
+    }
+    return { ok: true, state: 'pending_outgoing', ...result };
+  }
+
+  const suppliedRequestId = data.request_id;
+  if (!validProfileId(suppliedRequestId)) throw new HttpsError('invalid-argument', 'request_id required');
+  const ref = db.collection('friend_requests').doc(suppliedRequestId);
+  if (action === 'accept') {
+    const before = await ref.get();
+    const beforeRow = before.data() as FriendRequestRow | undefined;
+    if (beforeRow?.receiver_id === profileId &&
+        validProfileId(beforeRow.sender_id) &&
+        await isBlocked(profileId, beforeRow.sender_id)) {
+      throw new HttpsError('permission-denied', 'Friend request blocked');
+    }
+  }
+  const result = await db.runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+    if (!snap.exists) throw new HttpsError('not-found', 'Friend request not found');
+    const row = snap.data() as FriendRequestRow;
+    if (!validProfileId(row.sender_id) || !validProfileId(row.receiver_id)) {
+      throw new HttpsError('failed-precondition', 'Invalid friend request');
+    }
+
+    if (action === 'cancel') {
+      if (row.sender_id !== profileId || row.status !== 'pending') {
+        throw new HttpsError('permission-denied', 'Only the sender can cancel a pending request');
+      }
+      tx.update(ref, { status: 'cancelled', updated_at: now });
+      return { state: 'cancelled', other_id: row.receiver_id };
+    }
+    if (action === 'accept' || action === 'decline') {
+      if (row.receiver_id !== profileId || row.status !== 'pending') {
+        throw new HttpsError('permission-denied', 'Only the receiver can respond to a pending request');
+      }
+      if (action === 'accept') {
+        const [blockedByReceiver, blockedBySender] = await Promise.all([
+          tx.get(db.collection('blocked_users')
+            .where('blocker_id', '==', profileId)
+            .where('blocked_id', '==', row.sender_id)
+            .limit(1)),
+          tx.get(db.collection('blocked_users')
+            .where('blocker_id', '==', row.sender_id)
+            .where('blocked_id', '==', profileId)
+            .limit(1)),
+        ]);
+        if (!blockedByReceiver.empty || !blockedBySender.empty) {
+          throw new HttpsError('permission-denied', 'Friend request blocked');
+        }
+      }
+      tx.update(ref, {
+        status: action === 'accept' ? 'accepted' : 'declined',
+        updated_at: now,
+      });
+      return {
+        state: action === 'accept' ? 'accepted' : 'declined',
+        other_id: row.sender_id,
+      };
+    }
+    if (row.status !== 'accepted' ||
+        (row.sender_id !== profileId && row.receiver_id !== profileId)) {
+      throw new HttpsError('permission-denied', 'Only friends can unfriend');
+    }
+    tx.delete(ref);
+    return {
+      state: 'none',
+      other_id: row.sender_id === profileId ? row.receiver_id : row.sender_id,
+    };
+  });
+
+  if (action === 'accept' || action === 'decline') {
+    await db.collection('notifications').add({
+      user_id: result.other_id,
+      actor_id: profileId,
+      type: action === 'accept' ? 'friend_accepted' : 'friend_declined',
+      created_at: now,
+      read: false,
+    }).catch((error) => console.warn('[Friendship] response notification failed', error));
+  }
+  return { ok: true, request_id: suppliedRequestId, ...result };
+});
 
 const DEFAULT_VISIBILITY: Record<string, string> = {
   bio: 'friends',

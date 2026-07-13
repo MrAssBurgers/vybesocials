@@ -1,6 +1,35 @@
-import { useState } from 'react';
+import { useCallback, useMemo, useState, type ElementType } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
+import {
+  Archive,
+  Ban,
+  Bell,
+  BellOff,
+  Camera,
+  ChevronRight,
+  Flag,
+  Mail,
+  MailOpen,
+  MapPin,
+  MessageCircle,
+  Palette,
+  Phone,
+  Pin,
+  PinOff,
+  QrCode,
+  Share2,
+  Trash2,
+  UserRound,
+  Users,
+  Video,
+} from 'lucide-react';
+import {
+  Drawer,
+  DrawerContent,
+  DrawerDescription,
+  DrawerHeader,
+  DrawerTitle,
+} from '@/components/ui/drawer';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -11,25 +40,41 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import { Avatar, AvatarFallback, ProfileAvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
-import { Trash2, BellOff, Bell, User, Pin, PinOff, MessageSquareX, Archive, Lock, Mail, Heart, Ban, Flag } from 'lucide-react';
+import { PersonalQRCode } from '@/components/invite/PersonalQRCode';
+import { FriendshipCard } from '@/components/friend-profile/FriendshipCard';
+import { MutualFriendsDisplay } from '@/components/profile/MutualFriendsDisplay';
+import { DMSettingsSheetControlled } from '@/components/chat/DMSettingsSheetControlled';
+import { ConversationNotificationSheet } from '@/components/chat/ConversationNotificationSheet';
+import { CreateGroupDialog } from '@/components/chat/CreateGroupDialog';
 import { useTrashConversation } from '@/hooks/useTrashedConversations';
-import { db } from '@/lib/firebase';
-import { useQueryClient } from '@tanstack/react-query';
-import { toast } from 'sonner';
-import { invalidateConversationCaches } from '@/lib/invalidateConversationCaches';
-import { safeDmMembers } from '@/lib/persistedCollections';
+import { useCallStore } from '@/lib/callStore';
 import { useAuth } from '@/lib/auth';
-import { useManageCloseFriend } from '@/hooks/useStories';
-import { useCloseFriendIds } from '@/hooks/useCloseFriendIds';
+import { db } from '@/lib/firebase';
+import {
+  openSnapCamera,
+  useCameraOverlayOptional,
+} from '@/contexts/CameraOverlayContext';
+import { invalidateConversationCaches } from '@/lib/invalidateConversationCaches';
+import { useQueryClient } from '@tanstack/react-query';
+import { triggerHaptic } from '@/lib/haptics';
+import { buildProfileShareUrl } from '@/lib/shareLinks';
+import { useFriendshipPair } from '@/hooks/useFriendshipPair';
+import { useSharedWithFriend } from '@/hooks/useSharedWithFriend';
+import { useLocationShareWithFriend } from '@/hooks/useLocationShareWithFriend';
+import { useSheetBackStack } from '@/hooks/useSheetBackStack';
+import { conversationActionState } from '@/lib/conversationActionModel';
+import { toast } from 'sonner';
+import { cn } from '@/lib/utils';
 
 const REPORT_REASONS = [
-  { id: 'spam', label: 'Spam' },
-  { id: 'harassment', label: 'Harassment' },
-  { id: 'inappropriate', label: 'Inappropriate content' },
-  { id: 'impersonation', label: 'Impersonation' },
-  { id: 'other', label: 'Other' },
-];
+  ['spam', 'Spam'],
+  ['harassment', 'Harassment'],
+  ['inappropriate', 'Inappropriate content'],
+  ['impersonation', 'Impersonation'],
+  ['other', 'Other'],
+] as const;
 
 interface ConversationOptionsSheetProps {
   open: boolean;
@@ -41,11 +86,137 @@ interface ConversationOptionsSheetProps {
   otherAvatarUrl?: string;
   isMuted?: boolean;
   isPinned?: boolean;
+  isUnread?: boolean;
+  isGroup?: boolean;
+  isOnline?: boolean;
+  relationshipLabel?: string;
   onMarkUnread?: () => void;
+  onMarkRead?: () => void;
   onArchive?: () => void;
   onTogglePin?: () => void;
   onToggleMute?: () => void;
   onToggleLock?: () => void;
+}
+
+function ActionRow({
+  icon: Icon,
+  label,
+  subtitle,
+  trailing = 'chevron',
+  destructive,
+  disabled,
+  onClick,
+}: {
+  icon: ElementType;
+  label: string;
+  subtitle?: string;
+  trailing?: 'chevron' | 'toggle' | 'none';
+  destructive?: boolean;
+  disabled?: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      className={cn(
+        'flex min-h-14 w-full items-center gap-3 border-b border-border/50 px-4 text-left transition-colors last:border-0',
+        destructive
+          ? 'text-destructive hover:bg-destructive/8'
+          : 'text-foreground hover:bg-primary/8',
+        disabled && 'cursor-not-allowed opacity-45',
+      )}
+      disabled={disabled}
+      onClick={onClick}
+      aria-label={subtitle ? `${label}. ${subtitle}` : label}
+    >
+      <Icon className="h-5 w-5 shrink-0" aria-hidden />
+      <span className="min-w-0 flex-1">
+        <span className="block text-[15px] font-medium">{label}</span>
+        {subtitle && (
+          <span className="block truncate text-xs text-muted-foreground">{subtitle}</span>
+        )}
+      </span>
+      {trailing === 'chevron' && <ChevronRight className="h-4 w-4 opacity-55" aria-hidden />}
+      {trailing === 'toggle' && (
+        <span className="h-5 w-9 rounded-full bg-primary/25 p-0.5" aria-hidden>
+          <span className="block h-4 w-4 translate-x-4 rounded-full bg-primary" />
+        </span>
+      )}
+    </button>
+  );
+}
+
+function QuickAction({
+  icon: Icon,
+  label,
+  disabled,
+  onClick,
+}: {
+  icon: ElementType;
+  label: string;
+  disabled?: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      className="flex min-w-0 flex-1 flex-col items-center gap-2 rounded-2xl border border-primary/15 bg-primary/8 px-1 py-3 text-center transition-transform active:scale-95 disabled:opacity-40"
+      disabled={disabled}
+      onClick={onClick}
+      aria-label={disabled ? `${label}, unavailable` : label}
+    >
+      <span className="grid h-10 w-10 place-items-center rounded-2xl bg-primary/15 text-primary shadow-[0_0_18px_hsl(var(--primary)/0.2)]">
+        <Icon className="h-5 w-5" aria-hidden />
+      </span>
+      <span className="text-[11px] font-semibold leading-tight">{label}</span>
+    </button>
+  );
+}
+
+function FriendshipDetails({
+  otherUserId,
+  isPinned,
+  relationshipLabel,
+  onManageLocation,
+}: {
+  otherUserId: string;
+  isPinned: boolean;
+  relationshipLabel: string;
+  onManageLocation: () => void;
+}) {
+  const { data: pair } = useFriendshipPair(otherUserId);
+  const { data: shared = [] } = useSharedWithFriend(otherUserId);
+  const location = useLocationShareWithFriend(otherUserId);
+  const metrics = [
+    ['Best-friend status', relationshipLabel],
+    ['Shared media', String(shared.length || pair?.shared_clip_count || 0)],
+    ['Saved messages', String(pair?.saved_memory_count || 0)],
+    ['Recent calls', String(pair?.call_count || 0)],
+    ['Location sharing', location.isActive ? 'On' : 'Off'],
+    ['Pinned', isPinned ? 'Yes' : 'No'],
+  ];
+
+  return (
+    <>
+      <FriendshipCard otherProfileId={otherUserId} />
+      <div className="mt-3 overflow-hidden rounded-2xl border border-border/60 bg-card/25">
+        {metrics.map(([label, value]) => (
+          <div
+            key={label}
+            className="flex min-h-12 items-center justify-between gap-4 border-b border-border/50 px-4 last:border-0"
+          >
+            <span className="text-sm font-medium">{label}</span>
+            <span className="text-sm text-muted-foreground">{value}</span>
+          </div>
+        ))}
+      </div>
+      <MutualFriendsDisplay targetUserId={otherUserId} className="mt-3" />
+      <Button variant="secondary" className="mt-3 w-full" onClick={onManageLocation}>
+        <MapPin className="mr-2 h-4 w-4" />
+        Manage Location Sharing
+      </Button>
+    </>
+  );
 }
 
 export function ConversationOptionsSheet({
@@ -58,448 +229,415 @@ export function ConversationOptionsSheet({
   otherAvatarUrl,
   isMuted = false,
   isPinned = false,
+  isUnread = false,
+  isGroup = false,
+  isOnline = false,
+  relationshipLabel = 'Friends',
   onMarkUnread,
+  onMarkRead,
   onArchive,
   onTogglePin,
   onToggleMute,
-  onToggleLock,
 }: ConversationOptionsSheetProps) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const { profile } = useAuth();
+  const camera = useCameraOverlayOptional();
+  const callStore = useCallStore();
   const trashConversation = useTrashConversation();
-   const { profile } = useAuth();
-  const manageCloseFriend = useManageCloseFriend();
-  const { ids: closeFriendIdsRaw } = useCloseFriendIds();
-  const closeFriendIds = closeFriendIdsRaw instanceof Set ? closeFriendIdsRaw : new Set<string>();
-  const isBestFriend = Boolean(otherUserId && closeFriendIds.has(otherUserId));
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const [showClearConfirm, setShowClearConfirm] = useState(false);
-  const [showBlockConfirm, setShowBlockConfirm] = useState(false);
-  const [showReportSheet, setShowReportSheet] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [friendshipOpen, setFriendshipOpen] = useState(false);
+  const [groupOpen, setGroupOpen] = useState(false);
+  const [qrOpen, setQrOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [blockOpen, setBlockOpen] = useState(false);
+  const [reportOpen, setReportOpen] = useState(false);
   const [reportReason, setReportReason] = useState<string | null>(null);
-  const [isTogglingMute, setIsTogglingMute] = useState(false);
-  const [isTogglingPin, setIsTogglingPin] = useState(false);
-  const [isClearing, setIsClearing] = useState(false);
-  const [isBlocking, setIsBlocking] = useState(false);
-  const [isReporting, setIsReporting] = useState(false);
-  const [isTogglingBestFriend, setIsTogglingBestFriend] = useState(false);
+  const [busy, setBusy] = useState(false);
 
-  const handleDeleteChat = async () => {
-    await trashConversation.mutateAsync(conversationId);
-    setShowDeleteConfirm(false);
-    onOpenChange(false);
-    if (window.location.pathname.includes(conversationId)) {
-      navigate('/messages');
+  const displayName = otherDisplayName || otherUsername || (isGroup ? 'Group chat' : 'Friend');
+  const canCall = Boolean(otherUserId && !isGroup && callStore.state.phase === 'idle');
+  const actionState = conversationActionState({
+    isPinned,
+    isMuted,
+    isUnread,
+    isGroup,
+    hasFriend: Boolean(otherUserId),
+  });
+  const profileUrl = useMemo(
+    () => (otherUsername ? buildProfileShareUrl(otherUsername) : ''),
+    [otherUsername],
+  );
+
+  const close = useCallback(() => onOpenChange(false), [onOpenChange]);
+
+  useSheetBackStack(open, close, `conversation-actions:${conversationId}`);
+  useSheetBackStack(settingsOpen, () => setSettingsOpen(false), `chat-settings:${conversationId}`);
+  useSheetBackStack(notificationsOpen, () => setNotificationsOpen(false), `chat-notifications:${conversationId}`);
+  useSheetBackStack(friendshipOpen, () => setFriendshipOpen(false), `friendship:${conversationId}`);
+  useSheetBackStack(groupOpen, () => setGroupOpen(false), `create-group:${conversationId}`);
+  useSheetBackStack(qrOpen, () => setQrOpen(false), `profile-qr:${conversationId}`);
+  useSheetBackStack(reportOpen, () => setReportOpen(false), `report:${conversationId}`);
+  useSheetBackStack(deleteOpen, () => setDeleteOpen(false), `delete:${conversationId}`);
+  useSheetBackStack(blockOpen, () => setBlockOpen(false), `block:${conversationId}`);
+
+  const openChat = () => {
+    close();
+    navigate(`/messages/${conversationId}`);
+  };
+
+  const openProfile = () => {
+    if (!otherUsername) return;
+    close();
+    navigate(`/u/${encodeURIComponent(otherUsername)}`, {
+      state: { sharedAvatarId: otherUserId, sharedAvatarUrl: otherAvatarUrl },
+    });
+  };
+
+  const sendSnap = () => {
+    if (!camera || !profile?.id) {
+      close();
+      navigate(`/messages/${conversationId}?camera=1`);
+      return;
+    }
+    close();
+    openSnapCamera(camera.openCamera, {
+      source: isGroup ? 'group' : 'conversation',
+      conversationId: isGroup ? undefined : conversationId,
+      groupId: isGroup ? conversationId : undefined,
+      recipientIds: !isGroup && otherUserId ? [otherUserId] : undefined,
+      returnRoute: window.location.pathname,
+    });
+  };
+
+  const startCall = async (callType: 'audio' | 'video') => {
+    if (!otherUserId || !canCall) return;
+    close();
+    await callStore.startCall({
+      callType,
+      conversationId,
+      receiverId: otherUserId,
+      receiverUsername: otherUsername,
+      receiverDisplayName: otherDisplayName,
+      receiverAvatarUrl: otherAvatarUrl,
+    });
+  };
+
+  const shareProfile = async () => {
+    if (!profileUrl) return;
+    try {
+      if (navigator.share) {
+        await navigator.share({ title: `${displayName} on VYBE`, url: profileUrl });
+      } else {
+        await navigator.clipboard.writeText(profileUrl);
+        toast.success('Profile link copied');
+      }
+    } catch (error) {
+      if ((error as Error)?.name !== 'AbortError') toast.error('Could not share profile');
     }
   };
 
-  const handleClearChat = async () => {
-    if (!profile?.id) return;
-    setIsClearing(true);
+  const handleDelete = async () => {
+    setBusy(true);
     try {
-      const { data, error } = await db.rpc('clear_conversation_messages', {
-        p_conversation_id: conversationId,
-        p_user_id: profile.id,
-      });
-      
-      if (error) throw error;
-      if (data && !(data as any).success) throw new Error((data as any).error);
-      
-      invalidateConversationCaches(queryClient);
-      queryClient.invalidateQueries({ queryKey: ['messages', conversationId] });
-      toast.success('Chat cleared');
-      setShowClearConfirm(false);
-      onOpenChange(false);
-    } catch (error) {
-      console.error('Failed to clear chat:', error);
-      toast.error('Failed to clear chat');
+      await trashConversation.mutateAsync(conversationId);
+      setDeleteOpen(false);
+      close();
     } finally {
-      setIsClearing(false);
-    }
-  };
-
-  const handleToggleMute = async () => {
-    setIsTogglingMute(true);
-    try {
-       if (!profile?.id) {
-         toast.error('Please log in to update settings');
-         return;
-       }
-
-      const { error } = await db
-        .from('conversation_members')
-        .update({ is_muted: !isMuted })
-        .eq('conversation_id', conversationId)
-         .eq('user_id', profile.id);
-
-      if (error) throw error;
-
-       invalidateConversationCaches(queryClient);
-      toast.success(isMuted ? 'Notifications enabled' : 'Notifications muted');
-      onOpenChange(false);
-    } catch (error) {
-      console.error('Failed to toggle mute:', error);
-      toast.error('Failed to update notification settings');
-    } finally {
-      setIsTogglingMute(false);
-    }
-  };
-
-  const handleTogglePin = async () => {
-    setIsTogglingPin(true);
-    try {
-       if (!profile?.id) {
-         toast.error('Please log in to update settings');
-         return;
-       }
-
-      const { error } = await db
-        .from('conversation_members')
-        .update({ is_pinned: !isPinned })
-        .eq('conversation_id', conversationId)
-         .eq('user_id', profile.id);
-
-      if (error) throw error;
-
-       invalidateConversationCaches(queryClient);
-      queryClient.setQueriesData({ queryKey: ['dm-conversations'] }, (old: unknown) => {
-        if (!Array.isArray(old)) return old;
-        return old.map((conv: { id?: string; members?: { user_id?: string; is_pinned?: boolean }[] }) => {
-          if (conv.id !== conversationId) return conv;
-          return {
-            ...conv,
-            members: safeDmMembers(conv.members).map((m) =>
-              m.user_id === profile.id ? { ...m, is_pinned: !isPinned } : m,
-            ),
-          };
-        });
-      });
-      toast.success(isPinned ? 'Unpinned' : 'Pinned to top');
-      onOpenChange(false);
-    } catch (error) {
-      console.error('Failed to toggle pin:', error);
-      toast.error('Failed to update pin status');
-    } finally {
-      setIsTogglingPin(false);
+      setBusy(false);
     }
   };
 
   const handleBlock = async () => {
     if (!profile?.id || !otherUserId) return;
-    setIsBlocking(true);
+    setBusy(true);
     try {
       const { error } = await db.from('blocked_users').insert({
         blocker_id: profile.id,
         blocked_id: otherUserId,
       });
       if (error && !error.message.includes('duplicate')) throw error;
-
       invalidateConversationCaches(queryClient);
-      toast.success(otherUsername ? `@${otherUsername} has been blocked` : 'User blocked');
-      setShowBlockConfirm(false);
-      onOpenChange(false);
-      if (window.location.pathname.includes(conversationId)) {
-        navigate('/messages');
-      }
-    } catch (error) {
-      console.error('Failed to block user:', error);
-      toast.error('Failed to block user');
+      toast.success(`${displayName} blocked`);
+      setBlockOpen(false);
+      close();
+    } catch {
+      toast.error('Could not block this user');
     } finally {
-      setIsBlocking(false);
+      setBusy(false);
     }
   };
 
   const handleReport = async () => {
     if (!profile?.id || !otherUserId || !reportReason) return;
-    setIsReporting(true);
+    setBusy(true);
     try {
       const { error } = await db.from('reports').insert({
         reporter_id: profile.id,
         reported_user_id: otherUserId,
         reason: reportReason,
-      } as any);
+      } as never);
       if (error) throw error;
-
-      toast.success('Report submitted. Thank you for keeping VYBE safe.');
-      setShowReportSheet(false);
+      toast.success('Report submitted');
+      setReportOpen(false);
       setReportReason(null);
-      onOpenChange(false);
-    } catch (error) {
-      console.error('Failed to report user:', error);
-      toast.error('Failed to submit report');
+      close();
+    } catch {
+      toast.error('Could not submit report');
     } finally {
-      setIsReporting(false);
-    }
-  };
-
-  const handleViewProfile = () => {
-    if (otherUsername) {
-      navigate(`/@${otherUsername}`);
-      onOpenChange(false);
-    }
-  };
-
-  const handleToggleBestFriend = async () => {
-    if (!otherUserId) return;
-    setIsTogglingBestFriend(true);
-    try {
-      await manageCloseFriend.mutateAsync({
-        friendId: otherUserId,
-        action: isBestFriend ? 'remove' : 'add',
-      });
-      toast.success(isBestFriend ? 'Removed from Best Friends' : 'Added to Best Friends');
-      onOpenChange(false);
-    } catch (error) {
-      console.error('Failed to update best friend:', error);
-      toast.error('Failed to update Best Friends');
-    } finally {
-      setIsTogglingBestFriend(false);
+      setBusy(false);
     }
   };
 
   return (
     <>
-      <Sheet open={open} onOpenChange={onOpenChange}>
-        <SheetContent side="bottom" className="rounded-t-3xl pb-safe">
-          <SheetHeader className="text-center pb-4">
-            <SheetTitle>{otherDisplayName || otherUsername || 'Chat Options'}</SheetTitle>
-          </SheetHeader>
+      <Drawer
+        open={open}
+        onOpenChange={(next) => {
+          onOpenChange(next);
+          if (next) triggerHaptic('medium');
+        }}
+        shouldScaleBackground={false}
+      >
+        <DrawerContent className="max-h-[92dvh] border-primary/20 bg-background/95 shadow-[0_-18px_60px_hsl(var(--primary)/0.2)] backdrop-blur-2xl">
+          <div className="mx-auto mt-2 h-1.5 w-11 rounded-full bg-muted-foreground/30" aria-hidden />
+          <DrawerHeader className="sr-only">
+            <DrawerTitle>Conversation actions for {displayName}</DrawerTitle>
+            <DrawerDescription>Quick communication and relationship settings</DrawerDescription>
+          </DrawerHeader>
 
-          <div className="space-y-2 pb-4">
-            {otherUserId && otherUsername && (
-              <Button
-                variant="ghost"
-                className="w-full justify-start gap-3 h-12"
-                onClick={handleViewProfile}
-              >
-                <User className="h-5 w-5" />
-                View Profile
-              </Button>
-            )}
-
-            {otherUserId && (
-              <Button
-                variant="ghost"
-                className="w-full justify-start gap-3 h-12"
-                onClick={() => void handleToggleBestFriend()}
-                disabled={isTogglingBestFriend}
-              >
-                <Heart className={`h-5 w-5 ${isBestFriend ? 'fill-current text-pink-500' : ''}`} />
-                {isBestFriend ? 'Remove Best Friend' : 'Add Best Friend'}
-              </Button>
-            )}
-            
-            <Button
-              variant="ghost"
-              className="w-full justify-start gap-3 h-12"
-              onClick={() => {
-                if (onTogglePin) onTogglePin();
-                else void handleTogglePin();
-              }}
-              disabled={isTogglingPin && !onTogglePin}
+          <div className="overflow-y-auto overscroll-contain pb-4">
+            <button
+              type="button"
+              className="flex w-full items-center gap-4 px-5 pb-4 pt-3 text-left"
+              onClick={openProfile}
+              disabled={isGroup || !otherUsername}
+              aria-label={isGroup ? displayName : `Open ${displayName}'s profile`}
             >
-              {isPinned ? (
+              <span className="relative shrink-0">
+                <span className="absolute -inset-1 rounded-full bg-gradient-to-br from-primary to-accent opacity-75 blur-sm" />
+                <Avatar className="relative h-16 w-16 border-2 border-background">
+                  <ProfileAvatarImage profileId={otherUserId} src={otherAvatarUrl} />
+                  <AvatarFallback className="text-xl font-bold">
+                    {displayName[0]?.toUpperCase() || '?'}
+                  </AvatarFallback>
+                </Avatar>
+                {isOnline && (
+                  <span className="absolute bottom-0 right-0 h-4 w-4 rounded-full border-2 border-background bg-emerald-500 shadow-[0_0_10px_rgb(16_185_129/0.8)]" />
+                )}
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-lg font-bold">{displayName}</span>
+                <span className="block truncate text-sm text-muted-foreground">
+                  {otherUsername ? `@${otherUsername}` : relationshipLabel}
+                </span>
+                {!isGroup && (
+                  <span className="mt-1 inline-flex rounded-full bg-primary/12 px-2 py-0.5 text-[10px] font-semibold text-primary">
+                    {relationshipLabel}
+                  </span>
+                )}
+              </span>
+              {!isGroup && <ChevronRight className="h-5 w-5 text-muted-foreground" />}
+            </button>
+
+            <div className="grid grid-cols-4 gap-2 px-4 pb-4">
+              <QuickAction icon={Camera} label="VYBE Snap" onClick={sendSnap} />
+              <QuickAction icon={MessageCircle} label="Chat" onClick={openChat} />
+              <QuickAction icon={Video} label="Video Call" disabled={!canCall} onClick={() => void startCall('video')} />
+              <QuickAction icon={Phone} label="Voice Call" disabled={!canCall} onClick={() => void startCall('audio')} />
+            </div>
+            {!canCall && !isGroup && (
+              <p className="-mt-2 px-5 pb-3 text-center text-[11px] text-muted-foreground">
+                Calls are unavailable while another call is active.
+              </p>
+            )}
+
+            <div className="border-y border-border/60 bg-card/25">
+              <ActionRow
+                icon={isPinned ? PinOff : Pin}
+                label={actionState.pinLabel}
+                trailing="none"
+                onClick={() => { onTogglePin?.(); close(); }}
+              />
+              <ActionRow
+                icon={isMuted ? Bell : BellOff}
+                label={actionState.muteLabel}
+                trailing="none"
+                onClick={() => { onToggleMute?.(); close(); }}
+              />
+              <ActionRow
+                icon={isUnread ? MailOpen : Mail}
+                label={actionState.readLabel}
+                trailing="none"
+                onClick={() => {
+                  if (isUnread) onMarkRead?.();
+                  else onMarkUnread?.();
+                  close();
+                }}
+              />
+              <ActionRow
+                icon={Bell}
+                label="Notification Settings"
+                onClick={() => setNotificationsOpen(true)}
+              />
+              <ActionRow icon={Palette} label="Chat Settings" onClick={() => setSettingsOpen(true)} />
+              {actionState.showCreateGroup && otherUserId && (
+                <ActionRow icon={Users} label={`Create Group With ${displayName}`} onClick={() => setGroupOpen(true)} />
+              )}
+              {actionState.showFriendActions && otherUserId && (
+                <ActionRow icon={UserRound} label="View Friendship" onClick={() => setFriendshipOpen(true)} />
+              )}
+              {actionState.showLocation && (
+                <ActionRow
+                  icon={MapPin}
+                  label="Location Sharing"
+                  onClick={() => { close(); navigate(`/messages/${conversationId}?location=1`); }}
+                />
+              )}
+              {!isGroup && otherUsername && (
+                <ActionRow icon={Share2} label="Share Profile" onClick={() => void shareProfile()} />
+              )}
+              {!isGroup && otherUsername && (
+                <ActionRow icon={QrCode} label="Show Profile QR" onClick={() => setQrOpen(true)} />
+              )}
+              <ActionRow
+                icon={Archive}
+                label="Archive Conversation"
+                trailing="none"
+                onClick={() => { onArchive?.(); close(); }}
+              />
+            </div>
+
+            <div className="mt-3 border-y border-destructive/15 bg-destructive/[0.025]">
+              <ActionRow icon={Trash2} label="Delete Conversation" destructive onClick={() => setDeleteOpen(true)} />
+              {!isGroup && otherUserId && (
                 <>
-                  <PinOff className="h-5 w-5" />
-                  Unpin Conversation
-                </>
-              ) : (
-                <>
-                  <Pin className="h-5 w-5" />
-                  Pin to Top
+                  <ActionRow icon={Ban} label="Block" destructive onClick={() => setBlockOpen(true)} />
+                  <ActionRow icon={Flag} label="Report" destructive onClick={() => setReportOpen(true)} />
                 </>
               )}
-            </Button>
-            
-            <Button
-              variant="ghost"
-              className="w-full justify-start gap-3 h-12"
-              onClick={() => {
-                if (onToggleMute) onToggleMute();
-                else void handleToggleMute();
-              }}
-              disabled={isTogglingMute && !onToggleMute}
-            >
-              {isMuted ? (
-                <>
-                  <Bell className="h-5 w-5" />
-                  Unmute Notifications
-                </>
-              ) : (
-                <>
-                  <BellOff className="h-5 w-5" />
-                  Mute Notifications
-                </>
-              )}
-            </Button>
+            </div>
+          </div>
+        </DrawerContent>
+      </Drawer>
 
-            {onMarkUnread && (
-              <Button variant="ghost" className="w-full justify-start gap-3 h-12" onClick={() => { onMarkUnread(); onOpenChange(false); }}>
-                <Mail className="h-5 w-5" />
-                Mark as Unread
-              </Button>
-            )}
-            {onArchive && (
-              <Button variant="ghost" className="w-full justify-start gap-3 h-12" onClick={() => { onArchive(); onOpenChange(false); }}>
-                <Archive className="h-5 w-5" />
-                Archive
-              </Button>
-            )}
-            {onToggleLock && (
-              <Button variant="ghost" className="w-full justify-start gap-3 h-12" onClick={() => { onToggleLock(); onOpenChange(false); }}>
-                <Lock className="h-5 w-5" />
-                Lock Chat
-              </Button>
-            )}
-            
-            <Button
-              variant="ghost"
-              className="w-full justify-start gap-3 h-12 text-orange-500 hover:text-orange-500 hover:bg-orange-500/10"
-              onClick={() => setShowClearConfirm(true)}
-            >
-              <MessageSquareX className="h-5 w-5" />
-              Clear Chat
-            </Button>
+      <DMSettingsSheetControlled
+        conversationId={conversationId}
+        open={settingsOpen}
+        onOpenChange={setSettingsOpen}
+      />
+      <ConversationNotificationSheet
+        conversationId={conversationId}
+        open={notificationsOpen}
+        onOpenChange={setNotificationsOpen}
+      />
+      <CreateGroupDialog
+        open={groupOpen}
+        onOpenChange={setGroupOpen}
+        initialMemberIds={otherUserId ? [otherUserId] : []}
+        onSuccess={(id) => navigate(`/messages/${id}`)}
+      />
 
-            <Button
-              variant="ghost"
-              className="w-full justify-start gap-3 h-12 text-destructive hover:text-destructive hover:bg-destructive/10"
-              onClick={() => setShowDeleteConfirm(true)}
-            >
-              <Trash2 className="h-5 w-5" />
-              Delete Chat
-            </Button>
-
+      <Drawer open={friendshipOpen} onOpenChange={setFriendshipOpen} shouldScaleBackground={false}>
+        <DrawerContent className="max-h-[82dvh] bg-background/95 backdrop-blur-2xl">
+          <div className="mx-auto mt-2 h-1.5 w-11 rounded-full bg-muted-foreground/30" />
+          <DrawerHeader>
+            <DrawerTitle>Your friendship with {displayName}</DrawerTitle>
+            <DrawerDescription>Private details shared between you</DrawerDescription>
+          </DrawerHeader>
+          <div className="overflow-y-auto px-4 pb-6">
             {otherUserId && (
-              <>
-                <Button
-                  variant="ghost"
-                  className="w-full justify-start gap-3 h-12 text-destructive hover:text-destructive hover:bg-destructive/10"
-                  onClick={() => setShowBlockConfirm(true)}
-                >
-                  <Ban className="h-5 w-5" />
-                  Block
-                </Button>
-                <Button
-                  variant="ghost"
-                  className="w-full justify-start gap-3 h-12 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
-                  onClick={() => setShowReportSheet(true)}
-                >
-                  <Flag className="h-5 w-5" />
-                  Report
-                </Button>
-              </>
+              <FriendshipDetails
+                otherUserId={otherUserId}
+                isPinned={isPinned}
+                relationshipLabel={relationshipLabel}
+                onManageLocation={() => {
+                  setFriendshipOpen(false);
+                  navigate(`/messages/${conversationId}?location=1`);
+                }}
+              />
             )}
           </div>
-        </SheetContent>
-      </Sheet>
+        </DrawerContent>
+      </Drawer>
 
-      <AlertDialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete this chat?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This chat will be moved to trash. You can recover it within 30 days or delete it permanently.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleDeleteChat}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
-              Move to Trash
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <Drawer open={qrOpen} onOpenChange={setQrOpen} shouldScaleBackground={false}>
+        <DrawerContent className="bg-background/95 backdrop-blur-2xl">
+          <div className="mx-auto mt-2 h-1.5 w-11 rounded-full bg-muted-foreground/30" />
+          <DrawerHeader className="text-center">
+            <DrawerTitle>{displayName} on VYBE</DrawerTitle>
+            <DrawerDescription>Scan to open this profile</DrawerDescription>
+          </DrawerHeader>
+          <div className="flex justify-center px-6 pb-8">
+            {profileUrl && <PersonalQRCode data={profileUrl} size={220} />}
+          </div>
+        </DrawerContent>
+      </Drawer>
 
-      <AlertDialog open={showClearConfirm} onOpenChange={setShowClearConfirm}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Clear all messages?</AlertDialogTitle>
-            <AlertDialogDescription>
-              All messages in this chat will be permanently deleted. The conversation will remain but will be empty. This cannot be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleClearChat}
-              disabled={isClearing}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
-              {isClearing ? 'Clearing...' : 'Clear All Messages'}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      <AlertDialog open={showBlockConfirm} onOpenChange={setShowBlockConfirm}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>
-              Block {otherUsername ? `@${otherUsername}` : 'this person'}?
-            </AlertDialogTitle>
-            <AlertDialogDescription>
-              They won't be able to find your profile, posts, or message you. They won't be notified.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={isBlocking}>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleBlock}
-              disabled={isBlocking}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
-              {isBlocking ? 'Blocking...' : 'Block'}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      <Sheet
-        open={showReportSheet}
-        onOpenChange={(open) => {
-          setShowReportSheet(open);
-          if (!open) setReportReason(null);
-        }}
-      >
-        <SheetContent side="bottom" className="rounded-t-3xl pb-safe">
-          <SheetHeader className="text-center pb-2">
-            <SheetTitle>
-              Report {otherUsername ? `@${otherUsername}` : 'this person'}
-            </SheetTitle>
-          </SheetHeader>
-          <p className="text-sm text-muted-foreground text-center pb-3">
-            Why are you reporting this account?
-          </p>
-          <div className="grid grid-cols-2 gap-2 pb-4">
-            {REPORT_REASONS.map((reason) => (
+      <Drawer open={reportOpen} onOpenChange={setReportOpen} shouldScaleBackground={false}>
+        <DrawerContent className="bg-background/95 backdrop-blur-2xl">
+          <div className="mx-auto mt-2 h-1.5 w-11 rounded-full bg-muted-foreground/30" />
+          <DrawerHeader>
+            <DrawerTitle>Report {displayName}</DrawerTitle>
+            <DrawerDescription>Select a reason, then confirm your report.</DrawerDescription>
+          </DrawerHeader>
+          <div className="grid grid-cols-2 gap-2 px-4">
+            {REPORT_REASONS.map(([id, label]) => (
               <button
-                key={reason.id}
+                key={id}
                 type="button"
-                onClick={() => setReportReason(reason.id)}
-                className={`rounded-xl border p-3 text-left text-sm font-medium transition-colors ${
-                  reportReason === reason.id
-                    ? 'border-primary bg-primary/10'
-                    : 'border-border/50 hover:bg-muted/50'
-                }`}
+                onClick={() => setReportReason(id)}
+                className={cn(
+                  'min-h-12 rounded-xl border p-3 text-left text-sm font-medium',
+                  reportReason === id ? 'border-primary bg-primary/12' : 'border-border/60',
+                )}
               >
-                {reason.label}
+                {label}
               </button>
             ))}
           </div>
-          <Button
-            variant="destructive"
-            className="w-full"
-            disabled={!reportReason || isReporting}
-            onClick={handleReport}
-          >
-            {isReporting ? 'Submitting...' : 'Submit Report'}
-          </Button>
-        </SheetContent>
-      </Sheet>
+          <div className="p-4">
+            <Button variant="destructive" className="w-full" disabled={!reportReason || busy} onClick={() => void handleReport()}>
+              {busy ? 'Submitting…' : 'Confirm Report'}
+            </Button>
+          </div>
+        </DrawerContent>
+      </Drawer>
+
+      <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete this conversation?</AlertDialogTitle>
+            <AlertDialogDescription>
+              It moves to trash for 30 days before permanent deletion.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={busy}>Cancel</AlertDialogCancel>
+            <AlertDialogAction disabled={busy} onClick={() => void handleDelete()} className="bg-destructive text-destructive-foreground">
+              {busy ? 'Deleting…' : 'Delete'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={blockOpen} onOpenChange={setBlockOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Block {displayName}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              They will not be able to find, contact, or interact with you.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={busy}>Cancel</AlertDialogCancel>
+            <AlertDialogAction disabled={busy} onClick={() => void handleBlock()} className="bg-destructive text-destructive-foreground">
+              {busy ? 'Blocking…' : 'Block'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 }

@@ -1,37 +1,23 @@
 import { Link, type LinkProps } from 'react-router-dom';
-import { useMemo } from 'react';
-import { profilePathForFriendship } from '@/lib/friendProfileRoutes';
-import { useFriends } from '@/hooks/useFriends';
-import { useAuthProfileId } from '@/hooks/useAuthProfileId';
+import { publicProfilePath } from '@/lib/friendProfileRoutes';
 
 interface ProfileLinkProps extends Omit<LinkProps, 'to'> {
   username: string;
   userId?: string;
-  /** When true, always use public /u/ route (e.g. SEO contexts). */
+  /** Retained for call-site compatibility; /u/ is always canonical. */
   forcePublic?: boolean;
 }
 
-/** Link that routes friends to /friend/ and strangers to /u/. */
+/** Canonical profile link for every relationship state. */
 export function ProfileLink({
   username,
-  userId,
-  forcePublic,
+  userId: _userId,
+  forcePublic: _forcePublic,
   children,
   ...rest
 }: ProfileLinkProps) {
-  const profileId = useAuthProfileId();
-  const { data: friends } = useFriends();
-
-  const to = useMemo(() => {
-    if (forcePublic || !profileId) return profilePathForFriendship(username, 'none');
-    if (userId && friends?.some((f) => f?.id === userId)) {
-      return profilePathForFriendship(username, 'friends');
-    }
-    return profilePathForFriendship(username, 'none');
-  }, [username, userId, forcePublic, profileId, friends]);
-
   return (
-    <Link to={to} {...rest}>
+    <Link to={publicProfilePath(username)} {...rest}>
       {children}
     </Link>
   );

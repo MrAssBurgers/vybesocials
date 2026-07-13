@@ -1,11 +1,12 @@
 import { motion } from 'framer-motion';
 import { toast } from 'sonner';
-import { 
-  Sheet, 
-  SheetContent, 
-  SheetHeader, 
-  SheetTitle, 
-} from '@/components/ui/sheet';
+import {
+  Drawer,
+  DrawerContent,
+  DrawerDescription,
+  DrawerHeader,
+  DrawerTitle,
+} from '@/components/ui/drawer';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { 
@@ -30,6 +31,11 @@ import {
   Settings,
   ImageIcon,
   Shield,
+  Bell,
+  AtSign,
+  Smile,
+  Download,
+  Timer,
 } from 'lucide-react';
 import { useDMSettings, ReadReceiptMode, TypingMode, EmotionalPulse, DMSettings } from '@/hooks/useDMSettings';
 import { useSafetySettings, useUpdateSafetySettings } from '@/hooks/useSafetySettings';
@@ -92,16 +98,18 @@ export function DMSettingsSheetControlled({ conversationId, open, onOpenChange }
   };
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="overflow-y-auto">
-        <SheetHeader>
-          <SheetTitle className="flex items-center gap-2">
+    <Drawer open={open} onOpenChange={onOpenChange} shouldScaleBackground={false}>
+      <DrawerContent className="max-h-[92dvh] bg-background/95 backdrop-blur-2xl">
+        <div className="mx-auto mt-2 h-1.5 w-11 rounded-full bg-muted-foreground/30" />
+        <DrawerHeader>
+          <DrawerTitle className="flex items-center gap-2">
             <Settings className="h-5 w-5" />
-            DM Settings
-          </SheetTitle>
-        </SheetHeader>
+            Chat Settings
+          </DrawerTitle>
+          <DrawerDescription>Settings apply only to this conversation.</DrawerDescription>
+        </DrawerHeader>
 
-        <div className="space-y-6 mt-6">
+        <div className="space-y-6 overflow-y-auto px-4 pb-8">
           {/* Read Receipts Control */}
           <div className="space-y-3">
             <Label className="flex items-center gap-2">
@@ -135,6 +143,73 @@ export function DMSettingsSheetControlled({ conversationId, open, onOpenChange }
                 </motion.button>
               ))}
             </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label className="flex items-center gap-2">
+              <Bell className="h-4 w-4" />
+              Conversation Alerts
+            </Label>
+            {[
+              {
+                key: 'call_notifications' as const,
+                label: 'Call notifications',
+                icon: Bell,
+              },
+              {
+                key: 'mention_notifications' as const,
+                label: 'Mentions',
+                icon: AtSign,
+              },
+              {
+                key: 'reaction_notifications' as const,
+                label: 'Reactions',
+                icon: Smile,
+              },
+              {
+                key: 'media_auto_download' as const,
+                label: 'Media auto-download',
+                icon: Download,
+              },
+            ].map(({ key, label, icon: Icon }) => (
+              <div
+                key={key}
+                className="flex min-h-12 items-center gap-3 border-b border-border/50 py-2 last:border-0"
+              >
+                <Icon className="h-4 w-4 text-muted-foreground" />
+                <span className="flex-1 text-sm font-medium">{label}</span>
+                <Switch
+                  checked={settings[key] !== false}
+                  onCheckedChange={(checked) => handleUpdateSettings({ [key]: checked })}
+                  aria-label={label}
+                />
+              </div>
+            ))}
+          </div>
+
+          <div className="space-y-3">
+            <Label className="flex items-center gap-2">
+              <Timer className="h-4 w-4" />
+              Disappearing Messages
+            </Label>
+            <Select
+              value={String(settings.disappearing_message_seconds ?? 0)}
+              onValueChange={(value) =>
+                handleUpdateSettings({
+                  disappearing_message_seconds: Number(value) || null,
+                })
+              }
+            >
+              <SelectTrigger aria-label="Disappearing message default">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="0">Off</SelectItem>
+                <SelectItem value="86400">24 hours</SelectItem>
+                <SelectItem value="604800">7 days</SelectItem>
+                <SelectItem value="2592000">30 days</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
 
           {/* Typing Indicator Control */}
@@ -297,7 +372,7 @@ export function DMSettingsSheetControlled({ conversationId, open, onOpenChange }
             </p>
           </div>
         </div>
-      </SheetContent>
-    </Sheet>
+      </DrawerContent>
+    </Drawer>
   );
 }

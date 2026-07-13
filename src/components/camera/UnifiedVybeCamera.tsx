@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Camera } from '@/components/camera/Camera';
 import type { CameraMode, CaptureTarget } from '@/lib/camera/cameraConfig';
 import { defaultModeForTarget } from '@/lib/camera/cameraConfig';
+import type { CameraLaunchContext } from '@/lib/camera/cameraLaunchContext';
 
 export interface UnifiedVybeCameraProps {
   captureTarget: CaptureTarget;
@@ -13,6 +14,8 @@ export interface UnifiedVybeCameraProps {
   onCapture?: (media: { file: File; url: string; type: 'photo' | 'video' }) => void;
   showBackArrow?: boolean;
   defaultMode?: CameraMode;
+  /** Snap capture → edit → send flow (see cameraLaunchContext.ts). */
+  launchContext?: CameraLaunchContext;
 }
 
 /**
@@ -28,6 +31,7 @@ export function UnifiedVybeCamera({
   onCapture,
   showBackArrow,
   defaultMode,
+  launchContext,
 }: UnifiedVybeCameraProps) {
   const navigate = useNavigate();
 
@@ -53,6 +57,22 @@ export function UnifiedVybeCamera({
     },
     [captureTarget, navigate, onCapture, onClose, onSend],
   );
+
+  if (launchContext) {
+    // Snap flow: the editor + Send To + background send own the whole
+    // post-capture path — no legacy short-circuits.
+    return (
+      <Camera
+        onClose={onClose}
+        initialStream={initialStream}
+        streamPromise={streamPromise}
+        captureTarget={captureTarget}
+        defaultMode={defaultMode ?? defaultModeForTarget(captureTarget)}
+        showBackArrow={showBackArrow}
+        launchContext={launchContext}
+      />
+    );
+  }
 
   return (
     <Camera

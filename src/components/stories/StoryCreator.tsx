@@ -18,7 +18,7 @@ import { Progress } from '@/components/ui/progress';
 import { toast } from 'sonner';
 import { validateStoryMedia, compressImage, generateStoryThumbnail, inferStoryMediaKind } from '@/lib/storyUtils';
 import { FullscreenPortal } from '@/components/layout/FullscreenPortal';
-import { openCameraFromGesture, useCameraOverlay } from '@/contexts/CameraOverlayContext';
+import { openSnapCamera, useCameraOverlay } from '@/contexts/CameraOverlayContext';
 import { useTranslation } from 'react-i18next';
 import { useQueryClient } from '@tanstack/react-query';
 
@@ -113,25 +113,19 @@ export function StoryCreator({ onClose }: StoryCreatorProps) {
   }, []);
 
   const handleStoryCamera = useCallback(() => {
-    void openCameraFromGesture(openCamera, 'story', {
+    // Snap flow: capture → edit (story audience chip: My Story / Close
+    // Friends) → post directly → return to Home stories. The creator sheet
+    // closes when the camera overlay closes so the user lands on Stories.
+    void openSnapCamera(openCamera, {
+      source: 'story',
+      defaultDestination: 'story',
+      returnRoute: '/home',
+    }, {
       showBackArrow: true,
       defaultMode: 'story',
-      onCapture: (media) => {
-        const isVideo = media.type === 'video';
-        if (preview?.startsWith('blob:')) URL.revokeObjectURL(preview);
-        setSelectedFile(media.file);
-        setPreview(media.url);
-        setMediaInfo({
-          aspectRatio: 0.5625,
-          duration: null,
-          isVideo,
-        });
-        setUploadState('idle');
-        setErrorMessage(null);
-        void applyAutoThumbnail(media.file, isVideo);
-      },
+      onDismiss: onClose,
     });
-  }, [applyAutoThumbnail, openCamera, preview]);
+  }, [onClose, openCamera]);
 
   const processGalleryFile = useCallback(async (file: File) => {
     setUploadState('validating');

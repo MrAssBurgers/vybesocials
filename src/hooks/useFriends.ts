@@ -1,4 +1,10 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import {
+  useQuery,
+  useMutation,
+  useQueryClient,
+  type QueryClient,
+  type QueryKey,
+} from '@tanstack/react-query';
 import { useEffect } from 'react';
 import { db } from '@/lib/firebase';
 import { subscribePostgresChannel, removeRealtimeChannel } from '@/lib/realtimeChannel';
@@ -11,13 +17,116 @@ import { createDmChat } from '@/lib/firebase/chats';
 import { firebaseAuth } from '@/lib/firebase/authService';
 import { resolveSessionProfileId } from '@/lib/resolveSessionProfileId';
 import { syncUserAuthIndex } from '@/lib/firebase/profileResolve';
-import { getUserProfile } from '@/lib/firebase/users';
 import { toast } from 'sonner';
 import { ensureArray } from '@/lib/persistedCollections';
 
 /** Stable doc id — matches directed pair (sender → receiver). */
 function friendRequestDocId(senderId: string, receiverId: string): string {
   return `${senderId}_${receiverId}`;
+}
+
+export type FriendshipState =
+  | 'none'
+  | 'pending_outgoing'
+  | 'pending_incoming'
+  | 'accepted'
+  | 'declined'
+  | 'cancelled'
+  | 'blocked';
+
+export type FriendshipUiStatus =
+  | 'none'
+  | 'pending_sent'
+  | 'pending_received'
+  | 'friends'
+  | 'blocked';
+
+export interface FriendshipStatusResult {
+  state: FriendshipState;
+  status: FriendshipUiStatus;
+  requestId: string | null;
+}
+
+export function normalizeFriendshipState(
+  storedStatus: unknown,
+  direction: 'outgoing' | 'incoming',
+): FriendshipState {
+  if (storedStatus === 'accepted') return 'accepted';
+  if (storedStatus === 'pending') {
+    return direction === 'outgoing' ? 'pending_outgoing' : 'pending_incoming';
+  }
+  if (storedStatus === 'declined') return 'declined';
+  if (storedStatus === 'cancelled') return 'cancelled';
+  if (storedStatus === 'blocked') return 'blocked';
+  return 'none';
+}
+
+export function friendshipUiStatus(state: FriendshipState): FriendshipUiStatus {
+  if (state === 'accepted') return 'friends';
+  if (state === 'pending_outgoing') return 'pending_sent';
+  if (state === 'pending_incoming') return 'pending_received';
+  if (state === 'blocked') return 'blocked';
+  return 'none';
+}
+
+function friendshipResult(
+  state: FriendshipState,
+  requestId: string | null = null,
+): FriendshipStatusResult {
+  return {
+    state,
+    status: friendshipUiStatus(state),
+    requestId: state === 'declined' || state === 'cancelled' ? null : requestId,
+  };
+}
+
+type FriendshipMutationResponse = {
+  ok?: boolean;
+  state?: FriendshipState;
+  request_id?: string | null;
+  already_exists?: boolean;
+};
+
+async function invokeFriendshipMutation(payload: Record<string, unknown>) {
+  const { data, error } = await db.functions.invoke<FriendshipMutationResponse>(
+    'mutate-friendship',
+    payload,
+  );
+  if (error) throw error;
+  if (!data?.ok) throw new Error('Friendship update failed');
+  return data;
+}
+
+type QuerySnapshot = Array<[QueryKey, unknown]>;
+
+function snapshotFriendshipCaches(queryClient: QueryClient): QuerySnapshot {
+  return [
+    ...queryClient.getQueriesData({ queryKey: ['friend-requests'] }),
+    ...queryClient.getQueriesData({ queryKey: ['friendship-status'] }),
+    ...queryClient.getQueriesData({ queryKey: ['friends'] }),
+    ...queryClient.getQueriesData({ queryKey: ['recently-accepted-friends'] }),
+  ];
+}
+
+function restoreFriendshipCaches(queryClient: QueryClient, snapshot?: QuerySnapshot) {
+  snapshot?.forEach(([key, value]) => queryClient.setQueryData(key, value));
+}
+
+function setCachedFriendshipStatus(
+  queryClient: QueryClient,
+  profileId: string,
+  targetId: string,
+  result: FriendshipStatusResult,
+) {
+  queryClient.setQueriesData(
+    {
+      predicate: (query) =>
+        query.queryKey[0] === 'friendship-status' &&
+        query.queryKey[1] === profileId &&
+        query.queryKey[2] === targetId,
+    },
+    result,
+  );
 }
 
 async function resolveActorProfileId(liveProfileId?: string | null): Promise<string> {
@@ -36,7 +145,7 @@ export interface FriendRequest {
   id: string;
   sender_id: string;
   receiver_id: string;
-  status: 'pending' | 'accepted' | 'declined';
+  status: 'pending' | 'accepted' | 'declined' | 'cancelled';
   created_at: string;
   sender?: {
     id: string;
@@ -53,7 +162,6 @@ export interface FriendRequest {
 }
 
 export function useFriendRequests() {
-  const { profile } = useAuth();
   const profileId = useAuthProfileId();
   const queryClient = useQueryClient();
 
@@ -63,35 +171,32 @@ export function useFriendRequests() {
 
     const channel = subscribePostgresChannel(`friend-requests:${profileId}`, [
       {
-        event: 'INSERT',
+        event: '*',
         table: 'friend_requests',
         filter: `receiver_id=eq.${profileId}`,
         callback: async (payload) => {
           const row = payload.new as { status?: string; sender_id?: string };
-          if (row.status !== 'pending') return;
-
-          const { data: sender } = await db
-            .from('profiles')
-            .select('username, display_name, avatar_url')
-            .eq('id', (payload.new as any).sender_id)
-            .single();
-          
-          const name = sender?.display_name || sender?.username || 'Someone';
-          toast.success(`${name} sent you a friend request! 👋`, {
-            duration: 5000,
-          });
-          
+          if (payload.eventType === 'INSERT' && row.status === 'pending') {
+            const { data: sender } = await db
+              .from('profiles')
+              .select('username, display_name, avatar_url')
+              .eq('id', row.sender_id)
+              .single();
+            const name = sender?.display_name || sender?.username || 'Someone';
+            toast.success(`${name} sent you a friend request! 👋`, { duration: 5000 });
+          }
           queryClient.invalidateQueries({ queryKey: ['friend-requests'] });
+          queryClient.invalidateQueries({ queryKey: ['friendship-status'] });
+          queryClient.invalidateQueries({ queryKey: ['friends'] });
         },
       },
       {
-        event: 'UPDATE',
+        event: '*',
         table: 'friend_requests',
         filter: `sender_id=eq.${profileId}`,
         callback: (payload) => {
-          console.log('[FriendRequests] Request updated (outgoing):', payload.new);
           const status = (payload.new as any).status;
-          if (status === 'accepted') {
+          if (payload.eventType === 'UPDATE' && status === 'accepted') {
             toast.success('Your friend request was accepted! 🎉');
           }
           queryClient.invalidateQueries({ queryKey: ['friend-requests'] });
@@ -152,6 +257,20 @@ export function useFriendRequests() {
 
 export function useFriends() {
   const profileId = useAuthProfileId();
+  const queryClient = useQueryClient();
+
+  useEffect(() => {
+    if (!profileId) return;
+    const invalidate = () => {
+      queryClient.invalidateQueries({ queryKey: ['friends', profileId] });
+      queryClient.invalidateQueries({ queryKey: ['recently-accepted-friends', profileId] });
+    };
+    const channel = subscribePostgresChannel(`friends:${profileId}`, [
+      { event: '*', table: 'friend_requests', filter: `sender_id=eq.${profileId}`, callback: invalidate },
+      { event: '*', table: 'friend_requests', filter: `receiver_id=eq.${profileId}`, callback: invalidate },
+    ]);
+    return () => removeRealtimeChannel(channel);
+  }, [profileId, queryClient]);
 
   const query = useQuery({
     queryKey: ['friends', profileId],
@@ -255,92 +374,85 @@ export function useRecentlyAcceptedFriends(limit = 15) {
 
 export function useFriendshipStatus(targetUserId: string | undefined) {
   const profileId = useAuthProfileId();
+  const queryClient = useQueryClient();
+
+  useEffect(() => {
+    if (!profileId || !targetUserId || profileId === targetUserId) return;
+    const invalidate = () => {
+      queryClient.invalidateQueries({
+        queryKey: ['friendship-status', profileId, targetUserId],
+      });
+      queryClient.invalidateQueries({ queryKey: ['friend-requests', profileId] });
+      queryClient.invalidateQueries({ queryKey: ['friends', profileId] });
+    };
+    const channel = subscribePostgresChannel(
+      `friendship-status:${profileId}:${targetUserId}`,
+      [
+        {
+          event: '*',
+          table: 'friend_requests',
+          filter: `sender_id=eq.${profileId}`,
+          callback: (payload) => {
+            const row = (payload.eventType === 'DELETE' ? payload.old : payload.new) as FriendRequest;
+            if (row.receiver_id === targetUserId) invalidate();
+          },
+        },
+        {
+          event: '*',
+          table: 'friend_requests',
+          filter: `receiver_id=eq.${profileId}`,
+          callback: (payload) => {
+            const row = (payload.eventType === 'DELETE' ? payload.old : payload.new) as FriendRequest;
+            if (row.sender_id === targetUserId) invalidate();
+          },
+        },
+      ],
+    );
+    return () => removeRealtimeChannel(channel);
+  }, [profileId, queryClient, targetUserId]);
 
   return useQuery({
     queryKey: ['friendship-status', profileId, targetUserId],
-    queryFn: async () => {
+    queryFn: async (): Promise<FriendshipStatusResult> => {
       if (!profileId || !targetUserId || profileId === targetUserId) {
-        return { status: 'none' as const, requestId: null };
+        return friendshipResult('none');
       }
 
       const targetProfileId = (await normalizeToProfileId(targetUserId)) || targetUserId;
       if (profileId === targetProfileId) {
-        return { status: 'none' as const, requestId: null };
+        return friendshipResult('none');
       }
 
-      const outboundId = friendRequestDocId(profileId, targetProfileId);
-      const inboundId = friendRequestDocId(targetProfileId, profileId);
-
-      const { data: sentById } = await db
-        .from('friend_requests')
-        .select('id, status')
-        .eq('id', outboundId)
-        .maybeSingle();
-
-      if (sentById) {
-        return {
-          status: sentById.status === 'accepted' ? 'friends' as const : 'pending_sent' as const,
-          requestId: sentById.id,
-        };
+      const { data, error } = await db.functions.invoke<{
+        state?: FriendshipState;
+        request_id?: string | null;
+      }>('get-friendship-state', { target_profile_id: targetProfileId });
+      if (error) throw error;
+      const state = data?.state;
+      if (!state || ![
+        'none',
+        'pending_outgoing',
+        'pending_incoming',
+        'accepted',
+        'declined',
+        'cancelled',
+        'blocked',
+      ].includes(state)) {
+        return friendshipResult('none');
       }
-
-      const { data: receivedById } = await db
-        .from('friend_requests')
-        .select('id, status')
-        .eq('id', inboundId)
-        .maybeSingle();
-
-      if (receivedById) {
-        return {
-          status: receivedById.status === 'accepted' ? 'friends' as const : 'pending_received' as const,
-          requestId: receivedById.id,
-        };
-      }
-
-      // Check if there's a request from current user to target
-      const { data: sentRequest } = await db
-        .from('friend_requests')
-        .select('id, status')
-        .eq('sender_id', profileId)
-        .eq('receiver_id', targetProfileId)
-        .limit(1);
-
-      const sentRow = sentRequest?.[0];
-      if (sentRow) {
-        return { 
-          status: sentRow.status === 'accepted' ? 'friends' as const : 'pending_sent' as const,
-          requestId: sentRow.id 
-        };
-      }
-
-      // Check if there's a request from target to current user
-      const { data: receivedRequest } = await db
-        .from('friend_requests')
-        .select('id, status')
-        .eq('sender_id', targetProfileId)
-        .eq('receiver_id', profileId)
-        .limit(1);
-
-      const receivedRow = receivedRequest?.[0];
-      if (receivedRow) {
-        return { 
-          status: receivedRow.status === 'accepted' ? 'friends' as const : 'pending_received' as const,
-          requestId: receivedRow.id 
-        };
-      }
-
-      return { status: 'none' as const, requestId: null };
+      return friendshipResult(state, data?.request_id || null);
     },
     enabled: !!profileId && !!targetUserId,
-    staleTime: 60000,
+    staleTime: 30000,
     placeholderData: (prev) => prev,
-    refetchOnMount: false,
-    refetchOnWindowFocus: false,
+    refetchOnMount: true,
+    refetchOnWindowFocus: true,
   });
 }
 
 export function useSendFriendRequest() {
   const { profile } = useAuth();
+  const liveProfileId = useAuthProfileId();
   const queryClient = useQueryClient();
 
   const ensureDirectConversation = async (currentUserId: string, receiverId: string) => {
@@ -357,127 +469,35 @@ export function useSendFriendRequest() {
     mutationFn: async (receiverId: string) => {
       const profileId = await resolveActorProfileId(profile?.id);
       const receiverProfileId = (await normalizeToProfileId(receiverId)) || receiverId;
-
       if (receiverProfileId === profileId) {
         throw new Error('Cannot send a friend request to yourself');
       }
-
-      const [receiverProfile, sameDirectionResult, reverseDirectionResult] = await Promise.all([
-        getUserProfile(receiverProfileId),
-        db
-          .from('friend_requests')
-          .select('id, status')
-          .eq('id', friendRequestDocId(profileId, receiverProfileId))
-          .maybeSingle(),
-        db
-          .from('friend_requests')
-          .select('id, status')
-          .eq('id', friendRequestDocId(receiverProfileId, profileId))
-          .maybeSingle(),
+      const result = await invokeFriendshipMutation({
+        action: 'send',
+        target_profile_id: receiverProfileId,
+      });
+      const conversationCreated = await ensureDirectConversation(profileId, receiverProfileId);
+      return {
+        alreadyExists: !!result.already_exists,
+        conversationCreated,
+        receiverProfileId,
+      };
+    },
+    onMutate: async (receiverId: string) => {
+      const profileId = liveProfileId || profile?.id;
+      if (!profileId) return { snapshot: snapshotFriendshipCaches(queryClient) };
+      await Promise.all([
+        queryClient.cancelQueries({ queryKey: ['friend-requests'] }),
+        queryClient.cancelQueries({ queryKey: ['friendship-status'] }),
       ]);
-
-      if (!receiverProfile?.id) {
-        throw new Error('User not found');
-      }
-      const normalizedReceiver = receiverProfile.id;
-      const outboundId = friendRequestDocId(profileId, normalizedReceiver);
-      const inboundId = friendRequestDocId(normalizedReceiver, profileId);
-
-      // Legacy rows used random ids — fall back to sender/receiver lookup.
-      let legacySent: { data: { id: string; status: string }[] | null; error: unknown } = { data: null, error: null };
-      let legacyReceived: { data: { id: string; status: string }[] | null; error: unknown } = { data: null, error: null };
-      if (!sameDirectionResult.data && !reverseDirectionResult.data) {
-        try {
-          [legacySent, legacyReceived] = await Promise.all([
-            db
-              .from('friend_requests')
-              .select('id, status')
-              .eq('sender_id', profileId)
-              .eq('receiver_id', normalizedReceiver)
-              .limit(1),
-            db
-              .from('friend_requests')
-              .select('id, status')
-              .eq('sender_id', normalizedReceiver)
-              .eq('receiver_id', profileId)
-              .limit(1),
-          ]);
-        } catch (legacyErr) {
-          console.warn('[Friends] legacy friend_request lookup skipped:', legacyErr);
-        }
-      }
-
-      if (sameDirectionResult.error) throw sameDirectionResult.error;
-      if (reverseDirectionResult.error) throw reverseDirectionResult.error;
-      if ((legacySent.error as any)?.code === 'permission-denied') {
-        legacySent = { data: null, error: null };
-      }
-      if ((legacyReceived.error as any)?.code === 'permission-denied') {
-        legacyReceived = { data: null, error: null };
-      }
-
-      if (legacySent.error) throw legacySent.error;
-      if (legacyReceived.error) throw legacyReceived.error;
-
-      const existingSentRequest =
-        sameDirectionResult.data ||
-        (legacySent.data?.[0] as { id: string; status: string } | undefined);
-      const existingReceivedRequest =
-        reverseDirectionResult.data ||
-        (legacyReceived.data?.[0] as { id: string; status: string } | undefined);
-
-      if (
-        existingSentRequest?.status === 'pending' ||
-        existingSentRequest?.status === 'accepted' ||
-        existingReceivedRequest?.status === 'pending' ||
-        existingReceivedRequest?.status === 'accepted'
-      ) {
-        const conversationCreated = await ensureDirectConversation(profileId, normalizedReceiver);
-        return { alreadyExists: true, conversationCreated };
-      }
-
-      const now = new Date().toISOString();
-
-      if (existingSentRequest?.status === 'declined') {
-        const { error: reviveError } = await db
-          .from('friend_requests')
-          .update({ status: 'pending', updated_at: now })
-          .eq('id', existingSentRequest.id);
-
-        if (reviveError) throw reviveError;
-      } else {
-        const { error: insertError } = await db.from('friend_requests').insert({
-          id: outboundId,
-          sender_id: profileId,
-          receiver_id: normalizedReceiver,
-          status: 'pending',
-          created_at: now,
-          updated_at: now,
-        });
-
-        if (insertError) {
-          if (insertError.code === '23505') {
-            const conversationCreated = await ensureDirectConversation(profileId, normalizedReceiver);
-            return { alreadyExists: true, conversationCreated };
-          }
-
-          throw insertError;
-        }
-      }
-
-      try {
-        void db.from('notifications').insert({
-          user_id: normalizedReceiver,
-          actor_id: profileId,
-          type: 'friend_request',
-        });
-      } catch (notifyErr) {
-        console.warn('[Friends] friend_request notification failed:', notifyErr);
-      }
-
-      const conversationCreated = await ensureDirectConversation(profileId, normalizedReceiver);
-
-      return { alreadyExists: false, conversationCreated };
+      const snapshot = snapshotFriendshipCaches(queryClient);
+      setCachedFriendshipStatus(
+        queryClient,
+        profileId,
+        receiverId,
+        friendshipResult('pending_outgoing', friendRequestDocId(profileId, receiverId)),
+      );
+      return { snapshot };
     },
     onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ['friend-requests'] });
@@ -488,17 +508,22 @@ export function useSendFriendRequest() {
 
       toast.success(result?.conversationCreated ? 'Friend request sent! Chat created.' : 'Friend request sent!');
     },
-    onError: (error: any) => {
-      // Silence duplicate key errors (409/23505) - already handled in mutationFn
-      if (error?.code === '23505' || error?.message?.includes('duplicate') || error?.message?.includes('already')) return;
+    onError: (error: any, _receiverId, context) => {
+      restoreFriendshipCaches(queryClient, context?.snapshot);
+      if (error?.message?.includes('already')) return;
       const msg = error instanceof Error ? error.message : String(error?.message || '');
-      toast.error(msg.includes('loading') || msg.includes('not found') || msg.includes('Permission') ? msg : 'Failed to send friend request');
+      toast.error(
+        /loading|not found|permission|blocked|yourself/i.test(msg)
+          ? msg
+          : 'Failed to send friend request',
+      );
     },
   });
 }
 
 export function useRespondToFriendRequest() {
   const { profile } = useAuth();
+  const liveProfileId = useAuthProfileId();
   const queryClient = useQueryClient();
 
   return useMutation({
@@ -509,34 +534,45 @@ export function useRespondToFriendRequest() {
       requestId: string;
       action: 'accept' | 'decline';
     }) => {
-      const profileId = await resolveActorProfileId(profile?.id);
-
-      const { data: request, error: requestError } = await db
-        .from('friend_requests')
-        .select('id, sender_id, receiver_id')
-        .eq('id', requestId)
-        .single();
-
-      if (requestError) throw requestError;
-
-      const { error } = await db
-        .from('friend_requests')
-        .update({
-          status: action === 'accept' ? 'accepted' : 'declined',
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', requestId);
-
-      if (error) throw error;
-
-      // Notify the sender about the decision
-      await db.from('notifications').insert({
-        user_id: request.sender_id,
-        actor_id: profileId,
-        type: action === 'accept' ? 'friend_accepted' : 'friend_declined',
-      });
-
-      return request;
+      await resolveActorProfileId(profile?.id);
+      return invokeFriendshipMutation({ action, request_id: requestId });
+    },
+    onMutate: async (variables) => {
+      await Promise.all([
+        queryClient.cancelQueries({ queryKey: ['friend-requests'] }),
+        queryClient.cancelQueries({ queryKey: ['friendship-status'] }),
+        queryClient.cancelQueries({ queryKey: ['friends'] }),
+      ]);
+      const snapshot = snapshotFriendshipCaches(queryClient);
+      let request: FriendRequest | undefined;
+      queryClient.setQueriesData(
+        { queryKey: ['friend-requests'] },
+        (current: any) => {
+          if (!current) return current;
+          const all = [...ensureArray(current.incoming), ...ensureArray(current.outgoing)] as FriendRequest[];
+          request ||= all.find((row) => row.id === variables.requestId);
+          return {
+            ...current,
+            incoming: ensureArray(current.incoming).filter((row: FriendRequest) => row.id !== variables.requestId),
+            outgoing: ensureArray(current.outgoing).filter((row: FriendRequest) => row.id !== variables.requestId),
+          };
+        },
+      );
+      const profileId = liveProfileId || profile?.id;
+      const targetId = request?.sender_id;
+      if (profileId && targetId) {
+        const state = variables.action === 'accept' ? 'accepted' : 'declined';
+        setCachedFriendshipStatus(queryClient, profileId, targetId, friendshipResult(state, variables.requestId));
+        if (variables.action === 'accept' && request?.sender) {
+          queryClient.setQueryData(['friends', profileId], (current: any) => {
+            const friends = ensureArray(current);
+            return friends.some((friend: any) => friend?.id === request!.sender!.id)
+              ? friends
+              : [...friends, request!.sender];
+          });
+        }
+      }
+      return { snapshot };
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['friend-requests'] });
@@ -546,28 +582,62 @@ export function useRespondToFriendRequest() {
       queryClient.invalidateQueries({ queryKey: ['unread-notifications'] });
       toast.success(variables.action === 'accept' ? 'Friend request accepted!' : 'Friend request declined');
     },
+    onError: (_error, _variables, context) => {
+      restoreFriendshipCaches(queryClient, context?.snapshot);
+      toast.error('Failed to update friend request');
+    },
   });
 }
 
 export function useCancelFriendRequest() {
   const { profile } = useAuth();
+  const liveProfileId = useAuthProfileId();
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async (requestId: string) => {
-      const profileId = await resolveActorProfileId(profile?.id);
-
-      const { error } = await db
-        .from('friend_requests')
-        .delete()
-        .eq('id', requestId);
-
-      if (error) throw error;
+      await resolveActorProfileId(profile?.id);
+      return invokeFriendshipMutation({ action: 'cancel', request_id: requestId });
+    },
+    onMutate: async (requestId: string) => {
+      await Promise.all([
+        queryClient.cancelQueries({ queryKey: ['friend-requests'] }),
+        queryClient.cancelQueries({ queryKey: ['friendship-status'] }),
+      ]);
+      const snapshot = snapshotFriendshipCaches(queryClient);
+      let targetId: string | undefined;
+      queryClient.setQueriesData(
+        { queryKey: ['friend-requests'] },
+        (current: any) => {
+          if (!current) return current;
+          const outgoing = ensureArray(current.outgoing) as FriendRequest[];
+          targetId ||= outgoing.find((row) => row.id === requestId)?.receiver_id;
+          return {
+            ...current,
+            outgoing: outgoing.filter((row) => row.id !== requestId),
+          };
+        },
+      );
+      const profileId = liveProfileId || profile?.id;
+      if (profileId && targetId) {
+        setCachedFriendshipStatus(queryClient, profileId, targetId, friendshipResult('cancelled'));
+      } else {
+        queryClient.setQueriesData(
+          { queryKey: ['friendship-status'] },
+          (current: any) =>
+            current?.requestId === requestId ? friendshipResult('cancelled') : current,
+        );
+      }
+      return { snapshot };
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['friend-requests'] });
       queryClient.invalidateQueries({ queryKey: ['friendship-status'] });
       toast.success('Friend request cancelled');
+    },
+    onError: (_error, _requestId, context) => {
+      restoreFriendshipCaches(queryClient, context?.snapshot);
+      toast.error('Failed to cancel friend request');
     },
   });
 }
@@ -578,13 +648,20 @@ export function useUnfriend() {
 
   return useMutation({
     mutationFn: async (friendId: string) => {
-      const profileId = await resolveActorProfileId(profile?.id);
-
-      // Delete friend request in either direction
-      await db
-        .from('friend_requests')
-        .delete()
-        .or(`and(sender_id.eq.${profileId},receiver_id.eq.${friendId}),and(sender_id.eq.${friendId},receiver_id.eq.${profileId})`);
+      await resolveActorProfileId(profile?.id);
+      const targetProfileId = (await normalizeToProfileId(friendId)) || friendId;
+      const { data, error } = await db.functions.invoke<{
+        request_id?: string | null;
+        state?: FriendshipState;
+      }>('get-friendship-state', { target_profile_id: targetProfileId });
+      if (error) throw error;
+      if (data?.state !== 'accepted' || !data.request_id) {
+        throw new Error('Friendship not found');
+      }
+      return invokeFriendshipMutation({
+        action: 'unfriend',
+        request_id: data.request_id,
+      });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['friend-requests'] });

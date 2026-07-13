@@ -3,7 +3,7 @@ import { Camera, MessagesSquare, PenLine, Users } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import {
-  openCameraFromGesture,
+  openSnapCamera,
   useCameraOverlayOptional,
 } from '@/contexts/CameraOverlayContext';
 import {
@@ -69,9 +69,11 @@ export function DMComposeButton({ hidden = false }: { hidden?: boolean }) {
                   navigate('/camera');
                   return;
                 }
-                openCameraFromGesture(cameraOverlay.openCamera, 'dm', {
-                  showBackArrow: true,
-                });
+                openSnapCamera(cameraOverlay.openCamera, {
+                  source: 'global',
+                  defaultDestination: 'direct',
+                  returnRoute: '/messages',
+                }, { showBackArrow: true });
               }}
             >
               <Camera className="h-5 w-5" />

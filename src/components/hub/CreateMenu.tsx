@@ -5,7 +5,7 @@ import { Image, Camera, X, Zap, MapPin } from 'lucide-react';
 import { triggerHaptic } from '@/lib/haptics';
 import { playSound } from '@/lib/sounds';
 import { VYBEHub } from './VYBEHub';
-import { openCameraFromGesture, useCameraOverlay } from '@/contexts/CameraOverlayContext';
+import { openSnapCamera, useCameraOverlay } from '@/contexts/CameraOverlayContext';
 
 interface CreateMenuProps {
   isOpen: boolean;
@@ -28,7 +28,8 @@ export function CreateMenu({ isOpen, onClose }: CreateMenuProps) {
         break;
       case 'camera':
         onClose();
-        void openCameraFromGesture(openCamera, 'post');
+        // Create flow: destination chosen before capture (post composer).
+        void openSnapCamera(openCamera, { source: 'create', defaultDestination: 'post' });
         break;
       case 'hub':
         onClose();

@@ -2,6 +2,59 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## Pre-commit camera + social surfaces (2026-07-13)
+
+- **Entry points:** `ConversationOptionsSheet`, `RelationshipProfileActions`, `ChatView`, `DMConversationRow`, `DMComposeButton`, `CreateMenu*`, `StoryCreator` now use `openSnapCamera({ source, conversationId?, recipientIds?, returnRoute?, replyToMessageId? })` — no blob-URL `onSend` / inline `insertDmMessage`.
+- **Global multi-send:** After global camera send, overlay stays open, shows "Sent to N" toast, clears draft, preserves camera side/zoom/flash.
+- **Reply context:** `CameraLaunchContext.replyToMessageId` + `replyConversationId`; wired from ChatView when replying.
+- **Story destinations:** Custom/Group Story hidden unless `snap_future_story_destinations` feature flag.
+- **Offline ephemeral:** view-once/replay-once pending shows "Waiting for connection"; blob cleanup on sent/dismiss/expired failed draft.
+- **Tests:** Vitest includes `.tsx`; component tests for SnapEditor, SendToScreen, SnapSendProgress, useSheetBackStack; +snapFlowBehavior/snapBlobCleanup/storyDestinationVisibility. **204 tests PASS.**
+- **Enforcement:** `npm run test:camera-send-enforcement` static scan.
+- **Removed:** legacy `handleVybeSend` blob path from ChatView.
+- **Verified:** typecheck PASS · test PASS (204) · lint PASS · build PASS · functions build PASS · camera-send-enforcement PASS.
+- **Device QA:** manual pass still required (capture, offline, partial failure, back button).
+- **Next:** Deploy functions + rules; Lovable Publish; device QA on Android/iPhone.
+
+---
+
+## Snapchat-style camera flow: capture → edit → Send To → background send (2026-07-13)
+
+- **User ask:** Redesign the VYBE camera to match Snapchat's capture → edit → send mechanic; one shared system for all entry points (Messages, Stories, VYBE Snap, Create); VYBE theming; existing Firebase backend (callable-only DM sends).
+- **New launch model:** `src/lib/camera/cameraLaunchContext.ts` — `CameraLaunchContext { source: global|conversation|story|profile|group|create, conversationId?, recipientIds?, groupId?, profileId?, defaultDestination?, returnRoute? }`. Every camera entry now passes it via `OpenCameraOptions.launchContext` (new `openSnapCamera()` helper in `CameraOverlayContext`). Legacy `onSend`/`onCapture` paths still work when no context is passed (DesktopCreateStudio, CameraFirstOverlay).
+- **Flow:** capture (shutter flash, existing hold-to-record ring/timer/grid/zoom/flip/gallery) → `SnapCaptureFlow` → `SnapEditor` (floating edge controls: Retake top-left; Text/Stickers/Draw/Image rail top-right + `editorExtensions.ts` registry for future Music/Crop/Trim/Mute/Captions; Save + media-mode selector bottom-left; recipient/story-audience chip bottom-center; themed Send bottom-right with <400ms shrink animation, reduced-motion aware) → direct send when preselected, else `SendToScreen` (Recent / Best Friends / Friends / Groups / Stories sections, search, multi-select, chips row, "Send to N" bar, blocked users filtered) → background send → return route per source.
+- **Send pipeline (new `src/lib/camera/`):** `snapDraft.ts` (local draft before upload; deterministic `snap-<mediaId>:<conversationId>` client_message_id idempotency), `uploadSnapMedia.ts` (upload once to `chat-media`, reuse URL for every conversation *and* story destination; video thumbnail), `snapSendService.ts` (module-level jobs: preparing/uploading/processing/sending/sent/partially_sent/failed/retrying + waiting_for_connection; optimistic vybe bubbles per conversation via messages cache, replaced on confirm / marked `_failed`; DM sends via callable-only `insertDmMessage`; per-destination retry-failed-only), `createStoryRecord.ts` (non-hook story insert; My Story + Close Friends), `snapOfflineQueue.ts` (IndexedDB persistence incl. media Blob, flush on reconnect), `snapSendStateMachine.ts` + `recipientSelection.ts` (pure, tested). `SnapSendProgress` (mounted in `CameraOverlayProvider`) shows non-blocking progress + retry.
+- **Entry points wired:** ChatView snap button (conversation preselected, chip, returns to chat), `DMConversationRow` long-press (fixes old blob-URL-to-server bug), `DMComposeButton` "Send VYBE Snap" (fixes previously dead flow — now global Send To), `CreateMenuLayer` (global), hub `CreateMenu` (create → post prefill to /upload), `StoryCreator` camera (story audience chip, posts directly, returns Home).
+- **Media modes:** view_once / replay_once / 24h (timed) / permanent — all server-allowed values in `sendDmMessage`.
+- **Tests:** +5 files / 64 tests — `cameraLaunchContext.test.ts` (destination rules, return routes), `snapDraft.test.ts` (draft + idempotency), `snapSendStateMachine.test.ts` (phases, partial fail, retry-failed-only), `recipientSelection.test.ts` (chip add/remove/labels), `snapOfflineQueue.test.ts` (queue semantics with in-memory store).
+- **Verified:** typecheck PASS · test PASS (25 files / 184) · lint PASS (repo-wide) · build + postbuild PASS.
+- **Gaps / degradations (no backend support):**
+  - Custom Story / Group Story audiences — no schema; shown disabled ("Soon") in audience picker + Send To; `createStoryRecord` rejects them loudly.
+  - Music/crop/trim/mute/captions in editor — documented extension points (`editorExtensions.ts`); existing `ImageCropEditor`/`VideoTrimEditor` under create/ not yet wired.
+  - Video overlay bake remains best-effort (existing `bakeCameraEdits` limitation).
+  - Slide-away-cancel while recording not implemented (existing record button has no slide gesture); reply-context launch not plumbed (would need `replyToMessageId` on the context).
+  - Component tests skipped — vitest `include` is `src/**/*.test.ts` (no .tsx).
+- **Follow-ups for the social-surfaces agent (files I could not edit):** `ConversationOptionsSheet.tsx` "VYBE Snap" action and `RelationshipProfileActions.tsx` camera action still use the old blob-URL `onSend` path — switch both to `launchContext: { source: 'conversation'|'profile', conversationId, returnRoute }` (drop their `onSend` + `insertDmMessage` blocks).
+- **Next:** (1) wire ConversationOptionsSheet + RelationshipProfileActions to launchContext once unlocked; (2) device pass on capture→edit→send timings + offline queue (airplane-mode test); (3) decide custom/group story backend (stories audience table) and enable the disabled audiences.
+- **Published:** not committed/pushed yet.
+
+---
+
+## VYBE Social Surfaces — drawer + canonical profiles (2026-07-13)
+
+- **User ask:** Implement the approved "social surfaces" plan: conversation long-press action drawer, nested chat-settings/friendship drawers, canonical `/u/:username` relationship profile, People You May Know, and friendship-state hardening.
+- **Routing:** `/u/:username` is now canonical for self/friend/pending/stranger/blocked (`src/pages/RelationshipProfile.tsx`); `/friend/:username` is a compatibility redirect; `profilePathForFriendship` always returns `/u/`. Self resolves to the owner Profile surface; blocked (either direction) renders a privacy-safe "Unavailable" state before any data shows.
+- **Long-press drawer:** `ConversationOptionsSheet` rebuilt as a full-width Vaul bottom drawer (friend card w/ avatar glow + presence + relationship badge + profile chevron; VYBE Snap / Chat / Video / Voice quick actions with call-availability reasons; 54–60px action rows; destructive Delete/Block/Report last with confirmations). Opened by the existing 480ms/8px hold in `SwipeableDmConversationRow` (haptic on open, tap/swipe arbitration preserved, ContextMenu/Shift+F10 keyboard support, Android back via `useSheetBackStack` history stack).
+- **Nested drawers:** Chat Settings (per-conversation alerts, mentions, reactions, media auto-download, disappearing default, receipts/typing/theme/wallpaper) persists to viewer-owned `dm_settings` (owner-only rules already in place; new fields additive). Friendship detail drawer shows pair stats, streak, shared media, saved messages, calls, location state, pin state, mutual friends. Create Group opens the existing creator with the friend preselected.
+- **Profile surface:** Hero (avatar, name + verified badge, mode chip, privacy-gated bio/presence/mutuals, Back/Share/More), mode-exact relationship controls (Add → optimistic Request Sent/cancel; Accept/Decline; Message + Send VYBE Snap for friends), privacy-filtered posts/clips/stories/shared tabs (empty sections hidden), People You May Know (up to 6 compact Add/Dismiss cards), state-aware More menu (share/copy/hide suggestion/cancel/accept/decline/block/report).
+- **Friendship hardening:** `getFriendshipState`/`mutateFriendship` callables are the only write path (self/duplicate/already-friends/blocked enforced in transactions + rate limit); `declined`/`cancelled` preserved instead of collapsing to pending; client hooks do optimistic cache updates with snapshot rollback + realtime invalidation; `friend_requests` client writes locked to admin-only schema/transition-validated rules.
+- **Tests:** gesture arbitration (`dmLongPressGesture.test.ts`), action-state labels (`conversationActionModel.test.ts`), canonical routing (`friendProfileRoutes*.test.ts`), friendship state machine (`useFriends.test.ts`); emulator rules script added (`scripts/test-friendship-rules.mjs`).
+- **Verified:** typecheck PASS · test PASS (137/20 files) · lint PASS · build PASS · functions build PASS · rules syntax PASS (Firebase MCP validator).
+- **Blockers:** Emulator rules script needs Java (not installed on this machine) — run `npx firebase-tools emulators:exec --only firestore,auth "node scripts/test-friendship-rules.mjs"` once Java is available. Manual device pass (iOS/Android hold, swipe-down, back, share fallback, calls, offline rollback) still to do. New callables (`getFriendshipState`, `mutateFriendship`) and rules need `firebase deploy` before publish.
+- **Next:** 1) Deploy functions + rules to `vybe-daaab`; 2) push `origin/main` + Lovable Publish; 3) device spot-check long-press drawer + `/u/` profile states.
+
+---
+
 ## Match concept Chat mock exactly (2026-07-13)
 
 - **User ask:** Make inbox look like the concept mock in every way (keep density).

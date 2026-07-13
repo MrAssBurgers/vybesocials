@@ -1,5 +1,11 @@
 import { useState, useEffect } from 'react';
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
+import {
+  Drawer,
+  DrawerContent,
+  DrawerDescription,
+  DrawerHeader,
+  DrawerTitle,
+} from '@/components/ui/drawer';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
@@ -80,16 +86,18 @@ export function ConversationNotificationSheet({ open, onOpenChange, conversation
   if (!conversationId) return null;
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="bottom" className="bg-card border-t border-border rounded-t-2xl max-h-[85vh] overflow-y-auto">
-        <SheetHeader className="text-left">
-          <SheetTitle className="flex items-center gap-2">
+    <Drawer open={open} onOpenChange={onOpenChange} shouldScaleBackground={false}>
+      <DrawerContent className="max-h-[88dvh] bg-background/95 backdrop-blur-2xl">
+        <div className="mx-auto mt-2 h-1.5 w-11 rounded-full bg-muted-foreground/30" />
+        <DrawerHeader className="text-left">
+          <DrawerTitle className="flex items-center gap-2">
             {muted ? <BellOff className="h-5 w-5" /> : <Bell className="h-5 w-5" />}
             Notifications
-          </SheetTitle>
-        </SheetHeader>
+          </DrawerTitle>
+          <DrawerDescription>Alerts for this conversation only.</DrawerDescription>
+        </DrawerHeader>
 
-        <div className="space-y-6 mt-4">
+        <div className="space-y-6 overflow-y-auto px-4 pb-8">
           <section>
             <div className="flex items-center justify-between mb-3">
               <Label className="text-base">Mute conversation</Label>
@@ -185,7 +193,7 @@ export function ConversationNotificationSheet({ open, onOpenChange, conversation
             after your next sync.
           </p>
         </div>
-      </SheetContent>
-    </Sheet>
+      </DrawerContent>
+    </Drawer>
   );
 }

@@ -12,7 +12,6 @@ import {
   Zap,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import type { LoadedDMConversation } from '@/lib/loadDMConversations';
 import {
@@ -25,11 +24,9 @@ import { openFriendProfile } from '@/lib/friendProfileRoutes';
 import type { ActivityType } from '@/components/chat/LiveActivityIndicator';
 import { Avatar, AvatarFallback, ProfileAvatarImage } from '@/components/ui/avatar';
 import {
-  openCameraFromGesture,
+  openSnapCamera,
   useCameraOverlayOptional,
 } from '@/contexts/CameraOverlayContext';
-import { insertDmMessage } from '@/lib/dmSendCore';
-import { invalidateConversationCaches } from '@/lib/invalidateConversationCaches';
 import { cn } from '@/lib/utils';
 import {
   Sheet,
@@ -71,7 +68,6 @@ export const DMConversationRow = memo(function DMConversationRow({
   isSwiping = false,
 }: DMConversationRowProps) {
   const navigate = useNavigate();
-  const queryClient = useQueryClient();
   const cameraOverlay = useCameraOverlayOptional();
   const [captureSheetOpen, setCaptureSheetOpen] = useState(false);
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -136,7 +132,7 @@ export const DMConversationRow = memo(function DMConversationRow({
     if (username) openFriendProfile(navigate, { username, friendshipStatus: 'friends' });
   };
 
-  const openSnapCamera = useCallback(
+  const launchSnapCamera = useCallback(
     (mode: 'photo' | 'video' | 'default' = 'default') => {
       if (!profileId) {
         toast.error('Sign in to send a snap');
@@ -146,51 +142,20 @@ export const DMConversationRow = memo(function DMConversationRow({
         navigate(`/messages/${conversation.id}?camera=1`);
         return;
       }
-      openCameraFromGesture(cameraOverlay.openCamera, 'dm', {
+      const other = conversation.members?.find(
+        (m) => m.user_id !== profileId && m.profile?.id,
+      )?.profile;
+      openSnapCamera(cameraOverlay.openCamera, {
+        source: conversation.is_group ? 'group' : 'conversation',
+        conversationId: conversation.is_group ? undefined : conversation.id,
+        groupId: conversation.is_group ? conversation.id : undefined,
+        recipientIds: !conversation.is_group && other?.id ? [other.id] : undefined,
+        returnRoute: window.location.pathname,
+      }, {
         defaultMode: mode === 'video' ? 'video' : mode === 'photo' ? 'photo' : undefined,
-        onSend: async (mediaUrl, isVideo) => {
-          const result = await insertDmMessage(
-            {
-              conversation_id: conversation.id,
-              sender_id: profileId,
-              content: null,
-              media_url: mediaUrl,
-              media_type: 'vybe',
-              message_type: 'vybe',
-              view_mode: 'view_once',
-              expires_at: null,
-              reply_to_id: null,
-              client_message_id: `snap_${conversation.id}_${Date.now()}`,
-            },
-            {
-              otherProfileId,
-              push: {
-                senderName: 'VYBE',
-                preview: isVideo ? '🎬 New Snap' : '📸 New Snap',
-                isGroup: conversation.is_group,
-                groupName: conversation.name || undefined,
-              },
-            },
-          );
-          if (result.error) {
-            toast.error(result.error.message);
-            return;
-          }
-          invalidateConversationCaches(queryClient);
-          toast.success('Snap sent');
-        },
       });
     },
-    [
-      conversation.id,
-      conversation.is_group,
-      conversation.name,
-      cameraOverlay,
-      navigate,
-      otherProfileId,
-      profileId,
-      queryClient,
-    ],
+    [conversation.id, conversation.is_group, conversation.members, cameraOverlay, navigate, profileId],
   );
 
   return (
@@ -311,7 +276,7 @@ export const DMConversationRow = memo(function DMConversationRow({
           onClick={(event) => {
             stopRowGesture(event);
             if (captureSheetOpen) return;
-            openSnapCamera('default');
+            launchSnapCamera('default');
           }}
           aria-label={`Send a VYBE to ${displayName}`}
         >
@@ -330,7 +295,7 @@ export const DMConversationRow = memo(function DMConversationRow({
               className="dm-inbox-compose-action"
               onClick={() => {
                 setCaptureSheetOpen(false);
-                openSnapCamera('photo');
+                launchSnapCamera('photo');
               }}
             >
               <ImageIcon className="h-5 w-5" />
@@ -341,7 +306,7 @@ export const DMConversationRow = memo(function DMConversationRow({
               className="dm-inbox-compose-action"
               onClick={() => {
                 setCaptureSheetOpen(false);
-                openSnapCamera('video');
+                launchSnapCamera('video');
               }}
             >
               <Video className="h-5 w-5" />

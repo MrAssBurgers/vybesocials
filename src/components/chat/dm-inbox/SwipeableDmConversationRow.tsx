@@ -21,6 +21,8 @@ import { DmConversationCard } from './DmConversationCard';
 import { shouldUseListMotion } from '@/lib/performanceConfig';
 import type { ActivityType } from '@/components/chat/LiveActivityIndicator';
 import type { DMConversationPreview } from '@/features/dms/dm.types';
+import { triggerHaptic } from '@/lib/haptics';
+import { classifyConversationGestureMove } from '@/lib/dmLongPressGesture';
 
 const SWIPE_ACTIVATE_PX = 12;
 const HOLD_MS = 480;
@@ -160,21 +162,21 @@ export const SwipeableDmConversationRow = memo(function SwipeableDmConversationR
   const resolveSwipeRelease = useCallback(
     (target: number) => {
       if (target >= READ_TOGGLE_PX) {
-        if (navigator.vibrate) navigator.vibrate(10);
+        triggerHaptic('light');
         inboxActions.toggleRead(isUnread);
         openXRef.current = 0;
         snapTo(0);
         return;
       }
       if (target <= DELETE_ZONE_PX) {
-        if (navigator.vibrate) navigator.vibrate([15, 30, 15]);
+        triggerHaptic('warning');
         openXRef.current = 0;
         snapTo(0);
         setShowDeleteConfirm(true);
         return;
       }
       if (target <= ACTIONS_SNAP_PX) {
-        if (navigator.vibrate) navigator.vibrate(8);
+        triggerHaptic('light');
         openXRef.current = ACTIONS_OPEN_PX;
         snapTo(ACTIONS_OPEN_PX);
         return;
@@ -199,12 +201,18 @@ export const SwipeableDmConversationRow = memo(function SwipeableDmConversationR
       if (state === 'holding' || state === 'scrolling') return;
 
       if (state === 'pending') {
-        if (absDy > HOLD_CANCEL_PX && absDy > absDx) {
+        const intent = classifyConversationGestureMove(
+          dx,
+          dy,
+          HOLD_CANCEL_PX,
+          SWIPE_ACTIVATE_PX,
+        );
+        if (intent === 'scrolling') {
           clearTimer();
           stateRef.current = 'scrolling';
           return;
         }
-        if (absDx > SWIPE_ACTIVATE_PX && absDx > absDy) {
+        if (intent === 'swiping') {
           clearTimer();
           stateRef.current = 'swiping';
           gestureConsumedRef.current = true;
@@ -279,7 +287,7 @@ export const SwipeableDmConversationRow = memo(function SwipeableDmConversationR
         if (stateRef.current !== 'pending') return;
         stateRef.current = 'holding';
         gestureConsumedRef.current = true;
-        if (navigator.vibrate) navigator.vibrate(12);
+        triggerHaptic('medium');
         setOptionsOpen(true);
       }, HOLD_MS);
     },
@@ -298,7 +306,7 @@ export const SwipeableDmConversationRow = memo(function SwipeableDmConversationR
   }, [onWarm]);
 
   const runTrayAction = useCallback((mutate: () => void) => {
-    if (navigator.vibrate) navigator.vibrate(8);
+    triggerHaptic('light');
     mutate();
     closeTray();
   }, [closeTray]);
@@ -314,7 +322,18 @@ export const SwipeableDmConversationRow = memo(function SwipeableDmConversationR
       otherAvatarUrl={typeof otherMember?.avatar_url === 'string' ? otherMember.avatar_url : undefined}
       isMuted={inboxActions.isMuted}
       isPinned={inboxActions.isPinned}
+      isUnread={isUnread}
+      isGroup={conversation.is_group}
+      isOnline={preview?.isOnline}
+      relationshipLabel={
+        preview?.relationshipBadge === 'close_friend'
+          ? 'Best Friends'
+          : preview?.relationshipBadge === 'new_friend'
+            ? 'New Friends'
+            : 'Friends'
+      }
       onMarkUnread={() => inboxActions.markUnread.mutate()}
+      onMarkRead={() => inboxActions.markRead.mutate()}
       onArchive={() => inboxActions.archive.mutate()}
       onTogglePin={() => inboxActions.togglePin.mutate(!inboxActions.isPinned)}
       onToggleMute={() => inboxActions.toggleMute.mutate(!inboxActions.isMuted)}
@@ -380,6 +399,12 @@ export const SwipeableDmConversationRow = memo(function SwipeableDmConversationR
             className="dm-inbox-row-tap w-full text-left"
             onClick={onClick}
             onKeyDown={(event) => {
+              if (event.key === 'ContextMenu' || (event.shiftKey && event.key === 'F10')) {
+                event.preventDefault();
+                triggerHaptic('light');
+                setOptionsOpen(true);
+                return;
+              }
               if (event.key === 'Enter' || event.key === ' ') {
                 event.preventDefault();
                 onClick();
@@ -465,6 +490,12 @@ export const SwipeableDmConversationRow = memo(function SwipeableDmConversationR
           onClickCapture={handleClickCapture}
           onPointerEnter={handlePointerEnter}
           onKeyDown={(event) => {
+            if (event.key === 'ContextMenu' || (event.shiftKey && event.key === 'F10')) {
+              event.preventDefault();
+              triggerHaptic('light');
+              setOptionsOpen(true);
+              return;
+            }
             if (event.key === 'Enter' || event.key === ' ') {
               event.preventDefault();
               onClick();

@@ -26,6 +26,8 @@ import type { CameraMode, CaptureTarget } from '@/lib/camera/cameraConfig';
 import { maxRecordingSec, modesForTarget } from '@/lib/camera/cameraConfig';
 import { useCameraGestures } from '@/hooks/useCameraGestures';
 import { Button } from '@/components/ui/button';
+import type { CameraLaunchContext } from '@/lib/camera/cameraLaunchContext';
+import { SnapCaptureFlow } from './SnapCaptureFlow';
 
 const MusicGallery = lazy(() =>
   import('@/components/music/MusicGallery').then((m) => ({ default: m.MusicGallery })),
@@ -44,6 +46,12 @@ interface CameraProps {
   streamPromise?: Promise<MediaStream | null>;
   captureTarget?: CaptureTarget;
   defaultMode?: CameraMode;
+  /**
+   * Snapchat-style capture → edit → send flow. When present, every capture
+   * opens the SnapEditor (with recipient chip / Send To / background send)
+   * instead of the legacy onSend/onCapture short-circuits.
+   */
+  launchContext?: CameraLaunchContext;
 }
 
 type CameraState = 'capture' | 'edit' | 'share' | 'story-post';
@@ -67,6 +75,7 @@ export function Camera({
   defaultMode = 'photo',
   onSend,
   directSend = false,
+  launchContext,
 }: CameraProps) {
   const navigate = useNavigate();
   const [state, setState] = useState<CameraState>('capture');
@@ -90,6 +99,7 @@ export function Camera({
   const [selectedSound, setSelectedSound] = useState<Sound | null>(null);
   const [isBaking, setIsBaking] = useState(false);
   const [showGallery, setShowGallery] = useState(false);
+  const [shutterFlash, setShutterFlash] = useState(false);
 
   const modeTabs = modesForTarget(captureTarget);
   const maxRecSec = maxRecordingSec(captureMode, captureTarget);
@@ -208,6 +218,13 @@ export function Camera({
 
   const finalizeCapture = useCallback(
     (media: { url: string; type: 'photo' | 'video'; file: File }) => {
+      // Snap flow: capture always opens the editor immediately — no direct
+      // send, no confirmation screen.
+      if (launchContext) {
+        setCapturedMedia(media);
+        setState('edit');
+        return;
+      }
       if (onCapture) {
         onCapture(media);
         return;
@@ -220,7 +237,7 @@ export function Camera({
       setCapturedMedia(media);
       setState('edit');
     },
-    [captureTarget, directSend, onCapture, onClose, onSend],
+    [captureTarget, directSend, launchContext, onCapture, onClose, onSend],
   );
 
   const handleFilterChange = (filterId: string) => {
@@ -232,6 +249,10 @@ export function Camera({
   const takePhoto = () => {
     if (!videoRef.current) return;
     triggerHaptic('medium');
+    if (!window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches) {
+      setShutterFlash(true);
+      window.setTimeout(() => setShutterFlash(false), 180);
+    }
     const canvas = document.createElement('canvas');
     const filterCSS = getFilterCSS(currentFilter) || undefined;
     const brightnessStr = brightness !== 100 ? ` brightness(${brightness / 100})` : '';
@@ -381,6 +402,38 @@ export function Camera({
 
   const combinedFilter = `${getFilterCSS(currentFilter) || 'none'} brightness(${brightness / 100})`;
 
+  if (state === 'edit' && capturedMedia && launchContext) {
+    return (
+      <FullscreenPortal>
+        <SnapCaptureFlow
+          media={{
+            url: capturedMedia.url,
+            type: capturedMedia.type,
+            file: capturedMedia.file as File,
+          }}
+          filter={currentFilter}
+          durationSec={capturedMedia.type === 'video' ? recordingDuration || null : null}
+          launchContext={launchContext}
+          onRetake={() => {
+            if (capturedMedia?.url.startsWith('blob:')) {
+              URL.revokeObjectURL(capturedMedia.url);
+            }
+            setCapturedMedia(null);
+            setState('capture');
+            setTimeout(() => startCamera(), 100);
+          }}
+          onClose={onClose}
+          onGlobalSendComplete={() => {
+            if (capturedMedia?.url.startsWith('blob:')) {
+              URL.revokeObjectURL(capturedMedia.url);
+            }
+            setCapturedMedia(null);
+            setState('capture');
+          }}
+        />
+      </FullscreenPortal>
+    );
+  }
   if (state === 'edit' && capturedMedia) {
     return (
       <FullscreenPortal>
@@ -559,6 +612,19 @@ export function Camera({
         </AnimatePresence>
 
         <CameraZoomIndicator zoom={displayZoom} visible={showZoom} />
+
+        {/* Shutter flash */}
+        <AnimatePresence>
+          {shutterFlash && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 0.85 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.09 }}
+              className="pointer-events-none absolute inset-0 z-40 bg-white"
+            />
+          )}
+        </AnimatePresence>
       </div>
 
       {/* Timer Countdown Overlay */}

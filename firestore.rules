@@ -79,14 +79,6 @@ service cloud.firestore {
           conversationData(cid).get('created_by', '') == uid()
         );
     }
-    function isFriendRequestSender() {
-      return signedIn() && (
-        willOwnProfile('sender_id') ||
-        request.resource.data.sender_id == uid() ||
-        request.resource.data.sender_id == profileId() ||
-        ownsProfileId(request.resource.data.sender_id)
-      );
-    }
     // Rows may store Firebase Auth uid or profiles.id in user_id / owner fields.
     function ownsUserField(field) {
       return isOwner(field) || isOwnerProfile(field);
@@ -127,6 +119,38 @@ service cloud.firestore {
         ownsProfileId(resource.data.get('receiver_id', '')) ||
         ownsProfileId(resource.data.get('recipient_id', ''))
       );
+    }
+    // Canonical friend_requests schema:
+    // deterministic id `${sender_id}_${receiver_id}`; immutable parties/timestamps;
+    // status is pending | accepted | declined | cancelled.
+    function isValidFriendRequest(data, docId) {
+      return data.keys().hasAll([
+          'id', 'sender_id', 'receiver_id', 'status', 'created_at', 'updated_at'
+        ]) &&
+        data.keys().hasOnly([
+          'id', 'sender_id', 'receiver_id', 'status', 'created_at', 'updated_at'
+        ]) &&
+        data.id is string && data.id == docId &&
+        data.sender_id is string && data.sender_id.size() > 0 && data.sender_id.size() <= 160 &&
+        data.receiver_id is string && data.receiver_id.size() > 0 && data.receiver_id.size() <= 160 &&
+        data.sender_id != data.receiver_id &&
+        docId == data.sender_id + '_' + data.receiver_id &&
+        data.status in ['pending', 'accepted', 'declined', 'cancelled'] &&
+        data.created_at is string && data.created_at.size() >= 20 && data.created_at.size() <= 40 &&
+        data.updated_at is string && data.updated_at.size() >= 20 && data.updated_at.size() <= 40;
+    }
+    function isValidFriendRequestTransition() {
+      return request.resource.data.id == resource.data.id &&
+        request.resource.data.sender_id == resource.data.sender_id &&
+        request.resource.data.receiver_id == resource.data.receiver_id &&
+        request.resource.data.created_at == resource.data.created_at &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'updated_at']) &&
+        (
+          (resource.data.status == 'pending' &&
+            request.resource.data.status in ['accepted', 'declined', 'cancelled']) ||
+          (resource.data.status in ['declined', 'cancelled'] &&
+            request.resource.data.status == 'pending')
+        );
     }
     // get() on a missing doc leaves resource null — guard before reading resource.data.
     function canReadMissingDoc(path) {
@@ -502,10 +526,15 @@ service cloud.firestore {
       allow delete: if isOwnerProfile('blocker_id');
     }
     match /friend_requests/{docId} {
-      allow read: if canReadMissingDoc(/databases/$(database)/documents/friend_requests/$(docId)) ||
-        isFriendRequestParty();
-      allow create: if isFriendRequestSender();
-      allow update, delete: if isFriendRequestParty();
+      allow read: if isFriendRequestParty();
+      // Writes are callable-only because blocked_users has legacy random IDs,
+      // which prevents a complete two-way block check in Security Rules.
+      // Admin client writes remain schema/transition constrained for diagnostics.
+      allow create: if isAdmin() && isValidFriendRequest(request.resource.data, docId);
+      allow update: if isAdmin() &&
+        isValidFriendRequest(request.resource.data, docId) &&
+        isValidFriendRequestTransition();
+      allow delete: if false;
     }
     match /message_requests/{docId} {
       allow read: if canReadMissingDoc(/databases/$(database)/documents/message_requests/$(docId)) ||

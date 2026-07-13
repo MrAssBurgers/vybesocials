@@ -15,18 +15,11 @@ export function publicProfilePath(username: string): string {
   return `/u/${encodeURIComponent(username)}`;
 }
 
-/** Friends and pending requests open the private friend profile route. */
+/** Every relationship state uses the canonical username route. */
 export function profilePathForFriendship(
   username: string,
-  status: FriendshipRouteStatus,
+  _status: FriendshipRouteStatus,
 ): string {
-  if (
-    status === 'friends' ||
-    status === 'pending_sent' ||
-    status === 'pending_received'
-  ) {
-    return friendProfilePath(username);
-  }
   return publicProfilePath(username);
 }
 
@@ -37,6 +30,6 @@ export function openFriendProfile(
     friendshipStatus?: FriendshipRouteStatus;
   },
 ): void {
-  const status = opts.friendshipStatus ?? 'friends';
+  const status = opts.friendshipStatus ?? 'none';
   navigate(profilePathForFriendship(opts.username, status));
 }

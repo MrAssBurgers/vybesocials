@@ -10,7 +10,7 @@ import { playSound } from "@/lib/sounds";
 import { useIsMobileOrTablet } from "@/hooks/use-mobile";
 import { useUserRole } from "@/hooks/useModeration";
 import { useAuth } from "@/lib/auth";
-import { openCameraFromGesture, useCameraOverlay } from "@/contexts/CameraOverlayContext";
+import { openSnapCamera, useCameraOverlay } from "@/contexts/CameraOverlayContext";
 
 interface CreateMenuLayerProps {
   open: boolean;
@@ -79,7 +79,8 @@ export function CreateMenuLayer({ open, onOpenChange }: CreateMenuLayerProps) {
           navigate("/?mode=login");
           return;
         }
-        void openCameraFromGesture(openCamera, "hub");
+        // Snap flow: global entry — capture → edit → Send To picker.
+        void openSnapCamera(openCamera, { source: "global" });
         close();
         return;
       case "hub":

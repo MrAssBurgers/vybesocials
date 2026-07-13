@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Camera, Search, Check, Users } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -14,9 +14,17 @@ interface CreateGroupDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSuccess?: (conversationId: string) => void;
+  initialMemberIds?: string[];
 }
 
-export function CreateGroupDialog({ open, onOpenChange, onSuccess }: CreateGroupDialogProps) {
+const EMPTY_MEMBER_IDS: string[] = [];
+
+export function CreateGroupDialog({
+  open,
+  onOpenChange,
+  onSuccess,
+  initialMemberIds = EMPTY_MEMBER_IDS,
+}: CreateGroupDialogProps) {
   const [step, setStep] = useState<'name' | 'members'>('name');
   const [groupName, setGroupName] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
@@ -25,6 +33,11 @@ export function CreateGroupDialog({ open, onOpenChange, onSuccess }: CreateGroup
   const { profile } = useAuth();
   const { data: friends = [] } = useFriends();
   const createGroup = useCreateGroup();
+
+  useEffect(() => {
+    if (!open) return;
+    setSelectedMembers(initialMemberIds.filter(Boolean));
+  }, [open, initialMemberIds]);
 
   const filteredFriends = useMemo(() => {
     if (!searchQuery.trim()) return friends;
@@ -70,7 +83,7 @@ export function CreateGroupDialog({ open, onOpenChange, onSuccess }: CreateGroup
       setStep('name');
       setGroupName('');
       setSearchQuery('');
-      setSelectedMembers([]);
+      setSelectedMembers(initialMemberIds.filter(Boolean));
     } catch (error) {
       console.error('Failed to create group:', error);
     }
@@ -83,7 +96,7 @@ export function CreateGroupDialog({ open, onOpenChange, onSuccess }: CreateGroup
       setStep('name');
       setGroupName('');
       setSearchQuery('');
-      setSelectedMembers([]);
+      setSelectedMembers(initialMemberIds.filter(Boolean));
     }, 300);
   };
 

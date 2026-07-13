@@ -36,17 +36,9 @@ import {
 } from '@/lib/dmMemberResolve';
 import { useQueryClient } from '@tanstack/react-query';
 import { db } from '@/lib/firebase';
-import { scanVideo as nsfwScanVideo, scanImage as nsfwScanImage } from '@/lib/nsfwScanner';
 import { repairConversationForSend } from '@/lib/dmMembershipRepair';
-import { compressVybeDataUrl } from '@/lib/vybeImageCompress';
 import { getVybeRecipientState } from '@/lib/vybeViewState';
-import {
-  bumpConversationUpdatedAt,
-  expiresAtForViewMode,
-  insertDmMessage,
-} from '@/lib/dmSendCore';
-import { messageRowKey, replaceOptimisticMessage } from '@/lib/messagesQueryKey';
-import { sendDmBroadcastMessage } from '@/lib/dmBroadcast';
+import { messageRowKey } from '@/lib/messagesQueryKey';
 import { retryFailedItem } from '@/lib/dmOutbox';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
@@ -122,7 +114,7 @@ import {
 import { format } from 'date-fns';
 import { Toybox } from './Toybox';
 import { EmojiPicker } from './EmojiPicker';
-import { openCameraFromGesture, useCameraOverlay } from '@/contexts/CameraOverlayContext';
+import { openSnapCamera, useCameraOverlay } from '@/contexts/CameraOverlayContext';
 import { shouldTrackSoftKeyboard } from '@/lib/keyboardInsets';
 import { Texter } from '@/components/chat/Texter';
 import { stopCameraStream } from '@/hooks/useCameraPreload';
@@ -1045,281 +1037,27 @@ export function ChatView() {
     setShowImageSafetyGate(true);
   }, [conversationId, profileId]);
 
-  // Handle vybe camera send - uploads base64 image or blob video and sends as vybe
-  // Uses optimistic UI - message appears immediately as "sending" then updates to "sent"
-  // Phase-based error handling for better debugging
-  const handleVybeSend = useCallback(async (mediaDataUrl: string, isVideo: boolean = false) => {
-    if (!conversationId || !profileId) return;
-    
-    // Guard: ensure profile.user_id (auth ID) exists for storage RLS
-    if (!profile.user_id) {
-      toast.error('Account not ready yet, please refresh and try again');
-      return;
-    }
-
-    // Validate mediaDataUrl is valid
-    if (!mediaDataUrl || mediaDataUrl === 'undefined' || mediaDataUrl.length < 10) {
-      toast.error('Invalid media data - please try again');
-      console.error('[VYBE] Invalid mediaDataUrl:', mediaDataUrl?.substring(0, 50));
-      return;
-    }
-
-    // Generate temp ID for optimistic UI
-    const tempId = `vybe-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
-    let phase = 'init';
-    
-    // Show optimistic message IMMEDIATELY - don't wait for safety scan
-    queryClient.setQueryData<Message[]>(['messages', conversationId], (old) => {
-      const optimisticMessage: Message = {
-        id: tempId,
-        conversation_id: conversationId,
-        sender_id: profileId,
-        content: null,
-        media_url: mediaDataUrl, // Show preview immediately
-        media_type: 'vybe',
-        message_type: 'text',
-        view_mode: viewMode,
-        expires_at: null,
-        is_deleted: false,
-        reply_to_id: replyingTo?.id || null,
-        created_at: new Date().toISOString(),
-        sender: {
-          id: profileId,
-          username: profile.username || '',
-          avatar_url: profile.avatar_url || null,
-          display_name: (profile as any).display_name || profile.username || null,
-        },
-        views: [],
-        reactions: [],
-        _sending: true, // Mark as sending
-        _clientKey: tempId,
-      } as any;
-      
-      if (!old) return [optimisticMessage];
-      return [...old, optimisticMessage];
-    });
-
-    // Close camera overlay and show toast immediately
-    try { stopCameraStream(); } catch {}
-    toast.success(isVideo ? 'Sending video VYBE... 🎬' : 'Sending VYBE... ✨', { id: `vybe-${tempId}` });
-
-    // Helper to mark message as failed with specific error
-    const markFailed = (error: string, phaseInfo: string) => {
-      console.error(`[VYBE] Failed at ${phaseInfo}:`, error);
-      queryClient.setQueryData<Message[]>(['messages', conversationId], (old) => {
-        if (!old) return old;
-        return old.map(m => m.id === tempId ? { ...m, _failed: true, _error: error } as any : m);
-      });
-      toast.error(`Failed: ${error}`, { id: `vybe-${tempId}`, duration: 5000 });
-    };
-
-    void repairConversationForSend(conversationId, profileId, otherMember?.id ?? null).catch(() => {});
-
-    const senderPushName =
-      (profile as { display_name?: string }).display_name || profile.username || 'Someone';
-
-    try {
-      let mediaUrl: string;
-      let uploadFile: File;
-      
-      if (isVideo) {
-        // PHASE 1: Fetch blob from URL
-        phase = 'blob-fetch';
-        let videoBlob: Blob;
-        try {
-          const response = await fetch(mediaDataUrl);
-          if (!response.ok) {
-            throw new Error(`Fetch failed: ${response.status}`);
-          }
-          videoBlob = await response.blob();
-          if (!videoBlob || videoBlob.size === 0) {
-            throw new Error('Empty video blob');
-          }
-        } catch (fetchErr: any) {
-          markFailed('Could not load video', phase);
-          URL.revokeObjectURL(mediaDataUrl);
-          return;
-        }
-        
-        uploadFile = new File([videoBlob], `vybe_${Date.now()}.webm`, { type: videoBlob.type || 'video/webm' });
-        
-        const scanPromise = nsfwScanVideo(uploadFile).catch(() => ({ result: 'allowed' as const }));
-        void scanPromise.then((scanResult) => {
-          if (scanResult?.result === 'blocked') {
-            queryClient.setQueryData<Message[]>(['messages', conversationId], (old) =>
-              old?.filter(m => m.id !== tempId) || []
-            );
-            toast.error(scanResult.message || 'Video blocked by safety filter.', { id: `vybe-${tempId}` });
-          }
-        });
-
-        // PHASE 3: Upload to storage (don't wait on safety scan)
-        phase = 'storage-upload';
-        const fileName = `${profile.user_id}/${Date.now()}_vybe.webm`;
-        const { error: uploadError } = await db.storage
-          .from('chat-media')
-          .upload(fileName, uploadFile, {
-            contentType: uploadFile.type,
-            cacheControl: '31536000',
-          });
-
-        if (uploadError) {
-          markFailed(`Upload failed: ${uploadError.message}`, phase);
-          URL.revokeObjectURL(mediaDataUrl);
-          return;
-        }
-
-        const { data: { publicUrl } } = db.storage
-          .from('chat-media')
-          .getPublicUrl(fileName);
-
-        mediaUrl = publicUrl;
-        
-        // Validate URL
-        if (!mediaUrl || mediaUrl.includes('undefined')) {
-          markFailed('Failed to get media URL', phase);
-          URL.revokeObjectURL(mediaDataUrl);
-          return;
-        }
-        
-        URL.revokeObjectURL(mediaDataUrl);
-      } else {
-        // Image vybe — compress then upload (faster send + faster recipient load)
-        phase = 'image-parse';
-        if (!mediaDataUrl || mediaDataUrl.length < 10) {
-          markFailed('Invalid image data', phase);
-          return;
-        }
-
-        let blob: Blob;
-        try {
-          blob = await compressVybeDataUrl(mediaDataUrl);
-        } catch {
-          const base64Data = mediaDataUrl.split(',')[1];
-          if (!base64Data || base64Data.length < 10) {
-            markFailed('Invalid image data', phase);
-            return;
-          }
-          const byteCharacters = atob(base64Data);
-          const byteNumbers = new Array(byteCharacters.length);
-          for (let i = 0; i < byteCharacters.length; i++) {
-            byteNumbers[i] = byteCharacters.charCodeAt(i);
-          }
-          blob = new Blob([new Uint8Array(byteNumbers)], { type: 'image/jpeg' });
-        }
-
-        const imageFile = new File([blob], 'vybe.jpg', { type: 'image/jpeg' });
-        void nsfwScanImage(imageFile)
-          .then((scanResult) => {
-            if (scanResult?.result === 'blocked') {
-              queryClient.setQueryData<Message[]>(['messages', conversationId], (old) =>
-                old?.filter(m => m.id !== tempId) || []
-              );
-              toast.error(scanResult.message || 'Image blocked by safety filter.', { id: `vybe-${tempId}` });
-            }
-          })
-          .catch(() => {});
-
-        phase = 'storage-upload';
-        
-        const fileName = `${profile.user_id}/${Date.now()}_vybe.jpg`;
-        const { error: uploadError } = await db.storage
-          .from('chat-media')
-          .upload(fileName, blob, {
-            contentType: 'image/jpeg',
-            cacheControl: '31536000',
-          });
-
-        if (uploadError) {
-          markFailed(`Upload failed: ${uploadError.message}`, phase);
-          return;
-        }
-
-        const { data: { publicUrl } } = db.storage
-          .from('chat-media')
-          .getPublicUrl(fileName);
-
-        mediaUrl = publicUrl;
-        
-        if (!mediaUrl || mediaUrl.includes('undefined')) {
-          markFailed('Failed to get media URL', phase);
-          return;
-        }
-      }
-
-      phase = 'db-insert';
-
-      const expiresAt = expiresAtForViewMode('view_once');
-
-      const { data: realMessage, error: sendError } = await insertDmMessage(
-        {
-          conversation_id: conversationId,
-          sender_id: profileId,
-          content: null,
-          media_url: mediaUrl,
-          media_type: 'vybe',
-          message_type: 'vybe',
-          view_mode: 'view_once',
-          expires_at: expiresAt,
-          reply_to_id: replyingTo?.id ?? null,
-          client_message_id: `vybe_${conversationId}_${Date.now()}`,
-        },
-        {
-          otherProfileId: otherMember?.id ?? null,
-          push: {
-            senderName: senderPushName,
-            preview: isVideo ? '🎬 New Snap' : '📸 New Snap',
-          },
-        },
-      );
-
-      if (sendError || !realMessage) {
-        console.error('[VYBE] DB insert error:', sendError);
-        markFailed(`Send failed: ${sendError?.message || 'Unknown error'}`, phase);
-        return;
-      }
-
-      console.log('[VYBE] Message inserted successfully:', realMessage.id);
-
-      replaceOptimisticMessage(queryClient, conversationId, tempId, {
-        ...realMessage,
-        view_mode: 'view_once',
-      });
-
-      void sendDmBroadcastMessage(conversationId, {
-        ...realMessage,
-        view_mode: viewMode,
-      });
-
-      void bumpConversationUpdatedAt(conversationId);
-
-      setReplyingTo(null);
-      toast.success(isVideo ? 'Video VYBE sent! 🎬✨' : 'VYBE sent! ✨', { id: `vybe-${tempId}` });
-      
-    } catch (error: any) {
-      console.error(`[VYBE] Unexpected error at phase ${phase}:`, error);
-      
-      // Mark message as failed in UI
-      queryClient.setQueryData<Message[]>(['messages', conversationId], (old) => {
-        if (!old) return old;
-        return old.map(m => m.id === tempId ? { ...m, _failed: true, _error: error?.message } as any : m);
-      });
-      
-      toast.error(`Failed to send VYBE: ${error?.message || 'Unknown error'}`, { id: `vybe-${tempId}`, duration: 5000 });
-    }
-  }, [conversationId, profile, profileId, viewMode, replyingTo?.id, queryClient, otherMember?.id]);
 
   const handleOpenSnapCamera = useCallback(() => {
     if (callStore.state.phase !== 'idle') {
       toast.error('End your call to use the camera');
       return;
     }
-    openCameraFromGesture(openCamera, 'dm', {
-      onSend: (url, isVideo) => {
-        void handleVybeSend(url, isVideo);
-      },
+    // Snap flow: conversation preselected, capture → edit → direct send with
+    // recipient chip; background upload/send returns straight to this chat.
+    if (!conversationId) {
+      openSnapCamera(openCamera, { source: 'global', defaultDestination: 'direct' });
+      return;
+    }
+    openSnapCamera(openCamera, {
+      source: 'conversation',
+      conversationId,
+      recipientIds: otherMember?.id ? [otherMember.id] : undefined,
+      returnRoute: `/messages/${conversationId}`,
+      replyToMessageId: replyingTo?.id,
+      replyConversationId: conversationId,
     });
-  }, [callStore.state.phase, openCamera, handleVybeSend]);
+  }, [callStore.state.phase, openCamera, conversationId, otherMember?.id, replyingTo?.id]);
 
   // Handle video selection - opens the preview modal
   const handleVideoSelect = useCallback((file: File) => {
@@ -2069,9 +1807,9 @@ export function ChatView() {
         recipientName={displayName}
         recipientAvatar={otherMember?.avatar_url || undefined}
         onClose={() => setCameraFirstMode(false)}
-        onSend={(mediaUrl, isVideo) => {
+        onSend={() => {
           setCameraFirstMode(false);
-          handleVybeSend(mediaUrl, isVideo);
+          handleOpenSnapCamera();
         }}
         onOpenChat={() => setCameraFirstMode(false)}
       />

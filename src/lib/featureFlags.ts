@@ -22,6 +22,9 @@ export interface FeatureFlags {
   
   // Analytics
   analytics_enabled: boolean;
+
+  /** Show Custom Story / Group Story destinations in the snap Send To UI. */
+  snap_future_story_destinations: boolean;
 }
 
 // Default flags - these are the production defaults
@@ -33,6 +36,7 @@ const defaultFlags: FeatureFlags = {
   vanish_threads: true,
   memory_pins: true,
   analytics_enabled: true,
+  snap_future_story_destinations: false,
 };
 
 // Local storage key for flag overrides

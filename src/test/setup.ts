@@ -1,4 +1,5 @@
 import { beforeEach, vi } from 'vitest';
+import '@testing-library/jest-dom/vitest';
 
 const storage = new Map<string, string>();
 
