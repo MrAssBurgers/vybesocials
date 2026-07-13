@@ -56,9 +56,9 @@ export function seedConversationDetailCache(
   profileId?: string | null,
   conversationHint?: DMConversation | null,
 ): void {
-  if (!conversationId || !profileId) return;
+  if (!conversationId) return;
 
-  const detailKey = ['conversation-detail', profileId, conversationId] as const;
+  const detailKey = ['conversation-detail', conversationId] as const;
   if (conversationHint) {
     queryClient.setQueryData(detailKey, normalizeDmConversation(conversationHint));
     return;
@@ -78,6 +78,7 @@ export function seedConversationDetailCache(
     return;
   }
 
+  if (!profileId) return;
   const seed = buildConversationPlaceholder(conversationId, profileId) as unknown as DMConversation;
   queryClient.setQueryData(detailKey, normalizeDmConversation(seed));
 }

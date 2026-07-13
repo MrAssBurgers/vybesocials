@@ -1,4 +1,4 @@
-import { startTransition, useCallback } from 'react';
+import { useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { RefreshCw } from 'lucide-react';
 import { useChatPrefetch } from '@/hooks/useChatPrefetch';
@@ -24,7 +24,7 @@ export function DMInboxPage() {
   );
 
   const openChat = useCallback(
-    async (conversationId: string, conversationHint?: LoadedDMConversation | null) => {
+    (conversationId: string, conversationHint?: LoadedDMConversation | null) => {
       if (conversationId === inbox.activeConversationId) return;
       const scrollKey = inbox.categoryBarEnabled
         ? (inbox.activeCategory ?? 'all')
@@ -33,11 +33,9 @@ export function DMInboxPage() {
       if (listEl) {
         writeFilterScroll(scrollKey, listEl.scrollTop);
       }
-      // Navigate immediately — never await profile resolve before route change.
+      // Sync navigate — startTransition delayed ChatView mount by a full frame+.
       warm(conversationId, conversationHint);
-      startTransition(() => {
-        void navigate(`/messages/${conversationId}`);
-      });
+      void navigate(`/messages/${conversationId}`);
       void resolveSessionProfileId(inbox.profileId);
     },
     [

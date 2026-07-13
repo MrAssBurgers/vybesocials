@@ -828,7 +828,8 @@ export function useDMInbox() {
       }
       return [];
     });
-    if (urls.length) void batchSignUrls(urls);
+    // Sign only the first viewport of avatars — rest idle later.
+    if (urls.length) void batchSignUrls(urls.slice(0, 24));
   }, [rows]);
 
   const setActiveTab = (tab: DmInboxTabId) => {

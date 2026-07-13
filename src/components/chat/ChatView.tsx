@@ -1238,7 +1238,14 @@ export function ChatView() {
     }
   }, [settings.chat_wallpaper]);
 
-  if (conversationId && authReady && !profileId && !profile?.id) {
+  if (
+    conversationId &&
+    authReady &&
+    !profileId &&
+    !profile?.id &&
+    !cachedConversation &&
+    threadMessages.length === 0
+  ) {
     return (
       <div className="flex flex-col h-full items-center justify-center gap-2 p-6 text-center">
         <p className="text-sm text-muted-foreground">Signing in…</p>

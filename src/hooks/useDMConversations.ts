@@ -286,14 +286,15 @@ export function useDMConversations(searchQuery: string = '') {
  * then fetches members + profiles if the list cache missed it.
  */
 export function useConversationDetail(conversationId: string | undefined) {
-  const { profile } = useAuth();
+  const { profile, user } = useAuth();
   const profileId = useAuthProfileId();
+  const detailViewerId = profileId || profile?.id || user?.id || 'anon';
   const queryClient = useQueryClient();
 
   const findCachedConversation = useCallback(
     (viewerId?: string | null) => {
       if (!conversationId) return undefined;
-      const keys = [viewerId, profileId, profile?.id].filter(Boolean) as string[];
+      const keys = [viewerId, profileId, profile?.id, user?.id].filter(Boolean) as string[];
       for (const key of keys) {
         const hit =
           findInQueryArray(
@@ -314,16 +315,16 @@ export function useConversationDetail(conversationId: string | undefined) {
       }
       return undefined;
     },
-    [conversationId, profileId, profile?.id, queryClient],
+    [conversationId, profileId, profile?.id, user?.id, queryClient],
   );
 
   const initialConversation = useMemo(
-    () => (conversationId ? findCachedConversation(profileId) : undefined),
-    [conversationId, findCachedConversation, profileId],
+    () => (conversationId ? findCachedConversation(detailViewerId) : undefined),
+    [conversationId, findCachedConversation, detailViewerId],
   );
 
   const detailQuery = useQuery({
-    queryKey: ['conversation-detail', profileId, conversationId],
+    queryKey: ['conversation-detail', conversationId],
     initialData: initialConversation,
     queryFn: async (): Promise<DMConversation> => {
       if (!conversationId) {

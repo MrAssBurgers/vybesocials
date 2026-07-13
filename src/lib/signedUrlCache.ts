@@ -72,8 +72,8 @@ hydrateSignedUrlCacheFromSession();
 
 // Cache for 50 minutes (before 1 hour expiry)
 const CACHE_DURATION = 50 * 60 * 1000;
-// Cache failed URLs for 30 seconds to allow faster recovery from transient failures
-const FAILED_CACHE_DURATION = 30 * 1000;
+// Hard-fail missing avatars for 10 minutes — staging 404s were re-signing every 30s.
+const FAILED_CACHE_DURATION = 10 * 60 * 1000;
 
 // Project IDs for URL validation (current Firebase + legacy Supabase hosts)
 function getCurrentProjectId(): string {
@@ -192,13 +192,24 @@ export async function getSignedUrl(publicUrl: string): Promise<string | null> {
         .createSignedUrl(parsed.path, 3600);
 
       if (error || !data?.signedUrl) {
-        const resolved = await firebaseStorage.resolveMediaUrl(url);
-        if (resolved && resolved.startsWith('http')) {
-          setCacheEntry(url, {
-            signedUrl: resolved,
-            expiresAt: Date.now() + CACHE_DURATION,
-          });
-          return resolved;
+        // Confirmed storage miss / deny — don't chase Firebase resolve on every 404.
+        const isNotFound =
+          typeof error === 'object' &&
+          error &&
+          ('status' in error
+            ? (error as { status?: number }).status === 404
+            : String((error as { message?: string }).message || '')
+                .toLowerCase()
+                .includes('not found'));
+        if (!isNotFound) {
+          const resolved = await firebaseStorage.resolveMediaUrl(url);
+          if (resolved && resolved.startsWith('http')) {
+            setCacheEntry(url, {
+              signedUrl: resolved,
+              expiresAt: Date.now() + CACHE_DURATION,
+            });
+            return resolved;
+          }
         }
         if (url.includes('/storage/v1/object/public/')) {
           setCacheEntry(url, {

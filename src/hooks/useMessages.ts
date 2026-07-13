@@ -333,7 +333,7 @@ export function useMessages(conversationId: string | undefined) {
         throw error;
       }
     },
-    enabled: !!conversationId && !!actorId,
+    enabled: !!conversationId,
     staleTime: 120_000,
     gcTime: 1000 * 60 * 60 * 24 * 14,
     refetchOnWindowFocus: false,

@@ -2,7 +2,7 @@
  * Fallback if the primary inbox tree errors.
  * Reuses the same filtered inbox hook so tabs still work.
  */
-import { startTransition, useCallback } from 'react';
+import { useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { DMHeader } from '@/features/dms/DMHeader';
 import { DMCategoryTabs } from '@/features/dms/DMCategoryTabs';
@@ -16,9 +16,7 @@ export function DmInboxSafeList() {
 
   const openChat = useCallback(
     (conversationId: string) => {
-      startTransition(() => {
-        void navigate(`/messages/${conversationId}`);
-      });
+      void navigate(`/messages/${conversationId}`);
     },
     [navigate],
   );
