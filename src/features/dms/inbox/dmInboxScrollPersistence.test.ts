@@ -17,4 +17,12 @@ describe('dm inbox scroll persistence', () => {
     writeFilterScroll('best-friends', 256);
     expect(readFilterScroll('best-friends')).toBe(256);
   });
+
+  it('throttled write coalesces into sessionStorage', async () => {
+    const { writeFilterScrollThrottled } = await import('@/lib/dmInboxFilterPersistence');
+    writeFilterScrollThrottled('all', 10);
+    writeFilterScrollThrottled('all', 99);
+    await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+    expect(readFilterScroll('all')).toBe(99);
+  });
 });

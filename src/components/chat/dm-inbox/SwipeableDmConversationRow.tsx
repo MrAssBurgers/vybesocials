@@ -1,5 +1,4 @@
 import { memo, useCallback, useRef, useState } from 'react';
-import { motion, useMotionValue, useTransform, animate } from 'framer-motion';
 import { Archive, Mail, MailOpen, Pin, Trash2, VolumeX } from 'lucide-react';
 import {
   AlertDialog,
@@ -23,6 +22,7 @@ import type { ActivityType } from '@/components/chat/LiveActivityIndicator';
 import type { DMConversationPreview } from '@/features/dms/dm.types';
 import { triggerHaptic } from '@/lib/haptics';
 import { markDmRowSeen } from '@/lib/dmInboxRowSeen';
+import { cn } from '@/lib/utils';
 
 /** Right swipe — toggle read/unread. */
 const READ_TOGGLE_PX = 64;
@@ -49,6 +49,25 @@ function clampSwipeTarget(target: number): number {
     return ACTIONS_OPEN_PX + (clamped - ACTIONS_OPEN_PX) * 0.55;
   }
   return clamped;
+}
+
+function readOpacityFor(x: number): number {
+  if (x <= 0) return 0;
+  if (x >= READ_TOGGLE_PX) return 1;
+  if (x < 16) return (x / 16) * 0.5;
+  return 0.5 + ((x - 16) / (READ_TOGGLE_PX - 16)) * 0.5;
+}
+
+function trayOpacityFor(x: number): number {
+  if (x >= -20) return 0;
+  if (x <= ACTIONS_OPEN_PX) return 1;
+  return (-20 - x) / (-ACTIONS_OPEN_PX + 20);
+}
+
+function deleteOpacityFor(x: number): number {
+  if (x >= ACTIONS_OPEN_PX) return 0;
+  if (x <= DELETE_ZONE_PX) return 1;
+  return (ACTIONS_OPEN_PX - x) / (ACTIONS_OPEN_PX - DELETE_ZONE_PX);
 }
 
 interface SwipeableDmConversationRowProps {
@@ -90,14 +109,12 @@ export const SwipeableDmConversationRow = memo(function SwipeableDmConversationR
   const inboxActions = useDmInboxActions(conversation);
   const [isDeleting, setIsDeleting] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [offsetX, setOffsetX] = useState(0);
 
   const baseXRef = useRef(0);
   const openXRef = useRef(0);
-
-  const x = useMotionValue(0);
-  const readOpacity = useTransform(x, [0, 16, READ_TOGGLE_PX], [0, 0.5, 1]);
-  const trayOpacity = useTransform(x, [-20, ACTIONS_OPEN_PX], [0, 1]);
-  const deleteOpacity = useTransform(x, [DELETE_ZONE_PX, ACTIONS_OPEN_PX], [1, 0]);
+  const offsetXRef = useRef(0);
+  const slideElRef = useRef<HTMLDivElement>(null);
 
   const displayName = preview?.displayName
     || displayNameForConversation(conversation, profileId, authUid, 'Chat');
@@ -109,14 +126,25 @@ export const SwipeableDmConversationRow = memo(function SwipeableDmConversationR
   const unreadCountVal = preview?.unreadCount ?? conversation.unread_count ?? 0;
   const isUnread = preview?.isUnread ?? (unreadCountVal > 0 || conversation._hasUnread);
 
+  const setSlideX = useCallback((next: number, animate = false) => {
+    offsetXRef.current = next;
+    const el = slideElRef.current;
+    if (el) {
+      el.style.transition = animate
+        ? listMotionEnabled
+          ? 'transform 180ms cubic-bezier(0.22, 1, 0.36, 1)'
+          : 'transform 120ms linear'
+        : 'none';
+      el.style.transform = next === 0 ? 'none' : `translate3d(${next}px,0,0)`;
+    }
+    setOffsetX(next);
+  }, [listMotionEnabled]);
+
   const snapTo = useCallback(
     (target: number) => {
-      const spring = listMotionEnabled
-        ? { type: 'spring' as const, stiffness: 520, damping: 38, mass: 0.75 }
-        : { duration: 0.12 };
-      animate(x, target, spring);
+      setSlideX(target, true);
     },
-    [listMotionEnabled, x],
+    [setSlideX],
   );
 
   const closeTray = useCallback(() => {
@@ -174,19 +202,20 @@ export const SwipeableDmConversationRow = memo(function SwipeableDmConversationR
     isTrayOpen: () => openXRef.current !== 0,
     onCloseTray: closeTray,
     onSwipeMove: (dx) => {
-      x.set(clampSwipeTarget(baseXRef.current + dx));
+      const next = clampSwipeTarget(baseXRef.current + dx);
+      setSlideX(next, false);
     },
     onSwipeEnd: () => {
-      resolveSwipeRelease(x.get());
+      resolveSwipeRelease(offsetXRef.current);
     },
   });
 
   const handlePointerDownWrapped = useCallback(
     (e: React.PointerEvent<HTMLDivElement>) => {
-      baseXRef.current = x.get();
+      baseXRef.current = offsetXRef.current;
       handlePointerDown(e);
     },
-    [handlePointerDown, x],
+    [handlePointerDown],
   );
 
   const runTrayAction = useCallback((mutate: () => void) => {
@@ -209,10 +238,8 @@ export const SwipeableDmConversationRow = memo(function SwipeableDmConversationR
           <AlertDialogAction
             onClick={() => {
               setIsDeleting(true);
-              const exitSpring = listMotionEnabled
-                ? { duration: 0.32, ease: [0.4, 0, 0.2, 1] as const }
-                : { duration: 0.18 };
-              void animate(x, -420, exitSpring).then(() => handleTrash());
+              setSlideX(-420, true);
+              window.setTimeout(() => handleTrash(), listMotionEnabled ? 280 : 140);
             }}
             className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
           >
@@ -298,72 +325,85 @@ export const SwipeableDmConversationRow = memo(function SwipeableDmConversationR
     );
   }
 
+  const showActions = isSwiping || offsetX !== 0 || openXRef.current !== 0;
+  const readOpacity = readOpacityFor(offsetX);
+  const trayOpacity = trayOpacityFor(offsetX);
+  const deleteOpacity = deleteOpacityFor(offsetX);
+
   return (
     <>
       <div className="dm-inbox-swipe-row relative touch-pan-y" {...rowMountProps}>
-        <motion.div
-          className="absolute inset-0 flex items-center justify-start pointer-events-none pl-5 bg-primary/10"
-          style={{ opacity: readOpacity }}
-          aria-hidden
-        >
-          <div className="flex items-center gap-2 text-primary">
-            {isUnread ? <MailOpen className="h-5 w-5" /> : <Mail className="h-5 w-5" />}
-            <span className="text-sm font-semibold">{isUnread ? 'Mark read' : 'Mark unread'}</span>
-          </div>
-        </motion.div>
+        {showActions && (
+          <>
+            <div
+              className="absolute inset-0 flex items-center justify-start pointer-events-none pl-5 bg-primary/10"
+              style={{ opacity: readOpacity }}
+              aria-hidden
+            >
+              <div className="flex items-center gap-2 text-primary">
+                {isUnread ? <MailOpen className="h-5 w-5" /> : <Mail className="h-5 w-5" />}
+                <span className="text-sm font-semibold">{isUnread ? 'Mark read' : 'Mark unread'}</span>
+              </div>
+            </div>
 
-        <motion.div
-          className="absolute inset-y-0 right-0 flex items-stretch pointer-events-none"
-          style={{ opacity: trayOpacity }}
-        >
-          <button
-            type="button"
-            className="dm-inbox-swipe-action dm-inbox-swipe-action--pin dm-vfx-press pointer-events-auto"
-            onPointerDown={(event) => event.stopPropagation()}
-            onClick={() => runTrayAction(() => inboxActions.togglePin.mutate(!inboxActions.isPinned))}
-            aria-label={inboxActions.isPinned ? 'Unpin conversation' : 'Pin conversation'}
-          >
-            <Pin className="h-5 w-5" />
-            <span>{inboxActions.isPinned ? 'Unpin' : 'Pin'}</span>
-          </button>
-          <button
-            type="button"
-            className="dm-inbox-swipe-action dm-inbox-swipe-action--mute dm-vfx-press pointer-events-auto"
-            onPointerDown={(event) => event.stopPropagation()}
-            onClick={() => runTrayAction(() => inboxActions.toggleMute.mutate(!inboxActions.isMuted))}
-            aria-label={inboxActions.isMuted ? 'Unmute conversation' : 'Mute conversation'}
-          >
-            <VolumeX className="h-5 w-5" />
-            <span>{inboxActions.isMuted ? 'Unmute' : 'Mute'}</span>
-          </button>
-          <button
-            type="button"
-            className="dm-inbox-swipe-action dm-inbox-swipe-action--archive dm-vfx-press pointer-events-auto"
-            onPointerDown={(event) => event.stopPropagation()}
-            onClick={() => runTrayAction(() => inboxActions.archive.mutate())}
-            aria-label="Archive conversation"
-          >
-            <Archive className="h-5 w-5" />
-            <span>Archive</span>
-          </button>
-        </motion.div>
+            <div
+              className="absolute inset-y-0 right-0 flex items-stretch pointer-events-none"
+              style={{ opacity: trayOpacity }}
+            >
+              <button
+                type="button"
+                className="dm-inbox-swipe-action dm-inbox-swipe-action--pin dm-vfx-press pointer-events-auto"
+                onPointerDown={(event) => event.stopPropagation()}
+                onClick={() => runTrayAction(() => inboxActions.togglePin.mutate(!inboxActions.isPinned))}
+                aria-label={inboxActions.isPinned ? 'Unpin conversation' : 'Pin conversation'}
+              >
+                <Pin className="h-5 w-5" />
+                <span>{inboxActions.isPinned ? 'Unpin' : 'Pin'}</span>
+              </button>
+              <button
+                type="button"
+                className="dm-inbox-swipe-action dm-inbox-swipe-action--mute dm-vfx-press pointer-events-auto"
+                onPointerDown={(event) => event.stopPropagation()}
+                onClick={() => runTrayAction(() => inboxActions.toggleMute.mutate(!inboxActions.isMuted))}
+                aria-label={inboxActions.isMuted ? 'Unmute conversation' : 'Mute conversation'}
+              >
+                <VolumeX className="h-5 w-5" />
+                <span>{inboxActions.isMuted ? 'Unmute' : 'Mute'}</span>
+              </button>
+              <button
+                type="button"
+                className="dm-inbox-swipe-action dm-inbox-swipe-action--archive dm-vfx-press pointer-events-auto"
+                onPointerDown={(event) => event.stopPropagation()}
+                onClick={() => runTrayAction(() => inboxActions.archive.mutate())}
+                aria-label="Archive conversation"
+              >
+                <Archive className="h-5 w-5" />
+                <span>Archive</span>
+              </button>
+            </div>
 
-        <motion.div
-          className="absolute inset-0 flex items-center justify-end pr-6 bg-destructive pointer-events-none"
-          style={{ opacity: deleteOpacity }}
-          aria-hidden
-        >
-          <div className="flex items-center gap-2 text-destructive-foreground">
-            <Trash2 className="h-5 w-5" />
-            <span className="text-sm font-semibold">Release to delete</span>
-          </div>
-        </motion.div>
+            <div
+              className="absolute inset-0 flex items-center justify-end pr-6 bg-destructive pointer-events-none"
+              style={{ opacity: deleteOpacity }}
+              aria-hidden
+            >
+              <div className="flex items-center gap-2 text-destructive-foreground">
+                <Trash2 className="h-5 w-5" />
+                <span className="text-sm font-semibold">Release to delete</span>
+              </div>
+            </div>
+          </>
+        )}
 
-        <motion.div
+        <div
+          ref={slideElRef}
           role="button"
           tabIndex={0}
-          className="relative bg-background dm-inbox-row-tap"
-          style={{ x, opacity: isDeleting ? 0 : 1 }}
+          className={cn(
+            'relative dm-inbox-row-tap',
+            isDeleting && 'opacity-0',
+          )}
+          style={{ willChange: isSwiping ? 'transform' : 'auto' }}
           onPointerDown={handlePointerDownWrapped}
           onClickCapture={handleClickCapture}
           onPointerEnter={() => onWarm?.()}
@@ -371,7 +411,7 @@ export const SwipeableDmConversationRow = memo(function SwipeableDmConversationR
           {...rowA11y}
         >
           {card}
-        </motion.div>
+        </div>
       </div>
       {deleteConfirmDialog}
     </>

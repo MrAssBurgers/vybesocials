@@ -4,15 +4,16 @@ import { Button } from '@/components/ui/button';
 import { SwipeableDmConversationRow } from '@/components/chat/dm-inbox/SwipeableDmConversationRow';
 import { HeldConversationOptionsSheet } from '@/components/chat/dm-inbox/HeldConversationOptionsSheet';
 import { useHeldConversationOptions } from '@/hooks/useHeldConversationOptions';
-import { useStories } from '@/hooks/useStories';
 import { StoryViewer } from '@/components/stories/StoryViewer';
 import type { DMInboxRow, DmInboxTabId, InboxCategory } from './dm.types';
 import type { LoadedDMConversation } from '@/lib/loadDMConversations';
 import type { NearbyFriendStatus } from '@/hooks/useNearbyFriendLink';
 import type { ActivityType } from '@/components/chat/LiveActivityIndicator';
+import type { MessageRequest } from '@/hooks/useMessageRequests';
+import type { StoryGroup } from '@/hooks/useStories';
 import {
   readFilterScroll,
-  writeFilterScroll,
+  writeFilterScrollThrottled,
 } from '@/lib/dmInboxFilterPersistence';
 import { applyDmInboxRowLiveOverlay } from '@/lib/dmInboxRowOverlay';
 import { logDmInboxGeometryReset } from './inbox/dmInboxDebug';
@@ -43,6 +44,7 @@ interface DMConversationListProps {
   searchQuery: string;
   hasError: boolean;
   nearbyStatus?: NearbyFriendStatus;
+  storyGroups?: StoryGroup[];
   onOpen: (conversationId: string, conversationHint?: LoadedDMConversation | null) => void;
   onWarm: (conversationId: string, conversationHint?: LoadedDMConversation | null) => void;
   onRetry: () => void;
@@ -152,6 +154,7 @@ export function DMConversationList({
   searchQuery,
   hasError,
   nearbyStatus,
+  storyGroups = [],
   onOpen,
   onWarm,
   onRetry,
@@ -166,7 +169,6 @@ export function DMConversationList({
   const lastLoggedRowCountRef = useRef(0);
   const [composeHidden, setComposeHidden] = useState(false);
   const [storyViewerIndex, setStoryViewerIndex] = useState<number | null>(null);
-  const { data: storyGroups = [] } = useStories();
   const openStoryForUser = useCallback(
     (userId: string) => {
       const idx = storyGroups.findIndex((group) => group.user?.id === userId);
@@ -239,7 +241,7 @@ export function DMConversationList({
 
   const handleScroll = (event: UIEvent<HTMLDivElement>) => {
     const top = event.currentTarget.scrollTop;
-    writeFilterScroll(scrollKey, top);
+    writeFilterScrollThrottled(scrollKey, top);
     const delta = top - lastScrollTop.current;
     if (Math.abs(delta) > 5) {
       setComposeHidden(delta > 0 && top > 64);
@@ -282,7 +284,7 @@ export function DMConversationList({
                 <p>{categoryEmpty.body}</p>
               </div>
             )}
-            {renderRows.map((row) => {
+            {renderRows.map((row, index) => {
               if (row.type === 'header') return null;
               if (row.type === 'request') {
                 return <DMRequestRow key={`request-${row.request.id}`} request={row.request} />;
@@ -310,7 +312,7 @@ export function DMConversationList({
                   profileId={profileId}
                   authUid={authUid}
                   isActive={conversationId === activeConversationId}
-                  priority
+                  priority={index < 12}
                   isTyping={livePreview.isTyping}
                   presenceActivity={livePreview.presenceActivity}
                   optionsOpenForRow={heldConversationId === conversationId}

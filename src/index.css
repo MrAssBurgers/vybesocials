@@ -1060,6 +1060,7 @@ body.has-liquid-bg:not(.has-custom-bg) .messages-scroll {
   -webkit-tap-highlight-color: transparent;
   /* Never animate height/position — geometry thrash. */
   transition: none;
+  background: transparent;
 }
 .dm-inbox-card {
   position: relative;
@@ -1151,6 +1152,16 @@ body.has-liquid-bg:not(.has-custom-bg) .messages-scroll {
 }
 .dm-inbox-card--category-dim {
   opacity: 0.48;
+}
+/* During fling scroll: flatten expensive paint so rows don't flash black plates. */
+html.is-scrolling .dm-inbox-card {
+  background: hsl(var(--background) / 0.92);
+  box-shadow: none;
+  transition: none;
+}
+html.is-scrolling .dm-inbox-avatar-ring--story,
+html.is-scrolling .dm-inbox-avatar-button--story {
+  animation: none !important;
 }
 .dm-inbox-category-bar {
   position: sticky;

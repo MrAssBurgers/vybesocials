@@ -35,6 +35,11 @@ export function DMInboxPage() {
       }
       // Sync navigate — startTransition delayed ChatView mount by a full frame+.
       warm(conversationId, conversationHint);
+      try {
+        sessionStorage.setItem('vybe-dm-from-inbox', conversationId);
+      } catch {
+        /* ignore */
+      }
       void navigate(`/messages/${conversationId}`);
       void resolveSessionProfileId(inbox.profileId);
     },
@@ -124,6 +129,7 @@ export function DMInboxPage() {
           searchQuery={inbox.searchQuery}
           hasError={Boolean(inbox.error && inbox.isFetched)}
           nearbyStatus={inbox.nearbyStatus}
+          storyGroups={inbox.storyGroups}
           onOpen={openChat}
           onWarm={warm}
           onRetry={() => void inbox.refetch()}

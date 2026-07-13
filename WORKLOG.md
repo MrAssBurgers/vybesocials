@@ -2,6 +2,15 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## DM scroll black gaps + instant paint deep fix (2026-07-13)
+
+- **Cause:** Framer Motion GPU layers + `bg-background` row shells over transparent list → black slabs on fling; sibling `/messages` routes remounted tree; avatar/sign + scroll I/O amplified jank.
+- **Fix:** CSS-transform swipe (no idle Motion); transparent shells; `html.is-scrolling` cheap paint; throttled scroll persist; priority avatars + idle-sign rest; single `/messages/:conversationId?` mount; messages actor refetch; chat bottom pin after seed expand; dedupe stories; pause presence/typing while chat open.
+- **Verified:** `npm run test` 263 PASS · `npm run build` PASS
+- **Published:** pending deploy this session
+
+---
+
 ## Inbox instant paint + open-chat lag (2026-07-13)
 
 - **Cause:** “Signing in…” hid cached rows; openChat awaited profile; inbox flooded 12 high-priority message warms; nearby GPS always on; row `max-height` clipped swipe rows.

@@ -364,13 +364,19 @@ export function useDMInbox() {
     return map;
   }, [storyGroupsRaw]);
 
+  const inboxListActive = !activeConversationId;
+
   const typingConversationIds = useMemo(
-    () => allConversations.slice(0, 12).map((conversation) => conversation.id),
-    [allConversations],
+    () =>
+      inboxListActive
+        ? allConversations.slice(0, 12).map((conversation) => conversation.id)
+        : [],
+    [allConversations, inboxListActive],
   );
   const { isTyping } = useConversationTyping(typingConversationIds);
 
   // Defer presence subscribers until after first paint so the list isn't blocked.
+  // Pause while a chat is open (shared Messages mount keeps inbox alive).
   const [presenceReady, setPresenceReady] = useState(false);
   useEffect(() => {
     let cancelled = false;
@@ -384,7 +390,7 @@ export function useDMInbox() {
   }, []);
 
   const presenceMapRaw = useConversationListPresence(
-    presenceReady ? allConversations : [],
+    presenceReady && inboxListActive ? allConversations : [],
     profileId,
     user?.id,
     activeConversationId,
@@ -828,8 +834,25 @@ export function useDMInbox() {
       }
       return [];
     });
-    // Sign only the first viewport of avatars — rest idle later.
-    if (urls.length) void batchSignUrls(urls.slice(0, 24));
+    if (!urls.length) return;
+    void batchSignUrls(urls.slice(0, 24));
+    if (urls.length <= 24) return;
+    const rest = urls.slice(24);
+    const idle =
+      typeof requestIdleCallback === 'function'
+        ? requestIdleCallback(() => {
+            void batchSignUrls(rest);
+          }, { timeout: 2500 })
+        : window.setTimeout(() => {
+            void batchSignUrls(rest);
+          }, 800);
+    return () => {
+      if (typeof cancelIdleCallback === 'function' && typeof idle === 'number') {
+        cancelIdleCallback(idle);
+      } else {
+        window.clearTimeout(idle as number);
+      }
+    };
   }, [rows]);
 
   const setActiveTab = (tab: DmInboxTabId) => {
@@ -1035,6 +1058,7 @@ export function useDMInbox() {
     categoryBadges: categoryFilter.counts,
     categoryMatchCount: categoryFilter.matchCount,
     pendingRequests,
+    storyGroups: normalizeStoryGroups(storyGroupsRaw),
     projectionEntries: projection.entries,
     projectionEnabled: projection.enabled,
     projectionReadEnabled: projection.projectionReadEnabled,

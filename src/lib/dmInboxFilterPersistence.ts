@@ -56,6 +56,29 @@ export function writeFilterScroll(filter: string, scrollTop: number): void {
   }
 }
 
+const pendingScrollWrites = new Map<string, number>();
+let scrollWriteRaf = 0;
+
+/** Throttled scroll persistence — never parse/stringify every scroll frame. */
+export function writeFilterScrollThrottled(filter: string, scrollTop: number): void {
+  pendingScrollWrites.set(filter, Math.max(0, Math.round(scrollTop)));
+  if (scrollWriteRaf) return;
+  scrollWriteRaf = requestAnimationFrame(() => {
+    scrollWriteRaf = 0;
+    const entries = [...pendingScrollWrites.entries()];
+    pendingScrollWrites.clear();
+    try {
+      const map = readFilterScrollMap();
+      for (const [key, top] of entries) {
+        map[key] = top;
+      }
+      sessionStorage.setItem(SCROLL_KEY, JSON.stringify(map));
+    } catch {
+      /* ignore */
+    }
+  });
+}
+
 export function readFilterScroll(filter: string): number {
   return readFilterScrollMap()[filter] || 0;
 }

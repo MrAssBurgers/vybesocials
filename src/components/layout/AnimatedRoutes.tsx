@@ -251,11 +251,11 @@ export function AnimatedRoutes() {
             <Route path="/shorts/:postId" element={<ShortsPostRedirect />} />
             <Route path="/explore" element={<ProtectedRoute><Explore /></ProtectedRoute>} />
             <Route path="/market" element={<ProtectedRoute><Market /></ProtectedRoute>} />
-            <Route path="/messages" element={<ProtectedRoute><RouteBoundary name="messages"><Messages /></RouteBoundary></ProtectedRoute>} />
             <Route path="/messages/search" element={<ProtectedRoute><RouteBoundary name="messages"><MessagesSearchPage /></RouteBoundary></ProtectedRoute>} />
             <Route path="/messages/requests" element={<ProtectedRoute><RouteBoundary name="messages"><MessageRequestsPage /></RouteBoundary></ProtectedRoute>} />
             <Route path="/messages/new" element={<ProtectedRoute><NewMessage /></ProtectedRoute>} />
-            <Route path="/messages/:conversationId" element={<ProtectedRoute><RouteBoundary name="messages"><Messages /></RouteBoundary></ProtectedRoute>} />
+            {/* Single mount for inbox + thread — optional param avoids remounting on open/back. */}
+            <Route path="/messages/:conversationId?" element={<ProtectedRoute><RouteBoundary name="messages"><Messages /></RouteBoundary></ProtectedRoute>} />
             <Route path="/notifications" element={<ProtectedRoute><RouteBoundary name="notifications"><Notifications /></RouteBoundary></ProtectedRoute>} />
             <Route path="/search" element={<ProtectedRoute><SearchPage /></ProtectedRoute>} />
             <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />

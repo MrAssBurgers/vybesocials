@@ -15,6 +15,7 @@ export const ROUTE_FADE_MS = isNativePerfMode() ? 160 : 180;
 
 /** Paths that should stay instant (immersive / thread scroll surfaces). */
 export function shouldSkipRouteFade(pathname: string): boolean {
+  if (pathname === '/messages') return true;
   if (pathname.startsWith('/messages/') && pathname !== '/messages/new') return true;
   if (pathname.startsWith('/clips/')) return true;
   if (pathname.startsWith('/space/')) return true;

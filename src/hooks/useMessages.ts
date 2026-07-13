@@ -308,11 +308,17 @@ export function useMessages(conversationId: string | undefined) {
   const profileId = useAuthProfileId();
   const actorId = profileId ?? profile?.id;
   const queryClient = useQueryClient();
+  const prevActorRef = useRef<string | undefined>(actorId);
 
   const query = useQuery({
     queryKey: messagesQueryKey(conversationId),
     queryFn: async () => {
       if (!conversationId) return [];
+      const seeded = readMessagesCache(queryClient, conversationId);
+      // Never commit a successful empty network result while profile is unresolved.
+      if (!actorId) {
+        return seeded;
+      }
       try {
         return await loadConversationMessages(queryClient, conversationId, actorId, {
           recentOnly: true,
@@ -356,6 +362,14 @@ export function useMessages(conversationId: string | undefined) {
     retry: 2,
     retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 8000),
   });
+
+  // When profile arrives after open, refetch so we don't stay stuck on seed/empty.
+  useEffect(() => {
+    const prev = prevActorRef.current;
+    prevActorRef.current = actorId;
+    if (!conversationId || !actorId || prev) return;
+    void query.refetch();
+  }, [actorId, conversationId, query.refetch]);
 
   // Realtime is now handled by useGlobalRealtimeMessages at the App level
   // This ensures instant updates without duplicate subscriptions

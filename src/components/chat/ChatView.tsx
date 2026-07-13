@@ -437,6 +437,7 @@ export function ChatView() {
   const hasMarkedReadRef = useRef<Set<string>>(new Set());
   const prevLastMessageIdRef = useRef<string | null>(null);
   const openedConversationRef = useRef<string | null>(null);
+  const prevThreadLenRef = useRef(0);
   const messageNotifsClearedForConversationRef = useRef<string | null>(null);
 
   // Reset ephemeral UI when switching threads — avoids stale reply/edit/recording state.
@@ -710,18 +711,34 @@ export function ChatView() {
     if (isNewConversation) {
       openedConversationRef.current = conversationId;
       prevLastMessageIdRef.current = null;
+      prevThreadLenRef.current = 0;
     }
 
     const container = messagesContainerRef.current;
     if (!container) return;
 
     const prevLastId = prevLastMessageIdRef.current;
+    const prevLen = prevThreadLenRef.current;
+    const nextLen = threadMessages.length;
 
-    if (isNewConversation && restoreElementScrollPosition(savedKey, container)) {
-      prevLastMessageIdRef.current = lastThreadMessageId;
-      return;
+    let fromInbox = false;
+    try {
+      fromInbox = sessionStorage.getItem('vybe-dm-from-inbox') === conversationId;
+      if (fromInbox) sessionStorage.removeItem('vybe-dm-from-inbox');
+    } catch {
+      /* ignore */
     }
+
     if (isNewConversation) {
+      // Inbox → chat always lands on latest; clip/modal return may restore.
+      if (!fromInbox && restoreElementScrollPosition(savedKey, container)) {
+        prevLastMessageIdRef.current = lastThreadMessageId;
+        prevThreadLenRef.current = nextLen;
+        return;
+      }
+      container.scrollTop = container.scrollHeight;
+    } else if (prevLen > 0 && prevLen <= 2 && nextLen > prevLen && lastThreadMessageId === prevLastId) {
+      // Full history replaced inbox seed — re-pin bottom even if last id unchanged.
       container.scrollTop = container.scrollHeight;
     } else if (lastThreadMessageId && lastThreadMessageId !== prevLastId) {
       // New message at the bottom: follow it if it's ours or we're already near
@@ -733,7 +750,8 @@ export function ChatView() {
       }
     }
     prevLastMessageIdRef.current = lastThreadMessageId;
-  }, [conversationId, lastThreadMessageId, lastThreadMessageIsOwn]);
+    prevThreadLenRef.current = nextLen;
+  }, [conversationId, lastThreadMessageId, lastThreadMessageIsOwn, threadMessages.length]);
 
   const handleMessagesScroll = useCallback(() => {
     const container = messagesContainerRef.current;
