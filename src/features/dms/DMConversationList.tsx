@@ -1,10 +1,9 @@
-import { useCallback, useEffect, useRef, useState, type UIEvent } from 'react';
+import { useCallback, useLayoutEffect, useRef, useState, type UIEvent } from 'react';
 import { MessageCircle, RefreshCw, UserPlus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { SwipeableDmConversationRow } from '@/components/chat/dm-inbox/SwipeableDmConversationRow';
 import { HeldConversationOptionsSheet } from '@/components/chat/dm-inbox/HeldConversationOptionsSheet';
 import { useHeldConversationOptions } from '@/hooks/useHeldConversationOptions';
-import { useDmInboxVirtualSlice } from '@/hooks/useDmInboxVirtualSlice';
 import { useStories } from '@/hooks/useStories';
 import { StoryViewer } from '@/components/stories/StoryViewer';
 import type { DMInboxRow, DmInboxTabId, InboxCategory } from './dm.types';
@@ -15,6 +14,8 @@ import {
   readFilterScroll,
   writeFilterScroll,
 } from '@/lib/dmInboxFilterPersistence';
+import { applyDmInboxRowLiveOverlay } from '@/lib/dmInboxRowOverlay';
+import { logDmInboxGeometryReset } from './inbox/dmInboxDebug';
 import { INBOX_CATEGORY_EMPTY } from './inbox/inboxCategoryModel';
 import { NewConnectionsSection } from './inbox/NewConnectionsSection';
 import type { DmInboxFilterId } from './dm.types';
@@ -25,6 +26,7 @@ import { DMNearbyPeerRow } from './DMNearbyPeerRow';
 
 interface DMConversationListProps {
   rows: DMInboxRow[];
+  displayRows: DMInboxRow[];
   profileId?: string;
   authUid?: string;
   activeConversationId?: string;
@@ -36,6 +38,8 @@ interface DMConversationListProps {
   isConversationTyping?: (conversationId: string) => boolean;
   conversationPresenceMap?: Map<string, ActivityType>;
   showSkeleton: boolean;
+  showEmpty?: boolean;
+  isFetching?: boolean;
   searchQuery: string;
   hasError: boolean;
   nearbyStatus?: NearbyFriendStatus;
@@ -131,6 +135,7 @@ function asFilterId(tab?: DmInboxTabId): DmInboxFilterId {
 
 export function DMConversationList({
   rows,
+  displayRows,
   profileId,
   authUid,
   activeConversationId,
@@ -142,6 +147,8 @@ export function DMConversationList({
   isConversationTyping,
   conversationPresenceMap,
   showSkeleton,
+  showEmpty = false,
+  isFetching = false,
   searchQuery,
   hasError,
   nearbyStatus,
@@ -154,6 +161,9 @@ export function DMConversationList({
 }: DMConversationListProps) {
   const listRef = useRef<HTMLDivElement>(null);
   const lastScrollTop = useRef(0);
+  const prevActiveConversationIdRef = useRef(activeConversationId);
+  const lastRestoredScrollKeyRef = useRef<string | null>(null);
+  const lastLoggedRowCountRef = useRef(0);
   const [composeHidden, setComposeHidden] = useState(false);
   const [storyViewerIndex, setStoryViewerIndex] = useState<number | null>(null);
   const { data: storyGroups = [] } = useStories();
@@ -164,9 +174,6 @@ export function DMConversationList({
     },
     [storyGroups],
   );
-  const { visible, paddingTop, paddingBottom, onScroll, virtualized } =
-    useDmInboxVirtualSlice(rows);
-  const renderRows = virtualized ? visible : rows;
   const {
     held,
     openConversationOptions,
@@ -184,19 +191,53 @@ export function DMConversationList({
       ? INBOX_CATEGORY_EMPTY[activeCategory]
       : null;
   const showCategoryEmptyBanner =
-    Boolean(categoryEmpty) && categoryMatchCount === 0 && rows.length > 0;
+    Boolean(categoryEmpty) && categoryMatchCount === 0 && displayRows.length > 0;
+  const listLocked = held.isOpen;
 
-  useEffect(() => {
+  // Restore scroll once per filter key — not on every remount/data pass.
+  useLayoutEffect(() => {
+    if (activeConversationId) return;
+    if (lastRestoredScrollKeyRef.current === scrollKey) return;
     const el = listRef.current;
     if (!el) return;
     const restored = readFilterScroll(scrollKey);
     el.scrollTop = restored;
     lastScrollTop.current = restored;
+    lastRestoredScrollKeyRef.current = scrollKey;
     setComposeHidden(false);
-  }, [scrollKey]);
+  }, [scrollKey, activeConversationId]);
+
+  // Chat → inbox: restore once when conversationId clears.
+  useLayoutEffect(() => {
+    const prev = prevActiveConversationIdRef.current;
+    prevActiveConversationIdRef.current = activeConversationId;
+    if (!prev || activeConversationId) return;
+    const el = listRef.current;
+    if (!el) return;
+    const restored = readFilterScroll(scrollKey);
+    el.scrollTop = restored;
+    lastScrollTop.current = restored;
+    lastRestoredScrollKeyRef.current = scrollKey;
+  }, [activeConversationId, scrollKey]);
+
+  useLayoutEffect(() => {
+    const count = displayRows.length;
+    const prev = lastLoggedRowCountRef.current;
+    if (prev > 0 && count > 0 && count < prev * 0.6) {
+      const el = listRef.current;
+      logDmInboxGeometryReset('row-count-drop', {
+        rowCount: count,
+        previousRowCount: prev,
+        scrollOffset: el?.scrollTop,
+        viewportHeight: el?.clientHeight,
+        totalSize: el?.scrollHeight,
+        activeFilter: categoryBarEnabled ? activeCategory : activeTab,
+      });
+    }
+    lastLoggedRowCountRef.current = count;
+  }, [displayRows.length, categoryBarEnabled, activeCategory, activeTab]);
 
   const handleScroll = (event: UIEvent<HTMLDivElement>) => {
-    onScroll?.(event);
     const top = event.currentTarget.scrollTop;
     writeFilterScroll(scrollKey, top);
     const delta = top - lastScrollTop.current;
@@ -206,22 +247,28 @@ export function DMConversationList({
     }
   };
 
+  const renderRows = displayRows.length > 0 ? displayRows : rows;
+  const showListBody =
+    renderRows.length > 0 || (categoryBarEnabled && activeCategory === 'new');
+  const showNearbySkeleton =
+    activeTab === 'nearby' && nearbyBusy && renderRows.length === 0 && !showSkeleton;
+
   return (
     <>
       <div className="dm-inbox-panel">
         <div
           ref={listRef}
           id="dm-inbox-list"
-          className="dm-inbox-list scroller"
+          className={listLocked ? 'dm-inbox-list dm-inbox-list--locked scroller' : 'dm-inbox-list scroller'}
           onScroll={handleScroll}
           aria-label="Conversations"
           role="tabpanel"
           aria-labelledby={`dm-inbox-tab-${activeTab || filterId}`}
         >
-        {showSkeleton || (activeTab === 'nearby' && nearbyBusy && rows.length === 0) ? (
+        {showSkeleton || showNearbySkeleton ? (
           <DMInboxSkeleton />
-        ) : rows.length > 0 || (categoryBarEnabled && activeCategory === 'new') ? (
-          <div className="dm-inbox-rows" style={{ paddingTop, paddingBottom }}>
+        ) : showListBody ? (
+          <div className="dm-inbox-rows">
             {categoryBarEnabled && activeCategory === 'new' && (
               <NewConnectionsSection
                 pendingRequests={pendingRequests}
@@ -236,7 +283,6 @@ export function DMConversationList({
               </div>
             )}
             {renderRows.map((row) => {
-              // Section headers removed — continuous list only.
               if (row.type === 'header') return null;
               if (row.type === 'request') {
                 return <DMRequestRow key={`request-${row.request.id}`} request={row.request} />;
@@ -250,31 +296,38 @@ export function DMConversationList({
                   />
                 );
               }
+              const conversationId = row.preview.conversationId;
+              const livePreview = applyDmInboxRowLiveOverlay(row.preview, {
+                isTyping: isConversationTyping?.(conversationId) ?? row.preview.isTyping,
+                presenceActivity:
+                  conversationPresenceMap?.get(conversationId) ?? row.preview.presenceActivity,
+              });
               return (
                 <SwipeableDmConversationRow
-                  key={row.preview.id}
+                  key={conversationId}
                   conversation={row.preview.conversation}
-                  preview={row.preview}
+                  preview={livePreview}
                   profileId={profileId}
                   authUid={authUid}
-                  isActive={row.preview.id === activeConversationId}
+                  isActive={conversationId === activeConversationId}
                   priority
-                  isTyping={isConversationTyping?.(row.preview.id) ?? row.preview.isTyping}
-                  presenceActivity={
-                    conversationPresenceMap?.get(row.preview.id) ??
-                    row.preview.presenceActivity
-                  }
-                  optionsOpenForRow={heldConversationId === row.preview.id}
-                  onClick={() => onOpen(row.preview.id, row.preview.conversation)}
-                  onWarm={() => onWarm(row.preview.id, row.preview.conversation)}
+                  isTyping={livePreview.isTyping}
+                  presenceActivity={livePreview.presenceActivity}
+                  optionsOpenForRow={heldConversationId === conversationId}
+                  onClick={() => onOpen(conversationId, row.preview.conversation)}
+                  onWarm={() => onWarm(conversationId, row.preview.conversation)}
                   onOpenOptions={openConversationOptions}
                   onStoryTap={categoryBarEnabled ? openStoryForUser : undefined}
-                  onQuickReply={categoryBarEnabled ? (id) => onOpen(id, row.preview.conversation) : undefined}
+                  onQuickReply={
+                    categoryBarEnabled
+                      ? (id) => onOpen(id, row.preview.conversation)
+                      : undefined
+                  }
                 />
               );
             })}
           </div>
-        ) : (
+        ) : showEmpty && !isFetching ? (
           <div className="dm-inbox-empty">
             <span className="dm-inbox-empty-icon">
               <MessageCircle />
@@ -304,7 +357,7 @@ export function DMConversationList({
               </Button>
             </div>
           </div>
-        )}
+        ) : null}
       </div>
       </div>
       <DMComposeButton hidden={composeHidden} />

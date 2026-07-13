@@ -22,6 +22,7 @@ import { shouldUseListMotion } from '@/lib/performanceConfig';
 import type { ActivityType } from '@/components/chat/LiveActivityIndicator';
 import type { DMConversationPreview } from '@/features/dms/dm.types';
 import { triggerHaptic } from '@/lib/haptics';
+import { markDmRowSeen } from '@/lib/dmInboxRowSeen';
 
 /** Right swipe — toggle read/unread. */
 const READ_TOGGLE_PX = 64;
@@ -100,6 +101,10 @@ export const SwipeableDmConversationRow = memo(function SwipeableDmConversationR
 
   const displayName = preview?.displayName
     || displayNameForConversation(conversation, profileId, authUid, 'Chat');
+
+  const conversationId = preview?.conversationId ?? conversation.id;
+  const rowSeenBeforeMount = useRef(markDmRowSeen(conversationId));
+  const skipEnterGlow = rowSeenBeforeMount.current || !listMotionEnabled;
 
   const unreadCountVal = preview?.unreadCount ?? conversation.unread_count ?? 0;
   const isUnread = preview?.isUnread ?? (unreadCountVal > 0 || conversation._hasUnread);
@@ -229,6 +234,7 @@ export const SwipeableDmConversationRow = memo(function SwipeableDmConversationR
       isTyping={isTyping}
       presenceActivity={presenceActivity}
       isSwiping={isSwiping}
+      skipEnterGlow={skipEnterGlow}
       onStoryTap={onStoryTap}
       onQuickReply={
         onQuickReply && preview
@@ -237,6 +243,10 @@ export const SwipeableDmConversationRow = memo(function SwipeableDmConversationR
       }
     />
   );
+
+  const rowMountProps = {
+    'data-dm-row-mounted': skipEnterGlow ? 'false' : 'true',
+  } as const;
 
   const rowA11y = {
     'aria-haspopup': 'dialog' as const,
@@ -270,6 +280,7 @@ export const SwipeableDmConversationRow = memo(function SwipeableDmConversationR
             openOptions();
           }}
           onPointerEnter={() => onWarm?.()}
+          {...rowMountProps}
         >
           <div
             role="button"
@@ -289,7 +300,7 @@ export const SwipeableDmConversationRow = memo(function SwipeableDmConversationR
 
   return (
     <>
-      <div className="dm-inbox-swipe-row relative touch-pan-y">
+      <div className="dm-inbox-swipe-row relative touch-pan-y" {...rowMountProps}>
         <motion.div
           className="absolute inset-0 flex items-center justify-start pointer-events-none pl-5 bg-primary/10"
           style={{ opacity: readOpacity }}

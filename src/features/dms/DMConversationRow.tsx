@@ -38,6 +38,7 @@ export interface DMConversationRowProps {
   isTyping?: boolean;
   presenceActivity?: ActivityType;
   isSwiping?: boolean;
+  skipEnterGlow?: boolean;
   onStoryTap?: (profileId: string) => void;
   onQuickReply?: () => void;
 }
@@ -60,6 +61,7 @@ export const DMConversationRow = memo(function DMConversationRow({
   isTyping = false,
   presenceActivity,
   isSwiping = false,
+  skipEnterGlow = false,
   onStoryTap,
   onQuickReply,
 }: DMConversationRowProps) {
@@ -189,6 +191,7 @@ export const DMConversationRow = memo(function DMConversationRow({
         unread && 'dm-inbox-card--unread',
         isSwiping && 'dm-inbox-card--swiping',
         isCategoryDimmed && 'dm-inbox-card--category-dim',
+        skipEnterGlow && 'dm-inbox-card--settled',
       )}
     >
       <button

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, useCallback } from 'react';
+import { useEffect, useMemo, useState, useCallback, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import { useAuth } from '@/lib/auth';
 import { useAuthProfileId } from '@/hooks/useAuthProfileId';
@@ -34,17 +34,33 @@ import {
   summarizeDmInboxShadow,
 } from '@/lib/dmInboxShadowCompare';
 import { conversationNeedsReply } from '@/lib/dmNeedsReply';
-import { projectionToLoadedConversation } from '@/lib/dmInboxProjection';
+import { mergeLegacyAndProjection } from '@/lib/dmInboxProjectionMerge';
+import { resolveInboxDisplayRows } from './inbox/dmInboxDisplayRows';
+import { logDmInboxDebug, logDmInboxGeometryReset } from './inbox/dmInboxDebug';
 import { isDmInboxCategoryBarEnabled, isDmInboxProjectionReadEnabled, isRelationshipEmojiUiEnabled, isRelationshipProjectionReadEnabled } from '@/lib/dmInboxFeatureFlags';
 import { useInboxCategories } from './inbox/useInboxCategories';
 import { useFilteredConversations } from './inbox/useFilteredConversations';
 import { pickPrimaryInboxEmoji, resolveStreakDisplay } from '@/lib/relationship/relationshipEmojiMap';
 import { useRelationshipEmojiPreferences } from '@/hooks/useRelationshipEmojiPreferences';
 import { writeStoredInboxFilter } from '@/lib/dmInboxFilterPersistence';
+import type { LoadedDMConversation } from '@/lib/loadDMConversations';
 import type { ActivityType } from '@/components/chat/LiveActivityIndicator';
 import type { DMConversationPreview, DMInboxRow, DMStoryState, DmInboxFilterId, DmInboxTabId } from './dm.types';
 
 const TAB_STORAGE_KEY = 'vybe-dm-inbox-tab';
+
+function conversationContentRevision(conversation: LoadedDMConversation): string {
+  const lastMessage = conversation.last_message;
+  return [
+    conversation.id,
+    conversation.unread_count ?? 0,
+    conversation._hasUnread ? '1' : '0',
+    lastMessage?.id ?? '',
+    lastMessage?.created_at ?? '',
+    lastMessage?.message_type ?? '',
+    conversation.updated_at ?? '',
+  ].join('|');
+}
 const REDESIGN_TABS: DmInboxTabId[] = [
   'all',
   'unread',
@@ -241,27 +257,53 @@ export function useDMInbox() {
     return map;
   }, [projection.entries]);
 
+  const lastStableRowsRef = useRef<DMInboxRow[]>([]);
+  const lastNonEmptyConversationsRef = useRef<LoadedDMConversation[]>([]);
+  const corePreviewCacheRef = useRef(
+    new Map<string, { revision: string; preview: DMConversationPreview }>(),
+  );
+
   const allConversations = useMemo(() => {
     const legacy = [
       ...ensureArray(query.pinnedConversations),
       ...ensureArray(query.unpinnedConversations),
-    ].filter((conversation) => !lockedIds.has(conversation.id));
+    ];
 
-    // Projection is the UI data contract only when the read flag is on.
-    // Until then legacy remains the visible source; projection is shadow-only.
-    if (!isDmInboxProjectionReadEnabled(profileId, user?.id) || !projection.entries.length) {
-      return legacy;
+    const merged = mergeLegacyAndProjection({
+      legacy,
+      projectionEntries: projection.entries,
+      lockedIds,
+      projectionReadEnabled: isDmInboxProjectionReadEnabled(profileId, user?.id),
+      projectionReady: projection.projectionReady,
+    });
+
+    const prev = lastNonEmptyConversationsRef.current;
+    // Never accept a shrink while the query is refetching or projection hydrates.
+    if (
+      prev.length > 0 &&
+      merged.length > 0 &&
+      merged.length < prev.length &&
+      (query.isFetching || projection.isLoading)
+    ) {
+      return prev;
     }
 
-    const fromProjection = projection.entries
-      .map(projectionToLoadedConversation)
-      .filter((conversation) => !lockedIds.has(conversation.id));
-    return fromProjection.length ? fromProjection : legacy;
+    if (merged.length > 0) {
+      lastNonEmptyConversationsRef.current = merged;
+      return merged;
+    }
+
+    return prev;
   }, [
     query.pinnedConversations,
     query.unpinnedConversations,
+    query.isFetching,
     lockedIds,
     projection.entries,
+    projection.projectionReady,
+    projection.isLoading,
+    profileId,
+    user?.id,
   ]);
 
   useEffect(() => {
@@ -649,13 +691,61 @@ export function useDMInbox() {
     [categoryEntryById, inboxCategories.activeCategory],
   );
 
+  const getCorePreview = useCallback(
+    (conversation: LoadedDMConversation): DMConversationPreview => {
+      const revision = conversationContentRevision(conversation);
+      const cached = corePreviewCacheRef.current.get(conversation.id);
+      if (cached && cached.revision === revision) {
+        return cached.preview;
+      }
+      const preview = toPreview(conversation);
+      corePreviewCacheRef.current.set(conversation.id, { revision, preview });
+      return preview;
+    },
+    [toPreview],
+  );
+
   const rows = useMemo<DMInboxRow[]>(() => {
+    const previousById = new Map<string, DMInboxRow>();
+    for (const row of lastStableRowsRef.current) {
+      if (row.type === 'conversation') {
+        previousById.set(row.preview.conversationId, row);
+      }
+    }
+
     const buildConversationRow = (
-      conversation: (typeof allConversations)[number],
-    ): DMInboxRow => ({
-      type: 'conversation' as const,
-      preview: enrichPreview(conversation, toPreview(conversation)),
-    });
+      conversation: LoadedDMConversation,
+    ): DMInboxRow => {
+      const preview = enrichPreview(conversation, getCorePreview(conversation));
+      const prev = previousById.get(conversation.id);
+      if (
+        prev &&
+        prev.type === 'conversation' &&
+        prev.preview === preview
+      ) {
+        return prev;
+      }
+      if (
+        prev &&
+        prev.type === 'conversation' &&
+        prev.preview.conversationId === preview.conversationId &&
+        prev.preview.latestMessageAt === preview.latestMessageAt &&
+        prev.preview.unreadCount === preview.unreadCount &&
+        prev.preview.isUnread === preview.isUnread &&
+        prev.preview.isPinned === preview.isPinned &&
+        prev.preview.isMuted === preview.isMuted &&
+        prev.preview.isCategoryDimmed === preview.isCategoryDimmed &&
+        prev.preview.categoryMatch === preview.categoryMatch &&
+        prev.preview.previewText === preview.previewText &&
+        prev.preview.statusLine === preview.statusLine &&
+        prev.preview.relationshipEmoji === preview.relationshipEmoji &&
+        prev.preview.storyState === preview.storyState
+      ) {
+        // Reuse prior row object when visible fields are unchanged.
+        return prev;
+      }
+      return { type: 'conversation' as const, preview };
+    };
 
     if (categoryBarEnabled) {
       return filteredConversations.map(buildConversationRow);
@@ -689,7 +779,7 @@ export function useDMInbox() {
     pendingRequests,
     filteredConversations,
     filteredOrderKey,
-    toPreview,
+    getCorePreview,
     enrichPreview,
     nearby.peers,
     resolveOtherProfileId,
@@ -801,6 +891,78 @@ export function useDMInbox() {
       ((activeTab === 'best_friends' && closeFriendsLoading && !closeFriendsFetched) ||
         (activeTab === 'requests' && requestsLoading && pendingRequests.length === 0)));
 
+  const hasCachedRows =
+    allConversations.length > 0 || lastNonEmptyConversationsRef.current.length > 0;
+
+  const displayState = useMemo(
+    () =>
+      resolveInboxDisplayRows({
+        rows,
+        lastStableRows: lastStableRowsRef.current,
+        hasCachedRows,
+        isFetching: query.isFetching,
+        isInitialLoad: query.isLoading && !query.isFetched,
+        fetchSettled: query.isFetched,
+        projectionHydrating: projection.isLoading && !projection.projectionReady,
+        tabLoading: showSkeleton && rows.length === 0,
+      }),
+    [
+      rows,
+      hasCachedRows,
+      query.isFetching,
+      query.isLoading,
+      query.isFetched,
+      showSkeleton,
+      projection.isLoading,
+      projection.projectionReady,
+    ],
+  );
+
+  lastStableRowsRef.current = displayState.lastStableRows;
+
+  useEffect(() => {
+    if (displayState.rejectedPartial) {
+      logDmInboxGeometryReset('partial-rows-rejected', {
+        rowCount: rows.length,
+        previousRowCount: lastStableRowsRef.current.length,
+        displayRowCount: displayState.displayRows.length,
+        activeFilter: inboxCategories.activeCategory,
+        querySource: projection.projectionReadEnabled ? 'projection+legacy' : 'legacy',
+        isFetching: query.isFetching,
+        projectionHydrating: projection.isLoading && !projection.projectionReady,
+      });
+    }
+    logDmInboxDebug('inbox-state', {
+      rowsIn: rows.length,
+      displayRows: displayState.displayRows.length,
+      activeCategory: inboxCategories.activeCategory,
+      isLoading: query.isLoading,
+      isFetching: query.isFetching,
+      isFetched: query.isFetched,
+      projectionRead: projection.projectionReadEnabled,
+      projectionEntries: projection.entries.length,
+      projectionHydrating: projection.isLoading,
+      listPhase: displayState.listPhase,
+      rejectedPartial: displayState.rejectedPartial,
+      rowKeys: displayState.displayRows
+        .filter((r) => r.type === 'conversation')
+        .map((r) => (r.type === 'conversation' ? r.preview.conversationId : '')),
+    });
+  }, [
+    rows.length,
+    displayState.displayRows.length,
+    displayState.listPhase,
+    displayState.rejectedPartial,
+    inboxCategories.activeCategory,
+    query.isLoading,
+    query.isFetching,
+    query.isFetched,
+    projection.projectionReadEnabled,
+    projection.entries.length,
+    projection.isLoading,
+    projection.projectionReady,
+  ]);
+
   const awaitingProfileId = Boolean(user?.id && authReady && !profileId);
 
   const retryProfileResolve = () => {
@@ -822,10 +984,15 @@ export function useDMInbox() {
     searchQuery,
     setSearchQuery,
     rows,
+    displayRows: displayState.displayRows,
+    listPhase: displayState.listPhase,
+    showEmpty: displayState.showEmpty,
     allConversations,
     isConversationTyping: isTyping,
     conversationPresenceMap: presenceMap,
-    showSkeleton,
+    showSkeleton: displayState.showSkeleton,
+    isFetching: query.isFetching,
+    hasCachedRows,
     isFetched: query.isFetched,
     error: query.error,
     refetch: query.refetch,

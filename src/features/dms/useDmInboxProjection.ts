@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   loadDmInboxProjection,
   subscribeDmInboxProjection,
@@ -13,24 +13,25 @@ export function useDmInboxProjection(viewerId?: string | null) {
   const [entries, setEntries] = useState<DmInboxEntryDoc[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
+  const staleEntriesRef = useRef<DmInboxEntryDoc[]>([]);
   const enabled =
     Boolean(viewerId) &&
     (isDmInboxProjectionReadEnabled(viewerId) || isDmInboxShadowCompareEnabled());
 
   useEffect(() => {
     if (!viewerId || !enabled) {
-      setEntries([]);
       setIsLoading(false);
       setError(null);
       return;
     }
 
     let cancelled = false;
-    setIsLoading(true);
+    setIsLoading(staleEntriesRef.current.length === 0);
 
     void loadDmInboxProjection(viewerId)
       .then((rows) => {
-        if (!cancelled) {
+        if (!cancelled && rows.length) {
+          staleEntriesRef.current = rows;
           setEntries(rows);
           setError(null);
         }
@@ -48,7 +49,8 @@ export function useDmInboxProjection(viewerId?: string | null) {
       viewerId,
       (rows) => {
         if (!cancelled) {
-          setEntries(rows);
+          if (rows.length) staleEntriesRef.current = rows;
+          setEntries(rows.length ? rows : staleEntriesRef.current);
           setIsLoading(false);
           setError(null);
         }
@@ -64,11 +66,14 @@ export function useDmInboxProjection(viewerId?: string | null) {
     };
   }, [viewerId, enabled]);
 
+  const projectionReady = entries.length > 0 && !isLoading;
+
   return {
     entries,
     isLoading,
     error,
     enabled,
+    projectionReady,
     projectionReadEnabled: isDmInboxProjectionReadEnabled(viewerId),
   };
 }

@@ -9,6 +9,7 @@ import { DMCategoryTabs } from './DMCategoryTabs';
 import { InboxCategoryBar } from './inbox/InboxCategoryBar';
 import { DMConversationList } from './DMConversationList';
 import { useDMInbox } from './useDMInbox';
+import { writeFilterScroll } from '@/lib/dmInboxFilterPersistence';
 import type { LoadedDMConversation } from '@/lib/loadDMConversations';
 
 export function DMInboxPage() {
@@ -25,13 +26,28 @@ export function DMInboxPage() {
   const openChat = useCallback(
     async (conversationId: string, conversationHint?: LoadedDMConversation | null) => {
       if (conversationId === inbox.activeConversationId) return;
+      const scrollKey = inbox.categoryBarEnabled
+        ? (inbox.activeCategory ?? 'all')
+        : inbox.activeTab || 'all';
+      const listEl = document.getElementById('dm-inbox-list');
+      if (listEl) {
+        writeFilterScroll(scrollKey, listEl.scrollTop);
+      }
       await resolveSessionProfileId(inbox.profileId);
       warm(conversationId, conversationHint);
       startTransition(() => {
         void navigate(`/messages/${conversationId}`);
       });
     },
-    [inbox.activeConversationId, inbox.profileId, navigate, warm],
+    [
+      inbox.activeConversationId,
+      inbox.activeCategory,
+      inbox.activeTab,
+      inbox.categoryBarEnabled,
+      inbox.profileId,
+      navigate,
+      warm,
+    ],
   );
 
   return (
@@ -92,6 +108,7 @@ export function DMInboxPage() {
         )}
         <DMConversationList
           rows={inbox.rows}
+          displayRows={inbox.displayRows}
           profileId={inbox.profileId}
           authUid={inbox.user?.id}
           activeConversationId={inbox.activeConversationId}
@@ -103,6 +120,8 @@ export function DMInboxPage() {
           isConversationTyping={inbox.isConversationTyping}
           conversationPresenceMap={inbox.conversationPresenceMap}
           showSkeleton={inbox.showSkeleton}
+          showEmpty={inbox.showEmpty}
+          isFetching={inbox.isFetching}
           searchQuery={inbox.searchQuery}
           hasError={Boolean(inbox.error && inbox.isFetched)}
           nearbyStatus={inbox.nearbyStatus}

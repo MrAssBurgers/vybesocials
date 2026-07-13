@@ -66,11 +66,14 @@ export function DmInboxSafeList() {
         />
         <DMConversationList
           rows={inbox.rows}
+          displayRows={inbox.displayRows}
           profileId={inbox.profileId}
           authUid={inbox.user?.id}
           activeConversationId={inbox.activeConversationId}
           activeTab={inbox.activeTab}
           showSkeleton={inbox.showSkeleton}
+          showEmpty={inbox.showEmpty}
+          isFetching={inbox.isFetching}
           searchQuery={inbox.searchQuery}
           hasError={Boolean(inbox.error && inbox.isFetched)}
           nearbyStatus={inbox.nearbyStatus}

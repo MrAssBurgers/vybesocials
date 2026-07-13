@@ -2,6 +2,21 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## Inbox render stability — blank collapse + remount flicker (2026-07-13)
+
+- **Root cause (recording):** list geometry invalidation from partial row arrays + projection order swap (looked like virtualizer blank gaps). Virtual windowing permanently removed from inbox path.
+- **Sticky display rows:** `resolveInboxDisplayRows` keeps cache during refetch; **rejects partial shrinks** while fetching/projection-hydrating and patches by `conversationId` into stable order.
+- **No forced remount:** Removed `key` on `<DMInboxPage />` in `Messages.tsx`.
+- **Projection merge:** Patch projection fields onto **legacy order** (no wholesale reorder); stale-while-revalidate; refuse shrink of `allConversations` during `isFetching`/`isLoading`.
+- **Stable row model:** Core preview cache + live overlay; reuse row object refs when fields unchanged; keys = `conversationId`.
+- **Scroll:** Restore **once per filter key** + once on chat return (no remount restore loop).
+- **Fixed row slots:** `--dm-inbox-row-slot: 84px`; no height/margin/padding/position transitions on rows.
+- **Geometry debug:** `logDmInboxGeometryReset` on rejected partials and >40% row-count drops.
+- **Verified:** `npm run test` PASS · `npm run build` PASS
+- **Next:** Manual QA on staging (list must not blank / jump; no glow remount; scroll stable). Push + Firebase deploy when ready.
+
+---
+
 ## Snapchat-style DM inbox categories (2026-07-13)
 
 - **Category bar:** `InboxCategoryBar` + chips (Unread, Needs Reply, Near Me, Groups, Stories, Calls, Best Friends, Streaks, New) with soft-dim filtering — matches promoted, non-matches dimmed (~48% opacity).

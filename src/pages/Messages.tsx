@@ -210,7 +210,7 @@ function MessagesInner() {
               </LocalErrorBoundary>
             }
           >
-            <DMInboxPage key={`dm-inbox-page-v4:${profileId || user?.id || 'anon'}`} />
+            <DMInboxPage />
           </LocalErrorBoundary>
         </div>
 

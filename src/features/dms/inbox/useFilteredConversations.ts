@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
 import type { InboxCategory } from '@/features/dms/dm.types';
+import type { LoadedDMConversation } from '@/lib/loadDMConversations';
 import {
   buildInboxConversationIndex,
   type BuildInboxIndexInput,
@@ -42,6 +43,17 @@ export function useFilteredConversations(
     resolveOtherProfileId,
   } = input;
 
+  const conversationRevisionKey = useMemo(
+    () =>
+      conversations
+        .map(
+          (c) =>
+            `${c.id}:${c.last_message?.created_at ?? ''}:${c.unread_count ?? 0}:${c._hasUnread ? 1 : 0}`,
+        )
+        .join('\0'),
+    [conversations],
+  );
+
   return useMemo(() => {
     const index = buildInboxConversationIndex({
       conversations,
@@ -76,6 +88,7 @@ export function useFilteredConversations(
     category,
     pendingRequestCount,
     suggestionCount,
+    conversationRevisionKey,
     conversations,
     profileId,
     storyStateByProfileId,
