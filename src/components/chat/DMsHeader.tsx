@@ -1,3 +1,8 @@
+/**
+ * @deprecated Legacy inbox header, only used by the unrouted
+ * `ConversationList.tsx`. The redesign uses `src/features/dms/DMHeader.tsx`.
+ * Kept for reference/rollback — see `docs/MESSAGING.md` for rollout flags.
+ */
 import { useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';

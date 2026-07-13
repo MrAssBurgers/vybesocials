@@ -61,6 +61,7 @@ const AutoPilotSettings = lazy(() => import("@/pages/AutoPilotSettings"));
 const Explore = lazy(() => import("@/pages/Explore"));
 const Market = lazy(() => import("@/pages/Market"));
 const Messages = lazy(() => import("@/pages/Messages"));
+const MessagesSearchPage = lazy(() => import("@/pages/MessagesSearchPage"));
 const MessageRequestsPage = lazy(() => import("@/pages/MessageRequestsPage"));
 const Notifications = lazy(() => import("@/pages/Notifications"));
 const SearchPage = lazy(() => import("@/pages/Search"));
@@ -101,6 +102,7 @@ const Contact = lazy(() => import("@/pages/Contact"));
 const InviteFriends = lazy(() => import("@/pages/InviteFriends"));
 const InviteRedeem = lazy(() => import("@/pages/InviteRedeem"));
 const AddFriend = lazy(() => import("@/pages/AddFriend"));
+const AddFriendsPage = lazy(() => import("@/pages/AddFriendsPage"));
 const FriendDropLink = lazy(() => import("@/pages/FriendDropLink"));
 const CommunityGuidelines = lazy(() => import("@/pages/CommunityGuidelines"));
 const AdminMetrics = lazy(() => import("@/pages/AdminMetrics"));
@@ -249,6 +251,7 @@ export function AnimatedRoutes() {
             <Route path="/explore" element={<ProtectedRoute><Explore /></ProtectedRoute>} />
             <Route path="/market" element={<ProtectedRoute><Market /></ProtectedRoute>} />
             <Route path="/messages" element={<ProtectedRoute><RouteBoundary name="messages"><Messages /></RouteBoundary></ProtectedRoute>} />
+            <Route path="/messages/search" element={<ProtectedRoute><RouteBoundary name="messages"><MessagesSearchPage /></RouteBoundary></ProtectedRoute>} />
             <Route path="/messages/requests" element={<ProtectedRoute><RouteBoundary name="messages"><MessageRequestsPage /></RouteBoundary></ProtectedRoute>} />
             <Route path="/messages/:conversationId" element={<ProtectedRoute><RouteBoundary name="messages"><Messages /></RouteBoundary></ProtectedRoute>} />
             <Route path="/notifications" element={<ProtectedRoute><RouteBoundary name="notifications"><Notifications /></RouteBoundary></ProtectedRoute>} />
@@ -281,6 +284,7 @@ export function AnimatedRoutes() {
             <Route path="/clips/:postId" element={<ProtectedRoute><ClipsViewer /></ProtectedRoute>} />
             <Route path="/invite-friends" element={<ProtectedRoute><InviteFriends /></ProtectedRoute>} />
             <Route path="/add-friend/:userId" element={<ProtectedRoute><AddFriend /></ProtectedRoute>} />
+            <Route path="/friends/add" element={<ProtectedRoute><RouteBoundary name="friends-add"><AddFriendsPage /></RouteBoundary></ProtectedRoute>} />
             <Route path="/friend-drop/:dropId" element={<ProtectedRoute><FriendDropLink /></ProtectedRoute>} />
             <Route path="/admin/metrics" element={<ProtectedRoute><AdminMetrics /></ProtectedRoute>} />
             <Route path="/admin/settings" element={<ProtectedRoute><AdminSettings /></ProtectedRoute>} />

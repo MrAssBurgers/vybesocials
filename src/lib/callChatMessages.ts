@@ -1,5 +1,6 @@
-import { db } from '@/lib/firebase';
+import { insertDmMessage } from '@/lib/dmSendCore';
 import { sendDmBroadcastMessage } from '@/lib/dmBroadcast';
+
 
 export type CallEventKind = 'outgoing' | 'incoming' | 'ended' | 'missed' | 'declined' | 'no_answer';
 
@@ -112,7 +113,7 @@ export async function insertCallChatEvent(params: {
     media_url: null,
     media_type: null,
     message_type: 'call_event',
-    view_mode: 'permanent',
+    view_mode: 'permanent' as const,
     expires_at: null,
     is_deleted: false,
     reply_to_id: null,
@@ -120,14 +121,23 @@ export async function insertCallChatEvent(params: {
   };
 
   try {
-    await db.from('messages').insert(row);
+    const { data, error } = await insertDmMessage(
+      {
+        conversation_id: conversationId,
+        sender_id: senderId,
+        content: row.content,
+        message_type: 'call_event',
+        view_mode: 'permanent',
+        client_message_id: id,
+      },
+    );
+    if (error) throw error;
+    void sendDmBroadcastMessage(conversationId, {
+      ...(data || row),
+      views: [],
+      reactions: [],
+    });
   } catch (err) {
     console.warn('[callChatMessages] insert failed:', err);
   }
-
-  void sendDmBroadcastMessage(conversationId, {
-    ...row,
-    views: [],
-    reactions: [],
-  });
 }

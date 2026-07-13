@@ -1,6 +1,5 @@
-import { startTransition, useCallback, useState } from 'react';
+import { startTransition, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ChatSearchSheet } from '@/components/chat/ChatSearchSheet';
 import { useChatPrefetch } from '@/hooks/useChatPrefetch';
 import { DMHeader } from './DMHeader';
 import { DMCategoryTabs } from './DMCategoryTabs';
@@ -10,7 +9,6 @@ import { useDMInbox } from './useDMInbox';
 export function DMInboxPage() {
   const navigate = useNavigate();
   const { warmConversation } = useChatPrefetch();
-  const [searchOpen, setSearchOpen] = useState(false);
   const inbox = useDMInbox();
 
   const warm = useCallback(
@@ -29,29 +27,27 @@ export function DMInboxPage() {
     [inbox.activeConversationId, navigate, warm],
   );
 
-  const openQuickReply = useCallback(
-    (conversationId: string) => {
-      warm(conversationId);
-      startTransition(() => {
-        void navigate(`/messages/${conversationId}?compose=1`);
-      });
-    },
-    [navigate, warm],
-  );
-
   return (
     <section className="dm-inbox" aria-label="Direct messages">
+      <span className="sr-only" role="status" aria-live="polite">
+        {inbox.unreadBadgeCount > 0
+          ? `${inbox.unreadBadgeCount} unread ${inbox.unreadBadgeCount === 1 ? 'message' : 'messages'}`
+          : 'No unread messages'}
+      </span>
       <div className="dm-inbox-column">
         <DMHeader
           totalUnreadCount={inbox.unreadBadgeCount}
-          onSearch={() => setSearchOpen(true)}
+          pendingRequestCount={inbox.pendingRequestCount}
+          onSearch={() => navigate('/messages/search')}
         />
         <DMCategoryTabs
           active={inbox.activeTab}
           onChange={inbox.setActiveTab}
+          redesignEnabled={inbox.redesignEnabled}
           badges={{
             unread: inbox.unreadBadgeCount,
             requests: inbox.pendingRequestCount,
+            needsReply: inbox.needsReplyCount,
             bestFriends: inbox.bestFriendCount,
             nearby: inbox.nearbyCount,
           }}
@@ -67,7 +63,6 @@ export function DMInboxPage() {
           hasError={Boolean(inbox.error && inbox.isFetched)}
           nearbyStatus={inbox.nearbyStatus}
           onOpen={openChat}
-          onQuickReply={openQuickReply}
           onWarm={warm}
           onRetry={() => void inbox.refetch()}
           onCompose={() => navigate('/messages/new')}
@@ -88,7 +83,6 @@ export function DMInboxPage() {
           onNearbyRetry={inbox.nearbyRetry}
         />
       </div>
-      <ChatSearchSheet open={searchOpen} onOpenChange={setSearchOpen} />
     </section>
   );
 }

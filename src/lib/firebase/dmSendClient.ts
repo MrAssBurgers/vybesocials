@@ -1,6 +1,7 @@
 import { invokeFunction } from './functionsService';
 import type { Message } from '@/hooks/useMessages';
 import type { ViewMode } from '@/hooks/useMessages';
+import { classifyDmSendError } from '@/lib/dmSendErrors';
 
 export interface SendDmPayload {
   conversationId: string;
@@ -10,9 +11,15 @@ export interface SendDmPayload {
   mediaUrl?: string | null;
   mediaType?: string | null;
   messageType?: string;
+  /** Idempotency key (optimistic temp id / outbox id) — prevents duplicate reconnect sends. */
+  clientMessageId?: string | null;
+  otherProfileId?: string | null;
 }
 
-/** Server-side send fallback when Firestore client rules reject the insert. */
+/**
+ * Canonical server send — every DM insert must go through `sendDmMessage`.
+ * Direct client Firestore message creates are denied by security rules.
+ */
 export async function sendDmViaCloudFunction(
   payload: SendDmPayload,
 ): Promise<{ data: Message | null; error: { message: string; code?: string } | null }> {
@@ -24,14 +31,17 @@ export async function sendDmViaCloudFunction(
     mediaUrl: payload.mediaUrl ?? null,
     mediaType: payload.mediaType ?? null,
     messageType: payload.messageType,
+    clientMessageId: payload.clientMessageId ?? null,
+    otherProfileId: payload.otherProfileId ?? null,
   }).single();
 
   if (error) {
+    const kind = classifyDmSendError(error);
     return {
       data: null,
       error: {
         message: error.message || 'Failed to send message',
-        code: error.name,
+        code: error.name || kind,
       },
     };
   }
@@ -45,19 +55,16 @@ export async function sendDmViaCloudFunction(
     data: {
       ...message,
       view_mode: (message.view_mode || 'permanent') as ViewMode,
-      views: [],
-      reactions: [],
+      views: message.views || [],
+      reactions: message.reactions || [],
     },
     error: null,
   };
 }
 
+/** @deprecated Permission retries no longer apply — sends are callable-only. */
 export function isRetryableSendError(error: { message?: string; code?: string } | null): boolean {
   if (!error) return false;
-  return (
-    error.code === 'permission-denied' ||
-    /permission|could not be delivered|chat permissions|missing or insufficient/i.test(
-      error.message || '',
-    )
-  );
+  const kind = classifyDmSendError(error);
+  return kind === 'transient' || kind === 'rate_limited';
 }

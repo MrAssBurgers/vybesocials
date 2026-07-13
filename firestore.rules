@@ -443,6 +443,12 @@ service cloud.firestore {
       allow read: if signedIn();
       allow write: if ownsUserField('user_id') || willOwnUserField('user_id') || isAdmin();
     }
+    // "Delete for me" — per-viewer soft delete, upserted client-side (message_id,user_id).
+    match /message_deletions/{docId} {
+      allow read: if ownsUserField('user_id') || isAdmin();
+      allow create, update: if willOwnUserField('user_id');
+      allow delete: if ownsUserField('user_id') || isAdmin();
+    }
     match /saved_messages/{docId} {
       allow read, write: if ownsUserField('user_id') || willOwnUserField('user_id') || isAdmin();
     }
@@ -644,7 +650,8 @@ service cloud.firestore {
       }
       match /messages/{messageId} {
         allow read: if isMember(cid);
-        allow create: if isMember(cid) && willOwnProfile('sender_id');
+        // Client creates denied — all DM inserts go through sendDmMessage callable.
+        allow create: if false;
         allow update, delete: if signedIn() &&
           (ownsProfileId(resource.data.sender_id) || isAdmin());
       }
@@ -676,10 +683,16 @@ service cloud.firestore {
     }
     match /messages/{messageId} {
       allow read: if signedIn() && isConversationParticipant(resource.data.conversation_id);
-      allow create: if signedIn() &&
-        willOwnProfile('sender_id') &&
-        isConversationParticipant(request.resource.data.conversation_id);
+      // Client creates denied — all DM inserts go through sendDmMessage callable
+      // (blocked-user checks, rate limits, schema/media/membership validation).
+      allow create: if false;
       allow update, delete: if ownsProfileId(resource.data.sender_id) || isAdmin();
+    }
+
+    // Server-written send audit (Admin SDK only).
+    match /dm_send_audit/{docId} {
+      allow read: if isAdmin();
+      allow create, update, delete: if false;
     }
     match /hidden_conversations/{docId} {
       allow read, write: if isOwnerProfile('user_id') || willOwnProfile('user_id');
@@ -700,6 +713,17 @@ service cloud.firestore {
     }
     match /dm_reminders/{docId} {
       allow read, write: if isOwnerProfile('user_id') || willOwnProfile('user_id');
+    }
+
+    // Server-written DM inbox projection. Viewers may read only their own rows;
+    // clients cannot create/update/delete projection documents.
+    match /dm_inbox_entries/{entryId} {
+      allow read: if signedIn() && (
+        ownsProfileId(resource.data.viewer_id) ||
+        resource.data.viewer_id == uid() ||
+        isAdmin()
+      );
+      allow create, update, delete: if false;
     }
     match /message_transcripts/{docId} {
       allow read: if signedIn();
@@ -1034,6 +1058,11 @@ service cloud.firestore {
 
     // ---------- explicit deny-all admin-only tables (Cloud Functions handle these) ----------
     match /app_secrets/{id}                   { allow read, write: if false; }
+    // Client-readable rollout knobs (admin writes only).
+    match /app_config/{docId} {
+      allow read: if signedIn();
+      allow create, update, delete: if isAdmin();
+    }
     match /user_ai_keys/{id}                  { allow read, write: if false; }
     match /ai_usage/{profileId} {
       allow read: if ownsProfileId(profileId);

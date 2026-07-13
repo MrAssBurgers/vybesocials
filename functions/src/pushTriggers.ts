@@ -78,6 +78,8 @@ async function collectDmRecipientIds(
 ): Promise<Set<string>> {
   const recipientUserIds = new Set<string>();
 
+  // Primary path: real conversation_members rows carry the per-member mute
+  // flag, so muted recipients are excluded from push here.
   for (const doc of membersSnap.docs) {
     const member = doc.data();
     const memberUserId = asString(member.user_id);
@@ -86,6 +88,11 @@ async function collectDmRecipientIds(
     recipientUserIds.add(memberUserId);
   }
 
+  // Fallbacks below only fire when conversation_members is empty (bootstrap
+  // edge case for legacy/ad-hoc 1:1 threads). There's no membership row to
+  // read a mute flag from in that case, so muting isn't possible yet — once
+  // sendDmMessage/ensureConversationMembershipAdmin backfills the member
+  // rows, the primary path above takes over and mute suppression applies.
   if (!recipientUserIds.size) {
     const memberIds = conversation.member_ids;
     if (Array.isArray(memberIds)) {

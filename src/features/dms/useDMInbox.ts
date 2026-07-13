@@ -14,9 +14,7 @@ import { useStories } from '@/hooks/useStories';
 import { useCloseFriendIds } from '@/hooks/useCloseFriendIds';
 import { useNearbyFriendLink } from '@/hooks/useNearbyFriendLink';
 import {
-  buildFlatInboxRows,
   filterConversationsForTab,
-  type DmInboxTabId,
 } from '@/lib/dmInboxOrganize';
 import {
   displayNameForConversation,
@@ -28,10 +26,27 @@ import { ensureArray, ensureStringSet, safeDmMembers } from '@/lib/persistedColl
 import { resolveProfileAvatarUrl } from '@/lib/profileAvatarCache';
 import { batchSignUrls } from '@/lib/signedUrlCache';
 import { normalizeStoryGroups } from '@/lib/storiesCacheSanitize';
-import type { DMConversationPreview, DMInboxRow, DMStoryState } from './dm.types';
+import { useDmInboxProjection } from './useDmInboxProjection';
+import {
+  compareDmInboxShadow,
+  summarizeDmInboxShadow,
+} from '@/lib/dmInboxShadowCompare';
+import { conversationNeedsReply } from '@/lib/dmNeedsReply';
+import { projectionToLoadedConversation } from '@/lib/dmInboxProjection';
+import { isDmInboxProjectionReadEnabled, isDmInboxRedesignUiEnabled } from '@/lib/dmInboxFeatureFlags';
+import { writeStoredInboxFilter } from '@/lib/dmInboxFilterPersistence';
+import type { DMConversationPreview, DMInboxRow, DMStoryState, DmInboxFilterId, DmInboxTabId } from './dm.types';
 
 const TAB_STORAGE_KEY = 'vybe-dm-inbox-tab';
-const VALID_TABS: DmInboxTabId[] = [
+const REDESIGN_TABS: DmInboxTabId[] = [
+  'all',
+  'unread',
+  'needs_reply',
+  'groups',
+  'pinned',
+  'active',
+];
+const LEGACY_TABS: DmInboxTabId[] = [
   'friends',
   'best_friends',
   'nearby',
@@ -40,13 +55,26 @@ const VALID_TABS: DmInboxTabId[] = [
   'unread',
 ];
 
-function initialTab(): DmInboxTabId {
-  if (typeof sessionStorage === 'undefined') return 'friends';
-  const stored = sessionStorage.getItem(TAB_STORAGE_KEY);
-  if (stored === 'calls') return 'unread';
-  return stored && VALID_TABS.includes(stored as DmInboxTabId)
-    ? (stored as DmInboxTabId)
-    : 'friends';
+function initialTab(redesignEnabled: boolean): DmInboxTabId {
+  const fallback: DmInboxTabId = redesignEnabled ? 'all' : 'friends';
+  if (typeof sessionStorage === 'undefined') return fallback;
+  try {
+    const filter = sessionStorage.getItem('vybe-dm-inbox-filter');
+    const stored = filter || sessionStorage.getItem(TAB_STORAGE_KEY);
+    if (stored === 'calls') return 'unread';
+    if (redesignEnabled) {
+      if (stored && REDESIGN_TABS.includes(stored as DmInboxTabId)) {
+        return stored as DmInboxTabId;
+      }
+      return 'all';
+    }
+    if (stored && LEGACY_TABS.includes(stored as DmInboxTabId)) {
+      return stored as DmInboxTabId;
+    }
+    return 'friends';
+  } catch {
+    return fallback;
+  }
 }
 
 function secondaryGroupAvatar(
@@ -95,8 +123,11 @@ export function useDMInbox() {
   const { conversationId: activeConversationId } = useParams<{ conversationId?: string }>();
   const { profile, user } = useAuth();
   const profileId = useAuthProfileId();
+  const redesignEnabled = isDmInboxRedesignUiEnabled(profileId, user?.id);
   const [searchQuery, setSearchQuery] = useState('');
-  const [activeTab, setActiveTabState] = useState<DmInboxTabId>(initialTab);
+  const [activeTab, setActiveTabState] = useState<DmInboxTabId>(() =>
+    initialTab(isDmInboxRedesignUiEnabled()),
+  );
   const { data: lockedIdsRaw } = useLockedChatIds();
   const { data: callConversationIdsRaw } = useInboxCallConversationIds();
   const { data: pendingRequestsRaw, isLoading: requestsLoading } = useMessageRequests();
@@ -117,6 +148,7 @@ export function useDMInbox() {
     displayName: profile?.display_name,
     avatarUrl: profile?.avatar_url,
   });
+  const projection = useDmInboxProjection(profileId);
 
   const lockedIds = useMemo(() => ensureStringSet(lockedIdsRaw), [lockedIdsRaw]);
   const callConversationIds = useMemo(
@@ -136,12 +168,41 @@ export function useDMInbox() {
     [closeFriendIdsRaw],
   );
 
-  const allConversations = useMemo(
-    () =>
-      [...ensureArray(query.pinnedConversations), ...ensureArray(query.unpinnedConversations)]
-        .filter((conversation) => !lockedIds.has(conversation.id)),
-    [query.pinnedConversations, query.unpinnedConversations, lockedIds],
-  );
+  const allConversations = useMemo(() => {
+    const legacy = [
+      ...ensureArray(query.pinnedConversations),
+      ...ensureArray(query.unpinnedConversations),
+    ].filter((conversation) => !lockedIds.has(conversation.id));
+
+    // Projection is the UI data contract only when the read flag is on.
+    // Until then legacy remains the visible source; projection is shadow-only.
+    if (!isDmInboxProjectionReadEnabled(profileId, user?.id) || !projection.entries.length) {
+      return legacy;
+    }
+
+    const fromProjection = projection.entries
+      .map(projectionToLoadedConversation)
+      .filter((conversation) => !lockedIds.has(conversation.id));
+    return fromProjection.length ? fromProjection : legacy;
+  }, [
+    query.pinnedConversations,
+    query.unpinnedConversations,
+    lockedIds,
+    projection.entries,
+  ]);
+
+  useEffect(() => {
+    if (!projection.enabled || !projection.entries.length) return;
+    const legacy = [
+      ...ensureArray(query.pinnedConversations),
+      ...ensureArray(query.unpinnedConversations),
+    ];
+    if (!legacy.length) return;
+    const diff = compareDmInboxShadow(projection.entries, legacy, profileId);
+    if (typeof console !== 'undefined' && console.debug) {
+      console.debug('[dm-inbox-shadow]', summarizeDmInboxShadow(diff), diff);
+    }
+  }, [projection.enabled, projection.entries, query.pinnedConversations, query.unpinnedConversations, profileId]);
 
   const resolveOtherProfileId = useMemo(
     () => (conversation: (typeof allConversations)[number]) => {
@@ -195,6 +256,18 @@ export function useDMInbox() {
     activeConversationId,
   );
 
+  const presenceOnlineIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const conversation of allConversations) {
+      if (conversation.is_group) continue;
+      const activity = presenceMap.get(conversation.id);
+      if (!activity || activity === 'idle') continue;
+      const otherId = resolveOtherProfileId(conversation);
+      if (otherId) ids.add(otherId);
+    }
+    return ids;
+  }, [allConversations, presenceMap, resolveOtherProfileId]);
+
   const filteredConversations = useMemo(
     () =>
       filterConversationsForTab(allConversations, activeTab, {
@@ -204,6 +277,7 @@ export function useDMInbox() {
         closeFriendIds,
         nearbyProfileIds,
         resolveOtherProfileId,
+        presenceOnlineIds,
       }),
     [
       allConversations,
@@ -214,6 +288,7 @@ export function useDMInbox() {
       closeFriendIds,
       nearbyProfileIds,
       resolveOtherProfileId,
+      presenceOnlineIds,
     ],
   );
 
@@ -304,19 +379,26 @@ export function useDMInbox() {
         latestSenderId: lastMessage?.sender_id,
         latestMessageAt: lastMessage?.created_at,
         unreadCount,
+        mentionCount: 0,
         isUnread: unreadCount > 0 || conversation._hasUnread,
         isPinned: Boolean(membership?.is_pinned),
+        pinOrder: 0,
         isMuted: Boolean(membership?.is_muted),
+        isArchived: false,
+        needsReply: conversationNeedsReply(conversation, profileId),
         isGroup: conversation.is_group,
         isTyping: isTyping(conversation.id),
+        typingNames: [],
         isOnline,
         isAway: false,
+        presenceState: isOnline ? 'online' : 'offline',
         presenceActivity: activity,
         streakCount,
         storyState,
         isVerified: Boolean(other?.is_verified),
         relationshipBadge,
         quickReaction,
+        fromProjection: false,
       };
     };
   }, [
@@ -339,43 +421,30 @@ export function useDMInbox() {
     }
 
     if (activeTab === 'nearby') {
-      const conversationRows = buildFlatInboxRows(filteredConversations, profileId).map((row) => {
-        if (row.type === 'header') return row;
-        return { type: 'conversation' as const, preview: toPreview(row.conversation) };
-      });
+      const conversationRows: DMInboxRow[] = filteredConversations.map((conversation) => ({
+        type: 'conversation' as const,
+        preview: toPreview(conversation),
+      }));
       const conversationPeerIds = new Set(
         filteredConversations
           .map((conversation) => resolveOtherProfileId(conversation))
           .filter((id): id is string => Boolean(id)),
       );
-      const peerOnly = nearby.peers
+      const peerOnly: DMInboxRow[] = nearby.peers
         .filter((peer) => !conversationPeerIds.has(peer.userId))
         .map((peer) => ({ type: 'nearby_peer' as const, peer }));
-      if (peerOnly.length && conversationRows.length) {
-        return [
-          ...conversationRows,
-          {
-            type: 'header' as const,
-            id: 'all' as const,
-            label: 'Nearby · new',
-            count: peerOnly.length,
-          },
-          ...peerOnly,
-        ];
-      }
-      if (peerOnly.length) return peerOnly;
+      if (peerOnly.length) return [...conversationRows, ...peerOnly];
       return conversationRows;
     }
 
-    return buildFlatInboxRows(filteredConversations, profileId).map((row) => {
-      if (row.type === 'header') return row;
-      return { type: 'conversation' as const, preview: toPreview(row.conversation) };
-    });
+    return filteredConversations.map((conversation) => ({
+      type: 'conversation' as const,
+      preview: toPreview(conversation),
+    }));
   }, [
     activeTab,
     pendingRequests,
     filteredConversations,
-    profileId,
     toPreview,
     nearby.peers,
     resolveOtherProfileId,
@@ -410,6 +479,9 @@ export function useDMInbox() {
     setActiveTabState(tab);
     try {
       sessionStorage.setItem(TAB_STORAGE_KEY, tab);
+      if (REDESIGN_TABS.includes(tab)) {
+        writeStoredInboxFilter(tab as DmInboxFilterId);
+      }
     } catch {
       // Storage can be unavailable in Safari private mode.
     }
@@ -449,6 +521,12 @@ export function useDMInbox() {
     }, 0);
   }, [allConversations]);
 
+  const needsReplyCount = useMemo(() => {
+    return allConversations.filter((conversation) =>
+      conversationNeedsReply(conversation, profileId),
+    ).length;
+  }, [allConversations, profileId]);
+
   const showSkeleton =
     (query.isLoading && allConversations.length === 0) ||
     (activeTab === 'best_friends' && closeFriendsLoading && !closeFriendsFetched) ||
@@ -473,9 +551,14 @@ export function useDMInbox() {
     pendingRequestCount,
     callCount: callConversationIds.size,
     unreadBadgeCount,
+    needsReplyCount,
     bestFriendCount,
     nearbyCount: nearbyProfileIds.size,
     nearbyStatus: nearby.status,
     nearbyRetry: nearby.retry,
+    redesignEnabled,
+    projectionEntries: projection.entries,
+    projectionEnabled: projection.enabled,
+    projectionReadEnabled: projection.projectionReadEnabled,
   };
 }

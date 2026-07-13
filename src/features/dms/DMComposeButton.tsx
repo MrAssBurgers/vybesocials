@@ -1,18 +1,85 @@
-import { PenLine } from 'lucide-react';
+import { useState } from 'react';
+import { Camera, MessagesSquare, PenLine, Users } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { cn } from '@/lib/utils';
+import {
+  openCameraFromGesture,
+  useCameraOverlayOptional,
+} from '@/contexts/CameraOverlayContext';
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from '@/components/ui/sheet';
 
 export function DMComposeButton({ hidden = false }: { hidden?: boolean }) {
   const navigate = useNavigate();
+  const cameraOverlay = useCameraOverlayOptional();
+  const [open, setOpen] = useState(false);
 
   return (
-    <button
-      type="button"
-      className={cn('dm-inbox-compose', hidden && 'dm-inbox-compose--hidden')}
-      onClick={() => navigate('/messages/new')}
-      aria-label="Start a new chat"
-    >
-      <PenLine />
-    </button>
+    <>
+      <button
+        type="button"
+        className={cn('dm-inbox-compose dm-vfx-press', hidden && 'dm-inbox-compose--hidden')}
+        onClick={() => setOpen(true)}
+        aria-label="Compose"
+      >
+        <PenLine />
+      </button>
+
+      <Sheet open={open} onOpenChange={setOpen}>
+        <SheetContent
+          side="bottom"
+          className="dm-inbox-compose-sheet rounded-t-2xl border-border/40"
+        >
+          <SheetHeader>
+            <SheetTitle>New</SheetTitle>
+          </SheetHeader>
+          <div className="mt-4 flex flex-col gap-1 pb-6">
+            <button
+              type="button"
+              className="dm-inbox-compose-action"
+              onClick={() => {
+                setOpen(false);
+                navigate('/messages/new');
+              }}
+            >
+              <MessagesSquare className="h-5 w-5" />
+              <span>New message</span>
+            </button>
+            <button
+              type="button"
+              className="dm-inbox-compose-action"
+              onClick={() => {
+                setOpen(false);
+                navigate('/messages/new?group=1');
+              }}
+            >
+              <Users className="h-5 w-5" />
+              <span>New group</span>
+            </button>
+            <button
+              type="button"
+              className="dm-inbox-compose-action"
+              onClick={() => {
+                setOpen(false);
+                if (!cameraOverlay) {
+                  navigate('/camera');
+                  return;
+                }
+                openCameraFromGesture(cameraOverlay.openCamera, 'dm', {
+                  showBackArrow: true,
+                });
+              }}
+            >
+              <Camera className="h-5 w-5" />
+              <span>Send VYBE Snap</span>
+            </button>
+          </div>
+        </SheetContent>
+      </Sheet>
+    </>
   );
 }

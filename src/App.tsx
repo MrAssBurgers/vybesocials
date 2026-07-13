@@ -14,6 +14,7 @@ import { warmHomeCaches } from "@/lib/warmHomeCaches";
 import { getStoredAuthUserId } from "@/lib/legacyAuthStorage";
 import { startReconnectManager } from "@/lib/reconnectManager";
 import { startOutbox } from "@/lib/dmOutbox";
+import { loadDmInboxRolloutConfig } from "@/lib/dmInboxFeatureFlags";
 import { BrowserRouter, useLocation } from "react-router-dom";
 import { MotionConfig } from "framer-motion";
 import { BUTTER_TRANSITION } from "@/lib/smoothMotion";
@@ -100,8 +101,30 @@ const RealtimeSyncInner = () => {
       queryClient.invalidateQueries({ queryKey: ['dm-conversations'] });
       queryClient.invalidateQueries({ queryKey: ['conversations'] });
     };
+    // A queued message exhausted retries — mark it failed in the thread (reuses
+    // the existing per-bubble retry UI) instead of silently dropping it.
+    const onOutboxFailed = (event: Event) => {
+      const detail = (event as CustomEvent<{ conversationId?: string; tempId?: string; error?: string }>).detail;
+      const cid = detail?.conversationId;
+      const tempId = detail?.tempId;
+      if (!cid || !tempId) return;
+      import('@/lib/messagesQueryKey').then(({ patchMessagesCache }) => {
+        patchMessagesCache(queryClient, cid, (old) => {
+          if (!old?.length) return old;
+          if (!old.some((m) => m.id === tempId)) return old;
+          return old.map((m) => (m.id === tempId ? { ...m, _failed: true, _error: detail?.error } : m));
+        });
+      });
+      toast.error("Message couldn't be sent", {
+        description: detail?.error || 'Tap the message to retry.',
+      });
+    };
     window.addEventListener('vybe:dm-outbox-flush', onOutboxFlush);
-    return () => window.removeEventListener('vybe:dm-outbox-flush', onOutboxFlush);
+    window.addEventListener('vybe:dm-outbox-failed', onOutboxFailed);
+    return () => {
+      window.removeEventListener('vybe:dm-outbox-flush', onOutboxFlush);
+      window.removeEventListener('vybe:dm-outbox-failed', onOutboxFailed);
+    };
   }, [queryClient]);
   return null;
 };
@@ -251,6 +274,7 @@ installQueryCacheNormalizer(queryClient);
 // connectivity is restored, polls aggressively while offline).
 startReconnectManager(queryClient);
 startOutbox();
+void loadDmInboxRolloutConfig();
 
 // Build-hash based cache buster so deployments invalidate persisted cache.
 const PERSIST_BUSTER = (import.meta as any).env?.VITE_BUILD_ID || 'vybe-cache-v19';

@@ -2,6 +2,102 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## Rollout — callable send + projection deploy (2026-07-12)
+
+- **Deployed to `vybe-daaab`:**
+  1. Firestore rules ✔ (messages create denied; dm_inbox_entries; app_config; message_deletions)
+  2. Indexes ✔
+  3. Cloud Functions ✔ (`sendDmMessage` update + projection triggers + `backfillDmInboxEntries` / `refreshMyDmInboxEntry`)
+  4. Backfill ✔ `node scripts/backfill-dm-inbox.mjs` → COMPLETE `totalProcessed=238 totalWrote=219` (~174 live `dm_inbox_entries` after invalid/empty drops)
+- **Rollout config:** `app_config/dm_inbox_rollout` seeded with internal ids (`e78010f2-…`, `wuy7bIoV…`), `projection_read_pct=0`, `redesign_ui_pct=0`, empty `redesign_internal_ids`
+- **Client gates:** shadow on for all; projection read for internal allowlist only; redesign UI off until `redesign_internal_ids` / pct raised (legacy Friends/Nearby/Requests tabs remain default)
+- **Next for you:** Lovable Share → Publish; QA as internal account (shadow logs + blocked/media/camera); then add your id to `redesign_internal_ids` or raise `redesign_ui_pct` gradually; watch callable latency / duplicates / outbox failures
+- **Verified:** typecheck · 120 tests · functions + rules/indexes deploy PASS · backfill COMPLETE
+
+---
+
+## Callable-only DM send + blocked enforcement (2026-07-12)
+
+- **User ask:** Do not enable redesign for everyone yet. Fix blocked-user gap by routing every DM send through `sendDmMessage`; keep legacy inbox; add blocked/rate-limit/reconnect tests.
+- **Fix:** `insertDmMessage` is callable-only (no client Firestore message create). Rules deny `messages` create (`allow create: if false`). CF enforces blocks (before membership writes), rate limits, schema/media validation, `client_message_id` idempotency, and `dm_send_audit`. Outbox passes temp id as `client_message_id` and treats blocked as permanent fail. Story/share/call/capture/admin DMs also go through `insertDmMessage`.
+- **Flags:** `dm_inbox_projection_read` / `dm_inbox_redesign_ui` remain **default off**. Shadow compare stays on.
+- **Tests:** `dmSendErrors.test.ts`, `dmSendCore.test.ts`, `scripts/test-dm-send-enforcement.mjs` (+ `:emu`).
+- **Rollout order:** deploy rules/indexes/functions → backfill projection → shadow monitor → internal `dm_inbox_projection_read` → small % `dm_inbox_redesign_ui` — **after** this send-path deploy is live.
+- **Verified:** typecheck PASS · test PASS (120) · lint PASS · build PASS · functions build PASS · `test:dm-send-enforcement` PASS (static).
+- **Published:** not committed/pushed yet.
+
+---
+
+## Messages redesign Phase 1 (projection) + Phase 2 (inbox UI) (2026-07-12)
+
+- **User ask:** Implement full Messages redesign plan — projection first, then one-list inbox against the final data contract.
+- **Phase 1 — projection:** `functions/src/dmInboxProjection.ts` (triggers on messages/members/conversations + admin `backfillDmInboxEntries` + `refreshMyDmInboxEntry`); `dm_inbox_entries` rules (viewer read-own, no client writes); composite indexes; emulator ports in `firebase.json`; `scripts/test-dm-inbox-rules.mjs`; client loader/shadow compare/feature flags (`dmInboxProjection.ts`, `dmInboxShadowCompare.ts`, `dmInboxFeatureFlags.ts`, `useDmInboxProjection`); `useDMInbox` shadow-reads while legacy remains visible until `dm_inbox_projection_read` is enabled.
+- **Phase 2 — inbox:** Filters All / Unread / Needs Reply / Groups / Pinned / Active (no section headers); activity-first All sort; per-filter scroll + filter prefs persistence; sticky “Messages” header + activity line; compose sheet (New message / New group / Send VYBE Snap); Requests removed from Messages filters (lives under Add Friends).
+- **Verified:** covered by later Phase 7–8 full suite (typecheck / 107 tests / lint / build / functions build / rules static).
+- **Rollout:** deploy rules+indexes+functions → backfill → shadow observe → flip `dm_inbox_projection_read` → then `dm_inbox_redesign_ui`.
+- **Published:** not committed/pushed yet.
+
+---
+
+## Messages redesign Phase 7 (realtime/offline/push/security) + Phase 8 (a11y/tests/cleanup) (2026-07-12)
+
+- **User ask:** Harden the `dm_inbox_entries` projection era with security/offline fixes (Phase 7), then a11y, filter tests, legacy-file pointers, docs, and a full verification pass (Phase 8).
+
+**Phase 7**
+- **Projection triggers** — already covered `conversation_members` writes (`onDmInboxMemberWritten`), including `last_read_at` updates recomputing `unread_count`/`needs_reply`; no gap found, no change needed.
+- **`functions/src/dmSend.ts` (`sendDmMessage`)** — added a rate limit (60/min/uid via the existing `rateLimit`/`enforceRateLimit` helpers) and a blocked-user check (`isBlockedPair`, queries `blocked_users` both directions) before the message write. **Gap:** the primary send path is a direct client Firestore insert (`insertDmMessage` in `dmSendCore.ts`), gated only by `firestore.rules`, which can't cheaply query `blocked_users` (non-composite doc IDs) — so blocking is only enforced on the Cloud Function fallback path today. Documented in `docs/MESSAGING.md`.
+- **`firestore.rules`** — added the missing `message_deletions` match block (collection is written by `useMessageDeletions.ts`/`useMessageActions.ts` but had zero rules — any signed-in write would have been silently denied by the default-deny fallthrough, and there'd be nothing stopping a future looser rule from exposing other users' deletion records). Scoped like `message_pins`: owner-only read/write via `user_id`.
+- **Friend request / report callables** — searched `functions/src`; neither exists as a callable (both are direct Firestore writes gated by `firestore.rules` today), so there's nothing to rate-limit here. Noted as N/A rather than skipped silently.
+- **`functions/src/pushTriggers.ts`** — confirmed muted members are already excluded from DM push (`member.is_muted === true` check on the primary `conversation_members` path); added a comment explaining why the two bootstrap fallback paths (used only when a 1:1 thread has zero membership rows yet) can't apply mute suppression. Deep-link fields (`conversationId`, `path`) were already present in the push payload.
+- **`src/lib/dmOutbox.ts`** — fixed a real bug: permanently-failing queued sends (validation/permission errors, not just offline) were silently dropped from the outbox with no user-facing signal. Items now get `status: 'failed'` instead of being deleted, and a new `vybe:dm-outbox-failed` event fires. `App.tsx` listens for it, flags the corresponding message bubble `_failed` (reusing the existing retry-bubble UI/CSS in `ChatView`) and shows a toast. `retryFailedItem(tempId)` lets the user retry from the stored payload even after `ChatView` remounts (doesn't depend on in-memory `pendingMessagesRef`); `ChatView`'s retry button now tries that first, falling back to the in-session retry. No second outbox — same store, same `flush()` loop.
+
+**Phase 8**
+- **A11y** — `DMCategoryTabs.tsx` now implements the roving-tabindex ARIA tablist pattern (Arrow Left/Right/Up/Down, Home, End move focus and activate); added `role="tabpanel"`/`aria-labelledby`/`id` wiring between the tabs and `DMConversationList`. Added a visually-hidden `aria-live="polite"` unread-count announcer to `DMInboxPage` and `DmInboxSafeList`. Spot-checked tap targets for DM-specific controls (tabs 58px, header actions/compose FAB 44–68px, swipe actions full row height) — already compliant from earlier phases, no changes needed.
+- **Tests** — new `src/lib/dmInboxOrganize.test.ts` (`compareInboxActivity` tie-breaking; `filterConversationsForTab` for `all`/`needs_reply`/`active`/`unread`-fallback; `filterPreviewsForFilter` for `all`/`needs_reply`/`active`/`unread`) and `src/lib/dmInboxFilterPersistence.test.ts` (stored filter + legacy-tab migration, per-filter scroll, per-profile order/hidden prefs). `dmInboxShadowCompare.test.ts` already existed and was left as-is (already covers the projection-vs-legacy diff).
+- **Legacy files** — `src/components/chat/ConversationList.tsx` and `src/components/chat/DMsHeader.tsx` confirmed unreferenced by anything except each other (dead code, not deleted). Updated/added header comments pointing at `DMInboxPage`/`DmInboxSafeList`, the feature flags in `dmInboxFeatureFlags.ts`, and `docs/MESSAGING.md` for the rollback criteria — no behavior change.
+- **`docs/MESSAGING.md`** — new "Messages redesign — `dm_inbox_entries` projection" section (doc shape, rules, triggers, client hooks, feature-flag table + rollout order, testing pointers) and "Offline outbox — failure surfacing" section; updated "Active inbox UI" pointer and the send-pipeline note to mention the blocked-user/rate-limit gap.
+
+### Verification
+- `npm run typecheck` — PASS.
+- `cd functions && npx tsc --noEmit` — PASS.
+- `npm run test` — PASS (14 files / 107 tests; +2 files / +25 tests over the prior 12/82).
+- `npm run lint` — PASS.
+- `npm run build` — PASS (+ `postbuild` dist checks PASS).
+- `cd functions && npm run build` — PASS (recompiled `lib/` for `dmSend.ts`/`pushTriggers.ts`).
+- `npm run test:dm-inbox-rules` — PASS (static check; emulator not running, matches script's documented behavior).
+
+### Files changed
+- `functions/src/dmSend.ts`, `functions/src/pushTriggers.ts` (+ recompiled `functions/lib/*`)
+- `firestore.rules`
+- `src/lib/dmOutbox.ts`, `src/App.tsx`, `src/components/chat/ChatView.tsx`
+- `src/features/dms/DMCategoryTabs.tsx`, `src/features/dms/DMInboxPage.tsx`, `src/components/chat/dm-inbox/DmInboxSafeList.tsx`, `src/features/dms/DMConversationList.tsx`
+- `src/components/chat/ConversationList.tsx`, `src/components/chat/DMsHeader.tsx` (comments only)
+- `docs/MESSAGING.md`, `WORKLOG.md`
+- New: `src/lib/dmInboxOrganize.test.ts`, `src/lib/dmInboxFilterPersistence.test.ts`
+
+### Blockers / remaining gaps
+- **Blocked-user enforcement doesn't cover the primary send path** (direct Firestore insert) — only the Cloud Function fallback checks `blocked_users`. Closing this properly needs either deterministic `blocked_users` doc IDs (`{blockerId}_{blockedId}`) so `firestore.rules` can `exists()`-check them on message create, or routing all sends through `sendDmMessage`. Both are bigger changes than this pass's scope — flagged for explicit follow-up, not attempted.
+- No callable rate limits added for friend requests/reports since neither is implemented as a callable (direct Firestore writes only).
+- Device QA still outstanding for: swipe interactions, VFX reduced-motion, `/messages/search`, DM theme bubbles (carried over from Phase 3–6), plus the new keyboard-nav tabs and outbox-failure toast/retry flow.
+- Not committed/pushed — awaiting explicit go-ahead per instructions.
+
+### Next 3 tasks
+1. Decide on the blocked-user enforcement gap (composite `blocked_users` IDs + rules check, vs. funneling all sends through `sendDmMessage`).
+2. Manual QA: force a permanent outbox failure (e.g. temporarily deny a write) and confirm the toast + bubble retry + `retryFailedItem` flow feels right on-device.
+3. Commit/push once approved, then Lovable Publish.
+
+---
+
+## Messages redesign Phase 5 (search) + Phase 6 (ChatView split, start) (2026-07-12)
+- **User ask:** Ship `/messages/search` page + start splitting `ChatView.tsx` into modules without breaking send/realtime.
+- **Phase 5 — search:** New `MessagesSearchPage` (`/messages/search`, wired in `AnimatedRoutes.tsx`); `DMInboxPage`/`DmInboxSafeList` search buttons now navigate here instead of opening `ChatSearchSheet`. `useMessagesSearch` debounces (250ms) + guards stale requests via monotonic request id; conversations search `dm_inbox_entries.search_tokens` (`array-contains`, via `searchDmInboxEntriesByToken` in `dmInboxProjection.ts`, using `firestoreDb` helpers — not the `db` shim) and fall back to filtering the loaded inbox if the query throws/misses; people search stays on the `db` shim (`profiles` table, matches existing `Search.tsx`/`NewMessage.tsx` pattern). Recent searches persist in `localStorage` (`dmSearchHistory.ts`, max 8); initial state shows recent searches, recent conversations, and suggested (friend, non-recent) people. Message-body search deferred (would require N+1 or a dedicated index — out of scope for this pass).
+- **Phase 6 — ChatView split (started, not finished):** Extracted `chat-view/ChatThreadShell.tsx` (shell div + `ChatHeader` wrapper — `ChatHeader.tsx` already existed with the compact back/avatar-name/call-video-more layout + `EphemeralChatNotice`) and `chat-view/groupMessages.ts` (pure sender-grouping + `spacingClassForItem`, same precedence as the old inline logic: media-transition/sender-switch > reply > default). `ChatView.tsx` now builds `profileSlot`/`actionsSlot` and renders `<ChatThreadShell>` instead of the inline `<div>` + `<header>`; `messageItems` now calls `groupMessages()`. Composer, message list, swipe-reply, double-tap reaction, and long-press sheet were **not** touched — still inline in `ChatView.tsx`. `useInstantSend`/realtime paths untouched.
+- **Bubble theming:** Renamed the (previously dead — no JS ever set them) `--dm-theme-sent`/`--dm-theme-received` CSS vars to `--dm-bubble-sent`/`--dm-bubble-received` + added `-fg` text vars; `ChatThreadShell`'s `themeStyle` now sets all four from `blendDmThemes()` whenever the viewer picked a non-default DM theme, so bubble color actually reflects the equipped theme (previously computed but unused).
+- **Verified:** `npm run build` PASS · `npm run test` PASS (12 files / 82 tests) · `npm run lint` PASS.
+- **Not done / deferred:** Member-scoped message-body search; further ChatView slimming (composer/message-list extraction); no manual device QA of chat theming or search UX yet.
+- **Published:** Not committed/pushed — awaiting explicit go-ahead.
+- **Next 3 tasks:** 1. Manually QA `/messages/search` (empty state, debounce, start-chat, projection-index-still-building fallback) and themed bubble colors in a real chat. 2. Continue Phase 6: extract message list rendering + simplify `ChatComposer` prop surface. 3. Commit/push once approved, then Lovable Publish.
+
 ## Messages crash fix — persisted Set cache (2026-07-12)
 - **User ask:** “Couldn't load Messages” after DM tabs ship
 - **Cause:** React Query persistence turns `Set` into `{}`; `.has()` on call/friend/request sets threw in `useDMInbox`, then SafeList reused the same hook and bubbled to page fallback
@@ -3690,3 +3786,34 @@ All eight migration phases complete. See `.lovable/plan.md` for per-phase detail
 1. Hard-refresh iPhone Safari and complete Google sign-in from `/auth`.
 2. Run the inbox interaction checklist on iPhone and tablet.
 3. Publish `origin/main` through Lovable and smoke-test `vybehub.app`.
+
+---
+
+## 2026-07-12 — Messages redesign Phase 3 (interactions/theming/VFX) + Phase 4 (Add Friends)
+
+### What changed
+**Phase 3**
+- `SwipeableDmConversationRow.tsx` — swipe reworked: right swipe toggles read/unread via `useDmInboxActions().toggleRead`; left swipe reveals a Pin/Mute/Archive tray that snaps open; a deeper left swipe past the tray arms a delete zone that requires release + an `AlertDialog` confirmation before trashing. Row tap, avatar/profile routing, haptics, long-press options sheet, and camera routing untouched.
+- `useDmInboxActions.ts` — added `markRead` mutation (wraps `useMarkConversationRead`) and a `toggleRead(currentlyUnread)` helper.
+- `ConversationOptionsSheet.tsx` — added Block and Report actions (existing `blocked_users` / `reports` collections, matching field names used elsewhere in the app) alongside existing Pin/Mute/Mark-unread/Archive/Delete/Lock/Clear/Best-Friend actions.
+- `dmThemeTokens.ts` (new) + `index.css` — semantic `--dm-theme-*` CSS vars (elevated/surface/glass/divider/glow/unread/online/story-ring/sent/received/composer/nav/shadow/overlay) scoped under `.dm-inbox`/`.dm-thread`, derived from existing theme vars; inbox/thread components migrated to consume them.
+- Controlled VFX (transform/opacity only) added: `.dm-vfx-press` on buttons across `DMHeader`, `DMComposeButton`, `DMConversationRow`, and the new swipe tray buttons; story-ring pulse on unviewed avatar rings; new-message sweep on `DMConversationRow`. All respect `prefers-reduced-motion` / `.reduce-motion`.
+- Removed the old "quick reply" right-swipe affordance (`onQuickReply` prop and call sites) from `DMConversationList`, `DmInboxSafeList`, and `DMInboxPage`.
+
+**Phase 4**
+- `src/pages/AddFriendsPage.tsx` (new) — `/friends/add` route with `Add Friends` / `Requests` tabs. Add Friends: debounced search (`useSearchPeople`, extracted to `src/hooks/useSearchPeople.ts` from `Search.tsx`) with quick-add suggestions (`useQuickAddSuggestions`, `useDismissedQuickAdd`) fallback. Requests: existing `FriendRequestsList` (Incoming/Sent) plus a new "Accepted recently" section backed by `useRecentlyAcceptedFriends` (added to `useFriends.ts`).
+- Route wired in `AnimatedRoutes.tsx` as a lazy, `ProtectedRoute` + `RouteBoundary`-wrapped route, matching existing route conventions. `DMHeader`'s friend-add button already pointed at `/friends/add`.
+
+### Verification
+- `npm run typecheck` — passed.
+- `npm run build` — passed.
+- `npm run test` — 12 files / 82 tests passed.
+- `npm run lint` — passed.
+
+### Blockers
+- None. Device QA for swipe gestures (tray snap, delete-zone threshold feel) and VFX (reduced-motion) still recommended on a real touch device before Lovable Publish.
+
+### Next 3 tasks
+1. Manual QA: swipe interactions (read toggle, tray snap, delete confirm), long-press options sheet, camera routing, and `/friends/add` tabs on a touch device.
+2. Commit and push to `origin/main` when ready (not yet committed).
+3. Publish via Lovable → Share → Publish and smoke-test `vybehub.app` for both phases.

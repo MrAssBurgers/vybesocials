@@ -6,7 +6,7 @@ import { StoryGroup, useViewStory } from '@/hooks/useStories';
 import { useStoryLikes, useLikeStory } from '@/hooks/useStoryLikes';
 import { useCreateConversation } from '@/hooks/useMessages';
 import { useAuth } from '@/lib/auth';
-import { db } from '@/lib/firebase';
+import { insertDmMessage } from '@/lib/dmSendCore';
 import { toast } from 'sonner';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
@@ -278,12 +278,16 @@ export function StoryViewer({ groups, initialGroupIndex, onClose }: StoryViewerP
         memberIds: [currentGroup.user.id],
       });
 
-      const { error } = await db.from('messages').insert({
-        conversation_id: conversation.id,
-        sender_id: profile.id,
-        content,
-        message_type: 'text',
-      });
+      const { error } = await insertDmMessage(
+        {
+          conversation_id: conversation.id,
+          sender_id: profile.id,
+          content,
+          message_type: 'text',
+          client_message_id: `story_reply_${conversation.id}_${Date.now()}`,
+        },
+        { otherProfileId: currentGroup.user.id },
+      );
 
       if (error) throw error;
 

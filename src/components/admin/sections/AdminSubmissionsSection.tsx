@@ -11,6 +11,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAuth } from '@/lib/auth';
 import { useAuthProfileId } from '@/hooks/useAuthProfileId';
 import { isStaffQueryEnabled } from '@/lib/adminAccess';
+import { insertDmMessage } from '@/lib/dmSendCore';
 import { toast } from 'sonner';
 import { formatDistanceToNow } from 'date-fns';
 
@@ -51,11 +52,13 @@ async function sendRejectionDM(adminProfileId: string, targetUserId: string, typ
     const typeLabel = type === 'moderator' ? 'Moderator' : 'Creator Partner';
     const message = `🔔 **${typeLabel} Application Update**\n\nYour application has been reviewed and was not accepted at this time.\n\n${reason ? `**Reason:** ${reason}` : 'Please continue engaging with the community and feel free to reapply in the future.'}\n\nKeep creating and growing! 💪`;
 
-    await db.from('messages').insert({
-      conversation_id: conversationId,
+    await insertDmMessage({
+      conversation_id: String(conversationId),
       sender_id: adminProfileId,
       content: message,
-    });
+      message_type: 'text',
+      client_message_id: `admin_reject_${conversationId}_${Date.now()}`,
+    }, { otherProfileId: targetUserId });
   } catch (err) {
     console.error('Failed to send rejection DM:', err);
   }
@@ -81,19 +84,23 @@ async function sendAcceptanceDM(adminProfileId: string, targetUserId: string, ty
         `🏦 **Next Step:** Head to your **Creator Dashboard** and set up your payout method so you can get paid!\n\n` +
         `The more you create and engage, the more you earn. Welcome to the team! 🚀`;
 
-      await db.from('messages').insert({
-        conversation_id: conversationId,
+      await insertDmMessage({
+        conversation_id: String(conversationId),
         sender_id: adminProfileId,
         content: message,
-      });
+        message_type: 'text',
+        client_message_id: `admin_accept_creator_${conversationId}_${Date.now()}`,
+      }, { otherProfileId: targetUserId });
     } else {
       const message = `🎉 **Congratulations! You've Been Accepted as a Moderator!**\n\nYou now have moderator privileges. Use them wisely to keep the community safe and positive!\n\nWelcome to the team! 🛡️`;
 
-      await db.from('messages').insert({
-        conversation_id: conversationId,
+      await insertDmMessage({
+        conversation_id: String(conversationId),
         sender_id: adminProfileId,
         content: message,
-      });
+        message_type: 'text',
+        client_message_id: `admin_accept_mod_${conversationId}_${Date.now()}`,
+      }, { otherProfileId: targetUserId });
     }
   } catch (err) {
     console.error('Failed to send acceptance DM:', err);

@@ -15,6 +15,11 @@ import {
 } from '@/lib/dmMembershipRepair';
 import type { ViewMode } from '@/hooks/useMessages';
 import { insertDmMessage, bumpConversationUpdatedAt } from '@/lib/dmSendCore';
+import {
+  classifyDmSendError,
+  isPermanentDmSendFailure,
+  isTransientDmSendFailure,
+} from '@/lib/dmSendErrors';
 
 const KEY = 'vybe-dm-outbox-v1';
 
@@ -29,6 +34,11 @@ export interface OutboxItem {
   replyToId?: string;
   expiresAt: string | null;
   queuedAt: number;
+  /** 'pending' retries automatically on reconnect; 'failed' needs an explicit retry/discard. */
+  status?: 'pending' | 'failed';
+  attempts?: number;
+  lastError?: string;
+  failedAt?: number;
 }
 
 const listeners = new Set<() => void>();
@@ -83,7 +93,45 @@ export async function getPending(): Promise<OutboxItem[]> {
   return readAll();
 }
 
-async function sendOne(item: OutboxItem): Promise<boolean> {
+/** Items still auto-retrying (offline/transient) for a conversation, or all conversations. */
+export async function getPendingCount(conversationId?: string): Promise<number> {
+  const items = await readAll();
+  return items.filter(
+    (i) => i.status !== 'failed' && (!conversationId || i.conversationId === conversationId),
+  ).length;
+}
+
+/** Items that exhausted auto-retry and need the user to retry/discard explicitly. */
+export async function getFailedItems(conversationId?: string): Promise<OutboxItem[]> {
+  const items = await readAll();
+  return items.filter(
+    (i) => i.status === 'failed' && (!conversationId || i.conversationId === conversationId),
+  );
+}
+
+async function updateItem(tempId: string, patch: Partial<OutboxItem>): Promise<void> {
+  const items = await readAll();
+  const next = items.map((i) => (i.tempId === tempId ? { ...i, ...patch } : i));
+  await writeAll(next);
+  emit();
+}
+
+/** Reset a failed item back to pending and immediately try again. Returns false if not found. */
+export async function retryFailedItem(tempId: string): Promise<boolean> {
+  const items = await readAll();
+  const item = items.find((i) => i.tempId === tempId);
+  if (!item) return false;
+  await updateItem(tempId, { status: 'pending', lastError: undefined, failedAt: undefined });
+  void flush();
+  return true;
+}
+
+/** Drop a queued/failed item without sending it (user dismissed it). */
+export async function discardItem(tempId: string): Promise<void> {
+  await removeItem(tempId);
+}
+
+async function sendOne(item: OutboxItem): Promise<{ ok: boolean; transient: boolean; error?: string }> {
   try {
     const otherProfileId =
       inferOtherParticipantId(item.conversationId, item.senderId) || null;
@@ -93,8 +141,6 @@ async function sendOne(item: OutboxItem): Promise<boolean> {
       otherProfileId,
       { force: true },
     ).catch((err) => {
-      // The insert below retries repair inline; log so a queued message that
-      // never sends is traceable to a membership repair failure.
       console.warn('[Outbox] membership repair before send failed:', err);
     });
 
@@ -108,23 +154,33 @@ async function sendOne(item: OutboxItem): Promise<boolean> {
         view_mode: item.viewMode,
         expires_at: item.expiresAt,
         reply_to_id: item.replyToId,
+        client_message_id: item.tempId,
       },
       { otherProfileId },
     );
     if (error) {
-      const msg = (error.message || '').toLowerCase();
+      const message = error.message || 'Failed to send';
+      const kind = classifyDmSendError(error);
       const transient =
-        msg.includes('network') ||
-        msg.includes('failed to fetch') ||
-        msg.includes('timeout') ||
-        msg.includes('fetch');
-      return !transient;
+        isTransientDmSendFailure(kind) && !isPermanentDmSendFailure(kind);
+      return { ok: false, transient, error: message };
     }
     void bumpConversationUpdatedAt(item.conversationId);
-    return true;
-  } catch {
-    return false;
+    return { ok: true, transient: false };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Failed to send';
+    const kind = classifyDmSendError(message);
+    return {
+      ok: false,
+      transient: isTransientDmSendFailure(kind),
+      error: message,
+    };
   }
+}
+
+function dispatch(name: string, detail: Record<string, unknown>) {
+  if (typeof window === 'undefined') return;
+  window.dispatchEvent(new CustomEvent(name, { detail }));
 }
 
 export async function flush(): Promise<void> {
@@ -136,18 +192,33 @@ export async function flush(): Promise<void> {
     if (!items.length) return;
 
     for (const item of items) {
-      const ok = await sendOne(item);
-      if (ok) {
+      if (item.status === 'failed') continue; // needs explicit retry
+
+      const result = await sendOne(item);
+      if (result.ok) {
         await removeItem(item.tempId);
-        if (typeof window !== 'undefined') {
-          window.dispatchEvent(
-            new CustomEvent('vybe:dm-outbox-flush', { detail: { conversationId: item.conversationId } }),
-          );
-        }
-      } else {
+        dispatch('vybe:dm-outbox-flush', { conversationId: item.conversationId, tempId: item.tempId });
+        continue;
+      }
+
+      if (result.transient) {
         // Stop on first transient failure; we'll retry on next reconnect.
         break;
       }
+
+      // Permanent failure (validation, permission, etc.) — surface it instead
+      // of silently dropping the message from the queue.
+      await updateItem(item.tempId, {
+        status: 'failed',
+        lastError: result.error,
+        failedAt: Date.now(),
+        attempts: (item.attempts ?? 0) + 1,
+      });
+      dispatch('vybe:dm-outbox-failed', {
+        conversationId: item.conversationId,
+        tempId: item.tempId,
+        error: result.error,
+      });
     }
   } finally {
     flushing = false;

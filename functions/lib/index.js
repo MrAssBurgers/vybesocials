@@ -43,6 +43,7 @@ export * from './captureEvents.js';
 export * from './challenges.js';
 export * from './friendProfile.js';
 export * from './locationSharing.js';
+export * from './dmInboxProjection.js';
 /**
  * Promote a user to admin via custom claim. Bootstrap the first admin
  * manually in Firebase Console → Authentication → User → Custom Claims:

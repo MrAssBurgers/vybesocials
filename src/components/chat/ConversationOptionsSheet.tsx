@@ -12,7 +12,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
-import { Trash2, BellOff, Bell, User, Pin, PinOff, MessageSquareX, Archive, Lock, Mail, Heart } from 'lucide-react';
+import { Trash2, BellOff, Bell, User, Pin, PinOff, MessageSquareX, Archive, Lock, Mail, Heart, Ban, Flag } from 'lucide-react';
 import { useTrashConversation } from '@/hooks/useTrashedConversations';
 import { db } from '@/lib/firebase';
 import { useQueryClient } from '@tanstack/react-query';
@@ -22,6 +22,14 @@ import { safeDmMembers } from '@/lib/persistedCollections';
 import { useAuth } from '@/lib/auth';
 import { useManageCloseFriend } from '@/hooks/useStories';
 import { useCloseFriendIds } from '@/hooks/useCloseFriendIds';
+
+const REPORT_REASONS = [
+  { id: 'spam', label: 'Spam' },
+  { id: 'harassment', label: 'Harassment' },
+  { id: 'inappropriate', label: 'Inappropriate content' },
+  { id: 'impersonation', label: 'Impersonation' },
+  { id: 'other', label: 'Other' },
+];
 
 interface ConversationOptionsSheetProps {
   open: boolean;
@@ -66,9 +74,14 @@ export function ConversationOptionsSheet({
   const isBestFriend = Boolean(otherUserId && closeFriendIds.has(otherUserId));
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
+  const [showBlockConfirm, setShowBlockConfirm] = useState(false);
+  const [showReportSheet, setShowReportSheet] = useState(false);
+  const [reportReason, setReportReason] = useState<string | null>(null);
   const [isTogglingMute, setIsTogglingMute] = useState(false);
   const [isTogglingPin, setIsTogglingPin] = useState(false);
   const [isClearing, setIsClearing] = useState(false);
+  const [isBlocking, setIsBlocking] = useState(false);
+  const [isReporting, setIsReporting] = useState(false);
   const [isTogglingBestFriend, setIsTogglingBestFriend] = useState(false);
 
   const handleDeleteChat = async () => {
@@ -168,6 +181,54 @@ export function ConversationOptionsSheet({
       toast.error('Failed to update pin status');
     } finally {
       setIsTogglingPin(false);
+    }
+  };
+
+  const handleBlock = async () => {
+    if (!profile?.id || !otherUserId) return;
+    setIsBlocking(true);
+    try {
+      const { error } = await db.from('blocked_users').insert({
+        blocker_id: profile.id,
+        blocked_id: otherUserId,
+      });
+      if (error && !error.message.includes('duplicate')) throw error;
+
+      invalidateConversationCaches(queryClient);
+      toast.success(otherUsername ? `@${otherUsername} has been blocked` : 'User blocked');
+      setShowBlockConfirm(false);
+      onOpenChange(false);
+      if (window.location.pathname.includes(conversationId)) {
+        navigate('/messages');
+      }
+    } catch (error) {
+      console.error('Failed to block user:', error);
+      toast.error('Failed to block user');
+    } finally {
+      setIsBlocking(false);
+    }
+  };
+
+  const handleReport = async () => {
+    if (!profile?.id || !otherUserId || !reportReason) return;
+    setIsReporting(true);
+    try {
+      const { error } = await db.from('reports').insert({
+        reporter_id: profile.id,
+        reported_user_id: otherUserId,
+        reason: reportReason,
+      } as any);
+      if (error) throw error;
+
+      toast.success('Report submitted. Thank you for keeping VYBE safe.');
+      setShowReportSheet(false);
+      setReportReason(null);
+      onOpenChange(false);
+    } catch (error) {
+      console.error('Failed to report user:', error);
+      toast.error('Failed to submit report');
+    } finally {
+      setIsReporting(false);
     }
   };
 
@@ -308,6 +369,27 @@ export function ConversationOptionsSheet({
               <Trash2 className="h-5 w-5" />
               Delete Chat
             </Button>
+
+            {otherUserId && (
+              <>
+                <Button
+                  variant="ghost"
+                  className="w-full justify-start gap-3 h-12 text-destructive hover:text-destructive hover:bg-destructive/10"
+                  onClick={() => setShowBlockConfirm(true)}
+                >
+                  <Ban className="h-5 w-5" />
+                  Block
+                </Button>
+                <Button
+                  variant="ghost"
+                  className="w-full justify-start gap-3 h-12 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                  onClick={() => setShowReportSheet(true)}
+                >
+                  <Flag className="h-5 w-5" />
+                  Report
+                </Button>
+              </>
+            )}
           </div>
         </SheetContent>
       </Sheet>
@@ -352,6 +434,72 @@ export function ConversationOptionsSheet({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <AlertDialog open={showBlockConfirm} onOpenChange={setShowBlockConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              Block {otherUsername ? `@${otherUsername}` : 'this person'}?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              They won't be able to find your profile, posts, or message you. They won't be notified.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isBlocking}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleBlock}
+              disabled={isBlocking}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {isBlocking ? 'Blocking...' : 'Block'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <Sheet
+        open={showReportSheet}
+        onOpenChange={(open) => {
+          setShowReportSheet(open);
+          if (!open) setReportReason(null);
+        }}
+      >
+        <SheetContent side="bottom" className="rounded-t-3xl pb-safe">
+          <SheetHeader className="text-center pb-2">
+            <SheetTitle>
+              Report {otherUsername ? `@${otherUsername}` : 'this person'}
+            </SheetTitle>
+          </SheetHeader>
+          <p className="text-sm text-muted-foreground text-center pb-3">
+            Why are you reporting this account?
+          </p>
+          <div className="grid grid-cols-2 gap-2 pb-4">
+            {REPORT_REASONS.map((reason) => (
+              <button
+                key={reason.id}
+                type="button"
+                onClick={() => setReportReason(reason.id)}
+                className={`rounded-xl border p-3 text-left text-sm font-medium transition-colors ${
+                  reportReason === reason.id
+                    ? 'border-primary bg-primary/10'
+                    : 'border-border/50 hover:bg-muted/50'
+                }`}
+              >
+                {reason.label}
+              </button>
+            ))}
+          </div>
+          <Button
+            variant="destructive"
+            className="w-full"
+            disabled={!reportReason || isReporting}
+            onClick={handleReport}
+          >
+            {isReporting ? 'Submitting...' : 'Submit Report'}
+          </Button>
+        </SheetContent>
+      </Sheet>
     </>
   );
 }

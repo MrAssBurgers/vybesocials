@@ -205,6 +205,54 @@ export function useFriends() {
   };
 }
 
+export interface RecentlyAcceptedFriend {
+  id: string;
+  username: string;
+  avatar_url: string | null;
+  display_name: string | null;
+  accepted_at: string;
+}
+
+/** Friends whose request flipped to "accepted" recently — for the Add Friends → Requests tab. */
+export function useRecentlyAcceptedFriends(limit = 15) {
+  const profileId = useAuthProfileId();
+
+  return useQuery({
+    queryKey: ['recently-accepted-friends', profileId, limit],
+    queryFn: async (): Promise<RecentlyAcceptedFriend[]> => {
+      if (!profileId) return [];
+
+      const [asSenderRes, asReceiverRes] = await Promise.all([
+        db
+          .from('friend_requests')
+          .select('updated_at, created_at, receiver:profiles!receiver_id(id, username, avatar_url, display_name)')
+          .eq('sender_id', profileId)
+          .eq('status', 'accepted'),
+        db
+          .from('friend_requests')
+          .select('updated_at, created_at, sender:profiles!sender_id(id, username, avatar_url, display_name)')
+          .eq('receiver_id', profileId)
+          .eq('status', 'accepted'),
+      ]);
+
+      if (asSenderRes.error) throw asSenderRes.error;
+      if (asReceiverRes.error) throw asReceiverRes.error;
+
+      const merged = [
+        ...(asSenderRes.data || []).map((r: any) => ({ ...r.receiver, accepted_at: r.updated_at || r.created_at })),
+        ...(asReceiverRes.data || []).map((r: any) => ({ ...r.sender, accepted_at: r.updated_at || r.created_at })),
+      ].filter((f) => f?.id);
+
+      return merged
+        .sort((a, b) => new Date(b.accepted_at || 0).getTime() - new Date(a.accepted_at || 0).getTime())
+        .slice(0, limit) as RecentlyAcceptedFriend[];
+    },
+    enabled: !!profileId,
+    staleTime: 60000,
+    select: (data) => ensureArray(data),
+  });
+}
+
 export function useFriendshipStatus(targetUserId: string | undefined) {
   const profileId = useAuthProfileId();
 

@@ -28,6 +28,7 @@ import {
   subscribeDmBroadcastScreenshot,
   type DmScreenshotPayload,
 } from '@/lib/dmBroadcast';
+import { insertDmMessage } from '@/lib/dmSendCore';
 import { haptics } from '@/lib/haptics';
 
 export type ViewMode = 'view_once' | 'replay_once' | '24h' | 'permanent' | 'keep' | 'timed';
@@ -822,11 +823,12 @@ export function useScreenshotNotification(conversationId: string | undefined) {
         });
       }
 
-      await db.from('messages').insert({
+      await insertDmMessage({
         conversation_id: conversationId,
         sender_id: profile.id,
         content,
         message_type: messageType,
+        client_message_id: eventId,
       });
 
       queryClient.invalidateQueries({ queryKey: ['messages', conversationId] });

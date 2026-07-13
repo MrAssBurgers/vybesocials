@@ -12,6 +12,7 @@ import { Input } from '@/components/ui/input';
 import { useAuth } from '@/lib/auth';
 import { useFriends } from '@/hooks/useFriends';
 import { db } from '@/lib/firebase';
+import { insertDmMessage, bumpConversationUpdatedAt } from '@/lib/dmSendCore';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { useSignedUrl } from '@/hooks/useSignedUrl';
@@ -154,20 +155,21 @@ export const ShareSheet = memo(function ShareSheet({
         if (convId) {
           const isVideo = postType === 'video' || postType === 'short';
           
-          await db.from('messages').insert({
-            conversation_id: convId,
-            sender_id: profile.id,
-            content: postId,
-            media_url: mediaUrl || null,
-            media_type: isVideo ? 'video' : 'image',
-            message_type: 'shared_post',
-          });
+          const { error } = await insertDmMessage(
+            {
+              conversation_id: String(convId),
+              sender_id: profile.id,
+              content: postId,
+              media_url: mediaUrl || null,
+              media_type: isVideo ? 'video' : 'image',
+              message_type: 'shared_post',
+              client_message_id: `share_${convId}_${postId}_${Date.now()}`,
+            },
+            { otherProfileId: friendId },
+          );
+          if (error) throw error;
 
-          // Update conversation timestamp to move it to top
-          await db
-            .from('conversations')
-            .update({ updated_at: new Date().toISOString() })
-            .eq('id', convId);
+          await bumpConversationUpdatedAt(String(convId));
         }
       }
 

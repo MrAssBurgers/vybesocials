@@ -5,6 +5,11 @@ import { SwipeableDmConversationRow } from '@/components/chat/dm-inbox/Swipeable
 import { useDmInboxVirtualSlice } from '@/hooks/useDmInboxVirtualSlice';
 import type { DMInboxRow, DmInboxTabId } from './dm.types';
 import type { NearbyFriendStatus } from '@/hooks/useNearbyFriendLink';
+import {
+  readFilterScroll,
+  writeFilterScroll,
+} from '@/lib/dmInboxFilterPersistence';
+import type { DmInboxFilterId } from './dm.types';
 import { DMComposeButton } from './DMComposeButton';
 import { DMInboxSkeleton } from './DMInboxSkeleton';
 import { DMRequestRow } from './DMRequestRow';
@@ -21,7 +26,6 @@ interface DMConversationListProps {
   hasError: boolean;
   nearbyStatus?: NearbyFriendStatus;
   onOpen: (conversationId: string) => void;
-  onQuickReply: (conversationId: string) => void;
   onWarm: (conversationId: string) => void;
   onRetry: () => void;
   onCompose: () => void;
@@ -48,10 +52,30 @@ function emptyCopy(
     };
   }
   switch (tab) {
-    case 'best_friends':
+    case 'needs_reply':
       return {
-        title: 'No best friends yet',
-        body: 'Long-press a chat and tap Best Friend to keep your inner circle here.',
+        title: 'Nothing needs a reply',
+        body: 'When someone messages you, unanswered chats land here.',
+      };
+    case 'pinned':
+      return {
+        title: 'No pinned chats',
+        body: 'Swipe left on a chat and tap Pin to keep it here.',
+      };
+    case 'active':
+      return {
+        title: 'No active friends',
+        body: 'Direct chats with online or recently active friends show up here.',
+      };
+    case 'groups':
+      return {
+        title: 'No groups yet',
+        body: 'Start a group chat to hang with everyone at once.',
+      };
+    case 'unread':
+      return {
+        title: 'You’re all caught up',
+        body: 'No unread chats right now.',
       };
     case 'nearby':
       if (nearbyStatus === 'locating' || nearbyStatus === 'searching') {
@@ -60,36 +84,14 @@ function emptyCopy(
           body: 'Finding friends near you. Keep location on for a moment.',
         };
       }
-      if (nearbyStatus === 'denied' || nearbyStatus === 'unavailable') {
-        return {
-          title: 'Location needed',
-          body: 'Allow location access to see friends nearby.',
-        };
-      }
-      if (nearbyStatus === 'error') {
-        return {
-          title: 'Nearby failed',
-          body: 'Couldn’t check who’s nearby. Try again.',
-        };
-      }
       return {
         title: 'No nearby friends',
         body: 'When friends are close by, they’ll show up here.',
-      };
-    case 'groups':
-      return {
-        title: 'No groups yet',
-        body: 'Start a group chat to hang with everyone at once.',
       };
     case 'requests':
       return {
         title: 'No requests',
         body: 'Message requests from new people will land here.',
-      };
-    case 'unread':
-      return {
-        title: 'You’re all caught up',
-        body: 'No unread chats or recent missed calls right now.',
       };
     default:
       return {
@@ -97,6 +99,20 @@ function emptyCopy(
         body: 'Message friends, share snaps, and keep the streak alive.',
       };
   }
+}
+
+function asFilterId(tab?: DmInboxTabId): DmInboxFilterId {
+  if (
+    tab === 'all' ||
+    tab === 'unread' ||
+    tab === 'needs_reply' ||
+    tab === 'groups' ||
+    tab === 'pinned' ||
+    tab === 'active'
+  ) {
+    return tab;
+  }
+  return 'all';
 }
 
 export function DMConversationList({
@@ -110,7 +126,6 @@ export function DMConversationList({
   hasError,
   nearbyStatus,
   onOpen,
-  onQuickReply,
   onWarm,
   onRetry,
   onCompose,
@@ -125,17 +140,21 @@ export function DMConversationList({
   const renderRows = virtualized ? visible : rows;
   const empty = emptyCopy(activeTab, searchQuery, hasError, nearbyStatus);
   const nearbyBusy = nearbyStatus === 'locating' || nearbyStatus === 'searching';
+  const filterId = asFilterId(activeTab);
 
   useEffect(() => {
     const el = listRef.current;
-    if (el) el.scrollTop = 0;
-    lastScrollTop.current = 0;
+    if (!el) return;
+    const restored = readFilterScroll(filterId);
+    el.scrollTop = restored;
+    lastScrollTop.current = restored;
     setComposeHidden(false);
-  }, [activeTab]);
+  }, [filterId]);
 
   const handleScroll = (event: UIEvent<HTMLDivElement>) => {
     onScroll?.(event);
     const top = event.currentTarget.scrollTop;
+    writeFilterScroll(filterId, top);
     const delta = top - lastScrollTop.current;
     if (Math.abs(delta) > 5) {
       setComposeHidden(delta > 0 && top > 64);
@@ -147,23 +166,20 @@ export function DMConversationList({
     <>
       <div
         ref={listRef}
+        id="dm-inbox-list"
         className="dm-inbox-list scroller"
         onScroll={handleScroll}
         aria-label="Conversations"
+        role="tabpanel"
+        aria-labelledby={`dm-inbox-tab-${filterId}`}
       >
         {showSkeleton || (activeTab === 'nearby' && nearbyBusy && rows.length === 0) ? (
           <DMInboxSkeleton />
         ) : rows.length > 0 ? (
           <div className="dm-inbox-rows" style={{ paddingTop, paddingBottom }}>
             {renderRows.map((row) => {
-              if (row.type === 'header') {
-                return (
-                  <div className="dm-inbox-section-label" key={`header-${row.id}`}>
-                    <span>{row.label}</span>
-                    <span className="dm-inbox-section-count">{row.count}</span>
-                  </div>
-                );
-              }
+              // Section headers removed — continuous list only.
+              if (row.type === 'header') return null;
               if (row.type === 'request') {
                 return <DMRequestRow key={`request-${row.request.id}`} request={row.request} />;
               }
@@ -188,7 +204,6 @@ export function DMConversationList({
                   isTyping={row.preview.isTyping}
                   presenceActivity={row.preview.presenceActivity}
                   onClick={() => onOpen(row.preview.id)}
-                  onQuickReply={() => onQuickReply(row.preview.id)}
                   onWarm={() => onWarm(row.preview.id)}
                 />
               );

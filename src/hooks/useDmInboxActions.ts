@@ -1,3 +1,4 @@
+import { useCallback } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { db } from '@/lib/firebase';
 import { useAuthProfileId } from '@/hooks/useAuthProfileId';
@@ -6,6 +7,7 @@ import { toast } from 'sonner';
 import { invalidateConversationCaches } from '@/lib/invalidateConversationCaches';
 import { useHideConversation } from '@/hooks/useHiddenConversations';
 import { useLockConversation, useUnlockConversation } from '@/hooks/useLockedChats';
+import { useMarkConversationRead } from '@/hooks/useDMConversations';
 import { safeDmMembers } from '@/lib/persistedCollections';
 import type { LoadedDMConversation } from '@/lib/loadDMConversations';
 
@@ -16,6 +18,7 @@ export function useDmInboxActions(conversation: LoadedDMConversation) {
   const hideConversation = useHideConversation();
   const lockConversation = useLockConversation();
   const unlockConversation = useUnlockConversation();
+  const markConversationRead = useMarkConversationRead();
 
   const memberDocId = profileId ? `${conversation.id}_${profileId}` : null;
 
@@ -82,6 +85,21 @@ export function useDmInboxActions(conversation: LoadedDMConversation) {
     onSuccess: (_, lock) => toast.success(lock ? 'Chat locked' : 'Chat unlocked'),
   });
 
+  const markRead = useMutation({
+    mutationFn: async () => {
+      await markConversationRead.mutateAsync(conversation.id);
+    },
+  });
+
+  /** Right-swipe entry point — flips whichever read state the row is currently in. */
+  const toggleRead = useCallback(
+    (currentlyUnread: boolean) => {
+      if (currentlyUnread) markRead.mutate();
+      else markUnread.mutate();
+    },
+    [markRead, markUnread],
+  );
+
   const myMembership = safeDmMembers(conversation.members).find((m) => m.user_id === profileId);
   const isPinned = Boolean(myMembership?.is_pinned);
   const isMuted = Boolean(myMembership?.is_muted);
@@ -92,6 +110,8 @@ export function useDmInboxActions(conversation: LoadedDMConversation) {
     togglePin,
     toggleMute,
     markUnread,
+    markRead,
+    toggleRead,
     archive,
     toggleLock,
     profileId: profile?.id ?? profileId,

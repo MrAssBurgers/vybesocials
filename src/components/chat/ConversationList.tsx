@@ -1,6 +1,10 @@
 /**
- * @deprecated Unrouted legacy inbox — use DmInboxView instead.
- * Kept for reference; groups/streaks/row presence ported to dm-inbox/.
+ * @deprecated Unrouted legacy inbox, superseded by the Messages redesign
+ * (`src/features/dms/DMInboxPage.tsx`, with `DmInboxSafeList` as its error
+ * fallback). Kept only for reference/rollback — groups/streaks/row presence
+ * were ported to `dm-inbox/`. Do not delete until the `dm_inbox_projection_*`
+ * shadow-read flags in `src/lib/dmInboxFeatureFlags.ts` have been stable in
+ * production for a full cycle (see `docs/MESSAGING.md`).
  */
 import { useState, useEffect, useMemo, memo, useCallback, useRef, forwardRef } from 'react';
 import { useNavigate } from 'react-router-dom';

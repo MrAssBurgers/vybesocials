@@ -666,6 +666,34 @@ body.has-liquid-bg:not(.has-custom-bg) .messages-scroll {
 }
 
 /* ========================================
+   VYBE DM theme tokens — derived from the active theme.
+   Consumed by .dm-inbox (list) and .dm-thread (chat view) only; never
+   hardcode colors in DM components, read these vars instead.
+   See src/lib/dmThemeTokens.ts for the typed JS-side accessors.
+   ======================================== */
+.dm-inbox,
+.dm-thread {
+  --dm-theme-elevated: hsl(var(--card) / 0.94);
+  --dm-theme-surface: hsl(var(--background) / 0.9);
+  --dm-theme-glass: hsl(var(--background) / 0.55);
+  --dm-theme-divider: hsl(var(--primary) / 0.12);
+  --dm-theme-glow: hsl(var(--primary) / 0.45);
+  --dm-theme-unread: hsl(var(--primary));
+  --dm-theme-online: hsl(145 74% 48%);
+  --dm-theme-story-ring: linear-gradient(135deg, hsl(var(--primary)), hsl(var(--accent)));
+  /* Bubble fill/text — overridden per-conversation via inline style from
+     blendDmThemes() (see ChatThreadShell's themeStyle prop in ChatView.tsx). */
+  --dm-bubble-sent: linear-gradient(135deg, hsl(var(--primary)), hsl(var(--accent)));
+  --dm-bubble-received: hsl(var(--muted) / 0.55);
+  --dm-bubble-sent-fg: hsl(var(--primary-foreground));
+  --dm-bubble-received-fg: hsl(var(--foreground));
+  --dm-theme-composer: hsl(var(--muted) / 0.4);
+  --dm-theme-nav: linear-gradient(180deg, hsl(var(--background) / 0.55), hsl(var(--background) / 0.32));
+  --dm-theme-shadow: 0 10px 30px hsl(var(--primary) / 0.08);
+  --dm-theme-overlay: hsl(var(--background) / 0.72);
+}
+
+/* ========================================
    VYBE DM Inbox — concept glass list
    ======================================== */
 .dm-inbox {
@@ -694,21 +722,27 @@ body.has-liquid-bg:not(.has-custom-bg) .messages-scroll {
   flex-shrink: 0;
   min-height: calc(80px + max(var(--sat, 0px), env(safe-area-inset-top, 0px)));
   padding-top: max(var(--sat, 0px), env(safe-area-inset-top, 0px));
-  border-bottom: 1px solid hsl(var(--primary) / 0.12);
+  border-bottom: 1px solid var(--dm-theme-divider);
   background: linear-gradient(
     180deg,
     hsl(var(--background) / 0.78),
-    hsl(var(--background) / 0.55)
+    var(--dm-theme-glass)
   );
   backdrop-filter: blur(28px) saturate(160%);
   -webkit-backdrop-filter: blur(28px) saturate(160%);
-  box-shadow: 0 10px 30px hsl(var(--primary) / 0.08);
+  box-shadow: var(--dm-theme-shadow);
+}
+.dm-inbox-hero--sticky {
+  position: sticky;
+  top: 0;
+  z-index: 20;
 }
 .dm-inbox-header-bar {
   position: relative;
-  display: grid;
-  grid-template-columns: minmax(92px, 1fr) auto minmax(136px, 1fr);
+  display: flex;
   align-items: center;
+  justify-content: space-between;
+  gap: 12px;
   min-height: 80px;
   padding: 10px 12px;
 }
@@ -717,14 +751,72 @@ body.has-liquid-bg:not(.has-custom-bg) .messages-scroll {
   align-items: center;
   gap: 8px;
 }
+.dm-inbox-header-side--start {
+  min-width: 0;
+  flex: 1;
+}
 .dm-inbox-header-side--right {
   justify-content: flex-end;
+  flex-shrink: 0;
 }
 .dm-inbox-header-title-wrap {
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
+}
+.dm-inbox-header-title-wrap--left {
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 2px;
+  min-width: 0;
+}
+.dm-inbox-activity-line {
+  margin: 0;
+  font-size: 0.75rem;
+  line-height: 1.2;
+  color: hsl(var(--muted-foreground));
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 42vw;
+}
+.dm-inbox-header-action--badge {
+  position: relative;
+}
+.dm-inbox-header-badge {
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  min-width: 16px;
+  height: 16px;
+  padding-inline: 4px;
+  border-radius: 999px;
+  background: hsl(var(--destructive));
+  color: hsl(var(--destructive-foreground));
+  font-size: 9px;
+  font-weight: 800;
+  line-height: 16px;
+  text-align: center;
+}
+.dm-inbox-compose-action {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 48px;
+  padding: 12px 8px;
+  border-radius: 12px;
+  text-align: left;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: hsl(var(--foreground));
+}
+.dm-inbox-compose-action:hover,
+.dm-inbox-compose-action:focus-visible {
+  background: hsl(var(--muted) / 0.55);
+  outline: none;
 }
 .dm-inbox-title {
   font-size: 1.55rem;
@@ -775,8 +867,8 @@ body.has-liquid-bg:not(.has-custom-bg) .messages-scroll {
   height: 13px;
   border: 3px solid hsl(var(--background));
   border-radius: 50%;
-  background: hsl(145 74% 48%);
-  box-shadow: 0 0 10px hsl(145 74% 48% / 0.55);
+  background: var(--dm-theme-online);
+  box-shadow: 0 0 10px var(--dm-theme-online);
 }
 .dm-inbox-header-action {
   display: inline-flex;
@@ -809,11 +901,7 @@ body.has-liquid-bg:not(.has-custom-bg) .messages-scroll {
   padding: 0 6px;
   border: 1px solid hsl(var(--primary) / 0.16);
   border-radius: 22px;
-  background: linear-gradient(
-    180deg,
-    hsl(var(--background) / 0.55),
-    hsl(var(--background) / 0.32)
-  );
+  background: var(--dm-theme-nav);
   backdrop-filter: blur(22px) saturate(150%);
   -webkit-backdrop-filter: blur(22px) saturate(150%);
   box-shadow:
@@ -904,7 +992,7 @@ body.has-liquid-bg:not(.has-custom-bg) .messages-scroll {
   touch-action: pan-y;
   -webkit-user-select: none;
   user-select: none;
-  border-bottom: 1px solid hsl(var(--primary) / 0.12);
+  border-bottom: 1px solid var(--dm-theme-divider);
   -webkit-tap-highlight-color: transparent;
 }
 .dm-inbox-card {
@@ -927,7 +1015,7 @@ body.has-liquid-bg:not(.has-custom-bg) .messages-scroll {
   bottom: 18px;
   width: 0;
   border-radius: 0 3px 3px 0;
-  background: linear-gradient(180deg, hsl(var(--primary)), hsl(var(--accent)));
+  background: var(--dm-theme-story-ring);
   opacity: 0;
   transition: width 160ms ease, opacity 160ms ease;
 }
@@ -948,6 +1036,30 @@ body.has-liquid-bg:not(.has-custom-bg) .messages-scroll {
 .dm-inbox-card--swiping {
   transition: none;
   transform: none;
+}
+/* Left-swipe quick-action tray — Pin / Mute / Archive (destructive delete needs a
+   farther swipe past this tray + confirmation, see .dm-inbox-swipe-row in the component). */
+.dm-inbox-swipe-action {
+  display: flex;
+  width: 56px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  border-left: 1px solid var(--dm-theme-divider);
+  background: var(--dm-theme-elevated);
+  color: hsl(var(--foreground) / 0.85);
+  font-size: 10px;
+  font-weight: 650;
+}
+.dm-inbox-swipe-action:active {
+  background: hsl(var(--primary) / 0.16);
+}
+.dm-inbox-swipe-action--pin {
+  color: hsl(var(--primary));
+}
+.dm-inbox-swipe-action--archive {
+  background: var(--dm-theme-elevated);
 }
 .dm-inbox-avatar-button {
   position: relative;
@@ -977,7 +1089,7 @@ body.has-liquid-bg:not(.has-custom-bg) .messages-scroll {
 }
 .dm-inbox-avatar-ring--story {
   box-shadow:
-    0 0 18px hsl(var(--primary) / 0.45),
+    0 0 18px var(--dm-theme-glow),
     0 0 28px hsl(var(--accent) / 0.28);
 }
 .dm-inbox-avatar-button--story-viewed .dm-inbox-avatar-ring {
@@ -1010,7 +1122,7 @@ body.has-liquid-bg:not(.has-custom-bg) .messages-scroll {
   right: 2px;
   bottom: 2px;
   z-index: 4;
-  box-shadow: 0 0 8px hsl(145 74% 48% / 0.55);
+  box-shadow: 0 0 8px var(--dm-theme-online);
 }
 .dm-inbox-away-badge {
   position: absolute;
@@ -1244,6 +1356,76 @@ body.has-liquid-bg:not(.has-custom-bg) .messages-scroll {
 @keyframes dm-inbox-badge-pulse {
   0%, 100% { transform: scale(1); box-shadow: 0 0 12px hsl(var(--primary) / 0.4); }
   50% { transform: scale(1.06); box-shadow: 0 0 18px hsl(var(--primary) / 0.7); }
+}
+
+/* ========================================
+   VYBE DM controlled VFX (Phase 3) — transform/opacity only, GPU-composited.
+   Respect prefers-reduced-motion + the in-app "reduce motion" toggle; see the
+   media query and .reduce-motion overrides near the end of this section.
+   ======================================== */
+/* Press feedback — any tappable DM chrome (header actions, compose FAB, tray buttons). */
+.dm-vfx-press {
+  transition: transform 120ms cubic-bezier(0.34, 1.56, 0.64, 1), opacity 120ms ease;
+}
+.dm-vfx-press:active {
+  transform: scale(0.92);
+  opacity: 0.86;
+}
+/* Story-ring pulse — draws the eye to an unviewed story ring, transform + opacity only. */
+@keyframes dm-vfx-story-pulse {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.055); opacity: 0.88; }
+}
+.dm-vfx-story-pulse {
+  animation: dm-vfx-story-pulse 2.4s ease-in-out infinite;
+}
+/* New-message sweep — one-shot highlight across a row when it receives a fresh unread message. */
+.dm-inbox-sweep {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  border-radius: inherit;
+}
+.dm-inbox-sweep::after {
+  content: '';
+  position: absolute;
+  inset-block: 0;
+  left: -40%;
+  width: 40%;
+  background: linear-gradient(90deg, transparent, var(--dm-theme-glow, hsl(var(--primary) / 0.22)), transparent);
+  transform: translateX(-20%);
+  opacity: 0;
+}
+.dm-inbox-sweep--play::after {
+  animation: dm-vfx-sweep 900ms cubic-bezier(0.22, 0.8, 0.2, 1);
+}
+@keyframes dm-vfx-sweep {
+  0% { transform: translateX(-20%); opacity: 0; }
+  15% { opacity: 1; }
+  100% { transform: translateX(320%); opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .dm-vfx-press {
+    transition: opacity 80ms linear;
+  }
+  .dm-vfx-press:active {
+    transform: none;
+  }
+  .dm-vfx-story-pulse,
+  .dm-inbox-sweep--play::after {
+    animation: none !important;
+  }
+}
+.reduce-motion .dm-vfx-press {
+  transition: opacity 80ms linear;
+}
+.reduce-motion .dm-vfx-press:active {
+  transform: none;
+}
+.reduce-motion .dm-vfx-story-pulse,
+.reduce-motion .dm-inbox-sweep--play::after {
+  animation: none !important;
 }
 .dm-inbox-empty {
   display: flex;
@@ -1853,7 +2035,7 @@ html[data-camera-open='true'] nav[aria-label="Bottom navigation"] {
   height: 2.5rem;
   border-radius: 9999px;
   border: none;
-  background: hsl(var(--muted) / 0.38);
+  background: var(--dm-theme-composer, hsl(var(--muted) / 0.38));
   padding-left: 1rem;
   padding-right: 1rem;
   font-size: 0.9375rem;
@@ -1897,21 +2079,17 @@ html[data-camera-open='true'] nav[aria-label="Bottom navigation"] {
   margin-top: 0.375rem;
 }
 .dm-bubble-sent {
-  background: linear-gradient(
-    135deg,
-    hsl(var(--primary)),
-    hsl(var(--accent))
-  );
-  color: hsl(var(--primary-foreground));
+  background: var(--dm-bubble-sent, linear-gradient(135deg, hsl(var(--primary)), hsl(var(--accent))));
+  color: var(--dm-bubble-sent-fg, hsl(var(--primary-foreground)));
   border: 1px solid hsl(var(--primary) / 0.35);
   box-shadow:
     0 4px 16px hsl(var(--primary) / 0.25),
     inset 0 1px 0 hsl(var(--foreground) / 0.15);
 }
 .dm-bubble-received {
-  background: hsl(var(--muted));
+  background: var(--dm-bubble-received, hsl(var(--muted)));
   border: 1px solid hsl(var(--border));
-  color: hsl(var(--foreground));
+  color: var(--dm-bubble-received-fg, hsl(var(--foreground)));
   box-shadow: none;
 }
 .dm-bubble-meta {

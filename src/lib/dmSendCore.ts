@@ -1,16 +1,17 @@
 /**
- * Canonical DM send path — all message inserts should go through here.
- * Optimistic UI lives in useInstantSend; this module handles server persistence.
+ * Canonical DM send path — all message inserts go through the `sendDmMessage`
+ * Cloud Function. Optimistic UI lives in useInstantSend; this module handles
+ * server persistence only (no direct client Firestore message creates).
  */
 import { db } from '@/lib/firebase';
-import { sendDmViaCloudFunction, isRetryableSendError } from '@/lib/firebase/dmSendClient';
-import {
-  inferOtherParticipantId,
-  repairConversationForSend,
-  resetMessagesReady,
-} from '@/lib/dmMembershipRepair';
-import { withTimeout } from '@/lib/withTimeout';
+import { sendDmViaCloudFunction } from '@/lib/firebase/dmSendClient';
+import { inferOtherParticipantId } from '@/lib/dmMembershipRepair';
 import { sendMessagePush } from '@/lib/pushNotifications';
+import {
+  classifyDmSendError,
+  dmSendFailureUserMessage,
+  isTransientDmSendFailure,
+} from '@/lib/dmSendErrors';
 import type { Message, ViewMode } from '@/hooks/useMessages';
 
 const DM_SEND_LOG_KEY = 'vybe-dm-send-log';
@@ -59,6 +60,8 @@ export interface DmInsertPayload {
   view_mode?: ViewMode;
   expires_at?: string | null;
   reply_to_id?: string | null;
+  /** Optimistic / outbox id for idempotent reconnect retries. */
+  client_message_id?: string | null;
 }
 
 export interface DmInsertOptions {
@@ -109,128 +112,88 @@ function firePeerPushBackup(
   ).catch(() => {});
 }
 
-const MESSAGE_SELECT = `
-  *,
-  sender:profiles!sender_id(id, username, avatar_url, display_name)
-`;
-
-function normalizeMessage(row: Record<string, unknown>): Message {
-  return {
-    ...(row as unknown as Message),
-    view_mode: (row.view_mode || 'permanent') as ViewMode,
-    views: [],
-    reactions: [],
-  };
-}
-
-async function repairSender(
-  conversationId: string,
-  senderId: string,
-  otherProfileId: string | null,
-  force = false,
-): Promise<string> {
-  resetMessagesReady(conversationId, senderId);
-  try {
-    await withTimeout(
-      repairConversationForSend(conversationId, senderId, otherProfileId, { force }),
-      4_000,
-      'Send setup timed out',
-    );
-  } catch (err) {
-    console.warn('[dmSendCore] repair failed:', err);
-  }
-  return senderId;
-}
-
-/** Insert a DM row with permission retry + cloud-function fallback. */
+/**
+ * Persist a DM via `sendDmMessage` only.
+ * Direct `messages` collection creates from the client are denied by rules.
+ */
 export async function insertDmMessage(
   payload: DmInsertPayload,
   opts?: DmInsertOptions,
 ): Promise<{ data: Message | null; error: { message: string; code?: string } | null }> {
-  const maxAttempts = opts?.maxAttempts ?? 3;
-  let senderId = payload.sender_id;
   const otherProfileId =
     opts?.otherProfileId ??
-    inferOtherParticipantId(payload.conversation_id, senderId) ??
+    inferOtherParticipantId(payload.conversation_id, payload.sender_id) ??
     null;
+
+  const maxAttempts = Math.max(1, opts?.maxAttempts ?? 2);
 
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
     logDmSend({
-      op: 'insert_start',
+      op: 'callable_start',
       conversationId: payload.conversation_id,
+      tempId: payload.client_message_id || undefined,
       attempt: attempt + 1,
     });
 
-    const result = await db
-      .from('messages')
-      .insert({ ...payload, sender_id: senderId })
-      .select(MESSAGE_SELECT)
-      .single();
+    const cloud = await sendDmViaCloudFunction({
+      conversationId: payload.conversation_id,
+      content: payload.content ?? undefined,
+      viewMode: (payload.view_mode as ViewMode) || 'permanent',
+      replyToId: payload.reply_to_id ?? null,
+      mediaUrl: payload.media_url ?? null,
+      mediaType: payload.media_type ?? null,
+      messageType: payload.message_type,
+      clientMessageId: payload.client_message_id ?? null,
+      otherProfileId,
+    });
 
-    if (!result.error && result.data) {
+    if (!cloud.error && cloud.data) {
       logDmSend({
-        op: 'insert_ok',
+        op: 'callable_ok',
         conversationId: payload.conversation_id,
+        tempId: payload.client_message_id || undefined,
         attempt: attempt + 1,
         ok: true,
       });
       firePeerPushBackup(payload, otherProfileId, opts?.push);
-      return { data: normalizeMessage(result.data as Record<string, unknown>), error: null };
+      return { data: cloud.data, error: null };
     }
 
-    const err = result.error;
-    if (!isRetryableSendError(err) || attempt === maxAttempts - 1) {
-      const cloud = await sendDmViaCloudFunction({
-        conversationId: payload.conversation_id,
-        content: payload.content ?? undefined,
-        viewMode: (payload.view_mode as ViewMode) || 'permanent',
-        replyToId: payload.reply_to_id ?? null,
-        mediaUrl: payload.media_url ?? null,
-        mediaType: payload.media_type ?? null,
-        messageType: payload.message_type,
-      });
-      if (!cloud.error && cloud.data) {
-        logDmSend({
-          op: 'cloud_fallback_ok',
-          conversationId: payload.conversation_id,
-          ok: true,
-        });
-        firePeerPushBackup(payload, otherProfileId, opts?.push);
-        return { data: cloud.data, error: null };
-      }
+    const kind = classifyDmSendError(cloud.error);
+    const retryable = isTransientDmSendFailure(kind) && attempt < maxAttempts - 1;
+    if (!retryable) {
+      const message = dmSendFailureUserMessage(kind, cloud.error?.message);
       logDmSend({
-        op: 'insert_failed',
+        op: 'callable_failed',
         conversationId: payload.conversation_id,
+        tempId: payload.client_message_id || undefined,
         ok: false,
-        error: cloud.error?.message || err?.message,
+        error: message,
       });
       return {
         data: null,
         error: {
-          message: cloud.error?.message || err?.message || 'Failed to send message',
-          code: err?.name,
+          message,
+          code: cloud.error?.code || kind,
         },
       };
     }
 
-    senderId = await repairSender(
-      payload.conversation_id,
-      senderId,
-      otherProfileId,
-      attempt >= 1,
-    );
-    await new Promise((r) => setTimeout(r, 250 * (attempt + 1)));
+    await new Promise((r) => setTimeout(r, 300 * (attempt + 1)));
   }
 
   return { data: null, error: { message: 'Failed to send message' } };
 }
 
 export function isTransientSendError(error: unknown): boolean {
-  const msg = (error instanceof Error ? error.message : String(error || '')).toLowerCase();
-  return (
-    (typeof navigator !== 'undefined' && navigator.onLine === false) ||
-    /network|failed to fetch|timeout|fetch|offline/.test(msg)
+  const kind = classifyDmSendError(
+    error instanceof Error
+      ? { message: error.message }
+      : typeof error === 'string'
+        ? error
+        : { message: String(error || '') },
   );
+  return isTransientDmSendFailure(kind);
 }
 
 export async function bumpConversationUpdatedAt(conversationId: string): Promise<void> {
@@ -240,14 +203,11 @@ export async function bumpConversationUpdatedAt(conversationId: string): Promise
     .eq('id', conversationId)
     .then(() => {})
     .catch((err: unknown) => {
-      // Message already sent — a failed bump only makes inbox sort stale.
-      // Log it so "conversation stuck at the bottom" is diagnosable.
       console.warn('[DMSend] conversation updated_at bump failed:', conversationId, err);
     });
 }
 
-export function expiresAtForViewMode(viewMode: ViewMode): string | null {
+export function expiresAtForViewMode(_viewMode: ViewMode): string | null {
   // 24h mode: timer starts when the recipient opens the message, not at send time.
-  if (viewMode === '24h') return null;
   return null;
 }

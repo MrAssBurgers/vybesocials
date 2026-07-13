@@ -368,6 +368,7 @@ export function useInstantSend(conversationId: string | undefined) {
         view_mode: viewMode,
         expires_at: expiresAt,
         reply_to_id: replyToId,
+        client_message_id: tempId,
       };
 
       const insertPromise = insertMessageWithRetry(
@@ -453,6 +454,7 @@ export function useInstantSend(conversationId: string | undefined) {
           view_mode: viewMode,
           expires_at: expiresAt,
           reply_to_id: replyToId,
+          client_message_id: tempId,
         },
         otherProfileId,
       );
@@ -569,6 +571,7 @@ export function useInstantSend(conversationId: string | undefined) {
           view_mode: viewMode,
           expires_at: expiresAt,
           reply_to_id: replyToId,
+          client_message_id: tempId,
         },
         otherProfileId,
       );

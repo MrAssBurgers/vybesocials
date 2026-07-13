@@ -47,6 +47,7 @@ import {
 } from '@/lib/dmSendCore';
 import { messageRowKey, replaceOptimisticMessage } from '@/lib/messagesQueryKey';
 import { sendDmBroadcastMessage } from '@/lib/dmBroadcast';
+import { retryFailedItem } from '@/lib/dmOutbox';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -92,7 +93,6 @@ import { ReplyPreview } from './ReplyPreview';
 import { StickerPanel } from './StickerPanel';
 import { useAddSticker } from '@/hooks/useStickers';
 import { 
-  ArrowLeft, 
   Send, 
   Lock,
   MoreVertical,
@@ -118,7 +118,6 @@ import {
   Sticker,
   Download,
   Bookmark,
-  Search,
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { Toybox } from './Toybox';
@@ -138,6 +137,8 @@ import { SharedPostBubble } from './SharedPostBubble';
 import { SharedThemeMessageBubble } from '@/components/messages/bubbles/SharedThemeMessageBubble';
 import { formatMessageDate } from './chat-view/formatMessageDate';
 import { ChatComposer as MessageInputArea } from './chat-view/ChatComposer';
+import { ChatThreadShell } from './chat-view/ChatThreadShell';
+import { groupMessages, spacingClassForItem } from './chat-view/groupMessages';
 import { ChatSearchSheet } from './ChatSearchSheet';
 import { CaptureAlertPopup } from './CaptureAlertPopup';
 import { buildCaptureEventKey, mapLegacyCaptureType, severityForEventType } from '@/lib/ScreenshotDetectionService';
@@ -1257,10 +1258,11 @@ export function ChatView() {
           content: null,
           media_url: mediaUrl,
           media_type: 'vybe',
-          message_type: 'text',
+          message_type: 'vybe',
           view_mode: 'view_once',
           expires_at: expiresAt,
           reply_to_id: replyingTo?.id ?? null,
+          client_message_id: `vybe_${conversationId}_${Date.now()}`,
         },
         {
           otherProfileId: otherMember?.id ?? null,
@@ -1409,38 +1411,14 @@ export function ChatView() {
     return map;
   }, [safeConversation?.members, otherMember]);
 
-  // Enhanced spacing logic for Instagram/iMessage quality
+  // Group consecutive messages by sender — avatar/timestamp collapsing +
+  // Instagram/iMessage spacing rules live in ./chat-view/groupMessages.ts.
   const messageItems = useMemo(() => {
-    if (!threadMessages.length) return [];
-    return threadMessages.map((message, index) => {
-      const isOwn =
-        message.sender_id === profileId ||
-        message.sender_id === profile?.id ||
-        message.sender_id === authUserId;
-      const prevMessage = index > 0 ? threadMessages[index - 1] : null;
-      const showAvatar = !isOwn && (
-        index === 0 || 
-        prevMessage?.sender_id !== message.sender_id
-      );
-      const showTimestamp = index === 0 || 
-        new Date(message.created_at).getTime() - new Date(prevMessage?.created_at || 0).getTime() > 5 * 60 * 1000;
-
-      // Determine spacing type for airy layout
-      const sameSender = prevMessage && prevMessage.sender_id === message.sender_id;
-      const isMediaMessage = message.media_url && (message.media_type === 'image' || message.media_type === 'gif');
-      const prevIsMedia = prevMessage?.media_url && (prevMessage.media_type === 'image' || prevMessage.media_type === 'gif');
-      const isMediaTransition = (isMediaMessage && !prevIsMedia) || (!isMediaMessage && prevIsMedia);
-      
-      // Emoji-only detection
-      const isEmojiOnly =
-        typeof message.content === 'string' &&
-        message.content &&
-        !message.media_url &&
-        /^[\p{Emoji}\s]+$/u.test(message.content.trim()) &&
-        message.content.trim().length <= 8;
-
-      return { message, isOwn, showAvatar, showTimestamp, sameSender, isMediaTransition, isEmojiOnly };
-    });
+    return groupMessages(threadMessages, (message) =>
+      message.sender_id === profileId ||
+      message.sender_id === profile?.id ||
+      message.sender_id === authUserId,
+    );
   }, [threadMessages, profileId, profile?.id, authUserId]);
 
   type MessageItemRow = (typeof messageItems)[number];
@@ -1544,16 +1522,168 @@ export function ChatView() {
     messagesError &&
     !threadMessages.length;
 
+  // Per-conversation theme vars consumed by index.css — wallpaper always
+  // applies; bubble color overrides only when the viewer picked a non-default
+  // theme mode, so the default gradient bubbles (index.css) stay untouched.
+  const chatThreadStyle: React.CSSProperties = {
+    ...(blendedTheme.wallpaper ? { ['--dm-chat-wallpaper' as string]: blendedTheme.wallpaper } : {}),
+    ...(blendedTheme.mode !== 'default'
+      ? {
+          ['--dm-bubble-sent' as string]: blendedTheme.bubbleMine,
+          ['--dm-bubble-received' as string]: blendedTheme.bubbleTheirs,
+          ['--dm-bubble-sent-fg' as string]: blendedTheme.textOnMine,
+          ['--dm-bubble-received-fg' as string]: blendedTheme.textOnTheirs,
+        }
+      : {}),
+  };
+
+  const profileSlot = (
+    <button
+      type="button"
+      onClick={handleAvatarClick}
+      className="flex items-center gap-2 sm:gap-2.5 min-w-0 flex-1 text-left group"
+      aria-label={isGroupChat ? 'View group info' : 'View profile'}
+    >
+      {isGroupChat ? (
+        <div className="relative h-8 w-8 sm:h-9 sm:w-9 flex-shrink-0">
+          <div className="absolute inset-0 rounded-full bg-gradient-to-br from-primary via-accent to-primary opacity-60" />
+          <div className="absolute inset-[2px] rounded-full overflow-hidden bg-background">
+            {safeConversation?.avatar_url ? (
+              <SignedAvatar
+                src={safeConversation.avatar_url}
+                fallback="G"
+                className="h-full w-full"
+                fallbackClassName="text-sm bg-muted text-foreground"
+              />
+            ) : (
+              <Avatar className="h-full w-full">
+                <AvatarFallback className="text-sm bg-muted text-foreground">
+                  <Users className="h-4 w-4" />
+                </AvatarFallback>
+              </Avatar>
+            )}
+          </div>
+          <div className="absolute -bottom-0.5 -right-0.5 bg-primary text-primary-foreground text-[9px] font-bold w-4 h-4 flex items-center justify-center rounded-full border-2 border-background">
+            {otherMembers.length + 1}
+          </div>
+        </div>
+      ) : (
+        <ChatHeaderPresenceAvatar
+          avatarUrl={otherMember?.avatar_url ?? peerPresence?.avatar_url}
+          fallbackAvatarUrl={otherMember?.avatar_url}
+          username={otherMember?.username || otherMember?.display_name || ''}
+          activity={showPeerPresence ? otherPresenceActivity : 'idle'}
+          isOnline={otherMemberOnline || !!peerPresence}
+        />
+      )}
+
+      <div className="flex-1 min-w-0">
+        <h2 className="font-semibold text-sm sm:text-base truncate leading-tight flex items-center gap-1.5">
+          {!isGroupChat && otherMember?.id ? (
+            <StyledUsername
+              userId={otherMember.id}
+              username={otherMember.username || ''}
+              displayName={otherMember.display_name}
+              preferDisplayName={true}
+            />
+          ) : (
+            displayName
+          )}
+          {!isGroupChat && otherMember?.id && isOwner(otherMember.username || '') && <OwnerBadge />}
+          {!isGroupChat && otherMember?.id && isOwnerWife(otherMember.id) && <OwnerWifeRingBadge />}
+          {!isGroupChat && streak && streak.streak_count > 0 && (
+            <StreakIndicator
+              count={streak.streak_count}
+              expiresAt={streak.expires_at}
+              size="sm"
+              showExpiry
+            />
+          )}
+        </h2>
+        {isGroupChat ? (
+          <GroupPresenceBar
+            peers={peerPresences}
+            memberCount={otherMembers.length + 1}
+            onTapInfo={() => setShowGroupInfo(true)}
+          />
+        ) : (
+          <p className="text-[11px] sm:text-xs text-muted-foreground leading-tight truncate flex items-center gap-1 min-w-0">
+            <LivePresenceBar
+              isOnline={otherMemberOnline || !!peerPresence}
+              isTyping={otherPresenceActivity === 'typing'}
+              isInChat={otherPresenceActivity === 'viewing'}
+              isInCamera={
+                otherPresenceActivity === 'taking_photo' ||
+                otherPresenceActivity === 'recording_video' ||
+                otherPresenceActivity === 'sending_vybe'
+              }
+              activity={otherPresenceActivity}
+              username={otherMember?.username}
+              lastReadAt={lastReadAt}
+            />
+          </p>
+        )}
+      </div>
+    </button>
+  );
+
+  const actionsSlot = (
+    <>
+      {!isGroupChat && otherMember?.id && (
+        <CallButtons
+          conversationId={conversationId!}
+          receiverId={otherMember.id}
+          receiverUsername={otherMember.username}
+          receiverDisplayName={otherMember.display_name}
+          receiverAvatarUrl={otherMember.avatar_url}
+        />
+      )}
+
+      {isGroupChat && otherMember?.id && (
+        <CallButtons
+          conversationId={conversationId!}
+          receiverId={otherMember.id}
+          receiverUsername={otherMember.username}
+          receiverDisplayName={otherMember.display_name}
+          receiverAvatarUrl={otherMember.avatar_url}
+          isGroupCall={true}
+          groupName={conversation?.name || 'Group Chat'}
+          groupAvatar={conversation?.avatar_url}
+          participantIds={otherMembers.map(m => m.user_id)}
+        />
+      )}
+
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button variant="ghost" size="icon" className="flex-shrink-0 h-8 w-8 rounded-full hover:bg-white/10">
+            <MoreVertical className="h-4 w-4" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="z-50 bg-popover">
+          <DropdownMenuItem onClick={handleAvatarClick}>{t('messages.viewProfile')}</DropdownMenuItem>
+          <DropdownMenuItem onClick={() => setShowMediaSettings(true)}>
+            <Settings className="h-4 w-4 mr-2" />
+            Media Settings
+          </DropdownMenuItem>
+          <DropdownMenuItem>{t('messages.muteNotifications')}</DropdownMenuItem>
+          <DropdownMenuItem className="text-destructive">{t('messages.blockUser')}</DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </>
+  );
+
   return (
-    <div
-      id={CHAT_SHIELD_ROOT_ID}
-      className="flex flex-col h-full min-h-0 dm-chat-shell relative overflow-hidden"
-      style={{
-        touchAction: 'pan-y',
-        ...(blendedTheme.wallpaper
-          ? ({ ['--dm-chat-wallpaper' as string]: blendedTheme.wallpaper } as React.CSSProperties)
-          : {}),
-      }}
+    <ChatThreadShell
+      shellId={CHAT_SHIELD_ROOT_ID}
+      className="dm-thread"
+      themeStyle={chatThreadStyle}
+      onBack={() => navigate('/messages')}
+      onOpenSearch={() => setShowChatSearch(true)}
+      profileSlot={profileSlot}
+      actionsSlot={actionsSlot}
+      viewMode={viewMode}
+      isGroupChat={isGroupChat}
+      onViewModeChange={setViewMode}
     >
       {/* DM Image Safety Gate */}
       <AnimatePresence>
@@ -1588,175 +1718,6 @@ export function ChatView() {
         onOpenChange={setShowChatSearch}
         conversationId={conversationId}
       />
-
-      {/* Floating pill header — back + profile left, calls + menu right */}
-      <header
-        className="dm-chat-header px-2 sm:px-3"
-        data-no-auto-contrast
-        style={{ paddingTop: 'var(--app-header-safe, env(safe-area-inset-top, 0px))' }}
-      >
-        <div className="dm-chat-header-row">
-        <div className="flex items-center gap-2 sm:gap-3 w-full min-w-0">
-          <div className="dm-chat-header-pill dm-chat-header-pill--profile">
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => navigate('/messages')}
-              className="flex-shrink-0 h-8 w-8 rounded-full hover:bg-white/10"
-            >
-              <ArrowLeft className="h-5 w-5" />
-            </Button>
-
-            <button
-              type="button"
-              onClick={handleAvatarClick}
-              className="flex items-center gap-2 sm:gap-2.5 min-w-0 flex-1 text-left group"
-              aria-label={isGroupChat ? 'View group info' : 'View profile'}
-            >
-              {isGroupChat ? (
-                <div className="relative h-8 w-8 sm:h-9 sm:w-9 flex-shrink-0">
-                  <div className="absolute inset-0 rounded-full bg-gradient-to-br from-primary via-accent to-primary opacity-60" />
-                  <div className="absolute inset-[2px] rounded-full overflow-hidden bg-background">
-                    {safeConversation?.avatar_url ? (
-                      <SignedAvatar
-                        src={safeConversation.avatar_url}
-                        fallback="G"
-                        className="h-full w-full"
-                        fallbackClassName="text-sm bg-muted text-foreground"
-                      />
-                    ) : (
-                      <Avatar className="h-full w-full">
-                        <AvatarFallback className="text-sm bg-muted text-foreground">
-                          <Users className="h-4 w-4" />
-                        </AvatarFallback>
-                      </Avatar>
-                    )}
-                  </div>
-                  <div className="absolute -bottom-0.5 -right-0.5 bg-primary text-primary-foreground text-[9px] font-bold w-4 h-4 flex items-center justify-center rounded-full border-2 border-background">
-                    {otherMembers.length + 1}
-                  </div>
-                </div>
-              ) : (
-                <ChatHeaderPresenceAvatar
-                  avatarUrl={otherMember?.avatar_url ?? peerPresence?.avatar_url}
-                  fallbackAvatarUrl={otherMember?.avatar_url}
-                  username={otherMember?.username || otherMember?.display_name || ''}
-                  activity={showPeerPresence ? otherPresenceActivity : 'idle'}
-                  isOnline={otherMemberOnline || !!peerPresence}
-                />
-              )}
-
-              <div className="flex-1 min-w-0">
-                <h2 className="font-semibold text-sm sm:text-base truncate leading-tight flex items-center gap-1.5">
-                  {!isGroupChat && otherMember?.id ? (
-                    <StyledUsername
-                      userId={otherMember.id}
-                      username={otherMember.username || ''}
-                      displayName={otherMember.display_name}
-                      preferDisplayName={true}
-                    />
-                  ) : (
-                    displayName
-                  )}
-                  {!isGroupChat && otherMember?.id && isOwner(otherMember.username || '') && <OwnerBadge />}
-                  {!isGroupChat && otherMember?.id && isOwnerWife(otherMember.id) && <OwnerWifeRingBadge />}
-                  {!isGroupChat && streak && streak.streak_count > 0 && (
-                    <StreakIndicator
-                      count={streak.streak_count}
-                      expiresAt={streak.expires_at}
-                      size="sm"
-                      showExpiry
-                    />
-                  )}
-                </h2>
-                {isGroupChat ? (
-                  <GroupPresenceBar
-                    peers={peerPresences}
-                    memberCount={otherMembers.length + 1}
-                    onTapInfo={() => setShowGroupInfo(true)}
-                  />
-                ) : (
-                  <p className="text-[11px] sm:text-xs text-muted-foreground leading-tight truncate flex items-center gap-1 min-w-0">
-                    <LivePresenceBar
-                      isOnline={otherMemberOnline || !!peerPresence}
-                      isTyping={otherPresenceActivity === 'typing'}
-                      isInChat={otherPresenceActivity === 'viewing'}
-                      isInCamera={
-                        otherPresenceActivity === 'taking_photo' ||
-                        otherPresenceActivity === 'recording_video' ||
-                        otherPresenceActivity === 'sending_vybe'
-                      }
-                      activity={otherPresenceActivity}
-                      username={otherMember?.username}
-                      lastReadAt={lastReadAt}
-                    />
-                  </p>
-                )}
-              </div>
-            </button>
-          </div>
-
-          <div className="dm-chat-header-pill dm-chat-header-pill--actions">
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => setShowChatSearch(true)}
-              className="flex-shrink-0 h-8 w-8 rounded-full hover:bg-white/10"
-              aria-label="Search in chat"
-            >
-              <Search className="h-4 w-4" />
-            </Button>
-            {!isGroupChat && otherMember?.id && (
-              <CallButtons
-                conversationId={conversationId!}
-                receiverId={otherMember.id}
-                receiverUsername={otherMember.username}
-                receiverDisplayName={otherMember.display_name}
-                receiverAvatarUrl={otherMember.avatar_url}
-              />
-            )}
-
-            {isGroupChat && otherMember?.id && (
-              <CallButtons
-                conversationId={conversationId!}
-                receiverId={otherMember.id}
-                receiverUsername={otherMember.username}
-                receiverDisplayName={otherMember.display_name}
-                receiverAvatarUrl={otherMember.avatar_url}
-                isGroupCall={true}
-                groupName={conversation?.name || 'Group Chat'}
-                groupAvatar={conversation?.avatar_url}
-                participantIds={otherMembers.map(m => m.user_id)}
-              />
-            )}
-
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" className="flex-shrink-0 h-8 w-8 rounded-full hover:bg-white/10">
-                  <MoreVertical className="h-4 w-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="z-50 bg-popover">
-                <DropdownMenuItem onClick={handleAvatarClick}>{t('messages.viewProfile')}</DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setShowMediaSettings(true)}>
-                  <Settings className="h-4 w-4 mr-2" />
-                  Media Settings
-                </DropdownMenuItem>
-                <DropdownMenuItem>{t('messages.muteNotifications')}</DropdownMenuItem>
-                <DropdownMenuItem className="text-destructive">{t('messages.blockUser')}</DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
-        </div>
-        </div>
-
-        <EphemeralChatNotice
-          viewMode={viewMode}
-          isGroupChat={isGroupChat}
-          onViewModeChange={setViewMode}
-          compact
-        />
-      </header>
 
       {/* DM Feature Sheets - triggered from Toybox */}
       {conversationId && (
@@ -1842,25 +1803,12 @@ export function ChatView() {
           )}
           {renderedMessageItems.map((item, localIndex) => {
             const index = messagesVirtualized ? visibleMessageStart + localIndex : localIndex;
-            const { message, isOwn, showAvatar, showTimestamp, sameSender, isMediaTransition, isEmojiOnly } = item;
-            // Instagram/Snapchat spacing rules:
-            // Same sender consecutive: 4-6px gap (tight grouping)
-            // Different sender: 16-20px gap (clear separation)
-            // After reply preview: 12-14px gap
+            const { message, isOwn, showAvatar, showTimestamp, isEmojiOnly } = item;
+            // Instagram/Snapchat spacing rules — see spacingClassForItem in
+            // ./chat-view/groupMessages.ts (same-sender tight, sender switch
+            // or media transition airy, after-reply medium).
             const prevItem = index > 0 ? messageItems[index - 1] : null;
-            const senderChanged = prevItem && prevItem.isOwn !== isOwn;
-            const hasReply = !!message.reply_to_id;
-            
-            // Calculate margin based on context - use pt for top margin
-            let spacingClass = 'pt-1.5'; // Default: same sender (6px)
-            if (senderChanged) {
-              spacingClass = 'pt-4 sm:pt-5'; // Different sender (16-20px)
-            } else if (hasReply) {
-              spacingClass = 'pt-3 sm:pt-3.5'; // After reply (12-14px)
-            }
-            if (isMediaTransition) {
-              spacingClass = 'pt-4 sm:pt-5'; // Media transition (16-20px)
-            }
+            const spacingClass = spacingClassForItem(item, prevItem);
             
             // Check if this is a screenshot or screen recording notification system message
             const isScreenshotNotification = message.message_type === 'screenshot_notification';
@@ -2012,7 +1960,14 @@ export function ChatView() {
                     onToggleSaved={!isGroupChat ? () => toggleSaved.mutate(message.id) : undefined}
                     onRetry={
                       isOwn && (message as { _failed?: boolean })._failed
-                        ? () => retryMessage(message.id)
+                        ? () => {
+                            // Outbox items (queued while offline) resend from the
+                            // stored payload even if this ChatView remounted;
+                            // fall back to the in-memory retry for same-session failures.
+                            void retryFailedItem(message.id).then((handled) => {
+                              if (!handled) retryMessage(message.id);
+                            });
+                          }
                         : undefined
                     }
                     peerLastReadAt={!isGroupChat ? peerLastReadAt : undefined}
@@ -2303,7 +2258,7 @@ export function ChatView() {
           senderId={profileId}
         />
       )}
-    </div>
+    </ChatThreadShell>
   );
 }
 

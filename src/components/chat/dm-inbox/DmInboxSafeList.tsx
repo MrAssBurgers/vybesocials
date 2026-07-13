@@ -2,9 +2,8 @@
  * Fallback if the primary inbox tree errors.
  * Reuses the same filtered inbox hook so tabs still work.
  */
-import { startTransition, useCallback, useState } from 'react';
+import { startTransition, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ChatSearchSheet } from '@/components/chat/ChatSearchSheet';
 import { DMHeader } from '@/features/dms/DMHeader';
 import { DMCategoryTabs } from '@/features/dms/DMCategoryTabs';
 import { DMConversationList } from '@/features/dms/DMConversationList';
@@ -13,7 +12,6 @@ import { db } from '@/lib/firebase';
 
 export function DmInboxSafeList() {
   const navigate = useNavigate();
-  const [searchOpen, setSearchOpen] = useState(false);
   const inbox = useDMInbox();
 
   const openChat = useCallback(
@@ -44,17 +42,24 @@ export function DmInboxSafeList() {
 
   return (
     <section className="dm-inbox" aria-label="Direct messages">
+      <span className="sr-only" role="status" aria-live="polite">
+        {inbox.unreadBadgeCount > 0
+          ? `${inbox.unreadBadgeCount} unread ${inbox.unreadBadgeCount === 1 ? 'message' : 'messages'}`
+          : 'No unread messages'}
+      </span>
       <div className="dm-inbox-column">
         <DMHeader
           totalUnreadCount={inbox.unreadBadgeCount}
-          onSearch={() => setSearchOpen(true)}
+          onSearch={() => navigate('/messages/search')}
         />
         <DMCategoryTabs
           active={inbox.activeTab}
           onChange={inbox.setActiveTab}
+          redesignEnabled={inbox.redesignEnabled}
           badges={{
             unread: inbox.unreadBadgeCount,
             requests: inbox.pendingRequestCount,
+            needsReply: inbox.needsReplyCount,
             bestFriends: inbox.bestFriendCount,
             nearby: inbox.nearbyCount,
           }}
@@ -70,11 +75,6 @@ export function DmInboxSafeList() {
           hasError={Boolean(inbox.error && inbox.isFetched)}
           nearbyStatus={inbox.nearbyStatus}
           onOpen={openChat}
-          onQuickReply={(id) => {
-            startTransition(() => {
-              void navigate(`/messages/${id}?compose=1`);
-            });
-          }}
           onWarm={() => undefined}
           onRetry={() => void inbox.refetch()}
           onCompose={() => navigate('/messages/new')}
@@ -82,7 +82,6 @@ export function DmInboxSafeList() {
           onNearbyRetry={inbox.nearbyRetry}
         />
       </div>
-      <ChatSearchSheet open={searchOpen} onOpenChange={setSearchOpen} />
     </section>
   );
 }

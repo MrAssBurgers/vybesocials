@@ -1,6 +1,16 @@
 import { memo, useCallback, useEffect, useRef, useState } from 'react';
 import { motion, useMotionValue, useTransform, animate } from 'framer-motion';
-import { CornerUpLeft, MoreHorizontal, Trash2 } from 'lucide-react';
+import { Archive, Mail, MailOpen, Pin, Trash2, VolumeX } from 'lucide-react';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import type { LoadedDMConversation } from '@/lib/loadDMConversations';
 import { resolveOtherMemberFromConversation, displayNameForConversation } from '@/lib/dmMemberResolve';
 import { useIsMobile } from '@/hooks/use-mobile';
@@ -15,13 +25,19 @@ import type { DMConversationPreview } from '@/features/dms/dm.types';
 const SWIPE_ACTIVATE_PX = 12;
 const HOLD_MS = 480;
 const HOLD_CANCEL_PX = 8;
-/** Max movement still treated as a tap (open chat) after vertical scroll classification. */
+/** Max movement still treated as a tap (open chat / close tray) after classification. */
 const TAP_SLOP_PX = 14;
-const REPLY_THRESHOLD = 56;
-const MANAGE_THRESHOLD = -48;
-const TRASH_THRESHOLD = -110;
-const MAX_SWIPE_RIGHT = 72;
-const MAX_SWIPE_LEFT = -140;
+
+/** Right swipe — toggle read/unread. */
+const READ_TOGGLE_PX = 64;
+const MAX_SWIPE_RIGHT = 88;
+
+/** Left swipe — reveal Pin / Mute / Archive tray. */
+const ACTIONS_OPEN_PX = -168;
+const ACTIONS_SNAP_PX = ACTIONS_OPEN_PX / 2;
+/** Destructive (delete) requires dragging well past the tray, then a confirm dialog. */
+const DELETE_ZONE_PX = -228;
+const MAX_SWIPE_LEFT = -260;
 
 type GestureState = 'idle' | 'pending' | 'holding' | 'swiping' | 'scrolling';
 
@@ -33,17 +49,22 @@ function asDisplayLabel(value: unknown): string | undefined {
   return undefined;
 }
 
-function clampSwipeX(dx: number): number {
-  if (dx > 0) {
-    const clamped = Math.min(dx, MAX_SWIPE_RIGHT);
-    return clamped > REPLY_THRESHOLD
-      ? REPLY_THRESHOLD + (clamped - REPLY_THRESHOLD) * 0.25
+/** Clamps a proposed absolute row offset with elastic resistance past each zone boundary. */
+function clampSwipeTarget(target: number): number {
+  if (target >= 0) {
+    const clamped = Math.min(target, MAX_SWIPE_RIGHT);
+    return clamped > READ_TOGGLE_PX
+      ? READ_TOGGLE_PX + (clamped - READ_TOGGLE_PX) * 0.3
       : clamped;
   }
-  const clamped = Math.max(dx, MAX_SWIPE_LEFT);
-  return clamped < TRASH_THRESHOLD
-    ? TRASH_THRESHOLD + (clamped - TRASH_THRESHOLD) * 0.2
-    : clamped;
+  const clamped = Math.max(target, MAX_SWIPE_LEFT);
+  if (clamped < DELETE_ZONE_PX) {
+    return DELETE_ZONE_PX + (clamped - DELETE_ZONE_PX) * 0.25;
+  }
+  if (clamped < ACTIONS_OPEN_PX) {
+    return ACTIONS_OPEN_PX + (clamped - ACTIONS_OPEN_PX) * 0.55;
+  }
+  return clamped;
 }
 
 interface SwipeableDmConversationRowProps {
@@ -56,7 +77,6 @@ interface SwipeableDmConversationRowProps {
   isTyping?: boolean;
   presenceActivity?: ActivityType;
   onClick: () => void;
-  onQuickReply?: () => void;
   onWarm?: () => void;
 }
 
@@ -70,7 +90,6 @@ export const SwipeableDmConversationRow = memo(function SwipeableDmConversationR
   isTyping,
   presenceActivity,
   onClick,
-  onQuickReply,
   onWarm,
 }: SwipeableDmConversationRowProps) {
   const isMobile = useIsMobile();
@@ -80,23 +99,29 @@ export const SwipeableDmConversationRow = memo(function SwipeableDmConversationR
   const [optionsOpen, setOptionsOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isSwiping, setIsSwiping] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   const stateRef = useRef<GestureState>('idle');
   const startRef = useRef<{ x: number; y: number; pointerId: number } | null>(null);
+  const baseXRef = useRef(0);
+  /** Rest position of the row when idle — 0 (closed) or ACTIONS_OPEN_PX (tray revealed). */
+  const openXRef = useRef(0);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const gestureConsumedRef = useRef(false);
 
   const x = useMotionValue(0);
-  const replyOpacity = useTransform(x, [0, 15, REPLY_THRESHOLD], [0, 0.5, 1]);
-  const manageOpacity = useTransform(x, [MANAGE_THRESHOLD, -15, 0], [1, 0.5, 0]);
-  const deleteOpacity = useTransform(x, [-140, TRASH_THRESHOLD, -40, 0], [1, 0.85, 0, 0]);
-  const deleteBgOpacity = useTransform(x, [-120, -35, -10, 0], [1, 0.5, 0, 0]);
+  const readOpacity = useTransform(x, [0, 16, READ_TOGGLE_PX], [0, 0.5, 1]);
+  const trayOpacity = useTransform(x, [-20, ACTIONS_OPEN_PX], [0, 1]);
+  const deleteOpacity = useTransform(x, [DELETE_ZONE_PX, ACTIONS_OPEN_PX], [1, 0]);
 
   const other = !conversation.is_group
     ? resolveOtherMemberFromConversation(conversation, profileId, authUid)
     : null;
   const otherMember = other?.profile;
   const displayName = displayNameForConversation(conversation, profileId, authUid, 'Chat');
+
+  const unreadCountVal = preview?.unreadCount ?? conversation.unread_count ?? 0;
+  const isUnread = preview?.isUnread ?? (unreadCountVal > 0 || conversation._hasUnread);
 
   const clearTimer = useCallback(() => {
     if (timerRef.current) {
@@ -105,12 +130,15 @@ export const SwipeableDmConversationRow = memo(function SwipeableDmConversationR
     }
   }, []);
 
-  const snapBack = useCallback(() => {
-    const spring = listMotionEnabled
-      ? { type: 'spring' as const, stiffness: 520, damping: 38, mass: 0.75 }
-      : { duration: 0.12 };
-    animate(x, 0, spring);
-  }, [listMotionEnabled, x]);
+  const snapTo = useCallback(
+    (target: number) => {
+      const spring = listMotionEnabled
+        ? { type: 'spring' as const, stiffness: 520, damping: 38, mass: 0.75 }
+        : { duration: 0.12 };
+      animate(x, target, spring);
+    },
+    [listMotionEnabled, x],
+  );
 
   const resetGesture = useCallback(() => {
     clearTimer();
@@ -118,38 +146,43 @@ export const SwipeableDmConversationRow = memo(function SwipeableDmConversationR
     startRef.current = null;
     gestureConsumedRef.current = false;
     setIsSwiping(false);
-    snapBack();
-  }, [clearTimer, snapBack]);
+  }, [clearTimer]);
 
   const handleTrash = useCallback(() => {
     trashConversation.mutate(conversation.id);
   }, [conversation.id, trashConversation]);
 
-  const runSwipeAction = useCallback(
-    (offset: number): boolean => {
-      if (offset >= REPLY_THRESHOLD && onQuickReply) {
+  const closeTray = useCallback(() => {
+    openXRef.current = 0;
+    snapTo(0);
+  }, [snapTo]);
+
+  const resolveSwipeRelease = useCallback(
+    (target: number) => {
+      if (target >= READ_TOGGLE_PX) {
         if (navigator.vibrate) navigator.vibrate(10);
-        onQuickReply();
-        return true;
+        inboxActions.toggleRead(isUnread);
+        openXRef.current = 0;
+        snapTo(0);
+        return;
       }
-      if (offset <= MANAGE_THRESHOLD && offset > TRASH_THRESHOLD) {
-        if (navigator.vibrate) navigator.vibrate(8);
-        setOptionsOpen(true);
-        return true;
-      }
-      if (offset <= TRASH_THRESHOLD) {
+      if (target <= DELETE_ZONE_PX) {
         if (navigator.vibrate) navigator.vibrate([15, 30, 15]);
-        setIsDeleting(true);
-        setIsSwiping(false);
-        const exitSpring = listMotionEnabled
-          ? { duration: 0.32, ease: [0.4, 0, 0.2, 1] as const }
-          : { duration: 0.18 };
-        void animate(x, -420, exitSpring).then(() => handleTrash());
-        return false;
+        openXRef.current = 0;
+        snapTo(0);
+        setShowDeleteConfirm(true);
+        return;
       }
-      return true;
+      if (target <= ACTIONS_SNAP_PX) {
+        if (navigator.vibrate) navigator.vibrate(8);
+        openXRef.current = ACTIONS_OPEN_PX;
+        snapTo(ACTIONS_OPEN_PX);
+        return;
+      }
+      openXRef.current = 0;
+      snapTo(0);
     },
-    [handleTrash, listMotionEnabled, onQuickReply, x],
+    [inboxActions, isUnread, snapTo],
   );
 
   const handleDocumentPointerMove = useCallback(
@@ -184,7 +217,7 @@ export const SwipeableDmConversationRow = memo(function SwipeableDmConversationR
       }
 
       if (state === 'swiping') {
-        x.set(clampSwipeX(dx));
+        x.set(clampSwipeTarget(baseXRef.current + dx));
       }
     },
     [clearTimer, isDeleting, x],
@@ -196,7 +229,7 @@ export const SwipeableDmConversationRow = memo(function SwipeableDmConversationR
       if (!start || e.pointerId !== start.pointerId) return;
 
       const state = stateRef.current;
-      const offset = x.get();
+      const target = x.get();
       const dx = e.clientX - start.x;
       const dy = e.clientY - start.y;
       const absDx = Math.abs(dx);
@@ -207,25 +240,19 @@ export const SwipeableDmConversationRow = memo(function SwipeableDmConversationR
         absDy <= TAP_SLOP_PX;
 
       if (state === 'swiping') {
-        const shouldSnapBack = runSwipeAction(offset);
-        if (!shouldSnapBack) {
-          clearTimer();
-          stateRef.current = 'idle';
-          startRef.current = null;
-          gestureConsumedRef.current = true;
-          return;
+        resolveSwipeRelease(target);
+      } else if (isTap && (state === 'pending' || state === 'scrolling')) {
+        if (openXRef.current !== 0) {
+          closeTray();
+        } else {
+          onWarm?.();
+          onClick();
         }
-      } else if (
-        (state === 'pending' || state === 'scrolling') &&
-        isTap
-      ) {
-        onWarm?.();
-        onClick();
       }
 
       resetGesture();
     },
-    [clearTimer, onClick, onWarm, resetGesture, runSwipeAction, x],
+    [closeTray, onClick, onWarm, resetGesture, resolveSwipeRelease, x],
   );
 
   useEffect(() => {
@@ -244,6 +271,7 @@ export const SwipeableDmConversationRow = memo(function SwipeableDmConversationR
     (e: React.PointerEvent<HTMLDivElement>) => {
       if (isDeleting || e.button !== 0) return;
       startRef.current = { x: e.clientX, y: e.clientY, pointerId: e.pointerId };
+      baseXRef.current = x.get();
       stateRef.current = 'pending';
       gestureConsumedRef.current = false;
       clearTimer();
@@ -255,7 +283,7 @@ export const SwipeableDmConversationRow = memo(function SwipeableDmConversationR
         setOptionsOpen(true);
       }, HOLD_MS);
     },
-    [clearTimer, isDeleting],
+    [clearTimer, isDeleting, x],
   );
 
   const handleClickCapture = useCallback((e: React.MouseEvent) => {
@@ -268,6 +296,12 @@ export const SwipeableDmConversationRow = memo(function SwipeableDmConversationR
   const handlePointerEnter = useCallback(() => {
     onWarm?.();
   }, [onWarm]);
+
+  const runTrayAction = useCallback((mutate: () => void) => {
+    if (navigator.vibrate) navigator.vibrate(8);
+    mutate();
+    closeTray();
+  }, [closeTray]);
 
   const optionsSheet = (
     <ConversationOptionsSheet
@@ -286,6 +320,34 @@ export const SwipeableDmConversationRow = memo(function SwipeableDmConversationR
       onToggleMute={() => inboxActions.toggleMute.mutate(!inboxActions.isMuted)}
       onToggleLock={() => inboxActions.toggleLock.mutate(true)}
     />
+  );
+
+  const deleteConfirmDialog = (
+    <AlertDialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Delete this chat?</AlertDialogTitle>
+          <AlertDialogDescription>
+            This chat will be moved to trash. You can recover it within 30 days or delete it permanently.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Cancel</AlertDialogCancel>
+          <AlertDialogAction
+            onClick={() => {
+              setIsDeleting(true);
+              const exitSpring = listMotionEnabled
+                ? { duration: 0.32, ease: [0.4, 0, 0.2, 1] as const }
+                : { duration: 0.18 };
+              void animate(x, -420, exitSpring).then(() => handleTrash());
+            }}
+            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+          >
+            Move to Trash
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   );
 
   const card = (
@@ -328,6 +390,7 @@ export const SwipeableDmConversationRow = memo(function SwipeableDmConversationR
           </div>
         </div>
         {optionsSheet}
+        {deleteConfirmDialog}
       </>
     );
   }
@@ -337,38 +400,60 @@ export const SwipeableDmConversationRow = memo(function SwipeableDmConversationR
       <div className="dm-inbox-swipe-row relative touch-pan-y">
         <motion.div
           className="absolute inset-0 flex items-center justify-start pointer-events-none pl-5 bg-primary/10"
-          style={{ opacity: replyOpacity }}
+          style={{ opacity: readOpacity }}
           aria-hidden
         >
           <div className="flex items-center gap-2 text-primary">
-            <CornerUpLeft className="h-5 w-5" />
-            <span className="text-sm font-semibold">Reply</span>
+            {isUnread ? <MailOpen className="h-5 w-5" /> : <Mail className="h-5 w-5" />}
+            <span className="text-sm font-semibold">{isUnread ? 'Mark read' : 'Mark unread'}</span>
           </div>
         </motion.div>
 
         <motion.div
-          className="absolute inset-0 flex items-center justify-end pointer-events-none pr-5 bg-muted/80"
-          style={{ opacity: manageOpacity }}
-          aria-hidden
+          className="absolute inset-y-0 right-0 flex items-stretch"
+          style={{ opacity: trayOpacity }}
         >
-          <div className="flex items-center gap-2 text-foreground/80">
-            <MoreHorizontal className="h-5 w-5" />
-            <span className="text-sm font-semibold">More</span>
-          </div>
-        </motion.div>
-
-        <motion.div
-          className="absolute inset-0 flex items-center justify-end pointer-events-none bg-destructive"
-          style={{ opacity: deleteBgOpacity }}
-          aria-hidden
-        >
-          <motion.div
-            className="flex items-center gap-2 text-destructive-foreground pr-5"
-            style={{ opacity: deleteOpacity }}
+          <button
+            type="button"
+            className="dm-inbox-swipe-action dm-inbox-swipe-action--pin dm-vfx-press"
+            onPointerDown={(event) => event.stopPropagation()}
+            onClick={() => runTrayAction(() => inboxActions.togglePin.mutate(!inboxActions.isPinned))}
+            aria-label={inboxActions.isPinned ? 'Unpin conversation' : 'Pin conversation'}
           >
+            <Pin className="h-5 w-5" />
+            <span>{inboxActions.isPinned ? 'Unpin' : 'Pin'}</span>
+          </button>
+          <button
+            type="button"
+            className="dm-inbox-swipe-action dm-inbox-swipe-action--mute dm-vfx-press"
+            onPointerDown={(event) => event.stopPropagation()}
+            onClick={() => runTrayAction(() => inboxActions.toggleMute.mutate(!inboxActions.isMuted))}
+            aria-label={inboxActions.isMuted ? 'Unmute conversation' : 'Mute conversation'}
+          >
+            <VolumeX className="h-5 w-5" />
+            <span>{inboxActions.isMuted ? 'Unmute' : 'Mute'}</span>
+          </button>
+          <button
+            type="button"
+            className="dm-inbox-swipe-action dm-inbox-swipe-action--archive dm-vfx-press"
+            onPointerDown={(event) => event.stopPropagation()}
+            onClick={() => runTrayAction(() => inboxActions.archive.mutate())}
+            aria-label="Archive conversation"
+          >
+            <Archive className="h-5 w-5" />
+            <span>Archive</span>
+          </button>
+        </motion.div>
+
+        <motion.div
+          className="absolute inset-0 flex items-center justify-end pr-6 bg-destructive pointer-events-none"
+          style={{ opacity: deleteOpacity }}
+          aria-hidden
+        >
+          <div className="flex items-center gap-2 text-destructive-foreground">
             <Trash2 className="h-5 w-5" />
-            <span className="text-sm font-semibold">Delete</span>
-          </motion.div>
+            <span className="text-sm font-semibold">Release to delete</span>
+          </div>
         </motion.div>
 
         <motion.div
@@ -391,6 +476,7 @@ export const SwipeableDmConversationRow = memo(function SwipeableDmConversationR
         </motion.div>
       </div>
       {optionsSheet}
+      {deleteConfirmDialog}
     </>
   );
 });

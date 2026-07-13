@@ -1,8 +1,9 @@
 import type { LoadedDMConversation } from '@/lib/loadDMConversations';
-import { compareInboxPriority } from '@/lib/dmInboxPriority';
+import type { DMConversationPreview, DmInboxFilterId } from '@/features/dms/dm.types';
 import { conversationNeedsReply } from '@/lib/dmNeedsReply';
 import { safeDmMembers, ensureArray } from '@/lib/persistedCollections';
 
+/** @deprecated Section headers removed in redesign — kept for type compatibility. */
 export type DmInboxSectionId =
   | 'needs_reply'
   | 'unread'
@@ -11,12 +12,29 @@ export type DmInboxSectionId =
   | 'all';
 
 export type DmInboxTabId =
+  | DmInboxFilterId
   | 'friends'
   | 'best_friends'
   | 'nearby'
-  | 'groups'
-  | 'requests'
-  | 'unread';
+  | 'requests';
+
+export const DM_INBOX_FILTERS: DmInboxFilterId[] = [
+  'all',
+  'unread',
+  'needs_reply',
+  'groups',
+  'pinned',
+  'active',
+];
+
+export const DM_INBOX_FILTER_LABELS: Record<DmInboxFilterId, string> = {
+  all: 'All',
+  unread: 'Unread',
+  needs_reply: 'Needs Reply',
+  groups: 'Groups',
+  pinned: 'Pinned',
+  active: 'Active',
+};
 
 export interface DmInboxSection {
   id: DmInboxSectionId;
@@ -31,14 +49,14 @@ export interface DmInboxTabFilterOptions {
   closeFriendIds?: Set<string>;
   nearbyProfileIds?: Set<string>;
   resolveOtherProfileId?: (conversation: LoadedDMConversation) => string | undefined;
+  presenceOnlineIds?: Set<string>;
+  recentlyActiveIds?: Set<string>;
 }
 
-function sortByPriority(
-  a: LoadedDMConversation,
-  b: LoadedDMConversation,
-  profileId?: string,
-): number {
-  return compareInboxPriority(a, b, profileId);
+function activityMs(conv: LoadedDMConversation): number {
+  const raw = conv._sortTime || conv.last_message?.created_at || conv.updated_at || '';
+  const t = Date.parse(raw);
+  return Number.isFinite(t) ? t : 0;
 }
 
 function isPinnedForViewer(conv: LoadedDMConversation, profileId?: string): boolean {
@@ -48,7 +66,79 @@ function isPinnedForViewer(conv: LoadedDMConversation, profileId?: string): bool
   );
 }
 
-/** Filter rows for smart inbox tab. */
+function isMutedForViewer(conv: LoadedDMConversation, profileId?: string): boolean {
+  if (!profileId) return false;
+  return Boolean(
+    safeDmMembers(conv.members).find((m) => m.user_id === profileId)?.is_muted,
+  );
+}
+
+function isNoiseLatest(conv: LoadedDMConversation): boolean {
+  const type = String(
+    conv.last_message?.message_type || conv.last_message?.media_type || 'text',
+  ).toLowerCase();
+  if (['system', 'reaction', 'call', 'missed_call'].includes(type)) return true;
+  if (conv.last_message?.is_deleted) return true;
+  return false;
+}
+
+/**
+ * All: latest activity primary. Pinned / unread are tiny tie-breakers only
+ * (±1ms-scale) so old pinned threads never jump above fresher chats.
+ */
+export function compareInboxActivity(
+  a: LoadedDMConversation,
+  b: LoadedDMConversation,
+  profileId?: string,
+): number {
+  const byTime = activityMs(b) - activityMs(a);
+  if (byTime !== 0) return byTime;
+  const aPinned = isPinnedForViewer(a, profileId) ? 1 : 0;
+  const bPinned = isPinnedForViewer(b, profileId) ? 1 : 0;
+  if (aPinned !== bPinned) return bPinned - aPinned;
+  const aUnread = a._hasUnread || (a.unread_count || 0) > 0 ? 1 : 0;
+  const bUnread = b._hasUnread || (b.unread_count || 0) > 0 ? 1 : 0;
+  return bUnread - aUnread;
+}
+
+function sortPinned(
+  rows: LoadedDMConversation[],
+  profileId?: string,
+): LoadedDMConversation[] {
+  return [...rows].sort((a, b) => {
+    const aOrder = Number(
+      (safeDmMembers(a.members).find((m) => m.user_id === profileId) as { pin_order?: number } | undefined)
+        ?.pin_order ?? 0,
+    );
+    const bOrder = Number(
+      (safeDmMembers(b.members).find((m) => m.user_id === profileId) as { pin_order?: number } | undefined)
+        ?.pin_order ?? 0,
+    );
+    if (aOrder !== bOrder) return Number(aOrder) - Number(bOrder);
+    return compareInboxActivity(a, b, profileId);
+  });
+}
+
+function sortActive(
+  rows: LoadedDMConversation[],
+  options: DmInboxTabFilterOptions,
+): LoadedDMConversation[] {
+  const { presenceOnlineIds, recentlyActiveIds, profileId } = options;
+  return [...rows].sort((a, b) => {
+    const aOther = options.resolveOtherProfileId?.(a);
+    const bOther = options.resolveOtherProfileId?.(b);
+    const aOnline = aOther && presenceOnlineIds?.has(aOther) ? 2 : 0;
+    const bOnline = bOther && presenceOnlineIds?.has(bOther) ? 2 : 0;
+    const aRecent = aOther && recentlyActiveIds?.has(aOther) ? 1 : 0;
+    const bRecent = bOther && recentlyActiveIds?.has(bOther) ? 1 : 0;
+    const aScore = aOnline + aRecent;
+    const bScore = bOnline + bRecent;
+    if (aScore !== bScore) return bScore - aScore;
+    return compareInboxActivity(a, b, profileId);
+  });
+}
+
+/** Filter + sort one continuous list for smart inbox filters. */
 export function filterConversationsForTab(
   rows: LoadedDMConversation[],
   tab: DmInboxTabId,
@@ -65,6 +155,7 @@ export function filterConversationsForTab(
           callConversationIds,
         };
   const {
+    profileId,
     requestConversationIds: requestIds,
     callConversationIds: callIds,
     closeFriendIds,
@@ -72,9 +163,58 @@ export function filterConversationsForTab(
     resolveOtherProfileId,
   } = options;
   const safe = ensureArray(rows);
+
   switch (tab) {
-    case 'groups':
-      return safe.filter((c) => c.is_group);
+    case 'all': {
+      return [...safe].sort((a, b) => compareInboxActivity(a, b, profileId));
+    }
+    case 'unread': {
+      const unread = safe.filter(
+        (c) => (c.unread_count || 0) > 0 || c._hasUnread || Boolean(callIds?.has(c.id)),
+      );
+      if (unread.length) {
+        return unread.sort((a, b) => compareInboxActivity(a, b, profileId));
+      }
+      // When nothing is unread, show the full activity-sorted list.
+      return [...safe].sort((a, b) => compareInboxActivity(a, b, profileId));
+    }
+    case 'needs_reply': {
+      return safe
+        .filter(
+          (c) =>
+            conversationNeedsReply(c, profileId) &&
+            !isMutedForViewer(c, profileId) &&
+            !isNoiseLatest(c),
+        )
+        .sort((a, b) => compareInboxActivity(a, b, profileId));
+    }
+    case 'groups': {
+      return safe
+        .filter((c) => c.is_group)
+        .sort((a, b) => {
+          const aMention = (a as { mention_count?: number }).mention_count || 0;
+          const bMention = (b as { mention_count?: number }).mention_count || 0;
+          if (aMention !== bMention) return bMention - aMention;
+          const aUnread = a._hasUnread || (a.unread_count || 0) > 0 ? 1 : 0;
+          const bUnread = b._hasUnread || (b.unread_count || 0) > 0 ? 1 : 0;
+          if (aUnread !== bUnread) return bUnread - aUnread;
+          return compareInboxActivity(a, b, profileId);
+        });
+    }
+    case 'pinned': {
+      return sortPinned(
+        safe.filter((c) => isPinnedForViewer(c, profileId)),
+        profileId,
+      );
+    }
+    case 'active': {
+      // Direct chats only — online → recently active → offline.
+      return sortActive(
+        safe.filter((c) => !c.is_group),
+        options,
+      );
+    }
+    // Legacy tabs (rollback / pre-redesign)
     case 'friends':
       return safe.filter(
         (c) => !c.is_group && !(requestIds?.size && requestIds.has(c.id)),
@@ -93,107 +233,106 @@ export function filterConversationsForTab(
         const otherId = resolveOtherProfileId?.(c);
         return Boolean(otherId && nearbyProfileIds.has(otherId));
       });
-    case 'unread':
-      return safe.filter(
-        (c) =>
-          (c.unread_count || 0) > 0 ||
-          c._hasUnread ||
-          Boolean(callIds?.has(c.id)),
-      );
     case 'requests':
-      // Conversation matches are optional — pending requests render as dedicated rows.
       if (!requestIds?.size) return [];
       return safe.filter((c) => requestIds.has(c.id));
     default:
-      return safe;
+      return [...safe].sort((a, b) => compareInboxActivity(a, b, profileId));
   }
 }
 
-/** Group + sort conversations for the iconic VYBE inbox layout. */
-export function organizeDmInbox(
-  rows: LoadedDMConversation[],
+/** Preview-based filter for projection-backed rows (preferred UI path). */
+export function filterPreviewsForFilter(
+  rows: DMConversationPreview[],
+  filter: DmInboxFilterId,
+): DMConversationPreview[] {
+  const safe = ensureArray(rows);
+  const byActivity = (a: DMConversationPreview, b: DMConversationPreview) => {
+    const aT = Date.parse(a.latestMessageAt || '') || 0;
+    const bT = Date.parse(b.latestMessageAt || '') || 0;
+    if (bT !== aT) return bT - aT;
+    if (a.isPinned !== b.isPinned) return Number(b.isPinned) - Number(a.isPinned);
+    return Number(b.isUnread) - Number(a.isUnread);
+  };
+
+  switch (filter) {
+    case 'all':
+      return [...safe].sort(byActivity);
+    case 'unread': {
+      const unread = safe.filter((r) => r.isUnread || r.unreadCount > 0);
+      return (unread.length ? unread : safe).sort(byActivity);
+    }
+    case 'needs_reply':
+      return safe
+        .filter((r) => r.needsReply && !r.isMuted && !r.isGroup)
+        .sort(byActivity);
+    case 'groups':
+      return safe
+        .filter((r) => r.isGroup)
+        .sort((a, b) => {
+          if (a.mentionCount !== b.mentionCount) return b.mentionCount - a.mentionCount;
+          if (a.isUnread !== b.isUnread) return Number(b.isUnread) - Number(a.isUnread);
+          return byActivity(a, b);
+        });
+    case 'pinned':
+      return safe
+        .filter((r) => r.isPinned)
+        .sort((a, b) => {
+          if (a.pinOrder !== b.pinOrder) return a.pinOrder - b.pinOrder;
+          return byActivity(a, b);
+        });
+    case 'active':
+      return safe
+        .filter((r) => !r.isGroup)
+        .sort((a, b) => {
+          const score = (r: DMConversationPreview) =>
+            (r.isOnline ? 2 : 0) + (r.isAway ? 1 : 0);
+          const diff = score(b) - score(a);
+          return diff !== 0 ? diff : byActivity(a, b);
+        });
+    default:
+      return [...safe].sort(byActivity);
+  }
+}
+
+/**
+ * Flat list without section headers (Messages redesign).
+ * Legacy header rows are no longer emitted.
+ */
+export function buildFlatInboxRows(
+  conversations: LoadedDMConversation[],
+  _profileId?: string,
+): Array<{ type: 'conversation'; conversation: LoadedDMConversation }> {
+  return ensureArray(conversations).map((conversation) => ({
+    type: 'conversation' as const,
+    conversation,
+  }));
+}
+
+/** @deprecated Prefer buildFlatInboxRows — sections removed. */
+export function organizeInboxSections(
+  conversations: LoadedDMConversation[],
   profileId?: string,
 ): DmInboxSection[] {
-  const safeRows = ensureArray<LoadedDMConversation>(rows).filter(
-    (c) => c && typeof c === 'object' && typeof c.id === 'string' && c.id.length > 0,
-  );
-
-  const needsReply: LoadedDMConversation[] = [];
-  const unread: LoadedDMConversation[] = [];
-  const pinned: LoadedDMConversation[] = [];
-  const recent: LoadedDMConversation[] = [];
-  const rest: LoadedDMConversation[] = [];
-
-  const weekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
-
-  for (const conv of safeRows) {
-    const hasUnread = (conv.unread_count || 0) > 0 || conv._hasUnread;
-    const pinnedRow = isPinnedForViewer(conv, profileId);
-    const needs = conversationNeedsReply(conv, profileId);
-    const sortMs = new Date(conv.last_message?.created_at ?? conv.created_at ?? 0).getTime();
-
-    if (needs && !pinnedRow) {
-      needsReply.push(conv);
-    } else if (hasUnread && !pinnedRow) {
-      unread.push(conv);
-    } else if (pinnedRow) {
-      pinned.push(conv);
-    } else if (sortMs >= weekAgo) {
-      recent.push(conv);
-    } else {
-      rest.push(conv);
-    }
-  }
-
-  const sortFn = (a: LoadedDMConversation, b: LoadedDMConversation) =>
-    sortByPriority(a, b, profileId);
-
-  needsReply.sort(sortFn);
-  unread.sort(sortFn);
-  pinned.sort(sortFn);
-  recent.sort(sortFn);
-  rest.sort(sortFn);
-
-  const sections: DmInboxSection[] = [];
-  if (needsReply.length) {
-    sections.push({ id: 'needs_reply', label: 'Needs reply', conversations: needsReply });
-  }
-  if (unread.length) sections.push({ id: 'unread', label: 'New', conversations: unread });
-  if (pinned.length) sections.push({ id: 'pinned', label: 'Pinned', conversations: pinned });
-  if (recent.length) sections.push({ id: 'recent', label: 'This week', conversations: recent });
-  if (rest.length) sections.push({ id: 'all', label: 'Earlier', conversations: rest });
-
-  if (!sections.length && safeRows.length) {
-    sections.push({
+  return [
+    {
       id: 'all',
-      label: 'Chats',
-      conversations: [...safeRows].sort(sortFn),
-    });
-  }
-
-  return sections;
+      label: 'All',
+      conversations: [...ensureArray(conversations)].sort((a, b) =>
+        compareInboxActivity(a, b, profileId),
+      ),
+    },
+  ];
 }
 
-export type DmInboxRow =
-  | { type: 'header'; id: DmInboxSectionId; label: string; count: number }
-  | { type: 'conversation'; conversation: LoadedDMConversation };
-
-export function buildFlatInboxRows(
-  rows: LoadedDMConversation[],
+/** @deprecated Alias — sectioned inbox removed in redesign. */
+export function organizeDmInbox(
+  conversations: LoadedDMConversation[],
   profileId?: string,
-): DmInboxRow[] {
-  const sections = organizeDmInbox(rows, profileId);
-  const flat: DmInboxRow[] = [];
-  for (const section of sections) {
-    flat.push({
-      type: 'header',
-      id: section.id,
-      label: section.label,
-      count: section.conversations.length,
-    });
-    for (const conversation of section.conversations) {
-      flat.push({ type: 'conversation', conversation });
-    }
+): DmInboxSection[] {
+  const needs = ensureArray(conversations).filter((c) => conversationNeedsReply(c, profileId));
+  if (needs.length) {
+    return [{ id: 'needs_reply', label: 'Needs reply', conversations: needs }];
   }
-  return flat;
+  return organizeInboxSections(conversations, profileId);
 }

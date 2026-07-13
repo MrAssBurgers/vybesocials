@@ -13,6 +13,7 @@ import { ProfileLink } from '@/components/profile/ProfileLink';
 import { StyledUsername } from '@/components/ui/StyledUsername';
 import { haptics } from '@/lib/haptics';
 import { useDebounce } from '@/hooks/useDebounce';
+import { useSearchPeople } from '@/hooks/useSearchPeople';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -27,26 +28,6 @@ const TABS: { id: SearchTab; label: string; icon: React.ElementType }[] = [
   { id: 'posts', label: 'Posts', icon: Newspaper },
   { id: 'hashtags', label: 'Hashtags', icon: Hash },
 ];
-
-function useSearchPeople(query: string) {
-  return useQuery({
-    queryKey: ['search-people', query],
-    queryFn: async () => {
-      if (!query || query.length < 2) return [];
-      const { data, error } = await db
-        .from('profiles')
-        .select('id, username, display_name, avatar_url, bio')
-        .or(`username.ilike.%${query}%,display_name.ilike.%${query}%`)
-        .limit(30);
-      if (error) throw error;
-      return data || [];
-    },
-    enabled: query.length >= 2,
-    networkMode: 'always',
-    staleTime: 1000 * 60 * 5,
-    placeholderData: (prev) => prev,
-  });
-}
 
 function useSearchPosts(query: string) {
   return useQuery({

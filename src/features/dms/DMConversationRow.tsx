@@ -1,4 +1,4 @@
-import { memo, useCallback } from 'react';
+import { memo, useCallback, useEffect, useRef, useState } from 'react';
 import {
   BadgeCheck,
   Camera,
@@ -123,6 +123,19 @@ export const DMConversationRow = memo(function DMConversationRow({
   const streakCount = preview?.streakCount;
   const trailTime = status.age;
 
+  // Controlled VFX: one-shot highlight sweep the moment a row flips from read → unread.
+  const [sweeping, setSweeping] = useState(false);
+  const wasUnreadRef = useRef(unread);
+  useEffect(() => {
+    if (unread && !wasUnreadRef.current) {
+      setSweeping(true);
+      const timer = setTimeout(() => setSweeping(false), 900);
+      wasUnreadRef.current = unread;
+      return () => clearTimeout(timer);
+    }
+    wasUnreadRef.current = unread;
+  }, [unread]);
+
   const stopRowGesture = (event: React.SyntheticEvent) => {
     event.preventDefault();
     event.stopPropagation();
@@ -153,10 +166,11 @@ export const DMConversationRow = memo(function DMConversationRow({
               content: null,
               media_url: mediaUrl,
               media_type: 'vybe',
-              message_type: 'text',
+              message_type: 'vybe',
               view_mode: 'view_once',
               expires_at: null,
               reply_to_id: null,
+              client_message_id: `snap_${conversation.id}_${Date.now()}`,
             },
             {
               otherProfileId,
@@ -199,10 +213,11 @@ export const DMConversationRow = memo(function DMConversationRow({
         isSwiping && 'dm-inbox-card--swiping',
       )}
     >
+      {sweeping && <div className="dm-inbox-sweep dm-inbox-sweep--play" aria-hidden />}
       <button
         type="button"
         className={cn(
-          'dm-inbox-avatar-button',
+          'dm-inbox-avatar-button dm-vfx-press',
           storyState === 'unviewed' && 'dm-inbox-avatar-button--story',
           storyState === 'viewed' && 'dm-inbox-avatar-button--story-viewed',
         )}
@@ -217,7 +232,7 @@ export const DMConversationRow = memo(function DMConversationRow({
         <span
           className={cn(
             'dm-inbox-avatar-ring',
-            storyState === 'unviewed' && 'dm-inbox-avatar-ring--story',
+            storyState === 'unviewed' && 'dm-inbox-avatar-ring--story dm-vfx-story-pulse',
           )}
           aria-hidden
         />
@@ -322,7 +337,7 @@ export const DMConversationRow = memo(function DMConversationRow({
           )}
           <button
             type="button"
-            className="dm-inbox-camera-button"
+            className="dm-inbox-camera-button dm-vfx-press"
             onPointerDown={(event) => event.stopPropagation()}
             onClick={openSnapCamera}
             aria-label={`Send a snap to ${displayName}`}
