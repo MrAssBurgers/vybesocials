@@ -2,6 +2,15 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## CI typecheck failures on main (2026-07-13)
+
+- **Cause:** `useRecentNewFriendProfileIds` returns `string[]` but legacy `ConversationList` still typed/defaulted `Set`; `sortDmConversations` used unsafe casts rejected by `tsc`.
+- **Fix:** `ensureStringSet` at ConversationList; sort via local comparator (no casts).
+- **Verified:** `npm run typecheck` · lint · test 270 · build — all PASS
+- **Published:** push `origin/main` (unblocks `[CI - main]` emails)
+
+---
+
 ## Freeze inbox sort clock + fix false online in chat (2026-07-13)
 
 - **Shuffle root cause:** Projection/`updated_at`/`_sortTime` were treated as “latest message,” so rows jumped without a real send/receive.
