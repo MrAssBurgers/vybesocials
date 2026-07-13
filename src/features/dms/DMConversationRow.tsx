@@ -17,7 +17,6 @@ import {
   displayNameForConversation,
   resolveOtherMemberFromConversation,
 } from '@/lib/dmMemberResolve';
-import { dmConversationPreviewText } from '@/lib/dmPreviewText';
 import { resolveDmInboxStatus } from '@/lib/dmInboxStatus';
 import { resolveProfileAvatarUrl } from '@/lib/profileAvatarCache';
 import { safeDmMembers } from '@/lib/persistedCollections';
@@ -98,21 +97,6 @@ export const DMConversationRow = memo(function DMConversationRow({
   );
   const statusLine = preview?.statusLine || status.line;
   const StatusIcon = status.Icon;
-  const messagePreview =
-    preview?.previewText ||
-    dmConversationPreviewText({
-      lastMessage: conversation.last_message,
-      isGroup: conversation.is_group,
-      profileId,
-      authUid,
-      otherProfileId,
-      previewMaxLen: 48,
-    });
-  const showSeparatePreview = Boolean(
-    messagePreview &&
-      messagePreview !== statusLine &&
-      !messagePreview.startsWith(status.label),
-  );
   const storyState = preview?.storyState || 'none';
   const isOnline = preview?.isOnline ?? Boolean(activity && activity !== 'idle');
   const isAway = preview?.isAway ?? false;
@@ -230,7 +214,7 @@ export const DMConversationRow = memo(function DMConversationRow({
                 transformSize={160}
                 priority={priority}
               />
-              <AvatarFallback className="bg-muted text-lg font-semibold">
+              <AvatarFallback className="bg-muted text-sm font-semibold">
                 {displayName[0]?.toUpperCase() || '?'}
               </AvatarFallback>
             </>
@@ -300,11 +284,6 @@ export const DMConversationRow = memo(function DMConversationRow({
                     {streakCount} 🔥
                   </span>
                 ) : null}
-              </p>
-            )}
-            {showSeparatePreview && (
-              <p className={cn('dm-inbox-message-preview', unread && 'dm-inbox-preview--unread')}>
-                {messagePreview}
               </p>
             )}
           </>
