@@ -13,8 +13,9 @@ Use this file as the Lovable -> Cursor handoff each session.
 - **Enforcement:** `npm run test:camera-send-enforcement` static scan.
 - **Removed:** legacy `handleVybeSend` blob path from ChatView.
 - **Verified:** typecheck PASS · test PASS (204) · lint PASS · build PASS · functions build PASS · camera-send-enforcement PASS.
+- **Pushed:** `origin/main` @ **`678bcb19`**
 - **Device QA:** manual pass still required (capture, offline, partial failure, back button).
-- **Next:** Deploy functions + rules; Lovable Publish; device QA on Android/iPhone.
+- **You:** Deploy functions + rules to `vybe-daaab`; Lovable → sync `main` @ **`678bcb19`** → Publish.
 
 ---
 
