@@ -10,8 +10,9 @@ Use this file as the Lovable -> Cursor handoff each session.
 - **CSS:** Rows 72px (68–74), avatars ~50px / 2px ring, 10px online, 14×8 padding, 11px avatar gap, 16/600 name, 13px preview, 38px camera, 42px underline filters, 54px compose above bottom nav. Thin separators, no row cards, reduced glow. Virtual row estimate 72px.
 - **Filters:** Redesign filter set (All / Unread / Needs Reply / Groups / Pinned / Active) forced on for Messages chrome; projection-read flag unchanged.
 - **Verified:** typecheck PASS · test PASS (120) · build PASS.
-- **Published:** not committed/pushed yet.
-- **Next:** commit/push when asked → Lovable Publish; spot-check phone density (8–10 rows visible).
+- **Pushed:** `origin/main` @ **`0bbfdee6`**
+- **You:** Lovable → sync/confirm `main` @ **`0bbfdee6`** → **Share → Publish** → hard-refresh https://vybehub.app/messages
+- **Next:** Spot-check phone density (8–10 rows visible); confirm filters/header/camera long-press.
 
 ---
 
