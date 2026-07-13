@@ -293,39 +293,36 @@ async function readSyncMeta(authUid: string) {
   };
 }
 
+/**
+ * Client-facing "record activity" endpoint. Historically it accepted an
+ * arbitrary p_increment and applied it directly, which let a caller farm XP
+ * without doing the underlying action. It now ignores any client-supplied
+ * increment/challenge/user id and re-derives progress from server-verified
+ * Firestore activity counts (same logic as syncMyChallengeProgress).
+ */
 export const incrementChallengeProgress = onCall({ region: 'us-central1' }, async (request) => {
   const authUid = requireAuth(request);
-  const data = (request.data || {}) as Record<string, unknown>;
   const profileId = await resolveProfileId(authUid);
-  const increment = Math.max(1, Number(data.p_increment || 1));
-
   const today = isoDateOnly();
   const weekStart = weekStartIso();
-
-  if (data.p_challenge_id) {
-    const challengeId = String(data.p_challenge_id);
-    const chSnap = await db.collection('challenges').doc(challengeId).get();
-    if (!chSnap.exists) throw new HttpsError('not-found', 'Challenge not found');
-    return incrementOneChallenge(
-      profileId,
-      authUid,
-      { id: chSnap.id, ...chSnap.data() },
-      increment,
-    );
-  }
-
-  const requirementType = String(data.p_requirement_type || '');
-  if (!requirementType) {
-    throw new HttpsError('invalid-argument', 'p_challenge_id or p_requirement_type required');
-  }
-
   const active = await loadActiveChallenges(today, weekStart);
-  const matches = active.filter((c) => String(c.requirement_type) === requirementType);
-  for (const ch of matches) {
-    await incrementOneChallenge(profileId, authUid, ch, increment);
+
+  const changes: ProgressChange[] = [];
+  const newlyCompleted: string[] = [];
+  for (const ch of active) {
+    const reqType = String(ch.requirement_type || '');
+    if (!reqType) continue;
+    const since = periodStartIso(ch);
+    const count = await countActivity(profileId, authUid, reqType, since);
+    const change = await upsertProgressFromCount(profileId, authUid, ch, count);
+    if (change) {
+      changes.push(change);
+      if (change.newly_completed) newlyCompleted.push(change.challenge_id);
+    }
   }
-  return { ok: true, matched: matches.length };
+  return { ok: true, matched: changes.length, changes, newly_completed: newlyCompleted };
 });
+
 
 export const syncMyChallengeProgress = onCall({ region: 'us-central1' }, async (request) => {
   const authUid = requireAuth(request);
