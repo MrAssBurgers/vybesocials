@@ -33,7 +33,7 @@ export function sortDmConversations<T extends SortableConversation>(
   list: T[],
   profileId?: string | null,
 ): T[] {
-  return sortInboxConversations(list as LoadedDMConversation[], profileId) as T[];
+  return sortInboxConversations(list as unknown as LoadedDMConversation[], profileId) as unknown as T[];
 }
 
 /** Apply a new last message to a conversation row (send/receive paths). */
