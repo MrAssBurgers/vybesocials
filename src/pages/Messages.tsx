@@ -150,9 +150,14 @@ function MessagesInner() {
 
   useLayoutEffect(() => {
     const qc = (window as unknown as { __REACT_QUERY_CLIENT__?: QueryClient }).__REACT_QUERY_CLIENT__;
-    if (qc && profileId && !routePreparedRef.current) {
+    // Seed from authUid even before profileId resolves so cache paints frame 0.
+    if (qc && (profileId || user?.id) && !routePreparedRef.current) {
       prepareMessagesRoute(qc, profileId, user?.id);
-      routePreparedRef.current = true;
+      if (profileId) routePreparedRef.current = true;
+    }
+    // Preload chat chunk while viewing the inbox so open feels instant.
+    if (qc && !conversationId) {
+      void import('@/components/chat/ChatView');
     }
     if (qc && conversationId) {
       warmDmConversation(qc, conversationId, profileId, profileId, 'high');

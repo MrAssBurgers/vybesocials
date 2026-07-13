@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, useCallback, useRef } from 'react';
+import { useEffect, useMemo, useState, useCallback, useRef, useDeferredValue } from 'react';
 import { useParams } from 'react-router-dom';
 import { useAuth } from '@/lib/auth';
 import { useAuthProfileId } from '@/hooks/useAuthProfileId';
@@ -177,8 +177,13 @@ export function useDMInbox() {
   );
   const { data: storyGroupsRaw } = useStories();
   const query = useDMConversations(searchQuery);
+  const nearbyEnabled =
+    Boolean(profileId) &&
+    (categoryBarEnabled
+      ? inboxCategories.activeCategory === 'nearby'
+      : activeTab === 'nearby');
   const nearby = useNearbyFriendLink({
-    enabled: Boolean(profileId),
+    enabled: nearbyEnabled,
     profileId,
     username: profile?.username,
     displayName: profile?.display_name,
@@ -360,12 +365,26 @@ export function useDMInbox() {
   }, [storyGroupsRaw]);
 
   const typingConversationIds = useMemo(
-    () => allConversations.slice(0, 30).map((conversation) => conversation.id),
+    () => allConversations.slice(0, 12).map((conversation) => conversation.id),
     [allConversations],
   );
   const { isTyping } = useConversationTyping(typingConversationIds);
+
+  // Defer presence subscribers until after first paint so the list isn't blocked.
+  const [presenceReady, setPresenceReady] = useState(false);
+  useEffect(() => {
+    let cancelled = false;
+    const id = window.setTimeout(() => {
+      if (!cancelled) setPresenceReady(true);
+    }, 700);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(id);
+    };
+  }, []);
+
   const presenceMapRaw = useConversationListPresence(
-    allConversations,
+    presenceReady ? allConversations : [],
     profileId,
     user?.id,
     activeConversationId,
@@ -407,8 +426,10 @@ export function useDMInbox() {
     return ids;
   }, [allConversations, presenceMap, resolveOtherProfileId]);
 
+  const deferredConversations = useDeferredValue(allConversations);
+
   const categoryFilter = useFilteredConversations({
-    conversations: allConversations,
+    conversations: deferredConversations,
     profileId,
     storyStateByProfileId,
     streakMap,
@@ -426,7 +447,7 @@ export function useDMInbox() {
 
   const legacyFilteredConversations = useMemo(
     () =>
-      filterConversationsForTab(allConversations, activeTab, {
+      filterConversationsForTab(deferredConversations, activeTab, {
         profileId,
         requestConversationIds,
         callConversationIds,
@@ -437,7 +458,7 @@ export function useDMInbox() {
         presenceOnlineIds,
       }),
     [
-      allConversations,
+      deferredConversations,
       activeTab,
       profileId,
       requestConversationIds,

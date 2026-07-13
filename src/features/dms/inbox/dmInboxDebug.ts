@@ -1,7 +1,6 @@
 const DEBUG_KEY = 'vybe-dm-inbox-debug';
 
 export function isDmInboxDebugEnabled(): boolean {
-  if (typeof import.meta !== 'undefined' && import.meta.env?.DEV) return true;
   if (typeof localStorage === 'undefined') return false;
   try {
     return localStorage.getItem(DEBUG_KEY) === '1';

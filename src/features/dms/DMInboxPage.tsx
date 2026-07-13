@@ -33,11 +33,12 @@ export function DMInboxPage() {
       if (listEl) {
         writeFilterScroll(scrollKey, listEl.scrollTop);
       }
-      await resolveSessionProfileId(inbox.profileId);
+      // Navigate immediately — never await profile resolve before route change.
       warm(conversationId, conversationHint);
       startTransition(() => {
         void navigate(`/messages/${conversationId}`);
       });
+      void resolveSessionProfileId(inbox.profileId);
     },
     [
       inbox.activeConversationId,
@@ -63,7 +64,7 @@ export function DMInboxPage() {
           pendingRequestCount={inbox.pendingRequestCount}
           onSearch={() => navigate('/messages/search')}
         />
-        {inbox.awaitingProfileId ? (
+        {inbox.awaitingProfileId && !inbox.hasCachedRows && inbox.displayRows.length === 0 ? (
           <div className="flex flex-1 flex-col items-center justify-center gap-3 px-6 py-16 text-center">
             <p className="text-sm text-muted-foreground">
               {inbox.profileResolveTimedOut

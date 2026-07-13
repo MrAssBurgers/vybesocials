@@ -477,9 +477,17 @@ export function prepareMessagesRoute(
 ): void {
   reviveQueriesInCache(queryClient);
   purgeStuckStoryUploads(queryClient, profileId);
+  // Seed any warm list onto the active key immediately (authUid works before profileId).
   if (profileId) {
     seedDmConversationsCache(queryClient, profileId, authUid);
     void prefetchDMConversations(queryClient, profileId, authUid);
+    return;
+  }
+  if (authUid) {
+    const hit = readDmConversationsCache(queryClient, null, authUid);
+    if (hit.length) {
+      syncDmListCaches(queryClient, authUid, hit);
+    }
   }
 }
 

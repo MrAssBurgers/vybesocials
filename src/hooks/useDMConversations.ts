@@ -73,12 +73,17 @@ export function useDMConversations(searchQuery: string = '') {
     [queryClient, profileId, user?.id],
   );
 
-  // Fetch all conversations with proper sorting
+  // Fetch all conversations with proper sorting.
+  // Prefer profileId; fall back to authUid so cached list can paint before profile resolves.
+  const listKeyId = profileId || user?.id || null;
   const conversationsQuery = useQuery({
-    queryKey: ['dm-conversations', profileId],
+    queryKey: ['dm-conversations', listKeyId],
     queryFn: async () => {
-      if (!profileId) return [];
+      const viewerId = profileId || user?.id;
+      if (!viewerId) return [];
       const prev = readDmConversationsCache(queryClient, profileId, user?.id);
+      // Only hit the network with a real profileId — authUid fallback is cache/paint only.
+      if (!profileId) return prev;
       const { data, error, profileId: resolvedId } = await loadDMConversations(profileId, prev);
       const merged = data.length > 0 ? data : prev;
 
@@ -96,7 +101,7 @@ export function useDMConversations(searchQuery: string = '') {
       }
       return merged;
     },
-    enabled: !!profileId,
+    enabled: !!listKeyId,
     throwOnError: false,
     initialData: cachedConversations.length > 0 ? cachedConversations : undefined,
     select: (data) => normalizeDmConversationList<DMConversation>(data),
@@ -131,7 +136,11 @@ export function useDMConversations(searchQuery: string = '') {
 
   useEffect(() => {
     if (!profileId || !conversationIdsKey) return;
-    warmDmConversationBatch(queryClient, conversationIdsKey.split('\0'), profileId, profileId);
+    // Idle-warm a few top threads only — never flood the network on inbox open.
+    const ids = conversationIdsKey.split('\0').slice(0, 6);
+    return scheduleIdleWork(() => {
+      warmDmConversationBatch(queryClient, ids, profileId, profileId);
+    }, 1200);
   }, [conversationIdsKey, profileId, queryClient]);
 
   // Auto-create conversations for friends who don't have one.

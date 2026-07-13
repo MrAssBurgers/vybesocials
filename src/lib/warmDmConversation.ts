@@ -179,17 +179,13 @@ export function warmDmConversationBatch(
   actorId?: string | null,
   conversationHints?: Map<string, InboxMessageSeed>,
 ): void {
-  const unique = [...new Set(conversationIds.filter(Boolean))];
+  const unique = [...new Set(conversationIds.filter(Boolean))].slice(0, 8);
   unique.forEach((id, index) => {
-    const priority = index < 12 ? 'high' : 'normal';
     const hint = conversationHints?.get(id);
-    if (index < 12) {
-      warmDmConversation(queryClient, id, profileId, actorId, priority, hint);
-      return;
-    }
+    // Always idle — inbox open must not race chat paint with 12 parallel fetches.
     scheduleIdleWork(
       () => warmDmConversation(queryClient, id, profileId, actorId, 'normal', hint),
-      80 + (index - 12) * 50,
+      200 + index * 120,
     );
   });
 }

@@ -28,8 +28,15 @@ export function useChatPrefetch() {
       priority: 'high' | 'normal' = 'high',
       conversationHint?: LoadedDMConversation | null,
     ) => {
-      if (!actorId) return;
-      warmDmConversation(queryClient, conversationId, profileId, actorId, priority, conversationHint);
+      // Always seed from hint/cache so open feels instant even before profileId resolves.
+      warmDmConversation(
+        queryClient,
+        conversationId,
+        profileId,
+        actorId ?? profileId,
+        priority,
+        conversationHint,
+      );
     },
     [actorId, profileId, queryClient],
   );

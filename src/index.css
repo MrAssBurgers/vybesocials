@@ -1039,10 +1039,8 @@ body.has-liquid-bg:not(.has-custom-bg) .messages-scroll {
 .dm-inbox-rows {
   display: flex;
   flex-direction: column;
-  gap: 0;
+  gap: 8px;
   padding: 6px 12px 0;
-  /* Fixed slot height avoids blank virtual/layout gaps when rows remount. */
-  --dm-inbox-row-slot: 84px;
 }
 .dm-inbox-section-label {
   display: none;
@@ -1053,17 +1051,14 @@ body.has-liquid-bg:not(.has-custom-bg) .messages-scroll {
 .dm-inbox-swipe-row,
 .dm-inbox-row-tap {
   width: 100%;
-  height: var(--dm-inbox-row-slot);
-  min-height: var(--dm-inbox-row-slot);
-  max-height: var(--dm-inbox-row-slot);
+  min-height: 76px;
   margin: 0;
-  padding-bottom: 8px;
-  box-sizing: border-box;
   touch-action: pan-y;
   -webkit-user-select: none;
   user-select: none;
   border-bottom: none;
   -webkit-tap-highlight-color: transparent;
+  /* Never animate height/position — geometry thrash. */
   transition: none;
 }
 .dm-inbox-card {
@@ -1091,7 +1086,7 @@ body.has-liquid-bg:not(.has-custom-bg) .messages-scroll {
     0 4px 16px hsl(var(--background) / 0.35);
   backdrop-filter: blur(12px) saturate(140%);
   -webkit-backdrop-filter: blur(12px) saturate(140%);
-  /* Color/glow only — never animate height/margin/padding/position (geometry thrash). */
+  /* Color/glow only — never animate height/margin/padding/position. */
   transition:
     background-color 140ms ease,
     border-color 140ms ease,
