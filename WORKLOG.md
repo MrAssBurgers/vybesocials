@@ -13,7 +13,9 @@ Use this file as the Lovable -> Cursor handoff each session.
 - **Fixed row slots:** `--dm-inbox-row-slot: 84px`; no height/margin/padding/position transitions on rows.
 - **Geometry debug:** `logDmInboxGeometryReset` on rejected partials and >40% row-count drops.
 - **Verified:** `npm run test` PASS · `npm run build` PASS
-- **Next:** Manual QA on staging (list must not blank / jump; no glow remount; scroll stable). Push + Firebase deploy when ready.
+- **Published:** `origin/main` @ **`7fed24cc`** · Firebase hosting https://vybe-daaab.web.app ✅
+- **Production (vybehub.app):** Lovable → Share → Publish (sync `main` @ `7fed24cc`)
+- **Next:** Manual QA on staging (list must not blank / jump; no glow remount; scroll stable).
 
 ---
 
