@@ -10,12 +10,27 @@ export type DmInboxSectionId =
   | 'recent'
   | 'all';
 
-export type DmInboxTabId = 'friends' | 'groups' | 'requests' | 'unread' | 'calls';
+export type DmInboxTabId =
+  | 'friends'
+  | 'best_friends'
+  | 'nearby'
+  | 'groups'
+  | 'requests'
+  | 'unread';
 
 export interface DmInboxSection {
   id: DmInboxSectionId;
   label: string;
   conversations: LoadedDMConversation[];
+}
+
+export interface DmInboxTabFilterOptions {
+  profileId?: string;
+  requestConversationIds?: Set<string>;
+  callConversationIds?: Set<string>;
+  closeFriendIds?: Set<string>;
+  nearbyProfileIds?: Set<string>;
+  resolveOtherProfileId?: (conversation: LoadedDMConversation) => string | undefined;
 }
 
 function sortByPriority(
@@ -37,24 +52,55 @@ function isPinnedForViewer(conv: LoadedDMConversation, profileId?: string): bool
 export function filterConversationsForTab(
   rows: LoadedDMConversation[],
   tab: DmInboxTabId,
-  profileId?: string,
+  profileIdOrOptions?: string | DmInboxTabFilterOptions,
   requestConversationIds?: Set<string>,
   callConversationIds?: Set<string>,
 ): LoadedDMConversation[] {
+  const options: DmInboxTabFilterOptions =
+    typeof profileIdOrOptions === 'object' && profileIdOrOptions !== null
+      ? profileIdOrOptions
+      : {
+          profileId: typeof profileIdOrOptions === 'string' ? profileIdOrOptions : undefined,
+          requestConversationIds,
+          callConversationIds,
+        };
+  const {
+    requestConversationIds: requestIds,
+    callConversationIds: callIds,
+    closeFriendIds,
+    nearbyProfileIds,
+    resolveOtherProfileId,
+  } = options;
   const safe = ensureArray(rows);
   switch (tab) {
     case 'groups':
       return safe.filter((c) => c.is_group);
     case 'friends':
       return safe.filter((c) => !c.is_group);
+    case 'best_friends':
+      if (!closeFriendIds?.size) return [];
+      return safe.filter((c) => {
+        if (c.is_group) return false;
+        const otherId = resolveOtherProfileId?.(c);
+        return Boolean(otherId && closeFriendIds.has(otherId));
+      });
+    case 'nearby':
+      if (!nearbyProfileIds?.size) return [];
+      return safe.filter((c) => {
+        if (c.is_group) return false;
+        const otherId = resolveOtherProfileId?.(c);
+        return Boolean(otherId && nearbyProfileIds.has(otherId));
+      });
     case 'unread':
-      return safe.filter((c) => (c.unread_count || 0) > 0 || c._hasUnread);
+      return safe.filter(
+        (c) =>
+          (c.unread_count || 0) > 0 ||
+          c._hasUnread ||
+          Boolean(callIds?.has(c.id)),
+      );
     case 'requests':
-      if (!requestConversationIds?.size) return [];
-      return safe.filter((c) => requestConversationIds.has(c.id));
-    case 'calls':
-      if (!callConversationIds?.size) return [];
-      return safe.filter((c) => callConversationIds.has(c.id));
+      if (!requestIds?.size) return [];
+      return safe.filter((c) => requestIds.has(c.id));
     default:
       return safe;
   }

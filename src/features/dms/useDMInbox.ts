@@ -10,6 +10,9 @@ import { useLockedChatIds } from '@/hooks/useLockedChats';
 import { useMessageRequests, usePendingRequestCount } from '@/hooks/useMessageRequests';
 import { useRecentNewFriendProfileIds } from '@/hooks/useRecentNewFriendProfileIds';
 import { useStreakMap } from '@/hooks/useStreaks';
+import { useStories } from '@/hooks/useStories';
+import { useCloseFriendIds } from '@/hooks/useCloseFriendIds';
+import { useNearbyFriendLink } from '@/hooks/useNearbyFriendLink';
 import {
   buildFlatInboxRows,
   filterConversationsForTab,
@@ -20,19 +23,54 @@ import {
   resolveOtherMemberFromConversation,
 } from '@/lib/dmMemberResolve';
 import { dmConversationPreviewText } from '@/lib/dmPreviewText';
-import { dmInboxPreviewStatus } from '@/lib/dmInboxPreviewStatus';
+import { resolveDmInboxStatus } from '@/lib/dmInboxStatus';
 import { ensureArray, safeDmMembers } from '@/lib/persistedCollections';
 import { resolveProfileAvatarUrl } from '@/lib/profileAvatarCache';
 import { batchSignUrls } from '@/lib/signedUrlCache';
-import type { DMInboxRow } from './dm.types';
+import type { DMConversationPreview, DMInboxRow, DMStoryState } from './dm.types';
 
 const TAB_STORAGE_KEY = 'vybe-dm-inbox-tab';
-const VALID_TABS: DmInboxTabId[] = ['friends', 'groups', 'requests', 'unread', 'calls'];
+const VALID_TABS: DmInboxTabId[] = [
+  'friends',
+  'best_friends',
+  'nearby',
+  'groups',
+  'requests',
+  'unread',
+];
 
 function initialTab(): DmInboxTabId {
   if (typeof sessionStorage === 'undefined') return 'friends';
-  const stored = sessionStorage.getItem(TAB_STORAGE_KEY) as DmInboxTabId | null;
-  return stored && VALID_TABS.includes(stored) ? stored : 'friends';
+  const stored = sessionStorage.getItem(TAB_STORAGE_KEY);
+  if (stored === 'calls') return 'unread';
+  return stored && VALID_TABS.includes(stored as DmInboxTabId)
+    ? (stored as DmInboxTabId)
+    : 'friends';
+}
+
+function secondaryGroupAvatar(
+  conversation: {
+    is_group?: boolean;
+    members?: Array<{ user_id: string; profile?: Record<string, unknown> | null }>;
+  },
+  profileId?: string,
+  primaryProfileId?: string,
+): string | undefined {
+  if (!conversation.is_group) return undefined;
+  const others = safeDmMembers(conversation.members).filter((member) => {
+    if (member.user_id === profileId) return false;
+    const memberProfileId = member.profile?.id ? String(member.profile.id) : undefined;
+    return memberProfileId !== primaryProfileId;
+  });
+  const secondary = others[1] || others[0];
+  if (!secondary) return undefined;
+  const profile = secondary.profile as { id?: string; avatar_url?: string | null } | null | undefined;
+  return (
+    resolveProfileAvatarUrl(
+      profile?.id ? String(profile.id) : secondary.user_id,
+      profile?.avatar_url,
+    ) || undefined
+  );
 }
 
 export function useDMInbox() {
@@ -46,8 +84,17 @@ export function useDMInbox() {
   const { data: pendingRequests = [] } = useMessageRequests();
   const { data: pendingRequestCount = 0 } = usePendingRequestCount();
   const { data: recentNewFriendIds = new Set<string>() } = useRecentNewFriendProfileIds();
+  const closeFriendIds = useCloseFriendIds();
   const streakMap = useStreakMap();
+  const { data: storyGroups = [] } = useStories();
   const query = useDMConversations(searchQuery);
+  const nearby = useNearbyFriendLink({
+    enabled: activeTab === 'nearby',
+    profileId,
+    username: profile?.username,
+    displayName: profile?.display_name,
+    avatarUrl: profile?.avatar_url,
+  });
 
   const allConversations = useMemo(
     () =>
@@ -69,6 +116,31 @@ export function useDMInbox() {
     return ids;
   }, [pendingRequests, allConversations]);
 
+  const nearbyProfileIds = useMemo(
+    () => new Set(nearby.peers.map((peer) => peer.userId)),
+    [nearby.peers],
+  );
+
+  const storyStateByProfileId = useMemo(() => {
+    const map = new Map<string, DMStoryState>();
+    for (const group of storyGroups) {
+      const id = group.user?.id ? String(group.user.id) : undefined;
+      if (!id) continue;
+      map.set(id, group.hasUnviewed ? 'unviewed' : 'viewed');
+    }
+    return map;
+  }, [storyGroups]);
+
+  const resolveOtherProfileId = useMemo(
+    () => (conversation: (typeof allConversations)[number]) => {
+      if (conversation.is_group) return undefined;
+      const resolved = resolveOtherMemberFromConversation(conversation, profileId, user?.id);
+      const other = resolved?.profile;
+      return other?.id ? String(other.id) : resolved?.user_id;
+    },
+    [profileId, user?.id],
+  );
+
   const typingConversationIds = useMemo(
     () => allConversations.slice(0, 30).map((conversation) => conversation.id),
     [allConversations],
@@ -83,19 +155,23 @@ export function useDMInbox() {
 
   const filteredConversations = useMemo(
     () =>
-      filterConversationsForTab(
-        allConversations,
-        activeTab,
+      filterConversationsForTab(allConversations, activeTab, {
         profileId,
         requestConversationIds,
         callConversationIds,
-      ),
+        closeFriendIds,
+        nearbyProfileIds,
+        resolveOtherProfileId,
+      }),
     [
       allConversations,
       activeTab,
       profileId,
       requestConversationIds,
       callConversationIds,
+      closeFriendIds,
+      nearbyProfileIds,
+      resolveOtherProfileId,
     ],
   );
 
@@ -106,7 +182,15 @@ export function useDMInbox() {
       const resolved = conversation.is_group
         ? null
         : resolveOtherMemberFromConversation(conversation, profileId, user?.id);
-      const other = resolved?.profile;
+      const other = resolved?.profile as
+        | {
+            id?: string;
+            username?: string;
+            avatar_url?: string | null;
+            is_verified?: boolean | null;
+          }
+        | null
+        | undefined;
       const otherProfileId = other?.id ? String(other.id) : resolved?.user_id;
       const streakCount = otherProfileId
         ? streakMap.get(otherProfileId)?.streak_count
@@ -115,67 +199,107 @@ export function useDMInbox() {
         (member) => member.user_id === profileId,
       );
       const unreadCount = conversation.unread_count || 0;
+      const status = resolveDmInboxStatus(
+        conversation,
+        profileId,
+        user?.id,
+        streakCount,
+      );
+      const lastMessage = conversation.last_message;
+      const activity = presenceMap.get(conversation.id);
+      const isOnline = Boolean(activity && activity !== 'idle');
+      const relationshipBadge =
+        otherProfileId && closeFriendIds.has(otherProfileId)
+          ? ('close_friend' as const)
+          : otherProfileId && recentNewFriendIds.has(otherProfileId)
+            ? ('new_friend' as const)
+            : undefined;
+      const storyState: DMStoryState =
+        (otherProfileId && storyStateByProfileId.get(otherProfileId)) || 'none';
+      const quickReaction =
+        typeof (lastMessage as { reaction?: string } | null | undefined)?.reaction === 'string'
+          ? (lastMessage as { reaction?: string }).reaction
+          : undefined;
 
-      return {
-        type: 'conversation' as const,
-        preview: {
+      const preview: DMConversationPreview = {
+        conversation,
+        id: conversation.id,
+        conversationId: conversation.id,
+        conversationType: conversation.is_group ? 'group' : 'direct',
+        displayName: displayNameForConversation(
           conversation,
-          id: conversation.id,
-          displayName: displayNameForConversation(
-            conversation,
-            profileId,
-            user?.id,
-            'Chat',
-          ),
-          username:
-            typeof other?.username === 'string' ? other.username : undefined,
-          avatarUrl: conversation.is_group
-            ? conversation.avatar_url || undefined
-            : resolveProfileAvatarUrl(
-                otherProfileId,
-                other?.avatar_url as string | null | undefined,
-              ) || undefined,
+          profileId,
+          user?.id,
+          'Chat',
+        ),
+        username:
+          typeof other?.username === 'string' ? other.username : undefined,
+        avatarUrl: conversation.is_group
+          ? conversation.avatar_url || undefined
+          : resolveProfileAvatarUrl(
+              otherProfileId,
+              other?.avatar_url as string | null | undefined,
+            ) || undefined,
+        secondaryAvatarUrl: secondaryGroupAvatar(
+          conversation,
+          profileId,
           otherProfileId,
-          previewText: dmConversationPreviewText({
-            lastMessage: conversation.last_message,
-            isGroup: conversation.is_group,
-            profileId,
-            authUid: user?.id,
-            otherProfileId,
-            recentNewFriendIds,
-            previewMaxLen: 48,
-          }),
-          statusLine: dmInboxPreviewStatus(
-            conversation,
-            profileId,
-            user?.id,
-            streakCount,
-          ),
-          unreadCount,
-          isUnread: unreadCount > 0 || conversation._hasUnread,
-          isPinned: Boolean(membership?.is_pinned),
-          isMuted: Boolean(membership?.is_muted),
+        ),
+        otherProfileId,
+        previewText: dmConversationPreviewText({
+          lastMessage: conversation.last_message,
           isGroup: conversation.is_group,
-          isTyping: isTyping(conversation.id),
-          presenceActivity: presenceMap.get(conversation.id),
-          streakCount,
-        },
+          profileId,
+          authUid: user?.id,
+          otherProfileId,
+          recentNewFriendIds,
+          previewMaxLen: 48,
+        }),
+        statusLine: status.line,
+        statusKind: status.kind,
+        deliveryStatus: status.label,
+        latestMessageType: String(
+          lastMessage?.message_type || lastMessage?.media_type || 'text',
+        ),
+        latestSenderId: lastMessage?.sender_id,
+        latestMessageAt: lastMessage?.created_at,
+        unreadCount,
+        isUnread: unreadCount > 0 || conversation._hasUnread,
+        isPinned: Boolean(membership?.is_pinned),
+        isMuted: Boolean(membership?.is_muted),
+        isGroup: conversation.is_group,
+        isTyping: isTyping(conversation.id),
+        isOnline,
+        isAway: false,
+        presenceActivity: activity,
+        streakCount,
+        storyState,
+        isVerified: Boolean(other?.is_verified),
+        relationshipBadge,
+        quickReaction,
       };
+
+      return { type: 'conversation' as const, preview };
     });
   }, [
     filteredConversations,
     profileId,
     user?.id,
     recentNewFriendIds,
+    closeFriendIds,
     streakMap,
     isTyping,
     presenceMap,
+    storyStateByProfileId,
   ]);
 
   useEffect(() => {
-    const urls = rows.flatMap((row) =>
-      row.type === 'conversation' && row.preview.avatarUrl ? [row.preview.avatarUrl] : [],
-    );
+    const urls = rows.flatMap((row) => {
+      if (row.type !== 'conversation') return [];
+      return [row.preview.avatarUrl, row.preview.secondaryAvatarUrl].filter(
+        (value): value is string => Boolean(value),
+      );
+    });
     if (urls.length) void batchSignUrls(urls);
   }, [rows]);
 
@@ -187,6 +311,19 @@ export function useDMInbox() {
       // Storage can be unavailable in Safari private mode.
     }
   };
+
+  const unreadBadgeCount = useMemo(() => {
+    let count = query.totalUnreadCount;
+    if (callConversationIds?.size) {
+      for (const id of callConversationIds) {
+        const match = allConversations.find((conversation) => conversation.id === id);
+        if (!match) continue;
+        if ((match.unread_count || 0) > 0 || match._hasUnread) continue;
+        count += 1;
+      }
+    }
+    return count;
+  }, [query.totalUnreadCount, callConversationIds, allConversations]);
 
   return {
     profile,
@@ -206,5 +343,9 @@ export function useDMInbox() {
     totalUnreadCount: query.totalUnreadCount,
     pendingRequestCount,
     callCount: callConversationIds?.size ?? 0,
+    unreadBadgeCount,
+    bestFriendCount: closeFriendIds.size,
+    nearbyCount: nearbyProfileIds.size,
+    nearbyStatus: nearby.status,
   };
 }

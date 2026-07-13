@@ -2,6 +2,15 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## Concept DM inbox full visual match (2026-07-12)
+- **User ask:** Match concept image — six tabs, status icons, neon VFX, Best Friends/Nearby; Firebase-only (not Supabase)
+- **Tabs:** Friends / Best Friends / Nearby / Groups / Requests / Unread (Calls merged into Unread); sessionStorage persistence; Calls legacy tab remaps to Unread
+- **Data:** Expanded `DMConversationPreview` with storyState, deliveryStatus, badges, secondary avatar; `resolveDmInboxStatus` + lucide icons; `useCloseFriendIds`; Nearby via `useNearbyFriendLink` when tab active; batched `useStories` for rings
+- **UI/VFX:** Glass rounded tabs, conic neon rings, unread accent bar + badge pulse, status tones, trail camera/reaction, compose FAB above bottom nav; theme CSS variables only
+- **Verified:** typecheck PASS · lint PASS · 71 tests PASS · build PASS
+- **Published:** pending Lovable Publish after push
+- **You:** Lovable → sync `main` → **Share → Publish**; hard-refresh `/messages` — concept tabs + neon rows
+
 ## DM inbox concept restore + full-width layout (2026-07-12)
 - **User ask:** Inbox looked like plain fallback list beside giant empty card — restore concept neon-glass design from reference
 - **Layout:** `/messages` inbox is full-width until a chat opens; removed desktop marketing empty pane; split pane only on `lg+` when a thread is active

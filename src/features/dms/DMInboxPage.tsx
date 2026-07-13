@@ -50,9 +50,10 @@ export function DMInboxPage() {
           active={inbox.activeTab}
           onChange={inbox.setActiveTab}
           badges={{
-            unread: inbox.totalUnreadCount,
+            unread: inbox.unreadBadgeCount,
             requests: inbox.pendingRequestCount,
-            calls: inbox.callCount,
+            bestFriends: inbox.bestFriendCount,
+            nearby: inbox.nearbyCount,
           }}
         />
         <DMConversationList
@@ -60,6 +61,7 @@ export function DMInboxPage() {
           profileId={inbox.profileId}
           authUid={inbox.user?.id}
           activeConversationId={inbox.activeConversationId}
+          activeTab={inbox.activeTab}
           showSkeleton={inbox.showSkeleton}
           searchQuery={inbox.searchQuery}
           hasError={Boolean(inbox.error && inbox.isFetched)}

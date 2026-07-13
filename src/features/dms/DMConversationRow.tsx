@@ -1,5 +1,14 @@
 import { memo, useCallback } from 'react';
-import { Camera, Pin, Users, VolumeX } from 'lucide-react';
+import {
+  BadgeCheck,
+  Camera,
+  Heart,
+  Moon,
+  Pin,
+  Sparkles,
+  Users,
+  VolumeX,
+} from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
@@ -9,7 +18,7 @@ import {
   resolveOtherMemberFromConversation,
 } from '@/lib/dmMemberResolve';
 import { dmConversationPreviewText } from '@/lib/dmPreviewText';
-import { dmInboxPreviewStatus } from '@/lib/dmInboxPreviewStatus';
+import { resolveDmInboxStatus } from '@/lib/dmInboxStatus';
 import { resolveProfileAvatarUrl } from '@/lib/profileAvatarCache';
 import { safeDmMembers } from '@/lib/persistedCollections';
 import { openFriendProfile } from '@/lib/friendProfileRoutes';
@@ -81,8 +90,14 @@ export const DMConversationRow = memo(function DMConversationRow({
   const activity = preview?.presenceActivity ?? presenceActivity;
   const username =
     preview?.username || (typeof other?.username === 'string' ? other.username : undefined);
-  const statusLine =
-    preview?.statusLine || dmInboxPreviewStatus(conversation, profileId, authUid);
+  const status = resolveDmInboxStatus(
+    conversation,
+    profileId,
+    authUid,
+    preview?.streakCount,
+  );
+  const statusLine = preview?.statusLine || status.line;
+  const StatusIcon = status.Icon;
   const messagePreview =
     preview?.previewText ||
     dmConversationPreviewText({
@@ -94,8 +109,18 @@ export const DMConversationRow = memo(function DMConversationRow({
       previewMaxLen: 48,
     });
   const showSeparatePreview = Boolean(
-    messagePreview && messagePreview !== statusLine,
+    messagePreview &&
+      messagePreview !== statusLine &&
+      !messagePreview.startsWith(status.label),
   );
+  const storyState = preview?.storyState || 'none';
+  const isOnline = preview?.isOnline ?? Boolean(activity && activity !== 'idle');
+  const isAway = preview?.isAway ?? false;
+  const secondaryAvatarUrl = preview?.secondaryAvatarUrl;
+  const isVerified = preview?.isVerified;
+  const relationshipBadge = preview?.relationshipBadge;
+  const quickReaction = preview?.quickReaction;
+  const streakCount = preview?.streakCount;
 
   const stopRowGesture = (event: React.SyntheticEvent) => {
     event.preventDefault();
@@ -175,13 +200,23 @@ export const DMConversationRow = memo(function DMConversationRow({
     >
       <button
         type="button"
-        className="dm-inbox-avatar-button"
+        className={cn(
+          'dm-inbox-avatar-button',
+          storyState === 'unviewed' && 'dm-inbox-avatar-button--story',
+          storyState === 'viewed' && 'dm-inbox-avatar-button--story-viewed',
+        )}
         onPointerDown={(event) => event.stopPropagation()}
         onClick={openProfile}
         aria-label={username ? `Open ${displayName}'s profile` : displayName}
         disabled={!username}
       >
-        <span className="dm-inbox-avatar-ring" aria-hidden />
+        <span
+          className={cn(
+            'dm-inbox-avatar-ring',
+            storyState === 'unviewed' && 'dm-inbox-avatar-ring--story',
+          )}
+          aria-hidden
+        />
         <Avatar className="dm-inbox-avatar">
           {conversation.is_group && !avatarUrl ? (
             <AvatarFallback className="bg-muted text-muted-foreground">
@@ -201,9 +236,19 @@ export const DMConversationRow = memo(function DMConversationRow({
             </>
           )}
         </Avatar>
-        {activity && activity !== 'idle' && (
-          <span className="dm-inbox-presence-dot" aria-label="Online" />
+        {secondaryAvatarUrl && (
+          <Avatar className="dm-inbox-avatar-secondary" aria-hidden>
+            <ProfileAvatarImage src={secondaryAvatarUrl} transformSize={64} />
+            <AvatarFallback className="bg-muted text-[10px] font-semibold">+</AvatarFallback>
+          </Avatar>
         )}
+        {isAway ? (
+          <span className="dm-inbox-away-badge" aria-label="Away">
+            <Moon />
+          </span>
+        ) : isOnline ? (
+          <span className="dm-inbox-presence-dot" aria-label="Online" />
+        ) : null}
       </button>
 
       <div className="dm-inbox-row-copy">
@@ -217,6 +262,15 @@ export const DMConversationRow = memo(function DMConversationRow({
           >
             {displayName}
           </button>
+          {isVerified && (
+            <BadgeCheck className="dm-inbox-meta-icon dm-inbox-meta-icon--verified" aria-label="Verified" />
+          )}
+          {relationshipBadge === 'close_friend' && (
+            <Heart className="dm-inbox-meta-icon dm-inbox-meta-icon--heart" aria-label="Best friend" />
+          )}
+          {relationshipBadge === 'new_friend' && (
+            <Sparkles className="dm-inbox-meta-icon dm-inbox-meta-icon--sparkle" aria-label="New friend" />
+          )}
           {pinned && <Pin className="dm-inbox-meta-icon" aria-label="Pinned" />}
           {muted && <VolumeX className="dm-inbox-meta-icon" aria-label="Muted" />}
         </div>
@@ -225,15 +279,27 @@ export const DMConversationRow = memo(function DMConversationRow({
             <TypingIndicator size="sm" />
             <span>typing…</span>
           </div>
-        ) : activity && activity !== 'idle' ? (
+        ) : activity && activity !== 'idle' && activityPreviewLabel(activity) ? (
           <p className="dm-inbox-status dm-inbox-preview--live">
             {activityPreviewLabel(activity)}
           </p>
         ) : (
           <>
             {statusLine && (
-              <p className={cn('dm-inbox-status', unread && 'dm-inbox-preview--unread')}>
-                {statusLine}
+              <p
+                className={cn(
+                  'dm-inbox-status',
+                  status.toneClass,
+                  unread && 'dm-inbox-preview--unread',
+                )}
+              >
+                <StatusIcon className="dm-inbox-status-icon" aria-hidden />
+                <span>{statusLine}</span>
+                {streakCount && streakCount > 0 && !statusLine.includes('🔥') ? (
+                  <span className="dm-inbox-streak" aria-label={`${streakCount} day streak`}>
+                    {streakCount} 🔥
+                  </span>
+                ) : null}
               </p>
             )}
             {showSeparatePreview && (
@@ -245,20 +311,27 @@ export const DMConversationRow = memo(function DMConversationRow({
         )}
       </div>
 
-      {unreadCount > 0 && (
-        <span className="dm-inbox-unread-badge" aria-label={`${unreadCount} unread`}>
-          {unreadCount > 99 ? '99+' : unreadCount}
-        </span>
-      )}
-      <button
-        type="button"
-        className="dm-inbox-camera-button"
-        onPointerDown={(event) => event.stopPropagation()}
-        onClick={openSnapCamera}
-        aria-label={`Send a snap to ${displayName}`}
-      >
-        <Camera />
-      </button>
+      <div className="dm-inbox-row-trail">
+        {quickReaction && (
+          <span className="dm-inbox-quick-reaction" aria-hidden>
+            {quickReaction}
+          </span>
+        )}
+        {unreadCount > 0 && (
+          <span className="dm-inbox-unread-badge" aria-label={`${unreadCount} unread`}>
+            {unreadCount > 99 ? '99+' : unreadCount}
+          </span>
+        )}
+        <button
+          type="button"
+          className="dm-inbox-camera-button"
+          onPointerDown={(event) => event.stopPropagation()}
+          onClick={openSnapCamera}
+          aria-label={`Send a snap to ${displayName}`}
+        >
+          <Camera />
+        </button>
+      </div>
     </div>
   );
 });

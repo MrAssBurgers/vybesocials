@@ -3,7 +3,7 @@ import { MessageCircle, RefreshCw, UserPlus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { SwipeableDmConversationRow } from '@/components/chat/dm-inbox/SwipeableDmConversationRow';
 import { useDmInboxVirtualSlice } from '@/hooks/useDmInboxVirtualSlice';
-import type { DMInboxRow } from './dm.types';
+import type { DMInboxRow, DmInboxTabId } from './dm.types';
 import { DMComposeButton } from './DMComposeButton';
 import { DMInboxSkeleton } from './DMInboxSkeleton';
 
@@ -12,6 +12,7 @@ interface DMConversationListProps {
   profileId?: string;
   authUid?: string;
   activeConversationId?: string;
+  activeTab?: DmInboxTabId;
   showSkeleton: boolean;
   searchQuery: string;
   hasError: boolean;
@@ -22,11 +23,59 @@ interface DMConversationListProps {
   onCompose: () => void;
 }
 
+function emptyCopy(tab: DmInboxTabId | undefined, searchQuery: string, hasError: boolean) {
+  if (searchQuery) {
+    return {
+      title: 'No matches',
+      body: `Nothing matched “${searchQuery}”`,
+    };
+  }
+  if (hasError) {
+    return {
+      title: 'Couldn’t refresh chats',
+      body: 'Check your connection and try again.',
+    };
+  }
+  switch (tab) {
+    case 'best_friends':
+      return {
+        title: 'No best friends yet',
+        body: 'Mark close friends to keep your inner circle here.',
+      };
+    case 'nearby':
+      return {
+        title: 'No nearby friends',
+        body: 'Turn on Nearby to see friends close to you.',
+      };
+    case 'groups':
+      return {
+        title: 'No groups yet',
+        body: 'Start a group chat to hang with everyone at once.',
+      };
+    case 'requests':
+      return {
+        title: 'No requests',
+        body: 'Message requests from new people will land here.',
+      };
+    case 'unread':
+      return {
+        title: 'You’re all caught up',
+        body: 'No unread chats or missed calls right now.',
+      };
+    default:
+      return {
+        title: 'No chats yet',
+        body: 'Message friends, share snaps, and keep the streak alive.',
+      };
+  }
+}
+
 export function DMConversationList({
   rows,
   profileId,
   authUid,
   activeConversationId,
+  activeTab,
   showSkeleton,
   searchQuery,
   hasError,
@@ -41,6 +90,7 @@ export function DMConversationList({
   const { visible, paddingTop, paddingBottom, onScroll, virtualized } =
     useDmInboxVirtualSlice(rows);
   const renderRows = virtualized ? visible : rows;
+  const empty = emptyCopy(activeTab, searchQuery, hasError);
 
   const handleScroll = (event: UIEvent<HTMLDivElement>) => {
     onScroll?.(event);
@@ -92,14 +142,8 @@ export function DMConversationList({
             <span className="dm-inbox-empty-icon">
               <MessageCircle />
             </span>
-            <h2>{searchQuery ? 'No matches' : 'No chats yet'}</h2>
-            <p>
-              {hasError && !searchQuery
-                ? "We couldn't refresh your chats."
-                : searchQuery
-                  ? `Nothing matched “${searchQuery}”`
-                  : 'Message friends, share snaps, and keep the streak alive.'}
-            </p>
+            <h2>{empty.title}</h2>
+            <p>{empty.body}</p>
             <div className="flex gap-2">
               {hasError && (
                 <Button type="button" variant="secondary" size="sm" onClick={onRetry}>
