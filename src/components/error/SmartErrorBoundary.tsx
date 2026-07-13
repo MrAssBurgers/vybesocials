@@ -2,7 +2,7 @@ import React, { Component, ErrorInfo, ReactNode } from 'react';
 import { RefreshCw, Home, AlertTriangle, Loader2, Bug, Check } from 'lucide-react';
 import { db } from '@/lib/firebase';
 import { reportAppCrash } from '@/lib/bugReportClient';
-import { isRecoverableDmCacheError } from '@/lib/recoverDmQueryCache';
+import { isRecoverableDmCacheError, persistBoundaryError } from '@/lib/recoverDmQueryCache';
 
 interface Props {
   children: ReactNode;
@@ -110,12 +110,14 @@ class SmartErrorBoundary extends Component<Props, State> {
           /* fall through to fallback */
         }
       }
+      persistBoundaryError(error);
       this.setState({ errorInfo, hasError: true, error });
       return;
     }
 
     if (this.resetCount > SmartErrorBoundary.RESET_LIMIT) {
       console.warn('[SmartErrorBoundary] Reset loop detected — showing fallback.');
+      persistBoundaryError(error);
       this.setState({ errorInfo, hasError: true, error });
       return;
     }

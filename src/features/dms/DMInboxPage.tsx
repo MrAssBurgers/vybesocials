@@ -1,7 +1,9 @@
 import { startTransition, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { RefreshCw } from 'lucide-react';
 import { useChatPrefetch } from '@/hooks/useChatPrefetch';
 import { resolveSessionProfileId } from '@/lib/resolveSessionProfileId';
+import { Button } from '@/components/ui/button';
 import { DMHeader } from './DMHeader';
 import { DMCategoryTabs } from './DMCategoryTabs';
 import { DMConversationList } from './DMConversationList';
@@ -44,6 +46,28 @@ export function DMInboxPage() {
           pendingRequestCount={inbox.pendingRequestCount}
           onSearch={() => navigate('/messages/search')}
         />
+        {inbox.awaitingProfileId ? (
+          <div className="flex flex-1 flex-col items-center justify-center gap-3 px-6 py-16 text-center">
+            <p className="text-sm text-muted-foreground">
+              {inbox.profileResolveTimedOut
+                ? 'Still signing you in to Messages…'
+                : 'Signing in…'}
+            </p>
+            {inbox.profileResolveTimedOut && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="gap-2"
+                onClick={inbox.retryProfileResolve}
+              >
+                <RefreshCw className="h-4 w-4" />
+                Retry
+              </Button>
+            )}
+          </div>
+        ) : (
+          <>
         <DMCategoryTabs
           active={inbox.activeTab}
           onChange={inbox.setActiveTab}
@@ -86,6 +110,8 @@ export function DMInboxPage() {
           }}
           onNearbyRetry={inbox.nearbyRetry}
         />
+          </>
+        )}
       </div>
     </section>
   );

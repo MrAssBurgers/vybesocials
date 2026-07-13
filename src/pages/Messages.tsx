@@ -13,7 +13,7 @@ import { useDefaultLiquidBackground } from '@/hooks/useDefaultLiquidBackground';
 import { LockedChatGate } from '@/components/chat/LockedChatGate';
 import { prepareMessagesRoute } from '@/lib/loadDMConversations';
 import { warmDmConversation } from '@/lib/warmDmConversation';
-import { recoverDmQueryCache } from '@/lib/recoverDmQueryCache';
+import { recoverDmQueryCache, readLastBoundaryError } from '@/lib/recoverDmQueryCache';
 import { useAuth } from '@/lib/auth';
 import { useAuthProfileId } from '@/hooks/useAuthProfileId';
 import type { QueryClient } from '@tanstack/react-query';
@@ -22,10 +22,17 @@ const ChatView = lazy(() =>
   import('@/components/chat/ChatView').then((m) => ({ default: m.ChatView })),
 );
 
+function shouldShowBoundaryErrorDetail(): boolean {
+  if (import.meta.env.DEV) return true;
+  if (typeof window === 'undefined') return false;
+  return /vybe-daaab\.(web\.app|firebaseapp\.com)/i.test(window.location.hostname);
+}
+
 function MessagesFallback() {
   const navigate = useNavigate();
   const profileId = useAuthProfileId();
   const { user } = useAuth();
+  const lastError = shouldShowBoundaryErrorDetail() ? readLastBoundaryError() : null;
 
   const handleReload = () => {
     void (async () => {
@@ -62,6 +69,11 @@ function MessagesFallback() {
       <p className="text-sm text-muted-foreground mb-5 max-w-xs">
         Your message cache hit a snag. Retry to reopen DMs without losing the rest of the app.
       </p>
+      {lastError?.message && (
+        <p className="text-xs text-muted-foreground/80 mb-4 max-w-sm font-mono break-all text-left">
+          {lastError.message}
+        </p>
+      )}
       <div className="flex flex-col sm:flex-row gap-2">
         <Button onClick={handleSoftRetry} variant="outline" className="gap-2 border-primary/30 bg-primary/10 hover:bg-primary/20">
           <RefreshCw className="w-4 h-4" /> Retry

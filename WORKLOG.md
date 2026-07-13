@@ -2,6 +2,15 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## Staging profiles + chats load fix (2026-07-13)
+
+- **Symptom:** vybe-daaab.web.app — full-page "Couldn't load Messages" boundary; profiles false "not found" during hydration
+- **Fixes:** expanded `isRecoverableDmCacheError` (Map/Set/TDZ patterns) + boundary error persistence; hardened `useDMInbox` presence/streak maps; Profile `authReady` skeleton gate; DM inbox "Signing in…" when `profileId` unresolved
+- **Staging:** `npm run build` + `firebase deploy --only hosting` → https://vybe-daaab.web.app
+- **Verified:** typecheck PASS · test 235 PASS · build PASS
+
+---
+
 ## Relationship engine + VYBE Score + conversation fix (2026-07-13)
 
 ### Phase 0 — Conversation loading (shipped in-repo)

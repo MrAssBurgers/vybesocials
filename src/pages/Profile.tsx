@@ -44,7 +44,7 @@ import {
 export default function ProfilePage() {
   const { username, usernameOrId } = useParams<{ username?: string; usernameOrId?: string }>();
   const navigate = useNavigate();
-  const { profile: currentProfile } = useAuth();
+  const { profile: currentProfile, user, authReady } = useAuth();
   const resolvedUsername = username || usernameOrId || currentProfile?.username;
   const { data: profile, isPending: profilePending, isError: profileError, refetch: refetchProfile } = useProfileByUsername(resolvedUsername!);
   const { data: posts } = usePosts(undefined, profile?.id, { enabled: !!profile?.id });
@@ -171,6 +171,18 @@ export default function ProfilePage() {
     is_bookmarked: post.is_bookmarked,
     view_count: post.view_count || 0,
   }));
+
+  if ((!authReady || (user && !resolvedUsername)) && !profile) {
+    return (
+      <AppLayout>
+        <div className="max-w-lg mx-auto px-4 py-6 space-y-4">
+          <Skeleton className="h-44 w-full rounded-3xl" />
+          <Skeleton className="h-20 w-full rounded-2xl" />
+          <Skeleton className="h-32 w-full rounded-2xl" />
+        </div>
+      </AppLayout>
+    );
+  }
 
   if (profilePending && !profile) {
     return (

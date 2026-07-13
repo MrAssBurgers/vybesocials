@@ -9,7 +9,7 @@ import { useInboxCallConversationIds } from '@/hooks/useInboxCallConversationIds
 import { useLockedChatIds } from '@/hooks/useLockedChats';
 import { useMessageRequests, usePendingRequestCount } from '@/hooks/useMessageRequests';
 import { useRecentNewFriendProfileIds } from '@/hooks/useRecentNewFriendProfileIds';
-import { useStreakMap } from '@/hooks/useStreaks';
+import { useStreakMap, type Streak } from '@/hooks/useStreaks';
 import { useStories } from '@/hooks/useStories';
 import { useCloseFriendIds } from '@/hooks/useCloseFriendIds';
 import { useNearbyFriendLink } from '@/hooks/useNearbyFriendLink';
@@ -22,7 +22,8 @@ import {
 } from '@/lib/dmMemberResolve';
 import { dmConversationPreviewText } from '@/lib/dmPreviewText';
 import { resolveDmInboxStatus } from '@/lib/dmInboxStatus';
-import { ensureArray, ensureStringSet, safeDmMembers } from '@/lib/persistedCollections';
+import { ensureArray, ensureStringSet, normalizePersistedMap, safeDmMembers } from '@/lib/persistedCollections';
+import { resolveSessionProfileId } from '@/lib/resolveSessionProfileId';
 import { resolveProfileAvatarUrl } from '@/lib/profileAvatarCache';
 import { batchSignUrls } from '@/lib/signedUrlCache';
 import { normalizeStoryGroups } from '@/lib/storiesCacheSanitize';
@@ -37,6 +38,7 @@ import { isDmInboxProjectionReadEnabled, isRelationshipEmojiUiEnabled, isRelatio
 import { pickPrimaryInboxEmoji, resolveStreakDisplay } from '@/lib/relationship/relationshipEmojiMap';
 import { useRelationshipEmojiPreferences } from '@/hooks/useRelationshipEmojiPreferences';
 import { writeStoredInboxFilter } from '@/lib/dmInboxFilterPersistence';
+import type { ActivityType } from '@/components/chat/LiveActivityIndicator';
 import type { DMConversationPreview, DMInboxRow, DMStoryState, DmInboxFilterId, DmInboxTabId } from './dm.types';
 
 const TAB_STORAGE_KEY = 'vybe-dm-inbox-tab';
@@ -123,8 +125,9 @@ function memberMatchesSender(
 
 export function useDMInbox() {
   const { conversationId: activeConversationId } = useParams<{ conversationId?: string }>();
-  const { profile, user } = useAuth();
+  const { profile, user, authReady } = useAuth();
   const profileId = useAuthProfileId();
+  const [profileResolveTimedOut, setProfileResolveTimedOut] = useState(false);
   const redesignEnabled = false;
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTab, setActiveTabState] = useState<DmInboxTabId>(() => initialTab(false));
@@ -138,7 +141,11 @@ export function useDMInbox() {
     isLoading: closeFriendsLoading,
     isFetched: closeFriendsFetched,
   } = useCloseFriendIds();
-  const streakMap = useStreakMap();
+  const streakMapRaw = useStreakMap();
+  const streakMap = useMemo(
+    () => normalizePersistedMap<Streak>(streakMapRaw),
+    [streakMapRaw],
+  );
   const { data: storyGroupsRaw } = useStories();
   const query = useDMConversations(searchQuery);
   const nearby = useNearbyFriendLink({
@@ -280,12 +287,36 @@ export function useDMInbox() {
     [allConversations],
   );
   const { isTyping } = useConversationTyping(typingConversationIds);
-  const presenceMap = useConversationListPresence(
+  const presenceMapRaw = useConversationListPresence(
     allConversations,
     profileId,
     user?.id,
     activeConversationId,
   );
+  const presenceMap = useMemo(
+    () => normalizePersistedMap<ActivityType>(presenceMapRaw),
+    [presenceMapRaw],
+  );
+
+  useEffect(() => {
+    if (!user?.id || profileId) {
+      setProfileResolveTimedOut(false);
+      return;
+    }
+    if (!authReady) return;
+
+    let cancelled = false;
+    void resolveSessionProfileId(profile?.id);
+
+    const timer = window.setTimeout(() => {
+      if (!cancelled) setProfileResolveTimedOut(true);
+    }, 8000);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [user?.id, authReady, profileId, profile?.id]);
 
   const presenceOnlineIds = useMemo(() => {
     const ids = new Set<string>();
@@ -622,10 +653,21 @@ export function useDMInbox() {
     (activeTab === 'best_friends' && closeFriendsLoading && !closeFriendsFetched) ||
     (activeTab === 'requests' && requestsLoading && pendingRequests.length === 0);
 
+  const awaitingProfileId = Boolean(user?.id && authReady && !profileId);
+
+  const retryProfileResolve = () => {
+    setProfileResolveTimedOut(false);
+    void resolveSessionProfileId(profile?.id);
+  };
+
   return {
     profile,
     user,
+    authReady,
     profileId,
+    awaitingProfileId,
+    profileResolveTimedOut,
+    retryProfileResolve,
     activeConversationId,
     activeTab,
     setActiveTab,
