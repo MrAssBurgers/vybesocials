@@ -223,8 +223,13 @@ export function useUserOnlineStatus(userId: string | undefined) {
         callback: (payload) => {
           const next = (payload as any).new;
           if (next) {
+            let isOnline = Boolean(next.is_online);
+            if (isOnline && next.last_seen_at) {
+              const diffMs = Date.now() - new Date(next.last_seen_at).getTime();
+              if (diffMs > 90 * 1000) isOnline = false;
+            }
             queryClient.setQueryData(['user-presence', userId], {
-              is_online: next.is_online,
+              is_online: isOnline,
               last_seen_at: next.last_seen_at,
             });
           } else {

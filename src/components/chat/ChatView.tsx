@@ -531,13 +531,17 @@ export function ChatView() {
   const displayName = safeConversation
     ? displayNameForConversation(safeConversation, profileId, user?.id, 'Chat')
     : 'Chat';
-  
-  // Get online status for the other member (if DM)
+
+  // Legacy user_presence table — only used when Firestore peer doc is absent.
   const presenceQuery = useUserOnlineStatus(
-    !isGroupChat ? otherMember?.id : undefined
+    !isGroupChat ? otherMember?.id : undefined,
   );
-  const otherMemberOnline = presenceQuery.data?.is_online ?? false;
-  
+  // Firestore heartbeat is source of truth; never treat "has presence object" as online.
+  const peerTrulyOnline = Boolean(peerPresence?.is_online);
+  const otherMemberOnline = peerPresence
+    ? peerTrulyOnline
+    : Boolean(presenceQuery.data?.is_online);
+
   // Get streak with the other user (for DMs)
   const streak = useStreakWithUser(!isGroupChat ? otherMember?.id : undefined);
   const { data: dmFriendship } = useFriendshipStatus(!isGroupChat ? otherMember?.id : undefined);
@@ -1373,7 +1377,7 @@ export function ChatView() {
           fallbackAvatarUrl={otherMember?.avatar_url}
           username={otherMember?.username || otherMember?.display_name || ''}
           activity={showPeerPresence ? otherPresenceActivity : 'idle'}
-          isOnline={otherMemberOnline || !!peerPresence}
+          isOnline={otherMemberOnline}
         />
       )}
 
@@ -1409,13 +1413,14 @@ export function ChatView() {
         ) : (
           <p className="text-[11px] sm:text-xs text-muted-foreground leading-tight truncate flex items-center gap-1 min-w-0">
             <LivePresenceBar
-              isOnline={otherMemberOnline || !!peerPresence}
+              isOnline={otherMemberOnline}
               isTyping={otherPresenceActivity === 'typing'}
-              isInChat={otherPresenceActivity === 'viewing'}
+              isInChat={peerTrulyOnline && otherPresenceActivity === 'viewing'}
               isInCamera={
-                otherPresenceActivity === 'taking_photo' ||
-                otherPresenceActivity === 'recording_video' ||
-                otherPresenceActivity === 'sending_vybe'
+                peerTrulyOnline &&
+                (otherPresenceActivity === 'taking_photo' ||
+                  otherPresenceActivity === 'recording_video' ||
+                  otherPresenceActivity === 'sending_vybe')
               }
               activity={otherPresenceActivity}
               username={otherMember?.username}

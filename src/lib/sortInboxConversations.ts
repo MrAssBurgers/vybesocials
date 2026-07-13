@@ -16,13 +16,17 @@ function parseSortMs(iso: string | null | undefined): number {
   return Number.isFinite(t) ? t : 0;
 }
 
+/**
+ * Sort clock = real message time only.
+ * Never use conversation.updated_at, projection.updated_at, or polluted `_sortTime`.
+ */
 export function getInboxLatestMessageAt(conv: LoadedDMConversation): string {
-  return (
-    conv.last_message?.created_at ||
-    conv._sortTime ||
-    conv.created_at ||
-    ''
-  );
+  const fromMessage = conv.last_message?.created_at;
+  if (typeof fromMessage === 'string' && fromMessage.trim()) {
+    return fromMessage;
+  }
+  // Empty thread — conversation create time is fine; never projection write time.
+  return typeof conv.created_at === 'string' ? conv.created_at : '';
 }
 
 export function getInboxPinState(
@@ -104,6 +108,18 @@ export function sortInboxPreviews(
       },
     ),
   );
+}
+
+/** Prefer the newer real message timestamp; never invent "now". */
+export function pickNewerMessageClock(
+  legacyAt: string | null | undefined,
+  projectionAt: string | null | undefined,
+): string {
+  const a = parseSortMs(legacyAt);
+  const b = parseSortMs(projectionAt);
+  if (b > a) return String(projectionAt);
+  if (a > 0) return String(legacyAt);
+  return typeof projectionAt === 'string' ? projectionAt : typeof legacyAt === 'string' ? legacyAt : '';
 }
 
 /** Compare two order id lists — used by stability tests. */

@@ -281,9 +281,7 @@ async function buildEntryForViewer(conversationId, viewerId) {
             console.warn('[dmInboxProjection] relationship fields skipped', err);
         }
     }
-    const activityAt = asString(latestData?.created_at) ||
-        asString(conv.updated_at) ||
-        new Date().toISOString();
+    const activityAt = asString(latestData?.created_at) || null;
     const entry = {
         viewer_id: viewerId,
         conversation_id: conversationId,
@@ -303,6 +301,7 @@ async function buildEntryForViewer(conversationId, viewerId) {
         latest_message_type: String(latestData?.message_type || latestData?.type || 'text'),
         latest_sender_id: asString(latestData?.sender_id),
         latest_sender_name: asString(senderProfile?.display_name) || asString(senderProfile?.username),
+        // Real message time only — never conversation.updated_at (bumped by open/read/repair).
         latest_message_at: activityAt,
         delivery_status: asString(latestData?.delivery_status) || (isOwn ? 'sent' : 'received'),
         unread_count: unread,

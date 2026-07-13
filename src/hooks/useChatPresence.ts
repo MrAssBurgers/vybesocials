@@ -9,6 +9,7 @@ import {
   subscribeUserPresence,
   touchConversationPresence,
   toUiActivity,
+  isPresenceStale,
   type UserActivityState,
   type UserPresenceDoc,
 } from '@/lib/usersPresenceDoc';
@@ -70,13 +71,15 @@ function mapDocToPeer(
   if (!doc) return null;
   const activity = toUiActivity(doc, conversationId);
   if (activity === 'offline') return null;
+  const trulyOnline = Boolean(doc.online) && !isPresenceStale(doc);
   return {
     user_id: peerProfileId,
     username: doc.username || '',
     avatar_url: doc.avatar_url ?? null,
     display_name: doc.display_name ?? null,
     activity: uiActivityFromState(activity),
-    is_online: doc.online,
+    // Never claim online from "viewing this chat" alone if heartbeat is dead.
+    is_online: trulyOnline,
     updatedAt: Date.now(),
   };
 }
@@ -306,13 +309,15 @@ export function useChatPresence(
       }
       const docPeer = mapDocToPeer(peerDocs.get(payload.userId) ?? null, payload.userId, conversationId);
       if (!docPeer) {
+        // Broadcast without a fresh Firestore online heartbeat is activity-only,
+        // never a global "online" claim (false green dots when opening a chat).
         broadcastPeers.set(payload.userId, {
           user_id: payload.userId,
           username: payload.username || '',
           avatar_url: payload.avatarUrl ?? null,
           display_name: payload.displayName || payload.username || null,
           activity: payload.activity as ActivityType,
-          is_online: true,
+          is_online: false,
           updatedAt: Date.now(),
         });
         sync();

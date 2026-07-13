@@ -1,6 +1,7 @@
 import type { DmInboxEntryDoc } from '@/features/dms/dm.types';
 import type { LoadedDMConversation } from '@/lib/loadDMConversations';
 import { projectionToLoadedConversation } from '@/lib/dmInboxProjection';
+import { pickNewerMessageClock } from '@/lib/sortInboxConversations';
 
 export interface MergeLegacyProjectionInput {
   legacy: LoadedDMConversation[];
@@ -11,9 +12,43 @@ export interface MergeLegacyProjectionInput {
 }
 
 /**
+ * Patch projection display/unread onto legacy rows without rewriting the sort clock
+ * unless projection has a newer real message timestamp.
+ */
+export function patchProjectionOntoLegacy(
+  legacy: LoadedDMConversation,
+  projected: LoadedDMConversation,
+): LoadedDMConversation {
+  const legacyMsgAt = legacy.last_message?.created_at;
+  const projectedMsgAt = projected.last_message?.created_at;
+  const clock = pickNewerMessageClock(legacyMsgAt, projectedMsgAt);
+  const useProjectedMessage =
+    Boolean(projected.last_message?.id && projectedMsgAt) &&
+    clock === projectedMsgAt &&
+    (!legacyMsgAt || Date.parse(projectedMsgAt!) >= Date.parse(legacyMsgAt));
+
+  const last_message = useProjectedMessage
+    ? projected.last_message
+    : legacy.last_message ?? projected.last_message;
+
+  return {
+    ...legacy,
+    name: projected.name ?? legacy.name,
+    unread_count: projected.unread_count ?? legacy.unread_count,
+    _hasUnread: projected._hasUnread ?? legacy._hasUnread,
+    members: projected.members?.length ? projected.members : legacy.members,
+    last_message,
+    // Sort clock follows real message only — never projection.updated_at.
+    _sortTime: last_message?.created_at || legacy.created_at || '',
+    updated_at: legacy.updated_at,
+  };
+}
+
+/**
  * Patch projection fields onto legacy order.
  * Never replace the whole list with projection-only order (that remount-jumps rows).
  * Never drop legacy rows when projection is partial/empty.
+ * Never let projection write-time reshuffle inbox order.
  */
 export function mergeLegacyAndProjection(
   input: MergeLegacyProjectionInput,
@@ -40,13 +75,12 @@ export function mergeLegacyAndProjection(
   const ordered: LoadedDMConversation[] = [];
   const seen = new Set<string>();
 
-  // Preserve legacy order — patch fields from projection when available.
   for (const conversation of filteredLegacy) {
-    ordered.push(projectionById.get(conversation.id) ?? conversation);
+    const projected = projectionById.get(conversation.id);
+    ordered.push(projected ? patchProjectionOntoLegacy(conversation, projected) : conversation);
     seen.add(conversation.id);
   }
 
-  // Append projection-only conversations (new) without reordering the rest.
   for (const entry of projectionEntries) {
     const id = entry.conversation_id;
     if (lockedIds.has(id) || seen.has(id)) continue;

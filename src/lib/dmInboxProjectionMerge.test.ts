@@ -69,4 +69,51 @@ describe('mergeLegacyAndProjection', () => {
     });
     expect(result.map((c) => c.id)).toEqual(['a', 'c']);
   });
+
+  it('does not bump sort clock from projection.updated_at alone', () => {
+    const base = {
+      id: 'a',
+      is_group: false,
+      unread_count: 0,
+      created_at: '2026-07-01T00:00:00.000Z',
+      updated_at: '2026-07-01T00:00:00.000Z',
+      members: [],
+      last_message: {
+        id: 'm1',
+        conversation_id: 'a',
+        sender_id: 'peer',
+        content: 'hi',
+        created_at: '2026-07-13T10:00:00.000Z',
+      },
+      _sortTime: '2026-07-13T10:00:00.000Z',
+    } as LoadedDMConversation;
+
+    const result = mergeLegacyAndProjection({
+      legacy: [base],
+      projectionEntries: [
+        {
+          conversation_id: 'a',
+          viewer_id: 'viewer',
+          conversation_type: 'direct',
+          display_name: 'Alex',
+          preview_text: 'hi',
+          unread_count: 2,
+          is_unread: true,
+          is_pinned: false,
+          is_muted: false,
+          needs_reply: false,
+          latest_message_id: 'm1',
+          latest_message_at: '2026-07-13T10:00:00.000Z',
+          updated_at: '2026-07-13T22:00:00.000Z',
+        } as DmInboxEntryDoc,
+      ],
+      lockedIds: new Set(),
+      projectionReadEnabled: true,
+      projectionReady: true,
+    });
+
+    expect(result[0].last_message?.created_at).toBe('2026-07-13T10:00:00.000Z');
+    expect(result[0]._sortTime).toBe('2026-07-13T10:00:00.000Z');
+    expect(result[0].unread_count).toBe(2);
+  });
 });

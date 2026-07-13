@@ -109,8 +109,8 @@ export const ChatHeaderPresenceAvatar = memo(function ChatHeaderPresenceAvatar({
 }) {
   const signedUrl = useSignedUrl(avatarUrl || fallbackAvatarUrl);
   const config = getActivityConfig(activity);
-  const inChat = activity !== 'idle';
-  const showRing = inChat || isOnline;
+  const inChat = activity !== 'idle' && Boolean(isOnline);
+  const showRing = inChat || Boolean(isOnline);
 
   return (
     <div className={cn('relative flex-shrink-0 h-8 w-8 sm:h-9 sm:w-9', className)}>
@@ -125,7 +125,7 @@ export const ChatHeaderPresenceAvatar = memo(function ChatHeaderPresenceAvatar({
           </AvatarFallback>
         </Avatar>
       </div>
-      {(isOnline || inChat) && (
+      {Boolean(isOnline) && (
         <span
           className={cn(
             'absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-background shadow-md',

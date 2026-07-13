@@ -193,12 +193,21 @@ describe('sortInboxConversations', () => {
     expect(inboxOrderFingerprint(after.map((r) => r.conversationId))).toBe(before);
   });
 
-  it('ignores volatile fields in compareInboxSortables', () => {
-    expect(
-      compareInboxSortables(
-        { conversationId: 'a', isPinned: false, pinOrder: 9999, latestMessageAt: '2026-07-13T12:00:00.000Z' },
-        { conversationId: 'b', isPinned: false, pinOrder: 9999, latestMessageAt: '2026-07-13T12:00:00.000Z' },
-      ),
-    ).toBeLessThan(0);
+  it('does not move when only polluted _sortTime / updated_at change', () => {
+    const a = conv('a', { at: '2026-07-13T14:00:00.000Z' });
+    const b = conv('b', { at: '2026-07-13T10:00:00.000Z' });
+    const before = inboxOrderFingerprint(sortInboxConversations([a, b], ME).map((c) => c.id));
+    const after = sortInboxConversations(
+      [
+        {
+          ...a,
+          _sortTime: '2026-07-13T20:00:00.000Z',
+          updated_at: '2026-07-13T20:00:00.000Z',
+        },
+        b,
+      ],
+      ME,
+    );
+    expect(inboxOrderFingerprint(after.map((c) => c.id))).toBe(before);
   });
 });

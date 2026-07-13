@@ -406,10 +406,7 @@ async function buildEntryForViewer(
     }
   }
 
-  const activityAt =
-    asString(latestData?.created_at) ||
-    asString(conv.updated_at) ||
-    new Date().toISOString();
+  const activityAt = asString(latestData?.created_at) || null;
 
   const entry: DmInboxEntryDoc = {
     viewer_id: viewerId,
@@ -431,6 +428,7 @@ async function buildEntryForViewer(
     latest_sender_id: asString(latestData?.sender_id),
     latest_sender_name:
       asString(senderProfile?.display_name) || asString(senderProfile?.username),
+    // Real message time only — never conversation.updated_at (bumped by open/read/repair).
     latest_message_at: activityAt,
     delivery_status: asString(latestData?.delivery_status) || (isOwn ? 'sent' : 'received'),
     unread_count: unread,

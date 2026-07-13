@@ -168,13 +168,18 @@ export function subscribeDmInboxProjection(
 export function projectionToLoadedConversation(
   entry: DmInboxEntryDoc,
 ): LoadedDMConversation {
-  const lastMessage = entry.latest_message_id
+  const messageAt =
+    typeof entry.latest_message_at === 'string' && entry.latest_message_at.trim()
+      ? entry.latest_message_at
+      : '';
+  // Never invent `new Date()` — that re-shuffles inbox whenever projection refreshes.
+  const lastMessage = entry.latest_message_id && messageAt
     ? {
         id: entry.latest_message_id,
         conversation_id: entry.conversation_id,
         sender_id: entry.latest_sender_id || '',
         content: entry.preview_text,
-        created_at: entry.latest_message_at || new Date().toISOString(),
+        created_at: messageAt,
         message_type: entry.latest_message_type || 'text',
       }
     : null;
@@ -183,7 +188,8 @@ export function projectionToLoadedConversation(
     id: entry.conversation_id,
     is_group: entry.conversation_type === 'group',
     name: entry.display_name,
-    updated_at: entry.latest_message_at || entry.updated_at || new Date().toISOString(),
+    // Display-only updated_at; sort uses last_message.created_at exclusively.
+    updated_at: messageAt || entry.updated_at || '',
     unread_count: entry.unread_count,
     last_message: lastMessage as LoadedDMConversation['last_message'],
     members: [
@@ -192,7 +198,8 @@ export function projectionToLoadedConversation(
         role: 'member',
         is_muted: entry.is_muted,
         is_pinned: entry.is_pinned,
-        last_read_at: entry.is_unread ? null : entry.latest_message_at || null,
+        pin_order: entry.pin_order,
+        last_read_at: entry.is_unread ? null : messageAt || null,
       },
       ...(entry.other_profile_id
         ? [
@@ -212,7 +219,7 @@ export function projectionToLoadedConversation(
           ]
         : []),
     ],
-    _sortTime: entry.latest_message_at || entry.updated_at || '',
+    _sortTime: messageAt,
     _hasUnread: entry.is_unread || entry.unread_count > 0,
   } as LoadedDMConversation;
 }

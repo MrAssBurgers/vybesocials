@@ -57,11 +57,39 @@ describe('getDmConversationSortTime', () => {
 describe('compareDmConversations', () => {
   it('does not reorder when only unread state changes', () => {
     const base = makeConv('a', {
+      last_message: {
+        id: 'm-a',
+        conversation_id: 'a',
+        sender_id: 'other',
+        content: 'hi',
+        media_url: null,
+        media_type: null,
+        message_type: 'text',
+        view_mode: 'permanent',
+        expires_at: null,
+        is_deleted: false,
+        reply_to_id: null,
+        created_at: '2026-06-15T10:00:00.000Z',
+      },
       _sortTime: '2026-06-15T10:00:00.000Z',
       _hasUnread: true,
     });
     const read = { ...base, _hasUnread: false, unread_count: 0 };
     const other = makeConv('b', {
+      last_message: {
+        id: 'm-b',
+        conversation_id: 'b',
+        sender_id: 'other',
+        content: 'yo',
+        media_url: null,
+        media_type: null,
+        message_type: 'text',
+        view_mode: 'permanent',
+        expires_at: null,
+        is_deleted: false,
+        reply_to_id: null,
+        created_at: '2026-06-20T10:00:00.000Z',
+      },
       _sortTime: '2026-06-20T10:00:00.000Z',
       _hasUnread: false,
     });

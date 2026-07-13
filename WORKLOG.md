@@ -2,6 +2,16 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## Freeze inbox sort clock + fix false online in chat (2026-07-13)
+
+- **Shuffle root cause:** Projection/`updated_at`/`_sortTime` were treated as “latest message,” so rows jumped without a real send/receive.
+- **Fix:** `getInboxLatestMessageAt` uses only `last_message.created_at` (else conversation `created_at`). Projection merge patches unread/profile without rewriting the sort clock unless projection has a **newer real message**. Server projection no longer falls back to `conv.updated_at`.
+- **False online:** ChatView used `isOnline={… || !!peerPresence}` so “viewing” (or any presence object) looked online. Now requires Firestore heartbeat (`peerPresence.is_online`); broadcast no longer forces online; header green dot only when truly online.
+- **Verified:** unit tests + `npm run build` PASS
+- **Next:** Publish staging + Lovable Publish; hard-refresh Messages.
+
+---
+
 ## Snapchat-stable DM inbox order + top bar (2026-07-13)
 
 - **Bug:** Rows jumped when presence/typing/unread/rank/streak/projection changed because UI sort used `compareInboxActivity` (activity + unread ties) and category ranks (`bestFriendRank`, story boost, online score on Active).

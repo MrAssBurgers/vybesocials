@@ -10,13 +10,21 @@ import {
 const ME = 'me';
 
 function conv(partial: Partial<LoadedDMConversation> & { id: string }): LoadedDMConversation {
+  const sortAt = partial._sortTime || partial.last_message?.created_at || '2026-07-12T12:00:00.000Z';
   return {
     is_group: false,
     members: [],
     unread_count: 0,
-    _sortTime: '2026-07-12T12:00:00.000Z',
+    _sortTime: sortAt,
     _hasUnread: false,
-    updated_at: '2026-07-12T12:00:00.000Z',
+    updated_at: sortAt,
+    last_message: partial.last_message ?? {
+      id: `m-${partial.id}`,
+      conversation_id: partial.id,
+      sender_id: 'peer',
+      content: 'hi',
+      created_at: sortAt,
+    },
     ...partial,
   } as LoadedDMConversation;
 }
