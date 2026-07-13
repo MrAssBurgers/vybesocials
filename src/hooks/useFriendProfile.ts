@@ -67,10 +67,10 @@ export function useFriendProfile(username: string | undefined) {
     isPendingRequest: status === 'pending_sent' || status === 'pending_received',
     isSelf: !!profileId && profileId === targetId,
     isBlocked: status === 'blocked' || blockedQuery.data === true,
-    relationshipPending: friendshipQuery.isPending || blockedQuery.isPending,
+    relationshipPending: relationshipQueriesEnabled && (friendshipQuery.isPending || blockedQuery.isPending),
     relationshipError: friendshipQuery.isError || blockedQuery.isError,
     visibility: visibilityQuery.data,
-    visibilityPending: visibilityQuery.isPending,
+    visibilityPending: relationshipQueriesEnabled && visibilityQuery.isPending,
     visibilityError: visibilityQuery.isError,
   };
 }
