@@ -11,7 +11,8 @@ Use this file as the Lovable -> Cursor handoff each session.
   4. Backfill ✔ `node scripts/backfill-dm-inbox.mjs` → COMPLETE `totalProcessed=238 totalWrote=219` (~174 live `dm_inbox_entries` after invalid/empty drops)
 - **Rollout config:** `app_config/dm_inbox_rollout` seeded with internal ids (`e78010f2-…`, `wuy7bIoV…`), `projection_read_pct=0`, `redesign_ui_pct=0`, empty `redesign_internal_ids`
 - **Client gates:** shadow on for all; projection read for internal allowlist only; redesign UI off until `redesign_internal_ids` / pct raised (legacy Friends/Nearby/Requests tabs remain default)
-- **Next for you:** Lovable Share → Publish; QA as internal account (shadow logs + blocked/media/camera); then add your id to `redesign_internal_ids` or raise `redesign_ui_pct` gradually; watch callable latency / duplicates / outbox failures
+- **Pushed:** `origin/main` @ **`eadb7341`**
+- **You:** Lovable sync `main` @ **`eadb7341`** → **Share → Publish**; QA as internal account (shadow logs + blocked/media/camera); then add your id to `redesign_internal_ids` or raise `redesign_ui_pct` gradually; watch callable latency / duplicates / outbox failures
 - **Verified:** typecheck · 120 tests · functions + rules/indexes deploy PASS · backfill COMPLETE
 
 ---
