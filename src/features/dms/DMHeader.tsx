@@ -50,7 +50,7 @@ export function DMHeader({
             </Avatar>
             <span className="dm-inbox-presence-dot" aria-hidden />
           </button>
-          <h1 className="dm-inbox-title">Messages</h1>
+          <h1 className="dm-inbox-title">Chat</h1>
         </div>
 
         <div className="dm-inbox-header-side dm-inbox-header-side--right">

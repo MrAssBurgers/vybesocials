@@ -707,9 +707,9 @@ body.has-liquid-bg:not(.has-custom-bg) .messages-scroll {
   min-height: 0;
   overflow: hidden;
   background:
-    radial-gradient(ellipse 80% 50% at 8% -10%, hsl(var(--primary) / 0.28), transparent 52%),
-    radial-gradient(ellipse 70% 45% at 92% 0%, hsl(var(--accent) / 0.18), transparent 48%),
-    radial-gradient(circle at 50% 120%, hsl(var(--primary) / 0.08), transparent 42%),
+    radial-gradient(ellipse 90% 55% at 6% -8%, hsl(var(--primary) / 0.38), transparent 55%),
+    radial-gradient(ellipse 80% 50% at 96% 4%, hsl(var(--accent) / 0.26), transparent 50%),
+    radial-gradient(circle at 50% 110%, hsl(280 80% 45% / 0.12), transparent 45%),
     hsl(var(--background) / 0.94);
 }
 .dm-inbox-column {
@@ -720,20 +720,42 @@ body.has-liquid-bg:not(.has-custom-bg) .messages-scroll {
   min-width: 0;
   min-height: 0;
   margin-inline: auto;
+  padding-inline: 0;
+}
+.dm-inbox-panel {
+  position: relative;
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+  margin: 4px 10px 0;
+  border: 1px solid hsl(var(--primary) / 0.28);
+  border-radius: 22px 22px 0 0;
+  background:
+    linear-gradient(
+      180deg,
+      hsl(var(--primary) / 0.1),
+      hsl(var(--background) / 0.35) 28%,
+      hsl(var(--background) / 0.22)
+    );
+  box-shadow:
+    inset 0 1px 0 hsl(var(--foreground) / 0.08),
+    inset 0 0 40px hsl(var(--primary) / 0.06),
+    0 0 28px hsl(var(--primary) / 0.18),
+    0 0 60px hsl(var(--accent) / 0.08);
+  overflow: hidden;
+  backdrop-filter: blur(24px) saturate(160%);
+  -webkit-backdrop-filter: blur(24px) saturate(160%);
 }
 .dm-inbox-hero {
   flex-shrink: 0;
-  min-height: calc(56px + max(var(--sat, 0px), env(safe-area-inset-top, 0px)));
+  min-height: calc(58px + max(var(--sat, 0px), env(safe-area-inset-top, 0px)));
   padding-top: max(var(--sat, 0px), env(safe-area-inset-top, 0px));
-  border-bottom: 1px solid hsl(var(--primary) / 0.14);
-  background: linear-gradient(
-    180deg,
-    hsl(var(--background) / 0.72),
-    hsl(var(--background) / 0.5)
-  );
-  backdrop-filter: blur(28px) saturate(165%);
-  -webkit-backdrop-filter: blur(28px) saturate(165%);
-  box-shadow: 0 8px 28px hsl(var(--primary) / 0.08);
+  border-bottom: none;
+  background: transparent;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  box-shadow: none;
 }
 .dm-inbox-hero--sticky {
   position: sticky;
@@ -818,12 +840,14 @@ body.has-liquid-bg:not(.has-custom-bg) .messages-scroll {
 }
 .dm-inbox-title {
   margin: 0;
-  font-size: 24px;
-  font-weight: 750;
-  line-height: 1.1;
-  letter-spacing: -0.03em;
+  font-size: 26px;
+  font-weight: 780;
+  line-height: 1.05;
+  letter-spacing: -0.04em;
   color: hsl(var(--foreground));
-  text-shadow: 0 0 28px hsl(var(--primary) / 0.35);
+  text-shadow:
+    0 0 22px hsl(var(--primary) / 0.45),
+    0 0 40px hsl(var(--accent) / 0.2);
 }
 .dm-inbox-title-badge,
 .dm-inbox-tab-badge {
@@ -839,7 +863,7 @@ body.has-liquid-bg:not(.has-custom-bg) .messages-scroll {
   font-size: 10px;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
-  box-shadow: 0 0 12px hsl(var(--primary) / 0.55);
+  box-shadow: 0 0 14px hsl(var(--primary) / 0.65);
 }
 .dm-inbox-profile-button {
   position: relative;
@@ -856,13 +880,13 @@ body.has-liquid-bg:not(.has-custom-bg) .messages-scroll {
     from 25deg,
     hsl(var(--primary)),
     hsl(var(--accent)),
-    hsl(280 90% 68%),
+    hsl(280 95% 72%),
     hsl(var(--primary))
   );
   z-index: 0;
   box-shadow:
-    0 0 14px hsl(var(--primary) / 0.55),
-    0 0 28px hsl(var(--accent) / 0.28);
+    0 0 18px hsl(var(--primary) / 0.7),
+    0 0 36px hsl(var(--accent) / 0.4);
 }
 .dm-inbox-profile-button::after {
   content: '';
@@ -886,7 +910,7 @@ body.has-liquid-bg:not(.has-custom-bg) .messages-scroll {
   width: 11px;
   height: 11px;
   border-width: 2px;
-  box-shadow: 0 0 8px var(--dm-theme-online);
+  box-shadow: 0 0 10px var(--dm-theme-online);
 }
 .dm-inbox-online-dot,
 .dm-inbox-presence-dot {
@@ -898,7 +922,7 @@ body.has-liquid-bg:not(.has-custom-bg) .messages-scroll {
   border: 2px solid hsl(var(--background));
   border-radius: 50%;
   background: var(--dm-theme-online);
-  box-shadow: 0 0 8px var(--dm-theme-online);
+  box-shadow: 0 0 10px var(--dm-theme-online);
 }
 .dm-inbox-header-action {
   display: inline-flex;
@@ -907,13 +931,18 @@ body.has-liquid-bg:not(.has-custom-bg) .messages-scroll {
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  border: 1px solid hsl(var(--primary) / 0.28);
+  border: 1px solid hsl(var(--primary) / 0.38);
   border-radius: 999px;
-  background: hsl(var(--foreground) / 0.05);
-  color: hsl(var(--foreground) / 0.92);
+  background: linear-gradient(
+    160deg,
+    hsl(var(--foreground) / 0.1),
+    hsl(var(--primary) / 0.12)
+  );
+  color: hsl(var(--foreground) / 0.94);
   box-shadow:
-    inset 0 1px 0 hsl(var(--foreground) / 0.08),
-    0 0 12px hsl(var(--primary) / 0.18);
+    inset 0 1px 0 hsl(var(--foreground) / 0.12),
+    0 0 14px hsl(var(--primary) / 0.28),
+    0 0 28px hsl(var(--accent) / 0.12);
   transition: color 140ms ease, background-color 140ms ease, transform 140ms ease, box-shadow 140ms ease, border-color 140ms ease;
 }
 .dm-inbox-header-action svg {
@@ -930,19 +959,31 @@ body.has-liquid-bg:not(.has-custom-bg) .messages-scroll {
 .dm-inbox-tabs-wrap {
   flex-shrink: 0;
   height: 42px;
-  margin: 0;
+  margin: 0 4px 2px;
   padding: 0 6px 0 10px;
   border: none;
-  border-bottom: 1px solid hsl(var(--primary) / 0.12);
+  border-bottom: none;
   border-radius: 0;
-  background: linear-gradient(
-    180deg,
-    hsl(var(--background) / 0.55),
-    hsl(var(--background) / 0.42)
-  );
-  backdrop-filter: blur(22px) saturate(150%);
-  -webkit-backdrop-filter: blur(22px) saturate(150%);
+  background: transparent;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
   box-shadow: none;
+}
+.dm-inbox-tab-glow {
+  position: absolute;
+  right: 8px;
+  bottom: 2px;
+  left: 8px;
+  height: 3px;
+  border-radius: 99px;
+  background: linear-gradient(90deg, hsl(var(--primary)), hsl(var(--accent)), hsl(320 90% 65%));
+  box-shadow:
+    0 0 12px hsl(var(--primary) / 0.95),
+    0 0 24px hsl(var(--accent) / 0.65),
+    0 0 36px hsl(320 90% 65% / 0.35);
+  opacity: 0;
+  transform: scaleX(0.35);
+  transition: opacity 180ms ease, transform 180ms ease;
 }
 .dm-inbox-tabs {
   display: flex;
@@ -975,21 +1016,6 @@ body.has-liquid-bg:not(.has-custom-bg) .messages-scroll {
 .dm-inbox-tab--active {
   color: hsl(var(--foreground));
 }
-.dm-inbox-tab-glow {
-  position: absolute;
-  right: 10px;
-  bottom: 1px;
-  left: 10px;
-  height: 3px;
-  border-radius: 99px;
-  background: linear-gradient(90deg, hsl(var(--primary)), hsl(var(--accent)));
-  box-shadow:
-    0 0 10px hsl(var(--primary) / 0.85),
-    0 0 20px hsl(var(--accent) / 0.45);
-  opacity: 0;
-  transform: scaleX(0.4);
-  transition: opacity 180ms ease, transform 180ms ease;
-}
 .dm-inbox-tab--active .dm-inbox-tab-glow {
   opacity: 1;
   transform: scaleX(1);
@@ -1019,7 +1045,7 @@ body.has-liquid-bg:not(.has-custom-bg) .messages-scroll {
   touch-action: pan-y;
   -webkit-user-select: none;
   user-select: none;
-  border-bottom: 1px solid hsl(var(--foreground) / 0.055);
+  border-bottom: 1px solid hsl(var(--primary) / 0.08);
   -webkit-tap-highlight-color: transparent;
   transition: transform 180ms ease, opacity 180ms ease;
 }
@@ -1034,7 +1060,11 @@ body.has-liquid-bg:not(.has-custom-bg) .messages-scroll {
   min-height: 68px;
   max-height: 74px;
   padding: 8px 14px;
-  background: transparent;
+  background: linear-gradient(
+    90deg,
+    hsl(var(--primary) / 0.04),
+    transparent 55%
+  );
   border-radius: 0;
   box-shadow: none;
   transition: background-color 140ms ease;
@@ -1116,33 +1146,33 @@ body.has-liquid-bg:not(.has-custom-bg) .messages-scroll {
   border-radius: 50%;
   background: var(--dm-ring, linear-gradient(135deg, hsl(var(--primary)), hsl(var(--accent))));
   box-shadow:
-    0 0 12px hsl(var(--primary) / 0.45),
-    0 0 22px hsl(var(--accent) / 0.22);
+    0 0 16px hsl(var(--primary) / 0.65),
+    0 0 32px hsl(var(--accent) / 0.35);
   animation: none;
 }
 .dm-inbox-avatar-ring--tone-0 {
-  --dm-ring: linear-gradient(135deg, hsl(var(--primary)), hsl(280 90% 70%));
+  --dm-ring: linear-gradient(135deg, hsl(var(--primary)), hsl(280 95% 72%));
   box-shadow:
-    0 0 12px hsl(var(--primary) / 0.55),
-    0 0 24px hsl(var(--primary) / 0.25);
+    0 0 16px hsl(var(--primary) / 0.75),
+    0 0 34px hsl(var(--primary) / 0.4);
 }
 .dm-inbox-avatar-ring--tone-1 {
-  --dm-ring: linear-gradient(135deg, hsl(var(--accent)), hsl(210 95% 62%));
+  --dm-ring: linear-gradient(135deg, hsl(var(--accent)), hsl(200 95% 62%));
   box-shadow:
-    0 0 12px hsl(var(--accent) / 0.5),
-    0 0 22px hsl(210 95% 62% / 0.28);
+    0 0 16px hsl(var(--accent) / 0.7),
+    0 0 32px hsl(200 95% 62% / 0.4);
 }
 .dm-inbox-avatar-ring--tone-2 {
-  --dm-ring: linear-gradient(135deg, hsl(42 95% 55%), hsl(18 95% 58%));
+  --dm-ring: linear-gradient(135deg, hsl(38 98% 58%), hsl(18 95% 58%));
   box-shadow:
-    0 0 12px hsl(42 95% 55% / 0.5),
-    0 0 22px hsl(18 95% 58% / 0.25);
+    0 0 16px hsl(38 98% 58% / 0.7),
+    0 0 32px hsl(18 95% 58% / 0.35);
 }
 .dm-inbox-avatar-ring--tone-3 {
-  --dm-ring: linear-gradient(135deg, hsl(165 80% 48%), hsl(var(--primary)));
+  --dm-ring: linear-gradient(135deg, hsl(168 85% 48%), hsl(220 90% 62%));
   box-shadow:
-    0 0 12px hsl(165 80% 48% / 0.45),
-    0 0 22px hsl(var(--primary) / 0.22);
+    0 0 16px hsl(168 85% 48% / 0.65),
+    0 0 32px hsl(220 90% 62% / 0.35);
 }
 .dm-inbox-avatar-ring--story {
   background: var(--dm-theme-story-ring);
@@ -1273,16 +1303,16 @@ body.has-liquid-bg:not(.has-custom-bg) .messages-scroll {
   opacity: 0.9;
 }
 .dm-inbox-status-tone--received {
-  color: hsl(280 55% 72%);
+  color: hsl(280 75% 72%);
 }
 .dm-inbox-status-tone--sent {
   color: hsl(var(--muted-foreground));
 }
 .dm-inbox-status-tone--delivered {
-  color: hsl(210 85% 70%);
+  color: hsl(320 85% 72%);
 }
 .dm-inbox-status-tone--opened {
-  color: hsl(var(--primary));
+  color: hsl(205 95% 68%);
 }
 .dm-inbox-status-tone--media {
   color: hsl(var(--accent));
@@ -1370,13 +1400,17 @@ body.has-liquid-bg:not(.has-custom-bg) .messages-scroll {
   min-height: 36px;
   align-items: center;
   justify-content: center;
-  border: 1px solid hsl(var(--primary) / 0.32);
-  border-radius: 50%;
-  background: hsl(var(--foreground) / 0.04);
-  color: hsl(var(--foreground) / 0.88);
+  border: 1px solid hsl(var(--primary) / 0.4);
+  border-radius: 12px;
+  background: linear-gradient(
+    160deg,
+    hsl(var(--foreground) / 0.08),
+    hsl(var(--primary) / 0.14)
+  );
+  color: hsl(var(--foreground) / 0.92);
   box-shadow:
-    inset 0 1px 0 hsl(var(--foreground) / 0.06),
-    0 0 12px hsl(var(--primary) / 0.2);
+    inset 0 1px 0 hsl(var(--foreground) / 0.1),
+    0 0 14px hsl(var(--primary) / 0.28);
   transition: transform 120ms ease, color 120ms ease, background-color 120ms ease, box-shadow 120ms ease, border-color 120ms ease;
 }
 .dm-inbox-camera-button svg {
@@ -1387,29 +1421,30 @@ body.has-liquid-bg:not(.has-custom-bg) .messages-scroll {
 .dm-inbox-camera-button:active {
   transform: scale(0.92);
   color: hsl(var(--foreground));
-  background: hsl(var(--primary) / 0.16);
-  border-color: hsl(var(--primary) / 0.55);
-  box-shadow: 0 0 18px hsl(var(--primary) / 0.4);
+  background: hsl(var(--primary) / 0.22);
+  border-color: hsl(var(--primary) / 0.65);
+  box-shadow: 0 0 20px hsl(var(--primary) / 0.5);
 }
 .dm-inbox-compose {
   position: absolute;
-  right: 16px;
-  bottom: calc(76px + env(safe-area-inset-bottom, 0px));
+  right: 18px;
+  bottom: calc(78px + env(safe-area-inset-bottom, 0px));
   z-index: 10;
   display: inline-flex;
-  width: 54px;
-  height: 54px;
-  min-width: 54px;
-  min-height: 54px;
+  width: 56px;
+  height: 56px;
+  min-width: 56px;
+  min-height: 56px;
   align-items: center;
   justify-content: center;
-  border: 1px solid hsl(var(--foreground) / 0.14);
+  border: 1px solid hsl(var(--foreground) / 0.16);
   border-radius: 50%;
-  background: linear-gradient(145deg, hsl(var(--primary)), hsl(var(--accent)));
+  background: linear-gradient(145deg, hsl(var(--primary)), hsl(320 90% 58%), hsl(var(--accent)));
   box-shadow:
-    0 10px 28px hsl(var(--primary) / 0.48),
-    0 0 32px hsl(var(--accent) / 0.38),
-    inset 0 1px 0 hsl(var(--foreground) / 0.22);
+    0 12px 36px hsl(var(--primary) / 0.55),
+    0 0 42px hsl(var(--accent) / 0.5),
+    0 0 70px hsl(320 90% 58% / 0.3),
+    inset 0 1px 0 hsl(var(--foreground) / 0.28);
   color: hsl(var(--primary-foreground));
   transition: opacity 180ms ease, transform 180ms ease;
 }

@@ -123,9 +123,9 @@ export function useDMInbox() {
   const { conversationId: activeConversationId } = useParams<{ conversationId?: string }>();
   const { profile, user } = useAuth();
   const profileId = useAuthProfileId();
-  const redesignEnabled = true;
+  const redesignEnabled = false;
   const [searchQuery, setSearchQuery] = useState('');
-  const [activeTab, setActiveTabState] = useState<DmInboxTabId>(() => initialTab(true));
+  const [activeTab, setActiveTabState] = useState<DmInboxTabId>(() => initialTab(false));
   const { data: lockedIdsRaw } = useLockedChatIds();
   const { data: callConversationIdsRaw } = useInboxCallConversationIds();
   const { data: pendingRequestsRaw, isLoading: requestsLoading } = useMessageRequests();

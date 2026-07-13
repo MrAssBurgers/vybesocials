@@ -43,7 +43,7 @@ export function DMInboxPage() {
         <DMCategoryTabs
           active={inbox.activeTab}
           onChange={inbox.setActiveTab}
-          redesignEnabled
+          redesignEnabled={inbox.redesignEnabled}
           badges={{
             unread: inbox.unreadBadgeCount,
             requests: inbox.pendingRequestCount,

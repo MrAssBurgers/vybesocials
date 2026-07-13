@@ -2,6 +2,18 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## Match concept Chat mock exactly (2026-07-13)
+
+- **User ask:** Make inbox look like the concept mock in every way (keep density).
+- **Chrome:** Title → **Chat**; tabs → Friends / Best Friends / Nearby / Groups / Requests / Unread (legacy set).
+- **Layout:** Glowing glass conversation panel (rounded top + neon border); stronger ambient wash.
+- **VFX:** Hotter avatar ring bloom (tone variants), glass header pills, magenta tab underline glow, rounded-square camera, vivid status tones, bloom compose FAB.
+- **Verified:** typecheck PASS · test PASS (120) · build PASS.
+- **Published:** not pushed yet.
+- **Next:** publish when asked.
+
+---
+
 ## Inbox neon glass VFX polish (2026-07-13)
 
 - **User ask:** Keep compact conversation density; upgrade look to match concept mock (neon rings, glass header actions, glow tab underline, richer status/camera/compose VFX).

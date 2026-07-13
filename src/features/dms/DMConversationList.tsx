@@ -141,20 +141,21 @@ export function DMConversationList({
   const empty = emptyCopy(activeTab, searchQuery, hasError, nearbyStatus);
   const nearbyBusy = nearbyStatus === 'locating' || nearbyStatus === 'searching';
   const filterId = asFilterId(activeTab);
+  const scrollKey = activeTab || filterId;
 
   useEffect(() => {
     const el = listRef.current;
     if (!el) return;
-    const restored = readFilterScroll(filterId);
+    const restored = readFilterScroll(scrollKey);
     el.scrollTop = restored;
     lastScrollTop.current = restored;
     setComposeHidden(false);
-  }, [filterId]);
+  }, [scrollKey]);
 
   const handleScroll = (event: UIEvent<HTMLDivElement>) => {
     onScroll?.(event);
     const top = event.currentTarget.scrollTop;
-    writeFilterScroll(filterId, top);
+    writeFilterScroll(scrollKey, top);
     const delta = top - lastScrollTop.current;
     if (Math.abs(delta) > 5) {
       setComposeHidden(delta > 0 && top > 64);
@@ -164,15 +165,16 @@ export function DMConversationList({
 
   return (
     <>
-      <div
-        ref={listRef}
-        id="dm-inbox-list"
-        className="dm-inbox-list scroller"
-        onScroll={handleScroll}
-        aria-label="Conversations"
-        role="tabpanel"
-        aria-labelledby={`dm-inbox-tab-${filterId}`}
-      >
+      <div className="dm-inbox-panel">
+        <div
+          ref={listRef}
+          id="dm-inbox-list"
+          className="dm-inbox-list scroller"
+          onScroll={handleScroll}
+          aria-label="Conversations"
+          role="tabpanel"
+          aria-labelledby={`dm-inbox-tab-${activeTab || filterId}`}
+        >
         {showSkeleton || (activeTab === 'nearby' && nearbyBusy && rows.length === 0) ? (
           <DMInboxSkeleton />
         ) : rows.length > 0 ? (
@@ -240,6 +242,7 @@ export function DMConversationList({
             </div>
           </div>
         )}
+      </div>
       </div>
       <DMComposeButton hidden={composeHidden} />
     </>

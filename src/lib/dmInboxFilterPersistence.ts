@@ -46,7 +46,7 @@ export function readFilterScrollMap(): Record<string, number> {
   }
 }
 
-export function writeFilterScroll(filter: DmInboxFilterId, scrollTop: number): void {
+export function writeFilterScroll(filter: string, scrollTop: number): void {
   try {
     const map = readFilterScrollMap();
     map[filter] = Math.max(0, Math.round(scrollTop));
@@ -56,7 +56,7 @@ export function writeFilterScroll(filter: DmInboxFilterId, scrollTop: number): v
   }
 }
 
-export function readFilterScroll(filter: DmInboxFilterId): number {
+export function readFilterScroll(filter: string): number {
   return readFilterScrollMap()[filter] || 0;
 }
 
