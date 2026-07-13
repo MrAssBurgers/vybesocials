@@ -8,8 +8,9 @@ Use this file as the Lovable -> Cursor handoff each session.
 - **Kept:** 72px rows, redesign filters, thin separators, capture long-press sheet.
 - **Added:** Ambient primary/accent wash; glowing header avatar ring + Search/Bell/Add/More glass pills; neon tab underline; per-row ring tones; status icon + relationship meta + quick reaction; glowing camera circle + compose bloom; unread tint rail.
 - **Verified:** typecheck PASS · test PASS (120) · build PASS.
-- **Published:** not pushed yet.
-- **Next:** push + Lovable Publish when asked; spot-check glow on device.
+- **Pushed:** `origin/main` @ **`6fbe9ea8`**
+- **You:** Lovable → sync/confirm `main` @ **`6fbe9ea8`** → **Share → Publish** → hard-refresh https://vybehub.app/messages
+- **Next:** Spot-check glow + density on device.
 
 ---
 
