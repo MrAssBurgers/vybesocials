@@ -1137,6 +1137,124 @@ body.has-liquid-bg:not(.has-custom-bg) .messages-scroll {
   transition: none;
   transform: none;
 }
+.dm-inbox-card--category-dim {
+  opacity: 0.48;
+  transition: opacity 220ms ease;
+}
+.dm-inbox-category-bar {
+  position: sticky;
+  top: 0;
+  z-index: 12;
+  padding: 8px 0 10px;
+  background: linear-gradient(
+    180deg,
+    hsl(var(--background) / 0.96) 0%,
+    hsl(var(--background) / 0.88) 70%,
+    hsl(var(--background) / 0) 100%
+  );
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+.dm-inbox-category-bar__track {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 0 14px;
+  scroll-behavior: smooth;
+  scrollbar-width: none;
+}
+.dm-inbox-category-bar__track::-webkit-scrollbar {
+  display: none;
+}
+.dm-inbox-category-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  padding: 7px 12px;
+  border-radius: 999px;
+  border: 1px solid hsl(var(--border) / 0.55);
+  background: hsl(var(--card) / 0.35);
+  color: hsl(var(--foreground) / 0.72);
+  font-size: 12px;
+  font-weight: 600;
+  transition:
+    background-color 160ms ease,
+    border-color 160ms ease,
+    color 160ms ease,
+    box-shadow 160ms ease;
+}
+.dm-inbox-category-chip--selected {
+  border-color: hsl(var(--primary) / 0.55);
+  background: hsl(var(--primary) / 0.16);
+  color: hsl(var(--foreground));
+  box-shadow: 0 0 16px hsl(var(--primary) / 0.22);
+}
+.dm-inbox-category-count {
+  display: inline-flex;
+  min-width: 18px;
+  height: 18px;
+  align-items: center;
+  justify-content: center;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: hsl(var(--primary) / 0.22);
+  color: hsl(var(--primary));
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+}
+.dm-inbox-category-empty-banner {
+  margin: 0 14px 10px;
+  padding: 12px 14px;
+  border-radius: 16px;
+  border: 1px solid hsl(var(--border) / 0.45);
+  background: hsl(var(--card) / 0.35);
+}
+.dm-inbox-category-empty-banner h2 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 650;
+}
+.dm-inbox-category-empty-banner p {
+  margin: 4px 0 0;
+  font-size: 12px;
+  color: hsl(var(--muted-foreground));
+}
+.dm-inbox-new-section {
+  padding: 0 14px 8px;
+}
+.dm-inbox-suggestion-row {
+  display: grid;
+  grid-template-columns: auto 1fr auto auto;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 0;
+  border-bottom: 1px solid hsl(var(--border) / 0.35);
+}
+.dm-inbox-suggestion-dismiss {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 999px;
+  color: hsl(var(--muted-foreground));
+}
+.dm-inbox-quick-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 34px;
+  height: 30px;
+  padding: 0 8px;
+  border-radius: 999px;
+  border: 1px solid hsl(var(--primary) / 0.35);
+  background: hsl(var(--primary) / 0.12);
+  color: hsl(var(--primary));
+  font-size: 11px;
+  font-weight: 650;
+}
 /* Left-swipe quick-action tray — Pin / Mute / Archive (destructive delete needs a
    farther swipe past this tray + confirmation, see .dm-inbox-swipe-row in the component). */
 .dm-inbox-swipe-action {

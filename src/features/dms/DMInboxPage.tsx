@@ -6,6 +6,7 @@ import { resolveSessionProfileId } from '@/lib/resolveSessionProfileId';
 import { Button } from '@/components/ui/button';
 import { DMHeader } from './DMHeader';
 import { DMCategoryTabs } from './DMCategoryTabs';
+import { InboxCategoryBar } from './inbox/InboxCategoryBar';
 import { DMConversationList } from './DMConversationList';
 import { useDMInbox } from './useDMInbox';
 import type { LoadedDMConversation } from '@/lib/loadDMConversations';
@@ -68,24 +69,37 @@ export function DMInboxPage() {
           </div>
         ) : (
           <>
-        <DMCategoryTabs
-          active={inbox.activeTab}
-          onChange={inbox.setActiveTab}
-          redesignEnabled={inbox.redesignEnabled}
-          badges={{
-            unread: inbox.unreadBadgeCount,
-            requests: inbox.pendingRequestCount,
-            needsReply: inbox.needsReplyCount,
-            bestFriends: inbox.bestFriendCount,
-            nearby: inbox.nearbyCount,
-          }}
-        />
+        {inbox.categoryBarEnabled ? (
+          <InboxCategoryBar
+            activeCategory={inbox.activeCategory}
+            counts={inbox.categoryBadges}
+            onChange={inbox.setActiveCategory}
+            registerChipRef={inbox.registerCategoryChipRef}
+          />
+        ) : (
+          <DMCategoryTabs
+            active={inbox.activeTab}
+            onChange={inbox.setActiveTab}
+            redesignEnabled={inbox.redesignEnabled}
+            badges={{
+              unread: inbox.unreadBadgeCount,
+              requests: inbox.pendingRequestCount,
+              needsReply: inbox.needsReplyCount,
+              bestFriends: inbox.bestFriendCount,
+              nearby: inbox.nearbyCount,
+            }}
+          />
+        )}
         <DMConversationList
           rows={inbox.rows}
           profileId={inbox.profileId}
           authUid={inbox.user?.id}
           activeConversationId={inbox.activeConversationId}
           activeTab={inbox.activeTab}
+          activeCategory={inbox.activeCategory}
+          categoryMatchCount={inbox.categoryMatchCount}
+          categoryBarEnabled={inbox.categoryBarEnabled}
+          pendingRequests={inbox.pendingRequests}
           showSkeleton={inbox.showSkeleton}
           searchQuery={inbox.searchQuery}
           hasError={Boolean(inbox.error && inbox.isFetched)}

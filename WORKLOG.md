@@ -2,6 +2,19 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## Snapchat-style DM inbox categories (2026-07-13)
+
+- **Category bar:** `InboxCategoryBar` + chips (Unread, Needs Reply, Near Me, Groups, Stories, Calls, Best Friends, Streaks, New) with soft-dim filtering — matches promoted, non-matches dimmed (~48% opacity).
+- **Filter engine:** `buildInboxConversationIndex`, `filterInboxByCategory`, `inboxCategoryCounts` + unit tests.
+- **Hooks:** `useInboxCategories` (session persistence), `useFilteredConversations`, `useInboxCallSummaries` (per-conversation call metadata).
+- **Optimistic options:** `dmInboxCachePatch` + `useDmInboxActions` instant pin/mute/read/archive/lock; Lock/Unlock row in `ConversationOptionsSheet`.
+- **Row actions:** Reply chip (needs-reply), callback (calls), story avatar → `StoryViewer`.
+- **Flag:** `dm_inbox_category_bar` (default ON; `localStorage` `vybe-dm-flag:dm_inbox_category_bar`).
+- **Verified:** `npm run test` 247 PASS · `npm run build` PASS
+- **Manual staging QA:** vybe-daaab.web.app — category switching, counts, scroll persistence, long-press, swipe, lock, new connections section.
+
+---
+
 ## Staging profiles + chats load fix (2026-07-13)
 
 - **Symptom:** vybe-daaab.web.app — full-page "Couldn't load Messages" boundary; profiles false "not found" during hydration

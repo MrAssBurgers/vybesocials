@@ -1,6 +1,9 @@
 import { ConversationOptionsSheet } from '@/components/chat/ConversationOptionsSheet';
 import { relationshipLabelForPreview } from '@/lib/conversationOptionsLabel';
 import { useDmInboxActions } from '@/hooks/useDmInboxActions';
+import { useLockedChatIds } from '@/hooks/useLockedChats';
+import { ensureStringSet } from '@/lib/persistedCollections';
+import { useMemo } from 'react';
 import type { DMConversationPreview } from '@/features/dms/dm.types';
 
 interface HeldConversationOptionsSheetProps {
@@ -16,7 +19,10 @@ function HeldConversationOptionsSheetInner({
 }: HeldConversationOptionsSheetProps) {
   const conversation = preview.conversation;
   const inboxActions = useDmInboxActions(conversation);
-  const isUnread = preview.isUnread ?? (preview.unreadCount > 0);
+  const { data: lockedIdsRaw } = useLockedChatIds();
+  const lockedIds = useMemo(() => ensureStringSet(lockedIdsRaw), [lockedIdsRaw]);
+  const isLocked = lockedIds.has(conversation.id);
+  const isUnread = preview.isUnread ?? preview.unreadCount > 0;
 
   return (
     <ConversationOptionsSheet
@@ -29,6 +35,7 @@ function HeldConversationOptionsSheetInner({
       otherAvatarUrl={preview.avatarUrl}
       isMuted={inboxActions.isMuted}
       isPinned={inboxActions.isPinned}
+      isLocked={isLocked}
       isUnread={isUnread}
       isGroup={conversation.is_group}
       isOnline={preview.isOnline}
@@ -38,7 +45,7 @@ function HeldConversationOptionsSheetInner({
       onArchive={() => inboxActions.archive.mutate()}
       onTogglePin={() => inboxActions.togglePin.mutate(!inboxActions.isPinned)}
       onToggleMute={() => inboxActions.toggleMute.mutate(!inboxActions.isMuted)}
-      onToggleLock={() => inboxActions.toggleLock.mutate(true)}
+      onToggleLock={() => inboxActions.toggleLock.mutate(!isLocked)}
     />
   );
 }

@@ -68,14 +68,14 @@ function isPinnedForViewer(conv: LoadedDMConversation, profileId?: string): bool
   );
 }
 
-function isMutedForViewer(conv: LoadedDMConversation, profileId?: string): boolean {
+export function isMutedForViewer(conv: LoadedDMConversation, profileId?: string): boolean {
   if (!profileId) return false;
   return Boolean(
     safeDmMembers(conv.members).find((m) => m.user_id === profileId)?.is_muted,
   );
 }
 
-function isNoiseLatest(conv: LoadedDMConversation): boolean {
+export function isNoiseLatest(conv: LoadedDMConversation): boolean {
   const type = String(
     conv.last_message?.message_type || conv.last_message?.media_type || 'text',
   ).toLowerCase();

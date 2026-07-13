@@ -63,6 +63,8 @@ interface SwipeableDmConversationRowProps {
   onClick: () => void;
   onWarm?: () => void;
   onOpenOptions: (preview: DMConversationPreview) => void;
+  onStoryTap?: (profileId: string) => void;
+  onQuickReply?: (conversationId: string) => void;
 }
 
 export const SwipeableDmConversationRow = memo(function SwipeableDmConversationRow({
@@ -78,6 +80,8 @@ export const SwipeableDmConversationRow = memo(function SwipeableDmConversationR
   onClick,
   onWarm,
   onOpenOptions,
+  onStoryTap,
+  onQuickReply,
 }: SwipeableDmConversationRowProps) {
   const isMobile = useIsMobile();
   const listMotionEnabled = shouldUseListMotion();
@@ -225,6 +229,12 @@ export const SwipeableDmConversationRow = memo(function SwipeableDmConversationR
       isTyping={isTyping}
       presenceActivity={presenceActivity}
       isSwiping={isSwiping}
+      onStoryTap={onStoryTap}
+      onQuickReply={
+        onQuickReply && preview
+          ? () => onQuickReply(preview.conversationId)
+          : undefined
+      }
     />
   );
 

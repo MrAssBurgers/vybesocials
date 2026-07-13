@@ -1,11 +1,12 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
 import { useAuth } from '@/lib/auth';
 import { useAuthProfileId } from '@/hooks/useAuthProfileId';
 import { useDMConversations } from '@/hooks/useDMConversations';
 import { useConversationTyping } from '@/hooks/useConversationTyping';
 import { useConversationListPresence } from '@/hooks/useConversationListPresence';
-import { useInboxCallConversationIds } from '@/hooks/useInboxCallConversationIds';
+import { useInboxCallSummaries } from '@/hooks/useInboxCallSummaries';
+import { useQuickAddSuggestions } from '@/hooks/useQuickAddSuggestions';
 import { useLockedChatIds } from '@/hooks/useLockedChats';
 import { useMessageRequests, usePendingRequestCount } from '@/hooks/useMessageRequests';
 import { useRecentNewFriendProfileIds } from '@/hooks/useRecentNewFriendProfileIds';
@@ -34,7 +35,9 @@ import {
 } from '@/lib/dmInboxShadowCompare';
 import { conversationNeedsReply } from '@/lib/dmNeedsReply';
 import { projectionToLoadedConversation } from '@/lib/dmInboxProjection';
-import { isDmInboxProjectionReadEnabled, isRelationshipEmojiUiEnabled, isRelationshipProjectionReadEnabled } from '@/lib/dmInboxFeatureFlags';
+import { isDmInboxCategoryBarEnabled, isDmInboxProjectionReadEnabled, isRelationshipEmojiUiEnabled, isRelationshipProjectionReadEnabled } from '@/lib/dmInboxFeatureFlags';
+import { useInboxCategories } from './inbox/useInboxCategories';
+import { useFilteredConversations } from './inbox/useFilteredConversations';
 import { pickPrimaryInboxEmoji, resolveStreakDisplay } from '@/lib/relationship/relationshipEmojiMap';
 import { useRelationshipEmojiPreferences } from '@/hooks/useRelationshipEmojiPreferences';
 import { writeStoredInboxFilter } from '@/lib/dmInboxFilterPersistence';
@@ -129,10 +132,20 @@ export function useDMInbox() {
   const profileId = useAuthProfileId();
   const [profileResolveTimedOut, setProfileResolveTimedOut] = useState(false);
   const redesignEnabled = false;
+  const categoryBarEnabled = isDmInboxCategoryBarEnabled(profileId, user?.id);
+  const inboxCategories = useInboxCategories();
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTab, setActiveTabState] = useState<DmInboxTabId>(() => initialTab(false));
   const { data: lockedIdsRaw } = useLockedChatIds();
-  const { data: callConversationIdsRaw } = useInboxCallConversationIds();
+  const { data: callSummariesRaw } = useInboxCallSummaries();
+  const callSummaries = useMemo(
+    () => callSummariesRaw ?? new Map(),
+    [callSummariesRaw],
+  );
+  const callConversationIds = useMemo(
+    () => new Set(callSummaries.keys()),
+    [callSummaries],
+  );
   const { data: pendingRequestsRaw, isLoading: requestsLoading } = useMessageRequests();
   const { data: pendingRequestCount = 0 } = usePendingRequestCount();
   const { data: recentNewFriendIdsRaw } = useRecentNewFriendProfileIds();
@@ -157,11 +170,11 @@ export function useDMInbox() {
   });
   const projection = useDmInboxProjection(profileId);
 
-  const lockedIds = useMemo(() => ensureStringSet(lockedIdsRaw), [lockedIdsRaw]);
-  const callConversationIds = useMemo(
-    () => ensureStringSet(callConversationIdsRaw),
-    [callConversationIdsRaw],
+  const { suggestions: quickAddSuggestions } = useQuickAddSuggestions(
+    categoryBarEnabled ? 8 : 0,
   );
+  const suggestionCount = categoryBarEnabled ? (quickAddSuggestions?.length ?? 0) : 0;
+  const lockedIds = useMemo(() => ensureStringSet(lockedIdsRaw), [lockedIdsRaw]);
   const pendingRequests = useMemo(
     () => ensureArray<import('@/hooks/useMessageRequests').MessageRequest>(pendingRequestsRaw),
     [pendingRequestsRaw],
@@ -205,6 +218,28 @@ export function useDMInbox() {
     }
     return ids;
   }, [projection.entries, relationshipProjectionRead]);
+
+  const bestFriendRankByProfileId = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const entry of projection.entries) {
+      if (
+        entry.other_profile_id &&
+        entry.best_friend_rank != null &&
+        entry.best_friend_rank >= 1
+      ) {
+        map.set(entry.other_profile_id, entry.best_friend_rank);
+      }
+    }
+    return map;
+  }, [projection.entries]);
+
+  const projectionStreakStateByConversationId = useMemo(() => {
+    const map = new Map<string, (typeof projection.entries)[number]['streak_state']>();
+    for (const entry of projection.entries) {
+      if (entry.streak_state) map.set(entry.conversation_id, entry.streak_state);
+    }
+    return map;
+  }, [projection.entries]);
 
   const allConversations = useMemo(() => {
     const legacy = [
@@ -330,7 +365,24 @@ export function useDMInbox() {
     return ids;
   }, [allConversations, presenceMap, resolveOtherProfileId]);
 
-  const filteredConversations = useMemo(
+  const categoryFilter = useFilteredConversations({
+    conversations: allConversations,
+    profileId,
+    storyStateByProfileId,
+    streakMap,
+    callSummaries,
+    nearbyProfileIds,
+    closeFriendIds,
+    rankedBestFriendIds: relationshipProjectionRead ? rankedBestFriendIds : new Set<string>(),
+    bestFriendRankByProfileId,
+    projectionStreakStateByConversationId,
+    resolveOtherProfileId,
+    category: categoryBarEnabled ? inboxCategories.activeCategory : null,
+    pendingRequestCount,
+    suggestionCount,
+  });
+
+  const legacyFilteredConversations = useMemo(
     () =>
       filterConversationsForTab(allConversations, activeTab, {
         profileId,
@@ -356,6 +408,10 @@ export function useDMInbox() {
       presenceOnlineIds,
     ],
   );
+
+  const filteredConversations = categoryBarEnabled
+    ? categoryFilter.filtered.map((entry) => entry.conversation)
+    : legacyFilteredConversations;
 
   const toPreview = useMemo(() => {
     return (conversation: (typeof allConversations)[number]): DMConversationPreview => {
@@ -563,7 +619,38 @@ export function useDMInbox() {
     emojiPrefs,
   ]);
 
+  const categoryEntryById = useMemo(() => {
+    if (!categoryBarEnabled) return new Map();
+    return new Map(categoryFilter.filtered.map((entry) => [entry.conversationId, entry]));
+  }, [categoryBarEnabled, categoryFilter.filtered]);
+
+  const enrichPreview = useCallback(
+    (conversation: (typeof allConversations)[number], base: DMConversationPreview): DMConversationPreview => {
+      const entry = categoryEntryById.get(conversation.id);
+      if (!entry) return base;
+      const active = inboxCategories.activeCategory;
+      return {
+        ...base,
+        categoryMatch: entry.categoryMatch,
+        categoryRank: entry.categoryRank,
+        isCategoryDimmed: Boolean(active && active !== 'all' && !entry.categoryMatch),
+        callSummary: entry.callSummary,
+        streakUrgency: entry.streakUrgency,
+        showQuickReply: active === 'needs-reply' && entry.needsReply,
+        showCallback: active === 'calls' && entry.hasRecentCall,
+      };
+    },
+    [categoryEntryById, inboxCategories.activeCategory],
+  );
+
   const rows = useMemo<DMInboxRow[]>(() => {
+    if (categoryBarEnabled) {
+      return filteredConversations.map((conversation) => ({
+        type: 'conversation' as const,
+        preview: enrichPreview(conversation, toPreview(conversation)),
+      }));
+    }
+
     if (activeTab === 'requests') {
       return pendingRequests.map((request) => ({
         type: 'request' as const,
@@ -593,10 +680,12 @@ export function useDMInbox() {
       preview: toPreview(conversation),
     }));
   }, [
+    categoryBarEnabled,
     activeTab,
     pendingRequests,
     filteredConversations,
     toPreview,
+    enrichPreview,
     nearby.peers,
     resolveOtherProfileId,
   ]);
@@ -638,7 +727,7 @@ export function useDMInbox() {
     }
   };
 
-  const unreadBadgeCount = useMemo(() => {
+  const legacyUnreadBadgeCount = useMemo(() => {
     let count = 0;
     for (const conversation of allConversations) {
       if ((conversation.unread_count || 0) > 0 || conversation._hasUnread) {
@@ -656,7 +745,11 @@ export function useDMInbox() {
     return count;
   }, [allConversations, callConversationIds]);
 
-  const bestFriendCount = useMemo(() => {
+  const unreadBadgeCount = categoryBarEnabled
+    ? categoryFilter.counts.unread
+    : legacyUnreadBadgeCount;
+
+  const legacyBestFriendCount = useMemo(() => {
     if (relationshipProjectionRead && rankedBestFriendIds.size) {
       return rankedBestFriendIds.size;
     }
@@ -673,6 +766,10 @@ export function useDMInbox() {
     rankedBestFriendIds,
   ]);
 
+  const bestFriendCount = categoryBarEnabled
+    ? (categoryFilter.counts.bestFriends ?? 0)
+    : legacyBestFriendCount;
+
   const totalUnreadCount = useMemo(() => {
     return allConversations.reduce((sum, conversation) => {
       if ((conversation.unread_count || 0) > 0) return sum + (conversation.unread_count || 0);
@@ -681,16 +778,23 @@ export function useDMInbox() {
     }, 0);
   }, [allConversations]);
 
-  const needsReplyCount = useMemo(() => {
-    return allConversations.filter((conversation) =>
-      conversationNeedsReply(conversation, profileId),
-    ).length;
-  }, [allConversations, profileId]);
+  const legacyNeedsReplyCount = useMemo(
+    () =>
+      allConversations.filter((conversation) =>
+        conversationNeedsReply(conversation, profileId),
+      ).length,
+    [allConversations, profileId],
+  );
+
+  const needsReplyCount = categoryBarEnabled
+    ? (categoryFilter.counts.needsReply ?? 0)
+    : legacyNeedsReplyCount;
 
   const showSkeleton =
     (query.isLoading && allConversations.length === 0) ||
-    (activeTab === 'best_friends' && closeFriendsLoading && !closeFriendsFetched) ||
-    (activeTab === 'requests' && requestsLoading && pendingRequests.length === 0);
+    (!categoryBarEnabled &&
+      ((activeTab === 'best_friends' && closeFriendsLoading && !closeFriendsFetched) ||
+        (activeTab === 'requests' && requestsLoading && pendingRequests.length === 0)));
 
   const awaitingProfileId = Boolean(user?.id && authReady && !profileId);
 
@@ -728,6 +832,13 @@ export function useDMInbox() {
     nearbyStatus: nearby.status,
     nearbyRetry: nearby.retry,
     redesignEnabled,
+    categoryBarEnabled,
+    activeCategory: inboxCategories.activeCategory,
+    setActiveCategory: inboxCategories.setActiveCategory,
+    registerCategoryChipRef: inboxCategories.registerChipRef,
+    categoryBadges: categoryFilter.counts,
+    categoryMatchCount: categoryFilter.matchCount,
+    pendingRequests,
     projectionEntries: projection.entries,
     projectionEnabled: projection.enabled,
     projectionReadEnabled: projection.projectionReadEnabled,

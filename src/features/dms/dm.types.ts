@@ -15,6 +15,27 @@ export type DmInboxFilterId =
   | 'pinned'
   | 'active';
 
+/** Snapchat-style category chips (kebab-case IDs). */
+export type InboxCategory =
+  | 'all'
+  | 'unread'
+  | 'needs-reply'
+  | 'nearby'
+  | 'groups'
+  | 'stories'
+  | 'calls'
+  | 'best-friends'
+  | 'streaks'
+  | 'new';
+
+export type InboxStreakUrgency = 'active' | 'warning' | 'expired';
+
+export interface InboxCallSummary {
+  callType: string;
+  status: string;
+  at: string;
+}
+
 /** @deprecated Prefer DmInboxFilterId — kept for rollback / legacy tabs. */
 export type DmInboxTabId =
   | DmInboxFilterId
@@ -111,6 +132,14 @@ export interface DMConversationPreview {
   quickReaction?: string;
   /** True when preview was sourced from dm_inbox_entries projection. */
   fromProjection?: boolean;
+  /** Soft-filter category presentation */
+  categoryMatch?: boolean;
+  categoryRank?: number;
+  callSummary?: InboxCallSummary;
+  streakUrgency?: InboxStreakUrgency;
+  showQuickReply?: boolean;
+  showCallback?: boolean;
+  isCategoryDimmed?: boolean;
 }
 
 export type DMInboxRow =
@@ -125,6 +154,11 @@ export interface DMInboxBadges {
   needsReply?: number;
   bestFriends?: number;
   nearby?: number;
+  groups?: number;
+  stories?: number;
+  calls?: number;
+  streaks?: number;
+  new?: number;
 }
 
 export interface DmInboxShadowDiff {

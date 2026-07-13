@@ -3,6 +3,7 @@ import {
   Camera,
   Heart,
   Moon,
+  Phone,
   Sparkles,
   Users,
   Zap,
@@ -24,6 +25,7 @@ import {
   useCameraOverlayOptional,
 } from '@/contexts/CameraOverlayContext';
 import { cn } from '@/lib/utils';
+import { useCallStore } from '@/lib/callStore';
 import type { DMConversationPreview } from './dm.types';
 
 export interface DMConversationRowProps {
@@ -36,6 +38,8 @@ export interface DMConversationRowProps {
   isTyping?: boolean;
   presenceActivity?: ActivityType;
   isSwiping?: boolean;
+  onStoryTap?: (profileId: string) => void;
+  onQuickReply?: () => void;
 }
 
 function ringToneForId(id: string): 0 | 1 | 2 | 3 {
@@ -56,9 +60,12 @@ export const DMConversationRow = memo(function DMConversationRow({
   isTyping = false,
   presenceActivity,
   isSwiping = false,
+  onStoryTap,
+  onQuickReply,
 }: DMConversationRowProps) {
   const navigate = useNavigate();
   const cameraOverlay = useCameraOverlayOptional();
+  const callStore = useCallStore();
 
   const resolved = conversation.is_group
     ? null
@@ -103,6 +110,9 @@ export const DMConversationRow = memo(function DMConversationRow({
   const relationshipEmoji = preview?.relationshipEmoji;
   const quickReaction = preview?.quickReaction;
   const isVerified = preview?.isVerified;
+  const isCategoryDimmed = preview?.isCategoryDimmed;
+  const showQuickReply = preview?.showQuickReply;
+  const showCallback = preview?.showCallback;
   const ringTone = useMemo(() => ringToneForId(conversation.id), [conversation.id]);
 
   const stopRowGesture = (event: React.SyntheticEvent) => {
@@ -112,8 +122,38 @@ export const DMConversationRow = memo(function DMConversationRow({
 
   const openProfile = (event: React.SyntheticEvent) => {
     stopRowGesture(event);
+    if (storyState !== 'none' && otherProfileId && onStoryTap) {
+      onStoryTap(otherProfileId);
+      return;
+    }
     if (username) openFriendProfile(navigate, { username, friendshipStatus: 'friends' });
   };
+
+  const startCallback = useCallback(
+    (event: React.SyntheticEvent) => {
+      stopRowGesture(event);
+      if (!otherProfileId || callStore.state.phase !== 'idle') return;
+      const callType =
+        preview?.callSummary?.callType === 'video' ? 'video' : 'audio';
+      void callStore.startCall({
+        callType,
+        conversationId: conversation.id,
+        receiverId: otherProfileId,
+        receiverUsername: username,
+        receiverDisplayName: displayName,
+        receiverAvatarUrl: avatarUrl,
+      });
+    },
+    [
+      otherProfileId,
+      callStore,
+      preview?.callSummary?.callType,
+      conversation.id,
+      username,
+      displayName,
+      avatarUrl,
+    ],
+  );
 
   const launchSnapCamera = useCallback(
     (mode: 'photo' | 'video' | 'default' = 'default') => {
@@ -148,6 +188,7 @@ export const DMConversationRow = memo(function DMConversationRow({
         isActive && 'dm-inbox-card--active',
         unread && 'dm-inbox-card--unread',
         isSwiping && 'dm-inbox-card--swiping',
+        isCategoryDimmed && 'dm-inbox-card--category-dim',
       )}
     >
       <button
@@ -158,8 +199,14 @@ export const DMConversationRow = memo(function DMConversationRow({
           storyState === 'viewed' && 'dm-inbox-avatar-button--story-viewed',
         )}
         onClick={openProfile}
-        aria-label={username ? `Open ${displayName}'s profile` : displayName}
-        disabled={!username}
+        aria-label={
+          storyState !== 'none' && onStoryTap
+            ? `View ${displayName}'s story`
+            : username
+              ? `Open ${displayName}'s profile`
+              : displayName
+        }
+        disabled={!username && !(storyState !== 'none' && onStoryTap)}
       >
         <span
           className={cn(
@@ -245,6 +292,28 @@ export const DMConversationRow = memo(function DMConversationRow({
       </div>
 
       <div className="dm-inbox-row-trail">
+        {showQuickReply && onQuickReply ? (
+          <button
+            type="button"
+            className="dm-inbox-quick-action dm-vfx-press"
+            onClick={(event) => {
+              stopRowGesture(event);
+              onQuickReply();
+            }}
+          >
+            Reply
+          </button>
+        ) : null}
+        {showCallback && otherProfileId ? (
+          <button
+            type="button"
+            className="dm-inbox-quick-action dm-vfx-press"
+            onClick={startCallback}
+            aria-label={`Call back ${displayName}`}
+          >
+            <Phone className="h-4 w-4" />
+          </button>
+        ) : null}
         {quickReaction ? (
           <span className="dm-inbox-quick-reaction" aria-hidden>
             {quickReaction}

@@ -16,6 +16,8 @@ import {
   Phone,
   Pin,
   PinOff,
+  Lock,
+  Unlock,
   QrCode,
   Share2,
   Trash2,
@@ -87,6 +89,7 @@ interface ConversationOptionsSheetProps {
   isMuted?: boolean;
   isPinned?: boolean;
   isUnread?: boolean;
+  isLocked?: boolean;
   isGroup?: boolean;
   isOnline?: boolean;
   relationshipLabel?: string;
@@ -230,6 +233,7 @@ export function ConversationOptionsSheet({
   isMuted = false,
   isPinned = false,
   isUnread = false,
+  isLocked = false,
   isGroup = false,
   isOnline = false,
   relationshipLabel = 'Friends',
@@ -238,6 +242,7 @@ export function ConversationOptionsSheet({
   onArchive,
   onTogglePin,
   onToggleMute,
+  onToggleLock,
 }: ConversationOptionsSheetProps) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -476,6 +481,17 @@ export function ConversationOptionsSheet({
                   close();
                 }}
               />
+              {onToggleLock && (
+                <ActionRow
+                  icon={isLocked ? Unlock : Lock}
+                  label={isLocked ? 'Unlock Chat' : 'Lock Chat'}
+                  trailing="none"
+                  onClick={() => {
+                    onToggleLock();
+                    close();
+                  }}
+                />
+              )}
               <ActionRow
                 icon={Bell}
                 label="Notification Settings"

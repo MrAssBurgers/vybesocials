@@ -1,17 +1,22 @@
-import { useEffect, useRef, useState, type UIEvent } from 'react';
+import { useCallback, useEffect, useRef, useState, type UIEvent } from 'react';
 import { MessageCircle, RefreshCw, UserPlus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { SwipeableDmConversationRow } from '@/components/chat/dm-inbox/SwipeableDmConversationRow';
 import { HeldConversationOptionsSheet } from '@/components/chat/dm-inbox/HeldConversationOptionsSheet';
 import { useHeldConversationOptions } from '@/hooks/useHeldConversationOptions';
 import { useDmInboxVirtualSlice } from '@/hooks/useDmInboxVirtualSlice';
-import type { DMInboxRow, DmInboxTabId } from './dm.types';
+import { useStories } from '@/hooks/useStories';
+import { StoryViewer } from '@/components/stories/StoryViewer';
+import type { DMInboxRow, DmInboxTabId, InboxCategory } from './dm.types';
 import type { LoadedDMConversation } from '@/lib/loadDMConversations';
 import type { NearbyFriendStatus } from '@/hooks/useNearbyFriendLink';
+import type { MessageRequest } from '@/hooks/useMessageRequests';
 import {
   readFilterScroll,
   writeFilterScroll,
 } from '@/lib/dmInboxFilterPersistence';
+import { INBOX_CATEGORY_EMPTY } from './inbox/inboxCategoryModel';
+import { NewConnectionsSection } from './inbox/NewConnectionsSection';
 import type { DmInboxFilterId } from './dm.types';
 import { DMComposeButton } from './DMComposeButton';
 import { DMInboxSkeleton } from './DMInboxSkeleton';
@@ -24,6 +29,10 @@ interface DMConversationListProps {
   authUid?: string;
   activeConversationId?: string;
   activeTab?: DmInboxTabId;
+  activeCategory?: InboxCategory | null;
+  categoryMatchCount?: number;
+  categoryBarEnabled?: boolean;
+  pendingRequests?: MessageRequest[];
   showSkeleton: boolean;
   searchQuery: string;
   hasError: boolean;
@@ -124,6 +133,10 @@ export function DMConversationList({
   authUid,
   activeConversationId,
   activeTab,
+  activeCategory = null,
+  categoryMatchCount = 0,
+  categoryBarEnabled = false,
+  pendingRequests = [],
   showSkeleton,
   searchQuery,
   hasError,
@@ -138,6 +151,15 @@ export function DMConversationList({
   const listRef = useRef<HTMLDivElement>(null);
   const lastScrollTop = useRef(0);
   const [composeHidden, setComposeHidden] = useState(false);
+  const [storyViewerIndex, setStoryViewerIndex] = useState<number | null>(null);
+  const { data: storyGroups = [] } = useStories();
+  const openStoryForUser = useCallback(
+    (userId: string) => {
+      const idx = storyGroups.findIndex((group) => group.user?.id === userId);
+      if (idx >= 0) setStoryViewerIndex(idx);
+    },
+    [storyGroups],
+  );
   const { visible, paddingTop, paddingBottom, onScroll, virtualized } =
     useDmInboxVirtualSlice(rows);
   const renderRows = virtualized ? visible : rows;
@@ -150,7 +172,15 @@ export function DMConversationList({
   const empty = emptyCopy(activeTab, searchQuery, hasError, nearbyStatus);
   const nearbyBusy = nearbyStatus === 'locating' || nearbyStatus === 'searching';
   const filterId = asFilterId(activeTab);
-  const scrollKey = activeTab || filterId;
+  const scrollKey = categoryBarEnabled
+    ? (activeCategory ?? 'all')
+    : activeTab || filterId;
+  const categoryEmpty =
+    categoryBarEnabled && activeCategory && activeCategory !== 'all'
+      ? INBOX_CATEGORY_EMPTY[activeCategory]
+      : null;
+  const showCategoryEmptyBanner =
+    Boolean(categoryEmpty) && categoryMatchCount === 0 && rows.length > 0;
 
   useEffect(() => {
     const el = listRef.current;
@@ -186,8 +216,21 @@ export function DMConversationList({
         >
         {showSkeleton || (activeTab === 'nearby' && nearbyBusy && rows.length === 0) ? (
           <DMInboxSkeleton />
-        ) : rows.length > 0 ? (
+        ) : rows.length > 0 || (categoryBarEnabled && activeCategory === 'new') ? (
           <div className="dm-inbox-rows" style={{ paddingTop, paddingBottom }}>
+            {categoryBarEnabled && activeCategory === 'new' && (
+              <NewConnectionsSection
+                pendingRequests={pendingRequests}
+                profileId={profileId}
+                onOpenConversation={(id) => onOpen(id)}
+              />
+            )}
+            {showCategoryEmptyBanner && categoryEmpty && (
+              <div className="dm-inbox-category-empty-banner" role="status">
+                <h2>{categoryEmpty.title}</h2>
+                <p>{categoryEmpty.body}</p>
+              </div>
+            )}
             {renderRows.map((row) => {
               // Section headers removed — continuous list only.
               if (row.type === 'header') return null;
@@ -218,6 +261,8 @@ export function DMConversationList({
                   onClick={() => onOpen(row.preview.id, row.preview.conversation)}
                   onWarm={() => onWarm(row.preview.id, row.preview.conversation)}
                   onOpenOptions={openConversationOptions}
+                  onStoryTap={categoryBarEnabled ? openStoryForUser : undefined}
+                  onQuickReply={categoryBarEnabled ? (id) => onOpen(id, row.preview.conversation) : undefined}
                 />
               );
             })}
@@ -261,6 +306,13 @@ export function DMConversationList({
         preview={held.preview}
         onOpenChange={setOptionsOpen}
       />
+      {storyViewerIndex != null && storyGroups.length > 0 && (
+        <StoryViewer
+          groups={storyGroups}
+          initialGroupIndex={storyViewerIndex}
+          onClose={() => setStoryViewerIndex(null)}
+        />
+      )}
     </>
   );
 }

@@ -5,6 +5,12 @@ import { useAuthProfileId } from '@/hooks/useAuthProfileId';
 import { useAuth } from '@/lib/auth';
 import { toast } from 'sonner';
 import { invalidateConversationCaches } from '@/lib/invalidateConversationCaches';
+import {
+  patchDmConversationInCache,
+  patchDmMemberInCache,
+  patchLockedChatsCache,
+  removeDmConversationFromCache,
+} from '@/lib/dmInboxCachePatch';
 import { useHideConversation } from '@/hooks/useHiddenConversations';
 import { useLockConversation, useUnlockConversation } from '@/hooks/useLockedChats';
 import { useMarkConversationRead } from '@/hooks/useDMConversations';
@@ -31,9 +37,16 @@ export function useDmInboxActions(conversation: LoadedDMConversation) {
         .eq('id', memberDocId);
       if (error) throw error;
     },
+    onMutate: async (pin) => {
+      if (!profileId) return;
+      patchDmMemberInCache(qc, profileId, conversation.id, { is_pinned: pin });
+    },
     onSuccess: (_, pin) => {
-      invalidateConversationCaches(qc);
       toast.success(pin ? 'Pinned' : 'Unpinned');
+    },
+    onError: () => {
+      if (profileId) invalidateConversationCaches(qc, profileId);
+      toast.error('Could not update pin');
     },
   });
 
@@ -46,9 +59,16 @@ export function useDmInboxActions(conversation: LoadedDMConversation) {
         .eq('id', memberDocId);
       if (error) throw error;
     },
+    onMutate: async (mute) => {
+      if (!profileId) return;
+      patchDmMemberInCache(qc, profileId, conversation.id, { is_muted: mute });
+    },
     onSuccess: (_, mute) => {
-      invalidateConversationCaches(qc);
       toast.success(mute ? 'Muted' : 'Unmuted');
+    },
+    onError: () => {
+      if (profileId) invalidateConversationCaches(qc, profileId);
+      toast.error('Could not update mute');
     },
   });
 
@@ -63,9 +83,19 @@ export function useDmInboxActions(conversation: LoadedDMConversation) {
         .eq('id', memberDocId);
       if (error) throw error;
     },
+    onMutate: async () => {
+      if (!profileId) return;
+      patchDmConversationInCache(qc, profileId, conversation.id, {
+        unread_count: Math.max(1, conversation.unread_count || 1),
+        _hasUnread: true,
+      });
+    },
     onSuccess: () => {
-      invalidateConversationCaches(qc);
       toast.success('Marked unread');
+    },
+    onError: () => {
+      if (profileId) invalidateConversationCaches(qc, profileId);
+      toast.error('Could not mark unread');
     },
   });
 
@@ -74,7 +104,15 @@ export function useDmInboxActions(conversation: LoadedDMConversation) {
       if (!profileId) throw new Error('Not signed in');
       await hideConversation.mutateAsync(conversation.id);
     },
+    onMutate: async () => {
+      if (!profileId) return;
+      removeDmConversationFromCache(qc, profileId, conversation.id);
+    },
     onSuccess: () => toast.success('Archived'),
+    onError: () => {
+      if (profileId) invalidateConversationCaches(qc, profileId);
+      toast.error('Could not archive');
+    },
   });
 
   const toggleLock = useMutation({
@@ -82,12 +120,35 @@ export function useDmInboxActions(conversation: LoadedDMConversation) {
       if (lock) await lockConversation.mutateAsync(conversation.id);
       else await unlockConversation.mutateAsync(conversation.id);
     },
+    onMutate: async (lock) => {
+      if (!profileId) return;
+      patchLockedChatsCache(qc, profileId, conversation.id, lock);
+      if (lock) removeDmConversationFromCache(qc, profileId, conversation.id);
+    },
     onSuccess: (_, lock) => toast.success(lock ? 'Chat locked' : 'Chat unlocked'),
+    onError: () => {
+      if (profileId) {
+        invalidateConversationCaches(qc, profileId);
+        qc.invalidateQueries({ queryKey: ['locked-chats', profileId] });
+      }
+      toast.error('Could not update lock');
+    },
   });
 
   const markRead = useMutation({
     mutationFn: async () => {
       await markConversationRead.mutateAsync(conversation.id);
+    },
+    onMutate: async () => {
+      if (!profileId) return;
+      patchDmConversationInCache(qc, profileId, conversation.id, {
+        unread_count: 0,
+        _hasUnread: false,
+      });
+    },
+    onError: () => {
+      if (profileId) invalidateConversationCaches(qc, profileId);
+      toast.error('Could not mark read');
     },
   });
 

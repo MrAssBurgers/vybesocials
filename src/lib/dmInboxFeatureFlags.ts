@@ -17,6 +17,7 @@ export type DmInboxFlag =
   | 'dm_inbox_projection_read'
   | 'dm_inbox_projection_shadow'
   | 'dm_inbox_redesign_ui'
+  | 'dm_inbox_category_bar'
   | 'dm_inbox_legacy_fallback'
   | 'relationship_engine_write'
   | 'relationship_projection_read'
@@ -28,6 +29,7 @@ const DEFAULTS: Record<DmInboxFlag, boolean> = {
   dm_inbox_projection_read: false,
   dm_inbox_projection_shadow: true,
   dm_inbox_redesign_ui: false,
+  dm_inbox_category_bar: true,
   dm_inbox_legacy_fallback: true,
   relationship_engine_write: false,
   relationship_projection_read: false,
@@ -206,6 +208,18 @@ export function isDmInboxProjectionReadEnabled(
  * Redesign UI: requires projection read, then explicit override / percentage /
  * redesign_internal_ids. Internal projection allowlist alone does NOT flip UI.
  */
+/** Snapchat-style category bar + soft-dim inbox filters. */
+export function isDmInboxCategoryBarEnabled(
+  _profileId?: string | null,
+  _authUid?: string | null,
+): boolean {
+  const stored = readStorage('dm_inbox_category_bar');
+  if (stored != null) return stored;
+  const fromEnv = envFlag('dm_inbox_category_bar');
+  if (fromEnv != null) return fromEnv;
+  return DEFAULTS.dm_inbox_category_bar;
+}
+
 export function isDmInboxRedesignUiEnabled(
   profileId?: string | null,
   authUid?: string | null,
