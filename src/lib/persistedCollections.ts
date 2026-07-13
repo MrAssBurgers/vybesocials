@@ -48,6 +48,7 @@ const PERSISTED_SET_KEY_FRAGMENTS = [
 /** Query keys whose cached `data` must be a Map after persistence restore. */
 const PERSISTED_MAP_KEY_FRAGMENTS = [
   'user-statuses-batch',
+  'inbox-call-summaries',
 ];
 
 /** Root query-key segments that must deserialize as arrays after persistence restore. */

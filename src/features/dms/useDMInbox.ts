@@ -45,7 +45,7 @@ import { useRelationshipEmojiPreferences } from '@/hooks/useRelationshipEmojiPre
 import { writeStoredInboxFilter } from '@/lib/dmInboxFilterPersistence';
 import type { LoadedDMConversation } from '@/lib/loadDMConversations';
 import type { ActivityType } from '@/components/chat/LiveActivityIndicator';
-import type { DMConversationPreview, DMInboxRow, DMStoryState, DmInboxFilterId, DmInboxTabId } from './dm.types';
+import type { DMConversationPreview, DMInboxRow, DMStoryState, DmInboxFilterId, DmInboxTabId, InboxCallSummary } from './dm.types';
 
 const TAB_STORAGE_KEY = 'vybe-dm-inbox-tab';
 
@@ -155,7 +155,7 @@ export function useDMInbox() {
   const { data: lockedIdsRaw } = useLockedChatIds();
   const { data: callSummariesRaw } = useInboxCallSummaries();
   const callSummaries = useMemo(
-    () => callSummariesRaw ?? new Map(),
+    () => normalizePersistedMap<InboxCallSummary>(callSummariesRaw),
     [callSummariesRaw],
   );
   const callConversationIds = useMemo(

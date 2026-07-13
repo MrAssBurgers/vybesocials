@@ -1,7 +1,7 @@
 import type { LoadedDMConversation } from '@/lib/loadDMConversations';
 import type { DMConversationPreview, DmInboxFilterId } from '@/features/dms/dm.types';
 import { conversationNeedsReply } from '@/lib/dmNeedsReply';
-import { safeDmMembers, ensureArray } from '@/lib/persistedCollections';
+import { safeDmMembers, ensureArray, ensureStringSet, safeSetHas } from '@/lib/persistedCollections';
 
 /** @deprecated Section headers removed in redesign — kept for type compatibility. */
 export type DmInboxSectionId =
@@ -130,10 +130,10 @@ function sortActive(
   return [...rows].sort((a, b) => {
     const aOther = options.resolveOtherProfileId?.(a);
     const bOther = options.resolveOtherProfileId?.(b);
-    const aOnline = aOther && presenceOnlineIds?.has(aOther) ? 2 : 0;
-    const bOnline = bOther && presenceOnlineIds?.has(bOther) ? 2 : 0;
-    const aRecent = aOther && recentlyActiveIds?.has(aOther) ? 1 : 0;
-    const bRecent = bOther && recentlyActiveIds?.has(bOther) ? 1 : 0;
+    const aOnline = aOther && safeSetHas(presenceOnlineIds, aOther) ? 2 : 0;
+    const bOnline = bOther && safeSetHas(presenceOnlineIds, bOther) ? 2 : 0;
+    const aRecent = aOther && safeSetHas(recentlyActiveIds, aOther) ? 1 : 0;
+    const bRecent = bOther && safeSetHas(recentlyActiveIds, bOther) ? 1 : 0;
     const aScore = aOnline + aRecent;
     const bScore = bOnline + bRecent;
     if (aScore !== bScore) return bScore - aScore;
@@ -159,13 +159,18 @@ export function filterConversationsForTab(
         };
   const {
     profileId,
-    requestConversationIds: requestIds,
-    callConversationIds: callIds,
-    closeFriendIds,
-    rankedBestFriendIds,
-    nearbyProfileIds,
+    requestConversationIds: requestIdsRaw,
+    callConversationIds: callIdsRaw,
+    closeFriendIds: closeFriendIdsRaw,
+    rankedBestFriendIds: rankedBestFriendIdsRaw,
+    nearbyProfileIds: nearbyProfileIdsRaw,
     resolveOtherProfileId,
   } = options;
+  const requestIds = ensureStringSet(requestIdsRaw);
+  const callIds = ensureStringSet(callIdsRaw);
+  const closeFriendIds = ensureStringSet(closeFriendIdsRaw);
+  const rankedBestFriendIds = ensureStringSet(rankedBestFriendIdsRaw);
+  const nearbyProfileIds = ensureStringSet(nearbyProfileIdsRaw);
   const safe = ensureArray(rows);
 
   switch (tab) {
@@ -174,7 +179,7 @@ export function filterConversationsForTab(
     }
     case 'unread': {
       const unread = safe.filter(
-        (c) => (c.unread_count || 0) > 0 || c._hasUnread || Boolean(callIds?.has(c.id)),
+        (c) => (c.unread_count || 0) > 0 || c._hasUnread || safeSetHas(callIds, c.id),
       );
       if (unread.length) {
         return unread.sort((a, b) => compareInboxActivity(a, b, profileId));
@@ -221,11 +226,11 @@ export function filterConversationsForTab(
     // Legacy tabs (rollback / pre-redesign)
     case 'friends':
       return safe.filter(
-        (c) => !c.is_group && !(requestIds?.size && requestIds.has(c.id)),
+        (c) => !c.is_group && !(requestIds.size && requestIds.has(c.id)),
       );
     case 'best_friends': {
       const ranked = rankedBestFriendIds;
-      if (ranked?.size) {
+      if (ranked.size) {
         return safe
           .filter((c) => {
             if (c.is_group) return false;
@@ -241,7 +246,7 @@ export function filterConversationsForTab(
             return compareInboxActivity(a, b, profileId);
           });
       }
-      if (!closeFriendIds?.size) return [];
+      if (!closeFriendIds.size) return [];
       return safe.filter((c) => {
         if (c.is_group) return false;
         const otherId = resolveOtherProfileId?.(c);
@@ -249,14 +254,14 @@ export function filterConversationsForTab(
       });
     }
     case 'nearby':
-      if (!nearbyProfileIds?.size) return [];
+      if (!nearbyProfileIds.size) return [];
       return safe.filter((c) => {
         if (c.is_group) return false;
         const otherId = resolveOtherProfileId?.(c);
         return Boolean(otherId && nearbyProfileIds.has(otherId));
       });
     case 'requests':
-      if (!requestIds?.size) return [];
+      if (!requestIds.size) return [];
       return safe.filter((c) => requestIds.has(c.id));
     default:
       return [...safe].sort((a, b) => compareInboxActivity(a, b, profileId));

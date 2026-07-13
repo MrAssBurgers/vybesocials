@@ -2,6 +2,18 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## Challenge sync 500 + `t?.has` Messages crash (2026-07-13)
+
+- **syncMyChallengeProgress 500:** missing Firestore index `post_reactions(user_id ASC, created_at ASC)`. Added indexes (+ comments/posts/follows/challenges composites). `countActivity` now fail-softs on query errors so one missing index cannot INTERNAL the whole sync.
+- **incrementChallengeProgress 500:** Firestore transaction read-after-write (`tx.get(reward)` after `tx.set(progress)`). Fixed: read progress + reward first, then write.
+- **`t?.has is not a function`:** RQ-persisted Set/Map corpses — hardened inbox organize / index builders with `ensureStringSet`/`safeSetHas`/`normalizePersistedMap`; `recent-new-friend-ids` now persists as `string[]`; `inbox-call-summaries` Map revive; Quick Add uses `ensureStringSet`.
+- **Verified:** vitest related PASS · client build PASS · functions `tsc` PASS
+- **Deployed (`vybe-daaab`):** firestore indexes + `syncMyChallengeProgress` / `incrementChallengeProgress` + hosting → https://vybe-daaab.web.app
+- **Note:** new indexes can take minutes to build (Building → Enabled). Client `.has` fix is live on staging; production needs Lovable Publish after commit/push.
+- **Next:** Commit + push `main` when ready; Lovable Publish for vybehub.app; confirm index Enabled in Firebase console; hard-refresh staging Messages and confirm no RetroactiveSync / `.has` spam.
+
+---
+
 ## DM scroll black gaps + instant paint deep fix (2026-07-13)
 
 - **Cause:** Framer Motion GPU layers + `bg-background` row shells over transparent list → black slabs on fling; sibling `/messages` routes remounted tree; avatar/sign + scroll I/O amplified jank.

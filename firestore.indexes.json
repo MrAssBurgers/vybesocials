@@ -249,6 +249,38 @@
       "fields": [
         { "fieldPath": "viewer_id", "order": "ASCENDING" },
         { "fieldPath": "last_meaningful_interaction_at", "order": "ASCENDING" }
+      ] },
+    { "collectionGroup": "post_reactions", "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "user_id", "order": "ASCENDING" },
+        { "fieldPath": "created_at", "order": "ASCENDING" }
+      ] },
+    { "collectionGroup": "comments", "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "user_id", "order": "ASCENDING" },
+        { "fieldPath": "created_at", "order": "ASCENDING" }
+      ] },
+    { "collectionGroup": "posts", "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "author_id", "order": "ASCENDING" },
+        { "fieldPath": "created_at", "order": "ASCENDING" }
+      ] },
+    { "collectionGroup": "follows", "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "follower_id", "order": "ASCENDING" },
+        { "fieldPath": "created_at", "order": "ASCENDING" }
+      ] },
+    { "collectionGroup": "challenges", "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "type", "order": "ASCENDING" },
+        { "fieldPath": "is_active", "order": "ASCENDING" },
+        { "fieldPath": "active_date", "order": "ASCENDING" }
+      ] },
+    { "collectionGroup": "challenges", "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "type", "order": "ASCENDING" },
+        { "fieldPath": "is_active", "order": "ASCENDING" },
+        { "fieldPath": "active_week_start", "order": "ASCENDING" }
       ] }
   ],
   "fieldOverrides": []

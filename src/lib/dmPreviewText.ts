@@ -1,5 +1,6 @@
 import type { Message } from '@/hooks/useMessages';
 import { formatDmPreviewContent } from '@/lib/callChatMessages';
+import { safeSetHas } from '@/lib/persistedCollections';
 
 /** Profile ids from friend requests accepted in the last 30 days (either direction). */
 export function mergeRecentNewFriendIds(
@@ -23,8 +24,8 @@ export function shouldShowSayHiPreview(opts: {
 }): boolean {
   if (opts.lastMessage) return false;
   if (opts.isGroup) return false;
-  if (!opts.otherProfileId || !opts.recentNewFriendIds?.size) return false;
-  return opts.recentNewFriendIds.has(opts.otherProfileId);
+  if (!opts.otherProfileId || !opts.recentNewFriendIds) return false;
+  return safeSetHas(opts.recentNewFriendIds, opts.otherProfileId);
 }
 
 export function dmConversationPreviewText(opts: {

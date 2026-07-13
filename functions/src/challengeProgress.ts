@@ -35,81 +35,87 @@ async function countActivity(
   requirementType: string,
   sinceIso: string,
 ): Promise<number> {
-  switch (requirementType) {
-    case 'post':
-    case 'clip':
-    case 'story': {
-      const snap = await db.collection('posts')
-        .where('author_id', '==', profileId)
-        .where('created_at', '>=', sinceIso)
-        .limit(200)
-        .get();
-      return snap.docs.filter((d) => {
-        const row = d.data();
-        const postType = String(row.post_type || row.type || row.media_type || 'post');
-        if (requirementType === 'clip') {
-          return postType === 'short' || postType === 'video' || postType === 'clip';
+  try {
+    switch (requirementType) {
+      case 'post':
+      case 'clip':
+      case 'story': {
+        const snap = await db.collection('posts')
+          .where('author_id', '==', profileId)
+          .where('created_at', '>=', sinceIso)
+          .limit(200)
+          .get();
+        return snap.docs.filter((d) => {
+          const row = d.data();
+          const postType = String(row.post_type || row.type || row.media_type || 'post');
+          if (requirementType === 'clip') {
+            return postType === 'short' || postType === 'video' || postType === 'clip';
+          }
+          if (requirementType === 'story') return postType === 'story';
+          return postType !== 'story' && postType !== 'short' && postType !== 'video' && postType !== 'clip';
+        }).length;
+      }
+      case 'comment': {
+        const snap = await db.collection('comments')
+          .where('user_id', '==', profileId)
+          .where('created_at', '>=', sinceIso)
+          .limit(200)
+          .get();
+        return snap.size;
+      }
+      case 'like':
+      case 'react': {
+        const snap = await db.collection('post_reactions')
+          .where('user_id', '==', profileId)
+          .where('created_at', '>=', sinceIso)
+          .limit(200)
+          .get();
+        return snap.size;
+      }
+      case 'follow': {
+        const snap = await db.collection('follows')
+          .where('follower_id', '==', profileId)
+          .where('created_at', '>=', sinceIso)
+          .limit(200)
+          .get();
+        return snap.size;
+      }
+      case 'message':
+      case 'snap_sent':
+      case 'new_conversation': {
+        const snap = await db.collection('messages')
+          .where('sender_id', '==', profileId)
+          .where('created_at', '>=', sinceIso)
+          .limit(200)
+          .get();
+        return snap.size;
+      }
+      case 'daily_login':
+      case 'login': {
+        const today = isoDateOnly();
+        const byAuth = await db.collection('login_streaks').doc(authUid).get();
+        if (byAuth.exists) {
+          const last = byAuth.data()?.last_login_date
+            ? String(byAuth.data()!.last_login_date).slice(0, 10)
+            : null;
+          if (last === today) return 1;
         }
-        if (requirementType === 'story') return postType === 'story';
-        return postType !== 'story' && postType !== 'short' && postType !== 'video' && postType !== 'clip';
-      }).length;
-    }
-    case 'comment': {
-      const snap = await db.collection('comments')
-        .where('user_id', '==', profileId)
-        .where('created_at', '>=', sinceIso)
-        .limit(200)
-        .get();
-      return snap.size;
-    }
-    case 'like':
-    case 'react': {
-      const snap = await db.collection('post_reactions')
-        .where('user_id', '==', profileId)
-        .where('created_at', '>=', sinceIso)
-        .limit(200)
-        .get();
-      return snap.size;
-    }
-    case 'follow': {
-      const snap = await db.collection('follows')
-        .where('follower_id', '==', profileId)
-        .where('created_at', '>=', sinceIso)
-        .limit(200)
-        .get();
-      return snap.size;
-    }
-    case 'message':
-    case 'snap_sent':
-    case 'new_conversation': {
-      const snap = await db.collection('messages')
-        .where('sender_id', '==', profileId)
-        .where('created_at', '>=', sinceIso)
-        .limit(200)
-        .get();
-      return snap.size;
-    }
-    case 'daily_login':
-    case 'login': {
-      const today = isoDateOnly();
-      const byAuth = await db.collection('login_streaks').doc(authUid).get();
-      if (byAuth.exists) {
-        const last = byAuth.data()?.last_login_date
-          ? String(byAuth.data()!.last_login_date).slice(0, 10)
-          : null;
-        if (last === today) return 1;
+        const byProfile = await db.collection('login_streaks').doc(profileId).get();
+        if (byProfile.exists) {
+          const last = byProfile.data()?.last_login_date
+            ? String(byProfile.data()!.last_login_date).slice(0, 10)
+            : null;
+          if (last === today) return 1;
+        }
+        return 0;
       }
-      const byProfile = await db.collection('login_streaks').doc(profileId).get();
-      if (byProfile.exists) {
-        const last = byProfile.data()?.last_login_date
-          ? String(byProfile.data()!.last_login_date).slice(0, 10)
-          : null;
-        if (last === today) return 1;
-      }
-      return 0;
+      default:
+        return 0;
     }
-    default:
-      return 0;
+  } catch (err) {
+    // Missing composite indexes (or transient query errors) must not 500 the whole sync.
+    console.warn('[countActivity] failed', { requirementType, profileId, err });
+    return 0;
   }
 }
 
@@ -211,7 +217,10 @@ async function incrementOneChallenge(
   const progressRef = db.collection('challenge_progress').doc(progressId);
 
   return db.runTransaction(async (tx) => {
-    const snap = await tx.get(progressRef);
+    const rewardId = `${authUid}_${challengeId}`;
+    const rewardRef = db.collection('challenge_rewards').doc(rewardId);
+    // Firestore requires all reads before any writes in a transaction.
+    const [snap, rewardSnap] = await Promise.all([tx.get(progressRef), tx.get(rewardRef)]);
     const existing = snap.exists ? snap.data()! : null;
     if (existing?.is_completed) {
       return {
@@ -235,22 +244,17 @@ async function incrementOneChallenge(
       updated_at: now,
     }, { merge: true });
 
-    if (completed && !existing?.is_completed) {
-      const rewardId = `${authUid}_${challengeId}`;
-      const rewardRef = db.collection('challenge_rewards').doc(rewardId);
-      const rewardSnap = await tx.get(rewardRef);
-      if (!rewardSnap.exists) {
-        tx.set(rewardRef, {
-          id: rewardId,
-          user_id: authUid,
-          challenge_id: challengeId,
-          xp_amount: Number(challenge.reward_xp || 25),
-          badge_id: challenge.reward_badge_id || null,
-          is_claimed: false,
-          claimed_at: null,
-          created_at: now,
-        });
-      }
+    if (completed && !existing?.is_completed && !rewardSnap.exists) {
+      tx.set(rewardRef, {
+        id: rewardId,
+        user_id: authUid,
+        challenge_id: challengeId,
+        xp_amount: Number(challenge.reward_xp || 25),
+        badge_id: challenge.reward_badge_id || null,
+        is_claimed: false,
+        claimed_at: null,
+        created_at: now,
+      });
     }
 
     return { is_completed: completed, new_count: newCount, was_already_completed: false };

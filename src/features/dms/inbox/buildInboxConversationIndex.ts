@@ -4,7 +4,7 @@ import type { LoadedDMConversation } from '@/lib/loadDMConversations';
 import { conversationNeedsReply } from '@/lib/dmNeedsReply';
 import { isMutedForViewer, isNoiseLatest } from '@/lib/dmInboxOrganize';
 import { isStreakExpiringSoon } from '@/hooks/useStreaks';
-import { safeDmMembers } from '@/lib/persistedCollections';
+import { ensureStringSet, normalizePersistedMap, safeSetHas } from '@/lib/persistedCollections';
 import type { InboxRelationshipProjection } from '@/lib/relationship/relationshipTypes';
 
 export interface InboxConversationIndexEntry {
@@ -72,17 +72,21 @@ export function buildInboxConversationIndex(input: BuildInboxIndexInput): InboxC
   const {
     conversations,
     profileId,
-    storyStateByProfileId,
-    streakMap,
-    callSummaries,
-    nearbyProfileIds,
-    nearbyRankByProfileId,
-    closeFriendIds,
-    rankedBestFriendIds,
-    bestFriendRankByProfileId,
-    projectionStreakStateByConversationId,
     resolveOtherProfileId,
   } = input;
+
+  // Persisted RQ cache can turn Set/Map into plain objects — never call .has/.get raw.
+  const storyStateByProfileId = normalizePersistedMap<DMStoryState>(input.storyStateByProfileId);
+  const streakMap = normalizePersistedMap<Streak>(input.streakMap);
+  const callSummaries = normalizePersistedMap<InboxCallSummary>(input.callSummaries);
+  const nearbyProfileIds = ensureStringSet(input.nearbyProfileIds);
+  const nearbyRankByProfileId = normalizePersistedMap<number>(input.nearbyRankByProfileId);
+  const closeFriendIds = ensureStringSet(input.closeFriendIds);
+  const rankedBestFriendIds = ensureStringSet(input.rankedBestFriendIds);
+  const bestFriendRankByProfileId = normalizePersistedMap<number>(input.bestFriendRankByProfileId);
+  const projectionStreakStateByConversationId = normalizePersistedMap<
+    InboxRelationshipProjection['streak_state']
+  >(input.projectionStreakStateByConversationId);
 
   return conversations.map((conversation) => {
     const conversationId = conversation.id;
@@ -93,7 +97,7 @@ export function buildInboxConversationIndex(input: BuildInboxIndexInput): InboxC
       (otherProfileId && storyStateByProfileId.get(otherProfileId)) || 'none';
     const streak = otherProfileId ? streakMap.get(otherProfileId) : undefined;
     const streakCount = streak?.streak_count ?? 0;
-    const projectionStreak = projectionStreakStateByConversationId?.get(conversationId);
+    const projectionStreak = projectionStreakStateByConversationId.get(conversationId);
     const streakUrgency = resolveStreakUrgency(streak, projectionStreak);
     const callSummary = callSummaries.get(conversationId);
     const unreadCount = conversation.unread_count || 0;
@@ -103,12 +107,13 @@ export function buildInboxConversationIndex(input: BuildInboxIndexInput): InboxC
       !isMutedForViewer(conversation, profileId) &&
       !isNoiseLatest(conversation);
     const bestFriendRank =
-      otherProfileId && rankedBestFriendIds.has(otherProfileId)
-        ? bestFriendRankByProfileId?.get(otherProfileId)
+      otherProfileId && safeSetHas(rankedBestFriendIds, otherProfileId)
+        ? bestFriendRankByProfileId.get(otherProfileId)
         : undefined;
     const isCloseFriend = Boolean(
       otherProfileId &&
-        (closeFriendIds.has(otherProfileId) || rankedBestFriendIds.has(otherProfileId)),
+        (safeSetHas(closeFriendIds, otherProfileId) ||
+          safeSetHas(rankedBestFriendIds, otherProfileId)),
     );
 
     return {
@@ -121,9 +126,9 @@ export function buildInboxConversationIndex(input: BuildInboxIndexInput): InboxC
       needsReply,
       isMuted: isMutedForViewer(conversation, profileId),
       isGroup: Boolean(conversation.is_group),
-      isNearby: Boolean(otherProfileId && nearbyProfileIds.has(otherProfileId)),
+      isNearby: Boolean(otherProfileId && safeSetHas(nearbyProfileIds, otherProfileId)),
       nearbyRank: otherProfileId
-        ? nearbyRankByProfileId?.get(otherProfileId) ?? 99
+        ? nearbyRankByProfileId.get(otherProfileId) ?? 99
         : 99,
       hasRecentCall: Boolean(callSummary),
       callSummary,

@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { db } from '@/lib/firebase';
 import { useAuthProfileId } from '@/hooks/useAuthProfileId';
@@ -5,6 +6,7 @@ import { useSuggestedFriends } from '@/hooks/useFriendsOfFriends';
 import { useFriends } from '@/hooks/useFriends';
 import { useHiddenFromDiscovery } from '@/hooks/useOutgoingRequests';
 import { useDismissedQuickAdd } from '@/hooks/useDismissedQuickAdd';
+import { ensureStringSet } from '@/lib/persistedCollections';
 
 export interface QuickAddUser {
   id: string;
@@ -26,17 +28,7 @@ export function useQuickAddSuggestions(limit = 8) {
   const { data: hiddenIdsRaw } = useHiddenFromDiscovery();
   // Defensive: query persister can deserialize a Set into a plain object/array,
   // stripping `.has()`. Re-normalize on every render so the call sites never crash.
-  const hiddenIds = hiddenIdsRaw instanceof Set
-    ? hiddenIdsRaw
-    : new Set<string>(
-        Array.isArray(hiddenIdsRaw)
-          ? hiddenIdsRaw
-          : hiddenIdsRaw && typeof hiddenIdsRaw === 'object'
-            ? Object.values(hiddenIdsRaw as Record<string, unknown>).filter(
-                (v): v is string => typeof v === 'string'
-              )
-            : []
-      );
+  const hiddenIds = useMemo(() => ensureStringSet(hiddenIdsRaw), [hiddenIdsRaw]);
   const { isDismissed } = useDismissedQuickAdd();
 
   // Fallback: interest-based / general users — ALWAYS fetched so Quick Add never empty
@@ -126,7 +118,7 @@ export function useQuickAddSuggestions(limit = 8) {
 
   // Add mutual-based suggestions first
   for (const s of mutualSuggestions || []) {
-    if (seenIds.has(s.id) || hiddenIds?.has(s.id) || isDismissed(s.id)) continue;
+    if (seenIds.has(s.id) || hiddenIds.has(s.id) || isDismissed(s.id)) continue;
     seenIds.add(s.id);
     suggestions.push({
       id: s.id,
@@ -142,7 +134,7 @@ export function useQuickAddSuggestions(limit = 8) {
 
   // Fill with general suggestions
   for (const u of generalUsers || []) {
-    if (seenIds.has(u.id) || hiddenIds?.has(u.id) || isDismissed(u.id)) continue;
+    if (seenIds.has(u.id) || hiddenIds.has(u.id) || isDismissed(u.id)) continue;
     seenIds.add(u.id);
     suggestions.push(u);
   }

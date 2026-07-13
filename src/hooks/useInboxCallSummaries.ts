@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { db } from '@/lib/firebase';
 import { useAuthProfileId } from '@/hooks/useAuthProfileId';
 import type { InboxCallSummary } from '@/features/dms/dm.types';
+import { normalizePersistedMap } from '@/lib/persistedCollections';
 
 export type InboxCallSummariesMap = Map<string, InboxCallSummary>;
 
@@ -41,6 +42,7 @@ export function useInboxCallSummaries() {
       }
       return map;
     },
+    select: (data) => normalizePersistedMap<InboxCallSummary>(data),
     staleTime: 60_000,
   });
 }
