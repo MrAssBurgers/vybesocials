@@ -8,8 +8,8 @@ Use this file as the Lovable -> Cursor handoff each session.
 - **Fix:** Restored status + message preview under names; stronger glass header/tabs/aurora; 86px rows / 52px avatars / 44px camera / 60px FAB; safe list shows Chat header + search (no safe-mode banner); remount key `dm-inbox-v3`
 - **Open-chat fix:** Name was a nested button that `stopPropagation`’d pointerdown (dead zone when no username / stole taps to profile); swipe gesture treated tiny vertical jitter as scroll and skipped `onClick`. Name is plain text again (row opens chat); avatar still opens profile; tap slop opens chat after micro-moves.
 - **Verified:** typecheck PASS · lint PASS · tests PASS · build PASS (open-chat typecheck PASS)
-- **Published:** pending commit/push + Lovable Publish
-- **You:** After push — Lovable sync `main` → **Share → Publish**; hard-refresh `/messages`; tap row body to open chat, avatar for profile
+- **Published:** `origin/main` @ **`ff331773`** — awaiting Lovable Share → Publish
+- **You:** Lovable → sync `main` @ **`ff331773`** → **Share → Publish** for **vybehub.app**; hard-refresh `/messages`; tap row → chat, avatar → profile
 
 ## Concept DM inbox full visual match (2026-07-12)
 - **User ask:** Match concept image — six tabs, status icons, neon VFX, Best Friends/Nearby; Firebase-only (not Supabase)
