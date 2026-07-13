@@ -7,8 +7,8 @@ Use this file as the Lovable -> Cursor handoff each session.
 - **Fixes:** Scroll reset on tab change; Requests = first-class accept/decline rows; Nearby always on while inbox mounted + peer cards + locating/denied UX; Best Friend toggle in chat options + invalidate `close-friend-ids`; Friends excludes request threads; unread badge unified with `_hasUnread` + calls; safe list uses `useDMInbox`
 - **Tests:** `filterConversationsForTab` coverage (78 tests)
 - **Verified:** typecheck PASS · lint PASS · test PASS · build PASS
-- **Published:** pending push + Lovable Publish
-- **You:** Lovable → sync `main` → **Share → Publish**; hard-refresh `/messages`; QA each tab
+- **Published:** `origin/main` @ **`76106704`** — awaiting Lovable Share → Publish
+- **You:** Lovable → sync `main` @ **`76106704`** → **Share → Publish**; hard-refresh `/messages`; QA each tab
 
 ## Full concept DM inbox restore (2026-07-12)
 - **User ask:** Restore inbox to concept image look — dense neon rows, story rings, full chrome (not compact/basic)
