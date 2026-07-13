@@ -2,6 +2,15 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## Inbox instant paint + open-chat lag (2026-07-13)
+
+- **Cause:** “Signing in…” hid cached rows; openChat awaited profile; inbox flooded 12 high-priority message warms; nearby GPS always on; row `max-height` clipped swipe rows.
+- **Fix:** paint cache before profile resolves; seed from `authUid`; navigate first; idle-warm ≤6 threads; nearby only when that filter is active; defer presence ~700ms; restore row layout CSS.
+- **Published:** `origin/main` @ **`01aa2805`** · https://vybe-daaab.web.app ✅
+- **Production:** Lovable → Share → Publish
+
+---
+
 ## Inbox render stability — blank collapse + remount flicker (2026-07-13)
 
 - **Root cause (recording):** list geometry invalidation from partial row arrays + projection order swap (looked like virtualizer blank gaps). Virtual windowing permanently removed from inbox path.
