@@ -2,7 +2,6 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Bell, MoreHorizontal, Search, UserPlus } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
-import { openFriendProfile } from '@/lib/friendProfileRoutes';
 import { TrashBin } from '@/components/chat/TrashBin';
 import { Avatar, AvatarFallback, ProfileAvatarImage } from '@/components/ui/avatar';
 
@@ -30,12 +29,7 @@ export function DMHeader({
             className="dm-inbox-profile-button dm-vfx-press"
             aria-label="Open your profile"
             onClick={() => {
-              if (profile?.username) {
-                openFriendProfile(navigate, {
-                  username: profile.username,
-                  friendshipStatus: 'friends',
-                });
-              }
+              navigate('/profile');
             }}
           >
             <Avatar className="dm-inbox-header-avatar">

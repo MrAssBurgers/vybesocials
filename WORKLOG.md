@@ -2,6 +2,17 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## Fix profile click + DM open hangs (2026-07-13)
+
+- **DM hang:** `loadConversationMessages` awaited membership repair even when messages already loaded (`getDocumentFromServer` could never settle). Now return data immediately; timed repair (~3s) only on empty/error.
+- **Claim poison:** `resolveSessionProfileId` claim raced with 2.5s timeout; clear `inflight`; prefer non-placeholder Firestore hit.
+- **Profile hang:** Own tab → `/profile`; `isSelf` by username; RelationshipProfile Navigate to `/profile`; identity returns before count scans (counts hydrate via setQueryData).
+- **ChatView:** soft escape after 4s with Try again (no endless skeleton).
+- **Verified:** typecheck · test 270 · build PASS
+- **Next:** Publish when ready.
+
+---
+
 ## Instant DMs + profiles (2026-07-13)
 
 - **DMs still blank:** Thread used `offlineFirst` (can pause forever); empty message fetch didn't await membership repair; list waited for profileId before any network; membership only queried one id.

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { ShieldOff } from 'lucide-react';
-import { useParams } from 'react-router-dom';
+import { Navigate, useParams } from 'react-router-dom';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -16,7 +16,6 @@ import { RelationshipProfileSection } from '@/components/social-profile/Relation
 import { FriendshipCard } from '@/components/friend-profile/FriendshipCard';
 import { FriendMapSection } from '@/components/friend-profile/FriendMapSection';
 import { LocationRequestSheet } from '@/components/friend-profile/LocationRequestSheet';
-import ProfilePage from '@/pages/Profile';
 
 function relationshipMode(status: string): SocialProfileMode {
   if (status === 'friends') return 'friend';
@@ -44,16 +43,17 @@ export default function RelationshipProfilePage() {
   const relationship = useFriendProfile(username);
   const { data: lockerData } = useLockerItems(relationship.profile?.id);
 
+  // Self: bare /profile has session fallback — never embed Profile under /u/.
+  if (relationship.isSelf) {
+    return <Navigate to="/profile" replace />;
+  }
+
   if (
     !username ||
     (relationship.profilePending && !relationship.profile)
   ) {
     return <ProfileSkeleton />;
   }
-
-  // Self: skip friendship/visibility tax — own profile already in session.
-  if (relationship.isSelf) return <ProfilePage />;
-
   if (relationship.profileError || !relationship.profile) {
     return (
       <AppLayout>

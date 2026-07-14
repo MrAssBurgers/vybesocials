@@ -133,6 +133,7 @@ export function useProfileById(profileId: string | undefined) {
 
 export function useProfileByUsername(username: string) {
   const { profile: currentProfile } = useAuth();
+  const queryClient = useQueryClient();
   const normalizedKey = (username || '').trim().toLowerCase();
 
   return useQuery({
@@ -198,10 +199,24 @@ export function useProfileByUsername(username: string) {
       
       if (!profile) return null;
 
-      // Paint-ready identity first — skip redundant full-row re-read.
-      // Counts hydrate in parallel and don't block returning core fields.
       const p = profile as any;
-      const countPromise = Promise.all([
+      setCachedProfile({
+        id: String(p.id),
+        username: String(p.username),
+        display_name: (p.display_name as string | null) || null,
+        avatar_url: (p.avatar_url as string | null) || null,
+      });
+
+      const paintReady = {
+        ...p,
+        follower_count: 0,
+        following_count: 0,
+        post_count: 0,
+        is_following: false,
+      } as Profile;
+
+      // Counts hydrate in background — Firebase exact-count scans must not block paint.
+      void Promise.all([
         db.from('follows').select('id', { count: 'exact', head: true }).eq('following_id', p.id),
         db.from('follows').select('id', { count: 'exact', head: true }).eq('follower_id', p.id),
         db.from('posts').select('id', { count: 'exact', head: true }).eq('author_id', p.id),
@@ -213,24 +228,22 @@ export function useProfileByUsername(username: string) {
               .eq('following_id', p.id)
               .maybeSingle()
           : Promise.resolve({ data: null }),
-      ]);
+      ])
+        .then(([followerCount, followingCount, postCount, isFollowing]) => {
+          queryClient.setQueryData(['profile', normalizedKey], (prev: Profile | null | undefined) => {
+            if (!prev || prev.id !== String(p.id)) return prev;
+            return {
+              ...prev,
+              follower_count: followerCount.count || 0,
+              following_count: followingCount.count || 0,
+              post_count: postCount.count || 0,
+              is_following: !!isFollowing.data,
+            };
+          });
+        })
+        .catch(() => {});
 
-      const [followerCount, followingCount, postCount, isFollowing] = await countPromise;
-
-      setCachedProfile({
-        id: String(p.id),
-        username: String(p.username),
-        display_name: (p.display_name as string | null) || null,
-        avatar_url: (p.avatar_url as string | null) || null,
-      });
-
-      return {
-        ...p,
-        follower_count: followerCount.count || 0,
-        following_count: followingCount.count || 0,
-        post_count: postCount.count || 0,
-        is_following: !!isFollowing.data,
-      } as any;
+      return paintReady;
     },
     enabled: !!username?.trim(),
     staleTime: 1000 * 60 * 15, // 15 minutes

@@ -300,7 +300,7 @@ export const BottomNav = memo(forwardRef<HTMLElement, object>(function BottomNav
     { id: 'explore', icon: Compass, label: 'Explore', getPath: () => '/explore', tutorialId: 'explore-nav', requiresAuth: false },
     { id: 'create', icon: Plus, label: 'Create', getPath: () => '/upload', isCreate: true, tutorialId: 'create-nav', requiresAuth: true },
     { id: 'messages', icon: MessageCircle, label: 'Messages', getPath: () => '/messages', tutorialId: 'messages-nav', requiresAuth: true, authAction: 'send messages' },
-    { id: 'profile', icon: User, label: 'Profile', getPath: (p) => p ? `/u/${p.username}` : '/settings', tutorialId: 'profile-nav', requiresAuth: false, isProfile: true },
+    { id: 'profile', icon: User, label: 'Profile', getPath: () => '/profile', tutorialId: 'profile-nav', requiresAuth: false, isProfile: true },
   ], []);
 
   const orderedNavItems = useMemo(() => {

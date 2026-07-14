@@ -201,6 +201,14 @@ export function ChatView() {
   const isGroupChat = safeConversation?.is_group || false;
   const { data: messagesRaw, isPending: messagesPending, isFetched: messagesFetched, isError: messagesError, isFetching: messagesFetching, refetch: refetchMessages } = useMessages(conversationId);
   const messages = normalizeMessagesCache(messagesRaw);
+  const [loadTimedOut, setLoadTimedOut] = useState(false);
+
+  useEffect(() => {
+    setLoadTimedOut(false);
+    if (!conversationId || !messagesPending) return;
+    const t = window.setTimeout(() => setLoadTimedOut(true), 4000);
+    return () => window.clearTimeout(t);
+  }, [conversationId, messagesPending]);
   const {
     loadOlderMessages,
     isLoadingOlder,
@@ -1318,8 +1326,30 @@ export function ChatView() {
     !!conversationId &&
     !hasThreadContent &&
     messagesPending &&
-    !messagesFetched;
+    !messagesFetched &&
+    !loadTimedOut;
   const isChatHydrating = showConversationSkeleton || showMessagesSkeleton;
+
+  if (
+    loadTimedOut &&
+    !!conversationId &&
+    !hasThreadContent
+  ) {
+    return (
+      <div className="flex flex-col h-full items-center justify-center gap-3 p-6 text-center">
+        <p className="text-sm text-muted-foreground">This chat is taking too long to load.</p>
+        <Button size="sm" variant="secondary" onClick={() => {
+          setLoadTimedOut(false);
+          void refetchMessages();
+        }}>
+          Try again
+        </Button>
+        <Button size="sm" variant="ghost" onClick={() => navigate('/messages')}>
+          Back to messages
+        </Button>
+      </div>
+    );
+  }
 
   const messagesLoadFailed =
     !!activeConversation &&

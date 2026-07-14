@@ -6,14 +6,50 @@ import {
 } from '@/lib/profileCache';
 import { getProfileByAuthUid } from '@/lib/firebase/users';
 import { syncUserAuthIndex } from '@/lib/firebase/profileResolve';
+import { withTimeout } from '@/lib/withTimeout';
 
 let memoAuthUserId: string | null = null;
 let memoProfileId: string | null = null;
 let inflight: Promise<string | undefined> | null = null;
 
+const RESOLVE_TIMEOUT_MS = 2500;
+
 /** Sync profile id — live auth state or disk cache (instant). */
 export function syncSessionProfileId(liveProfileId?: string | null): string | undefined {
   return getEffectiveProfileId(liveProfileId);
+}
+
+function looksPlaceholder(
+  profile: { id?: string; username?: string | null } | null | undefined,
+  authUserId: string,
+): boolean {
+  if (!profile?.id) return true;
+  return (
+    profile.id === authUserId ||
+    !profile.username ||
+    String(profile.username).startsWith('user_')
+  );
+}
+
+function cacheResolvedProfile(authUserId: string, profile: {
+  id: string;
+  user_id?: string;
+  username?: string | null;
+  display_name?: string | null;
+  avatar_url?: string | null;
+}): string {
+  memoAuthUserId = authUserId;
+  memoProfileId = profile.id;
+  void syncUserAuthIndex(authUserId, profile.id);
+  const payload: CachedProfile = {
+    id: profile.id,
+    user_id: profile.user_id,
+    username: profile.username || '',
+    display_name: profile.display_name ?? null,
+    avatar_url: profile.avatar_url ?? null,
+  };
+  setCachedCurrentProfile(payload);
+  return profile.id;
 }
 
 /** One session-scoped profile lookup; deduped across DMs/messages/chat. */
@@ -33,40 +69,37 @@ export async function resolveSessionProfileId(
 
   inflight = (async () => {
     try {
-      // Prefer claim when the only hit is a placeholder (id === auth uid) so we
-      // don't fork into duplicate profiles for the same email.
+      // Fast Firestore hit first — return usable non-placeholder without waiting on claim.
       let profile = await getProfileByAuthUid(authUserId);
-      const looksPlaceholder =
-        !!profile?.id &&
-        (profile.id === authUserId ||
-          !profile.username ||
-          String(profile.username).startsWith('user_'));
-
-      if (!profile?.id || looksPlaceholder) {
-        await db.rpc('claim_profile_by_email').catch(() => undefined);
-        const claimed = await getProfileByAuthUid(authUserId);
-        if (claimed?.id) profile = claimed;
+      if (profile?.id && !looksPlaceholder(profile, authUserId)) {
+        return cacheResolvedProfile(authUserId, profile);
       }
-      if (!profile?.id) {
-        await db.rpc('ensure_profile').catch(() => undefined);
-        profile = await getProfileByAuthUid(authUserId);
+
+      // Claim/ensure raced against timeout so a hung callable cannot poison opens.
+      const claimedOrEnsured = await withTimeout(
+        (async () => {
+          if (!profile?.id || looksPlaceholder(profile, authUserId)) {
+            await db.rpc('claim_profile_by_email').catch(() => undefined);
+            const claimed = await getProfileByAuthUid(authUserId);
+            if (claimed?.id) profile = claimed;
+          }
+          if (!profile?.id) {
+            await db.rpc('ensure_profile').catch(() => undefined);
+            profile = await getProfileByAuthUid(authUserId);
+          }
+          return profile;
+        })(),
+        RESOLVE_TIMEOUT_MS,
+        'resolveSessionProfileId timed out',
+      ).catch(() => profile);
+
+      if (!claimedOrEnsured?.id) {
+        // Prefer returning a placeholder id over blocking forever.
+        if (profile?.id) return cacheResolvedProfile(authUserId, profile);
+        return undefined;
       }
-      if (!profile?.id) return undefined;
 
-      memoAuthUserId = authUserId;
-      memoProfileId = profile.id;
-
-      void syncUserAuthIndex(authUserId, profile.id);
-
-      const payload: CachedProfile = {
-        id: profile.id,
-        user_id: profile.user_id,
-        username: profile.username,
-        display_name: profile.display_name,
-        avatar_url: profile.avatar_url,
-      };
-      setCachedCurrentProfile(payload);
-      return profile.id;
+      return cacheResolvedProfile(authUserId, claimedOrEnsured);
     } finally {
       inflight = null;
     }

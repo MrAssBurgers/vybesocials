@@ -10,6 +10,7 @@ import {
 import { resolveSessionProfileId, syncSessionProfileId } from '@/lib/resolveSessionProfileId';
 import { mergeMessagesWithLocalCache, readMessagesCache } from '@/lib/messagesQueryKey';
 import { findInQueryArray, safeDmMembers, ensureArray } from '@/lib/persistedCollections';
+import { withTimeout } from '@/lib/withTimeout';
 
 export const MESSAGE_SELECT_SLIM = `
   *,
@@ -39,6 +40,8 @@ export type LoadConversationMessagesOptions = {
   recentOnly?: boolean;
   select?: string;
 };
+
+const REPAIR_TIMEOUT_MS = 3000;
 
 function enrichMessagesWithSenders(
   messages: Message[],
@@ -84,6 +87,24 @@ function filterMessagesForViewer(messages: Message[], viewerId?: string): Messag
   });
 }
 
+async function repairWithTimeout(
+  conversationId: string,
+  resolvedActorId: string,
+  otherProfileId: string | null,
+): Promise<void> {
+  try {
+    await withTimeout(
+      prepareConversationForMessages(conversationId, resolvedActorId, otherProfileId, {
+        fast: true,
+      }),
+      REPAIR_TIMEOUT_MS,
+      'Membership repair timed out',
+    );
+  } catch {
+    /* never block open forever */
+  }
+}
+
 /** Shared fetch for useMessages + chat prefetch — fast recent first, full history in background. */
 export async function loadConversationMessages(
   queryClient: QueryClient,
@@ -99,8 +120,8 @@ export async function loadConversationMessages(
     options?.select ?? (recentOnly ? MESSAGE_SELECT_WARM : MESSAGE_SELECT_SLIM);
   const resolvedActorId =
     syncSessionProfileId(actorId) ??
-    (await resolveSessionProfileId(actorId)) ??
-    actorId;
+    actorId ??
+    (await resolveSessionProfileId(actorId));
 
   if (!resolvedActorId) {
     // Never wipe an inbox/open seed when profile isn't ready yet.
@@ -126,9 +147,9 @@ export async function loadConversationMessages(
   const otherProfileId =
     otherFromMembers || inferOtherParticipantId(conversationId, resolvedActorId) || null;
 
-  const runRepair = (fast: boolean) => {
+  const runRepairBackground = () => {
     void prepareConversationForMessages(conversationId, resolvedActorId, otherProfileId, {
-      fast,
+      fast: true,
     }).catch(() => {});
   };
 
@@ -140,9 +161,7 @@ export async function loadConversationMessages(
     );
 
     if (error) {
-      await prepareConversationForMessages(conversationId, resolvedActorId, otherProfileId, {
-        fast: true,
-      });
+      await repairWithTimeout(conversationId, resolvedActorId, otherProfileId);
       const retry = await fetchRecentConversationMessages<Message>(
         conversationId,
         MESSAGE_SELECT_MINIMAL,
@@ -150,11 +169,14 @@ export async function loadConversationMessages(
       );
       data = retry.data;
       error = retry.error;
-    } else if (!data?.length || !isConversationMessagesReady(conversationId, resolvedActorId)) {
-      // Await membership repair then retry — fire-and-forget left threads empty forever.
-      await prepareConversationForMessages(conversationId, resolvedActorId, otherProfileId, {
-        fast: true,
-      });
+    } else if (data?.length) {
+      // Paint immediately — repair membership in background if needed.
+      if (!isConversationMessagesReady(conversationId, resolvedActorId)) {
+        runRepairBackground();
+      }
+    } else {
+      // Empty thread: timed repair + one retry (never hang forever).
+      await repairWithTimeout(conversationId, resolvedActorId, otherProfileId);
       const retry = await fetchRecentConversationMessages<Message>(
         conversationId,
         MESSAGE_SELECT_MINIMAL,
@@ -181,9 +203,7 @@ export async function loadConversationMessages(
   );
 
   if (error) {
-    await prepareConversationForMessages(conversationId, resolvedActorId, otherProfileId, {
-      fast: true,
-    });
+    await repairWithTimeout(conversationId, resolvedActorId, otherProfileId);
     const retryPlain = await fetchFullConversationMessageHistory<Message>(
       conversationId,
       MESSAGE_SELECT_SLIM,
@@ -203,12 +223,12 @@ export async function loadConversationMessages(
         error = retryRecent.error;
       }
     }
-  } else if (!isConversationMessagesReady(conversationId, resolvedActorId)) {
-    runRepair(true);
-  }
-
-  if (!error && (!data || data.length === 0)) {
-    runRepair(true);
+  } else if (data?.length) {
+    if (!isConversationMessagesReady(conversationId, resolvedActorId)) {
+      runRepairBackground();
+    }
+  } else {
+    await repairWithTimeout(conversationId, resolvedActorId, otherProfileId);
     const retryEmpty = await fetchRecentConversationMessages<Message>(
       conversationId,
       MESSAGE_SELECT_WARM,

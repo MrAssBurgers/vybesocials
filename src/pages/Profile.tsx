@@ -48,7 +48,7 @@ export default function ProfilePage() {
   const resolvedUsername = username || usernameOrId || currentProfile?.username;
   const {
     data: profileData,
-    isPending: profilePending,
+    isLoading: profilePending,
     isError: profileError,
     refetch: refetchProfile,
   } = useProfileByUsername(resolvedUsername || '');

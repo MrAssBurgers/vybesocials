@@ -194,7 +194,7 @@ export const DesktopLeftSidebar = memo(function DesktopLeftSidebar({ collapsed, 
           <div className="mx-3 mb-3 space-y-2" data-tutorial="sidebar-profile">
             {/* Profile Link */}
             <Link 
-              to={`/u/${profile.username}`} 
+              to="/profile" 
               className="flex items-center gap-3 p-3 rounded-xl liquid-glass-subtle border border-border/30 hover:bg-accent/10 transition-colors group"
             >
               <Avatar className="h-10 w-10 ring-2 ring-primary/20 group-hover:ring-primary/40 transition-all">
@@ -273,7 +273,7 @@ export const DesktopLeftSidebar = memo(function DesktopLeftSidebar({ collapsed, 
           <div className="flex flex-col items-center gap-1.5 mb-3 px-2">
             <Tooltip delayDuration={0}>
               <TooltipTrigger asChild>
-                <Link to={`/u/${profile.username}`} className="group">
+                <Link to="/profile" className="group">
                   <Avatar className="h-10 w-10 ring-2 ring-primary/20 group-hover:ring-primary/40 transition-all">
                     <ProfileAvatarImage profileId={profile.id} src={profile.avatar_url || undefined} />
                     <AvatarFallback className="bg-gradient-to-br from-primary/80 to-accent/80 text-primary-foreground text-sm font-semibold">

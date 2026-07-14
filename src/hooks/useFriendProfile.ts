@@ -3,11 +3,13 @@ import { useEffect } from 'react';
 import { useProfileByUsername } from '@/hooks/useProfile';
 import { useFriendshipStatus } from '@/hooks/useFriends';
 import { useAuthProfileId } from '@/hooks/useAuthProfileId';
+import { useAuth } from '@/lib/auth';
 import { resolveProfileVisibility, refreshFriendshipPairStats } from '@/lib/friendProfileClient';
 import { useFriendProfileRealtime } from '@/hooks/useFriendProfileRealtime';
 import { db } from '@/lib/firebase';
 
 export function useFriendProfile(username: string | undefined) {
+  const { profile: currentProfile } = useAuth();
   const profileId = useAuthProfileId();
   const profileQuery = useProfileByUsername(username!);
   const targetId = profileQuery.data?.id;
@@ -57,6 +59,11 @@ export function useFriendProfile(username: string | undefined) {
     }
   }, [status, targetId]);
 
+  const usernameSelf =
+    !!username &&
+    !!currentProfile?.username &&
+    username.trim().toLowerCase() === currentProfile.username.trim().toLowerCase();
+
   return {
     profile: profileQuery.data,
     profilePending: profileQuery.isLoading,
@@ -65,7 +72,7 @@ export function useFriendProfile(username: string | undefined) {
     friendshipStatus: status,
     isFriend: status === 'friends',
     isPendingRequest: status === 'pending_sent' || status === 'pending_received',
-    isSelf: !!profileId && profileId === targetId,
+    isSelf: (!!profileId && profileId === targetId) || usernameSelf,
     isBlocked: status === 'blocked' || blockedQuery.data === true,
     profileIdReady: !!profileId,
     relationshipPending:
