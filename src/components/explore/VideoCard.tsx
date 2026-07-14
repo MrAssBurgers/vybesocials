@@ -169,7 +169,8 @@ export const VideoCard = memo(function VideoCard({ post, variant = 'default', pr
               src={signedAvatar || undefined}
               loading={priority ? 'eager' : 'lazy'}
               decoding={priority ? 'sync' : 'async'}
-              fetchPriority={priority ? 'high' : 'auto'}
+              // @ts-expect-error fetchpriority is valid HTML; React types still prefer camelCase
+              fetchpriority={priority ? 'high' : 'auto'}
             />
             <AvatarFallback className="bg-primary/10 text-primary text-xs font-semibold">
               {post.author.username[0].toUpperCase()}

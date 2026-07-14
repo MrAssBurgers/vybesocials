@@ -14,12 +14,14 @@ function isRpcMissingError(error: { code?: string; message?: string }): boolean 
   return (
     code === 'PGRST202' ||
     code === '42883' ||
+    code === 'permission-denied' ||
+    /permission denied/i.test(msg) ||
     /could not find the function/i.test(msg) ||
     /404/.test(msg)
   );
 }
 
-/** Check username availability; fail-soft when `is_username_available` RPC is not deployed. */
+/** Check username availability; fail-soft when RPC is missing or unauthenticated (profiles require sign-in). */
 export async function checkUsernameAvailable(
   username: string,
   excludeUserId?: string,

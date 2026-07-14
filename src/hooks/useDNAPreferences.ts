@@ -23,7 +23,13 @@ export function useDNAPreferences() {
         .eq('user_id', user.id)
         .maybeSingle();
 
-      if (error) throw error;
+      // Soft-fail until rules/indexes are deployed (avoid console spam on fresh accounts).
+      if (error) {
+        if (import.meta.env.DEV) {
+          console.warn('[DNA] preferences unavailable:', error.message || error.code);
+        }
+        return null;
+      }
       if (!data) return null;
 
       return data as unknown as DNAContentPreferences;

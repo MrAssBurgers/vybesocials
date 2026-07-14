@@ -114,7 +114,8 @@ export const OptimizedImage = memo(forwardRef<HTMLImageElement, OptimizedImagePr
             onError={handleError}
             loading={priority ? 'eager' : 'lazy'}
             decoding="async"
-            fetchPriority={priority ? 'high' : 'auto'}
+            // @ts-expect-error fetchpriority is valid HTML; React types still prefer camelCase
+            fetchpriority={priority ? 'high' : 'auto'}
             {...props} 
           />
         )}

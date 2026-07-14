@@ -800,7 +800,7 @@ export function AutoFriendDrop() {
       {!isActive && showHomePill && (
         <div
           className={cn(
-            'fixed bottom-20 left-1/2 z-40 flex flex-col items-center -translate-x-1/2 duration-[280ms]',
+            'fixed bottom-20 left-1/2 z-40 flex flex-col items-center -translate-x-1/2 duration-300',
             controlVisible
               ? 'translate-y-0 pointer-events-auto transition-transform ease-out'
               : 'translate-y-[200%] pointer-events-none transition-transform ease-in'

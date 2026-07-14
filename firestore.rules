@@ -510,6 +510,9 @@ service cloud.firestore {
     match /user_preferences/{docId} {
       allow read, write: if ownsUserField('user_id') || willOwnUserField('user_id') || docId == uid() || ownsProfileId(docId);
     }
+    match /dna_content_preferences/{docId} {
+      allow read, write: if ownsUserField('user_id') || willOwnUserField('user_id') || docId == uid() || ownsProfileId(docId);
+    }
     match /ai_brief_preferences/{docId} {
       allow read, write: if ownsUserField('user_id') || willOwnUserField('user_id') || ownsProfileId(docId);
     }

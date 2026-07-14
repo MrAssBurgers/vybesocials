@@ -117,7 +117,8 @@ export const VideoThumbnail = memo(function VideoThumbnail({
       className={cn("w-full h-full object-cover", className)}
       loading={priority ? 'eager' : 'lazy'}
       decoding={priority ? 'sync' : 'async'}
-      fetchPriority={priority ? 'high' : 'auto'}
+      // @ts-expect-error fetchpriority is valid HTML; React types still prefer camelCase
+      fetchpriority={priority ? 'high' : 'auto'}
       onError={() => {
         setHasError(true);
         onError?.();

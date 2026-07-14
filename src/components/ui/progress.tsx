@@ -26,7 +26,7 @@ const Progress = React.forwardRef<
         variant === "reward"
           ? "bg-gradient-to-r from-primary via-accent to-primary shadow-[0_0_12px_hsl(var(--primary)/0.45)]"
           : "bg-primary",
-        "transition-transform duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]"
+        "transition-transform duration-500 ease-out"
       )}
       style={{ transform: `translateX(-${100 - (value || 0)}%)` }}
     />

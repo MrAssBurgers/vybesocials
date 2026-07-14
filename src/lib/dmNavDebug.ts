@@ -28,7 +28,6 @@ export function logDmNavDebug(
     'undefined'
       ? document.pointerLockElement
       : null;
-  // eslint-disable-next-line no-console
   console.info('[vybe-dm-nav-debug]', label, {
     underPoint: el
       ? {

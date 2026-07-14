@@ -382,16 +382,26 @@ export const TutorialOverlay = memo(function TutorialOverlay({
           <defs>
             <mask id="tutorial-spotlight-mask">
               <rect x="0" y="0" width="100%" height="100%" fill="white" />
-              {spotlight && (
+              {spotlight &&
+                Number.isFinite(spotlight.width) &&
+                Number.isFinite(spotlight.height) &&
+                Number.isFinite(spotlight.left) &&
+                Number.isFinite(spotlight.top) && (
                 <motion.rect
                   animate={{ 
                     x: spotlight.left, 
                     y: spotlight.top, 
-                    width: spotlight.width, 
-                    height: spotlight.height,
+                    width: Math.max(0, spotlight.width), 
+                    height: Math.max(0, spotlight.height),
                     opacity: 1,
                   }}
-                  initial={{ opacity: 0 }}
+                  initial={{
+                    x: spotlight.left,
+                    y: spotlight.top,
+                    width: Math.max(0, spotlight.width),
+                    height: Math.max(0, spotlight.height),
+                    opacity: 0,
+                  }}
                   transition={{ type: 'spring', stiffness: 300, damping: 30 }}
                   rx="12"
                   ry="12"

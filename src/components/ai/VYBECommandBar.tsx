@@ -33,7 +33,7 @@ export function VYBECommandBar() {
           'hover:scale-105 active:scale-95',
           'bottom-[calc(5rem+env(safe-area-inset-bottom)+12px)] right-4',
           'lg:bottom-8 lg:right-8',
-          'duration-[280ms] will-change-transform',
+          'duration-300 will-change-transform',
           controlVisible
             ? 'translate-y-0 opacity-100 pointer-events-auto transition-[transform,opacity] ease-out'
             : 'translate-y-28 opacity-0 pointer-events-none transition-[transform,opacity] ease-in',
