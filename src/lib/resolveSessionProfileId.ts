@@ -67,17 +67,17 @@ export async function resolveSessionProfileId(
 
   if (inflight) return inflight;
 
+  // Entire body (including first Firestore read) is timed so a hung getDoc
+  // cannot poison every DM open waiting on shared inflight.
   inflight = (async () => {
     try {
-      // Fast Firestore hit first — return usable non-placeholder without waiting on claim.
-      let profile = await getProfileByAuthUid(authUserId);
-      if (profile?.id && !looksPlaceholder(profile, authUserId)) {
-        return cacheResolvedProfile(authUserId, profile);
-      }
-
-      // Claim/ensure raced against timeout so a hung callable cannot poison opens.
-      const claimedOrEnsured = await withTimeout(
+      const resolved = await withTimeout(
         (async () => {
+          let profile = await getProfileByAuthUid(authUserId);
+          if (profile?.id && !looksPlaceholder(profile, authUserId)) {
+            return profile;
+          }
+
           if (!profile?.id || looksPlaceholder(profile, authUserId)) {
             await db.rpc('claim_profile_by_email').catch(() => undefined);
             const claimed = await getProfileByAuthUid(authUserId);
@@ -91,15 +91,14 @@ export async function resolveSessionProfileId(
         })(),
         RESOLVE_TIMEOUT_MS,
         'resolveSessionProfileId timed out',
-      ).catch(() => profile);
+      ).catch(() => null);
 
-      if (!claimedOrEnsured?.id) {
-        // Prefer returning a placeholder id over blocking forever.
-        if (profile?.id) return cacheResolvedProfile(authUserId, profile);
-        return undefined;
+      if (!resolved?.id) {
+        // Prefer auth uid over blocking — membership reads can still use it as a key.
+        return authUserId;
       }
 
-      return cacheResolvedProfile(authUserId, claimedOrEnsured);
+      return cacheResolvedProfile(authUserId, resolved);
     } finally {
       inflight = null;
     }

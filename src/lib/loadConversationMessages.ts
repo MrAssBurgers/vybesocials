@@ -42,6 +42,12 @@ export type LoadConversationMessagesOptions = {
 };
 
 const REPAIR_TIMEOUT_MS = 3000;
+/** Hard cap so a hung getDocs/network never leaves useMessages pending forever. */
+export const MESSAGE_FETCH_TIMEOUT_MS = 6000;
+/** Profile enrich is nice-to-have — paint without sender usernames if it stalls. */
+export const MESSAGE_ENRICH_TIMEOUT_MS = 3000;
+
+type FetchResult = { data: Message[] | null; error: unknown };
 
 function enrichMessagesWithSenders(
   messages: Message[],
@@ -70,8 +76,61 @@ async function enrichMessagesFromProfiles(messages: Message[]): Promise<Message[
 
   const senderIds = [...new Set(messages.map((m) => m.sender_id).filter(Boolean))];
   if (!senderIds.length) return messages;
-  const profileByKey = await fetchMemberProfiles(senderIds);
-  return enrichMessagesWithSenders(messages, profileByKey);
+  try {
+    const profileByKey = await withTimeout(
+      fetchMemberProfiles(senderIds),
+      MESSAGE_ENRICH_TIMEOUT_MS,
+      'enrichMessagesFromProfiles timed out',
+    );
+    return enrichMessagesWithSenders(messages, profileByKey);
+  } catch {
+    return messages;
+  }
+}
+
+async function fetchRecentTimed(
+  conversationId: string,
+  select: string,
+  maxMessages: number,
+): Promise<FetchResult> {
+  try {
+    return await withTimeout(
+      fetchRecentConversationMessages<Message>(conversationId, select, maxMessages),
+      MESSAGE_FETCH_TIMEOUT_MS,
+      'fetchRecentConversationMessages timed out',
+    );
+  } catch (error) {
+    return { data: null, error };
+  }
+}
+
+async function fetchFullTimed(
+  conversationId: string,
+  select: string,
+  maxMessages: number,
+): Promise<FetchResult> {
+  try {
+    return await withTimeout(
+      fetchFullConversationMessageHistory<Message>(conversationId, select, maxMessages),
+      MESSAGE_FETCH_TIMEOUT_MS,
+      'fetchFullConversationMessageHistory timed out',
+    );
+  } catch (error) {
+    return { data: null, error };
+  }
+}
+
+/** Prefer seed/cache when network hangs; throw only when there is nothing to paint. */
+function settleOrThrowSeed(
+  queryClient: QueryClient,
+  conversationId: string,
+  error: unknown,
+): Message[] {
+  const existing = readMessagesCache(queryClient, conversationId);
+  if (existing.length) {
+    return mergeMessagesWithLocalCache(queryClient, conversationId, existing);
+  }
+  throw error instanceof Error ? error : new Error(String(error ?? 'Message fetch failed'));
 }
 
 function filterMessagesForViewer(messages: Message[], viewerId?: string): Message[] {
@@ -154,19 +213,11 @@ export async function loadConversationMessages(
   };
 
   if (recentOnly) {
-    let { data, error } = await fetchRecentConversationMessages<Message>(
-      conversationId,
-      select,
-      maxMessages,
-    );
+    let { data, error } = await fetchRecentTimed(conversationId, select, maxMessages);
 
     if (error) {
       await repairWithTimeout(conversationId, resolvedActorId, otherProfileId);
-      const retry = await fetchRecentConversationMessages<Message>(
-        conversationId,
-        MESSAGE_SELECT_MINIMAL,
-        maxMessages,
-      );
+      const retry = await fetchRecentTimed(conversationId, MESSAGE_SELECT_MINIMAL, maxMessages);
       data = retry.data;
       error = retry.error;
     } else if (data?.length) {
@@ -177,18 +228,14 @@ export async function loadConversationMessages(
     } else {
       // Empty thread: timed repair + one retry (never hang forever).
       await repairWithTimeout(conversationId, resolvedActorId, otherProfileId);
-      const retry = await fetchRecentConversationMessages<Message>(
-        conversationId,
-        MESSAGE_SELECT_MINIMAL,
-        maxMessages,
-      );
+      const retry = await fetchRecentTimed(conversationId, MESSAGE_SELECT_MINIMAL, maxMessages);
       if (!retry.error && retry.data?.length) {
         data = retry.data;
         error = retry.error;
       }
     }
 
-    if (error) throw error;
+    if (error) return settleOrThrowSeed(queryClient, conversationId, error);
 
     const rows = ((data || []) as Message[]).filter((m) => !m.is_deleted);
     const filtered = filterMessagesForViewer(rows, resolvedActorId);
@@ -196,24 +243,16 @@ export async function loadConversationMessages(
     return mergeMessagesWithLocalCache(queryClient, conversationId, sortChronological(enriched));
   }
 
-  let { data, error } = await fetchFullConversationMessageHistory<Message>(
-    conversationId,
-    select,
-    maxMessages,
-  );
+  let { data, error } = await fetchFullTimed(conversationId, select, maxMessages);
 
   if (error) {
     await repairWithTimeout(conversationId, resolvedActorId, otherProfileId);
-    const retryPlain = await fetchFullConversationMessageHistory<Message>(
-      conversationId,
-      MESSAGE_SELECT_SLIM,
-      maxMessages,
-    );
+    const retryPlain = await fetchFullTimed(conversationId, MESSAGE_SELECT_SLIM, maxMessages);
     if (!retryPlain.error) {
       data = retryPlain.data;
       error = retryPlain.error;
     } else {
-      const retryRecent = await fetchRecentConversationMessages<Message>(
+      const retryRecent = await fetchRecentTimed(
         conversationId,
         MESSAGE_SELECT_WARM,
         CHAT_INITIAL_MESSAGE_LIMIT,
@@ -229,7 +268,7 @@ export async function loadConversationMessages(
     }
   } else {
     await repairWithTimeout(conversationId, resolvedActorId, otherProfileId);
-    const retryEmpty = await fetchRecentConversationMessages<Message>(
+    const retryEmpty = await fetchRecentTimed(
       conversationId,
       MESSAGE_SELECT_WARM,
       CHAT_INITIAL_MESSAGE_LIMIT,
@@ -239,7 +278,7 @@ export async function loadConversationMessages(
     }
   }
 
-  if (error) throw error;
+  if (error) return settleOrThrowSeed(queryClient, conversationId, error);
 
   const rows = ((data || []) as Message[]).filter((m) => !m.is_deleted);
 

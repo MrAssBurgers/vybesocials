@@ -1,7 +1,11 @@
 import type { QueryClient } from '@tanstack/react-query';
 import type { Message } from '@/hooks/useMessages';
 import { prewarmDmBroadcastChannel } from '@/lib/dmBroadcast';
-import { loadConversationMessages, MESSAGE_SELECT_WARM } from '@/lib/loadConversationMessages';
+import {
+  loadConversationMessages,
+  MESSAGE_FETCH_TIMEOUT_MS,
+  MESSAGE_SELECT_WARM,
+} from '@/lib/loadConversationMessages';
 import type { LoadedDMConversation } from '@/lib/loadDMConversations';
 import { CHAT_INITIAL_MESSAGE_LIMIT } from '@/lib/conversationMessagesQuery';
 import { messagesQueryKey, readMessagesCache, normalizeMessageRow } from '@/lib/messagesQueryKey';
@@ -12,6 +16,7 @@ import {
   normalizeDmConversation,
 } from '@/lib/persistedCollections';
 import { scheduleIdleWork } from '@/lib/scheduleIdleWork';
+import { withTimeout } from '@/lib/withTimeout';
 
 type DMConversation = LoadedDMConversation;
 
@@ -153,8 +158,8 @@ export function warmDmConversation(
   warmInflight.add(conversationId);
 
   const run = () => {
-    void queryClient
-      .fetchQuery({
+    void withTimeout(
+      queryClient.fetchQuery({
         queryKey: messagesQueryKey(conversationId),
         queryFn: () =>
           loadConversationMessages(queryClient, conversationId, resolvedActor, {
@@ -163,6 +168,12 @@ export function warmDmConversation(
             select: MESSAGE_SELECT_WARM,
           }),
         staleTime: 0,
+      }),
+      MESSAGE_FETCH_TIMEOUT_MS,
+      'warmDmConversation timed out',
+    )
+      .catch(() => {
+        void queryClient.cancelQueries({ queryKey: messagesQueryKey(conversationId) });
       })
       .finally(() => {
         warmInflight.delete(conversationId);

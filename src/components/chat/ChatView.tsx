@@ -203,13 +203,15 @@ export function ChatView() {
   const { data: messagesRaw, isPending: messagesPending, isFetched: messagesFetched, isError: messagesError, isFetching: messagesFetching, refetch: refetchMessages } = useMessages(conversationId);
   const messages = normalizeMessagesCache(messagesRaw);
   const [loadTimedOut, setLoadTimedOut] = useState(false);
-
+  const [escapeEpoch, setEscapeEpoch] = useState(0);
+  // Soft escape is keyed only to conversationId (+ retry epoch) so pending
+  // flickers cannot reset the clock.
   useEffect(() => {
     setLoadTimedOut(false);
-    if (!conversationId || !messagesPending) return;
+    if (!conversationId) return;
     const t = window.setTimeout(() => setLoadTimedOut(true), 4000);
     return () => window.clearTimeout(t);
-  }, [conversationId, messagesPending]);
+  }, [conversationId, escapeEpoch]);
   const {
     loadOlderMessages,
     isLoadingOlder,
@@ -234,13 +236,15 @@ export function ChatView() {
   }, [conversationId]);
 
   // Seed thread preview from inbox / conversation header before network fetch completes.
+  // Do not wait for profileId — warm/findCached already scans all inbox query keys.
   useEffect(() => {
-    if (!conversationId || !profileId) return;
-    seedConversationDetailCache(queryClient, conversationId, profileId, activeConversation);
+    if (!conversationId) return;
+    const seedActor = profileId ?? authUserId ?? null;
+    seedConversationDetailCache(queryClient, conversationId, seedActor, activeConversation);
     if (activeConversation?.last_message?.id) {
-      seedMessagesFromInboxPreview(queryClient, conversationId, profileId, activeConversation);
+      seedMessagesFromInboxPreview(queryClient, conversationId, seedActor, activeConversation);
     }
-  }, [conversationId, profileId, queryClient, activeConversation]);
+  }, [conversationId, profileId, authUserId, queryClient, activeConversation]);
   
   // Batch preload media URLs when idle — don't compete with first paint.
   useEffect(() => {
@@ -1269,6 +1273,44 @@ export function ChatView() {
     }
   }, [settings.chat_wallpaper]);
 
+  const cachedMessagesLenEarly = conversationId ? readMessagesCache(queryClient, conversationId).length : 0;
+  const hasThreadContentEarly =
+    threadMessages.length > 0 || cachedMessagesLenEarly > 0;
+  const stillWaitingOnThread =
+    !!conversationId &&
+    !hasThreadContentEarly &&
+    (messagesPending ||
+      messagesFetching ||
+      (authReady &&
+        !profileId &&
+        !profile?.id &&
+        !cachedConversation &&
+        messagesPending) ||
+      (!activeConversation &&
+        conversationPending &&
+        !conversationFetched &&
+        !cachedConversation));
+
+  if (
+    loadTimedOut &&
+    stillWaitingOnThread
+  ) {
+    return (
+      <div className="flex flex-col h-full items-center justify-center gap-3 p-6 text-center">
+        <p className="text-sm text-muted-foreground">This chat is taking too long to load.</p>
+        <Button size="sm" variant="secondary" onClick={() => {
+          setEscapeEpoch((n) => n + 1);
+          void refetchMessages();
+        }}>
+          Try again
+        </Button>
+        <Button size="sm" variant="ghost" onClick={() => leaveDmConversation(navigate)}>
+          Back to messages
+        </Button>
+      </div>
+    );
+  }
+
   if (
     conversationId &&
     authReady &&
@@ -1317,8 +1359,8 @@ export function ChatView() {
     );
   }
 
-  const cachedMessagesLen = conversationId ? readMessagesCache(queryClient, conversationId).length : 0;
-  const hasThreadContent = threadMessages.length > 0 || cachedMessagesLen > 0;
+  const cachedMessagesLen = cachedMessagesLenEarly;
+  const hasThreadContent = hasThreadContentEarly;
   const showConversationSkeleton =
     !!conversationId &&
     !activeConversation &&
@@ -1333,27 +1375,6 @@ export function ChatView() {
     !messagesFetched &&
     !loadTimedOut;
   const isChatHydrating = showConversationSkeleton || showMessagesSkeleton;
-
-  if (
-    loadTimedOut &&
-    !!conversationId &&
-    !hasThreadContent
-  ) {
-    return (
-      <div className="flex flex-col h-full items-center justify-center gap-3 p-6 text-center">
-        <p className="text-sm text-muted-foreground">This chat is taking too long to load.</p>
-        <Button size="sm" variant="secondary" onClick={() => {
-          setLoadTimedOut(false);
-          void refetchMessages();
-        }}>
-          Try again
-        </Button>
-        <Button size="sm" variant="ghost" onClick={() => leaveDmConversation(navigate)}>
-          Back to messages
-        </Button>
-      </div>
-    );
-  }
 
   const messagesLoadFailed =
     !!activeConversation &&

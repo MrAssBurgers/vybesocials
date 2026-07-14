@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, useEffect, lazy, Suspense } from 'react';
+import { useLayoutEffect, useRef, useEffect, useState, lazy, Suspense } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { DMInboxPage } from '@/features/dms';
 import { AppLayout } from '@/components/layout/AppLayout';
@@ -94,6 +94,36 @@ function MessagesFallback() {
 
 function ChatThreadLoadingShell() {
   const navigate = useNavigate();
+  const [timedOut, setTimedOut] = useState(false);
+
+  useEffect(() => {
+    const t = window.setTimeout(() => setTimedOut(true), 5000);
+    return () => window.clearTimeout(t);
+  }, []);
+
+  if (timedOut) {
+    return (
+      <div className="flex flex-col h-full w-full min-h-0 items-center justify-center gap-3 p-6 text-center bg-background/80">
+        <p className="text-sm text-muted-foreground">Chat is taking too long to open.</p>
+        <Button
+          size="sm"
+          variant="secondary"
+          className="gap-2"
+          onClick={() => {
+            setTimedOut(false);
+            void import('@/components/chat/ChatView');
+            window.location.assign(window.location.pathname);
+          }}
+        >
+          <RefreshCw className="h-4 w-4" /> Retry
+        </Button>
+        <Button size="sm" variant="ghost" onClick={() => leaveDmConversation(navigate)}>
+          Back to messages
+        </Button>
+      </div>
+    );
+  }
+
   return (
     <div
       className="flex flex-col h-full w-full min-h-0 bg-background/80"

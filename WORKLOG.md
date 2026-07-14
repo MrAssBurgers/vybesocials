@@ -2,6 +2,20 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## Fix DM conversation perpetual loading (2026-07-13)
+
+- **Root cause:** Untimed Firestore message/profile reads + soft escape only on `messagesPending` (missed Opening chat / hung refetch); shared warm fetch could poison the thread query.
+- **Fix:**
+  - `loadConversationMessages`: 6s fetch timeout + 3s enrich timeout; return seed or throw (never hang).
+  - `resolveSessionProfileId`: whole inflight (incl. first `getProfileByAuthUid`) timed 2.5s; fallback auth uid; clear inflight.
+  - `ChatView`: conversation-keyed 4s escape (covers Opening chat / hung refetch); seed without waiting for `profileId`.
+  - `warmDmConversation`: timed fetch + `cancelQueries` on timeout.
+  - Suspense `ChatThreadLoadingShell`: 5s Retry / Back.
+- **Verified:** typecheck · test 276 · build PASS
+- **Next:** Device QA cold-open DM; publish when asked.
+
+---
+
 ## Fix Messages back button (2026-07-13)
 
 - **Bug:** Chat back arrow / swipe / Android back could fail or bounce — push `/messages` left the thread in history; mobile Messages disabled swipe-back; loading states had no back; header `pointer-events: none` hurt taps.
