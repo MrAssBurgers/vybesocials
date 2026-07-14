@@ -68,7 +68,10 @@ import { CallSettingsSheet } from '@/components/call/CallSettingsSheet';
 import { useChatPresence } from '@/hooks/useChatPresence';
 import { useChatScreenShield } from '@/hooks/useChatScreenShield';
 import { CHAT_SHIELD_ROOT_ID } from '@/lib/chatScreenShield';
-import { leaveDmConversation } from '@/lib/leaveDmConversation';
+import { requestDmThreadBack, setDmThreadBackHandler } from '@/lib/dmThreadBack';
+import { resolveDmThreadBackAction } from '@/lib/resolveDmThreadBackAction';
+import { dispatchDmCloseOverlays, DM_CLOSE_OVERLAYS_EVENT } from '@/lib/dmCloseOverlays';
+import { attachDmNavClickDebug, logDmNavDebug } from '@/lib/dmNavDebug';
 import { cancelStaleDmMessageQueries, retryDmThreadQueries } from '@/lib/retryDmThreadQueries';
 import { dmThreadLog } from '@/lib/dmThreadDebug';
 import { usePeerLastReadAt } from '@/hooks/usePeerLastReadAt';
@@ -445,7 +448,7 @@ export function ChatView() {
   const [cameraFirstMode, setCameraFirstMode] = useState(false);
 
   const callStore = useCallStore();
-  const { openCamera, isOpen: isCameraOpen } = useCameraOverlay();
+  const { openCamera, isOpen: isCameraOpen, closeCamera } = useCameraOverlay();
   const [showScreenshotAlert, setShowScreenshotAlert] = useState(false);
   const [screenshotUser, setScreenshotUser] = useState<string | undefined>();
   // Video preview state
@@ -487,10 +490,115 @@ export function ChatView() {
     setPendingImage(null);
     setShowImageSafetyGate(false);
     setPendingSafetyImage(null);
+    setCameraFirstMode(false);
+    setShowChatSearch(false);
+    setShowVanishThreads(false);
+    setShowMemoryPins(false);
+    setShowScheduleMessage(false);
+    setShowDMSettings(false);
+    setShowGroupInfo(false);
+    setShowMediaSettings(false);
+    setShowAdminPanel(false);
+    setShowOfferDialog(false);
+    setShowScreenshotAlert(false);
+    dispatchDmCloseOverlays();
     clearSuggestions();
     resetOlderState();
   }, [conversationId, clearSuggestions, resetOlderState]);
-  
+
+  // Priority back: close viewers/sheets/camera before leaving the thread.
+  useEffect(() => {
+    const handler = (): boolean => {
+      const mediaClosed = dispatchDmCloseOverlays();
+      const sheetOpen =
+        showChatSearch ||
+        showVanishThreads ||
+        showMemoryPins ||
+        showScheduleMessage ||
+        showDMSettings ||
+        showGroupInfo ||
+        showMediaSettings ||
+        showAdminPanel ||
+        showOfferDialog ||
+        showVideoPreview ||
+        showImageSafetyGate ||
+        showStickerPanel;
+      const cameraOpen = cameraFirstMode || isCameraOpen;
+      const menuOpen =
+        Boolean(activeReactionMessageId) ||
+        Boolean(showContextMenuMessageId) ||
+        showViewModeMenu;
+      const action = resolveDmThreadBackAction({
+        mediaViewerOpen: mediaClosed || false,
+        // If dispatch already closed media, treat as media path first next time;
+        // for this call we already closed — return true when media was closed.
+        sheetOpen,
+        cameraOpen,
+        menuOpen,
+      });
+      // Prefer actual close order: media (already closed via dispatch), then sheets, camera, menus.
+      if (mediaClosed) {
+        logDmNavDebug('back-closed-media');
+        return true;
+      }
+      if (action === 'sheet' || sheetOpen) {
+        setShowChatSearch(false);
+        setShowVanishThreads(false);
+        setShowMemoryPins(false);
+        setShowScheduleMessage(false);
+        setShowDMSettings(false);
+        setShowGroupInfo(false);
+        setShowMediaSettings(false);
+        setShowAdminPanel(false);
+        setShowOfferDialog(false);
+        setShowVideoPreview(false);
+        setPendingVideoFile(null);
+        setShowImageSafetyGate(false);
+        setPendingSafetyImage(null);
+        setShowStickerPanel(false);
+        logDmNavDebug('back-closed-sheet');
+        return true;
+      }
+      if (action === 'camera' || cameraOpen) {
+        setCameraFirstMode(false);
+        if (isCameraOpen) closeCamera();
+        logDmNavDebug('back-closed-camera');
+        return true;
+      }
+      if (action === 'menu' || menuOpen) {
+        setActiveReactionMessageId(null);
+        setShowContextMenuMessageId(null);
+        setShowViewModeMenu(false);
+        logDmNavDebug('back-closed-menu');
+        return true;
+      }
+      return false;
+    };
+    setDmThreadBackHandler(handler);
+    return () => setDmThreadBackHandler(null);
+  }, [
+    showChatSearch,
+    showVanishThreads,
+    showMemoryPins,
+    showScheduleMessage,
+    showDMSettings,
+    showGroupInfo,
+    showMediaSettings,
+    showAdminPanel,
+    showOfferDialog,
+    showVideoPreview,
+    showImageSafetyGate,
+    showStickerPanel,
+    cameraFirstMode,
+    isCameraOpen,
+    activeReactionMessageId,
+    showContextMenuMessageId,
+    showViewModeMenu,
+    closeCamera,
+  ]);
+
+  useEffect(() => attachDmNavClickDebug(), []);
+
 
   const otherMembers = useMemo(
     () =>
@@ -1527,7 +1635,10 @@ export function ChatView() {
       shellId={CHAT_SHIELD_ROOT_ID}
       className="dm-thread"
       themeStyle={chatThreadStyle}
-      onBack={() => leaveDmConversation(navigate)}
+      onBack={() => {
+        logDmNavDebug('header-back');
+        requestDmThreadBack(navigate);
+      }}
       onOpenSearch={() => setShowChatSearch(true)}
       profileSlot={profileSlot}
       actionsSlot={actionsSlot}
@@ -2233,6 +2344,28 @@ const MessageBubble = memo(function MessageBubble({
   const isContextMenuOpen = showContextMenu || forceShowContextMenu;
   const bubbleWrapperRef = useRef<HTMLDivElement>(null);
   const [reactionsFlipBelow, setReactionsFlipBelow] = useState(false);
+
+  useEffect(() => {
+    const onCloseOverlays = (e: Event) => {
+      const detail = (e as CustomEvent<{ closed: boolean }>).detail;
+      let closed = false;
+      if (viewerMedia) {
+        setViewerMedia(null);
+        closed = true;
+      }
+      if (showVybeViewer) {
+        setShowVybeViewer(false);
+        closed = true;
+      }
+      if (showContextMenu) {
+        setShowContextMenu(false);
+        closed = true;
+      }
+      if (closed && detail) detail.closed = true;
+    };
+    window.addEventListener(DM_CLOSE_OVERLAYS_EVENT, onCloseOverlays);
+    return () => window.removeEventListener(DM_CLOSE_OVERLAYS_EVENT, onCloseOverlays);
+  }, [viewerMedia, showVybeViewer, showContextMenu]);
 
   useLayoutEffect(() => {
     if (!showReactions) { setReactionsFlipBelow(false); return; }

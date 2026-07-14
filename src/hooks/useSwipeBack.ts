@@ -1,7 +1,8 @@
 import { useRef, useCallback, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { triggerHaptic } from '@/lib/haptics';
-import { isDmConversationPath, leaveDmConversation } from '@/lib/leaveDmConversation';
+import { isDmConversationPath } from '@/lib/leaveDmConversation';
+import { requestDmThreadBack } from '@/lib/dmThreadBack';
 
 /** Edge width (px) for iOS-style swipe-back — stays left of the 36px back control. */
 export const SWIPE_BACK_EDGE_PX = 16;
@@ -72,9 +73,9 @@ export function useSwipeBack(enabled = true) {
 
     if (progress >= 0.5) {
       triggerHaptic('medium');
-      // Threads always leave via replace so we land on inbox (not a stale history hop).
+      // Threads: close overlays first, else leave via replace (not history.back).
       if (isDmConversationPath(location.pathname)) {
-        leaveDmConversation(navigate);
+        requestDmThreadBack(navigate);
       } else {
         navigate(-1);
       }

@@ -64,6 +64,22 @@ export const Texter = memo(function Texter({
   const cancelVoiceRef = useRef(false);
   const [slideCancel, setSlideCancel] = useState(false);
   const [voiceReview, setVoiceReview] = useState<{ blob: Blob; duration: number } | null>(null);
+  const voicePointerIdRef = useRef<number | null>(null);
+  const voiceCaptureElRef = useRef<HTMLElement | null>(null);
+
+  const releaseVoicePointerCapture = () => {
+    const el = voiceCaptureElRef.current;
+    const id = voicePointerIdRef.current;
+    if (el && id != null) {
+      try {
+        if (el.hasPointerCapture?.(id)) el.releasePointerCapture(id);
+      } catch {
+        /* ignore */
+      }
+    }
+    voiceCaptureElRef.current = null;
+    voicePointerIdRef.current = null;
+  };
 
   // Batched in rAF — a synchronous height write + scrollHeight read on every
   // keystroke forces layout mid-typing, which is felt on mobile keyboards.
@@ -82,11 +98,15 @@ export const Texter = memo(function Texter({
 
   useEffect(() => () => {
     if (resizeRafRef.current !== null) cancelAnimationFrame(resizeRafRef.current);
+    releaseVoicePointerCapture();
   }, []);
 
   const handleVoicePointerDown = (e: React.PointerEvent) => {
     e.preventDefault();
-    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    const target = e.currentTarget as HTMLElement;
+    voiceCaptureElRef.current = target;
+    voicePointerIdRef.current = e.pointerId;
+    target.setPointerCapture(e.pointerId);
     voiceStart.current = { x: e.clientX, y: e.clientY };
     cancelVoiceRef.current = false;
     setSlideCancel(false);
@@ -105,6 +125,7 @@ export const Texter = memo(function Texter({
   };
 
   const handleVoicePointerUp = () => {
+    releaseVoicePointerCapture();
     if (cancelVoiceRef.current || slideCancel) {
       onVoiceHoldCancel?.();
       onVoiceRecordingCancel?.();

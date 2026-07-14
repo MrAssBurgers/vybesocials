@@ -2,6 +2,20 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## Fix DM navigation lock (2026-07-14)
+
+- **Bug:** Opening a DM trapped navigation — mobile Back dead; desktop could not switch or leave; no chrome escape while thread open.
+- **Cause (residual after 9fc1033e):** Bottom nav unmounted on `/messages/:id`; Capacitor back used `replaceState` (no leave suppress / RR sync); header back ignored open sheets/viewers; Texter `setPointerCapture` never released.
+- **Fix:**
+  - Keep BottomNav mounted on DM threads; Messages tab active; `--dm-composer-lift` restored above nav.
+  - Unified `requestDmThreadBack` / `handleSystemBackForDm` → overlay close then `leaveDmConversation` (Capacitor + swipe + header).
+  - ChatView registers priority back handler; closes viewers/sheets/camera/menus; clears overlays on conversation change.
+  - Texter releases pointer capture on up/cancel/unmount; `vybe-dm-nav-debug=1` click/leave logging.
+- **Verified:** typecheck · test 298 · build PASS
+- **Next:** Commit/push → Firebase hosting → Lovable Publish for `vybehub.app`.
+
+---
+
 ## Fix DM leave after 5e75cc98 (2026-07-14)
 
 - **Bug:** After sticky/shell publish, phone Back still failed; leave could bounce back into the same DM.

@@ -2068,10 +2068,11 @@ body.has-liquid-bg:not(.has-custom-bg) .dm-composer-dock {
 html[data-dm-active='true'] .dm-composer-dock {
   position: relative;
   bottom: auto;
+  padding-bottom: var(--dm-composer-lift, 0px);
 }
 html[data-dm-active='true'] {
-  /* Bottom nav is hidden in active chat — only clear home indicator */
-  --dm-composer-lift: 0px;
+  /* Bottom nav stays mounted on threads — lift composer above the pill. */
+  --dm-composer-lift: calc(4.5rem + var(--sab, env(safe-area-inset-bottom, 0px)));
   --dm-floating-header-scroll: var(--dm-header-stack, calc(var(--sat, env(safe-area-inset-top, 0px)) + 2.75rem));
 }
 html[data-dm-active='true'] .dm-chat-messages {

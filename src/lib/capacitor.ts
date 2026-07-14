@@ -45,26 +45,18 @@ export async function initializeNativePlugins() {
       document.body.classList.remove('keyboard-visible');
     });
 
-    // Handle back button on Android — leave DM threads to inbox (replace) so
-    // history.back() doesn't bounce into phantom sheet entries or skip the list.
+    // Handle back button on Android — leave DM threads via shared leave path
+    // (suppress + React Router replace) so ghost reopen and RR stay in sync.
     App.addListener('backButton', ({ canGoBack }) => {
-      const path = window.location.pathname;
-      const segment = path.startsWith('/messages/')
-        ? path.slice('/messages/'.length).split(/[/?#]/)[0] ?? ''
-        : '';
-      const isDmThread =
-        Boolean(segment) && !['search', 'requests', 'new', 'ai-autisy'].includes(segment);
-      if (isDmThread) {
-        document.documentElement.removeAttribute('data-dm-active');
-        window.history.replaceState(window.history.state, '', '/messages');
-        window.dispatchEvent(new PopStateEvent('popstate'));
-        return;
-      }
-      if (canGoBack) {
-        window.history.back();
-      } else {
-        App.exitApp();
-      }
+      void (async () => {
+        const { handleSystemBackForDm } = await import('@/lib/dmThreadBack');
+        if (handleSystemBackForDm()) return;
+        if (canGoBack) {
+          window.history.back();
+        } else {
+          App.exitApp();
+        }
+      })();
     });
 
     // Handle app state changes

@@ -18,7 +18,7 @@ import { T, TAP, MOTION_CONFIG } from '@/lib/motion';
 import { Avatar, ProfileAvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { useUserPreferences, useUpdatePreferences } from '@/hooks/useUserPreferences';
-import { isOwnProfilePath } from '@/lib/bottomNavRoutes';
+import { isOwnProfilePath, isMessagesNavActive } from '@/lib/bottomNavRoutes';
 
 function useScrollDirection() {
   return useSyncExternalStore(subscribeScrollHide, isScrollHideVisible, () => true);
@@ -565,7 +565,7 @@ export const BottomNav = memo(forwardRef<HTMLElement, object>(function BottomNav
                   return location.pathname === '/clips';
                 }
                 if (item.id === 'messages') {
-                  return location.pathname === '/messages';
+                  return isMessagesNavActive(location.pathname);
                 }
                 if (item.isProfile) {
                   return isOwnProfilePath(location.pathname, profile);
