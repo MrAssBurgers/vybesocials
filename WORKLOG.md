@@ -2,6 +2,17 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## Instant DMs + profiles (2026-07-13)
+
+- **DMs still blank:** Thread used `offlineFirst` (can pause forever); empty message fetch didn't await membership repair; list waited for profileId before any network; membership only queried one id.
+- **Fix:** `useMessages`/`useConversationDetail` → `networkMode: 'always'`; await repair + retry on empty; load list with authUid fallback; dual membership keys (profileId + authUid); refetch on actorId change.
+- **Profiles slow:** `/u/:username` waited on friendship+visibility after profile; cache key included viewer id (miss on auth); wrong preload chunk.
+- **Fix:** Paint hero as soon as profile exists; stable `['profile', username]` key + session placeholder; early self → Profile; softer friendship refetch; preload RelationshipProfile.
+- **Verified:** typecheck · test 270 · build PASS
+- **Next:** Publish when ready.
+
+---
+
 ## DM open + scroll dark + profile hang + dupes + update copy (2026-07-13)
 
 - **Chat open stuck:** Inbox 1-message seed marked RQ fresh + `refetchOnMount` only on empty → never hydrated. Fixed sparse-seed refetch + `fetchQuery` warm (staleTime 0) after seed.

@@ -69,6 +69,7 @@ export function preloadRoute(path: string): void {
   if (!importFn) {
     // Try to match dynamic routes like /u/:username
     if (normalizedPath.startsWith('/u/')) {
+      import('@/pages/RelationshipProfile').catch(() => {});
       import('@/pages/Profile').catch(() => {});
       preloadedRoutes.add(normalizedPath);
     } else if (normalizedPath.startsWith('/p/')) {

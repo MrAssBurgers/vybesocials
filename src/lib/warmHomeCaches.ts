@@ -244,6 +244,10 @@ export function warmHomeCachesForProfile(
 ) {
   if (profileRow) {
     queryClient.setQueryData(['profile', profileId], profileRow);
+    const uname = String(profileRow.username || '').toLowerCase();
+    if (uname) {
+      queryClient.setQueryData(['profile', uname], profileRow);
+    }
     const avatar = resolveProfileAvatarUrl(
       profileId,
       (profileRow.avatar_url as string | null | undefined) ?? null,

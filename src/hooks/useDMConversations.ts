@@ -82,15 +82,20 @@ export function useDMConversations(searchQuery: string = '') {
       const viewerId = profileId || user?.id;
       if (!viewerId) return [];
       const prev = readDmConversationsCache(queryClient, profileId, user?.id);
-      // Only hit the network with a real profileId — authUid fallback is cache/paint only.
-      if (!profileId) return prev;
-      const { data, error, profileId: resolvedId } = await loadDMConversations(profileId, prev);
+      // Prefer real profileId; if still resolving, still hit network with authUid
+      // so inbox isn't stuck on "Signing in…" with an empty cache forever.
+      const loadId = profileId || user?.id;
+      if (!loadId) return prev;
+      const { data, error, profileId: resolvedId } = await loadDMConversations(loadId, prev);
       const merged = data.length > 0 ? data : prev;
 
       if (merged.length > 0) {
         syncDmListCaches(queryClient, resolvedId, merged);
-        if (resolvedId !== profileId) {
+        if (profileId && resolvedId !== profileId) {
           syncDmListCaches(queryClient, profileId, merged);
+        }
+        if (user?.id && resolvedId !== user.id) {
+          syncDmListCaches(queryClient, user.id, merged);
         }
       }
 
@@ -431,7 +436,7 @@ export function useConversationDetail(conversationId: string | undefined) {
         (buildConversationPlaceholder(conversationId, profileId) as unknown as DMConversation);
       return normalizeDmConversation(hit);
     },
-    networkMode: 'offlineFirst',
+    networkMode: 'always',
     refetchOnMount: (query) => {
       const data = query.state.data as DMConversation | undefined;
       if (ensureArray(data?.members).some((m) => m.profile?.username)) return false;

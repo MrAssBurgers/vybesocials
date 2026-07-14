@@ -1,7 +1,7 @@
 import { db } from '@/lib/firebase';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/lib/auth';
-import { setCachedProfile } from '@/lib/profileCache';
+import { setCachedProfile, getCachedCurrentProfile } from '@/lib/profileCache';
 import { recordChallengeActivity } from '@/lib/challengeProgressClient';
 
 /** Supabase RPCs return row arrays; Firebase client fallbacks may return a single object. */
@@ -133,9 +133,11 @@ export function useProfileById(profileId: string | undefined) {
 
 export function useProfileByUsername(username: string) {
   const { profile: currentProfile } = useAuth();
+  const normalizedKey = (username || '').trim().toLowerCase();
 
   return useQuery({
-    queryKey: ['profile', username, currentProfile?.id],
+    // Stable across auth hydrate — never miss warm/disk cache when viewer id arrives.
+    queryKey: ['profile', normalizedKey],
     queryFn: async (): Promise<Profile | null> => {
       const trimmedUsername = username.trim();
       const normalizedUsername = trimmedUsername.toLowerCase();
@@ -196,34 +198,25 @@ export function useProfileByUsername(username: string) {
       
       if (!profile) return null;
 
-      // Direct table read only works for authenticated users (RLS revokes anon SELECT).
-      if (currentProfile) {
-        const { data: fullProfile } = await db
-          .from('profiles')
-          .select('id, user_id, username, avatar_url, bio, created_at, display_name, link_url, location, is_private, is_verified, interests, language, timezone, coins_balance, onboarding_completed, tutorial_completed, tutorial_skipped, intro_completed, badge_settings, date_of_birth, feature_on_landing')
-          .eq('id', profile.id)
-          .maybeSingle();
-
-        if (fullProfile) profile = { ...profile, ...fullProfile } as typeof profile;
-      }
-
-      // Get counts in parallel
-      const [followerCount, followingCount, postCount, isFollowing] = await Promise.all([
-        db.from('follows').select('id', { count: 'exact', head: true }).eq('following_id', profile.id),
-        db.from('follows').select('id', { count: 'exact', head: true }).eq('follower_id', profile.id),
-        db.from('posts').select('id', { count: 'exact', head: true }).eq('author_id', profile.id),
+      // Paint-ready identity first — skip redundant full-row re-read.
+      // Counts hydrate in parallel and don't block returning core fields.
+      const p = profile as any;
+      const countPromise = Promise.all([
+        db.from('follows').select('id', { count: 'exact', head: true }).eq('following_id', p.id),
+        db.from('follows').select('id', { count: 'exact', head: true }).eq('follower_id', p.id),
+        db.from('posts').select('id', { count: 'exact', head: true }).eq('author_id', p.id),
         currentProfile
           ? db
               .from('follows')
               .select('id')
               .eq('follower_id', currentProfile.id)
-              .eq('following_id', profile.id)
+              .eq('following_id', p.id)
               .maybeSingle()
           : Promise.resolve({ data: null }),
       ]);
 
-      // Cache the profile
-      const p = profile as any;
+      const [followerCount, followingCount, postCount, isFollowing] = await countPromise;
+
       setCachedProfile({
         id: String(p.id),
         username: String(p.username),
@@ -232,19 +225,35 @@ export function useProfileByUsername(username: string) {
       });
 
       return {
-        ...(profile as any),
+        ...p,
         follower_count: followerCount.count || 0,
         following_count: followingCount.count || 0,
         post_count: postCount.count || 0,
         is_following: !!isFollowing.data,
       } as any;
     },
-    enabled: !!username,
+    enabled: !!username?.trim(),
     staleTime: 1000 * 60 * 15, // 15 minutes
     gcTime: 1000 * 60 * 60, // 1 hour
     retry: 1,
     refetchOnMount: false,
     refetchOnWindowFocus: false,
+    placeholderData: () => {
+      const key = (username || '').trim().toLowerCase();
+      if (!key) return undefined;
+      const current = getCachedCurrentProfile();
+      if (current?.username?.toLowerCase() === key) {
+        return {
+          ...current,
+          follower_count: 0,
+          following_count: 0,
+          post_count: 0,
+          is_following: false,
+        } as any;
+      }
+      return undefined;
+    },
+    networkMode: 'always',
   });
 }
 

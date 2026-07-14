@@ -471,10 +471,10 @@ export function useFriendshipStatus(targetUserId: string | undefined) {
       return friendshipResult(state, data?.request_id || null);
     },
     enabled: !!profileId && !!targetUserId,
-    staleTime: 30000,
+    staleTime: 60_000,
     placeholderData: (prev) => prev,
-    refetchOnMount: true,
-    refetchOnWindowFocus: true,
+    refetchOnMount: false,
+    refetchOnWindowFocus: false,
   });
 }
 

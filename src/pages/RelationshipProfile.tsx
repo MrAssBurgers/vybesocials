@@ -4,7 +4,6 @@ import { useParams } from 'react-router-dom';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Button } from '@/components/ui/button';
 import { useFriendProfile } from '@/hooks/useFriendProfile';
 import { useLockerItems } from '@/hooks/useLockerItems';
 import { THEME_GRADIENTS } from '@/lib/cosmeticConstants';
@@ -47,13 +46,13 @@ export default function RelationshipProfilePage() {
 
   if (
     !username ||
-    relationship.profilePending ||
-    (relationship.profile &&
-      relationship.profileIdReady &&
-      (relationship.relationshipPending || relationship.visibilityPending))
+    (relationship.profilePending && !relationship.profile)
   ) {
     return <ProfileSkeleton />;
   }
+
+  // Self: skip friendship/visibility tax — own profile already in session.
+  if (relationship.isSelf) return <ProfilePage />;
 
   if (relationship.profileError || !relationship.profile) {
     return (
@@ -68,20 +67,8 @@ export default function RelationshipProfilePage() {
     );
   }
 
-  if (relationship.relationshipError || relationship.visibilityError) {
-    return (
-      <AppLayout>
-        <div className="mx-auto flex max-w-lg flex-col items-center gap-3 p-6 pt-24">
-          <p className="text-sm text-muted-foreground">
-            We couldn&apos;t verify this profile&apos;s privacy settings.
-          </p>
-          <Button variant="outline" onClick={() => window.location.reload()}>
-            Try again
-          </Button>
-        </div>
-      </AppLayout>
-    );
-  }
+  // Don't hard-block the page on friendship/visibility errors — hero already painted.
+  // Soft-fail private sections below when visibility is missing.
 
   if (relationship.isBlocked) {
     return (
@@ -96,9 +83,6 @@ export default function RelationshipProfilePage() {
       </AppLayout>
     );
   }
-
-  // Keep the feature-rich owner surface while /u/:username remains canonical.
-  if (relationship.isSelf) return <ProfilePage />;
 
   const { profile, visibility, friendshipStatus, isFriend, isPendingRequest } = relationship;
   const mode = relationshipMode(friendshipStatus);

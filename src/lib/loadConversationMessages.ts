@@ -150,15 +150,23 @@ export async function loadConversationMessages(
       );
       data = retry.data;
       error = retry.error;
-    } else if (!isConversationMessagesReady(conversationId, resolvedActorId)) {
-      runRepair(true);
+    } else if (!data?.length || !isConversationMessagesReady(conversationId, resolvedActorId)) {
+      // Await membership repair then retry — fire-and-forget left threads empty forever.
+      await prepareConversationForMessages(conversationId, resolvedActorId, otherProfileId, {
+        fast: true,
+      });
+      const retry = await fetchRecentConversationMessages<Message>(
+        conversationId,
+        MESSAGE_SELECT_MINIMAL,
+        maxMessages,
+      );
+      if (!retry.error && retry.data?.length) {
+        data = retry.data;
+        error = retry.error;
+      }
     }
 
     if (error) throw error;
-
-    if (!data?.length) {
-      runRepair(true);
-    }
 
     const rows = ((data || []) as Message[]).filter((m) => !m.is_deleted);
     const filtered = filterMessagesForViewer(rows, resolvedActorId);

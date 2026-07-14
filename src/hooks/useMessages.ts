@@ -340,29 +340,31 @@ export function useMessages(conversationId: string | undefined) {
       }
     },
     enabled: !!conversationId,
-    staleTime: 120_000,
+    staleTime: 60_000,
     gcTime: 1000 * 60 * 60 * 24 * 14,
     refetchOnWindowFocus: false,
     refetchOnMount: (query) => {
       // Empty OR inbox preview seed (typically 1 msg) → hydrate in background.
       return shouldRefetchWhenEmptyOrSparse(query, 8);
     },
-    refetchOnReconnect: false,
+    refetchOnReconnect: true,
     initialData: () => {
       if (!conversationId) return undefined;
       const cached = readMessagesCache(queryClient, conversationId);
       return cached.length ? cached : undefined;
     },
-    networkMode: 'offlineFirst',
+    // Match inbox — offlineFirst can pause forever with isFetched=false.
+    networkMode: 'always',
     retry: 2,
     retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 8000),
   });
 
-  // When profile arrives after open, refetch so we don't stay stuck on seed/empty.
+  // Refetch whenever actor becomes available OR changes (authUid → legacy UUID).
   useEffect(() => {
     const prev = prevActorRef.current;
     prevActorRef.current = actorId;
-    if (!conversationId || !actorId || prev) return;
+    if (!conversationId || !actorId) return;
+    if (prev === actorId) return;
     void query.refetch();
   }, [actorId, conversationId, query.refetch]);
 

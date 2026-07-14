@@ -151,13 +151,29 @@ async function fetchConversationsForList(
   );
 }
 
-async function fetchMembershipRows(profileId: string) {
-  const { data, error } = await db
-    .from('conversation_members')
-    .select('conversation_id, last_read_at, is_pinned, is_muted')
-    .eq('user_id', profileId);
+async function fetchMembershipRows(profileId: string, authUid?: string | null) {
+  const ids = Array.from(
+    new Set([profileId, authUid].filter((id): id is string => Boolean(id))),
+  );
+  const results = await Promise.all(
+    ids.map(async (userId) => {
+      const { data, error } = await db
+        .from('conversation_members')
+        .select('conversation_id, last_read_at, is_pinned, is_muted')
+        .eq('user_id', userId);
+      return { rows: data || [], error, userId };
+    }),
+  );
 
-  return { rows: data || [], error };
+  const merged: Array<{ conversation_id: string; last_read_at?: string | null; is_pinned?: boolean; is_muted?: boolean }> = [];
+  let firstError: { message?: string } | null = null;
+  for (const result of results) {
+    if (result.error && !firstError) firstError = result.error;
+    for (const row of result.rows) merged.push(row);
+  }
+  // Only surface error when every key failed and we got no rows.
+  const error = merged.length === 0 ? firstError : null;
+  return { rows: merged, error };
 }
 
 async function discoverConversationIdsViaChats(
@@ -208,7 +224,7 @@ async function loadDMConversationsOnce(
       { data: hiddenData },
       { data: trashedData },
     ] = await Promise.all([
-      fetchMembershipRows(effectiveProfileId),
+      fetchMembershipRows(effectiveProfileId, authUid),
       db.from('hidden_conversations').select('conversation_id').eq('user_id', effectiveProfileId),
       db.from('trashed_conversations').select('conversation_id').eq('user_id', effectiveProfileId),
     ]);
@@ -229,7 +245,11 @@ async function loadDMConversationsOnce(
         membershipMap.set(id, { conversation_id: id, last_read_at: null });
       }
       if (!membershipMap.size) {
-        return { data: [], error: membershipError, profileId: effectiveProfileId };
+        return {
+          data: [],
+          error: { message: membershipError.message || 'Membership query failed' },
+          profileId: effectiveProfileId,
+        };
       }
     }
 
