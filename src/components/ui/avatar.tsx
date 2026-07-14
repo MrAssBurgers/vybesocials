@@ -92,7 +92,8 @@ const ProfileAvatarImage = React.forwardRef<
       src={optimized}
       loading={priority ? 'eager' : 'lazy'}
       decoding="async"
-      fetchPriority={priority ? 'high' : 'auto'}
+      // @ts-expect-error fetchpriority is valid HTML; React types still prefer camelCase
+      fetchpriority={priority ? 'high' : 'auto'}
       className={cn("aspect-square h-full w-full object-cover", className)}
       {...props}
     />

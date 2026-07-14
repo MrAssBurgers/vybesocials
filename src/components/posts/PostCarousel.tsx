@@ -33,7 +33,8 @@ function CarouselImage({ url, eager = false }: { url: string; eager?: boolean })
         onError={() => setHasError(true)}
         loading={eager ? 'eager' : 'lazy'}
         decoding="async"
-        fetchPriority={eager ? 'high' : 'auto'}
+        // @ts-expect-error fetchpriority is valid HTML; React types still prefer camelCase
+        fetchpriority={eager ? 'high' : 'auto'}
       />
     </div>
   );

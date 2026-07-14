@@ -105,7 +105,9 @@ async function flushEvents() {
   } catch (error) {
     // On error, put events back in queue (up to limit)
     eventQueue = [...eventsToSend.slice(0, 50), ...eventQueue.slice(0, 50)];
-    console.error('[Analytics] Failed to flush events:', error);
+    if (import.meta.env.DEV) {
+      console.warn('[Analytics] Failed to flush events:', error);
+    }
   }
 }
 

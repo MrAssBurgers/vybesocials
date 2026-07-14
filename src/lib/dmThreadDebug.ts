@@ -20,7 +20,6 @@ export function dmThreadLog(
   extra?: Record<string, unknown>,
 ): void {
   if (!enabled()) return;
-  // eslint-disable-next-line no-console
   console.info('[dm-thread]', {
     event,
     conversationId: conversationId ?? null,

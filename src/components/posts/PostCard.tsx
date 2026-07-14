@@ -331,7 +331,8 @@ function NaturalAspectImage({
           )}
           loading={eager ? 'eager' : 'lazy'}
           decoding={eager ? 'sync' : 'async'}
-          fetchPriority={eager ? 'high' : 'auto'}
+          // @ts-expect-error fetchpriority is valid HTML; React types still prefer camelCase
+          fetchpriority={eager ? 'high' : 'auto'}
           onLoad={handleLoad}
           onError={() => setHasError(true)}
         />
@@ -612,7 +613,8 @@ export const PostCard = memo(function PostCard({ post, eager = false }: PostCard
                   src={avatarSrc}
                   loading={eager ? 'eager' : 'lazy'}
                   decoding={eager ? 'sync' : 'async'}
-                  fetchPriority={eager ? 'high' : 'auto'}
+                  // @ts-expect-error fetchpriority is valid HTML; React types still prefer camelCase
+                  fetchpriority={eager ? 'high' : 'auto'}
                 />
                 <AvatarFallback className="bg-secondary text-secondary-foreground">
                   {post.author.username?.[0]?.toUpperCase() ?? '?'}

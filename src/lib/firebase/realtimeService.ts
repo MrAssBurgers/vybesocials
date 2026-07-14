@@ -86,13 +86,21 @@ export function subscribePostgresChannel(
       ? query(coll, where(parsed.field, '==', parsed.value))
       : query(coll);
 
-    let isInitialSnapshot = true;
+    // Firestore persistence often emits an empty fromCache snapshot first, then a
+    // server snapshot where every matching doc is `added`. Skipping only callback #1
+    // lets historical DMs look like INSERT and spam foreground toasts. Discard the
+    // entire bootstrap batch (non-empty cache seed OR first server sync) before live events.
+    let bootstrapComplete = false;
 
     const unsub = onSnapshot(
       q,
       (snapshot) => {
-        if (isInitialSnapshot) {
-          isInitialSnapshot = false;
+        if (!bootstrapComplete) {
+          // Keep waiting while the local cache is still empty — the real seed arrives next.
+          if (snapshot.metadata.fromCache && snapshot.empty) {
+            return;
+          }
+          bootstrapComplete = true;
           return;
         }
 
@@ -156,6 +164,10 @@ function subscribeBroadcastChannel(
     q,
     (snapshot) => {
       if (isInitial) {
+        // Mirror subscribePostgresChannel: empty fromCache is not the bootstrap batch yet.
+        if (snapshot.metadata.fromCache && snapshot.empty) {
+          return;
+        }
         isInitial = false;
         onStatus?.('SUBSCRIBED');
         return;

@@ -9,6 +9,7 @@ import { showMessageNotification } from '@/components/notifications/MessageNotif
 import { isDespiaRuntime } from '@/lib/despiaBridge';
 import { isNativePlatform } from '@/lib/capacitor';
 import { dmNotificationTag, shouldShowInAppNotification } from '@/lib/inAppNotificationDedupe';
+import { isFreshForegroundDmMessage } from '@/lib/foregroundDmFreshness';
 import type { QueryClient } from '@tanstack/react-query';
 
 function messagePreview(message: {
@@ -90,6 +91,10 @@ export async function maybeShowForegroundDmNotification(options: {
   if (!conversationId || !messageId) return;
 
   if (isViewingConvo && document.visibilityState === 'visible') return;
+
+  // Defense in depth: never toast historical rows that leaked as realtime "INSERT"
+  // during listener bootstrap / reconnect.
+  if (!isFreshForegroundDmMessage(message.created_at)) return;
 
   const tag = dmNotificationTag(conversationId, messageId);
   if (!shouldShowInAppNotification(tag)) return;

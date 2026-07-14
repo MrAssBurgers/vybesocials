@@ -2,6 +2,54 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## Polish + staging hosting deploy (2026-07-14)
+
+- **Client:** Quiet Tutorial logs (DEV-only); filter remaining noisy console patterns in `main.tsx` (permission-denied / missing-index / App Check / WebGL / web-share).
+- **Staging:** `firebase deploy --only hosting` → https://vybe-daaab.web.app ✅ (includes DM toast fix + signup/rules/console fixes).
+- **Verified on staging:** boot past splash · login · home (no critical console) · Messages hard-refresh (0 historical toasts) · profile · lint · typecheck · test 304
+- **Still for prod web:** Lovable → Share → Publish for **vybehub.app** (this hosting deploy does not publish the custom domain).
+- **Next:** Publish via Lovable; hard-refresh vybehub.app; confirm DM toast + signup on production.
+
+---
+
+## Fix DM toast spam on Messages load (2026-07-14)
+
+- **Evidence:** Recording `17.05.22` — opening DMs instantly stacked in-app banners with historical previews (reighly / Jayden / macy).
+- **Cause:** `subscribePostgresChannel` only skipped callback #1. Firestore persistence often emits empty `fromCache` first, then a server snapshot where every existing message is `added` → treated as INSERT → `maybeShowForegroundDmNotification`.
+- **Fix:**
+  - Bootstrap wait until non-empty cache or first server sync; discard that seed batch before live events (`realtimeService.ts`).
+  - Age-gate foreground DM toasts (45s) via `isFreshForegroundDmMessage`.
+- **Verified:** unit freshness tests · typecheck · lint
+- **Next:** Hard-refresh Messages — no historical toast stack; new live messages still toast when not viewing that thread.
+
+---
+
+## Debug scan (2026-07-14)
+
+- **Scan:** `npm run debug` — build · lint · CSS · boot · CF refs (67 client / 201 local) · probes sharePreview/livekitToken/aiCatchUp — ALL PASS
+- **Also:** typecheck · test 301 · staging/prod hosting HTTP 200 · Auth domain 200
+- **Fixes (safe in-repo):**
+  - Signup username check fail-soft on Firestore `permission-denied` (profiles require signed-in; unblocked email signup)
+  - Tutorial spotlight `motion.rect` — never paint undefined SVG width/height
+  - `fetchPriority` → `fetchpriority` on img/avatar props (React DOM warning)
+  - `dna_content_preferences` Firestore rules + hook soft-fail
+  - Added rules for `user_active_boosts`, `screen_time_sessions`, `analytics_events`; own-user **read** on `auth_challenges`
+  - Tightened `user_levels` / `challenge_rewards` read rules for auth-uid list queries
+  - Gate `usePendingModerationCount` to staff only (was spamming reports/flags/appeals/bugs denies for everyone)
+  - Soft-fail active boosts / VybePass reads; quieter analytics flush in DEV
+  - Composite indexes for comments/events/challenge_rewards/messages/calls/auth_challenges
+  - Lint unused `eslint-disable` on dm debug helpers; Tailwind ambiguous duration/ease classes
+- **Verified:** lint clean · typecheck · test 301 · build PASS · UI signup `debugscan0714` → home OK
+- **Production deploy:** `firestore:rules` + `firestore:indexes` → `vybe-daaab` ✅ (kept live `calls` indexes; redeployed after remaining console fixes)
+- **Still open:**
+  1. Merge PR + Lovable → Share → Publish for `vybehub.app` (client signup/console fixes)
+  2. Indexes may still finish building — missing-index warns can linger briefly
+  3. Some CF names are client-only RPCs (`ensure_profile` HTTP 404 expected); `claimProfileByEmail` deployed (401)
+- **Remaining console noise (env / non-blocking):** WebGL SwiftShader deprecation; `web-share` feature warning; Presence/Tutorial debug logs; App Check site key unset locally
+- **Next:** Merge/publish client → hard-refresh home; confirm DNA + index noise gone; re-check DM nav on desktop
+
+---
+
 ## Fix desktop DM lock from screen recording (2026-07-14)
 
 - **Evidence:** Recording `01.45.27` — desktop 3-pane; back, other chats, and Explore all dead while YUJIN KIM thread painted.

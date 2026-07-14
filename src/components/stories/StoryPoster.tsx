@@ -129,7 +129,8 @@ export const StoryPoster = memo(function StoryPoster({
               className="h-full w-full object-cover scale-110 blur-2xl opacity-20"
               loading={imgLoading}
               decoding={imgDecoding}
-              fetchPriority={imgFetchPriority}
+              // @ts-expect-error fetchpriority is valid HTML; React types still prefer camelCase
+              fetchpriority={imgFetchPriority}
               draggable={false}
             />
           ) : (
@@ -168,7 +169,8 @@ export const StoryPoster = memo(function StoryPoster({
             className="h-full w-full object-cover"
             loading={imgLoading}
             decoding={imgDecoding}
-            fetchPriority={imgFetchPriority}
+            // @ts-expect-error fetchpriority is valid HTML; React types still prefer camelCase
+            fetchpriority={imgFetchPriority}
             draggable={false}
           />
         ) : (
