@@ -7,7 +7,9 @@ Use this file as the Lovable -> Cursor handoff each session.
 - **Evidence:** Recording `01.45.27` — desktop 3-pane; back, other chats, and Explore all dead while YUJIN KIM thread painted.
 - **Fix:** Clear stale viewport overlays; shield curtain never receives pointers; desktop sidebar z-80 above main; thread shell forced relative in column; disable chat-screen shield on desktop; back Link hard-`location.replace` fallback.
 - **Verified:** typecheck · test 301 · build PASS
-- **Next:** Publish + hard refresh — open DM → Explore / switch row / Back must work.
+- **Published:** `origin/main` @ **`3de17cc8`** · https://vybe-daaab.web.app ✅
+- **Production:** Lovable → Share → Publish (sync `main` @ `3de17cc8`)
+- **Next:** Hard-refresh — open DM → Explore / switch row / Back must work.
 
 ---
 
