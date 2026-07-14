@@ -2,6 +2,18 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## PUBLISH handoff (2026-07-14) — composer + map sheet
+
+- **Merged to `origin/main`:** `c0ff5418` (DM composer immersive dock, friends-on-map finger-follow drag, map heading, Error Monitor, console/rules sweep)
+- **Firebase staging hosting:** https://vybe-daaab.web.app ✅
+- **Firestore rules + indexes:** deployed to `vybe-daaab` ✅
+- **Function:** `analyzeBugReport` redeployed ✅
+- **Production `vybehub.app`:** **Lovable → Share → Publish** (sync `main` @ `c0ff5418`) — Cursor cannot click Publish
+- **Lovable:** https://lovable.dev/projects/416714c8-d013-4aff-984d-522418a9bbc7
+- **After Publish:** hard-refresh → DM composer flush · Map friends sheet drag · Error Monitor Fix All
+
+---
+
 ## PUBLISH handoff (2026-07-14)
 
 - **Merged to `origin/main`:** `030b035c` (PR #5 — debug/signup/console/DM toast fixes)
