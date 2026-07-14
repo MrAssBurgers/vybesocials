@@ -1972,9 +1972,9 @@ body.has-liquid-bg:not(.has-custom-bg) .dm-chat-shell {
   -webkit-backdrop-filter: blur(22px) saturate(155%);
 }
 .dm-chat-header {
-  /* In-flow sticky — owns its hit rect; messages never steal back taps. */
-  position: sticky;
-  top: 0;
+  /* In-flow relative — sticky fails under overflow:hidden ancestors and
+     loses WebKit hit-tests; messages are siblings and cannot cover this. */
+  position: relative;
   flex-shrink: 0;
   z-index: 50;
   padding-left: 0.5rem;

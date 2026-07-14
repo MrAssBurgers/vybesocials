@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { useRef, type ReactNode } from 'react';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft, Search } from 'lucide-react';
 import { EphemeralChatNotice } from '@/components/chat/EphemeralChatNotice';
@@ -24,6 +24,18 @@ export function ChatHeader({
   isGroupChat,
   onViewModeChange,
 }: ChatHeaderProps) {
+  const backHandledRef = useRef(false);
+
+  const fireBack = () => {
+    if (backHandledRef.current) return;
+    backHandledRef.current = true;
+    onBack();
+    // Allow a later intentional tap (e.g. re-enter then leave again).
+    window.setTimeout(() => {
+      backHandledRef.current = false;
+    }, 400);
+  };
+
   return (
     <header
       className="dm-chat-header px-2 sm:px-3"
@@ -38,10 +50,25 @@ export function ChatHeader({
               variant="ghost"
               size="icon"
               aria-label="Back to messages"
-              onClick={(e) => {
+              onPointerDown={(e) => {
+                e.stopPropagation();
+                backHandledRef.current = false;
+              }}
+              onTouchStart={(e) => {
+                e.stopPropagation();
+              }}
+              onPointerUp={(e) => {
+                // Prefer pointerup: parent swipe-back often cancels click without leaving.
+                if (e.button !== 0) return;
                 e.preventDefault();
                 e.stopPropagation();
-                onBack();
+                fireBack();
+              }}
+              onClick={(e) => {
+                // Keyboard / leftover click path if pointerup did not fire.
+                e.preventDefault();
+                e.stopPropagation();
+                fireBack();
               }}
               className="dm-chat-header-back flex-shrink-0 relative z-20 h-9 w-9 rounded-full hover:bg-white/10 pointer-events-auto"
             >

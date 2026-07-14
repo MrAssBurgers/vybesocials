@@ -10,6 +10,7 @@ import { InboxCategoryBar } from './inbox/InboxCategoryBar';
 import { DMConversationList } from './DMConversationList';
 import { useDMInbox } from './useDMInbox';
 import { writeFilterScroll } from '@/lib/dmInboxFilterPersistence';
+import { isDmLeaveSuppressActive } from '@/lib/leaveDmConversation';
 import type { LoadedDMConversation } from '@/lib/loadDMConversations';
 
 export function DMInboxPage() {
@@ -25,6 +26,8 @@ export function DMInboxPage() {
 
   const openChat = useCallback(
     (conversationId: string, conversationHint?: LoadedDMConversation | null) => {
+      // Ghost-reopen guard: leave tap can land on a remounted inbox row.
+      if (isDmLeaveSuppressActive()) return;
       if (conversationId === inbox.activeConversationId) return;
       const scrollKey = inbox.categoryBarEnabled
         ? (inbox.activeCategory ?? 'all')

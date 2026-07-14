@@ -9,6 +9,7 @@ import { DMCategoryTabs } from '@/features/dms/DMCategoryTabs';
 import { DMConversationList } from '@/features/dms/DMConversationList';
 import { useDMInbox } from '@/features/dms/useDMInbox';
 import { db } from '@/lib/firebase';
+import { isDmLeaveSuppressActive } from '@/lib/leaveDmConversation';
 
 export function DmInboxSafeList() {
   const navigate = useNavigate();
@@ -16,6 +17,7 @@ export function DmInboxSafeList() {
 
   const openChat = useCallback(
     (conversationId: string) => {
+      if (isDmLeaveSuppressActive()) return;
       void navigate(`/messages/${conversationId}`);
     },
     [navigate],

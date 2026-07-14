@@ -2,6 +2,19 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## Fix DM leave after 5e75cc98 (2026-07-14)
+
+- **Bug:** After sticky/shell publish, phone Back still failed; leave could bounce back into the same DM.
+- **Cause:** Sticky header under overflow:hidden did nothing useful; AppLayout swipe-back (`clientX<=40`) stole the back tap and cancelled click mid-translate; inbox remount under finger reopened a row.
+- **Fix:**
+  - `.dm-chat-header` → `position: relative` (in-flow, not sticky).
+  - `useSwipeBack` ignores `.dm-chat-header` / back; edge zone **16px**; ChatHeader `stopPropagation` + pointerup leave (latched).
+  - `leaveDmConversation` sets ~400ms `vybe-dm-leave-suppress`; `openChat` no-ops while fresh (inbox + safe list).
+- **Verified:** typecheck · test 283 · build PASS
+- **Next:** Commit/push when asked → Lovable Publish; QA phone Back once → stay on inbox; edge swipe outside header still leaves.
+
+---
+
 ## Unblock DM back + desktop navigation (2026-07-14)
 
 - **Bug:** Mobile back felt dead; desktop/tablet could not switch DMs or leave Messages while a thread was open.

@@ -1,5 +1,17 @@
-import { describe, expect, it, vi } from 'vitest';
-import { isDmConversationPath, leaveDmConversation } from './leaveDmConversation';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import {
+  clearDmLeaveSuppress,
+  isDmConversationPath,
+  isDmLeaveSuppressActive,
+  leaveDmConversation,
+  DM_LEAVE_SUPPRESS_KEY,
+  DM_LEAVE_SUPPRESS_MS,
+} from './leaveDmConversation';
+
+afterEach(() => {
+  clearDmLeaveSuppress();
+  vi.useRealTimers();
+});
 
 describe('leaveDmConversation', () => {
   it('navigates to inbox with replace and clears data-dm-active', () => {
@@ -8,6 +20,22 @@ describe('leaveDmConversation', () => {
     leaveDmConversation(navigate);
     expect(document.documentElement.getAttribute('data-dm-active')).toBeNull();
     expect(navigate).toHaveBeenCalledWith('/messages', { replace: true });
+  });
+
+  it('sets a leave suppress window so openChat can no-op', () => {
+    vi.useFakeTimers();
+    const navigate = vi.fn();
+    leaveDmConversation(navigate);
+    expect(isDmLeaveSuppressActive()).toBe(true);
+    expect(Number(sessionStorage.getItem(DM_LEAVE_SUPPRESS_KEY))).toBeGreaterThan(Date.now());
+    vi.advanceTimersByTime(DM_LEAVE_SUPPRESS_MS + 1);
+    expect(isDmLeaveSuppressActive()).toBe(false);
+  });
+});
+
+describe('isDmLeaveSuppressActive', () => {
+  it('returns false when no suppress is set', () => {
+    expect(isDmLeaveSuppressActive()).toBe(false);
   });
 });
 
