@@ -108,6 +108,11 @@ function runPreRenderInit() {
     "Op failed (no retry)",
     "[RPC] compute_vybe_dna unavailable",
     "[Feed RPC]",
+    "[Firestore] permission-denied",
+    "[Firestore] missing index",
+    "[AppCheck] VITE_FIREBASE_APP_CHECK_RECAPTCHA_SITE_KEY not set",
+    "Automatic fallback to software WebGL",
+    "Unrecognized feature: 'web-share'",
   ];
   const isNoisy = (args: unknown[]) => {
     const first = args[0];

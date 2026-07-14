@@ -78,14 +78,16 @@ export function TutorialProvider({ children }: { children: ReactNode }) {
     const currentPath = location.pathname;
     const isOnHomeOrInvite = currentPath === '/home' || currentPath.startsWith('/invite/');
     if (!isOnHomeOrInvite && !force) {
-      console.log('[Tutorial] Not on /home or invite flow, deferring tutorial check. Path:', currentPath);
+      if (import.meta.env.DEV) {
+        console.log('[Tutorial] Not on /home or invite flow, deferring tutorial check. Path:', currentPath);
+      }
       setIsLoading(false);
       return;
     }
 
     // Reset check if profile changed (new user)
     if (lastProfileIdRef.current !== profile.id) {
-      console.log('[Tutorial] New profile detected, resetting state');
+      if (import.meta.env.DEV) console.log('[Tutorial] New profile detected, resetting state');
       lastProfileIdRef.current = profile.id;
       hasTriggeredRef.current = false;
     }
@@ -93,7 +95,7 @@ export function TutorialProvider({ children }: { children: ReactNode }) {
     // Skip if already triggered (unless forced)
     if (hasTriggeredRef.current && !force) return;
 
-    console.log('[Tutorial] Checking tutorial status for user:', profile.id);
+    if (import.meta.env.DEV) console.log('[Tutorial] Checking tutorial status for user:', profile.id);
 
     try {
       const { data, error } = await db
@@ -103,7 +105,7 @@ export function TutorialProvider({ children }: { children: ReactNode }) {
         .maybeSingle();
 
       if (error) {
-        console.error('[Tutorial] Error fetching status:', error);
+        if (import.meta.env.DEV) console.error('[Tutorial] Error fetching status:', error);
         setIsLoading(false);
         return;
       }
@@ -114,7 +116,9 @@ export function TutorialProvider({ children }: { children: ReactNode }) {
         const onboardingCompleted = data.onboarding_completed ?? false;
         const completed = tutorialCompleted || tutorialSkipped;
         
-        console.log('[Tutorial] Status:', { tutorialCompleted, tutorialSkipped, onboardingCompleted, completed });
+        if (import.meta.env.DEV) {
+          console.log('[Tutorial] Status:', { tutorialCompleted, tutorialSkipped, onboardingCompleted, completed });
+        }
         
         setHasCompleted(completed);
 
@@ -122,14 +126,14 @@ export function TutorialProvider({ children }: { children: ReactNode }) {
         // Conditions: onboarding done + tutorial not done + not manually opened + not already triggered
         if (onboardingCompleted && !completed && !isManualOpen && !hasTriggeredRef.current) {
           hasTriggeredRef.current = true;
-          console.log('[Tutorial] Auto-triggering tutorial for first-time user');
+          if (import.meta.env.DEV) console.log('[Tutorial] Auto-triggering tutorial for first-time user');
           // Delay to let UI fully render after navigation
           setTimeout(() => {
             // Guard: only open if the first step's target element exists in DOM
             const firstStep = getStepsForLayout(layoutMode)[0];
             const targetEl = firstStep ? document.querySelector(firstStep.targetSelector) : null;
             if (!targetEl) {
-              console.log('[Tutorial] First step target not found, retrying in 1s');
+              if (import.meta.env.DEV) console.log('[Tutorial] First step target not found, retrying in 1s');
               setTimeout(() => {
                 setIsOpen(true);
                 setIsLoading(false);

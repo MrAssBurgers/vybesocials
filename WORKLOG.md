@@ -2,6 +2,16 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## Polish + staging hosting deploy (2026-07-14)
+
+- **Client:** Quiet Tutorial logs (DEV-only); filter remaining noisy console patterns in `main.tsx` (permission-denied / missing-index / App Check / WebGL / web-share).
+- **Staging:** `firebase deploy --only hosting` → https://vybe-daaab.web.app ✅ (includes DM toast fix + signup/rules/console fixes).
+- **Verified on staging:** boot past splash · login · home (no critical console) · Messages hard-refresh (0 historical toasts) · profile · lint · typecheck · test 304
+- **Still for prod web:** Lovable → Share → Publish for **vybehub.app** (this hosting deploy does not publish the custom domain).
+- **Next:** Publish via Lovable; hard-refresh vybehub.app; confirm DM toast + signup on production.
+
+---
+
 ## Fix DM toast spam on Messages load (2026-07-14)
 
 - **Evidence:** Recording `17.05.22` — opening DMs instantly stacked in-app banners with historical previews (reighly / Jayden / macy).
