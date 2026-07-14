@@ -12,7 +12,9 @@ Use this file as the Lovable -> Cursor handoff each session.
   - `warmDmConversation`: timed fetch + `cancelQueries` on timeout.
   - Suspense `ChatThreadLoadingShell`: 5s Retry / Back.
 - **Verified:** typecheck · test 276 · build PASS
-- **Next:** Device QA cold-open DM; publish when asked.
+- **Published:** `origin/main` @ **`b2baffe6`** · https://vybe-daaab.web.app ✅
+- **Production (vybehub.app):** Lovable → Share → Publish (sync `main` @ `b2baffe6`)
+- **Next:** Hard-refresh staging — open DM must paint seed/messages quickly; never infinite skeleton.
 
 ---
 
