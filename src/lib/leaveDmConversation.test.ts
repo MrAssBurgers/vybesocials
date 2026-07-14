@@ -2,9 +2,11 @@ import { describe, expect, it, vi } from 'vitest';
 import { isDmConversationPath, leaveDmConversation } from './leaveDmConversation';
 
 describe('leaveDmConversation', () => {
-  it('navigates to inbox with replace', () => {
+  it('navigates to inbox with replace and clears data-dm-active', () => {
+    document.documentElement.setAttribute('data-dm-active', 'true');
     const navigate = vi.fn();
     leaveDmConversation(navigate);
+    expect(document.documentElement.getAttribute('data-dm-active')).toBeNull();
     expect(navigate).toHaveBeenCalledWith('/messages', { replace: true });
   });
 });

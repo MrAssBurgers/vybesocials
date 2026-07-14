@@ -6,6 +6,11 @@ import type { NavigateFunction } from 'react-router-dom';
  * reopen the same conversation (pushing `/messages` onto `/messages/:id`).
  */
 export function leaveDmConversation(navigate: NavigateFunction): void {
+  // Clear active-chat shell styles before route change so a sticky fixed/absolute
+  // layer cannot trap the next frame of taps on inbox or app chrome.
+  if (typeof document !== 'undefined') {
+    document.documentElement.removeAttribute('data-dm-active');
+  }
   navigate('/messages', { replace: true });
 }
 

@@ -126,9 +126,10 @@ function MessagesInner() {
   const { conversationId } = useParams<{ conversationId?: string }>();
   const { user } = useAuth();
   const profileId = useAuthProfileId();
-  const { isDesktop } = useBreakpoint();
+  const { isDesktop, isTablet } = useBreakpoint();
   const isInChat = Boolean(conversationId);
-  const showInboxSplit = isInChat && isDesktop;
+  // Match CSS md (768+) so tablets can switch DMs without depending on back.
+  const showInboxSplit = isInChat && (isDesktop || isTablet);
   const showLiquidBg = useDefaultLiquidBackground();
   const routePreparedRef = useRef(false);
   const [threadEpoch, setThreadEpoch] = useState(0);
@@ -187,9 +188,9 @@ function MessagesInner() {
       >
         <div
           className={cn(
-            'dm-sidebar h-full min-w-0 min-h-0 flex flex-col',
+            'dm-sidebar relative z-[2] h-full min-w-0 min-h-0 flex flex-col',
             isInChat && !showInboxSplit && 'hidden',
-            showInboxSplit && 'hidden lg:flex lg:w-96 lg:flex-shrink-0',
+            showInboxSplit && 'hidden md:flex md:w-80 md:flex-shrink-0 lg:w-96',
             !isInChat && 'w-full flex-1',
           )}
         >
@@ -233,7 +234,7 @@ function MessagesInner() {
 
         <div
           className={cn(
-            'messages-scroll flex-1 min-w-0 min-h-0 flex flex-col overflow-hidden relative z-[1]',
+            'messages-scroll flex-1 min-w-0 min-h-0 flex flex-col overflow-hidden relative z-0',
             !isInChat && 'hidden',
           )}
         >

@@ -112,11 +112,19 @@ body.splash-visible [data-vybe-liquid-bg] {
 }
 
 .main-scroll,
-.admin-scroll,
-.messages-scroll {
+.admin-scroll {
   overflow-y: auto;
   transform: translateZ(0);
   backface-visibility: hidden;
+}
+
+/* Thread pane must not invent a stacking context that covers the inbox. */
+.messages-scroll {
+  overflow-y: auto;
+  backface-visibility: hidden;
+}
+.dm-shell .messages-scroll {
+  transform: none;
 }
 
 .vybe-glass {

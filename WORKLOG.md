@@ -2,6 +2,20 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## Unblock DM back + desktop navigation (2026-07-14)
+
+- **Bug:** Mobile back felt dead; desktop/tablet could not switch DMs or leave Messages while a thread was open.
+- **Cause:** Viewport `fixed inset-0 z-100` chat shell + absolute header lost hit tests to the message pane; thread pane stacking (`z-[1]` + `translateZ(0)`) covered the inbox; tablet (768–1023) hid inbox and bottom nav together.
+- **Fix:**
+  - Sticky in-flow chat header (`z-50`); reduced message top pad.
+  - Mobile shell → `absolute` inside `.messages-scroll` (not viewport fixed).
+  - Inbox `z-[2]`; thread `z-0`; no `translateZ(0)` on `.dm-shell .messages-scroll`.
+  - Inbox split from tablet/md; `leaveDmConversation` clears `data-dm-active` before navigate.
+- **Verified:** typecheck · test 278 · build PASS
+- **Next:** Device QA; publish when asked.
+
+---
+
 ## Fix DM thread blank pane + full-app Retry reload (2026-07-13)
 
 - **Recording:** Inbox painted; right pane blank ~6.5s → “Chat is taking too long to open” → Retry ran `location.assign` → full VYBE boot → chat then appeared.

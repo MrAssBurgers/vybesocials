@@ -55,6 +55,7 @@ export async function initializeNativePlugins() {
       const isDmThread =
         Boolean(segment) && !['search', 'requests', 'new', 'ai-autisy'].includes(segment);
       if (isDmThread) {
+        document.documentElement.removeAttribute('data-dm-active');
         window.history.replaceState(window.history.state, '', '/messages');
         window.dispatchEvent(new PopStateEvent('popstate'));
         return;
