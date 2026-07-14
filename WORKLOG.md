@@ -12,7 +12,9 @@ Use this file as the Lovable -> Cursor handoff each session.
   - ChatView registers priority back handler; closes viewers/sheets/camera/menus; clears overlays on conversation change.
   - Texter releases pointer capture on up/cancel/unmount; `vybe-dm-nav-debug=1` click/leave logging.
 - **Verified:** typecheck · test 298 · build PASS
-- **Next:** Commit/push → Firebase hosting → Lovable Publish for `vybehub.app`.
+- **Published:** `origin/main` @ **`725d337e`** · https://vybe-daaab.web.app ✅
+- **Production (vybehub.app):** Lovable → Share → Publish (sync `main` @ `725d337e`)
+- **Next:** Hard-refresh — Back → inbox; Home/Clips from nav while in thread; desktop switch + sidebar.
 
 ---
 
