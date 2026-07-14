@@ -35,6 +35,7 @@ import {
 import { useFriends } from '@/hooks/useFriends';
 import { useAuth } from '@/lib/auth';
 import { useNavigate } from 'react-router-dom';
+import { leaveDmConversation } from '@/lib/leaveDmConversation';
 import { cn } from '@/lib/utils';
 import { useSafetySettings, useUpdateSafetySettings } from '@/hooks/useSafetySettings';
 import { toast } from 'sonner';
@@ -101,7 +102,7 @@ export const GroupInfoSheet = memo(function GroupInfoSheet({
   const handleLeaveGroup = async () => {
     await leaveGroup.mutateAsync(conversationId);
     onOpenChange(false);
-    navigate('/messages');
+    leaveDmConversation(navigate);
   };
 
   const handleAddSelectedMembers = async () => {

@@ -2,6 +2,15 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## Fix Messages back button (2026-07-13)
+
+- **Bug:** Chat back arrow / swipe / Android back could fail or bounce — push `/messages` left the thread in history; mobile Messages disabled swipe-back; loading states had no back; header `pointer-events: none` hurt taps.
+- **Fix:** `leaveDmConversation(navigate)` uses `{ replace: true }`; header hit target + `pointer-events: auto` / z-index; swipe-back enabled in open DMs → inbox; Capacitor back on threads → replace `/messages`; loading/error shells include Back.
+- **Verified:** typecheck · test 273 · build PASS
+- **Next:** Device QA open DM → header back → inbox; swipe + Android back; publish when asked.
+
+---
+
 ## Fix profile click + DM open hangs (2026-07-13)
 
 - **DM hang:** `loadConversationMessages` awaited membership repair even when messages already loaded (`getDocumentFromServer` could never settle). Now return data immediately; timed repair (~3s) only on empty/error.

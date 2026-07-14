@@ -45,8 +45,20 @@ export async function initializeNativePlugins() {
       document.body.classList.remove('keyboard-visible');
     });
 
-    // Handle back button on Android
+    // Handle back button on Android — leave DM threads to inbox (replace) so
+    // history.back() doesn't bounce into phantom sheet entries or skip the list.
     App.addListener('backButton', ({ canGoBack }) => {
+      const path = window.location.pathname;
+      const segment = path.startsWith('/messages/')
+        ? path.slice('/messages/'.length).split(/[/?#]/)[0] ?? ''
+        : '';
+      const isDmThread =
+        Boolean(segment) && !['search', 'requests', 'new', 'ai-autisy'].includes(segment);
+      if (isDmThread) {
+        window.history.replaceState(window.history.state, '', '/messages');
+        window.dispatchEvent(new PopStateEvent('popstate'));
+        return;
+      }
       if (canGoBack) {
         window.history.back();
       } else {

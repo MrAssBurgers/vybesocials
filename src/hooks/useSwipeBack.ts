@@ -1,6 +1,7 @@
 import { useRef, useCallback, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { triggerHaptic } from '@/lib/haptics';
+import { isDmConversationPath, leaveDmConversation } from '@/lib/leaveDmConversation';
 
 /**
  * iOS-style swipe-right-to-go-back gesture.
@@ -16,7 +17,7 @@ export function useSwipeBack(enabled = true) {
   const isActiveRef = useRef(false);
   const triggeredRef = useRef(false);
 
-  // Don't enable on root-level pages
+  // Don't enable on root-level pages (DM threads under /messages/:id stay swipeable)
   const isRootPage = ['/', '/home', '/explore', '/clips', '/messages', '/profile'].includes(location.pathname);
 
   const onTouchStart = useCallback((e: React.TouchEvent) => {
@@ -60,12 +61,17 @@ export function useSwipeBack(enabled = true) {
     
     if (progress >= 0.5) {
       triggerHaptic('medium');
-      navigate(-1);
+      // Threads always leave via replace so we land on inbox (not a stale history hop).
+      if (isDmConversationPath(location.pathname)) {
+        leaveDmConversation(navigate);
+      } else {
+        navigate(-1);
+      }
     }
     
     isActiveRef.current = false;
     setProgress(0);
-  }, [progress, navigate]);
+  }, [progress, navigate, location.pathname]);
 
   return {
     swipeBackHandlers: enabled && !isRootPage ? { onTouchStart, onTouchMove, onTouchEnd } : {},

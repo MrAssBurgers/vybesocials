@@ -3,7 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { DMInboxPage } from '@/features/dms';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { useBreakpoint } from '@/hooks/usePlatform';
-import { MessageCircle, RefreshCw } from 'lucide-react';
+import { ArrowLeft, MessageCircle, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import SmartErrorBoundary from '@/components/error/SmartErrorBoundary';
 import LocalErrorBoundary from '@/components/error/LocalErrorBoundary';
@@ -14,6 +14,7 @@ import { LockedChatGate } from '@/components/chat/LockedChatGate';
 import { prepareMessagesRoute } from '@/lib/loadDMConversations';
 import { warmDmConversation } from '@/lib/warmDmConversation';
 import { recoverDmQueryCache, readLastBoundaryError, LAST_BOUNDARY_ERROR_KEY } from '@/lib/recoverDmQueryCache';
+import { leaveDmConversation } from '@/lib/leaveDmConversation';
 import { useAuth } from '@/lib/auth';
 import { useAuthProfileId } from '@/hooks/useAuthProfileId';
 import type { QueryClient } from '@tanstack/react-query';
@@ -92,6 +93,7 @@ function MessagesFallback() {
 }
 
 function ChatThreadLoadingShell() {
+  const navigate = useNavigate();
   return (
     <div
       className="flex flex-col h-full w-full min-h-0 bg-background/80"
@@ -103,7 +105,16 @@ function ChatThreadLoadingShell() {
         style={{ paddingTop: 'var(--app-header-safe, env(safe-area-inset-top, 0px))' }}
       >
         <div className="flex items-center gap-3 h-14">
-          <div className="h-8 w-8 rounded-full bg-muted/60 animate-pulse" />
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            aria-label="Back to messages"
+            className="h-9 w-9 shrink-0 rounded-full"
+            onClick={() => leaveDmConversation(navigate)}
+          >
+            <ArrowLeft className="h-5 w-5" />
+          </Button>
           <div className="h-9 w-9 rounded-full bg-muted/60 animate-pulse" />
           <div className="flex-1 space-y-2">
             <div className="h-3.5 w-28 rounded-full bg-muted/60 animate-pulse" />
@@ -172,7 +183,13 @@ function MessagesInner() {
   }, [isInChat, conversationId, profileId, user?.id]);
 
   return (
-    <AppLayout hideRightSidebar fullWidth hideNav={!isDesktop} noPadding>
+    <AppLayout
+      hideRightSidebar
+      fullWidth
+      hideNav={!isDesktop}
+      noPadding
+      enableSwipeBack={isInChat && !isDesktop}
+    >
       <div
         className={cn(
           'dm-shell messages-content flex h-full flex-1 min-h-0 w-full max-w-full overflow-hidden',

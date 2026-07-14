@@ -34,10 +34,16 @@ export function ChatHeader({
         <div className="flex items-center gap-2 sm:gap-3 w-full min-w-0">
           <div className="dm-chat-header-pill dm-chat-header-pill--profile">
             <Button
+              type="button"
               variant="ghost"
               size="icon"
-              onClick={onBack}
-              className="flex-shrink-0 h-8 w-8 rounded-full hover:bg-white/10"
+              aria-label="Back to messages"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                onBack();
+              }}
+              className="dm-chat-header-back flex-shrink-0 relative z-20 h-9 w-9 rounded-full hover:bg-white/10 pointer-events-auto"
             >
               <ArrowLeft className="h-5 w-5" />
             </Button>

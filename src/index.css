@@ -1972,13 +1972,18 @@ body.has-liquid-bg:not(.has-custom-bg) .dm-chat-shell {
   top: 0;
   left: 0;
   right: 0;
-  z-index: 20;
+  z-index: 40;
   padding-left: 0.5rem;
   padding-right: 0.5rem;
   padding-bottom: 0.25rem;
   background: transparent;
   border: none;
-  pointer-events: none;
+  /* Keep the bar tappable; children still decide hit targets inside the row. */
+  pointer-events: auto;
+}
+.dm-chat-header-back {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
 }
 /* Single unified pill — profile + actions sit on one row, no overlap. */
 .dm-chat-header-pill {

@@ -68,6 +68,7 @@ import { CallSettingsSheet } from '@/components/call/CallSettingsSheet';
 import { useChatPresence } from '@/hooks/useChatPresence';
 import { useChatScreenShield } from '@/hooks/useChatScreenShield';
 import { CHAT_SHIELD_ROOT_ID } from '@/lib/chatScreenShield';
+import { leaveDmConversation } from '@/lib/leaveDmConversation';
 import { usePeerLastReadAt } from '@/hooks/usePeerLastReadAt';
 import { ChatPresenceIndicator } from './ChatPresenceIndicator';
 import { LivePresenceBar, ScreenshotAlert, SnapchatStatus } from './SnapchatFeedback';
@@ -1279,8 +1280,11 @@ export function ChatView() {
     messagesPending
   ) {
     return (
-      <div className="flex flex-col h-full items-center justify-center gap-2 p-6 text-center">
+      <div className="flex flex-col h-full items-center justify-center gap-3 p-6 text-center">
         <p className="text-sm text-muted-foreground">Opening chat…</p>
+        <Button size="sm" variant="ghost" onClick={() => leaveDmConversation(navigate)}>
+          Back to messages
+        </Button>
       </div>
     );
   }
@@ -1292,7 +1296,7 @@ export function ChatView() {
         <Button size="sm" variant="secondary" onClick={() => refetchMessages()}>
           Try again
         </Button>
-        <Button size="sm" variant="ghost" onClick={() => navigate('/messages')}>
+        <Button size="sm" variant="ghost" onClick={() => leaveDmConversation(navigate)}>
           Back to messages
         </Button>
       </div>
@@ -1306,7 +1310,7 @@ export function ChatView() {
         <Button size="sm" variant="secondary" onClick={() => refetchConversation()}>
           Try again
         </Button>
-        <Button size="sm" variant="ghost" onClick={() => navigate('/messages')}>
+        <Button size="sm" variant="ghost" onClick={() => leaveDmConversation(navigate)}>
           Back to messages
         </Button>
       </div>
@@ -1344,7 +1348,7 @@ export function ChatView() {
         }}>
           Try again
         </Button>
-        <Button size="sm" variant="ghost" onClick={() => navigate('/messages')}>
+        <Button size="sm" variant="ghost" onClick={() => leaveDmConversation(navigate)}>
           Back to messages
         </Button>
       </div>
@@ -1514,7 +1518,7 @@ export function ChatView() {
       shellId={CHAT_SHIELD_ROOT_ID}
       className="dm-thread"
       themeStyle={chatThreadStyle}
-      onBack={() => navigate('/messages')}
+      onBack={() => leaveDmConversation(navigate)}
       onOpenSearch={() => setShowChatSearch(true)}
       profileSlot={profileSlot}
       actionsSlot={actionsSlot}

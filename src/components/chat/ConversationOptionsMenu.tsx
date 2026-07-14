@@ -24,6 +24,7 @@ import { db } from '@/lib/firebase';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { invalidateConversationCaches } from '@/lib/invalidateConversationCaches';
+import { leaveDmConversation } from '@/lib/leaveDmConversation';
 
 interface ConversationOptionsMenuProps {
   conversationId: string;
@@ -51,7 +52,7 @@ export function ConversationOptionsMenu({
     setShowDeleteConfirm(false);
     // Navigate back to messages list if currently in this conversation
     if (window.location.pathname.includes(conversationId)) {
-      navigate('/messages');
+      leaveDmConversation(navigate);
     }
   };
 

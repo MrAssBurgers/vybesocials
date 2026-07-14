@@ -30,6 +30,8 @@ interface AppLayoutProps {
   fullWidth?: boolean;
   hideNav?: boolean;
   noPadding?: boolean;
+  /** Force swipe-back when hideNav+noPadding would otherwise disable it (e.g. open DM). */
+  enableSwipeBack?: boolean;
 }
 
 export const AppLayout = memo(forwardRef<HTMLDivElement, AppLayoutProps>(function AppLayout({
@@ -39,6 +41,7 @@ export const AppLayout = memo(forwardRef<HTMLDivElement, AppLayoutProps>(functio
   fullWidth = false,
   hideNav = false,
   noPadding = false,
+  enableSwipeBack,
 }, ref) {
   const { loading, user } = useAuth();
   const location = useLocation();
@@ -46,7 +49,8 @@ export const AppLayout = memo(forwardRef<HTMLDivElement, AppLayoutProps>(functio
   const { isDesktop } = useBreakpoint();
   const [leftCollapsed, setLeftCollapsed] = useState(false);
   const nativePerf = isNativePerfMode();
-  const { swipeBackHandlers, swipeProgress } = useSwipeBack(!nativePerf);
+  const swipeBackAllowed = !nativePerf && (enableSwipeBack ?? !(hideNav && noPadding));
+  const { swipeBackHandlers, swipeProgress } = useSwipeBack(swipeBackAllowed);
   const bottomNavMounted = useBottomNavMount();
   const reserveBottomNavSpace = !hideNav && !noPadding && bottomNavMounted;
   const [navEffectiveVisible, setNavEffectiveVisible] = useState(true);
@@ -128,7 +132,7 @@ export const AppLayout = memo(forwardRef<HTMLDivElement, AppLayoutProps>(functio
     <div
         ref={ref}
         className="app-shell h-[100dvh] w-full overflow-hidden overflow-x-hidden relative bg-transparent"
-        {...(hideNav && noPadding ? {} : swipeBackHandlers)}
+        {...(swipeBackAllowed ? swipeBackHandlers : {})}
       >
         <div className="relative z-[1] flex flex-col h-full min-h-0">
           {swipeProgress > 0 && (
