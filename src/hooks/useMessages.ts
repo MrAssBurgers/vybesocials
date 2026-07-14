@@ -353,6 +353,12 @@ export function useMessages(conversationId: string | undefined) {
       const cached = readMessagesCache(queryClient, conversationId);
       return cached.length ? cached : undefined;
     },
+    placeholderData: () => {
+      if (!conversationId) return undefined;
+      // Only this conversation's cache — never flash another chat's messages.
+      const cached = readMessagesCache(queryClient, conversationId);
+      return cached.length ? cached : undefined;
+    },
     // Match inbox — offlineFirst can pause forever with isFetched=false.
     networkMode: 'always',
     retry: 2,

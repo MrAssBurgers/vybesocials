@@ -69,6 +69,8 @@ import { useChatPresence } from '@/hooks/useChatPresence';
 import { useChatScreenShield } from '@/hooks/useChatScreenShield';
 import { CHAT_SHIELD_ROOT_ID } from '@/lib/chatScreenShield';
 import { leaveDmConversation } from '@/lib/leaveDmConversation';
+import { cancelStaleDmMessageQueries, retryDmThreadQueries } from '@/lib/retryDmThreadQueries';
+import { dmThreadLog } from '@/lib/dmThreadDebug';
 import { usePeerLastReadAt } from '@/hooks/usePeerLastReadAt';
 import { ChatPresenceIndicator } from './ChatPresenceIndicator';
 import { LivePresenceBar, ScreenshotAlert, SnapchatStatus } from './SnapchatFeedback';
@@ -204,14 +206,29 @@ export function ChatView() {
   const messages = normalizeMessagesCache(messagesRaw);
   const [loadTimedOut, setLoadTimedOut] = useState(false);
   const [escapeEpoch, setEscapeEpoch] = useState(0);
-  // Soft escape is keyed only to conversationId (+ retry epoch) so pending
-  // flickers cannot reset the clock.
+  const actorReady = Boolean(profileId || profile?.id || authUserId);
+
+  // Soft escape starts only after actor is known — never while profile resolve stalls.
   useEffect(() => {
     setLoadTimedOut(false);
+    if (!conversationId || !actorReady) return;
+    dmThreadLog('timeoutArmed', conversationId, { escapeEpoch });
+    const t = window.setTimeout(() => {
+      dmThreadLog('timeoutFired', conversationId);
+      setLoadTimedOut(true);
+    }, 8000);
+    return () => {
+      window.clearTimeout(t);
+      dmThreadLog('timeoutCancelled', conversationId);
+    };
+  }, [conversationId, escapeEpoch, actorReady]);
+
+  useEffect(() => {
     if (!conversationId) return;
-    const t = window.setTimeout(() => setLoadTimedOut(true), 4000);
-    return () => window.clearTimeout(t);
-  }, [conversationId, escapeEpoch]);
+    dmThreadLog('conversationClickAt', conversationId);
+    cancelStaleDmMessageQueries(queryClient, conversationId);
+  }, [conversationId, queryClient]);
+
   const {
     loadOlderMessages,
     isLoadingOlder,
@@ -1276,88 +1293,51 @@ export function ChatView() {
   const cachedMessagesLenEarly = conversationId ? readMessagesCache(queryClient, conversationId).length : 0;
   const hasThreadContentEarly =
     threadMessages.length > 0 || cachedMessagesLenEarly > 0;
+
+  useEffect(() => {
+    if (hasThreadContentEarly) {
+      setLoadTimedOut(false);
+      dmThreadLog('firstCachedMessageRenderedAt', conversationId, {
+        count: threadMessages.length || cachedMessagesLenEarly,
+      });
+    }
+  }, [hasThreadContentEarly, conversationId, threadMessages.length, cachedMessagesLenEarly]);
+
   const stillWaitingOnThread =
     !!conversationId &&
     !hasThreadContentEarly &&
+    actorReady &&
     (messagesPending ||
       messagesFetching ||
-      (authReady &&
-        !profileId &&
-        !profile?.id &&
-        !cachedConversation &&
-        messagesPending) ||
       (!activeConversation &&
         conversationPending &&
         !conversationFetched &&
         !cachedConversation));
 
-  if (
-    loadTimedOut &&
-    stillWaitingOnThread
-  ) {
-    return (
-      <div className="flex flex-col h-full items-center justify-center gap-3 p-6 text-center">
-        <p className="text-sm text-muted-foreground">This chat is taking too long to load.</p>
-        <Button size="sm" variant="secondary" onClick={() => {
-          setEscapeEpoch((n) => n + 1);
-          void refetchMessages();
-        }}>
-          Try again
-        </Button>
-        <Button size="sm" variant="ghost" onClick={() => leaveDmConversation(navigate)}>
-          Back to messages
-        </Button>
-      </div>
-    );
-  }
-
-  if (
-    conversationId &&
+  const showTimeoutBanner = loadTimedOut && stillWaitingOnThread;
+  const showOpeningBanner =
+    !!conversationId &&
     authReady &&
     !profileId &&
     !profile?.id &&
     !cachedConversation &&
-    threadMessages.length === 0 &&
+    !hasThreadContentEarly &&
     !messagesFetching &&
-    messagesPending
-  ) {
-    return (
-      <div className="flex flex-col h-full items-center justify-center gap-3 p-6 text-center">
-        <p className="text-sm text-muted-foreground">Opening chat…</p>
-        <Button size="sm" variant="ghost" onClick={() => leaveDmConversation(navigate)}>
-          Back to messages
-        </Button>
-      </div>
-    );
-  }
-
-  if (messagesFetched && messagesError && !messagesFetching && !threadMessages.length && !!conversationId) {
-    return (
-      <div className="flex flex-col h-full items-center justify-center gap-3 p-6 text-center">
-        <p className="text-sm text-muted-foreground">Couldn&apos;t load this conversation.</p>
-        <Button size="sm" variant="secondary" onClick={() => refetchMessages()}>
-          Try again
-        </Button>
-        <Button size="sm" variant="ghost" onClick={() => leaveDmConversation(navigate)}>
-          Back to messages
-        </Button>
-      </div>
-    );
-  }
-
-  if (conversationFetched && conversationError && !activeConversation && !!conversationId) {
-    return (
-      <div className="flex flex-col h-full items-center justify-center gap-3 p-6 text-center">
-        <p className="text-sm text-muted-foreground">Couldn&apos;t load this chat.</p>
-        <Button size="sm" variant="secondary" onClick={() => refetchConversation()}>
-          Try again
-        </Button>
-        <Button size="sm" variant="ghost" onClick={() => leaveDmConversation(navigate)}>
-          Back to messages
-        </Button>
-      </div>
-    );
-  }
+    messagesPending &&
+    !showTimeoutBanner;
+  const showMessagesErrorBanner =
+    messagesFetched &&
+    messagesError &&
+    !messagesFetching &&
+    !hasThreadContentEarly &&
+    !!conversationId &&
+    !showTimeoutBanner;
+  const showConversationErrorBanner =
+    conversationFetched &&
+    conversationError &&
+    !activeConversation &&
+    !!conversationId &&
+    !showTimeoutBanner;
 
   const cachedMessagesLen = cachedMessagesLenEarly;
   const hasThreadContent = hasThreadContentEarly;
@@ -1367,7 +1347,8 @@ export function ChatView() {
     !hasThreadContent &&
     conversationPending &&
     !conversationFetched &&
-    !cachedConversation;
+    !cachedConversation &&
+    !showTimeoutBanner;
   const showMessagesSkeleton =
     !!conversationId &&
     !hasThreadContent &&
@@ -1382,6 +1363,13 @@ export function ChatView() {
     messagesError &&
     !messagesFetching &&
     !threadMessages.length;
+
+  const composerConnecting = Boolean(conversationId) && !hasThreadContent && (messagesPending || messagesFetching || !actorReady);
+
+  const handleThreadRetry = useCallback(() => {
+    setEscapeEpoch((n) => n + 1);
+    retryDmThreadQueries(queryClient, conversationId);
+  }, [queryClient, conversationId]);
 
   // Per-conversation theme vars consumed by index.css — wallpaper always
   // applies; bubble color overrides only when the viewer picked a non-default
@@ -1637,16 +1625,45 @@ export function ChatView() {
         }}
         onScroll={handleMessagesScroll}
       >
+        {showTimeoutBanner && (
+          <div className="mb-3 rounded-lg border border-border bg-muted/40 px-3 py-3 text-center pointer-events-auto">
+            <p className="text-xs text-muted-foreground mb-2">This chat is taking too long to load.</p>
+            <Button size="sm" variant="secondary" onClick={handleThreadRetry}>
+              Try again
+            </Button>
+          </div>
+        )}
+        {showOpeningBanner && (
+          <div className="mb-3 rounded-lg border border-border/50 bg-muted/20 px-3 py-2 text-center">
+            <p className="text-xs text-muted-foreground">Opening chat…</p>
+          </div>
+        )}
+        {showMessagesErrorBanner && (
+          <div className="mb-3 rounded-lg border border-border bg-muted/40 px-3 py-2 text-center pointer-events-auto">
+            <p className="text-xs text-muted-foreground mb-2">Couldn&apos;t load this conversation.</p>
+            <Button size="sm" variant="secondary" onClick={handleThreadRetry}>
+              Try again
+            </Button>
+          </div>
+        )}
+        {showConversationErrorBanner && (
+          <div className="mb-3 rounded-lg border border-border bg-muted/40 px-3 py-2 text-center pointer-events-auto">
+            <p className="text-xs text-muted-foreground mb-2">Couldn&apos;t load this chat.</p>
+            <Button size="sm" variant="secondary" onClick={() => void refetchConversation()}>
+              Try again
+            </Button>
+          </div>
+        )}
         {messagesLoadFailed && (
-          <div className="mb-3 rounded-lg border border-border bg-muted/40 px-3 py-2 text-center">
+          <div className="mb-3 rounded-lg border border-border bg-muted/40 px-3 py-2 text-center pointer-events-auto">
             <p className="text-xs text-muted-foreground mb-2">Couldn&apos;t load messages.</p>
-            <Button size="sm" variant="secondary" onClick={() => refetchMessages()}>
+            <Button size="sm" variant="secondary" onClick={handleThreadRetry}>
               Try again
             </Button>
           </div>
         )}
         {isChatHydrating ? (
-          <div className="flex flex-col gap-3 py-2">
+          <div className="flex flex-col gap-3 py-2 pointer-events-none" aria-busy="true">
             {[...Array(4)].map((_, i) => (
               <div key={i} className={cn('flex', i % 2 === 0 ? 'justify-start' : 'justify-end')}>
                 <Skeleton className="h-11 w-44 rounded-2xl" />
@@ -1978,7 +1995,7 @@ export function ChatView() {
             isRecordingVoice={isRecordingVoice}
             isUploadingMedia={isUploadingMedia}
             replyingTo={replyingTo}
-            isPending={false}
+            isPending={composerConnecting}
             inputRef={inputRef}
             inputContainerRef={inputContainerRef}
             fileInputRef={fileInputRef}
@@ -2056,7 +2073,7 @@ export function ChatView() {
           isRecordingVoice={isRecordingVoice}
           isUploadingMedia={isUploadingMedia}
           replyingTo={replyingTo}
-          isPending={false}
+          isPending={composerConnecting}
           inputRef={inputRef}
           inputContainerRef={inputContainerRef}
           fileInputRef={fileInputRef}

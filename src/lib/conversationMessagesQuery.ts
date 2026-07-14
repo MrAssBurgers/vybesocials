@@ -3,8 +3,8 @@ import type { VybeAuthError } from '@/lib/firebase/types';
 
 type MessageRow = { id?: string; created_at?: string; is_deleted?: boolean; conversation_id?: string };
 
-/** Initial thread paint — enough for most chats in one round trip. */
-export const CHAT_INITIAL_MESSAGE_LIMIT = 200;
+/** Initial thread paint — newest page only; older messages load on scroll. */
+export const CHAT_INITIAL_MESSAGE_LIMIT = 50;
 /** Older pages when scrolling up or completing history. */
 export const CHAT_OLDER_MESSAGE_PAGE = 150;
 /** Hard cap — history loads page-by-page on scroll, so this just bounds cache size. */

@@ -2,6 +2,22 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## Fix DM thread blank pane + full-app Retry reload (2026-07-13)
+
+- **Recording:** Inbox painted; right pane blank ~6.5s → “Chat is taking too long to open” → Retry ran `location.assign` → full VYBE boot → chat then appeared.
+- **Root causes:** Lazy `Suspense` shell owned the pane and hard-reloaded on Retry; ChatView early returns stripped header/composer; warm `cancelQueries` could abort live fetches; timeout armed before actor resolve.
+- **Fix:**
+  - Eager `ChatView` mount (no Suspense timeout/reload); thread `LocalErrorBoundary` with thread-only Retry.
+  - Keep `ChatThreadShell` always — inline banners for timeout/error/opening; message-area skeletons only (`pointer-events-none` there).
+  - Cancel stale message queries when selection changes; warm timeout no longer `cancelQueries`.
+  - Soft escape only after `actorReady` (8s); `placeholderData`/`initialData` from this conversation’s cache; first page limit **50**.
+  - Composer mounts immediately (`isPending` while connecting).
+  - Dev logs via `dmThreadLog` (`localStorage vybe-dm-thread-debug=1`).
+- **Verified:** typecheck · test 278 · build PASS
+- **Next:** Publish when asked; hard-refresh staging QA — open/switch DMs without boot screen.
+
+---
+
 ## Fix DM conversation perpetual loading (2026-07-13)
 
 - **Root cause:** Untimed Firestore message/profile reads + soft escape only on `messagesPending` (missed Opening chat / hung refetch); shared warm fetch could poison the thread query.

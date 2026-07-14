@@ -17,6 +17,7 @@ import {
 } from '@/lib/persistedCollections';
 import { scheduleIdleWork } from '@/lib/scheduleIdleWork';
 import { withTimeout } from '@/lib/withTimeout';
+import { dmThreadLog } from '@/lib/dmThreadDebug';
 
 type DMConversation = LoadedDMConversation;
 
@@ -173,7 +174,8 @@ export function warmDmConversation(
       'warmDmConversation timed out',
     )
       .catch(() => {
-        void queryClient.cancelQueries({ queryKey: messagesQueryKey(conversationId) });
+        // Timed out — leave any in-flight ChatView fetch alone (cancelQueries kills it).
+        dmThreadLog('warmTimedOut', conversationId);
       })
       .finally(() => {
         warmInflight.delete(conversationId);
