@@ -7,8 +7,10 @@ Use this file as the Lovable -> Cursor handoff each session.
 - **Bug:** User still trapped in DM — Back tap did nothing after prior fixes.
 - **Cause:** ChatHeader `onPointerUp` + `preventDefault` cancelled the click fallback; leave only ran if that fragile pointerup fired.
 - **Fix:** Back is a real `<Link to="/messages" replace>`; prepare leave side effects on click; overlay close still consumes first tap; raised header z/pointer-events.
-- **Verified:** typecheck · leave/unit tests PASS · build pending publish
-- **Next:** Publish staging; hard-refresh; open DM → tap Back once → inbox.
+- **Verified:** typecheck · test 299 · build PASS
+- **Published:** `origin/main` @ **`5d9eda89`** · https://vybe-daaab.web.app ✅
+- **Production (vybehub.app):** Lovable → Share → Publish (sync `main` @ `5d9eda89`)
+- **Next:** Hard-refresh staging — open DM → tap Back once → inbox.
 
 ---
 
