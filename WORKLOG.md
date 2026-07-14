@@ -11,15 +11,19 @@ Use this file as the Lovable -> Cursor handoff each session.
   - Tutorial spotlight `motion.rect` — never paint undefined SVG width/height
   - `fetchPriority` → `fetchpriority` on img/avatar props (React DOM warning)
   - `dna_content_preferences` Firestore rules + hook soft-fail
-  - Composite indexes for comments/events/challenge_rewards/messages
+  - Added rules for `user_active_boosts`, `screen_time_sessions`, `analytics_events`; own-user **read** on `auth_challenges`
+  - Tightened `user_levels` / `challenge_rewards` read rules for auth-uid list queries
+  - Gate `usePendingModerationCount` to staff only (was spamming reports/flags/appeals/bugs denies for everyone)
+  - Soft-fail active boosts / VybePass reads; quieter analytics flush in DEV
+  - Composite indexes for comments/events/challenge_rewards/messages/calls/auth_challenges
   - Lint unused `eslint-disable` on dm debug helpers; Tailwind ambiguous duration/ease classes
 - **Verified:** lint clean · typecheck · test 301 · build PASS · UI signup `debugscan0714` → home OK
-- **Production deploy:** `firestore:rules` + `firestore:indexes` → `vybe-daaab` ✅ (2026-07-14; kept live `calls` indexes; synced into indexes file). DNA prefs query no longer permission-denied.
+- **Production deploy:** `firestore:rules` + `firestore:indexes` → `vybe-daaab` ✅ (kept live `calls` indexes; redeployed after remaining console fixes)
 - **Still open:**
   1. Merge PR + Lovable → Share → Publish for `vybehub.app` (client signup/console fixes)
   2. Indexes may still finish building — missing-index warns can linger briefly
   3. Some CF names are client-only RPCs (`ensure_profile` HTTP 404 expected); `claimProfileByEmail` deployed (401)
-- **Remaining console noise (env / non-blocking):** WebGL SwiftShader deprecation; `web-share` feature warning; Presence/Tutorial debug logs
+- **Remaining console noise (env / non-blocking):** WebGL SwiftShader deprecation; `web-share` feature warning; Presence/Tutorial debug logs; App Check site key unset locally
 - **Next:** Merge/publish client → hard-refresh home; confirm DNA + index noise gone; re-check DM nav on desktop
 
 ---
