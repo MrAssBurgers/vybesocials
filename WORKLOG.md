@@ -9,7 +9,9 @@ Use this file as the Lovable -> Cursor handoff each session.
 - **Profiles slow:** `/u/:username` waited on friendship+visibility after profile; cache key included viewer id (miss on auth); wrong preload chunk.
 - **Fix:** Paint hero as soon as profile exists; stable `['profile', username]` key + session placeholder; early self → Profile; softer friendship refetch; preload RelationshipProfile.
 - **Verified:** typecheck · test 270 · build PASS
-- **Next:** Publish when ready.
+- **Published:** `origin/main` @ **`b6e724b3`** · https://vybe-daaab.web.app ✅
+- **Production (vybehub.app):** Lovable → Share → Publish (sync `main` @ `b6e724b3`)
+- **Next:** Hard-refresh staging — open DMs + profiles should paint instantly.
 
 ---
 
