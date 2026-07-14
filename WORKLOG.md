@@ -12,7 +12,9 @@ Use this file as the Lovable -> Cursor handoff each session.
   - Inbox `z-[2]`; thread `z-0`; no `translateZ(0)` on `.dm-shell .messages-scroll`.
   - Inbox split from tablet/md; `leaveDmConversation` clears `data-dm-active` before navigate.
 - **Verified:** typecheck · test 278 · build PASS
-- **Next:** Device QA; publish when asked.
+- **Published:** `origin/main` @ **`5e75cc98`** · https://vybe-daaab.web.app ✅
+- **Production (vybehub.app):** Lovable → Share → Publish (sync `main` @ `5e75cc98`)
+- **Next:** Hard-refresh — mobile back + desktop/tablet DM switch + leave app chrome.
 
 ---
 
