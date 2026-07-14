@@ -9,7 +9,9 @@ Use this file as the Lovable -> Cursor handoff each session.
 - **Profile hang:** Own tab → `/profile`; `isSelf` by username; RelationshipProfile Navigate to `/profile`; identity returns before count scans (counts hydrate via setQueryData).
 - **ChatView:** soft escape after 4s with Try again (no endless skeleton).
 - **Verified:** typecheck · test 270 · build PASS
-- **Next:** Publish when ready.
+- **Published:** `origin/main` @ **`60c42d82`** · https://vybe-daaab.web.app ✅
+- **Production (vybehub.app):** Lovable → Share → Publish (sync `main` @ `60c42d82`)
+- **Next:** Hard-refresh staging — profile + DM open should work instantly.
 
 ---
 
