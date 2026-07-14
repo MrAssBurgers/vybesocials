@@ -14,12 +14,13 @@ Use this file as the Lovable -> Cursor handoff each session.
   - Composite indexes for comments/events/challenge_rewards/messages
   - Lint unused `eslint-disable` on dm debug helpers; Tailwind ambiguous duration/ease classes
 - **Verified:** lint clean · typecheck · test 301 · build PASS · UI signup `debugscan0714` → home OK
-- **Production gaps / unblock:**
-  1. `npx firebase login` then `firebase deploy --only firestore:rules,firestore:indexes` (rules+indexes not live until deploy)
-  2. Lovable → Share → Publish for `vybehub.app` after merge to `main`
+- **Production deploy:** `firestore:rules` + `firestore:indexes` → `vybe-daaab` ✅ (2026-07-14; kept live `calls` indexes; synced into indexes file). DNA prefs query no longer permission-denied.
+- **Still open:**
+  1. Merge PR + Lovable → Share → Publish for `vybehub.app` (client signup/console fixes)
+  2. Indexes may still finish building — missing-index warns can linger briefly
   3. Some CF names are client-only RPCs (`ensure_profile` HTTP 404 expected); `claimProfileByEmail` deployed (401)
 - **Remaining console noise (env / non-blocking):** WebGL SwiftShader deprecation; `web-share` feature warning; Presence/Tutorial debug logs
-- **Next:** Deploy rules+indexes → hard-refresh signup+home and confirm DNA prefs + missing-index warns gone; re-check DM nav on desktop
+- **Next:** Merge/publish client → hard-refresh home; confirm DNA + index noise gone; re-check DM nav on desktop
 
 ---
 
