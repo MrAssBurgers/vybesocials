@@ -101,7 +101,7 @@ export const AppLayout = memo(forwardRef<HTMLDivElement, AppLayoutProps>(functio
             <main
               id="main-content"
               className={cn(
-                'main-content main-scroll flex-1 min-w-0 h-screen overflow-x-hidden relative z-[2] bg-transparent',
+                'main-content main-scroll flex-1 min-w-0 h-screen overflow-x-hidden relative z-[1] bg-transparent',
                 noPadding ? 'overflow-hidden' : 'overflow-y-auto scroller',
               )}
               style={{

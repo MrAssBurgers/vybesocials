@@ -1971,6 +1971,46 @@ body.has-liquid-bg:not(.has-custom-bg) .dm-chat-shell {
   backdrop-filter: blur(22px) saturate(155%);
   -webkit-backdrop-filter: blur(22px) saturate(155%);
 }
+/* Never let the screenshot curtain steal clicks (even if display flashes). */
+#vybe-chat-shield-curtain {
+  pointer-events: none !important;
+}
+
+/* Desktop DM: thread stays in its column; inbox + app sidebar remain clickable. */
+@media (min-width: 1024px) {
+  .desktop-left-sidebar {
+    z-index: 80 !important;
+    pointer-events: auto !important;
+  }
+  #main-content.main-content {
+    z-index: 1 !important;
+  }
+  html[data-dm-active='true'] .dm-sidebar {
+    z-index: 30 !important;
+    pointer-events: auto !important;
+    contain: none;
+  }
+  html[data-dm-active='true'] .dm-shell .messages-scroll {
+    position: relative !important;
+    z-index: 1 !important;
+    inset: auto !important;
+  }
+  html[data-dm-active='true'] .dm-chat-shell {
+    position: relative !important;
+    inset: auto !important;
+    width: 100% !important;
+    height: 100% !important;
+    max-width: 100%;
+    contain: none;
+  }
+}
+
+/* Closed / aria-hidden portaled layers must never eat the next tap.
+   Only body-level portals — do not blanket in-app [data-state=closed] triggers. */
+html[data-dm-active='true'] body > [aria-hidden='true'] {
+  pointer-events: none !important;
+}
+
 .dm-chat-header {
   /* In-flow relative — sticky fails under overflow:hidden ancestors and
      loses WebKit hit-tests; messages are siblings and cannot cover this. */

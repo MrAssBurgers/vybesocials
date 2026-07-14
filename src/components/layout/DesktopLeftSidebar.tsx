@@ -170,10 +170,10 @@ export const DesktopLeftSidebar = memo(function DesktopLeftSidebar({ collapsed, 
     <TooltipProvider>
       <aside 
         className={cn(
-          "hidden lg:flex flex-col sticky top-0 h-screen shrink-0 z-40 stable-sidebar-surface sidebar desktop-left-sidebar",
+          "hidden lg:flex flex-col sticky top-0 h-screen shrink-0 z-[80] stable-sidebar-surface sidebar desktop-left-sidebar",
           "transition-[width] duration-200 ease-out overflow-hidden",
           "shadow-2xl shadow-background/30",
-          "border-r border-border/40",
+          "border-r border-border/40 pointer-events-auto",
           collapsed 
             ? "w-[72px]" 
             : "w-[200px] xl:w-[220px] 2xl:w-[240px]"

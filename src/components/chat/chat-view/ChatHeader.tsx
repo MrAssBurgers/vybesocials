@@ -1,12 +1,13 @@
-import { type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft, Search } from 'lucide-react';
 import { EphemeralChatNotice } from '@/components/chat/EphemeralChatNotice';
 import type { ViewMode } from '@/hooks/useMessages';
 import { tryCloseDmThreadOverlay } from '@/lib/dmThreadBack';
-import { prepareDmLeaveSideEffects } from '@/lib/leaveDmConversation';
+import { prepareDmLeaveSideEffects, isDmConversationPath } from '@/lib/leaveDmConversation';
+import { clearStaleViewportOverlays } from '@/lib/clearStaleViewportOverlays';
 import { logDmNavDebug } from '@/lib/dmNavDebug';
+import { type ReactNode } from 'react';
 
 export interface ChatHeaderProps {
   onBack: () => void;
@@ -56,14 +57,20 @@ export function ChatHeader({
               onClick={(e) => {
                 e.stopPropagation();
                 logDmNavDebug('header-back-link-click');
+                clearStaleViewportOverlays();
                 // Close viewer/sheet first; stay on thread if something was open.
                 if (tryCloseDmThreadOverlay()) {
                   e.preventDefault();
                   return;
                 }
-                // Side effects + imperative leave; Link is backup if navigate is slow.
                 prepareDmLeaveSideEffects();
                 onBack();
+                // Hard escape if stacking/React leave fails (desktop lock).
+                window.setTimeout(() => {
+                  if (isDmConversationPath(window.location.pathname)) {
+                    window.location.replace('/messages');
+                  }
+                }, 120);
               }}
             >
               <ArrowLeft className="h-5 w-5" />

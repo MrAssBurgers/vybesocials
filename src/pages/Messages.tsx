@@ -166,6 +166,8 @@ function MessagesInner() {
 
     if (!isInChat) return;
     document.documentElement.setAttribute('data-dm-active', 'true');
+    // Drop any leftover portal that can blind the desktop sidebar + inbox.
+    void import('@/lib/clearStaleViewportOverlays').then((m) => m.clearStaleViewportOverlays());
     return () => {
       document.documentElement.removeAttribute('data-dm-active');
     };
@@ -188,9 +190,9 @@ function MessagesInner() {
       >
         <div
           className={cn(
-            'dm-sidebar relative z-[2] h-full min-w-0 min-h-0 flex flex-col',
+            'dm-sidebar relative z-[2] h-full min-w-0 min-h-0 flex flex-col pointer-events-auto',
             isInChat && !showInboxSplit && 'hidden',
-            showInboxSplit && 'hidden md:flex md:w-80 md:flex-shrink-0 lg:w-96',
+            showInboxSplit && 'hidden md:flex md:w-80 md:flex-shrink-0 lg:w-96 lg:z-30',
             !isInChat && 'w-full flex-1',
           )}
         >

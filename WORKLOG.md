@@ -2,6 +2,15 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## Fix desktop DM lock from screen recording (2026-07-14)
+
+- **Evidence:** Recording `01.45.27` — desktop 3-pane; back, other chats, and Explore all dead while YUJIN KIM thread painted.
+- **Fix:** Clear stale viewport overlays; shield curtain never receives pointers; desktop sidebar z-80 above main; thread shell forced relative in column; disable chat-screen shield on desktop; back Link hard-`location.replace` fallback.
+- **Verified:** typecheck · test 301 · build PASS
+- **Next:** Publish + hard refresh — open DM → Explore / switch row / Back must work.
+
+---
+
 ## Fix DM back via Link (2026-07-14)
 
 - **Bug:** User still trapped in DM — Back tap did nothing after prior fixes.

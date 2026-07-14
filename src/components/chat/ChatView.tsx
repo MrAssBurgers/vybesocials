@@ -66,11 +66,13 @@ import { useDMSettings, useMessagePins } from '@/hooks/useDMSettings';
 import { CallButtons } from '@/components/call/CallButtons';
 import { CallSettingsSheet } from '@/components/call/CallSettingsSheet';
 import { useChatPresence } from '@/hooks/useChatPresence';
+import { useBreakpoint } from '@/hooks/usePlatform';
 import { useChatScreenShield } from '@/hooks/useChatScreenShield';
 import { CHAT_SHIELD_ROOT_ID } from '@/lib/chatScreenShield';
 import { requestDmThreadBack, setDmThreadBackHandler } from '@/lib/dmThreadBack';
 import { dispatchDmCloseOverlays, DM_CLOSE_OVERLAYS_EVENT } from '@/lib/dmCloseOverlays';
 import { attachDmNavClickDebug, logDmNavDebug } from '@/lib/dmNavDebug';
+import { clearStaleViewportOverlays } from '@/lib/clearStaleViewportOverlays';
 import { cancelStaleDmMessageQueries, retryDmThreadQueries } from '@/lib/retryDmThreadQueries';
 import { dmThreadLog } from '@/lib/dmThreadDebug';
 import { usePeerLastReadAt } from '@/hooks/usePeerLastReadAt';
@@ -195,6 +197,7 @@ export function ChatView() {
   const authUserId = profile?.user_id ?? user?.id;
   const queryClient = useQueryClient();
   const bumpStreak = useInteractionStreakBump();
+  const { isDesktop } = useBreakpoint();
   
   const { data: conversation, isPending: conversationPending, isFetched: conversationFetched, isError: conversationError, refetch: refetchConversation } = useConversationDetail(conversationId);
   const cachedConversation = useMemo(
@@ -303,8 +306,15 @@ export function ChatView() {
   // v1.1: Instant read clear - marks as read immediately and clears badges
   useInstantReadClear(conversationId);
   
-  // Block screenshots — native OS shield + instant web blackout
-  useChatScreenShield(!!conversationId);
+  // Screenshot shield on phone only — desktop web curtain can become an invisible trap.
+  useChatScreenShield(!!conversationId && !isDesktop);
+
+  // Clear stale full-viewport portals that outlive sheets/drawers.
+  useEffect(() => {
+    clearStaleViewportOverlays();
+    const t = window.setTimeout(clearStaleViewportOverlays, 50);
+    return () => window.clearTimeout(t);
+  }, [conversationId]);
 
   // Snapchat-style screen capture detection
   const { setActivelyViewingChat } = useScreenCapture({
@@ -501,6 +511,7 @@ export function ChatView() {
     setShowOfferDialog(false);
     setShowScreenshotAlert(false);
     dispatchDmCloseOverlays();
+    clearStaleViewportOverlays();
     clearSuggestions();
     resetOlderState();
   }, [conversationId, clearSuggestions, resetOlderState]);
