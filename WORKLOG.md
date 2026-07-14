@@ -2,6 +2,18 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## Fix DM toast spam on Messages load (2026-07-14)
+
+- **Evidence:** Recording `17.05.22` — opening DMs instantly stacked in-app banners with historical previews (reighly / Jayden / macy).
+- **Cause:** `subscribePostgresChannel` only skipped callback #1. Firestore persistence often emits empty `fromCache` first, then a server snapshot where every existing message is `added` → treated as INSERT → `maybeShowForegroundDmNotification`.
+- **Fix:**
+  - Bootstrap wait until non-empty cache or first server sync; discard that seed batch before live events (`realtimeService.ts`).
+  - Age-gate foreground DM toasts (45s) via `isFreshForegroundDmMessage`.
+- **Verified:** unit freshness tests · typecheck · lint
+- **Next:** Hard-refresh Messages — no historical toast stack; new live messages still toast when not viewing that thread.
+
+---
+
 ## Debug scan (2026-07-14)
 
 - **Scan:** `npm run debug` — build · lint · CSS · boot · CF refs (67 client / 201 local) · probes sharePreview/livekitToken/aiCatchUp — ALL PASS
