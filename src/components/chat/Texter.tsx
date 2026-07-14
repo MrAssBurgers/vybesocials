@@ -175,7 +175,6 @@ export const Texter = memo(function Texter({
         ) : isRecordingVoice && onVoiceRecordingComplete && onVoiceRecordingCancel ? (
           <motion.div
             key="recording"
-            layout
             initial={{ opacity: 0, y: 6 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 6 }}
@@ -198,7 +197,6 @@ export const Texter = memo(function Texter({
         ) : (
           <motion.div
             key="compose"
-            layout
             initial={{ opacity: 0, y: 6, scale: 0.99 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 6, scale: 0.99 }}
@@ -208,7 +206,7 @@ export const Texter = memo(function Texter({
             <span className="texter-pill__glow" aria-hidden />
             <span className="texter-pill__shine" aria-hidden />
 
-            <motion.div layout className="texter-pill__inner" transition={{ type: 'spring', stiffness: 400, damping: 32 }}>
+            <div className="texter-pill__inner">
               <div className="texter-actions texter-actions--start">
                 <Toybox {...toyboxProps} triggerClassName="texter-icon-btn texter-icon-btn--tool" />
               </div>
@@ -304,7 +302,7 @@ export const Texter = memo(function Texter({
                   )}
                 </AnimatePresence>
               </div>
-            </motion.div>
+            </div>
           </motion.div>
         )}
       </AnimatePresence>

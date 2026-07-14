@@ -891,7 +891,10 @@ service cloud.firestore {
       allow delete: if signedIn() && ownsProfileId(resource.data.user_id);
     }
     match /chat_presence/{docId} {
-      allow read: if signedIn() && isConversationParticipant(resource.data.conversation_id);
+      allow read: if signedIn() && (
+        isConversationParticipant(resource.data.conversation_id) ||
+        isStaffModerator()
+      );
       allow create, update: if signedIn() &&
         willOwnProfile('user_id') &&
         isConversationParticipant(request.resource.data.conversation_id);
@@ -975,6 +978,35 @@ service cloud.firestore {
     match /story_views/{id} {
       allow read: if signedIn() && (ownsProfileId(resource.data.viewer_id) || isAdmin());
       allow create: if willOwnProfile('viewer_id');
+    }
+
+    // ---------- story highlights (saved story collections) ----------
+    match /story_highlights/{id} {
+      allow read: if signedIn();
+      allow create: if signedIn() && willOwnProfile('owner_id');
+      allow update, delete: if signedIn() && (
+        isOwnerProfile('owner_id') || isStaffModerator()
+      );
+    }
+
+    // ---------- post person tags (lean Tagged grid) ----------
+    match /post_user_tags/{id} {
+      allow read: if signedIn();
+      allow create: if signedIn() &&
+        willOwnProfile('tagged_by') &&
+        request.resource.data.keys().hasAll(['post_id', 'tagged_user_id', 'tagged_by']) &&
+        request.resource.data.post_id is string &&
+        request.resource.data.tagged_user_id is string;
+      allow update: if signedIn() && (
+        isOwnerProfile('tagged_by') ||
+        isOwnerProfile('tagged_user_id') ||
+        isStaffModerator()
+      );
+      allow delete: if signedIn() && (
+        isOwnerProfile('tagged_by') ||
+        isOwnerProfile('tagged_user_id') ||
+        isStaffModerator()
+      );
     }
 
     // ---------- notifications / push tokens ----------
@@ -1124,6 +1156,28 @@ service cloud.firestore {
       allow read: if ownsUserField('user_id') || isAdmin();
       allow create, update: if willOwnUserField('user_id') || isAdmin();
       allow delete: if isAdmin();
+    }
+    match /dna_agent_settings/{id} {
+      allow read, write: if ownsUserField('user_id') || willOwnUserField('user_id') || isAdmin();
+    }
+    match /user_backgrounds/{id} {
+      allow read: if signedIn();
+      allow create: if willOwnUserField('user_id');
+      allow update, delete: if ownsUserField('user_id') || isAdmin();
+    }
+    match /user_custom_sounds/{id} {
+      allow read, write: if ownsUserField('user_id') || willOwnUserField('user_id') || isAdmin();
+    }
+    match /user_active_boosts/{id} {
+      allow read, write: if ownsUserField('user_id') || willOwnUserField('user_id') || isAdmin();
+    }
+    match /screen_time_sessions/{id} {
+      allow read, write: if ownsUserField('user_id') || willOwnUserField('user_id') || isAdmin();
+    }
+    match /analytics_events/{id} {
+      allow create: if signedIn();
+      allow read: if isAdmin() || isStaffModerator();
+      allow update, delete: if isAdmin();
     }
 
     // ---------- events / RSVPs ----------

@@ -171,7 +171,7 @@ async function upsertProgressFromCount(profileId, authUid, challenge, trustedCou
         newly_completed: newlyCompleted,
     };
 }
-async function incrementOneChallenge(profileId, authUid, challenge, increment) {
+export async function incrementOneChallenge(profileId, authUid, challenge, increment) {
     const challengeId = String(challenge.id);
     const reqCount = Number(challenge.requirement_count || 1);
     const now = new Date().toISOString();
@@ -248,30 +248,35 @@ async function readSyncMeta(authUid) {
         lastSyncAt: snap.data()?.last_sync_at ? String(snap.data().last_sync_at) : null,
     };
 }
+/**
+ * Client-facing "record activity" endpoint. Historically it accepted an
+ * arbitrary p_increment and applied it directly, which let a caller farm XP
+ * without doing the underlying action. It now ignores any client-supplied
+ * increment/challenge/user id and re-derives progress from server-verified
+ * Firestore activity counts (same logic as syncMyChallengeProgress).
+ */
 export const incrementChallengeProgress = onCall({ region: 'us-central1' }, async (request) => {
     const authUid = requireAuth(request);
-    const data = (request.data || {});
     const profileId = await resolveProfileId(authUid);
-    const increment = Math.max(1, Number(data.p_increment || 1));
     const today = isoDateOnly();
     const weekStart = weekStartIso();
-    if (data.p_challenge_id) {
-        const challengeId = String(data.p_challenge_id);
-        const chSnap = await db.collection('challenges').doc(challengeId).get();
-        if (!chSnap.exists)
-            throw new HttpsError('not-found', 'Challenge not found');
-        return incrementOneChallenge(profileId, authUid, { id: chSnap.id, ...chSnap.data() }, increment);
-    }
-    const requirementType = String(data.p_requirement_type || '');
-    if (!requirementType) {
-        throw new HttpsError('invalid-argument', 'p_challenge_id or p_requirement_type required');
-    }
     const active = await loadActiveChallenges(today, weekStart);
-    const matches = active.filter((c) => String(c.requirement_type) === requirementType);
-    for (const ch of matches) {
-        await incrementOneChallenge(profileId, authUid, ch, increment);
+    const changes = [];
+    const newlyCompleted = [];
+    for (const ch of active) {
+        const reqType = String(ch.requirement_type || '');
+        if (!reqType)
+            continue;
+        const since = periodStartIso(ch);
+        const count = await countActivity(profileId, authUid, reqType, since);
+        const change = await upsertProgressFromCount(profileId, authUid, ch, count);
+        if (change) {
+            changes.push(change);
+            if (change.newly_completed)
+                newlyCompleted.push(change.challenge_id);
+        }
     }
-    return { ok: true, matched: matches.length };
+    return { ok: true, matched: changes.length, changes, newly_completed: newlyCompleted };
 });
 export const syncMyChallengeProgress = onCall({ region: 'us-central1' }, async (request) => {
     const authUid = requireAuth(request);
@@ -331,7 +336,6 @@ export const claimChallengeReward = onCall({ region: 'us-central1' }, async (req
     const authUid = requireAuth(request);
     const data = (request.data || {});
     const rewardId = String(data.p_reward_id || '');
-    const userId = String(data.p_user_id || authUid);
     if (!rewardId)
         throw new HttpsError('invalid-argument', 'p_reward_id required');
     const rewardRef = db.collection('challenge_rewards').doc(rewardId);
@@ -339,9 +343,14 @@ export const claimChallengeReward = onCall({ region: 'us-central1' }, async (req
     if (!rewardSnap.exists)
         throw new HttpsError('not-found', 'Reward not found');
     const reward = rewardSnap.data();
-    if (reward.user_id !== userId && reward.user_id !== authUid) {
+    // Always credit the authenticated caller (or their resolved profile id).
+    // Never trust a client-supplied p_user_id — it previously allowed
+    // redirecting XP/level updates onto another user's account.
+    const callerProfileId = await resolveProfileId(authUid);
+    if (reward.user_id !== authUid && reward.user_id !== callerProfileId) {
         throw new HttpsError('permission-denied', 'Not your reward');
     }
+    const userId = String(reward.user_id);
     if (reward.is_claimed) {
         return { success: true, xp_gained: 0, already_claimed: true };
     }

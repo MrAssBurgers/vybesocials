@@ -7,10 +7,17 @@ import { isRecoverableDmCacheError, persistBoundaryError } from '@/lib/recoverDm
 interface Props {
   children: ReactNode;
   fallback?: ReactNode;
+  /**
+   * When true, show `fallback` (or the built-in error UI) after catch.
+   * Default false: soft-recover silently so users never see "Something went wrong".
+   */
+  hardFallback?: boolean;
 }
 
 interface State {
   hasError: boolean;
+  showUi: boolean;
+  remountKey: number;
   error: Error | null;
   errorInfo: ErrorInfo | null;
   bugReported: boolean;
@@ -26,13 +33,15 @@ class SmartErrorBoundary extends Component<Props, State> {
   // triggers React's "Maximum update depth exceeded".
   private resetCount = 0;
   private resetWindowStart = 0;
-  private static readonly RESET_LIMIT = 3;
-  private static readonly RESET_WINDOW_MS = 2000;
+  private static readonly RESET_LIMIT = 5;
+  private static readonly RESET_WINDOW_MS = 4000;
 
   constructor(props: Props) {
     super(props);
     this.state = {
       hasError: false,
+      showUi: false,
+      remountKey: 0,
       error: null,
       errorInfo: null,
       bugReported: false,
@@ -44,7 +53,8 @@ class SmartErrorBoundary extends Component<Props, State> {
   }
 
   static getDerivedStateFromError(error: Error): Partial<State> {
-    return { hasError: true, error };
+    // Capture error but do not flash crash UI until componentDidCatch decides.
+    return { hasError: true, showUi: false, error };
   }
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {
@@ -72,7 +82,7 @@ class SmartErrorBoundary extends Component<Props, State> {
 
     if (isNetworkError) {
       console.warn('[SmartErrorBoundary] Suppressed transient network error:', msg);
-      setTimeout(() => this.setState({ hasError: false, error: null, errorInfo: null }), 0);
+      setTimeout(() => this.setState({ hasError: false, showUi: false, error: null, errorInfo: null }), 0);
       return;
     }
 
@@ -82,8 +92,6 @@ class SmartErrorBoundary extends Component<Props, State> {
     // Fire-and-forget crash report.
     void this.reportCrash(error, errorInfo.componentStack, 'auto');
 
-    // Loop guard: track resets in a short window. If we exceed the limit,
-    // stop auto-resetting and show fallback UI so the user is never stuck on blank.
     const now = Date.now();
     if (now - this.resetWindowStart > SmartErrorBoundary.RESET_WINDOW_MS) {
       this.resetWindowStart = now;
@@ -91,8 +99,8 @@ class SmartErrorBoundary extends Component<Props, State> {
     }
     this.resetCount += 1;
 
-    // Custom fallback (e.g. Messages): recover DM cache for stack/cache errors, then show fallback.
-    if (this.props.fallback) {
+    // Messages (and similar): recover DM cache when possible, else show scoped fallback.
+    if (this.props.hardFallback && this.props.fallback) {
       const recoverable = isRecoverableDmCacheError(error);
       if (recoverable) {
         try {
@@ -102,7 +110,7 @@ class SmartErrorBoundary extends Component<Props, State> {
               recoverDmQueryCache(qc);
               this.resetCount = 0;
               this.resetWindowStart = 0;
-              this.setState({ hasError: false, error: null, errorInfo: null });
+              this.setState({ hasError: false, showUi: false, error: null, errorInfo: null });
             });
             return;
           }
@@ -111,18 +119,24 @@ class SmartErrorBoundary extends Component<Props, State> {
         }
       }
       persistBoundaryError(error);
-      this.setState({ errorInfo, hasError: true, error });
+      this.setState({ errorInfo, hasError: true, showUi: true, error });
       return;
     }
 
+    // Soft recover: remount children. Never surface the global crash page.
+    persistBoundaryError(error);
     if (this.resetCount > SmartErrorBoundary.RESET_LIMIT) {
-      console.warn('[SmartErrorBoundary] Reset loop detected — showing fallback.');
-      persistBoundaryError(error);
-      this.setState({ errorInfo, hasError: true, error });
-      return;
+      console.warn('[SmartErrorBoundary] Soft remount after reset loop (no crash UI).');
+      this.resetCount = 0;
+      this.resetWindowStart = 0;
     }
-
-    this.setState({ hasError: false, error: null, errorInfo: null });
+    this.setState((prev) => ({
+      hasError: false,
+      showUi: false,
+      error: null,
+      errorInfo: null,
+      remountKey: prev.remountKey + 1,
+    }));
   }
 
   reportCrash = async (
@@ -172,7 +186,17 @@ class SmartErrorBoundary extends Component<Props, State> {
   handleRetry = () => {
     this.resetCount = 0;
     this.resetWindowStart = 0;
-    this.setState({ hasError: false, error: null, errorInfo: null, aiExplanation: null, errorId: null, bugReported: false, isReportingBug: false });
+    this.setState((prev) => ({
+      hasError: false,
+      showUi: false,
+      error: null,
+      errorInfo: null,
+      aiExplanation: null,
+      errorId: null,
+      bugReported: false,
+      isReportingBug: false,
+      remountKey: prev.remountKey + 1,
+    }));
   };
 
   handleReportBug = async () => {
@@ -192,7 +216,7 @@ class SmartErrorBoundary extends Component<Props, State> {
   };
 
   render() {
-    if (this.state.hasError) {
+    if (this.state.hasError && this.state.showUi) {
       if (this.props.fallback) {
         return this.props.fallback;
       }
@@ -268,7 +292,12 @@ class SmartErrorBoundary extends Component<Props, State> {
       );
     }
 
-    return this.props.children;
+    // While recovering from getDerivedStateFromError, keep prior children remount-ready.
+    if (this.state.hasError && !this.state.showUi) {
+      return null;
+    }
+
+    return <React.Fragment key={this.state.remountKey}>{this.props.children}</React.Fragment>;
   }
 }
 

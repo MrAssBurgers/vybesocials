@@ -38,9 +38,15 @@ export function useTutorial() {
   return useContext(TutorialContext);
 }
 
+const DEBUG_TUTORIAL = import.meta.env.DEV && false;
+
+function logTutorial(...args: unknown[]) {
+  if (DEBUG_TUTORIAL) console.log('[Tutorial]', ...args);
+}
+
 /**
  * TutorialProvider - Manages tutorial state for first-time users
- * 
+ *
  * CRITICAL RULES:
  * 1. Tutorial shows ONCE on FIRST authenticated app load after onboarding
  * 2. hasCompleted = false by default until user completes OR skips
@@ -61,6 +67,7 @@ export function TutorialProvider({ children }: { children: ReactNode }) {
   const hasTriggeredRef = useRef(false);
   const lastProfileIdRef = useRef<string | null>(null);
   const checkIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const checkTutorialStatusRef = useRef<(force?: boolean) => Promise<void>>(async () => {});
 
   // Get steps based on current layout
   const steps = getStepsForLayout(layoutMode);
@@ -78,16 +85,14 @@ export function TutorialProvider({ children }: { children: ReactNode }) {
     const currentPath = location.pathname;
     const isOnHomeOrInvite = currentPath === '/home' || currentPath.startsWith('/invite/');
     if (!isOnHomeOrInvite && !force) {
-      if (import.meta.env.DEV) {
-        console.log('[Tutorial] Not on /home or invite flow, deferring tutorial check. Path:', currentPath);
-      }
+      logTutorial('Not on /home or invite flow, deferring tutorial check. Path:', currentPath);
       setIsLoading(false);
       return;
     }
 
     // Reset check if profile changed (new user)
     if (lastProfileIdRef.current !== profile.id) {
-      if (import.meta.env.DEV) console.log('[Tutorial] New profile detected, resetting state');
+      logTutorial('New profile detected, resetting state');
       lastProfileIdRef.current = profile.id;
       hasTriggeredRef.current = false;
     }
@@ -95,7 +100,7 @@ export function TutorialProvider({ children }: { children: ReactNode }) {
     // Skip if already triggered (unless forced)
     if (hasTriggeredRef.current && !force) return;
 
-    if (import.meta.env.DEV) console.log('[Tutorial] Checking tutorial status for user:', profile.id);
+    logTutorial('Checking tutorial status for user:', profile.id);
 
     try {
       const { data, error } = await db
@@ -116,9 +121,7 @@ export function TutorialProvider({ children }: { children: ReactNode }) {
         const onboardingCompleted = data.onboarding_completed ?? false;
         const completed = tutorialCompleted || tutorialSkipped;
         
-        if (import.meta.env.DEV) {
-          console.log('[Tutorial] Status:', { tutorialCompleted, tutorialSkipped, onboardingCompleted, completed });
-        }
+        logTutorial('Status:', { tutorialCompleted, tutorialSkipped, onboardingCompleted, completed });
         
         setHasCompleted(completed);
 
@@ -126,14 +129,14 @@ export function TutorialProvider({ children }: { children: ReactNode }) {
         // Conditions: onboarding done + tutorial not done + not manually opened + not already triggered
         if (onboardingCompleted && !completed && !isManualOpen && !hasTriggeredRef.current) {
           hasTriggeredRef.current = true;
-          if (import.meta.env.DEV) console.log('[Tutorial] Auto-triggering tutorial for first-time user');
+          logTutorial('Auto-triggering tutorial for first-time user');
           // Delay to let UI fully render after navigation
           setTimeout(() => {
             // Guard: only open if the first step's target element exists in DOM
             const firstStep = getStepsForLayout(layoutMode)[0];
             const targetEl = firstStep ? document.querySelector(firstStep.targetSelector) : null;
             if (!targetEl) {
-              if (import.meta.env.DEV) console.log('[Tutorial] First step target not found, retrying in 1s');
+              logTutorial('First step target not found, retrying in 1s');
               setTimeout(() => {
                 setIsOpen(true);
                 setIsLoading(false);
@@ -141,7 +144,7 @@ export function TutorialProvider({ children }: { children: ReactNode }) {
             } else {
               setIsOpen(true);
               setIsLoading(false);
-              console.log('[Tutorial] Tutorial opened');
+              logTutorial('Tutorial opened');
             }
           }, 1500);
         }
@@ -151,7 +154,9 @@ export function TutorialProvider({ children }: { children: ReactNode }) {
     } finally {
       setIsLoading(false);
     }
-  }, [user?.id, profile?.id, isManualOpen, location.pathname]);
+  }, [user?.id, profile?.id, isManualOpen, location.pathname, layoutMode]);
+
+  checkTutorialStatusRef.current = checkTutorialStatus;
 
   // Initial check and re-check when profile changes
   useEffect(() => {
@@ -170,10 +175,10 @@ export function TutorialProvider({ children }: { children: ReactNode }) {
 
     checkIntervalRef.current = setInterval(() => {
       attempts++;
-      console.log('[Tutorial] Recheck attempt', attempts);
-      
-      checkTutorialStatus(true);
-      
+      logTutorial('Recheck attempt', attempts);
+
+      void checkTutorialStatusRef.current(true);
+
       if (attempts >= maxAttempts || hasTriggeredRef.current || hasCompleted) {
         if (checkIntervalRef.current) {
           clearInterval(checkIntervalRef.current);
@@ -188,12 +193,12 @@ export function TutorialProvider({ children }: { children: ReactNode }) {
         checkIntervalRef.current = null;
       }
     };
-  }, [user?.id, profile?.id, hasCompleted, checkTutorialStatus]);
+  }, [user?.id, profile?.id, hasCompleted]);
 
   // Listen for onboarding-completed event
   useEffect(() => {
     const handleOnboardingComplete = () => {
-      console.log('[Tutorial] Onboarding completed event received');
+      logTutorial('Onboarding completed event received');
       setOnboardingJustCompleted(true);
       // Try immediately if profile is already available
       setTimeout(() => checkTutorialStatus(true), 500);
@@ -208,7 +213,7 @@ export function TutorialProvider({ children }: { children: ReactNode }) {
     if (!onboardingJustCompleted || !user?.id || !profile?.id) return;
     if (hasTriggeredRef.current) return;
     
-    console.log('[Tutorial] Profile now available after onboarding, triggering check');
+    logTutorial('Profile now available after onboarding, triggering check');
     setOnboardingJustCompleted(false);
     checkTutorialStatus(true);
   }, [onboardingJustCompleted, user?.id, profile?.id, checkTutorialStatus]);
@@ -230,7 +235,7 @@ export function TutorialProvider({ children }: { children: ReactNode }) {
   const skipTutorial = useCallback(async () => {
     if (!profile?.id) return;
 
-    console.log('[Tutorial] Skipping tutorial');
+    logTutorial('Skipping tutorial');
     
     try {
       // FIRST: Persist to database
@@ -257,7 +262,7 @@ export function TutorialProvider({ children }: { children: ReactNode }) {
       }
       
       // FINALLY: Emit event for referral popup to listen
-      console.log('[Tutorial] Tutorial skipped, dispatching event');
+      logTutorial('Tutorial skipped, dispatching event');
       window.dispatchEvent(new CustomEvent('tutorial-completed'));
     } catch (error) {
       console.error('[Tutorial] Error skipping:', error);
@@ -267,7 +272,7 @@ export function TutorialProvider({ children }: { children: ReactNode }) {
   const completeTutorial = useCallback(async () => {
     if (!profile?.id) return;
 
-    console.log('[Tutorial] Completing tutorial');
+    logTutorial('Completing tutorial');
     
     try {
       // FIRST: Persist to database
@@ -294,7 +299,7 @@ export function TutorialProvider({ children }: { children: ReactNode }) {
       }
       
       // FINALLY: Emit event for referral popup to listen
-      console.log('[Tutorial] Tutorial completed, dispatching event');
+      logTutorial('Tutorial completed, dispatching event');
       window.dispatchEvent(new CustomEvent('tutorial-completed'));
     } catch (error) {
       console.error('[Tutorial] Error completing:', error);

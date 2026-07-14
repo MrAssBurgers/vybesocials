@@ -39,7 +39,6 @@ import { isNativePerfMode } from "@/lib/nativePerfMode";
 import { hasStoredAuthSession } from "@/lib/legacyAuthStorage";
 import { getWasLoggedIn, setWasLoggedIn } from "@/lib/wasLoggedIn";
 import SmartErrorBoundary from "@/components/error/SmartErrorBoundary";
-import { AppErrorFallback } from "@/components/error/AppErrorFallback";
 import LocalErrorBoundary from "@/components/error/LocalErrorBoundary";
 import { GlobalErrorHandler } from "@/components/error/GlobalErrorHandler";
 import { useAppPreloader } from "@/hooks/useAppPreloader";
@@ -616,7 +615,7 @@ function AppWithPreloader() {
                       <TooltipProvider>
                         <Toaster />
                         <Sonner />
-                        <BrowserRouter>
+                        <BrowserRouter useTransitions={false}>
                         <AgentActionBusProvider>
                         <LocationProvider>
                           <CameraOverlayProvider>
@@ -690,7 +689,7 @@ function AppWithPreloader() {
 
 const App = memo(() => {
   return (
-    <SmartErrorBoundary fallback={<AppErrorFallback />}>
+    <SmartErrorBoundary>
       <SkipToMain />
       <LiveRegion />
       <PersistQueryClientProvider

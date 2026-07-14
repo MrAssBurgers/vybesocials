@@ -11,7 +11,24 @@ export async function areFriends(profileA, profileB) {
     ]);
     const out = outSnap.data();
     const inn = inSnap.data();
-    return out?.status === 'accepted' || inn?.status === 'accepted';
+    if (out?.status === 'accepted' || inn?.status === 'accepted')
+        return true;
+    // Legacy friend_requests used random UUIDs — also check directed pair queries.
+    const [legacyOut, legacyIn] = await Promise.all([
+        db.collection('friend_requests')
+            .where('sender_id', '==', profileA)
+            .where('receiver_id', '==', profileB)
+            .where('status', '==', 'accepted')
+            .limit(1)
+            .get(),
+        db.collection('friend_requests')
+            .where('sender_id', '==', profileB)
+            .where('receiver_id', '==', profileA)
+            .where('status', '==', 'accepted')
+            .limit(1)
+            .get(),
+    ]);
+    return !legacyOut.empty || !legacyIn.empty;
 }
 export async function isBlocked(a, b) {
     const [ab, ba] = await Promise.all([
@@ -21,6 +38,10 @@ export async function isBlocked(a, b) {
     return !ab.empty || !ba.empty;
 }
 export async function resolveProfileId(authUid) {
+    const index = await db.collection('user_auth_index').doc(authUid).get();
+    const indexed = index.data()?.profile_id;
+    if (typeof indexed === 'string' && indexed.length > 0)
+        return indexed;
     const snap = await db.collection('profiles').where('user_id', '==', authUid).limit(1).get();
     return snap.docs[0]?.id || authUid;
 }

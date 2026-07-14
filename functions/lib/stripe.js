@@ -101,29 +101,55 @@ function safeRedirectPath(input, fallback) {
     }
     return s.slice(0, 512);
 }
+/**
+ * Look up the authoritative Stripe destination account + platform fee for a
+ * given price_id from Firestore. Never trust client-supplied values — otherwise
+ * a caller could redirect funds to their own connected account and zero out
+ * the platform fee.
+ */
+async function resolveDestinationForPrice(priceId) {
+    try {
+        const snap = await db.collection('business_products')
+            .where('stripe_price_id', '==', priceId)
+            .limit(1)
+            .get();
+        if (snap.empty)
+            return { destination: null, applicationFeePercent: null };
+        const product = snap.docs[0].data();
+        const ownerUid = String(product.owner_user_id || product.user_id || product.business_owner_id || '');
+        const destination = ownerUid ? await getCreatorAccountId(ownerUid) : null;
+        const rawFee = Number(product.platform_fee_percent);
+        const fee = Number.isFinite(rawFee) && rawFee > 0 && rawFee <= 100 ? rawFee : 15;
+        return { destination, applicationFeePercent: destination ? fee : null };
+    }
+    catch (err) {
+        console.warn('[stripe] resolveDestinationForPrice failed', err);
+        return { destination: null, applicationFeePercent: null };
+    }
+}
 export const connectV2Checkout = onCall({ secrets: STRIPE_SECRETS }, async (request) => {
     const uid = requireAuth(request);
     const stripe = await getStripe();
-    const { price_id, quantity, mode, creator_account_id, success_path, cancel_path, application_fee_percent } = (request.data || {});
+    const { price_id, quantity, mode, success_path, cancel_path } = (request.data || {});
     if (!price_id)
         throw new HttpsError('invalid-argument', 'price_id required');
     const base = process.env.PUBLIC_SITE_URL || 'https://vybehub.app';
     const successPath = safeRedirectPath(success_path, '/checkout/success?session_id={CHECKOUT_SESSION_ID}');
     const cancelPath = safeRedirectPath(cancel_path, '/checkout/cancel');
+    const qty = Math.max(1, Math.min(100, Number(quantity) || 1));
     const params = {
-        mode: mode || 'payment',
-        line_items: [{ price: price_id, quantity: quantity || 1 }],
+        mode: mode === 'subscription' ? 'subscription' : 'payment',
+        line_items: [{ price: String(price_id), quantity: qty }],
         success_url: `${base}${successPath}`,
         cancel_url: `${base}${cancelPath}`,
         metadata: { uid },
     };
-    if (creator_account_id) {
+    const { destination, applicationFeePercent } = await resolveDestinationForPrice(String(price_id));
+    if (destination) {
         params.payment_intent_data = {
-            application_fee_amount: undefined,
-            transfer_data: { destination: creator_account_id },
+            transfer_data: { destination },
+            ...(applicationFeePercent ? { application_fee_percent: applicationFeePercent } : {}),
         };
-        if (application_fee_percent)
-            params.payment_intent_data.application_fee_percent = application_fee_percent;
     }
     const session = await stripe.checkout.sessions.create(params);
     return { ok: true, url: session.url, session_id: session.id };
@@ -131,16 +157,19 @@ export const connectV2Checkout = onCall({ secrets: STRIPE_SECRETS }, async (requ
 export const connectV2Subscription = onCall({ secrets: STRIPE_SECRETS }, async (request) => {
     const uid = requireAuth(request);
     const stripe = await getStripe();
-    const { price_id, creator_account_id, success_path, cancel_path } = (request.data || {});
+    const { price_id, success_path, cancel_path } = (request.data || {});
+    if (!price_id)
+        throw new HttpsError('invalid-argument', 'price_id required');
     const base = process.env.PUBLIC_SITE_URL || 'https://vybehub.app';
     const successPath = safeRedirectPath(success_path, '/subscribe/success?session_id={CHECKOUT_SESSION_ID}');
     const cancelPath = safeRedirectPath(cancel_path, '/subscribe/cancel');
+    const { destination } = await resolveDestinationForPrice(String(price_id));
     const session = await stripe.checkout.sessions.create({
         mode: 'subscription',
-        line_items: [{ price: price_id, quantity: 1 }],
+        line_items: [{ price: String(price_id), quantity: 1 }],
         success_url: `${base}${successPath}`,
         cancel_url: `${base}${cancelPath}`,
-        metadata: { uid, creator_account_id: creator_account_id || '' },
+        metadata: { uid, destination_account: destination || '' },
     });
     return { ok: true, url: session.url, session_id: session.id };
 });

@@ -18,8 +18,8 @@ describe('isMessagesThreadPath', () => {
 });
 
 describe('isBottomNavTabRoute', () => {
-  it('keeps nav mounted on DM threads', () => {
-    expect(isBottomNavTabRoute('/messages/abc123')).toBe(true);
+  it('mounts nav on inbox and primary tabs, not open DM threads', () => {
+    expect(isBottomNavTabRoute('/messages/abc123')).toBe(false);
     expect(isBottomNavTabRoute('/messages')).toBe(true);
     expect(isBottomNavTabRoute('/home')).toBe(true);
   });

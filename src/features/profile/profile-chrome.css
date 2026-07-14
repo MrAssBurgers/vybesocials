@@ -1,0 +1,174 @@
+/* Compact profile chrome — theme tokens, clean surfaces */
+
+.vybe-profile-page {
+  background: hsl(var(--background));
+  color: hsl(var(--foreground));
+}
+
+.vybe-profile-chrome {
+  --vp-glass: hsl(var(--card) / 0.85);
+  --vp-glass-border: hsl(var(--border) / 0.45);
+  --vp-cover-h: 8.75rem;
+}
+
+@media (min-width: 640px) {
+  .vybe-profile-chrome {
+    --vp-cover-h: 9.75rem;
+  }
+}
+
+.vybe-profile-shell {
+  max-width: 840px;
+  margin-inline: auto;
+}
+
+.vybe-profile-surface {
+  background: hsl(var(--card));
+  border-bottom: 1px solid hsl(var(--border) / 0.35);
+}
+
+.vybe-profile-body {
+  background: hsl(var(--card));
+}
+
+.vybe-profile-glass {
+  background: var(--vp-glass);
+  border: 1px solid var(--vp-glass-border);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+.vybe-profile-story-ring {
+  background: conic-gradient(
+    from 180deg,
+    hsl(var(--primary)) 0deg,
+    hsl(var(--accent)) 180deg,
+    hsl(var(--primary)) 360deg
+  );
+  padding: 2px;
+  border-radius: 9999px;
+}
+
+.vybe-profile-story-ring--seen {
+  background: hsl(var(--muted-foreground) / 0.35);
+}
+
+.vybe-profile-stat-rail {
+  display: flex;
+  align-items: center;
+  border-top: 1px solid hsl(var(--border) / 0.35);
+}
+
+.vybe-profile-stat-rail button {
+  position: relative;
+}
+
+.vybe-profile-stat-rail button:not(:last-child)::after {
+  content: '';
+  position: absolute;
+  right: 0;
+  top: 20%;
+  height: 60%;
+  width: 1px;
+  background: hsl(var(--border) / 0.35);
+}
+
+.vybe-profile-action-circle {
+  display: flex;
+  height: 2.75rem;
+  width: 2.75rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9999px;
+  border: 1px solid var(--vp-glass-border);
+  background: hsl(var(--background) / 0.8);
+  color: hsl(var(--foreground));
+  transition: transform 0.15s ease;
+}
+
+.vybe-profile-action-circle--camera {
+  border: none;
+  padding: 2px;
+  background: linear-gradient(135deg, hsl(var(--primary)), hsl(var(--accent)));
+}
+
+.vybe-profile-action-circle--camera > span {
+  display: flex;
+  height: 100%;
+  width: 100%;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9999px;
+  background: hsl(var(--card));
+}
+
+.vybe-profile-action-circle:active {
+  transform: scale(0.94);
+}
+
+.vybe-profile-story-chip {
+  display: flex;
+  width: 4rem;
+  flex-shrink: 0;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.vybe-profile-story-thumb {
+  display: flex;
+  height: 3.5rem;
+  width: 3.5rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9999px;
+  border: 1px dashed hsl(var(--border) / 0.6);
+  background: hsl(var(--muted) / 0.25);
+}
+
+.vybe-profile-badge-tile {
+  display: flex;
+  height: 3.5rem;
+  width: 3.5rem;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.75rem;
+  border: 1px solid var(--vp-glass-border);
+  background: hsl(var(--background) / 0.6);
+  font-size: 1.25rem;
+  box-shadow: 0 0 14px var(--badge-glow, hsl(var(--primary) / 0.15));
+}
+
+.vybe-profile-rel-card {
+  position: relative;
+  overflow: hidden;
+  border-radius: 0.75rem;
+  border: 1px solid var(--vp-glass-border);
+  background: hsl(var(--background) / 0.5);
+  padding: 0.75rem;
+  text-align: left;
+}
+
+.vybe-profile-tab-underline {
+  position: absolute;
+  inset-inline: 1rem;
+  bottom: 0;
+  height: 2px;
+  border-radius: 9999px;
+  background: hsl(var(--foreground));
+}
+
+.vybe-profile-grid-tile {
+  position: relative;
+  overflow: hidden;
+  border-radius: 0.5rem;
+  background: hsl(var(--muted) / 0.3);
+  aspect-ratio: 1 / 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .vybe-profile-action-circle:active {
+    transform: none;
+  }
+}

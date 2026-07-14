@@ -68,12 +68,13 @@ export interface DmInsertPayload {
 export interface DmInsertOptions {
   otherProfileId?: string | null;
   maxAttempts?: number;
-  /** Server Firestore trigger is primary; client backup when device may miss trigger latency. */
+  /** Server `onDmMessageCreated` is primary. Client backup only when forceClientBackup. */
   push?: {
     senderName: string;
     preview?: string;
     isGroup?: boolean;
     groupName?: string;
+    forceClientBackup?: boolean;
   };
 }
 
@@ -102,6 +103,9 @@ function firePeerPushBackup(
   push?: DmInsertOptions['push'],
 ): void {
   if (!otherProfileId || otherProfileId === payload.sender_id || !push?.senderName) return;
+  // Server `onDmMessageCreated` owns peer push — client backup doubles delivery.
+  // Keep call only when explicitly forced for tests/offline drills.
+  if (push.forceClientBackup !== true) return;
   const preview = push.preview || previewForPush(payload);
   void sendMessagePush(
     otherProfileId,

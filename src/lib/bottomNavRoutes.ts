@@ -1,6 +1,7 @@
 /**
  * Bottom nav visibility — primary tabs plus own profile.
- * DM conversation threads keep the nav mounted so Home/Clips remain an escape hatch.
+ * DM conversation threads are immersive (nav hidden) so the composer sits flush;
+ * leave via Back / swipe — escape hatch no longer relies on the floating pill.
  */
 
 export type ProfileNavIdentity = {
@@ -49,7 +50,6 @@ export function isMessagesNavActive(pathname: string): boolean {
 /** True when the floating bottom nav should mount on this route. */
 export function isBottomNavTabRoute(pathname: string, profile?: ProfileNavIdentity): boolean {
   if (PRIMARY_TAB_PATHS.has(pathname)) return true;
-  // Keep nav on open DMs so users can leave via Home/Clips without relying only on Back.
-  if (isMessagesThreadPath(pathname)) return true;
+  // Open DM threads stay immersive — no bottom nav over the composer.
   return isOwnProfilePath(pathname, profile);
 }

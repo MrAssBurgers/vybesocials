@@ -134,9 +134,16 @@ export function AdminErrorsSection() {
 
   const fixAllBugs = useMutation({
     mutationFn: async () => clearAllBugReports(true),
+    onMutate: async () => {
+      await queryClient.cancelQueries({ queryKey: ['admin-bug-reports-inline'] });
+      // Optimistically empty every inline list so rows disappear immediately.
+      queryClient.setQueriesData({ queryKey: ['admin-bug-reports-inline'] }, () => []);
+      setFilter('pending');
+    },
     onSuccess: async (result) => {
       await invalidateBugMonitorQueries(queryClient);
       recheck.abort();
+      queryClient.setQueriesData({ queryKey: ['admin-bug-reports-inline'] }, () => []);
       toast.success(
         result.cleared > 0
           ? `Cleared ${result.cleared} bug${result.cleared === 1 ? '' : 's'}`
@@ -145,20 +152,22 @@ export function AdminErrorsSection() {
     },
     onError: (e: Error) => {
       toast.error(e.message || 'Fix All failed');
+      void queryClient.invalidateQueries({ queryKey: ['admin-bug-reports-inline'] });
     },
   });
 
   const recheckAI = useMutation({
     mutationFn: async (id: string) => {
       const { data, error } = await db.functions.invoke('analyze-bug-report', {
-        body: { bugId: id, force: true },
+        body: { bugId: id, force: true, verify: true },
       });
       if (error) throw error;
       return data;
     },
     onMutate: () => toast.loading('AI re-checking bug...', { id: 'ai-recheck' }),
-    onSuccess: () => {
-      toast.success('AI re-check complete', { id: 'ai-recheck' });
+    onSuccess: (data) => {
+      const resolved = (data as { status?: string } | null)?.status === 'RESOLVED';
+      toast.success(resolved ? 'Marked fixed — could not reproduce' : 'AI re-check complete', { id: 'ai-recheck' });
       queryClient.invalidateQueries({ queryKey: ['admin-bug-reports-inline'] });
     },
     onError: (e: any) => toast.error(e?.message || 'AI re-check failed', { id: 'ai-recheck' }),
@@ -226,11 +235,11 @@ export function AdminErrorsSection() {
         </div>
       <div className="ml-auto flex gap-2">
           <Button variant="outline" size="sm" onClick={() => {
-            const unfixed = bugs.filter((b: any) => b.status !== 'fixed');
-            if (unfixed.length === 0) { toast.info('No unfixed bugs to copy'); return; }
-            const text = unfixed.map((b: any) => `[${b.status}] ${b.error_message}${b.page_url ? ` (${b.page_url})` : ''}`).join('\n\n');
+            const active = bugs.filter((b: any) => b.status === 'pending' || b.status === 'reviewing');
+            if (active.length === 0) { toast.info('No active bugs to copy'); return; }
+            const text = active.map((b: any) => `[${b.status}] ${b.error_message}${b.page_url ? ` (${b.page_url})` : ''}`).join('\n\n');
             navigator.clipboard.writeText(text);
-            toast.success(`Copied ${unfixed.length} unfixed errors to clipboard`);
+            toast.success(`Copied ${active.length} active errors to clipboard`);
           }}>
             Copy All
           </Button>

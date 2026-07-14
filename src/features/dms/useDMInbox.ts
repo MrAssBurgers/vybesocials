@@ -281,6 +281,7 @@ export function useDMInbox() {
       lockedIds,
       projectionReadEnabled: isDmInboxProjectionReadEnabled(profileId, user?.id),
       projectionReady: projection.projectionReady,
+      viewerId: profileId,
     });
 
     const prev = lastNonEmptyConversationsRef.current;

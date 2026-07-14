@@ -86,9 +86,26 @@ const ProfileAvatarImage = React.forwardRef<
     if (resolved) batchSignUrls([resolved]).catch(() => {});
   }, [resolved]);
 
+  const imgRef = React.useRef<React.ElementRef<typeof AvatarPrimitive.Image>>(null);
+  React.useEffect(() => {
+    if (!priority || !imgRef.current) return;
+    if ('fetchPriority' in imgRef.current) {
+      (imgRef.current as HTMLImageElement & { fetchPriority?: string }).fetchPriority = 'high';
+    }
+  }, [priority, optimized]);
+
+  const setImgRef = React.useCallback(
+    (node: React.ElementRef<typeof AvatarPrimitive.Image> | null) => {
+      imgRef.current = node;
+      if (typeof ref === 'function') ref(node);
+      else if (ref) ref.current = node;
+    },
+    [ref],
+  );
+
   return (
     <AvatarPrimitive.Image
-      ref={ref}
+      ref={setImgRef}
       src={optimized}
       loading={priority ? 'eager' : 'lazy'}
       decoding="async"

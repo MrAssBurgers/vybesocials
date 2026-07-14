@@ -136,6 +136,7 @@ function InviteBanner() {
 function FindFriendsSection() {
   const { suggestions, isLoading } = useQuickAddSuggestions(40);
   const { data: similarDNA } = useSimilarDNAUsers(30);
+  const { data: friends = [] } = useFriends();
   const { dismissUser } = useDismissedQuickAdd();
   const sendRequest = useSendFriendRequest();
   const navigate = useNavigate();
@@ -143,18 +144,22 @@ function FindFriendsSection() {
   const VISIBLE_COUNT = 6;
   const [removed, setRemoved] = useState<Set<string>>(new Set());
   const [slots, setSlots] = useState<QuickAddUser[]>([]);
+  const friendIds = useMemo(
+    () => new Set(friends.map((f: { id?: string }) => f?.id).filter(Boolean) as string[]),
+    [friends],
+  );
 
   // Build the master pool: mutual / interest matches first, then DNA-similar users as backfill
   const pool = useMemo<QuickAddUser[]>(() => {
     const seen = new Set<string>();
     const out: QuickAddUser[] = [];
     for (const s of suggestions) {
-      if (seen.has(s.id)) continue;
+      if (friendIds.has(s.id) || seen.has(s.id)) continue;
       seen.add(s.id);
       out.push(s);
     }
     for (const s of similarDNA || []) {
-      if (seen.has(s.id)) continue;
+      if (friendIds.has(s.id) || seen.has(s.id)) continue;
       seen.add(s.id);
       out.push({
         id: s.id,
@@ -166,7 +171,7 @@ function FindFriendsSection() {
       });
     }
     return out;
-  }, [suggestions, similarDNA]);
+  }, [suggestions, similarDNA, friendIds]);
 
   // Initialize / refill visible slots from the pool whenever the pool grows or someone is removed
   useEffect(() => {
@@ -189,6 +194,12 @@ function FindFriendsSection() {
     // Instantly remove and refill — fire-and-forget the request
     setRemoved((prev) => new Set([...prev, userId]));
     sendRequest.mutate(userId, {
+      onSuccess: (result) => {
+        if (result?.alreadyExists && result.state === 'accepted') {
+          // Already friends — keep them removed from suggestions silently.
+          return;
+        }
+      },
       onError: () => {
         toast.error("Couldn't send request");
         setRemoved((prev) => { const n = new Set(prev); n.delete(userId); return n; });
@@ -344,6 +355,11 @@ function ResultRow({
       )}
       {friendship?.status === 'pending_sent' && (
         <span className="text-[10px] text-muted-foreground px-2 py-1 rounded-full bg-muted">Pending</span>
+      )}
+      {!friendship?.status && (
+        <Button size="sm" disabled className="shrink-0 gap-1 h-7 rounded-full text-xs px-3">
+          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+        </Button>
       )}
     </div>
   );

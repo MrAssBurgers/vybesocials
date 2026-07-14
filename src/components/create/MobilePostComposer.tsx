@@ -23,6 +23,8 @@ import { useComposerDraft } from '@/hooks/useComposerDraft';
 import { DraftBanner } from '@/components/create/DraftBanner';
 import { withTimeout } from '@/lib/withTimeout';
 import { enqueuePostUpload } from '@/lib/uploadQueue';
+import { PersonTagPicker } from '@/features/profile/components/PersonTagPicker';
+import { useTagUsersOnPost } from '@/features/profile/hooks/useTaggedPosts';
 
 const visibilityOptions = [
   { id: 'public' as const, label: 'Everyone', icon: Globe },
@@ -44,6 +46,7 @@ export function MobilePostComposer({ files: propFiles, previews: propPreviews, c
   const navigate = useNavigate();
   const { user, profile } = useAuth();
   const createPost = useCreatePost();
+  const tagUsersOnPost = useTagUsersOnPost();
   const captionRef = useRef<HTMLTextAreaElement>(null);
 
   // Local state mirrors so filters/enhancements can mutate what gets uploaded
@@ -63,6 +66,7 @@ export function MobilePostComposer({ files: propFiles, previews: propPreviews, c
   const [publishSuccess, setPublishSuccess] = useState(false);
   const [showCelebration, setShowCelebration] = useState(false);
   const [showTags, setShowTags] = useState(true);
+  const [taggedUserIds, setTaggedUserIds] = useState<string[]>([]);
 
   // Pre-scan: kick off Vybe Check as soon as media lands in composer so the
   // user instantly sees the AI working, and Share is near-instant.
@@ -246,7 +250,7 @@ export function MobilePostComposer({ files: propFiles, previews: propPreviews, c
     try {
       pi = setInterval(() => setUploadProgress(prev => Math.min(prev + progressStep, 85)), progressInterval);
 
-      await withTimeout(
+      const post = await withTimeout(
         createPost.mutateAsync({
           mediaFile: localFiles.length <= 1 ? localFiles[0] || undefined : undefined,
           mediaFiles: localFiles.length > 1 ? localFiles : undefined,
@@ -256,6 +260,16 @@ export function MobilePostComposer({ files: propFiles, previews: propPreviews, c
         180000,
         'Upload timed out. Check your connection and try again.',
       );
+      if (taggedUserIds.length && (post as { id?: string } | null)?.id) {
+        try {
+          await tagUsersOnPost.mutateAsync({
+            postId: String((post as { id: string }).id),
+            taggedUserIds,
+          });
+        } catch (tagErr) {
+          console.warn('[Composer] Person tags failed:', tagErr);
+        }
+      }
       if (pi) clearInterval(pi);
       setUploadProgress(100);
       setPublishSuccess(true);
@@ -525,8 +539,9 @@ export function MobilePostComposer({ files: propFiles, previews: propPreviews, c
           <AICaptionGenerator tags={tags} contentType={contentType === 'text' ? 'post' : contentType} onSelectCaption={setCaption} />
         </div>
 
-        {/* Tags Section — collapsible */}
-        <div className="px-4 pb-4">
+        {/* Person tags + hashtag section */}
+        <div className="px-4 pb-4 space-y-3">
+          <PersonTagPicker selectedIds={taggedUserIds} onChange={setTaggedUserIds} />
           <button 
             onClick={() => setShowTags(!showTags)}
             className="flex items-center justify-between w-full mb-2"

@@ -116,4 +116,51 @@ describe('mergeLegacyAndProjection', () => {
     expect(result[0]._sortTime).toBe('2026-07-13T10:00:00.000Z');
     expect(result[0].unread_count).toBe(2);
   });
+
+  it('does not append projection-only 1:1 rows for a peer already in legacy', () => {
+    const legacyPeer = {
+      id: 'conv-a',
+      is_group: false,
+      unread_count: 0,
+      members: [
+        { user_id: 'viewer', role: 'member' },
+        {
+          user_id: 'peer-1',
+          role: 'member',
+          profile: { id: 'peer-1', username: 'alex' },
+        },
+      ],
+      last_message: null,
+    } as LoadedDMConversation;
+
+    const result = mergeLegacyAndProjection({
+      legacy: [legacyPeer],
+      projectionEntries: [
+        {
+          conversation_id: 'conv-a',
+          viewer_id: 'viewer',
+          conversation_type: 'direct',
+          other_profile_id: 'peer-1',
+          username: 'alex',
+          unread_count: 0,
+          updated_at: '2026-01-01T00:00:00Z',
+        } as DmInboxEntryDoc,
+        {
+          conversation_id: 'conv-dup',
+          viewer_id: 'viewer',
+          conversation_type: 'direct',
+          other_profile_id: 'peer-1',
+          username: 'alex',
+          unread_count: 1,
+          updated_at: '2026-01-02T00:00:00Z',
+        } as DmInboxEntryDoc,
+      ],
+      lockedIds: new Set(),
+      projectionReadEnabled: true,
+      projectionReady: true,
+      viewerId: 'viewer',
+    });
+
+    expect(result.map((c) => c.id)).toEqual(['conv-a']);
+  });
 });

@@ -1,12 +1,13 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useFastSignedUrl } from '@/hooks/useFastSignedUrl';
-import { normalizeMediaUrl } from '@/lib/mediaUrl';
+import { normalizeMediaUrl, firebaseStorageNeedsToken } from '@/lib/mediaUrl';
 import { transformedImage } from '@/lib/imageTransform';
 import { injectImagePreload } from '@/lib/imagePreload';
 
 /**
  * Thumb-first image src — paints instantly, upgrades to full res in the background.
  * No opacity fade; the first available pixels show immediately.
+ * Never fall back to Firebase Storage URLs that still need a download token (those 403).
  */
 export function useProgressiveImageSrc({
   full,
@@ -25,13 +26,19 @@ export function useProgressiveImageSrc({
   const signedThumb = useFastSignedUrl(thumb);
 
   const thumbSrc = useMemo(() => {
-    const raw = signedThumb || normalizeMediaUrl(thumb);
+    const normalized = normalizeMediaUrl(thumb);
+    const raw =
+      signedThumb ||
+      (normalized && !firebaseStorageNeedsToken(normalized) ? normalized : null);
     if (!raw) return undefined;
     return transformedImage(raw, { width: thumbWidth, quality: eager ? 74 : 70 }) ?? raw;
   }, [signedThumb, thumb, thumbWidth, eager]);
 
   const fullSrc = useMemo(() => {
-    const raw = signedFull || normalizeMediaUrl(full);
+    const normalized = normalizeMediaUrl(full);
+    const raw =
+      signedFull ||
+      (normalized && !firebaseStorageNeedsToken(normalized) ? normalized : null);
     if (!raw) return undefined;
     return transformedImage(raw, { width: fullWidth, quality: eager ? 86 : 82 }) ?? raw;
   }, [signedFull, full, fullWidth, eager]);

@@ -1,12 +1,13 @@
-import { useState, memo } from 'react';
+import { useState, memo, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { UserPlus, UserMinus, Clock, Check, X, Loader2 } from 'lucide-react';
-import { 
-  useFriendshipStatus, 
-  useSendFriendRequest, 
+import {
+  useFriendshipStatus,
+  useSendFriendRequest,
   useRespondToFriendRequest,
   useCancelFriendRequest,
-  useUnfriend 
+  useUnfriend,
+  useFriends,
 } from '@/hooks/useFriends';
 import { useAuth } from '@/lib/auth';
 import { Button } from '@/components/ui/button';
@@ -26,8 +27,8 @@ interface FriendButtonProps {
   className?: string;
 }
 
-export const FriendButton = memo(function FriendButton({ 
-  userId, 
+export const FriendButton = memo(function FriendButton({
+  userId,
   variant = 'default',
   size = 'default',
   showText = true,
@@ -37,23 +38,31 @@ export const FriendButton = memo(function FriendButton({
   const { profile } = useAuth();
   const { isGuest } = useIsGuest();
   const [showAuthPrompt, setShowAuthPrompt] = useState(false);
-  const { data: friendshipStatus, isLoading } = useFriendshipStatus(userId);
+  const { data: friendshipStatus, isLoading, isFetching } = useFriendshipStatus(userId);
+  const { data: friends = [] } = useFriends();
   const sendRequest = useSendFriendRequest();
   const respondToRequest = useRespondToFriendRequest();
   const cancelRequest = useCancelFriendRequest();
   const unfriend = useUnfriend();
 
-  // CRITICAL: Don't show friend button for own profile
+  const inFriendsList = useMemo(
+    () =>
+      friends.some(
+        (friend: { id?: string; user_id?: string }) =>
+          friend?.id === userId || friend?.user_id === userId,
+      ),
+    [friends, userId],
+  );
+
   if (profile?.id === userId) {
     return null;
   }
 
-  // Show auth prompt for guests
   if (isGuest) {
     return (
       <>
-        <Button 
-          variant={variant} 
+        <Button
+          variant={variant}
           size={size}
           className={className}
           onClick={() => setShowAuthPrompt(true)}
@@ -61,7 +70,7 @@ export const FriendButton = memo(function FriendButton({
           <UserPlus className="h-4 w-4" />
           {showText && <span className="ml-2">{t('friends.addFriend')}</span>}
         </Button>
-        <GuestAuthPrompt 
+        <GuestAuthPrompt
           variant="modal"
           action="add friends"
           open={showAuthPrompt}
@@ -71,29 +80,30 @@ export const FriendButton = memo(function FriendButton({
     );
   }
 
-  if (isLoading) {
+  if (isLoading && !friendshipStatus && !inFriendsList) {
     return (
-      <Button variant={variant} size={size} disabled>
+      <Button variant={variant} size={size} disabled className={className}>
         <Loader2 className="h-4 w-4 animate-spin" />
       </Button>
     );
   }
 
-  const status = friendshipStatus?.status || 'none';
+  const status = inFriendsList
+    ? 'friends'
+    : friendshipStatus?.status || (isFetching && !friendshipStatus ? 'loading' : 'none');
   const requestId = friendshipStatus?.requestId;
 
-  // Already friends
   if (status === 'friends') {
     return (
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button variant="outline" size={size}>
+          <Button variant="outline" size={size} className={className}>
             <Check className="h-4 w-4" />
             {showText && <span className="ml-2">{t('friends.friends')}</span>}
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent>
-          <DropdownMenuItem 
+          <DropdownMenuItem
             onClick={() => unfriend.mutate(userId)}
             className="text-destructive"
           >
@@ -105,14 +115,25 @@ export const FriendButton = memo(function FriendButton({
     );
   }
 
-  // Request sent, waiting for response
-  if (status === 'pending_sent' && requestId) {
+  if (status === 'loading') {
     return (
-      <Button 
-        variant="outline" 
+      <Button variant={variant} size={size} disabled className={className}>
+        <Loader2 className="h-4 w-4 animate-spin" />
+      </Button>
+    );
+  }
+
+  // Pending must never fall through to Add (requestId can be briefly null).
+  if (status === 'pending_sent') {
+    return (
+      <Button
+        variant="outline"
         size={size}
-        onClick={() => cancelRequest.mutate(requestId)}
-        disabled={cancelRequest.isPending}
+        className={className}
+        onClick={() => {
+          if (requestId) cancelRequest.mutate(requestId);
+        }}
+        disabled={!requestId || cancelRequest.isPending}
       >
         <Clock className="h-4 w-4" />
         {showText && <span className="ml-2">{t('friends.pending')}</span>}
@@ -120,24 +141,27 @@ export const FriendButton = memo(function FriendButton({
     );
   }
 
-  // Request received, can accept or decline
-  if (status === 'pending_received' && requestId) {
+  if (status === 'pending_received') {
     return (
       <div className="flex gap-2">
-        <Button 
-          variant="default" 
+        <Button
+          variant="default"
           size={size}
-          onClick={() => respondToRequest.mutate({ requestId, action: 'accept' })}
-          disabled={respondToRequest.isPending}
+          onClick={() => {
+            if (requestId) respondToRequest.mutate({ requestId, action: 'accept' });
+          }}
+          disabled={!requestId || respondToRequest.isPending}
         >
           <Check className="h-4 w-4" />
           {showText && <span className="ml-2">{t('friends.accept')}</span>}
         </Button>
-        <Button 
-          variant="outline" 
+        <Button
+          variant="outline"
           size={size}
-          onClick={() => respondToRequest.mutate({ requestId, action: 'decline' })}
-          disabled={respondToRequest.isPending}
+          onClick={() => {
+            if (requestId) respondToRequest.mutate({ requestId, action: 'decline' });
+          }}
+          disabled={!requestId || respondToRequest.isPending}
         >
           <X className="h-4 w-4" />
         </Button>
@@ -145,13 +169,15 @@ export const FriendButton = memo(function FriendButton({
     );
   }
 
-  // No relationship, can send request
   return (
-    <Button 
-      variant={variant} 
+    <Button
+      variant={variant}
       size={size}
       className={className}
-      onClick={() => sendRequest.mutate(userId)}
+      onClick={() => {
+        if (inFriendsList || friendshipStatus?.status === 'friends') return;
+        sendRequest.mutate(userId);
+      }}
       disabled={sendRequest.isPending}
     >
       {sendRequest.isPending ? (

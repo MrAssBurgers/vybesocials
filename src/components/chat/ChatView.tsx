@@ -152,7 +152,6 @@ import { ensureArray, safeDmMembers } from '@/lib/persistedCollections';
 import { saveElementScrollPosition, restoreElementScrollPosition } from '@/lib/scrollMemory';
 import { normalizeMessagesCache, safeMessageViews, safeMessageReactions } from '@/lib/messagesQueryKey';
 import { OnlineIndicator } from '@/components/ui/OnlineIndicator';
-import { useUserOnlineStatus } from '@/hooks/usePresence';
 import { DMSafetyGate } from './DMSafetyGate';
 import { GroupInfoSheet } from './GroupInfoSheet';
 import { OwnerBadge, isOwner } from '@/components/ui/OwnerBadge';
@@ -672,15 +671,9 @@ export function ChatView() {
     ? displayNameForConversation(safeConversation, profileId, user?.id, 'Chat')
     : 'Chat';
 
-  // Legacy user_presence table — only used when Firestore peer doc is absent.
-  const presenceQuery = useUserOnlineStatus(
-    !isGroupChat ? otherMember?.id : undefined,
-  );
-  // Firestore heartbeat is source of truth; never treat "has presence object" as online.
-  const peerTrulyOnline = Boolean(peerPresence?.is_online);
-  const otherMemberOnline = peerPresence
-    ? peerTrulyOnline
-    : Boolean(presenceQuery.data?.is_online);
+  // Live status only from Firestore presence heartbeat — never PG/user_presence fallback
+  // (stale rows show "online" when the peer has no FS doc).
+  const otherMemberOnline = Boolean(peerPresence?.is_online);
 
   // Get streak with the other user (for DMs)
   const streak = useStreakWithUser(!isGroupChat ? otherMember?.id : undefined);
@@ -1474,7 +1467,9 @@ export function ChatView() {
     !messagesFetching &&
     !threadMessages.length;
 
-  const composerConnecting = Boolean(conversationId) && !hasThreadContent && (messagesPending || messagesFetching || !actorReady);
+  // Never disable the input for message fetch/refetch — only wait for actor identity.
+  // Gating on messagesFetching made empty/transitioning threads feel broken.
+  const composerConnecting = Boolean(conversationId) && !actorReady;
 
   const handleThreadRetry = useCallback(() => {
     setEscapeEpoch((n) => n + 1);
@@ -1570,9 +1565,9 @@ export function ChatView() {
             <LivePresenceBar
               isOnline={otherMemberOnline}
               isTyping={otherPresenceActivity === 'typing'}
-              isInChat={peerTrulyOnline && otherPresenceActivity === 'viewing'}
+              isInChat={otherMemberOnline && otherPresenceActivity === 'viewing'}
               isInCamera={
-                peerTrulyOnline &&
+                otherMemberOnline &&
                 (otherPresenceActivity === 'taking_photo' ||
                   otherPresenceActivity === 'recording_video' ||
                   otherPresenceActivity === 'sending_vybe')
@@ -1726,7 +1721,7 @@ export function ChatView() {
       <div 
         ref={messagesContainerRef}
         className={cn(
-          "dm-chat-messages vybe-chat-messages flex-1 overflow-y-auto overflow-x-hidden min-h-0",
+          "dm-chat-messages vybe-chat-messages scroller flex-1 overflow-y-auto overflow-x-hidden min-h-0",
           "px-3 sm:px-4 pb-3",
           getWallpaperClass()
         )}

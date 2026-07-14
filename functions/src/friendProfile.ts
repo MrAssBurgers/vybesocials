@@ -29,35 +29,55 @@ function validProfileId(value: unknown): value is string {
 }
 
 async function findLegacyRequest(senderId: string, receiverId: string) {
-  const snap = await db.collection('friend_requests')
+  // Prefer accepted, then pending — random UUID docs can coexist for the same pair.
+  const accepted = await db.collection('friend_requests')
     .where('sender_id', '==', senderId)
     .where('receiver_id', '==', receiverId)
+    .where('status', '==', 'accepted')
     .limit(1)
     .get();
-  return snap.docs[0] ?? null;
+  if (!accepted.empty) return accepted.docs[0]!;
+
+  const pending = await db.collection('friend_requests')
+    .where('sender_id', '==', senderId)
+    .where('receiver_id', '==', receiverId)
+    .where('status', '==', 'pending')
+    .limit(1)
+    .get();
+  return pending.docs[0] ?? null;
+}
+
+function pickBestRequest(
+  deterministic: FirebaseFirestore.DocumentSnapshot | null,
+  legacy: FirebaseFirestore.QueryDocumentSnapshot | FirebaseFirestore.DocumentSnapshot | null,
+) {
+  const candidates = [deterministic, legacy].filter(
+    (snap): snap is FirebaseFirestore.QueryDocumentSnapshot | FirebaseFirestore.DocumentSnapshot =>
+      Boolean(snap?.exists),
+  );
+  const accepted = candidates.find((snap) => String(snap.data()?.status) === 'accepted');
+  if (accepted) return accepted;
+  const pending = candidates.find((snap) => String(snap.data()?.status) === 'pending');
+  if (pending) return pending;
+  return candidates[0] ?? null;
 }
 
 async function loadPairRequests(profileId: string, otherId: string) {
   const outboundRef = db.collection('friend_requests').doc(requestId(profileId, otherId));
   const inboundRef = db.collection('friend_requests').doc(requestId(otherId, profileId));
-  const [outbound, inbound] = await Promise.all([outboundRef.get(), inboundRef.get()]);
-  const deterministicActive = [outbound, inbound].some((snap) =>
-    snap.exists && ['pending', 'accepted'].includes(String(snap.data()?.status)),
-  );
-  if (deterministicActive) {
-    return {
-      outbound: outbound.exists ? outbound : null,
-      inbound: inbound.exists ? inbound : null,
-    };
-  }
-
-  const [legacyOutbound, legacyInbound] = await Promise.all([
+  const [outbound, inbound, legacyOutbound, legacyInbound] = await Promise.all([
+    outboundRef.get(),
+    inboundRef.get(),
     findLegacyRequest(profileId, otherId),
     findLegacyRequest(otherId, profileId),
   ]);
+
+  // Always merge deterministic + legacy. Early-return on deterministic-only used to
+  // hide a legacy `accepted` behind a newer deterministic `pending`, so Add stayed
+  // visible until send returned "already friends".
   return {
-    outbound: legacyOutbound || (outbound.exists ? outbound : null),
-    inbound: legacyInbound || (inbound.exists ? inbound : null),
+    outbound: pickBestRequest(outbound.exists ? outbound : null, legacyOutbound),
+    inbound: pickBestRequest(inbound.exists ? inbound : null, legacyInbound),
   };
 }
 
@@ -130,7 +150,19 @@ export const mutateFriendship = onCall({ region: 'us-central1' }, async (request
       snap && ['pending', 'accepted'].includes(String(snap.data().status)),
     );
     if (legacyActive && legacyActive.id !== outboundRef.id && legacyActive.id !== inboundRef.id) {
-      throw new HttpsError('already-exists', 'Friendship already exists');
+      const legacyStatus = String(legacyActive.data().status);
+      const legacyState =
+        legacyStatus === 'accepted'
+          ? 'accepted'
+          : String(legacyActive.data().sender_id) === profileId
+            ? 'pending_outgoing'
+            : 'pending_incoming';
+      return {
+        ok: true,
+        already_exists: true,
+        state: legacyState,
+        request_id: legacyActive.id,
+      };
     }
 
     const result = await db.runTransaction(async (tx) => {
@@ -152,7 +184,16 @@ export const mutateFriendship = onCall({ region: 'us-central1' }, async (request
       const active = [outbound, inbound].find((snap) =>
         snap.exists && ['pending', 'accepted'].includes(String(snap.data()?.status)),
       );
-      if (active) return { already_exists: true, request_id: active.id };
+      if (active) {
+        const status = String(active.data()?.status);
+        const state =
+          status === 'accepted'
+            ? 'accepted'
+            : String(active.data()?.sender_id) === profileId
+              ? 'pending_outgoing'
+              : 'pending_incoming';
+        return { already_exists: true, request_id: active.id, state };
+      }
 
       tx.set(outboundRef, {
         id: outboundRef.id,
@@ -162,7 +203,7 @@ export const mutateFriendship = onCall({ region: 'us-central1' }, async (request
         created_at: outbound.data()?.created_at || now,
         updated_at: now,
       });
-      return { already_exists: false, request_id: outboundRef.id };
+      return { already_exists: false, request_id: outboundRef.id, state: 'pending_outgoing' as const };
     });
 
     if (!result.already_exists) {
@@ -174,7 +215,7 @@ export const mutateFriendship = onCall({ region: 'us-central1' }, async (request
         read: false,
       }).catch((error) => console.warn('[Friendship] request notification failed', error));
     }
-    return { ok: true, state: 'pending_outgoing', ...result };
+    return { ok: true, ...result, state: result.state || 'pending_outgoing' };
   }
 
   const suppliedRequestId = data.request_id;

@@ -2,17 +2,16 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Vybe Font — drop VybeFont.woff2 / .otf / .ttf into public/fonts/ */
+/* Vybe Font — add VybeFont.woff2 to public/fonts/ to enable custom typography */
+/* @font-face disabled until font files are present — prevents OTS parse console errors
 @font-face {
   font-family: 'Vybe Font';
-  src:
-    url('/fonts/VybeFont.woff2') format('woff2'),
-    url('/fonts/VybeFont.otf') format('opentype'),
-    url('/fonts/VybeFont.ttf') format('truetype');
+  src: url('/fonts/VybeFont.woff2') format('woff2');
   font-weight: 400;
   font-style: normal;
-  font-display: block;
+  font-display: swap;
 }
+*/
 
 /* Global tap-highlight reset — kills the iPad/iOS Safari yellow/orange overlay
    that appears on tap for buttons, links, framer-motion wrappers, and inputs.
@@ -1054,6 +1053,9 @@ body.has-liquid-bg:not(.has-custom-bg) .messages-scroll {
   padding-bottom: calc(112px + env(safe-area-inset-bottom, 0px));
   background: transparent;
   overscroll-behavior-y: contain;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  -webkit-overflow-scrolling: touch;
 }
 .dm-inbox-card--settled {
   transition: none;
@@ -1175,11 +1177,11 @@ body.has-liquid-bg:not(.has-custom-bg) .messages-scroll {
 .dm-inbox-card--category-dim {
   opacity: 0.48;
 }
-/* During fling scroll: drop expensive shadows only — keep normal gradient so rows don't flash dark. */
+/* During scroll: keep neon glow — do NOT strip box-shadow (caused mid-scroll flicker). */
 html.is-scrolling .dm-inbox-card {
-  box-shadow: none;
   transition: none;
 }
+/* Keep inbox glass blur while scrolling — toggling backdrop-filter caused background flicker. */
 html.is-scrolling .dm-inbox-avatar-ring--story,
 html.is-scrolling .dm-inbox-avatar-button--story {
   animation: none !important;
@@ -2092,9 +2094,14 @@ html[data-dm-active='true'] .dm-chat-header-back {
 }
 .dm-chat-messages {
   background: transparent;
-  contain: strict;
+  /* paint+layout only — size containment on a flex scroller causes lag/jank */
+  contain: layout paint;
   /* Header is in-flow now — only a small breathing pad. */
   padding-top: 0.5rem;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: contain;
 }
 body.has-liquid-bg:not(.has-custom-bg) .dm-chat-messages {
   background: transparent;
@@ -2113,11 +2120,12 @@ body.has-liquid-bg:not(.has-custom-bg) .dm-composer-dock {
 html[data-dm-active='true'] .dm-composer-dock {
   position: relative;
   bottom: auto;
-  padding-bottom: var(--dm-composer-lift, 0px);
+  /* Safe-area only — bottom nav is hidden on open threads (immersive chat). */
+  padding-bottom: max(0.375rem, var(--sab, env(safe-area-inset-bottom, 0px)));
 }
 html[data-dm-active='true'] {
-  /* Bottom nav stays mounted on threads — lift composer above the pill. */
-  --dm-composer-lift: calc(4.5rem + var(--sab, env(safe-area-inset-bottom, 0px)));
+  /* Immersive DM: no bottom-nav lift — composer sits flush like the previous “perfect” dock. */
+  --dm-composer-lift: 0px;
   --dm-floating-header-scroll: var(--dm-header-stack, calc(var(--sat, env(safe-area-inset-top, 0px)) + 2.75rem));
 }
 html[data-dm-active='true'] .dm-chat-messages {

@@ -204,7 +204,7 @@ async function upsertProgressFromCount(
   };
 }
 
-async function incrementOneChallenge(
+export async function incrementOneChallenge(
   profileId: string,
   authUid: string,
   challenge: Record<string, unknown>,

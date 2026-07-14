@@ -42,6 +42,7 @@ export async function clearAllBugReports(
             status: 'fixed',
             ai_analysis: 'Cleared via Fix All',
             ai_severity: 'low',
+            resolved_at: new Date().toISOString(),
           })
           .in('id', ids);
         if (updErr) throw new Error(updErr.message || 'Failed to resolve bug reports');
@@ -56,6 +57,7 @@ export async function clearAllBugReports(
           status: 'fixed',
           ai_analysis: 'Cleared via Fix All',
           ai_severity: 'low',
+          resolved_at: new Date().toISOString(),
         })
         .in('id', ids);
       if (updErr) throw new Error(updErr.message || 'Failed to resolve bug reports');

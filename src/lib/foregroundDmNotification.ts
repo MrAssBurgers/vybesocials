@@ -98,6 +98,8 @@ export async function maybeShowForegroundDmNotification(options: {
 
   const tag = dmNotificationTag(conversationId, messageId);
   if (!shouldShowInAppNotification(tag)) return;
+  // Coalesce: at most one toast per conversation in the window.
+  if (!shouldShowInAppNotification(`dm-convo:${conversationId}`)) return;
 
   const { data: sender } = await db
     .from('profiles')

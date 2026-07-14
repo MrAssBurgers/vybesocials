@@ -12,6 +12,12 @@ import { normalizeMediaUrl } from '@/lib/mediaUrl';
 import { heatmapColor, heatmapOpacity } from '@/lib/vybemap/heatmapColors';
 import { clusterPoints, type MarkerCluster } from '@/lib/vybemap/clusterMarkers';
 import { isHeadingTowardYou } from '@/lib/vybemap/headingToward';
+import {
+  applyScreenOrientationOffset,
+  ensureDeviceOrientationPermission,
+  headingFromOrientationEvent,
+  lerpHeading,
+} from '@/lib/vybemap/deviceHeading';
 import type {
   LiveFriend,
   MapStoryPin,
@@ -328,7 +334,9 @@ export const VybeMapboxCanvas = memo(function VybeMapboxCanvas({
     });
   }, [center?.[0], center?.[1]]);
 
-  const resolvedHeading = userHeading ?? deviceHeading;
+  // Prefer compass (phone facing) over GPS course-over-ground — GPS heading is often
+  // null/stale when standing still and points travel direction while walking.
+  const resolvedHeading = deviceHeading ?? userHeading ?? null;
 
   const refreshSelfMarker = useCallback((lngLat: [number, number], bearing: number, heading: number | null) => {
     const map = mapRef.current;
@@ -370,14 +378,39 @@ export const VybeMapboxCanvas = memo(function VybeMapboxCanvas({
   }, [mapReady]);
 
   useEffect(() => {
+    let smoothed: number | null = null;
     const onOrient = (e: DeviceOrientationEvent) => {
-      const h =
-        (e as DeviceOrientationEvent & { webkitCompassHeading?: number }).webkitCompassHeading ??
-        (e.alpha != null ? 360 - e.alpha : null);
-      if (h != null && Number.isFinite(h)) setDeviceHeading(h);
+      const raw = headingFromOrientationEvent(e);
+      if (raw == null) return;
+      const corrected = applyScreenOrientationOffset(raw);
+      smoothed = lerpHeading(smoothed, corrected, 0.35);
+      setDeviceHeading(smoothed);
     };
-    window.addEventListener('deviceorientation', onOrient, true);
-    return () => window.removeEventListener('deviceorientation', onOrient, true);
+
+    const attach = () => window.addEventListener('deviceorientation', onOrient, true);
+
+    // Request iOS permission on first user gesture against the map (required for Safari).
+    const onGesture = () => {
+      void ensureDeviceOrientationPermission().then((ok) => {
+        if (ok) attach();
+      });
+      window.removeEventListener('pointerdown', onGesture, true);
+      window.removeEventListener('touchstart', onGesture, true);
+    };
+
+    void ensureDeviceOrientationPermission().then((ok) => {
+      if (ok) attach();
+      else {
+        window.addEventListener('pointerdown', onGesture, true);
+        window.addEventListener('touchstart', onGesture, true);
+      }
+    });
+
+    return () => {
+      window.removeEventListener('deviceorientation', onOrient, true);
+      window.removeEventListener('pointerdown', onGesture, true);
+      window.removeEventListener('touchstart', onGesture, true);
+    };
   }, []);
 
   useEffect(() => {
@@ -692,27 +725,18 @@ export const VybeMapboxCanvas = memo(function VybeMapboxCanvas({
 
     const applyHeading = (e: DeviceOrientationEvent) => {
       if (userInteractingRef.current) return;
-      const h =
-        (e as DeviceOrientationEvent & { webkitCompassHeading?: number }).webkitCompassHeading ??
-        (e.alpha != null ? 360 - e.alpha : null);
-      if (h == null) return;
+      const raw = headingFromOrientationEvent(e);
+      if (raw == null) return;
+      const h = applyScreenOrientationOffset(raw);
       if (typeof map.setBearing === 'function') map.setBearing(h);
       else map.easeTo({ bearing: h, duration: 120, essential: true });
     };
 
     const attach = () => window.addEventListener('deviceorientation', applyHeading, true);
 
-    const req = (DeviceOrientationEvent as unknown as { requestPermission?: () => Promise<string> })
-      .requestPermission;
-    if (typeof req === 'function') {
-      void req()
-        .then((state) => {
-          if (state === 'granted') attach();
-        })
-        .catch(() => {});
-    } else {
-      attach();
-    }
+    void ensureDeviceOrientationPermission().then((ok) => {
+      if (ok) attach();
+    });
 
     return () => window.removeEventListener('deviceorientation', applyHeading, true);
   }, [followHeading, mapReady]);

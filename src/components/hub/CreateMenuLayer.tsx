@@ -10,7 +10,7 @@ import { playSound } from "@/lib/sounds";
 import { useIsMobileOrTablet } from "@/hooks/use-mobile";
 import { useUserRole } from "@/hooks/useModeration";
 import { useAuth } from "@/lib/auth";
-import { openSnapCamera, useCameraOverlay } from "@/contexts/CameraOverlayContext";
+import { openSnapCamera, useCameraOverlayOptional } from "@/contexts/CameraOverlayContext";
 
 interface CreateMenuLayerProps {
   open: boolean;
@@ -47,7 +47,8 @@ export function CreateMenuLayer({ open, onOpenChange }: CreateMenuLayerProps) {
   const [view, setView] = useState<View>("create");
   const surfaceRef = useRef<HTMLDivElement | null>(null);
   const recoverAttemptsRef = useRef(0);
-  const { openCamera } = useCameraOverlay();
+  const cameraOverlay = useCameraOverlayOptional();
+  const openCamera = cameraOverlay?.openCamera;
   const { data: userRole } = useUserRole();
   const isModOrAdmin = userRole === 'owner' || userRole === 'admin' || userRole === 'moderator';
 
@@ -77,6 +78,12 @@ export function CreateMenuLayer({ open, onOpenChange }: CreateMenuLayerProps) {
         if (!user) {
           close();
           navigate("/?mode=login");
+          return;
+        }
+        if (!openCamera) {
+          // Provider briefly unavailable (HMR / remount) — fall back to upload studio.
+          close();
+          navigate("/upload");
           return;
         }
         // Snap flow: global entry — capture → edit → Send To picker.

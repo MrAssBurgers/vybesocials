@@ -74,8 +74,12 @@ export function subscribePostgresChannel(
   bindings: PostgresBinding[],
   onStatus?: (status: string) => void,
 ): ChannelBuilder {
-  removeChannelByTopic(channelName);
   const topic = normalizeTopic(channelName);
+  const existing = activeChannels.get(topic);
+  if (existing) {
+    onStatus?.('SUBSCRIBED');
+    return existing as ChannelBuilder;
+  }
 
   const unsubs: Unsubscribe[] = [];
 

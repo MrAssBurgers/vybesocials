@@ -16,7 +16,7 @@ export const ChatMessageList = forwardRef<HTMLDivElement, ChatMessageListProps>(
       <div
         ref={ref}
         className={cn(
-          'dm-chat-messages vybe-chat-messages flex-1 overflow-y-auto overflow-x-hidden min-h-0',
+          'dm-chat-messages vybe-chat-messages scroller flex-1 overflow-y-auto overflow-x-hidden min-h-0',
           'px-3 sm:px-4 pb-3',
           wallpaperClassName,
           className,

@@ -7,6 +7,7 @@ import { Users, Loader2, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth';
+import { useSendFriendRequest } from '@/hooks/useFriends';
 import { normalizeE164, hashPhoneE164 } from '@/lib/phone';
 
 interface Match {
@@ -20,6 +21,7 @@ interface Match {
 
 export function ContactSyncCard() {
   const { user } = useAuth();
+  const sendFriendRequest = useSendFriendRequest();
   const [discoverable, setDiscoverable] = useState(false);
   const [myProfileId, setMyProfileId] = useState<string | null>(null);
   const [phoneVerified, setPhoneVerified] = useState(false);
@@ -126,15 +128,19 @@ export function ContactSyncCard() {
 
   const addFriend = async (toProfileId: string) => {
     if (!myProfileId) return;
-    const { error } = await db
-      .from('friend_requests')
-      .insert({ sender_id: myProfileId, receiver_id: toProfileId, status: 'pending' });
-    if (error && !error.message.includes('duplicate')) {
-      toast.error('Could not send request');
-      return;
+    try {
+      await sendFriendRequest.mutateAsync(toProfileId);
+      setMatches(prev => prev?.map(m => m.id === toProfileId ? { ...m, requested: true } : m) ?? null);
+      toast.success('Friend request sent');
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : String(e ?? '');
+      if (!/already|duplicate|exists/i.test(message)) {
+        toast.error('Could not send request');
+        return;
+      }
+      setMatches(prev => prev?.map(m => m.id === toProfileId ? { ...m, requested: true } : m) ?? null);
+      toast.success('Friend request sent');
     }
-    setMatches(prev => prev?.map(m => m.id === toProfileId ? { ...m, requested: true } : m) ?? null);
-    toast.success('Friend request sent');
   };
 
   const clearUploaded = async () => {

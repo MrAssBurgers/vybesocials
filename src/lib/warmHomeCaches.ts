@@ -147,10 +147,12 @@ function warmNotifications(queryClient: QueryClient, profileId: string) {
   const key = ['notifications', profileId] as const;
   if (queryClient.getQueryData(key)) return;
 
+  const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
   void db
     .from('notifications')
     .select(`*, actor:profiles!notifications_actor_id_fkey(id, username, avatar_url)`)
     .eq('user_id', profileId)
+    .gte('created_at', weekAgo)
     .order('created_at', { ascending: false })
     .limit(15)
     .then(({ data }) => {

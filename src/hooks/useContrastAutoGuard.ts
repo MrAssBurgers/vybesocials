@@ -54,6 +54,10 @@ function shouldSkip(el: Element): boolean {
   if (SKIP_TAGS.has(el.tagName)) return true;
   if (el.closest('[data-no-auto-contrast]')) return true;
   if (el.closest('[data-auto-contrast="off"]')) return true;
+  // Maintenance / chrome footers and avatar fallbacks flicker under glass samples.
+  if (el.classList?.contains('vybe-maint-foot')) return true;
+  const cls = typeof (el as HTMLElement).className === 'string' ? (el as HTMLElement).className : '';
+  if (cls.includes('rounded-full') && /\bbg-/.test(cls)) return true;
   // Skip inside Framer Motion layout-animated containers. Their absolute
   // capsule sibling slides under the text every frame, causing the sampled
   // background to oscillate around the WCAG threshold (the flicker the user
@@ -130,10 +134,19 @@ function processElement(el: Element) {
   // - want override ON  : ratio is clearly bad (< threshold)
   // - want override OFF : ratio is comfortably good (>= threshold + 2.5)
   // Anything in between → keep current state (no change).
+  // Sticky OFF: glass/liquid backgrounds make getEffectiveBg bounce (ratio 2.6↔18),
+  // which used to remove overrides and flash text color while scrolling/settling.
   let desired: 'on' | 'off' | 'keep';
   if (ratio < threshold) desired = 'on';
-  else if (ratio >= threshold + 2.5) desired = hasOverride ? 'off' : 'keep';
-  else desired = 'keep';
+  else if (ratio >= threshold + 2.5 && hasOverride) {
+    const liquidRoot =
+      document.body.classList.contains('has-liquid-bg') ||
+      document.documentElement.classList.contains('has-liquid-bg');
+    const unstableBg = bg.a < 0.92;
+    desired = liquidRoot || unstableBg ? 'keep' : 'off';
+  } else {
+    desired = 'keep';
+  }
 
   if (desired === 'keep') {
     pendingDecision.delete(el);
@@ -234,7 +247,7 @@ export function useContrastAutoGuard(enabled = true) {
       window.clearTimeout(activityTimer);
       activityTimer = window.setTimeout(() => {
         isBusy = false;
-      }, 220);
+      }, 600);
     };
 
     // Initial scan after first paint

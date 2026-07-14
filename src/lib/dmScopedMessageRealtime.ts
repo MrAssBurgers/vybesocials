@@ -16,6 +16,10 @@ import {
   subscribePostgresChannel,
   type RealtimeChannel,
 } from '@/lib/realtimeChannel';
+import { toIsoDateString, parseApiDate } from '@/lib/parseApiDate';
+
+/** Only surface in-app DM toasts for messages that arrived recently (not catch-up replay). */
+export const DM_FOREGROUND_NOTIFY_MAX_AGE_MS = 60_000;
 
 function sanitizeRealtimeMessage(raw: unknown): any {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
@@ -28,6 +32,9 @@ function sanitizeRealtimeMessage(raw: unknown): any {
         ? String(row.conversation_id)
         : '';
   if (!id || !conversationId) return null;
+  // Never invent "now" for missing timestamps — that made catch-up INSERT replays
+  // look brand-new and spam DM toasts for the whole thread history.
+  const created = parseApiDate(row.created_at);
   return {
     id,
     conversation_id: conversationId,
@@ -36,13 +43,18 @@ function sanitizeRealtimeMessage(raw: unknown): any {
     media_type: typeof row.media_type === 'string' ? row.media_type : row.media_type ?? null,
     media_url: typeof row.media_url === 'string' ? row.media_url : row.media_url ?? null,
     message_type: typeof row.message_type === 'string' ? row.message_type : row.message_type ?? null,
-    created_at:
-      typeof row.created_at === 'string' ? row.created_at : new Date().toISOString(),
-    updated_at: typeof row.updated_at === 'string' ? row.updated_at : row.updated_at ?? null,
+    created_at: created ? created.toISOString() : null,
+    updated_at: typeof row.updated_at === 'string' ? row.updated_at : toIsoDateString(row.updated_at, ''),
     edited_at: typeof row.edited_at === 'string' ? row.edited_at : row.edited_at ?? null,
     is_deleted: Boolean(row.is_deleted),
     expires_at: typeof row.expires_at === 'string' ? row.expires_at : row.expires_at ?? null,
   };
+}
+
+function isFreshEnoughForDmToast(createdAt: unknown, now = Date.now()): boolean {
+  const created = parseApiDate(createdAt);
+  if (!created) return false;
+  return now - created.getTime() <= DM_FOREGROUND_NOTIFY_MAX_AGE_MS;
 }
 
 export interface ScopedMessageRealtimeContext {
@@ -231,12 +243,14 @@ function handleMessageInsert(ctx: ScopedMessageRealtimeContext, rawMessage: unkn
     }
 
     if (!isViewingConvo || document.visibilityState !== 'visible') {
-      void maybeShowForegroundDmNotification({
-        message: newMessage,
-        profileId: ctx.profileId,
-        isViewingConvo,
-        queryClient: ctx.queryClient,
-      });
+      if (isFreshEnoughForDmToast(newMessage.created_at)) {
+        void maybeShowForegroundDmNotification({
+          message: newMessage,
+          profileId: ctx.profileId,
+          isViewingConvo,
+          queryClient: ctx.queryClient,
+        });
+      }
     }
   }
 
@@ -341,14 +355,21 @@ function handleMessageDelete(ctx: ScopedMessageRealtimeContext, rawMessage: unkn
 export interface ScopedMessageRealtimeHandle {
   resync: () => Promise<void>;
   teardown: () => void;
+  updateContext: (ctx: ScopedMessageRealtimeContext) => void;
+}
+
+function conversationIdSetKey(ids: Set<string>): string {
+  return [...ids].sort().join('\0');
 }
 
 export function setupScopedMessageRealtime(
   ctx: ScopedMessageRealtimeContext,
 ): ScopedMessageRealtimeHandle {
+  let activeCtx = ctx;
   const convChannels = new Map<string, RealtimeChannel>();
   let membersChannel: RealtimeChannel | null = null;
   let syncTimer: ReturnType<typeof setTimeout> | null = null;
+  let lastSyncedKey = '';
 
   const attachConversation = (conversationId: string) => {
     if (convChannels.has(conversationId)) return;
@@ -362,7 +383,7 @@ export function setupScopedMessageRealtime(
           filter: `conversation_id=eq.${conversationId}`,
           callback: (payload) => {
             try {
-              handleMessageInsert(ctx, payload.new);
+              handleMessageInsert(activeCtx, payload.new);
             } catch (err) {
               if (import.meta.env.DEV) console.warn('[GlobalRT] INSERT failed', err);
             }
@@ -372,13 +393,13 @@ export function setupScopedMessageRealtime(
           event: 'UPDATE',
           table: 'messages',
           filter: `conversation_id=eq.${conversationId}`,
-          callback: (payload) => handleMessageUpdate(ctx, payload.new),
+          callback: (payload) => handleMessageUpdate(activeCtx, payload.new),
         },
         {
           event: 'DELETE',
           table: 'messages',
           filter: `conversation_id=eq.${conversationId}`,
-          callback: (payload) => handleMessageDelete(ctx, payload.old),
+          callback: (payload) => handleMessageDelete(activeCtx, payload.old),
         },
       ],
       (status) => {
@@ -392,11 +413,15 @@ export function setupScopedMessageRealtime(
 
   const syncConversationListeners = async () => {
     const ids = await selectScopedConversationIdsWithFallback(
-      ctx.queryClient,
-      ctx.profileId,
-      ctx.authUid,
-      ctx.getViewingConversationId,
+      activeCtx.queryClient,
+      activeCtx.profileId,
+      activeCtx.authUid,
+      activeCtx.getViewingConversationId,
     );
+
+    const nextKey = conversationIdSetKey(ids);
+    if (nextKey === lastSyncedKey) return;
+    lastSyncedKey = nextKey;
 
     for (const [cid, ch] of convChannels) {
       if (!ids.has(cid)) {
@@ -452,6 +477,9 @@ export function setupScopedMessageRealtime(
 
   return {
     resync: syncConversationListeners,
+    updateContext: (nextCtx) => {
+      activeCtx = nextCtx;
+    },
     teardown: () => {
       if (syncTimer) clearTimeout(syncTimer);
       removeRealtimeChannel(membersChannel);
@@ -462,6 +490,7 @@ export function setupScopedMessageRealtime(
         removeChannelByTopic(`global-messages:${ctx.profileId}:${cid}`);
       }
       convChannels.clear();
+      lastSyncedKey = '';
     },
   };
 }
@@ -488,12 +517,14 @@ export function applyBroadcastMessage(
   }
 
   if (!isFromCurrentUser && (!isViewingConvo || document.visibilityState !== 'visible')) {
-    void maybeShowForegroundDmNotification({
-      message: msg,
-      profileId: ctx.profileId,
-      isViewingConvo,
-      queryClient: ctx.queryClient,
-    });
+    if (isFreshEnoughForDmToast(msg.created_at)) {
+      void maybeShowForegroundDmNotification({
+        message: msg,
+        profileId: ctx.profileId,
+        isViewingConvo,
+        queryClient: ctx.queryClient,
+      });
+    }
   }
 
   patchConversationLists(ctx, conversationId, msg, isFromCurrentUser, isViewingConvo);

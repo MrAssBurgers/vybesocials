@@ -91,6 +91,7 @@ export function useNotifications() {
       if (!profileId) return [];
 
       // Use a simpler query structure for faster loading
+      const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
       const { data, error } = await db
         .from('notifications')
         .select(`
@@ -109,6 +110,8 @@ export function useNotifications() {
           meta
         `)
         .eq('user_id', profileId)
+        .gte('created_at', weekAgo)
+        .order('created_at', { ascending: false })
         .limit(30);
 
       if (error) throw error;
@@ -122,12 +125,17 @@ export function useNotifications() {
 
       // Hide stale Daily Brief pings (>24h old) — they're time-sensitive
       const DAY_MS = 24 * 60 * 60 * 1000;
+      const WEEK_MS = 7 * DAY_MS;
       const now = Date.now();
       const filtered = sorted.filter((n: any) => {
         // Missed calls live in the DM thread as call_event rows — not the bell menu
         if (n.type === 'missed_call') return false;
+        // DMs belong in Messages — never park message rows in the bell feed
+        if (n.type === 'message') return false;
+        const age = now - Date.parse(toIsoDateString(n.created_at));
+        if (!Number.isFinite(age) || age > WEEK_MS) return false;
         if (n.subtype === 'brief_item') {
-          return now - Date.parse(toIsoDateString(n.created_at)) < DAY_MS;
+          return age < DAY_MS;
         }
         return true;
       });
@@ -137,7 +145,7 @@ export function useNotifications() {
       const actorIds = [...new Set(filtered.map((n: any) => n.actor_id).filter(Boolean))];
       const actorMap = await fetchMemberProfiles(actorIds);
 
-      return filtered.map((n: any) => {
+      const mapped = filtered.map((n: any) => {
         const profile = actorMap.get(n.actor_id);
         const actor = profile
           ? {
@@ -171,6 +179,7 @@ export function useNotifications() {
           },
         };
       });
+      return mapped;
     },
     enabled: !!profileId,
     staleTime: 60000, // Cache for 1 minute

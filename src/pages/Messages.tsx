@@ -264,7 +264,7 @@ function MessagesInner() {
 
 export default function Messages() {
   return (
-    <SmartErrorBoundary fallback={<MessagesFallback />}>
+    <SmartErrorBoundary hardFallback fallback={<MessagesFallback />}>
       <MessagesInner />
     </SmartErrorBoundary>
   );

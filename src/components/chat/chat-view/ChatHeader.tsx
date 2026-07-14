@@ -65,9 +65,12 @@ export function ChatHeader({
                 }
                 prepareDmLeaveSideEffects();
                 onBack();
-                // Hard escape if stacking/React leave fails (desktop lock).
+                // Hard escape if leave leaves chat chrome mounted (URL/UI desync).
                 window.setTimeout(() => {
-                  if (isDmConversationPath(window.location.pathname)) {
+                  const shellStillMounted = Boolean(
+                    document.getElementById('vybe-chat-shield-root'),
+                  );
+                  if (isDmConversationPath(window.location.pathname) || shellStillMounted) {
                     window.location.replace('/messages');
                   }
                 }, 120);

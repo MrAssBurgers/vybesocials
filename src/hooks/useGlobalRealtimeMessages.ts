@@ -18,6 +18,7 @@ import { subscribeDmBroadcastMessages } from '@/lib/dmBroadcast';
 import {
   applyBroadcastMessage,
   setupScopedMessageRealtime,
+  type ScopedMessageRealtimeContext,
   type ScopedMessageRealtimeHandle,
 } from '@/lib/dmScopedMessageRealtime';
 
@@ -130,19 +131,26 @@ export function useGlobalRealtimeMessages() {
   const authUid = user?.id ?? profile?.user_id ?? null;
   const queryClient = useQueryClient();
   const scopedRtRef = useRef<ScopedMessageRealtimeHandle | null>(null);
+  const rtContextRef = useRef({
+    profileId: profileId!,
+    authUid,
+    queryClient,
+    getViewingConversationId: () => currentConversationId,
+    isMessageProcessed,
+    markMessageProcessed,
+    isOptimisticDuplicate,
+    scheduleUnknownConvoRefetch: (pid: string) => scheduleUnknownConvoRefetch(queryClient, pid),
+  });
+
+  rtContextRef.current.profileId = profileId ?? '';
+  rtContextRef.current.authUid = authUid;
+  rtContextRef.current.queryClient = queryClient;
+  rtContextRef.current.scheduleUnknownConvoRefetch = (pid: string) =>
+    scheduleUnknownConvoRefetch(queryClient, pid);
 
   const rtContext = useCallback(
-    () => ({
-      profileId: profileId!,
-      authUid,
-      queryClient,
-      getViewingConversationId: () => currentConversationId,
-      isMessageProcessed,
-      markMessageProcessed,
-      isOptimisticDuplicate,
-      scheduleUnknownConvoRefetch: (pid: string) => scheduleUnknownConvoRefetch(queryClient, pid),
-    }),
-    [profileId, authUid, queryClient],
+    () => rtContextRef.current as ScopedMessageRealtimeContext,
+    [],
   );
 
   // Global presence channel — patches ['user-presence', id] and
@@ -239,6 +247,11 @@ export function useGlobalRealtimeMessages() {
       scopedRtRef.current = null;
     };
   }, [profileId, rtContext]);
+
+  // Keep handler closures fresh without tearing down Firestore listeners.
+  useEffect(() => {
+    scopedRtRef.current?.updateContext(rtContext());
+  }, [authUid, queryClient, rtContext]);
 
   // Resync when user opens a DM (may not be in list cache yet)
   useEffect(() => {

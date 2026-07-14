@@ -7,7 +7,7 @@ import { isPermissionDeniedError, warnOnce } from '@/lib/logOnce';
 import { presenceHeartbeatMs } from '@/lib/nativePerfMode';
 
 // Debug flag - set to true for dev debugging
-const DEBUG_PRESENCE = import.meta.env.DEV;
+const DEBUG_PRESENCE = false;
 
 function logPresence(...args: any[]) {
   if (DEBUG_PRESENCE) {

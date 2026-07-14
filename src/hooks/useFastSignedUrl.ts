@@ -34,6 +34,32 @@ function subscribe(callback: () => void) {
   return () => subscribers.delete(callback);
 }
 
+/** Share in-flight Firebase resolves so Strict Mode / effect cancel still populate cache. */
+const firebaseResolveInflight = new Map<string, Promise<string>>();
+
+function resolveFirebaseUrlShared(normalizedUrl: string): Promise<string> {
+  const existing = firebaseResolveInflight.get(normalizedUrl);
+  if (existing) return existing;
+
+  const promise = firebaseStorage
+    .resolveMediaUrl(normalizedUrl)
+    .then((url) => {
+      firebaseResolveInflight.delete(normalizedUrl);
+      if (url && (url !== normalizedUrl || /[?&]token=/.test(url))) {
+        cacheSignedUrl(normalizedUrl, url);
+        notifySubscribers();
+      }
+      return url;
+    })
+    .catch((err) => {
+      firebaseResolveInflight.delete(normalizedUrl);
+      throw err;
+    });
+
+  firebaseResolveInflight.set(normalizedUrl, promise);
+  return promise;
+}
+
 /**
  * Fast signed URL hook - returns instantly from cache
  * Falls back to async fetch if not cached
@@ -56,21 +82,23 @@ export function useFastSignedUrl(publicUrl: string | null | undefined): string |
   useEffect(() => {
     if (!normalizedUrl) {
       setAsyncUrl(null);
+      fetchedRef.current = null;
       return;
     }
 
     if (needsFirebaseToken) {
-      if (syncCached || fetchedRef.current === normalizedUrl) {
+      if (syncCached) {
+        setAsyncUrl(syncCached);
         return;
       }
-      fetchedRef.current = normalizedUrl;
       let cancelled = false;
-      void firebaseStorage.resolveMediaUrl(normalizedUrl).then((url) => {
-        if (cancelled || !url) return;
-        cacheSignedUrl(normalizedUrl, url);
-        setAsyncUrl(url);
-        notifySubscribers();
-      });
+      void resolveFirebaseUrlShared(normalizedUrl)
+        .then((url) => {
+          // Cache already updated in shared resolver; apply locally if still mounted.
+          if (cancelled || !url) return;
+          setAsyncUrl(url);
+        })
+        .catch(() => {});
       return () => { cancelled = true; };
     }
     
@@ -79,7 +107,12 @@ export function useFastSignedUrl(publicUrl: string | null | undefined): string |
       return;
     }
     
-    if (syncCached || fetchedRef.current === normalizedUrl) {
+    if (syncCached) {
+      setAsyncUrl(syncCached);
+      return;
+    }
+
+    if (fetchedRef.current === normalizedUrl) {
       return;
     }
     
@@ -87,16 +120,24 @@ export function useFastSignedUrl(publicUrl: string | null | undefined): string |
     let cancelled = false;
     
     getSignedUrl(normalizedUrl).then(url => {
-      if (cancelled) return;
+      if (cancelled) {
+        // Allow remount/retry after a discarded result
+        if (fetchedRef.current === normalizedUrl) fetchedRef.current = null;
+        return;
+      }
       if (url && url !== normalizedUrl) {
         setAsyncUrl(url);
       }
       notifySubscribers();
     }).catch(() => {
+      if (fetchedRef.current === normalizedUrl) fetchedRef.current = null;
       if (!cancelled) notifySubscribers();
     });
     
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+      if (fetchedRef.current === normalizedUrl) fetchedRef.current = null;
+    };
   }, [normalizedUrl, syncCached, needsFirebaseToken]);
   
   return syncCached || asyncUrl || resolveUrlSync(normalizedUrl ?? null, needsFirebaseToken);
@@ -120,7 +161,7 @@ export function useFastSignedUrls(urls: (string | null | undefined)[]): (string 
     const results: (string | null)[] = urls.map(url => {
       const normalized = normalizeMediaUrl(url);
       if (!normalized) return null;
-      if (!needsSigning(normalized)) return normalized;
+      if (!needsSigning(normalized) && !firebaseStorageNeedsToken(normalized)) return normalized;
       return getCachedSignedUrl(normalized);
     });
     
@@ -130,7 +171,8 @@ export function useFastSignedUrls(urls: (string | null | undefined)[]): (string 
     const uncached = new Set<string>();
     urls.forEach((url, i) => {
       const normalized = normalizeMediaUrl(url);
-      if (normalized && needsSigning(normalized) && !results[i]) {
+      if (!normalized || results[i]) return;
+      if (needsSigning(normalized) || firebaseStorageNeedsToken(normalized)) {
         uncached.add(normalized);
       }
     });
@@ -146,7 +188,7 @@ export function useFastSignedUrls(urls: (string | null | undefined)[]): (string 
       const updated = urls.map(url => {
         const normalized = normalizeMediaUrl(url);
         if (!normalized) return null;
-        if (!needsSigning(normalized)) return normalized;
+        if (!needsSigning(normalized) && !firebaseStorageNeedsToken(normalized)) return normalized;
         return getCachedSignedUrl(normalized) || normalized;
       });
       

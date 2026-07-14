@@ -12,11 +12,13 @@ import {
   SheetHeader,
   SheetTitle,
 } from '@/components/ui/sheet';
+import { CreateGroupDialog } from '@/components/chat/CreateGroupDialog';
 
 export function DMComposeButton({ hidden = false }: { hidden?: boolean }) {
   const navigate = useNavigate();
   const cameraOverlay = useCameraOverlayOptional();
   const [open, setOpen] = useState(false);
+  const [groupOpen, setGroupOpen] = useState(false);
 
   return (
     <>
@@ -43,7 +45,7 @@ export function DMComposeButton({ hidden = false }: { hidden?: boolean }) {
               className="dm-inbox-compose-action"
               onClick={() => {
                 setOpen(false);
-                navigate('/messages/new');
+                navigate('/messages/search');
               }}
             >
               <MessagesSquare className="h-5 w-5" />
@@ -54,7 +56,7 @@ export function DMComposeButton({ hidden = false }: { hidden?: boolean }) {
               className="dm-inbox-compose-action"
               onClick={() => {
                 setOpen(false);
-                navigate('/messages/new?group=1');
+                setGroupOpen(true);
               }}
             >
               <Users className="h-5 w-5" />
@@ -82,6 +84,14 @@ export function DMComposeButton({ hidden = false }: { hidden?: boolean }) {
           </div>
         </SheetContent>
       </Sheet>
+
+      <CreateGroupDialog
+        open={groupOpen}
+        onOpenChange={setGroupOpen}
+        onSuccess={(conversationId) => {
+          navigate(`/messages/${conversationId}`);
+        }}
+      />
     </>
   );
 }

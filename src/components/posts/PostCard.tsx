@@ -59,7 +59,7 @@ import { useProgressiveImageSrc } from '@/hooks/useProgressiveImageSrc';
 import { useIsModOrAdmin, ModeratorMenuItems, ModeratorDialogs } from '@/components/moderation/ModeratorActionsMenu';
 import { PremiumMemeBanMenuItem, PremiumMemeBanDialog } from '@/components/premium/PremiumMemeBanItems';
 import { isValidMediaUrl } from '@/components/ui/SafeMedia';
-import { normalizeMediaUrl } from '@/lib/mediaUrl';
+import { normalizeMediaUrl, firebaseStorageNeedsToken } from '@/lib/mediaUrl';
 import { MediaFallback, MediaSkeleton } from '@/components/ui/MediaFallback';
 import { useIsGuest, GuestAuthPrompt } from '@/components/auth/GuestAuthPrompt';
 import { PostCarousel } from './PostCarousel';
@@ -418,7 +418,13 @@ export const PostCard = memo(function PostCard({ post, eager = false }: PostCard
   const [whyOpen, setWhyOpen] = useState(false);
 
   const signedMediaUrl = useFastSignedUrl(post.media_url);
-  const displayMediaUrl = signedMediaUrl || normalizeMediaUrl(post.media_url) || null;
+  const normalizedMediaUrl = normalizeMediaUrl(post.media_url);
+  // Never paint tokenless Firebase URLs — they 403 and trip the error placeholder.
+  const displayMediaUrl =
+    signedMediaUrl ||
+    (normalizedMediaUrl && !firebaseStorageNeedsToken(normalizedMediaUrl)
+      ? normalizedMediaUrl
+      : null);
   const signedAvatarUrl = useFastSignedUrl(post.author.avatar_url);
   const avatarSrc = useMemo(() => {
     const raw = signedAvatarUrl || normalizeMediaUrl(post.author.avatar_url);

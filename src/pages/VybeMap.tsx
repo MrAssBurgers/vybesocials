@@ -390,6 +390,9 @@ function VybeMapInner() {
         onRecenter={recenter}
         followHeading={followHeading}
         onToggleFollowHeading={() => {
+          void import('@/lib/vybemap/deviceHeading').then(({ ensureDeviceOrientationPermission }) =>
+            ensureDeviceOrientationPermission(),
+          );
           toggleFollowHeading();
           triggerHaptic('light');
           toast.success(followHeading ? 'Map unlocked — pan & zoom freely' : 'Map follows your direction');

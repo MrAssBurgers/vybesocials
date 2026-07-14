@@ -59,6 +59,164 @@ Use this file as the Lovable -> Cursor handoff each session.
 - **Remaining console noise (env / non-blocking):** WebGL SwiftShader deprecation; `web-share` feature warning; Presence/Tutorial debug logs; App Check site key unset locally
 - **Next:** Merge/publish client → hard-refresh home; confirm DNA + index noise gone; re-check DM nav on desktop
 
+## DM composer + friends sheet drag (2026-07-14)
+
+- **Ask:** Composer felt wrong vs before; friends-on-map sheet must follow finger while swiping.
+- **Change:**
+  - Composer: restore immersive dock (`--dm-composer-lift: 0`); hide bottom nav on open DM threads; don’t disable input on message fetch; drop Texter `layout` thrash
+  - Map sheet: real finger-follow drag via motion `y` + snap open/closed (was handle-only rubber-band)
+- **Tests:** bottomNavRoutes unit PASS · tsc PASS · user verified
+- **Next:** Optional commit + Lovable Publish
+
+---
+
+## Scroll flicker + map heading + Error Monitor (2026-07-14)
+
+- **Ask:** Background flicker while scrolling DMs; map arrow/gyro wrong; friends sheet drag; Error Monitor Fix All / AI verify.
+- **Change:**
+  - Scroll: stop stripping `.messages-scroll` backdrop-filter and rewriting `.dm-inbox-card` box-shadow on `is-scrolling` (caused mid-scroll glow/background flicker)
+  - Map: prefer compass over GPS course; iOS orientation permission on gesture; screen-orientation offset + heading lerp; Friends drawer handle drag up/down
+  - Error Monitor: `analyzeBugReport` verify → ACTIVE/RESOLVED; Fix All optimistic clear + `resolved_at`; Copy All = pending/reviewing only
+- **Tests:** client build PASS · functions build PASS
+- **Deploy:** `firebase deploy --only functions:analyzeBugReport` for AI verify in prod
+- **Next:** Hard-refresh — scroll Chat list; open Map & tap once for compass; drag Friends sheet; Fix All in Admin Errors
+
+---
+
+## Console bug sweep (2026-07-14)
+
+- **Ask:** Fix console errors (permission-denied, missing indexes, duplicate DM listeners, manifest/fonts, React warnings).
+- **Change:**
+  - DM realtime: skip resync when conversation set unchanged; reuse active channels; update handler context without teardown
+  - Firestore rules: `user_backgrounds`, `dna_agent_settings`, `user_custom_sounds`, `user_active_boosts`, `screen_time_sessions`, `analytics_events`, `auth_challenges` (read own)
+  - Firestore indexes: `calls` (receiver_id+status+created_at, status+created_at), `events` (is_public+start_time)
+  - PWA manifest: removed cross-origin `id`; local shortcut icons
+  - Disabled missing VybeFont `@font-face` (OTS parse errors)
+  - `ProfileAvatarImage`: set fetchPriority via ref (React 18 warning)
+  - Quieter TutorialProvider + usePresence dev logs
+- **Tests:** `npm run build` PASS · `npm run test` PASS
+- **Next:** Deploy rules + indexes (`firebase deploy --only firestore`) · hard refresh · verify console clean
+
+---
+
+## Profile UI revert to classic (2026-07-14)
+
+- **Ask:** Revert profiles to pre-revamp look with square profile photo.
+- **Change:** Restored `Profile.tsx` + `ProfileHeroCard.tsx` from HEAD; all profile routes (`/profile`, `/profile/:id`, `/u/:username`) route to classic Profile page again.
+- **Tests:** `npm run build` PASS
+- **Next:** Hard-refresh `/profile` or `/u/{you}`
+
+---
+
+## Reference profile compact cleanup (2026-07-14)
+
+- **Ask:** Fix stretched/empty profile — shorter cover, grouped identity, horizontal Level+Score card, compact stats/actions/stories/tabs, centered 840px shell, square grid.
+- **Change:** Cover -35%; identity block; stats Posts/Followers/Following/Friends (hidden when unavailable); Edit Profile action row; `ProfileLevelScoreRow`; slim tabs; 3/4-col square grid; clean card surface below hero; single avatar ring.
+- **Tests:** profile unit tests 7 pass · `npm run build` PASS
+- **Next:** Hard-refresh `/profile` · compare to reference mock
+
+---
+
+## Reference-faithful profile polish (2026-07-14)
+
+- **Ask:** Match the neon-night reference mock almost pixel-for-pixel (no Snap branding).
+- **Change:** Rebuilt hero (cinematic cover, left avatar w/ conic gradient ring, stacked Level + VYBE Score glass cards, stat rail); polished circular action rail (Camera gradient ring); Stories w/ See All; BF + Compatibility cards; white-underline tabs + 3-col vertical grid; neon badge tiles; `profile-chrome.css` rewrite.
+- **Tests:** profile unit tests 7 pass · `npm run build` PASS
+- **Next:** Hard-refresh `/u/{you}` · compare side-by-side with reference · friend/stranger modes · commit when ready
+
+---
+
+## Profile mock visual pass (2026-07-14)
+
+- **Ask:** Make `/u/` profile look like the dense neon mock, with no Snapchat icons/names.
+- **Change:** Dense cover identity + Level/VYBE Score glass cards; Followers/Following/Posts/Friends rail; circular Camera/Chat/Call/Video/More rail; Stories header; friend-only BF + Compatibility cards; neon badges row; denser Posts/Clips/Tagged grid; `profile-chrome.css` theme tokens.
+- **Tests:** profile unit tests pass · `npm run build` PASS
+- **Next:** Hard-refresh `/u/{you}` · friend profile check · Theme Designer switch · commit when ready
+
+---
+
+## Profile UI revamp (2026-07-14)
+
+- **Ask:** Unify profiles on `/u/:username` with theme-token UI; kill Snap branding and dual profile pages.
+- **Change:**
+  - `useProfileViewModel` + mode/actions permissions shell
+  - Canonical `ProfileView` at `/u/:username`; `/profile` + `/profile/:id` redirects
+  - Light cover hero, primary actions, friendship strip, real story/highlights, Posts/Clips/Tagged
+  - Sheets: About / Score / Badges / Friendship / More; friends list sheet
+  - `post_user_tags` + `story_highlights` Firestore rules; PersonTagPicker on create
+  - Removed Snap CSS/heroes and old `Profile.tsx` / `RelationshipProfile.tsx`
+- **Tests:** `npm run test` 309 pass · `npm run build` PASS
+- **Next:** Hard-refresh `/u/{you}` · Theme Designer switch · commit + push · Lovable Publish · deploy rules if needed
+
+---
+
+## Profile Snapchat redesign (2026-07-14)
+
+- **Ask:** Profile UI looked bad; redesign more like Snapchat.
+- **Change:** Centered Bitmoji-style hero, yellow Snap CTAs, conic story rings, Stories tray, Spotlight pill tabs, rounded snap grid; `/u/` matches.
+- **Files:** `snap-profile.css`, `ProfileHeroCard`, `ProfileHighlightsRow`, `Profile.tsx`, `SocialProfileHero`, `main.tsx`.
+- **Next:** Hard-refresh `/profile` · tweak if needed · commit + publish
+
+---
+
+## Profile Snap × Instagram redesign (2026-07-14)
+
+- **Ask:** Profiles felt boring — want Snapchat + Instagram mix.
+- **Change:** IG handle/stats/bio hero + Snap story rings; highlights shelf; sticky tab rail; denser grid; `/u/` social hero matches.
+- **Files:** `ProfileHeroCard`, `ProfileHighlightsRow`, `Profile.tsx`, `SocialProfileHero`.
+- **Next:** Hard-refresh `/profile` · commit + push · Lovable Publish
+
+---
+
+## Prevent "Something went wrong" crash page (2026-07-14)
+
+- **Bug:** After a few seconds on Home, full-page “Something went wrong” appeared.
+- **Cause:** `CreateMenuLayer` threw `useCameraOverlay must be used within CameraOverlayProvider`; App `SmartErrorBoundary` had `AppErrorFallback` which skipped soft recovery.
+- **Fix:** Optional camera context in create menu; root/route boundaries soft-remount by default; Messages keeps `hardFallback`.
+- **Verified:** User confirmed fixed; debug instrumentation removed.
+- **Next:** Commit + push `origin/main` · staging deploy · Lovable Publish
+
+---
+
+## Fix post images not loading (2026-07-14)
+
+- **Bug:** Feed post images failed (gray placeholders); legacy Supabase media rewrote to tokenless Firebase URLs.
+- **Cause:** `useFastSignedUrl` cancelled Firebase `getDownloadURL` on Strict Mode/effect re-run, then `fetchedRef` skipped retry; UI painted unsigned URLs → 403.
+- **Fix:** Shared in-flight Firebase resolve that always caches tokens; never paint tokenless Storage URLs until signed.
+- **Verified:** User confirmed fixed; debug instrumentation removed.
+- **Next:** Commit + push `origin/main` · staging deploy · Lovable Publish
+
+---
+
+## Friend button status + social/compose/scroll fixes (2026-07-14)
+
+- **Bug:** Add Friend showed for people already friends; tap returned already-friends; compose New message/group wrong; false online; chat crash `peerTrulyOnline`; inbox darken/lag on scroll.
+- **Fix:** Friendship status prefers legacy+accepted; FriendButton uses friends list; send no-ops if already friends; compose → search / CreateGroupDialog; FS-only presence; scroll blur/shadow polish.
+- **Deployed:** `mutateFriendship` + `getFriendshipState` on `vybe-daaab`.
+- **Verified:** User confirmed friend button fixed; debug instrumentation removed.
+- **Next:** Commit + push `origin/main` · staging deploy · Lovable Publish
+
+---
+
+## Fix DM toast spam + 7-day notification TTL (2026-07-14)
+
+- **Bug:** Opening Messages spammed dozens/hundreds of DM toasts; bell feed retained old/unrelated items.
+- **Cause:** `sanitizeRealtimeMessage` invented `created_at = now` for non-string timestamps, so catch-up INSERT replay looked fresh.
+- **Fix:** Parse real timestamps; toast only if age ≤ 60s; coalesce one toast/conversation; disable client push backup; bell query `.gte(created_at, 7d)` + hide `message` type.
+- **Also:** Contrast scroll flicker sticky/skip; inbox projection person-dedupe; RR7 `useTransitions={false}` (prior).
+- **Verified:** User confirmed fixed; debug instrumentation removed.
+- **Next:** Commit + push `origin/main` · staging deploy · Lovable Publish
+
+---
+
+## Fix DM nav lock — RR7 startTransition desync (2026-07-14)
+
+- **Bug:** Opening a DM trapped Back / switch-row / sidebar — handlers fired but chat chrome stayed mounted after URL left to `/messages`.
+- **Cause:** React Router 7 `BrowserRouter` wraps location updates in `startTransition`; history updated while ChatView unmount lagged and further taps interrupted the leave. Hard-escape only checked `window.location`, so it never fired.
+- **Fix:** `<BrowserRouter useTransitions={false}>`; ChatHeader hard-escape also checks `#vybe-chat-shield-root` still mounted.
+- **Verified:** User confirmed fixed on local Vite after instrumentation; debug logs removed.
+- **Next:** Commit + push `origin/main` · deploy staging · Lovable Publish for vybehub.app
+
 ---
 
 ## Fix desktop DM lock from screen recording (2026-07-14)

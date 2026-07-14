@@ -22,6 +22,8 @@ import { ImageCropEditor } from './editors/ImageCropEditor';
 import { ImageRotateEditor } from './editors/ImageRotateEditor';
 import { ImageFilterEditor } from './editors/ImageFilterEditor';
 import { VideoTrimEditor } from './editors/VideoTrimEditor';
+import { PersonTagPicker } from '@/features/profile/components/PersonTagPicker';
+import { useTagUsersOnPost } from '@/features/profile/hooks/useTaggedPosts';
 
 const visibilityOptions = [
   { id: 'public' as const, label: 'Everyone', icon: Globe, description: 'Visible to all' },
@@ -37,6 +39,7 @@ export function DesktopCreateStudio({ onClose }: DesktopCreateStudioProps) {
   const navigate = useNavigate();
   const { user, profile } = useAuth();
   const createPost = useCreatePost();
+  const tagUsersOnPost = useTagUsersOnPost();
   const { openCamera } = useCameraOverlay();
 
   const [contentType, setContentType] = useState<'text' | 'post' | 'short' | 'video'>('post');
@@ -55,6 +58,7 @@ export function DesktopCreateStudio({ onClose }: DesktopCreateStudioProps) {
   const [videoTitle, setVideoTitle] = useState('');
   const [videoDescription, setVideoDescription] = useState('');
   const [activeEditor, setActiveEditor] = useState<'crop' | 'rotate' | 'filters' | 'trim' | null>(null);
+  const [taggedUserIds, setTaggedUserIds] = useState<string[]>([]);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const captionRef = useRef<HTMLTextAreaElement>(null);
@@ -165,9 +169,19 @@ export function DesktopCreateStudio({ onClose }: DesktopCreateStudioProps) {
     let pi: ReturnType<typeof setInterval> | null = null;
     try {
       pi = setInterval(() => setUploadProgress(prev => Math.min(prev + 5, 85)), 300);
-      await createPost.mutateAsync({
+      const post = await createPost.mutateAsync({
         caption: fc, type: contentType, tags,
       });
+      if (taggedUserIds.length && (post as { id?: string } | null)?.id) {
+        try {
+          await tagUsersOnPost.mutateAsync({
+            postId: String((post as { id: string }).id),
+            taggedUserIds,
+          });
+        } catch (tagErr) {
+          console.warn('[CreateStudio] Person tags failed:', tagErr);
+        }
+      }
       if (pi) clearInterval(pi);
       setUploadProgress(100); setPublishSuccess(true);
       const dest = applyPostPublishNavigation(contentType);
@@ -488,8 +502,9 @@ export function DesktopCreateStudio({ onClose }: DesktopCreateStudioProps) {
                 </div>
               </div>
 
-              {/* Tags */}
-              <div>
+              {/* Person tags + hashtags */}
+              <div className="space-y-3">
+                <PersonTagPicker selectedIds={taggedUserIds} onChange={setTaggedUserIds} />
                 <div className="flex items-center gap-1.5 mb-2">
                   <Tag className={cn("w-3.5 h-3.5", tags.length > 0 ? "text-primary" : "text-destructive")} />
                   <span className={cn("text-xs font-semibold", tags.length > 0 ? "text-primary" : "text-destructive")}>

@@ -79,15 +79,109 @@ export const adminDebugTools = onCall(async (request) => {
 
 export const analyzeBugReport = onCall({ secrets: SECRETS, cors: true }, async (request) => {
   await requireAdmin(request);
-  const { report_id, bugId } = (request.data || {}) as { report_id?: string; bugId?: string };
+  const {
+    report_id,
+    bugId,
+    force,
+    verify,
+    reproAttempted,
+    errorSeenOnRepro,
+  } = (request.data || {}) as {
+    report_id?: string;
+    bugId?: string;
+    force?: boolean;
+    verify?: boolean;
+    reproAttempted?: boolean;
+    errorSeenOnRepro?: boolean;
+  };
   const id = report_id || bugId;
   if (!id) throw new HttpsError('invalid-argument', 'bugId required');
   const doc = await db.collection('bug_reports').doc(id).get();
   if (!doc.exists) throw new HttpsError('not-found', 'Bug report not found');
+  const data = doc.data() || {};
+
+  // Verify mode: decide ACTIVE vs RESOLVED (self-heal / AI check active).
+  if (verify || force) {
+    // If client tried to re-trigger and saw nothing, treat as resolved.
+    if (reproAttempted && errorSeenOnRepro === false) {
+      await doc.ref.update({
+        status: 'fixed',
+        ai_analysis: 'Auto-resolved: AI check could not reproduce the error.',
+        ai_severity: 'low',
+        analyzed_at: new Date().toISOString(),
+        resolved_at: new Date().toISOString(),
+      });
+      return { ok: true, status: 'RESOLVED', content: 'Could not reproduce — marked fixed.' };
+    }
+
+    const { content } = await chatCompletion({
+      messages: [
+        {
+          role: 'system',
+          content:
+            'You verify whether a VYBE app bug is still ACTIVE or LIKELY_RESOLVED. ' +
+            'Reply with JSON only: {"verdict":"ACTIVE"|"LIKELY_RESOLVED","severity":"low"|"medium"|"high"|"critical","summary":"1-2 sentences"}. ' +
+            'Mark LIKELY_RESOLVED when message looks like a one-off network blip, permission noise during logout, stale cache, or already-handled transient error. ' +
+            'Mark ACTIVE for real product defects still present.',
+        },
+        {
+          role: 'user',
+          content: JSON.stringify({
+            error_message: data.error_message,
+            page_url: data.page_url,
+            status: data.status,
+            stack: String(data.error_stack || '').slice(0, 1500),
+            existing_analysis: data.ai_analysis,
+            reproAttempted: Boolean(reproAttempted),
+            errorSeenOnRepro,
+          }).slice(0, 4000),
+        },
+      ],
+      response_format: { type: 'json_object' },
+      model: modelForTier('micro'),
+      max_tokens: TOKEN_BUDGET.standard,
+    });
+
+    let verdict: 'ACTIVE' | 'LIKELY_RESOLVED' = 'ACTIVE';
+    let severity = String(data.ai_severity || 'medium');
+    let summary = content;
+    try {
+      const parsed = JSON.parse(content) as {
+        verdict?: string;
+        severity?: string;
+        summary?: string;
+      };
+      if (parsed.verdict === 'LIKELY_RESOLVED') verdict = 'LIKELY_RESOLVED';
+      if (parsed.severity) severity = parsed.severity;
+      if (parsed.summary) summary = parsed.summary;
+    } catch {
+      /* keep defaults */
+    }
+
+    if (verdict === 'LIKELY_RESOLVED') {
+      await doc.ref.update({
+        status: 'fixed',
+        ai_analysis: summary,
+        ai_severity: severity,
+        analyzed_at: new Date().toISOString(),
+        resolved_at: new Date().toISOString(),
+      });
+      return { ok: true, status: 'RESOLVED', severity, content: summary };
+    }
+
+    await doc.ref.update({
+      ai_analysis: summary,
+      ai_severity: severity,
+      analyzed_at: new Date().toISOString(),
+      ...(data.status === 'pending' ? { status: 'reviewing' } : {}),
+    });
+    return { ok: true, status: 'ACTIVE', severity, content: summary };
+  }
+
   const { content } = await chatCompletion({
     messages: [
       { role: 'system', content: 'Analyze a bug report. Identify likely root cause, severity, and suggested fix. Be concise (3 bullets).' },
-      { role: 'user', content: JSON.stringify(doc.data()).slice(0, 4000) },
+      { role: 'user', content: JSON.stringify(data).slice(0, 4000) },
     ],
     model: modelForTier('micro'),
     max_tokens: TOKEN_BUDGET.standard,

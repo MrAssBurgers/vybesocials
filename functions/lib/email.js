@@ -110,19 +110,74 @@ export const sendTransactionalEmail = onCall({ secrets: ['RESEND_API_KEY'] }, as
     });
     return result;
 });
+function escapeHtml(s) {
+    return String(s ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+const ALLOWED_LINK_HOSTS = new Set([
+    'vybehub.app',
+    'www.vybehub.app',
+    'vybeapp.lovable.app',
+]);
+function assertSafeAuthLink(link) {
+    const raw = String(link ?? '');
+    let url;
+    try {
+        url = new URL(raw);
+    }
+    catch {
+        throw new HttpsError('invalid-argument', 'link must be a valid URL');
+    }
+    if (url.protocol !== 'https:') {
+        throw new HttpsError('invalid-argument', 'link must be https');
+    }
+    const host = url.hostname.toLowerCase();
+    const ok = ALLOWED_LINK_HOSTS.has(host) ||
+        host.endsWith('.firebaseapp.com') ||
+        host.endsWith('.web.app') ||
+        host === 'vybe-daaab.firebaseapp.com';
+    if (!ok) {
+        throw new HttpsError('invalid-argument', 'link host not allowed');
+    }
+    return url.toString();
+}
+async function assertCallerOwnsEmail(request, to) {
+    const uid = requireAuth(request);
+    const recipient = String(to ?? '').toLowerCase().trim();
+    if (!recipient)
+        throw new HttpsError('invalid-argument', 'to required');
+    const userRecord = await auth.getUser(uid).catch(() => null);
+    const ownEmail = userRecord?.email?.toLowerCase();
+    if (!ownEmail || ownEmail !== recipient) {
+        throw new HttpsError('permission-denied', 'You may only send auth email to your own verified address');
+    }
+    return { uid, email: recipient };
+}
 export const sendAuthEmail = onCall({ secrets: ['RESEND_API_KEY'] }, async (request) => {
     const { to, link, name, type } = (request.data || {});
     if (!to || !link)
         throw new HttpsError('invalid-argument', 'to and link required');
-    const tpl = renderTemplate(type === 'reset' ? 'reset_password' : 'welcome', { link, name });
-    return sendViaResend({ to, ...tpl });
+    const { uid, email } = await assertCallerOwnsEmail(request, to);
+    enforceRateLimit(await rateLimit(`authEmail:${uid}`, 5, 3600));
+    const safeLink = assertSafeAuthLink(link);
+    const safeName = escapeHtml(name);
+    const tpl = renderTemplate(type === 'reset' ? 'reset_password' : 'welcome', { link: safeLink, name: safeName });
+    return sendViaResend({ to: email, ...tpl });
 });
 export const sendResetEmail = onCall({ secrets: ['RESEND_API_KEY'] }, async (request) => {
     const { to, link, name } = (request.data || {});
     if (!to || !link)
         throw new HttpsError('invalid-argument', 'to and link required');
-    const tpl = renderTemplate('reset_password', { link, name });
-    return sendViaResend({ to, ...tpl });
+    const { uid, email } = await assertCallerOwnsEmail(request, to);
+    enforceRateLimit(await rateLimit(`resetEmail:${uid}`, 5, 3600));
+    const safeLink = assertSafeAuthLink(link);
+    const safeName = escapeHtml(name);
+    const tpl = renderTemplate('reset_password', { link: safeLink, name: safeName });
+    return sendViaResend({ to: email, ...tpl });
 });
 export const previewTransactionalEmail = onCall(async (request) => {
     await requireAdmin(request);
