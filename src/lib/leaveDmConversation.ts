@@ -6,17 +6,8 @@ export const DM_LEAVE_SUPPRESS_MS = 400;
 /** Module fallback when sessionStorage is unavailable. */
 let leaveSuppressUntil = 0;
 
-/**
- * Leave an open DM thread and show the inbox.
- * Always `replace` so Android/hardware back and swipe-back don't immediately
- * reopen the same conversation (pushing `/messages` onto `/messages/:id`).
- *
- * Also sets a short suppress window so the leave tap cannot ghost-reopen a
- * conversation row that remounts under the same pointer coordinates.
- */
-export function leaveDmConversation(navigate: NavigateFunction): void {
-  // Clear active-chat shell styles before route change so a sticky fixed/absolute
-  // layer cannot trap the next frame of taps on inbox or app chrome.
+/** Clear data-dm-active and arm ghost-reopen suppress (no navigation). */
+export function prepareDmLeaveSideEffects(): void {
   if (typeof document !== 'undefined') {
     document.documentElement.removeAttribute('data-dm-active');
   }
@@ -29,6 +20,18 @@ export function leaveDmConversation(navigate: NavigateFunction): void {
   } catch {
     /* ignore */
   }
+}
+
+/**
+ * Leave an open DM thread and show the inbox.
+ * Always `replace` so Android/hardware back and swipe-back don't immediately
+ * reopen the same conversation (pushing `/messages` onto `/messages/:id`).
+ *
+ * Also sets a short suppress window so the leave tap cannot ghost-reopen a
+ * conversation row that remounts under the same pointer coordinates.
+ */
+export function leaveDmConversation(navigate: NavigateFunction): void {
+  prepareDmLeaveSideEffects();
   navigate('/messages', { replace: true });
 }
 

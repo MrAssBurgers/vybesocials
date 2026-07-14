@@ -1,8 +1,12 @@
-import { useRef, type ReactNode } from 'react';
+import { type ReactNode } from 'react';
+import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft, Search } from 'lucide-react';
 import { EphemeralChatNotice } from '@/components/chat/EphemeralChatNotice';
 import type { ViewMode } from '@/hooks/useMessages';
+import { tryCloseDmThreadOverlay } from '@/lib/dmThreadBack';
+import { prepareDmLeaveSideEffects } from '@/lib/leaveDmConversation';
+import { logDmNavDebug } from '@/lib/dmNavDebug';
 
 export interface ChatHeaderProps {
   onBack: () => void;
@@ -14,7 +18,11 @@ export interface ChatHeaderProps {
   onViewModeChange: (mode: ViewMode) => void;
 }
 
-/** Floating pill DM header shell — profile + actions extracted from ChatView. */
+/**
+ * Floating pill DM header shell.
+ * Back is a real Link → /messages (replace) so leave works even when
+ * pointerup/click handlers are cancelled by swipe/gesture layers.
+ */
 export function ChatHeader({
   onBack,
   onOpenSearch,
@@ -24,18 +32,6 @@ export function ChatHeader({
   isGroupChat,
   onViewModeChange,
 }: ChatHeaderProps) {
-  const backHandledRef = useRef(false);
-
-  const fireBack = () => {
-    if (backHandledRef.current) return;
-    backHandledRef.current = true;
-    onBack();
-    // Allow a later intentional tap (e.g. re-enter then leave again).
-    window.setTimeout(() => {
-      backHandledRef.current = false;
-    }, 400);
-  };
-
   return (
     <header
       className="dm-chat-header px-2 sm:px-3"
@@ -45,40 +41,39 @@ export function ChatHeader({
       <div className="dm-chat-header-row">
         <div className="flex items-center gap-2 sm:gap-3 w-full min-w-0">
           <div className="dm-chat-header-pill dm-chat-header-pill--profile">
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
+            <Link
+              to="/messages"
+              replace
               aria-label="Back to messages"
+              data-dm-back-link
+              className="dm-chat-header-back flex-shrink-0 relative z-[60] h-9 w-9 rounded-full hover:bg-white/10 pointer-events-auto inline-flex items-center justify-center text-foreground"
               onPointerDown={(e) => {
                 e.stopPropagation();
-                backHandledRef.current = false;
               }}
               onTouchStart={(e) => {
                 e.stopPropagation();
               }}
-              onPointerUp={(e) => {
-                // Prefer pointerup: parent swipe-back often cancels click without leaving.
-                if (e.button !== 0) return;
-                e.preventDefault();
-                e.stopPropagation();
-                fireBack();
-              }}
               onClick={(e) => {
-                // Keyboard / leftover click path if pointerup did not fire.
-                e.preventDefault();
                 e.stopPropagation();
-                fireBack();
+                logDmNavDebug('header-back-link-click');
+                // Close viewer/sheet first; stay on thread if something was open.
+                if (tryCloseDmThreadOverlay()) {
+                  e.preventDefault();
+                  return;
+                }
+                // Side effects + imperative leave; Link is backup if navigate is slow.
+                prepareDmLeaveSideEffects();
+                onBack();
               }}
-              className="dm-chat-header-back flex-shrink-0 relative z-20 h-9 w-9 rounded-full hover:bg-white/10 pointer-events-auto"
             >
               <ArrowLeft className="h-5 w-5" />
-            </Button>
+            </Link>
             {profileSlot}
           </div>
           <div className="dm-chat-header-pill dm-chat-header-pill--actions">
             {onOpenSearch ? (
               <Button
+                type="button"
                 variant="ghost"
                 size="icon"
                 onClick={onOpenSearch}

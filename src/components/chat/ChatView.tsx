@@ -69,7 +69,6 @@ import { useChatPresence } from '@/hooks/useChatPresence';
 import { useChatScreenShield } from '@/hooks/useChatScreenShield';
 import { CHAT_SHIELD_ROOT_ID } from '@/lib/chatScreenShield';
 import { requestDmThreadBack, setDmThreadBackHandler } from '@/lib/dmThreadBack';
-import { resolveDmThreadBackAction } from '@/lib/resolveDmThreadBackAction';
 import { dispatchDmCloseOverlays, DM_CLOSE_OVERLAYS_EVENT } from '@/lib/dmCloseOverlays';
 import { attachDmNavClickDebug, logDmNavDebug } from '@/lib/dmNavDebug';
 import { cancelStaleDmMessageQueries, retryDmThreadQueries } from '@/lib/retryDmThreadQueries';
@@ -509,7 +508,6 @@ export function ChatView() {
   // Priority back: close viewers/sheets/camera before leaving the thread.
   useEffect(() => {
     const handler = (): boolean => {
-      const mediaClosed = dispatchDmCloseOverlays();
       const sheetOpen =
         showChatSearch ||
         showVanishThreads ||
@@ -528,20 +526,13 @@ export function ChatView() {
         Boolean(activeReactionMessageId) ||
         Boolean(showContextMenuMessageId) ||
         showViewModeMenu;
-      const action = resolveDmThreadBackAction({
-        mediaViewerOpen: mediaClosed || false,
-        // If dispatch already closed media, treat as media path first next time;
-        // for this call we already closed — return true when media was closed.
-        sheetOpen,
-        cameraOpen,
-        menuOpen,
-      });
-      // Prefer actual close order: media (already closed via dispatch), then sheets, camera, menus.
-      if (mediaClosed) {
+      // Snapshot before close so a empty dispatch cannot eat a leave tap.
+      const hadMedia = dispatchDmCloseOverlays();
+      if (hadMedia) {
         logDmNavDebug('back-closed-media');
         return true;
       }
-      if (action === 'sheet' || sheetOpen) {
+      if (sheetOpen) {
         setShowChatSearch(false);
         setShowVanishThreads(false);
         setShowMemoryPins(false);
@@ -559,13 +550,13 @@ export function ChatView() {
         logDmNavDebug('back-closed-sheet');
         return true;
       }
-      if (action === 'camera' || cameraOpen) {
+      if (cameraOpen) {
         setCameraFirstMode(false);
         if (isCameraOpen) closeCamera();
         logDmNavDebug('back-closed-camera');
         return true;
       }
-      if (action === 'menu' || menuOpen) {
+      if (menuOpen) {
         setActiveReactionMessageId(null);
         setShowContextMenuMessageId(null);
         setShowViewModeMenu(false);

@@ -4,6 +4,7 @@ import {
   isDmConversationPath,
   isDmLeaveSuppressActive,
   leaveDmConversation,
+  prepareDmLeaveSideEffects,
   DM_LEAVE_SUPPRESS_KEY,
   DM_LEAVE_SUPPRESS_MS,
 } from './leaveDmConversation';
@@ -30,6 +31,15 @@ describe('leaveDmConversation', () => {
     expect(Number(sessionStorage.getItem(DM_LEAVE_SUPPRESS_KEY))).toBeGreaterThan(Date.now());
     vi.advanceTimersByTime(DM_LEAVE_SUPPRESS_MS + 1);
     expect(isDmLeaveSuppressActive()).toBe(false);
+  });
+});
+
+describe('prepareDmLeaveSideEffects', () => {
+  it('arms suppress without navigating', () => {
+    document.documentElement.setAttribute('data-dm-active', 'true');
+    prepareDmLeaveSideEffects();
+    expect(document.documentElement.getAttribute('data-dm-active')).toBeNull();
+    expect(isDmLeaveSuppressActive()).toBe(true);
   });
 });
 

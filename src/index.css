@@ -1989,7 +1989,12 @@ body.has-liquid-bg:not(.has-custom-bg) .dm-chat-shell {
   -webkit-tap-highlight-color: transparent;
   pointer-events: auto;
   position: relative;
-  z-index: 2;
+  z-index: 60;
+}
+html[data-dm-active='true'] .dm-chat-header,
+html[data-dm-active='true'] .dm-chat-header-back {
+  pointer-events: auto !important;
+  z-index: 80;
 }
 /* Single unified pill — profile + actions sit on one row, no overlap. */
 .dm-chat-header-pill {

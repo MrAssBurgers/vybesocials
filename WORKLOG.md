@@ -2,6 +2,16 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## Fix DM back via Link (2026-07-14)
+
+- **Bug:** User still trapped in DM — Back tap did nothing after prior fixes.
+- **Cause:** ChatHeader `onPointerUp` + `preventDefault` cancelled the click fallback; leave only ran if that fragile pointerup fired.
+- **Fix:** Back is a real `<Link to="/messages" replace>`; prepare leave side effects on click; overlay close still consumes first tap; raised header z/pointer-events.
+- **Verified:** typecheck · leave/unit tests PASS · build pending publish
+- **Next:** Publish staging; hard-refresh; open DM → tap Back once → inbox.
+
+---
+
 ## Fix DM navigation lock (2026-07-14)
 
 - **Bug:** Opening a DM trapped navigation — mobile Back dead; desktop could not switch or leave; no chrome escape while thread open.
