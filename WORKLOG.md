@@ -2,6 +2,27 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## Debug scan (2026-07-14)
+
+- **Scan:** `npm run debug` — build · lint · CSS · boot · CF refs (67 client / 201 local) · probes sharePreview/livekitToken/aiCatchUp — ALL PASS
+- **Also:** typecheck · test 301 · staging/prod hosting HTTP 200 · Auth domain 200
+- **Fixes (safe in-repo):**
+  - Signup username check fail-soft on Firestore `permission-denied` (profiles require signed-in; unblocked email signup)
+  - Tutorial spotlight `motion.rect` — never paint undefined SVG width/height
+  - `fetchPriority` → `fetchpriority` on img/avatar props (React DOM warning)
+  - `dna_content_preferences` Firestore rules + hook soft-fail
+  - Composite indexes for comments/events/challenge_rewards/messages
+  - Lint unused `eslint-disable` on dm debug helpers; Tailwind ambiguous duration/ease classes
+- **Verified:** lint clean · typecheck · test 301 · build PASS · UI signup `debugscan0714` → home OK
+- **Production gaps / unblock:**
+  1. `npx firebase login` then `firebase deploy --only firestore:rules,firestore:indexes` (rules+indexes not live until deploy)
+  2. Lovable → Share → Publish for `vybehub.app` after merge to `main`
+  3. Some CF names are client-only RPCs (`ensure_profile` HTTP 404 expected); `claimProfileByEmail` deployed (401)
+- **Remaining console noise (env / non-blocking):** WebGL SwiftShader deprecation; `web-share` feature warning; Presence/Tutorial debug logs
+- **Next:** Deploy rules+indexes → hard-refresh signup+home and confirm DNA prefs + missing-index warns gone; re-check DM nav on desktop
+
+---
+
 ## Fix desktop DM lock from screen recording (2026-07-14)
 
 - **Evidence:** Recording `01.45.27` — desktop 3-pane; back, other chats, and Explore all dead while YUJIN KIM thread painted.
