@@ -11,7 +11,9 @@ Use this file as the Lovable -> Cursor handoff each session.
   - `useSwipeBack` ignores `.dm-chat-header` / back; edge zone **16px**; ChatHeader `stopPropagation` + pointerup leave (latched).
   - `leaveDmConversation` sets ~400ms `vybe-dm-leave-suppress`; `openChat` no-ops while fresh (inbox + safe list).
 - **Verified:** typecheck · test 283 · build PASS
-- **Next:** Commit/push when asked → Lovable Publish; QA phone Back once → stay on inbox; edge swipe outside header still leaves.
+- **Published:** `origin/main` @ **`9fc1033e`** · https://vybe-daaab.web.app ✅
+- **Production (vybehub.app):** Lovable → Share → Publish (sync `main` @ `9fc1033e`)
+- **Next:** Hard-refresh — phone Back once → stay on inbox; edge swipe outside header still leaves.
 
 ---
 
