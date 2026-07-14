@@ -14,7 +14,9 @@ Use this file as the Lovable -> Cursor handoff each session.
   - Composer mounts immediately (`isPending` while connecting).
   - Dev logs via `dmThreadLog` (`localStorage vybe-dm-thread-debug=1`).
 - **Verified:** typecheck · test 278 · build PASS
-- **Next:** Publish when asked; hard-refresh staging QA — open/switch DMs without boot screen.
+- **Published:** `origin/main` @ **`435afafc`** · https://vybe-daaab.web.app ✅
+- **Production (vybehub.app):** Lovable → Share → Publish (sync `main` @ `435afafc`)
+- **Next:** Hard-refresh staging QA — open/switch DMs without boot screen.
 
 ---
 
