@@ -2,6 +2,17 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## PUBLISH handoff (2026-07-14)
+
+- **Merged to `origin/main`:** `030b035c` (PR #5 — debug/signup/console/DM toast fixes)
+- **Firebase staging hosting:** https://vybe-daaab.web.app ✅
+- **Firestore rules + indexes:** deployed to `vybe-daaab` ✅
+- **Production `vybehub.app`:** **Lovable → Share → Publish** (sync `main` @ `030b035c`) — Cursor cannot click Publish
+- **Lovable:** https://lovable.dev/projects/416714c8-d013-4aff-984d-522418a9bbc7
+- **After Publish:** hard-refresh vybehub.app → signup · Messages (no historical toast spam) · home console
+
+---
+
 ## Polish + staging hosting deploy (2026-07-14)
 
 - **Client:** Quiet Tutorial logs (DEV-only); filter remaining noisy console patterns in `main.tsx` (permission-denied / missing-index / App Check / WebGL / web-share).
