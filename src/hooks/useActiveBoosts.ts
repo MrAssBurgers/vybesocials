@@ -37,7 +37,12 @@ export function useActiveBoosts() {
         .select('*')
         .eq('user_id', user.id)
         .eq('consumed', false);
-      if (error) throw error;
+      if (error) {
+        if (import.meta.env.DEV) {
+          console.warn('[Boosts] unavailable:', error.message || error.code);
+        }
+        return [];
+      }
 
       const now = Date.now();
       return ((data ?? []) as unknown as ActiveBoost[]).filter(

@@ -84,7 +84,12 @@ export function useUserLevel() {
         .eq('user_id', authUserId)
         .maybeSingle();
       
-      if (error) throw error;
+      if (error) {
+        if (import.meta.env.DEV) {
+          console.warn('[VybePass] user_levels unavailable:', error.message || error.code);
+        }
+        return null;
+      }
       
       if (!data) {
         try {
@@ -165,7 +170,12 @@ export function useUnclaimedRewards() {
         .eq('is_claimed', false)
         .order('created_at', { ascending: false });
       
-      if (error) throw error;
+      if (error) {
+        if (import.meta.env.DEV) {
+          console.warn('[VybePass] challenge_rewards unavailable:', error.message || error.code);
+        }
+        return [];
+      }
       return data as ChallengeReward[];
     },
     enabled: !!authUserId,

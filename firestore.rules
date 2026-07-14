@@ -242,9 +242,19 @@ service cloud.firestore {
 
     // ---------- progression / XP / streaks ----------
     match /user_levels/{docId} {
-      allow read: if signedIn() && (ownsUserField('user_id') || ownsProfileId(docId));
+      // Prefer direct uid match so list queries `.eq('user_id', authUid)` validate.
+      allow read: if signedIn() && (
+        resource.data.user_id == uid() ||
+        resource.data.user_id == profileId() ||
+        ownsProfileId(docId) ||
+        docId == uid()
+      );
       allow create: if signedIn() && (willOwnUserField('user_id') || willOwnProfile('user_id'));
-      allow update: if signedIn() && (ownsUserField('user_id') || ownsProfileId(docId));
+      allow update: if signedIn() && (
+        resource.data.user_id == uid() ||
+        resource.data.user_id == profileId() ||
+        ownsProfileId(docId)
+      );
       allow delete: if isAdmin();
     }
     match /login_streaks/{docId} {
@@ -267,7 +277,15 @@ service cloud.firestore {
       allow read, write: if ownsUserField('user_id') || willOwnUserField('user_id') || isAdmin();
     }
     match /challenge_rewards/{docId} {
-      allow read, write: if ownsUserField('user_id') || willOwnUserField('user_id') || isAdmin();
+      allow read: if signedIn() && (
+        resource.data.user_id == uid() ||
+        resource.data.user_id == profileId() ||
+        isAdmin()
+      );
+      allow create, update: if signedIn() && (
+        willOwnUserField('user_id') || ownsUserField('user_id') || isAdmin()
+      );
+      allow delete: if isAdmin();
     }
     // VYBE Score (Snapscore-style) — public read for authed users; writes via triggers/Functions only
     match /vybe_scores/{docId} {
@@ -512,6 +530,26 @@ service cloud.firestore {
     }
     match /dna_content_preferences/{docId} {
       allow read, write: if ownsUserField('user_id') || willOwnUserField('user_id') || docId == uid() || ownsProfileId(docId);
+    }
+    match /user_active_boosts/{docId} {
+      allow read: if signedIn() && (ownsUserField('user_id') || ownsProfileId(docId));
+      allow create, update: if signedIn() && (willOwnUserField('user_id') || ownsUserField('user_id'));
+      allow delete: if ownsUserField('user_id') || isAdmin();
+    }
+    match /screen_time_sessions/{docId} {
+      allow read: if signedIn() && (ownsUserField('user_id') || ownsProfileId(docId));
+      allow create: if signedIn() && willOwnUserField('user_id');
+      allow update: if signedIn() && (ownsUserField('user_id') || ownsProfileId(docId));
+      allow delete: if ownsUserField('user_id') || isAdmin();
+    }
+    match /analytics_events/{docId} {
+      // Clients may append their own telemetry; admin dashboards read aggregates.
+      allow create: if signedIn() && (
+        !('user_id' in request.resource.data) ||
+        request.resource.data.user_id == null ||
+        willOwnUserField('user_id')
+      );
+      allow read, update, delete: if isAdmin() || isStaffModerator();
     }
     match /ai_brief_preferences/{docId} {
       allow read, write: if ownsUserField('user_id') || willOwnUserField('user_id') || ownsProfileId(docId);
@@ -1167,7 +1205,15 @@ service cloud.firestore {
     match /email_send_log/{id}                { allow read, write: if isAdmin(); }
     match /email_send_state/{id}              { allow read, write: if isAdmin(); }
     match /email_unsubscribe_tokens/{id}      { allow read, write: if false; }
-    match /auth_challenges/{id}               { allow read, write: if false; }
+    match /auth_challenges/{id} {
+      // Clients may listen for their own login-approval / QR challenges.
+      // Creates and state transitions stay Cloud Functions / Admin SDK only.
+      allow read: if signedIn() && (
+        resource.data.user_id == uid() ||
+        resource.data.user_id == profileId()
+      );
+      allow create, update, delete: if false;
+    }
     match /account_deletion_requests/{id}     { allow create: if willOwn('user_id'); allow read, update, delete: if isAdmin(); }
     match /content_appeals/{id}               { allow create: if willOwn('user_id'); allow read: if isOwner('user_id') || isAdmin(); allow update, delete: if isAdmin(); }
     match /content_flags/{id}                 { allow create: if willOwn('reporter_id'); allow read, update, delete: if isStaffModerator(); }
