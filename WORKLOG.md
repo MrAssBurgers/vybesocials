@@ -2,6 +2,16 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## Active — App Store Review resubmit (2026-07-15)
+
+- **5.1.1(ii) Location:** updated purpose string in `docs/IOS_SETUP.md` — **must paste into Despia Info.plist + native rebuild**
+- **5.1.1(iv) Cookies:** native never shows cookie Accept UI; ATT deny → essential-only (`CookieConsentBanner.tsx`)
+- **2.1 NFC:** Notes + reply draft in `docs/APP_STORE_REVIEW_NOTES.md` — film physical-device demo video + link
+- **2.3.6 Age Rating:** set Parental Controls + Age Assurance → **None** in App Store Connect
+- **Next:** Despia rebuild with new location string · Lovable Publish client · upload NFC video · Reply in Resolution Center
+
+---
+
 ## PUBLISH handoff (2026-07-15) — Friend Link dual-signal + cleanup
 
 - **Merged to `origin/main`:** `624636b6` (feature `51f2f9c9` + instrumentation strip)
