@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>Opening VYBE…</title>
+  <style>
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      background: #0B0B10;
+      color: #a1a1aa;
+      font-family: system-ui, -apple-system, sans-serif;
+    }
+    .spin {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      border: 3px solid rgba(167, 139, 250, 0.25);
+      border-top-color: #a78bfa;
+      animation: spin 0.7s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+  <div class="spin" aria-hidden="true"></div>
+  <p>Opening VYBE to finish sign-in…</p>
+  <script>
+    (function () {
+      var DEFAULT_SCHEME = 'com.despia.vybe';
+      var params = new URLSearchParams(window.location.search);
+      if (window.location.hash && window.location.hash.length > 1) {
+        var hash = window.location.hash.charAt(0) === '#' ? window.location.hash.slice(1) : window.location.hash;
+        new URLSearchParams(hash).forEach(function (value, key) {
+          params.set(key, value);
+        });
+      }
+      var nonce = (params.get('nonce') || '').trim();
+      if (!nonce) {
+        window.location.replace('/auth/qr');
+        return;
+      }
+
+      var spaPath = '/auth/qr/claim?nonce=' + encodeURIComponent(nonce);
+      var appUrl = DEFAULT_SCHEME + '://auth/qr/claim?nonce=' + encodeURIComponent(nonce);
+
+      // Prefer native app (Camera → Open in VYBE). Fallback to SPA in WebView/browser.
+      try {
+        window.location.replace(appUrl);
+      } catch (e) { /* ignore */ }
+
+      window.setTimeout(function () {
+        window.location.replace(spaPath);
+      }, 350);
+    })();
+  </script>
+</body>
+</html>

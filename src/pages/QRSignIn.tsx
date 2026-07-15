@@ -2,13 +2,18 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import QRCode from 'qrcode';
 import { motion, AnimatePresence } from 'framer-motion';
-import { db } from '@/lib/firebase';
+import { db, firebaseAuth } from '@/lib/firebase';
+import { useAuth } from '@/lib/auth';
+import { resolvePostLoginDestination } from '@/lib/authReturnPath';
+import { getCachedCurrentProfile } from '@/lib/profileCache';
+import { buildQrSignInClaimUrl } from '@/lib/qrSignIn';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, RefreshCw, ShieldCheck, QrCode, Smartphone, Settings, ScanLine } from 'lucide-react';
+import { ArrowLeft, RefreshCw, ShieldCheck, QrCode, Smartphone, Camera, ScanLine } from 'lucide-react';
 import { toast } from 'sonner';
 import { VYBELogo } from '@/components/ui/VYBELogo';
 import { VybeLiquidText } from '@/components/ui/VybeLiquidText';
 import { cn } from '@/lib/utils';
+import { dbgOauth } from '@/lib/dbgOauth';
 
 type Phase = 'loading' | 'ready' | 'approved' | 'expired' | 'denied' | 'error';
 
@@ -18,26 +23,27 @@ const QR_COLORS = {
 };
 
 const STEPS = [
-  { icon: Smartphone, label: 'Open VYBE on a device where you\'re already signed in' },
-  { icon: Settings, label: 'Go to Settings → Security' },
-  { icon: ScanLine, label: 'Tap Scan and point at this code' },
+  { icon: Smartphone, label: 'Open Camera on a phone where you’re already signed in to VYBE' },
+  { icon: Camera, label: 'Scan this code and open the link — VYBE opens instantly' },
+  { icon: ScanLine, label: 'This screen signs you in automatically — no extra tap' },
 ];
 
 /**
  * Signed-out device QR display page.
- * Renders a QR code (encoding `vybe-qr:<nonce>`) that a signed-in device
- * scans via Settings → Security → "Quick Sign-In with QR". Polls
- * `auth-qr` action=poll every 2s and, once approved, calls action=redeem
- * to mint a magic link, then navigates to it to establish the session.
+ * Encodes HTTPS `qr-claim.html?nonce=` so phone Camera can open VYBE.
+ * Polls until approved, then redeems a Firebase custom token and signs in.
  */
 export default function QRSignIn() {
   const navigate = useNavigate();
+  const { applyOAuthSession } = useAuth();
   const [phase, setPhase] = useState<Phase>('loading');
   const [nonce, setNonce] = useState<string | null>(null);
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
   const [secondsLeft, setSecondsLeft] = useState<number>(0);
   const pollRef = useRef<number | null>(null);
   const tickRef = useRef<number | null>(null);
+  const creatingRef = useRef(false);
+  const redeemingRef = useRef(false);
 
   const stopTimers = () => {
     if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
@@ -45,21 +51,41 @@ export default function QRSignIn() {
   };
 
   const create = useCallback(async () => {
+    if (creatingRef.current) return;
+    creatingRef.current = true;
     stopTimers();
+    redeemingRef.current = false;
     setPhase('loading');
     setQrDataUrl(null);
     setNonce(null);
+    // #region agent log
+    dbgOauth('QR-A', 'QRSignIn.tsx:create:start', 'qr create invoked', {
+      path: typeof window !== 'undefined' ? window.location.pathname : null,
+      host: typeof window !== 'undefined' ? window.location.host : null,
+    }, 'qr-post');
+    // #endregion
     try {
       const { data, error } = await db.functions.invoke('auth-qr', {
         body: { action: 'create' },
       });
+      // #region agent log
+      dbgOauth('QR-A', 'QRSignIn.tsx:create:invoke', 'auth-qr create response', {
+        hasError: !!error,
+        errorName: error?.name || null,
+        errorMsg: error?.message || null,
+        dataKeys: data && typeof data === 'object' ? Object.keys(data as object) : [],
+        hasNonce: !!(data as { nonce?: string } | null)?.nonce,
+        hasToken: !!(data as { token?: string } | null)?.token,
+      }, 'qr-post');
+      // #endregion
       if (error) throw error;
-      const n = (data as any)?.nonce as string;
-      const ttl = ((data as any)?.expiresInSec as number) || 180;
+      const n = (data as { nonce?: string } | null)?.nonce;
+      const ttl = ((data as { expiresInSec?: number } | null)?.expiresInSec) || 180;
       if (!n) throw new Error('No nonce');
       setNonce(n);
       setSecondsLeft(ttl);
-      const dataUrl = await QRCode.toDataURL(`vybe-qr:${n}`, {
+      const claimUrl = buildQrSignInClaimUrl(n);
+      const dataUrl = await QRCode.toDataURL(claimUrl, {
         margin: 2,
         width: 280,
         errorCorrectionLevel: 'M',
@@ -67,14 +93,49 @@ export default function QRSignIn() {
       });
       setQrDataUrl(dataUrl);
       setPhase('ready');
+      // #region agent log
+      dbgOauth('QR-B', 'QRSignIn.tsx:create:success', 'qr image ready', {
+        ttl,
+        claimPath: '/auth/qr/claim',
+      }, 'qr-post');
+      // #endregion
     } catch (e) {
       console.error('[QRSignIn] create failed', e);
+      // #region agent log
+      dbgOauth('QR-A', 'QRSignIn.tsx:create:catch', 'qr create failed', {
+        msg: e instanceof Error ? e.message : String(e),
+        name: e && typeof e === 'object' && 'name' in e ? String((e as { name?: unknown }).name || '') : null,
+      }, 'qr-post');
+      // #endregion
       setPhase('error');
       toast.error('Could not generate QR code');
+    } finally {
+      creatingRef.current = false;
     }
   }, []);
 
-  useEffect(() => { create(); return () => stopTimers(); }, [create]);
+  useEffect(() => {
+    void create();
+    return () => stopTimers();
+  }, [create]);
+
+  const finishWithToken = useCallback(async (customToken: string) => {
+    const { data: sessionData, error: signErr } =
+      await firebaseAuth.signInWithCustomToken(customToken);
+    if (signErr || !sessionData.session?.user) {
+      throw signErr || new Error('Custom token sign-in failed');
+    }
+    applyOAuthSession(sessionData.session);
+    const cached = getCachedCurrentProfile();
+    navigate(
+      resolvePostLoginDestination(
+        cached
+          ? { onboarding_completed: cached.onboarding_completed, username: cached.username }
+          : null,
+      ),
+      { replace: true },
+    );
+  }, [applyOAuthSession, navigate]);
 
   useEffect(() => {
     if (phase !== 'ready' || !nonce) return;
@@ -90,25 +151,40 @@ export default function QRSignIn() {
       });
     }, 1000);
 
-    pollRef.current = window.setInterval(async () => {
+    const pollOnce = async () => {
+      if (redeemingRef.current) return;
       try {
         const { data } = await db.functions.invoke('auth-qr', {
           body: { action: 'poll', nonce },
         });
-        const status = (data as any)?.status;
-        if (status === 'approved') {
+        const status = (data as { status?: string } | null)?.status;
+        if (status === 'approved' || status === 'redeemed') {
+          redeemingRef.current = true;
           stopTimers();
           setPhase('approved');
           const { data: r, error } = await db.functions.invoke('auth-qr', {
             body: { action: 'redeem', nonce },
           });
           if (error) throw error;
-          const link = (r as any)?.actionLink as string | undefined;
-          if (link) {
+          const customToken =
+            (r as { customToken?: string; custom_token?: string } | null)?.customToken ||
+            (r as { customToken?: string; custom_token?: string } | null)?.custom_token;
+          const link = (r as { actionLink?: string } | null)?.actionLink;
+          // #region agent log
+          dbgOauth('QR-C', 'QRSignIn.tsx:redeem', 'auth-qr redeem response', {
+            hasCustomToken: !!customToken,
+            hasActionLink: !!link,
+            status,
+          }, 'qr-post');
+          // #endregion
+          if (customToken) {
+            await finishWithToken(customToken);
+          } else if (link) {
             window.location.href = link;
           } else {
             toast.error('Sign-in link missing');
             setPhase('error');
+            redeemingRef.current = false;
           }
         } else if (status === 'denied') {
           stopTimers();
@@ -117,13 +193,25 @@ export default function QRSignIn() {
           stopTimers();
           setPhase('expired');
         }
-      } catch {
-        // Soft-fail; keep polling
+      } catch (e) {
+        if (redeemingRef.current) {
+          redeemingRef.current = false;
+          setPhase('error');
+          // #region agent log
+          dbgOauth('QR-C', 'QRSignIn.tsx:redeem:fail', 'redeem failed', {
+            msg: e instanceof Error ? e.message : String(e),
+          }, 'qr-post');
+          // #endregion
+        }
+        // Soft-fail while still waiting.
       }
-    }, 2000);
+    };
+
+    void pollOnce();
+    pollRef.current = window.setInterval(() => { void pollOnce(); }, 400);
 
     return () => stopTimers();
-  }, [phase, nonce]);
+  }, [phase, nonce, finishWithToken]);
 
   const mm = Math.floor(secondsLeft / 60);
   const ss = String(secondsLeft % 60).padStart(2, '0');
@@ -132,10 +220,10 @@ export default function QRSignIn() {
 
   const statusMessage = (() => {
     switch (phase) {
-      case 'ready': return 'Waiting for approval on your other device…';
+      case 'ready': return 'Scan with your phone Camera — you’ll be signed in here instantly';
       case 'expired': return 'This code expired — generate a fresh one';
       case 'denied': return 'Sign-in was denied on the other device';
-      case 'approved': return 'Approved — opening your account…';
+      case 'approved': return 'Approved — signing you in…';
       case 'loading': return 'Generating your secure sign-in code…';
       case 'error': return 'Something went wrong — try again';
       default: return '';
@@ -203,7 +291,7 @@ export default function QRSignIn() {
                   Sign in with QR
                 </VybeLiquidText>
                 <p className="text-xs text-muted-foreground mt-0.5 leading-snug">
-                  Fast, secure — no password on this device
+                  Scan with your phone Camera — opens VYBE to approve
                 </p>
               </div>
             </div>

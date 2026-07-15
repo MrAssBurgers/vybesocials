@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { QrCode, Loader2, ShieldCheck, ShieldX, MapPin, Smartphone } from 'lucide-react';
 import { toast } from 'sonner';
+import { parseQrSignInNonce } from '@/lib/qrSignIn';
 import { db } from '@/lib/firebase';
 
 interface ScannedNonce {
@@ -63,7 +64,7 @@ export function QrSignInScannerCard() {
           const img = ctx.getImageData(0, 0, canvas.width, canvas.height);
           const code = jsQR(img.data, img.width, img.height, { inversionAttempts: 'dontInvert' });
           if (code?.data) {
-            // Expect URLs like https://vybehub.app/qr#nonce=XYZ  or raw nonce text
+            {/* Expect URLs like https://vybehub.app/auth/qr/claim?nonce=…  or raw nonce text */}
             const nonce = parseNonce(code.data);
             if (nonce) {
               stopCamera();
@@ -90,7 +91,7 @@ export function QrSignInScannerCard() {
         body: { action: 'poll', nonce },
       });
       if (error) throw error;
-      const status = (data as any)?.status;
+      const status = (data as { status?: string } | null)?.status;
       if (status === 'expired' || status === 'not_found') {
         toast.error('That QR code has expired. Refresh it on the other device.');
         return;
@@ -99,19 +100,14 @@ export function QrSignInScannerCard() {
         toast.error('That QR code is no longer valid.');
         return;
       }
-      // We don't have device meta from poll — fetch via direct read for context
-      const { data: meta } = await db
-        .from('auth_challenges')
-        .select('metadata')
-        .eq('nonce', nonce)
-        .maybeSingle();
-      const m = (meta as any)?.metadata || {};
+      // Metadata comes from the callable (Firestore rules block unsigned create docs).
+      const m = ((data as { metadata?: Record<string, any> } | null)?.metadata || {}) as Record<string, any>;
       setPending({
         nonce,
-        ip: m.ip,
+        ip: typeof m.ip === 'string' ? m.ip : undefined,
         city: m.geo?.city,
         country: m.geo?.country,
-        device: m.device,
+        device: typeof m.device === 'string' ? m.device : undefined,
       });
     } catch (e: any) {
       toast.error('Could not look up QR code');
@@ -208,14 +204,5 @@ export function QrSignInScannerCard() {
 }
 
 function parseNonce(data: string): string | null {
-  // Accept: full URL with ?nonce=, hash with #nonce=, "vybe-qr:NONCE", or raw token
-  try {
-    const u = new URL(data);
-    const fromQuery = u.searchParams.get('nonce');
-    if (fromQuery) return fromQuery;
-    if (u.hash.startsWith('#nonce=')) return u.hash.slice(7);
-  } catch {}
-  if (data.startsWith('vybe-qr:')) return data.slice(8);
-  if (/^[A-Za-z0-9_-]{16,}$/.test(data)) return data;
-  return null;
+  return parseQrSignInNonce(data);
 }

@@ -98,6 +98,16 @@ export async function initializeNativePlugins() {
             window.history.pushState({}, '', path);
             window.dispatchEvent(new PopStateEvent('popstate'));
           }
+
+          // QR Quick Sign-In — Camera → native app deep link
+          if (parsed.pathname.includes('/auth/qr/claim') || /[?&]nonce=/.test(parsed.search)) {
+            const nonce = parsed.searchParams.get('nonce');
+            if (nonce) {
+              const claimPath = `/auth/qr/claim?nonce=${encodeURIComponent(nonce)}`;
+              window.history.pushState({}, '', claimPath);
+              window.dispatchEvent(new PopStateEvent('popstate'));
+            }
+          }
         } catch (e) {
           console.warn('[Capacitor] Bad deep link:', url, e);
         }

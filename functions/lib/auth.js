@@ -1,3 +1,4 @@
+import { randomBytes } from 'crypto';
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { db, auth, requireAuth, requireAdmin, rateLimit, enforceRateLimit } from './_shared/admin.js';
 import { sendPasswordResetEmail } from './_shared/passwordResetEmail.js';
@@ -362,14 +363,121 @@ export const authSessionRevoke = onCall(async (request) => {
     await auth.revokeRefreshTokens(uid);
     return { ok: true };
 });
-/** auth-qr — issue a short-lived QR pairing token. */
-export const authQr = onCall(async (request) => {
-    const uid = requireAuth(request);
-    const token = `${uid}.${Math.random().toString(36).slice(2)}.${Date.now()}`;
-    await db.collection('auth_challenges').doc(`qr_${token}`).set({
-        user_id: uid, expires_at: Date.now() + 2 * 60 * 1000, created_at: new Date().toISOString(),
-    });
-    return { token };
+const QR_SIGNIN_TTL_SEC = 180;
+function qrChallengeDocId(nonce) {
+    return `qr_${nonce}`;
+}
+function isChallengeExpired(expiresAt) {
+    if (typeof expiresAt === 'number')
+        return expiresAt < Date.now();
+    if (typeof expiresAt === 'string') {
+        const ms = Date.parse(expiresAt);
+        return !Number.isFinite(ms) || ms < Date.now();
+    }
+    return true;
+}
+/**
+ * auth-qr — Quick Sign-In QR pairing.
+ * create (public) → poll (public) → claim (signed-in device) → redeem (public → custom token).
+ */
+export const authQr = onCall({ cors: true }, async (request) => {
+    const data = (request.data || {});
+    const action = (data.action || 'create').toLowerCase();
+    const nonce = typeof data.nonce === 'string' ? data.nonce.trim() : '';
+    if (action === 'create') {
+        const ip = request.rawRequest?.ip || 'anon';
+        enforceRateLimit(await rateLimit(`qr-create:${ip}`, 12, 600));
+        const n = randomBytes(18).toString('base64url');
+        const now = new Date().toISOString();
+        const expiresAt = new Date(Date.now() + QR_SIGNIN_TTL_SEC * 1000).toISOString();
+        const ua = String(request.rawRequest?.headers?.['user-agent'] || '');
+        await db.collection('auth_challenges').doc(qrChallengeDocId(n)).set({
+            challenge_type: 'qr_signin',
+            nonce: n,
+            status: 'pending',
+            user_id: null,
+            created_at: now,
+            expires_at: expiresAt,
+            consumed_at: null,
+            metadata: {
+                device: ua ? ua.slice(0, 120) : 'Unknown device',
+                user_agent: ua ? ua.slice(0, 300) : null,
+                ip: request.rawRequest?.ip || null,
+            },
+        });
+        return { nonce: n, expiresInSec: QR_SIGNIN_TTL_SEC };
+    }
+    if (!nonce || nonce.length < 16) {
+        throw new HttpsError('invalid-argument', 'nonce required');
+    }
+    const ref = db.collection('auth_challenges').doc(qrChallengeDocId(nonce));
+    const snap = await ref.get();
+    if (!snap.exists) {
+        return { status: 'not_found' };
+    }
+    const row = snap.data();
+    if (row.challenge_type && row.challenge_type !== 'qr_signin') {
+        return { status: 'not_found' };
+    }
+    if (isChallengeExpired(row.expires_at)) {
+        if (row.status === 'pending') {
+            await ref.set({ status: 'expired' }, { merge: true });
+        }
+        return { status: 'expired', metadata: row.metadata || {} };
+    }
+    if (action === 'poll') {
+        return {
+            status: row.status || 'pending',
+            metadata: row.metadata || {},
+        };
+    }
+    if (action === 'claim') {
+        const uid = requireAuth(request);
+        const intent = data.intent;
+        if (intent !== 'approve' && intent !== 'deny') {
+            throw new HttpsError('invalid-argument', 'intent required');
+        }
+        // Idempotent: scanning twice / Strict Mode / retries must not fail after first approve.
+        if (row.status === 'approved' || row.status === 'redeemed') {
+            return { ok: true, status: row.status === 'redeemed' ? 'redeemed' : 'approved' };
+        }
+        if (row.status === 'denied') {
+            return { ok: true, status: 'denied' };
+        }
+        if (row.status !== 'pending') {
+            throw new HttpsError('failed-precondition', 'Challenge is not pending');
+        }
+        const nextStatus = intent === 'approve' ? 'approved' : 'denied';
+        await ref.set({
+            status: nextStatus,
+            user_id: uid,
+            claimed_at: new Date().toISOString(),
+        }, { merge: true });
+        return { ok: true, status: nextStatus };
+    }
+    if (action === 'redeem') {
+        if (row.status !== 'approved' && row.status !== 'redeemed') {
+            throw new HttpsError('failed-precondition', 'Challenge is not approved');
+        }
+        if (!row.user_id) {
+            throw new HttpsError('failed-precondition', 'Missing approving user');
+        }
+        // Allow one redeem; if already redeemed without token delivery, issue a fresh custom token
+        // only when just-approved. Once consumed, still mint token so a flaky client can retry.
+        const customToken = await auth.createCustomToken(String(row.user_id), { qr_signin: true });
+        if (!row.consumed_at) {
+            await ref.set({
+                status: 'redeemed',
+                consumed_at: new Date().toISOString(),
+            }, { merge: true });
+        }
+        return {
+            customToken,
+            custom_token: customToken,
+            actionLink: null,
+        };
+    }
+    throw new HttpsError('invalid-argument', `Unknown action: ${action}`);
 });
 /** manage-account — delete or anonymize. */
 export const manageAccount = onCall(async (request) => {

@@ -15,6 +15,7 @@ import {
   signInWithPopup,
   signInWithRedirect,
   signInWithCredential,
+  signInWithCustomToken,
   type User as FirebaseUser,
 } from 'firebase/auth';
 import { getFirebaseApp } from './app';
@@ -362,6 +363,26 @@ export const firebaseAuth = {
 
   async setSession(_tokens: { access_token: string; refresh_token?: string }) {
     return this.getSession();
+  },
+
+  /** QR / passkey redeem — exchange Admin custom token for a client session. */
+  async signInWithCustomToken(
+    customToken: string,
+  ): Promise<{ data: { session: VybeSession | null }; error: VybeAuthError | null }> {
+    const auth = resolveAuth();
+    if (!auth) return { data: { session: null }, error: NOT_CONFIGURED };
+    try {
+      const cred = await withAuthTimeout(
+        signInWithCustomToken(auth, customToken),
+        SIGN_IN_TIMEOUT_MS,
+        'Sign-in timed out',
+      );
+      const session = buildVybeSessionInstant(cred.user);
+      void enrichSessionToken(session, cred.user, 5000);
+      return { data: { session }, error: null };
+    } catch (err) {
+      return { data: { session: null }, error: toAuthError(err) };
+    }
   },
 
   async resetPasswordForEmail(email: string, redirect?: string | { redirectTo?: string }) {
