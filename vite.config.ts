@@ -7,8 +7,10 @@ import { despiaLocalPlugin } from '@despia/local/vite';
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '');
-  const offlineMode = env.VITE_OFFLINE_MODE || 'pwa';
-  const useDespiaLocal = offlineMode === 'despia-local';
+  // Default despia-local: Despia Offline Support → Native needs /despia/local.json
+  // Override with VITE_OFFLINE_MODE=pwa for URL-only / SW caching.
+  const offlineMode = env.VITE_OFFLINE_MODE || 'despia-local';
+  const useDespiaLocal = offlineMode !== 'pwa';
 
   const firebaseEnvKeys = [
     'VITE_FIREBASE_API_KEY',

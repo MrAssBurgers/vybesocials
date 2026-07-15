@@ -8,6 +8,11 @@ export interface MeasuredSafeAreaInsets {
   left: number;
 }
 
+function parsePaddingPx(style: CSSStyleDeclaration, side: 'Top' | 'Right' | 'Bottom' | 'Left'): number {
+  return parseFloat(style[`padding${side}` as keyof CSSStyleDeclaration] as string) || 0;
+}
+
+/** Measure env(safe-area-inset-*) — Safari / viewport-fit=cover. */
 function measureEnvSafeAreaInsets(): MeasuredSafeAreaInsets {
   if (typeof document === 'undefined') {
     return { top: 0, right: 0, bottom: 0, left: 0 };
@@ -25,13 +30,52 @@ function measureEnvSafeAreaInsets(): MeasuredSafeAreaInsets {
   document.body.appendChild(el);
   const style = getComputedStyle(el);
   const insets = {
-    top: parseFloat(style.paddingTop) || 0,
-    right: parseFloat(style.paddingRight) || 0,
-    bottom: parseFloat(style.paddingBottom) || 0,
-    left: parseFloat(style.paddingLeft) || 0,
+    top: parsePaddingPx(style, 'Top'),
+    right: parsePaddingPx(style, 'Right'),
+    bottom: parsePaddingPx(style, 'Bottom'),
+    left: parsePaddingPx(style, 'Left'),
   };
   el.remove();
   return insets;
+}
+
+/**
+ * Measure Despia runtime vars (`--safe-area-top`, …).
+ * Despia injects these before JS runs; env() is often still 0 in the shell.
+ */
+function measureDespiaSafeAreaInsets(): MeasuredSafeAreaInsets {
+  if (typeof document === 'undefined') {
+    return { top: 0, right: 0, bottom: 0, left: 0 };
+  }
+
+  const el = document.createElement('div');
+  el.style.cssText = [
+    'position:fixed',
+    'top:0',
+    'left:0',
+    'padding:var(--safe-area-top, 0px) var(--safe-area-right, 0px) var(--safe-area-bottom, 0px) var(--safe-area-left, 0px)',
+    'visibility:hidden',
+    'pointer-events:none',
+  ].join(';');
+  document.body.appendChild(el);
+  const style = getComputedStyle(el);
+  const insets = {
+    top: parsePaddingPx(style, 'Top'),
+    right: parsePaddingPx(style, 'Right'),
+    bottom: parsePaddingPx(style, 'Bottom'),
+    left: parsePaddingPx(style, 'Left'),
+  };
+  el.remove();
+  return insets;
+}
+
+function maxInsets(a: MeasuredSafeAreaInsets, b: MeasuredSafeAreaInsets): MeasuredSafeAreaInsets {
+  return {
+    top: Math.max(a.top, b.top),
+    right: Math.max(a.right, b.right),
+    bottom: Math.max(a.bottom, b.bottom),
+    left: Math.max(a.left, b.left),
+  };
 }
 
 function fallbackTop(platform: PlatformType, device: DeviceType): number {
@@ -69,8 +113,9 @@ export function resolveSafeAreaInsets(
 ): MeasuredSafeAreaInsets & { gap: number } {
   const gap = fallbackGap(device);
 
-  // Despia/Capacitor WebViews are already edge-to-edge with viewport-fit=cover.
-  // Inflating missing env() with hard-coded notch padding double-letterboxes the UI.
+  // Despia: use measured env() + --safe-area-* only. Never inflate missing
+  // values with hard-coded notch sizes (that double-letterboxes when the shell
+  // already reserved the status bar, or when Fullscreen Mode is off).
   if (isDespiaRuntime()) {
     return {
       top: measured.top,
@@ -105,7 +150,11 @@ export function applySafeAreaCssVars(
   let raf = 0;
 
   const applyNow = () => {
-    const measured = measureEnvSafeAreaInsets();
+    const fromEnv = measureEnvSafeAreaInsets();
+    const fromDespia = isDespiaRuntime()
+      ? measureDespiaSafeAreaInsets()
+      : { top: 0, right: 0, bottom: 0, left: 0 };
+    const measured = maxInsets(fromEnv, fromDespia);
     const resolved = resolveSafeAreaInsets(measured, platform, device);
     // Skip no-op writes — visualViewport resize (keyboard / rubber-band) used to
     // thrash --sat/--sab every frame and make whole screens jump on iOS.
@@ -129,6 +178,9 @@ export function applySafeAreaCssVars(
     body.style.setProperty('--sar', `${resolved.right}px`);
     body.style.setProperty('--sab', `${resolved.bottom}px`);
     body.style.setProperty('--sal', `${resolved.left}px`);
+    // Kill Despia Auto-Inject body padding if left on — we own insets in chrome.
+    body.style.paddingTop = '0px';
+    body.style.paddingBottom = '0px';
     if (isDespiaRuntime()) {
       root.setAttribute('data-native-shell', 'true');
     } else {

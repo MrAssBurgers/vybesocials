@@ -99,10 +99,10 @@ export function useSmartPreload({
       const url = urls[i];
       if (url && typeof url === 'string' && shouldPreloadMediaUrl(url)) {
         // Use requestIdleCallback for non-blocking preload
-        if ('requestIdleCallback' in window) {
-          requestIdleCallback(() => preload(url), { timeout: 2000 });
+        if (typeof window.requestIdleCallback === 'function') {
+          window.requestIdleCallback(() => preload(url), { timeout: 2000 });
         } else {
-          setTimeout(() => preload(url), 100 * (i - currentIndex));
+          window.setTimeout(() => preload(url), 100 * (i - currentIndex));
         }
       }
     }

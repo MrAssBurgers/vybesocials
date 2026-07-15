@@ -37,7 +37,10 @@ export function ChatHeader({
     <header
       className="dm-chat-header px-2 sm:px-3"
       data-no-auto-contrast
-      style={{ paddingTop: 'var(--app-header-safe, env(safe-area-inset-top, 0px))' }}
+      style={{
+        paddingTop:
+          'calc(0px + var(--safe-area-top, var(--app-header-safe, env(safe-area-inset-top, 0px))))',
+      }}
     >
       <div className="dm-chat-header-row">
         <div className="flex items-center gap-2 sm:gap-3 w-full min-w-0">

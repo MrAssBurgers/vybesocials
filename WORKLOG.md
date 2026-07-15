@@ -2,6 +2,38 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## Active — iOS DMs deep scan (2026-07-15)
+
+- **Symptom:** DMs load on Android, not on iOS
+- **Top causes (same Firebase backend — env/runtime diff):**
+  1. Bare `cancelIdleCallback` still in `performanceConfig` / `useRetroactiveSync` / route preload — WKWebView ReferenceError → Messages boundary
+  2. Inbox UI blocked on `awaitingProfileId` (“Signing in…”) while Android resolves profile faster — list already supports authUid
+  3. Stale Despia Offline→Native hydrate if Publish/Rebuild lag behind `main`
+  4. Auth/IDB slower on iOS → empty membership under wrong id
+- **Code this session:** window-safe idle helpers · fail-open inbox until 8s timeout · routePreloader hardened
+- **You:** Lovable Publish · hard-kill iPhone · if Native offline on: Despia Rebuild · report whether “Couldn't load” / “Signing in…” / empty list / dead taps
+
+---
+
+## Active — Despia Offline → Native (2026-07-15)
+
+- User selected **Native** in Despia Offline Support (warning about `@despia/local` is expected)
+- **Client:** default `VITE_OFFLINE_MODE=despia-local` so every build emits `despia/local.json`; postbuild always runs boot-guard + verify after
+- Prod already has `https://vybehub.app/despia/local.json` (HTTP 200)
+- **You:** keep Start URL `https://vybehub.app` · Lovable Publish · Despia **Rebuild** (Native + Fullscreen status bar)
+- Still do: Status Bar Fullscreen ON + Auto-Inject Safe Area OFF
+
+---
+
+## Active — iPhone top safe-area / edge-to-edge (2026-07-15)
+
+- **Symptom:** blurry wallpaper strip above dark Home chrome under Dynamic Island
+- **Client fix (this session):** Despia `--safe-area-*` measured + used in CSS; MobileHeader paints solid bg on the padded box; native shell keeps opaque html/body; kill Auto-Inject body padding; docs §4b
+- **Native required:** Despia Editor → Status Bar → **Fullscreen ON** + **Auto-Inject Safe Area OFF** → Rebuild (CSS alone cannot fill outside the WebView)
+- **Next:** Lovable Publish client · Despia rebuild with Fullscreen + location plist · verify strip gone on device
+
+---
+
 ## Active — App Store Review resubmit (2026-07-15)
 
 - **5.1.1(ii) Location:** updated purpose string in `docs/IOS_SETUP.md` — **must paste into Despia Info.plist + native rebuild**

@@ -26,27 +26,23 @@ Cursor agents **cannot** click Lovable Publish for you. They can: build locally,
 
 ---
 
-## Offline strategy (PWA default)
+## Offline strategy (Despia Native default)
 
-VYBE ships with **PWA service worker caching** as the default offline layer. Despia’s `@despia/local` on-device server is **optional** and only needed for large-scale native OTA without hitting the network on every cold start.
+VYBE defaults to **Despia local server** (`@despia/local`) so Offline Support → **Native** works. The binary hydrates from `vybehub.app`, then boots from on-device `http://localhost`.
 
 | Mode | Env | What it does |
 |------|-----|--------------|
-| **PWA** (default) | `VITE_OFFLINE_MODE=pwa` | `public/sw.js` caches app shell + hashed JS/CSS on **vybehub.app** |
-| Despia local server | `VITE_OFFLINE_MODE=despia-local` | Also generates `dist/despia/local.json` at build time |
+| **Despia local** (default) | `VITE_OFFLINE_MODE=despia-local` | Build emits `dist/despia/local.json` for Native offline |
+| PWA | `VITE_OFFLINE_MODE=pwa` | `public/sw.js` only — use if Despia Offline Support is **PWA** / **None** |
 
-### Despia native app (PWA / URL mode — recommended)
+### Despia dashboard (Native)
 
-1. In the **Despia dashboard**, set the app URL to **`https://vybehub.app`**
-2. **Disable** “Local server” / on-device HTTP server (or leave it off)
-3. The WebView loads production directly; the service worker caches assets after the first visit
-4. Updates ship via **Lovable Publish** → users get new assets on next online visit (SW update)
+1. App Start URL = **`https://vybehub.app`**
+2. Offline Support → **Native**
+3. **Lovable Publish** so `https://vybehub.app/despia/local.json` stays fresh
+4. **Rebuild** the native binary once after flipping Native (status bar / offline settings are binary-side)
 
-This avoids localhost hydration delays, auth storage split-brain, and the “native offline requires despia/local.json” warning.
-
-### Optional: Despia local server (large-scale OTA)
-
-See section below. Set `VITE_OFFLINE_MODE=despia-local` before build, enable local server in Despia, and publish so `/despia/local.json` exists.
+The red Despia warning is expected until the plugin ships in the published build — VYBE already includes `@despia/local`; Publish + rebuild clears the risk.
 
 ---
 

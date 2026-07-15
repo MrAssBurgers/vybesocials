@@ -64,30 +64,36 @@ export const MobileHeader = React.forwardRef<HTMLElement, React.ComponentPropsWi
       data-app-mobile-header
       className="fixed top-0 inset-x-0 z-50 pointer-events-none"
     >
+      {/*
+        Background lives on the same box as padding-top so the status-bar /
+        Dynamic Island region stays opaque (WebKit often refuses to paint
+        absolute -z-10 fills under padding). Despia: --safe-area-top first.
+      */}
       <div
-        className="pointer-events-auto relative"
+        className={cn(
+          'pointer-events-auto relative',
+          nativePerf
+            ? 'bg-[hsl(var(--background))]'
+            : 'bg-[hsl(var(--background)/0.96)] backdrop-blur-xl backdrop-saturate-150',
+        )}
         style={{
-          paddingTop: 'var(--app-header-safe, env(safe-area-inset-top, 0px))',
+          paddingTop:
+            'calc(0px + var(--safe-area-top, var(--app-header-safe, env(safe-area-inset-top, 0px))))',
           paddingBottom: '0px',
-          paddingLeft: 'var(--app-gutter-x, max(1rem, env(safe-area-inset-left, 0px)))',
-          paddingRight: 'var(--app-gutter-x-end, max(1rem, env(safe-area-inset-right, 0px)))',
+          paddingLeft:
+            'calc(0px + var(--safe-area-left, var(--app-gutter-x, max(1rem, env(safe-area-inset-left, 0px)))))',
+          paddingRight:
+            'calc(0px + var(--safe-area-right, var(--app-gutter-x-end, max(1rem, env(safe-area-inset-right, 0px)))))',
         }}
       >
-        {/* Background layer extends below the toolbar and fades out so the
-            header blends into the page theme instead of a hard black edge */}
         <div
           aria-hidden
           className={cn(
-            'absolute inset-x-0 top-0 -z-10 pointer-events-none',
+            'pointer-events-none absolute inset-x-0 top-full h-7',
             nativePerf
-              ? 'bg-[hsl(var(--background))]'
-              : 'bg-[hsl(var(--background)/0.94)] backdrop-blur-xl backdrop-saturate-150',
+              ? 'bg-gradient-to-b from-[hsl(var(--background))] to-transparent'
+              : 'bg-gradient-to-b from-[hsl(var(--background)/0.96)] to-transparent',
           )}
-          style={{
-            bottom: '-28px',
-            maskImage: 'linear-gradient(to bottom, black calc(100% - 28px), transparent)',
-            WebkitMaskImage: 'linear-gradient(to bottom, black calc(100% - 28px), transparent)',
-          }}
         />
         <div
           className={cn('flex items-center gap-2.5', TOOLBAR_H)}

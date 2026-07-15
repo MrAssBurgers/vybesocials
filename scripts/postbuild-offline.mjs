@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 /**
  * Post-build offline hook.
- * Default (PWA): no despia/local.json — caching is handled by public/sw.js.
- * Set VITE_OFFLINE_MODE=despia-local to generate the Despia local-server manifest.
+ * Default: generate despia/local.json for Despia Offline Support → Native.
+ * Set VITE_OFFLINE_MODE=pwa to skip the manifest (service worker only).
  */
 
 import { readFileSync, existsSync } from 'node:fs';
@@ -18,22 +18,27 @@ function readOfflineMode() {
       return match[1].trim().replace(/^["']|["']$/g, '');
     }
   }
-  return 'pwa';
+  return 'despia-local';
 }
 
 const mode = readOfflineMode();
+const useDespiaLocal = mode !== 'pwa';
 
-if (mode !== 'despia-local') {
+if (useDespiaLocal) {
+  console.log('[postbuild] Offline mode "despia-local" — generating despia/local.json');
+  const result = spawnSync('npx', ['despia-local', 'dist'], {
+    stdio: 'inherit',
+    shell: true,
+  });
+  if ((result.status ?? 1) !== 0) {
+    process.exit(result.status ?? 1);
+  }
+} else {
   console.log(`[postbuild] Offline mode "${mode}" — PWA service worker only (no despia/local.json)`);
-  const inline = spawnSync('node', ['scripts/inline-boot-guard.mjs'], { stdio: 'inherit' });
-  const verify = spawnSync('node', ['scripts/verify-dist-entry.mjs'], { stdio: 'inherit' });
-  process.exit((inline.status ?? 1) || (verify.status ?? 1));
 }
 
-console.log('[postbuild] Offline mode "despia-local" — generating despia/local.json');
-const result = spawnSync('npx', ['despia-local', 'dist'], {
-  stdio: 'inherit',
-  shell: true,
-});
+const inline = spawnSync('node', ['scripts/inline-boot-guard.mjs'], { stdio: 'inherit' });
+if ((inline.status ?? 1) !== 0) process.exit(inline.status ?? 1);
 
-process.exit(result.status ?? 1);
+const verify = spawnSync('node', ['scripts/verify-dist-entry.mjs'], { stdio: 'inherit' });
+process.exit(verify.status ?? 1);

@@ -41,9 +41,13 @@ label {
 }
 
 :root {
-  --app-header-safe: env(safe-area-inset-top, 0px);
+  /*
+   * Despia injects --safe-area-* before JS. Prefer those, then env(), then 0.
+   * JS may overwrite --app-header-safe / --sat with measured px on <html>.
+   */
+  --app-header-safe: var(--safe-area-top, env(safe-area-inset-top, 0px));
   --app-header-gap: 0px;
-  --app-header-safe-right: env(safe-area-inset-right, 0px);
+  --app-header-safe-right: var(--safe-area-right, env(safe-area-inset-right, 0px));
   --app-header-toolbar: 2.5rem;
   --app-header-tail: 0px;
   --app-header-top: var(--app-header-safe);
@@ -51,11 +55,10 @@ label {
   --dm-header-stack: calc(var(--app-header-safe) + 2.75rem);
   --app-floating-header-scroll: calc(var(--app-header-height) + 0.5rem);
   --kb-h: 0px;
-  /* Measured safe-area vars (JS overrides on <html> + <body>) */
   --sat: var(--app-header-safe);
-  --sar: env(safe-area-inset-right, 0px);
-  --sab: env(safe-area-inset-bottom, 0px);
-  --sal: env(safe-area-inset-left, 0px);
+  --sar: var(--safe-area-right, env(safe-area-inset-right, 0px));
+  --sab: var(--safe-area-bottom, env(safe-area-inset-bottom, 0px));
+  --sal: var(--safe-area-left, env(safe-area-inset-left, 0px));
   /* Unified horizontal gutters — header, content, bottom nav share these */
   --app-gutter-x: max(1rem, var(--sal, env(safe-area-inset-left, 0px)));
   --app-gutter-x-end: max(1rem, var(--sar, env(safe-area-inset-right, 0px)));
@@ -70,18 +73,18 @@ label {
   html.device-mobile,
   html.device-tablet,
   html:not(.device-desktop) {
-    --app-header-safe: env(safe-area-inset-top, 0px);
+    --app-header-safe: var(--safe-area-top, env(safe-area-inset-top, 0px));
     --app-header-gap: 0px;
   }
 
   html.platform-ios.device-mobile:not([data-native-shell]),
   html.platform-ios.device-tablet:not([data-native-shell]) {
-    --app-header-safe: max(env(safe-area-inset-top, 0px), 44px);
+    --app-header-safe: max(var(--safe-area-top, env(safe-area-inset-top, 0px)), 44px);
   }
 
   html.platform-android.device-mobile:not([data-native-shell]),
   html.platform-android.device-tablet:not([data-native-shell]) {
-    --app-header-safe: max(env(safe-area-inset-top, 0px), 24px);
+    --app-header-safe: max(var(--safe-area-top, env(safe-area-inset-top, 0px)), 24px);
   }
 }
 
@@ -3570,6 +3573,12 @@ body.has-liquid-bg:not(.has-custom-bg) #main-content {
     position: relative;
     /* Fill the entire WKWebView — no letterbox bars outside #root */
     background: hsl(var(--background));
+    /* Own insets in chrome; never use Despia Auto-Inject body padding */
+    padding-top: 0 !important;
+    padding-right: 0 !important;
+    padding-bottom: 0 !important;
+    padding-left: 0 !important;
+    margin: 0 !important;
   }
 
   html.platform-ios.vybe-native-shell #root,
@@ -3581,6 +3590,11 @@ body.has-liquid-bg:not(.has-custom-bg) #main-content {
     width: 100%;
     overflow: hidden;
     background: hsl(var(--background));
+  }
+
+  /* Fixed header chrome always paints from the physical top edge */
+  html.platform-ios.vybe-native-shell [data-app-mobile-header] {
+    top: 0 !important;
   }
 
   /* Keep chrome drawing under status / home areas; interactive rows keep their own padding */
@@ -4149,39 +4163,39 @@ body.has-liquid-bg:not(.has-custom-bg) #main-content {
     background-image: none !important;
   }
 
-  /* Safe area inset utilities */
+  /* Safe area inset utilities — Despia --safe-area-* first */
   .safe-area-top {
-    padding-top: var(--sat, env(safe-area-inset-top, 0px));
+    padding-top: var(--safe-area-top, var(--sat, env(safe-area-inset-top, 0px)));
   }
   
   .safe-area-bottom {
-    padding-bottom: var(--sab, env(safe-area-inset-bottom, 0px));
+    padding-bottom: var(--safe-area-bottom, var(--sab, env(safe-area-inset-bottom, 0px)));
   }
   
   .safe-area-all {
-    padding-top: var(--sat, env(safe-area-inset-top, 0px));
-    padding-right: var(--sar, env(safe-area-inset-right, 0px));
-    padding-bottom: var(--sab, env(safe-area-inset-bottom, 0px));
-    padding-left: var(--sal, env(safe-area-inset-left, 0px));
+    padding-top: var(--safe-area-top, var(--sat, env(safe-area-inset-top, 0px)));
+    padding-right: var(--safe-area-right, var(--sar, env(safe-area-inset-right, 0px)));
+    padding-bottom: var(--safe-area-bottom, var(--sab, env(safe-area-inset-bottom, 0px)));
+    padding-left: var(--safe-area-left, var(--sal, env(safe-area-inset-left, 0px)));
   }
 
   .pt-safe,
   .pt-safe-top,
   .safe-area-inset-top {
-    padding-top: var(--sat, env(safe-area-inset-top, 0px));
+    padding-top: var(--safe-area-top, var(--sat, env(safe-area-inset-top, 0px)));
   }
 
   .pb-safe,
   .pb-safe-bottom,
   .safe-area-inset-bottom {
-    padding-bottom: var(--sab, env(safe-area-inset-bottom, 0px));
+    padding-bottom: var(--safe-area-bottom, var(--sab, env(safe-area-inset-bottom, 0px)));
   }
 
   .safe-all {
-    padding-top: var(--sat, env(safe-area-inset-top, 0px));
-    padding-right: var(--sar, env(safe-area-inset-right, 0px));
-    padding-bottom: var(--sab, env(safe-area-inset-bottom, 0px));
-    padding-left: var(--sal, env(safe-area-inset-left, 0px));
+    padding-top: var(--safe-area-top, var(--sat, env(safe-area-inset-top, 0px)));
+    padding-right: var(--safe-area-right, var(--sar, env(safe-area-inset-right, 0px)));
+    padding-bottom: var(--safe-area-bottom, var(--sab, env(safe-area-inset-bottom, 0px)));
+    padding-left: var(--safe-area-left, var(--sal, env(safe-area-inset-left, 0px)));
   }
 
   /* Mobile DM specific - Snapchat-like text sizing */
@@ -6281,6 +6295,21 @@ html[data-liquid-bg='true'] #root,
 body.has-liquid-bg #root {
   background: transparent !important;
   background-color: transparent !important;
+}
+
+/*
+ * Native shell exception: html/body must stay opaque under the status bar.
+ * Transparent shell + Despia letterboxing shows the home-screen blur strip
+ * above the dark chrome (see iPhone screenshots). Aurora still paints via
+ * #vybe-aurora-mount; #root stays transparent for liquid content.
+ */
+html.vybe-native-shell.vybe-aurora-active,
+html.vybe-native-shell[data-liquid-bg='true'],
+html.vybe-native-shell body.has-liquid-bg,
+html.vybe-native-shell.vybe-aurora-active body,
+html.vybe-native-shell[data-liquid-bg='true'] body {
+  background: hsl(var(--background)) !important;
+  background-color: hsl(var(--background)) !important;
 }
 
 html.vybe-aurora-active #root > div,

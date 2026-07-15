@@ -123,24 +123,33 @@ export function preloadCriticalRoutes(): void {
   preloadRoute(activeRoute);
 
   const neighbors = neighborTabRoutes(activeRoute);
-  requestIdleCallback(() => {
-    neighbors.forEach((route) => preloadRoute(route));
-  }, { timeout: 1200 });
+  const ric = window.requestIdleCallback?.bind(window);
+  const schedule = (fn: () => void, timeout: number) => {
+    if (typeof ric === 'function') {
+      ric(fn, { timeout });
+      return;
+    }
+    window.setTimeout(fn, Math.min(timeout, 400));
+  };
 
-  requestIdleCallback(() => {
+  schedule(() => {
+    neighbors.forEach((route) => preloadRoute(route));
+  }, 1200);
+
+  schedule(() => {
     PRIMARY_TAB_ROUTES.forEach((route, index) => {
       if (route === activeRoute || neighbors.includes(route)) return;
       window.setTimeout(() => preloadRoute(route), index * 180);
     });
     preloadRoute('/events');
-  }, { timeout: 2800 });
+  }, 2800);
 }
 
 /**
  * Preload secondary routes after critical ones
  */
 export function preloadSecondaryRoutes(): void {
-  requestIdleCallback(() => {
+  const run = () => {
     const secondaryRoutes = [
       '/community',
       '/spaces',
@@ -153,9 +162,16 @@ export function preloadSecondaryRoutes(): void {
       '/feedback',
       '/map',
     ];
-    
+
     secondaryRoutes.forEach((route, index) => {
       window.setTimeout(() => preloadRoute(route), index * 220);
     });
-  }, { timeout: 5000 });
+  };
+
+  const ric = window.requestIdleCallback?.bind(window);
+  if (typeof ric === 'function') {
+    ric(run, { timeout: 5000 });
+    return;
+  }
+  window.setTimeout(run, 400);
 }

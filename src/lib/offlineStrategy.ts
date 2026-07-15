@@ -1,16 +1,16 @@
 /**
  * Offline delivery strategy for VYBE.
  *
- * - `pwa` (default): Service worker caches the app shell + assets on vybehub.app.
- *   Despia native apps should load https://vybehub.app directly (URL mode).
- * - `despia-local`: Generates despia/local.json for Despia's on-device HTTP server.
+ * - `despia-local` (default): Generates despia/local.json for Despia's on-device
+ *   HTTP server (Offline Support → Native). Instant boot after first hydrate.
+ * - `pwa`: Service worker caches the app shell on vybehub.app (URL mode only).
  */
 
 export type OfflineMode = 'pwa' | 'despia-local';
 
 export function getOfflineMode(): OfflineMode {
   const raw = import.meta.env.VITE_OFFLINE_MODE as string | undefined;
-  return raw === 'despia-local' ? 'despia-local' : 'pwa';
+  return raw === 'pwa' ? 'pwa' : 'despia-local';
 }
 
 export function isOfflineModePwa(): boolean {

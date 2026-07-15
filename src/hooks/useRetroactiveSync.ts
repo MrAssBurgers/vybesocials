@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/lib/auth';
 import { isOwner } from '@/components/ui/OwnerBadge';
-import { runWhenIdle } from '@/lib/performanceConfig';
+import { cancelIdle, runWhenIdle } from '@/lib/performanceConfig';
 import { syncChallengeProgress } from '@/hooks/useChallengeSync';
 import { db } from '@/lib/firebase';
 
@@ -47,11 +47,7 @@ export function useRetroactiveSync() {
 
     return () => {
       if (typeof idleId === 'number') {
-        if ('cancelIdleCallback' in window) {
-          cancelIdleCallback(idleId);
-        } else {
-          clearTimeout(idleId);
-        }
+        cancelIdle(idleId);
       }
     };
   }, [authUserId, profile?.id, profile?.username, queryClient]);

@@ -174,6 +174,27 @@ the app needs the permission, or Apple rejects.
 
 ---
 
+## 4b. Despia Status Bar (edge-to-edge / no wallpaper strip)
+
+If iPhone shows a blurry home-screen strip above the dark VYBE chrome (under
+the Dynamic Island / status bar), the **native WebView is not full-screen**.
+CSS cannot paint outside the WebView — fix it in Despia, then rebuild.
+
+In the **Despia Editor → App → Settings → Status Bar**:
+
+1. **Fullscreen Mode → ON** — removes the native status-bar background so
+   VYBE’s dark shell can draw edge-to-edge behind the status icons.
+2. **Auto-Inject Safe Area → OFF** — the web app already pads fixed headers
+   with `var(--safe-area-top)` / `var(--safe-area-bottom)`. Leaving Auto-Inject
+   on double-pads and can leave a transparent/wallpaper gap.
+3. Dark mode status bar text → **White**; Light mode → **Black**.
+4. **Save → Rebuild** the native binary (OTA Publish cannot apply these).
+
+Web CSS already follows Despia’s pattern: padding on chrome with a solid
+header background so content clears the notch while paint reaches `top: 0`.
+
+---
+
 ## 5. App Tracking Transparency (ATT)
 
 Already wired in `src/lib/att.ts` and called from `src/lib/admob.ts`.

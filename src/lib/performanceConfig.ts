@@ -142,20 +142,23 @@ export const willChangeOptimize = (element: HTMLElement | null, properties: stri
   };
 };
 
-// Request idle callback with fallback
+// Request idle callback with fallback.
+// Always go through window.* — bare identifiers throw ReferenceError on iOS
+// WKWebView when only one of the pair exists (or neither).
 export const runWhenIdle = (callback: () => void, timeout = 1000) => {
-  if ('requestIdleCallback' in window) {
-    return requestIdleCallback(callback, { timeout });
-  } else {
-    return setTimeout(callback, 0);
+  const ric = window.requestIdleCallback?.bind(window);
+  if (typeof ric === 'function') {
+    return ric(callback, { timeout });
   }
+  return window.setTimeout(callback, 0);
 };
 
 // Cancel idle callback with fallback
 export const cancelIdle = (id: number) => {
-  if ('cancelIdleCallback' in window) {
-    cancelIdleCallback(id);
-  } else {
-    clearTimeout(id);
+  const cic = window.cancelIdleCallback?.bind(window);
+  if (typeof cic === 'function') {
+    cic(id);
+    return;
   }
+  window.clearTimeout(id);
 };

@@ -70,25 +70,30 @@ export function DMInboxPage() {
           pendingRequestCount={inbox.pendingRequestCount}
           onSearch={() => navigate('/messages/search')}
         />
-        {inbox.awaitingProfileId && !inbox.hasCachedRows && inbox.displayRows.length === 0 ? (
+        {/*
+          Never block the inbox while Firebase auth uid exists — the list query
+          already loads with authUid until legacy profileId resolves. iOS WKWebView
+          often resolves profile slower than Android; a full-screen "Signing in…"
+          looked like DMs were broken.
+        */}
+        {inbox.awaitingProfileId &&
+        !inbox.hasCachedRows &&
+        inbox.displayRows.length === 0 &&
+        inbox.profileResolveTimedOut ? (
           <div className="flex flex-1 flex-col items-center justify-center gap-3 px-6 py-16 text-center">
             <p className="text-sm text-muted-foreground">
-              {inbox.profileResolveTimedOut
-                ? 'Still signing you in to Messages…'
-                : 'Signing in…'}
+              Still signing you in to Messages…
             </p>
-            {inbox.profileResolveTimedOut && (
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="gap-2"
-                onClick={inbox.retryProfileResolve}
-              >
-                <RefreshCw className="h-4 w-4" />
-                Retry
-              </Button>
-            )}
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="gap-2"
+              onClick={inbox.retryProfileResolve}
+            >
+              <RefreshCw className="h-4 w-4" />
+              Retry
+            </Button>
           </div>
         ) : (
           <>

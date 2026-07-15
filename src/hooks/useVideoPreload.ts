@@ -82,10 +82,10 @@ export function useVideoPreload(
           });
       };
 
-      if ('requestIdleCallback' in window) {
-        requestIdleCallback(preloadFn, { timeout: 3000 });
+      if (typeof window.requestIdleCallback === 'function') {
+        window.requestIdleCallback(preloadFn, { timeout: 3000 });
       } else {
-        setTimeout(preloadFn, 50 * (i - currentIndex));
+        window.setTimeout(preloadFn, 50 * (i - currentIndex));
       }
     }
   }, [videoUrls, currentIndex, preloadDepth, enabled]);
