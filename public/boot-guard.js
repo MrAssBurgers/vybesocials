@@ -258,8 +258,7 @@
       msg.indexOf('is not defined') !== -1 ||
       msg.indexOf('Unexpected token') !== -1;
     if (isFatal && !hasMeaningfulContent()) {
-      showRecovery('script_error');
-      showRecoveryUi('script_error', (msg || file || 'error').slice(0, 80));
+      showRecovery('script_error', false, (msg || file || 'error').slice(0, 80));
     }
   });
 
@@ -273,8 +272,7 @@
         msg.indexOf('Importing a module script failed') !== -1) &&
       !hasMeaningfulContent()
     ) {
-      showRecovery('chunk_error');
-      showRecoveryUi('chunk_error', msg.slice(0, 80));
+      showRecovery('chunk_error', false, msg.slice(0, 80));
     }
   });
 

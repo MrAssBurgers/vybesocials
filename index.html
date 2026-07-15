@@ -738,36 +738,114 @@
         }, 40);
       })();
     </script>
-    <!-- Fallback when CDN serves stale hashed index-*.js (Lovable publish mismatch) -->
+    <!-- Fallback when CDN serves stale hashed index-*.js, or Despia Native
+         offline cache omits /assets/app.js (localhost hydrate gap). -->
     <script>
       (function () {
-        var STABLE = '/assets/app.js';
-        function loadStableEntry() {
+        var PROD_ORIGIN = 'https://vybehub.app';
+        var host = '';
+        try { host = location.hostname || ''; } catch (e0) { host = ''; }
+        var onDespiaLocal =
+          host === 'localhost' ||
+          host === '127.0.0.1' ||
+          /despia/i.test(navigator.userAgent || '');
+        var triedRelative = false;
+        var triedProd = false;
+
+        function loadStableEntry(forceProd) {
           if (window.__VYBE_APP_LOADED__) return;
-          if (document.querySelector('script[data-vybe-stable-entry]')) return;
+          var useProd = forceProd || host === 'localhost' || host === '127.0.0.1';
+          if (useProd && triedProd) return;
+          if (!useProd && triedRelative) {
+            // Relative already tried — fall through to production absolute.
+            useProd = true;
+            if (triedProd) return;
+          }
+          if (useProd) triedProd = true;
+          else triedRelative = true;
+
+          var marker = useProd ? 'data-vybe-stable-entry-prod' : 'data-vybe-stable-entry';
+          if (document.querySelector('script[' + marker + ']')) {
+            if (!useProd) loadStableEntry(true);
+            return;
+          }
+          var base = useProd ? PROD_ORIGIN + '/assets/app.js' : '/assets/app.js';
           var s = document.createElement('script');
           s.type = 'module';
           s.crossOrigin = 'anonymous';
-          s.src = STABLE + '?vybe=' + Date.now();
-          s.setAttribute('data-vybe-stable-entry', 'true');
+          s.src = base + '?vybe=' + Date.now();
+          s.setAttribute(marker, 'true');
           s.onload = function () { window.__VYBE_APP_LOADED__ = true; };
+          s.onerror = function () {
+            // #region agent log
+            try {
+              fetch('http://127.0.0.1:7693/ingest/1847f3ab-7d03-4b99-8dbe-84076ae9145e', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': 'adb115' },
+                body: JSON.stringify({
+                  sessionId: 'adb115',
+                  runId: 'boot-fix',
+                  hypothesisId: 'H6',
+                  location: 'index.html:loadStableEntry',
+                  message: 'stable_entry_onerror',
+                  data: { useProd: useProd, host: host, src: s.src },
+                  timestamp: Date.now(),
+                }),
+              }).catch(function () {});
+            } catch (e1) {}
+            // #endregion
+            if (!useProd) loadStableEntry(true);
+          };
           document.head.appendChild(s);
+          // #region agent log
+          try {
+            fetch('http://127.0.0.1:7693/ingest/1847f3ab-7d03-4b99-8dbe-84076ae9145e', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': 'adb115' },
+              body: JSON.stringify({
+                sessionId: 'adb115',
+                runId: 'boot-fix',
+                hypothesisId: 'H6',
+                location: 'index.html:loadStableEntry',
+                message: 'stable_entry_inject',
+                data: { useProd: useProd, host: host, onDespiaLocal: onDespiaLocal, src: s.src },
+                timestamp: Date.now(),
+              }),
+            }).catch(function () {});
+          } catch (e2) {}
+          // #endregion
         }
+
         window.addEventListener('error', function (e) {
           var file = e.filename || '';
-          if (file.indexOf('/assets/index-') === -1) return;
-          loadStableEntry();
+          if (
+            file.indexOf('/assets/index-') !== -1 ||
+            file.indexOf('/assets/app.js') !== -1 ||
+            file.indexOf('/src/main') !== -1
+          ) {
+            loadStableEntry(host === 'localhost' || host === '127.0.0.1');
+          }
         }, true);
         window.addEventListener('unhandledrejection', function (e) {
           var msg = e.reason instanceof Error ? e.reason.message : String(e.reason || '');
-          if (msg.indexOf('Failed to fetch') !== -1 || msg.indexOf('Importing a module script failed') !== -1) {
-            loadStableEntry();
+          if (
+            msg.indexOf('Failed to fetch') !== -1 ||
+            msg.indexOf('Importing a module script failed') !== -1 ||
+            msg.indexOf('error loading dynamically imported module') !== -1
+          ) {
+            loadStableEntry(host === 'localhost' || host === '127.0.0.1');
           }
         });
+        // Despia Native broken cache: don't wait — pull shell from production ASAP.
+        if (host === 'localhost' || host === '127.0.0.1') {
+          setTimeout(function () {
+            if (!window.__VYBE_APP_LOADED__) loadStableEntry(true);
+          }, 400);
+        }
         setTimeout(function () {
           var root = document.getElementById('root');
           var hasPaint = root && (root.textContent || '').replace(/\s+/g, '').length > 12;
-          if (!window.__VYBE_APP_LOADED__ && !hasPaint) loadStableEntry();
+          if (!window.__VYBE_APP_LOADED__ && !hasPaint) loadStableEntry(false);
         }, 2000);
       })();
     </script>
