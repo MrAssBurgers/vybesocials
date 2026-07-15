@@ -2,6 +2,18 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## PUBLISH handoff (2026-07-15) — iOS DMs + safe area + Despia Native
+
+- **Merged to `origin/main`:** `df4b24dc`
+- **Firebase Hosting staging:** deploy with this publish → `https://vybe-daaab.web.app`
+- **Production `vybehub.app`:** **Lovable → Share → Publish** — Cursor cannot click Publish
+- **Lovable:** https://lovable.dev/projects/416714c8-d013-4aff-984d-522418a9bbc7
+- **After Publish:** hard-kill iPhone → open Messages · verify DMs paint · check top edge under status bar
+- **Also Despia Rebuild:** Offline → Native + Status Bar Fullscreen ON + Auto-Inject OFF (native binary settings)
+- **Verify:** `curl -s https://vybehub.app/despia/local.json | head -3` shows fresh `deployed_at`
+
+---
+
 ## Active — iOS DMs deep scan (2026-07-15)
 
 - **Symptom:** DMs load on Android, not on iOS
@@ -11,7 +23,7 @@ Use this file as the Lovable -> Cursor handoff each session.
   3. Stale Despia Offline→Native hydrate if Publish/Rebuild lag behind `main`
   4. Auth/IDB slower on iOS → empty membership under wrong id
 - **Code this session:** window-safe idle helpers · fail-open inbox until 8s timeout · routePreloader hardened
-- **You:** Lovable Publish · hard-kill iPhone · if Native offline on: Despia Rebuild · report whether “Couldn't load” / “Signing in…” / empty list / dead taps
+- **Shipped via:** `df4b24dc` — needs Lovable Publish
 
 ---
 
