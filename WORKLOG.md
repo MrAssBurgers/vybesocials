@@ -4,9 +4,9 @@ Use this file as the Lovable -> Cursor handoff each session.
 
 ## PUBLISH handoff (2026-07-14) — iOS black screen boot fix
 
-- **Merged to `origin/main`:** _(pending)_ — remove stuck `#vybe-static-boot` when WebView is hidden; sync boot-ready
-- **Firebase staging hosting:** _(pending)_
-- **Production `vybehub.app`:** **Lovable → Share → Publish** after git sync — Cursor cannot click Publish
+- **Merged to `origin/main`:** `9e834b36` — remove stuck `#vybe-static-boot` when WebView is hidden; sync boot-ready
+- **Firebase staging hosting:** https://vybe-daaab.web.app ✅
+- **Production `vybehub.app`:** **Lovable → Share → Publish** (sync `main` @ `9e834b36`) — Cursor cannot click Publish
 - **Lovable:** https://lovable.dev/projects/416714c8-d013-4aff-984d-522418a9bbc7
 - **After Publish:** hard-refresh / reopen Apple app → cold start should show UI (not permanent black)
 
