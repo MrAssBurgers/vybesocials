@@ -376,15 +376,23 @@ export const VybeMapboxCanvas = memo(function VybeMapboxCanvas({
   }, [mapReady]);
 
   useEffect(() => {
-    let smoothed: number | null = null;
     return subscribeDeviceHeading((sample) => {
-      // Despia magnetic heading already tracks phone top; keep light smoothing for UI.
-      const alpha = sample.source === 'despia' ? 0.55 : 0.35;
-      smoothed = lerpHeading(smoothed, sample.heading, alpha);
-      setDeviceHeading(smoothed);
+      // Despia stream is already low-pass filtered in subscribeDeviceHeading.
+      if (sample.source === 'despia') {
+        setDeviceHeading(sample.heading);
+        return;
+      }
+      setDeviceHeading((prev) => lerpHeading(prev, sample.heading, 0.35));
     });
   }, []);
 
+  useEffect(() => {
+    if (!followHeading || !mapReady || deviceHeading == null) return;
+    const map = mapRef.current as (mapboxgl.Map & { setBearing?: (b: number) => void }) | null;
+    if (!map || userInteractingRef.current) return;
+    if (typeof map.setBearing === 'function') map.setBearing(deviceHeading);
+    else map.easeTo({ bearing: deviceHeading, duration: 100, essential: true });
+  }, [followHeading, mapReady, deviceHeading]);
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !styleLoaded.current) return;
@@ -689,21 +697,6 @@ export const VybeMapboxCanvas = memo(function VybeMapboxCanvas({
       if (interactPauseRef.current) clearTimeout(interactPauseRef.current);
     };
   }, [mapReady, pauseFollowWhileInteracting]);
-
-  useEffect(() => {
-    if (!followHeading || !mapReady) return;
-    const map = mapRef.current as (mapboxgl.Map & { setBearing?: (b: number) => void }) | null;
-    if (!map) return;
-
-    let smoothed: number | null = null;
-    return subscribeDeviceHeading((sample) => {
-      if (userInteractingRef.current) return;
-      const alpha = sample.source === 'despia' ? 0.7 : 0.4;
-      smoothed = lerpHeading(smoothed, sample.heading, alpha);
-      if (typeof map.setBearing === 'function') map.setBearing(smoothed);
-      else map.easeTo({ bearing: smoothed, duration: 80, essential: true });
-    });
-  }, [followHeading, mapReady]);
 
   return (
     <>

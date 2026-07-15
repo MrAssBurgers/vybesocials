@@ -1223,6 +1223,16 @@ const CLIENT_RPC: Record<string, (params: Record<string, unknown>) => Promise<un
     if (error) throw error;
     return data ?? { ok: true };
   },
+  match_contacts: async (p) => {
+    const hashes = Array.isArray(p.hashes) ? p.hashes : [];
+    const { data, error } = await invokeFunction<unknown[]>('match_contacts', { hashes });
+    if (error) throw error;
+    if (Array.isArray(data)) return data;
+    if (data && typeof data === 'object' && Array.isArray((data as { matches?: unknown }).matches)) {
+      return (data as { matches: unknown[] }).matches;
+    }
+    return [];
+  },
   get_login_streak_status: async (p) => runSocialRpc('get_login_streak_status', p),
   update_login_streak: async (p) => runSocialRpc('update_login_streak', p),
   restore_login_streak: async (p) => runSocialRpc('restore_login_streak', p),

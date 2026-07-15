@@ -115,7 +115,7 @@ function ThreadPaneError({
       >
         <RefreshCw className="h-4 w-4" /> Retry chat
       </Button>
-      <Button size="sm" variant="ghost" onClick={() => leaveDmConversation(navigate)}>
+      <Button size="sm" variant="ghost" onClick={() => leaveDmConversation(navigate, conversationId)}>
         Back to messages
       </Button>
     </div>

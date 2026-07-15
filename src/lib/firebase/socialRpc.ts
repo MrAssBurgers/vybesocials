@@ -141,7 +141,8 @@ async function rpcToggleMessageSaved(params: Record<string, unknown>) {
   };
   if (next) {
     patch.expires_at = null;
-  } else if (msg.view_mode === '24h') {
+  } else if (msg.view_mode === '24h' || msg.view_mode === 'timed') {
+    const createdAt = (msg.created_at as string | null) || null;
     const viewedAt =
       (msg.viewed_at as string | null) ||
       (Array.isArray(msg.views)
@@ -150,12 +151,15 @@ async function rpcToggleMessageSaved(params: Record<string, unknown>) {
           )?.viewed_at
         : null) ||
       null;
-    if (viewedAt) {
+    const base = createdAt || viewedAt;
+    if (base) {
       patch.expires_at = new Date(
-        new Date(viewedAt).getTime() + 24 * 60 * 60 * 1000,
+        new Date(base).getTime() + 24 * 60 * 60 * 1000,
       ).toISOString();
     } else if (msg.expires_at) {
       patch.expires_at = msg.expires_at;
+    } else {
+      patch.expires_at = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
     }
   }
   await updateDocument('messages', messageId, patch);

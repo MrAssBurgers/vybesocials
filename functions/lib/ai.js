@@ -571,7 +571,13 @@ function fallbackThemeFromPrompt(prompt) {
         return pick('Forest VYBE', '152 65% 45%', '120 36% 28%', '82 72% 54%');
     if (/pink|rose|barbie/.test(p))
         return pick('Rose VYBE', '330 80% 66%', '300 72% 54%', '24 100% 70%');
-    return pick('Custom VYBE', '270 85% 65%', '199 89% 56%', '330 100% 60%');
+    // Hash leftover prompts into a non-purple hue so server fallbacks aren't always violet.
+    let hash = 0;
+    for (let i = 0; i < p.length; i++)
+        hash = (hash * 33 + p.charCodeAt(i)) >>> 0;
+    const hue = hash % 360;
+    const accent = (hue + 48) % 360;
+    return pick('Custom VYBE', `${hue} 72% 58%`, `${accent} 68% 52%`, `${(hue + 180) % 360} 70% 60%`);
 }
 function formatServerThemeContext(input) {
     const { profile, dna, clientContext } = input;

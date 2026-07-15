@@ -229,12 +229,31 @@ export function buildThemeFromPrompt(
     }
   }
 
-  const vibe = opts?.selectedVibe || detectVibeFromPrompt(text) || opts?.basePreset || 'dark';
-  const theme = buildLocalVibeTheme(vibe);
+  const detectedVibe = detectVibeFromPrompt(text);
+  const vibe = opts?.selectedVibe || detectedVibe || null;
+  if (vibe) {
+    const theme = buildLocalVibeTheme(vibe);
+    return {
+      theme: { ...theme, themeName: themeNameFromPrompt(text) },
+      confidence: named.length ? 0.65 : (opts?.selectedVibe || detectedVibe ? 0.55 : 0.35),
+      themeName: themeNameFromPrompt(text),
+    };
+  }
+
+  // Unmatched prompts: diverse deterministic hues — never force purple.
+  let hash = 0;
+  for (let i = 0; i < text.length; i++) hash = (hash * 33 + text.charCodeAt(i)) >>> 0;
+  const hue = hash % 360;
+  const accentHue = (hue + 40 + (hash % 80)) % 360;
+  const theme = buildFromColors(
+    [`${hue} 72% 58%`, `${accentHue} 68% 52%`],
+    text,
+    { mode: 'dark', themeName: themeNameFromPrompt(text), backgroundEffect: 'aurora' },
+  );
   return {
-    theme: { ...theme, themeName: themeNameFromPrompt(text) },
-    confidence: named.length ? 0.65 : 0.45,
-    themeName: themeNameFromPrompt(text),
+    theme,
+    confidence: 0.35,
+    themeName: theme.themeName,
   };
 }
 

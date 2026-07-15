@@ -102,7 +102,7 @@ export const GroupInfoSheet = memo(function GroupInfoSheet({
   const handleLeaveGroup = async () => {
     await leaveGroup.mutateAsync(conversationId);
     onOpenChange(false);
-    leaveDmConversation(navigate);
+    leaveDmConversation(navigate, conversationId);
   };
 
   const handleAddSelectedMembers = async () => {

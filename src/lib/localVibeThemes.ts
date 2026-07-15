@@ -191,12 +191,12 @@ const VIBE_KEYWORDS: Array<{ id: string; pattern: RegExp }> = [
   { id: 'dark', pattern: /\b(dark|mysterious|gothic|midnight|purple|violet)\b/i },
 ];
 
-export function detectVibeFromPrompt(prompt: string): string {
+export function detectVibeFromPrompt(prompt: string): string | null {
   const text = prompt.toLowerCase();
   for (const { id, pattern } of VIBE_KEYWORDS) {
     if (pattern.test(text)) return id;
   }
-  return 'dark';
+  return null;
 }
 
 export function buildLocalVibeTheme(vibeId: string | null | undefined): GeneratedTheme {

@@ -354,6 +354,11 @@
         { "fieldPath": "challenge_type", "order": "ASCENDING" },
         { "fieldPath": "status", "order": "ASCENDING" },
         { "fieldPath": "created_at", "order": "DESCENDING" }
+      ] },
+    { "collectionGroup": "profiles", "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "contact_discoverable", "order": "ASCENDING" },
+        { "fieldPath": "phone_e164_sha256", "order": "ASCENDING" }
       ] }
   ],
   "fieldOverrides": []

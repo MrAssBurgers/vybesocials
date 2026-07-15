@@ -13,8 +13,9 @@ interface EphemeralChatNoticeProps {
 }
 
 const VIEW_MODE_OPTIONS: { id: ViewMode; label: string; short: string; hint: string }[] = [
-  { id: '24h', label: MEDIA_MODE_LABELS.timed, short: '24h after view', hint: 'Deletes a day after opened' },
-  { id: 'view_once', label: MEDIA_MODE_LABELS.view_once, short: 'After viewing', hint: 'Disappears once seen' },
+  { id: '24h', label: MEDIA_MODE_LABELS.timed, short: '24 hours', hint: 'Unsaved messages delete 24 hours after send' },
+  { id: 'on_close', label: MEDIA_MODE_LABELS.on_close, short: 'When I leave', hint: 'Unsaved vanish the moment you close the chat' },
+  { id: 'view_once', label: MEDIA_MODE_LABELS.view_once, short: 'After viewing', hint: 'Disappears once seen (keep manually saved)' },
   { id: 'replay_once', label: MEDIA_MODE_LABELS.replay_once, short: 'Replay once', hint: 'One extra replay allowed' },
   { id: 'keep', label: MEDIA_MODE_LABELS.keep, short: 'Keep in chat', hint: 'Stays until you delete' },
   { id: 'permanent', label: MEDIA_MODE_LABELS.permanent, short: 'Keep forever', hint: 'Messages stay in chat' },

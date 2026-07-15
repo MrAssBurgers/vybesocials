@@ -634,7 +634,7 @@ function InlinePostList({
               </div>
             )}
           >
-            <MemoizedPostCard post={post} eager={index < 8} />
+            <MemoizedPostCard post={post} eager={index < 8} disableEnterMotion={virtualized} />
           </ErrorBoundary>
           {/* Early load-more sentinel — fires 5 posts before the end */}
           {!virtualized && index === earlyTriggerIndex && (

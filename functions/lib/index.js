@@ -47,6 +47,8 @@ export * from './vybeScore.js';
 export * from './friendProfile.js';
 export * from './locationSharing.js';
 export * from './dmInboxProjection.js';
+export * from './contactMatch.js';
+export * from './purgeUnsavedOnLeave.js';
 /**
  * Promote a user to admin via custom claim. Bootstrap the first admin
  * manually in Firebase Console → Authentication → User → Custom Claims:

@@ -126,7 +126,13 @@ export async function generateVybeTheme(
   const parsed = buildThemeFromPrompt(effectivePrompt || prompt, { selectedVibe, basePreset });
   const brandId = detectBrandFromPrompt(hasTypedPrompt ? typedText : effectivePrompt || prompt);
   const brandTheme = brandId ? buildBrandTheme(brandId) : null;
-  const brandHint = brandId ? brandThemePromptHint(brandId) : promptThemeAiHint(parsed);
+  // Only inject exact HSL anchors when parse confidence proves they came from the prompt.
+  // Low-confidence defaults used to inject purple "Violet Eclipse" and force purple themes.
+  const brandHint = brandId
+    ? brandThemePromptHint(brandId)
+    : parsed.confidence >= 0.75
+      ? promptThemeAiHint(parsed)
+      : 'Design colors that literally match the user request (scenes, materials, brands, moods). Do NOT default to purple or violet unless the user asked for it.';
 
   const userPrompt = [
     hasTypedPrompt ? `Primary request (match literally): ${typedText}` : effectivePrompt,
@@ -208,8 +214,10 @@ export async function generateVybeTheme(
   const vibe =
     selectedVibe ||
     detectVibeFromPrompt(effectivePrompt || prompt) ||
-    (basePreset && basePreset !== 'classic' ? basePreset : 'dark');
-  const fallback = brandTheme ?? (parsed.confidence >= 0.4 ? parsed.theme : buildLocalVibeTheme(vibe));
+    (basePreset && basePreset !== 'classic' ? basePreset : null);
+  const fallback =
+    brandTheme ??
+    (parsed.confidence >= 0.4 || !vibe ? parsed.theme : buildLocalVibeTheme(vibe));
 
   const cloudMsg = formatAiFeatureError(cloudError, '');
   const aiFailed = hasTypedPrompt && !cloudTheme && !clientRaw;

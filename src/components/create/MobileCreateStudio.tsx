@@ -23,7 +23,7 @@ import { Sound } from '@/hooks/useSounds';
 import { isCameraSafeMode } from '@/lib/cameraSafeMode';
 import { captureVideoFrameWithAR } from '@/lib/arCapture';
 import { isARSupported, clearARDisabledForSession } from '@/lib/arEngine';
-import { createCameraMediaRecorder, recordingBlobType } from '@/lib/cameraRecording';
+import { buildRecordingFile, createCameraMediaRecorder, startCameraRecorder } from '@/lib/cameraRecording';
 import { acquirePostCameraStream, attachAudioToStream, stopStream } from '@/lib/postCameraStream';
 import { useDoubleTapCameraFlip } from '@/hooks/useDoubleTapCameraFlip';
 import { resolveVideoContentType } from '@/lib/resolveVideoContentType';
@@ -412,20 +412,21 @@ export function MobileCreateStudio({ onClose, initialSound }: MobileCreateStudio
       setIsRecording(true);
       recordedChunksRef.current = [];
       const recorder = createCameraMediaRecorder(streamRef.current);
-      const mimeType = recorder.mimeType || recordingBlobType();
       recorder.ondataavailable = (e) => { if (e.data.size > 0) recordedChunksRef.current.push(e.data); };
       recorder.onstop = () => {
-        const blob = new Blob(recordedChunksRef.current, { type: mimeType });
+        const { blob, file } = buildRecordingFile(
+          recordedChunksRef.current,
+          recorder,
+          `vybe-video-${Date.now()}`,
+        );
         if (blob.size > 0) {
-          const ext = mimeType.includes('mp4') ? 'mp4' : 'webm';
-          const file = new File([blob], `vybe-video-${Date.now()}.${ext}`, { type: mimeType });
           const url = URL.createObjectURL(blob);
           setCapturedFiles([file]);
           setCapturedPreviews([url]);
           setPhase('compose');
         }
       };
-      recorder.start(100);
+      startCameraRecorder(recorder);
       mediaRecorderRef.current = recorder;
       const startTime = Date.now();
       const updateProgress = () => {

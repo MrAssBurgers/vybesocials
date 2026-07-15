@@ -4268,6 +4268,16 @@ body.has-liquid-bg:not(.has-custom-bg) #main-content {
                 0 0 24px var(--particle-color, hsl(var(--primary) / 0.5));
   }
 
+  /* Smooth recording chrome (avoids harsh opacity flip from animate-pulse) */
+  @keyframes vybe-rec-dot {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.45; transform: scale(0.85); }
+  }
+  @keyframes vybe-rec-glow {
+    0%, 100% { opacity: 0.7; transform: scale(1); }
+    50% { opacity: 1; transform: scale(1.04); }
+  }
+
   /* Orbiting sparkles for AI Brief loading */
   @keyframes orbit-sparkle {
     0% {
@@ -5401,6 +5411,9 @@ body.has-liquid-bg:not(.has-custom-bg) #main-content {
     opacity: 0.85;
     filter: saturate(1.65) brightness(1.18)
       drop-shadow(0 0 7px hsl(var(--primary) / 0.28));
+  }
+  html.is-scrolling .post-aurora-outline {
+    animation-play-state: paused;
   }
 
   /* Light mode: thinner edge, less glow so it doesn't wash out the card */

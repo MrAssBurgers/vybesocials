@@ -7,7 +7,8 @@ export type MediaAccessMode =
   | 'timed'
   | 'keep'
   | 'permanent'
-  | '24h';
+  | '24h'
+  | 'on_close';
 
 export interface MessageMediaRule {
   message_id: string;
@@ -23,11 +24,16 @@ export function viewModeToMediaMode(viewMode: ViewMode | string): MediaAccessMod
     case 'view_once':
       return 'view_once';
     case '24h':
+    case 'timed':
       return 'timed';
+    case 'on_close':
+      return 'on_close';
     case 'permanent':
       return 'permanent';
     case 'replay_once':
       return 'replay_once';
+    case 'keep':
+      return 'keep';
     case 'vybe_locked':
       return 'view_once';
     default:
@@ -38,11 +44,16 @@ export function viewModeToMediaMode(viewMode: ViewMode | string): MediaAccessMod
 export function mediaModeToViewMode(mode: MediaAccessMode): ViewMode {
   switch (mode) {
     case 'view_once':
-    case 'replay_once':
       return 'view_once';
+    case 'replay_once':
+      return 'replay_once';
     case 'timed':
-    case 'keep':
+    case '24h':
       return '24h';
+    case 'on_close':
+      return 'on_close';
+    case 'keep':
+      return 'keep';
     case 'permanent':
     default:
       return 'permanent';
@@ -72,4 +83,5 @@ export const MEDIA_MODE_LABELS: Record<MediaAccessMode, string> = {
   keep: 'Keep in chat',
   permanent: 'Permanent',
   '24h': '24 hours',
+  on_close: 'Delete when I leave',
 };

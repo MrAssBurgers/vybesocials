@@ -52,7 +52,7 @@ export function ConversationOptionsMenu({
     setShowDeleteConfirm(false);
     // Navigate back to messages list if currently in this conversation
     if (window.location.pathname.includes(conversationId)) {
-      leaveDmConversation(navigate);
+      leaveDmConversation(navigate, conversationId);
     }
   };
 

@@ -93,14 +93,33 @@ function emitDespiaHeading(sample: DeviceHeadingSample) {
   });
 }
 
+function shortestHeadingDelta(a: number, b: number): number {
+  return ((a - b + 540) % 360) - 180;
+}
+
+let despiaSmoothed: number | null = null;
+let despiaLastEmit = 0;
+let despiaLastEmittedHeading: number | null = null;
+
 function onDespiaGyroscopeChange(data: GyroPayload) {
   if (!data || typeof data !== 'object') return;
   if (data.status === 'error') return;
-  // Calibration streams heading with poor accuracy — still use it for live follow.
   const heading = data.heading;
   if (typeof heading !== 'number' || !Number.isFinite(heading) || heading < 0) return;
+
+  const raw = normalizeHeadingDeg(heading);
+  // Stronger low-pass — threshold=0 stream is noisy and was causing arrow spasm.
+  despiaSmoothed = lerpHeading(despiaSmoothed, raw, 0.18);
+  const now = Date.now();
+  const moved =
+    despiaLastEmittedHeading == null ||
+    Math.abs(shortestHeadingDelta(despiaSmoothed, despiaLastEmittedHeading)) >= 0.75;
+  if (!moved && now - despiaLastEmit < 48) return;
+  despiaLastEmit = now;
+  despiaLastEmittedHeading = despiaSmoothed;
+
   emitDespiaHeading({
-    heading: normalizeHeadingDeg(heading),
+    heading: despiaSmoothed,
     source: 'despia',
     accuracy: typeof data.headingAccuracy === 'number' ? data.headingAccuracy : undefined,
   });

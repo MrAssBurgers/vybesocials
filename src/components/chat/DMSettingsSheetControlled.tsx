@@ -193,23 +193,40 @@ export function DMSettingsSheetControlled({ conversationId, open, onOpenChange }
               Disappearing Messages
             </Label>
             <Select
-              value={String(settings.disappearing_message_seconds ?? 0)}
-              onValueChange={(value) =>
+              value={
+                settings.delete_unsaved_on_leave
+                  ? 'leave'
+                  : String(settings.disappearing_message_seconds ?? 0)
+              }
+              onValueChange={(value) => {
+                if (value === 'leave') {
+                  handleUpdateSettings({
+                    disappearing_message_seconds: null,
+                    delete_unsaved_on_leave: true,
+                  });
+                  return;
+                }
                 handleUpdateSettings({
                   disappearing_message_seconds: Number(value) || null,
-                })
-              }
+                  delete_unsaved_on_leave: false,
+                });
+              }}
             >
               <SelectTrigger aria-label="Disappearing message default">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="0">Off</SelectItem>
+                <SelectItem value="leave">Delete unsaved when I leave</SelectItem>
                 <SelectItem value="86400">24 hours</SelectItem>
                 <SelectItem value="604800">7 days</SelectItem>
                 <SelectItem value="2592000">30 days</SelectItem>
               </SelectContent>
             </Select>
+            <p className="text-[11px] text-muted-foreground">
+              Manually saved messages are never auto-deleted. Timer chip in the chat header
+              still controls each new message.
+            </p>
           </div>
 
           {/* Typing Indicator Control */}

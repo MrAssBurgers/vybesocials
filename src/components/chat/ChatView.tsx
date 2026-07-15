@@ -402,8 +402,17 @@ export function ChatView() {
   const [viewMode, setViewMode] = useState<ViewMode>(() => {
     try {
       const saved = localStorage.getItem('vybe-dm-view-mode');
-      if (saved === 'permanent' || saved === '24h' || saved === 'view_once') {
-        return saved;
+      const allowed: ViewMode[] = [
+        'permanent',
+        '24h',
+        'view_once',
+        'on_close',
+        'replay_once',
+        'keep',
+        'timed',
+      ];
+      if (saved && (allowed as string[]).includes(saved)) {
+        return saved as ViewMode;
       }
     } catch { /* ignore */ }
     return '24h';

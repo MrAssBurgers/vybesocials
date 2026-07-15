@@ -48,6 +48,8 @@ export * from './vybeScore.js';
 export * from './friendProfile.js';
 export * from './locationSharing.js';
 export * from './dmInboxProjection.js';
+export * from './contactMatch.js';
+export * from './purgeUnsavedOnLeave.js';
 
 
 /**

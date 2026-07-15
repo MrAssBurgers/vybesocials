@@ -204,14 +204,16 @@ export function VybeRecordButton({
         {/* Glow behind button when recording - GPU accelerated */}
         {isRecording && (
           <div
-            className="absolute rounded-full animate-pulse"
-            style={{ 
+            className="absolute rounded-full"
+            style={{
               width: '120%',
               height: '120%',
               left: '-10%',
               top: '-10%',
-              background: 'radial-gradient(circle, hsl(var(--primary) / 0.5) 0%, hsl(var(--accent) / 0.2) 50%, transparent 70%)',
-              animationDuration: '1s',
+              background:
+                'radial-gradient(circle, hsl(var(--primary) / 0.45) 0%, hsl(var(--accent) / 0.18) 50%, transparent 70%)',
+              animation: 'vybe-rec-glow 1.6s ease-in-out infinite',
+              willChange: 'opacity, transform',
             }}
           />
         )}

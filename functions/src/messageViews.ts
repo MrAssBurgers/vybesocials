@@ -36,7 +36,25 @@ export const onMessageViewCreated = onDocumentCreated(
       return;
     }
 
-    if (viewMode === 'replay_once' || viewMode === 'view_once') {
+    if (viewMode === '24h' || viewMode === 'timed') {
+      const saved = msg.saved_by_sender === true || msg.saved_by_recipient === true;
+      if (!saved) {
+        const existing = asString(msg.expires_at);
+        // Start (or refresh) the 24h clock from first open — not send time.
+        if (!existing) {
+          await msgRef.set(
+            {
+              expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+              viewed_at: now,
+              updated_at: now,
+            },
+            { merge: true },
+          );
+        }
+      }
+    }
+
+    if (viewMode === 'replay_once') {
       const maxReplays = typeof msg.max_replays === 'number' ? msg.max_replays : 1;
       const replayCount = (typeof msg.replay_count === 'number' ? msg.replay_count : 0) + 1;
       const updates: Record<string, unknown> = {

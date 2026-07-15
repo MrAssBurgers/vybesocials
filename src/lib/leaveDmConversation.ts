@@ -22,6 +22,18 @@ export function prepareDmLeaveSideEffects(): void {
   }
 }
 
+async function firePurgeUnsavedOnLeave(conversationId: string): Promise<void> {
+  try {
+    const { invokeFunction } = await import('@/lib/firebase/functionsService');
+    await Promise.race([
+      invokeFunction('purge_unsaved_on_leave', { conversationId }),
+      new Promise<null>((resolve) => setTimeout(() => resolve(null), 2500)),
+    ]);
+  } catch {
+    /* never block leaving the thread */
+  }
+}
+
 /**
  * Leave an open DM thread and show the inbox.
  * Always `replace` so Android/hardware back and swipe-back don't immediately
@@ -30,8 +42,13 @@ export function prepareDmLeaveSideEffects(): void {
  * Also sets a short suppress window so the leave tap cannot ghost-reopen a
  * conversation row that remounts under the same pointer coordinates.
  */
-export function leaveDmConversation(navigate: NavigateFunction): void {
+export function leaveDmConversation(
+  navigate: NavigateFunction,
+  conversationId?: string | null,
+): void {
   prepareDmLeaveSideEffects();
+  // Navigate immediately so Back feels instant; purge continues in parallel.
+  if (conversationId) void firePurgeUnsavedOnLeave(conversationId);
   navigate('/messages', { replace: true });
 }
 

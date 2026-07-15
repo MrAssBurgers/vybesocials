@@ -19,7 +19,7 @@ import { toast } from 'sonner';
 import { FullscreenPortal } from '@/components/layout/FullscreenPortal';
 import { captureVideoFrame } from '@/lib/cameraCapture';
 import { useDoubleTapCameraFlip } from '@/hooks/useDoubleTapCameraFlip';
-import { createCameraMediaRecorder, recordingBlobType } from '@/lib/cameraRecording';
+import { buildRecordingFile, createCameraMediaRecorder, startCameraRecorder } from '@/lib/cameraRecording';
 import { acquirePostCameraStream, attachAudioToStream, stopStream } from '@/lib/postCameraStream';
 import { bakeCameraEdits, bakedCameraFileName, type CameraDrawPath, type CameraTextOverlay } from '@/lib/bakeCameraEdits';
 import type { CameraMode, CaptureTarget } from '@/lib/camera/cameraConfig';
@@ -282,28 +282,36 @@ export function Camera({
       triggerHaptic('heavy');
       recordedChunksRef.current = [];
       const recorder = createCameraMediaRecorder(streamRef.current);
-      const mimeType = recorder.mimeType || recordingBlobType();
       recorder.ondataavailable = (e) => { if (e.data.size > 0) recordedChunksRef.current.push(e.data); };
       recorder.onstop = () => {
-        const blob = new Blob(recordedChunksRef.current, { type: mimeType });
+        const { blob, file } = buildRecordingFile(
+          recordedChunksRef.current,
+          recorder,
+          'camera-video',
+        );
+        if (blob.size <= 0) {
+          toast.error('Recording failed — try again');
+          return;
+        }
         const url = URL.createObjectURL(blob);
-        const ext = mimeType.includes('mp4') ? 'mp4' : 'webm';
-        const file = new File([blob], `camera-video.${ext}`, { type: mimeType });
         finalizeCapture({ url, type: 'video', file });
       };
-      recorder.start(100);
+      startCameraRecorder(recorder);
       mediaRecorderRef.current = recorder;
       setIsRecording(true);
       setRecordingDuration(0);
       const recordingStartTime = Date.now();
       const updateDuration = () => {
-        const elapsed = Math.floor((Date.now() - recordingStartTime) / 1000);
+        const elapsed = (Date.now() - recordingStartTime) / 1000;
         progressRef.current = elapsed;
         if (elapsed >= maxRecSec) stopRecording();
         else progressFrameRef.current = requestAnimationFrame(updateDuration);
       };
       progressFrameRef.current = requestAnimationFrame(updateDuration);
-      recordingIntervalRef.current = setInterval(() => { setRecordingDuration(progressRef.current); }, 1000);
+      // ~10fps UI ticks — 1s interval made the timer + ring feel stuttered.
+      recordingIntervalRef.current = setInterval(() => {
+        setRecordingDuration(progressRef.current);
+      }, 100);
     } catch (err) {
       console.warn('[Camera] Recording failed:', err);
       toast.error('Video recording is not supported on this device');
@@ -472,16 +480,17 @@ export function Camera({
                 });
               }
 
-              if (capturedMedia.url.startsWith('blob:')) {
-                URL.revokeObjectURL(capturedMedia.url);
-              }
               edited.overlays.forEach((o) => {
                 if (o.imageUrl?.startsWith('blob:')) URL.revokeObjectURL(o.imageUrl);
               });
 
-              const url = hadEdits || baked !== capturedMedia.file
-                ? URL.createObjectURL(file)
-                : capturedMedia.url;
+              // Never revoke before we have a replacement URL — reused blob URLs
+              // break video playback when Object URL is revoked early.
+              const needsNewUrl = hadEdits || baked !== capturedMedia.file;
+              const url = needsNewUrl ? URL.createObjectURL(file) : capturedMedia.url;
+              if (needsNewUrl && capturedMedia.url.startsWith('blob:')) {
+                URL.revokeObjectURL(capturedMedia.url);
+              }
 
               const media = { file, url, type: capturedMedia.type };
 
@@ -663,9 +672,10 @@ export function Camera({
             exit={{ opacity: 0, scale: 0.8 }}
             className="absolute top-safe left-1/2 -translate-x-1/2 z-30 flex items-center gap-2 bg-destructive/80 px-3 py-1 rounded-full backdrop-blur-sm pointer-events-none"
           >
-            <motion.div animate={{ opacity: [1, 0.3, 1] }} transition={{ repeat: Infinity, duration: 1 }} className="w-2 h-2 bg-white rounded-full" />
-            <span className="text-white font-mono text-xs font-medium">
-              {Math.floor(recordingDuration / 60).toString().padStart(2, '0')}:{(recordingDuration % 60).toString().padStart(2, '0')}
+            <div className="w-2 h-2 bg-white rounded-full opacity-90" style={{ animation: 'vybe-rec-dot 1.2s ease-in-out infinite' }} />
+            <span className="text-white font-mono text-xs font-medium tabular-nums">
+              {Math.floor(recordingDuration / 60).toString().padStart(2, '0')}:
+              {Math.floor(recordingDuration % 60).toString().padStart(2, '0')}
             </span>
           </motion.div>
         )}

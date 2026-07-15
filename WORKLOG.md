@@ -2,6 +2,25 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## PUBLISH handoff (2026-07-14) — camera + chat timers + contacts
+
+- **Merged to `origin/main`:** _(pending)_ — camera recording playback/REC, DM ephemeral timers, contacts sync, theme fallback, map heading, feed scroll pause
+- **Firebase staging hosting:** _(pending)_
+- **Backend already on `vybe-daaab`:** `purgeUnsavedOnLeave`, `sendDmMessage`, `onMessageViewCreated`, `purgeExpiredMessages`, Firestore rules
+- **Production `vybehub.app`:** **Lovable → Share → Publish** after git sync — Cursor cannot click Publish
+- **Lovable:** https://lovable.dev/projects/416714c8-d013-4aff-984d-522418a9bbc7
+- **After Publish:** hard-refresh → record video plays · DM 24h / When I leave · saved kept · contact sync
+
+---
+
+## Camera recording + chat delete timers (2026-07-14)
+
+- **What changed:** Camera blob MIME + revoke fix + smoother REC; `on_close` + leave purge; 24h expires at send; DM Settings leave-purge; contacts/theme/map/feed polish from same batch
+- **Tests:** cameraRecording + leaveDmConversation unit tests; `npm run build` ✅
+- **Next:** Lovable Publish · hard-refresh verify
+
+---
+
 ## PUBLISH handoff (2026-07-14) — hold menu + map heading + search
 
 - **Merged to `origin/main`:** `51b111e2` (DM hold options, Despia gyro heading/follow, map search settings layout)

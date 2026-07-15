@@ -92,26 +92,59 @@ export const auth2faPreauth = onCall(async (request) => {
 /** auth-2fa-verify-phone — verify phone OTP. */
 export const auth2faVerifyPhone = onCall(async (request) => {
     const uid = requireAuth(request);
-    const { code: provided } = (request.data || {});
-    const ref = db.collection('auth_challenges').doc(`${uid}_phone`);
+    const { code: provided, challengeId, phone: clientPhone } = (request.data || {});
+    const challengeDocId = challengeId && String(challengeId).trim()
+        ? String(challengeId).trim()
+        : `${uid}_phone`;
+    const ref = db.collection('auth_challenges').doc(challengeDocId);
     const data = (await ref.get()).data();
-    if (!data || data.expires_at < Date.now() || data.code_hash !== provided) {
+    if (!data || (data.expires_at ?? 0) < Date.now() || data.code_hash !== provided) {
+        throw new HttpsError('permission-denied', 'Invalid code');
+    }
+    if (data.user_id && data.user_id !== uid) {
         throw new HttpsError('permission-denied', 'Invalid code');
     }
     await ref.delete();
-    await db.collection('profiles').doc(uid).set({ phone_verified: true }, { merge: true });
-    return { ok: true };
+    const phoneE164 = (data.phone_e164 || clientPhone || '').trim();
+    const update = {
+        phone_verified: true,
+        updated_at: new Date().toISOString(),
+    };
+    if (phoneE164.startsWith('+')) {
+        const { createHash } = await import('crypto');
+        update.phone_number = phoneE164;
+        update.phone_e164_sha256 = createHash('sha256').update(phoneE164.toLowerCase()).digest('hex');
+    }
+    await db.collection('profiles').doc(uid).set(update, { merge: true });
+    // Also merge when profile id ≠ auth uid
+    const byUser = await db.collection('profiles').where('user_id', '==', uid).limit(1).get();
+    for (const doc of byUser.docs) {
+        if (doc.id !== uid)
+            await doc.ref.set(update, { merge: true });
+    }
+    return { ok: true, phone: phoneE164 || undefined };
 });
 /** phone-verify-request / confirm — send & confirm SMS code (Twilio integration deferred to Phase 6). */
 export const phoneVerifyRequest = onCall(async (request) => {
     const uid = requireAuth(request);
     enforceRateLimit(await rateLimit(`phone-req:${uid}`, 3, 600));
+    const { phone } = (request.data || {});
+    const phoneE164 = typeof phone === 'string' ? phone.trim() : '';
     const c = code();
-    await db.collection('auth_challenges').doc(`${uid}_phone`).set({
-        user_id: uid, code_hash: c, channel: 'sms',
-        expires_at: Date.now() + 10 * 60 * 1000, created_at: new Date().toISOString(),
+    const challengeId = `${uid}_phone`;
+    await db.collection('auth_challenges').doc(challengeId).set({
+        user_id: uid,
+        code_hash: c,
+        channel: 'sms',
+        phone_e164: phoneE164.startsWith('+') ? phoneE164 : null,
+        expires_at: Date.now() + 10 * 60 * 1000,
+        created_at: new Date().toISOString(),
     });
-    return { ok: true, dev_code: process.env.NODE_ENV === 'production' ? undefined : c };
+    return {
+        ok: true,
+        challengeId,
+        dev_code: process.env.NODE_ENV === 'production' ? undefined : c,
+    };
 });
 export const phoneVerifyConfirm = auth2faVerifyPhone;
 import { dispatchOneSignalToProfile, resolvePushTargetProfileId } from './_shared/onesignalPush.js';

@@ -320,7 +320,7 @@ function NaturalAspectImage({
       )}
       {displaySrc && (
         <img
-          key={`${displaySrc}-${retryCount}`}
+          key={`img-${retryCount}`}
           src={displaySrc}
           alt={caption || ''}
           className={cn(
@@ -369,9 +369,15 @@ interface PostCardProps {
   };
   /** Load media eagerly at high priority — only for the first couple of posts above the fold */
   eager?: boolean;
+  /** Skip enter motion when the feed virtualizes (remounts would look like spasm). */
+  disableEnterMotion?: boolean;
 }
 
-export const PostCard = memo(function PostCard({ post, eager = false }: PostCardProps) {
+export const PostCard = memo(function PostCard({
+  post,
+  eager = false,
+  disableEnterMotion = false,
+}: PostCardProps) {
   const { profile } = useAuth();
   const { isGuest } = useIsGuest();
   const queryClient = useQueryClient();
@@ -591,7 +597,7 @@ export const PostCard = memo(function PostCard({ post, eager = false }: PostCard
 
   if (isHidden) return null;
 
-  const listMotionEnabled = shouldUseListMotion();
+  const listMotionEnabled = shouldUseListMotion() && !disableEnterMotion;
   const PostCardRoot = listMotionEnabled ? motion.article : 'article';
   const postCardMotionProps = listMotionEnabled
     ? { initial: { opacity: 0, y: 8 }, animate: { opacity: 1, y: 0 }, transition: T.enter }

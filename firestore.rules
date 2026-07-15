@@ -784,8 +784,28 @@ service cloud.firestore {
         allow read: if isMember(cid);
         // Client creates denied — all DM inserts go through sendDmMessage callable.
         allow create: if false;
-        allow update, delete: if signedIn() &&
+        allow delete: if signedIn() &&
           (ownsProfileId(resource.data.sender_id) || isAdmin());
+        // Sender full update; other members may only touch view/save/expiry fields
+        // (needed for 24h timer + keep on save when the recipient is not the sender).
+        allow update: if signedIn() && (
+          ownsProfileId(resource.data.sender_id) ||
+          isAdmin() ||
+          (
+            isMember(cid) &&
+            request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+              'expires_at',
+              'viewed_at',
+              'saved_by_sender',
+              'saved_by_recipient',
+              'saved_at',
+              'updated_at',
+              'replay_count',
+              'vybe_replay_exhausted',
+              'view_mode'
+            ])
+          )
+        );
       }
       match /typing/{typingUid} {
         allow read: if isMember(cid);
@@ -818,7 +838,21 @@ service cloud.firestore {
       // Client creates denied — all DM inserts go through sendDmMessage callable
       // (blocked-user checks, rate limits, schema/media/membership validation).
       allow create: if false;
-      allow update, delete: if ownsProfileId(resource.data.sender_id) || isAdmin();
+      allow delete: if ownsProfileId(resource.data.sender_id) || isAdmin();
+      allow update: if ownsProfileId(resource.data.sender_id) || isAdmin() || (
+        isConversationParticipant(resource.data.conversation_id) &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'expires_at',
+          'viewed_at',
+          'saved_by_sender',
+          'saved_by_recipient',
+          'saved_at',
+          'updated_at',
+          'replay_count',
+          'vybe_replay_exhausted',
+          'view_mode'
+        ])
+      );
     }
 
     // Server-written send audit (Admin SDK only).

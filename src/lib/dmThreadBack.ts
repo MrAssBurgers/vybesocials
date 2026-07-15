@@ -26,8 +26,12 @@ export function tryCloseDmThreadOverlay(): boolean {
 export function requestDmThreadBack(navigate?: NavigateFunction | null): void {
   if (tryCloseDmThreadOverlay()) return;
   const nav = navigate ?? navigationRef.current;
+  const path = typeof window !== 'undefined' ? window.location.pathname : '';
+  const conversationId = isDmConversationPath(path)
+    ? path.slice('/messages/'.length).split(/[/?#]/)[0] || null
+    : null;
   if (nav) {
-    leaveDmConversation(nav);
+    leaveDmConversation(nav, conversationId);
     return;
   }
   // Last resort without React navigate (should be rare).
@@ -35,6 +39,13 @@ export function requestDmThreadBack(navigate?: NavigateFunction | null): void {
     document.documentElement.removeAttribute('data-dm-active');
   }
   if (typeof window !== 'undefined' && isDmConversationPath(window.location.pathname)) {
+    if (conversationId) {
+      void import('@/lib/firebase/functionsService')
+        .then(({ invokeFunction }) =>
+          invokeFunction('purge_unsaved_on_leave', { conversationId }),
+        )
+        .catch(() => {});
+    }
     window.history.replaceState(window.history.state, '', '/messages');
     window.dispatchEvent(new PopStateEvent('popstate'));
   }

@@ -22,7 +22,15 @@ const ALLOWED_MESSAGE_TYPES = new Set([
     'screen_recording_notification',
     'system',
 ]);
-const ALLOWED_VIEW_MODES = new Set(['permanent', 'view_once', 'replay_once', '24h', 'keep']);
+const ALLOWED_VIEW_MODES = new Set([
+    'permanent',
+    'view_once',
+    'replay_once',
+    '24h',
+    'timed',
+    'keep',
+    'on_close',
+]);
 async function resolveProfileId(authUid) {
     const index = await db.collection('user_auth_index').doc(authUid).get();
     const fromIndex = index.data()?.profile_id;
@@ -320,7 +328,11 @@ export const sendDmMessage = onCall({ region: 'us-central1' }, async (request) =
         }
     }
     const now = new Date().toISOString();
-    const expiresAt = viewMode === '24h' ? new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString() : null;
+    // 24h/timed: start the clock at send so unsaved messages purge even if never opened.
+    // on_close / view_once: no expires_at here — leave-purge or first view handles it.
+    const expiresAt = viewMode === '24h' || viewMode === 'timed'
+        ? new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
+        : null;
     const msgRef = db.collection('messages').doc();
     const message = {
         id: msgRef.id,

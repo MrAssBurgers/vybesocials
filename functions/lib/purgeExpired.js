@@ -2,7 +2,7 @@ import { onSchedule } from 'firebase-functions/v2/scheduler';
 import { db } from './_shared/admin.js';
 const BATCH = 200;
 /** Hard-delete expired DMs/snaps unless saved by either party. */
-export const purgeExpiredMessages = onSchedule({ schedule: 'every 60 minutes', region: 'us-central1' }, async () => {
+export const purgeExpiredMessages = onSchedule({ schedule: 'every 5 minutes', region: 'us-central1' }, async () => {
     const now = new Date().toISOString();
     const snap = await db
         .collection('messages')

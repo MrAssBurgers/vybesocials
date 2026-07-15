@@ -31,6 +31,8 @@ export interface DMSettings {
   reaction_notifications: boolean;
   media_auto_download: boolean;
   disappearing_message_seconds: number | null;
+  /** When true, leaving the chat hard-deletes all unsaved messages (any view_mode). */
+  delete_unsaved_on_leave: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -49,6 +51,7 @@ const defaultSettings: Partial<DMSettings> = {
   reaction_notifications: true,
   media_auto_download: true,
   disappearing_message_seconds: null,
+  delete_unsaved_on_leave: false,
 };
 
 export function useDMSettings(conversationId: string | undefined) {
@@ -100,6 +103,10 @@ export function useDMSettings(conversationId: string | undefined) {
           updates.disappearing_message_seconds !== undefined
             ? updates.disappearing_message_seconds
             : query.data?.disappearing_message_seconds ?? defaultSettings.disappearing_message_seconds,
+        delete_unsaved_on_leave:
+          updates.delete_unsaved_on_leave !== undefined
+            ? updates.delete_unsaved_on_leave
+            : query.data?.delete_unsaved_on_leave ?? defaultSettings.delete_unsaved_on_leave,
         updated_at: new Date().toISOString(),
       };
 

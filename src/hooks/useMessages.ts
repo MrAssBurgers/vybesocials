@@ -31,7 +31,7 @@ import {
 import { insertDmMessage } from '@/lib/dmSendCore';
 import { haptics } from '@/lib/haptics';
 
-export type ViewMode = 'view_once' | 'replay_once' | '24h' | 'permanent' | 'keep' | 'timed';
+export type ViewMode = 'view_once' | 'replay_once' | '24h' | 'permanent' | 'keep' | 'timed' | 'on_close';
 
 export interface Message {
   id: string;
