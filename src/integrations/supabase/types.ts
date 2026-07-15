@@ -13032,6 +13032,10 @@ export type Database = {
             Args: { p_source: string; p_user_id: string; p_xp: number }
             Returns: Json
           }
+      are_profiles_friends: {
+        Args: { _a: string; _b: string }
+        Returns: boolean
+      }
       award_badge: {
         Args: {
           p_awarded_by?: string
@@ -13393,6 +13397,18 @@ export type Database = {
           phone_number: string
           phone_verified: boolean
           stripe_customer_id: string
+        }[]
+      }
+      get_my_profile_private: {
+        Args: never
+        Returns: {
+          date_of_birth: string
+          email: string
+          id: string
+          phone_e164_sha256: string
+          phone_number: string
+          stripe_customer_id: string
+          user_id: string
         }[]
       }
       get_my_profile_sensitive: {
