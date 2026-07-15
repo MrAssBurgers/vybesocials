@@ -290,28 +290,6 @@ export function ChatView() {
       else clearTimeout(idleId);
     };
   }, [messages]);
-  
-  // #region agent log
-  useEffect(() => {
-    fetch('http://127.0.0.1:7693/ingest/1847f3ab-7d03-4b99-8dbe-84076ae9145e', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': 'adb115' },
-      body: JSON.stringify({
-        sessionId: 'adb115',
-        runId: 'ios-shell',
-        hypothesisId: 'D1',
-        location: 'ChatView.tsx:mount',
-        message: 'chatview_idle_apis',
-        data: {
-          hasRIC: typeof window.requestIdleCallback === 'function',
-          hasCIC: typeof window.cancelIdleCallback === 'function',
-          convLen: conversationId?.length ?? 0,
-        },
-        timestamp: Date.now(),
-      }),
-    }).catch(() => {});
-  }, [conversationId]);
-  // #endregion
 
   // Enable realtime sync for this specific conversation (reactions, views, etc.)
   useRealtimeMessages(conversationId);

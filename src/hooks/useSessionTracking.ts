@@ -75,25 +75,6 @@ export function useSessionTracking() {
           }
           if (trackedSessionId) localStorage.setItem(idKey, trackedSessionId);
           localStorage.setItem(trackedKey, String(Date.now()));
-          // #region agent log
-          fetch('http://127.0.0.1:7693/ingest/1847f3ab-7d03-4b99-8dbe-84076ae9145e', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': 'adb115' },
-            body: JSON.stringify({
-              sessionId: 'adb115',
-              runId: 'ios-shell',
-              hypothesisId: 'S1',
-              location: 'useSessionTracking.ts',
-              message: 'session_resume_notify',
-              data: {
-                notified: !!payload?.notified,
-                hasChallenge: !!payload?.challengeId,
-                fpLen: deviceFingerprint.length,
-              },
-              timestamp: Date.now(),
-            }),
-          }).catch(() => {});
-          // #endregion
         } else if (trackedSessionId) {
           // Known install — soft heartbeat for revoke checks only.
           void db.functions.invoke('auth-login-notify', {
