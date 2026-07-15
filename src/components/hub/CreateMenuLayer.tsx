@@ -10,7 +10,8 @@ import { playSound } from "@/lib/sounds";
 import { useIsMobileOrTablet } from "@/hooks/use-mobile";
 import { useUserRole } from "@/hooks/useModeration";
 import { useAuth } from "@/lib/auth";
-import { openSnapCamera, useCameraOverlayOptional } from "@/contexts/CameraOverlayContext";
+import { openSnapCamera } from "@/contexts/cameraOverlayActions";
+import { useCameraOverlayOptional } from "@/contexts/cameraOverlaySafe";
 
 interface CreateMenuLayerProps {
   open: boolean;

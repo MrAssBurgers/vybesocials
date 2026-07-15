@@ -91,6 +91,12 @@ const IGNORED_PATTERNS = [
   'get_auth_users_count',
   'Maximum call stack size exceeded',
   'permission-denied',
+  // Fixed camera-overlay HMR/export races — stale console noise should not re-file.
+  'useCameraOverlay must be used within CameraOverlayProvider',
+  'useCameraOverlay is not defined',
+  'useCameraOverlayOptional is not defined',
+  'useCameraOverlayOptional is not a function',
+  'useCameraOverlay is not a function',
 ];
 
 const BUG_STATUS_CODES = [400, 403, 404, 409, 422, 500, 502, 504];

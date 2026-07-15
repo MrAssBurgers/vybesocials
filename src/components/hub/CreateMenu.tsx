@@ -5,7 +5,8 @@ import { Image, Camera, X, Zap, MapPin } from 'lucide-react';
 import { triggerHaptic } from '@/lib/haptics';
 import { playSound } from '@/lib/sounds';
 import { VYBEHub } from './VYBEHub';
-import { openSnapCamera, useCameraOverlay } from '@/contexts/CameraOverlayContext';
+import { openSnapCamera } from '@/contexts/cameraOverlayActions';
+import { useCameraOverlay } from '@/contexts/cameraOverlaySafe';
 
 interface CreateMenuProps {
   isOpen: boolean;

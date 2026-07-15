@@ -18,7 +18,8 @@ import { Progress } from '@/components/ui/progress';
 import { toast } from 'sonner';
 import { validateStoryMedia, compressImage, generateStoryThumbnail, inferStoryMediaKind } from '@/lib/storyUtils';
 import { FullscreenPortal } from '@/components/layout/FullscreenPortal';
-import { openSnapCamera, useCameraOverlay } from '@/contexts/CameraOverlayContext';
+import { openSnapCamera } from '@/contexts/cameraOverlayActions';
+import { useCameraOverlay } from '@/contexts/cameraOverlaySafe';
 import { useTranslation } from 'react-i18next';
 import { useQueryClient } from '@tanstack/react-query';
 

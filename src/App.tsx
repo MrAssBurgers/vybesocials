@@ -616,9 +616,9 @@ function AppWithPreloader() {
                         <Toaster />
                         <Sonner />
                         <BrowserRouter useTransitions={false}>
+                        <CameraOverlayProvider>
                         <AgentActionBusProvider>
                         <LocationProvider>
-                          <CameraOverlayProvider>
                           <AppGlobalLiquidShell />
                           <VybeLiquidTouchShell />
                           <div
@@ -670,9 +670,9 @@ function AppWithPreloader() {
                           </Suspense>
                           {/* Touch ripple removed */}
                           </div>
-                          </CameraOverlayProvider>
                         </LocationProvider>
                         </AgentActionBusProvider>
+                        </CameraOverlayProvider>
                         </BrowserRouter>
                       </TooltipProvider>
                     </StreakProvider>

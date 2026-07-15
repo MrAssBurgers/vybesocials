@@ -20,10 +20,8 @@ import { resolveProfileAvatarUrl } from '@/lib/profileAvatarCache';
 import { openFriendProfile } from '@/lib/friendProfileRoutes';
 import type { ActivityType } from '@/components/chat/LiveActivityIndicator';
 import { Avatar, AvatarFallback, ProfileAvatarImage } from '@/components/ui/avatar';
-import {
-  openSnapCamera,
-  useCameraOverlayOptional,
-} from '@/contexts/CameraOverlayContext';
+import { openSnapCamera } from '@/contexts/cameraOverlayActions';
+import { useCameraOverlayOptional } from '@/contexts/cameraOverlaySafe';
 import { cn } from '@/lib/utils';
 import { useCallStore } from '@/lib/callStore';
 import type { DMConversationPreview } from './dm.types';

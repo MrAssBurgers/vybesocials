@@ -125,7 +125,8 @@ import {
 import { format } from 'date-fns';
 import { Toybox } from './Toybox';
 import { EmojiPicker } from './EmojiPicker';
-import { openSnapCamera, useCameraOverlay } from '@/contexts/CameraOverlayContext';
+import { openSnapCamera } from '@/contexts/cameraOverlayActions';
+import { useCameraOverlay } from '@/contexts/cameraOverlaySafe';
 import { shouldTrackSoftKeyboard } from '@/lib/keyboardInsets';
 import { Texter } from '@/components/chat/Texter';
 import { stopCameraStream } from '@/hooks/useCameraPreload';

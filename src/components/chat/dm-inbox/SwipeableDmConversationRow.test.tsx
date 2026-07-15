@@ -35,8 +35,11 @@ vi.mock('@/hooks/useDmInboxActions', () => ({
   }),
 }));
 
-vi.mock('@/contexts/CameraOverlayContext', () => ({
+vi.mock('@/contexts/cameraOverlaySafe', () => ({
   useCameraOverlayOptional: () => ({ openCamera: vi.fn() }),
+  useCameraOverlay: () => ({ openCamera: vi.fn(), closeCamera: vi.fn(), isOpen: false }),
+}));
+vi.mock('@/contexts/cameraOverlayActions', () => ({
   openSnapCamera: vi.fn(),
 }));
 

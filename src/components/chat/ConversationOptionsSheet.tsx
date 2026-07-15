@@ -54,10 +54,8 @@ import { useTrashConversation } from '@/hooks/useTrashedConversations';
 import { useCallStore } from '@/lib/callStore';
 import { useAuth } from '@/lib/auth';
 import { db } from '@/lib/firebase';
-import {
-  openSnapCamera,
-  useCameraOverlayOptional,
-} from '@/contexts/CameraOverlayContext';
+import { openSnapCamera } from '@/contexts/cameraOverlayActions';
+import { useCameraOverlayOptional } from '@/contexts/cameraOverlaySafe';
 import { invalidateConversationCaches } from '@/lib/invalidateConversationCaches';
 import { useQueryClient } from '@tanstack/react-query';
 import { triggerHaptic } from '@/lib/haptics';

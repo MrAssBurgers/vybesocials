@@ -2,10 +2,8 @@ import { useState } from 'react';
 import { Camera, MessagesSquare, PenLine, Users } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { cn } from '@/lib/utils';
-import {
-  openSnapCamera,
-  useCameraOverlayOptional,
-} from '@/contexts/CameraOverlayContext';
+import { openSnapCamera } from '@/contexts/cameraOverlayActions';
+import { useCameraOverlayOptional } from '@/contexts/cameraOverlaySafe';
 import {
   Sheet,
   SheetContent,
