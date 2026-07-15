@@ -99,14 +99,13 @@ export async function initializeNativePlugins() {
             window.dispatchEvent(new PopStateEvent('popstate'));
           }
 
-          // QR Quick Sign-In — Camera → native app deep link
-          if (parsed.pathname.includes('/auth/qr/claim') || /[?&]nonce=/.test(parsed.search)) {
-            const nonce = parsed.searchParams.get('nonce');
-            if (nonce) {
-              const claimPath = `/auth/qr/claim?nonce=${encodeURIComponent(nonce)}`;
-              window.history.pushState({}, '', claimPath);
-              window.dispatchEvent(new PopStateEvent('popstate'));
-            }
+          // QR Quick Sign-In — Camera / Universal Link / custom scheme → claim UI
+          const { parseQrSignInNonce } = await import('@/lib/qrSignIn');
+          const qrNonce = parseQrSignInNonce(url);
+          if (qrNonce) {
+            const claimPath = `/auth/qr/claim?nonce=${encodeURIComponent(qrNonce)}`;
+            window.history.pushState({}, '', claimPath);
+            window.dispatchEvent(new PopStateEvent('popstate'));
           }
         } catch (e) {
           console.warn('[Capacitor] Bad deep link:', url, e);

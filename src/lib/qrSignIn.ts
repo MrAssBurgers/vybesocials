@@ -9,8 +9,9 @@ export const QR_CLAIM_BRIDGE_PATH = '/qr-claim.html';
 /** Build a camera-scannable Universal Link for Quick Sign-In approve. */
 export function buildQrSignInClaimUrl(nonce: string): string {
   const clean = nonce.trim();
-  // Prefer SPA path — Lovable SPA fallback serves /auth/*; static .html 404s until published.
-  const url = new URL(`${getProductionOrigin()}${QR_CLAIM_PATH}`);
+  // Static bridge never 404s on hosting (SPA /auth/qr/claim has on Lovable until Publish).
+  // qr-claim.html deep-links into the app, then falls back to the SPA claim route.
+  const url = new URL(`${getProductionOrigin()}${QR_CLAIM_BRIDGE_PATH}`);
   url.searchParams.set('nonce', clean);
   return url.toString();
 }

@@ -4,7 +4,7 @@ import { buildQrSignInClaimUrl, parseQrSignInNonce } from '@/lib/qrSignIn';
 describe('qrSignIn', () => {
   it('builds a https claim URL with nonce', () => {
     const url = buildQrSignInClaimUrl('abcDEF1234567890_x');
-    expect(url).toContain('https://vybehub.app/auth/qr/claim');
+    expect(url).toContain('https://vybehub.app/qr-claim.html');
     expect(url).toContain('nonce=abcDEF1234567890_x');
   });
 

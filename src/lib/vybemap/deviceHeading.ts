@@ -49,7 +49,7 @@ export function ensureDeviceOrientationPermission(): Promise<boolean> {
 /** Low-pass toward target heading (shortest path). */
 export function lerpHeading(current: number | null, target: number, alpha = 0.28): number {
   if (current == null || !Number.isFinite(current)) return target;
-  let delta = ((target - current + 540) % 360) - 180;
+  const delta = ((target - current + 540) % 360) - 180;
   return ((current + delta * alpha) % 360 + 360) % 360;
 }
 

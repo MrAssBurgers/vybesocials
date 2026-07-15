@@ -108,11 +108,15 @@ export const SwipeableDmConversationRow = memo(function SwipeableDmConversationR
   // Hold must work on phone, tablet shell (<1024), or any touch pointer — not only <768px.
   const [touchCapable] = useState(() => {
     if (typeof window === 'undefined') return false;
-    return (
-      navigator.maxTouchPoints > 0 ||
-      window.matchMedia('(pointer: coarse)').matches ||
-      window.matchMedia('(hover: none)').matches
-    );
+    try {
+      return (
+        navigator.maxTouchPoints > 0 ||
+        window.matchMedia?.('(pointer: coarse)')?.matches === true ||
+        window.matchMedia?.('(hover: none)')?.matches === true
+      );
+    } catch {
+      return navigator.maxTouchPoints > 0;
+    }
   });
   const useGestureRow = isNarrowMobile || isMobileOrTablet || touchCapable;
   const listMotionEnabled = shouldUseListMotion();

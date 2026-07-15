@@ -12,10 +12,12 @@
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      gap: 12px;
+      gap: 14px;
       background: #0B0B10;
       color: #a1a1aa;
       font-family: system-ui, -apple-system, sans-serif;
+      padding: 24px;
+      text-align: center;
     }
     .spin {
       width: 28px;
@@ -26,11 +28,24 @@
       animation: spin 0.7s linear infinite;
     }
     @keyframes spin { to { transform: rotate(360deg); } }
+    #openApp {
+      display: none;
+      appearance: none;
+      border: 0;
+      border-radius: 12px;
+      padding: 14px 22px;
+      background: #fff;
+      color: #0B0B10;
+      font-size: 16px;
+      font-weight: 600;
+      text-decoration: none;
+    }
   </style>
 </head>
 <body>
   <div class="spin" aria-hidden="true"></div>
-  <p>Opening VYBE to finish sign-in…</p>
+  <p id="status">Opening VYBE to finish sign-in…</p>
+  <a id="openApp" href="#">Open VYBE</a>
   <script>
     (function () {
       var DEFAULT_SCHEME = 'com.despia.vybe';
@@ -50,14 +65,35 @@
       var spaPath = '/auth/qr/claim?nonce=' + encodeURIComponent(nonce);
       var appUrl = DEFAULT_SCHEME + '://auth/qr/claim?nonce=' + encodeURIComponent(nonce);
 
-      // Prefer native app (Camera → Open in VYBE). Fallback to SPA in WebView/browser.
+      var openBtn = document.getElementById('openApp');
+      var statusEl = document.getElementById('status');
+      if (openBtn) openBtn.setAttribute('href', appUrl);
+
       try {
-        window.location.replace(appUrl);
-      } catch (e) { /* ignore */ }
+        var a = document.createElement('a');
+        a.href = appUrl;
+        a.style.display = 'none';
+        document.body.appendChild(a);
+        a.click();
+      } catch (e) {}
+
+      try {
+        window.location.href = appUrl;
+      } catch (e2) {}
 
       window.setTimeout(function () {
-        window.location.replace(spaPath);
-      }, 350);
+        if (openBtn) {
+          openBtn.style.display = 'inline-block';
+          if (statusEl) statusEl.textContent = 'Tap below to open VYBE, or continue in browser.';
+        }
+      }, 600);
+
+      window.setTimeout(function () {
+        // SPA fallback if Universal Link / custom scheme did not take over.
+        if (document.visibilityState === 'visible') {
+          window.location.replace(spaPath);
+        }
+      }, 1600);
     })();
   </script>
 </body>

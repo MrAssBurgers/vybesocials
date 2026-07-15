@@ -5,7 +5,7 @@
 import { isDespiaRuntime, isNativeAppShell } from '@/lib/despiaBridge';
 import { isEmbeddedAppleWebView, isMobileSafariBrowser } from '@/lib/deviceDetection';
 import { isNativePlatform } from '@/lib/capacitor';
-import { signInWithGoogleDespia } from '@/lib/despiaOAuth';
+import { signInWithAppleDespia, signInWithGoogleDespia } from '@/lib/despiaOAuth';
 import type { VybeAuthError, VybeSession } from '@/lib/firebase/types';
 
 export type OAuthProviderId = 'google' | 'apple';
@@ -30,10 +30,9 @@ export function shouldUseRedirectOAuth(): boolean {
 
 export function shouldUseDespiaOAuth(provider: OAuthProviderId): boolean {
   if (!isDespiaRuntime()) return false;
-  if (provider === 'google') return true;
-  // Apple on iOS WebKit supports in-WebView sign-in per Despia docs.
-  if (provider === 'apple' && isEmbeddedAppleWebView()) return false;
-  return true;
+  // Google + Apple both use Despia oauth:// → ASWebAuthenticationSession Continue sheet.
+  if (provider === 'google' || provider === 'apple') return true;
+  return !isEmbeddedAppleWebView();
 }
 
 async function tryCapacitorNativeOAuth(provider: OAuthProviderId): Promise<OAuthSignInResult | null> {
@@ -54,13 +53,18 @@ async function tryDespiaGoogleOAuth(): Promise<OAuthSignInResult> {
   return { data: { session: null }, error: null, pending: true };
 }
 
+async function tryDespiaAppleOAuth(): Promise<OAuthSignInResult> {
+  const result = await signInWithAppleDespia();
+  if (result.error) {
+    return { data: { session: null }, error: result.error };
+  }
+  return { data: { session: null }, error: null, pending: true };
+}
+
 export async function signInWithOAuthPlatform(provider: OAuthProviderId): Promise<OAuthSignInResult> {
   if (shouldUseDespiaOAuth(provider)) {
-    if (provider === 'google') {
-      return tryDespiaGoogleOAuth();
-    }
-    // Apple on Android Despia — fall through to Firebase redirect in WebView is blocked;
-    // use popup attempt only as last resort (Despia iOS Apple uses WebKit below).
+    if (provider === 'google') return tryDespiaGoogleOAuth();
+    if (provider === 'apple') return tryDespiaAppleOAuth();
   }
 
   if (shouldUseNativeOAuth() && !isDespiaRuntime()) {
@@ -80,13 +84,8 @@ export async function signInWithOAuthPlatform(provider: OAuthProviderId): Promis
     return firebaseAuth.signInWithOAuth(provider, baseOpts);
   }
 
-  if (isDespiaRuntime() && provider === 'apple') {
-    const { firebaseAuth } = await import('@/lib/firebase');
-    return firebaseAuth.signInWithOAuth(provider, { useRedirect: false });
-  }
-
-  // Apple web: prefer redirect so Services-ID / return-URL errors aren't buried in a popup.
-  const useRedirect = shouldUseRedirectOAuth() || provider === 'apple';
+  // Mobile Safari: redirect. Desktop: popup (including Apple).
+  const useRedirect = shouldUseRedirectOAuth();
   const { firebaseAuth } = await import('@/lib/firebase');
   const baseOpts =
     provider === 'google'

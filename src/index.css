@@ -3553,30 +3553,28 @@ body.has-liquid-bg:not(.has-custom-bg) #main-content {
 
   /*
    * Native iOS shell: never scroll the document. WKWebView rubber-bands html/body
-   * even with overscroll-behavior:none — that makes the whole chrome feel "movable"
-   * and steals DM row taps. Inner lists keep their own overflow.
+   * even with overscroll-behavior:none. Keep height filled — do NOT position:fixed
+   * the body (that left gaps at the Dynamic Island / home indicator).
    */
   html.platform-ios.vybe-native-shell,
   html.platform-ios.vybe-native-shell body {
     height: 100%;
     max-height: 100%;
+    min-height: 100%;
+    min-height: 100dvh;
     overflow: hidden !important;
     overscroll-behavior: none !important;
     overscroll-behavior-y: none !important;
     touch-action: manipulation;
+    position: relative;
   }
 
-  html.platform-ios.vybe-native-shell body {
-    position: fixed;
-    inset: 0;
-    width: 100%;
-    min-height: 100%;
-    min-height: 100dvh;
-  }
-
-  html.platform-ios.vybe-native-shell #root {
+  html.platform-ios.vybe-native-shell #root,
+  html.platform-ios.vybe-native-shell .app-shell {
     height: 100%;
     max-height: 100%;
+    min-height: 100%;
+    min-height: 100dvh;
     overflow: hidden;
   }
 

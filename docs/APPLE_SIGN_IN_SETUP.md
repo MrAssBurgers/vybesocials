@@ -12,9 +12,11 @@
 2. Identifier **exactly:** `com.despia.vybe.web`
 3. Enable **Sign In with Apple** → Configure:
    - Primary App ID: `com.despia.vybe`
-   - Domains: `vybe-daaab.firebaseapp.com`
-   - Return URL: `https://vybe-daaab.firebaseapp.com/__/auth/handler`
+   - Domains: `vybe-daaab.firebaseapp.com`, `vybehub.app`
+   - Return URLs:
+     - `https://vybe-daaab.firebaseapp.com/__/auth/handler`
+     - `https://vybehub.app/native-callback.html` ← required for Despia iOS Apple (`oauth://` sheet)
 4. Save / Register
-5. Retry Continue with Apple on `http://127.0.0.1:8081/auth`
+5. Retry Continue with Apple in the iPhone app (should show the same Continue sheet as Google)
 
 If you already use a different Services ID string, tell Cursor that exact ID so Firebase can be patched to match.

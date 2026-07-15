@@ -2,7 +2,7 @@
  * Despia native OAuth — opens ASWebAuthenticationSession / Chrome Custom Tabs
  * via `oauth://`, then completes Firebase sign-in in the WebView from deeplink tokens.
  */
-import { GoogleAuthProvider, signInWithCredential, signInWithCustomToken } from 'firebase/auth';
+import { GoogleAuthProvider, OAuthProvider, signInWithCredential, signInWithCustomToken } from 'firebase/auth';
 import { despiaCall, isDespiaRuntime } from '@/lib/despiaBridge';
 import { getProductionOrigin } from '@/lib/authRedirect';
 import { isNativePlatform } from '@/lib/capacitor';
@@ -16,6 +16,9 @@ const DESPIA_OAUTH_PENDING_MAX_MS = 3 * 60 * 1000;
 /** Firebase web client ID (public) — matches native/android/google-services.json */
 const DEFAULT_GOOGLE_WEB_CLIENT_ID =
   '728651793473-71p1iahdr79ali0o7en8ktirklfjf3pf.apps.googleusercontent.com';
+
+/** Apple Services ID (web) — must match Firebase Auth Apple provider + Apple Developer return URLs. */
+const DEFAULT_APPLE_SERVICES_ID = 'com.despia.vybe.web';
 
 export type DespiaOAuthCompletion = {
   data: { session: VybeSession | null };
@@ -165,8 +168,36 @@ export function buildGoogleOAuthUrl(): string {
   return `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
 }
 
-/** Launch Google OAuth in Despia secure browser session. Completes asynchronously via deeplink. */
-export async function signInWithGoogleDespia(): Promise<{
+function getAppleServicesId(): string {
+  const fromEnv = import.meta.env.VITE_APPLE_SERVICES_ID;
+  if (typeof fromEnv === 'string' && fromEnv.trim()) return fromEnv.trim();
+  return DEFAULT_APPLE_SERVICES_ID;
+}
+
+/** Apple authorize URL for Despia ASWebAuthenticationSession (same Continue sheet as Google). */
+export function buildAppleOAuthUrl(): string {
+  const scheme = getDespiaDeeplinkScheme();
+  const nonce = randomNonce();
+  if (typeof sessionStorage !== 'undefined') {
+    sessionStorage.setItem(DESPIA_OAUTH_NONCE_KEY, nonce);
+  }
+
+  const state = encodeOAuthState({ scheme, nonce, provider: 'apple' });
+  const redirectUri = getNativeOAuthCallbackUrl();
+  const params = new URLSearchParams({
+    client_id: getAppleServicesId(),
+    redirect_uri: redirectUri,
+    response_type: 'code id_token',
+    response_mode: 'fragment',
+    scope: 'name email',
+    nonce,
+    state,
+  });
+
+  return `https://appleid.apple.com/auth/authorize?${params.toString()}`;
+}
+
+async function launchDespiaOAuthUrl(authUrl: string): Promise<{
   pending: boolean;
   error: VybeAuthError | null;
 }> {
@@ -176,15 +207,30 @@ export async function signInWithGoogleDespia(): Promise<{
 
   try {
     markDespiaOAuthPending();
-    const authUrl = buildGoogleOAuthUrl();
     const oauthBridge = `oauth://?url=${encodeURIComponent(authUrl)}`;
     await despiaCall(oauthBridge);
     return { pending: true, error: null };
   } catch (err) {
     clearDespiaOAuthPending();
-    const message = err instanceof Error ? err.message : 'Failed to open Google sign-in';
+    const message = err instanceof Error ? err.message : 'Failed to open sign-in';
     return { pending: false, error: { message, name: 'despia/oauth-launch-failed' } };
   }
+}
+
+/** Launch Google OAuth in Despia secure browser session. Completes asynchronously via deeplink. */
+export async function signInWithGoogleDespia(): Promise<{
+  pending: boolean;
+  error: VybeAuthError | null;
+}> {
+  return launchDespiaOAuthUrl(buildGoogleOAuthUrl());
+}
+
+/** Launch Apple Sign-In in Despia ASWebAuthenticationSession (native Continue sheet). */
+export async function signInWithAppleDespia(): Promise<{
+  pending: boolean;
+  error: VybeAuthError | null;
+}> {
+  return launchDespiaOAuthUrl(buildAppleOAuthUrl());
 }
 
 function parseOAuthParamsFromUrl(url: string): URLSearchParams {
@@ -256,6 +302,13 @@ export async function completeDespiaOAuthFromUrl(url: string): Promise<DespiaOAu
     if (customToken) {
       // Short custom token from authQr exchange_google (preferred on iOS — avoids long deeplinks).
       await signInWithCustomToken(auth, customToken);
+    } else if (state?.provider === 'apple') {
+      const apple = new OAuthProvider('apple.com');
+      const credential = apple.credential({
+        idToken: idToken!,
+        rawNonce: storedNonce || state.nonce,
+      });
+      await signInWithCredential(auth, credential);
     } else {
       const credential = GoogleAuthProvider.credential(idToken!);
       await signInWithCredential(auth, credential);

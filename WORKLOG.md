@@ -2,6 +2,19 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## IN PROGRESS — iOS UX pack (OAuth sheet, QR approve, shell gaps, DMs) (2026-07-15)
+
+- **Evidence (recordings):** Google stuck on native-callback “Open VYBE”; Apple opens full page; QR camera 404; Chat UI gaps top/bottom + “This chat hit a snag”.
+- **Fixes in tree:**
+  - Remove body `position:fixed` (gaps); keep overflow lock
+  - native-callback: multi-path deeplink close; Apple provider handoff
+  - Despia Apple via `oauth://` (Continue sheet) + Services ID return URL docs
+  - QR encodes `/qr-claim.html`; claim UI Approve/Decline with device + IP
+  - DM row `matchMedia` hardened
+- **Next:** publish; add Apple return URL `https://vybehub.app/native-callback.html` in Apple Developer if missing
+
+---
+
 ## PUBLISH handoff (2026-07-15) — iOS shell + Google OAuth deeplink
 
 - **Merged to `origin/main`:** `c4a57493` — iOS document scroll lock / DM tap harden; Google `custom_token` via `authQr` `exchange_google` + `native-callback.html`

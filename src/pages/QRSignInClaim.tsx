@@ -1,24 +1,28 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth';
 import { toast } from 'sonner';
-import { ArrowLeft, Loader2, ShieldCheck, ShieldX } from 'lucide-react';
+import { Loader2, MapPin, MonitorSmartphone, ShieldCheck, ShieldX } from 'lucide-react';
 import { VYBELogo } from '@/components/ui/VYBELogo';
 import { stashAuthReturnPath } from '@/lib/authReturnPath';
 import { parseQrSignInNonce } from '@/lib/qrSignIn';
 
+type ClaimMeta = {
+  device?: string;
+  user_agent?: string | null;
+  ip?: string | null;
+};
+
 /**
  * Deep-link target for Quick Sign-In QR.
- * Opens from phone Camera → auto-approves when already signed in (instant, no extra tap)
- * so the waiting device can redeem and log in immediately.
+ * Shows waiting-device IP / label and requires Approve or Decline (no silent auto-approve).
  */
 export default function QRSignInClaim() {
   const [params] = useSearchParams();
   const navigate = useNavigate();
   const { user, authReady } = useAuth();
-  const autoClaimed = useRef(false);
 
   const nonce = useMemo(() => {
     const fromQuery = params.get('nonce')?.trim() || '';
@@ -27,7 +31,11 @@ export default function QRSignInClaim() {
     return parseQrSignInNonce(window.location.href) || '';
   }, [params]);
 
-  const [phase, setPhase] = useState<'boot' | 'signing_in' | 'approving' | 'approved' | 'denied' | 'error' | 'gone'>('boot');
+  const [phase, setPhase] = useState<
+    'boot' | 'signing_in' | 'ready' | 'approving' | 'denying' | 'approved' | 'denied' | 'error' | 'gone' | 'expired'
+  >('boot');
+  const [meta, setMeta] = useState<ClaimMeta>({});
+  const [busy, setBusy] = useState(false);
 
   useEffect(() => {
     if (!authReady) return;
@@ -36,54 +44,117 @@ export default function QRSignInClaim() {
     }
   }, [authReady, user, nonce]);
 
-  const approve = useCallback(async () => {
-    if (!nonce || autoClaimed.current) return;
-    autoClaimed.current = true;
-    setPhase('approving');
-    try {
-      const { data, error } = await db.functions.invoke('auth-qr', {
-        body: { action: 'claim', nonce, intent: 'approve' },
-      });
-      if (error) throw error;
-      const status = (data as { status?: string } | null)?.status;
-      if (status === 'approved' || status === 'denied') {
-        setPhase(status === 'approved' ? 'approved' : 'denied');
-        if (status === 'approved') {
-          toast.success('Signed in on your other device');
-          window.setTimeout(() => navigate('/home', { replace: true }), 700);
-        }
-        return;
-      }
-      // Already claimed / redeemed — treat as success for the waiting device.
-      setPhase('approved');
-      window.setTimeout(() => navigate('/home', { replace: true }), 700);
-    } catch {
-      autoClaimed.current = false;
-      setPhase('error');
-      toast.error('Could not finish QR sign-in — try again');
-    }
-  }, [nonce, navigate]);
-
+  // Load waiting-device info (IP / UA) from the challenge before approving.
   useEffect(() => {
-    if (!authReady) return;
-    if (!nonce) {
-      setPhase('gone');
-      return;
-    }
-    if (!user) {
-      setPhase('signing_in');
-      return;
-    }
-    void approve();
-  }, [authReady, user, nonce, approve]);
+    if (!authReady || !nonce) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const { data, error } = await db.functions.invoke('auth-qr', {
+          body: { action: 'poll', nonce },
+        });
+        if (cancelled) return;
+        if (error) {
+          setPhase('error');
+          return;
+        }
+        const status = (data as { status?: string } | null)?.status;
+        const metadata = ((data as { metadata?: ClaimMeta } | null)?.metadata || {}) as ClaimMeta;
+        setMeta(metadata);
+        if (status === 'expired' || status === 'not_found') {
+          setPhase(status === 'expired' ? 'expired' : 'gone');
+          return;
+        }
+        if (status === 'approved' || status === 'redeemed') {
+          setPhase('approved');
+          return;
+        }
+        if (status === 'denied') {
+          setPhase('denied');
+          return;
+        }
+        if (!user) {
+          setPhase('signing_in');
+          return;
+        }
+        setPhase('ready');
+      } catch {
+        if (!cancelled) setPhase('error');
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [authReady, nonce, user]);
 
-  if (!authReady || phase === 'boot' || phase === 'approving') {
+  const claim = useCallback(
+    async (intent: 'approve' | 'deny') => {
+      if (!nonce || busy) return;
+      setBusy(true);
+      setPhase(intent === 'approve' ? 'approving' : 'denying');
+      try {
+        const { data, error } = await db.functions.invoke('auth-qr', {
+          body: { action: 'claim', nonce, intent },
+        });
+        if (error) throw error;
+        const status = (data as { status?: string } | null)?.status;
+        if (intent === 'deny' || status === 'denied') {
+          setPhase('denied');
+          toast.message('Sign-in declined');
+          return;
+        }
+        setPhase('approved');
+        toast.success('Signed in on your other device');
+        window.setTimeout(() => navigate('/home', { replace: true }), 900);
+      } catch {
+        setPhase('error');
+        toast.error('Could not finish QR sign-in — try again');
+      } finally {
+        setBusy(false);
+      }
+    },
+    [nonce, busy, navigate],
+  );
+
+  if (!authReady || phase === 'boot' || phase === 'approving' || phase === 'denying') {
     return (
       <Shell>
         <Loader2 className="w-7 h-7 animate-spin text-primary" />
         <p className="text-sm text-muted-foreground mt-3">
-          {phase === 'approving' ? 'Signing you in on the other device…' : 'Opening…'}
+          {phase === 'approving'
+            ? 'Approving the other device…'
+            : phase === 'denying'
+              ? 'Declining…'
+              : 'Opening…'}
         </p>
+      </Shell>
+    );
+  }
+
+  if (!nonce || phase === 'gone') {
+    return (
+      <Shell>
+        <h1 className="text-lg font-semibold">Invalid QR link</h1>
+        <p className="text-sm text-muted-foreground text-center mt-2 max-w-xs">
+          This code is missing or no longer valid. Generate a new QR on the other device.
+        </p>
+        <Button className="mt-4" onClick={() => navigate('/home', { replace: true })}>
+          Go home
+        </Button>
+      </Shell>
+    );
+  }
+
+  if (phase === 'expired') {
+    return (
+      <Shell>
+        <h1 className="text-lg font-semibold">Code expired</h1>
+        <p className="text-sm text-muted-foreground text-center mt-2 max-w-xs">
+          Ask the other device to show a fresh QR code.
+        </p>
+        <Button className="mt-4" onClick={() => navigate('/home', { replace: true })}>
+          Done
+        </Button>
       </Shell>
     );
   }
@@ -92,21 +163,22 @@ export default function QRSignInClaim() {
     return (
       <Shell>
         <VYBELogo size="md" />
-        <h1 className="text-lg font-display font-bold mt-4">Almost there</h1>
+        <h1 className="text-lg font-display font-bold mt-4">Confirm sign-in</h1>
         <p className="text-sm text-muted-foreground text-center mt-2 max-w-xs">
-          Sign in on this phone once — then we’ll instantly approve the other device.
+          Sign in on this phone to approve or decline the other device.
         </p>
+        <DeviceCard meta={meta} />
         <Button
           className="mt-5 w-full max-w-xs"
           onClick={() => {
-            if (nonce) stashAuthReturnPath(`/auth/qr/claim?nonce=${encodeURIComponent(nonce)}`);
+            stashAuthReturnPath(`/auth/qr/claim?nonce=${encodeURIComponent(nonce)}`);
             navigate('/auth', { replace: true });
           }}
         >
           Sign in to continue
         </Button>
         <Button asChild variant="ghost" className="mt-2">
-          <Link to="/auth">Cancel</Link>
+          <Link to="/home">Cancel</Link>
         </Button>
       </Shell>
     );
@@ -128,33 +200,69 @@ export default function QRSignInClaim() {
     return (
       <Shell>
         <ShieldX className="w-12 h-12 text-muted-foreground" />
-        <h1 className="text-lg font-semibold mt-3">Denied</h1>
-        <Button className="mt-4" onClick={() => navigate('/home', { replace: true })}>Done</Button>
+        <h1 className="text-lg font-semibold mt-3">Declined</h1>
+        <p className="text-sm text-muted-foreground text-center mt-2 max-w-xs">
+          That device was not signed in.
+        </p>
+        <Button className="mt-4" onClick={() => navigate('/home', { replace: true })}>
+          Done
+        </Button>
       </Shell>
     );
   }
 
-  if (phase === 'gone' || !nonce) {
+  if (phase === 'error') {
     return (
       <Shell>
-        <h1 className="text-lg font-semibold">Invalid QR link</h1>
-        <Button className="mt-4" onClick={() => navigate('/home', { replace: true })}>Go home</Button>
+        <p className="text-sm text-muted-foreground">Something went wrong.</p>
+        <Button className="mt-4" onClick={() => window.location.reload()}>
+          Try again
+        </Button>
       </Shell>
     );
   }
 
+  // ready — show Approve / Decline
   return (
     <Shell>
-      <button
-        type="button"
-        onClick={() => void approve()}
-        className="absolute top-[max(0.75rem,var(--sat,0px))] left-[var(--app-gutter-x,max(0.75rem,env(safe-area-inset-left,0px)))] z-30 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-background/70 border border-white/10 text-xs"
-      >
-        <ArrowLeft className="w-3.5 h-3.5" /> Retry
-      </button>
-      <p className="text-sm text-muted-foreground">Something went wrong.</p>
-      <Button className="mt-4" onClick={() => void approve()}>Try again</Button>
+      <VYBELogo size="md" />
+      <h1 className="text-lg font-display font-bold mt-4">Approve sign-in?</h1>
+      <p className="text-sm text-muted-foreground text-center mt-2 max-w-xs">
+        Someone scanned your Quick Sign-In QR. Only approve if this is you.
+      </p>
+      <DeviceCard meta={meta} />
+      <div className="mt-6 flex w-full max-w-xs flex-col gap-2">
+        <Button disabled={busy} onClick={() => void claim('approve')} className="w-full">
+          Approve
+        </Button>
+        <Button disabled={busy} variant="outline" onClick={() => void claim('deny')} className="w-full">
+          Decline
+        </Button>
+      </div>
     </Shell>
+  );
+}
+
+function DeviceCard({ meta }: { meta: ClaimMeta }) {
+  const device = (meta.device || 'Unknown device').slice(0, 80);
+  const ip = meta.ip?.trim() || 'IP unavailable';
+  return (
+    <div className="mt-5 w-full max-w-xs rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-left space-y-2">
+      <div className="flex items-start gap-2 text-sm">
+        <MonitorSmartphone className="w-4 h-4 mt-0.5 text-primary shrink-0" />
+        <div>
+          <p className="text-xs text-muted-foreground">Device</p>
+          <p className="font-medium break-words">{device}</p>
+        </div>
+      </div>
+      <div className="flex items-start gap-2 text-sm">
+        <MapPin className="w-4 h-4 mt-0.5 text-primary shrink-0" />
+        <div>
+          <p className="text-xs text-muted-foreground">Network / IP</p>
+          <p className="font-medium font-mono text-xs break-all">{ip}</p>
+        </div>
+      </div>
+    </div>
   );
 }
 

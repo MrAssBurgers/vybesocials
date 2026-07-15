@@ -3,7 +3,7 @@ import { render, fireEvent, act, cleanup } from '@testing-library/react';
 import { SwipeableDmConversationRow } from './SwipeableDmConversationRow';
 import type { DMConversationPreview } from '@/features/dms/dm.types';
 import type { LoadedDMConversation } from '@/lib/loadDMConversations';
-import { HOLD_MS } from '@/lib/dmLongPressGesture';
+import { HOLD_CANCEL_PX, HOLD_MS } from '@/lib/dmLongPressGesture';
 
 vi.mock('framer-motion', async () => {
   const actual = await vi.importActual<typeof import('framer-motion')>('framer-motion');
@@ -15,7 +15,10 @@ vi.mock('framer-motion', async () => {
   };
 });
 
-vi.mock('@/hooks/use-mobile', () => ({ useIsMobile: () => true }));
+vi.mock('@/hooks/use-mobile', () => ({
+  useIsMobile: () => true,
+  useIsMobileOrTablet: () => ({ isMobileOrTablet: true }),
+}));
 vi.mock('@/lib/performanceConfig', () => ({ shouldUseListMotion: () => false }));
 vi.mock('@/lib/haptics', () => ({ triggerHaptic: vi.fn() }));
 vi.mock('@/hooks/useTrashedConversations', () => ({
@@ -122,6 +125,20 @@ function rowSurface(container: HTMLElement) {
 describe('SwipeableDmConversationRow gestures', () => {
   beforeEach(() => {
     vi.useFakeTimers();
+    Object.defineProperty(window.navigator, 'maxTouchPoints', {
+      configurable: true,
+      value: 1,
+    });
+    window.matchMedia = vi.fn().mockImplementation((query: string) => ({
+      matches: query.includes('pointer: coarse') || query.includes('hover: none'),
+      media: query,
+      onchange: null,
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    })) as typeof window.matchMedia;
   });
 
   afterEach(() => {
@@ -164,11 +181,11 @@ describe('SwipeableDmConversationRow gestures', () => {
     expect(onOpenOptions).toHaveBeenCalled();
   });
 
-  it('11px move cancels hold', () => {
+  it(`${HOLD_CANCEL_PX + 1}px move cancels hold`, () => {
     const { onOpenOptions, container } = renderRow();
     const row = rowSurface(container);
     fireEvent.pointerDown(row, { clientX: 0, clientY: 0, pointerId: 4, button: 0 });
-    fireEvent.pointerMove(document, { clientX: 11, clientY: 0, pointerId: 4 });
+    fireEvent.pointerMove(document, { clientX: HOLD_CANCEL_PX + 1, clientY: 0, pointerId: 4 });
     act(() => {
       vi.advanceTimersByTime(HOLD_MS);
     });
@@ -179,7 +196,7 @@ describe('SwipeableDmConversationRow gestures', () => {
     const { onOpenOptions, container } = renderRow();
     const row = rowSurface(container);
     fireEvent.pointerDown(row, { clientX: 0, clientY: 0, pointerId: 5, button: 0 });
-    fireEvent.pointerMove(document, { clientX: 0, clientY: 14, pointerId: 5 });
+    fireEvent.pointerMove(document, { clientX: 0, clientY: HOLD_CANCEL_PX + 1, pointerId: 5 });
     act(() => {
       vi.advanceTimersByTime(HOLD_MS);
     });

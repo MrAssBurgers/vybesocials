@@ -31,16 +31,16 @@
       font-size: 16px;
       font-weight: 600;
       cursor: pointer;
+      text-decoration: none;
     }
   </style>
 </head>
 <body>
   <p id="status">Completing sign-in…</p>
-  <button type="button" id="openApp">Open VYBE</button>
+  <a id="openApp" href="#">Open VYBE</a>
   <script>
     (function () {
       var DEFAULT_SCHEME = 'com.despia.vybe';
-      // Existing authQr callable — avoids a new Cloud Run service (CPU quota).
       var EXCHANGE_URL = 'https://us-central1-vybe-daaab.cloudfunctions.net/authQr';
 
       function setStatus(text) {
@@ -74,21 +74,48 @@
         return scheme + '://oauth/auth' + (query ? '?' + query : '');
       }
 
+      /** ASWebAuthenticationSession often ignores location.replace — click + multi-path is more reliable. */
       function redirectToApp(scheme, query) {
         var deeplink = buildDeeplink(scheme, query);
         window.__vybeOauthDeeplink = deeplink;
-        window.location.replace(deeplink);
+        var openBtn = document.getElementById('openApp');
+        if (openBtn) openBtn.setAttribute('href', deeplink);
+
+        try {
+          var a = document.createElement('a');
+          a.href = deeplink;
+          a.rel = 'noopener';
+          a.style.display = 'none';
+          document.body.appendChild(a);
+          a.click();
+        } catch (e) {}
+
+        try {
+          window.location.href = deeplink;
+        } catch (e2) {}
+
+        try {
+          window.location.replace(deeplink);
+        } catch (e3) {}
+
+        try {
+          var iframe = document.createElement('iframe');
+          iframe.style.display = 'none';
+          iframe.src = deeplink;
+          document.body.appendChild(iframe);
+        } catch (e4) {}
+
         setTimeout(function () {
-          var btn = document.getElementById('openApp');
-          if (btn) {
-            btn.style.display = 'inline-block';
+          if (openBtn) {
+            openBtn.style.display = 'inline-block';
             setStatus('Tap below if VYBE did not open.');
           }
-        }, 900);
+        }, 700);
       }
 
-      document.getElementById('openApp').addEventListener('click', function () {
+      document.getElementById('openApp').addEventListener('click', function (ev) {
         if (window.__vybeOauthDeeplink) {
+          ev.preventDefault();
           window.location.href = window.__vybeOauthDeeplink;
         }
       });
@@ -97,14 +124,28 @@
       var stateObj = decodeState(params.get('state'));
       var scheme = (stateObj && stateObj.scheme) || DEFAULT_SCHEME;
       var idToken = params.get('id_token');
+      var code = params.get('code');
       var error = params.get('error');
       var state = params.get('state') || '';
+      var provider = (stateObj && stateObj.provider) || 'google';
 
       if (error) {
         var errQuery = 'error=' + encodeURIComponent(error) + '&state=' + encodeURIComponent(state);
         var errDesc = params.get('error_description');
         if (errDesc) errQuery += '&error_description=' + encodeURIComponent(errDesc);
         redirectToApp(scheme, errQuery);
+        return;
+      }
+
+      // Apple returns id_token (and optional code) — hand straight to app.
+      if (provider === 'apple' && idToken) {
+        var appleQuery =
+          'id_token=' +
+          encodeURIComponent(idToken) +
+          '&state=' +
+          encodeURIComponent(state) +
+          (code ? '&code=' + encodeURIComponent(code) : '');
+        redirectToApp(scheme, appleQuery);
         return;
       }
 
