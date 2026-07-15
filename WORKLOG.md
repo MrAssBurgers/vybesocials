@@ -2,18 +2,26 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## PUBLISH handoff (2026-07-14) — hold menu + map heading + search
+
+- **Merged to `origin/main`:** `51b111e2` (DM hold options, Despia gyro heading/follow, map search settings layout)
+- **Firebase staging hosting:** https://vybe-daaab.web.app ✅
+- **Production `vybehub.app`:** **Lovable → Share → Publish** (sync `main` @ `51b111e2`) — Cursor cannot click Publish
+- **Lovable:** https://lovable.dev/projects/416714c8-d013-4aff-984d-522418a9bbc7
+- **After Publish:** hard-refresh → hold conversation for options · map follow phone direction · long place search keeps settings visible
+
+---
+
 ## Hold menu + map heading + search bar (2026-07-14)
 
 - **What changed:**
   - DM hold options: gesture rows for tablet shell (`<1024`) + touch; long-press also on desktop branch; hold cancel slop 18px
   - Vybe Map heading: Despia `gyroscope://start?threshold=0` via `subscribeDeviceHeading` + follow-bearing; web keeps DeviceOrientation
   - Map search open pill: `min-w-0` so settings button is not clipped
-- **Tests:** Manual verify; `dmLongPressGesture` unit tests; debug instrumentation removed
-- **Blockers:** Uncommitted until publish request
+- **Shipped:** `51b111e2` on `origin/main`; staging hosting deployed
 - **Next:**
-  1. Commit + push when asked
-  2. Lovable Publish for `vybehub.app`
-  3. Hard-refresh verify hold menu · map compass · search+settings
+  1. Lovable Publish for `vybehub.app`
+  2. Hard-refresh verify hold menu · map compass · search+settings
 
 ---
 
