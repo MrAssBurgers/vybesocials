@@ -2,16 +2,26 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## PUBLISH handoff (2026-07-14) — DM keyboard composer
+
+- **Merged to `origin/main`:** `395acdc6` (DM composer sits above soft keyboard on immersive threads)
+- **Firebase staging hosting:** https://vybe-daaab.web.app ✅
+- **Production `vybehub.app`:** **Lovable → Share → Publish** (sync `main` @ `395acdc6`) — Cursor cannot click Publish
+- **Lovable:** https://lovable.dev/projects/416714c8-d013-4aff-984d-522418a9bbc7
+- **After Publish:** hard-refresh → open DM → focus composer above keyboard → Back to inbox (no bottom nav in thread)
+
+---
+
 ## DM composer keyboard dock (2026-07-14)
 
 - **What changed:** DM dock padding includes `--kb-h` under `data-dm-active`; `useKeyboardHeight` keeps listeners across desktop→mobile shell; soft-keyboard detect also accepts touch / `hover: none`.
 - **Symptom fixed:** Composer not above keyboard; user thought nav/back were broken (nav was already unmounting on threads).
 - **Tests:** Manual verify (composer above KB, no bottom nav in thread, back to inbox). Debug instrumentation removed.
-- **Blockers:** Uncommitted until publish/commit request; `vybehub.app` still needs Lovable Publish for prior camera + this fix once pushed.
+- **Shipped:** `395acdc6` on `origin/main`; staging hosting deployed.
 - **Next:**
-  1. Commit + push composer keyboard fix to `origin/main` when asked
-  2. Lovable Publish for `vybehub.app`
-  3. Hard-refresh verify DM thread keyboard + back
+  1. Lovable Publish for `vybehub.app`
+  2. Hard-refresh verify DM thread keyboard + back
+  3. Optional: discard local `.firebase/hosting.ZGlzdA.cache` dirty file if unused
 
 ---
 
