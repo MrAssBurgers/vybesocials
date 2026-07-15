@@ -9,11 +9,14 @@
  * code can use them unconditionally.
  */
 
+import { Capacitor } from '@capacitor/core';
 import { isNativePlatform } from '@/lib/capacitor';
 import { isAppleTouchDevice, isEmbeddedAppleWebView } from '@/lib/deviceDetection';
 
 const DESPIA_UA_HINT = /despia|vybeapp|vybehub|com\.despia\.vybe|com\.vybe/i;
 const DESPIA_CALLBACK_KEYS = ['nfcResult', 'payload', 'data', 'url', 'readNFCData'];
+
+export type RuntimeOs = 'ios' | 'android' | 'web';
 
 export function isDespiaRuntime(): boolean {
   if (typeof window === 'undefined' || typeof navigator === 'undefined') return false;
@@ -52,6 +55,75 @@ export function isAndroidUA(): boolean {
 
 export function isIOSUA(): boolean {
   return isAppleTouchDevice();
+}
+
+let cachedRuntimeOs: RuntimeOs | null = null;
+
+/**
+ * Auto-detect OS for Despia WKWebView / Android Chromium / Capacitor / mobile Safari.
+ * Capacitor platform wins when native; otherwise UA (Android first, then Apple).
+ */
+export function getRuntimeOs(): RuntimeOs {
+  if (cachedRuntimeOs) return cachedRuntimeOs;
+  if (typeof navigator === 'undefined') {
+    cachedRuntimeOs = 'web';
+    return cachedRuntimeOs;
+  }
+
+  try {
+    const cap = Capacitor.getPlatform?.() || 'web';
+    if (cap === 'ios') {
+      cachedRuntimeOs = 'ios';
+      return cachedRuntimeOs;
+    }
+    if (cap === 'android') {
+      cachedRuntimeOs = 'android';
+      return cachedRuntimeOs;
+    }
+  } catch {
+    /* ignore */
+  }
+
+  // Android before Apple — Mac desktop UA must not win over Android tablets.
+  if (isAndroidUA()) {
+    cachedRuntimeOs = 'android';
+    return cachedRuntimeOs;
+  }
+  if (isIOSUA()) {
+    cachedRuntimeOs = 'ios';
+    return cachedRuntimeOs;
+  }
+
+  cachedRuntimeOs = 'web';
+  return cachedRuntimeOs;
+}
+
+/** True when running as the iOS store / Despia shell (not plain Safari unless standalone shell). */
+export function isIOSAppShell(): boolean {
+  return isNativeAppShell() && getRuntimeOs() === 'ios';
+}
+
+/** True when running as the Android store / Despia shell. */
+export function isAndroidAppShell(): boolean {
+  return isNativeAppShell() && getRuntimeOs() === 'android';
+}
+
+/** Stamp html attrs for CSS + startup profiling (safe to call multiple times). */
+export function stampRuntimeOsOnDocument(): RuntimeOs {
+  const os = getRuntimeOs();
+  if (typeof document === 'undefined') return os;
+  const html = document.documentElement;
+  html.setAttribute('data-vybe-os', os);
+  html.classList.remove('platform-ios', 'platform-android', 'platform-web');
+  html.classList.add(`platform-${os === 'web' ? 'web' : os}`);
+  if (isNativeAppShell()) {
+    html.setAttribute('data-vybe-shell', 'native');
+    html.classList.add('vybe-native-shell');
+  } else {
+    html.setAttribute('data-vybe-shell', 'web');
+    html.classList.remove('vybe-native-shell');
+  }
+  return os;
 }
 
 let despiaMod: any | null = null;

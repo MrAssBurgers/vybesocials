@@ -4,13 +4,15 @@ import { db } from '@/lib/firebase';
 import { warmHomeCaches, warmHomeCachesForProfile } from '@/lib/warmHomeCaches';
 import { isPersistRestored, markPersistRestored, onPersistRestored } from '@/lib/persistRestoreGate';
 import { preloadCriticalRoutes, preloadSecondaryRoutes } from '@/lib/routePreloader';
-import { isNativePerfMode } from '@/lib/nativePerfMode';
+import { isAndroidNativeStartup, isIOSNativeStartup, isNativePerfMode } from '@/lib/nativePerfMode';
+import { getRuntimeOs } from '@/lib/despiaBridge';
 import { isSetupRoutePath } from '@/lib/splashSession';
 import { publishSplashProgress } from '@/lib/splashProgressBridge';
 import { kickstartThemeHydration, prefetchAndApplyUserTheme } from '@/lib/themeHydration';
 import { getCachedCurrentProfile } from '@/lib/profileCache';
 import { resolveProfileAvatarUrl } from '@/lib/profileAvatarCache';
 import { signAndPreloadFeedPosts, signAndPreloadProfileAvatar } from '@/lib/imagePreload';
+import { logStartupPhase } from '@/lib/startupTiming';
 
 interface PreloadStatus {
   step: string;
@@ -59,7 +61,7 @@ export function useAppPreloader() {
     const t = setTimeout(() => {
       markPersistRestored();
       setRestoreReady(true);
-    }, isNativePerfMode() ? 400 : 300);
+    }, isIOSNativeStartup() ? 350 : isAndroidNativeStartup() ? 400 : 300);
     return () => clearTimeout(t);
   }, [restoreReady]);
 
@@ -129,19 +131,74 @@ export function useAppPreloader() {
     let cancelled = false;
 
     const run = async () => {
+      const ios = isIOSNativeStartup();
+      const android = isAndroidNativeStartup();
+      const native = ios || android || isNativePerfMode();
+      logStartupPhase('Preloader start', { os: getRuntimeOs(), ios, android, native });
       updateStatus('init', 0.4);
       kickstartThemeHydration(queryClient);
       preloadCriticalRoutes();
 
+      // Native iOS/Android: mark preload complete immediately so splash can dismiss.
+      // Profile / feed / social continue in background — never block first paint.
+      if (ios || android) {
+        updateStatus('ready', 1);
+        logStartupPhase('Preloader ready (native fast-path)', { os: getRuntimeOs() });
+
+        void (async () => {
+          const { data: { session } } = await withTimeout<any>(
+            db.auth.getSession(),
+            600,
+            { data: { session: null }, error: null },
+          );
+          if (cancelled) return;
+          logStartupPhase('Auth restored', { hasUser: !!session?.user, via: 'preloader-bg' });
+          if (!session?.user) {
+            void warmGuestFeed(queryClient, () => undefined);
+          } else {
+            const uid = session.user.id;
+            void prefetchAndApplyUserTheme(uid, queryClient);
+            const cachedProfile = getCachedCurrentProfile();
+            const earlyProfileId = cachedProfile?.id;
+            if (cachedProfile && earlyProfileId) {
+              const earlyAvatar = resolveProfileAvatarUrl(earlyProfileId, cachedProfile.avatar_url);
+              if (earlyAvatar) void signAndPreloadProfileAvatar(earlyAvatar, 192);
+              queryClient.setQueryData(['profile', earlyProfileId], cachedProfile);
+              void warmUserFeed(queryClient, earlyProfileId, uid, () => undefined);
+            }
+            const profileResult = await withTimeout<any>(
+              db.from('profiles').select('*').eq('user_id', uid).maybeSingle() as unknown as Promise<any>,
+              800,
+              { data: null, error: null },
+            );
+            if (cancelled) return;
+            const profileData = profileResult.data ?? cachedProfile;
+            const profileId = profileData?.id ?? earlyProfileId;
+            if (profileData && profileId) {
+              queryClient.setQueryData(['profile', profileId], profileData);
+              warmHomeCachesForProfile(queryClient, uid, profileId, profileData);
+            }
+            if (!earlyProfileId || profileId !== earlyProfileId) {
+              void warmUserFeed(queryClient, profileId ?? null, uid, () => undefined);
+            }
+          }
+          requestAnimationFrame(() => {
+            void warmHomeCaches(queryClient);
+            setTimeout(() => preloadSecondaryRoutes(), 1200);
+          });
+        })();
+        return;
+      }
+
       updateStatus('auth', 0.15);
-      const authMs = isNativePerfMode() ? 1400 : 1600;
       const { data: { session } } = await withTimeout<any>(
         db.auth.getSession(),
-        authMs,
+        1600,
         { data: { session: null }, error: null },
       );
       if (cancelled) return;
       updateStatus('auth', 1);
+      logStartupPhase('Auth restored', { hasUser: !!session?.user, via: 'preloader' });
 
       if (!session?.user) {
         updateStatus('profile', 1);
@@ -170,7 +227,7 @@ export function useAppPreloader() {
 
         const profileResult = await withTimeout<any>(
           db.from('profiles').select('*').eq('user_id', uid).maybeSingle() as unknown as Promise<any>,
-          isNativePerfMode() ? 1400 : 1600,
+          1600,
           { data: null, error: null },
         );
         if (cancelled) return;
@@ -198,6 +255,7 @@ export function useAppPreloader() {
 
       updateStatus('final', 1);
       updateStatus('ready', 1);
+      logStartupPhase('Preloader ready');
 
       requestAnimationFrame(() => {
         void warmHomeCaches(queryClient);

@@ -37,6 +37,11 @@ import { MaintenanceScreen } from "./components/system/MaintenanceScreen";
 import { FirebaseConfigScreen } from "./components/system/FirebaseConfigScreen";
 import { BootRecoveryScreen } from "./components/system/BootRecoveryScreen";
 import { markBootComplete, showBootRecovery } from "./lib/bootGuard";
+import { logStartupPhase } from "./lib/startupTiming";
+import { stampRuntimeOsOnDocument, getRuntimeOs } from "./lib/despiaBridge";
+
+stampRuntimeOsOnDocument();
+logStartupPhase("App started", { os: getRuntimeOs() });
 
 function runSafeBootStep(label: string, callback: () => void) {
   try {
@@ -220,19 +225,40 @@ function renderVybeApp() {
 }
 
 try {
-  runPreRenderInit();
+  // First paint first — never await Firebase / push / analytics / SW before React mounts.
+  logStartupPhase(
+    isFirebaseConfigured() ? "Firebase initialized" : "Firebase not configured",
+  );
   renderVybeApp();
+  logStartupPhase("React root rendered");
+
+  // Heavy native bridges / SW / Sentry after the first frame.
+  queueMicrotask(() => {
+    runPreRenderInit();
+    logStartupPhase("Background boot init scheduled");
+  });
+
+  // Fonts: fail-open (never block UI). Log when ready for Xcode profiling.
+  try {
+    if (document.fonts?.ready) {
+      void document.fonts.ready.then(
+        () => logStartupPhase("Fonts loaded"),
+        () => logStartupPhase("Fonts loaded", { failed: true }),
+      );
+    } else {
+      logStartupPhase("Fonts loaded", { api: "unavailable" });
+    }
+  } catch {
+    logStartupPhase("Fonts loaded", { failed: true });
+  }
+
   // Maintenance/config screens have no splash — mark boot ready immediately.
   if (isMaintenanceMode() || !isFirebaseConfigured()) {
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        try {
-          markBootComplete();
-        } catch {
-          /* ignore */
-        }
-      });
-    });
+    try {
+      markBootComplete();
+    } catch {
+      /* ignore */
+    }
   }
 } catch (error) {
   console.error("[VYBE] Fatal boot error:", error);

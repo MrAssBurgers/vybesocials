@@ -35,7 +35,14 @@ import { RootBottomNavMount } from "@/components/layout/RootBottomNavMount";
 import { AgentActionBusProvider } from "@/lib/agent/actionBus/AgentActionBusProvider";
 import { useAutoUpdate } from "@/hooks/useAutoUpdate";
 import { useContrastAutoGuard } from "@/hooks/useContrastAutoGuard";
-import { isNativePerfMode } from "@/lib/nativePerfMode";
+import {
+  isAndroidNativeStartup,
+  isIOSNativeStartup,
+  isNativePerfMode,
+  splashAbsoluteMaxMs,
+  splashMinMs,
+} from "@/lib/nativePerfMode";
+import { getRuntimeOs } from "@/lib/despiaBridge";
 import { hasStoredAuthSession } from "@/lib/legacyAuthStorage";
 import { getWasLoggedIn, setWasLoggedIn } from "@/lib/wasLoggedIn";
 import SmartErrorBoundary from "@/components/error/SmartErrorBoundary";
@@ -183,7 +190,9 @@ import { resetSplashSessionOnHardReload, hasAppShellPaint } from "@/lib/navigati
 import { navVisibility } from "@/lib/navVisibility";
 import { markBootComplete } from "@/lib/bootGuard";
 import { ShellVisibilityGuard } from "@/components/system/ShellVisibilityGuard";
+import { StartupRouteProbe } from "@/components/system/StartupRouteProbe";
 import { AppUpdateOverlay } from "@/components/app/AppUpdateOverlay";
+import { logStartupPhase } from "@/lib/startupTiming";
 
 // Lazy-load non-critical overlays and providers to reduce initial bundle
 const EasterEggProvider = lazy(() => import("@/components/easter-eggs/EasterEggProvider").then(m => ({ default: m.EasterEggProvider })));
@@ -311,7 +320,10 @@ const skipInitialSplash = shouldSkipInitialSplash();
 let hasInitialLoadCompleted = skipInitialSplash || readSplashCompleted();
 let splashDismissed = skipInitialSplash;
 const splashShownAt = typeof performance !== 'undefined' ? performance.now() : Date.now();
-const MIN_SPLASH_MS = 280;
+/** Brand flash only — never wait on network (auto iOS / Android / web timings). */
+const MIN_SPLASH_MS = splashMinMs();
+/** Hard fail-open — iOS strictest, Android moderate, web most lenient. */
+const SPLASH_ABSOLUTE_MAX_MS = splashAbsoluteMaxMs();
 
 function completeInitialSplash(setShowSplash: (v: boolean) => void) {
   if (splashDismissed) return;
@@ -329,9 +341,11 @@ function completeInitialSplash(setShowSplash: (v: boolean) => void) {
     // (common on iOS cold start / ATT), which left bootAttr pending forever.
     markAppReady();
     markBootComplete();
+    logStartupPhase('Splash hidden');
     requestAnimationFrame(() => {
       markAppReady();
       markBootComplete();
+      ensureAppShellVisible();
     });
   };
 
@@ -339,7 +353,7 @@ function completeInitialSplash(setShowSplash: (v: boolean) => void) {
   const elapsed = (typeof performance !== 'undefined' ? performance.now() : Date.now()) - splashShownAt;
   const holdMs = Math.max(0, MIN_SPLASH_MS - elapsed);
   window.setTimeout(() => {
-    window.setTimeout(finish, isNativePerfMode() ? 80 : 100);
+    window.setTimeout(finish, isIOSNativeStartup() ? 40 : isAndroidNativeStartup() ? 60 : 80);
   }, holdMs);
 }
 
@@ -378,7 +392,10 @@ function useAuthResolved() {
         ? (isNativePerfMode() ? 300 : 400)
         : (isNativePerfMode() ? 600 : 700);
     const forceDone = setTimeout(() => {
-      if (!cancelled) setResolved(true);
+      if (!cancelled) {
+        setResolved(true);
+        logStartupPhase('Auth restored', { via: 'timeout', ms: authTimeoutMs });
+      }
     }, authTimeoutMs);
 
     if (hasStoredAuthSession()) {
@@ -458,34 +475,50 @@ function AppWithPreloader() {
   authResolvedRef.current = authResolved;
 
   useEffect(() => {
+    if (!authResolved) return;
+    logStartupPhase('Auth restored', { hasSession });
+  }, [authResolved, hasSession]);
+
+  useEffect(() => {
     if (!showSplash) return;
-    const preloaderDone = preloadStatus.isComplete;
-    const authDone = authResolved;
-    if (preloaderDone && authDone) {
+    // Native shells (auto iOS/Android): dismiss on auth — never wait on feed/network.
+    // Web may wait for preload+auth for a snappier "ready" content paint.
+    if (isIOSNativeStartup() || isAndroidNativeStartup()) {
+      if (authResolved) completeInitialSplash(setShowSplash);
+      return;
+    }
+    if (preloadStatus.isComplete && authResolved) {
       completeInitialSplash(setShowSplash);
     }
   }, [preloadStatus.isComplete, showSplash, authResolved, hasSession]);
 
-  // After fresh sign-in, dismiss splash once preload + auth gates pass.
+  // After fresh sign-in, dismiss splash without waiting on feed warm.
   useEffect(() => {
     const { data: { subscription } } = db.auth.onAuthStateChange((event) => {
       if (event !== 'SIGNED_IN' || !showSplashRef.current) return;
+      const delay = isIOSNativeStartup() ? 100 : isAndroidNativeStartup() ? 160 : 400;
       window.setTimeout(() => {
-        if (showSplashRef.current && preloadCompleteRef.current && authResolvedRef.current) {
+        if (showSplashRef.current && authResolvedRef.current) {
           completeInitialSplash(setShowSplash);
         }
-      }, 400);
+      }, delay);
     });
     return () => subscription.unsubscribe();
   }, []);
 
-  // Safety cap — never leave splash up indefinitely (slow networks / ATT sheets).
+  // Safety cap — always hide splash even if init fails (iOS black-screen killer).
   useEffect(() => {
     if (!showSplash) return;
     const absoluteMax = setTimeout(() => {
+      logStartupPhase('Splash force-hide (absolute max)', {
+        ms: SPLASH_ABSOLUTE_MAX_MS,
+        os: getRuntimeOs(),
+        preloadComplete: preloadCompleteRef.current,
+        authResolved: authResolvedRef.current,
+      });
       syncNativeTrackingConsent();
       completeInitialSplash(setShowSplash);
-    }, isNativePerfMode() ? 10000 : 12000);
+    }, SPLASH_ABSOLUTE_MAX_MS);
     return () => clearTimeout(absoluteMax);
   }, [showSplash]);
 
@@ -620,6 +653,7 @@ function AppWithPreloader() {
                         <Toaster />
                         <Sonner />
                         <BrowserRouter useTransitions={false}>
+                        <StartupRouteProbe />
                         <CameraOverlayProvider>
                         <AgentActionBusProvider>
                         <LocationProvider>

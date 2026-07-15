@@ -2,6 +2,30 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## PUBLISH handoff (2026-07-14) — non-blocking iOS/Android startup
+
+- **Merged to `origin/main`:** _(pending)_ — render UI first, OS-aware splash fail-open, startup timing logs
+- **Firebase staging hosting:** _(pending)_
+- **Production `vybehub.app`:** **Lovable → Share → Publish** after git sync — Cursor cannot click Publish
+- **Lovable:** https://lovable.dev/projects/416714c8-d013-4aff-984d-522418a9bbc7
+- **After Publish:** reopen Apple/Android app → first UI <1s; Xcode console shows `VYBE:startup` with `os=ios|android`
+
+---
+
+## iOS startup path (non-blocking) — 2026-07-14
+
+- **Stack:** Vite + React web app in **Despia WKWebView** (not Expo / React Native / Flutter). No `SplashScreen.preventAutoHideAsync` / `Font.loadAsync`.
+- **OS auto-detect:** `getRuntimeOs()` → Capacitor platform when native, else UA (Android / iPhone+iPad). Stamps `data-vybe-os` + `platform-ios|android|web`. Splash caps: iOS 900ms · Android 1500ms · web 2500ms.
+- **What changed:**
+  - Render React **before** heavy `runPreRenderInit` (SW/Sentry/native bridges)
+  - Native splash fail-open by OS; dismiss on auth resolve — do not wait for feed/profile/network
+  - Preloader native fast-path (iOS + Android shells); warm caches in background
+  - Startup logs include `os=` and `shell=`: filter `[VYBE:startup`
+- **How to verify in Xcode:** run Despia WebView → filter console for `VYBE:startup` — first line should show `os=ios`
+- **Next:** Lovable Publish · reopen Apple Release build
+
+---
+
 ## PUBLISH handoff (2026-07-14) — iOS black screen boot fix
 
 - **Merged to `origin/main`:** `9e834b36` — remove stuck `#vybe-static-boot` when WebView is hidden; sync boot-ready
