@@ -2,11 +2,21 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## PUBLISH handoff (2026-07-15) — Friend Link dual-signal + cleanup
+
+- **Merged to `origin/main`:** `624636b6` (feature `51f2f9c9` + instrumentation strip)
+- **Firebase Hosting staging:** deploy with this publish → `https://vybe-daaab.web.app`
+- **Production `vybehub.app`:** **Lovable → Share → Publish** — Cursor cannot click Publish
+- **Lovable:** https://lovable.dev/projects/416714c8-d013-4aff-984d-522418a9bbc7
+- **After Publish:** hard-kill both phones → Friend Link → Phone Tap → Allow Location → connect nearby
+
+---
+
 ## Done — Friend Link NFC + Nearby dual-signal (2026-07-15)
 
 - **Verified by user.** Debug instrumentation removed (`friendLinkDebug` + agent logs).
 - **Fix:** Nearby presence while Phone Tap open · Despia GPS arm · peer poll · Android NFC broadcast · single-peer auto-link
-- **Shipped via:** `51f2f9c9` on `origin/main` after Lovable Publish
+- **Shipped via:** `51f2f9c9` / cleanup `624636b6` on `origin/main` — needs Lovable Publish for `vybehub.app`
 
 ---
 
