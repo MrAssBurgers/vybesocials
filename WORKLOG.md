@@ -2,6 +2,17 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## PUBLISH handoff (2026-07-14) — QR Camera instant login
+
+- **Evidence:** Prod bundle only has `QRSignIn-*.js` — **no** `QRSignInClaim` chunk. Camera opens `vybehub.app` but claim route was never shipped → no login after scan.
+- **Merged to `origin/main`:** `b9ccdae9` — HTTPS claim deep link, auto-approve on open, custom-token redeem, `authQr` create/poll/claim/redeem
+- **Backend:** `authQr` already deployed on `vybe-daaab`
+- **Production `vybehub.app`:** **Lovable → Share → Publish** (sync `main` @ `b9ccdae9`) — required before Camera flow works in Apple app
+- **After Publish:** hard-refresh → `/auth/qr` → phone Camera (already signed into VYBE) → open link → waiting screen signs in ~1s
+- **Lovable:** https://lovable.dev/projects/416714c8-d013-4aff-984d-522418a9bbc7
+
+---
+
 ## Active — QR instant login after Camera scan (2026-07-14)
 
 - **Ask:** Scan QR → open app → log in instantly, no glitches.
