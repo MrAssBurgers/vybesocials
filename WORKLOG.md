@@ -2,6 +2,21 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## PUBLISH handoff (2026-07-15) — Native OAuth UX revamp
+
+- **Merged to `origin/main`:** `9fdcaaea`
+- **Includes:** Landing signing overlay · silent `native-callback` (`FALLBACK_UI_MS` + `hc=`) · Apple preload · `claimProfileAfterOAuth` · account-exists → Settings guidance · OAuth docs
+- **Firebase Hosting staging:** `https://vybe-daaab.web.app` (redeployed with this handoff)
+- **Production `vybehub.app`:** index still on `dda30340` — **does not** include Landing overlay / silent bounce until Publish
+- **Production Publish:** **Lovable → Share → Publish** — Cursor cannot click Publish
+- **Lovable:** https://lovable.dev/projects/416714c8-d013-4aff-984d-522418a9bbc7
+- **After Publish verify:**
+  1. `curl -s https://vybehub.app/ | rg -o 'data-commit-sha="[^"]+"'` → includes `9fdcaaea`
+  2. `curl -s https://vybehub.app/native-callback.html | rg FALLBACK_UI_MS` → matches
+  3. Hard-kill iPhone app → cold open → Google/Apple: system sheet → back in app signed in (no stuck “Open VYBE” page)
+
+---
+
 ## Active — Native OAuth UX revamp (2026-07-15)
 
 - **Goal:** Google/Apple feel like system sheets → logged in (no stuck callback page)
