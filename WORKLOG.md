@@ -2,55 +2,30 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
-## PUBLISH handoff (2026-07-14) — QR Camera instant login
+## PUBLISH handoff (2026-07-14) — QR cleanup + iOS onboarding shell
 
-- **Evidence:** Prod bundle only has `QRSignIn-*.js` — **no** `QRSignInClaim` chunk. Camera opens `vybehub.app` but claim route was never shipped → no login after scan.
-- **Merged to `origin/main`:** `b9ccdae9` — HTTPS claim deep link, auto-approve on open, custom-token redeem, `authQr` create/poll/claim/redeem
-- **Backend:** `authQr` already deployed on `vybe-daaab`
-- **Production `vybehub.app`:** **Lovable → Share → Publish** (sync `main` @ `b9ccdae9`) — required before Camera flow works in Apple app
-- **After Publish:** hard-refresh → `/auth/qr` → phone Camera (already signed into VYBE) → open link → waiting screen signs in ~1s
+- **Merged to `origin/main`:** _(pending push)_ — remove QR `dbgOauth` instrumentation; iOS onboarding/auth safe-area shell
+- **Firebase staging:** `authQr` already on `vybe-daaab`
+- **Production `vybehub.app`:** **Lovable → Share → Publish** — Cursor cannot click Publish
 - **Lovable:** https://lovable.dev/projects/416714c8-d013-4aff-984d-522418a9bbc7
+- **After Publish:** hard-refresh / reopen Apple app → Camera QR claim still works; onboarding fits one screen without bounce
+- **Tests:** `npm run build` ✅ · `npm run test` 310 pass / 9 fail (pre-existing DM hold-row mock — unrelated)
 
 ---
 
-## Active — QR instant login after Camera scan (2026-07-14)
+## Done — QR Camera instant login (2026-07-14)
 
-- **Ask:** Scan QR → open app → log in instantly, no glitches.
-- **Changes:** Auto-approve on claim open (no Approve tap); 400ms poll + custom-token session apply; static `qr-claim.html` Camera bridge; idempotent claim/redeem; deploy `authQr` + staging hosting.
-- **Blocker for Camera → App Store build:** `https://vybehub.app/qr-claim.html` is still 404 until **Lovable Publish** ships `public/qr-claim.html` + claim SPA route. Staging has it at https://vybe-daaab.web.app/qr-claim.html.
-- **Verify after Publish:** phone Camera on QR → open VYBE (already signed in) → auto-approve → waiting screen signs in within ~1s.
-
----
-
-## Active — QR Camera Universal Link (2026-07-14)
-
-- **Ask:** Scanning the Quick Sign-In QR with the phone Camera should open VYBE and complete login.
-- **Change:** QR payload is now `https://vybehub.app/auth/qr/claim?nonce=…` (not `vybe-qr:`); new claim page approves/denies; waiting device still redeems custom token.
-- **Needs:** Lovable Publish so production/App WebView serves `/auth/qr/claim` (Universal Links already cover `/*` via AASA).
-- **Flow:** Waiting screen shows QR → Camera → open VYBE (signed in) → Approve → waiting screen logs in.
+- **Fixed & verified by user.** Debug instrumentation removed (`dbgOauth`, Vite ingest plugin, agent logs in QR/OAuth paths).
+- **Root cause:** stub `authQr` returned `{ token }` (no `nonce`); prod lacked claim route until Publish.
+- **Fix:** `authQr` create/poll/claim/redeem; HTTPS claim URL; auto-approve when signed in; waiting device custom-token sign-in.
+- **Feature commit:** `b9ccdae9`. Backend on `vybe-daaab`. Flow: `/auth/qr` → Camera → `/auth/qr/claim` → auto-approve → waiting device signs in.
 
 ---
 
-## Active — QR Quick Sign-In fix (2026-07-14)
-
-- **Evidence:** `auth-qr` returned `{ token }` with no `nonce` → client threw `No nonce` (debug session `adb115`).
-- **Fix:** Replaced stub `authQr` with create/poll/claim/redeem; create is public; redeem issues Firebase custom token. Client `QRSignIn` + scanner updated. Deployed `functions:authQr` to `vybe-daaab`.
-- **Verify:** http://127.0.0.1:8080/auth/qr should show a code; Settings → Scan can approve.
-- **Instrumentation:** still on for post-fix (`dbgOauth` / `QRSignIn`).
-
----
-
-## Active — iOS onboarding / auth spacing + glitch fix (2026-07-14)
+## Done — iOS onboarding / auth spacing + glitch fix (2026-07-14)
 
 - **Problem:** On iPhone, onboarding required rubber-band “swipe down”; layout/spacing jumped; auth/intro felt glitchy.
-- **Cause:** `h-screen` (100vh) overflow + missing safe-area lock on `/onboarding`; safe-area CSS vars re-applied on every `visualViewport` resize; Landing auth scaled live off visualViewport (rubber-band / keyboard thrash).
-- **What changed (local, not published yet):**
-  - `Onboarding.tsx` — `fixed` + `100dvh`, body scroll lock, notch/home padding via `--sat`/`--sab`, quieter iOS motion (no looping blur / y-slide)
-  - `safeAreaInsets.ts` — skip no-op writes; no visualViewport listener
-  - `Landing.tsx` — stable auth fit scale on iOS/native (innerHeight + threshold)
-  - `IntroFlow.tsx` / `MobileIntro.tsx` — dvh shell, scroll lock, safer insets, less drag/blur on iOS
-- **Verify:** reopen Apple app → onboarding fits one screen, no document bounce; type fields without whole-page crawl
-- **Next:** `npm run build` ✅ · Lovable Publish when ready · hard-refresh Apple Release
+- **Shipped with publish handoff above** (`Onboarding`/`Landing`/`Intro`/`safeAreaInsets`).
 
 ---
 

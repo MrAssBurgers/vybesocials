@@ -64,8 +64,13 @@ export function IntroFlow({ onComplete, onSkip }: IntroFlowProps) {
   // Wait for splash screen to be fully gone before showing intro
   // Also hide bottom nav while intro is showing
   useEffect(() => {
-    // Hide bottom nav during intro
+    // Hide bottom nav during intro + lock document rubber-band
     document.body.classList.add('hide-bottom-nav');
+    const html = document.documentElement;
+    const prevHtmlOverflow = html.style.overflow;
+    const prevBodyOverflow = document.body.style.overflow;
+    html.style.overflow = 'hidden';
+    document.body.style.overflow = 'hidden';
     
     const startTime = Date.now();
     
@@ -88,6 +93,8 @@ export function IntroFlow({ onComplete, onSkip }: IntroFlowProps) {
     // Cleanup - show bottom nav when intro unmounts
     return () => {
       document.body.classList.remove('hide-bottom-nav');
+      html.style.overflow = prevHtmlOverflow;
+      document.body.style.overflow = prevBodyOverflow;
     };
   }, []);
   
@@ -127,7 +134,7 @@ export function IntroFlow({ onComplete, onSkip }: IntroFlowProps) {
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       transition={{ duration: 0.5, ease: EASE_OUT_EXPO }}
-      className="fixed inset-0 z-[200] bg-background flex flex-col overflow-hidden"
+      className="fixed inset-0 z-[200] h-[100dvh] max-h-[100dvh] bg-background flex flex-col overflow-hidden overscroll-none"
     >
       {/* GPU-optimized ambient glow — opacity-only keyframes */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
@@ -137,7 +144,7 @@ export function IntroFlow({ onComplete, onSkip }: IntroFlowProps) {
       </div>
       
       {/* Skip button */}
-      <div className="relative z-10 flex justify-end p-4 safe-area-top">
+      <div className="relative z-10 flex justify-end px-4 pt-[max(1rem,var(--sat,env(safe-area-inset-top,0px)))] pb-2">
         <button
           onClick={handleSkip}
           className="text-sm text-muted-foreground hover:text-foreground transition-colors px-3 py-1.5 rounded-full hover:bg-muted/50"
@@ -266,7 +273,7 @@ export function IntroFlow({ onComplete, onSkip }: IntroFlowProps) {
       </div>
       
       {/* Bottom navigation */}
-      <div className="relative z-10 p-6 pb-8 safe-area-bottom space-y-5">
+      <div className="relative z-10 p-6 pt-4 pb-[max(1.5rem,var(--sab,env(safe-area-inset-bottom,0px)))] space-y-5">
         {/* Progress indicators - flat pill style matching desktop */}
         <div className="flex justify-center items-center gap-2">
           {slides.map((_, index) => (

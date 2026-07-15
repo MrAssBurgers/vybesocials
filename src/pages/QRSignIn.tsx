@@ -13,7 +13,6 @@ import { toast } from 'sonner';
 import { VYBELogo } from '@/components/ui/VYBELogo';
 import { VybeLiquidText } from '@/components/ui/VybeLiquidText';
 import { cn } from '@/lib/utils';
-import { dbgOauth } from '@/lib/dbgOauth';
 
 type Phase = 'loading' | 'ready' | 'approved' | 'expired' | 'denied' | 'error';
 
@@ -30,7 +29,7 @@ const STEPS = [
 
 /**
  * Signed-out device QR display page.
- * Encodes HTTPS `qr-claim.html?nonce=` so phone Camera can open VYBE.
+ * Encodes HTTPS `/auth/qr/claim?nonce=` so phone Camera can open VYBE.
  * Polls until approved, then redeems a Firebase custom token and signs in.
  */
 export default function QRSignIn() {
@@ -58,26 +57,10 @@ export default function QRSignIn() {
     setPhase('loading');
     setQrDataUrl(null);
     setNonce(null);
-    // #region agent log
-    dbgOauth('QR-A', 'QRSignIn.tsx:create:start', 'qr create invoked', {
-      path: typeof window !== 'undefined' ? window.location.pathname : null,
-      host: typeof window !== 'undefined' ? window.location.host : null,
-    }, 'qr-post');
-    // #endregion
     try {
       const { data, error } = await db.functions.invoke('auth-qr', {
         body: { action: 'create' },
       });
-      // #region agent log
-      dbgOauth('QR-A', 'QRSignIn.tsx:create:invoke', 'auth-qr create response', {
-        hasError: !!error,
-        errorName: error?.name || null,
-        errorMsg: error?.message || null,
-        dataKeys: data && typeof data === 'object' ? Object.keys(data as object) : [],
-        hasNonce: !!(data as { nonce?: string } | null)?.nonce,
-        hasToken: !!(data as { token?: string } | null)?.token,
-      }, 'qr-post');
-      // #endregion
       if (error) throw error;
       const n = (data as { nonce?: string } | null)?.nonce;
       const ttl = ((data as { expiresInSec?: number } | null)?.expiresInSec) || 180;
@@ -93,20 +76,8 @@ export default function QRSignIn() {
       });
       setQrDataUrl(dataUrl);
       setPhase('ready');
-      // #region agent log
-      dbgOauth('QR-B', 'QRSignIn.tsx:create:success', 'qr image ready', {
-        ttl,
-        claimPath: '/auth/qr/claim',
-      }, 'qr-post');
-      // #endregion
     } catch (e) {
       console.error('[QRSignIn] create failed', e);
-      // #region agent log
-      dbgOauth('QR-A', 'QRSignIn.tsx:create:catch', 'qr create failed', {
-        msg: e instanceof Error ? e.message : String(e),
-        name: e && typeof e === 'object' && 'name' in e ? String((e as { name?: unknown }).name || '') : null,
-      }, 'qr-post');
-      // #endregion
       setPhase('error');
       toast.error('Could not generate QR code');
     } finally {
@@ -170,13 +141,6 @@ export default function QRSignIn() {
             (r as { customToken?: string; custom_token?: string } | null)?.customToken ||
             (r as { customToken?: string; custom_token?: string } | null)?.custom_token;
           const link = (r as { actionLink?: string } | null)?.actionLink;
-          // #region agent log
-          dbgOauth('QR-C', 'QRSignIn.tsx:redeem', 'auth-qr redeem response', {
-            hasCustomToken: !!customToken,
-            hasActionLink: !!link,
-            status,
-          }, 'qr-post');
-          // #endregion
           if (customToken) {
             await finishWithToken(customToken);
           } else if (link) {
@@ -197,11 +161,6 @@ export default function QRSignIn() {
         if (redeemingRef.current) {
           redeemingRef.current = false;
           setPhase('error');
-          // #region agent log
-          dbgOauth('QR-C', 'QRSignIn.tsx:redeem:fail', 'redeem failed', {
-            msg: e instanceof Error ? e.message : String(e),
-          }, 'qr-post');
-          // #endregion
         }
         // Soft-fail while still waiting.
       }

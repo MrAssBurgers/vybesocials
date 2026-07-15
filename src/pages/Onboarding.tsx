@@ -18,6 +18,8 @@ import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { VybeMiniIcon } from '@/components/ui/VybeMiniIcon';
 import { toast } from 'sonner';
 import { haptics } from '@/lib/haptics';
+import { isIOSAppShell } from '@/lib/despiaBridge';
+import { isNativePerfMode } from '@/lib/nativePerfMode';
 import {
   clearSignupUsername,
   isGeneratedUsername,
@@ -25,6 +27,30 @@ import {
   normalizeUsername,
   resolveSignupUsername,
 } from '@/lib/username';
+
+/** Lock document scroll + hide bottom nav (same shell pattern as Landing). */
+function useOnboardingShell() {
+  useEffect(() => {
+    document.body.classList.add('hide-bottom-nav');
+    const html = document.documentElement;
+    const prevHtmlOverflow = html.style.overflow;
+    const prevBodyOverflow = document.body.style.overflow;
+    const prevHtmlOverscroll = html.style.overscrollBehavior;
+    const prevBodyOverscroll = document.body.style.overscrollBehavior;
+    html.style.overflow = 'hidden';
+    document.body.style.overflow = 'hidden';
+    html.style.overscrollBehavior = 'none';
+    document.body.style.overscrollBehavior = 'none';
+
+    return () => {
+      document.body.classList.remove('hide-bottom-nav');
+      html.style.overflow = prevHtmlOverflow;
+      document.body.style.overflow = prevBodyOverflow;
+      html.style.overscrollBehavior = prevHtmlOverscroll;
+      document.body.style.overscrollBehavior = prevBodyOverscroll;
+    };
+  }, []);
+}
 
 const EASE_OUT_EXPO: [number, number, number, number] = [0.16, 1, 0.3, 1];
 
@@ -133,7 +159,10 @@ export default function Onboarding({ onInviteNavigate, isInviteMode = false }: O
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { profile, user, refreshProfile } = useAuth();
-  
+  useOnboardingShell();
+  // iOS WebView: drop y/scale step motion + looping blur glows (cause rubber-band jank).
+  const calmIos = isIOSAppShell() || isNativePerfMode();
+
   const signupUsername = resolveSignupUsername(user?.user_metadata);
   const needsUsername = isGeneratedUsername(profile?.username);
   // 4 core steps (or 5 if username needed): Username? → Birthday → Interests → Profile → Terms
@@ -476,10 +505,10 @@ export default function Onboarding({ onInviteNavigate, isInviteMode = false }: O
 
   return (
     <motion.div
-      initial={{ opacity: 0 }}
+      initial={calmIos ? false : { opacity: 0 }}
       animate={{ opacity: 1 }}
-      transition={{ duration: 0.4, ease: EASE_OUT_EXPO }}
-      className="h-screen bg-background flex flex-col overflow-hidden relative"
+      transition={{ duration: calmIos ? 0.2 : 0.4, ease: EASE_OUT_EXPO }}
+      className="fixed inset-0 z-40 h-[100dvh] max-h-[100dvh] w-full bg-background flex flex-col overflow-hidden overscroll-none relative touch-pan-y"
     >
       {loading && (
         <div
@@ -491,29 +520,33 @@ export default function Onboarding({ onInviteNavigate, isInviteMode = false }: O
           <p className="text-sm text-muted-foreground">Saving…</p>
         </div>
       )}
-      {/* GPU-friendly ambient background — opacity-only keyframes */}
-      <div className="fixed inset-0 overflow-hidden pointer-events-none">
+      {/* Ambient — static on iOS; soft opacity pulse elsewhere */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none" aria-hidden>
         <div
           className="absolute -top-1/4 -left-1/4 w-3/4 h-3/4 rounded-full"
           style={{
-            background: 'radial-gradient(circle, hsl(var(--primary) / 0.5) 0%, transparent 70%)',
-            filter: 'blur(60px)',
-            animation: 'ob-glow-a 8s ease-in-out infinite alternate',
+            background: 'radial-gradient(circle, hsl(var(--primary) / 0.45) 0%, transparent 70%)',
+            filter: calmIos ? 'blur(40px)' : 'blur(60px)',
+            opacity: 0.26,
+            animation: calmIos ? 'none' : 'ob-glow-a 8s ease-in-out infinite alternate',
           }}
         />
         <div
           className="absolute -bottom-1/4 -right-1/4 w-3/4 h-3/4 rounded-full"
           style={{
-            background: 'radial-gradient(circle, hsl(var(--accent) / 0.4) 0%, transparent 70%)',
-            filter: 'blur(60px)',
-            animation: 'ob-glow-b 10s ease-in-out infinite alternate',
+            background: 'radial-gradient(circle, hsl(var(--accent) / 0.35) 0%, transparent 70%)',
+            filter: calmIos ? 'blur(40px)' : 'blur(60px)',
+            opacity: 0.2,
+            animation: calmIos ? 'none' : 'ob-glow-b 10s ease-in-out infinite alternate',
           }}
         />
-        <style>{`@keyframes ob-glow-a{0%{opacity:.22}100%{opacity:.32}}@keyframes ob-glow-b{0%{opacity:.15}100%{opacity:.25}}`}</style>
+        {!calmIos && (
+          <style>{`@keyframes ob-glow-a{0%{opacity:.22}100%{opacity:.32}}@keyframes ob-glow-b{0%{opacity:.15}100%{opacity:.25}}`}</style>
+        )}
       </div>
 
-      {/* Header */}
-      <header className="relative z-10 p-3 sm:p-4 flex items-center justify-between flex-shrink-0">
+      {/* Header — safe-area top so notch inset isn’t guessed elsewhere */}
+      <header className="relative z-10 px-3 sm:px-4 pt-[max(0.75rem,var(--sat,env(safe-area-inset-top,0px)))] pb-2 flex items-center justify-between flex-shrink-0">
         <VYBELogo size="md" />
         <Button variant="ghost" onClick={handleSkip} disabled={loading} className="text-muted-foreground text-sm">
           {t('onboarding.skip')}
@@ -531,7 +564,7 @@ export default function Onboarding({ onInviteNavigate, isInviteMode = false }: O
                 width: i + 1 === step ? 32 : 16,
                 backgroundColor: i + 1 === step ? 'hsl(var(--primary))' : i + 1 < step ? 'hsl(var(--primary) / 0.5)' : 'hsl(var(--muted))',
               }}
-              transition={{ duration: 0.35, ease: EASE_OUT_EXPO }}
+              transition={{ duration: calmIos ? 0.2 : 0.35, ease: EASE_OUT_EXPO }}
             />
           ))}
         </div>
@@ -540,17 +573,20 @@ export default function Onboarding({ onInviteNavigate, isInviteMode = false }: O
         </p>
       </div>
 
-      {/* Content */}
-      <main className="relative z-10 flex-1 min-h-0 overflow-y-auto overscroll-contain">
+      {/* Content — only this region scrolls; body stays locked */}
+      <main
+        className="relative z-10 flex-1 min-h-0 overflow-y-auto overscroll-contain [-webkit-overflow-scrolling:touch]"
+        style={{ touchAction: 'pan-y' }}
+      >
         <div className="p-3 sm:p-4">
           <div className="max-w-lg mx-auto pb-4">
             <AnimatePresence mode="wait">
               <motion.div
                 key={step}
-                initial={{ opacity: 0, y: 20, scale: 0.98 }}
-                animate={{ opacity: 1, y: 0, scale: 1 }}
-                exit={{ opacity: 0, y: -12, scale: 0.98 }}
-                transition={{ duration: 0.4, ease: EASE_OUT_EXPO }}
+                initial={calmIos ? { opacity: 0 } : { opacity: 0, y: 16 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={calmIos ? { opacity: 0 } : { opacity: 0, y: -8 }}
+                transition={{ duration: calmIos ? 0.2 : 0.35, ease: EASE_OUT_EXPO }}
               >
                 {renderStep()}
               </motion.div>
@@ -559,12 +595,7 @@ export default function Onboarding({ onInviteNavigate, isInviteMode = false }: O
         </div>
       </main>
 
-      <motion.footer
-        initial={{ y: 20, opacity: 0 }}
-        animate={{ y: 0, opacity: 1 }}
-        transition={{ delay: 0.2, duration: 0.4, ease: EASE_OUT_EXPO }}
-        className="relative z-10 p-3 sm:p-4 border-t border-border bg-background/80 backdrop-blur-sm"
-      >
+      <footer className="relative z-10 px-3 sm:px-4 pt-3 pb-[max(0.75rem,var(--sab,env(safe-area-inset-bottom,0px)))] border-t border-border bg-background/90 supports-[backdrop-filter]:backdrop-blur-sm flex-shrink-0">
         <div className="max-w-lg mx-auto flex items-center justify-between gap-3">
           <Button
             variant="outline"
@@ -596,7 +627,7 @@ export default function Onboarding({ onInviteNavigate, isInviteMode = false }: O
             </Button>
           )}
         </div>
-      </motion.footer>
+      </footer>
     </motion.div>
   );
 }

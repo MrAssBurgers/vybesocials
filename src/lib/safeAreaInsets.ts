@@ -89,9 +89,18 @@ export function applySafeAreaCssVars(
 ): () => void {
   if (typeof document === 'undefined') return () => {};
 
-  const apply = () => {
+  let lastKey = '';
+  let raf = 0;
+
+  const applyNow = () => {
     const measured = measureEnvSafeAreaInsets();
     const resolved = resolveSafeAreaInsets(measured, platform, device);
+    // Skip no-op writes — visualViewport resize (keyboard / rubber-band) used to
+    // thrash --sat/--sab every frame and make whole screens jump on iOS.
+    const key = `${resolved.top}|${resolved.right}|${resolved.bottom}|${resolved.left}|${resolved.gap}`;
+    if (key === lastKey) return;
+    lastKey = key;
+
     const root = document.documentElement;
     const body = document.body;
 
@@ -115,14 +124,23 @@ export function applySafeAreaCssVars(
     }
   };
 
-  apply();
-  window.addEventListener('resize', apply);
-  window.addEventListener('orientationchange', apply);
-  window.visualViewport?.addEventListener('resize', apply);
+  const scheduleApply = () => {
+    if (raf) return;
+    raf = window.requestAnimationFrame(() => {
+      raf = 0;
+      applyNow();
+    });
+  };
+
+  applyNow();
+  window.addEventListener('resize', scheduleApply);
+  window.addEventListener('orientationchange', scheduleApply);
+  // Do NOT listen to visualViewport — keyboard open/close and iOS rubber-band
+  // fire continuous resizes while env(safe-area-*) stays the same.
 
   return () => {
-    window.removeEventListener('resize', apply);
-    window.removeEventListener('orientationchange', apply);
-    window.visualViewport?.removeEventListener('resize', apply);
+    if (raf) window.cancelAnimationFrame(raf);
+    window.removeEventListener('resize', scheduleApply);
+    window.removeEventListener('orientationchange', scheduleApply);
   };
 }

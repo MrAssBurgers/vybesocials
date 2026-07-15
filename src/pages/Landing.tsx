@@ -70,26 +70,42 @@ function useAuthPageShell() {
 function useAuthScreenFit(enabled: boolean, ...deps: unknown[]) {
   const contentRef = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(1);
+  const lastScaleRef = useRef(1);
+  // iOS WebView: visualViewport height wobbles during rubber-band / keyboard —
+  // using it for live scale made the entire auth card crawl. Prefer stable layout height.
+  const calmIos = isNativeAppShell() || (typeof navigator !== 'undefined' && /iPhone|iPad|iPod/i.test(navigator.userAgent));
 
   const fitToViewport = useCallback(() => {
     const el = contentRef.current;
     if (!el || !enabled) {
-      setScale(1);
+      if (lastScaleRef.current !== 1) {
+        lastScaleRef.current = 1;
+        setScale(1);
+      }
       return;
     }
 
+    // Measure natural size without the current transform.
+    const prevTransform = el.style.transform;
     el.style.transform = 'none';
     const naturalHeight = el.getBoundingClientRect().height;
+    el.style.transform = prevTransform;
     if (!naturalHeight) return;
 
-    const viewportHeight = window.visualViewport?.height ?? window.innerHeight;
+    const viewportHeight = calmIos
+      ? window.innerHeight
+      : (window.visualViewport?.height ?? window.innerHeight);
     const available = Math.max(280, viewportHeight - 16);
-    const nextScale = naturalHeight > available ? available / naturalHeight : 1;
-    setScale(Math.min(1, nextScale));
-  }, [enabled]);
+    const nextScale = naturalHeight > available ? Math.min(1, available / naturalHeight) : 1;
+    // Ignore sub-pixel thrash from soft keyboard / bounce.
+    if (Math.abs(nextScale - lastScaleRef.current) < 0.02) return;
+    lastScaleRef.current = nextScale;
+    setScale(nextScale);
+  }, [enabled, calmIos]);
 
   useLayoutEffect(() => {
     if (!enabled) {
+      lastScaleRef.current = 1;
       setScale(1);
       return;
     }
@@ -99,7 +115,11 @@ function useAuthScreenFit(enabled: boolean, ...deps: unknown[]) {
     const afterMotion = window.setTimeout(fitToViewport, 400);
 
     window.addEventListener('resize', fitToViewport);
-    window.visualViewport?.addEventListener('resize', fitToViewport);
+    window.addEventListener('orientationchange', fitToViewport);
+    // Skip visualViewport on iOS native — it fires constantly while typing/overscrolling.
+    if (!calmIos) {
+      window.visualViewport?.addEventListener('resize', fitToViewport);
+    }
 
     const observer = new ResizeObserver(fitToViewport);
     const el = contentRef.current;
@@ -109,10 +129,13 @@ function useAuthScreenFit(enabled: boolean, ...deps: unknown[]) {
       cancelAnimationFrame(raf);
       window.clearTimeout(afterMotion);
       window.removeEventListener('resize', fitToViewport);
-      window.visualViewport?.removeEventListener('resize', fitToViewport);
+      window.removeEventListener('orientationchange', fitToViewport);
+      if (!calmIos) {
+        window.visualViewport?.removeEventListener('resize', fitToViewport);
+      }
       observer.disconnect();
     };
-  }, [enabled, fitToViewport, ...deps]);
+  }, [enabled, fitToViewport, calmIos, ...deps]);
 
   return { contentRef, scale };
 }

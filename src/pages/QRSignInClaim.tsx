@@ -8,7 +8,6 @@ import { ArrowLeft, Loader2, ShieldCheck, ShieldX } from 'lucide-react';
 import { VYBELogo } from '@/components/ui/VYBELogo';
 import { stashAuthReturnPath } from '@/lib/authReturnPath';
 import { parseQrSignInNonce } from '@/lib/qrSignIn';
-import { dbgOauth } from '@/lib/dbgOauth';
 
 /**
  * Deep-link target for Quick Sign-In QR.
@@ -31,17 +30,6 @@ export default function QRSignInClaim() {
   const [phase, setPhase] = useState<'boot' | 'signing_in' | 'approving' | 'approved' | 'denied' | 'error' | 'gone'>('boot');
 
   useEffect(() => {
-    // #region agent log
-    dbgOauth('QR-D', 'QRSignInClaim.tsx:mount', 'claim deep link opened', {
-      hasNonce: !!nonce,
-      signedIn: !!user,
-      authReady,
-      path: typeof window !== 'undefined' ? window.location.pathname : null,
-    }, 'qr-post');
-    // #endregion
-  }, [nonce, user, authReady]);
-
-  useEffect(() => {
     if (!authReady) return;
     if (!user && nonce) {
       stashAuthReturnPath(`/auth/qr/claim?nonce=${encodeURIComponent(nonce)}`);
@@ -58,9 +46,6 @@ export default function QRSignInClaim() {
       });
       if (error) throw error;
       const status = (data as { status?: string } | null)?.status;
-      // #region agent log
-      dbgOauth('QR-D', 'QRSignInClaim.tsx:auto-approve', 'instant claim result', { status }, 'qr-post');
-      // #endregion
       if (status === 'approved' || status === 'denied') {
         setPhase(status === 'approved' ? 'approved' : 'denied');
         if (status === 'approved') {
@@ -72,14 +57,9 @@ export default function QRSignInClaim() {
       // Already claimed / redeemed — treat as success for the waiting device.
       setPhase('approved');
       window.setTimeout(() => navigate('/home', { replace: true }), 700);
-    } catch (e) {
+    } catch {
       autoClaimed.current = false;
       setPhase('error');
-      // #region agent log
-      dbgOauth('QR-D', 'QRSignInClaim.tsx:auto-approve:fail', 'instant claim failed', {
-        msg: e instanceof Error ? e.message : String(e),
-      }, 'qr-post');
-      // #endregion
       toast.error('Could not finish QR sign-in — try again');
     }
   }, [nonce, navigate]);

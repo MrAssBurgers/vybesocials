@@ -1,8 +1,10 @@
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { motion, AnimatePresence, PanInfo } from 'framer-motion';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { ArrowRight, Sparkles, Camera, MessageCircle, Users, Palette, Shield, Trophy, Smartphone } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { isIOSAppShell } from '@/lib/despiaBridge';
+import { isNativePerfMode } from '@/lib/nativePerfMode';
 
 // Bump this when slides change to re-trigger the intro for existing users.
 export const VYBE_INTRO_VERSION = '3';
@@ -74,6 +76,21 @@ export default function MobileIntro({ onDone }: { onDone?: () => void }) {
   const [index, setIndex] = useState(0);
   const [direction, setDirection] = useState(1);
   const startX = useRef(0);
+  const calmIos = isIOSAppShell() || isNativePerfMode();
+
+  useEffect(() => {
+    document.body.classList.add('hide-bottom-nav');
+    const html = document.documentElement;
+    const prevHtmlOverflow = html.style.overflow;
+    const prevBodyOverflow = document.body.style.overflow;
+    html.style.overflow = 'hidden';
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.classList.remove('hide-bottom-nav');
+      html.style.overflow = prevHtmlOverflow;
+      document.body.style.overflow = prevBodyOverflow;
+    };
+  }, []);
 
   const finish = useCallback(() => {
     try {
@@ -111,24 +128,24 @@ export default function MobileIntro({ onDone }: { onDone?: () => void }) {
   const isLast = index === SLIDES.length - 1;
 
   return (
-    <div className="fixed inset-0 z-[9999] bg-background text-foreground overflow-hidden flex flex-col">
+    <div className="fixed inset-0 z-[9999] h-[100dvh] max-h-[100dvh] bg-background text-foreground overflow-hidden overscroll-none flex flex-col">
       {/* Ambient gradient that shifts per slide */}
       <AnimatePresence mode="sync">
         <motion.div
           key={`bg-${index}`}
-          initial={{ opacity: 0 }}
+          initial={calmIos ? false : { opacity: 0 }}
           animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          transition={{ duration: 0.8, ease: EASE }}
+          exit={calmIos ? undefined : { opacity: 0 }}
+          transition={{ duration: calmIos ? 0.25 : 0.8, ease: EASE }}
           className="pointer-events-none absolute inset-0 -z-10"
         >
-          <div className={`absolute -top-32 left-1/2 -translate-x-1/2 h-[520px] w-[520px] rounded-full bg-gradient-to-br ${slide.accent} opacity-30 blur-[100px]`} />
-          <div className={`absolute -bottom-32 left-1/3 h-[420px] w-[420px] rounded-full bg-gradient-to-tr ${slide.accent} opacity-20 blur-[110px]`} />
+          <div className={`absolute -top-32 left-1/2 -translate-x-1/2 h-[520px] w-[520px] rounded-full bg-gradient-to-br ${slide.accent} opacity-30 ${calmIos ? 'blur-[48px]' : 'blur-[100px]'}`} />
+          <div className={`absolute -bottom-32 left-1/3 h-[420px] w-[420px] rounded-full bg-gradient-to-tr ${slide.accent} opacity-20 ${calmIos ? 'blur-[48px]' : 'blur-[110px]'}`} />
         </motion.div>
       </AnimatePresence>
 
       {/* Skip */}
-      <div className="flex justify-end p-5 pt-[calc(var(--sat,0px)+1rem)]">
+      <div className="flex justify-end p-5 pt-[max(1rem,var(--sat,env(safe-area-inset-top,0px)))]">
         <button
           onClick={finish}
           className="text-sm text-muted-foreground/80 active:scale-95 transition-transform"
@@ -139,60 +156,62 @@ export default function MobileIntro({ onDone }: { onDone?: () => void }) {
 
       {/* Slide content */}
       <motion.div
-        className="flex-1 flex flex-col items-center justify-center px-7 select-none"
-        drag="x"
+        className="flex-1 min-h-0 flex flex-col items-center justify-center px-7 select-none"
+        drag={calmIos ? false : 'x'}
         dragConstraints={{ left: 0, right: 0 }}
         dragElastic={0.18}
-        onDragEnd={onDragEnd}
+        onDragEnd={calmIos ? undefined : onDragEnd}
         onPointerDown={(e) => { startX.current = e.clientX; }}
       >
         <AnimatePresence mode="wait" custom={direction}>
           <motion.div
             key={index}
             custom={direction}
-            initial={{ opacity: 0, x: direction * 40, scale: 0.96 }}
+            initial={calmIos ? { opacity: 0 } : { opacity: 0, x: direction * 40, scale: 0.96 }}
             animate={{ opacity: 1, x: 0, scale: 1 }}
-            exit={{ opacity: 0, x: direction * -40, scale: 0.96 }}
-            transition={{ duration: 0.45, ease: EASE }}
+            exit={calmIos ? { opacity: 0 } : { opacity: 0, x: direction * -40, scale: 0.96 }}
+            transition={{ duration: calmIos ? 0.25 : 0.45, ease: EASE }}
             className="w-full max-w-sm flex flex-col items-center text-center"
           >
             <motion.div
-              initial={{ scale: 0.6, opacity: 0, rotate: -8 }}
+              initial={calmIos ? false : { scale: 0.6, opacity: 0, rotate: -8 }}
               animate={{ scale: 1, opacity: 1, rotate: 0 }}
-              transition={{ duration: 0.6, ease: EASE, delay: 0.1 }}
+              transition={{ duration: calmIos ? 0.25 : 0.6, ease: EASE, delay: calmIos ? 0 : 0.1 }}
               className={`relative mb-8 h-24 w-24 rounded-3xl bg-gradient-to-br ${slide.accent} p-[1.5px] shadow-[0_20px_60px_-20px_hsl(var(--primary)/0.6)]`}
             >
               <div className="h-full w-full rounded-3xl bg-background/90 backdrop-blur-xl flex items-center justify-center">
                 <Icon className="h-10 w-10 text-foreground" strokeWidth={1.8} />
               </div>
-              <motion.div
-                aria-hidden
-                animate={{ scale: [1, 1.15, 1], opacity: [0.5, 0, 0.5] }}
-                transition={{ duration: 2.4, repeat: Infinity, ease: 'easeInOut' }}
-                className={`absolute inset-0 rounded-3xl bg-gradient-to-br ${slide.accent} blur-xl -z-10`}
-              />
+              {!calmIos && (
+                <motion.div
+                  aria-hidden
+                  animate={{ scale: [1, 1.15, 1], opacity: [0.5, 0, 0.5] }}
+                  transition={{ duration: 2.4, repeat: Infinity, ease: 'easeInOut' }}
+                  className={`absolute inset-0 rounded-3xl bg-gradient-to-br ${slide.accent} blur-xl -z-10`}
+                />
+              )}
             </motion.div>
 
             <motion.p
-              initial={{ opacity: 0, y: 8 }}
+              initial={calmIos ? false : { opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.4, ease: EASE, delay: 0.18 }}
+              transition={{ duration: calmIos ? 0.2 : 0.4, ease: EASE, delay: calmIos ? 0 : 0.18 }}
               className="text-xs uppercase tracking-[0.22em] text-muted-foreground/80"
             >
               {slide.eyebrow}
             </motion.p>
             <motion.h1
-              initial={{ opacity: 0, y: 12 }}
+              initial={calmIos ? false : { opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5, ease: EASE, delay: 0.24 }}
+              transition={{ duration: calmIos ? 0.2 : 0.5, ease: EASE, delay: calmIos ? 0 : 0.24 }}
               className={`mt-2 text-4xl sm:text-5xl font-bold tracking-tight bg-gradient-to-r ${slide.accent} bg-clip-text text-transparent`}
             >
               {slide.title}
             </motion.h1>
             <motion.p
-              initial={{ opacity: 0, y: 12 }}
+              initial={calmIos ? false : { opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5, ease: EASE, delay: 0.32 }}
+              transition={{ duration: calmIos ? 0.2 : 0.5, ease: EASE, delay: calmIos ? 0 : 0.32 }}
               className="mt-5 text-base sm:text-lg text-muted-foreground leading-relaxed"
             >
               {slide.body}
@@ -202,7 +221,7 @@ export default function MobileIntro({ onDone }: { onDone?: () => void }) {
       </motion.div>
 
       {/* Dots + CTA */}
-      <div className="px-7 pb-[calc(env(safe-area-inset-bottom)+1.5rem)] flex flex-col items-center gap-6">
+      <div className="px-7 pb-[max(1.5rem,var(--sab,env(safe-area-inset-bottom,0px)))] flex flex-col items-center gap-6">
         <div className="flex items-center gap-1.5">
           {SLIDES.map((_, i) => (
             <motion.button
