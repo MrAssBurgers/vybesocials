@@ -765,6 +765,23 @@
             return;
           }
           var base = useProd ? PROD_ORIGIN + '/assets/app.js' : '/assets/app.js';
+          // #region agent log
+          try {
+            fetch('http://127.0.0.1:7693/ingest/1847f3ab-7d03-4b99-8dbe-84076ae9145e', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': 'adb115' },
+              body: JSON.stringify({
+                sessionId: 'adb115',
+                runId: 'boot-load',
+                hypothesisId: 'D',
+                location: 'index.html:loadStableEntry',
+                message: 'load_stable_entry',
+                data: { host: host, useProd: !!useProd, base: base, forceProd: !!forceProd },
+                timestamp: Date.now(),
+              }),
+            }).catch(function () {});
+          } catch (eLog) { /* ignore */ }
+          // #endregion
           var s = document.createElement('script');
           s.type = 'module';
           s.crossOrigin = 'anonymous';
@@ -772,6 +789,23 @@
           s.setAttribute(marker, 'true');
           s.onload = function () { window.__VYBE_APP_LOADED__ = true; };
           s.onerror = function () {
+            // #region agent log
+            try {
+              fetch('http://127.0.0.1:7693/ingest/1847f3ab-7d03-4b99-8dbe-84076ae9145e', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': 'adb115' },
+                body: JSON.stringify({
+                  sessionId: 'adb115',
+                  runId: 'boot-load',
+                  hypothesisId: 'C',
+                  location: 'index.html:loadStableEntry',
+                  message: 'stable_entry_error',
+                  data: { host: host, useProd: !!useProd, base: base },
+                  timestamp: Date.now(),
+                }),
+              }).catch(function () {});
+            } catch (e2) { /* ignore */ }
+            // #endregion
             if (!useProd) loadStableEntry(true);
           };
           document.head.appendChild(s);

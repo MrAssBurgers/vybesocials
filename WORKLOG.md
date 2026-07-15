@@ -2,18 +2,30 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## Active — App won’t load / Startup recovery (2026-07-15)
+
+- **Symptom:** VYBE doesn’t load on open (Startup recovery / script failed / Waking up 0%)
+- **Runtime evidence (curl):**
+  - `vybehub.app/despia/local.json` → `deployed_at=1780980970652`, **no** `/assets/app.js` (492 assets) — Native will not refresh while this stays
+  - `vybe-daaab.web.app/despia/local.json` → `deployed_at=1784140353578`, **has** `/assets/app.js` (550) — good pack (Firebase Hosting redeployed)
+  - Prod index already on `30aa498b` with `/assets/app.js` — UI Publish ≠ Native manifest Publish
+- **Code fix in progress:** postbuild **always** regenerates `despia/local.json` (even if `VITE_OFFLINE_MODE=pwa`); commit `public/despia/local.json`; vite plugin always on; boot debug logs session `adb115`
+- **Immediate unblock (phone):** Despia App Start URL → `https://vybe-daaab.web.app` · Offline → Native · clear cache / reinstall · cold open
+- **Permanent:** Lovable Publish after push → prod `local.json` must show new `deployed_at` + `app.js`
+
+---
+
 ## PUBLISH handoff (2026-07-15) — Native offline + iOS DM/shell + cleanup
 
 - **Merged to `origin/main`:** `0d56c235` (CI green)
 - **Includes:** iOS DM idle/safe-area · Despia Native `local.json` must include `/assets/app.js` · localhost entry fallback · debug instrumentation removed
 - **Firebase Hosting staging:** `https://vybe-daaab.web.app` (good Native pack with `app.js`)
-- **Production `vybehub.app`:** still on `624636b6` / missing `app.js` in `despia/local.json` until Publish
+- **Production `vybehub.app`:** index on `30aa498b` but **`despia/local.json` still stale** (no `app.js`) until a Publish that ships a new manifest
 - **Production Publish:** **Lovable → Share → Publish** — Cursor cannot click Publish
 - **Lovable:** https://lovable.dev/projects/416714c8-d013-4aff-984d-522418a9bbc7
 - **After Publish verify:**
-  1. `curl -s https://vybehub.app/ | rg -o 'data-commit-sha="[^"]+"'` ≠ `624636b6…`
-  2. `curl -s https://vybehub.app/despia/local.json | grep app.js` shows `/assets/app.js`
-  3. Hard-kill iPhone app → cold open (Offline → Native OK once manifest is fresh)
+  1. `curl -s https://vybehub.app/despia/local.json | python3 -c "import sys,json;d=json.load(sys.stdin);print(d['deployed_at'],'/assets/app.js' in d['assets'])"` → new `deployed_at` + `True`
+  2. Hard-kill iPhone app → cold open (Offline → Native OK once manifest is fresh)
 
 ---
 

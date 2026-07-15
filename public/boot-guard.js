@@ -22,6 +22,49 @@
     !!(window).__DESPIA__;
   var STARTUP_TIMEOUT_MS = isNativeWrapper ? 35000 : 30000;
 
+  // #region agent log
+  function __dbgBoot(hypothesisId, message, data) {
+    try {
+      fetch('http://127.0.0.1:7693/ingest/1847f3ab-7d03-4b99-8dbe-84076ae9145e', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': 'adb115' },
+        body: JSON.stringify({
+          sessionId: 'adb115',
+          runId: 'boot-load',
+          hypothesisId: hypothesisId,
+          location: 'boot-guard.js',
+          message: message,
+          data: data || {},
+          timestamp: Date.now(),
+        }),
+      }).catch(function () {});
+    } catch (e) { /* ignore */ }
+  }
+  __dbgBoot('B', 'boot_guard_start', {
+    host: (function () { try { return location.hostname; } catch (e) { return ''; } })(),
+    href: (function () { try { return String(location.href || '').slice(0, 120); } catch (e) { return ''; } })(),
+    native: !!isNativeWrapper,
+    offlineMode: (function () { try { return String(document.documentElement.getAttribute('data-offline-mode') || ''); } catch (e) { return ''; } })(),
+  });
+  try {
+    fetch('/despia/local.json', { cache: 'no-store' })
+      .then(function (r) {
+        return r.json().then(function (j) {
+          var assets = (j && j.assets) || [];
+          __dbgBoot('A', 'local_json_probe', {
+            status: r.status,
+            deployedAt: j && j.deployed_at,
+            hasAppJs: assets.indexOf('/assets/app.js') !== -1,
+            assetCount: assets.length,
+          });
+        });
+      })
+      .catch(function (err) {
+        __dbgBoot('A', 'local_json_probe_failed', { err: String(err && err.message || err) });
+      });
+  } catch (e1) { /* ignore */ }
+  // #endregion
+
   function isAppReady() {
     return (
       bootEverSucceeded ||
@@ -82,6 +125,15 @@
     if (!el) return;
     el.style.display = 'flex';
     document.documentElement.setAttribute(BOOT_ATTR, 'failed');
+    // #region agent log
+    __dbgBoot('C', 'recovery_ui', {
+      reason: reason,
+      bundleLoaded: !!bundleLoaded,
+      bundleFailed: !!bundleFailed,
+      host: (function () { try { return location.hostname; } catch (e) { return ''; } })(),
+      ms: Date.now() - bootStartedAt,
+    });
+    // #endregion
     var detail = document.getElementById('vybe-boot-recovery-detail');
     if (!detail) return;
     var host = '';
@@ -161,6 +213,13 @@
   function markBootReady() {
     if (!hasMeaningfulContent()) return;
     bootEverSucceeded = true;
+    // #region agent log
+    __dbgBoot('E', 'boot_ready', {
+      host: (function () { try { return location.hostname; } catch (e) { return ''; } })(),
+      ms: Date.now() - bootStartedAt,
+      bundleLoaded: !!bundleLoaded,
+    });
+    // #endregion
     try { sessionStorage.removeItem(AUTO_RETRY_KEY); } catch (e) { /* ignore */ }
     document.documentElement.setAttribute(BOOT_ATTR, 'ready');
     hideRecovery();
@@ -191,6 +250,12 @@
         script.addEventListener('load', function () { bundleLoaded = true; });
         script.addEventListener('error', function () {
           bundleFailed = true;
+          // #region agent log
+          __dbgBoot('C', 'bundle_script_error', {
+            src: String(script.getAttribute('src') || '').slice(0, 160),
+            host: (function () { try { return location.hostname; } catch (e) { return ''; } })(),
+          });
+          // #endregion
           if (!isAppReady()) {
             showRecovery('chunk_error');
           }
