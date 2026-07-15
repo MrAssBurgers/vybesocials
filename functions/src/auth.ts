@@ -544,27 +544,53 @@ export const authQr = onCall({ cors: true }, async (request) => {
       throw new HttpsError('not-found', 'Account not found');
     }
 
+    const rawUsername = identifier.replace(/^@/, '').trim();
     let profileSnap = await db.collection('profiles').where('username', '==', username).limit(1).get();
-    if (profileSnap.empty) {
+    if (profileSnap.empty && rawUsername !== username) {
       // Legacy rows may still store mixed-case usernames.
-      profileSnap = await db.collection('profiles').where('username', '==', identifier.replace(/^@/, '').trim()).limit(1).get();
-    }
-    if (profileSnap.empty) {
-      throw new HttpsError('not-found', 'Account not found');
+      profileSnap = await db.collection('profiles').where('username', '==', rawUsername).limit(1).get();
     }
 
-    const profile = profileSnap.docs[0].data() as {
-      user_id?: string | null;
-      email?: string | null;
-      id?: string;
-    };
-    const authUid = String(profile.user_id || profileSnap.docs[0].id || '').trim();
-    let email = typeof profile.email === 'string' ? profile.email.trim().toLowerCase() : '';
+    let authUid = '';
+    let email = '';
+
+    if (!profileSnap.empty) {
+      const profile = profileSnap.docs[0].data() as {
+        user_id?: string | null;
+        email?: string | null;
+      };
+      authUid = String(profile.user_id || profileSnap.docs[0].id || '').trim();
+      email = typeof profile.email === 'string' ? profile.email.trim().toLowerCase() : '';
+    } else {
+      // Fallback: username stored on user_auth_index (common after renames / migrations).
+      const indexSnap = await db
+        .collection('user_auth_index')
+        .where('username', '==', username)
+        .limit(1)
+        .get();
+      if (!indexSnap.empty) {
+        const idx = indexSnap.docs[0].data() as {
+          profile_id?: string | null;
+          email?: string | null;
+        };
+        authUid = indexSnap.docs[0].id;
+        email = typeof idx.email === 'string' ? idx.email.trim().toLowerCase() : '';
+        if (!email && idx.profile_id) {
+          const p = await db.collection('profiles').doc(String(idx.profile_id)).get();
+          const pe = p.data()?.email;
+          if (typeof pe === 'string') email = pe.trim().toLowerCase();
+        }
+      }
+    }
 
     if (!email && authUid) {
       try {
         const userRecord = await auth.getUser(authUid);
         email = (userRecord.email || '').trim().toLowerCase();
+        if (!email && userRecord.providerData?.length) {
+          const providerEmail = userRecord.providerData.find((p) => p.email)?.email;
+          if (providerEmail) email = providerEmail.trim().toLowerCase();
+        }
       } catch {
         /* fall through */
       }

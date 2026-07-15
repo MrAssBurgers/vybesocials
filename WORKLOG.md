@@ -2,6 +2,15 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## PUBLISH handoff (2026-07-15) — username or email login
+
+- **Merged to `origin/main`:** `2bd3f28f` — login field accepts email or username (auto-detect)
+- **Firebase:** `authQr` `resolve_login` ✅ live on `vybe-daaab`
+- **Production:** **Lovable → Share → Publish**
+- **After Publish:** Log in with `@username` or full email + password
+
+---
+
 ## Done — iOS OAuth / QR / shell / DMs (2026-07-15)
 
 - **Verified by user.** Debug instrumentation removed (ingest fetches / agent log regions).
