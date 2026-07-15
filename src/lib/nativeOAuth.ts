@@ -58,7 +58,13 @@ async function tryDespiaAppleOAuth(): Promise<OAuthSignInResult> {
   if (result.error) {
     return { data: { session: null }, error: result.error };
   }
-  return { data: { session: null }, error: null, pending: true };
+  if (result.data?.session?.user) {
+    return { data: { session: result.data.session }, error: null };
+  }
+  if (result.pending) {
+    return { data: { session: null }, error: null, pending: true };
+  }
+  return { data: { session: null }, error: { message: 'Apple sign-in did not complete' } };
 }
 
 export async function signInWithOAuthPlatform(provider: OAuthProviderId): Promise<OAuthSignInResult> {

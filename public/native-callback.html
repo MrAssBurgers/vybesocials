@@ -74,43 +74,31 @@
         return scheme + '://oauth/auth' + (query ? '?' + query : '');
       }
 
-      /** ASWebAuthenticationSession often ignores location.replace — click + multi-path is more reliable. */
+      /**
+       * Despia requires `{scheme}://oauth/…` and `window.location.href` (not replace-only)
+       * to close ASWebAuthenticationSession and land the WebView on /auth?…
+       */
       function redirectToApp(scheme, query) {
         var deeplink = buildDeeplink(scheme, query);
         window.__vybeOauthDeeplink = deeplink;
         var openBtn = document.getElementById('openApp');
         if (openBtn) openBtn.setAttribute('href', deeplink);
 
-        try {
-          var a = document.createElement('a');
-          a.href = deeplink;
-          a.rel = 'noopener';
-          a.style.display = 'none';
-          document.body.appendChild(a);
-          a.click();
-        } catch (e) {}
+        // Primary — matches Despia docs exactly.
+        window.location.href = deeplink;
 
-        try {
-          window.location.href = deeplink;
-        } catch (e2) {}
-
-        try {
-          window.location.replace(deeplink);
-        } catch (e3) {}
-
-        try {
-          var iframe = document.createElement('iframe');
-          iframe.style.display = 'none';
-          iframe.src = deeplink;
-          document.body.appendChild(iframe);
-        } catch (e4) {}
+        setTimeout(function () {
+          try {
+            window.location.replace(deeplink);
+          } catch (e) {}
+        }, 120);
 
         setTimeout(function () {
           if (openBtn) {
             openBtn.style.display = 'inline-block';
             setStatus('Tap below if VYBE did not open.');
           }
-        }, 700);
+        }, 800);
       }
 
       document.getElementById('openApp').addEventListener('click', function (ev) {

@@ -2,21 +2,21 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
-## PUBLISH handoff (2026-07-15) — iOS OAuth / QR / shell / DMs
+## PUBLISH handoff (2026-07-15) — iOS fix pack v2 (stale prod proven)
 
-- **Merged to `origin/main`:** `697d857d`
-- **Firebase:** `authQr` exchange_google already live
-- **Apple Developer (required once):** Services ID `com.despia.vybe.web` → add Return URL `https://vybehub.app/native-callback.html` (+ domain `vybehub.app`)
-- **Production:** **Lovable → Share → Publish**
-- **After Publish:** hard-kill app → Google/Apple Continue sheet → QR approve with IP → no top/bottom gaps → DMs open
+- **Runtime proof:** `vybehub.app/assets/app.js` had **0** hits for `signInWithAppleDespia` / `qr-claim` / `useNativeDocumentScrollLock` — Lovable had not shipped `697d857d`. User reproduced on stale bundle.
+- **New on `main` (push next):** Apple iOS → **Apple JS SDK** (native sheet); Google deeplink = `location.href` + Landing URL poll; keep QR/shell/DM fixes.
+- **Apple Developer:** Services ID `com.despia.vybe.web` Return URL `https://vybehub.app/native-callback.html` + domain `vybehub.app`
+- **REQUIRED:** Lovable → Share → Publish, then hard-kill app. Staging hosting alone does not update `vybehub.app`.
+
+---
+
+## Done — iOS UX pack v1 (`697d857d`) (2026-07-15)
+
+- Not yet confirmed on prod (stale Publish). Code: QR bridge, shell gap fix, Google exchange, etc.
 
 ---
 
-## Done — iOS UX pack (OAuth sheet, QR approve, shell gaps, DMs) (2026-07-15)
-
-- Google deeplink close hardened; Apple uses Despia `oauth://` sheet; QR via `qr-claim.html` + Approve/Decline; removed body `position:fixed` gaps; DM matchMedia + CI tests.
-
----
 
 
 ## PUBLISH handoff (2026-07-15) — iOS shell + Google OAuth deeplink
