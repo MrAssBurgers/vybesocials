@@ -121,17 +121,19 @@ the app needs the permission, or Apple rejects.
 <key>NSPhotoLibraryAddUsageDescription</key>
 <string>VYBE saves photos and videos you create back to your library.</string>
 
-<!-- Location (Friend Map) — App Review 5.1.1(ii): specific purpose + example -->
+<!-- Location — App Review 5.1.1(ii): purpose + concrete example (Despia Info.plist) -->
 <key>NSLocationWhenInUseUsageDescription</key>
-<string>VYBE uses your location while you use the Friend Map so friends you choose can see approximately where you are (for example, “near downtown” on the map) and so nearby public posts and places can appear around you. Location is not used for advertising tracking.</string>
+<string>VYBE uses your location while you use the app to power Friend Map and Friend Link. For example, when you open Friend Map, friends you choose can see that you are nearby (such as “at the park”), and when you open Friend Link / Phone Tap your phone can find friends standing next to you so you can add them. Location is not used for advertising or cross-app tracking.</string>
+<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+<string>VYBE can keep using your location in the background only if you turn on live location sharing on Friend Map, so friends you choose can see you are nearby (for example, “heading home”). You can turn this off anytime in Settings. Location is not used for advertising.</string>
 
 <!-- Face ID / Passkeys -->
 <key>NSFaceIDUsageDescription</key>
 <string>VYBE uses Face ID to securely sign you in with your passkey.</string>
 
-<!-- App Tracking Transparency (AdMob, ads personalization) -->
+<!-- App Tracking Transparency -->
 <key>NSUserTrackingUsageDescription</key>
-<string>VYBE uses tracking to show ads that match your interests and to keep the app free.</string>
+<string>Allow tracking if you want VYBE to show personalized ads. If you choose Ask App Not to Track, we will not use your data to track you across other companies’ apps or websites for advertising.</string>
 
 <!-- Apple Music / Audio (sound trends) -->
 <key>NSAppleMusicUsageDescription</key>

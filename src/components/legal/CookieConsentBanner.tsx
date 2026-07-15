@@ -5,14 +5,20 @@ import { Link } from 'react-router-dom';
 import { useAuth } from '@/lib/auth';
 import { db } from '@/lib/firebase';
 import { isDespiaRuntime } from '@/lib/despiaBridge';
-import { syncNativeTrackingConsent, TRACKING_CONSENT_KEY } from '@/lib/att';
+import {
+  pollNativeTrackingConsent,
+  syncNativeTrackingConsent,
+  TRACKING_CONSENT_KEY,
+} from '@/lib/att';
 
 const COOKIE_CONSENT_KEY = 'vybe-cookie-consent';
 
 /**
- * Cookie / essential-storage notice.
- * On Despia: if ATT is denied, we auto-decline optional cookies and never show
- * an "Accept all" trackable path (App Review 5.1.1(iv)).
+ * Web-only cookie notice.
+ *
+ * Native (Despia/iOS): App Tracking Transparency is the sole tracking prompt.
+ * We never show a cookie / “Accept optional” sheet after ATT — App Review 5.1.1(iv).
+ * Until ATT is allowed, storage stays essential-only (no advertising cookies).
  */
 export function CookieConsentBanner() {
   const [visible, setVisible] = useState(false);
@@ -20,37 +26,65 @@ export function CookieConsentBanner() {
 
   useEffect(() => {
     if (isDespiaRuntime()) {
+      const applyEssentialOnly = () => {
+        try {
+          localStorage.setItem(COOKIE_CONSENT_KEY, 'declined');
+          localStorage.setItem(TRACKING_CONSENT_KEY, 'denied');
+        } catch { /* ignore */ }
+      };
+
       const att = syncNativeTrackingConsent();
-      if (att === 'denied') {
-        localStorage.setItem(COOKIE_CONSENT_KEY, 'declined');
-        localStorage.setItem(TRACKING_CONSENT_KEY, 'denied');
+      if (att === 'allowed') {
+        try {
+          if (!localStorage.getItem(COOKIE_CONSENT_KEY)) {
+            localStorage.setItem(COOKIE_CONSENT_KEY, 'accepted');
+          }
+        } catch { /* ignore */ }
         return;
       }
-      // Native ATT covers tracking — do not stack a second cookie/track UI.
-      if (att === 'allowed' || localStorage.getItem(TRACKING_CONSENT_KEY)) {
-        if (!localStorage.getItem(COOKIE_CONSENT_KEY)) {
-          localStorage.setItem(COOKIE_CONSENT_KEY, att === 'allowed' ? 'accepted' : 'declined');
+
+      // denied, or ATT not readable yet — default essential-only; never show banner.
+      applyEssentialOnly();
+      const stopPoll = pollNativeTrackingConsent(4000, 200);
+      const onResume = () => {
+        const next = syncNativeTrackingConsent();
+        if (next === 'allowed') {
+          try {
+            localStorage.setItem(COOKIE_CONSENT_KEY, 'accepted');
+            localStorage.setItem(TRACKING_CONSENT_KEY, 'allowed');
+          } catch { /* ignore */ }
+        } else {
+          applyEssentialOnly();
         }
-        return;
-      }
+      };
+      window.addEventListener('vybe:resume-recover', onResume);
+      return () => {
+        stopPoll();
+        window.removeEventListener('vybe:resume-recover', onResume);
+      };
     }
 
     if (localStorage.getItem(COOKIE_CONSENT_KEY)) return;
 
     if (profile?.id) {
+      let cancelled = false;
+      let timer: ReturnType<typeof setTimeout> | undefined;
       db
         .rpc('get_own_sensitive_profile')
         .single()
         .then(({ data }) => {
+          if (cancelled) return;
           const dbVal = (data as { cookie_consent?: string } | null)?.cookie_consent;
           if (dbVal === 'accepted' || dbVal === 'declined') {
             localStorage.setItem(COOKIE_CONSENT_KEY, dbVal);
           } else {
-            const timer = setTimeout(() => setVisible(true), 2000);
-            return () => clearTimeout(timer);
+            timer = setTimeout(() => setVisible(true), 2000);
           }
         });
-      return;
+      return () => {
+        cancelled = true;
+        if (timer) clearTimeout(timer);
+      };
     }
 
     const timer = setTimeout(() => setVisible(true), 2000);
@@ -73,8 +107,8 @@ export function CookieConsentBanner() {
     }
   };
 
-  const handleAccept = () => persist('accepted');
-  const handleDecline = () => persist('declined');
+  // Native never mounts the trackable cookie UI.
+  if (isDespiaRuntime()) return null;
 
   return (
     <AnimatePresence>
@@ -92,28 +126,26 @@ export function CookieConsentBanner() {
                 <Cookie className="w-4 h-4 text-primary" />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-foreground">Cookies & storage</p>
+                <p className="text-sm font-semibold text-foreground">Essential storage only</p>
                 <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
-                  Essential cookies keep you signed in. Optional cookies are only used if you allow them —
-                  we do not track you across other companies&apos; apps or websites for advertising without
-                  your permission.{' '}
+                  VYBE uses essential storage to keep you signed in. We do not use advertising cookies
+                  or track you across other companies&apos; apps or websites unless you later allow
+                  that in your browser settings.{' '}
                   <Link to="/cookies" className="text-primary hover:underline" onClick={() => setVisible(false)}>
                     Learn more
                   </Link>
                 </p>
               </div>
-              <button onClick={handleDecline} className="text-muted-foreground hover:text-foreground transition-colors flex-shrink-0">
+              <button onClick={() => persist('declined')} className="text-muted-foreground hover:text-foreground transition-colors flex-shrink-0">
                 <X className="w-4 h-4" />
               </button>
             </div>
             <div className="flex gap-2">
-              <button onClick={handleDecline}
-                className="flex-1 px-3 py-2 rounded-xl text-xs font-medium border border-border text-muted-foreground hover:bg-muted transition-colors">
-                Essential only
-              </button>
-              <button onClick={handleAccept}
-                className="flex-1 px-3 py-2 rounded-xl text-xs font-bold bg-primary text-primary-foreground hover:bg-primary/90 transition-colors">
-                Accept optional
+              <button
+                onClick={() => persist('declined')}
+                className="flex-1 px-3 py-2 rounded-xl text-xs font-medium border border-border text-muted-foreground hover:bg-muted transition-colors"
+              >
+                Continue
               </button>
             </div>
           </div>
