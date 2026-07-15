@@ -2,12 +2,21 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## PUBLISH handoff (2026-07-15) — iOS shell + Google OAuth deeplink
+
+- **Merged to `origin/main`:** `c4a57493` — iOS document scroll lock / DM tap harden; Google `custom_token` via `authQr` `exchange_google` + `native-callback.html`
+- **Firebase:** `authQr` already redeployed with `exchange_google` on `vybe-daaab`
+- **Production `vybehub.app`:** **Lovable → Share → Publish** — Cursor cannot click Publish
+- **Lovable:** https://lovable.dev/projects/416714c8-d013-4aff-984d-522418a9bbc7
+- **After Publish:** hard-kill + reopen Apple app → UI shouldn’t rubber-band; DMs open; Google sign-in closes back into app
+
+---
+
 ## Done — iOS shell parity + Google OAuth custom_token (2026-07-15)
 
-- **Verified by user.** Debug instrumentation removed (`dbgIosOauth`, ingest fetches, agent log regions).
-- **iOS UI:** Document rubber-band locked (`useNativeDocumentScrollLock` + CSS `platform-ios.vybe-native-shell`); DM shell `touch-action: manipulation`; iOS tap slop 28px.
-- **Google iOS OAuth:** `authQr` `exchange_google` (deployed) → short `custom_token` deeplink via `native-callback.html`; client `signInWithCustomToken`.
-- **Publish:** commit/push + Lovable Publish if not already on `vybehub.app`.
+- **Verified by user.** Debug instrumentation removed.
+- **iOS UI:** Document rubber-band locked; DM shell `touch-action: manipulation`; iOS tap slop 28px.
+- **Google iOS OAuth:** `authQr` `exchange_google` → short `custom_token` deeplink; client `signInWithCustomToken`.
 
 ---
 
