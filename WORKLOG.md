@@ -2,12 +2,27 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## PUBLISH handoff (2026-07-15) — Native offline + iOS DM/shell + cleanup
+
+- **Merged to `origin/main`:** `0d56c235` (CI green)
+- **Includes:** iOS DM idle/safe-area · Despia Native `local.json` must include `/assets/app.js` · localhost entry fallback · debug instrumentation removed
+- **Firebase Hosting staging:** `https://vybe-daaab.web.app` (good Native pack with `app.js`)
+- **Production `vybehub.app`:** still on `624636b6` / missing `app.js` in `despia/local.json` until Publish
+- **Production Publish:** **Lovable → Share → Publish** — Cursor cannot click Publish
+- **Lovable:** https://lovable.dev/projects/416714c8-d013-4aff-984d-522418a9bbc7
+- **After Publish verify:**
+  1. `curl -s https://vybehub.app/ | rg -o 'data-commit-sha="[^"]+"'` ≠ `624636b6…`
+  2. `curl -s https://vybehub.app/despia/local.json | grep app.js` shows `/assets/app.js`
+  3. Hard-kill iPhone app → cold open (Offline → Native OK once manifest is fresh)
+
+---
+
 ## Done — Despia Offline → Native boot recovery (2026-07-15)
 
-- **Verified by user.** Debug instrumentation removed.
+- **Verified by user.** Debug instrumentation removed (`0d56c235`).
 - **Cause:** stale `despia/local.json` missing `/assets/app.js` under Offline → Native
-- **Fix:** postbuild verifies manifest · localhost falls back to `https://vybehub.app/assets/app.js` · Firebase staging pack at `vybe-daaab.web.app` for Native hydrate
-- **Optional follow-up:** Lovable Publish so `vybehub.app/despia/local.json` also lists `/assets/app.js`, then App Start URL can stay on production
+- **Fix:** postbuild verifies manifest · localhost falls back to `https://vybehub.app/assets/app.js` · Firebase staging pack at `vybe-daaab.web.app`
+- **Next:** Lovable Publish so production `despia/local.json` matches staging
 
 ---
 
