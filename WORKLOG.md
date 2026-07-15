@@ -4,10 +4,11 @@ Use this file as the Lovable -> Cursor handoff each session.
 
 ## Active — Friend Link NFC + Nearby dual-signal (2026-07-15)
 
-- **Root cause:** Friend Link NFC was read-only (no Android broadcast); Nearby only after manual tip; iOS has no NFC P2P; Capacitor Multipeer unavailable in Despia.
-- **Fix in progress:** Android `nativeBroadcast` on; Nearby presence arms whenever Phone Tap is open; single nearby peer auto-links; UI shows searching signal.
-- **Debug:** `[VYBE:friendlink]` + ingest `adb115` in `friendLinkDebug.ts`
-- **Next:** Verify two phones both open Friend Link → connect; Lovable Publish
+- **Code on `origin/main`:** `51f2f9c9` — dual-signal + Despia GPS arm + peer poll
+- **Staging:** `https://vybe-daaab.web.app` hosting deploy after this commit
+- **Root cause of “repro”:** fix was local-only / prod stale; also Despia GPS not armed + realtime bootstrap drops peers
+- **Debug:** `[VYBE:friendlink]` console (+ ingest if Mac reachable)
+- **Next:** Lovable Publish `51f2f9c9` · two phones open Phone Tap · Allow Location · auto-connect
 
 ---
 
