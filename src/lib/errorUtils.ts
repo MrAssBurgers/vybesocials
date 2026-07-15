@@ -28,6 +28,20 @@ export function getUserFriendlyError(error: any): string {
     return 'This site is not authorized for Google sign-in yet. Try vybe-daaab.web.app or contact support.';
   }
   if (
+    message.includes('403') ||
+    message.toLowerCase().includes('forbidden')
+  ) {
+    return 'Apple rejected sign-in (403). Check that Firebase Services ID matches your Apple Services ID (not the App ID).';
+  }
+  if (
+    error?.code === 'auth/operation-not-allowed' ||
+    error?.name === 'auth/operation-not-allowed' ||
+    message.includes('operation-not-allowed') ||
+    message.toLowerCase().includes('code flow is not enabled for apple')
+  ) {
+    return 'Apple Sign-In needs OAuth setup in Firebase (Services ID, Team ID, Key ID, .p8). Use Google for now.';
+  }
+  if (
     error?.code === 'auth/account-exists-with-different-credential' ||
     error?.name === 'auth/account-exists-with-different-credential'
   ) {

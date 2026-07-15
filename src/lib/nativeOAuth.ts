@@ -1,6 +1,6 @@
 /**
  * Platform-aware OAuth — Despia oauth:// on store builds, Capacitor native picker
- * on self-built shells, popup on desktop, redirect on mobile Safari only.
+ * on self-built shells, popup on desktop, redirect on mobile Safari / Apple web.
  */
 import { isDespiaRuntime, isNativeAppShell } from '@/lib/despiaBridge';
 import { isEmbeddedAppleWebView, isMobileSafariBrowser } from '@/lib/deviceDetection';
@@ -85,7 +85,8 @@ export async function signInWithOAuthPlatform(provider: OAuthProviderId): Promis
     return firebaseAuth.signInWithOAuth(provider, { useRedirect: false });
   }
 
-  const useRedirect = shouldUseRedirectOAuth();
+  // Apple web: prefer redirect so Services-ID / return-URL errors aren't buried in a popup.
+  const useRedirect = shouldUseRedirectOAuth() || provider === 'apple';
   const { firebaseAuth } = await import('@/lib/firebase');
   const baseOpts =
     provider === 'google'

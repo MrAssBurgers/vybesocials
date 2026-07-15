@@ -2,6 +2,25 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## PUBLISH handoff (2026-07-15) — OAuth + QR + Apple
+
+- **Merged to `origin/main`:** _(pending)_ — Despia applyOAuthSession; Apple web redirect; QR redeem error handling; Apple setup docs
+- **Firebase:** `authQr` already redeployed; Auth domains + Apple IdP + IAM Token Creator already live on `vybe-daaab`
+- **Production `vybehub.app`:** **Lovable → Share → Publish** — Cursor cannot click Publish
+- **Lovable:** https://lovable.dev/projects/416714c8-d013-4aff-984d-522418a9bbc7
+- **After Publish:** hard-refresh / reopen Apple app → Google/Apple login + QR quick sign-in
+
+---
+
+## Done — OAuth + QR + Apple sign-in (2026-07-15)
+
+- **Verified by user.** Debug instrumentation removed (`dbgAuth`).
+- **QR:** IAM `serviceAccountTokenCreator` on compute SA; redeem → custom token → session.
+- **Google:** `127.0.0.1` authorized domain; Despia completion calls `applyOAuthSession`.
+- **Apple:** Firebase Services ID `com.despia.vybe.web` + code flow; Apple Developer Services ID + return URL; web uses redirect. Guide: `docs/APPLE_SIGN_IN_SETUP.md`.
+
+---
+
 ## PUBLISH handoff (2026-07-14) — QR cleanup + iOS onboarding shell
 
 - **Merged to `origin/main`:** `840c3ffc` — remove QR `dbgOauth` instrumentation; iOS onboarding/auth safe-area shell

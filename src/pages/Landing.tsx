@@ -212,11 +212,16 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
 
   // Complete Despia oauth:// return (deeplink lands on /auth?id_token=...).
   useEffect(() => {
-    const finishDespiaOAuth = (detail?: { error?: { message?: string } | null; data?: { session?: { user?: unknown } | null } }) => {
+    const finishDespiaOAuth = (detail?: {
+      error?: { message?: string } | null;
+      data?: { session?: Parameters<typeof applyOAuthSession>[0] | null };
+    }) => {
       if (detail?.data?.session?.user) {
         clearDespiaOAuthPending();
         clearOAuthRedirectPending();
+        applyOAuthSession(detail.data.session);
         const cached = getCachedCurrentProfile();
+        toast.success('Welcome back! ✨');
         navigate(
           resolvePostLoginDestination(
             profile ??
@@ -243,7 +248,7 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
     };
     window.addEventListener('despia-oauth-complete', onComplete);
     return () => window.removeEventListener('despia-oauth-complete', onComplete);
-  }, [navigate, profile]);
+  }, [navigate, profile, applyOAuthSession]);
 
   const { contentRef, scale } = useAuthScreenFit(
     showAuthForm && !isOAuthReturn,

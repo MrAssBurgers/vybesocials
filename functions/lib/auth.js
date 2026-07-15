@@ -464,7 +464,15 @@ export const authQr = onCall({ cors: true }, async (request) => {
         }
         // Allow one redeem; if already redeemed without token delivery, issue a fresh custom token
         // only when just-approved. Once consumed, still mint token so a flaky client can retry.
-        const customToken = await auth.createCustomToken(String(row.user_id), { qr_signin: true });
+        let customToken;
+        try {
+            customToken = await auth.createCustomToken(String(row.user_id), { qr_signin: true });
+        }
+        catch (err) {
+            const msg = err instanceof Error ? err.message : String(err);
+            console.error('[authQr] createCustomToken failed', { uid: row.user_id, msg });
+            throw new HttpsError('internal', 'Could not create sign-in token — check IAM serviceAccountTokenCreator on the function SA');
+        }
         if (!row.consumed_at) {
             await ref.set({
                 status: 'redeemed',

@@ -157,10 +157,11 @@ export default function QRSignIn() {
           stopTimers();
           setPhase('expired');
         }
-      } catch (e) {
+      } catch {
         if (redeemingRef.current) {
           redeemingRef.current = false;
           setPhase('error');
+          toast.error('Could not finish QR sign-in — try generating a new code');
         }
         // Soft-fail while still waiting.
       }
