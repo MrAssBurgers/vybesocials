@@ -75,52 +75,18 @@ export async function signInWithAppleJsSdk(): Promise<{
   data: { session: VybeSession | null };
   error: VybeAuthError | null;
 }> {
-  // #region agent log
-  const agentLog = (hypothesisId: string, message: string, data: Record<string, unknown>) => {
-    fetch('http://127.0.0.1:7693/ingest/1847f3ab-7d03-4b99-8dbe-84076ae9145e', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': 'adb115' },
-      body: JSON.stringify({
-        sessionId: 'adb115',
-        runId: 'oauth-pre',
-        hypothesisId,
-        location: 'appleSignIn.ts',
-        message,
-        data,
-        timestamp: Date.now(),
-      }),
-    }).catch(() => {});
-  };
-  // #endregion
-
   try {
     await loadAppleIdScript();
     if (!window.AppleID?.auth) {
-      // #region agent log
-      agentLog('H4', 'apple_sdk_missing', {
-        hostname: typeof location !== 'undefined' ? location.hostname : '',
-      });
-      // #endregion
       return { data: { session: null }, error: { message: 'Apple Sign-In unavailable', name: 'apple/sdk-missing' } };
     }
 
     const rawNonce = randomNonce();
     const hashedNonce = await sha256Hex(rawNonce);
     const redirectURI = `${getProductionOrigin()}/native-callback.html`;
-    const clientId = getAppleServicesId();
-
-    // #region agent log
-    agentLog('H4', 'apple_init', {
-      clientId,
-      redirectURI,
-      hostname: typeof location !== 'undefined' ? location.hostname : '',
-      origin: typeof location !== 'undefined' ? location.origin : '',
-      usePopup: true,
-    });
-    // #endregion
 
     window.AppleID.auth.init({
-      clientId,
+      clientId: getAppleServicesId(),
       scope: 'name email',
       redirectURI,
       // Popup/native sheet on iOS WebView; avoids full-page Safari handoff.
@@ -130,13 +96,6 @@ export async function signInWithAppleJsSdk(): Promise<{
 
     const response = await window.AppleID.auth.signIn();
     const idToken = response.authorization?.id_token;
-    // #region agent log
-    agentLog('H4', 'apple_signIn_response', {
-      hasIdToken: !!idToken,
-      idTokenLen: idToken ? idToken.length : 0,
-      responseError: response.error || null,
-    });
-    // #endregion
     if (!idToken) {
       return {
         data: { session: null },
@@ -154,24 +113,10 @@ export async function signInWithAppleJsSdk(): Promise<{
     const credential = provider.credential({ idToken, rawNonce });
     await signInWithCredential(auth, credential);
     const { data, error } = await firebaseAuth.getSession();
-    // #region agent log
-    agentLog('H4', 'apple_firebase_session', {
-      hasSession: !!data.session?.user,
-      errorName: error?.name || null,
-      errorMessage: error?.message || null,
-    });
-    // #endregion
     if (error) return { data: { session: null }, error };
     return { data: { session: data.session }, error: null };
   } catch (err: unknown) {
     const asAny = err as { error?: string; message?: string; code?: string };
-    // #region agent log
-    agentLog('H4', 'apple_catch', {
-      error: asAny?.error || null,
-      code: asAny?.code || null,
-      message: String(asAny?.message || err),
-    });
-    // #endregion
     if (asAny?.error === 'popup_closed_by_user' || /cancel/i.test(String(asAny?.message || ''))) {
       return {
         data: { session: null },

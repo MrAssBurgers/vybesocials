@@ -2,14 +2,12 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
-## Active — Despia Offline → Native (user wants Native) (2026-07-15)
+## Done — Despia Offline → Native boot recovery (2026-07-15)
 
-- **vybehub.app still stale** (`624636b6` / `580f2cc6`) — `despia/local.json` missing `/assets/app.js`
-- **Firebase staging has the good Native pack (deployed now):** `https://vybe-daaab.web.app/despia/local.json` includes `/assets/app.js` (`deployed_at` `1784138487880`, 550 assets)
-- **To run Native while Lovable Publish lags:** Despia App Start URL → `https://vybe-daaab.web.app` · Offline → **Native** · Rebuild · delete app / clear cache once · cold open
-- **OAuth:** code still returns to `https://vybehub.app/native-callback.html` (hardcoded) — Keep Google/Apple return URLs registered there
-- **Later:** Lovable Publish → flip Start URL back to `https://vybehub.app` after `curl …/despia/local.json | grep app.js` is green
-- Keep debug instrumentation until Native cold-open verified
+- **Verified by user.** Debug instrumentation removed.
+- **Cause:** stale `despia/local.json` missing `/assets/app.js` under Offline → Native
+- **Fix:** postbuild verifies manifest · localhost falls back to `https://vybehub.app/assets/app.js` · Firebase staging pack at `vybe-daaab.web.app` for Native hydrate
+- **Optional follow-up:** Lovable Publish so `vybehub.app/despia/local.json` also lists `/assets/app.js`, then App Start URL can stay on production
 
 ---
 

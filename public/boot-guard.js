@@ -75,7 +75,7 @@
     else reload();
   }
 
-  function showRecoveryUi(reason, detailExtra) {
+  function showRecoveryUi(reason) {
     clearStuckUiState();
     recoveryShown = true;
     var el = document.getElementById(RECOVERY_ID);
@@ -92,40 +92,14 @@
         'Startup timed out. Tap "Clear cache & reload" once. If it repeats after publishing, check Firebase env vars in Lovable.';
     } else if (reason === 'script_error' || reason === 'chunk_error') {
       detail.textContent = onLocalhost
-        ? 'Offline cache is missing the app shell (often /assets/app.js). In Despia set Offline Support to PWA, or Publish a fresh despia/local.json that includes app.js — then Clear cache & reload.'
+        ? 'Offline cache is missing the app shell (often /assets/app.js). Publish a fresh despia/local.json that includes app.js, then Clear cache & reload.'
         : 'A script failed to load. Clear cache and reload to get the latest build.';
     } else {
       detail.textContent = 'Something blocked startup. Clear cache and reload.';
     }
-    if (detailExtra) {
-      detail.textContent += ' [' + detailExtra + ']';
-    }
-    // #region agent log
-    try {
-      fetch('http://127.0.0.1:7693/ingest/1847f3ab-7d03-4b99-8dbe-84076ae9145e', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': 'adb115' },
-        body: JSON.stringify({
-          sessionId: 'adb115',
-          runId: 'boot-fail',
-          hypothesisId: 'H6',
-          location: 'boot-guard.js:showRecoveryUi',
-          message: 'boot_recovery_shown',
-          data: {
-            reason: reason,
-            host: host,
-            onLocalhost: onLocalhost,
-            detailExtra: detailExtra || null,
-            href: String(location.href || '').slice(0, 160),
-          },
-          timestamp: Date.now(),
-        }),
-      }).catch(function () {});
-    } catch (e1) {}
-    // #endregion
   }
 
-  function showRecovery(reason, manual, detailExtra) {
+  function showRecovery(reason, manual) {
     if (isAppReady() && !manual) return;
     if (!manual && (reason === 'script_error' || reason === 'chunk_error' || reason === 'startup_timeout')) {
       try {
@@ -142,7 +116,7 @@
         }
       } catch (e) { /* ignore */ }
     }
-    showRecoveryUi(reason, detailExtra);
+    showRecoveryUi(reason);
   }
 
   function isRecoveryVisible() {
@@ -218,7 +192,7 @@
         script.addEventListener('error', function () {
           bundleFailed = true;
           if (!isAppReady()) {
-            showRecovery('chunk_error', false, (script.src || '').split('/').pop() || 'module');
+            showRecovery('chunk_error');
           }
         });
       })(scripts[i]);
@@ -258,7 +232,7 @@
       msg.indexOf('is not defined') !== -1 ||
       msg.indexOf('Unexpected token') !== -1;
     if (isFatal && !hasMeaningfulContent()) {
-      showRecovery('script_error', false, (msg || file || 'error').slice(0, 80));
+      showRecovery('script_error');
     }
   });
 
@@ -272,7 +246,7 @@
         msg.indexOf('Importing a module script failed') !== -1) &&
       !hasMeaningfulContent()
     ) {
-      showRecovery('chunk_error', false, msg.slice(0, 80));
+      showRecovery('chunk_error');
     }
   });
 
