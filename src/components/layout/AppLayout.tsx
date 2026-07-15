@@ -22,6 +22,7 @@ import { SelfNowPlayingPill } from '@/components/music/SelfNowPlayingPill';
 import { MigrationAccountNotice } from '@/components/system/MigrationAccountNotice';
 import { useBottomNavMount } from '@/hooks/useBottomNavMount';
 import { installKeyboardFocusScroll } from '@/lib/keyboardFocusScroll';
+import { useNativeDocumentScrollLock } from '@/hooks/useNativeDocumentScrollLock';
 
 interface AppLayoutProps {
   children: ReactNode;
@@ -47,6 +48,9 @@ export const AppLayout = memo(forwardRef<HTMLDivElement, AppLayoutProps>(functio
   const location = useLocation();
   const hasStoredSession = hasStoredAuthSession();
   const { isDesktop } = useBreakpoint();
+  // iOS WKWebView rubber-bands the document; Android Chromium mostly doesn't.
+  // Lock body/html for the app shell so only inner scrollers move.
+  useNativeDocumentScrollLock(!isDesktop);
   const [leftCollapsed, setLeftCollapsed] = useState(false);
   const nativePerf = isNativePerfMode();
   const swipeBackAllowed = !nativePerf && (enableSwipeBack ?? !(hideNav && noPadding));
@@ -159,14 +163,16 @@ export const AppLayout = memo(forwardRef<HTMLDivElement, AppLayoutProps>(functio
                   ? 'calc(100dvh - var(--app-header-height))'
                   : '100dvh',
               marginTop: hideNav || !noPadding ? undefined : 'var(--app-header-height)',
-              touchAction: noPadding ? 'pan-y' : undefined,
+              // noPadding shells (DMs) are overflow:hidden — do not advertise pan-y or
+              // iOS sends document/body pans that look like the whole UI is draggable.
+              touchAction: noPadding ? 'manipulation' : undefined,
               paddingBottom:
                 reserveBottomNavSpace
                   ? navEffectiveVisible
                     ? 'calc(6rem + var(--sab, env(safe-area-inset-bottom, 0px)))'
                     : 'calc(1.25rem + var(--sab, env(safe-area-inset-bottom, 0px)))'
                   : undefined,
-              WebkitOverflowScrolling: 'touch',
+              WebkitOverflowScrolling: noPadding ? undefined : 'touch',
               overscrollBehaviorY: 'contain',
               transform: !nativePerf && swipeProgress > 0 && !document.documentElement.classList.contains('is-scrolling')
                 ? `translateX(${swipeProgress * 60}px)`

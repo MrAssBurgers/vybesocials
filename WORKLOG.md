@@ -2,6 +2,15 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## Done — iOS shell parity + Google OAuth custom_token (2026-07-15)
+
+- **Verified by user.** Debug instrumentation removed (`dbgIosOauth`, ingest fetches, agent log regions).
+- **iOS UI:** Document rubber-band locked (`useNativeDocumentScrollLock` + CSS `platform-ios.vybe-native-shell`); DM shell `touch-action: manipulation`; iOS tap slop 28px.
+- **Google iOS OAuth:** `authQr` `exchange_google` (deployed) → short `custom_token` deeplink via `native-callback.html`; client `signInWithCustomToken`.
+- **Publish:** commit/push + Lovable Publish if not already on `vybehub.app`.
+
+---
+
 ## PUBLISH handoff (2026-07-15) — OAuth + QR + Apple
 
 - **Merged to `origin/main`:** `0107aa1e` — Despia applyOAuthSession; Apple web redirect; QR redeem error handling; Apple setup docs

@@ -186,7 +186,7 @@ function MessagesInner() {
           'dm-shell messages-content flex h-full flex-1 min-h-0 w-full max-w-full overflow-hidden',
           showLiquidBg && 'bg-transparent',
         )}
-        style={{ touchAction: 'pan-y', WebkitOverflowScrolling: 'touch' }}
+        style={{ touchAction: 'manipulation' }}
       >
         <div
           className={cn(

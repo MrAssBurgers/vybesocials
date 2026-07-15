@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { triggerHaptic } from '@/lib/haptics';
+import { isIOSAppShell } from '@/lib/despiaBridge';
 import {
   classifyConversationGestureMove,
   HOLD_CANCEL_PX,
@@ -7,6 +8,9 @@ import {
   SWIPE_ACTIVATE_PX,
   TAP_SLOP_PX,
 } from '@/lib/dmLongPressGesture';
+
+/** iOS WKWebView injects extra dy during document bounce — widen tap recognition. */
+const IOS_TAP_SLOP_PX = 28;
 
 type GestureState = 'idle' | 'pending' | 'holding' | 'swiping' | 'scrolling';
 
@@ -103,11 +107,12 @@ export function useConversationRowGesture({
       const dy = e.clientY - start.y;
       const absDx = Math.abs(dx);
       const absDy = Math.abs(dy);
+      const tapSlop = isIOSAppShell() ? IOS_TAP_SLOP_PX : TAP_SLOP_PX;
       const isTap =
         !gestureConsumedRef.current &&
         !didLongPressRef.current &&
-        absDx <= TAP_SLOP_PX &&
-        absDy <= TAP_SLOP_PX;
+        absDx <= tapSlop &&
+        absDy <= tapSlop;
 
       if (state === 'swiping') {
         onSwipeEnd?.();

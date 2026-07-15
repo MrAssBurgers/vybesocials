@@ -2,7 +2,7 @@
  * Despia native OAuth — opens ASWebAuthenticationSession / Chrome Custom Tabs
  * via `oauth://`, then completes Firebase sign-in in the WebView from deeplink tokens.
  */
-import { GoogleAuthProvider, signInWithCredential } from 'firebase/auth';
+import { GoogleAuthProvider, signInWithCredential, signInWithCustomToken } from 'firebase/auth';
 import { despiaCall, isDespiaRuntime } from '@/lib/despiaBridge';
 import { getProductionOrigin } from '@/lib/authRedirect';
 import { isNativePlatform } from '@/lib/capacitor';
@@ -205,10 +205,15 @@ export function isDespiaOAuthReturnUrl(url: string): boolean {
   const lower = url.toLowerCase();
   if (lower.includes('oauth/auth') || lower.includes('oauth%2fauth')) return true;
   const params = parseOAuthParamsFromUrl(url);
-  return params.has('id_token') || (params.has('error') && params.has('state'));
+  return (
+    params.has('custom_token') ||
+    params.has('customToken') ||
+    params.has('id_token') ||
+    (params.has('error') && params.has('state'))
+  );
 }
 
-/** Complete Firebase sign-in from Despia deeplink or /auth?id_token=... return. */
+/** Complete Firebase sign-in from Despia deeplink or /auth?custom_token=... / id_token return. */
 export async function completeDespiaOAuthFromUrl(url: string): Promise<DespiaOAuthCompletion> {
   const params = parseOAuthParamsFromUrl(url);
   const error = params.get('error');
@@ -225,8 +230,9 @@ export async function completeDespiaOAuthFromUrl(url: string): Promise<DespiaOAu
     };
   }
 
+  const customToken = params.get('custom_token') || params.get('customToken');
   const idToken = params.get('id_token');
-  if (!idToken) {
+  if (!customToken && !idToken) {
     return { data: { session: null }, error: null };
   }
 
@@ -247,8 +253,13 @@ export async function completeDespiaOAuthFromUrl(url: string): Promise<DespiaOAu
       return { data: { session: null }, error: { message: 'Firebase is not configured', name: 'firebase/not-configured' } };
     }
 
-    const credential = GoogleAuthProvider.credential(idToken);
-    await signInWithCredential(auth, credential);
+    if (customToken) {
+      // Short custom token from authQr exchange_google (preferred on iOS — avoids long deeplinks).
+      await signInWithCustomToken(auth, customToken);
+    } else {
+      const credential = GoogleAuthProvider.credential(idToken!);
+      await signInWithCredential(auth, credential);
+    }
     clearDespiaOAuthPending();
 
     const { data, error: sessionError } = await firebaseAuth.getSession();
@@ -275,7 +286,12 @@ export async function tryCompleteDespiaOAuthFromCurrentUrl(): Promise<DespiaOAut
   if (!isDespiaOAuthReturnUrl(href) && !isDespiaOAuthInFlight()) return null;
 
   const params = parseOAuthParamsFromUrl(href);
-  if (!params.has('id_token') && !params.has('error')) {
+  if (
+    !params.has('custom_token') &&
+    !params.has('customToken') &&
+    !params.has('id_token') &&
+    !params.has('error')
+  ) {
     if (!isDespiaOAuthInFlight()) return null;
     return null;
   }

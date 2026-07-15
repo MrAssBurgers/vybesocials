@@ -9,19 +9,44 @@
       margin: 0;
       min-height: 100vh;
       display: flex;
+      flex-direction: column;
       align-items: center;
       justify-content: center;
+      gap: 16px;
       background: #0B0B10;
       color: #a1a1aa;
       font-family: system-ui, -apple-system, sans-serif;
+      padding: 24px;
+      text-align: center;
+    }
+    #status { margin: 0; }
+    #openApp {
+      display: none;
+      appearance: none;
+      border: 0;
+      border-radius: 12px;
+      padding: 14px 22px;
+      background: #fff;
+      color: #0B0B10;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
     }
   </style>
 </head>
 <body>
-  <p>Completing sign-in…</p>
+  <p id="status">Completing sign-in…</p>
+  <button type="button" id="openApp">Open VYBE</button>
   <script>
     (function () {
       var DEFAULT_SCHEME = 'com.despia.vybe';
+      // Existing authQr callable — avoids a new Cloud Run service (CPU quota).
+      var EXCHANGE_URL = 'https://us-central1-vybe-daaab.cloudfunctions.net/authQr';
+
+      function setStatus(text) {
+        var el = document.getElementById('status');
+        if (el) el.textContent = text;
+      }
 
       function decodeState(state) {
         if (!state) return null;
@@ -45,10 +70,28 @@
         return params;
       }
 
-      function redirectToApp(scheme, query) {
-        var deeplink = scheme + '://oauth/auth' + (query ? '?' + query : '');
-        window.location.replace(deeplink);
+      function buildDeeplink(scheme, query) {
+        return scheme + '://oauth/auth' + (query ? '?' + query : '');
       }
+
+      function redirectToApp(scheme, query) {
+        var deeplink = buildDeeplink(scheme, query);
+        window.__vybeOauthDeeplink = deeplink;
+        window.location.replace(deeplink);
+        setTimeout(function () {
+          var btn = document.getElementById('openApp');
+          if (btn) {
+            btn.style.display = 'inline-block';
+            setStatus('Tap below if VYBE did not open.');
+          }
+        }, 900);
+      }
+
+      document.getElementById('openApp').addEventListener('click', function () {
+        if (window.__vybeOauthDeeplink) {
+          window.location.href = window.__vybeOauthDeeplink;
+        }
+      });
 
       var params = getParams();
       var stateObj = decodeState(params.get('state'));
@@ -65,15 +108,47 @@
         return;
       }
 
-      if (idToken) {
-        var okQuery =
-          'id_token=' + encodeURIComponent(idToken) +
-          '&state=' + encodeURIComponent(state);
-        redirectToApp(scheme, okQuery);
+      if (!idToken) {
+        redirectToApp(scheme, 'error=missing_token&state=' + encodeURIComponent(state));
         return;
       }
 
-      redirectToApp(scheme, 'error=missing_token&state=' + encodeURIComponent(state));
+      setStatus('Finishing Google sign-in…');
+
+      fetch(EXCHANGE_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ data: { action: 'exchange_google', idToken: idToken } }),
+      })
+        .then(function (res) {
+          return res.json().then(function (data) {
+            return { ok: res.ok, data: data };
+          });
+        })
+        .then(function (result) {
+          var payload = (result.data && result.data.result) || result.data || {};
+          var token = payload.customToken || payload.custom_token;
+          if (!result.ok || !token) {
+            var errMsg =
+              (result.data && result.data.error && result.data.error.message) ||
+              payload.message ||
+              payload.error ||
+              'exchange_failed';
+            throw new Error(errMsg);
+          }
+          var okQuery =
+            'custom_token=' + encodeURIComponent(token) + '&state=' + encodeURIComponent(state);
+          redirectToApp(scheme, okQuery);
+        })
+        .catch(function () {
+          setStatus('Could not finish automatically. Opening app…');
+          var fallbackQuery =
+            'id_token=' +
+            encodeURIComponent(idToken) +
+            '&state=' +
+            encodeURIComponent(state);
+          redirectToApp(scheme, fallbackQuery);
+        });
     })();
   </script>
 </body>

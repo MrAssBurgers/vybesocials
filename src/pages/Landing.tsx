@@ -210,7 +210,7 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
     clearStaleDespiaOAuthPending();
   }, []);
 
-  // Complete Despia oauth:// return (deeplink lands on /auth?id_token=...).
+  // Complete Despia oauth:// return (deeplink lands on /auth?custom_token=... or id_token).
   useEffect(() => {
     const finishDespiaOAuth = (detail?: {
       error?: { message?: string } | null;

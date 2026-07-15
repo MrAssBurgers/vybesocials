@@ -1,8 +1,11 @@
 import { randomBytes } from 'crypto';
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
+import { OAuth2Client } from 'google-auth-library';
 import { db, auth, requireAuth, requireAdmin, rateLimit, enforceRateLimit } from './_shared/admin.js';
 import { sendPasswordResetEmail } from './_shared/passwordResetEmail.js';
 import { claimProfileByEmailForUid } from './_shared/claimProfileByEmail.js';
+/** Must match Firebase Console Google web client (public). Used by native-callback exchange. */
+const GOOGLE_WEB_CLIENT_ID = '728651793473-71p1iahdr79ali0o7en8ktirklfjf3pf.apps.googleusercontent.com';
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 function code() {
     return String(Math.floor(100000 + Math.random() * 900000));
@@ -364,6 +367,74 @@ export const authSessionRevoke = onCall(async (request) => {
     return { ok: true };
 });
 const QR_SIGNIN_TTL_SEC = 180;
+async function mintCustomTokenFromGoogleIdToken(idToken) {
+    const client = new OAuth2Client(GOOGLE_WEB_CLIENT_ID);
+    const ticket = await client.verifyIdToken({
+        idToken,
+        audience: GOOGLE_WEB_CLIENT_ID,
+    });
+    const payload = ticket.getPayload();
+    const sub = payload?.sub;
+    if (!sub) {
+        throw new HttpsError('unauthenticated', 'invalid_token');
+    }
+    const email = payload.email?.trim().toLowerCase() || undefined;
+    const emailVerified = !!payload.email_verified;
+    const displayName = payload.name || undefined;
+    const photoURL = payload.picture || undefined;
+    let uid = null;
+    try {
+        const existing = await auth.getUserByProviderUid('google.com', sub);
+        uid = existing.uid;
+    }
+    catch {
+        if (email) {
+            try {
+                const byEmail = await auth.getUserByEmail(email);
+                await auth.updateUser(byEmail.uid, {
+                    providerToLink: {
+                        providerId: 'google.com',
+                        uid: sub,
+                        email,
+                        displayName,
+                        photoURL,
+                    },
+                    emailVerified: emailVerified || byEmail.emailVerified,
+                    displayName: displayName || byEmail.displayName,
+                    photoURL: photoURL || byEmail.photoURL,
+                });
+                uid = byEmail.uid;
+            }
+            catch {
+                /* create below */
+            }
+        }
+        if (!uid) {
+            const created = await auth.createUser({
+                email,
+                emailVerified,
+                displayName,
+                photoURL,
+            });
+            try {
+                await auth.updateUser(created.uid, {
+                    providerToLink: {
+                        providerId: 'google.com',
+                        uid: sub,
+                        email,
+                        displayName,
+                        photoURL,
+                    },
+                });
+            }
+            catch (linkErr) {
+                console.warn('[exchange_google] providerToLink failed', linkErr);
+            }
+            uid = created.uid;
+        }
+    }
+    return auth.createCustomToken(uid, { provider: 'google.com' });
+}
 function qrChallengeDocId(nonce) {
     return `qr_${nonce}`;
 }
@@ -377,13 +448,33 @@ function isChallengeExpired(expiresAt) {
     return true;
 }
 /**
- * auth-qr — Quick Sign-In QR pairing.
+ * auth-qr — Quick Sign-In QR pairing + iOS Google id_token → short custom_token exchange.
  * create (public) → poll (public) → claim (signed-in device) → redeem (public → custom token).
+ * exchange_google (public) — verify Google id_token, mint short Firebase custom token for deeplink.
  */
 export const authQr = onCall({ cors: true }, async (request) => {
     const data = (request.data || {});
     const action = (data.action || 'create').toLowerCase();
     const nonce = typeof data.nonce === 'string' ? data.nonce.trim() : '';
+    if (action === 'exchange_google') {
+        const ip = request.rawRequest?.ip || 'anon';
+        enforceRateLimit(await rateLimit(`oauth-exchange:${ip}`, 20, 600));
+        const idToken = String(data.idToken || data.id_token || '').trim();
+        if (!idToken) {
+            throw new HttpsError('invalid-argument', 'idToken required');
+        }
+        try {
+            const customToken = await mintCustomTokenFromGoogleIdToken(idToken);
+            return { customToken, custom_token: customToken };
+        }
+        catch (err) {
+            if (err instanceof HttpsError)
+                throw err;
+            const message = err instanceof Error ? err.message : String(err);
+            console.error('[authQr] exchange_google failed', message);
+            throw new HttpsError('unauthenticated', 'Google token verification failed');
+        }
+    }
     if (action === 'create') {
         const ip = request.rawRequest?.ip || 'anon';
         enforceRateLimit(await rateLimit(`qr-create:${ip}`, 12, 600));
