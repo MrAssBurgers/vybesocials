@@ -2,6 +2,15 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## Active — Native OAuth UX revamp (2026-07-15)
+
+- **Goal:** Google/Apple feel like system sheets → logged in (no stuck callback page)
+- **Shipped:** Landing signing overlay · silent `native-callback` bounce (1.5s fallback) · Apple script preload + better errors · `claimProfileAfterOAuth` + account-exists guidance · docs sync
+- **Constraint:** Google on Despia = `oauth://` ASWeb sheet (not in-WebView popup — Google blocks that)
+- **Publish required:** Lovable Publish so prod `native-callback.html` + Landing overlay land on `vybehub.app`
+
+---
+
 ## PUBLISH handoff (2026-07-15) — OAuth handoff + boot + instrumentation cleanup
 
 - **Merged to `origin/main`:** `4a2221e5`

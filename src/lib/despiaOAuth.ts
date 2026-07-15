@@ -391,14 +391,25 @@ export async function completeDespiaOAuthFromUrl(url: string): Promise<DespiaOAu
     }
     const completion = { data: { session: data.session }, error: null };
     if (data.session?.user) {
+      try {
+        const cleanPath = window.location.pathname || '/auth';
+        window.history.replaceState({}, '', cleanPath);
+      } catch {
+        /* ignore */
+      }
+      try {
+        const { claimProfileAfterOAuth } = await import('@/lib/oauthAccountLink');
+        await claimProfileAfterOAuth();
+      } catch {
+        /* optional */
+      }
       window.dispatchEvent(new CustomEvent('despia-oauth-complete', { detail: completion }));
     }
     return completion;
   } catch (err) {
     clearDespiaOAuthPending();
-    const message = err instanceof Error ? err.message : 'Google sign-in failed';
-    const code = err && typeof err === 'object' && 'code' in err ? String((err as { code?: string }).code) : undefined;
-    return { data: { session: null }, error: { message, name: code } };
+    const { mapOAuthLinkError } = await import('@/lib/oauthAccountLink');
+    return { data: { session: null }, error: mapOAuthLinkError(err) };
   }
 }
 

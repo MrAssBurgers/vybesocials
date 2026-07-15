@@ -30,9 +30,9 @@ export function getFriendlyAuthError(error: unknown): string {
     case 'auth/network-request-failed':
       return 'VYBE could not reach the sign-in service. Check your connection.';
     case 'auth/account-exists-with-different-credential':
-      return 'An account already exists with this email using another sign-in method.';
+      return 'An account already exists with this email using another sign-in method. Sign in with that method, then link Google or Apple in Settings → Connections.';
     case 'auth/credential-already-in-use':
-      return 'This sign-in method is already linked to another account.';
+      return 'This sign-in method is already linked to another account. Sign in with that method, then link providers in Settings → Connections.';
     case 'auth/invalid-credential':
       return 'Sign-in credentials were invalid or expired. Try again.';
     case 'auth/invalid-oauth-provider':

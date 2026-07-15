@@ -58,13 +58,35 @@ VYBE expects Despia to expose these native bridge URL schemes:
 | Interstitial ad     | `displayinterstitialad://`      | `src/hooks/useVideoAds.ts`     |
 | In-app purchase     | `revenuecat://purchase`         | `src/hooks/useRevenueCat.ts`   |
 | Google OAuth        | `oauth://?url=...`              | `src/lib/despiaOAuth.ts`       |
+| Apple (Android)     | `oauth://?url=...`              | `src/lib/despiaOAuth.ts`       |
+| Apple (iOS)         | Apple JS SDK native sheet       | `src/lib/appleSignIn.ts`       |
 
-**Google OAuth (Despia store builds):** Tap Google → `oauth://` opens
-ASWebAuthenticationSession (iOS) or Chrome Custom Tabs (Android), **not**
-Safari or an embedded WebView. Callback: `https://vybehub.app/native-callback.html`
-→ short deeplink `com.despia.vybe://oauth/auth?hc=...` (never put JWTs in the
-URL — iOS rejects long custom-scheme links as “address is invalid”) →
-`authQr` redeem → Firebase `signInWithCustomToken` / credential in the WebView.
+### Social login UX (Despia store builds)
+
+Google **cannot** run inside the WKWebView (provider policy). The supported
+big-app pattern is a **system account sheet**:
+
+| Provider | Platform | UX |
+|----------|----------|-----|
+| Google | iOS / Android | `oauth://` → ASWebAuthenticationSession / Custom Tabs → silent `native-callback.html` → `com.despia.vybe://oauth/auth?hc=…` |
+| Apple | iOS | Apple JS SDK `usePopup: true` → Face ID / Continue sheet → `signInWithCredential` in-app |
+| Apple | Android | Same `oauth://` handoff as Google (`hc=` stash/redeem) |
+
+**Silent callback:** `https://vybehub.app/native-callback.html` must bounce
+immediately with a short `hc=` code (never put JWTs in the deeplink — iOS
+rejects long custom-scheme URLs as “address is invalid”). Fallback “Open VYBE”
+appears only after ~1.5s if the app did not reclaim the session.
+
+**Landing:** shows an in-app “Continue with Google/Apple…” overlay while the
+system sheet is open; profile auto-link via `claim_profile_by_email` after success.
+
+**Firebase Console:** keep **one account per email** enabled so Google/Apple
+sign-in merges with an existing email/password user when possible. Conflicts
+surface Settings → Connections guidance.
+
+**Publish gate:** Despia always returns to **prod** `vybehub.app/native-callback.html`.
+After changing that file or the redeem client, **Lovable → Share → Publish** so
+production matches staging (`vybe-daaab.web.app` alone is not enough for OAuth return).
 
 **Google Cloud Console** (OAuth 2.0 Web client for Firebase): add authorized
 redirect URI:
@@ -78,10 +100,8 @@ Optional env overrides (see `.env.example`):
 - `VITE_DESPIA_DEEPLINK_SCHEME=com.despia.vybe` — must match Despia app scheme
 - `VITE_FIREBASE_GOOGLE_WEB_CLIENT_ID` — Firebase web client ID (defaults to value in `native/android/google-services.json`)
 
-Confirm with Despia support that ALL of these are enabled for the
-`com.despia.vybe` (Android) and the iOS bundle they assigned you. If any
-are missing, the corresponding feature falls back to the web path or shows
-an "unavailable" message.
+Confirm with Despia support that `oauth://` is enabled for the
+`com.despia.vybe` (Android) and the iOS bundle they assigned you.
 
 ## 5. NFC native permissions
 

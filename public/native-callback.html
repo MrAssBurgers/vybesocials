@@ -19,7 +19,7 @@
       padding: 24px;
       text-align: center;
     }
-    #status { margin: 0; }
+    #status { margin: 0; font-size: 14px; opacity: 0.85; }
     #openApp, #webFallback {
       display: none;
       appearance: none;
@@ -41,7 +41,7 @@
   </style>
 </head>
 <body>
-  <p id="status">Completing sign-in…</p>
+  <p id="status">Signing in…</p>
   <a id="openApp">Open VYBE</a>
   <a id="webFallback" href="https://vybehub.app/auth/callback">Continue on web</a>
   <script>
@@ -49,8 +49,9 @@
       var DEFAULT_SCHEME = 'com.despia.vybe';
       var EXCHANGE_URL = 'https://us-central1-vybe-daaab.cloudfunctions.net/authQr';
       var WEB_FALLBACK = 'https://vybehub.app/auth/callback';
-      // Soft cap — iOS rejects longer custom-scheme URLs as “address is invalid”.
       var MAX_DEEPLINK_LEN = 1800;
+      // Only show fallback UI if the app did not claim the deeplink quickly.
+      var FALLBACK_UI_MS = 1500;
 
       function setStatus(text) {
         var el = document.getElementById('status');
@@ -115,8 +116,8 @@
       }
 
       /**
-       * Short codes only in deeplinks. Long JWT/custom_token URLs break ASWeb
-       * with Safari “The address is invalid.”
+       * Silent bounce: immediately open the short deeplink. Fallback buttons
+       * appear only after FALLBACK_UI_MS if Despia did not close this sheet.
        */
       function redirectToApp(scheme, query) {
         var deeplink = buildDeeplink(scheme, query);
@@ -129,7 +130,7 @@
           try { window.location.href = deeplink; } catch (e) {}
           setTimeout(function () {
             try { window.location.replace(deeplink); } catch (e2) {}
-          }, 120);
+          }, 80);
           setTimeout(function () {
             try {
               var a = document.createElement('a');
@@ -139,7 +140,7 @@
               a.click();
               a.remove();
             } catch (e3) {}
-          }, 280);
+          }, 200);
         } else {
           window.__vybeOauthDeeplink = '';
           if (openBtn) {
@@ -159,7 +160,7 @@
           } else {
             setStatus('Continue in the browser if the app did not open.');
           }
-        }, 900);
+        }, FALLBACK_UI_MS);
       }
 
       document.getElementById('openApp').addEventListener('click', function (ev) {
@@ -175,7 +176,6 @@
       var stateObj = decodeState(params.get('state'));
       var scheme = (stateObj && stateObj.scheme) || DEFAULT_SCHEME;
       var idToken = params.get('id_token');
-      var code = params.get('code');
       var error = params.get('error');
       var state = params.get('state') || '';
       var provider = (stateObj && stateObj.provider) || 'google';
@@ -199,9 +199,8 @@
         redirectToApp(scheme, okQuery);
       }
 
-      // Apple — stash id_token server-side, deeplink only short handoff code.
       if (provider === 'apple' && idToken) {
-        setStatus('Finishing Apple sign-in…');
+        setStatus('Signing in…');
         callAuthQr({
           action: 'stash_oauth',
           provider: 'apple',
@@ -229,7 +228,7 @@
         return;
       }
 
-      setStatus('Finishing Google sign-in…');
+      setStatus('Signing in…');
 
       callAuthQr({ action: 'exchange_google', idToken: idToken })
         .then(function (result) {
@@ -248,7 +247,6 @@
             finishWithHandoffCode(handoff);
             return;
           }
-          // Fallback: stash custom token if older function lacked `code`.
           if (token) {
             return callAuthQr({
               action: 'stash_oauth',

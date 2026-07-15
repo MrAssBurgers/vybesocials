@@ -4,11 +4,12 @@
  */
 import { firebaseAuth, getFirebaseAuth } from '@/lib/firebase/authService';
 import { completeOAuthRedirectOnce } from '@/lib/firebase/oauthRedirect';
-import { signInWithOAuthPlatform } from '@/lib/nativeOAuth';
+import { signInWithOAuthPlatform, isOAuthBusy } from '@/lib/nativeOAuth';
 import { getFriendlyAuthError } from '@/lib/errorUtils';
+import { claimProfileAfterOAuth } from '@/lib/oauthAccountLink';
 import type { VybeSession } from '@/lib/firebase/types';
 
-export { getFriendlyAuthError };
+export { getFriendlyAuthError, isOAuthBusy, claimProfileAfterOAuth };
 
 export async function signInWithGoogle() {
   return signInWithOAuthPlatform('google');

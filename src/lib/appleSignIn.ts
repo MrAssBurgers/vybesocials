@@ -4,6 +4,7 @@
  */
 import { OAuthProvider, signInWithCredential } from 'firebase/auth';
 import { getProductionOrigin } from '@/lib/authRedirect';
+import { mapOAuthLinkError } from '@/lib/oauthAccountLink';
 import type { VybeAuthError, VybeSession } from '@/lib/firebase/types';
 
 const APPLE_SCRIPT = 'https://appleid.cdn-apple.com/appleauth/static/jsapi/appleid/1/en_US/appleid.auth.js';
@@ -45,6 +46,7 @@ async function sha256Hex(value: string): Promise<string> {
 
 let scriptPromise: Promise<void> | null = null;
 
+/** Prefetch Apple JS so the first tap opens the native sheet immediately. */
 export function loadAppleIdScript(): Promise<void> {
   if (typeof window === 'undefined') return Promise.resolve();
   if (window.AppleID?.auth) return Promise.resolve();
@@ -66,6 +68,13 @@ export function loadAppleIdScript(): Promise<void> {
     document.head.appendChild(s);
   });
   return scriptPromise;
+}
+
+/** Fire-and-forget preload for Landing mount. */
+export function preloadAppleSignIn(): void {
+  void loadAppleIdScript().catch(() => {
+    /* ignore — tap will retry */
+  });
 }
 
 /**
@@ -113,21 +122,43 @@ export async function signInWithAppleJsSdk(): Promise<{
     const credential = provider.credential({ idToken, rawNonce });
     await signInWithCredential(auth, credential);
     const { data, error } = await firebaseAuth.getSession();
-    if (error) return { data: { session: null }, error };
+    if (error) return { data: { session: null }, error: mapOAuthLinkError(error) };
     return { data: { session: data.session }, error: null };
   } catch (err: unknown) {
     const asAny = err as { error?: string; message?: string; code?: string };
-    if (asAny?.error === 'popup_closed_by_user' || /cancel/i.test(String(asAny?.message || ''))) {
+    if (
+      asAny?.error === 'popup_closed_by_user' ||
+      asAny?.error === 'user_cancelled' ||
+      /cancel/i.test(String(asAny?.message || ''))
+    ) {
       return {
         data: { session: null },
         error: { message: 'Sign-in cancelled', name: 'auth/popup-closed-by-user' },
       };
     }
-    const message = err instanceof Error ? err.message : 'Apple sign-in failed';
-    const name =
-      typeof asAny?.code === 'string' && asAny.code
-        ? asAny.code
-        : 'apple/sign-in-failed';
-    return { data: { session: null }, error: { message, name } };
+    if (
+      asAny?.code === 'auth/operation-not-allowed' ||
+      /operation-not-allowed/i.test(String(asAny?.message || '')) ||
+      /not enabled/i.test(String(asAny?.message || ''))
+    ) {
+      return {
+        data: { session: null },
+        error: {
+          message: 'Apple Sign-In is not enabled for this app. Check Firebase Apple provider setup.',
+          name: 'auth/operation-not-allowed',
+        },
+      };
+    }
+    if (/403|invalid_client|unauthorized/i.test(String(asAny?.message || ''))) {
+      return {
+        data: { session: null },
+        error: {
+          message:
+            'Apple rejected sign-in. Confirm Services ID com.despia.vybe.web and return URL https://vybehub.app/native-callback.html.',
+          name: 'auth/invalid-credential',
+        },
+      };
+    }
+    return { data: { session: null }, error: mapOAuthLinkError(err) };
   }
 }

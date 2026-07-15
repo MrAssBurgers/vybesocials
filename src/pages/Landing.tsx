@@ -38,7 +38,7 @@ import {
   isLikelyFirebaseOAuthReturnUrl,
   isOAuthRedirectInFlight,
 } from '@/lib/firebase/oauthRedirect';
-import { signInWithOAuthPlatform } from '@/lib/nativeOAuth';
+import { isOAuthBusy, signInWithOAuthPlatform } from '@/lib/nativeOAuth';
 import {
   clearDespiaOAuthPending,
   clearStaleDespiaOAuthPending,
@@ -46,6 +46,8 @@ import {
   isDespiaOAuthReturnUrl,
   tryCompleteDespiaOAuthFromCurrentUrl,
 } from '@/lib/despiaOAuth';
+import { claimProfileAfterOAuth } from '@/lib/oauthAccountLink';
+import { preloadAppleSignIn } from '@/lib/appleSignIn';
 
 
 // Hide bottom nav on landing page + lock document scroll (auth is one-screen)
@@ -198,6 +200,8 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
     password: '',
     username: '',
   });
+  /** Full-screen signing overlay while system sheet / Apple sheet is open. */
+  const [oauthOverlay, setOauthOverlay] = useState<'google' | 'apple' | null>(null);
 
   const hasStoredSession = hasStoredAuthSession();
 
@@ -208,33 +212,44 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
   useEffect(() => {
     clearStaleOAuthRedirectPending();
     clearStaleDespiaOAuthPending();
+    preloadAppleSignIn();
   }, []);
 
-  // Complete Despia oauth:// return (deeplink lands on /auth?custom_token=... or id_token).
+  // Complete Despia oauth:// return (deeplink lands on /auth?hc=... or id_token).
   useEffect(() => {
     const finishDespiaOAuth = (detail?: {
-      error?: { message?: string } | null;
+      error?: { message?: string; name?: string } | null;
       data?: { session?: Parameters<typeof applyOAuthSession>[0] | null };
     }) => {
       if (detail?.data?.session?.user) {
         clearDespiaOAuthPending();
         clearOAuthRedirectPending();
         applyOAuthSession(detail.data.session);
-        const cached = getCachedCurrentProfile();
-        toast.success('Welcome back! ✨');
-        navigate(
-          resolvePostLoginDestination(
-            profile ??
-              (cached
-                ? { onboarding_completed: cached.onboarding_completed, username: cached.username }
-                : null),
-          ),
-          { replace: true },
-        );
+        setOauthOverlay(null);
+        setLoading(false);
+        void claimProfileAfterOAuth().then(() => {
+          const cached = getCachedCurrentProfile();
+          toast.success('Welcome back! ✨');
+          navigate(
+            resolvePostLoginDestination(
+              profile ??
+                (cached
+                  ? { onboarding_completed: cached.onboarding_completed, username: cached.username }
+                  : null),
+            ),
+            { replace: true },
+          );
+        });
         return;
       }
       if (detail?.error?.message) {
-        sessionStorage.setItem('vybe-oauth-error', detail.error.message);
+        const msg = getFriendlyAuthError(detail.error);
+        if (msg !== '__SUPPRESS__') {
+          sessionStorage.setItem('vybe-oauth-error', msg);
+          toast.error(msg);
+        }
+        setOauthOverlay(null);
+        setLoading(false);
       }
       setIsOAuthReturn(true);
     };
@@ -276,7 +291,9 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
   );
 
   const runOAuthSignIn = useCallback(async (provider: 'google' | 'apple') => {
+    if (isOAuthBusy() || loading) return;
     setLoading(true);
+    setOauthOverlay(provider);
     try {
       sessionStorage.removeItem('vybe-oauth-error');
 
@@ -287,6 +304,7 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
       }
       if (oauthResult.pending) {
         setIsOAuthReturn(true);
+        // Keep overlay — system sheet is open; session arrives via deeplink.
         return;
       }
       if (oauthResult.error) throw oauthResult.error;
@@ -295,6 +313,7 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
         applyOAuthSession(oauthResult.data.session);
         clearOAuthRedirectPending();
         clearDespiaOAuthPending();
+        await claimProfileAfterOAuth();
         toast.success('Welcome back! ✨');
         const cached = getCachedCurrentProfile();
         navigate(
@@ -305,6 +324,7 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
           ),
           { replace: true },
         );
+        setOauthOverlay(null);
         return;
       }
     } catch (error: unknown) {
@@ -312,12 +332,14 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
       clearDespiaOAuthPending();
       const msg = getFriendlyAuthError(error);
       if (msg !== '__SUPPRESS__') toast.error(msg);
+      setOauthOverlay(null);
     } finally {
       if (!isOAuthRedirectInFlight() && !isDespiaOAuthInFlight()) {
         setLoading(false);
+        setOauthOverlay(null);
       }
     }
-  }, [navigate, profile, applyOAuthSession]);
+  }, [navigate, profile, applyOAuthSession, loading]);
 
   // Firebase OAuth redirect — navigate as soon as session exists.
   useEffect(() => {
@@ -328,16 +350,20 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
       clearDespiaOAuthPending();
       sessionStorage.removeItem('vybe-oauth-error');
       setIsOAuthReturn(false);
-      const cached = getCachedCurrentProfile();
-      navigate(
-        resolvePostLoginDestination(
-          profile ??
-            (cached
-              ? { onboarding_completed: cached.onboarding_completed, username: cached.username }
-              : null),
-        ),
-        { replace: true },
-      );
+      setOauthOverlay(null);
+      setLoading(false);
+      void claimProfileAfterOAuth().then(() => {
+        const cached = getCachedCurrentProfile();
+        navigate(
+          resolvePostLoginDestination(
+            profile ??
+              (cached
+                ? { onboarding_completed: cached.onboarding_completed, username: cached.username }
+                : null),
+          ),
+          { replace: true },
+        );
+      });
       return;
     }
 
@@ -348,6 +374,7 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
       sessionStorage.removeItem('vybe-oauth-error');
       setIsOAuthReturn(false);
       setLoading(false);
+      setOauthOverlay(null);
       toast.error(oauthError);
       return;
     }
@@ -357,15 +384,19 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
         const captured = await finalizeOAuthRedirectCapture();
         if (captured.session?.user) {
           applyOAuthSession(captured.session);
+          await claimProfileAfterOAuth();
+          setOauthOverlay(null);
           return;
         }
         clearOAuthRedirectPending();
         clearDespiaOAuthPending();
         setIsOAuthReturn(false);
         setLoading(false);
-        toast.error(
-          captured.error?.message || 'Sign-in did not complete. Please try again.',
-        );
+        setOauthOverlay(null);
+        const msg = captured.error
+          ? getFriendlyAuthError(captured.error)
+          : 'Sign-in did not complete. Please try again.';
+        if (msg !== '__SUPPRESS__') toast.error(msg);
       })();
     }, 18000);
 
@@ -888,7 +919,7 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
                   variant="outline"
                   className="w-full h-8 bg-secondary/20 border-white/10 hover:bg-secondary/35 text-[11px] font-normal px-2"
                   onClick={() => void runOAuthSignIn('google')}
-                  disabled={loading}
+                  disabled={loading || !!oauthOverlay || isOAuthBusy()}
                 >
                   <svg className="w-3.5 h-3.5 mr-1 shrink-0" viewBox="0 0 24 24" aria-hidden>
                     <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
@@ -904,7 +935,7 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
                   variant="outline"
                   className="w-full h-8 bg-secondary/20 border-white/10 hover:bg-secondary/35 text-[11px] font-normal px-2"
                   onClick={() => void runOAuthSignIn('apple')}
-                  disabled={loading}
+                  disabled={loading || !!oauthOverlay || isOAuthBusy()}
                 >
                   <svg className="w-3.5 h-3.5 mr-1 shrink-0" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
                     <path d="M17.05 20.28c-.98.95-2.05.88-3.08.4-1.09-.5-2.08-.48-3.24 0-1.44.62-2.2.44-3.06-.4C2.79 15.25 3.51 7.59 9.05 7.31c1.35.07 2.29.74 3.08.8 1.18-.24 2.31-.93 3.57-.84 1.51.12 2.65.72 3.4 1.8-3.12 1.87-2.38 5.98.48 7.13-.57 1.5-1.31 2.99-2.54 4.09zM12.03 7.25c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25z"/>
@@ -980,6 +1011,26 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
       </div>
 
       {/* Touch ripple removed */}
+
+      {(oauthOverlay || (isOAuthReturn && loading)) && (
+        <div
+          className="fixed inset-0 z-[80] flex flex-col items-center justify-center gap-3 bg-[#0B0B10]/90 backdrop-blur-sm px-6"
+          role="status"
+          aria-live="polite"
+        >
+          <div className="w-9 h-9 rounded-full border-[3px] border-primary/30 border-t-primary animate-spin" />
+          <p className="text-sm text-foreground text-center">
+            {oauthOverlay === 'apple'
+              ? 'Continue with Apple…'
+              : oauthOverlay === 'google'
+                ? 'Continue with Google…'
+                : 'Signing you in…'}
+          </p>
+          <p className="text-xs text-muted-foreground text-center max-w-xs">
+            Finish in the sign-in sheet. You will return here automatically.
+          </p>
+        </div>
+      )}
 
       <ForgotPasswordDialog
         open={showForgotPassword}

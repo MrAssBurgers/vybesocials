@@ -1,10 +1,11 @@
 /**
- * Platform-aware OAuth — Despia oauth:// on store builds, Capacitor native picker
- * on self-built shells, popup on desktop, redirect on mobile Safari / PWA / WebViews.
+ * Platform-aware OAuth — Despia store builds, Capacitor shells, Safari/PWA, desktop.
  *
- * Despia MUST keep oauth:// (ASWebAuthenticationSession). Firebase
- * signInWithRedirect inside Offline→Native (localhost:7777) leaks Safari to
- * firebaseapp.com/__/auth/* and breaks with “address is invalid” deeplinks.
+ * Despia Google / Android Apple MUST use oauth:// (ASWebAuthenticationSession /
+ * Custom Tabs). Google blocks OAuth inside the WKWebView — never use
+ * signInWithPopup for Google on Despia.
+ *
+ * Despia Apple iOS uses Apple JS SDK native Face ID / Continue sheet (sync).
  */
 import { isDespiaRuntime, isNativeAppShell } from '@/lib/despiaBridge';
 import { isEmbeddedAppleWebView } from '@/lib/deviceDetection';
@@ -16,6 +17,7 @@ import {
   type OAuthPlatformInfo,
 } from '@/lib/oauthPlatform';
 import { authLog, authWarn } from '@/lib/authLog';
+import { mapOAuthLinkError } from '@/lib/oauthAccountLink';
 import type { VybeAuthError, VybeSession } from '@/lib/firebase/types';
 
 export type OAuthProviderId = 'google' | 'apple';
@@ -35,6 +37,10 @@ export function getOAuthPlatformInfo(): OAuthPlatformInfo {
   return detectOAuthPlatform();
 }
 
+export function isOAuthBusy(): boolean {
+  return oauthInFlight != null || Date.now() < oauthMutexUntil;
+}
+
 export function shouldUseNativeOAuth(): boolean {
   return isNativeAppShell();
 }
@@ -44,6 +50,7 @@ export function shouldUseRedirectOAuth(): boolean {
   return shouldUseRedirectOAuthPlatform();
 }
 
+/** Despia store: Google always oauth://; Apple via despiaOAuth (JS on iOS, oauth on Android). */
 export function shouldUseDespiaOAuth(provider: OAuthProviderId): boolean {
   if (!isDespiaRuntime()) return false;
   if (provider === 'google' || provider === 'apple') return true;
@@ -63,7 +70,7 @@ async function tryCapacitorNativeOAuth(provider: OAuthProviderId): Promise<OAuth
 async function tryDespiaGoogleOAuth(): Promise<OAuthSignInResult> {
   const result = await signInWithGoogleDespia();
   if (result.error) {
-    return { data: { session: null }, error: result.error };
+    return { data: { session: null }, error: mapOAuthLinkError(result.error) };
   }
   return { data: { session: null }, error: null, pending: true };
 }
@@ -71,7 +78,7 @@ async function tryDespiaGoogleOAuth(): Promise<OAuthSignInResult> {
 async function tryDespiaAppleOAuth(): Promise<OAuthSignInResult> {
   const result = await signInWithAppleDespia();
   if (result.error) {
-    return { data: { session: null }, error: result.error };
+    return { data: { session: null }, error: mapOAuthLinkError(result.error) };
   }
   if (result.data?.session?.user) {
     return { data: { session: result.data.session }, error: null };
@@ -91,8 +98,12 @@ async function signInWithOAuthPlatformInner(provider: OAuthProviderId): Promise<
     path: typeof location !== 'undefined' ? location.pathname : '',
   });
 
+  // Despia takes priority — never Firebase popup for Google here.
   if (shouldUseDespiaOAuth(provider)) {
-    authLog('oauth_strategy', { provider, strategy: 'despia' });
+    authLog('oauth_strategy', {
+      provider,
+      strategy: provider === 'apple' && !platform.isAndroidWebView ? 'apple-js' : 'despia-oauth',
+    });
     if (provider === 'google') return tryDespiaGoogleOAuth();
     if (provider === 'apple') return tryDespiaAppleOAuth();
   }
@@ -103,7 +114,7 @@ async function signInWithOAuthPlatformInner(provider: OAuthProviderId): Promise<
       return nativeResult;
     }
     if (nativeResult?.error && !isRetryableNativeError(nativeResult.error)) {
-      return nativeResult;
+      return { ...nativeResult, error: mapOAuthLinkError(nativeResult.error) };
     }
     const { firebaseAuth } = await import('@/lib/firebase');
     const baseOpts =
@@ -127,6 +138,9 @@ async function signInWithOAuthPlatformInner(provider: OAuthProviderId): Promise<
 
   let oauthResult = await firebaseAuth.signInWithOAuth(provider, baseOpts);
   if (oauthResult.redirected) return oauthResult;
+  if (oauthResult.error) {
+    oauthResult = { ...oauthResult, error: mapOAuthLinkError(oauthResult.error) };
+  }
 
   if (
     oauthResult.error &&
