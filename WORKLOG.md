@@ -2,6 +2,19 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## DM composer keyboard dock (2026-07-14)
+
+- **What changed:** DM dock padding includes `--kb-h` under `data-dm-active`; `useKeyboardHeight` keeps listeners across desktop→mobile shell; soft-keyboard detect also accepts touch / `hover: none`.
+- **Symptom fixed:** Composer not above keyboard; user thought nav/back were broken (nav was already unmounting on threads).
+- **Tests:** Manual verify (composer above KB, no bottom nav in thread, back to inbox). Debug instrumentation removed.
+- **Blockers:** Uncommitted until publish/commit request; `vybehub.app` still needs Lovable Publish for prior camera + this fix once pushed.
+- **Next:**
+  1. Commit + push composer keyboard fix to `origin/main` when asked
+  2. Lovable Publish for `vybehub.app`
+  3. Hard-refresh verify DM thread keyboard + back
+
+---
+
 ## PUBLISH handoff (2026-07-14) — camera overlay crash
 
 - **Merged to `origin/main`:** `ecc3a536` (camera overlay safe hooks + split modules; Home/Messages/Upload no longer crash on `useCameraOverlay*`)

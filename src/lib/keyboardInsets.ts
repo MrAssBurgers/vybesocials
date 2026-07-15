@@ -4,9 +4,13 @@ import { isDespiaRuntime } from '@/lib/despiaBridge';
 export function shouldTrackSoftKeyboard(): boolean {
   if (typeof window === 'undefined') return false;
   if (isDespiaRuntime()) return true;
-  const coarse = window.matchMedia('(pointer: coarse)').matches;
   const narrow = window.innerWidth < 768;
-  return coarse && narrow;
+  if (!narrow) return false;
+  // Coarse pointer OR touch/hover-none (Chrome device mode often reports pointer:fine).
+  const coarse = window.matchMedia('(pointer: coarse)').matches;
+  const noHover = window.matchMedia('(hover: none)').matches;
+  const touch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+  return coarse || noHover || touch;
 }
 
 export const KEYBOARD_INSET_THRESHOLD_PX = 48;
