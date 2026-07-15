@@ -4,7 +4,7 @@ Use this file as the Lovable -> Cursor handoff each session.
 
 ## PUBLISH handoff (2026-07-14) — QR cleanup + iOS onboarding shell
 
-- **Merged to `origin/main`:** _(pending push)_ — remove QR `dbgOauth` instrumentation; iOS onboarding/auth safe-area shell
+- **Merged to `origin/main`:** `840c3ffc` — remove QR `dbgOauth` instrumentation; iOS onboarding/auth safe-area shell
 - **Firebase staging:** `authQr` already on `vybe-daaab`
 - **Production `vybehub.app`:** **Lovable → Share → Publish** — Cursor cannot click Publish
 - **Lovable:** https://lovable.dev/projects/416714c8-d013-4aff-984d-522418a9bbc7
