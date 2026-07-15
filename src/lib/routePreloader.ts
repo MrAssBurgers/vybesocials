@@ -7,6 +7,7 @@
  * 3. Prefetch data for target routes
  */
 
+import '@/lib/idleCallbackPolyfill';
 import { prefetchDMConversationsFromNav } from '@/lib/loadDMConversations';
 
 // Map of route paths to their lazy import functions
@@ -157,17 +158,4 @@ export function preloadSecondaryRoutes(): void {
       window.setTimeout(() => preloadRoute(route), index * 220);
     });
   }, { timeout: 5000 });
-}
-
-// Polyfill requestIdleCallback for Safari
-if (typeof window !== 'undefined' && !('requestIdleCallback' in window)) {
-  (window as Window & { requestIdleCallback?: (cb: IdleRequestCallback, options?: IdleRequestOptions) => number }).requestIdleCallback = (cb, options) => {
-    const start = Date.now();
-    return setTimeout(() => {
-      cb({
-        didTimeout: false,
-        timeRemaining: () => Math.max(0, 50 - (Date.now() - start)),
-      });
-    }, options?.timeout || 1) as unknown as number;
-  };
 }

@@ -121,9 +121,9 @@ the app needs the permission, or Apple rejects.
 <key>NSPhotoLibraryAddUsageDescription</key>
 <string>VYBE saves photos and videos you create back to your library.</string>
 
-<!-- Location (Friend Map) -->
+<!-- Location (Friend Map) — App Review 5.1.1(ii): specific purpose + example -->
 <key>NSLocationWhenInUseUsageDescription</key>
-<string>VYBE uses your location to show your spot on the Friend Map and surface posts nearby.</string>
+<string>VYBE uses your location while you use the Friend Map so friends you choose can see approximately where you are (for example, “near downtown” on the map) and so nearby public posts and places can appear around you. Location is not used for advertising tracking.</string>
 
 <!-- Face ID / Passkeys -->
 <key>NSFaceIDUsageDescription</key>

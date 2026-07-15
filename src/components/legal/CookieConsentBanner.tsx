@@ -4,24 +4,45 @@ import { Cookie, X } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '@/lib/auth';
 import { db } from '@/lib/firebase';
+import { isDespiaRuntime } from '@/lib/despiaBridge';
+import { syncNativeTrackingConsent, TRACKING_CONSENT_KEY } from '@/lib/att';
 
 const COOKIE_CONSENT_KEY = 'vybe-cookie-consent';
 
+/**
+ * Cookie / essential-storage notice.
+ * On Despia: if ATT is denied, we auto-decline optional cookies and never show
+ * an "Accept all" trackable path (App Review 5.1.1(iv)).
+ */
 export function CookieConsentBanner() {
   const [visible, setVisible] = useState(false);
   const { profile } = useAuth();
 
   useEffect(() => {
-    // Already answered locally — done
+    if (isDespiaRuntime()) {
+      const att = syncNativeTrackingConsent();
+      if (att === 'denied') {
+        localStorage.setItem(COOKIE_CONSENT_KEY, 'declined');
+        localStorage.setItem(TRACKING_CONSENT_KEY, 'denied');
+        return;
+      }
+      // Native ATT covers tracking — do not stack a second cookie/track UI.
+      if (att === 'allowed' || localStorage.getItem(TRACKING_CONSENT_KEY)) {
+        if (!localStorage.getItem(COOKIE_CONSENT_KEY)) {
+          localStorage.setItem(COOKIE_CONSENT_KEY, att === 'allowed' ? 'accepted' : 'declined');
+        }
+        return;
+      }
+    }
+
     if (localStorage.getItem(COOKIE_CONSENT_KEY)) return;
 
-    // If logged in, check DB first so the choice follows them across devices
     if (profile?.id) {
       db
         .rpc('get_own_sensitive_profile')
         .single()
         .then(({ data }) => {
-          const dbVal = (data as any)?.cookie_consent;
+          const dbVal = (data as { cookie_consent?: string } | null)?.cookie_consent;
           if (dbVal === 'accepted' || dbVal === 'declined') {
             localStorage.setItem(COOKIE_CONSENT_KEY, dbVal);
           } else {
@@ -32,13 +53,17 @@ export function CookieConsentBanner() {
       return;
     }
 
-    // Not logged in — show banner after short delay
     const timer = setTimeout(() => setVisible(true), 2000);
     return () => clearTimeout(timer);
   }, [profile?.id]);
 
   const persist = async (value: 'accepted' | 'declined') => {
     localStorage.setItem(COOKIE_CONSENT_KEY, value);
+    if (value === 'declined') {
+      localStorage.setItem(TRACKING_CONSENT_KEY, 'denied');
+    } else {
+      localStorage.setItem(TRACKING_CONSENT_KEY, 'allowed');
+    }
     setVisible(false);
     if (profile?.id) {
       await db
@@ -67,9 +92,11 @@ export function CookieConsentBanner() {
                 <Cookie className="w-4 h-4 text-primary" />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-foreground">We use cookies</p>
+                <p className="text-sm font-semibold text-foreground">Cookies & storage</p>
                 <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
-                  We use essential cookies to keep VYBE running and optional cookies to improve your experience.{' '}
+                  Essential cookies keep you signed in. Optional cookies are only used if you allow them —
+                  we do not track you across other companies&apos; apps or websites for advertising without
+                  your permission.{' '}
                   <Link to="/cookies" className="text-primary hover:underline" onClick={() => setVisible(false)}>
                     Learn more
                   </Link>
@@ -86,7 +113,7 @@ export function CookieConsentBanner() {
               </button>
               <button onClick={handleAccept}
                 className="flex-1 px-3 py-2 rounded-xl text-xs font-bold bg-primary text-primary-foreground hover:bg-primary/90 transition-colors">
-                Accept all
+                Accept optional
               </button>
             </div>
           </div>

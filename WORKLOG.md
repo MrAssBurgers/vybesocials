@@ -2,6 +2,18 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## Active — iOS shell / DMs / App Review (2026-07-15)
+
+- **DM crash:** `cancelIdleCallback` missing on WKWebView — polyfill + safe call sites (`idleCallbackPolyfill`, ChatView, useDMInbox, …)
+- **Was this you? every open:** session tracking used unstable Firebase JWT `session_id`; now stable `getOrCreateDeviceId` + `session_resume` never creates challenges; real login via `notifyFreshLogin`; geo/IP on approval challenges
+- **Safe-area letterbox:** Despia no longer inflates missing env insets with hard-coded 59/34; native shell CSS fills WebView
+- **ATT/cookies:** native ATT deny auto-declines optional cookies; banner copy clarifies no cross-app tracking without permission
+- **App Review notes:** `docs/APP_STORE_REVIEW_NOTES.md` + stronger location purpose string in `docs/IOS_SETUP.md` (also update Despia/Xcode Info.plist)
+- **Next:** Lovable Publish + Despia plist location string + App Store Connect age rating Parental Controls/Age Assurance → None + NFC notes
+- **Verify:** open DM thread (no cancelIdleCallback spam); reopen app without “Was this you?”; edge-to-edge UI
+
+---
+
 ## Done — username or email login (2026-07-15)
 
 - **Verified by user.** Debug instrumentation removed from `loginEmail.ts`.

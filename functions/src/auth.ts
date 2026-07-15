@@ -268,9 +268,58 @@ export const authLoginApproval = onCall({ cors: true }, async (request) => {
   throw new HttpsError('invalid-argument', `Unknown action: ${action}`);
 });
 
+function clientIpFromRequest(request: { rawRequest?: { ip?: string; headers?: Record<string, unknown> } }): string | null {
+  const headers = request.rawRequest?.headers || {};
+  const xf = headers['x-forwarded-for'];
+  if (typeof xf === 'string' && xf.trim()) return xf.split(',')[0].trim();
+  if (Array.isArray(xf) && typeof xf[0] === 'string') return xf[0].split(',')[0].trim();
+  const appEngine = headers['x-appengine-user-ip'];
+  if (typeof appEngine === 'string' && appEngine.trim()) return appEngine.trim();
+  return request.rawRequest?.ip || null;
+}
+
+async function resolveLoginGeo(
+  request: { rawRequest?: { ip?: string; headers?: Record<string, unknown> } },
+): Promise<{ ip: string | null; city?: string; region?: string; country?: string }> {
+  const headers = request.rawRequest?.headers || {};
+  const ip = clientIpFromRequest(request);
+  const countryHeader =
+    (typeof headers['x-appengine-country'] === 'string' && headers['x-appengine-country']) ||
+    (typeof headers['cf-ipcountry'] === 'string' && headers['cf-ipcountry']) ||
+    null;
+  const base: { ip: string | null; city?: string; region?: string; country?: string } = {
+    ip,
+    country: countryHeader && countryHeader !== 'ZZ' ? countryHeader : undefined,
+  };
+  if (!ip || ip === '127.0.0.1' || ip.startsWith('::')) return base;
+  try {
+    const res = await fetch(`https://ipapi.co/${encodeURIComponent(ip)}/json/`, {
+      signal: AbortSignal.timeout(2500),
+    });
+    if (!res.ok) return base;
+    const j = (await res.json()) as {
+      city?: string;
+      region?: string;
+      country_name?: string;
+      country?: string;
+      error?: boolean;
+    };
+    if (j?.error) return base;
+    return {
+      ip,
+      city: j.city || undefined,
+      region: j.region || undefined,
+      country: j.country_name || j.country || base.country,
+    };
+  } catch {
+    return base;
+  }
+}
+
 /**
  * auth-login-notify — register this session; alert OTHER devices only when a new
  * sign-in hits an account that already has active sessions elsewhere.
+ * `session_resume` / app opens never create approval challenges.
  */
 export const authLoginNotify = onCall(
   { cors: true, secrets: ['ONESIGNAL_APP_ID', 'ONESIGNAL_REST_API_KEY'] },
@@ -281,6 +330,7 @@ export const authLoginNotify = onCall(
     const method = asString(payload.method) || 'password';
     const userAgent = asString(payload.userAgent);
     const now = new Date().toISOString();
+    const isResume = method === 'session_resume' || method === 'app_open' || method === 'heartbeat';
 
     const profileId = await resolveProfileIdForAuthUid(uid);
     const settingsSnap = await db.collection('user_2fa_settings').doc(uid).get();
@@ -296,6 +346,25 @@ export const authLoginNotify = onCall(
       if (!known.empty) {
         const doc = known.docs[0];
         await doc.ref.set({ last_seen_at: now }, { merge: true });
+        // Clear stale "Was this you?" prompts that were incorrectly created for this install.
+        const stale = await db.collection('auth_challenges')
+          .where('user_id', '==', uid)
+          .where('challenge_type', '==', 'login_approval')
+          .where('status', '==', 'pending')
+          .limit(10)
+          .get();
+        const batch = db.batch();
+        let cleared = 0;
+        for (const challenge of stale.docs) {
+          const meta = (challenge.data().metadata || {}) as Record<string, unknown>;
+          const sameDevice = meta.requesting_session_hash === sessionHash;
+          const resumeNoise = meta.method === 'session_resume' || meta.method === 'app_open';
+          if (sameDevice || resumeNoise) {
+            batch.set(challenge.ref, { status: 'expired', resolved_at: now }, { merge: true });
+            cleared += 1;
+          }
+        }
+        if (cleared > 0) await batch.commit();
         return { ok: true, sessionId: doc.id, notified: false, reason: 'known_session' };
       }
     }
@@ -306,11 +375,18 @@ export const authLoginNotify = onCall(
       session_token_hash: sessionHash || null,
       device_label: parseDeviceLabel(userAgent),
       user_agent: userAgent || null,
-      trusted: false,
+      trusted: isResume,
       created_at: now,
       last_seen_at: now,
       revoked_at: null,
     });
+
+    // Cold starts / resumes register the install but never spam approvals or history.
+    if (isResume) {
+      return { ok: true, sessionId: sessionRef.id, notified: false, reason: 'session_resume' };
+    }
+
+    const geo = await resolveLoginGeo(request);
 
     await db.collection('login_history').add({
       user_id: uid,
@@ -319,7 +395,12 @@ export const authLoginNotify = onCall(
       device_label: parseDeviceLabel(userAgent),
       user_agent: userAgent || null,
       created_at: now,
-      metadata: { session_id: sessionRef.id, session_hash: sessionHash || null },
+      metadata: {
+        session_id: sessionRef.id,
+        session_hash: sessionHash || null,
+        ip: geo.ip,
+        geo,
+      },
     });
 
     const allSessions = await db.collection('user_sessions').where('user_id', '==', uid).get();
@@ -362,6 +443,7 @@ export const authLoginNotify = onCall(
 
     const challengeRef = db.collection('auth_challenges').doc();
     const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
+    const place = [geo.city, geo.region, geo.country].filter(Boolean).join(', ') || geo.ip || 'Unknown location';
     await challengeRef.set({
       user_id: uid,
       challenge_type: 'login_approval',
@@ -371,14 +453,16 @@ export const authLoginNotify = onCall(
       metadata: {
         requesting_session_hash: sessionHash || null,
         requesting_session_id: sessionRef.id,
-        device: { label: parseDeviceLabel(userAgent), browser: userAgent || null },
+        device: { label: parseDeviceLabel(userAgent), browser: userAgent || null, os: parseDeviceLabel(userAgent) },
         method,
+        ip: geo.ip,
+        geo,
       },
     });
 
     await dispatchOneSignalToProfile(profileId, {
       title: 'Approve sign-in?',
-      body: 'Someone is trying to sign in to your VYBE account.',
+      body: `New sign-in from ${place}. Was this you?`,
       type: 'login_approval',
       url: `/?login-approval=${challengeRef.id}`,
       data: {

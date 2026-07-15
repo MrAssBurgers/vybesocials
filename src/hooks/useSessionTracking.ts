@@ -2,17 +2,20 @@ import { useEffect } from 'react';
 import { useAuth } from '@/lib/auth';
 import { db } from '@/lib/firebase';
 import {
-  getJwtSessionId,
   rememberCurrentSessionHash,
   rememberSelfLoginChallenge,
 } from '@/lib/sessionIdentity';
+import { getOrCreateDeviceId } from '@/lib/notifications/pushDiagnostics';
 
 const REVOKE_CHECK_INTERVAL_MS = 15_000;
 
 /**
- * Fires auth-login-notify once per session — registers the device in
- * user_sessions, writes login_history, and alerts OTHER signed-in devices
- * when a new login hits the same account (never self on routine sign-in).
+ * Registers this install in user_sessions and watches for remote revoke.
+ * Uses a stable localStorage device id (Firebase JWTs have no session_id) so
+ * cold starts do not look like new logins / spam "Was this you?" challenges.
+ *
+ * Real sign-in alerts are created only when `notifyFreshLogin` is called from
+ * auth flows — not on every app open.
  */
 export function useSessionTracking() {
   const { user, authReady } = useAuth();
@@ -35,24 +38,29 @@ export function useSessionTracking() {
     };
 
     const trackAndWatch = async () => {
-      const { data: { session } } = await db.auth.getSession();
-      const authSessionId = getJwtSessionId(session?.access_token);
-      const sessionKey = authSessionId || 'legacy';
-      const trackedKey = `vybe-session-tracked-${user.id}-${sessionKey}`;
-      const idKey = `vybe-app-session-id-${user.id}-${sessionKey}`;
+      const deviceFingerprint = getOrCreateDeviceId();
+      rememberCurrentSessionHash(user.id, deviceFingerprint);
+
+      const trackedKey = `vybe-session-tracked-${user.id}-${deviceFingerprint}`;
+      const idKey = `vybe-app-session-id-${user.id}-${deviceFingerprint}`;
       let trackedSessionId: string | null = null;
 
-      if (authSessionId) {
-        rememberCurrentSessionHash(user.id, authSessionId);
-      }
-
       try {
-        trackedSessionId = sessionStorage.getItem(idKey);
-        if (!sessionStorage.getItem(trackedKey)) {
+        trackedSessionId = localStorage.getItem(idKey);
+        let alreadyTracked = !!localStorage.getItem(trackedKey);
+        // Let interactive login (notifyFreshLogin) claim a new auth first — avoids
+        // racing session_resume vs password/oauth and dropping real location alerts.
+        if (!alreadyTracked) {
+          await new Promise((r) => window.setTimeout(r, 900));
+          if (cancelled) return;
+          alreadyTracked = !!localStorage.getItem(trackedKey);
+          trackedSessionId = localStorage.getItem(idKey) || trackedSessionId;
+        }
+        if (!alreadyTracked) {
           const { data } = await db.functions.invoke('auth-login-notify', {
             body: {
-              method: 'password',
-              deviceFingerprint: authSessionId,
+              method: 'session_resume',
+              deviceFingerprint,
               userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : undefined,
             },
           });
@@ -65,28 +73,56 @@ export function useSessionTracking() {
           if (payload?.challengeId) {
             rememberSelfLoginChallenge(user.id, payload.challengeId);
           }
-          if (trackedSessionId) sessionStorage.setItem(idKey, trackedSessionId);
-          sessionStorage.setItem(trackedKey, String(Date.now()));
+          if (trackedSessionId) localStorage.setItem(idKey, trackedSessionId);
+          localStorage.setItem(trackedKey, String(Date.now()));
+          // #region agent log
+          fetch('http://127.0.0.1:7693/ingest/1847f3ab-7d03-4b99-8dbe-84076ae9145e', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': 'adb115' },
+            body: JSON.stringify({
+              sessionId: 'adb115',
+              runId: 'ios-shell',
+              hypothesisId: 'S1',
+              location: 'useSessionTracking.ts',
+              message: 'session_resume_notify',
+              data: {
+                notified: !!payload?.notified,
+                hasChallenge: !!payload?.challengeId,
+                fpLen: deviceFingerprint.length,
+              },
+              timestamp: Date.now(),
+            }),
+          }).catch(() => {});
+          // #endregion
+        } else if (trackedSessionId) {
+          // Known install — soft heartbeat for revoke checks only.
+          void db.functions.invoke('auth-login-notify', {
+            body: {
+              method: 'session_resume',
+              deviceFingerprint,
+              userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : undefined,
+            },
+          });
         }
       } catch (e) {
         console.warn('session tracking failed', e);
       }
 
-      if (!trackedSessionId && authSessionId) {
+      if (!trackedSessionId) {
         const { data } = await db
           .from('user_sessions')
           .select('id, revoked_at')
           .eq('user_id', user.id)
-          .eq('session_token_hash', authSessionId)
+          .eq('session_token_hash', deviceFingerprint)
           .maybeSingle();
         trackedSessionId = data?.id ?? null;
-        if (trackedSessionId) sessionStorage.setItem(idKey, trackedSessionId);
-        if (data?.revoked_at) await kickIfRevoked(trackedSessionId);
+        if (trackedSessionId) localStorage.setItem(idKey, trackedSessionId);
+        if (data?.revoked_at && trackedSessionId) await kickIfRevoked(trackedSessionId);
       }
 
       if (trackedSessionId && !cancelled) {
         await kickIfRevoked(trackedSessionId);
-        interval = setInterval(() => kickIfRevoked(trackedSessionId), REVOKE_CHECK_INTERVAL_MS);
+        interval = setInterval(() => kickIfRevoked(trackedSessionId!), REVOKE_CHECK_INTERVAL_MS);
       }
     };
 
@@ -96,4 +132,31 @@ export function useSessionTracking() {
       if (interval) clearInterval(interval);
     };
   }, [authReady, user?.id]);
+}
+
+/** Call after a real password / OAuth / custom-token sign-in (not cold resume). */
+export async function notifyFreshLogin(method: string): Promise<void> {
+  try {
+    const deviceFingerprint = getOrCreateDeviceId();
+    const { data: { session } } = await db.auth.getSession();
+    const uid = session?.user?.id;
+    if (!uid) return;
+    rememberCurrentSessionHash(uid, deviceFingerprint);
+    const trackedKey = `vybe-session-tracked-${uid}-${deviceFingerprint}`;
+    const idKey = `vybe-app-session-id-${uid}-${deviceFingerprint}`;
+    // Claim before invoke so cold-start resume does not win the race.
+    localStorage.setItem(trackedKey, String(Date.now()));
+    const { data } = await db.functions.invoke('auth-login-notify', {
+      body: {
+        method,
+        deviceFingerprint,
+        userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : undefined,
+      },
+    });
+    const payload = data as { challengeId?: string; sessionId?: string } | null;
+    if (payload?.challengeId) rememberSelfLoginChallenge(uid, payload.challengeId);
+    if (payload?.sessionId) localStorage.setItem(idKey, payload.sessionId);
+  } catch (e) {
+    console.warn('fresh login notify failed', e);
+  }
 }

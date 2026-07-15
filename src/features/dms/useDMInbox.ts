@@ -842,16 +842,16 @@ export function useDMInbox() {
     if (urls.length <= 24) return;
     const rest = urls.slice(24);
     const idle =
-      typeof requestIdleCallback === 'function'
-        ? requestIdleCallback(() => {
+      typeof window.requestIdleCallback === 'function'
+        ? window.requestIdleCallback(() => {
             void batchSignUrls(rest);
           }, { timeout: 2500 })
         : window.setTimeout(() => {
             void batchSignUrls(rest);
           }, 800);
     return () => {
-      if (typeof cancelIdleCallback === 'function' && typeof idle === 'number') {
-        cancelIdleCallback(idle);
+      if (typeof window.cancelIdleCallback === 'function' && typeof idle === 'number') {
+        window.cancelIdleCallback(idle);
       } else {
         window.clearTimeout(idle as number);
       }

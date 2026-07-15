@@ -69,6 +69,18 @@ export function resolveSafeAreaInsets(
 ): MeasuredSafeAreaInsets & { gap: number } {
   const gap = fallbackGap(device);
 
+  // Despia/Capacitor WebViews are already edge-to-edge with viewport-fit=cover.
+  // Inflating missing env() with hard-coded notch padding double-letterboxes the UI.
+  if (isDespiaRuntime()) {
+    return {
+      top: measured.top,
+      right: measured.right,
+      bottom: measured.bottom,
+      left: measured.left,
+      gap: 0,
+    };
+  }
+
   return {
     top: measured.top > 0 ? measured.top : fallbackTop(platform, device),
     right: measured.right > 0 ? measured.right : fallbackRight(device),

@@ -3562,11 +3562,14 @@ body.has-liquid-bg:not(.has-custom-bg) #main-content {
     max-height: 100%;
     min-height: 100%;
     min-height: 100dvh;
+    width: 100%;
     overflow: hidden !important;
     overscroll-behavior: none !important;
     overscroll-behavior-y: none !important;
     touch-action: manipulation;
     position: relative;
+    /* Fill the entire WKWebView — no letterbox bars outside #root */
+    background: hsl(var(--background));
   }
 
   html.platform-ios.vybe-native-shell #root,
@@ -3575,7 +3578,16 @@ body.has-liquid-bg:not(.has-custom-bg) #main-content {
     max-height: 100%;
     min-height: 100%;
     min-height: 100dvh;
+    width: 100%;
     overflow: hidden;
+    background: hsl(var(--background));
+  }
+
+  /* Keep chrome drawing under status / home areas; interactive rows keep their own padding */
+  html.platform-ios.vybe-native-shell[data-native-shell] [data-app-shell],
+  html.platform-ios.vybe-native-shell[data-native-shell] [data-route-shell] {
+    min-height: 100%;
+    min-height: 100dvh;
   }
 
   /* iOS Safari: Reduce all backdrop blur effects */

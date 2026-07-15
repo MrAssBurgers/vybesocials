@@ -1,3 +1,4 @@
+import "./lib/idleCallbackPolyfill";
 import "./lib/bootstrapAuthStorage";
 
 import { createRoot } from "react-dom/client";

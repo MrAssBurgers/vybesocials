@@ -118,12 +118,13 @@ export function useNetworkQuality() {
  */
 export function useIdleCallback(callback: () => void, options?: { timeout?: number }) {
   useEffect(() => {
-    if ('requestIdleCallback' in window) {
-      const id = requestIdleCallback(callback, options);
-      return () => cancelIdleCallback(id);
-    } else {
-      const id = setTimeout(callback, options?.timeout || 1);
-      return () => clearTimeout(id);
+    const requestIdle = window.requestIdleCallback?.bind(window);
+    const cancelIdle = window.cancelIdleCallback?.bind(window);
+    if (requestIdle) {
+      const id = requestIdle(callback as IdleRequestCallback, options);
+      return () => (cancelIdle ? cancelIdle(id) : clearTimeout(id));
     }
+    const id = setTimeout(callback, options?.timeout || 1);
+    return () => clearTimeout(id);
   }, [callback, options]);
 }

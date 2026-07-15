@@ -121,7 +121,7 @@ interface AuthContextType {
   signUp: (email: string, password: string, username: string) => Promise<{ error: Error | null; needsEmailConfirmation?: boolean }>;
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
   /** Apply Firebase OAuth session immediately (popup / redirect completion). */
-  applyOAuthSession: (session: Session) => void;
+  applyOAuthSession: (session: Session, method?: string) => void;
   resendVerification: (email: string) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
   updateProfile: (updates: Partial<Profile>) => Promise<{ error: Error | null }>;
@@ -510,7 +510,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
   };
 
-  const applyOAuthSession = useCallback((oauthSession: Session) => {
+  const applyOAuthSession = useCallback((oauthSession: Session, method = 'oauth') => {
     setWasLoggedIn(true);
     setSession(oauthSession);
     setUser(oauthSession.user);
@@ -525,6 +525,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     bootstrapSessionData(oauthSession.user.id, 'SIGNED_IN');
     clearOAuthRedirectPending();
     void db.auth.refreshSession().catch(() => {});
+    void import('@/hooks/useSessionTracking').then(({ notifyFreshLogin }) => {
+      void notifyFreshLogin(method);
+    });
   }, []);
 
   useEffect(() => {
@@ -1079,7 +1082,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       });
 
       if (data.session?.user) {
-        applySession(data.session);
+        applySession(data.session, 'password');
         return { error: null };
       }
 
@@ -1089,7 +1092,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           user: liveUser.user,
           access_token: '',
           refresh_token: '',
-        });
+        }, 'password');
         return { error: null };
       }
 
@@ -1103,7 +1106,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             user: liveUser.user,
             access_token: '',
             refresh_token: '',
-          });
+          }, 'password');
           return { error: null };
         }
       } catch {
@@ -1246,7 +1249,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     () => ({
       signUp: (email: string, password: string, username: string) => apiRef.current.signUp(email, password, username),
       signIn: (email: string, password: string) => apiRef.current.signIn(email, password),
-      applyOAuthSession: (s: Session) => apiRef.current.applyOAuthSession(s),
+      applyOAuthSession: (s: Session, method?: string) => apiRef.current.applyOAuthSession(s, method),
       resendVerification: (email: string) => apiRef.current.resendVerification(email),
       signOut: () => apiRef.current.signOut(),
       updateProfile: (updates: Partial<Profile>) => apiRef.current.updateProfile(updates),

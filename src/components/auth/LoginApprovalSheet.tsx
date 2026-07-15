@@ -144,7 +144,12 @@ export function LoginApprovalSheet() {
 
   if (!pending) return null;
   const meta = pending.metadata || {};
-  const where = [meta.geo?.city, meta.geo?.country].filter(Boolean).join(', ') || meta.ip || 'Unknown location';
+  const where =
+    [meta.geo?.city, meta.geo?.region, meta.geo?.country].filter(Boolean).join(', ')
+    || meta.ip
+    || meta.geo?.ip
+    || 'Unknown location';
+  const ipLine = meta.ip || meta.geo?.ip || null;
   const deviceLabel = meta.device?.label || meta.device?.os || meta.device?.browser || 'Unknown device';
 
   return (
@@ -156,7 +161,7 @@ export function LoginApprovalSheet() {
             Was this you?
           </DialogTitle>
           <DialogDescription>
-            Someone is trying to sign in to your VYBE account.
+            A new device is trying to sign in to your VYBE account. Approve only if you recognize this location.
           </DialogDescription>
         </DialogHeader>
 
@@ -169,6 +174,9 @@ export function LoginApprovalSheet() {
             <MapPin className="w-4 h-4 text-muted-foreground" />
             <span>{where}</span>
           </div>
+          {ipLine && where !== ipLine && (
+            <p className="text-xs text-muted-foreground pl-6">IP {ipLine}</p>
+          )}
         </div>
 
         <div className="grid grid-cols-2 gap-2 mt-4">

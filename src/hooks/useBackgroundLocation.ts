@@ -120,11 +120,15 @@ export function useBackgroundLocation(
     const arm = () => {
       if (!cancelled) setGpsReady(true);
     };
-    if (typeof requestIdleCallback !== 'undefined') {
-      const id = requestIdleCallback(arm, { timeout: 2500 });
+    if (typeof window.requestIdleCallback === 'function') {
+      const id = window.requestIdleCallback(arm, { timeout: 2500 });
       return () => {
         cancelled = true;
-        cancelIdleCallback(id);
+        if (typeof window.cancelIdleCallback === 'function') {
+          window.cancelIdleCallback(id);
+        } else {
+          clearTimeout(id);
+        }
       };
     }
     const t = setTimeout(arm, 1800);
