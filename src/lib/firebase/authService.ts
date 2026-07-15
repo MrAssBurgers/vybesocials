@@ -64,30 +64,6 @@ function resolveAuth(): Auth | null {
     // HMR / duplicate init — reuse existing Auth on the app
     authInstance = getAuth(app);
   }
-  // #region agent log
-  try {
-    const host = typeof location !== 'undefined' ? location.hostname : '';
-    fetch('http://127.0.0.1:7693/ingest/1847f3ab-7d03-4b99-8dbe-84076ae9145e', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': 'adb115' },
-      body: JSON.stringify({
-        sessionId: 'adb115',
-        runId: 'auth-iframe',
-        hypothesisId: 'A',
-        location: 'authService.ts:resolveAuth',
-        message: 'auth_init_no_eager_iframe',
-        data: {
-          host,
-          href: typeof location !== 'undefined' ? String(location.href || '').slice(0, 120) : '',
-          hasPopupResolverOnInit: false,
-        },
-        timestamp: Date.now(),
-      }),
-    }).catch(() => {});
-  } catch {
-    /* ignore */
-  }
-  // #endregion
   return authInstance;
 }
 

@@ -2,6 +2,14 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## Done — OAuth + boot recovery (2026-07-15)
+
+- **Verified by user.** Debug instrumentation removed after handoff codes fix.
+- **Root causes:** stale `despia/local.json` · Firebase eager auth iframe on Despia · long JWT deeplinks → “address is invalid”
+- **Fixes kept:** always regenerate `local.json` · `initializeAuth` without eager iframe · short `hc=` OAuth handoff via `authQr`
+
+---
+
 ## Active — OAuth handoff codes (fix invalid-address / Open VYBE stuck) (2026-07-15)
 
 - **Evidence:** User stuck on `vybehub.app` “Tap below if VYBE did not open”; prod `native-callback.html` was stale; long `id_token`/`custom_token` deeplinks → Safari “address is invalid”

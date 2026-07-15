@@ -123,30 +123,6 @@
         var openBtn = document.getElementById('openApp');
         var webBtn = document.getElementById('webFallback');
 
-        // #region agent log
-        try {
-          fetch('http://127.0.0.1:7693/ingest/1847f3ab-7d03-4b99-8dbe-84076ae9145e', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': 'adb115' },
-            body: JSON.stringify({
-              sessionId: 'adb115',
-              runId: 'oauth-handoff',
-              hypothesisId: 'H1',
-              location: 'native-callback.html',
-              message: 'deeplink_attempt',
-              data: {
-                len: deeplink.length,
-                valid: isValidDeeplink(deeplink),
-                hasCode: /[?&]code=/.test(deeplink),
-                hasIdToken: /[?&]id_token=/.test(deeplink),
-                hasCustom: /[?&]custom_token=/.test(deeplink),
-              },
-              timestamp: Date.now(),
-            }),
-          }).catch(function () {});
-        } catch (eLog) {}
-        // #endregion
-
         if (isValidDeeplink(deeplink)) {
           window.__vybeOauthDeeplink = deeplink;
           if (openBtn) openBtn.setAttribute('href', deeplink);
