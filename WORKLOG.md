@@ -2,13 +2,18 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
-## Active — Boot recovery on every iOS launch (2026-07-15)
+## Active — Despia Offline → Native (user wants Native) (2026-07-15)
 
-- **Symptom:** Startup recovery — “A script failed to load” (splash “Waking up… 0%” underneath)
-- **Evidence:** Prod `despia/local.json` missing `/assets/app.js` while `index.html` requires it (still true on deployment `580f2cc6` / commit `624636b6` — Publish not landed)
-- **Fix on main:** `cb29c0d7` manifest verify · `ca86beee` localhost → load `https://vybehub.app/assets/app.js` fallback
-- **Immediate unblock:** Despia Offline → **PWA** (network already has `app.js`)
-- **Required:** Lovable Publish `ca86beee` → `curl …/local.json | grep app.js` must hit → Clear cache on phone
+- **Keep Offline Support = Native** — do not leave it on PWA once Publish lands
+- **Blocker:** live `https://vybehub.app/despia/local.json` still missing `/assets/app.js` (deploy `580f2cc6` / commit `624636b6`)
+- **Local build OK:** `npm run build` → manifest includes `/assets/app.js` + boot files (`deployed_at` ~1784138487880)
+- **Shipped on main:** `cb29c0d7` verify · `ca86beee` localhost prod-entry fallback · tip `75862dff`
+- **Native enable sequence:**
+  1. Lovable → Share → Publish (must bump `despia/local.json`)
+  2. `curl -s https://vybehub.app/despia/local.json | grep app.js` → must print `/assets/app.js`
+  3. Despia: Offline = **Native**, Start URL = `https://vybehub.app` → Rebuild if editor requires
+  4. iPhone: delete app **or** Clear cache & reload once so Native re-hydrates the new manifest
+  5. Cold open → should boot from on-device localhost without Startup recovery
 
 ---
 
