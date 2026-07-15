@@ -101,7 +101,9 @@ export async function startFriendLinkNfcSession(
       }),
     );
 
-    // Phone Tap: deferred write so we don't fire read+write in the same gesture (Despia rule).
+    // Phone Tap broadcast: deferred write so we don't fire read+write in the same gesture.
+    // Android: peer phones / tags can receive our URL. iOS cannot do NFC P2P — write is
+    // tag-only and would steal the read sheet, so we skip write on iOS (Nearby covers peers).
     if (nativeBroadcast && broadcastUrl && isAndroidUA()) {
       const writeTimer = window.setTimeout(() => {
         if (disposed || signal?.aborted) return;
@@ -110,7 +112,7 @@ export async function startFriendLinkNfcSession(
             console.warn('[friendLinkNfc] native broadcast write:', result.error);
           }
         });
-      }, 500);
+      }, 650);
       cleanups.push(() => clearTimeout(writeTimer));
     }
   }

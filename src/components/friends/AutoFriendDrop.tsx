@@ -371,17 +371,18 @@ export function AutoFriendDrop() {
       tapMode === 'nfc' &&
       !nativeFriendDrop.isAvailable,
     broadcastUrl: nfcBroadcastUrl,
+    nativeBroadcast: true,
     onTarget: handleNfcTarget,
   });
 
-  // AirDrop-style fallback — presence-based discovery for phones without NFC
-  // (or when the user reports NFC isn't working).
+  // Dual signal: while Friend Link tap is open, always broadcast/listen on Nearby
+  // presence (Firestore). NFC alone cannot connect two iPhones (no iOS NFC P2P);
+  // Nearby is the phone↔phone path Despia can do without Capacitor Multipeer.
   const nearby = useNearbyFriendLink({
     enabled:
       isActive &&
       activeTab === 'tap' &&
       phase === 'activated' &&
-      tapMode === 'nearby' &&
       !nativeFriendDrop.isAvailable,
     profileId,
     username: profile?.username,
@@ -389,7 +390,7 @@ export function AutoFriendDrop() {
     avatarUrl: profile?.avatar_url ?? null,
   });
 
-  // NFC gets NFC_FALLBACK_HINT_MS to connect; then offer the Nearby switch.
+  // Hint UI: after a beat on NFC-only view, surface Nearby if no peer yet.
   useEffect(() => {
     if (!isActive || activeTab !== 'tap' || phase !== 'activated' || tapMode !== 'nfc' || !nfcCapable || nativeFriendDrop.isAvailable) {
       setShowFallbackHint(false);
@@ -418,6 +419,33 @@ export function AutoFriendDrop() {
     },
     [handleAutoAdd],
   );
+
+  // When both phones have Friend Link open, Nearby presence finds them — auto-link
+  // a single clear peer (NameDrop-style). Multiple peers require a tap.
+  useEffect(() => {
+    if (!isActive || activeTab !== 'tap' || phase !== 'activated') return;
+    if (nativeFriendDrop.isAvailable) return;
+    if (exchangeLockRef.current || completingRef.current) return;
+    if (nearby.peers.length !== 1) return;
+    const peer = nearby.peers[0];
+    // #region agent log
+    import('@/lib/friendLinkDebug').then(({ dbgFriendLink }) =>
+      dbgFriendLink('H4', 'AutoFriendDrop.tsx', 'nearby_auto_link', {
+        peerLen: peer.userId.length,
+        status: nearby.status,
+      }),
+    );
+    // #endregion
+    handleNearbyPeerTap(peer);
+  }, [
+    isActive,
+    activeTab,
+    phase,
+    nearby.peers,
+    nearby.status,
+    nativeFriendDrop.isAvailable,
+    handleNearbyPeerTap,
+  ]);
 
   const handleClose = useCallback(() => {
     haptics.tap();
@@ -896,13 +924,7 @@ export function AutoFriendDrop() {
                   onClose={handleClose}
                   onAddFriend={handleAddFriend}
                   onSelectPeer={(peer) => {
-                    setFoundUser({
-                      id: peer.userId,
-                      username: peer.username,
-                      display_name: peer.displayName,
-                      avatar_url: peer.avatarUrl,
-                    });
-                    setPhase('found');
+                    handleNearbyPeerTap(peer);
                   }}
                   profile={profile}
                   foundUser={foundUser}
@@ -915,7 +937,11 @@ export function AutoFriendDrop() {
                   onNearbyPeerTap={handleNearbyPeerTap}
                   qrSvg={qrSvg}
                   qrLoading={!profileId || (!qrSvg && friendDropSync.isCreating)}
-                  nearbyPeers={tapMode === 'nearby' ? nearby.peers : nativeFriendDrop.nearbyPeers}
+                  nearbyPeers={
+                    nativeFriendDrop.isAvailable
+                      ? nativeFriendDrop.nearbyPeers
+                      : nearby.peers
+                  }
                   videoRef={videoRef}
                   canvasRef={canvasRef}
                   cameraActive={cameraActive}

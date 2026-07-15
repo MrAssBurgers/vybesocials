@@ -2,6 +2,15 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## Active — Friend Link NFC + Nearby dual-signal (2026-07-15)
+
+- **Root cause:** Friend Link NFC was read-only (no Android broadcast); Nearby only after manual tip; iOS has no NFC P2P; Capacitor Multipeer unavailable in Despia.
+- **Fix in progress:** Android `nativeBroadcast` on; Nearby presence arms whenever Phone Tap is open; single nearby peer auto-links; UI shows searching signal.
+- **Debug:** `[VYBE:friendlink]` + ingest `adb115` in `friendLinkDebug.ts`
+- **Next:** Verify two phones both open Friend Link → connect; Lovable Publish
+
+---
+
 ## PUBLISH handoff (2026-07-15) — iOS shell cleanup + full fix
 
 - **Merged to `origin/main`:** `62f60a7a` (feature `c36698aa` + instrumentation strip)

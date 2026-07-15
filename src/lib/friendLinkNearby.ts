@@ -9,9 +9,13 @@
  * handshake — no Bluetooth pairing, works on every device.
  */
 
+import { despiaCall, isDespiaRuntime } from '@/lib/despiaBridge';
+
 export const NEARBY_HEARTBEAT_MS = 20_000;
 /** Presence docs older than this are considered gone (missed 2+ heartbeats). */
 export const NEARBY_STALE_MS = 65_000;
+/** Poll peers even if realtime bootstrap skips the first snapshot. */
+export const NEARBY_PEER_POLL_MS = 3_000;
 
 /** ~165m grid cells (0.0015° latitude ≈ 167m; longitude shrinks toward poles). */
 const CELL_DEG = 0.0015;
@@ -55,19 +59,43 @@ export function isPresenceFresh(presence: Pick<NearbyPresence, 'updated_at'>, no
 
 export type NearbyPositionError = 'denied' | 'unavailable' | 'error';
 
-export function getCoarsePosition(
+export async function getCoarsePosition(
   timeoutMs = 12_000,
 ): Promise<{ lat: number; lng: number } | { error: NearbyPositionError }> {
   if (typeof navigator === 'undefined' || !navigator.geolocation) {
-    return Promise.resolve({ error: 'unavailable' });
+    return { error: 'unavailable' };
   }
+
+  // Despia WKWebView: arm native GPS so navigator.geolocation can resolve.
+  if (isDespiaRuntime()) {
+    try {
+      void despiaCall('backgroundlocationon://');
+    } catch {
+      /* ignore */
+    }
+  }
+
   return new Promise((resolve) => {
     navigator.geolocation.getCurrentPosition(
       (pos) => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
       (err) => {
         resolve({ error: err.code === err.PERMISSION_DENIED ? 'denied' : 'error' });
       },
-      { enableHighAccuracy: false, timeout: timeoutMs, maximumAge: 120_000 },
+      {
+        enableHighAccuracy: isDespiaRuntime(),
+        timeout: timeoutMs,
+        maximumAge: isDespiaRuntime() ? 15_000 : 120_000,
+      },
     );
   });
+}
+
+/** Call when Friend Link Nearby session ends (pairs with backgroundlocationon). */
+export function stopFriendLinkNativeGps(): void {
+  if (!isDespiaRuntime()) return;
+  try {
+    void despiaCall('backgroundlocationoff://');
+  } catch {
+    /* ignore */
+  }
 }

@@ -9,7 +9,9 @@ import {
   nearbyCellForPosition,
   nearbyCellsAround,
   NEARBY_HEARTBEAT_MS,
+  NEARBY_PEER_POLL_MS,
   NEARBY_STALE_MS,
+  stopFriendLinkNativeGps,
   type NearbyPresence,
 } from '@/lib/friendLinkNearby';
 
@@ -83,6 +85,7 @@ export function useNearbyFriendLink({
     let cancelled = false;
     let heartbeat: ReturnType<typeof setInterval> | null = null;
     let sweep: ReturnType<typeof setInterval> | null = null;
+    let peerPoll: ReturnType<typeof setInterval> | null = null;
     let channel: ReturnType<typeof subscribePostgresChannel> | null = null;
     const presenceMap = new Map<string, NearbyPresence>();
 
@@ -135,6 +138,14 @@ export function useNearbyFriendLink({
 
       try {
         await writeOwnPresence(ownCell);
+        // #region agent log
+        import('@/lib/friendLinkDebug').then(({ dbgFriendLink }) =>
+          dbgFriendLink('H4', 'useNearbyFriendLink.ts', 'presence_published', {
+            cellLen: ownCell.length,
+            cells: cells.length,
+          }),
+        );
+        // #endregion
       } catch (err) {
         console.warn('[NearbyFriendLink] presence write failed:', err);
         if (!cancelled) setStatus('error');
@@ -171,22 +182,41 @@ export function useNearbyFriendLink({
         })),
       );
 
-      // Realtime skips the initial snapshot — seed with anyone already here.
-      try {
-        const { data } = await db
-          .from('friend_link_nearby')
-          .select('*')
-          .in('cell', cells);
-        if (cancelled) return;
-        for (const row of (data as NearbyPresence[] | null) ?? []) {
-          if (row.user_id && row.user_id !== profileId && isPresenceFresh(row)) {
+      const refreshPeersFromServer = async () => {
+        try {
+          const { data } = await db
+            .from('friend_link_nearby')
+            .select('*')
+            .in('cell', cells);
+          if (cancelled) return;
+          const seen = new Set<string>();
+          for (const row of (data as NearbyPresence[] | null) ?? []) {
+            if (!row.user_id || row.user_id === profileId || !isPresenceFresh(row)) continue;
             presenceMap.set(row.user_id, row);
+            seen.add(row.user_id);
           }
+          for (const id of [...presenceMap.keys()]) {
+            if (!seen.has(id)) presenceMap.delete(id);
+          }
+          emitPeers();
+          // #region agent log
+          import('@/lib/friendLinkDebug').then(({ dbgFriendLink }) =>
+            dbgFriendLink('H4', 'useNearbyFriendLink.ts', 'peer_poll', {
+              peers: presenceMap.size,
+              cells: cells.length,
+            }),
+          );
+          // #endregion
+        } catch (err) {
+          console.warn('[NearbyFriendLink] peer poll failed:', err);
         }
-        emitPeers();
-      } catch (err) {
-        console.warn('[NearbyFriendLink] initial peer fetch failed:', err);
-      }
+      };
+
+      // Realtime skips the bootstrap snapshot — seed + poll so both phones connect.
+      await refreshPeersFromServer();
+      peerPoll = setInterval(() => {
+        void refreshPeersFromServer();
+      }, NEARBY_PEER_POLL_MS);
     };
 
     void run();
@@ -195,8 +225,10 @@ export function useNearbyFriendLink({
       cancelled = true;
       if (heartbeat) clearInterval(heartbeat);
       if (sweep) clearInterval(sweep);
+      if (peerPoll) clearInterval(peerPoll);
       if (channel) removeRealtimeChannel(channel);
       void deleteDocument('friend_link_nearby', profileId).catch(() => {});
+      stopFriendLinkNativeGps();
     };
   }, [enabled, profileId, attempt]);
 

@@ -416,7 +416,12 @@ export function FriendLinkSheetContent({
               <p className="text-center text-sm font-medium text-muted-foreground">
                 {tapListening ? (
                   <>
-                    <span className="text-primary">Ready</span> — bump phones together
+                    <span className="text-primary">Ready</span>
+                    {nearbyPeers.length > 0
+                      ? ' — friend found nearby'
+                      : nearbyStatus === 'searching' || nearbyStatus === 'locating'
+                        ? ' — sending signal · looking for friends nearby'
+                        : ' — bump phones or stay near your friend'}
                   </>
                 ) : (
                   'Getting ready…'
