@@ -243,21 +243,6 @@ export async function signInWithAppleDespia(): Promise<{
   }
 
   const { signInWithAppleJsSdk } = await import('@/lib/appleSignIn');
-  // #region agent log
-  fetch('http://127.0.0.1:7693/ingest/1847f3ab-7d03-4b99-8dbe-84076ae9145e', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': 'adb115' },
-    body: JSON.stringify({
-      sessionId: 'adb115',
-      runId: 'post-repro',
-      hypothesisId: 'A1',
-      location: 'despiaOAuth.ts:signInWithAppleDespia',
-      message: 'apple_js_sdk_path',
-      data: { os, despia: isDespiaRuntime() },
-      timestamp: Date.now(),
-    }),
-  }).catch(() => {});
-  // #endregion
   const js = await signInWithAppleJsSdk();
   if (js.error) return { pending: false, error: js.error, data: { session: null } };
   return { pending: false, error: null, data: { session: js.data.session } };
