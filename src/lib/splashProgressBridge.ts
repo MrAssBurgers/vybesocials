@@ -70,9 +70,28 @@ export function hideStaticBootSplash(): void {
   const boot = document.getElementById('vybe-static-boot');
   if (!boot) return;
   boot.classList.add('vybe-static-boot-fade');
-  window.setTimeout(() => {
-    boot.remove();
-  }, 240);
+  // Inline styles beat stalled CSS transitions when the WebView is backgrounded.
+  boot.style.opacity = '0';
+  boot.style.pointerEvents = 'none';
+  boot.style.visibility = 'hidden';
+
+  const removeNow = () => {
+    try {
+      boot.remove();
+    } catch {
+      /* ignore */
+    }
+  };
+
+  // iOS WKWebView / ATT cold-start often reports visibilityState === 'hidden'.
+  // setTimeout/rAF are deferred in that state, leaving #vybe-static-boot as a
+  // fullscreen black cover over an already-mounted React tree.
+  if (typeof document !== 'undefined' && document.visibilityState === 'hidden') {
+    removeNow();
+    return;
+  }
+
+  window.setTimeout(removeNow, 240);
 }
 
 export function subscribeSplashProgress(listener: SplashProgressListener): () => void {

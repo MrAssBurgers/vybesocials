@@ -2,6 +2,24 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## PUBLISH handoff (2026-07-14) — iOS black screen boot fix
+
+- **Merged to `origin/main`:** _(pending)_ — remove stuck `#vybe-static-boot` when WebView is hidden; sync boot-ready
+- **Firebase staging hosting:** _(pending)_
+- **Production `vybehub.app`:** **Lovable → Share → Publish** after git sync — Cursor cannot click Publish
+- **Lovable:** https://lovable.dev/projects/416714c8-d013-4aff-984d-522418a9bbc7
+- **After Publish:** hard-refresh / reopen Apple app → cold start should show UI (not permanent black)
+
+---
+
+## iOS / hidden-WebView black screen (2026-07-14)
+
+- **Cause:** Cold start with `document.visibilityState === 'hidden'` deferred splash removal + boot-ready rAF; `#vybe-static-boot` stayed as a fullscreen cover over mounted React.
+- **Fix:** Remove splash immediately when hidden; sync `markAppReady`/`markBootComplete`; boot-guard + shell guard no longer skip when hidden.
+- **Debug instrumentation:** removed after user confirmed fixed.
+
+---
+
 ## PUBLISH handoff (2026-07-14) — camera + chat timers + contacts
 
 - **Merged to `origin/main`:** `81fda138` — camera recording playback/REC, DM ephemeral timers, contacts sync, theme fallback, map heading, feed scroll pause

@@ -325,6 +325,10 @@ function completeInitialSplash(setShowSplash: (v: boolean) => void) {
     clearSplashDocumentLocks();
     navVisibility.forceShow();
     navVisibility.resetScrollHide();
+    // Sync mark — rAF is deferred while document.visibilityState === 'hidden'
+    // (common on iOS cold start / ATT), which left bootAttr pending forever.
+    markAppReady();
+    markBootComplete();
     requestAnimationFrame(() => {
       markAppReady();
       markBootComplete();

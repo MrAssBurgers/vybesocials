@@ -171,8 +171,9 @@
 
   function pollVisibility() {
     if (isAppReady()) return;
-    if (document.visibilityState === 'hidden') return;
     if (isRecoveryVisible()) return;
+    // Do not bail when visibilityState === 'hidden'. iOS WKWebView / ATT cold
+    // starts often stay "hidden" while React already painted under the splash.
     if (hasMeaningfulContent()) {
       markBootReady();
     }

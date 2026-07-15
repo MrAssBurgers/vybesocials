@@ -35,6 +35,22 @@ function clearStuckDocumentState() {
   if (root) {
     root.style.visibility = '';
     root.style.opacity = '';
+    root.style.display = '';
+  }
+
+  // Remove a stuck fullscreen splash cover (black screen when timers were deferred).
+  const boot = document.getElementById('vybe-static-boot');
+  if (boot) {
+    const rootHasUi =
+      !!root &&
+      (root.childElementCount > 0 || (root.textContent || '').replace(/\s+/g, '').length > 8);
+    if (rootHasUi || document.documentElement.getAttribute('data-vybe-app-ready') === 'true') {
+      try {
+        boot.remove();
+      } catch {
+        /* ignore */
+      }
+    }
   }
 }
 

@@ -8,13 +8,17 @@ import { ensureAppShellVisible } from '@/lib/attResumeRecovery';
 export function ShellVisibilityGuard() {
   useEffect(() => {
     const tick = () => {
-      if (document.visibilityState === 'hidden') return;
+      // Always clear stuck splash/root locks — iOS can boot with visibility=hidden.
       ensureAppShellVisible();
     };
 
     tick();
     const interval = window.setInterval(tick, 3000);
-    return () => window.clearInterval(interval);
+    document.addEventListener('visibilitychange', tick);
+    return () => {
+      window.clearInterval(interval);
+      document.removeEventListener('visibilitychange', tick);
+    };
   }, []);
 
   return null;
