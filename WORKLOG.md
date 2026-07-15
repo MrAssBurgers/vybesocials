@@ -2,12 +2,18 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
-## PUBLISH handoff (2026-07-15) — username or email login
+## Done — username or email login (2026-07-15)
 
-- **Merged to `origin/main`:** `2bd3f28f` — login field accepts email or username (auto-detect)
-- **Firebase:** `authQr` `resolve_login` ✅ live on `vybe-daaab`
-- **Production:** **Lovable → Share → Publish**
-- **After Publish:** Log in with `@username` or full email + password
+- **Verified by user.** Debug instrumentation removed from `loginEmail.ts`.
+- **Login:** field accepts email or username (auto-detect) via `authQr` `resolve_login` (+ Auth/`user_auth_index` fallback).
+- **Shipped via:** `eb4a1cff` on `origin/main` after Lovable Publish.
+
+---
+
+## PUBLISH handoff (2026-07-15) — username or email login (cleanup)
+
+- **Merged to `origin/main`:** strip login debug ingest / `[VYBE:login]` logs (commit after push)
+- **Production:** **Lovable → Share → Publish** if this cleanup commit should ship (optional; feature already verified)
 
 ---
 

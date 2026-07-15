@@ -23,22 +23,6 @@ export async function resolveLoginEmail(identifier: string): Promise<string> {
   }
 
   if (looksLikeEmail(trimmed)) {
-    // #region agent log
-    fetch('http://127.0.0.1:7693/ingest/1847f3ab-7d03-4b99-8dbe-84076ae9145e', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': 'adb115' },
-      body: JSON.stringify({
-        sessionId: 'adb115',
-        runId: 'login-repro',
-        hypothesisId: 'L2',
-        location: 'loginEmail.ts:resolve',
-        message: 'login_kind_email',
-        data: { len: trimmed.length },
-        timestamp: Date.now(),
-      }),
-    }).catch(() => {});
-    // #endregion
-    console.info('[VYBE:login] kind=email');
     return normalizeLoginEmail(trimmed);
   }
 
@@ -47,27 +31,6 @@ export async function resolveLoginEmail(identifier: string): Promise<string> {
     action: 'resolve_login',
     identifier: username,
   });
-
-  // #region agent log
-  fetch('http://127.0.0.1:7693/ingest/1847f3ab-7d03-4b99-8dbe-84076ae9145e', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': 'adb115' },
-    body: JSON.stringify({
-      sessionId: 'adb115',
-      runId: 'login-repro',
-      hypothesisId: 'L2',
-      location: 'loginEmail.ts:resolve',
-      message: 'login_kind_username',
-      data: {
-        ok: !!(data?.email && !error),
-        errName: error?.name || null,
-        hasEmail: !!data?.email,
-      },
-      timestamp: Date.now(),
-    }),
-  }).catch(() => {});
-  // #endregion
-  console.info('[VYBE:login] kind=username', { ok: !!(data?.email && !error), err: error?.name });
 
   if (error || !data?.email) {
     throw new Error('Invalid username/email or password. Please try again.');
