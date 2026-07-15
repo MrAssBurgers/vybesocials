@@ -2,6 +2,16 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## PUBLISH handoff (2026-07-14) — camera overlay crash
+
+- **Merged to `origin/main`:** `ecc3a536` (camera overlay safe hooks + split modules; Home/Messages/Upload no longer crash on `useCameraOverlay*`)
+- **Firebase staging hosting:** https://vybe-daaab.web.app ✅
+- **Production `vybehub.app`:** **Lovable → Share → Publish** (sync `main` @ `ecc3a536`) — Cursor cannot click Publish
+- **Lovable:** https://lovable.dev/projects/416714c8-d013-4aff-984d-522418a9bbc7
+- **After Publish:** hard-refresh → Home / Messages / Upload without camera-overlay Error Monitor spam
+
+---
+
 ## PUBLISH handoff (2026-07-14) — composer + map sheet
 
 - **Merged to `origin/main`:** `c0ff5418` (DM composer immersive dock, friends-on-map finger-follow drag, map heading, Error Monitor, console/rules sweep)
