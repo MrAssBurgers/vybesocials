@@ -42,7 +42,7 @@ export function MapSnapTopBar({
           </button>
 
           {searchOpen ? (
-            <div className="pointer-events-auto flex flex-1 items-center gap-2 vybe-map-pill h-10 px-3">
+            <div className="pointer-events-auto flex flex-1 min-w-0 items-center gap-2 vybe-map-pill h-10 px-3 overflow-hidden">
               <Search className="h-4 w-4 shrink-0 opacity-60" />
               <input
                 autoFocus

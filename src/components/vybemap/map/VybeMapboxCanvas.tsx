@@ -13,10 +13,8 @@ import { heatmapColor, heatmapOpacity } from '@/lib/vybemap/heatmapColors';
 import { clusterPoints, type MarkerCluster } from '@/lib/vybemap/clusterMarkers';
 import { isHeadingTowardYou } from '@/lib/vybemap/headingToward';
 import {
-  applyScreenOrientationOffset,
-  ensureDeviceOrientationPermission,
-  headingFromOrientationEvent,
   lerpHeading,
+  subscribeDeviceHeading,
 } from '@/lib/vybemap/deviceHeading';
 import type {
   LiveFriend,
@@ -379,38 +377,12 @@ export const VybeMapboxCanvas = memo(function VybeMapboxCanvas({
 
   useEffect(() => {
     let smoothed: number | null = null;
-    const onOrient = (e: DeviceOrientationEvent) => {
-      const raw = headingFromOrientationEvent(e);
-      if (raw == null) return;
-      const corrected = applyScreenOrientationOffset(raw);
-      smoothed = lerpHeading(smoothed, corrected, 0.35);
+    return subscribeDeviceHeading((sample) => {
+      // Despia magnetic heading already tracks phone top; keep light smoothing for UI.
+      const alpha = sample.source === 'despia' ? 0.55 : 0.35;
+      smoothed = lerpHeading(smoothed, sample.heading, alpha);
       setDeviceHeading(smoothed);
-    };
-
-    const attach = () => window.addEventListener('deviceorientation', onOrient, true);
-
-    // Request iOS permission on first user gesture against the map (required for Safari).
-    const onGesture = () => {
-      void ensureDeviceOrientationPermission().then((ok) => {
-        if (ok) attach();
-      });
-      window.removeEventListener('pointerdown', onGesture, true);
-      window.removeEventListener('touchstart', onGesture, true);
-    };
-
-    void ensureDeviceOrientationPermission().then((ok) => {
-      if (ok) attach();
-      else {
-        window.addEventListener('pointerdown', onGesture, true);
-        window.addEventListener('touchstart', onGesture, true);
-      }
     });
-
-    return () => {
-      window.removeEventListener('deviceorientation', onOrient, true);
-      window.removeEventListener('pointerdown', onGesture, true);
-      window.removeEventListener('touchstart', onGesture, true);
-    };
   }, []);
 
   useEffect(() => {
@@ -723,22 +695,14 @@ export const VybeMapboxCanvas = memo(function VybeMapboxCanvas({
     const map = mapRef.current as (mapboxgl.Map & { setBearing?: (b: number) => void }) | null;
     if (!map) return;
 
-    const applyHeading = (e: DeviceOrientationEvent) => {
+    let smoothed: number | null = null;
+    return subscribeDeviceHeading((sample) => {
       if (userInteractingRef.current) return;
-      const raw = headingFromOrientationEvent(e);
-      if (raw == null) return;
-      const h = applyScreenOrientationOffset(raw);
-      if (typeof map.setBearing === 'function') map.setBearing(h);
-      else map.easeTo({ bearing: h, duration: 120, essential: true });
-    };
-
-    const attach = () => window.addEventListener('deviceorientation', applyHeading, true);
-
-    void ensureDeviceOrientationPermission().then((ok) => {
-      if (ok) attach();
+      const alpha = sample.source === 'despia' ? 0.7 : 0.4;
+      smoothed = lerpHeading(smoothed, sample.heading, alpha);
+      if (typeof map.setBearing === 'function') map.setBearing(smoothed);
+      else map.easeTo({ bearing: smoothed, duration: 80, essential: true });
     });
-
-    return () => window.removeEventListener('deviceorientation', applyHeading, true);
   }, [followHeading, mapReady]);
 
   return (

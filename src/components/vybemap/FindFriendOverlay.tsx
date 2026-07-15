@@ -4,6 +4,7 @@ import { X } from 'lucide-react';
 import { useFastSignedUrl } from '@/hooks/useFastSignedUrl';
 import type { LiveFriend } from '@/lib/vybemap/types';
 import { bearingDegrees, distanceFeet, formatDistance, lerpAngleDegrees, proximityColor } from '@/lib/vybemap/geo';
+import { subscribeDeviceHeading } from '@/lib/vybemap/deviceHeading';
 import { triggerHaptic } from '@/lib/haptics';
 
 interface FindFriendOverlayProps {
@@ -48,13 +49,9 @@ export function FindFriendOverlay({ friend, myCoords, onClose, onFound }: FindFr
   }, []);
 
   useEffect(() => {
-    const onOrient = (e: DeviceOrientationEvent) => {
-      const h = (e as DeviceOrientationEvent & { webkitCompassHeading?: number }).webkitCompassHeading
-        ?? (e.alpha != null ? 360 - e.alpha : null);
-      if (h != null) setDeviceHeading(h);
-    };
-    window.addEventListener('deviceorientation', onOrient, true);
-    return () => window.removeEventListener('deviceorientation', onOrient, true);
+    return subscribeDeviceHeading((sample) => {
+      setDeviceHeading(sample.heading);
+    });
   }, []);
 
   useEffect(() => {

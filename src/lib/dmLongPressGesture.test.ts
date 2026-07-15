@@ -17,17 +17,17 @@ describe('conversation long-press gesture', () => {
     expect(shouldOpenConversationHold(600, 0, HOLD_CANCEL_PX + 1)).toBe(false);
   });
 
-  it('still opens within 10px slop', () => {
-    expect(shouldOpenConversationHold(HOLD_MS, 9, 9)).toBe(true);
-    expect(shouldOpenConversationHold(HOLD_MS, 11, 0)).toBe(false);
+  it('still opens within hold slop', () => {
+    expect(shouldOpenConversationHold(HOLD_MS, HOLD_CANCEL_PX - 1, HOLD_CANCEL_PX - 1)).toBe(true);
+    expect(shouldOpenConversationHold(HOLD_MS, HOLD_CANCEL_PX + 1, 0)).toBe(false);
   });
 
   it('classifies vertical movement as scrolling', () => {
-    expect(classifyConversationGestureMove(2, 11)).toBe('scrolling');
+    expect(classifyConversationGestureMove(2, HOLD_CANCEL_PX + 1)).toBe('scrolling');
   });
 
   it('classifies horizontal movement as swiping', () => {
-    expect(classifyConversationGestureMove(14, 3)).toBe('swiping');
+    expect(classifyConversationGestureMove(18, 3)).toBe('swiping');
   });
 
   it('keeps small movement pending', () => {

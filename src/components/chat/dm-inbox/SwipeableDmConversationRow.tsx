@@ -12,7 +12,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import type { LoadedDMConversation } from '@/lib/loadDMConversations';
 import { displayNameForConversation } from '@/lib/dmMemberResolve';
-import { useIsMobile } from '@/hooks/use-mobile';
+import { useIsMobile, useIsMobileOrTablet } from '@/hooks/use-mobile';
 import { useTrashConversation } from '@/hooks/useTrashedConversations';
 import { useDmInboxActions } from '@/hooks/useDmInboxActions';
 import { useConversationRowGesture } from '@/hooks/useConversationRowGesture';
@@ -103,7 +103,18 @@ export const SwipeableDmConversationRow = memo(function SwipeableDmConversationR
   onStoryTap,
   onQuickReply,
 }: SwipeableDmConversationRowProps) {
-  const isMobile = useIsMobile();
+  const isNarrowMobile = useIsMobile();
+  const { isMobileOrTablet } = useIsMobileOrTablet();
+  // Hold must work on phone, tablet shell (<1024), or any touch pointer — not only <768px.
+  const [touchCapable] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    return (
+      navigator.maxTouchPoints > 0 ||
+      window.matchMedia('(pointer: coarse)').matches ||
+      window.matchMedia('(hover: none)').matches
+    );
+  });
+  const useGestureRow = isNarrowMobile || isMobileOrTablet || touchCapable;
   const listMotionEnabled = shouldUseListMotion();
   const trashConversation = useTrashConversation();
   const inboxActions = useDmInboxActions(conversation);
@@ -201,13 +212,17 @@ export const SwipeableDmConversationRow = memo(function SwipeableDmConversationR
     onHold: openOptions,
     isTrayOpen: () => openXRef.current !== 0,
     onCloseTray: closeTray,
-    onSwipeMove: (dx) => {
-      const next = clampSwipeTarget(baseXRef.current + dx);
-      setSlideX(next, false);
-    },
-    onSwipeEnd: () => {
-      resolveSwipeRelease(offsetXRef.current);
-    },
+    onSwipeMove: useGestureRow
+      ? (dx) => {
+          const next = clampSwipeTarget(baseXRef.current + dx);
+          setSlideX(next, false);
+        }
+      : undefined,
+    onSwipeEnd: useGestureRow
+      ? () => {
+          resolveSwipeRelease(offsetXRef.current);
+        }
+      : undefined,
   });
 
   const handlePointerDownWrapped = useCallback(
@@ -298,7 +313,7 @@ export const SwipeableDmConversationRow = memo(function SwipeableDmConversationR
     }
   };
 
-  if (!isMobile) {
+  if (!useGestureRow) {
     return (
       <>
         <div
@@ -313,7 +328,8 @@ export const SwipeableDmConversationRow = memo(function SwipeableDmConversationR
             role="button"
             tabIndex={0}
             className="dm-inbox-row-tap w-full text-left"
-            onClick={onClick}
+            onPointerDown={handlePointerDownWrapped}
+            onClickCapture={handleClickCapture}
             onKeyDown={handleKeyDown}
             {...rowA11y}
           >

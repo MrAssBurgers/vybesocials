@@ -1,3 +1,5 @@
+import { despiaCall, isDespiaRuntime } from '@/lib/despiaBridge';
+
 /** Parse a compass heading (degrees from true/magnetic north) from DeviceOrientation. */
 export function headingFromOrientationEvent(e: DeviceOrientationEvent): number | null {
   const webkit = (e as DeviceOrientationEvent & { webkitCompassHeading?: number }).webkitCompassHeading;
@@ -49,4 +51,143 @@ export function lerpHeading(current: number | null, target: number, alpha = 0.28
   if (current == null || !Number.isFinite(current)) return target;
   let delta = ((target - current + 540) % 360) - 180;
   return ((current + delta * alpha) % 360 + 360) % 360;
+}
+
+export type DeviceHeadingSource = 'despia' | 'web';
+
+export type DeviceHeadingSample = {
+  heading: number;
+  source: DeviceHeadingSource;
+  /** Degrees; lower is better. -1 unknown. */
+  accuracy?: number;
+};
+
+type HeadingListener = (sample: DeviceHeadingSample) => void;
+
+type GyroPayload = {
+  status?: string;
+  heading?: number;
+  headingAccuracy?: number;
+  x?: number;
+  y?: number;
+  z?: number;
+  timestamp?: number;
+};
+
+const despiaListeners = new Set<HeadingListener>();
+let despiaGyroStarted = false;
+let installedGyroHandler: ((data: GyroPayload) => void) | null = null;
+let prevOnGyroscopeChange: ((data: GyroPayload) => void) | null | undefined;
+
+function normalizeHeadingDeg(heading: number): number {
+  return ((heading % 360) + 360) % 360;
+}
+
+function emitDespiaHeading(sample: DeviceHeadingSample) {
+  despiaListeners.forEach((listener) => {
+    try {
+      listener(sample);
+    } catch {
+      /* ignore listener errors */
+    }
+  });
+}
+
+function onDespiaGyroscopeChange(data: GyroPayload) {
+  if (!data || typeof data !== 'object') return;
+  if (data.status === 'error') return;
+  // Calibration streams heading with poor accuracy — still use it for live follow.
+  const heading = data.heading;
+  if (typeof heading !== 'number' || !Number.isFinite(heading) || heading < 0) return;
+  emitDespiaHeading({
+    heading: normalizeHeadingDeg(heading),
+    source: 'despia',
+    accuracy: typeof data.headingAccuracy === 'number' ? data.headingAccuracy : undefined,
+  });
+}
+
+function ensureDespiaGyroStarted() {
+  if (typeof window === 'undefined' || despiaGyroStarted) return;
+  const w = window as Window & {
+    onGyroscopeChange?: ((data: GyroPayload) => void) | null;
+  };
+  prevOnGyroscopeChange = w.onGyroscopeChange;
+  installedGyroHandler = (data: GyroPayload) => {
+    onDespiaGyroscopeChange(data);
+    if (typeof prevOnGyroscopeChange === 'function') {
+      try {
+        prevOnGyroscopeChange(data);
+      } catch {
+        /* ignore */
+      }
+    }
+  };
+  w.onGyroscopeChange = installedGyroHandler;
+  despiaGyroStarted = true;
+  // threshold=0 → every sample so heading stays live while gyro is quiet.
+  void despiaCall('gyroscope://start?threshold=0');
+}
+
+function stopDespiaGyroIfIdle() {
+  if (despiaListeners.size > 0 || !despiaGyroStarted) return;
+  despiaGyroStarted = false;
+  void despiaCall('gyroscope://stop');
+  const w = window as Window & {
+    onGyroscopeChange?: ((data: GyroPayload) => void) | null;
+  };
+  if (installedGyroHandler && w.onGyroscopeChange === installedGyroHandler) {
+    w.onGyroscopeChange = prevOnGyroscopeChange ?? null;
+  }
+  installedGyroHandler = null;
+  prevOnGyroscopeChange = undefined;
+}
+
+/**
+ * Subscribe to live device heading.
+ * Despia: native gyroscope + magnetic compass (`window.onGyroscopeChange`).
+ * Web: DeviceOrientationEvent (webkit compass / alpha).
+ */
+export function subscribeDeviceHeading(listener: HeadingListener): () => void {
+  if (typeof window === 'undefined') return () => {};
+
+  if (isDespiaRuntime()) {
+    despiaListeners.add(listener);
+    ensureDespiaGyroStarted();
+    return () => {
+      despiaListeners.delete(listener);
+      stopDespiaGyroIfIdle();
+    };
+  }
+
+  let smoothed: number | null = null;
+  const onOrient = (e: DeviceOrientationEvent) => {
+    const raw = headingFromOrientationEvent(e);
+    if (raw == null) return;
+    const corrected = applyScreenOrientationOffset(raw);
+    smoothed = lerpHeading(smoothed, corrected, 0.35);
+    listener({ heading: smoothed, source: 'web' });
+  };
+
+  const attach = () => window.addEventListener('deviceorientation', onOrient, true);
+  const onGesture = () => {
+    void ensureDeviceOrientationPermission().then((ok) => {
+      if (ok) attach();
+    });
+    window.removeEventListener('pointerdown', onGesture, true);
+    window.removeEventListener('touchstart', onGesture, true);
+  };
+
+  void ensureDeviceOrientationPermission().then((ok) => {
+    if (ok) attach();
+    else {
+      window.addEventListener('pointerdown', onGesture, true);
+      window.addEventListener('touchstart', onGesture, true);
+    }
+  });
+
+  return () => {
+    window.removeEventListener('deviceorientation', onOrient, true);
+    window.removeEventListener('pointerdown', onGesture, true);
+    window.removeEventListener('touchstart', onGesture, true);
+  };
 }
