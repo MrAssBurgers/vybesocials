@@ -13765,6 +13765,7 @@ export type Database = {
         Returns: boolean
       }
       is_owner: { Args: { _user_id: string }; Returns: boolean }
+      is_privileged_writer: { Args: never; Returns: boolean }
       is_server_member: { Args: { p_server_id: string }; Returns: boolean }
       is_stripe_enabled: { Args: never; Returns: boolean }
       is_username_available: { Args: { p_username: string }; Returns: boolean }
