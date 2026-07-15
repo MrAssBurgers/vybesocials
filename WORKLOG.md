@@ -4,7 +4,7 @@ Use this file as the Lovable -> Cursor handoff each session.
 
 ## PUBLISH handoff (2026-07-15) — OAuth + QR + Apple
 
-- **Merged to `origin/main`:** _(pending)_ — Despia applyOAuthSession; Apple web redirect; QR redeem error handling; Apple setup docs
+- **Merged to `origin/main`:** `0107aa1e` — Despia applyOAuthSession; Apple web redirect; QR redeem error handling; Apple setup docs
 - **Firebase:** `authQr` already redeployed; Auth domains + Apple IdP + IAM Token Creator already live on `vybe-daaab`
 - **Production `vybehub.app`:** **Lovable → Share → Publish** — Cursor cannot click Publish
 - **Lovable:** https://lovable.dev/projects/416714c8-d013-4aff-984d-522418a9bbc7
