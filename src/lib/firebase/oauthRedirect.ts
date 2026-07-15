@@ -2,6 +2,8 @@ import { getRedirectResult } from 'firebase/auth';
 import { browserPopupRedirectResolver, firebaseAuth } from './authService';
 import type { VybeSession, VybeAuthError } from './types';
 import { isMobileOrTabletDevice } from '@/lib/deviceDetection';
+import { isSafeInternalReturnPath } from '@/lib/safeNavigate';
+import { authLog, authWarn } from '@/lib/authLog';
 
 export type OAuthRedirectCapture = {
   session: VybeSession | null;
@@ -10,6 +12,11 @@ export type OAuthRedirectCapture = {
 
 const OAUTH_PENDING_KEY = 'vybe-oauth-pending';
 const OAUTH_PENDING_AT_KEY = 'vybe-oauth-pending-at';
+/** Brief-compatible keys (localStorage + sessionStorage). */
+const OAUTH_RETURN_PATH_KEY = 'vybe.oauth.returnPath';
+const OAUTH_PROVIDER_KEY = 'vybe.oauth.provider';
+const OAUTH_STARTED_AT_KEY = 'vybe.oauth.startedAt';
+const OAUTH_REQUEST_ID_KEY = 'vybe.oauth.requestId';
 const OAUTH_PENDING_MAX_MS = 3 * 60 * 1000;
 
 function getOAuthRedirectTimeoutMs(): number {
@@ -28,50 +35,114 @@ function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
   ]);
 }
 
+function writeBoth(key: string, value: string): void {
+  try {
+    sessionStorage.setItem(key, value);
+  } catch {
+    /* ignore */
+  }
+  try {
+    localStorage.setItem(key, value);
+  } catch {
+    /* ignore */
+  }
+}
+
+function removeBoth(key: string): void {
+  try {
+    sessionStorage.removeItem(key);
+  } catch {
+    /* ignore */
+  }
+  try {
+    localStorage.removeItem(key);
+  } catch {
+    /* ignore */
+  }
+}
+
+function readBoth(key: string): string {
+  if (typeof window === 'undefined') return '';
+  try {
+    const s = sessionStorage.getItem(key);
+    if (s) return s;
+  } catch {
+    /* ignore */
+  }
+  try {
+    return localStorage.getItem(key) || '';
+  } catch {
+    return '';
+  }
+}
+
 function readPendingAt(): number {
   if (typeof window === 'undefined') return 0;
-  const fromSession = Number(sessionStorage.getItem(OAUTH_PENDING_AT_KEY) || '0');
-  if (fromSession) return fromSession;
-  try {
-    return Number(localStorage.getItem(OAUTH_PENDING_AT_KEY) || '0');
-  } catch {
-    return 0;
-  }
+  const started = Number(readBoth(OAUTH_STARTED_AT_KEY) || '0');
+  if (started) return started;
+  return Number(readBoth(OAUTH_PENDING_AT_KEY) || '0');
 }
 
 function isPendingFlagSet(): boolean {
   if (typeof window === 'undefined') return false;
-  if (sessionStorage.getItem(OAUTH_PENDING_KEY) === 'true') return true;
-  try {
-    return localStorage.getItem(OAUTH_PENDING_KEY) === 'true';
-  } catch {
-    return false;
-  }
+  if (readBoth(OAUTH_PENDING_KEY) === 'true') return true;
+  return Boolean(readBoth(OAUTH_REQUEST_ID_KEY));
 }
 
-export function markOAuthRedirectPending(): void {
+export function validateOAuthReturnPath(path: string | null | undefined): string | null {
+  if (!isSafeInternalReturnPath(path)) return null;
+  return (path || '').trim();
+}
+
+export function markOAuthRedirectPending(opts?: {
+  provider?: 'google' | 'apple';
+  returnPath?: string;
+}): void {
   if (typeof window === 'undefined') return;
   const at = String(Date.now());
-  sessionStorage.setItem(OAUTH_PENDING_KEY, 'true');
-  sessionStorage.setItem(OAUTH_PENDING_AT_KEY, at);
-  try {
-    localStorage.setItem(OAUTH_PENDING_KEY, 'true');
-    localStorage.setItem(OAUTH_PENDING_AT_KEY, at);
-  } catch {
-    /* ignore */
-  }
+  const requestId =
+    typeof crypto !== 'undefined' && 'randomUUID' in crypto
+      ? crypto.randomUUID()
+      : `oauth_${at}_${Math.random().toString(36).slice(2, 10)}`;
+  const returnPath =
+    validateOAuthReturnPath(opts?.returnPath) ||
+    validateOAuthReturnPath(`${window.location.pathname}${window.location.search}`) ||
+    '/auth/callback';
+
+  writeBoth(OAUTH_PENDING_KEY, 'true');
+  writeBoth(OAUTH_PENDING_AT_KEY, at);
+  writeBoth(OAUTH_STARTED_AT_KEY, at);
+  writeBoth(OAUTH_REQUEST_ID_KEY, requestId);
+  writeBoth(OAUTH_PROVIDER_KEY, opts?.provider || '');
+  writeBoth(OAUTH_RETURN_PATH_KEY, returnPath);
+
+  authLog('redirect_state_saved', {
+    provider: opts?.provider || null,
+    returnPath,
+    requestId,
+  });
 }
 
 export function clearOAuthRedirectPending(): void {
   if (typeof window === 'undefined') return;
-  sessionStorage.removeItem(OAUTH_PENDING_KEY);
-  sessionStorage.removeItem(OAUTH_PENDING_AT_KEY);
-  try {
-    localStorage.removeItem(OAUTH_PENDING_KEY);
-    localStorage.removeItem(OAUTH_PENDING_AT_KEY);
-  } catch {
-    /* ignore */
-  }
+  removeBoth(OAUTH_PENDING_KEY);
+  removeBoth(OAUTH_PENDING_AT_KEY);
+  removeBoth(OAUTH_STARTED_AT_KEY);
+  removeBoth(OAUTH_REQUEST_ID_KEY);
+  removeBoth(OAUTH_PROVIDER_KEY);
+  removeBoth(OAUTH_RETURN_PATH_KEY);
+}
+
+export function getSavedOAuthReturnPath(): string | null {
+  return validateOAuthReturnPath(readBoth(OAUTH_RETURN_PATH_KEY));
+}
+
+export function getSavedOAuthProvider(): string {
+  return readBoth(OAUTH_PROVIDER_KEY);
+}
+
+export function hasSavedOAuthRedirectState(): boolean {
+  return isPendingFlagSet();
 }
 
 /** Drop stale flags left from abandoned OAuth attempts (prevents auth init hang). */
@@ -130,6 +201,13 @@ async function captureRedirectResult(): Promise<OAuthRedirectCapture> {
   const auth = await waitForAuthInstance();
   if (!auth) return { session: null, error: null };
 
+  authLog('getRedirectResult_start', {
+    host: typeof location !== 'undefined' ? location.hostname : '',
+    path: typeof location !== 'undefined' ? location.pathname : '',
+    pending: isOAuthReturnPending(),
+    provider: getSavedOAuthProvider() || null,
+  });
+
   try {
     if (auth.authStateReady) {
       await auth.authStateReady();
@@ -148,6 +226,7 @@ async function captureRedirectResult(): Promise<OAuthRedirectCapture> {
       const session = await sessionFromCurrentUser();
       if (session?.user) {
         clearOAuthRedirectPending();
+        authLog('getRedirectResult_finish', { ok: true, uid: session.user.id });
         return { session, error: null };
       }
       return { session: null, error: { message: 'OAuth redirect completed without session' } };
@@ -157,22 +236,26 @@ async function captureRedirectResult(): Promise<OAuthRedirectCapture> {
       const session = await sessionFromCurrentUser();
       if (session?.user) {
         clearOAuthRedirectPending();
+        authLog('getRedirectResult_finish', { ok: true, recovered: true, uid: session.user.id });
         return { session, error: null };
       }
     }
 
+    authLog('getRedirectResult_finish', { ok: false, nullResult: true });
     return { session: null, error: null };
   } catch (err) {
     if (isPendingFlagSet()) clearOAuthRedirectPending();
     const message = err instanceof Error ? err.message : 'OAuth redirect failed';
+    const code = (err as { code?: string }).code;
+    authWarn('getRedirectResult_error', { code: code || null, message });
     return {
       session: null,
-      error: { message, name: (err as { code?: string }).code },
+      error: { message, name: code },
     };
   }
 }
 
-/** Start getRedirectResult after auth listener is registered (auth.tsx). */
+/** Start getRedirectResult once during auth bootstrap (auth.tsx). */
 export function captureOAuthRedirectOnLoad(): Promise<OAuthRedirectCapture> {
   if (capturePromise) return capturePromise;
   capturePromise = captureRedirectResult();
@@ -180,6 +263,11 @@ export function captureOAuthRedirectOnLoad(): Promise<OAuthRedirectCapture> {
 }
 
 export function awaitOAuthRedirectCapture(): Promise<OAuthRedirectCapture> {
+  return captureOAuthRedirectOnLoad();
+}
+
+/** Alias expected by the shared auth service facade. */
+export function completeOAuthRedirectOnce(): Promise<OAuthRedirectCapture> {
   return captureOAuthRedirectOnLoad();
 }
 

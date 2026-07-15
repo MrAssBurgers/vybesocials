@@ -2,8 +2,86 @@
  * Maps internal error messages to user-friendly messages
  * Prevents leaking database schema, constraint names, and internal details
  */
+
+function authErrorCode(error: unknown): string {
+  if (!error || typeof error !== 'object') return '';
+  const e = error as { code?: string; name?: string };
+  return String(e.code || e.name || '');
+}
+
+/** Firebase / OAuth-focused friendly message (also used by auth service facade). */
+export function getFriendlyAuthError(error: unknown): string {
+  const code = authErrorCode(error);
+  const message =
+    error && typeof error === 'object' && 'message' in error
+      ? String((error as { message?: string }).message || '')
+      : String(error ?? '');
+
+  switch (code) {
+    case 'auth/unauthorized-domain':
+      return 'This domain is not approved for sign-in.';
+    case 'auth/operation-not-allowed':
+      return 'This sign-in provider is not enabled.';
+    case 'auth/popup-blocked':
+      return 'Your browser blocked the sign-in window. Redirecting to sign in.';
+    case 'auth/popup-closed-by-user':
+    case 'auth/cancelled-popup-request':
+      return '__SUPPRESS__';
+    case 'auth/network-request-failed':
+      return 'VYBE could not reach the sign-in service. Check your connection.';
+    case 'auth/account-exists-with-different-credential':
+      return 'An account already exists with this email using another sign-in method.';
+    case 'auth/credential-already-in-use':
+      return 'This sign-in method is already linked to another account.';
+    case 'auth/invalid-credential':
+      return 'Sign-in credentials were invalid or expired. Try again.';
+    case 'auth/invalid-oauth-provider':
+      return 'This sign-in provider is misconfigured. Contact support.';
+    case 'auth/web-storage-unsupported':
+      return 'This browser blocked sign-in storage. Disable private mode and try again.';
+    case 'auth/internal-error':
+      return 'Sign-in failed due to an internal error. Try again in a moment.';
+    default:
+      break;
+  }
+
+  if (
+    message.includes('Sign in was cancelled') ||
+    message.toLowerCase().includes('cancelled by the user')
+  ) {
+    return '__SUPPRESS__';
+  }
+  if (message.includes('Popup was blocked')) {
+    return 'Your browser blocked the sign-in window. Redirecting to sign in.';
+  }
+  if (message.includes('unauthorized-domain')) {
+    return 'This domain is not approved for sign-in.';
+  }
+  if (
+    message.includes('operation-not-allowed') ||
+    message.toLowerCase().includes('code flow is not enabled for apple')
+  ) {
+    return 'This sign-in provider is not enabled.';
+  }
+  if (message.includes('403') || message.toLowerCase().includes('forbidden')) {
+    return 'Apple rejected sign-in (403). Check that Firebase Services ID matches your Apple Services ID (not the App ID).';
+  }
+
+  if (code.startsWith('auth/')) {
+    return `Sign-in failed. Error code: ${code}`;
+  }
+
+  return getUserFriendlyError(error);
+}
+
 export function getUserFriendlyError(error: any): string {
   const message = error?.message || error?.toString() || '';
+  const code = authErrorCode(error);
+
+  // Prefer the OAuth-specific mapper when Firebase auth codes are present.
+  if (code.startsWith('auth/')) {
+    return getFriendlyAuthError(error);
+  }
   
   // OAuth popup errors (mobile browsers can't reliably use popups)
   if (
@@ -18,14 +96,14 @@ export function getUserFriendlyError(error: any): string {
     error?.code === 'auth/popup-blocked' ||
     error?.name === 'auth/popup-blocked'
   ) {
-    return 'Pop-up blocked. Try opening the app in a new browser tab to sign in.';
+    return 'Your browser blocked the sign-in window. Redirecting to sign in.';
   }
   if (
     error?.code === 'auth/unauthorized-domain' ||
     error?.name === 'auth/unauthorized-domain' ||
     message.includes('unauthorized-domain')
   ) {
-    return 'This site is not authorized for Google sign-in yet. Try vybe-daaab.web.app or contact support.';
+    return 'This domain is not approved for sign-in.';
   }
   if (
     message.includes('403') ||
@@ -39,13 +117,13 @@ export function getUserFriendlyError(error: any): string {
     message.includes('operation-not-allowed') ||
     message.toLowerCase().includes('code flow is not enabled for apple')
   ) {
-    return 'Apple Sign-In needs OAuth setup in Firebase (Services ID, Team ID, Key ID, .p8). Use Google for now.';
+    return 'This sign-in provider is not enabled.';
   }
   if (
     error?.code === 'auth/account-exists-with-different-credential' ||
     error?.name === 'auth/account-exists-with-different-credential'
   ) {
-    return 'An account already exists with this email using a different sign-in method. Try email/password or the method you used originally.';
+    return 'An account already exists with this email using another sign-in method.';
   }
   
   // Authentication errors
@@ -178,7 +256,8 @@ export function getUserFriendlyError(error: any): string {
     return message;
   }
   
-  // Generic fallback - don't expose internal error details
+  // Generic fallback — surface auth-like codes when present
   console.error('Unhandled error:', error);
-  return 'Something went wrong. Please try again.';
+  if (code) return `Sign-in failed. Error code: ${code}`;
+  return 'Sign-in failed. Please try again.';
 }

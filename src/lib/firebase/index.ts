@@ -7,8 +7,9 @@ export { createDataClient };
 export type { DataClient } from './dataClient';
 
 // Auth
-export { firebaseAuth } from './authService';
+export { firebaseAuth, getFirebaseAuth, browserPopupRedirectResolver } from './authService';
 export type { User, Session } from './authService';
+export { getFirebaseAuthDomain, getFirebaseAuthHandlerUrl } from './authDomain';
 
 // Storage
 export { firebaseStorage } from './storageService';

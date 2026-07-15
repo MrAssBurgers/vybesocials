@@ -11,7 +11,7 @@ import { Label } from '@/components/ui/label';
 
 // Checkbox removed — using custom inline toggle for iOS compatibility
 import { toast } from 'sonner';
-import { getUserFriendlyError } from '@/lib/errorUtils';
+import { getFriendlyAuthError, getUserFriendlyError } from '@/lib/errorUtils';
 import { Eye, EyeOff, Mail } from 'lucide-react';
 import { isNativeAppShell } from '@/lib/despiaBridge';
 import { db } from '@/lib/firebase';
@@ -310,7 +310,7 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
     } catch (error: unknown) {
       clearOAuthRedirectPending();
       clearDespiaOAuthPending();
-      const msg = getUserFriendlyError(error);
+      const msg = getFriendlyAuthError(error);
       if (msg !== '__SUPPRESS__') toast.error(msg);
     } finally {
       if (!isOAuthRedirectInFlight() && !isDespiaOAuthInFlight()) {

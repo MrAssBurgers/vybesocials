@@ -84,10 +84,20 @@ self.addEventListener('activate', (event) => {
 });
 
 // Paths that must NEVER be intercepted by the service worker (OAuth redirects, etc.)
-const SW_BYPASS_PATHS = ['/~oauth', '/spotify/callback'];
+const SW_BYPASS_PATHS = [
+  '/~oauth',
+  '/spotify/callback',
+  '/native-callback.html',
+  '/__/auth',
+];
 
 function shouldBypassServiceWorker(url) {
-  if (SW_BYPASS_PATHS.some((p) => url.pathname.startsWith(p))) return true;
+  // Never touch Firebase Auth helper hosts or paths.
+  if (url.pathname.startsWith('/__/auth')) return true;
+  if (/\.firebaseapp\.com$/i.test(url.hostname) && url.pathname.startsWith('/__/auth')) return true;
+  if (SW_BYPASS_PATHS.some((p) => url.pathname === p || url.pathname.startsWith(p + '/'))) {
+    return true;
+  }
   if (url.pathname === '/auth' || url.pathname === '/auth/callback') {
     const q = url.search || '';
     const h = url.hash || '';
@@ -96,6 +106,8 @@ function shouldBypassServiceWorker(url) {
       /[?&]state=/.test(q) ||
       /[?&]code=/.test(q) ||
       /[?&]error=/.test(combined) ||
+      /[?&]custom_token=/.test(q) ||
+      /[?&]id_token=/.test(q) ||
       h.includes('access_token') ||
       h.includes('id_token')
     );

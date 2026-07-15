@@ -1,11 +1,21 @@
 /**
  * Platform-aware OAuth — Despia oauth:// on store builds, Capacitor native picker
- * on self-built shells, popup on desktop, redirect on mobile Safari / Apple web.
+ * on self-built shells, popup on desktop, redirect on mobile Safari / PWA / WebViews.
+ *
+ * Despia MUST keep oauth:// (ASWebAuthenticationSession). Firebase
+ * signInWithRedirect inside Offline→Native (localhost:7777) leaks Safari to
+ * firebaseapp.com/__/auth/* and breaks with “address is invalid” deeplinks.
  */
 import { isDespiaRuntime, isNativeAppShell } from '@/lib/despiaBridge';
-import { isEmbeddedAppleWebView, isMobileSafariBrowser } from '@/lib/deviceDetection';
+import { isEmbeddedAppleWebView } from '@/lib/deviceDetection';
 import { isNativePlatform } from '@/lib/capacitor';
 import { signInWithAppleDespia, signInWithGoogleDespia } from '@/lib/despiaOAuth';
+import {
+  detectOAuthPlatform,
+  shouldUseRedirectOAuthPlatform,
+  type OAuthPlatformInfo,
+} from '@/lib/oauthPlatform';
+import { authLog, authWarn } from '@/lib/authLog';
 import type { VybeAuthError, VybeSession } from '@/lib/firebase/types';
 
 export type OAuthProviderId = 'google' | 'apple';
@@ -18,19 +28,24 @@ export type OAuthSignInResult = {
   pending?: boolean;
 };
 
+let oauthMutexUntil = 0;
+let oauthInFlight: Promise<OAuthSignInResult> | null = null;
+
+export function getOAuthPlatformInfo(): OAuthPlatformInfo {
+  return detectOAuthPlatform();
+}
+
 export function shouldUseNativeOAuth(): boolean {
   return isNativeAppShell();
 }
 
 export function shouldUseRedirectOAuth(): boolean {
   if (isNativeAppShell()) return false;
-  // Popup works on desktop + Android Chrome — redirect only where popups are blocked (Mobile Safari).
-  return isMobileSafariBrowser();
+  return shouldUseRedirectOAuthPlatform();
 }
 
 export function shouldUseDespiaOAuth(provider: OAuthProviderId): boolean {
   if (!isDespiaRuntime()) return false;
-  // Google + Apple both use Despia oauth:// → ASWebAuthenticationSession Continue sheet.
   if (provider === 'google' || provider === 'apple') return true;
   return !isEmbeddedAppleWebView();
 }
@@ -67,8 +82,17 @@ async function tryDespiaAppleOAuth(): Promise<OAuthSignInResult> {
   return { data: { session: null }, error: { message: 'Apple sign-in did not complete' } };
 }
 
-export async function signInWithOAuthPlatform(provider: OAuthProviderId): Promise<OAuthSignInResult> {
+async function signInWithOAuthPlatformInner(provider: OAuthProviderId): Promise<OAuthSignInResult> {
+  const platform = detectOAuthPlatform();
+  authLog('oauth_start', {
+    provider,
+    strategy: platform.strategy,
+    host: typeof location !== 'undefined' ? location.hostname : '',
+    path: typeof location !== 'undefined' ? location.pathname : '',
+  });
+
   if (shouldUseDespiaOAuth(provider)) {
+    authLog('oauth_strategy', { provider, strategy: 'despia' });
     if (provider === 'google') return tryDespiaGoogleOAuth();
     if (provider === 'apple') return tryDespiaAppleOAuth();
   }
@@ -81,7 +105,6 @@ export async function signInWithOAuthPlatform(provider: OAuthProviderId): Promis
     if (nativeResult?.error && !isRetryableNativeError(nativeResult.error)) {
       return nativeResult;
     }
-    // Self-built Capacitor without plugin — use redirect rather than popup in WebView.
     const { firebaseAuth } = await import('@/lib/firebase');
     const baseOpts =
       provider === 'google'
@@ -90,13 +113,17 @@ export async function signInWithOAuthPlatform(provider: OAuthProviderId): Promis
     return firebaseAuth.signInWithOAuth(provider, baseOpts);
   }
 
-  // Mobile Safari: redirect. Desktop: popup (including Apple).
   const useRedirect = shouldUseRedirectOAuth();
   const { firebaseAuth } = await import('@/lib/firebase');
   const baseOpts =
     provider === 'google'
       ? { extraParams: { prompt: 'select_account' as const }, useRedirect }
       : { useRedirect };
+
+  authLog('oauth_strategy', {
+    provider,
+    strategy: useRedirect ? 'redirect' : 'popup',
+  });
 
   let oauthResult = await firebaseAuth.signInWithOAuth(provider, baseOpts);
   if (oauthResult.redirected) return oauthResult;
@@ -107,10 +134,29 @@ export async function signInWithOAuthPlatform(provider: OAuthProviderId): Promis
     (oauthResult.error.name === 'auth/popup-blocked' ||
       oauthResult.error.name === 'auth/popup-closed-by-user')
   ) {
+    authWarn('popup_fallback_redirect', { code: oauthResult.error.name });
     oauthResult = await firebaseAuth.signInWithOAuth(provider, { ...baseOpts, useRedirect: true });
   }
 
   return oauthResult;
+}
+
+/** Mutex + 3s ignore window — prevents double taps / Strict Mode duplicate redirects. */
+export async function signInWithOAuthPlatform(provider: OAuthProviderId): Promise<OAuthSignInResult> {
+  const now = Date.now();
+  if (oauthInFlight) return oauthInFlight;
+  if (now < oauthMutexUntil) {
+    return {
+      data: { session: null },
+      error: { message: 'Sign-in already in progress', name: 'vybe/oauth-busy' },
+    };
+  }
+
+  oauthMutexUntil = now + 3000;
+  oauthInFlight = signInWithOAuthPlatformInner(provider).finally(() => {
+    oauthInFlight = null;
+  });
+  return oauthInFlight;
 }
 
 function isRetryableNativeError(error: VybeAuthError): boolean {

@@ -20,7 +20,7 @@
       text-align: center;
     }
     #status { margin: 0; }
-    #openApp {
+    #openApp, #webFallback {
       display: none;
       appearance: none;
       border: 0;
@@ -33,15 +33,22 @@
       cursor: pointer;
       text-decoration: none;
     }
+    #webFallback {
+      background: transparent;
+      color: #a1a1aa;
+      border: 1px solid #3f3f46;
+    }
   </style>
 </head>
 <body>
   <p id="status">Completing sign-in…</p>
   <a id="openApp" href="#">Open VYBE</a>
+  <a id="webFallback" href="https://vybehub.app/auth/callback">Continue on web</a>
   <script>
     (function () {
       var DEFAULT_SCHEME = 'com.despia.vybe';
       var EXCHANGE_URL = 'https://us-central1-vybe-daaab.cloudfunctions.net/authQr';
+      var WEB_FALLBACK = 'https://vybehub.app/auth/callback';
 
       function setStatus(text) {
         var el = document.getElementById('status');
@@ -71,41 +78,70 @@
       }
 
       function buildDeeplink(scheme, query) {
-        return scheme + '://oauth/auth' + (query ? '?' + query : '');
+        var cleanScheme = String(scheme || DEFAULT_SCHEME).trim();
+        if (!cleanScheme || cleanScheme.indexOf('://') !== -1) cleanScheme = DEFAULT_SCHEME;
+        return cleanScheme + '://oauth/auth' + (query ? '?' + query : '');
+      }
+
+      function isValidDeeplink(url) {
+        if (!url || typeof url !== 'string') return false;
+        var value = url.trim();
+        if (!value || value === '#' || value === 'vybe:' || value === 'vybe://') return false;
+        try {
+          var parsed = new URL(value);
+          return parsed.protocol === 'com.despia.vybe:' && value.indexOf('oauth') !== -1;
+        } catch (e) {
+          return false;
+        }
       }
 
       /**
-       * Despia requires `{scheme}://oauth/…` and `window.location.href` (not replace-only)
-       * to close ASWebAuthenticationSession and land the WebView on /auth?…
+       * Despia requires `{scheme}://oauth/…` and location.href (not replace-only)
+       * to close ASWebAuthenticationSession. Never set Open VYBE to an empty/malformed href.
        */
       function redirectToApp(scheme, query) {
         var deeplink = buildDeeplink(scheme, query);
-        window.__vybeOauthDeeplink = deeplink;
         var openBtn = document.getElementById('openApp');
-        if (openBtn) openBtn.setAttribute('href', deeplink);
+        var webBtn = document.getElementById('webFallback');
 
-        // Primary — matches Despia docs exactly.
-        window.location.href = deeplink;
-
-        setTimeout(function () {
+        if (isValidDeeplink(deeplink)) {
+          window.__vybeOauthDeeplink = deeplink;
+          if (openBtn) openBtn.setAttribute('href', deeplink);
           try {
-            window.location.replace(deeplink);
+            window.location.href = deeplink;
           } catch (e) {}
-        }, 120);
+          setTimeout(function () {
+            try { window.location.replace(deeplink); } catch (e2) {}
+          }, 120);
+        } else {
+          window.__vybeOauthDeeplink = '';
+          if (openBtn) {
+            openBtn.removeAttribute('href');
+            openBtn.style.display = 'none';
+          }
+        }
 
         setTimeout(function () {
-          if (openBtn) {
+          if (webBtn) {
+            webBtn.style.display = 'inline-block';
+            webBtn.setAttribute('href', WEB_FALLBACK);
+          }
+          if (isValidDeeplink(window.__vybeOauthDeeplink) && openBtn) {
             openBtn.style.display = 'inline-block';
             setStatus('Tap below if VYBE did not open.');
+          } else {
+            setStatus('Continue in the browser if the app did not open.');
           }
         }, 800);
       }
 
       document.getElementById('openApp').addEventListener('click', function (ev) {
-        if (window.__vybeOauthDeeplink) {
+        if (!isValidDeeplink(window.__vybeOauthDeeplink)) {
           ev.preventDefault();
-          window.location.href = window.__vybeOauthDeeplink;
+          return;
         }
+        ev.preventDefault();
+        window.location.href = window.__vybeOauthDeeplink;
       });
 
       var params = getParams();

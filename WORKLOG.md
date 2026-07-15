@@ -2,6 +2,16 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## Active — OAuth hardening (Google/Apple across web + Despia) (2026-07-15)
+
+- **Runtime probe:** `vybehub.app/__/auth/handler` = SPA index; `vybe-daaab.firebaseapp.com/__/auth/handler` = real Firebase handler → **authDomain stays firebaseapp.com**
+- **Preserve Despia `oauth://`** for store builds (Firebase redirect inside Offline→Native caused Safari + invalid address)
+- **Shipped:** authDomain guard · friendly auth errors · OAuth redirect state keys · mutex · native-callback validation + web fallback · SW bypass · AuthCallback waits authReady · DEV `/dev/auth-diagnostics` · facade `src/services/authService.ts`
+- **Verify:** staging Start URL · Google + Apple · no Safari iframe on cold open · Open VYBE never uses empty href
+- **Still required (console):** Apple Services ID return URL `https://vybe-daaab.firebaseapp.com/__/auth/handler` · Lovable Publish · Despia scheme `com.despia.vybe`
+
+---
+
 ## Active — Safari opens Auth iframe + onboarding flicker (2026-07-15)
 
 - **Symptom:** Every cold open → system browser to `vybe-daaab.firebaseapp.com/__/auth/iframe?...&parent=http://localhost:7777` then app loads; onboarding flickers on Next

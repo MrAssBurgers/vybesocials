@@ -3,6 +3,9 @@
  * Never hardcode API keys in source — set in .env / Lovable Cloud secrets.
  */
 
+import { getFirebaseAuthDomain } from './authDomain';
+import { authWarn } from '@/lib/authLog';
+
 export interface FirebaseEnvConfig {
   apiKey: string;
   authDomain: string;
@@ -22,20 +25,42 @@ function envValue(name: string): string {
 export function getFirebaseConfig(): FirebaseEnvConfig {
   const apiKey = envValue('VITE_FIREBASE_API_KEY');
   const projectId = envValue('VITE_FIREBASE_PROJECT_ID');
+  const messagingSenderId = envValue('VITE_FIREBASE_MESSAGING_SENDER_ID');
+  const appId = envValue('VITE_FIREBASE_APP_ID');
+  const storageBucket =
+    envValue('VITE_FIREBASE_STORAGE_BUCKET') ||
+    (projectId ? `${projectId}.appspot.com` : '');
 
   if (!apiKey || !projectId) {
+    const missing = [
+      !apiKey ? 'VITE_FIREBASE_API_KEY' : null,
+      !projectId ? 'VITE_FIREBASE_PROJECT_ID' : null,
+    ].filter(Boolean);
+    authWarn('config_missing', { missing });
     throw new Error(
-      'Firebase is not configured. Set VITE_FIREBASE_* variables in .env (see .env.example).',
+      `Firebase is not configured. Missing: ${missing.join(', ')} (see .env.example).`,
     );
   }
 
+  const recommendedMissing = [
+    !messagingSenderId ? 'VITE_FIREBASE_MESSAGING_SENDER_ID' : null,
+    !appId ? 'VITE_FIREBASE_APP_ID' : null,
+    !envValue('VITE_FIREBASE_STORAGE_BUCKET') ? 'VITE_FIREBASE_STORAGE_BUCKET' : null,
+  ].filter(Boolean);
+  if (recommendedMissing.length) {
+    authWarn('config_recommended_missing', { missing: recommendedMissing });
+  }
+
+  // See authDomain.ts — custom domain does not host /__/auth/** today.
+  const authDomain = getFirebaseAuthDomain(envValue('VITE_FIREBASE_AUTH_DOMAIN'));
+
   return {
     apiKey,
-    authDomain: envValue('VITE_FIREBASE_AUTH_DOMAIN') || `${projectId}.firebaseapp.com`,
+    authDomain,
     projectId,
-    storageBucket: envValue('VITE_FIREBASE_STORAGE_BUCKET') || `${projectId}.appspot.com`,
-    messagingSenderId: envValue('VITE_FIREBASE_MESSAGING_SENDER_ID') || '',
-    appId: envValue('VITE_FIREBASE_APP_ID') || '',
+    storageBucket,
+    messagingSenderId,
+    appId,
     measurementId: envValue('VITE_FIREBASE_MEASUREMENT_ID') || undefined,
     functionsRegion: envValue('VITE_FIREBASE_FUNCTIONS_REGION') || 'us-central1',
   };
@@ -49,3 +74,5 @@ export function isFirebaseConfigured(): boolean {
     return false;
   }
 }
+
+export { getFirebaseAuthDomain } from './authDomain';

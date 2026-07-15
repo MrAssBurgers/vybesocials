@@ -484,7 +484,7 @@ export const firebaseAuth = {
 
       if (opts?.useRedirect) {
         const { markOAuthRedirectPending } = await import('./oauthRedirect');
-        markOAuthRedirectPending();
+        markOAuthRedirectPending({ provider, returnPath: '/auth/callback' });
         await signInWithRedirect(auth, authProvider, browserPopupRedirectResolver);
         return { data: { session: null }, error: null, redirected: true };
       }

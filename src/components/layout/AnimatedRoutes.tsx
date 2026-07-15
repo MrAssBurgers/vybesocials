@@ -46,6 +46,7 @@ const QRSignIn = lazy(() => import("@/pages/QRSignIn"));
 const QRSignInClaim = lazy(() => import("@/pages/QRSignInClaim"));
 const VybeHome = lazy(() => import("@/pages/VybeHome"));
 const DevMockupCompare = lazy(() => import("@/pages/DevMockupCompare"));
+const AuthDiagnostics = lazy(() => import("@/pages/dev/AuthDiagnostics"));
 const RootGate = lazy(() => import("@/components/auth/RootGate"));
 const AuthCallback = lazy(() => import("@/pages/AuthCallback"));
 const SpotifyCallback = lazy(() => import("@/pages/SpotifyCallback"));
@@ -205,7 +206,10 @@ export function AnimatedRoutes() {
             <Route path="/vybe-home" element={<PublicOnlyRoute><VybeHome /></PublicOnlyRoute>} />
             <Route path="/tour" element={<PublicOnlyRoute><VybeHome /></PublicOnlyRoute>} />
             {import.meta.env.DEV && (
-              <Route path="/dev/mockup-compare" element={<DevMockupCompare />} />
+              <>
+                <Route path="/dev/mockup-compare" element={<DevMockupCompare />} />
+                <Route path="/dev/auth-diagnostics" element={<AuthDiagnostics />} />
+              </>
             )}
             {/* Auth entry — explicit Landing routes for sign-in / sign-up */}
             <Route path="/login" element={<Landing />} />

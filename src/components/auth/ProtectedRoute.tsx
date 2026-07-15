@@ -43,9 +43,19 @@ export function ProtectedRoute({ children, allowGuest }: ProtectedRouteProps) {
     return <>{children}</>;
   }
 
-  // Auth still resolving, or token just written (signup/OAuth) before React state updates —
-  // render children optimistically instead of bouncing to /auth.
-  if (!authReady || (!user && hasStoredToken)) {
+  // Auth still restoring — never treat as signed-out (OAuth redirect race).
+  // Show a tiny bootstrap shell unless we already have a disk session hint
+  // (then keep children for DM/home cold-start continuity).
+  if (!authReady) {
+    if (hasStoredToken) return <>{children}</>;
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="w-8 h-8 rounded-full border-[3px] border-primary/30 border-t-primary animate-spin" />
+      </div>
+    );
+  }
+
+  if (!user && hasStoredToken) {
     return <>{children}</>;
   }
 
