@@ -238,6 +238,22 @@ export async function signInWithAppleDespia(): Promise<{
   const { isAndroidAppShell, getRuntimeOs } = await import('@/lib/despiaBridge');
   const os = getRuntimeOs();
 
+  // #region agent log
+  fetch('http://127.0.0.1:7693/ingest/1847f3ab-7d03-4b99-8dbe-84076ae9145e', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': 'adb115' },
+    body: JSON.stringify({
+      sessionId: 'adb115',
+      runId: 'oauth-pre',
+      hypothesisId: 'H5',
+      location: 'despiaOAuth.ts:signInWithAppleDespia',
+      message: 'apple_path_select',
+      data: { os, androidShell: isAndroidAppShell() },
+      timestamp: Date.now(),
+    }),
+  }).catch(() => {});
+  // #endregion
+
   if (isAndroidAppShell() || os === 'android') {
     return launchDespiaOAuthUrl(buildAppleOAuthUrl());
   }

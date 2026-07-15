@@ -33,20 +33,66 @@
       cursor: pointer;
       text-decoration: none;
     }
+    #dbg {
+      display: none;
+      margin-top: 8px;
+      max-width: 92vw;
+      padding: 10px 12px;
+      border-radius: 10px;
+      background: rgba(255,255,255,0.06);
+      color: #d4d4d8;
+      font-size: 11px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      text-align: left;
+      white-space: pre-wrap;
+      word-break: break-all;
+    }
   </style>
 </head>
 <body>
   <p id="status">Completing sign-in…</p>
   <a id="openApp" href="#">Open VYBE</a>
+  <pre id="dbg"></pre>
   <script>
     (function () {
       var DEFAULT_SCHEME = 'com.despia.vybe';
       var EXCHANGE_URL = 'https://us-central1-vybe-daaab.cloudfunctions.net/authQr';
+      var DEBUG_INGEST = 'http://127.0.0.1:7693/ingest/1847f3ab-7d03-4b99-8dbe-84076ae9145e';
 
       function setStatus(text) {
         var el = document.getElementById('status');
         if (el) el.textContent = text;
       }
+
+      // #region agent log
+      function agentLog(hypothesisId, message, data) {
+        var payload = {
+          sessionId: 'adb115',
+          hypothesisId: hypothesisId,
+          location: 'native-callback.html',
+          message: message,
+          data: data || {},
+          timestamp: Date.now(),
+          runId: 'oauth-pre',
+        };
+        try {
+          var dbg = document.getElementById('dbg');
+          if (dbg) {
+            dbg.style.display = 'block';
+            dbg.textContent =
+              (dbg.textContent ? dbg.textContent + '\n' : '') +
+              '[' + hypothesisId + '] ' + message + ' ' + JSON.stringify(data || {});
+          }
+        } catch (e0) {}
+        try {
+          fetch(DEBUG_INGEST, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': 'adb115' },
+            body: JSON.stringify(payload),
+          }).catch(function () {});
+        } catch (e1) {}
+      }
+      // #endregion
 
       function decodeState(state) {
         if (!state) return null;
@@ -78,14 +124,36 @@
        * Despia requires `{scheme}://oauth/…` and `window.location.href` (not replace-only)
        * to close ASWebAuthenticationSession and land the WebView on /auth?…
        */
-      function redirectToApp(scheme, query) {
+      function redirectToApp(scheme, query, meta) {
         var deeplink = buildDeeplink(scheme, query);
         window.__vybeOauthDeeplink = deeplink;
         var openBtn = document.getElementById('openApp');
         if (openBtn) openBtn.setAttribute('href', deeplink);
 
+        // #region agent log
+        agentLog('H1', 'redirectToApp', {
+          scheme: scheme,
+          deeplinkLen: deeplink.length,
+          queryLen: (query || '').length,
+          hasOauthPrefix: deeplink.indexOf('://oauth/') !== -1,
+          tokenKind: (meta && meta.tokenKind) || 'unknown',
+          exchangeOk: meta && meta.exchangeOk,
+          provider: (meta && meta.provider) || provider,
+          deeplinkHead: deeplink.slice(0, 64),
+        });
+        // #endregion
+
         // Primary — matches Despia docs exactly.
-        window.location.href = deeplink;
+        try {
+          window.location.href = deeplink;
+        } catch (navErr) {
+          // #region agent log
+          agentLog('H2', 'location.href threw', {
+            message: String(navErr && navErr.message ? navErr.message : navErr),
+            deeplinkLen: deeplink.length,
+          });
+          // #endregion
+        }
 
         setTimeout(function () {
           try {
@@ -97,6 +165,13 @@
           if (openBtn) {
             openBtn.style.display = 'inline-block';
             setStatus('Tap below if VYBE did not open.');
+            // #region agent log
+            agentLog('H1', 'still_on_callback_after_deeplink', {
+              deeplinkLen: deeplink.length,
+              scheme: scheme,
+              tokenKind: (meta && meta.tokenKind) || 'unknown',
+            });
+            // #endregion
           }
         }, 800);
       }
@@ -117,11 +192,23 @@
       var state = params.get('state') || '';
       var provider = (stateObj && stateObj.provider) || 'google';
 
+      // #region agent log
+      agentLog('H0', 'callback_loaded', {
+        scheme: scheme,
+        provider: provider,
+        hasIdToken: !!idToken,
+        idTokenLen: idToken ? idToken.length : 0,
+        hasCode: !!code,
+        hasError: !!error,
+        hrefLen: String(window.location.href || '').length,
+      });
+      // #endregion
+
       if (error) {
         var errQuery = 'error=' + encodeURIComponent(error) + '&state=' + encodeURIComponent(state);
         var errDesc = params.get('error_description');
         if (errDesc) errQuery += '&error_description=' + encodeURIComponent(errDesc);
-        redirectToApp(scheme, errQuery);
+        redirectToApp(scheme, errQuery, { tokenKind: 'error', provider: provider });
         return;
       }
 
@@ -133,12 +220,19 @@
           '&state=' +
           encodeURIComponent(state) +
           (code ? '&code=' + encodeURIComponent(code) : '');
-        redirectToApp(scheme, appleQuery);
+        redirectToApp(scheme, appleQuery, {
+          tokenKind: 'apple_id_token',
+          provider: 'apple',
+          exchangeOk: false,
+        });
         return;
       }
 
       if (!idToken) {
-        redirectToApp(scheme, 'error=missing_token&state=' + encodeURIComponent(state));
+        redirectToApp(scheme, 'error=missing_token&state=' + encodeURIComponent(state), {
+          tokenKind: 'missing',
+          provider: provider,
+        });
         return;
       }
 
@@ -151,12 +245,21 @@
       })
         .then(function (res) {
           return res.json().then(function (data) {
-            return { ok: res.ok, data: data };
+            return { ok: res.ok, status: res.status, data: data };
           });
         })
         .then(function (result) {
           var payload = (result.data && result.data.result) || result.data || {};
           var token = payload.customToken || payload.custom_token;
+          // #region agent log
+          agentLog('H3', 'exchange_google_result', {
+            ok: !!result.ok,
+            status: result.status,
+            hasCustomToken: !!token,
+            customTokenLen: token ? String(token).length : 0,
+            idTokenLen: idToken.length,
+          });
+          // #endregion
           if (!result.ok || !token) {
             var errMsg =
               (result.data && result.data.error && result.data.error.message) ||
@@ -167,16 +270,30 @@
           }
           var okQuery =
             'custom_token=' + encodeURIComponent(token) + '&state=' + encodeURIComponent(state);
-          redirectToApp(scheme, okQuery);
+          redirectToApp(scheme, okQuery, {
+            tokenKind: 'custom_token',
+            exchangeOk: true,
+            provider: 'google',
+          });
         })
-        .catch(function () {
+        .catch(function (exErr) {
           setStatus('Could not finish automatically. Opening app…');
+          // #region agent log
+          agentLog('H3', 'exchange_google_fallback_id_token', {
+            message: String(exErr && exErr.message ? exErr.message : exErr),
+            idTokenLen: idToken.length,
+          });
+          // #endregion
           var fallbackQuery =
             'id_token=' +
             encodeURIComponent(idToken) +
             '&state=' +
             encodeURIComponent(state);
-          redirectToApp(scheme, fallbackQuery);
+          redirectToApp(scheme, fallbackQuery, {
+            tokenKind: 'id_token_fallback',
+            exchangeOk: false,
+            provider: 'google',
+          });
         });
     })();
   </script>

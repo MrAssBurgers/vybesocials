@@ -310,8 +310,34 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
     } catch (error: unknown) {
       clearOAuthRedirectPending();
       clearDespiaOAuthPending();
+      const errObj = error as { message?: string; name?: string; code?: string };
+      // #region agent log
+      fetch('http://127.0.0.1:7693/ingest/1847f3ab-7d03-4b99-8dbe-84076ae9145e', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': 'adb115' },
+        body: JSON.stringify({
+          sessionId: 'adb115',
+          runId: 'oauth-pre',
+          hypothesisId: 'H4',
+          location: 'Landing.tsx:runOAuthSignIn',
+          message: 'oauth_catch',
+          data: {
+            provider,
+            name: errObj?.name || null,
+            code: errObj?.code || null,
+            message: errObj?.message || String(error),
+            hostname: typeof location !== 'undefined' ? location.hostname : '',
+          },
+          timestamp: Date.now(),
+        }),
+      }).catch(() => {});
+      // #endregion
       const msg = getUserFriendlyError(error);
-      if (msg !== '__SUPPRESS__') toast.error(msg);
+      // Keep raw code visible during debug so iPhone toast itself carries evidence.
+      if (msg !== '__SUPPRESS__') {
+        const codeHint = errObj?.name || errObj?.code || '';
+        toast.error(codeHint ? `${msg} (${codeHint})` : msg);
+      }
     } finally {
       if (!isOAuthRedirectInFlight() && !isDespiaOAuthInFlight()) {
         setLoading(false);
