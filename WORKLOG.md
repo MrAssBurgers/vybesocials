@@ -4,9 +4,9 @@ Use this file as the Lovable -> Cursor handoff each session.
 
 ## PUBLISH handoff (2026-07-14) — non-blocking iOS/Android startup
 
-- **Merged to `origin/main`:** _(pending)_ — render UI first, OS-aware splash fail-open, startup timing logs
-- **Firebase staging hosting:** _(pending)_
-- **Production `vybehub.app`:** **Lovable → Share → Publish** after git sync — Cursor cannot click Publish
+- **Merged to `origin/main`:** `7dd55536` — render UI first, OS-aware splash fail-open, startup timing logs
+- **Firebase staging hosting:** https://vybe-daaab.web.app ✅
+- **Production `vybehub.app`:** **Lovable → Share → Publish** (sync `main` @ `7dd55536`) — Cursor cannot click Publish
 - **Lovable:** https://lovable.dev/projects/416714c8-d013-4aff-984d-522418a9bbc7
 - **After Publish:** reopen Apple/Android app → first UI <1s; Xcode console shows `VYBE:startup` with `os=ios|android`
 
