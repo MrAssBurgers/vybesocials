@@ -42,13 +42,15 @@
 </head>
 <body>
   <p id="status">Completing sign-in…</p>
-  <a id="openApp" href="#">Open VYBE</a>
+  <a id="openApp">Open VYBE</a>
   <a id="webFallback" href="https://vybehub.app/auth/callback">Continue on web</a>
   <script>
     (function () {
       var DEFAULT_SCHEME = 'com.despia.vybe';
       var EXCHANGE_URL = 'https://us-central1-vybe-daaab.cloudfunctions.net/authQr';
       var WEB_FALLBACK = 'https://vybehub.app/auth/callback';
+      // Soft cap — iOS rejects longer custom-scheme URLs as “address is invalid”.
+      var MAX_DEEPLINK_LEN = 1800;
 
       function setStatus(text) {
         var el = document.getElementById('status');
@@ -87,6 +89,7 @@
         if (!url || typeof url !== 'string') return false;
         var value = url.trim();
         if (!value || value === '#' || value === 'vybe:' || value === 'vybe://') return false;
+        if (value.length > MAX_DEEPLINK_LEN) return false;
         try {
           var parsed = new URL(value);
           return parsed.protocol === 'com.despia.vybe:' && value.indexOf('oauth') !== -1;
@@ -95,24 +98,72 @@
         }
       }
 
+      function callAuthQr(payload) {
+        return fetch(EXCHANGE_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ data: payload }),
+        }).then(function (res) {
+          return res.json().then(function (data) {
+            return { ok: res.ok, data: data };
+          });
+        });
+      }
+
+      function payloadOf(result) {
+        return (result.data && result.data.result) || result.data || {};
+      }
+
       /**
-       * Despia requires `{scheme}://oauth/…` and location.href (not replace-only)
-       * to close ASWebAuthenticationSession. Never set Open VYBE to an empty/malformed href.
+       * Short codes only in deeplinks. Long JWT/custom_token URLs break ASWeb
+       * with Safari “The address is invalid.”
        */
       function redirectToApp(scheme, query) {
         var deeplink = buildDeeplink(scheme, query);
         var openBtn = document.getElementById('openApp');
         var webBtn = document.getElementById('webFallback');
 
+        // #region agent log
+        try {
+          fetch('http://127.0.0.1:7693/ingest/1847f3ab-7d03-4b99-8dbe-84076ae9145e', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': 'adb115' },
+            body: JSON.stringify({
+              sessionId: 'adb115',
+              runId: 'oauth-handoff',
+              hypothesisId: 'H1',
+              location: 'native-callback.html',
+              message: 'deeplink_attempt',
+              data: {
+                len: deeplink.length,
+                valid: isValidDeeplink(deeplink),
+                hasCode: /[?&]code=/.test(deeplink),
+                hasIdToken: /[?&]id_token=/.test(deeplink),
+                hasCustom: /[?&]custom_token=/.test(deeplink),
+              },
+              timestamp: Date.now(),
+            }),
+          }).catch(function () {});
+        } catch (eLog) {}
+        // #endregion
+
         if (isValidDeeplink(deeplink)) {
           window.__vybeOauthDeeplink = deeplink;
           if (openBtn) openBtn.setAttribute('href', deeplink);
-          try {
-            window.location.href = deeplink;
-          } catch (e) {}
+          try { window.location.href = deeplink; } catch (e) {}
           setTimeout(function () {
             try { window.location.replace(deeplink); } catch (e2) {}
           }, 120);
+          setTimeout(function () {
+            try {
+              var a = document.createElement('a');
+              a.href = deeplink;
+              a.rel = 'noreferrer';
+              document.body.appendChild(a);
+              a.click();
+              a.remove();
+            } catch (e3) {}
+          }, 280);
         } else {
           window.__vybeOauthDeeplink = '';
           if (openBtn) {
@@ -132,7 +183,7 @@
           } else {
             setStatus('Continue in the browser if the app did not open.');
           }
-        }, 800);
+        }, 900);
       }
 
       document.getElementById('openApp').addEventListener('click', function (ev) {
@@ -152,6 +203,7 @@
       var error = params.get('error');
       var state = params.get('state') || '';
       var provider = (stateObj && stateObj.provider) || 'google';
+      var nonce = (stateObj && stateObj.nonce) || '';
 
       if (error) {
         var errQuery = 'error=' + encodeURIComponent(error) + '&state=' + encodeURIComponent(state);
@@ -161,15 +213,38 @@
         return;
       }
 
-      // Apple returns id_token (and optional code) — hand straight to app.
-      if (provider === 'apple' && idToken) {
-        var appleQuery =
-          'id_token=' +
-          encodeURIComponent(idToken) +
+      function finishWithHandoffCode(handoffCode) {
+        if (!handoffCode) throw new Error('missing_handoff_code');
+        var okQuery =
+          'hc=' +
+          encodeURIComponent(handoffCode) +
           '&state=' +
-          encodeURIComponent(state) +
-          (code ? '&code=' + encodeURIComponent(code) : '');
-        redirectToApp(scheme, appleQuery);
+          encodeURIComponent(state);
+        redirectToApp(scheme, okQuery);
+      }
+
+      // Apple — stash id_token server-side, deeplink only short handoff code.
+      if (provider === 'apple' && idToken) {
+        setStatus('Finishing Apple sign-in…');
+        callAuthQr({
+          action: 'stash_oauth',
+          provider: 'apple',
+          idToken: idToken,
+          nonce: nonce,
+        })
+          .then(function (result) {
+            var payload = payloadOf(result);
+            if (!result.ok || !payload.code) {
+              throw new Error((payload.message || payload.error) || 'stash_failed');
+            }
+            finishWithHandoffCode(payload.code);
+          })
+          .catch(function () {
+            setStatus('Could not finish Apple sign-in automatically.');
+            if (document.getElementById('webFallback')) {
+              document.getElementById('webFallback').style.display = 'inline-block';
+            }
+          });
         return;
       }
 
@@ -180,20 +255,12 @@
 
       setStatus('Finishing Google sign-in…');
 
-      fetch(EXCHANGE_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ data: { action: 'exchange_google', idToken: idToken } }),
-      })
-        .then(function (res) {
-          return res.json().then(function (data) {
-            return { ok: res.ok, data: data };
-          });
-        })
+      callAuthQr({ action: 'exchange_google', idToken: idToken })
         .then(function (result) {
-          var payload = (result.data && result.data.result) || result.data || {};
+          var payload = payloadOf(result);
+          var handoff = payload.code;
           var token = payload.customToken || payload.custom_token;
-          if (!result.ok || !token) {
+          if (!result.ok) {
             var errMsg =
               (result.data && result.data.error && result.data.error.message) ||
               payload.message ||
@@ -201,18 +268,28 @@
               'exchange_failed';
             throw new Error(errMsg);
           }
-          var okQuery =
-            'custom_token=' + encodeURIComponent(token) + '&state=' + encodeURIComponent(state);
-          redirectToApp(scheme, okQuery);
+          if (handoff) {
+            finishWithHandoffCode(handoff);
+            return;
+          }
+          // Fallback: stash custom token if older function lacked `code`.
+          if (token) {
+            return callAuthQr({
+              action: 'stash_oauth',
+              provider: 'google',
+              customToken: token,
+            }).then(function (stashRes) {
+              var stashPayload = payloadOf(stashRes);
+              if (!stashRes.ok || !stashPayload.code) throw new Error('stash_failed');
+              finishWithHandoffCode(stashPayload.code);
+            });
+          }
+          throw new Error('exchange_failed');
         })
         .catch(function () {
-          setStatus('Could not finish automatically. Opening app…');
-          var fallbackQuery =
-            'id_token=' +
-            encodeURIComponent(idToken) +
-            '&state=' +
-            encodeURIComponent(state);
-          redirectToApp(scheme, fallbackQuery);
+          setStatus('Could not finish automatically. Try Continue on web.');
+          var webBtn = document.getElementById('webFallback');
+          if (webBtn) webBtn.style.display = 'inline-block';
         });
     })();
   </script>

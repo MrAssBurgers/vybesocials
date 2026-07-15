@@ -62,8 +62,9 @@ VYBE expects Despia to expose these native bridge URL schemes:
 **Google OAuth (Despia store builds):** Tap Google → `oauth://` opens
 ASWebAuthenticationSession (iOS) or Chrome Custom Tabs (Android), **not**
 Safari or an embedded WebView. Callback: `https://vybehub.app/native-callback.html`
-→ deeplink `com.despia.vybe://oauth/auth?id_token=...` → Firebase
-`signInWithCredential` in the WebView.
+→ short deeplink `com.despia.vybe://oauth/auth?hc=...` (never put JWTs in the
+URL — iOS rejects long custom-scheme links as “address is invalid”) →
+`authQr` redeem → Firebase `signInWithCustomToken` / credential in the WebView.
 
 **Google Cloud Console** (OAuth 2.0 Web client for Firebase): add authorized
 redirect URI:

@@ -245,9 +245,54 @@ export const authLoginApproval = onCall({ cors: true }, async (request) => {
     }
     throw new HttpsError('invalid-argument', `Unknown action: ${action}`);
 });
+function clientIpFromRequest(request) {
+    const headers = request.rawRequest?.headers || {};
+    const xf = headers['x-forwarded-for'];
+    if (typeof xf === 'string' && xf.trim())
+        return xf.split(',')[0].trim();
+    if (Array.isArray(xf) && typeof xf[0] === 'string')
+        return xf[0].split(',')[0].trim();
+    const appEngine = headers['x-appengine-user-ip'];
+    if (typeof appEngine === 'string' && appEngine.trim())
+        return appEngine.trim();
+    return request.rawRequest?.ip || null;
+}
+async function resolveLoginGeo(request) {
+    const headers = request.rawRequest?.headers || {};
+    const ip = clientIpFromRequest(request);
+    const countryHeader = (typeof headers['x-appengine-country'] === 'string' && headers['x-appengine-country']) ||
+        (typeof headers['cf-ipcountry'] === 'string' && headers['cf-ipcountry']) ||
+        null;
+    const base = {
+        ip,
+        country: countryHeader && countryHeader !== 'ZZ' ? countryHeader : undefined,
+    };
+    if (!ip || ip === '127.0.0.1' || ip.startsWith('::'))
+        return base;
+    try {
+        const res = await fetch(`https://ipapi.co/${encodeURIComponent(ip)}/json/`, {
+            signal: AbortSignal.timeout(2500),
+        });
+        if (!res.ok)
+            return base;
+        const j = (await res.json());
+        if (j?.error)
+            return base;
+        return {
+            ip,
+            city: j.city || undefined,
+            region: j.region || undefined,
+            country: j.country_name || j.country || base.country,
+        };
+    }
+    catch {
+        return base;
+    }
+}
 /**
  * auth-login-notify — register this session; alert OTHER devices only when a new
  * sign-in hits an account that already has active sessions elsewhere.
+ * `session_resume` / app opens never create approval challenges.
  */
 export const authLoginNotify = onCall({ cors: true, secrets: ['ONESIGNAL_APP_ID', 'ONESIGNAL_REST_API_KEY'] }, async (request) => {
     const uid = requireAuth(request);
@@ -256,6 +301,7 @@ export const authLoginNotify = onCall({ cors: true, secrets: ['ONESIGNAL_APP_ID'
     const method = asString(payload.method) || 'password';
     const userAgent = asString(payload.userAgent);
     const now = new Date().toISOString();
+    const isResume = method === 'session_resume' || method === 'app_open' || method === 'heartbeat';
     const profileId = await resolveProfileIdForAuthUid(uid);
     const settingsSnap = await db.collection('user_2fa_settings').doc(uid).get();
     const loginApprovalsEnabled = !!settingsSnap.data()?.login_approvals_enabled;
@@ -269,6 +315,26 @@ export const authLoginNotify = onCall({ cors: true, secrets: ['ONESIGNAL_APP_ID'
         if (!known.empty) {
             const doc = known.docs[0];
             await doc.ref.set({ last_seen_at: now }, { merge: true });
+            // Clear stale "Was this you?" prompts that were incorrectly created for this install.
+            const stale = await db.collection('auth_challenges')
+                .where('user_id', '==', uid)
+                .where('challenge_type', '==', 'login_approval')
+                .where('status', '==', 'pending')
+                .limit(10)
+                .get();
+            const batch = db.batch();
+            let cleared = 0;
+            for (const challenge of stale.docs) {
+                const meta = (challenge.data().metadata || {});
+                const sameDevice = meta.requesting_session_hash === sessionHash;
+                const resumeNoise = meta.method === 'session_resume' || meta.method === 'app_open';
+                if (sameDevice || resumeNoise) {
+                    batch.set(challenge.ref, { status: 'expired', resolved_at: now }, { merge: true });
+                    cleared += 1;
+                }
+            }
+            if (cleared > 0)
+                await batch.commit();
             return { ok: true, sessionId: doc.id, notified: false, reason: 'known_session' };
         }
     }
@@ -278,11 +344,16 @@ export const authLoginNotify = onCall({ cors: true, secrets: ['ONESIGNAL_APP_ID'
         session_token_hash: sessionHash || null,
         device_label: parseDeviceLabel(userAgent),
         user_agent: userAgent || null,
-        trusted: false,
+        trusted: isResume,
         created_at: now,
         last_seen_at: now,
         revoked_at: null,
     });
+    // Cold starts / resumes register the install but never spam approvals or history.
+    if (isResume) {
+        return { ok: true, sessionId: sessionRef.id, notified: false, reason: 'session_resume' };
+    }
+    const geo = await resolveLoginGeo(request);
     await db.collection('login_history').add({
         user_id: uid,
         method,
@@ -290,7 +361,12 @@ export const authLoginNotify = onCall({ cors: true, secrets: ['ONESIGNAL_APP_ID'
         device_label: parseDeviceLabel(userAgent),
         user_agent: userAgent || null,
         created_at: now,
-        metadata: { session_id: sessionRef.id, session_hash: sessionHash || null },
+        metadata: {
+            session_id: sessionRef.id,
+            session_hash: sessionHash || null,
+            ip: geo.ip,
+            geo,
+        },
     });
     const allSessions = await db.collection('user_sessions').where('user_id', '==', uid).get();
     const otherActiveSessions = allSessions.docs.filter((doc) => {
@@ -329,6 +405,7 @@ export const authLoginNotify = onCall({ cors: true, secrets: ['ONESIGNAL_APP_ID'
     }
     const challengeRef = db.collection('auth_challenges').doc();
     const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
+    const place = [geo.city, geo.region, geo.country].filter(Boolean).join(', ') || geo.ip || 'Unknown location';
     await challengeRef.set({
         user_id: uid,
         challenge_type: 'login_approval',
@@ -338,13 +415,15 @@ export const authLoginNotify = onCall({ cors: true, secrets: ['ONESIGNAL_APP_ID'
         metadata: {
             requesting_session_hash: sessionHash || null,
             requesting_session_id: sessionRef.id,
-            device: { label: parseDeviceLabel(userAgent), browser: userAgent || null },
+            device: { label: parseDeviceLabel(userAgent), browser: userAgent || null, os: parseDeviceLabel(userAgent) },
             method,
+            ip: geo.ip,
+            geo,
         },
     });
     await dispatchOneSignalToProfile(profileId, {
         title: 'Approve sign-in?',
-        body: 'Someone is trying to sign in to your VYBE account.',
+        body: `New sign-in from ${place}. Was this you?`,
         type: 'login_approval',
         url: `/?login-approval=${challengeRef.id}`,
         data: {
@@ -435,6 +514,19 @@ async function mintCustomTokenFromGoogleIdToken(idToken) {
     }
     return auth.createCustomToken(uid, { provider: 'google.com' });
 }
+/** One-time Despia deeplink payload (≤2 min). Admin SDK only — no client rules. */
+async function stashOAuthHandoff(payload) {
+    const code = randomBytes(16).toString('hex');
+    await db.collection('oauth_handoffs').doc(code).set({
+        provider: payload.provider,
+        customToken: payload.customToken || null,
+        idToken: payload.idToken || null,
+        nonce: payload.nonce || null,
+        expiresAt: Date.now() + 2 * 60 * 1000,
+        createdAt: new Date().toISOString(),
+    });
+    return code;
+}
 function qrChallengeDocId(nonce) {
     return `qr_${nonce}`;
 }
@@ -465,7 +557,13 @@ export const authQr = onCall({ cors: true }, async (request) => {
         }
         try {
             const customToken = await mintCustomTokenFromGoogleIdToken(idToken);
-            return { customToken, custom_token: customToken };
+            // Short handoff code for Despia deeplinks — long JWTs / custom tokens
+            // exceed iOS URL limits → Safari “The address is invalid.”
+            const code = await stashOAuthHandoff({
+                provider: 'google',
+                customToken,
+            });
+            return { customToken, custom_token: customToken, code };
         }
         catch (err) {
             if (err instanceof HttpsError)
@@ -474,6 +572,53 @@ export const authQr = onCall({ cors: true }, async (request) => {
             console.error('[authQr] exchange_google failed', message);
             throw new HttpsError('unauthenticated', 'Google token verification failed');
         }
+    }
+    /** Stash Apple (or other) tokens server-side; return short deeplink code. */
+    if (action === 'stash_oauth') {
+        const ip = request.rawRequest?.ip || 'anon';
+        enforceRateLimit(await rateLimit(`oauth-stash:${ip}`, 30, 600));
+        const provider = String(data.provider || '').trim() || 'apple';
+        const idToken = String(data.idToken || data.id_token || '').trim();
+        const customToken = String(data.customToken || '').trim();
+        const nonce = String(data.nonce || '').trim();
+        if (!idToken && !customToken) {
+            throw new HttpsError('invalid-argument', 'idToken or customToken required');
+        }
+        const code = await stashOAuthHandoff({
+            provider,
+            idToken: idToken || undefined,
+            customToken: customToken || undefined,
+            nonce: nonce || undefined,
+        });
+        return { code };
+    }
+    /** Redeem one-time OAuth handoff (Despia WebView). */
+    if (action === 'redeem_oauth_code') {
+        const ip = request.rawRequest?.ip || 'anon';
+        enforceRateLimit(await rateLimit(`oauth-redeem:${ip}`, 40, 600));
+        const handoffCode = String(data.code || '').trim();
+        if (!/^[a-f0-9]{32}$/i.test(handoffCode)) {
+            throw new HttpsError('invalid-argument', 'code required');
+        }
+        const ref = db.collection('oauth_handoffs').doc(handoffCode.toLowerCase());
+        const snap = await ref.get();
+        if (!snap.exists) {
+            throw new HttpsError('not-found', 'OAuth code expired or already used');
+        }
+        await ref.delete();
+        const row = snap.data() || {};
+        const expiresAt = typeof row.expiresAt === 'number' ? row.expiresAt : 0;
+        if (!expiresAt || expiresAt < Date.now()) {
+            throw new HttpsError('deadline-exceeded', 'OAuth code expired');
+        }
+        return {
+            provider: row.provider || null,
+            customToken: row.customToken || row.custom_token || null,
+            custom_token: row.customToken || row.custom_token || null,
+            idToken: row.idToken || row.id_token || null,
+            id_token: row.idToken || row.id_token || null,
+            nonce: row.nonce || null,
+        };
     }
     /** Public: map username → login email (or pass-through email). Used before password sign-in. */
     if (action === 'resolve_login') {
@@ -493,21 +638,47 @@ export const authQr = onCall({ cors: true }, async (request) => {
         if (username.length < 3) {
             throw new HttpsError('not-found', 'Account not found');
         }
+        const rawUsername = identifier.replace(/^@/, '').trim();
         let profileSnap = await db.collection('profiles').where('username', '==', username).limit(1).get();
-        if (profileSnap.empty) {
+        if (profileSnap.empty && rawUsername !== username) {
             // Legacy rows may still store mixed-case usernames.
-            profileSnap = await db.collection('profiles').where('username', '==', identifier.replace(/^@/, '').trim()).limit(1).get();
+            profileSnap = await db.collection('profiles').where('username', '==', rawUsername).limit(1).get();
         }
-        if (profileSnap.empty) {
-            throw new HttpsError('not-found', 'Account not found');
+        let authUid = '';
+        let email = '';
+        if (!profileSnap.empty) {
+            const profile = profileSnap.docs[0].data();
+            authUid = String(profile.user_id || profileSnap.docs[0].id || '').trim();
+            email = typeof profile.email === 'string' ? profile.email.trim().toLowerCase() : '';
         }
-        const profile = profileSnap.docs[0].data();
-        const authUid = String(profile.user_id || profileSnap.docs[0].id || '').trim();
-        let email = typeof profile.email === 'string' ? profile.email.trim().toLowerCase() : '';
+        else {
+            // Fallback: username stored on user_auth_index (common after renames / migrations).
+            const indexSnap = await db
+                .collection('user_auth_index')
+                .where('username', '==', username)
+                .limit(1)
+                .get();
+            if (!indexSnap.empty) {
+                const idx = indexSnap.docs[0].data();
+                authUid = indexSnap.docs[0].id;
+                email = typeof idx.email === 'string' ? idx.email.trim().toLowerCase() : '';
+                if (!email && idx.profile_id) {
+                    const p = await db.collection('profiles').doc(String(idx.profile_id)).get();
+                    const pe = p.data()?.email;
+                    if (typeof pe === 'string')
+                        email = pe.trim().toLowerCase();
+                }
+            }
+        }
         if (!email && authUid) {
             try {
                 const userRecord = await auth.getUser(authUid);
                 email = (userRecord.email || '').trim().toLowerCase();
+                if (!email && userRecord.providerData?.length) {
+                    const providerEmail = userRecord.providerData.find((p) => p.email)?.email;
+                    if (providerEmail)
+                        email = providerEmail.trim().toLowerCase();
+                }
             }
             catch {
                 /* fall through */

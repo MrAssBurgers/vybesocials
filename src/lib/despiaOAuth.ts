@@ -267,11 +267,41 @@ export function isDespiaOAuthReturnUrl(url: string): boolean {
   if (lower.includes('oauth/auth') || lower.includes('oauth%2fauth')) return true;
   const params = parseOAuthParamsFromUrl(url);
   return (
+    params.has('hc') ||
+    params.has('handoff_code') ||
     params.has('custom_token') ||
     params.has('customToken') ||
     params.has('id_token') ||
     (params.has('error') && params.has('state'))
   );
+}
+
+async function redeemOAuthHandoffCode(code: string): Promise<{
+  customToken?: string;
+  idToken?: string;
+  nonce?: string;
+  provider?: string;
+}> {
+  const { invokeFunction } = await import('@/lib/firebase/functionsService');
+  const { data, error } = await invokeFunction<{
+    customToken?: string;
+    custom_token?: string;
+    idToken?: string;
+    id_token?: string;
+    nonce?: string;
+    provider?: string;
+  }>('authQr', { action: 'redeem_oauth_code', code });
+  if (error || !data) {
+    throw Object.assign(new Error(error?.message || 'OAuth code redeem failed'), {
+      code: error?.name || 'despia/oauth-redeem-failed',
+    });
+  }
+  return {
+    customToken: data.customToken || data.custom_token || undefined,
+    idToken: data.idToken || data.id_token || undefined,
+    nonce: data.nonce || undefined,
+    provider: data.provider || undefined,
+  };
 }
 
 /** Complete Firebase sign-in from Despia deeplink or /auth?custom_token=... / id_token return. */
@@ -291,8 +321,30 @@ export async function completeDespiaOAuthFromUrl(url: string): Promise<DespiaOAu
     };
   }
 
-  const customToken = params.get('custom_token') || params.get('customToken');
-  const idToken = params.get('id_token');
+  const handoffCode = (params.get('hc') || params.get('handoff_code') || '').trim();
+  let customToken = params.get('custom_token') || params.get('customToken');
+  let idToken = params.get('id_token');
+  let redeemedNonce: string | undefined;
+  let redeemedProvider: string | undefined;
+
+  if (handoffCode) {
+    try {
+      const redeemed = await redeemOAuthHandoffCode(handoffCode);
+      customToken = redeemed.customToken || customToken;
+      idToken = redeemed.idToken || idToken;
+      redeemedNonce = redeemed.nonce;
+      redeemedProvider = redeemed.provider;
+    } catch (err) {
+      clearDespiaOAuthPending();
+      const message = err instanceof Error ? err.message : 'OAuth code redeem failed';
+      const code =
+        err && typeof err === 'object' && 'code' in err
+          ? String((err as { code?: string }).code)
+          : 'despia/oauth-redeem-failed';
+      return { data: { session: null }, error: { message, name: code } };
+    }
+  }
+
   if (!customToken && !idToken) {
     return { data: { session: null }, error: null };
   }
@@ -301,7 +353,8 @@ export async function completeDespiaOAuthFromUrl(url: string): Promise<DespiaOAu
   const storedNonce =
     typeof sessionStorage !== 'undefined' ? sessionStorage.getItem(DESPIA_OAUTH_NONCE_KEY) : null;
 
-  if (state && storedNonce && state.nonce !== storedNonce) {
+  // Handoff codes already bind nonce server-side — skip strict client mismatch for hc=.
+  if (!handoffCode && state && storedNonce && state.nonce !== storedNonce) {
     clearDespiaOAuthPending();
     return { data: { session: null }, error: { message: 'OAuth session mismatch — please try again' } };
   }
@@ -314,14 +367,16 @@ export async function completeDespiaOAuthFromUrl(url: string): Promise<DespiaOAu
       return { data: { session: null }, error: { message: 'Firebase is not configured', name: 'firebase/not-configured' } };
     }
 
+    const providerHint = redeemedProvider || state?.provider || 'google';
+
     if (customToken) {
-      // Short custom token from authQr exchange_google (preferred on iOS — avoids long deeplinks).
+      // Short handoff → custom token (preferred — avoids long deeplinks).
       await signInWithCustomToken(auth, customToken);
-    } else if (state?.provider === 'apple') {
+    } else if (providerHint === 'apple') {
       const apple = new OAuthProvider('apple.com');
       const credential = apple.credential({
         idToken: idToken!,
-        rawNonce: storedNonce || state.nonce,
+        rawNonce: redeemedNonce || storedNonce || state?.nonce || undefined,
       });
       await signInWithCredential(auth, credential);
     } else {
@@ -355,6 +410,8 @@ export async function tryCompleteDespiaOAuthFromCurrentUrl(): Promise<DespiaOAut
 
   const params = parseOAuthParamsFromUrl(href);
   if (
+    !params.has('hc') &&
+    !params.has('handoff_code') &&
     !params.has('custom_token') &&
     !params.has('customToken') &&
     !params.has('id_token') &&

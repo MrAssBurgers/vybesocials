@@ -559,6 +559,25 @@ async function mintCustomTokenFromGoogleIdToken(idToken: string): Promise<string
   return auth.createCustomToken(uid, { provider: 'google.com' });
 }
 
+/** One-time Despia deeplink payload (≤2 min). Admin SDK only — no client rules. */
+async function stashOAuthHandoff(payload: {
+  provider: string;
+  customToken?: string;
+  idToken?: string;
+  nonce?: string;
+}): Promise<string> {
+  const code = randomBytes(16).toString('hex');
+  await db.collection('oauth_handoffs').doc(code).set({
+    provider: payload.provider,
+    customToken: payload.customToken || null,
+    idToken: payload.idToken || null,
+    nonce: payload.nonce || null,
+    expiresAt: Date.now() + 2 * 60 * 1000,
+    createdAt: new Date().toISOString(),
+  });
+  return code;
+}
+
 function qrChallengeDocId(nonce: string): string {
   return `qr_${nonce}`;
 }
@@ -597,13 +616,68 @@ export const authQr = onCall({ cors: true }, async (request) => {
     }
     try {
       const customToken = await mintCustomTokenFromGoogleIdToken(idToken);
-      return { customToken, custom_token: customToken };
+      // Short handoff code for Despia deeplinks — long JWTs / custom tokens
+      // exceed iOS URL limits → Safari “The address is invalid.”
+      const code = await stashOAuthHandoff({
+        provider: 'google',
+        customToken,
+      });
+      return { customToken, custom_token: customToken, code };
     } catch (err: unknown) {
       if (err instanceof HttpsError) throw err;
       const message = err instanceof Error ? err.message : String(err);
       console.error('[authQr] exchange_google failed', message);
       throw new HttpsError('unauthenticated', 'Google token verification failed');
     }
+  }
+
+  /** Stash Apple (or other) tokens server-side; return short deeplink code. */
+  if (action === 'stash_oauth') {
+    const ip = request.rawRequest?.ip || 'anon';
+    enforceRateLimit(await rateLimit(`oauth-stash:${ip}`, 30, 600));
+    const provider = String((data as { provider?: string }).provider || '').trim() || 'apple';
+    const idToken = String(data.idToken || data.id_token || '').trim();
+    const customToken = String((data as { customToken?: string }).customToken || '').trim();
+    const nonce = String((data as { nonce?: string }).nonce || '').trim();
+    if (!idToken && !customToken) {
+      throw new HttpsError('invalid-argument', 'idToken or customToken required');
+    }
+    const code = await stashOAuthHandoff({
+      provider,
+      idToken: idToken || undefined,
+      customToken: customToken || undefined,
+      nonce: nonce || undefined,
+    });
+    return { code };
+  }
+
+  /** Redeem one-time OAuth handoff (Despia WebView). */
+  if (action === 'redeem_oauth_code') {
+    const ip = request.rawRequest?.ip || 'anon';
+    enforceRateLimit(await rateLimit(`oauth-redeem:${ip}`, 40, 600));
+    const handoffCode = String((data as { code?: string }).code || '').trim();
+    if (!/^[a-f0-9]{32}$/i.test(handoffCode)) {
+      throw new HttpsError('invalid-argument', 'code required');
+    }
+    const ref = db.collection('oauth_handoffs').doc(handoffCode.toLowerCase());
+    const snap = await ref.get();
+    if (!snap.exists) {
+      throw new HttpsError('not-found', 'OAuth code expired or already used');
+    }
+    await ref.delete();
+    const row = snap.data() || {};
+    const expiresAt = typeof row.expiresAt === 'number' ? row.expiresAt : 0;
+    if (!expiresAt || expiresAt < Date.now()) {
+      throw new HttpsError('deadline-exceeded', 'OAuth code expired');
+    }
+    return {
+      provider: row.provider || null,
+      customToken: row.customToken || row.custom_token || null,
+      custom_token: row.customToken || row.custom_token || null,
+      idToken: row.idToken || row.id_token || null,
+      id_token: row.idToken || row.id_token || null,
+      nonce: row.nonce || null,
+    };
   }
 
   /** Public: map username → login email (or pass-through email). Used before password sign-in. */

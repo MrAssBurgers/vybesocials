@@ -2,6 +2,15 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## Active — OAuth handoff codes (fix invalid-address / Open VYBE stuck) (2026-07-15)
+
+- **Evidence:** User stuck on `vybehub.app` “Tap below if VYBE did not open”; prod `native-callback.html` was stale; long `id_token`/`custom_token` deeplinks → Safari “address is invalid”
+- **Fix:** `authQr` stash/redeem `oauth_handoffs` short `hc=` codes; native-callback never puts JWTs in deeplink; app redeems via `redeem_oauth_code`
+- **Critical:** Lovable Publish so **prod** `https://vybehub.app/native-callback.html` updates (Despia callback always uses prod origin)
+- **Also deploy:** `firebase deploy --only functions:authQr,hosting`
+
+---
+
 ## Active — OAuth hardening (Google/Apple across web + Despia) (2026-07-15)
 
 - **Runtime probe:** `vybehub.app/__/auth/handler` = SPA index; `vybe-daaab.firebaseapp.com/__/auth/handler` = real Firebase handler → **authDomain stays firebaseapp.com**
