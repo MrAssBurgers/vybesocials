@@ -1,5 +1,10 @@
 import {
   getAuth,
+  initializeAuth,
+  indexedDBLocalPersistence,
+  browserLocalPersistence,
+  browserSessionPersistence,
+  browserPopupRedirectResolver,
   onAuthStateChanged,
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
@@ -16,13 +21,14 @@ import {
   signInWithRedirect,
   signInWithCredential,
   signInWithCustomToken,
+  type Auth,
   type User as FirebaseUser,
 } from 'firebase/auth';
 import { getFirebaseApp } from './app';
 import { isFirebaseConfigured } from './config';
 import type { VybeSession, VybeUser, VybeAuthError } from './types';
 
-let authInstance: ReturnType<typeof getAuth> | null = null;
+let authInstance: Auth | null = null;
 
 const NOT_CONFIGURED: VybeAuthError = {
   message: 'Firebase is not configured. Set VITE_FIREBASE_* variables (see .env.example).',
@@ -32,11 +38,65 @@ const NOT_CONFIGURED: VybeAuthError = {
 /** Single sign-in timeout — used by password login (auth.tsx should not stack another). */
 export const SIGN_IN_TIMEOUT_MS = 12000;
 
-function resolveAuth(): ReturnType<typeof getAuth> | null {
+/**
+ * Shared Auth instance.
+ *
+ * NEVER use bare getAuth() for first init on mobile/Despia — that installs
+ * browserPopupRedirectResolver and eagerly opens
+ * https://*.firebaseapp.com/__/auth/iframe (parent=localhost:7777), which
+ * Despia Offline→Native hands off to Safari on every cold start.
+ *
+ * Persist only; pass browserPopupRedirectResolver at popup/redirect call sites.
+ */
+function resolveAuth(): Auth | null {
   if (!isFirebaseConfigured()) return null;
-  if (!authInstance) authInstance = getAuth(getFirebaseApp());
+  if (authInstance) return authInstance;
+  const app = getFirebaseApp();
+  try {
+    authInstance = initializeAuth(app, {
+      persistence: [
+        indexedDBLocalPersistence,
+        browserLocalPersistence,
+        browserSessionPersistence,
+      ],
+    });
+  } catch {
+    // HMR / duplicate init — reuse existing Auth on the app
+    authInstance = getAuth(app);
+  }
+  // #region agent log
+  try {
+    const host = typeof location !== 'undefined' ? location.hostname : '';
+    fetch('http://127.0.0.1:7693/ingest/1847f3ab-7d03-4b99-8dbe-84076ae9145e', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': 'adb115' },
+      body: JSON.stringify({
+        sessionId: 'adb115',
+        runId: 'auth-iframe',
+        hypothesisId: 'A',
+        location: 'authService.ts:resolveAuth',
+        message: 'auth_init_no_eager_iframe',
+        data: {
+          host,
+          href: typeof location !== 'undefined' ? String(location.href || '').slice(0, 120) : '',
+          hasPopupResolverOnInit: false,
+        },
+        timestamp: Date.now(),
+      }),
+    }).catch(() => {});
+  } catch {
+    /* ignore */
+  }
+  // #endregion
   return authInstance;
 }
+
+/** Prefer this over getAuth() so Auth never re-inits with the eager iframe resolver. */
+export function getFirebaseAuth(): Auth | null {
+  return resolveAuth();
+}
+
+export { browserPopupRedirectResolver };
 
 function mapProviderId(providerId: string): string {
   if (providerId === 'google.com') return 'google';
@@ -145,7 +205,7 @@ async function buildVybeSessionFallback(user: FirebaseUser): Promise<VybeSession
   return enrichSessionToken(buildVybeSessionInstant(user), user, 2000);
 }
 
-function sessionFromCurrentUser(auth: ReturnType<typeof getAuth>): VybeSession | null {
+function sessionFromCurrentUser(auth: Auth): VybeSession | null {
   const user = auth?.currentUser;
   if (!user) return null;
   return buildVybeSessionInstant(user);
@@ -425,11 +485,11 @@ export const firebaseAuth = {
       if (opts?.useRedirect) {
         const { markOAuthRedirectPending } = await import('./oauthRedirect');
         markOAuthRedirectPending();
-        await signInWithRedirect(auth, authProvider);
+        await signInWithRedirect(auth, authProvider, browserPopupRedirectResolver);
         return { data: { session: null }, error: null, redirected: true };
       }
 
-      const result = await signInWithPopup(auth, authProvider);
+      const result = await signInWithPopup(auth, authProvider, browserPopupRedirectResolver);
       const session = buildVybeSessionInstant(result.user);
       void enrichSessionToken(session, result.user, 5000);
       return { data: { session }, error: null };
@@ -518,11 +578,15 @@ export const firebaseAuth = {
       }
 
       if (payload.options?.useRedirect) {
-        await signInWithRedirect(auth, provider);
+        await signInWithRedirect(auth, provider, browserPopupRedirectResolver);
         return { data: { redirected: true }, error: null };
       }
 
-      const result = await linkWithPopup(auth.currentUser, provider);
+      const result = await linkWithPopup(
+        auth.currentUser,
+        provider,
+        browserPopupRedirectResolver,
+      );
       return { data: { user: toVybeUser(result.user) }, error: null };
     } catch (err) {
       const e = toAuthError(err);

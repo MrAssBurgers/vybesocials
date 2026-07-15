@@ -1,12 +1,11 @@
 import type { Content, Part } from 'firebase/ai';
 import { AIError } from 'firebase/ai';
-import { getAuth } from 'firebase/auth';
 import { getChatModelWithSystem, isAiLogicConfigured } from './aiLogic';
 import {
   filterAiChatHistoryForApi,
   type VybeAiChatMessage,
 } from './aiChatHistory';
-import { getFirebaseApp } from './app';
+import { getFirebaseAuth } from './authService';
 import { invokeFunction } from './functionsService';
 import { RATE_LIMITS } from '@/lib/rateLimit';
 
@@ -237,7 +236,8 @@ function formatCallableAiError(error: unknown): string {
 }
 
 async function ensureSignedInForAi(): Promise<void> {
-  const auth = getAuth(getFirebaseApp());
+  const auth = getFirebaseAuth();
+  if (!auth) throw new Error('Auth is not configured.');
   let user = auth.currentUser;
   if (!user) {
     user = await new Promise((resolve) => {

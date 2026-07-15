@@ -1,5 +1,5 @@
 import { getRedirectResult } from 'firebase/auth';
-import { firebaseAuth } from './authService';
+import { browserPopupRedirectResolver, firebaseAuth } from './authService';
 import type { VybeSession, VybeAuthError } from './types';
 import { isMobileOrTabletDevice } from '@/lib/deviceDetection';
 
@@ -140,7 +140,10 @@ async function captureRedirectResult(): Promise<OAuthRedirectCapture> {
       await new Promise((resolve) => setTimeout(resolve, 50));
     }
 
-    const result = await withTimeout(getRedirectResult(auth), getOAuthRedirectTimeoutMs());
+    const result = await withTimeout(
+      getRedirectResult(auth, browserPopupRedirectResolver),
+      getOAuthRedirectTimeoutMs(),
+    );
     if (result?.user) {
       const session = await sessionFromCurrentUser();
       if (session?.user) {

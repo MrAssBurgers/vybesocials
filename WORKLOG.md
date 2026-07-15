@@ -2,16 +2,26 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## Active — Safari opens Auth iframe + onboarding flicker (2026-07-15)
+
+- **Symptom:** Every cold open → system browser to `vybe-daaab.firebaseapp.com/__/auth/iframe?...&parent=http://localhost:7777` then app loads; onboarding flickers on Next
+- **Runtime evidence:** User URL proves Firebase Auth eager iframe (`getAuth` + `browserPopupRedirectResolver`); `parent=localhost:7777` = Despia Offline→Native
+- **Fix (this session):** `initializeAuth` with persistence only (no eager popup resolver); pass `browserPopupRedirectResolver` only on popup/redirect/link/`getRedirectResult`; latch `needsUsername` + instant step swap on iOS shell
+- **Verify:** staging Start URL → cold open must NOT open Safari; Next on onboarding must not flash wrong screen
+- **Also:** still need Lovable Publish for `df59ef74`+ auth fix so `vybehub.app/despia/local.json` gets `app.js`
+
+---
+
 ## Active — App won’t load / Startup recovery (2026-07-15)
 
 - **Symptom:** VYBE doesn’t load on open (Startup recovery / script failed / Waking up 0%)
 - **Runtime evidence (curl):**
   - `vybehub.app/despia/local.json` → `deployed_at=1780980970652`, **no** `/assets/app.js` (492 assets) — Native will not refresh while this stays
-  - `vybe-daaab.web.app/despia/local.json` → `deployed_at=1784140353578`, **has** `/assets/app.js` (550) — good pack (Firebase Hosting redeployed)
-  - Prod index already on `30aa498b` with `/assets/app.js` — UI Publish ≠ Native manifest Publish
-- **Code fix in progress:** postbuild **always** regenerates `despia/local.json` (even if `VITE_OFFLINE_MODE=pwa`); commit `public/despia/local.json`; vite plugin always on; boot debug logs session `adb115`
+  - Staging pack good with `/assets/app.js` — Firebase Hosting
+  - Prod index on `30aa498b` — UI Publish ≠ Native manifest Publish
+- **Fix shipped:** `df59ef74` always regenerate/commit `despia/local.json`
 - **Immediate unblock (phone):** Despia App Start URL → `https://vybe-daaab.web.app` · Offline → Native · clear cache / reinstall · cold open
-- **Permanent:** Lovable Publish after push → prod `local.json` must show new `deployed_at` + `app.js`
+- **Permanent:** Lovable Publish → prod `local.json` must show new `deployed_at` + `app.js`
 
 ---
 

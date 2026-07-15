@@ -7,8 +7,8 @@ import { Label } from '@/components/ui/label';
 import { VYBELogo } from '@/components/ui/VYBELogo';
 import { Eye, EyeOff, Lock, CheckCircle, Loader2, AlertTriangle } from 'lucide-react';
 import { db } from '@/lib/firebase';
-import { getFirebaseApp } from '@/lib/firebase/app';
-import { confirmPasswordReset, getAuth, verifyPasswordResetCode } from 'firebase/auth';
+import { confirmPasswordReset, verifyPasswordResetCode } from 'firebase/auth';
+import { getFirebaseAuth } from '@/lib/firebase/authService';
 import { toast } from 'sonner';
 import { getUserFriendlyError } from '@/lib/errorUtils';
 
@@ -33,7 +33,9 @@ async function establishRecoverySession(): Promise<
   const firebaseOobCode = getFirebaseResetOobCode(url);
   if (firebaseOobCode) {
     try {
-      const email = await verifyPasswordResetCode(getAuth(getFirebaseApp()), firebaseOobCode);
+      const auth = getFirebaseAuth();
+      if (!auth) return { ok: false, message: 'Auth is not configured.' };
+      const email = await verifyPasswordResetCode(auth, firebaseOobCode);
       window.history.replaceState(null, '', url.pathname);
       return { ok: true, oobCode: firebaseOobCode, email };
     } catch {
@@ -152,7 +154,9 @@ export default function ResetPassword() {
 
     try {
       if (firebaseOobCode) {
-        await confirmPasswordReset(getAuth(getFirebaseApp()), firebaseOobCode, password);
+        const auth = getFirebaseAuth();
+        if (!auth) throw new Error('Auth is not configured.');
+        await confirmPasswordReset(auth, firebaseOobCode, password);
       } else {
         const { error } = await db.auth.updateUser({ password });
         if (error) throw error;

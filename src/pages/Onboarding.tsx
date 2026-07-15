@@ -164,7 +164,16 @@ export default function Onboarding({ onInviteNavigate, isInviteMode = false }: O
   const calmIos = isIOSAppShell() || isNativePerfMode();
 
   const signupUsername = resolveSignupUsername(user?.user_metadata);
-  const needsUsername = isGeneratedUsername(profile?.username);
+  // Latch needsUsername once profile first hydrates — flipping mid-flow remaps
+  // getActualStep() and makes Next look like a flicker to the wrong screen.
+  const needsUsernameLatchRef = useRef<boolean | null>(null);
+  if (needsUsernameLatchRef.current === null && profile != null) {
+    needsUsernameLatchRef.current = isGeneratedUsername(profile.username);
+  }
+  const needsUsername =
+    needsUsernameLatchRef.current !== null
+      ? needsUsernameLatchRef.current
+      : isGeneratedUsername(profile?.username);
   // 4 core steps (or 5 if username needed): Username? → Birthday → Interests → Profile → Terms
   const TOTAL_STEPS = needsUsername ? 5 : 4;
   
@@ -580,17 +589,22 @@ export default function Onboarding({ onInviteNavigate, isInviteMode = false }: O
       >
         <div className="p-3 sm:p-4">
           <div className="max-w-lg mx-auto pb-4">
-            <AnimatePresence mode="wait">
-              <motion.div
-                key={step}
-                initial={calmIos ? { opacity: 0 } : { opacity: 0, y: 16 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={calmIos ? { opacity: 0 } : { opacity: 0, y: -8 }}
-                transition={{ duration: calmIos ? 0.2 : 0.35, ease: EASE_OUT_EXPO }}
-              >
-                {renderStep()}
-              </motion.div>
-            </AnimatePresence>
+            {calmIos ? (
+              // Instant swap in Despia/iOS — exit+enter AnimatePresence blanks a frame.
+              <div key={step}>{renderStep()}</div>
+            ) : (
+              <AnimatePresence mode="wait">
+                <motion.div
+                  key={step}
+                  initial={{ opacity: 0, y: 16 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -8 }}
+                  transition={{ duration: 0.35, ease: EASE_OUT_EXPO }}
+                >
+                  {renderStep()}
+                </motion.div>
+              </AnimatePresence>
+            )}
           </div>
         </div>
       </main>

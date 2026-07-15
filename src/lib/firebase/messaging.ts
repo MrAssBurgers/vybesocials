@@ -10,8 +10,8 @@ import { getApp } from 'firebase/app';
 import { getMessaging, getToken, onMessage, type Messaging } from 'firebase/messaging';
 import { db } from '@/integrations/firebase/client';
 import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
-import { getAuth } from 'firebase/auth';
 import { httpsCallable, getFunctions } from 'firebase/functions';
+import { getFirebaseAuth } from '@/lib/firebase/authService';
 
 let _messaging: Messaging | null = null;
 let _vapidKey: string | null = null;
@@ -42,7 +42,7 @@ async function registerSw(): Promise<ServiceWorkerRegistration | null> {
 export async function initWebPush(opts: { silent?: boolean } = {}): Promise<{ ok: boolean; token?: string; reason?: string }> {
   if (typeof window === 'undefined') return { ok: false, reason: 'ssr' };
   if (!('Notification' in window)) return { ok: false, reason: 'unsupported' };
-  const user = getAuth(getApp()).currentUser;
+  const user = getFirebaseAuth()?.currentUser;
   if (!user) return { ok: false, reason: 'unauthenticated' };
 
   let perm = Notification.permission;
