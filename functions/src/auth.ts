@@ -522,6 +522,60 @@ export const authQr = onCall({ cors: true }, async (request) => {
     }
   }
 
+  /** Public: map username → login email (or pass-through email). Used before password sign-in. */
+  if (action === 'resolve_login') {
+    const ip = request.rawRequest?.ip || 'anon';
+    enforceRateLimit(await rateLimit(`login-resolve:${ip}`, 30, 600));
+    const identifier = String(
+      (data as { identifier?: string; username?: string; email?: string }).identifier ||
+        (data as { identifier?: string; username?: string; email?: string }).username ||
+        (data as { identifier?: string; username?: string; email?: string }).email ||
+        '',
+    ).trim();
+    if (!identifier) {
+      throw new HttpsError('invalid-argument', 'identifier required');
+    }
+    if (EMAIL_REGEX.test(identifier)) {
+      return { email: identifier.toLowerCase(), kind: 'email' as const };
+    }
+
+    const username = identifier.replace(/^@/, '').toLowerCase().replace(/\s+/g, '');
+    if (username.length < 3) {
+      throw new HttpsError('not-found', 'Account not found');
+    }
+
+    let profileSnap = await db.collection('profiles').where('username', '==', username).limit(1).get();
+    if (profileSnap.empty) {
+      // Legacy rows may still store mixed-case usernames.
+      profileSnap = await db.collection('profiles').where('username', '==', identifier.replace(/^@/, '').trim()).limit(1).get();
+    }
+    if (profileSnap.empty) {
+      throw new HttpsError('not-found', 'Account not found');
+    }
+
+    const profile = profileSnap.docs[0].data() as {
+      user_id?: string | null;
+      email?: string | null;
+      id?: string;
+    };
+    const authUid = String(profile.user_id || profileSnap.docs[0].id || '').trim();
+    let email = typeof profile.email === 'string' ? profile.email.trim().toLowerCase() : '';
+
+    if (!email && authUid) {
+      try {
+        const userRecord = await auth.getUser(authUid);
+        email = (userRecord.email || '').trim().toLowerCase();
+      } catch {
+        /* fall through */
+      }
+    }
+
+    if (!email || !EMAIL_REGEX.test(email)) {
+      throw new HttpsError('not-found', 'Account not found');
+    }
+    return { email, kind: 'username' as const };
+  }
+
   if (action === 'create') {
     const ip = request.rawRequest?.ip || 'anon';
     enforceRateLimit(await rateLimit(`qr-create:${ip}`, 12, 600));

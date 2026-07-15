@@ -1065,12 +1065,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const signIn = async (email: string, password: string) => {
+  const signIn = async (emailOrUsername: string, password: string) => {
     const applySession = applyOAuthSession;
 
-    const normalized = normalizeLoginEmail(email);
-
     try {
+      const { resolveLoginEmail } = await import('@/lib/loginEmail');
+      const normalized = await resolveLoginEmail(emailOrUsername);
       clearOAuthRedirectPending();
 
       const { data, error } = await db.auth.signInWithPassword({

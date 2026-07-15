@@ -446,8 +446,8 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
           return err;
         };
 
-        const email = normalizeLoginEmail(formData.email);
-        const { error } = await signIn(email, formData.password);
+        // Auto-detect: email → Firebase directly; username → resolve via authQr then sign in.
+        const { error } = await signIn(formData.email, formData.password);
 
         if (error) {
           if (isInvalidLoginCredentialError(error)) {
@@ -694,12 +694,14 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
 
                 <div className="space-y-1">
                   <Label htmlFor="email" className="text-[11px] font-medium text-muted-foreground">
-                    {t('auth.email')}
+                    {isLogin ? 'Email or username' : t('auth.email')}
                   </Label>
                   <Input
                     id="email"
-                    type="email"
-                    placeholder="you@email.com"
+                    type={isLogin ? 'text' : 'email'}
+                    inputMode={isLogin ? 'text' : 'email'}
+                    autoComplete={isLogin ? 'username' : 'email'}
+                    placeholder={isLogin ? 'email or username' : 'you@email.com'}
                     value={formData.email}
                     onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                     className="h-9 bg-secondary/40 border-white/10 text-sm py-1"
