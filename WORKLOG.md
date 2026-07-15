@@ -2,11 +2,23 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## PUBLISH handoff (2026-07-15) — iOS shell cleanup + full fix
+
+- **Merged to `origin/main`:** `62f60a7a` (feature `c36698aa` + instrumentation strip)
+- **Firebase Hosting staging:** `https://vybe-daaab.web.app` — deploy with this publish
+- **Firebase Functions:** `authLoginNotify` already live
+- **Production `vybehub.app`:** **Lovable → Share → Publish** — Cursor cannot click Publish
+- **Lovable:** https://lovable.dev/projects/416714c8-d013-4aff-984d-522418a9bbc7
+- **After Publish:** hard-kill app → DMs · no cancelIdleCallback · no “Was this you?” on cold open
+- **Still manual for App Store:** Despia location plist (`docs/IOS_SETUP.md`) · `docs/APP_STORE_REVIEW_NOTES.md` · Age rating Parental Controls/Age Assurance → None
+
+---
+
 ## Done — iOS shell / DMs / App Review (2026-07-15)
 
 - **Verified by user.** Debug instrumentation removed (`ChatView`, `useSessionTracking`).
 - **DM crash:** idle callback polyfill for WKWebView · **Login alert:** only on real sign-in + geo/IP · **Shell:** no Despia inset inflation · **ATT/cookies:** deny → essential-only
-- **Shipped via:** `c36698aa` on `origin/main` after Lovable Publish.
+- **Shipped via:** `c36698aa` / cleanup `62f60a7a` on `origin/main` — needs Lovable Publish for `vybehub.app`
 - **Still manual for App Store:** Despia location plist (`docs/IOS_SETUP.md`) · `docs/APP_STORE_REVIEW_NOTES.md` · Age rating Parental Controls/Age Assurance → None
 
 ---
