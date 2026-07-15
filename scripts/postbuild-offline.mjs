@@ -41,4 +41,11 @@ const inline = spawnSync('node', ['scripts/inline-boot-guard.mjs'], { stdio: 'in
 if ((inline.status ?? 1) !== 0) process.exit(inline.status ?? 1);
 
 const verify = spawnSync('node', ['scripts/verify-dist-entry.mjs'], { stdio: 'inherit' });
-process.exit(verify.status ?? 1);
+if ((verify.status ?? 1) !== 0) process.exit(verify.status ?? 1);
+
+if (useDespiaLocal) {
+  const localCheck = spawnSync('node', ['scripts/verify-despia-local.mjs'], { stdio: 'inherit' });
+  process.exit(localCheck.status ?? 1);
+}
+
+process.exit(0);

@@ -2,6 +2,15 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## Active — Boot recovery on every iOS launch (2026-07-15)
+
+- **Symptom:** Startup recovery — “A script failed to load” (splash “Waking up… 0%” underneath)
+- **Evidence:** Prod `https://vybehub.app/despia/local.json` has **no** `/assets/app.js` (only old hashed `index-*.js`); current `index.html` loads `/assets/app.js`. Despia Offline → Native serves localhost from that incomplete manifest → entry script 404.
+- **Immediate unblock:** Despia Offline Support → **PWA** (or None) until after Publish
+- **Then:** Lovable Publish (fresh `despia/local.json` with `app.js`) → hard-kill → Clear cache & reload → optionally re-enable Native and verify `curl …/despia/local.json` lists `/assets/app.js`
+
+---
+
 ## PUBLISH handoff (2026-07-15) — iOS DMs + safe area + Despia Native
 
 - **Merged to `origin/main`:** `df4b24dc`
