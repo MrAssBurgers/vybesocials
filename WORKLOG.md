@@ -2,13 +2,11 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
-## Active — Friend Link NFC + Nearby dual-signal (2026-07-15)
+## Done — Friend Link NFC + Nearby dual-signal (2026-07-15)
 
-- **Code on `origin/main`:** `51f2f9c9` — dual-signal + Despia GPS arm + peer poll
-- **Staging:** `https://vybe-daaab.web.app` hosting deploy after this commit
-- **Root cause of “repro”:** fix was local-only / prod stale; also Despia GPS not armed + realtime bootstrap drops peers
-- **Debug:** `[VYBE:friendlink]` console (+ ingest if Mac reachable)
-- **Next:** Lovable Publish `51f2f9c9` · two phones open Phone Tap · Allow Location · auto-connect
+- **Verified by user.** Debug instrumentation removed (`friendLinkDebug` + agent logs).
+- **Fix:** Nearby presence while Phone Tap open · Despia GPS arm · peer poll · Android NFC broadcast · single-peer auto-link
+- **Shipped via:** `51f2f9c9` on `origin/main` after Lovable Publish
 
 ---
 

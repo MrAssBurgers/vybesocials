@@ -3,7 +3,6 @@ import {
   startFriendLinkNfcSession,
   type FriendLinkTarget,
 } from '@/lib/friendLinkNfc';
-import { dbgFriendLink } from '@/lib/friendLinkDebug';
 
 interface UseFriendLinkNfcSessionOptions {
   enabled: boolean;
@@ -27,18 +26,7 @@ export function useFriendLinkNfcSession({
   onTargetRef.current = onTarget;
 
   useEffect(() => {
-    if (!enabled || !broadcastUrl) {
-      dbgFriendLink('H1', 'useFriendLinkNfcSession.ts', 'nfc_session_skipped', {
-        enabled,
-        hasUrl: !!broadcastUrl,
-      });
-      return;
-    }
-
-    dbgFriendLink('H1', 'useFriendLinkNfcSession.ts', 'nfc_session_start', {
-      urlLen: broadcastUrl.length,
-      nativeBroadcast,
-    });
+    if (!enabled || !broadcastUrl) return;
 
     const ac = new AbortController();
     let stop: (() => void) | undefined;
@@ -47,13 +35,7 @@ export function useFriendLinkNfcSession({
       broadcastUrl,
       signal: ac.signal,
       nativeBroadcast,
-      onTarget: (target) => {
-        dbgFriendLink('H2', 'useFriendLinkNfcSession.ts', 'nfc_target', {
-          type: target.type,
-          idLen: target.id.length,
-        });
-        onTargetRef.current(target);
-      },
+      onTarget: (target) => onTargetRef.current(target),
     }).then((cleanup) => {
       stop = cleanup;
       if (ac.signal.aborted) cleanup();

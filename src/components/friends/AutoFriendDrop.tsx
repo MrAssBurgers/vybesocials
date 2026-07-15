@@ -427,16 +427,7 @@ export function AutoFriendDrop() {
     if (nativeFriendDrop.isAvailable) return;
     if (exchangeLockRef.current || completingRef.current) return;
     if (nearby.peers.length !== 1) return;
-    const peer = nearby.peers[0];
-    // #region agent log
-    import('@/lib/friendLinkDebug').then(({ dbgFriendLink }) =>
-      dbgFriendLink('H4', 'AutoFriendDrop.tsx', 'nearby_auto_link', {
-        peerLen: peer.userId.length,
-        status: nearby.status,
-      }),
-    );
-    // #endregion
-    handleNearbyPeerTap(peer);
+    handleNearbyPeerTap(nearby.peers[0]);
   }, [
     isActive,
     activeTab,

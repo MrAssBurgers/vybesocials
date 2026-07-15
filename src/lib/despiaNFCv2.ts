@@ -103,15 +103,6 @@ export function installDespiaNfcDispatcher(): void {
   const w = window as Window & { onNFCEvent?: (evt: NFCEvent) => void };
   const prev = w.onNFCEvent;
   w.onNFCEvent = (evt: NFCEvent) => {
-    // #region agent log
-    import('@/lib/friendLinkDebug').then(({ dbgFriendLink }) =>
-      dbgFriendLink('H2', 'despiaNFCv2.ts', 'onNFCEvent', {
-        type: evt.type,
-        hasData: !!evt.data,
-        dataLen: evt.data?.length ?? 0,
-      }),
-    );
-    // #endregion
     try {
       for (const l of Array.from(listeners)) {
         try {

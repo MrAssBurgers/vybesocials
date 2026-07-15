@@ -138,14 +138,6 @@ export function useNearbyFriendLink({
 
       try {
         await writeOwnPresence(ownCell);
-        // #region agent log
-        import('@/lib/friendLinkDebug').then(({ dbgFriendLink }) =>
-          dbgFriendLink('H4', 'useNearbyFriendLink.ts', 'presence_published', {
-            cellLen: ownCell.length,
-            cells: cells.length,
-          }),
-        );
-        // #endregion
       } catch (err) {
         console.warn('[NearbyFriendLink] presence write failed:', err);
         if (!cancelled) setStatus('error');
@@ -199,14 +191,6 @@ export function useNearbyFriendLink({
             if (!seen.has(id)) presenceMap.delete(id);
           }
           emitPeers();
-          // #region agent log
-          import('@/lib/friendLinkDebug').then(({ dbgFriendLink }) =>
-            dbgFriendLink('H4', 'useNearbyFriendLink.ts', 'peer_poll', {
-              peers: presenceMap.size,
-              cells: cells.length,
-            }),
-          );
-          // #endregion
         } catch (err) {
           console.warn('[NearbyFriendLink] peer poll failed:', err);
         }
