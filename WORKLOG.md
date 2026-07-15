@@ -2,18 +2,22 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
-## IN PROGRESS — iOS UX pack (OAuth sheet, QR approve, shell gaps, DMs) (2026-07-15)
+## PUBLISH handoff (2026-07-15) — iOS OAuth / QR / shell / DMs
 
-- **Evidence (recordings):** Google stuck on native-callback “Open VYBE”; Apple opens full page; QR camera 404; Chat UI gaps top/bottom + “This chat hit a snag”.
-- **Fixes in tree:**
-  - Remove body `position:fixed` (gaps); keep overflow lock
-  - native-callback: multi-path deeplink close; Apple provider handoff
-  - Despia Apple via `oauth://` (Continue sheet) + Services ID return URL docs
-  - QR encodes `/qr-claim.html`; claim UI Approve/Decline with device + IP
-  - DM row `matchMedia` hardened
-- **Next:** publish; add Apple return URL `https://vybehub.app/native-callback.html` in Apple Developer if missing
+- **Merged to `origin/main`:** `697d857d`
+- **Firebase:** `authQr` exchange_google already live
+- **Apple Developer (required once):** Services ID `com.despia.vybe.web` → add Return URL `https://vybehub.app/native-callback.html` (+ domain `vybehub.app`)
+- **Production:** **Lovable → Share → Publish**
+- **After Publish:** hard-kill app → Google/Apple Continue sheet → QR approve with IP → no top/bottom gaps → DMs open
 
 ---
+
+## Done — iOS UX pack (OAuth sheet, QR approve, shell gaps, DMs) (2026-07-15)
+
+- Google deeplink close hardened; Apple uses Despia `oauth://` sheet; QR via `qr-claim.html` + Approve/Decline; removed body `position:fixed` gaps; DM matchMedia + CI tests.
+
+---
+
 
 ## PUBLISH handoff (2026-07-15) — iOS shell + Google OAuth deeplink
 
