@@ -2,6 +2,21 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## PUBLISH handoff (2026-07-15) — OAuth handoff + boot + instrumentation cleanup
+
+- **Merged to `origin/main`:** `4a2221e5`
+- **Includes:** short `hc=` OAuth handoff · authDomain guard · `initializeAuth` no eager iframe · always-fresh `despia/local.json` · instrumentation removed
+- **Firebase Hosting staging:** `https://vybe-daaab.web.app` (deployed with this handoff)
+- **Production `vybehub.app`:** still on `30aa498b` until **Lovable → Share → Publish**
+- **Lovable:** https://lovable.dev/projects/416714c8-d013-4aff-984d-522418a9bbc7
+- **After Publish verify:**
+  1. `curl -s https://vybehub.app/ | rg -o 'data-commit-sha="[^"]+"'` → starts with `4a2221e5`
+  2. `curl -s https://vybehub.app/native-callback.html | rg 'hc='` → matches (short handoff)
+  3. `curl -s https://vybehub.app/despia/local.json | python3 -c "import sys,json;d=json.load(sys.stdin);print(d['deployed_at'],'/assets/app.js' in d['assets'])"` → new `deployed_at` + `True`
+  4. Hard-kill iPhone app → cold open → Google/Apple sign-in completes in app
+
+---
+
 ## Done — OAuth + boot recovery (2026-07-15)
 
 - **Verified by user.** Debug instrumentation removed after handoff codes fix.
