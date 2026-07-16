@@ -306,10 +306,13 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
     window.addEventListener('pageshow', onUrlMaybeChanged);
     window.addEventListener('focus', onUrlMaybeChanged);
     const onVisible = () => {
-      if (document.visibilityState === 'visible') onUrlMaybeChanged();
+      if (document.visibilityState === 'visible') {
+        resumeDespiaOAuthNoncePollIfPending();
+        onUrlMaybeChanged();
+      }
     };
     document.addEventListener('visibilitychange', onVisible);
-    const poll = window.setInterval(onUrlMaybeChanged, 700);
+    const poll = window.setInterval(onUrlMaybeChanged, 400);
 
     return () => {
       window.removeEventListener('despia-oauth-complete', onComplete);

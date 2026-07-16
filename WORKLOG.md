@@ -2,6 +2,20 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## PUBLISH NOW (2026-07-15) — First-try instant Google/Apple login
+
+- **On `origin/main`:** (pushing) no “Continue on web”; soft-close then hard-fire `hc=`
+- **User report:** Account pick → stuck → tap Continue on web → flash login → reopen then works
+- **Cause:** Bare `/auth` fallback in CCT never finishes Despia session; hard `location.href` before stash killed exchange; WebView timers throttled under CCT
+- **Fix:**
+  - [`public/native-callback.html`](public/native-callback.html) — exchange first; soft-fire (iframe/intent) while waiting; hard-fire `hc=` when ready; **removed Continue on web**
+  - [`despiaOAuth.ts`](src/lib/despiaOAuth.ts) — faster poll when visible; immediate poll on focus/visibility
+  - [`Landing.tsx`](src/pages/Landing.tsx) — resume nonce poll on visibility
+- **You must Publish:** https://lovable.dev/projects/416714c8-d013-4aff-984d-522418a9bbc7 → **Share → Publish**
+- **Verify:** hard-kill Android → Google → pick account → tab closes → signed in on first try (no Continue on web, no reopen)
+
+---
+
 ## PUBLISH NOW (2026-07-15) — Android Custom Tab auto-close
 
 - **On `origin/main`:** `866a9100` — Android CCT multi-fire close

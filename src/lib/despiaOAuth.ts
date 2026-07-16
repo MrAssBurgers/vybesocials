@@ -402,6 +402,7 @@ async function redeemOAuthHandoffCode(code: string): Promise<{
 /**
  * Poll authQr for a handoff stashed under the OAuth nonce.
  * This logs the user in even when Despia never reinjects the deeplink into the WebView.
+ * Android Custom Tabs throttle background WebView timers — poll harder when visible.
  */
 function startDespiaOAuthNoncePoll(nonce: string): void {
   if (typeof window === 'undefined') return;
@@ -451,15 +452,39 @@ function startDespiaOAuthNoncePoll(nonce: string): void {
     }
 
     if (generation === noncePollGeneration) {
+      const visible = typeof document !== 'undefined' && document.visibilityState === 'visible';
+      const delay = visible ? 250 : 500;
       noncePollTimer = window.setTimeout(() => {
         void tick();
-      }, 500);
+      }, delay);
     }
   };
 
   noncePollTimer = window.setTimeout(() => {
     void tick();
-  }, 200);
+  }, 100);
+
+  // When CCT dismisses, WebView timers unthrottle — poll immediately.
+  const onVisible = () => {
+    if (generation !== noncePollGeneration) return;
+    if (document.visibilityState !== 'visible') return;
+    if (!isDespiaOAuthInFlight()) return;
+    if (noncePollTimer != null) {
+      window.clearTimeout(noncePollTimer);
+      noncePollTimer = null;
+    }
+    void tick();
+  };
+  document.addEventListener('visibilitychange', onVisible);
+  window.addEventListener('focus', onVisible);
+  // Drop listeners when this poll generation ends (next stop/start bumps generation).
+  const watchStop = window.setInterval(() => {
+    if (generation !== noncePollGeneration) {
+      window.clearInterval(watchStop);
+      document.removeEventListener('visibilitychange', onVisible);
+      window.removeEventListener('focus', onVisible);
+    }
+  }, 1000);
 }
 
 /** Complete Firebase sign-in from Despia deeplink or /auth?custom_token=... / id_token return. */

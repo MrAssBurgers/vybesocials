@@ -24,7 +24,7 @@
     }
     #status { margin: 0; font-size: 14px; opacity: 0; }
     #status.visible { opacity: 0.85; }
-    #openApp, #webFallback {
+    #openApp {
       display: none;
       appearance: none;
       border: 0;
@@ -36,39 +36,33 @@
       font-weight: 600;
       text-decoration: none;
     }
-    #webFallback {
-      background: transparent;
-      color: #a1a1aa;
-      border: 1px solid #3f3f46;
-    }
   </style>
 </head>
 <body>
   <p id="status" aria-hidden="true"></p>
   <a id="openApp">Open VYBE</a>
-  <a id="webFallback" href="https://vybehub.app/auth">Continue on web</a>
   <script>
     /**
      * Runs inside Despia ASWeb / Custom Tabs after Google/Apple account pick.
-     * Strategy for instant sheet close:
-     *  1) Kick off authQr stash/exchange with fetch keepalive (survives unload)
-     *  2) Immediately fire scheme://oauth/auth?nonce=…&wait=1 so Despia closes the sheet
-     *  3) App WebView polls authQr by nonce and signs in
-     * If exchange finishes while this page is still open, also fire hc= deeplink.
+     *
+     * Order matters on Android:
+     *  1) Start authQr stash/exchange FIRST (keepalive) — do not navigate yet
+     *  2) Soft-fire close (iframe / <a> / intent://) so we do not kill the fetch
+     *  3) When handoff code is ready, hard-fire scheme://oauth/auth?hc=… (location.href)
+     * App WebView polls by nonce and signs in; CCT must dismiss for timers to run reliably.
      */
     (function () {
       var DEFAULT_SCHEME = 'com.despia.vybe';
       var PACKAGE_NAME = 'com.despia.vybe';
       var EXCHANGE_URL = 'https://us-central1-vybe-daaab.cloudfunctions.net/authQr';
-      var WEB_FALLBACK = 'https://vybehub.app/auth';
       var MAX_DEEPLINK_LEN = 1800;
-      /** Silent retries before showing Open VYBE (Android CCT often needs multi-fire). */
-      var SILENT_RETRY_MS = 1600;
-      var SILENT_RETRY_INTERVAL_MS = 200;
-      var FALLBACK_UI_MS = 2200;
+      var SILENT_RETRY_MS = 2500;
+      var SILENT_RETRY_INTERVAL_MS = 250;
+      var FALLBACK_UI_MS = 2800;
       var closed = false;
       var fallbackScheduled = false;
       var retryTimer = null;
+      var hardFired = false;
 
       function isAndroidUa() {
         return /Android/i.test(navigator.userAgent || '');
@@ -124,7 +118,6 @@
         }
       }
 
-      /** Android Intent URL — Custom Tabs often honor this when scheme:// alone is ignored. */
       function buildAndroidIntentUrl(deeplink) {
         try {
           var parsed = new URL(deeplink);
@@ -133,7 +126,7 @@
           var path = (parsed.hostname || '') + (parsed.pathname || '');
           if (path.charAt(0) === '/') path = path.slice(1);
           var query = parsed.search ? parsed.search.slice(1) : '';
-          var intent =
+          return (
             'intent://' +
             path +
             (query ? '?' + query : '') +
@@ -141,28 +134,24 @@
             encodeURIComponent(scheme) +
             ';package=' +
             encodeURIComponent(PACKAGE_NAME) +
-            ';end';
-          return intent;
+            ';end'
+          );
         } catch (e) {
           return null;
         }
       }
 
-      /**
-       * Despia closes ASWeb / Custom Tabs on scheme://oauth/…
-       * Android CCT often ignores a single location.replace — multi-fire + intent://.
-       */
-      function fireDeeplinkOnce(deeplink) {
+      function setOpenAppHref(deeplink) {
         if (!isValidDeeplink(deeplink)) return;
         window.__vybeOauthDeeplink = deeplink;
         var openBtn = document.getElementById('openApp');
         if (openBtn) openBtn.setAttribute('href', deeplink);
+      }
 
-        // 1) Official Despia pattern
-        try { window.location.href = deeplink; } catch (e1) {}
-        // 2) replace backup
-        try { window.location.replace(deeplink); } catch (e2) {}
-        // 3) Hidden iframe
+      /** Soft close: does not navigate the top-level page (keeps fetch alive). */
+      function softFire(deeplink) {
+        if (!isValidDeeplink(deeplink)) return;
+        setOpenAppHref(deeplink);
         try {
           var iframe = document.createElement('iframe');
           iframe.setAttribute('aria-hidden', 'true');
@@ -170,10 +159,9 @@
           iframe.src = deeplink;
           document.body.appendChild(iframe);
           setTimeout(function () {
-            try { iframe.remove(); } catch (e3) {}
+            try { iframe.remove(); } catch (e1) {}
           }, 800);
-        } catch (e4) {}
-        // 4) Synthetic <a> click
+        } catch (e2) {}
         try {
           var a = document.createElement('a');
           a.href = deeplink;
@@ -182,24 +170,49 @@
           document.body.appendChild(a);
           a.click();
           setTimeout(function () {
-            try { a.remove(); } catch (e5) {}
+            try { a.remove(); } catch (e3) {}
           }, 100);
-        } catch (e6) {}
-        // 5) Android intent://
+        } catch (e4) {}
         if (isAndroidUa()) {
           var intentUrl = buildAndroidIntentUrl(deeplink);
           if (intentUrl) {
-            try { window.location.href = intentUrl; } catch (e7) {}
+            try {
+              var ai = document.createElement('a');
+              ai.href = intentUrl;
+              ai.rel = 'noopener';
+              ai.style.display = 'none';
+              document.body.appendChild(ai);
+              ai.click();
+              setTimeout(function () {
+                try { ai.remove(); } catch (e5) {}
+              }, 100);
+            } catch (e6) {}
           }
         }
-        try { window.close(); } catch (e8) {}
       }
 
-      function startSilentRetries(deeplink) {
+      /** Hard close: Despia official — top-level navigation to scheme://oauth/… */
+      function hardFire(deeplink) {
+        if (!isValidDeeplink(deeplink)) return;
+        hardFired = true;
+        setOpenAppHref(deeplink);
+        softFire(deeplink);
+        try { window.location.href = deeplink; } catch (e1) {}
+        try { window.location.replace(deeplink); } catch (e2) {}
+        if (isAndroidUa()) {
+          var intentUrl = buildAndroidIntentUrl(deeplink);
+          if (intentUrl) {
+            try { window.location.href = intentUrl; } catch (e3) {}
+          }
+        }
+        try { window.close(); } catch (e4) {}
+      }
+
+      function startSoftRetries(deeplink) {
         if (retryTimer != null) return;
         var startedAt = Date.now();
         function tick() {
-          if (closed) {
+          if (closed || hardFired) {
             retryTimer = null;
             return;
           }
@@ -207,9 +220,10 @@
             retryTimer = null;
             return;
           }
-          fireDeeplinkOnce(deeplink);
+          softFire(deeplink);
           retryTimer = setTimeout(tick, SILENT_RETRY_INTERVAL_MS);
         }
+        softFire(deeplink);
         retryTimer = setTimeout(tick, SILENT_RETRY_INTERVAL_MS);
       }
 
@@ -219,23 +233,11 @@
         setTimeout(function () {
           if (closed) return;
           var openBtn = document.getElementById('openApp');
-          var webBtn = document.getElementById('webFallback');
-          if (webBtn) {
-            webBtn.style.display = 'inline-block';
-            webBtn.setAttribute('href', WEB_FALLBACK);
-          }
           if (isValidDeeplink(window.__vybeOauthDeeplink) && openBtn) {
             openBtn.style.display = 'inline-block';
-            setStatus('Tap below if VYBE did not open.', true);
+            setStatus('Tap Open VYBE to finish.', true);
           }
         }, FALLBACK_UI_MS);
-      }
-
-      function closeSheetNow(scheme, query) {
-        var deeplink = buildDeeplink(scheme, query);
-        fireDeeplinkOnce(deeplink);
-        startSilentRetries(deeplink);
-        scheduleFallback();
       }
 
       function callAuthQr(payload) {
@@ -243,7 +245,6 @@
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ data: payload }),
-          // Survives Custom Tabs teardown after we fire the close deeplink.
           keepalive: true,
         }).then(function (res) {
           return res.json().then(function (data) {
@@ -262,10 +263,9 @@
           return;
         }
         ev.preventDefault();
-        fireDeeplinkOnce(window.__vybeOauthDeeplink);
+        hardFire(window.__vybeOauthDeeplink);
       });
 
-      // Detect page hide = Despia closed the sheet successfully.
       document.addEventListener('visibilitychange', function () {
         if (document.visibilityState === 'hidden') closed = true;
       });
@@ -286,16 +286,18 @@
         var errQuery = 'error=' + encodeURIComponent(error) + '&state=' + encodeURIComponent(state);
         var errDesc = params.get('error_description');
         if (errDesc) errQuery += '&error_description=' + encodeURIComponent(errDesc);
-        closeSheetNow(scheme, errQuery);
+        hardFire(buildDeeplink(scheme, errQuery));
+        scheduleFallback();
         return;
       }
 
       if (!idToken) {
-        closeSheetNow(scheme, 'error=missing_token&state=' + encodeURIComponent(state));
+        hardFire(buildDeeplink(scheme, 'error=missing_token&state=' + encodeURIComponent(state)));
+        scheduleFallback();
         return;
       }
 
-      // Instant close: app polls by nonce while we stash/exchange with keepalive.
+      // Soft-close while exchange runs — do NOT location.href yet (kills fetch on Android).
       if (nonce) {
         var waitQuery =
           'nonce=' +
@@ -304,7 +306,8 @@
           encodeURIComponent(provider) +
           '&state=' +
           encodeURIComponent(state);
-        closeSheetNow(scheme, waitQuery);
+        startSoftRetries(buildDeeplink(scheme, waitQuery));
+        scheduleFallback();
       }
 
       var stashPromise =
@@ -329,20 +332,24 @@
               'exchange_failed';
             throw new Error(errMsg);
           }
-          // If sheet still open (close failed), fire hc= so Despia can reclaim.
+          // Handoff ready — hard-fire so Despia closes CCT and WebView gets hc=.
+          var hcQuery =
+            'hc=' + encodeURIComponent(handoff) + '&state=' + encodeURIComponent(state);
+          var hcDeeplink = buildDeeplink(scheme, hcQuery);
+          setOpenAppHref(hcDeeplink);
           if (!closed) {
-            closeSheetNow(
-              scheme,
-              'hc=' + encodeURIComponent(handoff) + '&state=' + encodeURIComponent(state),
-            );
+            hardFire(hcDeeplink);
+            startSoftRetries(hcDeeplink);
           }
         })
         .catch(function () {
           if (closed) return;
           setStatus('Could not finish automatically.', true);
-          closeSheetNow(scheme, 'error=exchange_failed&state=' + encodeURIComponent(state));
-          var webBtn = document.getElementById('webFallback');
-          if (webBtn) webBtn.style.display = 'inline-block';
+          var failLink = buildDeeplink(scheme, 'error=exchange_failed&state=' + encodeURIComponent(state));
+          setOpenAppHref(failLink);
+          hardFire(failLink);
+          var openBtn = document.getElementById('openApp');
+          if (openBtn) openBtn.style.display = 'inline-block';
         });
     })();
   </script>
