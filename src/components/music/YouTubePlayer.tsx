@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { upsertLivePresence, clearLivePresence } from '@/lib/livePresence';
-import { isIOSAppShell } from '@/lib/despiaBridge';
+import { getRuntimeOs } from '@/lib/despiaBridge';
 import { debugSessionLog } from '@/lib/debugSessionLog';
 
 interface Props {
@@ -31,11 +31,12 @@ const ytApiPromise: { current: Promise<any> | null } = { current: null };
 
 function loadYouTubeApi(): Promise<any> {
   if (typeof window === 'undefined') return Promise.reject(new Error('no window'));
-  if (isIOSAppShell()) {
+  // Any iOS UA — Despia shell detection can miss; iframe_api still auto-opens YouTube.
+  if (getRuntimeOs() === 'ios') {
     // #region agent log
-    debugSessionLog('YouTubePlayer.tsx:34', 'youtube_api_blocked_ios_shell', {}, 'H3');
+    debugSessionLog('YouTubePlayer.tsx:34', 'youtube_api_blocked_ios', {}, 'H3');
     // #endregion
-    return Promise.reject(new Error('youtube-api-blocked-ios-shell'));
+    return Promise.reject(new Error('youtube-api-blocked-ios'));
   }
   if (window.YT?.Player) return Promise.resolve(window.YT);
   if (ytApiPromise.current) return ytApiPromise.current;

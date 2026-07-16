@@ -519,35 +519,9 @@ export async function signInWithGoogleDespia(): Promise<{
 }
 
 /**
- * Apple on Despia: always oauth:// (same in-app secure browser as Google).
- * Apple JS popup often fails inside the Despia WebView with a generic error.
+ * Apple on Despia: iOS uses Apple JS SDK (Face ID); Android uses oauth://.
  * Browser / non-Despia still uses the JS SDK.
  */
-function isCapacitorPluginUnavailable(error: VybeAuthError | null): boolean {
-  if (!error) return false;
-  const msg = (error.message || '').toLowerCase();
-  const name = (error.name || '').toLowerCase();
-  return (
-    msg.includes('not implemented') ||
-    msg.includes('unavailable') ||
-    msg.includes('plugin') ||
-    name.includes('not-available')
-  );
-}
-
-async function tryCapacitorAppleSignIn(): Promise<{
-  data: { session: VybeSession | null };
-  error: VybeAuthError | null;
-}> {
-  try {
-    const { firebaseAuth } = await import('@/lib/firebase');
-    return firebaseAuth.signInWithOAuthNative('apple');
-  } catch (err) {
-    const message = err instanceof Error ? err.message : 'Capacitor Apple sign-in failed';
-    return { data: { session: null }, error: { message, name: 'capacitor/apple-unavailable' } };
-  }
-}
-
 export async function signInWithAppleDespia(): Promise<{
   pending: boolean;
   error: VybeAuthError | null;
@@ -557,34 +531,18 @@ export async function signInWithAppleDespia(): Promise<{
   debugSessionLog('despiaOAuth.ts:502', 'apple_signin_entry', { despia: isDespiaRuntime(), runtimeOs: getRuntimeOs() }, 'H1');
   // #endregion
   if (isDespiaRuntime()) {
-    // iOS: Capacitor Sign in with Apple (true native Face ID sheet). JS SDK popup
-    // still opens ASWebAuthenticationSession in WKWebView and looks like a browser.
+    // iOS Despia: Apple JS SDK only (native Face ID). Capacitor/web OAuth opens a stuck
+    // vybehub.app ASWeb sheet under Face ID — never use those on iOS.
     if (getRuntimeOs() === 'ios') {
       // #region agent log
-      debugSessionLog('despiaOAuth.ts:506', 'apple_signin_capacitor_ios_branch', { provider: 'apple' }, 'H1');
+      debugSessionLog('despiaOAuth.ts:506', 'apple_signin_js_sdk_ios_only', { provider: 'apple' }, 'H1');
       // #endregion
-      const native = await tryCapacitorAppleSignIn();
-      // #region agent log
-      debugSessionLog(
-        'despiaOAuth.ts:510',
-        'apple_signin_capacitor_result',
-        { hasSession: !!native.data.session?.user, errorName: native.error?.name || null },
-        'H1',
-      );
-      // #endregion
-      if (native.data.session?.user) {
-        return { pending: false, error: null, data: { session: native.data.session } };
-      }
-      if (native.error && !isCapacitorPluginUnavailable(native.error)) {
-        return { pending: false, error: native.error, data: { session: null } };
-      }
-      // Plugin unavailable only — last-resort JS SDK (may still show web sheet).
       const { signInWithAppleJsSdk } = await import('@/lib/appleSignIn');
       const js = await signInWithAppleJsSdk();
       // #region agent log
       debugSessionLog(
-        'despiaOAuth.ts:522',
-        'apple_signin_js_sdk_fallback',
+        'despiaOAuth.ts:512',
+        'apple_signin_js_sdk_result',
         { hasSession: !!js.data.session?.user, errorName: js.error?.name || null },
         'H1',
       );
@@ -616,21 +574,8 @@ export async function linkProviderWithDespiaOAuth(
   }
   if (provider === 'apple' && getRuntimeOs() === 'ios') {
     // #region agent log
-    debugSessionLog('despiaOAuth.ts:554', 'link_provider_capacitor_ios_branch', { provider: 'apple' }, 'H1');
+    debugSessionLog('despiaOAuth.ts:554', 'link_provider_js_sdk_ios_only', { provider: 'apple' }, 'H1');
     // #endregion
-    const { firebaseAuth } = await import('@/lib/firebase');
-    const native = await firebaseAuth.linkWithOAuthNative('apple');
-    // #region agent log
-    debugSessionLog(
-      'despiaOAuth.ts:559',
-      'link_provider_capacitor_result',
-      { linked: native.data.linked, errorName: native.error?.name || null },
-      'H1',
-    );
-    // #endregion
-    if (native.data.linked || (native.error && !isCapacitorPluginUnavailable(native.error))) {
-      return { pending: false, error: native.error };
-    }
     const { linkWithAppleJsSdk } = await import('@/lib/appleSignIn');
     const result = await linkWithAppleJsSdk();
     return { pending: false, error: result.error };

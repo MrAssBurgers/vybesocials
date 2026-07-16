@@ -51,7 +51,9 @@ export function SelfNowPlayingPill({ className, floating = false }: Props) {
                 e.preventDefault();
                 setMiniOpen(true);
               } else if (presence?.track_url) {
-                window.open(presence.track_url, '_blank', 'noopener,noreferrer');
+                void import('@/lib/externalLinkGuard').then(({ promptExternalLink }) =>
+                  promptExternalLink(presence.track_url!),
+                );
               }
             }}
             initial={{ opacity: 0, y: 12, scale: 0.9 }}

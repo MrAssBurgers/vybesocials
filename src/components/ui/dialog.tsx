@@ -44,9 +44,10 @@ const DialogContent = React.forwardRef<
         e.preventDefault();
       }}
       className={cn(
-        // Centered positioning - works on all platforms
-        "fixed inset-0 m-auto z-[151]",
-        "w-[90vw] max-w-lg h-fit max-h-[85vh]",
+        // True center on mobile + desktop (inset-0 m-auto pins tall sheets to the top on iOS).
+        "fixed left-1/2 top-1/2 z-[151] -translate-x-1/2 -translate-y-1/2",
+        "w-[90vw] max-w-lg h-fit",
+        "max-h-[min(85vh,calc(100dvh-var(--sat,env(safe-area-inset-top,0px))-var(--sab,env(safe-area-inset-bottom,0px))-1.5rem))]",
         // Solid background with glass effect overlay
         "bg-background/95 backdrop-blur-xl",
         "border border-border/50",

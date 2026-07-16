@@ -92,18 +92,25 @@ export async function signInWithAppleJsSdk(): Promise<{
 
     const rawNonce = randomNonce();
     const hashedNonce = await sha256Hex(rawNonce);
+    // Must match Apple Services ID return URL. usePopup returns tokens to JS;
+    // avoid navigating the main WebView to native-callback.
     const redirectURI = `${getProductionOrigin()}/native-callback.html`;
 
     window.AppleID.auth.init({
       clientId: getAppleServicesId(),
       scope: 'name email',
       redirectURI,
-      // Popup/native sheet on iOS WebView; avoids full-page Safari handoff.
       usePopup: true,
       nonce: hashedNonce,
     });
 
     const response = await window.AppleID.auth.signIn();
+    // Close any leftover Apple popup / ASWeb that failed to auto-dismiss.
+    try {
+      if (typeof window !== 'undefined' && window.opener) window.close();
+    } catch {
+      /* ignore */
+    }
     const idToken = response.authorization?.id_token;
     if (!idToken) {
       return {

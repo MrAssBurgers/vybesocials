@@ -30,7 +30,7 @@ export function ExternalLinkConfirmDialog() {
         if (!next) resolveExternalLinkPrompt(false);
       }}
     >
-      <DialogContent className="max-w-sm w-[min(92vw,24rem)] inset-auto left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 pb-[calc(1rem+var(--sab,env(safe-area-inset-bottom,0px)))]">
+      <DialogContent className="max-w-sm w-[min(92vw,24rem)]">
         <DialogHeader>
           <DialogTitle className="text-center">Leave VYBE?</DialogTitle>
           <DialogDescription className="text-center">

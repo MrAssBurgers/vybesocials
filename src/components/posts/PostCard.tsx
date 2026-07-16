@@ -45,7 +45,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { EditPostDialog } from './EditPostDialog';
 import { YouTubePlayer, YouTubeLinkPreview } from '@/components/music/YouTubePlayer';
-import { isIOSAppShell } from '@/lib/despiaBridge';
+import { getRuntimeOs } from '@/lib/despiaBridge';
 import { findFirstYouTubeId } from '@/lib/youtube';
 import { OwnerBadge, isOwner } from '@/components/ui/OwnerBadge';
 import { OwnerWifeRingBadge, isOwnerWife } from '@/components/ui/OwnerWifeRingBadge';
@@ -933,7 +933,8 @@ export const PostCard = memo(function PostCard({
         if (!ytId) return null;
         return (
           <div className="px-4 pt-4">
-            {isIOSAppShell() ? (
+            {/* iOS: never mount iframe_api — it auto-opens YouTube/Safari sheets on Home. */}
+            {getRuntimeOs() === 'ios' ? (
               <YouTubeLinkPreview videoId={ytId} />
             ) : (
               <div className="overflow-hidden rounded-2xl border border-border/40 bg-black">
