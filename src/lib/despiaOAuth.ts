@@ -388,58 +388,6 @@ function armDespiaOAuthSheetCancelWatch(): void {
   }, 500);
 }
 
-/** When the OAuth sheet is dismissed without tokens, stop polling and clear the chip. */
-function armDespiaOAuthSheetCancelWatch(): void {
-  if (typeof document === 'undefined') return;
-  const generation = ++sheetCancelGeneration;
-
-  const tryCancel = () => {
-    if (generation !== sheetCancelGeneration) return;
-    if (!isDespiaOAuthInFlight()) return;
-    if (isDespiaOAuthReturnUrl(window.location.href)) {
-      void tryCompleteDespiaOAuthFromCurrentUrl().then((result) => {
-        if (result && (result.data.session?.user || result.error)) {
-          window.dispatchEvent(new CustomEvent('despia-oauth-complete', { detail: result }));
-        }
-      });
-      return;
-    }
-    clearDespiaOAuthPending();
-    window.dispatchEvent(
-      new CustomEvent('despia-oauth-complete', {
-        detail: {
-          data: { session: null },
-          error: { message: 'Sign-in cancelled', name: 'auth/popup-closed-by-user' },
-        },
-      }),
-    );
-  };
-
-  const onVisible = () => {
-    if (generation !== sheetCancelGeneration) return;
-    if (document.visibilityState !== 'visible') return;
-    if (!isDespiaOAuthInFlight()) return;
-    if (sheetCancelTimer != null) window.clearTimeout(sheetCancelTimer);
-    // Brief grace so App Link / deeplink can land before we treat this as cancel.
-    sheetCancelTimer = window.setTimeout(tryCancel, 1500);
-  };
-
-  document.addEventListener('visibilitychange', onVisible);
-  window.addEventListener('focus', onVisible);
-
-  const watch = window.setInterval(() => {
-    if (generation !== sheetCancelGeneration || !isDespiaOAuthInFlight()) {
-      window.clearInterval(watch);
-      document.removeEventListener('visibilitychange', onVisible);
-      window.removeEventListener('focus', onVisible);
-      if (sheetCancelTimer != null) {
-        window.clearTimeout(sheetCancelTimer);
-        sheetCancelTimer = null;
-      }
-    }
-  }, 500);
-}
-
 async function launchDespiaOAuthUrl(
   authUrl: string,
   provider: 'google' | 'apple',
