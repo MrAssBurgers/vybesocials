@@ -91,15 +91,40 @@ const IGNORED_PATTERNS = [
   'get_auth_users_count',
   'Maximum call stack size exceeded',
   'permission-denied',
-  'missing_or_invalid_nonce',
-  'signinwithidp',
-  'useauth must be used within an authprovider',
   // Fixed camera-overlay HMR/export races — stale console noise should not re-file.
   'useCameraOverlay must be used within CameraOverlayProvider',
   'useCameraOverlay is not defined',
   'useCameraOverlayOptional is not defined',
   'useCameraOverlayOptional is not a function',
   'useCameraOverlay is not a function',
+  // Cascade when ErrorBoundary unmounts AuthProvider during recovery.
+  'useAuth must be used within an AuthProvider',
+  // Firestore long-poll channel teardown — transient, not actionable.
+  'Firestore/Listen/channel',
+  'Firestore/Write/channel',
+  'Error 400 (Bad Request)',
+  'Error 404 (Not Found)',
+  // OAuth / auth handler noise on SPA hosts.
+  'MISSING_OR_INVALID_NONCE',
+  'auth/missing-or-invalid-nonce',
+  '/__/auth/handler',
+  '/%3Flogin-approval',
+  'login-approval=',
+  // Dev / HMR / preview noise.
+  'localhost:7777',
+  'lovable.app',
+  'Broken link:',
+  // Radix a11y dev warnings.
+  'DialogContent` requires a `DialogTitle',
+  // React DOM reconciliation during feed ad transitions.
+  'removeChild',
+  'no_div',
+  'The object can not be found here',
+  'feed-ad:',
+  // Despia geolocation shim on malformed deeplink landings.
+  'geolocation.helper.success',
+  // App Check on AI caption — config issue, not a crash.
+  'App Check token is invalid',
 ];
 
 const BUG_STATUS_CODES = [400, 403, 404, 409, 422, 500, 502, 504];
@@ -138,17 +163,6 @@ function shouldIgnore(msg: string): boolean {
 function shouldIgnoreUrl(url: string): boolean {
   const lower = url.toLowerCase();
   return IGNORED_URL_PATTERNS.some(p => lower.includes(p));
-}
-
-function shouldReportEnvironment(pageUrl: string): boolean {
-  try {
-    const host = new URL(pageUrl).hostname.toLowerCase();
-    if (host === 'vybehub.app' || host === 'www.vybehub.app') return true;
-    if (host === 'vybe-daaab.web.app' || host === 'vybe-daaab.firebaseapp.com') return true;
-    return false;
-  } catch {
-    return false;
-  }
 }
 
 // Queue for batching reports
@@ -199,7 +213,6 @@ async function flushReports() {
 }
 
 function enqueueReport(bug: DetectedBug) {
-  if (!shouldReportEnvironment(bug.url)) return;
   const key = bugKey(bug.message);
 
   // Per-key cooldown — silently drop bursts of identical errors
@@ -243,11 +256,6 @@ function classifyHttpError(status: number, url: string, body?: string): Detected
     firebaseHosts.some((host) => url.includes(host));
   if (!isAppRequest) return null;
   if (shouldIgnoreUrl(url)) return null;
-  if (
-    url.includes('/google.firestore.v1.Firestore/Write/channel') ||
-    url.includes('/google.firestore.v1.Firestore/Listen/channel')
-  ) return null;
-  if (url.includes('/__/auth/handler')) return null;
 
   const shortUrl = url.replace(window.location.origin, '').split('?')[0];
   const errorSnippet = body?.substring(0, 200) || '';

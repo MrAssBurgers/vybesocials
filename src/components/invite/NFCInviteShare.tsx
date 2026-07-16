@@ -7,7 +7,7 @@ import { useNFC } from '@/hooks/useNFC';
 import { isDespiaRuntime } from '@/lib/despiaBridge';
 import { despiaReadNFC } from '@/lib/despiaNFCv2';
 import { showNfcError, mapNfcErrorMessage } from '@/lib/nfcPlatform';
-import { useAuth } from '@/lib/auth';
+import { useAuthOptional } from '@/lib/auth';
 import { getInviteUrl } from '@/hooks/useInvites';
 import { haptics } from '@/lib/haptics';
 import { toast } from 'sonner';
@@ -24,7 +24,8 @@ function generateInviteNFCUrl(username: string): string {
 }
 
 export function NFCInviteShare({ variant = 'button' }: NFCInviteShareProps) {
-  const { profile } = useAuth();
+  const auth = useAuthOptional();
+  const profile = auth?.profile ?? null;
   const { 
     isSupported, 
     requestPermission,

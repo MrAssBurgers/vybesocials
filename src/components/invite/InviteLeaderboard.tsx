@@ -4,7 +4,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useInviteLeaderboard } from '@/hooks/useInviteLeaderboard';
-import { useAuth } from '@/lib/auth';
+import { useAuthOptional } from '@/lib/auth';
 import { cn } from '@/lib/utils';
 
 const rankIcons = [
@@ -32,7 +32,8 @@ function RankBadge({ rank }: { rank: number }) {
 }
 
 export function InviteLeaderboard() {
-  const { profile } = useAuth();
+  const auth = useAuthOptional();
+  const profile = auth?.profile ?? null;
   const { data, isLoading, error } = useInviteLeaderboard(10);
   
   if (error) {

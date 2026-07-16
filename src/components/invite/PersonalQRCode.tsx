@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { useAuth } from '@/lib/auth';
+import { useAuthOptional } from '@/lib/auth';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { getPrimaryHex } from '@/lib/themeColor';
 
@@ -10,7 +10,8 @@ interface PersonalQRCodeProps {
 }
 
 export function PersonalQRCode({ data, size = 220 }: PersonalQRCodeProps) {
-  const { profile } = useAuth();
+  const auth = useAuthOptional();
+  const profile = auth?.profile ?? null;
   const [isLoading, setIsLoading] = useState(true);
   const [hasError, setHasError] = useState(false);
   

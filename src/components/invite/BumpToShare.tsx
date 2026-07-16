@@ -3,7 +3,7 @@ import { motion, AnimatePresence, useMotionValue, useTransform, animate } from '
 import { QrCode, Camera, X, Check, Zap, Smartphone, Users } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
-import { useAuth } from '@/lib/auth';
+import { useAuthOptional } from '@/lib/auth';
 import { getInviteUrl } from '@/hooks/useInvites';
 import { haptics } from '@/lib/haptics';
 import { toast } from 'sonner';
@@ -17,7 +17,8 @@ interface BumpToShareProps {
 type SharePhase = 'idle' | 'showing-qr' | 'scanning' | 'success' | 'card-rising';
 
 export function BumpToShare({ variant = 'button' }: BumpToShareProps) {
-  const { profile } = useAuth();
+  const auth = useAuthOptional();
+  const profile = auth?.profile ?? null;
   const [isOpen, setIsOpen] = useState(false);
   const [phase, setPhase] = useState<SharePhase>('idle');
   const [mode, setMode] = useState<'share' | 'receive'>('share');

@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { db } from '@/lib/firebase';
-import { useAuth } from '@/lib/auth';
+import { useAuthOptional } from '@/lib/auth';
 
 interface LeaderboardEntry {
   profile_id: string;
@@ -16,7 +16,8 @@ interface LeaderboardEntry {
  * Shows top 10 inviters by successful referrals
  */
 export function useInviteLeaderboard(limit = 10) {
-  const { profile } = useAuth();
+  const auth = useAuthOptional();
+  const profile = auth?.profile ?? null;
   
   return useQuery({
     queryKey: ['invite-leaderboard', limit],

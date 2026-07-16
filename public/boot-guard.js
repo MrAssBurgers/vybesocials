@@ -3,6 +3,22 @@
  * Inlined into dist/index.html by scripts/inline-boot-guard.mjs on build.
  */
 (function bootGuard() {
+  // Despia sometimes lands /?login-approval=… as pathname /%3Flogin-approval=…
+  try {
+    var p = location.pathname || '';
+    if (p.indexOf('%3F') !== -1 || p.indexOf('%3f') !== -1) {
+      var decoded = decodeURIComponent(p);
+      if (decoded.indexOf('/?') === 0) {
+        var merged =
+          decoded +
+          (location.search && location.search !== '?' ? location.search.replace(/^\?/, '&') : '') +
+          (location.hash || '');
+        location.replace(merged);
+        return;
+      }
+    }
+  } catch (e) { /* ignore */ }
+
   var BOOT_ATTR = 'data-vybe-boot';
   var APP_READY_ATTR = 'data-vybe-app-ready';
   var RECOVERY_ID = 'vybe-boot-recovery';
