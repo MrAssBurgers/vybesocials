@@ -198,10 +198,9 @@ function getAppleServicesId(): string {
 
 /** Apple authorize URL for Despia ASWebAuthenticationSession (Android). */
 export function getAppleOAuthCallbackUrl(): string {
-  // Must hit Cloud Function form_post handler — NOT Lovable SPA (vybehub.app
-  // catch-all). Firebase Hosting rewrite on *.firebaseapp.com / *.web.app.
-  // Domain `vybe-daaab.firebaseapp.com` is already on the Apple Services ID.
-  return 'https://vybe-daaab.firebaseapp.com/apple-callback';
+  // Same static page as Google. Do NOT use /apple-callback Cloud Function —
+  // that path hit Cloud Run CPU quota (503) and left users spinning forever.
+  return getNativeOAuthCallbackUrl();
 }
 
 export function buildAppleOAuthUrl(): string {
@@ -212,15 +211,16 @@ export function buildAppleOAuthUrl(): string {
   }
 
   const state = encodeOAuthState({ scheme, nonce, provider: 'apple' });
-  // Apple requires form_post when name/email scopes are requested.
-  // Static HTML cannot read POST bodies → Cloud Function via /apple-callback.
   const redirectUri = getAppleOAuthCallbackUrl();
+  // Apple requires form_post when name/email scopes are requested. form_post
+  // needs a server POST handler; ours is quota-starved. Omit name/email so
+  // fragment + native-callback.html works (same handoff as Google). Email still
+  // arrives in the id_token for first-time Apple consent in most cases.
   const params = new URLSearchParams({
     client_id: getAppleServicesId(),
     redirect_uri: redirectUri,
-    response_type: 'code id_token',
-    response_mode: 'form_post',
-    scope: 'name email',
+    response_type: 'id_token',
+    response_mode: 'fragment',
     nonce,
     state,
   });
@@ -244,7 +244,7 @@ async function launchDespiaOAuthUrl(
     const oauthBridge = `oauth://?url=${encodeURIComponent(authUrl)}`;
     // Fire-and-forget launch; completion is async via deeplink / WebView /auth?hc=.
     // Also watch common Despia bridge globals in case the runtime returns the URL that way.
-    void despiaCall(oauthBridge, [...DESPIA_OAUTH_URL_KEYS], 120_000).then((payload) => {
+    void despiaCall(oauthBridge, [...DESPIA_OAUTH_URL_KEYS], 45_000).then((payload) => {
       if (!payload) return;
       for (const key of DESPIA_OAUTH_URL_KEYS) {
         const value = payload[key];

@@ -11,16 +11,17 @@
 | Platform | Method | File |
 |----------|--------|------|
 | iOS Despia | Apple JS SDK native Face ID / Continue sheet (`usePopup: true`) | `src/lib/appleSignIn.ts` |
-| Android Despia | `oauth://` → Apple → **form_post** → `/apple-callback` (Cloud Function) → `hc=` deeplink | `src/lib/despiaOAuth.ts` + `functions/src/auth.ts` `appleOAuthCallback` |
+| Android Despia | `oauth://` → Apple (fragment, no name/email scope) → `native-callback.html` → `hc=` | `src/lib/despiaOAuth.ts` |
 | Desktop / Safari | Apple JS or Firebase redirect | `src/lib/nativeOAuth.ts` |
 
 iOS does **not** use full-page Safari for Apple when the JS sheet works.
 Landing preloads the Apple script so the first tap feels instant.
 
-**Android note:** Apple requires `response_mode=form_post` whenever `name` or `email`
-scopes are requested. A static HTML page cannot read POST bodies, so Android
-uses `https://vybe-daaab.firebaseapp.com/apple-callback` (Firebase Hosting →
-`appleOAuthCallback`). Do not use `vybehub.app/apple-callback` (Lovable SPA).
+**Android note:** Apple requires `response_mode=form_post` when `name`/`email`
+scopes are requested. That needs a Cloud Function POST handler. After
+`appleOAuthCallback` hit Cloud Run CPU quota (503 / infinite spinner), Android
+uses **fragment + `https://vybehub.app/native-callback.html`** with **no**
+name/email scope (same working path as Google).
 
 ## Create Services ID (required)
 
@@ -28,14 +29,12 @@ uses `https://vybe-daaab.firebaseapp.com/apple-callback` (Firebase Hosting →
 2. Identifier **exactly:** `com.despia.vybe.web`
 3. Enable **Sign In with Apple** → Configure:
    - Primary App ID: `com.despia.vybe`
-   - Domains: `vybe-daaab.firebaseapp.com`, `vybehub.app`
+   - Domains: `vybehub.app`, `vybe-daaab.firebaseapp.com`
    - Return URLs:
      - `https://vybe-daaab.firebaseapp.com/__/auth/handler`
-     - `https://vybehub.app/native-callback.html` ← Apple JS (iOS) redirectURI
-     - `https://vybe-daaab.firebaseapp.com/apple-callback` ← **required for Android oauth:// form_post**
-       (Hosting rewrite → `appleOAuthCallback`; do **not** use `vybehub.app/apple-callback` — Lovable SPA ignores POST)
+     - `https://vybehub.app/native-callback.html` ← iOS Apple JS + Android oauth://
 4. Save / Register
-5. Retry Continue with Apple (Android: Custom Tabs sheet → back in app signed in)
+5. Retry Continue with Apple
 
 ## Auto-link / existing accounts
 
@@ -45,11 +44,9 @@ uses `https://vybe-daaab.firebaseapp.com/apple-callback` (Firebase Hosting →
 - If Auth returns `auth/account-exists-with-different-credential`, the UI tells
   the user to sign in with the existing method and link in Settings → Connections.
 
-## Publish + deploy
+## Publish
 
-1. `firebase deploy --only functions:appleOAuthCallback,hosting` (staging Hosting rewrite) — **done**
-2. Apple Services ID → add return URL `https://vybe-daaab.firebaseapp.com/apple-callback`
-3. **Lovable → Share → Publish** so the Android client builds authorize URL with `form_post` + that callback
-4. Retry Apple on Android: Custom Tabs → account → back in app signed in
+**Lovable → Share → Publish** after client changes so store builds pick up the
+Android fragment authorize URL (not the broken form_post Cloud Function path).
 
 If you already use a different Services ID string, tell Cursor that exact ID so Firebase can be patched to match.

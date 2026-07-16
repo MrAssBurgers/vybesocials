@@ -120,15 +120,26 @@
       }
 
       function callAuthQr(payload) {
+        var ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
+        var timer = ctrl
+          ? setTimeout(function () {
+              try { ctrl.abort(); } catch (e) {}
+            }, 12000)
+          : null;
         return fetch(EXCHANGE_URL, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ data: payload }),
-        }).then(function (res) {
-          return res.json().then(function (data) {
-            return { ok: res.ok, data: data };
+          signal: ctrl ? ctrl.signal : undefined,
+        })
+          .then(function (res) {
+            return res.json().then(function (data) {
+              return { ok: res.ok, data: data };
+            });
+          })
+          .finally(function () {
+            if (timer) clearTimeout(timer);
           });
-        });
       }
 
       function payloadOf(result) {

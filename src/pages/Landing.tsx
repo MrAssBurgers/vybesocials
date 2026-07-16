@@ -302,6 +302,21 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
     };
   }, [navigate, profile, applyOAuthSession]);
 
+  // Never leave the login chip spinning forever if the system sheet dies.
+  useEffect(() => {
+    if (!oauthOverlay && !isDespiaOAuthInFlight()) return;
+    const timer = window.setTimeout(() => {
+      if (!isDespiaOAuthInFlight() && !oauthOverlay) return;
+      clearDespiaOAuthPending();
+      clearOAuthRedirectPending();
+      setOauthOverlay(null);
+      setLoading(false);
+      setIsOAuthReturn(false);
+      toast.error('Sign-in took too long. Close any leftover browser sheet and try again.');
+    }, 45_000);
+    return () => window.clearTimeout(timer);
+  }, [oauthOverlay]);
+
   const { contentRef, scale } = useAuthScreenFit(
     showAuthForm && !isOAuthReturn,
     isLogin,
