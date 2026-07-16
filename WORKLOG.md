@@ -2,10 +2,23 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## PUBLISH NOW (2026-07-16) — iOS dismiss via Cloud Function URL (not Lovable /oauth-dismiss)
+
+- **On `origin/main`:** (pushing — see SHA below)
+- **Root cause:** `vybehub.app/oauth-dismiss` is Lovable/Cloudflare SPA **HTTP 200**, not Firebase Hosting rewrite 302. Only `vybe-daaab.web.app/oauth-dismiss` 302s.
+- **Fix:** `native-callback.html` `DISMISS_URL` = `https://us-central1-vybe-daaab.cloudfunctions.net/oauthDismiss` (live CF, verified 302 → `com.despia.vybe://oauth/auth?…`)
+- **Belt/suspenders:** `public/oauth-dismiss.html` static JS `location.replace` to custom scheme (for any static host path)
+- **Staging:** Firebase Hosting deployed (`vybe-daaab.web.app`) with CF dismiss URL + `oauth-dismiss.html`
+- **Prod evidence (Apple Settings connect frames):** Sign in with Apple → then “Safari cannot open the page because the address is invalid” → Connect spinner stuck / Apple still Not connected — same dismiss bug (prod still has old `fireDeeplink` until Publish)
+- **debug_oauth instrumentation:** kept
+- **Lovable → Share → Publish** (Despia hits `vybehub.app` for `native-callback.html`)
+- **Verify:** iOS Google/Apple sign-in + Settings → Apple Connect → sheet auto-closes → signed in / Apple connected; no Safari; no “address is invalid”
+
 ## PUBLISH NOW (2026-07-16) — iOS ASWeb close via HTTPS 302 (no Safari)
 
 - **On `origin/main`:** `1d1ce4756`
-- **iOS sheet stuck / Safari opens:** JS `com.despia.vybe://…` inside ASWeb opens Safari; now close via `https://vybehub.app/oauth-dismiss?…` → HTTP 302 → custom scheme (ASWeb dismisses)
+- **Superseded:** pointing dismiss at `vybehub.app/oauth-dismiss` fails on Lovable (SPA 200). Use CF URL above.
+- **iOS sheet stuck / Safari opens:** JS `com.despia.vybe://…` inside ASWeb opens Safari; need HTTPS 302 → custom scheme
 - **404 `/%3Flogin-approval=…`:** normalize encoded-query pathnames on boot + notification navigate
 - **Apple nonce_mismatch:** send SHA-256 nonce to Apple (parity with JS SDK); exchange accepts hex/b64
 - **Android:** still App Link `/auth?hc=`

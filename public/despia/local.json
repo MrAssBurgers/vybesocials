@@ -1,6 +1,6 @@
 {
   "entry": "/index.html",
-  "deployed_at": "1784182314219",
+  "deployed_at": "1784182611740",
   "assets": [
     "/.well-known/apple-app-site-association",
     "/.well-known/assetlinks.json",
@@ -528,6 +528,7 @@
     "/marketing/store/vybe-ai.jpg",
     "/marketing/store/vybe-ai@2x.jpg",
     "/native-callback.html",
+    "/oauth-dismiss.html",
     "/og-image.jpg",
     "/placeholder.svg",
     "/qr-claim.html",

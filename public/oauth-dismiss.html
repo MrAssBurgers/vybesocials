@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title></title>
+  <style>
+    html, body { margin: 0; min-height: 100%; background: #0B0B10; }
+  </style>
+</head>
+<body>
+  <script>
+    /**
+     * Static fallback for iOS ASWeb close when /oauth-dismiss is not a
+     * Cloud Function 302 (e.g. Lovable SPA catch-all). Prefer the CF URL
+     * from native-callback.html; this page location.replace's to the
+     * custom scheme so any static host can still attempt dismiss.
+     */
+    (function () {
+      var DEFAULT_SCHEME = 'com.despia.vybe';
+      var qs = typeof window.location.search === 'string' ? window.location.search : '';
+      if (qs.charAt(0) === '?') qs = qs.slice(1);
+      var params = new URLSearchParams(qs);
+      var scheme = DEFAULT_SCHEME;
+      var rawScheme = params.get('scheme');
+      if (rawScheme) {
+        var s = String(rawScheme).trim();
+        if (s && s.indexOf('://') === -1 && /^[a-z0-9.-]+$/i.test(s)) scheme = s;
+      }
+      var parts = [];
+      params.forEach(function (value, key) {
+        if (key === 'scheme') return;
+        parts.push(encodeURIComponent(key) + '=' + encodeURIComponent(value));
+      });
+      var query = parts.join('&') || 'wait=1';
+      var target = scheme + '://oauth/auth?' + query;
+      try { window.location.replace(target); } catch (e1) {}
+      try { window.location.href = target; } catch (e2) {}
+    })();
+  </script>
+</body>
+</html>
