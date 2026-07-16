@@ -18,6 +18,8 @@ const DESPIA_OAUTH_URL_KEYS = ['url', 'oauthUrl', 'deeplink', 'deepLink'] as con
 
 let noncePollTimer: number | null = null;
 let noncePollGeneration = 0;
+let sheetCancelTimer: number | null = null;
+let sheetCancelGeneration = 0;
 
 function stopDespiaOAuthNoncePoll(): void {
   noncePollGeneration += 1;
@@ -136,6 +138,11 @@ export function resumeDespiaOAuthNoncePollIfPending(): void {
 export function clearDespiaOAuthPending(): void {
   if (typeof window === 'undefined') return;
   stopDespiaOAuthNoncePoll();
+  sheetCancelGeneration += 1;
+  if (sheetCancelTimer != null) {
+    window.clearTimeout(sheetCancelTimer);
+    sheetCancelTimer = null;
+  }
   sessionStorage.removeItem(DESPIA_OAUTH_PENDING_KEY);
   sessionStorage.removeItem(DESPIA_OAUTH_PENDING_AT_KEY);
   sessionStorage.removeItem(DESPIA_OAUTH_PROVIDER_KEY);
@@ -270,6 +277,58 @@ export function buildAppleOAuthUrl(): string {
   return `https://appleid.apple.com/auth/authorize?${params.toString()}`;
 }
 
+/** When the OAuth sheet is dismissed without tokens, stop polling and clear the chip. */
+function armDespiaOAuthSheetCancelWatch(): void {
+  if (typeof document === 'undefined') return;
+  const generation = ++sheetCancelGeneration;
+
+  const tryCancel = () => {
+    if (generation !== sheetCancelGeneration) return;
+    if (!isDespiaOAuthInFlight()) return;
+    if (isDespiaOAuthReturnUrl(window.location.href)) {
+      void tryCompleteDespiaOAuthFromCurrentUrl().then((result) => {
+        if (result && (result.data.session?.user || result.error)) {
+          window.dispatchEvent(new CustomEvent('despia-oauth-complete', { detail: result }));
+        }
+      });
+      return;
+    }
+    clearDespiaOAuthPending();
+    window.dispatchEvent(
+      new CustomEvent('despia-oauth-complete', {
+        detail: {
+          data: { session: null },
+          error: { message: 'Sign-in cancelled', name: 'auth/popup-closed-by-user' },
+        },
+      }),
+    );
+  };
+
+  const onVisible = () => {
+    if (generation !== sheetCancelGeneration) return;
+    if (document.visibilityState !== 'visible') return;
+    if (!isDespiaOAuthInFlight()) return;
+    if (sheetCancelTimer != null) window.clearTimeout(sheetCancelTimer);
+    // Brief grace so App Link / deeplink can land before we treat this as cancel.
+    sheetCancelTimer = window.setTimeout(tryCancel, 1500);
+  };
+
+  document.addEventListener('visibilitychange', onVisible);
+  window.addEventListener('focus', onVisible);
+
+  const watch = window.setInterval(() => {
+    if (generation !== sheetCancelGeneration || !isDespiaOAuthInFlight()) {
+      window.clearInterval(watch);
+      document.removeEventListener('visibilitychange', onVisible);
+      window.removeEventListener('focus', onVisible);
+      if (sheetCancelTimer != null) {
+        window.clearTimeout(sheetCancelTimer);
+        sheetCancelTimer = null;
+      }
+    }
+  }, 500);
+}
+
 async function launchDespiaOAuthUrl(
   authUrl: string,
   provider: 'google' | 'apple',
@@ -286,24 +345,30 @@ async function launchDespiaOAuthUrl(
     const oauthNonce =
       typeof sessionStorage !== 'undefined' ? sessionStorage.getItem(DESPIA_OAUTH_NONCE_KEY) : null;
     if (oauthNonce) startDespiaOAuthNoncePoll(oauthNonce);
+    armDespiaOAuthSheetCancelWatch();
 
     const oauthBridge = `oauth://?url=${encodeURIComponent(authUrl)}`;
-    // Fire-and-forget launch; completion via deeplink AND/OR nonce poll (authQr).
-    // Nonce poll logs the user in even when Despia never reinjects the deeplink.
+    // Completion via deeplink AND/OR nonce poll. Dismiss without tokens → cancel watch.
     void despiaCall(oauthBridge, [...DESPIA_OAUTH_URL_KEYS], 90_000).then((payload) => {
       if (!payload) {
-        // CCT dismissed without reinjecting a deeplink — keep nonce poll alive.
-        // Landing's 45s chip timeout clears abandon; do not kill pending here.
-        if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
-          resumeDespiaOAuthNoncePollIfPending();
-          if (isDespiaOAuthReturnUrl(window.location.href)) {
-            void tryCompleteDespiaOAuthFromCurrentUrl().then((result) => {
-              if (result && (result.data.session?.user || result.error)) {
-                window.dispatchEvent(new CustomEvent('despia-oauth-complete', { detail: result }));
-              }
-            });
-          }
+        if (!isDespiaOAuthInFlight()) return;
+        if (isDespiaOAuthReturnUrl(typeof window !== 'undefined' ? window.location.href : '')) {
+          void tryCompleteDespiaOAuthFromCurrentUrl().then((result) => {
+            if (result && (result.data.session?.user || result.error)) {
+              window.dispatchEvent(new CustomEvent('despia-oauth-complete', { detail: result }));
+            }
+          });
+          return;
         }
+        clearDespiaOAuthPending();
+        window.dispatchEvent(
+          new CustomEvent('despia-oauth-complete', {
+            detail: {
+              data: { session: null },
+              error: { message: 'Sign-in cancelled', name: 'auth/popup-closed-by-user' },
+            },
+          }),
+        );
         return;
       }
 
@@ -322,6 +387,17 @@ async function launchDespiaOAuthUrl(
           return;
         }
       }
+
+      if (!isDespiaOAuthInFlight()) return;
+      clearDespiaOAuthPending();
+      window.dispatchEvent(
+        new CustomEvent('despia-oauth-complete', {
+          detail: {
+            data: { session: null },
+            error: { message: 'Sign-in cancelled', name: 'auth/popup-closed-by-user' },
+          },
+        }),
+      );
     });
     return { pending: true, error: null };
   } catch (err) {

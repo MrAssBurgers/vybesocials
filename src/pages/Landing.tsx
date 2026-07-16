@@ -1119,11 +1119,11 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
       {/* Stay on login — light dim only while the system account sheet is open. */}
       {(oauthOverlay || (isOAuthReturn && loading)) && (
         <div
-          className="fixed inset-0 z-[80] flex flex-col items-center justify-end gap-2 bg-black/35 px-6 pb-[max(2.5rem,env(safe-area-inset-bottom))] pointer-events-none"
+          className="fixed inset-0 z-[80] flex flex-col items-center justify-end gap-3 bg-black/35 px-6 pb-[max(2.5rem,env(safe-area-inset-bottom))]"
           role="status"
           aria-live="polite"
         >
-          <div className="pointer-events-none flex items-center gap-2 rounded-full bg-[#0B0B10]/85 px-3.5 py-2 shadow-lg">
+          <div className="flex items-center gap-2 rounded-full bg-[#0B0B10]/85 px-3.5 py-2 shadow-lg">
             <div className="w-4 h-4 rounded-full border-2 border-white/25 border-t-white animate-spin" />
             <p className="text-xs text-white/90">
               {oauthOverlay === 'apple'
@@ -1133,6 +1133,20 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
                   : 'Signing in…'}
             </p>
           </div>
+          <Button
+            type="button"
+            variant="secondary"
+            className="rounded-full pointer-events-auto"
+            onClick={() => {
+              clearDespiaOAuthPending();
+              clearOAuthRedirectPending();
+              setOauthOverlay(null);
+              setLoading(false);
+              setIsOAuthReturn(false);
+            }}
+          >
+            Cancel
+          </Button>
         </div>
       )}
 

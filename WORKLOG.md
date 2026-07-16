@@ -2,6 +2,17 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## PUBLISH NOW (2026-07-16) — iOS popup login + cancel on dismiss
+
+- **On `origin/main`:** (pushing)
+- **iOS Google logged into the sheet:** HTTPS `/auth?hc=` stays inside ASWeb — iOS now closes with short `com.despia.vybe://oauth/auth?hc=`
+- **Android:** still HTTPS App Link close
+- **Swipe-dismiss / Cancel:** stops nonce poll + clears chip (no endless loading)
+- **OAuth account:** first Google/Apple sign-in creates/links Firebase user; if email already has another method → “sign in with that method, then link in Settings”
+- **Lovable → Share → Publish**
+
+---
+
 ## PUBLISH NOW (2026-07-15) — iOS Google invalid address + Apple Android invalid_request
 
 - **On `origin/main`:** (pushing)

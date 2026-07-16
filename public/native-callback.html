@@ -12,11 +12,13 @@
   <script>
     /**
      * https://vybehub.app/native-callback.html — Despia Google/Apple return.
-     * Exchanges id_token for a short hc= handoff, then closes via HTTPS App /
-     * Universal Link (keeps handoff in-app). Never navigate to custom schemes —
-     * iOS ASWeb shows “Safari cannot open… address is invalid” for those.
+     * Exchange id_token → short hc=, then close the secure browser:
+     * - Android: HTTPS App Link (Custom Tabs ignore custom schemes)
+     * - iOS: com.despia.vybe://oauth/auth?hc=… (ASWeb only dismisses on oauth/ scheme;
+     *   HTTPS /auth?hc= stays inside the sheet and “logs you in on the popup”)
      */
     (function () {
+      var DEFAULT_SCHEME = 'com.despia.vybe';
       var EXCHANGE_URL = 'https://us-central1-vybe-daaab.cloudfunctions.net/authQr';
       var APP_ORIGIN = 'https://vybehub.app';
       var closed = false;
@@ -43,13 +45,8 @@
         return params;
       }
 
-      /** HTTPS close — App Links (Android) / Universal Links (iOS). */
-      function hardFire(query) {
-        if (!query) return;
-        var appLink = APP_ORIGIN + '/auth?' + query;
-        try { window.location.replace(appLink); } catch (e1) {}
-        try { window.location.href = appLink; } catch (e2) {}
-        try { window.close(); } catch (e3) {}
+      function isAndroid() {
+        return /Android/i.test(navigator.userAgent || '');
       }
 
       function callAuthQr(payload) {
@@ -82,6 +79,26 @@
       var error = params.get('error');
       var provider = (stateObj && stateObj.provider) || 'google';
       var nonce = (stateObj && stateObj.nonce) || '';
+      var scheme = DEFAULT_SCHEME;
+      if (stateObj && stateObj.scheme) {
+        var s = String(stateObj.scheme).trim();
+        if (s && s.indexOf('://') === -1) scheme = s;
+      }
+
+      function hardFire(query) {
+        if (!query) return;
+        if (isAndroid()) {
+          var appLink = APP_ORIGIN + '/auth?' + query;
+          try { window.location.replace(appLink); } catch (e1) {}
+          try { window.location.href = appLink; } catch (e2) {}
+          return;
+        }
+        // iOS ASWeb: short custom scheme with oauth/ prefix — required to dismiss sheet.
+        var deeplink = scheme + '://oauth/auth?' + query;
+        try { window.location.replace(deeplink); } catch (e3) {}
+        try { window.location.href = deeplink; } catch (e4) {}
+        try { window.close(); } catch (e5) {}
+      }
 
       if (error) {
         hardFire('error=' + encodeURIComponent(String(error).slice(0, 64)));
