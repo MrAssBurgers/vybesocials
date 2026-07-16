@@ -71,6 +71,25 @@ async function sha256Hex(value: string): Promise<string> {
   return Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, '0')).join('');
 }
 
+function base64UrlEncode(bytes: Uint8Array): string {
+  let binary = '';
+  bytes.forEach((b) => {
+    binary += String.fromCharCode(b);
+  });
+  return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
+async function sha256Base64Url(value: string): Promise<string> {
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value));
+  return base64UrlEncode(new Uint8Array(digest));
+}
+
+function randomCodeVerifier(): string {
+  const bytes = new Uint8Array(32);
+  crypto.getRandomValues(bytes);
+  return base64UrlEncode(bytes);
+}
+
 function encodeOAuthState(payload: {
   scheme: string;
   nonce: string;
@@ -227,37 +246,46 @@ export function isDespiaOAuthInFlight(): boolean {
   return true;
 }
 
-/** Google Despia callback — production domain so the sheet shows vybehub.app. */
+/** Google Despia callback — PKCE code flow via static vybehub.app page. */
 export function getGoogleOAuthCallbackUrl(): string {
-  return `${getProductionOrigin()}/native-callback.html`;
+  return `${getProductionOrigin()}/google-callback.html`;
 }
 
-export function buildGoogleOAuthUrl(intent: 'signin' | 'link' = 'signin'): string {
+export async function buildGoogleOAuthUrl(intent: 'signin' | 'link' = 'signin'): Promise<string> {
   const scheme = getDespiaDeeplinkScheme();
   const nonce = randomNonce();
+  const codeVerifier = randomCodeVerifier();
   if (typeof sessionStorage !== 'undefined') {
     sessionStorage.setItem(DESPIA_OAUTH_NONCE_KEY, nonce);
   }
 
-  // id_token (implicit) — no client_secret required. PKCE code exchange against
-  // the Firebase web client fails with "client_secret is missing".
-  const state = encodeOAuthState({ scheme, nonce, provider: 'google', intent });
+  const state = encodeOAuthState({ scheme, nonce, provider: 'google', intent, cv: codeVerifier });
   const redirectUri = getGoogleOAuthCallbackUrl();
   const clientId = getGoogleWebClientId();
+  const codeChallenge = await sha256Base64Url(codeVerifier);
 
-  // Google requires nonce for response_type=id_token (or returns invalid_request).
-  // Keep nonce in both URL + state; completion prefers server-minted custom tokens.
+  // PKCE authorization-code flow — avoids id_token+nonce implicit errors in Custom Tabs.
   const params = new URLSearchParams({
     client_id: clientId,
     redirect_uri: redirectUri,
-    response_type: 'id_token',
+    response_type: 'code',
     scope: 'openid email profile',
-    nonce,
     state,
     prompt: 'select_account',
+    code_challenge: codeChallenge,
+    code_challenge_method: 'S256',
   });
 
-  return `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
+  const url = `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
+  // #region agent log
+  debugSessionLog(
+    'despiaOAuth.ts:buildGoogleOAuthUrl',
+    'google_oauth_pkce_url',
+    { intent, hasNonce: Boolean(nonce), hasCv: Boolean(codeVerifier), redirectUri },
+    'H5',
+  );
+  // #endregion
+  return url;
 }
 
 function getAppleServicesId(): string {
@@ -487,7 +515,7 @@ export async function signInWithGoogleDespia(): Promise<{
   pending: boolean;
   error: VybeAuthError | null;
 }> {
-  return launchDespiaOAuthUrl(buildGoogleOAuthUrl('signin'), 'google', 'signin');
+  return launchDespiaOAuthUrl(await buildGoogleOAuthUrl('signin'), 'google', 'signin');
 }
 
 /**
@@ -607,7 +635,7 @@ export async function linkProviderWithDespiaOAuth(
     const result = await linkWithAppleJsSdk();
     return { pending: false, error: result.error };
   }
-  const url = provider === 'apple' ? await buildAppleOAuthUrl('link') : buildGoogleOAuthUrl('link');
+  const url = provider === 'apple' ? await buildAppleOAuthUrl('link') : await buildGoogleOAuthUrl('link');
   return launchDespiaOAuthUrl(url, provider, 'link');
 }
 

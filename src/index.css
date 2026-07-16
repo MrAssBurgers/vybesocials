@@ -86,6 +86,14 @@ label {
   html.platform-android.device-tablet:not([data-native-shell]) {
     --app-header-safe: max(var(--safe-area-top, env(safe-area-inset-top, 0px)), 24px);
   }
+
+  /* Despia / Capacitor iOS shell — keep chrome below Dynamic Island / notch */
+  html.platform-ios[data-native-shell="true"],
+  html.platform-ios.vybe-native-shell {
+    --app-header-safe: max(var(--safe-area-top, env(safe-area-inset-top, 0px)), 52px);
+    --sat: var(--app-header-safe);
+    --sab: max(var(--safe-area-bottom, env(safe-area-inset-bottom, 0px)), 20px);
+  }
 }
 
 :root {

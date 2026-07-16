@@ -57,21 +57,23 @@ function loadYouTubeApi(): Promise<any> {
 }
 
 /**
- * Static preview for iOS native shell — never loads youtube.com/iframe_api (can hijack to YouTube app).
+ * Static preview for iOS native shell — tap opens confirm dialog; never auto-loads YouTube API.
  */
 export function YouTubeLinkPreview({ videoId }: { videoId: string }) {
+  const watchUrl = `https://www.youtube.com/watch?v=${videoId}`;
   return (
-    <div className="relative overflow-hidden rounded-2xl border border-border/40 bg-black aspect-video">
-      <img
-        src={`https://img.youtube.com/vi/${videoId}/hqdefault.jpg`}
-        alt=""
-        className="h-full w-full object-cover opacity-90"
-        loading="lazy"
-      />
-      <div className="absolute inset-0 flex items-end bg-gradient-to-t from-black/80 to-transparent p-3">
-        <p className="text-xs text-white/80">YouTube link in post (in-app player disabled on iOS)</p>
+    <button
+      type="button"
+      className="relative w-full overflow-hidden rounded-2xl border border-border/40 bg-black aspect-video text-left"
+      onClick={() => {
+        void import('@/lib/externalLinkGuard').then(({ promptExternalLink }) => promptExternalLink(watchUrl));
+      }}
+    >
+      <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-gradient-to-br from-zinc-900 to-black p-4">
+        <span className="text-3xl opacity-80">▶</span>
+        <p className="text-xs text-white/80 text-center">YouTube video in this post — tap to open</p>
       </div>
-    </div>
+    </button>
   );
 }
 

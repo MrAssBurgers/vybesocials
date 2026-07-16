@@ -2,7 +2,7 @@ import { db } from '@/lib/firebase';
 import { navigationRef } from '@/lib/navigationRef';
 import type { CallData, CallMode, CallType, CallUser } from '@/lib/callStore';
 import { toast } from 'sonner';
-import { getRuntimeOs } from '@/lib/despiaBridge';
+import { getRuntimeOs, isNativeAppShell } from '@/lib/despiaBridge';
 import { debugSessionLog } from '@/lib/debugSessionLog';
 
 export type NotificationAction = 'open' | 'accept' | 'decline' | 'reply' | 'view';
@@ -251,11 +251,11 @@ export function navigateFromNotification(route: string): void {
   // user to open links manually later.
   if (/^https?:\/\//i.test(safe)) {
     try {
-      if (getRuntimeOs() === 'ios') {
+      if (getRuntimeOs() === 'ios' || isNativeAppShell()) {
         // #region agent log
-        debugSessionLog('notificationActions.ts:251', 'notification_external_blocked_ios', { safe }, 'H3');
+        debugSessionLog('notificationActions.ts:251', 'notification_external_prompt', { safe }, 'H3');
         // #endregion
-        toast.info('Links won’t open automatically on iOS. Please open them manually.');
+        void import('@/lib/externalLinkGuard').then(({ promptExternalLink }) => promptExternalLink(safe));
         return;
       }
     } catch {

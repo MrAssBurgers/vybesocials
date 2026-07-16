@@ -27,6 +27,7 @@ import { DebugPanelProvider } from "@/contexts/DebugPanelContext";
 import { BugRecheckProvider } from "@/contexts/BugRecheckContext";
 import { CallStoreProvider } from "@/lib/callStore";
 import { ConnectionStatusBanner } from "@/components/system/ConnectionStatusBanner";
+import { ExternalLinkConfirmDialog } from "@/components/system/ExternalLinkConfirmDialog";
 import { UploadProgressBanner } from "@/components/upload/UploadProgressBanner";
 import { AccessibilityProvider } from "@/providers/AccessibilityProvider";
 import { GlassIntensityProvider } from "@/components/ui/glass/GlassIntensityProvider";
@@ -652,6 +653,7 @@ function AppWithPreloader() {
                       <TooltipProvider>
                         <Toaster />
                         <Sonner />
+                        <ExternalLinkConfirmDialog />
                         <BrowserRouter useTransitions={false}>
                         <StartupRouteProbe />
                         <CameraOverlayProvider>

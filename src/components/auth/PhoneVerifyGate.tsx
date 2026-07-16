@@ -65,7 +65,7 @@ export function PhoneVerifyGate() {
         if (!next) handleDismiss();
       }}
     >
-      <DialogContent className="max-w-md w-[min(92vw,28rem)]">
+      <DialogContent className="max-w-md w-[min(92vw,28rem)] inset-auto left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 max-h-[min(85vh,calc(100dvh-var(--sat,0px)-var(--sab,0px)-2rem))] pb-[calc(1rem+var(--sab,env(safe-area-inset-bottom,0px)))]">
         <DialogHeader>
           <div className="mx-auto mb-2 flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 ring-1 ring-primary/20">
             <ShieldCheck className="h-6 w-6 text-primary" />
