@@ -822,6 +822,47 @@ export const authQr = onCall({ cors: true }, async (request) => {
   const action = (data.action || 'create').toLowerCase();
   const nonce = typeof data.nonce === 'string' ? data.nonce.trim() : '';
 
+  /** Debug-session OAuth telemetry (Despia CCT cannot reach localhost ingest). */
+  if (action === 'debug_oauth') {
+    const event = String((data as { event?: string }).event || '').slice(0, 120);
+    const hypothesisId = String((data as { hypothesisId?: string }).hypothesisId || '').slice(0, 8);
+    const location = String((data as { location?: string }).location || '').slice(0, 160);
+    const payload = (data as { payload?: Record<string, unknown> }).payload;
+    const safePayload =
+      payload && typeof payload === 'object' && !Array.isArray(payload)
+        ? Object.fromEntries(
+            Object.entries(payload)
+              .slice(0, 20)
+              .map(([k, v]) => [
+                String(k).slice(0, 40),
+                typeof v === 'string'
+                  ? v.slice(0, 200)
+                  : typeof v === 'number' || typeof v === 'boolean' || v == null
+                    ? v
+                    : String(v).slice(0, 120),
+              ]),
+          )
+        : {};
+    await db.collection('oauth_debug_events').add({
+      sessionId: 'bd2545',
+      event,
+      hypothesisId,
+      location,
+      payload: safePayload,
+      createdAt: Date.now(),
+    });
+    return { ok: true };
+  }
+
+  if (action === 'debug_oauth_dump') {
+    const snap = await db.collection('oauth_debug_events').where('sessionId', '==', 'bd2545').limit(80).get();
+    const events = snap.docs
+      .map((d) => d.data())
+      .sort((a, b) => Number(a.createdAt || 0) - Number(b.createdAt || 0))
+      .slice(-40);
+    return { events };
+  }
+
   if (action === 'exchange_google') {
     const ip = request.rawRequest?.ip || 'anon';
     enforceRateLimit(await rateLimit(`oauth-exchange:${ip}`, 20, 600));

@@ -460,6 +460,22 @@ function startDespiaOAuthNoncePoll(nonce: string): void {
       if (generation !== noncePollGeneration) return;
 
       if (data?.ready && data.code) {
+        // #region agent log
+        fetch('http://127.0.0.1:7693/ingest/1847f3ab-7d03-4b99-8dbe-84076ae9145e',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'bd2545'},body:JSON.stringify({sessionId:'bd2545',runId:'pre-fix',hypothesisId:'E',location:'despiaOAuth.ts:pollReady',message:'poll_ready',data:{nonceLen:clean.length,codeLen:String(data.code).length,visible:typeof document!=='undefined'?document.visibilityState:'na'},timestamp:Date.now()})}).catch(()=>{});
+        void import('@/lib/firebase/functionsService').then(({ invokeFunction }) =>
+          invokeFunction('authQr', {
+            action: 'debug_oauth',
+            event: 'poll_ready',
+            hypothesisId: 'E',
+            location: 'despiaOAuth.ts:pollReady',
+            payload: {
+              nonceLen: clean.length,
+              codeLen: String(data.code).length,
+              visible: typeof document !== 'undefined' ? document.visibilityState : 'na',
+            },
+          }).catch(() => null),
+        );
+        // #endregion
         stopDespiaOAuthNoncePoll();
         const state = encodeOAuthState({
           scheme: getDespiaDeeplinkScheme(),

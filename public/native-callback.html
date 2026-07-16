@@ -12,20 +12,52 @@
   <script>
     /**
      * https://vybehub.app/native-callback.html — Despia Google/Apple return.
-     *
-     * Goal: close Custom Tab / ASWeb as soon as account is picked, without a
-     * "VYBE" interstitial. App WebView already polls by nonce.
-     *
-     *  1) Soft-fire wait=1 (iframe / <a> / intent) — does NOT top-level navigate
-     *     so the exchange fetch stays alive
-     *  2) Exchange id_token → short hc= (keepalive)
-     *  3) Hard-fire hc= with location.href so Despia closes the sheet
+     * Debug session bd2545: logs to authQr debug_oauth + local ingest when available.
      */
     (function () {
       var DEFAULT_SCHEME = 'com.despia.vybe';
       var PACKAGE_NAME = 'com.despia.vybe';
       var EXCHANGE_URL = 'https://us-central1-vybe-daaab.cloudfunctions.net/authQr';
+      var INGEST = 'http://127.0.0.1:7693/ingest/1847f3ab-7d03-4b99-8dbe-84076ae9145e';
       var closed = false;
+
+      // #region agent log
+      function dbg(hypothesisId, location, message, payload) {
+        var body = {
+          sessionId: 'bd2545',
+          runId: 'pre-fix',
+          hypothesisId: hypothesisId,
+          location: location,
+          message: message,
+          data: payload || {},
+          timestamp: Date.now(),
+        };
+        try {
+          fetch(INGEST, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': 'bd2545' },
+            body: JSON.stringify(body),
+            keepalive: true,
+          }).catch(function () {});
+        } catch (e0) {}
+        try {
+          fetch(EXCHANGE_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              data: {
+                action: 'debug_oauth',
+                event: message,
+                hypothesisId: hypothesisId,
+                location: location,
+                payload: payload || {},
+              },
+            }),
+            keepalive: true,
+          }).catch(function () {});
+        } catch (e1) {}
+      }
+      // #endregion
 
       function decodeState(state) {
         if (!state) return null;
@@ -82,9 +114,16 @@
         return /Android/i.test(navigator.userAgent || '');
       }
 
-      /** Soft close — keep this document alive for fetch. */
       function softFire(deeplink) {
         if (!deeplink || deeplink.indexOf('oauth') === -1) return;
+        // #region agent log
+        dbg('C', 'native-callback.html:softFire', 'softFire', {
+          len: deeplink.length,
+          hasWait: deeplink.indexOf('wait=1') !== -1,
+          hasHc: deeplink.indexOf('hc=') !== -1,
+          android: isAndroid(),
+        });
+        // #endregion
         try {
           var iframe = document.createElement('iframe');
           iframe.setAttribute('aria-hidden', 'true');
@@ -123,9 +162,17 @@
         }
       }
 
-      /** Hard close — Despia official signal. */
       function hardFire(deeplink) {
         if (!deeplink || deeplink.indexOf('oauth') === -1) return;
+        // #region agent log
+        dbg('A', 'native-callback.html:hardFire', 'hardFire', {
+          len: deeplink.length,
+          hasHc: deeplink.indexOf('hc=') !== -1,
+          hasError: deeplink.indexOf('error=') !== -1,
+          closed: closed,
+          android: isAndroid(),
+        });
+        // #endregion
         softFire(deeplink);
         try { window.location.replace(deeplink); } catch (e1) {}
         try { window.location.href = deeplink; } catch (e2) {}
@@ -156,9 +203,19 @@
       }
 
       document.addEventListener('visibilitychange', function () {
-        if (document.visibilityState === 'hidden') closed = true;
+        if (document.visibilityState === 'hidden') {
+          closed = true;
+          // #region agent log
+          dbg('E', 'native-callback.html:visibility', 'page_hidden', { closed: true });
+          // #endregion
+        }
       });
-      window.addEventListener('pagehide', function () { closed = true; });
+      window.addEventListener('pagehide', function () {
+        closed = true;
+        // #region agent log
+        dbg('E', 'native-callback.html:pagehide', 'pagehide', {});
+        // #endregion
+      });
 
       var params = getParams();
       var stateObj = decodeState(params.get('state'));
@@ -167,6 +224,18 @@
       var error = params.get('error');
       var provider = (stateObj && stateObj.provider) || 'google';
       var nonce = (stateObj && stateObj.nonce) || '';
+
+      // #region agent log
+      dbg('B', 'native-callback.html:boot', 'callback_boot', {
+        hasIdToken: Boolean(idToken),
+        idTokenLen: idToken ? String(idToken).length : 0,
+        hasNonce: Boolean(nonce),
+        provider: provider,
+        hasError: Boolean(error),
+        android: isAndroid(),
+        hrefHost: location.host,
+      });
+      // #endregion
 
       if (error) {
         hardFire(buildDeeplink(scheme, 'error=' + encodeURIComponent(String(error).slice(0, 64))));
@@ -178,7 +247,6 @@
         return;
       }
 
-      // Soft-close immediately so the account sheet dismisses while we exchange.
       if (nonce) {
         softFire(
           buildDeeplink(
@@ -202,6 +270,14 @@
         .then(function (result) {
           var payload = payloadOf(result);
           var handoff = payload.code;
+          // #region agent log
+          dbg('B', 'native-callback.html:exchange', 'exchange_result', {
+            ok: Boolean(result.ok),
+            hasHandoff: Boolean(handoff),
+            handoffLen: handoff ? String(handoff).length : 0,
+            closedBeforeHardFire: closed,
+          });
+          // #endregion
           if (!result.ok || !handoff) throw new Error('exchange_failed');
           var link = buildDeeplink(scheme, 'hc=' + encodeURIComponent(handoff));
           if (!closed) {
@@ -212,9 +288,19 @@
             setTimeout(function () {
               if (!closed) hardFire(link);
             }, 250);
+          } else {
+            // #region agent log
+            dbg('D', 'native-callback.html:skipHard', 'skipped_hardFire_already_closed', {});
+            // #endregion
           }
         })
-        .catch(function () {
+        .catch(function (err) {
+          // #region agent log
+          dbg('B', 'native-callback.html:exchangeFail', 'exchange_failed', {
+            closed: closed,
+            msg: err && err.message ? String(err.message).slice(0, 120) : 'fail',
+          });
+          // #endregion
           if (!closed) hardFire(buildDeeplink(scheme, 'error=exchange_failed'));
         });
     })();
