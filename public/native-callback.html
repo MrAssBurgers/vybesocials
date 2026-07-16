@@ -5,7 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title></title>
   <style>
-    /* Silent handoff page — blank until fallback. Lives only inside the system sheet. */
     html, body {
       margin: 0;
       min-height: 100%;
@@ -23,13 +22,8 @@
       padding: 24px;
       text-align: center;
     }
-    #status {
-      margin: 0;
-      font-size: 14px;
-      opacity: 0;
-      pointer-events: none;
-    }
-    #status.visible { opacity: 0.85; pointer-events: auto; }
+    #status { margin: 0; font-size: 14px; opacity: 0; }
+    #status.visible { opacity: 0.85; }
     #openApp, #webFallback {
       display: none;
       appearance: none;
@@ -40,7 +34,6 @@
       color: #0B0B10;
       font-size: 16px;
       font-weight: 600;
-      cursor: pointer;
       text-decoration: none;
     }
     #webFallback {
@@ -55,25 +48,28 @@
   <a id="openApp">Open VYBE</a>
   <a id="webFallback" href="https://vybehub.app/auth">Continue on web</a>
   <script>
+    /**
+     * Runs inside Despia ASWeb / Custom Tabs after Google/Apple account pick.
+     * Strategy for instant sheet close:
+     *  1) Kick off authQr stash/exchange with fetch keepalive (survives unload)
+     *  2) Immediately fire scheme://oauth/auth?nonce=…&wait=1 so Despia closes the sheet
+     *  3) App WebView polls authQr by nonce and signs in
+     * If exchange finishes while this page is still open, also fire hc= deeplink.
+     */
     (function () {
       var DEFAULT_SCHEME = 'com.despia.vybe';
       var EXCHANGE_URL = 'https://us-central1-vybe-daaab.cloudfunctions.net/authQr';
       var WEB_FALLBACK = 'https://vybehub.app/auth';
       var MAX_DEEPLINK_LEN = 1800;
-      // Only reveal fallback UI if Despia did not close this sheet.
-      var FALLBACK_UI_MS = 1500;
+      var FALLBACK_UI_MS = 2000;
+      var closed = false;
 
       function setStatus(text, visible) {
         var el = document.getElementById('status');
         if (!el) return;
         el.textContent = text || '';
-        if (visible) {
-          el.classList.add('visible');
-          el.removeAttribute('aria-hidden');
-        } else {
-          el.classList.remove('visible');
-          el.setAttribute('aria-hidden', 'true');
-        }
+        if (visible) el.classList.add('visible');
+        else el.classList.remove('visible');
       }
 
       function decodeState(state) {
@@ -107,8 +103,7 @@
       function isValidDeeplink(url) {
         if (!url || typeof url !== 'string') return false;
         var value = url.trim();
-        if (!value || value === '#' || value === 'vybe:' || value === 'vybe://') return false;
-        if (value.length > MAX_DEEPLINK_LEN) return false;
+        if (!value || value.length > MAX_DEEPLINK_LEN) return false;
         if (value.indexOf('oauth') === -1) return false;
         try {
           var parsed = new URL(value);
@@ -119,78 +114,32 @@
         }
       }
 
-      function callAuthQr(payload) {
-        var ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
-        var timer = ctrl
-          ? setTimeout(function () {
-              try { ctrl.abort(); } catch (e) {}
-            }, 12000)
-          : null;
-        return fetch(EXCHANGE_URL, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ data: payload }),
-          signal: ctrl ? ctrl.signal : undefined,
-        })
-          .then(function (res) {
-            return res.json().then(function (data) {
-              return { ok: res.ok, data: data };
-            });
-          })
-          .finally(function () {
-            if (timer) clearTimeout(timer);
-          });
-      }
-
-      function payloadOf(result) {
-        return (result.data && result.data.result) || result.data || {};
-      }
-
+      /** Despia closes the sheet on a single location navigation to scheme://oauth/… */
       function fireDeeplink(deeplink) {
-        try { window.location.href = deeplink; } catch (e) {}
-        try { window.location.replace(deeplink); } catch (e2) {}
+        if (!isValidDeeplink(deeplink)) return;
+        window.__vybeOauthDeeplink = deeplink;
+        var openBtn = document.getElementById('openApp');
+        if (openBtn) openBtn.setAttribute('href', deeplink);
         try {
-          var iframe = document.createElement('iframe');
-          iframe.style.cssText = 'display:none;width:0;height:0;border:0';
-          iframe.src = deeplink;
-          document.body.appendChild(iframe);
-          setTimeout(function () {
-            try { iframe.remove(); } catch (e3) {}
-          }, 400);
-        } catch (e4) {}
-        try {
-          var a = document.createElement('a');
-          a.href = deeplink;
-          a.rel = 'noreferrer';
-          a.style.display = 'none';
-          document.body.appendChild(a);
-          a.click();
-          a.remove();
-        } catch (e5) {}
-        try { window.close(); } catch (e6) {}
+          window.location.replace(deeplink);
+        } catch (e) {
+          try { window.location.href = deeplink; } catch (e2) {}
+        }
+        // Backup for stubborn Custom Tabs
+        setTimeout(function () {
+          if (closed) return;
+          try { window.location.href = deeplink; } catch (e3) {}
+        }, 50);
+        setTimeout(function () {
+          try { window.close(); } catch (e4) {}
+        }, 100);
       }
 
-      function redirectToApp(scheme, query) {
-        var deeplink = buildDeeplink(scheme, query);
-        var openBtn = document.getElementById('openApp');
-        var webBtn = document.getElementById('webFallback');
-
-        if (isValidDeeplink(deeplink)) {
-          window.__vybeOauthDeeplink = deeplink;
-          if (openBtn) openBtn.setAttribute('href', deeplink);
-          fireDeeplink(deeplink);
-          setTimeout(function () { fireDeeplink(deeplink); }, 80);
-          setTimeout(function () { fireDeeplink(deeplink); }, 220);
-          setTimeout(function () { fireDeeplink(deeplink); }, 450);
-        } else {
-          window.__vybeOauthDeeplink = '';
-          if (openBtn) {
-            openBtn.removeAttribute('href');
-            openBtn.style.display = 'none';
-          }
-        }
-
+      function scheduleFallback() {
         setTimeout(function () {
+          if (closed) return;
+          var openBtn = document.getElementById('openApp');
+          var webBtn = document.getElementById('webFallback');
           if (webBtn) {
             webBtn.style.display = 'inline-block';
             webBtn.setAttribute('href', WEB_FALLBACK);
@@ -198,10 +147,32 @@
           if (isValidDeeplink(window.__vybeOauthDeeplink) && openBtn) {
             openBtn.style.display = 'inline-block';
             setStatus('Tap below if VYBE did not open.', true);
-          } else {
-            setStatus('Continue in the browser if the app did not open.', true);
           }
         }, FALLBACK_UI_MS);
+      }
+
+      function closeSheetNow(scheme, query) {
+        var deeplink = buildDeeplink(scheme, query);
+        fireDeeplink(deeplink);
+        scheduleFallback();
+      }
+
+      function callAuthQr(payload) {
+        return fetch(EXCHANGE_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ data: payload }),
+          // Survives Custom Tabs teardown after we fire the close deeplink.
+          keepalive: true,
+        }).then(function (res) {
+          return res.json().then(function (data) {
+            return { ok: res.ok, data: data };
+          });
+        });
+      }
+
+      function payloadOf(result) {
+        return (result.data && result.data.result) || result.data || {};
       }
 
       document.getElementById('openApp').addEventListener('click', function (ev) {
@@ -213,6 +184,12 @@
         window.location.href = window.__vybeOauthDeeplink;
       });
 
+      // Detect page hide = Despia closed the sheet successfully.
+      document.addEventListener('visibilitychange', function () {
+        if (document.visibilityState === 'hidden') closed = true;
+      });
+      window.addEventListener('pagehide', function () { closed = true; });
+
       var params = getParams();
       var stateObj = decodeState(params.get('state'));
       var scheme = (stateObj && stateObj.scheme) || DEFAULT_SCHEME;
@@ -222,62 +199,48 @@
       var provider = (stateObj && stateObj.provider) || 'google';
       var nonce = (stateObj && stateObj.nonce) || '';
 
-      // Stay silent — no “Signing in…” flash. Sheet should close via deeplink.
       setStatus('', false);
 
       if (error) {
         var errQuery = 'error=' + encodeURIComponent(error) + '&state=' + encodeURIComponent(state);
         var errDesc = params.get('error_description');
         if (errDesc) errQuery += '&error_description=' + encodeURIComponent(errDesc);
-        redirectToApp(scheme, errQuery);
-        return;
-      }
-
-      function finishWithHandoffCode(handoffCode) {
-        if (!handoffCode) throw new Error('missing_handoff_code');
-        var okQuery =
-          'hc=' +
-          encodeURIComponent(handoffCode) +
-          '&state=' +
-          encodeURIComponent(state);
-        redirectToApp(scheme, okQuery);
-      }
-
-      if (provider === 'apple' && idToken) {
-        callAuthQr({
-          action: 'stash_oauth',
-          provider: 'apple',
-          idToken: idToken,
-          nonce: nonce,
-        })
-          .then(function (result) {
-            var payload = payloadOf(result);
-            if (!result.ok || !payload.code) {
-              throw new Error((payload.message || payload.error) || 'stash_failed');
-            }
-            finishWithHandoffCode(payload.code);
-          })
-          .catch(function () {
-            setStatus('Could not finish Apple sign-in automatically.', true);
-            redirectToApp(scheme, 'error=stash_failed&state=' + encodeURIComponent(state));
-            if (document.getElementById('webFallback')) {
-              document.getElementById('webFallback').style.display = 'inline-block';
-            }
-          });
+        closeSheetNow(scheme, errQuery);
         return;
       }
 
       if (!idToken) {
-        redirectToApp(scheme, 'error=missing_token&state=' + encodeURIComponent(state));
+        closeSheetNow(scheme, 'error=missing_token&state=' + encodeURIComponent(state));
         return;
       }
 
-      callAuthQr({ action: 'exchange_google', idToken: idToken, nonce: nonce })
+      // Instant close: app polls by nonce while we stash/exchange with keepalive.
+      if (nonce) {
+        var waitQuery =
+          'nonce=' +
+          encodeURIComponent(nonce) +
+          '&wait=1&provider=' +
+          encodeURIComponent(provider) +
+          '&state=' +
+          encodeURIComponent(state);
+        closeSheetNow(scheme, waitQuery);
+      }
+
+      var stashPromise =
+        provider === 'apple'
+          ? callAuthQr({
+              action: 'stash_oauth',
+              provider: 'apple',
+              idToken: idToken,
+              nonce: nonce,
+            })
+          : callAuthQr({ action: 'exchange_google', idToken: idToken, nonce: nonce });
+
+      stashPromise
         .then(function (result) {
           var payload = payloadOf(result);
           var handoff = payload.code;
-          var token = payload.customToken || payload.custom_token;
-          if (!result.ok) {
+          if (!result.ok || !handoff) {
             var errMsg =
               (result.data && result.data.error && result.data.error.message) ||
               payload.message ||
@@ -285,26 +248,18 @@
               'exchange_failed';
             throw new Error(errMsg);
           }
-          if (handoff) {
-            finishWithHandoffCode(handoff);
-            return;
+          // If sheet still open (close failed), fire hc= so Despia can reclaim.
+          if (!closed) {
+            closeSheetNow(
+              scheme,
+              'hc=' + encodeURIComponent(handoff) + '&state=' + encodeURIComponent(state),
+            );
           }
-          if (token) {
-            return callAuthQr({
-              action: 'stash_oauth',
-              provider: 'google',
-              customToken: token,
-            }).then(function (stashRes) {
-              var stashPayload = payloadOf(stashRes);
-              if (!stashRes.ok || !stashPayload.code) throw new Error('stash_failed');
-              finishWithHandoffCode(stashPayload.code);
-            });
-          }
-          throw new Error('exchange_failed');
         })
         .catch(function () {
-          setStatus('Could not finish automatically. Try Continue on web.', true);
-          redirectToApp(scheme, 'error=exchange_failed&state=' + encodeURIComponent(state));
+          if (closed) return;
+          setStatus('Could not finish automatically.', true);
+          closeSheetNow(scheme, 'error=exchange_failed&state=' + encodeURIComponent(state));
           var webBtn = document.getElementById('webFallback');
           if (webBtn) webBtn.style.display = 'inline-block';
         });

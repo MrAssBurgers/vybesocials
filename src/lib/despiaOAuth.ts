@@ -378,11 +378,11 @@ export function isDespiaOAuthReturnUrl(url: string): boolean {
     params.has('custom_token') ||
     params.has('customToken') ||
     params.has('id_token') ||
-    params.has('error')
+    params.has('error') ||
+    (params.has('nonce') && (params.has('wait') || params.get('wait') === '1'))
   ) {
     return true;
   }
-  // Bare oauth/auth without tokens is not enough — treat as incomplete elsewhere.
   const lower = url.toLowerCase();
   return (lower.includes('oauth/auth') || lower.includes('oauth%2fauth')) && params.toString().length > 0;
 }
@@ -469,13 +469,13 @@ function startDespiaOAuthNoncePoll(nonce: string): void {
     if (generation === noncePollGeneration) {
       noncePollTimer = window.setTimeout(() => {
         void tick();
-      }, 900);
+      }, 500);
     }
   };
 
   noncePollTimer = window.setTimeout(() => {
     void tick();
-  }, 700);
+  }, 200);
 }
 
 /** Complete Firebase sign-in from Despia deeplink or /auth?custom_token=... / id_token return. */
@@ -614,6 +614,28 @@ export async function tryCompleteDespiaOAuthFromCurrentUrl(): Promise<DespiaOAut
   if (!isDespiaOAuthReturnUrl(href) && !isDespiaOAuthInFlight()) return null;
 
   const params = parseOAuthParamsFromUrl(href);
+  const waitNonce = (params.get('nonce') || '').trim();
+  const waiting = params.get('wait') === '1' || params.has('wait');
+
+  // Instant sheet-close path: nonce is ready, handoff still stashing — poll then sign in.
+  if (waiting && waitNonce && !params.has('hc') && !params.has('id_token') && !params.has('error')) {
+    const providerHint = (params.get('provider') || 'google') as 'google' | 'apple';
+    markDespiaOAuthPending(providerHint === 'apple' ? 'apple' : 'google');
+    try {
+      sessionStorage.setItem(DESPIA_OAUTH_NONCE_KEY, waitNonce);
+    } catch {
+      /* ignore */
+    }
+    startDespiaOAuthNoncePoll(waitNonce);
+    try {
+      const cleanPath = window.location.pathname || '/auth';
+      window.history.replaceState({}, '', cleanPath);
+    } catch {
+      /* ignore */
+    }
+    return null;
+  }
+
   if (
     !params.has('hc') &&
     !params.has('handoff_code') &&
@@ -635,7 +657,9 @@ export function initDespiaOAuthDeepLinkHandler(): void {
 
   const handleUrl = (url: string) => {
     if (!isDespiaOAuthReturnUrl(url)) return;
-    void completeDespiaOAuthFromUrl(url).then((result) => {
+    // wait=1 nonce path starts poll without a session yet.
+    void tryCompleteDespiaOAuthFromCurrentUrl().then((result) => {
+      if (!result) return;
       if (result.error) {
         sessionStorage.setItem('vybe-oauth-error', result.error.message);
       }
@@ -649,6 +673,14 @@ export function initDespiaOAuthDeepLinkHandler(): void {
         window.dispatchEvent(new CustomEvent('despia-oauth-complete', { detail: result }));
       }
     });
+    // Also try direct complete for hc= / token URLs (may be the event href, not location yet).
+    if (/[?&#](hc|id_token|custom_token)=/.test(url)) {
+      void completeDespiaOAuthFromUrl(url).then((result) => {
+        if (result.data.session?.user || result.error) {
+          window.dispatchEvent(new CustomEvent('despia-oauth-complete', { detail: result }));
+        }
+      });
+    }
   };
 
   const tryCurrent = () => {

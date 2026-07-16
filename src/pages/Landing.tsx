@@ -273,6 +273,13 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
 
     void tryCompleteDespiaOAuthFromCurrentUrl().then((result) => {
       if (result) finishDespiaOAuth(result);
+      else if (isDespiaOAuthInFlight()) {
+        const provider = getDespiaOAuthPendingProvider();
+        if (provider) {
+          setOauthOverlay(provider);
+          setLoading(true);
+        }
+      }
     });
 
     const onComplete = (event: Event) => {
@@ -280,12 +287,18 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
     };
     window.addEventListener('despia-oauth-complete', onComplete);
 
-    // Despia closes ASWeb then navigates WebView to /auth?custom_token=… without a full remount
-    // in some builds — poll while an OAuth session is in flight.
+    // Despia closes ASWeb then navigates WebView to /auth?hc=… or ?nonce=&wait=1
     const onUrlMaybeChanged = () => {
       if (!isDespiaOAuthInFlight() && !isDespiaOAuthReturnUrl(window.location.href)) return;
       void tryCompleteDespiaOAuthFromCurrentUrl().then((result) => {
         if (result) finishDespiaOAuth(result);
+        else if (isDespiaOAuthInFlight()) {
+          const provider = getDespiaOAuthPendingProvider();
+          if (provider) {
+            setOauthOverlay(provider);
+            setLoading(true);
+          }
+        }
       });
     };
     window.addEventListener('popstate', onUrlMaybeChanged);
