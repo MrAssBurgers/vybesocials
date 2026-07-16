@@ -514,6 +514,97 @@ async function mintCustomTokenFromGoogleIdToken(idToken) {
     }
     return auth.createCustomToken(uid, { provider: 'google.com' });
 }
+const APPLE_SERVICES_ID = 'com.despia.vybe.web';
+const APPLE_JWKS_URI = 'https://appleid.apple.com/auth/keys';
+/** Verify Apple id_token (JWKS) and mint a short Firebase custom token — same handoff as Google. */
+async function mintCustomTokenFromAppleIdToken(idToken, expectedNonce) {
+    const { createHash } = await import('crypto');
+    // Transitively available via firebase-admin; verify Apple JWKS + mint custom token.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const jwksClient = (await import('jwks-rsa')).default || (await import('jwks-rsa'));
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const jwt = (await import('jsonwebtoken')).default || (await import('jsonwebtoken'));
+    const client = jwksClient({ jwksUri: APPLE_JWKS_URI, cache: true });
+    const payload = await new Promise((resolve, reject) => {
+        jwt.verify(idToken, (header, callback) => {
+            client.getSigningKey(header.kid, (err, key) => {
+                if (err || !key) {
+                    callback(err || new Error('apple_jwks_key_missing'));
+                    return;
+                }
+                callback(null, key.getPublicKey());
+            });
+        }, {
+            algorithms: ['RS256'],
+            audience: APPLE_SERVICES_ID,
+            issuer: 'https://appleid.apple.com',
+        }, (err, decoded) => {
+            if (err || !decoded) {
+                reject(err || new Error('invalid_apple_token'));
+                return;
+            }
+            resolve(decoded);
+        });
+    });
+    const sub = payload.sub;
+    if (!sub) {
+        throw new HttpsError('unauthenticated', 'invalid_token');
+    }
+    if (expectedNonce) {
+        const hashed = createHash('sha256').update(expectedNonce).digest('hex');
+        if (payload.nonce && payload.nonce !== hashed) {
+            throw new HttpsError('unauthenticated', 'nonce_mismatch');
+        }
+    }
+    const email = payload.email?.trim().toLowerCase() || undefined;
+    const emailVerified = payload.email_verified === true ||
+        payload.email_verified === 'true' ||
+        Boolean(email);
+    let uid = null;
+    try {
+        const existing = await auth.getUserByProviderUid('apple.com', sub);
+        uid = existing.uid;
+    }
+    catch {
+        if (email) {
+            try {
+                const byEmail = await auth.getUserByEmail(email);
+                await auth.updateUser(byEmail.uid, {
+                    providerToLink: {
+                        providerId: 'apple.com',
+                        uid: sub,
+                        email,
+                    },
+                    emailVerified: emailVerified || byEmail.emailVerified,
+                });
+                uid = byEmail.uid;
+            }
+            catch {
+                /* create below */
+            }
+        }
+        if (!uid) {
+            const created = await auth.createUser({
+                email,
+                emailVerified,
+            });
+            try {
+                await auth.updateUser(created.uid, {
+                    providerToLink: {
+                        providerId: 'apple.com',
+                        uid: sub,
+                        email,
+                    },
+                });
+            }
+            catch (linkErr) {
+                console.warn('[exchange_apple] providerToLink failed', linkErr);
+            }
+            uid = created.uid;
+        }
+    }
+    return auth.createCustomToken(uid, { provider: 'apple.com' });
+}
 /** One-time Despia deeplink payload (≤2 min). Admin SDK only — no client rules. */
 async function stashOAuthHandoff(payload) {
     const code = randomBytes(16).toString('hex');
@@ -549,35 +640,117 @@ function decodeDespiaOAuthState(state) {
         const parsed = JSON.parse(json);
         if (!parsed.scheme || !parsed.nonce || !parsed.provider)
             return null;
-        return { scheme: parsed.scheme, nonce: parsed.nonce, provider: parsed.provider };
+        return {
+            scheme: parsed.scheme,
+            nonce: parsed.nonce,
+            provider: parsed.provider,
+            cv: typeof parsed.cv === 'string' ? parsed.cv : undefined,
+        };
     }
     catch {
         return null;
     }
 }
-/** Silent HTML that immediately fires the Despia oauth/ deeplink (ASWeb / Custom Tabs close). */
-function appleOAuthHandoffHtml(deeplink, statusText) {
-    const safeHref = deeplink.replace(/&/g, '&amp;').replace(/"/g, '&quot;');
+/**
+ * Blank page that fires a SHORT scheme://oauth/… deeplink so Despia closes
+ * ASWeb / Custom Tabs. Never shows Open VYBE.
+ *
+ * Critical: no meta-refresh to custom schemes (iOS: "address is invalid"),
+ * no long state/PKCE in the deeplink (keeps URL under iOS limits),
+ * no rapid re-fire loop (Android CCT endless spinner).
+ */
+function despiaSilentCloseHtml(deeplink) {
     const safeJs = JSON.stringify(deeplink);
-    const status = statusText
-        ? `<p id="status" style="opacity:.85;font:14px system-ui,sans-serif;color:#a1a1aa">${statusText}</p>`
-        : '';
-    return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><title></title>
-<style>html,body{margin:0;min-height:100%;background:#0B0B10}#open{display:none;margin-top:16px;padding:14px 22px;border:0;border-radius:12px;background:#fff;color:#0B0B10;font:600 16px system-ui,sans-serif;text-decoration:none}</style></head>
-<body style="min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px;text-align:center">
-${status}
-<a id="open" href="${safeHref}">Open VYBE</a>
-<script>(function(){var d=${safeJs};function go(){try{location.href=d}catch(e){}try{location.replace(d)}catch(e2){}try{window.close()}catch(e3){}}go();setTimeout(go,80);setTimeout(go,250);setTimeout(function(){var a=document.getElementById('open');if(a)a.style.display='inline-block';var s=document.getElementById('status');if(s)s.textContent='Tap below if VYBE did not open.';},1500);})();</script>
-</body></html>`;
+    return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><title></title><style>html,body{margin:0;min-height:100%;background:#0B0B10}</style><script>(function(){var d=${safeJs};function go(){try{location.replace(d)}catch(e){}try{location.href=d}catch(e2){}}go();setTimeout(go,60);})();</script></head><body></body></html>`;
 }
+/** Short Despia close URL — hc= only (never append long OAuth state / PKCE). */
+function despiaCloseDeeplink(scheme, query) {
+    const clean = (scheme || 'com.despia.vybe').trim() || 'com.despia.vybe';
+    return `${clean}://oauth/auth?${query}`;
+}
+/** Google OAuth redirect for Despia — must match Google Cloud Console + client. */
+const GOOGLE_OAUTH_REDIRECT_URI = 'https://vybehub.app/google-callback.html';
+async function exchangeGoogleAuthCode(code, codeVerifier, redirectUri = GOOGLE_OAUTH_REDIRECT_URI) {
+    const body = new URLSearchParams({
+        client_id: GOOGLE_WEB_CLIENT_ID,
+        code,
+        code_verifier: codeVerifier,
+        grant_type: 'authorization_code',
+        redirect_uri: redirectUri,
+    });
+    const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body,
+    });
+    const json = (await tokenRes.json());
+    if (!tokenRes.ok || !json.id_token) {
+        const msg = json.error_description || json.error || `token_exchange_${tokenRes.status}`;
+        throw new Error(msg);
+    }
+    return json.id_token;
+}
+/**
+ * Google Sign-In — legacy Firebase Hosting path.
+ * Prefer https://vybehub.app/google-callback.html (static) so users see vybehub.app.
+ * Google Cloud Console redirect URI must include that vybehub.app URL.
+ */
+export const googleOAuthCallback = onRequest({ cors: true, invoker: 'public' }, async (req, res) => {
+    const q = req.query || {};
+    const pick = (key) => {
+        const raw = q[key];
+        return typeof raw === 'string' ? raw.trim() : Array.isArray(raw) ? String(raw[0] || '').trim() : '';
+    };
+    const error = pick('error');
+    const state = pick('state');
+    const authCode = pick('code');
+    const stateObj = decodeDespiaOAuthState(state);
+    const scheme = (stateObj?.scheme || 'com.despia.vybe').trim() || 'com.despia.vybe';
+    res.set('Cache-Control', 'no-store');
+    if (error) {
+        const err = encodeURIComponent(error.slice(0, 64));
+        res.status(200).type('html').send(despiaSilentCloseHtml(despiaCloseDeeplink(scheme, `error=${err}`)));
+        return;
+    }
+    if (!authCode || !stateObj?.cv) {
+        res
+            .status(200)
+            .type('html')
+            .send(despiaSilentCloseHtml(despiaCloseDeeplink(scheme, 'error=missing_code')));
+        return;
+    }
+    try {
+        const ip = req.ip || 'anon';
+        enforceRateLimit(await rateLimit(`google-oauth-cb:${ip}`, 30, 600));
+        // Legacy firebaseapp.com redirect — only if still registered in Google Console.
+        const idToken = await exchangeGoogleAuthCode(authCode, stateObj.cv, 'https://vybe-daaab.firebaseapp.com/google-callback');
+        const customToken = await mintCustomTokenFromGoogleIdToken(idToken);
+        const handoff = await stashOAuthHandoff({
+            provider: 'google',
+            customToken,
+            nonce: stateObj.nonce || undefined,
+        });
+        res
+            .status(200)
+            .type('html')
+            .send(despiaSilentCloseHtml(despiaCloseDeeplink(scheme, `hc=${encodeURIComponent(handoff)}`)));
+    }
+    catch (err) {
+        const message = err instanceof Error ? err.message : 'exchange_failed';
+        console.error('[googleOAuthCallback] failed', message);
+        res
+            .status(200)
+            .type('html')
+            .send(despiaSilentCloseHtml(despiaCloseDeeplink(scheme, 'error=exchange_failed')));
+    }
+});
 /**
  * Apple Sign in with Apple — Android Despia oauth:// return.
  * Apple requires response_mode=form_post when name/email scopes are requested.
  * Static native-callback.html cannot read POST bodies, so this HTTP endpoint
- * stashes a short hc= code and bounces into com.despia.vybe://oauth/auth.
+ * stashes a short hc= code and silently closes into com.despia.vybe://oauth/auth.
  *
  * Return URL (Apple Services ID): https://vybe-daaab.firebaseapp.com/apple-callback
- * (Hosting rewrite → this function; also direct cloudfunctions.net URL)
  */
 export const appleOAuthCallback = onRequest({ cors: true, invoker: 'public' }, async (req, res) => {
     const body = (req.method === 'POST' ? req.body : null) || {};
@@ -589,41 +762,46 @@ export const appleOAuthCallback = onRequest({ cors: true, invoker: 'public' }, a
         return typeof raw === 'string' ? raw.trim() : Array.isArray(raw) ? String(raw[0] || '').trim() : '';
     };
     const error = pick('error');
-    const errorDescription = pick('error_description');
     const state = pick('state');
     const idToken = pick('id_token');
     const stateObj = decodeDespiaOAuthState(state);
     const scheme = (stateObj?.scheme || 'com.despia.vybe').trim() || 'com.despia.vybe';
     res.set('Cache-Control', 'no-store');
     if (error) {
-        let errQuery = `error=${encodeURIComponent(error)}&state=${encodeURIComponent(state)}`;
-        if (errorDescription)
-            errQuery += `&error_description=${encodeURIComponent(errorDescription)}`;
-        const deeplink = `${scheme}://oauth/auth?${errQuery}`;
-        res.status(200).type('html').send(appleOAuthHandoffHtml(deeplink));
+        res
+            .status(200)
+            .type('html')
+            .send(despiaSilentCloseHtml(despiaCloseDeeplink(scheme, `error=${encodeURIComponent(error.slice(0, 64))}`)));
         return;
     }
     if (!idToken) {
-        const deeplink = `${scheme}://oauth/auth?error=missing_token&state=${encodeURIComponent(state)}`;
-        res.status(200).type('html').send(appleOAuthHandoffHtml(deeplink, 'Apple did not return a token.'));
+        res
+            .status(200)
+            .type('html')
+            .send(despiaSilentCloseHtml(despiaCloseDeeplink(scheme, 'error=missing_token')));
         return;
     }
     try {
         const ip = req.ip || 'anon';
         enforceRateLimit(await rateLimit(`apple-oauth-cb:${ip}`, 30, 600));
+        const customToken = await mintCustomTokenFromAppleIdToken(idToken, stateObj?.nonce || undefined);
         const code = await stashOAuthHandoff({
             provider: 'apple',
-            idToken,
+            customToken,
             nonce: stateObj?.nonce || undefined,
         });
-        const deeplink = `${scheme}://oauth/auth?hc=${encodeURIComponent(code)}&state=${encodeURIComponent(state)}`;
-        res.status(200).type('html').send(appleOAuthHandoffHtml(deeplink));
+        res
+            .status(200)
+            .type('html')
+            .send(despiaSilentCloseHtml(despiaCloseDeeplink(scheme, `hc=${encodeURIComponent(code)}`)));
     }
     catch (err) {
         const message = err instanceof Error ? err.message : 'stash_failed';
         console.error('[appleOAuthCallback] failed', message);
-        const deeplink = `${scheme}://oauth/auth?error=stash_failed&state=${encodeURIComponent(state)}`;
-        res.status(200).type('html').send(appleOAuthHandoffHtml(deeplink, 'Could not finish Apple sign-in.'));
+        res
+            .status(200)
+            .type('html')
+            .send(despiaSilentCloseHtml(despiaCloseDeeplink(scheme, 'error=stash_failed')));
     }
 });
 function qrChallengeDocId(nonce) {
@@ -643,7 +821,14 @@ function isChallengeExpired(expiresAt) {
  * create (public) → poll (public) → claim (signed-in device) → redeem (public → custom token).
  * exchange_google (public) — verify Google id_token, mint short Firebase custom token for deeplink.
  */
-export const authQr = onCall({ cors: true }, async (request) => {
+export const authQr = onCall({
+    cors: true,
+    // Keep under Cloud Run regional CPU quota (project has many 1-CPU services).
+    memory: '256MiB',
+    cpu: 0.083,
+    concurrency: 1,
+    maxInstances: 2,
+}, async (request) => {
     const data = (request.data || {});
     const action = (data.action || 'create').toLowerCase();
     const nonce = typeof data.nonce === 'string' ? data.nonce.trim() : '';
@@ -674,24 +859,98 @@ export const authQr = onCall({ cors: true }, async (request) => {
             throw new HttpsError('unauthenticated', 'Google token verification failed');
         }
     }
+    /**
+     * exchange_google_code — PKCE authorization-code exchange for
+     * https://vybehub.app/google-callback.html (Despia Custom Tabs).
+     */
+    if (action === 'exchange_google_code') {
+        const ip = request.rawRequest?.ip || 'anon';
+        enforceRateLimit(await rateLimit(`oauth-exchange-code:${ip}`, 20, 600));
+        const authCode = String(data.code || '').trim();
+        const codeVerifier = String(data.codeVerifier || '').trim();
+        const redirectUri = String(data.redirectUri || '').trim() || GOOGLE_OAUTH_REDIRECT_URI;
+        const oauthNonce = String(data.nonce || '').trim();
+        if (!authCode || !codeVerifier) {
+            throw new HttpsError('invalid-argument', 'code and codeVerifier required');
+        }
+        if (redirectUri !== GOOGLE_OAUTH_REDIRECT_URI) {
+            throw new HttpsError('invalid-argument', 'redirectUri not allowed');
+        }
+        try {
+            const idToken = await exchangeGoogleAuthCode(authCode, codeVerifier, redirectUri);
+            const customToken = await mintCustomTokenFromGoogleIdToken(idToken);
+            const handoff = await stashOAuthHandoff({
+                provider: 'google',
+                customToken,
+                nonce: oauthNonce || undefined,
+            });
+            return { code: handoff };
+        }
+        catch (err) {
+            if (err instanceof HttpsError)
+                throw err;
+            const message = err instanceof Error ? err.message : String(err);
+            console.error('[authQr] exchange_google_code failed', message);
+            throw new HttpsError('unauthenticated', message || 'Google code exchange failed');
+        }
+    }
     /** Stash Apple (or other) tokens server-side; return short deeplink code. */
     if (action === 'stash_oauth') {
         const ip = request.rawRequest?.ip || 'anon';
         enforceRateLimit(await rateLimit(`oauth-stash:${ip}`, 30, 600));
         const provider = String(data.provider || '').trim() || 'apple';
         const idToken = String(data.idToken || data.id_token || '').trim();
-        const customToken = String(data.customToken || '').trim();
-        const nonce = String(data.nonce || '').trim();
+        let customToken = String(data.customToken || '').trim();
+        const oauthNonce = String(data.nonce || '').trim();
         if (!idToken && !customToken) {
             throw new HttpsError('invalid-argument', 'idToken or customToken required');
+        }
+        // Prefer custom token handoff (same as Google) so App Link remount can signInWithCustomToken.
+        if (!customToken && idToken && provider === 'apple') {
+            try {
+                customToken = await mintCustomTokenFromAppleIdToken(idToken, oauthNonce || undefined);
+            }
+            catch (err) {
+                if (err instanceof HttpsError)
+                    throw err;
+                const message = err instanceof Error ? err.message : String(err);
+                console.error('[authQr] stash_oauth apple mint failed', message);
+                throw new HttpsError('unauthenticated', 'Apple token verification failed');
+            }
         }
         const code = await stashOAuthHandoff({
             provider,
             idToken: idToken || undefined,
             customToken: customToken || undefined,
-            nonce: nonce || undefined,
+            nonce: oauthNonce || undefined,
         });
         return { code };
+    }
+    /** exchange_apple — verify Apple id_token, mint custom token, return short hc= (parity with Google). */
+    if (action === 'exchange_apple') {
+        const ip = request.rawRequest?.ip || 'anon';
+        enforceRateLimit(await rateLimit(`oauth-exchange-apple:${ip}`, 20, 600));
+        const idToken = String(data.idToken || data.id_token || '').trim();
+        const oauthNonce = String(data.nonce || '').trim();
+        if (!idToken) {
+            throw new HttpsError('invalid-argument', 'idToken required');
+        }
+        try {
+            const customToken = await mintCustomTokenFromAppleIdToken(idToken, oauthNonce || undefined);
+            const code = await stashOAuthHandoff({
+                provider: 'apple',
+                customToken,
+                nonce: oauthNonce || undefined,
+            });
+            return { customToken, custom_token: customToken, code };
+        }
+        catch (err) {
+            if (err instanceof HttpsError)
+                throw err;
+            const message = err instanceof Error ? err.message : String(err);
+            console.error('[authQr] exchange_apple failed', message);
+            throw new HttpsError('unauthenticated', 'Apple token verification failed');
+        }
     }
     /** Redeem one-time OAuth handoff (Despia WebView). */
     if (action === 'redeem_oauth_code') {
@@ -701,34 +960,57 @@ export const authQr = onCall({ cors: true }, async (request) => {
         if (!/^[a-f0-9]{32}$/i.test(handoffCode)) {
             throw new HttpsError('invalid-argument', 'code required');
         }
-        const ref = db.collection('oauth_handoffs').doc(handoffCode.toLowerCase());
-        const snap = await ref.get();
-        if (!snap.exists) {
-            throw new HttpsError('not-found', 'OAuth code expired or already used');
-        }
-        await ref.delete();
-        const row = snap.data() || {};
-        const expiresAt = typeof row.expiresAt === 'number' ? row.expiresAt : 0;
-        if (!expiresAt || expiresAt < Date.now()) {
-            throw new HttpsError('deadline-exceeded', 'OAuth code expired');
-        }
-        const rowNonce = String(row.nonce || '').trim().toLowerCase();
-        if (rowNonce) {
-            try {
-                await db.collection('oauth_nonce_handoffs').doc(rowNonce).delete();
-            }
-            catch {
-                /* ignore */
-            }
-        }
-        return {
+        const codeKey = handoffCode.toLowerCase();
+        const ref = db.collection('oauth_handoffs').doc(codeKey);
+        const usedRef = db.collection('oauth_handoffs_used').doc(codeKey);
+        const toPayload = (row) => ({
             provider: row.provider || null,
             customToken: row.customToken || row.custom_token || null,
             custom_token: row.customToken || row.custom_token || null,
             idToken: row.idToken || row.id_token || null,
             id_token: row.idToken || row.id_token || null,
             nonce: row.nonce || null,
-        };
+        });
+        const result = await db.runTransaction(async (tx) => {
+            const snap = await tx.get(ref);
+            if (snap.exists) {
+                const row = (snap.data() || {});
+                const expiresAt = typeof row.expiresAt === 'number' ? row.expiresAt : 0;
+                if (!expiresAt || expiresAt < Date.now()) {
+                    tx.delete(ref);
+                    return { ok: false, code: 'expired' };
+                }
+                tx.delete(ref);
+                tx.set(usedRef, {
+                    ...row,
+                    redeemedAt: Date.now(),
+                    expiresAt,
+                });
+                const rowNonce = String(row.nonce || '').trim().toLowerCase();
+                if (rowNonce) {
+                    tx.delete(db.collection('oauth_nonce_handoffs').doc(rowNonce));
+                }
+                return { ok: true, payload: toPayload(row) };
+            }
+            const used = await tx.get(usedRef);
+            if (!used.exists) {
+                return { ok: false, code: 'not-found' };
+            }
+            const row = (used.data() || {});
+            const expiresAt = typeof row.expiresAt === 'number' ? row.expiresAt : 0;
+            if (!expiresAt || expiresAt < Date.now()) {
+                tx.delete(usedRef);
+                return { ok: false, code: 'expired' };
+            }
+            return { ok: true, payload: toPayload(row) };
+        });
+        if (!result.ok) {
+            if (result.code === 'expired') {
+                throw new HttpsError('deadline-exceeded', 'OAuth code expired');
+            }
+            throw new HttpsError('not-found', 'OAuth code expired or already used');
+        }
+        return result.payload;
     }
     /**
      * Poll by OAuth nonce — WebView completion when Despia deeplink reclaim fails.

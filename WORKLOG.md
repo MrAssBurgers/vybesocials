@@ -2,6 +2,15 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## PUBLISH NOW (2026-07-16) — Apple `code%20id_token` + cancel + debug
+
+- **Root cause (prod evidence):** Apple authorize URL used `URLSearchParams` → `response_type=code+id_token` → Apple yellow `invalid_request`
+- **Fix:** `response_type=${encodeURIComponent('code id_token')}` → `code%20id_token`
+- **Also:** cancel only after sheet hid; don’t clear pending on Despia bridge null; `authQr` redeployed (low CPU) with `debug_oauth` dump
+- **Staging:** `vybe-daaab.web.app` already has `%20` + instrumented `native-callback`
+- **Prod app:** needs **Lovable → Share → Publish** (Despia hits `vybehub.app`)
+- **Verify:** Android/iOS Apple → no yellow invalid_request → sheet closes → signed in; swipe-dismiss stops loading
+
 ## PUBLISH NOW (2026-07-16) — iOS popup login + cancel on dismiss
 
 - **On `origin/main`:** (pushing)

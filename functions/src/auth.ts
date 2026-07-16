@@ -927,7 +927,16 @@ function isChallengeExpired(expiresAt: unknown): boolean {
  * create (public) → poll (public) → claim (signed-in device) → redeem (public → custom token).
  * exchange_google (public) — verify Google id_token, mint short Firebase custom token for deeplink.
  */
-export const authQr = onCall({ cors: true }, async (request) => {
+export const authQr = onCall(
+  {
+    cors: true,
+    // Keep under Cloud Run regional CPU quota (project has many 1-CPU services).
+    memory: '256MiB',
+    cpu: 0.083,
+    concurrency: 1,
+    maxInstances: 2,
+  },
+  async (request) => {
   const data = (request.data || {}) as {
     action?: string;
     nonce?: string;

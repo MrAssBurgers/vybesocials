@@ -263,18 +263,129 @@ export function buildAppleOAuthUrl(): string {
 
   const state = encodeOAuthState({ scheme, nonce, provider: 'apple' });
   const redirectUri = getAppleOAuthCallbackUrl();
-  // Apple: "Requesting only id_token is unsupported" → invalid_request / invalid response type.
-  // Use code+id_token with fragment (no name/email scopes — those require form_post).
+  // Apple rejects response_type=id_token alone. Space must be %20 — URLSearchParams
+  // encodes as "+" which Apple treats as invalid_request / invalid response_type.
   const params = new URLSearchParams({
     client_id: getAppleServicesId(),
     redirect_uri: redirectUri,
-    response_type: 'code id_token',
     response_mode: 'fragment',
     nonce,
     state,
   });
+  const url =
+    `https://appleid.apple.com/auth/authorize?${params.toString()}` +
+    `&response_type=${encodeURIComponent('code id_token')}`;
+  // #region agent log
+  {
+    const rtMatch = url.match(/response_type=([^&]+)/);
+    const rt = rtMatch ? rtMatch[1] : '';
+    fetch('http://127.0.0.1:7693/ingest/1847f3ab-7d03-4b99-8dbe-84076ae9145e', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': 'bd2545' },
+      body: JSON.stringify({
+        sessionId: 'bd2545',
+        runId: 'pre-fix',
+        hypothesisId: 'B',
+        location: 'despiaOAuth.ts:buildAppleOAuthUrl',
+        message: 'apple_authorize_url',
+        data: {
+          responseTypeEnc: rt,
+          hasPercent20: rt.includes('%20'),
+          hasPlus: rt.includes('+'),
+          redirectHost: (() => {
+            try {
+              return new URL(redirectUri).host;
+            } catch {
+              return 'bad';
+            }
+          })(),
+        },
+        timestamp: Date.now(),
+      }),
+    }).catch(() => {});
+    void fetch('https://us-central1-vybe-daaab.cloudfunctions.net/authQr', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        data: {
+          action: 'debug_oauth',
+          event: 'apple_authorize_url',
+          hypothesisId: 'B',
+          location: 'despiaOAuth.ts:buildAppleOAuthUrl',
+          payload: {
+            responseTypeEnc: rt,
+            hasPercent20: rt.includes('%20'),
+            hasPlus: rt.includes('+'),
+          },
+        },
+      }),
+      keepalive: true,
+    }).catch(() => {});
+  }
+  // #endregion
+  return url;
+}
 
-  return `https://appleid.apple.com/auth/authorize?${params.toString()}`;
+/** When the OAuth sheet is dismissed without tokens, stop polling and clear the chip. */
+function armDespiaOAuthSheetCancelWatch(): void {
+  if (typeof document === 'undefined') return;
+  const generation = ++sheetCancelGeneration;
+  let sawHidden = document.visibilityState === 'hidden';
+
+  const tryCancel = () => {
+    if (generation !== sheetCancelGeneration) return;
+    if (!isDespiaOAuthInFlight()) return;
+    if (isDespiaOAuthReturnUrl(window.location.href)) {
+      void tryCompleteDespiaOAuthFromCurrentUrl().then((result) => {
+        if (result && (result.data.session?.user || result.error)) {
+          window.dispatchEvent(new CustomEvent('despia-oauth-complete', { detail: result }));
+        }
+      });
+      return;
+    }
+    // Only cancel after the sheet actually hid (user opened then dismissed).
+    if (!sawHidden) return;
+    clearDespiaOAuthPending();
+    window.dispatchEvent(
+      new CustomEvent('despia-oauth-complete', {
+        detail: {
+          data: { session: null },
+          error: { message: 'Sign-in cancelled', name: 'auth/popup-closed-by-user' },
+        },
+      }),
+    );
+  };
+
+  const onVisible = () => {
+    if (generation !== sheetCancelGeneration) return;
+    if (document.visibilityState === 'hidden') {
+      sawHidden = true;
+      return;
+    }
+    if (document.visibilityState !== 'visible') return;
+    if (!isDespiaOAuthInFlight()) return;
+    if (!sawHidden) return;
+    if (sheetCancelTimer != null) window.clearTimeout(sheetCancelTimer);
+    // Grace so App Link / deeplink can land before we treat this as cancel.
+    sheetCancelTimer = window.setTimeout(tryCancel, 900);
+  };
+
+  document.addEventListener('visibilitychange', onVisible);
+  window.addEventListener('focus', onVisible);
+  document.addEventListener('app-resumed', onVisible);
+
+  const watch = window.setInterval(() => {
+    if (generation !== sheetCancelGeneration || !isDespiaOAuthInFlight()) {
+      window.clearInterval(watch);
+      document.removeEventListener('visibilitychange', onVisible);
+      window.removeEventListener('focus', onVisible);
+      document.removeEventListener('app-resumed', onVisible);
+      if (sheetCancelTimer != null) {
+        window.clearTimeout(sheetCancelTimer);
+        sheetCancelTimer = null;
+      }
+    }
+  }, 500);
 }
 
 /** When the OAuth sheet is dismissed without tokens, stop polling and clear the chip. */
@@ -348,29 +459,96 @@ async function launchDespiaOAuthUrl(
     armDespiaOAuthSheetCancelWatch();
 
     const oauthBridge = `oauth://?url=${encodeURIComponent(authUrl)}`;
+    // #region agent log
+    {
+      const rtMatch = authUrl.match(/response_type=([^&]+)/);
+      fetch('http://127.0.0.1:7693/ingest/1847f3ab-7d03-4b99-8dbe-84076ae9145e', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': 'bd2545' },
+        body: JSON.stringify({
+          sessionId: 'bd2545',
+          runId: 'pre-fix',
+          hypothesisId: 'A',
+          location: 'despiaOAuth.ts:launchDespiaOAuthUrl',
+          message: 'oauth_launch',
+          data: {
+            provider,
+            hasNonce: Boolean(oauthNonce),
+            responseTypeEnc: rtMatch ? rtMatch[1] : null,
+            authHost: (() => {
+              try {
+                return new URL(authUrl).host;
+              } catch {
+                return 'bad';
+              }
+            })(),
+          },
+          timestamp: Date.now(),
+        }),
+      }).catch(() => {});
+      void fetch('https://us-central1-vybe-daaab.cloudfunctions.net/authQr', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          data: {
+            action: 'debug_oauth',
+            event: 'oauth_launch',
+            hypothesisId: 'A',
+            location: 'despiaOAuth.ts:launchDespiaOAuthUrl',
+            payload: {
+              provider,
+              hasNonce: Boolean(oauthNonce),
+              responseTypeEnc: rtMatch ? rtMatch[1] : null,
+            },
+          },
+        }),
+        keepalive: true,
+      }).catch(() => {});
+    }
+    // #endregion
     // Completion via deeplink AND/OR nonce poll. Dismiss without tokens → cancel watch.
     void despiaCall(oauthBridge, [...DESPIA_OAUTH_URL_KEYS], 90_000).then((payload) => {
-      if (!payload) {
-        if (!isDespiaOAuthInFlight()) return;
-        if (isDespiaOAuthReturnUrl(typeof window !== 'undefined' ? window.location.href : '')) {
-          void tryCompleteDespiaOAuthFromCurrentUrl().then((result) => {
-            if (result && (result.data.session?.user || result.error)) {
-              window.dispatchEvent(new CustomEvent('despia-oauth-complete', { detail: result }));
-            }
-          });
-          return;
-        }
-        clearDespiaOAuthPending();
-        window.dispatchEvent(
-          new CustomEvent('despia-oauth-complete', {
-            detail: {
-              data: { session: null },
-              error: { message: 'Sign-in cancelled', name: 'auth/popup-closed-by-user' },
+      // #region agent log
+      fetch('http://127.0.0.1:7693/ingest/1847f3ab-7d03-4b99-8dbe-84076ae9145e', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': 'bd2545' },
+        body: JSON.stringify({
+          sessionId: 'bd2545',
+          runId: 'pre-fix',
+          hypothesisId: 'C',
+          location: 'despiaOAuth.ts:despiaCall.then',
+          message: 'despia_bridge_result',
+          data: {
+            provider,
+            hasPayload: Boolean(payload),
+            stillInFlight: isDespiaOAuthInFlight(),
+            visibility: typeof document !== 'undefined' ? document.visibilityState : 'n/a',
+          },
+          timestamp: Date.now(),
+        }),
+      }).catch(() => {});
+      void fetch('https://us-central1-vybe-daaab.cloudfunctions.net/authQr', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          data: {
+            action: 'debug_oauth',
+            event: 'despia_bridge_result',
+            hypothesisId: 'C',
+            location: 'despiaOAuth.ts:despiaCall.then',
+            payload: {
+              provider,
+              hasPayload: Boolean(payload),
+              stillInFlight: isDespiaOAuthInFlight(),
             },
-          }),
-        );
-        return;
-      }
+          },
+        }),
+        keepalive: true,
+      }).catch(() => {});
+      // #endregion
+      // Bridge often returns null while the sheet is still open — do NOT cancel here.
+      // Completion = deeplink / App Link / nonce poll; cancel = sheet dismiss watch only.
+      if (!payload) return;
 
       for (const key of DESPIA_OAUTH_URL_KEYS) {
         const value = payload[key];
@@ -387,17 +565,6 @@ async function launchDespiaOAuthUrl(
           return;
         }
       }
-
-      if (!isDespiaOAuthInFlight()) return;
-      clearDespiaOAuthPending();
-      window.dispatchEvent(
-        new CustomEvent('despia-oauth-complete', {
-          detail: {
-            data: { session: null },
-            error: { message: 'Sign-in cancelled', name: 'auth/popup-closed-by-user' },
-          },
-        }),
-      );
     });
     return { pending: true, error: null };
   } catch (err) {

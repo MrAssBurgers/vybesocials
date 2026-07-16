@@ -12,16 +12,55 @@
   <script>
     /**
      * https://vybehub.app/native-callback.html — Despia Google/Apple return.
-     * Exchange id_token → short hc=, then close the secure browser:
+     * Exchange id_token → short hc=, then close:
      * - Android: HTTPS App Link (Custom Tabs ignore custom schemes)
-     * - iOS: com.despia.vybe://oauth/auth?hc=… (ASWeb only dismisses on oauth/ scheme;
-     *   HTTPS /auth?hc= stays inside the sheet and “logs you in on the popup”)
+     * - iOS: short com.despia.vybe://oauth/auth?hc= (ASWeb dismiss). Also rely on
+     *   in-app nonce poll so login completes even if the scheme alert is dismissed.
      */
     (function () {
       var DEFAULT_SCHEME = 'com.despia.vybe';
       var EXCHANGE_URL = 'https://us-central1-vybe-daaab.cloudfunctions.net/authQr';
       var APP_ORIGIN = 'https://vybehub.app';
       var closed = false;
+      var INGEST = 'http://127.0.0.1:7693/ingest/1847f3ab-7d03-4b99-8dbe-84076ae9145e';
+
+      // #region agent log
+      function dbg(hypothesisId, message, data) {
+        var body = {
+          sessionId: 'bd2545',
+          runId: 'post-fix',
+          hypothesisId: hypothesisId,
+          location: 'native-callback.html',
+          message: message,
+          data: data || {},
+          timestamp: Date.now(),
+        };
+        try {
+          fetch(INGEST, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': 'bd2545' },
+            body: JSON.stringify(body),
+            keepalive: true,
+          }).catch(function () {});
+        } catch (e0) {}
+        try {
+          fetch(EXCHANGE_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              data: {
+                action: 'debug_oauth',
+                event: message,
+                hypothesisId: hypothesisId,
+                location: 'native-callback.html',
+                payload: data || {},
+              },
+            }),
+            keepalive: true,
+          }).catch(function () {});
+        } catch (e1) {}
+      }
+      // #endregion
 
       function decodeState(state) {
         if (!state) return null;
@@ -87,18 +126,44 @@
 
       function hardFire(query) {
         if (!query) return;
+        // #region agent log
+        dbg('A', 'hardFire', {
+          android: isAndroid(),
+          queryLen: query.length,
+          hasHc: query.indexOf('hc=') !== -1,
+          provider: provider,
+        });
+        // #endregion
         if (isAndroid()) {
           var appLink = APP_ORIGIN + '/auth?' + query;
           try { window.location.replace(appLink); } catch (e1) {}
           try { window.location.href = appLink; } catch (e2) {}
           return;
         }
-        // iOS ASWeb: short custom scheme with oauth/ prefix — required to dismiss sheet.
+        // iOS: only short oauth/ custom scheme (never HTTPS — that logs into the sheet).
         var deeplink = scheme + '://oauth/auth?' + query;
+        try {
+          var a = document.createElement('a');
+          a.href = deeplink;
+          a.style.display = 'none';
+          document.body.appendChild(a);
+          a.click();
+        } catch (eA) {}
         try { window.location.replace(deeplink); } catch (e3) {}
         try { window.location.href = deeplink; } catch (e4) {}
         try { window.close(); } catch (e5) {}
       }
+
+      // #region agent log
+      dbg('B', 'callback_boot', {
+        hasIdToken: Boolean(idToken),
+        idTokenLen: idToken ? String(idToken).length : 0,
+        provider: provider,
+        hasError: Boolean(error),
+        android: isAndroid(),
+        hasNonce: Boolean(nonce),
+      });
+      // #endregion
 
       if (error) {
         hardFire('error=' + encodeURIComponent(String(error).slice(0, 64)));
@@ -123,12 +188,27 @@
         .then(function (result) {
           var payload = payloadOf(result);
           var handoff = payload.code;
+          // #region agent log
+          dbg('B', 'exchange_result', {
+            ok: Boolean(result.ok),
+            hasHandoff: Boolean(handoff),
+            handoffLen: handoff ? String(handoff).length : 0,
+            provider: provider,
+            errMsg: payload.error || payload.message || null,
+          });
+          // #endregion
           if (!result.ok || !handoff) throw new Error('exchange_failed');
           if (!closed) {
             hardFire('hc=' + encodeURIComponent(handoff));
           }
         })
-        .catch(function () {
+        .catch(function (err) {
+          // #region agent log
+          dbg('B', 'exchange_failed', {
+            provider: provider,
+            msg: err && err.message ? String(err.message).slice(0, 120) : 'fail',
+          });
+          // #endregion
           if (!closed) hardFire('error=exchange_failed');
         });
     })();
