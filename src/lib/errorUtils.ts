@@ -49,6 +49,10 @@ export function getFriendlyAuthError(error: unknown): string {
       return 'Apple Sign-In is unavailable right now. Check your connection and try again.';
     case 'apple/missing-token':
       return 'Apple Sign-In did not finish. Try again.';
+    case 'apple/incomplete':
+      return 'Apple Sign-In did not finish. Try again, or use email login.';
+    case 'despia/oauth-timeout':
+      return 'Sign-in did not return to the app. Close any leftover browser sheet and try again.';
     case 'despia/oauth-redeem-failed':
     case 'despia/oauth-error':
     case 'despia/oauth-launch-failed':
@@ -62,7 +66,8 @@ export function getFriendlyAuthError(error: unknown): string {
   if (
     message.includes('Sign in was cancelled') ||
     message.toLowerCase().includes('cancelled by the user') ||
-    message === 'Sign-in cancelled'
+    message === 'Sign-in cancelled' ||
+    message === 'Sign-in was cancelled or incomplete.'
   ) {
     return '__SUPPRESS__';
   }
@@ -92,6 +97,11 @@ export function getFriendlyAuthError(error: unknown): string {
   if (code.startsWith('auth/') || code.startsWith('apple/') || code.startsWith('despia/')) {
     if (message && message !== '[object Object]') return message;
     return `Sign-in failed. Error code: ${code}`;
+  }
+
+  // Prefer a real message over the generic fallback.
+  if (message && message !== '[object Object]' && message.length > 3) {
+    return message;
   }
 
   return getUserFriendlyError(error);

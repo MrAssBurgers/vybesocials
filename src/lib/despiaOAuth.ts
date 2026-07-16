@@ -14,7 +14,7 @@ const DESPIA_OAUTH_PROVIDER_KEY = 'vybe-despia-oauth-provider';
 const DESPIA_OAUTH_NONCE_KEY = 'vybe-despia-oauth-nonce';
 const DESPIA_OAUTH_PENDING_MAX_MS = 3 * 60 * 1000;
 /** Globals Despia may set when ASWeb returns the oauth/ deeplink. */
-const DESPIA_OAUTH_URL_KEYS = ['url', 'oauthUrl', 'deeplink', 'deepLink', 'payload', 'data'] as const;
+const DESPIA_OAUTH_URL_KEYS = ['url', 'oauthUrl', 'deeplink', 'deepLink'] as const;
 
 /** Firebase web client ID (public) — matches native/android/google-services.json */
 const DEFAULT_GOOGLE_WEB_CLIENT_ID =
@@ -244,8 +244,39 @@ async function launchDespiaOAuthUrl(
     const oauthBridge = `oauth://?url=${encodeURIComponent(authUrl)}`;
     // Fire-and-forget launch; completion is async via deeplink / WebView /auth?hc=.
     // Also watch common Despia bridge globals in case the runtime returns the URL that way.
-    void despiaCall(oauthBridge, [...DESPIA_OAUTH_URL_KEYS], 45_000).then((payload) => {
-      if (!payload) return;
+    void despiaCall(oauthBridge, [...DESPIA_OAUTH_URL_KEYS], 90_000).then((payload) => {
+      if (!payload) {
+        // Sheet may still be open — Landing chip timeout handles abandon.
+        // If we're already back in the app with no tokens, surface a clear error.
+        if (typeof document !== 'undefined' && document.visibilityState === 'visible' && isDespiaOAuthInFlight()) {
+          window.setTimeout(() => {
+            if (!isDespiaOAuthInFlight()) return;
+            if (isDespiaOAuthReturnUrl(window.location.href)) {
+              void tryCompleteDespiaOAuthFromCurrentUrl().then((result) => {
+                if (result && (result.data.session?.user || result.error)) {
+                  window.dispatchEvent(new CustomEvent('despia-oauth-complete', { detail: result }));
+                }
+              });
+              return;
+            }
+            clearDespiaOAuthPending();
+            window.dispatchEvent(
+              new CustomEvent('despia-oauth-complete', {
+                detail: {
+                  data: { session: null },
+                  error: {
+                    message:
+                      'Sign-in did not return to the app. Close any leftover browser sheet and try again.',
+                    name: 'despia/oauth-timeout',
+                  },
+                },
+              }),
+            );
+          }, 1500);
+        }
+        return;
+      }
+
       for (const key of DESPIA_OAUTH_URL_KEYS) {
         const value = payload[key];
         const asUrl =
@@ -256,9 +287,7 @@ async function launchDespiaOAuthUrl(
               : '';
         if (asUrl && isDespiaOAuthReturnUrl(asUrl)) {
           void completeDespiaOAuthFromUrl(asUrl).then((result) => {
-            if (result.data.session?.user || result.error) {
-              window.dispatchEvent(new CustomEvent('despia-oauth-complete', { detail: result }));
-            }
+            window.dispatchEvent(new CustomEvent('despia-oauth-complete', { detail: result }));
           });
           return;
         }
@@ -318,17 +347,20 @@ function parseOAuthParamsFromUrl(url: string): URLSearchParams {
 }
 
 export function isDespiaOAuthReturnUrl(url: string): boolean {
-  const lower = url.toLowerCase();
-  if (lower.includes('oauth/auth') || lower.includes('oauth%2fauth')) return true;
   const params = parseOAuthParamsFromUrl(url);
-  return (
+  if (
     params.has('hc') ||
     params.has('handoff_code') ||
     params.has('custom_token') ||
     params.has('customToken') ||
     params.has('id_token') ||
-    (params.has('error') && params.has('state'))
-  );
+    params.has('error')
+  ) {
+    return true;
+  }
+  // Bare oauth/auth without tokens is not enough — treat as incomplete elsewhere.
+  const lower = url.toLowerCase();
+  return (lower.includes('oauth/auth') || lower.includes('oauth%2fauth')) && params.toString().length > 0;
 }
 
 async function redeemOAuthHandoffCode(code: string): Promise<{
@@ -401,7 +433,14 @@ export async function completeDespiaOAuthFromUrl(url: string): Promise<DespiaOAu
   }
 
   if (!customToken && !idToken) {
-    return { data: { session: null }, error: null };
+    clearDespiaOAuthPending();
+    return {
+      data: { session: null },
+      error: {
+        message: 'Sign-in was cancelled or incomplete.',
+        name: 'auth/popup-closed-by-user',
+      },
+    };
   }
 
   const state = decodeOAuthState(params.get('state'));

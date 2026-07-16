@@ -259,6 +259,7 @@
           })
           .catch(function () {
             setStatus('Could not finish Apple sign-in automatically.', true);
+            redirectToApp(scheme, 'error=stash_failed&state=' + encodeURIComponent(state));
             if (document.getElementById('webFallback')) {
               document.getElementById('webFallback').style.display = 'inline-block';
             }
@@ -303,6 +304,7 @@
         })
         .catch(function () {
           setStatus('Could not finish automatically. Try Continue on web.', true);
+          redirectToApp(scheme, 'error=exchange_failed&state=' + encodeURIComponent(state));
           var webBtn = document.getElementById('webFallback');
           if (webBtn) webBtn.style.display = 'inline-block';
         });

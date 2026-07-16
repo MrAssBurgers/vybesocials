@@ -214,18 +214,17 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
     clearStaleOAuthRedirectPending();
     clearStaleDespiaOAuthPending();
     preloadAppleSignIn();
-    // Resume signing overlay if ASWeb is still open / reclaiming after a remount.
+    // Resume chip only — do NOT set isOAuthReturn (that full-screens "Completing…" forever).
     if (isDespiaOAuthInFlight()) {
       const provider = getDespiaOAuthPendingProvider();
       if (provider) {
         setOauthOverlay(provider);
         setLoading(true);
-        setIsOAuthReturn(true);
       }
     }
   }, []);
 
-  // Complete Despia oauth:// return (deeplink lands on /auth?hc=... or id_token).
+  // Complete Despia oauth:// return (deeplink / window.url with hc=).
   useEffect(() => {
     const finishDespiaOAuth = (detail?: {
       error?: { message?: string; name?: string } | null;
@@ -237,6 +236,7 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
         applyOAuthSession(detail.data.session);
         setOauthOverlay(null);
         setLoading(false);
+        setIsOAuthReturn(false);
         void claimProfileAfterOAuth().then(() => {
           const cached = getCachedCurrentProfile();
           toast.success('Welcome back! ✨');
@@ -252,16 +252,21 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
         });
         return;
       }
+
+      // Always clear the chip — empty complete / cancel must not leave endless loading.
+      clearDespiaOAuthPending();
+      clearOAuthRedirectPending();
+      setOauthOverlay(null);
+      setLoading(false);
+      setIsOAuthReturn(false);
+
       if (detail?.error?.message) {
         const msg = getFriendlyAuthError(detail.error);
         if (msg !== '__SUPPRESS__') {
           sessionStorage.setItem('vybe-oauth-error', msg);
           toast.error(msg);
         }
-        setOauthOverlay(null);
-        setLoading(false);
       }
-      setIsOAuthReturn(true);
     };
 
     void tryCompleteDespiaOAuthFromCurrentUrl().then((result) => {
@@ -304,9 +309,10 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
 
   // Never leave the login chip spinning forever if the system sheet dies.
   useEffect(() => {
-    if (!oauthOverlay && !isDespiaOAuthInFlight()) return;
+    if (!oauthOverlay) return;
+    const started = Date.now();
     const timer = window.setTimeout(() => {
-      if (!isDespiaOAuthInFlight() && !oauthOverlay) return;
+      if (Date.now() - started < 40_000) return;
       clearDespiaOAuthPending();
       clearOAuthRedirectPending();
       setOauthOverlay(null);
@@ -317,6 +323,8 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
     return () => window.clearTimeout(timer);
   }, [oauthOverlay]);
 
+  // Full-screen "Completing…" is Firebase redirect only — cancel must clear Despia too.
+  // (Despia pending uses the light chip, not this screen.)
   const { contentRef, scale } = useAuthScreenFit(
     showAuthForm && !isOAuthReturn,
     isLogin,
@@ -337,8 +345,8 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
         return;
       }
       if (oauthResult.pending) {
-        setIsOAuthReturn(true);
-        // Keep overlay — system sheet is open; session arrives via deeplink.
+        // Despia system sheet — stay on login with chip. Never flip isOAuthReturn
+        // (that replaces the whole page with "Completing sign-in…" forever).
         return;
       }
       if (oauthResult.error) throw oauthResult.error;
@@ -435,7 +443,7 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
     }, 18000);
 
     return () => clearTimeout(failTimer);
-  }, [isOAuthReturn, user, authReady, profile, navigate, applyOAuthSession]);
+  }, [isOAuthReturn, user, authReady, navigate, applyOAuthSession]);
 
   // Redirect if already logged in AND has completed onboarding
   // First-time users (even if authenticated) should see intro if not completed
@@ -465,8 +473,10 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
           className="rounded-full"
           onClick={() => {
             clearOAuthRedirectPending();
+            clearDespiaOAuthPending();
             setIsOAuthReturn(false);
             setLoading(false);
+            setOauthOverlay(null);
           }}
         >
           Cancel
