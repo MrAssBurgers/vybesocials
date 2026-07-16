@@ -4,7 +4,7 @@ import { useAuth } from '@/lib/auth';
 import { db } from '@/lib/firebase';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
-import { Shield, Mail, Trash2, LogOut, Loader2 } from 'lucide-react';
+import { Shield, Mail, Trash2, LogOut, Loader2, MapPin, MonitorSmartphone } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { PasskeysCard } from './PasskeysCard';
 import { QrSignInScannerCard } from './QrSignInScannerCard';
@@ -23,8 +23,10 @@ interface Session {
   id: string;
   device_label: string | null;
   city: string | null;
+  region?: string | null;
   country: string | null;
   ip: string | null;
+  trusted?: boolean | null;
   last_seen_at: string;
   created_at: string;
 }
@@ -163,18 +165,9 @@ export function SecuritySection() {
         {sessions.length === 0 ? (
           <p className="text-sm text-muted-foreground text-center py-4">No active sessions tracked yet.</p>
         ) : (
-          <div className="space-y-2">
+          <div className="space-y-3">
             {sessions.map((s) => (
-              <SettingsListRow
-                key={s.id}
-                title={s.device_label || 'Unknown device'}
-                subtitle={`${[s.city, s.country].filter(Boolean).join(', ') || s.ip || 'Unknown'} · ${formatDistanceToNow(new Date(s.last_seen_at), { addSuffix: true })}`}
-                action={
-                  <Button size="sm" variant="ghost" disabled={busy} onClick={() => revoke(s.id)} className="h-8 w-8 p-0 rounded-full">
-                    <Trash2 className="w-3.5 h-3.5 text-muted-foreground" />
-                  </Button>
-                }
-              />
+              <ActiveDeviceRow key={s.id} session={s} busy={busy} onRevoke={() => revoke(s.id)} />
             ))}
           </div>
         )}
@@ -202,6 +195,60 @@ export function SecuritySection() {
           </div>
         </SettingsSectionCard>
       )}
+    </div>
+  );
+}
+
+function ActiveDeviceRow({
+  session,
+  busy,
+  onRevoke,
+}: {
+  session: Session;
+  busy: boolean;
+  onRevoke: () => void;
+}) {
+  const place = [session.city, session.region, session.country].filter(Boolean).join(', ');
+  const location = place || session.ip || 'Approximate location unavailable';
+  return (
+    <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-3">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2">
+            <MonitorSmartphone className="h-4 w-4 text-primary shrink-0" />
+            <p className="truncate text-sm font-semibold">{session.device_label || 'Unknown device'}</p>
+            {session.trusted && (
+              <span className="rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold text-emerald-400">
+                Trusted
+              </span>
+            )}
+          </div>
+          <div className="mt-2 rounded-xl border border-primary/15 bg-primary/5 px-3 py-2">
+            <div className="flex items-start gap-2 text-xs">
+              <MapPin className="mt-0.5 h-3.5 w-3.5 text-primary shrink-0" />
+              <div className="min-w-0">
+                <p className="font-medium text-foreground/90">{location}</p>
+                {session.ip && (
+                  <p className="mt-0.5 font-mono text-[11px] text-muted-foreground">IP {session.ip}</p>
+                )}
+              </div>
+            </div>
+          </div>
+          <p className="mt-2 text-xs text-muted-foreground">
+            Last active {formatDistanceToNow(new Date(session.last_seen_at), { addSuffix: true })}
+          </p>
+        </div>
+        <Button
+          size="sm"
+          variant="outline"
+          disabled={busy}
+          onClick={onRevoke}
+          className="h-9 shrink-0 rounded-full px-3 text-xs"
+        >
+          <Trash2 className="mr-1.5 h-3.5 w-3.5" />
+          Revoke
+        </Button>
+      </div>
     </div>
   );
 }

@@ -344,6 +344,8 @@ export const authLoginNotify = onCall(
     const settingsSnap = await db.collection('user_2fa_settings').doc(uid).get();
     const loginApprovalsEnabled = !!settingsSnap.data()?.login_approvals_enabled;
 
+    const geo = await resolveLoginGeo(request);
+
     // Known session on this device — refresh heartbeat only, no alerts.
     if (sessionHash) {
       const known = await db.collection('user_sessions')
@@ -353,7 +355,16 @@ export const authLoginNotify = onCall(
         .get();
       if (!known.empty) {
         const doc = known.docs[0];
-        await doc.ref.set({ last_seen_at: now }, { merge: true });
+        await doc.ref.set({
+          last_seen_at: now,
+          ip: geo.ip,
+          city: geo.city || null,
+          region: geo.region || null,
+          country: geo.country || null,
+          latitude: geo.latitude || null,
+          longitude: geo.longitude || null,
+          geo,
+        }, { merge: true });
         // Clear stale "Was this you?" prompts that were incorrectly created for this install.
         const stale = await db.collection('auth_challenges')
           .where('user_id', '==', uid)
@@ -383,6 +394,13 @@ export const authLoginNotify = onCall(
       session_token_hash: sessionHash || null,
       device_label: parseDeviceLabel(userAgent),
       user_agent: userAgent || null,
+      ip: geo.ip,
+      city: geo.city || null,
+      region: geo.region || null,
+      country: geo.country || null,
+      latitude: geo.latitude || null,
+      longitude: geo.longitude || null,
+      geo,
       trusted: isResume,
       created_at: now,
       last_seen_at: now,
@@ -393,8 +411,6 @@ export const authLoginNotify = onCall(
     if (isResume) {
       return { ok: true, sessionId: sessionRef.id, notified: false, reason: 'session_resume' };
     }
-
-    const geo = await resolveLoginGeo(request);
 
     await db.collection('login_history').add({
       user_id: uid,
