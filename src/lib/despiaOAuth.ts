@@ -244,14 +244,14 @@ export function buildGoogleOAuthUrl(intent: 'signin' | 'link' = 'signin'): strin
   const redirectUri = getGoogleOAuthCallbackUrl();
   const clientId = getGoogleWebClientId();
 
-  // Do NOT pass `nonce` to Google — it echoes the value in id_token, but Firebase
-  // signInWithIdp expects id_token.nonce === SHA256(rawNonce). Our handoff uses
-  // server-minted custom tokens; nonce for polling lives only in OAuth state.
+  // Google requires nonce for response_type=id_token (or returns invalid_request).
+  // Keep nonce in both URL + state; completion prefers server-minted custom tokens.
   const params = new URLSearchParams({
     client_id: clientId,
     redirect_uri: redirectUri,
     response_type: 'id_token',
     scope: 'openid email profile',
+    nonce,
     state,
     prompt: 'select_account',
   });
@@ -849,8 +849,23 @@ async function completeDespiaOAuthFromUrlInner(url: string): Promise<DespiaOAuth
       });
       await signInWithCredential(auth, credential);
     } else {
-      const credential = GoogleAuthProvider.credential(idToken!);
-      await signInWithCredential(auth, credential);
+      // Google fallback: avoid direct signInWithCredential nonce-mismatch path.
+      // Re-exchange id_token server-side and sign in with Firebase custom token.
+      const nonceForExchange = redeemedNonce || storedNonce || state?.nonce || undefined;
+      const { invokeFunction } = await import('@/lib/firebase/functionsService');
+      const { data: exchanged, error: exErr } = await invokeFunction<{
+        customToken?: string;
+        custom_token?: string;
+      }>('authQr', {
+        action: 'exchange_google',
+        idToken: idToken!,
+        nonce: nonceForExchange,
+      });
+      const fallbackCustomToken = exchanged?.customToken || exchanged?.custom_token || null;
+      if (exErr || !fallbackCustomToken) {
+        throw new Error(exErr?.message || 'google_exchange_failed');
+      }
+      await signInWithCustomToken(auth, fallbackCustomToken);
     }
     clearDespiaOAuthPending();
 
