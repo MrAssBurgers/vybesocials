@@ -2,6 +2,19 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## PUBLISH NOW (2026-07-15) — Google OAuth on vybehub.app + real login
+
+- **On `origin/main`:** (pushing) callback = `https://vybehub.app/google-callback.html`
+- **You asked:** show Google OAuth with **vybehub.app** (not firebase) + actually log in
+- **Fix:** static `public/google-callback.html` on prod domain; `authQr` `exchange_google_code`; short `hc=` close; app nonce poll still signs in
+- **Google Cloud Console (required):** Web client → Authorized redirect URIs → **add**  
+  `https://vybehub.app/google-callback.html`  
+  (you can remove the old firebaseapp.com/google-callback if you added it)
+- **Lovable → Share → Publish:** https://lovable.dev/projects/416714c8-d013-4aff-984d-522418a9bbc7
+- **After Publish:** hard-kill app → Google → account pick → URL bar shows vybehub.app → sheet closes → signed in
+
+---
+
 ## PUBLISH NOW (2026-07-15) — Fix iOS invalid address + Android endless load
 
 - **On `origin/main`:** (pushing) short `hc=` deeplinks only

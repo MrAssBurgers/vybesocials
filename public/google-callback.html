@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>VYBE · Google sign-in</title>
+  <style>
+    html, body {
+      margin: 0;
+      min-height: 100%;
+      background: #0B0B10;
+      color: #a1a1aa;
+      font-family: system-ui, -apple-system, sans-serif;
+    }
+    body {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 24px;
+      text-align: center;
+    }
+    .brand {
+      font-size: 22px;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      color: #fafafa;
+    }
+    .sub { font-size: 13px; opacity: 0.7; }
+  </style>
+</head>
+<body>
+  <div class="brand">VYBE</div>
+  <div class="sub">Signing in with Google · vybehub.app</div>
+  <script>
+    /**
+     * Lives on https://vybehub.app/google-callback.html (Google redirect URI).
+     * Exchanges auth code via authQr, stashes hc= for nonce poll, fires short
+     * com.despia.vybe://oauth/auth?hc=… so Despia closes the sheet.
+     */
+    (function () {
+      var DEFAULT_SCHEME = 'com.despia.vybe';
+      var EXCHANGE_URL = 'https://us-central1-vybe-daaab.cloudfunctions.net/authQr';
+      var REDIRECT_URI = 'https://vybehub.app/google-callback.html';
+
+      function decodeState(state) {
+        if (!state) return null;
+        try {
+          var padded = state.replace(/-/g, '+').replace(/_/g, '/');
+          while (padded.length % 4) padded += '=';
+          return JSON.parse(atob(padded));
+        } catch (e) {
+          return null;
+        }
+      }
+
+      function buildDeeplink(scheme, query) {
+        var clean = String(scheme || DEFAULT_SCHEME).trim();
+        if (!clean || clean.indexOf('://') !== -1) clean = DEFAULT_SCHEME;
+        return clean + '://oauth/auth?' + query;
+      }
+
+      function fireClose(deeplink) {
+        if (!deeplink || deeplink.indexOf('oauth') === -1) return;
+        try { window.location.replace(deeplink); } catch (e1) {}
+        try { window.location.href = deeplink; } catch (e2) {}
+      }
+
+      function callAuthQr(payload) {
+        return fetch(EXCHANGE_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ data: payload }),
+          keepalive: true,
+        }).then(function (res) {
+          return res.json().then(function (data) {
+            return { ok: res.ok, data: data };
+          });
+        });
+      }
+
+      function payloadOf(result) {
+        return (result.data && result.data.result) || result.data || {};
+      }
+
+      var params = new URLSearchParams(window.location.search);
+      var state = params.get('state') || '';
+      var stateObj = decodeState(state);
+      var scheme = (stateObj && stateObj.scheme) || DEFAULT_SCHEME;
+      var nonce = (stateObj && stateObj.nonce) || '';
+      var cv = (stateObj && stateObj.cv) || '';
+      var authCode = params.get('code') || '';
+      var error = params.get('error');
+
+      if (error) {
+        fireClose(buildDeeplink(scheme, 'error=' + encodeURIComponent(String(error).slice(0, 64))));
+        return;
+      }
+
+      if (!authCode || !cv) {
+        fireClose(buildDeeplink(scheme, 'error=missing_code'));
+        return;
+      }
+
+      // Exchange first (app already polling by nonce from launch). Do not
+      // top-level-navigate before fetch starts — that cancels the exchange.
+      callAuthQr({
+        action: 'exchange_google_code',
+        code: authCode,
+        codeVerifier: cv,
+        redirectUri: REDIRECT_URI,
+        nonce: nonce,
+      })
+        .then(function (result) {
+          var payload = payloadOf(result);
+          var handoff = payload.code;
+          if (!result.ok || !handoff) {
+            var errMsg =
+              (result.data && result.data.error && result.data.error.message) ||
+              payload.message ||
+              'exchange_failed';
+            throw new Error(errMsg);
+          }
+          var link = buildDeeplink(scheme, 'hc=' + encodeURIComponent(handoff));
+          fireClose(link);
+          setTimeout(function () { fireClose(link); }, 60);
+        })
+        .catch(function () {
+          fireClose(buildDeeplink(scheme, 'error=exchange_failed'));
+        });
+    })();
+  </script>
+</body>
+</html>

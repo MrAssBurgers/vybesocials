@@ -638,16 +638,20 @@ function despiaCloseDeeplink(scheme: string, query: string): string {
   return `${clean}://oauth/auth?${query}`;
 }
 
-/** Google OAuth redirect for Despia (authorization code + PKCE). */
-const GOOGLE_OAUTH_REDIRECT_URI = 'https://vybe-daaab.firebaseapp.com/google-callback';
+/** Google OAuth redirect for Despia — must match Google Cloud Console + client. */
+const GOOGLE_OAUTH_REDIRECT_URI = 'https://vybehub.app/google-callback.html';
 
-async function exchangeGoogleAuthCode(code: string, codeVerifier: string): Promise<string> {
+async function exchangeGoogleAuthCode(
+  code: string,
+  codeVerifier: string,
+  redirectUri: string = GOOGLE_OAUTH_REDIRECT_URI,
+): Promise<string> {
   const body = new URLSearchParams({
     client_id: GOOGLE_WEB_CLIENT_ID,
     code,
     code_verifier: codeVerifier,
     grant_type: 'authorization_code',
-    redirect_uri: GOOGLE_OAUTH_REDIRECT_URI,
+    redirect_uri: redirectUri,
   });
   const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
     method: 'POST',
@@ -663,13 +667,9 @@ async function exchangeGoogleAuthCode(code: string, codeVerifier: string): Promi
 }
 
 /**
- * Google Sign-In — Despia oauth:// return (Android / iOS Custom Tabs).
- * Uses authorization code + PKCE so tokens arrive as query params (not #fragment).
- * Server exchanges, stashes hc=, returns silent HTML that fires scheme://oauth/auth?hc=…
- * → Despia closes the sheet with no Open VYBE UI.
- *
- * Google Cloud Console → Web client → Authorized redirect URIs must include:
- *   https://vybe-daaab.firebaseapp.com/google-callback
+ * Google Sign-In — legacy Firebase Hosting path.
+ * Prefer https://vybehub.app/google-callback.html (static) so users see vybehub.app.
+ * Google Cloud Console redirect URI must include that vybehub.app URL.
  */
 export const googleOAuthCallback = onRequest({ cors: true, invoker: 'public' }, async (req, res) => {
   const q = req.query || {};
@@ -703,15 +703,18 @@ export const googleOAuthCallback = onRequest({ cors: true, invoker: 'public' }, 
   try {
     const ip = req.ip || 'anon';
     enforceRateLimit(await rateLimit(`google-oauth-cb:${ip}`, 30, 600));
-    const idToken = await exchangeGoogleAuthCode(authCode, stateObj.cv);
+    // Legacy firebaseapp.com redirect — only if still registered in Google Console.
+    const idToken = await exchangeGoogleAuthCode(
+      authCode,
+      stateObj.cv,
+      'https://vybe-daaab.firebaseapp.com/google-callback',
+    );
     const customToken = await mintCustomTokenFromGoogleIdToken(idToken);
     const handoff = await stashOAuthHandoff({
       provider: 'google',
       customToken,
       nonce: stateObj.nonce || undefined,
     });
-    // Short hc= only — long state+PKCE in the deeplink → iOS "address is invalid"
-    // and Android Custom Tabs endless loading.
     res
       .status(200)
       .type('html')
@@ -842,6 +845,40 @@ export const authQr = onCall({ cors: true }, async (request) => {
       const message = err instanceof Error ? err.message : String(err);
       console.error('[authQr] exchange_google failed', message);
       throw new HttpsError('unauthenticated', 'Google token verification failed');
+    }
+  }
+
+  /**
+   * exchange_google_code — PKCE authorization-code exchange for
+   * https://vybehub.app/google-callback.html (Despia Custom Tabs).
+   */
+  if (action === 'exchange_google_code') {
+    const ip = request.rawRequest?.ip || 'anon';
+    enforceRateLimit(await rateLimit(`oauth-exchange-code:${ip}`, 20, 600));
+    const authCode = String((data as { code?: string }).code || '').trim();
+    const codeVerifier = String((data as { codeVerifier?: string }).codeVerifier || '').trim();
+    const redirectUri = String((data as { redirectUri?: string }).redirectUri || '').trim() || GOOGLE_OAUTH_REDIRECT_URI;
+    const oauthNonce = String((data as { nonce?: string }).nonce || '').trim();
+    if (!authCode || !codeVerifier) {
+      throw new HttpsError('invalid-argument', 'code and codeVerifier required');
+    }
+    if (redirectUri !== GOOGLE_OAUTH_REDIRECT_URI) {
+      throw new HttpsError('invalid-argument', 'redirectUri not allowed');
+    }
+    try {
+      const idToken = await exchangeGoogleAuthCode(authCode, codeVerifier, redirectUri);
+      const customToken = await mintCustomTokenFromGoogleIdToken(idToken);
+      const handoff = await stashOAuthHandoff({
+        provider: 'google',
+        customToken,
+        nonce: oauthNonce || undefined,
+      });
+      return { code: handoff };
+    } catch (err: unknown) {
+      if (err instanceof HttpsError) throw err;
+      const message = err instanceof Error ? err.message : String(err);
+      console.error('[authQr] exchange_google_code failed', message);
+      throw new HttpsError('unauthenticated', message || 'Google code exchange failed');
     }
   }
 

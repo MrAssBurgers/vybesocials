@@ -221,9 +221,9 @@ async function pkceChallengeS256(verifier: string): Promise<string> {
   return base64UrlFromBuffer(digest);
 }
 
-/** Google code+PKCE callback (Firebase Hosting → googleOAuthCallback). */
+/** Google code+PKCE callback on production domain (shows vybehub.app in the sheet). */
 export function getGoogleOAuthCallbackUrl(): string {
-  return 'https://vybe-daaab.firebaseapp.com/google-callback';
+  return 'https://vybehub.app/google-callback.html';
 }
 
 export async function buildGoogleOAuthUrl(): Promise<string> {
