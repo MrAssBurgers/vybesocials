@@ -717,24 +717,95 @@
     <div id="root"></div>
     <script>
       (function () {
+        // Fake warm-up only until React's publishSplashProgress takes over.
+        // Previously hard-capped at 42% forever if the bundle stalled — that
+        // left Despia on a black VYBE screen stuck at "42%".
         var p = 0;
         var status = 'Waking up...';
+        var startedAt = Date.now();
+        var takenOver = false;
+        function applyDom(value, label) {
+          var boot = document.getElementById('vybe-static-boot');
+          if (!boot) return;
+          var fill = boot.querySelector('.vybe-splash-bar-fill');
+          var statusEl = boot.querySelector('.vybe-splash-status');
+          var pctEl = boot.querySelector('.vybe-splash-percent');
+          var clamped = Math.max(0, Math.min(value, 100));
+          if (fill) {
+            fill.style.animation = 'none';
+            fill.style.transition = 'none';
+            fill.style.transform = 'scaleX(' + (clamped / 100) + ')';
+          }
+          if (statusEl && label) statusEl.textContent = label;
+          if (pctEl) pctEl.textContent = Math.round(clamped) + '%';
+        }
         function publishProgress(value, label) {
           p = value;
           if (label) status = label;
+          window.__vybeSplashProgress = p;
+          window.__vybeSplashStatus = status;
           if (typeof window.__vybePublishSplashProgress === 'function') {
             window.__vybePublishSplashProgress(p, status);
           } else {
-            window.__vybeSplashProgress = p;
-            window.__vybeSplashStatus = status;
+            applyDom(p, status);
           }
         }
+        window.__vybeStopFakeSplash = function () {
+          takenOver = true;
+          try { clearInterval(timer); } catch (e) { /* ignore */ }
+        };
         var timer = setInterval(function () {
           var boot = document.getElementById('vybe-static-boot');
-          if (!boot) { clearInterval(timer); return; }
-          if (p >= 42) return;
-          var next = Math.min(42, p + 2.2);
-          publishProgress(next, status);
+          if (!boot || takenOver) { clearInterval(timer); return; }
+          // React already driving progress — stop fake ticker.
+          if (typeof window.__vybePublishSplashProgress === 'function' && (window.__vybeSplashProgress || 0) > 42) {
+            takenOver = true;
+            clearInterval(timer);
+            return;
+          }
+          var elapsed = Date.now() - startedAt;
+          // Soft crawl past 42% so a hung bundle never looks frozen.
+          if (p < 42) {
+            publishProgress(Math.min(42, p + 2.2), status);
+            return;
+          }
+          if (elapsed > 6000 && p < 70) {
+            publishProgress(Math.min(70, p + 0.35), 'Still loading...');
+            return;
+          }
+          if (elapsed > 14000 && p < 88) {
+            publishProgress(Math.min(88, p + 0.2), 'Almost there...');
+            return;
+          }
+          if (elapsed > 22000) {
+            takenOver = true;
+            clearInterval(timer);
+            publishProgress(100, "Let's go! ✨");
+            try {
+              boot.classList.add('vybe-static-boot-fade');
+              boot.style.opacity = '0';
+              boot.style.pointerEvents = 'none';
+              document.body.classList.remove('splash-visible');
+            } catch (e2) { /* ignore */ }
+            // #region agent log
+            try {
+              fetch('https://us-central1-vybe-daaab.cloudfunctions.net/authQr', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  data: {
+                    action: 'debug_oauth',
+                    event: 'splash_fake_failopen',
+                    hypothesisId: 'H-splash',
+                    location: 'index.html:fake-splash',
+                    payload: { elapsed: elapsed, p: p, host: location.hostname },
+                  },
+                }),
+                keepalive: true,
+              }).catch(function () {});
+            } catch (e3) { /* ignore */ }
+            // #endregion
+          }
         }, 40);
       })();
     </script>

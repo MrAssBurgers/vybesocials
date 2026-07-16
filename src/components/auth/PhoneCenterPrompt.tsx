@@ -1,7 +1,7 @@
 /**
- * Centered "Verify your phone" prompt.
- * Built from scratch with absolute viewport centering — no Dialog, no role=dialog
- * CSS, no shared modal animations that pin sheets to the top on iOS.
+ * Mid-screen "Verify your phone" prompt.
+ * Full-viewport flex center — no Dialog, no role=dialog, no transform math
+ * (iOS WebView routinely strips/overrides transform on fixed sheets).
  */
 import { useEffect, useId, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
@@ -14,6 +14,8 @@ import {
   isPhoneVerifyDismissed,
 } from '@/lib/phoneVerifyDismiss';
 import { debugSessionLog } from '@/lib/debugSessionLog';
+
+const BUILD_TAG = 'mid-v3';
 
 export function PhoneCenterPrompt() {
   const { user, loading } = useAuth();
@@ -49,7 +51,7 @@ export function PhoneCenterPrompt() {
 
   useEffect(() => {
     if (!show) return;
-    const t = window.setTimeout(() => {
+    const measure = () => {
       const el = cardRef.current;
       if (!el) return;
       const r = el.getBoundingClientRect();
@@ -65,14 +67,20 @@ export function PhoneCenterPrompt() {
           centerDelta,
           closeNearSafeArea: r.top < 48,
           centered: Math.abs(centerDelta) < 48,
-          mode: 'absolute-center',
+          mode: 'flex-center',
+          build: BUILD_TAG,
         },
         'H-dialog',
         'post-fix',
       );
       // #endregion
-    }, 100);
-    return () => window.clearTimeout(t);
+    };
+    const t = window.setTimeout(measure, 80);
+    const t2 = window.setTimeout(measure, 400);
+    return () => {
+      window.clearTimeout(t);
+      window.clearTimeout(t2);
+    };
   }, [show]);
 
   if (!show || !user || typeof document === 'undefined') return null;
@@ -83,39 +91,47 @@ export function PhoneCenterPrompt() {
   };
 
   return createPortal(
-    <>
-      <div
-        onClick={dismiss}
-        style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          zIndex: 2147483000,
-          background: 'rgba(0,0,0,0.55)',
-        }}
-      />
+    <div
+      data-vybe-phone-center={BUILD_TAG}
+      style={{
+        position: 'fixed',
+        inset: 0,
+        zIndex: 2147483000,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingTop: 'max(1rem, env(safe-area-inset-top, 0px))',
+        paddingBottom: 'max(1rem, env(safe-area-inset-bottom, 0px))',
+        paddingLeft: 'max(1rem, env(safe-area-inset-left, 0px))',
+        paddingRight: 'max(1rem, env(safe-area-inset-right, 0px))',
+        boxSizing: 'border-box',
+        background: 'rgba(0,0,0,0.55)',
+      }}
+      onClick={(e) => {
+        if (e.target === e.currentTarget) dismiss();
+      }}
+    >
       <div
         ref={cardRef}
         aria-labelledby={titleId}
+        onClick={(e) => e.stopPropagation()}
         style={{
-          position: 'fixed',
-          top: '50%',
-          left: '50%',
-          transform: 'translate(-50%, -50%)',
-          zIndex: 2147483001,
+          position: 'relative',
           width: 'min(92vw, 28rem)',
           maxHeight: 'min(80vh, 36rem)',
           overflow: 'auto',
           margin: 0,
           padding: '1.5rem',
           borderRadius: '1.25rem',
-          border: '1px solid rgba(255,255,255,0.12)',
-          background: 'rgba(15,16,23,0.97)',
+          border: '1px solid rgba(255,255,255,0.14)',
+          background: 'rgba(15,16,23,0.98)',
           boxShadow: '0 24px 64px rgba(0,0,0,0.55)',
           boxSizing: 'border-box',
-          WebkitTransform: 'translate(-50%, -50%)',
+          transform: 'none',
+          top: 'auto',
+          left: 'auto',
+          right: 'auto',
+          bottom: 'auto',
         }}
       >
         <button
@@ -126,36 +142,37 @@ export function PhoneCenterPrompt() {
             position: 'absolute',
             top: 12,
             right: 12,
-            width: 28,
-            height: 28,
+            width: 32,
+            height: 32,
             borderRadius: 999,
             border: 'none',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            background: 'rgba(255,255,255,0.1)',
+            background: 'rgba(255,255,255,0.12)',
             color: '#fff',
-            opacity: 0.85,
+            opacity: 0.9,
             cursor: 'pointer',
+            zIndex: 2,
           }}
         >
-          <X style={{ width: 14, height: 14 }} />
+          <X style={{ width: 16, height: 16 }} />
         </button>
 
         <div style={{ textAlign: 'center', marginBottom: 16, paddingTop: 4 }}>
           <div
             style={{
               margin: '0 auto 12px',
-              width: 48,
-              height: 48,
+              width: 52,
+              height: 52,
               borderRadius: 999,
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              background: 'rgba(99,102,241,0.15)',
+              background: 'rgba(99,102,241,0.18)',
             }}
           >
-            <ShieldCheck style={{ width: 24, height: 24, color: '#a5b4fc' }} />
+            <ShieldCheck style={{ width: 26, height: 26, color: '#a5b4fc' }} />
           </div>
           <h2
             id={titleId}
@@ -174,12 +191,9 @@ export function PhoneCenterPrompt() {
           </p>
         </div>
 
-        <PhoneNumberCard
-          embedded
-          onVerified={() => setShow(false)}
-        />
+        <PhoneNumberCard embedded onVerified={() => setShow(false)} />
       </div>
-    </>,
+    </div>,
     document.body,
   );
 }

@@ -275,6 +275,25 @@ try {
   );
   renderVybeApp();
   logStartupPhase("React root rendered");
+  // #region agent log
+  void import("./lib/debugSessionLog")
+    .then(({ debugSessionLog }) => {
+      debugSessionLog(
+        "main.tsx:render",
+        "react_root_rendered",
+        {
+          host: typeof location !== "undefined" ? location.hostname : "",
+          path: typeof location !== "undefined" ? location.pathname : "",
+          splashPct:
+            typeof window !== "undefined" ? (window.__vybeSplashProgress ?? null) : null,
+          firebaseConfigured: isFirebaseConfigured(),
+        },
+        "H-splash",
+        "post-fix",
+      );
+    })
+    .catch(() => {});
+  // #endregion
 
   // Heavy native bridges / SW / Sentry after the first frame.
   queueMicrotask(() => {

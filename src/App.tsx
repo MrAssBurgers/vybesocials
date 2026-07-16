@@ -353,6 +353,21 @@ function completeInitialSplash(setShowSplash: (v: boolean) => void) {
 
   publishSplashProgress(100, "Let's go! ✨");
   const elapsed = (typeof performance !== 'undefined' ? performance.now() : Date.now()) - splashShownAt;
+  // #region agent log
+  void import('@/lib/debugSessionLog').then(({ debugSessionLog }) => {
+    debugSessionLog(
+      'App.tsx:completeInitialSplash',
+      'splash_dismiss_start',
+      {
+        elapsedMs: Math.round(elapsed),
+        splashPct: typeof window !== 'undefined' ? window.__vybeSplashProgress ?? null : null,
+        os: getRuntimeOs(),
+      },
+      'H-splash',
+      'post-fix',
+    );
+  }).catch(() => {});
+  // #endregion
   const holdMs = Math.max(0, MIN_SPLASH_MS - elapsed);
   window.setTimeout(() => {
     window.setTimeout(finish, isIOSNativeStartup() ? 40 : isAndroidNativeStartup() ? 60 : 80);

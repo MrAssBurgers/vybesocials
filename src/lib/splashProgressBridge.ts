@@ -12,6 +12,7 @@ declare global {
     __vybeSplashProgress?: number;
     __vybeSplashStatus?: string;
     __vybePublishSplashProgress?: (progress: number, status: string) => void;
+    __vybeStopFakeSplash?: () => void;
   }
 }
 
@@ -56,6 +57,21 @@ export function publishSplashProgress(progress: number, status: string): void {
   lastStatus = status;
 
   applyToStaticBoot(lastProgress, lastStatus);
+
+  // Stop the index.html fake ticker that used to hard-stall at 42%.
+  try {
+    if (typeof window !== 'undefined' && typeof window.__vybeStopFakeSplash === 'function') {
+      if (lastProgress > 42 || lastProgress >= 100) {
+        window.__vybeStopFakeSplash();
+      }
+    }
+    if (typeof window !== 'undefined') {
+      window.__vybeSplashProgress = lastProgress;
+      window.__vybeSplashStatus = lastStatus;
+    }
+  } catch {
+    /* ignore */
+  }
 
   listeners.forEach((fn) => {
     try {

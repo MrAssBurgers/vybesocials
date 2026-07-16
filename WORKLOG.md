@@ -2,6 +2,13 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## ACTIVE (2026-07-16) — Splash stuck 42% + phone still top
+
+- **42% root cause (code proof):** `index.html` fake ticker hard-capped `if (p >= 42) return` until React took over. If `app.js` stalled, Despia froze on VYBE splash at 42%.
+- **Phone:** screenshot still top sheet; prod already had `PhoneCenterPrompt` but device logs never emitted `phone_center_geometry`. Rebuilt with **flex viewport center** (no transform) + `data-vybe-phone-center=mid-v3`.
+- **Fix:** soft-crawl past 42% + fail-open at 22s; React `publishSplashProgress` stops fake ticker; boot logs `react_root_rendered` / `splash_dismiss_start` / `phone_center_geometry`.
+- **Verify after Publish:** splash leaves 42%; phone card dead-center with shield icon; dump shows `centered:true` + `build:mid-v3`.
+
 ## ACTIVE (2026-07-16) — Stay logged in + recreate phone prompt centered
 
 - **Session drop root cause:** Despia OTA escape redirected `localhost` → `vybehub.app` (different origin) so Firebase storage did not carry across closes; also IndexedDB-first persistence is unreliable in WKWebView.
