@@ -4,7 +4,7 @@ Use this file as the Lovable -> Cursor handoff each session.
 
 ## PUBLISH NOW (2026-07-16) — iOS dismiss via Cloud Function URL (not Lovable /oauth-dismiss)
 
-- **On `origin/main`:** (pushing — see SHA below)
+- **On `origin/main`:** `56470a062`
 - **Root cause:** `vybehub.app/oauth-dismiss` is Lovable/Cloudflare SPA **HTTP 200**, not Firebase Hosting rewrite 302. Only `vybe-daaab.web.app/oauth-dismiss` 302s.
 - **Fix:** `native-callback.html` `DISMISS_URL` = `https://us-central1-vybe-daaab.cloudfunctions.net/oauthDismiss` (live CF, verified 302 → `com.despia.vybe://oauth/auth?…`)
 - **Belt/suspenders:** `public/oauth-dismiss.html` static JS `location.replace` to custom scheme (for any static host path)
