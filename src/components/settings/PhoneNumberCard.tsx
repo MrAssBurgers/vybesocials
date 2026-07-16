@@ -10,6 +10,7 @@ import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth';
 import { normalizeE164, formatDisplayUS, maskPhone } from '@/lib/phone';
 import { parseEdgeInvokeResult, phoneVerifyErrorMessage } from '@/lib/edgeFunctionResponse';
+import { debugSessionLog } from '@/lib/debugSessionLog';
 
 interface Props {
   /** When true, hides the card chrome — for use inside a forced verification modal. */
@@ -28,6 +29,7 @@ export function PhoneNumberCard({ embedded, onVerified }: Props) {
   const [sending, setSending] = useState(false);
   const [verifying, setVerifying] = useState(false);
   const [cooldown, setCooldown] = useState(0);
+  const [inlineError, setInlineError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!user) return;
@@ -49,36 +51,88 @@ export function PhoneNumberCard({ embedded, onVerified }: Props) {
   }, [cooldown]);
 
   const sendCode = async () => {
+    setInlineError(null);
     const e164 = normalizeE164(phone);
-    if (!e164) { toast.error('Enter a valid phone number'); return; }
+    // #region agent log
+    debugSessionLog(
+      'PhoneNumberCard.tsx:sendCode',
+      'phone_send_attempt',
+      {
+        hasUser: Boolean(user?.id),
+        rawLen: phone.trim().length,
+        e164Ok: Boolean(e164),
+        e164Len: e164 ? e164.length : 0,
+      },
+      'H-phone',
+      'post-fix',
+    );
+    // #endregion
+    if (!e164) {
+      const msg = 'Enter a valid phone number';
+      setInlineError(msg);
+      toast.error(msg);
+      return;
+    }
     setSending(true);
     try {
       const { data, error } = await db.functions.invoke('phone-verify-request', {
         body: { phone: e164, purpose: phoneVerified ? 'change' : 'add', userId: user?.id },
       });
+      // #region agent log
+      debugSessionLog(
+        'PhoneNumberCard.tsx:sendResult',
+        'phone_send_result',
+        {
+          hasError: Boolean(error),
+          errName: error?.name || null,
+          errMsg: (error?.message || '').slice(0, 80),
+          ok: (data as { ok?: boolean } | null)?.ok !== false,
+          payloadError: String((data as { error?: string } | null)?.error || '').slice(0, 40),
+        },
+        'H-phone',
+        'post-fix',
+      );
+      // #endregion
       if (error) throw error;
-      const payload = (data as any) || {};
+      const payload = (data as Record<string, unknown>) || {};
       if (payload.ok === false || payload.error) {
-        const code = payload.error || 'sms_send_failed';
-        const detail = payload.detail ? ` (${payload.detail})` : '';
-        if (code === 'rate_limited') toast.error('Too many attempts. Try again later.');
-        else if (code === 'phone_in_use') toast.error('That number is already on another VYBE account.');
-        else if (code === 'twilio_not_configured') toast.error('SMS service is not configured. Contact support.');
-        else if (code === 'twilio_verify_service_sid_invalid') toast.error('SMS misconfigured (invalid Verify SID). Contact support.');
-        else if (code === 'twilio_account_sid_invalid') toast.error('SMS misconfigured (invalid Account SID). Contact support.');
-        else if (code === 'invalid_phone' || code === 'invalid_phone_for_twilio') toast.error('Enter a valid phone number');
-        else if (code === 'phone_blocked') toast.error('This number cannot receive SMS from us.');
-        else toast.error(`Could not send code: ${code}${detail}`);
+        const errCode = String(payload.error || 'sms_send_failed');
+        const detail = payload.detail ? ` (${String(payload.detail).slice(0, 80)})` : '';
+        let msg = `Could not send code: ${errCode}${detail}`;
+        if (errCode === 'rate_limited') msg = 'Too many attempts. Try again later.';
+        else if (errCode === 'phone_in_use') msg = 'That number is already on another VYBE account.';
+        else if (errCode === 'twilio_not_configured') {
+          msg = 'SMS is not configured yet. Ask an admin to set Twilio Verify secrets.';
+        } else if (errCode === 'twilio_verify_service_sid_invalid') {
+          msg = 'SMS misconfigured (invalid Verify SID). Contact support.';
+        } else if (errCode === 'twilio_account_sid_invalid') {
+          msg = 'SMS misconfigured (invalid Account SID). Contact support.';
+        } else if (errCode === 'invalid_phone' || errCode === 'invalid_phone_for_twilio') {
+          msg = 'Enter a valid phone number';
+        } else if (errCode === 'phone_blocked') {
+          msg = 'This number cannot receive SMS from us.';
+        }
+        setInlineError(msg);
+        toast.error(msg);
         return;
       }
-      setChallengeId(payload.challengeId);
+      setChallengeId(String(payload.challengeId || ''));
       setStage('code');
       setCooldown(60);
       toast.success(`Code sent to ${formatDisplayUS(e164)}`);
-    } catch (e: any) {
-      const msg = e?.message || '';
-      toast.error(msg ? `Could not send code: ${msg}` : 'Could not send code');
-
+    } catch (e: unknown) {
+      const msg = e instanceof Error && e.message ? `Could not send code: ${e.message}` : 'Could not send code';
+      // #region agent log
+      debugSessionLog(
+        'PhoneNumberCard.tsx:sendCatch',
+        'phone_send_catch',
+        { msg: msg.slice(0, 100) },
+        'H-phone',
+        'post-fix',
+      );
+      // #endregion
+      setInlineError(msg);
+      toast.error(msg);
     } finally {
       setSending(false);
     }
@@ -86,6 +140,7 @@ export function PhoneNumberCard({ embedded, onVerified }: Props) {
 
   const confirmCode = async () => {
     if (!challengeId || code.length !== 6) return;
+    setInlineError(null);
     setVerifying(true);
     try {
       const result = await db.functions.invoke('phone-verify-confirm', {
@@ -93,7 +148,9 @@ export function PhoneNumberCard({ embedded, onVerified }: Props) {
       });
       const { payload, errorCode } = await parseEdgeInvokeResult(result);
       if (errorCode) {
-        toast.error(phoneVerifyErrorMessage(errorCode));
+        const msg = phoneVerifyErrorMessage(errorCode);
+        setInlineError(msg);
+        toast.error(msg);
         return;
       }
       if (!payload) throw new Error('verify_failed');
@@ -103,8 +160,10 @@ export function PhoneNumberCard({ embedded, onVerified }: Props) {
       setStage('idle');
       setPhone(''); setCode(''); setChallengeId(null);
       onVerified?.((payload as { phone?: string }).phone);
-    } catch (e: any) {
-      toast.error(phoneVerifyErrorMessage(e?.message));
+    } catch (e: unknown) {
+      const msg = phoneVerifyErrorMessage(e instanceof Error ? e.message : undefined);
+      setInlineError(msg);
+      toast.error(msg);
     } finally {
       setVerifying(false);
     }
@@ -126,28 +185,43 @@ export function PhoneNumberCard({ embedded, onVerified }: Props) {
           </div>
         </div>
         {phoneVerified && stage === 'idle' && (
-          <Button size="sm" variant="ghost" onClick={() => setStage('entering')}>Change</Button>
+          <Button size="sm" variant="ghost" onClick={() => { setInlineError(null); setStage('entering'); }}>
+            Change
+          </Button>
         )}
       </div>
 
       {!phoneVerified && stage === 'idle' && (
-        <Button onClick={() => setStage('entering')} className="w-full">Add phone number</Button>
+        <Button onClick={() => { setInlineError(null); setStage('entering'); }} className="w-full">
+          Add phone number
+        </Button>
       )}
 
       {stage === 'entering' && (
-        <div className="flex gap-2">
-          <Input
-            type="tel"
-            inputMode="tel"
-            autoComplete="tel"
-            placeholder="(555) 555-5555"
-            value={phone}
-            onChange={(e) => setPhone(e.target.value)}
-            disabled={sending}
-          />
-          <Button onClick={sendCode} disabled={sending || !phone.trim()}>
-            {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Send code'}
-          </Button>
+        <div className="space-y-2">
+          <div className="flex gap-2">
+            <Input
+              type="tel"
+              inputMode="tel"
+              autoComplete="tel"
+              placeholder="(555) 555-5555"
+              value={phone}
+              onChange={(e) => { setPhone(e.target.value); setInlineError(null); }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  void sendCode();
+                }
+              }}
+              disabled={sending}
+            />
+            <Button onClick={() => void sendCode()} disabled={sending || !phone.trim()}>
+              {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Send code'}
+            </Button>
+          </div>
+          {inlineError && (
+            <p className="text-xs text-destructive" role="alert">{inlineError}</p>
+          )}
         </div>
       )}
 
@@ -159,14 +233,17 @@ export function PhoneNumberCard({ embedded, onVerified }: Props) {
               {[0,1,2,3,4,5].map(i => <InputOTPSlot key={i} index={i} />)}
             </InputOTPGroup>
           </InputOTP>
+          {inlineError && (
+            <p className="text-xs text-destructive" role="alert">{inlineError}</p>
+          )}
           <div className="flex gap-2">
-            <Button onClick={confirmCode} disabled={verifying || code.length !== 6} className="flex-1">
+            <Button onClick={() => void confirmCode()} disabled={verifying || code.length !== 6} className="flex-1">
               {verifying ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Verify'}
             </Button>
             <Button
               variant="ghost"
               disabled={cooldown > 0 || sending}
-              onClick={sendCode}
+              onClick={() => void sendCode()}
             >
               {cooldown > 0 ? `Resend (${cooldown})` : 'Resend'}
             </Button>

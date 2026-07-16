@@ -35,7 +35,7 @@ const DialogContent = React.forwardRef<
     <DialogOverlay />
     {/* Flex shell centers without transform — bubble-pop scale cannot unpin the dialog. */}
     <div
-      className="fixed inset-0 z-[151] flex items-center justify-center pointer-events-none"
+      className="vybe-dialog-center-shell fixed inset-0 z-[151] flex items-center justify-center pointer-events-none"
       style={{
         paddingTop: 'max(0.75rem, var(--sat, env(safe-area-inset-top, 0px)))',
         paddingBottom: 'max(0.75rem, var(--sab, env(safe-area-inset-bottom, 0px)))',
@@ -54,7 +54,7 @@ const DialogContent = React.forwardRef<
           e.preventDefault();
         }}
         className={cn(
-          "relative pointer-events-auto z-[151]",
+          "vybe-dialog-panel relative pointer-events-auto z-[151]",
           "w-[90vw] max-w-lg h-fit",
           "max-h-[min(85vh,calc(100dvh-var(--sat,env(safe-area-inset-top,0px))-var(--sab,env(safe-area-inset-bottom,0px))-2rem))]",
           "bg-background/95 backdrop-blur-xl",

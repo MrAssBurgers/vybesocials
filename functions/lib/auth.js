@@ -283,6 +283,8 @@ async function resolveLoginGeo(request) {
             city: j.city || undefined,
             region: j.region || undefined,
             country: j.country_name || j.country || base.country,
+            latitude: typeof j.latitude === 'number' ? j.latitude : typeof j.lat === 'number' ? j.lat : undefined,
+            longitude: typeof j.longitude === 'number' ? j.longitude : typeof j.lon === 'number' ? j.lon : undefined,
         };
     }
     catch {
@@ -305,6 +307,7 @@ export const authLoginNotify = onCall({ cors: true, secrets: ['ONESIGNAL_APP_ID'
     const profileId = await resolveProfileIdForAuthUid(uid);
     const settingsSnap = await db.collection('user_2fa_settings').doc(uid).get();
     const loginApprovalsEnabled = !!settingsSnap.data()?.login_approvals_enabled;
+    const geo = await resolveLoginGeo(request);
     // Known session on this device — refresh heartbeat only, no alerts.
     if (sessionHash) {
         const known = await db.collection('user_sessions')
@@ -314,7 +317,16 @@ export const authLoginNotify = onCall({ cors: true, secrets: ['ONESIGNAL_APP_ID'
             .get();
         if (!known.empty) {
             const doc = known.docs[0];
-            await doc.ref.set({ last_seen_at: now }, { merge: true });
+            await doc.ref.set({
+                last_seen_at: now,
+                ip: geo.ip,
+                city: geo.city || null,
+                region: geo.region || null,
+                country: geo.country || null,
+                latitude: geo.latitude || null,
+                longitude: geo.longitude || null,
+                geo,
+            }, { merge: true });
             // Clear stale "Was this you?" prompts that were incorrectly created for this install.
             const stale = await db.collection('auth_challenges')
                 .where('user_id', '==', uid)
@@ -344,6 +356,13 @@ export const authLoginNotify = onCall({ cors: true, secrets: ['ONESIGNAL_APP_ID'
         session_token_hash: sessionHash || null,
         device_label: parseDeviceLabel(userAgent),
         user_agent: userAgent || null,
+        ip: geo.ip,
+        city: geo.city || null,
+        region: geo.region || null,
+        country: geo.country || null,
+        latitude: geo.latitude || null,
+        longitude: geo.longitude || null,
+        geo,
         trusted: isResume,
         created_at: now,
         last_seen_at: now,
@@ -353,7 +372,6 @@ export const authLoginNotify = onCall({ cors: true, secrets: ['ONESIGNAL_APP_ID'
     if (isResume) {
         return { ok: true, sessionId: sessionRef.id, notified: false, reason: 'session_resume' };
     }
-    const geo = await resolveLoginGeo(request);
     await db.collection('login_history').add({
         user_id: uid,
         method,
@@ -733,7 +751,7 @@ export const oauthDismiss = onRequest({
     maxInstances: 4,
 }, async (req, res) => {
     const rawQs = typeof req.url === 'string' && req.url.includes('?') ? req.url.slice(req.url.indexOf('?') + 1) : '';
-    const safeQs = rawQs.replace(/[^a-zA-Z0-9_=&%.\-]/g, '').slice(0, 512);
+    const safeQs = rawQs.replace(/[^a-zA-Z0-9_=&%.-]/g, '').slice(0, 512);
     const schemeParam = typeof req.query?.scheme === 'string' ? String(req.query.scheme).trim() : '';
     const scheme = schemeParam && /^[a-z0-9.-]+$/i.test(schemeParam) && !schemeParam.includes('://')
         ? schemeParam

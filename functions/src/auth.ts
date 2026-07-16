@@ -106,14 +106,19 @@ export const auth2faPreauth = onCall(async (request) => {
   return { ok: true, expires_in: 300 };
 });
 
-/** auth-2fa-verify-phone — verify phone OTP. */
-export const auth2faVerifyPhone = onCall(async (request) => {
+/** auth-2fa-verify-phone — verify phone OTP (Twilio Verify when configured). */
+export const auth2faVerifyPhone = onCall(
+  { cors: true },
+  async (request) => {
   const uid = requireAuth(request);
   const { code: provided, challengeId, phone: clientPhone } = (request.data || {}) as {
     code?: string;
     challengeId?: string;
     phone?: string;
   };
+  if (!provided || String(provided).trim().length < 4) {
+    throw new HttpsError('invalid-argument', 'code required');
+  }
   const challengeDocId = challengeId && String(challengeId).trim()
     ? String(challengeId).trim()
     : `${uid}_phone`;
@@ -123,16 +128,38 @@ export const auth2faVerifyPhone = onCall(async (request) => {
     code_hash?: string;
     phone_e164?: string;
     user_id?: string;
+    provider?: string;
   } | undefined;
-  if (!data || (data.expires_at ?? 0) < Date.now() || data.code_hash !== provided) {
+  if (!data) {
     throw new HttpsError('permission-denied', 'Invalid code');
   }
   if (data.user_id && data.user_id !== uid) {
     throw new HttpsError('permission-denied', 'Invalid code');
   }
-  await ref.delete();
+  if ((data.expires_at ?? 0) < Date.now()) {
+    throw new HttpsError('permission-denied', 'Invalid code');
+  }
 
   const phoneE164 = (data.phone_e164 || clientPhone || '').trim();
+  const twilio = getTwilioConfig();
+
+  if (data.provider === 'twilio_verify' || (twilio && !data.code_hash)) {
+    if (!twilio) {
+      throw new HttpsError('failed-precondition', 'twilio_not_configured');
+    }
+    if (!phoneE164.startsWith('+')) {
+      throw new HttpsError('invalid-argument', 'invalid_phone');
+    }
+    const check = await twilioVerifyCheck(twilio, phoneE164, String(provided).trim());
+    if (!check.ok) {
+      throw new HttpsError('permission-denied', 'Invalid code');
+    }
+  } else if (!data.code_hash || data.code_hash !== String(provided).trim()) {
+    throw new HttpsError('permission-denied', 'Invalid code');
+  }
+
+  await ref.delete();
+
   const update: Record<string, unknown> = {
     phone_verified: true,
     updated_at: new Date().toISOString(),
@@ -151,26 +178,145 @@ export const auth2faVerifyPhone = onCall(async (request) => {
   return { ok: true, phone: phoneE164 || undefined };
 });
 
-/** phone-verify-request / confirm — send & confirm SMS code (Twilio integration deferred to Phase 6). */
-export const phoneVerifyRequest = onCall(async (request) => {
+type TwilioConfig = {
+  accountSid: string;
+  authToken: string;
+  verifyServiceSid: string;
+};
+
+function getTwilioConfig(): TwilioConfig | null {
+  const accountSid = String(process.env.TWILIO_ACCOUNT_SID || '').trim();
+  const authToken = String(process.env.TWILIO_AUTH_TOKEN || '').trim();
+  const verifyServiceSid = String(process.env.TWILIO_VERIFY_SERVICE_SID || '').trim();
+  if (!accountSid || !authToken || !verifyServiceSid) return null;
+  if (!accountSid.startsWith('AC')) return null;
+  if (!verifyServiceSid.startsWith('VA')) return null;
+  return { accountSid, authToken, verifyServiceSid };
+}
+
+async function twilioVerifyStart(
+  cfg: TwilioConfig,
+  phoneE164: string,
+): Promise<{ ok: true } | { ok: false; error: string; detail?: string }> {
+  const url = `https://verify.twilio.com/v2/Services/${encodeURIComponent(cfg.verifyServiceSid)}/Verifications`;
+  const auth = Buffer.from(`${cfg.accountSid}:${cfg.authToken}`).toString('base64');
+  const body = new URLSearchParams({ To: phoneE164, Channel: 'sms' });
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: {
+      Authorization: `Basic ${auth}`,
+      'Content-Type': 'application/x-www-form-urlencoded',
+    },
+    body,
+  });
+  const text = await res.text();
+  let json: { status?: string; code?: number; message?: string } = {};
+  try {
+    json = text ? (JSON.parse(text) as typeof json) : {};
+  } catch {
+    /* ignore */
+  }
+  if (!res.ok) {
+    const msg = String(json.message || text || res.status).slice(0, 160);
+    if (/valid.*phone|not a valid/i.test(msg)) {
+      return { ok: false, error: 'invalid_phone_for_twilio', detail: msg };
+    }
+    if (/blocked|blacklist|unreachable/i.test(msg)) {
+      return { ok: false, error: 'phone_blocked', detail: msg };
+    }
+    if (json.code === 20003 || /authenticate/i.test(msg)) {
+      return { ok: false, error: 'twilio_account_sid_invalid', detail: msg };
+    }
+    if (json.code === 20404 || /service/i.test(msg)) {
+      return { ok: false, error: 'twilio_verify_service_sid_invalid', detail: msg };
+    }
+    return { ok: false, error: 'sms_send_failed', detail: msg };
+  }
+  return { ok: true };
+}
+
+async function twilioVerifyCheck(
+  cfg: TwilioConfig,
+  phoneE164: string,
+  code: string,
+): Promise<{ ok: boolean }> {
+  const url = `https://verify.twilio.com/v2/Services/${encodeURIComponent(cfg.verifyServiceSid)}/VerificationCheck`;
+  const auth = Buffer.from(`${cfg.accountSid}:${cfg.authToken}`).toString('base64');
+  const body = new URLSearchParams({ To: phoneE164, Code: code });
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: {
+      Authorization: `Basic ${auth}`,
+      'Content-Type': 'application/x-www-form-urlencoded',
+    },
+    body,
+  });
+  const text = await res.text();
+  let json: { status?: string; valid?: boolean } = {};
+  try {
+    json = text ? (JSON.parse(text) as typeof json) : {};
+  } catch {
+    /* ignore */
+  }
+  const approved = json.status === 'approved' || json.valid === true;
+  return { ok: res.ok && approved };
+}
+
+/**
+ * phone-verify-request — send SMS via Twilio Verify.
+ * Returns `{ ok:false, error:'twilio_not_configured' }` when secrets are missing
+ * so the client can show a clear message (never pretend a code was texted).
+ */
+export const phoneVerifyRequest = onCall(
+  { cors: true },
+  async (request) => {
   const uid = requireAuth(request);
   enforceRateLimit(await rateLimit(`phone-req:${uid}`, 3, 600));
   const { phone } = (request.data || {}) as { phone?: string };
   const phoneE164 = typeof phone === 'string' ? phone.trim() : '';
-  const c = code();
+  if (!phoneE164.startsWith('+') || phoneE164.length < 10 || phoneE164.length > 16) {
+    return { ok: false, error: 'invalid_phone' };
+  }
+
+  const twilio = getTwilioConfig();
+  if (!twilio) {
+    console.error('[phoneVerifyRequest] Twilio secrets missing');
+    return { ok: false, error: 'twilio_not_configured' };
+  }
+
+  // Reject if another profile already verified this number.
+  const { createHash } = await import('crypto');
+  const phoneHash = createHash('sha256').update(phoneE164.toLowerCase()).digest('hex');
+  const taken = await db
+    .collection('profiles')
+    .where('phone_e164_sha256', '==', phoneHash)
+    .where('phone_verified', '==', true)
+    .limit(2)
+    .get();
+  for (const doc of taken.docs) {
+    const row = doc.data() as { user_id?: string };
+    if (doc.id !== uid && row.user_id !== uid) {
+      return { ok: false, error: 'phone_in_use' };
+    }
+  }
+
+  const started = await twilioVerifyStart(twilio, phoneE164);
+  if (!started.ok) {
+    return { ok: false, error: started.error, detail: started.detail };
+  }
+
   const challengeId = `${uid}_phone`;
   await db.collection('auth_challenges').doc(challengeId).set({
     user_id: uid,
-    code_hash: c,
     channel: 'sms',
-    phone_e164: phoneE164.startsWith('+') ? phoneE164 : null,
+    provider: 'twilio_verify',
+    phone_e164: phoneE164,
     expires_at: Date.now() + 10 * 60 * 1000,
     created_at: new Date().toISOString(),
   });
   return {
     ok: true,
     challengeId,
-    dev_code: process.env.NODE_ENV === 'production' ? undefined : c,
   };
 });
 
