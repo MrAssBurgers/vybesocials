@@ -270,33 +270,17 @@ async function launchDespiaOAuthUrl(
     // Nonce poll logs the user in even when Despia never reinjects the deeplink.
     void despiaCall(oauthBridge, [...DESPIA_OAUTH_URL_KEYS], 90_000).then((payload) => {
       if (!payload) {
-        // Sheet may still be open — Landing chip timeout handles abandon.
-        // If we're already back in the app with no tokens, surface a clear error.
-        if (typeof document !== 'undefined' && document.visibilityState === 'visible' && isDespiaOAuthInFlight()) {
-          window.setTimeout(() => {
-            if (!isDespiaOAuthInFlight()) return;
-            if (isDespiaOAuthReturnUrl(window.location.href)) {
-              void tryCompleteDespiaOAuthFromCurrentUrl().then((result) => {
-                if (result && (result.data.session?.user || result.error)) {
-                  window.dispatchEvent(new CustomEvent('despia-oauth-complete', { detail: result }));
-                }
-              });
-              return;
-            }
-            clearDespiaOAuthPending();
-            window.dispatchEvent(
-              new CustomEvent('despia-oauth-complete', {
-                detail: {
-                  data: { session: null },
-                  error: {
-                    message:
-                      'Sign-in did not return to the app. Close any leftover browser sheet and try again.',
-                    name: 'despia/oauth-timeout',
-                  },
-                },
-              }),
-            );
-          }, 1500);
+        // CCT dismissed without reinjecting a deeplink — keep nonce poll alive.
+        // Landing's 45s chip timeout clears abandon; do not kill pending here.
+        if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
+          resumeDespiaOAuthNoncePollIfPending();
+          if (isDespiaOAuthReturnUrl(window.location.href)) {
+            void tryCompleteDespiaOAuthFromCurrentUrl().then((result) => {
+              if (result && (result.data.session?.user || result.error)) {
+                window.dispatchEvent(new CustomEvent('despia-oauth-complete', { detail: result }));
+              }
+            });
+          }
         }
         return;
       }

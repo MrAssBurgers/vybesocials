@@ -58,11 +58,21 @@
      */
     (function () {
       var DEFAULT_SCHEME = 'com.despia.vybe';
+      var PACKAGE_NAME = 'com.despia.vybe';
       var EXCHANGE_URL = 'https://us-central1-vybe-daaab.cloudfunctions.net/authQr';
       var WEB_FALLBACK = 'https://vybehub.app/auth';
       var MAX_DEEPLINK_LEN = 1800;
-      var FALLBACK_UI_MS = 2000;
+      /** Silent retries before showing Open VYBE (Android CCT often needs multi-fire). */
+      var SILENT_RETRY_MS = 1600;
+      var SILENT_RETRY_INTERVAL_MS = 200;
+      var FALLBACK_UI_MS = 2200;
       var closed = false;
+      var fallbackScheduled = false;
+      var retryTimer = null;
+
+      function isAndroidUa() {
+        return /Android/i.test(navigator.userAgent || '');
+      }
 
       function setStatus(text, visible) {
         var el = document.getElementById('status');
@@ -114,28 +124,98 @@
         }
       }
 
-      /** Despia closes the sheet on a single location navigation to scheme://oauth/… */
-      function fireDeeplink(deeplink) {
+      /** Android Intent URL — Custom Tabs often honor this when scheme:// alone is ignored. */
+      function buildAndroidIntentUrl(deeplink) {
+        try {
+          var parsed = new URL(deeplink);
+          var scheme = String(parsed.protocol || '').replace(/:$/, '');
+          if (!scheme || scheme === 'http' || scheme === 'https') return null;
+          var path = (parsed.hostname || '') + (parsed.pathname || '');
+          if (path.charAt(0) === '/') path = path.slice(1);
+          var query = parsed.search ? parsed.search.slice(1) : '';
+          var intent =
+            'intent://' +
+            path +
+            (query ? '?' + query : '') +
+            '#Intent;scheme=' +
+            encodeURIComponent(scheme) +
+            ';package=' +
+            encodeURIComponent(PACKAGE_NAME) +
+            ';end';
+          return intent;
+        } catch (e) {
+          return null;
+        }
+      }
+
+      /**
+       * Despia closes ASWeb / Custom Tabs on scheme://oauth/…
+       * Android CCT often ignores a single location.replace — multi-fire + intent://.
+       */
+      function fireDeeplinkOnce(deeplink) {
         if (!isValidDeeplink(deeplink)) return;
         window.__vybeOauthDeeplink = deeplink;
         var openBtn = document.getElementById('openApp');
         if (openBtn) openBtn.setAttribute('href', deeplink);
+
+        // 1) Official Despia pattern
+        try { window.location.href = deeplink; } catch (e1) {}
+        // 2) replace backup
+        try { window.location.replace(deeplink); } catch (e2) {}
+        // 3) Hidden iframe
         try {
-          window.location.replace(deeplink);
-        } catch (e) {
-          try { window.location.href = deeplink; } catch (e2) {}
+          var iframe = document.createElement('iframe');
+          iframe.setAttribute('aria-hidden', 'true');
+          iframe.style.cssText = 'position:absolute;width:0;height:0;border:0;visibility:hidden';
+          iframe.src = deeplink;
+          document.body.appendChild(iframe);
+          setTimeout(function () {
+            try { iframe.remove(); } catch (e3) {}
+          }, 800);
+        } catch (e4) {}
+        // 4) Synthetic <a> click
+        try {
+          var a = document.createElement('a');
+          a.href = deeplink;
+          a.rel = 'noopener';
+          a.style.display = 'none';
+          document.body.appendChild(a);
+          a.click();
+          setTimeout(function () {
+            try { a.remove(); } catch (e5) {}
+          }, 100);
+        } catch (e6) {}
+        // 5) Android intent://
+        if (isAndroidUa()) {
+          var intentUrl = buildAndroidIntentUrl(deeplink);
+          if (intentUrl) {
+            try { window.location.href = intentUrl; } catch (e7) {}
+          }
         }
-        // Backup for stubborn Custom Tabs
-        setTimeout(function () {
-          if (closed) return;
-          try { window.location.href = deeplink; } catch (e3) {}
-        }, 50);
-        setTimeout(function () {
-          try { window.close(); } catch (e4) {}
-        }, 100);
+        try { window.close(); } catch (e8) {}
+      }
+
+      function startSilentRetries(deeplink) {
+        if (retryTimer != null) return;
+        var startedAt = Date.now();
+        function tick() {
+          if (closed) {
+            retryTimer = null;
+            return;
+          }
+          if (Date.now() - startedAt >= SILENT_RETRY_MS) {
+            retryTimer = null;
+            return;
+          }
+          fireDeeplinkOnce(deeplink);
+          retryTimer = setTimeout(tick, SILENT_RETRY_INTERVAL_MS);
+        }
+        retryTimer = setTimeout(tick, SILENT_RETRY_INTERVAL_MS);
       }
 
       function scheduleFallback() {
+        if (fallbackScheduled) return;
+        fallbackScheduled = true;
         setTimeout(function () {
           if (closed) return;
           var openBtn = document.getElementById('openApp');
@@ -153,7 +233,8 @@
 
       function closeSheetNow(scheme, query) {
         var deeplink = buildDeeplink(scheme, query);
-        fireDeeplink(deeplink);
+        fireDeeplinkOnce(deeplink);
+        startSilentRetries(deeplink);
         scheduleFallback();
       }
 
@@ -181,7 +262,7 @@
           return;
         }
         ev.preventDefault();
-        window.location.href = window.__vybeOauthDeeplink;
+        fireDeeplinkOnce(window.__vybeOauthDeeplink);
       });
 
       // Detect page hide = Despia closed the sheet successfully.

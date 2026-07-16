@@ -2,6 +2,18 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## PUBLISH NOW (2026-07-15) — Android Custom Tab auto-close
+
+- **On `origin/main`:** (pushing) Android CCT multi-fire close
+- **Problem:** After Google/Apple account pick, Android Custom Tab stayed on `native-callback` → “Open VYBE” fallback
+- **Fix:** [`public/native-callback.html`](public/native-callback.html) — `location.href` + iframe + `<a>.click()` + Android `intent://` + silent retries ~1.6s before fallback; [`despiaOAuth.ts`](src/lib/despiaOAuth.ts) — keep nonce poll if CCT dismissed without deeplink
+- **You must click Publish:** https://lovable.dev/projects/416714c8-d013-4aff-984d-522418a9bbc7 → **Share → Publish**
+- **After Publish verify:**
+  1. `curl -s https://vybehub.app/native-callback.html | rg 'intent://|SILENT_RETRY|fireDeeplinkOnce'` → matches
+  2. Hard-kill Android app → Google → pick account → tab closes → signed in (same for Apple)
+
+---
+
 ## PUBLISH NOW (2026-07-15) — Instant sheet close + login
 
 - **On `origin/main`:** `1c482b0c` (instant close) · includes nonce poll `d9b87210`
