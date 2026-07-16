@@ -4,7 +4,7 @@ Use this file as the Lovable -> Cursor handoff each session.
 
 ## PUBLISH NOW (2026-07-15) — First-try instant Google/Apple login
 
-- **On `origin/main`:** (pushing) no “Continue on web”; soft-close then hard-fire `hc=`
+- **On `origin/main`:** `e59c60ab` — no “Continue on web”; soft-close then hard-fire `hc=`
 - **User report:** Account pick → stuck → tap Continue on web → flash login → reopen then works
 - **Cause:** Bare `/auth` fallback in CCT never finishes Despia session; hard `location.href` before stash killed exchange; WebView timers throttled under CCT
 - **Fix:**
