@@ -4,7 +4,7 @@ Use this file as the Lovable -> Cursor handoff each session.
 
 ## PUBLISH NOW (2026-07-16) — Apple Settings Connect: raw nonce + CF 302 close
 
-- **On `origin/main`:** (pushing)
+- **On `origin/main`:** `065815174`
 - **Frames (Settings → Apple Connect):** Sign in with Apple → Face ID → `vybehub.app` → **“Safari cannot open the page because the address is invalid”** → blank sheet stuck → dismiss → Apple still **Not connected** (spinner)
 - **Root causes:**
   1. **Prod `native-callback`** still JS-fires `com.despia.vybe://…` (invalid address). Staging uses HTTPS 302 via `oauthDismiss` CF URL.
