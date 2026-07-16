@@ -2,6 +2,13 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## ACTIVE (2026-07-16) — Phone verify safe-area overlay implemented
+
+- Implemented native-style safe-area overlay: fixed `100dvw` / `100dvh` shell, `align-items:flex-start`, `env(safe-area-inset-top) + 12px`, shell scroll containment, relative card.
+- Marker changed to `safe-top-v1`; card width capped to `min(420px, calc(100vw - 32px))`; max-height uses `100dvh - safe-area insets - 32px`.
+- Verification: `npm run typecheck` green; `npm run build` green; Playwright iPhone 14 preview `?vybe_phone_preview=1` returned `build:safe-top-v1`, `shellAlignItems:flex-start`, `cardPosition:relative`, `top:12`, `widthCapped:true`, `hasPhoneInput:true`.
+- Next: commit/push after explicit approval, then Lovable Publish and verify `https://vybehub.app/?vybe_phone_preview=1` on iOS.
+
 ## ACTIVE (2026-07-16) — Phone verify mid-screen verified in browser
 
 - **Playwright (iPhone 14):** React card `mid-v6` on local preview → `centerDelta: 0`, `centered: true`, tel input present.

@@ -6627,25 +6627,26 @@ img, video, picture, svg, canvas {
   }
 }
 
-/* Phone verify — full-viewport flex shell; card is relative (not fixed). */
+/* Phone verify — native-style safe-area overlay; card is relative (not fixed). */
 .vybe-phone-verify-shell {
   position: fixed !important;
-  top: 0 !important;
-  right: 0 !important;
-  bottom: 0 !important;
-  left: 0 !important;
-  z-index: 2147483000 !important;
+  inset: 0 !important;
+  width: 100dvw !important;
+  min-height: 100dvh !important;
   display: flex !important;
-  align-items: center !important;
   justify-content: center !important;
-  padding: max(1rem, var(--sat, env(safe-area-inset-top, 0px)))
-    max(1rem, env(safe-area-inset-right, 0px))
-    max(1rem, var(--sab, env(safe-area-inset-bottom, 0px)))
-    max(1rem, env(safe-area-inset-left, 0px)) !important;
+  align-items: flex-start !important;
+  padding:
+    calc(env(safe-area-inset-top, 0px) + 12px)
+    16px
+    calc(env(safe-area-inset-bottom, 0px) + 16px) !important;
   box-sizing: border-box !important;
   background: rgba(0, 0, 0, 0.55) !important;
   margin: 0 !important;
   transform: none !important;
+  z-index: 2147483000 !important;
+  overflow-y: auto !important;
+  overscroll-behavior: contain !important;
 }
 .vybe-phone-verify-card {
   position: relative !important;
@@ -6658,9 +6659,14 @@ img, video, picture, svg, canvas {
   -webkit-transform: none !important;
   margin: 0 !important;
   z-index: 1 !important;
-  width: min(92vw, 28rem) !important;
-  max-width: 92vw !important;
-  max-height: min(80vh, 36rem) !important;
+  width: min(420px, calc(100vw - 32px)) !important;
+  max-width: calc(100vw - 32px) !important;
+  max-height: calc(
+    100dvh -
+    env(safe-area-inset-top, 0px) -
+    env(safe-area-inset-bottom, 0px) -
+    32px
+  ) !important;
   overflow: auto !important;
   box-sizing: border-box !important;
   animation: none !important;

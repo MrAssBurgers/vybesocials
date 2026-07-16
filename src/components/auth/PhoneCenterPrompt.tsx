@@ -1,8 +1,8 @@
 /**
- * Mid-screen "Verify your phone" prompt for mobile.
+ * Safe-area "Verify your phone" prompt for mobile.
  *
- * Card is NOT position:fixed — it sits inside a full-viewport flex center shell.
- * That avoids iOS/Android WebView bugs that ignore measured top / transform.
+ * Card is NOT position:fixed — it sits inside a full-viewport flex shell just
+ * below the device safe area, matching native mobile overlay behavior.
  */
 import { useEffect, useId, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
@@ -16,7 +16,7 @@ import {
 } from '@/lib/phoneVerifyDismiss';
 import { debugSessionLog } from '@/lib/debugSessionLog';
 
-const BUILD_TAG = 'mid-v7';
+const BUILD_TAG = 'safe-top-v1';
 
 function isPhonePreview(): boolean {
   try {
@@ -111,7 +111,7 @@ export function PhoneCenterPrompt() {
           centerDelta,
           closeNearSafeArea: r.top < 48,
           centered: Math.abs(centerDelta) < 64,
-          mode: 'flex-shell',
+          mode: 'safe-area-flex-start',
           build: BUILD_TAG,
         },
         'H-dialog',
