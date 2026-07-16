@@ -45,6 +45,7 @@ import {
   getDespiaOAuthPendingProvider,
   isDespiaOAuthInFlight,
   isDespiaOAuthReturnUrl,
+  resumeDespiaOAuthNoncePollIfPending,
   tryCompleteDespiaOAuthFromCurrentUrl,
 } from '@/lib/despiaOAuth';
 import { claimProfileAfterOAuth } from '@/lib/oauthAccountLink';
@@ -221,6 +222,7 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
         setOauthOverlay(provider);
         setLoading(true);
       }
+      resumeDespiaOAuthNoncePollIfPending();
     }
   }, []);
 

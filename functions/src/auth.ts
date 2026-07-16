@@ -567,14 +567,27 @@ async function stashOAuthHandoff(payload: {
   nonce?: string;
 }): Promise<string> {
   const code = randomBytes(16).toString('hex');
-  await db.collection('oauth_handoffs').doc(code).set({
+  const expiresAt = Date.now() + 2 * 60 * 1000;
+  const row = {
     provider: payload.provider,
     customToken: payload.customToken || null,
     idToken: payload.idToken || null,
     nonce: payload.nonce || null,
-    expiresAt: Date.now() + 2 * 60 * 1000,
+    expiresAt,
     createdAt: new Date().toISOString(),
-  });
+  };
+  await db.collection('oauth_handoffs').doc(code).set(row);
+  // Index by OAuth nonce so the in-app WebView can poll even if the Despia
+  // deeplink never reinjects into window.location / window.url.
+  const nonce = String(payload.nonce || '').trim();
+  if (nonce && /^[a-f0-9]{16,64}$/i.test(nonce)) {
+    await db.collection('oauth_nonce_handoffs').doc(nonce.toLowerCase()).set({
+      code,
+      provider: payload.provider,
+      expiresAt,
+      createdAt: row.createdAt,
+    });
+  }
   return code;
 }
 
@@ -704,6 +717,7 @@ export const authQr = onCall({ cors: true }, async (request) => {
     const ip = request.rawRequest?.ip || 'anon';
     enforceRateLimit(await rateLimit(`oauth-exchange:${ip}`, 20, 600));
     const idToken = String(data.idToken || data.id_token || '').trim();
+    const oauthNonce = String((data as { nonce?: string }).nonce || '').trim();
     if (!idToken) {
       throw new HttpsError('invalid-argument', 'idToken required');
     }
@@ -714,6 +728,7 @@ export const authQr = onCall({ cors: true }, async (request) => {
       const code = await stashOAuthHandoff({
         provider: 'google',
         customToken,
+        nonce: oauthNonce || undefined,
       });
       return { customToken, custom_token: customToken, code };
     } catch (err: unknown) {
@@ -763,6 +778,14 @@ export const authQr = onCall({ cors: true }, async (request) => {
     if (!expiresAt || expiresAt < Date.now()) {
       throw new HttpsError('deadline-exceeded', 'OAuth code expired');
     }
+    const rowNonce = String(row.nonce || '').trim().toLowerCase();
+    if (rowNonce) {
+      try {
+        await db.collection('oauth_nonce_handoffs').doc(rowNonce).delete();
+      } catch {
+        /* ignore */
+      }
+    }
     return {
       provider: row.provider || null,
       customToken: row.customToken || row.custom_token || null,
@@ -770,6 +793,42 @@ export const authQr = onCall({ cors: true }, async (request) => {
       idToken: row.idToken || row.id_token || null,
       id_token: row.idToken || row.id_token || null,
       nonce: row.nonce || null,
+    };
+  }
+
+  /**
+   * Poll by OAuth nonce — WebView completion when Despia deeplink reclaim fails.
+   * Returns { ready:false } until native-callback / apple callback stashes a code.
+   */
+  if (action === 'poll_oauth_nonce') {
+    const ip = request.rawRequest?.ip || 'anon';
+    enforceRateLimit(await rateLimit(`oauth-poll:${ip}`, 120, 600));
+    const oauthNonce = String((data as { nonce?: string }).nonce || '').trim().toLowerCase();
+    if (!/^[a-f0-9]{16,64}$/i.test(oauthNonce)) {
+      throw new HttpsError('invalid-argument', 'nonce required');
+    }
+    const snap = await db.collection('oauth_nonce_handoffs').doc(oauthNonce).get();
+    if (!snap.exists) {
+      return { ready: false as const };
+    }
+    const row = snap.data() || {};
+    const expiresAt = typeof row.expiresAt === 'number' ? row.expiresAt : 0;
+    if (!expiresAt || expiresAt < Date.now()) {
+      try {
+        await snap.ref.delete();
+      } catch {
+        /* ignore */
+      }
+      return { ready: false as const };
+    }
+    const code = String(row.code || '').trim();
+    if (!/^[a-f0-9]{32}$/i.test(code)) {
+      return { ready: false as const };
+    }
+    return {
+      ready: true as const,
+      code,
+      provider: row.provider || null,
     };
   }
 

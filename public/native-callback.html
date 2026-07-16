@@ -272,7 +272,7 @@
         return;
       }
 
-      callAuthQr({ action: 'exchange_google', idToken: idToken })
+      callAuthQr({ action: 'exchange_google', idToken: idToken, nonce: nonce })
         .then(function (result) {
           var payload = payloadOf(result);
           var handoff = payload.code;

@@ -16,6 +16,18 @@ const DESPIA_OAUTH_PENDING_MAX_MS = 3 * 60 * 1000;
 /** Globals Despia may set when ASWeb returns the oauth/ deeplink. */
 const DESPIA_OAUTH_URL_KEYS = ['url', 'oauthUrl', 'deeplink', 'deepLink'] as const;
 
+let noncePollTimer: number | null = null;
+let noncePollGeneration = 0;
+
+function stopDespiaOAuthNoncePoll(): void {
+  noncePollGeneration += 1;
+  if (typeof window === 'undefined') return;
+  if (noncePollTimer != null) {
+    window.clearTimeout(noncePollTimer);
+    noncePollTimer = null;
+  }
+}
+
 /** Firebase web client ID (public) — matches native/android/google-services.json */
 const DEFAULT_GOOGLE_WEB_CLIENT_ID =
   '728651793473-71p1iahdr79ali0o7en8ktirklfjf3pf.apps.googleusercontent.com';
@@ -97,8 +109,16 @@ export function getDespiaOAuthPendingProvider(): 'google' | 'apple' | null {
   return null;
 }
 
+/** Resume nonce poll after Landing remount while OAuth sheet may still be finishing. */
+export function resumeDespiaOAuthNoncePollIfPending(): void {
+  if (typeof window === 'undefined' || !isDespiaOAuthInFlight()) return;
+  const nonce = sessionStorage.getItem(DESPIA_OAUTH_NONCE_KEY);
+  if (nonce) startDespiaOAuthNoncePoll(nonce);
+}
+
 export function clearDespiaOAuthPending(): void {
   if (typeof window === 'undefined') return;
+  stopDespiaOAuthNoncePoll();
   sessionStorage.removeItem(DESPIA_OAUTH_PENDING_KEY);
   sessionStorage.removeItem(DESPIA_OAUTH_PENDING_AT_KEY);
   sessionStorage.removeItem(DESPIA_OAUTH_PROVIDER_KEY);
@@ -241,9 +261,13 @@ async function launchDespiaOAuthUrl(
 
   try {
     markDespiaOAuthPending(provider);
+    const oauthNonce =
+      typeof sessionStorage !== 'undefined' ? sessionStorage.getItem(DESPIA_OAUTH_NONCE_KEY) : null;
+    if (oauthNonce) startDespiaOAuthNoncePoll(oauthNonce);
+
     const oauthBridge = `oauth://?url=${encodeURIComponent(authUrl)}`;
-    // Fire-and-forget launch; completion is async via deeplink / WebView /auth?hc=.
-    // Also watch common Despia bridge globals in case the runtime returns the URL that way.
+    // Fire-and-forget launch; completion via deeplink AND/OR nonce poll (authQr).
+    // Nonce poll logs the user in even when Despia never reinjects the deeplink.
     void despiaCall(oauthBridge, [...DESPIA_OAUTH_URL_KEYS], 90_000).then((payload) => {
       if (!payload) {
         // Sheet may still be open — Landing chip timeout handles abandon.
@@ -391,6 +415,69 @@ async function redeemOAuthHandoffCode(code: string): Promise<{
   };
 }
 
+/**
+ * Poll authQr for a handoff stashed under the OAuth nonce.
+ * This logs the user in even when Despia never reinjects the deeplink into the WebView.
+ */
+function startDespiaOAuthNoncePoll(nonce: string): void {
+  if (typeof window === 'undefined') return;
+  const clean = nonce.trim().toLowerCase();
+  if (!/^[a-f0-9]{16,64}$/i.test(clean)) return;
+
+  stopDespiaOAuthNoncePoll();
+  const generation = noncePollGeneration;
+  const startedAt = Date.now();
+  const maxMs = 90_000;
+
+  const tick = async () => {
+    if (generation !== noncePollGeneration) return;
+    if (!isDespiaOAuthInFlight()) {
+      stopDespiaOAuthNoncePoll();
+      return;
+    }
+    if (Date.now() - startedAt > maxMs) {
+      stopDespiaOAuthNoncePoll();
+      return;
+    }
+
+    try {
+      const { invokeFunction } = await import('@/lib/firebase/functionsService');
+      const { data } = await invokeFunction<{
+        ready?: boolean;
+        code?: string;
+        provider?: string | null;
+      }>('authQr', { action: 'poll_oauth_nonce', nonce: clean });
+
+      if (generation !== noncePollGeneration) return;
+
+      if (data?.ready && data.code) {
+        stopDespiaOAuthNoncePoll();
+        const state = encodeOAuthState({
+          scheme: getDespiaDeeplinkScheme(),
+          nonce: clean,
+          provider: (data.provider as string) || 'google',
+        });
+        const synthetic = `${window.location.origin}/auth?hc=${encodeURIComponent(data.code)}&state=${encodeURIComponent(state)}`;
+        const result = await completeDespiaOAuthFromUrl(synthetic);
+        window.dispatchEvent(new CustomEvent('despia-oauth-complete', { detail: result }));
+        return;
+      }
+    } catch {
+      /* keep polling */
+    }
+
+    if (generation === noncePollGeneration) {
+      noncePollTimer = window.setTimeout(() => {
+        void tick();
+      }, 900);
+    }
+  };
+
+  noncePollTimer = window.setTimeout(() => {
+    void tick();
+  }, 700);
+}
+
 /** Complete Firebase sign-in from Despia deeplink or /auth?custom_token=... / id_token return. */
 export async function completeDespiaOAuthFromUrl(url: string): Promise<DespiaOAuthCompletion> {
   const params = parseOAuthParamsFromUrl(url);
@@ -422,6 +509,19 @@ export async function completeDespiaOAuthFromUrl(url: string): Promise<DespiaOAu
       redeemedNonce = redeemed.nonce;
       redeemedProvider = redeemed.provider;
     } catch (err) {
+      // Parallel deeplink + nonce-poll can race: first redeem wins, second is not-found.
+      try {
+        const { firebaseAuth } = await import('@/lib/firebase');
+        if (firebaseAuth.auth?.currentUser) {
+          const { data } = await firebaseAuth.getSession();
+          if (data.session?.user) {
+            clearDespiaOAuthPending();
+            return { data: { session: data.session }, error: null };
+          }
+        }
+      } catch {
+        /* ignore */
+      }
       clearDespiaOAuthPending();
       const message = err instanceof Error ? err.message : 'OAuth code redeem failed';
       const code =
