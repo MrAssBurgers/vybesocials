@@ -1,11 +1,9 @@
 /**
  * Platform-aware OAuth — Despia store builds, Capacitor shells, Safari/PWA, desktop.
  *
- * Despia Google / Android Apple MUST use oauth:// (ASWebAuthenticationSession /
- * Custom Tabs). Google blocks OAuth inside the WKWebView — never use
- * signInWithPopup for Google on Despia.
- *
- * Despia Apple iOS uses Apple JS SDK native Face ID / Continue sheet (sync).
+ * Despia Google + Apple use oauth:// (ASWebAuthenticationSession / Custom Tabs).
+ * Callback returns via HTTPS Universal/App Link to /auth?hc= (never custom-scheme
+ * navigations inside ASWeb — those trigger iOS “address is invalid”).
  */
 import { isDespiaRuntime, isNativeAppShell } from '@/lib/despiaBridge';
 import { isEmbeddedAppleWebView } from '@/lib/deviceDetection';

@@ -2,6 +2,17 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## PUBLISH NOW (2026-07-15) — iOS Google invalid address + Apple Android invalid_request
+
+- **On `origin/main`:** (pushing)
+- **iOS Google “address is invalid”:** custom-scheme close inside ASWeb — now HTTPS Universal Link `/auth?hc=` only
+- **Android Apple yellow invalid_request:** `response_type=id_token` alone unsupported — now `code id_token` + fragment
+- **iOS Apple toast:** Despia now uses same `oauth://` path as Google (JS popup was failing in WebView)
+- **Lovable → Share → Publish:** https://lovable.dev/projects/416714c8-d013-4aff-984d-522418a9bbc7
+- **Verify:** iOS Google + iOS Apple + Android Apple → sheet closes → signed in
+
+---
+
 ## PUBLISH NOW (2026-07-15) — Apple Android OAuth = Google path
 
 - **On `origin/main`:** (pushing) — `exchange_apple` mints Firebase custom token (parity with Google)

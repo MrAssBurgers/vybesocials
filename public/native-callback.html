@@ -12,13 +12,13 @@
   <script>
     /**
      * https://vybehub.app/native-callback.html — Despia Google/Apple return.
-     * Exchanges id_token for a short hc= handoff, then closes the secure browser:
-     * - Android: HTTPS App Link to /auth?hc=… (Custom Tabs ignore custom-scheme / intent://)
-     * - iOS: com.despia.vybe://oauth/auth?hc=…
+     * Exchanges id_token for a short hc= handoff, then closes via HTTPS App /
+     * Universal Link (keeps handoff in-app). Never navigate to custom schemes —
+     * iOS ASWeb shows “Safari cannot open… address is invalid” for those.
      */
     (function () {
-      var DEFAULT_SCHEME = 'com.despia.vybe';
       var EXCHANGE_URL = 'https://us-central1-vybe-daaab.cloudfunctions.net/authQr';
+      var APP_ORIGIN = 'https://vybehub.app';
       var closed = false;
 
       function decodeState(state) {
@@ -43,61 +43,13 @@
         return params;
       }
 
-      function buildDeeplink(scheme, query) {
-        var clean = String(scheme || DEFAULT_SCHEME).trim();
-        if (!clean || clean.indexOf('://') !== -1) clean = DEFAULT_SCHEME;
-        return clean + '://oauth/auth?' + query;
-      }
-
-      function isAndroid() {
-        return /Android/i.test(navigator.userAgent || '');
-      }
-
-      function softFire(deeplink) {
-        if (!deeplink || deeplink.indexOf('oauth') === -1) return;
-        // Android CCT: never soft-fire custom-scheme / intent:// — they error or stay open.
-        if (isAndroid()) return;
-        try {
-          var iframe = document.createElement('iframe');
-          iframe.setAttribute('aria-hidden', 'true');
-          iframe.style.cssText = 'position:absolute;width:0;height:0;border:0;visibility:hidden';
-          iframe.src = deeplink;
-          document.body.appendChild(iframe);
-          setTimeout(function () {
-            try { iframe.remove(); } catch (e) {}
-          }, 600);
-        } catch (e1) {}
-        try {
-          var a = document.createElement('a');
-          a.href = deeplink;
-          a.rel = 'noopener';
-          a.style.display = 'none';
-          document.body.appendChild(a);
-          a.click();
-          setTimeout(function () {
-            try { a.remove(); } catch (e2) {}
-          }, 100);
-        } catch (e3) {}
-      }
-
-      function hardFire(deeplink) {
-        if (!deeplink || deeplink.indexOf('oauth') === -1) return;
-
-        // Android: App Link only — custom-scheme / intent:// leave CCT open or ERR_UNKNOWN_URL_SCHEME.
-        if (isAndroid()) {
-          try {
-            var q = deeplink.split('?')[1] || '';
-            var appLink = 'https://vybehub.app/auth?' + q;
-            try { window.location.replace(appLink); } catch (eA1) {}
-            try { window.location.href = appLink; } catch (eA2) {}
-          } catch (eA0) {}
-          return;
-        }
-
-        softFire(deeplink);
-        try { window.location.replace(deeplink); } catch (e1) {}
-        try { window.location.href = deeplink; } catch (e2) {}
-        try { window.close(); } catch (e4) {}
+      /** HTTPS close — App Links (Android) / Universal Links (iOS). */
+      function hardFire(query) {
+        if (!query) return;
+        var appLink = APP_ORIGIN + '/auth?' + query;
+        try { window.location.replace(appLink); } catch (e1) {}
+        try { window.location.href = appLink; } catch (e2) {}
+        try { window.close(); } catch (e3) {}
       }
 
       function callAuthQr(payload) {
@@ -126,29 +78,19 @@
 
       var params = getParams();
       var stateObj = decodeState(params.get('state'));
-      var scheme = (stateObj && stateObj.scheme) || DEFAULT_SCHEME;
       var idToken = params.get('id_token');
       var error = params.get('error');
       var provider = (stateObj && stateObj.provider) || 'google';
       var nonce = (stateObj && stateObj.nonce) || '';
 
       if (error) {
-        hardFire(buildDeeplink(scheme, 'error=' + encodeURIComponent(String(error).slice(0, 64))));
+        hardFire('error=' + encodeURIComponent(String(error).slice(0, 64)));
         return;
       }
 
       if (!idToken) {
-        hardFire(buildDeeplink(scheme, 'error=missing_token'));
+        hardFire('error=missing_token');
         return;
-      }
-
-      if (nonce) {
-        softFire(
-          buildDeeplink(
-            scheme,
-            'nonce=' + encodeURIComponent(nonce) + '&wait=1&provider=' + encodeURIComponent(provider),
-          ),
-        );
       }
 
       var stashPromise =
@@ -165,22 +107,12 @@
           var payload = payloadOf(result);
           var handoff = payload.code;
           if (!result.ok || !handoff) throw new Error('exchange_failed');
-          var link = buildDeeplink(scheme, 'hc=' + encodeURIComponent(handoff));
           if (!closed) {
-            hardFire(link);
-            // iOS may need a short retry; Android App Link must fire once only.
-            if (!isAndroid()) {
-              setTimeout(function () {
-                if (!closed) hardFire(link);
-              }, 80);
-              setTimeout(function () {
-                if (!closed) hardFire(link);
-              }, 250);
-            }
+            hardFire('hc=' + encodeURIComponent(handoff));
           }
         })
         .catch(function () {
-          if (!closed) hardFire(buildDeeplink(scheme, 'error=exchange_failed'));
+          if (!closed) hardFire('error=exchange_failed');
         });
     })();
   </script>

@@ -256,14 +256,12 @@ export function buildAppleOAuthUrl(): string {
 
   const state = encodeOAuthState({ scheme, nonce, provider: 'apple' });
   const redirectUri = getAppleOAuthCallbackUrl();
-  // Apple requires form_post when name/email scopes are requested. form_post
-  // needs a server POST handler; ours is quota-starved. Omit name/email so
-  // fragment + native-callback.html works (same handoff as Google). Email still
-  // arrives in the id_token for first-time Apple consent in most cases.
+  // Apple: "Requesting only id_token is unsupported" → invalid_request / invalid response type.
+  // Use code+id_token with fragment (no name/email scopes — those require form_post).
   const params = new URLSearchParams({
     client_id: getAppleServicesId(),
     redirect_uri: redirectUri,
-    response_type: 'id_token',
+    response_type: 'code id_token',
     response_mode: 'fragment',
     nonce,
     state,
@@ -342,19 +340,16 @@ export async function signInWithGoogleDespia(): Promise<{
 }
 
 /**
- * Apple on Despia:
- * - iOS → Apple JS SDK (native Face ID / system sheet — not a full Safari page)
- * - Android → oauth:// ASWebAuthenticationSession (no native Apple support)
+ * Apple on Despia: always oauth:// (same in-app secure browser as Google).
+ * Apple JS popup often fails inside the Despia WebView with a generic error.
+ * Browser / non-Despia still uses the JS SDK.
  */
 export async function signInWithAppleDespia(): Promise<{
   pending: boolean;
   error: VybeAuthError | null;
   data?: { session: VybeSession | null };
 }> {
-  const { isAndroidAppShell, getRuntimeOs } = await import('@/lib/despiaBridge');
-  const os = getRuntimeOs();
-
-  if (isAndroidAppShell() || os === 'android') {
+  if (isDespiaRuntime()) {
     return launchDespiaOAuthUrl(buildAppleOAuthUrl(), 'apple');
   }
 
