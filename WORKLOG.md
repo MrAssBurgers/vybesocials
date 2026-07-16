@@ -2,6 +2,15 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## PUBLISH NOW (2026-07-16) — Exchange-first close (Android/iOS login regression)
+
+- **On `origin/main`:** `19a860cd7`
+- **Regression (prod `c1912776a`):** the 40 ms "soft close" navigated the sheet away **before** the token exchange responded — telemetry shows `fire_close hasWait:true` with **no `exchange_result`** (Android `1784183410926`, iOS `1784183483584`). No handoff stashed → nonce poll never resolves → user stays logged out.
+- **Fix (`public/native-callback.html`):** run the exchange first, close once with `hc=` (the flow proven working at `1784182055624`). iOS closes via `oauthDismiss` CF 302 (probed: `302 → com.despia.vybe://oauth/auth?hc=…`), Android via App Link `/auth?hc=`. 6 s fallback closes with `nonce&wait=1` if the exchange hangs.
+- **Deployed:** hosting → `vybe-daaab.web.app`; debug_oauth instrumentation (bd2545) still active for verification
+- **Lovable → Share → Publish** required — `native-callback.html` is served from `vybehub.app`
+- **Verify:** Android + iOS Continue with Google/Apple → sheet auto-closes → logged in; Settings → Apple Connect links
+
 ## PUBLISH NOW (2026-07-16) — Apple Settings Connect: raw nonce + CF 302 close
 
 - **On `origin/main`:** `065815174`
