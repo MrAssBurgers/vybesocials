@@ -4,6 +4,7 @@ Use this file as the Lovable -> Cursor handoff each session.
 
 ## PUBLISH NOW (2026-07-16) — Apple `code%20id_token` + cancel + debug
 
+- **On `origin/main`:** `414f6480a`
 - **Root cause (prod evidence):** Apple authorize URL used `URLSearchParams` → `response_type=code+id_token` → Apple yellow `invalid_request`
 - **Fix:** `response_type=${encodeURIComponent('code id_token')}` → `code%20id_token`
 - **Also:** cancel only after sheet hid; don’t clear pending on Despia bridge null; `authQr` redeployed (low CPU) with `debug_oauth` dump
@@ -13,7 +14,7 @@ Use this file as the Lovable -> Cursor handoff each session.
 
 ## PUBLISH NOW (2026-07-16) — iOS popup login + cancel on dismiss
 
-- **On `origin/main`:** (pushing)
+- **On `origin/main`:** `414f6480a`
 - **iOS Google logged into the sheet:** HTTPS `/auth?hc=` stays inside ASWeb — iOS now closes with short `com.despia.vybe://oauth/auth?hc=`
 - **Android:** still HTTPS App Link close
 - **Swipe-dismiss / Cancel:** stops nonce poll + clears chip (no endless loading)
