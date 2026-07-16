@@ -406,50 +406,10 @@ type RedeemedHandoff = {
 const handoffRedeemByCode = new Map<string, Promise<RedeemedHandoff>>();
 const oauthCompleteByHc = new Map<string, Promise<DespiaOAuthCompletion>>();
 
-// #region agent log
-function dbgOAuth(
-  hypothesisId: string,
-  location: string,
-  message: string,
-  data: Record<string, unknown>,
-): void {
-  const body = {
-    sessionId: 'bd2545',
-    runId: 'post-fix',
-    hypothesisId,
-    location,
-    message,
-    data,
-    timestamp: Date.now(),
-  };
-  fetch('http://127.0.0.1:7693/ingest/1847f3ab-7d03-4b99-8dbe-84076ae9145e', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': 'bd2545' },
-    body: JSON.stringify(body),
-  }).catch(() => {});
-  void import('@/lib/firebase/functionsService')
-    .then(({ invokeFunction }) =>
-      invokeFunction('authQr', {
-        action: 'debug_oauth',
-        event: message,
-        hypothesisId,
-        location,
-        payload: data,
-      }),
-    )
-    .catch(() => null);
-}
-// #endregion
-
 async function redeemOAuthHandoffCode(code: string): Promise<RedeemedHandoff> {
   const key = code.trim().toLowerCase();
   const existing = handoffRedeemByCode.get(key);
-  if (existing) {
-    // #region agent log
-    dbgOAuth('H', 'despiaOAuth.ts:redeem', 'redeem_shared_lock', { codeLen: key.length });
-    // #endregion
-    return existing;
-  }
+  if (existing) return existing;
 
   // Placeholder MUST be registered before any await (dynamic import yields the turn).
   let settle!: (value: RedeemedHandoff | PromiseLike<RedeemedHandoff>) => void;
@@ -472,29 +432,13 @@ async function redeemOAuthHandoffCode(code: string): Promise<RedeemedHandoff> {
         provider?: string;
       }>('authQr', { action: 'redeem_oauth_code', code: key });
       if (error || !data) {
-        // #region agent log
-        dbgOAuth('H', 'despiaOAuth.ts:redeem', 'redeem_failed', {
-          errName: error?.name || 'none',
-          errMsg: String(error?.message || 'no_data').slice(0, 120),
-        });
-        // #endregion
         throw Object.assign(new Error(error?.message || 'OAuth code redeem failed'), {
           code: error?.name || 'despia/oauth-redeem-failed',
         });
       }
-      const customToken = data.customToken || data.custom_token || undefined;
-      const idToken = data.idToken || data.id_token || undefined;
-      // #region agent log
-      dbgOAuth('H', 'despiaOAuth.ts:redeem', 'redeem_ok', {
-        hasCustomToken: Boolean(customToken),
-        customTokenLen: customToken ? String(customToken).length : 0,
-        hasIdToken: Boolean(idToken),
-        provider: data.provider || null,
-      });
-      // #endregion
       settle({
-        customToken,
-        idToken,
+        customToken: data.customToken || data.custom_token || undefined,
+        idToken: data.idToken || data.id_token || undefined,
         nonce: data.nonce || undefined,
         provider: data.provider || undefined,
       });
@@ -544,22 +488,6 @@ function startDespiaOAuthNoncePoll(nonce: string): void {
       if (generation !== noncePollGeneration) return;
 
       if (data?.ready && data.code) {
-        // #region agent log
-        fetch('http://127.0.0.1:7693/ingest/1847f3ab-7d03-4b99-8dbe-84076ae9145e',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'bd2545'},body:JSON.stringify({sessionId:'bd2545',runId:'pre-fix',hypothesisId:'E',location:'despiaOAuth.ts:pollReady',message:'poll_ready',data:{nonceLen:clean.length,codeLen:String(data.code).length,visible:typeof document!=='undefined'?document.visibilityState:'na'},timestamp:Date.now()})}).catch(()=>{});
-        void import('@/lib/firebase/functionsService').then(({ invokeFunction }) =>
-          invokeFunction('authQr', {
-            action: 'debug_oauth',
-            event: 'poll_ready',
-            hypothesisId: 'E',
-            location: 'despiaOAuth.ts:pollReady',
-            payload: {
-              nonceLen: clean.length,
-              codeLen: String(data.code).length,
-              visible: typeof document !== 'undefined' ? document.visibilityState : 'na',
-            },
-          }).catch(() => null),
-        );
-        // #endregion
         stopDespiaOAuthNoncePoll();
         const state = encodeOAuthState({
           scheme: getDespiaDeeplinkScheme(),
@@ -716,16 +644,6 @@ async function completeDespiaOAuthFromUrlInner(url: string): Promise<DespiaOAuth
     }
 
     const providerHint = redeemedProvider || state?.provider || 'google';
-    const signMethod = customToken ? 'custom' : providerHint === 'apple' ? 'apple' : 'google_id';
-    // #region agent log
-    dbgOAuth('I', 'despiaOAuth.ts:signIn', 'signin_start', {
-      method: signMethod,
-      hasCustomToken: Boolean(customToken),
-      customTokenLen: customToken ? String(customToken).length : 0,
-      hasIdToken: Boolean(idToken),
-      providerHint,
-    });
-    // #endregion
 
     if (customToken) {
       // Short handoff → custom token (preferred — avoids long deeplinks).
@@ -745,21 +663,8 @@ async function completeDespiaOAuthFromUrlInner(url: string): Promise<DespiaOAuth
 
     const { data, error: sessionError } = await firebaseAuth.getSession();
     if (sessionError) {
-      // #region agent log
-      dbgOAuth('I', 'despiaOAuth.ts:signIn', 'signin_session_error', {
-        method: signMethod,
-        errName: sessionError.name || null,
-        errMsg: String(sessionError.message || '').slice(0, 120),
-      });
-      // #endregion
       return { data: { session: null }, error: sessionError };
     }
-    // #region agent log
-    dbgOAuth('I', 'despiaOAuth.ts:signIn', 'signin_ok', {
-      method: signMethod,
-      hasUser: Boolean(data.session?.user),
-    });
-    // #endregion
     const completion = { data: { session: data.session }, error: null };
     if (data.session?.user) {
       try {
@@ -779,22 +684,8 @@ async function completeDespiaOAuthFromUrlInner(url: string): Promise<DespiaOAuth
     return completion;
   } catch (err) {
     clearDespiaOAuthPending();
-    const mapped = await import('@/lib/oauthAccountLink').then(({ mapOAuthLinkError }) =>
-      mapOAuthLinkError(err),
-    );
-    // #region agent log
-    const raw =
-      err && typeof err === 'object'
-        ? (err as { code?: string; message?: string })
-        : { code: '', message: String(err) };
-    dbgOAuth('I', 'despiaOAuth.ts:signIn', 'signin_throw', {
-      rawCode: String(raw.code || '').slice(0, 80),
-      rawMsg: String(raw.message || '').slice(0, 160),
-      mappedName: mapped.name || null,
-      mappedMsg: String(mapped.message || '').slice(0, 120),
-    });
-    // #endregion
-    return { data: { session: null }, error: mapped };
+    const { mapOAuthLinkError } = await import('@/lib/oauthAccountLink');
+    return { data: { session: null }, error: mapOAuthLinkError(err) };
   }
 }
 
@@ -804,12 +695,7 @@ export async function completeDespiaOAuthFromUrl(url: string): Promise<DespiaOAu
   const handoffCode = (params.get('hc') || params.get('handoff_code') || '').trim().toLowerCase();
   if (handoffCode) {
     const existing = oauthCompleteByHc.get(handoffCode);
-    if (existing) {
-      // #region agent log
-      dbgOAuth('K', 'despiaOAuth.ts:complete', 'complete_shared_lock', { codeLen: handoffCode.length });
-      // #endregion
-      return existing;
-    }
+    if (existing) return existing;
     // Register placeholder before any await inside Inner.
     let settle!: (value: DespiaOAuthCompletion | PromiseLike<DespiaOAuthCompletion>) => void;
     let fail!: (reason?: unknown) => void;

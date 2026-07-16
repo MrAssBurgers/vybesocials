@@ -12,51 +12,14 @@
   <script>
     /**
      * https://vybehub.app/native-callback.html — Despia Google/Apple return.
-     * Debug session bd2545: logs to authQr debug_oauth + local ingest when available.
+     * Exchanges id_token for a short hc= handoff, then closes the secure browser:
+     * - Android: HTTPS App Link to /auth?hc=… (Custom Tabs ignore custom-scheme / intent://)
+     * - iOS: com.despia.vybe://oauth/auth?hc=…
      */
     (function () {
       var DEFAULT_SCHEME = 'com.despia.vybe';
       var EXCHANGE_URL = 'https://us-central1-vybe-daaab.cloudfunctions.net/authQr';
-      var INGEST = 'http://127.0.0.1:7693/ingest/1847f3ab-7d03-4b99-8dbe-84076ae9145e';
       var closed = false;
-
-      // #region agent log
-      function dbg(hypothesisId, location, message, payload) {
-        var body = {
-          sessionId: 'bd2545',
-          runId: 'post-fix',
-          hypothesisId: hypothesisId,
-          location: location,
-          message: message,
-          data: payload || {},
-          timestamp: Date.now(),
-        };
-        try {
-          fetch(INGEST, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': 'bd2545' },
-            body: JSON.stringify(body),
-            keepalive: true,
-          }).catch(function () {});
-        } catch (e0) {}
-        try {
-          fetch(EXCHANGE_URL, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              data: {
-                action: 'debug_oauth',
-                event: message,
-                hypothesisId: hypothesisId,
-                location: location,
-                payload: payload || {},
-              },
-            }),
-            keepalive: true,
-          }).catch(function () {});
-        } catch (e1) {}
-      }
-      // #endregion
 
       function decodeState(state) {
         if (!state) return null;
@@ -92,17 +55,8 @@
 
       function softFire(deeplink) {
         if (!deeplink || deeplink.indexOf('oauth') === -1) return;
-        // Android CCT: never soft-fire custom-scheme / intent:// — screenshot showed
-        // intent:// → ERR_UNKNOWN_URL_SCHEME and overwrote App Link close.
+        // Android CCT: never soft-fire custom-scheme / intent:// — they error or stay open.
         if (isAndroid()) return;
-        // #region agent log
-        dbg('C', 'native-callback.html:softFire', 'softFire', {
-          len: deeplink.length,
-          hasWait: deeplink.indexOf('wait=1') !== -1,
-          hasHc: deeplink.indexOf('hc=') !== -1,
-          android: false,
-        });
-        // #endregion
         try {
           var iframe = document.createElement('iframe');
           iframe.setAttribute('aria-hidden', 'true');
@@ -128,33 +82,12 @@
 
       function hardFire(deeplink) {
         if (!deeplink || deeplink.indexOf('oauth') === -1) return;
-        var isHc = deeplink.indexOf('hc=') !== -1;
-        var isErr = deeplink.indexOf('error=') !== -1;
-        // #region agent log
-        dbg('A', 'native-callback.html:hardFire', 'hardFire', {
-          len: deeplink.length,
-          hasHc: isHc,
-          hasError: isErr,
-          closed: closed,
-          android: isAndroid(),
-          closeMode: isAndroid() ? 'applink-only' : 'scheme',
-        });
-        // #endregion
 
-        // Android: App Link ONLY. Prior run: android_applink then softFire + intent://
-        // → Chrome ERR_UNKNOWN_URL_SCHEME (user screenshot). Do not chain anything else.
+        // Android: App Link only — custom-scheme / intent:// leave CCT open or ERR_UNKNOWN_URL_SCHEME.
         if (isAndroid()) {
           try {
             var q = deeplink.split('?')[1] || '';
             var appLink = 'https://vybehub.app/auth?' + q;
-            // #region agent log
-            dbg('F', 'native-callback.html:hardFire', 'android_applink_only', {
-              appLinkHost: 'vybehub.app',
-              hasHc: isHc,
-              queryLen: q.length,
-              noIntent: true,
-            });
-            // #endregion
             try { window.location.replace(appLink); } catch (eA1) {}
             try { window.location.href = appLink; } catch (eA2) {}
           } catch (eA0) {}
@@ -185,18 +118,10 @@
       }
 
       document.addEventListener('visibilitychange', function () {
-        if (document.visibilityState === 'hidden') {
-          closed = true;
-          // #region agent log
-          dbg('E', 'native-callback.html:visibility', 'page_hidden', { closed: true });
-          // #endregion
-        }
+        if (document.visibilityState === 'hidden') closed = true;
       });
       window.addEventListener('pagehide', function () {
         closed = true;
-        // #region agent log
-        dbg('E', 'native-callback.html:pagehide', 'pagehide', {});
-        // #endregion
       });
 
       var params = getParams();
@@ -206,18 +131,6 @@
       var error = params.get('error');
       var provider = (stateObj && stateObj.provider) || 'google';
       var nonce = (stateObj && stateObj.nonce) || '';
-
-      // #region agent log
-      dbg('B', 'native-callback.html:boot', 'callback_boot', {
-        hasIdToken: Boolean(idToken),
-        idTokenLen: idToken ? String(idToken).length : 0,
-        hasNonce: Boolean(nonce),
-        provider: provider,
-        hasError: Boolean(error),
-        android: isAndroid(),
-        hrefHost: location.host,
-      });
-      // #endregion
 
       if (error) {
         hardFire(buildDeeplink(scheme, 'error=' + encodeURIComponent(String(error).slice(0, 64))));
@@ -252,20 +165,11 @@
         .then(function (result) {
           var payload = payloadOf(result);
           var handoff = payload.code;
-          // #region agent log
-          dbg('B', 'native-callback.html:exchange', 'exchange_result', {
-            ok: Boolean(result.ok),
-            hasHandoff: Boolean(handoff),
-            handoffLen: handoff ? String(handoff).length : 0,
-            closedBeforeHardFire: closed,
-          });
-          // #endregion
           if (!result.ok || !handoff) throw new Error('exchange_failed');
           var link = buildDeeplink(scheme, 'hc=' + encodeURIComponent(handoff));
           if (!closed) {
             hardFire(link);
-            // iOS may need a short retry; Android App Link must fire once only
-            // (retries remount /auth?hc= and double-redeem → "already used" toast).
+            // iOS may need a short retry; Android App Link must fire once only.
             if (!isAndroid()) {
               setTimeout(function () {
                 if (!closed) hardFire(link);
@@ -274,19 +178,9 @@
                 if (!closed) hardFire(link);
               }, 250);
             }
-          } else {
-            // #region agent log
-            dbg('D', 'native-callback.html:skipHard', 'skipped_hardFire_already_closed', {});
-            // #endregion
           }
         })
-        .catch(function (err) {
-          // #region agent log
-          dbg('B', 'native-callback.html:exchangeFail', 'exchange_failed', {
-            closed: closed,
-            msg: err && err.message ? String(err.message).slice(0, 120) : 'fail',
-          });
-          // #endregion
+        .catch(function () {
           if (!closed) hardFire(buildDeeplink(scheme, 'error=exchange_failed'));
         });
     })();

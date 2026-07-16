@@ -292,22 +292,6 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
 
       if (detail?.error?.message) {
         const msg = getFriendlyAuthError(detail.error);
-        // #region agent log
-        fetch('http://127.0.0.1:7693/ingest/1847f3ab-7d03-4b99-8dbe-84076ae9145e',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'bd2545'},body:JSON.stringify({sessionId:'bd2545',runId:'post-fix',hypothesisId:'J',location:'Landing.tsx:finishError',message:'oauth_finish_error',data:{errName:detail.error.name||null,errMsg:String(detail.error.message||'').slice(0,160),friendly:msg.slice(0,120)},timestamp:Date.now()})}).catch(()=>{});
-        void import('@/lib/firebase/functionsService').then(({ invokeFunction }) =>
-          invokeFunction('authQr', {
-            action: 'debug_oauth',
-            event: 'oauth_finish_error',
-            hypothesisId: 'J',
-            location: 'Landing.tsx:finishError',
-            payload: {
-              errName: detail.error?.name || null,
-              errMsg: String(detail.error?.message || '').slice(0, 160),
-              friendly: msg.slice(0, 120),
-            },
-          }).catch(() => null),
-        );
-        // #endregion
         if (msg !== '__SUPPRESS__') {
           sessionStorage.setItem('vybe-oauth-error', msg);
           toast.error(msg);
@@ -351,18 +335,6 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
     window.addEventListener('focus', onUrlMaybeChanged);
     const onVisible = () => {
       if (document.visibilityState !== 'visible') return;
-      // #region agent log
-      fetch('http://127.0.0.1:7693/ingest/1847f3ab-7d03-4b99-8dbe-84076ae9145e',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'bd2545'},body:JSON.stringify({sessionId:'bd2545',runId:'pre-fix',hypothesisId:'E',location:'Landing.tsx:onVisible',message:'webview_visible',data:{pending:isDespiaOAuthInFlight()},timestamp:Date.now()})}).catch(()=>{});
-      void import('@/lib/firebase/functionsService').then(({ invokeFunction }) =>
-        invokeFunction('authQr', {
-          action: 'debug_oauth',
-          event: 'webview_visible',
-          hypothesisId: 'E',
-          location: 'Landing.tsx:onVisible',
-          payload: { pending: isDespiaOAuthInFlight() },
-        }).catch(() => null),
-      );
-      // #endregion
       resumeDespiaOAuthNoncePollIfPending();
       onUrlMaybeChanged();
       // Sheet dismissed — if Firebase already has a user from a background poll, finish now.

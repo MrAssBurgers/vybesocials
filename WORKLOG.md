@@ -2,6 +2,24 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## PUBLISH NOW (2026-07-15) — Google OAuth auto-close + instant login (cleaned up)
+
+- **On `origin/main`:** (pushing) — Android App Link close + idempotent `hc=` redeem; debug instrumentation removed
+- **Working flow:** Google → pick account → sheet auto-closes → signed in (no Completing stuck screen)
+- **Lovable → Share → Publish:** https://lovable.dev/projects/416714c8-d013-4aff-984d-522418a9bbc7
+
+---
+
+## PUBLISH NOW (2026-07-15) — Fix "OAuth code already used" toast after auto-close
+
+- **On `origin/main`:** (pushing) — Android App Link close works; toast was a **double-redeem race**
+- **Cause:** `/auth?hc=` + nonce poll (+ duplicate deeplink handler) redeemed the same one-time code twice
+- **Fix:** single-flight redeem/complete per `hc=`; one deeplink handler path; suppress already-used race toast; Android hardFire once
+- **Lovable → Share → Publish:** https://lovable.dev/projects/416714c8-d013-4aff-984d-522418a9bbc7
+- **Verify:** Google → pick account → sheet closes → signed in → **no** “already used / expired” toast
+
+---
+
 ## PUBLISH NOW (2026-07-15) — Auto-close Google sheet + instant rehydrate
 
 - **On `origin/main`:** (pushing)
