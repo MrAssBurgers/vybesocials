@@ -69,6 +69,30 @@ const escapeScript = `
     href: String(location.href || '').slice(0, 120),
   });
 
+  // Watch the primary module entry — proves whether app.js actually evaluated.
+  try {
+    var mods = document.querySelectorAll('script[type="module"][src*="/assets/app"]');
+    for (var i = 0; i < mods.length; i++) {
+      (function (el) {
+        var src = el.getAttribute('src') || '';
+        el.addEventListener('load', function () {
+          beacon('module_script_load', { src: String(src).slice(0, 80), build: BUILD });
+        });
+        el.addEventListener('error', function () {
+          beacon('module_script_error', { src: String(src).slice(0, 80), build: BUILD });
+        });
+      })(mods[i]);
+    }
+    setTimeout(function () {
+      beacon('module_ready_probe', {
+        build: BUILD,
+        appReady: document.documentElement.getAttribute('data-vybe-app-ready') === 'true',
+        splashPct: typeof window.__vybeSplashProgress === 'number' ? window.__vybeSplashProgress : null,
+        hasRootText: !!((document.getElementById('root') || {}).textContent || '').replace(/\\s+/g, '').length,
+      });
+    }, 5000);
+  } catch (eMod) {}
+
   // Do NOT redirect localhost → vybehub.app: that swaps origins and drops the
   // Firebase session (storage is origin-scoped). Beacon only for OTA debug.
   if (!isDespia || !onLocal) return;

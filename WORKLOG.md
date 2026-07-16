@@ -2,6 +2,13 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## ACTIVE (2026-07-16) — Repro: new build boots but phone geometry never logged
+
+- **Runtime (ordered Firestore):** boot `app-DY-aWv1E` @ 1784234878449 on vybehub.app; Apple `oauth_launch` after; **zero** `react_root_rendered` / `phone_center_geometry` / `splash_fake_failopen`.
+- **Dump bug:** `debug_oauth_dump` used where+limit without orderBy → arbitrary old sample. Fixed to `orderBy createdAt desc`.
+- **Next fix:** absolute `margin:auto` phone card (`mid-v4`) + injected `!important` CSS; earlier splash fail-open (16s); `main_module_eval` / module load beacons.
+- **Verify:** dump shows `phone_center_geometry` `centered:true` `build:mid-v4`; splash leaves 42%.
+
 ## ACTIVE (2026-07-16) — Splash stuck 42% + phone still top
 
 - **42% root cause (code proof):** `index.html` fake ticker hard-capped `if (p >= 42) return` until React took over. If `app.js` stalled, Despia froze on VYBE splash at 42%.

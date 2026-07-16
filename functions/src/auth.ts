@@ -1238,11 +1238,19 @@ export const authQr = onCall(
   }
 
   if (action === 'debug_oauth_dump') {
-    const snap = await db.collection('oauth_debug_events').where('sessionId', '==', 'bd2545').limit(80).get();
+    // Prefer newest-by-createdAt (single-field index). Filtering sessionId
+    // + orderBy createdAt needs a composite index we may not have, and a
+    // bare where+limit returns an arbitrary sample that misses fresh boots.
+    const snap = await db
+      .collection('oauth_debug_events')
+      .orderBy('createdAt', 'desc')
+      .limit(120)
+      .get();
     const events = snap.docs
       .map((d) => d.data())
-      .sort((a, b) => Number(a.createdAt || 0) - Number(b.createdAt || 0))
-      .slice(-40);
+      .filter((e) => String((e as { sessionId?: string }).sessionId || '') === 'bd2545')
+      .slice(0, 50)
+      .reverse();
     return { events };
   }
 

@@ -11,13 +11,16 @@ async function loadProfileForAuth(authUid) {
         'User';
     return { profileId, displayName };
 }
+/** Verify caller is a member of the DM/group conversation before minting a call token. */
 async function assertConversationMember(conversationId, profileId, authUid) {
+    // 1. Direct conversation_members doc lookup by composite id.
     const [byProfile, byAuth] = await Promise.all([
         db.collection('conversation_members').doc(`${conversationId}_${profileId}`).get(),
         db.collection('conversation_members').doc(`${conversationId}_${authUid}`).get(),
     ]);
     if (byProfile.exists || byAuth.exists)
         return;
+    // 2. Fallback to conversations.member_ids array.
     const conv = await db.collection('conversations').doc(conversationId).get();
     if (conv.exists) {
         const memberIds = conv.data()?.member_ids;
@@ -27,6 +30,7 @@ async function assertConversationMember(conversationId, profileId, authUid) {
     }
     throw new HttpsError('permission-denied', 'Not a member of this conversation');
 }
+/** Verify caller is a participant of the given call doc (or its underlying conversation). */
 async function assertCallParticipant(callId, profileId, authUid) {
     const callSnap = await db.collection('calls').doc(callId).get();
     if (!callSnap.exists) {
@@ -50,6 +54,7 @@ async function assertCallParticipant(callId, profileId, authUid) {
     }
     throw new HttpsError('permission-denied', 'Not a participant of this call');
 }
+/** Verify caller is a member of a community server before minting a voice-channel token. */
 async function assertServerMember(serverId, profileId, authUid) {
     const [byProfile, byAuth] = await Promise.all([
         db.collection('server_members').doc(`${serverId}_${profileId}`).get(),
@@ -73,6 +78,7 @@ export const livekitToken = onCall({ secrets: SECRETS }, async (request) => {
         throw new HttpsError('invalid-argument', 'conversationId or callId required');
     }
     const { profileId, displayName } = await loadProfileForAuth(authUid);
+    // Enforce membership before minting a join-capable token.
     let effectiveConversationId = conversationId || null;
     if (conversationId) {
         await assertConversationMember(conversationId, profileId, authUid);
@@ -80,6 +86,7 @@ export const livekitToken = onCall({ secrets: SECRETS }, async (request) => {
     else if (callId) {
         effectiveConversationId = await assertCallParticipant(callId, profileId, authUid);
     }
+    // Match client + legacy Supabase room naming (`call-${conversationId}`).
     const roomName = effectiveConversationId
         ? `call-${effectiveConversationId}`
         : String(callId);
@@ -116,6 +123,7 @@ export const communityVoiceToken = onCall({ secrets: SECRETS }, async (request) 
     if (!apiKey || !apiSecret || !wsUrl)
         throw new HttpsError('failed-precondition', 'LIVEKIT not configured');
     const { profileId } = await loadProfileForAuth(authUid);
+    // Enforce community membership before minting a join-capable token.
     await assertServerMember(serverId, profileId, authUid);
     const { AccessToken } = await import('livekit-server-sdk');
     const roomName = `comm_${serverId}_${channelId}`;

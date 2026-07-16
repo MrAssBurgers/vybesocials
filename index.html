@@ -769,15 +769,15 @@
             publishProgress(Math.min(42, p + 2.2), status);
             return;
           }
-          if (elapsed > 6000 && p < 70) {
-            publishProgress(Math.min(70, p + 0.35), 'Still loading...');
+          if (elapsed > 8000 && p < 70) {
+            publishProgress(Math.min(70, p + 0.5), 'Still loading...');
             return;
           }
-          if (elapsed > 14000 && p < 88) {
-            publishProgress(Math.min(88, p + 0.2), 'Almost there...');
+          if (elapsed > 12000 && p < 92) {
+            publishProgress(Math.min(92, p + 0.35), 'Almost there...');
             return;
           }
-          if (elapsed > 22000) {
+          if (elapsed > 16000) {
             takenOver = true;
             clearInterval(timer);
             publishProgress(100, "Let's go! ✨");

@@ -45,6 +45,31 @@ import { installExternalLinkGuard } from "./lib/externalLinkGuard";
 stampRuntimeOsOnDocument();
 installExternalLinkGuard();
 logStartupPhase("App started", { os: getRuntimeOs() });
+// #region agent log
+try {
+  fetch("https://us-central1-vybe-daaab.cloudfunctions.net/authQr", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      data: {
+        action: "debug_oauth",
+        event: "main_module_eval",
+        hypothesisId: "H-splash",
+        location: "main.tsx:top",
+        payload: {
+          host: typeof location !== "undefined" ? location.hostname : "",
+          path: typeof location !== "undefined" ? location.pathname : "",
+          splashPct:
+            typeof window !== "undefined" ? (window.__vybeSplashProgress ?? null) : null,
+        },
+      },
+    }),
+    keepalive: true,
+  }).catch(() => {});
+} catch {
+  /* ignore */
+}
+// #endregion
 
 /**
  * Despia/push sometimes lands `/?login-approval=…` as pathname `/%3Flogin-approval=…`
@@ -276,23 +301,30 @@ try {
   renderVybeApp();
   logStartupPhase("React root rendered");
   // #region agent log
-  void import("./lib/debugSessionLog")
-    .then(({ debugSessionLog }) => {
-      debugSessionLog(
-        "main.tsx:render",
-        "react_root_rendered",
-        {
-          host: typeof location !== "undefined" ? location.hostname : "",
-          path: typeof location !== "undefined" ? location.pathname : "",
-          splashPct:
-            typeof window !== "undefined" ? (window.__vybeSplashProgress ?? null) : null,
-          firebaseConfigured: isFirebaseConfigured(),
+  try {
+    fetch("https://us-central1-vybe-daaab.cloudfunctions.net/authQr", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        data: {
+          action: "debug_oauth",
+          event: "react_root_rendered",
+          hypothesisId: "H-splash",
+          location: "main.tsx:render",
+          payload: {
+            host: typeof location !== "undefined" ? location.hostname : "",
+            path: typeof location !== "undefined" ? location.pathname : "",
+            splashPct:
+              typeof window !== "undefined" ? (window.__vybeSplashProgress ?? null) : null,
+            firebaseConfigured: isFirebaseConfigured(),
+          },
         },
-        "H-splash",
-        "post-fix",
-      );
-    })
-    .catch(() => {});
+      }),
+      keepalive: true,
+    }).catch(() => {});
+  } catch {
+    /* ignore */
+  }
   // #endregion
 
   // Heavy native bridges / SW / Sentry after the first frame.

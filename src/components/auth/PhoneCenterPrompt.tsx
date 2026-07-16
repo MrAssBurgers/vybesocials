@@ -1,7 +1,8 @@
 /**
  * Mid-screen "Verify your phone" prompt.
- * Full-viewport flex center — no Dialog, no role=dialog, no transform math
- * (iOS WebView routinely strips/overrides transform on fixed sheets).
+ *
+ * Uses absolute inset + margin:auto centering (no flex, no transform).
+ * iOS WKWebView has repeatedly failed transform/flex overlays in this app.
  */
 import { useEffect, useId, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
@@ -15,7 +16,39 @@ import {
 } from '@/lib/phoneVerifyDismiss';
 import { debugSessionLog } from '@/lib/debugSessionLog';
 
-const BUILD_TAG = 'mid-v3';
+const BUILD_TAG = 'mid-v4';
+
+const OVERLAY_CSS = `
+[data-vybe-phone-center="${BUILD_TAG}"] {
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  height: 100dvh !important;
+  z-index: 2147483000 !important;
+  background: rgba(0,0,0,0.55) !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  transform: none !important;
+  display: block !important;
+}
+[data-vybe-phone-center="${BUILD_TAG}"] [data-vybe-phone-card] {
+  position: absolute !important;
+  top: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  left: 0 !important;
+  margin: auto !important;
+  width: min(92vw, 28rem) !important;
+  height: fit-content !important;
+  max-height: min(80vh, 36rem) !important;
+  transform: none !important;
+  inset: 0 !important;
+}
+`;
 
 export function PhoneCenterPrompt() {
   const { user, loading } = useAuth();
@@ -31,6 +64,15 @@ export function PhoneCenterPrompt() {
     }
     if (isPhoneVerifyDismissed(user.id)) {
       setShow(false);
+      // #region agent log
+      debugSessionLog(
+        'PhoneCenterPrompt.tsx:gate',
+        'phone_prompt_skipped',
+        { reason: 'dismissed', build: BUILD_TAG },
+        'H-dialog',
+        'post-fix',
+      );
+      // #endregion
       return;
     }
 
@@ -42,12 +84,38 @@ export function PhoneCenterPrompt() {
         .eq('user_id', user.id)
         .maybeSingle();
       if (cancelled) return;
-      setShow(!data?.phone_verified);
+      const need = !data?.phone_verified;
+      setShow(need);
+      // #region agent log
+      debugSessionLog(
+        'PhoneCenterPrompt.tsx:gate',
+        'phone_prompt_gate',
+        {
+          need,
+          phoneVerified: Boolean(data?.phone_verified),
+          build: BUILD_TAG,
+        },
+        'H-dialog',
+        'post-fix',
+      );
+      // #endregion
     })();
     return () => {
       cancelled = true;
     };
   }, [user?.id, loading]);
+
+  useEffect(() => {
+    if (!show) return;
+    if (typeof document === 'undefined') return;
+    const style = document.createElement('style');
+    style.setAttribute('data-vybe-phone-center-css', BUILD_TAG);
+    style.textContent = OVERLAY_CSS;
+    document.head.appendChild(style);
+    return () => {
+      style.remove();
+    };
+  }, [show]);
 
   useEffect(() => {
     if (!show) return;
@@ -66,8 +134,8 @@ export function PhoneCenterPrompt() {
           viewportH: window.innerHeight,
           centerDelta,
           closeNearSafeArea: r.top < 48,
-          centered: Math.abs(centerDelta) < 48,
-          mode: 'flex-center',
+          centered: Math.abs(centerDelta) < 64,
+          mode: 'absolute-margin-auto',
           build: BUILD_TAG,
         },
         'H-dialog',
@@ -75,8 +143,8 @@ export function PhoneCenterPrompt() {
       );
       // #endregion
     };
-    const t = window.setTimeout(measure, 80);
-    const t2 = window.setTimeout(measure, 400);
+    const t = window.setTimeout(measure, 50);
+    const t2 = window.setTimeout(measure, 300);
     return () => {
       window.clearTimeout(t);
       window.clearTimeout(t2);
@@ -93,45 +161,23 @@ export function PhoneCenterPrompt() {
   return createPortal(
     <div
       data-vybe-phone-center={BUILD_TAG}
-      style={{
-        position: 'fixed',
-        inset: 0,
-        zIndex: 2147483000,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        paddingTop: 'max(1rem, env(safe-area-inset-top, 0px))',
-        paddingBottom: 'max(1rem, env(safe-area-inset-bottom, 0px))',
-        paddingLeft: 'max(1rem, env(safe-area-inset-left, 0px))',
-        paddingRight: 'max(1rem, env(safe-area-inset-right, 0px))',
-        boxSizing: 'border-box',
-        background: 'rgba(0,0,0,0.55)',
-      }}
       onClick={(e) => {
         if (e.target === e.currentTarget) dismiss();
       }}
     >
       <div
         ref={cardRef}
+        data-vybe-phone-card=""
         aria-labelledby={titleId}
         onClick={(e) => e.stopPropagation()}
         style={{
-          position: 'relative',
-          width: 'min(92vw, 28rem)',
-          maxHeight: 'min(80vh, 36rem)',
           overflow: 'auto',
-          margin: 0,
           padding: '1.5rem',
           borderRadius: '1.25rem',
-          border: '1px solid rgba(255,255,255,0.14)',
+          border: '2px solid rgba(165,180,252,0.45)',
           background: 'rgba(15,16,23,0.98)',
           boxShadow: '0 24px 64px rgba(0,0,0,0.55)',
           boxSizing: 'border-box',
-          transform: 'none',
-          top: 'auto',
-          left: 'auto',
-          right: 'auto',
-          bottom: 'auto',
         }}
       >
         <button
@@ -151,7 +197,6 @@ export function PhoneCenterPrompt() {
             justifyContent: 'center',
             background: 'rgba(255,255,255,0.12)',
             color: '#fff',
-            opacity: 0.9,
             cursor: 'pointer',
             zIndex: 2,
           }}
