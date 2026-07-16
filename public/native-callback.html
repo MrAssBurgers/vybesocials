@@ -25,7 +25,7 @@
       function dbg(hypothesisId, location, message, payload) {
         var body = {
           sessionId: 'bd2545',
-          runId: 'pre-fix',
+          runId: 'post-fix',
           hypothesisId: hypothesisId,
           location: location,
           message: message,
@@ -164,15 +164,38 @@
 
       function hardFire(deeplink) {
         if (!deeplink || deeplink.indexOf('oauth') === -1) return;
+        var isHc = deeplink.indexOf('hc=') !== -1;
+        var isErr = deeplink.indexOf('error=') !== -1;
         // #region agent log
         dbg('A', 'native-callback.html:hardFire', 'hardFire', {
           len: deeplink.length,
-          hasHc: deeplink.indexOf('hc=') !== -1,
-          hasError: deeplink.indexOf('error=') !== -1,
+          hasHc: isHc,
+          hasError: isErr,
           closed: closed,
           android: isAndroid(),
+          closeMode: isAndroid() ? 'applink+scheme' : 'scheme',
         });
         // #endregion
+
+        // Runtime proof (bd2545 dump): Android CCT ignores custom-scheme JS navigations
+        // (hardFire ran, page stayed open until manual dismiss). Use verified App Link.
+        if (isAndroid()) {
+          try {
+            var q = deeplink.split('?')[1] || '';
+            var appLink = 'https://vybehub.app/auth?' + q;
+            // Prefer App Link first so Chrome hands off to com.despia.vybe and dismisses CCT.
+            try { window.location.replace(appLink); } catch (eA1) {}
+            try { window.location.href = appLink; } catch (eA2) {}
+            // #region agent log
+            dbg('A', 'native-callback.html:hardFire', 'android_applink', {
+              appLinkHost: 'vybehub.app',
+              hasHc: isHc,
+              queryLen: q.length,
+            });
+            // #endregion
+          } catch (eA0) {}
+        }
+
         softFire(deeplink);
         try { window.location.replace(deeplink); } catch (e1) {}
         try { window.location.href = deeplink; } catch (e2) {}
