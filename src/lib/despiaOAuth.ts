@@ -203,20 +203,6 @@ export function isDespiaOAuthInFlight(): boolean {
   return true;
 }
 
-function base64UrlFromBuffer(buf: ArrayBuffer): string {
-  const bytes = new Uint8Array(buf);
-  let binary = '';
-  for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]!);
-  return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-}
-
-/** @deprecated PKCE helpers kept for optional future public-client flow */
-function _unusedPkceKeep() {
-  return { base64UrlFromBuffer };
-}
-
-void _unusedPkceKeep;
-
 /** Google Despia callback — production domain so the sheet shows vybehub.app. */
 export function getGoogleOAuthCallbackUrl(): string {
   return `${getProductionOrigin()}/native-callback.html`;

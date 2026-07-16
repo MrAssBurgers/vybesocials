@@ -4,7 +4,7 @@ Use this file as the Lovable -> Cursor handoff each session.
 
 ## PUBLISH NOW (2026-07-15) — Google on vybehub.app (id_token) + login
 
-- **On `origin/main`:** (pushing) `https://vybehub.app/native-callback.html`
+- **On `origin/main`:** `e190d199` — `https://vybehub.app/native-callback.html`
 - **Why firebase “didn’t load” / no login:** PKCE code exchange needs Google `client_secret` → failed. Switched back to **id_token** on **vybehub.app** (no secret).
 - **What you’ll see:** Google sheet → `vybehub.app` · VYBE branding → short `hc=` close → signed in
 - **Google Cloud Console:** Authorized redirect URI must include  
