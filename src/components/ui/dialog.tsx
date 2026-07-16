@@ -35,7 +35,7 @@ const DialogContent = React.forwardRef<
     <DialogOverlay />
     {/* Flex shell centers without transform — bubble-pop scale cannot unpin the dialog. */}
     <div
-      className="vybe-dialog-center-shell fixed inset-0 z-[151] flex items-center justify-center pointer-events-none"
+      className="vybe-dialog-center-shell fixed inset-0 z-[151] grid place-items-center pointer-events-none"
       style={{
         paddingTop: 'max(0.75rem, var(--sat, env(safe-area-inset-top, 0px)))',
         paddingBottom: 'max(0.75rem, var(--sab, env(safe-area-inset-bottom, 0px)))',
@@ -61,10 +61,11 @@ const DialogContent = React.forwardRef<
           "border border-border/50",
           "overflow-hidden rounded-2xl md:rounded-3xl",
           "shadow-2xl shadow-black/20",
-          "data-[state=open]:animate-bubble-pop-in data-[state=closed]:animate-bubble-pop-out",
+          // Opacity-only open/close — scale transforms fight centering on iOS.
+          "data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=open]:fade-in-0 data-[state=closed]:fade-out-0",
           className,
         )}
-        style={style}
+        style={{ position: 'relative', margin: 0, inset: 'auto', ...(style || {}) }}
         {...props}
       >
         <DialogPrimitive.Title className="sr-only">Dialog</DialogPrimitive.Title>

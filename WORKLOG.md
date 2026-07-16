@@ -2,15 +2,14 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
-## ACTIVE (2026-07-16) — Phone dialog center + SMS send
+## ACTIVE (2026-07-16) — Phone verify MUST be middle-of-screen
 
-- **On `origin/main`:** `b26ce7ef8`
-- **Dialog still top-pinned (runtime):** global `index.css` mobile rule `[role="dialog"] { margin: 0.5rem; width: calc(100vw-1rem) }` fought the flex shell. Replaced with `.vybe-dialog-center-shell` / `.vybe-dialog-panel` overrides (`margin/inset: auto !important`).
-- **SMS “doesn’t send” (runtime):** `phoneVerifyRequest` was a stub (stored a code, never texted). Zero `auth_challenges` with `channel=sms`. Twilio secrets **missing** in Secret Manager. Now returns `twilio_not_configured` clearly; Twilio Verify wired when secrets exist.
-- **Deployed:** `phoneVerifyRequest`, `auth2faVerifyPhone` → Firebase.
-- **Unblock SMS:** set Secret Manager `TWILIO_ACCOUNT_SID` (AC…), `TWILIO_AUTH_TOKEN`, `TWILIO_VERIFY_SERVICE_SID` (VA…), then redeploy those functions with `secrets: [...]` binding.
-- **Lovable → Share → Publish** required for dialog CSS + inline send errors on device.
-- **Verify:** phone dialog centered; Send code shows inline error or real SMS.
+- **User repro:** Verify phone still top-pinned / X under status bar on TestFlight.
+- **Evidence:** No `H-dialog` device logs (stale OTA). Live already had flex-shell + `.vybe-dialog-panel`, but device still showed top pin → Dialog CSS path unreliable on iOS WebView.
+- **Fix:** `PhoneVerifyGate` now uses a **dedicated body portal** (`.vybe-phone-verify-root` CSS grid `place-items:center` + safe-area padding) — not Radix Dialog. Shared `DialogContent` also drops bubble-pop scale animation.
+- **On `origin/main`:** (pushing)
+- **Lovable → Share → Publish** then force-quit TestFlight twice.
+- **Verify:** phone card dead-center; X below status bar; geometry log `centered:true`.
 
 ## ACTIVE (2026-07-16) — Center phone dialog + instant OAuth dismiss
 
