@@ -14,7 +14,7 @@ import { FoundingCountdown } from '@/components/growth/FoundingCountdown';
 import { NFCInviteShare } from '@/components/invite/NFCInviteShare';
 import { BumpToShare } from '@/components/invite/BumpToShare';
 import { PersonalQRCode } from '@/components/invite/PersonalQRCode';
-import { useAuth } from '@/lib/auth';
+import { useAuthOptional } from '@/lib/auth';
 import { analytics } from '@/lib/analytics';
 import { toast } from 'sonner';
 import { formatDistanceToNow } from 'date-fns';
@@ -28,7 +28,8 @@ const MILESTONES = [
 ];
 
 export default function InviteFriends() {
-  const { profile } = useAuth();
+  const auth = useAuthOptional();
+  const profile = auth?.profile ?? null;
   const { data: stats, isLoading: statsLoading } = useInviteStats();
   const { data: badges } = useUserBadges();
   const [copied, setCopied] = useState(false);

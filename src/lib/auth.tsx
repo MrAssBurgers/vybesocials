@@ -1298,3 +1298,9 @@ export function useAuth() {
   }
   return context;
 }
+
+/** Fail-soft accessor for routes that can mount during crash recovery / partial boot. */
+export function useAuthOptional(): AuthContextType | null {
+  const context = useContext(AuthContext);
+  return context === undefined ? null : context;
+}

@@ -91,6 +91,9 @@ const IGNORED_PATTERNS = [
   'get_auth_users_count',
   'Maximum call stack size exceeded',
   'permission-denied',
+  'missing_or_invalid_nonce',
+  'signinwithidp',
+  'useauth must be used within an authprovider',
   // Fixed camera-overlay HMR/export races — stale console noise should not re-file.
   'useCameraOverlay must be used within CameraOverlayProvider',
   'useCameraOverlay is not defined',
@@ -135,6 +138,17 @@ function shouldIgnore(msg: string): boolean {
 function shouldIgnoreUrl(url: string): boolean {
   const lower = url.toLowerCase();
   return IGNORED_URL_PATTERNS.some(p => lower.includes(p));
+}
+
+function shouldReportEnvironment(pageUrl: string): boolean {
+  try {
+    const host = new URL(pageUrl).hostname.toLowerCase();
+    if (host === 'vybehub.app' || host === 'www.vybehub.app') return true;
+    if (host === 'vybe-daaab.web.app' || host === 'vybe-daaab.firebaseapp.com') return true;
+    return false;
+  } catch {
+    return false;
+  }
 }
 
 // Queue for batching reports
@@ -185,6 +199,7 @@ async function flushReports() {
 }
 
 function enqueueReport(bug: DetectedBug) {
+  if (!shouldReportEnvironment(bug.url)) return;
   const key = bugKey(bug.message);
 
   // Per-key cooldown — silently drop bursts of identical errors
@@ -228,6 +243,11 @@ function classifyHttpError(status: number, url: string, body?: string): Detected
     firebaseHosts.some((host) => url.includes(host));
   if (!isAppRequest) return null;
   if (shouldIgnoreUrl(url)) return null;
+  if (
+    url.includes('/google.firestore.v1.Firestore/Write/channel') ||
+    url.includes('/google.firestore.v1.Firestore/Listen/channel')
+  ) return null;
+  if (url.includes('/__/auth/handler')) return null;
 
   const shortUrl = url.replace(window.location.origin, '').split('?')[0];
   const errorSnippet = body?.substring(0, 200) || '';

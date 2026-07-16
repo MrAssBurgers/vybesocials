@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { db } from '@/lib/firebase';
-import { useAuth } from '@/lib/auth';
+import { useAuthOptional } from '@/lib/auth';
 import { toast } from 'sonner';
 import { analytics } from '@/lib/analytics';
 import { useEffect, useRef } from 'react';
@@ -34,7 +34,8 @@ function generateInviteCode(): string {
  * Uses user.id (auth user ID) as the inviter_id since invites table has FK to auth.users
  */
 export function useMyInvite() {
-  const { user } = useAuth();
+  const auth = useAuthOptional();
+  const user = auth?.user ?? null;
   
   const query = useQuery({
     queryKey: ['my-invite', user?.id],
@@ -83,7 +84,8 @@ export function useMyInvite() {
  * Regenerate invite code for the user
  */
 export function useRegenerateInvite() {
-  const { user } = useAuth();
+  const auth = useAuthOptional();
+  const user = auth?.user ?? null;
   const queryClient = useQueryClient();
   
   return useMutation({
@@ -151,7 +153,8 @@ export function useRegenerateInvite() {
  * Also automatically awards badges for milestones
  */
 export function useInviteStats() {
-  const { user } = useAuth();
+  const auth = useAuthOptional();
+  const user = auth?.user ?? null;
   const queryClient = useQueryClient();
   const awardedMilestonesRef = useRef<Set<number>>(new Set());
   
@@ -262,7 +265,8 @@ export function useInviteStats() {
  * Get user's badges
  */
 export function useUserBadges(userId?: string) {
-  const { user } = useAuth();
+  const auth = useAuthOptional();
+  const user = auth?.user ?? null;
   const targetUserId = userId || user?.id;
   
   return useQuery({

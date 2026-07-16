@@ -1,7 +1,7 @@
 import { lazy, Suspense, memo, useEffect, useRef, type ReactNode } from 'react';
 import { Routes, Route, useLocation, Navigate, useParams } from 'react-router-dom';
 import { useRecoverBottomNavOnTabEnter } from '@/hooks/useRecoverBottomNavOnTabEnter';
-import { useAuth } from '@/lib/auth';
+import { useAuthOptional } from '@/lib/auth';
 import { shouldSkipRouteFade } from '@/lib/smoothMotion';
 import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
 import { PublicOnlyRoute } from '@/components/auth/PublicOnlyRoute';
@@ -162,7 +162,8 @@ const PageFallback = memo(() => (
  */
 export function AnimatedRoutes() {
   const location = useLocation();
-  const { profile } = useAuth();
+  const auth = useAuthOptional();
+  const profile = auth?.profile ?? null;
   const debugPanel = useDebugPanel();
   const routeShellRef = useRef<HTMLDivElement>(null);
   const { isOpen: debugOpen, setIsOpen: setDebugOpen, isAdmin: isDebugAdmin } = debugPanel || { isOpen: false, setIsOpen: () => {}, isAdmin: false };

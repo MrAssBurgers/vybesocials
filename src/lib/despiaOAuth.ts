@@ -65,6 +65,11 @@ function randomNonce(): string {
   return Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
 }
 
+async function sha256Hex(value: string): Promise<string> {
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value));
+  return Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, '0')).join('');
+}
+
 function encodeOAuthState(payload: {
   scheme: string;
   nonce: string;
@@ -239,12 +244,14 @@ export function buildGoogleOAuthUrl(intent: 'signin' | 'link' = 'signin'): strin
   const redirectUri = getGoogleOAuthCallbackUrl();
   const clientId = getGoogleWebClientId();
 
+  // Do NOT send `nonce` to Google — Google embeds the raw value in id_token.nonce
+  // but Firebase signInWithIdp expects SHA256(raw). Server exchange mints a custom
+  // token instead; nonce stays in OAuth state for poll/handoff only.
   const params = new URLSearchParams({
     client_id: clientId,
     redirect_uri: redirectUri,
     response_type: 'id_token',
     scope: 'openid email profile',
-    nonce,
     state,
     prompt: 'select_account',
   });
@@ -272,10 +279,9 @@ export async function buildAppleOAuthUrl(intent: 'signin' | 'link' = 'signin'): 
     sessionStorage.setItem(DESPIA_OAUTH_NONCE_KEY, rawNonce);
   }
 
-  // ASWeb authorize redirect: Apple SHA-256-hashes the nonce *parameter* into
-  // id_token.nonce. Pre-hashing (Firebase JS popup style) double-hashes and
-  // caused exchange_apple nonce_mismatch on Despia Settings → Connect Apple.
-  // Credential / exchange still use rawNonce; server accepts hex/b64 of sha256(raw).
+  // Apple puts SHA256(rawNonce) into id_token.nonce. Firebase expects rawNonce
+  // on credential creation and performs the SHA256 check itself.
+  const hashedNonce = await sha256Hex(rawNonce);
   const state = encodeOAuthState({ scheme, nonce: rawNonce, provider: 'apple', intent });
   const redirectUri = getAppleOAuthCallbackUrl();
   // Apple rejects response_type=id_token alone. Space must be %20 — URLSearchParams
@@ -284,7 +290,7 @@ export async function buildAppleOAuthUrl(intent: 'signin' | 'link' = 'signin'): 
     client_id: getAppleServicesId(),
     redirect_uri: redirectUri,
     response_mode: 'fragment',
-    nonce: rawNonce,
+    nonce: hashedNonce,
     state,
   });
   const url =
@@ -308,7 +314,7 @@ export async function buildAppleOAuthUrl(intent: 'signin' | 'link' = 'signin'): 
             hasPercent20: rt.includes('%20'),
             hasPlus: rt.includes('+'),
             intent,
-            authorizeNonce: 'raw',
+            authorizeNonce: 'sha256(raw)',
           },
         },
       }),
@@ -843,8 +849,27 @@ async function completeDespiaOAuthFromUrlInner(url: string): Promise<DespiaOAuth
       });
       await signInWithCredential(auth, credential);
     } else {
-      const credential = GoogleAuthProvider.credential(idToken!);
-      await signInWithCredential(auth, credential);
+      let token: string | undefined;
+      if (idToken) {
+        const { invokeFunction } = await import('@/lib/firebase/functionsService');
+        const { data, error } = await invokeFunction<{
+          customToken?: string;
+          custom_token?: string;
+        }>('authQr', { action: 'exchange_google', idToken });
+        if (error) throw error;
+        token = data?.customToken || data?.custom_token;
+      }
+      if (!token) {
+        clearDespiaOAuthPending();
+        return {
+          data: { session: null },
+          error: {
+            message: 'Google sign-in incomplete — try again.',
+            name: 'despia/oauth-missing-token',
+          },
+        };
+      }
+      await signInWithCustomToken(auth, token);
     }
     clearDespiaOAuthPending();
 

@@ -246,10 +246,10 @@ export function AdminErrorsSection() {
             Copy All
           </Button>
           <span
-            className="px-2 py-1 rounded-md text-[10px] font-medium uppercase tracking-wide bg-primary/10 text-primary"
-            title="The Error Monitor only displays bugs that the AI has analyzed and confirmed as real, attention-worthy defects."
+            className="px-2 py-1 rounded-md text-[10px] font-medium uppercase tracking-wide bg-muted text-muted-foreground"
+            title="All auto-reported errors are shown. Use AI Re-check to triage."
           >
-            ✓ AI-verified only
+            All reports
           </span>
           <Button
             variant="outline"

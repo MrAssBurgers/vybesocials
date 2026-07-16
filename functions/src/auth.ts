@@ -825,7 +825,7 @@ export const oauthDismiss = onRequest(
   },
   async (req, res) => {
     const rawQs = typeof req.url === 'string' && req.url.includes('?') ? req.url.slice(req.url.indexOf('?') + 1) : '';
-    const safeQs = rawQs.replace(/[^a-zA-Z0-9_=&%.\-]/g, '').slice(0, 512);
+    const safeQs = rawQs.replace(/[^a-zA-Z0-9_=&%.-]/g, '').slice(0, 512);
     const schemeParam = typeof req.query?.scheme === 'string' ? String(req.query.scheme).trim() : '';
     const scheme =
       schemeParam && /^[a-z0-9.-]+$/i.test(schemeParam) && !schemeParam.includes('://')
