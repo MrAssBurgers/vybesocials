@@ -1097,7 +1097,7 @@ function FeatureRow({
     <div className={cn('grid lg:grid-cols-2 gap-12 items-center', reverse && 'lg:[&>*:first-child]:order-2')}>
       <div>
         <div className="text-xs uppercase tracking-widest text-violet-400 font-semibold mb-3">{tag}</div>
-        <h3 className="font-display font-black text-3xl sm:text-5xl leading-tight tracking-tight">{title}</h3>
+        <h2 className="font-display font-black text-3xl sm:text-5xl leading-tight tracking-tight">{title}</h2>
         <p className="mt-5 text-white/70 text-lg leading-relaxed">{desc}</p>
         <ul className="mt-6 space-y-3">
           {bullets.map(b => (
