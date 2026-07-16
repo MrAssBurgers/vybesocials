@@ -13438,7 +13438,6 @@ export type Database = {
         Returns: {
           date_of_birth: string
           email: string
-          id: string
           phone_e164_sha256: string
           phone_number: string
           stripe_customer_id: string
