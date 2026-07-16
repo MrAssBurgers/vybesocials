@@ -937,6 +937,7 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
                         type="button"
                         role="checkbox"
                         aria-checked={agreedToTerms}
+                        aria-label="I agree to the Terms of Service and Privacy Policy"
                         data-themed-svg
                         onClick={() => setAgreedToTerms(!agreedToTerms)}
                         className="shrink-0 rounded-full border transition-colors flex items-center justify-center mt-0.5"

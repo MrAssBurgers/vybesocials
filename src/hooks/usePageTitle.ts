@@ -78,11 +78,17 @@ export function usePageTitle(customTitle?: string) {
       return;
     }
     if (path.startsWith('/messages/')) {
-      document.title = 'Chat · VYBE';
+      const rest = path.split('/messages/')[1] || '';
+      const handle = decodeURIComponent(rest.split('/')[0] || '').trim();
+      document.title = handle
+        ? `Chat with ${handle.startsWith('@') ? handle : '@' + handle} · VYBE`
+        : 'Chat · VYBE';
       return;
     }
     if (path.startsWith('/watch/')) {
-      document.title = 'Watch · VYBE';
+      const rest = path.split('/watch/')[1] || '';
+      const slug = decodeURIComponent(rest.split('/')[0] || '').trim();
+      document.title = slug ? `Watch ${slug} · VYBE` : 'Watch · VYBE';
       return;
     }
     if (path.startsWith('/business/')) {
@@ -101,6 +107,6 @@ export function usePageTitle(customTitle?: string) {
       segments.pop();
     }
 
-    document.title = 'VYBE';
+    document.title = 'VYBE — The Next Generation Social Platform';
   }, [location.pathname, customTitle]);
 }
