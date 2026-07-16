@@ -153,18 +153,6 @@
         try { window.location.href = dismiss; } catch (e4) {}
       }
 
-      // Soft-close ASAP — nonce poll finishes login in the WebView.
-      if (nonce && !error) {
-        softFired = true;
-        var softQ =
-          'nonce=' +
-          encodeURIComponent(nonce) +
-          '&wait=1&provider=' +
-          encodeURIComponent(provider);
-        if (intent === 'link') softQ += '&intent=link';
-        fireClose(softQ);
-      }
-
       // #region agent log
       dbg('B', 'callback_boot', {
         hasIdToken: Boolean(idToken),
@@ -175,6 +163,7 @@
         android: isAndroid(),
         hasNonce: Boolean(nonce),
         softFired: softFired,
+        dismissMode: isAndroid() ? 'applink' : 'oauthDismiss-302',
       });
       // #endregion
 
@@ -188,6 +177,8 @@
         return;
       }
 
+      // Start exchange BEFORE soft-close so keepalive is registered, then soft-close
+      // via HTTPS 302 (iOS) so ASWeb dismisses without Safari "address is invalid".
       var stashPromise =
         provider === 'apple'
           ? callAuthQr({
@@ -196,6 +187,19 @@
               nonce: nonce,
             })
           : callAuthQr({ action: 'exchange_google', idToken: idToken, nonce: nonce });
+
+      if (nonce) {
+        softFired = true;
+        var softQ =
+          'nonce=' +
+          encodeURIComponent(nonce) +
+          '&wait=1&provider=' +
+          encodeURIComponent(provider);
+        if (intent === 'link') softQ += '&intent=link';
+        setTimeout(function () {
+          if (!closed) fireClose(softQ);
+        }, 40);
+      }
 
       stashPromise
         .then(function (result) {
@@ -207,6 +211,7 @@
             hasHandoff: Boolean(handoff),
             handoffLen: handoff ? String(handoff).length : 0,
             provider: provider,
+            intent: intent,
             errMsg: errMsgOf(result),
           });
           // #endregion
@@ -219,6 +224,7 @@
           // #region agent log
           dbg('B', 'exchange_failed', {
             provider: provider,
+            intent: intent,
             msg: err && err.message ? String(err.message).slice(0, 120) : 'fail',
           });
           // #endregion

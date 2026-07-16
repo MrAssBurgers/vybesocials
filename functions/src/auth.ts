@@ -634,12 +634,47 @@ async function mintCustomTokenFromAppleIdToken(
     const hashedHex = createHash('sha256').update(expectedNonce).digest('hex');
     const hashedB64 = createHash('sha256').update(expectedNonce).digest('base64');
     const hashedB64Url = hashedB64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+    // Legacy clients pre-hashed the authorize nonce; Apple hashed again → double.
+    const doubleHex = createHash('sha256').update(hashedHex).digest('hex');
+    const doubleB64 = createHash('sha256').update(hashedHex).digest('base64');
+    const doubleB64Url = doubleB64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+    const tokenNonce = String(payload.nonce);
     const ok =
-      payload.nonce === expectedNonce ||
-      payload.nonce === hashedHex ||
-      payload.nonce === hashedB64 ||
-      payload.nonce === hashedB64Url;
+      tokenNonce === expectedNonce ||
+      tokenNonce === hashedHex ||
+      tokenNonce === hashedB64 ||
+      tokenNonce === hashedB64Url ||
+      tokenNonce === doubleHex ||
+      tokenNonce === doubleB64 ||
+      tokenNonce === doubleB64Url;
     if (!ok) {
+      console.warn('[exchange_apple] nonce_mismatch', {
+        tokenNonceLen: tokenNonce.length,
+        tokenNoncePrefix: tokenNonce.slice(0, 12),
+        expectedLen: expectedNonce.length,
+        matchHex: tokenNonce === hashedHex,
+        matchB64Url: tokenNonce === hashedB64Url,
+        matchDoubleHex: tokenNonce === doubleHex,
+      });
+      try {
+        await db.collection('oauth_debug_events').add({
+          sessionId: 'bd2545',
+          event: 'apple_nonce_mismatch',
+          hypothesisId: 'N',
+          location: 'auth.ts:mintCustomTokenFromAppleIdToken',
+          payload: {
+            tokenNonceLen: tokenNonce.length,
+            tokenNoncePrefix: tokenNonce.slice(0, 12),
+            expectedLen: expectedNonce.length,
+            matchHex: tokenNonce === hashedHex,
+            matchB64Url: tokenNonce === hashedB64Url,
+            matchDoubleHex: tokenNonce === doubleHex,
+          },
+          createdAt: Date.now(),
+        });
+      } catch {
+        /* debug only */
+      }
       throw new HttpsError('unauthenticated', 'nonce_mismatch');
     }
   }

@@ -2,13 +2,24 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## PUBLISH NOW (2026-07-16) — Apple Settings Connect: raw nonce + CF 302 close
+
+- **On `origin/main`:** (pushing)
+- **Frames (Settings → Apple Connect):** Sign in with Apple → Face ID → `vybehub.app` → **“Safari cannot open the page because the address is invalid”** → blank sheet stuck → dismiss → Apple still **Not connected** (spinner)
+- **Root causes:**
+  1. **Prod `native-callback`** still JS-fires `com.despia.vybe://…` (invalid address). Staging uses HTTPS 302 via `oauthDismiss` CF URL.
+  2. **`nonce_mismatch`:** ASWeb authorize redirect Apple-hashes the nonce param; pre-hashing (JS SDK style) double-hashed → exchange failed → never linked.
+- **Fix:** `buildAppleOAuthUrl` sends **raw** nonce; `exchange_apple` also accepts double-hash; soft-close after exchange starts via CF `oauthDismiss` 302; debug_oauth kept (bd2545)
+- **Deployed:** `functions:oauthDismiss`, `functions:authQr`, hosting → `vybe-daaab.web.app` (probed 302)
+- **Lovable → Share → Publish** required for `vybehub.app` / Despia
+- **Verify:** Settings → Connections → Apple Connect → sheet auto-closes → Apple shows connected; no “address is invalid”
+
 ## PUBLISH NOW (2026-07-16) — iOS dismiss via Cloud Function URL (not Lovable /oauth-dismiss)
 
 - **On `origin/main`:** `56470a062`
 - **Root cause:** `vybehub.app/oauth-dismiss` is Lovable/Cloudflare SPA **HTTP 200**, not Firebase Hosting rewrite 302. Only `vybe-daaab.web.app/oauth-dismiss` 302s.
 - **Fix:** `native-callback.html` `DISMISS_URL` = `https://us-central1-vybe-daaab.cloudfunctions.net/oauthDismiss` (live CF, verified 302 → `com.despia.vybe://oauth/auth?…`)
-- **Belt/suspenders:** `public/oauth-dismiss.html` static JS `location.replace` to custom scheme (for any static host path)
-- **Staging:** Firebase Hosting deployed (`vybe-daaab.web.app`) with CF dismiss URL + `oauth-dismiss.html`
+- **Staging:** Firebase Hosting deployed (`vybe-daaab.web.app`) with CF dismiss URL
 - **Prod evidence (Apple Settings connect frames):** Sign in with Apple → then “Safari cannot open the page because the address is invalid” → Connect spinner stuck / Apple still Not connected — same dismiss bug (prod still has old `fireDeeplink` until Publish)
 - **debug_oauth instrumentation:** kept
 - **Lovable → Share → Publish** (Despia hits `vybehub.app` for `native-callback.html`)
@@ -20,10 +31,11 @@ Use this file as the Lovable -> Cursor handoff each session.
 - **Superseded:** pointing dismiss at `vybehub.app/oauth-dismiss` fails on Lovable (SPA 200). Use CF URL above.
 - **iOS sheet stuck / Safari opens:** JS `com.despia.vybe://…` inside ASWeb opens Safari; need HTTPS 302 → custom scheme
 - **404 `/%3Flogin-approval=…`:** normalize encoded-query pathnames on boot + notification navigate
-- **Apple nonce_mismatch:** send SHA-256 nonce to Apple (parity with JS SDK); exchange accepts hex/b64
+- **Apple nonce_mismatch:** (superseded — use raw authorize nonce; see PUBLISH entry above)
 - **Android:** still App Link `/auth?hc=`
 - **Lovable → Share → Publish** (native-callback + SPA on vybehub.app)
 - **Verify:** iOS Google/Apple → sheet auto-closes → signed in; no Safari; no 404 after dismiss
+
 
 ## PUBLISH NOW (2026-07-16) — instant close + Apple exchange + Settings link
 

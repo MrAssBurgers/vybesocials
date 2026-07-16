@@ -272,19 +272,10 @@ export async function buildAppleOAuthUrl(intent: 'signin' | 'link' = 'signin'): 
     sessionStorage.setItem(DESPIA_OAUTH_NONCE_KEY, rawNonce);
   }
 
-  // Apple JS SDK / Firebase expect: authorize URL gets SHA-256(hex) nonce;
-  // id_token.nonce matches that hash; credential uses rawNonce.
-  let hashedNonce = rawNonce;
-  try {
-    const data = new TextEncoder().encode(rawNonce);
-    const digest = await crypto.subtle.digest('SHA-256', data);
-    hashedNonce = Array.from(new Uint8Array(digest))
-      .map((b) => b.toString(16).padStart(2, '0'))
-      .join('');
-  } catch {
-    /* fall back to raw — exchange_apple accepts both */
-  }
-
+  // ASWeb authorize redirect: Apple SHA-256-hashes the nonce *parameter* into
+  // id_token.nonce. Pre-hashing (Firebase JS popup style) double-hashes and
+  // caused exchange_apple nonce_mismatch on Despia Settings → Connect Apple.
+  // Credential / exchange still use rawNonce; server accepts hex/b64 of sha256(raw).
   const state = encodeOAuthState({ scheme, nonce: rawNonce, provider: 'apple', intent });
   const redirectUri = getAppleOAuthCallbackUrl();
   // Apple rejects response_type=id_token alone. Space must be %20 — URLSearchParams
@@ -293,7 +284,7 @@ export async function buildAppleOAuthUrl(intent: 'signin' | 'link' = 'signin'): 
     client_id: getAppleServicesId(),
     redirect_uri: redirectUri,
     response_mode: 'fragment',
-    nonce: hashedNonce,
+    nonce: rawNonce,
     state,
   });
   const url =
@@ -317,7 +308,7 @@ export async function buildAppleOAuthUrl(intent: 'signin' | 'link' = 'signin'): 
             hasPercent20: rt.includes('%20'),
             hasPlus: rt.includes('+'),
             intent,
-            hashedNonce: true,
+            authorizeNonce: 'raw',
           },
         },
       }),
