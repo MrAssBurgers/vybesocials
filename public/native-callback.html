@@ -177,8 +177,10 @@
         return;
       }
 
-      // Start exchange BEFORE soft-close so keepalive is registered, then soft-close
-      // via HTTPS 302 (iOS) so ASWeb dismisses without Safari "address is invalid".
+      // Exchange FIRST, then close carrying hc=. Never navigate before the
+      // exchange responds — runtime dump proved early soft-close kills the
+      // keepalive fetch (no exchange_result), so no handoff is stashed and the
+      // in-app nonce poll never resolves (user stuck logged out).
       var stashPromise =
         provider === 'apple'
           ? callAuthQr({
@@ -188,7 +190,10 @@
             })
           : callAuthQr({ action: 'exchange_google', idToken: idToken, nonce: nonce });
 
-      if (nonce) {
+      // Safety net: if the exchange hangs >6s, close with the nonce-wait path
+      // so the user is never stuck staring at a blank sheet.
+      var slowTimer = setTimeout(function () {
+        if (closed) return;
         softFired = true;
         var softQ =
           'nonce=' +
@@ -196,13 +201,12 @@
           '&wait=1&provider=' +
           encodeURIComponent(provider);
         if (intent === 'link') softQ += '&intent=link';
-        setTimeout(function () {
-          if (!closed) fireClose(softQ);
-        }, 40);
-      }
+        fireClose(softQ);
+      }, 6000);
 
       stashPromise
         .then(function (result) {
+          clearTimeout(slowTimer);
           var payload = payloadOf(result);
           var handoff = payload.code;
           // #region agent log
@@ -221,6 +225,7 @@
           if (!closed) fireClose(q);
         })
         .catch(function (err) {
+          clearTimeout(slowTimer);
           // #region agent log
           dbg('B', 'exchange_failed', {
             provider: provider,
