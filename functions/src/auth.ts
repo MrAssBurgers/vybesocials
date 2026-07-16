@@ -620,16 +620,22 @@ function decodeDespiaOAuthState(state: string | null | undefined): {
 }
 
 /**
- * Blank page that immediately navigates to scheme://oauth/… so Despia closes
- * ASWeb / Custom Tabs. Never shows Open VYBE / Continue on web.
+ * Blank page that fires a SHORT scheme://oauth/… deeplink so Despia closes
+ * ASWeb / Custom Tabs. Never shows Open VYBE.
+ *
+ * Critical: no meta-refresh to custom schemes (iOS: "address is invalid"),
+ * no long state/PKCE in the deeplink (keeps URL under iOS limits),
+ * no rapid re-fire loop (Android CCT endless spinner).
  */
 function despiaSilentCloseHtml(deeplink: string): string {
   const safeJs = JSON.stringify(deeplink);
-  const safeAttr = deeplink
-    .replace(/&/g, '&amp;')
-    .replace(/"/g, '&quot;')
-    .replace(/</g, '&lt;');
-  return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><meta http-equiv="refresh" content="0;url=${safeAttr}"/><title></title><style>html,body{margin:0;min-height:100%;background:#0B0B10}</style><script>(function(){var d=${safeJs};function go(){try{location.replace(d)}catch(e){}try{location.href=d}catch(e2){}try{window.close()}catch(e3){}}go();setTimeout(go,40);setTimeout(go,120);setTimeout(go,300);})();</script></head><body></body></html>`;
+  return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><title></title><style>html,body{margin:0;min-height:100%;background:#0B0B10}</style><script>(function(){var d=${safeJs};function go(){try{location.replace(d)}catch(e){}try{location.href=d}catch(e2){}}go();setTimeout(go,60);})();</script></head><body></body></html>`;
+}
+
+/** Short Despia close URL — hc= only (never append long OAuth state / PKCE). */
+function despiaCloseDeeplink(scheme: string, query: string): string {
+  const clean = (scheme || 'com.despia.vybe').trim() || 'com.despia.vybe';
+  return `${clean}://oauth/auth?${query}`;
 }
 
 /** Google OAuth redirect for Despia (authorization code + PKCE). */
@@ -673,7 +679,6 @@ export const googleOAuthCallback = onRequest({ cors: true, invoker: 'public' }, 
   };
 
   const error = pick('error');
-  const errorDescription = pick('error_description');
   const state = pick('state');
   const authCode = pick('code');
   const stateObj = decodeDespiaOAuthState(state);
@@ -682,9 +687,8 @@ export const googleOAuthCallback = onRequest({ cors: true, invoker: 'public' }, 
   res.set('Cache-Control', 'no-store');
 
   if (error) {
-    let errQuery = `error=${encodeURIComponent(error)}&state=${encodeURIComponent(state)}`;
-    if (errorDescription) errQuery += `&error_description=${encodeURIComponent(errorDescription)}`;
-    res.status(200).type('html').send(despiaSilentCloseHtml(`${scheme}://oauth/auth?${errQuery}`));
+    const err = encodeURIComponent(error.slice(0, 64));
+    res.status(200).type('html').send(despiaSilentCloseHtml(despiaCloseDeeplink(scheme, `error=${err}`)));
     return;
   }
 
@@ -692,11 +696,7 @@ export const googleOAuthCallback = onRequest({ cors: true, invoker: 'public' }, 
     res
       .status(200)
       .type('html')
-      .send(
-        despiaSilentCloseHtml(
-          `${scheme}://oauth/auth?error=missing_code&state=${encodeURIComponent(state)}`,
-        ),
-      );
+      .send(despiaSilentCloseHtml(despiaCloseDeeplink(scheme, 'error=missing_code')));
     return;
   }
 
@@ -710,19 +710,19 @@ export const googleOAuthCallback = onRequest({ cors: true, invoker: 'public' }, 
       customToken,
       nonce: stateObj.nonce || undefined,
     });
-    const deeplink = `${scheme}://oauth/auth?hc=${encodeURIComponent(handoff)}&state=${encodeURIComponent(state)}`;
-    res.status(200).type('html').send(despiaSilentCloseHtml(deeplink));
+    // Short hc= only — long state+PKCE in the deeplink → iOS "address is invalid"
+    // and Android Custom Tabs endless loading.
+    res
+      .status(200)
+      .type('html')
+      .send(despiaSilentCloseHtml(despiaCloseDeeplink(scheme, `hc=${encodeURIComponent(handoff)}`)));
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'exchange_failed';
     console.error('[googleOAuthCallback] failed', message);
     res
       .status(200)
       .type('html')
-      .send(
-        despiaSilentCloseHtml(
-          `${scheme}://oauth/auth?error=exchange_failed&state=${encodeURIComponent(state)}`,
-        ),
-      );
+      .send(despiaSilentCloseHtml(despiaCloseDeeplink(scheme, 'error=exchange_failed')));
   }
 });
 
@@ -745,7 +745,6 @@ export const appleOAuthCallback = onRequest({ cors: true, invoker: 'public' }, a
   };
 
   const error = pick('error');
-  const errorDescription = pick('error_description');
   const state = pick('state');
   const idToken = pick('id_token');
   const stateObj = decodeDespiaOAuthState(state);
@@ -754,16 +753,18 @@ export const appleOAuthCallback = onRequest({ cors: true, invoker: 'public' }, a
   res.set('Cache-Control', 'no-store');
 
   if (error) {
-    let errQuery = `error=${encodeURIComponent(error)}&state=${encodeURIComponent(state)}`;
-    if (errorDescription) errQuery += `&error_description=${encodeURIComponent(errorDescription)}`;
-    const deeplink = `${scheme}://oauth/auth?${errQuery}`;
-    res.status(200).type('html').send(despiaSilentCloseHtml(deeplink));
+    res
+      .status(200)
+      .type('html')
+      .send(despiaSilentCloseHtml(despiaCloseDeeplink(scheme, `error=${encodeURIComponent(error.slice(0, 64))}`)));
     return;
   }
 
   if (!idToken) {
-    const deeplink = `${scheme}://oauth/auth?error=missing_token&state=${encodeURIComponent(state)}`;
-    res.status(200).type('html').send(despiaSilentCloseHtml(deeplink));
+    res
+      .status(200)
+      .type('html')
+      .send(despiaSilentCloseHtml(despiaCloseDeeplink(scheme, 'error=missing_token')));
     return;
   }
 
@@ -775,13 +776,17 @@ export const appleOAuthCallback = onRequest({ cors: true, invoker: 'public' }, a
       idToken,
       nonce: stateObj?.nonce || undefined,
     });
-    const deeplink = `${scheme}://oauth/auth?hc=${encodeURIComponent(code)}&state=${encodeURIComponent(state)}`;
-    res.status(200).type('html').send(despiaSilentCloseHtml(deeplink));
+    res
+      .status(200)
+      .type('html')
+      .send(despiaSilentCloseHtml(despiaCloseDeeplink(scheme, `hc=${encodeURIComponent(code)}`)));
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'stash_failed';
     console.error('[appleOAuthCallback] failed', message);
-    const deeplink = `${scheme}://oauth/auth?error=stash_failed&state=${encodeURIComponent(state)}`;
-    res.status(200).type('html').send(despiaSilentCloseHtml(deeplink));
+    res
+      .status(200)
+      .type('html')
+      .send(despiaSilentCloseHtml(despiaCloseDeeplink(scheme, 'error=stash_failed')));
   }
 });
 

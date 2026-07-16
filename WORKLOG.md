@@ -2,6 +2,18 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## PUBLISH NOW (2026-07-15) — Fix iOS invalid address + Android endless load
+
+- **On `origin/main`:** (pushing) short `hc=` deeplinks only
+- **iOS “Safari cannot open… address is invalid”:** deeplink included long OAuth `state`+PKCE → too long for custom scheme
+- **Android endless loading until refresh:** meta-refresh + re-fire loop on custom scheme hung CCT; refresh brought app forward where nonce poll already had the session
+- **Fix (backend live now):** `googleOAuthCallback` returns `com.despia.vybe://oauth/auth?hc=…` only — no state, no meta-refresh, fire twice max
+- **Client:** silent `native-callback.html` same rules
+- **You:** Lovable → Share → Publish https://lovable.dev/projects/416714c8-d013-4aff-984d-522418a9bbc7 then hard-kill → Google on iPhone + Android
+- **Still need Google redirect URI:** `https://vybe-daaab.firebaseapp.com/google-callback`
+
+---
+
 ## PUBLISH NOW (2026-07-15) — Auto-close on account pick (no Open VYBE)
 
 - **On `origin/main`:** `9500948c` — Google code+PKCE → server silent close

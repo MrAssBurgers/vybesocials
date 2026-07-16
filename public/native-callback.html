@@ -11,13 +11,12 @@
 <body>
   <script>
     /**
-     * Fallback callback (Apple fragment / legacy). Google Despia uses
-     * /google-callback (server) which already fires the deeplink.
-     * Never shows Open VYBE — blank page + silent scheme://oauth/ close only.
+     * Fallback callback (Apple fragment / legacy). Google Despia uses /google-callback.
+     * Short deeplinks only (hc= / error=) — never append long state (iOS invalid address).
+     * No meta-refresh to custom schemes. Fire close twice max (no endless load spinner).
      */
     (function () {
       var DEFAULT_SCHEME = 'com.despia.vybe';
-      var PACKAGE_NAME = 'com.despia.vybe';
       var EXCHANGE_URL = 'https://us-central1-vybe-daaab.cloudfunctions.net/authQr';
 
       function decodeState(state) {
@@ -45,55 +44,13 @@
       function buildDeeplink(scheme, query) {
         var cleanScheme = String(scheme || DEFAULT_SCHEME).trim();
         if (!cleanScheme || cleanScheme.indexOf('://') !== -1) cleanScheme = DEFAULT_SCHEME;
-        return cleanScheme + '://oauth/auth' + (query ? '?' + query : '');
-      }
-
-      function buildAndroidIntentUrl(deeplink) {
-        try {
-          var parsed = new URL(deeplink);
-          var scheme = String(parsed.protocol || '').replace(/:$/, '');
-          if (!scheme || scheme === 'http' || scheme === 'https') return null;
-          var path = (parsed.hostname || '') + (parsed.pathname || '');
-          if (path.charAt(0) === '/') path = path.slice(1);
-          var query = parsed.search ? parsed.search.slice(1) : '';
-          return (
-            'intent://' +
-            path +
-            (query ? '?' + query : '') +
-            '#Intent;scheme=' +
-            encodeURIComponent(scheme) +
-            ';package=' +
-            encodeURIComponent(PACKAGE_NAME) +
-            ';end'
-          );
-        } catch (e) {
-          return null;
-        }
+        return cleanScheme + '://oauth/auth?' + query;
       }
 
       function fireClose(deeplink) {
         if (!deeplink || deeplink.indexOf('oauth') === -1) return;
-        try {
-          var meta = document.createElement('meta');
-          meta.httpEquiv = 'refresh';
-          meta.content = '0;url=' + deeplink;
-          document.head.appendChild(meta);
-        } catch (e0) {}
         try { window.location.replace(deeplink); } catch (e1) {}
         try { window.location.href = deeplink; } catch (e2) {}
-        try {
-          var iframe = document.createElement('iframe');
-          iframe.style.cssText = 'position:absolute;width:0;height:0;border:0;visibility:hidden';
-          iframe.src = deeplink;
-          document.body.appendChild(iframe);
-        } catch (e3) {}
-        if (/Android/i.test(navigator.userAgent || '')) {
-          var intentUrl = buildAndroidIntentUrl(deeplink);
-          if (intentUrl) {
-            try { window.location.href = intentUrl; } catch (e4) {}
-          }
-        }
-        try { window.close(); } catch (e5) {}
       }
 
       function callAuthQr(payload) {
@@ -118,34 +75,25 @@
       var scheme = (stateObj && stateObj.scheme) || DEFAULT_SCHEME;
       var idToken = params.get('id_token');
       var error = params.get('error');
-      var state = params.get('state') || '';
       var provider = (stateObj && stateObj.provider) || 'google';
       var nonce = (stateObj && stateObj.nonce) || '';
 
       if (error) {
-        var errQuery = 'error=' + encodeURIComponent(error) + '&state=' + encodeURIComponent(state);
-        var errDesc = params.get('error_description');
-        if (errDesc) errQuery += '&error_description=' + encodeURIComponent(errDesc);
-        fireClose(buildDeeplink(scheme, errQuery));
+        fireClose(buildDeeplink(scheme, 'error=' + encodeURIComponent(String(error).slice(0, 64))));
         return;
       }
 
       if (!idToken) {
-        fireClose(buildDeeplink(scheme, 'error=missing_token&state=' + encodeURIComponent(state)));
+        fireClose(buildDeeplink(scheme, 'error=missing_token'));
         return;
       }
 
-      // Soft wait deeplink while exchange runs (nonce poll in app).
+      // Soft wait — short nonce only (no state). App polls authQr.
       if (nonce) {
         fireClose(
           buildDeeplink(
             scheme,
-            'nonce=' +
-              encodeURIComponent(nonce) +
-              '&wait=1&provider=' +
-              encodeURIComponent(provider) +
-              '&state=' +
-              encodeURIComponent(state),
+            'nonce=' + encodeURIComponent(nonce) + '&wait=1&provider=' + encodeURIComponent(provider),
           ),
         );
       }
@@ -165,23 +113,12 @@
           var payload = payloadOf(result);
           var handoff = payload.code;
           if (!result.ok || !handoff) throw new Error('exchange_failed');
-          fireClose(
-            buildDeeplink(
-              scheme,
-              'hc=' + encodeURIComponent(handoff) + '&state=' + encodeURIComponent(state),
-            ),
-          );
-          setInterval(function () {
-            fireClose(
-              buildDeeplink(
-                scheme,
-                'hc=' + encodeURIComponent(handoff) + '&state=' + encodeURIComponent(state),
-              ),
-            );
-          }, 300);
+          var link = buildDeeplink(scheme, 'hc=' + encodeURIComponent(handoff));
+          fireClose(link);
+          setTimeout(function () { fireClose(link); }, 60);
         })
         .catch(function () {
-          fireClose(buildDeeplink(scheme, 'error=exchange_failed&state=' + encodeURIComponent(state)));
+          fireClose(buildDeeplink(scheme, 'error=exchange_failed'));
         });
     })();
   </script>
