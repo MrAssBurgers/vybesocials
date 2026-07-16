@@ -4,7 +4,7 @@ Use this file as the Lovable -> Cursor handoff each session.
 
 ## PUBLISH NOW (2026-07-16) — Full bug-monitor + OAuth + CI sweep (local, uncommitted)
 
-- **Status:** all fixes applied + verified locally; **git push blocked** on this machine (`sudo xcodebuild -license` required). Staging deployed: `vybe-daaab.web.app` + `authQr`.
+- **On `origin/main`:** `5605b6d4a` (pushed)
 - **Error Monitor:** `useInvites` → `useAuthOptional` (fixes invite-friends crash); auto-reporter filters Firestore channel noise, preview/localhost hosts, OAuth nonce spam; only files from prod/staging hosts; **418 legacy noise bugs** marked `wont_fix` in Firestore; badge label fixed ("All reports").
 - **Google OAuth nonce toast (`auth/missing-or-invalid-nonce`):** removed `nonce` from Google authorize URL (state-only for poll); Google sign-in never uses `signInWithCredential(idToken)` — always `signInWithCustomToken` via server exchange.
 - **iOS sheet close:** `native-callback.html` uses Despia-documented `com.despia.vybe://oauth/auth?…` deeplink only (no HTTPS 302 chain).
