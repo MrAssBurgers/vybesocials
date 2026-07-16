@@ -2,7 +2,17 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
-## PUBLISH handoff (2026-07-15) — Fix infinite Apple spinner (quota)
+## PUBLISH handoff (2026-07-15) — Stop endless Completing spinner
+
+- **Merged to `origin/main`:** `d2e30ebd`
+- **Why Google hung forever:** Despia `pending` set `isOAuthReturn=true` → full-screen **“Completing sign-in…”** that never got `/auth?hc=` → looked like endless loading
+- **Why Apple toast:** same reclaim miss → 18s failTimer / generic `"Sign-in did not complete. Please try again."` (or swallowed Apple error)
+- **Fix:** pending OAuth stays on login with chip only; always clear chip on fail; better Despia timeout reclaim; error deeplink from native-callback on exchange fail
+- **Prod still on `7c91bead` until Publish** — does NOT include hang fix or fragment Apple path
+- **Lovable → Share → Publish NOW:** https://lovable.dev/projects/416714c8-d013-4aff-984d-522418a9bbc7
+- **Verify:** `curl -s https://vybehub.app/ | rg data-commit-sha` includes this SHA; hard-kill app; Google/Apple must not show endless Completing screen
+
+---
 
 - **Merged to `origin/main`:** `2b2a21f5`
 - **Root cause:** `appleOAuthCallback` Cloud Function returned **503/500** — project exceeded `run.googleapis.com/cpu_allocation`. Android Apple form_post never finished → login chip waited forever.
