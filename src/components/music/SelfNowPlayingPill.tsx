@@ -63,7 +63,10 @@ export function SelfNowPlayingPill({ className, floating = false }: Props) {
               'ring-1 transition-all',
               theme.ring,
               theme.ringHover,
-              floating && 'fixed left-3 bottom-[calc(6rem+env(safe-area-inset-bottom))] z-40',
+                // iOS safe area: some floating controls were pushed too high by
+                // overcompensating with env(safe-area-inset-bottom). Use measured
+                // --sab and a smaller base offset.
+                floating && 'fixed left-3 bottom-[calc(4rem+var(--sab,env(safe-area-inset-bottom,0px)))] z-40',
               className,
             )}
             aria-label={isSpotify ? 'Open Spotify mini player' : theme.label}

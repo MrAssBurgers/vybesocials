@@ -31,7 +31,7 @@ export function VYBECommandBar() {
           'bg-gradient-to-br from-primary via-accent to-primary',
           'flex items-center justify-center',
           'hover:scale-105 active:scale-95',
-          'bottom-[calc(5rem+env(safe-area-inset-bottom)+12px)] right-4',
+            'bottom-[calc(3.5rem+var(--sab,env(safe-area-inset-bottom,0px))+12px)] right-4',
           'lg:bottom-8 lg:right-8',
           'duration-300 will-change-transform',
           controlVisible

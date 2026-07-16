@@ -1,6 +1,8 @@
 import { db } from '@/lib/firebase';
 import { navigationRef } from '@/lib/navigationRef';
 import type { CallData, CallMode, CallType, CallUser } from '@/lib/callStore';
+import { toast } from 'sonner';
+import { getRuntimeOs } from '@/lib/despiaBridge';
 
 export type NotificationAction = 'open' | 'accept' | 'decline' | 'reply' | 'view';
 
@@ -238,6 +240,20 @@ export function navigateFromNotification(route: string): void {
     }
   } catch {
     /* keep original */
+  }
+  // On iOS, external navigation (e.g. https://youtube.com/…) can behave like an
+  // unwanted “auto open links” loop when triggered from push handlers before
+  // the router fully mounts. In that case, block external navigation and ask
+  // user to open links manually later.
+  if (/^https?:\/\//i.test(safe)) {
+    try {
+      if (getRuntimeOs() === 'ios') {
+        toast.info('Links won’t open automatically on iOS. Please open them manually.');
+        return;
+      }
+    } catch {
+      /* ignore */
+    }
   }
   if (navigationRef.current) {
     navigationRef.current(safe);

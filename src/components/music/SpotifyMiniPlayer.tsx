@@ -71,7 +71,7 @@ export function SpotifyMiniPlayer({ presence, onClose }: Props) {
       animate={{ opacity: 1, y: 0, scale: 1 }}
       exit={{ opacity: 0, y: 12, scale: 0.95 }}
       transition={{ type: 'spring', stiffness: 320, damping: 28 }}
-      className="fixed inset-x-0 bottom-[calc(6.5rem+env(safe-area-inset-bottom))] z-50 mx-auto w-[min(340px,calc(100vw-24px))] rounded-3xl bg-card border border-border shadow-2xl shadow-black/40 overflow-hidden ring-1 ring-[#1DB954]/30"
+      className="fixed inset-x-0 bottom-[calc(4.5rem+var(--sab,env(safe-area-inset-bottom,0px)))] z-50 mx-auto w-[min(340px,calc(100vw-24px))] rounded-3xl bg-card border border-border shadow-2xl shadow-black/40 overflow-hidden ring-1 ring-[#1DB954]/30"
       role="dialog"
       aria-label="Spotify mini player"
     >
