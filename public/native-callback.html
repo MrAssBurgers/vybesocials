@@ -142,15 +142,42 @@
           try { window.location.href = appLink; } catch (e2) {}
           return;
         }
-        // iOS ASWeb: HTTPS 302 to custom scheme (never JS→custom-scheme — opens Safari).
+        // iOS ASWeb: staged close attempts. Despia docs say direct JS
+        // {scheme}://oauth/... is the close signal — custom-scheme navigations
+        // never unload this page, so we can chain fallbacks and log which one
+        // actually dismissed the sheet (pagehide/visibility sets `closed`).
+        var deeplinkA = scheme + '://oauth/auth?' + query;
+        var deeplinkB = 'vybe://oauth/auth?' + query;
         var dismiss =
           DISMISS_URL +
           '?' +
           query +
           '&scheme=' +
           encodeURIComponent(scheme);
-        try { window.location.replace(dismiss); } catch (e3) {}
-        try { window.location.href = dismiss; } catch (e4) {}
+        // #region agent log
+        dbg('S', 'ios_close_stage1_js_scheme', { scheme: scheme });
+        // #endregion
+        try { window.location.href = deeplinkA; } catch (e3) {}
+        setTimeout(function () {
+          if (closed) return;
+          // #region agent log
+          dbg('S', 'ios_close_stage2_js_vybe', { stage1Closed: false });
+          // #endregion
+          try { window.location.href = deeplinkB; } catch (e4) {}
+        }, 1200);
+        setTimeout(function () {
+          if (closed) return;
+          // #region agent log
+          dbg('S', 'ios_close_stage3_https302', { stage2Closed: false });
+          // #endregion
+          try { window.location.replace(dismiss); } catch (e5) {}
+        }, 2400);
+        setTimeout(function () {
+          if (closed) return;
+          // #region agent log
+          dbg('S', 'ios_close_all_failed', { scheme: scheme });
+          // #endregion
+        }, 4200);
       }
 
       // #region agent log
