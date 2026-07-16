@@ -275,6 +275,11 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
         return;
       }
 
+      // Soft-close / incomplete handoff — keep nonce poll; do not clear pending.
+      if (!detail?.error && !detail?.data?.session?.user) {
+        return;
+      }
+
       // Always clear the chip — empty complete / cancel must not leave endless loading.
       // Exception: "already used" race — sibling App Link/poll completion may still succeed.
       if (

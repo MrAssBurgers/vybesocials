@@ -373,6 +373,12 @@ function armDespiaOAuthSheetCancelWatch(): void {
     }
     // Only cancel after the sheet actually hid (user opened then dismissed).
     if (!sawHidden) return;
+    // Soft-close / exchange still running — nonce poll must stay alive.
+    try {
+      if (sessionStorage.getItem(DESPIA_OAUTH_NONCE_KEY)) return;
+    } catch {
+      /* ignore */
+    }
     clearDespiaOAuthPending();
     window.dispatchEvent(
       new CustomEvent('despia-oauth-complete', {
@@ -395,7 +401,7 @@ function armDespiaOAuthSheetCancelWatch(): void {
     if (!sawHidden) return;
     if (sheetCancelTimer != null) window.clearTimeout(sheetCancelTimer);
     // Grace so App Link / deeplink can land before we treat this as cancel.
-    sheetCancelTimer = window.setTimeout(tryCancel, 900);
+    sheetCancelTimer = window.setTimeout(tryCancel, 4500);
   };
 
   document.addEventListener('visibilitychange', onVisible);
@@ -495,9 +501,25 @@ async function launchDespiaOAuthUrl(
               ? String((value as { url?: string }).url || '')
               : '';
         if (asUrl && isDespiaOAuthReturnUrl(asUrl)) {
-          void completeDespiaOAuthFromUrl(asUrl).then((result) => {
-            window.dispatchEvent(new CustomEvent('despia-oauth-complete', { detail: result }));
-          });
+          void (async () => {
+            const params = parseOAuthParamsFromUrl(asUrl);
+            const waiting = params.get('wait') === '1' || params.has('wait');
+            const hasTokens =
+              params.has('hc') ||
+              params.has('handoff_code') ||
+              params.has('id_token') ||
+              params.has('custom_token') ||
+              params.has('customToken');
+            if (waiting && !hasTokens && !params.has('error')) {
+              // Soft-close only — keep poll; do not emit cancel.
+              await completeDespiaOAuthFromUrl(asUrl);
+              return;
+            }
+            const result = await completeDespiaOAuthFromUrl(asUrl);
+            if (result.data.session?.user || result.error) {
+              window.dispatchEvent(new CustomEvent('despia-oauth-complete', { detail: result }));
+            }
+          })();
           return;
         }
       }
@@ -768,6 +790,42 @@ async function completeDespiaOAuthFromUrlInner(url: string): Promise<DespiaOAuth
   const error = params.get('error');
   const errorDescription = params.get('error_description');
 
+  // Soft-close (wait=1): keep nonce poll alive — never treat as cancel.
+  const waitNonce = (params.get('nonce') || '').trim();
+  const waiting = params.get('wait') === '1' || params.has('wait');
+  if (
+    waiting &&
+    !params.has('hc') &&
+    !params.has('handoff_code') &&
+    !params.has('id_token') &&
+    !params.has('custom_token') &&
+    !params.has('customToken') &&
+    !error
+  ) {
+    // #region agent log
+    debugSessionLog(
+      'despiaOAuth.ts:wait1',
+      'oauth_wait1_keep_polling',
+      { hasNonce: Boolean(waitNonce), provider: params.get('provider') || null },
+      'H-oauth',
+      'post-fix',
+    );
+    // #endregion
+    if (waitNonce) {
+      const providerHint = (params.get('provider') || 'google') as 'google' | 'apple';
+      const intentHint = params.get('intent') === 'link' ? 'link' : 'signin';
+      markDespiaOAuthPending(providerHint === 'apple' ? 'apple' : 'google', intentHint);
+      try {
+        sessionStorage.setItem(DESPIA_OAUTH_NONCE_KEY, waitNonce);
+      } catch {
+        /* ignore */
+      }
+      startDespiaOAuthNoncePoll(waitNonce);
+    }
+    // Bare wait=1 (no nonce) — do NOT clear pending; sheet dismiss only.
+    return { data: { session: null }, error: null };
+  }
+
   if (error) {
     clearDespiaOAuthPending();
     if (error === 'access_denied') {
@@ -839,6 +897,21 @@ async function completeDespiaOAuthFromUrlInner(url: string): Promise<DespiaOAuth
   }
 
   if (!customToken && !idToken) {
+    // Incomplete URL without wait=1 — only cancel if we are not still polling a nonce.
+    const hasNonce =
+      typeof sessionStorage !== 'undefined' && Boolean(sessionStorage.getItem(DESPIA_OAUTH_NONCE_KEY));
+    if (hasNonce || isDespiaOAuthInFlight()) {
+      // #region agent log
+      debugSessionLog(
+        'despiaOAuth.ts:incomplete',
+        'oauth_incomplete_keep_pending',
+        { hasNonce, inFlight: isDespiaOAuthInFlight() },
+        'H-oauth',
+        'post-fix',
+      );
+      // #endregion
+      return { data: { session: null }, error: null };
+    }
     clearDespiaOAuthPending();
     return {
       data: { session: null },

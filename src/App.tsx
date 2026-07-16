@@ -20,6 +20,7 @@ import { MotionConfig } from "framer-motion";
 import { BUTTER_TRANSITION } from "@/lib/smoothMotion";
 import { PlatformProvider } from "@/providers/PlatformProvider";
 import { AuthProvider } from "@/lib/auth";
+import { PhoneVerifyGate } from "@/components/auth/PhoneVerifyGate";
 import { ThemeProvider } from "@/lib/theme";
 import { CustomThemeProvider } from "@/providers/ThemeProvider";
 import { ThemeTransitionProvider } from "@/providers/ThemeTransitionProvider";
@@ -637,6 +638,9 @@ function AppWithPreloader() {
         </LocalErrorBoundary>
         <LocalErrorBoundary label="LoginApprovalSheet">
           <Suspense fallback={null}><LoginApprovalSheet /></Suspense>
+        </LocalErrorBoundary>
+        <LocalErrorBoundary label="PhoneVerifyGate">
+          <PhoneVerifyGate />
         </LocalErrorBoundary>
         <LocalErrorBoundary label="BriefPreFetchInit">
           <BriefPreFetchInit />

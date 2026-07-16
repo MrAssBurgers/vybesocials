@@ -2,6 +2,13 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## ACTIVE (2026-07-16) — OAuth session drop + phone verify still top
+
+- **Runtime proof:** live CSS had `vybe-phone-verify-*` but live JS chunk `AppLayout-BDzm1pvB.js` had **zero** phone-overlay code → device still ran old Dialog. No `H-dialog` logs.
+- **OAuth drop root cause:** soft-close `wait=1` was treated as cancel → `clearDespiaOAuthPending()` killed nonce poll after `exchange_result ok`. Apple residue dismiss also fired bare `wait=1`.
+- **Fixes:** wait=1 keeps poll; sheet-cancel skips while nonce exists; Landing ignores empty completes; Apple dismiss no longer fires oauth wait=1; PhoneVerifyGate mounted from `App.tsx` (main `app.js`) so OTA cannot miss AppLayout chunk.
+- **Publish:** Lovable → Share → Publish then double force-quit TestFlight.
+
 ## ACTIVE (2026-07-16) — Phone verify MUST be middle-of-screen
 
 - **User repro:** Verify phone still top-pinned / X under status bar on TestFlight.

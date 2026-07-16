@@ -78,10 +78,13 @@ export async function initializeNativePlugins() {
           const { isDespiaOAuthReturnUrl, completeDespiaOAuthFromUrl } = await import('@/lib/despiaOAuth');
           if (isDespiaOAuthReturnUrl(url)) {
             const result = await completeDespiaOAuthFromUrl(url);
-            if (result.error) {
-              sessionStorage.setItem('vybe-oauth-error', result.error.message);
+            // Soft-close wait=1 returns null session + null error — keep polling, don't toast cancel.
+            if (result.data.session?.user || result.error) {
+              if (result.error) {
+                sessionStorage.setItem('vybe-oauth-error', result.error.message);
+              }
+              window.dispatchEvent(new CustomEvent('despia-oauth-complete', { detail: result }));
             }
-            window.dispatchEvent(new CustomEvent('despia-oauth-complete', { detail: result }));
           }
 
           const isOAuthReturn =

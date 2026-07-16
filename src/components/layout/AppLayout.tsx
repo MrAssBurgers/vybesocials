@@ -14,7 +14,6 @@ import { useSwipeBack } from '@/hooks/useSwipeBack';
 import { isNativePerfMode } from '@/lib/nativePerfMode';
 import { PWAInstallBanner } from '@/components/pwa/PWAInstallBanner';
 import { Enable2FANudge } from '@/components/auth/Enable2FANudge';
-import { PhoneVerifyGate } from '@/components/auth/PhoneVerifyGate';
 import { bindAppScrollHideContainer } from '@/lib/scrollHideSync';
 import { navVisibility } from '@/lib/navVisibility';
 import { setThemePreviewLock } from '@/hooks/useCustomTheme';
@@ -187,7 +186,6 @@ export const AppLayout = memo(forwardRef<HTMLDivElement, AppLayoutProps>(functio
           <PWAInstallBanner />
           {!hideNav && <SelfNowPlayingPill floating />}
           <Enable2FANudge />
-          {requireAuth && <PhoneVerifyGate />}
         </div>
       </div>
   );

@@ -6,7 +6,6 @@ import { OAuthProvider, linkWithCredential, signInWithCredential } from 'firebas
 import { getProductionOrigin } from '@/lib/authRedirect';
 import { mapOAuthLinkError } from '@/lib/oauthAccountLink';
 import { debugSessionLog } from '@/lib/debugSessionLog';
-import { despiaCall } from '@/lib/despiaBridge';
 import type { VybeAuthError, VybeSession } from '@/lib/firebase/types';
 
 const APPLE_SCRIPT = 'https://appleid.cdn-apple.com/appleauth/static/jsapi/appleid/1/en_US/appleid.auth.js';
@@ -46,27 +45,12 @@ async function sha256Hex(value: string): Promise<string> {
   return Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, '0')).join('');
 }
 
-/** Dismiss any leftover ASWeb/oauth sheet the moment native Apple UI finishes. */
+/** Dismiss any leftover popup window — never fire oauth wait=1 (that clears pending login). */
 function dismissAppleWebSheetResidue(): void {
   try {
     if (typeof window !== 'undefined' && window.opener && !window.opener.closed) {
       window.close();
     }
-  } catch {
-    /* ignore */
-  }
-  try {
-    void despiaCall('com.despia.vybe://oauth/auth?wait=1&provider=apple');
-  } catch {
-    /* ignore */
-  }
-  try {
-    const a = document.createElement('a');
-    a.href = 'com.despia.vybe://oauth/auth?wait=1&provider=apple';
-    a.style.display = 'none';
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
   } catch {
     /* ignore */
   }
