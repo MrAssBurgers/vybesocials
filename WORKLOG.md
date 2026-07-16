@@ -4,7 +4,7 @@ Use this file as the Lovable -> Cursor handoff each session.
 
 ## PUBLISH NOW (2026-07-15) — Auto-close on account pick (no Open VYBE)
 
-- **On `origin/main`:** (pushing) Google code+PKCE → server silent close
+- **On `origin/main`:** `9500948c` — Google code+PKCE → server silent close
 - **What you wanted:** click Google account → sheet closes → logged in (no Open VYBE page)
 - **How:** Google now uses `response_type=code` → `https://vybe-daaab.firebaseapp.com/google-callback` exchanges + fires `com.despia.vybe://oauth/auth?hc=` with **blank HTML only** (no buttons). Same silent close for Apple callback / native-callback.
 - **You must:**
