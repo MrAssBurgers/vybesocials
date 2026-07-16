@@ -11,38 +11,20 @@
 <body>
   <script>
     /**
-     * https://vybehub.app/native-callback.html — Despia Google/Apple return.
-     * Exchange id_token → short hc=, then close:
-     * - Android: HTTPS App Link (Custom Tabs ignore custom schemes)
-     * - iOS: short com.despia.vybe://oauth/auth?hc= (ASWeb dismiss). Also rely on
-     *   in-app nonce poll so login completes even if the scheme alert is dismissed.
+     * Despia OAuth return (Google/Apple). Runs inside ASWeb / Custom Tabs.
+     * Soft-close immediately with {scheme}://oauth/…&wait=1 (Despia closes sheet),
+     * exchange continues with keepalive, then hard-close with hc=.
+     * Android App Link is fallback only if the sheet is still open.
      */
     (function () {
       var DEFAULT_SCHEME = 'com.despia.vybe';
       var EXCHANGE_URL = 'https://us-central1-vybe-daaab.cloudfunctions.net/authQr';
       var APP_ORIGIN = 'https://vybehub.app';
       var closed = false;
-      var INGEST = 'http://127.0.0.1:7693/ingest/1847f3ab-7d03-4b99-8dbe-84076ae9145e';
+      var softFired = false;
 
       // #region agent log
       function dbg(hypothesisId, message, data) {
-        var body = {
-          sessionId: 'bd2545',
-          runId: 'post-fix',
-          hypothesisId: hypothesisId,
-          location: 'native-callback.html',
-          message: message,
-          data: data || {},
-          timestamp: Date.now(),
-        };
-        try {
-          fetch(INGEST, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': 'bd2545' },
-            body: JSON.stringify(body),
-            keepalive: true,
-          }).catch(function () {});
-        } catch (e0) {}
         try {
           fetch(EXCHANGE_URL, {
             method: 'POST',
@@ -105,6 +87,18 @@
         return (result.data && result.data.result) || result.data || {};
       }
 
+      function errMsgOf(result) {
+        var d = result && result.data;
+        if (!d) return null;
+        if (d.error) {
+          if (typeof d.error === 'string') return d.error;
+          if (d.error.message) return String(d.error.message);
+          return JSON.stringify(d.error).slice(0, 120);
+        }
+        if (d.message) return String(d.message);
+        return null;
+      }
+
       document.addEventListener('visibilitychange', function () {
         if (document.visibilityState === 'hidden') closed = true;
       });
@@ -118,40 +112,66 @@
       var error = params.get('error');
       var provider = (stateObj && stateObj.provider) || 'google';
       var nonce = (stateObj && stateObj.nonce) || '';
+      var intent = (stateObj && stateObj.intent) || 'signin';
       var scheme = DEFAULT_SCHEME;
       if (stateObj && stateObj.scheme) {
         var s = String(stateObj.scheme).trim();
         if (s && s.indexOf('://') === -1) scheme = s;
       }
 
-      function hardFire(query) {
-        if (!query) return;
+      /** Despia-required close: {scheme}://oauth/… — single location.href. */
+      function fireDeeplink(query) {
+        var deeplink = scheme + '://oauth/auth?' + query;
         // #region agent log
-        dbg('A', 'hardFire', {
+        dbg('A', 'fire_deeplink', {
           android: isAndroid(),
           queryLen: query.length,
           hasHc: query.indexOf('hc=') !== -1,
+          hasWait: query.indexOf('wait=') !== -1,
           provider: provider,
+          intent: intent,
         });
         // #endregion
-        if (isAndroid()) {
-          var appLink = APP_ORIGIN + '/auth?' + query;
-          try { window.location.replace(appLink); } catch (e1) {}
-          try { window.location.href = appLink; } catch (e2) {}
-          return;
-        }
-        // iOS: only short oauth/ custom scheme (never HTTPS — that logs into the sheet).
-        var deeplink = scheme + '://oauth/auth?' + query;
         try {
-          var a = document.createElement('a');
-          a.href = deeplink;
-          a.style.display = 'none';
-          document.body.appendChild(a);
-          a.click();
-        } catch (eA) {}
-        try { window.location.replace(deeplink); } catch (e3) {}
-        try { window.location.href = deeplink; } catch (e4) {}
-        try { window.close(); } catch (e5) {}
+          window.location.href = deeplink;
+        } catch (e1) {}
+      }
+
+      function fireAppLinkFallback(query) {
+        if (!isAndroid() || closed) return;
+        var appLink = APP_ORIGIN + '/auth?' + query;
+        // #region agent log
+        dbg('F', 'android_applink_fallback', {
+          hasHc: query.indexOf('hc=') !== -1,
+          queryLen: query.length,
+        });
+        // #endregion
+        try {
+          window.location.replace(appLink);
+        } catch (e2) {}
+      }
+
+      function hardFire(query) {
+        if (!query || closed) return;
+        fireDeeplink(query);
+        // Android CCT sometimes ignores custom schemes — App Link backup.
+        if (isAndroid()) {
+          setTimeout(function () {
+            if (!closed) fireAppLinkFallback(query);
+          }, 450);
+        }
+      }
+
+      // Soft-close ASAP so the sheet dismisses while exchange runs (nonce poll finishes login).
+      if (nonce && !error) {
+        softFired = true;
+        var softQ =
+          'nonce=' +
+          encodeURIComponent(nonce) +
+          '&wait=1&provider=' +
+          encodeURIComponent(provider);
+        if (intent === 'link') softQ += '&intent=link';
+        fireDeeplink(softQ);
       }
 
       // #region agent log
@@ -159,9 +179,11 @@
         hasIdToken: Boolean(idToken),
         idTokenLen: idToken ? String(idToken).length : 0,
         provider: provider,
+        intent: intent,
         hasError: Boolean(error),
         android: isAndroid(),
         hasNonce: Boolean(nonce),
+        softFired: softFired,
       });
       // #endregion
 
@@ -194,12 +216,14 @@
             hasHandoff: Boolean(handoff),
             handoffLen: handoff ? String(handoff).length : 0,
             provider: provider,
-            errMsg: payload.error || payload.message || null,
+            errMsg: errMsgOf(result),
           });
           // #endregion
-          if (!result.ok || !handoff) throw new Error('exchange_failed');
+          if (!result.ok || !handoff) throw new Error(errMsgOf(result) || 'exchange_failed');
+          var q = 'hc=' + encodeURIComponent(handoff);
+          if (intent === 'link') q += '&intent=link';
           if (!closed) {
-            hardFire('hc=' + encodeURIComponent(handoff));
+            hardFire(q);
           }
         })
         .catch(function (err) {

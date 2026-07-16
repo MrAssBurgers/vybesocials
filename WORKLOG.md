@@ -2,6 +2,16 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## PUBLISH NOW (2026-07-16) — instant close + Apple exchange + Settings link
+
+- **On `origin/main`:** (pushing)
+- **iOS sheet stuck:** soft-fire `{scheme}://oauth/auth?nonce=&wait=1` immediately (Despia closes ASWeb), login via nonce poll; hc= hard-fire backup
+- **Android glitch:** prefer oauth/ deeplink close; App Link only as 450ms fallback
+- **Apple exchange fail:** JWKS `No KID` — decode header kid before verify (Cloud Logging evidence)
+- **Settings → Connections Apple/Google:** Despia uses `oauth://` + `linkWithCredential` (not `linkWithPopup`)
+- **Lovable → Share → Publish** (Despia hits vybehub.app for SPA + native-callback)
+- **Verify:** iOS Google/Apple sheet auto-closes; Android Google feels instant; Settings link Apple closes + shows connected
+
 ## PUBLISH NOW (2026-07-16) — Apple `code%20id_token` + cancel + debug
 
 - **On `origin/main`:** `414f6480a`

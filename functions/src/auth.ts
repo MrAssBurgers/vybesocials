@@ -585,18 +585,31 @@ async function mintCustomTokenFromAppleIdToken(
 
   const client = jwksClient({ jwksUri: APPLE_JWKS_URI, cache: true });
 
+  // Decode header first — jwt.verify's getKey callback sometimes omits kid,
+  // which makes jwks-rsa throw "No KID specified and JWKS endpoint returned more than 1 key".
+  const unverified = jwt.decode(idToken, { complete: true }) as {
+    header?: { kid?: string; alg?: string };
+    payload?: AppleIdTokenPayload;
+  } | null;
+  const kid = unverified?.header?.kid;
+  if (!kid) {
+    throw new HttpsError('unauthenticated', 'Apple token missing kid');
+  }
+
+  const signingKey = await new Promise<string>((resolve, reject) => {
+    client.getSigningKey(kid, (err: Error | null, key?: { getPublicKey: () => string }) => {
+      if (err || !key) {
+        reject(err || new Error('apple_jwks_key_missing'));
+        return;
+      }
+      resolve(key.getPublicKey());
+    });
+  });
+
   const payload = await new Promise<AppleIdTokenPayload>((resolve, reject) => {
     jwt.verify(
       idToken,
-      (header: { kid?: string }, callback: (err: Error | null, key?: string) => void) => {
-        client.getSigningKey(header.kid, (err: Error | null, key?: { getPublicKey: () => string }) => {
-          if (err || !key) {
-            callback(err || new Error('apple_jwks_key_missing'));
-            return;
-          }
-          callback(null, key.getPublicKey());
-        });
-      },
+      signingKey,
       {
         algorithms: ['RS256'],
         audience: APPLE_SERVICES_ID,
@@ -947,6 +960,47 @@ export const authQr = onCall(
   const action = (data.action || 'create').toLowerCase();
   const nonce = typeof data.nonce === 'string' ? data.nonce.trim() : '';
 
+  /** Debug-session OAuth telemetry (Despia cannot reach localhost ingest). */
+  if (action === 'debug_oauth') {
+    const event = String((data as { event?: string }).event || '').slice(0, 120);
+    const hypothesisId = String((data as { hypothesisId?: string }).hypothesisId || '').slice(0, 8);
+    const location = String((data as { location?: string }).location || '').slice(0, 160);
+    const payload = (data as { payload?: Record<string, unknown> }).payload;
+    const safePayload =
+      payload && typeof payload === 'object' && !Array.isArray(payload)
+        ? Object.fromEntries(
+            Object.entries(payload)
+              .slice(0, 20)
+              .map(([k, v]) => [
+                String(k).slice(0, 40),
+                typeof v === 'string'
+                  ? v.slice(0, 200)
+                  : typeof v === 'number' || typeof v === 'boolean' || v == null
+                    ? v
+                    : String(v).slice(0, 120),
+              ]),
+          )
+        : {};
+    await db.collection('oauth_debug_events').add({
+      sessionId: 'bd2545',
+      event,
+      hypothesisId,
+      location,
+      payload: safePayload,
+      createdAt: Date.now(),
+    });
+    return { ok: true };
+  }
+
+  if (action === 'debug_oauth_dump') {
+    const snap = await db.collection('oauth_debug_events').where('sessionId', '==', 'bd2545').limit(80).get();
+    const events = snap.docs
+      .map((d) => d.data())
+      .sort((a, b) => Number(a.createdAt || 0) - Number(b.createdAt || 0))
+      .slice(-40);
+    return { events };
+  }
+
   if (action === 'exchange_google') {
     const ip = request.rawRequest?.ip || 'anon';
     enforceRateLimit(await rateLimit(`oauth-exchange:${ip}`, 20, 600));
@@ -962,6 +1016,7 @@ export const authQr = onCall(
       const code = await stashOAuthHandoff({
         provider: 'google',
         customToken,
+        idToken,
         nonce: oauthNonce || undefined,
       });
       return { customToken, custom_token: customToken, code };
@@ -1052,6 +1107,7 @@ export const authQr = onCall(
       const code = await stashOAuthHandoff({
         provider: 'apple',
         customToken,
+        idToken,
         nonce: oauthNonce || undefined,
       });
       return { customToken, custom_token: customToken, code };

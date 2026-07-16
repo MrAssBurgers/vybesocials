@@ -9,6 +9,8 @@ import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { toast } from 'sonner';
 import { ExternalPresenceConnections } from '@/components/music/ExternalPresenceConnections';
+import { isDespiaRuntime } from '@/lib/despiaBridge';
+import { linkProviderWithDespiaOAuth } from '@/lib/despiaOAuth';
 
 interface SpotifyConn {
   spotify_user_id: string;
@@ -105,9 +107,70 @@ export function ConnectionsSection() {
     }
   }, [ownerId]);
 
+  const refreshProviders = async () => {
+    try {
+      const { data: { user: authUser } } = await db.auth.getUser();
+      if (!authUser) return;
+      const googleIdentity = authUser.identities?.find((i) => i.provider === 'google');
+      const appleIdentity = authUser.identities?.find((i) => i.provider === 'apple');
+      setProviders((prev) =>
+        prev.map((p) => {
+          if (p.id === 'google') {
+            return {
+              ...p,
+              linked: !!googleIdentity,
+              email: googleIdentity?.identity_data?.email || null,
+            };
+          }
+          if (p.id === 'apple') {
+            return {
+              ...p,
+              linked: !!appleIdentity,
+              email: appleIdentity?.identity_data?.email || null,
+            };
+          }
+          return p;
+        }),
+      );
+    } catch {
+      /* ignore */
+    }
+  };
+
   const handleLink = async (providerId: string) => {
     setLinking(providerId);
     try {
+      if (isDespiaRuntime() && (providerId === 'google' || providerId === 'apple')) {
+        const result = await linkProviderWithDespiaOAuth(providerId);
+        if (result.error) throw result.error;
+        // Sheet + nonce poll complete asynchronously; keep spinner until event or timeout.
+        if (result.pending) {
+          await new Promise<void>((resolve) => {
+            const onDone = (ev: Event) => {
+              const detail = (ev as CustomEvent).detail as {
+                data?: { linked?: boolean; session?: unknown };
+                error?: { message?: string };
+              } | null;
+              window.removeEventListener('despia-oauth-complete', onDone);
+              window.clearTimeout(timer);
+              if (detail?.error?.message) {
+                toast.error(detail.error.message);
+              } else if (detail?.data?.linked || detail?.data?.session) {
+                toast.success(`${providerId === 'google' ? 'Google' : 'Apple'} connected`);
+                void refreshProviders();
+              }
+              resolve();
+            };
+            const timer = window.setTimeout(() => {
+              window.removeEventListener('despia-oauth-complete', onDone);
+              resolve();
+            }, 90_000);
+            window.addEventListener('despia-oauth-complete', onDone);
+          });
+          return;
+        }
+      }
+
       const { error } = await db.auth.linkIdentity({
         provider: providerId as 'google' | 'apple',
         options: { redirectTo: window.location.origin + '/settings?tab=connections&linked=' + providerId },
@@ -115,6 +178,9 @@ export function ConnectionsSection() {
       if (error) {
         if (error.message?.includes('already linked')) toast.error('This account is already linked to another user.');
         else throw error;
+      } else {
+        toast.success(`${providerId === 'google' ? 'Google' : 'Apple'} connected`);
+        await refreshProviders();
       }
     } catch (error: any) {
       toast.error(error.message || 'Failed to link account');

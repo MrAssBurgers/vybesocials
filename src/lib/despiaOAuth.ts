@@ -2,7 +2,7 @@
  * Despia native OAuth — opens ASWebAuthenticationSession / Chrome Custom Tabs
  * via `oauth://`, then completes Firebase sign-in in the WebView from deeplink tokens.
  */
-import { GoogleAuthProvider, OAuthProvider, signInWithCredential, signInWithCustomToken } from 'firebase/auth';
+import { GoogleAuthProvider, OAuthProvider, linkWithCredential, signInWithCredential, signInWithCustomToken } from 'firebase/auth';
 import { despiaCall, isDespiaRuntime } from '@/lib/despiaBridge';
 import { getProductionOrigin } from '@/lib/authRedirect';
 import { isNativePlatform } from '@/lib/capacitor';
@@ -12,6 +12,7 @@ const DESPIA_OAUTH_PENDING_KEY = 'vybe-despia-oauth-pending';
 const DESPIA_OAUTH_PENDING_AT_KEY = 'vybe-despia-oauth-pending-at';
 const DESPIA_OAUTH_PROVIDER_KEY = 'vybe-despia-oauth-provider';
 const DESPIA_OAUTH_NONCE_KEY = 'vybe-despia-oauth-nonce';
+const DESPIA_OAUTH_INTENT_KEY = 'vybe-despia-oauth-intent';
 const DESPIA_OAUTH_PENDING_MAX_MS = 3 * 60 * 1000;
 /** Globals Despia may set when ASWeb returns the oauth/ deeplink. */
 const DESPIA_OAUTH_URL_KEYS = ['url', 'oauthUrl', 'deeplink', 'deepLink'] as const;
@@ -38,7 +39,7 @@ const DEFAULT_GOOGLE_WEB_CLIENT_ID =
 const DEFAULT_APPLE_SERVICES_ID = 'com.despia.vybe.web';
 
 export type DespiaOAuthCompletion = {
-  data: { session: VybeSession | null };
+  data: { session: VybeSession | null; linked?: boolean };
   error: VybeAuthError | null;
 };
 
@@ -69,13 +70,14 @@ function encodeOAuthState(payload: {
   nonce: string;
   provider: string;
   cv?: string;
+  intent?: 'signin' | 'link';
 }): string {
   return btoa(JSON.stringify(payload)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 }
 
 export function decodeOAuthState(
   state: string | null,
-): { scheme: string; nonce: string; provider: string; cv?: string } | null {
+): { scheme: string; nonce: string; provider: string; cv?: string; intent?: 'signin' | 'link' } | null {
   if (!state) return null;
   try {
     const padded = state.replace(/-/g, '+').replace(/_/g, '/');
@@ -85,6 +87,7 @@ export function decodeOAuthState(
       nonce?: string;
       provider?: string;
       cv?: string;
+      intent?: string;
     };
     if (!parsed.scheme || !parsed.nonce || !parsed.provider) return null;
     return {
@@ -92,21 +95,27 @@ export function decodeOAuthState(
       nonce: parsed.nonce,
       provider: parsed.provider,
       cv: typeof parsed.cv === 'string' ? parsed.cv : undefined,
+      intent: parsed.intent === 'link' ? 'link' : 'signin',
     };
   } catch {
     return null;
   }
 }
 
-export function markDespiaOAuthPending(provider?: 'google' | 'apple'): void {
+export function markDespiaOAuthPending(
+  provider?: 'google' | 'apple',
+  intent: 'signin' | 'link' = 'signin',
+): void {
   if (typeof window === 'undefined') return;
   const at = String(Date.now());
   sessionStorage.setItem(DESPIA_OAUTH_PENDING_KEY, 'true');
   sessionStorage.setItem(DESPIA_OAUTH_PENDING_AT_KEY, at);
+  sessionStorage.setItem(DESPIA_OAUTH_INTENT_KEY, intent);
   if (provider) sessionStorage.setItem(DESPIA_OAUTH_PROVIDER_KEY, provider);
   try {
     localStorage.setItem(DESPIA_OAUTH_PENDING_KEY, 'true');
     localStorage.setItem(DESPIA_OAUTH_PENDING_AT_KEY, at);
+    localStorage.setItem(DESPIA_OAUTH_INTENT_KEY, intent);
     if (provider) localStorage.setItem(DESPIA_OAUTH_PROVIDER_KEY, provider);
   } catch {
     /* ignore */
@@ -147,10 +156,12 @@ export function clearDespiaOAuthPending(): void {
   sessionStorage.removeItem(DESPIA_OAUTH_PENDING_AT_KEY);
   sessionStorage.removeItem(DESPIA_OAUTH_PROVIDER_KEY);
   sessionStorage.removeItem(DESPIA_OAUTH_NONCE_KEY);
+  sessionStorage.removeItem(DESPIA_OAUTH_INTENT_KEY);
   try {
     localStorage.removeItem(DESPIA_OAUTH_PENDING_KEY);
     localStorage.removeItem(DESPIA_OAUTH_PENDING_AT_KEY);
     localStorage.removeItem(DESPIA_OAUTH_PROVIDER_KEY);
+    localStorage.removeItem(DESPIA_OAUTH_INTENT_KEY);
   } catch {
     /* ignore */
   }
@@ -215,7 +226,7 @@ export function getGoogleOAuthCallbackUrl(): string {
   return `${getProductionOrigin()}/native-callback.html`;
 }
 
-export function buildGoogleOAuthUrl(): string {
+export function buildGoogleOAuthUrl(intent: 'signin' | 'link' = 'signin'): string {
   const scheme = getDespiaDeeplinkScheme();
   const nonce = randomNonce();
   if (typeof sessionStorage !== 'undefined') {
@@ -224,7 +235,7 @@ export function buildGoogleOAuthUrl(): string {
 
   // id_token (implicit) — no client_secret required. PKCE code exchange against
   // the Firebase web client fails with "client_secret is missing".
-  const state = encodeOAuthState({ scheme, nonce, provider: 'google' });
+  const state = encodeOAuthState({ scheme, nonce, provider: 'google', intent });
   const redirectUri = getGoogleOAuthCallbackUrl();
   const clientId = getGoogleWebClientId();
 
@@ -254,14 +265,14 @@ export function getAppleOAuthCallbackUrl(): string {
   return getNativeOAuthCallbackUrl();
 }
 
-export function buildAppleOAuthUrl(): string {
+export function buildAppleOAuthUrl(intent: 'signin' | 'link' = 'signin'): string {
   const scheme = getDespiaDeeplinkScheme();
   const nonce = randomNonce();
   if (typeof sessionStorage !== 'undefined') {
     sessionStorage.setItem(DESPIA_OAUTH_NONCE_KEY, nonce);
   }
 
-  const state = encodeOAuthState({ scheme, nonce, provider: 'apple' });
+  const state = encodeOAuthState({ scheme, nonce, provider: 'apple', intent });
   const redirectUri = getAppleOAuthCallbackUrl();
   // Apple rejects response_type=id_token alone. Space must be %20 — URLSearchParams
   // encodes as "+" which Apple treats as invalid_request / invalid response_type.
@@ -279,30 +290,6 @@ export function buildAppleOAuthUrl(): string {
   {
     const rtMatch = url.match(/response_type=([^&]+)/);
     const rt = rtMatch ? rtMatch[1] : '';
-    fetch('http://127.0.0.1:7693/ingest/1847f3ab-7d03-4b99-8dbe-84076ae9145e', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': 'bd2545' },
-      body: JSON.stringify({
-        sessionId: 'bd2545',
-        runId: 'pre-fix',
-        hypothesisId: 'B',
-        location: 'despiaOAuth.ts:buildAppleOAuthUrl',
-        message: 'apple_authorize_url',
-        data: {
-          responseTypeEnc: rt,
-          hasPercent20: rt.includes('%20'),
-          hasPlus: rt.includes('+'),
-          redirectHost: (() => {
-            try {
-              return new URL(redirectUri).host;
-            } catch {
-              return 'bad';
-            }
-          })(),
-        },
-        timestamp: Date.now(),
-      }),
-    }).catch(() => {});
     void fetch('https://us-central1-vybe-daaab.cloudfunctions.net/authQr', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -316,6 +303,7 @@ export function buildAppleOAuthUrl(): string {
             responseTypeEnc: rt,
             hasPercent20: rt.includes('%20'),
             hasPlus: rt.includes('+'),
+            intent,
           },
         },
       }),
@@ -391,6 +379,7 @@ function armDespiaOAuthSheetCancelWatch(): void {
 async function launchDespiaOAuthUrl(
   authUrl: string,
   provider: 'google' | 'apple',
+  intent: 'signin' | 'link' = 'signin',
 ): Promise<{
   pending: boolean;
   error: VybeAuthError | null;
@@ -400,7 +389,7 @@ async function launchDespiaOAuthUrl(
   }
 
   try {
-    markDespiaOAuthPending(provider);
+    markDespiaOAuthPending(provider, intent);
     const oauthNonce =
       typeof sessionStorage !== 'undefined' ? sessionStorage.getItem(DESPIA_OAUTH_NONCE_KEY) : null;
     if (oauthNonce) startDespiaOAuthNoncePoll(oauthNonce);
@@ -410,30 +399,6 @@ async function launchDespiaOAuthUrl(
     // #region agent log
     {
       const rtMatch = authUrl.match(/response_type=([^&]+)/);
-      fetch('http://127.0.0.1:7693/ingest/1847f3ab-7d03-4b99-8dbe-84076ae9145e', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': 'bd2545' },
-        body: JSON.stringify({
-          sessionId: 'bd2545',
-          runId: 'pre-fix',
-          hypothesisId: 'A',
-          location: 'despiaOAuth.ts:launchDespiaOAuthUrl',
-          message: 'oauth_launch',
-          data: {
-            provider,
-            hasNonce: Boolean(oauthNonce),
-            responseTypeEnc: rtMatch ? rtMatch[1] : null,
-            authHost: (() => {
-              try {
-                return new URL(authUrl).host;
-              } catch {
-                return 'bad';
-              }
-            })(),
-          },
-          timestamp: Date.now(),
-        }),
-      }).catch(() => {});
       void fetch('https://us-central1-vybe-daaab.cloudfunctions.net/authQr', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -445,6 +410,7 @@ async function launchDespiaOAuthUrl(
             location: 'despiaOAuth.ts:launchDespiaOAuthUrl',
             payload: {
               provider,
+              intent,
               hasNonce: Boolean(oauthNonce),
               responseTypeEnc: rtMatch ? rtMatch[1] : null,
             },
@@ -457,24 +423,6 @@ async function launchDespiaOAuthUrl(
     // Completion via deeplink AND/OR nonce poll. Dismiss without tokens → cancel watch.
     void despiaCall(oauthBridge, [...DESPIA_OAUTH_URL_KEYS], 90_000).then((payload) => {
       // #region agent log
-      fetch('http://127.0.0.1:7693/ingest/1847f3ab-7d03-4b99-8dbe-84076ae9145e', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': 'bd2545' },
-        body: JSON.stringify({
-          sessionId: 'bd2545',
-          runId: 'pre-fix',
-          hypothesisId: 'C',
-          location: 'despiaOAuth.ts:despiaCall.then',
-          message: 'despia_bridge_result',
-          data: {
-            provider,
-            hasPayload: Boolean(payload),
-            stillInFlight: isDespiaOAuthInFlight(),
-            visibility: typeof document !== 'undefined' ? document.visibilityState : 'n/a',
-          },
-          timestamp: Date.now(),
-        }),
-      }).catch(() => {});
       void fetch('https://us-central1-vybe-daaab.cloudfunctions.net/authQr', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -486,6 +434,7 @@ async function launchDespiaOAuthUrl(
             location: 'despiaOAuth.ts:despiaCall.then',
             payload: {
               provider,
+              intent,
               hasPayload: Boolean(payload),
               stillInFlight: isDespiaOAuthInFlight(),
             },
@@ -495,7 +444,6 @@ async function launchDespiaOAuthUrl(
       }).catch(() => {});
       // #endregion
       // Bridge often returns null while the sheet is still open — do NOT cancel here.
-      // Completion = deeplink / App Link / nonce poll; cancel = sheet dismiss watch only.
       if (!payload) return;
 
       for (const key of DESPIA_OAUTH_URL_KEYS) {
@@ -527,7 +475,7 @@ export async function signInWithGoogleDespia(): Promise<{
   pending: boolean;
   error: VybeAuthError | null;
 }> {
-  return launchDespiaOAuthUrl(buildGoogleOAuthUrl(), 'google');
+  return launchDespiaOAuthUrl(buildGoogleOAuthUrl('signin'), 'google', 'signin');
 }
 
 /**
@@ -541,13 +489,24 @@ export async function signInWithAppleDespia(): Promise<{
   data?: { session: VybeSession | null };
 }> {
   if (isDespiaRuntime()) {
-    return launchDespiaOAuthUrl(buildAppleOAuthUrl(), 'apple');
+    return launchDespiaOAuthUrl(buildAppleOAuthUrl('signin'), 'apple', 'signin');
   }
 
   const { signInWithAppleJsSdk } = await import('@/lib/appleSignIn');
   const js = await signInWithAppleJsSdk();
   if (js.error) return { pending: false, error: js.error, data: { session: null } };
   return { pending: false, error: null, data: { session: js.data.session } };
+}
+
+/** Settings → Connections: link Google/Apple on Despia via oauth:// (not linkWithPopup). */
+export async function linkProviderWithDespiaOAuth(
+  provider: 'google' | 'apple',
+): Promise<{ pending: boolean; error: VybeAuthError | null }> {
+  if (!isDespiaRuntime()) {
+    return { pending: false, error: { message: 'Despia link requires the native app' } };
+  }
+  const url = provider === 'apple' ? buildAppleOAuthUrl('link') : buildGoogleOAuthUrl('link');
+  return launchDespiaOAuthUrl(url, provider, 'link');
 }
 
 function parseOAuthParamsFromUrl(url: string): URLSearchParams {
@@ -675,12 +634,15 @@ function startDespiaOAuthNoncePoll(nonce: string): void {
 
       if (data?.ready && data.code) {
         stopDespiaOAuthNoncePoll();
+        const storedIntent =
+          typeof sessionStorage !== 'undefined' ? sessionStorage.getItem(DESPIA_OAUTH_INTENT_KEY) : null;
         const state = encodeOAuthState({
           scheme: getDespiaDeeplinkScheme(),
           nonce: clean,
           provider: (data.provider as string) || 'google',
+          intent: storedIntent === 'link' ? 'link' : 'signin',
         });
-        const synthetic = `${window.location.origin}/auth?hc=${encodeURIComponent(data.code)}&state=${encodeURIComponent(state)}`;
+        const synthetic = `${window.location.origin}/auth?hc=${encodeURIComponent(data.code)}&state=${encodeURIComponent(state)}${storedIntent === 'link' ? '&intent=link' : ''}`;
         const result = await completeDespiaOAuthFromUrl(synthetic);
         window.dispatchEvent(new CustomEvent('despia-oauth-complete', { detail: result }));
         return;
@@ -830,39 +792,83 @@ async function completeDespiaOAuthFromUrlInner(url: string): Promise<DespiaOAuth
     }
 
     const providerHint = redeemedProvider || state?.provider || 'google';
+    const storedIntent =
+      typeof sessionStorage !== 'undefined' ? sessionStorage.getItem(DESPIA_OAUTH_INTENT_KEY) : null;
+    const linkIntent =
+      params.get('intent') === 'link' ||
+      state?.intent === 'link' ||
+      storedIntent === 'link';
 
-  // Prefer custom-token handoff for both Google and Apple (App Link remount safe).
-  // Fall back to provider credential only when no custom token was stashed.
-  if (customToken) {
-    await signInWithCustomToken(auth, customToken);
-  } else if (providerHint === 'apple') {
+    if (linkIntent) {
+      if (!auth.currentUser) {
+        clearDespiaOAuthPending();
+        return {
+          data: { session: null },
+          error: { message: 'Sign in before linking an account.', name: 'auth/not-authenticated' },
+        };
+      }
+      if (!idToken) {
+        clearDespiaOAuthPending();
+        return {
+          data: { session: null },
+          error: {
+            message: 'Could not link — missing provider token. Try again.',
+            name: 'despia/oauth-link-missing-token',
+          },
+        };
+      }
+      if (providerHint === 'apple') {
+        const apple = new OAuthProvider('apple.com');
+        const credential = apple.credential({
+          idToken,
+          rawNonce: redeemedNonce || storedNonce || state?.nonce || undefined,
+        });
+        await linkWithCredential(auth.currentUser, credential);
+      } else {
+        await linkWithCredential(auth.currentUser, GoogleAuthProvider.credential(idToken));
+      }
+    } else if (customToken) {
+      // Prefer custom-token handoff for both Google and Apple (App Link remount safe).
+      await signInWithCustomToken(auth, customToken);
+    } else if (providerHint === 'apple') {
       const apple = new OAuthProvider('apple.com');
       const credential = apple.credential({
         idToken: idToken!,
         rawNonce: redeemedNonce || storedNonce || state?.nonce || undefined,
       });
       await signInWithCredential(auth, credential);
-  } else {
+    } else {
       const credential = GoogleAuthProvider.credential(idToken!);
       await signInWithCredential(auth, credential);
-  }
+    }
     clearDespiaOAuthPending();
 
     const { data, error: sessionError } = await firebaseAuth.getSession();
     if (sessionError) {
       return { data: { session: null }, error: sessionError };
     }
-    const completion = { data: { session: data.session }, error: null };
+    const completion = {
+      data: { session: data.session, linked: linkIntent },
+      error: null,
+    };
     if (data.session?.user) {
       try {
         const cleanPath = window.location.pathname || '/auth';
-        window.history.replaceState({}, '', cleanPath);
+        const keepSettings =
+          cleanPath.startsWith('/settings') || window.location.search.includes('tab=connections');
+        if (!keepSettings) {
+          window.history.replaceState({}, '', cleanPath);
+        } else if (linkIntent) {
+          window.history.replaceState({}, '', '/settings?tab=connections&linked=' + providerHint);
+        }
       } catch {
         /* ignore */
       }
       try {
-        const { claimProfileAfterOAuth } = await import('@/lib/oauthAccountLink');
-        await claimProfileAfterOAuth();
+        if (!linkIntent) {
+          const { claimProfileAfterOAuth } = await import('@/lib/oauthAccountLink');
+          await claimProfileAfterOAuth();
+        }
       } catch {
         /* optional */
       }
@@ -913,7 +919,8 @@ export async function tryCompleteDespiaOAuthFromCurrentUrl(): Promise<DespiaOAut
   // Instant sheet-close path: nonce is ready, handoff still stashing — poll then sign in.
   if (waiting && waitNonce && !params.has('hc') && !params.has('id_token') && !params.has('error')) {
     const providerHint = (params.get('provider') || 'google') as 'google' | 'apple';
-    markDespiaOAuthPending(providerHint === 'apple' ? 'apple' : 'google');
+    const intentHint = params.get('intent') === 'link' ? 'link' : 'signin';
+    markDespiaOAuthPending(providerHint === 'apple' ? 'apple' : 'google', intentHint);
     try {
       sessionStorage.setItem(DESPIA_OAUTH_NONCE_KEY, waitNonce);
     } catch {
