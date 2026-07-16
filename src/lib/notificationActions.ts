@@ -227,11 +227,23 @@ export async function fetchRingingCall(callId: string): Promise<CallData | null>
 }
 
 export function navigateFromNotification(route: string): void {
+  // Guard against mangled `/%3F…` paths from Despia/push URL encoding.
+  let safe = route;
+  try {
+    if (safe.includes('%3F') || safe.includes('%3f')) {
+      const decoded = decodeURIComponent(safe);
+      if (decoded.startsWith('/?') || decoded.startsWith('?')) {
+        safe = decoded.startsWith('/') ? decoded : `/${decoded}`;
+      }
+    }
+  } catch {
+    /* keep original */
+  }
   if (navigationRef.current) {
-    navigationRef.current(route);
+    navigationRef.current(safe);
     return;
   }
   if (typeof window !== 'undefined') {
-    window.location.assign(route);
+    window.location.assign(safe);
   }
 }

@@ -2,6 +2,16 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## PUBLISH NOW (2026-07-16) — iOS ASWeb close via HTTPS 302 (no Safari)
+
+- **On `origin/main`:** (pushing)
+- **iOS sheet stuck / Safari opens:** JS `com.despia.vybe://…` inside ASWeb opens Safari; now close via `https://vybehub.app/oauth-dismiss?…` → HTTP 302 → custom scheme (ASWeb dismisses)
+- **404 `/%3Flogin-approval=…`:** normalize encoded-query pathnames on boot + notification navigate
+- **Apple nonce_mismatch:** send SHA-256 nonce to Apple (parity with JS SDK); exchange accepts hex/b64
+- **Android:** still App Link `/auth?hc=`
+- **Lovable → Share → Publish** (native-callback + SPA on vybehub.app)
+- **Verify:** iOS Google/Apple → sheet auto-closes → signed in; no Safari; no 404 after dismiss
+
 ## PUBLISH NOW (2026-07-16) — instant close + Apple exchange + Settings link
 
 - **On `origin/main`:** (pushing)

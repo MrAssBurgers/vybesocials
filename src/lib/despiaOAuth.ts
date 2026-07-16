@@ -265,14 +265,27 @@ export function getAppleOAuthCallbackUrl(): string {
   return getNativeOAuthCallbackUrl();
 }
 
-export function buildAppleOAuthUrl(intent: 'signin' | 'link' = 'signin'): string {
+export async function buildAppleOAuthUrl(intent: 'signin' | 'link' = 'signin'): Promise<string> {
   const scheme = getDespiaDeeplinkScheme();
-  const nonce = randomNonce();
+  const rawNonce = randomNonce();
   if (typeof sessionStorage !== 'undefined') {
-    sessionStorage.setItem(DESPIA_OAUTH_NONCE_KEY, nonce);
+    sessionStorage.setItem(DESPIA_OAUTH_NONCE_KEY, rawNonce);
   }
 
-  const state = encodeOAuthState({ scheme, nonce, provider: 'apple', intent });
+  // Apple JS SDK / Firebase expect: authorize URL gets SHA-256(hex) nonce;
+  // id_token.nonce matches that hash; credential uses rawNonce.
+  let hashedNonce = rawNonce;
+  try {
+    const data = new TextEncoder().encode(rawNonce);
+    const digest = await crypto.subtle.digest('SHA-256', data);
+    hashedNonce = Array.from(new Uint8Array(digest))
+      .map((b) => b.toString(16).padStart(2, '0'))
+      .join('');
+  } catch {
+    /* fall back to raw — exchange_apple accepts both */
+  }
+
+  const state = encodeOAuthState({ scheme, nonce: rawNonce, provider: 'apple', intent });
   const redirectUri = getAppleOAuthCallbackUrl();
   // Apple rejects response_type=id_token alone. Space must be %20 — URLSearchParams
   // encodes as "+" which Apple treats as invalid_request / invalid response_type.
@@ -280,7 +293,7 @@ export function buildAppleOAuthUrl(intent: 'signin' | 'link' = 'signin'): string
     client_id: getAppleServicesId(),
     redirect_uri: redirectUri,
     response_mode: 'fragment',
-    nonce,
+    nonce: hashedNonce,
     state,
   });
   const url =
@@ -304,6 +317,7 @@ export function buildAppleOAuthUrl(intent: 'signin' | 'link' = 'signin'): string
             hasPercent20: rt.includes('%20'),
             hasPlus: rt.includes('+'),
             intent,
+            hashedNonce: true,
           },
         },
       }),
@@ -489,7 +503,7 @@ export async function signInWithAppleDespia(): Promise<{
   data?: { session: VybeSession | null };
 }> {
   if (isDespiaRuntime()) {
-    return launchDespiaOAuthUrl(buildAppleOAuthUrl('signin'), 'apple', 'signin');
+    return launchDespiaOAuthUrl(await buildAppleOAuthUrl('signin'), 'apple', 'signin');
   }
 
   const { signInWithAppleJsSdk } = await import('@/lib/appleSignIn');
@@ -505,7 +519,7 @@ export async function linkProviderWithDespiaOAuth(
   if (!isDespiaRuntime()) {
     return { pending: false, error: { message: 'Despia link requires the native app' } };
   }
-  const url = provider === 'apple' ? buildAppleOAuthUrl('link') : buildGoogleOAuthUrl('link');
+  const url = provider === 'apple' ? await buildAppleOAuthUrl('link') : buildGoogleOAuthUrl('link');
   return launchDespiaOAuthUrl(url, provider, 'link');
 }
 

@@ -12,14 +12,17 @@
   <script>
     /**
      * Despia OAuth return (Google/Apple). Runs inside ASWeb / Custom Tabs.
-     * Soft-close immediately with {scheme}://oauth/…&wait=1 (Despia closes sheet),
-     * exchange continues with keepalive, then hard-close with hc=.
-     * Android App Link is fallback only if the sheet is still open.
+     * iOS: close via HTTPS 302 (/oauth-dismiss → custom scheme) so ASWeb
+     * dismisses. Direct com.despia.vybe:// from JS opens Safari and sticks.
+     * Android: App Link close (CCT); oauth/ deeplink as secondary.
      */
     (function () {
       var DEFAULT_SCHEME = 'com.despia.vybe';
       var EXCHANGE_URL = 'https://us-central1-vybe-daaab.cloudfunctions.net/authQr';
       var APP_ORIGIN = 'https://vybehub.app';
+      // Direct Cloud Function URL — vybehub.app is Lovable and does not serve the
+      // Firebase Hosting rewrite for /oauth-dismiss (would return SPA 200 instead of 302).
+      var DISMISS_URL = 'https://us-central1-vybe-daaab.cloudfunctions.net/oauthDismiss';
       var closed = false;
       var softFired = false;
 
@@ -119,50 +122,38 @@
         if (s && s.indexOf('://') === -1) scheme = s;
       }
 
-      /** Despia-required close: {scheme}://oauth/… — single location.href. */
-      function fireDeeplink(query) {
-        var deeplink = scheme + '://oauth/auth?' + query;
+      function fireClose(query) {
+        if (!query || closed) return;
         // #region agent log
-        dbg('A', 'fire_deeplink', {
+        dbg('A', 'fire_close', {
           android: isAndroid(),
           queryLen: query.length,
           hasHc: query.indexOf('hc=') !== -1,
           hasWait: query.indexOf('wait=') !== -1,
           provider: provider,
           intent: intent,
+          mode: isAndroid() ? 'applink' : 'https-302',
         });
         // #endregion
-        try {
-          window.location.href = deeplink;
-        } catch (e1) {}
-      }
-
-      function fireAppLinkFallback(query) {
-        if (!isAndroid() || closed) return;
-        var appLink = APP_ORIGIN + '/auth?' + query;
-        // #region agent log
-        dbg('F', 'android_applink_fallback', {
-          hasHc: query.indexOf('hc=') !== -1,
-          queryLen: query.length,
-        });
-        // #endregion
-        try {
-          window.location.replace(appLink);
-        } catch (e2) {}
-      }
-
-      function hardFire(query) {
-        if (!query || closed) return;
-        fireDeeplink(query);
-        // Android CCT sometimes ignores custom schemes — App Link backup.
         if (isAndroid()) {
-          setTimeout(function () {
-            if (!closed) fireAppLinkFallback(query);
-          }, 450);
+          // CCT closes reliably on HTTPS App Link into the app.
+          var appLink = APP_ORIGIN + '/auth?' + query;
+          try { window.location.replace(appLink); } catch (e1) {}
+          try { window.location.href = appLink; } catch (e2) {}
+          return;
         }
+        // iOS ASWeb: HTTPS 302 to custom scheme (never JS→custom-scheme — opens Safari).
+        var dismiss =
+          DISMISS_URL +
+          '?' +
+          query +
+          '&scheme=' +
+          encodeURIComponent(scheme);
+        try { window.location.replace(dismiss); } catch (e3) {}
+        try { window.location.href = dismiss; } catch (e4) {}
       }
 
-      // Soft-close ASAP so the sheet dismisses while exchange runs (nonce poll finishes login).
+      // Soft-close ASAP — nonce poll finishes login in the WebView.
       if (nonce && !error) {
         softFired = true;
         var softQ =
@@ -171,7 +162,7 @@
           '&wait=1&provider=' +
           encodeURIComponent(provider);
         if (intent === 'link') softQ += '&intent=link';
-        fireDeeplink(softQ);
+        fireClose(softQ);
       }
 
       // #region agent log
@@ -188,12 +179,12 @@
       // #endregion
 
       if (error) {
-        hardFire('error=' + encodeURIComponent(String(error).slice(0, 64)));
+        fireClose('error=' + encodeURIComponent(String(error).slice(0, 64)));
         return;
       }
 
       if (!idToken) {
-        hardFire('error=missing_token');
+        fireClose('error=missing_token');
         return;
       }
 
@@ -222,9 +213,7 @@
           if (!result.ok || !handoff) throw new Error(errMsgOf(result) || 'exchange_failed');
           var q = 'hc=' + encodeURIComponent(handoff);
           if (intent === 'link') q += '&intent=link';
-          if (!closed) {
-            hardFire(q);
-          }
+          if (!closed) fireClose(q);
         })
         .catch(function (err) {
           // #region agent log
@@ -233,7 +222,7 @@
             msg: err && err.message ? String(err.message).slice(0, 120) : 'fail',
           });
           // #endregion
-          if (!closed) hardFire('error=exchange_failed');
+          if (!closed) fireClose('error=exchange_failed');
         });
     })();
   </script>

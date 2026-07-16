@@ -558,9 +558,15 @@ async function mintCustomTokenFromAppleIdToken(idToken, expectedNonce) {
     if (!sub) {
         throw new HttpsError('unauthenticated', 'invalid_token');
     }
-    if (expectedNonce) {
-        const hashed = createHash('sha256').update(expectedNonce).digest('hex');
-        if (payload.nonce && payload.nonce !== hashed) {
+    if (expectedNonce && payload.nonce) {
+        const hashedHex = createHash('sha256').update(expectedNonce).digest('hex');
+        const hashedB64 = createHash('sha256').update(expectedNonce).digest('base64');
+        const hashedB64Url = hashedB64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+        const ok = payload.nonce === expectedNonce ||
+            payload.nonce === hashedHex ||
+            payload.nonce === hashedB64 ||
+            payload.nonce === hashedB64Url;
+        if (!ok) {
             throw new HttpsError('unauthenticated', 'nonce_mismatch');
         }
     }
@@ -676,6 +682,34 @@ function despiaCloseDeeplink(scheme, query) {
     const clean = (scheme || 'com.despia.vybe').trim() || 'com.despia.vybe';
     return `${clean}://oauth/auth?${query}`;
 }
+/**
+ * HTTP 302 → custom-scheme close. ASWebAuthenticationSession intercepts
+ * HTTPS→custom-scheme redirects and dismisses the sheet. Direct JS
+ * `location.href = com.despia.vybe://…` often opens Safari instead and leaves
+ * the sheet stuck (seen on iOS Despia).
+ */
+export const oauthDismiss = onRequest({
+    cors: true,
+    invoker: 'public',
+    memory: '256MiB',
+    cpu: 0.083,
+    concurrency: 1,
+    maxInstances: 4,
+}, async (req, res) => {
+    const rawQs = typeof req.url === 'string' && req.url.includes('?') ? req.url.slice(req.url.indexOf('?') + 1) : '';
+    const safeQs = rawQs.replace(/[^a-zA-Z0-9_=&%.\-]/g, '').slice(0, 512);
+    const schemeParam = typeof req.query?.scheme === 'string' ? String(req.query.scheme).trim() : '';
+    const scheme = schemeParam && /^[a-z0-9.-]+$/i.test(schemeParam) && !schemeParam.includes('://')
+        ? schemeParam
+        : 'com.despia.vybe';
+    // Drop scheme= from qs if present (already applied).
+    const qs = safeQs
+        .split('&')
+        .filter((p) => p && !p.startsWith('scheme='))
+        .join('&');
+    res.set('Cache-Control', 'no-store');
+    res.redirect(302, despiaCloseDeeplink(scheme, qs || 'wait=1'));
+});
 /** Google OAuth redirect for Despia — must match Google Cloud Console + client. */
 const GOOGLE_OAUTH_REDIRECT_URI = 'https://vybehub.app/google-callback.html';
 async function exchangeGoogleAuthCode(code, codeVerifier, redirectUri = GOOGLE_OAUTH_REDIRECT_URI) {

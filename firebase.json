@@ -33,6 +33,10 @@
     ],
     "rewrites": [
       {
+        "source": "/oauth-dismiss",
+        "function": "oauthDismiss"
+      },
+      {
         "source": "/mcp",
         "function": "mcp"
       },

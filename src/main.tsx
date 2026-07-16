@@ -44,6 +44,47 @@ import { stampRuntimeOsOnDocument, getRuntimeOs } from "./lib/despiaBridge";
 stampRuntimeOsOnDocument();
 logStartupPhase("App started", { os: getRuntimeOs() });
 
+/**
+ * Despia/push sometimes lands `/?login-approval=…` as pathname `/%3Flogin-approval=…`
+ * (literal encoded "?"). React Router then 404s and can drop the session UX.
+ */
+function normalizeEncodedQueryPathname(): void {
+  try {
+    const { pathname, search, hash } = window.location;
+    if (!pathname.includes("%3F") && !pathname.includes("%3f")) return;
+    const decodedPath = decodeURIComponent(pathname);
+    // e.g. pathname "/%3Flogin-approval=abc" → "/?login-approval=abc"
+    if (decodedPath.startsWith("/?")) {
+      const fixed = decodedPath + (search && search !== "?" ? search.replace(/^\?/, "&") : "") + hash;
+      window.history.replaceState(null, "", fixed);
+      // #region agent log
+      fetch("http://127.0.0.1:7693/ingest/1847f3ab-7d03-4b99-8dbe-84076ae9145e", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "bd2545" },
+        body: JSON.stringify({
+          sessionId: "bd2545",
+          runId: "post-fix",
+          hypothesisId: "E",
+          location: "main.tsx:normalizeEncodedQueryPathname",
+          message: "fixed_encoded_query_pathname",
+          data: { before: pathname, after: fixed.slice(0, 120) },
+          timestamp: Date.now(),
+        }),
+      }).catch(() => {});
+      // #endregion
+      return;
+    }
+    const idx = decodedPath.indexOf("?");
+    if (idx >= 0) {
+      const fixed = decodedPath.slice(0, idx) + decodedPath.slice(idx) + search + hash;
+      window.history.replaceState(null, "", fixed.startsWith("/") ? fixed : "/" + fixed);
+    }
+  } catch {
+    /* ignore */
+  }
+}
+normalizeEncodedQueryPathname();
+
 function runSafeBootStep(label: string, callback: () => void) {
   try {
     callback();
