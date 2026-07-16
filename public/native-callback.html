@@ -3,17 +3,31 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title></title>
+  <title>VYBE · Sign in</title>
   <style>
-    html, body { margin: 0; min-height: 100%; background: #0B0B10; }
+    html, body { margin: 0; min-height: 100%; background: #0B0B10; color: #a1a1aa; font-family: system-ui, -apple-system, sans-serif; }
+    body {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 24px;
+      text-align: center;
+    }
+    .brand { font-size: 22px; font-weight: 700; letter-spacing: 0.12em; color: #fafafa; }
+    .sub { font-size: 13px; opacity: 0.7; }
   </style>
 </head>
 <body>
+  <div class="brand">VYBE</div>
+  <div class="sub">Signing in · vybehub.app</div>
   <script>
     /**
-     * Fallback callback (Apple fragment / legacy). Google Despia uses /google-callback.
-     * Short deeplinks only (hc= / error=) — never append long state (iOS invalid address).
-     * No meta-refresh to custom schemes. Fire close twice max (no endless load spinner).
+     * https://vybehub.app/native-callback.html
+     * Google (id_token) + Apple (fragment) Despia return.
+     * Exchange FIRST (keepalive), then short hc= deeplink — never long state.
      */
     (function () {
       var DEFAULT_SCHEME = 'com.despia.vybe';
@@ -88,16 +102,7 @@
         return;
       }
 
-      // Soft wait — short nonce only (no state). App polls authQr.
-      if (nonce) {
-        fireClose(
-          buildDeeplink(
-            scheme,
-            'nonce=' + encodeURIComponent(nonce) + '&wait=1&provider=' + encodeURIComponent(provider),
-          ),
-        );
-      }
-
+      // Start exchange before any close navigation (app already polls by nonce).
       var stashPromise =
         provider === 'apple'
           ? callAuthQr({

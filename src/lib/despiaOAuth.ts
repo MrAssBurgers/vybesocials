@@ -210,43 +210,38 @@ function base64UrlFromBuffer(buf: ArrayBuffer): string {
   return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 }
 
-function randomCodeVerifier(): string {
-  const bytes = new Uint8Array(32);
-  crypto.getRandomValues(bytes);
-  return base64UrlFromBuffer(bytes.buffer);
+/** @deprecated PKCE helpers kept for optional future public-client flow */
+function _unusedPkceKeep() {
+  return { base64UrlFromBuffer };
 }
 
-async function pkceChallengeS256(verifier: string): Promise<string> {
-  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(verifier));
-  return base64UrlFromBuffer(digest);
-}
+void _unusedPkceKeep;
 
-/** Google code+PKCE callback on production domain (shows vybehub.app in the sheet). */
+/** Google Despia callback — production domain so the sheet shows vybehub.app. */
 export function getGoogleOAuthCallbackUrl(): string {
-  return 'https://vybehub.app/google-callback.html';
+  return `${getProductionOrigin()}/native-callback.html`;
 }
 
-export async function buildGoogleOAuthUrl(): Promise<string> {
+export function buildGoogleOAuthUrl(): string {
   const scheme = getDespiaDeeplinkScheme();
   const nonce = randomNonce();
-  const cv = randomCodeVerifier();
   if (typeof sessionStorage !== 'undefined') {
     sessionStorage.setItem(DESPIA_OAUTH_NONCE_KEY, nonce);
   }
 
-  const state = encodeOAuthState({ scheme, nonce, provider: 'google', cv });
+  // id_token (implicit) — no client_secret required. PKCE code exchange against
+  // the Firebase web client fails with "client_secret is missing".
+  const state = encodeOAuthState({ scheme, nonce, provider: 'google' });
   const redirectUri = getGoogleOAuthCallbackUrl();
   const clientId = getGoogleWebClientId();
-  const codeChallenge = await pkceChallengeS256(cv);
 
   const params = new URLSearchParams({
     client_id: clientId,
     redirect_uri: redirectUri,
-    response_type: 'code',
+    response_type: 'id_token',
     scope: 'openid email profile',
+    nonce,
     state,
-    code_challenge: codeChallenge,
-    code_challenge_method: 'S256',
     prompt: 'select_account',
   });
 
@@ -357,7 +352,7 @@ export async function signInWithGoogleDespia(): Promise<{
   pending: boolean;
   error: VybeAuthError | null;
 }> {
-  return launchDespiaOAuthUrl(await buildGoogleOAuthUrl(), 'google');
+  return launchDespiaOAuthUrl(buildGoogleOAuthUrl(), 'google');
 }
 
 /**

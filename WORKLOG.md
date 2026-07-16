@@ -2,9 +2,21 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## PUBLISH NOW (2026-07-15) — Google on vybehub.app (id_token) + login
+
+- **On `origin/main`:** (pushing) `https://vybehub.app/native-callback.html`
+- **Why firebase “didn’t load” / no login:** PKCE code exchange needs Google `client_secret` → failed. Switched back to **id_token** on **vybehub.app** (no secret).
+- **What you’ll see:** Google sheet → `vybehub.app` · VYBE branding → short `hc=` close → signed in
+- **Google Cloud Console:** Authorized redirect URI must include  
+  `https://vybehub.app/native-callback.html`
+- **Lovable → Share → Publish:** https://lovable.dev/projects/416714c8-d013-4aff-984d-522418a9bbc7
+- **Then:** hard-kill app → Google → pick account → must land signed in
+
+---
+
 ## PUBLISH NOW (2026-07-15) — Google OAuth on vybehub.app + real login
 
-- **On `origin/main`:** (pushing) callback = `https://vybehub.app/google-callback.html`
+- **On `origin/main`:** `f735a5b5` — callback = `https://vybehub.app/google-callback.html`
 - **You asked:** show Google OAuth with **vybehub.app** (not firebase) + actually log in
 - **Fix:** static `public/google-callback.html` on prod domain; `authQr` `exchange_google_code`; short `hc=` close; app nonce poll still signs in
 - **Google Cloud Console (required):** Web client → Authorized redirect URIs → **add**  
