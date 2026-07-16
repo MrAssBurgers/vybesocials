@@ -4,7 +4,7 @@ Use this file as the Lovable -> Cursor handoff each session.
 
 ## PUBLISH handoff (2026-07-15) — Fix infinite Apple spinner (quota)
 
-- **Merged to `origin/main`:** (this commit)
+- **Merged to `origin/main`:** `2b2a21f5`
 - **Root cause:** `appleOAuthCallback` Cloud Function returned **503/500** — project exceeded `run.googleapis.com/cpu_allocation`. Android Apple form_post never finished → login chip waited forever.
 - **Fix:** Android Apple uses **fragment** + `https://vybehub.app/native-callback.html` (no name/email scope; same path as Google). Landing **45s timeout** clears spinner. `authQr` fetch abort after 12s on callback page.
 - **Production Publish:** **Lovable → Share → Publish** now
@@ -16,6 +16,8 @@ Use this file as the Lovable -> Cursor handoff each session.
 - **After Publish:** hard-kill app → Apple/Google should finish or error within ~45s (no infinite wait)
 
 ---
+
+## PUBLISH handoff (2026-07-15) — Android Apple form_post + silent OAuth
 
 - **Merged to `origin/main`:** `f28feb23`
 - **Includes:** `appleOAuthCallback` · Android Apple `form_post` → `vybe-daaab.firebaseapp.com/apple-callback` · silent blank `native-callback` · stay-on-login chip · reclaim harden · Apple error copy
