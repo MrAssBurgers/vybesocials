@@ -560,6 +560,15 @@
         font-weight: 500;
         font-variant-numeric: tabular-nums;
       }
+      #vybe-static-boot .vybe-splash-build {
+        margin: 0.5rem 0 0;
+        text-align: center;
+        font-size: 10px;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: hsl(var(--muted-foreground) / 0.55);
+        font-variant-numeric: tabular-nums;
+      }
       #vybe-static-boot .vybe-splash-draw-left,
       #vybe-static-boot .vybe-splash-draw-right {
         stroke-dasharray: none;
@@ -704,6 +713,7 @@
             <span class="vybe-splash-status">Waking up...</span>
             <span class="vybe-splash-percent">0%</span>
           </div>
+          <p id="vybe-splash-build" class="vybe-splash-build" aria-hidden="true"></p>
         </div>
         </div>
       </div>
@@ -714,6 +724,7 @@
         }
       })();
     </script>
+    <script src="/boot-first-beacon.js"></script>
     <div id="root"></div>
     <script>
       (function () {
@@ -724,6 +735,9 @@
         var status = 'Waking up...';
         var startedAt = Date.now();
         var takenOver = false;
+        var ua = (navigator.userAgent || '').toLowerCase();
+        var isDespia = /despia|vybeapp|; wv\)|\bwv\b/.test(ua) || !!(window).Despia || !!(window).__DESPIA__;
+        var failOpenMs = isDespia ? 9000 : 16000;
         function applyDom(value, label) {
           var boot = document.getElementById('vybe-static-boot');
           if (!boot) return;
@@ -777,7 +791,7 @@
             publishProgress(Math.min(92, p + 0.35), 'Almost there...');
             return;
           }
-          if (elapsed > 16000) {
+          if (elapsed > failOpenMs) {
             takenOver = true;
             clearInterval(timer);
             publishProgress(100, "Let's go! ✨");

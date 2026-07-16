@@ -33,7 +33,60 @@ const escapeScript = `
   try {
     document.documentElement.setAttribute('data-vybe-deployed-at', BUILD);
     document.documentElement.setAttribute('data-vybe-entry', ENTRY);
+    var buildEl = document.getElementById('vybe-splash-build');
+    if (buildEl) buildEl.textContent = 'build ' + String(BUILD).slice(-6);
   } catch (e0) {}
+
+  function isAppReady() {
+    return (
+      window.__VYBE_MAIN_EVAL__ === true ||
+      document.documentElement.getAttribute('data-vybe-app-ready') === 'true'
+    );
+  }
+
+  function hideStaticSplash() {
+    try {
+      var boot = document.getElementById('vybe-static-boot');
+      if (!boot) return;
+      boot.classList.add('vybe-static-boot-fade');
+      boot.style.opacity = '0';
+      boot.style.pointerEvents = 'none';
+      boot.style.visibility = 'hidden';
+      document.body.classList.remove('splash-visible');
+    } catch (eHide) {}
+  }
+
+  function loadStableAppJs(reason) {
+    if (window.__VYBE_APP_LOADED__ || window.__VYBE_STABLE_RELOAD__) return;
+    window.__VYBE_STABLE_RELOAD__ = true;
+    beacon('boot_stall_recovery', { build: BUILD, entry: ENTRY, reason: reason || 'stall' });
+    hideStaticSplash();
+    var s = document.createElement('script');
+    s.type = 'module';
+    s.crossOrigin = 'anonymous';
+    s.src = '/assets/app.js?vybe_recovery=' + Date.now();
+    s.setAttribute('data-vybe-stable-recovery', '1');
+    s.onload = function () { window.__VYBE_APP_LOADED__ = true; };
+    s.onerror = function () {
+      beacon('boot_stall_recovery_failed', { build: BUILD });
+    };
+    document.head.appendChild(s);
+  }
+
+  function probeReady(label) {
+    beacon('module_ready_probe', {
+      build: BUILD,
+      label: label,
+      appReady: isAppReady(),
+      mainEval: window.__VYBE_MAIN_EVAL__ === true,
+      splashPct: typeof window.__vybeSplashProgress === 'number' ? window.__vybeSplashProgress : null,
+      hasRootText: !!((document.getElementById('root') || {}).textContent || '').replace(/\\s+/g, '').length,
+      despia: isDespia,
+    });
+    if (isDespia && !isAppReady() && label === '8s') {
+      loadStableAppJs('despia_no_main_eval_8s');
+    }
+  }
 
   function beacon(event, payload) {
     try {
@@ -77,20 +130,17 @@ const escapeScript = `
         var src = el.getAttribute('src') || '';
         el.addEventListener('load', function () {
           beacon('module_script_load', { src: String(src).slice(0, 80), build: BUILD });
+          if (isDespia) {
+            setTimeout(function () { probeReady('8s'); }, 8000);
+            setTimeout(function () { probeReady('12s'); }, 12000);
+          }
         });
         el.addEventListener('error', function () {
           beacon('module_script_error', { src: String(src).slice(0, 80), build: BUILD });
         });
       })(mods[i]);
     }
-    setTimeout(function () {
-      beacon('module_ready_probe', {
-        build: BUILD,
-        appReady: document.documentElement.getAttribute('data-vybe-app-ready') === 'true',
-        splashPct: typeof window.__vybeSplashProgress === 'number' ? window.__vybeSplashProgress : null,
-        hasRootText: !!((document.getElementById('root') || {}).textContent || '').replace(/\\s+/g, '').length,
-      });
-    }, 5000);
+    setTimeout(function () { probeReady('5s'); }, 5000);
   } catch (eMod) {}
 
   // Do NOT redirect localhost → vybehub.app: that swaps origins and drops the

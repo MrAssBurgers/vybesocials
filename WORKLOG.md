@@ -2,6 +2,12 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## ACTIVE (2026-07-16) — Lovable publish lands but Despia stuck at 42%
+
+- **Runtime proof:** vybehub.app serves `app-DDCVJwYs.js` with `mid-v4`. Despia boot: `module_script_load` ok but `module_ready_probe` at 5s → `splashPct:42`, `appReady:false`, `hasRootText:false` — **no `main_module_eval`**. Publish works; TestFlight WebView never finishes evaluating the bundle.
+- **Fix:** `boot-first-beacon.js` + import-chain beacon; Despia 9s splash fail-open; 8s stall recovery loads `/assets/app.js`; visible `build XXXXXX` on splash so user can confirm publish.
+- **Phone UI:** logs show `phoneVerified:true` → centered prompt correctly hidden. Need unverified test account to see layout.
+
 ## ACTIVE (2026-07-16) — CI red on main (typecheck)
 
 - **Evidence:** emails for failed CI on `aef700c` / `4fbd639` / `72c05aa`; local `npm run typecheck` → `Landing.tsx(239): Property 'hostname' does not exist on type 'Location<any>'` (react-router `location` shadowed `window.location`).

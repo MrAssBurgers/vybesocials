@@ -47,6 +47,7 @@ installExternalLinkGuard();
 logStartupPhase("App started", { os: getRuntimeOs() });
 // #region agent log
 try {
+  window.__VYBE_MAIN_EVAL__ = true;
   fetch("https://us-central1-vybe-daaab.cloudfunctions.net/authQr", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
