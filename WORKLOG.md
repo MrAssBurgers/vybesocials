@@ -2,6 +2,20 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## PUBLISH NOW (2026-07-15) — Auto-close on account pick (no Open VYBE)
+
+- **On `origin/main`:** (pushing) Google code+PKCE → server silent close
+- **What you wanted:** click Google account → sheet closes → logged in (no Open VYBE page)
+- **How:** Google now uses `response_type=code` → `https://vybe-daaab.firebaseapp.com/google-callback` exchanges + fires `com.despia.vybe://oauth/auth?hc=` with **blank HTML only** (no buttons). Same silent close for Apple callback / native-callback.
+- **You must:**
+  1. Google Cloud Console → OAuth Web client `728651793473-71p1iahdr79ali0o7en8ktirklfjf3pf…` → Authorized redirect URIs → add  
+     `https://vybe-daaab.firebaseapp.com/google-callback`
+  2. **Lovable → Share → Publish** https://lovable.dev/projects/416714c8-d013-4aff-984d-522418a9bbc7
+  3. Hard-kill app → Google → pick account → auto close + signed in
+- **Backend deployed:** `googleOAuthCallback` + hosting `/google-callback` rewrite on `vybe-daaab`
+
+---
+
 ## PUBLISH NOW (2026-07-15) — First-try instant Google/Apple login
 
 - **On `origin/main`:** `e59c60ab` — no “Continue on web”; soft-close then hard-fire `hc=`

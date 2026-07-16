@@ -595,43 +595,144 @@ function decodeDespiaOAuthState(state: string | null | undefined): {
   scheme: string;
   nonce: string;
   provider: string;
+  cv?: string;
 } | null {
   if (!state) return null;
   try {
     const padded = state.replace(/-/g, '+').replace(/_/g, '/');
     const json = Buffer.from(padded + '==='.slice((padded.length + 3) % 4), 'base64').toString('utf8');
-    const parsed = JSON.parse(json) as { scheme?: string; nonce?: string; provider?: string };
+    const parsed = JSON.parse(json) as {
+      scheme?: string;
+      nonce?: string;
+      provider?: string;
+      cv?: string;
+    };
     if (!parsed.scheme || !parsed.nonce || !parsed.provider) return null;
-    return { scheme: parsed.scheme, nonce: parsed.nonce, provider: parsed.provider };
+    return {
+      scheme: parsed.scheme,
+      nonce: parsed.nonce,
+      provider: parsed.provider,
+      cv: typeof parsed.cv === 'string' ? parsed.cv : undefined,
+    };
   } catch {
     return null;
   }
 }
 
-/** Silent HTML that immediately fires the Despia oauth/ deeplink (ASWeb / Custom Tabs close). */
-function appleOAuthHandoffHtml(deeplink: string, statusText?: string): string {
-  const safeHref = deeplink.replace(/&/g, '&amp;').replace(/"/g, '&quot;');
+/**
+ * Blank page that immediately navigates to scheme://oauth/… so Despia closes
+ * ASWeb / Custom Tabs. Never shows Open VYBE / Continue on web.
+ */
+function despiaSilentCloseHtml(deeplink: string): string {
   const safeJs = JSON.stringify(deeplink);
-  const status = statusText
-    ? `<p id="status" style="opacity:.85;font:14px system-ui,sans-serif;color:#a1a1aa">${statusText}</p>`
-    : '';
-  return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><title></title>
-<style>html,body{margin:0;min-height:100%;background:#0B0B10}#open{display:none;margin-top:16px;padding:14px 22px;border:0;border-radius:12px;background:#fff;color:#0B0B10;font:600 16px system-ui,sans-serif;text-decoration:none}</style></head>
-<body style="min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px;text-align:center">
-${status}
-<a id="open" href="${safeHref}">Open VYBE</a>
-<script>(function(){var d=${safeJs};function go(){try{location.href=d}catch(e){}try{location.replace(d)}catch(e2){}try{window.close()}catch(e3){}}go();setTimeout(go,80);setTimeout(go,250);setTimeout(function(){var a=document.getElementById('open');if(a)a.style.display='inline-block';var s=document.getElementById('status');if(s)s.textContent='Tap below if VYBE did not open.';},1500);})();</script>
-</body></html>`;
+  const safeAttr = deeplink
+    .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;')
+    .replace(/</g, '&lt;');
+  return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><meta http-equiv="refresh" content="0;url=${safeAttr}"/><title></title><style>html,body{margin:0;min-height:100%;background:#0B0B10}</style><script>(function(){var d=${safeJs};function go(){try{location.replace(d)}catch(e){}try{location.href=d}catch(e2){}try{window.close()}catch(e3){}}go();setTimeout(go,40);setTimeout(go,120);setTimeout(go,300);})();</script></head><body></body></html>`;
 }
+
+/** Google OAuth redirect for Despia (authorization code + PKCE). */
+const GOOGLE_OAUTH_REDIRECT_URI = 'https://vybe-daaab.firebaseapp.com/google-callback';
+
+async function exchangeGoogleAuthCode(code: string, codeVerifier: string): Promise<string> {
+  const body = new URLSearchParams({
+    client_id: GOOGLE_WEB_CLIENT_ID,
+    code,
+    code_verifier: codeVerifier,
+    grant_type: 'authorization_code',
+    redirect_uri: GOOGLE_OAUTH_REDIRECT_URI,
+  });
+  const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body,
+  });
+  const json = (await tokenRes.json()) as { id_token?: string; error?: string; error_description?: string };
+  if (!tokenRes.ok || !json.id_token) {
+    const msg = json.error_description || json.error || `token_exchange_${tokenRes.status}`;
+    throw new Error(msg);
+  }
+  return json.id_token;
+}
+
+/**
+ * Google Sign-In — Despia oauth:// return (Android / iOS Custom Tabs).
+ * Uses authorization code + PKCE so tokens arrive as query params (not #fragment).
+ * Server exchanges, stashes hc=, returns silent HTML that fires scheme://oauth/auth?hc=…
+ * → Despia closes the sheet with no Open VYBE UI.
+ *
+ * Google Cloud Console → Web client → Authorized redirect URIs must include:
+ *   https://vybe-daaab.firebaseapp.com/google-callback
+ */
+export const googleOAuthCallback = onRequest({ cors: true, invoker: 'public' }, async (req, res) => {
+  const q = req.query || {};
+  const pick = (key: string): string => {
+    const raw = q[key];
+    return typeof raw === 'string' ? raw.trim() : Array.isArray(raw) ? String(raw[0] || '').trim() : '';
+  };
+
+  const error = pick('error');
+  const errorDescription = pick('error_description');
+  const state = pick('state');
+  const authCode = pick('code');
+  const stateObj = decodeDespiaOAuthState(state);
+  const scheme = (stateObj?.scheme || 'com.despia.vybe').trim() || 'com.despia.vybe';
+
+  res.set('Cache-Control', 'no-store');
+
+  if (error) {
+    let errQuery = `error=${encodeURIComponent(error)}&state=${encodeURIComponent(state)}`;
+    if (errorDescription) errQuery += `&error_description=${encodeURIComponent(errorDescription)}`;
+    res.status(200).type('html').send(despiaSilentCloseHtml(`${scheme}://oauth/auth?${errQuery}`));
+    return;
+  }
+
+  if (!authCode || !stateObj?.cv) {
+    res
+      .status(200)
+      .type('html')
+      .send(
+        despiaSilentCloseHtml(
+          `${scheme}://oauth/auth?error=missing_code&state=${encodeURIComponent(state)}`,
+        ),
+      );
+    return;
+  }
+
+  try {
+    const ip = req.ip || 'anon';
+    enforceRateLimit(await rateLimit(`google-oauth-cb:${ip}`, 30, 600));
+    const idToken = await exchangeGoogleAuthCode(authCode, stateObj.cv);
+    const customToken = await mintCustomTokenFromGoogleIdToken(idToken);
+    const handoff = await stashOAuthHandoff({
+      provider: 'google',
+      customToken,
+      nonce: stateObj.nonce || undefined,
+    });
+    const deeplink = `${scheme}://oauth/auth?hc=${encodeURIComponent(handoff)}&state=${encodeURIComponent(state)}`;
+    res.status(200).type('html').send(despiaSilentCloseHtml(deeplink));
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'exchange_failed';
+    console.error('[googleOAuthCallback] failed', message);
+    res
+      .status(200)
+      .type('html')
+      .send(
+        despiaSilentCloseHtml(
+          `${scheme}://oauth/auth?error=exchange_failed&state=${encodeURIComponent(state)}`,
+        ),
+      );
+  }
+});
 
 /**
  * Apple Sign in with Apple — Android Despia oauth:// return.
  * Apple requires response_mode=form_post when name/email scopes are requested.
  * Static native-callback.html cannot read POST bodies, so this HTTP endpoint
- * stashes a short hc= code and bounces into com.despia.vybe://oauth/auth.
+ * stashes a short hc= code and silently closes into com.despia.vybe://oauth/auth.
  *
  * Return URL (Apple Services ID): https://vybe-daaab.firebaseapp.com/apple-callback
- * (Hosting rewrite → this function; also direct cloudfunctions.net URL)
  */
 export const appleOAuthCallback = onRequest({ cors: true, invoker: 'public' }, async (req, res) => {
   const body = (req.method === 'POST' ? req.body : null) || {};
@@ -656,13 +757,13 @@ export const appleOAuthCallback = onRequest({ cors: true, invoker: 'public' }, a
     let errQuery = `error=${encodeURIComponent(error)}&state=${encodeURIComponent(state)}`;
     if (errorDescription) errQuery += `&error_description=${encodeURIComponent(errorDescription)}`;
     const deeplink = `${scheme}://oauth/auth?${errQuery}`;
-    res.status(200).type('html').send(appleOAuthHandoffHtml(deeplink));
+    res.status(200).type('html').send(despiaSilentCloseHtml(deeplink));
     return;
   }
 
   if (!idToken) {
     const deeplink = `${scheme}://oauth/auth?error=missing_token&state=${encodeURIComponent(state)}`;
-    res.status(200).type('html').send(appleOAuthHandoffHtml(deeplink, 'Apple did not return a token.'));
+    res.status(200).type('html').send(despiaSilentCloseHtml(deeplink));
     return;
   }
 
@@ -675,12 +776,12 @@ export const appleOAuthCallback = onRequest({ cors: true, invoker: 'public' }, a
       nonce: stateObj?.nonce || undefined,
     });
     const deeplink = `${scheme}://oauth/auth?hc=${encodeURIComponent(code)}&state=${encodeURIComponent(state)}`;
-    res.status(200).type('html').send(appleOAuthHandoffHtml(deeplink));
+    res.status(200).type('html').send(despiaSilentCloseHtml(deeplink));
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'stash_failed';
     console.error('[appleOAuthCallback] failed', message);
     const deeplink = `${scheme}://oauth/auth?error=stash_failed&state=${encodeURIComponent(state)}`;
-    res.status(200).type('html').send(appleOAuthHandoffHtml(deeplink, 'Could not finish Apple sign-in.'));
+    res.status(200).type('html').send(despiaSilentCloseHtml(deeplink));
   }
 });
 

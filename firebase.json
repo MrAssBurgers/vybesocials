@@ -41,6 +41,10 @@
         "function": "appleOAuthCallback"
       },
       {
+        "source": "/google-callback",
+        "function": "googleOAuthCallback"
+      },
+      {
         "source": "**",
         "destination": "/index.html"
       }

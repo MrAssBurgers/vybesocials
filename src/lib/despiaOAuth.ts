@@ -62,18 +62,35 @@ function randomNonce(): string {
   return Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
 }
 
-function encodeOAuthState(payload: { scheme: string; nonce: string; provider: string }): string {
+function encodeOAuthState(payload: {
+  scheme: string;
+  nonce: string;
+  provider: string;
+  cv?: string;
+}): string {
   return btoa(JSON.stringify(payload)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 }
 
-export function decodeOAuthState(state: string | null): { scheme: string; nonce: string; provider: string } | null {
+export function decodeOAuthState(
+  state: string | null,
+): { scheme: string; nonce: string; provider: string; cv?: string } | null {
   if (!state) return null;
   try {
     const padded = state.replace(/-/g, '+').replace(/_/g, '/');
     const json = atob(padded.padEnd(padded.length + ((4 - (padded.length % 4)) % 4), '='));
-    const parsed = JSON.parse(json) as { scheme?: string; nonce?: string; provider?: string };
+    const parsed = JSON.parse(json) as {
+      scheme?: string;
+      nonce?: string;
+      provider?: string;
+      cv?: string;
+    };
     if (!parsed.scheme || !parsed.nonce || !parsed.provider) return null;
-    return { scheme: parsed.scheme, nonce: parsed.nonce, provider: parsed.provider };
+    return {
+      scheme: parsed.scheme,
+      nonce: parsed.nonce,
+      provider: parsed.provider,
+      cv: typeof parsed.cv === 'string' ? parsed.cv : undefined,
+    };
   } catch {
     return null;
   }
@@ -186,24 +203,50 @@ export function isDespiaOAuthInFlight(): boolean {
   return true;
 }
 
-export function buildGoogleOAuthUrl(): string {
+function base64UrlFromBuffer(buf: ArrayBuffer): string {
+  const bytes = new Uint8Array(buf);
+  let binary = '';
+  for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]!);
+  return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
+function randomCodeVerifier(): string {
+  const bytes = new Uint8Array(32);
+  crypto.getRandomValues(bytes);
+  return base64UrlFromBuffer(bytes.buffer);
+}
+
+async function pkceChallengeS256(verifier: string): Promise<string> {
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(verifier));
+  return base64UrlFromBuffer(digest);
+}
+
+/** Google code+PKCE callback (Firebase Hosting → googleOAuthCallback). */
+export function getGoogleOAuthCallbackUrl(): string {
+  return 'https://vybe-daaab.firebaseapp.com/google-callback';
+}
+
+export async function buildGoogleOAuthUrl(): Promise<string> {
   const scheme = getDespiaDeeplinkScheme();
   const nonce = randomNonce();
+  const cv = randomCodeVerifier();
   if (typeof sessionStorage !== 'undefined') {
     sessionStorage.setItem(DESPIA_OAUTH_NONCE_KEY, nonce);
   }
 
-  const state = encodeOAuthState({ scheme, nonce, provider: 'google' });
-  const redirectUri = getNativeOAuthCallbackUrl();
+  const state = encodeOAuthState({ scheme, nonce, provider: 'google', cv });
+  const redirectUri = getGoogleOAuthCallbackUrl();
   const clientId = getGoogleWebClientId();
+  const codeChallenge = await pkceChallengeS256(cv);
 
   const params = new URLSearchParams({
     client_id: clientId,
     redirect_uri: redirectUri,
-    response_type: 'id_token',
+    response_type: 'code',
     scope: 'openid email profile',
-    nonce,
     state,
+    code_challenge: codeChallenge,
+    code_challenge_method: 'S256',
     prompt: 'select_account',
   });
 
@@ -314,7 +357,7 @@ export async function signInWithGoogleDespia(): Promise<{
   pending: boolean;
   error: VybeAuthError | null;
 }> {
-  return launchDespiaOAuthUrl(buildGoogleOAuthUrl(), 'google');
+  return launchDespiaOAuthUrl(await buildGoogleOAuthUrl(), 'google');
 }
 
 /**

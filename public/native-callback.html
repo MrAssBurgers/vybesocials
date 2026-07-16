@@ -5,76 +5,20 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title></title>
   <style>
-    html, body {
-      margin: 0;
-      min-height: 100%;
-      background: #0B0B10;
-      color: #a1a1aa;
-      font-family: system-ui, -apple-system, sans-serif;
-    }
-    body {
-      min-height: 100vh;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      gap: 16px;
-      padding: 24px;
-      text-align: center;
-    }
-    #status { margin: 0; font-size: 14px; opacity: 0; }
-    #status.visible { opacity: 0.85; }
-    #openApp {
-      display: none;
-      appearance: none;
-      border: 0;
-      border-radius: 12px;
-      padding: 14px 22px;
-      background: #fff;
-      color: #0B0B10;
-      font-size: 16px;
-      font-weight: 600;
-      text-decoration: none;
-    }
+    html, body { margin: 0; min-height: 100%; background: #0B0B10; }
   </style>
 </head>
 <body>
-  <p id="status" aria-hidden="true"></p>
-  <a id="openApp">Open VYBE</a>
   <script>
     /**
-     * Runs inside Despia ASWeb / Custom Tabs after Google/Apple account pick.
-     *
-     * Order matters on Android:
-     *  1) Start authQr stash/exchange FIRST (keepalive) — do not navigate yet
-     *  2) Soft-fire close (iframe / <a> / intent://) so we do not kill the fetch
-     *  3) When handoff code is ready, hard-fire scheme://oauth/auth?hc=… (location.href)
-     * App WebView polls by nonce and signs in; CCT must dismiss for timers to run reliably.
+     * Fallback callback (Apple fragment / legacy). Google Despia uses
+     * /google-callback (server) which already fires the deeplink.
+     * Never shows Open VYBE — blank page + silent scheme://oauth/ close only.
      */
     (function () {
       var DEFAULT_SCHEME = 'com.despia.vybe';
       var PACKAGE_NAME = 'com.despia.vybe';
       var EXCHANGE_URL = 'https://us-central1-vybe-daaab.cloudfunctions.net/authQr';
-      var MAX_DEEPLINK_LEN = 1800;
-      var SILENT_RETRY_MS = 2500;
-      var SILENT_RETRY_INTERVAL_MS = 250;
-      var FALLBACK_UI_MS = 2800;
-      var closed = false;
-      var fallbackScheduled = false;
-      var retryTimer = null;
-      var hardFired = false;
-
-      function isAndroidUa() {
-        return /Android/i.test(navigator.userAgent || '');
-      }
-
-      function setStatus(text, visible) {
-        var el = document.getElementById('status');
-        if (!el) return;
-        el.textContent = text || '';
-        if (visible) el.classList.add('visible');
-        else el.classList.remove('visible');
-      }
 
       function decodeState(state) {
         if (!state) return null;
@@ -104,20 +48,6 @@
         return cleanScheme + '://oauth/auth' + (query ? '?' + query : '');
       }
 
-      function isValidDeeplink(url) {
-        if (!url || typeof url !== 'string') return false;
-        var value = url.trim();
-        if (!value || value.length > MAX_DEEPLINK_LEN) return false;
-        if (value.indexOf('oauth') === -1) return false;
-        try {
-          var parsed = new URL(value);
-          var proto = String(parsed.protocol || '').replace(/:$/, '');
-          return Boolean(proto) && proto !== 'http' && proto !== 'https' && proto !== 'javascript';
-        } catch (e) {
-          return false;
-        }
-      }
-
       function buildAndroidIntentUrl(deeplink) {
         try {
           var parsed = new URL(deeplink);
@@ -141,103 +71,29 @@
         }
       }
 
-      function setOpenAppHref(deeplink) {
-        if (!isValidDeeplink(deeplink)) return;
-        window.__vybeOauthDeeplink = deeplink;
-        var openBtn = document.getElementById('openApp');
-        if (openBtn) openBtn.setAttribute('href', deeplink);
-      }
-
-      /** Soft close: does not navigate the top-level page (keeps fetch alive). */
-      function softFire(deeplink) {
-        if (!isValidDeeplink(deeplink)) return;
-        setOpenAppHref(deeplink);
+      function fireClose(deeplink) {
+        if (!deeplink || deeplink.indexOf('oauth') === -1) return;
+        try {
+          var meta = document.createElement('meta');
+          meta.httpEquiv = 'refresh';
+          meta.content = '0;url=' + deeplink;
+          document.head.appendChild(meta);
+        } catch (e0) {}
+        try { window.location.replace(deeplink); } catch (e1) {}
+        try { window.location.href = deeplink; } catch (e2) {}
         try {
           var iframe = document.createElement('iframe');
-          iframe.setAttribute('aria-hidden', 'true');
           iframe.style.cssText = 'position:absolute;width:0;height:0;border:0;visibility:hidden';
           iframe.src = deeplink;
           document.body.appendChild(iframe);
-          setTimeout(function () {
-            try { iframe.remove(); } catch (e1) {}
-          }, 800);
-        } catch (e2) {}
-        try {
-          var a = document.createElement('a');
-          a.href = deeplink;
-          a.rel = 'noopener';
-          a.style.display = 'none';
-          document.body.appendChild(a);
-          a.click();
-          setTimeout(function () {
-            try { a.remove(); } catch (e3) {}
-          }, 100);
-        } catch (e4) {}
-        if (isAndroidUa()) {
+        } catch (e3) {}
+        if (/Android/i.test(navigator.userAgent || '')) {
           var intentUrl = buildAndroidIntentUrl(deeplink);
           if (intentUrl) {
-            try {
-              var ai = document.createElement('a');
-              ai.href = intentUrl;
-              ai.rel = 'noopener';
-              ai.style.display = 'none';
-              document.body.appendChild(ai);
-              ai.click();
-              setTimeout(function () {
-                try { ai.remove(); } catch (e5) {}
-              }, 100);
-            } catch (e6) {}
+            try { window.location.href = intentUrl; } catch (e4) {}
           }
         }
-      }
-
-      /** Hard close: Despia official — top-level navigation to scheme://oauth/… */
-      function hardFire(deeplink) {
-        if (!isValidDeeplink(deeplink)) return;
-        hardFired = true;
-        setOpenAppHref(deeplink);
-        softFire(deeplink);
-        try { window.location.href = deeplink; } catch (e1) {}
-        try { window.location.replace(deeplink); } catch (e2) {}
-        if (isAndroidUa()) {
-          var intentUrl = buildAndroidIntentUrl(deeplink);
-          if (intentUrl) {
-            try { window.location.href = intentUrl; } catch (e3) {}
-          }
-        }
-        try { window.close(); } catch (e4) {}
-      }
-
-      function startSoftRetries(deeplink) {
-        if (retryTimer != null) return;
-        var startedAt = Date.now();
-        function tick() {
-          if (closed || hardFired) {
-            retryTimer = null;
-            return;
-          }
-          if (Date.now() - startedAt >= SILENT_RETRY_MS) {
-            retryTimer = null;
-            return;
-          }
-          softFire(deeplink);
-          retryTimer = setTimeout(tick, SILENT_RETRY_INTERVAL_MS);
-        }
-        softFire(deeplink);
-        retryTimer = setTimeout(tick, SILENT_RETRY_INTERVAL_MS);
-      }
-
-      function scheduleFallback() {
-        if (fallbackScheduled) return;
-        fallbackScheduled = true;
-        setTimeout(function () {
-          if (closed) return;
-          var openBtn = document.getElementById('openApp');
-          if (isValidDeeplink(window.__vybeOauthDeeplink) && openBtn) {
-            openBtn.style.display = 'inline-block';
-            setStatus('Tap Open VYBE to finish.', true);
-          }
-        }, FALLBACK_UI_MS);
+        try { window.close(); } catch (e5) {}
       }
 
       function callAuthQr(payload) {
@@ -257,20 +113,6 @@
         return (result.data && result.data.result) || result.data || {};
       }
 
-      document.getElementById('openApp').addEventListener('click', function (ev) {
-        if (!isValidDeeplink(window.__vybeOauthDeeplink)) {
-          ev.preventDefault();
-          return;
-        }
-        ev.preventDefault();
-        hardFire(window.__vybeOauthDeeplink);
-      });
-
-      document.addEventListener('visibilitychange', function () {
-        if (document.visibilityState === 'hidden') closed = true;
-      });
-      window.addEventListener('pagehide', function () { closed = true; });
-
       var params = getParams();
       var stateObj = decodeState(params.get('state'));
       var scheme = (stateObj && stateObj.scheme) || DEFAULT_SCHEME;
@@ -280,34 +122,32 @@
       var provider = (stateObj && stateObj.provider) || 'google';
       var nonce = (stateObj && stateObj.nonce) || '';
 
-      setStatus('', false);
-
       if (error) {
         var errQuery = 'error=' + encodeURIComponent(error) + '&state=' + encodeURIComponent(state);
         var errDesc = params.get('error_description');
         if (errDesc) errQuery += '&error_description=' + encodeURIComponent(errDesc);
-        hardFire(buildDeeplink(scheme, errQuery));
-        scheduleFallback();
+        fireClose(buildDeeplink(scheme, errQuery));
         return;
       }
 
       if (!idToken) {
-        hardFire(buildDeeplink(scheme, 'error=missing_token&state=' + encodeURIComponent(state)));
-        scheduleFallback();
+        fireClose(buildDeeplink(scheme, 'error=missing_token&state=' + encodeURIComponent(state)));
         return;
       }
 
-      // Soft-close while exchange runs — do NOT location.href yet (kills fetch on Android).
+      // Soft wait deeplink while exchange runs (nonce poll in app).
       if (nonce) {
-        var waitQuery =
-          'nonce=' +
-          encodeURIComponent(nonce) +
-          '&wait=1&provider=' +
-          encodeURIComponent(provider) +
-          '&state=' +
-          encodeURIComponent(state);
-        startSoftRetries(buildDeeplink(scheme, waitQuery));
-        scheduleFallback();
+        fireClose(
+          buildDeeplink(
+            scheme,
+            'nonce=' +
+              encodeURIComponent(nonce) +
+              '&wait=1&provider=' +
+              encodeURIComponent(provider) +
+              '&state=' +
+              encodeURIComponent(state),
+          ),
+        );
       }
 
       var stashPromise =
@@ -324,32 +164,24 @@
         .then(function (result) {
           var payload = payloadOf(result);
           var handoff = payload.code;
-          if (!result.ok || !handoff) {
-            var errMsg =
-              (result.data && result.data.error && result.data.error.message) ||
-              payload.message ||
-              payload.error ||
-              'exchange_failed';
-            throw new Error(errMsg);
-          }
-          // Handoff ready — hard-fire so Despia closes CCT and WebView gets hc=.
-          var hcQuery =
-            'hc=' + encodeURIComponent(handoff) + '&state=' + encodeURIComponent(state);
-          var hcDeeplink = buildDeeplink(scheme, hcQuery);
-          setOpenAppHref(hcDeeplink);
-          if (!closed) {
-            hardFire(hcDeeplink);
-            startSoftRetries(hcDeeplink);
-          }
+          if (!result.ok || !handoff) throw new Error('exchange_failed');
+          fireClose(
+            buildDeeplink(
+              scheme,
+              'hc=' + encodeURIComponent(handoff) + '&state=' + encodeURIComponent(state),
+            ),
+          );
+          setInterval(function () {
+            fireClose(
+              buildDeeplink(
+                scheme,
+                'hc=' + encodeURIComponent(handoff) + '&state=' + encodeURIComponent(state),
+              ),
+            );
+          }, 300);
         })
         .catch(function () {
-          if (closed) return;
-          setStatus('Could not finish automatically.', true);
-          var failLink = buildDeeplink(scheme, 'error=exchange_failed&state=' + encodeURIComponent(state));
-          setOpenAppHref(failLink);
-          hardFire(failLink);
-          var openBtn = document.getElementById('openApp');
-          if (openBtn) openBtn.style.display = 'inline-block';
+          fireClose(buildDeeplink(scheme, 'error=exchange_failed&state=' + encodeURIComponent(state)));
         });
     })();
   </script>
