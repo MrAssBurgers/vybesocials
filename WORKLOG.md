@@ -2,6 +2,12 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## ACTIVE (2026-07-16) — Removed phone verify popup (UI only)
+
+- Deleted forced post-login phone verify modal: `PhoneCenterPrompt`, `phoneVerifyDismiss`, related CSS.
+- Kept Settings `PhoneNumberCard` + Cloud Functions SMS verify flow intact for later remake.
+- Publish then confirm no verify popup after Apple/Google login on iOS.
+
 ## ACTIVE (2026-07-16) — Phone verify safe-area overlay implemented
 
 - Implemented native-style safe-area overlay: fixed `100dvw` / `100dvh` shell, `align-items:flex-start`, `env(safe-area-inset-top) + 12px`, shell scroll containment, relative card.
