@@ -2,6 +2,14 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## PUBLISH NOW (2026-07-16) — Error Monitor: Copy All / Fix All saw no bugs
+
+- **On `origin/main`:** `0a266094d`
+- **Root cause (proved via direct Firestore query):** auto-reported `bug_reports` docs were inserted **without a `status` field**; Firestore `status != 'fixed'` queries skip docs missing the field → Fix All found nothing ("already cleared"), Copy All's `pending/reviewing` filter matched nothing, pending count = 0 while bugs were visible.
+- **Fix:** auto-reporter now inserts `status: 'pending'`; monitor defaults missing status to pending; Fix All / AI Re-check All select without `.neq` and filter client-side; **backfilled 847 docs** with `status: pending` (verified: `!= fixed` query returns rows again).
+- **Data backfill is live now** — Copy All / Fix All work on current prod immediately; publish ships the insert/read fixes so it can't regress.
+- Tests: build green, 344/344 unit tests pass.
+
 ## PUBLISH NOW (2026-07-16) — Exchange-first close (Android/iOS login regression)
 
 - **On `origin/main`:** `19a860cd7`
