@@ -415,7 +415,7 @@ function dbgOAuth(
 ): void {
   const body = {
     sessionId: 'bd2545',
-    runId: 'pre-fix',
+    runId: 'post-fix',
     hypothesisId,
     location,
     message,
@@ -451,52 +451,60 @@ async function redeemOAuthHandoffCode(code: string): Promise<RedeemedHandoff> {
     return existing;
   }
 
-  const pending = (async (): Promise<RedeemedHandoff> => {
-    const { invokeFunction } = await import('@/lib/firebase/functionsService');
-    const { data, error } = await invokeFunction<{
-      customToken?: string;
-      custom_token?: string;
-      idToken?: string;
-      id_token?: string;
-      nonce?: string;
-      provider?: string;
-    }>('authQr', { action: 'redeem_oauth_code', code: key });
-    if (error || !data) {
+  // Placeholder MUST be registered before any await (dynamic import yields the turn).
+  let settle!: (value: RedeemedHandoff | PromiseLike<RedeemedHandoff>) => void;
+  let fail!: (reason?: unknown) => void;
+  const pending = new Promise<RedeemedHandoff>((resolve, reject) => {
+    settle = resolve;
+    fail = reject;
+  });
+  handoffRedeemByCode.set(key, pending);
+
+  void (async () => {
+    try {
+      const { invokeFunction } = await import('@/lib/firebase/functionsService');
+      const { data, error } = await invokeFunction<{
+        customToken?: string;
+        custom_token?: string;
+        idToken?: string;
+        id_token?: string;
+        nonce?: string;
+        provider?: string;
+      }>('authQr', { action: 'redeem_oauth_code', code: key });
+      if (error || !data) {
+        // #region agent log
+        dbgOAuth('H', 'despiaOAuth.ts:redeem', 'redeem_failed', {
+          errName: error?.name || 'none',
+          errMsg: String(error?.message || 'no_data').slice(0, 120),
+        });
+        // #endregion
+        throw Object.assign(new Error(error?.message || 'OAuth code redeem failed'), {
+          code: error?.name || 'despia/oauth-redeem-failed',
+        });
+      }
+      const customToken = data.customToken || data.custom_token || undefined;
+      const idToken = data.idToken || data.id_token || undefined;
       // #region agent log
-      dbgOAuth('H', 'despiaOAuth.ts:redeem', 'redeem_failed', {
-        errName: error?.name || 'none',
-        errMsg: String(error?.message || 'no_data').slice(0, 120),
+      dbgOAuth('H', 'despiaOAuth.ts:redeem', 'redeem_ok', {
+        hasCustomToken: Boolean(customToken),
+        customTokenLen: customToken ? String(customToken).length : 0,
+        hasIdToken: Boolean(idToken),
+        provider: data.provider || null,
       });
       // #endregion
-      throw Object.assign(new Error(error?.message || 'OAuth code redeem failed'), {
-        code: error?.name || 'despia/oauth-redeem-failed',
+      settle({
+        customToken,
+        idToken,
+        nonce: data.nonce || undefined,
+        provider: data.provider || undefined,
       });
+    } catch (err) {
+      handoffRedeemByCode.delete(key);
+      fail(err);
     }
-    const customToken = data.customToken || data.custom_token || undefined;
-    const idToken = data.idToken || data.id_token || undefined;
-    // #region agent log
-    dbgOAuth('H', 'despiaOAuth.ts:redeem', 'redeem_ok', {
-      hasCustomToken: Boolean(customToken),
-      customTokenLen: customToken ? String(customToken).length : 0,
-      hasIdToken: Boolean(idToken),
-      provider: data.provider || null,
-    });
-    // #endregion
-    return {
-      customToken,
-      idToken,
-      nonce: data.nonce || undefined,
-      provider: data.provider || undefined,
-    };
   })();
 
-  handoffRedeemByCode.set(key, pending);
-  try {
-    return await pending;
-  } catch (err) {
-    handoffRedeemByCode.delete(key);
-    throw err;
-  }
+  return pending;
 }
 
 /**
@@ -796,9 +804,24 @@ export async function completeDespiaOAuthFromUrl(url: string): Promise<DespiaOAu
   const handoffCode = (params.get('hc') || params.get('handoff_code') || '').trim().toLowerCase();
   if (handoffCode) {
     const existing = oauthCompleteByHc.get(handoffCode);
-    if (existing) return existing;
-    const pending = completeDespiaOAuthFromUrlInner(url);
+    if (existing) {
+      // #region agent log
+      dbgOAuth('K', 'despiaOAuth.ts:complete', 'complete_shared_lock', { codeLen: handoffCode.length });
+      // #endregion
+      return existing;
+    }
+    // Register placeholder before any await inside Inner.
+    let settle!: (value: DespiaOAuthCompletion | PromiseLike<DespiaOAuthCompletion>) => void;
+    let fail!: (reason?: unknown) => void;
+    const pending = new Promise<DespiaOAuthCompletion>((resolve, reject) => {
+      settle = resolve;
+      fail = reject;
+    });
     oauthCompleteByHc.set(handoffCode, pending);
+    void completeDespiaOAuthFromUrlInner(url).then(settle, (err) => {
+      oauthCompleteByHc.delete(handoffCode);
+      fail(err);
+    });
     return pending;
   }
   return completeDespiaOAuthFromUrlInner(url);

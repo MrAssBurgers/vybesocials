@@ -951,33 +951,68 @@ export const authQr = onCall({ cors: true }, async (request) => {
     if (!/^[a-f0-9]{32}$/i.test(handoffCode)) {
       throw new HttpsError('invalid-argument', 'code required');
     }
-    const ref = db.collection('oauth_handoffs').doc(handoffCode.toLowerCase());
-    const snap = await ref.get();
-    if (!snap.exists) {
+    const codeKey = handoffCode.toLowerCase();
+    const ref = db.collection('oauth_handoffs').doc(codeKey);
+    const usedRef = db.collection('oauth_handoffs_used').doc(codeKey);
+
+    const toPayload = (row: Record<string, unknown>) => ({
+      provider: (row.provider as string) || null,
+      customToken: (row.customToken as string) || (row.custom_token as string) || null,
+      custom_token: (row.customToken as string) || (row.custom_token as string) || null,
+      idToken: (row.idToken as string) || (row.id_token as string) || null,
+      id_token: (row.idToken as string) || (row.id_token as string) || null,
+      nonce: (row.nonce as string) || null,
+    });
+
+    // Idempotent: App Link remount + nonce poll both redeem the same hc=.
+    // First delete wins; later callers read oauth_handoffs_used until TTL.
+    type RedeemTx =
+      | { ok: true; payload: ReturnType<typeof toPayload> }
+      | { ok: false; code: 'expired' | 'not-found' };
+
+    const result = await db.runTransaction(async (tx): Promise<RedeemTx> => {
+      const snap = await tx.get(ref);
+      if (snap.exists) {
+        const row = (snap.data() || {}) as Record<string, unknown>;
+        const expiresAt = typeof row.expiresAt === 'number' ? row.expiresAt : 0;
+        if (!expiresAt || expiresAt < Date.now()) {
+          tx.delete(ref);
+          return { ok: false, code: 'expired' };
+        }
+        tx.delete(ref);
+        tx.set(usedRef, {
+          ...row,
+          redeemedAt: Date.now(),
+          expiresAt,
+        });
+        const rowNonce = String(row.nonce || '').trim().toLowerCase();
+        if (rowNonce) {
+          tx.delete(db.collection('oauth_nonce_handoffs').doc(rowNonce));
+        }
+        return { ok: true, payload: toPayload(row) };
+      }
+
+      const used = await tx.get(usedRef);
+      if (!used.exists) {
+        return { ok: false, code: 'not-found' };
+      }
+      const row = (used.data() || {}) as Record<string, unknown>;
+      const expiresAt = typeof row.expiresAt === 'number' ? row.expiresAt : 0;
+      if (!expiresAt || expiresAt < Date.now()) {
+        tx.delete(usedRef);
+        return { ok: false, code: 'expired' };
+      }
+      return { ok: true, payload: toPayload(row) };
+    });
+
+    if (!result.ok) {
+      if (result.code === 'expired') {
+        throw new HttpsError('deadline-exceeded', 'OAuth code expired');
+      }
       throw new HttpsError('not-found', 'OAuth code expired or already used');
     }
-    await ref.delete();
-    const row = snap.data() || {};
-    const expiresAt = typeof row.expiresAt === 'number' ? row.expiresAt : 0;
-    if (!expiresAt || expiresAt < Date.now()) {
-      throw new HttpsError('deadline-exceeded', 'OAuth code expired');
-    }
-    const rowNonce = String(row.nonce || '').trim().toLowerCase();
-    if (rowNonce) {
-      try {
-        await db.collection('oauth_nonce_handoffs').doc(rowNonce).delete();
-      } catch {
-        /* ignore */
-      }
-    }
-    return {
-      provider: row.provider || null,
-      customToken: row.customToken || row.custom_token || null,
-      custom_token: row.customToken || row.custom_token || null,
-      idToken: row.idToken || row.id_token || null,
-      id_token: row.idToken || row.id_token || null,
-      nonce: row.nonce || null,
-    };
+
+    return result.payload;
   }
 
   /**
