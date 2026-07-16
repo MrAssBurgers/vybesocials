@@ -2,6 +2,12 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## ACTIVE (2026-07-16) — Stay logged in + recreate phone prompt centered
+
+- **Session drop root cause:** Despia OTA escape redirected `localhost` → `vybehub.app` (different origin) so Firebase storage did not carry across closes; also IndexedDB-first persistence is unreliable in WKWebView.
+- **Fixes:** remove prod redirect; prefer `browserLocalPersistence` on native UA; recreate phone UI as `PhoneCenterPrompt` with `top/left 50%` + `translate(-50%,-50%)` (deleted `PhoneVerifyGate`).
+- **Verify:** after Publish + delete/reinstall TestFlight — stay logged in across force-quit; phone card dead-center; logs `phone_center_geometry centered:true` + `oauth_session_persisted localStorageAuthUser:true`.
+
 ## ACTIVE (2026-07-16) — Device still on stale Despia offline pack
 
 - **Runtime proof:** Prod has hashed entry `/assets/app-CSR5YRUh.js` + markers (`vybe-phone-verify-root`, `oauth_wait1`, Google `code`). Device logs at 19:47–19:48 still only `native-callback` stage closes — **no** `H-dialog` / `landing_boot` / `H-ota`.

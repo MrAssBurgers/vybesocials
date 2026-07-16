@@ -1005,6 +1005,25 @@ async function completeDespiaOAuthFromUrlInner(url: string): Promise<DespiaOAuth
       }
       await signInWithCustomToken(auth, fallbackCustomToken);
     }
+    await auth.authStateReady();
+    // #region agent log
+    try {
+      const persisted = Object.keys(localStorage).some((k) => k.startsWith('firebase:authUser:'));
+      debugSessionLog(
+        'despiaOAuth.ts:persist',
+        'oauth_session_persisted',
+        {
+          hasCurrentUser: Boolean(auth.currentUser),
+          localStorageAuthUser: persisted,
+          host: typeof location !== 'undefined' ? location.hostname : '',
+        },
+        'H-session',
+        'post-fix',
+      );
+    } catch {
+      /* ignore */
+    }
+    // #endregion
     clearDespiaOAuthPending();
 
     const { data, error: sessionError } = await firebaseAuth.getSession();

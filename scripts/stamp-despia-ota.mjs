@@ -69,23 +69,19 @@ const escapeScript = `
     href: String(location.href || '').slice(0, 120),
   });
 
-  // Only escape Despia's on-device localhost pack when remote is newer.
+  // Do NOT redirect localhost → vybehub.app: that swaps origins and drops the
+  // Firebase session (storage is origin-scoped). Beacon only for OTA debug.
   if (!isDespia || !onLocal) return;
-  if (sessionStorage.getItem('vybe-ota-escaped') === BUILD) return;
-
   fetch(PROD + '/despia/local.json?vybe_ota=' + Date.now(), { cache: 'no-store' })
     .then(function (r) { return r.json(); })
     .then(function (remote) {
       var remoteAt = String((remote && remote.deployed_at) || '');
-      beacon('ota_compare', { build: BUILD, remoteAt: remoteAt, entry: ENTRY });
-      if (!remoteAt || remoteAt === BUILD) return;
-      // Remote is newer than this offline pack — jump to production once.
-      sessionStorage.setItem('vybe-ota-escaped', remoteAt);
-      beacon('ota_escape_to_prod', { build: BUILD, remoteAt: remoteAt });
-      var path = location.pathname || '/';
-      var q = location.search || '';
-      var h = location.hash || '';
-      location.replace(PROD + path + q + h);
+      beacon('ota_compare', {
+        build: BUILD,
+        remoteAt: remoteAt,
+        entry: ENTRY,
+        stale: Boolean(remoteAt && remoteAt !== BUILD),
+      });
     })
     .catch(function (err) {
       beacon('ota_compare_failed', { build: BUILD, msg: String(err && err.message || err).slice(0, 80) });

@@ -53,12 +53,15 @@ function resolveAuth(): Auth | null {
   if (authInstance) return authInstance;
   const app = getFirebaseApp();
   try {
+    // Despia/WKWebView: IndexedDB is often wiped when the WebView process dies.
+    // Prefer localStorage persistence first so "close app → reopen" keeps the session.
+    const nativeShell =
+      typeof navigator !== 'undefined' &&
+      /despia|vybeapp|; wv\)|\bwv\b/i.test(navigator.userAgent || '');
     authInstance = initializeAuth(app, {
-      persistence: [
-        indexedDBLocalPersistence,
-        browserLocalPersistence,
-        browserSessionPersistence,
-      ],
+      persistence: nativeShell
+        ? [browserLocalPersistence, indexedDBLocalPersistence, browserSessionPersistence]
+        : [indexedDBLocalPersistence, browserLocalPersistence, browserSessionPersistence],
     });
   } catch {
     // HMR / duplicate init — reuse existing Auth on the app

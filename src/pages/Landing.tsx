@@ -238,6 +238,9 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
               entry,
               host: typeof location !== 'undefined' ? location.hostname : '',
               path: typeof location !== 'undefined' ? location.pathname : '',
+              hasFirebaseAuthUser: Object.keys(localStorage).some((k) =>
+                k.startsWith('firebase:authUser:'),
+              ),
             },
           },
         }),

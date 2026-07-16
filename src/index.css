@@ -6619,34 +6619,6 @@ img, video, picture, svg, canvas {
   box-sizing: border-box;
 }
 
-/* Phone verify — dedicated overlay; never rely on Dialog / [role=dialog] globals. */
-.vybe-phone-verify-root {
-  position: fixed !important;
-  inset: 0 !important;
-  z-index: 10050 !important;
-  display: grid !important;
-  place-items: center !important;
-  box-sizing: border-box !important;
-  padding-top: max(1rem, var(--sat, env(safe-area-inset-top, 0px))) !important;
-  padding-bottom: max(1rem, var(--sab, env(safe-area-inset-bottom, 0px))) !important;
-  padding-left: max(1rem, env(safe-area-inset-left, 0px)) !important;
-  padding-right: max(1rem, env(safe-area-inset-right, 0px)) !important;
-}
-
-.vybe-phone-verify-panel {
-  position: relative !important;
-  margin: 0 !important;
-  inset: auto !important;
-  top: auto !important;
-  left: auto !important;
-  right: auto !important;
-  bottom: auto !important;
-  transform: none !important;
-  width: min(92vw, 28rem) !important;
-  max-width: min(92vw, 28rem) !important;
-  box-sizing: border-box !important;
-}
-
 @media (max-width: 640px) {
   .vybe-dialog-panel[role="dialog"] {
     width: min(92vw, 28rem) !important;
