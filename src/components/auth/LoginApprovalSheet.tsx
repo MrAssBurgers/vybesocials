@@ -151,39 +151,54 @@ export function LoginApprovalSheet() {
     || 'Unknown location';
   const ipLine = meta.ip || meta.geo?.ip || null;
   const deviceLabel = meta.device?.label || meta.device?.os || meta.device?.browser || 'Unknown device';
+  const lat = typeof meta.geo?.latitude === 'number' ? meta.geo.latitude : null;
+  const lon = typeof meta.geo?.longitude === 'number' ? meta.geo.longitude : null;
 
   return (
     <Dialog open onOpenChange={(v) => { if (!v && !busy) setPending(null); }}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-md border border-white/10 bg-[#0f1017]/95 backdrop-blur-xl pb-[calc(1rem+var(--sab,env(safe-area-inset-bottom,0px)))]">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
+          <DialogTitle className="flex items-center justify-center gap-2 text-center">
             <ShieldCheck className="w-5 h-5 text-primary" />
-            Was this you?
+            Approve sign-in?
           </DialogTitle>
-          <DialogDescription>
-            A new device is trying to sign in to your VYBE account. Approve only if you recognize this location.
+          <DialogDescription className="text-center">
+            A device is trying to access your account. Approve only if you recognize this activity.
           </DialogDescription>
         </DialogHeader>
 
-        <div className="mt-2 space-y-2.5 p-3 rounded-xl bg-muted/40">
-          <div className="flex items-center gap-2 text-sm">
-            <Smartphone className="w-4 h-4 text-muted-foreground" />
-            <span className="font-medium">{deviceLabel}</span>
+        <div className="mt-2 rounded-2xl border border-white/10 bg-black/20 p-3">
+          <div className="flex items-center justify-center gap-2 text-sm">
+            <Smartphone className="w-4 h-4 text-primary" />
+            <span className="font-semibold">{deviceLabel}</span>
           </div>
-          <div className="flex items-center gap-2 text-sm">
-            <MapPin className="w-4 h-4 text-muted-foreground" />
-            <span>{where}</span>
+          <div className="mt-2 rounded-xl border border-white/10 bg-white/[0.04] p-2.5">
+            {lat != null && lon != null ? (
+              <iframe
+                title="Approximate sign-in area"
+                className="h-28 w-full rounded-lg border border-white/10"
+                src={`https://www.openstreetmap.org/export/embed.html?bbox=${lon - 0.08}%2C${lat - 0.04}%2C${lon + 0.08}%2C${lat + 0.04}&layer=mapnik&marker=${lat}%2C${lon}`}
+              />
+            ) : (
+              <div className="h-28 w-full rounded-lg border border-white/10 bg-gradient-to-br from-white/[0.07] to-white/[0.02] flex items-center justify-center">
+                <span className="text-xs text-muted-foreground">Location area unavailable</span>
+              </div>
+            )}
+            <div className="mt-2 flex items-start gap-2 text-sm">
+              <MapPin className="w-4 h-4 mt-0.5 text-primary shrink-0" />
+              <span className="font-medium">{where}</span>
+            </div>
+            {ipLine && where !== ipLine && (
+              <p className="text-xs text-muted-foreground pl-6 mt-0.5">IP {ipLine}</p>
+            )}
           </div>
-          {ipLine && where !== ipLine && (
-            <p className="text-xs text-muted-foreground pl-6">IP {ipLine}</p>
-          )}
         </div>
 
         <div className="grid grid-cols-2 gap-2 mt-4">
-          <Button variant="outline" disabled={busy} onClick={() => respond('deny')}>
+          <Button variant="outline" disabled={busy} onClick={() => respond('deny')} className="rounded-xl">
             <ShieldX className="w-4 h-4 mr-1.5" /> It wasn't me
           </Button>
-          <Button disabled={busy} onClick={() => respond('approve')}>
+          <Button disabled={busy} onClick={() => respond('approve')} className="rounded-xl">
             <ShieldCheck className="w-4 h-4 mr-1.5" /> Approve
           </Button>
         </div>

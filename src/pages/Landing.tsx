@@ -1119,7 +1119,7 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
       {/* Stay on login — light dim only while the system account sheet is open. */}
       {(oauthOverlay || (isOAuthReturn && loading)) && (
         <div
-          className="fixed inset-0 z-[80] flex flex-col items-center justify-end gap-3 bg-black/35 px-6 pb-[max(2.5rem,env(safe-area-inset-bottom))]"
+          className="fixed inset-0 z-[80] flex flex-col items-center justify-end gap-3 bg-black/35 px-6 pb-[calc(1.75rem+var(--sab,env(safe-area-inset-bottom,0px)))]"
           role="status"
           aria-live="polite"
         >

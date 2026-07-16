@@ -3,7 +3,7 @@
  * via `oauth://`, then completes Firebase sign-in in the WebView from deeplink tokens.
  */
 import { GoogleAuthProvider, OAuthProvider, linkWithCredential, signInWithCredential, signInWithCustomToken } from 'firebase/auth';
-import { despiaCall, isDespiaRuntime } from '@/lib/despiaBridge';
+import { despiaCall, getRuntimeOs, isDespiaRuntime } from '@/lib/despiaBridge';
 import { getProductionOrigin } from '@/lib/authRedirect';
 import { isNativePlatform } from '@/lib/capacitor';
 import type { VybeAuthError, VybeSession } from '@/lib/firebase/types';
@@ -500,6 +500,13 @@ export async function signInWithAppleDespia(): Promise<{
   data?: { session: VybeSession | null };
 }> {
   if (isDespiaRuntime()) {
+    // iOS: native Apple sheet (Face ID) only. Android keeps oauth:// web-sheet flow.
+    if (getRuntimeOs() === 'ios') {
+      const { signInWithAppleJsSdk } = await import('@/lib/appleSignIn');
+      const js = await signInWithAppleJsSdk();
+      if (js.error) return { pending: false, error: js.error, data: { session: null } };
+      return { pending: false, error: null, data: { session: js.data.session } };
+    }
     return launchDespiaOAuthUrl(await buildAppleOAuthUrl('signin'), 'apple', 'signin');
   }
 
@@ -515,6 +522,11 @@ export async function linkProviderWithDespiaOAuth(
 ): Promise<{ pending: boolean; error: VybeAuthError | null }> {
   if (!isDespiaRuntime()) {
     return { pending: false, error: { message: 'Despia link requires the native app' } };
+  }
+  if (provider === 'apple' && getRuntimeOs() === 'ios') {
+    const { linkWithAppleJsSdk } = await import('@/lib/appleSignIn');
+    const result = await linkWithAppleJsSdk();
+    return { pending: false, error: result.error };
   }
   const url = provider === 'apple' ? await buildAppleOAuthUrl('link') : buildGoogleOAuthUrl('link');
   return launchDespiaOAuthUrl(url, provider, 'link');

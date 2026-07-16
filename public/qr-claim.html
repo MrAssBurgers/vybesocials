@@ -46,6 +46,7 @@
   <div class="spin" aria-hidden="true"></div>
   <p id="status">Opening VYBE to finish sign-in…</p>
   <a id="openApp" href="#">Open VYBE</a>
+  <a id="continueWeb" href="#" style="display:none;color:#a1a1aa;font-size:14px;">Continue in browser</a>
   <script>
     (function () {
       var DEFAULT_SCHEME = 'com.despia.vybe';
@@ -64,10 +65,13 @@
 
       var spaPath = '/auth/qr/claim?nonce=' + encodeURIComponent(nonce);
       var appUrl = DEFAULT_SCHEME + '://auth/qr/claim?nonce=' + encodeURIComponent(nonce);
+      var isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent || '');
 
       var openBtn = document.getElementById('openApp');
+      var continueWeb = document.getElementById('continueWeb');
       var statusEl = document.getElementById('status');
       if (openBtn) openBtn.setAttribute('href', appUrl);
+      if (continueWeb) continueWeb.setAttribute('href', spaPath);
 
       try {
         var a = document.createElement('a');
@@ -84,13 +88,17 @@
       window.setTimeout(function () {
         if (openBtn) {
           openBtn.style.display = 'inline-block';
-          if (statusEl) statusEl.textContent = 'Tap below to open VYBE, or continue in browser.';
+          if (statusEl) statusEl.textContent = 'Tap below to open VYBE.';
+        }
+        if (continueWeb && !isIOS) {
+          continueWeb.style.display = 'inline-block';
         }
       }, 600);
 
       window.setTimeout(function () {
-        // SPA fallback if Universal Link / custom scheme did not take over.
-        if (document.visibilityState === 'visible') {
+        // App-first: never auto-push iOS users into the web claim page.
+        // Non-iOS keeps SPA fallback when native takeover fails.
+        if (!isIOS && document.visibilityState === 'visible') {
           window.location.replace(spaPath);
         }
       }, 1600);

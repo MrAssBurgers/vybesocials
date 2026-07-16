@@ -280,14 +280,14 @@ function clientIpFromRequest(request: { rawRequest?: { ip?: string; headers?: Re
 
 async function resolveLoginGeo(
   request: { rawRequest?: { ip?: string; headers?: Record<string, unknown> } },
-): Promise<{ ip: string | null; city?: string; region?: string; country?: string }> {
+): Promise<{ ip: string | null; city?: string; region?: string; country?: string; latitude?: number; longitude?: number }> {
   const headers = request.rawRequest?.headers || {};
   const ip = clientIpFromRequest(request);
   const countryHeader =
     (typeof headers['x-appengine-country'] === 'string' && headers['x-appengine-country']) ||
     (typeof headers['cf-ipcountry'] === 'string' && headers['cf-ipcountry']) ||
     null;
-  const base: { ip: string | null; city?: string; region?: string; country?: string } = {
+  const base: { ip: string | null; city?: string; region?: string; country?: string; latitude?: number; longitude?: number } = {
     ip,
     country: countryHeader && countryHeader !== 'ZZ' ? countryHeader : undefined,
   };
@@ -302,6 +302,10 @@ async function resolveLoginGeo(
       region?: string;
       country_name?: string;
       country?: string;
+      latitude?: number;
+      longitude?: number;
+      lat?: number;
+      lon?: number;
       error?: boolean;
     };
     if (j?.error) return base;
@@ -310,6 +314,10 @@ async function resolveLoginGeo(
       city: j.city || undefined,
       region: j.region || undefined,
       country: j.country_name || j.country || base.country,
+      latitude:
+        typeof j.latitude === 'number' ? j.latitude : typeof j.lat === 'number' ? j.lat : undefined,
+      longitude:
+        typeof j.longitude === 'number' ? j.longitude : typeof j.lon === 'number' ? j.lon : undefined,
     };
   } catch {
     return base;

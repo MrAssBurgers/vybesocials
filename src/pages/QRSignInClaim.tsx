@@ -13,6 +13,7 @@ type ClaimMeta = {
   device?: string;
   user_agent?: string | null;
   ip?: string | null;
+  geo?: { city?: string | null; region?: string | null; country?: string | null; latitude?: number; longitude?: number } | null;
 };
 
 /**
@@ -246,20 +247,38 @@ export default function QRSignInClaim() {
 function DeviceCard({ meta }: { meta: ClaimMeta }) {
   const device = (meta.device || 'Unknown device').slice(0, 80);
   const ip = meta.ip?.trim() || 'IP unavailable';
+  const where =
+    [meta.geo?.city, meta.geo?.region, meta.geo?.country].filter(Boolean).join(', ') || ip;
+  const lat = typeof meta.geo?.latitude === 'number' ? meta.geo.latitude : null;
+  const lon = typeof meta.geo?.longitude === 'number' ? meta.geo.longitude : null;
   return (
-    <div className="mt-5 w-full max-w-xs rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-left space-y-2">
-      <div className="flex items-start gap-2 text-sm">
+    <div className="mt-5 w-full max-w-sm rounded-3xl border border-white/12 bg-white/[0.04] px-4 py-4 text-left space-y-3">
+      <div className="flex items-start gap-2.5 text-sm">
         <MonitorSmartphone className="w-4 h-4 mt-0.5 text-primary shrink-0" />
         <div>
-          <p className="text-xs text-muted-foreground">Device</p>
-          <p className="font-medium break-words">{device}</p>
+          <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Device</p>
+          <p className="font-semibold break-words">{device}</p>
         </div>
       </div>
-      <div className="flex items-start gap-2 text-sm">
+
+      {lat != null && lon != null ? (
+        <iframe
+          title="Approximate device area"
+          className="h-28 w-full rounded-xl border border-white/10"
+          src={`https://www.openstreetmap.org/export/embed.html?bbox=${lon - 0.08}%2C${lat - 0.04}%2C${lon + 0.08}%2C${lat + 0.04}&layer=mapnik&marker=${lat}%2C${lon}`}
+        />
+      ) : (
+        <div className="h-24 w-full rounded-xl border border-white/10 bg-gradient-to-br from-white/[0.06] to-white/[0.02] flex items-center justify-center text-xs text-muted-foreground">
+          Location area unavailable
+        </div>
+      )}
+
+      <div className="flex items-start gap-2.5 text-sm">
         <MapPin className="w-4 h-4 mt-0.5 text-primary shrink-0" />
         <div>
-          <p className="text-xs text-muted-foreground">Network / IP</p>
-          <p className="font-medium font-mono text-xs break-all">{ip}</p>
+          <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Location</p>
+          <p className="font-medium break-words">{where}</p>
+          <p className="font-mono text-[11px] text-muted-foreground break-all mt-0.5">IP {ip}</p>
         </div>
       </div>
     </div>
@@ -270,9 +289,11 @@ function Shell({ children }: { children: ReactNode }) {
   return (
     <div
       data-auth-shell
-      className="fixed inset-0 z-50 overflow-hidden overscroll-none flex flex-col items-center justify-center px-4 py-8 bg-background relative"
+      className="fixed inset-0 z-50 overflow-hidden overscroll-none flex flex-col items-center justify-center px-4 pt-[calc(1rem+var(--sat,env(safe-area-inset-top,0px)))] pb-[calc(1rem+var(--sab,env(safe-area-inset-bottom,0px)))] bg-background relative"
     >
-      {children}
+      <div className="w-full max-w-md rounded-3xl border border-white/10 bg-[#11131a]/88 backdrop-blur-xl px-5 py-6 shadow-2xl shadow-black/40">
+        {children}
+      </div>
     </div>
   );
 }

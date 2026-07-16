@@ -2,16 +2,6 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
-## PUBLISH NOW (2026-07-16) — Full bug-monitor + OAuth + CI sweep (local, uncommitted)
-
-- **On `origin/main`:** `5605b6d4a` (pushed)
-- **Error Monitor:** `useInvites` → `useAuthOptional` (fixes invite-friends crash); auto-reporter filters Firestore channel noise, preview/localhost hosts, OAuth nonce spam; only files from prod/staging hosts; **418 legacy noise bugs** marked `wont_fix` in Firestore; badge label fixed ("All reports").
-- **Google OAuth nonce toast (`auth/missing-or-invalid-nonce`):** removed `nonce` from Google authorize URL (state-only for poll); Google sign-in never uses `signInWithCredential(idToken)` — always `signInWithCustomToken` via server exchange.
-- **iOS sheet close:** `native-callback.html` uses Despia-documented `com.despia.vybe://oauth/auth?…` deeplink only (no HTTPS 302 chain).
-- **CI:** eslint ignores `functions/lib/**`; fixed `oauthDismiss` regex lint error.
-- **Tests:** lint ✅ build ✅ 344/344 ✅
-- **You:** (1) `sudo xcodebuild -license` then commit/push OR Lovable sync from workspace (2) **Lovable → Share → Publish** for `vybehub.app`
-
 ## PUBLISH NOW (2026-07-16) — Error Monitor: Copy All / Fix All saw no bugs
 
 - **On `origin/main`:** `0a266094d`
@@ -5207,3 +5197,35 @@ All eight migration phases complete. See `.lovable/plan.md` for per-phase detail
 1. Manual QA: swipe interactions (read toggle, tray snap, delete confirm), long-press options sheet, camera routing, and `/friends/add` tabs on a touch device.
 2. Commit and push to `origin/main` when ready (not yet committed).
 3. Publish via Lovable → Share → Publish and smoke-test `vybehub.app` for both phases.
+
+---
+
+## 2026-07-16 — iOS native auth + approval polish
+
+### What changed
+- `src/lib/appleSignIn.ts` — added `linkWithAppleJsSdk()` to support native Apple account linking with popup + nonce flow (no Despia web-sheet requirement on iOS).
+- `src/lib/despiaOAuth.ts` — iOS Apple sign-in and Apple linking now route through Apple JS native popup path; Android remains on existing `oauth://` browser-sheet path.
+- `src/components/settings/ConnectionsSection.tsx` — Despia link flow now handles synchronous success for native Apple link completion (refreshes providers immediately).
+- `public/qr-claim.html` — QR bridge is now app-first on iOS (no automatic web claim fallback); keeps explicit open-app action and controlled browser fallback behavior.
+- `src/components/auth/LoginApprovalSheet.tsx` and `src/pages/QRSignInClaim.tsx` — approval surfaces refreshed into centered cards with clearer hierarchy, device/location emphasis, and mini-map area (OpenStreetMap embed when coordinates are available).
+- `functions/src/auth.ts` — geo payload now includes optional latitude/longitude fields from IP geolocation so approval UIs can render a compact location preview area.
+- `src/pages/Landing.tsx` and `src/pages/QRSignInClaim.tsx` — tuned safe-area bottom/top spacing in touched auth overlays to reduce iOS layout jumpiness.
+
+### Verification
+- `npm run lint` — passed (warnings only; no errors).
+- `npm run typecheck` — passed.
+- `npm run test` — passed (71 files / 344 tests).
+- `npm run build` — passed.
+- `cd functions && npm run build` — passed.
+
+### Blockers / manual checks
+- Manual iOS validation still required on device for:
+  - Continue with Apple (native Face ID sheet only, no stuck web popup)
+  - Settings → Connections → Apple linking (native flow + immediate connected state)
+  - QR quick-sign-in scan opening app-first on iOS
+  - Approval/QR claim card centering and safe-area spacing on notch devices
+
+### Next 3 tasks
+1. Run the iOS manual checklist above on an iPhone build and collect screenshots/recording for each auth flow.
+2. If iOS deep-link takeover is still flaky on QR camera scans, verify associated domains/Universal Link entitlement for `vybehub.app` in the native shell.
+3. Push to `origin/main`, then run Lovable Publish and production smoke test on `vybehub.app`.

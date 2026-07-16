@@ -143,6 +143,12 @@ export function ConnectionsSection() {
       if (isDespiaRuntime() && (providerId === 'google' || providerId === 'apple')) {
         const result = await linkProviderWithDespiaOAuth(providerId);
         if (result.error) throw result.error;
+        // iOS Apple native sheet path completes synchronously (no pending event).
+        if (!result.pending) {
+          toast.success(`${providerId === 'google' ? 'Google' : 'Apple'} connected`);
+          await refreshProviders();
+          return;
+        }
         // Sheet + nonce poll complete asynchronously; keep spinner until event or timeout.
         if (result.pending) {
           await new Promise<void>((resolve) => {

@@ -2,7 +2,7 @@
  * Sign in with Apple via Apple JS SDK (native Face ID / Continue sheet on iOS Despia
  * and Safari). Android Despia should keep using oauth:// — see despiaOAuth.ts.
  */
-import { OAuthProvider, signInWithCredential } from 'firebase/auth';
+import { OAuthProvider, linkWithCredential, signInWithCredential } from 'firebase/auth';
 import { getProductionOrigin } from '@/lib/authRedirect';
 import { mapOAuthLinkError } from '@/lib/oauthAccountLink';
 import type { VybeAuthError, VybeSession } from '@/lib/firebase/types';
@@ -160,5 +160,66 @@ export async function signInWithAppleJsSdk(): Promise<{
       };
     }
     return { data: { session: null }, error: mapOAuthLinkError(err) };
+  }
+}
+
+/**
+ * Link current signed-in user with Apple using Apple JS SDK native popup.
+ * iOS Despia uses this to avoid web-sheet OAuth for Settings → Connections.
+ */
+export async function linkWithAppleJsSdk(): Promise<{
+  data: { linked: boolean };
+  error: VybeAuthError | null;
+}> {
+  try {
+    await loadAppleIdScript();
+    if (!window.AppleID?.auth) {
+      return { data: { linked: false }, error: { message: 'Apple Sign-In unavailable', name: 'apple/sdk-missing' } };
+    }
+
+    const { firebaseAuth } = await import('@/lib/firebase');
+    const auth = firebaseAuth.auth;
+    if (!auth?.currentUser) {
+      return { data: { linked: false }, error: { message: 'Sign in before linking Apple.', name: 'auth/not-authenticated' } };
+    }
+
+    const rawNonce = randomNonce();
+    const hashedNonce = await sha256Hex(rawNonce);
+    const redirectURI = `${getProductionOrigin()}/native-callback.html`;
+
+    window.AppleID.auth.init({
+      clientId: getAppleServicesId(),
+      scope: 'name email',
+      redirectURI,
+      usePopup: true,
+      nonce: hashedNonce,
+    });
+
+    const response = await window.AppleID.auth.signIn();
+    const idToken = response.authorization?.id_token;
+    if (!idToken) {
+      return {
+        data: { linked: false },
+        error: { message: 'Apple Sign-In did not return a token', name: 'apple/missing-token' },
+      };
+    }
+
+    const provider = new OAuthProvider('apple.com');
+    const credential = provider.credential({ idToken, rawNonce });
+    await linkWithCredential(auth.currentUser, credential);
+    return { data: { linked: true }, error: null };
+  } catch (err: unknown) {
+    const asAny = err as { error?: string; message?: string; code?: string };
+    if (
+      asAny?.error === 'popup_closed_by_user' ||
+      asAny?.error === 'user_cancelled' ||
+      /cancel/i.test(String(asAny?.message || ''))
+    ) {
+      return {
+        data: { linked: false },
+        error: { message: 'Sign-in cancelled', name: 'auth/popup-closed-by-user' },
+      };
+    }
+    return { data: { linked: false }, error: mapOAuthLinkError(err) };
   }
 }
