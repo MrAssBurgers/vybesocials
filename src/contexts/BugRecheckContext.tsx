@@ -73,15 +73,18 @@ export function BugRecheckProvider({ children }: { children: ReactNode }) {
     });
 
     try {
+      // No `.neq('status', …)` — Firestore inequality filters skip docs missing
+      // the status field (legacy auto-reported bugs). Filter client-side.
       const { data: rows, error } = await db
         .from('bug_reports')
-        .select('id')
-        .neq('status', 'fixed')
+        .select('id, status')
         .order('created_at', { ascending: false })
         .limit(500);
 
       if (error) throw error;
-      const ids: string[] = (rows || []).map((r: any) => r.id);
+      const ids: string[] = (rows || [])
+        .filter((r: any) => r.status !== 'fixed')
+        .map((r: any) => r.id);
 
       update({ total: ids.length });
 

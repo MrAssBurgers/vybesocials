@@ -71,6 +71,8 @@ export function AdminErrorsSection() {
 
       return filtered.map((row) => ({
         ...row,
+        // Legacy auto-reported docs were inserted without a status field.
+        status: (row as { status?: string }).status || 'pending',
         reporter: profileById.get(row.reporter_id) ?? null,
       }));
     },

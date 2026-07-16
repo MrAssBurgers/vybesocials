@@ -168,6 +168,9 @@ async function flushReports() {
       user_agent: bug.userAgent?.substring(0, 300) || null,
       ai_analysis: null,
       ai_severity: 'auto',
+      // Firestore `status != 'fixed'` queries silently skip docs missing the
+      // field — without this, Copy All / Fix All can't see auto-reported bugs.
+      status: 'pending',
     }));
 
     const { data: inserted } = await db

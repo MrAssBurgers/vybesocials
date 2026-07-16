@@ -18,19 +18,26 @@ export async function clearAllBugReports(
 
   let cleared = 0;
   let mode: ClearBugReportsResult['mode'] = preferDelete ? 'deleted' : 'fixed';
+  const READ_WINDOW = 500;
   const BATCH = 100;
 
   for (let pass = 0; pass < 50; pass++) {
+    // Select WITHOUT a status filter: Firestore `!=` queries skip documents
+    // that are missing the field entirely (legacy auto-reported bugs), which
+    // made Fix All report "already cleared" while bugs stayed visible.
+    // Read a wide window so already-fixed rows can't crowd out unfixed ones.
     const { data: batch, error: selErr } = await db
       .from('bug_reports')
-      .select('id')
-      .neq('status', 'fixed')
-      .limit(BATCH);
+      .select('id, status')
+      .limit(READ_WINDOW);
 
     if (selErr) throw new Error(selErr.message || 'Failed to read bug reports');
-    if (!batch?.length) break;
+    const unfixed = (batch || []).filter(
+      (r: { id: string; status?: string }) => r.status !== 'fixed',
+    );
+    if (!unfixed.length) break;
 
-    const ids = batch.map((r: { id: string }) => r.id);
+    const ids = unfixed.slice(0, BATCH).map((r: { id: string }) => r.id);
 
     if (preferDelete) {
       const { error: delErr } = await db.from('bug_reports').delete().in('id', ids);
@@ -65,7 +72,7 @@ export async function clearAllBugReports(
     }
 
     toast.loading(`Clearing… ${cleared} done`, { id: toastId });
-    if (batch.length < BATCH) break;
+    if (unfixed.length <= BATCH && (batch || []).length < READ_WINDOW) break;
   }
 
   clearAutoBugReporterSession();
