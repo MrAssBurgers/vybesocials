@@ -218,6 +218,7 @@ export function AnimatedRoutes() {
             <Route path="/signup" element={<Landing />} />
             <Route path="/sign-up" element={<Landing />} />
             <Route path="/auth" element={<Landing />} />
+            <Route path="/oauth/auth" element={<Landing />} />
             <Route path="/auth/qr" element={<QRSignIn />} />
             <Route path="/auth/qr/claim" element={<QRSignInClaim />} />
             <Route path="/privacy" element={<Privacy />} />

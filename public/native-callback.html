@@ -87,41 +87,21 @@
         return clean + '://oauth/auth?' + query;
       }
 
-      function buildAndroidIntentUrl(deeplink) {
-        try {
-          var parsed = new URL(deeplink);
-          var scheme = String(parsed.protocol || '').replace(/:$/, '');
-          if (!scheme || scheme === 'http' || scheme === 'https') return null;
-          var path = (parsed.hostname || '') + (parsed.pathname || '');
-          if (path.charAt(0) === '/') path = path.slice(1);
-          var query = parsed.search ? parsed.search.slice(1) : '';
-          return (
-            'intent://' +
-            path +
-            (query ? '?' + query : '') +
-            '#Intent;scheme=' +
-            encodeURIComponent(scheme) +
-            ';package=' +
-            encodeURIComponent(PACKAGE_NAME) +
-            ';end'
-          );
-        } catch (e) {
-          return null;
-        }
-      }
-
       function isAndroid() {
         return /Android/i.test(navigator.userAgent || '');
       }
 
       function softFire(deeplink) {
         if (!deeplink || deeplink.indexOf('oauth') === -1) return;
+        // Android CCT: never soft-fire custom-scheme / intent:// — screenshot showed
+        // intent:// → ERR_UNKNOWN_URL_SCHEME and overwrote App Link close.
+        if (isAndroid()) return;
         // #region agent log
         dbg('C', 'native-callback.html:softFire', 'softFire', {
           len: deeplink.length,
           hasWait: deeplink.indexOf('wait=1') !== -1,
           hasHc: deeplink.indexOf('hc=') !== -1,
-          android: isAndroid(),
+          android: false,
         });
         // #endregion
         try {
@@ -145,21 +125,6 @@
             try { a.remove(); } catch (e2) {}
           }, 100);
         } catch (e3) {}
-        if (isAndroid()) {
-          var intentUrl = buildAndroidIntentUrl(deeplink);
-          if (intentUrl) {
-            try {
-              var ai = document.createElement('a');
-              ai.href = intentUrl;
-              ai.style.display = 'none';
-              document.body.appendChild(ai);
-              ai.click();
-              setTimeout(function () {
-                try { ai.remove(); } catch (e4) {}
-              }, 100);
-            } catch (e5) {}
-          }
-        }
       }
 
       function hardFire(deeplink) {
@@ -173,38 +138,33 @@
           hasError: isErr,
           closed: closed,
           android: isAndroid(),
-          closeMode: isAndroid() ? 'applink+scheme' : 'scheme',
+          closeMode: isAndroid() ? 'applink-only' : 'scheme',
         });
         // #endregion
 
-        // Runtime proof (bd2545 dump): Android CCT ignores custom-scheme JS navigations
-        // (hardFire ran, page stayed open until manual dismiss). Use verified App Link.
+        // Android: App Link ONLY. Prior run: android_applink then softFire + intent://
+        // → Chrome ERR_UNKNOWN_URL_SCHEME (user screenshot). Do not chain anything else.
         if (isAndroid()) {
           try {
             var q = deeplink.split('?')[1] || '';
             var appLink = 'https://vybehub.app/auth?' + q;
-            // Prefer App Link first so Chrome hands off to com.despia.vybe and dismisses CCT.
-            try { window.location.replace(appLink); } catch (eA1) {}
-            try { window.location.href = appLink; } catch (eA2) {}
             // #region agent log
-            dbg('A', 'native-callback.html:hardFire', 'android_applink', {
+            dbg('F', 'native-callback.html:hardFire', 'android_applink_only', {
               appLinkHost: 'vybehub.app',
               hasHc: isHc,
               queryLen: q.length,
+              noIntent: true,
             });
             // #endregion
+            try { window.location.replace(appLink); } catch (eA1) {}
+            try { window.location.href = appLink; } catch (eA2) {}
           } catch (eA0) {}
+          return;
         }
 
         softFire(deeplink);
         try { window.location.replace(deeplink); } catch (e1) {}
         try { window.location.href = deeplink; } catch (e2) {}
-        if (isAndroid()) {
-          var intentUrl = buildAndroidIntentUrl(deeplink);
-          if (intentUrl) {
-            try { window.location.href = intentUrl; } catch (e3) {}
-          }
-        }
         try { window.close(); } catch (e4) {}
       }
 
