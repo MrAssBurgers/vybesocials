@@ -6627,6 +6627,31 @@ img, video, picture, svg, canvas {
   }
 }
 
+/* Phone verify — measured mid-screen card; isolate from Dialog / sheet CSS. */
+.vybe-phone-verify-scrim {
+  position: fixed !important;
+  inset: 0 !important;
+  z-index: 2147483000 !important;
+  background: rgba(0, 0, 0, 0.55) !important;
+}
+.vybe-phone-verify-card {
+  position: fixed !important;
+  left: 50% !important;
+  right: auto !important;
+  bottom: auto !important;
+  margin: 0 !important;
+  transform: translateX(-50%) !important;
+  -webkit-transform: translateX(-50%) !important;
+  z-index: 2147483001 !important;
+  width: min(92vw, 28rem) !important;
+  max-width: 92vw !important;
+  max-height: 80vh !important;
+  overflow: auto !important;
+  box-sizing: border-box !important;
+  animation: none !important;
+  inset: auto !important;
+}
+
 /* ========================================
    PERFORMANCE OPTIMIZATIONS
    Mobile-first, lean GPU usage

@@ -1,10 +1,10 @@
 /**
- * Mid-screen "Verify your phone" prompt.
+ * Mid-screen "Verify your phone" prompt for mobile.
  *
- * Uses absolute inset + margin:auto centering (no flex, no transform).
- * iOS WKWebView has repeatedly failed transform/flex overlays in this app.
+ * Vertical position is set in pixels after layout measure — avoids iOS WKWebView
+ * bugs with transform centering and absolute+margin:auto+fit-content (pins to top).
  */
-import { useEffect, useId, useRef, useState } from 'react';
+import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useAuth } from '@/lib/auth';
 import { db } from '@/lib/firebase';
@@ -16,39 +16,20 @@ import {
 } from '@/lib/phoneVerifyDismiss';
 import { debugSessionLog } from '@/lib/debugSessionLog';
 
-const BUILD_TAG = 'mid-v4';
+const BUILD_TAG = 'mid-v5';
 
-const OVERLAY_CSS = `
-[data-vybe-phone-center="${BUILD_TAG}"] {
-  position: fixed !important;
-  top: 0 !important;
-  left: 0 !important;
-  right: 0 !important;
-  bottom: 0 !important;
-  width: 100vw !important;
-  height: 100vh !important;
-  height: 100dvh !important;
-  z-index: 2147483000 !important;
-  background: rgba(0,0,0,0.55) !important;
-  margin: 0 !important;
-  padding: 0 !important;
-  transform: none !important;
-  display: block !important;
+function safeTopPx(): number {
+  try {
+    const raw = getComputedStyle(document.documentElement)
+      .getPropertyValue('--sat')
+      .trim();
+    const n = Number.parseFloat(raw);
+    if (Number.isFinite(n) && n > 0) return n;
+  } catch {
+    /* ignore */
+  }
+  return 0;
 }
-[data-vybe-phone-center="${BUILD_TAG}"] [data-vybe-phone-card] {
-  position: absolute !important;
-  top: 0 !important;
-  right: 0 !important;
-  bottom: 0 !important;
-  left: 0 !important;
-  margin: auto !important;
-  width: min(92vw, 28rem) !important;
-  height: fit-content !important;
-  max-height: min(80vh, 36rem) !important;
-  transform: none !important;
-  inset: 0 !important;
-}
-`;
 
 export function PhoneCenterPrompt() {
   const { user, loading } = useAuth();
@@ -105,49 +86,67 @@ export function PhoneCenterPrompt() {
     };
   }, [user?.id, loading]);
 
-  useEffect(() => {
-    if (!show) return;
-    if (typeof document === 'undefined') return;
-    const style = document.createElement('style');
-    style.setAttribute('data-vybe-phone-center-css', BUILD_TAG);
-    style.textContent = OVERLAY_CSS;
-    document.head.appendChild(style);
-    return () => {
-      style.remove();
-    };
-  }, [show]);
+  const placeCard = () => {
+    const el = cardRef.current;
+    if (!el) return;
+    const vh = window.innerHeight || document.documentElement.clientHeight;
+    const vw = window.innerWidth || document.documentElement.clientWidth;
+    const h = el.offsetHeight;
+    const w = Math.min(vw * 0.92, 28 * 16);
+    const padTop = Math.max(16, safeTopPx() + 8);
+    const padBottom = 16;
+    const maxTop = Math.max(padTop, vh - h - padBottom);
+    const centered = (vh - h) / 2;
+    const top = Math.min(maxTop, Math.max(padTop, centered));
 
-  useEffect(() => {
+    el.style.position = 'fixed';
+    el.style.top = `${Math.round(top)}px`;
+    el.style.left = '50%';
+    el.style.right = 'auto';
+    el.style.bottom = 'auto';
+    el.style.width = `${Math.round(w)}px`;
+    el.style.maxWidth = '92vw';
+    el.style.maxHeight = `${Math.round(vh - padTop - padBottom)}px`;
+    el.style.margin = '0';
+    el.style.transform = 'translateX(-50%)';
+    el.style.webkitTransform = 'translateX(-50%)';
+    el.style.zIndex = '2147483001';
+
+    const r = el.getBoundingClientRect();
+    const centerDelta = Math.round(r.top + r.height / 2 - vh / 2);
+    // #region agent log
+    debugSessionLog(
+      'PhoneCenterPrompt.tsx:layout',
+      'phone_center_geometry',
+      {
+        top: Math.round(r.top),
+        height: Math.round(r.height),
+        viewportH: vh,
+        centerDelta,
+        closeNearSafeArea: r.top < 48,
+        centered: Math.abs(centerDelta) < 64,
+        mode: 'measured-top',
+        build: BUILD_TAG,
+      },
+      'H-dialog',
+      'post-fix',
+    );
+    // #endregion
+  };
+
+  useLayoutEffect(() => {
     if (!show) return;
-    const measure = () => {
-      const el = cardRef.current;
-      if (!el) return;
-      const r = el.getBoundingClientRect();
-      const centerDelta = Math.round(r.top + r.height / 2 - window.innerHeight / 2);
-      // #region agent log
-      debugSessionLog(
-        'PhoneCenterPrompt.tsx:layout',
-        'phone_center_geometry',
-        {
-          top: Math.round(r.top),
-          height: Math.round(r.height),
-          viewportH: window.innerHeight,
-          centerDelta,
-          closeNearSafeArea: r.top < 48,
-          centered: Math.abs(centerDelta) < 64,
-          mode: 'absolute-margin-auto',
-          build: BUILD_TAG,
-        },
-        'H-dialog',
-        'post-fix',
-      );
-      // #endregion
-    };
-    const t = window.setTimeout(measure, 50);
-    const t2 = window.setTimeout(measure, 300);
+    placeCard();
+    const t = window.setTimeout(placeCard, 50);
+    const t2 = window.setTimeout(placeCard, 250);
+    const onResize = () => placeCard();
+    window.addEventListener('resize', onResize);
+    window.addEventListener('orientationchange', onResize);
     return () => {
       window.clearTimeout(t);
       window.clearTimeout(t2);
+      window.removeEventListener('resize', onResize);
+      window.removeEventListener('orientationchange', onResize);
     };
   }, [show]);
 
@@ -159,18 +158,35 @@ export function PhoneCenterPrompt() {
   };
 
   return createPortal(
-    <div
-      data-vybe-phone-center={BUILD_TAG}
-      onClick={(e) => {
-        if (e.target === e.currentTarget) dismiss();
-      }}
-    >
+    <>
+      <div
+        data-vybe-phone-scrim={BUILD_TAG}
+        className="vybe-phone-verify-scrim"
+        onClick={dismiss}
+        style={{
+          position: 'fixed',
+          inset: 0,
+          zIndex: 2147483000,
+          background: 'rgba(0,0,0,0.55)',
+        }}
+      />
       <div
         ref={cardRef}
-        data-vybe-phone-card=""
+        data-vybe-phone-card={BUILD_TAG}
+        className="vybe-phone-verify-card"
         aria-labelledby={titleId}
+        role="dialog"
+        aria-modal="true"
         onClick={(e) => e.stopPropagation()}
         style={{
+          position: 'fixed',
+          // Placeholder until useLayoutEffect measures — keep off top edge.
+          top: '30vh',
+          left: '50%',
+          transform: 'translateX(-50%)',
+          zIndex: 2147483001,
+          width: 'min(92vw, 28rem)',
+          maxHeight: '80vh',
           overflow: 'auto',
           padding: '1.5rem',
           borderRadius: '1.25rem',
@@ -236,9 +252,13 @@ export function PhoneCenterPrompt() {
           </p>
         </div>
 
-        <PhoneNumberCard embedded onVerified={() => setShow(false)} />
+        <PhoneNumberCard
+          embedded
+          startEntering
+          onVerified={() => setShow(false)}
+        />
       </div>
-    </div>,
+    </>,
     document.body,
   );
 }

@@ -14,14 +14,18 @@ import { parseEdgeInvokeResult, phoneVerifyErrorMessage } from '@/lib/edgeFuncti
 interface Props {
   /** When true, hides the card chrome — for use inside a forced verification modal. */
   embedded?: boolean;
+  /** Open the phone input immediately (skip the idle "Add phone number" step). */
+  startEntering?: boolean;
   onVerified?: (phone: string) => void;
 }
 
-export function PhoneNumberCard({ embedded, onVerified }: Props) {
+export function PhoneNumberCard({ embedded, startEntering, onVerified }: Props) {
   const { user } = useAuth();
   const [phoneVerified, setPhoneVerified] = useState<boolean>(false);
   const [storedPhone, setStoredPhone] = useState<string>('');
-  const [stage, setStage] = useState<'idle' | 'entering' | 'code'>('idle');
+  const [stage, setStage] = useState<'idle' | 'entering' | 'code'>(
+    startEntering ? 'entering' : 'idle',
+  );
   const [phone, setPhone] = useState('');
   const [code, setCode] = useState('');
   const [challengeId, setChallengeId] = useState<string | null>(null);

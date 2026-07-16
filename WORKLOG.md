@@ -2,6 +2,13 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## ACTIVE (2026-07-16) — Phone verify mid-screen (measured top)
+
+- Rebuild `PhoneCenterPrompt` (`mid-v5`): vertical center via **measured pixel `top`** after layout (not transform-Y / margin:auto — those pin to top on iOS).
+- Embedded card opens phone input immediately (`startEntering`).
+- CSS classes `.vybe-phone-verify-scrim` / `.vybe-phone-verify-card` isolate from Dialog sheet styles.
+- **Publish** then force-quit TestFlight; unverified accounts should see shield card in vertical middle.
+
 ## ACTIVE (2026-07-16) — Android hang at 42% then slow crawl
 
 - **User report:** Android hung at 42% then slowly progressed.
