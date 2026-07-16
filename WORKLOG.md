@@ -2,6 +2,14 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## ACTIVE (2026-07-16) — Android hang at 42% then slow crawl
+
+- **User report:** Android hung at 42% then slowly progressed.
+- **Root cause (code + prior Despia logs):** fake splash hard-stopped at 42 until `elapsed > 8000`, then crawled. Matches `module_ready_probe splashPct:42 appReady:false`.
+- **Prod gap:** vybehub.app still on `app-DDCVJwYs` — recovery build `405a0d38b` not published yet.
+- **Fix:** continuous crawl past 40% (no freeze), status "Loading app…", Despia fail-open 7s.
+- **Publish:** Lovable → Share → Publish; splash should show `build XXXXXX` and never sit on 42%.
+
 ## ACTIVE (2026-07-16) — Lovable publish lands but Despia stuck at 42%
 
 - **Runtime proof:** vybehub.app serves `app-DDCVJwYs.js` with `mid-v4`. Despia boot: `module_script_load` ok but `module_ready_probe` at 5s → `splashPct:42`, `appReady:false`, `hasRootText:false` — **no `main_module_eval`**. Publish works; TestFlight WebView never finishes evaluating the bundle.

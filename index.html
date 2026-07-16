@@ -737,7 +737,7 @@
         var takenOver = false;
         var ua = (navigator.userAgent || '').toLowerCase();
         var isDespia = /despia|vybeapp|; wv\)|\bwv\b/.test(ua) || !!(window).Despia || !!(window).__DESPIA__;
-        var failOpenMs = isDespia ? 9000 : 16000;
+        var failOpenMs = isDespia ? 7000 : 12000;
         function applyDom(value, label) {
           var boot = document.getElementById('vybe-static-boot');
           if (!boot) return;
@@ -772,24 +772,24 @@
           var boot = document.getElementById('vybe-static-boot');
           if (!boot || takenOver) { clearInterval(timer); return; }
           // React already driving progress — stop fake ticker.
-          if (typeof window.__vybePublishSplashProgress === 'function' && (window.__vybeSplashProgress || 0) > 42) {
+          if (
+            window.__VYBE_MAIN_EVAL__ === true ||
+            (typeof window.__vybePublishSplashProgress === 'function' &&
+              (window.__vybeSplashProgress || 0) >= 100)
+          ) {
             takenOver = true;
             clearInterval(timer);
             return;
           }
           var elapsed = Date.now() - startedAt;
-          // Soft crawl past 42% so a hung bundle never looks frozen.
-          if (p < 42) {
-            publishProgress(Math.min(42, p + 2.2), status);
-            return;
-          }
-          if (elapsed > 8000 && p < 70) {
-            publishProgress(Math.min(70, p + 0.5), 'Still loading...');
-            return;
-          }
-          if (elapsed > 12000 && p < 92) {
-            publishProgress(Math.min(92, p + 0.35), 'Almost there...');
-            return;
+          // Never freeze on a single percent. Fast to ~40, then keep crawling
+          // while the ~1MB module parses on Android/Despia WebViews.
+          if (p < 40) {
+            publishProgress(Math.min(40, p + (isDespia ? 3.2 : 2.4)), 'Waking up...');
+          } else if (p < 72) {
+            publishProgress(Math.min(72, p + (isDespia ? 0.55 : 0.4)), 'Loading app...');
+          } else if (p < 90) {
+            publishProgress(Math.min(90, p + (isDespia ? 0.35 : 0.25)), 'Almost there...');
           }
           if (elapsed > failOpenMs) {
             takenOver = true;
@@ -812,7 +812,13 @@
                     event: 'splash_fake_failopen',
                     hypothesisId: 'H-splash',
                     location: 'index.html:fake-splash',
-                    payload: { elapsed: elapsed, p: p, host: location.hostname },
+                    payload: {
+                      elapsed: elapsed,
+                      p: p,
+                      host: location.hostname,
+                      despia: isDespia,
+                      android: /android/i.test(ua),
+                    },
                   },
                 }),
                 keepalive: true,
