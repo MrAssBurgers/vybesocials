@@ -2,6 +2,16 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## ACTIVE (2026-07-16) — Phone dialog center + SMS send
+
+- **On `origin/main`:** `b26ce7ef8`
+- **Dialog still top-pinned (runtime):** global `index.css` mobile rule `[role="dialog"] { margin: 0.5rem; width: calc(100vw-1rem) }` fought the flex shell. Replaced with `.vybe-dialog-center-shell` / `.vybe-dialog-panel` overrides (`margin/inset: auto !important`).
+- **SMS “doesn’t send” (runtime):** `phoneVerifyRequest` was a stub (stored a code, never texted). Zero `auth_challenges` with `channel=sms`. Twilio secrets **missing** in Secret Manager. Now returns `twilio_not_configured` clearly; Twilio Verify wired when secrets exist.
+- **Deployed:** `phoneVerifyRequest`, `auth2faVerifyPhone` → Firebase.
+- **Unblock SMS:** set Secret Manager `TWILIO_ACCOUNT_SID` (AC…), `TWILIO_AUTH_TOKEN`, `TWILIO_VERIFY_SERVICE_SID` (VA…), then redeploy those functions with `secrets: [...]` binding.
+- **Lovable → Share → Publish** required for dialog CSS + inline send errors on device.
+- **Verify:** phone dialog centered; Send code shows inline error or real SMS.
+
 ## ACTIVE (2026-07-16) — Center phone dialog + instant OAuth dismiss
 
 - **Phone verify top-pinned:** `animate-bubble-pop-in` overwrote `-translate-*`; DialogContent now uses a **flex centering shell** (scale animation safe). X stays below safe-area padding.
