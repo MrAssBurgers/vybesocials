@@ -9,6 +9,7 @@ import { isDespiaRuntime, isNativeAppShell } from '@/lib/despiaBridge';
 import { isEmbeddedAppleWebView } from '@/lib/deviceDetection';
 import { isNativePlatform } from '@/lib/capacitor';
 import { signInWithAppleDespia, signInWithGoogleDespia } from '@/lib/despiaOAuth';
+import { debugSessionLog } from '@/lib/debugSessionLog';
 import {
   detectOAuthPlatform,
   shouldUseRedirectOAuthPlatform,
@@ -95,6 +96,9 @@ async function tryDespiaAppleOAuth(): Promise<OAuthSignInResult> {
 
 async function signInWithOAuthPlatformInner(provider: OAuthProviderId): Promise<OAuthSignInResult> {
   const platform = detectOAuthPlatform();
+  // #region agent log
+  debugSessionLog('nativeOAuth.ts:98', 'oauth_platform_entry', { provider, strategy: platform.strategy, despia: shouldUseDespiaOAuth(provider), nativeShell: shouldUseNativeOAuth() }, 'H2');
+  // #endregion
   authLog('oauth_start', {
     provider,
     strategy: platform.strategy,
@@ -104,6 +108,9 @@ async function signInWithOAuthPlatformInner(provider: OAuthProviderId): Promise<
 
   // Despia takes priority — never Firebase popup for Google here.
   if (shouldUseDespiaOAuth(provider)) {
+    // #region agent log
+    debugSessionLog('nativeOAuth.ts:109', 'oauth_strategy_despia_branch', { provider }, 'H2');
+    // #endregion
     authLog('oauth_strategy', {
       provider,
       strategy: 'despia-oauth',

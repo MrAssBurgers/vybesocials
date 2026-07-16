@@ -3,6 +3,7 @@ import { navigationRef } from '@/lib/navigationRef';
 import type { CallData, CallMode, CallType, CallUser } from '@/lib/callStore';
 import { toast } from 'sonner';
 import { getRuntimeOs } from '@/lib/despiaBridge';
+import { debugSessionLog } from '@/lib/debugSessionLog';
 
 export type NotificationAction = 'open' | 'accept' | 'decline' | 'reply' | 'view';
 
@@ -229,6 +230,9 @@ export async function fetchRingingCall(callId: string): Promise<CallData | null>
 }
 
 export function navigateFromNotification(route: string): void {
+  // #region agent log
+  debugSessionLog('notificationActions.ts:232', 'notification_navigate_entry', { route, os: getRuntimeOs() }, 'H3');
+  // #endregion
   // Guard against mangled `/%3F…` paths from Despia/push URL encoding.
   let safe = route;
   try {
@@ -248,6 +252,9 @@ export function navigateFromNotification(route: string): void {
   if (/^https?:\/\//i.test(safe)) {
     try {
       if (getRuntimeOs() === 'ios') {
+        // #region agent log
+        debugSessionLog('notificationActions.ts:251', 'notification_external_blocked_ios', { safe }, 'H3');
+        // #endregion
         toast.info('Links won’t open automatically on iOS. Please open them manually.');
         return;
       }
@@ -260,6 +267,9 @@ export function navigateFromNotification(route: string): void {
     return;
   }
   if (typeof window !== 'undefined') {
+    // #region agent log
+    debugSessionLog('notificationActions.ts:263', 'notification_window_assign', { safe }, 'H4');
+    // #endregion
     window.location.assign(safe);
   }
 }

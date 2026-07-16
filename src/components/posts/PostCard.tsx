@@ -44,7 +44,8 @@ import { useAuth } from '@/lib/auth';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { EditPostDialog } from './EditPostDialog';
-import { YouTubePlayer } from '@/components/music/YouTubePlayer';
+import { YouTubePlayer, YouTubeLinkPreview } from '@/components/music/YouTubePlayer';
+import { isIOSAppShell } from '@/lib/despiaBridge';
 import { findFirstYouTubeId } from '@/lib/youtube';
 import { OwnerBadge, isOwner } from '@/components/ui/OwnerBadge';
 import { OwnerWifeRingBadge, isOwnerWife } from '@/components/ui/OwnerWifeRingBadge';
@@ -932,9 +933,13 @@ export const PostCard = memo(function PostCard({
         if (!ytId) return null;
         return (
           <div className="px-4 pt-4">
-            <div className="overflow-hidden rounded-2xl border border-border/40 bg-black">
-              <YouTubePlayer videoId={ytId} />
-            </div>
+            {isIOSAppShell() ? (
+              <YouTubeLinkPreview videoId={ytId} />
+            ) : (
+              <div className="overflow-hidden rounded-2xl border border-border/40 bg-black">
+                <YouTubePlayer videoId={ytId} />
+              </div>
+            )}
           </div>
         );
       })()}

@@ -521,6 +521,28 @@ export const firebaseAuth = {
     }
   },
 
+  /** Native Apple/Google link via Capacitor (Face ID / system sheet — no oauth:// web browser). */
+  async linkWithOAuthNative(
+    provider: 'google' | 'apple',
+  ): Promise<{ data: { linked: boolean }; error: VybeAuthError | null }> {
+    const auth = resolveAuth();
+    if (!auth?.currentUser) {
+      return { data: { linked: false }, error: { message: 'Not authenticated', name: 'auth/not-authenticated' } };
+    }
+
+    try {
+      const { FirebaseAuthentication } = await import('@capacitor-firebase/authentication');
+      if (provider === 'apple') {
+        await FirebaseAuthentication.linkWithApple();
+      } else {
+        await FirebaseAuthentication.linkWithGoogle();
+      }
+      return { data: { linked: true }, error: null };
+    } catch (err) {
+      return { data: { linked: false }, error: toAuthError(err) };
+    }
+  },
+
   /** Complete Google/Apple redirect sign-in after page reload (mobile / native WebView). */
   async completeOAuthRedirectIfNeeded(): Promise<{
     data: { session: VybeSession | null };

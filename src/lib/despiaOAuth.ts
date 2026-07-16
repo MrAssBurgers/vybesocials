@@ -4,6 +4,7 @@
  */
 import { GoogleAuthProvider, OAuthProvider, linkWithCredential, signInWithCredential, signInWithCustomToken } from 'firebase/auth';
 import { despiaCall, getRuntimeOs, isDespiaRuntime } from '@/lib/despiaBridge';
+import { debugSessionLog } from '@/lib/debugSessionLog';
 import { getProductionOrigin } from '@/lib/authRedirect';
 import { isNativePlatform } from '@/lib/capacitor';
 import type { VybeAuthError, VybeSession } from '@/lib/firebase/types';
@@ -494,19 +495,78 @@ export async function signInWithGoogleDespia(): Promise<{
  * Apple JS popup often fails inside the Despia WebView with a generic error.
  * Browser / non-Despia still uses the JS SDK.
  */
+function isCapacitorPluginUnavailable(error: VybeAuthError | null): boolean {
+  if (!error) return false;
+  const msg = (error.message || '').toLowerCase();
+  const name = (error.name || '').toLowerCase();
+  return (
+    msg.includes('not implemented') ||
+    msg.includes('unavailable') ||
+    msg.includes('plugin') ||
+    name.includes('not-available')
+  );
+}
+
+async function tryCapacitorAppleSignIn(): Promise<{
+  data: { session: VybeSession | null };
+  error: VybeAuthError | null;
+}> {
+  try {
+    const { firebaseAuth } = await import('@/lib/firebase');
+    return firebaseAuth.signInWithOAuthNative('apple');
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Capacitor Apple sign-in failed';
+    return { data: { session: null }, error: { message, name: 'capacitor/apple-unavailable' } };
+  }
+}
+
 export async function signInWithAppleDespia(): Promise<{
   pending: boolean;
   error: VybeAuthError | null;
   data?: { session: VybeSession | null };
 }> {
+  // #region agent log
+  debugSessionLog('despiaOAuth.ts:502', 'apple_signin_entry', { despia: isDespiaRuntime(), runtimeOs: getRuntimeOs() }, 'H1');
+  // #endregion
   if (isDespiaRuntime()) {
-    // iOS: native Apple sheet (Face ID) only. Android keeps oauth:// web-sheet flow.
+    // iOS: Capacitor Sign in with Apple (true native Face ID sheet). JS SDK popup
+    // still opens ASWebAuthenticationSession in WKWebView and looks like a browser.
     if (getRuntimeOs() === 'ios') {
+      // #region agent log
+      debugSessionLog('despiaOAuth.ts:506', 'apple_signin_capacitor_ios_branch', { provider: 'apple' }, 'H1');
+      // #endregion
+      const native = await tryCapacitorAppleSignIn();
+      // #region agent log
+      debugSessionLog(
+        'despiaOAuth.ts:510',
+        'apple_signin_capacitor_result',
+        { hasSession: !!native.data.session?.user, errorName: native.error?.name || null },
+        'H1',
+      );
+      // #endregion
+      if (native.data.session?.user) {
+        return { pending: false, error: null, data: { session: native.data.session } };
+      }
+      if (native.error && !isCapacitorPluginUnavailable(native.error)) {
+        return { pending: false, error: native.error, data: { session: null } };
+      }
+      // Plugin unavailable only — last-resort JS SDK (may still show web sheet).
       const { signInWithAppleJsSdk } = await import('@/lib/appleSignIn');
       const js = await signInWithAppleJsSdk();
+      // #region agent log
+      debugSessionLog(
+        'despiaOAuth.ts:522',
+        'apple_signin_js_sdk_fallback',
+        { hasSession: !!js.data.session?.user, errorName: js.error?.name || null },
+        'H1',
+      );
+      // #endregion
       if (js.error) return { pending: false, error: js.error, data: { session: null } };
       return { pending: false, error: null, data: { session: js.data.session } };
     }
+    // #region agent log
+    debugSessionLog('despiaOAuth.ts:528', 'apple_signin_oauth_websheet_branch', { provider: 'apple', runtimeOs: getRuntimeOs() }, 'H1');
+    // #endregion
     return launchDespiaOAuthUrl(await buildAppleOAuthUrl('signin'), 'apple', 'signin');
   }
 
@@ -520,10 +580,29 @@ export async function signInWithAppleDespia(): Promise<{
 export async function linkProviderWithDespiaOAuth(
   provider: 'google' | 'apple',
 ): Promise<{ pending: boolean; error: VybeAuthError | null }> {
+  // #region agent log
+  debugSessionLog('despiaOAuth.ts:548', 'link_provider_entry', { provider, despia: isDespiaRuntime(), runtimeOs: getRuntimeOs() }, 'H1');
+  // #endregion
   if (!isDespiaRuntime()) {
     return { pending: false, error: { message: 'Despia link requires the native app' } };
   }
   if (provider === 'apple' && getRuntimeOs() === 'ios') {
+    // #region agent log
+    debugSessionLog('despiaOAuth.ts:554', 'link_provider_capacitor_ios_branch', { provider: 'apple' }, 'H1');
+    // #endregion
+    const { firebaseAuth } = await import('@/lib/firebase');
+    const native = await firebaseAuth.linkWithOAuthNative('apple');
+    // #region agent log
+    debugSessionLog(
+      'despiaOAuth.ts:559',
+      'link_provider_capacitor_result',
+      { linked: native.data.linked, errorName: native.error?.name || null },
+      'H1',
+    );
+    // #endregion
+    if (native.data.linked || (native.error && !isCapacitorPluginUnavailable(native.error))) {
+      return { pending: false, error: native.error };
+    }
     const { linkWithAppleJsSdk } = await import('@/lib/appleSignIn');
     const result = await linkWithAppleJsSdk();
     return { pending: false, error: result.error };

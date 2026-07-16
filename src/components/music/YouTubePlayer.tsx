@@ -1,5 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { upsertLivePresence, clearLivePresence } from '@/lib/livePresence';
+import { isIOSAppShell } from '@/lib/despiaBridge';
+import { debugSessionLog } from '@/lib/debugSessionLog';
 
 interface Props {
   /** YouTube video ID (the v= param). */
@@ -29,6 +31,12 @@ const ytApiPromise: { current: Promise<any> | null } = { current: null };
 
 function loadYouTubeApi(): Promise<any> {
   if (typeof window === 'undefined') return Promise.reject(new Error('no window'));
+  if (isIOSAppShell()) {
+    // #region agent log
+    debugSessionLog('YouTubePlayer.tsx:34', 'youtube_api_blocked_ios_shell', {}, 'H3');
+    // #endregion
+    return Promise.reject(new Error('youtube-api-blocked-ios-shell'));
+  }
   if (window.YT?.Player) return Promise.resolve(window.YT);
   if (ytApiPromise.current) return ytApiPromise.current;
 
@@ -46,6 +54,25 @@ function loadYouTubeApi(): Promise<any> {
     }
   });
   return ytApiPromise.current;
+}
+
+/**
+ * Static preview for iOS native shell — never loads youtube.com/iframe_api (can hijack to YouTube app).
+ */
+export function YouTubeLinkPreview({ videoId }: { videoId: string }) {
+  return (
+    <div className="relative overflow-hidden rounded-2xl border border-border/40 bg-black aspect-video">
+      <img
+        src={`https://img.youtube.com/vi/${videoId}/hqdefault.jpg`}
+        alt=""
+        className="h-full w-full object-cover opacity-90"
+        loading="lazy"
+      />
+      <div className="absolute inset-0 flex items-end bg-gradient-to-t from-black/80 to-transparent p-3">
+        <p className="text-xs text-white/80">YouTube link in post (in-app player disabled on iOS)</p>
+      </div>
+    </div>
+  );
 }
 
 /**
