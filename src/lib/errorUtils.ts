@@ -15,7 +15,9 @@ export function getFriendlyAuthError(error: unknown): string {
   const message =
     error && typeof error === 'object' && 'message' in error
       ? String((error as { message?: string }).message || '')
-      : String(error ?? '');
+      : typeof error === 'string'
+        ? error
+        : '';
 
   switch (code) {
     case 'auth/unauthorized-domain':
@@ -34,6 +36,8 @@ export function getFriendlyAuthError(error: unknown): string {
     case 'auth/credential-already-in-use':
       return 'This sign-in method is already linked to another account. Sign in with that method, then link providers in Settings → Connections.';
     case 'auth/invalid-credential':
+      // Prefer actionable Apple/console copy from appleSignIn when present.
+      if (/Apple|Services ID|native-callback/i.test(message)) return message;
       return 'Sign-in credentials were invalid or expired. Try again.';
     case 'auth/invalid-oauth-provider':
       return 'This sign-in provider is misconfigured. Contact support.';
@@ -41,13 +45,24 @@ export function getFriendlyAuthError(error: unknown): string {
       return 'This browser blocked sign-in storage. Disable private mode and try again.';
     case 'auth/internal-error':
       return 'Sign-in failed due to an internal error. Try again in a moment.';
+    case 'apple/sdk-missing':
+      return 'Apple Sign-In is unavailable right now. Check your connection and try again.';
+    case 'apple/missing-token':
+      return 'Apple Sign-In did not finish. Try again.';
+    case 'despia/oauth-redeem-failed':
+    case 'despia/oauth-error':
+    case 'despia/oauth-launch-failed':
+      return message || 'Sign-in could not finish in the app. Close any leftover browser sheet and try again.';
+    case 'vybe/oauth-busy':
+      return '__SUPPRESS__';
     default:
       break;
   }
 
   if (
     message.includes('Sign in was cancelled') ||
-    message.toLowerCase().includes('cancelled by the user')
+    message.toLowerCase().includes('cancelled by the user') ||
+    message === 'Sign-in cancelled'
   ) {
     return '__SUPPRESS__';
   }
@@ -63,11 +78,19 @@ export function getFriendlyAuthError(error: unknown): string {
   ) {
     return 'This sign-in provider is not enabled.';
   }
-  if (message.includes('403') || message.toLowerCase().includes('forbidden')) {
-    return 'Apple rejected sign-in (403). Check that Firebase Services ID matches your Apple Services ID (not the App ID).';
+  if (
+    message.includes('403') ||
+    message.toLowerCase().includes('forbidden') ||
+    message.toLowerCase().includes('invalid_client')
+  ) {
+    return 'Apple rejected sign-in. Confirm Services ID com.despia.vybe.web and return URL https://vybehub.app/native-callback.html.';
+  }
+  if (/Services ID|native-callback\.html/i.test(message)) {
+    return message;
   }
 
-  if (code.startsWith('auth/')) {
+  if (code.startsWith('auth/') || code.startsWith('apple/') || code.startsWith('despia/')) {
+    if (message && message !== '[object Object]') return message;
     return `Sign-in failed. Error code: ${code}`;
   }
 

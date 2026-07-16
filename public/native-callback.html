@@ -3,23 +3,33 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Signing in…</title>
+  <title></title>
   <style>
-    body {
+    /* Silent handoff page — blank until fallback. Lives only inside the system sheet. */
+    html, body {
       margin: 0;
+      min-height: 100%;
+      background: #0B0B10;
+      color: #a1a1aa;
+      font-family: system-ui, -apple-system, sans-serif;
+    }
+    body {
       min-height: 100vh;
       display: flex;
       flex-direction: column;
       align-items: center;
       justify-content: center;
       gap: 16px;
-      background: #0B0B10;
-      color: #a1a1aa;
-      font-family: system-ui, -apple-system, sans-serif;
       padding: 24px;
       text-align: center;
     }
-    #status { margin: 0; font-size: 14px; opacity: 0.85; }
+    #status {
+      margin: 0;
+      font-size: 14px;
+      opacity: 0;
+      pointer-events: none;
+    }
+    #status.visible { opacity: 0.85; pointer-events: auto; }
     #openApp, #webFallback {
       display: none;
       appearance: none;
@@ -41,21 +51,29 @@
   </style>
 </head>
 <body>
-  <p id="status">Signing in…</p>
+  <p id="status" aria-hidden="true"></p>
   <a id="openApp">Open VYBE</a>
-  <a id="webFallback" href="https://vybehub.app/auth/callback">Continue on web</a>
+  <a id="webFallback" href="https://vybehub.app/auth">Continue on web</a>
   <script>
     (function () {
       var DEFAULT_SCHEME = 'com.despia.vybe';
       var EXCHANGE_URL = 'https://us-central1-vybe-daaab.cloudfunctions.net/authQr';
-      var WEB_FALLBACK = 'https://vybehub.app/auth/callback';
+      var WEB_FALLBACK = 'https://vybehub.app/auth';
       var MAX_DEEPLINK_LEN = 1800;
-      // Only show fallback UI if the app did not claim the deeplink quickly.
+      // Only reveal fallback UI if Despia did not close this sheet.
       var FALLBACK_UI_MS = 1500;
 
-      function setStatus(text) {
+      function setStatus(text, visible) {
         var el = document.getElementById('status');
-        if (el) el.textContent = text;
+        if (!el) return;
+        el.textContent = text || '';
+        if (visible) {
+          el.classList.add('visible');
+          el.removeAttribute('aria-hidden');
+        } else {
+          el.classList.remove('visible');
+          el.setAttribute('aria-hidden', 'true');
+        }
       }
 
       function decodeState(state) {
@@ -91,9 +109,11 @@
         var value = url.trim();
         if (!value || value === '#' || value === 'vybe:' || value === 'vybe://') return false;
         if (value.length > MAX_DEEPLINK_LEN) return false;
+        if (value.indexOf('oauth') === -1) return false;
         try {
           var parsed = new URL(value);
-          return parsed.protocol === 'com.despia.vybe:' && value.indexOf('oauth') !== -1;
+          var proto = String(parsed.protocol || '').replace(/:$/, '');
+          return Boolean(proto) && proto !== 'http' && proto !== 'https' && proto !== 'javascript';
         } catch (e) {
           return false;
         }
@@ -115,10 +135,30 @@
         return (result.data && result.data.result) || result.data || {};
       }
 
-      /**
-       * Silent bounce: immediately open the short deeplink. Fallback buttons
-       * appear only after FALLBACK_UI_MS if Despia did not close this sheet.
-       */
+      function fireDeeplink(deeplink) {
+        try { window.location.href = deeplink; } catch (e) {}
+        try { window.location.replace(deeplink); } catch (e2) {}
+        try {
+          var iframe = document.createElement('iframe');
+          iframe.style.cssText = 'display:none;width:0;height:0;border:0';
+          iframe.src = deeplink;
+          document.body.appendChild(iframe);
+          setTimeout(function () {
+            try { iframe.remove(); } catch (e3) {}
+          }, 400);
+        } catch (e4) {}
+        try {
+          var a = document.createElement('a');
+          a.href = deeplink;
+          a.rel = 'noreferrer';
+          a.style.display = 'none';
+          document.body.appendChild(a);
+          a.click();
+          a.remove();
+        } catch (e5) {}
+        try { window.close(); } catch (e6) {}
+      }
+
       function redirectToApp(scheme, query) {
         var deeplink = buildDeeplink(scheme, query);
         var openBtn = document.getElementById('openApp');
@@ -127,20 +167,10 @@
         if (isValidDeeplink(deeplink)) {
           window.__vybeOauthDeeplink = deeplink;
           if (openBtn) openBtn.setAttribute('href', deeplink);
-          try { window.location.href = deeplink; } catch (e) {}
-          setTimeout(function () {
-            try { window.location.replace(deeplink); } catch (e2) {}
-          }, 80);
-          setTimeout(function () {
-            try {
-              var a = document.createElement('a');
-              a.href = deeplink;
-              a.rel = 'noreferrer';
-              document.body.appendChild(a);
-              a.click();
-              a.remove();
-            } catch (e3) {}
-          }, 200);
+          fireDeeplink(deeplink);
+          setTimeout(function () { fireDeeplink(deeplink); }, 80);
+          setTimeout(function () { fireDeeplink(deeplink); }, 220);
+          setTimeout(function () { fireDeeplink(deeplink); }, 450);
         } else {
           window.__vybeOauthDeeplink = '';
           if (openBtn) {
@@ -156,9 +186,9 @@
           }
           if (isValidDeeplink(window.__vybeOauthDeeplink) && openBtn) {
             openBtn.style.display = 'inline-block';
-            setStatus('Tap below if VYBE did not open.');
+            setStatus('Tap below if VYBE did not open.', true);
           } else {
-            setStatus('Continue in the browser if the app did not open.');
+            setStatus('Continue in the browser if the app did not open.', true);
           }
         }, FALLBACK_UI_MS);
       }
@@ -181,6 +211,9 @@
       var provider = (stateObj && stateObj.provider) || 'google';
       var nonce = (stateObj && stateObj.nonce) || '';
 
+      // Stay silent — no “Signing in…” flash. Sheet should close via deeplink.
+      setStatus('', false);
+
       if (error) {
         var errQuery = 'error=' + encodeURIComponent(error) + '&state=' + encodeURIComponent(state);
         var errDesc = params.get('error_description');
@@ -200,7 +233,6 @@
       }
 
       if (provider === 'apple' && idToken) {
-        setStatus('Signing in…');
         callAuthQr({
           action: 'stash_oauth',
           provider: 'apple',
@@ -215,7 +247,7 @@
             finishWithHandoffCode(payload.code);
           })
           .catch(function () {
-            setStatus('Could not finish Apple sign-in automatically.');
+            setStatus('Could not finish Apple sign-in automatically.', true);
             if (document.getElementById('webFallback')) {
               document.getElementById('webFallback').style.display = 'inline-block';
             }
@@ -227,8 +259,6 @@
         redirectToApp(scheme, 'error=missing_token&state=' + encodeURIComponent(state));
         return;
       }
-
-      setStatus('Signing in…');
 
       callAuthQr({ action: 'exchange_google', idToken: idToken })
         .then(function (result) {
@@ -261,7 +291,7 @@
           throw new Error('exchange_failed');
         })
         .catch(function () {
-          setStatus('Could not finish automatically. Try Continue on web.');
+          setStatus('Could not finish automatically. Try Continue on web.', true);
           var webBtn = document.getElementById('webFallback');
           if (webBtn) webBtn.style.display = 'inline-block';
         });

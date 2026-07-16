@@ -2,12 +2,28 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## Active — OAuth big-app harden (2026-07-15)
+
+- **Goal:** Stay on login · only system account sheet · instant sign-in
+- **Android Apple bug (user screenshot):** `invalid_request` — `response_mode must be form_post when name or email scope is requested`
+- **Fix:**
+  - New `appleOAuthCallback` HTTP function (form_post → stash `hc=` → deeplink)
+  - Android authorize URL uses `response_mode=form_post` + redirect `https://vybe-daaab.firebaseapp.com/apple-callback`
+  - Deployed: `functions:appleOAuthCallback` + Firebase Hosting rewrite (staging)
+- **You must do (Apple console):** Services ID `com.despia.vybe.web` → Return URLs → add  
+  `https://vybe-daaab.firebaseapp.com/apple-callback`
+- **Then:** commit/push client → **Lovable Publish** → retry Apple on Android
+- **Google / iOS Apple:** separate paths (Google `oauth://` + iOS Apple JS) — already wired; login stays on Landing
+- **Connected?** Yes after Publish + Apple return URL. Before that, Android Apple cannot complete.
+
+---
+
 ## PUBLISH handoff (2026-07-15) — Native OAuth UX revamp
 
 - **Merged to `origin/main`:** `9fdcaaea`
 - **Includes:** Landing signing overlay · silent `native-callback` (`FALLBACK_UI_MS` + `hc=`) · Apple preload · `claimProfileAfterOAuth` · account-exists → Settings guidance · OAuth docs
 - **Firebase Hosting staging:** `https://vybe-daaab.web.app` (redeployed with this handoff)
-- **Production `vybehub.app`:** index still on `dda30340` — **does not** include Landing overlay / silent bounce until Publish
+- **Production `vybehub.app`:** later verified on `06119c09` with `FALLBACK_UI_MS` + `hc=` (Publish landed)
 - **Production Publish:** **Lovable → Share → Publish** — Cursor cannot click Publish
 - **Lovable:** https://lovable.dev/projects/416714c8-d013-4aff-984d-522418a9bbc7
 - **After Publish verify:**

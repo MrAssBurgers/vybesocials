@@ -10,8 +10,11 @@ import type { VybeAuthError, VybeSession } from '@/lib/firebase/types';
 
 const DESPIA_OAUTH_PENDING_KEY = 'vybe-despia-oauth-pending';
 const DESPIA_OAUTH_PENDING_AT_KEY = 'vybe-despia-oauth-pending-at';
+const DESPIA_OAUTH_PROVIDER_KEY = 'vybe-despia-oauth-provider';
 const DESPIA_OAUTH_NONCE_KEY = 'vybe-despia-oauth-nonce';
 const DESPIA_OAUTH_PENDING_MAX_MS = 3 * 60 * 1000;
+/** Globals Despia may set when ASWeb returns the oauth/ deeplink. */
+const DESPIA_OAUTH_URL_KEYS = ['url', 'oauthUrl', 'deeplink', 'deepLink', 'payload', 'data'] as const;
 
 /** Firebase web client ID (public) — matches native/android/google-services.json */
 const DEFAULT_GOOGLE_WEB_CLIENT_ID =
@@ -64,27 +67,46 @@ export function decodeOAuthState(state: string | null): { scheme: string; nonce:
   }
 }
 
-export function markDespiaOAuthPending(): void {
+export function markDespiaOAuthPending(provider?: 'google' | 'apple'): void {
   if (typeof window === 'undefined') return;
   const at = String(Date.now());
   sessionStorage.setItem(DESPIA_OAUTH_PENDING_KEY, 'true');
   sessionStorage.setItem(DESPIA_OAUTH_PENDING_AT_KEY, at);
+  if (provider) sessionStorage.setItem(DESPIA_OAUTH_PROVIDER_KEY, provider);
   try {
     localStorage.setItem(DESPIA_OAUTH_PENDING_KEY, 'true');
     localStorage.setItem(DESPIA_OAUTH_PENDING_AT_KEY, at);
+    if (provider) localStorage.setItem(DESPIA_OAUTH_PROVIDER_KEY, provider);
   } catch {
     /* ignore */
   }
+}
+
+export function getDespiaOAuthPendingProvider(): 'google' | 'apple' | null {
+  if (typeof window === 'undefined') return null;
+  const raw =
+    sessionStorage.getItem(DESPIA_OAUTH_PROVIDER_KEY) ||
+    (() => {
+      try {
+        return localStorage.getItem(DESPIA_OAUTH_PROVIDER_KEY);
+      } catch {
+        return null;
+      }
+    })();
+  if (raw === 'google' || raw === 'apple') return raw;
+  return null;
 }
 
 export function clearDespiaOAuthPending(): void {
   if (typeof window === 'undefined') return;
   sessionStorage.removeItem(DESPIA_OAUTH_PENDING_KEY);
   sessionStorage.removeItem(DESPIA_OAUTH_PENDING_AT_KEY);
+  sessionStorage.removeItem(DESPIA_OAUTH_PROVIDER_KEY);
   sessionStorage.removeItem(DESPIA_OAUTH_NONCE_KEY);
   try {
     localStorage.removeItem(DESPIA_OAUTH_PENDING_KEY);
     localStorage.removeItem(DESPIA_OAUTH_PENDING_AT_KEY);
+    localStorage.removeItem(DESPIA_OAUTH_PROVIDER_KEY);
   } catch {
     /* ignore */
   }
@@ -174,7 +196,14 @@ function getAppleServicesId(): string {
   return DEFAULT_APPLE_SERVICES_ID;
 }
 
-/** Apple authorize URL for Despia ASWebAuthenticationSession (same Continue sheet as Google). */
+/** Apple authorize URL for Despia ASWebAuthenticationSession (Android). */
+export function getAppleOAuthCallbackUrl(): string {
+  // Must hit Cloud Function form_post handler — NOT Lovable SPA (vybehub.app
+  // catch-all). Firebase Hosting rewrite on *.firebaseapp.com / *.web.app.
+  // Domain `vybe-daaab.firebaseapp.com` is already on the Apple Services ID.
+  return 'https://vybe-daaab.firebaseapp.com/apple-callback';
+}
+
 export function buildAppleOAuthUrl(): string {
   const scheme = getDespiaDeeplinkScheme();
   const nonce = randomNonce();
@@ -183,12 +212,14 @@ export function buildAppleOAuthUrl(): string {
   }
 
   const state = encodeOAuthState({ scheme, nonce, provider: 'apple' });
-  const redirectUri = getNativeOAuthCallbackUrl();
+  // Apple requires form_post when name/email scopes are requested.
+  // Static HTML cannot read POST bodies → Cloud Function via /apple-callback.
+  const redirectUri = getAppleOAuthCallbackUrl();
   const params = new URLSearchParams({
     client_id: getAppleServicesId(),
     redirect_uri: redirectUri,
     response_type: 'code id_token',
-    response_mode: 'fragment',
+    response_mode: 'form_post',
     scope: 'name email',
     nonce,
     state,
@@ -197,7 +228,10 @@ export function buildAppleOAuthUrl(): string {
   return `https://appleid.apple.com/auth/authorize?${params.toString()}`;
 }
 
-async function launchDespiaOAuthUrl(authUrl: string): Promise<{
+async function launchDespiaOAuthUrl(
+  authUrl: string,
+  provider: 'google' | 'apple',
+): Promise<{
   pending: boolean;
   error: VybeAuthError | null;
 }> {
@@ -206,9 +240,30 @@ async function launchDespiaOAuthUrl(authUrl: string): Promise<{
   }
 
   try {
-    markDespiaOAuthPending();
+    markDespiaOAuthPending(provider);
     const oauthBridge = `oauth://?url=${encodeURIComponent(authUrl)}`;
-    await despiaCall(oauthBridge);
+    // Fire-and-forget launch; completion is async via deeplink / WebView /auth?hc=.
+    // Also watch common Despia bridge globals in case the runtime returns the URL that way.
+    void despiaCall(oauthBridge, [...DESPIA_OAUTH_URL_KEYS], 120_000).then((payload) => {
+      if (!payload) return;
+      for (const key of DESPIA_OAUTH_URL_KEYS) {
+        const value = payload[key];
+        const asUrl =
+          typeof value === 'string'
+            ? value
+            : value && typeof value === 'object' && 'url' in value
+              ? String((value as { url?: string }).url || '')
+              : '';
+        if (asUrl && isDespiaOAuthReturnUrl(asUrl)) {
+          void completeDespiaOAuthFromUrl(asUrl).then((result) => {
+            if (result.data.session?.user || result.error) {
+              window.dispatchEvent(new CustomEvent('despia-oauth-complete', { detail: result }));
+            }
+          });
+          return;
+        }
+      }
+    });
     return { pending: true, error: null };
   } catch (err) {
     clearDespiaOAuthPending();
@@ -222,7 +277,7 @@ export async function signInWithGoogleDespia(): Promise<{
   pending: boolean;
   error: VybeAuthError | null;
 }> {
-  return launchDespiaOAuthUrl(buildGoogleOAuthUrl());
+  return launchDespiaOAuthUrl(buildGoogleOAuthUrl(), 'google');
 }
 
 /**
@@ -239,7 +294,7 @@ export async function signInWithAppleDespia(): Promise<{
   const os = getRuntimeOs();
 
   if (isAndroidAppShell() || os === 'android') {
-    return launchDespiaOAuthUrl(buildAppleOAuthUrl());
+    return launchDespiaOAuthUrl(buildAppleOAuthUrl(), 'apple');
   }
 
   const { signInWithAppleJsSdk } = await import('@/lib/appleSignIn');
@@ -457,20 +512,37 @@ export function initDespiaOAuthDeepLinkHandler(): void {
     });
   };
 
-  // Despia may inject the return URL into window location or bridge globals.
-  if (isDespiaOAuthReturnUrl(window.location.href)) {
-    handleUrl(window.location.href);
-  }
-
-  window.addEventListener('popstate', () => {
+  const tryCurrent = () => {
     if (isDespiaOAuthReturnUrl(window.location.href)) {
       handleUrl(window.location.href);
+      return;
     }
-  });
+    // Despia may inject the return URL onto window globals after ASWeb closes.
+    if (!isDespiaOAuthInFlight()) return;
+    const w = window as unknown as Record<string, unknown>;
+    for (const key of DESPIA_OAUTH_URL_KEYS) {
+      const value = w[key];
+      const asUrl =
+        typeof value === 'string'
+          ? value
+          : value && typeof value === 'object' && value !== null && 'url' in value
+            ? String((value as { url?: string }).url || '')
+            : '';
+      if (asUrl && isDespiaOAuthReturnUrl(asUrl)) {
+        handleUrl(asUrl);
+        return;
+      }
+    }
+  };
 
-  document.addEventListener('app-resumed', () => {
-    if (isDespiaOAuthReturnUrl(window.location.href)) {
-      handleUrl(window.location.href);
-    }
+  tryCurrent();
+
+  window.addEventListener('popstate', tryCurrent);
+  window.addEventListener('hashchange', tryCurrent);
+  window.addEventListener('pageshow', tryCurrent);
+  window.addEventListener('focus', tryCurrent);
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') tryCurrent();
   });
+  document.addEventListener('app-resumed', tryCurrent);
 }

@@ -74,11 +74,14 @@ big-app pattern is a **system account sheet**:
 
 **Silent callback:** `https://vybehub.app/native-callback.html` must bounce
 immediately with a short `hc=` code (never put JWTs in the deeplink — iOS
-rejects long custom-scheme URLs as “address is invalid”). Fallback “Open VYBE”
-appears only after ~1.5s if the app did not reclaim the session.
+rejects long custom-scheme URLs as “address is invalid”). The page multi-fires
+the deeplink (location + iframe + `window.close`) so ASWeb / Custom Tabs dismiss.
+Fallback “Open VYBE” appears only after ~1.5s if the app did not reclaim the session.
 
 **Landing:** shows an in-app “Continue with Google/Apple…” overlay while the
-system sheet is open; profile auto-link via `claim_profile_by_email` after success.
+system sheet is open (restored on remount if OAuth is still pending); profile
+auto-link via `claim_profile_by_email` after success. App reclaim also listens
+for `visibilitychange` / `pageshow` / focus and Despia URL bridge globals.
 
 **Firebase Console:** keep **one account per email** enabled so Google/Apple
 sign-in merges with an existing email/password user when possible. Conflicts

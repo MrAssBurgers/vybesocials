@@ -42,6 +42,7 @@ import { isOAuthBusy, signInWithOAuthPlatform } from '@/lib/nativeOAuth';
 import {
   clearDespiaOAuthPending,
   clearStaleDespiaOAuthPending,
+  getDespiaOAuthPendingProvider,
   isDespiaOAuthInFlight,
   isDespiaOAuthReturnUrl,
   tryCompleteDespiaOAuthFromCurrentUrl,
@@ -213,6 +214,15 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
     clearStaleOAuthRedirectPending();
     clearStaleDespiaOAuthPending();
     preloadAppleSignIn();
+    // Resume signing overlay if ASWeb is still open / reclaiming after a remount.
+    if (isDespiaOAuthInFlight()) {
+      const provider = getDespiaOAuthPendingProvider();
+      if (provider) {
+        setOauthOverlay(provider);
+        setLoading(true);
+        setIsOAuthReturn(true);
+      }
+    }
   }, []);
 
   // Complete Despia oauth:// return (deeplink lands on /auth?hc=... or id_token).
@@ -273,12 +283,21 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
     };
     window.addEventListener('popstate', onUrlMaybeChanged);
     window.addEventListener('hashchange', onUrlMaybeChanged);
+    window.addEventListener('pageshow', onUrlMaybeChanged);
+    window.addEventListener('focus', onUrlMaybeChanged);
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') onUrlMaybeChanged();
+    };
+    document.addEventListener('visibilitychange', onVisible);
     const poll = window.setInterval(onUrlMaybeChanged, 700);
 
     return () => {
       window.removeEventListener('despia-oauth-complete', onComplete);
       window.removeEventListener('popstate', onUrlMaybeChanged);
       window.removeEventListener('hashchange', onUrlMaybeChanged);
+      window.removeEventListener('pageshow', onUrlMaybeChanged);
+      window.removeEventListener('focus', onUrlMaybeChanged);
+      document.removeEventListener('visibilitychange', onVisible);
       window.clearInterval(poll);
     };
   }, [navigate, profile, applyOAuthSession]);
@@ -1012,23 +1031,23 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
 
       {/* Touch ripple removed */}
 
+      {/* Stay on login — light dim only while the system account sheet is open. */}
       {(oauthOverlay || (isOAuthReturn && loading)) && (
         <div
-          className="fixed inset-0 z-[80] flex flex-col items-center justify-center gap-3 bg-[#0B0B10]/90 backdrop-blur-sm px-6"
+          className="fixed inset-0 z-[80] flex flex-col items-center justify-end gap-2 bg-black/35 px-6 pb-[max(2.5rem,env(safe-area-inset-bottom))] pointer-events-none"
           role="status"
           aria-live="polite"
         >
-          <div className="w-9 h-9 rounded-full border-[3px] border-primary/30 border-t-primary animate-spin" />
-          <p className="text-sm text-foreground text-center">
-            {oauthOverlay === 'apple'
-              ? 'Continue with Apple…'
-              : oauthOverlay === 'google'
-                ? 'Continue with Google…'
-                : 'Signing you in…'}
-          </p>
-          <p className="text-xs text-muted-foreground text-center max-w-xs">
-            Finish in the sign-in sheet. You will return here automatically.
-          </p>
+          <div className="pointer-events-none flex items-center gap-2 rounded-full bg-[#0B0B10]/85 px-3.5 py-2 shadow-lg">
+            <div className="w-4 h-4 rounded-full border-2 border-white/25 border-t-white animate-spin" />
+            <p className="text-xs text-white/90">
+              {oauthOverlay === 'apple'
+                ? 'Apple…'
+                : oauthOverlay === 'google'
+                  ? 'Google…'
+                  : 'Signing in…'}
+            </p>
+          </div>
         </div>
       )}
 

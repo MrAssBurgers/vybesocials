@@ -22,6 +22,22 @@ describe('getFriendlyAuthError', () => {
     expect(getFriendlyAuthError({ code: 'auth/popup-closed-by-user' })).toBe('__SUPPRESS__');
   });
 
+  it('maps Apple SDK missing', () => {
+    expect(getFriendlyAuthError({ name: 'apple/sdk-missing', message: 'Apple Sign-In unavailable' })).toMatch(
+      /Apple Sign-In is unavailable/i,
+    );
+  });
+
+  it('keeps actionable Apple invalid-credential copy', () => {
+    expect(
+      getFriendlyAuthError({
+        name: 'auth/invalid-credential',
+        message:
+          'Apple rejected sign-in. Confirm Services ID com.despia.vybe.web and return URL https://vybehub.app/native-callback.html.',
+      }),
+    ).toMatch(/Services ID/i);
+  });
+
   it('surfaces unknown auth codes', () => {
     expect(getFriendlyAuthError({ code: 'auth/weird-code' })).toBe(
       'Sign-in failed. Error code: auth/weird-code',
