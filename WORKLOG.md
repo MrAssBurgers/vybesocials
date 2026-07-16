@@ -2,6 +2,23 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## PUBLISH handoff (2026-07-15) — Android Apple form_post + silent OAuth
+
+- **Merged to `origin/main`:** `f28feb23`
+- **Includes:** `appleOAuthCallback` · Android Apple `form_post` → `vybe-daaab.firebaseapp.com/apple-callback` · silent blank `native-callback` · stay-on-login chip · reclaim harden · Apple error copy
+- **Firebase already deployed:** `functions:appleOAuthCallback` + Hosting rewrite on `vybe-daaab.web.app` / `firebaseapp.com`
+- **Production Publish:** **Lovable → Share → Publish** — Cursor cannot click Publish
+- **Lovable:** https://lovable.dev/projects/416714c8-d013-4aff-984d-522418a9bbc7
+- **Apple console (required for Android):** Services ID `com.despia.vybe.web` return URL  
+  `https://vybe-daaab.firebaseapp.com/apple-callback`
+- **After Publish verify:**
+  1. `curl -s https://vybehub.app/ | rg -o 'data-commit-sha="[^"]+"'` → includes `f28feb23`
+  2. `curl -s https://vybehub.app/native-callback.html | rg 'fireDeeplink|window\.close'` → matches
+  3. Android: Continue with Apple → no `invalid_request` → signed in
+  4. iPhone: Google/Apple system sheet → signed in (no stuck Open VYBE)
+
+---
+
 ## Active — OAuth big-app harden (2026-07-15)
 
 - **Goal:** Stay on login · only system account sheet · instant sign-in
