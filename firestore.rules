@@ -909,9 +909,15 @@ service cloud.firestore {
       allow update, delete: if signedIn() && isConversationParticipant(resource.data.conversation_id);
     }
     match /vanish_messages/{docId} {
-      allow read: if signedIn();
-      allow create: if signedIn();
-      allow update, delete: if signedIn() || isAdmin();
+      function vanishThreadConversationId(threadId) {
+        return get(/databases/$(database)/documents/vanish_threads/$(threadId)).data.conversation_id;
+      }
+      allow read: if signedIn() &&
+        isConversationParticipant(vanishThreadConversationId(resource.data.thread_id));
+      allow create: if signedIn() &&
+        willOwnProfile('sender_id') &&
+        isConversationParticipant(vanishThreadConversationId(request.resource.data.thread_id));
+      allow update, delete: if isOwnerProfile('sender_id') || isAdmin();
     }
     match /screenshot_notifications/{docId} {
       allow read: if isOwnerProfile('user_id') || ownsProfileId(resource.data.recipient_id) || isAdmin();
