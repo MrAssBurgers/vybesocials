@@ -261,6 +261,22 @@
           var q = 'hc=' + encodeURIComponent(handoff);
           if (intent === 'link') q += '&intent=link';
           if (!closed) fireClose(q);
+          // If ASWeb is still visible, offer a production App Link so a stuck
+          // offline pack can still redeem hc= via Universal Link.
+          setTimeout(function () {
+            if (closed) return;
+            try {
+              var openHref = APP_ORIGIN + '/auth?' + q;
+              document.body.innerHTML =
+                '<div style="min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:24px;font-family:-apple-system,system-ui,sans-serif;background:#0B0B10;color:#fafafa;text-align:center">' +
+                '<div style="font-weight:700;letter-spacing:.12em">VYBE</div>' +
+                '<div style="opacity:.7;font-size:13px">Tap to finish signing in</div>' +
+                '<a href="' +
+                openHref +
+                '" style="display:inline-block;margin-top:8px;padding:12px 18px;border-radius:999px;background:#fff;color:#0B0B10;font-weight:600;text-decoration:none">Open VYBE</a>' +
+                '</div>';
+            } catch (eUi) {}
+          }, 1800);
         })
         .catch(function (err) {
           clearTimeout(slowTimer);

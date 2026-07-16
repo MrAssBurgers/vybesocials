@@ -159,6 +159,14 @@ export function PhoneVerifyGate() {
             <p id={descId} className="text-sm text-muted-foreground">
               VYBE works best with a verified phone number — it secures your account and helps friends find you.
             </p>
+            {/* #region agent log */}
+            <p className="text-[10px] text-muted-foreground/50 pt-1" aria-hidden>
+              build{' '}
+              {typeof document !== 'undefined'
+                ? document.documentElement.getAttribute('data-vybe-deployed-at')?.slice(-6) || '——'
+                : '——'}
+            </p>
+            {/* #endregion */}
           </div>
           <PhoneNumberCard
             embedded

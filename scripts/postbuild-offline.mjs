@@ -67,6 +67,9 @@ try {
 const inline = spawnSync('node', ['scripts/inline-boot-guard.mjs'], { stdio: 'inherit' });
 if ((inline.status ?? 1) !== 0) process.exit(inline.status ?? 1);
 
+const stamp = spawnSync('node', ['scripts/stamp-despia-ota.mjs'], { stdio: 'inherit' });
+if ((stamp.status ?? 1) !== 0) process.exit(stamp.status ?? 1);
+
 const verify = spawnSync('node', ['scripts/verify-dist-entry.mjs'], { stdio: 'inherit' });
 if ((verify.status ?? 1) !== 0) process.exit(verify.status ?? 1);
 

@@ -2,6 +2,13 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## ACTIVE (2026-07-16) — Device still on stale Despia offline pack
+
+- **Runtime proof:** Prod has hashed entry `/assets/app-CSR5YRUh.js` + markers (`vybe-phone-verify-root`, `oauth_wait1`, Google `code`). Device logs at 19:47–19:48 still only `native-callback` stage closes — **no** `H-dialog` / `landing_boot` / `H-ota`.
+- **Conclusion:** TestFlight is not applying the OTA pack (download-in-background / apply-next-launch never completed).
+- **Fix:** stamp `data-vybe-deployed-at` + Despia localhost→prod escape; Landing `landing_boot` beacon; phone overlay shows build suffix; native-callback “Open VYBE” App Link fallback.
+- **User unblock:** Delete TestFlight app → reinstall → open → wait 20s → force-quit → open again. Confirm phone sheet shows a 6-digit `build ……` and is centered.
+
 ## ACTIVE (2026-07-16) — Force Despia OTA to fetch current app entry
 
 - **Runtime proof (19:39 UTC):** device still launched old Google `id_token` → `native-callback.html` and emitted no `H-dialog` log, while live production `app.js` contains Google PKCE + custom centered phone overlay.

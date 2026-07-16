@@ -214,6 +214,39 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
     clearStaleOAuthRedirectPending();
     clearStaleDespiaOAuthPending();
     preloadAppleSignIn();
+    // #region agent log
+    try {
+      const build =
+        typeof document !== 'undefined'
+          ? document.documentElement.getAttribute('data-vybe-deployed-at') || 'unknown'
+          : 'unknown';
+      const entry =
+        typeof document !== 'undefined'
+          ? document.documentElement.getAttribute('data-vybe-entry') || 'unknown'
+          : 'unknown';
+      void fetch('https://us-central1-vybe-daaab.cloudfunctions.net/authQr', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          data: {
+            action: 'debug_oauth',
+            event: 'landing_boot',
+            hypothesisId: 'H-ota',
+            location: 'Landing.tsx:boot',
+            payload: {
+              build,
+              entry,
+              host: typeof location !== 'undefined' ? location.hostname : '',
+              path: typeof location !== 'undefined' ? location.pathname : '',
+            },
+          },
+        }),
+        keepalive: true,
+      }).catch(() => {});
+    } catch {
+      /* ignore */
+    }
+    // #endregion
     // Resume chip only — do NOT set isOAuthReturn (that full-screens "Completing…" forever).
     if (isDespiaOAuthInFlight()) {
       const provider = getDespiaOAuthPendingProvider();
