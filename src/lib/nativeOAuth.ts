@@ -106,7 +106,7 @@ async function signInWithOAuthPlatformInner(provider: OAuthProviderId): Promise<
   if (shouldUseDespiaOAuth(provider)) {
     authLog('oauth_strategy', {
       provider,
-      strategy: provider === 'apple' && !platform.isAndroidWebView ? 'apple-js' : 'despia-oauth',
+      strategy: 'despia-oauth',
     });
     if (provider === 'google') return tryDespiaGoogleOAuth();
     if (provider === 'apple') return tryDespiaAppleOAuth();
