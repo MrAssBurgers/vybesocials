@@ -3,35 +3,29 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>VYBE · Sign in</title>
+  <title></title>
   <style>
-    html, body { margin: 0; min-height: 100%; background: #0B0B10; color: #a1a1aa; font-family: system-ui, -apple-system, sans-serif; }
-    body {
-      min-height: 100vh;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      gap: 8px;
-      padding: 24px;
-      text-align: center;
-    }
-    .brand { font-size: 22px; font-weight: 700; letter-spacing: 0.12em; color: #fafafa; }
-    .sub { font-size: 13px; opacity: 0.7; }
+    html, body { margin: 0; min-height: 100%; background: #0B0B10; }
   </style>
 </head>
 <body>
-  <div class="brand">VYBE</div>
-  <div class="sub">Signing in · vybehub.app</div>
   <script>
     /**
-     * https://vybehub.app/native-callback.html
-     * Google (id_token) + Apple (fragment) Despia return.
-     * Exchange FIRST (keepalive), then short hc= deeplink — never long state.
+     * https://vybehub.app/native-callback.html — Despia Google/Apple return.
+     *
+     * Goal: close Custom Tab / ASWeb as soon as account is picked, without a
+     * "VYBE" interstitial. App WebView already polls by nonce.
+     *
+     *  1) Soft-fire wait=1 (iframe / <a> / intent) — does NOT top-level navigate
+     *     so the exchange fetch stays alive
+     *  2) Exchange id_token → short hc= (keepalive)
+     *  3) Hard-fire hc= with location.href so Despia closes the sheet
      */
     (function () {
       var DEFAULT_SCHEME = 'com.despia.vybe';
+      var PACKAGE_NAME = 'com.despia.vybe';
       var EXCHANGE_URL = 'https://us-central1-vybe-daaab.cloudfunctions.net/authQr';
+      var closed = false;
 
       function decodeState(state) {
         if (!state) return null;
@@ -56,15 +50,92 @@
       }
 
       function buildDeeplink(scheme, query) {
-        var cleanScheme = String(scheme || DEFAULT_SCHEME).trim();
-        if (!cleanScheme || cleanScheme.indexOf('://') !== -1) cleanScheme = DEFAULT_SCHEME;
-        return cleanScheme + '://oauth/auth?' + query;
+        var clean = String(scheme || DEFAULT_SCHEME).trim();
+        if (!clean || clean.indexOf('://') !== -1) clean = DEFAULT_SCHEME;
+        return clean + '://oauth/auth?' + query;
       }
 
-      function fireClose(deeplink) {
+      function buildAndroidIntentUrl(deeplink) {
+        try {
+          var parsed = new URL(deeplink);
+          var scheme = String(parsed.protocol || '').replace(/:$/, '');
+          if (!scheme || scheme === 'http' || scheme === 'https') return null;
+          var path = (parsed.hostname || '') + (parsed.pathname || '');
+          if (path.charAt(0) === '/') path = path.slice(1);
+          var query = parsed.search ? parsed.search.slice(1) : '';
+          return (
+            'intent://' +
+            path +
+            (query ? '?' + query : '') +
+            '#Intent;scheme=' +
+            encodeURIComponent(scheme) +
+            ';package=' +
+            encodeURIComponent(PACKAGE_NAME) +
+            ';end'
+          );
+        } catch (e) {
+          return null;
+        }
+      }
+
+      function isAndroid() {
+        return /Android/i.test(navigator.userAgent || '');
+      }
+
+      /** Soft close — keep this document alive for fetch. */
+      function softFire(deeplink) {
         if (!deeplink || deeplink.indexOf('oauth') === -1) return;
+        try {
+          var iframe = document.createElement('iframe');
+          iframe.setAttribute('aria-hidden', 'true');
+          iframe.style.cssText = 'position:absolute;width:0;height:0;border:0;visibility:hidden';
+          iframe.src = deeplink;
+          document.body.appendChild(iframe);
+          setTimeout(function () {
+            try { iframe.remove(); } catch (e) {}
+          }, 600);
+        } catch (e1) {}
+        try {
+          var a = document.createElement('a');
+          a.href = deeplink;
+          a.rel = 'noopener';
+          a.style.display = 'none';
+          document.body.appendChild(a);
+          a.click();
+          setTimeout(function () {
+            try { a.remove(); } catch (e2) {}
+          }, 100);
+        } catch (e3) {}
+        if (isAndroid()) {
+          var intentUrl = buildAndroidIntentUrl(deeplink);
+          if (intentUrl) {
+            try {
+              var ai = document.createElement('a');
+              ai.href = intentUrl;
+              ai.style.display = 'none';
+              document.body.appendChild(ai);
+              ai.click();
+              setTimeout(function () {
+                try { ai.remove(); } catch (e4) {}
+              }, 100);
+            } catch (e5) {}
+          }
+        }
+      }
+
+      /** Hard close — Despia official signal. */
+      function hardFire(deeplink) {
+        if (!deeplink || deeplink.indexOf('oauth') === -1) return;
+        softFire(deeplink);
         try { window.location.replace(deeplink); } catch (e1) {}
         try { window.location.href = deeplink; } catch (e2) {}
+        if (isAndroid()) {
+          var intentUrl = buildAndroidIntentUrl(deeplink);
+          if (intentUrl) {
+            try { window.location.href = intentUrl; } catch (e3) {}
+          }
+        }
+        try { window.close(); } catch (e4) {}
       }
 
       function callAuthQr(payload) {
@@ -84,6 +155,11 @@
         return (result.data && result.data.result) || result.data || {};
       }
 
+      document.addEventListener('visibilitychange', function () {
+        if (document.visibilityState === 'hidden') closed = true;
+      });
+      window.addEventListener('pagehide', function () { closed = true; });
+
       var params = getParams();
       var stateObj = decodeState(params.get('state'));
       var scheme = (stateObj && stateObj.scheme) || DEFAULT_SCHEME;
@@ -93,16 +169,25 @@
       var nonce = (stateObj && stateObj.nonce) || '';
 
       if (error) {
-        fireClose(buildDeeplink(scheme, 'error=' + encodeURIComponent(String(error).slice(0, 64))));
+        hardFire(buildDeeplink(scheme, 'error=' + encodeURIComponent(String(error).slice(0, 64))));
         return;
       }
 
       if (!idToken) {
-        fireClose(buildDeeplink(scheme, 'error=missing_token'));
+        hardFire(buildDeeplink(scheme, 'error=missing_token'));
         return;
       }
 
-      // Start exchange before any close navigation (app already polls by nonce).
+      // Soft-close immediately so the account sheet dismisses while we exchange.
+      if (nonce) {
+        softFire(
+          buildDeeplink(
+            scheme,
+            'nonce=' + encodeURIComponent(nonce) + '&wait=1&provider=' + encodeURIComponent(provider),
+          ),
+        );
+      }
+
       var stashPromise =
         provider === 'apple'
           ? callAuthQr({
@@ -119,11 +204,18 @@
           var handoff = payload.code;
           if (!result.ok || !handoff) throw new Error('exchange_failed');
           var link = buildDeeplink(scheme, 'hc=' + encodeURIComponent(handoff));
-          fireClose(link);
-          setTimeout(function () { fireClose(link); }, 60);
+          if (!closed) {
+            hardFire(link);
+            setTimeout(function () {
+              if (!closed) hardFire(link);
+            }, 80);
+            setTimeout(function () {
+              if (!closed) hardFire(link);
+            }, 250);
+          }
         })
         .catch(function () {
-          fireClose(buildDeeplink(scheme, 'error=exchange_failed'));
+          if (!closed) hardFire(buildDeeplink(scheme, 'error=exchange_failed'));
         });
     })();
   </script>

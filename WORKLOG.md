@@ -2,6 +2,16 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## PUBLISH NOW (2026-07-15) — Auto-close Google sheet + instant rehydrate
+
+- **On `origin/main`:** (pushing)
+- **Issue:** After Google account pick, stuck on VYBE interstitial until user closes browser; then login works
+- **Fix:** blank `native-callback` soft-fires `wait=1` immediately (iframe/intent) then hard-fires short `hc=`; Landing finishes session on visibility + `refreshProfile` + query invalidate
+- **Lovable → Share → Publish:** https://lovable.dev/projects/416714c8-d013-4aff-984d-522418a9bbc7
+- **Verify:** hard-kill → Google → pick account → sheet closes by itself → home fully loaded (no manual close)
+
+---
+
 ## PUBLISH NOW (2026-07-15) — Google on vybehub.app (id_token) + login
 
 - **On `origin/main`:** `e190d199` — `https://vybehub.app/native-callback.html`

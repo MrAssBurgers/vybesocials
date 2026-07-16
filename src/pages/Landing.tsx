@@ -154,7 +154,7 @@ interface LandingProps {
 
 export default function Landing({ onInviteNavigate, isInviteMode = false }: LandingProps) {
   const { t } = useTranslation();
-  const { user, signIn, signUp, resendVerification, authReady, profile, applyOAuthSession } = useAuth();
+  const { user, signIn, signUp, resendVerification, authReady, profile, applyOAuthSession, refreshProfile } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { triggerTransition } = useThemeTransition();
@@ -228,18 +228,39 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
 
   // Complete Despia oauth:// return (deeplink / window.url with hc=).
   useEffect(() => {
+    let finishing = false;
     const finishDespiaOAuth = (detail?: {
       error?: { message?: string; name?: string } | null;
       data?: { session?: Parameters<typeof applyOAuthSession>[0] | null };
     }) => {
+      if (finishing) return;
       if (detail?.data?.session?.user) {
+        finishing = true;
         clearDespiaOAuthPending();
         clearOAuthRedirectPending();
         applyOAuthSession(detail.data.session);
         setOauthOverlay(null);
         setLoading(false);
         setIsOAuthReturn(false);
-        void claimProfileAfterOAuth().then(() => {
+        // Claim + rehydrate profile/queries immediately so home is warm on first paint.
+        void (async () => {
+          try {
+            await claimProfileAfterOAuth();
+          } catch {
+            /* ignore */
+          }
+          try {
+            await refreshProfile();
+          } catch {
+            /* ignore */
+          }
+          try {
+            const qc = (window as unknown as { __REACT_QUERY_CLIENT__?: { invalidateQueries: (opts: object) => void } })
+              .__REACT_QUERY_CLIENT__;
+            qc?.invalidateQueries({ refetchType: 'active' });
+          } catch {
+            /* optional */
+          }
           const cached = getCachedCurrentProfile();
           toast.success('Welcome back! ✨');
           navigate(
@@ -251,7 +272,7 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
             ),
             { replace: true },
           );
-        });
+        })();
         return;
       }
 
@@ -306,13 +327,26 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
     window.addEventListener('pageshow', onUrlMaybeChanged);
     window.addEventListener('focus', onUrlMaybeChanged);
     const onVisible = () => {
-      if (document.visibilityState === 'visible') {
-        resumeDespiaOAuthNoncePollIfPending();
-        onUrlMaybeChanged();
+      if (document.visibilityState !== 'visible') return;
+      resumeDespiaOAuthNoncePollIfPending();
+      onUrlMaybeChanged();
+      // Sheet dismissed — if Firebase already has a user from a background poll, finish now.
+      if (isDespiaOAuthInFlight()) {
+        void import('@/lib/firebase').then(async ({ firebaseAuth }) => {
+          try {
+            if (!firebaseAuth.auth?.currentUser) return;
+            const { data } = await firebaseAuth.getSession();
+            if (data.session?.user) {
+              finishDespiaOAuth({ data: { session: data.session }, error: null });
+            }
+          } catch {
+            /* ignore */
+          }
+        });
       }
     };
     document.addEventListener('visibilitychange', onVisible);
-    const poll = window.setInterval(onUrlMaybeChanged, 400);
+    const poll = window.setInterval(onUrlMaybeChanged, 250);
 
     return () => {
       window.removeEventListener('despia-oauth-complete', onComplete);
@@ -323,7 +357,7 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
       document.removeEventListener('visibilitychange', onVisible);
       window.clearInterval(poll);
     };
-  }, [navigate, profile, applyOAuthSession]);
+  }, [navigate, profile, applyOAuthSession, refreshProfile]);
 
   // Never leave the login chip spinning forever if the system sheet dies.
   useEffect(() => {
