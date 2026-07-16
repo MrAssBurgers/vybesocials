@@ -133,6 +133,16 @@ export default {
           "0%": { opacity: "1", transform: "scale(1)", filter: "blur(0px)" },
           "100%": { opacity: "0", transform: "scale(0.6)", filter: "blur(4px)" },
         },
+        // Dialog centering: keep translate(-50%,-50%) so scale animation cannot unpin dialogs to the top.
+        "bubble-pop-in-centered": {
+          "0%": { opacity: "0", transform: "translate(-50%, -50%) scale(0.6)", filter: "blur(4px)" },
+          "70%": { opacity: "1", transform: "translate(-50%, -50%) scale(1.01)", filter: "blur(0px)" },
+          "100%": { opacity: "1", transform: "translate(-50%, -50%) scale(1)", filter: "blur(0px)" },
+        },
+        "bubble-pop-out-centered": {
+          "0%": { opacity: "1", transform: "translate(-50%, -50%) scale(1)", filter: "blur(0px)" },
+          "100%": { opacity: "0", transform: "translate(-50%, -50%) scale(0.6)", filter: "blur(4px)" },
+        },
         "opacity-in": {
           from: { opacity: "0" },
           to: { opacity: "1" },
@@ -171,6 +181,8 @@ export default {
         spin: "spin 1s linear infinite",
         "bubble-pop-in": "bubble-pop-in 0.35s cubic-bezier(0.16, 1, 0.3, 1)",
         "bubble-pop-out": "bubble-pop-out 0.25s cubic-bezier(0.4, 0, 0.2, 1)",
+        "bubble-pop-in-centered": "bubble-pop-in-centered 0.35s cubic-bezier(0.16, 1, 0.3, 1)",
+        "bubble-pop-out-centered": "bubble-pop-out-centered 0.25s cubic-bezier(0.4, 0, 0.2, 1)",
         "slide-in-right": "slide-in-right 0.5s cubic-bezier(0.16, 1, 0.3, 1)",
         "slide-out-right": "slide-out-right 0.4s cubic-bezier(0.4, 0, 0.2, 1)",
         "slide-in-left": "slide-in-left 0.5s cubic-bezier(0.16, 1, 0.3, 1)",

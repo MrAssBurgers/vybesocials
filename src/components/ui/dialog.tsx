@@ -30,47 +30,56 @@ DialogOverlay.displayName = DialogPrimitive.Overlay.displayName;
 const DialogContent = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Content>,
   React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content>
->(({ className, children, onEscapeKeyDown, onPointerDownOutside, ...props }, ref) => (
+>(({ className, children, onEscapeKeyDown, onPointerDownOutside, style, ...props }, ref) => (
   <DialogPortal>
     <DialogOverlay />
-    <DialogPrimitive.Content
-      ref={ref}
-      onEscapeKeyDown={(e) => {
-        onEscapeKeyDown?.(e);
-        e.preventDefault();
+    {/* Flex shell centers without transform — bubble-pop scale cannot unpin the dialog. */}
+    <div
+      className="fixed inset-0 z-[151] flex items-center justify-center pointer-events-none"
+      style={{
+        paddingTop: 'max(0.75rem, var(--sat, env(safe-area-inset-top, 0px)))',
+        paddingBottom: 'max(0.75rem, var(--sab, env(safe-area-inset-bottom, 0px)))',
+        paddingLeft: 'max(0.75rem, env(safe-area-inset-left, 0px))',
+        paddingRight: 'max(0.75rem, env(safe-area-inset-right, 0px))',
       }}
-      onPointerDownOutside={(e) => {
-        onPointerDownOutside?.(e);
-        e.preventDefault();
-      }}
-      className={cn(
-        // True center on mobile + desktop (inset-0 m-auto pins tall sheets to the top on iOS).
-        "fixed left-1/2 top-1/2 z-[151] -translate-x-1/2 -translate-y-1/2",
-        "w-[90vw] max-w-lg h-fit",
-        "max-h-[min(85vh,calc(100dvh-var(--sat,env(safe-area-inset-top,0px))-var(--sab,env(safe-area-inset-bottom,0px))-1.5rem))]",
-        // Solid background with glass effect overlay
-        "bg-background/95 backdrop-blur-xl",
-        "border border-border/50",
-        "overflow-hidden rounded-2xl md:rounded-3xl",
-        "shadow-2xl shadow-black/20",
-        // Bubble pop animation - grows from center
-        "data-[state=open]:animate-bubble-pop-in data-[state=closed]:animate-bubble-pop-out",
-        className,
-      )}
-      {...props}
     >
-      <DialogPrimitive.Title className="sr-only">Dialog</DialogPrimitive.Title>
-      <div className="p-6 overflow-y-auto max-h-[85vh]">
-        {children}
-      </div>
-      <DialogPrimitive.Close 
-        className="absolute right-3 top-3 sm:right-4 sm:top-4 rounded-full bg-muted/80 flex items-center justify-center opacity-70 ring-offset-background transition-all hover:opacity-100 hover:bg-muted focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none z-10"
-        style={{ width: 28, height: 28, minWidth: 28, minHeight: 28 }}
+      <DialogPrimitive.Content
+        ref={ref}
+        onEscapeKeyDown={(e) => {
+          onEscapeKeyDown?.(e);
+          e.preventDefault();
+        }}
+        onPointerDownOutside={(e) => {
+          onPointerDownOutside?.(e);
+          e.preventDefault();
+        }}
+        className={cn(
+          "relative pointer-events-auto z-[151]",
+          "w-[90vw] max-w-lg h-fit",
+          "max-h-[min(85vh,calc(100dvh-var(--sat,env(safe-area-inset-top,0px))-var(--sab,env(safe-area-inset-bottom,0px))-2rem))]",
+          "bg-background/95 backdrop-blur-xl",
+          "border border-border/50",
+          "overflow-hidden rounded-2xl md:rounded-3xl",
+          "shadow-2xl shadow-black/20",
+          "data-[state=open]:animate-bubble-pop-in data-[state=closed]:animate-bubble-pop-out",
+          className,
+        )}
+        style={style}
+        {...props}
       >
-        <X style={{ width: 14, height: 14 }} />
-        <span className="sr-only">Close</span>
-      </DialogPrimitive.Close>
-    </DialogPrimitive.Content>
+        <DialogPrimitive.Title className="sr-only">Dialog</DialogPrimitive.Title>
+        <div className="p-6 overflow-y-auto max-h-[85vh]">
+          {children}
+        </div>
+        <DialogPrimitive.Close
+          className="absolute right-3 top-3 sm:right-4 sm:top-4 rounded-full bg-muted/80 flex items-center justify-center opacity-70 ring-offset-background transition-all hover:opacity-100 hover:bg-muted focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none z-10"
+          style={{ width: 28, height: 28, minWidth: 28, minHeight: 28 }}
+        >
+          <X style={{ width: 14, height: 14 }} />
+          <span className="sr-only">Close</span>
+        </DialogPrimitive.Close>
+      </DialogPrimitive.Content>
+    </div>
   </DialogPortal>
 ));
 DialogContent.displayName = DialogPrimitive.Content.displayName;
@@ -107,7 +116,11 @@ const DialogDescription = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Description>,
   React.ComponentPropsWithoutRef<typeof DialogPrimitive.Description>
 >(({ className, ...props }, ref) => (
-  <DialogPrimitive.Description ref={ref} className={cn("text-sm text-muted-foreground", className)} {...props} />
+  <DialogPrimitive.Description
+    ref={ref}
+    className={cn("text-sm text-muted-foreground", className)}
+    {...props}
+  />
 ));
 DialogDescription.displayName = DialogPrimitive.Description.displayName;
 

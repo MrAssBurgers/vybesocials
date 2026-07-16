@@ -3,47 +3,53 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>VYBE · Google sign-in</title>
+  <title></title>
   <style>
     html, body {
       margin: 0;
       min-height: 100%;
       background: #0B0B10;
-      color: #a1a1aa;
-      font-family: system-ui, -apple-system, sans-serif;
     }
-    body {
-      min-height: 100vh;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      gap: 8px;
-      padding: 24px;
-      text-align: center;
-    }
-    .brand {
-      font-size: 22px;
-      font-weight: 700;
-      letter-spacing: 0.12em;
-      color: #fafafa;
-    }
-    .sub { font-size: 13px; opacity: 0.7; }
   </style>
 </head>
 <body>
-  <div class="brand">VYBE</div>
-  <div class="sub">Signing in with Google · vybehub.app</div>
   <script>
     /**
      * Lives on https://vybehub.app/google-callback.html (Google redirect URI).
-     * Exchanges auth code via authQr, stashes hc= for nonce poll, fires short
+     * Exchanges auth code via authQr, stashes hc= for nonce poll, fires
      * com.despia.vybe://oauth/auth?hc=… so Despia closes the sheet.
+     *
+     * Instant dismiss: iOS custom-scheme close does not unload ASWeb, so we
+     * soft-close with wait=1 immediately while exchange runs (nonce poll).
+     * Android CCT unloads on App Link — exchange-first, then hc= close.
      */
     (function () {
       var DEFAULT_SCHEME = 'com.despia.vybe';
       var EXCHANGE_URL = 'https://us-central1-vybe-daaab.cloudfunctions.net/authQr';
       var REDIRECT_URI = 'https://vybehub.app/google-callback.html';
+      var closed = false;
+      var softFired = false;
+
+      // #region agent log
+      function dbg(hypothesisId, message, data) {
+        try {
+          fetch(EXCHANGE_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              data: {
+                action: 'debug_oauth',
+                event: message,
+                hypothesisId: hypothesisId,
+                location: 'google-callback.html',
+                payload: data || {},
+              },
+            }),
+            keepalive: true,
+          }).catch(function () {});
+        } catch (e1) {}
+      }
+      // #endregion
 
       function decodeState(state) {
         if (!state) return null;
@@ -62,8 +68,20 @@
         return clean + '://oauth/auth?' + query;
       }
 
+      function isAndroid() {
+        return /Android/i.test(navigator.userAgent || '');
+      }
+
       function fireClose(deeplink) {
-        if (!deeplink || deeplink.indexOf('oauth') === -1) return;
+        if (!deeplink || deeplink.indexOf('oauth') === -1 || closed) return;
+        // #region agent log
+        dbg('H-google', 'fire_close', {
+          android: isAndroid(),
+          hasHc: deeplink.indexOf('hc=') !== -1,
+          hasWait: deeplink.indexOf('wait=') !== -1,
+          softFired: softFired,
+        });
+        // #endregion
         try { window.location.replace(deeplink); } catch (e1) {}
         try { window.location.href = deeplink; } catch (e2) {}
       }
@@ -85,6 +103,13 @@
         return (result.data && result.data.result) || result.data || {};
       }
 
+      document.addEventListener('visibilitychange', function () {
+        if (document.visibilityState === 'hidden') closed = true;
+      });
+      window.addEventListener('pagehide', function () {
+        closed = true;
+      });
+
       var params = new URLSearchParams(window.location.search);
       var state = params.get('state') || '';
       var stateObj = decodeState(state);
@@ -93,6 +118,16 @@
       var cv = (stateObj && stateObj.cv) || '';
       var authCode = params.get('code') || '';
       var error = params.get('error');
+
+      // #region agent log
+      dbg('H-google', 'callback_boot', {
+        hasCode: Boolean(authCode),
+        hasCv: Boolean(cv),
+        hasNonce: Boolean(nonce),
+        android: isAndroid(),
+        hasError: Boolean(error),
+      });
+      // #endregion
 
       if (error) {
         fireClose(buildDeeplink(scheme, 'error=' + encodeURIComponent(String(error).slice(0, 64))));
@@ -104,18 +139,39 @@
         return;
       }
 
-      // Exchange first (app already polling by nonce from launch). Do not
-      // top-level-navigate before fetch starts — that cancels the exchange.
-      callAuthQr({
+      // Start exchange immediately.
+      var stashPromise = callAuthQr({
         action: 'exchange_google_code',
         code: authCode,
         codeVerifier: cv,
         redirectUri: REDIRECT_URI,
         nonce: nonce,
-      })
+      });
+
+      // iOS: soft-close NOW (custom scheme does not unload ASWeb → fetch continues).
+      // App already polling by nonce; sheet disappears right after account pick.
+      if (!isAndroid() && nonce) {
+        softFired = true;
+        fireClose(
+          buildDeeplink(
+            scheme,
+            'nonce=' + encodeURIComponent(nonce) + '&wait=1&provider=google',
+          ),
+        );
+      }
+
+      stashPromise
         .then(function (result) {
           var payload = payloadOf(result);
           var handoff = payload.code;
+          // #region agent log
+          dbg('H-google', 'exchange_result', {
+            ok: Boolean(result.ok),
+            hasHandoff: Boolean(handoff),
+            softFired: softFired,
+            closed: closed,
+          });
+          // #endregion
           if (!result.ok || !handoff) {
             var errMsg =
               (result.data && result.data.error && result.data.error.message) ||
@@ -124,11 +180,15 @@
             throw new Error(errMsg);
           }
           var link = buildDeeplink(scheme, 'hc=' + encodeURIComponent(handoff));
-          fireClose(link);
-          setTimeout(function () { fireClose(link); }, 60);
+          if (!closed) {
+            fireClose(link);
+            setTimeout(function () {
+              if (!closed) fireClose(link);
+            }, 40);
+          }
         })
         .catch(function () {
-          fireClose(buildDeeplink(scheme, 'error=exchange_failed'));
+          if (!closed) fireClose(buildDeeplink(scheme, 'error=exchange_failed'));
         });
     })();
   </script>

@@ -2,6 +2,14 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## ACTIVE (2026-07-16) — Center phone dialog + instant OAuth dismiss
+
+- **Phone verify top-pinned:** `animate-bubble-pop-in` overwrote `-translate-*`; DialogContent now uses a **flex centering shell** (scale animation safe). X stays below safe-area padding.
+- **Google sheet slow close:** `google-callback.html` soft-closes with `wait=1` **immediately on iOS** while exchange runs (nonce poll); blank page; Android still exchange-then-`hc=`.
+- **Apple web under Face ID:** while `AppleID.auth.signIn()` runs, repeatedly fire Despia `oauth/auth?wait=1` so ASWeb stays dismissed; opaque Landing overlay for Apple.
+- **Instrumentation:** PhoneVerifyGate geometry + google-callback `debug_oauth` + apple JS logs (`bd2545`).
+- **Next:** Lovable Publish + verify TestFlight — dialog centered; Google closes on account pick; Apple shows Face ID only.
+
 ## PUBLISH NOW (2026-07-16) — Error Monitor: Copy All / Fix All saw no bugs
 
 - **On `origin/main`:** `0a266094d`

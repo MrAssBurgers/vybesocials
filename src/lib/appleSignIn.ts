@@ -5,6 +5,8 @@
 import { OAuthProvider, linkWithCredential, signInWithCredential } from 'firebase/auth';
 import { getProductionOrigin } from '@/lib/authRedirect';
 import { mapOAuthLinkError } from '@/lib/oauthAccountLink';
+import { debugSessionLog } from '@/lib/debugSessionLog';
+import { despiaCall } from '@/lib/despiaBridge';
 import type { VybeAuthError, VybeSession } from '@/lib/firebase/types';
 
 const APPLE_SCRIPT = 'https://appleid.cdn-apple.com/appleauth/static/jsapi/appleid/1/en_US/appleid.auth.js';
@@ -42,6 +44,32 @@ function randomNonce(): string {
 async function sha256Hex(value: string): Promise<string> {
   const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value));
   return Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, '0')).join('');
+}
+
+/** Dismiss any leftover ASWeb/oauth sheet the moment native Apple UI finishes. */
+function dismissAppleWebSheetResidue(): void {
+  try {
+    if (typeof window !== 'undefined' && window.opener && !window.opener.closed) {
+      window.close();
+    }
+  } catch {
+    /* ignore */
+  }
+  try {
+    void despiaCall('com.despia.vybe://oauth/auth?wait=1&provider=apple');
+  } catch {
+    /* ignore */
+  }
+  try {
+    const a = document.createElement('a');
+    a.href = 'com.despia.vybe://oauth/auth?wait=1&provider=apple';
+    a.style.display = 'none';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  } catch {
+    /* ignore */
+  }
 }
 
 let scriptPromise: Promise<void> | null = null;
@@ -96,6 +124,16 @@ export async function signInWithAppleJsSdk(): Promise<{
     // avoid navigating the main WebView to native-callback.
     const redirectURI = `${getProductionOrigin()}/native-callback.html`;
 
+    // #region agent log
+    debugSessionLog(
+      'appleSignIn.ts:init',
+      'apple_js_init',
+      { usePopup: true, hasOpener: Boolean(window.opener) },
+      'H-apple',
+      'post-fix',
+    );
+    // #endregion
+
     window.AppleID.auth.init({
       clientId: getAppleServicesId(),
       scope: 'name email',
@@ -104,13 +142,25 @@ export async function signInWithAppleJsSdk(): Promise<{
       nonce: hashedNonce,
     });
 
-    const response = await window.AppleID.auth.signIn();
-    // Close any leftover Apple popup / ASWeb that failed to auto-dismiss.
+    // Keep dismissing Despia ASWeb while Face ID runs so only the native sheet is visible.
+    const hideWeb = window.setInterval(() => dismissAppleWebSheetResidue(), 180);
+    let response: AppleAuthResponse;
     try {
-      if (typeof window !== 'undefined' && window.opener) window.close();
-    } catch {
-      /* ignore */
+      response = await window.AppleID.auth.signIn();
+    } finally {
+      window.clearInterval(hideWeb);
+      dismissAppleWebSheetResidue();
     }
+    // #region agent log
+    debugSessionLog(
+      'appleSignIn.ts:signed',
+      'apple_js_signed_in',
+      { hasIdToken: Boolean(response.authorization?.id_token) },
+      'H-apple',
+      'post-fix',
+    );
+    // #endregion
+
     const idToken = response.authorization?.id_token;
     if (!idToken) {
       return {
@@ -132,6 +182,7 @@ export async function signInWithAppleJsSdk(): Promise<{
     if (error) return { data: { session: null }, error: mapOAuthLinkError(error) };
     return { data: { session: data.session }, error: null };
   } catch (err: unknown) {
+    dismissAppleWebSheetResidue();
     const asAny = err as { error?: string; message?: string; code?: string };
     if (
       asAny?.error === 'popup_closed_by_user' ||
@@ -202,7 +253,14 @@ export async function linkWithAppleJsSdk(): Promise<{
       nonce: hashedNonce,
     });
 
-    const response = await window.AppleID.auth.signIn();
+    const hideWeb = window.setInterval(() => dismissAppleWebSheetResidue(), 180);
+    let response: AppleAuthResponse;
+    try {
+      response = await window.AppleID.auth.signIn();
+    } finally {
+      window.clearInterval(hideWeb);
+      dismissAppleWebSheetResidue();
+    }
     const idToken = response.authorization?.id_token;
     if (!idToken) {
       return {
@@ -216,6 +274,7 @@ export async function linkWithAppleJsSdk(): Promise<{
     await linkWithCredential(auth.currentUser, credential);
     return { data: { linked: true }, error: null };
   } catch (err: unknown) {
+    dismissAppleWebSheetResidue();
     const asAny = err as { error?: string; message?: string; code?: string };
     if (
       asAny?.error === 'popup_closed_by_user' ||

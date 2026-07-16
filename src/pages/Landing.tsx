@@ -1116,10 +1116,15 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
 
       {/* Touch ripple removed */}
 
-      {/* Stay on login — light dim only while the system account sheet is open. */}
+      {/* Apple: opaque cover so any in-WebView flash stays behind Face ID only.
+          Google: light dim while the system account sheet is open. */}
       {(oauthOverlay || (isOAuthReturn && loading)) && (
         <div
-          className="fixed inset-0 z-[80] flex flex-col items-center justify-end gap-3 bg-black/35 px-6 pb-[calc(1.75rem+var(--sab,env(safe-area-inset-bottom,0px)))]"
+          className={
+            oauthOverlay === 'apple'
+              ? 'fixed inset-0 z-[80] flex flex-col items-center justify-center gap-3 bg-[#0B0B10] px-6'
+              : 'fixed inset-0 z-[80] flex flex-col items-center justify-end gap-3 bg-black/35 px-6 pb-[calc(1.75rem+var(--sab,env(safe-area-inset-bottom,0px)))]'
+          }
           role="status"
           aria-live="polite"
         >

@@ -535,7 +535,7 @@ export async function signInWithAppleDespia(): Promise<{
     // vybehub.app ASWeb sheet under Face ID — never use those on iOS.
     if (getRuntimeOs() === 'ios') {
       // #region agent log
-      debugSessionLog('despiaOAuth.ts:506', 'apple_signin_js_sdk_ios_only', { provider: 'apple' }, 'H1');
+      debugSessionLog('despiaOAuth.ts:506', 'apple_signin_js_sdk_ios_only', { provider: 'apple' }, 'H-apple');
       // #endregion
       const { signInWithAppleJsSdk } = await import('@/lib/appleSignIn');
       const js = await signInWithAppleJsSdk();
@@ -544,7 +544,8 @@ export async function signInWithAppleDespia(): Promise<{
         'despiaOAuth.ts:512',
         'apple_signin_js_sdk_result',
         { hasSession: !!js.data.session?.user, errorName: js.error?.name || null },
-        'H1',
+        'H-apple',
+        'post-fix',
       );
       // #endregion
       if (js.error) return { pending: false, error: js.error, data: { session: null } };
