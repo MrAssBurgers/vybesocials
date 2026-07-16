@@ -236,8 +236,8 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
             payload: {
               build,
               entry,
-              host: typeof location !== 'undefined' ? location.hostname : '',
-              path: typeof location !== 'undefined' ? location.pathname : '',
+              host: typeof window !== 'undefined' ? window.location.hostname : '',
+              path: typeof window !== 'undefined' ? window.location.pathname : '',
               hasFirebaseAuthUser: Object.keys(localStorage).some((k) =>
                 k.startsWith('firebase:authUser:'),
               ),

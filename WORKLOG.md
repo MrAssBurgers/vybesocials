@@ -2,6 +2,12 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## ACTIVE (2026-07-16) — CI red on main (typecheck)
+
+- **Evidence:** emails for failed CI on `aef700c` / `4fbd639` / `72c05aa`; local `npm run typecheck` → `Landing.tsx(239): Property 'hostname' does not exist on type 'Location<any>'` (react-router `location` shadowed `window.location`).
+- **Fix:** use `window.location.hostname/pathname`. typecheck + 344 tests + build green.
+- **Runtime note:** preview already runs `mid-v4`; `phone_prompt_gate need:false phoneVerified:true` — prompt correctly hidden when verified. Despia still needs Lovable Publish of this CI-fix commit.
+
 ## ACTIVE (2026-07-16) — Repro: new build boots but phone geometry never logged
 
 - **Runtime (ordered Firestore):** boot `app-DY-aWv1E` @ 1784234878449 on vybehub.app; Apple `oauth_launch` after; **zero** `react_root_rendered` / `phone_center_geometry` / `splash_fake_failopen`.
