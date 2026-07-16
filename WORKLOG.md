@@ -2,6 +2,14 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## ACTIVE (2026-07-16) — Force Despia OTA to fetch current app entry
+
+- **Runtime proof (19:39 UTC):** device still launched old Google `id_token` → `native-callback.html` and emitted no `H-dialog` log, while live production `app.js` contains Google PKCE + custom centered phone overlay.
+- **Root cause:** every publish reused `/assets/app.js`; Despia OTA manifests list paths, so the native cache could retain old bytes under the unchanged path.
+- **Fix:** Vite now emits content-hashed primary `/assets/app-<hash>.js`; postbuild copies it to `/assets/app.js` as recovery fallback. `index.html` and `despia/local.json` include the unique primary path, forcing OTA download.
+- **Build proof:** primary `/assets/app-OZxzAS44.js`; manifest includes hashed primary + stable alias; SHA-256 files match.
+- **Next:** Publish and verify runtime emits `H-dialog` / `H-oauth` from the current entry.
+
 ## ACTIVE (2026-07-16) — OAuth session drop + phone verify still top
 
 - **Runtime proof:** live CSS had `vybe-phone-verify-*` but live JS chunk `AppLayout-BDzm1pvB.js` had **zero** phone-overlay code → device still ran old Dialog. No `H-dialog` logs.

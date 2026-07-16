@@ -6,7 +6,7 @@
  * Lovable Publish that skipped the plugin (e.g. VITE_OFFLINE_MODE=pwa).
  */
 
-import { readFileSync, existsSync, copyFileSync, mkdirSync } from 'node:fs';
+import { readFileSync, existsSync, copyFileSync, mkdirSync, readdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
@@ -28,6 +28,20 @@ function readOfflineMode() {
 
 const mode = readOfflineMode();
 console.log(`[postbuild] Offline mode "${mode}" — always generating despia/local.json for Native`);
+
+// Vite's primary entry is content-hashed so Despia OTA sees a new path on every
+// publish. Keep /assets/app.js as a stable recovery alias for old cached shells
+// and the inline boot fallback.
+try {
+  const assetsDir = join(root, 'dist', 'assets');
+  const entry = readdirSync(assetsDir).find((name) => /^app-[A-Za-z0-9_-]+\.js$/.test(name));
+  if (!entry) throw new Error('hashed app entry not found');
+  copyFileSync(join(assetsDir, entry), join(assetsDir, 'app.js'));
+  console.log(`[postbuild] Stable recovery alias: /assets/app.js → /assets/${entry}`);
+} catch (err) {
+  console.error('[postbuild] Could not create stable app.js alias:', err);
+  process.exit(1);
+}
 
 const result = spawnSync('npx', ['despia-local', 'dist'], {
   stdio: 'inherit',

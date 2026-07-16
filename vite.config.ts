@@ -59,8 +59,9 @@ export default defineConfig(({ mode }) => {
     build: {
       rollupOptions: {
         output: {
-          // Stable entry filename — Lovable publish was serving stale index-*.js hashes.
-          entryFileNames: 'assets/app.js',
+          // Content-hashed primary entry forces Despia OTA to download each build.
+          // postbuild-offline also creates /assets/app.js as a stable recovery alias.
+          entryFileNames: 'assets/app-[hash].js',
           chunkFileNames: 'assets/[name]-[hash].js',
           assetFileNames: 'assets/[name]-[hash][extname]',
           manualChunks: {
