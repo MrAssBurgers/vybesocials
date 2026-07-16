@@ -2,6 +2,20 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## PUBLISH NOW (2026-07-15) — Instant sheet close + login
+
+- **On `origin/main`:** `1c482b0c` (instant close) · includes nonce poll `d9b87210`
+- **Prod `vybehub.app` still:** `73681190` — callback waits on exchange before close → stuck loading URL after account pick
+- **Fix:** `native-callback.html` fires `scheme://oauth/auth?nonce=…&wait=1` **immediately** after account pick (Google + Apple), stash/exchange continues with `keepalive`; app polls `authQr` → Firebase sign-in
+- **Backend already live:** `authQr` `poll_oauth_nonce`
+- **You must click Publish:** https://lovable.dev/projects/416714c8-d013-4aff-984d-522418a9bbc7 → **Share → Publish**
+- **After Publish verify:**
+  1. `curl -s https://vybehub.app/ | rg -o 'data-commit-sha="[^"]+"'` → includes `1c482b0c`
+  2. `curl -s https://vybehub.app/native-callback.html | rg 'keepalive|wait=1'` → matches
+  3. Hard-kill app → Google/Apple → pick account → sheet closes → signed in (no stuck loading URL)
+
+---
+
 ## PUBLISH NOW (2026-07-15) — OAuth actually logs in
 
 - **On `origin/main`:** `202d01f7` (includes login fix `d9b87210`)
