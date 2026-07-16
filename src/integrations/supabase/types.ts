@@ -3763,6 +3763,13 @@ export type Database = {
             foreignKeyName: "creator_profiles_user_id_profiles_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: true
+            referencedRelation: "my_profile_private"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "creator_profiles_user_id_profiles_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
             referencedRelation: "profiles"
             referencedColumns: ["user_id"]
           },
@@ -12572,6 +12579,33 @@ export type Database = {
           profile_id: string | null
           rank: number | null
           username: string | null
+        }
+        Relationships: []
+      }
+      my_profile_private: {
+        Row: {
+          date_of_birth: string | null
+          email: string | null
+          phone_e164_sha256: string | null
+          phone_number: string | null
+          stripe_customer_id: string | null
+          user_id: string | null
+        }
+        Insert: {
+          date_of_birth?: string | null
+          email?: string | null
+          phone_e164_sha256?: string | null
+          phone_number?: string | null
+          stripe_customer_id?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          date_of_birth?: string | null
+          email?: string | null
+          phone_e164_sha256?: string | null
+          phone_number?: string | null
+          stripe_customer_id?: string | null
+          user_id?: string | null
         }
         Relationships: []
       }
