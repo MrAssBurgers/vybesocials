@@ -154,8 +154,7 @@
       var stashPromise =
         provider === 'apple'
           ? callAuthQr({
-              action: 'stash_oauth',
-              provider: 'apple',
+              action: 'exchange_apple',
               idToken: idToken,
               nonce: nonce,
             })

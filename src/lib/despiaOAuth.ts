@@ -645,20 +645,21 @@ async function completeDespiaOAuthFromUrlInner(url: string): Promise<DespiaOAuth
 
     const providerHint = redeemedProvider || state?.provider || 'google';
 
-    if (customToken) {
-      // Short handoff → custom token (preferred — avoids long deeplinks).
-      await signInWithCustomToken(auth, customToken);
-    } else if (providerHint === 'apple') {
+  // Prefer custom-token handoff for both Google and Apple (App Link remount safe).
+  // Fall back to provider credential only when no custom token was stashed.
+  if (customToken) {
+    await signInWithCustomToken(auth, customToken);
+  } else if (providerHint === 'apple') {
       const apple = new OAuthProvider('apple.com');
       const credential = apple.credential({
         idToken: idToken!,
         rawNonce: redeemedNonce || storedNonce || state?.nonce || undefined,
       });
       await signInWithCredential(auth, credential);
-    } else {
+  } else {
       const credential = GoogleAuthProvider.credential(idToken!);
       await signInWithCredential(auth, credential);
-    }
+  }
     clearDespiaOAuthPending();
 
     const { data, error: sessionError } = await firebaseAuth.getSession();

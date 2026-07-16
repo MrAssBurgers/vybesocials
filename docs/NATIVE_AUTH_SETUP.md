@@ -68,14 +68,14 @@ big-app pattern is a **system account sheet**:
 
 | Provider | Platform | UX |
 |----------|----------|-----|
-| Google | iOS / Android | `oauth://` → ASWebAuthenticationSession / Custom Tabs → silent `native-callback.html` → `com.despia.vybe://oauth/auth?hc=…` |
+| Google | iOS / Android | `oauth://` → secure browser → `native-callback.html` → Android App Link `/auth?hc=` · iOS `com.despia.vybe://oauth/auth?hc=` |
 | Apple | iOS | Apple JS SDK `usePopup: true` → Face ID / Continue sheet → `signInWithCredential` in-app |
-| Apple | Android | Same `oauth://` handoff as Google (`hc=` stash/redeem) |
+| Apple | Android | Same as Google: `oauth://` → `native-callback.html` → `exchange_apple` (custom token) → App Link `/auth?hc=` |
 
-**Silent callback:** `https://vybehub.app/native-callback.html` must bounce
-immediately with a short `hc=` code (never put JWTs in the deeplink — iOS
-rejects long custom-scheme URLs as “address is invalid”). The page multi-fires
-the deeplink (location + iframe + `window.close`) so ASWeb / Custom Tabs dismiss.
+**Silent callback:** `https://vybehub.app/native-callback.html` exchanges provider `id_token` for a short
+`hc=` code (never put JWTs in the deeplink — iOS rejects long custom-scheme URLs as “address is invalid”).
+Android closes via HTTPS App Link (`https://vybehub.app/auth?hc=…`); iOS uses the custom-scheme deeplink
+with `oauth/` so ASWeb dismisses.
 Fallback “Open VYBE” appears only after ~1.5s if the app did not reclaim the session.
 
 **Landing:** shows an in-app “Continue with Google/Apple…” overlay while the

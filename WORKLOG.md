@@ -2,6 +2,17 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## PUBLISH NOW (2026-07-15) — Apple Android OAuth = Google path
+
+- **On `origin/main`:** (pushing) — `exchange_apple` mints Firebase custom token (parity with Google)
+- **Android Apple:** `oauth://` → `native-callback.html` → App Link `/auth?hc=` → instant login
+- **iOS Apple:** unchanged (JS SDK native sheet)
+- **Apple Developer:** Services ID return URL must include `https://vybehub.app/native-callback.html`
+- **Lovable → Share → Publish:** https://lovable.dev/projects/416714c8-d013-4aff-984d-522418a9bbc7
+- **Verify:** Android → Continue with Apple → pick account → sheet auto-closes → signed in
+
+---
+
 ## PUBLISH NOW (2026-07-15) — Google OAuth auto-close + instant login (cleaned up)
 
 - **On `origin/main`:** (pushing) — Android App Link close + idempotent `hc=` redeem; debug instrumentation removed

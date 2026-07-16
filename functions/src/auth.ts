@@ -559,6 +559,121 @@ async function mintCustomTokenFromGoogleIdToken(idToken: string): Promise<string
   return auth.createCustomToken(uid, { provider: 'google.com' });
 }
 
+const APPLE_SERVICES_ID = 'com.despia.vybe.web';
+const APPLE_JWKS_URI = 'https://appleid.apple.com/auth/keys';
+
+type AppleIdTokenPayload = {
+  sub?: string;
+  email?: string;
+  email_verified?: boolean | string;
+  nonce?: string;
+  iss?: string;
+  aud?: string | string[];
+};
+
+/** Verify Apple id_token (JWKS) and mint a short Firebase custom token — same handoff as Google. */
+async function mintCustomTokenFromAppleIdToken(
+  idToken: string,
+  expectedNonce?: string,
+): Promise<string> {
+  const { createHash } = await import('crypto');
+  // Transitively available via firebase-admin; verify Apple JWKS + mint custom token.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const jwksClient = ((await import('jwks-rsa')) as any).default || (await import('jwks-rsa'));
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const jwt = ((await import('jsonwebtoken')) as any).default || (await import('jsonwebtoken'));
+
+  const client = jwksClient({ jwksUri: APPLE_JWKS_URI, cache: true });
+
+  const payload = await new Promise<AppleIdTokenPayload>((resolve, reject) => {
+    jwt.verify(
+      idToken,
+      (header: { kid?: string }, callback: (err: Error | null, key?: string) => void) => {
+        client.getSigningKey(header.kid, (err: Error | null, key?: { getPublicKey: () => string }) => {
+          if (err || !key) {
+            callback(err || new Error('apple_jwks_key_missing'));
+            return;
+          }
+          callback(null, key.getPublicKey());
+        });
+      },
+      {
+        algorithms: ['RS256'],
+        audience: APPLE_SERVICES_ID,
+        issuer: 'https://appleid.apple.com',
+      },
+      (err: Error | null, decoded?: AppleIdTokenPayload) => {
+        if (err || !decoded) {
+          reject(err || new Error('invalid_apple_token'));
+          return;
+        }
+        resolve(decoded);
+      },
+    );
+  });
+
+  const sub = payload.sub;
+  if (!sub) {
+    throw new HttpsError('unauthenticated', 'invalid_token');
+  }
+
+  if (expectedNonce) {
+    const hashed = createHash('sha256').update(expectedNonce).digest('hex');
+    if (payload.nonce && payload.nonce !== hashed) {
+      throw new HttpsError('unauthenticated', 'nonce_mismatch');
+    }
+  }
+
+  const email = payload.email?.trim().toLowerCase() || undefined;
+  const emailVerified =
+    payload.email_verified === true ||
+    payload.email_verified === 'true' ||
+    Boolean(email);
+
+  let uid: string | null = null;
+  try {
+    const existing = await auth.getUserByProviderUid('apple.com', sub);
+    uid = existing.uid;
+  } catch {
+    if (email) {
+      try {
+        const byEmail = await auth.getUserByEmail(email);
+        await auth.updateUser(byEmail.uid, {
+          providerToLink: {
+            providerId: 'apple.com',
+            uid: sub,
+            email,
+          },
+          emailVerified: emailVerified || byEmail.emailVerified,
+        });
+        uid = byEmail.uid;
+      } catch {
+        /* create below */
+      }
+    }
+    if (!uid) {
+      const created = await auth.createUser({
+        email,
+        emailVerified,
+      });
+      try {
+        await auth.updateUser(created.uid, {
+          providerToLink: {
+            providerId: 'apple.com',
+            uid: sub,
+            email,
+          },
+        });
+      } catch (linkErr) {
+        console.warn('[exchange_apple] providerToLink failed', linkErr);
+      }
+      uid = created.uid;
+    }
+  }
+
+  return auth.createCustomToken(uid, { provider: 'apple.com' });
+}
+
 /** One-time Despia deeplink payload (≤2 min). Admin SDK only — no client rules. */
 async function stashOAuthHandoff(payload: {
   provider: string;
@@ -774,9 +889,10 @@ export const appleOAuthCallback = onRequest({ cors: true, invoker: 'public' }, a
   try {
     const ip = req.ip || 'anon';
     enforceRateLimit(await rateLimit(`apple-oauth-cb:${ip}`, 30, 600));
+    const customToken = await mintCustomTokenFromAppleIdToken(idToken, stateObj?.nonce || undefined);
     const code = await stashOAuthHandoff({
       provider: 'apple',
-      idToken,
+      customToken,
       nonce: stateObj?.nonce || undefined,
     });
     res
@@ -888,18 +1004,54 @@ export const authQr = onCall({ cors: true }, async (request) => {
     enforceRateLimit(await rateLimit(`oauth-stash:${ip}`, 30, 600));
     const provider = String((data as { provider?: string }).provider || '').trim() || 'apple';
     const idToken = String(data.idToken || data.id_token || '').trim();
-    const customToken = String((data as { customToken?: string }).customToken || '').trim();
-    const nonce = String((data as { nonce?: string }).nonce || '').trim();
+    let customToken = String((data as { customToken?: string }).customToken || '').trim();
+    const oauthNonce = String((data as { nonce?: string }).nonce || '').trim();
     if (!idToken && !customToken) {
       throw new HttpsError('invalid-argument', 'idToken or customToken required');
+    }
+    // Prefer custom token handoff (same as Google) so App Link remount can signInWithCustomToken.
+    if (!customToken && idToken && provider === 'apple') {
+      try {
+        customToken = await mintCustomTokenFromAppleIdToken(idToken, oauthNonce || undefined);
+      } catch (err: unknown) {
+        if (err instanceof HttpsError) throw err;
+        const message = err instanceof Error ? err.message : String(err);
+        console.error('[authQr] stash_oauth apple mint failed', message);
+        throw new HttpsError('unauthenticated', 'Apple token verification failed');
+      }
     }
     const code = await stashOAuthHandoff({
       provider,
       idToken: idToken || undefined,
       customToken: customToken || undefined,
-      nonce: nonce || undefined,
+      nonce: oauthNonce || undefined,
     });
     return { code };
+  }
+
+  /** exchange_apple — verify Apple id_token, mint custom token, return short hc= (parity with Google). */
+  if (action === 'exchange_apple') {
+    const ip = request.rawRequest?.ip || 'anon';
+    enforceRateLimit(await rateLimit(`oauth-exchange-apple:${ip}`, 20, 600));
+    const idToken = String(data.idToken || data.id_token || '').trim();
+    const oauthNonce = String((data as { nonce?: string }).nonce || '').trim();
+    if (!idToken) {
+      throw new HttpsError('invalid-argument', 'idToken required');
+    }
+    try {
+      const customToken = await mintCustomTokenFromAppleIdToken(idToken, oauthNonce || undefined);
+      const code = await stashOAuthHandoff({
+        provider: 'apple',
+        customToken,
+        nonce: oauthNonce || undefined,
+      });
+      return { customToken, custom_token: customToken, code };
+    } catch (err: unknown) {
+      if (err instanceof HttpsError) throw err;
+      const message = err instanceof Error ? err.message : String(err);
+      console.error('[authQr] exchange_apple failed', message);
+      throw new HttpsError('unauthenticated', 'Apple token verification failed');
+    }
   }
 
   /** Redeem one-time OAuth handoff (Despia WebView). */
