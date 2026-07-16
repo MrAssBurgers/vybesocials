@@ -2,7 +2,17 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
-## PUBLISH handoff (2026-07-15) — Stop endless Completing spinner
+## PUBLISH handoff (2026-07-15) — Actually log in after account pick
+
+- **Merged to `origin/main`:** `d9b87210`
+- **Problem:** After picking Google/Apple account, Despia often closed the sheet but never put `hc=` into the WebView → no Firebase session
+- **Fix:** `authQr` `poll_oauth_nonce` + client poll while pending. native-callback / stash indexes by nonce. App redeems + `signInWithCustomToken` / Apple credential → logged in.
+- **Backend deployed:** `functions:authQr` (poll live now)
+- **Client still needs Lovable Publish** — prod stuck on `7c91bead` (broken form_post + Completing hang)
+- **Lovable → Share → Publish:** https://lovable.dev/projects/416714c8-d013-4aff-984d-522418a9bbc7
+- **After Publish:** hard-kill app → Google/Apple → pick account → must land signed in within a few seconds
+
+---
 
 - **Merged to `origin/main`:** `d2e30ebd`
 - **Why Google hung forever:** Despia `pending` set `isOAuthReturn=true` → full-screen **“Completing sign-in…”** that never got `/auth?hc=` → looked like endless loading
