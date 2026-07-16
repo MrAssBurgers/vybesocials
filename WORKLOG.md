@@ -2,7 +2,17 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
-## PUBLISH handoff (2026-07-15) — Actually log in after account pick
+## PUBLISH NOW (2026-07-15) — OAuth actually logs in
+
+- **On `origin/main`:** `202d01f7` (includes login fix `d9b87210`)
+- **Prod `vybehub.app` still:** `7c91bead` — **broken** (endless Completing / Apple form_post)
+- **Backend already live:** `authQr` `poll_oauth_nonce` (nonce poll → Firebase sign-in)
+- **You must click Publish:** https://lovable.dev/projects/416714c8-d013-4aff-984d-522418a9bbc7 → **Share → Publish**
+- **After Publish verify:**
+  1. `curl -s https://vybehub.app/ | rg -o 'data-commit-sha="[^"]+"'` → includes `202d01f7` or `d9b87210`
+  2. Hard-kill app → Google/Apple → pick account → signed in (no endless spinner)
+
+---
 
 - **Merged to `origin/main`:** `d9b87210`
 - **Problem:** After picking Google/Apple account, Despia often closed the sheet but never put `hc=` into the WebView → no Firebase session
