@@ -2,6 +2,13 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## ACTIVE (2026-07-16) — Phone verify mid-screen verified in browser
+
+- **Playwright (iPhone 14):** React card `mid-v6` on local preview → `centerDelta: 0`, `centered: true`, tel input present.
+- **Bug found live:** CSS `inset: auto !important` on `.vybe-phone-verify-card` overrode measured `top`/`left` (card off-screen). Removed.
+- **Bug found:** preview/gate returned null when `!user` even if show=true.
+- **Publish** `…` then open `https://vybehub.app/?vybe_phone_preview=1` on phone to see mid-screen card.
+
 ## ACTIVE (2026-07-16) — Phone verify mid-screen (measured top)
 
 - Rebuild `PhoneCenterPrompt` (`mid-v5`): vertical center via **measured pixel `top`** after layout (not transform-Y / margin:auto — those pin to top on iOS).

@@ -6,7 +6,7 @@
  */
 import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { useAuth } from '@/lib/auth';
+import { useAuth, useAuthOptional } from '@/lib/auth';
 import { db } from '@/lib/firebase';
 import { PhoneNumberCard } from '@/components/settings/PhoneNumberCard';
 import { ShieldCheck, X } from 'lucide-react';
@@ -16,7 +16,18 @@ import {
 } from '@/lib/phoneVerifyDismiss';
 import { debugSessionLog } from '@/lib/debugSessionLog';
 
-const BUILD_TAG = 'mid-v5';
+const BUILD_TAG = 'mid-v6';
+
+function isPhonePreview(): boolean {
+  try {
+    return (
+      typeof window !== 'undefined' &&
+      new URLSearchParams(window.location.search).get('vybe_phone_preview') === '1'
+    );
+  } catch {
+    return false;
+  }
+}
 
 function safeTopPx(): number {
   try {
@@ -32,12 +43,20 @@ function safeTopPx(): number {
 }
 
 export function PhoneCenterPrompt() {
-  const { user, loading } = useAuth();
-  const [show, setShow] = useState(false);
+  const auth = useAuthOptional();
+  const user = auth?.user ?? null;
+  const loading = auth?.loading ?? true;
+  const [show, setShow] = useState(isPhonePreview);
   const cardRef = useRef<HTMLDivElement | null>(null);
   const titleId = useId();
+  const preview = isPhonePreview();
 
   useEffect(() => {
+    if (preview) {
+      setShow(true);
+      return;
+    }
+
     if (loading) return;
     if (!user) {
       setShow(false);
@@ -99,18 +118,17 @@ export function PhoneCenterPrompt() {
     const centered = (vh - h) / 2;
     const top = Math.min(maxTop, Math.max(padTop, centered));
 
-    el.style.position = 'fixed';
-    el.style.top = `${Math.round(top)}px`;
-    el.style.left = '50%';
-    el.style.right = 'auto';
-    el.style.bottom = 'auto';
-    el.style.width = `${Math.round(w)}px`;
-    el.style.maxWidth = '92vw';
-    el.style.maxHeight = `${Math.round(vh - padTop - padBottom)}px`;
-    el.style.margin = '0';
-    el.style.transform = 'translateX(-50%)';
-    el.style.webkitTransform = 'translateX(-50%)';
-    el.style.zIndex = '2147483001';
+    el.style.setProperty('position', 'fixed', 'important');
+    el.style.setProperty('top', `${Math.round(top)}px`, 'important');
+    el.style.setProperty('left', '50%', 'important');
+    el.style.setProperty('right', 'auto', 'important');
+    el.style.setProperty('bottom', 'auto', 'important');
+    el.style.setProperty('width', `${Math.round(w)}px`, 'important');
+    el.style.setProperty('max-width', '92vw', 'important');
+    el.style.setProperty('max-height', `${Math.round(vh - padTop - padBottom)}px`, 'important');
+    el.style.setProperty('margin', '0', 'important');
+    el.style.setProperty('transform', 'translateX(-50%)', 'important');
+    el.style.setProperty('z-index', '2147483001', 'important');
 
     const r = el.getBoundingClientRect();
     const centerDelta = Math.round(r.top + r.height / 2 - vh / 2);
@@ -150,10 +168,11 @@ export function PhoneCenterPrompt() {
     };
   }, [show]);
 
-  if (!show || !user || typeof document === 'undefined') return null;
+  if (!show || typeof document === 'undefined') return null;
+  if (!user && !preview) return null;
 
   const dismiss = () => {
-    dismissPhoneVerifyForSession(user.id);
+    if (user) dismissPhoneVerifyForSession(user.id);
     setShow(false);
   };
 
