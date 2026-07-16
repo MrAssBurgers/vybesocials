@@ -3763,6 +3763,13 @@ export type Database = {
             foreignKeyName: "creator_profiles_user_id_profiles_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: true
+            referencedRelation: "my_profile_private"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "creator_profiles_user_id_profiles_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
             referencedRelation: "profiles"
             referencedColumns: ["user_id"]
           },
@@ -12575,6 +12582,33 @@ export type Database = {
         }
         Relationships: []
       }
+      my_profile_private: {
+        Row: {
+          date_of_birth: string | null
+          email: string | null
+          phone_e164_sha256: string | null
+          phone_number: string | null
+          stripe_customer_id: string | null
+          user_id: string | null
+        }
+        Insert: {
+          date_of_birth?: string | null
+          email?: string | null
+          phone_e164_sha256?: string | null
+          phone_number?: string | null
+          stripe_customer_id?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          date_of_birth?: string | null
+          email?: string | null
+          phone_e164_sha256?: string | null
+          phone_number?: string | null
+          stripe_customer_id?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       public_business_profiles: {
         Row: {
           banner_url: string | null
@@ -13404,7 +13438,6 @@ export type Database = {
         Returns: {
           date_of_birth: string
           email: string
-          id: string
           phone_e164_sha256: string
           phone_number: string
           stripe_customer_id: string
