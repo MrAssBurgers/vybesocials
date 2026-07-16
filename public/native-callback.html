@@ -264,12 +264,16 @@
           var link = buildDeeplink(scheme, 'hc=' + encodeURIComponent(handoff));
           if (!closed) {
             hardFire(link);
-            setTimeout(function () {
-              if (!closed) hardFire(link);
-            }, 80);
-            setTimeout(function () {
-              if (!closed) hardFire(link);
-            }, 250);
+            // iOS may need a short retry; Android App Link must fire once only
+            // (retries remount /auth?hc= and double-redeem → "already used" toast).
+            if (!isAndroid()) {
+              setTimeout(function () {
+                if (!closed) hardFire(link);
+              }, 80);
+              setTimeout(function () {
+                if (!closed) hardFire(link);
+              }, 250);
+            }
           } else {
             // #region agent log
             dbg('D', 'native-callback.html:skipHard', 'skipped_hardFire_already_closed', {});

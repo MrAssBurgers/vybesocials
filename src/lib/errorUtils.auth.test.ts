@@ -38,6 +38,15 @@ describe('getFriendlyAuthError', () => {
     ).toMatch(/Services ID/i);
   });
 
+  it('suppresses oauth handoff already-used race', () => {
+    expect(
+      getFriendlyAuthError({
+        name: 'despia/oauth-redeem-failed',
+        message: 'OAuth code expired or already used',
+      }),
+    ).toBe('__SUPPRESS__');
+  });
+
   it('surfaces unknown auth codes', () => {
     expect(getFriendlyAuthError({ code: 'auth/weird-code' })).toBe(
       'Sign-in failed. Error code: auth/weird-code',

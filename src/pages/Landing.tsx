@@ -277,6 +277,14 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
       }
 
       // Always clear the chip — empty complete / cancel must not leave endless loading.
+      // Exception: "already used" race — sibling App Link/poll completion may still succeed.
+      if (
+        detail?.error?.message &&
+        /already used|expired or already used/i.test(detail.error.message)
+      ) {
+        return;
+      }
+
       clearDespiaOAuthPending();
       clearOAuthRedirectPending();
       setOauthOverlay(null);

@@ -56,6 +56,8 @@ export function getFriendlyAuthError(error: unknown): string {
     case 'despia/oauth-redeem-failed':
     case 'despia/oauth-error':
     case 'despia/oauth-launch-failed':
+      // Benign race: App Link + nonce poll both hit the same one-time hc=.
+      if (/already used|expired or already used/i.test(message)) return '__SUPPRESS__';
       return message || 'Sign-in could not finish in the app. Close any leftover browser sheet and try again.';
     case 'vybe/oauth-busy':
       return '__SUPPRESS__';
@@ -63,6 +65,9 @@ export function getFriendlyAuthError(error: unknown): string {
       break;
   }
 
+  if (/already used|expired or already used/i.test(message)) {
+    return '__SUPPRESS__';
+  }
   if (
     message.includes('Sign in was cancelled') ||
     message.toLowerCase().includes('cancelled by the user') ||

@@ -395,32 +395,52 @@ export function isDespiaOAuthReturnUrl(url: string): boolean {
   return (lower.includes('oauth/auth') || lower.includes('oauth%2fauth')) && params.toString().length > 0;
 }
 
-async function redeemOAuthHandoffCode(code: string): Promise<{
+type RedeemedHandoff = {
   customToken?: string;
   idToken?: string;
   nonce?: string;
   provider?: string;
-}> {
-  const { invokeFunction } = await import('@/lib/firebase/functionsService');
-  const { data, error } = await invokeFunction<{
-    customToken?: string;
-    custom_token?: string;
-    idToken?: string;
-    id_token?: string;
-    nonce?: string;
-    provider?: string;
-  }>('authQr', { action: 'redeem_oauth_code', code });
-  if (error || !data) {
-    throw Object.assign(new Error(error?.message || 'OAuth code redeem failed'), {
-      code: error?.name || 'despia/oauth-redeem-failed',
-    });
+};
+
+/** One network redeem per hc= — App Link + nonce poll + deeplink handler race otherwise. */
+const handoffRedeemByCode = new Map<string, Promise<RedeemedHandoff>>();
+const oauthCompleteByHc = new Map<string, Promise<DespiaOAuthCompletion>>();
+
+async function redeemOAuthHandoffCode(code: string): Promise<RedeemedHandoff> {
+  const key = code.trim().toLowerCase();
+  const existing = handoffRedeemByCode.get(key);
+  if (existing) return existing;
+
+  const pending = (async (): Promise<RedeemedHandoff> => {
+    const { invokeFunction } = await import('@/lib/firebase/functionsService');
+    const { data, error } = await invokeFunction<{
+      customToken?: string;
+      custom_token?: string;
+      idToken?: string;
+      id_token?: string;
+      nonce?: string;
+      provider?: string;
+    }>('authQr', { action: 'redeem_oauth_code', code: key });
+    if (error || !data) {
+      throw Object.assign(new Error(error?.message || 'OAuth code redeem failed'), {
+        code: error?.name || 'despia/oauth-redeem-failed',
+      });
+    }
+    return {
+      customToken: data.customToken || data.custom_token || undefined,
+      idToken: data.idToken || data.id_token || undefined,
+      nonce: data.nonce || undefined,
+      provider: data.provider || undefined,
+    };
+  })();
+
+  handoffRedeemByCode.set(key, pending);
+  try {
+    return await pending;
+  } catch (err) {
+    handoffRedeemByCode.delete(key);
+    throw err;
   }
-  return {
-    customToken: data.customToken || data.custom_token || undefined,
-    idToken: data.idToken || data.id_token || undefined,
-    nonce: data.nonce || undefined,
-    provider: data.provider || undefined,
-  };
 }
 
 /**
@@ -527,8 +547,7 @@ function startDespiaOAuthNoncePoll(nonce: string): void {
   }, 1000);
 }
 
-/** Complete Firebase sign-in from Despia deeplink or /auth?custom_token=... / id_token return. */
-export async function completeDespiaOAuthFromUrl(url: string): Promise<DespiaOAuthCompletion> {
+async function completeDespiaOAuthFromUrlInner(url: string): Promise<DespiaOAuthCompletion> {
   const params = parseOAuthParamsFromUrl(url);
   const error = params.get('error');
   const errorDescription = params.get('error_description');
@@ -545,6 +564,9 @@ export async function completeDespiaOAuthFromUrl(url: string): Promise<DespiaOAu
   }
 
   const handoffCode = (params.get('hc') || params.get('handoff_code') || '').trim();
+  // Stop nonce poll immediately so it cannot race a parallel redeem of the same hc=.
+  if (handoffCode) stopDespiaOAuthNoncePoll();
+
   let customToken = params.get('custom_token') || params.get('customToken');
   let idToken = params.get('id_token');
   let redeemedNonce: string | undefined;
@@ -558,7 +580,7 @@ export async function completeDespiaOAuthFromUrl(url: string): Promise<DespiaOAu
       redeemedNonce = redeemed.nonce;
       redeemedProvider = redeemed.provider;
     } catch (err) {
-      // Parallel deeplink + nonce-poll can race: first redeem wins, second is not-found.
+      // Parallel App Link + nonce-poll: first redeem wins; late callers may see already-used.
       try {
         const { firebaseAuth } = await import('@/lib/firebase');
         if (firebaseAuth.auth?.currentUser) {
@@ -571,8 +593,27 @@ export async function completeDespiaOAuthFromUrl(url: string): Promise<DespiaOAu
       } catch {
         /* ignore */
       }
-      clearDespiaOAuthPending();
       const message = err instanceof Error ? err.message : 'OAuth code redeem failed';
+      const alreadyUsed = /already used|not-found|expired/i.test(message);
+      if (alreadyUsed) {
+        // Brief wait for the winning redeem to finish signing in.
+        for (let i = 0; i < 8; i++) {
+          await new Promise((r) => setTimeout(r, 100));
+          try {
+            const { firebaseAuth } = await import('@/lib/firebase');
+            if (firebaseAuth.auth?.currentUser) {
+              const { data } = await firebaseAuth.getSession();
+              if (data.session?.user) {
+                clearDespiaOAuthPending();
+                return { data: { session: data.session }, error: null };
+              }
+            }
+          } catch {
+            /* ignore */
+          }
+        }
+      }
+      clearDespiaOAuthPending();
       const code =
         err && typeof err === 'object' && 'code' in err
           ? String((err as { code?: string }).code)
@@ -656,6 +697,20 @@ export async function completeDespiaOAuthFromUrl(url: string): Promise<DespiaOAu
   }
 }
 
+/** Complete Firebase sign-in from Despia deeplink or /auth?custom_token=... / id_token return. */
+export async function completeDespiaOAuthFromUrl(url: string): Promise<DespiaOAuthCompletion> {
+  const params = parseOAuthParamsFromUrl(url);
+  const handoffCode = (params.get('hc') || params.get('handoff_code') || '').trim().toLowerCase();
+  if (handoffCode) {
+    const existing = oauthCompleteByHc.get(handoffCode);
+    if (existing) return existing;
+    const pending = completeDespiaOAuthFromUrlInner(url);
+    oauthCompleteByHc.set(handoffCode, pending);
+    return pending;
+  }
+  return completeDespiaOAuthFromUrlInner(url);
+}
+
 /** Handle Despia OAuth deeplink on app boot or resume. */
 export async function tryCompleteDespiaOAuthFromCurrentUrl(): Promise<DespiaOAuthCompletion | null> {
   if (typeof window === 'undefined') return null;
@@ -706,8 +761,14 @@ export function initDespiaOAuthDeepLinkHandler(): void {
 
   const handleUrl = (url: string) => {
     if (!isDespiaOAuthReturnUrl(url)) return;
-    // wait=1 nonce path starts poll without a session yet.
-    void tryCompleteDespiaOAuthFromCurrentUrl().then((result) => {
+    // Single completion path — do not also call completeDespiaOAuthFromUrl(url)
+    // (that double-redeemed hc= and toasted "already used").
+    void (async () => {
+      const params = parseOAuthParamsFromUrl(url);
+      const hasDirectTokens = /[?&#](hc|id_token|custom_token|handoff_code)=/i.test(url);
+      const result = hasDirectTokens
+        ? await completeDespiaOAuthFromUrl(url)
+        : await tryCompleteDespiaOAuthFromCurrentUrl();
       if (!result) return;
       if (result.error) {
         sessionStorage.setItem('vybe-oauth-error', result.error.message);
@@ -721,15 +782,7 @@ export function initDespiaOAuthDeepLinkHandler(): void {
         }
         window.dispatchEvent(new CustomEvent('despia-oauth-complete', { detail: result }));
       }
-    });
-    // Also try direct complete for hc= / token URLs (may be the event href, not location yet).
-    if (/[?&#](hc|id_token|custom_token)=/.test(url)) {
-      void completeDespiaOAuthFromUrl(url).then((result) => {
-        if (result.data.session?.user || result.error) {
-          window.dispatchEvent(new CustomEvent('despia-oauth-complete', { detail: result }));
-        }
-      });
-    }
+    })();
   };
 
   const tryCurrent = () => {
