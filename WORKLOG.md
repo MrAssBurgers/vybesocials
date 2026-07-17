@@ -2,6 +2,19 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## ACTIVE (2026-07-17) — Native iOS auth scaffold (flag OFF, blocked on Despia)
+
+- **Scaffold shipped in repo** — `src/lib/nativeAuth/*` + flag `native_ios_auth_v1` (default **OFF**).
+- Router: `nativeOAuth.ts` prefers `native-auth-bridge` only when flag ON **and** Despia advertises bridge (`__VYBE_NATIVE_AUTH__` / `nativeAuthBridge` / `webkit.messageHandlers.nativeAuth`); else existing Despia oauth:// / Apple JS. Android App Link path unchanged.
+- Legacy containment comments on `public/native-callback.html`, `oauthDismiss`, `exchange_*` — forbidden on native path.
+- **Blocked on Despia:** true AuthenticationServices + GIDSignIn + `nativeauth://` bridge. See [docs/DESPIA_NATIVE_AUTH_SUPPORT_REQUEST.md](docs/DESPIA_NATIVE_AUTH_SUPPORT_REQUEST.md) and [docs/NATIVE_IOS_AUTH_AUDIT.md](docs/NATIVE_IOS_AUTH_AUDIT.md).
+- Lovable can Publish scaffold only — **Despia iOS rebuild required** for real native sheets. Do not claim ASWeb is native auth.
+- **Tests:** `npm run build` green; `npm run test` 363 passed (incl. nativeAuth + routing).
+- **Next 3:**
+  1. Send/confirm Despia support request; get ETA + exact watched key name.
+  2. After Despia TestFlight with bridge: enable `native_ios_auth_v1` for internal testers only.
+  3. Device acceptance: Apple/Google native sheet, no native-callback/oauthDismiss, cancel silent.
+
 ## ACTIVE (2026-07-17) — iOS OAuth timeline instrumentation (no behavior change)
 
 - **Instrumentation only** (`runId: ios-oauth-timeline`, session `bd2545`): dual-write localhost ingest + `authQr` `debug_oauth` → Firestore `oauth_debug_events`.

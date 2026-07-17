@@ -11,6 +11,13 @@
 <body>
   <script>
     /**
+     * LEGACY — Despia ASWebAuthenticationSession / Chrome Custom Tabs OAuth return only.
+     *
+     * FORBIDDEN when feature flag `native_ios_auth_v1` is ON and the Despia
+     * nativeauth:// bridge is available. That path uses AuthenticationServices /
+     * GIDSignIn → signInWithCredential in the main WebView and must NEVER open
+     * this page, call oauthDismiss, or run exchange_*.
+     *
      * Despia OAuth return (Google/Apple). Runs inside ASWeb / Custom Tabs.
      * iOS: close via HTTPS 302 (oauthDismiss → custom scheme) so ASWeb
      * dismisses. Direct com.despia.vybe:// from JS opens Safari and sticks.

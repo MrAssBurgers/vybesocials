@@ -25,6 +25,13 @@ export interface FeatureFlags {
 
   /** Show Custom Story / Group Story destinations in the snap Send To UI. */
   snap_future_story_destinations: boolean;
+
+  /**
+   * [iOS-only] Prefer Despia nativeauth:// bridge (AuthenticationServices / GIDSignIn)
+   * when the bridge is advertised. Default OFF until Despia ships the native SDKs.
+   * Does NOT enable ASWeb oauth:// — that remains the legacy path.
+   */
+  native_ios_auth_v1: boolean;
 }
 
 // Default flags - these are the production defaults
@@ -37,6 +44,7 @@ const defaultFlags: FeatureFlags = {
   memory_pins: true,
   analytics_enabled: true,
   snap_future_story_destinations: false,
+  native_ios_auth_v1: false,
 };
 
 // Local storage key for flag overrides

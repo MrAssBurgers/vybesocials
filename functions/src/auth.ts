@@ -1000,6 +1000,11 @@ function despiaCloseDeeplink(scheme: string, query: string): string {
  * HTTPS→custom-scheme redirects and dismisses the sheet. Direct JS
  * `location.href = com.despia.vybe://…` often opens Safari instead and leaves
  * the sheet stuck (seen on iOS Despia).
+ *
+ * LEGACY — for Despia ASWeb / browser oauth:// callback only.
+ * FORBIDDEN when `native_ios_auth_v1` + nativeauth:// bridge is active:
+ * that path signs in via signInWithCredential in the WebView and must never
+ * hit oauthDismiss or native-callback.html.
  */
 export const oauthDismiss = onRequest(
   {
@@ -1209,6 +1214,10 @@ function isChallengeExpired(expiresAt: unknown): boolean {
  * auth-qr — Quick Sign-In QR pairing + iOS Google id_token → short custom_token exchange.
  * create (public) → poll (public) → claim (signed-in device) → redeem (public → custom token).
  * exchange_google (public) — verify Google id_token, mint short Firebase custom token for deeplink.
+ *
+ * LEGACY for Despia ASWeb / native-callback handoff only.
+ * FORBIDDEN on the native_ios_auth_v1 + nativeauth:// bridge path (use
+ * signInWithCredential in the WebView instead — no exchange_* / oauthDismiss).
  */
 export const authQr = onCall(
   {
@@ -1286,6 +1295,7 @@ export const authQr = onCall(
   }
 
 
+  // LEGACY ASWeb/callback only — forbidden when native_ios_auth_v1 + nativeauth bridge.
   if (action === 'exchange_google') {
     const ip = request.rawRequest?.ip || 'anon';
     enforceRateLimit(await rateLimit(`oauth-exchange:${ip}`, 20, 600));
@@ -1316,6 +1326,7 @@ export const authQr = onCall(
   /**
    * exchange_google_code — PKCE authorization-code exchange for
    * https://vybehub.app/native-callback.html (Despia Custom Tabs).
+   * LEGACY — forbidden when native_ios_auth_v1 + nativeauth:// bridge is active.
    */
   if (action === 'exchange_google_code') {
     const ip = request.rawRequest?.ip || 'anon';
@@ -1378,7 +1389,8 @@ export const authQr = onCall(
     return { code };
   }
 
-  /** exchange_apple — verify Apple id_token, mint custom token, return short hc= (parity with Google). */
+  /** exchange_apple — verify Apple id_token, mint custom token, return short hc= (parity with Google).
+   * LEGACY ASWeb/callback only — forbidden when native_ios_auth_v1 + nativeauth bridge. */
   if (action === 'exchange_apple') {
     const ip = request.rawRequest?.ip || 'anon';
     enforceRateLimit(await rateLimit(`oauth-exchange-apple:${ip}`, 20, 600));

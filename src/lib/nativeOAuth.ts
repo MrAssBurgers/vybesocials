@@ -10,6 +10,11 @@ import { isEmbeddedAppleWebView } from '@/lib/deviceDetection';
 import { isNativePlatform } from '@/lib/capacitor';
 import { signInWithAppleDespia, signInWithGoogleDespia } from '@/lib/despiaOAuth';
 import {
+  shouldUseNativeAuth,
+  signInWithApple as signInWithAppleNativeAuth,
+  signInWithGoogle as signInWithGoogleNativeAuth,
+} from '@/lib/nativeAuth';
+import {
   detectOAuthPlatform,
   shouldUseRedirectOAuthPlatform,
   type OAuthPlatformInfo,
@@ -56,6 +61,25 @@ export function shouldUseDespiaOAuth(provider: OAuthProviderId): boolean {
   return !isEmbeddedAppleWebView();
 }
 
+/**
+ * [iOS-only] True when flag `native_ios_auth_v1` is ON and Despia advertises
+ * the nativeauth:// bridge. Exported for tests. Android always false.
+ */
+export function shouldUseNativeAuthBridge(provider: OAuthProviderId): boolean {
+  return shouldUseNativeAuth(provider);
+}
+
+async function tryNativeAuthBridge(provider: OAuthProviderId): Promise<OAuthSignInResult> {
+  const result =
+    provider === 'apple'
+      ? await signInWithAppleNativeAuth()
+      : await signInWithGoogleNativeAuth();
+  return {
+    data: { session: result.data.session },
+    error: result.error ? mapOAuthLinkError(result.error) : null,
+  };
+}
+
 async function tryCapacitorNativeOAuth(provider: OAuthProviderId): Promise<OAuthSignInResult | null> {
   if (!isNativePlatform || isDespiaRuntime()) return null;
   try {
@@ -96,13 +120,19 @@ async function tryDespiaAppleOAuth(): Promise<OAuthSignInResult> {
 
 async function signInWithOAuthPlatformInner(provider: OAuthProviderId): Promise<OAuthSignInResult> {
   const platform = detectOAuthPlatform();
-  const useDespia = shouldUseDespiaOAuth(provider);
+  const useNativeBridge = shouldUseNativeAuthBridge(provider);
+  const useDespia = !useNativeBridge && shouldUseDespiaOAuth(provider);
+  const strategy = useNativeBridge
+    ? 'native-auth-bridge'
+    : useDespia
+      ? 'despia-oauth'
+      : platform.strategy;
   // #region agent log
   oauthTimelineLog(
     'oauth_tap',
     {
       provider,
-      strategy: useDespia ? 'despia-oauth' : platform.strategy,
+      strategy,
       os: getRuntimeOs(),
       despia: isDespiaRuntime(),
       host: typeof location !== 'undefined' ? location.hostname : '',
@@ -112,12 +142,22 @@ async function signInWithOAuthPlatformInner(provider: OAuthProviderId): Promise<
   // #endregion
   authLog('oauth_start', {
     provider,
-    strategy: platform.strategy,
+    strategy,
     host: typeof location !== 'undefined' ? location.hostname : '',
     path: typeof location !== 'undefined' ? location.pathname : '',
   });
 
-  // Despia takes priority — never Firebase popup for Google here.
+  // [iOS-only] Prefer true native auth when flag + bridge available.
+  // Never opens native-callback / oauthDismiss / exchange_* on this path.
+  if (useNativeBridge) {
+    authLog('oauth_strategy', {
+      provider,
+      strategy: 'native-auth-bridge',
+    });
+    return tryNativeAuthBridge(provider);
+  }
+
+  // Despia oauth:// / Apple JS — never Firebase popup for Google here.
   if (useDespia) {
     authLog('oauth_strategy', {
       provider,
