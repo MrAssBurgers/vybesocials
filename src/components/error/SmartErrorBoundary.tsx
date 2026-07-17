@@ -33,6 +33,7 @@ class SmartErrorBoundary extends Component<Props, State> {
   // triggers React's "Maximum update depth exceeded".
   private resetCount = 0;
   private resetWindowStart = 0;
+  private static remountSeq = 0;
   private static readonly RESET_LIMIT = 5;
   private static readonly RESET_WINDOW_MS = 4000;
 
@@ -53,8 +54,15 @@ class SmartErrorBoundary extends Component<Props, State> {
   }
 
   static getDerivedStateFromError(error: Error): Partial<State> {
-    // Capture error but do not flash crash UI until componentDidCatch decides.
-    return { hasError: true, showUi: false, error };
+    // Soft remount in the same update — never park on `return null`, which
+    // unmounts AuthProvider and cascades "useAuth must be used within…".
+    SmartErrorBoundary.remountSeq += 1;
+    return {
+      hasError: true,
+      showUi: false,
+      error,
+      remountKey: SmartErrorBoundary.remountSeq,
+    };
   }
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {
@@ -123,20 +131,19 @@ class SmartErrorBoundary extends Component<Props, State> {
       return;
     }
 
-    // Soft recover: remount children. Never surface the global crash page.
+    // Soft recover: keep children mounted under remountKey (set in getDerivedStateFromError).
     persistBoundaryError(error);
     if (this.resetCount > SmartErrorBoundary.RESET_LIMIT) {
       console.warn('[SmartErrorBoundary] Soft remount after reset loop (no crash UI).');
       this.resetCount = 0;
       this.resetWindowStart = 0;
     }
-    this.setState((prev) => ({
+    this.setState({
       hasError: false,
       showUi: false,
       error: null,
       errorInfo: null,
-      remountKey: prev.remountKey + 1,
-    }));
+    });
   }
 
   reportCrash = async (
@@ -292,11 +299,9 @@ class SmartErrorBoundary extends Component<Props, State> {
       );
     }
 
-    // While recovering from getDerivedStateFromError, keep prior children remount-ready.
-    if (this.state.hasError && !this.state.showUi) {
-      return null;
-    }
-
+    // Soft-recover frame after getDerivedStateFromError: keep the tree mounted.
+    // Returning null unmounted AuthProvider and cascaded "useAuth must be used
+    // within an AuthProvider" on /auth and /home.
     return <React.Fragment key={this.state.remountKey}>{this.props.children}</React.Fragment>;
   }
 }

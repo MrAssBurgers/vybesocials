@@ -17,8 +17,10 @@ const RATE_RE = /rate.?limit|resource-exhausted|too many requests|quota/i;
 const PERMISSION_RE = /permission-denied|permission|not a (member|participant)/i;
 const VALIDATION_RE =
   /invalid-argument|content or media|conversationId required|invalid media|unsupported message/i;
+/** Real connectivity / transport failures — NOT bare Cloud Functions `internal`. */
 const TRANSIENT_RE =
-  /network|failed to fetch|timeout|fetch|offline|unavailable|deadline|internal/i;
+  /network|failed to fetch|timeout|fetch|offline|unavailable|deadline|ERR_NETWORK|ERR_INTERNET/i;
+const INTERNAL_CF_RE = /^(functions\/)?internal$/i;
 
 export function classifyDmSendError(
   error: { message?: string; code?: string } | string | null | undefined,
@@ -27,6 +29,8 @@ export function classifyDmSendError(
   const code = typeof error === 'string' ? '' : (error.code || '').toLowerCase();
   const message =
     typeof error === 'string' ? error : error.message || '';
+  const offline =
+    typeof navigator !== 'undefined' && navigator.onLine === false;
 
   if (code === 'permission-denied' && BLOCKED_RE.test(message)) return 'blocked';
   if (BLOCKED_RE.test(message)) return 'blocked';
@@ -35,11 +39,11 @@ export function classifyDmSendError(
   }
   if (code === 'invalid-argument' || VALIDATION_RE.test(message)) return 'validation';
   if (code === 'permission-denied' || PERMISSION_RE.test(message)) return 'permission';
-  if (
-    (typeof navigator !== 'undefined' && navigator.onLine === false) ||
-    TRANSIENT_RE.test(message) ||
-    TRANSIENT_RE.test(code)
-  ) {
+  // Bare CF `internal` while online is a server fault — don't lie with "Waiting for connection".
+  if (INTERNAL_CF_RE.test(code) || INTERNAL_CF_RE.test(message.trim())) {
+    return offline ? 'transient' : 'unknown';
+  }
+  if (offline || TRANSIENT_RE.test(message) || TRANSIENT_RE.test(code)) {
     return 'transient';
   }
   return 'unknown';
@@ -68,6 +72,10 @@ export function dmSendFailureUserMessage(kind: DmSendFailureKind, fallback?: str
     case 'transient':
       return 'Waiting for connection…';
     default:
-      return fallback || 'Failed to send message';
+      // Prefer a clear retry hint over echoing raw `internal` / functions codes.
+      if (fallback && !/^(functions\/)?internal$/i.test(fallback.trim())) {
+        return fallback;
+      }
+      return 'Couldn’t send message — try again';
   }
 }

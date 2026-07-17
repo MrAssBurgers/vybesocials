@@ -625,159 +625,162 @@ function AppWithPreloader() {
       <LocalErrorBoundary label="AppUpdateOverlay">
         <AppUpdateOverlay />
       </LocalErrorBoundary>
-      <AuthProvider>
-        <LocalErrorBoundary label="SpotifyPresenceMount">
-          <SpotifyPresenceMount />
-        </LocalErrorBoundary>
-        <LocalErrorBoundary label="RealtimeSyncMount">
-          <RealtimeSyncMount />
-        </LocalErrorBoundary>
-        <LocalErrorBoundary label="DeferredAuthHooks">
-          <Suspense fallback={null}><DeferredAuthHooks /></Suspense>
-        </LocalErrorBoundary>
-        <LocalErrorBoundary label="LoginApprovalSheet">
-          <Suspense fallback={null}><LoginApprovalSheet /></Suspense>
-        </LocalErrorBoundary>
-        <LocalErrorBoundary label="BriefPreFetchInit">
-          <BriefPreFetchInit />
-        </LocalErrorBoundary>
-        
-        {/* AppBackgroundProvider: Persistent background layer that survives theme changes */}
-        <AppBackgroundProvider>
-          <CustomThemeProvider>
-            <ThemeTransitionProvider>
-              <Suspense fallback={null}>
-                <EasterEggProvider>
-                  <CallStoreProvider>
-                    <StreakProvider>
-                      <TooltipProvider>
-                        <Toaster />
-                        <Sonner />
-                        <ExternalLinkConfirmDialog />
-                        <BrowserRouter useTransitions={false}>
-                        <StartupRouteProbe />
-                        <CameraOverlayProvider>
-                        <AgentActionBusProvider>
-                        <LocationProvider>
-                          <AppGlobalLiquidShell />
-                          <VybeLiquidTouchShell />
-                          <div
-                            id="app-shell"
-                            data-app-shell
-                            className="relative z-[1] app-shell min-h-dvh w-full max-w-full overflow-hidden bg-transparent"
-                          >
-                          <Suspense fallback={null}>
-                            <RewardNotificationProvider>
-                              <DebugPanelProvider>
-                                <BugRecheckProvider>
-                                <Suspense fallback={null}>
-                                  <TutorialProvider>
-                                    <NavigationRefSetter />
-                                    <ScrollRestoration />
-                                    <AnimatedRoutes />
-                                    <RootBottomNavMount />
-                                    <LocalErrorBoundary label="DeferredOverlays">
-                                      <Suspense fallback={null}>
-                                        {/* PushNotificationPrompt removed */}
-                                        <GlobalMessageNotifications />
-                                        <DespiaOneSignalSync />
-                                        <NotificationActionRouter />
-                                        <EnablePushPrompt />
-                                        <SmartPingBridge />
-                                        <TabNotificationBadge />
-                                        <AppIconBadgeMount />
-                                        <GlobalCallOverlay />
-                                        <NativeIncomingCallBridge />
-                                        <NativePushTokenBridge />
-                                        <WarningPopup />
-                                        <InvitePopup />
-                                        <BanCheck />
-                                        <PremiumGiftChecker />
-                                        <TrackingConsentDialog />
-                                        <FounderAppreciation />
-                                        <CookieConsentBanner />
-                                        <RatePromptSheet />
-                                        <ConnectionStatusBanner />
-                                        <UploadProgressBanner />
-                                        <AutoFriendDrop />
-                                      </Suspense>
-                                    </LocalErrorBoundary>
-                                  </TutorialProvider>
-                                </Suspense>
-                                </BugRecheckProvider>
-                              </DebugPanelProvider>
-                            </RewardNotificationProvider>
-                          </Suspense>
-                          {/* Touch ripple removed */}
-                          </div>
-                        </LocationProvider>
-                        </AgentActionBusProvider>
-                        </CameraOverlayProvider>
-                        </BrowserRouter>
-                      </TooltipProvider>
-                    </StreakProvider>
-                  </CallStoreProvider>
-                </EasterEggProvider>
-              </Suspense>
-            </ThemeTransitionProvider>
-          </CustomThemeProvider>
-        </AppBackgroundProvider>
-      </AuthProvider>
+      {/* AuthProvider lives in App root (above SmartErrorBoundary). */}
+      <LocalErrorBoundary label="SpotifyPresenceMount">
+        <SpotifyPresenceMount />
+      </LocalErrorBoundary>
+      <LocalErrorBoundary label="RealtimeSyncMount">
+        <RealtimeSyncMount />
+      </LocalErrorBoundary>
+      <LocalErrorBoundary label="DeferredAuthHooks">
+        <Suspense fallback={null}><DeferredAuthHooks /></Suspense>
+      </LocalErrorBoundary>
+      <LocalErrorBoundary label="LoginApprovalSheet">
+        <Suspense fallback={null}><LoginApprovalSheet /></Suspense>
+      </LocalErrorBoundary>
+      <LocalErrorBoundary label="BriefPreFetchInit">
+        <BriefPreFetchInit />
+      </LocalErrorBoundary>
+      
+      {/* AppBackgroundProvider: Persistent background layer that survives theme changes */}
+      <AppBackgroundProvider>
+        <CustomThemeProvider>
+          <ThemeTransitionProvider>
+            <Suspense fallback={null}>
+              <EasterEggProvider>
+                <CallStoreProvider>
+                  <StreakProvider>
+                    <TooltipProvider>
+                      <Toaster />
+                      <Sonner />
+                      <ExternalLinkConfirmDialog />
+                      <BrowserRouter useTransitions={false}>
+                      <StartupRouteProbe />
+                      <CameraOverlayProvider>
+                      <AgentActionBusProvider>
+                      <LocationProvider>
+                        <AppGlobalLiquidShell />
+                        <VybeLiquidTouchShell />
+                        <div
+                          id="app-shell"
+                          data-app-shell
+                          className="relative z-[1] app-shell min-h-dvh w-full max-w-full overflow-hidden bg-transparent"
+                        >
+                        <Suspense fallback={null}>
+                          <RewardNotificationProvider>
+                            <DebugPanelProvider>
+                              <BugRecheckProvider>
+                              <Suspense fallback={null}>
+                                <TutorialProvider>
+                                  <NavigationRefSetter />
+                                  <ScrollRestoration />
+                                  <AnimatedRoutes />
+                                  <RootBottomNavMount />
+                                  <LocalErrorBoundary label="DeferredOverlays">
+                                    <Suspense fallback={null}>
+                                      {/* PushNotificationPrompt removed */}
+                                      <GlobalMessageNotifications />
+                                      <DespiaOneSignalSync />
+                                      <NotificationActionRouter />
+                                      <EnablePushPrompt />
+                                      <SmartPingBridge />
+                                      <TabNotificationBadge />
+                                      <AppIconBadgeMount />
+                                      <GlobalCallOverlay />
+                                      <NativeIncomingCallBridge />
+                                      <NativePushTokenBridge />
+                                      <WarningPopup />
+                                      <InvitePopup />
+                                      <BanCheck />
+                                      <PremiumGiftChecker />
+                                      <TrackingConsentDialog />
+                                      <FounderAppreciation />
+                                      <CookieConsentBanner />
+                                      <RatePromptSheet />
+                                      <ConnectionStatusBanner />
+                                      <UploadProgressBanner />
+                                      <AutoFriendDrop />
+                                    </Suspense>
+                                  </LocalErrorBoundary>
+                                </TutorialProvider>
+                              </Suspense>
+                              </BugRecheckProvider>
+                            </DebugPanelProvider>
+                          </RewardNotificationProvider>
+                        </Suspense>
+                        {/* Touch ripple removed */}
+                        </div>
+                      </LocationProvider>
+                      </AgentActionBusProvider>
+                      </CameraOverlayProvider>
+                      </BrowserRouter>
+                    </TooltipProvider>
+                  </StreakProvider>
+                </CallStoreProvider>
+              </EasterEggProvider>
+            </Suspense>
+          </ThemeTransitionProvider>
+        </CustomThemeProvider>
+      </AppBackgroundProvider>
     </>
   );
 }
 
 const App = memo(() => {
+  // AuthProvider wraps SmartErrorBoundary so soft-recover remounts never drop
+  // auth context (cascade: "useAuth must be used within an AuthProvider").
   return (
-    <SmartErrorBoundary>
-      <SkipToMain />
-      <LiveRegion />
-      <PersistQueryClientProvider
-        client={queryClient}
-        onSuccess={() => {
-          reviveQueriesInCache(queryClient);
-          reconcileUserThemeCache(queryClient, getStoredAuthUserId());
-          kickstartThemeHydration(queryClient);
-          void warmHomeCaches(queryClient);
-          purgeStuckStoryUploads(queryClient);
-          markPersistRestored();
-        }}
-        onError={() => {
-          markPersistRestored();
-        }}
-        persistOptions={{
-          persister: queryPersister,
-          // 14 days — keep everything (feed, DMs, profiles) usable offline
-          // across multiple app sessions, just like Instagram/X.
-          maxAge: 1000 * 60 * 60 * 24 * 14,
-          buster: PERSIST_BUSTER,
-          dehydrateOptions: {
-            // Persist successful AND errored queries — if we have stale data
-            // for a key we want to keep showing it even if the last refetch
-            // failed (e.g. offline).
-            shouldDehydrateQuery: (q) =>
-              (q.state.status === 'success' || (q.state.status === 'error' && q.state.data !== undefined)) &&
-              shouldPersistQueryKey(q.queryKey, q.state.data),
-            shouldDehydrateMutation: () => false,
-          },
-        }}
-      >
-        <ThemeProvider>
-          <SnapARProvider>
-          <GlassIntensityProvider>
-            <AccessibilityProvider>
-              {/* Tween defaults — buttery expo-out; springs opt-in per component. */}
-              <PlatformProvider>
-                <MotionConfig reducedMotion="user" transition={BUTTER_TRANSITION}>
-                  <AppWithPreloader />
-                </MotionConfig>
-              </PlatformProvider>
-            </AccessibilityProvider>
-          </GlassIntensityProvider>
-          </SnapARProvider>
-        </ThemeProvider>
-      </PersistQueryClientProvider>
-    </SmartErrorBoundary>
+    <PersistQueryClientProvider
+      client={queryClient}
+      onSuccess={() => {
+        reviveQueriesInCache(queryClient);
+        reconcileUserThemeCache(queryClient, getStoredAuthUserId());
+        kickstartThemeHydration(queryClient);
+        void warmHomeCaches(queryClient);
+        purgeStuckStoryUploads(queryClient);
+        markPersistRestored();
+      }}
+      onError={() => {
+        markPersistRestored();
+      }}
+      persistOptions={{
+        persister: queryPersister,
+        // 14 days — keep everything (feed, DMs, profiles) usable offline
+        // across multiple app sessions, just like Instagram/X.
+        maxAge: 1000 * 60 * 60 * 24 * 14,
+        buster: PERSIST_BUSTER,
+        dehydrateOptions: {
+          // Persist successful AND errored queries — if we have stale data
+          // for a key we want to keep showing it even if the last refetch
+          // failed (e.g. offline).
+          shouldDehydrateQuery: (q) =>
+            (q.state.status === 'success' || (q.state.status === 'error' && q.state.data !== undefined)) &&
+            shouldPersistQueryKey(q.queryKey, q.state.data),
+          shouldDehydrateMutation: () => false,
+        },
+      }}
+    >
+      <AuthProvider>
+        <SmartErrorBoundary>
+          <SkipToMain />
+          <LiveRegion />
+          <ThemeProvider>
+            <SnapARProvider>
+            <GlassIntensityProvider>
+              <AccessibilityProvider>
+                {/* Tween defaults — buttery expo-out; springs opt-in per component. */}
+                <PlatformProvider>
+                  <MotionConfig reducedMotion="user" transition={BUTTER_TRANSITION}>
+                    <AppWithPreloader />
+                  </MotionConfig>
+                </PlatformProvider>
+              </AccessibilityProvider>
+            </GlassIntensityProvider>
+            </SnapARProvider>
+          </ThemeProvider>
+        </SmartErrorBoundary>
+      </AuthProvider>
+    </PersistQueryClientProvider>
   );
 });
 

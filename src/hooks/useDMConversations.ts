@@ -61,7 +61,7 @@ function enrichLastMessageFromThreadCache(
  * and provides a sorted, searchable list of conversations
  */
 export function useDMConversations(searchQuery: string = '') {
-  const { user } = useAuth();
+  const { user, authReady } = useAuth();
   const queryClient = useQueryClient();
   const profileId = useAuthProfileId();
   const { data: friendsRaw, isLoading: friendsLoading } = useFriends();
@@ -75,6 +75,8 @@ export function useDMConversations(searchQuery: string = '') {
 
   // Fetch all conversations with proper sorting.
   // Prefer profileId; fall back to authUid so cached list can paint before profile resolves.
+  // Wait for authReady + user so we never hit Firestore with a cached profile id
+  // before the OAuth custom token is attached (permission-denied spam).
   const listKeyId = profileId || user?.id || null;
   const conversationsQuery = useQuery({
     queryKey: ['dm-conversations', listKeyId],
@@ -106,7 +108,7 @@ export function useDMConversations(searchQuery: string = '') {
       }
       return merged;
     },
-    enabled: !!listKeyId,
+    enabled: authReady && !!user?.id && !!listKeyId,
     throwOnError: false,
     initialData: cachedConversations.length > 0 ? cachedConversations : undefined,
     select: (data) => normalizeDmConversationList<DMConversation>(data),

@@ -31,7 +31,15 @@ export function useListenAlong() {
         return;
       }
       if (data?.error) {
-        toast({ title: 'Spotify error', description: data.error, variant: 'destructive' });
+        const err = String(data.error);
+        if (/503|Service Unavailable|temporarily unavailable/i.test(err)) {
+          toast({
+            title: 'Spotify is busy',
+            description: 'Spotify’s servers are slow right now — try again in a moment.',
+          });
+        } else {
+          toast({ title: 'Spotify error', description: err, variant: 'destructive' });
+        }
         return;
       }
       toast({ title: 'Listening along 🎧', description: presence.title ?? 'Synced to their track' });
@@ -39,6 +47,11 @@ export function useListenAlong() {
       const msg = e?.message || 'Could not start playback';
       if (msg.includes('Premium')) {
         toast({ title: 'Spotify Premium required', description: 'Listen-along uses Spotify playback control.', variant: 'destructive' });
+      } else if (/503|Service Unavailable/i.test(msg)) {
+        toast({
+          title: 'Spotify is busy',
+          description: 'Spotify’s servers are slow right now — try again in a moment.',
+        });
       } else {
         toast({ title: 'Listen-along failed', description: msg, variant: 'destructive' });
       }

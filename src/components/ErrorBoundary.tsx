@@ -29,11 +29,19 @@ export class ErrorBoundary extends Component<Props, State> {
   state: State = { error: null, showUi: false, remountKey: 0 };
   private resetCount = 0;
   private resetWindowStart = 0;
+  private static remountSeq = 0;
   private static readonly RESET_LIMIT = 5;
   private static readonly RESET_WINDOW_MS = 4000;
 
   static getDerivedStateFromError(error: Error): Partial<State> {
-    return { error, showUi: false };
+    // Soft remount in the same update — never park on `return null`, which
+    // unmounts AuthProvider and cascades "useAuth must be used within…".
+    ErrorBoundary.remountSeq += 1;
+    return {
+      error,
+      showUi: false,
+      remountKey: ErrorBoundary.remountSeq,
+    };
   }
 
   componentDidCatch(error: Error, info: { componentStack?: string | null }) {
@@ -76,12 +84,11 @@ export class ErrorBoundary extends Component<Props, State> {
       this.resetWindowStart = 0;
     }
 
-    // Soft remount — never stick on crash UI.
-    this.setState((prev) => ({
+    // Soft remount — clear error so render keeps children (new remountKey).
+    this.setState({
       error: null,
       showUi: false,
-      remountKey: prev.remountKey + 1,
-    }));
+    });
   }
 
   componentDidUpdate(prevProps: Props) {
@@ -140,10 +147,7 @@ export class ErrorBoundary extends Component<Props, State> {
       );
     }
 
-    if (error && !showUi) {
-      return null;
-    }
-
+    // Soft path: keep rendering children under a fresh key (no null frame).
     return <Fragment key={remountKey}>{this.props.children}</Fragment>;
   }
 }

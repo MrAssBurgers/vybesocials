@@ -60,8 +60,14 @@ export function useSpotifyPresence() {
       try {
         const { data, error } = await db.functions.invoke('spotify-now-playing');
         if (error) {
-          console.warn('[SpotifyPresence] invoke error', error);
-          if (error?.message?.includes('Unauthorized') || error?.message?.includes('token_invalid')) {
+          const msg = String(error?.message || '');
+          // Upstream Spotify / CF blips — don't alarm on 503.
+          if (/503|Service Unavailable|quota|rate.?limit/i.test(msg)) {
+            console.info('[SpotifyPresence] upstream unavailable (soft):', msg.slice(0, 120));
+          } else {
+            console.warn('[SpotifyPresence] invoke error', error);
+          }
+          if (msg.includes('Unauthorized') || msg.includes('token_invalid')) {
             connected = false;
           }
         } else if (data) {

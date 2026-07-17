@@ -452,17 +452,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }, 1500);
       return null;
     } catch (err) {
-      console.error('[Auth] fetchProfile error:', err);
+      const msg = err instanceof Error ? err.message : String(err);
+      const permissionDenied = /missing or insufficient permissions|permission-denied/i.test(msg);
+      // Soft-log auth races (token not attached yet) — retry, don't spam as crash.
+      if (permissionDenied) {
+        console.warn('[Auth] fetchProfile permission race — retrying:', msg);
+      } else {
+        console.error('[Auth] fetchProfile error:', err);
+      }
       
       if (retryCount < maxRetries) {
-        await new Promise((r) => setTimeout(r, 300));
+        await new Promise((r) => setTimeout(r, permissionDenied ? 500 : 300));
         return fetchProfile(userId, retryCount + 1);
       }
       
       retainCachedProfile(setProfile, userId);
       window.setTimeout(() => {
         void fetchProfile(userId, 0);
-      }, 2000);
+      }, permissionDenied ? 1500 : 2000);
       return null;
     }
   };
@@ -1288,30 +1295,50 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [user, session, resolvedProfile, loading, isInitialized, banInfo, stableApi],
   );
 
-  // Show banned screen if user is banned
-  if (banInfo) {
-    return banInfo.is_meme_ban ? (
-      <MemeBanScreen reason={banInfo.reason} expiresAt={banInfo.expires_at} customGifUrl={banInfo.custom_gif_url} />
-    ) : (
-      <BannedScreen
-        reason={banInfo.reason}
-        expiresAt={banInfo.expires_at}
-        isPermanent={banInfo.is_permanent}
-      />
-    );
-  }
-
+  // Always keep AuthContext mounted — ban UI replaces children, never the provider.
+  // (Dropping the provider caused cascade "useAuth must be used within an AuthProvider".)
   return (
     <AuthContext.Provider value={contextValue}>
-      {children}
+      {banInfo ? (
+        banInfo.is_meme_ban ? (
+          <MemeBanScreen reason={banInfo.reason} expiresAt={banInfo.expires_at} customGifUrl={banInfo.custom_gif_url} />
+        ) : (
+          <BannedScreen
+            reason={banInfo.reason}
+            expiresAt={banInfo.expires_at}
+            isPermanent={banInfo.is_permanent}
+          />
+        )
+      ) : (
+        children
+      )}
     </AuthContext.Provider>
   );
 }
 
+const AUTH_OUTSIDE_PROVIDER_FALLBACK: AuthContextType = {
+  user: null,
+  session: null,
+  profile: null,
+  loading: true,
+  authReady: false,
+  banInfo: null,
+  signUp: async () => ({ error: new Error('Auth not ready') }),
+  signIn: async () => ({ error: new Error('Auth not ready') }),
+  applyOAuthSession: () => {},
+  resendVerification: async () => ({ error: new Error('Auth not ready') }),
+  signOut: async () => {},
+  updateProfile: async () => ({ error: new Error('Auth not ready') }),
+  refreshProfile: async () => null,
+};
+
 export function useAuth() {
   const context = useContext(AuthContext);
   if (context === undefined) {
-    throw new Error('useAuth must be used within an AuthProvider');
+    // Fail-soft during ErrorBoundary remount / partial boot — hard throw cascaded
+    // crashes on /auth?hc= and /home. Dev still gets a loud console error.
+    console.error('useAuth must be used within an AuthProvider');
+    return AUTH_OUTSIDE_PROVIDER_FALLBACK;
   }
   return context;
 }

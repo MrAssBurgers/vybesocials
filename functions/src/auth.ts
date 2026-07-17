@@ -1745,18 +1745,37 @@ export const authQr = onCall(
   throw new HttpsError('invalid-argument', `Unknown action: ${action}`);
 });
 
-/** manage-account — delete or anonymize. */
+/** manage-account — schedule / cancel account deletion (and aliases from older clients). */
 export const manageAccount = onCall(async (request) => {
   const uid = requireAuth(request);
-  const { action } = (request.data || {}) as { action?: 'request_delete' | 'cancel_delete' };
-  if (action === 'request_delete') {
+  const raw = (request.data || {}) as { action?: string };
+  const action = String(raw.action || '').toLowerCase();
+  const requestDelete =
+    action === 'request_delete' || action === 'request_deletion' || action === 'delete';
+  const cancelDelete =
+    action === 'cancel_delete' || action === 'cancel_deletion';
+
+  if (requestDelete) {
     await db.collection('account_deletion_requests').doc(uid).set({
       user_id: uid, status: 'pending', requested_at: new Date().toISOString(),
     });
-  } else if (action === 'cancel_delete') {
+  } else if (cancelDelete) {
     await db.collection('account_deletion_requests').doc(uid).delete();
+  } else if (action === 'export') {
+    // Lightweight export stub — full dump is still via support / future job.
+    const profile = await db.collection('profiles').where('user_id', '==', uid).limit(1).get();
+    const profileData = profile.empty ? null : profile.docs[0].data();
+    return {
+      ok: true,
+      success: true,
+      exported_at: new Date().toISOString(),
+      user_id: uid,
+      profile: profileData,
+    };
+  } else if (action) {
+    throw new HttpsError('invalid-argument', `Unknown action: ${action}`);
   }
-  return { ok: true };
+  return { ok: true, success: true };
 });
 
 /** Staff-only Firebase Auth user count (admin analytics). */

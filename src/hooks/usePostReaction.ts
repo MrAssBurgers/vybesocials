@@ -20,7 +20,7 @@ interface PostReactionSource {
 }
 
 export function usePostReaction(post: PostReactionSource) {
-  const { profile, user } = useAuth();
+  const { profile, user, authReady } = useAuth();
   const queryClient = useQueryClient();
   const [isLiked, setIsLiked] = useState(post.is_liked);
   const [currentReaction, setCurrentReaction] = useState<ReactionType | null>(
@@ -38,7 +38,7 @@ export function usePostReaction(post: PostReactionSource) {
 
   const handleReaction = useCallback(
     async (reactionType: ReactionType | null) => {
-      if (!profile?.id || !post.id) return;
+      if (!authReady || !user?.id || !profile?.id || !post.id) return;
 
       const wasLiked = currentReaction !== null;
       const newIsLiked = reactionType !== null;
@@ -86,6 +86,7 @@ export function usePostReaction(post: PostReactionSource) {
       }
     },
     [
+      authReady,
       profile?.id,
       user?.id,
       currentReaction,

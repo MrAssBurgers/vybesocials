@@ -54,6 +54,13 @@ describe('classifyDmSendError — blocked / rate-limit / transient', () => {
     expect(isTransientDmSendFailure('transient')).toBe(true);
   });
 
+  it('does not treat bare CF internal as Waiting for connection when online', () => {
+    expect(classifyDmSendError({ code: 'internal', message: 'INTERNAL' })).toBe('unknown');
+    expect(classifyDmSendError({ code: 'functions/internal', message: 'internal' })).toBe('unknown');
+    expect(dmSendFailureUserMessage('unknown', 'internal')).toMatch(/try again/i);
+    expect(dmSendFailureUserMessage('unknown', 'internal')).not.toMatch(/connection/i);
+  });
+
   it('classifies validation and permission distinctly', () => {
     expect(
       classifyDmSendError({ code: 'invalid-argument', message: 'content or mediaUrl required' }),

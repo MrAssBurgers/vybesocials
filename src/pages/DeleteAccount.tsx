@@ -37,13 +37,13 @@ export default function DeleteAccountPage() {
       const { data: sessionData } = await db.auth.getSession();
       if (sessionData?.session) {
         const { data, error } = await db.functions.invoke('manage-account', {
-          body: { action: 'delete' },
+          body: { action: 'request_delete' },
         });
         if (error) throw error;
-        if (!data?.success) throw new Error(data?.error || 'Deletion failed');
+        if (!(data?.ok || data?.success)) throw new Error(data?.error || 'Deletion failed');
         await db.auth.signOut();
         setSubmitted(true);
-        toast.success('Account deleted.');
+        toast.success('Account scheduled for deletion in 30 days.');
         return;
       }
 

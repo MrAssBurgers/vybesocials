@@ -46,6 +46,10 @@ export function AccountDangerZone() {
         body: { action: 'export' },
       });
       if (error) throw error;
+      // CF returns { ok: true } (legacy clients checked success).
+      if (data && data.ok === false && data.success === false) {
+        throw new Error(data?.error || 'Export failed');
+      }
 
       const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
       const url = URL.createObjectURL(blob);
@@ -69,11 +73,12 @@ export function AccountDangerZone() {
     if (!user || confirmText !== 'DELETE' || requesting) return;
     setRequesting(true);
     try {
+      // CF manageAccount expects request_delete (not request_deletion) and returns { ok }.
       const { data, error } = await db.functions.invoke('manage-account', {
-        body: { action: 'request_deletion' },
+        body: { action: 'request_delete' },
       });
       if (error) throw error;
-      if (!data?.success) throw new Error(data?.error || 'Request failed');
+      if (!(data?.ok || data?.success)) throw new Error(data?.error || 'Request failed');
 
       toast.success('Account scheduled for deletion in 30 days. Sign back in to cancel.');
       setDeleteOpen(false);
@@ -92,10 +97,10 @@ export function AccountDangerZone() {
     setCancelling(true);
     try {
       const { data, error } = await db.functions.invoke('manage-account', {
-        body: { action: 'cancel_deletion' },
+        body: { action: 'cancel_delete' },
       });
       if (error) throw error;
-      if (!data?.success) throw new Error(data?.error || 'Cancel failed');
+      if (!(data?.ok || data?.success)) throw new Error(data?.error || 'Cancel failed');
       toast.success('Deletion cancelled. Welcome back!');
       setScheduledPurgeAt(null);
     } catch (err) {

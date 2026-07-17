@@ -144,14 +144,17 @@ export function Camera({
         return;
       }
       streamRef.current = stream;
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        videoRef.current.onloadedmetadata = () => {
+      const videoEl = videoRef.current;
+      if (videoEl) {
+        videoEl.srcObject = stream;
+        videoEl.onloadedmetadata = () => {
           videoRef.current?.play().catch(() => {});
           setCameraReady(true);
         };
-        await videoRef.current.play().catch(() => {});
-        if (videoRef.current.readyState >= 2) setCameraReady(true);
+        await videoEl.play().catch(() => {});
+        if (videoRef.current?.readyState != null && videoRef.current.readyState >= 2) {
+          setCameraReady(true);
+        }
       }
 
       // Apply torch for rear camera

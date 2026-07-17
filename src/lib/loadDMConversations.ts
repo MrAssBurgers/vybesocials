@@ -208,12 +208,25 @@ async function loadDMConversationsOnce(
   stale: LoadedDMConversation[],
 ): Promise<LoadDMConversationsResult> {
   try {
+    // OAuth custom-token race: wait briefly for auth before membership queries.
+    const { waitForAuthSession } = await import('@/lib/auth');
+    const sessionReady = await waitForAuthSession(2000);
+    if (!sessionReady?.user) {
+      if (stale.length > 0) {
+        return { data: stale, error: null, profileId };
+      }
+      return {
+        data: [],
+        error: { message: 'Auth not ready' },
+        profileId,
+      };
+    }
+
     const effectiveProfileId =
       syncSessionProfileId(profileId) ??
       (await resolveSessionProfileId(profileId)) ??
       profileId;
-    const { data: { session } } = await db.auth.getSession();
-    const authUid = session?.user?.id ?? null;
+    const authUid = sessionReady.user.id ?? null;
 
     if (authUid && effectiveProfileId) {
       await syncUserAuthIndex(authUid, effectiveProfileId);
