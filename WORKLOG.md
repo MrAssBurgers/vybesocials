@@ -13,7 +13,8 @@ Use this file as the Lovable -> Cursor handoff each session.
 
 ### Ship
 - **CF deployed** `vybe-daaab`: `sendDmMessage`, `sendPushNotification`, `onDmMessageCreated` → CPU **0.083** (verified).
-- **Client on `origin/main`:** _(fill SHA after push)_ — retries + reaction auth wait + push soft-log.
+- **Client on `origin/main`:** `9227533b5` — retries + reaction auth wait + push soft-log.
+- **Lovable → Share → Publish** for SPA (also still need prior `0f771b945` AuthProvider gates if preview is stale).
 - OAuth paths **untouched**.
 - Firestore rules **not loosened**.
 
