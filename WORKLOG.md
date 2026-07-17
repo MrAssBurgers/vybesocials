@@ -5,7 +5,7 @@ Use this file as the Lovable -> Cursor handoff each session.
 ## ACTIVE (2026-07-17) — iOS OAuth: App Link dismiss (kill invalid-address toast)
 
 ### Publish handoff
-- **On `origin/main`:** (this commit) — see git log after push
+- **On `origin/main`:** `db211a4ec`
 - **Lovable → Share → Publish required** for `vybehub.app` (`native-callback.html` + SPA). Agent cannot click Publish.
 - **No Firebase CF deploy.** **No Despia rebuild.** `native_ios_auth_v1` stays OFF.
 
