@@ -42,7 +42,7 @@ export async function signInWithAppleNative(
     timeoutMs: opts?.timeoutMs,
   });
 
-  if (!bridgeResult.ok) {
+  if (bridgeResult.ok === false) {
     if (bridgeResult.code === 'cancelled') {
       nativeAuthTelemetry('native_auth_cancelled', { provider: 'apple' });
     } else {

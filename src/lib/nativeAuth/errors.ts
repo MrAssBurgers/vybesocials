@@ -29,7 +29,7 @@ export function mapNativeAuthFailure(failure: NativeAuthFailure): VybeAuthError 
 }
 
 export function mapNativeAuthResult(result: NativeAuthResult): VybeAuthError | null {
-  if (result.ok) return null;
+  if (result.ok === true) return null;
   return mapNativeAuthFailure(result);
 }
 

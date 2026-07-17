@@ -1,5 +1,12 @@
 # WORKLOG
 
+## CI FIX (2026-07-17) — nativeAuth typecheck on main
+
+- **Failure:** `npm run typecheck` — `NativeAuthResult` not narrowed after `!result.ok` (strict off).
+- **Fix:** Discriminant checks `ok === false` / `ok === true` in `apple.ts`, `google.ts`, `errors.ts`.
+- **Tests:** lint (warnings only), typecheck, test (367), build — green.
+- iOS OAuth App Link dismiss path untouched.
+
 Use this file as the Lovable -> Cursor handoff each session.
 
 ## ACTIVE (2026-07-17) — iOS OAuth: App Link dismiss (kill invalid-address toast)
