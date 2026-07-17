@@ -702,9 +702,11 @@ function startDespiaOAuthNoncePoll(nonce: string): void {
     }
   };
 
-  // Poll ASAP — iOS callback now App Link closes (no oauthDismiss race).
-  // Android CCT throttles background timers; visible resume polls immediately.
-  const initialPollDelayMs = getRuntimeOs() === 'ios' ? 250 : 100;
+  // [iOS-only] Delay first poll so exchange + oauthDismiss usually own ASWeb
+  // before poll_oauth_nonce redeem foregrounds the app (avoids stuck sheet).
+  // Visibility/focus still kick poll immediately when the sheet dismisses.
+  // Android: poll ASAP — CCT already throttles background timers.
+  const initialPollDelayMs = getRuntimeOs() === 'ios' ? 2750 : 100;
   noncePollTimer = window.setTimeout(() => {
     void tick();
   }, initialPollDelayMs);

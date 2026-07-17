@@ -19,22 +19,27 @@
      * this page, call oauthDismiss, or run exchange_*.
      *
      * Despia OAuth return (Google/Apple). Runs inside ASWeb / Custom Tabs.
-     * Close via HTTPS App Link /auth?hc= (iOS + Android). Session completes in
-     * the main WebView via Universal/App Link and/or nonce poll.
-     * NEVER navigate to custom-scheme or oauthDismiss (302 → com.despia.vybe://)
-     * from ASWeb — Safari shows "address is invalid" and the sheet sticks.
-     * Never soft-close with wait=1. If exchange hangs: leave blank / Open VYBE UI.
+     * iOS: close via HTTPS 302 (oauthDismiss → custom scheme) so ASWeb
+     * dismisses. Direct com.despia.vybe:// from JS opens Safari and sticks.
+     * Android: App Link close (CCT); oauth/ deeplink as secondary.
+     * Proven iOS path: exchange first, then one fireClose with hc= only.
+     * Never soft-close with wait=1 / custom-scheme JS navigate (Safari invalid address).
+     * If exchange hangs: leave blank page (or "Open VYBE" App Link UI after success).
      */
     (function () {
       var DEFAULT_SCHEME = 'com.despia.vybe';
       var EXCHANGE_URL = 'https://us-central1-vybe-daaab.cloudfunctions.net/authQr';
       var APP_ORIGIN = 'https://vybehub.app';
+      // Direct Cloud Function URL — vybehub.app is Lovable and does not serve the
+      // Firebase Hosting rewrite for /oauth-dismiss (would return SPA 200 instead of 302).
+      var DISMISS_URL = 'https://us-central1-vybe-daaab.cloudfunctions.net/oauthDismiss';
       var INGEST_URL = 'http://127.0.0.1:7693/ingest/1847f3ab-7d03-4b99-8dbe-84076ae9145e';
       var DEBUG_SESSION = 'bd2545';
       var DEBUG_RUN = 'ios-oauth-timeline';
       var closed = false;
       var bootAt = Date.now();
       var fireCloseCalled = false;
+      var oauthDismissNavCalled = false;
 
       function decodeState(state) {
         if (!state) return null;
@@ -169,6 +174,7 @@
             iss: issHost(tokenIss),
             hasOpener: hasOpener,
             fireCloseCalled: fireCloseCalled,
+            oauthDismissNavCalled: oauthDismissNavCalled,
           },
           payload || {},
         );
@@ -210,7 +216,8 @@
       // #endregion
 
       // Apple JS popup (usePopup): tokens return via postMessage to opener.
-      // NEVER run App Link / exchange dismiss in this window.
+      // NEVER run Despia oauthDismiss in this window — that 302s to a custom
+      // scheme inside the popup and shows Safari "address is invalid".
       if (hasOpener) {
         // #region agent log
         dbg('callback_boot', 'T', {
@@ -231,7 +238,7 @@
       }
 
       // [iOS-only] Apple JWT without Despia oauth:// state (Apple JS redirect /
-      // WKWebView residue) — close quietly; do not exchange or App Link dismiss.
+      // WKWebView residue) — close quietly; do not exchange or oauthDismiss.
       // Android Apple oauth:// with valid Despia state still exchanges below.
       var validDespiaState = hasValidDespiaOAuthState(stateObj);
       if (
@@ -286,7 +293,7 @@
         noncePresent: !!nonce,
         validDespiaState: validDespiaState,
         scheme: scheme,
-        dismissMode: 'applink',
+        dismissMode: isAndroid() ? 'applink' : 'oauthDismiss',
         exchangeAction: exchangeAction,
       });
       dbg('exchange_selected', 'T', {
@@ -314,24 +321,57 @@
             return;
           }
         } catch (eClose) {}
-        // iOS + Android: HTTPS App Link only. Never oauthDismiss / custom-scheme
-        // (Safari "address is invalid"). Session via App Link +/or nonce poll.
-        // ASWeb may still need Done if it does not auto-dismiss on HTTPS — OK.
-        var appLink = APP_ORIGIN + '/auth?' + query;
+        if (isAndroid()) {
+          // [Android-only] App Link close — CCT returns via HTTPS /auth?hc=
+          var appLink = APP_ORIGIN + '/auth?' + query;
+          // #region agent log
+          dbg('fire_close', 'T', {
+            mode: 'applink',
+            android: true,
+            hasHc: query.indexOf('hc=') !== -1,
+            hasWait: query.indexOf('wait=') !== -1,
+            queryLen: String(query).length,
+            intent: intent,
+          });
+          // #endregion
+          closed = true;
+          try { window.location.replace(appLink); } catch (e1) {}
+          try { window.location.href = appLink; } catch (e2) {}
+          return;
+        }
+        // [iOS-only] HTTPS 302 via oauthDismiss — never JS-navigate to custom scheme
+        // (that opens Safari "address is invalid" and leaves ASWeb stuck).
+        // Only mechanism that auto-dismisses Despia ASWeb. Exchange-first → one
+        // fireClose with hc=; never wait=1 / warm=1 soft-close on success path.
+        var dismiss =
+          DISMISS_URL +
+          '?' +
+          query +
+          '&scheme=' +
+          encodeURIComponent(scheme);
+        oauthDismissNavCalled = true;
         // #region agent log
         dbg('fire_close', 'T', {
-          mode: 'applink',
-          android: isAndroid(),
+          mode: 'oauthDismiss',
+          android: false,
           hasHc: query.indexOf('hc=') !== -1,
           hasWait: query.indexOf('wait=') !== -1,
           queryLen: String(query).length,
           intent: intent,
+          dismissHost: 'us-central1-vybe-daaab.cloudfunctions.net',
+          msSinceBoot: Date.now() - bootAt,
+        });
+        dbg('oauth_dismiss_nav', 'T', {
+          dismissHost: 'us-central1-vybe-daaab.cloudfunctions.net',
+          hasHc: query.indexOf('hc=') !== -1,
+          hasWait: query.indexOf('wait=') !== -1,
+          scheme: scheme,
           msSinceBoot: Date.now() - bootAt,
         });
         // #endregion
         closed = true;
-        try { window.location.replace(appLink); } catch (e1) {
-          try { window.location.href = appLink; } catch (e2) {}
+        try { window.location.replace(dismiss); } catch (e5) {
+          try { window.location.href = dismiss; } catch (e6) {}
         }
       }
 

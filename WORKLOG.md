@@ -1,15 +1,60 @@
 # WORKLOG
 
+Use this file as the Lovable -> Cursor handoff each session.
+
+## ACTIVE (2026-07-17) — iOS Google: restore oauthDismiss auto-close
+
+### Publish handoff
+- **On `origin/main`:** _(pending push — fill SHA after push)_
+- **Lovable → Share → Publish required** for `vybehub.app` (`native-callback.html` + SPA). Agent cannot click Publish.
+- **No Firebase CF deploy.** `oauthDismiss` already live with `minInstances:1`. **No Despia rebuild.**
+
+### Goal
+iOS Google: account pick → ASWeb **auto-closes** (no Done tap) → signed into VYBE. Prefer no Safari invalid-address toast. Do not break Android or Apple.
+
+### Fix
+1. **iOS `fireClose`:** restore HTTPS `oauthDismiss?hc=` → 302 custom scheme (only mechanism that auto-dismisses Despia ASWeb).
+2. **Android:** still App Link `/auth?hc=` only.
+3. **Race:** exchange-first → **one** `fireClose('hc=…')`; **no** `wait=1` / `warm=1` soft-close.
+4. **iOS nonce poll:** first tick delayed **2750ms** (visibility/focus still kick immediately when sheet dismisses) so redeem does not foreground before dismiss.
+5. No alternate Despia bridge dismiss API found beyond oauthDismiss.
+
+### Telemetry expect (after Publish)
+- `fire_close mode:oauthDismiss`, `hasHc:true`, **never** `hasWait` on success path.
+- Android: `fire_close mode:applink`.
+
+### Files
+- `public/native-callback.html` — iOS oauthDismiss / Android App Link split restored
+- `src/lib/despiaOAuth.ts` — iOS initial poll 2750ms
+- `src/lib/nativeOAuth.ts` — comment sync
+
+### Architecture (unchanged)
+- Google Despia: oauth:// → native-callback → exchange → iOS oauthDismiss / Android App Link + nonce poll
+- Apple iOS: Apple JS → `signInWithCredential` (Android Apple still oauth://)
+- `native_ios_auth_v1` stays OFF
+
+### Verify checklist (after Publish)
+1. iOS Google: sheet auto-closes after account pick; signed in without Done.
+2. Timeline: `fire_close mode:oauthDismiss` + `hasHc:true`, no `wait=1`.
+3. Brief invalid-address toast may still flash if ASWeb misses intercept — login + auto-close are priority.
+4. iOS Apple Face ID; Android Google/Apple unchanged.
+
+### Tests
+- `npm run build` green
+- `npm run test` green (367)
+
+### Next 3
+1. Lovable → Share → Publish.
+2. Device: iOS Google account pick → auto-close + signed in.
+3. If toast returns badly but sheet closes, leave; if sheet sticks again, revisit poll delay / dismiss timing.
+
 ## CI FIX (2026-07-17) — nativeAuth typecheck on main
 
 - **Failure:** `npm run typecheck` — `NativeAuthResult` not narrowed after `!result.ok` (strict off).
 - **Fix:** Discriminant checks `ok === false` / `ok === true` in `apple.ts`, `google.ts`, `errors.ts`.
 - **Tests:** lint (warnings only), typecheck, test (367), build — green.
-- iOS OAuth App Link dismiss path untouched.
 
-Use this file as the Lovable -> Cursor handoff each session.
-
-## ACTIVE (2026-07-17) — iOS OAuth: App Link dismiss (kill invalid-address toast)
+## SUPERSEDED (2026-07-17) — iOS OAuth: App Link dismiss (kill invalid-address toast)
 
 ### Publish handoff
 - **On `origin/main`:** `db211a4ec`
