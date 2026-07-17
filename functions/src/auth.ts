@@ -1,4 +1,4 @@
-import { randomBytes } from 'crypto';
+import { randomBytes, createHmac, timingSafeEqual } from 'crypto';
 import { onCall, onRequest, HttpsError } from 'firebase-functions/v2/https';
 import { OAuth2Client } from 'google-auth-library';
 import { db, auth, requireAuth, requireAdmin, rateLimit, enforceRateLimit } from './_shared/admin.js';
