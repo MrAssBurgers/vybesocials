@@ -510,7 +510,7 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
         },
         'Landing.tsx:runOAuthSignIn.catch',
       );
-      let msg = sanitizeAuthToastMessage(getFriendlyAuthError(error));
+      const msg = sanitizeAuthToastMessage(getFriendlyAuthError(error));
       if (msg !== '__SUPPRESS__') toast.error(msg);
       setOauthOverlay(null);
     } finally {
