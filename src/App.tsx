@@ -171,7 +171,7 @@ import { LocationProvider } from "@/providers/LocationProvider";
 import { useBriefPreFetch } from "@/hooks/useBriefPreFetch";
 import { SplashScreen } from "@/components/ui/SplashScreen";
 import { WelcomeBackSplash } from "@/components/ui/WelcomeBackSplash";
-import { markPersistRestored } from "@/lib/persistRestoreGate";
+import { isPersistRestored, markPersistRestored, onPersistRestored } from "@/lib/persistRestoreGate";
 import {
   reviveQueriesInCache,
   installQueryCacheNormalizer,
@@ -431,6 +431,7 @@ function AppWithPreloader() {
   const preloadStatus = useAppPreloader();
   const { authResolved, hasSession } = useAuthResolved();
   const wasLoggedInRef = useRef(getWasLoggedIn());
+  const [persistRestored, setPersistRestored] = useState(isPersistRestored);
   const [showSplash, setShowSplash] = useState(!skipInitialSplash && !hasInitialLoadCompleted);
   const [welcomeBack, setWelcomeBack] = useState<{
     username?: string | null;
@@ -446,6 +447,8 @@ function AppWithPreloader() {
 
   // Track on-screen keyboard height as --kb-h CSS variable (Android polish)
   useKeyboardHeight();
+
+  useEffect(() => onPersistRestored(() => setPersistRestored(true)), []);
 
   // bfcache restore (iOS Safari / some WebViews) — re-show splash if shell is empty.
   useEffect(() => {
@@ -471,9 +474,14 @@ function AppWithPreloader() {
   const showSplashRef = useRef(showSplash);
   const preloadCompleteRef = useRef(preloadStatus.isComplete);
   const authResolvedRef = useRef(authResolved);
+  const persistRestoredRef = useRef(persistRestored);
   showSplashRef.current = showSplash;
   preloadCompleteRef.current = preloadStatus.isComplete;
   authResolvedRef.current = authResolved;
+  persistRestoredRef.current = persistRestored;
+
+  // criticalWarmDone = preloader finished persist/auth/profile/feed/DM warm attempt
+  const criticalWarmDone = preloadStatus.isComplete;
 
   useEffect(() => {
     if (!authResolved) return;
@@ -482,24 +490,25 @@ function AppWithPreloader() {
 
   useEffect(() => {
     if (!showSplash) return;
-    // Native shells (auto iOS/Android): dismiss on auth — never wait on feed/network.
-    // Web may wait for preload+auth for a snappier "ready" content paint.
-    if (isIOSNativeStartup() || isAndroidNativeStartup()) {
-      if (authResolved) completeInitialSplash(setShowSplash);
-      return;
-    }
-    if (preloadStatus.isComplete && authResolved) {
+    // Native + web: dismiss only when persist + auth + critical warm are done (not auth-only).
+    // Absolute max below remains the fail-open so cold starts never hang.
+    if (persistRestored && authResolved && criticalWarmDone) {
       completeInitialSplash(setShowSplash);
     }
-  }, [preloadStatus.isComplete, showSplash, authResolved, hasSession]);
+  }, [criticalWarmDone, showSplash, authResolved, persistRestored, hasSession]);
 
-  // After fresh sign-in, dismiss splash without waiting on feed warm.
+  // After fresh sign-in, still require critical warm (fail-open via absolute max).
   useEffect(() => {
     const { data: { subscription } } = db.auth.onAuthStateChange((event) => {
       if (event !== 'SIGNED_IN' || !showSplashRef.current) return;
       const delay = isIOSNativeStartup() ? 100 : isAndroidNativeStartup() ? 160 : 400;
       window.setTimeout(() => {
-        if (showSplashRef.current && authResolvedRef.current) {
+        if (
+          showSplashRef.current &&
+          persistRestoredRef.current &&
+          authResolvedRef.current &&
+          preloadCompleteRef.current
+        ) {
           completeInitialSplash(setShowSplash);
         }
       }, delay);
@@ -516,6 +525,7 @@ function AppWithPreloader() {
         os: getRuntimeOs(),
         preloadComplete: preloadCompleteRef.current,
         authResolved: authResolvedRef.current,
+        persistRestored: persistRestoredRef.current,
       });
       syncNativeTrackingConsent();
       completeInitialSplash(setShowSplash);
@@ -538,7 +548,11 @@ function AppWithPreloader() {
 
       const attempt = () => {
         if (!showSplashRef.current) return true;
-        if (preloadCompleteRef.current && authResolvedRef.current) {
+        if (
+          persistRestoredRef.current &&
+          preloadCompleteRef.current &&
+          authResolvedRef.current
+        ) {
           completeInitialSplash(setShowSplash);
           return true;
         }

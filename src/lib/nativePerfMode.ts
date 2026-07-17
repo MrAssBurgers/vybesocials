@@ -32,12 +32,12 @@ export function splashMinMs(): number {
 }
 
 /**
- * Absolute splash fail-open. iOS is strictest (black-screen history);
- * Android can wait a beat longer; web is most lenient.
+ * Absolute splash fail-open. Long enough for persist+auth+critical warm,
+ * short enough to never hang cold start (iOS black-screen history).
  */
 export function splashAbsoluteMaxMs(): number {
-  if (isIOSAppShell()) return 900;
-  if (isAndroidAppShell()) return 1500;
+  if (isIOSAppShell()) return 1400;
+  if (isAndroidAppShell()) return 1900;
   return 2500;
 }
 

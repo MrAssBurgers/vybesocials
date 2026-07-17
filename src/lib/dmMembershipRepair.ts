@@ -33,12 +33,16 @@ const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 export function inferOtherParticipantId(
   conversationId: string,
   myProfileId: string,
+  myAuthUid?: string | null,
 ): string | null {
   const parts = conversationId.split('_').filter(Boolean);
   if (parts.length !== 2) return null;
   const [a, b] = parts;
-  if (a === myProfileId) return b;
-  if (b === myProfileId) return a;
+  const self = new Set(
+    [myProfileId, myAuthUid].filter((id): id is string => Boolean(id)),
+  );
+  if (self.has(a) && !self.has(b)) return b;
+  if (self.has(b) && !self.has(a)) return a;
   return null;
 }
 

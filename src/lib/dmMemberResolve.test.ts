@@ -61,4 +61,18 @@ describe('resolveOtherMemberFromConversation', () => {
     };
     expect(inferOtherUserIdFromConversation(sparse, viewerProfile, viewerAuth)).toBe('profile-other');
   });
+
+  it('parses a_b conversation id against auth uid without picking self', () => {
+    const authKeyed = {
+      id: `${viewerAuth}_profile-other`,
+      member_ids: [viewerAuth, viewerProfile, 'profile-other'],
+      members: [
+        { user_id: viewerAuth, profile: { id: viewerProfile, username: 'me' } },
+        { user_id: viewerProfile, profile: { id: viewerProfile, username: 'me' } },
+      ],
+    };
+    expect(inferOtherUserIdFromConversation(authKeyed, viewerProfile, viewerAuth)).toBe(
+      'profile-other',
+    );
+  });
 });

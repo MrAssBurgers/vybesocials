@@ -213,6 +213,7 @@ export function resolveDmInboxStatus(
     const status = resolveOwnMessageStatus(message, {
       peerLastReadAt,
       isGroupChat: conversation.is_group,
+      senderIds: [profileId, authUid],
     });
     const label =
       status === 'opened'
@@ -254,13 +255,13 @@ export function resolveDmInboxStatus(
     };
   }
 
-  // Direct peer text — prefer short content when available, else Received.
+  // Direct peer text — truncated preview (never Sent/Delivered/Opened for incoming).
   const text = String(message.content || '').trim();
-  const label = text ? truncatePreview(text) : 'Received';
+  const preview = text ? truncatePreview(text) : 'Received';
   return {
     kind: 'received',
-    label: text ? 'Received' : 'Received',
-    line: joinParts([label, age, streak]),
+    label: preview,
+    line: joinParts([preview, age, streak]),
     age,
     Icon: Square,
     toneClass: 'dm-inbox-status-tone--received',

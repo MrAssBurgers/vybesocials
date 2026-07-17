@@ -800,7 +800,14 @@ export function ChatView() {
     const unreadIds: string[] = [];
     for (const msg of messages) {
       if (typeof msg.id === 'string' && msg.id.startsWith('temp-')) continue;
-      if (msg.sender_id === profileId) continue;
+      // Skip when sender is this profile OR auth uid (dual-id self).
+      if (
+        msg.sender_id === profileId ||
+        msg.sender_id === profile?.id ||
+        msg.sender_id === authUserId
+      ) {
+        continue;
+      }
       if (hasMarkedReadRef.current.has(msg.id)) continue;
       if (msg.media_type === 'vybe') continue;
 
@@ -831,7 +838,7 @@ export function ChatView() {
         clearTimeout(idleId);
       }
     };
-  }, [messages, profileId, conversationId, flushMessageViews]);
+  }, [messages, profileId, profile?.id, authUserId, conversationId, flushMessageViews]);
 
   // Save chat scroll position on unmount (clips viewer return path).
   useEffect(() => {
@@ -1949,6 +1956,7 @@ export function ChatView() {
                       activeReactionMessageId === message.id ? null : message.id
                     )}
                     profileId={profileId}
+                    authUserId={authUserId}
                     isEmojiOnly={isEmojiOnly}
                     onNavigateToPost={(postId) => navigate(`/clips/${postId}`, { state: { from: 'messages', conversationId } })}
                     onScrollToMessage={scrollToMessage}
@@ -2295,6 +2303,7 @@ const MessageBubble = memo(function MessageBubble({
   showReactions,
   onToggleReactions,
   profileId,
+  authUserId,
   isEmojiOnly = false,
   onNavigateToPost,
   onScrollToMessage,
@@ -2325,6 +2334,7 @@ const MessageBubble = memo(function MessageBubble({
   showReactions: boolean;
   onToggleReactions: () => void;
   profileId?: string;
+  authUserId?: string | null;
   isEmojiOnly?: boolean;
   onNavigateToPost?: (postId: string) => void;
   onScrollToMessage?: (messageId: string) => void;
@@ -2389,11 +2399,30 @@ const MessageBubble = memo(function MessageBubble({
   );
 
   useEffect(() => {
-    if (!isOwn && message.view_mode === 'view_once' && message.media_type !== 'vybe' && !isViewed) {
+    // Auto-view only for view-once *media* — never plain text (false "Message viewed").
+    const mediaType = String(message.media_type || '').toLowerCase();
+    const isPlainText =
+      !message.media_url &&
+      (mediaType === '' || mediaType === 'text' || mediaType === 'none');
+    const isViewOnceMedia =
+      message.view_mode === 'view_once' &&
+      !isPlainText &&
+      mediaType !== 'vybe' &&
+      (Boolean(message.media_url) ||
+        ['image', 'photo', 'video', 'audio', 'voice', 'gif'].includes(mediaType));
+
+    if (!isOwn && isViewOnceMedia && !isViewed) {
       onView();
       setIsViewed(true);
     }
-  }, [isOwn, message.view_mode, message.media_type, isViewed, onView]);
+  }, [
+    isOwn,
+    message.view_mode,
+    message.media_type,
+    message.media_url,
+    isViewed,
+    onView,
+  ]);
 
   const hasBeenViewed = message.views && message.views.length > 0;
   
@@ -2893,6 +2922,7 @@ const MessageBubble = memo(function MessageBubble({
                 peerLastReadAt: isGroupChat ? null : peerLastReadAt,
                 failed,
                 isGroupChat,
+                senderIds: [profileId, authUserId],
               })}
               animate={false}
             />

@@ -119,6 +119,14 @@ body.hide-bottom-nav [data-tutorial-bottomnav] {
   pointer-events: none !important;
 }
 
+/* While static boot splash owns UX, suppress feed/inbox loading chrome under it */
+body.splash-visible .feed-refreshing-banner,
+body.splash-visible .dm-inbox-skeleton-list {
+  display: none !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+}
+
 /* Post-login welcome overlay — block scroll + hide feed bleed-through during fade */
 body.welcome-back-visible {
   overflow: hidden !important;
@@ -1185,21 +1193,53 @@ html.platform-ios.vybe-native-shell .dm-inbox-hero {
     0 4px 18px hsl(var(--background) / 0.4);
 }
 .dm-inbox-card--unread {
-  border-color: hsl(var(--primary) / 0.32);
+  border-color: hsl(var(--primary) / 0.48);
   background: linear-gradient(
     135deg,
-    hsl(var(--primary) / 0.16),
-    hsl(var(--primary) / 0.06) 48%,
-    hsl(var(--background) / 0.3)
+    hsl(var(--primary) / 0.28),
+    hsl(var(--primary) / 0.12) 46%,
+    hsl(var(--background) / 0.36)
   );
   box-shadow:
-    inset 0 1px 0 hsl(var(--foreground) / 0.07),
-    0 0 22px hsl(var(--primary) / 0.18),
-    0 4px 16px hsl(var(--background) / 0.35);
+    inset 0 1px 0 hsl(var(--foreground) / 0.1),
+    0 0 28px hsl(var(--primary) / 0.28),
+    0 4px 18px hsl(var(--background) / 0.4);
 }
 .dm-inbox-card--unread::before {
-  width: 3px;
+  width: 4px;
   opacity: 1;
+  background: hsl(var(--primary));
+  box-shadow: 0 0 12px hsl(var(--primary) / 0.7);
+}
+
+/* [iOS-only] Stronger unread lift against iOS liquid glass */
+.platform-ios .dm-inbox-card--unread {
+  border-color: hsl(var(--primary) / 0.55);
+  background: linear-gradient(
+    135deg,
+    hsl(var(--primary) / 0.32),
+    hsl(var(--primary) / 0.14) 48%,
+    hsl(var(--background) / 0.38)
+  );
+  box-shadow:
+    inset 0 1px 0 hsl(var(--foreground) / 0.12),
+    0 0 32px hsl(var(--primary) / 0.32),
+    0 6px 20px hsl(var(--background) / 0.42);
+}
+
+/* [Android-only] Stronger unread lift against Android Material glass */
+.platform-android .dm-inbox-card--unread {
+  border-color: hsl(var(--primary) / 0.52);
+  background: linear-gradient(
+    135deg,
+    hsl(var(--primary) / 0.3),
+    hsl(var(--primary) / 0.13) 48%,
+    hsl(var(--background) / 0.4)
+  );
+  box-shadow:
+    inset 0 1px 0 hsl(var(--foreground) / 0.1),
+    0 0 30px hsl(var(--primary) / 0.3),
+    0 5px 18px hsl(var(--background) / 0.4);
 }
 .dm-inbox-card--swiping {
   transition: none;
@@ -1508,8 +1548,14 @@ html.is-scrolling .dm-inbox-avatar-button--story {
 }
 .dm-inbox-name--unread {
   color: hsl(var(--foreground));
-  font-weight: 750;
-  text-shadow: 0 0 16px hsl(var(--primary) / 0.28);
+  font-weight: 800;
+  letter-spacing: -0.015em;
+  text-shadow: 0 0 18px hsl(var(--primary) / 0.4);
+}
+.platform-ios .dm-inbox-name--unread,
+.platform-android .dm-inbox-name--unread {
+  font-weight: 800;
+  text-shadow: 0 0 20px hsl(var(--primary) / 0.45);
 }
 .dm-inbox-meta-icon {
   width: 13px;
@@ -1648,8 +1694,13 @@ html.is-scrolling .dm-inbox-avatar-button--story {
   white-space: nowrap;
 }
 .dm-inbox-preview--unread {
-  color: hsl(var(--foreground) / 0.84);
-  font-weight: 600;
+  color: hsl(var(--foreground) / 0.94);
+  font-weight: 700;
+}
+.platform-ios .dm-inbox-preview--unread,
+.platform-android .dm-inbox-preview--unread {
+  color: hsl(var(--foreground));
+  font-weight: 700;
 }
 .dm-inbox-preview--typing,
 .dm-inbox-preview--live {

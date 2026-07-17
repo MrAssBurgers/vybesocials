@@ -45,7 +45,7 @@ export function FeedRefreshingBanner({ className }: { className?: string }) {
       initial={{ opacity: 0, height: 0 }}
       animate={{ opacity: 1, height: 'auto' }}
       className={cn(
-        'mb-3 flex items-center justify-center gap-2 rounded-xl border border-border/30 bg-muted/30 px-3 py-1.5 text-[11px] font-medium text-muted-foreground',
+        'feed-refreshing-banner mb-3 flex items-center justify-center gap-2 rounded-xl border border-border/30 bg-muted/30 px-3 py-1.5 text-[11px] font-medium text-muted-foreground',
         className,
       )}
     >

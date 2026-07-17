@@ -17,6 +17,12 @@ export function shouldShowFeedRefreshing(
   isFetching: boolean,
   isPending: boolean,
 ): boolean {
+  if (
+    typeof document !== 'undefined' &&
+    document.body.classList.contains('splash-visible')
+  ) {
+    return false;
+  }
   return postCount > 0 && isFetching && !isPending;
 }
 

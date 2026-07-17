@@ -11,6 +11,7 @@ export interface MergeLegacyProjectionInput {
   projectionReady: boolean;
   /** Current viewer — used so 1:1 person-dedupe ignores self. */
   viewerId?: string | null;
+  viewerAuthUid?: string | null;
 }
 
 /**
@@ -63,6 +64,7 @@ export function mergeLegacyAndProjection(
     projectionReadEnabled,
     projectionReady,
     viewerId = null,
+    viewerAuthUid = null,
   } = input;
 
   const filteredLegacy = legacy.filter((c) => !lockedIds.has(c.id));
@@ -80,13 +82,15 @@ export function mergeLegacyAndProjection(
   const seen = new Set<string>();
   const seenOtherKeys = new Set<string>();
 
+  const isSelfId = (id: string) =>
+    Boolean(id) && (id === viewerId || (viewerAuthUid != null && id === viewerAuthUid));
+
   const otherKeyForConversation = (conversation: LoadedDMConversation): string | null => {
     if (conversation.is_group) return null;
     const members = conversation.members || [];
     for (const m of members as Array<{ user_id?: string; profile?: { id?: string; username?: string } }>) {
       const id = String(m.profile?.id || m.user_id || '');
-      if (!id) continue;
-      if (viewerId && id === viewerId) continue;
+      if (!id || isSelfId(id)) continue;
       const uname = String(m.profile?.username || '').toLowerCase();
       if (uname) return `u:${uname}`;
       return `id:${id}`;

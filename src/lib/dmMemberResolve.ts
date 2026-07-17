@@ -33,7 +33,7 @@ export function inferOtherUserIdFromConversation(
   if (fromIds) return String(fromIds);
 
   if (conversation.id) {
-    return inferOtherParticipantId(conversation.id, viewerProfileId);
+    return inferOtherParticipantId(conversation.id, viewerProfileId, viewerAuthUid);
   }
   return null;
 }
@@ -63,7 +63,7 @@ export function buildConversationMembers(
   for (const m of existingMembers) {
     if (m.user_id) allIds.add(String(m.user_id));
   }
-  const inferred = inferOtherParticipantId(conversationId, viewerProfileId);
+  const inferred = inferOtherParticipantId(conversationId, viewerProfileId, viewerAuthUid);
   if (inferred) allIds.add(inferred);
   if (viewerProfileId) allIds.add(viewerProfileId);
   if (viewerAuthUid) allIds.add(viewerAuthUid);

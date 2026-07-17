@@ -150,6 +150,26 @@ async function loadProfile(profileId: string): Promise<(ProfileDoc & { id: strin
   return { id: snap.id, ...(snap.data() as ProfileDoc) };
 }
 
+/** Resolve profile id + auth uid for a viewer (member user_id may be either). */
+async function resolveViewerSelfIds(
+  viewerId: string,
+): Promise<{ profileId: string; authUid: string | null }> {
+  const byDoc = await loadProfile(viewerId);
+  if (byDoc) {
+    return { profileId: byDoc.id, authUid: asString(byDoc.user_id) };
+  }
+  const byAuth = await db
+    .collection('profiles')
+    .where('user_id', '==', viewerId)
+    .limit(1)
+    .get();
+  if (!byAuth.empty) {
+    const doc = byAuth.docs[0];
+    return { profileId: doc.id, authUid: viewerId };
+  }
+  return { profileId: viewerId, authUid: null };
+}
+
 async function listMemberUserIds(conversationId: string): Promise<string[]> {
   const snap = await db
     .collection('conversation_members')
@@ -237,13 +257,20 @@ function inferOtherProfileId(
   conversationId: string,
   viewerId: string,
   memberIds: string[],
+  viewerAuthUid?: string | null,
 ): string | null {
+  const selfIds = new Set<string>([viewerId]);
+  if (viewerAuthUid) selfIds.add(viewerAuthUid);
+
   const parts = conversationId.split('_').filter(Boolean);
   if (parts.length === 2) {
-    if (parts[0] === viewerId) return parts[1];
-    if (parts[1] === viewerId) return parts[0];
+    const [a, b] = parts;
+    // Prefer deterministic a_b parse against profile id AND auth uid.
+    if (selfIds.has(a) && !selfIds.has(b)) return b;
+    if (selfIds.has(b) && !selfIds.has(a)) return a;
   }
-  const others = memberIds.filter((id) => id !== viewerId);
+
+  const others = memberIds.filter((id) => id && !selfIds.has(id));
   return others[0] || null;
 }
 
@@ -329,14 +356,29 @@ async function buildEntryForViewer(
         ? Date.parse(membership?.last_read_at || '0') || 0
         : 0;
 
+  const viewerSelf = await resolveViewerSelfIds(viewerId);
+  const selfIds = new Set(
+    [viewerId, viewerSelf.profileId, viewerSelf.authUid].filter(
+      (id): id is string => Boolean(id),
+    ),
+  );
+
   const otherProfileId = isGroup
     ? null
-    : inferOtherProfileId(conversationId, viewerId, memberIds);
+    : inferOtherProfileId(
+        conversationId,
+        viewerSelf.profileId,
+        memberIds,
+        viewerSelf.authUid || viewerId,
+      );
 
   const otherProfiles = await Promise.all(
-    (isGroup ? memberIds.filter((id) => id !== viewerId).slice(0, 3) : otherProfileId ? [otherProfileId] : []).map(
-      (id) => loadProfile(id),
-    ),
+    (isGroup
+      ? memberIds.filter((id) => !selfIds.has(id)).slice(0, 3)
+      : otherProfileId
+        ? [otherProfileId]
+        : []
+    ).map((id) => loadProfile(id)),
   );
   const primaryOther = otherProfiles[0] || null;
   const secondaryOther = otherProfiles[1] || null;
@@ -490,8 +532,15 @@ async function safeRebuild(conversationId: string | null | undefined, label: str
   }
 }
 
+/** Fractional CPU so Gen2 revisions fit under project cpu_allocation quota. */
+const DM_INBOX_TRIGGER_OPTS = {
+  region: 'us-central1' as const,
+  memory: '256MiB' as const,
+  cpu: 0.083,
+};
+
 export const onDmInboxMessageCreated = onDocumentCreated(
-  { document: 'messages/{messageId}', region: 'us-central1' },
+  { document: 'messages/{messageId}', ...DM_INBOX_TRIGGER_OPTS },
   async (event) => {
     const data = event.data?.data() as MessageDoc | undefined;
     await safeRebuild(data?.conversation_id, 'messageCreated');
@@ -499,7 +548,7 @@ export const onDmInboxMessageCreated = onDocumentCreated(
 );
 
 export const onDmInboxMessageUpdated = onDocumentUpdated(
-  { document: 'messages/{messageId}', region: 'us-central1' },
+  { document: 'messages/{messageId}', ...DM_INBOX_TRIGGER_OPTS },
   async (event) => {
     const after = event.data?.after.data() as MessageDoc | undefined;
     const before = event.data?.before.data() as MessageDoc | undefined;
@@ -508,7 +557,7 @@ export const onDmInboxMessageUpdated = onDocumentUpdated(
 );
 
 export const onDmInboxMessageDeleted = onDocumentDeleted(
-  { document: 'messages/{messageId}', region: 'us-central1' },
+  { document: 'messages/{messageId}', ...DM_INBOX_TRIGGER_OPTS },
   async (event) => {
     const data = event.data?.data() as MessageDoc | undefined;
     await safeRebuild(data?.conversation_id, 'messageDeleted');
@@ -516,7 +565,7 @@ export const onDmInboxMessageDeleted = onDocumentDeleted(
 );
 
 export const onDmInboxMemberWritten = onDocumentWritten(
-  { document: 'conversation_members/{docId}', region: 'us-central1' },
+  { document: 'conversation_members/{docId}', ...DM_INBOX_TRIGGER_OPTS },
   async (event) => {
     const after = event.data?.after.data() as MemberDoc | undefined;
     const before = event.data?.before.data() as MemberDoc | undefined;
@@ -540,7 +589,7 @@ export const onDmInboxMemberWritten = onDocumentWritten(
 );
 
 export const onDmInboxConversationWritten = onDocumentWritten(
-  { document: 'conversations/{cid}', region: 'us-central1' },
+  { document: 'conversations/{cid}', ...DM_INBOX_TRIGGER_OPTS },
   async (event) => {
     await safeRebuild(event.params.cid, 'conversationWritten');
   },

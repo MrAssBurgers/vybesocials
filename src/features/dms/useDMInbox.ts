@@ -282,6 +282,7 @@ export function useDMInbox() {
       projectionReadEnabled: isDmInboxProjectionReadEnabled(profileId, user?.id),
       projectionReady: projection.projectionReady,
       viewerId: profileId,
+      viewerAuthUid: user?.id,
     });
 
     const prev = lastNonEmptyConversationsRef.current;

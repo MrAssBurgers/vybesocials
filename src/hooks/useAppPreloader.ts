@@ -12,6 +12,7 @@ import { kickstartThemeHydration, prefetchAndApplyUserTheme } from '@/lib/themeH
 import { getCachedCurrentProfile } from '@/lib/profileCache';
 import { resolveProfileAvatarUrl } from '@/lib/profileAvatarCache';
 import { signAndPreloadFeedPosts, signAndPreloadProfileAvatar } from '@/lib/imagePreload';
+import { prefetchDMConversations } from '@/lib/loadDMConversations';
 import { logStartupPhase } from '@/lib/startupTiming';
 
 interface PreloadStatus {
@@ -20,15 +21,14 @@ interface PreloadStatus {
   isComplete: boolean;
 }
 
+/** Critical splash steps only — persist, auth/profile, feed, DM. No stories/signing/brief. */
 const PRELOAD_STEPS = [
-  { key: 'init', label: 'Waking up...', weight: 8 },
-  { key: 'auth', label: 'Checking session...', weight: 14 },
-  { key: 'profile', label: 'Loading profile...', weight: 14 },
-  { key: 'feed', label: 'Getting your feed...', weight: 22 },
-  { key: 'clips', label: 'Loading clips...', weight: 18 },
-  { key: 'social', label: 'Syncing social...', weight: 14 },
-  { key: 'final', label: 'Final touches...', weight: 5 },
-  { key: 'ready', label: "Let's go! ✨", weight: 5 },
+  { key: 'init', label: 'Waking up...', weight: 10 },
+  { key: 'auth', label: 'Checking session...', weight: 18 },
+  { key: 'profile', label: 'Loading profile...', weight: 18 },
+  { key: 'feed', label: 'Getting your feed...', weight: 28 },
+  { key: 'dm', label: 'Loading messages...', weight: 18 },
+  { key: 'ready', label: "Let's go! ✨", weight: 8 },
 ];
 
 const TOTAL_WEIGHT = PRELOAD_STEPS.reduce((s, step) => s + step.weight, 0);
@@ -134,66 +134,20 @@ export function useAppPreloader() {
       const ios = isIOSNativeStartup();
       const android = isAndroidNativeStartup();
       const native = ios || android || isNativePerfMode();
+      const authMs = native ? 700 : 1600;
+      const profileMs = native ? 700 : 1600;
+      const feedMs = native ? 800 : 2000;
+      const dmMs = native ? 800 : 2000;
+
       logStartupPhase('Preloader start', { os: getRuntimeOs(), ios, android, native });
       updateStatus('init', 0.4);
       kickstartThemeHydration(queryClient);
       preloadCriticalRoutes();
 
-      // Native iOS/Android: mark preload complete immediately so splash can dismiss.
-      // Profile / feed / social continue in background — never block first paint.
-      if (ios || android) {
-        updateStatus('ready', 1);
-        logStartupPhase('Preloader ready (native fast-path)', { os: getRuntimeOs() });
-
-        void (async () => {
-          const { data: { session } } = await withTimeout<any>(
-            db.auth.getSession(),
-            600,
-            { data: { session: null }, error: null },
-          );
-          if (cancelled) return;
-          logStartupPhase('Auth restored', { hasUser: !!session?.user, via: 'preloader-bg' });
-          if (!session?.user) {
-            void warmGuestFeed(queryClient, () => undefined);
-          } else {
-            const uid = session.user.id;
-            void prefetchAndApplyUserTheme(uid, queryClient);
-            const cachedProfile = getCachedCurrentProfile();
-            const earlyProfileId = cachedProfile?.id;
-            if (cachedProfile && earlyProfileId) {
-              const earlyAvatar = resolveProfileAvatarUrl(earlyProfileId, cachedProfile.avatar_url);
-              if (earlyAvatar) void signAndPreloadProfileAvatar(earlyAvatar, 192);
-              queryClient.setQueryData(['profile', earlyProfileId], cachedProfile);
-              void warmUserFeed(queryClient, earlyProfileId, uid, () => undefined);
-            }
-            const profileResult = await withTimeout<any>(
-              db.from('profiles').select('*').eq('user_id', uid).maybeSingle() as unknown as Promise<any>,
-              800,
-              { data: null, error: null },
-            );
-            if (cancelled) return;
-            const profileData = profileResult.data ?? cachedProfile;
-            const profileId = profileData?.id ?? earlyProfileId;
-            if (profileData && profileId) {
-              queryClient.setQueryData(['profile', profileId], profileData);
-              warmHomeCachesForProfile(queryClient, uid, profileId, profileData);
-            }
-            if (!earlyProfileId || profileId !== earlyProfileId) {
-              void warmUserFeed(queryClient, profileId ?? null, uid, () => undefined);
-            }
-          }
-          requestAnimationFrame(() => {
-            void warmHomeCaches(queryClient);
-            setTimeout(() => preloadSecondaryRoutes(), 1200);
-          });
-        })();
-        return;
-      }
-
       updateStatus('auth', 0.15);
       const { data: { session } } = await withTimeout<any>(
         db.auth.getSession(),
-        1600,
+        authMs,
         { data: { session: null }, error: null },
       );
       if (cancelled) return;
@@ -203,11 +157,16 @@ export function useAppPreloader() {
       if (!session?.user) {
         updateStatus('profile', 1);
         updateStatus('feed', 0.2);
-        // Guest feed warm is background-only — don't hold splash for image signing.
-        void warmGuestFeed(queryClient, () => undefined);
+        await withTimeout(
+          warmGuestFeed(queryClient, (p) => {
+            if (!cancelled) updateStatus('feed', 0.2 + p * 0.8);
+          }),
+          feedMs,
+          undefined as void,
+        );
+        if (cancelled) return;
         updateStatus('feed', 1);
-        updateStatus('clips', 1);
-        updateStatus('social', 1);
+        updateStatus('dm', 1);
       } else {
         const uid = session.user.id;
         updateStatus('profile', 0.25);
@@ -227,7 +186,7 @@ export function useAppPreloader() {
 
         const profileResult = await withTimeout<any>(
           db.from('profiles').select('*').eq('user_id', uid).maybeSingle() as unknown as Promise<any>,
-          1600,
+          profileMs,
           { data: null, error: null },
         );
         if (cancelled) return;
@@ -237,23 +196,38 @@ export function useAppPreloader() {
         const profileId = profileData?.id ?? earlyProfileId;
         if (profileData && profileId) {
           queryClient.setQueryData(['profile', profileId], profileData);
+          // Stories/notifications/meta continue in background — not critical for splash.
           warmHomeCachesForProfile(queryClient, uid, profileId, profileData);
         }
 
         updateStatus('feed', 0.15);
-        // Never block splash on feed media signing — warm in background after dismiss.
+        // Never block splash on feed media signing — data warm only, signing in background.
         if (!earlyProfileId || profileId !== earlyProfileId) {
-          void warmUserFeed(queryClient, profileId ?? null, uid, () => undefined);
+          await withTimeout(
+            warmUserFeed(queryClient, profileId ?? null, uid, (p) => {
+              if (!cancelled) updateStatus('feed', 0.15 + p * 0.85);
+            }),
+            feedMs,
+            undefined as void,
+          );
         } else if (feedWarmPromise) {
-          void feedWarmPromise;
+          await withTimeout(feedWarmPromise, feedMs, undefined as void);
         }
-        updateStatus('feed', 1);
         if (cancelled) return;
-        updateStatus('clips', 1);
-        updateStatus('social', 1);
+        updateStatus('feed', 1);
+
+        updateStatus('dm', 0.2);
+        if (profileId) {
+          await withTimeout(
+            prefetchDMConversations(queryClient, profileId, uid),
+            dmMs,
+            undefined as void,
+          );
+        }
+        if (cancelled) return;
+        updateStatus('dm', 1);
       }
 
-      updateStatus('final', 1);
       updateStatus('ready', 1);
       logStartupPhase('Preloader ready');
 
@@ -359,7 +333,8 @@ async function warmGuestFeed(
   if (feedResult.status === 'fulfilled' && feedResult.value.data) {
     const posts = feedResult.value.data as any[];
     cacheFeedData(queryClient, posts, null, 'feed_post');
-    await signAndPreloadFeedPosts(
+    // Image signing is background-only — do not hold splash.
+    void signAndPreloadFeedPosts(
       posts.map((p) => ({
         media_url: p.media_url,
         thumbnail_url: p.thumbnail_url,
@@ -371,7 +346,7 @@ async function warmGuestFeed(
   if (clipsResult.status === 'fulfilled' && clipsResult.value.data) {
     const clips = clipsResult.value.data as any[];
     cacheFeedData(queryClient, clips, null, 'clip');
-    await signAndPreloadFeedPosts(
+    void signAndPreloadFeedPosts(
       clips.map((p) => ({
         media_url: p.media_url,
         thumbnail_url: p.thumbnail_url,
@@ -415,7 +390,7 @@ async function warmUserFeed(
   if (feedResult.status === 'fulfilled' && feedResult.value.data) {
     const posts = feedResult.value.data as any[];
     cacheFeedData(queryClient, posts, profileId, null);
-    await signAndPreloadFeedPosts(
+    void signAndPreloadFeedPosts(
       posts.map((p) => ({
         media_url: p.media_url,
         thumbnail_url: p.thumbnail_url,
@@ -427,7 +402,7 @@ async function warmUserFeed(
   if (clipsResult.status === 'fulfilled' && clipsResult.value.data) {
     const clips = clipsResult.value.data as any[];
     cacheFeedData(queryClient, clips, profileId, 'short');
-    await signAndPreloadFeedPosts(
+    void signAndPreloadFeedPosts(
       clips.map((p) => ({
         media_url: p.media_url,
         thumbnail_url: p.thumbnail_url,

@@ -2,6 +2,41 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## ACTIVE (2026-07-17) — Splash rehydrate + DM identity / unread
+
+### Goal
+Keep `#vybe-static-boot` up until persist+auth+critical warm; fix wrong DM peer names / false Opened; brighten unread rows.
+
+### What changed
+1. **Splash gate** — Native dismiss requires `persistRestored && authResolved && criticalWarmDone` (preloader complete), not auth-only. Absolute max fail-open: iOS 1400ms / Android 1900ms. Preloader drives real persist/auth/profile/feed/DM steps (no native “mark ready immediately”); skips secondary/signing/stories/brief. Suppress feed refresh banner + inbox skeleton under `body.splash-visible`.
+2. **DM peer IDs** — CF `inferOtherProfileId` excludes viewer profile+auth; prefers `a_b` parse; client `inferOtherParticipantId` / merge mirrored.
+3. **Viewed / Opened** — Auto-view only for view-once media (not plain text). `resolveOwnMessageStatus` requires non-sender view or peer `last_read_at`. Auto-mark skips sender profile+auth. Incoming inbox preview = truncated text; own keeps Sent/Delivered/Opened when accurate.
+4. **Unread brightness** — Stronger `.dm-inbox-card--unread` (+ name/preview) for default, `.platform-ios`, `.platform-android`.
+
+### Files
+- `src/App.tsx`, `src/hooks/useAppPreloader.ts`, `src/lib/nativePerfMode.ts`, `src/lib/cacheFirstLoading.ts`, `src/components/feed/FeedOfflineStates.tsx`, `src/index.css`
+- `functions/src/dmInboxProjection.ts` (+ cpu 0.083 triggers)
+- `src/lib/dmMemberResolve.ts`, `src/lib/dmMembershipRepair.ts`, `src/lib/dmInboxProjectionMerge.ts`, `src/features/dms/useDMInbox.ts`
+- `src/components/chat/ChatView.tsx`, `src/lib/messageReadStatus.ts` (+ test), `src/lib/dmInboxStatus.ts`
+
+### Tests
+- `npm run build` green
+- `npm run test` green (381)
+
+### CF deploy
+- **Deployed** to `vybe-daaab` (cpu **0.083**): `onDmInboxMessageCreated`, `onDmInboxMessageUpdated`, `onDmInboxMessageDeleted`, `onDmInboxMemberWritten`, `onDmInboxConversationWritten`.
+- First batch-of-5 hit `cpu_allocation` quota; serial redeploy with fractional CPU succeeded.
+
+### Ship
+- Client: commit + push `origin/main` (this session).
+- **Lovable → Share → Publish** for SPA on `vybehub.app`.
+- OAuth paths **untouched** (Google ASAP wait=1 / Apple oauth:// / Android App Link).
+
+### Next 3
+1. Lovable Publish.
+2. Cold-start Despia: splash V+bar until feed/DM usable; no skeleton flash under splash.
+3. Device: peer names correct; incoming preview text; unread rows brighter; no false Opened.
+
 ## DONE (2026-07-17) — GitHub CI prefer-const on main
 
 - **Cause:** `src/pages/Landing.tsx` OAuth catch used `let msg` → eslint `prefer-const` (exit 1). Failed SHAs: `3720225`…`0f771b9`.
@@ -9,7 +44,7 @@ Use this file as the Lovable -> Cursor handoff each session.
 - **SHA:** `c3fe3e81d` — CI success: https://github.com/FREAZLeY/vybeapp-3df63bbb/actions/runs/29614552708
 - Local: lint/typecheck/test/build green.
 
-## ACTIVE (2026-07-17) — Lovable preview: DM internal / Push / reactions
+## SUPERSEDED (2026-07-17) — Lovable preview: DM internal / Push / reactions
 
 ### Root causes (deep scan)
 | # | Error | Root cause | Fix |
