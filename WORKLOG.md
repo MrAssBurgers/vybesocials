@@ -5,7 +5,7 @@ Use this file as the Lovable -> Cursor handoff each session.
 ## ACTIVE (2026-07-17) — iOS Apple: oauth:// (JS unknown is dead)
 
 ### Publish handoff
-- **On `origin/main`:** *(push SHA after commit)*
+- **On `origin/main`:** `d386d6e34`
 - **Lovable → Share → Publish NOW** for `vybehub.app`. Agent cannot click Publish.
 - **No CF / no native-callback change.** Google ASAP `wait=1` path **unchanged** (Apple oauth:// reuses same soft-close when nonce present).
 - **No Despia rebuild** required. True Face ID / AuthenticationServices still needs Despia `nativeauth://` + ASAuthorization binary (not available today).
