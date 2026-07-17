@@ -28,9 +28,9 @@ Keep `#vybe-static-boot` up until persist+auth+critical warm; fix wrong DM peer 
 - First batch-of-5 hit `cpu_allocation` quota; serial redeploy with fractional CPU succeeded.
 
 ### Ship
-- Client: commit + push `origin/main` (this session).
-- **Lovable → Share → Publish** for SPA on `vybehub.app`.
+- **On `origin/main`:** `914b5091a` — **Lovable → Share → Publish** for SPA on `vybehub.app`.
 - OAuth paths **untouched** (Google ASAP wait=1 / Apple oauth:// / Android App Link).
+- CF projection triggers deployed (cpu 0.083).
 
 ### Next 3
 1. Lovable Publish.
