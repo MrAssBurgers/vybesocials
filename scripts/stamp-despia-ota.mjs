@@ -64,7 +64,6 @@ const escapeScript = `
       if (window.__VYBE_BOOT_RELOAD__) return false;
       window.__VYBE_BOOT_RELOAD__ = true;
     }
-    beacon('boot_stall_hard_reload', { build: BUILD, entry: ENTRY, reason: reason || 'still_no_main_eval' });
     try {
       var url = new URL(location.href);
       url.searchParams.set('vybe_boot', String(Date.now()));
@@ -85,7 +84,6 @@ const escapeScript = `
       return;
     }
     window.__VYBE_STABLE_RELOAD__ = true;
-    beacon('boot_stall_recovery', { build: BUILD, entry: ENTRY, reason: reason || 'stall' });
     hideStaticSplash();
     var s = document.createElement('script');
     s.type = 'module';
@@ -99,44 +97,15 @@ const escapeScript = `
       }, 2000);
     };
     s.onerror = function () {
-      beacon('boot_stall_recovery_failed', { build: BUILD });
       hardReloadOnce(reason + '_inject_error');
     };
     document.head.appendChild(s);
   }
 
   function probeReady(label) {
-    beacon('module_ready_probe', {
-      build: BUILD,
-      label: label,
-      appReady: isAppReady(),
-      mainEval: window.__VYBE_MAIN_EVAL__ === true,
-      splashPct: typeof window.__vybeSplashProgress === 'number' ? window.__vybeSplashProgress : null,
-      hasRootText: !!((document.getElementById('root') || {}).textContent || '').replace(/\\s+/g, '').length,
-      despia: isDespia,
-    });
     if (isDespia && !isAppReady() && (label === '3s' || label === '8s')) {
       loadStableAppJs('despia_no_main_eval_' + label);
     }
-  }
-
-  function beacon(event, payload) {
-    try {
-      fetch('https://us-central1-vybe-daaab.cloudfunctions.net/authQr', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          data: {
-            action: 'debug_oauth',
-            event: event,
-            hypothesisId: 'H-ota',
-            location: 'index.html:ota-escape',
-            payload: payload || {},
-          },
-        }),
-        keepalive: true,
-      }).catch(function () {});
-    } catch (e1) {}
   }
 
   var host = '';
@@ -153,43 +122,18 @@ const escapeScript = `
     !!(window).__DESPIA__;
   var onLocal = host === 'localhost' || host === '127.0.0.1';
 
-  // #region agent log
-  beacon('boot_despia_detect', {
-    build: BUILD,
-    despia: isDespia,
-    android: ua.indexOf('android') !== -1,
-    uaSlice: String(navigator.userAgent || '').slice(0, 120),
-  });
-  fetch('http://127.0.0.1:7693/ingest/1847f3ab-7d03-4b99-8dbe-84076ae9145e',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'bd2545'},body:JSON.stringify({sessionId:'bd2545',runId:'post-fix',hypothesisId:'H-regex',location:'stamp-despia-ota:despia-detect',message:'despia detect ok',data:{despia:isDespia,android:ua.indexOf('android')!==-1},timestamp:Date.now()})}).catch(function(){});
-  // #endregion
-
-  beacon('boot_fingerprint', {
-    build: BUILD,
-    entry: ENTRY,
-    host: host,
-    despia: isDespia,
-    local: onLocal,
-    href: String(location.href || '').slice(0, 120),
-  });
-
   // Page-level timers — do not rely only on hashed script.onload (flaky on Android WV).
   setTimeout(function () { probeReady('3s'); }, 3000);
   setTimeout(function () { probeReady('5s'); }, 5000);
   setTimeout(function () { probeReady('8s'); }, 8000);
   setTimeout(function () { probeReady('12s'); }, 12000);
 
-  // Also watch the primary module entry for load/error beacons.
+  // Also watch the primary module entry for load/error recovery.
   try {
     var mods = document.querySelectorAll('script[type="module"][src*="/assets/app"]');
     for (var i = 0; i < mods.length; i++) {
       (function (el) {
-        var src = el.getAttribute('src') || '';
-        el.addEventListener('load', function () {
-          beacon('module_script_load', { src: String(src).slice(0, 80), build: BUILD });
-          // If load fired but eval never happens, 3s page timer already recovers.
-        });
         el.addEventListener('error', function () {
-          beacon('module_script_error', { src: String(src).slice(0, 80), build: BUILD });
           if (isDespia) loadStableAppJs('module_script_error');
         });
       })(mods[i]);
@@ -197,22 +141,9 @@ const escapeScript = `
   } catch (eMod) {}
 
   // Do NOT redirect localhost → vybehub.app: that swaps origins and drops the
-  // Firebase session (storage is origin-scoped). Beacon only for OTA debug.
+  // Firebase session (storage is origin-scoped).
   if (!isDespia || !onLocal) return;
-  fetch(PROD + '/despia/local.json?vybe_ota=' + Date.now(), { cache: 'no-store' })
-    .then(function (r) { return r.json(); })
-    .then(function (remote) {
-      var remoteAt = String((remote && remote.deployed_at) || '');
-      beacon('ota_compare', {
-        build: BUILD,
-        remoteAt: remoteAt,
-        entry: ENTRY,
-        stale: Boolean(remoteAt && remoteAt !== BUILD),
-      });
-    })
-    .catch(function (err) {
-      beacon('ota_compare_failed', { build: BUILD, msg: String(err && err.message || err).slice(0, 80) });
-    });
+  fetch(PROD + '/despia/local.json?vybe_ota=' + Date.now(), { cache: 'no-store' }).catch(function () {});
 })();
 </script>`;
 

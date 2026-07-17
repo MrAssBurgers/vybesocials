@@ -724,7 +724,6 @@
         }
       })();
     </script>
-    <script src="/boot-first-beacon.js"></script>
     <div id="root"></div>
     <script>
       (function () {
@@ -812,32 +811,6 @@
             clearInterval(timer);
             publishProgress(100, "Let's go! ✨");
             hideBoot();
-            // #region agent log
-            try {
-              fetch('https://us-central1-vybe-daaab.cloudfunctions.net/authQr', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  data: {
-                    action: 'debug_oauth',
-                    event: 'splash_fake_failopen',
-                    hypothesisId: 'H-splash',
-                    location: 'index.html:fake-splash',
-                    payload: {
-                      elapsed: elapsed,
-                      p: p,
-                      host: location.hostname,
-                      despia: isDespia,
-                      android: isAndroid,
-                      nativeShell: isNativeShell,
-                      failOpenMs: failOpenMs,
-                    },
-                  },
-                }),
-                keepalive: true,
-              }).catch(function () {});
-            } catch (e3) { /* ignore */ }
-            // #endregion
           }
         }, 40);
       })();

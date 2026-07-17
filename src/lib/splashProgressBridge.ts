@@ -16,7 +16,6 @@ declare global {
     __VYBE_MAIN_EVAL__?: boolean;
     __VYBE_APP_LOADED__?: boolean;
     __VYBE_STABLE_RELOAD__?: boolean;
-    __vybeBootBeacon?: (event: string, payload?: Record<string, unknown>) => void;
   }
 }
 

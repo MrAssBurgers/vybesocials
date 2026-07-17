@@ -44,7 +44,6 @@ import { installExternalLinkGuard } from "./lib/externalLinkGuard";
 
 // Mark eval BEFORE any native patches — Despia Android previously threw on
 // location.assign and never reached this flag (splash stuck forever).
-// #region agent log
 try {
   window.__VYBE_MAIN_EVAL__ = true;
   try {
@@ -54,46 +53,9 @@ try {
   } catch {
     /* ignore */
   }
-  fetch("https://us-central1-vybe-daaab.cloudfunctions.net/authQr", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      data: {
-        action: "debug_oauth",
-        event: "main_module_eval",
-        hypothesisId: "H-splash",
-        location: "main.tsx:top",
-        payload: {
-          host: typeof location !== "undefined" ? location.hostname : "",
-          path: typeof location !== "undefined" ? location.pathname : "",
-          splashPct:
-            typeof window !== "undefined" ? (window.__vybeSplashProgress ?? null) : null,
-        },
-      },
-    }),
-    keepalive: true,
-  }).catch(() => {});
-  fetch("http://127.0.0.1:7693/ingest/1847f3ab-7d03-4b99-8dbe-84076ae9145e", {
-    method: "POST",
-    headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "bd2545" },
-    body: JSON.stringify({
-      sessionId: "bd2545",
-      runId: "post-fix",
-      hypothesisId: "H-assign",
-      location: "main.tsx:top",
-      message: "main_module_eval before link guard",
-      data: {
-        host: typeof location !== "undefined" ? location.hostname : "",
-        splashPct:
-          typeof window !== "undefined" ? (window.__vybeSplashProgress ?? null) : null,
-      },
-      timestamp: Date.now(),
-    }),
-  }).catch(() => {});
 } catch {
   /* ignore */
 }
-// #endregion
 try {
   stampRuntimeOsOnDocument();
 } catch {
@@ -101,25 +63,8 @@ try {
 }
 try {
   installExternalLinkGuard();
-} catch (err) {
-  // #region agent log
-  fetch("https://us-central1-vybe-daaab.cloudfunctions.net/authQr", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      data: {
-        action: "debug_oauth",
-        event: "external_link_guard_throw",
-        hypothesisId: "H-assign",
-        location: "main.tsx:installExternalLinkGuard",
-        payload: {
-          msg: err instanceof Error ? err.message : String(err),
-        },
-      },
-    }),
-    keepalive: true,
-  }).catch(() => {});
-  // #endregion
+} catch {
+  /* ignore — never abort boot for link-guard patch failures */
 }
 logStartupPhase("App started", { os: getRuntimeOs() });
 
@@ -136,21 +81,6 @@ function normalizeEncodedQueryPathname(): void {
     if (decodedPath.startsWith("/?")) {
       const fixed = decodedPath + (search && search !== "?" ? search.replace(/^\?/, "&") : "") + hash;
       window.history.replaceState(null, "", fixed);
-      // #region agent log
-      fetch("http://127.0.0.1:7693/ingest/1847f3ab-7d03-4b99-8dbe-84076ae9145e", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "bd2545" },
-        body: JSON.stringify({
-          sessionId: "bd2545",
-          runId: "post-fix",
-          hypothesisId: "E",
-          location: "main.tsx:normalizeEncodedQueryPathname",
-          message: "fixed_encoded_query_pathname",
-          data: { before: pathname, after: fixed.slice(0, 120) },
-          timestamp: Date.now(),
-        }),
-      }).catch(() => {});
-      // #endregion
       return;
     }
     const idx = decodedPath.indexOf("?");
@@ -352,32 +282,6 @@ try {
   );
   renderVybeApp();
   logStartupPhase("React root rendered");
-  // #region agent log
-  try {
-    fetch("https://us-central1-vybe-daaab.cloudfunctions.net/authQr", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        data: {
-          action: "debug_oauth",
-          event: "react_root_rendered",
-          hypothesisId: "H-splash",
-          location: "main.tsx:render",
-          payload: {
-            host: typeof location !== "undefined" ? location.hostname : "",
-            path: typeof location !== "undefined" ? location.pathname : "",
-            splashPct:
-              typeof window !== "undefined" ? (window.__vybeSplashProgress ?? null) : null,
-            firebaseConfigured: isFirebaseConfigured(),
-          },
-        },
-      }),
-      keepalive: true,
-    }).catch(() => {});
-  } catch {
-    /* ignore */
-  }
-  // #endregion
 
   // Heavy native bridges / SW / Sentry after the first frame.
   queueMicrotask(() => {

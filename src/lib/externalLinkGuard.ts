@@ -119,16 +119,8 @@ export function installExternalLinkGuard(): void {
       }
       return originalOpen(url, target, features);
     }) as typeof window.open;
-  } catch (err) {
-    // #region agent log
-    debugSessionLog(
-      'externalLinkGuard.ts:open',
-      'external_open_patch_failed',
-      { msg: err instanceof Error ? err.message : String(err) },
-      'H-assign',
-    );
-    fetch('http://127.0.0.1:7693/ingest/1847f3ab-7d03-4b99-8dbe-84076ae9145e',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'bd2545'},body:JSON.stringify({sessionId:'bd2545',runId:'post-fix',hypothesisId:'H-assign',location:'externalLinkGuard.ts:open',message:'window.open patch failed',data:{msg:err instanceof Error?err.message:String(err)},timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
+  } catch {
+    /* ignore — some WebViews disallow patching window.open */
   }
 
   // Despia Android WebView often makes Location.prototype.assign read-only.
@@ -159,19 +151,7 @@ export function installExternalLinkGuard(): void {
         value: guardedAssign,
       });
     }
-    // #region agent log
-    debugSessionLog('externalLinkGuard.ts:assign', 'external_assign_patch_ok', {}, 'H-assign');
-    fetch('http://127.0.0.1:7693/ingest/1847f3ab-7d03-4b99-8dbe-84076ae9145e',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'bd2545'},body:JSON.stringify({sessionId:'bd2545',runId:'post-fix',hypothesisId:'H-assign',location:'externalLinkGuard.ts:assign',message:'location.assign patch ok',data:{},timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
-  } catch (err) {
-    // #region agent log
-    debugSessionLog(
-      'externalLinkGuard.ts:assign',
-      'external_assign_patch_failed',
-      { msg: err instanceof Error ? err.message : String(err) },
-      'H-assign',
-    );
-    fetch('http://127.0.0.1:7693/ingest/1847f3ab-7d03-4b99-8dbe-84076ae9145e',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'bd2545'},body:JSON.stringify({sessionId:'bd2545',runId:'post-fix',hypothesisId:'H-assign',location:'externalLinkGuard.ts:assign',message:'location.assign patch failed (nonfatal)',data:{msg:err instanceof Error?err.message:String(err)},timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
+  } catch {
+    /* ignore — click interceptor still covers most external navigations */
   }
 }

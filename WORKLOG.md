@@ -2,6 +2,12 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## ACTIVE (2026-07-17) — Android splash fixed; instrumentation cleaned
+
+- **Root cause:** Despia Android crashed on read-only `location.assign` + invalid OTA despia regex; app never mounted.
+- **Kept fixes:** safe assign patch, string despia detect, early `__VYBE_MAIN_EVAL__`, fail-open splash, 3s stall recovery.
+- **Cleanup:** removed splash/boot `debug_oauth` + localhost ingest beacons (`boot-first-beacon`, import-chain, splash_fake_failopen, etc.).
+
 ## ACTIVE (2026-07-17) — Android splash not loading (root cause found)
 
 - **User:** after prior fix, splash ~50% still never loads app.
