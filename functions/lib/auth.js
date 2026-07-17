@@ -867,7 +867,11 @@ function decodeDespiaOAuthState(state) {
  */
 function despiaSilentCloseHtml(deeplink) {
     const safeJs = JSON.stringify(deeplink);
-    return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><title></title><style>html,body{margin:0;min-height:100%;background:#0B0B10}</style><script>(function(){var d=${safeJs};function go(){try{location.replace(d)}catch(e){}try{location.href=d}catch(e2){}}go();setTimeout(go,60);})();</script></head><body></body></html>`;
+    const safeAttr = deeplink
+        .replace(/&/g, '&amp;')
+        .replace(/"/g, '&quot;')
+        .replace(/</g, '&lt;');
+    return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><meta http-equiv="refresh" content="0;url=${safeAttr}"/><title></title><style>html,body{margin:0;min-height:100%;background:#0B0B10}</style><script>(function(){var d=${safeJs};function go(){try{location.replace(d)}catch(e){}try{location.href=d}catch(e2){}}go();setTimeout(go,60);})();</script></head><body></body></html>`;
 }
 /** Short Despia close URL — hc= only (never append long OAuth state / PKCE). */
 function despiaCloseDeeplink(scheme, query) {
@@ -879,6 +883,11 @@ function despiaCloseDeeplink(scheme, query) {
  * HTTPS→custom-scheme redirects and dismisses the sheet. Direct JS
  * `location.href = com.despia.vybe://…` often opens Safari instead and leaves
  * the sheet stuck (seen on iOS Despia).
+ *
+ * LEGACY — for Despia ASWeb / browser oauth:// callback only.
+ * FORBIDDEN when `native_ios_auth_v1` + nativeauth:// bridge is active:
+ * that path signs in via signInWithCredential in the WebView and must never
+ * hit oauthDismiss or native-callback.html.
  */
 export const oauthDismiss = onRequest({
     cors: true,
@@ -897,13 +906,26 @@ export const oauthDismiss = onRequest({
     const scheme = schemeParam && /^[a-z0-9.-]+$/i.test(schemeParam) && !schemeParam.includes('://')
         ? schemeParam
         : 'com.despia.vybe';
-    // Drop scheme= from qs if present (already applied).
+    const wantHtml = req.query?.format === 'html' ||
+        req.query?.html === '1' ||
+        req.query?.html === 'true';
+    // Drop scheme= / format= / html= from qs (already applied).
     const qs = safeQs
         .split('&')
-        .filter((p) => p && !p.startsWith('scheme='))
+        .filter((p) => p &&
+        !p.startsWith('scheme=') &&
+        !p.startsWith('format=') &&
+        !p.startsWith('html='))
         .join('&');
+    const deeplink = despiaCloseDeeplink(scheme, qs || 'wait=1');
     res.set('Cache-Control', 'no-store');
-    res.redirect(302, despiaCloseDeeplink(scheme, qs || 'wait=1'));
+    // Help ASWeb clients that honor Refresh alongside/instead of Location.
+    res.set('Refresh', `0;url=${deeplink}`);
+    if (wantHtml) {
+        res.status(200).type('html').send(despiaSilentCloseHtml(deeplink));
+        return;
+    }
+    res.redirect(302, deeplink);
 });
 /** Google OAuth redirect for Despia — must match Google Cloud Console + client. */
 const GOOGLE_OAUTH_REDIRECT_URI = 'https://vybehub.app/native-callback.html';
@@ -1062,6 +1084,10 @@ function isChallengeExpired(expiresAt) {
  * auth-qr — Quick Sign-In QR pairing + iOS Google id_token → short custom_token exchange.
  * create (public) → poll (public) → claim (signed-in device) → redeem (public → custom token).
  * exchange_google (public) — verify Google id_token, mint short Firebase custom token for deeplink.
+ *
+ * LEGACY for Despia ASWeb / native-callback handoff only.
+ * FORBIDDEN on the native_ios_auth_v1 + nativeauth:// bridge path (use
+ * signInWithCredential in the WebView instead — no exchange_* / oauthDismiss).
  */
 export const authQr = onCall({
     cors: true,
@@ -1124,6 +1150,7 @@ export const authQr = onCall({
             .reverse();
         return { events };
     }
+    // LEGACY ASWeb/callback only — forbidden when native_ios_auth_v1 + nativeauth bridge.
     if (action === 'exchange_google') {
         const ip = request.rawRequest?.ip || 'anon';
         enforceRateLimit(await rateLimit(`oauth-exchange:${ip}`, 20, 600));
@@ -1155,6 +1182,7 @@ export const authQr = onCall({
     /**
      * exchange_google_code — PKCE authorization-code exchange for
      * https://vybehub.app/native-callback.html (Despia Custom Tabs).
+     * LEGACY — forbidden when native_ios_auth_v1 + nativeauth:// bridge is active.
      */
     if (action === 'exchange_google_code') {
         const ip = request.rawRequest?.ip || 'anon';
@@ -1219,7 +1247,8 @@ export const authQr = onCall({
         });
         return { code };
     }
-    /** exchange_apple — verify Apple id_token, mint custom token, return short hc= (parity with Google). */
+    /** exchange_apple — verify Apple id_token, mint custom token, return short hc= (parity with Google).
+     * LEGACY ASWeb/callback only — forbidden when native_ios_auth_v1 + nativeauth bridge. */
     if (action === 'exchange_apple') {
         const ip = request.rawRequest?.ip || 'anon';
         enforceRateLimit(await rateLimit(`oauth-exchange-apple:${ip}`, 20, 600));

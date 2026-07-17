@@ -2,7 +2,55 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
-## ACTIVE (2026-07-17) — iOS Google: restore oauthDismiss auto-close
+## ACTIVE (2026-07-17) — iOS Google: staged ASWeb close (JS scheme first)
+
+### Publish handoff
+- **On `origin/main`:** (pushing this session)
+- **Lovable → Share → Publish NOW** for `vybehub.app` (`native-callback.html` + `oauth-close.html` + SPA). Agent cannot click Publish. Google redirect URI is vybehub.app — **prod Publish is mandatory**.
+- **Firebase:** `oauthDismiss` deploy (format=html + Refresh header). Hosting staging optional (`vybe-daaab.web.app`) — real device Google still hits vybehub.app.
+- **No Despia rebuild** required to try this; if sheet still sticks after Publish, Despia binary / ASWeb intercept is the remaining blocker (see DESPIA_NATIVE_AUTH_SUPPORT_REQUEST.md).
+
+### Evidence (pre-fix)
+- **Prod `vybehub.app/native-callback.html` was NOT stale** — already had exchange-first `oauthDismiss` (matched local; only Lovable meta noise differed). Firebase staging still had `wait=1`.
+- **oauthDismiss CF:** `302 Location: com.despia.vybe://oauth/auth?hc=…` (probed). Recent iPhone hits with `hc=` at 19:09:59Z / 18:31:09Z / 18:04:05Z (UA iPhone OS 18_7) — **dismiss navigated, sheet still stuck**.
+- **Root cause:** iOS `fireClose` set `closed=true` then only `location.replace(oauthDismiss)`. That unloads the page and skips Despia’s documented close signal (`{scheme}://oauth/…` from JS, which often does **not** unload the page so fallbacks can chain). Proven “instant close” era (~Jul 16 `281f079c9`) used staged JS scheme → fallbacks; soft `wait=1` closed the sheet but caused invalid-address toast.
+
+### Fix
+1. **iOS staged `fireClose` (hc= only, no wait=1):** JS `scheme://oauth/auth?hc=` → retry 100ms → same-origin `/oauth-close.html` meta refresh → `oauthDismiss?format=html`. `closed` only via pagehide/visibility.
+2. **Android:** App Link `/auth?hc=` unchanged.
+3. **Apple:** opener / no-Despia-state early returns unchanged.
+4. **iOS nonce poll:** first tick **4000ms**; visibility/focus accelerate only after sheet was `hidden`.
+5. **oauthDismiss:** `Refresh` header on 302; `format=html` returns meta-refresh + JS HTML (despiaSilentCloseHtml).
+
+### Telemetry expect (after Publish)
+- `fire_close mode:ios_staged`, then `ios_close_stage` (`js_scheme` / `js_scheme_retry` / `same_origin_meta` / `oauthDismiss`).
+- Android: `fire_close mode:applink`.
+- Never `hasWait` on success path.
+
+### Files
+- `public/native-callback.html` — iOS staged close
+- `public/oauth-close.html` — same-origin meta-refresh close helper
+- `src/lib/despiaOAuth.ts` — iOS poll 4s + sawSheetHidden gate
+- `src/lib/nativeOAuth.ts` — comment sync
+- `functions/src/auth.ts` — oauthDismiss html/Refresh
+
+### Verify checklist (after Publish)
+1. iOS Google: account pick → sheet **auto-closes** (no Done) → signed in.
+2. Timeline: `ios_staged` + which `ios_close_stage` won; login via deeplink and/or nonce poll.
+3. Brief invalid-address toast possible if JS scheme misses intercept — auto-close is priority.
+4. Android Google/Apple + iOS Apple Face ID unchanged.
+
+### Tests
+- `npm run build` green
+- `npm run test` green (367)
+- functions `tsc` green
+
+### Next 3
+1. Lovable → Share → Publish **immediately**.
+2. Device: iOS Google account pick → confirm auto-close.
+3. If still stuck after Publish: Despia support / native auth bridge (ASWeb intercept unreliable).
+
+## SUPERSEDED (2026-07-17) — iOS Google: restore oauthDismiss auto-close
 
 ### Publish handoff
 - **On `origin/main`:** `d647405ad`

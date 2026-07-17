@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title></title>
+  <style>
+    html, body { margin: 0; min-height: 100%; background: #0B0B10; }
+  </style>
+</head>
+<body>
+  <script>
+    /**
+     * Same-origin Despia ASWeb close helper (vybehub.app).
+     * Builds `{scheme}://oauth/auth?…` and navigates via meta refresh + JS.
+     * Used as an iOS fallback after native-callback JS scheme attempts.
+     * Android should not land here (App Link path).
+     */
+    (function () {
+      var DEFAULT_SCHEME = 'com.despia.vybe';
+      var params = new URLSearchParams(window.location.search || '');
+      var scheme = (params.get('scheme') || DEFAULT_SCHEME).trim() || DEFAULT_SCHEME;
+      if (scheme.indexOf('://') !== -1) scheme = DEFAULT_SCHEME;
+      params.delete('scheme');
+      var query = params.toString();
+      if (!query) query = 'wait=1';
+      var deeplink = scheme + '://oauth/auth?' + query;
+      try {
+        var meta = document.createElement('meta');
+        meta.httpEquiv = 'refresh';
+        meta.content = '0;url=' + deeplink;
+        document.head.appendChild(meta);
+      } catch (eMeta) {}
+      function go() {
+        try { window.location.replace(deeplink); } catch (e1) {}
+        try { window.location.href = deeplink; } catch (e2) {}
+      }
+      go();
+      setTimeout(go, 60);
+    })();
+  </script>
+</body>
+</html>

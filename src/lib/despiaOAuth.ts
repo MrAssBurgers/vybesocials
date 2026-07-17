@@ -702,20 +702,28 @@ function startDespiaOAuthNoncePoll(nonce: string): void {
     }
   };
 
-  // [iOS-only] Delay first poll so exchange + oauthDismiss usually own ASWeb
-  // before poll_oauth_nonce redeem foregrounds the app (avoids stuck sheet).
-  // Visibility/focus still kick poll immediately when the sheet dismisses.
+  // [iOS-only] Delay first poll so staged ASWeb dismiss (JS scheme →
+  // oauth-close → oauthDismiss) owns the sheet before redeem foregrounds.
+  // Only accelerate on visibility after the sheet actually hid.
   // Android: poll ASAP — CCT already throttles background timers.
-  const initialPollDelayMs = getRuntimeOs() === 'ios' ? 2750 : 100;
+  const isIos = getRuntimeOs() === 'ios';
+  const initialPollDelayMs = isIos ? 4000 : 100;
+  let sawSheetHidden = typeof document !== 'undefined' && document.visibilityState === 'hidden';
   noncePollTimer = window.setTimeout(() => {
     void tick();
   }, initialPollDelayMs);
 
-  // When CCT dismisses, WebView timers unthrottle — poll immediately.
+  // When CCT/ASWeb dismisses, WebView timers unthrottle — poll immediately.
   const onVisible = () => {
     if (generation !== noncePollGeneration) return;
+    if (document.visibilityState === 'hidden') {
+      sawSheetHidden = true;
+      return;
+    }
     if (document.visibilityState !== 'visible') return;
     if (!isDespiaOAuthInFlight()) return;
+    // [iOS-only] Do not accelerate poll while sheet is still covering us.
+    if (isIos && !sawSheetHidden) return;
     if (noncePollTimer != null) {
       window.clearTimeout(noncePollTimer);
       noncePollTimer = null;

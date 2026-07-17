@@ -986,7 +986,11 @@ function decodeDespiaOAuthState(state: string | null | undefined): {
  */
 function despiaSilentCloseHtml(deeplink: string): string {
   const safeJs = JSON.stringify(deeplink);
-  return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><title></title><style>html,body{margin:0;min-height:100%;background:#0B0B10}</style><script>(function(){var d=${safeJs};function go(){try{location.replace(d)}catch(e){}try{location.href=d}catch(e2){}}go();setTimeout(go,60);})();</script></head><body></body></html>`;
+  const safeAttr = deeplink
+    .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;')
+    .replace(/</g, '&lt;');
+  return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><meta http-equiv="refresh" content="0;url=${safeAttr}"/><title></title><style>html,body{margin:0;min-height:100%;background:#0B0B10}</style><script>(function(){var d=${safeJs};function go(){try{location.replace(d)}catch(e){}try{location.href=d}catch(e2){}}go();setTimeout(go,60);})();</script></head><body></body></html>`;
 }
 
 /** Short Despia close URL — hc= only (never append long OAuth state / PKCE). */
@@ -1026,13 +1030,30 @@ export const oauthDismiss = onRequest(
       schemeParam && /^[a-z0-9.-]+$/i.test(schemeParam) && !schemeParam.includes('://')
         ? schemeParam
         : 'com.despia.vybe';
-    // Drop scheme= from qs if present (already applied).
+    const wantHtml =
+      req.query?.format === 'html' ||
+      req.query?.html === '1' ||
+      req.query?.html === 'true';
+    // Drop scheme= / format= / html= from qs (already applied).
     const qs = safeQs
       .split('&')
-      .filter((p) => p && !p.startsWith('scheme='))
+      .filter(
+        (p) =>
+          p &&
+          !p.startsWith('scheme=') &&
+          !p.startsWith('format=') &&
+          !p.startsWith('html='),
+      )
       .join('&');
+    const deeplink = despiaCloseDeeplink(scheme, qs || 'wait=1');
     res.set('Cache-Control', 'no-store');
-    res.redirect(302, despiaCloseDeeplink(scheme, qs || 'wait=1'));
+    // Help ASWeb clients that honor Refresh alongside/instead of Location.
+    res.set('Refresh', `0;url=${deeplink}`);
+    if (wantHtml) {
+      res.status(200).type('html').send(despiaSilentCloseHtml(deeplink));
+      return;
+    }
+    res.redirect(302, deeplink);
   },
 );
 

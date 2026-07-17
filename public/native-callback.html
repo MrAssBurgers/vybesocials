@@ -19,11 +19,12 @@
      * this page, call oauthDismiss, or run exchange_*.
      *
      * Despia OAuth return (Google/Apple). Runs inside ASWeb / Custom Tabs.
-     * iOS: close via HTTPS 302 (oauthDismiss → custom scheme) so ASWeb
-     * dismisses. Direct com.despia.vybe:// from JS opens Safari and sticks.
-     * Android: App Link close (CCT); oauth/ deeplink as secondary.
-     * Proven iOS path: exchange first, then one fireClose with hc= only.
-     * Never soft-close with wait=1 / custom-scheme JS navigate (Safari invalid address).
+     * iOS: Despia closes ASWeb on top-level `{scheme}://oauth/…` (docs).
+     *   Custom-scheme nav often does NOT unload this page — so we stage:
+     *   1) JS scheme://oauth/auth?hc=  2) retry  3) same-origin oauth-close.html
+     *   4) HTTPS oauthDismiss 302. Never mark closed until pagehide/visibility.
+     *   No wait=1 soft-close on success (toast + sticky sheet). Exchange-first.
+     * Android: App Link close (CCT) only.
      * If exchange hangs: leave blank page (or "Open VYBE" App Link UI after success).
      */
     (function () {
@@ -293,7 +294,7 @@
         noncePresent: !!nonce,
         validDespiaState: validDespiaState,
         scheme: scheme,
-        dismissMode: isAndroid() ? 'applink' : 'oauthDismiss',
+        dismissMode: isAndroid() ? 'applink' : 'ios_staged',
         exchangeAction: exchangeAction,
       });
       dbg('exchange_selected', 'T', {
@@ -339,40 +340,102 @@
           try { window.location.href = appLink; } catch (e2) {}
           return;
         }
-        // [iOS-only] HTTPS 302 via oauthDismiss — never JS-navigate to custom scheme
-        // (that opens Safari "address is invalid" and leaves ASWeb stuck).
-        // Only mechanism that auto-dismisses Despia ASWeb. Exchange-first → one
-        // fireClose with hc=; never wait=1 / warm=1 soft-close on success path.
+        // [iOS-only] Staged close — Despia docs: `{scheme}://oauth/…` is the
+        // ASWeb dismiss signal. Custom-scheme nav often does not unload this
+        // page, so we can chain fallbacks. Do NOT set closed=true here (only
+        // pagehide/visibility). oauthDismiss-only was hitting CF 302 but leaving
+        // the sheet stuck (prod evidence 2026-07-17). Never wait=1 / warm=1.
+        var deeplink = scheme + '://oauth/auth?' + query;
+        var sameOriginClose =
+          APP_ORIGIN +
+          '/oauth-close.html?' +
+          query +
+          '&scheme=' +
+          encodeURIComponent(scheme);
         var dismiss =
           DISMISS_URL +
           '?' +
           query +
           '&scheme=' +
-          encodeURIComponent(scheme);
-        oauthDismissNavCalled = true;
+          encodeURIComponent(scheme) +
+          '&format=html';
         // #region agent log
         dbg('fire_close', 'T', {
-          mode: 'oauthDismiss',
+          mode: 'ios_staged',
           android: false,
           hasHc: query.indexOf('hc=') !== -1,
           hasWait: query.indexOf('wait=') !== -1,
           queryLen: String(query).length,
           intent: intent,
-          dismissHost: 'us-central1-vybe-daaab.cloudfunctions.net',
-          msSinceBoot: Date.now() - bootAt,
-        });
-        dbg('oauth_dismiss_nav', 'T', {
-          dismissHost: 'us-central1-vybe-daaab.cloudfunctions.net',
-          hasHc: query.indexOf('hc=') !== -1,
-          hasWait: query.indexOf('wait=') !== -1,
           scheme: scheme,
           msSinceBoot: Date.now() - bootAt,
         });
         // #endregion
-        closed = true;
-        try { window.location.replace(dismiss); } catch (e5) {
-          try { window.location.href = dismiss; } catch (e6) {}
+
+        function tryJsScheme(stage) {
+          if (closed) return;
+          // #region agent log
+          dbg('ios_close_stage', 'T', {
+            stage: stage,
+            scheme: scheme,
+            hasHc: query.indexOf('hc=') !== -1,
+            msSinceBoot: Date.now() - bootAt,
+          });
+          // #endregion
+          try { window.location.href = deeplink; } catch (eJs1) {}
+          try {
+            var a = document.createElement('a');
+            a.href = deeplink;
+            a.rel = 'noopener';
+            a.style.display = 'none';
+            document.body.appendChild(a);
+            a.click();
+            setTimeout(function () {
+              try { a.remove(); } catch (eRm) {}
+            }, 0);
+          } catch (eJs2) {}
         }
+
+        tryJsScheme('js_scheme');
+        setTimeout(function () {
+          tryJsScheme('js_scheme_retry');
+        }, 100);
+        setTimeout(function () {
+          if (closed) return;
+          // #region agent log
+          dbg('ios_close_stage', 'T', {
+            stage: 'same_origin_meta',
+            scheme: scheme,
+            hasHc: query.indexOf('hc=') !== -1,
+            msSinceBoot: Date.now() - bootAt,
+          });
+          // #endregion
+          try { window.location.replace(sameOriginClose); } catch (eSo1) {
+            try { window.location.href = sameOriginClose; } catch (eSo2) {}
+          }
+        }, 220);
+        setTimeout(function () {
+          if (closed) return;
+          oauthDismissNavCalled = true;
+          // #region agent log
+          dbg('ios_close_stage', 'T', {
+            stage: 'oauthDismiss',
+            scheme: scheme,
+            hasHc: query.indexOf('hc=') !== -1,
+            msSinceBoot: Date.now() - bootAt,
+          });
+          dbg('oauth_dismiss_nav', 'T', {
+            dismissHost: 'us-central1-vybe-daaab.cloudfunctions.net',
+            hasHc: query.indexOf('hc=') !== -1,
+            hasWait: query.indexOf('wait=') !== -1,
+            scheme: scheme,
+            msSinceBoot: Date.now() - bootAt,
+          });
+          // #endregion
+          try { window.location.replace(dismiss); } catch (e5) {
+            try { window.location.href = dismiss; } catch (e6) {}
+          }
+        }, 400);
       }
 
       if (error) {
