@@ -4,6 +4,12 @@ Use this file as the Lovable -> Cursor handoff each session.
 
 ## ACTIVE (2026-07-17) — iOS Auth Bugfixes (Google soft-close + Apple guard + errors)
 
+### Publish handoff
+- **On `origin/main`:** `1a5e1c36e`
+- **Lovable → Share → Publish required** for `vybehub.app` (`native-callback.html` + SPA). Agent cannot click Publish.
+- **No Firebase CF deploy.** **No Despia rebuild.** `native_ios_auth_v1` stays OFF.
+
+
 ### Root causes
 1. **Google iOS soft-close:** `native-callback` 6s `wait=1` → `oauthDismiss` custom-scheme race → Safari "invalid address" / stuck ASWeb while nonce poll still redeemed login.
 2. **Google poll race:** nonce poll started immediately on oauth:// launch and could redeem before exchange+oauthDismiss finished dismissing ASWeb.
