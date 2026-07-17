@@ -1,4 +1,4 @@
-import { randomBytes } from 'crypto';
+import { randomBytes, createHmac, timingSafeEqual } from 'crypto';
 import { onCall, onRequest, HttpsError } from 'firebase-functions/v2/https';
 import { OAuth2Client } from 'google-auth-library';
 import { db, auth, requireAuth, requireAdmin, rateLimit, enforceRateLimit } from './_shared/admin.js';
@@ -73,9 +73,18 @@ export const auth2faRequest = onCall(async (request) => {
   const uid = requireAuth(request);
   enforceRateLimit(await rateLimit(`2fa-req:${uid}`, 5, 600));
   const c = code();
+  // Store a salted HMAC of the code (never the plaintext). Combined with the
+  // firestore rule that denies client reads of `*_2fa` challenge docs, this
+  // ensures a compromised session cannot bypass 2FA by reading the code.
+  const salt = randomBytes(16).toString('hex');
+  const codeHash = createHmac('sha256', salt).update(c).digest('hex');
   await db.collection('auth_challenges').doc(`${uid}_2fa`).set({
-    user_id: uid, code_hash: c, channel: 'email',
-    expires_at: Date.now() + 10 * 60 * 1000, created_at: new Date().toISOString(),
+    user_id: uid,
+    code_hash: codeHash,
+    code_salt: salt,
+    channel: 'email',
+    expires_at: Date.now() + 10 * 60 * 1000,
+    created_at: new Date().toISOString(),
   });
   // TODO: send email via sendTransactionalEmail
   return { ok: true };
@@ -88,8 +97,16 @@ export const auth2faVerify = onCall(async (request) => {
   if (!provided) throw new HttpsError('invalid-argument', 'code required');
   const ref = db.collection('auth_challenges').doc(`${uid}_2fa`);
   const snap = await ref.get();
-  const data = snap.data() as any;
-  if (!data || data.expires_at < Date.now() || data.code_hash !== provided) {
+  const data = snap.data() as { expires_at?: number; code_hash?: string; code_salt?: string } | undefined;
+  if (!data || !data.code_hash || !data.code_salt || (data.expires_at ?? 0) < Date.now()) {
+    throw new HttpsError('permission-denied', 'Invalid or expired code');
+  }
+  const expected = Buffer.from(data.code_hash, 'hex');
+  const actual = Buffer.from(
+    createHmac('sha256', data.code_salt).update(String(provided).trim()).digest('hex'),
+    'hex',
+  );
+  if (expected.length !== actual.length || !timingSafeEqual(expected, actual)) {
     throw new HttpsError('permission-denied', 'Invalid or expired code');
   }
   await ref.delete();
@@ -1210,8 +1227,9 @@ export const authQr = onCall(
   const action = (data.action || 'create').toLowerCase();
   const nonce = typeof data.nonce === 'string' ? data.nonce.trim() : '';
 
-  /** Debug-session OAuth telemetry (Despia cannot reach localhost ingest). */
+  /** Debug-session OAuth telemetry (Despia cannot reach localhost ingest). Admin-only. */
   if (action === 'debug_oauth') {
+    await requireAdmin(request);
     const event = String((data as { event?: string }).event || '').slice(0, 120);
     const hypothesisId = String((data as { hypothesisId?: string }).hypothesisId || '').slice(0, 8);
     const location = String((data as { location?: string }).location || '').slice(0, 160);
@@ -1243,6 +1261,7 @@ export const authQr = onCall(
   }
 
   if (action === 'debug_oauth_dump') {
+    await requireAdmin(request);
     // Prefer newest-by-createdAt (single-field index). Filtering sessionId
     // + orderBy createdAt needs a composite index we may not have, and a
     // bare where+limit returns an arbitrary sample that misses fresh boots.
@@ -1258,6 +1277,7 @@ export const authQr = onCall(
       .reverse();
     return { events };
   }
+
 
   if (action === 'exchange_google') {
     const ip = request.rawRequest?.ip || 'anon';

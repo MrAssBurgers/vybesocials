@@ -892,9 +892,15 @@ service cloud.firestore {
       allow create, update, delete: if false;
     }
     match /message_transcripts/{docId} {
-      allow read: if signedIn();
-      allow create, update: if signedIn() || isAdmin();
-      allow delete: if isAdmin();
+      // Doc id equals the parent messages/{docId}; gate on membership in
+      // that message's conversation. Client writes are denied — transcripts
+      // are only produced by the transcribeVoiceMessage Cloud Function
+      // (Admin SDK bypasses rules).
+      function transcriptParentConversationId() {
+        return get(/databases/$(database)/documents/messages/$(docId)).data.conversation_id;
+      }
+      allow read: if signedIn() && isConversationParticipant(transcriptParentConversationId());
+      allow create, update, delete: if false;
     }
     match /message_media_rules/{docId} {
       allow read: if signedIn();
@@ -1053,10 +1059,20 @@ service cloud.firestore {
     match /notifications/{id} {
       allow read: if ownsUserField('user_id') || ownsProfileId(resource.data.user_id) || isAdmin();
       allow update: if ownsUserField('user_id') || ownsProfileId(resource.data.user_id);
+      // Strict schema validation on client-created notifications to prevent
+      // spam / phishing (attacker-controlled title/body/image_url/deep_link
+      // sent to arbitrary recipients). Server (Admin SDK) still bypasses.
       allow create: if isAdmin() || (
         signedIn() &&
         willOwnProfile('actor_id') &&
-        request.resource.data.type in ['like', 'comment', 'follow', 'mention', 'friend_request', 'collab', 'share', 'missed_call', 'friend_accepted', 'friend_declined']
+        request.resource.data.user_id is string &&
+        request.resource.data.user_id.size() > 0 &&
+        request.resource.data.user_id.size() <= 128 &&
+        request.resource.data.type in ['like', 'comment', 'follow', 'mention', 'friend_request', 'collab', 'share', 'missed_call', 'friend_accepted', 'friend_declined'] &&
+        (!('title' in request.resource.data) || (request.resource.data.title is string && request.resource.data.title.size() <= 140)) &&
+        (!('body' in request.resource.data) || (request.resource.data.body is string && request.resource.data.body.size() <= 500)) &&
+        (!('image_url' in request.resource.data) || (request.resource.data.image_url is string && request.resource.data.image_url.size() <= 500 && request.resource.data.image_url.matches('^https://.*'))) &&
+        (!('deep_link' in request.resource.data) || (request.resource.data.deep_link is string && request.resource.data.deep_link.size() <= 300 && request.resource.data.deep_link.matches('^/[A-Za-z0-9_/?=&%.,:@#\\-]*$')))
       );
       allow delete: if ownsUserField('user_id') || ownsProfileId(resource.data.user_id) || isAdmin();
     }
@@ -1300,12 +1316,16 @@ service cloud.firestore {
     match /email_send_state/{id}              { allow read, write: if isAdmin(); }
     match /email_unsubscribe_tokens/{id}      { allow read, write: if false; }
     match /auth_challenges/{id} {
-      // Clients may listen for their own login-approval / QR challenges.
-      // Creates and state transitions stay Cloud Functions / Admin SDK only.
-      allow read: if signedIn() && (
-        resource.data.user_id == uid() ||
-        resource.data.user_id == profileId()
-      );
+      // Clients may listen for their own login-approval / QR challenges,
+      // BUT never for email-2FA challenges (docId ends in `_2fa`) — those
+      // hold the verification secret and must only be read by the
+      // auth2faVerify Cloud Function (Admin SDK bypasses rules).
+      allow read: if signedIn()
+        && !id.matches('.*_2fa$')
+        && (
+          resource.data.user_id == uid() ||
+          resource.data.user_id == profileId()
+        );
       allow create, update, delete: if false;
     }
     match /account_deletion_requests/{id}     { allow create: if willOwn('user_id'); allow read, update, delete: if isAdmin(); }
