@@ -116,17 +116,26 @@ export async function signInWithAppleJsSdk(): Promise<{
     });
 
     // Keep dismissing Despia ASWeb while Face ID runs so only the native sheet is visible.
-    const hideWeb = window.setInterval(() => dismissAppleWebSheetResidue(), 180);
+    // Do NOT window.close() from an interval — that can kill the Apple popup mid-auth.
+    dismissAppleWebSheetResidue();
     let response: AppleAuthResponse;
     try {
+      // #region agent log
+      fetch('http://127.0.0.1:7693/ingest/1847f3ab-7d03-4b99-8dbe-84076ae9145e',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'bd2545'},body:JSON.stringify({sessionId:'bd2545',runId:'ios-post-fix',hypothesisId:'F',location:'appleSignIn.ts:signIn',message:'apple sdk signIn start',data:{clientId:getAppleServicesId(),hasAppleID:!!window.AppleID?.auth},timestamp:Date.now()})}).catch(()=>{});
+      try {
+        fetch('https://us-central1-vybe-daaab.cloudfunctions.net/authQr',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({data:{action:'debug_oauth',event:'apple_sdk_signin_start',hypothesisId:'F',location:'appleSignIn.ts',payload:{runId:'ios-post-fix',clientId:getAppleServicesId()}}}),keepalive:true}).catch(()=>{});
+      } catch { /* ignore */ }
+      // #endregion
       response = await window.AppleID.auth.signIn();
     } finally {
-      window.clearInterval(hideWeb);
       dismissAppleWebSheetResidue();
     }
 
     const idToken = response.authorization?.id_token;
     if (!idToken) {
+      // #region agent log
+      fetch('https://us-central1-vybe-daaab.cloudfunctions.net/authQr',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({data:{action:'debug_oauth',event:'apple_sdk_missing_token',hypothesisId:'F',location:'appleSignIn.ts',payload:{runId:'ios-post-fix',hasError:!!response.error,error:String(response.error||'').slice(0,80)}}}),keepalive:true}).catch(()=>{});
+      // #endregion
       return {
         data: { session: null },
         error: { message: 'Apple Sign-In did not return a token', name: 'apple/missing-token' },
@@ -148,6 +157,12 @@ export async function signInWithAppleJsSdk(): Promise<{
   } catch (err: unknown) {
     dismissAppleWebSheetResidue();
     const asAny = err as { error?: string; message?: string; code?: string };
+    // #region agent log
+    fetch('http://127.0.0.1:7693/ingest/1847f3ab-7d03-4b99-8dbe-84076ae9145e',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'bd2545'},body:JSON.stringify({sessionId:'bd2545',runId:'ios-post-fix',hypothesisId:'F',location:'appleSignIn.ts:catch',message:'apple sdk error',data:{code:asAny?.code||null,error:asAny?.error||null,msg:String(asAny?.message||err).slice(0,120)},timestamp:Date.now()})}).catch(()=>{});
+    try {
+      fetch('https://us-central1-vybe-daaab.cloudfunctions.net/authQr',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({data:{action:'debug_oauth',event:'apple_sdk_error',hypothesisId:'F',location:'appleSignIn.ts',payload:{runId:'ios-post-fix',code:String(asAny?.code||'').slice(0,60),error:String(asAny?.error||'').slice(0,60),msg:String(asAny?.message||err).slice(0,120)}}}),keepalive:true}).catch(()=>{});
+    } catch { /* ignore */ }
+    // #endregion
     if (
       asAny?.error === 'popup_closed_by_user' ||
       asAny?.error === 'user_cancelled' ||

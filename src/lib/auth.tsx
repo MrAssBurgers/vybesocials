@@ -1141,17 +1141,34 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     clearCachedCurrentProfile();
     clearCachedUserLevel();
 
-    // 2) Clear local Supabase session synchronously (no network round-trip).
-    //    The global revoke happens in the background. Local state is already
-    //    cleared above, so a failure here only means the server token lives on —
-    //    log it so "signed out but still receiving pushes" is diagnosable.
-    void db.auth.signOut({ scope: 'local' as any }).catch((err: unknown) => {
+    // 2) Clear Firebase persistence BEFORE refresh can resurrect the session.
+    //    (local-scope used to be a no-op and left firebase:authUser:* on disk.)
+    try {
+      await db.auth.signOut({ scope: 'local' as any });
+    } catch (err: unknown) {
       console.warn('[Auth] Local signOut failed (state already cleared):', err);
-    });
+    }
+    // Eager disk wipe — belt and suspenders if Auth persistence lags.
+    try {
+      for (const key of Object.keys(localStorage)) {
+        if (key.startsWith('firebase:authUser:') || key.startsWith('sb-')) {
+          localStorage.removeItem(key);
+        }
+      }
+    } catch {
+      /* ignore */
+    }
     void db.auth.signOut().catch((err: unknown) => {
       console.warn('[Auth] Global signOut (token revoke) failed:', err);
       captureException(err, { scope: 'auth:signOut:global' });
     });
+
+    // #region agent log
+    fetch('http://127.0.0.1:7693/ingest/1847f3ab-7d03-4b99-8dbe-84076ae9145e',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'bd2545'},body:JSON.stringify({sessionId:'bd2545',runId:'ios-post-fix',hypothesisId:'E',location:'auth.tsx:signOut',message:'signOut cleared',data:{hasFirebaseUserKey:Object.keys(localStorage).some(k=>k.startsWith('firebase:authUser:')),wasLoggedInFlag:false},timestamp:Date.now()})}).catch(()=>{});
+    try {
+      fetch('https://us-central1-vybe-daaab.cloudfunctions.net/authQr',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({data:{action:'debug_oauth',event:'signout_cleared',hypothesisId:'E',location:'auth.tsx',payload:{runId:'ios-post-fix',hasFirebaseUserKey:Object.keys(localStorage).some(k=>k.startsWith('firebase:authUser:'))}}}),keepalive:true}).catch(()=>{});
+    } catch { /* ignore */ }
+    // #endregion
 
     // 3) Defer all theme/DOM/localStorage cleanup so it never blocks the navigate.
     queueMicrotask(() => {

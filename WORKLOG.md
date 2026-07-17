@@ -2,6 +2,21 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## ACTIVE (2026-07-17) — invalid address from warm prefetch + logout no-op
+
+- **H-C warm CONFIRMED harmful:** Cloud Log `oauthDismiss?warm=1` 302 on iPhone (16:40:09Z) → Safari invalid address; real `hc=` dismiss 0.03s later.
+- **Fix:** removed warm prefetch; iOS ASAP soft-close via `oauthDismiss?wait=1` after exchange starts (nonce poll completes login).
+- **Logout bug:** `firebaseAuth.signOut({scope:'local'})` was a no-op → refresh restored session. Now always `firebaseSignOut` + clear `firebase:authUser:*`.
+- **Apple:** removed popup-killing close interval; added error beacons (hypothesis F).
+- **Ship:** push + Lovable Publish (native-callback on vybehub.app + SPA).
+
+## ACTIVE (2026-07-17) — iOS oauthDismiss cold-start hang (post-fix)
+
+- **H-A CONFIRMED fixed:** prod `fire_close mode:oauthDismiss` + Cloud Log `oauthDismiss` **302** on iPhone with `hc=` (16:31:50Z).
+- **H-C CONFIRMED:** same request latency **3.07s** (cold start) — ASWeb sat blank before 302.
+- **Fix:** `oauthDismiss` `minInstances:1` (live) + iOS callback warm-prefetch during exchange (`160b15c9a`).
+- **Next:** Lovable Publish for warm-prefetch HTML; backend warm alone should already kill the 3s hang. Re-test Google iOS → expect dismiss latency ≪1s.
+
 ## ACTIVE (2026-07-17) — iOS auth jank fixes (oauthDismiss + link guard)
 
 - **H1 (A):** iOS `native-callback` JS-fired `com.despia.vybe://` before `oauthDismiss` → Safari invalid address / stuck ASWeb.
@@ -9,7 +24,7 @@ Use this file as the Lovable -> Cursor handoff each session.
 - **H2 (B):** `externalLinkGuard` approve called patched `window.open` → re-prompt loop.
 - **Fix:** approve/never-ask uses saved `nativeOpen`.
 - **Verify:** Lovable Publish + iOS Google sign-in; expect CF `fire_close mode:oauthDismiss` + `oauth_complete_success`.
-- **Shipped:** `383daf2e3` on `origin/main`. `authQr` deployed. **Lovable → Share → Publish** for `vybehub.app`.
+- **Shipped:** `383daf2e3` then `160b15c9a` on `origin/main`. `authQr` + `oauthDismiss` deployed.
 
 ## ACTIVE (2026-07-17) — OAuth instrumentation cleaned; Google id_token flow live
 

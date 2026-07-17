@@ -386,14 +386,22 @@ export const firebaseAuth = {
     }
   },
 
-  async signOut(options?: { scope?: 'local' | 'global' }) {
+  async signOut(_options?: { scope?: 'local' | 'global' }) {
     const auth = resolveAuth();
     if (!auth) return { error: NOT_CONFIGURED };
     try {
-      if (options?.scope === 'local') {
-        return { error: null };
-      }
+      // Always clear local Firebase persistence. A prior "local = no-op" stub left
+      // firebase:authUser:* in localStorage so logout → refresh restored the session.
       await firebaseSignOut(auth);
+      if (typeof localStorage !== 'undefined') {
+        try {
+          for (const key of Object.keys(localStorage)) {
+            if (key.startsWith('firebase:authUser:')) localStorage.removeItem(key);
+          }
+        } catch {
+          /* ignore */
+        }
+      }
       return { error: null };
     } catch (err) {
       return { error: toAuthError(err) };

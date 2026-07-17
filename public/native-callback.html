@@ -146,19 +146,6 @@
       });
       // #endregion
 
-      // [iOS-only] Warm oauthDismiss while exchange runs so fireClose is not a cold start.
-      if (!isAndroid()) {
-        try {
-          fetch(
-            DISMISS_URL + '?wait=1&scheme=' + encodeURIComponent(scheme) + '&warm=1',
-            { method: 'GET', mode: 'cors', redirect: 'manual', keepalive: true },
-          ).catch(function () {});
-          // #region agent log
-          dbg('oauth_dismiss_warm', 'C', { scheme: scheme, android: false });
-          // #endregion
-        } catch (eWarm) {}
-      }
-
       function fireClose(query) {
         if (!query || closed) return;
         try {
@@ -271,6 +258,29 @@
             })
           : callAuthQr({ action: 'exchange_google', idToken: idToken, nonce: nonce });
 
+      // [iOS-only] Soft-close ASAP via oauthDismiss HTTPS 302 (wait=1).
+      // Keepalive exchange finishes server-side; WebView completes via nonce poll.
+      // Never fetch-warm oauthDismiss inside ASWeb — that 302 to custom scheme
+      // surfaces Safari "address is invalid" (runtime 2026-07-17T16:40:09Z).
+      if (!isAndroid() && nonce) {
+        softFired = true;
+        var asapQ =
+          'nonce=' +
+          encodeURIComponent(nonce) +
+          '&wait=1&provider=' +
+          encodeURIComponent(provider);
+        if (intent === 'link') asapQ += '&intent=link';
+        // #region agent log
+        dbg('ios_asap_soft_close', 'D', {
+          provider: provider,
+          intent: intent,
+          hasNonce: true,
+          msSinceBoot: Date.now() - bootAt,
+        });
+        // #endregion
+        fireClose(asapQ);
+      }
+
       var slowTimer = setTimeout(function () {
         if (closed) return;
         softFired = true;
@@ -281,7 +291,7 @@
           encodeURIComponent(provider);
         if (intent === 'link') softQ += '&intent=link';
         fireClose(softQ);
-      }, 6000);
+      }, isAndroid() ? 6000 : 8000);
 
       stashPromise
         .then(function (result) {
@@ -291,6 +301,18 @@
           if (!result.ok || !handoff) throw new Error(errMsgOf(result) || 'exchange_failed');
           var q = 'hc=' + encodeURIComponent(handoff);
           if (intent === 'link') q += '&intent=link';
+          // #region agent log
+          dbg('exchange_result', 'A', {
+            ok: true,
+            hasHandoff: true,
+            handoffLen: String(handoff).length,
+            provider: provider,
+            intent: intent,
+            alreadyClosed: closed,
+            softFired: softFired,
+            msSinceBoot: Date.now() - bootAt,
+          });
+          // #endregion
           if (!closed) fireClose(q);
           setTimeout(function () {
             if (closed) return;
@@ -309,6 +331,16 @@
         })
         .catch(function () {
           clearTimeout(slowTimer);
+          // #region agent log
+          dbg('exchange_result', 'A', {
+            ok: false,
+            hasHandoff: false,
+            provider: provider,
+            intent: intent,
+            alreadyClosed: closed,
+            msSinceBoot: Date.now() - bootAt,
+          });
+          // #endregion
           if (!closed) fireClose('error=exchange_failed');
         });
     })();
