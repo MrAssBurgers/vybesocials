@@ -104,9 +104,37 @@
         if (s && s.indexOf('://') === -1) scheme = s;
       }
 
-      // Apple JS popup leftover: close immediately so Face ID isn't buried under a blank sheet.
+      // Apple JS popup (usePopup): tokens return via postMessage to opener.
+      // NEVER run Despia oauthDismiss / ASAP soft-close in this window — that
+      // 302s to a custom scheme inside the popup and shows Safari
+      // "address is invalid", then Apple Sign-In fails (runtime: apple start
+      // with no success/error after Google ASAP path landed on this page).
       if (window.opener && !window.opener.closed) {
+        // #region agent log
+        try {
+          fetch(EXCHANGE_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              data: {
+                action: 'debug_oauth',
+                event: 'apple_popup_early_return',
+                hypothesisId: 'F',
+                location: 'native-callback.html',
+                payload: {
+                  runId: 'ios-post-fix',
+                  hasIdToken: !!idToken,
+                  provider: provider,
+                  hasError: !!error,
+                },
+              },
+            }),
+            keepalive: true,
+          }).catch(function () {});
+        } catch (eDbgOp) {}
+        // #endregion
         try { window.close(); } catch (e0) {}
+        return;
       }
 
       // #region agent log

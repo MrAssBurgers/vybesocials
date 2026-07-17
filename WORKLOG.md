@@ -2,6 +2,12 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## ACTIVE (2026-07-17) — Apple popup + ASAP soft-close conflict
+
+- **Post-fix (Google/logout):** CONFIRMED — `ios_asap_soft_close msSinceBoot:1`, oauthDismiss 0.004s, `oauth_complete_success`, `signout_cleared hasFirebaseUserKey:false`. No `warm=1`.
+- **Apple:** `apple_sdk_signin_start` then silence — popup hits `native-callback` which continued into ASAP `oauthDismiss` → invalid address + Sign-In failed.
+- **Fix:** if `window.opener`, dbg + `close()` + **return** (no Despia dismiss path).
+
 ## ACTIVE (2026-07-17) — invalid address from warm prefetch + logout no-op
 
 - **H-C warm CONFIRMED harmful:** Cloud Log `oauthDismiss?warm=1` 302 on iPhone (16:40:09Z) → Safari invalid address; real `hc=` dismiss 0.03s later.
