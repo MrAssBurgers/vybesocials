@@ -108,6 +108,43 @@
         try { window.close(); } catch (e0) {}
       }
 
+      // #region agent log
+      function dbg(event, hypothesisId, payload) {
+        try {
+          fetch(EXCHANGE_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              data: {
+                action: 'debug_oauth',
+                event: event,
+                hypothesisId: hypothesisId,
+                location: 'native-callback.html',
+                payload: Object.assign({ runId: 'ios-post-fix', sessionId: 'bd2545' }, payload || {}),
+              },
+            }),
+            keepalive: true,
+          }).catch(function () {});
+        } catch (eDbg) {}
+      }
+      // #endregion
+
+      // #region agent log
+      dbg('callback_boot', 'A', {
+        hasIdToken: !!idToken,
+        idTokenLen: idToken ? String(idToken).length : 0,
+        hasCode: !!authCode,
+        hasCv: !!cv,
+        provider: provider,
+        intent: intent,
+        hasError: !!error,
+        android: isAndroid(),
+        hasNonce: !!nonce,
+        softFired: false,
+        dismissMode: isAndroid() ? 'applink' : 'oauthDismiss',
+      });
+      // #endregion
+
       function fireClose(query) {
         if (!query || closed) return;
         try {
@@ -118,28 +155,47 @@
           }
         } catch (eClose) {}
         if (isAndroid()) {
+          // [Android-only] App Link close — CCT returns via HTTPS /auth?hc=
           var appLink = APP_ORIGIN + '/auth?' + query;
+          // #region agent log
+          dbg('fire_close', 'A', {
+            mode: 'applink',
+            android: true,
+            hasHc: query.indexOf('hc=') !== -1,
+            hasWait: query.indexOf('wait=') !== -1,
+            queryLen: String(query).length,
+            provider: provider,
+            intent: intent,
+          });
+          // #endregion
           try { window.location.replace(appLink); } catch (e1) {}
           try { window.location.href = appLink; } catch (e2) {}
           return;
         }
-        var deeplinkA = scheme + '://oauth/auth?' + query;
-        var deeplinkB = 'vybe://oauth/auth?' + query;
+        // [iOS-only] HTTPS 302 via oauthDismiss — never JS-navigate to custom scheme
+        // (that opens Safari "address is invalid" and leaves ASWeb stuck).
         var dismiss =
           DISMISS_URL +
           '?' +
           query +
           '&scheme=' +
           encodeURIComponent(scheme);
-        try { window.location.href = deeplinkA; } catch (e3) {}
-        setTimeout(function () {
-          if (closed) return;
-          try { window.location.href = deeplinkB; } catch (e4) {}
-        }, 80);
-        setTimeout(function () {
-          if (closed) return;
-          try { window.location.replace(dismiss); } catch (e5) {}
-        }, 200);
+        // #region agent log
+        dbg('fire_close', 'A', {
+          mode: 'oauthDismiss',
+          android: false,
+          hasHc: query.indexOf('hc=') !== -1,
+          hasWait: query.indexOf('wait=') !== -1,
+          queryLen: String(query).length,
+          provider: provider,
+          intent: intent,
+          dismissHost: 'oauthDismiss',
+        });
+        // #endregion
+        closed = true;
+        try { window.location.replace(dismiss); } catch (e5) {
+          try { window.location.href = dismiss; } catch (e6) {}
+        }
       }
 
       if (error) {

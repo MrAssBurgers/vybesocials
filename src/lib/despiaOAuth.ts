@@ -898,6 +898,12 @@ async function completeDespiaOAuthFromUrlInner(url: string): Promise<DespiaOAuth
         /* optional */
       }
       window.dispatchEvent(new CustomEvent('despia-oauth-complete', { detail: completion }));
+      // #region agent log
+      fetch('http://127.0.0.1:7693/ingest/1847f3ab-7d03-4b99-8dbe-84076ae9145e',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'bd2545'},body:JSON.stringify({sessionId:'bd2545',runId:'ios-post-fix',hypothesisId:'A',location:'despiaOAuth.ts:completeInner',message:'oauth complete success',data:{hasUser:!!completion.data.session?.user,linked:!!completion.data.linked,os:getRuntimeOs()},timestamp:Date.now()})}).catch(()=>{});
+      try {
+        fetch('https://us-central1-vybe-daaab.cloudfunctions.net/authQr',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({data:{action:'debug_oauth',event:'oauth_complete_success',hypothesisId:'A',location:'despiaOAuth.ts',payload:{runId:'ios-post-fix',hasUser:!!completion.data.session?.user,linked:!!completion.data.linked,os:getRuntimeOs()}}}),keepalive:true}).catch(()=>{});
+      } catch { /* ignore */ }
+      // #endregion
     }
     return completion;
   } catch (err) {
@@ -911,6 +917,12 @@ async function completeDespiaOAuthFromUrlInner(url: string): Promise<DespiaOAuth
 export async function completeDespiaOAuthFromUrl(url: string): Promise<DespiaOAuthCompletion> {
   const params = parseOAuthParamsFromUrl(url);
   const handoffCode = (params.get('hc') || params.get('handoff_code') || '').trim().toLowerCase();
+  // #region agent log
+  fetch('http://127.0.0.1:7693/ingest/1847f3ab-7d03-4b99-8dbe-84076ae9145e',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'bd2545'},body:JSON.stringify({sessionId:'bd2545',runId:'ios-post-fix',hypothesisId:'A',location:'despiaOAuth.ts:completeDespiaOAuthFromUrl',message:'oauth complete start',data:{hasHc:!!handoffCode,hasWait:params.get('wait')==='1',hasError:params.has('error'),os:getRuntimeOs()},timestamp:Date.now()})}).catch(()=>{});
+  try {
+    fetch('https://us-central1-vybe-daaab.cloudfunctions.net/authQr',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({data:{action:'debug_oauth',event:'oauth_complete_start',hypothesisId:'A',location:'despiaOAuth.ts',payload:{runId:'ios-post-fix',hasHc:!!handoffCode,hasWait:params.get('wait')==='1',hasError:params.has('error'),os:getRuntimeOs()}}}),keepalive:true}).catch(()=>{});
+  } catch { /* ignore */ }
+  // #endregion
   if (handoffCode) {
     const existing = oauthCompleteByHc.get(handoffCode);
     if (existing) return existing;

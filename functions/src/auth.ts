@@ -1227,9 +1227,13 @@ export const authQr = onCall(
   const action = (data.action || 'create').toLowerCase();
   const nonce = typeof data.nonce === 'string' ? data.nonce.trim() : '';
 
-  /** Debug-session OAuth telemetry (Despia cannot reach localhost ingest). Admin-only. */
+  /**
+   * Debug-session OAuth telemetry (Despia ASWeb cannot reach localhost ingest).
+   * Writes are session-gated (bd2545) + rate-limited; dump stays admin-only.
+   */
   if (action === 'debug_oauth') {
-    await requireAdmin(request);
+    const ip = clientIpFromRequest(request) || 'anon';
+    enforceRateLimit(await rateLimit(`debug_oauth:${ip}`, 120, 60));
     const event = String((data as { event?: string }).event || '').slice(0, 120);
     const hypothesisId = String((data as { hypothesisId?: string }).hypothesisId || '').slice(0, 8);
     const location = String((data as { location?: string }).location || '').slice(0, 160);

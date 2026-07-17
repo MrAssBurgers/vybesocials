@@ -14,6 +14,9 @@ type Pending = ExternalLinkRequest & {
 let pending: Pending | null = null;
 const listeners = new Set<(req: ExternalLinkRequest | null) => void>();
 
+/** Unpatched window.open — used after user approval so the guard cannot re-prompt. */
+let nativeOpen: typeof window.open | null = null;
+
 function hostOf(url: string): string {
   try {
     return new URL(url).hostname.replace(/^www\./, '');
@@ -56,14 +59,25 @@ export function subscribeExternalLinkPrompt(
   return () => listeners.delete(listener);
 }
 
+function openExternalAllowed(url: string): void {
+  // #region agent log
+  fetch('http://127.0.0.1:7693/ingest/1847f3ab-7d03-4b99-8dbe-84076ae9145e',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'bd2545'},body:JSON.stringify({sessionId:'bd2545',runId:'ios-post-fix',hypothesisId:'B',location:'externalLinkGuard.ts:openExternalAllowed',message:'opening via nativeOpen',data:{hasNativeOpen:!!nativeOpen,host:hostOf(url)},timestamp:Date.now()})}).catch(()=>{});
+  // #endregion
+  const open = nativeOpen || window.open.bind(window);
+  open(url, '_blank', 'noopener,noreferrer');
+}
+
 export function resolveExternalLinkPrompt(allowed: boolean, neverAsk = false): void {
   if (neverAsk) setExternalLinkNeverAsk(true);
   const current = pending;
   pending = null;
   notify();
   current?.resolve(allowed);
+  // #region agent log
+  fetch('http://127.0.0.1:7693/ingest/1847f3ab-7d03-4b99-8dbe-84076ae9145e',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'bd2545'},body:JSON.stringify({sessionId:'bd2545',runId:'ios-post-fix',hypothesisId:'B',location:'externalLinkGuard.ts:resolveExternalLinkPrompt',message:'resolve external link',data:{allowed,neverAsk,hasUrl:!!current},timestamp:Date.now()})}).catch(()=>{});
+  // #endregion
   if (allowed && current) {
-    window.open(current.url, '_blank', 'noopener,noreferrer');
+    openExternalAllowed(current.url);
   }
 }
 
@@ -71,13 +85,16 @@ export function promptExternalLink(url: string): Promise<boolean> {
   const clean = url.trim();
   if (!isExternalHttpUrl(clean)) return Promise.resolve(false);
   if (isExternalLinkNeverAsk()) {
-    window.open(clean, '_blank', 'noopener,noreferrer');
+    openExternalAllowed(clean);
     return Promise.resolve(true);
   }
   if (pending) {
     pending.resolve(false);
     pending = null;
   }
+  // #region agent log
+  fetch('http://127.0.0.1:7693/ingest/1847f3ab-7d03-4b99-8dbe-84076ae9145e',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'bd2545'},body:JSON.stringify({sessionId:'bd2545',runId:'ios-post-fix',hypothesisId:'B',location:'externalLinkGuard.ts:promptExternalLink',message:'prompt shown',data:{host:hostOf(clean)},timestamp:Date.now()})}).catch(()=>{});
+  // #endregion
   return new Promise((resolve) => {
     pending = { url: clean, host: hostOf(clean), resolve };
     notify();
@@ -107,7 +124,8 @@ export function installExternalLinkGuard(): void {
   );
 
   try {
-    const originalOpen = window.open.bind(window);
+    nativeOpen = window.open.bind(window);
+    const originalOpen = nativeOpen;
     window.open = ((url?: string | URL, target?: string, features?: string) => {
       const asString = typeof url === 'string' ? url : url?.toString() || '';
       if (isExternalHttpUrl(asString)) {

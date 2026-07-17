@@ -2,6 +2,14 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## ACTIVE (2026-07-17) — iOS auth jank fixes (oauthDismiss + link guard)
+
+- **H1 (A):** iOS `native-callback` JS-fired `com.despia.vybe://` before `oauthDismiss` → Safari invalid address / stuck ASWeb.
+- **Fix:** iOS `fireClose` goes straight to HTTPS `oauthDismiss` 302 only (Android still App Link).
+- **H2 (B):** `externalLinkGuard` approve called patched `window.open` → re-prompt loop.
+- **Fix:** approve/never-ask uses saved `nativeOpen`.
+- **Verify:** Lovable Publish + iOS Google sign-in; expect CF `fire_close mode:oauthDismiss` + `oauth_complete_success`.
+
 ## ACTIVE (2026-07-17) — OAuth instrumentation cleaned; Google id_token flow live
 
 - **Fixed:** Google sign-in via implicit `id_token` on `https://vybehub.app/native-callback.html` (PKCE needed client_secret).
