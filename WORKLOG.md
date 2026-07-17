@@ -5,7 +5,7 @@ Use this file as the Lovable -> Cursor handoff each session.
 ## ACTIVE (2026-07-17) — iOS Apple: restore JS usePopup (not oauth://)
 
 ### Publish handoff
-- **On `origin/main`:** _(pending push — see SHA after commit)_
+- **On `origin/main`:** `558940f2b`
 - **Lovable → Share → Publish NOW** for `vybehub.app` (SPA: `despiaOAuth` + `appleSignIn` + `externalLinkGuard`). Agent cannot click Publish.
 - **No CF / no native-callback change.** Google ASAP `wait=1` path **unchanged**.
 - **No Despia rebuild** required for this attempt (JS-only). True AuthenticationServices still needs Despia native binary + `nativeauth://` bridge.
