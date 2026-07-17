@@ -7,6 +7,8 @@
 import { OAuthProvider, linkWithCredential, signInWithCredential } from 'firebase/auth';
 import { getProductionOrigin } from '@/lib/authRedirect';
 import { authLog } from '@/lib/authLog';
+import { isDespiaRuntime } from '@/lib/despiaBridge';
+import { APPLE_SIGNIN_OPEN_FAILED } from '@/lib/errorUtils';
 import { runWithExternalLinkGuardBypassed } from '@/lib/externalLinkGuard';
 import { mapOAuthLinkError } from '@/lib/oauthAccountLink';
 import { issHostname, oauthTimelineLog } from '@/lib/oauthDebugTimeline';
@@ -94,7 +96,7 @@ function isAppleUnknownError(err: unknown, code: string, message: string): boole
 }
 
 const APPLE_POPUP_BLOCKED_ERROR: VybeAuthError = {
-  message: 'Apple Sign-In could not open. Try again.',
+  message: APPLE_SIGNIN_OPEN_FAILED,
   name: 'apple/popup-blocked',
 };
 
@@ -229,6 +231,22 @@ export async function signInWithAppleJsSdk(): Promise<{
   data: { session: VybeSession | null };
   error: VybeAuthError | null;
 }> {
+  // Hard stop: Despia must never run Apple JS (opaque "unknown" in WKWebView).
+  if (isDespiaRuntime()) {
+    oauthTimelineLog(
+      'apple_sdk_blocked',
+      {
+        reason: 'despia-oauth-only',
+        os: typeof navigator !== 'undefined' ? 'despia' : 'ssr',
+      },
+      'appleSignIn.ts:signInWithAppleJsSdk',
+    );
+    return {
+      data: { session: null },
+      error: { message: APPLE_SIGNIN_OPEN_FAILED, name: 'apple/despia-blocked' },
+    };
+  }
+
   let rawNonce = randomNonce();
   try {
     await loadAppleIdScript();

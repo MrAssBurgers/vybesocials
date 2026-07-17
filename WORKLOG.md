@@ -2,53 +2,55 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
-## ACTIVE (2026-07-17) — iOS Apple: oauth:// (JS unknown is dead)
+## ACTIVE (2026-07-17) — iOS Apple: prove prod oauth-bridge + kill unknown toast
+
+### Verdict (evidence 2026-07-17 ~20:27Z)
+| Check | Result |
+|-------|--------|
+| **Prod SPA stale?** | **NO** — `vybehub.app` `app-Bj_8Hoxy.js` has `strategy:"oauth-bridge"` and **0** `apple-js-sdk` |
+| **Staging stale?** | **YES** (was) — `vybe-daaab.web.app` still had `apple-js-sdk`; redeploy hosting |
+| **Recent Firestore** | Latest Apple taps still `strategy:apple-js-sdk` + `host:localhost` + `oauth_error msg:unknown` — device was on **local stale JS**, not prod |
+| **Prove after Publish** | Timeline must show `buildMarker:oauth-bridge-v2` + `strategy:oauth-bridge` + real hostname (`vybehub.app`), never `apple-js-sdk` / `localhost` |
 
 ### Publish handoff
-- **On `origin/main`:** `d386d6e34`
-- **Lovable → Share → Publish NOW** for `vybehub.app`. Agent cannot click Publish.
-- **No CF / no native-callback change.** Google ASAP `wait=1` path **unchanged** (Apple oauth:// reuses same soft-close when nonce present).
-- **No Despia rebuild** required. True Face ID / AuthenticationServices still needs Despia `nativeauth://` + ASAuthorization binary (not available today).
+- **Push SHA:** (this commit) — **Lovable → Share → Publish NOW** for `vybehub.app`.
+- Kill any Despia **localhost / live-reload** override — store app must load `vybehub.app`.
+- Force-quit + clear WKWebView cache if still seeing `apple-js-sdk` after Publish.
+- **No CF / no native-callback change.** Google ASAP `wait=1` untouched (Apple reuses same soft-close).
 
-### Video cause (3:02 recording + frames)
-Tap Apple → instant stacked top toast **"unknown"** → no Face ID, no ASWeb. Prod already had `558940f2` era code (`apple-js-sdk`, `runWithExternalLinkGuardBypassed`, unknown-retry). Firestore `oauth_debug_events` session `bd2545`: `apple_sdk_done` / `oauth_error` with `code:unknown` `msg:unknown` in &lt;1s.
-
-### Decision (A→B→C)
-| Path | Result |
-|------|--------|
-| **A** Capacitor / `signInWithOAuthNative` | **No** — skipped when `isDespiaRuntime()`; no Capacitor Apple plugins in Despia WebView |
-| **B** Fix Apple JS | **Failed on prod** — guard bypass + retry still opaque `unknown`; no Face ID sheet |
-| **C** oauth:// (same as Android) | **Chosen** — only path that can complete login today |
-
-Despia-native package only documents `oauth://` ASWeb — no `apple://` / `signinwithapple` / ASAuthorization bridge.
-
-### Fix
-1. **[iOS Despia] Route Apple sign-in + Settings Connect through `oauth://`** (`buildAppleOAuthUrl` + `launchDespiaOAuthUrl`). Strategy: `oauth-bridge`.
-2. Keep Apple JS SDK for **non-Despia** browser/Safari only.
-3. Harden unknown toasts: `mapOAuthLinkError`, `getFriendlyAuthError`, Landing, ConnectionsSection — never toast bare `"unknown"`; friendly *"Apple Sign-In could not open. Try again."*
-4. Google iOS ASAP wait=1 **untouched**.
-
-### Files
-- `src/lib/despiaOAuth.ts` — iOS+Android Apple → oauth://
-- `src/lib/nativeOAuth.ts` — comment sync
-- `src/lib/oauthAccountLink.ts` + test — sanitize opaque unknown
-- `src/lib/errorUtils.ts` + `errorUtils.auth.test.ts`
-- `src/lib/appleSignIn.ts` — comment + friendly copy
-- `src/pages/Landing.tsx` — unknown toast guards
-- `src/components/settings/ConnectionsSection.tsx` — friendly errors on Connect Apple
-- `WORKLOG.md`
+### Code harden (this commit)
+1. Despia Apple: oauth:// only; `buildMarker:oauth-bridge-v2` on launch log; host logged.
+2. `signInWithAppleJsSdk` hard-blocks Despia (`apple/despia-blocked`) — never runs JS in WKWebView.
+3. Landing: no Apple JS preload on Despia; all toasts go through `sanitizeAuthToastMessage` (never bare `unknown`).
+4. `errorUtils` + `mapOAuthLinkError` + ConnectionsSection belt-and-suspenders.
+5. Staging Firebase Hosting redeployed with oauth-bridge build.
 
 ### Verify checklist (after Publish)
-1. iOS Apple: Continue with Apple → ASWeb Apple sheet (not instant "unknown") → sign-in completes.
-2. Timeline: `oauth_launch strategy:oauth-bridge` → `exchange_apple` / nonce redeem → success (no `apple_sdk_done msg:unknown` in &lt;1s).
-3. Toast never shows the literal word `unknown`.
-4. iOS Google: ASAP wait=1 auto-close still works.
-5. Settings → Connections → Connect Apple uses oauth:// (same sheet).
-6. Android Google/Apple oauth:// unchanged.
+1. Firestore: `oauth_launch` → `strategy:oauth-bridge` + `buildMarker:oauth-bridge-v2` + host `vybehub.app` (not localhost).
+2. ASWeb Apple sheet opens (not instant unknown toast).
+3. Toast never shows literal `unknown`.
+4. iOS Google wait=1 still works.
 
 ### Tests
 - `npm run build` green
-- `npm run test` green (373)
+- `npm run test` green (374)
+
+### Next 3
+1. Lovable → Share → Publish **immediately**.
+2. Device on **production URL** (not localhost): Apple Continue → ASWeb + signed in.
+3. Confirm Firestore marker `oauth-bridge-v2`; if still `apple-js-sdk`/`localhost`, fix Despia web URL override.
+
+## SUPERSEDED (2026-07-17) — iOS Apple: oauth:// (JS unknown is dead) [d386d6e34]
+
+### Publish handoff
+- **On `origin/main`:** `d386d6e34` — **prod SPA already has oauth-bridge** (Publish landed).
+- User still seeing "unknown" was from **localhost + apple-js-sdk** timeline events, not missing Publish of d386.
+
+### Fix (kept)
+1. **[iOS Despia] Route Apple through `oauth://`** — strategy `oauth-bridge`.
+2. Keep Apple JS for **non-Despia** only.
+3. Unknown toast hardening (extended in ACTIVE).
+4. Google iOS ASAP wait=1 **untouched**.
 
 ### Next 3
 1. Lovable → Share → Publish **immediately**.

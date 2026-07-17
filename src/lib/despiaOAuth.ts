@@ -482,7 +482,10 @@ async function launchDespiaOAuthUrl(
     return { pending: true, error: null };
   } catch (err) {
     clearDespiaOAuthPending();
-    const message = err instanceof Error ? err.message : 'Failed to open sign-in';
+    const raw = err instanceof Error ? err.message : 'Failed to open sign-in';
+    const message = /^unknown$/i.test(raw.trim())
+      ? 'Apple Sign-In could not open. Try again.'
+      : raw;
     return { pending: false, error: { message, name: 'despia/oauth-launch-failed' } };
   }
 }
@@ -520,8 +523,11 @@ export async function signInWithAppleDespia(): Promise<{
       {
         provider: 'apple',
         strategy: 'oauth-bridge',
+        applePath: 'oauth-bridge',
+        buildMarker: 'oauth-bridge-v2',
         os: getRuntimeOs(),
         despia: true,
+        host: typeof location !== 'undefined' ? location.hostname.slice(0, 64) : '',
         callbackPath: safeCallbackPath(getNativeOAuthCallbackUrl()),
       },
       'despiaOAuth.ts:signInWithAppleDespia',
@@ -530,6 +536,7 @@ export async function signInWithAppleDespia(): Promise<{
     return launchDespiaOAuthUrl(await buildAppleOAuthUrl('signin'), 'apple', 'signin');
   }
 
+  // Non-Despia only — never reached inside Despia (JS also hard-blocks Despia).
   const { signInWithAppleJsSdk } = await import('@/lib/appleSignIn');
   const js = await signInWithAppleJsSdk();
   if (js.error) return { pending: false, error: js.error, data: { session: null } };

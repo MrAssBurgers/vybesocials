@@ -3,6 +3,25 @@
  * Prevents leaking database schema, constraint names, and internal details
  */
 
+export const APPLE_SIGNIN_OPEN_FAILED = 'Apple Sign-In could not open. Try again.';
+
+/** True for opaque Apple/Despia errors that must never reach a toast as the literal word. */
+export function isOpaqueUnknownAuthText(value: string | undefined | null): boolean {
+  const trimmed = String(value || '').trim();
+  return /^unknown$/i.test(trimmed) || /^\[object Object\]$/i.test(trimmed);
+}
+
+/**
+ * Final toast gate — never show bare "unknown" / "[object Object]".
+ * Returns `__SUPPRESS__` unchanged; replaces empty/opaque with a friendly Apple message.
+ */
+export function sanitizeAuthToastMessage(msg: string | null | undefined): string {
+  const trimmed = String(msg || '').trim();
+  if (trimmed === '__SUPPRESS__') return '__SUPPRESS__';
+  if (!trimmed || isOpaqueUnknownAuthText(trimmed)) return APPLE_SIGNIN_OPEN_FAILED;
+  return trimmed;
+}
+
 function authErrorCode(error: unknown): string {
   if (!error || typeof error !== 'object') return '';
   const e = error as { code?: string; name?: string };
@@ -52,8 +71,9 @@ export function getFriendlyAuthError(error: unknown): string {
     case 'apple/incomplete':
       return 'Apple Sign-In did not finish. Try again, or use email login.';
     case 'apple/popup-blocked':
+    case 'apple/despia-blocked':
     case 'unknown':
-      return 'Apple Sign-In could not open. Try again.';
+      return APPLE_SIGNIN_OPEN_FAILED;
     case 'despia/oauth-timeout':
       return 'Sign-in did not return to the app. Close any leftover browser sheet and try again.';
     case 'despia/oauth-redeem-failed':
@@ -99,12 +119,8 @@ export function getFriendlyAuthError(error: unknown): string {
     return 'Apple rejected sign-in. Confirm Services ID com.despia.vybe.web and return URL https://vybehub.app/native-callback.html.';
   }
   // Bare Apple/Despia "unknown" must never reach the toast as the literal word.
-  if (
-    /^unknown$/i.test(message.trim()) ||
-    /^unknown$/i.test(code.trim()) ||
-    /^\[object Object\]$/i.test(message.trim())
-  ) {
-    return 'Apple Sign-In could not open. Try again.';
+  if (isOpaqueUnknownAuthText(message) || isOpaqueUnknownAuthText(code)) {
+    return APPLE_SIGNIN_OPEN_FAILED;
   }
   if (/Services ID|native-callback\.html/i.test(message)) {
     return message;
@@ -126,6 +142,10 @@ export function getFriendlyAuthError(error: unknown): string {
 export function getUserFriendlyError(error: any): string {
   const message = error?.message || error?.toString() || '';
   const code = authErrorCode(error);
+
+  if (isOpaqueUnknownAuthText(message) || isOpaqueUnknownAuthText(code)) {
+    return APPLE_SIGNIN_OPEN_FAILED;
+  }
 
   // Prefer the OAuth-specific mapper when Firebase auth codes are present.
   if (code.startsWith('auth/')) {

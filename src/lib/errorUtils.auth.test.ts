@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { getFriendlyAuthError } from './errorUtils';
+import { getFriendlyAuthError, sanitizeAuthToastMessage } from './errorUtils';
 
 describe('getFriendlyAuthError', () => {
   it('maps unauthorized domain', () => {
@@ -59,5 +59,13 @@ describe('getFriendlyAuthError', () => {
     expect(getFriendlyAuthError({ message: 'unknown' })).toMatch(/could not open/i);
     expect(getFriendlyAuthError('unknown')).toMatch(/could not open/i);
     expect(getFriendlyAuthError({ code: 'unknown', message: 'unknown' })).not.toMatch(/^unknown$/i);
+  });
+
+  it('sanitizeAuthToastMessage never returns bare unknown', () => {
+    expect(sanitizeAuthToastMessage('unknown')).toMatch(/could not open/i);
+    expect(sanitizeAuthToastMessage('UNKNOWN')).toMatch(/could not open/i);
+    expect(sanitizeAuthToastMessage('[object Object]')).toMatch(/could not open/i);
+    expect(sanitizeAuthToastMessage('__SUPPRESS__')).toBe('__SUPPRESS__');
+    expect(sanitizeAuthToastMessage('Real error')).toBe('Real error');
   });
 });

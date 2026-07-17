@@ -11,7 +11,7 @@ import { Label } from '@/components/ui/label';
 
 // Checkbox removed — using custom inline toggle for iOS compatibility
 import { toast } from 'sonner';
-import { getFriendlyAuthError, getUserFriendlyError } from '@/lib/errorUtils';
+import { getFriendlyAuthError, getUserFriendlyError, sanitizeAuthToastMessage } from '@/lib/errorUtils';
 import { Eye, EyeOff, Mail } from 'lucide-react';
 import { isNativeAppShell, getRuntimeOs, isDespiaRuntime } from '@/lib/despiaBridge';
 import { db } from '@/lib/firebase';
@@ -215,7 +215,10 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
   useEffect(() => {
     clearStaleOAuthRedirectPending();
     clearStaleDespiaOAuthPending();
-    preloadAppleSignIn();
+    // [iOS-only] Never preload Apple JS in Despia — oauth:// only; JS usePopup yields opaque "unknown".
+    if (!isDespiaRuntime()) {
+      preloadAppleSignIn();
+    }
     // Resume chip only — do NOT set isOAuthReturn (that full-screens "Completing…" forever).
     if (isDespiaOAuthInFlight()) {
       const provider = getDespiaOAuthPendingProvider();
@@ -300,11 +303,8 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
       setIsOAuthReturn(false);
 
       if (detail?.error?.message) {
-        let msg = getFriendlyAuthError(detail.error);
-        if (!msg || /^unknown$/i.test(msg.trim()) || /^\[object Object\]$/i.test(msg.trim())) {
-          msg = 'Apple Sign-In could not open. Try again.';
-        }
-        if (msg !== '__SUPPRESS__' && !/^unknown$/i.test(msg.trim())) {
+        const msg = sanitizeAuthToastMessage(getFriendlyAuthError(detail.error));
+        if (msg !== '__SUPPRESS__') {
           sessionStorage.setItem('vybe-oauth-error', msg);
           toast.error(msg);
         }
@@ -510,12 +510,8 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
         },
         'Landing.tsx:runOAuthSignIn.catch',
       );
-      let msg = getFriendlyAuthError(error);
-      // Never surface Apple's opaque "unknown" / empty object toasts.
-      if (!msg || /^unknown$/i.test(msg.trim()) || /^\[object Object\]$/i.test(msg.trim())) {
-        msg = 'Apple Sign-In could not open. Try again.';
-      }
-      if (msg !== '__SUPPRESS__' && !/^unknown$/i.test(msg.trim())) toast.error(msg);
+      let msg = sanitizeAuthToastMessage(getFriendlyAuthError(error));
+      if (msg !== '__SUPPRESS__') toast.error(msg);
       setOauthOverlay(null);
     } finally {
       if (!isOAuthRedirectInFlight() && !isDespiaOAuthInFlight()) {
@@ -560,11 +556,8 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
       setIsOAuthReturn(false);
       setLoading(false);
       setOauthOverlay(null);
-      if (!/^unknown$/i.test(oauthError.trim()) && !/^\[object Object\]$/i.test(oauthError.trim())) {
-        toast.error(oauthError);
-      } else {
-        toast.error('Apple Sign-In could not open. Try again.');
-      }
+      const msg = sanitizeAuthToastMessage(oauthError);
+      toast.error(msg);
       return;
     }
 
@@ -582,9 +575,11 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
         setIsOAuthReturn(false);
         setLoading(false);
         setOauthOverlay(null);
-        const msg = captured.error
-          ? getFriendlyAuthError(captured.error)
-          : 'Sign-in did not complete. Please try again.';
+        const msg = sanitizeAuthToastMessage(
+          captured.error
+            ? getFriendlyAuthError(captured.error)
+            : 'Sign-in did not complete. Please try again.',
+        );
         if (msg !== '__SUPPRESS__') toast.error(msg);
       })();
     }, 18000);
