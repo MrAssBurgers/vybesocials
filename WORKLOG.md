@@ -2,7 +2,63 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
-## ACTIVE (2026-07-17) — iOS Google: staged ASWeb close (JS scheme first)
+## ACTIVE (2026-07-17) — Deep scan: restore Jul 16 wait=1 ASAP soft-close
+
+### Publish handoff
+- **On `origin/main`:** _(push SHA after commit)_
+- **Lovable → Share → Publish NOW** for `vybehub.app` (`native-callback.html` + SPA). Agent cannot click Publish. Google redirect is vybehub.app — **Publish is mandatory**.
+- **Firebase staging hosting deployed** (`vybe-daaab.web.app`) with wait=1 ASAP path. No CF redeploy needed (`oauthDismiss` already OK).
+- **No Despia rebuild** to try; if sheet still sticks after Publish → Despia ASWeb intercept broken (native support).
+
+### Deep scan evidence (2026-07-17 ~19:26Z)
+
+| Check | Result |
+|-------|--------|
+| Prod has staged close? | **YES** — `ios_staged` + `oauth-close` on vybehub.app (Publish landed; hash differs only by Lovable meta) |
+| Staging has staged close? | **YES** — matched local `ios_staged` before this fix; now redeployed with wait=1 ASAP |
+| oauthDismiss 302/html OK? | **YES** — 302 `Location` + `Refresh`; `format=html` → 200 |
+| Device timeline shows fire_close? | **YES** — 19:25:31Z full chain: `callback_boot` → `exchange_result ok` → `fire_close ios_staged` → `js_scheme` → `js_scheme_retry` → `same_origin_meta` → `oauthDismiss` |
+| Device sheet dismiss after fire_close? | **NO** — login OK (`oauth_complete_success`); no pagehide; `asweb_session_return hasPayload:false`; iPhone hit `oauthDismiss?format=html&hc=ded26b…` at 19:25:30Z |
+| What worked Jul 16? | **ASAP JS `scheme://oauth/auth?nonce=&wait=1`** while exchange runs (`281f079c9` / google-callback soft-close). Page does not unload → fetch continues. Toast possible. |
+| CF googleOAuthCallback as redirect? | **NO** — needs auth `code` + `client_secret`; current Google flow is `id_token` fragment (CF can't read). Web client has no secret in Functions. |
+
+### Root cause
+Post-exchange staged close (JS scheme / oauth-close / oauthDismiss 302 **and** format=html) **navigates successfully but does not dismiss ASWeb** on this Despia iOS build. Login already works via nonce poll / deeplink into WebView. Prior “no wait=1” policy optimized for toast and left the sheet stuck.
+
+### Fix (one coherent strategy)
+1. **[iOS-only] ASAP `softCloseWait`:** JS `{scheme}://oauth/auth?nonce=&wait=1` immediately when id_token present (Jul 16 technique). Does **not** set `fireCloseCalled`; does **not** use oauthDismiss (302 would unload page).
+2. Exchange continues (keepalive); login via nonce poll.
+3. Hard `fireClose(hc=)` if sheet still open: JS scheme → `vybe://` @80ms → `oauthDismiss` **302** @200ms (no format=html).
+4. Android App Link unchanged. iOS poll initial delay **1750ms** (was 4000); still gates on `sawSheetHidden`.
+
+### Telemetry expect (after Publish)
+- `ios_asap_soft_close mode:js_scheme_wait1` then `exchange_result` with `softFired:true`
+- Optional later `fire_close mode:ios_hard_staged` only if sheet still open
+- Android: `fire_close mode:applink`
+
+### Tradeoff
+Brief Safari “address is invalid” toast may return — **auto-close is priority**.
+
+### Files
+- `public/native-callback.html` — wait=1 ASAP + Jul 16 hard staged
+- `src/lib/despiaOAuth.ts` — iOS poll 1750ms
+- `src/lib/nativeOAuth.ts` — comment sync
+
+### Verify checklist (after Publish)
+1. iOS Google: account pick → sheet **auto-closes** (toast OK) → signed in without Done.
+2. Timeline: `ios_asap_soft_close` + `exchange_result softFired:true` + `oauth_complete_success`.
+3. Android Google/Apple + iOS Apple Face ID unchanged.
+
+### Tests
+- `npm run build` green
+- `npm run test` green (367)
+
+### Next 3
+1. Lovable → Share → Publish **immediately**.
+2. Device: iOS Google → confirm auto-close (note any toast).
+3. If still stuck: Despia native ASWeb / `native_ios_auth_v1` — web dismiss is exhausted.
+
+## SUPERSEDED (2026-07-17) — iOS Google: staged ASWeb close (JS scheme first)
 
 ### Publish handoff
 - **On `origin/main`:** `860f17628` (fix `beda345f6`)

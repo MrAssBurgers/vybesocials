@@ -2,10 +2,10 @@
  * Platform-aware OAuth — Despia store builds, Capacitor shells, Safari/PWA, desktop.
  *
  * Despia Google + Apple use oauth:// (ASWebAuthenticationSession / Custom Tabs).
- * iOS callback closes via staged Despia `{scheme}://oauth/…` then oauth-close /
- * oauthDismiss 302 (ASWeb auto-dismiss). Android uses App Link `/auth?hc=`.
- * Android callback closes via App Link /auth?hc=. Never wait=1 soft-close; never
- * JS-navigate custom-scheme from ASWeb (Safari “address is invalid”).
+ * iOS: ASAP JS `{scheme}://oauth/auth?wait=1` soft-close (Jul 16; page stays
+ * loaded) then exchange + hc= hard close / nonce poll. Brief Safari invalid-
+ * address toast possible — auto-close is priority. Android: App Link `/auth?hc=`
+ * only (never wait=1).
  */
 import { getRuntimeOs, isDespiaRuntime, isNativeAppShell } from '@/lib/despiaBridge';
 import { isEmbeddedAppleWebView } from '@/lib/deviceDetection';

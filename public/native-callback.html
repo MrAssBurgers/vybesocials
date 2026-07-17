@@ -19,13 +19,14 @@
      * this page, call oauthDismiss, or run exchange_*.
      *
      * Despia OAuth return (Google/Apple). Runs inside ASWeb / Custom Tabs.
-     * iOS: Despia closes ASWeb on top-level `{scheme}://oauth/…` (docs).
-     *   Custom-scheme nav often does NOT unload this page — so we stage:
-     *   1) JS scheme://oauth/auth?hc=  2) retry  3) same-origin oauth-close.html
-     *   4) HTTPS oauthDismiss 302. Never mark closed until pagehide/visibility.
-     *   No wait=1 soft-close on success (toast + sticky sheet). Exchange-first.
-     * Android: App Link close (CCT) only.
-     * If exchange hangs: leave blank page (or "Open VYBE" App Link UI after success).
+     * iOS (Jul 16 proven + 2026-07-17 deep scan):
+     *   ASAP soft-close: JS `{scheme}://oauth/auth?nonce=&wait=1` (Despia docs;
+     *   does NOT unload this page → exchange keepalive continues). May flash
+     *   Safari "address is invalid" — auto-close is priority over toast.
+     *   Hard close after exchange: JS scheme → vybe:// → oauthDismiss 302
+     *   (no format=html; staged format=html ran on device and sheet stayed open).
+     * Android: App Link close (CCT) only. Never wait=1 on Android.
+     * If exchange hangs: leave blank / "Open VYBE" after success.
      */
     (function () {
       var DEFAULT_SCHEME = 'com.despia.vybe';
@@ -40,6 +41,7 @@
       var closed = false;
       var bootAt = Date.now();
       var fireCloseCalled = false;
+      var softFired = false;
       var oauthDismissNavCalled = false;
 
       function decodeState(state) {
@@ -294,7 +296,8 @@
         noncePresent: !!nonce,
         validDespiaState: validDespiaState,
         scheme: scheme,
-        dismissMode: isAndroid() ? 'applink' : 'ios_staged',
+        dismissMode: isAndroid() ? 'applink' : 'ios_wait1_then_hc',
+        softFired: softFired,
         exchangeAction: exchangeAction,
       });
       dbg('exchange_selected', 'T', {
@@ -303,6 +306,35 @@
         iss: issHost(tokenIss),
       });
       // #endregion
+
+      /**
+       * [iOS-only] ASAP soft-close — Jul 16 google-callback technique.
+       * Direct JS `{scheme}://oauth/…` does NOT unload ASWeb, so exchange
+       * fetch continues. Do NOT set fireCloseCalled (hard hc= may still run).
+       * Do NOT use oauthDismiss here (HTTPS 302 unloads the page).
+       */
+      function softCloseWait() {
+        if (isAndroid() || softFired || closed || !nonce) return;
+        softFired = true;
+        var softQ =
+          'nonce=' +
+          encodeURIComponent(nonce) +
+          '&wait=1&provider=' +
+          encodeURIComponent(provider);
+        if (intent === 'link') softQ += '&intent=link';
+        var deeplink = scheme + '://oauth/auth?' + softQ;
+        // #region agent log
+        dbg('ios_asap_soft_close', 'T', {
+          provider: provider,
+          intent: intent,
+          hasNonce: true,
+          msSinceBoot: Date.now() - bootAt,
+          mode: 'js_scheme_wait1',
+        });
+        // #endregion
+        try { window.location.href = deeplink; } catch (eSoft1) {}
+        try { window.location.replace(deeplink); } catch (eSoft2) {}
+      }
 
       function fireClose(query) {
         if (!query || closed || fireCloseCalled) return;
@@ -340,86 +372,56 @@
           try { window.location.href = appLink; } catch (e2) {}
           return;
         }
-        // [iOS-only] Staged close — Despia docs: `{scheme}://oauth/…` is the
-        // ASWeb dismiss signal. Custom-scheme nav often does not unload this
-        // page, so we can chain fallbacks. Do NOT set closed=true here (only
-        // pagehide/visibility). oauthDismiss-only was hitting CF 302 but leaving
-        // the sheet stuck (prod evidence 2026-07-17). Never wait=1 / warm=1.
-        var deeplink = scheme + '://oauth/auth?' + query;
-        var sameOriginClose =
-          APP_ORIGIN +
-          '/oauth-close.html?' +
-          query +
-          '&scheme=' +
-          encodeURIComponent(scheme);
+        // [iOS-only] Hard close after exchange (Jul 16 staged timings).
+        // Prefer JS scheme (may already have soft-closed). Fallbacks: vybe://
+        // then oauthDismiss HTTP 302 (not format=html — device proof 19:25Z
+        // showed format=html ran and sheet still stuck).
+        var deeplinkA = scheme + '://oauth/auth?' + query;
+        var deeplinkB = 'vybe://oauth/auth?' + query;
         var dismiss =
           DISMISS_URL +
           '?' +
           query +
           '&scheme=' +
-          encodeURIComponent(scheme) +
-          '&format=html';
+          encodeURIComponent(scheme);
         // #region agent log
         dbg('fire_close', 'T', {
-          mode: 'ios_staged',
+          mode: 'ios_hard_staged',
           android: false,
           hasHc: query.indexOf('hc=') !== -1,
           hasWait: query.indexOf('wait=') !== -1,
           queryLen: String(query).length,
           intent: intent,
           scheme: scheme,
+          softFired: softFired,
+          msSinceBoot: Date.now() - bootAt,
+        });
+        dbg('ios_close_stage', 'T', {
+          stage: 'js_scheme',
+          scheme: scheme,
+          hasHc: query.indexOf('hc=') !== -1,
           msSinceBoot: Date.now() - bootAt,
         });
         // #endregion
-
-        function tryJsScheme(stage) {
-          if (closed) return;
-          // #region agent log
-          dbg('ios_close_stage', 'T', {
-            stage: stage,
-            scheme: scheme,
-            hasHc: query.indexOf('hc=') !== -1,
-            msSinceBoot: Date.now() - bootAt,
-          });
-          // #endregion
-          try { window.location.href = deeplink; } catch (eJs1) {}
-          try {
-            var a = document.createElement('a');
-            a.href = deeplink;
-            a.rel = 'noopener';
-            a.style.display = 'none';
-            document.body.appendChild(a);
-            a.click();
-            setTimeout(function () {
-              try { a.remove(); } catch (eRm) {}
-            }, 0);
-          } catch (eJs2) {}
-        }
-
-        tryJsScheme('js_scheme');
-        setTimeout(function () {
-          tryJsScheme('js_scheme_retry');
-        }, 100);
+        try { window.location.href = deeplinkA; } catch (e3) {}
         setTimeout(function () {
           if (closed) return;
           // #region agent log
           dbg('ios_close_stage', 'T', {
-            stage: 'same_origin_meta',
-            scheme: scheme,
+            stage: 'js_vybe',
+            scheme: 'vybe',
             hasHc: query.indexOf('hc=') !== -1,
             msSinceBoot: Date.now() - bootAt,
           });
           // #endregion
-          try { window.location.replace(sameOriginClose); } catch (eSo1) {
-            try { window.location.href = sameOriginClose; } catch (eSo2) {}
-          }
-        }, 220);
+          try { window.location.href = deeplinkB; } catch (e4) {}
+        }, 80);
         setTimeout(function () {
           if (closed) return;
           oauthDismissNavCalled = true;
           // #region agent log
           dbg('ios_close_stage', 'T', {
-            stage: 'oauthDismiss',
+            stage: 'oauthDismiss_302',
             scheme: scheme,
             hasHc: query.indexOf('hc=') !== -1,
             msSinceBoot: Date.now() - bootAt,
@@ -429,13 +431,14 @@
             hasHc: query.indexOf('hc=') !== -1,
             hasWait: query.indexOf('wait=') !== -1,
             scheme: scheme,
+            formatHtml: false,
             msSinceBoot: Date.now() - bootAt,
           });
           // #endregion
           try { window.location.replace(dismiss); } catch (e5) {
             try { window.location.href = dismiss; } catch (e6) {}
           }
-        }, 400);
+        }, 200);
       }
 
       if (error) {
@@ -444,8 +447,8 @@
       }
 
       // Legacy PKCE builds — exchange if code+cv present (requires client_secret on server).
-      // No iOS wait=1 soft-close: if exchange hangs, leave blank page.
       if (authCode && cv) {
+        if (!isAndroid()) softCloseWait();
         var REDIRECT_URI = APP_ORIGIN + '/native-callback.html';
         callAuthQr({
           action: 'exchange_google_code',
@@ -473,9 +476,10 @@
         return;
       }
 
-      // Exchange-first then single close with hc= (proven iOS path).
-      // Do NOT soft-close with wait=1 — that caused Safari "address is invalid"
-      // and stuck ASWeb. If exchange hangs, leave blank / Open VYBE UI only after hc=.
+      // [iOS-only] Soft-close NOW (Jul 16) — sheet dismiss while exchange runs.
+      // Login completes via nonce poll and/or later hc= hard close.
+      if (!isAndroid()) softCloseWait();
+
       var stashPromise =
         provider === 'apple'
           ? callAuthQr({
@@ -485,8 +489,14 @@
             })
           : callAuthQr({ action: 'exchange_google', idToken: idToken, nonce: nonce });
 
+      var slowTimer = setTimeout(function () {
+        if (closed || softFired) return;
+        softCloseWait();
+      }, 6000);
+
       stashPromise
         .then(function (result) {
+          clearTimeout(slowTimer);
           var payload = payloadOf(result);
           var handoff = payload.code;
           if (!result.ok || !handoff) throw new Error(errMsgOf(result) || 'exchange_failed');
@@ -499,6 +509,7 @@
             handoffLen: String(handoff).length,
             intent: intent,
             alreadyClosed: closed,
+            softFired: softFired,
             msSinceBoot: Date.now() - bootAt,
             exchangeAction: exchangeAction,
           });
@@ -520,12 +531,14 @@
           }, 1800);
         })
         .catch(function () {
+          clearTimeout(slowTimer);
           // #region agent log
           dbg('exchange_result', 'T', {
             ok: false,
             hasHandoff: false,
             intent: intent,
             alreadyClosed: closed,
+            softFired: softFired,
             msSinceBoot: Date.now() - bootAt,
             exchangeAction: exchangeAction,
           });
