@@ -1316,12 +1316,16 @@ service cloud.firestore {
     match /email_send_state/{id}              { allow read, write: if isAdmin(); }
     match /email_unsubscribe_tokens/{id}      { allow read, write: if false; }
     match /auth_challenges/{id} {
-      // Clients may listen for their own login-approval / QR challenges.
-      // Creates and state transitions stay Cloud Functions / Admin SDK only.
-      allow read: if signedIn() && (
-        resource.data.user_id == uid() ||
-        resource.data.user_id == profileId()
-      );
+      // Clients may listen for their own login-approval / QR challenges,
+      // BUT never for email-2FA challenges (docId ends in `_2fa`) — those
+      // hold the verification secret and must only be read by the
+      // auth2faVerify Cloud Function (Admin SDK bypasses rules).
+      allow read: if signedIn()
+        && !id.matches('.*_2fa$')
+        && (
+          resource.data.user_id == uid() ||
+          resource.data.user_id == profileId()
+        );
       allow create, update, delete: if false;
     }
     match /account_deletion_requests/{id}     { allow create: if willOwn('user_id'); allow read, update, delete: if isAdmin(); }
