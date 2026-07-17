@@ -5,7 +5,7 @@ Use this file as the Lovable -> Cursor handoff each session.
 ## ACTIVE (2026-07-17) — iOS Google: restore oauthDismiss auto-close
 
 ### Publish handoff
-- **On `origin/main`:** _(pending push — fill SHA after push)_
+- **On `origin/main`:** `d647405ad`
 - **Lovable → Share → Publish required** for `vybehub.app` (`native-callback.html` + SPA). Agent cannot click Publish.
 - **No Firebase CF deploy.** `oauthDismiss` already live with `minInstances:1`. **No Despia rebuild.**
 
