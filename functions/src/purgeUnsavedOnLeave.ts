@@ -20,6 +20,20 @@ export const purgeUnsavedOnLeave = onCall(async (request) => {
   if (!conversationId) throw new HttpsError('invalid-argument', 'conversationId required');
 
   const profileId = await resolveProfileId(uid);
+
+  // Membership check: caller MUST be a participant of this conversation.
+  // Without this, any signed-in user could hard-delete unsaved messages in
+  // strangers' DMs by supplying an arbitrary conversationId.
+  const memberSnap = await db
+    .collection('conversation_members')
+    .where('conversation_id', '==', conversationId)
+    .where('user_id', '==', profileId)
+    .limit(1)
+    .get();
+  if (memberSnap.empty) {
+    throw new HttpsError('permission-denied', 'Not a participant of this conversation');
+  }
+
   const settingsSnap = await db
     .collection('dm_settings')
     .where('conversation_id', '==', conversationId)
@@ -30,6 +44,7 @@ export const purgeUnsavedOnLeave = onCall(async (request) => {
     ? null
     : (settingsSnap.docs[0].data() as Record<string, unknown>);
   const purgeAllUnsaved = settings?.delete_unsaved_on_leave === true;
+
 
   const msgs = await db
     .collection('messages')
