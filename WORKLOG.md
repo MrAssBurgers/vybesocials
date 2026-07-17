@@ -5,7 +5,7 @@ Use this file as the Lovable -> Cursor handoff each session.
 ## ACTIVE (2026-07-17) — iOS Google: staged ASWeb close (JS scheme first)
 
 ### Publish handoff
-- **On `origin/main`:** `6a3c2e296` (fix `beda345f6`)
+- **On `origin/main`:** `860f17628` (fix `beda345f6`)
 - **Lovable → Share → Publish NOW** for `vybehub.app` (`native-callback.html` + `oauth-close.html` + SPA). Agent cannot click Publish. Google redirect URI is vybehub.app — **prod Publish is mandatory**.
 - **Firebase done:** `oauthDismiss` live (`format=html` → 200 meta-refresh; 302 keeps `Refresh` header). Hosting staging updated: `https://vybe-daaab.web.app/native-callback.html` has `ios_staged` (device Google still hits vybehub.app).
 - **No Despia rebuild** required to try this; if sheet still sticks after Publish, Despia binary / ASWeb intercept is the remaining blocker (see DESPIA_NATIVE_AUTH_SUPPORT_REQUEST.md).
