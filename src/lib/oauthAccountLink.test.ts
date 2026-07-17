@@ -62,4 +62,11 @@ describe('oauthAccountLink', () => {
     expect(mapOAuthLinkError(null).message).toBe('Sign-in failed');
     expect(mapOAuthLinkError({}).message).toBe('Sign-in failed');
   });
+
+  it('never passes through bare Apple unknown', () => {
+    expect(mapOAuthLinkError({ message: 'unknown', name: 'unknown' }).message).toMatch(/could not open/i);
+    expect(mapOAuthLinkError({ error: 'unknown' }).message).toMatch(/could not open/i);
+    expect(mapOAuthLinkError('unknown').message).toMatch(/could not open/i);
+    expect(mapOAuthLinkError({ message: 'unknown' }).message).not.toMatch(/^unknown$/i);
+  });
 });

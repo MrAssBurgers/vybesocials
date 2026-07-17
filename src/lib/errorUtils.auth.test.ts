@@ -58,5 +58,6 @@ describe('getFriendlyAuthError', () => {
     expect(getFriendlyAuthError({ name: 'unknown', message: 'unknown' })).toMatch(/could not open/i);
     expect(getFriendlyAuthError({ message: 'unknown' })).toMatch(/could not open/i);
     expect(getFriendlyAuthError('unknown')).toMatch(/could not open/i);
+    expect(getFriendlyAuthError({ code: 'unknown', message: 'unknown' })).not.toMatch(/^unknown$/i);
   });
 });

@@ -53,7 +53,7 @@ export function getFriendlyAuthError(error: unknown): string {
       return 'Apple Sign-In did not finish. Try again, or use email login.';
     case 'apple/popup-blocked':
     case 'unknown':
-      return 'Apple Sign-In could not open. Close any leftover browser sheet and try again.';
+      return 'Apple Sign-In could not open. Try again.';
     case 'despia/oauth-timeout':
       return 'Sign-in did not return to the app. Close any leftover browser sheet and try again.';
     case 'despia/oauth-redeem-failed':
@@ -104,7 +104,7 @@ export function getFriendlyAuthError(error: unknown): string {
     /^unknown$/i.test(code.trim()) ||
     /^\[object Object\]$/i.test(message.trim())
   ) {
-    return 'Apple Sign-In could not open. Close any leftover browser sheet and try again.';
+    return 'Apple Sign-In could not open. Try again.';
   }
   if (/Services ID|native-callback\.html/i.test(message)) {
     return message;

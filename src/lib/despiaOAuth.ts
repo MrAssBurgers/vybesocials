@@ -268,7 +268,7 @@ function getAppleServicesId(): string {
   return DEFAULT_APPLE_SERVICES_ID;
 }
 
-/** Apple authorize URL for Despia ASWebAuthenticationSession (Android). */
+/** Apple authorize URL for Despia ASWebAuthenticationSession (iOS + Android). */
 export function getAppleOAuthCallbackUrl(): string {
   // Same static page as Google. Do NOT use /apple-callback Cloud Function —
   // that path hit Cloud Run CPU quota (503) and left users spinning forever.
@@ -496,9 +496,15 @@ export async function signInWithGoogleDespia(): Promise<{
 }
 
 /**
- * Apple on Despia: iOS uses Apple JS SDK (Face ID / in-app popup); Android uses oauth://.
- * Browser / non-Despia still uses the JS SDK. True AuthenticationServices
- * (nativeauth://) is preferred only when Despia advertises the bridge — see nativeAuth.
+ * Apple on Despia: oauth:// on iOS and Android (exchange_apple + nonce poll).
+ * Browser / non-Despia still uses the Apple JS SDK (usePopup).
+ *
+ * Evidence (2026-07-17): prod had apple-js-sdk + guardBypass + unknown-retry, and
+ * Apple still returned opaque {error:"unknown"} in &lt;1s with no Face ID / ASWeb.
+ * Capacitor Sign-In is skipped inside Despia WebView; nativeauth:// ASAuthorization
+ * is not advertised. oauth:// is the only path that can complete login today.
+ * [iOS-only] native-callback ASAP wait=1 soft-close is shared with Google — do not
+ * change Google's wait=1 path when touching Apple.
  */
 export async function signInWithAppleDespia(): Promise<{
   pending: boolean;
@@ -506,36 +512,15 @@ export async function signInWithAppleDespia(): Promise<{
   data?: { session: VybeSession | null };
 }> {
   if (isDespiaRuntime()) {
-    // [iOS-only] Apple JS SDK only (native Face ID / Continue sheet). Do NOT use
-    // oauth:// ASWeb on iOS — user wants built-in popup, not appleid website sheet.
-    // Google Despia oauth:// + native-callback ASAP wait=1 soft-close is untouched.
-    if (getRuntimeOs() === 'ios') {
-      // #region agent log
-      oauthTimelineLog(
-        'oauth_launch',
-        {
-          provider: 'apple',
-          strategy: 'apple-js-sdk',
-          os: 'ios',
-          despia: true,
-          callbackPath: safeCallbackPath(getNativeOAuthCallbackUrl()),
-        },
-        'despiaOAuth.ts:signInWithAppleDespia',
-      );
-      // #endregion
-      const { signInWithAppleJsSdk } = await import('@/lib/appleSignIn');
-      const js = await signInWithAppleJsSdk();
-      if (js.error) return { pending: false, error: js.error, data: { session: null } };
-      return { pending: false, error: null, data: { session: js.data.session } };
-    }
-    // [Android-only] oauth:// → Custom Tabs → native-callback exchange_apple.
+    // Despia iOS + Android: oauth:// → ASWeb / Custom Tabs → native-callback
+    // exchange_apple. Apple JS usePopup cannot complete in Despia WKWebView.
     // #region agent log
     oauthTimelineLog(
       'oauth_launch',
       {
         provider: 'apple',
         strategy: 'oauth-bridge',
-        os: 'android',
+        os: getRuntimeOs(),
         despia: true,
         callbackPath: safeCallbackPath(getNativeOAuthCallbackUrl()),
       },
@@ -558,12 +543,7 @@ export async function linkProviderWithDespiaOAuth(
   if (!isDespiaRuntime()) {
     return { pending: false, error: { message: 'Despia link requires the native app' } };
   }
-  // [iOS-only] Apple link via JS SDK popup (same as sign-in) — not oauth:// ASWeb.
-  if (provider === 'apple' && getRuntimeOs() === 'ios') {
-    const { linkWithAppleJsSdk } = await import('@/lib/appleSignIn');
-    const result = await linkWithAppleJsSdk();
-    return { pending: false, error: result.error };
-  }
+  // Apple on Despia (iOS + Android) uses oauth:// — JS popup returns opaque "unknown".
   const url = provider === 'apple' ? await buildAppleOAuthUrl('link') : await buildGoogleOAuthUrl('link');
   return launchDespiaOAuthUrl(url, provider, 'link');
 }

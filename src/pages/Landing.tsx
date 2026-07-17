@@ -300,8 +300,11 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
       setIsOAuthReturn(false);
 
       if (detail?.error?.message) {
-        const msg = getFriendlyAuthError(detail.error);
-        if (msg !== '__SUPPRESS__') {
+        let msg = getFriendlyAuthError(detail.error);
+        if (!msg || /^unknown$/i.test(msg.trim()) || /^\[object Object\]$/i.test(msg.trim())) {
+          msg = 'Apple Sign-In could not open. Try again.';
+        }
+        if (msg !== '__SUPPRESS__' && !/^unknown$/i.test(msg.trim())) {
           sessionStorage.setItem('vybe-oauth-error', msg);
           toast.error(msg);
         }
@@ -510,9 +513,9 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
       let msg = getFriendlyAuthError(error);
       // Never surface Apple's opaque "unknown" / empty object toasts.
       if (!msg || /^unknown$/i.test(msg.trim()) || /^\[object Object\]$/i.test(msg.trim())) {
-        msg = 'Apple Sign-In could not open. Close any leftover browser sheet and try again.';
+        msg = 'Apple Sign-In could not open. Try again.';
       }
-      if (msg !== '__SUPPRESS__') toast.error(msg);
+      if (msg !== '__SUPPRESS__' && !/^unknown$/i.test(msg.trim())) toast.error(msg);
       setOauthOverlay(null);
     } finally {
       if (!isOAuthRedirectInFlight() && !isDespiaOAuthInFlight()) {
@@ -557,7 +560,11 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
       setIsOAuthReturn(false);
       setLoading(false);
       setOauthOverlay(null);
-      toast.error(oauthError);
+      if (!/^unknown$/i.test(oauthError.trim()) && !/^\[object Object\]$/i.test(oauthError.trim())) {
+        toast.error(oauthError);
+      } else {
+        toast.error('Apple Sign-In could not open. Try again.');
+      }
       return;
     }
 

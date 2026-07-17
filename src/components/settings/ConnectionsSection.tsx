@@ -11,6 +11,7 @@ import { toast } from 'sonner';
 import { ExternalPresenceConnections } from '@/components/music/ExternalPresenceConnections';
 import { isDespiaRuntime } from '@/lib/despiaBridge';
 import { linkProviderWithDespiaOAuth } from '@/lib/despiaOAuth';
+import { getFriendlyAuthError } from '@/lib/errorUtils';
 
 interface SpotifyConn {
   spotify_user_id: string;
@@ -155,12 +156,16 @@ export function ConnectionsSection() {
             const onDone = (ev: Event) => {
               const detail = (ev as CustomEvent).detail as {
                 data?: { linked?: boolean; session?: unknown };
-                error?: { message?: string };
+                error?: { message?: string; name?: string; code?: string };
               } | null;
               window.removeEventListener('despia-oauth-complete', onDone);
               window.clearTimeout(timer);
               if (detail?.error?.message) {
-                toast.error(detail.error.message);
+                let msg = getFriendlyAuthError(detail.error);
+                if (!msg || /^unknown$/i.test(msg.trim()) || /^\[object Object\]$/i.test(msg.trim())) {
+                  msg = 'Apple Sign-In could not open. Try again.';
+                }
+                if (msg !== '__SUPPRESS__' && !/^unknown$/i.test(msg.trim())) toast.error(msg);
               } else if (detail?.data?.linked || detail?.data?.session) {
                 toast.success(`${providerId === 'google' ? 'Google' : 'Apple'} connected`);
                 void refreshProviders();
@@ -189,7 +194,15 @@ export function ConnectionsSection() {
         await refreshProviders();
       }
     } catch (error: any) {
-      toast.error(error.message || 'Failed to link account');
+      let msg = getFriendlyAuthError(error);
+      if (!msg || /^unknown$/i.test(msg.trim()) || /^\[object Object\]$/i.test(msg.trim())) {
+        msg = error?.message && !/^unknown$/i.test(String(error.message).trim())
+          ? String(error.message)
+          : 'Apple Sign-In could not open. Try again.';
+      }
+      if (msg !== '__SUPPRESS__' && !/^unknown$/i.test(msg.trim())) {
+        toast.error(msg || 'Failed to link account');
+      }
     } finally {
       setLinking(null);
     }

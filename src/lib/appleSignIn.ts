@@ -1,6 +1,8 @@
 /**
- * Sign in with Apple via Apple JS SDK (native Face ID / Continue sheet on iOS Despia
- * and Safari). Android Despia should keep using oauth:// — see despiaOAuth.ts.
+ * Sign in with Apple via Apple JS SDK (Safari / non-Despia browsers).
+ * Despia iOS + Android must use oauth:// — see despiaOAuth.ts. Apple JS usePopup
+ * returns opaque {error:"unknown"} inside Despia WKWebView even with full
+ * window.open guard bypass.
  */
 import { OAuthProvider, linkWithCredential, signInWithCredential } from 'firebase/auth';
 import { getProductionOrigin } from '@/lib/authRedirect';
@@ -92,7 +94,7 @@ function isAppleUnknownError(err: unknown, code: string, message: string): boole
 }
 
 const APPLE_POPUP_BLOCKED_ERROR: VybeAuthError = {
-  message: 'Apple Sign-In could not open. Close any leftover browser sheet and try again.',
+  message: 'Apple Sign-In could not open. Try again.',
   name: 'apple/popup-blocked',
 };
 

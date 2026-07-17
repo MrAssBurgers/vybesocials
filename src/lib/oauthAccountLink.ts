@@ -35,6 +35,14 @@ export function getAccountExistsOAuthMessage(): string {
   return 'An account already exists with this email using another sign-in method. Sign in with that method, then link Google or Apple in Settings → Connections.';
 }
 
+const APPLE_UNKNOWN_FRIENDLY =
+  'Apple Sign-In could not open. Try again.';
+
+function isOpaqueUnknownText(value: string | undefined | null): boolean {
+  const trimmed = String(value || '').trim();
+  return /^unknown$/i.test(trimmed) || /^\[object Object\]$/i.test(trimmed);
+}
+
 export function mapOAuthLinkError(error: unknown): VybeAuthError {
   if (isAccountExistsWithDifferentCredential(error)) {
     return {
@@ -42,10 +50,24 @@ export function mapOAuthLinkError(error: unknown): VybeAuthError {
       name: 'auth/account-exists-with-different-credential',
     };
   }
+  if (typeof error === 'string') {
+    if (isOpaqueUnknownText(error)) {
+      return { message: APPLE_UNKNOWN_FRIENDLY, name: 'apple/popup-blocked' };
+    }
+    return { message: error.trim() || 'Sign-in failed' };
+  }
   if (error && typeof error === 'object') {
-    const e = error as { message?: string; code?: string; name?: string };
-    const code = e.code || e.name;
+    const e = error as { message?: string; code?: string; name?: string; error?: string };
+    const code = e.code || e.name || (typeof e.error === 'string' ? e.error : undefined);
     const rawMessage = typeof e.message === 'string' ? e.message.trim() : '';
+    // Never let Apple/Despia opaque "unknown" reach Landing toasts.
+    if (
+      isOpaqueUnknownText(rawMessage) ||
+      isOpaqueUnknownText(typeof code === 'string' ? code : '') ||
+      isOpaqueUnknownText(typeof e.error === 'string' ? e.error : '')
+    ) {
+      return { message: APPLE_UNKNOWN_FRIENDLY, name: 'apple/popup-blocked' };
+    }
     // Preserve Firebase message/code; never collapse to bare "Sign-in failed" when a code exists.
     const message =
       rawMessage ||
