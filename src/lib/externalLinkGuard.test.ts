@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { isExternalHttpUrl, isOAuthAuthUrl } from './externalLinkGuard';
+import {
+  isExternalHttpUrl,
+  isExternalLinkGuardBypassed,
+  isOAuthAuthUrl,
+  runWithExternalLinkGuardBypassed,
+} from './externalLinkGuard';
 
 describe('externalLinkGuard OAuth allowlist', () => {
   it('detects Apple Sign-In authorize hosts', () => {
@@ -21,5 +26,15 @@ describe('externalLinkGuard OAuth allowlist', () => {
     expect(isExternalHttpUrl('oauth://auth')).toBe(false);
     expect(isOAuthAuthUrl('oauth://auth')).toBe(false);
     expect(isOAuthAuthUrl('')).toBe(false);
+  });
+
+  it('runWithExternalLinkGuardBypassed is a no-op when guard not installed', async () => {
+    expect(isExternalLinkGuardBypassed()).toBe(false);
+    const value = await runWithExternalLinkGuardBypassed(async () => {
+      expect(isExternalLinkGuardBypassed()).toBe(false);
+      return 42;
+    });
+    expect(value).toBe(42);
+    expect(isExternalLinkGuardBypassed()).toBe(false);
   });
 });

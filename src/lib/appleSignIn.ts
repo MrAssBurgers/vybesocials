@@ -5,6 +5,7 @@
 import { OAuthProvider, linkWithCredential, signInWithCredential } from 'firebase/auth';
 import { getProductionOrigin } from '@/lib/authRedirect';
 import { authLog } from '@/lib/authLog';
+import { runWithExternalLinkGuardBypassed } from '@/lib/externalLinkGuard';
 import { mapOAuthLinkError } from '@/lib/oauthAccountLink';
 import { issHostname, oauthTimelineLog } from '@/lib/oauthDebugTimeline';
 import type { VybeAuthError, VybeSession } from '@/lib/firebase/types';
@@ -16,6 +17,8 @@ type AppleAuthResponse = {
   authorization?: { id_token?: string; code?: string };
   user?: unknown;
   error?: string;
+  /** Set when unknown-retry used a fresh nonce (must match Firebase credential). */
+  __rawNonce?: string;
 };
 
 declare global {
@@ -79,6 +82,20 @@ function formatAppleAuthError(err: unknown): { code: string; message: string } {
   return { code: '', message: String(err).slice(0, 200) };
 }
 
+function isAppleUnknownError(err: unknown, code: string, message: string): boolean {
+  const asAny = err as { error?: string };
+  return (
+    /^unknown$/i.test(code) ||
+    /^unknown$/i.test(message) ||
+    /^unknown$/i.test(String(asAny?.error || ''))
+  );
+}
+
+const APPLE_POPUP_BLOCKED_ERROR: VybeAuthError = {
+  message: 'Apple Sign-In could not open. Close any leftover browser sheet and try again.',
+  name: 'apple/popup-blocked',
+};
+
 /** Dismiss any leftover popup window — never fire oauth wait=1 (that clears pending login). */
 function dismissAppleWebSheetResidue(): void {
   try {
@@ -124,57 +141,108 @@ export function preloadAppleSignIn(): void {
 }
 
 /**
+ * Run AppleID.auth.signIn with native window.open restored (full link-guard bypass).
+ * Apple's usePopup needs a real Window + opener for web_message; any wrapper can
+ * yield opaque {error:"unknown"} in ~300ms inside Despia WKWebView.
+ */
+async function appleAuthSignInWithGuardBypass(
+  hashedNonce: string,
+  logLocation: string,
+): Promise<AppleAuthResponse> {
+  if (!window.AppleID?.auth) {
+    throw { error: 'apple/sdk-missing', message: 'Apple Sign-In unavailable' };
+  }
+
+  // Must match Apple Services ID return URL. usePopup returns tokens to JS;
+  // avoid navigating the main WebView to native-callback.
+  const redirectURI = `${getProductionOrigin()}/native-callback.html`;
+  window.AppleID.auth.init({
+    clientId: getAppleServicesId(),
+    scope: 'name email',
+    redirectURI,
+    usePopup: true,
+    nonce: hashedNonce,
+  });
+
+  dismissAppleWebSheetResidue();
+  try {
+    oauthTimelineLog(
+      'apple_sdk_start',
+      {
+        clientId: getAppleServicesId(),
+        hasAppleID: !!window.AppleID?.auth,
+        redirectPath: '/native-callback.html',
+        usePopup: true,
+        guardBypass: true,
+      },
+      logLocation,
+    );
+    return await runWithExternalLinkGuardBypassed(() => window.AppleID!.auth.signIn());
+  } finally {
+    dismissAppleWebSheetResidue();
+  }
+}
+
+function responseLooksUnknown(response: AppleAuthResponse): boolean {
+  const err = String(response.error || '');
+  return !!err && isAppleUnknownError(response, err, err) && !response.authorization?.id_token;
+}
+
+/**
+ * First attempt + one retry on opaque "unknown", both with full link-guard bypass.
+ * On retry, stamps `__rawNonce` so Firebase credential uses the matching nonce.
+ */
+async function appleAuthSignInWithUnknownRetry(
+  hashedNonce: string,
+  logLocation: string,
+): Promise<AppleAuthResponse> {
+  const runRetry = async (): Promise<AppleAuthResponse> => {
+    oauthTimelineLog(
+      'apple_sdk_retry',
+      { reason: 'unknown', attempt: 2, guardBypass: true },
+      `${logLocation}:retry`,
+    );
+    const retryRaw = randomNonce();
+    const retryHash = await sha256Hex(retryRaw);
+    const response = await appleAuthSignInWithGuardBypass(retryHash, `${logLocation}:retry`);
+    response.__rawNonce = retryRaw;
+    return response;
+  };
+
+  try {
+    const response = await appleAuthSignInWithGuardBypass(hashedNonce, logLocation);
+    if (responseLooksUnknown(response)) return runRetry();
+    return response;
+  } catch (err: unknown) {
+    const { code, message } = formatAppleAuthError(err);
+    if (!isAppleUnknownError(err, code, message)) throw err;
+    return runRetry();
+  }
+}
+
+/**
  * Native-style Apple Sign-In (JS SDK). Returns a Firebase session when successful.
  */
 export async function signInWithAppleJsSdk(): Promise<{
   data: { session: VybeSession | null };
   error: VybeAuthError | null;
 }> {
+  let rawNonce = randomNonce();
   try {
     await loadAppleIdScript();
     if (!window.AppleID?.auth) {
       return { data: { session: null }, error: { message: 'Apple Sign-In unavailable', name: 'apple/sdk-missing' } };
     }
 
-    const rawNonce = randomNonce();
     const hashedNonce = await sha256Hex(rawNonce);
-    // Must match Apple Services ID return URL. usePopup returns tokens to JS;
-    // avoid navigating the main WebView to native-callback.
-    const redirectURI = `${getProductionOrigin()}/native-callback.html`;
-
-    window.AppleID.auth.init({
-      clientId: getAppleServicesId(),
-      scope: 'name email',
-      redirectURI,
-      usePopup: true,
-      nonce: hashedNonce,
-    });
-
-    // Keep dismissing Despia ASWeb while Face ID runs so only the native sheet is visible.
-    // Do NOT window.close() from an interval — that can kill the Apple popup mid-auth.
-    dismissAppleWebSheetResidue();
-    let response: AppleAuthResponse;
-    try {
-      // #region agent log
-      oauthTimelineLog(
-        'apple_sdk_start',
-        {
-          clientId: getAppleServicesId(),
-          hasAppleID: !!window.AppleID?.auth,
-          redirectPath: '/native-callback.html',
-          usePopup: true,
-        },
-        'appleSignIn.ts:signIn',
-      );
-      // #endregion
-      response = await window.AppleID.auth.signIn();
-    } finally {
-      dismissAppleWebSheetResidue();
+    const response = await appleAuthSignInWithUnknownRetry(hashedNonce, 'appleSignIn.ts:signIn');
+    if (response.__rawNonce) {
+      rawNonce = response.__rawNonce;
+      delete response.__rawNonce;
     }
 
     const idToken = response.authorization?.id_token;
     if (!idToken) {
-      // #region agent log
       oauthTimelineLog(
         'apple_sdk_done',
         {
@@ -185,7 +253,9 @@ export async function signInWithAppleJsSdk(): Promise<{
         },
         'appleSignIn.ts:missingToken',
       );
-      // #endregion
+      if (isAppleUnknownError(response, String(response.error || ''), String(response.error || ''))) {
+        return { data: { session: null }, error: APPLE_POPUP_BLOCKED_ERROR };
+      }
       return {
         data: { session: null },
         error: { message: 'Apple Sign-In did not return a token', name: 'apple/missing-token' },
@@ -213,7 +283,6 @@ export async function signInWithAppleJsSdk(): Promise<{
       );
       return { data: { session: null }, error: mapOAuthLinkError(error) };
     }
-    // #region agent log
     let tokenIss = '';
     try {
       const mid = idToken.split('.')[1];
@@ -235,15 +304,12 @@ export async function signInWithAppleJsSdk(): Promise<{
       },
       'appleSignIn.ts:success',
     );
-    // #endregion
     return { data: { session: data.session }, error: null };
   } catch (err: unknown) {
     dismissAppleWebSheetResidue();
     const { code: rawCode, message: rawMessage } = formatAppleAuthError(err);
     const asAny = err as { error?: string; message?: string; code?: string };
-    // Log exact Firebase/Apple code+message BEFORE friendly mapping.
     authLog('apple_signin_error', { code: rawCode, message: rawMessage });
-    // #region agent log
     oauthTimelineLog(
       'apple_sdk_done',
       {
@@ -255,7 +321,6 @@ export async function signInWithAppleJsSdk(): Promise<{
       },
       'appleSignIn.ts:catch',
     );
-    // #endregion
     if (
       asAny?.error === 'popup_closed_by_user' ||
       asAny?.error === 'user_cancelled' ||
@@ -268,20 +333,8 @@ export async function signInWithAppleJsSdk(): Promise<{
         error: { message: 'Sign-in cancelled', name: 'auth/popup-closed-by-user' },
       };
     }
-    // Apple JS opaque "unknown" = popup failed to open (often window.open blocked).
-    if (
-      /^unknown$/i.test(rawCode) ||
-      /^unknown$/i.test(rawMessage) ||
-      /^unknown$/i.test(String(asAny?.error || ''))
-    ) {
-      return {
-        data: { session: null },
-        error: {
-          message:
-            'Apple Sign-In could not open. Close any leftover browser sheet and try again.',
-          name: 'apple/popup-blocked',
-        },
-      };
+    if (isAppleUnknownError(err, rawCode, rawMessage)) {
+      return { data: { session: null }, error: APPLE_POPUP_BLOCKED_ERROR };
     }
     if (
       asAny?.code === 'auth/operation-not-allowed' ||
@@ -306,7 +359,6 @@ export async function signInWithAppleJsSdk(): Promise<{
         },
       };
     }
-    // Prefer structured message over mapOAuthLinkError collapsing to "Sign-in failed".
     if (rawMessage && rawMessage !== '[object Object]' && !/^unknown$/i.test(rawMessage)) {
       return {
         data: { session: null },
@@ -325,6 +377,7 @@ export async function linkWithAppleJsSdk(): Promise<{
   data: { linked: boolean };
   error: VybeAuthError | null;
 }> {
+  let rawNonce = randomNonce();
   try {
     await loadAppleIdScript();
     if (!window.AppleID?.auth) {
@@ -337,28 +390,18 @@ export async function linkWithAppleJsSdk(): Promise<{
       return { data: { linked: false }, error: { message: 'Sign in before linking Apple.', name: 'auth/not-authenticated' } };
     }
 
-    const rawNonce = randomNonce();
     const hashedNonce = await sha256Hex(rawNonce);
-    const redirectURI = `${getProductionOrigin()}/native-callback.html`;
-
-    window.AppleID.auth.init({
-      clientId: getAppleServicesId(),
-      scope: 'name email',
-      redirectURI,
-      usePopup: true,
-      nonce: hashedNonce,
-    });
-
-    // Do NOT poll window.close — that can kill the Apple popup mid-auth.
-    dismissAppleWebSheetResidue();
-    let response: AppleAuthResponse;
-    try {
-      response = await window.AppleID.auth.signIn();
-    } finally {
-      dismissAppleWebSheetResidue();
+    const response = await appleAuthSignInWithUnknownRetry(hashedNonce, 'appleSignIn.ts:link');
+    if (response.__rawNonce) {
+      rawNonce = response.__rawNonce;
+      delete response.__rawNonce;
     }
+
     const idToken = response.authorization?.id_token;
     if (!idToken) {
+      if (isAppleUnknownError(response, String(response.error || ''), String(response.error || ''))) {
+        return { data: { linked: false }, error: APPLE_POPUP_BLOCKED_ERROR };
+      }
       return {
         data: { linked: false },
         error: { message: 'Apple Sign-In did not return a token', name: 'apple/missing-token' },
@@ -373,7 +416,6 @@ export async function linkWithAppleJsSdk(): Promise<{
     dismissAppleWebSheetResidue();
     const { code: rawCode, message: rawMessage } = formatAppleAuthError(err);
     const asAny = err as { error?: string; message?: string; code?: string };
-    // Log exact Firebase/Apple code+message BEFORE friendly mapping.
     authLog('apple_link_error', { code: rawCode, message: rawMessage });
     oauthTimelineLog(
       'apple_sdk_link_done',
@@ -397,19 +439,8 @@ export async function linkWithAppleJsSdk(): Promise<{
         error: { message: 'Sign-in cancelled', name: 'auth/popup-closed-by-user' },
       };
     }
-    if (
-      /^unknown$/i.test(rawCode) ||
-      /^unknown$/i.test(rawMessage) ||
-      /^unknown$/i.test(String(asAny?.error || ''))
-    ) {
-      return {
-        data: { linked: false },
-        error: {
-          message:
-            'Apple Sign-In could not open. Close any leftover browser sheet and try again.',
-          name: 'apple/popup-blocked',
-        },
-      };
+    if (isAppleUnknownError(err, rawCode, rawMessage)) {
+      return { data: { linked: false }, error: APPLE_POPUP_BLOCKED_ERROR };
     }
     if (rawMessage && rawMessage !== '[object Object]' && !/^unknown$/i.test(rawMessage)) {
       return {

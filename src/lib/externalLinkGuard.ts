@@ -6,8 +6,8 @@ const NEVER_ASK_KEY = 'vybe-external-link-never-ask';
  * Apple JS SDK (usePopup) calls window.open → appleid.apple.com and needs a real
  * Window + opener for postMessage. Blocking/prompting returns null → Apple rejects
  * with opaque "unknown" in ~300ms. Never prompt or strip opener for these hosts.
- * Despia iOS Apple sign-in now uses oauth:// (see despiaOAuth); keep this allowlist
- * for Safari / non-Despia Apple JS and any residual SDK opens.
+ * Despia iOS Apple sign-in uses Apple JS (see despiaOAuth); during signIn we also
+ * fully restore native window.open via runWithExternalLinkGuardBypassed.
  */
 const OAUTH_AUTH_HOSTS = new Set([
   'appleid.apple.com',
@@ -118,6 +118,49 @@ export function promptExternalLink(url: string): Promise<boolean> {
 }
 
 let installed = false;
+/** Nested depth for runWithExternalLinkGuardBypassed — restore patch when 0. */
+let bypassDepth = 0;
+let openBeforeBypass: typeof window.open | null = null;
+
+/**
+ * Temporarily restore unpatched window.open for Apple JS usePopup.
+ * Allowlist alone still left opaque "unknown" in Despia WKWebView; full bypass
+ * removes any wrapper between Apple SDK and the real open.
+ */
+export async function runWithExternalLinkGuardBypassed<T>(fn: () => T | Promise<T>): Promise<T> {
+  if (typeof window === 'undefined' || !nativeOpen) {
+    return await fn();
+  }
+
+  bypassDepth += 1;
+  if (bypassDepth === 1) {
+    openBeforeBypass = window.open;
+    try {
+      window.open = nativeOpen;
+    } catch {
+      /* some WebViews disallow reassignment — allowlist path still applies */
+    }
+  }
+
+  try {
+    return await fn();
+  } finally {
+    bypassDepth = Math.max(0, bypassDepth - 1);
+    if (bypassDepth === 0 && openBeforeBypass) {
+      try {
+        window.open = openBeforeBypass;
+      } catch {
+        /* ignore */
+      }
+      openBeforeBypass = null;
+    }
+  }
+}
+
+/** True while Apple (or other) sign-in holds a full window.open bypass. */
+export function isExternalLinkGuardBypassed(): boolean {
+  return bypassDepth > 0;
+}
 
 /** Block auto external navigation on native shell; require explicit user confirm. */
 export function installExternalLinkGuard(): void {

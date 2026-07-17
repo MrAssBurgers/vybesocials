@@ -1,12 +1,13 @@
 /**
  * Platform-aware OAuth — Despia store builds, Capacitor shells, Safari/PWA, desktop.
  *
- * Despia Google + Apple use oauth:// (ASWebAuthenticationSession / Custom Tabs).
- * iOS Apple no longer uses Apple JS usePopup (WKWebView → opaque "unknown").
- * iOS: ASAP JS `{scheme}://oauth/auth?wait=1` soft-close (Jul 16; page stays
+ * Despia Google: oauth:// (ASWeb / Custom Tabs). Despia Apple: Apple JS usePopup
+ * on iOS (Face ID / in-app sheet); oauth:// on Android. True AuthenticationServices
+ * only when nativeauth:// bridge is advertised (nativeAuth scaffold).
+ * iOS Google: ASAP JS `{scheme}://oauth/auth?wait=1` soft-close (Jul 16; page stays
  * loaded) then exchange + hc= hard close / nonce poll. Brief Safari invalid-
  * address toast possible — auto-close is priority. Android: App Link `/auth?hc=`
- * only (never wait=1).
+ * only (never wait=1). Capacitor Firebase auth is skipped inside Despia WebView.
  */
 import { getRuntimeOs, isDespiaRuntime, isNativeAppShell } from '@/lib/despiaBridge';
 import { isEmbeddedAppleWebView } from '@/lib/deviceDetection';

@@ -2,13 +2,56 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
-## ACTIVE (2026-07-17) — iOS Apple: oauth:// (popup unknown is dead)
+## ACTIVE (2026-07-17) — iOS Apple: restore JS usePopup (not oauth://)
+
+### Publish handoff
+- **On `origin/main`:** _(pending push — see SHA after commit)_
+- **Lovable → Share → Publish NOW** for `vybehub.app` (SPA: `despiaOAuth` + `appleSignIn` + `externalLinkGuard`). Agent cannot click Publish.
+- **No CF / no native-callback change.** Google ASAP `wait=1` path **unchanged**.
+- **No Despia rebuild** required for this attempt (JS-only). True AuthenticationServices still needs Despia native binary + `nativeauth://` bridge.
+
+### Goal
+User wants **built-in Apple popup** (Face ID / system-style), **not** ASWeb `oauth://` website sheet.
+
+### Approach
+1. **Revert [iOS-only] Despia Apple** sign-in + Settings link from `oauth://` → **Apple JS SDK** `usePopup: true` (`signInWithAppleJsSdk` / `linkWithAppleJsSdk`).
+2. **Hardening:** for the duration of `AppleID.auth.signIn()`, fully restore native `window.open` via `runWithExternalLinkGuardBypassed` (not allowlist alone).
+3. On opaque `{error:"unknown"}`, **retry once** with fresh nonce + full bypass; map unknown → `apple/popup-blocked` (never toast bare `"unknown"`).
+4. **Android Apple** stays `oauth://`. Google iOS ASAP wait=1 untouched.
+5. **nativeAuth** scaffold unchanged — only used when Despia advertises bridge (not present today). Capacitor Apple still skipped inside Despia WebView (no Capacitor plugins).
+
+### Honest note
+If WKWebView still cannot complete Apple `web_message` even with unpatched `window.open`, true Face ID / AuthenticationServices requires a **Despia native rebuild** (`nativeauth://` + ASAuthorization). This ship tries hardest to make JS popup work first.
+
+### Files
+- `src/lib/despiaOAuth.ts` — iOS Apple → JS SDK; Android → oauth://
+- `src/lib/appleSignIn.ts` — guard bypass + unknown retry + timeline logs
+- `src/lib/externalLinkGuard.ts` — `runWithExternalLinkGuardBypassed`
+- `src/lib/externalLinkGuard.test.ts`
+- `src/lib/nativeOAuth.ts` — comment sync
+- `WORKLOG.md`
+
+### Verify checklist (after Publish)
+1. iOS Apple: Continue with Apple → **in-app / Face ID style sheet** (NOT ASWeb to appleid.apple.com via oauth://).
+2. Timeline: `oauth_launch strategy:apple-js-sdk` → `apple_sdk_start guardBypass:true` → `apple_sdk_done ok:true` (no instant `msg:unknown` toast).
+3. If still unknown: look for `apple_sdk_retry` then friendly toast (not bare `"unknown"`).
+4. iOS Google: ASAP wait=1 auto-close still works.
+5. Android Google/Apple oauth:// unchanged.
+
+### Tests
+- `npm run build` green
+- `npm run test` green (372)
+
+### Next 3
+1. Lovable → Share → Publish **immediately**.
+2. Device: iOS Apple Continue → confirm built-in popup / Face ID (not website sheet).
+3. If still `unknown` after Publish → escalate to Despia for `nativeauth://` ASAuthorization binary.
+
+## SUPERSEDED (2026-07-17) — iOS Apple: oauth:// (popup unknown is dead)
 
 ### Publish handoff
 - **On `origin/main`:** `337cb76e4`
-- **Lovable → Share → Publish NOW** for `vybehub.app` (SPA: `despiaOAuth` + toast guards). Agent cannot click Publish.
-- **No CF / no native-callback change.** Google ASAP `wait=1` path **unchanged**.
-- **No Despia rebuild.**
+- User rejected ASWeb UX; superseded by ACTIVE (restore Apple JS + full link-guard bypass).
 
 ### Prod verification (pre-fix)
 | Check | Result |
@@ -21,9 +64,9 @@ Use this file as the Lovable -> Cursor handoff each session.
 ### Exact cause
 Allowlist fix (`4f1eb3582`) **did land on prod**, but was **incomplete**. Apple JS `usePopup` still fails inside Despia WKWebView: open may return a Window, but auth completes with opaque `{error:"unknown"}` in &lt;500ms. Not a missing Publish.
 
-Root: **popup Apple Sign-In cannot work reliably in this Despia iOS WebView.** Android already used `oauth://` + `exchange_apple`.
+Root (at time): **popup Apple Sign-In could not work reliably** → routed iOS through oauth://. User later rejected that UX.
 
-### Fix
+### Fix (superseded)
 1. **[iOS Despia] Route Apple through `oauth://`** via `buildAppleOAuthUrl` + `launchDespiaOAuthUrl` (same as Android). Strategy: `oauth-bridge`.
 2. Settings → Connections Apple link on iOS Despia: same oauth:// path.
 3. Keep Apple JS SDK for **non-Despia** browser/Safari only.
