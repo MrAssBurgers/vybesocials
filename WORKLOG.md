@@ -2,6 +2,13 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## ACTIVE (2026-07-17) — Restore exchange-first iOS close (no ASAP wait=1)
+
+- **Google invalid address / stuck sheet:** ASAP `wait=1` soft-close at ms=1 caused Safari toast + sticky ASWeb; login still worked via nonce poll.
+- **Fix:** remove ASAP soft-close; exchange first → single `oauthDismiss?hc=`; 6s hang fallback only.
+- **Apple:** detect `appleid.apple.com` iss on id_token so callback never `exchange_google`s Apple JWTs; keep opener early-return.
+- **Ship:** push + Lovable Publish for `vybehub.app/native-callback.html`.
+
 ## ACTIVE (2026-07-17) — Apple popup + ASAP soft-close conflict
 
 - **Post-fix (Google/logout):** CONFIRMED — `ios_asap_soft_close msSinceBoot:1`, oauthDismiss 0.004s, `oauth_complete_success`, `signout_cleared hasFirebaseUserKey:false`. No `warm=1`.

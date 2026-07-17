@@ -12,9 +12,10 @@
   <script>
     /**
      * Despia OAuth return (Google/Apple). Runs inside ASWeb / Custom Tabs.
-     * iOS: close via HTTPS 302 (/oauth-dismiss → custom scheme) so ASWeb
+     * iOS: close via HTTPS 302 (oauthDismiss → custom scheme) so ASWeb
      * dismisses. Direct com.despia.vybe:// from JS opens Safari and sticks.
      * Android: App Link close (CCT); oauth/ deeplink as secondary.
+     * Proven iOS path: exchange first, then one fireClose with hc= (no ASAP wait=1).
      */
     (function () {
       var DEFAULT_SCHEME = 'com.despia.vybe';
@@ -82,6 +83,19 @@
         return null;
       }
 
+      /** Detect Apple JWT when despia state is missing (WKWebView Apple redirect). */
+      function idTokenIss(token) {
+        if (!token || token.indexOf('.') < 0) return '';
+        try {
+          var mid = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
+          while (mid.length % 4) mid += '=';
+          var payload = JSON.parse(atob(mid));
+          return payload && payload.iss ? String(payload.iss) : '';
+        } catch (eIss) {
+          return '';
+        }
+      }
+
       document.addEventListener('visibilitychange', function () {
         if (document.visibilityState === 'hidden') closed = true;
       });
@@ -104,11 +118,14 @@
         if (s && s.indexOf('://') === -1) scheme = s;
       }
 
+      var tokenIss = idTokenIss(idToken);
+      if (tokenIss.indexOf('appleid.apple.com') !== -1) {
+        provider = 'apple';
+      }
+
       // Apple JS popup (usePopup): tokens return via postMessage to opener.
-      // NEVER run Despia oauthDismiss / ASAP soft-close in this window — that
-      // 302s to a custom scheme inside the popup and shows Safari
-      // "address is invalid", then Apple Sign-In fails (runtime: apple start
-      // with no success/error after Google ASAP path landed on this page).
+      // NEVER run Despia oauthDismiss in this window — that 302s to a custom
+      // scheme inside the popup and shows Safari "address is invalid".
       if (window.opener && !window.opener.closed) {
         // #region agent log
         try {
@@ -171,6 +188,7 @@
         hasNonce: !!nonce,
         softFired: false,
         dismissMode: isAndroid() ? 'applink' : 'oauthDismiss',
+        tokenIss: tokenIss ? tokenIss.slice(0, 40) : '',
       });
       // #endregion
 
@@ -277,6 +295,9 @@
         return;
       }
 
+      // Exchange-first then single close with hc= (proven iOS path).
+      // Do NOT soft-close with wait=1 before exchange — that caused Safari
+      // "address is invalid" and stuck ASWeb while nonce poll still logged in.
       var stashPromise =
         provider === 'apple'
           ? callAuthQr({
@@ -285,29 +306,6 @@
               nonce: nonce,
             })
           : callAuthQr({ action: 'exchange_google', idToken: idToken, nonce: nonce });
-
-      // [iOS-only] Soft-close ASAP via oauthDismiss HTTPS 302 (wait=1).
-      // Keepalive exchange finishes server-side; WebView completes via nonce poll.
-      // Never fetch-warm oauthDismiss inside ASWeb — that 302 to custom scheme
-      // surfaces Safari "address is invalid" (runtime 2026-07-17T16:40:09Z).
-      if (!isAndroid() && nonce) {
-        softFired = true;
-        var asapQ =
-          'nonce=' +
-          encodeURIComponent(nonce) +
-          '&wait=1&provider=' +
-          encodeURIComponent(provider);
-        if (intent === 'link') asapQ += '&intent=link';
-        // #region agent log
-        dbg('ios_asap_soft_close', 'D', {
-          provider: provider,
-          intent: intent,
-          hasNonce: true,
-          msSinceBoot: Date.now() - bootAt,
-        });
-        // #endregion
-        fireClose(asapQ);
-      }
 
       var slowTimer = setTimeout(function () {
         if (closed) return;
@@ -319,7 +317,7 @@
           encodeURIComponent(provider);
         if (intent === 'link') softQ += '&intent=link';
         fireClose(softQ);
-      }, isAndroid() ? 6000 : 8000);
+      }, 6000);
 
       stashPromise
         .then(function (result) {
