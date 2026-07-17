@@ -2,6 +2,14 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## ACTIVE (2026-07-17) — iOS OAuth timeline instrumentation (no behavior change)
+
+- **Instrumentation only** (`runId: ios-oauth-timeline`, session `bd2545`): dual-write localhost ingest + `authQr` `debug_oauth` → Firestore `oauth_debug_events`.
+- Files: `oauthDebugTimeline.ts`, `nativeOAuth.ts`, `despiaOAuth.ts`, `appleSignIn.ts`, `Landing.tsx`, `public/native-callback.html`.
+- Staging callback live: `https://vybe-daaab.web.app/native-callback.html` has `ios-oauth-timeline` / `exchange_selected`.
+- **Prod `vybehub.app/native-callback.html` still stale** (still `ios-post-fix`) — **Lovable Publish required** for device ASWeb + SPA timeline events.
+- Do NOT treat OAuth as fixed from this push — logging only.
+
 ## ACTIVE (2026-07-17) — Restore exchange-first iOS close (no ASAP wait=1)
 
 - **Google invalid address / stuck sheet:** ASAP `wait=1` soft-close at ms=1 caused Safari toast + sticky ASWeb; login still worked via nonce poll.

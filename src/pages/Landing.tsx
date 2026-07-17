@@ -13,7 +13,7 @@ import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 import { getFriendlyAuthError, getUserFriendlyError } from '@/lib/errorUtils';
 import { Eye, EyeOff, Mail } from 'lucide-react';
-import { isNativeAppShell } from '@/lib/despiaBridge';
+import { isNativeAppShell, getRuntimeOs, isDespiaRuntime } from '@/lib/despiaBridge';
 import { db } from '@/lib/firebase';
 import { lovable } from '@/integrations/lovable/index';
 import { VYBELogo } from '@/components/ui/VYBELogo';
@@ -50,6 +50,7 @@ import {
 } from '@/lib/despiaOAuth';
 import { claimProfileAfterOAuth } from '@/lib/oauthAccountLink';
 import { preloadAppleSignIn } from '@/lib/appleSignIn';
+import { oauthTimelineLog, safeCallbackPath } from '@/lib/oauthDebugTimeline';
 
 
 // Hide bottom nav on landing page + lock document scroll (auth is one-screen)
@@ -340,6 +341,20 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
     window.addEventListener('focus', onUrlMaybeChanged);
     const onVisible = () => {
       if (document.visibilityState !== 'visible') return;
+      // #region agent log
+      oauthTimelineLog(
+        'app_resume_oauth',
+        {
+          os: getRuntimeOs(),
+          despia: isDespiaRuntime(),
+          inFlight: isDespiaOAuthInFlight(),
+          pendingProvider: getDespiaOAuthPendingProvider() || '',
+          hrefPath: safeCallbackPath(window.location.href),
+          isReturnUrl: isDespiaOAuthReturnUrl(window.location.href),
+        },
+        'Landing.tsx:onVisible',
+      );
+      // #endregion
       resumeDespiaOAuthNoncePollIfPending();
       onUrlMaybeChanged();
       // Sheet dismissed — if Firebase already has a user from a background poll, finish now.
@@ -398,6 +413,18 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
 
   const runOAuthSignIn = useCallback(async (provider: 'google' | 'apple') => {
     if (isOAuthBusy() || loading) return;
+    // #region agent log
+    oauthTimelineLog(
+      'oauth_tap',
+      {
+        provider,
+        os: getRuntimeOs(),
+        despia: isDespiaRuntime(),
+        source: 'Landing.runOAuthSignIn',
+      },
+      'Landing.tsx:runOAuthSignIn',
+    );
+    // #endregion
     setLoading(true);
     setOauthOverlay(provider);
     try {

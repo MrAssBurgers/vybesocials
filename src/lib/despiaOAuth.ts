@@ -6,6 +6,7 @@ import { GoogleAuthProvider, OAuthProvider, linkWithCredential, signInWithCreden
 import { getProductionOrigin } from '@/lib/authRedirect';
 import { despiaCall, getRuntimeOs, isDespiaRuntime } from '@/lib/despiaBridge';
 import { isNativePlatform } from '@/lib/capacitor';
+import { oauthTimelineLog, safeCallbackPath } from '@/lib/oauthDebugTimeline';
 import type { VybeAuthError, VybeSession } from '@/lib/firebase/types';
 
 const DESPIA_OAUTH_PENDING_KEY = 'vybe-despia-oauth-pending';
@@ -389,8 +390,43 @@ async function launchDespiaOAuthUrl(
     armDespiaOAuthSheetCancelWatch();
 
     const oauthBridge = `oauth://?url=${encodeURIComponent(authUrl)}`;
+    // #region agent log
+    oauthTimelineLog(
+      'oauth_launch',
+      {
+        provider,
+        intent,
+        os: getRuntimeOs(),
+        despia: true,
+        callbackPath: safeCallbackPath(getNativeOAuthCallbackUrl()),
+        authHost: (() => {
+          try {
+            return new URL(authUrl).hostname.slice(0, 64);
+          } catch {
+            return '';
+          }
+        })(),
+        hasNonce: !!oauthNonce,
+        nonceLen: oauthNonce ? oauthNonce.length : 0,
+        bridge: 'oauth://',
+      },
+      'despiaOAuth.ts:launchDespiaOAuthUrl',
+    );
+    // #endregion
     // Completion via deeplink AND/OR nonce poll. Dismiss without tokens → cancel watch.
     void despiaCall(oauthBridge, [...DESPIA_OAUTH_URL_KEYS], 90_000).then((payload) => {
+      // #region agent log
+      oauthTimelineLog(
+        'asweb_session_return',
+        {
+          provider,
+          os: getRuntimeOs(),
+          hasPayload: !!payload,
+          payloadKeys: payload ? Object.keys(payload).slice(0, 8).join(',') : '',
+        },
+        'despiaOAuth.ts:despiaCall.then',
+      );
+      // #endregion
       // Bridge often returns null while the sheet is still open — do NOT cancel here.
       if (!payload) return;
 
@@ -403,6 +439,23 @@ async function launchDespiaOAuthUrl(
               ? String((value as { url?: string }).url || '')
               : '';
         if (asUrl && isDespiaOAuthReturnUrl(asUrl)) {
+          // #region agent log
+          const retParams = parseOAuthParamsFromUrl(asUrl);
+          oauthTimelineLog(
+            'asweb_deeplink_detected',
+            {
+              provider,
+              os: getRuntimeOs(),
+              callbackPath: safeCallbackPath(asUrl),
+              hasHc: retParams.has('hc') || retParams.has('handoff_code'),
+              hasWait: retParams.get('wait') === '1',
+              hasError: retParams.has('error'),
+              hasIdToken: retParams.has('id_token'),
+              hasState: retParams.has('state'),
+            },
+            'despiaOAuth.ts:despiaCall.deeplink',
+          );
+          // #endregion
           void (async () => {
             const params = parseOAuthParamsFromUrl(asUrl);
             const waiting = params.get('wait') === '1' || params.has('wait');
@@ -455,6 +508,19 @@ export async function signInWithAppleDespia(): Promise<{
     // iOS Despia: Apple JS SDK only (native Face ID). Capacitor/web OAuth opens a stuck
     // vybehub.app ASWeb sheet under Face ID — never use those on iOS.
     if (getRuntimeOs() === 'ios') {
+      // #region agent log
+      oauthTimelineLog(
+        'oauth_launch',
+        {
+          provider: 'apple',
+          strategy: 'apple-js-sdk',
+          os: 'ios',
+          despia: true,
+          callbackPath: safeCallbackPath(getNativeOAuthCallbackUrl()),
+        },
+        'despiaOAuth.ts:signInWithAppleDespia',
+      );
+      // #endregion
       const { signInWithAppleJsSdk } = await import('@/lib/appleSignIn');
       const js = await signInWithAppleJsSdk();
       if (js.error) return { pending: false, error: js.error, data: { session: null } };
@@ -899,10 +965,15 @@ async function completeDespiaOAuthFromUrlInner(url: string): Promise<DespiaOAuth
       }
       window.dispatchEvent(new CustomEvent('despia-oauth-complete', { detail: completion }));
       // #region agent log
-      fetch('http://127.0.0.1:7693/ingest/1847f3ab-7d03-4b99-8dbe-84076ae9145e',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'bd2545'},body:JSON.stringify({sessionId:'bd2545',runId:'ios-post-fix',hypothesisId:'A',location:'despiaOAuth.ts:completeInner',message:'oauth complete success',data:{hasUser:!!completion.data.session?.user,linked:!!completion.data.linked,os:getRuntimeOs()},timestamp:Date.now()})}).catch(()=>{});
-      try {
-        fetch('https://us-central1-vybe-daaab.cloudfunctions.net/authQr',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({data:{action:'debug_oauth',event:'oauth_complete_success',hypothesisId:'A',location:'despiaOAuth.ts',payload:{runId:'ios-post-fix',hasUser:!!completion.data.session?.user,linked:!!completion.data.linked,os:getRuntimeOs()}}}),keepalive:true}).catch(()=>{});
-      } catch { /* ignore */ }
+      oauthTimelineLog(
+        'oauth_complete_success',
+        {
+          hasUser: !!completion.data.session?.user,
+          linked: !!completion.data.linked,
+          os: getRuntimeOs(),
+        },
+        'despiaOAuth.ts:completeInner',
+      );
       // #endregion
     }
     return completion;
@@ -918,10 +989,20 @@ export async function completeDespiaOAuthFromUrl(url: string): Promise<DespiaOAu
   const params = parseOAuthParamsFromUrl(url);
   const handoffCode = (params.get('hc') || params.get('handoff_code') || '').trim().toLowerCase();
   // #region agent log
-  fetch('http://127.0.0.1:7693/ingest/1847f3ab-7d03-4b99-8dbe-84076ae9145e',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'bd2545'},body:JSON.stringify({sessionId:'bd2545',runId:'ios-post-fix',hypothesisId:'A',location:'despiaOAuth.ts:completeDespiaOAuthFromUrl',message:'oauth complete start',data:{hasHc:!!handoffCode,hasWait:params.get('wait')==='1',hasError:params.has('error'),os:getRuntimeOs()},timestamp:Date.now()})}).catch(()=>{});
-  try {
-    fetch('https://us-central1-vybe-daaab.cloudfunctions.net/authQr',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({data:{action:'debug_oauth',event:'oauth_complete_start',hypothesisId:'A',location:'despiaOAuth.ts',payload:{runId:'ios-post-fix',hasHc:!!handoffCode,hasWait:params.get('wait')==='1',hasError:params.has('error'),os:getRuntimeOs()}}}),keepalive:true}).catch(()=>{});
-  } catch { /* ignore */ }
+  oauthTimelineLog(
+    'oauth_complete_start',
+    {
+      hasHc: !!handoffCode,
+      hasWait: params.get('wait') === '1',
+      hasError: params.has('error'),
+      hasIdToken: params.has('id_token'),
+      hasState: params.has('state'),
+      provider: params.get('provider') || '',
+      callbackPath: safeCallbackPath(url),
+      os: getRuntimeOs(),
+    },
+    'despiaOAuth.ts:completeDespiaOAuthFromUrl',
+  );
   // #endregion
   if (handoffCode) {
     const existing = oauthCompleteByHc.get(handoffCode);
@@ -1048,7 +1129,37 @@ export function initDespiaOAuthDeepLinkHandler(): void {
   window.addEventListener('pageshow', tryCurrent);
   window.addEventListener('focus', tryCurrent);
   document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible') tryCurrent();
+    if (document.visibilityState === 'visible') {
+      // #region agent log
+      oauthTimelineLog(
+        'app_resume_oauth',
+        {
+          os: getRuntimeOs(),
+          despia: isDespiaRuntime(),
+          inFlight: isDespiaOAuthInFlight(),
+          hrefPath: safeCallbackPath(window.location.href),
+          source: 'initDespiaOAuthDeepLinkHandler',
+        },
+        'despiaOAuth.ts:visibilitychange',
+      );
+      // #endregion
+      tryCurrent();
+    }
   });
-  document.addEventListener('app-resumed', tryCurrent);
+  document.addEventListener('app-resumed', () => {
+    // #region agent log
+    oauthTimelineLog(
+      'app_resume_oauth',
+      {
+        os: getRuntimeOs(),
+        despia: isDespiaRuntime(),
+        inFlight: isDespiaOAuthInFlight(),
+        hrefPath: safeCallbackPath(window.location.href),
+        source: 'app-resumed',
+      },
+      'despiaOAuth.ts:app-resumed',
+    );
+    // #endregion
+    tryCurrent();
+  });
 }

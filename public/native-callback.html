@@ -24,9 +24,14 @@
       // Direct Cloud Function URL — vybehub.app is Lovable and does not serve the
       // Firebase Hosting rewrite for /oauth-dismiss (would return SPA 200 instead of 302).
       var DISMISS_URL = 'https://us-central1-vybe-daaab.cloudfunctions.net/oauthDismiss';
+      var INGEST_URL = 'http://127.0.0.1:7693/ingest/1847f3ab-7d03-4b99-8dbe-84076ae9145e';
+      var DEBUG_SESSION = 'bd2545';
+      var DEBUG_RUN = 'ios-oauth-timeline';
       var closed = false;
       var softFired = false;
       var bootAt = Date.now();
+      var fireCloseCalled = false;
+      var oauthDismissNavCalled = false;
 
       function decodeState(state) {
         if (!state) return null;
@@ -96,6 +101,16 @@
         }
       }
 
+      function issHost(iss) {
+        if (!iss) return '';
+        try {
+          if (String(iss).indexOf('://') !== -1) return new URL(iss).hostname.slice(0, 64);
+          return String(iss).slice(0, 64);
+        } catch (eH) {
+          return String(iss).slice(0, 40);
+        }
+      }
+
       document.addEventListener('visibilitychange', function () {
         if (document.visibilityState === 'hidden') closed = true;
       });
@@ -104,7 +119,8 @@
       });
 
       var params = getParams();
-      var stateObj = decodeState(params.get('state'));
+      var stateRaw = params.get('state') || '';
+      var stateObj = decodeState(stateRaw);
       var idToken = params.get('id_token');
       var authCode = params.get('code') || '';
       var cv = (stateObj && stateObj.cv) || '';
@@ -123,39 +139,49 @@
         provider = 'apple';
       }
 
-      // Apple JS popup (usePopup): tokens return via postMessage to opener.
-      // NEVER run Despia oauthDismiss in this window — that 302s to a custom
-      // scheme inside the popup and shows Safari "address is invalid".
-      if (window.opener && !window.opener.closed) {
-        // #region agent log
-        try {
-          fetch(EXCHANGE_URL, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              data: {
-                action: 'debug_oauth',
-                event: 'apple_popup_early_return',
-                hypothesisId: 'F',
-                location: 'native-callback.html',
-                payload: {
-                  runId: 'ios-post-fix',
-                  hasIdToken: !!idToken,
-                  provider: provider,
-                  hasError: !!error,
-                },
-              },
-            }),
-            keepalive: true,
-          }).catch(function () {});
-        } catch (eDbgOp) {}
-        // #endregion
-        try { window.close(); } catch (e0) {}
-        return;
+      var hasOpener = !!(window.opener && !window.opener.closed);
+      var callbackPath = '';
+      try {
+        callbackPath = window.location.origin + window.location.pathname;
+      } catch (ePath) {
+        callbackPath = '/native-callback.html';
       }
 
       // #region agent log
       function dbg(event, hypothesisId, payload) {
+        var bodyPayload = Object.assign(
+          {
+            runId: DEBUG_RUN,
+            sessionId: DEBUG_SESSION,
+            callbackPath: callbackPath,
+            provider: provider,
+            hasState: !!stateRaw,
+            stateLen: stateRaw ? String(stateRaw).length : 0,
+            iss: issHost(tokenIss),
+            hasOpener: hasOpener,
+            fireCloseCalled: fireCloseCalled,
+            oauthDismissNavCalled: oauthDismissNavCalled,
+          },
+          payload || {},
+        );
+        try {
+          fetch(INGEST_URL, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'X-Debug-Session-Id': DEBUG_SESSION,
+            },
+            body: JSON.stringify({
+              sessionId: DEBUG_SESSION,
+              runId: DEBUG_RUN,
+              hypothesisId: hypothesisId || 'T',
+              location: 'native-callback.html',
+              message: event,
+              data: bodyPayload,
+              timestamp: Date.now(),
+            }),
+          }).catch(function () {});
+        } catch (eIngest) {}
         try {
           fetch(EXCHANGE_URL, {
             method: 'POST',
@@ -164,9 +190,9 @@
               data: {
                 action: 'debug_oauth',
                 event: event,
-                hypothesisId: hypothesisId,
+                hypothesisId: hypothesisId || 'T',
                 location: 'native-callback.html',
-                payload: Object.assign({ runId: 'ios-post-fix', sessionId: 'bd2545' }, payload || {}),
+                payload: bodyPayload,
               },
             }),
             keepalive: true,
@@ -175,27 +201,76 @@
       }
       // #endregion
 
+      // Apple JS popup (usePopup): tokens return via postMessage to opener.
+      // NEVER run Despia oauthDismiss in this window — that 302s to a custom
+      // scheme inside the popup and shows Safari "address is invalid".
+      if (hasOpener) {
+        // #region agent log
+        dbg('callback_boot', 'T', {
+          earlyReturnOpener: true,
+          hasIdToken: !!idToken,
+          idTokenLen: idToken ? String(idToken).length : 0,
+          hasCode: !!authCode,
+          hasError: !!error,
+          exchangeAction: 'none',
+        });
+        dbg('apple_popup_early_return', 'F', {
+          hasIdToken: !!idToken,
+          hasError: !!error,
+        });
+        // #endregion
+        try { window.close(); } catch (e0) {}
+        return;
+      }
+
+      // Select exchange action (logged before fireClose).
+      var exchangeAction = 'none';
+      if (error) {
+        exchangeAction = 'none';
+      } else if (authCode && cv) {
+        exchangeAction = 'exchange_google_code';
+      } else if (!idToken) {
+        exchangeAction = 'none';
+      } else if (provider === 'apple') {
+        exchangeAction = 'exchange_apple';
+      } else {
+        exchangeAction = 'exchange_google';
+      }
+
       // #region agent log
-      dbg('callback_boot', 'A', {
+      dbg('callback_boot', 'T', {
         hasIdToken: !!idToken,
         idTokenLen: idToken ? String(idToken).length : 0,
         hasCode: !!authCode,
         hasCv: !!cv,
-        provider: provider,
         intent: intent,
         hasError: !!error,
         android: isAndroid(),
-        hasNonce: !!nonce,
+        noncePresent: !!nonce,
         softFired: false,
         dismissMode: isAndroid() ? 'applink' : 'oauthDismiss',
-        tokenIss: tokenIss ? tokenIss.slice(0, 40) : '',
+        exchangeAction: exchangeAction,
+      });
+      dbg('exchange_selected', 'T', {
+        exchangeAction: exchangeAction,
+        provider: provider,
+        iss: issHost(tokenIss),
       });
       // #endregion
 
       function fireClose(query) {
         if (!query || closed) return;
+        fireCloseCalled = true;
         try {
           if (window.opener) {
+            // #region agent log
+            dbg('fire_close', 'T', {
+              mode: 'opener_close',
+              hasHc: String(query).indexOf('hc=') !== -1,
+              hasWait: String(query).indexOf('wait=') !== -1,
+              queryLen: String(query).length,
+            });
+            // #endregion
             window.close();
             closed = true;
             return;
@@ -205,13 +280,12 @@
           // [Android-only] App Link close — CCT returns via HTTPS /auth?hc=
           var appLink = APP_ORIGIN + '/auth?' + query;
           // #region agent log
-          dbg('fire_close', 'A', {
+          dbg('fire_close', 'T', {
             mode: 'applink',
             android: true,
             hasHc: query.indexOf('hc=') !== -1,
             hasWait: query.indexOf('wait=') !== -1,
             queryLen: String(query).length,
-            provider: provider,
             intent: intent,
           });
           // #endregion
@@ -227,16 +301,23 @@
           query +
           '&scheme=' +
           encodeURIComponent(scheme);
+        oauthDismissNavCalled = true;
         // #region agent log
-        dbg('fire_close', 'A', {
+        dbg('fire_close', 'T', {
           mode: 'oauthDismiss',
           android: false,
           hasHc: query.indexOf('hc=') !== -1,
           hasWait: query.indexOf('wait=') !== -1,
           queryLen: String(query).length,
-          provider: provider,
           intent: intent,
-          dismissHost: 'oauthDismiss',
+          dismissHost: 'us-central1-vybe-daaab.cloudfunctions.net',
+          msSinceBoot: Date.now() - bootAt,
+        });
+        dbg('oauth_dismiss_nav', 'T', {
+          dismissHost: 'us-central1-vybe-daaab.cloudfunctions.net',
+          hasHc: query.indexOf('hc=') !== -1,
+          hasWait: query.indexOf('wait=') !== -1,
+          scheme: scheme,
           msSinceBoot: Date.now() - bootAt,
         });
         // #endregion
@@ -328,15 +409,15 @@
           var q = 'hc=' + encodeURIComponent(handoff);
           if (intent === 'link') q += '&intent=link';
           // #region agent log
-          dbg('exchange_result', 'A', {
+          dbg('exchange_result', 'T', {
             ok: true,
             hasHandoff: true,
             handoffLen: String(handoff).length,
-            provider: provider,
             intent: intent,
             alreadyClosed: closed,
             softFired: softFired,
             msSinceBoot: Date.now() - bootAt,
+            exchangeAction: exchangeAction,
           });
           // #endregion
           if (!closed) fireClose(q);
@@ -358,13 +439,13 @@
         .catch(function () {
           clearTimeout(slowTimer);
           // #region agent log
-          dbg('exchange_result', 'A', {
+          dbg('exchange_result', 'T', {
             ok: false,
             hasHandoff: false,
-            provider: provider,
             intent: intent,
             alreadyClosed: closed,
             msSinceBoot: Date.now() - bootAt,
+            exchangeAction: exchangeAction,
           });
           // #endregion
           if (!closed) fireClose('error=exchange_failed');

@@ -5,7 +5,7 @@
  * Callback returns via HTTPS Universal/App Link to /auth?hc= (never custom-scheme
  * navigations inside ASWeb — those trigger iOS “address is invalid”).
  */
-import { isDespiaRuntime, isNativeAppShell } from '@/lib/despiaBridge';
+import { getRuntimeOs, isDespiaRuntime, isNativeAppShell } from '@/lib/despiaBridge';
 import { isEmbeddedAppleWebView } from '@/lib/deviceDetection';
 import { isNativePlatform } from '@/lib/capacitor';
 import { signInWithAppleDespia, signInWithGoogleDespia } from '@/lib/despiaOAuth';
@@ -16,6 +16,7 @@ import {
 } from '@/lib/oauthPlatform';
 import { authLog, authWarn } from '@/lib/authLog';
 import { mapOAuthLinkError } from '@/lib/oauthAccountLink';
+import { oauthTimelineLog } from '@/lib/oauthDebugTimeline';
 import type { VybeAuthError, VybeSession } from '@/lib/firebase/types';
 
 export type OAuthProviderId = 'google' | 'apple';
@@ -95,6 +96,20 @@ async function tryDespiaAppleOAuth(): Promise<OAuthSignInResult> {
 
 async function signInWithOAuthPlatformInner(provider: OAuthProviderId): Promise<OAuthSignInResult> {
   const platform = detectOAuthPlatform();
+  const useDespia = shouldUseDespiaOAuth(provider);
+  // #region agent log
+  oauthTimelineLog(
+    'oauth_tap',
+    {
+      provider,
+      strategy: useDespia ? 'despia-oauth' : platform.strategy,
+      os: getRuntimeOs(),
+      despia: isDespiaRuntime(),
+      host: typeof location !== 'undefined' ? location.hostname : '',
+    },
+    'nativeOAuth.ts:signInWithOAuthPlatformInner',
+  );
+  // #endregion
   authLog('oauth_start', {
     provider,
     strategy: platform.strategy,
@@ -103,7 +118,7 @@ async function signInWithOAuthPlatformInner(provider: OAuthProviderId): Promise<
   });
 
   // Despia takes priority — never Firebase popup for Google here.
-  if (shouldUseDespiaOAuth(provider)) {
+  if (useDespia) {
     authLog('oauth_strategy', {
       provider,
       strategy: 'despia-oauth',
