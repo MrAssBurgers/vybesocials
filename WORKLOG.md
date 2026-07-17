@@ -5,7 +5,7 @@ Use this file as the Lovable -> Cursor handoff each session.
 ## ACTIVE (2026-07-17) — iOS Apple: oauth:// (popup unknown is dead)
 
 ### Publish handoff
-- **On `origin/main`:** _(push SHA after commit)_
+- **On `origin/main`:** `337cb76e4`
 - **Lovable → Share → Publish NOW** for `vybehub.app` (SPA: `despiaOAuth` + toast guards). Agent cannot click Publish.
 - **No CF / no native-callback change.** Google ASAP `wait=1` path **unchanged**.
 - **No Despia rebuild.**
