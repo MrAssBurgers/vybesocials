@@ -9,7 +9,8 @@ Use this file as the Lovable -> Cursor handoff each session.
   1. `index.html` — Android/Despia fail-open ~3.8s; larger crawl jumps after 2s so UI never sits at 42; hide `#vybe-static-boot` on fail-open; emit `splash_fake_failopen` with `android:true`.
   2. `stamp-despia-ota.mjs` — recover at **3s** if `!mainEval` (page timers, not only script.onload); reinject `/assets/app.js?vybe_recovery=…`; if still dead after 2s, one session-guarded hard reload (`boot_stall_hard_reload`).
   3. `splashProgressBridge` + `main.tsx` — stop fake ticker on `__VYBE_MAIN_EVAL__` or any React progress advance; keep early `main_module_eval` beacon.
-- **Verify after Lovable Publish:** Android cold start leaves 42% within ~4s; dump shows `main_module_eval` and/or `boot_stall_recovery` then eval; `splashPct:100`.
+- **Shipped:** `4b9ad4360` on `origin/main`. Build+344 tests green.
+- **Next:** Lovable → Share → Publish. Android cold start must leave 42% within ~4s; dump should show `main_module_eval` and/or `boot_stall_recovery` then eval; `splashPct:100`.
 
 ## ACTIVE (2026-07-16) — Removed phone verify popup (UI only)
 
