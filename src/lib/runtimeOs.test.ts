@@ -34,4 +34,16 @@ describe('getRuntimeOs auto-detect', () => {
     const { getRuntimeOs } = await import('./despiaBridge');
     expect(getRuntimeOs()).toBe('ios');
   });
+
+  it('onlyIOS / onlyAndroid / pickByOs respect detected OS', async () => {
+    Object.defineProperty(navigator, 'userAgent', {
+      value:
+        'Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36',
+      configurable: true,
+    });
+    const { onlyIOS, onlyAndroid, pickByOs } = await import('./despiaBridge');
+    expect(onlyAndroid(() => 'a')).toBe('a');
+    expect(onlyIOS(() => 'i')).toBeUndefined();
+    expect(pickByOs({ android: 1, ios: 2 }, 0)).toBe(1);
+  });
 });

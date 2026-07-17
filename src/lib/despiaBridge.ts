@@ -108,6 +108,50 @@ export function isAndroidAppShell(): boolean {
   return isNativeAppShell() && getRuntimeOs() === 'android';
 }
 
+/**
+ * Platform-scoped helpers — use these (or `// [iOS-only]` / `// [Android-only]` comments)
+ * when a change must not affect the other OS.
+ *
+ * CSS: `.platform-ios` / `.platform-android` / `html[data-vybe-os="ios"]`.
+ */
+export function whenOs<T>(os: RuntimeOs, fn: () => T): T | undefined {
+  if (getRuntimeOs() !== os) return undefined;
+  return fn();
+}
+
+/** [iOS-only] Run only when `getRuntimeOs() === 'ios'` (includes mobile Safari). */
+export function onlyIOS<T>(fn: () => T): T | undefined {
+  return whenOs('ios', fn);
+}
+
+/** [Android-only] Run only when `getRuntimeOs() === 'android'`. */
+export function onlyAndroid<T>(fn: () => T): T | undefined {
+  return whenOs('android', fn);
+}
+
+/** [web-only] Run only on desktop/browser (not iOS/Android UA). */
+export function onlyWeb<T>(fn: () => T): T | undefined {
+  return whenOs('web', fn);
+}
+
+/** [iOS-only] Native Despia/Capacitor iOS shell — not plain Safari. */
+export function onlyIOSAppShell<T>(fn: () => T): T | undefined {
+  if (!isIOSAppShell()) return undefined;
+  return fn();
+}
+
+/** [Android-only] Native Despia/Capacitor Android shell. */
+export function onlyAndroidAppShell<T>(fn: () => T): T | undefined {
+  if (!isAndroidAppShell()) return undefined;
+  return fn();
+}
+
+/** Pick a value by OS with a required fallback. */
+export function pickByOs<T>(byOs: Partial<Record<RuntimeOs, T>>, fallback: T): T {
+  const value = byOs[getRuntimeOs()];
+  return value !== undefined ? value : fallback;
+}
+
 /** Stamp html attrs for CSS + startup profiling (safe to call multiple times). */
 export function stampRuntimeOsOnDocument(): RuntimeOs {
   const os = getRuntimeOs();

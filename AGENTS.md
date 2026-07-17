@@ -18,6 +18,13 @@ Project operating guidance for AI agents working in this repo.
 - Prefer safe, reversible migrations over destructive database actions.
 - **Backend is Firebase only** — Firestore, Firebase Auth, Cloud Functions, Storage. Do not add Supabase dependencies or SQL migrations.
 
+## Platform Scope (iOS vs Android)
+Shared web bundle runs in both Despia shells. When the user says **iOS only** or **Android only**:
+- Gate logic with `onlyIOS` / `onlyAndroid` / `onlyIOSAppShell` / `onlyAndroidAppShell` / `pickByOs` from `src/lib/despiaBridge.ts` (or `getRuntimeOs() === 'ios'|'android'`).
+- Gate CSS with `.platform-ios` / `.platform-android` (set by `stampRuntimeOsOnDocument`).
+- Mark branches with greppable comments: `// [iOS-only]` or `// [Android-only]` (CSS: `/* [iOS-only] */`).
+- Do **not** change the other OS path unless asked. Native-only files: `native/android/` (Android), Apple AASA / Despia iOS config (iOS).
+
 ## Required Verification After Substantive Changes
 - Run `npm run build`.
 - Run `npm run test` (DM identity, avatar cache, and other foundation unit tests).
