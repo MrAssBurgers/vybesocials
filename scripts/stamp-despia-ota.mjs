@@ -56,8 +56,34 @@ const escapeScript = `
     } catch (eHide) {}
   }
 
+  function hardReloadOnce(reason) {
+    try {
+      if (sessionStorage.getItem('vybe_boot_reload') === '1') return false;
+      sessionStorage.setItem('vybe_boot_reload', '1');
+    } catch (eSs) {
+      if (window.__VYBE_BOOT_RELOAD__) return false;
+      window.__VYBE_BOOT_RELOAD__ = true;
+    }
+    beacon('boot_stall_hard_reload', { build: BUILD, entry: ENTRY, reason: reason || 'still_no_main_eval' });
+    try {
+      var url = new URL(location.href);
+      url.searchParams.set('vybe_boot', String(Date.now()));
+      location.replace(url.toString());
+    } catch (eRel) {
+      location.reload();
+    }
+    return true;
+  }
+
   function loadStableAppJs(reason) {
-    if (window.__VYBE_APP_LOADED__ || window.__VYBE_STABLE_RELOAD__) return;
+    if (window.__VYBE_MAIN_EVAL__ === true) return;
+    if (window.__VYBE_STABLE_RELOAD__) {
+      // Already injected once — if still not evaluating, hard reload once.
+      setTimeout(function () {
+        if (!isAppReady()) hardReloadOnce(reason + '_after_inject');
+      }, 2000);
+      return;
+    }
     window.__VYBE_STABLE_RELOAD__ = true;
     beacon('boot_stall_recovery', { build: BUILD, entry: ENTRY, reason: reason || 'stall' });
     hideStaticSplash();
@@ -66,9 +92,15 @@ const escapeScript = `
     s.crossOrigin = 'anonymous';
     s.src = '/assets/app.js?vybe_recovery=' + Date.now();
     s.setAttribute('data-vybe-stable-recovery', '1');
-    s.onload = function () { window.__VYBE_APP_LOADED__ = true; };
+    s.onload = function () {
+      window.__VYBE_APP_LOADED__ = true;
+      setTimeout(function () {
+        if (!isAppReady()) hardReloadOnce(reason + '_onload_no_eval');
+      }, 2000);
+    };
     s.onerror = function () {
       beacon('boot_stall_recovery_failed', { build: BUILD });
+      hardReloadOnce(reason + '_inject_error');
     };
     document.head.appendChild(s);
   }
@@ -83,8 +115,8 @@ const escapeScript = `
       hasRootText: !!((document.getElementById('root') || {}).textContent || '').replace(/\\s+/g, '').length,
       despia: isDespia,
     });
-    if (isDespia && !isAppReady() && label === '8s') {
-      loadStableAppJs('despia_no_main_eval_8s');
+    if (isDespia && !isAppReady() && (label === '3s' || label === '8s')) {
+      loadStableAppJs('despia_no_main_eval_' + label);
     }
   }
 
@@ -110,7 +142,10 @@ const escapeScript = `
   var host = '';
   try { host = location.hostname || ''; } catch (e2) { host = ''; }
   var ua = (navigator.userAgent || '').toLowerCase();
-  var isDespia = /despia/.test(ua) || !!(window).Despia || !!(window).__DESPIA__;
+  var isDespia =
+    /despia|vybeapp|; wv\)|\\bwv\\b/.test(ua) ||
+    !!(window).Despia ||
+    !!(window).__DESPIA__;
   var onLocal = host === 'localhost' || host === '127.0.0.1';
 
   beacon('boot_fingerprint', {
@@ -122,7 +157,13 @@ const escapeScript = `
     href: String(location.href || '').slice(0, 120),
   });
 
-  // Watch the primary module entry — proves whether app.js actually evaluated.
+  // Page-level timers — do not rely only on hashed script.onload (flaky on Android WV).
+  setTimeout(function () { probeReady('3s'); }, 3000);
+  setTimeout(function () { probeReady('5s'); }, 5000);
+  setTimeout(function () { probeReady('8s'); }, 8000);
+  setTimeout(function () { probeReady('12s'); }, 12000);
+
+  // Also watch the primary module entry for load/error beacons.
   try {
     var mods = document.querySelectorAll('script[type="module"][src*="/assets/app"]');
     for (var i = 0; i < mods.length; i++) {
@@ -130,17 +171,14 @@ const escapeScript = `
         var src = el.getAttribute('src') || '';
         el.addEventListener('load', function () {
           beacon('module_script_load', { src: String(src).slice(0, 80), build: BUILD });
-          if (isDespia) {
-            setTimeout(function () { probeReady('8s'); }, 8000);
-            setTimeout(function () { probeReady('12s'); }, 12000);
-          }
+          // If load fired but eval never happens, 3s page timer already recovers.
         });
         el.addEventListener('error', function () {
           beacon('module_script_error', { src: String(src).slice(0, 80), build: BUILD });
+          if (isDespia) loadStableAppJs('module_script_error');
         });
       })(mods[i]);
     }
-    setTimeout(function () { probeReady('5s'); }, 5000);
   } catch (eMod) {}
 
   // Do NOT redirect localhost → vybehub.app: that swaps origins and drops the

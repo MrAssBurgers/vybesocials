@@ -2,6 +2,15 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## ACTIVE (2026-07-17) — Android splash stuck at 42% (module never evals)
+
+- **Runtime proof:** Despia Android boot of live `app-B9ZghQlV.js` — probes at 5s/8s/12s all `splashPct≈42`, `mainEval:false`, `appReady:false`; no `main_module_eval`. Web dismisses fine on same build.
+- **Fixes shipped:**
+  1. `index.html` — Android/Despia fail-open ~3.8s; larger crawl jumps after 2s so UI never sits at 42; hide `#vybe-static-boot` on fail-open; emit `splash_fake_failopen` with `android:true`.
+  2. `stamp-despia-ota.mjs` — recover at **3s** if `!mainEval` (page timers, not only script.onload); reinject `/assets/app.js?vybe_recovery=…`; if still dead after 2s, one session-guarded hard reload (`boot_stall_hard_reload`).
+  3. `splashProgressBridge` + `main.tsx` — stop fake ticker on `__VYBE_MAIN_EVAL__` or any React progress advance; keep early `main_module_eval` beacon.
+- **Verify after Lovable Publish:** Android cold start leaves 42% within ~4s; dump shows `main_module_eval` and/or `boot_stall_recovery` then eval; `splashPct:100`.
+
 ## ACTIVE (2026-07-16) — Removed phone verify popup (UI only)
 
 - Deleted forced post-login phone verify modal: `PhoneCenterPrompt`, `phoneVerifyDismiss`, related CSS.

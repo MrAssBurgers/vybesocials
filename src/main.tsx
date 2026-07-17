@@ -48,6 +48,13 @@ logStartupPhase("App started", { os: getRuntimeOs() });
 // #region agent log
 try {
   window.__VYBE_MAIN_EVAL__ = true;
+  try {
+    if (typeof window.__vybeStopFakeSplash === "function") {
+      window.__vybeStopFakeSplash();
+    }
+  } catch {
+    /* ignore */
+  }
   fetch("https://us-central1-vybe-daaab.cloudfunctions.net/authQr", {
     method: "POST",
     headers: { "Content-Type": "application/json" },

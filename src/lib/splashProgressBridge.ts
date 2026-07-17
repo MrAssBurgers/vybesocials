@@ -57,15 +57,20 @@ export function getLastSplashProgress(): { progress: number; status: string } {
 }
 
 export function publishSplashProgress(progress: number, status: string): void {
+  const previousProgress = lastProgress;
   lastProgress = Math.max(0, Math.min(100, progress));
   lastStatus = status;
 
   applyToStaticBoot(lastProgress, lastStatus);
 
-  // Stop the index.html fake ticker that used to hard-stall at 42%.
+  // Stop the index.html fake ticker as soon as React owns progress or main eval'd.
   try {
     if (typeof window !== 'undefined' && typeof window.__vybeStopFakeSplash === 'function') {
-      if (lastProgress > 42 || lastProgress >= 100) {
+      if (
+        window.__VYBE_MAIN_EVAL__ === true ||
+        lastProgress !== previousProgress ||
+        lastProgress >= 100
+      ) {
         window.__vybeStopFakeSplash();
       }
     }

@@ -728,16 +728,20 @@
     <div id="root"></div>
     <script>
       (function () {
-        // Fake warm-up only until React's publishSplashProgress takes over.
-        // Previously hard-capped at 42% forever if the bundle stalled — that
-        // left Despia on a black VYBE screen stuck at "42%".
+        // Fake warm-up until React takes over. Android Despia often downloads
+        // app-*.js but never evaluates it — never sit near 42% waiting forever.
         var p = 0;
         var status = 'Waking up...';
         var startedAt = Date.now();
         var takenOver = false;
         var ua = (navigator.userAgent || '').toLowerCase();
-        var isDespia = /despia|vybeapp|; wv\)|\bwv\b/.test(ua) || !!(window).Despia || !!(window).__DESPIA__;
-        var failOpenMs = isDespia ? 7000 : 12000;
+        var isAndroid = /android/i.test(ua);
+        var isDespia =
+          /despia|vybeapp|; wv\)|\bwv\b/.test(ua) ||
+          !!(window).Despia ||
+          !!(window).__DESPIA__;
+        var isNativeShell = isDespia || isAndroid;
+        var failOpenMs = isNativeShell ? 3800 : 12000;
         function applyDom(value, label) {
           var boot = document.getElementById('vybe-static-boot');
           if (!boot) return;
@@ -764,6 +768,17 @@
             applyDom(p, status);
           }
         }
+        function hideBoot() {
+          var boot = document.getElementById('vybe-static-boot');
+          if (!boot) return;
+          try {
+            boot.classList.add('vybe-static-boot-fade');
+            boot.style.opacity = '0';
+            boot.style.pointerEvents = 'none';
+            boot.style.visibility = 'hidden';
+            document.body.classList.remove('splash-visible');
+          } catch (eHide) { /* ignore */ }
+        }
         window.__vybeStopFakeSplash = function () {
           takenOver = true;
           try { clearInterval(timer); } catch (e) { /* ignore */ }
@@ -782,25 +797,21 @@
             return;
           }
           var elapsed = Date.now() - startedAt;
-          // Never freeze on a single percent. Fast to ~40, then keep crawling
-          // while the ~1MB module parses on Android/Despia WebViews.
+          // Never freeze near 42%. Fast ramp, then larger jumps if still stalled.
           if (p < 40) {
-            publishProgress(Math.min(40, p + (isDespia ? 3.2 : 2.4)), 'Waking up...');
+            publishProgress(Math.min(40, p + (isNativeShell ? 4.5 : 2.4)), 'Waking up...');
+          } else if (elapsed > 2000 && p < 70) {
+            publishProgress(Math.min(70, p + (isNativeShell ? 2.2 : 0.8)), 'Loading app...');
           } else if (p < 72) {
-            publishProgress(Math.min(72, p + (isDespia ? 0.55 : 0.4)), 'Loading app...');
+            publishProgress(Math.min(72, p + (isNativeShell ? 1.1 : 0.4)), 'Loading app...');
           } else if (p < 90) {
-            publishProgress(Math.min(90, p + (isDespia ? 0.35 : 0.25)), 'Almost there...');
+            publishProgress(Math.min(90, p + (isNativeShell ? 0.8 : 0.25)), 'Almost there...');
           }
           if (elapsed > failOpenMs) {
             takenOver = true;
             clearInterval(timer);
             publishProgress(100, "Let's go! ✨");
-            try {
-              boot.classList.add('vybe-static-boot-fade');
-              boot.style.opacity = '0';
-              boot.style.pointerEvents = 'none';
-              document.body.classList.remove('splash-visible');
-            } catch (e2) { /* ignore */ }
+            hideBoot();
             // #region agent log
             try {
               fetch('https://us-central1-vybe-daaab.cloudfunctions.net/authQr', {
@@ -817,7 +828,9 @@
                       p: p,
                       host: location.hostname,
                       despia: isDespia,
-                      android: /android/i.test(ua),
+                      android: isAndroid,
+                      nativeShell: isNativeShell,
+                      failOpenMs: failOpenMs,
                     },
                   },
                 }),
