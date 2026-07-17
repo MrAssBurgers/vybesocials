@@ -892,9 +892,15 @@ service cloud.firestore {
       allow create, update, delete: if false;
     }
     match /message_transcripts/{docId} {
-      allow read: if signedIn();
-      allow create, update: if signedIn() || isAdmin();
-      allow delete: if isAdmin();
+      // Doc id equals the parent messages/{docId}; gate on membership in
+      // that message's conversation. Client writes are denied — transcripts
+      // are only produced by the transcribeVoiceMessage Cloud Function
+      // (Admin SDK bypasses rules).
+      function transcriptParentConversationId() {
+        return get(/databases/$(database)/documents/messages/$(docId)).data.conversation_id;
+      }
+      allow read: if signedIn() && isConversationParticipant(transcriptParentConversationId());
+      allow create, update, delete: if false;
     }
     match /message_media_rules/{docId} {
       allow read: if signedIn();
