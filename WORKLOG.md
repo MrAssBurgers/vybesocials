@@ -2,6 +2,13 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## ACTIVE (2026-07-17) — Google sign-in "request is invalid" (redirect URI mismatch)
+
+- **Symptom:** Continue with Google → Google error "Access is blocked. The app's request is invalid."
+- **Cause:** OAuth launched with `redirect_uri=https://vybehub.app/google-callback.html` but Google Console + docs register `https://vybehub.app/native-callback.html`.
+- **Fix:** Point Google PKCE at `native-callback.html`; add PKCE code exchange branch there; legacy `google-callback.html` redirects to native-callback; `authQr` accepts both URIs during transition.
+- **Ship:** Lovable Publish + `firebase deploy --only functions:authQr` (redirect allowlist).
+
 ## ACTIVE (2026-07-17) — Android splash fixed; instrumentation cleaned
 
 - **Root cause:** Despia Android crashed on read-only `location.assign` + invalid OTA despia regex; app never mounted.

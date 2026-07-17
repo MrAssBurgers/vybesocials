@@ -889,7 +889,12 @@ export const oauthDismiss = onRequest({
     res.redirect(302, despiaCloseDeeplink(scheme, qs || 'wait=1'));
 });
 /** Google OAuth redirect for Despia — must match Google Cloud Console + client. */
-const GOOGLE_OAUTH_REDIRECT_URI = 'https://vybehub.app/google-callback.html';
+const GOOGLE_OAUTH_REDIRECT_URI = 'https://vybehub.app/native-callback.html';
+const GOOGLE_OAUTH_REDIRECT_URIS = new Set([
+    GOOGLE_OAUTH_REDIRECT_URI,
+    // Legacy path — still accept token exchange if an older build launched auth with it.
+    'https://vybehub.app/google-callback.html',
+]);
 async function exchangeGoogleAuthCode(code, codeVerifier, redirectUri = GOOGLE_OAUTH_REDIRECT_URI) {
     const body = new URLSearchParams({
         client_id: GOOGLE_WEB_CLIENT_ID,
@@ -912,7 +917,7 @@ async function exchangeGoogleAuthCode(code, codeVerifier, redirectUri = GOOGLE_O
 }
 /**
  * Google Sign-In — legacy Firebase Hosting path.
- * Prefer https://vybehub.app/google-callback.html (static) so users see vybehub.app.
+ * Prefer https://vybehub.app/native-callback.html (static) so users see vybehub.app.
  * Google Cloud Console redirect URI must include that vybehub.app URL.
  */
 export const googleOAuthCallback = onRequest({ cors: true, invoker: 'public' }, async (req, res) => {
@@ -1126,7 +1131,7 @@ export const authQr = onCall({
     }
     /**
      * exchange_google_code — PKCE authorization-code exchange for
-     * https://vybehub.app/google-callback.html (Despia Custom Tabs).
+     * https://vybehub.app/native-callback.html (Despia Custom Tabs).
      */
     if (action === 'exchange_google_code') {
         const ip = request.rawRequest?.ip || 'anon';
@@ -1138,7 +1143,7 @@ export const authQr = onCall({
         if (!authCode || !codeVerifier) {
             throw new HttpsError('invalid-argument', 'code and codeVerifier required');
         }
-        if (redirectUri !== GOOGLE_OAUTH_REDIRECT_URI) {
+        if (!GOOGLE_OAUTH_REDIRECT_URIS.has(redirectUri)) {
             throw new HttpsError('invalid-argument', 'redirectUri not allowed');
         }
         try {

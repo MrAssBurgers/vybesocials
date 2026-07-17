@@ -246,9 +246,11 @@ export function isDespiaOAuthInFlight(): boolean {
   return true;
 }
 
-/** Google Despia callback — PKCE code flow via static vybehub.app page. */
+/** Google Despia callback — PKCE code flow on vybehub.app (must match Google Console). */
+export const GOOGLE_OAUTH_REDIRECT_URI = `${getProductionOrigin()}/native-callback.html`;
+
 export function getGoogleOAuthCallbackUrl(): string {
-  return `${getProductionOrigin()}/google-callback.html`;
+  return GOOGLE_OAUTH_REDIRECT_URI;
 }
 
 export async function buildGoogleOAuthUrl(intent: 'signin' | 'link' = 'signin'): Promise<string> {

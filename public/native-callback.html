@@ -112,6 +112,8 @@
       var params = getParams();
       var stateObj = decodeState(params.get('state'));
       var idToken = params.get('id_token');
+      var authCode = params.get('code') || '';
+      var cv = (stateObj && stateObj.cv) || '';
       var error = params.get('error');
       var provider = (stateObj && stateObj.provider) || 'google';
       var nonce = (stateObj && stateObj.nonce) || '';
@@ -210,12 +212,51 @@
         return;
       }
 
+      // Google PKCE authorization-code flow (Despia Custom Tabs / ASWeb).
+      if (authCode && cv) {
+        var REDIRECT_URI = APP_ORIGIN + '/native-callback.html';
+        var pkcePromise = callAuthQr({
+          action: 'exchange_google_code',
+          code: authCode,
+          codeVerifier: cv,
+          redirectUri: REDIRECT_URI,
+          nonce: nonce,
+        });
+
+        var pkceSlowTimer = setTimeout(function () {
+          if (closed || !nonce) return;
+          softFired = true;
+          fireClose(
+            'nonce=' +
+              encodeURIComponent(nonce) +
+              '&wait=1&provider=google' +
+              (intent === 'link' ? '&intent=link' : ''),
+          );
+        }, 6000);
+
+        pkcePromise
+          .then(function (result) {
+            clearTimeout(pkceSlowTimer);
+            var payload = payloadOf(result);
+            var handoff = payload.code;
+            if (!result.ok || !handoff) throw new Error(errMsgOf(result) || 'exchange_failed');
+            var q = 'hc=' + encodeURIComponent(handoff);
+            if (intent === 'link') q += '&intent=link';
+            if (!closed) fireClose(q);
+          })
+          .catch(function () {
+            clearTimeout(pkceSlowTimer);
+            if (!closed) fireClose('error=exchange_failed');
+          });
+        return;
+      }
+
       if (!idToken) {
         fireClose('error=missing_token');
         return;
       }
 
-      // Exchange FIRST, then close carrying hc=. Never navigate before the
+      // Legacy id_token implicit flow (Apple fragment / older Google builds).
       // exchange responds — runtime dump proved early soft-close kills the
       // keepalive fetch (no exchange_result), so no handoff is stashed and the
       // in-app nonce poll never resolves (user stuck logged out).
