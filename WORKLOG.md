@@ -2,7 +2,47 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
-## ACTIVE (2026-07-17) — iOS OAuth UX: faster session + VYBE font flash
+## ACTIVE (2026-07-17) — Pending-error dump triage (AuthProvider / perms / DM send)
+
+### Publish handoff
+- **On `origin/main`:** `0f771b945` — **Lovable → Share → Publish** for `vybehub.app`.
+- Google ASAP `wait=1` + Apple `oauth://` **untouched**.
+- CF: `manageAccount` aliases only (deletion action names) — deploy functions if deletion still 500s on prod.
+
+### Triage table
+| Cluster | Verdict | Action |
+|---------|---------|--------|
+| P0 `useAuth must be used within AuthProvider` on `/auth?hc=` + `/home` | **FIXED** | Soft ErrorBoundary returned `null` → unmounted AuthProvider. AuthProvider now above SmartErrorBoundary; ban UI keeps Provider; `useAuth` fail-soft stub; route ErrorBoundary no null frame |
+| P1 fetchProfile / reactions / DM membership permission-denied | **FIXED (client race)** | Gate DM list on `authReady`+user; wait for session before membership queries; softer profile permission retry; reactions wait for auth. Rules look correct — no rules change |
+| P2 `Failed to send` / `Waiting for connection` + `code:internal` | **FIXED (client)** | Bare CF `internal` no longer mapped to connection wait when online |
+| P3 Spotify 503 | **SOFTENED** | Friendlier toast / soft log — upstream Spotify |
+| P3 Camera `readyState` null | **FIXED** | Null-safe video ref access |
+| P3 Deletion request `internal` | **FIXED** | Client used `request_deletion` / checked `success`; CF expected `request_delete` + `{ok}`. Aliases + client aligned |
+| P3 Firestore Write channel 400 HTML | **DEFERRED / external** | Proxy/network noise; not auth-provider related once P0 fixed |
+
+### Files
+- `src/App.tsx`, `src/lib/auth.tsx`, `src/components/error/SmartErrorBoundary.tsx`, `src/components/ErrorBoundary.tsx`
+- `src/hooks/useDMConversations.ts`, `src/lib/loadDMConversations.ts`, `src/hooks/usePostReaction.ts`
+- `src/lib/dmSendErrors.ts` (+ test), `src/components/camera/Camera.tsx`
+- `src/hooks/useSpotifyPresence.ts`, `src/hooks/useListenAlong.ts`
+- `functions/src/auth.ts`, `src/components/settings/AccountDangerZone.tsx`, `src/pages/DeleteAccount.tsx`
+
+### Tests
+- `npm run build` green
+- `npm run test` green (375)
+
+### Still needs human / Despia / Spotify
+1. Lovable Publish for SPA.
+2. `firebase deploy --only functions:manageAccount` (or full functions) if prod deletion still fails.
+3. Device smoke: `/auth?hc=` OAuth return + `/home` + send DM + react on post.
+4. Spotify 503 remains upstream — no app fix beyond softer UX.
+
+### Next 3
+1. Lovable → Share → Publish.
+2. Device: OAuth return + home (no useAuth cascade) + DM send.
+3. If DM `internal` persists after Publish, inspect `sendDmMessage` CF logs (real server fault).
+
+## SUPERSEDED (2026-07-17) — iOS OAuth UX: faster session + VYBE font flash
 
 ### Publish handoff
 - **On `origin/main`:** `32627b148` — **Lovable → Share → Publish NOW** for `vybehub.app`.
