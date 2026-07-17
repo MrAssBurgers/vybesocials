@@ -3,9 +3,8 @@
  * via `oauth://`, then completes Firebase sign-in in the WebView from deeplink tokens.
  */
 import { GoogleAuthProvider, OAuthProvider, linkWithCredential, signInWithCredential, signInWithCustomToken } from 'firebase/auth';
-import { despiaCall, getRuntimeOs, isDespiaRuntime } from '@/lib/despiaBridge';
-import { debugSessionLog } from '@/lib/debugSessionLog';
 import { getProductionOrigin } from '@/lib/authRedirect';
+import { despiaCall, getRuntimeOs, isDespiaRuntime } from '@/lib/despiaBridge';
 import { isNativePlatform } from '@/lib/capacitor';
 import type { VybeAuthError, VybeSession } from '@/lib/firebase/types';
 
@@ -259,16 +258,7 @@ export async function buildGoogleOAuthUrl(intent: 'signin' | 'link' = 'signin'):
     prompt: 'select_account',
   });
 
-  const url = `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
-  // #region agent log
-  debugSessionLog(
-    'despiaOAuth.ts:buildGoogleOAuthUrl',
-    'google_oauth_idtoken_url',
-    { intent, hasNonce: Boolean(nonce), redirectUri },
-    'H-secret',
-  );
-  // #endregion
-  return url;
+  return `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
 }
 
 function getAppleServicesId(): string {
@@ -305,36 +295,10 @@ export async function buildAppleOAuthUrl(intent: 'signin' | 'link' = 'signin'): 
     nonce: hashedNonce,
     state,
   });
-  const url =
+  return (
     `https://appleid.apple.com/auth/authorize?${params.toString()}` +
-    `&response_type=${encodeURIComponent('code id_token')}`;
-  // #region agent log
-  {
-    const rtMatch = url.match(/response_type=([^&]+)/);
-    const rt = rtMatch ? rtMatch[1] : '';
-    void fetch('https://us-central1-vybe-daaab.cloudfunctions.net/authQr', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        data: {
-          action: 'debug_oauth',
-          event: 'apple_authorize_url',
-          hypothesisId: 'B',
-          location: 'despiaOAuth.ts:buildAppleOAuthUrl',
-          payload: {
-            responseTypeEnc: rt,
-            hasPercent20: rt.includes('%20'),
-            hasPlus: rt.includes('+'),
-            intent,
-            authorizeNonce: 'sha256(raw)',
-          },
-        },
-      }),
-      keepalive: true,
-    }).catch(() => {});
-  }
-  // #endregion
-  return url;
+    `&response_type=${encodeURIComponent('code id_token')}`
+  );
 }
 
 /** When the OAuth sheet is dismissed without tokens, stop polling and clear the chip. */
@@ -425,53 +389,8 @@ async function launchDespiaOAuthUrl(
     armDespiaOAuthSheetCancelWatch();
 
     const oauthBridge = `oauth://?url=${encodeURIComponent(authUrl)}`;
-    // #region agent log
-    {
-      const rtMatch = authUrl.match(/response_type=([^&]+)/);
-      void fetch('https://us-central1-vybe-daaab.cloudfunctions.net/authQr', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          data: {
-            action: 'debug_oauth',
-            event: 'oauth_launch',
-            hypothesisId: 'A',
-            location: 'despiaOAuth.ts:launchDespiaOAuthUrl',
-            payload: {
-              provider,
-              intent,
-              hasNonce: Boolean(oauthNonce),
-              responseTypeEnc: rtMatch ? rtMatch[1] : null,
-            },
-          },
-        }),
-        keepalive: true,
-      }).catch(() => {});
-    }
-    // #endregion
     // Completion via deeplink AND/OR nonce poll. Dismiss without tokens → cancel watch.
     void despiaCall(oauthBridge, [...DESPIA_OAUTH_URL_KEYS], 90_000).then((payload) => {
-      // #region agent log
-      void fetch('https://us-central1-vybe-daaab.cloudfunctions.net/authQr', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          data: {
-            action: 'debug_oauth',
-            event: 'despia_bridge_result',
-            hypothesisId: 'C',
-            location: 'despiaOAuth.ts:despiaCall.then',
-            payload: {
-              provider,
-              intent,
-              hasPayload: Boolean(payload),
-              stillInFlight: isDespiaOAuthInFlight(),
-            },
-          },
-        }),
-        keepalive: true,
-      }).catch(() => {});
-      // #endregion
       // Bridge often returns null while the sheet is still open — do NOT cancel here.
       if (!payload) return;
 
@@ -532,33 +451,15 @@ export async function signInWithAppleDespia(): Promise<{
   error: VybeAuthError | null;
   data?: { session: VybeSession | null };
 }> {
-  // #region agent log
-  debugSessionLog('despiaOAuth.ts:502', 'apple_signin_entry', { despia: isDespiaRuntime(), runtimeOs: getRuntimeOs() }, 'H1');
-  // #endregion
   if (isDespiaRuntime()) {
     // iOS Despia: Apple JS SDK only (native Face ID). Capacitor/web OAuth opens a stuck
     // vybehub.app ASWeb sheet under Face ID — never use those on iOS.
     if (getRuntimeOs() === 'ios') {
-      // #region agent log
-      debugSessionLog('despiaOAuth.ts:506', 'apple_signin_js_sdk_ios_only', { provider: 'apple' }, 'H-apple');
-      // #endregion
       const { signInWithAppleJsSdk } = await import('@/lib/appleSignIn');
       const js = await signInWithAppleJsSdk();
-      // #region agent log
-      debugSessionLog(
-        'despiaOAuth.ts:512',
-        'apple_signin_js_sdk_result',
-        { hasSession: !!js.data.session?.user, errorName: js.error?.name || null },
-        'H-apple',
-        'post-fix',
-      );
-      // #endregion
       if (js.error) return { pending: false, error: js.error, data: { session: null } };
       return { pending: false, error: null, data: { session: js.data.session } };
     }
-    // #region agent log
-    debugSessionLog('despiaOAuth.ts:528', 'apple_signin_oauth_websheet_branch', { provider: 'apple', runtimeOs: getRuntimeOs() }, 'H1');
-    // #endregion
     return launchDespiaOAuthUrl(await buildAppleOAuthUrl('signin'), 'apple', 'signin');
   }
 
@@ -572,16 +473,10 @@ export async function signInWithAppleDespia(): Promise<{
 export async function linkProviderWithDespiaOAuth(
   provider: 'google' | 'apple',
 ): Promise<{ pending: boolean; error: VybeAuthError | null }> {
-  // #region agent log
-  debugSessionLog('despiaOAuth.ts:548', 'link_provider_entry', { provider, despia: isDespiaRuntime(), runtimeOs: getRuntimeOs() }, 'H1');
-  // #endregion
   if (!isDespiaRuntime()) {
     return { pending: false, error: { message: 'Despia link requires the native app' } };
   }
   if (provider === 'apple' && getRuntimeOs() === 'ios') {
-    // #region agent log
-    debugSessionLog('despiaOAuth.ts:554', 'link_provider_js_sdk_ios_only', { provider: 'apple' }, 'H1');
-    // #endregion
     const { linkWithAppleJsSdk } = await import('@/lib/appleSignIn');
     const result = await linkWithAppleJsSdk();
     return { pending: false, error: result.error };
@@ -785,15 +680,6 @@ async function completeDespiaOAuthFromUrlInner(url: string): Promise<DespiaOAuth
     !params.has('customToken') &&
     !error
   ) {
-    // #region agent log
-    debugSessionLog(
-      'despiaOAuth.ts:wait1',
-      'oauth_wait1_keep_polling',
-      { hasNonce: Boolean(waitNonce), provider: params.get('provider') || null },
-      'H-oauth',
-      'post-fix',
-    );
-    // #endregion
     if (waitNonce) {
       const providerHint = (params.get('provider') || 'google') as 'google' | 'apple';
       const intentHint = params.get('intent') === 'link' ? 'link' : 'signin';
@@ -884,15 +770,6 @@ async function completeDespiaOAuthFromUrlInner(url: string): Promise<DespiaOAuth
     const hasNonce =
       typeof sessionStorage !== 'undefined' && Boolean(sessionStorage.getItem(DESPIA_OAUTH_NONCE_KEY));
     if (hasNonce || isDespiaOAuthInFlight()) {
-      // #region agent log
-      debugSessionLog(
-        'despiaOAuth.ts:incomplete',
-        'oauth_incomplete_keep_pending',
-        { hasNonce, inFlight: isDespiaOAuthInFlight() },
-        'H-oauth',
-        'post-fix',
-      );
-      // #endregion
       return { data: { session: null }, error: null };
     }
     clearDespiaOAuthPending();
@@ -989,24 +866,6 @@ async function completeDespiaOAuthFromUrlInner(url: string): Promise<DespiaOAuth
       await signInWithCustomToken(auth, fallbackCustomToken);
     }
     await auth.authStateReady();
-    // #region agent log
-    try {
-      const persisted = Object.keys(localStorage).some((k) => k.startsWith('firebase:authUser:'));
-      debugSessionLog(
-        'despiaOAuth.ts:persist',
-        'oauth_session_persisted',
-        {
-          hasCurrentUser: Boolean(auth.currentUser),
-          localStorageAuthUser: persisted,
-          host: typeof location !== 'undefined' ? location.hostname : '',
-        },
-        'H-session',
-        'post-fix',
-      );
-    } catch {
-      /* ignore */
-    }
-    // #endregion
     clearDespiaOAuthPending();
 
     const { data, error: sessionError } = await firebaseAuth.getSession();

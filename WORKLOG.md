@@ -2,6 +2,11 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## ACTIVE (2026-07-17) — OAuth instrumentation cleaned; Google id_token flow live
+
+- **Fixed:** Google sign-in via implicit `id_token` on `https://vybehub.app/native-callback.html` (PKCE needed client_secret).
+- **Cleanup:** removed `debugSessionLog`, native-callback/despiaOAuth/Landing OAuth beacons, localhost ingest.
+
 ## ACTIVE (2026-07-17) — Google sign-in reached callback but never logged in
 
 - **Runtime proof:** device `callback_boot hasIdToken:false` on native-callback + CF log `[authQr] exchange_google_code failed client_secret is missing.`

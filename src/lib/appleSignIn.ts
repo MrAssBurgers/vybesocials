@@ -5,7 +5,6 @@
 import { OAuthProvider, linkWithCredential, signInWithCredential } from 'firebase/auth';
 import { getProductionOrigin } from '@/lib/authRedirect';
 import { mapOAuthLinkError } from '@/lib/oauthAccountLink';
-import { debugSessionLog } from '@/lib/debugSessionLog';
 import type { VybeAuthError, VybeSession } from '@/lib/firebase/types';
 
 const APPLE_SCRIPT = 'https://appleid.cdn-apple.com/appleauth/static/jsapi/appleid/1/en_US/appleid.auth.js';
@@ -108,16 +107,6 @@ export async function signInWithAppleJsSdk(): Promise<{
     // avoid navigating the main WebView to native-callback.
     const redirectURI = `${getProductionOrigin()}/native-callback.html`;
 
-    // #region agent log
-    debugSessionLog(
-      'appleSignIn.ts:init',
-      'apple_js_init',
-      { usePopup: true, hasOpener: Boolean(window.opener) },
-      'H-apple',
-      'post-fix',
-    );
-    // #endregion
-
     window.AppleID.auth.init({
       clientId: getAppleServicesId(),
       scope: 'name email',
@@ -135,15 +124,6 @@ export async function signInWithAppleJsSdk(): Promise<{
       window.clearInterval(hideWeb);
       dismissAppleWebSheetResidue();
     }
-    // #region agent log
-    debugSessionLog(
-      'appleSignIn.ts:signed',
-      'apple_js_signed_in',
-      { hasIdToken: Boolean(response.authorization?.id_token) },
-      'H-apple',
-      'post-fix',
-    );
-    // #endregion
 
     const idToken = response.authorization?.id_token;
     if (!idToken) {

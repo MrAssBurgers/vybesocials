@@ -1,5 +1,4 @@
 import { isNativeAppShell } from '@/lib/despiaBridge';
-import { debugSessionLog } from '@/lib/debugSessionLog';
 
 const NEVER_ASK_KEY = 'vybe-external-link-never-ask';
 
@@ -64,7 +63,6 @@ export function resolveExternalLinkPrompt(allowed: boolean, neverAsk = false): v
   notify();
   current?.resolve(allowed);
   if (allowed && current) {
-    debugSessionLog('externalLinkGuard.ts:resolve', 'external_link_allowed', { host: current.host }, 'H3');
     window.open(current.url, '_blank', 'noopener,noreferrer');
   }
 }
@@ -82,7 +80,6 @@ export function promptExternalLink(url: string): Promise<boolean> {
   }
   return new Promise((resolve) => {
     pending = { url: clean, host: hostOf(clean), resolve };
-    debugSessionLog('externalLinkGuard.ts:prompt', 'external_link_prompt', { host: pending.host }, 'H3');
     notify();
   });
 }
@@ -130,12 +127,6 @@ export function installExternalLinkGuard(): void {
     const guardedAssign = ((url: string | URL) => {
       const asString = typeof url === 'string' ? url : url.toString();
       if (isExternalHttpUrl(asString)) {
-        debugSessionLog(
-          'externalLinkGuard.ts:assign',
-          'external_assign_blocked',
-          { url: asString.slice(0, 120) },
-          'H4',
-        );
         void promptExternalLink(asString);
         return;
       }

@@ -26,27 +26,6 @@
       var closed = false;
       var softFired = false;
 
-      // #region agent log
-      function dbg(hypothesisId, message, data) {
-        try {
-          fetch(EXCHANGE_URL, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              data: {
-                action: 'debug_oauth',
-                event: message,
-                hypothesisId: hypothesisId,
-                location: 'native-callback.html',
-                payload: data || {},
-              },
-            }),
-            keepalive: true,
-          }).catch(function () {});
-        } catch (e1) {}
-      }
-      // #endregion
-
       function decodeState(state) {
         if (!state) return null;
         try {
@@ -131,7 +110,6 @@
 
       function fireClose(query) {
         if (!query || closed) return;
-        // Prefer closing popup windows first (Apple JS usePopup leftovers).
         try {
           if (window.opener) {
             window.close();
@@ -139,26 +117,12 @@
             return;
           }
         } catch (eClose) {}
-        // #region agent log
-        dbg('A', 'fire_close', {
-          android: isAndroid(),
-          queryLen: query.length,
-          hasHc: query.indexOf('hc=') !== -1,
-          hasWait: query.indexOf('wait=') !== -1,
-          provider: provider,
-          intent: intent,
-          mode: isAndroid() ? 'applink' : 'https-302',
-        });
-        // #endregion
         if (isAndroid()) {
-          // CCT closes reliably on HTTPS App Link into the app.
           var appLink = APP_ORIGIN + '/auth?' + query;
           try { window.location.replace(appLink); } catch (e1) {}
           try { window.location.href = appLink; } catch (e2) {}
           return;
         }
-        // iOS ASWeb: staged close. Custom-scheme navigations often do not unload
-        // this page — chain fast fallbacks so the sheet dismisses immediately.
         var deeplinkA = scheme + '://oauth/auth?' + query;
         var deeplinkB = 'vybe://oauth/auth?' + query;
         var dismiss =
@@ -167,52 +131,23 @@
           query +
           '&scheme=' +
           encodeURIComponent(scheme);
-        // #region agent log
-        dbg('S', 'ios_close_stage1_js_scheme', { scheme: scheme });
-        // #endregion
         try { window.location.href = deeplinkA; } catch (e3) {}
         setTimeout(function () {
           if (closed) return;
-          // #region agent log
-          dbg('S', 'ios_close_stage2_js_vybe', { stage1Closed: false });
-          // #endregion
           try { window.location.href = deeplinkB; } catch (e4) {}
         }, 80);
         setTimeout(function () {
           if (closed) return;
-          // #region agent log
-          dbg('S', 'ios_close_stage3_https302', { stage2Closed: false });
-          // #endregion
           try { window.location.replace(dismiss); } catch (e5) {}
         }, 200);
-        setTimeout(function () {
-          if (closed) return;
-          // #region agent log
-          dbg('S', 'ios_close_all_failed', { scheme: scheme });
-          // #endregion
-        }, 1200);
       }
-
-      // #region agent log
-      dbg('B', 'callback_boot', {
-        hasIdToken: Boolean(idToken),
-        idTokenLen: idToken ? String(idToken).length : 0,
-        provider: provider,
-        intent: intent,
-        hasError: Boolean(error),
-        android: isAndroid(),
-        hasNonce: Boolean(nonce),
-        softFired: softFired,
-        dismissMode: isAndroid() ? 'applink' : 'oauthDismiss-302',
-      });
-      // #endregion
 
       if (error) {
         fireClose('error=' + encodeURIComponent(String(error).slice(0, 64)));
         return;
       }
 
-      // Google PKCE authorization-code flow (Despia Custom Tabs / ASWeb).
+      // Legacy PKCE builds — exchange if code+cv present (requires client_secret on server).
       if (authCode && cv) {
         var REDIRECT_URI = APP_ORIGIN + '/native-callback.html';
         var pkcePromise = callAuthQr({
@@ -256,10 +191,6 @@
         return;
       }
 
-      // Legacy id_token implicit flow (Apple fragment / older Google builds).
-      // exchange responds — runtime dump proved early soft-close kills the
-      // keepalive fetch (no exchange_result), so no handoff is stashed and the
-      // in-app nonce poll never resolves (user stuck logged out).
       var stashPromise =
         provider === 'apple'
           ? callAuthQr({
@@ -269,8 +200,6 @@
             })
           : callAuthQr({ action: 'exchange_google', idToken: idToken, nonce: nonce });
 
-      // Safety net: if the exchange hangs >6s, close with the nonce-wait path
-      // so the user is never stuck staring at a blank sheet.
       var slowTimer = setTimeout(function () {
         if (closed) return;
         softFired = true;
@@ -288,22 +217,10 @@
           clearTimeout(slowTimer);
           var payload = payloadOf(result);
           var handoff = payload.code;
-          // #region agent log
-          dbg('B', 'exchange_result', {
-            ok: Boolean(result.ok),
-            hasHandoff: Boolean(handoff),
-            handoffLen: handoff ? String(handoff).length : 0,
-            provider: provider,
-            intent: intent,
-            errMsg: errMsgOf(result),
-          });
-          // #endregion
           if (!result.ok || !handoff) throw new Error(errMsgOf(result) || 'exchange_failed');
           var q = 'hc=' + encodeURIComponent(handoff);
           if (intent === 'link') q += '&intent=link';
           if (!closed) fireClose(q);
-          // If ASWeb is still visible, offer a production App Link so a stuck
-          // offline pack can still redeem hc= via Universal Link.
           setTimeout(function () {
             if (closed) return;
             try {
@@ -319,15 +236,8 @@
             } catch (eUi) {}
           }, 1800);
         })
-        .catch(function (err) {
+        .catch(function () {
           clearTimeout(slowTimer);
-          // #region agent log
-          dbg('B', 'exchange_failed', {
-            provider: provider,
-            intent: intent,
-            msg: err && err.message ? String(err.message).slice(0, 120) : 'fail',
-          });
-          // #endregion
           if (!closed) fireClose('error=exchange_failed');
         });
     })();
