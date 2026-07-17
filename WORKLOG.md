@@ -2,6 +2,13 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## ACTIVE (2026-07-17) — Google sign-in reached callback but never logged in
+
+- **Runtime proof:** device `callback_boot hasIdToken:false` on native-callback + CF log `[authQr] exchange_google_code failed client_secret is missing.`
+- **Cause:** PKCE code exchange at Google's token endpoint requires `client_secret` for Web-type clients; backend has no secret → exchange always failed → no `hc=`, app never signed in.
+- **Fix:** Google uses implicit `response_type=id_token` (+nonce) again; native-callback exchanges via `exchange_google` (id_token verify — no secret needed).
+- **Ship:** Lovable Publish. No function deploy needed (exchange_google already live).
+
 ## ACTIVE (2026-07-17) — Google sign-in "request is invalid" (redirect URI mismatch)
 
 - **Symptom:** Continue with Google → Google error "Access is blocked. The app's request is invalid."

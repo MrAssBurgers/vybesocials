@@ -71,25 +71,6 @@ async function sha256Hex(value: string): Promise<string> {
   return Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, '0')).join('');
 }
 
-function base64UrlEncode(bytes: Uint8Array): string {
-  let binary = '';
-  bytes.forEach((b) => {
-    binary += String.fromCharCode(b);
-  });
-  return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-}
-
-async function sha256Base64Url(value: string): Promise<string> {
-  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value));
-  return base64UrlEncode(new Uint8Array(digest));
-}
-
-function randomCodeVerifier(): string {
-  const bytes = new Uint8Array(32);
-  crypto.getRandomValues(bytes);
-  return base64UrlEncode(bytes);
-}
-
 function encodeOAuthState(payload: {
   scheme: string;
   nonce: string;
@@ -256,35 +237,35 @@ export function getGoogleOAuthCallbackUrl(): string {
 export async function buildGoogleOAuthUrl(intent: 'signin' | 'link' = 'signin'): Promise<string> {
   const scheme = getDespiaDeeplinkScheme();
   const nonce = randomNonce();
-  const codeVerifier = randomCodeVerifier();
   if (typeof sessionStorage !== 'undefined') {
     sessionStorage.setItem(DESPIA_OAUTH_NONCE_KEY, nonce);
   }
 
-  const state = encodeOAuthState({ scheme, nonce, provider: 'google', intent, cv: codeVerifier });
+  const state = encodeOAuthState({ scheme, nonce, provider: 'google', intent });
   const redirectUri = getGoogleOAuthCallbackUrl();
   const clientId = getGoogleWebClientId();
-  const codeChallenge = await sha256Base64Url(codeVerifier);
 
-  // PKCE authorization-code flow — avoids id_token+nonce implicit errors in Custom Tabs.
+  // Implicit id_token flow — the PKCE code exchange requires client_secret
+  // (Web client type) which the backend does not hold; runtime proof:
+  // "exchange_google_code failed client_secret is missing." The id_token is
+  // verified server-side by authQr exchange_google (no secret needed).
   const params = new URLSearchParams({
     client_id: clientId,
     redirect_uri: redirectUri,
-    response_type: 'code',
+    response_type: 'id_token',
     scope: 'openid email profile',
     state,
+    nonce,
     prompt: 'select_account',
-    code_challenge: codeChallenge,
-    code_challenge_method: 'S256',
   });
 
   const url = `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
   // #region agent log
   debugSessionLog(
     'despiaOAuth.ts:buildGoogleOAuthUrl',
-    'google_oauth_pkce_url',
-    { intent, hasNonce: Boolean(nonce), hasCv: Boolean(codeVerifier), redirectUri },
-    'H5',
+    'google_oauth_idtoken_url',
+    { intent, hasNonce: Boolean(nonce), redirectUri },
+    'H-secret',
   );
   // #endregion
   return url;
