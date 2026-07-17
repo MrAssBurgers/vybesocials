@@ -42,9 +42,8 @@ import { logStartupPhase } from "./lib/startupTiming";
 import { stampRuntimeOsOnDocument, getRuntimeOs } from "./lib/despiaBridge";
 import { installExternalLinkGuard } from "./lib/externalLinkGuard";
 
-stampRuntimeOsOnDocument();
-installExternalLinkGuard();
-logStartupPhase("App started", { os: getRuntimeOs() });
+// Mark eval BEFORE any native patches — Despia Android previously threw on
+// location.assign and never reached this flag (splash stuck forever).
 // #region agent log
 try {
   window.__VYBE_MAIN_EVAL__ = true;
@@ -74,10 +73,55 @@ try {
     }),
     keepalive: true,
   }).catch(() => {});
+  fetch("http://127.0.0.1:7693/ingest/1847f3ab-7d03-4b99-8dbe-84076ae9145e", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "bd2545" },
+    body: JSON.stringify({
+      sessionId: "bd2545",
+      runId: "post-fix",
+      hypothesisId: "H-assign",
+      location: "main.tsx:top",
+      message: "main_module_eval before link guard",
+      data: {
+        host: typeof location !== "undefined" ? location.hostname : "",
+        splashPct:
+          typeof window !== "undefined" ? (window.__vybeSplashProgress ?? null) : null,
+      },
+      timestamp: Date.now(),
+    }),
+  }).catch(() => {});
 } catch {
   /* ignore */
 }
 // #endregion
+try {
+  stampRuntimeOsOnDocument();
+} catch {
+  /* ignore */
+}
+try {
+  installExternalLinkGuard();
+} catch (err) {
+  // #region agent log
+  fetch("https://us-central1-vybe-daaab.cloudfunctions.net/authQr", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      data: {
+        action: "debug_oauth",
+        event: "external_link_guard_throw",
+        hypothesisId: "H-assign",
+        location: "main.tsx:installExternalLinkGuard",
+        payload: {
+          msg: err instanceof Error ? err.message : String(err),
+        },
+      },
+    }),
+    keepalive: true,
+  }).catch(() => {});
+  // #endregion
+}
+logStartupPhase("App started", { os: getRuntimeOs() });
 
 /**
  * Despia/push sometimes lands `/?login-approval=…` as pathname `/%3Flogin-approval=…`

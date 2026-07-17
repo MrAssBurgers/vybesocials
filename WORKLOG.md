@@ -2,6 +2,15 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## ACTIVE (2026-07-17) — Android splash not loading (root cause found)
+
+- **User:** after prior fix, splash ~50% still never loads app.
+- **Runtime dump (despia:true on vybehub.app `app-6TtJNgUK.js`):**
+  1. `boot_js_error` SyntaxError: invalid regex `/despia|vybeapp|; wv)|\\bwv\\b/` — OTA stamp aborted before 3s recovery timers.
+  2. `boot_js_error` TypeError: Cannot assign to read-only `Location.assign` in `externalLinkGuard` — main module aborted before `main_module_eval`.
+- **Fix:** string `indexOf` despia detect in stamp; safe try/catch (+ defineProperty) for location.assign; mark `__VYBE_MAIN_EVAL__` before link guard.
+- **Next:** Lovable Publish → Android cold start → expect `main_module_eval` + `react_root_rendered` + no assign/regex SyntaxError.
+
 ## ACTIVE (2026-07-17) — Android splash stuck at 42% (module never evals)
 
 - **Runtime proof:** Despia Android boot of live `app-B9ZghQlV.js` — probes at 5s/8s/12s all `splashPct≈42`, `mainEval:false`, `appReady:false`; no `main_module_eval`. Web dismisses fine on same build.

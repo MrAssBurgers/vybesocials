@@ -142,11 +142,26 @@ const escapeScript = `
   var host = '';
   try { host = location.hostname || ''; } catch (e2) { host = ''; }
   var ua = (navigator.userAgent || '').toLowerCase();
+  // Avoid regex here — template-literal escaping previously produced an invalid
+  // /; wv)/ pattern that threw SyntaxError and aborted stall recovery on Android.
   var isDespia =
-    /despia|vybeapp|; wv\)|\\bwv\\b/.test(ua) ||
+    ua.indexOf('despia') !== -1 ||
+    ua.indexOf('vybeapp') !== -1 ||
+    ua.indexOf('; wv') !== -1 ||
+    ua.indexOf(' wv') !== -1 ||
     !!(window).Despia ||
     !!(window).__DESPIA__;
   var onLocal = host === 'localhost' || host === '127.0.0.1';
+
+  // #region agent log
+  beacon('boot_despia_detect', {
+    build: BUILD,
+    despia: isDespia,
+    android: ua.indexOf('android') !== -1,
+    uaSlice: String(navigator.userAgent || '').slice(0, 120),
+  });
+  fetch('http://127.0.0.1:7693/ingest/1847f3ab-7d03-4b99-8dbe-84076ae9145e',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'bd2545'},body:JSON.stringify({sessionId:'bd2545',runId:'post-fix',hypothesisId:'H-regex',location:'stamp-despia-ota:despia-detect',message:'despia detect ok',data:{despia:isDespia,android:ua.indexOf('android')!==-1},timestamp:Date.now()})}).catch(function(){});
+  // #endregion
 
   beacon('boot_fingerprint', {
     build: BUILD,

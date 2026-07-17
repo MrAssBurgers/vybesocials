@@ -109,24 +109,69 @@ export function installExternalLinkGuard(): void {
     true,
   );
 
-  const originalOpen = window.open.bind(window);
-  window.open = ((url?: string | URL, target?: string, features?: string) => {
-    const asString = typeof url === 'string' ? url : url?.toString() || '';
-    if (isExternalHttpUrl(asString)) {
-      void promptExternalLink(asString);
-      return null;
-    }
-    return originalOpen(url, target, features);
-  }) as typeof window.open;
+  try {
+    const originalOpen = window.open.bind(window);
+    window.open = ((url?: string | URL, target?: string, features?: string) => {
+      const asString = typeof url === 'string' ? url : url?.toString() || '';
+      if (isExternalHttpUrl(asString)) {
+        void promptExternalLink(asString);
+        return null;
+      }
+      return originalOpen(url, target, features);
+    }) as typeof window.open;
+  } catch (err) {
+    // #region agent log
+    debugSessionLog(
+      'externalLinkGuard.ts:open',
+      'external_open_patch_failed',
+      { msg: err instanceof Error ? err.message : String(err) },
+      'H-assign',
+    );
+    fetch('http://127.0.0.1:7693/ingest/1847f3ab-7d03-4b99-8dbe-84076ae9145e',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'bd2545'},body:JSON.stringify({sessionId:'bd2545',runId:'post-fix',hypothesisId:'H-assign',location:'externalLinkGuard.ts:open',message:'window.open patch failed',data:{msg:err instanceof Error?err.message:String(err)},timestamp:Date.now()})}).catch(()=>{});
+    // #endregion
+  }
 
-  const originalAssign = window.location.assign.bind(window.location);
-  window.location.assign = ((url: string | URL) => {
-    const asString = typeof url === 'string' ? url : url.toString();
-    if (isExternalHttpUrl(asString)) {
-      debugSessionLog('externalLinkGuard.ts:assign', 'external_assign_blocked', { url: asString.slice(0, 120) }, 'H4');
-      void promptExternalLink(asString);
-      return;
+  // Despia Android WebView often makes Location.prototype.assign read-only.
+  // Assigning throws and previously aborted main.tsx before __VYBE_MAIN_EVAL__.
+  try {
+    const originalAssign = window.location.assign.bind(window.location);
+    const guardedAssign = ((url: string | URL) => {
+      const asString = typeof url === 'string' ? url : url.toString();
+      if (isExternalHttpUrl(asString)) {
+        debugSessionLog(
+          'externalLinkGuard.ts:assign',
+          'external_assign_blocked',
+          { url: asString.slice(0, 120) },
+          'H4',
+        );
+        void promptExternalLink(asString);
+        return;
+      }
+      originalAssign(url);
+    }) as typeof window.location.assign;
+
+    try {
+      window.location.assign = guardedAssign;
+    } catch {
+      Object.defineProperty(window.location, 'assign', {
+        configurable: true,
+        writable: true,
+        value: guardedAssign,
+      });
     }
-    originalAssign(url);
-  }) as typeof window.location.assign;
+    // #region agent log
+    debugSessionLog('externalLinkGuard.ts:assign', 'external_assign_patch_ok', {}, 'H-assign');
+    fetch('http://127.0.0.1:7693/ingest/1847f3ab-7d03-4b99-8dbe-84076ae9145e',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'bd2545'},body:JSON.stringify({sessionId:'bd2545',runId:'post-fix',hypothesisId:'H-assign',location:'externalLinkGuard.ts:assign',message:'location.assign patch ok',data:{},timestamp:Date.now()})}).catch(()=>{});
+    // #endregion
+  } catch (err) {
+    // #region agent log
+    debugSessionLog(
+      'externalLinkGuard.ts:assign',
+      'external_assign_patch_failed',
+      { msg: err instanceof Error ? err.message : String(err) },
+      'H-assign',
+    );
+    fetch('http://127.0.0.1:7693/ingest/1847f3ab-7d03-4b99-8dbe-84076ae9145e',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'bd2545'},body:JSON.stringify({sessionId:'bd2545',runId:'post-fix',hypothesisId:'H-assign',location:'externalLinkGuard.ts:assign',message:'location.assign patch failed (nonfatal)',data:{msg:err instanceof Error?err.message:String(err)},timestamp:Date.now()})}).catch(()=>{});
+    // #endregion
+  }
 }
