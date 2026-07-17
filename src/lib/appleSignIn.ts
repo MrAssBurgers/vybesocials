@@ -4,6 +4,7 @@
  */
 import { OAuthProvider, linkWithCredential, signInWithCredential } from 'firebase/auth';
 import { getProductionOrigin } from '@/lib/authRedirect';
+import { authLog } from '@/lib/authLog';
 import { mapOAuthLinkError } from '@/lib/oauthAccountLink';
 import { issHostname, oauthTimelineLog } from '@/lib/oauthDebugTimeline';
 import type { VybeAuthError, VybeSession } from '@/lib/firebase/types';
@@ -168,7 +169,17 @@ export async function signInWithAppleJsSdk(): Promise<{
     const credential = provider.credential({ idToken, rawNonce });
     await signInWithCredential(auth, credential);
     const { data, error } = await firebaseAuth.getSession();
-    if (error) return { data: { session: null }, error: mapOAuthLinkError(error) };
+    if (error) {
+      const rawCode = String((error as { code?: string; name?: string }).code || (error as { name?: string }).name || '');
+      const rawMessage = String((error as { message?: string }).message || '');
+      authLog('apple_firebase_session_error', { code: rawCode, message: rawMessage.slice(0, 200) });
+      oauthTimelineLog(
+        'apple_sdk_done',
+        { ok: false, reason: 'session_error', code: rawCode.slice(0, 60), msg: rawMessage.slice(0, 120) },
+        'appleSignIn.ts:getSession',
+      );
+      return { data: { session: null }, error: mapOAuthLinkError(error) };
+    }
     // #region agent log
     let tokenIss = '';
     try {
@@ -196,15 +207,19 @@ export async function signInWithAppleJsSdk(): Promise<{
   } catch (err: unknown) {
     dismissAppleWebSheetResidue();
     const asAny = err as { error?: string; message?: string; code?: string };
+    const rawCode = String(asAny?.code || asAny?.error || '').slice(0, 80);
+    const rawMessage = String(asAny?.message || err || '').slice(0, 200);
+    // Log exact Firebase/Apple code+message BEFORE friendly mapping.
+    authLog('apple_signin_error', { code: rawCode, message: rawMessage });
     // #region agent log
     oauthTimelineLog(
       'apple_sdk_done',
       {
         ok: false,
         reason: 'error',
-        code: String(asAny?.code || '').slice(0, 60),
+        code: rawCode.slice(0, 60),
         error: String(asAny?.error || '').slice(0, 60),
-        msg: String(asAny?.message || err).slice(0, 120),
+        msg: rawMessage.slice(0, 120),
       },
       'appleSignIn.ts:catch',
     );
@@ -301,6 +316,20 @@ export async function linkWithAppleJsSdk(): Promise<{
   } catch (err: unknown) {
     dismissAppleWebSheetResidue();
     const asAny = err as { error?: string; message?: string; code?: string };
+    const rawCode = String(asAny?.code || asAny?.error || '').slice(0, 80);
+    const rawMessage = String(asAny?.message || err || '').slice(0, 200);
+    // Log exact Firebase/Apple code+message BEFORE friendly mapping.
+    authLog('apple_link_error', { code: rawCode, message: rawMessage });
+    oauthTimelineLog(
+      'apple_sdk_link_done',
+      {
+        ok: false,
+        reason: 'error',
+        code: rawCode.slice(0, 60),
+        msg: rawMessage.slice(0, 120),
+      },
+      'appleSignIn.ts:link.catch',
+    );
     if (
       asAny?.error === 'popup_closed_by_user' ||
       asAny?.error === 'user_cancelled' ||

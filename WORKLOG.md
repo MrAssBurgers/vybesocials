@@ -2,6 +2,41 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## ACTIVE (2026-07-17) — iOS Auth Bugfixes (Google soft-close + Apple guard + errors)
+
+### Root causes
+1. **Google iOS soft-close:** `native-callback` 6s `wait=1` → `oauthDismiss` custom-scheme race → Safari "invalid address" / stuck ASWeb while nonce poll still redeemed login.
+2. **Google poll race:** nonce poll started immediately on oauth:// launch and could redeem before exchange+oauthDismiss finished dismissing ASWeb.
+3. **Apple iOS:** Apple JWT hitting `native-callback` without Despia oauth:// state (JS popup / WKWebView residue) continued into exchange/oauthDismiss → invalid address + opaque "Sign-in failed".
+4. **Apple errors:** Firebase `code`/`message` collapsed before logging; empty message mapped to bare "Sign-in failed".
+
+### Files changed
+- `public/native-callback.html` — remove iOS `wait=1` soft-close (PKCE + id_token); single `fireClose` via HTTPS oauthDismiss; Apple iss + invalid Despia state → dbg + `window.close()` (no exchange)
+- `src/lib/despiaOAuth.ts` — iOS-only ~1.75s delay before first nonce poll; Android unchanged
+- `src/lib/oauthAccountLink.ts` + `.test.ts` — preserve message/code; empty message + code → `Sign-in failed (code)`
+- `src/lib/appleSignIn.ts` — `authLog` + `oauthTimelineLog` exact code/message before friendly mapping (sign-in + link)
+- `src/pages/Landing.tsx` — log raw code/message before `getFriendlyAuthError`
+
+### Deploy
+- **Lovable → Share → Publish required** for `vybehub.app` (`native-callback.html` + SPA).
+- **No Firebase CF deploy.** **No Despia rebuild.** `native_ios_auth_v1` stays OFF.
+- Architecture unchanged: oauth:// → native-callback → exchange → redeem/poll; iOS Apple = Apple JS → signInWithCredential.
+
+### Verify checklist (after Publish)
+1. iOS Google: exchange → one `fire_close mode:oauthDismiss` with `hc=` — no `wait=1`, no double fireClose, no custom-scheme JS navigate.
+2. iOS Google: login completes; ASWeb dismisses without "invalid address".
+3. iOS Apple: Face ID / Continue; no oauthDismiss on Apple JWT without Despia state; failures show real Firebase code in timeline/`authLog`.
+4. Android Google/Apple App Link path unchanged; browser auth / linking / profiles unchanged.
+
+### Tests
+- `npm run build` green
+- `npm run test` green (incl. mapOAuthLinkError preservation cases)
+
+### Next 3
+1. Lovable Publish.
+2. Device: iOS Google + Apple sign-in; confirm timeline events.
+3. If Apple still fails with a real Firebase code, fix that provider/config issue (not soft-close).
+
 ## PUBLISH NOW (2026-07-17) — Native iOS auth scaffold (flag OFF)
 
 - **On `origin/main`:** `b99b069f8`

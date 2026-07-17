@@ -50,6 +50,7 @@ import {
 } from '@/lib/despiaOAuth';
 import { claimProfileAfterOAuth } from '@/lib/oauthAccountLink';
 import { preloadAppleSignIn } from '@/lib/appleSignIn';
+import { authLog } from '@/lib/authLog';
 import { oauthTimelineLog, safeCallbackPath } from '@/lib/oauthDebugTimeline';
 
 
@@ -463,6 +464,21 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
     } catch (error: unknown) {
       clearOAuthRedirectPending();
       clearDespiaOAuthPending();
+      const raw = error as { code?: string; name?: string; message?: string };
+      const rawCode = String(raw?.code || raw?.name || '');
+      const rawMessage = String(raw?.message || '');
+      // Log exact Firebase/OAuth code+message BEFORE friendly mapping.
+      authLog('landing_oauth_error', { code: rawCode, message: rawMessage.slice(0, 200) });
+      oauthTimelineLog(
+        'oauth_error',
+        {
+          code: rawCode.slice(0, 80),
+          msg: rawMessage.slice(0, 120),
+          os: getRuntimeOs(),
+          despia: isDespiaRuntime(),
+        },
+        'Landing.tsx:runOAuthSignIn.catch',
+      );
       const msg = getFriendlyAuthError(error);
       if (msg !== '__SUPPRESS__') toast.error(msg);
       setOauthOverlay(null);

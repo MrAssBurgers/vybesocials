@@ -44,9 +44,15 @@ export function mapOAuthLinkError(error: unknown): VybeAuthError {
   }
   if (error && typeof error === 'object') {
     const e = error as { message?: string; code?: string; name?: string };
+    const code = e.code || e.name;
+    const rawMessage = typeof e.message === 'string' ? e.message.trim() : '';
+    // Preserve Firebase message/code; never collapse to bare "Sign-in failed" when a code exists.
+    const message =
+      rawMessage ||
+      (code ? `Sign-in failed (${code})` : 'Sign-in failed');
     return {
-      message: e.message || 'Sign-in failed',
-      name: e.code || e.name,
+      message,
+      name: code,
     };
   }
   return { message: 'Sign-in failed' };

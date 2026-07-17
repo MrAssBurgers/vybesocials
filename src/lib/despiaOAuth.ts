@@ -702,9 +702,13 @@ function startDespiaOAuthNoncePoll(nonce: string): void {
     }
   };
 
+  // [iOS-only] Delay first poll so exchange + oauthDismiss usually win the race
+  // against poll_oauth_nonce redeem (avoids competing with ASWeb dismiss).
+  // Android: poll ASAP — CCT already throttles background timers.
+  const initialPollDelayMs = getRuntimeOs() === 'ios' ? 1750 : 100;
   noncePollTimer = window.setTimeout(() => {
     void tick();
-  }, 100);
+  }, initialPollDelayMs);
 
   // When CCT dismisses, WebView timers unthrottle — poll immediately.
   const onVisible = () => {

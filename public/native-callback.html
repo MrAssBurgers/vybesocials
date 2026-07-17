@@ -22,7 +22,9 @@
      * iOS: close via HTTPS 302 (oauthDismiss → custom scheme) so ASWeb
      * dismisses. Direct com.despia.vybe:// from JS opens Safari and sticks.
      * Android: App Link close (CCT); oauth/ deeplink as secondary.
-     * Proven iOS path: exchange first, then one fireClose with hc= (no ASAP wait=1).
+     * Proven iOS path: exchange first, then one fireClose with hc= only.
+     * Never soft-close with wait=1 / custom-scheme JS navigate (Safari invalid address).
+     * If exchange hangs: leave blank page (or "Open VYBE" App Link UI after success).
      */
     (function () {
       var DEFAULT_SCHEME = 'com.despia.vybe';
@@ -35,7 +37,6 @@
       var DEBUG_SESSION = 'bd2545';
       var DEBUG_RUN = 'ios-oauth-timeline';
       var closed = false;
-      var softFired = false;
       var bootAt = Date.now();
       var fireCloseCalled = false;
       var oauthDismissNavCalled = false;
@@ -49,6 +50,12 @@
         } catch (e) {
           return null;
         }
+      }
+
+      /** Despia oauth:// state must include scheme + nonce + provider (same as decodeOAuthState). */
+      function hasValidDespiaOAuthState(obj) {
+        if (!obj || typeof obj !== 'object') return false;
+        return !!(obj.scheme && obj.nonce && obj.provider);
       }
 
       function getParams() {
@@ -230,6 +237,36 @@
         return;
       }
 
+      // [iOS-only] Apple JWT without Despia oauth:// state (Apple JS redirect /
+      // WKWebView residue) — close quietly; do not exchange or oauthDismiss.
+      // Android Apple oauth:// with valid Despia state still exchanges below.
+      var validDespiaState = hasValidDespiaOAuthState(stateObj);
+      if (
+        !isAndroid() &&
+        tokenIss.indexOf('appleid.apple.com') !== -1 &&
+        !validDespiaState
+      ) {
+        // #region agent log
+        dbg('callback_boot', 'T', {
+          earlyReturnAppleNoDespiaState: true,
+          hasIdToken: !!idToken,
+          idTokenLen: idToken ? String(idToken).length : 0,
+          hasCode: !!authCode,
+          hasError: !!error,
+          hasState: !!stateRaw,
+          validDespiaState: false,
+          exchangeAction: 'none',
+        });
+        dbg('apple_no_despia_state_early_return', 'F', {
+          hasIdToken: !!idToken,
+          hasError: !!error,
+          hasState: !!stateRaw,
+        });
+        // #endregion
+        try { window.close(); } catch (eAppleClose) {}
+        return;
+      }
+
       // Select exchange action (logged before fireClose).
       var exchangeAction = 'none';
       if (error) {
@@ -254,7 +291,7 @@
         hasError: !!error,
         android: isAndroid(),
         noncePresent: !!nonce,
-        softFired: false,
+        validDespiaState: validDespiaState,
         dismissMode: isAndroid() ? 'applink' : 'oauthDismiss',
         exchangeAction: exchangeAction,
       });
@@ -266,7 +303,7 @@
       // #endregion
 
       function fireClose(query) {
-        if (!query || closed) return;
+        if (!query || closed || fireCloseCalled) return;
         fireCloseCalled = true;
         try {
           if (window.opener) {
@@ -340,30 +377,17 @@
       }
 
       // Legacy PKCE builds — exchange if code+cv present (requires client_secret on server).
+      // No iOS wait=1 soft-close: if exchange hangs, leave blank page.
       if (authCode && cv) {
         var REDIRECT_URI = APP_ORIGIN + '/native-callback.html';
-        var pkcePromise = callAuthQr({
+        callAuthQr({
           action: 'exchange_google_code',
           code: authCode,
           codeVerifier: cv,
           redirectUri: REDIRECT_URI,
           nonce: nonce,
-        });
-
-        var pkceSlowTimer = setTimeout(function () {
-          if (closed || !nonce) return;
-          softFired = true;
-          fireClose(
-            'nonce=' +
-              encodeURIComponent(nonce) +
-              '&wait=1&provider=google' +
-              (intent === 'link' ? '&intent=link' : ''),
-          );
-        }, 6000);
-
-        pkcePromise
+        })
           .then(function (result) {
-            clearTimeout(pkceSlowTimer);
             var payload = payloadOf(result);
             var handoff = payload.code;
             if (!result.ok || !handoff) throw new Error(errMsgOf(result) || 'exchange_failed');
@@ -372,7 +396,6 @@
             if (!closed) fireClose(q);
           })
           .catch(function () {
-            clearTimeout(pkceSlowTimer);
             if (!closed) fireClose('error=exchange_failed');
           });
         return;
@@ -384,8 +407,8 @@
       }
 
       // Exchange-first then single close with hc= (proven iOS path).
-      // Do NOT soft-close with wait=1 before exchange — that caused Safari
-      // "address is invalid" and stuck ASWeb while nonce poll still logged in.
+      // Do NOT soft-close with wait=1 — that caused Safari "address is invalid"
+      // and stuck ASWeb. If exchange hangs, leave blank / Open VYBE UI only after hc=.
       var stashPromise =
         provider === 'apple'
           ? callAuthQr({
@@ -395,21 +418,8 @@
             })
           : callAuthQr({ action: 'exchange_google', idToken: idToken, nonce: nonce });
 
-      var slowTimer = setTimeout(function () {
-        if (closed) return;
-        softFired = true;
-        var softQ =
-          'nonce=' +
-          encodeURIComponent(nonce) +
-          '&wait=1&provider=' +
-          encodeURIComponent(provider);
-        if (intent === 'link') softQ += '&intent=link';
-        fireClose(softQ);
-      }, 6000);
-
       stashPromise
         .then(function (result) {
-          clearTimeout(slowTimer);
           var payload = payloadOf(result);
           var handoff = payload.code;
           if (!result.ok || !handoff) throw new Error(errMsgOf(result) || 'exchange_failed');
@@ -422,7 +432,6 @@
             handoffLen: String(handoff).length,
             intent: intent,
             alreadyClosed: closed,
-            softFired: softFired,
             msSinceBoot: Date.now() - bootAt,
             exchangeAction: exchangeAction,
           });
@@ -444,7 +453,6 @@
           }, 1800);
         })
         .catch(function () {
-          clearTimeout(slowTimer);
           // #region agent log
           dbg('exchange_result', 'T', {
             ok: false,
