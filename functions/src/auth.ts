@@ -1227,8 +1227,9 @@ export const authQr = onCall(
   const action = (data.action || 'create').toLowerCase();
   const nonce = typeof data.nonce === 'string' ? data.nonce.trim() : '';
 
-  /** Debug-session OAuth telemetry (Despia cannot reach localhost ingest). */
+  /** Debug-session OAuth telemetry (Despia cannot reach localhost ingest). Admin-only. */
   if (action === 'debug_oauth') {
+    await requireAdmin(request);
     const event = String((data as { event?: string }).event || '').slice(0, 120);
     const hypothesisId = String((data as { hypothesisId?: string }).hypothesisId || '').slice(0, 8);
     const location = String((data as { location?: string }).location || '').slice(0, 160);
@@ -1260,6 +1261,7 @@ export const authQr = onCall(
   }
 
   if (action === 'debug_oauth_dump') {
+    await requireAdmin(request);
     // Prefer newest-by-createdAt (single-field index). Filtering sessionId
     // + orderBy createdAt needs a composite index we may not have, and a
     // bare where+limit returns an arbitrary sample that misses fresh boots.
@@ -1275,6 +1277,7 @@ export const authQr = onCall(
       .reverse();
     return { events };
   }
+
 
   if (action === 'exchange_google') {
     const ip = request.rawRequest?.ip || 'anon';
