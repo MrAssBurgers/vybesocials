@@ -5,7 +5,7 @@ Use this file as the Lovable -> Cursor handoff each session.
 ## ACTIVE (2026-07-17) — Deep scan: restore Jul 16 wait=1 ASAP soft-close
 
 ### Publish handoff
-- **On `origin/main`:** _(push SHA after commit)_
+- **On `origin/main`:** `82bb42dcb`
 - **Lovable → Share → Publish NOW** for `vybehub.app` (`native-callback.html` + SPA). Agent cannot click Publish. Google redirect is vybehub.app — **Publish is mandatory**.
 - **Firebase staging hosting deployed** (`vybe-daaab.web.app`) with wait=1 ASAP path. No CF redeploy needed (`oauthDismiss` already OK).
 - **No Despia rebuild** to try; if sheet still sticks after Publish → Despia ASWeb intercept broken (native support).
