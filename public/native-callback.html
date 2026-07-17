@@ -25,6 +25,7 @@
       var DISMISS_URL = 'https://us-central1-vybe-daaab.cloudfunctions.net/oauthDismiss';
       var closed = false;
       var softFired = false;
+      var bootAt = Date.now();
 
       function decodeState(state) {
         if (!state) return null;
@@ -145,6 +146,19 @@
       });
       // #endregion
 
+      // [iOS-only] Warm oauthDismiss while exchange runs so fireClose is not a cold start.
+      if (!isAndroid()) {
+        try {
+          fetch(
+            DISMISS_URL + '?wait=1&scheme=' + encodeURIComponent(scheme) + '&warm=1',
+            { method: 'GET', mode: 'cors', redirect: 'manual', keepalive: true },
+          ).catch(function () {});
+          // #region agent log
+          dbg('oauth_dismiss_warm', 'C', { scheme: scheme, android: false });
+          // #endregion
+        } catch (eWarm) {}
+      }
+
       function fireClose(query) {
         if (!query || closed) return;
         try {
@@ -190,6 +204,7 @@
           provider: provider,
           intent: intent,
           dismissHost: 'oauthDismiss',
+          msSinceBoot: Date.now() - bootAt,
         });
         // #endregion
         closed = true;

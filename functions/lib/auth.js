@@ -887,6 +887,9 @@ export const oauthDismiss = onRequest({
     cpu: 0.083,
     concurrency: 1,
     maxInstances: 4,
+    // [iOS-only path] Keep one warm instance — cold start (~3s) left ASWeb blank
+    // after native-callback fireClose (runtime: 2026-07-17T16:31:50Z latency 3.07s).
+    minInstances: 1,
 }, async (req, res) => {
     const rawQs = typeof req.url === 'string' && req.url.includes('?') ? req.url.slice(req.url.indexOf('?') + 1) : '';
     const safeQs = rawQs.replace(/[^a-zA-Z0-9_=&%.-]/g, '').slice(0, 512);

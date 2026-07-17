@@ -9,6 +9,7 @@ Use this file as the Lovable -> Cursor handoff each session.
 - **H2 (B):** `externalLinkGuard` approve called patched `window.open` → re-prompt loop.
 - **Fix:** approve/never-ask uses saved `nativeOpen`.
 - **Verify:** Lovable Publish + iOS Google sign-in; expect CF `fire_close mode:oauthDismiss` + `oauth_complete_success`.
+- **Shipped:** `383daf2e3` on `origin/main`. `authQr` deployed. **Lovable → Share → Publish** for `vybehub.app`.
 
 ## ACTIVE (2026-07-17) — OAuth instrumentation cleaned; Google id_token flow live
 
