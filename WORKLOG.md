@@ -5,7 +5,7 @@ Use this file as the Lovable -> Cursor handoff each session.
 ## ACTIVE (2026-07-17) — iOS OAuth UX: faster session + VYBE font flash
 
 ### Publish handoff
-- **On `origin/main`:** *(SHA after push)* — **Lovable → Share → Publish NOW** for `vybehub.app`.
+- **On `origin/main`:** `32627b148` — **Lovable → Share → Publish NOW** for `vybehub.app`.
 - Google ASAP `wait=1` auto-close **untouched** (still 1750ms first-poll delay while ASWeb open).
 - No CF / no `native-callback.html` change.
 
