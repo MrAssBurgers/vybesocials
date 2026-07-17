@@ -2,9 +2,18 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## PUBLISH NOW (2026-07-17) — Native iOS auth scaffold (flag OFF)
+
+- **On `origin/main`:** `b99b069f8`
+- **What shipped:** web-side `nativeAuth` scaffold + `native_ios_auth_v1` (default **OFF**); router prefers bridge only when flag ON **and** Despia advertises it; legacy containment comments on `native-callback` / `oauthDismiss` / `exchange_*`.
+- **Firebase deploy:** skipped (auth.ts comments only; no runtime function change). Hosting/SPA via Lovable.
+- **Not claimed:** AuthenticationServices / GIDSignIn — still blocked on Despia native bridge + iOS rebuild.
+- **Lovable → Share → Publish required** for `vybehub.app` (agent cannot click Publish).
+- **Verify after Publish:** flag still OFF → existing Despia oauth:// / Apple JS path unchanged; no native sheets until Despia ships bridge.
+
 ## ACTIVE (2026-07-17) — Native iOS auth scaffold (flag OFF, blocked on Despia)
 
-- **Scaffold shipped in repo** — `src/lib/nativeAuth/*` + flag `native_ios_auth_v1` (default **OFF**).
+- **On `origin/main`:** `b99b069f8` — scaffold shipped (`src/lib/nativeAuth/*` + flag `native_ios_auth_v1` default **OFF**).
 - Router: `nativeOAuth.ts` prefers `native-auth-bridge` only when flag ON **and** Despia advertises bridge (`__VYBE_NATIVE_AUTH__` / `nativeAuthBridge` / `webkit.messageHandlers.nativeAuth`); else existing Despia oauth:// / Apple JS. Android App Link path unchanged.
 - Legacy containment comments on `public/native-callback.html`, `oauthDismiss`, `exchange_*` — forbidden on native path.
 - **Blocked on Despia:** true AuthenticationServices + GIDSignIn + `nativeauth://` bridge. See [docs/DESPIA_NATIVE_AUTH_SUPPORT_REQUEST.md](docs/DESPIA_NATIVE_AUTH_SUPPORT_REQUEST.md) and [docs/NATIVE_IOS_AUTH_AUDIT.md](docs/NATIVE_IOS_AUTH_AUDIT.md).
