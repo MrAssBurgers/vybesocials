@@ -507,7 +507,11 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
         },
         'Landing.tsx:runOAuthSignIn.catch',
       );
-      const msg = getFriendlyAuthError(error);
+      let msg = getFriendlyAuthError(error);
+      // Never surface Apple's opaque "unknown" / empty object toasts.
+      if (!msg || /^unknown$/i.test(msg.trim()) || /^\[object Object\]$/i.test(msg.trim())) {
+        msg = 'Apple Sign-In could not open. Close any leftover browser sheet and try again.';
+      }
       if (msg !== '__SUPPRESS__') toast.error(msg);
       setOauthOverlay(null);
     } finally {

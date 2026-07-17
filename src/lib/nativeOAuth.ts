@@ -2,6 +2,7 @@
  * Platform-aware OAuth — Despia store builds, Capacitor shells, Safari/PWA, desktop.
  *
  * Despia Google + Apple use oauth:// (ASWebAuthenticationSession / Custom Tabs).
+ * iOS Apple no longer uses Apple JS usePopup (WKWebView → opaque "unknown").
  * iOS: ASAP JS `{scheme}://oauth/auth?wait=1` soft-close (Jul 16; page stays
  * loaded) then exchange + hc= hard close / nonce poll. Brief Safari invalid-
  * address toast possible — auto-close is priority. Android: App Link `/auth?hc=`

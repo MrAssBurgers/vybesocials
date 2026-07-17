@@ -52,4 +52,11 @@ describe('getFriendlyAuthError', () => {
       'Sign-in failed. Error code: auth/weird-code',
     );
   });
+
+  it('never surfaces bare Apple unknown as the toast text', () => {
+    expect(getFriendlyAuthError({ code: 'unknown', message: 'unknown' })).toMatch(/could not open/i);
+    expect(getFriendlyAuthError({ name: 'unknown', message: 'unknown' })).toMatch(/could not open/i);
+    expect(getFriendlyAuthError({ message: 'unknown' })).toMatch(/could not open/i);
+    expect(getFriendlyAuthError('unknown')).toMatch(/could not open/i);
+  });
 });

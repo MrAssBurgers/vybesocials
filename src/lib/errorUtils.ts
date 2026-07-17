@@ -98,7 +98,12 @@ export function getFriendlyAuthError(error: unknown): string {
   ) {
     return 'Apple rejected sign-in. Confirm Services ID com.despia.vybe.web and return URL https://vybehub.app/native-callback.html.';
   }
-  if (/^unknown$/i.test(message) || /^unknown$/i.test(code)) {
+  // Bare Apple/Despia "unknown" must never reach the toast as the literal word.
+  if (
+    /^unknown$/i.test(message.trim()) ||
+    /^unknown$/i.test(code.trim()) ||
+    /^\[object Object\]$/i.test(message.trim())
+  ) {
     return 'Apple Sign-In could not open. Close any leftover browser sheet and try again.';
   }
   if (/Services ID|native-callback\.html/i.test(message)) {

@@ -6,10 +6,13 @@ const NEVER_ASK_KEY = 'vybe-external-link-never-ask';
  * Apple JS SDK (usePopup) calls window.open → appleid.apple.com and needs a real
  * Window + opener for postMessage. Blocking/prompting returns null → Apple rejects
  * with opaque "unknown" in ~300ms. Never prompt or strip opener for these hosts.
+ * Despia iOS Apple sign-in now uses oauth:// (see despiaOAuth); keep this allowlist
+ * for Safari / non-Despia Apple JS and any residual SDK opens.
  */
 const OAUTH_AUTH_HOSTS = new Set([
   'appleid.apple.com',
   'idmsa.apple.com',
+  'appleid.cdn-apple.com',
 ]);
 
 export type ExternalLinkRequest = {
@@ -76,9 +79,6 @@ export function subscribeExternalLinkPrompt(
 }
 
 function openExternalAllowed(url: string): void {
-  // #region agent log
-  fetch('http://127.0.0.1:7693/ingest/1847f3ab-7d03-4b99-8dbe-84076ae9145e',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'bd2545'},body:JSON.stringify({sessionId:'bd2545',runId:'ios-post-fix',hypothesisId:'B',location:'externalLinkGuard.ts:openExternalAllowed',message:'opening via nativeOpen',data:{hasNativeOpen:!!nativeOpen,host:hostOf(url)},timestamp:Date.now()})}).catch(()=>{});
-  // #endregion
   const open = nativeOpen || window.open.bind(window);
   open(url, '_blank', 'noopener,noreferrer');
 }
@@ -89,9 +89,6 @@ export function resolveExternalLinkPrompt(allowed: boolean, neverAsk = false): v
   pending = null;
   notify();
   current?.resolve(allowed);
-  // #region agent log
-  fetch('http://127.0.0.1:7693/ingest/1847f3ab-7d03-4b99-8dbe-84076ae9145e',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'bd2545'},body:JSON.stringify({sessionId:'bd2545',runId:'ios-post-fix',hypothesisId:'B',location:'externalLinkGuard.ts:resolveExternalLinkPrompt',message:'resolve external link',data:{allowed,neverAsk,hasUrl:!!current},timestamp:Date.now()})}).catch(()=>{});
-  // #endregion
   if (allowed && current) {
     openExternalAllowed(current.url);
   }
@@ -114,9 +111,6 @@ export function promptExternalLink(url: string): Promise<boolean> {
     pending.resolve(false);
     pending = null;
   }
-  // #region agent log
-  fetch('http://127.0.0.1:7693/ingest/1847f3ab-7d03-4b99-8dbe-84076ae9145e',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'bd2545'},body:JSON.stringify({sessionId:'bd2545',runId:'ios-post-fix',hypothesisId:'B',location:'externalLinkGuard.ts:promptExternalLink',message:'prompt shown',data:{host:hostOf(clean)},timestamp:Date.now()})}).catch(()=>{});
-  // #endregion
   return new Promise((resolve) => {
     pending = { url: clean, host: hostOf(clean), resolve };
     notify();

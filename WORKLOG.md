@@ -2,48 +2,75 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
-## ACTIVE (2026-07-17) — iOS Apple "unknown error" (externalLinkGuard)
+## ACTIVE (2026-07-17) — iOS Apple: oauth:// (popup unknown is dead)
 
 ### Publish handoff
-- **On `origin/main`:** `4f1eb3582`
-- **Lovable → Share → Publish NOW** for `vybehub.app` (SPA: `externalLinkGuard` + `appleSignIn` + `errorUtils`). Agent cannot click Publish.
+- **On `origin/main`:** _(push SHA after commit)_
+- **Lovable → Share → Publish NOW** for `vybehub.app` (SPA: `despiaOAuth` + toast guards). Agent cannot click Publish.
 - **No CF / no native-callback change.** Google ASAP `wait=1` path **unchanged**.
 - **No Despia rebuild.**
 
+### Prod verification (pre-fix)
+| Check | Result |
+|-------|--------|
+| `vybehub.app` has `appleid.apple.com` allowlist | **YES** (`Set(["appleid.apple.com","idmsa.apple.com"])` in `app-YCvSrUgx.js`) |
+| Staging `vybe-daaab.web.app` has allowlist | **NO** |
+| Firestore `apple_sdk_*` after allowlist Publish | Still `msg:unknown` in **300–350ms** (e.g. 19:46:02Z) |
+| Toast `oauth_error` | Still `code:unknown` / `msg:unknown` |
+
 ### Exact cause
-Firestore `oauth_debug_events` (session `bd2545`, 19:38:49Z):
-- `apple_sdk_start` → `apple_sdk_done` in **349ms** with `code/error/msg: unknown`
-- Landing toast: `oauth_error` `code: unknown` / `msg: unknown`
+Allowlist fix (`4f1eb3582`) **did land on prod**, but was **incomplete**. Apple JS `usePopup` still fails inside Despia WKWebView: open may return a Window, but auth completes with opaque `{error:"unknown"}` in &lt;500ms. Not a missing Publish.
 
-Root: `installExternalLinkGuard()` patched `window.open` and returned **`null`** for all `https://` URLs (including `appleid.apple.com`). Apple JS SDK (`usePopup: true`) needs a real popup Window + opener for postMessage; null open → Apple rejects with opaque **"unknown"**.
+Root: **popup Apple Sign-In cannot work reliably in this Despia iOS WebView.** Android already used `oauth://` + `exchange_apple`.
 
-Not caused by: Google wait=1 ASAP, nonce, Firebase credential, invalid_client, or native-callback Apple early-return (those paths untouched / still correct).
+### Fix
+1. **[iOS Despia] Route Apple through `oauth://`** via `buildAppleOAuthUrl` + `launchDespiaOAuthUrl` (same as Android). Strategy: `oauth-bridge`.
+2. Settings → Connections Apple link on iOS Despia: same oauth:// path.
+3. Keep Apple JS SDK for **non-Despia** browser/Safari only.
+4. Strengthen OAuth host allowlist (`appleid.cdn-apple.com`) for residual JS opens.
+5. Harden `getFriendlyAuthError` + Landing catch so toast **never** shows bare `"unknown"`.
+6. **Do not touch** native-callback Google ASAP `wait=1` (Apple oauth:// reuses same soft-close when nonce present).
 
-### Fix (minimal, iOS Apple)
-1. **Allowlist** `appleid.apple.com` / `idmsa.apple.com` in `externalLinkGuard` — pass through `originalOpen` with original features (keep opener).
-2. Map Apple `"unknown"` → `apple/popup-blocked` friendly copy (safety net if popup still fails).
-3. Remove link-path `setInterval(dismissAppleWebSheetResidue)` (same kill risk as prior sign-in interval).
+### Files
+- `src/lib/despiaOAuth.ts` — iOS Apple → oauth://
+- `src/lib/nativeOAuth.ts` — comment sync
+- `src/lib/externalLinkGuard.ts` — CDN host + remove debug ingest fetches
+- `src/lib/externalLinkGuard.test.ts`
+- `src/lib/errorUtils.ts` + `errorUtils.auth.test.ts`
+- `src/pages/Landing.tsx` — unknown toast guard
+
+### Verify checklist (after Publish)
+1. iOS Apple: Continue with Apple → ASWeb Apple sheet (not instant "unknown" toast) → sign-in completes.
+2. Timeline: `oauth_launch strategy:oauth-bridge` → `exchange_apple` / nonce redeem → `oauth_complete_success` (no `apple_sdk_done msg:unknown` in &lt;500ms).
+3. iOS Google: ASAP wait=1 auto-close still works (do not regress).
+4. Android Google/Apple oauth:// unchanged.
+
+### Tests
+- `npm run build` green
+- `npm run test` green (371)
+
+### Next 3
+1. Lovable → Share → Publish **immediately**.
+2. Device: iOS Apple Continue → confirm sheet + signed in.
+3. Device: iOS Google → confirm sheet still auto-closes.
+
+## SUPERSEDED (2026-07-17) — iOS Apple "unknown error" (externalLinkGuard)
+
+### Publish handoff
+- **On `origin/main`:** `4f1eb3582`
+- **Lovable → Share → Publish** landed allowlist on `vybehub.app`, but Apple still failed (see ACTIVE).
+
+### Exact cause (partial)
+`installExternalLinkGuard()` returned **`null`** for `https://` including `appleid.apple.com`. Allowlist fixed open-null; WKWebView popup still returns Apple `unknown`.
+
+### Fix (superseded by oauth://)
+Allowlist + friendly unknown mapping — necessary but not sufficient on Despia iOS.
 
 ### Files
 - `src/lib/externalLinkGuard.ts` — OAuth auth host bypass
 - `src/lib/externalLinkGuard.test.ts` — allowlist unit tests
 - `src/lib/appleSignIn.ts` — unknown → popup-blocked; link interval removed
 - `src/lib/errorUtils.ts` — friendly mapping for `unknown` / `apple/popup-blocked`
-
-### Verify checklist (after Publish)
-1. iOS Apple: Continue with Apple → Face ID / Continue sheet opens (no instant "unknown" toast).
-2. Timeline: `apple_sdk_start` → `apple_sdk_done ok:true` (or real cancel), **not** `msg: unknown` in &lt;500ms.
-3. iOS Google: ASAP wait=1 auto-close still works (do not regress).
-4. Android Google/Apple oauth:// unchanged.
-
-### Tests
-- `npm run build` green
-- `npm run test` green (370)
-
-### Next 3
-1. Lovable → Share → Publish **immediately**.
-2. Device: iOS Apple Continue → confirm Face ID / sign-in.
-3. Device: iOS Google → confirm sheet still auto-closes.
 
 ## SUPERSEDED (2026-07-17) — Deep scan: restore Jul 16 wait=1 ASAP soft-close
 
