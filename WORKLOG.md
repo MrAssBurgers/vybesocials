@@ -2,6 +2,13 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## DONE (2026-07-17) — GitHub CI prefer-const on main
+
+- **Cause:** `src/pages/Landing.tsx` OAuth catch used `let msg` → eslint `prefer-const` (exit 1). Failed SHAs: `3720225`…`0f771b9`.
+- **Fix:** `let` → `const` only. OAuth/DM logic untouched.
+- **SHA:** `c3fe3e81d` — CI success: https://github.com/FREAZLeY/vybeapp-3df63bbb/actions/runs/29614552708
+- Local: lint/typecheck/test/build green.
+
 ## ACTIVE (2026-07-17) — Lovable preview: DM internal / Push / reactions
 
 ### Root causes (deep scan)
