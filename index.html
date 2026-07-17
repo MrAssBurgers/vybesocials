@@ -39,7 +39,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=Permanent+Marker&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Permanent+Marker&display=optional"
       rel="stylesheet"
     />
     <script>
@@ -54,7 +54,8 @@
           } else {
             markReady();
           }
-          setTimeout(markReady, 300);
+          // Cap only — do not mark ready at 300ms (that caused Permanent Marker FOUT).
+          setTimeout(markReady, 1200);
         } catch (e) {
           document.documentElement.setAttribute('data-vybe-fonts-ready', 'true');
         }
@@ -478,6 +479,7 @@
         overflow: visible;
         vertical-align: middle;
         -webkit-font-smoothing: antialiased;
+        opacity: 0;
         background: linear-gradient(
           90deg,
           hsl(var(--primary)) 0%,
@@ -493,6 +495,9 @@
           drop-shadow(0 1px 0 hsl(var(--background) / 0.85))
           drop-shadow(0 0 8px hsl(var(--primary) / 0.55))
           drop-shadow(0 0 16px hsl(var(--accent) / 0.4));
+      }
+      html[data-vybe-fonts-ready] #vybe-static-boot .vybe-splash-wordmark {
+        opacity: 1;
       }
       #vybe-static-boot.vybe-static-boot-fade {
         opacity: 0;

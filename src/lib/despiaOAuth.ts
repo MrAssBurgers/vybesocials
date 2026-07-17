@@ -20,16 +20,27 @@ const DESPIA_OAUTH_URL_KEYS = ['url', 'oauthUrl', 'deeplink', 'deepLink'] as con
 
 let noncePollTimer: number | null = null;
 let noncePollGeneration = 0;
+/** Active poll nonce (lowercase) — resume must not restart the iOS soft-close delay. */
+let noncePollActiveNonce: string | null = null;
+/** Clears the initial delay / interval and runs tick immediately. */
+let noncePollAccelerate: (() => void) | null = null;
 let sheetCancelTimer: number | null = null;
 let sheetCancelGeneration = 0;
 
 function stopDespiaOAuthNoncePoll(): void {
   noncePollGeneration += 1;
+  noncePollActiveNonce = null;
+  noncePollAccelerate = null;
   if (typeof window === 'undefined') return;
   if (noncePollTimer != null) {
     window.clearTimeout(noncePollTimer);
     noncePollTimer = null;
   }
+}
+
+/** Run the next nonce poll tick now (sheet dismissed / app visible). */
+function accelerateDespiaOAuthNoncePoll(): void {
+  noncePollAccelerate?.();
 }
 
 /** Firebase web client ID (public) — matches native/android/google-services.json */
@@ -143,11 +154,22 @@ export function getDespiaOAuthPendingProvider(): 'google' | 'apple' | null {
   return null;
 }
 
-/** Resume nonce poll after Landing remount while OAuth sheet may still be finishing. */
+/**
+ * Resume nonce poll after Landing remount / sheet dismiss.
+ * If already polling the same nonce, accelerate — do NOT restart the iOS 1750ms delay
+ * (that made Apple feel slow after ASWeb closed).
+ */
 export function resumeDespiaOAuthNoncePollIfPending(): void {
   if (typeof window === 'undefined' || !isDespiaOAuthInFlight()) return;
   const nonce = sessionStorage.getItem(DESPIA_OAUTH_NONCE_KEY);
-  if (nonce) startDespiaOAuthNoncePoll(nonce);
+  if (!nonce) return;
+  const clean = nonce.trim().toLowerCase();
+  if (noncePollActiveNonce === clean) {
+    accelerateDespiaOAuthNoncePoll();
+    return;
+  }
+  // Sheet already dismissed (or remount after soft-close) — poll immediately.
+  startDespiaOAuthNoncePoll(nonce, { immediate: true });
 }
 
 export function clearDespiaOAuthPending(): void {
@@ -646,16 +668,25 @@ async function redeemOAuthHandoffCode(code: string): Promise<RedeemedHandoff> {
  * Poll authQr for a handoff stashed under the OAuth nonce.
  * This logs the user in even when Despia never reinjects the deeplink into the WebView.
  * Android Custom Tabs throttle background WebView timers — poll harder when visible.
+ *
+ * @param opts.immediate — skip iOS soft-close delay (sheet already dismissed / resume).
  */
-function startDespiaOAuthNoncePoll(nonce: string): void {
+function startDespiaOAuthNoncePoll(nonce: string, opts?: { immediate?: boolean }): void {
   if (typeof window === 'undefined') return;
   const clean = nonce.trim().toLowerCase();
   if (!/^[a-f0-9]{16,64}$/i.test(clean)) return;
+
+  // Same nonce already polling — do not reset the soft-close delay timer.
+  if (noncePollActiveNonce === clean) {
+    if (opts?.immediate) accelerateDespiaOAuthNoncePoll();
+    return;
+  }
 
   stopDespiaOAuthNoncePoll();
   const generation = noncePollGeneration;
   const startedAt = Date.now();
   const maxMs = 90_000;
+  noncePollActiveNonce = clean;
 
   const tick = async () => {
     if (generation !== noncePollGeneration) return;
@@ -689,8 +720,11 @@ function startDespiaOAuthNoncePoll(nonce: string): void {
           intent: storedIntent === 'link' ? 'link' : 'signin',
         });
         const synthetic = `${window.location.origin}/auth?hc=${encodeURIComponent(data.code)}&state=${encodeURIComponent(state)}${storedIntent === 'link' ? '&intent=link' : ''}`;
+        // completeDespiaOAuthFromUrl already dispatches despia-oauth-complete on success.
         const result = await completeDespiaOAuthFromUrl(synthetic);
-        window.dispatchEvent(new CustomEvent('despia-oauth-complete', { detail: result }));
+        if (result.error || !result.data.session?.user) {
+          window.dispatchEvent(new CustomEvent('despia-oauth-complete', { detail: result }));
+        }
         return;
       }
     } catch {
@@ -706,11 +740,22 @@ function startDespiaOAuthNoncePoll(nonce: string): void {
     }
   };
 
+  const accelerate = () => {
+    if (generation !== noncePollGeneration) return;
+    if (!isDespiaOAuthInFlight()) return;
+    if (noncePollTimer != null) {
+      window.clearTimeout(noncePollTimer);
+      noncePollTimer = null;
+    }
+    void tick();
+  };
+  noncePollAccelerate = accelerate;
+
   // [iOS-only] Delay first poll so ASAP wait=1 soft-close can dismiss ASWeb
-  // before redeem. Accelerate on visibility after the sheet actually hid.
+  // before redeem (Google race). Skip delay when sheet already closed (immediate).
   // Android: poll ASAP — CCT already throttles background timers.
   const isIos = getRuntimeOs() === 'ios';
-  const initialPollDelayMs = isIos ? 1750 : 100;
+  const initialPollDelayMs = opts?.immediate ? 0 : isIos ? 1750 : 100;
   let sawSheetHidden = typeof document !== 'undefined' && document.visibilityState === 'hidden';
   noncePollTimer = window.setTimeout(() => {
     void tick();
@@ -719,28 +764,30 @@ function startDespiaOAuthNoncePoll(nonce: string): void {
   // When CCT/ASWeb dismisses, WebView timers unthrottle — poll immediately.
   const onVisible = () => {
     if (generation !== noncePollGeneration) return;
-    if (document.visibilityState === 'hidden') {
+    if (typeof document !== 'undefined' && document.visibilityState === 'hidden') {
       sawSheetHidden = true;
       return;
     }
-    if (document.visibilityState !== 'visible') return;
     if (!isDespiaOAuthInFlight()) return;
-    // [iOS-only] Do not accelerate poll while sheet is still covering us.
-    if (isIos && !sawSheetHidden) return;
-    if (noncePollTimer != null) {
-      window.clearTimeout(noncePollTimer);
-      noncePollTimer = null;
+    // [iOS-only] Soft-close inject can focus the WebView while ASWeb is still up.
+    // Despia often never sets visibility=hidden during ASWeb — require either
+    // a real hide, or enough elapsed time that the sheet is dismissing.
+    if (isIos) {
+      const elapsed = Date.now() - startedAt;
+      if (!sawSheetHidden && elapsed < 450) return;
     }
-    void tick();
+    accelerate();
   };
   document.addEventListener('visibilitychange', onVisible);
   window.addEventListener('focus', onVisible);
+  document.addEventListener('app-resumed', onVisible);
   // Drop listeners when this poll generation ends (next stop/start bumps generation).
   const watchStop = window.setInterval(() => {
     if (generation !== noncePollGeneration) {
       window.clearInterval(watchStop);
       document.removeEventListener('visibilitychange', onVisible);
       window.removeEventListener('focus', onVisible);
+      document.removeEventListener('app-resumed', onVisible);
     }
   }, 1000);
 }
@@ -971,14 +1018,7 @@ async function completeDespiaOAuthFromUrlInner(url: string): Promise<DespiaOAuth
       } catch {
         /* ignore */
       }
-      try {
-        if (!linkIntent) {
-          const { claimProfileAfterOAuth } = await import('@/lib/oauthAccountLink');
-          await claimProfileAfterOAuth();
-        }
-      } catch {
-        /* optional */
-      }
+      // Notify UI immediately — do not await claim (was delaying session-ready UX).
       window.dispatchEvent(new CustomEvent('despia-oauth-complete', { detail: completion }));
       // #region agent log
       oauthTimelineLog(
@@ -991,6 +1031,13 @@ async function completeDespiaOAuthFromUrlInner(url: string): Promise<DespiaOAuth
         'despiaOAuth.ts:completeInner',
       );
       // #endregion
+      if (!linkIntent) {
+        void import('@/lib/oauthAccountLink')
+          .then(({ claimProfileAfterOAuth }) => claimProfileAfterOAuth())
+          .catch(() => {
+            /* optional */
+          });
+      }
     }
     return completion;
   } catch (err) {

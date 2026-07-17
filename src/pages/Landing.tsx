@@ -247,7 +247,16 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
         setOauthOverlay(null);
         setLoading(false);
         setIsOAuthReturn(false);
-        // Claim + rehydrate profile/queries immediately so home is warm on first paint.
+        const cached = getCachedCurrentProfile();
+        const dest = resolvePostLoginDestination(
+          profile ??
+            (cached
+              ? { onboarding_completed: cached.onboarding_completed, username: cached.username }
+              : null),
+        );
+        // Navigate + clear overlay immediately; claim/refresh warm home in background.
+        navigate(dest, { replace: true });
+        toast.success('Welcome back! ✨');
         void (async () => {
           try {
             await claimProfileAfterOAuth();
@@ -266,17 +275,6 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
           } catch {
             /* optional */
           }
-          const cached = getCachedCurrentProfile();
-          toast.success('Welcome back! ✨');
-          navigate(
-            resolvePostLoginDestination(
-              profile ??
-                (cached
-                  ? { onboarding_completed: cached.onboarding_completed, username: cached.username }
-                  : null),
-            ),
-            { replace: true },
-          );
         })();
         return;
       }
@@ -334,7 +332,9 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
         if (result) finishDespiaOAuth(result);
         else if (isDespiaOAuthInFlight()) {
           const provider = getDespiaOAuthPendingProvider();
-          if (provider) {
+          // Do not re-cover the UI after ASWeb dismiss (visibility visible) —
+          // full-screen Apple overlay left users staring at a spinner for seconds.
+          if (provider && document.visibilityState !== 'visible') {
             setOauthOverlay(provider);
             setLoading(true);
           }

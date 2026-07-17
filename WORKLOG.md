@@ -2,7 +2,46 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
-## ACTIVE (2026-07-17) — iOS Apple: prove prod oauth-bridge + kill unknown toast
+## ACTIVE (2026-07-17) — iOS OAuth UX: faster session + VYBE font flash
+
+### Publish handoff
+- **On `origin/main`:** *(SHA after push)* — **Lovable → Share → Publish NOW** for `vybehub.app`.
+- Google ASAP `wait=1` auto-close **untouched** (still 1750ms first-poll delay while ASWeb open).
+- No CF / no `native-callback.html` change.
+
+### What caused the delay
+1. `resumeDespiaOAuthNoncePollIfPending()` **restarted** the iOS nonce poll with a fresh **1750ms** delay every time the sheet closed / Landing resumed — Apple sat idle after ASWeb dismiss.
+2. Acceleration required `visibilityState === 'hidden'` first; Despia ASWeb often **never** flips hidden, so accelerate never ran.
+3. `claimProfileAfterOAuth` was **awaited before** `despia-oauth-complete`, and Landing awaited claim again before `navigate`.
+
+### What caused the font flash
+1. Brush wordmark preferred missing `'Vybe Font'` then `'Permanent Marker'` with Google `display=swap`.
+2. `data-vybe-fonts-ready` fired at **300ms** before the font finished → system cursive → Permanent Marker (looked like stacked/wrong font).
+3. Not duplicate React layers — FOUT on splash + `.vybe-wordmark-text`.
+
+### Fix
+1. Resume **accelerates** in-flight poll (no delay restart); soft-close still uses 1750ms until sheet dismiss / 450ms+ focus.
+2. Fire `despia-oauth-complete` before claim; Landing navigates + clears overlay immediately.
+3. Permanent Marker only; hide wordmark until fonts ready; `display=optional`.
+
+### Files
+- `src/lib/despiaOAuth.ts`, `src/pages/Landing.tsx`, `src/index.css`, `index.html`
+
+### Tests
+- `npm run build` green
+- `npm run test` green (374)
+
+### Verify (device)
+1. iOS Apple Continue → ASWeb → sheet closes → signed in **without** multi-second spinner stall.
+2. VYBE brush wordmark does **not** flash a different font on splash/home.
+3. iOS Google wait=1 sheet still auto-closes.
+
+### Next 3
+1. Lovable → Share → Publish.
+2. Device: Apple + Google OAuth smoke.
+3. Confirm Firestore timeline still `oauth-bridge-v2` / wait=1 soft-close.
+
+## SUPERSEDED (2026-07-17) — iOS Apple: prove prod oauth-bridge + kill unknown toast
 
 ### Verdict (evidence 2026-07-17 ~20:27Z)
 | Check | Result |
@@ -42,6 +81,7 @@ Use this file as the Lovable -> Cursor handoff each session.
 3. Confirm Firestore marker `oauth-bridge-v2`; if still `apple-js-sdk`/`localhost`, fix Despia web URL override.
 
 ## SUPERSEDED (2026-07-17) — iOS Apple: oauth:// (JS unknown is dead) [d386d6e34]
+
 
 ### Publish handoff
 - **On `origin/main`:** `d386d6e34` — **prod SPA already has oauth-bridge** (Publish landed).

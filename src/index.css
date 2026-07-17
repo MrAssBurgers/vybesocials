@@ -314,10 +314,11 @@ body.has-liquid-bg:not(.has-custom-bg) .dm-sidebar {
   padding-bottom: 0.25rem;
 }
 
-/* Live brush wordmark — high contrast on glass/gradients */
+/* Live brush wordmark — Permanent Marker only (Vybe Font @font-face is disabled).
+   Hide until data-vybe-fonts-ready to avoid system→brush FOUT (looks like stacked fonts). */
 .vybe-wordmark-text {
   display: inline-block;
-  font-family: 'Vybe Font', 'Permanent Marker', cursive;
+  font-family: 'Permanent Marker', cursive;
   font-weight: 400;
   font-style: normal;
   letter-spacing: -0.04em;
@@ -328,6 +329,7 @@ body.has-liquid-bg:not(.has-custom-bg) .dm-sidebar {
   vertical-align: middle;
   font-synthesis: none;
   -webkit-font-smoothing: antialiased;
+  opacity: 0;
   background: linear-gradient(
     90deg,
     hsl(var(--primary)) 0%,
@@ -343,6 +345,10 @@ body.has-liquid-bg:not(.has-custom-bg) .dm-sidebar {
     drop-shadow(0 1px 0 hsl(var(--background) / 0.85))
     drop-shadow(0 0 8px hsl(var(--primary) / 0.55))
     drop-shadow(0 0 16px hsl(var(--accent) / 0.4));
+}
+
+html[data-vybe-fonts-ready] .vybe-wordmark-text {
+  opacity: 1;
 }
 
 .light .vybe-wordmark-text {
@@ -382,7 +388,7 @@ html[data-vybe-bottom-nav-scroll='hidden'] .bottom-nav,
 }
 
 .dm-title {
-  font-family: 'Vybe Font', 'Permanent Marker', cursive;
+  font-family: 'Permanent Marker', cursive;
   font-weight: 400;
   font-style: normal;
   letter-spacing: -0.04em;
