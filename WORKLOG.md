@@ -13,9 +13,10 @@ Use this file as the Lovable -> Cursor handoff each session.
 | **Prove after Publish** | Timeline must show `buildMarker:oauth-bridge-v2` + `strategy:oauth-bridge` + real hostname (`vybehub.app`), never `apple-js-sdk` / `localhost` |
 
 ### Publish handoff
-- **Push SHA:** (this commit) — **Lovable → Share → Publish NOW** for `vybehub.app`.
+- **On `origin/main`:** `4e86fa160` — **Lovable → Share → Publish NOW** for `vybehub.app`.
 - Kill any Despia **localhost / live-reload** override — store app must load `vybehub.app`.
 - Force-quit + clear WKWebView cache if still seeing `apple-js-sdk` after Publish.
+- **Firebase staging:** `vybe-daaab.web.app` redeployed with `oauth-bridge-v2`.
 - **No CF / no native-callback change.** Google ASAP `wait=1` untouched (Apple reuses same soft-close).
 
 ### Code harden (this commit)
