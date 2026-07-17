@@ -47,7 +47,7 @@ async function findLikeRows(
     const byDoc = await getDocument<{ id?: string; created_at?: string; user_id?: string }>(
       'likes',
       likeDocId(uid, postId),
-    );
+    ).catch(() => null);
     if (byDoc?.id) merged.set(byDoc.id, byDoc);
 
     const rows = await getDocuments<{ id?: string; created_at?: string; user_id?: string }>('likes', [
@@ -70,6 +70,13 @@ export async function removePostReaction(
   postId: string,
   authUid?: string | null,
 ): Promise<void> {
+  try {
+    const { waitForAuthSession } = await import('@/lib/auth');
+    await waitForAuthSession(2000);
+  } catch {
+    /* non-fatal */
+  }
+
   const userIds = resolveLikeUserIds(userId, authUid);
   const rows = await findLikeRows(userIds, postId);
   const ids = new Set<string>();
@@ -112,6 +119,14 @@ export async function savePostReaction(params: {
 }): Promise<void> {
   const { userId, postId, reactionType, authUid } = params;
   if (!userId || !postId) throw new Error('Missing user or post id');
+
+  // Avoid auth-not-ready races that surface as "Missing or insufficient permissions".
+  try {
+    const { waitForAuthSession } = await import('@/lib/auth');
+    await waitForAuthSession(2000);
+  } catch {
+    /* non-fatal — write still attempted with current token */
+  }
 
   const userIds = resolveLikeUserIds(userId, authUid);
   const docId = likeDocId(userId, postId);

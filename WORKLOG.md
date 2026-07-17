@@ -2,7 +2,36 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
-## ACTIVE (2026-07-17) — Pending-error dump triage (AuthProvider / perms / DM send)
+## ACTIVE (2026-07-17) — Lovable preview: DM internal / Push / reactions
+
+### Root causes (deep scan)
+| # | Error | Root cause | Fix |
+|---|-------|------------|-----|
+| 1 | `Failed to send message… internal` | **Cloud Run `cpu_allocation`** — `sendDmMessage` was Gen2 default **1 vCPU**; concurrent cold starts + warm `oauthDismiss` exhausted project CPU. Logs 2026-07-17 ~21:09Z. Not conversation-id / block / OneSignal logic. | Deploy CF at **cpu 0.083**; client retries bare `internal` (still "try again", not "Waiting for connection") |
+| 2 | `[Push] Failed… internal` | **Same quota** on `sendPushNotification` (also 1 vCPU). Typing push + server `onDmMessageCreated` compete. **Push does not fail message send** (client backup already gated; push returns `{success:false}`). | Fractional CPU + soft-warn capacity faults |
+| 3 | `usePostReaction` permissions | Rules for `likes` OK (`willOwnUserField`). Race when auth token not ready; gate in `0f771b945` may be missing on stale preview. | `waitForAuthSession` before like write; soft-log permission; **Publish** for SPA gates |
+
+### Ship
+- **CF deployed** `vybe-daaab`: `sendDmMessage`, `sendPushNotification`, `onDmMessageCreated` → CPU **0.083** (verified).
+- **Client on `origin/main`:** _(fill SHA after push)_ — retries + reaction auth wait + push soft-log.
+- OAuth paths **untouched**.
+- Firestore rules **not loosened**.
+
+### Tests
+- `npm run build` green
+- `npm run test` green (377)
+
+### Still needs human
+1. **Lovable → Share → Publish** for client retry/reaction gates on `vybehub.app` / preview.
+2. Device: send DM in thread `0f080da7-…_wuy7bIo…` — should succeed even if push soft-warns.
+3. If CPU quota still spikes under fleet-wide cold starts, request GCP `run.googleapis.com/cpu_allocation` increase (many other CFs still 1 vCPU).
+
+### Next 3
+1. Lovable Publish.
+2. Device smoke: DM send + react on `/home`.
+3. Optional: pin more hot CFs to fractional CPU if quota returns.
+
+## SUPERSEDED (2026-07-17) — Pending-error dump triage (AuthProvider / perms / DM send)
 
 ### Publish handoff
 - **On `origin/main`:** `0f771b945` (pointer `f2887d731`) — **Lovable → Share → Publish** for `vybehub.app`.
@@ -36,14 +65,14 @@ Use this file as the Lovable -> Cursor handoff each session.
 - `npm run test` green (375)
 
 ### Still needs human / Despia / Spotify
-1. Lovable Publish for SPA.
-2. `firebase deploy --only functions:manageAccount` (or full functions) if prod deletion still fails.
-3. Device smoke: `/auth?hc=` OAuth return + `/home` + send DM + react on post.
-4. Spotify 503 remains upstream — no app fix beyond softer UX.
+1. Lovable Publish for SPA (`0f771b945`).
+2. Device smoke: `/auth?hc=` OAuth return + `/home` + send DM + react on post + settings deletion.
+3. Spotify 503 remains upstream — no app fix beyond softer UX.
+4. Push `internal` remains upstream (OneSignal/CF).
 
 ### Next 3
 1. Lovable → Share → Publish.
-2. Device: OAuth return + home (no useAuth cascade) + DM send.
+2. Device: OAuth return + home (no useAuth cascade) + DM send + deletion.
 3. If DM `internal` persists after Publish, inspect `sendDmMessage` CF logs (real server fault).
 
 ## SUPERSEDED (2026-07-17) — iOS OAuth UX: faster session + VYBE font flash

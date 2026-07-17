@@ -3,6 +3,7 @@ import {
   classifyDmSendError,
   dmSendFailureUserMessage,
   isPermanentDmSendFailure,
+  isRetryableCloudInternal,
   isTransientDmSendFailure,
 } from '@/lib/dmSendErrors';
 
@@ -59,6 +60,12 @@ describe('classifyDmSendError — blocked / rate-limit / transient', () => {
     expect(classifyDmSendError({ code: 'functions/internal', message: 'internal' })).toBe('unknown');
     expect(dmSendFailureUserMessage('unknown', 'internal')).toMatch(/try again/i);
     expect(dmSendFailureUserMessage('unknown', 'internal')).not.toMatch(/connection/i);
+  });
+
+  it('marks bare CF internal as in-flight retryable (Cloud Run capacity)', () => {
+    expect(isRetryableCloudInternal({ code: 'internal', message: 'internal' })).toBe(true);
+    expect(isRetryableCloudInternal({ name: 'internal', message: 'INTERNAL' })).toBe(true);
+    expect(isRetryableCloudInternal({ code: 'permission-denied', message: 'blocked' })).toBe(false);
   });
 
   it('classifies validation and permission distinctly', () => {

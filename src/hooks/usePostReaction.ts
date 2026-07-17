@@ -77,7 +77,13 @@ export function usePostReaction(post: PostReactionSource) {
         }
         queryClient.invalidateQueries({ queryKey: ['post-top-reactions', post.id] });
       } catch (error) {
-        console.error('[usePostReaction] failed:', error);
+        const msg = error instanceof Error ? error.message : String(error || '');
+        // Auth race / unsigned preview — soft-log; toast only for real failures after auth ready.
+        if (/insufficient permissions|permission-denied|Missing or insufficient/i.test(msg)) {
+          console.warn('[usePostReaction] permission skipped (auth race?):', msg);
+        } else {
+          console.error('[usePostReaction] failed:', error);
+        }
         setCurrentReaction(prevReaction);
         setIsLiked(prevIsLiked);
         setLikeCount(prevLikeCount);

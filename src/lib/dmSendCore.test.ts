@@ -119,4 +119,39 @@ describe('insertDmMessage — callable-only path', () => {
       }),
     );
   });
+
+  it('retries bare CF internal then succeeds (Cloud Run capacity)', async () => {
+    sendDmViaCloudFunction
+      .mockResolvedValueOnce({
+        data: null,
+        error: { message: 'internal', code: 'internal' },
+      })
+      .mockResolvedValueOnce({
+        data: {
+          id: 'msg-retry',
+          conversation_id: 'a_b',
+          sender_id: 'a',
+          content: 'hi',
+          view_mode: 'permanent',
+          views: [],
+          reactions: [],
+        },
+        error: null,
+      });
+
+    const { insertDmMessage } = await import('@/lib/dmSendCore');
+    const result = await insertDmMessage(
+      {
+        conversation_id: 'a_b',
+        sender_id: 'a',
+        content: 'hi',
+        client_message_id: 'temp-internal',
+      },
+      { otherProfileId: 'b' },
+    );
+
+    expect(result.error).toBeNull();
+    expect(result.data?.id).toBe('msg-retry');
+    expect(sendDmViaCloudFunction).toHaveBeenCalledTimes(2);
+  });
 });

@@ -26,7 +26,15 @@ const SKIP_BELL_PUSH_TYPES = new Set(['dm', 'call', 'group_message', 'typing']);
 
 /** send-push-notification — sends FCM / Web Push (bell row skipped for DM/call/typing). */
 export const sendPushNotification = onCall(
-  { secrets: [...ONESIGNAL_SECRETS] },
+  {
+    secrets: [...ONESIGNAL_SECRETS],
+    // Fractional CPU — 1 vCPU default exhausts run.googleapis.com/cpu_allocation.
+    // CPU < 1 requires concurrency 1.
+    memory: '256MiB',
+    cpu: 0.083,
+    concurrency: 1,
+    maxInstances: 40,
+  },
   async (request) => {
   const callerUid = requireAuth(request);
   enforceRateLimit(await rateLimit(`push:${callerUid}`, 60, 60));

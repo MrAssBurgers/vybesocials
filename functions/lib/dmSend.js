@@ -253,7 +253,17 @@ async function findExistingByClientMessageId(conversationId, senderProfileId, cl
  * Canonical DM send — single enforcement point for blocks, rate limits,
  * membership, schema, media, and idempotent reconnect retries.
  */
-export const sendDmMessage = onCall({ region: 'us-central1' }, async (request) => {
+/** Fractional CPU — default Gen2 1 vCPU blows project cpu_allocation under concurrent cold starts.
+ * CPU < 1 requires concurrency 1 (Cloud Run). Prefer more small instances over fat ones.
+ */
+const SEND_DM_OPTS = {
+    region: 'us-central1',
+    memory: '256MiB',
+    cpu: 0.083,
+    concurrency: 1,
+    maxInstances: 40,
+};
+export const sendDmMessage = onCall(SEND_DM_OPTS, async (request) => {
     const authUid = requireAuth(request);
     const allowed = await rateLimit(`dm-send:${authUid}`, 60, 60);
     enforceRateLimit(allowed);

@@ -10,6 +10,7 @@ import { sendMessagePush } from '@/lib/pushNotifications';
 import {
   classifyDmSendError,
   dmSendFailureUserMessage,
+  isRetryableCloudInternal,
   isTransientDmSendFailure,
 } from '@/lib/dmSendErrors';
 import type { Message, ViewMode } from '@/hooks/useMessages';
@@ -130,7 +131,8 @@ export async function insertDmMessage(
     inferOtherParticipantId(payload.conversation_id, payload.sender_id) ??
     null;
 
-  const maxAttempts = Math.max(1, opts?.maxAttempts ?? 2);
+  // Default 3 attempts so Cloud Run cpu_allocation / cold-start `internal` can recover.
+  const maxAttempts = Math.max(1, opts?.maxAttempts ?? 3);
 
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
     logDmSend({
@@ -160,6 +162,7 @@ export async function insertDmMessage(
         attempt: attempt + 1,
         ok: true,
       });
+      // Push is best-effort and never part of the send success path (server trigger owns peer push).
       firePeerPushBackup(payload, otherProfileId, opts?.push);
       recordChallengeActivity(
         payload.sender_id,
@@ -169,7 +172,9 @@ export async function insertDmMessage(
     }
 
     const kind = classifyDmSendError(cloud.error);
-    const retryable = isTransientDmSendFailure(kind) && attempt < maxAttempts - 1;
+    const retryable =
+      attempt < maxAttempts - 1 &&
+      (isTransientDmSendFailure(kind) || isRetryableCloudInternal(cloud.error));
     if (!retryable) {
       const message = dmSendFailureUserMessage(kind, cloud.error?.message);
       logDmSend({
@@ -188,7 +193,7 @@ export async function insertDmMessage(
       };
     }
 
-    await new Promise((r) => setTimeout(r, 300 * (attempt + 1)));
+    await new Promise((r) => setTimeout(r, 400 * (attempt + 1)));
   }
 
   return { data: null, error: { message: 'Failed to send message' } };

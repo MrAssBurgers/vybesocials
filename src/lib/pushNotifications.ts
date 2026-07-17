@@ -1,43 +1,61 @@
 import { db } from '@/lib/firebase';
 import { scheduleOfflinePush, isNativeShell } from '@/lib/despiaPush';
- 
- /**
-  * Send a push notification to a specific user via the edge function
-  */
- export async function sendPushNotification(options: {
-   userId: string;
-   title: string;
-   body: string;
-   url?: string;
-   tag?: string;
-   type?: 'message' | 'dm' | 'group_message' | 'typing' | 'call' | 'friend_request' | 'friend_accepted' | 'like' | 'comment' | 'general';
-   data?: Record<string, unknown>;
- }) {
-   try {
-     const { data, error } = await db.functions.invoke('send-push-notification', {
-       body: {
-         userId: options.userId,
-         title: options.title,
-         body: options.body,
-         url: options.url,
-         tag: options.tag,
-         type: options.type || 'general',
-         data: options.data,
-       },
-     });
- 
-     if (error) {
-       console.error('[Push] Failed to send push notification:', error);
-       return { success: false, error };
-     }
- 
-     console.log('[Push] Push notification result:', data);
-     return { success: true, data };
-   } catch (err) {
-     console.error('[Push] Error sending push notification:', err);
-     return { success: false, error: err };
-   }
- }
+
+function isCapacityFault(error: unknown): boolean {
+  const msg =
+    error && typeof error === 'object'
+      ? String((error as { message?: string; name?: string }).message || (error as { name?: string }).name || '')
+      : String(error || '');
+  return /internal|cpu_allocation|no available instance|resource-exhausted|quota/i.test(msg);
+}
+
+/**
+ * Send a push notification to a specific user via the edge function.
+ * Failures never throw — callers must not gate UX on push success.
+ */
+export async function sendPushNotification(options: {
+  userId: string;
+  title: string;
+  body: string;
+  url?: string;
+  tag?: string;
+  type?: 'message' | 'dm' | 'group_message' | 'typing' | 'call' | 'friend_request' | 'friend_accepted' | 'like' | 'comment' | 'general';
+  data?: Record<string, unknown>;
+}) {
+  try {
+    const { data, error } = await db.functions.invoke('send-push-notification', {
+      body: {
+        userId: options.userId,
+        title: options.title,
+        body: options.body,
+        url: options.url,
+        tag: options.tag,
+        type: options.type || 'general',
+        data: options.data,
+      },
+    });
+
+    if (error) {
+      // Capacity / OneSignal CF faults are upstream — soft-log so DM UX stays clean.
+      if (isCapacityFault(error)) {
+        console.warn('[Push] skipped (capacity):', error);
+      } else {
+        console.error('[Push] Failed to send push notification:', error);
+      }
+      return { success: false, error };
+    }
+
+    console.log('[Push] Push notification result:', data);
+    return { success: true, data };
+  } catch (err) {
+    if (isCapacityFault(err)) {
+      console.warn('[Push] skipped (capacity):', err);
+    } else {
+      console.error('[Push] Error sending push notification:', err);
+    }
+    return { success: false, error: err };
+  }
+}
  
  /**
   * Send a message push notification to a user

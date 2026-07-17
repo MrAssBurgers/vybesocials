@@ -54,6 +54,26 @@ export function isTransientDmSendFailure(kind: DmSendFailureKind): boolean {
   return kind === 'transient' || kind === 'rate_limited';
 }
 
+/**
+ * Extra in-flight retries for Cloud Run capacity faults that surface as bare
+ * `functions/internal` (cpu_allocation / no available instance). Still maps to
+ * "try again" UX — never "Waiting for connection".
+ */
+export function isRetryableCloudInternal(
+  error: { message?: string; code?: string; name?: string } | string | null | undefined,
+): boolean {
+  if (!error) return false;
+  const code = (
+    typeof error === 'string' ? error : error.code || error.name || ''
+  ).toLowerCase();
+  const message = (typeof error === 'string' ? error : error.message || '').toLowerCase();
+  return (
+    INTERNAL_CF_RE.test(code) ||
+    INTERNAL_CF_RE.test(message.trim()) ||
+    /cpu_allocation|no available instance|quota limit for run\.googleapis/i.test(message)
+  );
+}
+
 /** User must unblock / fix input — do not keep retrying forever. */
 export function isPermanentDmSendFailure(kind: DmSendFailureKind): boolean {
   return kind === 'blocked' || kind === 'validation' || kind === 'permission';

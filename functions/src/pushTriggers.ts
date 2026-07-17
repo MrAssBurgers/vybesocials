@@ -289,7 +289,16 @@ const ONESIGNAL_SECRETS = ['ONESIGNAL_APP_ID', 'ONESIGNAL_REST_API_KEY'] as cons
 
 /** Flat messages collection (primary DM path after Firebase migration). */
 export const onDmMessageCreated = onDocumentCreated(
-  { document: 'messages/{messageId}', region: 'us-central1', secrets: [...ONESIGNAL_SECRETS] },
+  {
+    document: 'messages/{messageId}',
+    region: 'us-central1',
+    secrets: [...ONESIGNAL_SECRETS],
+    // Fractional CPU — push trigger must not compete with sendDmMessage at 1 vCPU each.
+    memory: '256MiB',
+    cpu: 0.083,
+    concurrency: 1,
+    maxInstances: 30,
+  },
   async (event) => {
     const snap = event.data;
     if (!snap) return;
