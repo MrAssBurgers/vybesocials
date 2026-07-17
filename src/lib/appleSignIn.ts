@@ -268,6 +268,21 @@ export async function signInWithAppleJsSdk(): Promise<{
         error: { message: 'Sign-in cancelled', name: 'auth/popup-closed-by-user' },
       };
     }
+    // Apple JS opaque "unknown" = popup failed to open (often window.open blocked).
+    if (
+      /^unknown$/i.test(rawCode) ||
+      /^unknown$/i.test(rawMessage) ||
+      /^unknown$/i.test(String(asAny?.error || ''))
+    ) {
+      return {
+        data: { session: null },
+        error: {
+          message:
+            'Apple Sign-In could not open. Close any leftover browser sheet and try again.',
+          name: 'apple/popup-blocked',
+        },
+      };
+    }
     if (
       asAny?.code === 'auth/operation-not-allowed' ||
       /operation-not-allowed/i.test(rawMessage) ||
@@ -292,7 +307,7 @@ export async function signInWithAppleJsSdk(): Promise<{
       };
     }
     // Prefer structured message over mapOAuthLinkError collapsing to "Sign-in failed".
-    if (rawMessage && rawMessage !== '[object Object]') {
+    if (rawMessage && rawMessage !== '[object Object]' && !/^unknown$/i.test(rawMessage)) {
       return {
         data: { session: null },
         error: mapOAuthLinkError({ message: rawMessage, name: rawCode || 'apple/signin-failed', code: rawCode }),
@@ -334,12 +349,12 @@ export async function linkWithAppleJsSdk(): Promise<{
       nonce: hashedNonce,
     });
 
-    const hideWeb = window.setInterval(() => dismissAppleWebSheetResidue(), 180);
+    // Do NOT poll window.close — that can kill the Apple popup mid-auth.
+    dismissAppleWebSheetResidue();
     let response: AppleAuthResponse;
     try {
       response = await window.AppleID.auth.signIn();
     } finally {
-      window.clearInterval(hideWeb);
       dismissAppleWebSheetResidue();
     }
     const idToken = response.authorization?.id_token;
@@ -382,7 +397,21 @@ export async function linkWithAppleJsSdk(): Promise<{
         error: { message: 'Sign-in cancelled', name: 'auth/popup-closed-by-user' },
       };
     }
-    if (rawMessage && rawMessage !== '[object Object]') {
+    if (
+      /^unknown$/i.test(rawCode) ||
+      /^unknown$/i.test(rawMessage) ||
+      /^unknown$/i.test(String(asAny?.error || ''))
+    ) {
+      return {
+        data: { linked: false },
+        error: {
+          message:
+            'Apple Sign-In could not open. Close any leftover browser sheet and try again.',
+          name: 'apple/popup-blocked',
+        },
+      };
+    }
+    if (rawMessage && rawMessage !== '[object Object]' && !/^unknown$/i.test(rawMessage)) {
       return {
         data: { linked: false },
         error: mapOAuthLinkError({ message: rawMessage, name: rawCode || 'apple/link-failed', code: rawCode }),

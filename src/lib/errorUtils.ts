@@ -51,6 +51,9 @@ export function getFriendlyAuthError(error: unknown): string {
       return 'Apple Sign-In did not finish. Try again.';
     case 'apple/incomplete':
       return 'Apple Sign-In did not finish. Try again, or use email login.';
+    case 'apple/popup-blocked':
+    case 'unknown':
+      return 'Apple Sign-In could not open. Close any leftover browser sheet and try again.';
     case 'despia/oauth-timeout':
       return 'Sign-in did not return to the app. Close any leftover browser sheet and try again.';
     case 'despia/oauth-redeem-failed':
@@ -94,6 +97,9 @@ export function getFriendlyAuthError(error: unknown): string {
     message.toLowerCase().includes('invalid_client')
   ) {
     return 'Apple rejected sign-in. Confirm Services ID com.despia.vybe.web and return URL https://vybehub.app/native-callback.html.';
+  }
+  if (/^unknown$/i.test(message) || /^unknown$/i.test(code)) {
+    return 'Apple Sign-In could not open. Close any leftover browser sheet and try again.';
   }
   if (/Services ID|native-callback\.html/i.test(message)) {
     return message;

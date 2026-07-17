@@ -2,7 +2,50 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
-## ACTIVE (2026-07-17) — Deep scan: restore Jul 16 wait=1 ASAP soft-close
+## ACTIVE (2026-07-17) — iOS Apple "unknown error" (externalLinkGuard)
+
+### Publish handoff
+- **On `origin/main`:** *(pending push — see commit below)*
+- **Lovable → Share → Publish NOW** for `vybehub.app` (SPA: `externalLinkGuard` + `appleSignIn` + `errorUtils`). Agent cannot click Publish.
+- **No CF / no native-callback change.** Google ASAP `wait=1` path **unchanged**.
+- **No Despia rebuild.**
+
+### Exact cause
+Firestore `oauth_debug_events` (session `bd2545`, 19:38:49Z):
+- `apple_sdk_start` → `apple_sdk_done` in **349ms** with `code/error/msg: unknown`
+- Landing toast: `oauth_error` `code: unknown` / `msg: unknown`
+
+Root: `installExternalLinkGuard()` patched `window.open` and returned **`null`** for all `https://` URLs (including `appleid.apple.com`). Apple JS SDK (`usePopup: true`) needs a real popup Window + opener for postMessage; null open → Apple rejects with opaque **"unknown"**.
+
+Not caused by: Google wait=1 ASAP, nonce, Firebase credential, invalid_client, or native-callback Apple early-return (those paths untouched / still correct).
+
+### Fix (minimal, iOS Apple)
+1. **Allowlist** `appleid.apple.com` / `idmsa.apple.com` in `externalLinkGuard` — pass through `originalOpen` with original features (keep opener).
+2. Map Apple `"unknown"` → `apple/popup-blocked` friendly copy (safety net if popup still fails).
+3. Remove link-path `setInterval(dismissAppleWebSheetResidue)` (same kill risk as prior sign-in interval).
+
+### Files
+- `src/lib/externalLinkGuard.ts` — OAuth auth host bypass
+- `src/lib/externalLinkGuard.test.ts` — allowlist unit tests
+- `src/lib/appleSignIn.ts` — unknown → popup-blocked; link interval removed
+- `src/lib/errorUtils.ts` — friendly mapping for `unknown` / `apple/popup-blocked`
+
+### Verify checklist (after Publish)
+1. iOS Apple: Continue with Apple → Face ID / Continue sheet opens (no instant "unknown" toast).
+2. Timeline: `apple_sdk_start` → `apple_sdk_done ok:true` (or real cancel), **not** `msg: unknown` in &lt;500ms.
+3. iOS Google: ASAP wait=1 auto-close still works (do not regress).
+4. Android Google/Apple oauth:// unchanged.
+
+### Tests
+- `npm run build` green
+- `npm run test` green (370)
+
+### Next 3
+1. Lovable → Share → Publish **immediately**.
+2. Device: iOS Apple Continue → confirm Face ID / sign-in.
+3. Device: iOS Google → confirm sheet still auto-closes.
+
+## SUPERSEDED (2026-07-17) — Deep scan: restore Jul 16 wait=1 ASAP soft-close
 
 ### Publish handoff
 - **On `origin/main`:** `82bb42dcb`

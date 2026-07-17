@@ -2,6 +2,16 @@ import { isNativeAppShell } from '@/lib/despiaBridge';
 
 const NEVER_ASK_KEY = 'vybe-external-link-never-ask';
 
+/**
+ * Apple JS SDK (usePopup) calls window.open → appleid.apple.com and needs a real
+ * Window + opener for postMessage. Blocking/prompting returns null → Apple rejects
+ * with opaque "unknown" in ~300ms. Never prompt or strip opener for these hosts.
+ */
+const OAUTH_AUTH_HOSTS = new Set([
+  'appleid.apple.com',
+  'idmsa.apple.com',
+]);
+
 export type ExternalLinkRequest = {
   url: string;
   host: string;
@@ -27,6 +37,12 @@ function hostOf(url: string): string {
 
 export function isExternalHttpUrl(url: string): boolean {
   return /^https?:\/\//i.test((url || '').trim());
+}
+
+/** True for Apple Sign-In authorize URLs that must use native window.open. */
+export function isOAuthAuthUrl(url: string): boolean {
+  if (!isExternalHttpUrl(url)) return false;
+  return OAUTH_AUTH_HOSTS.has(hostOf(url));
 }
 
 export function isExternalLinkNeverAsk(): boolean {
@@ -84,6 +100,12 @@ export function resolveExternalLinkPrompt(allowed: boolean, neverAsk = false): v
 export function promptExternalLink(url: string): Promise<boolean> {
   const clean = url.trim();
   if (!isExternalHttpUrl(clean)) return Promise.resolve(false);
+  // Apple Sign-In popups must open immediately with opener intact.
+  if (isOAuthAuthUrl(clean)) {
+    const open = nativeOpen || window.open.bind(window);
+    open(clean, '_blank');
+    return Promise.resolve(true);
+  }
   if (isExternalLinkNeverAsk()) {
     openExternalAllowed(clean);
     return Promise.resolve(true);
@@ -116,6 +138,8 @@ export function installExternalLinkGuard(): void {
       if (!anchor) return;
       const href = anchor.getAttribute('href') || '';
       if (!isExternalHttpUrl(href)) return;
+      // Allow Apple Sign-In anchors through (rare; SDK usually uses window.open).
+      if (isOAuthAuthUrl(href)) return;
       event.preventDefault();
       event.stopPropagation();
       void promptExternalLink(href);
@@ -128,6 +152,11 @@ export function installExternalLinkGuard(): void {
     const originalOpen = nativeOpen;
     window.open = ((url?: string | URL, target?: string, features?: string) => {
       const asString = typeof url === 'string' ? url : url?.toString() || '';
+      // [iOS-only path critical] Apple JS popup — pass through with original
+      // features so opener/postMessage works. Do not return null.
+      if (isOAuthAuthUrl(asString)) {
+        return originalOpen(url, target, features);
+      }
       if (isExternalHttpUrl(asString)) {
         void promptExternalLink(asString);
         return null;
@@ -144,6 +173,10 @@ export function installExternalLinkGuard(): void {
     const originalAssign = window.location.assign.bind(window.location);
     const guardedAssign = ((url: string | URL) => {
       const asString = typeof url === 'string' ? url : url.toString();
+      if (isOAuthAuthUrl(asString)) {
+        originalAssign(url);
+        return;
+      }
       if (isExternalHttpUrl(asString)) {
         void promptExternalLink(asString);
         return;
