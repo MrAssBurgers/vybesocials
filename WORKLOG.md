@@ -5,20 +5,24 @@ Use this file as the Lovable -> Cursor handoff each session.
 ## ACTIVE (2026-07-17) — Pending-error dump triage (AuthProvider / perms / DM send)
 
 ### Publish handoff
-- **On `origin/main`:** `0f771b945` — **Lovable → Share → Publish** for `vybehub.app`.
+- **On `origin/main`:** `0f771b945` (pointer `f2887d731`) — **Lovable → Share → Publish** for `vybehub.app`.
 - Google ASAP `wait=1` + Apple `oauth://` **untouched**.
-- CF: `manageAccount` aliases only (deletion action names) — deploy functions if deletion still 500s on prod.
+- Deploy CF: `manageAccount` **deployed** to `vybe-daaab` (aliases + `{ok,success}`).
 
-### Triage table
-| Cluster | Verdict | Action |
-|---------|---------|--------|
-| P0 `useAuth must be used within AuthProvider` on `/auth?hc=` + `/home` | **FIXED** | Soft ErrorBoundary returned `null` → unmounted AuthProvider. AuthProvider now above SmartErrorBoundary; ban UI keeps Provider; `useAuth` fail-soft stub; route ErrorBoundary no null frame |
-| P1 fetchProfile / reactions / DM membership permission-denied | **FIXED (client race)** | Gate DM list on `authReady`+user; wait for session before membership queries; softer profile permission retry; reactions wait for auth. Rules look correct — no rules change |
-| P2 `Failed to send` / `Waiting for connection` + `code:internal` | **FIXED (client)** | Bare CF `internal` no longer mapped to connection wait when online |
-| P3 Spotify 503 | **SOFTENED** | Friendlier toast / soft log — upstream Spotify |
-| P3 Camera `readyState` null | **FIXED** | Null-safe video ref access |
-| P3 Deletion request `internal` | **FIXED** | Client used `request_deletion` / checked `success`; CF expected `request_delete` + `{ok}`. Aliases + client aligned |
-| P3 Firestore Write channel 400 HTML | **DEFERRED / external** | Proxy/network noise; not auth-provider related once P0 fixed |
+### Triage table (error dump → verdict)
+| # | Cluster | Verdict | Notes |
+|---|---------|---------|-------|
+| 1 | Failed to send / Waiting for connection… internal | **FIXED (client)** | Bare CF `internal` was misclassified as transient → connection wait. Now unknown + retry toast when online |
+| 2 | [Push] Failed to send push… internal | **Upstream / skipped** | OneSignal/CF path; no clear local bug |
+| 3 | usePostReaction permissions (localhost + lovable) | **FIXED (client race)** | Gate on `authReady`+user; unsigned preview no longer writes |
+| 4 | Failed to start camera: null readyState | **FIXED** | Null-safe video ref / readyState |
+| 5 | spotifyNowPlaying HTTP 500 / Spotify 503 | **Upstream (softened)** | Friendlier toast + soft log |
+| 6 | **useAuth outside AuthProvider** `/auth?hc=` + `/home` | **FIXED (P0)** | Soft ErrorBoundary `return null` unmounted AuthProvider; AuthProvider above SmartErrorBoundary; ban UI keeps Provider; `useAuth` fail-soft stub |
+| 7 | Missing permissions on localhost `/` | **Noise / race** | Same auth-not-ready class; gated with #3/#9/#11 |
+| 8 | Firestore Write/channel HTTP 400 HTML | **Noise** | Auto bug reporter already ignores; proxy/teardown |
+| 9 | fetchProfile Missing permissions (staging home) | **FIXED (client race)** | Soft-log + retry; no rules loosen |
+| 10 | Deletion request error: internal | **FIXED** | Client `request_deletion`/`success` vs CF `request_delete`/`ok` — aligned + aliases |
+| 11 | Massive DM permission denied | **FIXED (client race)** | Gate DM list on `authReady`+user; `waitForAuthSession` before membership queries. Rules OK |
 
 ### Files
 - `src/App.tsx`, `src/lib/auth.tsx`, `src/components/error/SmartErrorBoundary.tsx`, `src/components/ErrorBoundary.tsx`
