@@ -46,6 +46,39 @@ async function sha256Hex(value: string): Promise<string> {
   return Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, '0')).join('');
 }
 
+/** Apple JS often throws plain objects — String(err) becomes "[object Object]". */
+function formatAppleAuthError(err: unknown): { code: string; message: string } {
+  if (err == null) return { code: '', message: 'unknown' };
+  if (typeof err === 'string') return { code: '', message: err.slice(0, 200) };
+  if (err instanceof Error) {
+    return {
+      code: String((err as { code?: string }).code || err.name || '').slice(0, 80),
+      message: String(err.message || '').slice(0, 200),
+    };
+  }
+  if (typeof err === 'object') {
+    const o = err as Record<string, unknown>;
+    const nested =
+      o.error && typeof o.error === 'object' ? (o.error as Record<string, unknown>) : null;
+    const code = String(
+      o.code || o.error || nested?.code || nested?.error || o.name || '',
+    ).slice(0, 80);
+    let message = String(o.message || nested?.message || o.error || '').slice(0, 200);
+    if (!message || message === '[object Object]') {
+      try {
+        message = JSON.stringify(err).slice(0, 200);
+      } catch {
+        message = 'apple_auth_error';
+      }
+    }
+    if (code === '[object Object]') {
+      return { code: '', message };
+    }
+    return { code, message };
+  }
+  return { code: '', message: String(err).slice(0, 200) };
+}
+
 /** Dismiss any leftover popup window — never fire oauth wait=1 (that clears pending login). */
 function dismissAppleWebSheetResidue(): void {
   try {
@@ -206,9 +239,8 @@ export async function signInWithAppleJsSdk(): Promise<{
     return { data: { session: data.session }, error: null };
   } catch (err: unknown) {
     dismissAppleWebSheetResidue();
+    const { code: rawCode, message: rawMessage } = formatAppleAuthError(err);
     const asAny = err as { error?: string; message?: string; code?: string };
-    const rawCode = String(asAny?.code || asAny?.error || '').slice(0, 80);
-    const rawMessage = String(asAny?.message || err || '').slice(0, 200);
     // Log exact Firebase/Apple code+message BEFORE friendly mapping.
     authLog('apple_signin_error', { code: rawCode, message: rawMessage });
     // #region agent log
@@ -218,7 +250,7 @@ export async function signInWithAppleJsSdk(): Promise<{
         ok: false,
         reason: 'error',
         code: rawCode.slice(0, 60),
-        error: String(asAny?.error || '').slice(0, 60),
+        error: String(asAny?.error || rawCode || '').slice(0, 60),
         msg: rawMessage.slice(0, 120),
       },
       'appleSignIn.ts:catch',
@@ -227,7 +259,9 @@ export async function signInWithAppleJsSdk(): Promise<{
     if (
       asAny?.error === 'popup_closed_by_user' ||
       asAny?.error === 'user_cancelled' ||
-      /cancel/i.test(String(asAny?.message || ''))
+      rawCode === 'popup_closed_by_user' ||
+      rawCode === 'user_cancelled' ||
+      /cancel|popup.?closed/i.test(rawMessage)
     ) {
       return {
         data: { session: null },
@@ -236,8 +270,8 @@ export async function signInWithAppleJsSdk(): Promise<{
     }
     if (
       asAny?.code === 'auth/operation-not-allowed' ||
-      /operation-not-allowed/i.test(String(asAny?.message || '')) ||
-      /not enabled/i.test(String(asAny?.message || ''))
+      /operation-not-allowed/i.test(rawMessage) ||
+      /not enabled/i.test(rawMessage)
     ) {
       return {
         data: { session: null },
@@ -247,7 +281,7 @@ export async function signInWithAppleJsSdk(): Promise<{
         },
       };
     }
-    if (/403|invalid_client|unauthorized/i.test(String(asAny?.message || ''))) {
+    if (/403|invalid_client|unauthorized/i.test(rawMessage)) {
       return {
         data: { session: null },
         error: {
@@ -255,6 +289,13 @@ export async function signInWithAppleJsSdk(): Promise<{
             'Apple rejected sign-in. Confirm Services ID com.despia.vybe.web and return URL https://vybehub.app/native-callback.html.',
           name: 'auth/invalid-credential',
         },
+      };
+    }
+    // Prefer structured message over mapOAuthLinkError collapsing to "Sign-in failed".
+    if (rawMessage && rawMessage !== '[object Object]') {
+      return {
+        data: { session: null },
+        error: mapOAuthLinkError({ message: rawMessage, name: rawCode || 'apple/signin-failed', code: rawCode }),
       };
     }
     return { data: { session: null }, error: mapOAuthLinkError(err) };
@@ -315,9 +356,8 @@ export async function linkWithAppleJsSdk(): Promise<{
     return { data: { linked: true }, error: null };
   } catch (err: unknown) {
     dismissAppleWebSheetResidue();
+    const { code: rawCode, message: rawMessage } = formatAppleAuthError(err);
     const asAny = err as { error?: string; message?: string; code?: string };
-    const rawCode = String(asAny?.code || asAny?.error || '').slice(0, 80);
-    const rawMessage = String(asAny?.message || err || '').slice(0, 200);
     // Log exact Firebase/Apple code+message BEFORE friendly mapping.
     authLog('apple_link_error', { code: rawCode, message: rawMessage });
     oauthTimelineLog(
@@ -333,11 +373,19 @@ export async function linkWithAppleJsSdk(): Promise<{
     if (
       asAny?.error === 'popup_closed_by_user' ||
       asAny?.error === 'user_cancelled' ||
-      /cancel/i.test(String(asAny?.message || ''))
+      rawCode === 'popup_closed_by_user' ||
+      rawCode === 'user_cancelled' ||
+      /cancel|popup.?closed/i.test(rawMessage)
     ) {
       return {
         data: { linked: false },
         error: { message: 'Sign-in cancelled', name: 'auth/popup-closed-by-user' },
+      };
+    }
+    if (rawMessage && rawMessage !== '[object Object]') {
+      return {
+        data: { linked: false },
+        error: mapOAuthLinkError({ message: rawMessage, name: rawCode || 'apple/link-failed', code: rawCode }),
       };
     }
     return { data: { linked: false }, error: mapOAuthLinkError(err) };

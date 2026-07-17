@@ -2,46 +2,51 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
-## ACTIVE (2026-07-17) — iOS Auth Bugfixes (Google soft-close + Apple guard + errors)
+## ACTIVE (2026-07-17) — iOS OAuth: App Link dismiss (kill invalid-address toast)
 
 ### Publish handoff
-- **On `origin/main`:** `1a5e1c36e`
+- **On `origin/main`:** (this commit) — see git log after push
 - **Lovable → Share → Publish required** for `vybehub.app` (`native-callback.html` + SPA). Agent cannot click Publish.
 - **No Firebase CF deploy.** **No Despia rebuild.** `native_ios_auth_v1` stays OFF.
 
+### Diagnosis (prod vs local)
+- **Prod `vybehub.app/native-callback.html` was stale** (still `wait=1` soft-close + iOS `oauthDismiss`).
+- **Root toast source:** even successful `oauthDismiss?hc=` **302s to `com.despia.vybe://…`** → Safari “address is invalid” when ASWeb does not intercept.
+- **Login OK + sheet stuck** = nonce poll redeem while dismiss toast leaves ASWeb open.
+- **Apple “dead”:** Google overlay/`isDespiaOAuthInFlight` blocked Apple; Apple JS failed in ~166ms with opaque `[object Object]` while Google sheet residue present. Firestore: `apple_sdk_start` → `apple_sdk_done` error.
 
-### Root causes
-1. **Google iOS soft-close:** `native-callback` 6s `wait=1` → `oauthDismiss` custom-scheme race → Safari "invalid address" / stuck ASWeb while nonce poll still redeemed login.
-2. **Google poll race:** nonce poll started immediately on oauth:// launch and could redeem before exchange+oauthDismiss finished dismissing ASWeb.
-3. **Apple iOS:** Apple JWT hitting `native-callback` without Despia oauth:// state (JS popup / WKWebView residue) continued into exchange/oauthDismiss → invalid address + opaque "Sign-in failed".
-4. **Apple errors:** Firebase `code`/`message` collapsed before logging; empty message mapped to bare "Sign-in failed".
+### Root cause → fix
+1. **Google iOS dismiss:** iOS `fireClose` now uses the **same App Link as Android**: `https://vybehub.app/auth?hc=…` (`location.replace`). **No oauthDismiss / custom-scheme.** Session via App Link +/or nonce poll. Sheet may still need Done if ASWeb ignores HTTPS — better than invalid-address toast.
+2. **Stuck UI:** clear oauth busy on success/error; unlock overlay after ASWeb Done (keep nonce poll); allow switching Google↔Apple when other provider pending.
+3. **Apple:** still **Apple JS SDK** on iOS (not oauth://). Harden error object formatting; early-return for Apple JWT without Despia state kept.
+4. **Poll:** iOS first nonce poll delay 1750→250ms (no longer racing oauthDismiss).
 
 ### Files changed
-- `public/native-callback.html` — remove iOS `wait=1` soft-close (PKCE + id_token); single `fireClose` via HTTPS oauthDismiss; Apple iss + invalid Despia state → dbg + `window.close()` (no exchange)
-- `src/lib/despiaOAuth.ts` — iOS-only ~1.75s delay before first nonce poll; Android unchanged
-- `src/lib/oauthAccountLink.ts` + `.test.ts` — preserve message/code; empty message + code → `Sign-in failed (code)`
-- `src/lib/appleSignIn.ts` — `authLog` + `oauthTimelineLog` exact code/message before friendly mapping (sign-in + link)
-- `src/pages/Landing.tsx` — log raw code/message before `getFriendlyAuthError`
+- `public/native-callback.html` — iOS+Android `fireClose` → App Link only; no DISMISS_URL
+- `src/lib/despiaOAuth.ts` — faster iOS poll start
+- `src/lib/nativeOAuth.ts` — `clearOAuthBusy()`
+- `src/lib/appleSignIn.ts` — `formatAppleAuthError` (no `[object Object]`)
+- `src/pages/Landing.tsx` — unlock after sheet Done; provider switch clears stuck pending
 
-### Deploy
-- **Lovable → Share → Publish required** for `vybehub.app` (`native-callback.html` + SPA).
-- **No Firebase CF deploy.** **No Despia rebuild.** `native_ios_auth_v1` stays OFF.
-- Architecture unchanged: oauth:// → native-callback → exchange → redeem/poll; iOS Apple = Apple JS → signInWithCredential.
+### Architecture (unchanged)
+- Google Despia: oauth:// → native-callback → exchange → App Link `/auth?hc=` + nonce poll
+- Apple iOS: Apple JS → `signInWithCredential` (Android Apple still oauth://)
+- Browser auth / linking / profiles unchanged. Android App Link path unchanged (now shared with iOS).
 
 ### Verify checklist (after Publish)
-1. iOS Google: exchange → one `fire_close mode:oauthDismiss` with `hc=` — no `wait=1`, no double fireClose, no custom-scheme JS navigate.
-2. iOS Google: login completes; ASWeb dismisses without "invalid address".
-3. iOS Apple: Face ID / Continue; no oauthDismiss on Apple JWT without Despia state; failures show real Firebase code in timeline/`authLog`.
-4. Android Google/Apple App Link path unchanged; browser auth / linking / profiles unchanged.
+1. iOS Google: `fire_close mode:applink` with `hc=` — **never** `oauthDismiss` / `wait=1` / custom-scheme.
+2. No Safari “address is invalid”. Login completes (App Link and/or poll). If sheet lingers, tap Done — should already be signed in.
+3. iOS Apple: Face ID works after Google Done; failures show real JSON/code in timeline.
+4. Android Google/Apple + browser auth unchanged.
 
 ### Tests
 - `npm run build` green
-- `npm run test` green (incl. mapOAuthLinkError preservation cases)
+- `npm run test` green (367)
 
 ### Next 3
-1. Lovable Publish.
-2. Device: iOS Google + Apple sign-in; confirm timeline events.
-3. If Apple still fails with a real Firebase code, fix that provider/config issue (not soft-close).
+1. Lovable → Share → Publish.
+2. Device: iOS Google then Apple; confirm `fire_close mode:applink` in `oauth_debug_events`.
+3. If Apple still fails with a real code, fix provider/config (not dismiss).
 
 ## PUBLISH NOW (2026-07-17) — Native iOS auth scaffold (flag OFF)
 

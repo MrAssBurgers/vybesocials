@@ -38,7 +38,7 @@ import {
   isLikelyFirebaseOAuthReturnUrl,
   isOAuthRedirectInFlight,
 } from '@/lib/firebase/oauthRedirect';
-import { isOAuthBusy, signInWithOAuthPlatform } from '@/lib/nativeOAuth';
+import { clearOAuthBusy, isOAuthBusy, signInWithOAuthPlatform } from '@/lib/nativeOAuth';
 import {
   clearDespiaOAuthPending,
   clearStaleDespiaOAuthPending,
@@ -239,6 +239,7 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
         finishing = true;
         clearDespiaOAuthPending();
         clearOAuthRedirectPending();
+        clearOAuthBusy();
         applyOAuthSession(detail.data.session);
         setOauthOverlay(null);
         setLoading(false);
@@ -293,6 +294,7 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
 
       clearDespiaOAuthPending();
       clearOAuthRedirectPending();
+      clearOAuthBusy();
       setOauthOverlay(null);
       setLoading(false);
       setIsOAuthReturn(false);
@@ -359,17 +361,24 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
       resumeDespiaOAuthNoncePollIfPending();
       onUrlMaybeChanged();
       // Sheet dismissed — if Firebase already has a user from a background poll, finish now.
+      // Else drop the chip so Apple/Google can be tapped again while nonce poll continues.
       if (isDespiaOAuthInFlight()) {
         void import('@/lib/firebase').then(async ({ firebaseAuth }) => {
           try {
-            if (!firebaseAuth.auth?.currentUser) return;
-            const { data } = await firebaseAuth.getSession();
-            if (data.session?.user) {
-              finishDespiaOAuth({ data: { session: data.session }, error: null });
+            if (firebaseAuth.auth?.currentUser) {
+              const { data } = await firebaseAuth.getSession();
+              if (data.session?.user) {
+                finishDespiaOAuth({ data: { session: data.session }, error: null });
+                return;
+              }
             }
           } catch {
             /* ignore */
           }
+          // Unlock UI after ASWeb Done / invalid-address dismiss — do not clear pending.
+          clearOAuthBusy();
+          setOauthOverlay(null);
+          setLoading(false);
         });
       }
     };
@@ -395,6 +404,7 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
       if (Date.now() - started < 40_000) return;
       clearDespiaOAuthPending();
       clearOAuthRedirectPending();
+      clearOAuthBusy();
       setOauthOverlay(null);
       setLoading(false);
       setIsOAuthReturn(false);
@@ -413,7 +423,23 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
   );
 
   const runOAuthSignIn = useCallback(async (provider: 'google' | 'apple') => {
-    if (isOAuthBusy() || loading) return;
+    // Stuck Google sheet (invalid address / Done) leaves overlay+pending true and
+    // blocks Apple. Abandon prior pending when starting a different provider.
+    const pendingProvider = getDespiaOAuthPendingProvider();
+    if (
+      (loading || isOAuthBusy() || isDespiaOAuthInFlight()) &&
+      pendingProvider &&
+      pendingProvider !== provider
+    ) {
+      clearDespiaOAuthPending();
+      clearOAuthRedirectPending();
+      clearOAuthBusy();
+      setOauthOverlay(null);
+      setLoading(false);
+      setIsOAuthReturn(false);
+    } else if (isOAuthBusy() || loading) {
+      return;
+    }
     // #region agent log
     oauthTimelineLog(
       'oauth_tap',
@@ -447,6 +473,7 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
         applyOAuthSession(oauthResult.data.session);
         clearOAuthRedirectPending();
         clearDespiaOAuthPending();
+        clearOAuthBusy();
         await claimProfileAfterOAuth();
         toast.success('Welcome back! ✨');
         const cached = getCachedCurrentProfile();
@@ -464,6 +491,7 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
     } catch (error: unknown) {
       clearOAuthRedirectPending();
       clearDespiaOAuthPending();
+      clearOAuthBusy();
       const raw = error as { code?: string; name?: string; message?: string };
       const rawCode = String(raw?.code || raw?.name || '');
       const rawMessage = String(raw?.message || '');
@@ -486,6 +514,7 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
       if (!isOAuthRedirectInFlight() && !isDespiaOAuthInFlight()) {
         setLoading(false);
         setOauthOverlay(null);
+        clearOAuthBusy();
       }
     }
   }, [navigate, profile, applyOAuthSession, loading]);
@@ -1071,7 +1100,7 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
                   variant="outline"
                   className="w-full h-8 bg-secondary/20 border-white/10 hover:bg-secondary/35 text-[11px] font-normal px-2"
                   onClick={() => void runOAuthSignIn('google')}
-                  disabled={loading || !!oauthOverlay || isOAuthBusy()}
+                  disabled={oauthOverlay === 'google' || (loading && !oauthOverlay)}
                 >
                   <svg className="w-3.5 h-3.5 mr-1 shrink-0" viewBox="0 0 24 24" aria-hidden>
                     <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
@@ -1087,7 +1116,7 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
                   variant="outline"
                   className="w-full h-8 bg-secondary/20 border-white/10 hover:bg-secondary/35 text-[11px] font-normal px-2"
                   onClick={() => void runOAuthSignIn('apple')}
-                  disabled={loading || !!oauthOverlay || isOAuthBusy()}
+                  disabled={oauthOverlay === 'apple' || (loading && !oauthOverlay)}
                 >
                   <svg className="w-3.5 h-3.5 mr-1 shrink-0" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
                     <path d="M17.05 20.28c-.98.95-2.05.88-3.08.4-1.09-.5-2.08-.48-3.24 0-1.44.62-2.2.44-3.06-.4C2.79 15.25 3.51 7.59 9.05 7.31c1.35.07 2.29.74 3.08.8 1.18-.24 2.31-.93 3.57-.84 1.51.12 2.65.72 3.4 1.8-3.12 1.87-2.38 5.98.48 7.13-.57 1.5-1.31 2.99-2.54 4.09zM12.03 7.25c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25z"/>

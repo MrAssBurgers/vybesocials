@@ -2,8 +2,8 @@
  * Platform-aware OAuth — Despia store builds, Capacitor shells, Safari/PWA, desktop.
  *
  * Despia Google + Apple use oauth:// (ASWebAuthenticationSession / Custom Tabs).
- * Callback returns via HTTPS Universal/App Link to /auth?hc= (never custom-scheme
- * navigations inside ASWeb — those trigger iOS “address is invalid”).
+ * Callback closes via HTTPS Universal/App Link to /auth?hc= on iOS and Android
+ * (never custom-scheme / oauthDismiss — those trigger iOS “address is invalid”).
  */
 import { getRuntimeOs, isDespiaRuntime, isNativeAppShell } from '@/lib/despiaBridge';
 import { isEmbeddedAppleWebView } from '@/lib/deviceDetection';
@@ -43,6 +43,12 @@ export function getOAuthPlatformInfo(): OAuthPlatformInfo {
 
 export function isOAuthBusy(): boolean {
   return oauthInFlight != null || Date.now() < oauthMutexUntil;
+}
+
+/** Clear tap mutex so a second provider (e.g. Apple after stuck Google) can start. */
+export function clearOAuthBusy(): void {
+  oauthMutexUntil = 0;
+  oauthInFlight = null;
 }
 
 export function shouldUseNativeOAuth(): boolean {
