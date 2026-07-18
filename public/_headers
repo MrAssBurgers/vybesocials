@@ -1,0 +1,8 @@
+# Despia OTA compares deployed_at — never long-cache this manifest.
+/despia/local.json
+  Cache-Control: no-cache, no-store, must-revalidate
+  CDN-Cache-Control: no-store
+
+# SPA shell must revalidate so hashed asset URLs update after Publish.
+/index.html
+  Cache-Control: no-cache, must-revalidate, max-age=0

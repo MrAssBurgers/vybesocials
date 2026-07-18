@@ -141,9 +141,25 @@ const escapeScript = `
   } catch (eMod) {}
 
   // Do NOT redirect localhost → vybehub.app: that swaps origins and drops the
-  // Firebase session (storage is origin-scoped).
+  // Firebase session (storage is origin-scoped). Instead, tip the native OTA
+  // hydrator with a cache-busted manifest fetch; if prod is newer than this
+  // pack, reload once after a beat so a mid-session hydrate can apply.
   if (!isDespia || !onLocal) return;
-  fetch(PROD + '/despia/local.json?vybe_ota=' + Date.now(), { cache: 'no-store' }).catch(function () {});
+  fetch(PROD + '/despia/local.json?vybe_ota=' + Date.now(), { cache: 'no-store' })
+    .then(function (r) { return r.json(); })
+    .then(function (j) {
+      var remote = String((j && j.deployed_at) || '');
+      if (!remote || remote === BUILD) return;
+      try {
+        if (sessionStorage.getItem('vybe_ota_seen') === remote) return;
+        sessionStorage.setItem('vybe_ota_seen', remote);
+      } catch (eSeen) {}
+      setTimeout(function () {
+        if (!isAppReady()) return;
+        hardReloadOnce('ota_remote_newer_' + remote.slice(-6));
+      }, 1800);
+    })
+    .catch(function () {});
 })();
 </script>`;
 

@@ -3,9 +3,9 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { ArrowRight, Sparkles, Camera, MessageCircle, Users, Palette, Shield, Trophy, Smartphone } from 'lucide-react';
 import { isIOSAppShell } from '@/lib/despiaBridge';
 import { isNativePerfMode } from '@/lib/nativePerfMode';
+import { VYBE_INTRO_VERSION } from '@/lib/mobileIntroVersion';
 
-// Bump this when slides change to re-trigger the intro for existing users.
-export const VYBE_INTRO_VERSION = '3';
+export { VYBE_INTRO_VERSION };
 
 const SLIDES = [
   {

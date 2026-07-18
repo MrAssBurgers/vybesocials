@@ -4,6 +4,7 @@ import { useAuth } from '@/lib/auth';
 import { isNativeAppShell } from '@/lib/despiaBridge';
 import { isMobileOrTabletDevice } from '@/lib/deviceDetection';
 import { shouldBlockPostLoginNavigation } from '@/lib/loginApprovalGate';
+import { hasCompletedCurrentIntro } from '@/lib/mobileIntroVersion';
 
 const VybeHome = lazy(() => import('@/pages/VybeHome'));
 const Landing = lazy(() => import('@/pages/Landing'));
@@ -37,9 +38,9 @@ function useMobileAppEntry(): boolean {
  */
 export default function RootGate() {
   const { user, loading } = useAuth();
-  const [introDone, setIntroDone] = useState<boolean>(() => {
-    try { return !!localStorage.getItem('vybe_intro_seen'); } catch { return true; }
-  });
+  // Honor VYBE_INTRO_VERSION — bumping the constant re-shows intro after Publish.
+  // (Previously only `vybe_intro_seen` was checked, so intro UX changes looked "unpublished".)
+  const [introDone, setIntroDone] = useState<boolean>(() => hasCompletedCurrentIntro());
   const isMobileApp = useMobileAppEntry();
 
   if (loading) return null;

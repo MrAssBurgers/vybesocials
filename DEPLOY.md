@@ -113,9 +113,39 @@ After changing Despia URL or pushing plugin fixes: **Lovable Publish** once, re-
 
 ```bash
 curl -s https://vybehub.app/despia/local.json | head -5
+# Expect fresh deployed_at. Optional: prove a feature chunk is live, e.g.
+# curl -s https://vybehub.app/assets/MobileIntro-*.js  → look for VYBE_INTRO_VERSION / const K="N"
 ```
 
-Expect HTTP 200 and a fresh `deployed_at` timestamp. On a physical device: force-quit the app, reopen twice (second launch may apply a background download from the prior session).
+Expect HTTP 200 and a fresh `deployed_at` timestamp.
+
+### Force iOS to show a new web build (Despia TestFlight / store)
+
+Despia Offline → **Native** boots from on-device `http://localhost` after hydrating from `vybehub.app`. Publish updates the remote manifest; the binary applies it on a **later cold launch**.
+
+1. Confirm Publish landed: `curl -s https://vybehub.app/despia/local.json | head -3` → new `deployed_at`.
+2. On the iPhone: **swipe up → force-quit VYBE** (not just background).
+3. Reopen once (may still be old while OTA downloads in background).
+4. **Force-quit again**, reopen — second cold launch usually applies the new pack.
+5. Optional sanity: Safari → `https://vybehub.app` (not the app) to confirm the web change exists at all.
+
+**MobileIntro / intro UX specifically:** once `vybe_intro_seen` is set, RootGate skips the intro. To re-test:
+
+- Settings → Help → **Replay walkthrough**, or
+- Bump `VYBE_INTRO_VERSION` in `src/lib/mobileIntroVersion.ts` (RootGate re-shows for logged-out users when the stored version mismatches), or
+- Clear site data / reinstall.
+
+**Logged-in users never see RootGate intro** (they go `/home`) — use Replay walkthrough.
+
+### Cap Simulator vs Despia (different pipelines)
+
+| Shell | What it loads | Does Lovable Publish update it? |
+|-------|----------------|----------------------------------|
+| **Despia** TestFlight / store (`com.despia.vybe`) | OTA from `vybehub.app` → on-device localhost | **Yes** (after force-quit ×2) |
+| **Capacitor Simulator** default | Bundled `dist/` from last `npx cap sync` | **No** — run `npm run build && npx cap sync ios` |
+| **Capacitor** with `CAP_DEV=1` | Live `https://vybehub.app` | **Yes** (same as web; still force-quit / pull-to-refresh) |
+
+Never assume Cap Simulator == TestFlight Despia.
 
 ### Play Console notes
 

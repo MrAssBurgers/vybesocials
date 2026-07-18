@@ -2,6 +2,45 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## ACTIVE (2026-07-18) — Why iOS “never gets” Publish (diagnosis)
+
+### Verdict
+**Lovable Publish is updating `vybehub.app`.** Frustration is mostly pipeline confusion + intro gating + Despia OTA lag — not a missing Publish.
+
+### Live evidence (probed 2026-07-18 ~04:54 UTC)
+| Check | Result |
+|-------|--------|
+| `origin/main` tip | `095e83166` (handoff after flicker `b6eb61569`) |
+| `https://vybehub.app/despia/local.json` | HTTP 200, `deployed_at=1784350136186` (= **2026-07-18T04:48:56Z**) |
+| Live `index.html` OTA stamp | `var BUILD = "1784350136186"` matches manifest |
+| Live MobileIntro chunk | `/assets/MobileIntro-DaMOs5YZ.js` contains `const K="3"`, `mobile-intro`, `translate3d` (v3 flicker kill) |
+| `index.html` Cache-Control | `no-cache, must-revalidate, max-age=0` (OK) |
+| `despia/local.json` Cache-Control | **missing** before fix — added `public/_headers` |
+
+### Why changes “don’t apply” on iPhone
+1. **Cap Simulator ≠ Despia TestFlight** — Cap default loads local `dist/`; Publish only hits Despia OTA / `CAP_DEV=1` remote.
+2. **Despia Native OTA** — new pack downloads in background; applies on **next cold launch** (force-quit → open → force-quit → open).
+3. **Intro UX specifically** — `vybe_intro_seen` permanently skips MobileIntro; `VYBE_INTRO_VERSION` was written but **never read** by RootGate (comment lied). Logged-in users always `/home` — need Settings → **Replay walkthrough**.
+
+### Code fixes (committed — Lovable Publish next)
+- `src/lib/mobileIntroVersion.ts` + RootGate honors version mismatch
+- HelpSection clears `vybe_intro_version` on replay
+- `scripts/stamp-despia-ota.mjs` — if remote `deployed_at` > pack BUILD, one localhost reload
+- `public/_headers` — no-store for `/despia/local.json`
+- `DEPLOY.md` — Cap vs Despia + force-refresh steps
+
+### Force see new intro on iOS (Despia)
+1. Confirm `curl -s https://vybehub.app/despia/local.json \| head -3` has fresh `deployed_at`.
+2. Force-quit VYBE twice (cold launch between).
+3. Settings → Help → **Replay walkthrough** (or log out + clear intro keys / bump version).
+
+### Next 3
+1. Lovable Publish this tip; confirm despia/local.json deployed_at.
+2. Manual Despia: force-quit ×2 + Replay walkthrough → verify flicker-free Next.
+3. If still stale after two cold launches: Despia dashboard Start URL = `https://vybehub.app` + Offline Native.
+
+---
+
 ## PREVIOUS PUBLISH HANDOFF (2026-07-17) — MobileIntro flicker kill (v3)
 
 ### Shipped SHA

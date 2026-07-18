@@ -51,6 +51,7 @@ export function HelpSection() {
               haptics.tap();
               try {
                 localStorage.removeItem('vybe_intro_seen');
+                localStorage.removeItem('vybe_intro_version');
               } catch {
                 /* ignore */
               }
