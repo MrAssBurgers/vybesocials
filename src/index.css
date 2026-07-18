@@ -9795,20 +9795,35 @@ html[data-has-bg-image="true"] .friend-link-sheet {
   background-color: hsl(var(--background)) !important;
 }
 
-/* MobileIntro — CSS transform track; radial washes (no filter:blur thrash) */
+/* MobileIntro — transform-only track; static chrome (no mid-slide opacity/class thrash) */
+.mobile-intro {
+  isolation: isolate;
+  background-color: hsl(var(--background));
+}
+
 .mobile-intro-track {
   transform: translate3d(0, 0, 0);
   backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  will-change: transform;
+}
+
+.mobile-intro-slide {
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  contain: layout style paint;
 }
 
 .mobile-intro-orb {
   position: absolute;
   border-radius: 9999px;
   pointer-events: none;
-  /* Soft edge via radial stop — avoid filter:blur during slide */
-  filter: none;
-  opacity: 0.55;
-  transition: opacity 0.2s ease;
+  filter: none !important;
+  /* Static opacity — never dim on Next (was the primary flicker) */
+  opacity: 0.45;
+  transition: none;
+  mix-blend-mode: normal;
 }
 
 .mobile-intro-orb--a {
@@ -9838,70 +9853,90 @@ html[data-has-bg-image="true"] .friend-link-sheet {
   );
 }
 
-.mobile-intro--sliding .mobile-intro-orb {
-  opacity: 0.28;
-}
-
 .mobile-intro-icon-face {
-  background-color: hsl(var(--background) / 0.96);
+  background-color: hsl(var(--background));
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
 }
 
 .mobile-intro-icon-ring {
-  box-shadow: 0 16px 40px -18px hsl(var(--primary) / 0.45);
+  box-shadow: none;
+  filter: none;
 }
 
+/* Solid titles everywhere — no bg-clip-text flash during slide */
 .mobile-intro-title {
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-}
-
-.mobile-intro-cta {
-  box-shadow: 0 10px 36px -12px hsl(var(--primary) / 0.55);
-}
-
-/* [iOS-only] Strip remaining paint cost in WKWebView / Cap shell */
-.platform-ios .mobile-intro-orb,
-.perf-low .mobile-intro-orb,
-.native-perf-mode .mobile-intro-orb,
-.mobile-intro--native .mobile-intro-orb {
-  opacity: 0.4;
-}
-
-.platform-ios .mobile-intro--sliding .mobile-intro-orb,
-.perf-low .mobile-intro--sliding .mobile-intro-orb,
-.native-perf-mode .mobile-intro--sliding .mobile-intro-orb,
-.mobile-intro--native.mobile-intro--sliding .mobile-intro-orb {
-  opacity: 0.18;
-}
-
-.platform-ios .mobile-intro-icon-face,
-.perf-low .mobile-intro-icon-face,
-.mobile-intro--native .mobile-intro-icon-face {
-  backdrop-filter: none !important;
-  -webkit-backdrop-filter: none !important;
-  background-color: hsl(var(--background));
-}
-
-.platform-ios .mobile-intro-icon-ring,
-.perf-low .mobile-intro-icon-ring,
-.mobile-intro--native .mobile-intro-icon-ring {
-  box-shadow: none;
-}
-
-.platform-ios .mobile-intro-cta,
-.perf-low .mobile-intro-cta,
-.mobile-intro--native .mobile-intro-cta {
-  box-shadow: none;
-}
-
-/* [iOS-only] bg-clip-text is expensive in WKWebView — solid titles always */
-.platform-ios .mobile-intro-title,
-.perf-low .mobile-intro-title,
-.mobile-intro--native .mobile-intro-title {
   background-image: none !important;
   -webkit-background-clip: border-box;
   background-clip: border-box;
   color: hsl(var(--foreground));
   -webkit-text-fill-color: hsl(var(--foreground));
+  text-shadow: none;
+}
+
+.mobile-intro-dot {
+  display: block;
+  height: 6px;
+  width: 10px;
+  padding: 0;
+  border: 0;
+  border-radius: 9999px;
+  background-color: hsl(var(--muted-foreground) / 0.3);
+  transition: width 320ms cubic-bezier(0.22, 1, 0.36, 1),
+    background-color 320ms cubic-bezier(0.22, 1, 0.36, 1);
+  cursor: pointer;
+}
+
+.mobile-intro-dot--on {
+  width: 22px;
+  background-color: hsl(var(--primary));
+}
+
+.mobile-intro-cta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background-image: linear-gradient(
+    90deg,
+    hsl(var(--primary)),
+    hsl(var(--accent))
+  );
+  box-shadow: none !important;
+  filter: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  text-shadow: none;
+  /* Kill liquid-glass inheritance if any parent styles leak */
+  mix-blend-mode: normal;
+}
+
+.platform-ios .mobile-intro,
+.perf-low .mobile-intro,
+.native-perf-mode .mobile-intro,
+.mobile-intro--native {
+  -webkit-font-smoothing: antialiased;
+}
+
+.platform-ios .mobile-intro-orb,
+.perf-low .mobile-intro-orb,
+.native-perf-mode .mobile-intro-orb,
+.mobile-intro--native .mobile-intro-orb {
+  opacity: 0.38;
+}
+
+.platform-ios .mobile-intro *,
+.perf-low .mobile-intro *,
+.native-perf-mode .mobile-intro *,
+.mobile-intro--native * {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mobile-intro-track {
+    transition: none !important;
+  }
+  .mobile-intro-dot {
+    transition: none !important;
+  }
 }

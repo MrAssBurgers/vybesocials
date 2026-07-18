@@ -1,7 +1,6 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { ArrowRight, Sparkles, Camera, MessageCircle, Users, Palette, Shield, Trophy, Smartphone } from 'lucide-react';
-import { Button } from '@/components/ui/button';
 import { isIOSAppShell } from '@/lib/despiaBridge';
 import { isNativePerfMode } from '@/lib/nativePerfMode';
 
@@ -67,30 +66,35 @@ const SLIDES = [
   },
 ];
 
-/** Compositor-friendly slide — no spring overshoot, no Framer JS frames. */
+/** Compositor-only slide — no React paint mid-tween. */
 const SLIDE_MS = 320;
 const SLIDE_EASE = 'cubic-bezier(0.22, 1, 0.36, 1)';
+const N = SLIDES.length;
 
 export default function MobileIntro({ onDone }: { onDone?: () => void }) {
   const navigate = useNavigate();
   const location = useLocation();
+  /** Chrome index — dots / CTA label. Updated only AFTER transform settles. */
   const [index, setIndex] = useState(0);
-  const [sliding, setSliding] = useState(false);
-  const rootRef = useRef<HTMLDivElement>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
   const trackRef = useRef<HTMLDivElement>(null);
+  /** Logical slide target while animating (may lead `index`). */
   const indexRef = useRef(0);
+  const animatingRef = useRef(false);
   const startX = useRef(0);
   const startY = useRef(0);
   const dragging = useRef(false);
   const lockHorizontal = useRef(false);
   const settleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const reducedMotion = useRef(false);
 
   const calmNative = isIOSAppShell() || isNativePerfMode();
 
   useEffect(() => {
-    indexRef.current = index;
-  }, [index]);
+    try {
+      reducedMotion.current = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    } catch { /* ignore */ }
+  }, []);
 
   useEffect(() => {
     document.body.classList.add('hide-bottom-nav');
@@ -127,40 +131,50 @@ export default function MobileIntro({ onDone }: { onDone?: () => void }) {
   const applyTrack = useCallback((xPx: number, animate: boolean) => {
     const track = trackRef.current;
     if (!track) return;
-    if (animate) {
-      track.style.willChange = 'transform';
-      track.style.transition = `transform ${SLIDE_MS}ms ${SLIDE_EASE}`;
+    const ms = reducedMotion.current ? 0 : SLIDE_MS;
+    if (animate && ms > 0) {
+      track.style.transition = `transform ${ms}ms ${SLIDE_EASE}`;
     } else {
       track.style.transition = 'none';
     }
     track.style.transform = `translate3d(${xPx}px, 0, 0)`;
   }, []);
 
-  const settleAfter = useCallback((clamped: number) => {
+  const settleChrome = useCallback((clamped: number) => {
     if (settleTimer.current) clearTimeout(settleTimer.current);
+    const ms = reducedMotion.current ? 0 : SLIDE_MS;
     settleTimer.current = setTimeout(() => {
-      setSliding(false);
-      const track = trackRef.current;
-      if (track) track.style.willChange = 'auto';
-    }, SLIDE_MS + 40);
-    indexRef.current = clamped;
-    setIndex(clamped);
+      animatingRef.current = false;
+      indexRef.current = clamped;
+      setIndex(clamped);
+    }, ms + 16);
   }, []);
 
-  const snapTo = useCallback((next: number) => {
-    const clamped = Math.max(0, Math.min(SLIDES.length - 1, next));
+  const snapTo = useCallback((next: number, opts?: { fromDrag?: boolean }) => {
+    const clamped = Math.max(0, Math.min(N - 1, next));
     const width = widthOf();
     const target = -clamped * width;
+    const track = trackRef.current;
+
+    // Mid-tween Next: freeze at live offset, then retarget (flush so CSS restart sticks)
+    if (animatingRef.current && !opts?.fromDrag) {
+      applyTrack(readTrackX(), false);
+      if (track) void track.offsetWidth;
+    }
+
     const currentX = readTrackX();
-    if (clamped === indexRef.current && Math.abs(currentX - target) < 1) {
-      setSliding(false);
+    if (clamped === indexRef.current && Math.abs(currentX - target) < 1 && !animatingRef.current) {
       applyTrack(target, false);
       return;
     }
-    setSliding(true);
+
+    indexRef.current = clamped;
+    animatingRef.current = true;
     applyTrack(target, true);
-    settleAfter(clamped);
-  }, [applyTrack, readTrackX, settleAfter, widthOf]);
+    // Defer React chrome (dots / CTA label) until transform ends — kills mid-slide paint
+    settleChrome(clamped);
+  }, [applyTrack, readTrackX, settleChrome, widthOf]);
+
   const finish = useCallback(() => {
     try {
       localStorage.setItem('vybe_intro_seen', '1');
@@ -181,14 +195,13 @@ export default function MobileIntro({ onDone }: { onDone?: () => void }) {
       snapTo(0);
       return;
     }
-    if (next >= SLIDES.length) {
+    if (next >= N) {
       finish();
       return;
     }
     snapTo(next);
   }, [finish, snapTo]);
 
-  // Keep track aligned if viewport resizes (orientation / safe-area).
   useEffect(() => {
     const onResize = () => {
       applyTrack(-indexRef.current * widthOf(), false);
@@ -197,7 +210,6 @@ export default function MobileIntro({ onDone }: { onDone?: () => void }) {
     return () => window.removeEventListener('resize', onResize);
   }, [applyTrack, widthOf]);
 
-  // Initial position
   useEffect(() => {
     applyTrack(0, false);
   }, [applyTrack]);
@@ -208,7 +220,7 @@ export default function MobileIntro({ onDone }: { onDone?: () => void }) {
     dragging.current = true;
     lockHorizontal.current = false;
     if (settleTimer.current) clearTimeout(settleTimer.current);
-    // Freeze at current visual offset (cancel mid-tween)
+    animatingRef.current = false;
     applyTrack(readTrackX(), false);
     try {
       (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
@@ -226,14 +238,11 @@ export default function MobileIntro({ onDone }: { onDone?: () => void }) {
         dragging.current = false;
         return;
       }
-      setSliding(true);
-      const track = trackRef.current;
-      if (track) track.style.willChange = 'transform';
     }
     const width = widthOf();
     const base = -indexRef.current * width;
     let offset = dx;
-    if ((indexRef.current === 0 && dx > 0) || (indexRef.current === SLIDES.length - 1 && dx < 0)) {
+    if ((indexRef.current === 0 && dx > 0) || (indexRef.current === N - 1 && dx < 0)) {
       offset = dx * 0.35;
     }
     applyTrack(base + offset, false);
@@ -244,25 +253,22 @@ export default function MobileIntro({ onDone }: { onDone?: () => void }) {
     const wasHorizontal = lockHorizontal.current;
     dragging.current = false;
     lockHorizontal.current = false;
-    if (!wasHorizontal) {
-      setSliding(false);
-      return;
-    }
+    if (!wasHorizontal) return;
     const dx = clientX - startX.current;
-    if (dx < -56) snapTo(indexRef.current + 1);
-    else if (dx > 56) snapTo(indexRef.current - 1);
-    else snapTo(indexRef.current);
+    if (dx < -56) snapTo(indexRef.current + 1, { fromDrag: true });
+    else if (dx > 56) snapTo(indexRef.current - 1, { fromDrag: true });
+    else snapTo(indexRef.current, { fromDrag: true });
   };
 
-  const isLast = index === SLIDES.length - 1;
+  // CTA label follows settled chrome index; advance uses live indexRef
+  const isLast = index === N - 1;
 
   return (
     <div
-      ref={rootRef}
       data-allow-animation="true"
-      className={`fixed inset-0 z-[9999] h-[100dvh] max-h-[100dvh] bg-background text-foreground overflow-hidden overscroll-none flex flex-col mobile-intro${sliding ? ' mobile-intro--sliding' : ''}${calmNative ? ' mobile-intro--native' : ''}`}
+      className={`fixed inset-0 z-[9999] h-[100dvh] max-h-[100dvh] bg-background text-foreground overflow-hidden overscroll-none flex flex-col mobile-intro${calmNative ? ' mobile-intro--native' : ''}`}
     >
-      {/* Static soft wash — no per-slide accent swap, no filter:blur remounts */}
+      {/* Static wash — never toggles opacity/class on slide */}
       <div className="pointer-events-none absolute inset-0 -z-10 overflow-hidden mobile-intro-aura" aria-hidden>
         <div className="mobile-intro-orb mobile-intro-orb--a" />
         <div className="mobile-intro-orb mobile-intro-orb--b" />
@@ -292,30 +298,29 @@ export default function MobileIntro({ onDone }: { onDone?: () => void }) {
         <div
           ref={trackRef}
           className="flex h-full mobile-intro-track"
-          style={{ width: `${SLIDES.length * 100}%` }}
+          style={{ width: `${N * 100}%` }}
         >
-          {SLIDES.map((s, i) => {
+          {SLIDES.map((s) => {
             const Icon = s.icon;
             return (
               <div
                 key={s.title}
                 className="mobile-intro-slide h-full shrink-0 flex flex-col items-center justify-center px-7"
-                style={{ width: `${100 / SLIDES.length}%` }}
-                aria-hidden={i !== index}
+                style={{ width: `${100 / N}%` }}
               >
                 <div className="w-full max-w-sm flex flex-col items-center text-center">
                   <div
                     className={`relative mb-8 h-24 w-24 rounded-3xl bg-gradient-to-br ${s.accent} p-[1.5px] mobile-intro-icon-ring`}
                   >
                     <div className="mobile-intro-icon-face h-full w-full rounded-3xl flex items-center justify-center">
-                      <Icon className="h-10 w-10 text-foreground" strokeWidth={1.8} />
+                      <Icon className="h-10 w-10 text-foreground" strokeWidth={1.8} aria-hidden />
                     </div>
                   </div>
 
                   <p className="text-xs uppercase tracking-[0.22em] text-muted-foreground/80">
                     {s.eyebrow}
                   </p>
-                  <h1 className={`mt-2 text-4xl sm:text-5xl font-bold tracking-tight mobile-intro-title bg-gradient-to-r ${s.accent}`}>
+                  <h1 className="mt-2 text-4xl sm:text-5xl font-bold tracking-tight mobile-intro-title text-foreground">
                     {s.title}
                   </h1>
                   <p className="mt-5 text-base sm:text-lg text-muted-foreground leading-relaxed">
@@ -335,31 +340,22 @@ export default function MobileIntro({ onDone }: { onDone?: () => void }) {
               key={i}
               type="button"
               onClick={() => snapTo(i)}
-              className="relative h-1.5 w-6 overflow-hidden rounded-full bg-muted-foreground/30"
+              className={`mobile-intro-dot${i === index ? ' mobile-intro-dot--on' : ''}`}
               aria-label={`Go to slide ${i + 1}`}
               aria-current={i === index ? 'true' : undefined}
-            >
-              <span
-                className="absolute inset-y-0 left-0 rounded-full bg-primary origin-left"
-                style={{
-                  width: '100%',
-                  transform: i === index ? 'scaleX(1)' : 'scaleX(0.28)',
-                  opacity: i === index ? 1 : 0.35,
-                  transition: `transform ${SLIDE_MS}ms ${SLIDE_EASE}, opacity ${SLIDE_MS}ms ${SLIDE_EASE}`,
-                }}
-              />
-            </button>
+            />
           ))}
         </div>
 
-        <Button
-          size="lg"
-          onClick={() => (isLast ? finish() : go(1))}
-          className="w-full max-w-sm h-14 rounded-2xl text-base font-semibold bg-gradient-to-r from-primary to-accent text-primary-foreground mobile-intro-cta active:scale-[0.98] transition-transform"
+        {/* Plain button — no liquid-glass / backdrop-filter remount thrash */}
+        <button
+          type="button"
+          onClick={() => (indexRef.current >= N - 1 ? finish() : go(1))}
+          className="mobile-intro-cta w-full max-w-sm h-14 rounded-2xl text-base font-semibold text-primary-foreground active:scale-[0.98] transition-transform"
         >
           {isLast ? "Let's go" : 'Next'}
-          <ArrowRight className="ml-1.5 h-5 w-5" />
-        </Button>
+          <ArrowRight className="ml-1.5 inline-block h-5 w-5 align-text-bottom" aria-hidden />
+        </button>
       </div>
     </div>
   );
