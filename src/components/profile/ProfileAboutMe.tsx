@@ -58,7 +58,7 @@ export function ProfileAboutMe({ bio, profile, isOwnProfile }: ProfileAboutMePro
               animate={{ opacity: 1, scale: 1 }}
               transition={{ delay: 0.2 + i * 0.05 }}
               className={cn(
-                "inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-medium border",
+                "profile-interest-chip inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-medium border",
                 INTEREST_COLORS[i % INTEREST_COLORS.length]
               )}
             >

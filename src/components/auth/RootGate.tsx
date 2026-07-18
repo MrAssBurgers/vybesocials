@@ -3,6 +3,7 @@ import { Navigate } from 'react-router-dom';
 import { useAuth } from '@/lib/auth';
 import { isNativeAppShell } from '@/lib/despiaBridge';
 import { isMobileOrTabletDevice } from '@/lib/deviceDetection';
+import { shouldBlockPostLoginNavigation } from '@/lib/loginApprovalGate';
 
 const VybeHome = lazy(() => import('@/pages/VybeHome'));
 const Landing = lazy(() => import('@/pages/Landing'));
@@ -42,7 +43,10 @@ export default function RootGate() {
   const isMobileApp = useMobileAppEntry();
 
   if (loading) return null;
-  if (user) return <Navigate to="/home" replace />;
+  // Login confirmation in progress — stay on auth surface (Landing), do not bounce to /home.
+  if (user && !shouldBlockPostLoginNavigation()) {
+    return <Navigate to="/home" replace />;
+  }
 
   const showIntro = !introDone && isMobileApp;
   if (showIntro) {

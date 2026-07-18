@@ -1,5 +1,5 @@
 import type { DeviceType, PlatformType } from '@/hooks/usePlatform';
-import { isDespiaRuntime } from '@/lib/despiaBridge';
+import { isDespiaRuntime, isNativeAppShell } from '@/lib/despiaBridge';
 
 export interface MeasuredSafeAreaInsets {
   top: number;
@@ -80,7 +80,8 @@ function maxInsets(a: MeasuredSafeAreaInsets, b: MeasuredSafeAreaInsets): Measur
 
 function fallbackTop(platform: PlatformType, device: DeviceType): number {
   if (device === 'desktop') return 0;
-  const native = isDespiaRuntime();
+  // Cap Simulator + Despia WKWebView both need Dynamic Island headroom when env() is 0.
+  const native = isNativeAppShell();
   if (platform === 'ios') return native ? 59 : 47;
   if (platform === 'android') return native ? 28 : 24;
   return native ? 24 : 20;
@@ -92,7 +93,7 @@ function fallbackGap(_device: DeviceType): number {
 
 function fallbackBottom(platform: PlatformType, device: DeviceType): number {
   if (device === 'desktop') return 0;
-  const native = isDespiaRuntime();
+  const native = isNativeAppShell();
   if (platform === 'ios') return native ? 34 : 20;
   if (platform === 'android') return native ? 24 : 16;
   return native ? 20 : 12;
@@ -113,10 +114,10 @@ export function resolveSafeAreaInsets(
 ): MeasuredSafeAreaInsets & { gap: number } {
   const gap = fallbackGap(device);
 
-  // Despia: use measured env() + --safe-area-* only. Never inflate missing
-  // values with hard-coded notch sizes (that double-letterboxes when the shell
-  // already reserved the status bar, or when Fullscreen Mode is off).
-  if (isDespiaRuntime()) {
+  // Despia Auto-Inject may already reserve the status bar — don't double-pad
+  // when measured insets are present. Cap WKWebView (contentInset:never) still
+  // needs fallbacks when env() reports 0 before first layout.
+  if (isDespiaRuntime() && (measured.top > 0 || measured.bottom > 0)) {
     return {
       top: measured.top,
       right: measured.right,
@@ -181,7 +182,8 @@ export function applySafeAreaCssVars(
     // Kill Despia Auto-Inject body padding if left on — we own insets in chrome.
     body.style.paddingTop = '0px';
     body.style.paddingBottom = '0px';
-    if (isDespiaRuntime()) {
+    // Cap + Despia both need [data-native-shell] for iOS shell CSS (safe area / fill).
+    if (isNativeAppShell()) {
       root.setAttribute('data-native-shell', 'true');
     } else {
       root.removeAttribute('data-native-shell');

@@ -426,10 +426,16 @@ export function ProductionDebugPanel({ isOpen, onClose }: Props) {
         exit={{ opacity: 0, x: 300 }}
         transition={{ type: 'spring', damping: 25, stiffness: 300 }}
         className={cn(
-          "fixed top-0 right-0 bottom-0 z-[100] w-full sm:w-[440px]",
+          // [iOS-only] .vybe-edge-panel pads top/bottom via platform-ios CSS safe-area vars
+          "vybe-edge-panel fixed top-0 right-0 bottom-0 z-[100] w-full sm:w-[440px]",
           "bg-card border-l border-border backdrop-blur-xl",
           "flex flex-col shadow-2xl"
         )}
+        style={{
+          // Shared fallback; iOS native shell also reinforced in index.css
+          paddingTop: 'var(--sat, env(safe-area-inset-top, 0px))',
+          paddingBottom: 'var(--sab, env(safe-area-inset-bottom, 0px))',
+        }}
       >
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-border bg-card">

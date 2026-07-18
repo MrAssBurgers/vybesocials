@@ -111,6 +111,19 @@ interface BanInfo {
   custom_gif_url?: string | null;
 }
 
+export interface ApplySessionResult {
+  requiresApproval: boolean;
+  challengeId?: string;
+  expiresAt?: string;
+  deviceLabel?: string;
+  geo?: {
+    city?: string | null;
+    country?: string | null;
+    region?: string | null;
+    ip?: string | null;
+  };
+}
+
 interface AuthContextType {
   user: User | null;
   session: Session | null;
@@ -119,9 +132,9 @@ interface AuthContextType {
   authReady: boolean;
   banInfo: BanInfo | null;
   signUp: (email: string, password: string, username: string) => Promise<{ error: Error | null; needsEmailConfirmation?: boolean }>;
-  signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
+  signIn: (email: string, password: string) => Promise<{ error: Error | null; requiresApproval?: boolean } & Partial<ApplySessionResult>>;
   /** Apply Firebase OAuth session immediately (popup / redirect completion). */
-  applyOAuthSession: (session: Session, method?: string) => void;
+  applyOAuthSession: (session: Session, method?: string) => Promise<ApplySessionResult>;
   resendVerification: (email: string) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
   updateProfile: (updates: Partial<Profile>) => Promise<{ error: Error | null }>;
@@ -517,7 +530,67 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
   };
 
-  const applyOAuthSession = useCallback((oauthSession: Session, method = 'oauth') => {
+  /** Drop local session while a login-approval challenge is pending (tokens must not unlock the app). */
+  const softSignOutForLoginApproval = useCallback(async () => {
+    explicitSignOutRef.current = true;
+    clearFunctionAuthHeadersCache();
+    setWasLoggedIn(false);
+    setProfile(null);
+    setUser(null);
+    setSession(null);
+    clearCachedCurrentProfile();
+    clearCachedUserLevel();
+    stopHeartbeat();
+    try {
+      await db.auth.signOut({ scope: 'local' as any });
+    } catch {
+      /* ignore */
+    }
+    try {
+      for (const key of Object.keys(localStorage)) {
+        if (key.startsWith('firebase:authUser:') || key.startsWith('sb-')) {
+          localStorage.removeItem(key);
+        }
+      }
+    } catch {
+      /* ignore */
+    }
+    // Allow a later custom-token sign-in after approval.
+    window.setTimeout(() => {
+      explicitSignOutRef.current = false;
+    }, 1500);
+  }, []);
+
+  const applyOAuthSession = useCallback(async (oauthSession: Session, method = 'oauth'): Promise<ApplySessionResult> => {
+    clearOAuthRedirectPending();
+
+    const { beginLoginApprovalCheck, endLoginApprovalCheck } = await import('@/lib/loginApprovalGate');
+
+    // Interactive sign-ins: check login confirmation BEFORE hydrating React auth
+    // so Landing / RootGate cannot navigate into the app early.
+    if (method !== 'login_approval') {
+      beginLoginApprovalCheck();
+      try {
+        const { notifyFreshLogin } = await import('@/hooks/useSessionTracking');
+        const result = await notifyFreshLogin(method);
+        if (result.requiresApproval) {
+          endLoginApprovalCheck();
+          await softSignOutForLoginApproval();
+          return {
+            requiresApproval: true,
+            challengeId: result.challengeId,
+            expiresAt: result.expiresAt,
+            deviceLabel: result.deviceLabel,
+            geo: result.geo,
+          };
+        }
+        endLoginApprovalCheck();
+      } catch (e) {
+        endLoginApprovalCheck();
+        console.warn('[Auth] login approval check failed', e);
+      }
+    }
+
     setWasLoggedIn(true);
     setSession(oauthSession);
     setUser(oauthSession.user);
@@ -530,12 +603,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       scheduleTokenRefresh(oauthSession.expires_at);
     }
     bootstrapSessionData(oauthSession.user.id, 'SIGNED_IN');
-    clearOAuthRedirectPending();
     void db.auth.refreshSession().catch(() => {});
-    void import('@/hooks/useSessionTracking').then(({ notifyFreshLogin }) => {
-      void notifyFreshLogin(method);
-    });
-  }, []);
+
+    if (method === 'login_approval') {
+      void import('@/hooks/useSessionTracking').then(({ notifyFreshLogin }) => {
+        void notifyFreshLogin('login_approval');
+      });
+    }
+
+    return { requiresApproval: false };
+  }, [softSignOutForLoginApproval]);
 
   useEffect(() => {
     // ──────────────────────────────────────────────────────────────────────
@@ -833,8 +910,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           sessionStorage.setItem('vybe-oauth-error', msg);
         }
       } else if (captured.session?.user) {
-        applyOAuthSession(captured.session);
-        hydrateCachedProfile(captured.session.user.id);
+        const gate = await applyOAuthSession(captured.session);
+        if (!gate.requiresApproval) {
+          hydrateCachedProfile(captured.session.user.id);
+        }
         authInitializedRef.current = true;
         setLoading(false);
         setIsInitialized(true);
@@ -1076,8 +1155,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const signIn = async (emailOrUsername: string, password: string) => {
-    const applySession = applyOAuthSession;
-
+    const { beginLoginApprovalCheck, endLoginApprovalCheck } = await import('@/lib/loginApprovalGate');
+    beginLoginApprovalCheck();
     try {
       const { resolveLoginEmail } = await import('@/lib/loginEmail');
       const normalized = await resolveLoginEmail(emailOrUsername);
@@ -1089,36 +1168,38 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       });
 
       if (data.session?.user) {
-        applySession(data.session, 'password');
-        return { error: null };
+        const gate = await applyOAuthSession(data.session, 'password');
+        return { error: null, ...gate };
       }
 
       const { data: liveUser } = await db.auth.getUser();
       if (liveUser.user) {
-        applySession({
+        const gate = await applyOAuthSession({
           user: liveUser.user,
           access_token: '',
           refresh_token: '',
         }, 'password');
-        return { error: null };
+        return { error: null, ...gate };
       }
 
+      endLoginApprovalCheck();
       if (error) throw error;
       return { error: new Error('Sign in did not complete. Please try again.') };
     } catch (error) {
       try {
         const { data: liveUser } = await db.auth.getUser();
         if (liveUser.user) {
-          applySession({
+          const gate = await applyOAuthSession({
             user: liveUser.user,
             access_token: '',
             refresh_token: '',
           }, 'password');
-          return { error: null };
+          return { error: null, ...gate };
         }
       } catch {
         /* ignore recovery errors */
       }
+      endLoginApprovalCheck();
       return { error: error as Error };
     }
   };
@@ -1325,7 +1406,7 @@ const AUTH_OUTSIDE_PROVIDER_FALLBACK: AuthContextType = {
   banInfo: null,
   signUp: async () => ({ error: new Error('Auth not ready') }),
   signIn: async () => ({ error: new Error('Auth not ready') }),
-  applyOAuthSession: () => {},
+  applyOAuthSession: async () => ({ requiresApproval: false }),
   resendVerification: async () => ({ error: new Error('Auth not ready') }),
   signOut: async () => {},
   updateProfile: async () => ({ error: new Error('Auth not ready') }),

@@ -363,7 +363,7 @@ export default function HomePage({ isInviteMode = false }: HomePageProps) {
     <AppLayout>
       <HomeEditModeProvider editing={customizerOpen} onEditingChange={setCustomizerOpen}>
         <div
-          className="home-shell max-w-xl mx-auto"
+          className="home-shell max-w-xl mx-auto min-h-full min-h-[100dvh]"
           data-tutorial="tutorial-welcome-center"
         >
           {/* Announcement Modal */}

@@ -160,10 +160,10 @@ export function LoginApprovalSheet() {
         <DialogHeader>
           <DialogTitle className="flex items-center justify-center gap-2 text-center">
             <ShieldCheck className="w-5 h-5 text-primary" />
-            Approve sign-in?
+            Someone is trying to log in
           </DialogTitle>
           <DialogDescription className="text-center">
-            A device is trying to access your account. Approve only if you recognize this activity.
+            Approve only if this is you. Declining blocks the sign-in.
           </DialogDescription>
         </DialogHeader>
 
@@ -196,10 +196,10 @@ export function LoginApprovalSheet() {
 
         <div className="grid grid-cols-2 gap-2 mt-4">
           <Button variant="outline" disabled={busy} onClick={() => respond('deny')} className="rounded-xl">
-            <ShieldX className="w-4 h-4 mr-1.5" /> It wasn't me
+            <ShieldX className="w-4 h-4 mr-1.5" /> Decline
           </Button>
           <Button disabled={busy} onClick={() => respond('approve')} className="rounded-xl">
-            <ShieldCheck className="w-4 h-4 mr-1.5" /> Approve
+            <ShieldCheck className="w-4 h-4 mr-1.5" /> Accept
           </Button>
         </div>
       </DialogContent>

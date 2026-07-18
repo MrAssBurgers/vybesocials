@@ -6,8 +6,23 @@ import {
   rememberSelfLoginChallenge,
 } from '@/lib/sessionIdentity';
 import { getOrCreateDeviceId } from '@/lib/notifications/pushDiagnostics';
+import {
+  clearPendingLoginApproval,
+  setPendingLoginApproval,
+  type PendingLoginApproval,
+} from '@/lib/loginApprovalGate';
 
 const REVOKE_CHECK_INTERVAL_MS = 15_000;
+
+export interface FreshLoginNotifyResult {
+  requiresApproval: boolean;
+  challengeId?: string;
+  expiresAt?: string;
+  sessionId?: string;
+  deviceLabel?: string;
+  geo?: PendingLoginApproval['location'];
+  reason?: string;
+}
 
 /**
  * Registers this install in user_sessions and watches for remote revoke.
@@ -116,17 +131,19 @@ export function useSessionTracking() {
 }
 
 /** Call after a real password / OAuth / custom-token sign-in (not cold resume). */
-export async function notifyFreshLogin(method: string): Promise<void> {
+export async function notifyFreshLogin(method: string): Promise<FreshLoginNotifyResult> {
   try {
     const deviceFingerprint = getOrCreateDeviceId();
     const { data: { session } } = await db.auth.getSession();
     const uid = session?.user?.id;
-    if (!uid) return;
+    if (!uid) return { requiresApproval: false };
+
     rememberCurrentSessionHash(uid, deviceFingerprint);
     const trackedKey = `vybe-session-tracked-${uid}-${deviceFingerprint}`;
     const idKey = `vybe-app-session-id-${uid}-${deviceFingerprint}`;
     // Claim before invoke so cold-start resume does not win the race.
     localStorage.setItem(trackedKey, String(Date.now()));
+
     const { data } = await db.functions.invoke('auth-login-notify', {
       body: {
         method,
@@ -134,10 +151,50 @@ export async function notifyFreshLogin(method: string): Promise<void> {
         userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : undefined,
       },
     });
-    const payload = data as { challengeId?: string; sessionId?: string } | null;
-    if (payload?.challengeId) rememberSelfLoginChallenge(uid, payload.challengeId);
+
+    const payload = data as {
+      challengeId?: string;
+      sessionId?: string;
+      expiresAt?: string;
+      deviceLabel?: string;
+      geo?: PendingLoginApproval['location'];
+      requiresApproval?: boolean;
+      reason?: string;
+    } | null;
+
     if (payload?.sessionId) localStorage.setItem(idKey, payload.sessionId);
+
+    if (payload?.requiresApproval && payload.challengeId) {
+      rememberSelfLoginChallenge(uid, payload.challengeId);
+      const pending: PendingLoginApproval = {
+        challengeId: payload.challengeId,
+        expiresAt: payload.expiresAt,
+        email: session.user.email || undefined,
+        deviceLabel: payload.deviceLabel,
+        location: payload.geo,
+        userId: uid,
+        method,
+      };
+      setPendingLoginApproval(pending);
+      return {
+        requiresApproval: true,
+        challengeId: payload.challengeId,
+        expiresAt: payload.expiresAt,
+        sessionId: payload.sessionId,
+        deviceLabel: payload.deviceLabel,
+        geo: payload.geo,
+        reason: payload.reason,
+      };
+    }
+
+    clearPendingLoginApproval();
+    return {
+      requiresApproval: false,
+      sessionId: payload?.sessionId,
+      reason: payload?.reason,
+    };
   } catch (e) {
     console.warn('fresh login notify failed', e);
+    return { requiresApproval: false };
   }
 }

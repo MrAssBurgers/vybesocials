@@ -2,7 +2,186 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
-## ACTIVE (2026-07-17) — Splash rehydrate + DM identity / unread
+## ACTIVE (2026-07-17) — Instagram-style login confirmation
+
+### Goal
+When **Login confirmation** is enabled, a new device must wait for Accept/Decline from an already-signed-in device before the sign-in finishes (no usable session until approved).
+
+### Flow
+1. User enables **Settings → Security & 2FA → Login confirmation**.
+2. New device signs in (password / OAuth) → `auth-login-notify` creates pending `auth_challenges` + OneSignal push (only if another active session exists).
+3. Attempting device soft-signs-out and shows **Waiting for confirmation** (`LoginGateModal`).
+4. Trusted/logged-in device sees **Someone is trying to log in** (`LoginApprovalSheet`) → Accept / Decline.
+5. Accept → CF mints Firebase custom token → waiting client `signInWithCustomToken` → enters app.
+6. Decline / cancel / expiry → challenge denied, requesting session revoked; waiting client stays signed out.
+
+### What changed
+**Cloud Functions (`functions/src/auth.ts`)**
+- `authLoginNotify` returns `requiresApproval`, `expiresAt`, device/geo; marks `pending_approval` on session.
+- `authLoginApproval` poll returns one-time `customToken`; approve mints token; deny/deny_self revokes requesting session; only owner with another active session can approve.
+- `switch_to_code` / `switch_to_sms` → `{ ok: false, error: 'not_supported' }` (gap).
+
+**Client**
+- `src/lib/loginApprovalGate.ts` — pending + check-in-progress flags (blocks post-login nav).
+- `src/hooks/useSessionTracking.ts` — `notifyFreshLogin` returns gate result + sets pending.
+- `src/lib/auth.tsx` — check approval **before** hydrating React user; soft sign-out if gated.
+- `Landing.tsx` / `RootGate` / `ProtectedRoute` — wire waiting modal; block `/home` until cleared.
+- `LoginGateModal` / `LoginApprovalSheet` / `SecuritySection` — Instagram-style copy; custom-token success path.
+
+### Tests
+- `npm run build` (client) green.
+- `functions` `npm run build` green.
+- `npm run test` green.
+- Did **not** commit / push.
+
+### Deploy (required for prod)
+1. `firebase deploy --only functions:authLoginNotify,functions:authLoginApproval` (or full auth functions).
+2. Firestore rules already allow owner read of `auth_challenges` (non-`_2fa`); no rules change required for MVP.
+3. Lovable Publish for SPA on **vybehub.app**.
+
+### Gaps
+- Email/SMS fallback from waiting modal (`switch_to_code` / `switch_to_sms`) not ported.
+- Brief Firebase Auth window exists before soft sign-out (mitigated by nav gate + soft sign-out).
+- Approving device must already be signed in with Login confirmation enabled on the account (and have another active session).
+
+### Next 3
+1. Deploy CF `authLoginNotify` + `authLoginApproval`, then Lovable Publish.
+2. Manual test: Device A enable Login confirmation → Device B password/OAuth login → wait → Accept on A → B enters home; Decline path clears B.
+3. Optional: port email/SMS fallback for unreachable trusted device.
+
+## SUPERSEDED (2026-07-17) — iOS background blend (no black cutoff)
+
+### Goal
+Empty area below short Feed/Profile content must **blend with the page background** (liquid aurora / custom wallpaper) — not a solid near-black `#main-content` fill or WebView cliff.
+
+### Root cause (prior fill was wrong)
+Prior fix painted opaque `hsl(var(--background) / 0.94)` on `#main-content` (and used `background:` shorthand on body). That read as a **black cut-off frame** and could wipe inline custom wallpaper. User wants the real bg to continue, not a mismatched solid.
+
+### What “background” means on Home/Feed
+- Token: `--background: 240 10% 4%` (`#09090b`) — underlay only.
+- Default immersive: `body.has-liquid-bg` + fixed `#vybe-aurora-mount` / `.vybe-liquid-bg` mesh (aurora).
+- Custom: `body.has-custom-bg` + `AppBackground` inline `background-image` on `document.body`.
+- Home shell: `.home-shell` (transparent on iOS native); cards are glass over aurora.
+
+### What changed (blend approach)
+1. `src/index.css` **[iOS-only]** — `#main-content` / shells stay **transparent** under liquid+custom; stretch `min-h: 100dvh`; aurora mount forced full-bleed; **do not** use `background` shorthand on body (preserves wallpaper); html/body underlay = `background-color: hsl(var(--background))` only when no custom wallpaper.
+2. `Home.tsx` — `.home-shell` `min-h-[100dvh]`.
+3. `Profile.tsx` — softer theme scrim (`to-black/35` vs `/70`) so wallpaper/theme still reads above nav.
+4. `capacitor.config.ts` — Cap Splash/StatusBar/ios/android `backgroundColor: #09090b` (= `--background`); documented that **`CAP_DEV=1` loads vybehub.app remote — local CSS will NOT show until Lovable Publish** (or sync without CAP_DEV + local `dist`).
+
+### Scope
+- Blend/stretch CSS: **iOS-only** (`.platform-ios.vybe-native-shell`).
+- Cap bg color: shared (matches theme token).
+- Safe-area / DevTools / aura-ear fixes from prior turn still apply.
+
+### Tests
+- `npm run build` green.
+- Did **not** commit / push.
+
+### Blockers
+- Simulator with `CAP_DEV=1` still shows **published** vybehub.app CSS until Publish or local-dist sync.
+
+### Next 3
+1. Verify blend: `npm run build && npx cap sync ios` (**without** CAP_DEV) → Simulator short Profile/Home — aurora/wallpaper continues above bottom nav.
+2. Or Lovable Publish, then `CAP_DEV=1` Simulator against prod.
+3. Spot-check custom wallpaper + default liquid; DevTools safe-area still OK.
+
+### Intentional full-bleed exceptions
+- Camera / story / clips media may still edge under status bar by design.
+
+## SUPERSEDED (2026-07-17) — iOS safe-area + opaque fill (wrong for blend)
+
+### Goal
+1. Stop VYBE chrome (and DevTools) drawing into the Dynamic Island / status bar on iOS only.
+2. Remove the navy→black hard cutoff under short Feed/Profile content on Cap iOS.
+
+### Root causes
+1. **Safe area** — Cap `contentInset: never` + `viewport-fit=cover` requires CSS insets. `ProductionDebugPanel` used `fixed top-0` with no `padding-top`/`--sat`, so “DevTools” / close X sat under the clock. Cap also never got `data-native-shell` (Despia-only), so some shell CSS paths skipped Cap Simulator. Safe-area fallbacks treated Cap as non-native (47px) until env() measured.
+2. **Black cutoff** — Transparent `#main-content` / aurora shell on short Profile pages let Cap WebView `backgroundColor: #0a0a0b` (near-black) show below content-height navy surface. Home already opaques `#main-content:has(.home-shell)`; Profile did not.
+
+### What changed
+1. `ProductionDebugPanel` — class `vybe-edge-panel` + inline `--sat`/`--sab` padding.
+2. `src/index.css` — `/* [iOS-only] */` rules: opaque shell fill, `#main-content` continuous surface (incl. non-home), `.vybe-edge-panel` max(safe-area) padding, `.profile-interest-chip` clip, `.home-shell` min-height.
+3. `safeAreaInsets.ts` — `data-native-shell` for all `isNativeAppShell()` (Cap+Despia); Cap/iOS fallbacks use 59/34 when env() is 0; Despia still skips inflation when measured > 0.
+4. `Profile.tsx` / `Home.tsx` — `profile-page-shell` / `min-h-full` stretch.
+5. `ProfileAboutMe` — `profile-interest-chip` class (iOS aura ears).
+6. `EmptyState` OfflineBanner — stronger top inset fallback.
+7. `capacitor.config.ts` — Splash/StatusBar/ios/android `backgroundColor` `#09090b` (theme `--background`).
+
+### Why superseded
+Opaque `--background` fill on `#main-content` was itself the “black cut off” framing; user wants aurora/custom wallpaper blend instead.
+
+### Scope
+- Safe-area / surface fill: **iOS-only** (`.platform-ios` / Cap shell).
+- Cap bg color: shared Cap config (Android also `#09090b` — matches theme, not a layout change).
+- DevTools padding inline is shared but harmless on Android.
+
+### Tests
+- `npm run build` green.
+- Did **not** commit / push.
+
+## SUPERSEDED (2026-07-17) — iOS aura/glow square bounding-box fix
+
+### Goal
+On iOS only, remove faint square corner “ears” around rounded aura/glow UI (create FAB +, liquid CTAs, texter pill, etc.).
+
+### Root cause
+WKWebView paints `filter: blur()` (and often `mix-blend-mode: screen`) as a rectangular composited layer. Parent `overflow: hidden` + `border-radius` does **not** clip those paint bounds, so glow leaks into the square box.
+
+### What changed
+1. **Unlayered** `.platform-ios` overrides in `src/index.css` (must beat unlayered `.vybe-liquid-button` rules): strip `filter: blur()` from liquid button `::before` / `__flow`, texter pill glow, liquid-touch compress/nova; soften with wider radial stops instead.
+2. Reinforce `overflow: hidden` + `backface-visibility: hidden` on rounded aura hosts (liquid button, gradient-animated, create-button-gradient, texter-pill).
+3. iOS `[class*="glow-"]` tweak: use static `box-shadow` instead of `filter: drop-shadow` (same square-ear class of bug).
+4. Android path untouched. Marked `/* [iOS-only] */`.
+
+### Tests
+- `npm run build` green.
+- Did **not** run full unit suite (CSS-only). Did **not** commit / push.
+
+### Blockers
+- Needs device/Simulator visual confirm (Despia or Cap iOS) on create FAB + any liquid CTA.
+
+### Next 3
+1. iOS: open feed → confirm create `+` has clean rounded corners (no square ears).
+2. Spot-check: login/CTA liquid buttons, DM texter send pill, liquid-touch press flash.
+3. Lovable Publish after confirm (or resume Capacitor Simulator crash handoff if still open).
+
+### Safe note
+Do not put this fix only inside `@layer base` — liquid button styles are unlayered and would win.
+
+## SUPERSEDED (2026-07-17) — Capacitor iOS Simulator crash (black screen → quit)
+
+### Goal
+Fix Xcode Simulator launch: black splash then immediate quit for `com.despia.vybe` under `CAP_DEV=1` → `https://vybehub.app`.
+
+### Root cause
+`@capacitor-firebase/authentication` calls `FirebaseApp.configure()` in plugin `load()`. Missing `GoogleService-Info.plist` → native fatal terminate (black screen, app disappears). CallKit / RevenueCat were **not** the launch crash (CallKit only configures `CXProvider` on show-call; RC keys are JS-side).
+
+### What changed
+1. Added `ios/App/App/GoogleService-Info.plist` from Firebase project `vybe-daaab` iOS app `com.despia.vybe` (public SDK config via Firebase MCP) + linked in `project.pbxproj` Resources.
+2. Updated `ios/App/App/Info.plist`: `WKAppBoundDomains`, URL schemes (`vybe`, `com.despia.vybe`, Google reversed client ID), usage description keys.
+3. `capacitor.config.ts`: `limitsNavigationsToAppBoundDomains` is **false under `CAP_DEV`** so Simulator remote load + CDNs work; production still true (with Info.plist domains).
+4. Re-synced: `CAP_DEV=1 npx cap sync ios` → `server.url=https://vybehub.app`.
+
+### Tests
+- `xcodebuild` Debug Simulator **BUILD SUCCEEDED** (`/tmp/vybe-cap-derived`).
+- `simctl install` + `simctl launch` → process **ALIVE ≥6–8s** (still alive after relaunch), no new DiagnosticReports for `com.despia.vybe`.
+- Did **not** commit / push.
+
+### Blockers
+- Full Xcode Run still needed on user machine (Clean Build Folder) so DerivedData picks up plist.
+- RevenueCat still has placeholder `appl_YOUR_IOS_PUBLIC_SDK_KEY` (IAP only; not launch crash).
+- CallKit remains in Cap SPM Package.swift (rewritten by `cap sync`); fine for Simulator until a call is shown.
+
+### Next 3
+1. Xcode: Clean Build Folder → Run on Simulator; confirm vybehub.app loads (not just stays alive).
+2. Optional: real RevenueCat iOS public SDK key when testing IAP.
+3. Resume splash / DM ship handoff (Lovable Publish for SPA if still pending).
+
+### Safe re-sync note
+`npx cap sync ios` rewrites `ios/App/CapApp-SPM/Package.swift` from installed plugins — do **not** hand-edit Package.swift. Keep `GoogleService-Info.plist` + `Info.plist` (sync does not remove them). Always: `CAP_DEV=1 npx cap sync ios` for Simulator remote URL.
+
+## SUPERSEDED (2026-07-17) — Splash rehydrate + DM identity / unread
 
 ### Goal
 Keep `#vybe-static-boot` up until persist+auth+critical warm; fix wrong DM peer names / false Opened; brighten unread rows.

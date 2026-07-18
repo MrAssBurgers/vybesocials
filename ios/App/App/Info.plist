@@ -1,0 +1,100 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CAPACITOR_DEBUG</key>
+	<string>$(CAPACITOR_DEBUG)</string>
+	<key>CFBundleDevelopmentRegion</key>
+	<string>en</string>
+	<key>CFBundleDisplayName</key>
+	<string>VYBE</string>
+	<key>CFBundleExecutable</key>
+	<string>$(EXECUTABLE_NAME)</string>
+	<key>CFBundleIdentifier</key>
+	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+	<key>CFBundleName</key>
+	<string>$(PRODUCT_NAME)</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleShortVersionString</key>
+	<string>$(MARKETING_VERSION)</string>
+	<key>CFBundleVersion</key>
+	<string>$(CURRENT_PROJECT_VERSION)</string>
+	<key>LSRequiresIPhoneOS</key>
+	<true/>
+	<key>UILaunchStoryboardName</key>
+	<string>LaunchScreen</string>
+	<key>UIMainStoryboardFile</key>
+	<string>Main</string>
+	<key>UIRequiredDeviceCapabilities</key>
+	<array>
+		<string>armv7</string>
+	</array>
+	<key>UISupportedInterfaceOrientations</key>
+	<array>
+		<string>UIInterfaceOrientationPortrait</string>
+		<string>UIInterfaceOrientationLandscapeLeft</string>
+		<string>UIInterfaceOrientationLandscapeRight</string>
+	</array>
+	<key>UISupportedInterfaceOrientations~ipad</key>
+	<array>
+		<string>UIInterfaceOrientationPortrait</string>
+		<string>UIInterfaceOrientationPortraitUpsideDown</string>
+		<string>UIInterfaceOrientationLandscapeLeft</string>
+		<string>UIInterfaceOrientationLandscapeRight</string>
+	</array>
+	<key>UIViewControllerBasedStatusBarAppearance</key>
+	<true/>
+	<!-- Custom URL schemes: OAuth deep link + Google Sign-In reversed client ID -->
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>com.despia.vybe</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>vybe</string>
+				<string>com.despia.vybe</string>
+				<string>com.googleusercontent.apps.728651793473-2qgbm7d47h1jukn1jrg2cg7l11mh5r0i</string>
+			</array>
+		</dict>
+	</array>
+	<!-- Required when capacitor.config ios.limitsNavigationsToAppBoundDomains=true -->
+	<key>WKAppBoundDomains</key>
+	<array>
+		<string>vybehub.app</string>
+		<string>www.vybehub.app</string>
+		<string>vybe-daaab.web.app</string>
+		<string>vybe-daaab.firebaseapp.com</string>
+		<string>identitytoolkit.googleapis.com</string>
+		<string>securetoken.googleapis.com</string>
+		<string>firestore.googleapis.com</string>
+		<string>firebasestorage.googleapis.com</string>
+		<string>www.googleapis.com</string>
+	</array>
+	<!-- Facebook SDK is linked via @capacitor-firebase/authentication but unused; disable auto-init so missing FacebookAppID cannot crash launch. -->
+	<key>FacebookAutoInitEnabled</key>
+	<false/>
+	<key>FacebookAutoLogAppEventsEnabled</key>
+	<false/>
+	<key>FacebookAdvertiserIDCollectionEnabled</key>
+	<false/>
+	<!-- Usage descriptions (Crash/rejection blockers if APIs are touched) -->
+	<key>NSCameraUsageDescription</key>
+	<string>VYBE uses your camera to capture photos, clips, and stories you share with friends.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>VYBE uses your microphone for voice notes, video clips, and calls with friends.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>VYBE uses your photo library so you can share existing pictures and videos in posts and messages.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>VYBE saves photos and videos you create back to your library.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>VYBE uses your location while you use the app to power Friend Map and Friend Link. For example, when you open Friend Map, friends you choose can see that you are nearby (such as “at the park”), and when you open Friend Link / Phone Tap your phone can find friends standing next to you so you can add them. Location is not used for advertising or cross-app tracking.</string>
+	<key>NSUserTrackingUsageDescription</key>
+	<string>Allow tracking if you want VYBE to show personalized ads. If you choose Ask App Not to Track, we will not use your data to track you across other companies’ apps or websites for advertising.</string>
+	<key>NSFaceIDUsageDescription</key>
+	<string>VYBE uses Face ID to securely sign you in with your passkey.</string>
+</dict>
+</plist>

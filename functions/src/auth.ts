@@ -1,5 +1,6 @@
 import { randomBytes, createHmac, timingSafeEqual } from 'crypto';
 import { onCall, onRequest, HttpsError } from 'firebase-functions/v2/https';
+import { FieldValue } from 'firebase-admin/firestore';
 import { OAuth2Client } from 'google-auth-library';
 import { db, auth, requireAuth, requireAdmin, rateLimit, enforceRateLimit } from './_shared/admin.js';
 import { sendPasswordResetEmail, type PasswordResetSendProvider } from './_shared/passwordResetEmail.js';
@@ -383,19 +384,34 @@ export const authLoginApproval = onCall({ cors: true }, async (request) => {
     if (!challengeId) throw new HttpsError('invalid-argument', 'challengeId required');
     const row = await loadChallenge(challengeId);
     if (!row || row.challenge_type !== 'login_approval') return { status: 'not_found' };
-    if (challengeExpired(row.expires_at)) return { status: 'expired' };
+    if (challengeExpired(row.expires_at)) {
+      if ((asString(row.status) || 'pending') === 'pending') {
+        await db.collection('auth_challenges').doc(challengeId).set({
+          status: 'expired',
+          resolved_at: new Date().toISOString(),
+        }, { merge: true });
+      }
+      return { status: 'expired' };
+    }
     const status = asString(row.status) || 'pending';
     if (status === 'approved') {
       const meta = (row.metadata || {}) as Record<string, unknown>;
+      const customToken = asString(meta.custom_token) || null;
       const session = meta.pending_session ?? null;
-      return { status: 'approved', session };
+      // One-time redeem — scrub token after first successful poll so it cannot be replayed.
+      if (customToken) {
+        await db.collection('auth_challenges').doc(challengeId).update({
+          'metadata.custom_token': FieldValue.delete(),
+          'metadata.custom_token_redeemed_at': new Date().toISOString(),
+        });
+      }
+      return { status: 'approved', customToken, session };
     }
     if (status === 'denied') return { status: 'denied' };
-    return { status: 'pending' };
+    return { status: 'pending', expiresAt: row.expires_at };
   }
 
   if (action === 'respond' || action === 'deny_self') {
-    const uid = requireAuth(request);
     const challengeId = asString(data.challengeId);
     const intent = action === 'deny_self' ? 'deny' : (asString(data.intent) as 'approve' | 'deny' | undefined);
     if (!challengeId || !intent) throw new HttpsError('invalid-argument', 'challengeId and intent required');
@@ -404,28 +420,102 @@ export const authLoginApproval = onCall({ cors: true }, async (request) => {
     if (!row || row.challenge_type !== 'login_approval') {
       return { error: 'not_found', status: 'not_found' };
     }
-    if (row.user_id !== uid) throw new HttpsError('permission-denied', 'Not your approval request');
     if (challengeExpired(row.expires_at)) return { error: 'expired', status: 'expired' };
     if (row.status && row.status !== 'pending') return { error: 'already_resolved', status: row.status };
 
-    const now = new Date().toISOString();
     const meta = (row.metadata || {}) as Record<string, unknown>;
     const requestingSessionId = asString(meta.requesting_session_id);
+    const now = new Date().toISOString();
+    const challengeUid = asString(row.user_id);
+
+    // deny_self: attempting device cancels before/after soft sign-out (may be unauthenticated).
+    if (action === 'deny_self') {
+      await db.collection('auth_challenges').doc(challengeId).set({
+        status: 'denied',
+        resolved_at: now,
+        metadata: { ...meta, resolved_by: 'self', resolve_reason: 'deny_self' },
+      }, { merge: true });
+      if (requestingSessionId) {
+        await db.collection('user_sessions').doc(requestingSessionId).set({
+          revoked_at: now,
+          trusted: false,
+        }, { merge: true });
+      }
+      return { ok: true, status: 'denied' };
+    }
+
+    // Approve / deny from an already-logged-in owner session only.
+    const uid = requireAuth(request);
+    if (!challengeUid || row.user_id !== uid) {
+      throw new HttpsError('permission-denied', 'Not your approval request');
+    }
+
+    // Approver must have a different active session than the one requesting login.
+    const sessionsSnap = await db.collection('user_sessions').where('user_id', '==', uid).get();
+    const approverSessions = sessionsSnap.docs.filter((doc) => {
+      if (requestingSessionId && doc.id === requestingSessionId) return false;
+      return !doc.data().revoked_at;
+    });
+    if (approverSessions.length === 0) {
+      throw new HttpsError(
+        'failed-precondition',
+        'No trusted session available to approve this sign-in',
+      );
+    }
+
+    if (intent === 'approve') {
+      let customToken: string;
+      try {
+        customToken = await auth.createCustomToken(uid, {
+          login_approval: challengeId,
+        });
+      } catch (err) {
+        console.error('[authLoginApproval] createCustomToken failed', err);
+        throw new HttpsError('internal', 'Could not mint approval token');
+      }
+
+      await db.collection('auth_challenges').doc(challengeId).set({
+        status: 'approved',
+        resolved_at: now,
+        metadata: {
+          ...meta,
+          resolved_by: uid,
+          custom_token: customToken,
+        },
+      }, { merge: true });
+
+      if (requestingSessionId) {
+        await db.collection('user_sessions').doc(requestingSessionId).set({
+          trusted: true,
+          pending_approval: false,
+          last_seen_at: now,
+          revoked_at: null,
+        }, { merge: true });
+      }
+
+      return { ok: true, status: 'approved' };
+    }
 
     await db.collection('auth_challenges').doc(challengeId).set({
-      status: intent === 'approve' ? 'approved' : 'denied',
+      status: 'denied',
       resolved_at: now,
       metadata: { ...meta, resolved_by: uid },
     }, { merge: true });
 
-    if (intent === 'approve' && requestingSessionId) {
+    if (requestingSessionId) {
       await db.collection('user_sessions').doc(requestingSessionId).set({
-        trusted: true,
-        last_seen_at: now,
+        revoked_at: now,
+        trusted: false,
+        pending_approval: false,
       }, { merge: true });
     }
 
-    return { ok: true, status: intent === 'approve' ? 'approved' : 'denied' };
+    return { ok: true, status: 'denied' };
+  }
+
+  // Fallback channels when trusted device is unreachable (not yet ported to email/SMS).
+  if (action === 'switch_to_code' || action === 'switch_to_sms') {
+    return { ok: false, error: 'not_supported' };
   }
 
   throw new HttpsError('invalid-argument', `Unknown action: ${action}`);
@@ -547,15 +637,16 @@ export const authLoginNotify = onCall(
           }
         }
         if (cleared > 0) await batch.commit();
-        return { ok: true, sessionId: doc.id, notified: false, reason: 'known_session' };
+        return { ok: true, sessionId: doc.id, notified: false, requiresApproval: false, reason: 'known_session' };
       }
     }
 
     const sessionRef = db.collection('user_sessions').doc();
+    const deviceLabel = parseDeviceLabel(userAgent);
     await sessionRef.set({
       user_id: uid,
       session_token_hash: sessionHash || null,
-      device_label: parseDeviceLabel(userAgent),
+      device_label: deviceLabel,
       user_agent: userAgent || null,
       ip: geo.ip,
       city: geo.city || null,
@@ -565,6 +656,7 @@ export const authLoginNotify = onCall(
       longitude: geo.longitude || null,
       geo,
       trusted: isResume,
+      pending_approval: false,
       created_at: now,
       last_seen_at: now,
       revoked_at: null,
@@ -572,14 +664,14 @@ export const authLoginNotify = onCall(
 
     // Cold starts / resumes register the install but never spam approvals or history.
     if (isResume) {
-      return { ok: true, sessionId: sessionRef.id, notified: false, reason: 'session_resume' };
+      return { ok: true, sessionId: sessionRef.id, notified: false, requiresApproval: false, reason: 'session_resume' };
     }
 
     await db.collection('login_history').add({
       user_id: uid,
       method,
       success: true,
-      device_label: parseDeviceLabel(userAgent),
+      device_label: deviceLabel,
       user_agent: userAgent || null,
       created_at: now,
       metadata: {
@@ -599,13 +691,38 @@ export const authLoginNotify = onCall(
 
     // First device or no other active sessions — never alert yourself on sign-in.
     if (otherActiveSessions.length === 0) {
-      await sessionRef.set({ trusted: true }, { merge: true });
-      return { ok: true, sessionId: sessionRef.id, notified: false, reason: 'first_device' };
+      await sessionRef.set({ trusted: true, pending_approval: false }, { merge: true });
+      return {
+        ok: true,
+        sessionId: sessionRef.id,
+        notified: false,
+        requiresApproval: false,
+        reason: 'first_device',
+      };
     }
 
     // Another device is already signed in — only then notify the account owner.
+    // Treat enable-toggle as a heartbeat that trusts this device without gating.
+    if (method === 'login_approval_enable') {
+      await sessionRef.set({ trusted: true, pending_approval: false }, { merge: true });
+      return {
+        ok: true,
+        sessionId: sessionRef.id,
+        notified: false,
+        requiresApproval: false,
+        reason: 'login_approval_enable',
+      };
+    }
+
     if (!loginApprovalsEnabled) {
-      return { ok: true, sessionId: sessionRef.id, notified: false, reason: 'approvals_disabled' };
+      await sessionRef.set({ trusted: true, pending_approval: false }, { merge: true });
+      return {
+        ok: true,
+        sessionId: sessionRef.id,
+        notified: false,
+        requiresApproval: false,
+        reason: 'approvals_disabled',
+      };
     }
 
     const pendingSnap = await db.collection('auth_challenges')
@@ -619,11 +736,17 @@ export const authLoginNotify = onCall(
       return sessionHash && meta.requesting_session_hash === sessionHash;
     });
     if (existing) {
+      const existingData = existing.data();
+      await sessionRef.set({ trusted: false, pending_approval: true }, { merge: true });
       return {
         ok: true,
         sessionId: sessionRef.id,
         challengeId: existing.id,
+        expiresAt: existingData.expires_at || null,
+        deviceLabel,
+        geo: { city: geo.city || null, country: geo.country || null, ip: geo.ip, region: geo.region || null },
         notified: false,
+        requiresApproval: true,
         reason: 'existing_challenge',
       };
     }
@@ -640,12 +763,14 @@ export const authLoginNotify = onCall(
       metadata: {
         requesting_session_hash: sessionHash || null,
         requesting_session_id: sessionRef.id,
-        device: { label: parseDeviceLabel(userAgent), browser: userAgent || null, os: parseDeviceLabel(userAgent) },
+        device: { label: deviceLabel, browser: userAgent || null, os: deviceLabel },
         method,
         ip: geo.ip,
         geo,
       },
     });
+
+    await sessionRef.set({ trusted: false, pending_approval: true }, { merge: true });
 
     await dispatchOneSignalToProfile(profileId, {
       title: 'Approve sign-in?',
@@ -662,7 +787,11 @@ export const authLoginNotify = onCall(
       ok: true,
       sessionId: sessionRef.id,
       challengeId: challengeRef.id,
+      expiresAt,
+      deviceLabel,
+      geo: { city: geo.city || null, country: geo.country || null, ip: geo.ip, region: geo.region || null },
       notified: true,
+      requiresApproval: true,
       reason: 'approval_push',
     };
   },

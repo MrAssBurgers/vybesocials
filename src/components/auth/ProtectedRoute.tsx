@@ -3,6 +3,7 @@ import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/lib/auth';
 import { hasStoredAuthSession } from '@/lib/legacyAuthStorage';
 import { stashAuthReturnPath } from '@/lib/authReturnPath';
+import { shouldBlockPostLoginNavigation } from '@/lib/loginApprovalGate';
 
 interface ProtectedRouteProps {
   children: ReactNode;
@@ -37,6 +38,11 @@ export function ProtectedRoute({ children, allowGuest }: ProtectedRouteProps) {
   // background token refresh). We must NOT bounce them to "/" — that creates
   // the "loading session loop" where DMs redirect to landing then back again.
   const hasStoredToken = hasStoredAuthSession();
+
+  // Login confirmation pending — keep the user on auth until approved.
+  if (shouldBlockPostLoginNavigation()) {
+    return <Navigate to="/auth" replace />;
+  }
 
   // Allow guest access to browse-only routes
   if (!user && isGuestAllowedRoute) {

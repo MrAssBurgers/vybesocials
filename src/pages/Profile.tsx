@@ -258,11 +258,12 @@ export default function ProfilePage() {
           {!themeImage && themeGradient && (
             <div className="absolute inset-0" style={{ background: themeGradient }} />
           )}
-          <div className="absolute inset-0 bg-gradient-to-b from-black/30 via-black/50 to-black/70" />
+          {/* Soft scrim only — keep theme/wallpaper readable; avoid hard black cliff above nav */}
+          <div className="absolute inset-0 bg-gradient-to-b from-black/20 via-black/25 to-black/35" />
         </div>
       )}
 
-      <div className="max-w-lg mx-auto px-3 sm:px-4 py-4 pb-[calc(7rem+env(safe-area-inset-bottom))] relative min-h-screen space-y-4" style={{ zIndex: 1 }}>
+      <div className="max-w-lg mx-auto px-3 sm:px-4 py-4 pb-[calc(7rem+env(safe-area-inset-bottom))] relative min-h-screen min-h-[100dvh] space-y-4 profile-page-shell" style={{ zIndex: 1 }}>
         {/* Hero Identity Card */}
         <ProfileHeroCard
           profile={profile}

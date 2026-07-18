@@ -82,6 +82,13 @@ export function SecuritySection() {
       login_approvals_enabled: !!row.login_approvals_enabled,
     });
     toast.success('Saved');
+    // When enabling login confirmation, ensure this install is marked trusted
+    // so it can approve future sign-ins from other devices.
+    if (patch.login_approvals_enabled === true) {
+      void import('@/hooks/useSessionTracking').then(({ notifyFreshLogin }) => {
+        void notifyFreshLogin('login_approval_enable');
+      });
+    }
     const { data: fresh } = await db.rpc('ensure_2fa_settings');
     const freshRow = Array.isArray(fresh) ? fresh[0] : fresh;
     if (freshRow) {
@@ -137,8 +144,8 @@ export function SecuritySection() {
           />
           <SettingsToggleRow
             icon={Shield}
-            title="Login Approvals"
-            description="Require approval from a trusted device for new sign-ins"
+            title="Login confirmation"
+            description="Require approval from a device already signed in before new logins finish"
             checked={!!settings?.login_approvals_enabled}
             onCheckedChange={(v) => updateSetting({ login_approvals_enabled: v })}
           />

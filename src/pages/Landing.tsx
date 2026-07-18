@@ -23,6 +23,16 @@ import { isInviteEntryMode } from '@/lib/referral';
 import { ForgotPasswordDialog } from '@/components/auth/ForgotPasswordDialog';
 import { MigrationAccountNotice } from '@/components/system/MigrationAccountNotice';
 import { LoginGateModal } from '@/components/auth/LoginGateModal';
+import {
+  clearPendingLoginApproval,
+  getPendingLoginApproval,
+  LOGIN_APPROVAL_CLEARED_EVENT,
+  LOGIN_APPROVAL_PENDING_EVENT,
+  setPendingLoginApproval,
+  shouldBlockPostLoginNavigation,
+  type PendingLoginApproval,
+} from '@/lib/loginApprovalGate';
+import { firebaseAuth } from '@/lib/firebase/authService';
 import { FounderCounter } from '@/components/growth/FounderCounter';
 import { getAuthRedirectUrl } from '@/lib/authRedirect';
 import { normalizeLoginEmail } from '@/lib/loginEmail';
@@ -195,7 +205,54 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
     expiresAt?: string;
     approvalDevice?: string;
     approvalLocation?: { city?: string | null; country?: string | null; ip?: string | null };
-  }>(null);
+  }>(() => {
+    const pending = getPendingLoginApproval();
+    if (!pending) return null;
+    return {
+      mode: 'approval',
+      email: pending.email || '',
+      challengeId: pending.challengeId,
+      expiresAt: pending.expiresAt,
+      approvalDevice: pending.deviceLabel,
+      approvalLocation: pending.location,
+    };
+  });
+
+  const openLoginApprovalGate = useCallback((pending: PendingLoginApproval, fallbackEmail = '') => {
+    setPendingLoginApproval(pending);
+    setLoginGate({
+      mode: 'approval',
+      email: pending.email || fallbackEmail,
+      challengeId: pending.challengeId,
+      expiresAt: pending.expiresAt,
+      approvalDevice: pending.deviceLabel,
+      approvalLocation: pending.location,
+    });
+  }, []);
+
+  useEffect(() => {
+    const sync = () => {
+      const pending = getPendingLoginApproval();
+      if (!pending) {
+        setLoginGate((cur) => (cur?.mode === 'approval' ? null : cur));
+        return;
+      }
+      setLoginGate({
+        mode: 'approval',
+        email: pending.email || '',
+        challengeId: pending.challengeId,
+        expiresAt: pending.expiresAt,
+        approvalDevice: pending.deviceLabel,
+        approvalLocation: pending.location,
+      });
+    };
+    window.addEventListener(LOGIN_APPROVAL_PENDING_EVENT, sync);
+    window.addEventListener(LOGIN_APPROVAL_CLEARED_EVENT, sync);
+    return () => {
+      window.removeEventListener(LOGIN_APPROVAL_PENDING_EVENT, sync);
+      window.removeEventListener(LOGIN_APPROVAL_CLEARED_EVENT, sync);
+    };
+  }, []);
   const [awaitingEmailVerification, setAwaitingEmailVerification] = useState(false);
   useEmailVerificationPoll(awaitingEmailVerification, () => setAwaitingEmailVerification(false));
   const [formData, setFormData] = useState({
@@ -233,7 +290,7 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
   // Complete Despia oauth:// return (deeplink / window.url with hc=).
   useEffect(() => {
     let finishing = false;
-    const finishDespiaOAuth = (detail?: {
+    const finishDespiaOAuth = async (detail?: {
       error?: { message?: string; name?: string } | null;
       data?: { session?: Parameters<typeof applyOAuthSession>[0] | null };
     }) => {
@@ -243,10 +300,20 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
         clearDespiaOAuthPending();
         clearOAuthRedirectPending();
         clearOAuthBusy();
-        applyOAuthSession(detail.data.session);
+        const gate = await applyOAuthSession(detail.data.session);
         setOauthOverlay(null);
         setLoading(false);
         setIsOAuthReturn(false);
+        if (gate.requiresApproval && gate.challengeId) {
+          openLoginApprovalGate({
+            challengeId: gate.challengeId,
+            expiresAt: gate.expiresAt,
+            deviceLabel: gate.deviceLabel,
+            location: gate.geo,
+            email: detail.data.session.user.email || undefined,
+          });
+          return;
+        }
         const cached = getCachedCurrentProfile();
         const dest = resolvePostLoginDestination(
           profile ??
@@ -473,10 +540,21 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
       if (oauthResult.error) throw oauthResult.error;
 
       if (oauthResult.data.session?.user) {
-        applyOAuthSession(oauthResult.data.session);
+        const gate = await applyOAuthSession(oauthResult.data.session);
         clearOAuthRedirectPending();
         clearDespiaOAuthPending();
         clearOAuthBusy();
+        if (gate.requiresApproval && gate.challengeId) {
+          openLoginApprovalGate({
+            challengeId: gate.challengeId,
+            expiresAt: gate.expiresAt,
+            deviceLabel: gate.deviceLabel,
+            location: gate.geo,
+            email: oauthResult.data.session.user.email || undefined,
+          });
+          setOauthOverlay(null);
+          return;
+        }
         await claimProfileAfterOAuth();
         toast.success('Welcome back! ✨');
         const cached = getCachedCurrentProfile();
@@ -520,13 +598,16 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
         clearOAuthBusy();
       }
     }
-  }, [navigate, profile, applyOAuthSession, loading]);
+  }, [navigate, profile, applyOAuthSession, loading, openLoginApprovalGate]);
 
   // Firebase OAuth redirect — navigate as soon as session exists.
   useEffect(() => {
     if (!isOAuthReturn) return;
 
     if (user) {
+      if (shouldBlockPostLoginNavigation() || loginGate) {
+        return;
+      }
       clearOAuthRedirectPending();
       clearDespiaOAuthPending();
       sessionStorage.removeItem('vybe-oauth-error');
@@ -565,7 +646,20 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
       void (async () => {
         const captured = await finalizeOAuthRedirectCapture();
         if (captured.session?.user) {
-          applyOAuthSession(captured.session);
+          const gate = await applyOAuthSession(captured.session);
+          if (gate.requiresApproval && gate.challengeId) {
+            openLoginApprovalGate({
+              challengeId: gate.challengeId,
+              expiresAt: gate.expiresAt,
+              deviceLabel: gate.deviceLabel,
+              location: gate.geo,
+              email: captured.session.user.email || undefined,
+            });
+            setIsOAuthReturn(false);
+            setOauthOverlay(null);
+            setLoading(false);
+            return;
+          }
           await claimProfileAfterOAuth();
           setOauthOverlay(null);
           return;
@@ -632,6 +726,7 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
     authReady &&
     user &&
     !loginGate &&
+    !shouldBlockPostLoginNavigation() &&
     !isInviteRoute &&
     !isInviteEntryMode()
   ) {
@@ -664,7 +759,10 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
         };
 
         // Auto-detect: email → Firebase directly; username → resolve via authQr then sign in.
-        const { error } = await signIn(formData.email, formData.password);
+        const { error, requiresApproval, challengeId, expiresAt, deviceLabel, geo } = await signIn(
+          formData.email,
+          formData.password,
+        );
 
         if (error) {
           if (isInvalidLoginCredentialError(error)) {
@@ -672,6 +770,20 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
             throw createHandledLoginError(getLoginCredentialErrorMessage());
           }
           throw error;
+        }
+
+        if (requiresApproval && challengeId) {
+          openLoginApprovalGate(
+            {
+              challengeId,
+              expiresAt,
+              email: formData.email,
+              deviceLabel,
+              location: geo,
+            },
+            formData.email,
+          );
+          return;
         }
 
         sessionStorage.removeItem('vybe-session-only');
@@ -1253,41 +1365,44 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
           expiresAt={loginGate.expiresAt}
           approvalDevice={loginGate.approvalDevice}
           approvalLocation={loginGate.approvalLocation}
-          onSuccess={async (session) => {
-            // Apply the session that the verify/approval response handed us.
-            // No session existed on this device until this moment.
-            if (!session?.access_token || !session?.refresh_token) {
-              toast.error('Could not finish signing in. Request a new code and try again.');
-              setLoginGate(null);
-              /* setGatePending removed */
-              return;
-            }
+          onSuccess={async (session, customToken) => {
             try {
-              const { error: sessionError } = await db.auth.setSession({
-                access_token: session.access_token,
-                refresh_token: session.refresh_token,
-              });
-              if (sessionError) throw sessionError;
-
-              const { data: active, error: activeError } = await db.auth.getUser();
-              if (activeError || !active.user) throw activeError ?? new Error('Session was not established');
+              if (customToken) {
+                const { data, error } = await firebaseAuth.signInWithCustomToken(customToken);
+                if (error || !data.session?.user) {
+                  throw error ?? new Error('Custom token sign-in failed');
+                }
+                await applyOAuthSession(data.session, 'login_approval');
+              } else if (session?.access_token && session?.refresh_token) {
+                const { error: sessionError } = await db.auth.setSession({
+                  access_token: session.access_token,
+                  refresh_token: session.refresh_token,
+                });
+                if (sessionError) throw sessionError;
+                const { data: active, error: activeError } = await db.auth.getUser();
+                if (activeError || !active.user) throw activeError ?? new Error('Session was not established');
+              } else {
+                toast.error('Could not finish signing in. Try again.');
+                setLoginGate(null);
+                clearPendingLoginApproval();
+                return;
+              }
             } catch (e) {
-              console.warn('setSession after gate failed', e);
+              console.warn('finish login after approval failed', e);
               toast.error('Could not finish signing in. Please try again.');
               setLoginGate(null);
-              /* setGatePending removed */
+              clearPendingLoginApproval();
               return;
             }
+            clearPendingLoginApproval();
             setLoginGate(null);
-            /* setGatePending removed */
             toast.success('Welcome back! ✨');
             if (isInviteMode && onInviteNavigate) onInviteNavigate('home');
             else navigate(getPostLoginPath('/home'));
           }}
           onCancel={() => {
-            // No session was ever created on this device — nothing to sign out.
+            clearPendingLoginApproval();
             setLoginGate(null);
-            /* setGatePending removed */
           }}
         />
       )}

@@ -2656,6 +2656,7 @@ html[data-camera-open='true'] nav[aria-label="Bottom navigation"] {
    ======================================== */
 .home-shell {
   position: relative;
+  min-height: 100%;
 }
 
 body.has-liquid-bg:not(.has-custom-bg) .home-shell .feed-post-card,
@@ -3678,7 +3679,9 @@ body.has-liquid-bg:not(.has-custom-bg) #main-content {
 
   /* Keep chrome drawing under status / home areas; interactive rows keep their own padding */
   html.platform-ios.vybe-native-shell[data-native-shell] [data-app-shell],
-  html.platform-ios.vybe-native-shell[data-native-shell] [data-route-shell] {
+  html.platform-ios.vybe-native-shell[data-native-shell] [data-route-shell],
+  html.platform-ios.vybe-native-shell [data-app-shell],
+  html.platform-ios.vybe-native-shell [data-route-shell] {
     min-height: 100%;
     min-height: 100dvh;
   }
@@ -3758,9 +3761,10 @@ body.has-liquid-bg:not(.has-custom-bg) #main-content {
 
   /* iOS Safari: Replace box-shadow animations with static shadows */
   /* IMPORTANT: Only apply to elements that actually use glow effects, NOT icons/SVGs */
+  /* Prefer box-shadow over filter:drop-shadow — drop-shadow paints square layer ears on WKWebView. */
   .platform-ios [class*="glow-"]:not(svg):not([class*="lucide"]) {
-    box-shadow: none !important;
-    filter: drop-shadow(0 2px 4px hsl(var(--primary) / 0.2));
+    filter: none !important;
+    box-shadow: 0 2px 8px hsl(var(--primary) / 0.22) !important;
   }
   
   /* Explicitly prevent drop-shadow filter on icons to avoid black box outlines */
@@ -4182,6 +4186,21 @@ body.has-liquid-bg:not(.has-custom-bg) #main-content {
   body.has-custom-bg #main-content:has(.home-shell) {
     background-color: hsl(var(--background) / 0.92) !important;
     -webkit-overflow-scrolling: touch;
+  }
+  /*
+   * [iOS-only] Do NOT paint a solid --background cliff under short pages.
+   * Keep #main-content transparent so liquid aurora / custom wallpaper continue
+   * through the empty area above the bottom nav. Stretch height so Cap WebView
+   * never peeks; underlay stays on html/body (or body image), not a mismatched fill.
+   */
+  html.platform-ios.vybe-native-shell body.has-liquid-bg #main-content,
+  html.platform-ios.vybe-native-shell body.has-custom-bg #main-content,
+  html.platform-ios.vybe-native-shell body.has-liquid-bg #main-content:has(.home-shell),
+  html.platform-ios.vybe-native-shell body.has-custom-bg #main-content:has(.home-shell) {
+    background: transparent !important;
+    background-color: transparent !important;
+    min-height: 100%;
+    min-height: 100dvh;
   }
   /* Sidebars become translucent glass so the backdrop bleeds through */
   body.has-custom-bg .stable-sidebar-surface,
@@ -9026,6 +9045,167 @@ html[data-anim-style='bouncy'] .vybe-liquid-button__flow {
 
 .perf-low .vybe-liquid-text__shimmer {
   animation-duration: calc(var(--vybe-shimmer-dur) * 1.25) !important;
+}
+
+/*
+ * [iOS-only] Squircle aura / glow square-ear fix
+ *
+ * WKWebView paints filter:blur() (and often mix-blend-mode:screen) as a rectangular
+ * composited layer. Parent overflow:hidden + border-radius does not clip those paint
+ * bounds, so rounded buttons (create FAB, liquid CTAs, texter pills, etc.) show faint
+ * square corner "ears". Unlayered so this beats @layer base iOS tweaks and the liquid
+ * button rules above. Android path untouched.
+ */
+.platform-ios .vybe-liquid-button,
+.platform-ios .gradient-animated,
+.platform-ios .create-button-gradient,
+.platform-ios .texter-pill,
+.platform-ios .texter-pill__inner {
+  /* Hosts that already clip (or should) — reinforce radius clip once filters are gone. */
+  overflow: hidden;
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
+}
+
+.platform-ios .vybe-liquid-button::before,
+.platform-ios .vybe-liquid-button__flow,
+.platform-ios .vybe-liquid-button:active:not(:disabled)::before,
+.platform-ios .perf-low .vybe-liquid-button::before,
+.platform-ios .perf-low .vybe-liquid-button__flow,
+.platform-ios.perf-low .vybe-liquid-button::before,
+.platform-ios.perf-low .vybe-liquid-button__flow,
+.platform-ios .texter-pill__glow,
+.platform-ios .vybe-liquid-touch__compress,
+.platform-ios .vybe-liquid-touch__nova {
+  filter: none !important;
+  /* Soften without blur so aura still reads as a wash */
+  mix-blend-mode: normal;
+}
+
+.platform-ios .vybe-liquid-button::before {
+  inset: -35%;
+  opacity: 0.78;
+  background:
+    radial-gradient(circle at 32% 38%, hsl(var(--neon-pink) / 0.58), transparent 58%),
+    radial-gradient(circle at 68% 62%, hsl(var(--neon-cyan) / 0.5), transparent 56%),
+    radial-gradient(circle at 50% 50%, hsl(var(--primary) / 0.42), transparent 64%);
+}
+
+.platform-ios .vybe-liquid-button__flow {
+  inset: -28%;
+  opacity: 0.62;
+  background:
+    radial-gradient(circle at 72% 28%, hsl(var(--accent) / 0.55), transparent 52%),
+    radial-gradient(circle at 22% 72%, hsl(var(--neon-purple) / 0.5), transparent 50%);
+}
+
+.platform-ios .vybe-liquid-button::after,
+.platform-ios .gradient-animated::before,
+.platform-ios .gradient-animated::after,
+.platform-ios .create-button-gradient::before,
+.platform-ios .create-button-gradient::after {
+  /* Match host radius so sweep/highlight layers never paint square bounds */
+  border-radius: inherit;
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
+}
+
+.platform-ios .texter-pill__glow {
+  inset: -2px;
+  opacity: 0.85;
+  background: radial-gradient(
+    ellipse 80% 60% at 50% 100%,
+    hsl(var(--primary) / 0.28),
+    transparent 72%
+  );
+}
+
+.platform-ios .vybe-liquid-touch__compress,
+.platform-ios .vybe-liquid-touch__nova {
+  opacity: 0.55;
+}
+
+/*
+ * [iOS-only] Edge-to-edge shell continuity + safe-area chrome
+ *
+ * Cap uses contentInset:never + viewport-fit=cover. Empty space below short content
+ * must blend with the page background (aurora mesh / custom wallpaper) — never a
+ * solid near-black #main-content fill. Underlay: theme --background on html (and
+ * body when no wallpaper). Do not use the `background` shorthand on body — that
+ * wipes inline custom wallpaper images.
+ */
+html.platform-ios.vybe-native-shell {
+  background-color: hsl(var(--background)) !important;
+}
+
+/* Liquid / default: body underlay matches theme token; aurora paints full-bleed on top */
+html.platform-ios.vybe-native-shell body:not(.has-custom-bg) {
+  background-color: hsl(var(--background)) !important;
+}
+
+/* Custom wallpaper: never force a solid — keep AppBackground inline image */
+html.platform-ios.vybe-native-shell body.has-custom-bg {
+  background-color: transparent !important;
+}
+
+html.platform-ios.vybe-native-shell #root,
+html.platform-ios.vybe-native-shell .app-shell,
+html.platform-ios.vybe-native-shell #main-content,
+html.platform-ios.vybe-native-shell [data-app-shell],
+html.platform-ios.vybe-native-shell [data-route-shell] {
+  background: transparent !important;
+  background-color: transparent !important;
+}
+
+html.platform-ios.vybe-native-shell .app-shell,
+html.platform-ios.vybe-native-shell #main-content {
+  min-height: 100%;
+  min-height: 100dvh;
+}
+
+/* Page shells that own content stretch to the scrollport so empty space stays in-flow */
+html.platform-ios.vybe-native-shell .home-shell,
+html.platform-ios.vybe-native-shell .profile-page-shell {
+  min-height: 100%;
+  min-height: 100dvh;
+  background: transparent;
+  background-color: transparent;
+}
+
+/* Aurora / liquid layer always covers the WKWebView viewport */
+html.platform-ios.vybe-native-shell #vybe-aurora-mount,
+html.platform-ios.vybe-native-shell #vybe-aurora-mount .vybe-liquid-bg {
+  position: fixed !important;
+  inset: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  min-height: 100dvh !important;
+}
+
+/* Fixed full-bleed side/top panels — never draw under status bar / home indicator */
+html.platform-ios .vybe-edge-panel {
+  padding-top: max(
+    var(--sat, 0px),
+    var(--app-header-safe, env(safe-area-inset-top, 0px)),
+    47px
+  ) !important;
+  padding-bottom: max(
+    var(--sab, 0px),
+    env(safe-area-inset-bottom, 0px),
+    20px
+  ) !important;
+  padding-left: max(var(--sal, 0px), env(safe-area-inset-left, 0px)) !important;
+  padding-right: max(var(--sar, 0px), env(safe-area-inset-right, 0px)) !important;
+  box-sizing: border-box;
+}
+
+/* [iOS-only] Interest / category pills — clip any square aura compositing ears */
+html.platform-ios .profile-interest-chip {
+  overflow: hidden;
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
+  isolation: isolate;
+  transform: translateZ(0);
 }
 
 /* Stable solid background — no animated aurora, no transparent shell flicker */

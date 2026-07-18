@@ -24,20 +24,21 @@ interface Props {
   /** Approval-mode metadata to display "is this you?" context. */
   approvalDevice?: string;
   approvalLocation?: { city?: string | null; country?: string | null; ip?: string | null };
-  onSuccess: (session: SessionTokens | null) => void;
+  /** Firebase path: custom token from approve poll. Supabase legacy: access/refresh pair. */
+  onSuccess: (session: SessionTokens | null, customToken?: string | null) => void;
   onCancel: () => void;
 }
 
 /**
  * Blocking 2FA / login-approval gate. Used in two flows:
  * - mode="code": email 2FA. User types the 6-digit code; we verify and on
- *   success we receive a Supabase session and apply it via setSession.
+ *   success we receive session tokens (legacy) or continue with existing auth.
  * - mode="approval": Instagram-style trusted-device approval. We poll until
- *   the trusted device approves; the approval response carries the session.
+ *   the trusted device approves; the approval response carries a Firebase
+ *   custom token (or legacy session tokens).
  *
- * No Supabase session exists on the device while this modal is open — the
- * preauth function holds the tokens server-side. Cancelling is therefore
- * naturally safe and does NOT need to call signOut().
+ * While this modal is open the attempting device has soft-signed-out — no
+ * usable session until approval completes.
  */
 export function LoginGateModal({
   open, mode, email, challengeId, expiresAt,
@@ -95,16 +96,16 @@ export function LoginGateModal({
 
     const pollChallengeId = activeChallengeId;
 
-    const finalize = (status: string, session?: any) => {
+    const finalize = (status: string, session?: any, customToken?: string | null) => {
       if (cancelledRef.current) return;
       cancelledRef.current = true;
       if (status === 'approved') {
-        onSuccess(session ?? null);
+        onSuccess(session ?? null, customToken ?? null);
       } else if (status === 'denied') {
-        toast.error('Sign-in was denied');
+        toast.error('Sign-in was declined on your other device');
         onCancel();
       } else if (status === 'expired' || status === 'not_found') {
-        toast.error('Approval request expired');
+        toast.error('Login request expired — try signing in again');
         onCancel();
       }
     };
@@ -121,9 +122,10 @@ export function LoginGateModal({
         if (!error) {
           const status = (data as any)?.status;
           if (status === 'approved') {
+            const customToken = (data as any)?.customToken ?? null;
             const session = (data as any)?.session ?? null;
-            if (session?.access_token && session?.refresh_token) {
-              finalize('approved', session);
+            if (customToken || (session?.access_token && session?.refresh_token)) {
+              finalize('approved', session, customToken);
               return;
             }
             // Broadcast may have scrubbed metadata before poll — retry briefly.
@@ -132,7 +134,7 @@ export function LoginGateModal({
               pollTimerRef.current = window.setTimeout(poll, 400);
               return;
             }
-            finalize('approved', null);
+            finalize('approved', null, null);
             return;
           }
           if (status === 'denied' || status === 'expired' || status === 'not_found') {
@@ -152,9 +154,10 @@ export function LoginGateModal({
       .on('broadcast', { event: 'resolved' }, (payload: any) => {
         const status = payload?.payload?.status;
         const session = payload?.payload?.session;
+        const customToken = payload?.payload?.customToken;
         if (status === 'approved') {
-          if (session?.access_token && session?.refresh_token) {
-            finalize('approved', session);
+          if (customToken || (session?.access_token && session?.refresh_token)) {
+            finalize('approved', session, customToken);
           } else {
             // Fall back to poll — edge may still be handing back the session row.
             if (pollTimerRef.current) window.clearTimeout(pollTimerRef.current);
@@ -366,7 +369,7 @@ export function LoginGateModal({
             {currentMode === 'options' && <ShieldCheck className="w-5 h-5 text-primary" />}
             {currentMode === 'code' && 'Enter your code'}
             {currentMode === 'sms' && 'Enter the SMS code'}
-            {currentMode === 'approval' && 'Approve sign-in'}
+            {currentMode === 'approval' && 'Waiting for confirmation'}
             {currentMode === 'options' && 'More sign-in options'}
           </DialogTitle>
           <DialogDescription>
@@ -377,7 +380,7 @@ export function LoginGateModal({
               <>We texted a 6-digit code to <span className="font-medium text-foreground">{phoneMasked || 'your phone'}</span>. It expires {expiryLabel ? <>in <span className="font-mono">{expiryLabel}</span></> : 'soon'}.</>
             )}
             {currentMode === 'approval' && (
-              <>Open VYBE on a trusted device and tap <span className="font-medium text-foreground">Approve</span>. We&apos;ll continue automatically.</>
+              <>We sent a login request to your other device. Open VYBE there and tap <span className="font-medium text-foreground">Approve</span> to continue.</>
             )}
             {currentMode === 'options' && (
               <>Pick another way to finish signing in.</>
@@ -471,7 +474,8 @@ export function LoginGateModal({
                 </div>
               </div>
               <div className="text-center text-sm text-muted-foreground space-y-1">
-                {approvalDevice && <div className="text-foreground font-medium">{approvalDevice}</div>}
+                <div className="text-foreground font-medium">Waiting for approval…</div>
+                {approvalDevice && <div>{approvalDevice}</div>}
                 {(approvalLocation?.city || approvalLocation?.country) && (
                   <div>
                     {approvalLocation?.city ? `${approvalLocation.city}, ` : ''}
