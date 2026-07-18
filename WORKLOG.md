@@ -4,6 +4,14 @@ Use this file as the Lovable -> Cursor handoff each session.
 
 ## ACTIVE (2026-07-17) — Instagram-style login confirmation
 
+### Publish handoff (2026-07-17)
+- **Commit:** `b3771aeac1fc2e8a2614d843332433a79a26b27c` (`b3771aeac`) on `main`
+- **Git:** push to `origin/main` in progress / required before Lovable Publish
+- **Cloud Functions:** deploy `authLoginNotify` + `authLoginApproval` to `vybe-daaab` (required for prod gate)
+- **Web prod:** Lovable → Share → Publish for **vybehub.app** (CLI cannot click Publish)
+- **Left uncommitted on purpose:** `.cursor/` frames/screenshots, `git-http-0.1.1.tgz`, `Landing.tsx.local-oauth-bak`, `.firebase/hosting.ZGlzdA.cache`, `functions/lib/purgeUnsavedOnLeave.js(.map)` (lib rebuild only; src already had membership check)
+
+
 ### Goal
 When **Login confirmation** is enabled, a new device must wait for Accept/Decline from an already-signed-in device before the sign-in finishes (no usable session until approved).
 
@@ -32,12 +40,12 @@ When **Login confirmation** is enabled, a new device must wait for Accept/Declin
 - `npm run build` (client) green.
 - `functions` `npm run build` green.
 - `npm run test` green.
-- Did **not** commit / push.
+- Committed as `b3771aeac`; push + CF deploy + Lovable Publish are the remaining ship steps.
 
 ### Deploy (required for prod)
-1. `firebase deploy --only functions:authLoginNotify,functions:authLoginApproval` (or full auth functions).
+1. `firebase deploy --only functions:authLoginNotify,functions:authLoginApproval` — project `vybe-daaab`.
 2. Firestore rules already allow owner read of `auth_challenges` (non-`_2fa`); no rules change required for MVP.
-3. Lovable Publish for SPA on **vybehub.app**.
+3. Lovable → Share → Publish for SPA on **vybehub.app**.
 
 ### Gaps
 - Email/SMS fallback from waiting modal (`switch_to_code` / `switch_to_sms`) not ported.
@@ -45,7 +53,7 @@ When **Login confirmation** is enabled, a new device must wait for Accept/Declin
 - Approving device must already be signed in with Login confirmation enabled on the account (and have another active session).
 
 ### Next 3
-1. Deploy CF `authLoginNotify` + `authLoginApproval`, then Lovable Publish.
+1. After push + CF deploy: Lovable → Share → Publish (`vybehub.app`).
 2. Manual test: Device A enable Login confirmation → Device B password/OAuth login → wait → Accept on A → B enters home; Decline path clears B.
 3. Optional: port email/SMS fallback for unreachable trusted device.
 
