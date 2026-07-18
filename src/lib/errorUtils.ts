@@ -226,7 +226,34 @@ export function getUserFriendlyError(error: any): string {
   if (message.includes('User not found') || error?.code === 'user_not_found') {
     return 'No account found for this email. Create one first.';
   }
-  if (message.toLowerCase().includes('invalid') && message.toLowerCase().includes('email')) {
+  // Username login lookup — pass through (do not remangle into "email looks invalid").
+  if (
+    error?.name === 'login/username-not-found' ||
+    message.includes('No account found with that username')
+  ) {
+    return 'No account found with that username.';
+  }
+  if (
+    error?.name === 'login/username-lookup-failed' ||
+    message.includes('Could not look up that username')
+  ) {
+    return 'Could not look up that username. Check your connection and try again.';
+  }
+  if (
+    error?.name === 'login/invalid-username' ||
+    error?.name === 'login/empty-identifier' ||
+    message.includes('Enter your email or username') ||
+    message.includes('Enter a valid username or email')
+  ) {
+    return message;
+  }
+  // Only treat true email-format failures as "invalid email" — never username/password copy
+  // that happens to contain both words (e.g. "Invalid username/email or password").
+  if (
+    error?.code === 'auth/invalid-email' ||
+    error?.name === 'auth/invalid-email' ||
+    (/invalid email/i.test(message) && !/username/i.test(message) && !/password/i.test(message))
+  ) {
     return 'That email address looks invalid. Double-check it and try again.';
   }
   if (

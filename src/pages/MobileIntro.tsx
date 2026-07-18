@@ -1,10 +1,11 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
-import { motion, AnimatePresence, PanInfo } from 'framer-motion';
+import { motion, useMotionValue, animate as motionAnimate } from 'framer-motion';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { ArrowRight, Sparkles, Camera, MessageCircle, Users, Palette, Shield, Trophy, Smartphone } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { isIOSAppShell } from '@/lib/despiaBridge';
 import { isNativePerfMode } from '@/lib/nativePerfMode';
+import { BUTTER_EASE } from '@/lib/smoothMotion';
 
 // Bump this when slides change to re-trigger the intro for existing users.
 export const VYBE_INTRO_VERSION = '3';
@@ -68,15 +69,28 @@ const SLIDES = [
   },
 ];
 
-const EASE = [0.16, 1, 0.3, 1] as const;
+const SLIDE_MS = 0.32;
 
 export default function MobileIntro({ onDone }: { onDone?: () => void }) {
   const navigate = useNavigate();
   const location = useLocation();
   const [index, setIndex] = useState(0);
-  const [direction, setDirection] = useState(1);
+  const [sliding, setSliding] = useState(false);
+  const trackRef = useRef<HTMLDivElement>(null);
   const startX = useRef(0);
-  const calmIos = isIOSAppShell() || isNativePerfMode();
+  const startY = useRef(0);
+  const dragging = useRef(false);
+  const lockHorizontal = useRef(false);
+  const indexRef = useRef(0);
+  const slideAnim = useRef<ReturnType<typeof motionAnimate> | null>(null);
+  const calmNative = isIOSAppShell() || isNativePerfMode();
+  // [iOS-only] Prefer lighter auras — WKWebView paints blur poorly mid-swipe.
+  const softAura = isIOSAppShell() || (typeof document !== 'undefined' && document.documentElement.classList.contains('perf-low'));
+  const dragX = useMotionValue(0);
+
+  useEffect(() => {
+    indexRef.current = index;
+  }, [index]);
 
   useEffect(() => {
     document.body.classList.add('hide-bottom-nav');
@@ -108,44 +122,119 @@ export default function MobileIntro({ onDone }: { onDone?: () => void }) {
     }
   }, [navigate, onDone, location.state]);
 
-  const go = useCallback((dir: 1 | -1) => {
-    setDirection(dir);
-    setIndex(i => {
-      const next = i + dir;
-      if (next < 0) return 0;
-      if (next >= SLIDES.length) { finish(); return i; }
-      return next;
+  const snapTo = useCallback((next: number) => {
+    const clamped = Math.max(0, Math.min(SLIDES.length - 1, next));
+    const width = trackRef.current?.clientWidth ?? window.innerWidth;
+    const target = -clamped * width;
+    if (clamped === indexRef.current && Math.abs(dragX.get() - target) < 1) {
+      setSliding(false);
+      return;
+    }
+    setSliding(true);
+    setIndex(clamped);
+    slideAnim.current?.stop();
+    slideAnim.current = motionAnimate(dragX, target, {
+      type: 'tween',
+      duration: SLIDE_MS,
+      ease: BUTTER_EASE,
     });
-  }, [finish]);
+    void slideAnim.current.then(() => setSliding(false));
+  }, [dragX]);
 
-  const onDragEnd = (_: unknown, info: PanInfo) => {
-    if (info.offset.x < -60) go(1);
-    else if (info.offset.x > 60) go(-1);
+  const go = useCallback((dir: 1 | -1) => {
+    const next = indexRef.current + dir;
+    if (next < 0) {
+      snapTo(0);
+      return;
+    }
+    if (next >= SLIDES.length) {
+      finish();
+      return;
+    }
+    snapTo(next);
+  }, [finish, snapTo]);
+
+  // Keep track aligned if viewport resizes (orientation / safe-area).
+  useEffect(() => {
+    const onResize = () => {
+      const width = trackRef.current?.clientWidth ?? window.innerWidth;
+      dragX.set(-indexRef.current * width);
+    };
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, [dragX]);
+
+  const onPointerDown = (e: React.PointerEvent) => {
+    startX.current = e.clientX;
+    startY.current = e.clientY;
+    dragging.current = true;
+    lockHorizontal.current = false;
+    slideAnim.current?.stop();
+    try {
+      (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    } catch { /* ignore */ }
+  };
+
+  const onPointerMove = (e: React.PointerEvent) => {
+    if (!dragging.current) return;
+    const dx = e.clientX - startX.current;
+    const dy = e.clientY - startY.current;
+    if (!lockHorizontal.current) {
+      if (Math.abs(dx) < 10 && Math.abs(dy) < 10) return;
+      lockHorizontal.current = Math.abs(dx) > Math.abs(dy) * 1.25;
+      if (!lockHorizontal.current) {
+        dragging.current = false;
+        return;
+      }
+      setSliding(true);
+    }
+    const width = trackRef.current?.clientWidth ?? window.innerWidth;
+    const base = -indexRef.current * width;
+    // Rubber-band at ends
+    let offset = dx;
+    if ((indexRef.current === 0 && dx > 0) || (indexRef.current === SLIDES.length - 1 && dx < 0)) {
+      offset = dx * 0.35;
+    }
+    dragX.set(base + offset);
+  };
+
+  const endDrag = (clientX: number) => {
+    if (!dragging.current && !lockHorizontal.current) return;
+    const wasHorizontal = lockHorizontal.current;
+    dragging.current = false;
+    lockHorizontal.current = false;
+    if (!wasHorizontal) {
+      setSliding(false);
+      return;
+    }
+    const dx = clientX - startX.current;
+    const width = trackRef.current?.clientWidth ?? window.innerWidth;
+    if (dx < -56) snapTo(indexRef.current + 1);
+    else if (dx > 56) snapTo(indexRef.current - 1);
+    else snapTo(indexRef.current);
   };
 
   const slide = SLIDES[index];
-  const Icon = slide.icon;
   const isLast = index === SLIDES.length - 1;
+  const orbBlur = softAura ? 'mobile-intro-orb mobile-intro-orb--ios' : 'mobile-intro-orb';
 
   return (
-    <div className="fixed inset-0 z-[9999] h-[100dvh] max-h-[100dvh] bg-background text-foreground overflow-hidden overscroll-none flex flex-col">
-      {/* Ambient gradient that shifts per slide */}
-      <AnimatePresence mode="sync">
-        <motion.div
-          key={`bg-${index}`}
-          initial={calmIos ? false : { opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={calmIos ? undefined : { opacity: 0 }}
-          transition={{ duration: calmIos ? 0.25 : 0.8, ease: EASE }}
-          className="pointer-events-none absolute inset-0 -z-10"
-        >
-          <div className={`absolute -top-32 left-1/2 -translate-x-1/2 h-[520px] w-[520px] rounded-full bg-gradient-to-br ${slide.accent} opacity-30 ${calmIos ? 'blur-[48px]' : 'blur-[100px]'}`} />
-          <div className={`absolute -bottom-32 left-1/3 h-[420px] w-[420px] rounded-full bg-gradient-to-tr ${slide.accent} opacity-20 ${calmIos ? 'blur-[48px]' : 'blur-[110px]'}`} />
-        </motion.div>
-      </AnimatePresence>
+    <div
+      data-allow-animation="true"
+      className={`fixed inset-0 z-[9999] h-[100dvh] max-h-[100dvh] bg-background text-foreground overflow-hidden overscroll-none flex flex-col mobile-intro${sliding ? ' mobile-intro--sliding' : ''}${calmNative ? ' mobile-intro--native' : ''}`}
+    >
+      {/* Ambient gradient — single pair of orbs, no remount / no AnimatePresence */}
+      <div className="pointer-events-none absolute inset-0 -z-10 overflow-hidden" aria-hidden>
+        <div
+          className={`absolute -top-32 left-1/2 -translate-x-1/2 h-[520px] w-[520px] rounded-full bg-gradient-to-br ${slide.accent} opacity-30 ${orbBlur}`}
+        />
+        <div
+          className={`absolute -bottom-32 left-1/3 h-[420px] w-[420px] rounded-full bg-gradient-to-tr ${slide.accent} opacity-20 ${orbBlur}`}
+        />
+      </div>
 
       {/* Skip */}
-      <div className="flex justify-end p-5 pt-[max(1rem,var(--sat,env(safe-area-inset-top,0px)))]">
+      <div className="flex justify-end p-5 pt-[max(1rem,var(--sat,env(safe-area-inset-top,0px)))] relative z-10">
         <button
           onClick={finish}
           className="text-sm text-muted-foreground/80 active:scale-95 transition-transform"
@@ -154,90 +243,90 @@ export default function MobileIntro({ onDone }: { onDone?: () => void }) {
         </button>
       </div>
 
-      {/* Slide content */}
-      <motion.div
-        className="flex-1 min-h-0 flex flex-col items-center justify-center px-7 select-none"
-        drag={calmIos ? false : 'x'}
-        dragConstraints={{ left: 0, right: 0 }}
-        dragElastic={0.18}
-        onDragEnd={calmIos ? undefined : onDragEnd}
-        onPointerDown={(e) => { startX.current = e.clientX; }}
+      {/* Slide track — compositor transform only (no mount/unmount flash) */}
+      <div
+        ref={trackRef}
+        className="flex-1 min-h-0 overflow-hidden select-none touch-pan-y"
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={(e) => endDrag(e.clientX)}
+        onPointerCancel={(e) => endDrag(e.clientX)}
+        onPointerLeave={(e) => {
+          if (dragging.current) endDrag(e.clientX);
+        }}
       >
-        <AnimatePresence mode="wait" custom={direction}>
-          <motion.div
-            key={index}
-            custom={direction}
-            initial={calmIos ? { opacity: 0 } : { opacity: 0, x: direction * 40, scale: 0.96 }}
-            animate={{ opacity: 1, x: 0, scale: 1 }}
-            exit={calmIos ? { opacity: 0 } : { opacity: 0, x: direction * -40, scale: 0.96 }}
-            transition={{ duration: calmIos ? 0.25 : 0.45, ease: EASE }}
-            className="w-full max-w-sm flex flex-col items-center text-center"
-          >
-            <motion.div
-              initial={calmIos ? false : { scale: 0.6, opacity: 0, rotate: -8 }}
-              animate={{ scale: 1, opacity: 1, rotate: 0 }}
-              transition={{ duration: calmIos ? 0.25 : 0.6, ease: EASE, delay: calmIos ? 0 : 0.1 }}
-              className={`relative mb-8 h-24 w-24 rounded-3xl bg-gradient-to-br ${slide.accent} p-[1.5px] shadow-[0_20px_60px_-20px_hsl(var(--primary)/0.6)]`}
-            >
-              <div className="h-full w-full rounded-3xl bg-background/90 backdrop-blur-xl flex items-center justify-center">
-                <Icon className="h-10 w-10 text-foreground" strokeWidth={1.8} />
-              </div>
-              {!calmIos && (
-                <motion.div
-                  aria-hidden
-                  animate={{ scale: [1, 1.15, 1], opacity: [0.5, 0, 0.5] }}
-                  transition={{ duration: 2.4, repeat: Infinity, ease: 'easeInOut' }}
-                  className={`absolute inset-0 rounded-3xl bg-gradient-to-br ${slide.accent} blur-xl -z-10`}
-                />
-              )}
-            </motion.div>
+        <motion.div
+          className="flex h-full will-change-transform"
+          style={{ x: dragX, width: `${SLIDES.length * 100}%` }}
+        >
+          {SLIDES.map((s) => {
+            const Icon = s.icon;
+            return (
+              <div
+                key={s.title}
+                className="h-full shrink-0 flex flex-col items-center justify-center px-7"
+                style={{ width: `${100 / SLIDES.length}%` }}
+              >
+                <div className="w-full max-w-sm flex flex-col items-center text-center">
+                  <div
+                    className={`relative mb-8 h-24 w-24 rounded-3xl bg-gradient-to-br ${s.accent} p-[1.5px] shadow-[0_20px_60px_-20px_hsl(var(--primary)/0.6)]`}
+                  >
+                    <div className="mobile-intro-icon-face h-full w-full rounded-3xl bg-background/95 flex items-center justify-center">
+                      <Icon className="h-10 w-10 text-foreground" strokeWidth={1.8} />
+                    </div>
+                    {!calmNative && (
+                      <div
+                        aria-hidden
+                        className={`absolute inset-0 rounded-3xl bg-gradient-to-br ${s.accent} blur-xl -z-10 opacity-40`}
+                      />
+                    )}
+                  </div>
 
-            <motion.p
-              initial={calmIos ? false : { opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: calmIos ? 0.2 : 0.4, ease: EASE, delay: calmIos ? 0 : 0.18 }}
-              className="text-xs uppercase tracking-[0.22em] text-muted-foreground/80"
-            >
-              {slide.eyebrow}
-            </motion.p>
-            <motion.h1
-              initial={calmIos ? false : { opacity: 0, y: 12 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: calmIos ? 0.2 : 0.5, ease: EASE, delay: calmIos ? 0 : 0.24 }}
-              className={`mt-2 text-4xl sm:text-5xl font-bold tracking-tight bg-gradient-to-r ${slide.accent} bg-clip-text text-transparent`}
-            >
-              {slide.title}
-            </motion.h1>
-            <motion.p
-              initial={calmIos ? false : { opacity: 0, y: 12 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: calmIos ? 0.2 : 0.5, ease: EASE, delay: calmIos ? 0 : 0.32 }}
-              className="mt-5 text-base sm:text-lg text-muted-foreground leading-relaxed"
-            >
-              {slide.body}
-            </motion.p>
-          </motion.div>
-        </AnimatePresence>
-      </motion.div>
+                  <p className="text-xs uppercase tracking-[0.22em] text-muted-foreground/80">
+                    {s.eyebrow}
+                  </p>
+                  <h1
+                    className={`mt-2 text-4xl sm:text-5xl font-bold tracking-tight bg-gradient-to-r ${s.accent} bg-clip-text text-transparent`}
+                  >
+                    {s.title}
+                  </h1>
+                  <p className="mt-5 text-base sm:text-lg text-muted-foreground leading-relaxed">
+                    {s.body}
+                  </p>
+                </div>
+              </div>
+            );
+          })}
+        </motion.div>
+      </div>
 
       {/* Dots + CTA */}
-      <div className="px-7 pb-[max(1.5rem,var(--sab,env(safe-area-inset-bottom,0px)))] flex flex-col items-center gap-6">
+      <div className="px-7 pb-[max(1.5rem,var(--sab,env(safe-area-inset-bottom,0px)))] flex flex-col items-center gap-6 relative z-10">
         <div className="flex items-center gap-1.5">
           {SLIDES.map((_, i) => (
-            <motion.button
+            <button
               key={i}
-              onClick={() => { setDirection(i > index ? 1 : -1); setIndex(i); }}
-              className="h-1.5 rounded-full bg-muted-foreground/30"
-              animate={{ width: i === index ? 24 : 6, backgroundColor: i === index ? 'hsl(var(--primary))' : undefined }}
-              transition={{ duration: 0.35, ease: EASE }}
+              type="button"
+              onClick={() => snapTo(i)}
+              className="relative h-1.5 w-6 overflow-hidden rounded-full bg-muted-foreground/30"
               aria-label={`Go to slide ${i + 1}`}
-            />
+              aria-current={i === index ? 'true' : undefined}
+            >
+              <span
+                className="absolute inset-y-0 left-0 rounded-full bg-primary transition-transform duration-300 ease-out origin-left"
+                style={{
+                  width: '100%',
+                  transform: i === index ? 'scaleX(1)' : 'scaleX(0.28)',
+                  opacity: i === index ? 1 : 0.35,
+                }}
+              />
+            </button>
           ))}
         </div>
 
         <Button
           size="lg"
-          onClick={() => isLast ? finish() : go(1)}
+          onClick={() => (isLast ? finish() : go(1))}
           className={`w-full max-w-sm h-14 rounded-2xl text-base font-semibold bg-gradient-to-r ${slide.accent} text-primary-foreground shadow-[0_10px_40px_-10px_hsl(var(--primary)/0.7)] active:scale-[0.98] transition-transform`}
         >
           {isLast ? "Let's go" : 'Next'}

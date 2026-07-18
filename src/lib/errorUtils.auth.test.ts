@@ -69,3 +69,22 @@ describe('getFriendlyAuthError', () => {
     expect(sanitizeAuthToastMessage('Real error')).toBe('Real error');
   });
 });
+
+describe('getUserFriendlyError username login', () => {
+  it('does not remangle username/email credential copy into invalid-email', async () => {
+    const { getUserFriendlyError } = await import('./errorUtils');
+    expect(
+      getUserFriendlyError({ message: 'Invalid username/email or password. Please try again.' }),
+    ).not.toMatch(/email address looks invalid/i);
+  });
+
+  it('passes through username-not-found without asking for email', async () => {
+    const { getUserFriendlyError } = await import('./errorUtils');
+    expect(
+      getUserFriendlyError({
+        name: 'login/username-not-found',
+        message: 'No account found with that username.',
+      }),
+    ).toBe('No account found with that username.');
+  });
+});

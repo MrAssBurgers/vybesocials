@@ -75,31 +75,9 @@ async function prefetchBrief(authUserId?: string, force = false): Promise<boolea
     // Prefer server-pre-warmed cache (zero AI cost, instant)
     if (!force && authUserId && await tryServerCache(authUserId)) return true;
 
-    // Try to get GPS location (non-blocking)
-    let latitude: number | null = null;
-    let longitude: number | null = null;
-    const locationEnabled = localStorage.getItem('vybe_ai_location') === 'true';
-
-    if (locationEnabled && navigator.geolocation) {
-      try {
-        const pos = await new Promise<GeolocationPosition>((resolve, reject) => {
-          navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 3000, maximumAge: 300000 });
-        });
-        latitude = pos.coords.latitude;
-        longitude = pos.coords.longitude;
-      } catch { /* skip */ }
-    }
-
-    const bodyPayload: Record<string, any> = {};
-    if (latitude && longitude) {
-      bodyPayload.latitude = latitude;
-      bodyPayload.longitude = longitude;
-    }
-
-    const data = await fetchDailyBrief(authUserId || session.user.id, {
-      latitude: latitude ?? undefined,
-      longitude: longitude ?? undefined,
-    });
+    // Do not call geolocation here — prefetch runs on app open. Location-aware
+    // briefs request GPS only when the user opens the brief sheet / enables location.
+    const data = await fetchDailyBrief(authUserId || session.user.id, {});
     if (data && typeof data.summary === 'string' && data.summary.trim().length > 0) {
       writeBriefCache(data);
       return true;

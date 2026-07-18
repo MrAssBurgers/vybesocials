@@ -39,11 +39,24 @@ describe('loginEmail', () => {
     );
   });
 
-  it('maps missing username to a generic login error', async () => {
+  it('maps missing username to a clear not-found error', async () => {
     vi.mocked(invokeFunction).mockResolvedValue({
       data: null,
       error: { message: 'Account not found', name: 'not-found' },
     });
-    await expect(resolveLoginEmail('ghost_user')).rejects.toThrow(/Invalid username\/email or password/i);
+    await expect(resolveLoginEmail('ghost_user')).rejects.toMatchObject({
+      message: expect.stringMatching(/No account found with that username/i),
+      name: 'login/username-not-found',
+    });
+  });
+
+  it('maps lookup failures without pretending the username was an email', async () => {
+    vi.mocked(invokeFunction).mockResolvedValue({
+      data: null,
+      error: { message: 'internal', name: 'internal' },
+    });
+    await expect(resolveLoginEmail('ada_vybe')).rejects.toMatchObject({
+      name: 'login/username-lookup-failed',
+    });
   });
 });

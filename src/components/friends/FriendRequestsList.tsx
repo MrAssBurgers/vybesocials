@@ -42,7 +42,7 @@ function MiniMutualFriends({ userId }: { userId: string }) {
           </button>
         ))}
       </div>
-      <span className="text-[10px] text-muted-foreground">
+      <span className="text-[10px] text-foreground/65">
         {count} mutual
       </span>
     </div>
@@ -87,7 +87,7 @@ export function FriendRequestsList() {
       {/* Incoming Requests */}
       {incoming.length > 0 && (
         <div>
-          <h3 className="text-sm font-medium text-muted-foreground mb-3">
+          <h3 className="text-sm font-medium text-foreground/70 mb-3">
             {t('friends.incomingRequests')} ({incoming.length})
           </h3>
           <AnimatePresence>
@@ -97,7 +97,7 @@ export function FriendRequestsList() {
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, x: -100 }}
-                className="flex items-center gap-3 p-3 rounded-lg hover:bg-accent transition-colors"
+                className="flex items-center gap-3 p-3 mb-2 rounded-2xl bg-card/80 backdrop-blur-md border border-white/10 hover:bg-card/90 transition-colors"
               >
                 <Link to={`/u/${request.sender?.username}`}>
                   <Avatar className="h-12 w-12">
@@ -110,11 +110,11 @@ export function FriendRequestsList() {
 
                 <div className="flex-1 min-w-0">
                   <Link to={`/u/${request.sender?.username}`}>
-                    <p className="font-medium truncate hover:underline">
+                    <p className="font-medium text-foreground truncate hover:underline">
                       {request.sender?.display_name || request.sender?.username}
                     </p>
                   </Link>
-                  <p className="text-sm text-muted-foreground">
+                  <p className="text-sm text-foreground/65">
                     {formatDistanceToNow(new Date(request.created_at), { addSuffix: true })}
                   </p>
                   {request.sender?.id && <MiniMutualFriends userId={request.sender.id} />}
@@ -146,7 +146,7 @@ export function FriendRequestsList() {
       {/* Outgoing Requests */}
       {outgoing.length > 0 && (
         <div>
-          <h3 className="text-sm font-medium text-muted-foreground mb-3">
+          <h3 className="text-sm font-medium text-foreground/70 mb-3">
             {t('friends.outgoingRequests')} ({outgoing.length})
           </h3>
           <AnimatePresence>
@@ -156,7 +156,7 @@ export function FriendRequestsList() {
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, x: -100 }}
-                className="flex items-center gap-3 p-3 rounded-lg hover:bg-accent transition-colors"
+                className="flex items-center gap-3 p-3 mb-2 rounded-2xl bg-card/80 backdrop-blur-md border border-white/10 hover:bg-card/90 transition-colors"
               >
                 <Link to={`/u/${request.receiver?.username}`}>
                   <Avatar className="h-12 w-12">
@@ -169,17 +169,17 @@ export function FriendRequestsList() {
 
                 <div className="flex-1 min-w-0">
                   <Link to={`/u/${request.receiver?.username}`}>
-                    <p className="font-medium truncate hover:underline">
+                    <p className="font-medium text-foreground truncate hover:underline">
                       {request.receiver?.display_name || request.receiver?.username}
                     </p>
                   </Link>
-                  <p className="text-sm text-muted-foreground">
+                  <p className="text-sm text-foreground/65">
                     {t('friends.requestSent')} • {formatDistanceToNow(new Date(request.created_at), { addSuffix: true })}
                   </p>
                   {request.receiver?.id && <MiniMutualFriends userId={request.receiver.id} />}
                 </div>
 
-                <span className="text-sm text-muted-foreground">{t('friends.pending')}</span>
+                <span className="text-sm text-foreground/65">{t('friends.pending')}</span>
               </motion.div>
             ))}
           </AnimatePresence>

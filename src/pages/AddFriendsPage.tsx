@@ -51,7 +51,7 @@ export default function AddFriendsPage() {
         </div>
 
         <Tabs value={tab} onValueChange={handleTabChange}>
-          <TabsList className="w-full grid grid-cols-2 mb-5">
+          <TabsList className="w-full grid grid-cols-2 mb-5 bg-card/75 border-white/10 backdrop-blur-md">
             <TabsTrigger value="add" className="gap-1.5">
               <Users className="h-4 w-4" />
               Add Friends
@@ -70,7 +70,7 @@ export default function AddFriendsPage() {
                 placeholder="Search by name or @username"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                className="pl-11 pr-10 h-12 rounded-2xl bg-card/80 backdrop-blur-sm border-border/50 text-base"
+                className="pl-11 pr-10 h-12 rounded-2xl bg-card/85 backdrop-blur-md border-white/10 text-base"
               />
               {query && (
                 <button
@@ -115,7 +115,7 @@ function PersonRow({
   subtitle?: string;
 }) {
   return (
-    <div className="flex items-center gap-3 p-2.5 rounded-2xl hover:bg-card/60 transition-colors">
+    <div className="flex items-center gap-3 p-2.5 rounded-2xl bg-card/80 backdrop-blur-md border border-white/10 hover:bg-card/90 transition-colors">
       <ProfileLink userId={id} username={username} className="shrink-0">
         <Avatar className="h-12 w-12 ring-1 ring-border/30">
           <AvatarImage src={avatarUrl || undefined} />
@@ -125,8 +125,8 @@ function PersonRow({
         </Avatar>
       </ProfileLink>
       <ProfileLink userId={id} username={username} className="flex-1 min-w-0 text-left">
-        <p className="text-sm font-semibold truncate">{displayName || username}</p>
-        <p className="text-xs text-muted-foreground truncate">{subtitle || `@${username}`}</p>
+        <p className="text-sm font-semibold text-foreground truncate">{displayName || username}</p>
+        <p className="text-xs text-foreground/65 truncate">{subtitle || `@${username}`}</p>
       </ProfileLink>
       <FriendButton userId={id} size="sm" showText={false} />
     </div>
@@ -173,7 +173,7 @@ function SearchResults({
   }
 
   return (
-    <div className="space-y-1">
+    <div className="space-y-2">
       {filtered.map((person) => (
         <PersonRow
           key={person.id}
@@ -198,9 +198,9 @@ function QuickAddSection({ currentProfileId }: { currentProfileId?: string }) {
       <button
         type="button"
         onClick={() => haptics.tap()}
-        className="relative w-full rounded-xl h-12 flex items-center justify-center gap-2 border border-primary/30 text-primary font-medium overflow-hidden group hover:bg-primary/5 transition-colors"
+        className="relative w-full rounded-xl h-12 flex items-center justify-center gap-2 bg-card/80 backdrop-blur-md border border-primary/40 text-primary font-medium overflow-hidden group hover:bg-card/90 hover:border-primary/55 transition-colors"
       >
-        <div className="absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-700 bg-gradient-to-r from-transparent via-primary/10 to-transparent" />
+        <div className="absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-700 bg-gradient-to-r from-transparent via-primary/15 to-transparent" />
         <Contact className="h-4 w-4 relative z-10" />
         <span className="relative z-10">Find friends from contacts</span>
       </button>
@@ -208,7 +208,7 @@ function QuickAddSection({ currentProfileId }: { currentProfileId?: string }) {
       <div>
         <div className="flex items-center gap-2 mb-2">
           <Sparkles className="h-4 w-4 text-primary" />
-          <h2 className="text-sm font-semibold">Suggested for you</h2>
+          <h2 className="text-sm font-semibold text-foreground">Suggested for you</h2>
         </div>
 
         {isLoading && filtered.length === 0 ? (
@@ -228,7 +228,7 @@ function QuickAddSection({ currentProfileId }: { currentProfileId?: string }) {
             No suggestions right now — check back later.
           </p>
         ) : (
-          <div className="space-y-1">
+          <div className="space-y-2">
             {filtered.map((person) => (
               <div key={person.id} className="group relative">
                 <PersonRow
@@ -241,7 +241,7 @@ function QuickAddSection({ currentProfileId }: { currentProfileId?: string }) {
                 <button
                   type="button"
                   onClick={() => dismissUser(person.id)}
-                  className="absolute right-1 top-1 h-5 w-5 rounded-full bg-muted/70 text-muted-foreground opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity"
+                  className="absolute right-1 top-1 h-5 w-5 rounded-full bg-background/80 text-foreground/70 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity"
                   aria-label="Not interested"
                 >
                   <X className="h-3 w-3" />
@@ -278,9 +278,9 @@ function AcceptedRecentlySection() {
           ))}
         </div>
       ) : (
-        <div className="space-y-1">
+        <div className="space-y-2">
           {(recentlyAccepted || []).map((friend) => (
-            <div key={friend.id} className="flex items-center gap-3 p-2.5 rounded-2xl hover:bg-card/60 transition-colors">
+            <div key={friend.id} className="flex items-center gap-3 p-2.5 rounded-2xl bg-card/80 backdrop-blur-md border border-white/10 hover:bg-card/90 transition-colors">
               <ProfileLink userId={friend.id} username={friend.username} className="shrink-0">
                 <Avatar className="h-12 w-12 ring-1 ring-border/30">
                   <AvatarImage src={friend.avatar_url || undefined} />
@@ -290,8 +290,8 @@ function AcceptedRecentlySection() {
                 </Avatar>
               </ProfileLink>
               <ProfileLink userId={friend.id} username={friend.username} className="flex-1 min-w-0 text-left">
-                <p className="text-sm font-semibold truncate">{friend.display_name || friend.username}</p>
-                <p className="text-xs text-muted-foreground truncate">@{friend.username}</p>
+                <p className="text-sm font-semibold text-foreground truncate">{friend.display_name || friend.username}</p>
+                <p className="text-xs text-foreground/65 truncate">@{friend.username}</p>
               </ProfileLink>
               <span className="text-xs text-primary font-medium flex items-center gap-1 shrink-0">
                 <UserCheck className="h-3.5 w-3.5" />

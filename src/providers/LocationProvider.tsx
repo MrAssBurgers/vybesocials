@@ -22,6 +22,7 @@ export function LocationProvider({ children }: { children: ReactNode }) {
   const { profile } = useAuth();
   const profileId = useAuthProfileId();
   const { pathname } = useLocation();
+  // GPS permission is requested only on /map (see useBackgroundLocation), not on app open.
   const location = useBackgroundLocation(profileId ?? profile?.id, {
     watchOnMap: isMapRoute(pathname),
   });

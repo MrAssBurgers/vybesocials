@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useLayoutEffect, useCallback } from 'react';
+import { useState, useEffect, useRef, useLayoutEffect, useCallback, type CSSProperties } from 'react';
 import { useNavigate, useSearchParams, useLocation, Navigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
@@ -82,10 +82,16 @@ function useAuthPageShell() {
   }, []);
 }
 
-/** Scale auth content to fit the viewport without clipping or breaking layout. */
+/**
+ * Scale auth content to fit the viewport without clipping.
+ * Prefer CSS `zoom` over `transform: scale()` — WebKit (iOS Cap/Despia WKWebView)
+ * paints the text caret in untransformed coordinates, so a parent transform puts
+ * the caret left of / mid-field relative to the visual input.
+ */
 function useAuthScreenFit(enabled: boolean, ...deps: unknown[]) {
   const contentRef = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(1);
+  const [fieldFocused, setFieldFocused] = useState(false);
   const lastScaleRef = useRef(1);
   // iOS WebView: visualViewport height wobbles during rubber-band / keyboard —
   // using it for live scale made the entire auth card crawl. Prefer stable layout height.
@@ -101,10 +107,13 @@ function useAuthScreenFit(enabled: boolean, ...deps: unknown[]) {
       return;
     }
 
-    // Measure natural size without the current transform.
+    // Measure natural size without the current zoom/fit.
+    const prevZoom = el.style.zoom;
     const prevTransform = el.style.transform;
+    el.style.zoom = '1';
     el.style.transform = 'none';
     const naturalHeight = el.getBoundingClientRect().height;
+    el.style.zoom = prevZoom;
     el.style.transform = prevTransform;
     if (!naturalHeight) return;
 
@@ -153,7 +162,39 @@ function useAuthScreenFit(enabled: boolean, ...deps: unknown[]) {
     };
   }, [enabled, fitToViewport, calmIos, ...deps]);
 
-  return { contentRef, scale };
+  // While typing, force 1× so caret + soft keyboard never fight a shrink fit.
+  useEffect(() => {
+    const el = contentRef.current;
+    if (!el || !enabled) {
+      setFieldFocused(false);
+      return;
+    }
+    const isField = (node: EventTarget | null) => {
+      if (!(node instanceof HTMLElement)) return false;
+      const tag = node.tagName;
+      return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || node.isContentEditable;
+    };
+    const onFocusIn = (e: FocusEvent) => {
+      if (isField(e.target)) setFieldFocused(true);
+    };
+    const onFocusOut = () => {
+      requestAnimationFrame(() => {
+        if (!isField(document.activeElement) || !el.contains(document.activeElement)) {
+          setFieldFocused(false);
+        }
+      });
+    };
+    el.addEventListener('focusin', onFocusIn);
+    el.addEventListener('focusout', onFocusOut);
+    return () => {
+      el.removeEventListener('focusin', onFocusIn);
+      el.removeEventListener('focusout', onFocusOut);
+    };
+  }, [enabled, ...deps]);
+
+  // Apply shrink only when not focused. Never use transform (WebKit caret bug).
+  const visualScale = fieldFocused ? 1 : scale;
+  return { contentRef, scale: visualScale, scrollWhenTall: calmIos || fieldFocused };
 }
 
 // Invite mode stage type - shared between invite flow components
@@ -485,7 +526,7 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
 
   // Full-screen "Completing…" is Firebase redirect only — cancel must clear Despia too.
   // (Despia pending uses the light chip, not this screen.)
-  const { contentRef, scale } = useAuthScreenFit(
+  const { contentRef, scale, scrollWhenTall } = useAuthScreenFit(
     showAuthForm && !isOAuthReturn,
     isLogin,
     loading,
@@ -890,7 +931,12 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
   ] as const;
 
   return (
-    <div data-auth-shell className="fixed inset-0 z-50 overflow-hidden overscroll-none flex items-center justify-center px-3 sm:px-4">
+    <div
+      data-auth-shell
+      className={`fixed inset-0 z-50 overscroll-none flex items-center justify-center px-3 sm:px-4 ${
+        scrollWhenTall ? 'overflow-y-auto overflow-x-hidden' : 'overflow-hidden'
+      }`}
+    >
       {!user && typeof window !== 'undefined' && !isNativeAppShell() && (
         <button
           type="button"
@@ -906,11 +952,13 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
 
       <div
         ref={contentRef}
-        style={{
-          transform: scale < 1 ? `scale(${scale})` : undefined,
-          transformOrigin: 'center center',
-        }}
-        className="relative z-10 w-full max-w-[400px] mx-auto flex flex-col gap-2 sm:gap-2.5 will-change-transform"
+        data-auth-fit
+        style={
+          scale < 1
+            ? ({ zoom: scale } as CSSProperties)
+            : undefined
+        }
+        className="relative z-10 w-full max-w-[400px] mx-auto flex flex-col gap-2 sm:gap-2.5 my-auto py-2"
       >
         <p className="text-center text-[10px] font-medium uppercase tracking-[0.14em] text-muted-foreground/75 leading-tight px-1 shrink-0">
           The Social Platform for Real Connection
@@ -1030,6 +1078,9 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
                     type={isLogin ? 'text' : 'email'}
                     inputMode={isLogin ? 'text' : 'email'}
                     autoComplete={isLogin ? 'username' : 'email'}
+                    autoCapitalize={isLogin ? 'none' : undefined}
+                    autoCorrect={isLogin ? 'off' : undefined}
+                    spellCheck={isLogin ? false : undefined}
                     placeholder={isLogin ? 'email or username' : 'you@email.com'}
                     value={formData.email}
                     onChange={(e) => setFormData({ ...formData, email: e.target.value })}

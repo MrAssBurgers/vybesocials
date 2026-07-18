@@ -2,7 +2,149 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
-## ACTIVE (2026-07-17) — Instagram-style login confirmation
+## ACTIVE (2026-07-17) — MobileIntro butter-smooth slides
+
+### Goal
+Fix glitchy/laggy motion on the first-run intro carousel (TestFlight screen recording).
+
+### Video showed
+~4.85s recording: user taps **Next** through Welcome → Stories → Chat → Friend Link → Communities. Mid-transition frames go **blank** (only aura + dots + button) then content pops back — classic wait-mode crossfade jank on iOS WKWebView.
+
+### Root cause
+1. `AnimatePresence mode="wait"` unmounted the outgoing slide before mounting the next → empty flash.
+2. Remounting large `filter: blur(48–110px)` aura orbs per slide + `backdrop-blur-xl` on the icon during opacity fades forced expensive paints mid-transition.
+3. Nested per-element Framer fades (icon/title/body) stacked on top of the wait gap.
+
+### What changed
+- `src/pages/MobileIntro.tsx` — horizontal **transform track** (`translateX` / `dragX`); all slides stay mounted; swipe + Next snap with `BUTTER_EASE` tween; no `AnimatePresence` wait gap; single non-remounting aura pair; no icon backdrop-blur on native/iOS.
+- `src/index.css` — `.mobile-intro-orb` lighter blur on `.platform-ios` / `perf-low`; further reduce blur while `.mobile-intro--sliding`.
+
+### Tests
+- `npm run build` green.
+- `npx cap sync ios` (no `CAP_DEV`) after build.
+
+### Deploy
+- Local Cap: already synced `dist` → iOS.
+- Remote Despia / vybehub.app: **Lovable → Share → Publish** after commit/push when asked.
+
+### Verify
+1. Cold open intro (or Settings replay) on Cap Simulator / TestFlight.
+2. Tap **Next** rapidly through several slides — content should **slide** continuously (no blank flash).
+3. Swipe left/right between slides — same transform motion, rubber-band at ends.
+4. Aura still soft; no stutter from blur remounts.
+
+### Next 3
+1. Manual Cap/TestFlight verify intro slide smoothness.
+2. Commit + push when asked; Lovable Publish if remote shell must pick it up.
+3. Resume prior caret/username login verify if still pending.
+
+## PREVIOUS (2026-07-17) — Landing login caret + username sign-in
+
+### Goal
+1. Fix misplaced caret on Welcome back → Email or username (iOS Cap/Despia WKWebView).
+2. Make username login work with onboarding `profiles.username` (not email-only errors).
+
+### Root cause
+1. **Caret:** `useAuthScreenFit` applied `transform: scale()` on the auth card. WebKit paints the caret in untransformed coordinates → caret left of field / mid-placeholder.
+2. **Username:** Path already resolves via `authQr` `resolve_login` → Firebase email + password. Failure copy `"Invalid username/email or password"` was remangled by `getUserFriendlyError` (`invalid` + `email`) into **"That email address looks invalid"**.
+
+### What changed
+- `src/pages/Landing.tsx` — fit with CSS `zoom` (not transform); reset to 1× while fields focused; allow scroll when tall; login input `autoCapitalize=none`.
+- `src/index.css` — `.platform-ios` auth input caret/text-indent guard.
+- `src/lib/loginEmail.ts` — clear `login/username-not-found` vs lookup-failed errors (`@handle` / bare username → `profiles.username` / `user_auth_index` / Auth).
+- `src/lib/errorUtils.ts` + tests — stop remangling username login into invalid-email.
+
+### Tests
+- `npm run build` green.
+- `npm run test -- --run src/lib/loginEmail.test.ts src/lib/errorUtils.auth.test.ts` — 18 passed.
+
+### Deploy
+- **CF deploy:** not required (`authQr` + `resolve_login` already live on `vybe-daaab`).
+- Client: Cap sync `dist` / **Lovable → Share → Publish** for remote shells.
+
+### Verify
+1. Cap Simulator → Welcome back → tap Email or username → caret at **start of text area** inside the field (empty + while typing).
+2. Sign in with onboarding username (with or without `@`) + password → succeeds.
+3. Unknown username → “No account found with that username.” (not “email looks invalid”).
+4. Wrong password after known username → existing credential / migration copy.
+
+### Next 3
+1. Manual Cap Simulator verify caret + username login.
+2. Commit + push when asked; Lovable Publish if remote Cap must pick it up.
+3. Resume location/cookies or Friends contrast verify if still pending.
+
+## PREVIOUS (2026-07-17) — Location prompt + cookies banner (native UX)
+
+### Goal
+1. Do **not** ask for location on app open — only when the user uses a location feature.
+2. Hide the cookies consent banner in native store shells (Despia + Capacitor); keep it on web.
+
+### Root cause
+- `useBackgroundLocation` watched GPS whenever `sharing` was true (default `true` when `vybe-map-sharing` unset), via app-wide `LocationProvider` — so cold start / Home triggered `getCurrentPosition` / `watchPosition`.
+- Daily Brief prefetch (`useBriefPreFetch`) also called geolocation on boot if `vybe_ai_location` was previously enabled.
+- `CookieConsentBanner` gated only with `isDespiaRuntime()`, so Capacitor-native shells could still show the banner.
+
+### What changed
+- `src/hooks/useBackgroundLocation.ts` — watch GPS only when `watchOnMap` (on `/map`); removed idle deferred “warm GPS while sharing off-map”.
+- `src/providers/LocationProvider.tsx` / `src/lib/locationRoutes.ts` — document map-only provider gate.
+- `src/hooks/useBriefPreFetch.ts` — no geolocation during boot prefetch (brief sheet still requests when opened + location enabled).
+- `src/components/legal/CookieConsentBanner.tsx` — gate with `isNativeAppShell()` (Despia **or** Capacitor).
+
+### Still on feature use (unchanged, correct)
+- Local feed tab → `useLocalFeed` / `useUserLocation` when Local visited.
+- Friend Link Nearby → `friendLinkNearby.getCoarsePosition`.
+- AI Chat / AI Brief sheet / customize → user toggles or opens feature.
+- `PermissionsSetup` location row — tap-to-grant only; component unused in routes.
+
+### Tests
+- `npm run build` green.
+
+### Verify
+1. **Native cold start** (Cap/Despia, fresh permission or reset): open app → Home — **no** location system prompt; **no** cookies banner.
+2. Open **VybeMap** (`/map`) → location prompt OK (if not yet granted).
+3. Home → **Local** tab → location prompt OK.
+4. **Mobile Safari/Chrome web**: cookies banner still appears if consent unset; no change to web product.
+5. Capacitor shell specifically: cookies banner gone even if UA isn’t Despia.
+
+### Deploy
+- Local Cap without remote load: sync `dist` / rebuild.
+- Remote Cap / Despia loading **vybehub.app**: **Lovable → Share → Publish**.
+
+### Next 3
+1. Manual Simulator/device verify cold start (location + cookies).
+2. Commit + push when asked.
+3. Resume prior Friends contrast / login-confirmation publish if still pending.
+
+## PREVIOUS (2026-07-17) — Friends / Add Friends contrast over wallpaper
+
+### Goal
+Fix poor readability on Friends → Add Friends / Requests when custom wallpaper or aurora shows through transparent list UI.
+
+### Root cause
+Suggested/search/request rows used **hover-only** backgrounds (`hover:bg-card/60` / `hover:bg-accent`) with **no resting scrim**. Names + interest subtitles sat directly on bright photo regions. The “Katr!n@” row looked OK only because it sat on a darker part of the wallpaper — same markup as other rows. Contacts CTA was outline-only (`border-primary/30`, no fill).
+
+### What changed
+- `src/pages/AddFriendsPage.tsx` — resting glass plates on `PersonRow` + accepted-recently rows (`bg-card/80 backdrop-blur-md border-white/10`); stronger search/tabs fill; contacts button filled glass + stronger primary border; subtitles `text-foreground/65`.
+- `src/components/friends/FriendRequestsList.tsx` — same glass plate + stronger secondary text on incoming/outgoing rows.
+
+### Tests
+- `npm run build` green.
+
+### Verify
+1. Cap/Simulator with custom light wallpaper → `/friends/add`.
+2. Confirm every suggested row has a dark glass plate; contacts CTA readable; Requests tab rows match.
+3. Spot-check Android shell (shared CSS; no iOS-only gate needed).
+
+### Deploy
+- Local Cap without `CAP_DEV` / synced `dist`: immediate.
+- Remote Cap loading **vybehub.app**: needs **Lovable → Share → Publish**.
+
+### Next 3
+1. Manual Simulator verify on bright custom wallpaper.
+2. Commit + push when asked; Lovable Publish if remote Cap must pick it up.
+3. Resume login-confirmation publish/manual test if still pending.
+
+## PREVIOUS (2026-07-17) — Instagram-style login confirmation
 
 ### Publish handoff (2026-07-17)
 - **Feature commit:** `b3771aeac1fc2e8a2614d843332433a79a26b27c` (`b3771aeac`) on `main`
@@ -57,6 +199,7 @@ When **Login confirmation** is enabled, a new device must wait for Accept/Declin
 1. Lovable → Share → Publish (`vybehub.app`).
 2. Manual test: Device A enable Login confirmation → Device B password/OAuth login → wait → Accept on A → B enters home; Decline path clears B.
 3. Optional: port email/SMS fallback for unreachable trusted device.
+
 
 ## SUPERSEDED (2026-07-17) — iOS background blend (no black cutoff)
 

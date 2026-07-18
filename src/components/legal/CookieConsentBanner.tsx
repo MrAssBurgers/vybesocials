@@ -4,7 +4,7 @@ import { Cookie, X } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '@/lib/auth';
 import { db } from '@/lib/firebase';
-import { isDespiaRuntime } from '@/lib/despiaBridge';
+import { isNativeAppShell } from '@/lib/despiaBridge';
 import {
   pollNativeTrackingConsent,
   syncNativeTrackingConsent,
@@ -16,16 +16,17 @@ const COOKIE_CONSENT_KEY = 'vybe-cookie-consent';
 /**
  * Web-only cookie notice.
  *
- * Native (Despia/iOS): App Tracking Transparency is the sole tracking prompt.
- * We never show a cookie / “Accept optional” sheet after ATT — App Review 5.1.1(iv).
- * Until ATT is allowed, storage stays essential-only (no advertising cookies).
+ * Native store shells (Despia + Capacitor): never show a cookie banner —
+ * ATT / OS privacy is the sole tracking prompt (App Review 5.1.1(iv)).
+ * Mobile Safari/Chrome web still sees this banner. Until ATT is allowed on
+ * native, storage stays essential-only (no advertising cookies).
  */
 export function CookieConsentBanner() {
   const [visible, setVisible] = useState(false);
   const { profile } = useAuth();
 
   useEffect(() => {
-    if (isDespiaRuntime()) {
+    if (isNativeAppShell()) {
       const applyEssentialOnly = () => {
         try {
           localStorage.setItem(COOKIE_CONSENT_KEY, 'declined');
@@ -107,8 +108,8 @@ export function CookieConsentBanner() {
     }
   };
 
-  // Native never mounts the trackable cookie UI.
-  if (isDespiaRuntime()) return null;
+  // Native store shell never mounts the cookie UI (Despia or Capacitor).
+  if (isNativeAppShell()) return null;
 
   return (
     <AnimatePresence>

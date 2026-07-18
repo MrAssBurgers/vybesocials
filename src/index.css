@@ -5252,6 +5252,13 @@ body.has-liquid-bg:not(.has-custom-bg) #main-content {
     caret-color: hsl(var(--input-foreground)) !important;
   }
 
+  /* [iOS-only] Auth login caret: keep text start flush; Landing uses zoom (not transform). */
+  .platform-ios [data-auth-shell] input.liquid-glass-input {
+    text-indent: 0 !important;
+    transform: none !important;
+    caret-color: hsl(var(--input-foreground)) !important;
+  }
+
   /* Chrome/Safari autofill can force low-contrast text; override it */
   .liquid-glass-input:-webkit-autofill,
   .liquid-glass-input:-webkit-autofill:hover,
@@ -9786,4 +9793,33 @@ html.vybe-clips-page .clips-feed-header::after {
 
 html[data-has-bg-image="true"] .friend-link-sheet {
   background-color: hsl(var(--background)) !important;
+}
+
+/* MobileIntro — compositor-friendly auras (no remount blur thrash) */
+.mobile-intro-orb {
+  filter: blur(90px);
+  transform: translateZ(0);
+  transition: opacity 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* [iOS-only] Soften blur; drop further while the track is sliding */
+.platform-ios .mobile-intro-orb,
+.mobile-intro-orb--ios,
+.perf-low .mobile-intro-orb {
+  filter: blur(36px);
+}
+
+.platform-ios .mobile-intro--sliding .mobile-intro-orb,
+.perf-low .mobile-intro--sliding .mobile-intro-orb,
+.native-perf-mode .mobile-intro--sliding .mobile-intro-orb {
+  filter: blur(20px);
+}
+
+/* [iOS-only] No backdrop-blur on icon face during intro (solid fill) */
+.platform-ios .mobile-intro-icon-face,
+.perf-low .mobile-intro-icon-face,
+.mobile-intro--native .mobile-intro-icon-face {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  background-color: hsl(var(--background) / 0.96);
 }
