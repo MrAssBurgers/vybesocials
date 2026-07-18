@@ -5,8 +5,8 @@ Use this file as the Lovable -> Cursor handoff each session.
 ## PUBLISH HANDOFF (2026-07-17) — MobileIntro v2 pure CSS slide
 
 ### Shipped SHA
-- **Commit:** `(pending push — fill after commit)`
-- **Push:** `origin/main` (pending)
+- **Commit:** `a29f76618` (`a29f766189e7609d7da4c2cc440cd2f8b70769a6`)
+- **Push:** `origin/main` (pending push)
 - **Cloud Functions:** none — client-only; skip CF deploy.
 
 ### Included
