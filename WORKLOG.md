@@ -41,12 +41,12 @@ When **Login confirmation** is enabled, a new device must wait for Accept/Declin
 - `npm run build` (client) green.
 - `functions` `npm run build` green.
 - `npm run test` green.
-- Committed as `b3771aeac`; push + CF deploy + Lovable Publish are the remaining ship steps.
+- Committed as `b3771aeac`; CF deploy complete; Lovable Publish is the remaining ship step.
 
 ### Deploy (required for prod)
-1. `firebase deploy --only functions:authLoginNotify,functions:authLoginApproval` — project `vybe-daaab`.
+1. ~~`firebase deploy --only functions:authLoginNotify,functions:authLoginApproval`~~ — done on `vybe-daaab`.
 2. Firestore rules already allow owner read of `auth_challenges` (non-`_2fa`); no rules change required for MVP.
-3. Lovable → Share → Publish for SPA on **vybehub.app**.
+3. Lovable → Share → Publish for SPA on **vybehub.app** (still needed).
 
 ### Gaps
 - Email/SMS fallback from waiting modal (`switch_to_code` / `switch_to_sms`) not ported.
@@ -54,7 +54,7 @@ When **Login confirmation** is enabled, a new device must wait for Accept/Declin
 - Approving device must already be signed in with Login confirmation enabled on the account (and have another active session).
 
 ### Next 3
-1. After push + CF deploy: Lovable → Share → Publish (`vybehub.app`).
+1. Lovable → Share → Publish (`vybehub.app`).
 2. Manual test: Device A enable Login confirmation → Device B password/OAuth login → wait → Accept on A → B enters home; Decline path clears B.
 3. Optional: port email/SMS fallback for unreachable trusted device.
 
