@@ -2,7 +2,41 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
-## ACTIVE (2026-07-18) — VybeMap Ghost Mode unstick + compass follow
+## ACTIVE (2026-07-18) — Publish handoff: splash unify + map ghost/compass
+
+### Shipped SHA
+- **Commit:** `7d6233917` (`7d62339173aa88a0a4603ac12e4fd487cd49eee1`)
+- **Push:** `origin/main` OK (`fb28c7f30..7d6233917`)
+- **Cloud Functions:** none — client-only; skip CF deploy.
+
+### Included
+- Native splash handoff: `index.html`, `nativePerfMode.ts`, `splashProgressBridge.ts`, `main.tsx`, `SplashScreen.tsx` — Despia/Cap cold start = one branded splash; web keep full V+%
+- Map ghost + compass: `ghostMode.ts` (+ test), `useBackgroundLocation.ts`, `LocationProvider.tsx`, `VybeMap.tsx`, `MapSnapTopBar.tsx`, `deviceHeading.ts`, `mapFollowHeading.ts`, `VybeMapboxCanvas.tsx`, `index.css`
+
+### Excluded from this push
+- `.cursor/**`, frames/screenshots, `git-http-*.tgz`, `Landing.tsx.local-oauth-bak`, `.firebase` cache, `functions/lib/purgeUnsaved*`, `public/despia/local.json` (build hash churn)
+
+### Production web
+**Lovable → Share → Publish** so `vybehub.app` (and Despia OTA via `/despia/local.json`) picks up this SHA.
+
+### Despia reminders
+- **App Start URL must be `https://vybehub.app`** (not `*.web.app`)
+- Rebuild Despia once after Start URL / OTA config check
+- Force-quit ×2 after Publish so OTA pack + handoff splash apply
+
+### Verify after Publish
+1. Cold start: **one** branded splash → dark hold → app (no second V+%)
+2. `/map`: Ghost chip tap → live; compass follow turns with phone
+3. Confirm `https://vybehub.app/despia/local.json` fresh `deployed_at`
+
+### Next 3
+1. Lovable → Share → Publish
+2. Despia: confirm Start URL `https://vybehub.app`, rebuild once, force-quit ×2
+3. Manual verify splash handoff + ghost exit + compass
+
+---
+
+## PREVIOUS (2026-07-18) — VybeMap Ghost Mode unstick + compass follow
 
 ### Goal
 1. Unstick users trapped in Ghost Mode (location sharing off / invisible to friends).
@@ -49,8 +83,8 @@ Privacy feature: `sharing=false` → Firestore `is_ghost` / `sharing_enabled=fal
 - Absolute heading quality depends on native magnetometer calibration
 
 ### Next 3
-1. Lovable Publish so Despia OTA picks up map fixes
-2. Manual Despia: ghost chip exit + turn-phone compass
+1. Done — shipped in `7d6233917` (see ACTIVE publish handoff)
+2. Manual Despia after Lovable Publish: ghost chip exit + turn-phone compass
 3. Optional: Settings copy for temporary vs permanent ghost
 
 ---
@@ -100,8 +134,8 @@ Stop cold-start Despia iOS from showing **native LaunchScreen/OTA splash → the
 3. Safari/desktop: full VYBE web splash still shows
 
 ### Next 3
-1. Lovable Publish so Despia OTA picks up handoff
-2. Manual Despia cold start verify (one splash)
+1. Done — shipped in `7d6233917` (see ACTIVE publish handoff)
+2. Manual Despia cold start verify (one splash) after Lovable Publish
 3. Optional later: replace Cap Splash.imageset (still Capacitor cyan-on-white) with VYBE dark asset + store rebuild
 
 ---
