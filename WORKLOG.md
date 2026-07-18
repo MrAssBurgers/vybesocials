@@ -2,6 +2,30 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## PUBLISH HANDOFF (2026-07-17) — UX batch on main
+
+### Shipped SHA
+- **Commit:** `27bdbfb74` (`27bdbfb74c21c826ab05dc0818862226e9796b0c`)
+- **Push:** `origin/main` OK (`030d8487a..27bdbfb74`)
+- **Cloud Functions:** none in this batch — client-only; skip CF deploy.
+
+### Included
+- Friends contrast (`AddFriendsPage`, `FriendRequestsList`)
+- Location defer + cookies banner (`useBackgroundLocation`, `LocationProvider`, `locationRoutes`, `useBriefPreFetch`, `CookieConsentBanner`)
+- Login caret + username (`Landing`, `index.css`, `loginEmail`, `errorUtils` + tests)
+- Intro butter-smooth carousel (`MobileIntro`, `index.css`)
+- `public/despia/local.json` (local build manifest)
+
+### Production web
+**Lovable → Share → Publish** so `vybehub.app` (and Despia OTA via `/despia/local.json`) picks up `27bdbfb74`.
+
+### Next 3
+1. Lovable Publish → verify `https://vybehub.app/despia/local.json` fresh `deployed_at`.
+2. Manual Cap/TestFlight: intro slides, login caret/username, cold-start location/cookies, friends contrast.
+3. Resume other backlog only after publish verify.
+
+---
+
 ## ACTIVE (2026-07-17) — MobileIntro butter-smooth slides
 
 ### Goal
