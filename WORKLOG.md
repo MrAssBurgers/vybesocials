@@ -6,7 +6,7 @@ Use this file as the Lovable -> Cursor handoff each session.
 
 ### Shipped SHA
 - **Commit:** `a29f76618` (`a29f766189e7609d7da4c2cc440cd2f8b70769a6`)
-- **Push:** `origin/main` OK (`978504f5a..84b42849a`)
+- **Push:** `origin/main` OK (`978504f5a..39404293e`); tip includes handoff docs
 - **Cloud Functions:** none — client-only; skip CF deploy.
 
 ### Included
