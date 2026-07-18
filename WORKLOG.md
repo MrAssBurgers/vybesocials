@@ -5,10 +5,11 @@ Use this file as the Lovable -> Cursor handoff each session.
 ## ACTIVE (2026-07-17) — Instagram-style login confirmation
 
 ### Publish handoff (2026-07-17)
-- **Commit:** `b3771aeac1fc2e8a2614d843332433a79a26b27c` (`b3771aeac`) on `main`
-- **Git:** push to `origin/main` in progress / required before Lovable Publish
-- **Cloud Functions:** deploy `authLoginNotify` + `authLoginApproval` to `vybe-daaab` (required for prod gate)
-- **Web prod:** Lovable → Share → Publish for **vybehub.app** (CLI cannot click Publish)
+- **Feature commit:** `b3771aeac1fc2e8a2614d843332433a79a26b27c` (`b3771aeac`) on `main`
+- **Handoff commit:** `c304ec9f372cd3acafb0de5e980c38fb027c2c88` (`c304ec9f3`) — WORKLOG SHA notes
+- **Git:** pushed to `origin/main` ✅ (`cab8e9997..c304ec9f3`)
+- **Cloud Functions:** `authLoginNotify` + `authLoginApproval` deployed to `vybe-daaab` (us-central1) ✅
+- **Web prod:** still needs **Lovable → Share → Publish** for **vybehub.app** (CLI cannot click Publish)
 - **Left uncommitted on purpose:** `.cursor/` frames/screenshots, `git-http-0.1.1.tgz`, `Landing.tsx.local-oauth-bak`, `.firebase/hosting.ZGlzdA.cache`, `functions/lib/purgeUnsavedOnLeave.js(.map)` (lib rebuild only; src already had membership check)
 
 
