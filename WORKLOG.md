@@ -2,65 +2,41 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
-## PUBLISH HANDOFF (2026-07-17) — UX batch on main
+## PUBLISH HANDOFF (2026-07-17) — MobileIntro v2 pure CSS slide
+
+### Shipped SHA
+- **Commit:** `(pending push — fill after commit)`
+- **Push:** `origin/main` (pending)
+- **Cloud Functions:** none — client-only; skip CF deploy.
+
+### Included
+- `src/pages/MobileIntro.tsx` — drop Framer; CSS `translate3d` + 320ms cubic-bezier; sliding via DOM `classList`; static CTA/aura
+- `src/index.css` — radial-gradient orbs (no `filter:blur`); iOS/native solid titles, no icon/CTA shadow
+- `public/despia/local.json` — local build manifest for Despia OTA
+
+### Production web
+**Lovable → Share → Publish** so `vybehub.app` (and Despia OTA via `/despia/local.json`) picks up this SHA.
+
+### Verify
+1. Reset intro (`vybe_intro_seen` / Settings replay) on Cap/TestFlight or after Publish.
+2. Rapid-tap **Next** — continuous horizontal slide, no blank frames / stutter.
+3. Swipe left/right — same motion; rubber-band at ends.
+
+### Next 3
+1. Lovable Publish → verify `https://vybehub.app/despia/local.json` fresh `deployed_at`.
+2. Manual Cap/TestFlight: rapid Next through intro slides.
+3. Resume login caret/username verify if still pending.
+
+---
+
+## PREVIOUS PUBLISH HANDOFF (2026-07-17) — UX batch on main
 
 ### Shipped SHA
 - **Commit:** `27bdbfb74` (`27bdbfb74c21c826ab05dc0818862226e9796b0c`)
 - **Push:** `origin/main` OK (`030d8487a..27bdbfb74`)
-- **Cloud Functions:** none in this batch — client-only; skip CF deploy.
 
-### Included
-- Friends contrast (`AddFriendsPage`, `FriendRequestsList`)
-- Location defer + cookies banner (`useBackgroundLocation`, `LocationProvider`, `locationRoutes`, `useBriefPreFetch`, `CookieConsentBanner`)
-- Login caret + username (`Landing`, `index.css`, `loginEmail`, `errorUtils` + tests)
-- Intro butter-smooth carousel (`MobileIntro`, `index.css`)
-- `public/despia/local.json` (local build manifest)
-
-### Production web
-**Lovable → Share → Publish** so `vybehub.app` (and Despia OTA via `/despia/local.json`) picks up `27bdbfb74`.
-
-### Next 3
-1. Lovable Publish → verify `https://vybehub.app/despia/local.json` fresh `deployed_at`.
-2. Manual Cap/TestFlight: intro slides, login caret/username, cold-start location/cookies, friends contrast.
-3. Resume other backlog only after publish verify.
-
----
-
-## ACTIVE (2026-07-17) — MobileIntro butter-smooth slides
-
-### Goal
-Fix glitchy/laggy motion on the first-run intro carousel (TestFlight screen recording).
-
-### Video showed
-~4.85s recording: user taps **Next** through Welcome → Stories → Chat → Friend Link → Communities. Mid-transition frames go **blank** (only aura + dots + button) then content pops back — classic wait-mode crossfade jank on iOS WKWebView.
-
-### Root cause
-1. `AnimatePresence mode="wait"` unmounted the outgoing slide before mounting the next → empty flash.
-2. Remounting large `filter: blur(48–110px)` aura orbs per slide + `backdrop-blur-xl` on the icon during opacity fades forced expensive paints mid-transition.
-3. Nested per-element Framer fades (icon/title/body) stacked on top of the wait gap.
-
-### What changed
-- `src/pages/MobileIntro.tsx` — horizontal **transform track** (`translateX` / `dragX`); all slides stay mounted; swipe + Next snap with `BUTTER_EASE` tween; no `AnimatePresence` wait gap; single non-remounting aura pair; no icon backdrop-blur on native/iOS.
-- `src/index.css` — `.mobile-intro-orb` lighter blur on `.platform-ios` / `perf-low`; further reduce blur while `.mobile-intro--sliding`.
-
-### Tests
-- `npm run build` green.
-- `npx cap sync ios` (no `CAP_DEV`) after build.
-
-### Deploy
-- Local Cap: already synced `dist` → iOS.
-- Remote Despia / vybehub.app: **Lovable → Share → Publish** after commit/push when asked.
-
-### Verify
-1. Cold open intro (or Settings replay) on Cap Simulator / TestFlight.
-2. Tap **Next** rapidly through several slides — content should **slide** continuously (no blank flash).
-3. Swipe left/right between slides — same transform motion, rubber-band at ends.
-4. Aura still soft; no stutter from blur remounts.
-
-### Next 3
-1. Manual Cap/TestFlight verify intro slide smoothness.
-2. Commit + push when asked; Lovable Publish if remote shell must pick it up.
-3. Resume prior caret/username login verify if still pending.
+### Note
+Intro “butter” in that SHA was the Framer track pass — superseded by MobileIntro v2 above.
 
 ## PREVIOUS (2026-07-17) — Landing login caret + username sign-in
 

@@ -9795,31 +9795,113 @@ html[data-has-bg-image="true"] .friend-link-sheet {
   background-color: hsl(var(--background)) !important;
 }
 
-/* MobileIntro — compositor-friendly auras (no remount blur thrash) */
-.mobile-intro-orb {
-  filter: blur(90px);
-  transform: translateZ(0);
-  transition: opacity 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+/* MobileIntro — CSS transform track; radial washes (no filter:blur thrash) */
+.mobile-intro-track {
+  transform: translate3d(0, 0, 0);
+  backface-visibility: hidden;
 }
 
-/* [iOS-only] Soften blur; drop further while the track is sliding */
+.mobile-intro-orb {
+  position: absolute;
+  border-radius: 9999px;
+  pointer-events: none;
+  /* Soft edge via radial stop — avoid filter:blur during slide */
+  filter: none;
+  opacity: 0.55;
+  transition: opacity 0.2s ease;
+}
+
+.mobile-intro-orb--a {
+  top: -8rem;
+  left: 50%;
+  width: min(520px, 140vw);
+  height: min(520px, 140vw);
+  transform: translate3d(-50%, 0, 0);
+  background: radial-gradient(
+    circle at 50% 45%,
+    hsl(var(--primary) / 0.45) 0%,
+    hsl(var(--accent) / 0.18) 42%,
+    transparent 70%
+  );
+}
+
+.mobile-intro-orb--b {
+  bottom: -8rem;
+  left: 20%;
+  width: min(420px, 120vw);
+  height: min(420px, 120vw);
+  background: radial-gradient(
+    circle at 50% 50%,
+    hsl(var(--accent) / 0.32) 0%,
+    hsl(var(--primary) / 0.12) 45%,
+    transparent 72%
+  );
+}
+
+.mobile-intro--sliding .mobile-intro-orb {
+  opacity: 0.28;
+}
+
+.mobile-intro-icon-face {
+  background-color: hsl(var(--background) / 0.96);
+}
+
+.mobile-intro-icon-ring {
+  box-shadow: 0 16px 40px -18px hsl(var(--primary) / 0.45);
+}
+
+.mobile-intro-title {
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.mobile-intro-cta {
+  box-shadow: 0 10px 36px -12px hsl(var(--primary) / 0.55);
+}
+
+/* [iOS-only] Strip remaining paint cost in WKWebView / Cap shell */
 .platform-ios .mobile-intro-orb,
-.mobile-intro-orb--ios,
-.perf-low .mobile-intro-orb {
-  filter: blur(36px);
+.perf-low .mobile-intro-orb,
+.native-perf-mode .mobile-intro-orb,
+.mobile-intro--native .mobile-intro-orb {
+  opacity: 0.4;
 }
 
 .platform-ios .mobile-intro--sliding .mobile-intro-orb,
 .perf-low .mobile-intro--sliding .mobile-intro-orb,
-.native-perf-mode .mobile-intro--sliding .mobile-intro-orb {
-  filter: blur(20px);
+.native-perf-mode .mobile-intro--sliding .mobile-intro-orb,
+.mobile-intro--native.mobile-intro--sliding .mobile-intro-orb {
+  opacity: 0.18;
 }
 
-/* [iOS-only] No backdrop-blur on icon face during intro (solid fill) */
 .platform-ios .mobile-intro-icon-face,
 .perf-low .mobile-intro-icon-face,
 .mobile-intro--native .mobile-intro-icon-face {
   backdrop-filter: none !important;
   -webkit-backdrop-filter: none !important;
-  background-color: hsl(var(--background) / 0.96);
+  background-color: hsl(var(--background));
+}
+
+.platform-ios .mobile-intro-icon-ring,
+.perf-low .mobile-intro-icon-ring,
+.mobile-intro--native .mobile-intro-icon-ring {
+  box-shadow: none;
+}
+
+.platform-ios .mobile-intro-cta,
+.perf-low .mobile-intro-cta,
+.mobile-intro--native .mobile-intro-cta {
+  box-shadow: none;
+}
+
+/* [iOS-only] bg-clip-text is expensive in WKWebView — solid titles always */
+.platform-ios .mobile-intro-title,
+.perf-low .mobile-intro-title,
+.mobile-intro--native .mobile-intro-title {
+  background-image: none !important;
+  -webkit-background-clip: border-box;
+  background-clip: border-box;
+  color: hsl(var(--foreground));
+  -webkit-text-fill-color: hsl(var(--foreground));
 }
