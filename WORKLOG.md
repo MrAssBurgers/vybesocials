@@ -2,44 +2,30 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
-## ACTIVE (2026-07-17) — MobileIntro flicker kill (v3)
+## PREVIOUS PUBLISH HANDOFF (2026-07-17) — MobileIntro flicker kill (v3)
 
-### Goal
-Eliminate the dim/blank flash on every **Next** tap in first-load `MobileIntro`.
+### Shipped SHA
+- **Commit:** `b6eb61569` (`b6eb61569af5aaad3ad49b6cd74b5ccfdd66f329`)
+- **Push:** `origin/main` OK (`dc01bec65..b6eb61569`)
+- **Cloud Functions:** none — client-only; skip CF deploy.
 
-### Root cause (confirmed in prior v2 code)
-1. **Primary:** `.mobile-intro--sliding .mobile-intro-orb { opacity: 0.28 }` (+ iOS `0.18`) with `transition: opacity 0.2s` — every Next set `sliding` true → whole aura **dimmed**, then brightened on settle = visible flicker.
-2. **Secondary:** `setIndex` at animation **start** → React re-painted dots (opacity scale) + `aria-hidden` mid-tween.
-3. **Tertiary:** Default shadcn `Button` → `liquid-glass-button` with iOS `backdrop-filter: blur(...)` on the CTA during those re-renders.
+### Included
+- `src/pages/MobileIntro.tsx` — remove sliding React state/class; translate3d-only track; defer chrome index until transition end; plain CTA; rapid Next retargets from live transform
+- `src/index.css` — no sliding orb dim; static orbs; width-only dots; no intro backdrop-filter/shadow/bg-clip
+- `public/despia/local.json` — local build manifest for Despia OTA
 
-### What changed (uncommitted)
-- `src/pages/MobileIntro.tsx` — remove `sliding` React state/class; animate track `translate3d` only; defer chrome `index` until transition end; plain CTA (no liquid-glass); solid titles; rapid Next retargets from live transform.
-- `src/index.css` — delete sliding orb opacity rules; static orbs; width-only dots; kill intro backdrop-filter/shadow/bg-clip; slide `contain` + track `will-change`.
-- Build + `npx cap sync ios` (no `CAP_DEV`) — local Cap bundle updated.
-- `public/despia/local.json` refreshed by build (`deployed_at` bumped).
+### Production web
+**Lovable → Share → Publish** so `vybehub.app` (and Despia OTA via `/despia/local.json`) picks up this SHA.
 
-### Tests
-- `npm run build` — green
-- `npx cap sync ios` — OK
-- Not committed / not pushed
-
-### Verify (Cap Simulator / device)
-1. Clear `vybe_intro_seen` (or Settings intro replay).
-2. Rapid-tap **Next** 5× — continuous horizontal slide, **no** dim/blank/white flash.
+### Verify
+1. Reset intro (`vybe_intro_seen` / Settings replay) on Cap/TestFlight or after Publish.
+2. Rapid-tap **Next** — continuous horizontal slide, **no** dim/blank/white flash.
 3. Swipe left/right — same; rubber-band at ends.
-4. Last slide CTA becomes “Let’s go” after settle.
-
-### Deploy
-- **Local Cap:** already synced — rebuild/run from Xcode to see it.
-- **TestFlight / Despia remote:** needs commit + push + **Lovable → Share → Publish** so `vybehub.app` / OTA picks up the bundle.
 
 ### Next 3
-1. Manual Cap verify rapid Next (no flicker).
-2. Commit + push when asked; Lovable Publish for remote shells.
+1. Lovable Publish → verify `https://vybehub.app/despia/local.json` fresh `deployed_at`.
+2. Manual Cap/TestFlight: rapid Next through intro slides.
 3. Resume login caret/username verify if still pending.
-
-### Remaining risk
-- Very old WKWebView + heavy GPU load could still hitch (not a blank flash). Dot width still animates after settle (no opacity). Icons are Lucide SVG (pre-mounted; no decode flash expected).
 
 ---
 
