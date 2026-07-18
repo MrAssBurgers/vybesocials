@@ -19,7 +19,18 @@ declare global {
   }
 }
 
+function isNativeSplashHandoffDom(): boolean {
+  try {
+    return document.documentElement.getAttribute('data-vybe-splash') === 'native-handoff';
+  } catch {
+    return false;
+  }
+}
+
 function applyToStaticBoot(progress: number, status: string): void {
+  // Native/Despia handoff: brand + bar are CSS-hidden — skip DOM writes.
+  if (isNativeSplashHandoffDom()) return;
+
   const boot = document.getElementById('vybe-static-boot');
   if (!boot) return;
 

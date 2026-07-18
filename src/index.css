@@ -3359,8 +3359,13 @@ body.has-liquid-bg:not(.has-custom-bg) #main-content {
   height: 40px;
   margin: -20px 0 0 -20px;
   transform: rotate(var(--self-heading, 0deg));
-  transition: transform 0.32s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  transition: transform 0.18s linear;
   will-change: transform;
+}
+
+.vybe-mbx-self--follow .vybe-mbx-self__beam {
+  /* Map bearing already tracks the phone — no CSS ease lag. */
+  transition: none;
 }
 
 .vybe-mbx-self__beam::before {

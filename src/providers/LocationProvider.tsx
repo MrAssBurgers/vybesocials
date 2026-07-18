@@ -10,8 +10,11 @@ const LocationContext = createContext<LocationState>({
   accuracy: null,
   speed: null,
   heading: null,
-  sharing: false,
+  sharing: true,
+  ghostUntil: null,
   setSharing: () => {},
+  enableTemporaryGhost: () => {},
+  exitGhost: () => {},
 });
 
 export function useLocationContext() {

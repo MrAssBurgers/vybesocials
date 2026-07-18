@@ -88,7 +88,14 @@ function VybeMapInner() {
   const navigate = useNavigate();
   const { profile } = useAuth();
   const profileId = useAuthProfileId();
-  const { coords: myCoords, sharing, setSharing, heading: myHeading } = useLocationContext();
+  const {
+    coords: myCoords,
+    sharing,
+    setSharing,
+    heading: myHeading,
+    enableTemporaryGhost,
+    exitGhost,
+  } = useLocationContext();
   const useMapbox = hasMapbox();
 
   const { layers, toggleLayer } = useMapLayers();
@@ -149,8 +156,6 @@ function VybeMapInner() {
 
   const mapEl = useRef<HTMLDivElement>(null);
   const leafletMapRef = useRef<L.Map | null>(null);
-  const ghostTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
   const safeMyCoords = useMemo(
     () => (myCoords && isValidLatLng(myCoords[0], myCoords[1]) ? myCoords : null),
     [myCoords],
@@ -233,14 +238,17 @@ function VybeMapInner() {
     trackMapEvent('map_open');
     navVisibility.setImmersiveView(true);
     document.body.classList.add('hide-bottom-nav');
+    // [iOS-only] DeviceOrientation permission needs a gesture on Safari; Despia may
+    // already allow it. Request early so compass works when follow-heading is on.
+    if (followHeading) {
+      void import('@/lib/vybemap/deviceHeading').then(({ ensureDeviceOrientationPermission }) =>
+        ensureDeviceOrientationPermission(),
+      );
+    }
     return () => {
       navVisibility.setImmersiveView(false);
       document.body.classList.remove('hide-bottom-nav');
     };
-  }, []);
-
-  useEffect(() => () => {
-    if (ghostTimerRef.current) clearTimeout(ghostTimerRef.current);
   }, []);
 
   const mapFlyTo = useCallback((lat: number, lng: number, zoom = 15) => {
@@ -268,22 +276,34 @@ function VybeMapInner() {
   };
 
   const toggleSharing = () => {
-    setSharing(!sharing);
-    triggerHaptic('medium');
-    toast.success(!sharing ? 'You\'re live on VybeMap' : 'Ghost Mode — you\'re hidden');
+    if (sharing) {
+      setSharing(false);
+      triggerHaptic('medium');
+      toast.success("Ghost Mode — you're hidden");
+    } else {
+      exitGhost();
+      triggerHaptic('medium');
+      toast.success("You're live on VybeMap");
+    }
     setGhostOpen(false);
   };
 
   const handleGhostDuration = (ms: number) => {
-    if (sharing) setSharing(false);
+    enableTemporaryGhost(ms);
     triggerHaptic('medium');
     toast.success(`Ghost mode for ${Math.round(ms / 60_000)} min`);
-    if (ghostTimerRef.current) clearTimeout(ghostTimerRef.current);
-    ghostTimerRef.current = setTimeout(() => {
-      setSharing(true);
-      toast.success('You\'re live on VybeMap again');
-    }, ms);
     setGhostOpen(false);
+  };
+
+  const handleStatusChip = () => {
+    if (sharing) {
+      setGhostOpen(true);
+      return;
+    }
+    // One tap to leave Ghost — don't trap users behind Settings.
+    exitGhost();
+    triggerHaptic('medium');
+    toast.success("You're live on VybeMap");
   };
 
   const handleSearch = async (query: string) => {
@@ -358,6 +378,7 @@ function VybeMapInner() {
         onOpenSettings={() => setSettingsOpen(true)}
         radarLabel={radar.label}
         liveSharing={sharing}
+        onStatusChip={handleStatusChip}
         squadChip={
           activeSquad && layers.groups
             ? { label: `${activeSquad.emoji} ${activeSquad.name}`, onClear: () => { setActiveSquad(null); toggleLayer('groups'); } }

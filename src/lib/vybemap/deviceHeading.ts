@@ -46,11 +46,20 @@ export function ensureDeviceOrientationPermission(): Promise<boolean> {
   return orientationPermissionPromised;
 }
 
+/** Reset cached permission promise (e.g. after user enables Settings). */
+export function resetDeviceOrientationPermissionCache(): void {
+  orientationPermissionPromised = null;
+}
+
 /** Low-pass toward target heading (shortest path). */
 export function lerpHeading(current: number | null, target: number, alpha = 0.28): number {
   if (current == null || !Number.isFinite(current)) return target;
   const delta = ((target - current + 540) % 360) - 180;
   return ((current + delta * alpha) % 360 + 360) % 360;
+}
+
+export function shortestHeadingDelta(a: number, b: number): number {
+  return ((a - b + 540) % 360) - 180;
 }
 
 export type DeviceHeadingSource = 'despia' | 'web';
@@ -93,10 +102,6 @@ function emitDespiaHeading(sample: DeviceHeadingSample) {
   });
 }
 
-function shortestHeadingDelta(a: number, b: number): number {
-  return ((a - b + 540) % 360) - 180;
-}
-
 let despiaSmoothed: number | null = null;
 let despiaLastEmit = 0;
 let despiaLastEmittedHeading: number | null = null;
@@ -108,13 +113,14 @@ function onDespiaGyroscopeChange(data: GyroPayload) {
   if (typeof heading !== 'number' || !Number.isFinite(heading) || heading < 0) return;
 
   const raw = normalizeHeadingDeg(heading);
-  // Stronger low-pass — threshold=0 stream is noisy and was causing arrow spasm.
-  despiaSmoothed = lerpHeading(despiaSmoothed, raw, 0.18);
+  // Gentle low-pass — canvas rAF does the visible ease (Google Maps feel).
+  despiaSmoothed = lerpHeading(despiaSmoothed, raw, 0.22);
   const now = Date.now();
   const moved =
     despiaLastEmittedHeading == null ||
-    Math.abs(shortestHeadingDelta(despiaSmoothed, despiaLastEmittedHeading)) >= 0.75;
-  if (!moved && now - despiaLastEmit < 48) return;
+    Math.abs(shortestHeadingDelta(despiaSmoothed, despiaLastEmittedHeading)) >= 0.4;
+  // Cap ~30 Hz to the JS bridge; map still lerps at 60fps.
+  if (!moved && now - despiaLastEmit < 32) return;
   despiaLastEmit = now;
   despiaLastEmittedHeading = despiaSmoothed;
 
@@ -144,6 +150,7 @@ function ensureDespiaGyroStarted() {
   w.onGyroscopeChange = installedGyroHandler;
   despiaGyroStarted = true;
   // threshold=0 → every sample so heading stays live while gyro is quiet.
+  // [iOS-only] Despia native gyro; Android/web use DeviceOrientation below.
   void despiaCall('gyroscope://start?threshold=0');
 }
 
@@ -159,6 +166,8 @@ function stopDespiaGyroIfIdle() {
   }
   installedGyroHandler = null;
   prevOnGyroscopeChange = undefined;
+  despiaSmoothed = null;
+  despiaLastEmittedHeading = null;
 }
 
 /**
@@ -179,11 +188,15 @@ export function subscribeDeviceHeading(listener: HeadingListener): () => void {
   }
 
   let smoothed: number | null = null;
+  let lastEmit = 0;
   const onOrient = (e: DeviceOrientationEvent) => {
     const raw = headingFromOrientationEvent(e);
     if (raw == null) return;
     const corrected = applyScreenOrientationOffset(raw);
-    smoothed = lerpHeading(smoothed, corrected, 0.35);
+    smoothed = lerpHeading(smoothed, corrected, 0.28);
+    const now = Date.now();
+    if (now - lastEmit < 32) return;
+    lastEmit = now;
     listener({ heading: smoothed, source: 'web' });
   };
 

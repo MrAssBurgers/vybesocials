@@ -25,7 +25,7 @@ import { warmupAnimations, preloadFramerMotion } from "./lib/animationWarmup";
 import { installFlickerGuardCheck } from "./lib/flickerGuardCheck";
 import { installDespiaRealtimeTransport } from "./lib/installDespiaRealtimeTransport";
 import { initSentry } from "./lib/sentry";
-import { initNativePerfMode } from "./lib/nativePerfMode";
+import { ensureNativeSplashHandoffAttr, initNativePerfMode } from "./lib/nativePerfMode";
 import { repairLegacyAuthStorage, clearObsoleteAuthStorage } from "./lib/legacyAuthStorage";
 import { installAuthSessionKeepAlive } from "./lib/authSessionKeepAlive";
 import { ErrorBoundary } from "./components/ErrorBoundary";
@@ -58,6 +58,7 @@ try {
 }
 try {
   stampRuntimeOsOnDocument();
+  ensureNativeSplashHandoffAttr();
 } catch {
   /* ignore */
 }

@@ -2,7 +2,199 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
-## ACTIVE (2026-07-18) — Why iOS “never gets” Publish (diagnosis)
+## ACTIVE (2026-07-18) — VybeMap Ghost Mode unstick + compass follow
+
+### Goal
+1. Unstick users trapped in Ghost Mode (location sharing off / invisible to friends).
+2. Make map compass follow phone heading smoothly (Google Maps–style), not glitchy.
+
+### What ghost mode was
+Privacy feature: `sharing=false` → Firestore `is_ghost` / `sharing_enabled=false` → chip shows "Ghost mode". Your self marker still shows locally; friends can't see you.
+
+### Why stuck
+- Temporary ghost timer lived only on `VybeMap` page — leaving `/map` cleared the timer but left `vybe-map-sharing=false` forever.
+- Geolocation permission denied auto-called `setSharing(false)` → permanent ghost with no easy exit.
+- Status chip was not tappable (had to dig through Settings).
+
+### Fixes
+- `ghostMode.ts` — persist `vybe-map-ghost-until`; expired temps auto-restore to live
+- `useBackgroundLocation` — timer in LocationProvider (survives leave map); no auto-ghost on perm deny; `enableTemporaryGhost` / `exitGhost`
+- Status chip: **"Ghost mode · tap to exit"** one-tap restore; live chip opens privacy sheet
+- Compass: Despia `gyroscope://` / web `DeviceOrientation`; rAF + `lerpHeading` map bearing; default follow ON; removed `touchstart` freeze; self beam locked "up" while following
+
+### Files
+- `src/lib/vybemap/ghostMode.ts` (+ test)
+- `src/hooks/useBackgroundLocation.ts`
+- `src/providers/LocationProvider.tsx`
+- `src/pages/VybeMap.tsx`
+- `src/components/vybemap/hud/MapSnapTopBar.tsx`
+- `src/lib/vybemap/deviceHeading.ts`
+- `src/lib/vybemap/mapFollowHeading.ts`
+- `src/components/vybemap/map/VybeMapboxCanvas.tsx`
+- `src/index.css` (self beam follow)
+
+### Tests
+- `npm run build` — pass
+- `npx vitest run src/lib/vybemap/ghostMode.test.ts` — pass
+
+### Verify on device (Despia iOS)
+1. Open `/map` — if chip says Ghost, **tap chip** → "You're live"
+2. Settings → Ghost → 15 min → leave map → reopen before expiry still ghost; after expiry auto-live
+3. Compass FAB active (default) — turn phone; map rotates smoothly with you (beam points up)
+4. Pan map (recenter to re-engage GPS follow); compass should keep tracking unless you two-finger rotate
+
+### Despia limitations remaining
+- Gyro heading is magnetic; Mapbox uses true north — small offset possible near poles / metal
+- iOS Safari (non-Despia) needs a tap for `DeviceOrientationEvent.requestPermission`
+- Absolute heading quality depends on native magnetometer calibration
+
+### Next 3
+1. Lovable Publish so Despia OTA picks up map fixes
+2. Manual Despia: ghost chip exit + turn-phone compass
+3. Optional: Settings copy for temporary vs permanent ghost
+
+---
+
+## PREVIOUS (2026-07-18) — Despia native = only splash (no second web splash)
+
+### Goal
+Stop cold-start Despia iOS from showing **native LaunchScreen/OTA splash → then another branded `#vybe-static-boot` (V + %).** Make Despia’s splash the only branded one; web keeps full splash.
+
+### Inventory (boot/loading surfaces)
+| # | Surface | Owner | When | Config |
+|---|---------|-------|------|--------|
+| 1 | iOS `LaunchScreen.storyboard` + Splash.imageset | Native binary (Cap/Despia) | Until WebView first paint | Xcode / Despia editor; **needs store rebuild** |
+| 2 | Android `AppTheme.NoActionBarLaunch` / `splash_background` | Native | Until WebView paint | `android-resources/values/*` + store rebuild |
+| 3 | Capacitor `SplashScreen` plugin | Cap shell only | ~2s auto-hide (`capacitor.config.ts`) | `plugins.SplashScreen`; Despia store path often skips Cap plugin |
+| 4 | Despia OTA pack download UI | Despia native | When fetching new web pack | Despia dashboard Offline Native / Start URL |
+| 5 | `#vybe-static-boot` | Web (`index.html`) | First HTML paint → persist+auth+critical warm (or fail-open) | Now **invisible hold** on native via `data-vybe-splash=native-handoff` |
+| 6 | React `SplashScreen` | Web coordinator | Mirrors `showSplash` / `splash-visible` | `App.tsx` + `SplashScreen.tsx` (renders null) |
+| 7 | `WelcomeBackSplash` | Web | Fresh SIGNED_IN only (not cold start) | `App.tsx` |
+| 8 | `AppUpdateOverlay` | Web | SW / app update reload | `AppUpdateOverlay.tsx` |
+| 9 | `ProtectedRoute` spinner | Web | Auth not ready, no disk token | Under splash cover usually |
+| 10 | `apple-touch-startup-image` | Safari A2HS only | Not Despia | `index.html` links |
+| 11 | `VybePageLoader` | Web | Suspense fallback after splash | Skips while `splash-visible` |
+
+### Cold start Despia iOS (ordered, after this fix)
+1. Despia / iOS LaunchScreen (branded native)
+2. Optional Despia OTA loader (only if pack download)
+3. WebView paints `#vybe-static-boot` as **solid `#09090b` hold** (no V / wordmark / %)
+4. React dismisses hold when persist+auth+critical warm (fail-open ≤ ~1.4s iOS)
+5. App / RootGate / intro-or-home
+
+### Possibility
+**Yes** — cannot keep OS LaunchScreen up past first WebView paint, but we can skip the *second branded* web splash so it feels like one continuous splash. Tradeoff: brief solid dark hold (matches Cap `backgroundColor`) instead of web V+bar; browsers unchanged.
+
+### What changed
+- `index.html` — early Despia/Cap detect → `data-vybe-splash=native-handoff`; CSS hides brand stack; solid `#09090b`
+- `nativePerfMode.ts` — `isNativeSplashHandoff` / `ensureNativeSplashHandoffAttr`; `splashMinMs()` → 0 on handoff
+- `splashProgressBridge.ts` + fake ticker — skip DOM progress on handoff
+- `main.tsx` — reinforce handoff attr after OS stamp
+
+### Tests
+- `npm run build` — pass
+
+### Verify on phone
+1. Force-quit ×2 Despia iOS cold open
+2. **One** branded splash (Despia) → dark hold → home/auth — **no** second V+% web splash
+3. Safari/desktop: full VYBE web splash still shows
+
+### Next 3
+1. Lovable Publish so Despia OTA picks up handoff
+2. Manual Despia cold start verify (one splash)
+3. Optional later: replace Cap Splash.imageset (still Capacitor cyan-on-white) with VYBE dark asset + store rebuild
+
+---
+
+### Goal
+Stop cold-start Despia iOS from showing **native LaunchScreen/OTA splash → then another branded `#vybe-static-boot` (V + %).** Make Despia’s splash the only branded one; web keeps full splash.
+
+### Inventory (boot/loading surfaces)
+| # | Surface | Owner | When | Config |
+|---|---------|-------|------|--------|
+| 1 | iOS `LaunchScreen.storyboard` + Splash.imageset | Native binary (Cap/Despia) | Until WebView first paint | Xcode / Despia editor; **needs store rebuild** |
+| 2 | Android `AppTheme.NoActionBarLaunch` / `splash_background` | Native | Until WebView paint | `android-resources/values/*` + store rebuild |
+| 3 | Capacitor `SplashScreen` plugin | Cap shell only | ~2s auto-hide (`capacitor.config.ts`) | `plugins.SplashScreen`; Despia store path often skips Cap plugin |
+| 4 | Despia OTA pack download UI | Despia native | When fetching new web pack | Despia dashboard Offline Native / Start URL |
+| 5 | `#vybe-static-boot` | Web (`index.html`) | First HTML paint → persist+auth+critical warm (or fail-open) | Now **invisible hold** on native via `data-vybe-splash=native-handoff` |
+| 6 | React `SplashScreen` | Web coordinator | Mirrors `showSplash` / `splash-visible` | `App.tsx` + `SplashScreen.tsx` (renders null) |
+| 7 | `WelcomeBackSplash` | Web | Fresh SIGNED_IN only (not cold start) | `App.tsx` |
+| 8 | `AppUpdateOverlay` | Web | SW / app update reload | `AppUpdateOverlay.tsx` |
+| 9 | `ProtectedRoute` spinner | Web | Auth not ready, no disk token | Under splash cover usually |
+| 10 | `apple-touch-startup-image` | Safari A2HS only | Not Despia | `index.html` links |
+| 11 | `VybePageLoader` | Web | Suspense fallback after splash | Skips while `splash-visible` |
+
+### Cold start Despia iOS (ordered, after this fix)
+1. Despia / iOS LaunchScreen (branded native)
+2. Optional Despia OTA loader (only if pack download)
+3. WebView paints `#vybe-static-boot` as **solid `#09090b` hold** (no V / wordmark / %)
+4. React dismisses hold when persist+auth+critical warm (fail-open ≤ ~1.4s iOS)
+5. App / RootGate / intro-or-home
+
+### Possibility
+**Yes** — cannot keep OS LaunchScreen up past first WebView paint, but we can skip the *second branded* web splash so it feels like one continuous splash. Tradeoff: brief solid dark hold (matches Cap `backgroundColor`) instead of web V+bar; browsers unchanged.
+
+### What changed
+- `index.html` — early Despia/Cap detect → `data-vybe-splash=native-handoff`; CSS hides brand stack; solid `#09090b`
+- `nativePerfMode.ts` — `isNativeSplashHandoff` / `ensureNativeSplashHandoffAttr`; `splashMinMs()` → 0 on handoff
+- `splashProgressBridge.ts` + fake ticker — skip DOM progress on handoff
+- `main.tsx` — reinforce handoff attr after OS stamp
+
+### Tests
+- `npm run build` — pass
+
+### Verify on phone
+1. Force-quit ×2 Despia iOS cold open
+2. **One** branded splash (Despia) → dark hold → home/auth — **no** second V+% web splash
+3. Safari/desktop: full VYBE web splash still shows
+
+### Next 3
+1. Lovable Publish so Despia OTA picks up handoff
+2. Manual Despia cold start verify (one splash)
+3. Optional later: replace Cap Splash.imageset (still Capacitor cyan-on-white) with VYBE dark asset + store rebuild
+
+---
+
+## PREVIOUS (2026-07-18) — Why iOS “never gets” Publish (diagnosis)
+
+### Verdict
+**Lovable Publish is updating `vybehub.app`.** Frustration is mostly pipeline confusion + intro gating + Despia OTA lag — not a missing Publish.
+
+### Live evidence (probed 2026-07-18 ~04:54 UTC)
+| Check | Result |
+|-------|--------|
+| `origin/main` tip | `095e83166` (handoff after flicker `b6eb61569`) |
+| `https://vybehub.app/despia/local.json` | HTTP 200, `deployed_at=1784350136186` (= **2026-07-18T04:48:56Z**) |
+| Live `index.html` OTA stamp | `var BUILD = "1784350136186"` matches manifest |
+| Live MobileIntro chunk | `/assets/MobileIntro-DaMOs5YZ.js` contains `const K="3"`, `mobile-intro`, `translate3d` (v3 flicker kill) |
+| `index.html` Cache-Control | `no-cache, must-revalidate, max-age=0` (OK) |
+| `despia/local.json` Cache-Control | **missing** before fix — added `public/_headers` |
+
+### Why changes “don’t apply” on iPhone
+1. **Cap Simulator ≠ Despia TestFlight** — Cap default loads local `dist/`; Publish only hits Despia OTA / `CAP_DEV=1` remote.
+2. **Despia Native OTA** — new pack downloads in background; applies on **next cold launch** (force-quit → open → force-quit → open).
+3. **Intro UX specifically** — `vybe_intro_seen` permanently skips MobileIntro; `VYBE_INTRO_VERSION` was written but **never read** by RootGate (comment lied). Logged-in users always `/home` — need Settings → **Replay walkthrough**.
+
+### Code fixes (committed — Lovable Publish next)
+- `src/lib/mobileIntroVersion.ts` + RootGate honors version mismatch
+- HelpSection clears `vybe_intro_version` on replay
+- `scripts/stamp-despia-ota.mjs` — if remote `deployed_at` > pack BUILD, one localhost reload
+- `public/_headers` — no-store for `/despia/local.json`
+- `DEPLOY.md` — Cap vs Despia + force-refresh steps
+
+### Force see new intro on iOS (Despia)
+1. Confirm `curl -s https://vybehub.app/despia/local.json \| head -3` has fresh `deployed_at`.
+2. Force-quit VYBE twice (cold launch between).
+3. Settings → Help → **Replay walkthrough** (or log out + clear intro keys / bump version).
+
+### Next 3
+1. Lovable Publish this tip; confirm despia/local.json deployed_at.
+2. Manual Despia: force-quit ×2 + Replay walkthrough → verify flicker-free Next.
+3. If still stale after two cold launches: Despia dashboard Start URL = `https://vybehub.app` + Offline Native.
+
+---
+
+## PREVIOUS PUBLISH HANDOFF (2026-07-17) — MobileIntro flicker kill (v3)
 
 ### Verdict
 **Lovable Publish is updating `vybehub.app`.** Frustration is mostly pipeline confusion + intro gating + Despia OTA lag — not a missing Publish.

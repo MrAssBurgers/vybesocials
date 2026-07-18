@@ -116,10 +116,21 @@ function meetupMarkerHtml(title: string): string {
   </div>`;
 }
 
-function applySelfMarkerStyles(el: HTMLElement, headingDeg: number | null, mapBearing: number) {
+function applySelfMarkerStyles(
+  el: HTMLElement,
+  headingDeg: number | null,
+  mapBearing: number,
+  opts?: { followHeading?: boolean },
+) {
   const hasHeading = headingDeg != null && Number.isFinite(headingDeg);
-  const display = hasHeading ? ((headingDeg! - mapBearing + 360) % 360) : 0;
-  el.className = `vybe-mbx-self${hasHeading ? '' : ' vybe-mbx-self--no-heading'}`;
+  // When the map rotates with the phone, keep the beam pointing "up" (screen-forward)
+  // like Google Maps — avoid CSS ease fighting camera updates.
+  const display = !hasHeading
+    ? 0
+    : opts?.followHeading
+      ? 0
+      : ((headingDeg! - mapBearing + 360) % 360);
+  el.className = `vybe-mbx-self${hasHeading ? '' : ' vybe-mbx-self--no-heading'}${opts?.followHeading ? ' vybe-mbx-self--follow' : ''}`;
   el.style.setProperty('--self-heading', `${display}deg`);
 }
 
@@ -161,23 +172,46 @@ export const VybeMapboxCanvas = memo(function VybeMapboxCanvas({
   myCoordsRef.current = center;
   const userHeadingRef = useRef(userHeading);
   userHeadingRef.current = userHeading;
+  /** Pauses GPS camera follow after a real pan/zoom (not heading rotate). */
   const userInteractingRef = useRef(false);
   const interactPauseRef = useRef<ReturnType<typeof setTimeout>>();
+  /** Brief pause of bearing follow after user pinch-rotates the map. */
+  const headingInteractPauseRef = useRef(false);
+  const headingInteractTimerRef = useRef<ReturnType<typeof setTimeout>>();
   // Camera follows your GPS dot until you pan/zoom away; only the recenter
   // button (vybe:resume-follow) re-engages it. No timed snap-back.
   const followSelfRef = useRef(true);
+  const targetHeadingRef = useRef<number | null>(null);
+  const smoothedBearingRef = useRef<number | null>(null);
+  const headingRafRef = useRef<number | null>(null);
+  const applyingBearingRef = useRef(false);
+
+  const isUserMapGesture = useCallback((e?: object) => {
+    if (!e || typeof e !== 'object') return false;
+    // Mapbox attaches the native event on real gestures; setBearing/easeTo do not.
+    if (!('originalEvent' in e)) return false;
+    return !!(e as { originalEvent?: unknown }).originalEvent;
+  }, []);
 
   const pauseFollowWhileInteracting = useCallback((e?: object) => {
-    // Programmatic camera moves (easeTo/flyTo) also emit zoom/rotate events —
-    // only a real gesture (has originalEvent) should break follow.
-    if (e && 'originalEvent' in e && !(e as { originalEvent?: unknown }).originalEvent) return;
+    if (!isUserMapGesture(e)) return;
     followSelfRef.current = false;
     userInteractingRef.current = true;
     if (interactPauseRef.current) clearTimeout(interactPauseRef.current);
     interactPauseRef.current = setTimeout(() => {
       userInteractingRef.current = false;
     }, 2500);
-  }, []);
+  }, [isUserMapGesture]);
+
+  const pauseHeadingFollowGesture = useCallback((e?: object) => {
+    if (applyingBearingRef.current) return;
+    if (!isUserMapGesture(e)) return;
+    headingInteractPauseRef.current = true;
+    if (headingInteractTimerRef.current) clearTimeout(headingInteractTimerRef.current);
+    headingInteractTimerRef.current = setTimeout(() => {
+      headingInteractPauseRef.current = false;
+    }, 1200);
+  }, [isUserMapGesture]);
 
   useEffect(() => {
     const el = containerRef.current;
@@ -336,7 +370,12 @@ export const VybeMapboxCanvas = memo(function VybeMapboxCanvas({
   // null/stale when standing still and points travel direction while walking.
   const resolvedHeading = deviceHeading ?? userHeading ?? null;
 
-  const refreshSelfMarker = useCallback((lngLat: [number, number], bearing: number, heading: number | null) => {
+  const refreshSelfMarker = useCallback((
+    lngLat: [number, number],
+    bearing: number,
+    heading: number | null,
+    following: boolean,
+  ) => {
     const map = mapRef.current;
     if (!map) return;
     if (!selfMarker.current) {
@@ -344,14 +383,14 @@ export const VybeMapboxCanvas = memo(function VybeMapboxCanvas({
       el.setAttribute('aria-hidden', 'true');
       el.innerHTML =
         '<div class="vybe-mbx-self__pulse"></div><div class="vybe-mbx-self__beam"></div><div class="vybe-mbx-self__dot"></div>';
-      applySelfMarkerStyles(el, heading, bearing);
+      applySelfMarkerStyles(el, heading, bearing, { followHeading: following });
       selfMarker.current = new mapboxgl.Marker({ element: el, anchor: 'center' })
         .setLngLat(lngLat)
         .addTo(map);
     } else {
       selfMarker.current.setLngLat(lngLat);
       const el = selfMarker.current.getElement();
-      if (el) applySelfMarkerStyles(el, heading, bearing);
+      if (el) applySelfMarkerStyles(el, heading, bearing, { followHeading: following });
     }
   }, []);
 
@@ -363,36 +402,84 @@ export const VybeMapboxCanvas = memo(function VybeMapboxCanvas({
       return;
     }
     const lngLat: [number, number] = [center[1], center[0]];
-    refreshSelfMarker(lngLat, mapBearing, resolvedHeading);
-  }, [center?.[0], center?.[1], mapBearing, resolvedHeading, refreshSelfMarker]);
+    refreshSelfMarker(lngLat, mapBearing, resolvedHeading, followHeading);
+  }, [center?.[0], center?.[1], mapBearing, resolvedHeading, followHeading, refreshSelfMarker]);
 
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !mapReady) return;
-    const onRotate = () => setMapBearing(map.getBearing());
+    // While follow-heading is on, beam stays screen-up — skip bearing React state
+    // (setBearing fires rotate every frame and would thrash renders).
+    if (followHeading) {
+      setMapBearing(map.getBearing());
+      return;
+    }
+    let raf = 0;
+    const onRotate = () => {
+      if (raf) return;
+      raf = requestAnimationFrame(() => {
+        raf = 0;
+        setMapBearing(map.getBearing());
+      });
+    };
     onRotate();
     map.on('rotate', onRotate);
-    return () => { map.off('rotate', onRotate); };
-  }, [mapReady]);
+    return () => {
+      map.off('rotate', onRotate);
+      if (raf) cancelAnimationFrame(raf);
+    };
+  }, [mapReady, followHeading]);
 
   useEffect(() => {
     return subscribeDeviceHeading((sample) => {
-      // Despia stream is already low-pass filtered in subscribeDeviceHeading.
-      if (sample.source === 'despia') {
-        setDeviceHeading(sample.heading);
-        return;
-      }
-      setDeviceHeading((prev) => lerpHeading(prev, sample.heading, 0.35));
+      targetHeadingRef.current = sample.heading;
+      setDeviceHeading(sample.heading);
     });
   }, []);
 
+  // Google Maps–style: rAF-lerp map bearing toward device heading (smooth, ~60fps).
   useEffect(() => {
-    if (!followHeading || !mapReady || deviceHeading == null) return;
-    const map = mapRef.current as (mapboxgl.Map & { setBearing?: (b: number) => void }) | null;
-    if (!map || userInteractingRef.current) return;
-    if (typeof map.setBearing === 'function') map.setBearing(deviceHeading);
-    else map.easeTo({ bearing: deviceHeading, duration: 100, essential: true });
-  }, [followHeading, mapReady, deviceHeading]);
+    if (!followHeading || !mapReady) {
+      if (headingRafRef.current != null) {
+        cancelAnimationFrame(headingRafRef.current);
+        headingRafRef.current = null;
+      }
+      return;
+    }
+
+    const tick = () => {
+      headingRafRef.current = requestAnimationFrame(tick);
+      const map = mapRef.current;
+      const target = targetHeadingRef.current;
+      if (!map || target == null || headingInteractPauseRef.current) return;
+
+      const current =
+        smoothedBearingRef.current ??
+        ((map.getBearing() % 360) + 360) % 360;
+      // Higher alpha = snappier (still smooth). Tuned for ~60fps.
+      const next = lerpHeading(current, target, 0.18);
+      smoothedBearingRef.current = next;
+      const delta = Math.abs(((next - current + 540) % 360) - 180);
+      if (delta < 0.05) return;
+      try {
+        applyingBearingRef.current = true;
+        map.setBearing(next);
+      } catch {
+        /* ignore */
+      } finally {
+        applyingBearingRef.current = false;
+      }
+    };
+
+    headingRafRef.current = requestAnimationFrame(tick);
+    return () => {
+      if (headingRafRef.current != null) {
+        cancelAnimationFrame(headingRafRef.current);
+        headingRafRef.current = null;
+      }
+    };
+  }, [followHeading, mapReady]);
+
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !styleLoaded.current) return;
@@ -675,28 +762,31 @@ export const VybeMapboxCanvas = memo(function VybeMapboxCanvas({
     if (!map || !mapReady) return;
     const resumeFollow = () => {
       followSelfRef.current = true;
+      headingInteractPauseRef.current = false;
+      smoothedBearingRef.current = null;
     };
     const pauseFollow = () => {
       followSelfRef.current = false;
     };
+    // Position follow: drag / zoom / pitch only — NOT touchstart (that froze compass).
     map.on('dragstart', pauseFollowWhileInteracting);
     map.on('zoomstart', pauseFollowWhileInteracting);
-    map.on('rotatestart', pauseFollowWhileInteracting);
     map.on('pitchstart', pauseFollowWhileInteracting);
-    map.on('touchstart', pauseFollowWhileInteracting);
+    // Heading follow: only pause briefly on user two-finger rotate, not our setBearing.
+    map.on('rotatestart', pauseHeadingFollowGesture);
     map.on('vybe:resume-follow' as 'load', resumeFollow);
     map.on('vybe:pause-follow' as 'load', pauseFollow);
     return () => {
       map.off('dragstart', pauseFollowWhileInteracting);
       map.off('zoomstart', pauseFollowWhileInteracting);
-      map.off('rotatestart', pauseFollowWhileInteracting);
       map.off('pitchstart', pauseFollowWhileInteracting);
-      map.off('touchstart', pauseFollowWhileInteracting);
+      map.off('rotatestart', pauseHeadingFollowGesture);
       map.off('vybe:resume-follow' as 'load', resumeFollow);
       map.off('vybe:pause-follow' as 'load', pauseFollow);
       if (interactPauseRef.current) clearTimeout(interactPauseRef.current);
+      if (headingInteractTimerRef.current) clearTimeout(headingInteractTimerRef.current);
     };
-  }, [mapReady, pauseFollowWhileInteracting]);
+  }, [mapReady, pauseFollowWhileInteracting, pauseHeadingFollowGesture]);
 
   return (
     <>

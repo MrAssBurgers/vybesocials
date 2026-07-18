@@ -8,6 +8,9 @@ interface SplashScreenProps {
 /**
  * Boot splash coordinator — #vybe-static-boot in index.html is the only visible
  * splash layer until App.tsx calls clearSplashDocumentLocks on dismiss.
+ *
+ * On Despia/native (`data-vybe-splash="native-handoff"`), that layer is an opaque
+ * #09090b hold only — LaunchScreen / Despia already showed the branded splash.
  */
 export const SplashScreen = memo(function SplashScreen({ isVisible }: SplashScreenProps) {
   useEffect(() => {

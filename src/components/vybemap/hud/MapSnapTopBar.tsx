@@ -9,6 +9,8 @@ interface MapSnapTopBarProps {
   radarLabel?: string;
   squadChip?: { label: string; onClear: () => void } | null;
   liveSharing?: boolean;
+  /** Tap status chip — exit ghost or open privacy sheet. */
+  onStatusChip?: () => void;
 }
 
 export function MapSnapTopBar({
@@ -18,6 +20,7 @@ export function MapSnapTopBar({
   radarLabel,
   squadChip,
   liveSharing,
+  onStatusChip,
 }: MapSnapTopBarProps) {
   const [query, setQuery] = useState('');
   const [searchOpen, setSearchOpen] = useState(false);
@@ -88,11 +91,15 @@ export function MapSnapTopBar({
         {(radarLabel || squadChip || liveSharing !== undefined) && (
           <div className="mt-2 flex flex-wrap gap-1.5">
             {liveSharing !== undefined && (
-              <span
+              <button
+                type="button"
+                onClick={onStatusChip}
                 className={cn(
                   'pointer-events-auto vybe-map-status-chip',
                   liveSharing ? 'vybe-map-status-chip-live' : 'vybe-map-status-chip-ghost',
                 )}
+                aria-label={liveSharing ? 'Open privacy & Ghost Mode' : 'Exit Ghost Mode'}
+                title={liveSharing ? 'Privacy' : 'Tap to go live'}
               >
                 <span
                   className={cn(
@@ -100,8 +107,8 @@ export function MapSnapTopBar({
                     liveSharing ? 'bg-emerald-400 shadow-[0_0_6px_hsl(142_70%_55%)]' : 'bg-amber-400',
                   )}
                 />
-                {liveSharing ? "You're live" : 'Ghost mode'}
-              </span>
+                {liveSharing ? "You're live" : 'Ghost mode · tap to exit'}
+              </button>
             )}
             {radarLabel && (
               <span className="pointer-events-auto vybe-map-status-chip vybe-map-status-chip-live">

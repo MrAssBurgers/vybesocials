@@ -6,6 +6,37 @@
          Replays vybe-boot-theme snapshot + full equipped derivation before first paint. -->
     <script src="/boot-theme.js"></script>
 
+    <!-- Native/Despia: LaunchScreen (or Despia OTA splash) already showed brand.
+         Mark handoff BEFORE #vybe-static-boot paints so we don't flash a second VYBE splash. -->
+    <script>
+      (function () {
+        try {
+          var ua = (navigator.userAgent || '').toLowerCase();
+          var w = window;
+          var isDespia =
+            /despia|vybeapp|; wv\)|\bwv\b/.test(ua) ||
+            !!w.Despia ||
+            !!w.__DESPIA__ ||
+            !!(w.webkit && w.webkit.messageHandlers && w.webkit.messageHandlers.despia) ||
+            !!w.despiaVersion;
+          var isCapNative = false;
+          try {
+            isCapNative = !!(w.Capacitor && typeof w.Capacitor.isNativePlatform === 'function' && w.Capacitor.isNativePlatform());
+          } catch (eCap) { isCapNative = false; }
+          // [iOS-only] WKWebView shell (Despia/Cap) — no Safari token after AppleWebKit
+          var isIOSWebView =
+            /iphone|ipad|ipod/.test(ua) &&
+            /applewebkit/.test(ua) &&
+            !/safari/.test((ua.split('applewebkit')[1] || ''));
+          if (isDespia || isCapNative || isIOSWebView) {
+            document.documentElement.setAttribute('data-vybe-splash', 'native-handoff');
+            document.documentElement.setAttribute('data-vybe-shell', 'native');
+            document.documentElement.classList.add('vybe-native-shell');
+          }
+        } catch (e) { /* fail open — keep full web splash */ }
+      })();
+    </script>
+
     <meta charset="UTF-8" />
     <link rel="preconnect" href="https://firebasestorage.googleapis.com" crossorigin />
     <link rel="preconnect" href="https://vybe-daaab.firebasestorage.app" crossorigin />
@@ -339,6 +370,24 @@
           clamp(1rem, 5vw, 1.75rem)
           env(safe-area-inset-bottom, 0);
         box-sizing: border-box;
+      }
+      /*
+       * Native/Despia handoff: keep an opaque hold matching Cap/Despia bg (#09090b)
+       * but hide V + progress so users don't see a second branded splash after
+       * LaunchScreen / Despia OTA. Web browsers keep the full splash above.
+       */
+      html[data-vybe-splash="native-handoff"] body.splash-visible {
+        background: #09090b;
+      }
+      html[data-vybe-splash="native-handoff"] #vybe-static-boot {
+        background: #09090b;
+      }
+      html[data-vybe-splash="native-handoff"] #vybe-static-boot .vybe-boot-ambient,
+      html[data-vybe-splash="native-handoff"] #vybe-static-boot .vybe-splash-glow,
+      html[data-vybe-splash="native-handoff"] #vybe-static-boot .vybe-splash-brand-stack {
+        display: none !important;
+        visibility: hidden !important;
+        pointer-events: none !important;
       }
       #vybe-static-boot .vybe-boot-ambient {
         position: absolute;
@@ -745,8 +794,12 @@
           !!(window).Despia ||
           !!(window).__DESPIA__;
         var isNativeShell = isDespia || isAndroid;
+        var isNativeHandoff =
+          document.documentElement.getAttribute('data-vybe-splash') === 'native-handoff';
         var failOpenMs = isNativeShell ? 3800 : 12000;
         function applyDom(value, label) {
+          // Native handoff: brand UI is CSS-hidden — skip DOM progress thrash.
+          if (isNativeHandoff) return;
           var boot = document.getElementById('vybe-static-boot');
           if (!boot) return;
           var fill = boot.querySelector('.vybe-splash-bar-fill');

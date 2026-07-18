@@ -24,8 +24,31 @@ export function isAndroidNativeStartup(): boolean {
   return isAndroidAppShell();
 }
 
+/**
+ * True when Despia/Cap LaunchScreen already covered branding and
+ * `#vybe-static-boot` is an invisible #09090b hold (see index.html).
+ */
+export function isNativeSplashHandoff(): boolean {
+  if (typeof document === 'undefined') return false;
+  if (document.documentElement.getAttribute('data-vybe-splash') === 'native-handoff') {
+    return true;
+  }
+  return isNativeAppShell();
+}
+
+/** Stamp handoff attr if early HTML detect missed (e.g. late Capacitor inject). */
+export function ensureNativeSplashHandoffAttr(): void {
+  if (typeof document === 'undefined' || !isNativeAppShell()) return;
+  const html = document.documentElement;
+  if (html.getAttribute('data-vybe-splash') !== 'native-handoff') {
+    html.setAttribute('data-vybe-splash', 'native-handoff');
+  }
+}
+
 /** Brand flash duration by OS (never wait on network). */
 export function splashMinMs(): number {
+  // Native handoff: no second brand animation — dismiss as soon as gates pass.
+  if (isNativeSplashHandoff()) return 0;
   if (isIOSAppShell()) return 180;
   if (isAndroidAppShell()) return 220;
   return 280;
@@ -50,6 +73,7 @@ export function presenceHeartbeatMs(): number {
 export function initNativePerfMode(): void {
   if (typeof document === 'undefined') return;
   const os = stampRuntimeOsOnDocument();
+  ensureNativeSplashHandoffAttr();
   const html = document.documentElement;
 
   if (!isNativePerfMode()) return;

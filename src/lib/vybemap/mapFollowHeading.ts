@@ -1,10 +1,13 @@
 const STORAGE_KEY = 'vybe-map-follow-heading-v1';
 
+/** Default ON — Google Maps–style map rotation with phone heading. */
 export function readMapFollowHeading(): boolean {
   try {
-    return localStorage.getItem(STORAGE_KEY) === 'true';
+    const v = localStorage.getItem(STORAGE_KEY);
+    if (v === null) return true;
+    return v === 'true';
   } catch {
-    return false;
+    return true;
   }
 }
 

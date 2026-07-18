@@ -3,10 +3,14 @@ import { toast } from 'sonner';
 import { encodeGeohash } from '@/lib/vybemap/geohash';
 import { detectActivity } from '@/lib/vybemap/activity';
 import { upsertLiveLocation, disableLiveLocation, appendLocationHistory } from '@/lib/vybemap/firestore';
+import {
+  persistGhostUntil,
+  persistSharingPref,
+  resolveSharingOnLoad,
+} from '@/lib/vybemap/ghostMode';
 
 const UPSERT_INTERVAL_MS = 5_000;
 const HISTORY_INTERVAL_MS = 60_000;
-const SHARING_PREF_KEY = 'vybe-map-sharing';
 
 function autoStatus(speed: number | null, hour: number): string | null {
   if (speed && speed > 25) return '✈️ Traveling';
@@ -22,7 +26,12 @@ export interface LocationState {
   speed: number | null;
   heading: number | null;
   sharing: boolean;
+  /** Epoch ms when temporary ghost ends; null if live or permanent ghost. */
+  ghostUntil: number | null;
   setSharing: (v: boolean) => void;
+  /** Hide for `ms` then auto-restore. Survives leaving /map. */
+  enableTemporaryGhost: (ms: number) => void;
+  exitGhost: () => void;
 }
 
 export function useBackgroundLocation(
@@ -34,22 +43,70 @@ export function useBackgroundLocation(
   const [accuracy, setAccuracy] = useState<number | null>(null);
   const [speed, setSpeed] = useState<number | null>(null);
   const [heading, setHeading] = useState<number | null>(null);
-  const [sharing, setSharingState] = useState(() => {
-    const stored = localStorage.getItem(SHARING_PREF_KEY);
-    // Default visible on map — users opt into Ghost Mode, not opt out of sharing.
-    if (stored === null) return true;
-    return stored === 'true';
-  });
+  const initial = resolveSharingOnLoad();
+  const [sharing, setSharingState] = useState(initial.sharing);
+  const [ghostUntil, setGhostUntil] = useState<number | null>(initial.ghostUntil);
   const lastUpsert = useRef(0);
   const lastHistory = useRef(0);
   const lastPos = useRef<{ lat: number; lng: number } | null>(null);
   const lastSpeed = useRef<number | null>(null);
+  const ghostTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const setSharing = useCallback((v: boolean) => {
-    setSharingState(v);
-    localStorage.setItem(SHARING_PREF_KEY, String(v));
+  const clearGhostTimer = useCallback(() => {
+    if (ghostTimerRef.current) {
+      clearTimeout(ghostTimerRef.current);
+      ghostTimerRef.current = null;
+    }
   }, []);
 
+  const exitGhost = useCallback(() => {
+    clearGhostTimer();
+    persistGhostUntil(null);
+    setGhostUntil(null);
+    setSharingState(true);
+    persistSharingPref(true);
+  }, [clearGhostTimer]);
+
+  const setSharing = useCallback((v: boolean) => {
+    clearGhostTimer();
+    persistGhostUntil(null);
+    setGhostUntil(null);
+    setSharingState(v);
+    persistSharingPref(v);
+  }, [clearGhostTimer]);
+
+  const enableTemporaryGhost = useCallback((ms: number) => {
+    if (!Number.isFinite(ms) || ms <= 0) return;
+    const until = Date.now() + ms;
+    persistGhostUntil(until);
+    setGhostUntil(until);
+    setSharingState(false);
+    persistSharingPref(false);
+  }, []);
+
+  // Restore from temporary ghost when `ghostUntil` elapses (survives leaving /map).
+  useEffect(() => {
+    if (ghostUntil == null) {
+      clearGhostTimer();
+      return;
+    }
+    const remaining = ghostUntil - Date.now();
+    if (remaining <= 0) {
+      exitGhost();
+      toast.success("You're live on VybeMap again");
+      return;
+    }
+    clearGhostTimer();
+    ghostTimerRef.current = setTimeout(() => {
+      ghostTimerRef.current = null;
+      persistGhostUntil(null);
+      setGhostUntil(null);
+      setSharingState(true);
+      persistSharingPref(true);
+      toast.success("You're live on VybeMap again");
+    }, remaining);
+    return () => clearGhostTimer();
+  }, [ghostUntil, exitGhost, clearGhostTimer]);
   // Upsert to DB
   const upsertLocation = useCallback(async (lat: number, lng: number, acc: number, spd: number | null, heading?: number | null) => {
     if (!userId || !sharing) return;
@@ -133,11 +190,9 @@ export function useBackgroundLocation(
     const onError = (err: GeolocationPositionError) => {
       console.warn('[Geolocation] error:', err.code, err.message);
       if (err.code === 1) {
-        // Permission denied — only toast/disable sharing if user had it on.
-        if (sharing) {
-          toast.error('Location permission denied');
-          setSharing(false);
-        }
+        // Permission denied — toast only. Do NOT flip Ghost Mode / sharing pref;
+        // that stranded users as "Ghost mode" with no easy exit.
+        toast.error('Location permission denied — enable it in Settings to share on the map');
         return;
       }
       // TIMEOUT (3) or POSITION_UNAVAILABLE (2): retry with low accuracy.
@@ -180,7 +235,7 @@ export function useBackgroundLocation(
       if (watchId !== undefined) navigator.geolocation.clearWatch(watchId);
       if (fallbackWatchId !== undefined) navigator.geolocation.clearWatch(fallbackWatchId);
     };
-  }, [shouldWatch, sharing, upsertLocation, setSharing]);
+  }, [shouldWatch, sharing, upsertLocation]);
 
   // Disable sharing in DB when toggled off
   useEffect(() => {
@@ -195,5 +250,15 @@ export function useBackgroundLocation(
     void upsertLocation(coords[0], coords[1], accuracy ?? 50, speed);
   }, [sharing, userId, coords, accuracy, speed, upsertLocation]);
 
-  return { coords, accuracy, speed, heading, sharing, setSharing };
+  return {
+    coords,
+    accuracy,
+    speed,
+    heading,
+    sharing,
+    ghostUntil,
+    setSharing,
+    enableTemporaryGhost,
+    exitGhost,
+  };
 }
