@@ -932,7 +932,9 @@ service cloud.firestore {
     }
     match /screenshot_notifications/{docId} {
       allow read: if isOwnerProfile('user_id') || ownsProfileId(resource.data.recipient_id) || isAdmin();
-      allow create: if signedIn();
+      allow create: if signedIn() &&
+        willOwnProfile('user_id') &&
+        isConversationParticipant(request.resource.data.conversation_id);
     }
     match /typing_indicators/{docId} {
       allow read: if signedIn() && isConversationParticipant(resource.data.conversation_id);
