@@ -96,7 +96,9 @@ export default function QRSignIn() {
     if (signErr || !sessionData.session?.user) {
       throw signErr || new Error('Custom token sign-in failed');
     }
-    applyOAuthSession(sessionData.session);
+    // QR sign-in already required trusted-device approval to scan; skip the
+    // secondary login-approval gate so the user isn't soft-signed-out mid-flight.
+    await applyOAuthSession(sessionData.session, 'login_approval');
     const cached = getCachedCurrentProfile();
     navigate(
       resolvePostLoginDestination(
