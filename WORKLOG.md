@@ -7,13 +7,24 @@ Use this file as the Lovable -> Cursor handoff each session.
 ### Goal
 Ship parental/age-assurance discoverability + corrected App Store Review / Resolution Center copy so Apple stops rejecting on 2.3.6 (and prior July 15 guidelines).
 
-### Shipped (pending SHA after commit)
+### Shipped SHA
+- **Commit:** `5cff20e1c` (`5cff20e1c68fc94ced46946c99c1e49b5b591bdc`)
+- **Push:** `origin/main` OK (`7ef667187..5cff20e1c`)
+- **Cloud Functions:** none — client-only; skip CF deploy.
+
+### Included
 - Parental Controls under Settings → Account (+ Privacy → Parental Controls link)
 - AgeSetup age-assurance copy
 - `docs/APP_STORE_REVIEW_NOTES.md` — Resolution Center + Review Notes for 5.1.1(ii)/(iv), 2.1 NFC, 2.3.6
 
+### Excluded from this push
+- `.cursor/**`, frames/screenshots, `git-http-*.tgz`, `Landing.tsx.local-oauth-bak`, `.firebase` cache, `functions/lib/purgeUnsaved*`, `public/despia/local.json` (build hash churn)
+
 ### Tests
 - Doc/nav/copy focused; prior NFC ship had green `npm run build`
+
+### Production web
+**Lovable → Share → Publish** so `vybehub.app` picks up this SHA.
 
 ### Blockers
 - ASC Age Rating must claim Parental Controls + Age Assurance (manual)
