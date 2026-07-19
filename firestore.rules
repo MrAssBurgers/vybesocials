@@ -765,7 +765,12 @@ service cloud.firestore {
           isConversationCreatorOf(cid)
         )
       );
-      allow create: if signedIn();
+      allow create: if signedIn() &&
+        willOwnProfile('created_by') &&
+        (
+          profileId() in request.resource.data.get('member_ids', []) ||
+          uid() in request.resource.data.get('member_ids', [])
+        );
       allow update: if isMember(cid) || isAdmin() || (
         signedIn() && (
           ownsProfileId(resource.data.get('created_by', '')) ||
