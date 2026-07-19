@@ -185,7 +185,7 @@ export function useAppPreloader() {
         }
 
         const profileResult = await withTimeout<any>(
-          db.from('profiles').select('*').eq('user_id', uid).maybeSingle() as unknown as Promise<any>,
+          db.from('profiles').select('id, user_id, username, avatar_url, bio, created_at, display_name, link_url, location, is_private, is_verified, phone_verified, interests, sensitivity_preference, language, timezone, coins_balance, onboarding_completed, first_name, last_name, tutorial_completed, tutorial_skipped, referral_inviter_id, intro_completed, badge_settings, age_verified, equipped_effect, equipped_frame, equipped_name_color, equipped_profile_theme, equipped_title, equipped_badge_id, founder_badge_seen, tracking_consent, is_premium, premium_expires_at, music_personality, last_login_date, login_streak, updated_at, crash_consent, cookie_consent, feature_on_landing, contact_discoverable, deletion_requested_at, scheduled_purge_at, date_of_birth').eq('user_id', uid).maybeSingle() as unknown as Promise<any>,
           profileMs,
           { data: null, error: null },
         );

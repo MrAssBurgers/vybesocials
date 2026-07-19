@@ -352,8 +352,9 @@ export function getUserFriendlyError(error: any): string {
     return message;
   }
   
-  // Generic fallback — surface auth-like codes when present
+  // Generic fallback — do NOT assume sign-in context; this mapper is used by
+  // settings, profile edits, and other non-auth flows too.
   console.error('Unhandled error:', error);
-  if (code) return `Sign-in failed. Error code: ${code}`;
-  return 'Sign-in failed. Please try again.';
+  if (code) return `Something went wrong. Error code: ${code}`;
+  return 'Something went wrong. Please try again.';
 }
