@@ -33,7 +33,26 @@ Strip all NFC / Phone Tap options. Keep Friend Link + referrals via QR only. Fix
 2. Despia: disable NFC capability + rebuild store binary
 3. Lovable Publish after commit/push (when asked)
 
-### Not committed / not pushed (per request)
+### Shipped SHA
+- **Commit:** `f1de9e663` (`f1de9e663f675a306c867da705cd7546f5014e95`)
+- **Push:** `origin/main` OK (`36349cb92..f1de9e663`)
+- **Cloud Functions:** none — client-only; skip CF deploy.
+
+### Excluded from this push
+- `.cursor/**`, frames/screenshots, `git-http-*.tgz`, `Landing.tsx.local-oauth-bak`, `.firebase` cache, `functions/lib/purgeUnsaved*`, `public/despia/local.json` (build hash churn)
+
+### Production web
+**Lovable → Share → Publish** so `vybehub.app` picks up this SHA.
+
+### Despia / App Review reminders
+- **Turn NFC capability OFF** on next native rebuild (Despia NFC addon off; remove `NFCReaderUsageDescription` if present)
+- Review Notes already state **no NFC** — **no NFC accessory demo video** needed
+- Android NFC permission lines commented in `native/android/AndroidManifest.xml`
+
+### Next 3
+1. Lovable → Share → Publish
+2. Despia: disable NFC + rebuild store binary when ready
+3. Manual device test: Friend Link QR generate → scan → friend add
 
 ---
 
