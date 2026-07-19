@@ -750,7 +750,7 @@ const VybeHome = memo(function VybeHome() {
     const real = (topCreators ?? [])
       .filter((c) => !!c.avatar_url)
       .slice(0, 4)
-      .map((c) => ({ key: c.id, src: c.avatar_url as string, alt: c.display_name || c.username || 'Creator' }));
+      .map((c) => ({ key: c.id, src: c.avatar_url as string, alt: `${c.display_name || c.username || 'Featured'} — VYBE Creator Profile` }));
     const filled = [...real];
     for (let i = 0; filled.length < 4 && i < demoFallback.length; i++) {
       const p = demoFallback[i];
