@@ -765,7 +765,12 @@ service cloud.firestore {
           isConversationCreatorOf(cid)
         )
       );
-      allow create: if signedIn();
+      allow create: if signedIn() &&
+        willOwnProfile('created_by') &&
+        (
+          profileId() in request.resource.data.get('member_ids', []) ||
+          uid() in request.resource.data.get('member_ids', [])
+        );
       allow update: if isMember(cid) || isAdmin() || (
         signedIn() && (
           ownsProfileId(resource.data.get('created_by', '')) ||
@@ -927,7 +932,9 @@ service cloud.firestore {
     }
     match /screenshot_notifications/{docId} {
       allow read: if isOwnerProfile('user_id') || ownsProfileId(resource.data.recipient_id) || isAdmin();
-      allow create: if signedIn();
+      allow create: if signedIn() &&
+        willOwnProfile('user_id') &&
+        isConversationParticipant(request.resource.data.conversation_id);
     }
     match /typing_indicators/{docId} {
       allow read: if signedIn() && isConversationParticipant(resource.data.conversation_id);
