@@ -2,7 +2,36 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
-## ACTIVE (2026-07-18) — Publish: parental/age discoverability + App Store review notes
+## ACTIVE (2026-07-18) — Fix CI failures on main
+
+### Goal
+Unblock red CI emails on `main` (lint/tests from NFC-off FriendDrop + flaky nativeAuth timeouts).
+
+### Shipped SHA
+- **Commit:** `669f905dc` (`669f905dcab37a7da275baf5ff98f94e9493ceca`)
+- **Push:** `origin/main` OK (rebased onto `b1415cdf8`)
+
+### What failed (local reproduce = CI workflow)
+1. **Lint:** `FriendDrop.tsx` `enabled: false && …` → `no-constant-binary-expression`
+2. **Tests (flake under load):** `nativeOAuth.nativeAuth.test.ts` dynamic import hit 5s timeout
+3. Local-only: eslint scanned `ios/DerivedData` (not on CI); ignored anyway
+
+### What fixed
+- `enabled: false` for NFC session (QR-only)
+- eslint ignores for `ios/DerivedData/**` + SourcePackages
+- Vitest timeouts raised to 15s on nativeAuth routing tests
+
+### Tests
+- `npm run lint` (0 errors), `npm run typecheck`, `npm run test` (392), `npm run build` — green
+
+### Next 3
+1. Confirm GitHub Actions green for `669f905dc`
+2. Continue App Store / Lovable publish track from prior ACTIVE notes
+3. Optional: `git stash pop` for pre-pull WIP (`wip-before-ci-fix`)
+
+---
+
+## PREVIOUS (2026-07-18) — Publish: parental/age discoverability + App Store review notes
 
 ### Goal
 Ship parental/age-assurance discoverability + corrected App Store Review / Resolution Center copy so Apple stops rejecting on 2.3.6 (and prior July 15 guidelines).
