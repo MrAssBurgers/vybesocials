@@ -3,7 +3,7 @@ import { isGeneratedUsername } from '@/lib/username';
 const RETURN_PATH_KEY = 'vybe.auth.return_path';
 const LEGACY_ADD_FRIEND_KEY = 'addFriendReturnUrl';
 
-/** Store a post-login redirect (friend links, NFC URLs, etc.). */
+/** Store a post-login redirect (friend links, QR deep links, etc.). */
 export function stashAuthReturnPath(path: string): void {
   try {
     sessionStorage.setItem(RETURN_PATH_KEY, path);

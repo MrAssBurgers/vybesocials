@@ -123,7 +123,7 @@ the app needs the permission, or Apple rejects.
 
 <!-- Location — App Review 5.1.1(ii): purpose + concrete example (Despia Info.plist) -->
 <key>NSLocationWhenInUseUsageDescription</key>
-<string>VYBE uses your location while you use the app to power Friend Map and Friend Link. For example, when you open Friend Map, friends you choose can see that you are nearby (such as “at the park”), and when you open Friend Link / Phone Tap your phone can find friends standing next to you so you can add them. Location is not used for advertising or cross-app tracking.</string>
+<string>VYBE uses your location while you use the app to power Friend Map. For example, when you open Friend Map, friends you choose can see that you are nearby (such as “at the park”). Location is not used for advertising or cross-app tracking.</string>
 <key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
 <string>VYBE can keep using your location in the background only if you turn on live location sharing on Friend Map, so friends you choose can see you are nearby (for example, “heading home”). You can turn this off anytime in Settings. Location is not used for advertising.</string>
 

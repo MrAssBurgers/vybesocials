@@ -17,7 +17,7 @@ import { Link } from 'react-router-dom';
 import { stashAuthReturnPath } from '@/lib/authReturnPath';
 
 /**
- * Deep link handler for NFC friend adds
+ * Deep link handler for Friend Link / QR friend adds
  * URL: /add-friend/:userId
  * This page handles both in-app and web browser access
  */

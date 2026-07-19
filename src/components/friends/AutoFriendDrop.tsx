@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, useEffect, memo, useMemo } from 'react';
+import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { X, QrCode } from 'lucide-react';
@@ -10,7 +10,6 @@ import { useFriendDropSync } from '@/hooks/useFriendDropSync';
 import { useCreateConversation } from '@/hooks/useMessages';
 import { db } from '@/lib/firebase';
 import { useSwingDetection } from '@/hooks/useSwingDetection';
-import { useNativeFriendDrop } from '@/hooks/useNativeFriendDrop';
 import { haptics } from '@/lib/haptics';
 import { toast } from 'sonner';
 import { useIsMobileOrTablet } from '@/hooks/use-mobile';
@@ -20,14 +19,9 @@ import { getPrimaryHex } from '@/lib/themeColor';
 import { navVisibility } from '@/lib/navVisibility';
 import { cn } from '@/lib/utils';
 import { useFloatingControlVisibility } from '@/hooks/useFloatingControlVisibility';
-import { isDespiaRuntime, isIOSUA } from '@/lib/despiaBridge';
 import { isNativePerfMode } from '@/lib/nativePerfMode';
 import { isFullyLoggedIn } from '@/lib/authReady';
-import { buildFriendDropUrl, buildAddFriendUrl, type FriendLinkTarget, extractFriendTarget } from '@/lib/friendLinkNfc';
-import { scanFriendLinkOnce } from '@/lib/friendLinkNfc';
-import { isNfcSupported } from '@/lib/nfcPlatform';
-import { useFriendLinkNfcSession } from '@/hooks/useFriendLinkNfcSession';
-import { useNearbyFriendLink, type NearbyFriendPeer } from '@/hooks/useNearbyFriendLink';
+import { buildFriendDropUrl, buildAddFriendUrl, extractFriendTarget } from '@/lib/friendLinkNfc';
 import { FRIEND_LINK_OPEN_EVENT } from '@/lib/friendLinkUi';
 import {
   FRIEND_DROP_ANIMATION_START,
@@ -49,11 +43,6 @@ import { acquirePostCameraStream, stopStream } from '@/lib/postCameraStream';
 import { isCameraSafeMode } from '@/lib/cameraSafeMode';
 
 type DropPhase = 'idle' | 'activated' | 'found' | 'exchanging' | 'success';
-type ActiveTab = 'tap' | 'qr';
-type TapMode = 'nfc' | 'nearby';
-
-/** Delay before offering the Nearby fallback while waiting on an NFC tap. */
-const NFC_FALLBACK_HINT_MS = 3000;
 
 interface FoundUser {
   id: string;
@@ -80,16 +69,10 @@ export function AutoFriendDrop() {
   const [phase, setPhase] = useState<DropPhase>('idle');
   const [foundUser, setFoundUser] = useState<FoundUser | null>(null);
   const [activeDropId, setActiveDropId] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<ActiveTab>('tap');
-  // NFC is always tried first; phones without NFC go straight to Nearby.
-  const nfcCapable = useMemo(() => isNfcSupported(), []);
-  const [tapMode, setTapMode] = useState<TapMode>(nfcCapable ? 'nfc' : 'nearby');
-  const [showFallbackHint, setShowFallbackHint] = useState(false);
   const [qrSvg, setQrSvg] = useState('');
   const [cameraActive, setCameraActive] = useState(false);
   const [cameraStarting, setCameraStarting] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
-  const webNfcRef = useRef<AbortController | null>(null);
   const exchangeLockRef = useRef(false);
   const completingRef = useRef(false);
   const [showSwapAnimation, setShowSwapAnimation] = useState(false);
@@ -111,7 +94,9 @@ export function AutoFriendDrop() {
         .single();
       if (error) throw error;
       return data;
-    } catch { return null; }
+    } catch {
+      return null;
+    }
   };
 
   const autoCloseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -129,7 +114,9 @@ export function AutoFriendDrop() {
             conversationId: conversation.id,
           });
         }
-      } catch {}
+      } catch {
+        /* ignore */
+      }
     }
     if (autoCloseTimerRef.current) clearTimeout(autoCloseTimerRef.current);
     autoCloseTimerRef.current = setTimeout(() => {
@@ -183,7 +170,10 @@ export function AutoFriendDrop() {
   }, []);
 
   const handleOnConfirmed = useCallback(() => {
-    if (phase !== 'exchanging') { setPhase('exchanging'); haptics.impact(); }
+    if (phase !== 'exchanging') {
+      setPhase('exchanging');
+      haptics.impact();
+    }
   }, [phase]);
 
   const handleOnCompleted = useCallback(async () => {
@@ -209,8 +199,6 @@ export function AutoFriendDrop() {
           : '',
     [activeDropId, profileId],
   );
-
-  const nfcBroadcastUrl = activeDropId ? buildFriendDropUrl(activeDropId) : myProfileUrl;
 
   useEffect(() => {
     if (!myProfileUrl) {
@@ -253,204 +241,101 @@ export function AutoFriendDrop() {
     if (drop) {
       setActiveDropId(drop.id);
     }
-    // Live sync is optional — QR + NFC still work without a drop session.
   }, [profileId, activeDropId, friendDropSync]);
 
   const stopScanning = useCallback(() => {
-    if (animationFrameRef.current) { cancelAnimationFrame(animationFrameRef.current); animationFrameRef.current = null; }
+    if (animationFrameRef.current) {
+      cancelAnimationFrame(animationFrameRef.current);
+      animationFrameRef.current = null;
+    }
     if (streamRef.current) {
       stopStream(streamRef.current);
       streamRef.current = null;
     }
-    try { stopCameraStream(); } catch {}
+    try {
+      stopCameraStream();
+    } catch {
+      /* ignore */
+    }
     if (videoRef.current) videoRef.current.srcObject = null;
     setCameraStarting(false);
     setCameraActive(false);
   }, []);
 
-  const runAutoFriendAdd = useCallback(async (peerId: string) => {
-    if (completingRef.current) return;
-    completingRef.current = true;
-    exchangeLockRef.current = true;
-    try {
-      await sendRequest.mutateAsync(peerId);
-      if (activeDropId) {
-        try { await friendDropSync.confirmDrop(activeDropId); } catch {}
-        try { await friendDropSync.completeDrop(activeDropId); } catch {}
-      }
-      setPhase('success');
-      haptics.success();
-      autoCloseAfterSuccess(peerId);
-    } catch (error: unknown) {
-      const msg = error instanceof Error ? error.message : '';
-      if (msg.includes('already')) {
+  const runAutoFriendAdd = useCallback(
+    async (peerId: string) => {
+      if (completingRef.current) return;
+      completingRef.current = true;
+      exchangeLockRef.current = true;
+      try {
+        await sendRequest.mutateAsync(peerId);
+        if (activeDropId) {
+          try {
+            await friendDropSync.confirmDrop(activeDropId);
+          } catch {
+            /* ignore */
+          }
+          try {
+            await friendDropSync.completeDrop(activeDropId);
+          } catch {
+            /* ignore */
+          }
+        }
         setPhase('success');
+        haptics.success();
         autoCloseAfterSuccess(peerId);
-      } else {
-        toast.error('Failed to add friend');
-        setPhase('found');
-        setShowSwapAnimation(false);
-        exchangeLockRef.current = false;
-        completingRef.current = false;
+      } catch (error: unknown) {
+        const msg = error instanceof Error ? error.message : '';
+        if (msg.includes('already')) {
+          setPhase('success');
+          autoCloseAfterSuccess(peerId);
+        } else {
+          toast.error('Failed to add friend');
+          setPhase('found');
+          setShowSwapAnimation(false);
+          exchangeLockRef.current = false;
+          completingRef.current = false;
+        }
       }
-    }
-  }, [activeDropId, sendRequest, friendDropSync, autoCloseAfterSuccess]);
-
-  const handleDropScan = useCallback(async (dropId: string) => {
-    if (exchangeLockRef.current || completingRef.current) return;
-    exchangeLockRef.current = true;
-    stopScanning();
-    haptics.success();
-    const syncAt = scheduleFriendDropSyncStart();
-    const scannedDrop = await friendDropSync.scanDrop(dropId);
-    if (!scannedDrop) {
-      toast.error('This code has expired');
-      exchangeLockRef.current = false;
-      return;
-    }
-    if (scannedDrop.from_user_id) {
-      const ownerProfile = await fetchUser(scannedDrop.from_user_id);
-      if (ownerProfile) {
-        beginFriendLinkExchange({
-          dropId,
-          role: 'scanner',
-          peer: ownerProfile,
-          syncAt,
-        });
-      }
-    }
-  }, [friendDropSync, stopScanning, beginFriendLinkExchange]);
-
-  const handleAutoAdd = useCallback((userId: string) => {
-    if (phase === 'success' || completingRef.current) return;
-    setPhase('exchanging');
-    setShowSwapAnimation(true);
-    haptics.impact();
-    void runAutoFriendAdd(userId);
-  }, [phase, runAutoFriendAdd]);
-
-  const handleNfcTarget = useCallback(async (target: FriendLinkTarget) => {
-    if (exchangeLockRef.current || completingRef.current || phase === 'success' || phase === 'exchanging') return;
-    exchangeLockRef.current = true;
-    haptics.success();
-    if (target.type === 'drop') {
-      await handleDropScan(target.id);
-      return;
-    }
-    if (target.id === profileId) {
-      exchangeLockRef.current = false;
-      return;
-    }
-    stopScanning();
-    const peer = await fetchUser(target.id);
-    if (!peer) {
-      toast.error('Could not find user');
-      exchangeLockRef.current = false;
-      setPhase('activated');
-      return;
-    }
-    setFoundUser(peer);
-    await handleAutoAdd(target.id);
-  }, [phase, profileId, handleDropScan, handleAutoAdd, stopScanning]);
-
-  const nativeFriendDrop = useNativeFriendDrop({
-    enabled: isActive && activeTab === 'tap',
-    onPeerFound: (peer) => {
-      setFoundUser({ id: peer.userId, username: peer.username, display_name: peer.displayName, avatar_url: peer.avatarUrl });
-      setPhase('found');
-      stopScanning();
     },
-    onPeerConnected: (peer) => { void handleAutoAdd(peer.userId); },
-  });
-
-  useFriendLinkNfcSession({
-    enabled:
-      isActive &&
-      activeTab === 'tap' &&
-      phase === 'activated' &&
-      tapMode === 'nfc' &&
-      !nativeFriendDrop.isAvailable,
-    broadcastUrl: nfcBroadcastUrl,
-    nativeBroadcast: true,
-    onTarget: handleNfcTarget,
-  });
-
-  // Dual signal: while Friend Link tap is open, always broadcast/listen on Nearby
-  // presence (Firestore). NFC alone cannot connect two iPhones (no iOS NFC P2P);
-  // Nearby is the phone↔phone path Despia can do without Capacitor Multipeer.
-  const nearby = useNearbyFriendLink({
-    enabled:
-      isActive &&
-      activeTab === 'tap' &&
-      phase === 'activated' &&
-      !nativeFriendDrop.isAvailable,
-    profileId,
-    username: profile?.username,
-    displayName: (profile as { display_name?: string | null } | null)?.display_name ?? null,
-    avatarUrl: profile?.avatar_url ?? null,
-  });
-
-  // Hint UI: after a beat on NFC-only view, surface Nearby if no peer yet.
-  useEffect(() => {
-    if (!isActive || activeTab !== 'tap' || phase !== 'activated' || tapMode !== 'nfc' || !nfcCapable || nativeFriendDrop.isAvailable) {
-      setShowFallbackHint(false);
-      return;
-    }
-    const timer = setTimeout(() => setShowFallbackHint(true), NFC_FALLBACK_HINT_MS);
-    return () => clearTimeout(timer);
-  }, [isActive, activeTab, phase, tapMode, nfcCapable, nativeFriendDrop.isAvailable]);
-
-  const switchToNearby = useCallback(() => {
-    haptics.tap();
-    setShowFallbackHint(false);
-    setTapMode('nearby');
-  }, []);
-
-  const handleNearbyPeerTap = useCallback(
-    (peer: NearbyFriendPeer) => {
-      if (exchangeLockRef.current || completingRef.current) return;
-      setFoundUser({
-        id: peer.userId,
-        username: peer.username,
-        display_name: peer.displayName,
-        avatar_url: peer.avatarUrl,
-      });
-      handleAutoAdd(peer.userId);
-    },
-    [handleAutoAdd],
+    [activeDropId, sendRequest, friendDropSync, autoCloseAfterSuccess],
   );
 
-  // When both phones have Friend Link open, Nearby presence finds them — auto-link
-  // a single clear peer (NameDrop-style). Multiple peers require a tap.
-  useEffect(() => {
-    if (!isActive || activeTab !== 'tap' || phase !== 'activated') return;
-    if (nativeFriendDrop.isAvailable) return;
-    if (exchangeLockRef.current || completingRef.current) return;
-    if (nearby.peers.length !== 1) return;
-    handleNearbyPeerTap(nearby.peers[0]);
-  }, [
-    isActive,
-    activeTab,
-    phase,
-    nearby.peers,
-    nearby.status,
-    nativeFriendDrop.isAvailable,
-    handleNearbyPeerTap,
-  ]);
+  const handleDropScan = useCallback(
+    async (dropId: string) => {
+      if (exchangeLockRef.current || completingRef.current) return;
+      exchangeLockRef.current = true;
+      stopScanning();
+      haptics.success();
+      const syncAt = scheduleFriendDropSyncStart();
+      const scannedDrop = await friendDropSync.scanDrop(dropId);
+      if (!scannedDrop) {
+        toast.error('This code has expired');
+        exchangeLockRef.current = false;
+        return;
+      }
+      if (scannedDrop.from_user_id) {
+        const ownerProfile = await fetchUser(scannedDrop.from_user_id);
+        if (ownerProfile) {
+          beginFriendLinkExchange({
+            dropId,
+            role: 'scanner',
+            peer: ownerProfile,
+            syncAt,
+          });
+        }
+      }
+    },
+    [friendDropSync, stopScanning, beginFriendLinkExchange],
+  );
 
   const handleClose = useCallback(() => {
     haptics.tap();
     stopScanning();
-    if (webNfcRef.current) {
-      webNfcRef.current.abort();
-      webNfcRef.current = null;
-    }
 
     const dropId = activeDropId;
     const phaseSnap = phase;
-    const nativeActive = nativeFriendDrop.isActive;
 
-    // Dismiss UI immediately — never block on network/NFC teardown.
     setIsActive(false);
     setPhase('idle');
     setFoundUser(null);
@@ -469,26 +354,33 @@ export function AutoFriendDrop() {
       if (dropId && phaseSnap !== 'success') {
         try {
           await friendDropSync.cancelDrop(dropId);
-        } catch { /* ignore */ }
-      }
-      if (nativeActive) {
-        try {
-          await nativeFriendDrop.stopSession();
-        } catch { /* ignore */ }
+        } catch {
+          /* ignore */
+        }
       }
     })();
-  }, [stopScanning, nativeFriendDrop, activeDropId, friendDropSync, phase]);
+  }, [stopScanning, activeDropId, friendDropSync, phase]);
 
-  const handleFoundUser = useCallback(async (userId: string) => {
-    stopScanning();
-    haptics.success();
-    setPhase('found');
-    try {
-      const { data, error } = await db.from('profiles').select('id, username, display_name, avatar_url').eq('id', userId).single();
-      if (error) throw error;
-      setFoundUser(data);
-    } catch { toast.error('Could not find user'); handleClose(); }
-  }, [stopScanning, handleClose]);
+  const handleFoundUser = useCallback(
+    async (userId: string) => {
+      stopScanning();
+      haptics.success();
+      setPhase('found');
+      try {
+        const { data, error } = await db
+          .from('profiles')
+          .select('id, username, display_name, avatar_url')
+          .eq('id', userId)
+          .single();
+        if (error) throw error;
+        setFoundUser(data);
+      } catch {
+        toast.error('Could not find user');
+        handleClose();
+      }
+    },
+    [stopScanning, handleClose],
+  );
 
   const scanDimensionsRef = useRef({ width: 0, height: 0 });
   const scanFrameSkipRef = useRef(0);
@@ -526,11 +418,19 @@ export function AutoFriendDrop() {
       }
       ctx.drawImage(videoRef.current, 0, 0, cw, ch);
       const imageData = ctx.getImageData(0, 0, cw, ch);
-      const code = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: 'attemptBoth' });
+      const code = jsQR(imageData.data, imageData.width, imageData.height, {
+        inversionAttempts: 'attemptBoth',
+      });
       if (code) {
         const target = extractFriendTarget(code.data || '');
-        if (target?.type === 'drop') { await handleDropScan(target.id); return; }
-        if (target?.type === 'user' && target.id !== profileId) { handleFoundUser(target.id); return; }
+        if (target?.type === 'drop') {
+          await handleDropScan(target.id);
+          return;
+        }
+        if (target?.type === 'user' && target.id !== profileId) {
+          handleFoundUser(target.id);
+          return;
+        }
       }
       animationFrameRef.current = requestAnimationFrame(scanFrame);
     };
@@ -566,31 +466,13 @@ export function AutoFriendDrop() {
       const denied = e?.name === 'NotAllowedError' || e?.name === 'SecurityError';
       const msg = denied
         ? 'Camera blocked — enable camera access in settings'
-        : 'Camera unavailable — try again or use Phone Tap';
+        : 'Camera unavailable — try again';
       setCameraError(msg);
       toast.error(msg);
     } finally {
       setCameraStarting(false);
     }
   }, []);
-
-  const retryNfcScan = useCallback(async () => {
-    if (!isDespiaRuntime() && isIOSUA()) {
-      toast.error('NFC needs the VYBE app on iPhone — or use QR', { duration: 5000 });
-      return;
-    }
-    toast.success('Hold phones together back-to-back', { duration: 4000 });
-    const { target, error } = await scanFriendLinkOnce();
-    if (target) {
-      await handleNfcTarget(target);
-      return;
-    }
-    if (error) {
-      toast.error(error);
-      return;
-    }
-    toast.info('No NFC detected — keep phones touching or try QR');
-  }, [handleNfcTarget]);
 
   const handleBumpRef = useRef<() => void>(() => {});
 
@@ -602,18 +484,16 @@ export function AutoFriendDrop() {
     onSwing: () => handleBumpRef.current(),
   });
 
-  const handleBump = useCallback(async () => {
+  const openFriendLink = useCallback(async () => {
     if (!profileId || !user || isActive) return;
     await requestMotionPermission();
     setIsActive(true);
-    setActiveTab('tap');
-    setTapMode(nfcCapable ? 'nfc' : 'nearby');
-    setShowFallbackHint(false);
     haptics.impact();
     setPhase('activated');
     setTimeout(() => haptics.success(), 300);
     void ensureFriendDrop();
-  }, [profileId, user, friendDropSync, requestMotionPermission, isActive, ensureFriendDrop, nfcCapable]);
+    void startCamera();
+  }, [profileId, user, isActive, requestMotionPermission, ensureFriendDrop, startCamera]);
 
   useEffect(() => {
     if (!isActive || phase !== 'activated' || !profileId) return;
@@ -622,34 +502,27 @@ export function AutoFriendDrop() {
 
   useEffect(() => {
     handleBumpRef.current = () => {
-      void handleBump();
+      void openFriendLink();
     };
-  }, [handleBump]);
+  }, [openFriendLink]);
 
   useEffect(() => {
-    const onOpen = (e: Event) => {
+    const onOpen = () => {
       if (!isFullyLoggedIn(user, profile, authLoading)) return;
       void (async () => {
         await requestMotionPermission();
-        const tab = (e as CustomEvent<{ tab?: ActiveTab }>).detail?.tab;
-        const nextTab = tab === 'qr' || tab === 'tap' ? tab : 'tap';
         setIsActive(true);
-        setActiveTab(nextTab);
-        setTapMode(nfcCapable ? 'nfc' : 'nearby');
-        setShowFallbackHint(false);
         setPhase('activated');
         haptics.impact();
         if (profileId && user) {
           void ensureFriendDrop();
         }
-        if (nextTab === 'qr') {
-          void startCamera();
-        }
+        void startCamera();
       })();
     };
     window.addEventListener(FRIEND_LINK_OPEN_EVENT, onOpen);
     return () => window.removeEventListener(FRIEND_LINK_OPEN_EVENT, onOpen);
-  }, [profileId, user, authLoading, ensureFriendDrop, requestMotionPermission, startCamera, nfcCapable]);
+  }, [profileId, user, profile, authLoading, ensureFriendDrop, requestMotionPermission, startCamera]);
 
   const handleAddFriend = useCallback(async () => {
     if (!foundUser || completingRef.current) return;
@@ -707,9 +580,12 @@ export function AutoFriendDrop() {
     };
   }, [isActive, activeDropId, autoCloseAfterSuccess, stopScanning]);
 
-  useEffect(() => { return () => { stopScanning(); }; }, [stopScanning]);
+  useEffect(() => {
+    return () => {
+      stopScanning();
+    };
+  }, [stopScanning]);
 
-  // While Friend Link is open: hide bottom nav + lock body scroll (iOS-safe)
   useEffect(() => {
     if (!isActive) return;
     const onKey = (e: KeyboardEvent) => {
@@ -749,43 +625,9 @@ export function AutoFriendDrop() {
 
   // Stop QR camera whenever sheet closes or phase leaves activated.
   useEffect(() => {
-    if (isActive && phase === 'activated' && activeTab === 'qr') return;
+    if (isActive && phase === 'activated') return;
     stopScanning();
-  }, [isActive, phase, activeTab, stopScanning]);
-
-  useEffect(() => {
-    if (isActive && activeTab === 'tap' && nativeFriendDrop.isAvailable && !nativeFriendDrop.isActive) {
-      void nativeFriendDrop.startSession();
-    } else if (!isActive && nativeFriendDrop.isActive) {
-      void nativeFriendDrop.stopSession();
-    }
-    return () => {
-      if (webNfcRef.current) {
-        webNfcRef.current.abort();
-        webNfcRef.current = null;
-      }
-      if (nativeFriendDrop.isActive) {
-        void nativeFriendDrop.stopSession();
-      }
-    };
-  }, [isActive, activeTab, nativeFriendDrop]);
-
-  const tapListening =
-    isActive &&
-    activeTab === 'tap' &&
-    phase === 'activated';
-
-  const handleFriendLinkTabChange = useCallback(
-    (tab: ActiveTab) => {
-      setActiveTab(tab);
-      if (tab === 'qr') {
-        startCamera();
-      } else if (tab === 'tap' && !nativeFriendDrop.isAvailable && tapMode === 'nfc') {
-        void retryNfcScan();
-      }
-    },
-    [nativeFriendDrop.isAvailable, retryNfcScan, startCamera, tapMode],
-  );
+  }, [isActive, phase, stopScanning]);
 
   if (!isFullyLoggedIn(user, profile, authLoading)) return null;
 
@@ -815,35 +657,29 @@ export function AutoFriendDrop() {
         }}
       />
 
-      {/* Floating pill — tap to open */}
       {!isActive && showHomePill && (
         <div
           className={cn(
             'fixed bottom-20 left-1/2 z-40 flex flex-col items-center -translate-x-1/2 duration-300',
             controlVisible
               ? 'translate-y-0 pointer-events-auto transition-transform ease-out'
-              : 'translate-y-[200%] pointer-events-none transition-transform ease-in'
+              : 'translate-y-[200%] pointer-events-none transition-transform ease-in',
           )}
         >
           <div className="relative flex flex-col items-center">
             <FriendLinkActivateHint onEnableShake={() => { void requestMotionPermission(); }} />
             <button
               type="button"
-              onClick={handleBump}
+              onClick={() => void openFriendLink()}
               className="group relative flex items-center gap-2.5 px-5 py-3 rounded-full active:scale-[0.95] transition-all duration-200 touch-manipulation"
             >
-            {/* Animated gradient border */}
-            <span className="absolute inset-0 rounded-full seamless-gradient-strip opacity-80" />
-            {/* Inner fill */}
-            <span className="absolute inset-[1.5px] rounded-full bg-card/95 backdrop-blur-xl" />
-            {/* Glow */}
-            <span className="absolute inset-0 rounded-full bg-primary/10 blur-lg group-hover:bg-primary/20 transition-colors" />
-            {/* Content */}
-            <QrCode className="relative z-10 h-4 w-4 text-primary" />
-            <span className="relative z-10 text-xs font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
-              Friend Link
-            </span>
-            {/* Pulse ring removed — animate-ping renders as a grey ghost on WebKit */}
+              <span className="absolute inset-0 rounded-full seamless-gradient-strip opacity-80" />
+              <span className="absolute inset-[1.5px] rounded-full bg-card/95 backdrop-blur-xl" />
+              <span className="absolute inset-0 rounded-full bg-primary/10 blur-lg group-hover:bg-primary/20 transition-colors" />
+              <QrCode className="relative z-10 h-4 w-4 text-primary" />
+              <span className="relative z-10 text-xs font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
+                Friend Link
+              </span>
             </button>
             <p className="mt-1.5 text-[10px] font-semibold text-foreground/80 drop-shadow-sm pointer-events-none">
               Tap or shake to open
@@ -873,76 +709,59 @@ export function AutoFriendDrop() {
               className="fixed inset-x-0 z-[10081] flex justify-center pointer-events-none px-4"
               style={{ bottom: 'calc(5.25rem + env(safe-area-inset-bottom, 0px))' }}
             >
-            <motion.div
-              key="friend-link-sheet"
-              role="dialog"
-              aria-modal="true"
-              aria-label="Friend Link"
-              initial={reduceFriendLinkMotion ? { opacity: 0 } : { opacity: 0, y: 24, scale: 0.94 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={reduceFriendLinkMotion ? { opacity: 0 } : { opacity: 0, y: 16, scale: 0.96 }}
-              transition={reduceFriendLinkMotion ? { duration: 0.1 } : liquidBouncySpring}
-              className="friend-link-sheet friend-link-poster pointer-events-auto flex w-full max-w-[24rem] flex-col overflow-hidden rounded-[28px] liquid-glass-depth"
-              onClick={(e) => e.stopPropagation()}
-              onPointerDown={(e) => e.stopPropagation()}
-            >
-              <div className="friend-link-poster-aura pointer-events-none absolute inset-0 rounded-[28px]" aria-hidden />
-              <div className="pointer-events-none absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-primary/40 to-transparent" />
+              <motion.div
+                key="friend-link-sheet"
+                role="dialog"
+                aria-modal="true"
+                aria-label="Friend Link"
+                initial={reduceFriendLinkMotion ? { opacity: 0 } : { opacity: 0, y: 24, scale: 0.94 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={reduceFriendLinkMotion ? { opacity: 0 } : { opacity: 0, y: 16, scale: 0.96 }}
+                transition={reduceFriendLinkMotion ? { duration: 0.1 } : liquidBouncySpring}
+                className="friend-link-sheet friend-link-poster pointer-events-auto flex w-full max-w-[24rem] flex-col overflow-hidden rounded-[28px] liquid-glass-depth"
+                onClick={(e) => e.stopPropagation()}
+                onPointerDown={(e) => e.stopPropagation()}
+              >
+                <div className="friend-link-poster-aura pointer-events-none absolute inset-0 rounded-[28px]" aria-hidden />
+                <div className="pointer-events-none absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-primary/40 to-transparent" />
 
-              <div className="relative grid shrink-0 grid-cols-[2.5rem_1fr_2.5rem] items-center px-3 pb-2 pt-4">
-                <span aria-hidden />
-                <h2 className="text-center bg-gradient-to-r from-primary via-foreground to-accent bg-clip-text text-base font-bold tracking-tight text-transparent">
-                  Friend Link
-                </h2>
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleClose();
-                  }}
-                  className="flex h-9 w-9 items-center justify-center justify-self-end rounded-full bg-foreground/5 text-muted-foreground transition-all hover:bg-primary/10 hover:text-primary touch-manipulation active:scale-95"
-                  aria-label="Close"
-                >
-                  <X className="h-4 w-4" />
-                </button>
-              </div>
+                <div className="relative grid shrink-0 grid-cols-[2.5rem_1fr_2.5rem] items-center px-3 pb-2 pt-4">
+                  <span aria-hidden />
+                  <h2 className="text-center bg-gradient-to-r from-primary via-foreground to-accent bg-clip-text text-base font-bold tracking-tight text-transparent">
+                    Friend Link
+                  </h2>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleClose();
+                    }}
+                    className="flex h-9 w-9 items-center justify-center justify-self-end rounded-full bg-foreground/5 text-muted-foreground transition-all hover:bg-primary/10 hover:text-primary touch-manipulation active:scale-95"
+                    aria-label="Close"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
 
-              <div className="relative overflow-hidden px-4 pb-4 pt-0">
-                <FriendLinkSheetContent
-                  phase={phase}
-                  activeTab={activeTab}
-                  onTabChange={handleFriendLinkTabChange}
-                  onClose={handleClose}
-                  onAddFriend={handleAddFriend}
-                  onSelectPeer={(peer) => {
-                    handleNearbyPeerTap(peer);
-                  }}
-                  profile={profile}
-                  foundUser={foundUser}
-                  tapListening={tapListening}
-                  tapMode={tapMode}
-                  showFallbackHint={showFallbackHint}
-                  onSwitchToNearby={switchToNearby}
-                  nearbyStatus={nearby.status}
-                  onRetryNearby={nearby.retry}
-                  onNearbyPeerTap={handleNearbyPeerTap}
-                  qrSvg={qrSvg}
-                  qrLoading={!profileId || (!qrSvg && friendDropSync.isCreating)}
-                  nearbyPeers={
-                    nativeFriendDrop.isAvailable
-                      ? nativeFriendDrop.nearbyPeers
-                      : nearby.peers
-                  }
-                  videoRef={videoRef}
-                  canvasRef={canvasRef}
-                  cameraActive={cameraActive}
-                  cameraStarting={cameraStarting}
-                  cameraError={cameraError}
-                  onStartCamera={() => void startCamera()}
-                  reduceMotion={reduceFriendLinkMotion}
-                />
-              </div>
-            </motion.div>
+                <div className="relative overflow-hidden px-4 pb-4 pt-0">
+                  <FriendLinkSheetContent
+                    phase={phase}
+                    onClose={handleClose}
+                    onAddFriend={handleAddFriend}
+                    profile={profile}
+                    foundUser={foundUser}
+                    qrSvg={qrSvg}
+                    qrLoading={!profileId || (!qrSvg && friendDropSync.isCreating)}
+                    videoRef={videoRef}
+                    canvasRef={canvasRef}
+                    cameraActive={cameraActive}
+                    cameraStarting={cameraStarting}
+                    cameraError={cameraError}
+                    onStartCamera={() => void startCamera()}
+                    reduceMotion={reduceFriendLinkMotion}
+                  />
+                </div>
+              </motion.div>
             </div>
           </>
         )}

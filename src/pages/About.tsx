@@ -135,7 +135,7 @@ export default function About() {
               <div className="flex-shrink-0 w-8 h-8 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold text-sm">2</div>
               <div>
                 <h3 className="font-semibold text-foreground">Connect & Discover</h3>
-                <p className="text-sm text-muted-foreground mt-1">Find friends through Quick Add, QR codes, NFC sharing, or mutual connections. Discover trending content, communities, and creators on the Explore page.</p>
+                <p className="text-sm text-muted-foreground mt-1">Find friends through Quick Add, QR codes, or mutual connections. Discover trending content, communities, and creators on the Explore page.</p>
               </div>
             </div>
             <div className="flex gap-4">

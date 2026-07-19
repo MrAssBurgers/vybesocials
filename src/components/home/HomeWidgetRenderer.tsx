@@ -91,7 +91,7 @@ function FindFriendsCTA({ onExplore }: { onExplore: () => void }) {
         Your feed fills up as you add friends. Tap phones with Friend Link — you&apos;re connected instantly.
       </p>
       <Button
-        onClick={() => openFriendLink('tap')}
+        onClick={() => openFriendLink()}
         className="rounded-full px-7 h-10 text-sm bg-gradient-to-r from-primary to-accent text-primary-foreground shadow-md"
       >
         <UserPlus className="h-4 w-4 mr-2" />
@@ -306,7 +306,7 @@ function FeedSection({
     <div className="pb-6 px-1" data-tutorial="feed-area">
       {loggedIn && showFriendLinkSpotlight && activeTab === 'foryou' && !forYouEmpty && (
         <FriendLinkSpotlight
-          onOpen={() => openFriendLink('tap')}
+          onOpen={() => openFriendLink()}
           onDismiss={() => {
             dismissFriendLinkSpotlight();
             setShowFriendLinkSpotlight(false);

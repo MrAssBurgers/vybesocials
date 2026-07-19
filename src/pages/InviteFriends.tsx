@@ -11,7 +11,6 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { useInviteStats, useUserBadges, getInviteUrl } from '@/hooks/useInvites';
 import { InviteLeaderboard } from '@/components/invite/InviteLeaderboard';
 import { FoundingCountdown } from '@/components/growth/FoundingCountdown';
-import { NFCInviteShare } from '@/components/invite/NFCInviteShare';
 import { BumpToShare } from '@/components/invite/BumpToShare';
 import { PersonalQRCode } from '@/components/invite/PersonalQRCode';
 import { useAuthOptional } from '@/lib/auth';
@@ -141,7 +140,6 @@ export default function InviteFriends() {
                   Share Link
                 </Button>
                 <BumpToShare variant="icon" />
-                <NFCInviteShare variant="icon" />
                 <Button 
                   variant="outline"
                   size="icon"

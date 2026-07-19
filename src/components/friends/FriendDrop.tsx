@@ -18,7 +18,6 @@ import { useNFC } from '@/hooks/useNFC';
 import { useNativeFriendDrop } from '@/hooks/useNativeFriendDrop';
 import { getPreloadedStream, requestCameraStream } from '@/hooks/useCameraPreload';
 import { LiquidBottomSheet } from '@/components/ui/glass/LiquidBottomSheet';
-import { NFCWriteSheet } from '@/components/social/NFCWriteSheet';
 import { isDespiaRuntime } from '@/lib/despiaBridge';
 import { buildFriendDropUrl, buildAddFriendUrl } from '@/lib/friendLinkNfc';
 import { useFriendLinkNfcSession } from '@/hooks/useFriendLinkNfcSession';
@@ -215,7 +214,6 @@ export function FriendDrop({ variant = 'button' }: FriendDropProps) {
   const [isScanning, setIsScanning] = useState(false);
   const [nfcActive, setNfcActive] = useState(false);
   const [activeTab, setActiveTab] = useState<ActiveTab>('qr');
-  const [showWriteSheet, setShowWriteSheet] = useState(false);
   const [showSwapAnimation, setShowSwapAnimation] = useState(false);
   const exchangeLockRef = useRef(false);
   const scanLockRef = useRef(false);
@@ -392,7 +390,8 @@ export function FriendDrop({ variant = 'button' }: FriendDropProps) {
   }, [profile?.id, handleDropScan, handleFoundUser]);
 
   useFriendLinkNfcSession({
-    enabled: isOpen && activeTab === 'tap' && !!myProfileUrl && !nativeFriendDrop.isAvailable,
+    // NFC / Phone Tap removed — QR only
+    enabled: false && isOpen && activeTab === 'tap' && !!myProfileUrl && !nativeFriendDrop.isAvailable,
     broadcastUrl: myProfileUrl,
     onTarget: useCallback(
       (target) => {
@@ -857,16 +856,7 @@ export function FriendDrop({ variant = 'button' }: FriendDropProps) {
         ))}
       </div>
 
-      {/* Program a physical NFC tag with your friend-link URL (Despia only). */}
-      {isDespiaRuntime() && user?.id && (
-        <button
-          onClick={() => setShowWriteSheet(true)}
-          className="w-full mt-1 flex items-center justify-center gap-2 h-11 rounded-2xl border border-primary/25 bg-gradient-to-r from-primary/10 to-accent/10 hover:from-primary/20 hover:to-accent/20 active:scale-[0.98] transition-all"
-        >
-          <Radio className="h-4 w-4 text-primary" />
-          <span className="text-sm font-semibold text-primary">Program a blank tag</span>
-        </button>
-      )}
+      {/* NFC tag programming removed — Friend Link is QR-only */}
     </motion.div>
   );
 
@@ -890,7 +880,7 @@ export function FriendDrop({ variant = 'button' }: FriendDropProps) {
             </div>
             <div className="text-left flex-1">
               <h4 className="font-semibold text-sm">Friend Link</h4>
-              <p className="text-[11px] text-muted-foreground">QR · Tap · Share — instant</p>
+              <p className="text-[11px] text-muted-foreground">QR · Share — instant</p>
             </div>
           </motion.button>
         );
@@ -940,52 +930,14 @@ export function FriendDrop({ variant = 'button' }: FriendDropProps) {
             {showOverlay ? (
               renderOverlay()
             ) : (
-              <motion.div key="tabs" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-                {/* Segmented switcher */}
-                <div className="relative flex p-1 rounded-full bg-secondary/50 mb-4">
-                  <motion.div
-                    layout
-                    transition={smoothSpring}
-                    className="absolute top-1 bottom-1 w-[calc(50%-4px)] rounded-full bg-card shadow-md"
-                    style={{ left: activeTab === 'qr' ? 4 : 'calc(50% + 0px)' }}
-                  />
-                  <button
-                    onClick={() => { setActiveTab('qr'); stopScanning(); }}
-                    className={cn(
-                      'relative z-10 flex-1 flex items-center justify-center gap-1.5 py-2 rounded-full text-xs font-semibold transition-colors',
-                      activeTab === 'qr' ? 'text-foreground' : 'text-muted-foreground'
-                    )}
-                  >
-                    <QrCode className="h-3.5 w-3.5" /> QR
-                  </button>
-                  <button
-                    onClick={() => { setActiveTab('tap'); stopScanning(); }}
-                    className={cn(
-                      'relative z-10 flex-1 flex items-center justify-center gap-1.5 py-2 rounded-full text-xs font-semibold transition-colors',
-                      activeTab === 'tap' ? 'text-foreground' : 'text-muted-foreground'
-                    )}
-                  >
-                    <Radio className="h-3.5 w-3.5" /> Phone Tap
-                    {tapAvailable && <span className="ml-0.5 w-1.5 h-1.5 rounded-full bg-emerald-500" />}
-                  </button>
-                </div>
-
-                <AnimatePresence mode="wait">
-                  {activeTab === 'qr' ? renderQRTab() : renderTapTab()}
-                </AnimatePresence>
+              <motion.div key="qr-only" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+                {renderQRTab()}
               </motion.div>
             )}
           </AnimatePresence>
         </div>
       </LiquidBottomSheet>
 
-      {user?.id && (
-        <NFCWriteSheet
-          isOpen={showWriteSheet}
-          onClose={() => setShowWriteSheet(false)}
-          value={profile?.id ? buildAddFriendUrl(profile.id) : ''}
-        />
-      )}
     </>
   );
 }

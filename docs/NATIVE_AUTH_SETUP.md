@@ -1,8 +1,8 @@
 # VYBE Native Auth Setup (Despia + Capacitor)
 
-Production passkeys, NFC, and deep links require a few values that only YOU
+Production passkeys and deep links require a few values that only YOU
 can produce — they come from Google Play Console, Apple Developer, and
-Despia. This doc lists exactly what to fill in and where.
+Despia. NFC is currently off (QR-only Friend Link). This doc lists exactly what to fill in and where.
 
 ## 1. Production domain
 
@@ -53,7 +53,7 @@ VYBE expects Despia to expose these native bridge URL schemes:
 |---------------------|---------------------------------|--------------------------------|
 | Passkey biometric   | `biometric://authenticate`      | `src/lib/despiaVault.ts`       |
 | Storage Vault       | `setvault://`, `readvault://`   | `src/lib/despiaVault.ts`       |
-| NFC read            | `nfcread://` / `scannfc://`     | `src/hooks/useNFC.ts`          |
+| NFC read (disabled) | `nfc://` (off)                    | `src/lib/nfcFeature.ts`        |
 | Open app settings   | `appsettings://`                | `src/lib/despiaBridge.ts`      |
 | Interstitial ad     | `displayinterstitialad://`      | `src/hooks/useVideoAds.ts`     |
 | In-app purchase     | `revenuecat://purchase`         | `src/hooks/useRevenueCat.ts`   |
@@ -106,18 +106,22 @@ Optional env overrides (see `.env.example`):
 Confirm with Despia support that `oauth://` is enabled for the
 `com.despia.vybe` (Android) and the iOS bundle they assigned you.
 
-## 5. NFC native permissions
+## 5. NFC native permissions — DISABLED (QR-only)
+
+Friend Link / referrals currently ship **without NFC**. Do **not** enable the
+Despia NFC addon or `NFCReaderUsageDescription` for the next store binary.
+
+If re-enabling later (`NFC_ENABLED = true` in `src/lib/nfcFeature.ts`):
 
 ### Android — add to `AndroidManifest.xml`
 
-Canonical reference: **`native/android/AndroidManifest.xml`** in this repo.
+Canonical reference: **`native/android/AndroidManifest.xml`** in this repo
+(currently commented out).
 
 ```xml
 <uses-permission android:name="android.permission.NFC" />
 <uses-feature android:name="android.hardware.nfc" android:required="false" />
 ```
-For Capacitor builds this lives in `android/app/src/main/AndroidManifest.xml`.
-For Despia, confirm these lines are in the manifest **and** NFC addon is ON in the Despia Editor, then publish a **new store build** (OTA web updates cannot add manifest permissions).
 
 ### iOS — add to `Info.plist`
 ```xml
@@ -126,6 +130,10 @@ For Despia, confirm these lines are in the manifest **and** NFC addon is ON in t
 ```
 Plus enable the **Near Field Communication Tag Reading** capability in
 Xcode → Signing & Capabilities. For Despia, ask their support to enable it.
+
+**For this release:** confirm NFC addon is **OFF** in Despia, remove
+`NFCReaderUsageDescription` if present, and rebuild so App Review does not ask
+for an NFC accessory demo.
 
 ## 6. Environment variables (web)
 

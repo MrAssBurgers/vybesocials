@@ -2,7 +2,42 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
-## ACTIVE (2026-07-18) — Publish handoff: splash unify + map ghost/compass
+## ACTIVE (2026-07-18) — NFC removed; Friend Link QR-only
+
+### Goal
+Strip all NFC / Phone Tap options. Keep Friend Link + referrals via QR only. Fix Friend Link end-to-end for QR.
+
+### What changed
+- **`NFC_ENABLED = false`** in `src/lib/nfcFeature.ts` — gates `isNfcSupported`, sessions, Web NFC, Despia dispatcher
+- Friend Link sheet (`AutoFriendDrop` + `FriendLinkSheetContent`): **QR display + camera scan only** (no Phone Tap / Nearby / NFC tabs)
+- Removed NFC entry points: InviteFriends, NewMessage (Add Friends), TokenWallet, FriendDrop Phone Tap UI, NFCFriendShare / NFCInviteShare / NFCWriteSheet → null stubs
+- Copy/docs: About, VybeHome, APP_STORE_REVIEW_NOTES, APP_STORE_RESUBMIT, IOS_SETUP, NATIVE_AUTH_SETUP, PUBLIC_READINESS, AndroidManifest comments
+- `openFriendLink()` defaults to QR; home widgets open QR sheet
+
+### Friend Link QR path (verified in code)
+1. Open Friend Link (home pill / shake / `openFriendLink()`) → creates `friend_drops` session → renders QR as `https://vybehub.app/friend-drop/:dropId` (or `/add-friend/:profileId` fallback)
+2. Peer scans QR with camera → `extractFriendTarget` → `scanDrop` / add-friend → friendship + success animation → DM
+3. Deep links: `/friend-drop/:dropId` (`FriendDropLink`), `/add-friend/:userId` (`AddFriend`) still work
+
+### Despia dashboard (manual — cannot do from repo)
+- **Turn NFC addon / capability OFF** on next native rebuild
+- Remove `NFCReaderUsageDescription` from Info.plist if present
+- Comment out `android.permission.NFC` already noted in `native/android/AndroidManifest.xml`
+
+### Tests
+- `npm run build` — pass
+- `npx vitest run src/lib/vybemap/ghostMode.test.ts src/lib/resolveSessionProfileId.test.ts` — pass
+
+### Next 3
+1. Manual device test: Friend Link QR generate → scan → friend add
+2. Despia: disable NFC capability + rebuild store binary
+3. Lovable Publish after commit/push (when asked)
+
+### Not committed / not pushed (per request)
+
+---
+
+## PREVIOUS (2026-07-18) — Publish handoff: splash unify + map ghost/compass
 
 ### Shipped SHA
 - **Commit:** `7d6233917` (`7d62339173aa88a0a4603ac12e4fd487cd49eee1`)

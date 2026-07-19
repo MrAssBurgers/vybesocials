@@ -441,18 +441,11 @@ const FriendLinkPhone = () => (
       <div className="w-4 h-4" />
     </div>
 
-    {/* Segmented tabs */}
+    {/* QR header — no Phone Tap / NFC */}
     <div className="absolute top-[60px] inset-x-6 z-10">
-      <div className="h-7 rounded-full bg-white/[0.05] border border-white/10 p-[2px] flex relative">
-        <div className="absolute top-[2px] left-[2px] bottom-[2px] w-[calc(50%-2px)] rounded-full bg-gradient-to-r from-violet-500 to-cyan-500 shadow-[0_0_12px_rgba(139,92,246,0.6)]" />
-        <div className="relative flex-1 flex items-center justify-center gap-1 text-[9px] font-bold text-white">
-          <div className="w-2 h-2 rounded-[1px] border border-white" />
-          QR Code
-        </div>
-        <div className="relative flex-1 flex items-center justify-center gap-1 text-[9px] font-semibold text-white/55">
-          <Zap className="w-2.5 h-2.5" />
-          Phone Tap
-        </div>
+      <div className="h-7 rounded-full bg-white/[0.05] border border-white/10 px-3 flex items-center justify-center gap-1.5">
+        <div className="w-2 h-2 rounded-[1px] border border-white" />
+        <span className="text-[9px] font-bold text-white">QR Code</span>
       </div>
     </div>
 
@@ -500,7 +493,7 @@ const FriendLinkPhone = () => (
         <span className="text-[9.5px] font-semibold text-white/85">Scan a code</span>
       </div>
       <div className="text-[7.5px] text-white/40 text-center flex items-center justify-center gap-1">
-        <Zap className="w-2 h-2 text-cyan-300" /> NFC ready · hold phones together
+        <Camera className="w-2 h-2 text-cyan-300" /> Show your code · or scan theirs
       </div>
     </div>
   </div>
@@ -914,10 +907,10 @@ const VybeHome = memo(function VybeHome() {
       <SectionWrap>
         <FadeIn>
           <FeatureRow
-            tag="Friend Link · QR · NFC"
-            title="Add friends in one tap. Literally."
-            desc="A sleek Friend Link sheet with an instant QR code and a live tap radar. Hold phones together for NFC. Scan in under a second. No usernames, no typing, no friction."
-            bullets={['Instant local QR with your avatar inset','Tap-to-add via NFC + native bridge','Realtime sync — both phones celebrate together']}
+            tag="Friend Link · QR"
+            title="Add friends in one scan."
+            desc="A sleek Friend Link sheet with an instant QR code and camera scanner. Show your code or scan theirs — no usernames, no typing, no friction."
+            bullets={['Instant local QR with your avatar inset','Camera scan in under a second','Realtime sync — both phones celebrate together']}
             phone={<PhoneFrame><FriendLinkPhone /></PhoneFrame>}
           />
         </FadeIn>
@@ -992,7 +985,7 @@ const VybeHome = memo(function VybeHome() {
             <tbody className="text-white/80">
               {[
                 ['Evolving personality engine', false, false, false],
-                ['Tap-to-add (NFC bump)', false, false, false],
+                ['QR friend add', false, false, false],
                 ['Customizable everything', false, false, false],
                 ['Disappearing snaps', false, true, false],
                 ['Communities & spaces', false, false, true],

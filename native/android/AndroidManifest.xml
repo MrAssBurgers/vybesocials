@@ -5,15 +5,15 @@
   Capacitor: copy relevant lines into android/app/src/main/AndroidManifest.xml
   after `npx cap add android`.
 
-  Despia: send this file to Despia support and confirm NFC addon is ON in the
-  Despia Editor, then publish a new store build.
+  NFC is currently DISABLED product-wide (QR-only Friend Link).
+  Despia: turn the NFC addon OFF in the Despia Editor on the next store rebuild
+  and omit android.permission.NFC from the published binary when possible.
+  The lines below are retained only as a reference for a future re-enable.
 -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <!-- Required for Friend Link tap-to-add and NFC tag programming -->
-    <uses-permission android:name="android.permission.NFC" />
-
-    <!-- Optional hardware — app must install on non-NFC devices (QR fallback) -->
-    <uses-feature android:name="android.hardware.nfc" android:required="false" />
+    <!-- NFC OFF for now — do not require for install. Re-add when NFC_ENABLED is true. -->
+    <!-- <uses-permission android:name="android.permission.NFC" /> -->
+    <!-- <uses-feature android:name="android.hardware.nfc" android:required="false" /> -->
 
 </manifest>

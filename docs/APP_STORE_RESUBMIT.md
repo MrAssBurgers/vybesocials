@@ -72,42 +72,34 @@ WebView resume recovery after permission sheets. Splash dismiss gated on auth + 
 
 This is **not fixed in code**. Apple needs a **video link** in App Review Information.
 
-### What to film (60–90 seconds)
+### What to film (60–90 seconds) — QR Friend Link (no NFC)
 
-Use a **physical iPhone or iPad** (not Simulator). Frame both the **device screen** and **NFC interaction** where possible.
+Use a **physical iPhone or iPad** (not Simulator).
 
 | Step | Action | On screen |
 |------|--------|-----------|
 | 1 | Open VYBE | App loads past splash |
 | 2 | Sign in with demo account | Home feed |
 | 3 | Activate **Friend Link** | Shake phone OR tap the Friend Link pill/coach on Home |
-| 4 | Friend Link sheet opens | QR + NFC options visible |
-| 5 | **NFC tap** | Hold two iPhones back-to-back (tops aligned) OR tap an NFC tag programmed with a VYBE friend payload |
-| 6 | Success | Friend added toast / confirmation |
+| 4 | Friend Link sheet opens | Your QR code + camera scanner |
+| 5 | **QR scan** | Scan another demo user’s QR (or open `/friend-drop/...`) |
+| 6 | Success | Friend added confirmation |
 
-**Second phone (optional but strong):** Show reverse tap so reviewers see bidirectional NFC.
+**This submission does not use NFC.** Do not film Phone Tap / NFC tags.
+Disable the Despia NFC capability on the next native rebuild so Info.plist no longer declares NFC Tag Reading.
 
-Upload to YouTube (unlisted) or Vimeo and paste the URL in **App Review Information → Notes**.
-
-### App Review notes for NFC (paste alongside ATT notes)
+### App Review notes for Friend Link (paste alongside ATT notes)
 
 ```
-NFC demo video: [PASTE VIDEO URL HERE]
-
-NFC feature — Friend Link:
-1. Sign in with demo account above.
-2. On Home, shake the device or tap the Friend Link pill to open Friend Link.
-3. Tap another iPhone running VYBE (back-to-back, top edge) to exchange and add a friend via NFC.
-4. Alternative: scan the QR code in the same sheet.
-
-NFC is used for peer-to-peer friend adds (Friend Link), not payment or external hardware pairing.
-iOS: Core NFC via Despia native bridge. Usage string: "VYBE uses NFC so you can tap to add friends."
+Friend Link is QR-only — show code or scan to add friends.
+No NFC / Phone Tap in this build.
+Demo: Home → Friend Link → QR display / camera scan.
 ```
 
 ### Native checklist (Despia rebuild)
 
-- NFC capability enabled in Xcode / Despia project
-- `NFCReaderUsageDescription` in Info.plist (see `docs/NATIVE_AUTH_SETUP.md`)
+- NFC capability **OFF** in Despia / Xcode
+- Remove `NFCReaderUsageDescription` from Info.plist if present
 - New binary uploaded to App Store Connect
 
 ---

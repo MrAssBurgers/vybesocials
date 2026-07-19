@@ -1,8 +1,6 @@
 import { motion } from 'framer-motion';
 import { useEffect } from 'react';
-import { Coins, TrendingUp, ArrowUpRight, ArrowDownRight, Sparkles, ShoppingBag, Nfc } from 'lucide-react';
-import { useWebNFC } from '@/hooks/useWebNFC';
-import { toast } from 'sonner';
+import { Coins, TrendingUp, ArrowUpRight, ArrowDownRight, Sparkles, ShoppingBag } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useTokenBalance, useTokenTransactions, TOKEN_RATES } from '@/hooks/useVybeTokens';
@@ -67,14 +65,6 @@ export default function TokenWallet() {
   const { data: balance, isLoading: balanceLoading } = useTokenBalance();
   const { data: transactions = [], isLoading: txLoading } = useTokenTransactions();
   const navigate = useNavigate();
-  const nfc = useWebNFC({
-    onRead: (event) => {
-      const payload = event.records.map(r => r.data).join(' ').trim();
-      toast.success('NFC tag detected', { description: payload || event.serialNumber });
-      // Generic dispatch so other parts of the app can react to wallet NFC events
-      window.dispatchEvent(new CustomEvent('vybe:nfc-wallet-tag', { detail: { ...event, payload } }));
-    },
-  });
 
   const purchases = transactions.filter(tx => tx.transaction_type === 'purchase');
 
@@ -131,20 +121,6 @@ export default function TokenWallet() {
           <ShoppingBag className="h-5 w-5 mr-2" />
           Visit Token Shop
         </Button>
-
-        {nfc.isAvailable && (
-          <Button
-            onClick={() => (nfc.isScanning ? nfc.stop() : nfc.start())}
-            variant="outline"
-            className="w-full font-semibold h-12 rounded-xl"
-          >
-            <Nfc className="h-5 w-5 mr-2" />
-            {nfc.isScanning ? 'Listening for NFC tag…' : 'Tap an NFC tag'}
-          </Button>
-        )}
-        {nfc.error && (
-          <p className="text-xs text-destructive text-center">{nfc.error}</p>
-        )}
 
         {/* How to Earn */}
         <Card>

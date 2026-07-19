@@ -23,7 +23,7 @@ import {
 type Phase = 'loading' | 'ready' | 'exchanging' | 'success' | 'error';
 
 /**
- * Deep link for Friend Link QR / NFC: /friend-drop/:dropId
+ * Deep link for Friend Link QR: /friend-drop/:dropId
  * Scanner lands here after scanning the QR — syncs animation with the displayer's sheet.
  */
 export default function FriendDropLink() {

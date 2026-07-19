@@ -3,14 +3,9 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Check, Camera, Loader2, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { FriendLinkTapAnimation } from '@/components/friends/FriendLinkTapAnimation';
 import { cn } from '@/lib/utils';
 
 type DropPhase = 'idle' | 'activated' | 'found' | 'exchanging' | 'success';
-type ActiveTab = 'tap' | 'qr';
-type TapMode = 'nfc' | 'nearby';
-type NearbyStatus = 'idle' | 'locating' | 'searching' | 'denied' | 'unavailable' | 'error';
 
 interface FoundUser {
   id: string;
@@ -19,36 +14,17 @@ interface FoundUser {
   avatar_url: string | null;
 }
 
-interface NearbyPeer {
-  peerId: string;
-  userId: string;
-  username: string;
-  displayName: string;
-  avatarUrl: string | null;
-}
-
 interface FriendLinkSheetContentProps {
   phase: DropPhase;
-  activeTab: ActiveTab;
-  onTabChange: (tab: ActiveTab) => void;
   onClose: () => void;
   onAddFriend: () => void;
-  onSelectPeer: (peer: NearbyPeer) => void;
   profile: {
     username?: string;
     avatar_url?: string | null;
   } | null;
   foundUser: FoundUser | null;
-  tapListening: boolean;
-  tapMode: TapMode;
-  showFallbackHint: boolean;
-  onSwitchToNearby: () => void;
-  nearbyStatus: NearbyStatus;
-  onRetryNearby: () => void;
-  onNearbyPeerTap: (peer: NearbyPeer) => void;
   qrSvg: string;
   qrLoading: boolean;
-  nearbyPeers: NearbyPeer[];
   videoRef: RefObject<HTMLVideoElement | null>;
   canvasRef: RefObject<HTMLCanvasElement | null>;
   cameraActive: boolean;
@@ -57,20 +33,6 @@ interface FriendLinkSheetContentProps {
   onStartCamera: () => void;
   reduceMotion?: boolean;
 }
-
-const tabMotion = {
-  initial: { opacity: 0, y: 8, scale: 0.98 },
-  animate: { opacity: 1, y: 0, scale: 1 },
-  exit: { opacity: 0, y: -6, scale: 0.98 },
-  transition: { type: 'spring' as const, stiffness: 420, damping: 32 },
-};
-
-const tabMotionReduced = {
-  initial: { opacity: 0 },
-  animate: { opacity: 1 },
-  exit: { opacity: 0 },
-  transition: { duration: 0.08 },
-};
 
 function ScannerViewport({
   videoRef,
@@ -146,85 +108,6 @@ function ScannerViewport({
   );
 }
 
-/** AirDrop-style radar — your avatar in the middle, pulse rings sweeping out. */
-function NearbyRadarScene({
-  profile,
-  status,
-  reduceMotion,
-}: {
-  profile: { username?: string; avatar_url?: string | null } | null;
-  status: NearbyStatus;
-  reduceMotion: boolean;
-}) {
-  const live = status === 'searching' || status === 'locating';
-  return (
-    <div
-      className={cn(
-        'friend-link-radar relative mx-auto flex h-[8.5rem] w-full items-center justify-center overflow-hidden rounded-2xl border border-primary/15 bg-gradient-to-br from-primary/[0.08] via-transparent to-accent/[0.08]',
-        live && !reduceMotion && 'friend-link-radar--live',
-      )}
-    >
-      <span className="friend-link-radar-ring friend-link-radar-ring--a" aria-hidden />
-      <span className="friend-link-radar-ring friend-link-radar-ring--b" aria-hidden />
-      <span className="friend-link-radar-ring friend-link-radar-ring--c" aria-hidden />
-      <span className="relative rounded-full p-[2px] bg-gradient-to-br from-primary to-accent shadow-[0_8px_24px_-6px_hsl(var(--primary)/0.5)]">
-        <Avatar className="h-14 w-14 ring-2 ring-background">
-          <AvatarImage src={profile?.avatar_url || ''} className="object-cover" />
-          <AvatarFallback className="text-sm font-semibold">
-            {profile?.username?.[0]?.toUpperCase()}
-          </AvatarFallback>
-        </Avatar>
-      </span>
-    </div>
-  );
-}
-
-function NearbyStatusLine({
-  status,
-  hasPeers,
-  onRetry,
-}: {
-  status: NearbyStatus;
-  hasPeers: boolean;
-  onRetry: () => void;
-}) {
-  if (status === 'denied' || status === 'unavailable' || status === 'error') {
-    const message =
-      status === 'denied'
-        ? 'Allow location access to find friends nearby'
-        : status === 'unavailable'
-          ? 'Nearby needs location — try the QR code instead'
-          : 'Nearby hit a snag — try again';
-    return (
-      <div className="flex flex-col items-center gap-1.5">
-        <p className="text-center text-sm font-medium text-muted-foreground">{message}</p>
-        <button
-          type="button"
-          onClick={onRetry}
-          className="rounded-full bg-foreground px-3.5 py-1 text-xs font-medium text-background touch-manipulation active:scale-95 transition-transform"
-        >
-          Try again
-        </button>
-      </div>
-    );
-  }
-  return (
-    <p className="text-center text-sm font-medium text-muted-foreground">
-      {status === 'locating' ? (
-        'Getting ready…'
-      ) : hasPeers ? (
-        <>
-          <span className="text-primary">Found friends</span> — tap someone to add
-        </>
-      ) : (
-        <>
-          <span className="text-primary">Searching</span> — looking for people nearby
-        </>
-      )}
-    </p>
-  );
-}
-
 function PhasePanel({
   children,
   className,
@@ -248,23 +131,12 @@ function PhasePanel({
 
 export function FriendLinkSheetContent({
   phase,
-  activeTab,
-  onTabChange,
   onClose,
   onAddFriend,
-  onSelectPeer,
   profile,
   foundUser,
-  tapListening,
-  tapMode,
-  showFallbackHint,
-  onSwitchToNearby,
-  nearbyStatus,
-  onRetryNearby,
-  onNearbyPeerTap,
   qrSvg,
   qrLoading,
-  nearbyPeers,
   videoRef,
   canvasRef,
   cameraActive,
@@ -341,233 +213,100 @@ export function FriendLinkSheetContent({
 
   if (phase !== 'activated') return null;
 
-  const motionProps = reduceMotion ? tabMotionReduced : tabMotion;
-
   return (
-    <Tabs
-      value={activeTab}
-      onValueChange={(value) => onTabChange(value as ActiveTab)}
-      className="flex flex-col gap-3"
-    >
-      <TabsList className="friend-link-tabs grid h-9 w-full grid-cols-2 rounded-xl p-1">
-        <TabsTrigger value="tap" className="friend-link-tab rounded-lg text-sm font-medium">
-          Phone Tap
-        </TabsTrigger>
-        <TabsTrigger value="qr" className="friend-link-tab rounded-lg text-sm font-medium">
-          QR Scan
-        </TabsTrigger>
-      </TabsList>
-
-      <div className="relative">
-        <AnimatePresence mode="wait" initial={false}>
-          {activeTab === 'tap' ? (
-            tapMode === 'nearby' ? (
-              <motion.div key="tap-nearby" {...motionProps} className="space-y-3">
-                <NearbyRadarScene
-                  profile={profile}
-                  status={nearbyStatus}
-                  reduceMotion={reduceMotion}
-                />
-                <NearbyStatusLine
-                  status={nearbyStatus}
-                  hasPeers={nearbyPeers.length > 0}
-                  onRetry={onRetryNearby}
-                />
-                {nearbyPeers.length > 0 && (
-                  <div className="flex flex-wrap items-start justify-center gap-x-4 gap-y-3 pt-0.5">
-                    {nearbyPeers.map((peer, index) => (
-                      <motion.button
-                        key={peer.peerId}
-                        type="button"
-                        initial={reduceMotion ? { opacity: 0 } : { opacity: 0, scale: 0.6, y: 8 }}
-                        animate={{ opacity: 1, scale: 1, y: 0 }}
-                        transition={
-                          reduceMotion
-                            ? { duration: 0.08 }
-                            : { type: 'spring', stiffness: 420, damping: 26, delay: Math.min(index * 0.06, 0.3) }
-                        }
-                        className="flex w-16 flex-col items-center gap-1.5 touch-manipulation active:scale-95 transition-transform"
-                        onClick={() => onNearbyPeerTap(peer)}
-                      >
-                        <span className="rounded-full p-[2px] bg-gradient-to-br from-primary to-accent shadow-[0_6px_18px_-6px_hsl(var(--primary)/0.55)]">
-                          <Avatar className="h-14 w-14 ring-2 ring-background">
-                            <AvatarImage src={peer.avatarUrl || ''} className="object-cover" />
-                            <AvatarFallback className="text-sm font-semibold">
-                              {peer.username[0]?.toUpperCase()}
-                            </AvatarFallback>
-                          </Avatar>
-                        </span>
-                        <span className="w-full truncate text-center text-[11px] font-medium leading-tight">
-                          {peer.displayName || peer.username}
-                        </span>
-                      </motion.button>
-                    ))}
-                  </div>
-                )}
-              </motion.div>
-            ) : (
-            <motion.div key="tap" {...motionProps} className="space-y-3">
-              <FriendLinkTapAnimation
-                active={tapListening}
-                avatarUrl={profile?.avatar_url}
-                username={profile?.username}
-                className="friend-link-tap-scene--sheet mx-auto h-[8.5rem] w-full max-w-none border-primary/15 bg-gradient-to-br from-primary/[0.08] via-transparent to-accent/[0.08]"
+    <div className="flex flex-col items-center gap-3">
+      <button
+        type="button"
+        onClick={() => qrSvg && setQrExpanded(true)}
+        className="friend-link-qr-tile relative rounded-2xl bg-white p-2.5 shadow-[0_8px_28px_-8px_hsl(var(--primary)/0.45)] ring-2 ring-primary/20 transition-transform active:scale-[0.98]"
+        aria-label="Enlarge QR code"
+      >
+        <div className="relative h-[6.25rem] w-[6.25rem]">
+          {qrSvg ? (
+            <>
+              <div
+                className="h-full w-full [&>svg]:h-full [&>svg]:w-full"
+                dangerouslySetInnerHTML={{ __html: qrSvg }}
               />
-              <p className="text-center text-sm font-medium text-muted-foreground">
-                {tapListening ? (
-                  <>
-                    <span className="text-primary">Ready</span>
-                    {nearbyPeers.length > 0
-                      ? ' — friend found nearby'
-                      : nearbyStatus === 'searching' || nearbyStatus === 'locating'
-                        ? ' — sending signal · looking for friends nearby'
-                        : ' — bump phones or stay near your friend'}
-                  </>
-                ) : (
-                  'Getting ready…'
-                )}
-              </p>
-              <AnimatePresence>
-                {showFallbackHint && (
-                  <motion.div
-                    key="fallback-hint"
-                    initial={reduceMotion ? { opacity: 0 } : { opacity: 0, y: 6 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0 }}
-                    transition={reduceMotion ? { duration: 0.08 } : { duration: 0.3, ease: 'easeOut' }}
-                    className="flex justify-center"
-                  >
-                    <button
-                      type="button"
-                      onClick={onSwitchToNearby}
-                      className="min-h-[2.25rem] rounded-full px-3 py-1 text-xs text-muted-foreground touch-manipulation transition-colors active:bg-primary/10"
-                    >
-                      Friendlink not working?{' '}
-                      <span className="font-semibold text-primary underline underline-offset-2">Click here.</span>
-                    </button>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-              {nearbyPeers.length > 0 && (
-                <div className="space-y-1">
-                  {nearbyPeers.map((peer) => (
-                    <button
-                      key={peer.peerId}
-                      type="button"
-                      className="flex w-full items-center gap-2 rounded-xl bg-muted/15 px-3 py-2 text-left active:scale-[0.99] transition-transform"
-                      onClick={() => onSelectPeer(peer)}
-                    >
-                      <Avatar className="h-7 w-7 shrink-0">
-                        <AvatarImage src={peer.avatarUrl || ''} className="object-cover" />
-                        <AvatarFallback className="text-[10px]">{peer.username[0]?.toUpperCase()}</AvatarFallback>
-                      </Avatar>
-                      <span className="min-w-0 flex-1 truncate text-[13px] font-medium">
-                        {peer.displayName || peer.username}
-                      </span>
-                    </button>
-                  ))}
+              <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+                <div className="rounded-xl bg-white p-0.5 shadow-[0_2px_12px_rgba(0,0,0,0.12)] ring-2 ring-white">
+                  <Avatar className="h-10 w-10 rounded-[10px]">
+                    <AvatarImage src={profile?.avatar_url || ''} className="rounded-[10px] object-cover" />
+                    <AvatarFallback className="rounded-[10px] bg-gradient-to-br from-primary to-accent text-sm font-bold text-primary-foreground">
+                      {profile?.username?.[0]?.toUpperCase()}
+                    </AvatarFallback>
+                  </Avatar>
                 </div>
-              )}
-            </motion.div>
-            )
+              </div>
+            </>
           ) : (
-            <motion.div key="qr" {...motionProps} className="flex flex-col items-center gap-3">
-              <button
-                type="button"
-                onClick={() => qrSvg && setQrExpanded(true)}
-                className="friend-link-qr-tile relative rounded-2xl bg-white p-2.5 shadow-[0_8px_28px_-8px_hsl(var(--primary)/0.45)] ring-2 ring-primary/20 transition-transform active:scale-[0.98]"
-                aria-label="Enlarge QR code"
-              >
-                <div className="relative h-[6.25rem] w-[6.25rem]">
-                  {qrSvg ? (
-                    <>
-                      <div
-                        className="h-full w-full [&>svg]:h-full [&>svg]:w-full"
-                        dangerouslySetInnerHTML={{ __html: qrSvg }}
-                      />
-                      <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-                        <div className="rounded-xl bg-white p-0.5 shadow-[0_2px_12px_rgba(0,0,0,0.12)] ring-2 ring-white">
-                          <Avatar className="h-10 w-10 rounded-[10px]">
-                            <AvatarImage src={profile?.avatar_url || ''} className="rounded-[10px] object-cover" />
-                            <AvatarFallback className="rounded-[10px] bg-gradient-to-br from-primary to-accent text-sm font-bold text-primary-foreground">
-                              {profile?.username?.[0]?.toUpperCase()}
-                            </AvatarFallback>
-                          </Avatar>
-                        </div>
-                      </div>
-                    </>
-                  ) : (
-                    <div className="flex h-full w-full items-center justify-center">
-                      <Loader2 className="h-5 w-5 animate-spin text-primary" />
-                    </div>
-                  )}
-                </div>
-              </button>
-              <p className="w-full truncate text-center text-sm text-muted-foreground">
-                Tap code to enlarge · @{profile?.username}
-              </p>
-
-              <AnimatePresence>
-                {qrExpanded && qrSvg && (
-                  <motion.div
-                    className="fixed inset-0 z-[12000] flex items-center justify-center bg-black/75 backdrop-blur-md p-6"
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
-                    onClick={() => setQrExpanded(false)}
-                  >
-                    <motion.button
-                      type="button"
-                      className="absolute top-[max(1rem,env(safe-area-inset-top))] right-4 flex h-10 w-10 items-center justify-center rounded-full bg-white/15 text-white"
-                      onClick={() => setQrExpanded(false)}
-                      aria-label="Close enlarged QR code"
-                    >
-                      <X className="h-5 w-5" />
-                    </motion.button>
-                    <motion.div
-                      initial={{ opacity: 0, scale: 0.88, y: 12 }}
-                      animate={{ opacity: 1, scale: 1, y: 0 }}
-                      exit={{ opacity: 0, scale: 0.92, y: 8 }}
-                      transition={{ type: 'spring', stiffness: 380, damping: 32 }}
-                      className="relative rounded-3xl bg-white p-4 shadow-2xl ring-2 ring-primary/25 max-w-[min(88vw,320px)]"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      <div
-                        className="w-full aspect-square [&>svg]:h-full [&>svg]:w-full"
-                        dangerouslySetInnerHTML={{ __html: qrSvg }}
-                      />
-                      <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-                        <div className="rounded-2xl bg-white p-1 shadow-lg ring-2 ring-white">
-                          <Avatar className="h-14 w-14 rounded-xl">
-                            <AvatarImage src={profile?.avatar_url || ''} className="rounded-xl object-cover" />
-                            <AvatarFallback className="rounded-xl bg-gradient-to-br from-primary to-accent text-lg font-bold text-primary-foreground">
-                              {profile?.username?.[0]?.toUpperCase()}
-                            </AvatarFallback>
-                          </Avatar>
-                        </div>
-                      </div>
-                    </motion.div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-
-              <ScannerViewport
-                videoRef={videoRef}
-                canvasRef={canvasRef}
-                cameraActive={cameraActive}
-                cameraStarting={cameraStarting}
-                cameraError={cameraError}
-                onStartCamera={onStartCamera}
-                reduceMotion={reduceMotion}
-              />
-
-              {qrLoading && (
-                <p className="text-center text-xs text-muted-foreground">Preparing your code…</p>
-              )}
-            </motion.div>
+            <div className="flex h-full w-full items-center justify-center">
+              <Loader2 className="h-5 w-5 animate-spin text-primary" />
+            </div>
           )}
-        </AnimatePresence>
-      </div>
-    </Tabs>
+        </div>
+      </button>
+      <p className="w-full truncate text-center text-sm text-muted-foreground">
+        Show your code · or scan theirs · @{profile?.username}
+      </p>
+
+      <AnimatePresence>
+        {qrExpanded && qrSvg && (
+          <motion.div
+            className="fixed inset-0 z-[12000] flex items-center justify-center bg-black/75 backdrop-blur-md p-6"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setQrExpanded(false)}
+          >
+            <motion.button
+              type="button"
+              className="absolute top-[max(1rem,env(safe-area-inset-top))] right-4 flex h-10 w-10 items-center justify-center rounded-full bg-white/15 text-white"
+              onClick={() => setQrExpanded(false)}
+              aria-label="Close enlarged QR code"
+            >
+              <X className="h-5 w-5" />
+            </motion.button>
+            <motion.div
+              initial={{ opacity: 0, scale: 0.88, y: 12 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.92, y: 8 }}
+              transition={{ type: 'spring', stiffness: 380, damping: 32 }}
+              className="relative rounded-3xl bg-white p-4 shadow-2xl ring-2 ring-primary/25 max-w-[min(88vw,320px)]"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div
+                className="w-full aspect-square [&>svg]:h-full [&>svg]:w-full"
+                dangerouslySetInnerHTML={{ __html: qrSvg }}
+              />
+              <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+                <div className="rounded-2xl bg-white p-1 shadow-lg ring-2 ring-white">
+                  <Avatar className="h-14 w-14 rounded-xl">
+                    <AvatarImage src={profile?.avatar_url || ''} className="rounded-xl object-cover" />
+                    <AvatarFallback className="rounded-xl bg-gradient-to-br from-primary to-accent text-lg font-bold text-primary-foreground">
+                      {profile?.username?.[0]?.toUpperCase()}
+                    </AvatarFallback>
+                  </Avatar>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <ScannerViewport
+        videoRef={videoRef}
+        canvasRef={canvasRef}
+        cameraActive={cameraActive}
+        cameraStarting={cameraStarting}
+        cameraError={cameraError}
+        onStartCamera={onStartCamera}
+        reduceMotion={reduceMotion}
+      />
+
+      {qrLoading && (
+        <p className="text-center text-xs text-muted-foreground">Preparing your code…</p>
+      )}
+    </div>
   );
 }

@@ -29,8 +29,8 @@ import { ensureNativeSplashHandoffAttr, initNativePerfMode } from "./lib/nativeP
 import { repairLegacyAuthStorage, clearObsoleteAuthStorage } from "./lib/legacyAuthStorage";
 import { installAuthSessionKeepAlive } from "./lib/authSessionKeepAlive";
 import { ErrorBoundary } from "./components/ErrorBoundary";
-import { installDespiaNfcDispatcher } from "./lib/despiaNFCv2";
 import { installDespiaRewardedAdBridge } from "./lib/despiaRewardedAds";
+import { NFC_ENABLED } from "./lib/nfcFeature";
 import { isFirebaseConfigured } from "./lib/firebase/config";
 import { initFirebaseAppCheck } from "./lib/firebase/appCheck";
 import { isMaintenanceMode } from "./lib/maintenanceMode";
@@ -132,7 +132,12 @@ function runPreRenderInit() {
   repairLegacyAuthStorage();
   clearObsoleteAuthStorage();
   installAuthSessionKeepAlive();
-  installDespiaNfcDispatcher();
+  // NFC disabled product-wide — skip Despia onNFCEvent dispatcher until re-enabled.
+  if (NFC_ENABLED) {
+    void import("./lib/despiaNFCv2").then(({ installDespiaNfcDispatcher }) => {
+      installDespiaNfcDispatcher();
+    });
+  }
   installDespiaRewardedAdBridge();
   installDespiaRealtimeTransport();
 

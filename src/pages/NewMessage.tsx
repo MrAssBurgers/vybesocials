@@ -22,7 +22,6 @@ import { useDismissedQuickAdd } from "@/hooks/useDismissedQuickAdd";
 import { useSimilarDNAUsers } from "@/hooks/useSimilarDNAUsers";
 import { Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { NFCFriendShare } from "@/components/friends/NFCFriendShare";
 
 /* ── Added Me Section ─────────────────────────────── */
 
@@ -429,13 +428,10 @@ export default function NewMessage() {
           <div className="flex-1">
             <h1 className="text-lg font-semibold">Add Friends</h1>
           </div>
-          <NFCFriendShare variant="icon" />
         </header>
 
         <div className="flex-1 overflow-y-auto">
           <div className="p-4 space-y-4">
-            {/* NFC Friend Share */}
-
             {/* Added Me Section */}
             <AddedMeSection />
 

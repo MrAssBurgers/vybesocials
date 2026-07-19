@@ -1,27 +1,29 @@
 /**
  * Cross-platform NFC capability detection and error mapping.
  *
- * Android store builds (Despia WebView): always prefer the native `nfc://` bridge.
- * Web NFC (NDEFReader) is blocked or returns NotAllowedError inside WebViews even
- * when android.permission.NFC is declared — do not use it in the native shell.
+ * NFC is currently feature-flagged OFF (`NFC_ENABLED` in nfcFeature.ts).
+ * When re-enabled: Android store builds prefer the native `nfc://` bridge;
+ * Web NFC (NDEFReader) must not run inside the Despia WebView.
  */
 
 import { isDespiaRuntime, isAndroidUA, isIOSUA, openAppSettings } from '@/lib/despiaBridge';
+import { NFC_ENABLED } from '@/lib/nfcFeature';
 
 export function preferNativeNfc(): boolean {
+  if (!NFC_ENABLED) return false;
   return isDespiaRuntime() && (isAndroidUA() || isIOSUA());
 }
 
 /** True when any NFC path is available (native shell or Android Chrome Web NFC). */
 export function isNfcSupported(): boolean {
-  if (typeof window === 'undefined') return false;
+  if (!NFC_ENABLED || typeof window === 'undefined') return false;
   if (preferNativeNfc()) return true;
   return 'NDEFReader' in window && isAndroidUA();
 }
 
 /** Web NFC is only valid outside the Despia shell (e.g. Android Chrome). */
 export function isWebNfcAvailable(): boolean {
-  if (typeof window === 'undefined') return false;
+  if (!NFC_ENABLED || typeof window === 'undefined') return false;
   if (preferNativeNfc()) return false;
   return 'NDEFReader' in window && isAndroidUA();
 }

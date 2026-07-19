@@ -1,11 +1,12 @@
 /**
- * Friend Link NFC — shared parsing and cross-platform listen sessions.
- * Despia: official one-shot `nfc://read` re-armed via `startDespiaNfcReadLoop`.
- * Web: Android Chrome NDEFReader (bidirectional read/write on tag contact).
+ * Friend Link deep-link helpers + (flagged-off) NFC listen sessions.
+ * QR / deep links use extractFriendTarget, buildFriendDropUrl, buildAddFriendUrl.
+ * NFC sessions no-op while NFC_ENABLED is false.
  */
 
 import { isDespiaRuntime, isAndroidUA, isIOSUA } from '@/lib/despiaBridge';
 import { despiaReadNFC, despiaWriteNFC, startDespiaNfcReadLoop } from '@/lib/despiaNFCv2';
+import { NFC_ENABLED } from '@/lib/nfcFeature';
 import { mapNfcErrorMessage, preferNativeNfc } from '@/lib/nfcPlatform';
 
 export type FriendLinkTarget = { type: 'drop' | 'user'; id: string };
@@ -59,6 +60,10 @@ export interface FriendLinkNfcSessionOptions {
 export async function startFriendLinkNfcSession(
   options: FriendLinkNfcSessionOptions,
 ): Promise<() => void> {
+  if (!NFC_ENABLED) {
+    return () => {};
+  }
+
   const { broadcastUrl, onTarget, signal, nativeBroadcast = false } = options;
   const cleanups: Array<() => void> = [];
   let disposed = false;
@@ -171,7 +176,7 @@ export async function scanFriendLinkOnce(): Promise<{
   target: FriendLinkTarget | null;
   error?: string;
 }> {
-  if (!isDespiaRuntime()) return { target: null };
+  if (!NFC_ENABLED || !isDespiaRuntime()) return { target: null };
   const result = await despiaReadNFC(60_000);
   if (result.ok && result.payload) {
     return { target: extractFriendTarget(result.payload) };

@@ -14,7 +14,8 @@ Last reviewed: 2026-06-01
 | `/add-friend` sent users to `/landing` (missing route) | Redirect to `/auth` |
 | Protected routes dropped return URL | Stash path → `/auth` on sign-in required |
 | Friend Drop “Add Friend” did nothing | Calls `completeFriendAdd()` |
-| Despia NFC | Official one-shot read loop (`despiaNFCv2`) |
+| Friend Link | QR display + camera scan (NFC off) |
+| Despia NFC | **OFF** — disable addon on next native rebuild |
 | Post camera WebView crashes | `cameraSafeMode` + `postCameraStream` (prior commit) |
 
 ## Intentionally disabled (safe for public)
@@ -23,14 +24,14 @@ Last reviewed: 2026-06-01
 
 ## Requires your action before calling it “perfect”
 1. **Lovable Publish** — production web at https://vybehub.app
-2. **Despia rebuild** — NFC capability + addon, then new store binary
+2. **Despia rebuild** — NFC capability **OFF**, then new store binary
 3. **Supabase secrets** — `RESEND_API_KEY` for branded password reset (optional fallback exists)
 4. **Env in Lovable Cloud** — `VITE_SUPABASE_*` must match project `hprmicwhlaaqfgshucec`
 
 ## Manual smoke test (30 min)
 - Sign up / log in / forgot password / reset password
 - Create → Post camera (Play Store app)
-- Friend Link: QR + two-phone NFC tap
+- Friend Link: QR display + camera scan (no NFC / Phone Tap)
 - Open shared link logged out → log in → lands on friend add
 - Upload photo + short video
 - DM send + receive
@@ -38,4 +39,4 @@ Last reviewed: 2026-06-01
 
 ## Known non-blockers
 - Theme marketplace / Spotify edge cases — monitor Sentry after launch
-- Native FriendDrop plugin (Capacitor) — only if custom build includes plugin; web NFC + Despia cover most users
+- Native FriendDrop plugin (Capacitor) — optional; Friend Link QR works without it
