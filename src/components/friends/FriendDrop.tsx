@@ -391,7 +391,7 @@ export function FriendDrop({ variant = 'button' }: FriendDropProps) {
 
   useFriendLinkNfcSession({
     // NFC / Phone Tap removed — QR only
-    enabled: false && isOpen && activeTab === 'tap' && !!myProfileUrl && !nativeFriendDrop.isAvailable,
+    enabled: false,
     broadcastUrl: myProfileUrl,
     onTarget: useCallback(
       (target) => {

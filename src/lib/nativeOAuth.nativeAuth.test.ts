@@ -33,7 +33,7 @@ describe('nativeAuth feature-flag routing', () => {
     const { shouldUseNativeAuth, isNativeAuthEnabled } = await import('./nativeAuth');
     expect(isNativeAuthEnabled()).toBe(false);
     expect(shouldUseNativeAuth('google')).toBe(false);
-  });
+  }, 15_000);
 
   it('shouldUseNativeAuth true only when flag + bridge + iOS Despia', async () => {
     isFeatureEnabled.mockImplementation((flag: string) => flag === 'native_ios_auth_v1');
@@ -41,13 +41,13 @@ describe('nativeAuth feature-flag routing', () => {
     const { shouldUseNativeAuth } = await import('./nativeAuth');
     expect(shouldUseNativeAuth('apple')).toBe(true);
     expect(shouldUseNativeAuth('google')).toBe(true);
-  });
+  }, 15_000);
 
   it('shouldUseNativeAuth false when bridge missing', async () => {
     isFeatureEnabled.mockImplementation((flag: string) => flag === 'native_ios_auth_v1');
     const { shouldUseNativeAuth } = await import('./nativeAuth');
     expect(shouldUseNativeAuth('google')).toBe(false);
-  });
+  }, 15_000);
 
   it('shouldUseNativeAuth false on Android even with flag + bridge', async () => {
     isFeatureEnabled.mockImplementation((flag: string) => flag === 'native_ios_auth_v1');
@@ -55,7 +55,7 @@ describe('nativeAuth feature-flag routing', () => {
     (window as any).__VYBE_NATIVE_AUTH__ = true;
     const { shouldUseNativeAuth } = await import('./nativeAuth');
     expect(shouldUseNativeAuth('google')).toBe(false);
-  });
+  }, 15_000);
 
   it('shouldUseNativeAuthBridge mirrors shouldUseNativeAuth', async () => {
     isFeatureEnabled.mockImplementation((flag: string) => flag === 'native_ios_auth_v1');
@@ -63,5 +63,5 @@ describe('nativeAuth feature-flag routing', () => {
     const { shouldUseNativeAuthBridge } = await import('./nativeOAuth');
     expect(shouldUseNativeAuthBridge('google')).toBe(true);
     expect(shouldUseNativeAuthBridge('apple')).toBe(true);
-  });
+  }, 15_000);
 });

@@ -11,6 +11,8 @@ export default tseslint.config(
       "tailwind.config.ts",
       ".cursor/**",
       "functions/lib/**",
+      "ios/DerivedData/**",
+      "ios/**/SourcePackages/**",
     ],
   },
   {
