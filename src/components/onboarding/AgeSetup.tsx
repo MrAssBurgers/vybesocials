@@ -70,7 +70,7 @@ export function AgeSetup({ value, onChange, onAgeCalculated }: AgeSetupProps) {
         </motion.div>
         <h2 className="text-2xl font-bold gradient-text">When's your birthday?</h2>
         <p className="text-muted-foreground mt-2">
-          This helps us personalize your experience and ensure safety
+          Age assurance for safer feeds: we use your birthday to apply age-appropriate filters and parental controls.
         </p>
       </div>
 

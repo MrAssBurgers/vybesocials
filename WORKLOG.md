@@ -2,7 +2,57 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
-## ACTIVE (2026-07-18) — NFC removed; Friend Link QR-only
+## ACTIVE (2026-07-18) — Publish: parental/age discoverability + App Store review notes
+
+### Goal
+Ship parental/age-assurance discoverability + corrected App Store Review / Resolution Center copy so Apple stops rejecting on 2.3.6 (and prior July 15 guidelines).
+
+### Shipped (pending SHA after commit)
+- Parental Controls under Settings → Account (+ Privacy → Parental Controls link)
+- AgeSetup age-assurance copy
+- `docs/APP_STORE_REVIEW_NOTES.md` — Resolution Center + Review Notes for 5.1.1(ii)/(iv), 2.1 NFC, 2.3.6
+
+### Tests
+- Doc/nav/copy focused; prior NFC ship had green `npm run build`
+
+### Blockers
+- ASC Age Rating must claim Parental Controls + Age Assurance (manual)
+- Demo account fill in ASC Notes still manual (`[fill email]` / `[fill password]`)
+- Location purpose string needs Despia native rebuild for Info.plist
+
+### Next 3
+1. Lovable → Share → Publish
+2. ASC: claim Parental Controls + Age Assurance; paste Resolution Center + Notes
+3. Despia: location string + NFC capability OFF, rebuild store binary
+
+---
+
+## PREVIOUS (2026-07-18) — Age rating 2.3.6: document Parental Controls + Age Assurance
+
+### Goal
+Correct App Store guidance: VYBE **has** Parental Controls and Age Assurance. Do **not** set ASC In-App Controls to None. Tell Review exact taps. Make Parental Controls easier to find.
+
+### Findings (code)
+- **Parental Controls:** `ParentalControlsSection` via Settings → Account → **Parental Controls** (also Privacy → Parental Controls row). PIN setup, screen-time limit, content filter, DM filters, quiet hours, break reminders. Backend: `getParentalControlsSafe` / `setParentalPin` / `verifyParentalPin` / `updateParentalControls`. Available on any signed-in account (not under-13-only).
+- **Age Assurance:** Onboarding `AgeSetup` (“When's your birthday?”) collects DOB → age bands; under-13 triggers Parental Controls Required notice; teen bands get enhanced safety copy. DOB drives ads eligibility, DM safety, filters.
+
+### What changed
+- `docs/APP_STORE_REVIEW_NOTES.md` — removed wrong “None / does not include”; added ASC + exact Review Notes paths for both features; Resolution Center reply updated
+- `SettingsNav` — moved Parental Controls into **Account** (after Privacy) so it is not buried under Wellbeing
+- `PrivacySection` — “Parental Controls” action row → opens parental tab
+- `Settings.tsx` — sync `?tab=` deep links; pass `onOpenParental`
+- `AgeSetup` — copy clarifies age assurance purpose
+
+### Tests
+- Not run this pass (docs + small nav/copy). Run `npm run build` before publish if shipping UX with next client push.
+
+### Blockers
+- ASC questionnaire must be edited manually (claim Parental Controls + Age Assurance, not None)
+- Review Notes paste + demo account fill still manual
+
+---
+
+## PREVIOUS (2026-07-18) — NFC removed; Friend Link QR-only
 
 ### Goal
 Strip all NFC / Phone Tap options. Keep Friend Link + referrals via QR only. Fix Friend Link end-to-end for QR.

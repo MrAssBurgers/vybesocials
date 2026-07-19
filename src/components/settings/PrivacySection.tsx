@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Eye, EyeOff, Shield, Users, KeyRound, Sparkles } from 'lucide-react';
+import { Eye, EyeOff, Shield, Users, KeyRound, Sparkles, Baby } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -12,9 +12,9 @@ import { haptics } from '@/lib/haptics';
 import { BlockedUsersCard } from './BlockedUsersCard';
 import { FriendProfileVisibilityCard } from './FriendProfileVisibilityCard';
 import { RelationshipEmojiSettings } from './RelationshipEmojiSettings';
-import { SettingsSectionCard, SettingsPanel, SettingsToggleRow } from './SettingsUI';
+import { SettingsSectionCard, SettingsPanel, SettingsToggleRow, SettingsActionRow } from './SettingsUI';
 
-export function PrivacySection() {
+export function PrivacySection({ onOpenParental }: { onOpenParental?: () => void } = {}) {
   const { t } = useTranslation();
   const { profile, updateProfile } = useAuth();
   const [isPrivate, setIsPrivate] = useState(false);
@@ -141,6 +141,20 @@ export function PrivacySection() {
             disabled={landingLoading || isPrivate}
           />
         </SettingsPanel>
+        {onOpenParental && (
+          <div className="mt-3">
+            <SettingsActionRow
+              icon={<Baby className="w-5 h-5 text-primary" strokeWidth={2.25} />}
+              iconClassName="bg-primary/10 ring-1 ring-primary/20"
+              title="Parental Controls"
+              description="PIN lock, screen-time limits, safer DMs, and content filters"
+              onClick={() => {
+                haptics.tap();
+                onOpenParental();
+              }}
+            />
+          </div>
+        )}
       </SettingsSectionCard>
 
       <SettingsSectionCard

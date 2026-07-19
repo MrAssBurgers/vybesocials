@@ -80,11 +80,12 @@ interface SettingsGroup {
 }
 
 const BASE_GROUPS: SettingsGroup[] = [
-  { title: 'Account', items: ['profile', 'privacy', 'security', 'connections'] },
+  // Parental Controls sits under Account (after Privacy) so App Review can find it without scrolling past Membership.
+  { title: 'Account', items: ['profile', 'privacy', 'parental', 'security', 'connections'] },
   { title: 'Personalization', items: ['themes', 'appearance', 'language'] },
   { title: 'Notifications & Sounds', items: ['notifications', 'feedback'] },
   { title: 'Membership', items: ['subscription', 'ai'] },
-  { title: 'Wellbeing', items: ['parental', 'screentime'] },
+  { title: 'Wellbeing', items: ['screentime'] },
   { title: 'Support', items: ['help'] },
 ];
 

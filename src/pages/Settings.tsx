@@ -88,6 +88,12 @@ const SettingsPage = forwardRef<HTMLDivElement, React.ComponentPropsWithoutRef<'
   const mobileView: 'home' | 'detail' = activeCategory ? 'detail' : 'home';
   const prevCategoryRef = useRef<SettingsCategory | null>(initialTab);
 
+  // Keep deep links like /settings?tab=parental in sync when already on Settings.
+  useEffect(() => {
+    const tab = searchParams.get('tab') as SettingsCategory | null;
+    if (tab) setActiveCategory(tab);
+  }, [searchParams]);
+
   // Jump back to the top only when switching settings sections (not on passive re-renders).
   useEffect(() => {
     if (prevCategoryRef.current === activeCategory) return;
@@ -115,7 +121,7 @@ const SettingsPage = forwardRef<HTMLDivElement, React.ComponentPropsWithoutRef<'
       case 'profile':
         return <ProfileSection />;
       case 'privacy':
-        return <PrivacySection />;
+        return <PrivacySection onOpenParental={() => setActiveCategory('parental')} />;
       case 'security':
         return <SecuritySection />;
       case 'connections':
