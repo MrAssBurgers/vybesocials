@@ -537,6 +537,11 @@ function VideosGalleryView({
 }
 
 export default function ExplorePage() {
+  usePageMeta({
+    title: 'Explore — Trending clips, creators & communities on VYBE',
+    description: 'Explore trending short videos, creators, hashtags, and communities on VYBE. Discover what people around the world are vibing with right now.',
+    canonicalPath: '/explore',
+  });
   const [searchParams, setSearchParams] = useSearchParams();
   const [searchQuery, setSearchQuery] = useState(searchParams.get('q') || '');
   const [activeCategory, setActiveCategory] = useState(searchParams.get('cat') || 'all');

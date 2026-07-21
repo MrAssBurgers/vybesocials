@@ -82,6 +82,7 @@ function CustomizeHomeHint({ customizerOpen }: { customizerOpen: boolean }) {
 }
 
 export default function HomePage({ isInviteMode = false }: HomePageProps) {
+  useHomePageMeta();
   const navigate = useNavigate();
   const { user, profile, loading: authLoading, refreshProfile } = useAuth();
   const profileId = getEffectiveProfileId(profile?.id);

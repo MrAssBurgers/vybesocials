@@ -263,6 +263,11 @@ function MessagesInner() {
 }
 
 export default function Messages() {
+  usePageMeta({
+    title: 'Messages — Private encrypted chats on VYBE',
+    description: 'Your VYBE inbox: encrypted direct messages, group chats, voice notes, and calls with friends. Fast, private, and built for real conversations.',
+    canonicalPath: '/messages',
+  });
   return (
     <SmartErrorBoundary hardFallback fallback={<MessagesFallback />}>
       <MessagesInner />
