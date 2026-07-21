@@ -1,16 +1,13 @@
 import { useEffect, useRef } from 'react';
 
 /**
- * SkipToMain — renders an invisible link that becomes visible on focus
- * and jumps the user to the main content area. Improves keyboard navigation
- * and screen-reader accessibility (WCAG 2.4.1).
+ * SkipToMain — off-screen until keyboard focus. Do not use Tailwind
+ * `focus:not-sr-only` alone — Android coarse-pointer min-size rules + WebView
+ * focus quirks can make the link paint visibly on load.
  */
 export function SkipToMain() {
   return (
-    <a
-      href="#main-content"
-      className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-[99999] focus:px-4 focus:py-2 focus:rounded-lg focus:bg-primary focus:text-primary-foreground focus:text-sm focus:font-bold focus:shadow-lg focus:outline-none"
-    >
+    <a href="#main-content" className="skip-link sr-only">
       Skip to main content
     </a>
   );

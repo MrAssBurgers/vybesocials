@@ -192,9 +192,17 @@ function useAuthScreenFit(enabled: boolean, ...deps: unknown[]) {
     };
   }, [enabled, ...deps]);
 
-  // Apply shrink only when not focused. Never use transform (WebKit caret bug).
+  // Apply shrink only when not focused.
+  // [iOS-only] use CSS zoom (transform breaks WK caret).
+  // [Android-only] use transform: scale — Chrome WebView often ignores CSS zoom.
   const visualScale = fieldFocused ? 1 : scale;
-  return { contentRef, scale: visualScale, scrollWhenTall: calmIos || fieldFocused };
+  const useTransformFit = getRuntimeOs() === 'android';
+  return {
+    contentRef,
+    scale: visualScale,
+    useTransformFit,
+    scrollWhenTall: calmIos || fieldFocused,
+  };
 }
 
 // Invite mode stage type - shared between invite flow components
@@ -526,7 +534,7 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
 
   // Full-screen "Completing…" is Firebase redirect only — cancel must clear Despia too.
   // (Despia pending uses the light chip, not this screen.)
-  const { contentRef, scale, scrollWhenTall } = useAuthScreenFit(
+  const { contentRef, scale, useTransformFit, scrollWhenTall } = useAuthScreenFit(
     showAuthForm && !isOAuthReturn,
     isLogin,
     loading,
@@ -955,7 +963,13 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
         data-auth-fit
         style={
           scale < 1
-            ? ({ zoom: scale } as CSSProperties)
+            ? useTransformFit
+              ? ({
+                  transform: `scale(${scale})`,
+                  transformOrigin: 'top center',
+                  width: '100%',
+                } as CSSProperties)
+              : ({ zoom: scale } as CSSProperties)
             : undefined
         }
         className="relative z-10 w-full max-w-[400px] mx-auto flex flex-col gap-2 sm:gap-2.5 my-auto py-2"

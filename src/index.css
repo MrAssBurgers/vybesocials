@@ -5264,6 +5264,28 @@ body.has-liquid-bg:not(.has-custom-bg) #main-content {
     caret-color: hsl(var(--input-foreground)) !important;
   }
 
+  /* [Android-only] Match iOS auth card density — Chrome WV ignores CSS zoom, so Landing
+     uses transform:scale; also tighten padding so unscaled frames aren't oversized. */
+  .platform-android [data-auth-fit] {
+    max-width: min(360px, 100%);
+  }
+  .platform-android [data-auth-fit] .liquid-glass-card {
+    border-radius: 1rem;
+  }
+  .platform-android [data-auth-fit] .liquid-glass-card > div:first-child {
+    padding-top: 0.75rem;
+    padding-bottom: 0.75rem;
+  }
+  .platform-android [data-auth-shell] {
+    --auth-android-compact: 1;
+  }
+
+  /* Native shells: never show skip-link chrome (keyboard a11y is desktop-oriented). */
+  .platform-android .skip-link,
+  .platform-ios .skip-link {
+    display: none !important;
+  }
+
   /* Chrome/Safari autofill can force low-contrast text; override it */
   .liquid-glass-input:-webkit-autofill,
   .liquid-glass-input:-webkit-autofill:hover,
@@ -6286,31 +6308,52 @@ body.has-liquid-bg:not(.has-custom-bg) #main-content {
   color: var(--auto-contrast-color, inherit) !important;
 }
 
-/* Skip to content link */
+/* Skip to content link — clipped until keyboard focus (never layout-visible on Android). */
 .skip-link {
-  position: absolute;
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  padding: 0 !important;
+  margin: -1px !important;
+  overflow: hidden !important;
+  clip: rect(0, 0, 0, 0) !important;
+  white-space: nowrap !important;
+  border: 0 !important;
   left: -9999px;
   z-index: 9999;
-  padding: 1em;
-  background-color: hsl(var(--background));
-  color: hsl(var(--foreground));
   opacity: 0;
+  pointer-events: none;
 }
 
-.skip-link:focus {
+.skip-link:focus,
+.skip-link:focus-visible {
+  position: fixed !important;
+  width: auto !important;
+  height: auto !important;
+  margin: 0 !important;
+  clip: auto !important;
+  overflow: visible !important;
   left: 50%;
-  transform: translateX(-50%);
   top: 1rem;
+  transform: translateX(-50%);
+  padding: 0.5rem 1rem !important;
   opacity: 1;
+  pointer-events: auto;
+  background-color: hsl(var(--primary));
+  color: hsl(var(--primary-foreground));
+  border-radius: 0.5rem;
+  font-size: 0.875rem;
+  font-weight: 600;
 }
 
-/* Touch targets - minimum 44x44px for iOS */
+/* Touch targets - minimum 44x44px for iOS/Android. Never enlarge sr-only / skip links
+   (Android WebView was showing "Skip to main content" because min-height blew open sr-only). */
 @media (pointer: coarse) {
-  button,
-  [role="button"],
+  button:not(.sr-only),
+  [role="button"]:not(.sr-only),
   input[type="checkbox"],
   input[type="radio"],
-  a {
+  a:not(.sr-only):not(.skip-link) {
     min-height: 44px;
     min-width: 44px;
   }
