@@ -133,12 +133,16 @@ export function CookieConsentBanner() {
                   or track you across other companies&apos; apps or websites unless you later allow
                   that in your browser settings.{' '}
                   <Link to="/cookies" className="text-primary hover:underline" onClick={() => setVisible(false)}>
-                    Learn more
+                    Learn about our cookie policy
                   </Link>
                 </p>
               </div>
-              <button onClick={() => persist('declined')} className="text-muted-foreground hover:text-foreground transition-colors flex-shrink-0">
-                <X className="w-4 h-4" />
+              <button
+                onClick={() => persist('declined')}
+                aria-label="Dismiss cookie notice"
+                className="text-muted-foreground hover:text-foreground transition-colors flex-shrink-0"
+              >
+                <X className="w-4 h-4" aria-hidden="true" />
               </button>
             </div>
             <div className="flex gap-2">

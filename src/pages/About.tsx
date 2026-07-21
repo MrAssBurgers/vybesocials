@@ -59,7 +59,7 @@ const features = [
 export default function About() {
   usePageMeta({
     title: 'About VYBE — The Next Generation Social Platform',
-    description: 'Learn about VYBE: who we are, what we build, and why we believe a more human social app is possible. Stories, clips, encrypted DMs, communities, and AI that actually knows you.',
+    description: 'Learn about VYBE — who we are, what we build, and why a more human social app is possible. Stories, clips, encrypted DMs, and AI that knows you.',
     canonicalPath: '/about',
   });
   return (
