@@ -35,6 +35,7 @@ import { useSignedUrl } from '@/hooks/useSignedUrl';
 import { db } from '@/lib/firebase';
 import { TrendingCreators } from '@/components/explore/TrendingCreators';
 import { TrendingHashtags } from '@/components/explore/TrendingHashtags';
+import { usePageMeta } from '@/hooks/usePageMeta';
 
 const popularTags = ['meme', 'fails', 'pets', 'gaming', 'comedy', 'sports', 'music', 'food', 'tech', 'beauty'];
 

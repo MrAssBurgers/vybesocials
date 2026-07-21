@@ -21,6 +21,7 @@ import { ChatView } from '@/components/chat/ChatView';
 import { useAuth } from '@/lib/auth';
 import { useAuthProfileId } from '@/hooks/useAuthProfileId';
 import type { QueryClient } from '@tanstack/react-query';
+import { usePageMeta } from '@/hooks/usePageMeta';
 
 function shouldShowBoundaryErrorDetail(): boolean {
   if (import.meta.env.DEV) return true;

@@ -20,6 +20,7 @@ import { HomeEditModeProvider, useEditMode } from '@/components/home/HomeEditMod
 import { HomeWidgetRenderer } from '@/components/home/HomeWidgetRenderer';
 import { useGridLayout } from '@/hooks/useGridLayout';
 import { scrollAppTo } from '@/lib/appScrollContainer';
+import { usePageMeta } from '@/hooks/usePageMeta';
 
 // Lazy load heavy components that aren't needed for initial render
 const AnnouncementModal = lazy(() => import('@/components/announcements/AnnouncementModal').then(m => ({ default: m.AnnouncementModal })));
