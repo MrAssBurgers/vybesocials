@@ -81,6 +81,14 @@ function CustomizeHomeHint({ customizerOpen }: { customizerOpen: boolean }) {
   );
 }
 
+function useHomePageMeta() {
+  usePageMeta({
+    title: 'VYBE — The Next Generation Social Platform',
+    description: 'Your VYBE home feed: fresh clips, stories, and posts from friends and creators, personalized by VYBE DNA. Real people, real vibes, no algorithm chaos.',
+    canonicalPath: '/home',
+  });
+}
+
 export default function HomePage({ isInviteMode = false }: HomePageProps) {
   useHomePageMeta();
   const navigate = useNavigate();
