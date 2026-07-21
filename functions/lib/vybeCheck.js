@@ -42,7 +42,7 @@ async function cleanup(path) {
     await fs.unlink(path).catch(() => undefined);
 }
 /** Phase 1 Vybe Check — SafeSearch frames + OpenAI moderation/STT + Gemini borderline. */
-export const startVybeCheck = onCall({ secrets: [...SECRETS], timeoutSeconds: 300, memory: '1GiB' }, async (request) => {
+export const startVybeCheck = onCall({ secrets: [...SECRETS], timeoutSeconds: 300, memory: '1GiB', cpu: 1 }, async (request) => {
     const uid = requireAuth(request);
     enforceRateLimit(await rateLimit(`vybe_check:${uid}`, 20, 60));
     const body = (request.data || {});

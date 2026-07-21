@@ -18,6 +18,7 @@ import { toast } from 'sonner';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger, DropdownMenuLabel, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
 import { ModeratorMenuItems } from '@/components/moderation/ModeratorActionsMenu';
 import { PremiumMemeBanMenuItem } from '@/components/premium/PremiumMemeBanItems';
+import { QuickSafetyActions } from '@/components/safety/QuickSafetyActions';
 import { useUserStatusById } from '@/hooks/useUserStatus';
 import { VybeScore } from '@/components/profile/VybeScore';
 import { useUserAbout } from '@/hooks/useUserAbout';
@@ -215,34 +216,45 @@ export function ProfileHeroCard({
                 </Button>
               </>
             ) : (
-              isModOrAdmin && (
+              <>
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg bg-foreground/5 hover:bg-foreground/10">
                       <MoreHorizontal className="h-4 w-4" />
                     </Button>
                   </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="liquid-glass">
+                  <DropdownMenuContent align="end" className="liquid-glass min-w-[220px]">
                     <DropdownMenuLabel className="flex items-center gap-2">
                       @{profile.username}
-                      {profileRole && <ModBadge role={profileRole} showLabel />}
+                      {profileRole && isModOrAdmin && <ModBadge role={profileRole} showLabel />}
                     </DropdownMenuLabel>
                     <DropdownMenuSeparator />
-                    <ModeratorMenuItems
-                      userId={profile.id}
-                      username={profile.username}
-                      onWarnClick={onWarnClick}
-                      onBanClick={onBanClick}
-                      onMemeBanClick={onMemeBanClick}
-                    />
-                    <PremiumMemeBanMenuItem
-                      userId={profile.id}
-                      username={profile.username}
-                      onOpen={onPremiumMemeBanClick}
-                    />
+                    <div className="px-2 py-1.5">
+                      <QuickSafetyActions
+                        targetUserId={profile.id}
+                        targetUsername={profile.username}
+                      />
+                    </div>
+                    {isModOrAdmin && (
+                      <>
+                        <DropdownMenuSeparator />
+                        <ModeratorMenuItems
+                          userId={profile.id}
+                          username={profile.username}
+                          onWarnClick={onWarnClick}
+                          onBanClick={onBanClick}
+                          onMemeBanClick={onMemeBanClick}
+                        />
+                        <PremiumMemeBanMenuItem
+                          userId={profile.id}
+                          username={profile.username}
+                          onOpen={onPremiumMemeBanClick}
+                        />
+                      </>
+                    )}
                   </DropdownMenuContent>
                 </DropdownMenu>
-              )
+              </>
             )}
           </div>
         </div>

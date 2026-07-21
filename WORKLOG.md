@@ -2,7 +2,111 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
-## ACTIVE (2026-07-18) — Fix CI failures on main
+## ACTIVE (2026-07-20) — App Store 1.2.8 rejection remediation
+
+### Goal
+Fix ASC rejection `74f32678` (1.2.8): SIWA name re-ask, in-app auth, UGC 1.2 gaps, ATT → Tracking=No for this submit.
+
+### What changed (code)
+- Apple name capture + onboarding: name optional for Apple users; stash/apply SIWA name ([`appleNameCapture.ts`](src/lib/appleNameCapture.ts), [`Onboarding.tsx`](src/pages/Onboarding.tsx), [`appleSignIn.ts`](src/lib/appleSignIn.ts), native credential path)
+- `native_ios_auth_v1` default **ON**; Despia Apple prefers nativeauth with ASWeb fallback ([`featureFlags.ts`](src/lib/featureFlags.ts), [`nativeOAuth.ts`](src/lib/nativeOAuth.ts))
+- UGC: Report/Block on profile ⋯, real comment reports, Report dialog (no `prompt`), instant block feed invalidate, `onReportCreated` email notify ([`reportNotify.ts`](functions/src/reportNotify.ts))
+- Minimal text filters restored in [`contentModeration.ts`](src/lib/contentModeration.ts)
+- Ads: `personalizedAds` forced **false** for Tracking=No submit ([`useAdEligibility.ts`](src/hooks/useAdEligibility.ts))
+- Docs: [`docs/APP_STORE_REVIEW_NOTES.md`](docs/APP_STORE_REVIEW_NOTES.md) rewritten for this rejection
+
+### You (ASC / Despia)
+1. App Privacy → **Tracking = No**
+2. Lovable Publish + Despia rebuild (nativeauth SIWA + location string + NFC off)
+3. Film Terms / Report / Block / in-app Apple; paste Notes + Resolution Center reply
+4. Deploy CF `onReportCreated` when ready: `npx -y firebase-tools@latest deploy --only functions:onReportCreated --project vybe-daaab`
+
+### Next 3
+1. User: ASC Tracking=No + screen recordings
+2. Despia rebuild + submit binary > 1.2.8
+3. Later: personalized ads + ATT (deferred B)
+
+---
+
+## PREVIOUS (2026-07-20) — Gemini functions redeploy (CPU quota)
+
+### Goal
+Unblock mass `setup:gemini-secrets` / AI function deploy failures caused by Cloud Run `cpu_allocation` quota in `us-central1`.
+
+### Root cause
+Gen2 functions were rolling at **1 vCPU** each; simultaneous revisions exceeded project CPU quota. Secret set itself succeeded — only redeploy failed.
+
+### Fix applied
+- Global CF options: `cpu: 0.083`, `concurrency: 1` (fractional CPU requires concurrency 1)
+- High-memory overrides keep `cpu: 1` where needed (`startVybeCheck`, etc.)
+- Freed ~78 Cloud Run services to `0.083` CPU via gcloud
+- Redeployed failed Gemini-bound functions in batches of 4, then `vybeAgent` / `vybeCommander` serially
+
+### Deployed OK (originally failed list)
+`adminAiBuilder`, `aiAdaptiveResponse`, `aiCatchUp`, `aiCommentSuggestions`, `aiDetectText`, `aiEnhancePhoto`, `aiMessageAssist`, `aiProfileWriter`, `aiSafetyScan`, `aiSmartReplies`, `analyzeBugReport`, `analyzeError`, `briefTopicDetail`, `dnaChat`, `generateAdvancedTheme`, `generateArFilter`, `generateBackground`, `generateCaption`, `generateChallenges`, `generateTheme`, `moderateContent`, `scanContentSafety`, `scanVideoSafety`, `vybeAgent`, `vybeCommander`, `startVybeCheck` (+ earlier `aiChat`)
+
+### Next 3
+1. Hard refresh app; Clear Chat in VYBE-AI; smoke `aiChat` + caption + Vybe Check
+2. Prefer `npm run setup:gemini-secrets -- --deploy-only` (batches of 6) — never mass-deploy all functions at once
+3. Optional: request GCP `run.googleapis.com/cpu_allocation` increase; continue lowering remaining 1-CPU idle services
+
+---
+
+## PREVIOUS (2026-07-19) — API keys “won’t save” diagnosis
+
+### Goal
+Explain why API key saves appear to fail; fix misleading Admin Save Key UX.
+
+### Verdict (most likely)
+**Admin → Owner Command Center → Server-Side Keys → Save Key** never persisted. `manageSecrets` is a stub that always throws `unimplemented`. Secrets must be set via CLI (`npm run setup:stripe-secrets` / `setup:gemini-secrets` / etc.) + function redeploy — not the Admin paste UI, not Lovable client env alone.
+
+### Other paths
+- **Settings → VYBE AI (BYOK):** Works via `saveUserAiKey` → Firestore `user_ai_keys` (deny-all client; Admin SDK only). Fixed toast so callable errors show real messages; optimistic “connected” if refresh flakes.
+- **`.env` / Lovable env:** Does not bind Cloud Functions. Need `functions:secrets:set` + redeploy.
+- **Mapbox:** `VITE_MAPBOX_ACCESS_TOKEN` bake-at-build (Lovable Publish).
+- **app_secrets / OWNER bypass:** client write denied by rules.
+
+### What changed
+- `AdminSettings.tsx` — remove fake Save Key; show CLI hints; status via `check-debug-secrets`
+- `AiKeySection.tsx` — better error toasts + optimistic connected state
+- `functions/src/auth.ts` — clearer `manageSecrets` error message
+
+### Tests
+- `tsc --noEmit` (app) green
+
+### Next 3
+1. User: set secrets via CLI if that was the intent
+2. Or Settings → VYBE AI for personal Google BYOK
+3. Commit/push Admin UX fix when asked
+
+---
+
+## PREVIOUS (2026-07-19) — Professional Post Studio redesign
+
+### Goal
+YouTube-Studio–inspired create/post camera (not Snap “camera 2.0”), AR filters Coming Soon on all cameras, harden Vybe Check so Publish waits for a real pass.
+
+### What changed
+- `MobileCreateStudio` + `CreateModeSelector` + `CreateFilterModeToggle` — segmented studio chrome; no Snap pill rail / face AR runtime
+- `ArFiltersComingSoon` — shared panel; wired in create + overlay `Camera.tsx` (Looks vs AR)
+- `MobilePostComposer` — studio layout; Vybe Check status strip; Share blocked until `safe` / retry on error; tags labeled optional
+- Pipeline still fail-closed in `postUploadPipeline` (second line of defense)
+- About copy: AR coming soon
+
+### Tests
+- `npm run build` green
+
+### Not committed
+- Awaiting user **publish** request
+
+### Next 3
+1. Manual smoke: `/upload` capture → compose → Vybe Check → Publish
+2. Confirm AR tab = Coming Soon on create + overlay camera
+3. Commit/push + Lovable Publish when asked
+
+---
+
+## PREVIOUS (2026-07-18) — Fix CI failures on main
 
 ### Goal
 Unblock red CI emails on `main` (lint/tests from NFC-off FriendDrop + flaky nativeAuth timeouts).

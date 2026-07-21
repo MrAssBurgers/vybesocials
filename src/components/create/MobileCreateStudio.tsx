@@ -11,18 +11,13 @@ import { SoundControls } from '@/components/sounds/SoundControls';
 import { CameraFilterCarousel, getFilterCSS } from '@/components/camera/CameraFilterCarousel';
 import { CameraTopControls } from '@/components/camera/CameraTopControls';
 import { CameraZoomIndicator } from '@/components/camera/CameraZoom';
-import { AROverlayCanvas } from '@/components/camera/AROverlayCanvas';
-import { ARFilterPicker } from '@/components/camera/ARFilterPicker';
+import { ArFiltersComingSoon } from '@/components/camera/ArFiltersComingSoon';
 import { GalleryDrawer } from './GalleryDrawer';
-import { useFaceTracking } from '@/hooks/useFaceTracking';
-import { ARFilterDef, getDefaultARFilter, arFilterNeedsFace } from '@/lib/arFilters';
 import { cn } from '@/lib/utils';
 import { triggerHaptic } from '@/lib/haptics';
 import { navVisibility } from '@/lib/navVisibility';
 import { Sound } from '@/hooks/useSounds';
 import { isCameraSafeMode } from '@/lib/cameraSafeMode';
-import { captureVideoFrameWithAR } from '@/lib/arCapture';
-import { isARSupported, clearARDisabledForSession } from '@/lib/arEngine';
 import { buildRecordingFile, createCameraMediaRecorder, startCameraRecorder } from '@/lib/cameraRecording';
 import { acquirePostCameraStream, attachAudioToStream, stopStream } from '@/lib/postCameraStream';
 import { useDoubleTapCameraFlip } from '@/hooks/useDoubleTapCameraFlip';
@@ -91,9 +86,7 @@ export function MobileCreateStudio({ onClose, initialSound }: MobileCreateStudio
   const [timerCountdown, setTimerCountdown] = useState<number | null>(null);
   const [zoomLevel, setZoomLevel] = useState(1);
   const [showZoomIndicator, setShowZoomIndicator] = useState(false);
-  const [arFilter, setArFilter] = useState<ARFilterDef | null>(null);
   const [filterMode, setFilterMode] = useState<'color' | 'ar'>('color');
-  const [videoDimensions, setVideoDimensions] = useState({ width: 1920, height: 1080 });
   const [showGalleryDrawer, setShowGalleryDrawer] = useState(false);
   const [shutterFlash, setShutterFlash] = useState(false);
   const [cameraReady, setCameraReady] = useState(false);
@@ -119,13 +112,8 @@ export function MobileCreateStudio({ onClose, initialSound }: MobileCreateStudio
     };
   }, [phase, capturedFiles, mode]);
 
-  // Face tracking / AR — lite mode on phones/WebViews; full on desktop
-  const arSupported = isARSupported();
+  // AR face filters are Coming Soon — do not start MediaPipe / overlay tracking.
   const safeCamera = isCameraSafeMode();
-  const { faces, isReady: arReady, isLoading: arLoading, profile: arProfile, startTracking, stopTracking } = useFaceTracking({
-    // Preload face model while camera is open so AR tab feels instant
-    enabled: arSupported && phase === 'camera',
-  });
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -139,7 +127,6 @@ export function MobileCreateStudio({ onClose, initialSound }: MobileCreateStudio
   const isHoldingRef = useRef(false);
   const isRecordingRef = useRef(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const arOverlayRef = useRef<HTMLCanvasElement>(null);
 
   // Pinch zoom refs
   const lastPinchDistRef = useRef<number | null>(null);
@@ -161,11 +148,6 @@ export function MobileCreateStudio({ onClose, initialSound }: MobileCreateStudio
   }, []);
 
   // Start camera
-  const filterModeRef = useRef(filterMode);
-  const arReadyRef = useRef(arReady);
-  filterModeRef.current = filterMode;
-  arReadyRef.current = arReady;
-
   const startCamera = useCallback(async () => {
     try {
       stopStream(streamRef.current);
@@ -192,13 +174,6 @@ export function MobileCreateStudio({ onClose, initialSound }: MobileCreateStudio
           videoRef.current.srcObject = streamRef.current;
           videoRef.current.onloadedmetadata = () => {
             if (!videoRef.current) return;
-            setVideoDimensions({
-              width: videoRef.current.videoWidth,
-              height: videoRef.current.videoHeight,
-            });
-            if (filterModeRef.current === 'ar' && arReadyRef.current) {
-              startTracking(videoRef.current);
-            }
           };
           videoRef.current.play().catch(() => {});
           setCameraReady(true);
@@ -226,36 +201,13 @@ export function MobileCreateStudio({ onClose, initialSound }: MobileCreateStudio
         }).catch(() => {});
       } catch {}
     }
-  }, [facingMode, startTracking]);
+  }, [facingMode, mode]);
 
   const stopCamera = useCallback(() => {
     stopStream(streamRef.current);
     streamRef.current = null;
-    stopTracking();
     setCameraReady(false);
-  }, [stopTracking]);
-
-  useEffect(() => {
-    if (filterMode !== 'ar' || !arReady || phase !== 'camera') {
-      stopTracking();
-      return;
-    }
-
-    const video = videoRef.current;
-    if (!video) return;
-
-    const tryStart = () => {
-      if (video.videoWidth > 0 && video.readyState >= 2) {
-        startTracking(video);
-      }
-    };
-
-    tryStart();
-    video.addEventListener('loadedmetadata', tryStart);
-    return () => {
-      video.removeEventListener('loadedmetadata', tryStart);
-    };
-  }, [filterMode, arReady, phase, startTracking, stopTracking, facingMode, cameraReady]);
+  }, []);
 
   useEffect(() => {
     if (phase === 'camera' && mode !== 'text') {
@@ -302,11 +254,9 @@ export function MobileCreateStudio({ onClose, initialSound }: MobileCreateStudio
 
   const previewTransform = `scale(${zoomLevel})`;
   const videoCssFilter =
-    safeCamera
+    safeCamera || filterMode === 'ar'
       ? undefined
-      : filterMode === 'ar'
-        ? arFilter?.cssFilter || undefined
-        : getFilterCSS(currentFilter) || undefined;
+      : getFilterCSS(currentFilter) || undefined;
 
   const handlePinchEnd = useCallback(() => { lastPinchDistRef.current = null; }, []);
 
@@ -342,7 +292,7 @@ export function MobileCreateStudio({ onClose, initialSound }: MobileCreateStudio
 
   // Take photo with shutter animation
   const takePhoto = useCallback(() => {
-    const doCapture = () => {
+    const doCapture = async () => {
       if (!videoRef.current || !canvasRef.current) return;
       triggerHaptic('medium');
 
@@ -354,17 +304,14 @@ export function MobileCreateStudio({ onClose, initialSound }: MobileCreateStudio
         setTimeout(() => setShowFlash(false), 150);
       }
 
-      const filterCSS =
-        filterMode === 'ar' && arFilter?.cssFilter
-          ? arFilter.cssFilter
-          : getFilterCSS(currentFilter) || undefined;
+      const { captureVideoFrame } = await import('@/lib/cameraCapture');
+      const filterCSS = filterMode === 'color' ? getFilterCSS(currentFilter) || undefined : undefined;
 
-      const ok = captureVideoFrameWithAR({
+      const ok = captureVideoFrame({
         video: videoRef.current,
         canvas: canvasRef.current,
         facingMode,
         filterCSS: safeCamera ? undefined : filterCSS,
-        arOverlay: filterMode === 'ar' ? arOverlayRef.current : null,
       });
       if (!ok) {
         toast.error('Camera not ready — wait a moment and try again');
@@ -392,13 +339,13 @@ export function MobileCreateStudio({ onClose, initialSound }: MobileCreateStudio
       let count = timer;
       const interval = setInterval(() => {
         count--;
-        if (count <= 0) { clearInterval(interval); setTimerCountdown(null); doCapture(); }
+        if (count <= 0) { clearInterval(interval); setTimerCountdown(null); void doCapture(); }
         else setTimerCountdown(count);
       }, 1000);
     } else {
-      doCapture();
+      void doCapture();
     }
-  }, [flash, facingMode, mode, capturedFiles.length, timer, currentFilter, filterMode, arFilter, safeCamera]);
+  }, [flash, facingMode, mode, capturedFiles.length, timer, currentFilter, filterMode, safeCamera]);
 
   // Recording
   const startRecording = useCallback(async () => {
@@ -580,18 +527,6 @@ export function MobileCreateStudio({ onClose, initialSound }: MobileCreateStudio
               filter: videoCssFilter,
             }}
           />
-
-          {filterMode === 'ar' && arFilter && cameraReady && (
-            <AROverlayCanvas
-              ref={arOverlayRef}
-              faces={faces}
-              filter={arFilter}
-              videoWidth={videoDimensions.width}
-              videoHeight={videoDimensions.height}
-              mirrored={facingMode === 'user'}
-              scanning={arFilterNeedsFace(arFilter) && faces.length === 0}
-            />
-          )}
         </div>
 
         {!cameraReady && !cameraBlocked && (
@@ -610,17 +545,9 @@ export function MobileCreateStudio({ onClose, initialSound }: MobileCreateStudio
           </div>
         )}
 
-        {/* Viewfinder guides */}
+        {/* Soft vignette only — cleaner studio look */}
         <div className="pointer-events-none absolute inset-0 z-[12]">
-          <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,transparent_40%,rgba(0,0,0,0.45)_100%)]" />
-          <div
-            className="absolute inset-0 opacity-[0.12]"
-            style={{
-              backgroundImage:
-                'linear-gradient(rgba(255,255,255,0.5) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.5) 1px, transparent 1px)',
-              backgroundSize: '33.33% 33.33%',
-            }}
-          />
+          <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,transparent_45%,rgba(0,0,0,0.4)_100%)]" />
         </div>
 
         <CreateCameraCoach />
@@ -721,50 +648,35 @@ export function MobileCreateStudio({ onClose, initialSound }: MobileCreateStudio
         onTimerChange={setTimer}
       />
 
-      {/* Bottom chrome — Snapchat-style stack */}
+      {/* Bottom chrome — YouTube-Studio–inspired stack */}
       <div className="absolute bottom-0 left-0 right-0 z-30 pointer-events-none">
-        <div className="pointer-events-auto bg-gradient-to-t from-black via-black/85 to-transparent pt-16 pb-safe">
+        <div className="pointer-events-auto bg-gradient-to-t from-black via-black/90 to-transparent pt-14 pb-safe">
           <CreateFilterModeToggle
             mode={filterMode}
-            arSupported={arSupported}
-            onChange={(next) => {
-              setFilterMode(next);
-              if (next === 'ar') {
-                clearARDisabledForSession();
-                if (!arFilter) {
-                  const first = getDefaultARFilter();
-                  if (first) setArFilter(first);
-                }
-              }
-            }}
+            onChange={setFilterMode}
           />
 
-          <div className="mb-1">
-            {filterMode === 'ar' && arSupported ? (
-              <ARFilterPicker
-                currentFilter={arFilter?.id || null}
-                onFilterChange={setArFilter}
-                isTracking={faces.length > 0}
-                isLoading={arLoading}
-              />
+          <div className="mb-2 px-3">
+            {filterMode === 'ar' ? (
+              <ArFiltersComingSoon compact />
             ) : (
               <CameraFilterCarousel currentFilter={currentFilter} onFilterChange={setCurrentFilter} />
             )}
           </div>
 
-          <div className="flex items-center justify-center gap-5 px-6 pb-3 pt-1">
+          <div className="flex items-center justify-center gap-6 px-6 pb-2 pt-1">
             <motion.button
               type="button"
-              whileTap={{ scale: 0.9 }}
+              whileTap={{ scale: 0.92 }}
               onClick={() => setShowMusicGallery(true)}
               className={cn(
-                'w-[52px] h-[52px] rounded-2xl flex items-center justify-center',
-                'bg-white/10 backdrop-blur-xl border border-white/15 touch-manipulation',
-                (selectedSound || selectedTrack) && 'border-primary/60 bg-primary/15',
+                'flex h-12 w-12 items-center justify-center rounded-full',
+                'border border-white/20 bg-white/10 touch-manipulation',
+                (selectedSound || selectedTrack) && 'border-white/50 bg-white/20',
               )}
               aria-label="Add sound"
             >
-              <Music2 className="h-6 w-6 text-white" />
+              <Music2 className="h-5 w-5 text-white" />
             </motion.button>
 
             <VybeRecordButton
@@ -778,25 +690,25 @@ export function MobileCreateStudio({ onClose, initialSound }: MobileCreateStudio
             {mode === 'multi' && capturedFiles.length > 0 ? (
               <motion.button
                 type="button"
-                whileTap={{ scale: 0.9 }}
+                whileTap={{ scale: 0.92 }}
                 onClick={handleMultiDone}
-                className="w-[52px] h-[52px] rounded-2xl bg-primary text-primary-foreground flex items-center justify-center font-bold text-sm shadow-lg shadow-primary/40 touch-manipulation"
+                className="flex h-12 w-12 items-center justify-center rounded-full bg-white text-sm font-bold text-black touch-manipulation"
               >
                 Done
               </motion.button>
             ) : (
               <motion.button
                 type="button"
-                whileTap={{ scale: 0.9 }}
+                whileTap={{ scale: 0.92 }}
                 onClick={() => setShowGalleryDrawer(true)}
-                className="w-[52px] h-[52px] rounded-2xl overflow-hidden border-2 border-white/50 touch-manipulation shadow-lg"
-                aria-label="Open gallery"
+                className="h-12 w-12 overflow-hidden rounded-full border border-white/35 touch-manipulation"
+                aria-label="Upload from gallery"
               >
                 {capturedPreviews.length > 0 ? (
-                  <img src={capturedPreviews[capturedPreviews.length - 1]} alt="" className="w-full h-full object-cover" />
+                  <img src={capturedPreviews[capturedPreviews.length - 1]} alt="" className="h-full w-full object-cover" />
                 ) : (
-                  <div className="w-full h-full flex items-center justify-center bg-white/10 backdrop-blur-md">
-                    <ImageIcon className="w-6 h-6 text-white/80" />
+                  <div className="flex h-full w-full items-center justify-center bg-white/10">
+                    <ImageIcon className="h-5 w-5 text-white/85" />
                   </div>
                 )}
               </motion.button>
@@ -811,11 +723,11 @@ export function MobileCreateStudio({ onClose, initialSound }: MobileCreateStudio
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
-                className="text-center text-white/40 text-[10px] tracking-wide pb-2 px-4"
+                className="px-4 pb-2 text-center text-[10px] tracking-wide text-white/40"
               >
                 {mode === 'multi'
                   ? 'Tap shutter · Up to 10 shots'
-                  : 'Tap photo · Hold video · Pinch to zoom'}
+                  : 'Tap for photo · Hold for video · Pinch to zoom'}
               </motion.p>
             )}
           </AnimatePresence>

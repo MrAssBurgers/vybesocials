@@ -1,44 +1,39 @@
-import { motion } from 'framer-motion';
 import { cn } from '@/lib/utils';
 import { triggerHaptic } from '@/lib/haptics';
 
 interface CreateFilterModeToggleProps {
   mode: 'color' | 'ar';
   onChange: (mode: 'color' | 'ar') => void;
-  arSupported: boolean;
+  /** Kept for API compatibility — AR tray is Coming Soon either way. */
+  arSupported?: boolean;
 }
 
-export function CreateFilterModeToggle({ mode, onChange, arSupported }: CreateFilterModeToggleProps) {
-  if (!arSupported) return null;
-
+export function CreateFilterModeToggle({ mode, onChange }: CreateFilterModeToggleProps) {
   return (
-    <div className="flex justify-center mb-2">
-      <div className="relative flex rounded-full bg-black/50 backdrop-blur-xl border border-white/10 p-0.5">
+    <div className="mb-2 flex justify-center">
+      <div
+        role="tablist"
+        aria-label="Filter type"
+        className="flex rounded-xl border border-white/12 bg-black/45 p-0.5 backdrop-blur-md"
+      >
         {(['color', 'ar'] as const).map((id) => (
           <button
             key={id}
             type="button"
+            role="tab"
+            aria-selected={mode === id}
             onClick={() => {
               triggerHaptic('light');
               onChange(id);
             }}
             className={cn(
-              'relative z-10 px-4 py-1.5 text-[11px] font-bold tracking-wide rounded-full transition-colors',
-              mode === id ? 'text-white' : 'text-white/45',
+              'relative z-10 rounded-[10px] px-4 py-1.5 text-[11px] font-semibold tracking-wide transition-colors',
+              mode === id ? 'bg-white text-black' : 'text-white/50',
             )}
           >
-            {id === 'color' ? 'Lenses' : 'AR FX'}
+            {id === 'color' ? 'Looks' : 'AR'}
           </button>
         ))}
-        <motion.div
-          layoutId="create-filter-mode-pill"
-          className="absolute inset-y-0.5 rounded-full bg-white/20 shadow-inner"
-          style={{
-            width: 'calc(50% - 2px)',
-            left: mode === 'color' ? 2 : 'calc(50%)',
-          }}
-          transition={{ type: 'spring', stiffness: 420, damping: 32 }}
-        />
       </div>
     </div>
   );

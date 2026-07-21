@@ -1,34 +1,62 @@
 import { z } from 'zod';
 
-// Uncensored mode - no content filtering
-const BLOCKED_PATTERNS: RegExp[] = [];
+/**
+ * Lightweight client-side text filter for severe abuse / CSAM solicitation tokens.
+ * Heavy media moderation remains Vybe Check (server).
+ */
+const BLOCKED_PATTERNS: RegExp[] = [
+  /\b(kill\s*yourself|kys)\b/i,
+  /\b(child\s*porn|cp\b|csam)\b/i,
+  /\b(nazi\s*salute)\b/i,
+];
 
 /**
- * Check if text contains blocked content - disabled for uncensored mode
+ * Check if text contains blocked content
  */
 export function containsBlockedContent(text: string): { blocked: boolean; matches: string[] } {
+  if (!text || !text.trim()) {
+    return { blocked: false, matches: [] };
+  }
+  const matches: string[] = [];
+  for (const pattern of BLOCKED_PATTERNS) {
+    const m = text.match(pattern);
+    if (m?.[0]) matches.push(m[0]);
+  }
   return {
-    blocked: false,
-    matches: [],
+    blocked: matches.length > 0,
+    matches,
   };
 }
 
 /**
- * Filter/censor blocked content from text - disabled for uncensored mode
+ * Filter/censor blocked content from text
  */
 export function filterBlockedContent(text: string): string {
-  return text;
+  let out = text;
+  for (const pattern of BLOCKED_PATTERNS) {
+    out = out.replace(pattern, '***');
+  }
+  return out;
 }
 
 /**
- * Validate user-generated content - no content restrictions
+ * Validate user-generated content
  */
 export const contentSchema = z.object({
   text: z
     .string()
     .trim()
     .min(1, 'Content cannot be empty')
-    .max(5000, 'Content is too long'),
+    .max(5000, 'Content is too long')
+    .superRefine((val, ctx) => {
+      const { blocked, matches } = containsBlockedContent(val);
+      if (blocked) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: `Content blocked (${matches.slice(0, 3).join(', ')})`,
+        });
+      }
+    }),
 });
 
 /**

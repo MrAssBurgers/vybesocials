@@ -362,6 +362,12 @@ export function ConversationOptionsSheet({
       });
       if (error && !error.message.includes('duplicate')) throw error;
       invalidateConversationCaches(queryClient);
+      queryClient.setQueryData<string[]>(['blocked-user-ids', profile.id], (prev) => {
+        const next = new Set(prev || []);
+        next.add(otherUserId);
+        return Array.from(next);
+      });
+      await queryClient.invalidateQueries({ queryKey: ['blocked-user-ids', profile.id] });
       toast.success(`${displayName} blocked`);
       setBlockOpen(false);
       close();

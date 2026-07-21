@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { ShieldOff } from 'lucide-react';
 import { useParams } from 'react-router-dom';
 import { AppLayout } from '@/components/layout/AppLayout';
@@ -28,6 +28,7 @@ import { ProfileBadgesSheet } from '@/features/profile/sheets/ProfileBadgesSheet
 import { ProfileFriendshipSheet } from '@/features/profile/sheets/ProfileFriendshipSheet';
 import { ProfileMoreMenuSheet } from '@/features/profile/sheets/ProfileMoreMenuSheet';
 import { FriendsListSheet } from '@/features/profile/sheets/FriendsListSheet';
+import { ReportContentDialog } from '@/components/safety/ReportContentDialog';
 import '@/features/profile/profile-chrome.css';
 
 function ProfileSkeleton() {
@@ -48,6 +49,7 @@ export default function ProfileViewPage() {
   const { username } = useParams<{ username: string }>();
   const vm = useProfileViewModel(username);
   const myProfileId = useAuthProfileId();
+  const queryClient = useQueryClient();
   const unfriend = useUnfriend();
   const { isPremium: viewerPremium } = usePremiumStatus();
 
@@ -79,6 +81,7 @@ export default function ProfileViewPage() {
   const [followSheet, setFollowSheet] = useState<'followers' | 'following' | null>(null);
   const [friendsOpen, setFriendsOpen] = useState(false);
   const [storyViewer, setStoryViewer] = useState(false);
+  const [reportOpen, setReportOpen] = useState(false);
 
   const myStoryGroup = useMemo(() => {
     if (!vm.profile || !storyGroups?.length) return null;
@@ -139,11 +142,31 @@ export default function ProfileViewPage() {
         blocked_id: profile.id,
       });
       if (error) throw error;
+      queryClient.setQueryData<string[]>(['blocked-user-ids', myProfileId], (prev) => {
+        const next = new Set(prev || []);
+        next.add(profile.id);
+        return Array.from(next);
+      });
+      await queryClient.invalidateQueries({ queryKey: ['blocked-user-ids', myProfileId] });
       toast.success('User blocked');
       vm.refetch();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Could not block user');
     }
+  };
+
+  const handleReport = async (reason: string) => {
+    if (!myProfileId) return;
+    const { error } = await db.from('reports').insert({
+      reporter_id: myProfileId,
+      reported_user_id: profile.id,
+      reason,
+    } as Record<string, unknown>);
+    if (error) {
+      toast.error(error.message || 'Could not submit report');
+      throw error;
+    }
+    toast.success('Report submitted. We will review it shortly.');
   };
 
   return (
@@ -273,7 +296,15 @@ export default function ProfileViewPage() {
             onSuccess: () => toast.success('Friend removed'),
           });
         }}
-        onReport={() => toast.message('Report submitted')}
+        onReport={() => setReportOpen(true)}
+      />
+
+      <ReportContentDialog
+        open={reportOpen}
+        onOpenChange={setReportOpen}
+        title={`Report @${profile.username}`}
+        description="Why are you reporting this account?"
+        onSubmit={handleReport}
       />
 
       <FollowersFollowingSheet

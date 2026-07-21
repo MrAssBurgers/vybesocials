@@ -158,17 +158,28 @@ async function signInWithOAuthPlatformInner(provider: OAuthProviderId): Promise<
   });
 
   // [iOS-only] Prefer true native auth when flag + bridge available.
-  // Never opens native-callback / oauthDismiss / exchange_* on this path.
+  // Fall back to ASWeb oauth:// if native bridge errors as unavailable.
   if (useNativeBridge) {
     authLog('oauth_strategy', {
       provider,
       strategy: 'native-auth-bridge',
     });
-    return tryNativeAuthBridge(provider);
+    const nativeResult = await tryNativeAuthBridge(provider);
+    if (
+      !nativeResult.error ||
+      (nativeResult.error && !isRetryableNativeError(nativeResult.error))
+    ) {
+      return nativeResult;
+    }
+    authWarn('native_auth_fallback_despia', {
+      provider,
+      code: nativeResult.error?.name,
+    });
   }
 
-  // Despia oauth:// / Apple JS — never Firebase popup for Google here.
-  if (useDespia) {
+  // Despia oauth:// — Google always ASWeb; Apple ASWeb only when native unavailable.
+  // Never Firebase popup / window.open Safari.app for login inside Despia.
+  if (useDespia || (isDespiaRuntime() && (provider === 'google' || provider === 'apple'))) {
     authLog('oauth_strategy', {
       provider,
       strategy: 'despia-oauth',
@@ -249,6 +260,9 @@ function isRetryableNativeError(error: VybeAuthError): boolean {
     msg.includes('not implemented') ||
     msg.includes('unavailable') ||
     code.includes('not-available') ||
-    msg.includes('plugin')
+    code.includes('nativeauth/unavailable') ||
+    code.includes('nativeauth/bridge') ||
+    msg.includes('plugin') ||
+    msg.includes('bridge')
   );
 }

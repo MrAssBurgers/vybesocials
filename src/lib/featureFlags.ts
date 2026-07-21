@@ -44,7 +44,8 @@ const defaultFlags: FeatureFlags = {
   memory_pins: true,
   analytics_enabled: true,
   snap_future_story_destinations: false,
-  native_ios_auth_v1: false,
+  // Prefer AuthenticationServices when Despia advertises nativeauth:// (falls back to ASWeb).
+  native_ios_auth_v1: true,
 };
 
 // Local storage key for flag overrides

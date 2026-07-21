@@ -2,55 +2,100 @@
 
 Paste into **App Store Connect → App Review Information → Notes** (and use the Reply draft below).
 
+**Submission context:** Remediation for rejection of **1.2.8 (7180520)** / `74f32678-106f-4b6e-aaf4-4fc516abf279` (Guidelines 4 SIWA + in-app auth, 1.2 UGC, 2.1 ATT).
+
 ---
 
 ## Notes (paste into App Review Information)
 
 ```
 Demo account: [fill email] / [fill password]
-(Use the existing demo credentials already on file in App Store Connect if present — do not invent new passwords here.)
+(Use the existing demo credentials already on file in App Store Connect if present.)
 
-Start URL / build: Production web is https://vybehub.app (Despia App Start URL). Native Info.plist location purpose string requires a Despia/Xcode rebuild; web OTA alone does not change Info.plist.
+Start URL / build: Production web is https://vybehub.app (Despia App Start URL). Native binary must be rebuilt after Info.plist / nativeauth changes.
 
-LOCATION (5.1.1 ii)
-Location is used for Friend Map while the user is in that feature (and related nearby social surfaces).
-Example: on Friend Map, chosen friends can see you are “at the park.” Friend Link itself is QR-only (display / scan a code to add friends). Location is not used for advertising.
-Purpose string (NSLocationWhenInUseUsageDescription): “VYBE uses your location while you use the app to power Friend Map. For example, when you open Friend Map, friends you choose can see that you are nearby (such as “at the park”). Location is not used for advertising or cross-app tracking.”
+=== TRACKING (Guideline 2.1) ===
+This build does NOT track users. App Privacy → Tracking = No.
+We do not collect IDFA for advertising, and we do not show an App Tracking Transparency prompt.
+Ads (if shown) are non-personalized only. Personalized ads + ATT are not enabled in this submission.
 
-TRACKING / COOKIES (5.1.1 iv)
-iOS uses App Tracking Transparency only. We do NOT show an in-app native cookie “Accept” banner after ATT.
-If the reviewer selects Ask App Not to Track, the app stores essential-only consent and does not enable advertising/tracking cookies.
-Essential signed-in session storage may still run so the account works (distinct from tracking cookies).
+=== SIGN IN WITH APPLE (Guideline 4) ===
+Sign in with Apple uses the in-app native AuthenticationServices path when available (Despia nativeauth://), otherwise an in-app ASWebAuthenticationSession sheet (not Safari.app).
+We do NOT re-require name or email after Apple Sign-In. Apple-provided name is captured on first authorization; onboarding only requires a unique @username (Apple does not provide an app handle). Email comes from the Apple identity token / Private Relay — no second email form.
 
-NFC (2.1)
-This app no longer includes NFC. There is no Phone Tap / NFC hardware pairing, no NFC tag read/write UI, and Friend Link is QR-only.
-No NFC accessory demo video is needed. If an older binary still declares NFC Tag Reading from a prior Despia capability, treat it as unused — capability will be removed on the next native rebuild.
+How to verify:
+1. Fresh install → Sign in with Apple → complete Face ID / Apple sheet inside VYBE.
+2. Onboarding: choose @username (+ birthday / interests / legal). Name fields are optional for Apple users and prefilled when Apple provided a name.
+3. You are never asked to re-enter the Apple email.
 
-AGE RATING — IN-APP CONTROLS (2.3.6)
-Parental Controls and Age Assurance are both present in the app. Do not set either to None in App Store Connect.
+=== IN-APP AUTH (Guideline 4 — browser) ===
+Email/password register and login stay entirely inside the app WebView.
+Google uses in-app ASWebAuthenticationSession (system sheet with Done/Cancel) — not the default Safari.app browser.
+Apple uses native Sign in with Apple when the native bridge is present.
 
-HOW TO FIND PARENTAL CONTROLS
-1. Sign in with the demo account (or any signed-in account).
-2. Open Profile → Settings (gear / Settings).
-3. Under Account, tap Parental Controls
-   — or — Settings → Privacy → Parental Controls row at the bottom of Privacy & Security.
-4. You will see “Set Up Parental Controls” (create a 4-digit PIN) or, if already enabled, a PIN unlock to manage:
-   Controls Active, Daily Screen Time Limit, Content Filter Level, Who Can DM, Message Requests, DM Safety Filter, Quiet Hours, Take-a-Break Reminders.
+=== UGC SAFETY (Guideline 1.2) — FILM THESE ===
+Please watch the attached screen recording (Notes / Resolution Center link):
 
-HOW TO FIND AGE ASSURANCE
-Age assurance = date-of-birth collection during onboarding, which drives age bands and safety defaults.
-1. Create a new account (or use a fresh sign-up), complete auth, then reach onboarding step “When's your birthday?”
-2. Enter Day / Month / Year. The app calculates age and applies protections:
-   - Under 13: mandatory Parental Controls notice (PIN required path).
-   - 13–15 / 16–17: enhanced / age-appropriate content notices.
-3. Birthday is stored privately and used for filters (e.g. ads eligibility, DM safety, content filters) — not shown publicly by default.
+1) EULA / Terms before register
+   Landing → Create account → checkbox “I agree to the Terms of Service and Privacy Policy” (required) → Continue.
+
+2) Filter objectionable content
+   Create → capture/upload → Vybe Check runs before Publish (Share stays blocked until safe). Server AI moderation + client text filters.
+
+3) Flag / report content
+   Home feed → post ⋯ → Report → pick a reason → Submit Report.
+   Or open any profile /u/{username} → ⋯ → Report.
+
+4) Block abusive users
+   Profile /u/{username} → ⋯ → Block → confirm.
+   Blocked user’s posts are removed from the viewer’s feed immediately.
+   Settings → Privacy → Blocked Users lists blocks.
+
+5) Developer action ≤24 hours
+   Reports write to Firestore `reports` and email the safety inbox; staff review in Admin → Reports (pending queue). Policy: remove content / eject abusers within 24 hours.
+   Safety contact: vybesocial.info@gmail.com
+
+=== LOCATION (if asked) ===
+Friend Map only while using that feature. Friend Link is QR-only (no NFC).
+Purpose string: “VYBE uses your location while you use the app to power Friend Map…”
+
+=== PARENTAL / AGE ===
+Parental Controls: Settings → Account → Parental Controls (PIN).
+Age Assurance: onboarding birthday step.
 ```
 
 ---
 
-## Despia / Xcode — location purpose string (REQUIRED rebuild)
+## Screen recording checklist (physical iPhone)
 
-In **Despia Editor → Info.plist / Permissions** (or Xcode `Info.plist`), set:
+Film 60–120s covering:
+
+| # | Scene | Must show |
+|---|--------|-----------|
+| 1 | Create account | Terms checkbox before Continue |
+| 2 | Sign in with Apple | System Apple sheet **inside** VYBE (not Safari.app address bar) |
+| 3 | After SIWA | Onboarding without forced re-entry of Apple name/email |
+| 4 | Report | Feed ⋯ → Report → reason → success toast |
+| 5 | Block | Profile ⋯ → Block → return to Home (blocked content gone) |
+
+Upload to a private link (or attach in Notes) and paste the URL in App Review Information + Resolution Center reply.
+
+---
+
+## ASC checklist (you)
+
+1. **App Privacy** → Data Collection → **Tracking = No** (Account Holder/Admin). Align answers with non-personalized ads only.
+2. Paste Notes above + demo account + **recording URL**.
+3. **Despia rebuild** with:
+   - `nativeauth://` Apple Sign-In (AuthenticationServices) if not already shipping
+   - Location purpose string (Friend Map)
+   - NFC capability **OFF**
+4. Lovable → Share → Publish so `vybehub.app` has the OTA web fixes.
+5. Submit new binary **> 1.2.8**.
+
+---
+
+## Despia / Xcode — location purpose string (REQUIRED rebuild)
 
 **NSLocationWhenInUseUsageDescription**
 
@@ -58,41 +103,15 @@ In **Despia Editor → Info.plist / Permissions** (or Xcode `Info.plist`), set:
 VYBE uses your location while you use the app to power Friend Map. For example, when you open Friend Map, friends you choose can see that you are nearby (such as “at the park”). Location is not used for advertising or cross-app tracking.
 ```
 
-If Always is enabled for live map sharing, also set **NSLocationAlwaysAndWhenInUseUsageDescription** (see `docs/IOS_SETUP.md`).
-
 ### NFC capability — turn OFF on next native rebuild
 
-In **Despia Editor**:
-1. Disable the **NFC** addon / capability (do not ship `NFCReaderUsageDescription` or Core NFC entitlement for this release).
-2. Rebuild the store binary so Info.plist no longer advertises NFC Tag Reading.
-3. OTA web publish alone cannot remove Info.plist NFC strings — native rebuild required.
-
-Then **rebuild and submit a new binary** — OTA web publish alone does not change Info.plist purpose strings.
+Disable NFC addon so Info.plist no longer advertises NFC Tag Reading.
 
 ---
 
 ## Age Rating (App Store Connect — App Information)
 
-VYBE **includes** Parental Controls and Age Assurance. Do **not** set either to **None**.
-
-1. Open the app → **App Information** → Age Rating / Age Ratings → Edit
-2. Under **In-App Controls**, select / claim **Parental Controls** (not None) — PIN-locked tools, screen time, content filters, safer DMs
-3. Under **In-App Controls**, select / claim **Age Assurance** (not None) — date-of-birth age gate during onboarding that applies age-band safety
-4. Save
-5. Paste the **HOW TO FIND…** paths from Review Notes above so App Review can locate both features
-
----
-
-## Friend Link demo (QR only)
-
-Film on a **physical iPhone** (not Simulator):
-
-1. Open VYBE signed in with the demo account  
-2. Open **Friend Link** → show your QR code  
-3. Scan another demo user’s QR (or `/friend-drop/...` / `/add-friend/...` deep link)  
-4. Confirm both accounts become friends  
-
-No NFC / Phone Tap demo is needed for this submission.
+Claim **Parental Controls** and **Age Assurance** (not None). Paths in Notes above.
 
 ---
 
@@ -101,29 +120,34 @@ No NFC / Phone Tap demo is needed for this submission.
 ```
 Hello App Review,
 
-Thank you for the feedback on submission 74f32678-106f-4b6e-aaf4-4fc516abf279.
+Thank you for the feedback on submission 74f32678-106f-4b6e-aaf4-4fc516abf279 (version 1.2.8).
 
-1) Guideline 5.1.1(ii) — Location purpose string
-We updated NSLocationWhenInUseUsageDescription to explain Friend Map with a concrete example. Example wording: “VYBE uses your location while you use the app to power Friend Map. For example, when you open Friend Map, friends you choose can see that you are nearby (such as “at the park”). Location is not used for advertising or cross-app tracking.” Friend Link is QR-only. Location is not used for advertising. This change ships with the updated native binary / Info.plist.
+We have addressed each guideline as follows in build [NEW_BUILD]:
 
-2) Guideline 5.1.1(iv) — Tracking / cookies after Ask App Not to Track
-On iOS, App Tracking Transparency is the only tracking permission UI. We do not show a native cookie “Accept” banner after ATT. If Ask App Not to Track is selected, the app stays essential-only and does not enable advertising/tracking cookies. Essential session storage may remain so sign-in works; that is distinct from tracking cookies.
+1) Guideline 4 — Sign in with Apple (name/email)
+After Sign in with Apple we no longer require users to re-enter their name or email. Apple-provided name is captured from Authentication Services on first authorization and prefilled; name fields are optional for Apple users. Email comes from the Apple identity token (including Private Relay). Onboarding still asks for a unique @username, which Apple does not provide.
 
-3) Guideline 2.1 — NFC
-The app no longer includes NFC. Friend Link and referrals are QR / share-link only. There is no Phone Tap, NFC hardware pairing, or NFC tag UI. No NFC accessory demo video is needed. Any remaining NFC entitlement from an older binary should be treated as unused; we will remove the Despia NFC capability on the next native rebuild.
+2) Guideline 4 — Sign-in in the default browser
+Sign-in/register stays in the app. Email/password never leaves the WebView. Apple uses native Sign in with Apple (AuthenticationServices) when available; otherwise an in-app authentication session sheet (ASWebAuthenticationSession) — not Safari.app. Google uses the same in-app session sheet. Screen recording: [VIDEO_URL].
 
-4) Guideline 2.3.6 — Age Rating / In-App Controls
-Parental Controls and Age Assurance are both present in the app (claimed in App Store Connect — not set to None):
+3) Guideline 1.2 — User-generated content
+- Terms of Service acceptance is required before Create account (shown in recording).
+- Objectionable content is filtered via Vybe Check before publish plus server moderation.
+- Users can Report posts (⋯ menu), comments, and profiles, and Block users from profile ⋯; blocks remove content from the feed immediately.
+- Reports notify our safety inbox and appear in Admin → Reports; we act within 24 hours (remove content / eject abusers). Contact: vybesocial.info@gmail.com
+Screen recording of Terms + Report + Block: [VIDEO_URL].
 
-Parental Controls:
-Sign in → Profile → Settings → Account → Parental Controls
-(or Settings → Privacy → Parental Controls). Create a 4-digit PIN to enable screen-time limits, content filters, safer DMs, quiet hours, and break reminders.
-
-Age Assurance:
-Create a new account and complete onboarding step “When's your birthday?” (date of birth). The app calculates age and applies under-13 parental-control requirements and teen safety defaults.
+4) Guideline 2.1 — App Tracking Transparency
+This build does not track users. We updated App Privacy so Tracking is declared as No. We do not show an ATT prompt because we do not collect data for tracking / IDFA advertising in this submission. Ads are non-personalized only.
 
 Please let us know if anything else is needed.
 
 Thank you,
 [Your name]
 ```
+
+---
+
+## Friend Link demo (QR only)
+
+Film on a **physical iPhone** if location/Friend Link is questioned: Friend Link → QR display/scan. No NFC.

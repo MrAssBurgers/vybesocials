@@ -1,6 +1,3 @@
-import { useRef } from 'react';
-import { motion } from 'framer-motion';
-import { Camera, Video, Layers, Type, BookOpen } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { triggerHaptic } from '@/lib/haptics';
 
@@ -11,56 +8,44 @@ interface CreateModeSelectorProps {
   onModeChange: (mode: CreateMode) => void;
 }
 
-const modes: { id: CreateMode; label: string; icon: typeof Camera }[] = [
-  { id: 'photo', label: 'Photo', icon: Camera },
-  { id: 'video', label: 'Video', icon: Video },
-  { id: 'multi', label: 'Multi', icon: Layers },
-  { id: 'text', label: 'Text', icon: Type },
-  { id: 'story', label: 'Story', icon: BookOpen },
+const modes: { id: CreateMode; label: string }[] = [
+  { id: 'photo', label: 'Photo' },
+  { id: 'video', label: 'Short' },
+  { id: 'multi', label: 'Carousel' },
+  { id: 'text', label: 'Text' },
+  { id: 'story', label: 'Story' },
 ];
 
-/** Snapchat-style mode rail — sits just above the shutter. */
+/** YouTube-Studio–style segmented mode control under the shutter. */
 export function CreateModeSelector({ currentMode, onModeChange }: CreateModeSelectorProps) {
-  const scrollRef = useRef<HTMLDivElement>(null);
-
   return (
-    <div className="relative px-2 pb-1">
+    <div className="px-4 pb-2">
       <div
-        ref={scrollRef}
-        className="flex items-center justify-center gap-1 overflow-x-auto scrollbar-hide py-1"
+        role="tablist"
+        aria-label="Create mode"
+        className="mx-auto flex max-w-md items-center gap-0.5 rounded-xl border border-white/12 bg-white/[0.07] p-1"
       >
         {modes.map((mode) => {
           const isActive = currentMode === mode.id;
           return (
-            <motion.button
+            <button
               key={mode.id}
               type="button"
+              role="tab"
+              aria-selected={isActive}
               onClick={() => {
                 triggerHaptic('light');
                 onModeChange(mode.id);
               }}
               className={cn(
-                'relative flex-shrink-0 px-3.5 py-2 rounded-full transition-colors touch-manipulation',
-                isActive ? 'text-white' : 'text-white/45',
+                'relative min-w-0 flex-1 rounded-lg px-1.5 py-2 text-center text-[11px] font-semibold tracking-wide transition-colors touch-manipulation',
+                isActive
+                  ? 'bg-white text-black shadow-sm'
+                  : 'text-white/55 hover:text-white/80',
               )}
-              whileTap={{ scale: 0.94 }}
             >
-              {isActive && (
-                <motion.div
-                  layoutId="create-mode-active-bg"
-                  className="absolute inset-0 rounded-full bg-white/15 border border-white/20 shadow-[0_0_20px_rgba(255,255,255,0.08)]"
-                  transition={{ type: 'spring', stiffness: 450, damping: 34 }}
-                />
-              )}
-              <span
-                className={cn(
-                  'relative z-10 text-[11px] font-bold uppercase tracking-[0.14em]',
-                  isActive && 'text-shadow-sm',
-                )}
-              >
-                {mode.label}
-              </span>
-            </motion.button>
+              {mode.label}
+            </button>
           );
         })}
       </div>

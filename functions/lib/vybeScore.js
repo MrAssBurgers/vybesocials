@@ -150,7 +150,7 @@ async function checkScoreMilestones(userId) {
         });
     }
 }
-export const rebuildVybeScoreForUser = onCall({ region: 'us-central1', timeoutSeconds: 300, memory: '512MiB' }, async (request) => {
+export const rebuildVybeScoreForUser = onCall({ region: 'us-central1', timeoutSeconds: 300, memory: '512MiB', cpu: 1 }, async (request) => {
     await requireAdmin(request);
     const data = (request.data || {});
     const userId = data.userId?.trim();

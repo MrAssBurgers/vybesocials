@@ -1,8 +1,10 @@
 /**
  * App Tracking Transparency (iOS 14.5+).
  *
- * Despia shows the native ATT prompt and exposes `despia.trackingDisabled`.
- * We mirror that into local consent storage so ads/analytics gate correctly.
+ * This App Store submit declares App Privacy Tracking = No — we do not request
+ * ATT or personalized/IDFA ads. Despia may still expose `trackingDisabled`; we
+ * mirror it for future personalized-ads work but ad eligibility forces NPA.
+ *
  * Do NOT show a second in-app tracking dialog on native — it caused App Review
  * blank screens when stacked with the system ATT sheet.
  */

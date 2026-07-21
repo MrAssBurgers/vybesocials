@@ -600,7 +600,7 @@ export const onDmInboxConversationWritten = onDocumentWritten(
  * conversation_members doc id processed.
  */
 export const backfillDmInboxEntries = onCall(
-  { region: 'us-central1', timeoutSeconds: 540, memory: '1GiB' },
+  { region: 'us-central1', timeoutSeconds: 540, memory: '1GiB', cpu: 1 },
   async (request) => {
     await requireAdmin(request);
     const allowed = await rateLimit(`dm-inbox-backfill:${request.auth!.uid}`, 30, 60);

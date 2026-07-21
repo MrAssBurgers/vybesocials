@@ -1749,6 +1749,8 @@ export const checkDebugSecrets = onCall({
 });
 export const manageSecrets = onCall(async (request) => {
     await requireAdmin(request);
-    throw new HttpsError('unimplemented', 'Secrets are managed via Firebase Secret Manager in the Console / CLI');
+    // Intentionally unimplemented: clients must never write Secret Manager.
+    // Use scripts/setup-*-secrets.mjs (e.g. npm run setup:stripe-secrets).
+    throw new HttpsError('unimplemented', 'Server API keys cannot be saved in the Admin UI. Use CLI: npm run setup:stripe-secrets (or setup:gemini-secrets / setup:onesignal-secrets), then redeploy the matching functions.');
 });
 //# sourceMappingURL=auth.js.map

@@ -12,8 +12,18 @@
  * names are exported in camelCase to match Firebase conventions, plus the
  * `setAdminClaim` administration helper.
  */
+import { setGlobalOptions } from 'firebase-functions/v2';
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { db, auth, requireAdmin } from './_shared/admin.js';
+
+// Gen2 defaults to 1 CPU each; mass deploys blow Cloud Run regional CPU quota.
+// Fractional CPU requires concurrency: 1. Do NOT set global memory — functions
+// with >512MiB need >=0.5 CPU and must set that themselves.
+setGlobalOptions({
+  region: 'us-central1',
+  cpu: 0.083,
+  concurrency: 1,
+});
 
 export * from './vybeCheck.js';
 export * from './ai.js';
@@ -23,6 +33,7 @@ export * from './aiDetectText.js';
 export * from './auth.js';
 export * from './briefs.js';
 export * from './email.js';
+export * from './reportNotify.js';
 export * from './passkeys.js';
 export * from './push.js';
 export * from './pushTriggers.js';

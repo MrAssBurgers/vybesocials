@@ -303,6 +303,16 @@ export async function signInWithAppleJsSdk(): Promise<{
       );
       return { data: { session: null }, error: mapOAuthLinkError(error) };
     }
+    // Apple returns name only on first authorization — capture before onboarding.
+    try {
+      const { captureAndApplyAppleName } = await import('@/lib/appleNameCapture');
+      await captureAndApplyAppleName({
+        userPayload: response.user,
+        authUid: data.session?.user?.id ?? auth.currentUser?.uid ?? null,
+      });
+    } catch {
+      /* non-fatal */
+    }
     let tokenIss = '';
     try {
       const mid = idToken.split('.')[1];

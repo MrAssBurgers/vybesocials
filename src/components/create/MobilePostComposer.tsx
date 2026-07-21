@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowLeft, Send, Tag, Hash, X, Globe, Users, Lock, ChevronDown, Check, Sparkles, Image as ImageIcon, Plus, Shield, ChevronUp } from 'lucide-react';
+import { ArrowLeft, Tag, Hash, X, Globe, Users, Lock, ChevronDown, Shield, ChevronUp } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useCreatePost } from '@/hooks/usePosts';
 import { useAuth } from '@/lib/auth';
@@ -75,57 +75,51 @@ export function MobilePostComposer({ files: propFiles, previews: propPreviews, c
     | { status: 'idle' }
     | { status: 'scanning' }
     | { status: 'safe'; suggestedAgeRating?: AgeRating | null; ageRatingReasons?: string[] }
-    | { status: 'blocked'; message: string; categories: string[] };
+    | { status: 'blocked'; message: string; categories: string[] }
+    | { status: 'error'; message: string };
   const [preScanState, setPreScanState] = useState<PreScanState>({ status: 'idle' });
   const preScanFileRef = useRef<File | null>(null);
+
+  const runPreScan = useCallback(async (file: File) => {
+    setPreScanState({ status: 'scanning' });
+    try {
+      const result = file.type.startsWith('video/')
+        ? await withTimeout(preScan.scanVideo(file), 45000, 'Vybe Check timed out')
+        : await withTimeout(preScan.scanImage(file), 45000, 'Vybe Check timed out');
+      if (preScanFileRef.current !== file) return;
+      if (result.result === 'blocked') {
+        setPreScanState({
+          status: 'blocked',
+          message: result.message || 'Content violates community guidelines',
+          categories: result.categories || [],
+        });
+      } else if (result.result === 'error') {
+        setPreScanState({
+          status: 'error',
+          message: result.message || 'Vybe Check failed. Try again before sharing.',
+        });
+        toast.error(result.message || 'Vybe Check failed. Try again before sharing.');
+      } else {
+        setPreScanState({
+          status: 'safe',
+          suggestedAgeRating: (result.suggestedAgeRating as AgeRating | undefined) ?? null,
+          ageRatingReasons: result.ageRatingReasons,
+        });
+      }
+    } catch (err) {
+      if (preScanFileRef.current !== file) return;
+      const message = err instanceof Error ? err.message : 'Vybe Check failed';
+      setPreScanState({ status: 'error', message });
+      toast.error(message);
+    }
+  }, [preScan]);
 
   useEffect(() => {
     const file = localFiles[0];
     if (!file || preScanFileRef.current === file) return;
     preScanFileRef.current = file;
-    setPreScanState({ status: 'scanning' });
-    let cancelled = false;
-    (async () => {
-      try {
-        const result = file.type.startsWith('video/')
-          ? await withTimeout(
-              preScan.scanVideo(file),
-              45000,
-              'Vybe Check timed out',
-            )
-          : await withTimeout(
-              preScan.scanImage(file),
-              45000,
-              'Vybe Check timed out',
-            );
-        if (cancelled) return;
-        if (result.result === 'blocked') {
-          setPreScanState({
-            status: 'blocked',
-            message: result.message || 'Content violates community guidelines',
-            categories: result.categories || [],
-          });
-        } else if (result.result === 'error') {
-          setPreScanState({
-            status: 'idle',
-          });
-          toast.error(result.message || 'Vybe Check failed. You can try again when sharing.');
-        } else {
-          setPreScanState({
-            status: 'safe',
-            suggestedAgeRating: (result.suggestedAgeRating as AgeRating | undefined) ?? null,
-            ageRatingReasons: result.ageRatingReasons,
-          });
-        }
-      } catch (err) {
-        if (!cancelled) {
-          setPreScanState({ status: 'idle' });
-          toast.error(err instanceof Error ? err.message : 'Vybe Check failed');
-        }
-      }
-    })();
-    return () => { cancelled = true; };
-  }, [localFiles, preScan]);
+    void runPreScan(file);
+  }, [localFiles, runPreScan]);
 
   // Draft persistence — survives accidental swipe-outs
   const draft = useComposerDraft(contentType === 'short' ? 'short' : contentType === 'video' ? 'video' : 'post');
@@ -177,6 +171,13 @@ export function MobilePostComposer({ files: propFiles, previews: propPreviews, c
 
   // Tags are optional — only media or caption is required.
   const canSubmit = contentType === 'text' ? caption.trim().length > 0 : localFiles.length > 0;
+  const hasPendingMedia = localFiles.length > 0;
+  const shareBlockedByVybe =
+    hasPendingMedia &&
+    (preScanState.status === 'scanning' ||
+      preScanState.status === 'blocked' ||
+      preScanState.status === 'error' ||
+      preScanState.status === 'idle');
   const currentVisibility = visibilityOptions.find(v => v.id === visibility)!;
 
   useEffect(() => {
@@ -201,10 +202,22 @@ export function MobilePostComposer({ files: propFiles, previews: propPreviews, c
       toast.error(contentType === 'text' ? 'Write something first' : 'Add a photo or video first');
       return;
     }
+    if (hasPendingMedia && preScanState.status === 'scanning') {
+      toast.message('Vybe Check is still running…');
+      return;
+    }
+    if (hasPendingMedia && preScanState.status === 'error') {
+      toast.error(preScanState.message || 'Vybe Check failed — tap retry first');
+      return;
+    }
     if (preScanState.status === 'blocked') {
       setScanMessage(preScanState.message);
       setScanCategories(preScanState.categories);
       setVybeCheckFailed(true);
+      return;
+    }
+    if (hasPendingMedia && preScanState.status !== 'safe') {
+      toast.error('Wait for Vybe Check to finish before sharing');
       return;
     }
     if (localFiles.length > 0) {
@@ -225,7 +238,7 @@ export function MobilePostComposer({ files: propFiles, previews: propPreviews, c
       );
       draft.clear();
       triggerHaptic('success');
-      toast.success('Publishing in background — Vybe Check running now.');
+      toast.success('Publishing in background — Vybe Check complete.');
       onClose();
       navigate(applyPostPublishNavigation(contentType));
       return;
@@ -317,7 +330,7 @@ export function MobilePostComposer({ files: propFiles, previews: propPreviews, c
   const hasMedia = localPreviews.length > 0;
 
   return (
-    <div className="fixed inset-0 z-[200] flex flex-col bg-background">
+    <div className="fixed inset-0 z-[200] flex flex-col bg-[#09090b]">
       {/* Overlays */}
       <AnimatePresence>
         {showCelebration && (
@@ -330,109 +343,146 @@ export function MobilePostComposer({ files: propFiles, previews: propPreviews, c
         )}
       </AnimatePresence>
 
-      {/* Frosted Glass Header */}
-      <div className="sticky top-0 z-40 backdrop-blur-xl bg-card/80 border-b border-border/30">
-        {/* Aura accent line */}
-        <div className="h-[2px] w-full bg-gradient-to-r from-transparent via-primary to-transparent opacity-60" />
-        <div className="flex items-center justify-between px-4 h-13">
-          <button onClick={onBack} className="w-9 h-9 rounded-full flex items-center justify-center hover:bg-muted/50 transition-colors">
-            <ArrowLeft className="w-5 h-5 text-foreground" />
+      {/* Studio header */}
+      <div
+        className="sticky top-0 z-40 border-b border-white/10 bg-[#09090b]/95 backdrop-blur-md"
+        style={{ paddingTop: 'max(0.5rem, env(safe-area-inset-top, 0px))' }}
+      >
+        <div className="flex h-12 items-center justify-between px-3">
+          <button
+            type="button"
+            onClick={onBack}
+            className="flex h-10 w-10 items-center justify-center rounded-full text-white/80 hover:bg-white/10"
+            aria-label="Back"
+          >
+            <ArrowLeft className="h-5 w-5" />
           </button>
-          <div className="flex items-center gap-1.5">
-            <motion.div
-              animate={{ rotate: [0, 15, -15, 0] }}
-              transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
-            >
-              <Sparkles className="w-4 h-4 text-primary" />
-            </motion.div>
-            <span className="text-sm font-bold text-foreground tracking-tight">Create Post</span>
-          </div>
+          <span className="text-sm font-semibold tracking-tight text-white">New post</span>
           <motion.button
+            type="button"
             onClick={handleSubmit}
-            disabled={isUploading}
-            whileTap={!isUploading ? { scale: 0.92 } : {}}
+            disabled={isUploading || !canSubmit || shareBlockedByVybe}
+            whileTap={!isUploading && canSubmit && !shareBlockedByVybe ? { scale: 0.94 } : {}}
             className={cn(
-              "h-9 px-5 rounded-full text-sm font-bold transition-all duration-300",
-              canSubmit && !isUploading
-                ? "bg-gradient-to-r from-primary to-accent text-primary-foreground shadow-lg shadow-primary/30"
-                : "bg-muted text-muted-foreground"
+              'h-9 rounded-full px-4 text-sm font-bold transition-colors',
+              canSubmit && !isUploading && !shareBlockedByVybe
+                ? 'bg-white text-black'
+                : 'bg-white/10 text-white/35',
             )}
           >
             {isUploading ? (
               <span className="flex items-center gap-1.5">
-                <motion.span className="w-3.5 h-3.5 rounded-full border-2 border-primary-foreground/30 border-t-primary-foreground"
-                  animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 0.6, ease: 'linear' }} />
+                <motion.span
+                  className="h-3.5 w-3.5 rounded-full border-2 border-black/20 border-t-black"
+                  animate={{ rotate: 360 }}
+                  transition={{ repeat: Infinity, duration: 0.6, ease: 'linear' }}
+                />
                 {uploadProgress}%
               </span>
+            ) : preScanState.status === 'scanning' ? (
+              'Checking…'
             ) : (
-              <span className="flex items-center gap-1.5"><Send className="w-3.5 h-3.5" /> Share</span>
+              'Publish'
             )}
           </motion.button>
         </div>
         {isUploading && (
-          <motion.div className="h-0.5 bg-gradient-to-r from-primary via-accent to-primary" initial={{ width: '0%' }} animate={{ width: `${uploadProgress}%` }} transition={{ duration: 0.3 }} />
+          <motion.div
+            className="h-0.5 bg-white"
+            initial={{ width: '0%' }}
+            animate={{ width: `${uploadProgress}%` }}
+            transition={{ duration: 0.3 }}
+          />
         )}
-        {/* Live Vybe Check status — instant feedback the AI is working */}
-        {hasMedia && preScanState.status !== 'idle' && (
-          <div className="px-4 pb-2 pt-1.5" data-no-auto-contrast>
-            <motion.div
-              key={preScanState.status}
-              initial={{ opacity: 0, y: -4 }}
-              animate={{ opacity: 1, y: 0 }}
+        {hasMedia && (
+          <div className="flex items-center gap-2 px-4 pb-2.5 pt-0.5" data-no-auto-contrast>
+            <div
               className={cn(
-                "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold border",
-                preScanState.status === 'scanning' && "border-primary/30 bg-primary/10 text-primary",
-                preScanState.status === 'safe' && "border-emerald-500/30 bg-emerald-500/10 text-emerald-400",
-                preScanState.status === 'blocked' && "border-red-500/30 bg-red-500/10 text-red-400",
+                'inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold',
+                preScanState.status === 'scanning' && 'border-white/20 bg-white/10 text-white/85',
+                preScanState.status === 'safe' && 'border-emerald-500/35 bg-emerald-500/15 text-emerald-300',
+                preScanState.status === 'blocked' && 'border-red-500/35 bg-red-500/15 text-red-300',
+                preScanState.status === 'error' && 'border-amber-500/35 bg-amber-500/15 text-amber-200',
+                preScanState.status === 'idle' && 'border-white/15 bg-white/5 text-white/50',
               )}
             >
               {preScanState.status === 'scanning' && (
                 <>
                   <motion.span
-                    className="w-3 h-3 rounded-full border-[1.5px] border-primary/30 border-t-primary"
+                    className="h-3 w-3 rounded-full border-[1.5px] border-white/25 border-t-white"
                     animate={{ rotate: 360 }}
                     transition={{ repeat: Infinity, duration: 0.7, ease: 'linear' }}
                   />
-                  Vybe Check scanning…
+                  Checking safety…
                 </>
               )}
-              {preScanState.status === 'safe' && (<><Shield className="w-3 h-3" /> Vybe Check passed</>)}
-              {preScanState.status === 'blocked' && (<><Shield className="w-3 h-3" /> Vybe Check flagged</>)}
-            </motion.div>
+              {preScanState.status === 'safe' && (
+                <>
+                  <Shield className="h-3 w-3" /> Ready to publish
+                </>
+              )}
+              {preScanState.status === 'blocked' && (
+                <>
+                  <Shield className="h-3 w-3" /> Vybe Check flagged
+                </>
+              )}
+              {preScanState.status === 'error' && (
+                <>
+                  <Shield className="h-3 w-3" /> Check failed
+                </>
+              )}
+              {preScanState.status === 'idle' && (
+                <>
+                  <Shield className="h-3 w-3" /> Preparing check…
+                </>
+              )}
+            </div>
+            {preScanState.status === 'error' && localFiles[0] && (
+              <button
+                type="button"
+                className="text-[11px] font-semibold text-white/70 underline underline-offset-2"
+                onClick={() => void runPreScan(localFiles[0])}
+              >
+                Retry
+              </button>
+            )}
           </div>
         )}
       </div>
 
-      {/* Scrollable content */}
+      {/* Scrollable studio body */}
       <div className="flex-1 overflow-y-auto" style={{ WebkitOverflowScrolling: 'touch' }}>
-        
-        {/* Immersive Media Preview */}
+        {/* Media preview card */}
         {hasMedia && (
-          <div className="relative">
+          <div className="px-3 pt-3">
             {localPreviews.length === 1 ? (
-              <div className="relative">
+              <div className="relative overflow-hidden rounded-2xl border border-white/10 bg-black">
                 {localFiles[0]?.type.startsWith('video/') ? (
-                  <video src={localPreviews[0]} className="w-full max-h-[50dvh] object-cover" controls playsInline />
+                  <video src={localPreviews[0]} className="max-h-[42dvh] w-full object-contain" controls playsInline />
                 ) : (
-                  <img src={localPreviews[0]} alt="" className="w-full max-h-[50dvh] object-cover" />
+                  <img src={localPreviews[0]} alt="" className="max-h-[42dvh] w-full object-contain" />
                 )}
-                {/* Gradient fade at bottom */}
-                <div className="absolute bottom-0 left-0 right-0 h-24 bg-gradient-to-t from-background to-transparent pointer-events-none" />
-                
-                {/* AI Enhance floating button */}
                 {!localFiles[0]?.type.startsWith('video/') && (
-                  <div className="absolute top-3 right-3 z-10">
+                  <div className="absolute right-2 top-2 z-10">
                     <AIPhotoEnhancer
                       imageFile={localFiles[0]}
                       onEnhanced={(dataUrl) => {
-                        // Update preview
-                        setLocalPreviews(prev => { const n = [...prev]; n[0] = dataUrl; return n; });
-                        // Convert data URL to File and update files array
+                        setLocalPreviews((prev) => {
+                          const n = [...prev];
+                          n[0] = dataUrl;
+                          return n;
+                        });
                         fetch(dataUrl)
-                          .then(r => r.blob())
-                          .then(blob => {
-                            const enhanced = new File([blob], `enhanced-${Date.now()}.jpg`, { type: 'image/jpeg' });
-                            setLocalFiles(prev => { const n = [...prev]; n[0] = enhanced; return n; });
+                          .then((r) => r.blob())
+                          .then((blob) => {
+                            const enhanced = new File([blob], `enhanced-${Date.now()}.jpg`, {
+                              type: 'image/jpeg',
+                            });
+                            setLocalFiles((prev) => {
+                              const n = [...prev];
+                              n[0] = enhanced;
+                              return n;
+                            });
                           });
                       }}
                     />
@@ -440,48 +490,54 @@ export function MobilePostComposer({ files: propFiles, previews: propPreviews, c
                 )}
               </div>
             ) : (
-              <div className="flex gap-1.5 overflow-x-auto scrollbar-hide px-3 pt-3 pb-1">
+              <div className="flex gap-1.5 overflow-x-auto scrollbar-hide pb-1">
                 {localPreviews.map((p, i) => (
-                  <motion.div
+                  <div
                     key={i}
-                    initial={{ opacity: 0, scale: 0.85 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    transition={{ delay: i * 0.04, type: 'spring', stiffness: 400, damping: 25 }}
-                    className="relative w-24 h-24 rounded-2xl overflow-hidden flex-shrink-0 ring-1 ring-border/30"
+                    className="relative h-24 w-24 flex-shrink-0 overflow-hidden rounded-xl border border-white/10"
                   >
-                    <img src={p} alt="" className="w-full h-full object-cover" />
-                    <div className="absolute top-1.5 left-1.5 w-5 h-5 rounded-full bg-primary/90 text-primary-foreground text-[10px] font-bold flex items-center justify-center backdrop-blur-sm">{i + 1}</div>
-                  </motion.div>
+                    <img src={p} alt="" className="h-full w-full object-cover" />
+                    <div className="absolute left-1.5 top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-white text-[10px] font-bold text-black">
+                      {i + 1}
+                    </div>
+                  </div>
                 ))}
               </div>
             )}
           </div>
         )}
 
-        {/* Identity + Visibility pill row */}
-        <div className="flex items-center gap-2.5 px-4 pt-3 pb-1">
-          <div className="w-9 h-9 rounded-full p-[1.5px] bg-gradient-to-br from-primary via-accent to-primary flex-shrink-0">
-            <div className="w-full h-full rounded-full overflow-hidden bg-card">
-              {profile?.avatar_url ? (
-                <img src={profile.avatar_url} alt="" className="w-full h-full object-cover" />
-              ) : (
-                <div className="w-full h-full bg-muted flex items-center justify-center text-xs font-bold text-muted-foreground">
-                  {profile?.username?.[0]?.toUpperCase() || '?'}
-                </div>
-              )}
-            </div>
+        {/* Identity + audience */}
+        <div className="flex items-center gap-2.5 px-4 pb-1 pt-4">
+          <div className="h-9 w-9 flex-shrink-0 overflow-hidden rounded-full border border-white/15 bg-white/10">
+            {profile?.avatar_url ? (
+              <img src={profile.avatar_url} alt="" className="h-full w-full object-cover" />
+            ) : (
+              <div className="flex h-full w-full items-center justify-center text-xs font-bold text-white/50">
+                {profile?.username?.[0]?.toUpperCase() || '?'}
+              </div>
+            )}
           </div>
           <div className="flex items-center gap-2">
-            {profile && <StyledUsername userId={profile.id} username={profile.username} displayName={profile.display_name} className="text-sm font-semibold" />}
-            <button onClick={() => setShowVisibility(!showVisibility)}
-              className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-muted/60 text-muted-foreground hover:bg-muted transition-colors backdrop-blur-sm">
-              <currentVisibility.icon className="w-3 h-3" /> {currentVisibility.label}
-              <ChevronDown className={cn("w-2.5 h-2.5 transition-transform", showVisibility && "rotate-180")} />
+            {profile && (
+              <StyledUsername
+                userId={profile.id}
+                username={profile.username}
+                displayName={profile.display_name}
+                className="text-sm font-semibold text-white"
+              />
+            )}
+            <button
+              type="button"
+              onClick={() => setShowVisibility(!showVisibility)}
+              className="flex items-center gap-1 rounded-full bg-white/10 px-2 py-0.5 text-[10px] font-medium text-white/70"
+            >
+              <currentVisibility.icon className="h-3 w-3" /> {currentVisibility.label}
+              <ChevronDown className={cn('h-2.5 w-2.5 transition-transform', showVisibility && 'rotate-180')} />
             </button>
           </div>
         </div>
 
-        {/* Visibility dropdown */}
         <AnimatePresence>
           {showVisibility && (
             <motion.div
@@ -491,13 +547,22 @@ export function MobilePostComposer({ files: propFiles, previews: propPreviews, c
               className="overflow-hidden px-4"
             >
               <div className="flex gap-2 pb-2">
-                {visibilityOptions.map(opt => (
-                  <button key={opt.id} onClick={() => { setVisibility(opt.id); setShowVisibility(false); }}
-                    className={cn("flex-1 flex items-center justify-center gap-1.5 px-2 py-2 rounded-xl text-[11px] font-medium transition-all border",
-                      visibility === opt.id 
-                        ? "border-primary/50 bg-primary/10 text-primary" 
-                        : "border-border/30 text-muted-foreground hover:border-primary/30")}>
-                    <opt.icon className="w-3 h-3" /> {opt.label}
+                {visibilityOptions.map((opt) => (
+                  <button
+                    key={opt.id}
+                    type="button"
+                    onClick={() => {
+                      setVisibility(opt.id);
+                      setShowVisibility(false);
+                    }}
+                    className={cn(
+                      'flex flex-1 items-center justify-center gap-1.5 rounded-xl border px-2 py-2 text-[11px] font-medium transition-all',
+                      visibility === opt.id
+                        ? 'border-white/40 bg-white/15 text-white'
+                        : 'border-white/10 text-white/50',
+                    )}
+                  >
+                    <opt.icon className="h-3 w-3" /> {opt.label}
                   </button>
                 ))}
               </div>
@@ -505,7 +570,6 @@ export function MobilePostComposer({ files: propFiles, previews: propPreviews, c
           )}
         </AnimatePresence>
 
-        {/* Resume Draft Banner */}
         <DraftBanner
           show={!!draft.existingDraft}
           preview={draft.existingDraft?.caption}
@@ -514,61 +578,55 @@ export function MobilePostComposer({ files: propFiles, previews: propPreviews, c
           onDismiss={draft.dismissExisting}
         />
 
-
-        {/* Floating Caption */}
         <div className="px-4 py-2">
           <textarea
             ref={captionRef}
             value={caption}
             onChange={(e) => setCaption(e.target.value)}
-            placeholder={contentType === 'text' ? "What's on your mind?" : "Write a caption..."}
+            placeholder={contentType === 'text' ? "What's on your mind?" : 'Write a caption…'}
             className={cn(
-              "w-full bg-muted/30 backdrop-blur-sm rounded-2xl px-4 py-3 text-foreground placeholder:text-muted-foreground/60 resize-none outline-none leading-relaxed border border-border/20 focus:border-primary/30 transition-colors",
-              contentType === 'text' ? "text-lg min-h-[120px]" : "text-[15px] min-h-[52px]"
+              'w-full resize-none rounded-2xl border border-white/10 bg-white/[0.06] px-4 py-3 text-white outline-none placeholder:text-white/35 focus:border-white/25',
+              contentType === 'text' ? 'min-h-[120px] text-lg' : 'min-h-[52px] text-[15px]',
             )}
             maxLength={2200}
             rows={1}
           />
-          <div className="flex items-center justify-between mt-1.5 px-1">
-            <span className="text-[10px] text-muted-foreground/50">{caption.length}/2200</span>
+          <div className="mt-1.5 flex items-center justify-between px-1">
+            <span className="text-[10px] text-white/35">{caption.length}/2200</span>
           </div>
         </div>
 
-        {/* AI Caption — gradient pill */}
         <div className="px-4 pb-3">
-          <AICaptionGenerator tags={tags} contentType={contentType === 'text' ? 'post' : contentType} onSelectCaption={setCaption} />
+          <AICaptionGenerator
+            tags={tags}
+            contentType={contentType === 'text' ? 'post' : contentType}
+            onSelectCaption={setCaption}
+          />
         </div>
 
-        {/* Person tags + hashtag section */}
-        <div className="px-4 pb-4 space-y-3">
+        <div className="space-y-3 px-4 pb-8">
           <PersonTagPicker selectedIds={taggedUserIds} onChange={setTaggedUserIds} />
-          <button 
-            onClick={() => setShowTags(!showTags)}
-            className="flex items-center justify-between w-full mb-2"
-          >
+          <button type="button" onClick={() => setShowTags(!showTags)} className="mb-2 flex w-full items-center justify-between">
             <div className="flex items-center gap-1.5">
-              <Tag className={cn("w-3.5 h-3.5", tags.length > 0 ? "text-primary" : "text-destructive")} />
-              <span className={cn("text-xs font-semibold", tags.length > 0 ? "text-primary" : "text-destructive")}>
-                {tags.length === 0 ? 'Tags required' : `${tags.length} tag${tags.length > 1 ? 's' : ''}`}
+              <Tag className={cn('h-3.5 w-3.5', tags.length > 0 ? 'text-white' : 'text-white/45')} />
+              <span className={cn('text-xs font-semibold', tags.length > 0 ? 'text-white' : 'text-white/45')}>
+                {tags.length === 0 ? 'Tags (optional)' : `${tags.length} tag${tags.length > 1 ? 's' : ''}`}
               </span>
             </div>
-            <ChevronUp className={cn("w-3.5 h-3.5 text-muted-foreground transition-transform", !showTags && "rotate-180")} />
+            <ChevronUp className={cn('h-3.5 w-3.5 text-white/40 transition-transform', !showTags && 'rotate-180')} />
           </button>
 
-          {/* Active tags as gradient chips */}
           {tags.length > 0 && (
-            <div className="flex flex-wrap gap-1.5 mb-2">
-              {tags.map((tag, i) => (
-                <motion.span
+            <div className="mb-2 flex flex-wrap gap-1.5">
+              {tags.map((tag) => (
+                <button
                   key={tag}
-                  initial={{ scale: 0.5, opacity: 0 }}
-                  animate={{ scale: 1, opacity: 1 }}
-                  transition={{ delay: i * 0.03, type: 'spring', stiffness: 500, damping: 22 }}
-                  layout
-                  className="inline-flex items-center gap-1 text-xs font-semibold bg-gradient-to-r from-primary/15 to-accent/15 text-primary px-3 py-1.5 rounded-full cursor-pointer hover:from-primary/25 hover:to-accent/25 transition-all border border-primary/20"
-                  onClick={() => handleRemoveTag(tag)}>
-                  #{tag} <X className="w-2.5 h-2.5 opacity-60" />
-                </motion.span>
+                  type="button"
+                  className="inline-flex items-center gap-1 rounded-full border border-white/15 bg-white/10 px-3 py-1.5 text-xs font-semibold text-white"
+                  onClick={() => handleRemoveTag(tag)}
+                >
+                  #{tag} <X className="h-2.5 w-2.5 opacity-60" />
+                </button>
               ))}
             </div>
           )}
@@ -581,25 +639,37 @@ export function MobilePostComposer({ files: propFiles, previews: propPreviews, c
                 exit={{ height: 0, opacity: 0 }}
                 className="overflow-hidden"
               >
-                <div className="flex items-center gap-2 mb-2.5">
-                  <div className="flex-1 relative">
-                    <Hash className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground/50" />
-                    <input type="text" value={tagInput} onChange={(e) => setTagInput(e.target.value.replace(/\s/g, ''))} onKeyDown={handleTagInputKeyDown}
-                      placeholder="Add a tag..."
-                      className="w-full pl-8 pr-3 py-2.5 text-xs bg-muted/30 rounded-full border border-border/20 text-foreground placeholder:text-muted-foreground/50 outline-none focus:border-primary/40 transition-all backdrop-blur-sm"
-                      maxLength={30} />
+                <div className="mb-2.5 flex items-center gap-2">
+                  <div className="relative flex-1">
+                    <Hash className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-white/35" />
+                    <input
+                      type="text"
+                      value={tagInput}
+                      onChange={(e) => setTagInput(e.target.value.replace(/\s/g, ''))}
+                      onKeyDown={handleTagInputKeyDown}
+                      placeholder="Add a tag…"
+                      className="w-full rounded-full border border-white/10 bg-white/[0.06] py-2.5 pl-8 pr-3 text-xs text-white outline-none placeholder:text-white/35 focus:border-white/25"
+                      maxLength={30}
+                    />
                   </div>
                   {tagInput.trim() && (
-                    <motion.button initial={{ scale: 0 }} animate={{ scale: 1 }} onClick={() => handleAddTag(tagInput)}
-                      className="h-9 px-4 rounded-full bg-gradient-to-r from-primary to-accent text-primary-foreground text-xs font-bold shadow-md shadow-primary/20">Add</motion.button>
+                    <button
+                      type="button"
+                      onClick={() => handleAddTag(tagInput)}
+                      className="h-9 rounded-full bg-white px-4 text-xs font-bold text-black"
+                    >
+                      Add
+                    </button>
                   )}
                 </div>
-
-                {/* Smart suggestions */}
-                <div className="flex gap-1.5 overflow-x-auto scrollbar-hide pb-1">
+                <div className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-hide">
                   {filteredSuggestions.slice(0, 8).map((s) => (
-                    <button key={s.tag} onClick={() => handleAddTag(s.tag)}
-                      className="flex-shrink-0 text-[11px] px-3 py-1.5 rounded-full border border-border/20 text-muted-foreground/70 hover:bg-primary/10 hover:text-primary hover:border-primary/30 transition-all font-medium backdrop-blur-sm">
+                    <button
+                      key={s.tag}
+                      type="button"
+                      onClick={() => handleAddTag(s.tag)}
+                      className="flex-shrink-0 rounded-full border border-white/10 px-3 py-1.5 text-[11px] font-medium text-white/55"
+                    >
                       {s.emoji} #{s.tag}
                     </button>
                   ))}

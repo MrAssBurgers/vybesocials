@@ -2,6 +2,7 @@ import { useState, useRef, memo, useCallback, useMemo, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { ProfileLink } from '@/components/profile/ProfileLink';
 import { WhyAmISeeingThisDialog } from './WhyAmISeeingThisDialog';
+import { ReportContentDialog } from '@/components/safety/ReportContentDialog';
 import { ReactionPicker, ReactionSummary } from '@/components/reactions/ReactionPicker';
 import { ReactionType } from '@/lib/reactions';
 import { AnimatePresence, motion } from 'framer-motion';
@@ -423,6 +424,7 @@ export const PostCard = memo(function PostCard({
   const [showCommentSheet, setShowCommentSheet] = useState(false);
   const [isHidden, setIsHidden] = useState(false);
   const [whyOpen, setWhyOpen] = useState(false);
+  const [reportOpen, setReportOpen] = useState(false);
 
   const signedMediaUrl = useFastSignedUrl(post.media_url);
   const normalizedMediaUrl = normalizeMediaUrl(post.media_url);
@@ -453,11 +455,13 @@ export const PostCard = memo(function PostCard({
     [post.created_at]
   );
 
-  const handleReport = useCallback(async () => {
+  const handleReport = useCallback(() => {
     if (!profile) return;
-    const reason = prompt('Why are you reporting this post?');
-    if (!reason) return;
+    setReportOpen(true);
+  }, [profile]);
 
+  const submitPostReport = useCallback(async (reason: string) => {
+    if (!profile) return;
     const { error } = await db.from('reports').insert({
       reporter_id: profile.id,
       reported_user_id: post.author?.id ?? null,
@@ -467,7 +471,7 @@ export const PostCard = memo(function PostCard({
     if (error) {
       console.error('[Report] insert failed', error);
       toast.error(`Failed to report post: ${error.message}`);
-      return;
+      throw error;
     }
     toast.success('Post reported. We will review it shortly.');
   }, [profile, post.id, post.author?.id]);
@@ -1097,6 +1101,13 @@ export const PostCard = memo(function PostCard({
         isTrending={(post.like_count + post.comment_count) >= 25}
       />
 
+      <ReportContentDialog
+        open={reportOpen}
+        onOpenChange={setReportOpen}
+        title="Report post"
+        description="Why are you reporting this post?"
+        onSubmit={submitPostReport}
+      />
 
       {/* Comment Sheet */}
       <CommentSheet

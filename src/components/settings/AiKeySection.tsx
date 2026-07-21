@@ -7,10 +7,23 @@ import { Label } from '@/components/ui/label';
 import { invokeFunction } from '@/lib/firebase/functionsService';
 import { useAiUsage } from '@/hooks/useAiUsage';
 
+function invokeErrorMessage(err: unknown, fallback: string): string {
+  if (err instanceof Error && err.message) return err.message;
+  if (err && typeof err === 'object' && 'message' in err) {
+    const msg = String((err as { message?: unknown }).message || '').trim();
+    if (msg) return msg;
+  }
+  return fallback;
+}
+
 export function AiKeySection() {
   const { usage, refresh } = useAiUsage();
   const [apiKey, setApiKey] = useState('');
   const [saving, setSaving] = useState(false);
+  /** Optimistic flag so a successful save still shows "connected" if refresh flakes. */
+  const [justSaved, setJustSaved] = useState(false);
+
+  const googleConnected = usage.providers.google || justSaved;
 
   const saveKey = async () => {
     if (!apiKey.trim()) {
@@ -25,11 +38,12 @@ export function AiKeySection() {
       });
       if (error) throw error;
       setApiKey('');
+      setJustSaved(true);
       toast.success('API key saved — AI usage will bill your Google account');
       await refresh();
       window.dispatchEvent(new CustomEvent('vybe-ai-key-saved'));
     } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : 'Could not save API key');
+      toast.error(invokeErrorMessage(err, 'Could not save API key'));
     } finally {
       setSaving(false);
     }
@@ -40,10 +54,11 @@ export function AiKeySection() {
     try {
       const { error } = await invokeFunction('delete-user-ai-key', { provider: 'google' });
       if (error) throw error;
+      setJustSaved(false);
       toast.success('API key removed');
       await refresh();
     } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : 'Could not remove API key');
+      toast.error(invokeErrorMessage(err, 'Could not remove API key'));
     } finally {
       setSaving(false);
     }
@@ -65,11 +80,11 @@ export function AiKeySection() {
 
       <div className="rounded-2xl border border-border/60 bg-card/50 p-4 space-y-3">
         <p className="text-sm font-medium">Today&apos;s usage (platform AI)</p>
-        <UsageRow label="Chat messages" bucket={usage.chat} unlimited={usage.hasByok} />
-        <UsageRow label="Image generation" bucket={usage.image_gen} unlimited={usage.hasByok} />
-        <UsageRow label="DM assist" bucket={usage.assist} unlimited={usage.hasByok} />
-        <UsageRow label="Smart replies" bucket={usage.smart_replies} unlimited={usage.hasByok} />
-        {usage.isPremium && !usage.hasByok && (
+        <UsageRow label="Chat messages" bucket={usage.chat} unlimited={usage.hasByok || justSaved} />
+        <UsageRow label="Image generation" bucket={usage.image_gen} unlimited={usage.hasByok || justSaved} />
+        <UsageRow label="DM assist" bucket={usage.assist} unlimited={usage.hasByok || justSaved} />
+        <UsageRow label="Smart replies" bucket={usage.smart_replies} unlimited={usage.hasByok || justSaved} />
+        {usage.isPremium && !(usage.hasByok || justSaved) && (
           <p className="text-xs text-muted-foreground">VYBE+ members get higher daily limits.</p>
         )}
       </div>
@@ -79,7 +94,7 @@ export function AiKeySection() {
           <KeyRound className="w-4 h-4 text-muted-foreground" />
           <p className="text-sm font-medium">Your API key (optional)</p>
         </div>
-        {usage.providers.google ? (
+        {googleConnected ? (
           <div className="flex items-center justify-between gap-3">
             <p className="text-sm text-emerald-600 dark:text-emerald-400">Google AI key connected</p>
             <Button variant="outline" size="sm" onClick={removeKey} disabled={saving}>

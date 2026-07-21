@@ -67,6 +67,20 @@ export async function signInWithNativeCredential(
       return { data: { session: null }, error: mapOAuthLinkError(error) };
     }
 
+    // [iOS-only] Persist AuthenticationServices name on first SIWA.
+    if (success.provider === 'apple') {
+      try {
+        const { captureAndApplyAppleName } = await import('@/lib/appleNameCapture');
+        await captureAndApplyAppleName({
+          givenName: success.givenName,
+          familyName: success.familyName,
+          authUid: data.session?.user?.id ?? auth.currentUser?.uid ?? null,
+        });
+      } catch {
+        /* non-fatal */
+      }
+    }
+
     assertLegacyPathNotUsed({
       provider: success.provider,
       usedNativeCallback: false,

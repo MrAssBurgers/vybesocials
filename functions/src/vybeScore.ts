@@ -203,7 +203,7 @@ async function checkScoreMilestones(userId: string): Promise<void> {
 }
 
 export const rebuildVybeScoreForUser = onCall(
-  { region: 'us-central1', timeoutSeconds: 300, memory: '512MiB' },
+  { region: 'us-central1', timeoutSeconds: 300, memory: '512MiB', cpu: 1 },
   async (request) => {
     await requireAdmin(request);
     const data = (request.data || {}) as {

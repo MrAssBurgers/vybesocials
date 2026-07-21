@@ -11,3 +11,4 @@ export { VybeSnapEditor } from './VybeSnapEditor';
 export { SnapOverlayDraggable } from './SnapOverlayDraggable';
 export { CameraTopControls } from './CameraTopControls';
 export { CameraZoomIndicator } from './CameraZoom';
+export { ArFiltersComingSoon } from './ArFiltersComingSoon';

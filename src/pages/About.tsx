@@ -142,7 +142,7 @@ export default function About() {
               <div className="flex-shrink-0 w-8 h-8 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold text-sm">3</div>
               <div>
                 <h3 className="font-semibold text-foreground">Share & Create</h3>
-                <p className="text-sm text-muted-foreground mt-1">Post photos, stories, clips, and text updates. Use the built-in camera with AR filters, add music, collaborate with other creators, and engage with your audience.</p>
+                <p className="text-sm text-muted-foreground mt-1">Post photos, stories, clips, and text updates. Use the built-in camera, add music, collaborate with other creators, and engage with your audience. AR filters coming soon.</p>
               </div>
             </div>
             <div className="flex gap-4">

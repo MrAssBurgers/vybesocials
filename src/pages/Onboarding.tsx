@@ -27,6 +27,11 @@ import {
   normalizeUsername,
   resolveSignupUsername,
 } from '@/lib/username';
+import {
+  clearAppleProvidedName,
+  isAppleAuthUser,
+  readAppleProvidedName,
+} from '@/lib/appleNameCapture';
 
 /** Lock document scroll + hide bottom nav (same shell pattern as Landing). */
 function useOnboardingShell() {
@@ -227,12 +232,29 @@ export default function Onboarding({ onInviteNavigate, isInviteMode = false }: O
   const seededDisplayNameRef = useRef(false);
   useEffect(() => {
     if (seededDisplayNameRef.current) return;
+    const appleName = readAppleProvidedName();
     const existingDisplay = profile?.display_name?.trim();
-    if (existingDisplay) {
+    const existingFirst = (profile as { first_name?: string } | null)?.first_name?.trim() || '';
+    const existingLast = (profile as { last_name?: string } | null)?.last_name?.trim() || '';
+    const metaName = String(user?.user_metadata?.full_name || user?.user_metadata?.name || '').trim();
+
+    if (appleName || existingDisplay || existingFirst || existingLast || metaName) {
       seededDisplayNameRef.current = true;
-      setProfileData(prev => (prev.displayName ? prev : { ...prev, displayName: existingDisplay }));
+      setProfileData((prev) => ({
+        ...prev,
+        firstName: prev.firstName || appleName?.firstName || existingFirst || '',
+        lastName: prev.lastName || appleName?.lastName || existingLast || '',
+        displayName:
+          prev.displayName ||
+          appleName?.displayName ||
+          existingDisplay ||
+          metaName ||
+          '',
+      }));
     }
-  }, [profile?.display_name]);
+  }, [profile?.display_name, profile, user?.user_metadata?.full_name, user?.user_metadata?.name]);
+
+  const appleUser = isAppleAuthUser(user);
 
   // Mark username valid when user already has a real handle (non-OAuth placeholder).
   useEffect(() => {
@@ -253,11 +275,34 @@ export default function Onboarding({ onInviteNavigate, isInviteMode = false }: O
       case 1: return usernameValid; // Username
       case 2: return dateOfBirth !== null && (userAge === undefined || userAge >= 0); // Age (all ages allowed, under-13 gets parental controls)
       case 3: return interests.length >= 3; // Interests
-      case 4: return usernameValid && profileData.displayName.trim().length > 0 && profileData.firstName.length > 0 && profileData.lastName.length > 0; // Profile
+      case 4: {
+        // Guideline 4 / SIWA: do not re-require name Apple already provided (or skip name when Apple auth).
+        if (appleUser) {
+          return usernameValid;
+        }
+        return (
+          usernameValid &&
+          profileData.displayName.trim().length > 0 &&
+          profileData.firstName.length > 0 &&
+          profileData.lastName.length > 0
+        );
+      }
       case 5: return legalAccepted; // Legal
       default: return true;
     }
-  }, [step, needsUsername, usernameValid, dateOfBirth, userAge, interests.length, profileData.displayName, profileData.firstName.length, profileData.lastName.length, legalAccepted]);
+  }, [
+    step,
+    needsUsername,
+    usernameValid,
+    dateOfBirth,
+    userAge,
+    interests.length,
+    profileData.displayName,
+    profileData.firstName.length,
+    profileData.lastName.length,
+    legalAccepted,
+    appleUser,
+  ]);
 
   const handleNext = () => {
     haptics.impact();
@@ -311,17 +356,23 @@ export default function Onboarding({ onInviteNavigate, isInviteMode = false }: O
       }
 
       const finalUsername = chosenUsername;
+      const appleStash = readAppleProvidedName();
       const trimmedDisplay = profileData.displayName.trim();
-      const finalDisplayName = trimmedDisplay
-        || [profileData.firstName, profileData.lastName].filter(Boolean).join(' ').trim()
-        || finalUsername;
+      const finalDisplayName =
+        trimmedDisplay ||
+        appleStash?.displayName ||
+        [profileData.firstName || appleStash?.firstName, profileData.lastName || appleStash?.lastName]
+          .filter(Boolean)
+          .join(' ')
+          .trim() ||
+        finalUsername;
 
       await ensureProfileRow(user.id);
 
       await updateUserProfile(user.id, {
         username: finalUsername?.toLowerCase(),
-        first_name: profileData.firstName,
-        last_name: profileData.lastName,
+        first_name: profileData.firstName || appleStash?.firstName || '',
+        last_name: profileData.lastName || appleStash?.lastName || '',
         display_name: finalDisplayName,
         bio: profileData.bio,
         link_url: profileData.linkUrl,
@@ -341,6 +392,7 @@ export default function Onboarding({ onInviteNavigate, isInviteMode = false }: O
         }
       }
 
+      clearAppleProvidedName();
       clearSignupUsername();
 
       await refreshProfile();
@@ -495,6 +547,7 @@ export default function Onboarding({ onInviteNavigate, isInviteMode = false }: O
             onUsernameChange={setUsername}
             onUsernameValidChange={setUsernameValid}
             authUserId={user?.id}
+            nameOptional={appleUser}
           />
         );
       case 5:

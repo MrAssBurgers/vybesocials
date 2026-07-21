@@ -61,12 +61,17 @@ function useSecretStatuses() {
   return useQuery({
     queryKey: ['admin-secret-statuses'],
     queryFn: async (): Promise<Record<string, boolean>> => {
-      const { data, error } = await db.functions.invoke('manage-secrets', {
-        body: { action: 'list' },
-      });
+      // manage-secrets is intentionally unimplemented (Firebase Secret Manager
+      // cannot be written from the client). Probe via check-debug-secrets instead.
+      const { data, error } = await db.functions.invoke('check-debug-secrets');
       if (error) throw error;
-      return data.secrets || {};
+      const d = (data || {}) as Record<string, boolean>;
+      return {
+        STRIPE_SECRET_KEY: !!d.has_stripe,
+        STRIPE_WEBHOOK_SECRET: !!d.has_stripe_webhook,
+      };
     },
+    retry: 1,
   });
 }
 
@@ -117,78 +122,28 @@ function StatusBadge({ label, ok, value }: { label: string; ok: boolean; value?:
   );
 }
 
-// ─── Secret Row Component ───
+// ─── Secret status row (CLI-only — manageSecrets is intentionally unimplemented) ───
 
-function SecretRow({ name, label, description, placeholder, isSet, onSaved }: {
-  name: string; label: string; description: string; placeholder: string; isSet: boolean; onSaved: () => void;
+function SecretStatusRow({ label, description, cliHint, isSet }: {
+  label: string; description: string; cliHint: string; isSet: boolean;
 }) {
-  const [editing, setEditing] = useState(false);
-  const [value, setValue] = useState('');
-  const [show, setShow] = useState(false);
-  const [saving, setSaving] = useState(false);
-
-  const handleSave = async () => {
-    if (!value.trim()) { toast.error('Please enter a value'); return; }
-    setSaving(true);
-    try {
-      const { data, error } = await db.functions.invoke('manage-secrets', {
-        body: { action: 'set', secret_name: name, secret_value: value.trim() },
-      });
-      if (error) throw error;
-      if (data?.error) throw new Error(data.error);
-      toast.success(`${label} saved`);
-      setEditing(false);
-      setValue('');
-      onSaved();
-    } catch (err: any) {
-      toast.error(err.message || 'Failed to save');
-    } finally {
-      setSaving(false);
-    }
-  };
-
   return (
-    <div className="rounded-xl border border-border/50 p-4 space-y-3 bg-muted/20">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
+    <div className="rounded-xl border border-border/50 p-4 space-y-2 bg-muted/20">
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-2.5 min-w-0">
+          <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
             <Key className="h-4 w-4 text-primary" />
           </div>
-          <div>
+          <div className="min-w-0">
             <p className="font-medium text-sm">{label}</p>
             <p className="text-[11px] text-muted-foreground">{description}</p>
           </div>
         </div>
-        <Badge variant="outline" className={`text-[11px] ${isSet ? 'bg-green-500/10 text-green-500 border-green-500/30' : 'bg-orange-500/10 text-orange-500 border-orange-500/30'}`}>
+        <Badge variant="outline" className={`shrink-0 text-[11px] ${isSet ? 'bg-green-500/10 text-green-500 border-green-500/30' : 'bg-orange-500/10 text-orange-500 border-orange-500/30'}`}>
           {isSet ? <><CheckCircle2 className="h-3 w-3 mr-1" />Set</> : <><XCircle className="h-3 w-3 mr-1" />Not set</>}
         </Badge>
       </div>
-      {editing ? (
-        <div className="space-y-2">
-          <div className="relative">
-            <Input
-              type={show ? 'text' : 'password'}
-              value={value}
-              onChange={(e) => setValue(e.target.value)}
-              placeholder={placeholder}
-              className="pr-10 font-mono text-xs"
-            />
-            <button type="button" onClick={() => setShow(!show)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
-              {show ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-            </button>
-          </div>
-          <div className="flex gap-2">
-            <Button size="sm" onClick={handleSave} disabled={saving} className="gap-1.5 h-8 text-xs">
-              {saving ? <Loader2 className="h-3 w-3 animate-spin" /> : <Save className="h-3 w-3" />} Save Key
-            </Button>
-            <Button size="sm" variant="ghost" onClick={() => { setEditing(false); setValue(''); }} className="h-8 text-xs">Cancel</Button>
-          </div>
-        </div>
-      ) : (
-        <Button size="sm" variant="outline" onClick={() => setEditing(true)} className="h-8 text-xs">
-          {isSet ? 'Update Key' : 'Set Key'}
-        </Button>
-      )}
+      <p className="text-[11px] font-mono text-muted-foreground break-all pl-[42px]">{cliHint}</p>
     </div>
   );
 }
@@ -506,30 +461,25 @@ export default function AdminSettings() {
             </div>
           </div>
 
-          <SecretRow
-            name="STRIPE_SECRET_KEY"
+          <SecretStatusRow
             label="Stripe Secret Key"
-            description={`Server-side key for payment processing (${mode === 'test' ? 'sk_test_...' : 'sk_live_...'})`}
-            placeholder={mode === 'test' ? 'sk_test_...' : 'sk_live_...'}
+            description={`Server-side key for payment processing (${mode === 'test' ? 'sk_test_…' : 'sk_live_…'})`}
+            cliHint="STRIPE_SECRET_KEY=sk_… npm run setup:stripe-secrets"
             isSet={secretKeySet}
-            onSaved={() => {
-              queryClient.invalidateQueries({ queryKey: ['admin-secret-statuses'] });
-              queryClient.invalidateQueries({ queryKey: ['stripe-config-status'] });
-            }}
           />
-          <SecretRow
-            name="STRIPE_WEBHOOK_SECRET"
+          <SecretStatusRow
             label="Stripe Webhook Secret"
-            description="Verify incoming webhook signatures (whsec_...)"
-            placeholder="whsec_..."
+            description="Verify incoming webhook signatures (whsec_…)"
+            cliHint="STRIPE_WEBHOOK_SECRET=whsec_… npm run setup:stripe-secrets"
             isSet={webhookSet}
-            onSaved={() => queryClient.invalidateQueries({ queryKey: ['admin-secret-statuses'] })}
           />
 
-          <div className="flex items-start gap-2.5 p-3 rounded-lg bg-blue-500/10 border border-blue-500/20">
-            <Info className="h-3.5 w-3.5 text-blue-500 shrink-0 mt-0.5" />
+          <div className="flex items-start gap-2.5 p-3 rounded-lg bg-amber-500/10 border border-amber-500/20">
+            <AlertCircle className="h-3.5 w-3.5 text-amber-500 shrink-0 mt-0.5" />
             <p className="text-[11px] text-muted-foreground">
-              Keys are read automatically by all backend functions. Changes take effect immediately for every user.
+              Server secrets cannot be saved from this page. Set them with the CLI commands above
+              (Firebase Secret Manager), then redeploy the Stripe functions. Pasting a key here used to
+              look like it saved but always failed.
             </p>
           </div>
         </motion.div>

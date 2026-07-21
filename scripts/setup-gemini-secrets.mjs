@@ -123,9 +123,16 @@ console.log('\nBuilding Cloud Functions…');
 const build = spawnSync('npm', ['run', 'build'], { cwd: 'functions', stdio: 'inherit' });
 if (build.status !== 0) process.exit(build.status ?? 1);
 
-const onlyArg = GEMINI_FUNCTIONS.map((n) => `functions:${n}`).join(',');
-console.log(`\nDeploying ${GEMINI_FUNCTIONS.length} GEMINI-bound functions…`);
-runFirebase(['deploy', '--only', onlyArg], undefined);
+// Batch deploys to avoid Cloud Run "Quota exceeded for total allowable CPU" when
+// many Gen2 revisions roll at once (even with fractional CPU).
+const BATCH_SIZE = 6;
+console.log(`\nDeploying ${GEMINI_FUNCTIONS.length} GEMINI-bound functions in batches of ${BATCH_SIZE}…`);
+for (let i = 0; i < GEMINI_FUNCTIONS.length; i += BATCH_SIZE) {
+  const batch = GEMINI_FUNCTIONS.slice(i, i + BATCH_SIZE);
+  const onlyArg = batch.map((n) => `functions:${n}`).join(',');
+  console.log(`\nBatch ${Math.floor(i / BATCH_SIZE) + 1}: ${batch.join(', ')}`);
+  runFirebase(['deploy', '--only', onlyArg], undefined);
+}
 
 console.log(`
 Done. VYBE-AI + smart replies + briefs should use the latest GEMINI secret.

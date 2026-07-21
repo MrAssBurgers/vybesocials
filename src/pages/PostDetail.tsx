@@ -499,6 +499,12 @@ export default function PostDetailPage() {
   const handleBlockUser = async () => {
     if (!profile || !post) return;
     await db.from('blocked_users').insert({ blocker_id: profile.id, blocked_id: post.author.id });
+    queryClient.setQueryData<string[]>(['blocked-user-ids', profile.id], (prev) => {
+      const next = new Set(prev || []);
+      next.add(post.author.id);
+      return Array.from(next);
+    });
+    await queryClient.invalidateQueries({ queryKey: ['blocked-user-ids', profile.id] });
     toast.success(`@${post.author.username} blocked`);
   };
 

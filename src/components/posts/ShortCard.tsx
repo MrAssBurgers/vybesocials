@@ -36,6 +36,7 @@ import { HoldToShare } from '@/components/share/HoldToShare';
 import { FollowPlusButton } from '@/components/clips/FollowPlusButton';
 import { isValidMediaUrl } from '@/lib/mediaUrl';
 import { usePostReaction } from '@/hooks/usePostReaction';
+import { ReportContentDialog } from '@/components/safety/ReportContentDialog';
 
 interface ShortCardProps {
   post: {
@@ -102,6 +103,7 @@ export const ShortCard = memo(function ShortCard({ post, isActive, globalMuted =
   const [showCommentSheet, setShowCommentSheet] = useState(false);
   const [isHidden, setIsHidden] = useState(false);
   const [showShareSheet, setShowShareSheet] = useState(false);
+  const [reportOpen, setReportOpen] = useState(false);
   const hasCountedInitialView = useRef(false);
   const lastTapTime = useRef(0);
   const holdTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -345,11 +347,13 @@ export const ShortCard = memo(function ShortCard({ post, isActive, globalMuted =
     }
   };
 
-  const handleReport = async () => {
+  const handleReport = () => {
     if (!profile) return;
-    const reason = prompt('Why are you reporting this clip?');
-    if (!reason) return;
+    setReportOpen(true);
+  };
 
+  const submitClipReport = async (reason: string) => {
+    if (!profile) return;
     const { error } = await db.from('reports').insert({
       reporter_id: profile.id,
       reported_user_id: (post as any).author?.id ?? null,
@@ -359,7 +363,7 @@ export const ShortCard = memo(function ShortCard({ post, isActive, globalMuted =
     if (error) {
       console.error('[Report] insert failed', error);
       toast.error(`Failed to report clip: ${error.message}`);
-      return;
+      throw error;
     }
     toast.success('Clip reported. We will review it shortly.');
   };
@@ -727,6 +731,14 @@ export const ShortCard = memo(function ShortCard({ post, isActive, globalMuted =
           onOpenChange={setPremiumMemeBanOpen}
         />
       )}
+
+      <ReportContentDialog
+        open={reportOpen}
+        onOpenChange={setReportOpen}
+        title="Report clip"
+        description="Why are you reporting this clip?"
+        onSubmit={submitClipReport}
+      />
     </div>
   );
 });

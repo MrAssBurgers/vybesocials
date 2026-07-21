@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Zap, ZapOff, Image, Music, Timer, Sparkles, MessageCircle, SlidersHorizontal, Grid3X3, Sun } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { CameraFilterCarousel, PRESET_FILTERS, getFilterCSS } from './CameraFilterCarousel';
+import { ArFiltersComingSoon } from './ArFiltersComingSoon';
 import { CameraEditor } from './CameraEditor';
 import { CameraShareSheet } from './CameraShareSheet';
 import { CameraStoryPostSheet } from './CameraStoryPostSheet';
@@ -89,6 +90,7 @@ export function Camera({
   const [capturedMedia, setCapturedMedia] = useState<{ url: string; type: 'photo' | 'video'; file?: File } | null>(null);
   const [recordingDuration, setRecordingDuration] = useState(0);
   const [showFilters, setShowFilters] = useState(false);
+  const [showArComingSoon, setShowArComingSoon] = useState(false);
   const [filterName, setFilterName] = useState('');
   const [timerSeconds, setTimerSeconds] = useState(0);
   const [timerCountdown, setTimerCountdown] = useState<number | null>(null);
@@ -769,9 +771,20 @@ export function Camera({
 
       {/* ─── BOTTOM AREA ─── */}
       <div className="absolute bottom-0 left-0 right-0 z-10">
-        {/* Filter carousel */}
+        {/* Filter carousel / AR coming soon */}
         <AnimatePresence>
-          {showFilters && (
+          {showArComingSoon && (
+            <motion.div
+              initial={{ y: 80, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              exit={{ y: 80, opacity: 0 }}
+              transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+              className="mb-2 px-4"
+            >
+              <ArFiltersComingSoon compact />
+            </motion.div>
+          )}
+          {showFilters && !showArComingSoon && (
             <motion.div
               initial={{ y: 80, opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}
@@ -831,18 +844,38 @@ export function Camera({
           </div>
 
           {/* Filters bar */}
-          <div className="flex items-center justify-center gap-3 pb-3">
+          <div className="flex items-center justify-center gap-2 pb-3">
             <button
-              onClick={() => { triggerHaptic('light'); setShowFilters(!showFilters); }}
+              onClick={() => {
+                triggerHaptic('light');
+                setShowArComingSoon(false);
+                setShowFilters(!showFilters);
+              }}
               className={cn(
                 "flex items-center gap-1.5 px-4 py-1.5 rounded-full text-xs font-medium transition-all",
-                showFilters
-                  ? "bg-primary/20 text-primary backdrop-blur-md"
-                  : "bg-white/10 text-white/60 backdrop-blur-sm"
+                showFilters && !showArComingSoon
+                  ? "bg-white text-black"
+                  : "bg-white/10 text-white/60"
               )}
             >
               <SlidersHorizontal className="h-3.5 w-3.5" />
-              Filters
+              Looks
+            </button>
+            <button
+              onClick={() => {
+                triggerHaptic('light');
+                setShowFilters(false);
+                setShowArComingSoon(!showArComingSoon);
+              }}
+              className={cn(
+                "flex items-center gap-1.5 px-4 py-1.5 rounded-full text-xs font-medium transition-all",
+                showArComingSoon
+                  ? "bg-white text-black"
+                  : "bg-white/10 text-white/60"
+              )}
+            >
+              <Sparkles className="h-3.5 w-3.5" />
+              AR
             </button>
           </div>
         </div>

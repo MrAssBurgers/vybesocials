@@ -27,6 +27,8 @@ import { useSafetySettings } from '@/hooks/useSafetySettings';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { StyledUsername } from '@/components/ui/StyledUsername';
+import { db } from '@/lib/firebase';
+import { ReportContentDialog } from '@/components/safety/ReportContentDialog';
 
 interface CommentItemProps {
   comment: {
@@ -156,6 +158,7 @@ export const CommentItem = memo(function CommentItem({ comment, postId }: Commen
   const [revealed, setRevealed] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editText, setEditText] = useState(comment.text);
+  const [reportOpen, setReportOpen] = useState(false);
   const editInputRef = useRef<HTMLInputElement>(null);
 
   const isOwn = profile?.id === comment.user.id;
@@ -201,6 +204,22 @@ export const CommentItem = memo(function CommentItem({ comment, postId }: Commen
 
   const handleReport = async () => {
     if (!profile) return;
+    setReportOpen(true);
+  };
+
+  const submitCommentReport = async (reason: string) => {
+    if (!profile) return;
+    const { error } = await db.from('reports').insert({
+      reporter_id: profile.id,
+      reported_user_id: comment.user.id,
+      comment_id: comment.id,
+      post_id: postId,
+      reason,
+    } as Record<string, unknown>);
+    if (error) {
+      toast.error(`Failed to report comment: ${error.message}`);
+      throw error;
+    }
     toast.success('Comment reported. We will review it shortly.');
   };
 
@@ -358,6 +377,14 @@ export const CommentItem = memo(function CommentItem({ comment, postId }: Commen
           )}
         </div>
       </div>
+
+      <ReportContentDialog
+        open={reportOpen}
+        onOpenChange={setReportOpen}
+        title="Report comment"
+        description="Why are you reporting this comment?"
+        onSubmit={submitCommentReport}
+      />
     </motion.div>
   );
 });

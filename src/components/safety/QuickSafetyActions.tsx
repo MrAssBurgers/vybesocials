@@ -5,8 +5,6 @@ import {
   Ban, 
   VolumeX, 
   AlertTriangle,
-  Check,
-  X
 } from 'lucide-react';
 import { 
   AlertDialog, 
@@ -23,6 +21,7 @@ import { useAuth } from '@/lib/auth';
 import { triggerHaptic } from '@/lib/haptics';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
+import { useQueryClient } from '@tanstack/react-query';
 
 interface QuickSafetyActionsProps {
   targetUserId: string;
@@ -46,6 +45,7 @@ export const QuickSafetyActions = memo(function QuickSafetyActions({
   onComplete,
 }: QuickSafetyActionsProps) {
   const { profile } = useAuth();
+  const queryClient = useQueryClient();
   const [activeAction, setActiveAction] = useState<ActionType>(null);
   const [selectedReason, setSelectedReason] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -93,6 +93,15 @@ export const QuickSafetyActions = memo(function QuickSafetyActions({
         });
 
       if (error && !error.message.includes('duplicate')) throw error;
+
+      // Instant feed hide (Guideline 1.2) — do not wait for 5m staleTime.
+      await queryClient.invalidateQueries({ queryKey: ['blocked-user-ids', profile.id] });
+      await queryClient.invalidateQueries({ queryKey: ['blocked-users-full', profile.id] });
+      queryClient.setQueryData<string[]>(['blocked-user-ids', profile.id], (prev) => {
+        const next = new Set(prev || []);
+        next.add(targetUserId);
+        return Array.from(next);
+      });
 
       toast.success(`@${targetUsername} has been blocked`);
       setActiveAction(null);

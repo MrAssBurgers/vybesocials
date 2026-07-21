@@ -25,6 +25,8 @@ interface ProfileSetupProps {
   onUsernameChange: (username: string) => void;
   onUsernameValidChange: (isValid: boolean) => void;
   authUserId?: string;
+  /** Sign in with Apple — name already from Authentication Services; fields optional. */
+  nameOptional?: boolean;
 }
 
 export function ProfileSetup({
@@ -34,6 +36,7 @@ export function ProfileSetup({
   onUsernameChange,
   onUsernameValidChange,
   authUserId,
+  nameOptional = false,
 }: ProfileSetupProps) {
   const { t } = useTranslation();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -190,7 +193,10 @@ export function ProfileSetup({
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="displayName">{t('onboarding.displayName')} *</Label>
+          <Label htmlFor="displayName">
+            {t('onboarding.displayName')}
+            {nameOptional ? ' (optional)' : ' *'}
+          </Label>
           <Input
             id="displayName"
             placeholder="Name shown on your profile"
@@ -200,14 +206,16 @@ export function ProfileSetup({
             autoComplete="name"
           />
           <p className="text-xs text-muted-foreground">
-            This is what people see on posts and your profile. It can be different from @{username || 'username'}.
+            {nameOptional
+              ? 'We use the name from Sign in with Apple when available. You can edit it anytime.'
+              : `This is what people see on posts and your profile. It can be different from @${username || 'username'}.`}
           </p>
         </div>
 
         {/* First & Last Name */}
         <div className="grid grid-cols-2 gap-3">
           <div className="space-y-2">
-            <Label htmlFor="firstName">First Name *</Label>
+            <Label htmlFor="firstName">First Name{nameOptional ? ' (optional)' : ' *'}</Label>
             <Input
               id="firstName"
               placeholder="First name"
@@ -223,7 +231,7 @@ export function ProfileSetup({
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="lastName">Last Name *</Label>
+            <Label htmlFor="lastName">Last Name{nameOptional ? ' (optional)' : ' *'}</Label>
             <Input
               id="lastName"
               placeholder="Last name"
