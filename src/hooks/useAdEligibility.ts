@@ -47,10 +47,8 @@ export function useAdEligibility() {
   const isUnder13 = typeof userAge === 'number' && userAge < 13;
   const isAdFreeSubscriber = isEntitled(PREMIUM_ENTITLEMENT_ID);
   const consent = getTrackingConsent();
-  // This App Store submit: App Privacy Tracking = No — never request personalized/IDFA ads.
-  // Personalized ads + ATT prompt are deferred (post-approval).
-  const personalizedAds = false;
-  void consent;
+  // Personalized ads only after ATT Allow (or web consent). Deny → non-personalized ads still OK.
+  const personalizedAds = consent === 'allowed';
   const onNative = isNativeAppShell();
   const isLoading = rcLoading || ageLoading;
 
