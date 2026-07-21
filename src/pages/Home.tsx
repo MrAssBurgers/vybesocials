@@ -20,6 +20,7 @@ import { HomeEditModeProvider, useEditMode } from '@/components/home/HomeEditMod
 import { HomeWidgetRenderer } from '@/components/home/HomeWidgetRenderer';
 import { useGridLayout } from '@/hooks/useGridLayout';
 import { scrollAppTo } from '@/lib/appScrollContainer';
+import { usePageMeta } from '@/hooks/usePageMeta';
 
 // Lazy load heavy components that aren't needed for initial render
 const AnnouncementModal = lazy(() => import('@/components/announcements/AnnouncementModal').then(m => ({ default: m.AnnouncementModal })));
@@ -81,7 +82,16 @@ function CustomizeHomeHint({ customizerOpen }: { customizerOpen: boolean }) {
   );
 }
 
+function useHomePageMeta() {
+  usePageMeta({
+    title: 'VYBE — The Next Generation Social Platform',
+    description: 'Your VYBE home feed: fresh clips, stories, and posts from friends and creators, personalized by VYBE DNA. Real people, real vibes, no algorithm chaos.',
+    canonicalPath: '/home',
+  });
+}
+
 export default function HomePage({ isInviteMode = false }: HomePageProps) {
+  useHomePageMeta();
   const navigate = useNavigate();
   const { user, profile, loading: authLoading, refreshProfile } = useAuth();
   const profileId = getEffectiveProfileId(profile?.id);

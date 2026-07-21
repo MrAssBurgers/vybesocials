@@ -35,6 +35,7 @@ import { useSignedUrl } from '@/hooks/useSignedUrl';
 import { db } from '@/lib/firebase';
 import { TrendingCreators } from '@/components/explore/TrendingCreators';
 import { TrendingHashtags } from '@/components/explore/TrendingHashtags';
+import { usePageMeta } from '@/hooks/usePageMeta';
 
 const popularTags = ['meme', 'fails', 'pets', 'gaming', 'comedy', 'sports', 'music', 'food', 'tech', 'beauty'];
 
@@ -537,6 +538,11 @@ function VideosGalleryView({
 }
 
 export default function ExplorePage() {
+  usePageMeta({
+    title: 'Explore — Trending clips, creators & communities on VYBE',
+    description: 'Explore trending short videos, creators, hashtags, and communities on VYBE. Discover what people around the world are vibing with right now.',
+    canonicalPath: '/explore',
+  });
   const [searchParams, setSearchParams] = useSearchParams();
   const [searchQuery, setSearchQuery] = useState(searchParams.get('q') || '');
   const [activeCategory, setActiveCategory] = useState(searchParams.get('cat') || 'all');

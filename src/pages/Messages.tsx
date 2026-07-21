@@ -21,6 +21,7 @@ import { ChatView } from '@/components/chat/ChatView';
 import { useAuth } from '@/lib/auth';
 import { useAuthProfileId } from '@/hooks/useAuthProfileId';
 import type { QueryClient } from '@tanstack/react-query';
+import { usePageMeta } from '@/hooks/usePageMeta';
 
 function shouldShowBoundaryErrorDetail(): boolean {
   if (import.meta.env.DEV) return true;
@@ -263,6 +264,11 @@ function MessagesInner() {
 }
 
 export default function Messages() {
+  usePageMeta({
+    title: 'Messages — Private encrypted chats on VYBE',
+    description: 'Your VYBE inbox: encrypted direct messages, group chats, voice notes, and calls with friends. Fast, private, and built for real conversations.',
+    canonicalPath: '/messages',
+  });
   return (
     <SmartErrorBoundary hardFallback fallback={<MessagesFallback />}>
       <MessagesInner />
