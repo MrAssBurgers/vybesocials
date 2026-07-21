@@ -107,9 +107,29 @@
       detail.textContent =
         'Startup timed out. Tap "Clear cache & reload" once. If it repeats after publishing, check Firebase env vars in Lovable.';
     } else if (reason === 'script_error' || reason === 'chunk_error') {
-      detail.textContent = onLocalhost
-        ? 'Offline cache is missing the app shell (often /assets/app.js). Publish a fresh despia/local.json that includes app.js, then Clear cache & reload.'
-        : 'A script failed to load. Clear cache and reload to get the latest build.';
+      if (onLocalhost && isNativeWrapper) {
+        detail.textContent =
+          'Offline pack is missing or stale (app shell). Tap Clear cache & reload. If it repeats, set Despia App Start URL to https://vybehub.app and rebuild.';
+        // One-shot escape: broken localhost packs cannot self-heal without a fresh OTA.
+        try {
+          if (sessionStorage.getItem('vybe_localhost_pack_escape') !== '1') {
+            sessionStorage.setItem('vybe_localhost_pack_escape', '1');
+            detail.textContent = 'Updating from vybehub.app…';
+            setTimeout(function () {
+              try {
+                location.replace('https://vybehub.app/?vybe_pack_escape=' + Date.now());
+              } catch (eEsc) {
+                /* fall through to buttons */
+              }
+            }, 500);
+          }
+        } catch (eSs) { /* ignore */ }
+      } else if (onLocalhost) {
+        detail.textContent =
+          'Offline cache is missing the app shell (often /assets/app.js). Publish a fresh despia/local.json that includes app.js, then Clear cache & reload.';
+      } else {
+        detail.textContent = 'A script failed to load. Clear cache and reload to get the latest build.';
+      }
     } else {
       detail.textContent = 'Something blocked startup. Clear cache and reload.';
     }
@@ -269,7 +289,17 @@
   document.addEventListener('DOMContentLoaded', function () {
     var reloadBtn = document.getElementById('vybe-boot-reload');
     var clearBtn = document.getElementById('vybe-boot-clear-cache');
+    var prodBtn = document.getElementById('vybe-boot-open-prod');
     if (reloadBtn) reloadBtn.addEventListener('click', function () { window.location.reload(); });
     if (clearBtn) clearBtn.addEventListener('click', function () { window.__VYBE_CLEAR_CACHE_RELOAD__(); });
+    if (prodBtn) {
+      prodBtn.addEventListener('click', function () {
+        try {
+          location.replace('https://vybehub.app/?vybe_pack_escape=' + Date.now());
+        } catch (e) {
+          location.href = 'https://vybehub.app/';
+        }
+      });
+    }
   });
 })();
