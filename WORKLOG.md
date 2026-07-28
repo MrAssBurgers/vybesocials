@@ -2,7 +2,39 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
-## ACTIVE (2026-07-28) — Production UX, console, push, and responsive hardening
+## ACTIVE (2026-07-28) — Core-loop delight and startup performance
+
+### Goal
+Make authentication, first interaction, saving, and deletion feel immediate and native while preventing future startup regressions.
+
+### What changed
+- Replaced the 2.4–3.3 second full-screen post-auth celebration with a compact, dismissible, non-blocking welcome banner. The signed-in destination is usable immediately.
+- Lazy-loaded the welcome banner and native OneSignal sync; deferred notification/referral/founder/rating/gift/Friend Drop growth prompts until the shell has settled.
+- Replaced browser-native delete confirmations for posts, clips, post detail, and marketplace listings with a shared accessible dialog, explicit permanent-delete copy, and a locked progress state.
+- Post/clip/listing delete success closes cleanly; post/clip profile counters refresh. Failed clip saves now roll back the optimistic bookmark state and explain the failure.
+- Added names and pressed states to desktop clip and marketplace icon controls.
+- Added an enforced initial-entry bundle budget to every production build.
+
+### Performance result
+- Primary entry: `1,103.90 kB / 322.53 kB gzip` → `1,073.14 kB / 313.07 kB gzip` in Vite’s build report.
+- Strict budget check: `1,048.6 KB raw / 305.1 KB gzip` at gzip level 9, under `1,125 / 335 KB` limits.
+- Heavy Mapbox, LiveKit, RevenueCat, charts, and route features remain separate async chunks.
+
+### Verification
+- `npm run typecheck` — pass
+- `npm test -- --run` — 88 files / 427 tests pass
+- Focused welcome/deletion behavior — 4 tests pass
+- `npm run debug` — build, lint, CSS, boot entry, callable resolution, and production endpoint probes pass
+- Lint remains at 0 errors / 5 pre-existing unused-disable warnings
+
+### Next
+1. Lovable Share → Publish so the client changes reach `vybehub.app`.
+2. Post-publish: fresh Apple/Google sign-in, post/clip/listing delete-cancel-delete, failed-network bookmark rollback, and background push canary.
+3. Complete the physical iOS/Android matrix before the next store submission.
+
+---
+
+## PREVIOUS (2026-07-28) — Production UX, console, push, and responsive hardening
 
 ### Goal
 Run authenticated production canaries on desktop plus iPhone/Android responsive layouts, fix concrete console/functional/accessibility defects, and leave a verified public-release build.

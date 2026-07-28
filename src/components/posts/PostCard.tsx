@@ -76,6 +76,7 @@ import { AIBadge } from './AIBadge';
 import { ProductTagBadge } from './ProductTagBadge';
 import { useVideoAds } from '@/hooks/useVideoAds';
 import SmartErrorBoundary from '@/components/error/SmartErrorBoundary';
+import { DeleteContentDialog } from './DeleteContentDialog';
 // Video player component - maintains the video's native aspect ratio (no cropping)
 // NEVER shows broken placeholder - graceful degradation
 function VideoPlayer({ src, caption }: { src: string; caption?: string }) {
@@ -424,6 +425,8 @@ export const PostCard = memo(function PostCard({
   const [authPromptAction, setAuthPromptAction] = useState('');
   const [showCommentSheet, setShowCommentSheet] = useState(false);
   const [isHidden, setIsHidden] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [whyOpen, setWhyOpen] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
 
@@ -559,8 +562,7 @@ export const PostCard = memo(function PostCard({
   }, [post.id]);
 
   const handleDelete = useCallback(async () => {
-    if (!confirm('Are you sure you want to delete this post?')) return;
-
+    setIsDeleting(true);
     try {
       // Use .select() so we can verify a row was actually removed (RLS may
       // silently filter out the delete if the user isn't the author/admin).
@@ -593,11 +595,16 @@ export const PostCard = memo(function PostCard({
       }
 
       toast.success('Post deleted');
+      setDeleteDialogOpen(false);
       setIsHidden(true);
       queryClient.invalidateQueries({ queryKey: ['posts'] });
+      queryClient.invalidateQueries({ queryKey: ['profile'] });
+      queryClient.invalidateQueries({ queryKey: ['profile-by-id'] });
     } catch (error) {
       console.error('Failed to delete post:', error);
       toast.error('Failed to delete post');
+    } finally {
+      setIsDeleting(false);
     }
   }, [post.id, post.author?.id, post.caption, profile?.id, queryClient]);
 
@@ -744,7 +751,7 @@ export const PostCard = memo(function PostCard({
                 </>
               )}
               {canDelete && (
-                <DropdownMenuItem onClick={handleDelete} className="text-destructive">
+                <DropdownMenuItem onClick={() => setDeleteDialogOpen(true)} className="text-destructive">
                   <Trash2 className="h-4 w-4 mr-2" />
                   Delete Post
                 </DropdownMenuItem>
@@ -1078,6 +1085,14 @@ export const PostCard = memo(function PostCard({
       {(!post.tags || post.tags.length === 0) && <div className="pb-4" />}
 
       {/* Edit Post Dialog */}
+      <DeleteContentDialog
+        open={deleteDialogOpen}
+        onOpenChange={setDeleteDialogOpen}
+        onConfirm={handleDelete}
+        isDeleting={isDeleting}
+        kind="post"
+      />
+
       {isEditOpen && (
         <EditPostDialog
           open={isEditOpen}

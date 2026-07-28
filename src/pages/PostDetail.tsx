@@ -65,6 +65,7 @@ import { useSignedUrl } from '@/hooks/useSignedUrl';
 import { MediaFallback, MediaSkeleton } from '@/components/ui/MediaFallback';
 import { isValidMediaUrl } from '@/components/ui/SafeMedia';
 import { StyledUsername } from '@/components/ui/StyledUsername';
+import { DeleteContentDialog } from '@/components/posts/DeleteContentDialog';
 
 // Safe media component for post detail
 function PostDetailMedia({ type, mediaUrl, caption }: { type: string; mediaUrl: string; caption?: string }) {
@@ -264,6 +265,8 @@ export default function PostDetailPage() {
   const [memeBanDialogOpen, setMemeBanDialogOpen] = useState(false);
   const [premiumMemeBanOpen, setPremiumMemeBanOpen] = useState(false);
   const [deleteContentDialog, setDeleteContentDialog] = useState<{ type: 'post' | 'comment' | 'listing'; id: string } | null>(null);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
   const queryClient = useQueryClient();
   const { data: userRole } = useUserRole();
   const isModOrAdmin = useIsModOrAdmin();
@@ -376,8 +379,7 @@ export default function PostDetailPage() {
 
   const handleDelete = async () => {
     if (!post) return;
-    if (!confirm('Are you sure you want to delete this post?')) return;
-
+    setIsDeleting(true);
     try {
       const { data: deletedRows, error } = await db
         .from('posts')
@@ -390,6 +392,7 @@ export default function PostDetailPage() {
         return;
       }
       toast.success('Post deleted');
+      setDeleteDialogOpen(false);
       queryClient.invalidateQueries({ queryKey: ['posts'] });
       queryClient.invalidateQueries({ queryKey: ['profile'] });
       queryClient.invalidateQueries({ queryKey: ['profile-by-id'] });
@@ -397,6 +400,8 @@ export default function PostDetailPage() {
     } catch (error) {
       console.error('Failed to delete post:', error);
       toast.error('Failed to delete post');
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -612,7 +617,7 @@ export default function PostDetailPage() {
                   </DropdownMenuItem>
                 )}
                 {canDelete && (
-                  <DropdownMenuItem onClick={handleDelete} className="text-destructive">
+                  <DropdownMenuItem onClick={() => setDeleteDialogOpen(true)} className="text-destructive">
                     <Trash2 className="h-4 w-4 mr-2" />
                     Delete Post
                   </DropdownMenuItem>
@@ -973,6 +978,13 @@ export default function PostDetailPage() {
         )}
       </div>
       <GuestJoinBanner context="post" username={post?.author?.username} />
+      <DeleteContentDialog
+        open={deleteDialogOpen}
+        onOpenChange={setDeleteDialogOpen}
+        onConfirm={handleDelete}
+        isDeleting={isDeleting}
+        kind="post"
+      />
     </AppLayout>
   );
 }

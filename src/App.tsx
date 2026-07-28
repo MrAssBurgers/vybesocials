@@ -171,7 +171,6 @@ import { initializeCustomAnimations } from "@/hooks/useCustomAnimations";
 import { LocationProvider } from "@/providers/LocationProvider";
 import { useBriefPreFetch } from "@/hooks/useBriefPreFetch";
 import { SplashScreen } from "@/components/ui/SplashScreen";
-import { WelcomeBackSplash } from "@/components/ui/WelcomeBackSplash";
 import { isPersistRestored, markPersistRestored, onPersistRestored } from "@/lib/persistRestoreGate";
 import {
   reviveQueriesInCache,
@@ -198,12 +197,13 @@ import { logStartupPhase } from "@/lib/startupTiming";
 
 // Lazy-load non-critical overlays and providers to reduce initial bundle
 const EasterEggProvider = lazy(() => import("@/components/easter-eggs/EasterEggProvider").then(m => ({ default: m.EasterEggProvider })));
+const WelcomeBackSplash = lazy(() => import("@/components/ui/WelcomeBackSplash").then(m => ({ default: m.WelcomeBackSplash })));
 const GlobalCallOverlay = lazy(() => import("@/components/call/GlobalCallOverlay").then(m => ({ default: m.GlobalCallOverlay })));
 const NativeIncomingCallBridge = lazy(() => import("@/components/call/NativeIncomingCallBridge").then(m => ({ default: m.NativeIncomingCallBridge })));
 const NativePushTokenBridge = lazy(() => import("@/components/notifications/NativePushTokenBridge").then(m => ({ default: m.NativePushTokenBridge })));
 // PushNotificationPrompt removed — was causing floating bell icon
 const GlobalMessageNotifications = lazy(() => import("@/components/notifications/GlobalMessageNotifications").then(m => ({ default: m.GlobalMessageNotifications })));
-import { DespiaOneSignalSync } from "@/components/notifications/DespiaOneSignalSync";
+const DespiaOneSignalSync = lazy(() => import("@/components/notifications/DespiaOneSignalSync").then(m => ({ default: m.DespiaOneSignalSync })));
 const NotificationActionRouter = lazy(() => import("@/components/notifications/NotificationActionRouter").then(m => ({ default: m.NotificationActionRouter })));
 const EnablePushPrompt = lazy(() => import("@/components/notifications/EnablePushPrompt").then(m => ({ default: m.EnablePushPrompt })));
 const SmartPingBridge = lazy(() => import("@/components/notifications/SmartPingBridge").then(m => ({ default: m.SmartPingBridge })));
@@ -221,6 +221,50 @@ const TrackingConsentDialog = lazy(() => import("@/components/app/TrackingConsen
 const CookieConsentBanner = lazy(() => import("@/components/legal/CookieConsentBanner").then(m => ({ default: m.CookieConsentBanner })));
 const RatePromptSheet = lazy(() => import("@/components/feedback/RatePromptSheet").then(m => ({ default: m.RatePromptSheet })));
 const AutoFriendDrop = lazy(() => import("@/components/friends/AutoFriendDrop").then(m => ({ default: m.AutoFriendDrop })));
+
+/**
+ * Growth prompts are useful only after the product is responsive. Keeping them
+ * out of the first paint also prevents several dialogs from competing after a
+ * fresh sign-in.
+ */
+function DeferredGrowthOverlays() {
+  const [ready, setReady] = useState(false);
+
+  useEffect(() => {
+    let idleId: number | undefined;
+    const minimumDelay = isNativePerfMode() ? 3500 : 2500;
+    const timer = window.setTimeout(() => {
+      const requestIdle = (window as Window & {
+        requestIdleCallback?: (callback: () => void, options?: { timeout: number }) => number;
+      }).requestIdleCallback;
+      if (requestIdle) {
+        idleId = requestIdle(() => setReady(true), { timeout: 2500 });
+      } else {
+        setReady(true);
+      }
+    }, minimumDelay);
+
+    return () => {
+      window.clearTimeout(timer);
+      if (idleId !== undefined) {
+        (window as Window & { cancelIdleCallback?: (id: number) => void }).cancelIdleCallback?.(idleId);
+      }
+    };
+  }, []);
+
+  if (!ready) return null;
+
+  return (
+    <Suspense fallback={null}>
+      <EnablePushPrompt />
+      <InvitePopup />
+      <PremiumGiftChecker />
+      <FounderAppreciation />
+      <RatePromptSheet />
+      <AutoFriendDrop />
+    </Suspense>
+  );
+}
 
 // Lazy-load deferred hooks via a wrapper component
 const DeferredAuthHooks = lazy(() => import("@/components/app/DeferredAuthHooks"));
@@ -634,12 +678,14 @@ function AppWithPreloader() {
       <ShellVisibilityGuard />
       <SplashScreen isVisible={showSplash} />
       {welcomeBack && (
-        <WelcomeBackSplash
-          username={welcomeBack.username}
-          avatarUrl={welcomeBack.avatarUrl}
-          profileId={welcomeBack.profileId}
-          onComplete={() => setWelcomeBack(null)}
-        />
+        <Suspense fallback={null}>
+          <WelcomeBackSplash
+            username={welcomeBack.username}
+            avatarUrl={welcomeBack.avatarUrl}
+            profileId={welcomeBack.profileId}
+            onComplete={() => setWelcomeBack(null)}
+          />
+        </Suspense>
       )}
       <GlobalErrorHandler />
       <LocalErrorBoundary label="AppUpdateOverlay">
@@ -702,7 +748,6 @@ function AppWithPreloader() {
                                       <GlobalMessageNotifications />
                                       <DespiaOneSignalSync />
                                       <NotificationActionRouter />
-                                      <EnablePushPrompt />
                                       <SmartPingBridge />
                                       <TabNotificationBadge />
                                       <AppIconBadgeMount />
@@ -710,16 +755,12 @@ function AppWithPreloader() {
                                       <NativeIncomingCallBridge />
                                       <NativePushTokenBridge />
                                       <WarningPopup />
-                                      <InvitePopup />
                                       <BanCheck />
-                                      <PremiumGiftChecker />
                                       <TrackingConsentDialog />
-                                      <FounderAppreciation />
                                       <CookieConsentBanner />
-                                      <RatePromptSheet />
                                       <ConnectionStatusBanner />
                                       <UploadProgressBanner />
-                                      <AutoFriendDrop />
+                                      <DeferredGrowthOverlays />
                                     </Suspense>
                                   </LocalErrorBoundary>
                                 </TutorialProvider>

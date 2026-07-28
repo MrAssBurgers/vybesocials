@@ -37,6 +37,7 @@ import { FollowPlusButton } from '@/components/clips/FollowPlusButton';
 import { isValidMediaUrl } from '@/lib/mediaUrl';
 import { usePostReaction } from '@/hooks/usePostReaction';
 import { ReportContentDialog } from '@/components/safety/ReportContentDialog';
+import { DeleteContentDialog } from '@/components/posts/DeleteContentDialog';
 
 interface ShortCardProps {
   post: {
@@ -102,6 +103,8 @@ export const ShortCard = memo(function ShortCard({ post, isActive, globalMuted =
   const [isHolding, setIsHolding] = useState(false);
   const [showCommentSheet, setShowCommentSheet] = useState(false);
   const [isHidden, setIsHidden] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [showShareSheet, setShowShareSheet] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
   const hasCountedInitialView = useRef(false);
@@ -290,13 +293,19 @@ export const ShortCard = memo(function ShortCard({ post, isActive, globalMuted =
   const handleBookmark = async () => {
     if (!profile) return;
 
+    const previous = isBookmarked;
     const newIsBookmarked = !isBookmarked;
     setIsBookmarked(newIsBookmarked);
 
-    if (newIsBookmarked) {
-      await db.from('bookmarks').insert({ user_id: profile.id, post_id: post.id });
-    } else {
-      await db.from('bookmarks').delete().match({ user_id: profile.id, post_id: post.id });
+    try {
+      const result = newIsBookmarked
+        ? await db.from('bookmarks').insert({ user_id: profile.id, post_id: post.id })
+        : await db.from('bookmarks').delete().match({ user_id: profile.id, post_id: post.id });
+      if (result.error) throw result.error;
+    } catch (error) {
+      console.error('[ShortCard] bookmark failed:', error);
+      setIsBookmarked(previous);
+      toast.error("Couldn't save clip — try again");
     }
   };
 
@@ -309,8 +318,7 @@ export const ShortCard = memo(function ShortCard({ post, isActive, globalMuted =
   };
 
   const handleDelete = async () => {
-    if (!confirm('Are you sure you want to delete this clip?')) return;
-
+    setIsDeleting(true);
     try {
       const { data: deletedRows, error } = await db
         .from('posts')
@@ -339,11 +347,16 @@ export const ShortCard = memo(function ShortCard({ post, isActive, globalMuted =
       }
 
       toast.success('Clip deleted');
+      setDeleteDialogOpen(false);
       setIsHidden(true);
       queryClient.invalidateQueries({ queryKey: ['posts'] });
+      queryClient.invalidateQueries({ queryKey: ['profile'] });
+      queryClient.invalidateQueries({ queryKey: ['profile-by-id'] });
     } catch (error) {
       console.error('Failed to delete clip:', error);
       toast.error('Failed to delete clip');
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -560,20 +573,31 @@ export const ShortCard = memo(function ShortCard({ post, isActive, globalMuted =
         </div>
 
         {/* Comment */}
-        <button onClick={handleOpenComments} className="flex flex-col items-center gap-1">
+        <button
+          type="button"
+          aria-label={`Open comments (${post.comment_count})`}
+          onClick={handleOpenComments}
+          className="flex flex-col items-center gap-1"
+        >
           <MessageCircle className="h-8 w-8 text-white drop-shadow-lg" />
           <span className="text-xs font-semibold text-white drop-shadow-lg">{post.comment_count}</span>
         </button>
 
         {/* Share */}
         <HoldToShare postId={post.id} postType="short" mediaUrl={post.media_url}>
-          <button onClick={handleShare} className="flex flex-col items-center gap-1">
+          <button type="button" aria-label="Share clip" onClick={handleShare} className="flex flex-col items-center gap-1">
             <SendIcon className="h-7 w-7 text-white drop-shadow-lg" />
           </button>
         </HoldToShare>
 
         {/* Bookmark */}
-        <button onClick={handleBookmark} className="flex flex-col items-center gap-1">
+        <button
+          type="button"
+          aria-label={isBookmarked ? 'Remove saved clip' : 'Save clip'}
+          aria-pressed={isBookmarked}
+          onClick={handleBookmark}
+          className="flex flex-col items-center gap-1"
+        >
           <Bookmark
             className={cn(
               "h-7 w-7 drop-shadow-lg",
@@ -585,7 +609,7 @@ export const ShortCard = memo(function ShortCard({ post, isActive, globalMuted =
         {/* More options */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <button className="flex flex-col items-center">
+            <button type="button" aria-label="Clip options" className="flex flex-col items-center">
               <MoreVertical className="h-7 w-7 text-white drop-shadow-lg" />
             </button>
           </DropdownMenuTrigger>
@@ -597,7 +621,7 @@ export const ShortCard = memo(function ShortCard({ post, isActive, globalMuted =
               </DropdownMenuItem>
             )}
             {canDelete && (
-              <DropdownMenuItem onClick={handleDelete} className="text-destructive">
+              <DropdownMenuItem onClick={() => setDeleteDialogOpen(true)} className="text-destructive">
                 <Trash2 className="mr-2 h-4 w-4" />
                 Delete
               </DropdownMenuItem>
@@ -661,6 +685,9 @@ export const ShortCard = memo(function ShortCard({ post, isActive, globalMuted =
       {/* Mute indicator */}
       {isVideo && (
         <button
+          type="button"
+          aria-label={isMuted ? 'Unmute clip' : 'Mute clip'}
+          aria-pressed={!isMuted}
           onClick={(e) => {
             e.stopPropagation();
             if (onToggleMute) {
@@ -738,6 +765,13 @@ export const ShortCard = memo(function ShortCard({ post, isActive, globalMuted =
         title="Report clip"
         description="Why are you reporting this clip?"
         onSubmit={submitClipReport}
+      />
+      <DeleteContentDialog
+        open={deleteDialogOpen}
+        onOpenChange={setDeleteDialogOpen}
+        onConfirm={handleDelete}
+        isDeleting={isDeleting}
+        kind="clip"
       />
     </div>
   );

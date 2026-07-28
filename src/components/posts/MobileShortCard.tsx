@@ -298,13 +298,19 @@ export const MobileShortCard = memo(function MobileShortCard({
   const handleBookmark = async () => {
     if (!profile) return;
 
+    const previous = isBookmarked;
     const newIsBookmarked = !isBookmarked;
     setIsBookmarked(newIsBookmarked);
 
-    if (newIsBookmarked) {
-      await db.from('bookmarks').insert({ user_id: profile.id, post_id: post.id });
-    } else {
-      await db.from('bookmarks').delete().match({ user_id: profile.id, post_id: post.id });
+    try {
+      const result = newIsBookmarked
+        ? await db.from('bookmarks').insert({ user_id: profile.id, post_id: post.id })
+        : await db.from('bookmarks').delete().match({ user_id: profile.id, post_id: post.id });
+      if (result.error) throw result.error;
+    } catch (error) {
+      console.error('[MobileShortCard] bookmark failed:', error);
+      setIsBookmarked(previous);
+      toast.error("Couldn't save clip — try again");
     }
   };
 

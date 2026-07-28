@@ -15,6 +15,7 @@
     "test:watch": "vitest",
     "validate:css": "node scripts/validate-css.mjs",
     "validate:boot": "node scripts/check-boot-entry.mjs && node scripts/verify-dist-entry.mjs",
+    "check:bundle-budget": "node scripts/check-bundle-budget.mjs",
     "debug": "node scripts/debug-scan.mjs",
     "test:social-permissions": "node scripts/test-social-permissions.mjs",
     "test:dm-send": "node scripts/test-dm-send-path.mjs",

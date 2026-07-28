@@ -123,5 +123,8 @@ if ((verify.status ?? 1) !== 0) process.exit(verify.status ?? 1);
 const versionJson = spawnSync('node', ['scripts/write-version-json.mjs'], { stdio: 'inherit' });
 if ((versionJson.status ?? 1) !== 0) process.exit(versionJson.status ?? 1);
 
+const bundleBudget = spawnSync('node', ['scripts/check-bundle-budget.mjs'], { stdio: 'inherit' });
+if ((bundleBudget.status ?? 1) !== 0) process.exit(bundleBudget.status ?? 1);
+
 const localCheck = spawnSync('node', ['scripts/verify-despia-local.mjs'], { stdio: 'inherit' });
 process.exit(localCheck.status ?? 1);

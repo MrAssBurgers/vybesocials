@@ -26,6 +26,7 @@ import { MediaFallback } from '@/components/ui/MediaFallback';
 import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { usePageMeta } from '@/hooks/usePageMeta';
+import { DeleteContentDialog } from '@/components/posts/DeleteContentDialog';
 
 export default function ListingDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -42,6 +43,8 @@ export default function ListingDetailPage() {
   const [deleteReasonDialog, setDeleteReasonDialog] = useState(false);
   const [deleteReason, setDeleteReason] = useState('');
   const [isDeleting, setIsDeleting] = useState(false);
+  const [ownerDeleteDialogOpen, setOwnerDeleteDialogOpen] = useState(false);
+  const [isOwnerDeleting, setIsOwnerDeleting] = useState(false);
   
   const { data: userRole } = useUserRole();
   const isAdminOrMod = isModOrAdminRole(userRole);
@@ -107,14 +110,21 @@ export default function ListingDetailPage() {
       setDeleteReasonDialog(true);
       return;
     }
-    if (!confirm('Are you sure you want to delete this listing?')) return;
+    setOwnerDeleteDialogOpen(true);
+  };
+
+  const handleOwnerDelete = async () => {
+    setIsOwnerDeleting(true);
     try {
       await deleteListing.mutateAsync(id!);
       toast.success('Listing deleted');
+      setOwnerDeleteDialogOpen(false);
       navigate('/market', { replace: true });
     } catch (err) {
       console.error('Delete error:', err);
       toast.error('Failed to delete listing');
+    } finally {
+      setIsOwnerDeleting(false);
     }
   };
 
@@ -179,23 +189,25 @@ export default function ListingDetailPage() {
       <div className="max-w-3xl mx-auto pb-24">
         {/* Header */}
         <div className="sticky top-0 z-10 bg-background/80 backdrop-blur-md px-4 py-3 flex items-center justify-between border-b">
-          <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
+          <Button aria-label="Go back" variant="ghost" size="icon" onClick={() => navigate(-1)}>
             <ArrowLeft className="h-5 w-5" />
           </Button>
           <div className="flex items-center gap-2">
             <Button
+              aria-label={isFavorite ? 'Remove from favorites' : 'Add to favorites'}
+              aria-pressed={isFavorite}
               variant="ghost"
               size="icon"
               onClick={() => toggleFavorite.mutate({ listingId: id!, isFavorite })}
             >
               <Heart className={cn('h-5 w-5', isFavorite && 'fill-primary text-primary')} />
             </Button>
-            <Button variant="ghost" size="icon" onClick={handleShare}>
+            <Button aria-label="Share listing" variant="ghost" size="icon" onClick={handleShare}>
               <Share2 className="h-5 w-5" />
             </Button>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon">
+                <Button aria-label="Listing options" variant="ghost" size="icon">
                   <MoreVertical className="h-5 w-5" />
                 </Button>
               </DropdownMenuTrigger>
@@ -232,6 +244,9 @@ export default function ListingDetailPage() {
                   {listing.images.map((_, idx) => (
                     <button
                       key={idx}
+                      type="button"
+                      aria-label={`Show image ${idx + 1} of ${listing.images.length}`}
+                      aria-pressed={idx === currentImage}
                       onClick={() => setCurrentImage(idx)}
                       className={cn(
                         'w-2 h-2 rounded-full transition-colors',
@@ -353,6 +368,15 @@ export default function ListingDetailPage() {
       </div>
 
       {/* Payment Sheet */}
+      <DeleteContentDialog
+        open={ownerDeleteDialogOpen}
+        onOpenChange={setOwnerDeleteDialogOpen}
+        onConfirm={handleOwnerDelete}
+        isDeleting={isOwnerDeleting}
+        kind="listing"
+        description="This removes the listing from VYBE Marketplace permanently."
+      />
+
       {listing && (
         <PaymentSheet
           open={paymentSheetOpen}
