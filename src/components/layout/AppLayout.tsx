@@ -43,7 +43,7 @@ export const AppLayout = memo(forwardRef<HTMLDivElement, AppLayoutProps>(functio
   noPadding = false,
   enableSwipeBack,
 }, ref) {
-  const { loading, user } = useAuth();
+  const { loading, user, profile } = useAuth();
   const location = useLocation();
   const hasStoredSession = hasStoredAuthSession();
   const { isDesktop } = useBreakpoint();
@@ -57,6 +57,7 @@ export const AppLayout = memo(forwardRef<HTMLDivElement, AppLayoutProps>(functio
   const bottomNavMounted = useBottomNavMount();
   const reserveBottomNavSpace = !hideNav && !noPadding && bottomNavMounted;
   const showMigrationNotice = Boolean(user && !noPadding);
+  const migrationAccountCreatedAt = profile?.created_at ?? null;
   const [navEffectiveVisible, setNavEffectiveVisible] = useState(true);
 
   useEffect(() => bindAppScrollHideContainer(), []);
@@ -120,7 +121,12 @@ export const AppLayout = memo(forwardRef<HTMLDivElement, AppLayoutProps>(functio
                   fullWidth ? '' : 'max-w-full',
                 )}
               >
-                {showMigrationNotice && <MigrationAccountNotice variant="app" />}
+                {showMigrationNotice && (
+                  <MigrationAccountNotice
+                    variant="app"
+                    accountCreatedAt={migrationAccountCreatedAt}
+                  />
+                )}
                 {children}
               </div>
             </main>
@@ -180,7 +186,12 @@ export const AppLayout = memo(forwardRef<HTMLDivElement, AppLayoutProps>(functio
               transition: swipeProgress === 0 ? 'transform 0.2s ease-out' : undefined,
             }}
           >
-            {showMigrationNotice && <MigrationAccountNotice variant="app" />}
+            {showMigrationNotice && (
+              <MigrationAccountNotice
+                variant="app"
+                accountCreatedAt={migrationAccountCreatedAt}
+              />
+            )}
             {children}
           </main>
 

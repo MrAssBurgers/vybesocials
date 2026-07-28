@@ -359,7 +359,9 @@ export default function ProfilePage() {
                         whileTap={{ scale: 0.97 }}
                         className="aspect-square overflow-hidden bg-muted rounded-2xl ring-1 ring-border/10"
                       >
-                        {post.type === 'video' ? (
+                        {!post.media_url && post.caption ? (
+                          <CaptionOnlyPostTile caption={post.caption} />
+                        ) : post.type === 'video' ? (
                           <>
                             <VideoThumbnail
                               videoUrl={post.media_url}
@@ -419,7 +421,9 @@ export default function ProfilePage() {
                         whileTap={{ scale: 0.97 }}
                         className="aspect-square overflow-hidden bg-muted rounded-2xl ring-1 ring-border/10"
                       >
-                        {post.type === 'video' || post.type === 'short' ? (
+                        {!post.media_url && post.caption ? (
+                          <CaptionOnlyPostTile caption={post.caption} />
+                        ) : post.type === 'video' || post.type === 'short' ? (
                           <>
                             <VideoThumbnail
                               videoUrl={post.media_url}
@@ -479,6 +483,16 @@ export default function ProfilePage() {
 function ProfileGridImage({ url, alt }: { url: string; alt: string }) {
   const signedUrl = useSignedUrl(url);
   return <img src={signedUrl || url} alt={alt} className="w-full h-full object-cover" />;
+}
+
+function CaptionOnlyPostTile({ caption }: { caption: string }) {
+  return (
+    <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-primary/35 via-background to-accent/30 p-4">
+      <p className="line-clamp-6 text-center text-sm font-semibold leading-relaxed text-foreground">
+        {caption}
+      </p>
+    </div>
+  );
 }
 
 function NowPlayingCardWrapper({ authUserId }: { authUserId: string | null | undefined }) {

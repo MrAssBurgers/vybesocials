@@ -35,6 +35,7 @@ async function registerSw(): Promise<ServiceWorkerRegistration | null> {
     // Narrow scope so this SW never steals control of `/` from /sw.js (update-loop fix).
     return await navigator.serviceWorker.register('/firebase-messaging-sw.js', {
       scope: '/firebase-cloud-messaging-push-scope',
+      updateViaCache: 'none',
     });
   } catch (e) {
     console.warn('[push] SW register failed', e);

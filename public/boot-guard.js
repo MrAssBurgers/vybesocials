@@ -22,6 +22,7 @@
   // If a fresh shell somehow references a stale entry (or version.json moved),
   // unregister workers, drop caches, and hard-navigate once.
   var ENTRY_MIGRATE_KEY = 'vybe.boot.entry-migrate';
+  var ENTRY_MIGRATE_ATTEMPTS_KEY = 'vybe.boot.entry-migrate-attempts';
   try {
     var moduleScript = document.querySelector('script[type="module"][src*="/assets/app-"]');
     var localSrc = moduleScript && moduleScript.getAttribute('src');
@@ -34,11 +35,20 @@
         .then(function (r) { return r.ok ? r.json() : null; })
         .then(function (v) {
           if (!v || !v.entry || v.entry === localEntry) {
-            try { sessionStorage.removeItem(ENTRY_MIGRATE_KEY); } catch (e3) { /* ignore */ }
+            try {
+              sessionStorage.removeItem(ENTRY_MIGRATE_KEY);
+              sessionStorage.removeItem(ENTRY_MIGRATE_ATTEMPTS_KEY);
+            } catch (e3) { /* ignore */ }
             return;
           }
+          var attempts = 0;
           try {
-            if (sessionStorage.getItem(ENTRY_MIGRATE_KEY) === v.entry) return;
+            attempts = parseInt(sessionStorage.getItem(ENTRY_MIGRATE_ATTEMPTS_KEY) || '0', 10) || 0;
+          } catch (e4a) { /* ignore */ }
+          // Allow a second attempt — first pass often clears SW but still serves a sticky shell.
+          if (attempts >= 2) return;
+          try {
+            sessionStorage.setItem(ENTRY_MIGRATE_ATTEMPTS_KEY, String(attempts + 1));
             sessionStorage.setItem(ENTRY_MIGRATE_KEY, v.entry);
           } catch (e4) { /* ignore */ }
           var tasks = [];
@@ -46,17 +56,33 @@
             if ('serviceWorker' in navigator) {
               tasks.push(
                 navigator.serviceWorker.getRegistrations().then(function (regs) {
-                  return Promise.all(regs.map(function (r) { return r.unregister(); }));
-                })
+                  return Promise.all(
+                    regs.map(function (r) {
+                      var updateP = Promise.resolve();
+                      try {
+                        if (r && typeof r.update === 'function') updateP = r.update().catch(function () {});
+                      } catch (eUp) { /* ignore */ }
+                      return updateP.then(function () {
+                        return r.unregister();
+                      });
+                    }),
+                  );
+                }),
               );
             }
             if ('caches' in window) {
               tasks.push(
                 caches.keys().then(function (names) {
                   return Promise.all(names.map(function (n) { return caches.delete(n); }));
-                })
+                }),
               );
             }
+            // Bust sticky messaging worker script cache before reload.
+            tasks.push(
+              fetch('/firebase-messaging-sw.js?_tombstone=' + Date.now(), { cache: 'no-store', credentials: 'same-origin' })
+                .then(function () {})
+                .catch(function () {}),
+            );
           } catch (e5) { /* ignore */ }
           var go = function () { location.replace('/?_vybe_entry=' + Date.now()); };
           if (tasks.length) Promise.all(tasks).finally(go);
@@ -94,11 +120,8 @@
 
   function hideRecovery() {
     var el = document.getElementById(RECOVERY_ID);
-    if (el) {
-      el.style.display = 'none';
-      el.setAttribute('aria-hidden', 'true');
-      el.removeAttribute('aria-live');
-      el.removeAttribute('role');
+    if (el && el.parentNode) {
+      el.parentNode.removeChild(el);
     }
     recoveryShown = false;
   }

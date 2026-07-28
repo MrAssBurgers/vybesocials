@@ -177,8 +177,9 @@ export async function runVybeCheckPipeline(opts: {
   } = {
     user_id: opts.userId,
     content_type: opts.contentType,
-    content_id: opts.contentId,
-    storage_path: opts.storagePath,
+    // Firestore rejects undefined — text-only publishes omit content_id / storage_path.
+    content_id: opts.contentId ?? null,
+    storage_path: opts.storagePath ?? null,
     status,
     score,
     categories: [...new Set(categories)],
@@ -189,11 +190,12 @@ export async function runVybeCheckPipeline(opts: {
       worst_adult: worstAdult,
       worst_violence: worstViolence,
       worst_racy: worstRacy,
-      blocked_frame: blockedFrame,
+      // Firestore rejects undefined values, including nested optional fields.
+      blocked_frame: blockedFrame ?? null,
     },
-    moderation,
-    gemini_review: geminiReview,
-    transcript: opts.transcript || opts.text.transcript,
+    moderation: moderation ?? null,
+    gemini_review: geminiReview ?? null,
+    transcript: opts.transcript || opts.text.transcript || null,
     created_at: now,
     updated_at: now,
   };
@@ -206,7 +208,7 @@ export async function runVybeCheckPipeline(opts: {
       score,
       record.categories,
       message,
-      record.transcript,
+      record.transcript || undefined,
     ),
   };
 }

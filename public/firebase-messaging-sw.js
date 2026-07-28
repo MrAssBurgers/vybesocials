@@ -6,7 +6,7 @@
  * and reloads clients once. FCM continues to work only under the narrow
  * /firebase-cloud-messaging-push-scope registration.
  */
-const ROOT_TOMBSTONE_FLAG = 'vybe-fcm-root-tombstone-v1';
+const ROOT_TOMBSTONE_FLAG = 'vybe-fcm-root-tombstone-v2';
 
 function isRootScope() {
   try {

@@ -174,10 +174,17 @@ export function usePosts(
         })
       );
 
-      // Filter out null entries (posts without authors) and invalid media
-      const validPosts = postsWithCounts.filter((post): post is NonNullable<typeof post> => 
-        post !== null && isValidMediaUrl(post.media_url)
-      );
+      // Text-only posts intentionally have no media URL. Keep them when the caption
+      // is non-empty; media posts must still resolve to a valid media URL.
+      const validPosts = postsWithCounts.filter((post): post is NonNullable<typeof post> => {
+        if (post === null) return false;
+        const isCaptionOnlyPost =
+          post.type === 'post' &&
+          typeof post.caption === 'string' &&
+          post.caption.trim().length > 0 &&
+          !post.media_url;
+        return isCaptionOnlyPost || isValidMediaUrl(post.media_url);
+      });
 
       if (isProfileView) {
         validPosts.sort((a, b) => {

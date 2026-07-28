@@ -195,7 +195,9 @@ export async function runPostUpload(
       for (let i = 0; i < prepared.length; i++) {
         const item = prepared[i];
         onProgress('uploading', 20 + Math.round((i / prepared.length) * 35));
-        const qPath = `quarantine/${authUserId}/${clientPostId}/media-${i}.${item.ext}`;
+        // Storage rules own media by the first path segment: /media/{uid}/...
+        // Putting "quarantine" first makes every signed-in upload fail isOwner().
+        const qPath = `${authUserId}/quarantine/${clientPostId}/media-${i}.${item.ext}`;
         const { error: uploadError } = await withTimeout(
           db.storage.from('media').upload(qPath, item.blob, {
             contentType: item.contentType,

@@ -12,15 +12,23 @@ import {
 
 interface MigrationAccountNoticeProps {
   variant: 'auth' | 'app';
+  /** Profile created_at — gates in-app notice to pre-cutoff (legacy) accounts only. */
+  accountCreatedAt?: string | null;
   onForgotPassword?: () => void;
 }
 
-export function MigrationAccountNotice({ variant, onForgotPassword }: MigrationAccountNoticeProps) {
+export function MigrationAccountNotice({
+  variant,
+  accountCreatedAt,
+  onForgotPassword,
+}: MigrationAccountNoticeProps) {
   const [visible, setVisible] = useState(false);
 
   useEffect(() => {
-    setVisible(shouldShowMigrationNotice());
-  }, []);
+    setVisible(
+      shouldShowMigrationNotice(accountCreatedAt, { authSurface: variant === 'auth' }),
+    );
+  }, [accountCreatedAt, variant]);
 
   const handleDismiss = () => {
     setVisible(false);

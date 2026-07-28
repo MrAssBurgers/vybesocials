@@ -25,13 +25,13 @@ export interface VybeCheckInvokeBody {
 
 export async function invokeVybeCheck(
   body: VybeCheckInvokeBody,
-): Promise<{ result: VybeCheckResult | null; unavailable: boolean }> {
-  const { data, unavailable } = await withTimeout(
+): Promise<{ result: VybeCheckResult | null; unavailable: boolean; errorMessage?: string }> {
+  const { data, unavailable, errorMessage } = await withTimeout(
     invokeEdgeFeature<VybeCheckResult>('start-vybe-check', body as unknown as Record<string, unknown>),
     VYBE_CHECK_TIMEOUT_MS,
     'Vybe Check timed out',
   );
-  return { result: data, unavailable };
+  return { result: data, unavailable, errorMessage };
 }
 
 export interface StartVybeCheckVideoOptions {

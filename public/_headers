@@ -6,3 +6,21 @@
 # SPA shell must revalidate so hashed asset URLs update after Publish.
 /index.html
   Cache-Control: no-cache, must-revalidate, max-age=0
+
+# Service workers + version must never be sticky on CDN or browser HTTP cache.
+# Without this, N-1 sessions keep a pre-tombstone messaging worker and pin old app-*.js.
+/sw.js
+  Cache-Control: no-store, no-cache, must-revalidate, max-age=0
+  CDN-Cache-Control: no-store
+
+/firebase-messaging-sw.js
+  Cache-Control: no-store, no-cache, must-revalidate, max-age=0
+  CDN-Cache-Control: no-store
+
+/version.json
+  Cache-Control: no-store, no-cache, must-revalidate, max-age=0
+  CDN-Cache-Control: no-store
+
+/boot-guard.js
+  Cache-Control: no-store, no-cache, must-revalidate, max-age=0
+  CDN-Cache-Control: no-store

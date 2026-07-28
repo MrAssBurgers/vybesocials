@@ -28,9 +28,9 @@ export default function UploadPage() {
     }
   };
 
+  // Stay on /upload — camera is optional; bouncing to Home made direct /upload unusable.
   const handleCameraError = () => {
-    toast.error('Camera unavailable — try again');
-    handleClose();
+    toast.error('Camera unavailable — you can still post text or photos.');
   };
 
   // Mobile/Tablet: Full-screen camera-first experience
@@ -42,12 +42,11 @@ export default function UploadPage() {
     );
   }
 
-  // Desktop: Studio layout with sidebars
+  // Desktop: Studio layout — do not wrap in CameraMountBoundary; optional camera
+  // crashes must not unmount the whole composer.
   return (
     <AppLayout hideNav noPadding hideRightSidebar fullWidth>
-      <CameraMountBoundary surface="upload-desktop" onError={handleCameraError}>
-        <DesktopCreateStudio onClose={handleClose} />
-      </CameraMountBoundary>
+      <DesktopCreateStudio onClose={handleClose} />
     </AppLayout>
   );
 }

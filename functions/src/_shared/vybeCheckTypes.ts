@@ -23,7 +23,7 @@ export interface VybeCheckTextInput {
 }
 
 export interface VybeCheckRequest {
-  content_type: 'video' | 'image' | 'post';
+  content_type: 'video' | 'image' | 'post' | 'text' | 'short' | 'story';
   content_id?: string;
   storage_path?: string;
   frames?: VybeCheckFrameInput[];
@@ -33,8 +33,9 @@ export interface VybeCheckRequest {
 export interface VybeCheckRecord {
   user_id: string;
   content_type: string;
-  content_id?: string;
-  storage_path?: string;
+  /** null when the check is text-only / pre-publish (Firestore rejects undefined). */
+  content_id?: string | null;
+  storage_path?: string | null;
   status: VybeCheckStatus;
   score: number;
   categories: string[];
@@ -45,18 +46,18 @@ export interface VybeCheckRecord {
     worst_adult?: string;
     worst_violence?: string;
     worst_racy?: string;
-    blocked_frame?: number;
-  };
+    blocked_frame?: number | null;
+  } | null;
   moderation?: {
     flagged: boolean;
     score: number;
     categories: string[];
-  };
+  } | null;
   gemini_review?: {
     score: number;
     analysis: string;
-  };
-  transcript?: string;
+  } | null;
+  transcript?: string | null;
   created_at: string;
   updated_at: string;
 }

@@ -129,13 +129,15 @@ export async function registerVybeServiceWorker(): Promise<ServiceWorkerRegistra
     registrationPromise = (async () => {
       try {
         // Drop legacy messaging SW that claimed "/" and fought /sw.js updates.
-        // Also force-update any remaining messaging registration so the root
-        // tombstone worker can activate for pinned N-1 sessions.
+        // Re-register the tombstone only when a root messaging controller/registration
+        // is still present so updateViaCache:'none' can bypass a sticky HTTP cache.
         const all = await navigator.serviceWorker.getRegistrations();
+        let hadRootMessaging = false;
         await Promise.all(
           all.map(async (reg) => {
             const script = reg.active?.scriptURL || reg.waiting?.scriptURL || reg.installing?.scriptURL || '';
             if (script.includes('firebase-messaging-sw.js') && new URL(reg.scope).pathname === '/') {
+              hadRootMessaging = true;
               try {
                 await reg.update();
               } catch {
@@ -150,6 +152,22 @@ export async function registerVybeServiceWorker(): Promise<ServiceWorkerRegistra
           }),
         );
 
+        const controllerIsMessaging = Boolean(
+          navigator.serviceWorker.controller?.scriptURL?.includes('firebase-messaging-sw.js'),
+        );
+        if (hadRootMessaging || controllerIsMessaging) {
+          try {
+            await navigator.serviceWorker.register('/firebase-messaging-sw.js', {
+              scope: '/',
+              updateViaCache: 'none',
+            });
+          } catch {
+            /* ignore */
+          }
+          // Tombstone activate navigates clients — don't race /sw.js this pass.
+          return null;
+        }
+
         const existing = await navigator.serviceWorker.getRegistration('/');
         if (existing?.active?.scriptURL?.includes('/sw.js')) {
           logRegistrationOnce(existing.scope);
@@ -158,7 +176,10 @@ export async function registerVybeServiceWorker(): Promise<ServiceWorkerRegistra
           return existing;
         }
 
-        const registration = await navigator.serviceWorker.register('/sw.js', { scope: '/' });
+        const registration = await navigator.serviceWorker.register('/sw.js', {
+          scope: '/',
+          updateViaCache: 'none',
+        });
         logRegistrationOnce(registration.scope);
         wireUpdateFlow(registration);
 

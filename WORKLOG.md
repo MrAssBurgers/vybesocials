@@ -2,7 +2,40 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
-## ACTIVE (2026-07-28) — Canary follow-up (legacy SW + text post)
+## ACTIVE (2026-07-28) — Canary `3db703014` NO-GO remediation
+
+### Goal
+Clear production canary blockers on `https://vybehub.app` (commit `3db703014` / entry `app-C1UdLEDo.js`): publish completion, N-1 migration, `/upload` bounce, migration-notice audience.
+
+### Root causes found
+- **CANARY-02/03:** `startVybeCheck` pipeline wrote `content_id: undefined`, then nested `safe_search.blocked_frame: undefined`, into Firestore. Both are now null-coalesced in the deployed function.
+- **Text read-back:** caption-only posts are durable but `usePosts` filtered them out because `media_url` is null. Caption-only `type: post` rows now remain visible.
+- **Image publish:** the quarantine upload used `media/quarantine/{uid}/...`, but Storage rules own `media/{uid}/...`; the upload stalled/failed before post creation. It now uses `media/{uid}/quarantine/...`.
+- **CANARY-01:** Production `/firebase-messaging-sw.js` had **no** `Cache-Control` (unlike `/sw.js`), so N-1 root messaging workers did not pick up the tombstone on one reload.
+- **CANARY-04:** Desktop `/upload` wrapped Create Studio in `CameraMountBoundary`; any mount crash called `navigate('/home')`.
+- **CANARY-05:** Migration banner showed for every signed-in user (dismiss flag only).
+
+### What changed
+- **Functions (deployed to `vybe-daaab`):** `vybeCheckPipeline` null-coalesces `content_id` / `storage_path` / nested `blocked_frame` / transcript / optional review fields; `content_type` accepts `text`. Latest production revision: `startvybecheck-00024-tuf`.
+- **Client:** `_headers` no-store for messaging SW + `sw.js` + `version.json` + `boot-guard.js`; tombstone `v2`; `updateViaCache: 'none'`; boot-guard retry + messaging cache bust; desktop `/upload` no camera boundary bounce; migration notice gated to `created_at` before `2026-06-15`; Vybe Check client timeout 60s + surface `errorMessage`; recovery node removed from DOM when ready; caption-only profile posts remain visible; quarantine upload path matches Firebase Storage ownership rules.
+
+### Tests
+- `functions` `npm run build` — pass
+- `firebase deploy --only functions:startVybeCheck` — **Successful**
+- Production text canary — safety approved, Firestore post created, direct post-detail read-back passed. Current client profile grid omission reproduced and fixed locally.
+- Production image canary — server safety result completed in 4.43s; client Storage quarantine path failure reproduced and fixed locally.
+- `npm run build` — pass; entry `app-ByxT6HEn.js`
+- `npm run test -- --run` — 83 files / 410 tests pass
+- `npm run lint` — 0 errors / 5 pre-existing unused-disable warnings
+
+### Blockers / next
+1. **Commit + push `main`**, then **Lovable → Share → Publish** (client/N-1/upload/notice/post read-back/quarantine path).
+2. Retest text+image create/read/delete on prod after the client publish.
+3. Retest exact N-1 `app-Dwq66ozq.js` one-reload after Publish (confirm `/firebase-messaging-sw.js` sends `Cache-Control`).
+
+---
+
+## PREVIOUS (2026-07-28) — Canary follow-up (legacy SW + text post)
 
 ### Goal
 Clear `38c123990` canary NO-GO: N-1 sessions stuck on `app-Dwq66ozq.js`, update overlay requiring Continue anyway, and text Post staying disabled.
