@@ -10,6 +10,7 @@ Clear production canary blockers on `https://vybehub.app` (commit `3db703014` / 
 ### Root causes found
 - **CANARY-02/03:** `startVybeCheck` pipeline wrote `content_id: undefined`, then nested `safe_search.blocked_frame: undefined`, into Firestore. Both are now null-coalesced in the deployed function.
 - **Text read-back:** caption-only posts are durable but `usePosts` filtered them out because `media_url` is null. Caption-only `type: post` rows now remain visible.
+- **Profile read-back:** after the caption-only filter fix, production durably created post `34f183c9-e930-4e73-8245-8d690edaa241` and the profile count reached 1, but the grid still returned no rows. The common one-author lookup used `in: [authorId]`; it now uses the same equality query as the working count path while retaining bounded `in` support for legacy dual-ID profiles.
 - **Image publish:** the quarantine upload used `media/quarantine/{uid}/...`, but Storage rules own `media/{uid}/...`; the upload stalled/failed before post creation. It now uses `media/{uid}/quarantine/...`.
 - **CANARY-01:** Production `/firebase-messaging-sw.js` had **no** `Cache-Control` (unlike `/sw.js`), so N-1 root messaging workers did not pick up the tombstone on one reload.
 - **CANARY-04:** Desktop `/upload` wrapped Create Studio in `CameraMountBoundary`; any mount crash called `navigate('/home')`.
@@ -17,20 +18,22 @@ Clear production canary blockers on `https://vybehub.app` (commit `3db703014` / 
 
 ### What changed
 - **Functions (deployed to `vybe-daaab`):** `vybeCheckPipeline` null-coalesces `content_id` / `storage_path` / nested `blocked_frame` / transcript / optional review fields; `content_type` accepts `text`. Latest production revision: `startvybecheck-00024-tuf`.
-- **Client:** `_headers` no-store for messaging SW + `sw.js` + `version.json` + `boot-guard.js`; tombstone `v2`; `updateViaCache: 'none'`; boot-guard retry + messaging cache bust; desktop `/upload` no camera boundary bounce; migration notice gated to `created_at` before `2026-06-15`; Vybe Check client timeout 60s + surface `errorMessage`; recovery node removed from DOM when ready; caption-only profile posts remain visible; quarantine upload path matches Firebase Storage ownership rules.
+- **Client:** `_headers` no-store for messaging SW + `sw.js` + `version.json` + `boot-guard.js`; tombstone `v2`; `updateViaCache: 'none'`; boot-guard retry + messaging cache bust; desktop `/upload` no camera boundary bounce; migration notice gated to `created_at` before `2026-06-15`; Vybe Check client timeout 60s + surface `errorMessage`; recovery node removed from DOM when ready; caption-only profile posts remain visible; single-author profile reads use equality; quarantine upload path matches Firebase Storage ownership rules.
 
 ### Tests
 - `functions` `npm run build` — pass
 - `firebase deploy --only functions:startVybeCheck` — **Successful**
 - Production text canary — safety approved, Firestore post created, direct post-detail read-back passed. Current client profile grid omission reproduced and fixed locally.
 - Production image canary — server safety result completed in 4.43s; client Storage quarantine path failure reproduced and fixed locally.
-- `npm run build` — pass; entry `app-ByxT6HEn.js`
+- Lovable deployment `60bd1fb9-aa0c-42aa-9f00-f9aa2f59a755` — live; entry `app-4-SrUN4B.js`; direct `/upload` stays open; fresh account has no migration notice or recovery DOM.
+- Post-publish text canary — safety approved and Firestore post created; production profile count reached 1 but grid query mismatch reproduced and fixed locally.
+- `npm run build` — pass; current local entry `app-x18U9t-9.js`
 - `npm run test -- --run` — 83 files / 410 tests pass
 - `npm run lint` — 0 errors / 5 pre-existing unused-disable warnings
 
 ### Blockers / next
-1. **Commit + push `main`**, then **Lovable → Share → Publish** (client/N-1/upload/notice/post read-back/quarantine path).
-2. Retest text+image create/read/delete on prod after the client publish.
+1. **Commit + push `main`**, then **Lovable → Share → Publish** the single-author profile read fix.
+2. Retest text+image create/read/delete on prod after that publish.
 3. Retest exact N-1 `app-Dwq66ozq.js` one-reload after Publish (confirm `/firebase-messaging-sw.js` sends `Cache-Control`).
 
 ---

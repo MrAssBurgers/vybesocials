@@ -84,9 +84,16 @@ export function usePosts(
 
       if (isProfileView) {
         const authorIds = await resolveAuthorIds(authorId!);
-        query = authorIds.length <= 10
-          ? query.in('author_id', authorIds)
-          : query.eq('author_id', authorIds[0]!);
+        // A single resolved identity is the common case. Use equality instead of
+        // `in: [id]`: it is cheaper, avoids a composite-query edge in the
+        // Firestore adapter, and lets the author profile render its own newly
+        // published post immediately. Legacy profiles can still resolve to both
+        // profile and auth IDs and use the bounded `in` query below.
+        query = authorIds.length === 1
+          ? query.eq('author_id', authorIds[0]!)
+          : authorIds.length <= 10
+            ? query.in('author_id', authorIds)
+            : query.eq('author_id', authorIds[0]!);
       }
 
       query = query.order('created_at', { ascending: false }).limit(500);
