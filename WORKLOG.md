@@ -10,7 +10,7 @@ Clear production canary blockers on `https://vybehub.app` (commit `3db703014` / 
 ### Root causes found
 - **CANARY-02/03:** `startVybeCheck` pipeline wrote `content_id: undefined`, then nested `safe_search.blocked_frame: undefined`, into Firestore. Both are now null-coalesced in the deployed function.
 - **Text read-back:** caption-only posts are durable but `usePosts` filtered them out because `media_url` is null. Caption-only `type: post` rows now remain visible.
-- **Profile read-back:** after the caption-only filter fix, production durably created post `34f183c9-e930-4e73-8245-8d690edaa241` and the profile count reached 1, but the grid still returned no rows. The common one-author lookup now uses the same equality query as the working count path, and a transient joined/fallback-author enrichment miss can no longer discard a durable post; the already-loaded profile is the final author fallback.
+- **Profile read-back:** after the caption-only filter fix, production durably created post `34f183c9-e930-4e73-8245-8d690edaa241` and the profile count reached 1, but the grid still returned no rows. Equality and author-fallback builds confirmed the failure was the ordered profile collection query. Profile reads now use the same un-ordered author query shape as the working count path, then apply the existing pinned/newest client sort.
 - **Image publish:** the quarantine upload used `media/quarantine/{uid}/...`, but Storage rules own `media/{uid}/...`; the upload stalled/failed before post creation. It now uses `media/{uid}/quarantine/...`.
 - **CANARY-01:** Production `/firebase-messaging-sw.js` had **no** `Cache-Control` (unlike `/sw.js`), so N-1 root messaging workers did not pick up the tombstone on one reload.
 - **CANARY-04:** Desktop `/upload` wrapped Create Studio in `CameraMountBoundary`; any mount crash called `navigate('/home')`.
@@ -18,7 +18,7 @@ Clear production canary blockers on `https://vybehub.app` (commit `3db703014` / 
 
 ### What changed
 - **Functions (deployed to `vybe-daaab`):** `vybeCheckPipeline` null-coalesces `content_id` / `storage_path` / nested `blocked_frame` / transcript / optional review fields; `content_type` accepts `text`. Latest production revision: `startvybecheck-00024-tuf`.
-- **Client:** `_headers` no-store for messaging SW + `sw.js` + `version.json` + `boot-guard.js`; tombstone `v2`; `updateViaCache: 'none'`; boot-guard retry + messaging cache bust; desktop `/upload` no camera boundary bounce; migration notice gated to `created_at` before `2026-06-15`; Vybe Check client timeout 60s + surface `errorMessage`; recovery node removed from DOM when ready; caption-only profile posts remain visible; single-author profile reads use equality and cannot be erased by auxiliary author enrichment; quarantine upload path matches Firebase Storage ownership rules.
+- **Client:** `_headers` no-store for messaging SW + `sw.js` + `version.json` + `boot-guard.js`; tombstone `v2`; `updateViaCache: 'none'`; boot-guard retry + messaging cache bust; desktop `/upload` no camera boundary bounce; migration notice gated to `created_at` before `2026-06-15`; Vybe Check client timeout 60s + surface `errorMessage`; recovery node removed from DOM when ready; caption-only profile posts remain visible; profile reads use equality without server ordering and cannot be erased by auxiliary author enrichment; quarantine upload path matches Firebase Storage ownership rules.
 
 ### Tests
 - `functions` `npm run build` — pass
@@ -28,6 +28,7 @@ Clear production canary blockers on `https://vybehub.app` (commit `3db703014` / 
 - Lovable deployment `60bd1fb9-aa0c-42aa-9f00-f9aa2f59a755` — live; entry `app-4-SrUN4B.js`; direct `/upload` stays open; fresh account has no migration notice or recovery DOM.
 - Post-publish text canary — safety approved and Firestore post created; production profile count reached 1 but grid query mismatch reproduced and fixed locally.
 - Follow-up deployment `28dd9b61-8471-4372-bd12-ad580fe37e95` confirmed equality path live; grid still omitted the post, isolating the remaining failure to auxiliary author enrichment. Profile-author fallback added locally.
+- Follow-up deployment `0c096cfd-bd70-4968-a660-d8fd659fd8e4` confirmed author fallback live; grid still omitted the post while direct detail read succeeded, isolating the failure to the ordered profile collection query. Server ordering removed locally; existing client sort remains.
 - `npm run build` — pass; current local entry `app-x18U9t-9.js`
 - `npm run test -- --run` — 83 files / 410 tests pass
 - `npm run lint` — 0 errors / 5 pre-existing unused-disable warnings

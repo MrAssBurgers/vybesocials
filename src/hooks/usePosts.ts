@@ -99,7 +99,15 @@ export function usePosts(
             : query.eq('author_id', authorIds[0]!);
       }
 
-      query = query.order('created_at', { ascending: false }).limit(500);
+      // Profile rows are sorted below (pinned first, then newest). Keeping the
+      // author query unordered also gives it the same reliable Firestore shape
+      // as the working profile post-count query; the previous ordered query
+      // could return an empty snapshot while direct document reads and the
+      // author count both proved the post existed.
+      if (!isProfileView) {
+        query = query.order('created_at', { ascending: false });
+      }
+      query = query.limit(500);
 
       if (type) {
         query = query.eq('type', type);
