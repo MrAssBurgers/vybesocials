@@ -91,6 +91,8 @@ function VybeMapInner() {
   const {
     coords: myCoords,
     sharing,
+    locationAvailable,
+    locationDenied,
     setSharing,
     heading: myHeading,
     enableTemporaryGhost,
@@ -160,6 +162,7 @@ function VybeMapInner() {
     () => (myCoords && isValidLatLng(myCoords[0], myCoords[1]) ? myCoords : null),
     [myCoords],
   );
+  const effectiveLiveSharing = sharing && locationAvailable && !!safeMyCoords && !locationDenied;
   const sel = useMemo(() => friends.find((f) => f.user_id === selId) || null, [friends, selId]);
   const squadSet = useMemo(
     () => (layers.groups && activeSquad ? new Set(squadMemberIds) : undefined),
@@ -276,11 +279,15 @@ function VybeMapInner() {
   };
 
   const toggleSharing = () => {
-    if (sharing) {
+    if (effectiveLiveSharing) {
       setSharing(false);
       triggerHaptic('medium');
       toast.success("Ghost Mode — you're hidden");
     } else {
+      if (!locationAvailable || !safeMyCoords || locationDenied) {
+        toast.error('Enable location permission before going live on VybeMap');
+        return;
+      }
       exitGhost();
       triggerHaptic('medium');
       toast.success("You're live on VybeMap");
@@ -296,7 +303,11 @@ function VybeMapInner() {
   };
 
   const handleStatusChip = () => {
-    if (sharing) {
+    if (!locationAvailable || !safeMyCoords || locationDenied) {
+      toast.error('Location is off — enable permission in your browser or device settings');
+      return;
+    }
+    if (effectiveLiveSharing) {
       setGhostOpen(true);
       return;
     }
@@ -377,7 +388,8 @@ function VybeMapInner() {
         onSearch={(q) => void handleSearch(q)}
         onOpenSettings={() => setSettingsOpen(true)}
         radarLabel={radar.label}
-        liveSharing={sharing}
+        liveSharing={effectiveLiveSharing}
+        locationAvailable={locationAvailable && !!safeMyCoords && !locationDenied}
         onStatusChip={handleStatusChip}
         squadChip={
           activeSquad && layers.groups
@@ -429,7 +441,7 @@ function VybeMapInner() {
 
       <AnimatePresence>
         {ghostOpen && (
-          <GhostModeSheet sharing={sharing} onClose={() => setGhostOpen(false)} onToggleSharing={toggleSharing} onGhostDuration={handleGhostDuration} />
+          <GhostModeSheet sharing={effectiveLiveSharing} onClose={() => setGhostOpen(false)} onToggleSharing={toggleSharing} onGhostDuration={handleGhostDuration} />
         )}
       </AnimatePresence>
 
@@ -438,7 +450,7 @@ function VybeMapInner() {
           <MapSettingsSheet
             mapMode={mapViewMode}
             layers={layers}
-            sharing={sharing}
+            sharing={effectiveLiveSharing}
             hasMapbox={useMapbox}
             followHeading={followHeading}
             onFollowHeading={setFollowHeading}

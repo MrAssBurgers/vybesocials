@@ -132,6 +132,7 @@ export default function AIChat() {
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number; city?: string } | null>(null);
   const [showGPSDialog, setShowGPSDialog] = useState(false);
   const [chatKeyHint, setChatKeyHint] = useState(false);
+  const [failedRequest, setFailedRequest] = useState<{ text: string; reference: string } | null>(null);
   
   // Image upload state
   const [selectedImage, setSelectedImage] = useState<File | null>(null);
@@ -275,6 +276,11 @@ export default function AIChat() {
       const reply = content.trim() || "Something went wrong. Try again in a moment.";
       setMessages(prev => [...prev, { role: 'assistant', content: reply, timestamp: new Date(), imageUrl }]);
     };
+    const appendFailureReply = (content: string) => {
+      const reference = crypto.randomUUID().slice(0, 8).toUpperCase();
+      setFailedRequest({ text: msgText, reference });
+      appendAssistantReply(`${content}\n\nReference: ${reference}`);
+    };
 
     // Build image data if present
     let imageBase64: string | null = null;
@@ -305,6 +311,7 @@ export default function AIChat() {
     // Show typing indicator immediately — before agent/encode/network work
     setIsLoading(true);
     setStreamingText('');
+    setFailedRequest(null);
 
     let assistantContent = '';
     streamingContentRef.current = '';
@@ -318,7 +325,7 @@ export default function AIChat() {
           void refreshAiUsage();
         } catch (aiErr) {
           const fbMsg = formatFirebaseAiError(aiErr);
-          appendAssistantReply(fbMsg || formatAiChatError(aiErr));
+          appendFailureReply(fbMsg || formatAiChatError(aiErr));
         }
         return;
       }
@@ -361,7 +368,7 @@ export default function AIChat() {
           return;
         } catch (agentErr) {
           if (!shouldFallbackToAiChat(agentErr)) {
-            appendAssistantReply(formatAiChatError(agentErr));
+            appendFailureReply(formatAiChatError(agentErr));
             return;
           }
           const localFallback = parseLocalAgentPlan(agentText);
@@ -407,7 +414,7 @@ export default function AIChat() {
             setChatKeyHint(true);
           }
           if ((aiErr as { status?: number }).status === 429) toast.error(fbMsg);
-          appendAssistantReply(fbMsg);
+          appendFailureReply(fbMsg);
           return;
         }
         throw aiErr;
@@ -425,7 +432,7 @@ export default function AIChat() {
       if (usage.providers.google && /key|rejected|restricted|invalid/i.test(reply)) {
         setChatKeyHint(true);
       }
-      appendAssistantReply(reply);
+      appendFailureReply(reply);
       setStreamingText('');
       streamingContentRef.current = '';
     } finally {
@@ -608,6 +615,24 @@ export default function AIChat() {
           {!usage.loading && usage.providers.google && chatKeyHint && (
             <div className="px-1 py-2 rounded-xl bg-destructive/10 border border-destructive/30 text-xs text-destructive/90">
               Key saved but server rejected it — remove API restrictions in AI Studio or re-save in Settings → VYBE AI.
+            </div>
+          )}
+          {failedRequest && (
+            <div className="px-3 py-2.5 rounded-xl bg-destructive/10 border border-destructive/30 text-xs flex items-center gap-3" role="alert">
+              <div className="min-w-0 flex-1">
+                <p className="font-medium text-foreground">VYBE AI couldn&apos;t finish that reply.</p>
+                <p className="text-muted-foreground">Reference {failedRequest.reference}</p>
+              </div>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="shrink-0 h-8"
+                onClick={() => { const retryText = failedRequest.text; setFailedRequest(null); void sendMessage(retryText); }}
+                disabled={isLoading}
+              >
+                Retry
+              </Button>
             </div>
           )}
           {messages.map((message, index) => {
@@ -797,6 +822,7 @@ export default function AIChat() {
               disabled={(!input.trim() && !selectedImage) || isLoading}
               size="icon"
               className="h-9 w-9 rounded-full shrink-0"
+              aria-label={isLoading ? 'VYBE AI is responding' : 'Send message to VYBE AI'}
             >
               {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
             </Button>

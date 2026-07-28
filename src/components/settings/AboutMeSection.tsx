@@ -110,6 +110,7 @@ export function AboutMeSection() {
           Show age on profile
         </Label>
         <Switch
+          aria-label="Show age on profile"
           checked={form.show_age || false}
           onCheckedChange={(v) => setForm({ ...form, show_age: v })}
         />

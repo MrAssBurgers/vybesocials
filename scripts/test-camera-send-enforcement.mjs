@@ -2,7 +2,7 @@
  * Static enforcement: camera entry points must use openSnapCamera with
  * launchContext — never send local blob URLs via onSend / insertDmMessage.
  */
-import { readFileSync, readdirSync, statSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { resolve, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -28,7 +28,7 @@ function walk(dir, out = []) {
   return out;
 }
 
-const ENTRY_POINT_FILES = [
+const configuredEntryPoints = [
   'src/components/chat/ConversationOptionsSheet.tsx',
   'src/components/social-profile/RelationshipProfileActions.tsx',
   'src/components/chat/ChatView.tsx',
@@ -39,6 +39,16 @@ const ENTRY_POINT_FILES = [
   'src/components/stories/StoryCreator.tsx',
   'src/components/create/DesktopCreateStudio.tsx',
 ].map((f) => resolve(ROOT, f));
+
+const discoveredEntryPoints = walk(SRC).filter((file) => {
+  const source = readFileSync(file, 'utf8');
+  return /openSnapCamera|openCameraFromGesture|launchContext/.test(source);
+});
+
+const ENTRY_POINT_FILES = [...new Set([
+  ...configuredEntryPoints.filter(existsSync),
+  ...discoveredEntryPoints,
+])];
 
 function main() {
   for (const file of ENTRY_POINT_FILES) {

@@ -1,3 +1,4 @@
+import { forwardRef } from 'react';
 import { Link, type LinkProps } from 'react-router-dom';
 import { publicProfilePath } from '@/lib/friendProfileRoutes';
 
@@ -9,16 +10,19 @@ interface ProfileLinkProps extends Omit<LinkProps, 'to'> {
 }
 
 /** Canonical profile link for every relationship state. */
-export function ProfileLink({
-  username,
-  userId: _userId,
-  forcePublic: _forcePublic,
-  children,
-  ...rest
-}: ProfileLinkProps) {
+export const ProfileLink = forwardRef<HTMLAnchorElement, ProfileLinkProps>(function ProfileLink(
+  {
+    username,
+    userId: _userId,
+    forcePublic: _forcePublic,
+    children,
+    ...rest
+  },
+  ref,
+) {
   return (
-    <Link to={publicProfilePath(username)} {...rest}>
+    <Link ref={ref} to={publicProfilePath(username)} {...rest}>
       {children}
     </Link>
   );
-}
+});

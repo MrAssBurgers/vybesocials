@@ -2,7 +2,7 @@ import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { db, requireAuth, rateLimit, enforceRateLimit } from './_shared/admin.js';
 import { chatCompletion, generateImage, groundedColorResearchStructured } from './_shared/geminiAi.js';
 import { modelForTier, TOKEN_BUDGET } from './_shared/aiModels.js';
-import { enforceAiQuota, getGeminiByokKey, resolveProfileIdFromAuth, } from './_shared/aiQuota.js';
+import { enforceAiQuota, getGeminiByokKey, recordSuccessfulAiUsage, resolveProfileIdFromAuth, } from './_shared/aiQuota.js';
 import { runVybeCheckScan } from './_shared/contentSafety.js';
 const SECRETS = ['GEMINI_API_KEY'];
 async function loadUserProfile(uid) {
@@ -13,7 +13,12 @@ async function loadUserProfile(uid) {
     return (byUserId.docs[0]?.data() || {});
 }
 /** ai-chat — conversational assistant with VYBE DNA context. */
-export const aiChat = onCall({ secrets: SECRETS }, async (request) => {
+export const aiChat = onCall({
+    secrets: SECRETS,
+    // Gen2 callables must allow unauthenticated Cloud Run ingress; Firebase Auth
+    // is enforced inside requireAuth. Empty IAM invokers caused QA ref 8023B65E.
+    invoker: 'public',
+}, async (request) => {
     const authUid = requireAuth(request);
     enforceRateLimit(await rateLimit(`aichat:${authUid}`, 12, 60));
     const profileId = await resolveProfileIdFromAuth(authUid);
@@ -27,7 +32,10 @@ export const aiChat = onCall({ secrets: SECRETS }, async (request) => {
         keySource: usingByok ? 'byok' : 'platform',
         authUid,
     });
-    const quota = await enforceAiQuota(profileId, 'chat', { ignoreByok: !usePersonalKey });
+    await enforceAiQuota(profileId, 'chat', {
+        ignoreByok: !usePersonalKey,
+        consume: false,
+    });
     const { messages, aiName, aiPersonality, location, imageBase64, imageMimeType } = (request.data || {});
     if (!Array.isArray(messages) || !messages.length)
         throw new HttpsError('invalid-argument', 'messages required');
@@ -92,6 +100,9 @@ export const aiChat = onCall({ secrets: SECRETS }, async (request) => {
         if (!content?.trim()) {
             throw new HttpsError('unavailable', 'AI returned an empty reply — try Clear Chat and send again.');
         }
+        const quota = await recordSuccessfulAiUsage(profileId, 'chat', {
+            ignoreByok: !usePersonalKey,
+        });
         return {
             reply: content,
             quota: {

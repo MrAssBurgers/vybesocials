@@ -308,8 +308,8 @@ function FeedSection({
         <FriendLinkSpotlight
           onOpen={() => openFriendLink()}
           onDismiss={() => {
-            dismissFriendLinkSpotlight();
             setShowFriendLinkSpotlight(false);
+            queueMicrotask(dismissFriendLinkSpotlight);
           }}
         />
       )}
@@ -325,6 +325,8 @@ function FeedSection({
                 <TabsTrigger
                   key={tab}
                   value={tab}
+                  onClick={() => setActiveTab(tab)}
+                  aria-label={`Show ${labels[tab]} feed`}
                   className={cn(
                     'relative flex-1 rounded-xl transition-colors duration-200 z-10 h-full text-xs font-semibold',
                     isActive ? 'text-primary-foreground' : 'text-muted-foreground hover:text-foreground/80'
@@ -333,11 +335,11 @@ function FeedSection({
                   {isActive && (
                     <motion.div
                       layoutId="home-feed-tab-pill"
-                      className="absolute inset-0.5 rounded-xl home-feed-tab-active"
+                      className="pointer-events-none absolute inset-0.5 rounded-xl home-feed-tab-active"
                       transition={{ type: 'spring', stiffness: 420, damping: 32 }}
                     />
                   )}
-                  <span className="relative z-10 flex items-center justify-center gap-1.5">
+                  <span className="pointer-events-none relative z-10 flex items-center justify-center gap-1.5">
                     <Icon className={cn('h-3.5 w-3.5', isActive && 'drop-shadow-sm')} />
                     {labels[tab]}
                   </span>

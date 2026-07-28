@@ -96,8 +96,12 @@ export default defineConfig(({ mode }) => {
       chunkSizeWarningLimit: 1000,
     },
     optimizeDeps: {
+      // The app has hundreds of lazy routes. Do not hold /src/main.tsx until
+      // Vite finishes crawling the entire source tree; discovery can continue
+      // in the background and add uncommon dependencies as routes open.
+      holdUntilCrawlEnd: false,
       include: [
-        'react', 'react-dom', 'react-router-dom',
+        'react', 'react-dom', 'react/jsx-runtime', 'react/jsx-dev-runtime', 'react-router-dom',
         '@tanstack/react-query', '@tanstack/react-query-persist-client',
         'framer-motion',
         'firebase/app', 'firebase/auth', 'firebase/firestore', 'firebase/storage', 'firebase/functions',

@@ -7,6 +7,7 @@ import { useCameraOverlayOptional } from '@/contexts/cameraOverlaySafe';
 import {
   Sheet,
   SheetContent,
+  SheetDescription,
   SheetHeader,
   SheetTitle,
 } from '@/components/ui/sheet';
@@ -36,6 +37,9 @@ export function DMComposeButton({ hidden = false }: { hidden?: boolean }) {
         >
           <SheetHeader>
             <SheetTitle>New</SheetTitle>
+            <SheetDescription className="sr-only">
+              Start a message or group, or send a VYBE Snap.
+            </SheetDescription>
           </SheetHeader>
           <div className="mt-4 flex flex-col gap-1 pb-6">
             <button

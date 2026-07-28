@@ -185,6 +185,8 @@ export function AIVybeDesigner({ interests = [], onComplete, onSkip }: AIVybeDes
   const [buildPhase, setBuildPhase] = useState(0);
   const [generatedTheme, setGeneratedTheme] = useState<DesignerTheme | null>(null);
   const [showPreviewElements, setShowPreviewElements] = useState(false);
+  const [generationNotice, setGenerationNotice] = useState<string | null>(null);
+  const [generationWasFallback, setGenerationWasFallback] = useState(false);
 
   const abortRef = useRef<AbortController | null>(null);
   const snapshotRef = useRef<Record<string, string> | null>(null);
@@ -338,6 +340,11 @@ export function AIVybeDesigner({ interests = [], onComplete, onSkip }: AIVybeDes
       });
       if (!isValidGeneratedTheme(result.theme)) throw new Error('Invalid theme response');
       theme = { ...result.theme };
+      const usedFallback = result.aiFallback === true || !['cloud', 'client'].includes(result.source);
+      setGenerationWasFallback(usedFallback);
+      setGenerationNotice(result.notice || (usedFallback
+        ? 'AI generation is unavailable right now, so VYBE created a local palette from your choices.'
+        : null));
       if (result.notice && (result.source === 'local' || result.aiFallback)) {
         toast.message(result.notice, { duration: 5000 });
       }
@@ -426,6 +433,8 @@ export function AIVybeDesigner({ interests = [], onComplete, onSkip }: AIVybeDes
     setGeneratedTheme(null);
     setShowPreviewElements(false);
     setBuildPhase(0);
+    setGenerationNotice(null);
+    setGenerationWasFallback(false);
     setStep('vibe');
   };
 
@@ -743,6 +752,21 @@ export function AIVybeDesigner({ interests = [], onComplete, onSkip }: AIVybeDes
             </div>
 
             <div className="flex-1 overflow-y-auto overscroll-contain space-y-3 pb-2">
+              {generationWasFallback && (
+                <div className="rounded-2xl border border-warning/40 bg-warning/10 p-3 text-left" role="status">
+                  <p className="text-xs font-semibold text-foreground">Local fallback theme</p>
+                  <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
+                    {generationNotice}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={handleTryAgain}
+                    className="mt-2 text-xs font-semibold text-primary hover:underline"
+                  >
+                    Retry AI generation
+                  </button>
+                </div>
+              )}
               {/* Mock feed card in the new theme */}
               <motion.div
                 initial={reduceMotion ? false : { opacity: 0, y: 24, scale: 0.96 }}

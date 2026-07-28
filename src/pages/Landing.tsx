@@ -309,6 +309,12 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
     password: '',
     username: '',
   });
+  const switchAuthMode = () => {
+    setIsLogin((current) => !current);
+    setFormData((current) => ({ ...current, password: '', username: '' }));
+    setAgreedToTerms(false);
+    setShowPassword(false);
+  };
   /** Full-screen signing overlay while system sheet / Apple sheet is open. */
   const [oauthOverlay, setOauthOverlay] = useState<'google' | 'apple' | null>(null);
 
@@ -857,7 +863,7 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
         if (!agreedToTerms) {
           throw new Error('You must agree to the Terms of Use');
         }
-        const { error, needsEmailConfirmation } = await signUp(
+        const { error, needsEmailConfirmation, verificationEmailSent } = await signUp(
           normalizeLoginEmail(formData.email),
           formData.password,
           formData.username,
@@ -873,6 +879,9 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
         }
 
         toast.success('Welcome to VYBE! 🎉');
+        if (verificationEmailSent === false) {
+          toast.warning('Your account is ready, but the verification email could not be sent. You can retry it from Settings.');
+        }
         navTo('onboarding', '/onboarding');
       }
     } catch (error: any) {
@@ -1338,7 +1347,7 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
                 {isLogin ? t('auth.noAccount') : t('auth.hasAccount')}{' '}
                 <button
                   type="button"
-                  onClick={() => setIsLogin(!isLogin)}
+                  onClick={switchAuthMode}
                   className="text-primary hover:underline font-medium"
                 >
                   {isLogin ? t('auth.signup') : t('auth.login')}

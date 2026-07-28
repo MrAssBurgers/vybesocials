@@ -40,10 +40,8 @@ type PostLoginProfile = {
 
 /** Sync post-login route — never await profile fetch (avoids infinite spinner). */
 export function resolvePostLoginDestination(profile: PostLoginProfile): string {
-  if (profile) {
-    if (profile.onboarding_completed === false || isGeneratedUsername(profile.username)) {
-      return '/onboarding';
-    }
+  if (!profile || profile.onboarding_completed !== true || isGeneratedUsername(profile.username)) {
+    return '/onboarding';
   }
   return getPostLoginPath('/home');
 }

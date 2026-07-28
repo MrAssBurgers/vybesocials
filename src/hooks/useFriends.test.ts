@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   friendshipUiStatus,
   normalizeFriendshipState,
+  validateSentFriendRequest,
 } from './useFriends';
 
 describe('friendship state normalization', () => {
@@ -24,5 +25,30 @@ describe('friendship state normalization', () => {
     expect(friendshipUiStatus('accepted')).toBe('friends');
     expect(friendshipUiStatus('blocked')).toBe('blocked');
     expect(normalizeFriendshipState('unexpected', 'incoming')).toBe('none');
+  });
+});
+
+describe('friend request delivery confirmation', () => {
+  it('accepts only a server-verified recipient-visible request', () => {
+    expect(validateSentFriendRequest({
+      ok: true,
+      verified: true,
+      state: 'pending_outgoing',
+      request_id: 'sender_receiver',
+    }).request_id).toBe('sender_receiver');
+  });
+
+  it('rejects optimistic or incomplete success responses', () => {
+    expect(() => validateSentFriendRequest({
+      ok: true,
+      state: 'pending_outgoing',
+      request_id: 'sender_receiver',
+    })).toThrow(/could not be confirmed/i);
+    expect(() => validateSentFriendRequest({
+      ok: true,
+      verified: true,
+      state: 'pending_outgoing',
+      request_id: null,
+    })).toThrow(/could not be confirmed/i);
   });
 });

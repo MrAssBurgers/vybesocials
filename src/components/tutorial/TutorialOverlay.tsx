@@ -316,7 +316,8 @@ export const TutorialOverlay = memo(function TutorialOverlay({
     // Reset navigation tracking for new step
     lastNavigatedRouteRef.current = null;
     executeStepAction();
-  }, [isOpen, currentStep, executeStepAction]);
+    // Intentionally keyed to explicit step changes, not passive route changes.
+  }, [isOpen, currentStep]);
 
   // Update spotlight after action is executed
   useEffect(() => {
@@ -373,6 +374,9 @@ export const TutorialOverlay = memo(function TutorialOverlay({
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
         className="fixed inset-0 z-[99999] pointer-events-auto"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="vybe-tutorial-title"
       >
         {/* Dark overlay with spotlight cutout */}
         <svg
@@ -536,7 +540,7 @@ export const TutorialOverlay = memo(function TutorialOverlay({
                   exit={{ opacity: 0, y: -6 }}
                   transition={{ duration: 0.2 }}
                 >
-                  <h3 className="text-lg font-bold mb-2 text-foreground">
+                  <h3 id="vybe-tutorial-title" className="text-lg font-bold mb-2 text-foreground">
                     {currentStepData?.title}
                   </h3>
                   <p className="text-sm text-muted-foreground mb-4 leading-relaxed">

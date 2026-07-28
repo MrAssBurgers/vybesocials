@@ -47,7 +47,12 @@
 
   function hideRecovery() {
     var el = document.getElementById(RECOVERY_ID);
-    if (el) el.style.display = 'none';
+    if (el) {
+      el.style.display = 'none';
+      el.setAttribute('aria-hidden', 'true');
+      el.removeAttribute('aria-live');
+      el.removeAttribute('role');
+    }
     recoveryShown = false;
   }
 
@@ -97,6 +102,9 @@
     var el = document.getElementById(RECOVERY_ID);
     if (!el) return;
     el.style.display = 'flex';
+    el.setAttribute('aria-hidden', 'false');
+    el.setAttribute('aria-live', 'assertive');
+    el.setAttribute('role', 'alert');
     document.documentElement.setAttribute(BOOT_ATTR, 'failed');
     var detail = document.getElementById('vybe-boot-recovery-detail');
     if (!detail) return;

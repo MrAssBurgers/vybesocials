@@ -131,7 +131,11 @@ interface AuthContextType {
   loading: boolean;
   authReady: boolean;
   banInfo: BanInfo | null;
-  signUp: (email: string, password: string, username: string) => Promise<{ error: Error | null; needsEmailConfirmation?: boolean }>;
+  signUp: (email: string, password: string, username: string) => Promise<{
+    error: Error | null;
+    needsEmailConfirmation?: boolean;
+    verificationEmailSent?: boolean;
+  }>;
   signIn: (email: string, password: string) => Promise<{ error: Error | null; requiresApproval?: boolean } & Partial<ApplySessionResult>>;
   /** Apply Firebase OAuth session immediately (popup / redirect completion). */
   applyOAuthSession: (session: Session, method?: string) => Promise<ApplySessionResult>;
@@ -1129,6 +1133,35 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       if (data.session?.user) {
+        // Establish the submitted identity before any listener-driven redirect.
+        let signupProfile: Profile = {
+          id: data.session.user.id,
+          user_id: data.session.user.id,
+          username: cleanUsername,
+          display_name: cleanUsername,
+          avatar_url: null,
+          bio: '',
+          created_at: new Date().toISOString(),
+          onboarding_completed: false,
+        };
+        try {
+          const ensured = await ensureUserProfile(data.session.user.id, {
+            username: cleanUsername,
+            display_name: cleanUsername,
+            onboarding_completed: false,
+          });
+          if (isGeneratedUsername(ensured.username)) {
+            await updateUserProfile(data.session.user.id, { username: cleanUsername });
+            ensured.username = cleanUsername;
+          }
+          signupProfile = ensured as unknown as Profile;
+        } catch (profileError) {
+          // The account is already created. Keep onboarding authoritative and
+          // let the existing background bootstrap retry profile persistence.
+          console.warn('[Auth] signup profile confirmation deferred:', profileError);
+        }
+        setProfile(signupProfile);
+        persistCurrentProfile(signupProfile);
         setWasLoggedIn(true);
         setSession(data.session);
         setUser(data.session.user);
@@ -1142,12 +1175,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
         bootstrapSessionData(data.session.user.id, 'SIGNED_IN');
         void trySyncSignupUsername();
-        return { error: null, needsEmailConfirmation: false };
+        return {
+          error: null,
+          needsEmailConfirmation: false,
+          verificationEmailSent: data.verificationEmailSent !== false,
+        };
       }
 
       return {
         error: null,
         needsEmailConfirmation: Boolean(data.user),
+        verificationEmailSent: data.verificationEmailSent !== false,
       };
     } catch (error) {
       return { error: error as Error, needsEmailConfirmation: false };

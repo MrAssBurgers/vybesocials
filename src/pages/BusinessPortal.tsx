@@ -24,7 +24,12 @@ import { PaymentsSetup } from '@/components/business/PaymentsSetup';
 
 export default function BusinessPortal() {
   const { profile } = useAuth();
-  const { data: business, isLoading: loadingBusiness } = useMyBusiness();
+  const {
+    data: business,
+    isLoading: loadingBusiness,
+    isError: businessError,
+    refetch: refetchBusiness,
+  } = useMyBusiness();
   const { data: products } = useMyBusinessProducts();
   const { data: orders } = useBusinessOrders();
   const [showCreateDialog, setShowCreateDialog] = useState(false);
@@ -47,7 +52,26 @@ export default function BusinessPortal() {
     return (
       <AppLayout>
         <div className="flex items-center justify-center min-h-[60vh]">
-          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          <div className="text-center space-y-3" role="status" aria-live="polite">
+            <Loader2 className="h-8 w-8 animate-spin text-primary mx-auto" />
+            <p className="text-sm text-muted-foreground">Loading your business portal…</p>
+          </div>
+        </div>
+      </AppLayout>
+    );
+  }
+
+  if (businessError) {
+    return (
+      <AppLayout>
+        <div className="flex items-center justify-center min-h-[60vh] px-4">
+          <EmptyState
+            icon={<AlertCircle className="h-12 w-12 text-destructive" />}
+            title="Business portal unavailable"
+            description="We couldn't load your business profile. Check your connection or account permissions, then try again."
+            actionLabel="Try again"
+            onAction={() => { void refetchBusiness(); }}
+          />
         </div>
       </AppLayout>
     );

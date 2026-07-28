@@ -11,9 +11,7 @@ import { subscribePostgresChannel, removeRealtimeChannel } from '@/lib/realtimeC
 import { useAuth } from '@/lib/auth';
 import { useAuthProfileId } from '@/hooks/useAuthProfileId';
 import { getEffectiveProfileId } from '@/lib/profileCache';
-import { invalidateConversationCaches } from '@/lib/invalidateConversationCaches';
 import { normalizeToProfileId } from '@/lib/dmMembershipRepair';
-import { createDmChat } from '@/lib/firebase/chats';
 import { firebaseAuth } from '@/lib/firebase/authService';
 import { resolveSessionProfileId } from '@/lib/resolveSessionProfileId';
 import { syncUserAuthIndex } from '@/lib/firebase/profileResolve';
@@ -86,7 +84,16 @@ type FriendshipMutationResponse = {
   state?: FriendshipState;
   request_id?: string | null;
   already_exists?: boolean;
+  verified?: boolean;
 };
+
+export function validateSentFriendRequest(response: FriendshipMutationResponse) {
+  const validState = response.state === 'pending_outgoing' || response.state === 'accepted';
+  if (!response.ok || !response.verified || !response.request_id || !validState) {
+    throw new Error('Friend request could not be confirmed for the recipient. Please try again.');
+  }
+  return response;
+}
 
 async function invokeFriendshipMutation(payload: Record<string, unknown>) {
   const { data, error } = await db.functions.invoke<FriendshipMutationResponse>(
@@ -583,16 +590,6 @@ export function useSendFriendRequest() {
   const liveProfileId = useAuthProfileId();
   const queryClient = useQueryClient();
 
-  const ensureDirectConversation = async (currentUserId: string, receiverId: string) => {
-    try {
-      await createDmChat(receiverId);
-      return true;
-    } catch (error) {
-      console.error('[Friends] Failed to create DM conversation:', error);
-      return false;
-    }
-  };
-
   return useMutation({
     mutationFn: async (receiverId: string) => {
       const profileId = await resolveActorProfileId(profile?.id);
@@ -610,24 +607,20 @@ export function useSendFriendRequest() {
       if (alreadyFriend) {
         return {
           alreadyExists: true,
-          conversationCreated: false,
           receiverProfileId,
           state: 'accepted' as FriendshipState,
           requestId: null,
         };
       }
 
-      const result = await invokeFriendshipMutation({
-        action: 'send',
-        target_profile_id: receiverProfileId,
-      });
-      const conversationCreated =
-        result.already_exists && result.state === 'accepted'
-          ? false
-          : await ensureDirectConversation(profileId, receiverProfileId);
+      const result = validateSentFriendRequest(
+        await invokeFriendshipMutation({
+          action: 'send',
+          target_profile_id: receiverProfileId,
+        }),
+      );
       return {
         alreadyExists: !!result.already_exists,
-        conversationCreated,
         receiverProfileId,
         state: (result.state as FriendshipState | undefined) || 'pending_outgoing',
         requestId: result.request_id || null,
@@ -677,7 +670,6 @@ export function useSendFriendRequest() {
       queryClient.invalidateQueries({ queryKey: ['friend-requests'] });
       queryClient.invalidateQueries({ queryKey: ['friendship-status'] });
       queryClient.invalidateQueries({ queryKey: ['friends'] });
-      invalidateConversationCaches(queryClient);
 
       const profileId = liveProfileId || profile?.id;
       if (profileId && result?.receiverProfileId && result.state) {
@@ -700,7 +692,7 @@ export function useSendFriendRequest() {
         return;
       }
 
-      toast.success(result?.conversationCreated ? 'Friend request sent! Chat created.' : 'Friend request sent!');
+      toast.success('Friend request sent!');
     },
     onError: (error: any, _receiverId, context) => {
       if (/already/i.test(String(error?.message || ''))) {

@@ -1,8 +1,6 @@
 /**
  * Read equipped Vybe tokens from localStorage before React mounts.
  */
-import { getStoredAuthUserId } from '@/lib/legacyAuthStorage';
-
 export const BOOT_SNAPSHOT_KEY = 'vybe-boot-theme';
 export const BOOT_SNAPSHOT_UPDATED_AT_KEY = 'vybe-boot-theme-updated-at';
 
@@ -77,13 +75,39 @@ function readPersistedFirebaseAuthUid(): string | null {
   }
 }
 
+/**
+ * Boot-theme code is emitted as a synchronous IIFE, so it must stay independent
+ * from the Firebase runtime/config graph. Read only the legacy storage shape
+ * needed to scope a theme; the full auth bootstrap validates/migrates it later.
+ */
+function readPersistedLegacyAuthUid(): string | null {
+  try {
+    for (const key of Object.keys(localStorage)) {
+      if (!/^sb-.+-auth-token(?:-vybe-backup)?$/.test(key)) continue;
+      try {
+        const parsed = JSON.parse(localStorage.getItem(key) || 'null') as {
+          user?: { id?: string };
+          currentSession?: { user?: { id?: string } };
+        } | null;
+        const uid = parsed?.user?.id ?? parsed?.currentSession?.user?.id;
+        if (typeof uid === 'string' && uid) return uid;
+      } catch {
+        /* ignore malformed legacy data */
+      }
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
 export function resolveThemeUserId(explicitUserId?: string | null): string | null {
   if (explicitUserId) return explicitUserId;
   try {
     const persistedFirebaseUid = readPersistedFirebaseAuthUid();
     if (persistedFirebaseUid) return persistedFirebaseUid;
 
-    const storedAuthUid = getStoredAuthUserId();
+    const storedAuthUid = readPersistedLegacyAuthUid();
     if (storedAuthUid) return storedAuthUid;
 
     return localStorage.getItem(THEME_USER_ID_KEY);
@@ -94,7 +118,7 @@ export function resolveThemeUserId(explicitUserId?: string | null): string | nul
 
 export function readBootSnapshot(): Record<string, string> | null {
   try {
-    const authUid = readPersistedFirebaseAuthUid() ?? getStoredAuthUserId();
+    const authUid = readPersistedFirebaseAuthUid() ?? readPersistedLegacyAuthUid();
     if (authUid && localStorage.getItem(THEME_USER_ID_KEY) !== authUid) {
       return null;
     }

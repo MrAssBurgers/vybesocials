@@ -56,6 +56,7 @@ export const AppLayout = memo(forwardRef<HTMLDivElement, AppLayoutProps>(functio
   const { swipeBackHandlers, swipeProgress } = useSwipeBack(swipeBackAllowed);
   const bottomNavMounted = useBottomNavMount();
   const reserveBottomNavSpace = !hideNav && !noPadding && bottomNavMounted;
+  const showMigrationNotice = Boolean(user && !noPadding);
   const [navEffectiveVisible, setNavEffectiveVisible] = useState(true);
 
   useEffect(() => bindAppScrollHideContainer(), []);
@@ -119,7 +120,7 @@ export const AppLayout = memo(forwardRef<HTMLDivElement, AppLayoutProps>(functio
                   fullWidth ? '' : 'max-w-full',
                 )}
               >
-                {user && <MigrationAccountNotice variant="app" />}
+                {showMigrationNotice && <MigrationAccountNotice variant="app" />}
                 {children}
               </div>
             </main>
@@ -179,7 +180,7 @@ export const AppLayout = memo(forwardRef<HTMLDivElement, AppLayoutProps>(functio
               transition: swipeProgress === 0 ? 'transform 0.2s ease-out' : undefined,
             }}
           >
-            {user && <MigrationAccountNotice variant="app" />}
+            {showMigrationNotice && <MigrationAccountNotice variant="app" />}
             {children}
           </main>
 

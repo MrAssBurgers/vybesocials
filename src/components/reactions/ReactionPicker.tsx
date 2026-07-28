@@ -343,6 +343,8 @@ export const ReactionPicker = memo(function ReactionPicker({
 
       {/* Like/Reaction Button */}
       <button
+        aria-label={activeReaction ? `Change reaction from ${activeReaction.label}` : 'React to post'}
+        aria-pressed={Boolean(activeReaction)}
         onPointerDown={handlePointerDown}
         onPointerUp={handlePointerUp}
         onPointerCancel={() => { cancelLongPress(); isDragging.current = false; }}

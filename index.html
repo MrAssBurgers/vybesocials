@@ -663,7 +663,7 @@
   <meta name="twitter:description" content="VYBE - The Next Generation Social Platform. Share moments, connect with friends, and discover amazing content from creators worldwide.">
 </head>
   <body class="splash-visible">
-    <div id="vybe-maintenance-static" role="alert" aria-live="polite">
+    <div id="vybe-maintenance-static" aria-hidden="true">
       <div class="vybe-maint-inner">
         <p class="vybe-maint-badge">Under reconstruction</p>
         <h1 class="vybe-maint-title">We&rsquo;ll be back soon</h1>
@@ -720,14 +720,20 @@
     </style>
     <script>
       (function () {
+        var maintenance = document.getElementById('vybe-maintenance-static');
         if (document.documentElement.getAttribute('data-vybe-maintenance') === 'true') {
           window.__VYBE_MAINTENANCE__ = true;
+          if (maintenance) {
+            maintenance.setAttribute('role', 'alert');
+            maintenance.setAttribute('aria-live', 'polite');
+            maintenance.setAttribute('aria-hidden', 'false');
+          }
         }
       })();
     </script>
     <div class="vybe-bg" aria-hidden="true"></div>
     <div id="vybe-aurora-mount" aria-hidden="true"></div>
-    <div id="vybe-boot-recovery" role="alert" aria-live="assertive" style="display:none;position:fixed;inset:0;z-index:2147483647;align-items:center;justify-content:center;padding:1.5rem;text-align:center;background:#07070c;color:#fafafa;font-family:system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
+    <div id="vybe-boot-recovery" aria-hidden="true" style="display:none;position:fixed;inset:0;z-index:2147483647;align-items:center;justify-content:center;padding:1.5rem;text-align:center;background:#07070c;color:#fafafa;font-family:system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
       <div style="max-width:22rem;">
         <p style="display:inline-block;margin:0 0 1rem;padding:0.35rem 0.9rem;border-radius:9999px;border:1px solid rgba(139,92,246,0.35);background:rgba(139,92,246,0.12);color:#ddd6fe;font-size:0.875rem;font-weight:500;">Startup recovery</p>
         <h1 style="margin:0 0 0.75rem;font-size:1.5rem;font-weight:700;">VYBE didn&rsquo;t load</h1>
@@ -881,12 +887,16 @@
         var PROD_ORIGIN = 'https://vybehub.app';
         var host = '';
         try { host = location.hostname || ''; } catch (e0) { host = ''; }
+        var isDevHost = host === 'localhost' || host === '127.0.0.1';
         var triedRelative = false;
         var triedProd = false;
 
         function loadStableEntry(forceProd) {
           if (window.__VYBE_APP_LOADED__) return;
-          var useProd = forceProd || host === 'localhost' || host === '127.0.0.1';
+          // Vite owns localhost through /src/main.tsx. Never mix the production
+          // app bundle into local development or preview QA.
+          if (isDevHost) return;
+          var useProd = forceProd;
           if (useProd && triedProd) return;
           if (!useProd && triedRelative) {
             useProd = true;
@@ -920,7 +930,7 @@
             file.indexOf('/assets/app.js') !== -1 ||
             file.indexOf('/src/main') !== -1
           ) {
-            loadStableEntry(host === 'localhost' || host === '127.0.0.1');
+            loadStableEntry(false);
           }
         }, true);
         window.addEventListener('unhandledrejection', function (e) {
@@ -930,15 +940,11 @@
             msg.indexOf('Importing a module script failed') !== -1 ||
             msg.indexOf('error loading dynamically imported module') !== -1
           ) {
-            loadStableEntry(host === 'localhost' || host === '127.0.0.1');
+            loadStableEntry(false);
           }
         });
-        if (host === 'localhost' || host === '127.0.0.1') {
-          setTimeout(function () {
-            if (!window.__VYBE_APP_LOADED__) loadStableEntry(true);
-          }, 400);
-        }
         setTimeout(function () {
+          if (isDevHost) return;
           var root = document.getElementById('root');
           var hasPaint = root && (root.textContent || '').replace(/\s+/g, '').length > 12;
           if (!window.__VYBE_APP_LOADED__ && !hasPaint) loadStableEntry(false);

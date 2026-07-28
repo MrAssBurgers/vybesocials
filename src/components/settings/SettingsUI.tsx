@@ -110,6 +110,7 @@ export function SettingsToggleRow({
         </div>
       </div>
       <Switch
+        aria-label={title}
         checked={checked}
         onCheckedChange={onCheckedChange}
         disabled={disabled}

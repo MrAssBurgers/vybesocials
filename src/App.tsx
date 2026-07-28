@@ -19,7 +19,7 @@ import { BrowserRouter, useLocation } from "react-router-dom";
 import { MotionConfig } from "framer-motion";
 import { BUTTER_TRANSITION } from "@/lib/smoothMotion";
 import { PlatformProvider } from "@/providers/PlatformProvider";
-import { AuthProvider } from "@/lib/auth";
+import { AuthProvider, useAuth } from "@/lib/auth";
 import { ThemeProvider } from "@/lib/theme";
 import { CustomThemeProvider } from "@/providers/ThemeProvider";
 import { ThemeTransitionProvider } from "@/providers/ThemeTransitionProvider";
@@ -72,6 +72,7 @@ const UploadQueueSync = () => {
           );
         },
       });
+      toast.success('Your post is live');
     };
     const onFailed = (e: Event) => {
       const reason = (e as CustomEvent<{ reason?: string }>).detail?.reason;
@@ -283,7 +284,6 @@ installQueryCacheNormalizer(queryClient);
 // connectivity is restored, polls aggressively while offline).
 startReconnectManager(queryClient);
 startOutbox();
-void loadDmInboxRolloutConfig();
 
 // Build-hash based cache buster so deployments invalidate persisted cache.
 const PERSIST_BUSTER = (import.meta as any).env?.VITE_BUILD_ID || 'vybe-cache-v19';
@@ -430,6 +430,7 @@ function useAuthResolved() {
 function AppWithPreloader() {
   const preloadStatus = useAppPreloader();
   const { authResolved, hasSession } = useAuthResolved();
+  const { user, profile, authReady } = useAuth();
   const wasLoggedInRef = useRef(getWasLoggedIn());
   const [persistRestored, setPersistRestored] = useState(isPersistRestored);
   const [showSplash, setShowSplash] = useState(!skipInitialSplash && !hasInitialLoadCompleted);
@@ -449,6 +450,11 @@ function AppWithPreloader() {
   useKeyboardHeight();
 
   useEffect(() => onPersistRestored(() => setPersistRestored(true)), []);
+
+  useEffect(() => {
+    if (!authReady || !user?.id || !profile?.id || !profile?.user_id) return;
+    void loadDmInboxRolloutConfig();
+  }, [authReady, profile?.id, profile?.user_id, user?.id]);
 
   // bfcache restore (iOS Safari / some WebViews) — re-show splash if shell is empty.
   useEffect(() => {

@@ -44,8 +44,9 @@ export function BlockedUsersCard() {
       }
       return (data as unknown as BlockedRow[]) || [];
     },
-    enabled: !!profile?.id,
+    enabled: !!profile?.id && !!profile?.user_id,
     staleTime: 60_000,
+    retry: false,
   });
 
   const unblock = useMutation({

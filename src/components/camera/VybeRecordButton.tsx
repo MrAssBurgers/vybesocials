@@ -185,6 +185,7 @@ export function VybeRecordButton({
           }
         }}
         disabled={disabled}
+        aria-label={isRecording ? 'Stop recording' : 'Take photo or hold to record video'}
         className={cn(
           "relative w-20 h-20 rounded-full flex items-center justify-center touch-none",
           "active:scale-95 transition-transform duration-100"

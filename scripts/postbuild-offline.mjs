@@ -10,6 +10,7 @@ import { readFileSync, existsSync, copyFileSync, mkdirSync, readdirSync } from '
 import { dirname, join } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { generateManifest } from '@despia/local';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -43,12 +44,12 @@ try {
   process.exit(1);
 }
 
-const result = spawnSync('npx', ['despia-local', 'dist'], {
-  stdio: 'inherit',
-  shell: true,
-});
-if ((result.status ?? 1) !== 0) {
-  process.exit(result.status ?? 1);
+try {
+  const manifest = generateManifest({ outputDir: 'dist', entryHtml: 'index.html' });
+  console.log(`[postbuild] Generated despia/local.json with ${manifest.assets.length} assets`);
+} catch (err) {
+  console.error('[postbuild] Could not generate despia/local.json:', err);
+  process.exit(1);
 }
 
 // Keep a copy under public/ so even odd builders that skip dist post-steps

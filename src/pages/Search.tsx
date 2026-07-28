@@ -34,14 +34,26 @@ function useSearchPosts(query: string) {
     queryKey: ['search-posts', query],
     queryFn: async () => {
       if (!query || query.length < 2) return [];
+      const normalized = query.trim().replace(/^#/, '').toLowerCase();
       const { data, error } = await db
         .from('posts')
-        .select('id, caption, type, media_url, created_at, like_count, comment_count, author:profiles!author_id(id, username, avatar_url)')
-        .ilike('caption', `%${query}%`)
-        .order('like_count', { ascending: false })
-        .limit(30);
+        .select('id, caption, tags, type, media_url, created_at, like_count, comment_count, author:profiles!author_id(id, username, avatar_url)')
+        .limit(250);
       if (error) throw error;
-      return data || [];
+      return (data || [])
+        .filter((post) => {
+          const caption = String(post.caption || '').toLowerCase();
+          const tags = Array.isArray(post.tags)
+            ? post.tags.map((tag: unknown) => String(tag).replace(/^#/, '').toLowerCase())
+            : [];
+          return caption.includes(normalized) || tags.some((tag: string) => tag.includes(normalized));
+        })
+        .sort((a, b) => {
+          const engagement = Number(b.like_count || 0) - Number(a.like_count || 0);
+          if (engagement !== 0) return engagement;
+          return new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime();
+        })
+        .slice(0, 30);
     },
     enabled: query.length >= 2,
     networkMode: 'always',
@@ -387,6 +399,16 @@ function SearchSkeleton() {
 }
 
 function EmptyResults({ query, type }: { query: string; type: string }) {
+  if (type === 'posts') {
+    return (
+      <div className="py-12 px-5 text-center space-y-2">
+        <p className="font-medium">No matching posts</p>
+        <p className="text-sm text-muted-foreground">
+          Post search checks captions and hashtags for “{query}”. Try a shorter word or hashtag.
+        </p>
+      </div>
+    );
+  }
   return (
     <EmptySearch query={query || type} />
   );

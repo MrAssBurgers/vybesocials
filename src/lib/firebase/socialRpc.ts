@@ -56,6 +56,13 @@ async function rpcIncrementViewCount(params: Record<string, unknown>) {
   if (!postId) return null;
   const post = await getDocument<Record<string, unknown>>('posts', postId);
   if (!post) return null;
+  const profileId = await currentProfileId();
+  // Firestore intentionally forbids clients from mutating another creator's
+  // post. Until this counter moves server-side, fail quietly instead of
+  // producing repeated permission warnings for every viewed post.
+  if (!profileId || post.author_id !== profileId) {
+    return Number(post.view_count || 0);
+  }
   const next = Number(post.view_count || 0) + 1;
   await updateDocument('posts', postId, { view_count: next });
   return next;

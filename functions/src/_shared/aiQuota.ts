@@ -185,7 +185,7 @@ function featureLabel(feature: AiFeature): string {
 export async function enforceAiQuota(
   profileId: string,
   feature: AiFeature,
-  options?: { ignoreByok?: boolean },
+  options?: { ignoreByok?: boolean; consume?: boolean },
 ): Promise<AiQuotaStatus> {
   const status = await readAiQuotaStatus(profileId);
   if (status.hasByok && !options?.ignoreByok) return status;
@@ -202,6 +202,14 @@ export async function enforceAiQuota(
       `Daily ${featureLabel(feature)} limit reached (${bucket.used}/${bucket.limit}). Add your Google AI key in Settings → VYBE AI or try again tomorrow.`,
     );
   }
+
+  if (options?.consume === false) return status;
+
+  await incrementAiUsage(profileId, feature);
+  return readAiQuotaStatus(profileId);
+}
+
+async function incrementAiUsage(profileId: string, feature: AiFeature): Promise<void> {
 
   const ref = db.collection('ai_usage').doc(profileId);
   const field = FIELD_BY_FEATURE[feature];
@@ -230,5 +238,16 @@ export async function enforceAiQuota(
     );
   });
 
+}
+
+/** Record a completed AI operation. Failed model calls must not consume quota. */
+export async function recordSuccessfulAiUsage(
+  profileId: string,
+  feature: AiFeature,
+  options?: { ignoreByok?: boolean },
+): Promise<AiQuotaStatus> {
+  const status = await readAiQuotaStatus(profileId);
+  if (status.hasByok && !options?.ignoreByok) return status;
+  await incrementAiUsage(profileId, feature);
   return readAiQuotaStatus(profileId);
 }

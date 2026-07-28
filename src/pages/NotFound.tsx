@@ -49,11 +49,12 @@ const NotFound = () => {
           transition={{ type: 'spring', damping: 15, stiffness: 100 }}
           className="relative mb-6"
         >
-          <h1 className="text-[120px] sm:text-[160px] font-black leading-none tracking-tighter text-foreground/5 select-none">
+          <div aria-hidden="true" className="text-[120px] sm:text-[160px] font-black leading-none tracking-tighter text-foreground/5 select-none">
             404
-          </h1>
+          </div>
           {/* Glitch layers */}
-          <motion.h1
+          <motion.div
+            aria-hidden="true"
             className="absolute inset-0 text-[120px] sm:text-[160px] font-black leading-none tracking-tighter text-primary/30 select-none"
             animate={{
               x: [0, -3, 3, 0, 2, -2, 0],
@@ -62,8 +63,9 @@ const NotFound = () => {
             transition={{ duration: 3, repeat: Infinity, repeatType: 'mirror' }}
           >
             404
-          </motion.h1>
-          <motion.h1
+          </motion.div>
+          <motion.div
+            aria-hidden="true"
             className="absolute inset-0 text-[120px] sm:text-[160px] font-black leading-none tracking-tighter text-accent/20 select-none"
             animate={{
               x: [0, 2, -2, 0, -3, 3, 0],
@@ -72,9 +74,9 @@ const NotFound = () => {
             transition={{ duration: 2.5, repeat: Infinity, repeatType: 'mirror', delay: 0.3 }}
           >
             404
-          </motion.h1>
+          </motion.div>
           {/* Center glow text */}
-          <h1 className="absolute inset-0 text-[120px] sm:text-[160px] font-black leading-none tracking-tighter gradient-text select-none drop-shadow-[0_0_40px_hsl(var(--primary)/0.3)]">
+          <h1 aria-label="404 – Page not found" className="absolute inset-0 text-[120px] sm:text-[160px] font-black leading-none tracking-tighter gradient-text select-none drop-shadow-[0_0_40px_hsl(var(--primary)/0.3)]">
             404
           </h1>
         </motion.div>

@@ -25,7 +25,7 @@ const GUEST_ALLOWED_ROUTES = ['/home', '/explore', '/clips', '/shorts', '/p/', '
  * token refresh.
  */
 export function ProtectedRoute({ children, allowGuest }: ProtectedRouteProps) {
-  const { user, authReady } = useAuth();
+  const { user, profile, authReady } = useAuth();
   const location = useLocation();
 
   // Check if current route allows guest access
@@ -72,6 +72,12 @@ export function ProtectedRoute({ children, allowGuest }: ProtectedRouteProps) {
       stashAuthReturnPath(returnTo);
     }
     return <Navigate to="/auth" state={{ from: location }} replace />;
+  }
+
+  // A signed-in account is not fully initialized until onboarding is explicitly
+  // complete. Missing/unknown profile state must never fall through to Home.
+  if (location.pathname !== '/onboarding' && profile?.onboarding_completed !== true) {
+    return <Navigate to="/onboarding" replace />;
   }
 
   return <>{children}</>;

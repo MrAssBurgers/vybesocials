@@ -1,5 +1,5 @@
 /**
- * Global background upload queue — TikTok/YouTube-style publish progress.
+ * Global background upload queue — leave-immediately publish with banner progress.
  */
 import { runPostUpload, type PostUploadInput, type PostUploadStage } from '@/lib/postUploadPipeline';
 
@@ -11,6 +11,8 @@ export interface UploadJob {
   error?: string;
   postId?: string;
   createdAt: number;
+  /** Retained for Retry after failure */
+  input?: PostUploadInput;
 }
 
 type Listener = () => void;
@@ -45,21 +47,10 @@ export function dismissUploadJob(id: string) {
   notify();
 }
 
-export function enqueuePostUpload(input: PostUploadInput, label = 'New post'): string {
-  const id = crypto.randomUUID();
-  const job: UploadJob = {
-    id,
-    label,
-    stage: 'vybe_check',
-    progress: 0,
-    createdAt: Date.now(),
-  };
-  jobs = [job, ...jobs].slice(0, 8);
-  notify();
-
+function runJob(id: string, input: PostUploadInput) {
   void (async () => {
     const result = await runPostUpload(input, (stage, progress) => {
-      updateJob(id, { stage, progress });
+      updateJob(id, { stage, progress, error: undefined });
     });
 
     if ('failed' in result) {
@@ -70,13 +61,45 @@ export function enqueuePostUpload(input: PostUploadInput, label = 'New post'): s
       return;
     }
 
-    updateJob(id, { stage: 'done', progress: 100, postId: result.postId });
+    updateJob(id, { stage: 'done', progress: 100, postId: result.postId, input: undefined });
     window.dispatchEvent(
       new CustomEvent('vybe:upload-complete', { detail: { id, postId: result.postId } }),
     );
 
     setTimeout(() => dismissUploadJob(id), 6000);
   })();
+}
 
+export function enqueuePostUpload(input: PostUploadInput, label = 'New post'): string {
+  const id = crypto.randomUUID();
+  const stableInput: PostUploadInput = {
+    ...input,
+    clientPostId: input.clientPostId || crypto.randomUUID(),
+  };
+  const job: UploadJob = {
+    id,
+    label,
+    stage: 'optimizing',
+    progress: 0,
+    createdAt: Date.now(),
+    input: stableInput,
+  };
+  jobs = [job, ...jobs].slice(0, 8);
+  notify();
+  runJob(id, stableInput);
   return id;
+}
+
+/** Re-run a failed job with the same payload. */
+export function retryUploadJob(id: string): boolean {
+  const job = jobs.find((j) => j.id === id);
+  if (!job?.input || job.stage !== 'failed') return false;
+  updateJob(id, {
+    stage: 'optimizing',
+    progress: 0,
+    error: undefined,
+    createdAt: Date.now(),
+  });
+  runJob(id, job.input);
+  return true;
 }

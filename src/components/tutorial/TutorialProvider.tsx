@@ -318,6 +318,14 @@ export function TutorialProvider({ children }: { children: ReactNode }) {
     setIsManualOpen(false);
   }, []);
 
+  // Independent navigation pauses the first-run tour. Route changes are never
+  // allowed to silently drag the user back to Home.
+  useEffect(() => {
+    if (!isOpen || isManualOpen) return;
+    const onTutorialRoute = location.pathname === '/home' || location.pathname.startsWith('/invite/');
+    if (!onTutorialRoute) closeTutorial();
+  }, [closeTutorial, isManualOpen, isOpen, location.pathname]);
+
   // Listen for open-tutorial event from Settings
   useEffect(() => {
     const handleOpenTutorial = () => openTutorial();

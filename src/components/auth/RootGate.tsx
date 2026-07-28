@@ -10,6 +10,13 @@ const VybeHome = lazy(() => import('@/pages/VybeHome'));
 const Landing = lazy(() => import('@/pages/Landing'));
 const MobileIntro = lazy(() => import('@/pages/MobileIntro'));
 
+const EntryLoading = () => (
+  <div className="min-h-[100dvh] flex items-center justify-center" role="status" aria-live="polite">
+    <span className="sr-only">Loading VYBE…</span>
+    <div className="h-8 w-8 rounded-full border-[3px] border-primary/25 border-t-primary animate-spin" aria-hidden="true" />
+  </div>
+);
+
 function useMobileAppEntry(): boolean {
   const [mobileApp, setMobileApp] = useState(
     () => isNativeAppShell() || isMobileOrTabletDevice(),
@@ -43,7 +50,7 @@ export default function RootGate() {
   const [introDone, setIntroDone] = useState<boolean>(() => hasCompletedCurrentIntro());
   const isMobileApp = useMobileAppEntry();
 
-  if (loading) return null;
+  if (loading) return <EntryLoading />;
   // Login confirmation in progress — stay on auth surface (Landing), do not bounce to /home.
   if (user && !shouldBlockPostLoginNavigation()) {
     return <Navigate to="/home" replace />;
@@ -52,7 +59,7 @@ export default function RootGate() {
   const showIntro = !introDone && isMobileApp;
   if (showIntro) {
     return (
-      <Suspense fallback={null}>
+      <Suspense fallback={<EntryLoading />}>
         <MobileIntro onDone={() => setIntroDone(true)} />
       </Suspense>
     );
@@ -60,13 +67,13 @@ export default function RootGate() {
 
   if (isMobileApp) {
     return (
-      <Suspense fallback={null}>
+      <Suspense fallback={<EntryLoading />}>
         <Landing />
       </Suspense>
     );
   }
   return (
-    <Suspense fallback={null}>
+    <Suspense fallback={<EntryLoading />}>
       <VybeHome />
     </Suspense>
   );

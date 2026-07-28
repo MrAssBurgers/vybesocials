@@ -153,7 +153,10 @@ import { useDebugPanel } from '@/contexts/DebugPanelContext';
 
 /** Stable gradient shell — never flashes black while route chunks load. */
 const PageFallback = memo(() => (
-  <div className="page-shell vybe-loading-shell min-h-[100dvh] w-full" aria-hidden="true" />
+  <div className="page-shell vybe-loading-shell min-h-[100dvh] w-full flex items-center justify-center" role="status" aria-live="polite">
+    <span className="sr-only">Loading page…</span>
+    <div className="h-8 w-8 rounded-full border-[3px] border-primary/25 border-t-primary animate-spin" aria-hidden="true" />
+  </div>
 ));
 
 /**

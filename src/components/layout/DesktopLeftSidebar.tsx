@@ -26,6 +26,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { useMyServers } from '@/hooks/useServers';
 import { StyledUsername } from '@/components/ui/StyledUsername';
 import { usePremiumStatus } from '@/hooks/usePremiumStatus';
+import { APP_VERSION } from '@/lib/constants';
 
 interface NavItemData {
   icon: LucideIcon;
@@ -446,7 +447,7 @@ export const DesktopLeftSidebar = memo(function DesktopLeftSidebar({ collapsed, 
             <div className="flex items-center justify-center gap-4 text-[10px] text-muted-foreground">
               <a href="/terms" className="hover:text-foreground transition-colors">{t('sidebar.terms')}</a>
               <a href="/privacy" className="hover:text-foreground transition-colors">{t('sidebar.privacy')}</a>
-              <span className="text-muted-foreground/50">v1.2</span>
+              <span className="text-muted-foreground/50">v{APP_VERSION}</span>
             </div>
           </div>
         )}

@@ -351,184 +351,194 @@ export function useCreatePost() {
 
       const filteredCaption = filterBlockedContent(data.caption);
 
-      const vybe = await runPublishVybeCheck({
+      const authUserId = profile.user_id;
+      const uploadedPaths: string[] = [];
+
+      // Overlap Vybe Check with media upload (check uses local files; post only on pass)
+      const checkPromise = runPublishVybeCheck({
         caption: filteredCaption,
         tags: data.tags,
         mediaFile: data.mediaFile,
         mediaFiles: data.mediaFiles,
         contentType: data.type === 'text' ? 'text' : data.type,
       });
-      if (vybe.blocked || !vybe.allowed) {
-        toast.error(vybe.message || 'Vybe Check did not pass.');
-        throw new Error(vybe.message || 'Vybe Check blocked');
-      }
-      const resolvedAgeRating = data.age_rating || vybe.ageRating;
-
-      const authUserId = profile.user_id;
 
       let publicUrl: string | null = null;
       let mediaUrls: string[] | null = null;
       let thumbnailUrl: string | null = null;
 
-      // Handle multi-file upload (carousel) with compression
-      if (data.mediaFiles && data.mediaFiles.length > 0) {
-        const uploadedUrls: string[] = [];
-        for (const file of data.mediaFiles) {
-          let uploadBlob: Blob = file;
-          let fileExt = file.name.split('.').pop() || 'jpg';
+      try {
+        // Handle multi-file upload (carousel) with compression
+        if (data.mediaFiles && data.mediaFiles.length > 0) {
+          const uploadedUrls: string[] = [];
+          for (const file of data.mediaFiles) {
+            let uploadBlob: Blob = file;
+            let fileExt = file.name.split('.').pop() || 'jpg';
 
-          // Compress images, skip videos
-          if (!isVideoFile(file)) {
+            if (!isVideoFile(file)) {
+              try {
+                const optimized = await optimizeForUpload(file, 'post');
+                uploadBlob = optimized.file;
+                fileExt = optimized.extension;
+                if (optimized.savings > 0) {
+                  console.log(`[Media] Compressed ${file.name}: ${optimized.savings}% smaller`);
+                }
+              } catch (e) {
+                console.warn('[Media] Compression failed, using original:', e);
+              }
+            }
+
+            const fileName = `${authUserId}/${Date.now()}-${Math.random().toString(36).slice(2)}.${fileExt}`;
+            const { error: uploadError } = await withTimeout(
+              db.storage.from('media').upload(fileName, uploadBlob),
+              120000,
+              'Upload timed out. Check your connection and try again.'
+            );
+            if (uploadError) throw uploadError;
+            uploadedPaths.push(fileName);
+            const { data: { publicUrl: url } } = db.storage.from('media').getPublicUrl(fileName);
+            uploadedUrls.push(url);
+          }
+          publicUrl = uploadedUrls[0];
+          mediaUrls = uploadedUrls;
+        } else if (data.mediaFile) {
+          let uploadBlob: Blob = data.mediaFile;
+          let fileExt = data.mediaFile.name.split('.').pop() || 'jpg';
+
+          if (!isVideoFile(data.mediaFile)) {
             try {
-              const optimized = await optimizeForUpload(file, 'post');
+              const optimized = await optimizeForUpload(data.mediaFile, 'post');
               uploadBlob = optimized.file;
               fileExt = optimized.extension;
               if (optimized.savings > 0) {
-                console.log(`[Media] Compressed ${file.name}: ${optimized.savings}% smaller`);
+                console.log(`[Media] Compressed ${data.mediaFile.name}: ${optimized.savings}% smaller`);
               }
             } catch (e) {
               console.warn('[Media] Compression failed, using original:', e);
             }
           }
 
-          const fileName = `${authUserId}/${Date.now()}-${Math.random().toString(36).slice(2)}.${fileExt}`;
+          const fileName = `${authUserId}/${Date.now()}.${fileExt}`;
           const { error: uploadError } = await withTimeout(
             db.storage.from('media').upload(fileName, uploadBlob),
             120000,
             'Upload timed out. Check your connection and try again.'
           );
           if (uploadError) throw uploadError;
+          uploadedPaths.push(fileName);
           const { data: { publicUrl: url } } = db.storage.from('media').getPublicUrl(fileName);
-          uploadedUrls.push(url);
-        }
-        publicUrl = uploadedUrls[0];
-        mediaUrls = uploadedUrls;
-      } else if (data.mediaFile) {
-        // Single file upload with compression
-        let uploadBlob: Blob = data.mediaFile;
-        let fileExt = data.mediaFile.name.split('.').pop() || 'jpg';
+          publicUrl = url;
 
-        if (!isVideoFile(data.mediaFile)) {
-          try {
-            const optimized = await optimizeForUpload(data.mediaFile, 'post');
-            uploadBlob = optimized.file;
-            fileExt = optimized.extension;
-            if (optimized.savings > 0) {
-              console.log(`[Media] Compressed ${data.mediaFile.name}: ${optimized.savings}% smaller`);
+          if (isVideoFile(data.mediaFile) && !data.thumbnailFile && !data.thumbnailDataUrl) {
+            try {
+              const thumbBlob = await withTimeout(
+                generateVideoThumbnail(data.mediaFile),
+                12000,
+                'Video thumbnail timed out'
+              );
+              const thumbExt = getCompressedExtension();
+              const thumbFileName = `${authUserId}/thumb_${Date.now()}.${thumbExt}`;
+              const { error: thumbErr } = await db.storage.from('media').upload(thumbFileName, thumbBlob, { contentType: `image/${thumbExt}` });
+              if (!thumbErr) {
+                uploadedPaths.push(thumbFileName);
+                const { data: { publicUrl: thumbUrl } } = db.storage.from('media').getPublicUrl(thumbFileName);
+                thumbnailUrl = thumbUrl;
+              }
+            } catch (e) {
+              console.warn('[Media] Auto-thumbnail failed:', e);
             }
-          } catch (e) {
-            console.warn('[Media] Compression failed, using original:', e);
           }
         }
 
-        const fileName = `${authUserId}/${Date.now()}.${fileExt}`;
-        const { error: uploadError } = await withTimeout(
-          db.storage.from('media').upload(fileName, uploadBlob),
-          120000,
-          'Upload timed out. Check your connection and try again.'
-        );
-        if (uploadError) throw uploadError;
-        const { data: { publicUrl: url } } = db.storage.from('media').getPublicUrl(fileName);
-        publicUrl = url;
-
-        // Auto-generate video thumbnail if none provided
-        if (isVideoFile(data.mediaFile) && !data.thumbnailFile && !data.thumbnailDataUrl) {
-          try {
-            const thumbBlob = await withTimeout(
-              generateVideoThumbnail(data.mediaFile),
-              12000,
-              'Video thumbnail timed out'
-            );
-            const thumbExt = getCompressedExtension();
-            const thumbFileName = `${authUserId}/thumb_${Date.now()}.${thumbExt}`;
-            const { error: thumbErr } = await db.storage.from('media').upload(thumbFileName, thumbBlob, { contentType: `image/${thumbExt}` });
-            if (!thumbErr) {
-              const { data: { publicUrl: thumbUrl } } = db.storage.from('media').getPublicUrl(thumbFileName);
-              thumbnailUrl = thumbUrl;
-            }
-          } catch (e) {
-            console.warn('[Media] Auto-thumbnail failed:', e);
-          }
-        }
-      }
-
-      // Handle thumbnail upload for videos (if not auto-generated above)
-      
-      if (data.thumbnailFile) {
-        const thumbExt = data.thumbnailFile.name.split('.').pop();
-        const thumbFileName = `${authUserId}/thumb_${Date.now()}.${thumbExt}`;
-        const { error: thumbError } = await db.storage.from('media').upload(thumbFileName, data.thumbnailFile);
-        if (!thumbError) {
-          const { data: { publicUrl: thumbPublicUrl } } = db.storage.from('media').getPublicUrl(thumbFileName);
-          thumbnailUrl = thumbPublicUrl;
-        }
-      } else if (data.thumbnailDataUrl) {
-        try {
-          const response = await fetch(data.thumbnailDataUrl);
-          const blob = await response.blob();
-          const thumbFileName = `${authUserId}/thumb_${Date.now()}.jpg`;
-          const { error: thumbError } = await db.storage.from('media').upload(thumbFileName, blob, { contentType: 'image/jpeg' });
+        if (data.thumbnailFile) {
+          const thumbExt = data.thumbnailFile.name.split('.').pop();
+          const thumbFileName = `${authUserId}/thumb_${Date.now()}.${thumbExt}`;
+          const { error: thumbError } = await db.storage.from('media').upload(thumbFileName, data.thumbnailFile);
           if (!thumbError) {
+            uploadedPaths.push(thumbFileName);
             const { data: { publicUrl: thumbPublicUrl } } = db.storage.from('media').getPublicUrl(thumbFileName);
             thumbnailUrl = thumbPublicUrl;
           }
-        } catch (e) {
-          console.warn('Failed to upload generated thumbnail:', e);
-        }
-      }
-
-      // Determine post type
-      const postType = data.type === 'text' ? 'post' : data.type;
-
-      // Create post
-      const { data: post, error } = await withTimeout(
-        db
-          .from('posts')
-          .insert({
-            author_id: profile.id,
-            type: postType,
-            media_url: publicUrl,
-            media_urls: mediaUrls,
-            thumbnail_url: thumbnailUrl,
-            caption: filteredCaption,
-            tags: data.tags,
-            age_rating: resolvedAgeRating,
-            vybe_check_id: vybe.checkId ?? null,
-            vybe_check_status: 'approved',
-          } as any)
-          .select()
-          .single(),
-        60000,
-        'Saving post timed out. Please try again.',
-      );
-
-      if (error) throw error;
-
-      // Run AI moderation in background (non-blocking)
-      if (filteredCaption.trim()) {
-        moderateContent(filteredCaption, 'post', post.id).then(result => {
-          if (result.requires_review) {
-            console.log('Post flagged for review:', post.id);
-            toast.message('Heads up', {
-              description: 'Your post is live but under a quick review. We\'ll let you know if anything changes.',
-              duration: 5000,
-            });
-          }
-        }).catch(console.error);
-      }
-
-      // Run AI content detection in background (non-blocking)
-      import('@/lib/aiDetection').then(({ detectAIContent }) => {
-        detectAIContent(post.id, data.mediaFile || data.mediaFiles?.[0], filteredCaption)
-          .then(result => {
-            if (result.is_ai) {
-              console.log('[AI Detection] Post flagged as AI-generated:', post.id, result);
+        } else if (data.thumbnailDataUrl) {
+          try {
+            const response = await fetch(data.thumbnailDataUrl);
+            const blob = await response.blob();
+            const thumbFileName = `${authUserId}/thumb_${Date.now()}.jpg`;
+            const { error: thumbError } = await db.storage.from('media').upload(thumbFileName, blob, { contentType: 'image/jpeg' });
+            if (!thumbError) {
+              uploadedPaths.push(thumbFileName);
+              const { data: { publicUrl: thumbPublicUrl } } = db.storage.from('media').getPublicUrl(thumbFileName);
+              thumbnailUrl = thumbPublicUrl;
             }
-          })
-          .catch(console.error);
-      });
+          } catch (e) {
+            console.warn('Failed to upload generated thumbnail:', e);
+          }
+        }
 
-      return post;
+        const vybe = await checkPromise;
+        if (vybe.blocked || !vybe.allowed) {
+          if (uploadedPaths.length) {
+            await db.storage.from('media').remove(uploadedPaths).catch(() => {});
+          }
+          toast.error(vybe.message || 'Vybe Check did not pass.');
+          throw new Error(vybe.message || 'Vybe Check blocked');
+        }
+        const resolvedAgeRating = data.age_rating || vybe.ageRating;
+
+        const postType = data.type === 'text' ? 'post' : data.type;
+
+        const { data: post, error } = await withTimeout(
+          db
+            .from('posts')
+            .insert({
+              author_id: profile.id,
+              type: postType,
+              media_url: publicUrl,
+              media_urls: mediaUrls,
+              thumbnail_url: thumbnailUrl,
+              caption: filteredCaption,
+              tags: data.tags,
+              age_rating: resolvedAgeRating,
+              vybe_check_id: vybe.checkId ?? null,
+              vybe_check_status: 'approved',
+            } as any)
+            .select()
+            .single(),
+          60000,
+          'Saving post timed out. Please try again.',
+        );
+
+        if (error) throw error;
+
+        if (filteredCaption.trim()) {
+          moderateContent(filteredCaption, 'post', post.id).then(result => {
+            if (result.requires_review) {
+              console.log('Post flagged for review:', post.id);
+              toast.message('Heads up', {
+                description: 'Your post is live but under a quick review. We\'ll let you know if anything changes.',
+                duration: 5000,
+              });
+            }
+          }).catch(console.error);
+        }
+
+        import('@/lib/aiDetection').then(({ detectAIContent }) => {
+          detectAIContent(post.id, data.mediaFile || data.mediaFiles?.[0], filteredCaption)
+            .then(result => {
+              if (result.is_ai) {
+                console.log('[AI Detection] Post flagged as AI-generated:', post.id, result);
+              }
+            })
+            .catch(console.error);
+        });
+
+        return post;
+      } catch (err) {
+        if (uploadedPaths.length) {
+          await db.storage.from('media').remove(uploadedPaths).catch(() => {});
+        }
+        throw err;
+      }
     },
     onSuccess: (_post, variables) => {
       queryClient.invalidateQueries({ queryKey: ['posts'] });
@@ -546,9 +556,15 @@ export function useCreatePost() {
     },
     onError: (error) => {
       console.error('[usePosts] Create post error:', error.message, error);
-      if (!error.message.includes('blocked content') && !error.message.includes('Rate limited')) {
-        toast.error('Failed to create post. Please sign out and back in, then try again.');
+      const msg = error.message || '';
+      if (
+        msg.includes('blocked content') ||
+        msg.includes('Rate limited') ||
+        msg.includes('Vybe Check')
+      ) {
+        return;
       }
+      toast.error('Failed to create post. Please sign out and back in, then try again.');
     },
   });
 }

@@ -36,7 +36,78 @@ interface VybeSnapCameraProps {
 }
 
 const MAX_RECORDING_DURATION = 30;
+const CAMERA_INIT_TIMEOUT_MS = 12_000;
 const TIMER_OPTIONS = [0, 3, 10] as const;
+
+type CameraFailure = {
+  title: string;
+  description: string;
+};
+
+function describeCameraFailure(error: unknown): CameraFailure {
+  const name = error instanceof DOMException
+    ? error.name
+    : typeof error === 'object' && error && 'name' in error
+      ? String((error as { name?: unknown }).name ?? '')
+      : '';
+
+  if (name === 'NotAllowedError' || name === 'PermissionDeniedError') {
+    return {
+      title: 'Camera permission is off',
+      description: 'Allow camera access in your browser or device settings, then try again.',
+    };
+  }
+  if (name === 'NotFoundError' || name === 'DevicesNotFoundError') {
+    return {
+      title: 'No camera detected',
+      description: 'Connect or enable a camera, or choose a photo or video from your device.',
+    };
+  }
+  if (name === 'NotReadableError' || name === 'TrackStartError' || name === 'AbortError') {
+    return {
+      title: 'Camera is busy',
+      description: 'Close other apps using the camera, then try again.',
+    };
+  }
+  if (name === 'TimeoutError') {
+    return {
+      title: 'Camera took too long',
+      description: 'Check your camera connection or permissions, then retry or upload from your device.',
+    };
+  }
+  return {
+    title: 'Camera unavailable',
+    description: 'The camera could not start. Try again or choose a photo or video from your device.',
+  };
+}
+
+function requestCameraStream(constraints: MediaStreamConstraints): Promise<MediaStream> {
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    const timer = window.setTimeout(() => {
+      settled = true;
+      reject(new DOMException('Camera initialization timed out', 'TimeoutError'));
+    }, CAMERA_INIT_TIMEOUT_MS);
+
+    navigator.mediaDevices.getUserMedia(constraints).then(
+      (stream) => {
+        if (settled) {
+          stream.getTracks().forEach((track) => track.stop());
+          return;
+        }
+        settled = true;
+        window.clearTimeout(timer);
+        resolve(stream);
+      },
+      (error) => {
+        if (settled) return;
+        settled = true;
+        window.clearTimeout(timer);
+        reject(error);
+      },
+    );
+  });
+}
 
 const LENS_FILTERS = [
   { id: 'snap', label: 'VYBE', filter: getFilterCSS('snap') || 'contrast(1.06) saturate(1.28) brightness(1.06) sepia(0.06)' },
@@ -102,7 +173,7 @@ export const VybeSnapCamera = forwardRef<HTMLDivElement, VybeSnapCameraProps>(fu
   const [selfieFlash, setSelfieFlash] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
   const [showMore, setShowMore] = useState(false);
-  const [permissionDenied, setPermissionDenied] = useState(false);
+  const [cameraError, setCameraError] = useState<CameraFailure | null>(null);
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -139,7 +210,7 @@ export const VybeSnapCamera = forwardRef<HTMLDivElement, VybeSnapCameraProps>(fu
     }
 
     streamRef.current = stream;
-    setPermissionDenied(false);
+    setCameraError(null);
     setCameraReady(true);
     requestAnimationFrame(() => {
       if (videoRef.current && streamRef.current) {
@@ -161,9 +232,15 @@ export const VybeSnapCamera = forwardRef<HTMLDivElement, VybeSnapCameraProps>(fu
       // Hard guard: media API may be entirely missing in some WebViews
       if (typeof navigator === 'undefined' || !navigator.mediaDevices?.getUserMedia) {
         console.warn('[VybeSnapCamera] getUserMedia unavailable on this device');
-        setPermissionDenied(true);
+        setCameraError({
+          title: 'Camera not supported',
+          description: 'This browser cannot open a camera. Choose a photo or video from your device instead.',
+        });
         return;
       }
+
+      setCameraError(null);
+      setCameraReady(false);
 
       // 1. Prefer a stream provided by the parent (acquired during the original tap)
       const provided = initialStream && initialStream.active ? initialStream : null;
@@ -196,7 +273,7 @@ export const VybeSnapCamera = forwardRef<HTMLDivElement, VybeSnapCameraProps>(fu
         try {
           const camStatus = await navigator.permissions.query({ name: 'camera' as PermissionName });
           if (camStatus.state === 'denied') {
-            setPermissionDenied(true);
+            setCameraError(describeCameraFailure(new DOMException('Camera permission denied', 'NotAllowedError')));
             return;
           }
         } catch {/* swallow */}
@@ -214,23 +291,34 @@ export const VybeSnapCamera = forwardRef<HTMLDivElement, VybeSnapCameraProps>(fu
       // when the user actually starts recording (still inside a tap gesture).
       let stream: MediaStream | null = null;
       try {
-        stream = await navigator.mediaDevices.getUserMedia({
+        stream = await requestCameraStream({
           video: { facingMode },
           audio: false,
         });
       } catch (simpleErr: any) {
-        try {
-          stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
-        } catch (fallbackErr: any) {
-          console.warn('[VybeSnapCamera] getUserMedia fallback failed', fallbackErr);
-          setPermissionDenied(true);
+        // Retry without a facing-mode constraint only when that constraint was
+        // the problem. Permission/device failures should keep their true cause.
+        if (simpleErr?.name === 'OverconstrainedError' || simpleErr?.name === 'ConstraintNotSatisfiedError') {
+          try {
+            stream = await requestCameraStream({ video: true, audio: false });
+          } catch (fallbackErr: any) {
+            console.warn('[VybeSnapCamera] getUserMedia fallback failed', fallbackErr);
+            setCameraError(describeCameraFailure(fallbackErr));
+            return;
+          }
+        } else {
+          console.warn('[VybeSnapCamera] getUserMedia failed', simpleErr);
+          setCameraError(describeCameraFailure(simpleErr));
           return;
         }
       }
 
-      if (!stream) { setPermissionDenied(true); return; }
+      if (!stream) {
+        setCameraError(describeCameraFailure(null));
+        return;
+      }
 
-      setPermissionDenied(false);
+      setCameraError(null);
       setCameraReady(true);
       streamRef.current = stream;
 
@@ -252,12 +340,8 @@ export const VybeSnapCamera = forwardRef<HTMLDivElement, VybeSnapCameraProps>(fu
         }
       } catch {}
     } catch (error: any) {
-      const name = error?.name;
-      if (name === 'NotAllowedError') setPermissionDenied(true);
-      else {
-        setPermissionDenied(true);
-        console.warn('[VybeSnapCamera] Camera error:', name || error);
-      }
+      setCameraError(describeCameraFailure(error));
+      console.warn('[VybeSnapCamera] Camera error:', error?.name || error);
     } finally {
       startingRef.current = false;
     }
@@ -317,6 +401,7 @@ export const VybeSnapCamera = forwardRef<HTMLDivElement, VybeSnapCameraProps>(fu
     shouldFinalizeOnStopRef.current = false;
     setShowFilters(false);
     setShowMore(false);
+    setCameraError(null);
 
     if (!getActiveStream() && !streamRef.current) setCameraReady(false);
 
@@ -733,16 +818,21 @@ export const VybeSnapCamera = forwardRef<HTMLDivElement, VybeSnapCameraProps>(fu
           onTouchEnd={handleViewfinderTouchEnd}
           onDoubleClick={(e) => onDoubleTapFlip(e)}
         >
-          {permissionDenied ? (
-            <div className="w-full h-full flex flex-col items-center justify-center px-8 text-center">
+          {cameraError ? (
+            <div className="w-full h-full flex flex-col items-center justify-center px-8 text-center" role="alert">
               <div className="w-20 h-20 rounded-full bg-white/10 flex items-center justify-center mb-4">
                 <X className="h-8 w-8 text-white" />
               </div>
-              <p className="text-white font-semibold text-lg mb-2">Camera unavailable</p>
-              <p className="text-white/60 text-sm mb-6">Enable camera access in your settings to take a Snap.</p>
-              <Button variant="outline" className="rounded-xl" onClick={() => { setPermissionDenied(false); startCamera(); }}>
-                Try again
-              </Button>
+              <p className="text-white font-semibold text-lg mb-2">{cameraError.title}</p>
+              <p className="text-white/60 text-sm mb-6 max-w-sm">{cameraError.description}</p>
+              <div className="flex flex-col sm:flex-row gap-3">
+                <Button variant="outline" className="rounded-xl" onClick={() => void startCamera()}>
+                  Try again
+                </Button>
+                <Button className="rounded-xl" onClick={handleGalleryPick}>
+                  Choose from device
+                </Button>
+              </div>
             </div>
           ) : (
             <div className="absolute inset-0 bg-black">

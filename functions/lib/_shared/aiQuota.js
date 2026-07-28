@@ -147,6 +147,12 @@ export async function enforceAiQuota(profileId, feature, options) {
     if (bucket.used >= bucket.limit) {
         throw new HttpsError('resource-exhausted', `Daily ${featureLabel(feature)} limit reached (${bucket.used}/${bucket.limit}). Add your Google AI key in Settings → VYBE AI or try again tomorrow.`);
     }
+    if (options?.consume === false)
+        return status;
+    await incrementAiUsage(profileId, feature);
+    return readAiQuotaStatus(profileId);
+}
+async function incrementAiUsage(profileId, feature) {
     const ref = db.collection('ai_usage').doc(profileId);
     const field = FIELD_BY_FEATURE[feature];
     const date = todayUtc();
@@ -168,6 +174,13 @@ export async function enforceAiQuota(profileId, feature, options) {
             updated_at: new Date().toISOString(),
         }, { merge: true });
     });
+}
+/** Record a completed AI operation. Failed model calls must not consume quota. */
+export async function recordSuccessfulAiUsage(profileId, feature, options) {
+    const status = await readAiQuotaStatus(profileId);
+    if (status.hasByok && !options?.ignoreByok)
+        return status;
+    await incrementAiUsage(profileId, feature);
     return readAiQuotaStatus(profileId);
 }
 //# sourceMappingURL=aiQuota.js.map

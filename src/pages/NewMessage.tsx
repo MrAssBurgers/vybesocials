@@ -132,17 +132,19 @@ function InviteBanner() {
 
 /* ── Find Friends / Suggested ─────────────────────── */
 
+const EMPTY_FRIENDS: never[] = [];
+
 function FindFriendsSection() {
   const { suggestions, isLoading } = useQuickAddSuggestions(40);
   const { data: similarDNA } = useSimilarDNAUsers(30);
-  const { data: friends = [] } = useFriends();
+  const { data: friendsData } = useFriends();
+  const friends = friendsData ?? EMPTY_FRIENDS;
   const { dismissUser } = useDismissedQuickAdd();
   const sendRequest = useSendFriendRequest();
   const navigate = useNavigate();
 
   const VISIBLE_COUNT = 6;
   const [removed, setRemoved] = useState<Set<string>>(new Set());
-  const [slots, setSlots] = useState<QuickAddUser[]>([]);
   const friendIds = useMemo(
     () => new Set(friends.map((f: { id?: string }) => f?.id).filter(Boolean) as string[]),
     [friends],
@@ -172,22 +174,13 @@ function FindFriendsSection() {
     return out;
   }, [suggestions, similarDNA, friendIds]);
 
-  // Initialize / refill visible slots from the pool whenever the pool grows or someone is removed
-  useEffect(() => {
-    setSlots((prev) => {
-      const keep = prev.filter((p) => !removed.has(p.id));
-      if (keep.length >= VISIBLE_COUNT) return keep;
-      const taken = new Set([...keep.map((p) => p.id), ...removed]);
-      const next = [...keep];
-      for (const candidate of pool) {
-        if (next.length >= VISIBLE_COUNT) break;
-        if (taken.has(candidate.id)) continue;
-        next.push(candidate);
-        taken.add(candidate.id);
-      }
-      return next;
-    });
-  }, [pool, removed]);
+  // Visible suggestions are derived state. Keeping a second synchronized array
+  // here caused a render loop whenever the suggestion hooks returned new array
+  // identities with unchanged users.
+  const slots = useMemo(
+    () => pool.filter((person) => !removed.has(person.id)).slice(0, VISIBLE_COUNT),
+    [pool, removed],
+  );
 
   const handleAdd = (userId: string) => {
     // Instantly remove and refill — fire-and-forget the request
@@ -378,7 +371,7 @@ export default function NewMessage() {
   useEffect(() => { setActiveIndex(0); }, [debounced]);
   useEffect(() => { inputRef.current?.focus(); }, []);
 
-  const { data: results, isLoading, isFetching } = useQuery({
+  const { data: results, isLoading, isFetching, isError, refetch } = useQuery({
     queryKey: ["add-friend-user-search", debounced, profileId],
     queryFn: async () => {
       if (!debounced || !profileId) return [] as RecentMessageUser[];
@@ -471,6 +464,12 @@ export default function NewMessage() {
                       </div>
                     ))}
                   </div>
+                ) : isError ? (
+                  <div className="p-8 text-center space-y-3">
+                    <p className="text-sm font-medium">Couldn&apos;t search people</p>
+                    <p className="text-xs text-muted-foreground">Check your connection and try again.</p>
+                    <Button size="sm" variant="outline" onClick={() => refetch()}>Retry</Button>
+                  </div>
                 ) : safeResults.length > 0 ? (
                   <div className="max-h-[40vh] overflow-y-auto">
                     {safeResults.map((u, idx) => (
@@ -478,7 +477,13 @@ export default function NewMessage() {
                     ))}
                   </div>
                 ) : (
-                  <div className="p-8 text-center text-muted-foreground">No users found.</div>
+                  <div className="p-8 text-center space-y-2">
+                    <p className="text-sm font-medium">No people found</p>
+                    <p className="text-xs text-muted-foreground">No username or display name matches “{debounced}”.</p>
+                    <Button size="sm" variant="ghost" onClick={() => { setQuery(''); inputRef.current?.focus(); }}>
+                      Clear search
+                    </Button>
+                  </div>
                 )}
               </section>
             )}

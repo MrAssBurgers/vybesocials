@@ -2,7 +2,69 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
-## ACTIVE (2026-07-20) — App Store 1.2.8 rejection remediation
+## ACTIVE (2026-07-28) — Full QA remediation (VYBE-001 to VYBE-023)
+
+### Goal
+Close the 23-item QA remediation plan across social durability, auth/onboarding, permissions, AI recovery, local startup, camera/map behavior, accessibility, loading, and build tooling without publishing production automatically.
+
+### What changed
+- **Wave 1:** Idempotent post IDs and upload paths, confirmed Firestore write/read-back before success, recoverable retry drafts, recipient-verifiable friend requests, controlled Home tabs, optimistic notices, broader post search, explicit DM/business empty and error states.
+- **Wave 2:** Authoritative sign-up result with non-fatal verification delivery state, username/onboarding handoff, strict onboarding gate, auth/profile readiness gates, quiet permission fallbacks, generic invalid-login messaging, AI theme fallback/retry, and AI chat request references/retry with quota charged only after successful replies.
+- **Wave 3:** Local Vite entry authority, accessible route loading shells, camera timeout/error recovery and enforcement script discovery, truthful location-off/map status, tutorial route-exit behavior, hidden live-region cleanup, control labels/dialog semantics/404 headings, centralized version display, and offline-manifest logging fixes.
+- **Manual QA follow-ups:** Fixed a StrictMode crash-consent prompt race, a New Message maximum-update-depth loop, missing ref forwarding in profile hover links, auth-mode password carryover, and migration-notice overlap on immersive Clips/DM layouts.
+
+### Verification evidence
+- `npm run typecheck` — pass
+- `npm run test -- --run` — 81 files / 400 tests pass
+- `npm run lint` — 0 errors, 5 pre-existing unused-disable warnings
+- `npm run build` — pass; offline manifest generated with 553 assets; dist entry checks pass
+- `cd functions && npm run build` — pass
+- `npm run test:camera-send-enforcement` — pass
+- Desktop manual: QA login/logout, Home tabs, feed/profile, search no-results, DM recipient no-results, notifications, settings, business failure/retry state, map location-off truth, upload studio, live camera open/close, AI failure/retry state, public/legal/404 routes.
+- Mobile manual at 390x844: Home, Clips, search, messages, notifications, settings, profile, auth mode switch, invalid login, logout, first-run intro, legal routes, and 404.
+- Fresh public-route console check: no new errors or warnings.
+
+### Remaining blockers / go-no-go
+- **NO-GO for production AI chat until backend verification:** live `aiChat` returned a server error (reference `8023B65E`). Client recovery is correct and failed replies do not consume quota, but the Cloud Function/secrets/deployment must be checked before rollout.
+- **Performance follow-up:** production build still warns about the ~1.1 MB app chunk and ~1.5 MB Mapbox chunk. This does not fail the build but should be split before treating load performance as final.
+- **Real-device follow-up:** repeat native iOS/Android camera permission denied/busy/no-device, background location, notifications, calls, and offline recovery on physical hardware.
+- No commit, push, Cloud Function deploy, or production publish was performed in this pass.
+
+### Next 3
+1. Inspect/deploy `aiChat` configuration and rerun the saved QA prompt until a successful response is confirmed.
+2. Run the native iOS/Android permission and offline matrix on physical devices.
+3. Stage the three remediation waves for review, then publish only after the AI and real-device gates are green.
+
+---
+
+## PREVIOUS (2026-07-21) — Post flow redesign + Vybe Check on Publish
+
+### Goal
+YouTube-style create flow; no Vybe Check on media select; check runs on **Post** while uploading; leave immediately; bottom banner progress; pass → public post; fail → reason + Retry.
+
+### What changed
+- **Routing:** `/upload?phase=compose`; consume Snap `prefillMedia` + Sounds `selectedSoundId`; Story tab opens snap camera with `defaultDestination: 'story'`
+- **Composer:** Removed `useContentSafety` pre-scan gate; **Post** enqueues and navigates away immediately (media + text)
+- **Pipeline:** [`postUploadPipeline.ts`](src/lib/postUploadPipeline.ts) — optimize → quarantine upload overlapping Vybe Check → promote + insert only on pass; cleanup on fail
+- **Banner:** Bottom [`UploadProgressBanner`](src/components/upload/UploadProgressBanner.tsx) — Uploading / Checking / Publishing, fail reason, Retry / Edit post
+- **Queue:** `retryUploadJob` retains input; soft success toast on complete
+- **Desktop / `useCreatePost`:** Same leave-immediately enqueue; tags optional; check overlaps upload
+
+### Tests
+- `npm run build` green
+- `npm run test -- --run src/lib/uploadQueue.test.ts` green (2)
+
+### Blockers
+- **vybehub.app** needs Lovable → Share → Publish for client bundle
+
+### Next 3
+1. Lovable Publish
+2. Manual: gallery → compose (no scan wait) → Post → banner → pass/fail
+3. Optional: attach person tags in background queue after post id
+
+---
+
+## PREVIOUS (2026-07-20) — App Store 1.2.8 rejection remediation
 
 ### Goal
 Fix ASC rejection `74f32678` (1.2.8): SIWA name re-ask, in-app auth, UGC 1.2 gaps, ATT → Tracking=No for this submit.

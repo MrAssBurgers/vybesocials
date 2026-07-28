@@ -1,9 +1,10 @@
 const MIGRATION_LOGIN_ERROR =
   'VYBE was upgraded — your old password will not work. Tap Forgot password to set a new one, or sign in with Google or Apple if you used those.';
+const GENERIC_LOGIN_ERROR = 'Email or password is incorrect.';
 
 /** User-facing copy when auth returns invalid_credentials. */
-export function getLoginCredentialErrorMessage(): string {
-  return MIGRATION_LOGIN_ERROR;
+export function getLoginCredentialErrorMessage(hasMigrationSignal = false): string {
+  return hasMigrationSignal ? MIGRATION_LOGIN_ERROR : GENERIC_LOGIN_ERROR;
 }
 
 export function isInvalidLoginCredentialError(error: unknown): boolean {

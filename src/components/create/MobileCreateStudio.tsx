@@ -1,4 +1,5 @@
 import { useState, useRef, useCallback, useEffect, lazy, Suspense, Component, type ReactNode } from 'react';
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Image as ImageIcon, Music2, X, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -16,13 +17,47 @@ import { GalleryDrawer } from './GalleryDrawer';
 import { cn } from '@/lib/utils';
 import { triggerHaptic } from '@/lib/haptics';
 import { navVisibility } from '@/lib/navVisibility';
-import { Sound } from '@/hooks/useSounds';
+import { Sound, useSound } from '@/hooks/useSounds';
 import { isCameraSafeMode } from '@/lib/cameraSafeMode';
 import { buildRecordingFile, createCameraMediaRecorder, startCameraRecorder } from '@/lib/cameraRecording';
 import { acquirePostCameraStream, attachAudioToStream, stopStream } from '@/lib/postCameraStream';
 import { useDoubleTapCameraFlip } from '@/hooks/useDoubleTapCameraFlip';
 import { resolveVideoContentType } from '@/lib/resolveVideoContentType';
+import { useCameraOverlay } from '@/contexts/cameraOverlaySafe';
+import { openSnapCamera } from '@/contexts/cameraOverlayActions';
 import { toast } from 'sonner';
+
+type PrefillMedia = {
+  file?: File;
+  url?: string;
+  type?: 'photo' | 'video' | string;
+};
+
+type UploadLocationState = {
+  prefillMedia?: PrefillMedia;
+  captureTarget?: string;
+  selectedSoundId?: string;
+};
+
+async function resolvePrefillMedia(media: PrefillMedia): Promise<{ file: File; url: string } | null> {
+  if (media.file instanceof File) {
+    return { file: media.file, url: media.url || URL.createObjectURL(media.file) };
+  }
+  if (!media.url) return null;
+  try {
+    const res = await fetch(media.url);
+    const blob = await res.blob();
+    const isVideo = media.type === 'video' || blob.type.startsWith('video/');
+    const file = new File(
+      [blob],
+      `vybe-prefill-${Date.now()}.${isVideo ? 'mp4' : 'jpg'}`,
+      { type: blob.type || (isVideo ? 'video/mp4' : 'image/jpeg') },
+    );
+    return { file, url: media.url.startsWith('blob:') ? media.url : URL.createObjectURL(blob) };
+  } catch {
+    return null;
+  }
+}
 
 const SoundPicker = lazy(() =>
   import('@/components/sounds/SoundPicker').then((m) => ({ default: m.SoundPicker }))
@@ -66,8 +101,19 @@ interface MobileCreateStudioProps {
 const MAX_RECORDING_DURATION = 60;
 
 export function MobileCreateStudio({ onClose, initialSound }: MobileCreateStudioProps) {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const { openCamera } = useCameraOverlay();
+  const locationState = (location.state || {}) as UploadLocationState;
+  const soundIdFromNav = locationState.selectedSoundId || '';
+  const { data: soundFromNav } = useSound(soundIdFromNav);
+
+  const initialPhase =
+    searchParams.get('phase') === 'compose' || !!locationState.prefillMedia ? 'compose' : 'camera';
+
   const [mode, setMode] = useState<CreateMode>('photo');
-  const [phase, setPhase] = useState<'camera' | 'compose'>('camera');
+  const [phase, setPhase] = useState<'camera' | 'compose'>(initialPhase);
   const [facingMode, setFacingMode] = useState<'user' | 'environment'>('user');
   const [flash, setFlash] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
@@ -78,6 +124,8 @@ export function MobileCreateStudio({ onClose, initialSound }: MobileCreateStudio
   const [showFlash, setShowFlash] = useState(false);
   const [showSoundPicker, setShowSoundPicker] = useState(false);
   const [selectedSound, setSelectedSound] = useState<Sound | null>(initialSound || null);
+  const [prefillLoading, setPrefillLoading] = useState(() => !!locationState.prefillMedia);
+  const prefillAppliedRef = useRef(false);
   const [selectedTrack, setSelectedTrack] = useState<any>(null);
   const [showMusicGallery, setShowMusicGallery] = useState(false);
   const [soundStartTime, setSoundStartTime] = useState(0);
@@ -146,6 +194,61 @@ export function MobileCreateStudio({ onClose, initialSound }: MobileCreateStudio
     navVisibility.setInCommunityChat(true);
     return () => { navVisibility.setInCommunityChat(false); };
   }, []);
+
+  const goToCompose = useCallback(() => {
+    setPhase('compose');
+    setSearchParams({ phase: 'compose' }, { replace: true });
+  }, [setSearchParams]);
+
+  const goToCamera = useCallback(() => {
+    setPhase('camera');
+    setSearchParams({}, { replace: true });
+  }, [setSearchParams]);
+
+  // Snap / camera handoff + Sounds remix: seed composer once
+  useEffect(() => {
+    if (prefillAppliedRef.current) return;
+    const prefill = locationState.prefillMedia;
+    if (!prefill) {
+      setPrefillLoading(false);
+      return;
+    }
+    prefillAppliedRef.current = true;
+    let cancelled = false;
+    void (async () => {
+      const resolved = await resolvePrefillMedia(prefill);
+      if (cancelled) return;
+      if (!resolved) {
+        toast.error('Could not load captured media');
+        setPrefillLoading(false);
+        goToCamera();
+        navigate(location.pathname, { replace: true, state: {} });
+        return;
+      }
+      setCapturedFiles([resolved.file]);
+      setCapturedPreviews([resolved.url]);
+      if (locationState.captureTarget === 'clip') {
+        setComposeContentType('short');
+        setMode('video');
+      } else if (resolved.file.type.startsWith('video/')) {
+        setMode('video');
+      } else {
+        setMode('photo');
+        setComposeContentType('post');
+      }
+      setPrefillLoading(false);
+      goToCompose();
+      navigate(`${location.pathname}?phase=compose`, { replace: true, state: {} });
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [locationState.prefillMedia, locationState.captureTarget, goToCompose, goToCamera, navigate, location.pathname]);
+
+  useEffect(() => {
+    if (!soundFromNav || selectedSound?.sound_id === soundFromNav.sound_id) return;
+    setSelectedSound(soundFromNav);
+  }, [soundFromNav, selectedSound?.sound_id]);
 
   // Start camera
   const startCamera = useCallback(async () => {
@@ -329,7 +432,7 @@ export function MobileCreateStudio({ onClose, initialSound }: MobileCreateStudio
         } else {
           setCapturedFiles([file]);
           setCapturedPreviews([url]);
-          setPhase('compose');
+          goToCompose();
         }
       }, 'image/jpeg', 0.92);
     };
@@ -345,7 +448,7 @@ export function MobileCreateStudio({ onClose, initialSound }: MobileCreateStudio
     } else {
       void doCapture();
     }
-  }, [flash, facingMode, mode, capturedFiles.length, timer, currentFilter, filterMode, safeCamera]);
+  }, [flash, facingMode, mode, capturedFiles.length, timer, currentFilter, filterMode, safeCamera, goToCompose]);
 
   // Recording
   const startRecording = useCallback(async () => {
@@ -370,7 +473,7 @@ export function MobileCreateStudio({ onClose, initialSound }: MobileCreateStudio
           const url = URL.createObjectURL(blob);
           setCapturedFiles([file]);
           setCapturedPreviews([url]);
-          setPhase('compose');
+          goToCompose();
         }
       };
       startCameraRecorder(recorder);
@@ -390,7 +493,7 @@ export function MobileCreateStudio({ onClose, initialSound }: MobileCreateStudio
       setIsRecording(false);
       toast.error('Video recording is not supported on this device');
     }
-  }, [mode]);
+  }, [mode, goToCompose]);
 
   const stopRecording = useCallback(() => {
     isRecordingRef.current = false;
@@ -425,7 +528,7 @@ export function MobileCreateStudio({ onClose, initialSound }: MobileCreateStudio
       const urls = items.map(f => URL.createObjectURL(f));
       setCapturedFiles(items);
       setCapturedPreviews(urls);
-      setPhase('compose');
+      goToCompose();
     } else if (mode === 'multi') {
       const remaining = 10 - capturedFiles.length;
       const items = selected.slice(0, remaining);
@@ -437,9 +540,9 @@ export function MobileCreateStudio({ onClose, initialSound }: MobileCreateStudio
       const urls = items.map(f => URL.createObjectURL(f));
       setCapturedFiles(items);
       setCapturedPreviews(urls);
-      setPhase('compose');
+      goToCompose();
     }
-  }, [mode, capturedFiles.length]);
+  }, [mode, capturedFiles.length, goToCompose]);
 
   // Legacy file input handler (for fileInputRef fallback)
   const handleGalleryPick = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
@@ -454,20 +557,36 @@ export function MobileCreateStudio({ onClose, initialSound }: MobileCreateStudio
   }, []);
 
   const handleModeChange = (newMode: CreateMode) => {
+    // [iOS/Android shared] Story uses snap camera → story destination, not feed composer
+    if (newMode === 'story') {
+      onClose();
+      void openSnapCamera(openCamera, { source: 'create', defaultDestination: 'story' });
+      return;
+    }
     setMode(newMode);
     if (newMode === 'text') {
       stopCamera();
       setCapturedFiles([]);
       setCapturedPreviews([]);
-      setPhase('compose');
+      setComposeContentType('text');
+      goToCompose();
     } else if (phase === 'compose' && capturedFiles.length === 0) {
-      setPhase('camera');
+      goToCamera();
     }
   };
 
   const handleMultiDone = () => {
-    if (capturedFiles.length > 0) setPhase('compose');
+    if (capturedFiles.length > 0) goToCompose();
   };
+
+  // Prefill still resolving — avoid flashing empty camera/composer
+  if (prefillLoading) {
+    return (
+      <div className="fixed inset-0 z-[200] bg-black flex items-center justify-center">
+        <Loader2 className="w-10 h-10 text-white/70 animate-spin" />
+      </div>
+    );
+  }
 
   // Compose phase
   if (phase === 'compose') {
@@ -483,7 +602,7 @@ export function MobileCreateStudio({ onClose, initialSound }: MobileCreateStudio
             capturedPreviews.forEach(p => URL.revokeObjectURL(p));
             setCapturedFiles([]);
             setCapturedPreviews([]);
-            setPhase('camera');
+            goToCamera();
           } else {
             onClose();
           }

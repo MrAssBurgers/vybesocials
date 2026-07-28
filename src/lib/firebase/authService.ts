@@ -27,6 +27,7 @@ import {
 import { getFirebaseApp } from './app';
 import { isFirebaseConfigured } from './config';
 import type { VybeSession, VybeUser, VybeAuthError } from './types';
+import { setDocument } from './firestoreDb';
 
 let authInstance: Auth | null = null;
 
@@ -304,22 +305,67 @@ export const firebaseAuth = {
   }) {
     const auth = resolveAuth();
     if (!auth) return { data: { user: null, session: null }, error: NOT_CONFIGURED };
+    let cred: Awaited<ReturnType<typeof createUserWithEmailAndPassword>>;
     try {
-      const username = payload.options?.data?.username as string | undefined;
-      const cred = await createUserWithEmailAndPassword(auth, payload.email, payload.password);
-      if (username) {
-        await firebaseUpdateProfile(cred.user, { displayName: username });
-      }
-      await sendEmailVerification(cred.user);
-      const session = buildVybeSessionInstant(cred.user);
-      void enrichSessionToken(session, cred.user, 5000);
-      return {
-        data: { user: session.user, session },
-        error: null,
-      };
+      cred = await createUserWithEmailAndPassword(auth, payload.email, payload.password);
     } catch (err) {
       return { data: { user: null, session: null }, error: toAuthError(err) };
     }
+
+    // Account creation is authoritative. Everything after this point reports its
+    // own status and must never turn a created, signed-in account into "failed".
+    const username = payload.options?.data?.username as string | undefined;
+    if (username) {
+      await firebaseUpdateProfile(cred.user, { displayName: username }).catch((error) => {
+        console.warn('[auth] signup display name sync deferred:', error);
+      });
+    }
+
+    const now = new Date().toISOString();
+    let profileBootstrapSucceeded = true;
+    try {
+      const initialUsername = username || `user_${cred.user.uid.slice(0, 8)}`;
+      await setDocument('profiles', cred.user.uid, {
+        id: cred.user.uid,
+        user_id: cred.user.uid,
+        username: initialUsername,
+        display_name: initialUsername,
+        avatar_url: null,
+        bio: '',
+        onboarding_completed: false,
+        email: cred.user.email || payload.email,
+        created_at: now,
+      }, true);
+      await setDocument('user_auth_index', cred.user.uid, {
+        profile_id: cred.user.uid,
+        username: initialUsername,
+        email: cred.user.email || payload.email,
+        updated_at: now,
+      }, true);
+    } catch (error) {
+      profileBootstrapSucceeded = false;
+      console.warn('[auth] signup profile bootstrap deferred:', error);
+    }
+
+    let verificationEmailSent = true;
+    try {
+      await sendEmailVerification(cred.user);
+    } catch (error) {
+      verificationEmailSent = false;
+      console.warn('[auth] verification email delivery failed after account creation:', error);
+    }
+
+    const session = buildVybeSessionInstant(cred.user);
+    void enrichSessionToken(session, cred.user, 5000);
+    return {
+      data: {
+        user: session.user,
+        session,
+        verificationEmailSent,
+        profileBootstrapSucceeded,
+      },
+      error: null,
+    };
   },
 
   async signInWithPassword(payload: { email: string; password: string }) {

@@ -99,6 +99,8 @@ const DraggableNavItem = memo(({
       >
         <Link
           to={path}
+          aria-label={item.label}
+          aria-current={isActive ? 'page' : undefined}
           className="relative flex items-center justify-center min-h-[48px] group w-full"
           onClick={handleClick}
           onPointerEnter={handlePrefetch}
@@ -149,6 +151,8 @@ const DraggableNavItem = memo(({
     >
       <Link
         to={path}
+        aria-label={item.label}
+        aria-current={isActive ? 'page' : undefined}
         className="relative flex items-center justify-center min-h-[48px] group w-full"
         onClick={handleClick}
         onPointerEnter={handlePrefetch}

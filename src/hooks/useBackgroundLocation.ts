@@ -26,6 +26,9 @@ export interface LocationState {
   speed: number | null;
   heading: number | null;
   sharing: boolean;
+  /** True only after this session has a usable position and permission is not denied. */
+  locationAvailable: boolean;
+  locationDenied: boolean;
   /** Epoch ms when temporary ghost ends; null if live or permanent ghost. */
   ghostUntil: number | null;
   setSharing: (v: boolean) => void;
@@ -43,6 +46,7 @@ export function useBackgroundLocation(
   const [accuracy, setAccuracy] = useState<number | null>(null);
   const [speed, setSpeed] = useState<number | null>(null);
   const [heading, setHeading] = useState<number | null>(null);
+  const [locationDenied, setLocationDenied] = useState(false);
   const initial = resolveSharingOnLoad();
   const [sharing, setSharingState] = useState(initial.sharing);
   const [ghostUntil, setGhostUntil] = useState<number | null>(initial.ghostUntil);
@@ -51,6 +55,7 @@ export function useBackgroundLocation(
   const lastPos = useRef<{ lat: number; lng: number } | null>(null);
   const lastSpeed = useRef<number | null>(null);
   const ghostTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const denialNotifiedRef = useRef(false);
 
   const clearGhostTimer = useCallback(() => {
     if (ghostTimerRef.current) {
@@ -178,6 +183,7 @@ export function useBackgroundLocation(
     const onSuccess = (pos: GeolocationPosition) => {
       const c: [number, number] = [pos.coords.latitude, pos.coords.longitude];
       setCoords(c);
+      setLocationDenied(false);
       setAccuracy(pos.coords.accuracy);
       const spd = pos.coords.speed;
       setSpeed(spd);
@@ -192,7 +198,12 @@ export function useBackgroundLocation(
       if (err.code === 1) {
         // Permission denied — toast only. Do NOT flip Ghost Mode / sharing pref;
         // that stranded users as "Ghost mode" with no easy exit.
-        toast.error('Location permission denied — enable it in Settings to share on the map');
+        setLocationDenied(true);
+        setCoords(null);
+        if (!denialNotifiedRef.current) {
+          denialNotifiedRef.current = true;
+          toast.error('Location permission denied — enable it in Settings to share on the map');
+        }
         return;
       }
       // TIMEOUT (3) or POSITION_UNAVAILABLE (2): retry with low accuracy.
@@ -256,6 +267,8 @@ export function useBackgroundLocation(
     speed,
     heading,
     sharing,
+    locationAvailable: coords !== null && !locationDenied,
+    locationDenied,
     ghostUntil,
     setSharing,
     enableTemporaryGhost,

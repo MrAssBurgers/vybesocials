@@ -23,8 +23,9 @@ export function MigrationAccountNotice({ variant, onForgotPassword }: MigrationA
   }, []);
 
   const handleDismiss = () => {
-    dismissMigrationNotice();
     setVisible(false);
+    // Close immediately; storage is a best-effort persistence detail.
+    queueMicrotask(dismissMigrationNotice);
   };
 
   const compact = variant === 'auth';

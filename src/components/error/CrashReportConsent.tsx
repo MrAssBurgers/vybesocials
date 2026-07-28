@@ -23,6 +23,11 @@ export const CrashReportConsent = memo(function CrashReportConsent() {
     if (getConsentState() !== null) return;
     if (!profile?.id) return;
 
+    let cancelled = false;
+    const openIfStillNeeded = () => {
+      if (!cancelled && getConsentState() === null) setOpen(true);
+    };
+
     const fetchConsent = async () => {
       try {
         const { data } = await db
@@ -33,13 +38,17 @@ export const CrashReportConsent = memo(function CrashReportConsent() {
           const consent = dbVal === true || dbVal === 'true';
           localStorage.setItem(CONSENT_KEY, String(consent));
         } else {
-          setTimeout(() => setOpen(true), 2500);
+          setTimeout(openIfStillNeeded, 2500);
         }
       } catch {
-        setTimeout(() => setOpen(true), 2500);
+        setTimeout(openIfStillNeeded, 2500);
       }
     };
     fetchConsent();
+
+    return () => {
+      cancelled = true;
+    };
   }, [profile?.id]);
 
   const handleChoice = async (consent: boolean) => {

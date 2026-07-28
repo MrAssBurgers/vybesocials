@@ -2,12 +2,11 @@ import { useState, useRef, useCallback, useMemo, useEffect, DragEvent } from 're
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  ArrowLeft, Send, Tag, Hash, X, Globe, Users, Lock, ChevronDown, Check,
+  ArrowLeft, Send, Tag, Hash, X, Globe, Users, Lock, ChevronDown,
   Sparkles, Image as ImageIcon, Plus, Upload as UploadIcon, Camera as CameraIcon,
   Wand2, Video, Film, Type, Layers, Crop, RotateCw, Sliders, Scissors
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { useCreatePost } from '@/hooks/usePosts';
 import { useAuth } from '@/lib/auth';
 import { AICaptionGenerator } from '@/components/ai/AICaptionGenerator';
 import { AIVideoGenerator } from '@/components/ai/AIVideoGenerator';
@@ -24,7 +23,6 @@ import { ImageRotateEditor } from './editors/ImageRotateEditor';
 import { ImageFilterEditor } from './editors/ImageFilterEditor';
 import { VideoTrimEditor } from './editors/VideoTrimEditor';
 import { PersonTagPicker } from '@/features/profile/components/PersonTagPicker';
-import { useTagUsersOnPost } from '@/features/profile/hooks/useTaggedPosts';
 
 const visibilityOptions = [
   { id: 'public' as const, label: 'Everyone', icon: Globe, description: 'Visible to all' },
@@ -39,8 +37,6 @@ interface DesktopCreateStudioProps {
 export function DesktopCreateStudio({ onClose }: DesktopCreateStudioProps) {
   const navigate = useNavigate();
   const { user, profile } = useAuth();
-  const createPost = useCreatePost();
-  const tagUsersOnPost = useTagUsersOnPost();
   const { openCamera } = useCameraOverlay();
 
   const [contentType, setContentType] = useState<'text' | 'post' | 'short' | 'video'>('post');
@@ -49,12 +45,9 @@ export function DesktopCreateStudio({ onClose }: DesktopCreateStudioProps) {
   const [caption, setCaption] = useState('');
   const [tags, setTags] = useState<string[]>([]);
   const [tagInput, setTagInput] = useState('');
-  const [isUploading, setIsUploading] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
   const [visibility, setVisibility] = useState<'public' | 'followers' | 'private'>('public');
   const [showAIVideoGen, setShowAIVideoGen] = useState(false);
-  const [publishSuccess, setPublishSuccess] = useState(false);
   const [activePreview, setActivePreview] = useState(0);
   const [videoTitle, setVideoTitle] = useState('');
   const [videoDescription, setVideoDescription] = useState('');
@@ -134,7 +127,7 @@ export function DesktopCreateStudio({ onClose }: DesktopCreateStudioProps) {
     return getSuggestedTagsForInterests(userInterests);
   }, [profile]);
 
-  const canSubmit = (contentType === 'text' ? caption.trim().length > 0 : files.length > 0) && tags.length > 0;
+  const canSubmit = contentType === 'text' ? caption.trim().length > 0 : files.length > 0;
 
   const handleSubmit = async () => {
     if (!canSubmit || !user) return;
@@ -144,56 +137,27 @@ export function DesktopCreateStudio({ onClose }: DesktopCreateStudioProps) {
       ? `${videoTitle}${videoDescription ? `\n\n${videoDescription}` : ''}${caption ? `\n\n${caption}` : ''}`
       : caption;
 
-    if (files.length > 0) {
-      if (!profile?.id || !profile?.user_id) {
-        toast.error('Please sign in again to post');
-        return;
-      }
-      enqueuePostUpload(
-        {
-          profile: { id: profile.id, user_id: profile.user_id },
-          mediaFile: files.length <= 1 ? files[0] : undefined,
-          mediaFiles: files.length > 1 ? files : undefined,
-          caption: fc,
-          tags,
-          type: contentType,
-        },
-        fc.trim().slice(0, 48) || 'New post',
-      );
-      toast.success('Publishing in background — Vybe Check running now.');
-      const dest = applyPostPublishNavigation(contentType);
-      setTimeout(() => navigate(dest), 400);
+    if (!profile?.id || !profile?.user_id) {
+      toast.error('Please sign in again to post');
       return;
     }
 
-    setIsUploading(true); setUploadProgress(0);
-    let pi: ReturnType<typeof setInterval> | null = null;
-    try {
-      pi = setInterval(() => setUploadProgress(prev => Math.min(prev + 5, 85)), 300);
-      const post = await createPost.mutateAsync({
-        caption: fc, type: contentType, tags,
-      });
-      if (taggedUserIds.length && (post as { id?: string } | null)?.id) {
-        try {
-          await tagUsersOnPost.mutateAsync({
-            postId: String((post as { id: string }).id),
-            taggedUserIds,
-          });
-        } catch (tagErr) {
-          console.warn('[CreateStudio] Person tags failed:', tagErr);
-        }
-      }
-      if (pi) clearInterval(pi);
-      setUploadProgress(100); setPublishSuccess(true);
-      const dest = applyPostPublishNavigation(contentType);
-      setTimeout(() => { toast.success('Posted!'); navigate(dest); }, 800);
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to upload';
-      toast.error(message.includes('timed out') ? message : 'Failed to upload. Please try again.');
-    } finally {
-      if (pi) clearInterval(pi);
-      setTimeout(() => { setIsUploading(false); setUploadProgress(0); }, 1000);
-    }
+    enqueuePostUpload(
+      {
+        profile: { id: profile.id, user_id: profile.user_id },
+        mediaFile: files.length === 1 ? files[0] : undefined,
+        mediaFiles: files.length > 1 ? files : undefined,
+        caption: fc,
+        tags,
+        type: contentType,
+      },
+      fc.trim().slice(0, 48) || 'New post',
+    );
+    toast.message('Publishing…', {
+      description: 'Vybe Check runs while we upload. Watch the banner below.',
+    });
+    const dest = applyPostPublishNavigation(contentType);
+    setTimeout(() => navigate(dest), 400);
   };
 
   const handleAIVideoGenerated = useCallback(async (videoUrl: string, videoBlob: Blob) => {
@@ -246,18 +210,6 @@ export function DesktopCreateStudio({ onClose }: DesktopCreateStudioProps) {
 
   return (
     <div className="h-full flex flex-col" style={{ backgroundColor: 'hsl(var(--background))' }}>
-      {/* Success overlay */}
-      <AnimatePresence>
-        {publishSuccess && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="fixed inset-0 z-[100] flex items-center justify-center" style={{ backgroundColor: 'hsl(var(--background))' }}>
-            <motion.div initial={{ scale: 0, rotate: -180 }} animate={{ scale: 1, rotate: 0 }} transition={{ type: 'spring', stiffness: 200, damping: 15 }}
-              className="w-20 h-20 rounded-full bg-gradient-to-br from-primary to-accent flex items-center justify-center shadow-2xl shadow-primary/40">
-              <Check className="w-10 h-10 text-primary-foreground" strokeWidth={3} />
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
       {/* Frosted Glass Header */}
       <div className="flex-shrink-0 backdrop-blur-xl bg-card/80 border-b border-border/30">
         <div className="h-[2px] w-full bg-gradient-to-r from-transparent via-primary to-transparent opacity-60" />
@@ -273,15 +225,13 @@ export function DesktopCreateStudio({ onClose }: DesktopCreateStudioProps) {
               <span className="text-base font-bold text-foreground tracking-tight">Create Studio</span>
             </div>
           </div>
-          <motion.button onClick={handleSubmit} disabled={!canSubmit || isUploading} whileTap={canSubmit ? { scale: 0.95 } : {}}
+          <motion.button onClick={handleSubmit} disabled={!canSubmit} whileTap={canSubmit ? { scale: 0.95 } : {}}
             className={cn("h-9 px-6 rounded-full text-sm font-bold transition-all duration-300",
-              canSubmit && !isUploading ? "bg-gradient-to-r from-primary to-accent text-primary-foreground shadow-lg shadow-primary/30" : "bg-muted text-muted-foreground cursor-not-allowed")}>
-            {isUploading ? <span className="flex items-center gap-1.5"><motion.span className="w-3.5 h-3.5 rounded-full border-2 border-primary-foreground/30 border-t-primary-foreground" animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 0.6, ease: 'linear' }} />{uploadProgress}%</span>
-              : <span className="flex items-center gap-1.5"><Send className="w-3.5 h-3.5" /> Publish</span>}
+              canSubmit ? "bg-gradient-to-r from-primary to-accent text-primary-foreground shadow-lg shadow-primary/30" : "bg-muted text-muted-foreground cursor-not-allowed")}>
+            <span className="flex items-center gap-1.5"><Send className="w-3.5 h-3.5" /> Post</span>
           </motion.button>
         </div>
       </div>
-      {isUploading && <motion.div className="h-0.5 bg-gradient-to-r from-primary via-accent to-primary flex-shrink-0" initial={{ width: '0%' }} animate={{ width: `${uploadProgress}%` }} />}
 
       {/* Split panels */}
       <div className="flex-1 flex overflow-hidden">

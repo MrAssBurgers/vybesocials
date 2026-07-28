@@ -232,6 +232,7 @@ function VideoPlayer({ src, caption }: { src: string; caption?: string }) {
           <button
             onClick={toggleMute}
             className="absolute bottom-3 right-3 p-2 rounded-full bg-black/50 text-white active:scale-90 transition-transform"
+            aria-label={isMuted ? 'Unmute video' : 'Mute video'}
           >
             {isMuted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
           </button>
@@ -670,6 +671,7 @@ export const PostCard = memo(function PostCard({
               <Button 
                 variant="ghost" 
                 size="icon-sm"
+                aria-label="Post options"
                 onPointerDown={(e) => {
                   // Prevent Radix from opening on pointerdown
                   e.preventDefault();

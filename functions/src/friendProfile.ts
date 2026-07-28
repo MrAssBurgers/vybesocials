@@ -105,7 +105,9 @@ function canonicalPairState(
 }
 
 /** Authoritative friendship state, including block checks hidden from client queries. */
-export const getFriendshipState = onCall({ region: 'us-central1' }, async (request) => {
+export const getFriendshipState = onCall(
+  { region: 'us-central1', invoker: 'public' },
+  async (request) => {
   const authUid = requireAuth(request);
   const profileId = await resolveProfileId(authUid);
   const otherId = (request.data || {}).target_profile_id;
@@ -121,7 +123,9 @@ export const getFriendshipState = onCall({ region: 'us-central1' }, async (reque
  * Canonical friendship mutation boundary. Admin SDK writes intentionally bypass
  * client rules; every identity check and state transition is enforced here.
  */
-export const mutateFriendship = onCall({ region: 'us-central1' }, async (request) => {
+export const mutateFriendship = onCall(
+  { region: 'us-central1', invoker: 'public' },
+  async (request) => {
   const authUid = requireAuth(request);
   const profileId = await resolveProfileId(authUid);
   const data = (request.data || {}) as Record<string, unknown>;
@@ -162,6 +166,7 @@ export const mutateFriendship = onCall({ region: 'us-central1' }, async (request
         already_exists: true,
         state: legacyState,
         request_id: legacyActive.id,
+        verified: true,
       };
     }
 
@@ -215,7 +220,23 @@ export const mutateFriendship = onCall({ region: 'us-central1' }, async (request
         read: false,
       }).catch((error) => console.warn('[Friendship] request notification failed', error));
     }
-    return { ok: true, ...result, state: result.state || 'pending_outgoing' };
+    const confirmed = await db.collection('friend_requests').doc(result.request_id).get();
+    const confirmedRow = confirmed.data() as FriendRequestRow | undefined;
+    const verified = Boolean(
+      confirmed.exists &&
+      confirmedRow?.sender_id &&
+      confirmedRow?.receiver_id &&
+      ['pending', 'accepted'].includes(String(confirmedRow.status)),
+    );
+    if (!verified) {
+      throw new HttpsError('internal', 'Friend request write could not be confirmed');
+    }
+    return {
+      ok: true,
+      ...result,
+      state: result.state || 'pending_outgoing',
+      verified: true,
+    };
   }
 
   const suppliedRequestId = data.request_id;
