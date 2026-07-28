@@ -10,12 +10,14 @@
 
 | Platform | Method | File |
 |----------|--------|------|
-| iOS Despia | Apple JS SDK native Face ID / Continue sheet (`usePopup: true`) | `src/lib/appleSignIn.ts` |
-| Android Despia | `oauth://` → Apple (fragment, no name/email scope) → `native-callback.html` → `hc=` | `src/lib/despiaOAuth.ts` |
+| iOS Despia | `oauth://` → Apple system auth sheet → `native-callback.html` → `hc=` | `src/lib/despiaOAuth.ts` |
+| Android Despia | `oauth://` → Apple secure browser (fragment, no name/email scope) → `native-callback.html` → `hc=` | `src/lib/despiaOAuth.ts` |
 | Desktop / Safari | Apple JS or Firebase redirect | `src/lib/nativeOAuth.ts` |
 
-iOS does **not** use full-page Safari for Apple when the JS sheet works.
-Landing preloads the Apple script so the first tap feels instant.
+The Apple JS SDK is never loaded inside Despia. It produced an opaque `unknown`
+error in the WKWebView, so both store shells use the bounded `oauth://` handoff.
+Capacitor builds use the native Firebase Authentication plugin. A future Despia
+`nativeauth://` bridge is already supported behind capability detection.
 
 **Android note:** Apple requires `response_mode=form_post` when `name`/`email`
 scopes are requested. That needs a Cloud Function POST handler. After
@@ -32,7 +34,7 @@ name/email scope (same working path as Google).
    - Domains: `vybehub.app`, `vybe-daaab.firebaseapp.com`
    - Return URLs:
      - `https://vybe-daaab.firebaseapp.com/__/auth/handler`
-     - `https://vybehub.app/native-callback.html` ← iOS Apple JS + Android oauth://
+     - `https://vybehub.app/native-callback.html` ← Despia iOS + Android oauth://
 4. Save / Register
 5. Retry Continue with Apple
 
@@ -47,6 +49,6 @@ name/email scope (same working path as Google).
 ## Publish
 
 **Lovable → Share → Publish** after client changes so store builds pick up the
-Android fragment authorize URL (not the broken form_post Cloud Function path).
+current fragment authorize URL (not the broken form_post Cloud Function path).
 
 If you already use a different Services ID string, tell Cursor that exact ID so Firebase can be patched to match.

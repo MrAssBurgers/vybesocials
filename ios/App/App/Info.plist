@@ -24,14 +24,12 @@
 	<string>$(CURRENT_PROJECT_VERSION)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
 	<key>UIMainStoryboardFile</key>
 	<string>Main</string>
-	<key>UIRequiredDeviceCapabilities</key>
-	<array>
-		<string>armv7</string>
-	</array>
 	<key>UISupportedInterfaceOrientations</key>
 	<array>
 		<string>UIInterfaceOrientationPortrait</string>
@@ -91,7 +89,7 @@
 	<key>NSPhotoLibraryAddUsageDescription</key>
 	<string>VYBE saves photos and videos you create back to your library.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>VYBE uses your location while you use the app to power Friend Map and Friend Link. For example, when you open Friend Map, friends you choose can see that you are nearby (such as “at the park”), and when you open Friend Link / Phone Tap your phone can find friends standing next to you so you can add them. Location is not used for advertising or cross-app tracking.</string>
+	<string>VYBE uses your location only while you use Friend Map, so friends you choose can see your approximate location. Location is not required for Friend Link, advertising, or cross-app tracking.</string>
 	<key>NSUserTrackingUsageDescription</key>
 	<string>Allow tracking if you want VYBE to show personalized ads. If you choose Ask App Not to Track, we will not use your data to track you across other companies’ apps or websites for advertising.</string>
 	<key>NSFaceIDUsageDescription</key>

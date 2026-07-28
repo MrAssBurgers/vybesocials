@@ -67,6 +67,7 @@ import { useSheetBackStack } from '@/hooks/useSheetBackStack';
 import { conversationActionState } from '@/lib/conversationActionModel';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
+import { blockUserAndNotifyModeration } from '@/lib/blockUserSafety';
 
 const REPORT_REASONS = [
   ['spam', 'Spam'],
@@ -356,11 +357,11 @@ export function ConversationOptionsSheet({
     if (!profile?.id || !otherUserId) return;
     setBusy(true);
     try {
-      const { error } = await db.from('blocked_users').insert({
-        blocker_id: profile.id,
-        blocked_id: otherUserId,
+      await blockUserAndNotifyModeration({
+        blockerId: profile.id,
+        blockedId: otherUserId,
+        context: 'direct message',
       });
-      if (error && !error.message.includes('duplicate')) throw error;
       invalidateConversationCaches(queryClient);
       queryClient.setQueryData<string[]>(['blocked-user-ids', profile.id], (prev) => {
         const next = new Set(prev || []);
@@ -371,8 +372,8 @@ export function ConversationOptionsSheet({
       toast.success(`${displayName} blocked`);
       setBlockOpen(false);
       close();
-    } catch {
-      toast.error('Could not block this user');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Could not block this user');
     } finally {
       setBusy(false);
     }

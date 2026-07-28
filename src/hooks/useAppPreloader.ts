@@ -218,11 +218,14 @@ export function useAppPreloader() {
 
         updateStatus('dm', 0.2);
         if (profileId) {
-          await withTimeout(
-            prefetchDMConversations(queryClient, profileId, uid),
-            dmMs,
-            undefined as void,
-          );
+          const dmWarm = prefetchDMConversations(queryClient, profileId, uid);
+          if (native) {
+            // Home is usable without the inbox cache. Keep native cold start
+            // responsive and finish this warm-up after the shell is visible.
+            void dmWarm.catch(() => undefined);
+          } else {
+            await withTimeout(dmWarm, dmMs, undefined as void);
+          }
         }
         if (cancelled) return;
         updateStatus('dm', 1);

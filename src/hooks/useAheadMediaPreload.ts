@@ -15,6 +15,8 @@
 import { useEffect, useRef } from 'react';
 import { batchSignUrls, getCachedSignedUrl, needsSigning } from '@/lib/signedUrlCache';
 import { normalizeMediaUrl, shouldPreloadMediaUrl } from '@/lib/mediaUrl';
+import { useNetworkStatus } from '@/hooks/useNetworkStatus';
+import { isNativePerfMode } from '@/lib/nativePerfMode';
 
 interface PostLike {
   id: string;
@@ -24,7 +26,7 @@ interface PostLike {
   author?: { avatar_url?: string | null } | null;
 }
 
-const MAX_CONCURRENT = 6;
+const MAX_CONCURRENT = isNativePerfMode() ? 3 : 6;
 const preloaded = new Set<string>();
 let inFlight = 0;
 const queue: Array<() => void> = [];
@@ -130,15 +132,19 @@ export function useAheadMediaPreload(
   ahead = 3,
   enabled = true,
 ) {
-  const lastIndexRef = useRef(-1);
+  const lastWindowRef = useRef('');
+  const { isOnline, isSlowConnection, saveData } = useNetworkStatus();
 
   useEffect(() => {
-    if (!enabled || !posts || posts.length === 0) return;
-    if (currentIndex === lastIndexRef.current) return;
-    lastIndexRef.current = currentIndex;
-
+    if (!enabled || !isOnline || !posts || posts.length === 0) return;
+    // On constrained connections warm only the currently visible item. This
+    // preserves a smooth first paint without silently consuming several posts.
+    const effectiveAhead = isSlowConnection || saveData ? 0 : ahead;
+    const windowKey = `${currentIndex}:${effectiveAhead}:${posts.length}`;
+    if (windowKey === lastWindowRef.current) return;
+    lastWindowRef.current = windowKey;
     const start = Math.max(0, currentIndex);
-    const end = Math.min(posts.length, currentIndex + ahead + 1);
+    const end = Math.min(posts.length, currentIndex + effectiveAhead + 1);
     const window = posts.slice(start, end);
     if (window.length === 0) return;
 
@@ -177,7 +183,7 @@ export function useAheadMediaPreload(
     } else {
       warm();
     }
-  }, [posts, currentIndex, ahead, enabled]);
+  }, [posts, currentIndex, ahead, enabled, isOnline, isSlowConnection, saveData]);
 }
 
 /**

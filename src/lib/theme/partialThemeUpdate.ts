@@ -168,7 +168,7 @@ export function mergeThemePatch(base: ThemeTokens, patch: ThemeTokenPatch): Them
   const next: ThemeTokens = { ...base };
   for (const key of THEME_PATCH_KEYS) {
     if (key in patch && patch[key] !== undefined) {
-      (next as Record<string, unknown>)[key] = patch[key];
+      (next as unknown as Record<string, unknown>)[key] = patch[key];
     }
   }
   return sanitizeThemeTokens(next);

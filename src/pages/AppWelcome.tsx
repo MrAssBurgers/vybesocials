@@ -18,8 +18,8 @@ const SHOWCASE = [
   {
     icon: Radio,
     image: welcomeFriendLink,
-    title: 'Friend Link — tap to connect',
-    body: 'Hold phones together and add friends instantly. No usernames, no QR hunting — just a tap.',
+    title: 'Friend Link — scan to connect',
+    body: 'Show or scan a private QR code to add friends instantly. No usernames and no typing.',
     accent: 'from-pink-500/30 to-cyan-400/20',
   },
   {

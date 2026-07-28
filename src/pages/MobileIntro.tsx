@@ -33,7 +33,7 @@ const SLIDES = [
     icon: Smartphone,
     eyebrow: 'Meet in person',
     title: 'Friend Link',
-    body: 'Tap phones together or scan QR — you\'re friends in seconds. No usernames, no awkward "what\'s your handle?"',
+    body: 'Show or scan a private QR code — you\'re friends in seconds. No usernames, no awkward "what\'s your handle?"',
     accent: 'from-emerald-400 to-cyan-400',
   },
   {

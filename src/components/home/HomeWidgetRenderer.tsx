@@ -88,7 +88,7 @@ function FindFriendsCTA({ onExplore }: { onExplore: () => void }) {
       </div>
       <h3 className="home-hero-title text-base mb-1">Find your friends</h3>
       <p className="text-sm text-muted-foreground max-w-[250px] mx-auto mb-5 leading-relaxed">
-        Your feed fills up as you add friends. Tap phones with Friend Link — you&apos;re connected instantly.
+        Your feed fills up as you add friends. Show or scan a Friend Link QR code to connect instantly.
       </p>
       <Button
         onClick={() => openFriendLink()}

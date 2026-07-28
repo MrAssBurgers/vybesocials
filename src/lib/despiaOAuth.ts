@@ -1001,6 +1001,10 @@ async function completeDespiaOAuthFromUrlInner(url: string): Promise<DespiaOAuth
     if (sessionError) {
       return { data: { session: null }, error: sessionError };
     }
+    if (!linkIntent && providerHint === 'apple' && data.session?.user?.id) {
+      const { markAppleAuthUser } = await import('@/lib/appleNameCapture');
+      markAppleAuthUser(data.session.user.id);
+    }
     const completion = {
       data: { session: data.session, linked: linkIntent },
       error: null,

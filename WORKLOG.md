@@ -2,7 +2,43 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
-## ACTIVE (2026-07-28) — Partial-update AI theme designer
+## ACTIVE (2026-07-28) — Apple rejection remediation + native performance hardening
+
+### Goal
+Address the exact App Store Connect rejection for 1.2.8 (7180520), prepare a corrected native project, and reduce native cold-start/network work without regressing the web app.
+
+### Apple findings
+- July 20 rejection: repeated name/email after Sign in with Apple; auth opened Safari.app; UGC report/block/filter/EULA flow not verifiable; ATT prompt not found.
+- Uploaded 7180520 still has NFC TAG entitlement and lacks `com.apple.developer.applesignin`; a web publish cannot correct the signed binary.
+- Apple Developer App ID has Sign in with Apple enabled and NFC disabled. Regenerate the provisioning profile and upload a new native binary.
+- App Privacy currently marks many categories as tracking. Choose personalized/tracking or non-personalized/no-tracking based on the real shipped SDK data flow before changing metadata.
+
+### What changed
+- Prepared iOS 1.2.9 (7180521), Apple sign-in/associated-domain entitlements, no NFC, required privacy manifest, focused location text, encryption declaration.
+- Apple onboarding no longer asks for name/email; all Apple auth bridges mark the session consistently.
+- Every block path also notifies moderation and immediately updates blocked-user state; partial failure is described truthfully.
+- Native boot no longer waits for DM cache or animation warmup; route/media preloading respects Data Saver, offline, and slow networks.
+- Friend Link UI is QR-only, matching the native capability configuration.
+- Reviewer notes now contain the exact rejection blockers, new-binary requirement, ATT decision tree, and physical-device evidence checklist.
+
+### Verification
+- `npm run typecheck` — pass
+- `npm run test -- --run` — 86 files / 423 tests pass
+- `npm run build` — pass; entry `app-D-dUWAj0.js`
+- `npm run lint` — 0 errors / 5 pre-existing unused-disable warnings
+- iOS `plutil` checks — pass
+- clean unsigned iOS simulator build — **BUILD SUCCEEDED** with privacy manifests embedded
+- Release build settings: 1.2.9 / 7180521 / `com.despia.vybe`; `App/App.entitlements`
+
+### Blockers / next
+1. Decide whether the shipped ad setup performs tracking; align ATT behavior and App Privacy with that decision.
+2. Rebuild in Despia/Xcode with a regenerated provisioning profile; inspect the signed archive for Apple sign-in present and NFC absent.
+3. Run physical iPhone/iPad evidence videos for fresh Apple auth, ATT/denied path, EULA, report, block, and immediate removal.
+4. The real Android wrapper is not committed here; validate target SDK, permissions, OAuth, Data Safety, and Android vitals in Despia/Play Console.
+
+---
+
+## PREVIOUS (2026-07-28) — Partial-update AI theme designer
 
 ### Goal
 Adopt philholden/partialupdate’s live-patch idea for VYBE themes (constrained NDJSON ThemeTokens streaming — no arbitrary HTML/JS).

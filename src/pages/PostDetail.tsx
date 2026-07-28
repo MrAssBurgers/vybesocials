@@ -11,6 +11,7 @@ import { isModOrAdminRole } from '@/lib/adminAccess';
 import { EditPostDialog } from '@/components/posts/EditPostDialog';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { db } from '@/lib/firebase';
+import { blockUserAndNotifyModeration } from '@/lib/blockUserSafety';
 import { useAuth } from '@/lib/auth';
 import { useComments, useCreateComment, useDeleteComment, useEditComment } from '@/hooks/useComments';
 import { AppLayout } from '@/components/layout/AppLayout';
@@ -498,14 +499,22 @@ export default function PostDetailPage() {
 
   const handleBlockUser = async () => {
     if (!profile || !post) return;
-    await db.from('blocked_users').insert({ blocker_id: profile.id, blocked_id: post.author.id });
-    queryClient.setQueryData<string[]>(['blocked-user-ids', profile.id], (prev) => {
-      const next = new Set(prev || []);
-      next.add(post.author.id);
-      return Array.from(next);
-    });
-    await queryClient.invalidateQueries({ queryKey: ['blocked-user-ids', profile.id] });
-    toast.success(`@${post.author.username} blocked`);
+    try {
+      await blockUserAndNotifyModeration({
+        blockerId: profile.id,
+        blockedId: post.author.id,
+        context: `post ${post.id}`,
+      });
+      queryClient.setQueryData<string[]>(['blocked-user-ids', profile.id], (prev) => {
+        const next = new Set(prev || []);
+        next.add(post.author.id);
+        return Array.from(next);
+      });
+      await queryClient.invalidateQueries({ queryKey: ['blocked-user-ids', profile.id] });
+      toast.success(`@${post.author.username} blocked`);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Could not block this user');
+    }
   };
 
   // Loading state

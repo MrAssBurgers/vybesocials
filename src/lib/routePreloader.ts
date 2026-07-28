@@ -55,6 +55,20 @@ const PRIMARY_TAB_ROUTES = [
 // Track which routes have been preloaded
 const preloadedRoutes = new Set<string>();
 
+/** Respect the user's data-saver setting and avoid competing with the visible page. */
+function shouldLimitBackgroundPreload(): boolean {
+  if (typeof navigator === 'undefined') return false;
+  if (!navigator.onLine) return true;
+  const connection = (navigator as Navigator & {
+    connection?: { saveData?: boolean; effectiveType?: string };
+  }).connection;
+  return Boolean(
+    connection?.saveData ||
+      connection?.effectiveType === 'slow-2g' ||
+      connection?.effectiveType === '2g',
+  );
+}
+
 /**
  * Preload a route's component so it's ready for instant navigation
  */
@@ -122,6 +136,10 @@ export function preloadCriticalRoutes(): void {
   const activeRoute = resolveActiveTabRoute(window.location.pathname);
   preloadRoute(activeRoute);
 
+  // The current screen is the only speculative download worth making while
+  // offline, on 2G, or when the user explicitly enabled Data Saver.
+  if (shouldLimitBackgroundPreload()) return;
+
   const neighbors = neighborTabRoutes(activeRoute);
   const ric = window.requestIdleCallback?.bind(window);
   const schedule = (fn: () => void, timeout: number) => {
@@ -149,6 +167,7 @@ export function preloadCriticalRoutes(): void {
  * Preload secondary routes after critical ones
  */
 export function preloadSecondaryRoutes(): void {
+  if (typeof window === 'undefined' || shouldLimitBackgroundPreload()) return;
   const run = () => {
     const secondaryRoutes = [
       '/community',

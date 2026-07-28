@@ -6,6 +6,7 @@ import { updateProfile } from 'firebase/auth';
 import type { VybeUser } from '@/lib/firebase/types';
 
 const STORAGE_KEY = 'vybe_apple_name_v1';
+const APPLE_AUTH_UID_KEY = 'vybe_apple_auth_uid_v1';
 
 export type AppleProvidedName = {
   firstName: string;
@@ -74,9 +75,28 @@ export function clearAppleProvidedName(): void {
   }
 }
 
+/**
+ * Remember Apple across custom-token OAuth handoffs. Firebase custom-token
+ * sessions do not always expose providerData immediately, but onboarding must
+ * still never ask the user for the name or email Apple already handled.
+ */
+export function markAppleAuthUser(authUid: string): void {
+  if (!authUid) return;
+  try {
+    localStorage.setItem(APPLE_AUTH_UID_KEY, authUid);
+  } catch {
+    /* ignore */
+  }
+}
+
 export function isAppleAuthUser(user: VybeUser | null | undefined): boolean {
   if (!user) return false;
-  return Boolean(user.identities?.some((i) => i.provider === 'apple'));
+  if (user.identities?.some((i) => i.provider === 'apple')) return true;
+  try {
+    return localStorage.getItem(APPLE_AUTH_UID_KEY) === user.id;
+  } catch {
+    return false;
+  }
 }
 
 /** True when Apple already supplied a name (or profile already has one for Apple users). */

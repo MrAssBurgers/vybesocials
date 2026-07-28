@@ -25,7 +25,7 @@ import { warmupAnimations, preloadFramerMotion } from "./lib/animationWarmup";
 import { installFlickerGuardCheck } from "./lib/flickerGuardCheck";
 import { installDespiaRealtimeTransport } from "./lib/installDespiaRealtimeTransport";
 import { initSentry } from "./lib/sentry";
-import { ensureNativeSplashHandoffAttr, initNativePerfMode } from "./lib/nativePerfMode";
+import { ensureNativeSplashHandoffAttr, initNativePerfMode, isNativePerfMode } from "./lib/nativePerfMode";
 import { repairLegacyAuthStorage, clearObsoleteAuthStorage } from "./lib/legacyAuthStorage";
 import { installAuthSessionKeepAlive } from "./lib/authSessionKeepAlive";
 import { ErrorBoundary } from "./components/ErrorBoundary";
@@ -146,7 +146,10 @@ function runPreRenderInit() {
   });
 
   const scheduleAnimationWarmup = () => {
-    if (isNativePlatform) return;
+    // Store shells already import the motion primitives needed by the active
+    // screen. Downloading/warming the full animation chunk during cold start
+    // competes with auth and feed hydration on both iOS and Android.
+    if (isNativePlatform || isNativePerfMode()) return;
     const idle = (window as Window & { requestIdleCallback?: (cb: () => void, opts?: { timeout: number }) => number })
       .requestIdleCallback;
     if (idle) {

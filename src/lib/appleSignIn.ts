@@ -305,10 +305,12 @@ export async function signInWithAppleJsSdk(): Promise<{
     }
     // Apple returns name only on first authorization — capture before onboarding.
     try {
-      const { captureAndApplyAppleName } = await import('@/lib/appleNameCapture');
+      const { captureAndApplyAppleName, markAppleAuthUser } = await import('@/lib/appleNameCapture');
+      const appleUid = data.session?.user?.id ?? auth.currentUser?.uid ?? null;
+      if (appleUid) markAppleAuthUser(appleUid);
       await captureAndApplyAppleName({
         userPayload: response.user,
-        authUid: data.session?.user?.id ?? auth.currentUser?.uid ?? null,
+        authUid: appleUid,
       });
     } catch {
       /* non-fatal */

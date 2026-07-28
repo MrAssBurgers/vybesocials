@@ -14,6 +14,7 @@ import { useAuthProfileId } from '@/hooks/useAuthProfileId';
 import { useUsersOnlineStatus } from '@/hooks/usePresence';
 import { usePremiumStatus } from '@/hooks/usePremiumStatus';
 import { db } from '@/lib/firebase';
+import { blockUserAndNotifyModeration } from '@/lib/blockUserSafety';
 import { useProfileViewModel } from '@/features/profile/useProfileViewModel';
 import { ProfileCoverHero } from '@/features/profile/components/ProfileCoverHero';
 import { ProfilePrimaryActions } from '@/features/profile/components/ProfilePrimaryActions';
@@ -137,11 +138,11 @@ export default function ProfileViewPage() {
   const handleBlock = async () => {
     if (!myProfileId) return;
     try {
-      const { error } = await db.from('blocked_users').insert({
-        blocker_id: myProfileId,
-        blocked_id: profile.id,
+      await blockUserAndNotifyModeration({
+        blockerId: myProfileId,
+        blockedId: profile.id,
+        context: 'profile view',
       });
-      if (error) throw error;
       queryClient.setQueryData<string[]>(['blocked-user-ids', myProfileId], (prev) => {
         const next = new Set(prev || []);
         next.add(profile.id);

@@ -115,9 +115,9 @@ export function FriendLinkSpotlight({ onOpen, onDismiss }: FriendLinkNudgeProps)
         </div>
         <div className="min-w-0 text-left">
           <p className="text-xs font-semibold uppercase tracking-wide text-primary mb-0.5">Friend Link</p>
-          <h3 className="text-sm font-bold text-foreground mb-1">Tap phones. You&apos;re friends.</h3>
+          <h3 className="text-sm font-bold text-foreground mb-1">Scan. Connect. You&apos;re friends.</h3>
           <p className="text-xs text-muted-foreground leading-relaxed mb-3">
-            Open with the Friend Link button at the bottom of Home, or shake your phone. Then tap phones or scan QR.
+            Open Friend Link from Home, then show your private QR code or scan your friend&apos;s code.
           </p>
           <Button
             size="sm"

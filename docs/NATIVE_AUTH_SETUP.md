@@ -58,8 +58,7 @@ VYBE expects Despia to expose these native bridge URL schemes:
 | Interstitial ad     | `displayinterstitialad://`      | `src/hooks/useVideoAds.ts`     |
 | In-app purchase     | `revenuecat://purchase`         | `src/hooks/useRevenueCat.ts`   |
 | Google OAuth        | `oauth://?url=...`              | `src/lib/despiaOAuth.ts`       |
-| Apple (Android)     | `oauth://?url=...`              | `src/lib/despiaOAuth.ts`       |
-| Apple (iOS)         | Apple JS SDK native sheet       | `src/lib/appleSignIn.ts`       |
+| Apple OAuth         | `oauth://?url=...`              | `src/lib/despiaOAuth.ts`       |
 
 ### Social login UX (Despia store builds)
 
@@ -69,8 +68,13 @@ big-app pattern is a **system account sheet**:
 | Provider | Platform | UX |
 |----------|----------|-----|
 | Google | iOS / Android | `oauth://` → secure browser → `native-callback.html` → Android App Link `/auth?hc=` · iOS `com.despia.vybe://oauth/auth?hc=` |
-| Apple | iOS | Apple JS SDK `usePopup: true` → Face ID / Continue sheet → `signInWithCredential` in-app |
-| Apple | Android | Same as Google: `oauth://` → `native-callback.html` → `exchange_apple` (custom token) → App Link `/auth?hc=` |
+| Apple | iOS / Android | `oauth://` → secure system sheet → `native-callback.html` → `exchange_apple` (custom token) → native callback / App Link |
+
+The Apple JS SDK is web-only. It is deliberately blocked inside Despia because
+`usePopup` returns an opaque `unknown` error in that WKWebView. If Despia later
+advertises the `nativeauth://` bridge, VYBE automatically prefers the native
+AuthenticationServices/GIDSignIn path and falls back to `oauth://` when the
+bridge is unavailable.
 
 **Silent callback:** `https://vybehub.app/native-callback.html` exchanges provider `id_token` for a short
 `hc=` code (never put JWTs in the deeplink — iOS rejects long custom-scheme URLs as “address is invalid”).

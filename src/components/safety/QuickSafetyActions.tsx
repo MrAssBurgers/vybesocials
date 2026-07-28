@@ -22,6 +22,7 @@ import { triggerHaptic } from '@/lib/haptics';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { useQueryClient } from '@tanstack/react-query';
+import { blockUserAndNotifyModeration } from '@/lib/blockUserSafety';
 
 interface QuickSafetyActionsProps {
   targetUserId: string;
@@ -85,14 +86,11 @@ export const QuickSafetyActions = memo(function QuickSafetyActions({
     triggerHaptic('heavy');
 
     try {
-      const { error } = await db
-        .from('blocked_users')
-        .insert({
-          blocker_id: profile.id,
-          blocked_id: targetUserId,
-        });
-
-      if (error && !error.message.includes('duplicate')) throw error;
+      await blockUserAndNotifyModeration({
+        blockerId: profile.id,
+        blockedId: targetUserId,
+        context: 'profile safety action',
+      });
 
       // Instant feed hide (Guideline 1.2) — do not wait for 5m staleTime.
       await queryClient.invalidateQueries({ queryKey: ['blocked-user-ids', profile.id] });
@@ -108,7 +106,7 @@ export const QuickSafetyActions = memo(function QuickSafetyActions({
       onComplete?.();
     } catch (error) {
       console.error('Failed to block:', error);
-      toast.error('Failed to block user');
+      toast.error(error instanceof Error ? error.message : 'Failed to block user');
     } finally {
       setIsSubmitting(false);
     }

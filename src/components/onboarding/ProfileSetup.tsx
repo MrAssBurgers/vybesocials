@@ -192,61 +192,57 @@ export function ProfileSetup({
           </p>
         </div>
 
-        <div className="space-y-2">
-          <Label htmlFor="displayName">
-            {t('onboarding.displayName')}
-            {nameOptional ? ' (optional)' : ' *'}
-          </Label>
-          <Input
-            id="displayName"
-            placeholder="Name shown on your profile"
-            value={data.displayName ?? ''}
-            onChange={(e) => onChange({ ...data, displayName: e.target.value })}
-            className="bg-card border-border"
-            autoComplete="name"
-          />
-          <p className="text-xs text-muted-foreground">
-            {nameOptional
-              ? 'We use the name from Sign in with Apple when available. You can edit it anytime.'
-              : `This is what people see on posts and your profile. It can be different from @${username || 'username'}.`}
-          </p>
-        </div>
+        {nameOptional ? (
+          <div className="rounded-xl border border-border bg-card/60 px-4 py-3">
+            <p className="text-sm font-medium text-foreground">Your Apple profile is ready</p>
+            <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+              VYBE uses the profile details supplied by Apple, including Apple&apos;s private relay
+              address when you choose it. You can change your public display name later in Settings.
+            </p>
+          </div>
+        ) : (
+          <>
+            <div className="space-y-2">
+              <Label htmlFor="displayName">{t('onboarding.displayName')} *</Label>
+              <Input
+                id="displayName"
+                placeholder="Name shown on your profile"
+                value={data.displayName ?? ''}
+                onChange={(e) => onChange({ ...data, displayName: e.target.value })}
+                className="bg-card border-border"
+                autoComplete="name"
+              />
+              <p className="text-xs text-muted-foreground">
+                This is what people see on posts and your profile. It can be different from @{username || 'username'}.
+              </p>
+            </div>
 
-        {/* First & Last Name */}
-        <div className="grid grid-cols-2 gap-3">
-          <div className="space-y-2">
-            <Label htmlFor="firstName">First Name{nameOptional ? ' (optional)' : ' *'}</Label>
-            <Input
-              id="firstName"
-              placeholder="First name"
-              value={data.firstName}
-              onChange={(e) => {
-                onChange({
-                  ...data,
-                  firstName: e.target.value,
-                });
-              }}
-              className="bg-card border-border"
-              autoComplete="given-name"
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="lastName">Last Name{nameOptional ? ' (optional)' : ' *'}</Label>
-            <Input
-              id="lastName"
-              placeholder="Last name"
-              value={data.lastName}
-              onChange={(e) => {
-                onChange({
-                  ...data,
-                  lastName: e.target.value,
-                });
-              }}
-              className="bg-card border-border"
-              autoComplete="family-name"
-            />
-          </div>
-        </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label htmlFor="firstName">First Name *</Label>
+                <Input
+                  id="firstName"
+                  placeholder="First name"
+                  value={data.firstName}
+                  onChange={(e) => onChange({ ...data, firstName: e.target.value })}
+                  className="bg-card border-border"
+                  autoComplete="given-name"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="lastName">Last Name *</Label>
+                <Input
+                  id="lastName"
+                  placeholder="Last name"
+                  value={data.lastName}
+                  onChange={(e) => onChange({ ...data, lastName: e.target.value })}
+                  className="bg-card border-border"
+                  autoComplete="family-name"
+                />
+              </div>
+            </div>
+          </>
+        )}
 
         <div className="space-y-2">
           <Label htmlFor="bio">{t('onboarding.bio')}</Label>

@@ -76,7 +76,9 @@ export const getImageConfig = () => {
 };
 
 // Feed-specific preload buffer — how many posts ahead to fully warm
-export const FEED_PRELOAD_AHEAD = 6;
+// Three cards keeps scrolling instant without making iOS decode a long offscreen
+// image/video queue. The hook reduces this to the visible card on Data Saver/2G.
+export const FEED_PRELOAD_AHEAD = 3;
 
 /** Max per-conversation Firestore message listeners at app root. */
 export const MAX_SCOPED_DM_LISTENERS = 24;

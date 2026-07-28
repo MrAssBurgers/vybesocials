@@ -70,11 +70,13 @@ export async function signInWithNativeCredential(
     // [iOS-only] Persist AuthenticationServices name on first SIWA.
     if (success.provider === 'apple') {
       try {
-        const { captureAndApplyAppleName } = await import('@/lib/appleNameCapture');
+        const { captureAndApplyAppleName, markAppleAuthUser } = await import('@/lib/appleNameCapture');
+        const appleUid = data.session?.user?.id ?? auth.currentUser?.uid ?? null;
+        if (appleUid) markAppleAuthUser(appleUid);
         await captureAndApplyAppleName({
           givenName: success.givenName,
           familyName: success.familyName,
-          authUid: data.session?.user?.id ?? auth.currentUser?.uid ?? null,
+          authUid: appleUid,
         });
       } catch {
         /* non-fatal */

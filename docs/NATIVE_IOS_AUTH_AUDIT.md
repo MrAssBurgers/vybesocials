@@ -4,7 +4,7 @@
 
 **True native AuthenticationServices / Google Sign-In SDKs are not available in the Despia store binary used by VYBE.** Despia exposes `oauth://` (ASWeb/CCT) only. Clerk’s native Apple bridge is unused (Firebase Auth).
 
-Web scaffold lives under `src/lib/nativeAuth/` behind flag `native_ios_auth_v1`. It activates only when the Despia bridge advertises native auth. Until then, existing Despia/Apple JS paths remain.
+Web scaffold lives under `src/lib/nativeAuth/` behind flag `native_ios_auth_v1`. It activates only when the Despia bridge advertises native auth. Until then, Despia uses the system `oauth://` path for both Apple and Google; Apple JS remains web-only.
 
 See [DESPIA_NATIVE_AUTH_SUPPORT_REQUEST.md](./DESPIA_NATIVE_AUTH_SUPPORT_REQUEST.md).
 
