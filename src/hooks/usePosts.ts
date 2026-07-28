@@ -57,8 +57,13 @@ export function usePosts(
     options?.enabled !== false && (authorId !== undefined ? !!authorId : true);
 
   return useQuery({
-    queryKey: ['posts', type, authorId, profile?.id],
+    // Version profile cache entries whenever their server-read contract changes.
+    // Persisted empty results previously stayed fresh for 30 minutes, so a new
+    // bundle never executed the repaired query even after a full navigation.
+    queryKey: ['posts', authorId ? 'profile-server-v2' : 'feed-v1', type, authorId, profile?.id],
     enabled: queryEnabled,
+    staleTime: authorId ? 0 : undefined,
+    refetchOnMount: authorId ? 'always' : undefined,
     queryFn: async (): Promise<Post[]> => {
       // Pinned posts only matter when viewing a specific author's profile.
       // For global/feed views, sort purely by recency so a user pinning a post

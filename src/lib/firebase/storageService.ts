@@ -92,7 +92,10 @@ export function createStorageBucket(bucket: string) {
       }
       const storageRef = ref(storage, storageObjectPath(bucket, path));
       // Firebase download URLs are resolved async; return path-based placeholder.
-      const publicUrl = `gs://${bucket}/${path}`;
+      // `bucket` is the Supabase-compatible logical collection (for example
+      // "media"), not the physical Firebase bucket. Persist the reference's
+      // real bucket/fullPath so resolveMediaUrl can call getDownloadURL later.
+      const publicUrl = `gs://${storageRef.bucket}/${storageRef.fullPath}`;
       return { data: { publicUrl, signedUrl: publicUrl } };
     },
 
