@@ -300,13 +300,15 @@ export default function MobileIntro({ onDone }: { onDone?: () => void }) {
           className="flex h-full mobile-intro-track"
           style={{ width: `${N * 100}%` }}
         >
-          {SLIDES.map((s) => {
+          {SLIDES.map((s, slideIndex) => {
             const Icon = s.icon;
+            const isActiveSlide = slideIndex === index;
             return (
               <div
                 key={s.title}
                 className="mobile-intro-slide h-full shrink-0 flex flex-col items-center justify-center px-7"
                 style={{ width: `${100 / N}%` }}
+                aria-hidden={!isActiveSlide}
               >
                 <div className="w-full max-w-sm flex flex-col items-center text-center">
                   <div
@@ -320,9 +322,15 @@ export default function MobileIntro({ onDone }: { onDone?: () => void }) {
                   <p className="text-xs uppercase tracking-[0.22em] text-muted-foreground/80">
                     {s.eyebrow}
                   </p>
-                  <h1 className="mt-2 text-4xl sm:text-5xl font-bold tracking-tight mobile-intro-title text-foreground">
-                    {s.title}
-                  </h1>
+                  {isActiveSlide ? (
+                    <h1 className="mt-2 text-4xl sm:text-5xl font-bold tracking-tight mobile-intro-title text-foreground">
+                      {s.title}
+                    </h1>
+                  ) : (
+                    <p className="mt-2 text-4xl sm:text-5xl font-bold tracking-tight mobile-intro-title text-foreground">
+                      {s.title}
+                    </p>
+                  )}
                   <p className="mt-5 text-base sm:text-lg text-muted-foreground leading-relaxed">
                     {s.body}
                   </p>

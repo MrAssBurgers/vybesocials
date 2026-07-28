@@ -83,6 +83,14 @@ const SettingsPage = forwardRef<HTMLDivElement, React.ComponentPropsWithoutRef<'
   const [activeCategory, setActiveCategory] = useState<SettingsCategory | null>(initialTab);
   const [signOutOpen, setSignOutOpen] = useState(false);
   const [isSigningOut, setIsSigningOut] = useState(false);
+  const [buildMeta, setBuildMeta] = useState<{ commit_short?: string; entry?: string } | null>(null);
+
+  useEffect(() => {
+    fetch('/version.json')
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => setBuildMeta(data))
+      .catch(() => undefined);
+  }, []);
 
   const desktopCategory: SettingsCategory = activeCategory || 'profile';
   const mobileView: 'home' | 'detail' = activeCategory ? 'detail' : 'home';
@@ -189,7 +197,10 @@ const SettingsPage = forwardRef<HTMLDivElement, React.ComponentPropsWithoutRef<'
           <VybeMiniIcon size={28} showSparkles />
           <VybeWordmark size="md" />
         </div>
-        <p className="text-[11px] font-medium uppercase tracking-[0.2em] text-muted-foreground/70">Version {APP_VERSION}</p>
+        <p className="text-[11px] font-medium uppercase tracking-[0.2em] text-muted-foreground/70">
+          Version {APP_VERSION}
+          {buildMeta?.commit_short ? ` · ${buildMeta.commit_short}` : ''}
+        </p>
       </div>
     </div>
   );

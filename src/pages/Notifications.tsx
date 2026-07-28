@@ -258,14 +258,28 @@ export default function NotificationsPage() {
   }, []);
 
   const pendingRequests = friendRequests?.incoming || [];
-  const unreadNotifications = notifications?.filter(n => !n.read) || [];
-  const readNotifications = notifications?.filter(n => n.read) || [];
+
+  /** Hide stale friend-request notices when the underlying request is no longer pending. */
+  const pendingRequestSenderIds = useMemo(
+    () => new Set(pendingRequests.map((request) => request.sender_id)),
+    [pendingRequests],
+  );
+  const activeNotifications = useMemo(() => {
+    return (notifications || []).filter((notification) => {
+      if (notification.type !== 'friend_request') return true;
+      const actorId = notification.actor?.id;
+      return Boolean(actorId && pendingRequestSenderIds.has(actorId));
+    });
+  }, [notifications, pendingRequestSenderIds]);
+
+  const unreadNotifications = activeNotifications.filter(n => !n.read) || [];
+  const readNotifications = activeNotifications.filter(n => n.read) || [];
   
   // Priority notifications: DMs, friend requests, mentions — not passive likes/follows
   const priorityTypes = new Set(['friend_request', 'mention', 'reply', 'dm', 'comment']);
   const priorityNotifications = useMemo(() => 
-    (notifications || []).filter(n => priorityTypes.has(n.type) || !n.read),
-    [notifications]
+    activeNotifications.filter(n => priorityTypes.has(n.type) || !n.read),
+    [activeNotifications]
   );
   
   // Group notifications for better UX

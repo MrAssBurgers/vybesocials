@@ -106,6 +106,7 @@ export function Camera({
   const modeTabs = modesForTarget(captureTarget);
   const maxRecSec = maxRecordingSec(captureMode, captureTarget);
   const recordingProgressPct = Math.min((recordingDuration / maxRecSec) * 100, 100);
+  const captureEnabled = cameraReady && !permissionDenied;
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -151,10 +152,18 @@ export function Camera({
         videoEl.srcObject = stream;
         videoEl.onloadedmetadata = () => {
           videoRef.current?.play().catch(() => {});
-          setCameraReady(true);
+          const el = videoRef.current;
+          if (el && el.videoWidth > 0 && el.videoHeight > 0) {
+            setCameraReady(true);
+          }
         };
         await videoEl.play().catch(() => {});
-        if (videoRef.current?.readyState != null && videoRef.current.readyState >= 2) {
+        if (
+          videoRef.current?.readyState != null &&
+          videoRef.current.readyState >= 2 &&
+          videoRef.current.videoWidth > 0 &&
+          videoRef.current.videoHeight > 0
+        ) {
           setCameraReady(true);
         }
       }
@@ -667,7 +676,10 @@ export function Camera({
         timer={timerSeconds}
         onTimerChange={setTimerSeconds}
         showBackArrow={showBackArrow}
+        disabled={!captureEnabled}
       />
+
+      <div className={cn(!captureEnabled && 'pointer-events-none opacity-40')} aria-hidden={!captureEnabled}>
 
       <AnimatePresence>
         {isRecording && (
@@ -879,6 +891,7 @@ export function Camera({
             </button>
           </div>
         </div>
+      </div>
       </div>
 
       {/* Sound Picker */}

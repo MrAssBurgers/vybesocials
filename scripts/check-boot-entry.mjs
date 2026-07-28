@@ -48,9 +48,18 @@ const IGNORE = new Set([
   'error', 'fallbackError', 'rootEl', 'root',
 ]);
 
+function stripCommentsAndStrings(src) {
+  return src
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/\/\/[^\n]*/g, '')
+    .replace(/'(?:\\.|[^'\\])*'/g, "''")
+    .replace(/"(?:\\.|[^"\\])*"/g, '""')
+    .replace(/`(?:\\.|[^`\\])*`/g, '``');
+}
+
 function findModuleScopeCalls(src) {
   const calls = new Set();
-  const stripped = src
+  const stripped = stripCommentsAndStrings(src)
     .replace(/function\s+\w+[^{]*\{[\s\S]*?\n\}/g, '')
     .replace(/try\s*\{[\s\S]*\}\s*catch[\s\S]*$/m, '');
   const callRe = /\b([A-Za-z_$][\w$]*)\s*\(/g;

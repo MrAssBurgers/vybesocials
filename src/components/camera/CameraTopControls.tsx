@@ -12,6 +12,8 @@ interface CameraTopControlsProps {
   timer: number;
   onTimerChange: (seconds: number) => void;
   showBackArrow?: boolean;
+  /** When false, capture tools are inert until the preview stream is live. */
+  disabled?: boolean;
 }
 
 const TIMER_OPTIONS = [0, 3, 10];
@@ -21,18 +23,22 @@ function ControlChip({
   onClick,
   active,
   label,
+  disabled = false,
 }: {
   children: ReactNode;
   onClick: () => void;
   active?: boolean;
   label?: string;
+  disabled?: boolean;
 }) {
   return (
     <motion.button
       type="button"
-      whileTap={{ scale: 0.92 }}
-      onClick={onClick}
+      whileTap={{ scale: disabled ? 1 : 0.92 }}
+      onClick={disabled ? undefined : onClick}
+      disabled={disabled}
       aria-label={label}
+      aria-disabled={disabled}
       className={cn(
         'relative min-w-[44px] min-h-[44px] flex items-center justify-center rounded-full',
         'bg-black/35 backdrop-blur-xl border border-white/10 text-white touch-manipulation',
@@ -52,6 +58,7 @@ export function CameraTopControls({
   timer,
   onTimerChange,
   showBackArrow = false,
+  disabled = false,
 }: CameraTopControlsProps) {
   const cycleTimer = () => {
     triggerHaptic('light');
@@ -70,8 +77,9 @@ export function CameraTopControls({
           )}
         </ControlChip>
 
-        <div className="flex items-center gap-2">
+        <div className={cn('flex items-center gap-2', disabled && 'pointer-events-none opacity-40')} aria-hidden={disabled}>
           <ControlChip
+            disabled={disabled}
             onClick={() => {
               triggerHaptic('light');
               onFlashToggle();
@@ -82,7 +90,7 @@ export function CameraTopControls({
             {flash ? <Zap className="h-5 w-5 text-amber-300" /> : <ZapOff className="h-5 w-5" />}
           </ControlChip>
 
-          <ControlChip onClick={cycleTimer} active={timer > 0} label="Timer">
+          <ControlChip disabled={disabled} onClick={cycleTimer} active={timer > 0} label="Timer">
             <Timer className="h-5 w-5" />
             {timer > 0 && (
               <span className="absolute -bottom-0.5 -right-0.5 min-w-[16px] h-4 px-1 rounded-full bg-primary text-[9px] font-bold flex items-center justify-center">
@@ -92,6 +100,7 @@ export function CameraTopControls({
           </ControlChip>
 
           <ControlChip
+            disabled={disabled}
             onClick={() => {
               triggerHaptic('light');
               onFlipCamera();

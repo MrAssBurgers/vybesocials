@@ -234,6 +234,7 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
     modeParam === 'login' || searchParams.get('signup') !== 'true';
   });
   const [loading, setLoading] = useState(false);
+  const [completingSignIn, setCompletingSignIn] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   
   // Detect OAuth return: hash tokens OR Firebase redirect flag.
@@ -788,6 +789,15 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
     return <Navigate to={resolvePostLoginDestination(profile)} replace />;
   }
 
+  if (completingSignIn) {
+    return (
+      <div className="fixed inset-0 z-50 flex flex-col items-center justify-center gap-4 bg-background px-6" role="status" aria-live="polite">
+        <div className="h-8 w-8 rounded-full border-[3px] border-primary/25 border-t-primary animate-spin" aria-hidden="true" />
+        <p className="text-sm text-muted-foreground text-center">Signing you in…</p>
+      </div>
+    );
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!isLogin && !agreedToTerms) {
@@ -845,6 +855,7 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
         clearObsoleteAuthStorage();
         toast.success('Welcome back! ✨');
         const cached = getCachedCurrentProfile();
+        setCompletingSignIn(true);
         navigate(
           resolvePostLoginDestination(
             cached

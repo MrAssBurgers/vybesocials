@@ -196,13 +196,17 @@ export function useBackgroundLocation(
     const onError = (err: GeolocationPositionError) => {
       console.warn('[Geolocation] error:', err.code, err.message);
       if (err.code === 1) {
-        // Permission denied — toast only. Do NOT flip Ghost Mode / sharing pref;
-        // that stranded users as "Ghost mode" with no easy exit.
+        // Permission denied — toast once. Do NOT flip Ghost Mode / sharing pref.
         setLocationDenied(true);
         setCoords(null);
+        if (userId) {
+          void disableLiveLocation(userId);
+        }
         if (!denialNotifiedRef.current) {
           denialNotifiedRef.current = true;
-          toast.error('Location permission denied — enable it in Settings to share on the map');
+          toast.error('Location permission denied — enable it in Settings to share on the map', {
+            id: 'vybe-map-location-denied',
+          });
         }
         return;
       }
@@ -246,7 +250,7 @@ export function useBackgroundLocation(
       if (watchId !== undefined) navigator.geolocation.clearWatch(watchId);
       if (fallbackWatchId !== undefined) navigator.geolocation.clearWatch(fallbackWatchId);
     };
-  }, [shouldWatch, sharing, upsertLocation]);
+  }, [shouldWatch, sharing, upsertLocation, userId]);
 
   // Disable sharing in DB when toggled off
   useEffect(() => {

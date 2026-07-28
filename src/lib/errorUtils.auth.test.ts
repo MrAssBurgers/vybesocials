@@ -87,4 +87,12 @@ describe('getUserFriendlyError username login', () => {
       }),
     ).toBe('No account found with that username.');
   });
+
+  it('maps invalid login credentials to neutral copy (not migration)', async () => {
+    const { getUserFriendlyError } = await import('./errorUtils');
+    expect(getUserFriendlyError({ message: 'Invalid login credentials' })).toBe(
+      'Email or password is incorrect.',
+    );
+    expect(getUserFriendlyError({ code: 'auth/invalid-credential' })).not.toMatch(/upgraded/i);
+  });
 });

@@ -50,7 +50,15 @@ async function cleanup(path: string) {
 
 /** Phase 1 Vybe Check — SafeSearch frames + OpenAI moderation/STT + Gemini borderline. */
 export const startVybeCheck = onCall(
-  { secrets: [...SECRETS], timeoutSeconds: 300, memory: '1GiB', cpu: 1 },
+  {
+    secrets: [...SECRETS],
+    timeoutSeconds: 300,
+    memory: '1GiB',
+    cpu: 1,
+    region: 'us-central1',
+    // Firebase Auth is enforced in requireAuth; empty IAM invokers blocked production checks.
+    invoker: 'public',
+  },
   async (request) => {
     const uid = requireAuth(request);
     enforceRateLimit(await rateLimit(`vybe_check:${uid}`, 20, 60));
@@ -135,15 +143,18 @@ export const startVybeCheck = onCall(
 );
 
 /** Poll Vybe Check status by ID. */
-export const getVybeCheckStatus = onCall(async (request) => {
-  const uid = requireAuth(request);
-  const { check_id } = (request.data || {}) as { check_id?: string };
-  if (!check_id) throw new HttpsError('invalid-argument', 'check_id required');
+export const getVybeCheckStatus = onCall(
+  { region: 'us-central1', invoker: 'public' },
+  async (request) => {
+    const uid = requireAuth(request);
+    const { check_id } = (request.data || {}) as { check_id?: string };
+    if (!check_id) throw new HttpsError('invalid-argument', 'check_id required');
 
-  const snap = await db.collection('vybe_checks').doc(check_id).get();
-  if (!snap.exists) throw new HttpsError('not-found', 'Vybe Check not found');
-  const data = snap.data() as { user_id?: string };
-  if (data.user_id !== uid) throw new HttpsError('permission-denied', 'Not your check');
+    const snap = await db.collection('vybe_checks').doc(check_id).get();
+    if (!snap.exists) throw new HttpsError('not-found', 'Vybe Check not found');
+    const data = snap.data() as { user_id?: string };
+    if (data.user_id !== uid) throw new HttpsError('permission-denied', 'Not your check');
 
-  return { check_id, ...snap.data() };
-});
+    return { check_id, ...snap.data() };
+  },
+);

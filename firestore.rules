@@ -1008,13 +1008,16 @@ service cloud.firestore {
       );
     }
     match /webrtc_signals/{docId} {
+      // Channel-scoped WebRTC broadcast signals (no per-user fields on the doc).
       allow read: if signedIn() && (
+        resource.data.channel is string ||
         resource.data.to_user == uid() ||
         resource.data.from_user == uid() ||
         ownsProfileId(resource.data.to_profile_id) ||
         ownsProfileId(resource.data.from_profile_id)
       );
       allow create: if signedIn() && (
+        (request.resource.data.channel is string && request.resource.data.from_user == uid()) ||
         willOwn('from_user') || willOwnProfile('from_profile_id')
       );
       allow delete: if signedIn() && (

@@ -9,6 +9,7 @@ import {
   documentRef,
   newDocumentId,
 } from './firestoreDb';
+import { getAuth } from 'firebase/auth';
 import type { Unsubscribe } from 'firebase/firestore';
 
 export interface PostgresBinding {
@@ -255,11 +256,13 @@ export function createRealtimeChannel(channelName: string): ChannelBuilder {
     async send(payload: any) {
       if (payload?.type === 'broadcast') {
         const id = newDocumentId('webrtc_signals');
+        const fromUser = getAuth().currentUser?.uid ?? null;
         await setDocument('webrtc_signals', id, {
           id,
           channel: channelName,
           event: payload.event || 'signal',
           payload: payload.payload ?? null,
+          from_user: fromUser,
           created_at: new Date().toISOString(),
         });
       }

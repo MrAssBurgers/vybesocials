@@ -3,6 +3,8 @@
  * Prevents leaking database schema, constraint names, and internal details
  */
 
+import { getLoginCredentialErrorMessage } from './loginErrors';
+
 export const APPLE_SIGNIN_OPEN_FAILED = 'Apple Sign-In could not open. Try again.';
 
 /** True for opaque Apple/Despia errors that must never reach a toast as the literal word. */
@@ -195,14 +197,14 @@ export function getUserFriendlyError(error: any): string {
     return 'An account already exists with this email using another sign-in method.';
   }
   
-  // Authentication errors
+  // Authentication errors — never show migration copy without an explicit server flag.
   if (
     message.includes('Invalid login credentials') ||
     message.includes('auth/invalid-credential') ||
     message.includes('auth/invalid-login-credentials') ||
     message.includes('auth/wrong-password')
   ) {
-    return 'VYBE was upgraded — your old password will not work. Tap Forgot password to set a new one, or sign in with Google or Apple if you used those.';
+    return getLoginCredentialErrorMessage();
   }
   if (message.includes('Email not confirmed')) {
     return 'Please verify your email address. Check your inbox or tap "Resend verification".';

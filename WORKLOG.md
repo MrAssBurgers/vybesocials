@@ -2,7 +2,42 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
-## ACTIVE (2026-07-28) — Production readiness (post QA remediation)
+## ACTIVE (2026-07-28) — Production deep scan remediation
+
+### Goal
+Address VYBE-PROD-001–014 from the 2026-07-28 production deep scan on top of prior production-readiness work.
+
+### What changed
+- **PROD-002 Vybe Check:** `startVybeCheck` + `getVybeCheckStatus` now use `invoker: 'public'` (same IAM fix as aiChat); deployed + Cloud Run `run.invoker` granted.
+- **PROD-006 login errors:** `errorUtils` invalid-credential path uses neutral `getLoginCredentialErrorMessage()` (no migration copy for unknown accounts).
+- **PROD-004 camera:** Capture controls gated until live preview (`cameraReady` + dimensions); `CameraTopControls` supports `disabled` while close stays active.
+- **PROD-005 map:** On location denial, disable live location in Firestore + dedupe toast (`id: vybe-map-location-denied`).
+- **PROD-007 auth transition:** Landing shows full-screen “Signing you in…” after successful login before route swap.
+- **PROD-009 explore:** Default view is `videos` discovery grid (not fullscreen clips).
+- **PROD-010 notifications:** Stale `friend_request` notices hidden when no matching pending request.
+- **PROD-011 partial:** Intro single H1 per slide; desktop upload dropzone is keyboard-operable (`role="button"`).
+- **PROD-012 webrtc_signals:** Firestore rules allow channel-scoped broadcast docs; client writes `from_user`.
+- **PROD-013 boot validator:** `check-boot-entry` strips comments/strings before module-scope call scan.
+- **PROD-001 partial:** Postbuild emits `/version.json` (commit, entry path, SHA-256); Settings shows commit short.
+
+### Tests / deploy
+- `npm run validate:boot` — pass
+- `npm run test -- --run` — 81 files / 401 tests pass
+- `npm run build` — pass; entry `app-I4vOQS5-.js`; `/version.json` generated
+- Deployed: `functions:startVybeCheck`, `functions:getVybeCheckStatus`, `firestore:rules`
+
+### Blockers
+- **vybehub.app** still on old bundle (`app-Dwq66ozq.js`) — **Lovable → Share → Publish** required to ship this branch.
+- Physical native matrix (R-03) still needs device run.
+
+### Next 3
+1. Lovable Publish after merging/pushing deep-scan fixes.
+2. Post-publish: verify `/version.json` entry hash on vybehub.app matches staging.
+3. Production canary: benign image + text post publish on vybehub.app.
+
+---
+
+## PREVIOUS (2026-07-28) — Production readiness (post QA remediation)
 
 ### Goal
 Clear remaining release blockers after VYBE-001–023 client remediation: aiChat backend, friendship/post E2E, ship client, native matrix, bundle split.

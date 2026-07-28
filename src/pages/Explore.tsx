@@ -549,11 +549,11 @@ export default function ExplorePage() {
   
   // Persist view mode to localStorage + DB so it remembers user selection
   const [viewMode, setViewMode] = useState<'clips' | 'videos'>(() => {
-    // First check URL param, then localStorage, then default to clips
+    // First check URL param, then localStorage, then default to videos (discovery grid).
     const urlView = searchParams.get('view') as 'clips' | 'videos';
     if (urlView === 'clips' || urlView === 'videos') return urlView;
     const saved = localStorage.getItem('explore-view-mode');
-    return (saved === 'clips' || saved === 'videos') ? saved : 'clips';
+    return (saved === 'clips' || saved === 'videos') ? saved : 'videos';
   });
   
   // Save to localStorage whenever viewMode changes + sync to DB

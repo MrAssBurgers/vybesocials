@@ -295,8 +295,19 @@ export function DesktopCreateStudio({ onClose }: DesktopCreateStudioProps) {
           ) : (
             /* Drop zone */
             <div
-              onDragOver={handleDragOver} onDragLeave={handleDragLeave} onDrop={handleDrop}
+              role="button"
+              tabIndex={0}
+              onDragOver={handleDragOver}
+              onDragLeave={handleDragLeave}
+              onDrop={handleDrop}
               onClick={() => fileInputRef.current?.click()}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  fileInputRef.current?.click();
+                }
+              }}
+              aria-label="Upload photos or videos from your device"
               className={cn("w-full max-w-md rounded-2xl border-2 border-dashed cursor-pointer transition-all text-center py-20",
                 isDragging ? "border-primary bg-primary/5 scale-[1.01]" : "border-muted-foreground/20 hover:border-primary/40 hover:bg-muted/30")}
             >

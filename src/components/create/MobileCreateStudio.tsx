@@ -139,6 +139,7 @@ export function MobileCreateStudio({ onClose, initialSound }: MobileCreateStudio
   const [shutterFlash, setShutterFlash] = useState(false);
   const [cameraReady, setCameraReady] = useState(false);
   const [cameraBlocked, setCameraBlocked] = useState(false);
+  const captureEnabled = cameraReady && !cameraBlocked;
 
   useEffect(() => {
     if (phase !== 'compose' || capturedFiles.length === 0) return;
@@ -277,9 +278,16 @@ export function MobileCreateStudio({ onClose, initialSound }: MobileCreateStudio
           videoRef.current.srcObject = streamRef.current;
           videoRef.current.onloadedmetadata = () => {
             if (!videoRef.current) return;
+            const el = videoRef.current;
+            if (el.videoWidth > 0 && el.videoHeight > 0) {
+              setCameraReady(true);
+            }
           };
           videoRef.current.play().catch(() => {});
-          setCameraReady(true);
+          const el = videoRef.current;
+          if (el && el.readyState >= 2 && el.videoWidth > 0 && el.videoHeight > 0) {
+            setCameraReady(true);
+          }
         } catch (err) {
           console.warn('[MobileCreateStudio] video attach failed:', err);
           setCameraBlocked(true);
@@ -765,7 +773,10 @@ export function MobileCreateStudio({ onClose, initialSound }: MobileCreateStudio
         onFlipCamera={flipCamera}
         timer={timer}
         onTimerChange={setTimer}
+        disabled={!captureEnabled}
       />
+
+      <div className={cn(!captureEnabled && 'pointer-events-none opacity-40')} aria-hidden={!captureEnabled}>
 
       {/* Bottom chrome — YouTube-Studio–inspired stack */}
       <div className="absolute bottom-0 left-0 right-0 z-30 pointer-events-none">
@@ -851,6 +862,7 @@ export function MobileCreateStudio({ onClose, initialSound }: MobileCreateStudio
             )}
           </AnimatePresence>
         </div>
+      </div>
       </div>
 
       {/* Gallery Drawer */}
