@@ -152,20 +152,26 @@ export function usePosts(
       const userReactionMap: Record<string, string> = {};
 
       if (profile) {
-        const [likesResult, bookmarksResult] = await Promise.all([
+        const [likesResult, bookmarksResult] = await Promise.allSettled([
           db.from('likes').select('post_id, reaction_type').eq('user_id', profile.id),
           db.from('bookmarks').select('post_id').eq('user_id', profile.id),
         ]);
 
-        userLikes = likesResult.data?.map(l => l.post_id) || [];
-        userBookmarks = bookmarksResult.data?.map(b => b.post_id) || [];
-        likesResult.data?.forEach(l => { if (l.reaction_type) userReactionMap[l.post_id] = l.reaction_type; });
+        const likesData = likesResult.status === 'fulfilled' ? likesResult.value.data || [] : [];
+        const bookmarksData = bookmarksResult.status === 'fulfilled' ? bookmarksResult.value.data || [] : [];
+        userLikes = likesData.map(l => l.post_id);
+        userBookmarks = bookmarksData.map(b => b.post_id);
+        likesData.forEach(l => { if (l.reaction_type) userReactionMap[l.post_id] = l.reaction_type; });
+
+        if (likesResult.status === 'rejected' || bookmarksResult.status === 'rejected') {
+          console.warn('[usePosts] Reaction/bookmark enrichment partially unavailable');
+        }
       }
 
       // Get counts for each post
       const postsWithCounts = await Promise.all(
         (posts || []).map(async (post) => {
-          const [likesCount, commentsCount] = await Promise.all([
+          const [likesCount, commentsCount] = await Promise.allSettled([
             db.from('likes').select('id', { count: 'exact', head: true }).eq('post_id', post.id),
             db.from('comments').select('id', { count: 'exact', head: true }).eq('post_id', post.id),
           ]);
@@ -199,8 +205,8 @@ export function usePosts(
             is_pinned: post.is_pinned ?? false,
             view_count: (post as any).view_count ?? 0,
             author,
-            like_count: likesCount.count || 0,
-            comment_count: commentsCount.count || 0,
+            like_count: likesCount.status === 'fulfilled' ? likesCount.value.count || 0 : 0,
+            comment_count: commentsCount.status === 'fulfilled' ? commentsCount.value.count || 0 : 0,
             is_liked: userLikes.includes(post.id),
             is_bookmarked: userBookmarks.includes(post.id),
             reaction_type: userReactionMap[post.id] || null,
