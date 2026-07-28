@@ -1,8 +1,8 @@
 {
   "app_version": "0.0.0",
-  "commit": "2323d91897c9fb907f76a520895e1eb9e753dc48",
-  "commit_short": "2323d91",
-  "built_at": "2026-07-28T21:24:39.284Z",
-  "entry": "/assets/app-9t8GuQd2.js",
-  "entry_sha256": "7a85e4d1d2ebd3c5e28bf2de4f8f6699ef1b6b3d27c1d337292272449b36e72f"
+  "commit": "bbe79261d535adf0b399ecdb9d82ce21eec056eb",
+  "commit_short": "bbe7926",
+  "built_at": "2026-07-28T21:51:24.505Z",
+  "entry": "/assets/app-DU7CwpWL.js",
+  "entry_sha256": "f3e6b9edaf8253a821fde09663ea0e85cbe55b2c1445178e67163ffffd7339ca"
 }
