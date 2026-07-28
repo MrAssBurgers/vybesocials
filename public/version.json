@@ -1,8 +1,8 @@
 {
   "app_version": "0.0.0",
-  "commit": "2c24a69fca366606fc7f06e9ae3e404eb7b1a9e8",
-  "commit_short": "2c24a69",
-  "built_at": "2026-07-28T18:59:43.409Z",
-  "entry": "/assets/app-CeXVahjr.js",
-  "entry_sha256": "35ae66f1133b5e78c6412d507ba4053a18184fc5e2ae27dc5b8e7d3847c2db8f"
+  "commit": "241839d212b8e31164477d4a5b25423bcfdcdde1",
+  "commit_short": "241839d",
+  "built_at": "2026-07-28T19:15:47.799Z",
+  "entry": "/assets/app-x18U9t-9.js",
+  "entry_sha256": "0c8ea28ced0d9247492526dba7a207b794392038b71a26643ae6077611ad66c4"
 }
