@@ -1,5 +1,5 @@
 import { toast } from 'sonner';
-import { equipTheme, THEME_PRESETS } from '@/hooks/useCustomTheme';
+import { applyThemeTokens, equipTheme, setThemePreviewLock, THEME_PRESETS } from '@/hooks/useCustomTheme';
 import type { ThemeTokens } from '@/hooks/useCustomTheme';
 import { readLastGeneratedTheme } from '@/lib/theme/lastGeneratedTheme';
 import { normalizeAgentPath } from '@/lib/agent/agentRoutes';
@@ -9,12 +9,15 @@ import type {
   ActionHandlerContext,
 } from '@/lib/agent/actionBus/types';
 import type { AgentAction } from '@/lib/agent/agentToolSchema';
+import type { GenerateVybeThemeOptions } from '@/lib/aiThemeGeneration';
 
 export interface ActionHandlerDeps {
   navigate: (path: string) => void;
   userId?: string | null;
   setGlobalTheme: (mode: 'light' | 'dark') => void;
-  generateTheme: (input: { prompt: string }) => Promise<ThemeTokens>;
+  generateTheme: (
+    input: { prompt: string } & Pick<GenerateVybeThemeOptions, 'onPatch' | 'applyLive'>,
+  ) => Promise<ThemeTokens>;
   layoutHidden: string[];
   toggleWidget: (widgetId: string) => void;
   reorderWidgets: (order: string[]) => void;
@@ -63,8 +66,14 @@ export function registerAgentActionHandlers(
   unsubs.push(
     bus.register('generate_theme', async (action) => {
       const loading = toast.loading('Generating your theme…');
+      setThemePreviewLock(true);
       try {
-        const theme = await deps.generateTheme({ prompt: action.prompt });
+        const theme = await deps.generateTheme({
+          prompt: action.prompt,
+          onPatch: (partial) => {
+            applyThemeTokens(partial);
+          },
+        });
         toast.dismiss(loading);
         deps.setGlobalTheme(theme.mode === 'light' ? 'light' : 'dark');
         equipTheme(theme, {
@@ -77,6 +86,8 @@ export function registerAgentActionHandlers(
       } catch {
         toast.dismiss(loading);
         return fail(action, 'Theme generation failed');
+      } finally {
+        setThemePreviewLock(false);
       }
     }),
   );

@@ -30,6 +30,7 @@ import {
   useGenerateTheme,
   applyThemeTokens,
   persistEquippedUserTheme,
+  setThemePreviewLock,
   THEME_PRESETS,
   ThemeTokens,
 } from '@/hooks/useCustomTheme';
@@ -223,14 +224,26 @@ export function ThemeCustomizer() {
     });
   }, [animationSpeed, borderRadius, triggerTransition, profile?.id, commitThemeSelection, setGlobalTheme]);
 
-  // Handle AI generation — empty prompt uses profile + Vybe DNA via useGenerateTheme
+  // Handle AI generation — empty prompt uses profile + Vybe DNA via useGenerateTheme.
+  // Partial updates stream CSS vars live as NDJSON patches arrive.
   const handleGenerate = useCallback(async () => {
     setIsGenerating(true);
+    setThemePreviewLock(true);
     try {
       const theme = await generateTheme.mutateAsync({
         prompt: aiPrompt.trim(),
         typedPrompt: aiPrompt.trim(),
         basePreset: selectedPreset,
+        onPatch: (partial) => {
+          const live: ThemeTokens = {
+            ...partial,
+            animationSpeed,
+            borderRadius,
+          };
+          setCurrentTheme(live);
+          if (partial.themeName) setThemeName(partial.themeName);
+          applyThemeTokens(live);
+        },
       });
 
       if (theme && 'colorPrimary' in theme) {
@@ -259,6 +272,7 @@ export function ThemeCustomizer() {
     } catch (error) {
       console.error('Generation failed:', error);
     } finally {
+      setThemePreviewLock(false);
       setIsGenerating(false);
     }
   }, [aiPrompt, selectedPreset, animationSpeed, borderRadius, generateTheme, triggerTransition, profile?.id, commitThemeSelection, setGlobalTheme]);

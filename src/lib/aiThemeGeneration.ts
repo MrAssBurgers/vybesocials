@@ -23,8 +23,9 @@ import {
   hasThemeUserContext,
   type ThemeUserContext,
 } from '@/lib/theme/themeUserContext';
+import type { ThemeTokenPatch } from '@/lib/theme/partialThemeUpdate';
 
-export type ThemeGenerationSource = 'cloud' | 'client' | 'local' | 'brand' | 'prompt';
+export type ThemeGenerationSource = 'cloud' | 'client' | 'stream' | 'local' | 'brand' | 'prompt';
 
 export interface GenerateVybeThemeOptions {
   prompt: string;
@@ -36,6 +37,11 @@ export interface GenerateVybeThemeOptions {
   selectedFont?: string | null;
   selectedAnimation?: { speed?: string; style?: string } | null;
   userContext?: ThemeUserContext | null;
+  /** When set, prefer NDJSON streaming with live partial updates. */
+  onPatch?: (theme: ThemeTokens, meta: { patch: ThemeTokenPatch; label: string }) => void;
+  signal?: AbortSignal;
+  /** Paint CSS vars during stream (default true when onPatch is set). */
+  applyLive?: boolean;
 }
 
 export interface GenerateVybeThemeResult {
@@ -88,8 +94,7 @@ function mergeAiTheme(base: GeneratedTheme, ai: GeneratedTheme): GeneratedTheme 
 
 /**
  * Theme generation — AI-first, always:
- * 1) Every request (typed or generated) runs cloud AI so colors are designed
- *    from whatever the user described — no canned/remembered palettes
+ * 1) When `onPatch` is provided, stream NDJSON patches (live CSS) then fall back
  * 2) Cloud-first (22s), client AI as backup
  * 3) Local brand/keyword palettes are used ONLY when both AI paths fail
  */
@@ -105,6 +110,9 @@ export async function generateVybeTheme(
     selectedFont,
     selectedAnimation,
     userContext,
+    onPatch,
+    signal,
+    applyLive,
   } = options;
 
   const hasTypedPrompt = (typedPrompt ?? '').trim().length > 0;
@@ -126,8 +134,6 @@ export async function generateVybeTheme(
   const parsed = buildThemeFromPrompt(effectivePrompt || prompt, { selectedVibe, basePreset });
   const brandId = detectBrandFromPrompt(hasTypedPrompt ? typedText : effectivePrompt || prompt);
   const brandTheme = brandId ? buildBrandTheme(brandId) : null;
-  // Only inject exact HSL anchors when parse confidence proves they came from the prompt.
-  // Low-confidence defaults used to inject purple "Violet Eclipse" and force purple themes.
   const brandHint = brandId
     ? brandThemePromptHint(brandId)
     : parsed.confidence >= 0.75
@@ -146,11 +152,36 @@ export async function generateVybeTheme(
     .filter(Boolean)
     .join('\n');
 
-  // Always regenerate with AI — canned brand/keyword palettes are only used
-  // as a last resort when the AI itself fails. The AI designs colors from
-  // whatever the user described (brand, scene, object, vibe — anything).
   let cloudError: unknown;
   const baseTheme = parsed.theme;
+
+  if (onPatch && isAiLogicConfigured()) {
+    try {
+      const { streamVybeTheme, ThemeStreamInsufficientError } = await import(
+        '@/lib/theme/streamThemeGeneration'
+      );
+      const streamed = await streamVybeTheme({
+        prompt: userPrompt,
+        base: baseTheme,
+        signal,
+        onPatch,
+        applyLive: applyLive ?? true,
+      });
+      return {
+        theme: mergeAiTheme(baseTheme, sanitizeThemeTokens(streamed)),
+        source: 'stream',
+      };
+    } catch (err) {
+      if ((err as Error)?.name === 'AbortError') throw err;
+      cloudError = err;
+      console.warn(
+        '[generateVybeTheme] stream failed',
+        err instanceof Error && err.name === 'ThemeStreamInsufficientError'
+          ? err.message
+          : err,
+      );
+    }
+  }
 
   const runCloudAi = (): Promise<GeneratedTheme | null> =>
     withTimeout(

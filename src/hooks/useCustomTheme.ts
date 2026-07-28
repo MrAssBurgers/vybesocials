@@ -5,7 +5,7 @@ import { useEffect, useLayoutEffect, useCallback, useRef } from 'react';
 import { toast } from 'sonner';
 import { usePremiumStatus } from './usePremiumStatus';
 import { isNativePerfMode } from '@/lib/nativePerfMode';
-import { generateVybeTheme } from '@/lib/aiThemeGeneration';
+import { generateVybeTheme, type GenerateVybeThemeOptions } from '@/lib/aiThemeGeneration';
 import { getStoredAuthUserId } from '@/lib/legacyAuthStorage';
 import { prefetchAndApplyUserTheme, persistEquippedThemeTokens, syncEquippedThemeToAccount, runAfterSplashDismiss, reconcileUserThemeRowWithEquipped } from '@/lib/themeHydration';
 import {
@@ -507,6 +507,9 @@ export function useGenerateTheme() {
       selectedFont,
       selectedAnimation,
       userContext: userContextOverride,
+      onPatch,
+      signal,
+      applyLive,
     }: {
       prompt: string;
       typedPrompt?: string;
@@ -516,6 +519,9 @@ export function useGenerateTheme() {
       selectedFont?: string | null;
       selectedAnimation?: { speed?: string; style?: string } | null;
       userContext?: ThemeUserContext | null;
+      onPatch?: GenerateVybeThemeOptions['onPatch'];
+      signal?: AbortSignal;
+      applyLive?: boolean;
     }) => {
       // Free-tier cooldown: 1 AI theme generation per 24h.
       // Pro users skip this entirely.
@@ -552,6 +558,9 @@ export function useGenerateTheme() {
         selectedFont,
         selectedAnimation,
         userContext,
+        onPatch,
+        signal,
+        applyLive,
       });
 
       // Stamp cooldown for free users on success (any source)
@@ -565,7 +574,7 @@ export function useGenerateTheme() {
         toast.message(result.notice, { duration: 6000 });
       } else if (result.source === 'prompt' || result.source === 'brand') {
         toast.success(`Theme matched: ${(result.theme as { themeName?: string }).themeName || 'Your VYBE'}`);
-      } else if (result.source === 'client' || result.source === 'cloud') {
+      } else if (result.source === 'client' || result.source === 'cloud' || result.source === 'stream') {
         toast.success('Theme generated');
       }
 

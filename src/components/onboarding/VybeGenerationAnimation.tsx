@@ -8,6 +8,8 @@ interface VybeGenerationAnimationProps {
   isGenerating: boolean;
   buildPhase: number;
   phases: Array<{ label: string; icon: React.ElementType; duration: number }>;
+  /** Live status from streaming theme patches — overrides phase label when set. */
+  statusLabel?: string | null;
   onBuildComplete?: () => void;
 }
 
@@ -19,6 +21,7 @@ export const VybeGenerationAnimation = memo(function VybeGenerationAnimation({
   isGenerating,
   buildPhase,
   phases,
+  statusLabel,
 }: VybeGenerationAnimationProps) {
   const reduceMotion = useReducedMotion();
   const totalDuration = phases.reduce((sum, p) => sum + p.duration, 0);
@@ -113,7 +116,7 @@ export const VybeGenerationAnimation = memo(function VybeGenerationAnimation({
         <AnimatePresence mode="wait">
           {currentPhase && (
             <motion.div
-              key={currentPhase.label}
+              key={statusLabel || currentPhase.label}
               initial={{ opacity: 0, y: 6 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -6 }}
@@ -121,7 +124,7 @@ export const VybeGenerationAnimation = memo(function VybeGenerationAnimation({
               className="flex items-center gap-2 text-sm text-muted-foreground"
             >
               {PhaseIcon && <PhaseIcon className="h-4 w-4 text-primary" />}
-              <span>{currentPhase.label}…</span>
+              <span>{statusLabel || `${currentPhase.label}…`}</span>
             </motion.div>
           )}
         </AnimatePresence>

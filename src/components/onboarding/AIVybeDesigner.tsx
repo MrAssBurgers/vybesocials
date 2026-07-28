@@ -183,6 +183,7 @@ export function AIVybeDesigner({ interests = [], onComplete, onSkip }: AIVybeDes
   const [selectedAnimation, setSelectedAnimation] = useState<AnimationPresetKey | null>(null);
   const [customPrompt, setCustomPrompt] = useState('');
   const [buildPhase, setBuildPhase] = useState(0);
+  const [streamStatusLabel, setStreamStatusLabel] = useState<string | null>(null);
   const [generatedTheme, setGeneratedTheme] = useState<DesignerTheme | null>(null);
   const [showPreviewElements, setShowPreviewElements] = useState(false);
   const [generationNotice, setGenerationNotice] = useState<string | null>(null);
@@ -191,6 +192,7 @@ export function AIVybeDesigner({ interests = [], onComplete, onSkip }: AIVybeDes
   const abortRef = useRef<AbortController | null>(null);
   const snapshotRef = useRef<Record<string, string> | null>(null);
   const mountedRef = useRef(true);
+  const streamDrivenRef = useRef(false);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -241,17 +243,21 @@ export function AIVybeDesigner({ interests = [], onComplete, onSkip }: AIVybeDes
     return () => window.clearTimeout(t);
   }, [step, reduceMotion]);
 
-  // Build phase timer
+  // Build phase timer — skipped once live stream patches drive the labels
   useEffect(() => {
     if (step !== 'building') return;
     setBuildPhase(0);
+    setStreamStatusLabel(null);
+    streamDrivenRef.current = false;
 
     const timers: ReturnType<typeof setTimeout>[] = [];
     let acc = 0;
     BUILD_PHASES.forEach((phase, i) => {
       acc += phase.duration;
       timers.push(setTimeout(() => {
-        if (mountedRef.current) setBuildPhase(Math.min(i + 1, BUILD_PHASES.length - 1));
+        if (mountedRef.current && !streamDrivenRef.current) {
+          setBuildPhase(Math.min(i + 1, BUILD_PHASES.length - 1));
+        }
       }, acc));
     });
 
@@ -321,6 +327,8 @@ export function AIVybeDesigner({ interests = [], onComplete, onSkip }: AIVybeDes
     setStep('building');
     abortRef.current?.abort();
     abortRef.current = new AbortController();
+    streamDrivenRef.current = false;
+    let patchCount = 0;
 
     const minBuildTime = BUILD_PHASES.reduce((sum, p) => sum + p.duration, 0);
     const buildStart = Date.now();
@@ -337,10 +345,18 @@ export function AIVybeDesigner({ interests = [], onComplete, onSkip }: AIVybeDes
           ? ANIMATION_PRESETS[selectedAnimation]
           : null,
         userContext: themeContext,
+        signal: abortRef.current.signal,
+        onPatch: (_partial, { label }) => {
+          if (!mountedRef.current) return;
+          streamDrivenRef.current = true;
+          patchCount += 1;
+          setStreamStatusLabel(label);
+          setBuildPhase(Math.min(BUILD_PHASES.length - 1, Math.floor(patchCount / 2)));
+        },
       });
       if (!isValidGeneratedTheme(result.theme)) throw new Error('Invalid theme response');
       theme = { ...result.theme };
-      const usedFallback = result.aiFallback === true || !['cloud', 'client'].includes(result.source);
+      const usedFallback = result.aiFallback === true || !['cloud', 'client', 'stream'].includes(result.source);
       setGenerationWasFallback(usedFallback);
       setGenerationNotice(result.notice || (usedFallback
         ? 'AI generation is unavailable right now, so VYBE created a local palette from your choices.'
@@ -376,9 +392,10 @@ export function AIVybeDesigner({ interests = [], onComplete, onSkip }: AIVybeDes
         } catch (e) { console.warn('animation apply failed', e); }
       }
 
-      // Let the build animation play out for a satisfying reveal
+      // Stream path already painted live — only wait for theater when no patches arrived.
       const elapsed = Date.now() - buildStart;
-      const remaining = Math.max(0, minBuildTime - elapsed);
+      const targetWait = patchCount > 0 ? 450 : minBuildTime;
+      const remaining = Math.max(0, targetWait - elapsed);
       await new Promise(r => setTimeout(r, remaining));
 
       if (!mountedRef.current) return;
@@ -718,7 +735,12 @@ export function AIVybeDesigner({ interests = [], onComplete, onSkip }: AIVybeDes
         {/* ════ STEP 3 — BUILDING ════ */}
         {step === 'building' && (
           <motion.div key="building" {...stepVariants} className="relative z-10 h-full">
-            <VybeGenerationAnimation isGenerating buildPhase={buildPhase} phases={BUILD_PHASES} />
+            <VybeGenerationAnimation
+              isGenerating
+              buildPhase={buildPhase}
+              phases={BUILD_PHASES}
+              statusLabel={streamStatusLabel}
+            />
           </motion.div>
         )}
 
