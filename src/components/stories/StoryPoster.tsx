@@ -56,8 +56,8 @@ export const StoryPoster = memo(function StoryPoster({
             background: ringGradient,
             padding: 2,
           }}
-          animate={{ rotate: 360 }}
-          transition={{ duration: 2.8, repeat: Infinity, ease: 'linear' }}
+          animate={{ opacity: [0.7, 1, 0.7] }}
+          transition={{ duration: 1.4, repeat: Infinity, ease: 'easeInOut' }}
         >
           <div className="h-full w-full bg-background" style={{ borderRadius: borderRadius - 2 }} />
         </motion.div>
@@ -91,21 +91,19 @@ export const StoryPoster = memo(function StoryPoster({
         className="relative flex-shrink-0"
         style={{ width: width + ringPad * 2, height: height + ringPad * 2 }}
       >
-        <motion.div
+        <div
           className="absolute inset-0"
           style={{
             borderRadius: borderRadius + ringPad,
             background: unviewedBorder,
             padding: ringPad,
           }}
-          animate={{ rotate: 360 }}
-          transition={{ duration: 2.8, repeat: Infinity, ease: 'linear' }}
         >
           <div
             className="h-full w-full bg-background"
             style={{ borderRadius: borderRadius + 1 }}
           />
-        </motion.div>
+        </div>
         <div
           className="absolute overflow-hidden bg-black"
           style={{

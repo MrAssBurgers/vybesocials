@@ -42,14 +42,14 @@ export const FeedAdCard = memo(function FeedAdCard() {
       ([entry]) => {
         if (!entry?.isIntersecting || entry.intersectionRatio < 0.2 || loadAttempted.current) return;
         loadAttempted.current = true;
-        void pushInlineFeedAd(el).then((ok) => setAdReady(ok));
+        void pushInlineFeedAd(el, { personalized: personalizedAds }).then((ok) => setAdReady(ok));
       },
       { rootMargin: '120px 0px', threshold: [0.2, 0.5] },
     );
 
     observer.observe(el);
     return () => observer.disconnect();
-  }, [showNativeAds]);
+  }, [personalizedAds, showNativeAds]);
 
   if (!showNativeAds && !showWebAds) return null;
 

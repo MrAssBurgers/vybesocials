@@ -66,7 +66,9 @@ export function useVideoAds() {
   const inFlightRef = useRef(false);
   const inNativeShell = isNativeAppShell();
 
-  const adsAllowed = showNativeAds && inNativeShell;
+  // Despia's URL bridge has no per-request NPA option. Only call it when ATT
+  // is allowed and the account is verified as an adult.
+  const adsAllowed = showNativeAds && personalizedAds && inNativeShell;
 
   const showVideoAd = useCallback(
     async (surface: Surface): Promise<boolean> => {

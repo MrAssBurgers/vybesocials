@@ -105,7 +105,6 @@ async function rpcGetPostsWithCounts(params: Record<string, unknown>): Promise<R
   return loadPostsSlice({
     type: (params.p_type as string | null) || undefined,
     authorId: (params.p_author_id as string | null) || undefined,
-    excludeAuthorId: (params.p_user_id as string | null) || undefined,
     offset: Number(params.p_offset || 0),
     limit: Number(params.p_limit || 15),
   });
@@ -115,7 +114,6 @@ async function rpcGetRankedFeed(params: Record<string, unknown>): Promise<Record
   const userId = String(params.p_user_id || '');
   const rows = await loadPostsSlice({
     type: (params.p_content_type as string | null) || undefined,
-    excludeAuthorId: userId || undefined,
     offset: Number(params.p_offset || 0),
     limit: Number(params.p_limit || 15),
   });

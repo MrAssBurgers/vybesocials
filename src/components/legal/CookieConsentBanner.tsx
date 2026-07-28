@@ -4,11 +4,11 @@ import { Cookie, X } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '@/lib/auth';
 import { db } from '@/lib/firebase';
-import { isNativeAppShell } from '@/lib/despiaBridge';
+import { isDespiaRuntime, isNativeAppShell } from '@/lib/despiaBridge';
 import {
+  persistTrackingConsent,
   pollNativeTrackingConsent,
   syncNativeTrackingConsent,
-  TRACKING_CONSENT_KEY,
 } from '@/lib/att';
 
 const COOKIE_CONSENT_KEY = 'vybe-cookie-consent';
@@ -30,9 +30,15 @@ export function CookieConsentBanner() {
       const applyEssentialOnly = () => {
         try {
           localStorage.setItem(COOKIE_CONSENT_KEY, 'declined');
-          localStorage.setItem(TRACKING_CONSENT_KEY, 'denied');
         } catch { /* ignore */ }
       };
+
+      // Capacitor's ATT flow is handled after adult age verification. Do not
+      // turn an unanswered system permission into a denial before the prompt.
+      if (!isDespiaRuntime()) {
+        applyEssentialOnly();
+        return;
+      }
 
       const att = syncNativeTrackingConsent();
       if (att === 'allowed') {
@@ -52,7 +58,7 @@ export function CookieConsentBanner() {
         if (next === 'allowed') {
           try {
             localStorage.setItem(COOKIE_CONSENT_KEY, 'accepted');
-            localStorage.setItem(TRACKING_CONSENT_KEY, 'allowed');
+            persistTrackingConsent('allowed');
           } catch { /* ignore */ }
         } else {
           applyEssentialOnly();
@@ -95,9 +101,9 @@ export function CookieConsentBanner() {
   const persist = async (value: 'accepted' | 'declined') => {
     localStorage.setItem(COOKIE_CONSENT_KEY, value);
     if (value === 'declined') {
-      localStorage.setItem(TRACKING_CONSENT_KEY, 'denied');
+      persistTrackingConsent('denied');
     } else {
-      localStorage.setItem(TRACKING_CONSENT_KEY, 'allowed');
+      persistTrackingConsent('allowed');
     }
     setVisible(false);
     if (profile?.id) {

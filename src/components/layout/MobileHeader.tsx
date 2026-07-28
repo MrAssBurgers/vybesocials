@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Bell, Flame, Target } from 'lucide-react';
+import { Bell, Flame, QrCode, Target } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useUnreadCount } from '@/hooks/useNotifications';
 import { useStreakCount } from '@/hooks/useLoginStreak';
@@ -10,6 +10,7 @@ import { HeaderSearch } from './HeaderSearch';
 import { VYBELogo } from '@/components/ui/VYBELogo';
 import { useDebugPanel } from '@/contexts/DebugPanelContext';
 import { navVisibility } from '@/lib/navVisibility';
+import { openFriendLink } from '@/lib/friendLinkUi';
 
 const TOOLBAR_H = 'h-10';
 
@@ -121,6 +122,17 @@ export const MobileHeader = React.forwardRef<HTMLElement, React.ComponentPropsWi
             )}
             aria-label="Quick actions"
           >
+            <button
+              type="button"
+              aria-label="Open Friend Link"
+              className={iconButtonClass(false)}
+              onClick={() => openFriendLink()}
+            >
+              <QrCode className="h-[17px] w-[17px]" strokeWidth={1.75} />
+            </button>
+
+            <span className="h-4 w-px bg-foreground/[0.08]" aria-hidden />
+
             <Link
               to="/notifications"
               data-tutorial="notifications-badge"

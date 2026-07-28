@@ -332,7 +332,13 @@ export const aiChatSummary = onCall({ secrets: SECRETS }, async (request) => {
 /** ai-profile-writer — bio generator. */
 export const aiProfileWriter = onCall({ secrets: SECRETS }, async (request) => {
   requireAuth(request);
-  const { interests = [], vibe = 'fun' } = (request.data || {}) as { interests?: string[]; vibe?: string };
+  const payload = (request.data || {}) as { interests?: unknown; vibe?: unknown };
+  const interests = Array.isArray(payload.interests)
+    ? payload.interests.filter((interest): interest is string => typeof interest === 'string').slice(0, 20)
+    : [];
+  const vibe = typeof payload.vibe === 'string' && payload.vibe.trim()
+    ? payload.vibe.trim().slice(0, 40)
+    : 'fun';
   const { content } = await chatCompletion({
     messages: [
       { role: 'system', content: 'Write a 120-char-max profile bio. Return only the bio text.' },

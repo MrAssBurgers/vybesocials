@@ -42,8 +42,13 @@
             return;
           }
           var attempts = 0;
+          var previousTarget = '';
           try {
-            attempts = parseInt(sessionStorage.getItem(ENTRY_MIGRATE_ATTEMPTS_KEY) || '0', 10) || 0;
+            previousTarget = sessionStorage.getItem(ENTRY_MIGRATE_KEY) || '';
+            // Attempts from an older release must never pin a session forever.
+            attempts = previousTarget === v.entry
+              ? (parseInt(sessionStorage.getItem(ENTRY_MIGRATE_ATTEMPTS_KEY) || '0', 10) || 0)
+              : 0;
           } catch (e4a) { /* ignore */ }
           // Allow a second attempt — first pass often clears SW but still serves a sticky shell.
           if (attempts >= 2) return;

@@ -350,7 +350,14 @@ export function getUserFriendlyError(error: any): string {
   }
   
   // User input validation (pass through since these are user-facing)
-  if (message.includes('required') || message.includes('Username is required')) {
+  if (
+    message.includes('required') ||
+    message.includes('Username is required') ||
+    message.includes('Username cannot be empty') ||
+    message.includes('Username must be') ||
+    message.includes('username is already taken') ||
+    message.includes('That username is already taken')
+  ) {
     return message;
   }
   

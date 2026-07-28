@@ -35,7 +35,33 @@ function simpleAI(systemPrompt: string) {
 
 export const aiAdaptiveResponse = simpleAI('Adapt the user message to match the recipient\'s vibe. Return a short reply.');
 export const aiAutoFix = simpleAI('Fix grammar, spelling, and clarity in the user\'s text. Return only the corrected text.');
-export const aiEnhancePhoto = simpleAI('Suggest 3 specific photo edits (crop, filter, color) for the described image.');
+/**
+ * Compatibility endpoint for older clients. The current client performs the
+ * selected enhancement locally so the photo never needs to be uploaded just
+ * to preview a filter. Older clients sent imageBase64/enhanceType instead of
+ * `input`; accept that shape without returning an INVALID_ARGUMENT response.
+ */
+export const aiEnhancePhoto = onCall({ secrets: SECRETS }, async (request) => {
+  requireAuth(request);
+  const { input, enhanceType = 'auto', mimeType = 'image/jpeg' } =
+    (request.data || {}) as { input?: string; enhanceType?: string; mimeType?: string };
+  const { content } = await chatCompletion({
+    messages: [
+      {
+        role: 'system',
+        content: 'Suggest three concise, practical photo edits. Do not claim that you edited the image.',
+      },
+      {
+        role: 'user',
+        content: input?.trim() || `Preset: ${enhanceType}. Image type: ${mimeType}.`,
+      },
+    ],
+    temperature: 0.4,
+    model: modelForTier('micro'),
+    max_tokens: TOKEN_BUDGET.standard,
+  });
+  return { ok: true, suggestions: content };
+});
 export const generateChallenges = simpleAI('Generate 5 short creative challenges in JSON array. Each: {"title","description","difficulty"}.');
 export const generateCustomAnimations = simpleAI('Suggest 3 CSS keyframe animations matching the description. Return JSON: [{"name","keyframes","duration"}].');
 export const generatePwaIcon = simpleAI('Describe a PWA icon concept: 1 line per icon size hint and color palette.');

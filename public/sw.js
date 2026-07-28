@@ -1,11 +1,11 @@
 // VYBE Service Worker
-// Version 40.0 — root FCM tombstone companion; network-first app entry + version.json
+// Version 41.0 — release-triggered cache refresh + root FCM tombstone companion
 
-const CACHE_NAME = 'vybe-v40';
-const STATIC_CACHE = 'vybe-static-v40';
+const CACHE_NAME = 'vybe-v41';
+const STATIC_CACHE = 'vybe-static-v41';
 const MEDIA_CACHE = 'vybe-media-v2';
-const SHELL_CACHE = 'vybe-shell-v6';
-const ASSETS_CACHE = 'vybe-assets-v7';
+const SHELL_CACHE = 'vybe-shell-v7';
+const ASSETS_CACHE = 'vybe-assets-v8';
 const SHELL_URL = '/';
 const ASSETS_CACHE_MAX = 180;
 const APP_ICON = '/icons/icon-192x192.png';
@@ -48,7 +48,7 @@ const isAndroid = () => /Android/.test(self.navigator?.userAgent || '');
 
 // Install event - precache critical assets + warm app shell
 self.addEventListener('install', (event) => {
-  console.log('[SW] Installing VYBE Service Worker v40');
+  console.log('[SW] Installing VYBE Service Worker v41');
   event.waitUntil(
     Promise.all([
       caches.open(STATIC_CACHE).then((cache) =>
@@ -69,7 +69,7 @@ self.addEventListener('install', (event) => {
 
 // Activate event - clean old caches, claim clients
 self.addEventListener('activate', (event) => {
-  console.log('[SW] Activating VYBE Service Worker v40');
+  console.log('[SW] Activating VYBE Service Worker v41');
   const VALID_CACHES = new Set([CACHE_NAME, STATIC_CACHE, MEDIA_CACHE, SHELL_CACHE, ASSETS_CACHE]);
   event.waitUntil(
     Promise.all([

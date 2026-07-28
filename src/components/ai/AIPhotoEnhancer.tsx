@@ -3,10 +3,10 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Wand2, Loader2, RotateCcw, Check, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
-import { invokeEdgeFeature, EDGE_UNAVAILABLE_TOAST } from '@/lib/edgeFeature';
 import { liquidSpring } from '@/motion/liquidConfig';
 import { triggerHaptic } from '@/lib/haptics';
 import { cn } from '@/lib/utils';
+import { enhancePhotoLocally, type PhotoEnhancementPreset } from '@/lib/photoEnhancement';
 
 const ENHANCE_TYPES = [
   { id: 'auto', label: 'Auto', emoji: '✨' },
@@ -48,40 +48,13 @@ export const AIPhotoEnhancer = memo(function AIPhotoEnhancer({
     triggerHaptic('light');
 
     try {
-      // Convert file to base64
-      const base64 = await new Promise<string>((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => {
-          const result = reader.result as string;
-          resolve(result.split(',')[1]);
-        };
-        reader.onerror = reject;
-        reader.readAsDataURL(imageFile);
-      });
-
-      const { data, unavailable } = await invokeEdgeFeature<{ enhancedImage?: string; suggestions?: string }>(
-        'ai-enhance-photo',
-        {
-          imageBase64: base64,
-          mimeType: imageFile.type,
-          enhanceType: type,
-        },
-      );
-
-      if (unavailable) {
-        toast.message(EDGE_UNAVAILABLE_TOAST);
-        return;
-      }
-
-      if (data?.enhancedImage) {
-        setPreviewUrl(data.enhancedImage);
-        triggerHaptic('success');
-      } else {
-        toast.message('Photo enhancement suggestions are not available yet.');
-      }
+      const enhanced = await enhancePhotoLocally(imageFile, type as PhotoEnhancementPreset);
+      setPreviewUrl(enhanced);
+      setSliderPos(50);
+      triggerHaptic('success');
     } catch (error) {
       console.error('Photo enhance error:', error);
-      toast.error('Failed to enhance photo');
+      toast.error(error instanceof Error ? error.message : 'Failed to enhance photo');
     } finally {
       setIsLoading(false);
     }

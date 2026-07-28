@@ -38,10 +38,18 @@ function loadAdSenseScript(): Promise<void> {
 }
 
 /** Push a single inline ad into a container element (Despia WebView bridge). */
-export async function pushInlineFeedAd(container: HTMLElement | null): Promise<boolean> {
+export async function pushInlineFeedAd(
+  container: HTMLElement | null,
+  options: { personalized: boolean },
+): Promise<boolean> {
   if (!container || !isDespiaRuntime()) return false;
 
   try {
+    // Google defaults to personalized ads when this field is omitted. Set it
+    // before loading/pushing the tag so an ATT denial or minor account always
+    // produces an explicit NPA request (`npa=1`).
+    const adQueue = ((window as any).adsbygoogle = (window as any).adsbygoogle || []);
+    adQueue.requestNonPersonalizedAds = options.personalized ? 0 : 1;
     await loadAdSenseScript();
     const ins = document.createElement('ins');
     ins.className = 'adsbygoogle';
@@ -55,7 +63,7 @@ export async function pushInlineFeedAd(container: HTMLElement | null): Promise<b
     container.innerHTML = '';
     container.appendChild(ins);
 
-    ((window as any).adsbygoogle = (window as any).adsbygoogle || []).push({});
+    adQueue.push({});
     return true;
   } catch (err) {
     console.warn('[nativeFeedAds] inline push failed', err);

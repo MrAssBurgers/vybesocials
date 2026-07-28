@@ -2,6 +2,55 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## ACTIVE (2026-07-28) — Responsive UI, release delivery, ad privacy, and Apple evidence
+
+### Goal
+Verify the published UI and console on desktop/iPhone/Android layouts, remove the concrete mobile collision, make ad eligibility privacy-safe, and leave reproducible Apple review evidence.
+
+### Production findings
+- Desktop routes are visually cohesive with no horizontal overflow or hard console failures across Home, Explore, Messages, Map, Community, Market, Events, Notifications, Profile, Settings, and Create Studio.
+- iPhone 390x844 and Android 412x915 layouts had no page overflow, but the centered Friend Link pill overlapped feed tabs, the install prompt, and bottom navigation.
+- Production still served an older `app-CeRT6wVw.js` entry while `/version.json` advertised `app-Bd0-qzp6.js`; that stale client also reproduced the already-fixed inbox call-summary warning.
+- Cold route paint could take about 4.5 seconds on Home/Map/Create before useful content appeared.
+- The committed Capacitor iOS project contains the ATT-capable Firebase Authentication plugin and builds successfully, but it does not contain Google Mobile Ads/UMP or an iOS AdMob application ID. Native personalized ads cannot be release-certified from this repository until the Despia/native ad configuration is supplied and tested.
+- `authLoginNotify` was still returning HTTP 500 because best-effort geo lookup fields were written to Firestore as nested `undefined` values.
+- The photo enhancer sent `imageBase64` to a generic AI endpoint that required `input`, and the endpoint never returned the enhanced-image shape the UI expected.
+- Every Home feed path deliberately excluded the signed-in author, so a successful new post could not appear in that author's FYP.
+- New/unviewed stories used an endless 360-degree border spin and the viewer slid full-screen content by 100%, creating the reported distracting motion.
+- Historical `aiProfileWriter` logs showed `interests: null` crashing at `.join()`; normal username validation was also mislabeled as an unhandled console error.
+
+### What changed
+- Moved Friend Link to a labeled mobile-header QR action and hid the overlapping mobile floating pill.
+- Bumped the service worker/cache generation to v41 and reset boot-migration attempts whenever the target release changes, preventing an older failed attempt from pinning future releases.
+- Added one privacy decision path for all ad surfaces: no requests before consent resolves, no personalization below 18 or when age is unknown, and no ads below 13.
+- Added explicit non-personalized AdSense requests; rewarded/interstitial bridges fail closed unless the account is a consenting adult because those bridge calls cannot carry a per-request NPA flag.
+- Added Ad Privacy settings, live consent updates, and a real Capacitor iOS ATT check/request after authenticated adult age verification. Native never stacks a duplicate web tracking dialog on the system sheet.
+- Web AdSense and its consent prompt remain disabled unless `VITE_ENABLE_WEB_ADSENSE=true`.
+- Created an Apple privacy-evidence video plus a physical-device capture/reviewer-notes guide outside the repository.
+- Deployed `authLoginNotify` with a stable nullable geo shape, removing the Firestore 500 root cause.
+- Replaced the photo enhancer's failed cloud round trip with immediate on-device canvas enhancements; deployed a backward-compatible function response so older clients no longer receive `input required`.
+- Included the viewer's own posts in global/personalized Home feeds while retaining blocked-author filtering; the existing upload-complete invalidation now makes a new post visible after publish.
+- Replaced the unviewed-story spinner with a static gradient, kept only a restrained upload pulse, and shortened viewer transitions to a subtle 18px fade/slide.
+- Hardened and deployed `aiProfileWriter` for null/malformed interests, and treated username rules as expected form validation rather than a console failure.
+
+### Verification
+- Authenticated production desktop and responsive route sweeps — no horizontal overflow or route crashes; one stale-bundle inbox warning traced to release delivery.
+- Patched local mobile 390x844 canary — Friend Link collision removed; one labeled header action remains.
+- `npm run typecheck` — pass
+- `npm test -- --run` — 91 files / 435 tests pass
+- `npm run lint` — 0 errors / 5 pre-existing unused-disable warnings
+- `npm run build` — pass; entry `app-ktvUVxFV.js`; 1,050.7 KB raw / 305.6 KB gzip, within budget
+- `npm --prefix functions run build` — pass; `authLoginNotify`, `aiEnhancePhoto`, and `aiProfileWriter` deployed successfully to `vybe-daaab`.
+- Authenticated production `AI Write Bio` canary after deployment — suggestion returned successfully; Cloud Run logged valid callable verification with no function error.
+- Final web assets copied into iOS; clean unsigned iPhone 17 Pro simulator build — **BUILD SUCCEEDED**. ATT native API is present in the resolved plugin.
+
+### Blockers / next
+1. Lovable Share → Publish, then confirm both a returning signed-in tab and clean browser move to the new `/version.json` entry without an update loop; create/read/delete one post and story and confirm the post appears in Home.
+2. Supply/verify the Despia or native iOS AdMob App ID, ad-unit IDs, UMP consent setup, and Android equivalent; then run test ads and inspect requests for personalized/NPA behavior.
+3. Record a fresh physical iPhone walkthrough: Apple sign-in, adult ATT allow/deny paths, labeled ad/privacy options, report/block, and account deletion. Upload a new signed archive; a web publish cannot change the previously rejected binary.
+
+---
+
 ## ACTIVE (2026-07-28) — Core-loop delight and startup performance
 
 ### Goal

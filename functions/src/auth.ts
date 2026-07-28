@@ -598,6 +598,16 @@ export const authLoginNotify = onCall(
     const loginApprovalsEnabled = !!settingsSnap.data()?.login_approvals_enabled;
 
     const geo = await resolveLoginGeo(request);
+    // Firestore rejects nested undefined values. Geo lookup is intentionally
+    // best-effort, so persist an explicit nullable shape on every path.
+    const safeGeo = {
+      ip: geo.ip ?? null,
+      city: geo.city ?? null,
+      region: geo.region ?? null,
+      country: geo.country ?? null,
+      latitude: geo.latitude ?? null,
+      longitude: geo.longitude ?? null,
+    };
 
     // Known session on this device — refresh heartbeat only, no alerts.
     if (sessionHash) {
@@ -616,7 +626,7 @@ export const authLoginNotify = onCall(
           country: geo.country || null,
           latitude: geo.latitude || null,
           longitude: geo.longitude || null,
-          geo,
+          geo: safeGeo,
         }, { merge: true });
         // Clear stale "Was this you?" prompts that were incorrectly created for this install.
         const stale = await db.collection('auth_challenges')
@@ -654,7 +664,7 @@ export const authLoginNotify = onCall(
       country: geo.country || null,
       latitude: geo.latitude || null,
       longitude: geo.longitude || null,
-      geo,
+      geo: safeGeo,
       trusted: isResume,
       pending_approval: false,
       created_at: now,
@@ -678,7 +688,7 @@ export const authLoginNotify = onCall(
         session_id: sessionRef.id,
         session_hash: sessionHash || null,
         ip: geo.ip,
-        geo,
+        geo: safeGeo,
       },
     });
 
@@ -766,7 +776,7 @@ export const authLoginNotify = onCall(
         device: { label: deviceLabel, browser: userAgent || null, os: deviceLabel },
         method,
         ip: geo.ip,
-        geo,
+        geo: safeGeo,
       },
     });
 

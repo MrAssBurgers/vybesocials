@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Eye, EyeOff, Shield, Users, KeyRound, Sparkles, Baby } from 'lucide-react';
+import { Eye, EyeOff, Shield, Users, KeyRound, Sparkles, Baby, Megaphone } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -13,6 +13,10 @@ import { BlockedUsersCard } from './BlockedUsersCard';
 import { FriendProfileVisibilityCard } from './FriendProfileVisibilityCard';
 import { RelationshipEmojiSettings } from './RelationshipEmojiSettings';
 import { SettingsSectionCard, SettingsPanel, SettingsToggleRow, SettingsActionRow } from './SettingsUI';
+import { getTrackingConsent } from '@/components/app/TrackingConsentDialog';
+import { persistTrackingConsent } from '@/lib/att';
+import { isNativeAppShell, openAppSettings } from '@/lib/despiaBridge';
+import { useAdEligibility } from '@/hooks/useAdEligibility';
 
 export function PrivacySection({ onOpenParental }: { onOpenParental?: () => void } = {}) {
   const { t } = useTranslation();
@@ -21,6 +25,10 @@ export function PrivacySection({ onOpenParental }: { onOpenParental?: () => void
   const [privacyLoading, setPrivacyLoading] = useState(false);
   const [featureOnLanding, setFeatureOnLanding] = useState(false);
   const [landingLoading, setLandingLoading] = useState(false);
+  const [adConsent, setAdConsent] = useState(() => getTrackingConsent());
+  const [adPrivacyLoading, setAdPrivacyLoading] = useState(false);
+  const { isMinor, personalizedAds, consentResolved } = useAdEligibility();
+  const nativeShell = isNativeAppShell();
 
   // Password change state
   const [currentPassword, setCurrentPassword] = useState('');
@@ -81,6 +89,35 @@ export function PrivacySection({ onOpenParental }: { onOpenParental?: () => void
       toast.error(getUserFriendlyError(error));
     } finally {
       setPrivacyLoading(false);
+    }
+  };
+
+  const handleAdPersonalizationChange = async (value: boolean) => {
+    if (isMinor && value) {
+      toast.info('Personalized ads are unavailable for accounts under 18');
+      return;
+    }
+
+    const next = value ? 'allowed' : 'denied';
+    setAdPrivacyLoading(true);
+    haptics.tap();
+    try {
+      persistTrackingConsent(next);
+      setAdConsent(next);
+      if (profile?.id) {
+        const { error } = await db
+          .from('profiles')
+          .update({ tracking_consent: next } as any)
+          .eq('id', profile.id);
+        if (error) throw error;
+      }
+      haptics.success();
+      toast.success(value ? 'Personalized ads enabled' : 'Ad personalization turned off');
+    } catch (error) {
+      haptics.error();
+      toast.error(getUserFriendlyError(error));
+    } finally {
+      setAdPrivacyLoading(false);
     }
   };
 
@@ -155,6 +192,52 @@ export function PrivacySection({ onOpenParental }: { onOpenParental?: () => void
             />
           </div>
         )}
+      </SettingsSectionCard>
+
+      <SettingsSectionCard
+        icon={Megaphone}
+        title="Ad Privacy"
+        description="Control whether advertising can be personalized"
+        delay={0.04}
+      >
+        <SettingsPanel className="space-y-0">
+          {nativeShell ? (
+            <SettingsActionRow
+              icon={<Shield className="w-5 h-5 text-primary" strokeWidth={2.25} />}
+              iconClassName="bg-primary/10 ring-1 ring-primary/20"
+              title={isMinor ? 'Personalization off for minors' : 'App tracking permission'}
+              description={
+                isMinor
+                  ? 'Accounts under 18 receive no personalized advertising.'
+                  : personalizedAds
+                    ? 'Allowed — you can change this any time in device Settings.'
+                    : consentResolved
+                      ? 'Not allowed — VYBE will not use cross-app tracking for ads.'
+                      : 'Not requested yet — no advertising request is sent until you choose.'
+              }
+              onClick={() => {
+                haptics.tap();
+                void openAppSettings();
+              }}
+            />
+          ) : (
+            <SettingsToggleRow
+              icon={Megaphone}
+              title="Personalized advertising"
+              description={
+                isMinor
+                  ? 'Unavailable for accounts under 18'
+                  : 'Use your ad-consent choice to request more relevant advertising'
+              }
+              checked={!isMinor && adConsent === 'allowed'}
+              onCheckedChange={handleAdPersonalizationChange}
+              disabled={adPrivacyLoading || isMinor}
+            />
+          )}
+        </SettingsPanel>
+        <p className="mt-3 text-xs leading-relaxed text-muted-foreground">
+          Ads are always labeled. Declining personalization does not affect your ability to use VYBE.
+        </p>
       </SettingsSectionCard>
 
       <SettingsSectionCard

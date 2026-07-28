@@ -321,26 +321,29 @@ export function StoryViewer({ groups, initialGroupIndex, onClose }: StoryViewerP
 
   const slideVariants = {
     enter: (direction: number) => ({
-      x: direction > 0 ? '100%' : '-100%',
+      x: direction > 0 ? 18 : -18,
       opacity: 0,
+      scale: 0.995,
     }),
     center: {
       x: 0,
       opacity: 1,
+      scale: 1,
     },
     exit: (direction: number) => ({
-      x: direction < 0 ? '100%' : '-100%',
+      x: direction < 0 ? 18 : -18,
       opacity: 0,
+      scale: 0.995,
     }),
   };
 
   return (
     <FullscreenPortal>
       <motion.div
-        initial={{ opacity: 0, scale: 0.95 }}
-        animate={{ opacity: 1, scale: 1 }}
-        exit={{ opacity: 0, scale: 0.95 }}
-        transition={{ duration: 0.2 }}
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        transition={{ duration: 0.14, ease: 'easeOut' }}
         className="fixed inset-0 z-[6000] bg-black flex items-center justify-center"
       >
       {/* Story Container */}
@@ -360,7 +363,7 @@ export function StoryViewer({ groups, initialGroupIndex, onClose }: StoryViewerP
         style={{ touchAction: 'pan-y' }}
       >
         {/* Story Content with Slide Animation */}
-        <AnimatePresence mode="popLayout" custom={direction}>
+        <AnimatePresence mode="sync" initial={false} custom={direction}>
           <motion.div
             key={`${groupIndex}-${storyIndex}`}
             custom={direction}
@@ -369,8 +372,9 @@ export function StoryViewer({ groups, initialGroupIndex, onClose }: StoryViewerP
             animate="center"
             exit="exit"
             transition={{ 
-              x: { type: 'tween', duration: 0.3, ease: 'easeInOut' },
-              opacity: { duration: 0.2 }
+              x: { type: 'tween', duration: 0.16, ease: 'easeOut' },
+              opacity: { duration: 0.12 },
+              scale: { duration: 0.16, ease: 'easeOut' },
             }}
             className="absolute inset-0"
           >

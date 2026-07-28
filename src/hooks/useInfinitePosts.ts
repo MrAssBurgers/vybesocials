@@ -143,9 +143,7 @@ async function fetchPersonalizedPosts(
     return [];
   }
 
-  return mapFeedRows(fallback).filter(
-    (p) => p.author?.id !== profileId && !blocked.has(p.author?.id),
-  );
+  return mapFeedRows(fallback).filter((p) => !blocked.has(p.author?.id));
 }
 
 export function useInfinitePosts(
@@ -181,12 +179,11 @@ export function useInfinitePosts(
 
       let posts = mapFeedRows(data);
 
-      // For non-profile (feed) views: hide your own posts and posts from blocked users.
+      // Feed views include the viewer's own new posts so successful publishing
+      // has immediate, visible confirmation. Blocked creators remain hidden.
       if (!isProfileView && profileId) {
         const blocked = new Set(blockedIds);
-        posts = posts.filter(
-          (p) => p.author?.id !== profileId && !blocked.has(p.author?.id)
-        );
+        posts = posts.filter((p) => !blocked.has(p.author?.id));
       }
 
       // Sign + preload above-the-fold media before paint on first page

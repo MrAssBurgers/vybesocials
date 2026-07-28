@@ -5,8 +5,17 @@ import { Button } from '@/components/ui/button';
 import { useAuth } from '@/lib/auth';
 import { db } from '@/lib/firebase';
 import { isDespiaRuntime } from '@/lib/despiaBridge';
-import { syncNativeTrackingConsent, TRACKING_CONSENT_KEY, pollNativeTrackingConsent } from '@/lib/att';
+import {
+  persistTrackingConsent,
+  pollNativeTrackingConsent,
+  requestTrackingAuthorization,
+  syncCapacitorTrackingConsent,
+  syncNativeTrackingConsent,
+  TRACKING_CONSENT_KEY,
+} from '@/lib/att';
 import { ATT_RESUME_EVENT } from '@/lib/attResumeRecovery';
+import { isIOS, isNativePlatform } from '@/lib/capacitor';
+import { calculateAgeFromDateOfBirth } from '@/lib/adPrivacy';
 
 export type TrackingConsent = 'allowed' | 'denied' | null;
 
@@ -38,6 +47,47 @@ export const TrackingConsentDialog = memo(function TrackingConsentDialog() {
       return () => window.removeEventListener(ATT_RESUME_EVENT, onResume);
     }
 
+    if (isNativePlatform) {
+      if (!isIOS || !profile?.id) return undefined;
+
+      let cancelled = false;
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      void db
+        .rpc('get_own_sensitive_profile')
+        .single()
+        .then(async ({ data }) => {
+          if (cancelled) return;
+          const dob = (data as { date_of_birth?: string } | null)?.date_of_birth;
+          const age = dob ? calculateAgeFromDateOfBirth(dob) : null;
+          // Never request cross-app tracking permission for a child/teen or an
+          // account whose age has not been verified.
+          if (age === null || age < 18) return;
+
+          const status = await syncCapacitorTrackingConsent();
+          if (cancelled || status !== 'notDetermined') return;
+          timer = setTimeout(() => {
+            if (cancelled) return;
+            void requestTrackingAuthorization().then(async (nextStatus) => {
+              if (cancelled) return;
+              const consent = nextStatus === 'authorized' ? 'allowed' : 'denied';
+              if (nextStatus === 'notDetermined' || nextStatus === 'unsupported') return;
+              await db.from('profiles').update({ tracking_consent: consent } as any).eq('id', profile.id);
+            });
+          }, 1800);
+        })
+        .catch((error) => {
+          if (!cancelled) console.warn('[ATT] Unable to verify age before permission request:', error);
+        });
+
+      return () => {
+        cancelled = true;
+        if (timer) clearTimeout(timer);
+      };
+    }
+
+    // Do not ask web users for advertising consent while web ads are disabled.
+    if (import.meta.env.VITE_ENABLE_WEB_ADSENSE !== 'true') return undefined;
+
     if (getTrackingConsent()) return undefined;
 
     let cancelled = false;
@@ -57,7 +107,7 @@ export const TrackingConsentDialog = memo(function TrackingConsentDialog() {
           ({ data }) => {
             if (cancelled) return;
             if (data?.tracking_consent) {
-              localStorage.setItem(TRACKING_CONSENT_KEY, data.tracking_consent);
+              persistTrackingConsent(data.tracking_consent);
             } else {
               schedulePrompt();
             }
@@ -75,7 +125,7 @@ export const TrackingConsentDialog = memo(function TrackingConsentDialog() {
   }, [profile?.id]);
 
   const handleResponse = async (consent: 'allowed' | 'denied') => {
-    localStorage.setItem(TRACKING_CONSENT_KEY, consent);
+    persistTrackingConsent(consent);
     setVisible(false);
 
     if (profile?.id) {
@@ -86,7 +136,7 @@ export const TrackingConsentDialog = memo(function TrackingConsentDialog() {
     }
   };
 
-  if (isDespiaRuntime()) return null;
+  if (isDespiaRuntime() || isNativePlatform || import.meta.env.VITE_ENABLE_WEB_ADSENSE !== 'true') return null;
 
   return (
     <AnimatePresence>

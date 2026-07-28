@@ -1,23 +1,17 @@
+import { useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/lib/auth';
 import { useRevenueCat } from '@/hooks/useRevenueCat';
 import { getTrackingConsent } from '@/components/app/TrackingConsentDialog';
 import { isDespiaRuntime, isNativeAppShell } from '@/lib/despiaBridge';
 import { db } from '@/lib/firebase';
+import { calculateAgeFromDateOfBirth, resolveAdPrivacy } from '@/lib/adPrivacy';
+import { TRACKING_CONSENT_CHANGED_EVENT } from '@/lib/att';
 
 const PREMIUM_ENTITLEMENT_ID = 'Vybe Social Pro';
 
 /** Web AdSense — flip when approved. Native uses Despia AdMob regardless. */
-export const WEB_ADSENSE_ENABLED = false;
-
-function calculateAge(dob: string): number {
-  const birth = new Date(dob);
-  const today = new Date();
-  let age = today.getFullYear() - birth.getFullYear();
-  const m = today.getMonth() - birth.getMonth();
-  if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) age--;
-  return age;
-}
+export const WEB_ADSENSE_ENABLED = import.meta.env.VITE_ENABLE_WEB_ADSENSE === 'true';
 
 /**
  * Single source of truth for ad gates.
@@ -25,11 +19,24 @@ function calculateAge(dob: string): number {
  * NOTE: `usePremiumStatus().isPremium` is forced true for everyone during VYBE+ build —
  * we must NOT use it here. Ads are skipped only for real RevenueCat subscribers.
  *
- * ATT "Don't Allow" still shows ads (non-personalized). Only COPPA under-13 blocks ads.
+ * ATT "Don't Allow" can still show explicitly non-personalized inline ads.
+ * Interstitial/rewarded bridges are separately restricted because the web
+ * layer cannot attach a per-request NPA flag to those native calls.
  */
 export function useAdEligibility() {
   const { user } = useAuth();
   const { isEntitled, isLoading: rcLoading } = useRevenueCat();
+  const [consent, setConsent] = useState(() => getTrackingConsent());
+
+  useEffect(() => {
+    const refreshConsent = () => setConsent(getTrackingConsent());
+    window.addEventListener(TRACKING_CONSENT_CHANGED_EVENT, refreshConsent);
+    window.addEventListener('storage', refreshConsent);
+    return () => {
+      window.removeEventListener(TRACKING_CONSENT_CHANGED_EVENT, refreshConsent);
+      window.removeEventListener('storage', refreshConsent);
+    };
+  }, []);
 
   const { data: userAge, isLoading: ageLoading } = useQuery({
     queryKey: ['user-age-ads', user?.id],
@@ -38,31 +45,33 @@ export function useAdEligibility() {
       if (error || !data) return null;
       const dob = (data as { date_of_birth?: string }).date_of_birth;
       if (!dob) return null;
-      return calculateAge(dob);
+      return calculateAgeFromDateOfBirth(dob);
     },
     enabled: !!user?.id,
     staleTime: 1000 * 60 * 60,
   });
 
-  const isUnder13 = typeof userAge === 'number' && userAge < 13;
   const isAdFreeSubscriber = isEntitled(PREMIUM_ENTITLEMENT_ID);
-  const consent = getTrackingConsent();
-  // Personalized ads only after ATT Allow (or web consent). Deny → non-personalized ads still OK.
-  const personalizedAds = consent === 'allowed';
+  const privacy = resolveAdPrivacy(userAge, consent);
+  const { consentResolved, isUnder13, isMinor, personalizedAds } = privacy;
   const onNative = isNativeAppShell();
   const isLoading = rcLoading || ageLoading;
 
-  const showNativeAds = onNative && !rcLoading && !isAdFreeSubscriber && !isUnder13;
-  /** Wallet Watch & Earn — Despia rewarded bridge; don't block on RC/age spinners. */
+  // Never make an ad request while ATT/privacy status is unresolved.
+  const showNativeAds = onNative && consentResolved && !isLoading && !isAdFreeSubscriber && !isUnder13;
+  /**
+   * Despia rewarded/interstitial bridge URLs cannot carry a per-request NPA
+   * signal from this web layer. Fail closed unless the user is a consenting adult.
+   */
   const canUseDespiaRewardedAds =
-    isDespiaRuntime() && !isAdFreeSubscriber && !isUnder13;
+    isDespiaRuntime() && personalizedAds && !isLoading && !isAdFreeSubscriber;
   const showWebAds =
     !onNative &&
     WEB_ADSENSE_ENABLED &&
     !rcLoading &&
     !isAdFreeSubscriber &&
     !isUnder13 &&
-    consent !== null;
+    consentResolved;
 
   return {
     showNativeAds,
@@ -72,6 +81,8 @@ export function useAdEligibility() {
     personalizedAds,
     isAdFreeSubscriber,
     isUnder13,
+    isMinor,
+    consentResolved,
     isLoading,
     childDirected: isUnder13,
   };
