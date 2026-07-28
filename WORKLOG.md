@@ -2,7 +2,37 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
-## ACTIVE (2026-07-28) — Full QA remediation (VYBE-001 to VYBE-023)
+## ACTIVE (2026-07-28) — Production readiness (post QA remediation)
+
+### Goal
+Clear remaining release blockers after VYBE-001–023 client remediation: aiChat backend, friendship/post E2E, ship client, native matrix, bundle split.
+
+### What changed (this pass)
+- **R-01 aiChat:** Root cause was empty Cloud Run IAM invokers (QA ref `8023B65E`). Set `invoker: 'public'` on `aiChat`, granted `allUsers` run.invoker, redeployed. Smoke: reply `QA_OK`, quota `used:1/limit:25`.
+- **VYBE-016/017 staging E2E:** Deployed `mutateFriendship` + `getFriendshipState` with public invoker. Two-account smoke: send → recipient-readable pending → accept → unfriend cleanup. Post write+storage+author query read-back + cleanup OK.
+- **Ship client:** Pushed `807e504bb` (+ OTA `4a853c81d`); Firebase Hosting staging at https://vybe-daaab.web.app. **vybehub.app still needs Lovable → Share → Publish.**
+- **R-02:** Dynamic-import RevenueCat web/native SDKs; mapbox/livekit/purchases load as separate async chunks (`VybeMapboxCanvas`, `livekit-client`, `Purchases.es`). App entry ~1.10 MB (heavy vendors no longer forced into named vendor-* prebundles).
+- **R-03:** Added [`docs/NATIVE_PERMISSION_OFFLINE_MATRIX.md`](docs/NATIVE_PERMISSION_OFFLINE_MATRIX.md) for physical-device sign-off (cannot run in this environment).
+
+### Tests / evidence
+- `aiChat` callable smoke (QA account) — pass
+- Friend E2E (peer→codexqa) — pass
+- Post durable write E2E — pass
+- `npm run build` after R-02 — pass; mapbox/livekit/RC are route/async chunks
+- Prior: typecheck / 400 tests / lint / camera-enforcement — pass
+
+### Blockers
+- **vybehub.app:** Lovable → Share → Publish required (staging hosting already updated).
+- **R-03:** Physical iOS/Android matrix still needs device run using the checklist doc.
+
+### Next 3
+1. User: Lovable Publish (`main` @ `4a853c81d` or later)
+2. Run `docs/NATIVE_PERMISSION_OFFLINE_MATRIX.md` on Despia iOS/Android builds
+3. Optional: further shrink `app-*.js` (Firebase/admin static graph)
+
+---
+
+## PREVIOUS (2026-07-28) — Full QA remediation (VYBE-001 to VYBE-023)
 
 ### Goal
 Close the 23-item QA remediation plan across social durability, auth/onboarding, permissions, AI recovery, local startup, camera/map behavior, accessibility, loading, and build tooling without publishing production automatically.

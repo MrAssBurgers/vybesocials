@@ -1,6 +1,5 @@
 import { useEffect, useCallback } from 'react';
 import { Capacitor } from '@capacitor/core';
-import { Purchases as PurchasesNative } from '@revenuecat/purchases-capacitor';
 import type { PurchasesPackage } from '@revenuecat/purchases-capacitor';
 import { initRevenueCat, getPurchases, resetRevenueCat } from '@/lib/revenuecat';
 import { useAuth } from '@/lib/auth';
@@ -46,7 +45,7 @@ export function useRevenueCat() {
 
   // Initialize once per userId (init is idempotent inside initRevenueCat).
   useEffect(() => {
-    initRevenueCat(userId);
+    void initRevenueCat(userId);
   }, [userId]);
 
   const purchases: Purchases | null = isNative() ? null : (getPurchases() ?? null);
@@ -56,10 +55,12 @@ export function useRevenueCat() {
     queryFn: async (): Promise<CustomerInfo | null> => {
       if (isNative()) {
         try {
+          const { Purchases: PurchasesNative } = await import('@revenuecat/purchases-capacitor');
           const { customerInfo } = await PurchasesNative.getCustomerInfo();
           return customerInfo as unknown as CustomerInfo;
         } catch { return null; }
       }
+      if (!getPurchases()) await initRevenueCat(userId);
       const instance = getPurchases();
       if (!instance) return null;
       try { return await instance.getCustomerInfo(); } catch { return null; }
@@ -79,11 +80,13 @@ export function useRevenueCat() {
     queryFn: async (): Promise<RCPackage[]> => {
       if (isNative()) {
         try {
+          const { Purchases: PurchasesNative } = await import('@revenuecat/purchases-capacitor');
           const result = await PurchasesNative.getOfferings();
           const current = result.current;
           return (current?.availablePackages ?? []) as unknown as RCPackage[];
         } catch { return []; }
       }
+      if (!getPurchases()) await initRevenueCat(userId);
       const instance = getPurchases();
       if (!instance) return [];
       try {
@@ -110,7 +113,7 @@ export function useRevenueCat() {
     if (!isNative()) {
       if (!getPurchases()) {
         resetRevenueCat();
-        initRevenueCat(userId);
+        await initRevenueCat(userId);
       }
     }
     await qc.invalidateQueries({ queryKey: ['rc-offerings', userId ?? 'anon'] });
@@ -120,6 +123,7 @@ export function useRevenueCat() {
     if (isNative()) {
       // On native, offerings were fetched from the Capacitor SDK, so the
       // package IS a PurchasesPackage — the web type is just our shared alias.
+      const { Purchases: PurchasesNative } = await import('@revenuecat/purchases-capacitor');
       const result = await PurchasesNative.purchasePackage({
         aPackage: rcPackage as unknown as PurchasesPackage,
       });
@@ -132,6 +136,7 @@ export function useRevenueCat() {
       return await launchDespiaPurchase(rcPackage, userId);
     }
 
+    if (!getPurchases()) await initRevenueCat(userId);
     const instance = getPurchases();
     if (!instance) throw new Error('RevenueCat not initialized');
     const { customerInfo: updatedInfo } = await instance.purchase({ rcPackage });

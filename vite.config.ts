@@ -83,11 +83,9 @@ export default defineConfig(({ mode }) => {
             'vendor-i18n': ['i18next', 'react-i18next', 'i18next-browser-languagedetector'],
             'vendor-date': ['date-fns'],
             'vendor-recharts': ['recharts'],
-            'vendor-revenuecat': ['@revenuecat/purchases-js'],
             'vendor-forms': ['react-hook-form', '@hookform/resolvers', 'zod'],
             'vendor-styling': ['class-variance-authority', 'clsx', 'tailwind-merge'],
-            'vendor-mapbox': ['mapbox-gl'],
-            'vendor-livekit': ['livekit-client'],
+            // Heavy vendors load only via dynamic import (mapbox / livekit / purchases-js).
           },
         },
       },
