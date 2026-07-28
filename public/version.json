@@ -1,8 +1,8 @@
 {
   "app_version": "0.0.0",
-  "commit": "2dd713280324f32124d3532bedd6a24f09e799f5",
-  "commit_short": "2dd7132",
-  "built_at": "2026-07-28T16:10:27.840Z",
-  "entry": "/assets/app-BLljGaEg.js",
-  "entry_sha256": "6ac5fc6510871ac28f3c385ea99d18794728835fd03d1a731a3f3af793df9e4a"
+  "commit": "38c1239906eb023802e4a115c10121f2d9493365",
+  "commit_short": "38c1239",
+  "built_at": "2026-07-28T16:37:25.586Z",
+  "entry": "/assets/app-DGcxkWvD.js",
+  "entry_sha256": "931f0b677b6311dfb0276e331463946edd0210e03659738c7888ee99a22d67de"
 }

@@ -11,8 +11,36 @@ const STATUS_LINES = [
   'Almost ready…',
 ];
 
-const RECOVERY_AFTER_MS = 8_000;
+const RECOVERY_AFTER_MS = 6_000;
+const AUTO_DISMISS_MATCH_MS = 1_200;
 const RELOAD_ONCE_KEY = 'vybe-update-reload-once';
+
+function runningEntryPath(): string | null {
+  if (typeof document === 'undefined') return null;
+  const scripts = Array.from(document.querySelectorAll('script[type="module"][src]'));
+  for (const el of scripts) {
+    const src = el.getAttribute('src') || '';
+    if (/\/assets\/app-[^/]+\.js(?:\?|$)/i.test(src)) {
+      try {
+        return new URL(src, window.location.origin).pathname;
+      } catch {
+        return src.split('?')[0];
+      }
+    }
+  }
+  return null;
+}
+
+async function remoteEntryPath(): Promise<string | null> {
+  try {
+    const res = await fetch(`/version.json?_=${Date.now()}`, { cache: 'no-store' });
+    if (!res.ok) return null;
+    const data = (await res.json()) as { entry?: string | null };
+    return data.entry || null;
+  } catch {
+    return null;
+  }
+}
 
 function lockUpdateShell() {
   document.documentElement.classList.add('app-update-visible');
@@ -50,12 +78,32 @@ export const AppUpdateOverlay = memo(function AppUpdateOverlay() {
   const [statusIndex, setStatusIndex] = useState(0);
   const activeRef = useRef(false);
 
+  const dismiss = () => {
+    activeRef.current = false;
+    setIsUpdating(false);
+    setShowRecovery(false);
+    clearAppUpdateFlag();
+    unlockUpdateShell();
+    sessionStorage.removeItem(RELOAD_ONCE_KEY);
+  };
+
   useEffect(() => {
-    // If we just finished a controlled reload, clear the updating flag and stay usable.
+    // If we just finished a controlled reload onto the current entry, stay usable.
     if (sessionStorage.getItem(RELOAD_ONCE_KEY) === '1' && !isAppUpdateInProgress()) {
       sessionStorage.removeItem(RELOAD_ONCE_KEY);
     }
     clearAppUpdateFlag();
+
+    let cancelled = false;
+    void (async () => {
+      const remote = await remoteEntryPath();
+      const local = runningEntryPath();
+      if (cancelled) return;
+      // Already on the published entry — never trap the user behind an update wall.
+      if (remote && local && remote === local) {
+        dismiss();
+      }
+    })();
 
     const begin = () => {
       if (activeRef.current) return;
@@ -67,24 +115,33 @@ export const AppUpdateOverlay = memo(function AppUpdateOverlay() {
     };
 
     const handleVybeUpdate = () => begin();
-    // First SW install also fires controllerchange — only treat as update when
-    // a controller already existed (returning session).
     const hadControllerAtMount = Boolean(navigator.serviceWorker?.controller);
     const handleSWUpdate = () => {
       if (!hadControllerAtMount) return;
       begin();
     };
 
+    const handleTombstone = (event: MessageEvent) => {
+      if (event.data?.type !== 'VYBE_LEGACY_SW_TOMBSTONE') return;
+      begin();
+      window.setTimeout(() => {
+        window.location.replace(`/?_vybe_migrate=${Date.now()}`);
+      }, 400);
+    };
+
     window.addEventListener('vybe-app-update', handleVybeUpdate);
     navigator.serviceWorker?.addEventListener('controllerchange', handleSWUpdate);
+    navigator.serviceWorker?.addEventListener('message', handleTombstone);
 
     if (import.meta.hot) {
       import.meta.hot.on('vite:beforeFullReload', begin);
     }
 
     return () => {
+      cancelled = true;
       window.removeEventListener('vybe-app-update', handleVybeUpdate);
       navigator.serviceWorker?.removeEventListener('controllerchange', handleSWUpdate);
+      navigator.serviceWorker?.removeEventListener('message', handleTombstone);
       if (!activeRef.current) unlockUpdateShell();
     };
   }, []);
@@ -95,10 +152,22 @@ export const AppUpdateOverlay = memo(function AppUpdateOverlay() {
     const interval = window.setInterval(() => {
       setStatusIndex((i) => (i + 1) % STATUS_LINES.length);
     }, 2200);
-    // Never block forever — after one paint window, offer recovery actions.
+
+    // If the running entry already matches production, auto-dismiss quickly.
+    const matchTimer = window.setTimeout(() => {
+      void (async () => {
+        const remote = await remoteEntryPath();
+        const local = runningEntryPath();
+        if (remote && local && remote === local) {
+          dismiss();
+        }
+      })();
+    }, AUTO_DISMISS_MATCH_MS);
+
     const recoveryTimer = window.setTimeout(() => setShowRecovery(true), RECOVERY_AFTER_MS);
     return () => {
       window.clearInterval(interval);
+      window.clearTimeout(matchTimer);
       window.clearTimeout(recoveryTimer);
     };
   }, [isUpdating]);
@@ -204,17 +273,7 @@ export const AppUpdateOverlay = memo(function AppUpdateOverlay() {
             <Button variant="outline" className="rounded-full" onClick={() => void clearAppCachesAndReload()}>
               Clear app cache
             </Button>
-            <Button
-              variant="ghost"
-              className="rounded-full text-muted-foreground"
-              onClick={() => {
-                activeRef.current = false;
-                setIsUpdating(false);
-                setShowRecovery(false);
-                clearAppUpdateFlag();
-                unlockUpdateShell();
-              }}
-            >
+            <Button variant="ghost" className="rounded-full text-muted-foreground" onClick={dismiss}>
               Continue anyway
             </Button>
           </div>

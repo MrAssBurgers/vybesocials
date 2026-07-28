@@ -19,6 +19,53 @@
     }
   } catch (e) { /* ignore */ }
 
+  // If a fresh shell somehow references a stale entry (or version.json moved),
+  // unregister workers, drop caches, and hard-navigate once.
+  var ENTRY_MIGRATE_KEY = 'vybe.boot.entry-migrate';
+  try {
+    var moduleScript = document.querySelector('script[type="module"][src*="/assets/app-"]');
+    var localSrc = moduleScript && moduleScript.getAttribute('src');
+    var localEntry = '';
+    if (localSrc) {
+      try { localEntry = new URL(localSrc, location.origin).pathname; } catch (e2) { localEntry = String(localSrc).split('?')[0]; }
+    }
+    if (localEntry && typeof fetch === 'function') {
+      fetch('/version.json?_=' + Date.now(), { cache: 'no-store' })
+        .then(function (r) { return r.ok ? r.json() : null; })
+        .then(function (v) {
+          if (!v || !v.entry || v.entry === localEntry) {
+            try { sessionStorage.removeItem(ENTRY_MIGRATE_KEY); } catch (e3) { /* ignore */ }
+            return;
+          }
+          try {
+            if (sessionStorage.getItem(ENTRY_MIGRATE_KEY) === v.entry) return;
+            sessionStorage.setItem(ENTRY_MIGRATE_KEY, v.entry);
+          } catch (e4) { /* ignore */ }
+          var tasks = [];
+          try {
+            if ('serviceWorker' in navigator) {
+              tasks.push(
+                navigator.serviceWorker.getRegistrations().then(function (regs) {
+                  return Promise.all(regs.map(function (r) { return r.unregister(); }));
+                })
+              );
+            }
+            if ('caches' in window) {
+              tasks.push(
+                caches.keys().then(function (names) {
+                  return Promise.all(names.map(function (n) { return caches.delete(n); }));
+                })
+              );
+            }
+          } catch (e5) { /* ignore */ }
+          var go = function () { location.replace('/?_vybe_entry=' + Date.now()); };
+          if (tasks.length) Promise.all(tasks).finally(go);
+          else go();
+        })
+        .catch(function () { /* ignore */ });
+    }
+  } catch (e) { /* ignore */ }
+
   var BOOT_ATTR = 'data-vybe-boot';
   var APP_READY_ATTR = 'data-vybe-app-ready';
   var RECOVERY_ID = 'vybe-boot-recovery';

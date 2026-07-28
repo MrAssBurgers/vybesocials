@@ -2,7 +2,28 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
-## ACTIVE (2026-07-28) — Production regression (update loop + delivery)
+## ACTIVE (2026-07-28) — Canary follow-up (legacy SW + text post)
+
+### Goal
+Clear `38c123990` canary NO-GO: N-1 sessions stuck on `app-Dwq66ozq.js`, update overlay requiring Continue anyway, and text Post staying disabled.
+
+### What changed
+- **Legacy migration:** `firebase-messaging-sw.js` root-scope tombstone (unregister + clear shell caches + navigate clients); FCM only under narrow scope; no-cache header for messaging SW; boot-guard entry mismatch hard-migrate; SW v40 cache bump; force-update+unregister root messaging regs on app SW register.
+- **Update overlay:** Auto-dismiss when running entry already matches `/version.json`; recovery still available if needed.
+- **Text post:** Shared `canPublishCreatePost` — caption-only enables Post even if contentType lagged as `post`; publish type forced to `text` when no media; desktop “Tags required” → optional; mobile `mode === 'text'` always passes contentType text.
+
+### Tests
+- Unit: createPublishReady
+- Full suite + build before ship
+
+### Next
+1. Lovable Publish
+2. Retest N-1 `app-Dwq66ozq.js` → current entry without site-data clear
+3. Text post create/read/delete canary
+
+---
+
+## PREVIOUS (2026-07-28) — Production regression (update loop + delivery)
 
 ### Goal
 Clear VYBE-RG-001/002 service-worker delivery/restart blockers and remaining regression items still present in source after Lovable published `app-hqHPGGsf.js`.

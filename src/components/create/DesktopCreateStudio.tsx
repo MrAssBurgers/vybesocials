@@ -23,6 +23,7 @@ import { ImageRotateEditor } from './editors/ImageRotateEditor';
 import { ImageFilterEditor } from './editors/ImageFilterEditor';
 import { VideoTrimEditor } from './editors/VideoTrimEditor';
 import { PersonTagPicker } from '@/features/profile/components/PersonTagPicker';
+import { canPublishCreatePost, resolvePublishContentType } from '@/lib/createPublishReady';
 
 const visibilityOptions = [
   { id: 'public' as const, label: 'Everyone', icon: Globe, description: 'Visible to all' },
@@ -127,13 +128,21 @@ export function DesktopCreateStudio({ onClose }: DesktopCreateStudioProps) {
     return getSuggestedTagsForInterests(userInterests);
   }, [profile]);
 
-  const canSubmit = contentType === 'text' ? caption.trim().length > 0 : files.length > 0;
+  const canSubmit = canPublishCreatePost({
+    contentType,
+    caption,
+    fileCount: files.length,
+  });
+  const publishType = resolvePublishContentType({
+    contentType,
+    fileCount: files.length,
+  });
 
   const handleSubmit = async () => {
     if (!canSubmit || !user) return;
-    if (contentType === 'video' && !videoTitle.trim()) { toast.error('Add a video title'); return; }
+    if (publishType === 'video' && !videoTitle.trim()) { toast.error('Add a video title'); return; }
 
-    const fc = contentType === 'video'
+    const fc = publishType === 'video'
       ? `${videoTitle}${videoDescription ? `\n\n${videoDescription}` : ''}${caption ? `\n\n${caption}` : ''}`
       : caption;
 
@@ -149,14 +158,14 @@ export function DesktopCreateStudio({ onClose }: DesktopCreateStudioProps) {
         mediaFiles: files.length > 1 ? files : undefined,
         caption: fc,
         tags,
-        type: contentType,
+        type: publishType,
       },
       fc.trim().slice(0, 48) || 'New post',
     );
     toast.message('Publishing…', {
       description: 'Vybe Check runs while we upload. Watch the banner below.',
     });
-    const dest = applyPostPublishNavigation(contentType);
+    const dest = applyPostPublishNavigation(publishType);
     setTimeout(() => navigate(dest), 400);
   };
 
@@ -468,9 +477,9 @@ export function DesktopCreateStudio({ onClose }: DesktopCreateStudioProps) {
               <div className="space-y-3">
                 <PersonTagPicker selectedIds={taggedUserIds} onChange={setTaggedUserIds} />
                 <div className="flex items-center gap-1.5 mb-2">
-                  <Tag className={cn("w-3.5 h-3.5", tags.length > 0 ? "text-primary" : "text-destructive")} />
-                  <span className={cn("text-xs font-semibold", tags.length > 0 ? "text-primary" : "text-destructive")}>
-                    {tags.length === 0 ? 'Tags required' : `${tags.length} tag${tags.length > 1 ? 's' : ''}`}
+                  <Tag className={cn("w-3.5 h-3.5", tags.length > 0 ? "text-primary" : "text-muted-foreground")} />
+                  <span className={cn("text-xs font-semibold", tags.length > 0 ? "text-primary" : "text-muted-foreground")}>
+                    {tags.length === 0 ? 'Tags (optional)' : `${tags.length} tag${tags.length > 1 ? 's' : ''}`}
                   </span>
                 </div>
                 {tags.length > 0 && (

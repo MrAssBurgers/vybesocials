@@ -602,7 +602,7 @@ export function MobileCreateStudio({ onClose, initialSound }: MobileCreateStudio
       <MobilePostComposer
         files={capturedFiles}
         previews={capturedPreviews}
-        contentType={composeContentType}
+        contentType={mode === 'text' ? 'text' : composeContentType}
         selectedSound={selectedSound}
         soundStartTime={soundStartTime}
         onBack={() => {

@@ -129,14 +129,25 @@ export async function registerVybeServiceWorker(): Promise<ServiceWorkerRegistra
     registrationPromise = (async () => {
       try {
         // Drop legacy messaging SW that claimed "/" and fought /sw.js updates.
+        // Also force-update any remaining messaging registration so the root
+        // tombstone worker can activate for pinned N-1 sessions.
         const all = await navigator.serviceWorker.getRegistrations();
         await Promise.all(
-          all
-            .filter((reg) => {
-              const script = reg.active?.scriptURL || reg.waiting?.scriptURL || reg.installing?.scriptURL || '';
-              return script.includes('firebase-messaging-sw.js') && reg.scope.endsWith('/');
-            })
-            .map((reg) => reg.unregister()),
+          all.map(async (reg) => {
+            const script = reg.active?.scriptURL || reg.waiting?.scriptURL || reg.installing?.scriptURL || '';
+            if (script.includes('firebase-messaging-sw.js') && new URL(reg.scope).pathname === '/') {
+              try {
+                await reg.update();
+              } catch {
+                /* ignore */
+              }
+              try {
+                await reg.unregister();
+              } catch {
+                /* ignore */
+              }
+            }
+          }),
         );
 
         const existing = await navigator.serviceWorker.getRegistration('/');

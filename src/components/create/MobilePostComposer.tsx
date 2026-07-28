@@ -16,6 +16,7 @@ import { useComposerDraft } from '@/hooks/useComposerDraft';
 import { DraftBanner } from '@/components/create/DraftBanner';
 import { enqueuePostUpload } from '@/lib/uploadQueue';
 import { PersonTagPicker } from '@/features/profile/components/PersonTagPicker';
+import { canPublishCreatePost, resolvePublishContentType } from '@/lib/createPublishReady';
 
 const visibilityOptions = [
   { id: 'public' as const, label: 'Everyone', icon: Globe },
@@ -127,7 +128,15 @@ export function MobilePostComposer({
     [smartSuggestions, tags],
   );
 
-  const canSubmit = contentType === 'text' ? caption.trim().length > 0 : localFiles.length > 0;
+  const canSubmit = canPublishCreatePost({
+    contentType,
+    caption,
+    fileCount: localFiles.length,
+  });
+  const publishType = resolvePublishContentType({
+    contentType,
+    fileCount: localFiles.length,
+  });
   const currentVisibility = visibilityOptions.find((v) => v.id === visibility)!;
 
   const handleSubmit = () => {
@@ -136,7 +145,9 @@ export function MobilePostComposer({
       return;
     }
     if (!canSubmit) {
-      toast.error(contentType === 'text' ? 'Write something first' : 'Add a photo or video first');
+      toast.error(
+        publishType === 'text' ? 'Write something first' : 'Add a photo or video first',
+      );
       return;
     }
     if (!profile?.id || !profile?.user_id) {
@@ -151,7 +162,7 @@ export function MobilePostComposer({
         mediaFiles: localFiles.length > 1 ? localFiles : undefined,
         caption,
         tags,
-        type: contentType,
+        type: publishType,
       },
       caption.trim().slice(0, 48) || 'New post',
     );
@@ -161,7 +172,7 @@ export function MobilePostComposer({
       description: 'Vybe Check runs while we upload. Watch the banner below.',
     });
     onClose();
-    navigate(applyPostPublishNavigation(contentType));
+    navigate(applyPostPublishNavigation(publishType));
     // taggedUserIds reserved for a follow-up queue enrichment; not blocking publish
     void taggedUserIds;
   };
