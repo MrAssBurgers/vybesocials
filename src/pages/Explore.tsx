@@ -244,15 +244,15 @@ function FullscreenClipsViewer({
   // Show loading only on initial load with no cached data
   if (isLoading && clips.length === 0) {
     return (
-      <div className="fixed inset-0 z-50 bg-black">
+      <main aria-label="Clips viewer" className="fixed inset-0 z-50 bg-black">
         <MediaSkeleton className="w-full h-full" />
-      </div>
+      </main>
     );
   }
 
   if (clips.length === 0) {
     return (
-      <div className="fixed inset-0 z-50 bg-background flex items-center justify-center">
+      <main aria-label="Clips viewer" className="fixed inset-0 z-50 bg-background flex items-center justify-center">
         <div className="text-center text-foreground">
           <Play className="h-16 w-16 mx-auto mb-4 text-muted-foreground" />
           <h3 className="text-xl font-semibold mb-2">No clips yet</h3>
@@ -263,6 +263,7 @@ function FullscreenClipsViewer({
           </Button>
         </div>
         <Button
+          aria-label="Close clips"
           variant="ghost"
           size="icon"
           className="fixed top-4 left-4 z-30 w-10 h-10 rounded-full bg-black/80 border border-border/20 text-foreground hover:bg-black/90"
@@ -270,12 +271,12 @@ function FullscreenClipsViewer({
         >
           <X className="w-5 h-5" />
         </Button>
-      </div>
+      </main>
     );
   }
 
   return (
-    <div className="fixed inset-0 z-50 bg-background">
+    <main aria-label="Clips viewer" className="fixed inset-0 z-50 bg-background">
       {/* Close — above clip overlays (MobileShortCard uses z-50) */}
       <Button
         variant="ghost"
@@ -377,7 +378,7 @@ function FullscreenClipsViewer({
           </motion.div>
         )}
       </div>
-    </div>
+    </main>
   );
 }
 

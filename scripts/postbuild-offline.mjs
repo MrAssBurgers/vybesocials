@@ -6,13 +6,52 @@
  * Lovable Publish that skipped the plugin (e.g. VITE_OFFLINE_MODE=pwa).
  */
 
-import { readFileSync, existsSync, copyFileSync, mkdirSync, readdirSync } from 'node:fs';
+import { readFileSync, writeFileSync, existsSync, copyFileSync, mkdirSync, readdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { generateManifest } from '@despia/local';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
+
+function readBuildEnv(name) {
+  if (process.env[name]) return process.env[name].trim();
+  for (const file of ['.env.production.local', '.env.local', '.env.production', '.env']) {
+    const path = join(root, file);
+    if (!existsSync(path)) continue;
+    const match = readFileSync(path, 'utf8').match(new RegExp(`^${name}=(.+)$`, 'm'));
+    if (match) return match[1].trim().replace(/^["']|["']$/g, '');
+  }
+  return '';
+}
+
+function injectFirebaseMessagingConfig() {
+  const workerPath = join(root, 'dist', 'firebase-messaging-sw.js');
+  if (!existsSync(workerPath)) throw new Error('dist/firebase-messaging-sw.js not found');
+
+  const values = {
+    FIREBASE_API_KEY: readBuildEnv('VITE_FIREBASE_API_KEY'),
+    FIREBASE_MESSAGING_SENDER_ID: readBuildEnv('VITE_FIREBASE_MESSAGING_SENDER_ID'),
+    FIREBASE_APP_ID: readBuildEnv('VITE_FIREBASE_APP_ID'),
+  };
+  const missing = Object.entries(values).filter(([, value]) => !value).map(([name]) => name);
+  if (missing.length) {
+    throw new Error(`Missing messaging worker build config: ${missing.join(', ')}`);
+  }
+
+  let worker = readFileSync(workerPath, 'utf8');
+  for (const [name, value] of Object.entries(values)) {
+    worker = worker.replace(
+      new RegExp(`self\\.__${name}__ \\|\\| 'REPLACE_AT_BUILD'`, 'g'),
+      JSON.stringify(value),
+    );
+  }
+  if (worker.includes('REPLACE_AT_BUILD')) {
+    throw new Error('firebase-messaging-sw.js still contains build placeholders');
+  }
+  writeFileSync(workerPath, worker);
+  console.log('[postbuild] Injected Firebase web config into messaging worker');
+}
 
 function readOfflineMode() {
   if (process.env.VITE_OFFLINE_MODE) {
@@ -29,6 +68,13 @@ function readOfflineMode() {
 
 const mode = readOfflineMode();
 console.log(`[postbuild] Offline mode "${mode}" — always generating despia/local.json for Native`);
+
+try {
+  injectFirebaseMessagingConfig();
+} catch (err) {
+  console.error('[postbuild] Could not configure messaging service worker:', err);
+  process.exit(1);
+}
 
 // Vite's primary entry is content-hashed so Despia OTA sees a new path on every
 // publish. Keep /assets/app.js as a stable recovery alias for old cached shells

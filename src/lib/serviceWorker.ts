@@ -157,7 +157,7 @@ export async function registerVybeServiceWorker(): Promise<ServiceWorkerRegistra
         );
         if (hadRootMessaging || controllerIsMessaging) {
           try {
-            await navigator.serviceWorker.register('/firebase-messaging-sw.js', {
+            await navigator.serviceWorker.register('/firebase-messaging-sw.js?root_tombstone=v2', {
               scope: '/',
               updateViaCache: 'none',
             });

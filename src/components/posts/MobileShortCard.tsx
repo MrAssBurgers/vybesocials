@@ -465,7 +465,12 @@ export const MobileShortCard = memo(function MobileShortCard({
       >
         {/* Author avatar with follow + badge */}
         <div className="relative">
-          <ProfileLink userId={post.author.id} username={post.author.username} className="story-ring rounded-full">
+          <ProfileLink
+            userId={post.author.id}
+            username={post.author.username}
+            aria-label={`View @${post.author.username}'s profile`}
+            className="story-ring rounded-full"
+          >
             <Avatar className="h-11 w-11 sm:h-12 sm:w-12 border-2 border-background shadow-lg">
               <AvatarImage src={signedAvatarUrl || undefined} />
               <AvatarFallback className="bg-primary text-white font-bold text-sm sm:text-base">
@@ -490,6 +495,8 @@ export const MobileShortCard = memo(function MobileShortCard({
 
         {/* Comment - opens bottom sheet */}
         <button 
+          type="button"
+          aria-label={`Open comments (${post.comment_count})`}
           onClick={handleOpenComments}
           className="flex flex-col items-center gap-0.5 sm:gap-1 active:scale-90 transition-transform"
         >
@@ -499,6 +506,9 @@ export const MobileShortCard = memo(function MobileShortCard({
 
         {/* Bookmark */}
         <button 
+          type="button"
+          aria-label={isBookmarked ? 'Remove saved clip' : 'Save clip'}
+          aria-pressed={isBookmarked}
           onClick={handleBookmark} 
           className="flex flex-col items-center gap-0.5 sm:gap-1 active:scale-90 transition-transform"
         >
@@ -513,6 +523,8 @@ export const MobileShortCard = memo(function MobileShortCard({
         {/* Share */}
         <HoldToShare postId={post.id} postType="short" mediaUrl={post.media_url} onTapFallback={handleShare}>
           <button 
+            type="button"
+            aria-label="Share clip"
             onClick={handleShare} 
             className="flex flex-col items-center gap-0.5 sm:gap-1 active:scale-90 transition-transform"
           >
@@ -523,6 +535,9 @@ export const MobileShortCard = memo(function MobileShortCard({
         {/* Mute toggle */}
         {isVideo && (
           <button 
+            type="button"
+            aria-label={isMuted ? 'Unmute clip' : 'Mute clip'}
+            aria-pressed={!isMuted}
             onClick={() => onToggleMute ? onToggleMute() : setIsMuted(!isMuted)} 
             className="flex flex-col items-center gap-0.5 sm:gap-1 active:scale-90 transition-transform"
           >
@@ -570,6 +585,7 @@ export const MobileShortCard = memo(function MobileShortCard({
         {isVideo && immersiveFlow && (
           <button
             type="button"
+            aria-label={isMuted ? 'Play VYBE sound' : 'Mute VYBE sound'}
             onClick={() => onToggleMute ? onToggleMute() : setIsMuted((m) => !m)}
             className="flex items-center gap-2 mb-2 max-w-[min(100%,240px)] active:opacity-80"
           >
@@ -591,6 +607,8 @@ export const MobileShortCard = memo(function MobileShortCard({
         {post.caption && (
           <button
             type="button"
+            aria-label={captionExpanded ? 'Collapse clip caption' : 'Expand clip caption'}
+            aria-expanded={captionExpanded}
             onClick={() => setCaptionExpanded((v) => !v)}
             className="text-left w-full"
           >

@@ -607,6 +607,8 @@ export const BottomNav = memo(forwardRef<HTMLElement, object>(function BottomNav
                     )}
                     <Button
                       type="button"
+                      aria-label={isEditMode ? 'Finish editing navigation' : isCreateMenuOpen ? 'Close create menu' : 'Create'}
+                      aria-expanded={!isEditMode ? isCreateMenuOpen : undefined}
                       variant={isEditMode ? 'default' : 'vybeLiquid'}
                       size="icon-lg"
                       onClick={handleCreateClick}

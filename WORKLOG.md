@@ -2,7 +2,44 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
-## ACTIVE (2026-07-28) — Apple rejection remediation + native performance hardening
+## ACTIVE (2026-07-28) — Production UX, console, push, and responsive hardening
+
+### Goal
+Run authenticated production canaries on desktop plus iPhone/Android responsive layouts, fix concrete console/functional/accessibility defects, and leave a verified public-release build.
+
+### Production findings
+- Live routes opened without crashes: Home, Explore, Search, Messages, Community, Market, Events, Notifications, Profile, Settings, Map, and Create Studio.
+- Caption-only post publish passed Vybe Check, durable read-back, and profile-grid read-back. The QA post was removed after testing.
+- Messages logged a Firestore permission warning because call history used a collection-wide client-side OR query.
+- Profile stats could remain at “0 Posts” after a successful publish because profile counts were cached separately.
+- The production messaging worker shipped literal Firebase build placeholders, breaking web background notifications.
+- Mobile layouts at 390x844 and 412x915 had no horizontal overflow or console errors, but exposed unnamed controls and missing Search/Clips/Map/Create landmarks.
+- Lovable hosting still omits an explicit cache header for the legacy root messaging worker; the root tombstone URL is now versioned to force retrieval.
+
+### What changed
+- Call summaries now use two rule-safe, indexed caller/receiver queries, then merge and deduplicate locally. The receiver/date index is deployed to `vybe-daaab`.
+- Post create/delete refreshes profile stats as well as post grids.
+- Post detail, mobile Clips, bottom Create, post-reminder dismiss, Map, Search, and Create Studio now expose useful accessible names/headings/landmarks.
+- The production build injects public Firebase messaging configuration into the narrow-scope worker and fails closed if any placeholder remains.
+- Legacy root-worker migration uses a versioned tombstone request even when the host ignores `_headers`.
+
+### Verification
+- Authenticated production route/console sweep — no route crashes or console errors after load; the call-summary permission warning was reproduced and traced.
+- Responsive canaries — iPhone 390x844 and Android 412x915; no horizontal overflow or console errors.
+- `npm run typecheck` — pass
+- `npm test -- --run` — 86 files / 423 tests pass
+- `npm run build` — pass; entry `app-DU7CwpWL.js`; messaging worker placeholders absent
+- `npm run lint` — 0 errors / 5 pre-existing unused-disable warnings
+- Firestore indexes — compiled and deployed successfully
+
+### Blockers / next
+1. Lovable Share → Publish is required for these client/worker fixes to reach `vybehub.app`.
+2. After publish, recheck background web push and confirm the new entry in `/version.json`.
+3. App Store approval still requires a new signed native archive and physical iOS/Android permission/OAuth testing; web QA cannot certify those device-only flows.
+
+---
+
+## PREVIOUS (2026-07-28) — Apple rejection remediation + native performance hardening
 
 ### Goal
 Address the exact App Store Connect rejection for 1.2.8 (7180520), prepare a corrected native project, and reduce native cold-start/network work without regressing the web app.

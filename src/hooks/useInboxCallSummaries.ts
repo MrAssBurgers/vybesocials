@@ -17,18 +17,45 @@ export function useInboxCallSummaries() {
       if (!profileId) return new Map();
 
       const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
-      const { data, error } = await db
-        .from('calls')
-        .select('conversation_id, created_at, call_type, status')
-        .or(`caller_id.eq.${profileId},receiver_id.eq.${profileId}`)
-        .gte('created_at', weekAgo)
-        .order('created_at', { ascending: false })
-        .limit(80);
+      // Firestore rules cannot prove that a collection-wide fetch plus a
+      // client-side `.or()` contains only this user's calls. Two constrained
+      // queries keep call history secure and avoid permission warnings.
+      const [asCaller, asReceiver] = await Promise.all([
+        db
+          .from('calls')
+          .select('id, conversation_id, created_at, call_type, status')
+          .eq('caller_id', profileId)
+          .gte('created_at', weekAgo)
+          .order('created_at', { ascending: false })
+          .limit(80),
+        db
+          .from('calls')
+          .select('id, conversation_id, created_at, call_type, status')
+          .eq('receiver_id', profileId)
+          .gte('created_at', weekAgo)
+          .order('created_at', { ascending: false })
+          .limit(80),
+      ]);
 
-      if (error) {
-        console.warn('[useInboxCallSummaries]', error);
-        return new Map();
+      const errors = [asCaller.error, asReceiver.error].filter(Boolean);
+      if (errors.length) {
+        console.warn(
+          '[useInboxCallSummaries]',
+          errors.map((error) => error?.message || 'Call history query failed').join('; '),
+        );
       }
+
+      const data = [...(asCaller.data ?? []), ...(asReceiver.data ?? [])]
+        .filter((row, index, rows) => {
+          const id = String((row as { id?: string }).id || '');
+          return !id || rows.findIndex(
+            (candidate) => String((candidate as { id?: string }).id || '') === id,
+          ) === index;
+        })
+        .sort((a, b) => String((b as { created_at?: string }).created_at || '').localeCompare(
+          String((a as { created_at?: string }).created_at || ''),
+        ))
+        .slice(0, 80);
 
       const map = new Map<string, InboxCallSummary>();
       for (const row of data ?? []) {

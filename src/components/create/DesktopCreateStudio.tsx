@@ -224,14 +224,14 @@ export function DesktopCreateStudio({ onClose }: DesktopCreateStudioProps) {
         <div className="h-[2px] w-full bg-gradient-to-r from-transparent via-primary to-transparent opacity-60" />
         <div className="px-6 h-14 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <button onClick={() => navigate(-1)} className="w-9 h-9 rounded-full flex items-center justify-center hover:bg-muted/50 transition-colors">
+            <button aria-label="Close Create Studio" onClick={() => navigate(-1)} className="w-9 h-9 rounded-full flex items-center justify-center hover:bg-muted/50 transition-colors">
               <ArrowLeft className="w-5 h-5 text-foreground" />
             </button>
             <div className="flex items-center gap-1.5">
               <motion.div animate={{ rotate: [0, 15, -15, 0] }} transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}>
                 <Sparkles className="w-4 h-4 text-primary" />
               </motion.div>
-              <span className="text-base font-bold text-foreground tracking-tight">Create Studio</span>
+              <h1 className="text-base font-bold text-foreground tracking-tight">Create Studio</h1>
             </div>
           </div>
           <motion.button onClick={handleSubmit} disabled={!canSubmit} whileTap={canSubmit ? { scale: 0.95 } : {}}

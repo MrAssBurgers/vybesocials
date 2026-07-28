@@ -59,6 +59,8 @@ export const PostNudgeWidget = memo(function PostNudgeWidget() {
       className="relative rounded-2xl bg-gradient-to-br from-primary/10 via-accent/5 to-primary/10 border border-primary/20 p-5 text-center"
     >
         <button
+          type="button"
+          aria-label="Dismiss post reminder"
           onClick={() => {
             setDismissed(true);
             localStorage.setItem('vybe-post-nudge-dismissed', String(Date.now()));

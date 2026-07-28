@@ -148,6 +148,7 @@ export default function SearchPage() {
   return (
     <AppLayout>
       <div className="max-w-lg mx-auto px-4 py-4 pb-24">
+        <h1 className="sr-only">Search VYBE</h1>
         {/* Search Header with gradient glow */}
         <div className="mb-4">
           <div className={cn(
@@ -169,6 +170,8 @@ export default function SearchPage() {
             />
             {query && (
               <button
+                type="button"
+                aria-label="Clear search"
                 onClick={clearSearch}
                 className="absolute right-3.5 top-1/2 -translate-y-1/2 h-6 w-6 rounded-full bg-muted/60 flex items-center justify-center hover:bg-muted transition-colors"
               >

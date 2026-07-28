@@ -391,6 +391,8 @@ export default function PostDetailPage() {
       }
       toast.success('Post deleted');
       queryClient.invalidateQueries({ queryKey: ['posts'] });
+      queryClient.invalidateQueries({ queryKey: ['profile'] });
+      queryClient.invalidateQueries({ queryKey: ['profile-by-id'] });
       navigate(-1);
     } catch (error) {
       console.error('Failed to delete post:', error);
@@ -553,6 +555,7 @@ export default function PostDetailPage() {
         <div className="sticky top-0 z-30">
           <div className="mx-3 mt-1 liquid-glass rounded-2xl flex items-center gap-3 px-3 py-2">
             <button
+              aria-label="Go back"
               onClick={() => navigate(-1)}
               className="h-9 w-9 rounded-full flex items-center justify-center hover:bg-secondary/50 transition-colors active:scale-90"
             >
@@ -581,6 +584,7 @@ export default function PostDetailPage() {
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button
+                  aria-label="Post options"
                   variant="ghost"
                   size="icon"
                   className="h-9 w-9 rounded-full"
@@ -720,6 +724,7 @@ export default function PostDetailPage() {
                   />
 
                   <motion.button
+                    aria-label="Comment on post"
                     whileTap={{ scale: 0.75 }}
                     onClick={() => commentInputRef.current?.focus()}
                     className="h-11 w-11 rounded-full flex items-center justify-center hover:bg-secondary/50 transition-colors"
@@ -728,6 +733,7 @@ export default function PostDetailPage() {
                   </motion.button>
 
                   <motion.button
+                    aria-label="Share post"
                     whileTap={{ scale: 0.75, rotate: 15 }}
                     onClick={handleShare}
                     className="h-11 w-11 rounded-full flex items-center justify-center hover:bg-secondary/50 transition-colors"
@@ -737,6 +743,8 @@ export default function PostDetailPage() {
                 </div>
 
                 <motion.button
+                  aria-label={isBookmarked ? 'Remove saved post' : 'Save post'}
+                  aria-pressed={isBookmarked}
                   whileTap={{ scale: 0.75 }}
                   onClick={handleBookmark}
                   className="h-11 w-11 rounded-full flex items-center justify-center hover:bg-secondary/50 transition-colors"

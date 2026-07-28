@@ -352,7 +352,8 @@ function VybeMapInner() {
   }, [startFind]);
 
   return (
-    <div
+    <main
+      aria-label="VybeMap"
       className="fixed inset-0 w-full h-full overflow-hidden vybe-map-shell isolate"
       style={{ overscrollBehavior: 'none', zIndex: 9999 }}
     >
@@ -633,7 +634,7 @@ function VybeMapInner() {
         }}
         
       />
-    </div>
+    </main>
   );
 }
 

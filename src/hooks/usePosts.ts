@@ -639,6 +639,10 @@ export function useCreatePost() {
     },
     onSuccess: (_post, variables) => {
       queryClient.invalidateQueries({ queryKey: ['posts'] });
+      // Profile counts are cached separately from profile post grids. Refresh
+      // them so a successful publish never leaves “0 Posts” beside a visible post.
+      queryClient.invalidateQueries({ queryKey: ['profile'] });
+      queryClient.invalidateQueries({ queryKey: ['profile-by-id'] });
       queryClient.invalidateQueries({
         predicate: (q) => {
           const key = JSON.stringify(q.queryKey).toLowerCase();
