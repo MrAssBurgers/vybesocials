@@ -56,14 +56,18 @@ Clear production canary blockers on `https://vybehub.app` (commit `3db703014` / 
 - Follow-up deployment `a2723971-f334-483d-a693-d03dfdc73958` confirmed the un-ordered author query live; grid still omitted the post, isolating the whole-query rejection to remaining social enrichment. Reactions/bookmarks/comments made fail-soft locally.
 - Follow-up deployment `ee3b36a5-90be-47f7-915f-b0c6d97599b3` confirmed fail-soft enrichment live; grid still omitted the post, proving the compatibility adapter itself was the remaining mismatch. Direct Firestore profile reads added locally.
 - Follow-up deployment `13681530-1337-41ab-b628-3cbc04777f6a` confirmed direct queries live but still read an empty persistent cache with no error; server-first collection reads added locally with offline cache fallback.
-- `npm run build` — pass; current local entry `app-x18U9t-9.js`
+- Deployment `9849f35d-3614-4fbd-ba96-065d7ebdab9b` confirmed server-first code was hidden by the persisted 30-minute React Query cache; versioned/always-refetching profile keys added.
+- Final Lovable deployment `4ba466da-19e1-4509-9d88-1d28e83b4b9b` — live entry `app-BecpxZwj.js`; image post `ed762b27-d593-46e8-ad2c-31c163e62348` passed safety, durable Firestore read-back, profile-grid read-back, and rendered-media detail verification.
+- Storage-rules deploy — compiled and released; follow-up post `8383c634-aab9-4010-9c11-4ce885494a3a` left only the public object (quarantine copy removed by the client).
+- `npm run typecheck` — pass in isolated clean worktree.
+- `npm run build` — pass; verified local entry `app-B_uBpzIP.js`.
 - `npm run test -- --run` — 83 files / 410 tests pass
 - `npm run lint` — 0 errors / 5 pre-existing unused-disable warnings
 
 ### Blockers / next
-1. **Commit + push `main`**, then **Lovable → Share → Publish** the single-author profile read fix.
-2. Retest text+image create/read/delete on prod after that publish.
-3. Retest exact N-1 `app-Dwq66ozq.js` one-reload after Publish (confirm `/firebase-messaging-sw.js` sends `Cache-Control`).
+1. Web canary is green; keep monitoring post-create error rate and Storage object growth after launch.
+2. Retest the exact legacy `app-Dwq66ozq.js` session if one is still available; current Lovable hosting still omits an explicit `Cache-Control` header on `/firebase-messaging-sw.js`.
+3. Run `docs/NATIVE_PERMISSION_OFFLINE_MATRIX.md` on physical iOS/Android before store certification.
 
 ---
 
