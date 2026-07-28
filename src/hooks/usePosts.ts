@@ -12,6 +12,11 @@ import { getUserProfile } from '@/lib/firebase/users';
 import { isValidMediaUrl } from '@/lib/mediaUrl';
 import { runPublishVybeCheck } from '@/lib/vybeCheck/runPublishVybeCheck';
 import { challengeTypeForPost, recordChallengeActivity } from '@/lib/challengeProgressClient';
+import {
+  getDocuments as getFirestoreDocuments,
+  where as firestoreWhere,
+  firestoreLimit as directFirestoreLimit,
+} from '@/lib/firebase/firestoreDb';
 
 export { isValidMediaUrl };
 
@@ -59,6 +64,7 @@ export function usePosts(
       // doesn't bubble that post to the top of everyone else's feed.
       const isProfileView = !!authorId;
       let profileViewAuthor: Awaited<ReturnType<typeof getUserProfile>> = null;
+      let profileAuthorIds: string[] = [];
 
       let query = db
         .from('posts')
@@ -87,6 +93,7 @@ export function usePosts(
       if (isProfileView) {
         profileViewAuthor = await getUserProfile(authorId!);
         const authorIds = await resolveAuthorIds(authorId!);
+        profileAuthorIds = authorIds;
         // A single resolved identity is the common case. Use equality instead of
         // `in: [id]`: it is cheaper, avoids a composite-query edge in the
         // Firestore adapter, and lets the author profile render its own newly
@@ -123,7 +130,40 @@ export function usePosts(
         feedExcludeAuthors.add(profile.id);
       }
 
-      const { data: rawPosts, error } = await query;
+      let rawPosts: any[] | null = null;
+      let error: { message?: string } | null = null;
+
+      if (isProfileView) {
+        try {
+          // Profile reads use the native Firestore path. The compatibility
+          // query adapter is useful for feed joins, but production canaries
+          // showed it returning an empty profile grid while the same author's
+          // count and direct post documents were readable.
+          const batches = await Promise.all(
+            profileAuthorIds.map((resolvedAuthorId) =>
+              getFirestoreDocuments<Record<string, any>>('posts', [
+                firestoreWhere('author_id', '==', resolvedAuthorId),
+                directFirestoreLimit(500),
+              ]),
+            ),
+          );
+          const byPostId = new Map<string, any>();
+          for (const batch of batches) {
+            for (const post of batch) byPostId.set(String(post.id), post);
+          }
+          rawPosts = [...byPostId.values()];
+        } catch (profilePostsError) {
+          error = {
+            message: profilePostsError instanceof Error
+              ? profilePostsError.message
+              : 'Profile posts could not be loaded',
+          };
+        }
+      } else {
+        const result = await query;
+        rawPosts = result.data as any[] | null;
+        error = result.error;
+      }
 
       if (error) {
         console.error('Failed to fetch posts:', error);
