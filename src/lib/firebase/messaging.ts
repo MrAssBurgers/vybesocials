@@ -32,7 +32,10 @@ async function fetchVapidKey(): Promise<string | null> {
 async function registerSw(): Promise<ServiceWorkerRegistration | null> {
   if (!('serviceWorker' in navigator)) return null;
   try {
-    return await navigator.serviceWorker.register('/firebase-messaging-sw.js', { scope: '/' });
+    // Narrow scope so this SW never steals control of `/` from /sw.js (update-loop fix).
+    return await navigator.serviceWorker.register('/firebase-messaging-sw.js', {
+      scope: '/firebase-cloud-messaging-push-scope',
+    });
   } catch (e) {
     console.warn('[push] SW register failed', e);
     return null;

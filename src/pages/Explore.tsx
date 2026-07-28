@@ -713,6 +713,14 @@ export default function ExplorePage() {
 
   // Clips view - fullscreen TikTok-style auto-play
   if (viewMode === 'clips') {
+    if (isLoading && (!filteredContent || filteredContent.length === 0)) {
+      return (
+        <div className="fixed inset-0 z-40 bg-background flex flex-col" role="status" aria-live="polite">
+          <span className="sr-only">Loading Explore…</span>
+          <MediaSkeleton className="w-full flex-1" />
+        </div>
+      );
+    }
     return (
       <FullscreenClipsViewer
         clips={filteredContent}
@@ -727,6 +735,23 @@ export default function ExplorePage() {
   }
 
   // Videos view - gallery with search/filters
+  if (isLoading && (!filteredContent || filteredContent.length === 0)) {
+    return (
+      <AppLayout>
+        <div className="max-w-7xl mx-auto px-4 py-6 space-y-4" role="status" aria-live="polite">
+          <span className="sr-only">Loading Explore…</span>
+          <MediaSkeleton className="h-12 w-full rounded-2xl" />
+          <MediaSkeleton className="h-40 w-full rounded-2xl" />
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <MediaSkeleton key={i} className="aspect-[9/16] w-full rounded-xl" />
+            ))}
+          </div>
+        </div>
+      </AppLayout>
+    );
+  }
+
   return (
     <VideosGalleryView
       videos={filteredContent}

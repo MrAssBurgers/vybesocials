@@ -75,9 +75,10 @@ const NotFound = () => {
           >
             404
           </motion.div>
-          {/* Center glow text */}
-          <h1 aria-label="404 – Page not found" className="absolute inset-0 text-[120px] sm:text-[160px] font-black leading-none tracking-tighter gradient-text select-none drop-shadow-[0_0_40px_hsl(var(--primary)/0.3)]">
-            404
+          {/* Single semantic heading — decorative duplicates stay aria-hidden */}
+          <h1 className="absolute inset-0 flex items-center justify-center text-[120px] sm:text-[160px] font-black leading-none tracking-tighter gradient-text select-none drop-shadow-[0_0_40px_hsl(var(--primary)/0.3)]">
+            <span aria-hidden="true">404</span>
+            <span className="sr-only">404 – Page not found</span>
           </h1>
         </motion.div>
 

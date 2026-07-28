@@ -1,11 +1,11 @@
 // VYBE Service Worker
-// Version 34.0 — network-first JS chunks + SKIP_WAITING update flow
+// Version 39.0 — network-first navigation + hashed app entry; no competing messaging SW
 
-const CACHE_NAME = 'vybe-v38';
-const STATIC_CACHE = 'vybe-static-v38';
+const CACHE_NAME = 'vybe-v39';
+const STATIC_CACHE = 'vybe-static-v39';
 const MEDIA_CACHE = 'vybe-media-v2';
-const SHELL_CACHE = 'vybe-shell-v4';
-const ASSETS_CACHE = 'vybe-assets-v5';
+const SHELL_CACHE = 'vybe-shell-v5';
+const ASSETS_CACHE = 'vybe-assets-v6';
 const SHELL_URL = '/';
 const ASSETS_CACHE_MAX = 180;
 const APP_ICON = '/icons/icon-192x192.png';
@@ -48,7 +48,7 @@ const isAndroid = () => /Android/.test(self.navigator?.userAgent || '');
 
 // Install event - precache critical assets + warm app shell
 self.addEventListener('install', (event) => {
-  console.log('[SW] Installing VYBE Service Worker v12');
+  console.log('[SW] Installing VYBE Service Worker v39');
   event.waitUntil(
     Promise.all([
       caches.open(STATIC_CACHE).then((cache) =>
@@ -56,9 +56,9 @@ self.addEventListener('install', (event) => {
           console.warn('[SW] Precache partial failure:', err);
         })
       ),
-      // Best-effort warm the SPA shell so first offline reload works.
+      // Warm shell from network only — never seed from an older controlled response.
       caches.open(SHELL_CACHE).then((cache) =>
-        fetch(SHELL_URL, { cache: 'reload' })
+        fetch(SHELL_URL, { cache: 'no-store' })
           .then((res) => (res && res.ok ? cache.put(SHELL_URL, res.clone()) : null))
           .catch(() => null)
       ),
@@ -69,7 +69,7 @@ self.addEventListener('install', (event) => {
 
 // Activate event - clean old caches, claim clients
 self.addEventListener('activate', (event) => {
-  console.log('[SW] Activating VYBE Service Worker v12');
+  console.log('[SW] Activating VYBE Service Worker v39');
   const VALID_CACHES = new Set([CACHE_NAME, STATIC_CACHE, MEDIA_CACHE, SHELL_CACHE, ASSETS_CACHE]);
   event.waitUntil(
     Promise.all([
@@ -159,7 +159,13 @@ self.addEventListener('fetch', (event) => {
     // Stable app entry + legacy hashed entries — always network-first.
     if (
       url.origin === self.location.origin &&
-      (url.pathname === '/assets/app.js' || /^\/assets\/index-[^/]+\.js$/i.test(url.pathname))
+      (
+        url.pathname === '/assets/app.js' ||
+        url.pathname === '/version.json' ||
+        url.pathname === '/sw.js' ||
+        /^\/assets\/app-[^/]+\.js$/i.test(url.pathname) ||
+        /^\/assets\/index-[^/]+\.js$/i.test(url.pathname)
+      )
     ) {
       event.respondWith(networkFirst(event.request));
       return;

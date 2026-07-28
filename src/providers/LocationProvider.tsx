@@ -10,7 +10,7 @@ const LocationContext = createContext<LocationState>({
   accuracy: null,
   speed: null,
   heading: null,
-  sharing: true,
+  sharing: false,
   locationAvailable: false,
   locationDenied: false,
   ghostUntil: null,

@@ -68,6 +68,8 @@ function wireUpdateFlow(registration: ServiceWorkerRegistration) {
   if (updateFlowWired) return;
   updateFlowWired = true;
 
+  const RELOAD_ONCE_KEY = 'vybe-sw-reload-once';
+
   const promoteWaitingWorker = (worker: ServiceWorker | null) => {
     if (!worker) return;
     signalAppUpdate();
@@ -92,10 +94,23 @@ function wireUpdateFlow(registration: ServiceWorkerRegistration) {
   const hadController = Boolean(navigator.serviceWorker.controller);
   navigator.serviceWorker.addEventListener('controllerchange', () => {
     if (reloadingForUpdate || !hadController) return;
+    // Prevent A→B→A restart loops when another SW (e.g. messaging) also claims.
+    if (sessionStorage.getItem(RELOAD_ONCE_KEY) === '1') return;
     reloadingForUpdate = true;
+    sessionStorage.setItem(RELOAD_ONCE_KEY, '1');
     // Let the fullscreen overlay paint before refresh (avoids half-screen tear).
-    setTimeout(() => window.location.reload(), APP_UPDATE_RELOAD_DELAY_MS);
+    setTimeout(() => {
+      window.location.replace(`/?_vybe=${Date.now()}`);
+    }, APP_UPDATE_RELOAD_DELAY_MS);
   });
+
+  // After a successful controlled reload, clear the once-guard so future deploys can update.
+  if (registration.active && !registration.waiting && sessionStorage.getItem(RELOAD_ONCE_KEY) === '1') {
+    // Delay clear slightly so a same-tick controllerchange from messaging can't loop.
+    window.setTimeout(() => {
+      if (!registration.waiting) sessionStorage.removeItem(RELOAD_ONCE_KEY);
+    }, 4_000);
+  }
 }
 
 function logRegistrationOnce(scope: string) {
@@ -113,10 +128,22 @@ export async function registerVybeServiceWorker(): Promise<ServiceWorkerRegistra
   if (!registrationPromise) {
     registrationPromise = (async () => {
       try {
+        // Drop legacy messaging SW that claimed "/" and fought /sw.js updates.
+        const all = await navigator.serviceWorker.getRegistrations();
+        await Promise.all(
+          all
+            .filter((reg) => {
+              const script = reg.active?.scriptURL || reg.waiting?.scriptURL || reg.installing?.scriptURL || '';
+              return script.includes('firebase-messaging-sw.js') && reg.scope.endsWith('/');
+            })
+            .map((reg) => reg.unregister()),
+        );
+
         const existing = await navigator.serviceWorker.getRegistration('/');
-        if (existing) {
+        if (existing?.active?.scriptURL?.includes('/sw.js')) {
           logRegistrationOnce(existing.scope);
           wireUpdateFlow(existing);
+          void existing.update().catch(() => {});
           return existing;
         }
 

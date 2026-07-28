@@ -109,7 +109,11 @@ export function MapSnapTopBar({
                     locationAvailable && liveSharing ? 'bg-emerald-400 shadow-[0_0_6px_hsl(142_70%_55%)]' : 'bg-amber-400',
                   )}
                 />
-                {!locationAvailable ? 'Location off' : liveSharing ? "You're live" : 'Ghost mode · tap to exit'}
+                {!locationAvailable
+                  ? 'Location off'
+                  : liveSharing
+                    ? "You're live"
+                    : 'Ghost mode · tap to exit'}
               </button>
             )}
             {radarLabel && (

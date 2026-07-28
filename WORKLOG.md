@@ -2,7 +2,36 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
-## ACTIVE (2026-07-28) — Production deep scan remediation
+## ACTIVE (2026-07-28) — Production regression (update loop + delivery)
+
+### Goal
+Clear VYBE-RG-001/002 service-worker delivery/restart blockers and remaining regression items still present in source after Lovable published `app-hqHPGGsf.js`.
+
+### What changed
+- **RG-001/002:** Bumped SW caches to v39; `app-*.js` + `/version.json` + `/sw.js` always network-first; unregister legacy `firebase-messaging-sw.js` that claimed `/`; FCM SW now uses narrow `/firebase-cloud-messaging-push-scope`; update reload is once-guarded; AppUpdateOverlay shows Retry/Clear cache/Continue after 8s instead of infinite block; `useAutoUpdate` compares `/version.json` entry to running `app-*.js` (was wrongly looking for `index-*.js`).
+- **Hosting headers:** `index.html`, `version.json`, `sw.js`, `assets/app.js` → no-cache.
+- **RG-007:** Explore shows immediate skeleton while posts load (clips + videos).
+- **RG-008:** Location context default `sharing: false`; denial still clears live location (prior fix).
+- **RG-012:** 404 keeps one semantic H1; decorative layers aria-hidden.
+- Publish/auth fixes from prior deep-scan remain in tree (text canSubmit, login copy, camera gate).
+
+### Tests
+- `npm run validate:boot` — pass
+- `npm run test -- --run` — 81 / 401 pass
+- `npm run build` — pass; entry `app-BLljGaEg.js`
+
+### Blockers
+- **vybehub.app** must Lovable-Publish this commit so returning sessions can leave `app-Dwq66ozq.js`.
+- After publish: verify N-1 session and clean browser both reach the same entry without restart loop; canary image+text post.
+
+### Next 3
+1. Lovable Publish
+2. N-1 + clean-browser update matrix
+3. Production image/text post canary
+
+---
+
+## PREVIOUS (2026-07-28) — Production deep scan remediation
 
 ### Goal
 Address VYBE-PROD-001–014 from the 2026-07-28 production deep scan on top of prior production-readiness work.

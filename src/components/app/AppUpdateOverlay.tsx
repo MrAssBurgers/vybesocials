@@ -3,12 +3,16 @@ import { createPortal } from 'react-dom';
 import { motion } from 'framer-motion';
 import { Sparkles } from 'lucide-react';
 import { isNativePerfMode } from '@/lib/nativePerfMode';
-import { clearAppUpdateFlag } from '@/lib/appUpdateBridge';
+import { clearAppUpdateFlag, isAppUpdateInProgress } from '@/lib/appUpdateBridge';
+import { Button } from '@/components/ui/button';
 
 const STATUS_LINES = [
-  'App updated — please restart the app',
+  'Applying update…',
   'Almost ready…',
 ];
+
+const RECOVERY_AFTER_MS = 8_000;
+const RELOAD_ONCE_KEY = 'vybe-update-reload-once';
 
 function lockUpdateShell() {
   document.documentElement.classList.add('app-update-visible');
@@ -22,27 +26,49 @@ function unlockUpdateShell() {
   document.body.style.overflow = '';
 }
 
+async function clearAppCachesAndReload() {
+  try {
+    if ('serviceWorker' in navigator) {
+      const regs = await navigator.serviceWorker.getRegistrations();
+      await Promise.all(regs.map((r) => r.unregister()));
+    }
+    if ('caches' in window) {
+      const keys = await caches.keys();
+      await Promise.all(keys.map((k) => caches.delete(k)));
+    }
+  } catch {
+    /* best effort */
+  }
+  sessionStorage.removeItem(RELOAD_ONCE_KEY);
+  clearAppUpdateFlag();
+  window.location.replace(`/?_vybe=${Date.now()}`);
+}
+
 export const AppUpdateOverlay = memo(function AppUpdateOverlay() {
   const [isUpdating, setIsUpdating] = useState(false);
+  const [showRecovery, setShowRecovery] = useState(false);
   const [statusIndex, setStatusIndex] = useState(0);
   const activeRef = useRef(false);
 
   useEffect(() => {
+    // If we just finished a controlled reload, clear the updating flag and stay usable.
+    if (sessionStorage.getItem(RELOAD_ONCE_KEY) === '1' && !isAppUpdateInProgress()) {
+      sessionStorage.removeItem(RELOAD_ONCE_KEY);
+    }
     clearAppUpdateFlag();
+
     const begin = () => {
       if (activeRef.current) return;
       activeRef.current = true;
       lockUpdateShell();
       setIsUpdating(true);
+      setShowRecovery(false);
       setStatusIndex(0);
     };
 
     const handleVybeUpdate = () => begin();
-    // The very first SW install also fires `controllerchange` (via clients.claim
-    // in public/sw.js). Treating that as an update leaves brand-new visitors
-    // stuck on the "Updating VYBE" overlay forever, because serviceWorker.ts
-    // only schedules a reload when a prior controller existed. Only treat this
-    // event as an update when a controller was already active at mount.
+    // First SW install also fires controllerchange — only treat as update when
+    // a controller already existed (returning session).
     const hadControllerAtMount = Boolean(navigator.serviceWorker?.controller);
     const handleSWUpdate = () => {
       if (!hadControllerAtMount) return;
@@ -69,10 +95,14 @@ export const AppUpdateOverlay = memo(function AppUpdateOverlay() {
     const interval = window.setInterval(() => {
       setStatusIndex((i) => (i + 1) % STATUS_LINES.length);
     }, 2200);
-    return () => window.clearInterval(interval);
+    // Never block forever — after one paint window, offer recovery actions.
+    const recoveryTimer = window.setTimeout(() => setShowRecovery(true), RECOVERY_AFTER_MS);
+    return () => {
+      window.clearInterval(interval);
+      window.clearTimeout(recoveryTimer);
+    };
   }, [isUpdating]);
 
-  // Never auto-dismiss — stay fullscreen until the page unloads.
   useEffect(() => {
     if (!isUpdating) return;
     return () => unlockUpdateShell();
@@ -86,8 +116,8 @@ export const AppUpdateOverlay = memo(function AppUpdateOverlay() {
     <motion.div
       role="alertdialog"
       aria-modal="true"
-      aria-busy="true"
-      aria-label="App updated — please restart the app"
+      aria-busy={!showRecovery}
+      aria-label={showRecovery ? 'Update needs attention' : 'Applying app update'}
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       transition={{ duration: reduceMotion ? 0.08 : 0.22, ease: [0.16, 1, 0.3, 1] }}
@@ -106,7 +136,6 @@ export const AppUpdateOverlay = memo(function AppUpdateOverlay() {
         touchAction: 'none',
       }}
     >
-      {/* Ambient mesh — matches boot splash so the transition feels seamless */}
       <div className="absolute inset-0 pointer-events-none overflow-hidden" aria-hidden="true">
         <div
           className="absolute inset-0 vybe-boot-mesh"
@@ -117,32 +146,6 @@ export const AppUpdateOverlay = memo(function AppUpdateOverlay() {
               'linear-gradient(145deg, hsl(var(--background)) 0%, hsl(var(--card, var(--background)) / 0.9) 45%, hsl(var(--background)) 100%)',
           }}
         />
-        {!reduceMotion && (
-          <>
-            <div
-              className="absolute rounded-full opacity-40 blur-[72px]"
-              style={{
-                top: '14%',
-                left: '16%',
-                width: 'min(360px, 55vw)',
-                height: 'min(360px, 55vw)',
-                background: 'hsl(var(--primary) / 0.45)',
-                transform: 'translate(-50%, -50%)',
-              }}
-            />
-            <div
-              className="absolute rounded-full opacity-35 blur-[72px]"
-              style={{
-                top: '72%',
-                left: '78%',
-                width: 'min(400px, 60vw)',
-                height: 'min(400px, 60vw)',
-                background: 'hsl(var(--accent) / 0.38)',
-                transform: 'translate(-50%, -50%)',
-              }}
-            />
-          </>
-        )}
       </div>
 
       <div className="relative z-10 flex flex-col items-center gap-8 w-full max-w-sm">
@@ -157,32 +160,65 @@ export const AppUpdateOverlay = memo(function AppUpdateOverlay() {
 
         <div className="text-center space-y-2 px-2">
           <h2 className="text-2xl font-bold text-foreground tracking-tight">
-            App updated
+            {showRecovery ? 'Still updating' : 'App updated'}
           </h2>
-          <p className="text-sm text-muted-foreground min-h-[1.25rem] transition-opacity duration-300">
-            Please restart the app
+          <p className="text-sm text-muted-foreground min-h-[1.25rem]">
+            {showRecovery
+              ? 'Reload once more, or clear the app cache if this screen returns.'
+              : 'Refreshing to the latest version…'}
           </p>
         </div>
 
-        <div className="w-full max-w-[13rem] space-y-2.5">
-          <div className="h-1.5 rounded-full bg-muted/80 overflow-hidden">
-            <motion.div
-              className="h-full rounded-full bg-primary origin-left"
-              initial={{ scaleX: 0.08 }}
-              animate={{ scaleX: reduceMotion ? 0.65 : [0.08, 0.55, 0.72, 0.88, 0.72, 0.88] }}
-              transition={
-                reduceMotion
-                  ? { duration: 0.3 }
-                  : { duration: 4.5, repeat: Infinity, ease: 'easeInOut' }
-              }
-              style={{ width: '100%' }}
-            />
+        {!showRecovery ? (
+          <div className="w-full max-w-[13rem] space-y-2.5">
+            <div className="h-1.5 rounded-full bg-muted/80 overflow-hidden">
+              <motion.div
+                className="h-full rounded-full bg-primary origin-left"
+                initial={{ scaleX: 0.08 }}
+                animate={{ scaleX: reduceMotion ? 0.65 : [0.08, 0.55, 0.72, 0.88, 0.72, 0.88] }}
+                transition={
+                  reduceMotion
+                    ? { duration: 0.3 }
+                    : { duration: 4.5, repeat: Infinity, ease: 'easeInOut' }
+                }
+                style={{ width: '100%' }}
+              />
+            </div>
+            <p className="text-[11px] text-center text-muted-foreground flex items-center justify-center gap-1.5">
+              <Sparkles className="w-3 h-3 shrink-0 opacity-70" />
+              <span>{STATUS_LINES[statusIndex]}</span>
+            </p>
           </div>
-          <p className="text-[11px] text-center text-muted-foreground flex items-center justify-center gap-1.5">
-            <Sparkles className="w-3 h-3 shrink-0 opacity-70" />
-            <span>{STATUS_LINES[statusIndex]}</span>
-          </p>
-        </div>
+        ) : (
+          <div className="flex flex-col gap-2 w-full max-w-xs">
+            <Button
+              className="rounded-full"
+              onClick={() => {
+                sessionStorage.setItem(RELOAD_ONCE_KEY, '1');
+                clearAppUpdateFlag();
+                window.location.replace(`/?_vybe=${Date.now()}`);
+              }}
+            >
+              Retry
+            </Button>
+            <Button variant="outline" className="rounded-full" onClick={() => void clearAppCachesAndReload()}>
+              Clear app cache
+            </Button>
+            <Button
+              variant="ghost"
+              className="rounded-full text-muted-foreground"
+              onClick={() => {
+                activeRef.current = false;
+                setIsUpdating(false);
+                setShowRecovery(false);
+                clearAppUpdateFlag();
+                unlockUpdateShell();
+              }}
+            >
+              Continue anyway
+            </Button>
+          </div>
+        )}
       </div>
     </motion.div>,
     document.body,
