@@ -8,6 +8,7 @@ import { moderateContent } from '@/hooks/useModeration';
 import { toast } from 'sonner';
 import { setCachedProfiles } from '@/lib/profileCache';
 import { resolveAuthorIds, fetchMemberProfiles } from '@/lib/dmMembershipRepair';
+import { getUserProfile } from '@/lib/firebase/users';
 import { isValidMediaUrl } from '@/lib/mediaUrl';
 import { runPublishVybeCheck } from '@/lib/vybeCheck/runPublishVybeCheck';
 import { challengeTypeForPost, recordChallengeActivity } from '@/lib/challengeProgressClient';
@@ -57,6 +58,7 @@ export function usePosts(
       // For global/feed views, sort purely by recency so a user pinning a post
       // doesn't bubble that post to the top of everyone else's feed.
       const isProfileView = !!authorId;
+      let profileViewAuthor: Awaited<ReturnType<typeof getUserProfile>> = null;
 
       let query = db
         .from('posts')
@@ -83,6 +85,7 @@ export function usePosts(
         `);
 
       if (isProfileView) {
+        profileViewAuthor = await getUserProfile(authorId!);
         const authorIds = await resolveAuthorIds(authorId!);
         // A single resolved identity is the common case. Use equality instead of
         // `in: [id]`: it is cheaper, avoids a composite-query edge in the
@@ -123,9 +126,17 @@ export function usePosts(
         ? (rawPosts || []).filter((p: any) => !feedExcludeAuthors!.has(p.author_id))
         : rawPosts || [];
 
-      const authorProfileMap = await fetchMemberProfiles(
-        [...new Set((posts as any[]).map((p) => p.author_id).filter(Boolean))],
-      );
+      let authorProfileMap = new Map<string, Record<string, unknown>>();
+      try {
+        authorProfileMap = await fetchMemberProfiles(
+          [...new Set((posts as any[]).map((p) => p.author_id).filter(Boolean))],
+        );
+      } catch (authorLookupError) {
+        // Author enrichment is auxiliary. The profile itself is already loaded,
+        // so a transient lookup failure must not turn durable posts into an
+        // incorrect empty grid.
+        console.warn('[usePosts] Author enrichment failed; using profile fallback', authorLookupError);
+      }
 
       // Get likes and bookmarks for current user
       let userLikes: string[] = [];
@@ -163,7 +174,15 @@ export function usePosts(
                   avatar_url: (fallbackAuthor.avatar_url as string | null) ?? null,
                   is_verified: (fallbackAuthor.is_verified as boolean | null) ?? null,
                 }
-              : joinedAuthor;
+              : profileViewAuthor?.username
+                ? {
+                    id: profileViewAuthor.id,
+                    username: profileViewAuthor.username,
+                    display_name: profileViewAuthor.display_name ?? null,
+                    avatar_url: profileViewAuthor.avatar_url ?? null,
+                    is_verified: profileViewAuthor.is_verified ?? null,
+                  }
+                : joinedAuthor;
           
           if (!author?.username) return null;
           
