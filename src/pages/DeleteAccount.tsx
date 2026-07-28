@@ -47,16 +47,12 @@ export default function DeleteAccountPage() {
         return;
       }
 
-      // Logged-out path: file a deletion request via support
-      const { error } = await db.from('account_deletion_requests').insert({
-        email: email.trim().toLowerCase(),
-        username: username.trim() || null,
-        reason: reason.trim() || null,
-      });
-      // Even if the table insert is rate-limited or fails silently, treat as submitted.
-      if (error && !String(error.message).toLowerCase().includes('duplicate')) {
-        console.warn('Deletion request error:', error);
-      }
+      // Logged-out path: deletion requests can only be filed by the verified
+      // account owner, so direct the visitor to sign in or email support.
+      toast.error('Please sign in to request deletion, or email us at ' + CONTACT_EMAIL);
+      setSubmitting(false);
+      return;
+
       setSubmitted(true);
       toast.success('Request submitted. We will email you within 7 days.');
     } catch (err) {
