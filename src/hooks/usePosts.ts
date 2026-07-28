@@ -14,6 +14,7 @@ import { runPublishVybeCheck } from '@/lib/vybeCheck/runPublishVybeCheck';
 import { challengeTypeForPost, recordChallengeActivity } from '@/lib/challengeProgressClient';
 import {
   getDocuments as getFirestoreDocuments,
+  getDocumentsFromServer as getFirestoreDocumentsFromServer,
   where as firestoreWhere,
   firestoreLimit as directFirestoreLimit,
 } from '@/lib/firebase/firestoreDb';
@@ -139,14 +140,18 @@ export function usePosts(
           // query adapter is useful for feed joins, but production canaries
           // showed it returning an empty profile grid while the same author's
           // count and direct post documents were readable.
-          const batches = await Promise.all(
-            profileAuthorIds.map((resolvedAuthorId) =>
-              getFirestoreDocuments<Record<string, any>>('posts', [
-                firestoreWhere('author_id', '==', resolvedAuthorId),
-                directFirestoreLimit(500),
-              ]),
-            ),
-          );
+          const batches = await Promise.all(profileAuthorIds.map(async (resolvedAuthorId) => {
+            const constraints = [
+              firestoreWhere('author_id', '==', resolvedAuthorId),
+              directFirestoreLimit(500),
+            ];
+            try {
+              return await getFirestoreDocumentsFromServer<Record<string, any>>('posts', constraints);
+            } catch (serverReadError) {
+              console.warn('[usePosts] Server profile read unavailable; using cached posts', serverReadError);
+              return getFirestoreDocuments<Record<string, any>>('posts', constraints);
+            }
+          }));
           const byPostId = new Map<string, any>();
           for (const batch of batches) {
             for (const post of batch) byPostId.set(String(post.id), post);

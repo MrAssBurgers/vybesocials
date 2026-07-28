@@ -6,6 +6,7 @@ import {
   getDoc,
   getDocFromServer,
   getDocs,
+  getDocsFromServer,
   setDoc,
   waitForPendingWrites,
   updateDoc,
@@ -105,6 +106,16 @@ export async function getDocuments<T extends DocumentData>(
 ): Promise<T[]> {
   const q = query(collectionRef(table), ...constraints);
   const snap = await getDocs(q);
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() }) as unknown as T);
+}
+
+/** Query the backend explicitly, bypassing a stale persistent-cache snapshot. */
+export async function getDocumentsFromServer<T extends DocumentData>(
+  table: string,
+  constraints: QueryConstraint[] = [],
+): Promise<T[]> {
+  const q = query(collectionRef(table), ...constraints);
+  const snap = await getDocsFromServer(q);
   return snap.docs.map((d) => ({ id: d.id, ...d.data() }) as unknown as T);
 }
 
