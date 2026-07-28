@@ -14,44 +14,52 @@ service firebase.storage {
     // Per-user owned buckets
     match /avatars/{userId}/{allPaths=**} {
       allow read: if signedIn();
-      allow write: if isOwner(userId) && smallEnough() && isImage();
+      allow create, update: if isOwner(userId) && smallEnough() && isImage();
+      allow delete: if isOwner(userId);
     }
     match /media/{userId}/{allPaths=**} {
       allow read: if signedIn();
-      allow write: if isOwner(userId) && smallEnough() && isAv();
+      allow create, update: if isOwner(userId) && smallEnough() && isAv();
+      allow delete: if isOwner(userId);
     }
     match /stories/{userId}/{allPaths=**} {
       allow read: if signedIn();
-      allow write: if isOwner(userId) && smallEnough() && isAv();
+      allow create, update: if isOwner(userId) && smallEnough() && isAv();
+      allow delete: if isOwner(userId);
     }
     // Private DM media. Direct read is restricted to the uploader; recipients
     // must fetch via a Cloud Function that issues short-lived signed URLs
     // after verifying conversation membership server-side.
     match /chat-media/{userId}/{allPaths=**} {
       allow read: if isOwner(userId) || isAdmin();
-      allow write: if isOwner(userId) && smallEnough() && isAv();
+      allow create, update: if isOwner(userId) && smallEnough() && isAv();
+      allow delete: if isOwner(userId) || isAdmin();
     }
     match /clips/{userId}/{allPaths=**} {
       allow read: if signedIn();
-      allow write: if isOwner(userId) && smallEnough();
+      allow create, update: if isOwner(userId) && smallEnough();
+      allow delete: if isOwner(userId);
     }
     match /post-media/{userId}/{allPaths=**} {
       allow read: if signedIn();
-      allow write: if isOwner(userId) && smallEnough() && isAv();
+      allow create, update: if isOwner(userId) && smallEnough() && isAv();
+      allow delete: if isOwner(userId);
     }
     match /community-assets/{userId}/{allPaths=**} {
       allow read: if signedIn();
-      allow write: if isOwner(userId) && smallEnough();
+      allow create, update: if isOwner(userId) && smallEnough();
+      allow delete: if isOwner(userId);
     }
     match /announcements/{allPaths=**} {
       allow read: if signedIn();
-      allow write: if isAdmin() && smallEnough();
+      allow create, update: if isAdmin() && smallEnough();
+      allow delete: if isAdmin();
     }
 
     // Public reference assets (write via admin SDK only)
     match /public/{allPaths=**} {
       allow read: if true;
-      allow write: if isAdmin();
+      allow create, update, delete: if isAdmin();
     }
 
     // Default deny
