@@ -1,5 +1,5 @@
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowLeft, Heart, MessageCircle, Share2, Bookmark, MoreHorizontal, Flag, Ban, Trash2, X, Loader2, Send, Smile, Pencil, Check } from 'lucide-react';
 import { ReactionPicker } from '@/components/reactions/ReactionPicker';
@@ -14,6 +14,7 @@ import { db } from '@/lib/firebase';
 import { blockUserAndNotifyModeration } from '@/lib/blockUserSafety';
 import { useAuth } from '@/lib/auth';
 import { useComments, useCreateComment, useDeleteComment, useEditComment } from '@/hooks/useComments';
+import { usePostReaction } from '@/hooks/usePostReaction';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { usePageMeta } from '@/hooks/usePageMeta';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -21,12 +22,7 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { GifPicker } from '@/components/chat/GifPicker';
 import { GuestJoinBanner } from '@/components/growth/GuestJoinBanner';
-import {
-  patchReactionInFeedCaches,
-  removePostReaction,
-  savePostReaction,
-  notifyPostLike,
-} from '@/lib/postReactions';
+import { getViewerPostReaction } from '@/lib/postReactions';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -253,9 +249,6 @@ export default function PostDetailPage() {
   const [newComment, setNewComment] = useState('');
   const [commentGifUrl, setCommentGifUrl] = useState<string | null>(null);
   const [showGifPicker, setShowGifPicker] = useState(false);
-  const [isLiked, setIsLiked] = useState(false);
-  const [currentReaction, setCurrentReaction] = useState<ReactionType | null>(null);
-  const [likeCount, setLikeCount] = useState(0);
   const [isBookmarked, setIsBookmarked] = useState(false);
   const [reportReason, setReportReason] = useState('');
   const [reportDialogOpen, setReportDialogOpen] = useState(false);
@@ -316,22 +309,18 @@ export default function PostDetailPage() {
 
       let userLiked = false;
       let userBookmarked = false;
-
       let userReactionType: ReactionType | null = null;
       if (profile) {
-        const [likeCheck, bookmarkCheck] = await Promise.all([
-          db.from('likes').select('id, reaction_type').eq('user_id', profile.id).eq('post_id', id!).maybeSingle(),
+        const [viewerReaction, bookmarkCheck] = await Promise.all([
+          getViewerPostReaction(id, profile.id, user?.id),
           db.from('bookmarks').select('id').eq('user_id', profile.id).eq('post_id', id!).maybeSingle(),
         ]);
-        userLiked = !!likeCheck.data;
-        userReactionType = likeCheck.data ? ((likeCheck.data as any).reaction_type as ReactionType || 'like') : null;
+        userLiked = viewerReaction.is_liked;
+        userReactionType = viewerReaction.reaction_type;
         userBookmarked = !!bookmarkCheck.data;
       }
 
-      setIsLiked(userLiked);
-      setCurrentReaction(userReactionType);
       setIsBookmarked(userBookmarked);
-      setLikeCount(likesResult.count || 0);
 
       return {
         ...postRow,
@@ -342,10 +331,31 @@ export default function PostDetailPage() {
           display_name: null,
         },
         comment_count: commentsResult.count || 0,
+        like_count: likesResult.count || 0,
+        is_liked: userLiked,
+        reaction_type: userReactionType,
       } as any;
     },
     enabled: !!id,
   });
+
+  const reactionSource = post
+    ? {
+        id: String(post.id),
+        is_liked: !!post.is_liked,
+        like_count: Number(post.like_count || 0),
+        reaction_type: (post.reaction_type as string | null) || null,
+        author: { id: String(post.author?.id || '') },
+      }
+    : {
+        id: id || '',
+        is_liked: false,
+        like_count: 0,
+        reaction_type: null,
+        author: { id: '' },
+      };
+
+  const { currentReaction, likeCount, handleReaction } = usePostReaction(reactionSource);
 
   const { data: comments, isLoading: commentsLoading } = useComments(id!);
   const createComment = useCreateComment();
@@ -404,52 +414,6 @@ export default function PostDetailPage() {
       setIsDeleting(false);
     }
   };
-
-  const handleReaction = useCallback(async (reactionType: ReactionType | null) => {
-    if (!profile || !post) return;
-
-    const wasLiked = currentReaction !== null;
-    const newIsLiked = reactionType !== null;
-    const prevReaction = currentReaction;
-    const prevIsLiked = isLiked;
-    const prevLikeCount = likeCount;
-
-    setCurrentReaction(reactionType);
-    setIsLiked(newIsLiked);
-    setLikeCount((prev) => {
-      if (wasLiked && !newIsLiked) return prev - 1;
-      if (!wasLiked && newIsLiked) return prev + 1;
-      return prev;
-    });
-    patchReactionInFeedCaches(queryClient, post.id, reactionType);
-
-    try {
-      if (newIsLiked && reactionType) {
-        await savePostReaction({
-          userId: profile.id,
-          authUid: user?.id,
-          postId: post.id,
-          reactionType,
-        });
-        if (!wasLiked && post.author.id && post.author.id !== profile.id) {
-          void notifyPostLike({
-            recipientId: post.author.id,
-            actorId: profile.id,
-            postId: post.id,
-          });
-        }
-      } else {
-        await removePostReaction(profile.id, post.id, user?.id);
-      }
-    } catch (error) {
-      console.error('[PostDetail] reaction failed:', error);
-      setCurrentReaction(prevReaction);
-      setIsLiked(prevIsLiked);
-      setLikeCount(prevLikeCount);
-      patchReactionInFeedCaches(queryClient, post.id, prevReaction);
-      toast.error("Couldn't save reaction — try again");
-    }
-  }, [profile, currentReaction, isLiked, likeCount, post, queryClient]);
 
   const handleBookmark = async () => {
     if (!profile || !post) return;

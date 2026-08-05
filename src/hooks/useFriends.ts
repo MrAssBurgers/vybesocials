@@ -688,11 +688,19 @@ export function useSendFriendRequest() {
         );
       }
 
+      if (result?.state === 'accepted' || result?.alreadyExists) {
+        queryClient.invalidateQueries({ queryKey: ['infinite-following-posts'] });
+        queryClient.invalidateQueries({ queryKey: ['personalized-feed-v2'] });
+        queryClient.invalidateQueries({ queryKey: ['personalized-feed'] });
+      }
+
       if (result?.alreadyExists) {
         return;
       }
 
-      toast.success('Friend request sent!');
+      toast.success(
+        result?.state === 'accepted' ? 'You are now friends!' : 'Friend request sent!',
+      );
     },
     onError: (error: any, _receiverId, context) => {
       if (/already/i.test(String(error?.message || ''))) {
@@ -773,6 +781,9 @@ export function useRespondToFriendRequest() {
       queryClient.invalidateQueries({ queryKey: ['notifications'] });
       queryClient.invalidateQueries({ queryKey: ['unread-notifications'] });
       if (variables.action === 'accept') {
+        queryClient.invalidateQueries({ queryKey: ['infinite-following-posts'] });
+        queryClient.invalidateQueries({ queryKey: ['personalized-feed-v2'] });
+        queryClient.invalidateQueries({ queryKey: ['personalized-feed'] });
         const profileId = liveProfileId || profile?.id;
         recordChallengeActivity(profileId, 'friend_added');
       }

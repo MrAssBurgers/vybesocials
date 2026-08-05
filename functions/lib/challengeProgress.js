@@ -3,6 +3,8 @@ import { db, requireAuth } from './_shared/admin.js';
 import { resolveProfileId } from './_shared/friendship.js';
 import { isoDateOnly, weekStartIso, rotateChallengesCore } from './challenges.js';
 const SYNC_COOLDOWN_MS = 60_000;
+let tierCache = null;
+let tierCacheAt = 0;
 async function loadActiveChallenges(today, weekStart) {
     const [dailySnap, weeklySnap, achSnap] = await Promise.all([
         db.collection('challenges').where('type', '==', 'daily').where('is_active', '==', true)
@@ -219,10 +221,15 @@ export async function incrementOneChallenge(profileId, authUid, challenge, incre
     });
 }
 async function levelFromXp(totalXp) {
-    const tiersSnap = await db.collection('battle_pass_tiers').orderBy('level', 'asc').get();
-    const tiers = tiersSnap.docs.map((d) => d.data());
+    // Cache tiers in-process — scanning the collection on every claim made
+    // cold claims feel stuck for many seconds.
+    if (!tierCache || Date.now() - tierCacheAt > 5 * 60 * 1000) {
+        const tiersSnap = await db.collection('battle_pass_tiers').orderBy('level', 'asc').get();
+        tierCache = tiersSnap.docs.map((d) => d.data());
+        tierCacheAt = Date.now();
+    }
     let level = 1;
-    for (const tier of tiers) {
+    for (const tier of tierCache) {
         const req = Number(tier.xp_required || 0);
         const tierLevel = Number(tier.level || 1);
         if (totalXp >= req)
@@ -332,7 +339,7 @@ export const syncMyChallengeProgress = onCall({ region: 'us-central1' }, async (
         newly_completed: newlyCompleted,
     };
 });
-export const claimChallengeReward = onCall({ region: 'us-central1' }, async (request) => {
+export const claimChallengeReward = onCall({ region: 'us-central1', memory: '256MiB', cpu: 0.5, timeoutSeconds: 60 }, async (request) => {
     const authUid = requireAuth(request);
     const data = (request.data || {});
     const rewardId = String(data.p_reward_id || '');

@@ -2,7 +2,114 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
-## ACTIVE (2026-07-28) — Responsive UI, release delivery, ad privacy, and Apple evidence
+## ACTIVE (2026-08-05) — 2FA end-to-end (email, SMS, device approval)
+
+### Goal
+Make email codes, SMS codes, and trusted-device login approval actually deliver and complete sign-in.
+
+### What changed
+- **Email:** `auth2faRequest` sends Resend codes; password + OAuth both soft-gate when Email 2-Step is on; verify mints custom token after soft sign-out.
+- **SMS:** Implemented `switch_to_sms` via Twilio Verify on the account’s verified phone; `auth2faVerifyPhone` works unauthenticated for login-gate challenges and returns `customToken`. Bound `TWILIO_*` secrets on phone/approval functions.
+- **Device approval:** `authLoginNotify` writes in-app `login_approval` notifications + OneSignal to profile id and auth uid; `LoginApprovalSheet` polls every 4s and also listens for notification inserts.
+- Settings copy clarifies phone verify is required for SMS fallback.
+- Docs: `docs/AUTH_SMS_PUSH_SETUP.md` updated for Firebase.
+
+### Blocker for live SMS
+Twilio secrets were missing in GCP. Placeholder versions were created (`PENDING_SET_REAL_VALUE`). SMS stays `twilio_not_configured` until real `AC…` / auth token / `VA…` secret versions are added, then redeploy phone/approval functions.
+
+### Deployed
+`auth2faRequest`, `auth2faVerify`, `auth2faVerifyPhone`, `phoneVerifyRequest`, `phoneVerifyConfirm`, `authLoginApproval`, `authLoginNotify` → `vybe-daaab`.
+
+### Verification
+- `npm run typecheck` — pass
+- `npm test -- --run` — 92 / 437 pass
+- `npm --prefix functions run build` — pass
+
+### Next
+1. Paste real Twilio Verify credentials into Secret Manager; redeploy phone + authLoginApproval.
+2. Lovable Publish client.
+3. Canary: enable both toggles, verify phone, sign in on device B → approve on device A; also try email/SMS fallbacks.
+
+---
+
+## PREVIOUS (2026-08-05) — Core loop bugfix (auth, reactions, XP, 2FA, friends)
+
+### Goal
+Fix Google sign-in bounce, slow Claim XP, broken reactions/likes, broken 2FA, and friend-post glitches after adding a friend.
+
+### Root causes found
+- **Reactions:** `PostDetail` wrote likes without the `authReady` gate used by `usePostReaction` → Firestore permission errors. Optimistic cache keys missed Home (`personalized-feed-v2`, `infinite-following-posts`).
+- **Friend posts:** Following feed global-fetched then filtered (missed older friend posts) and friend accept did not invalidate feeds.
+- **Claim XP:** `claim_challenge_reward` went through fail-soft unknown-RPC (errors swallowed as null) + cold `levelFromXp` full scan.
+- **2FA:** Email codes never sent (TODO stub); login-approval `switch_to_code` returned `not_supported`; email 2FA toggle never gated password login; verify UI required legacy session tokens.
+- **Google “reload back”:** OAuth redirect hydrated the session before login-approval finished, so the app navigated then soft-signed-out.
+- **authLoginNotify / aiProfileWriter 500s:** Source already had the geo/`interests` fixes; no ERROR logs since Aug 1. Further hardened nested geo `?? null` writes.
+
+### What changed
+- `PostDetail` → shared `usePostReaction`; reaction writes abort if auth session missing; cache patches cover Home keys + `['post', id]`.
+- Following feed queries friends’ posts by author (chunked); friend accept/auto-accept invalidates following + personalized feeds.
+- Mapped `claim_challenge_reward` in `CLIENT_RPC` with real errors; cached battle-pass tiers; raised claim function CPU/memory.
+- Implemented Resend email for `auth2faRequest` / `switch_to_code`; unauth verify mints custom token; password login opens email-2FA gate when enabled.
+- `shouldBlockPostLoginNavigation` blocks while OAuth redirect pending; soft-log offline `fetchProfile`.
+
+### Deployed
+- Cloud Functions: `auth2faRequest`, `auth2faVerify`, `authLoginApproval`, `authLoginNotify`, `claimChallengeReward` → `vybe-daaab`.
+
+### Verification
+- `npm run typecheck` — pass
+- `npm test -- --run` — 92 files / 437 tests pass
+- `npm run build` — pass; entry `app-D4l72Ei-.js`; budget pass
+- `npm --prefix functions run build` — pass
+
+### Next
+1. Lovable Share → Publish so client fixes reach `vybehub.app`.
+2. Canary: Google sign-in, like on post detail, Claim XP, enable email 2FA + login, add friend → For You refresh.
+3. Confirm login-approval “email me a code” path on a second device.
+
+---
+
+## PREVIOUS (2026-07-28) — iOS ads disabled (deferred)
+
+### Goal
+Do not ship ads, ATT-for-ads, or UMP on iOS until product opts in.
+
+### What changed
+- `src/lib/iosAdsGate.ts` — iOS native ads off unless `VITE_ENABLE_IOS_ADS=true`
+- Eligibility, Despia bridges, Cap AdMob/UMP init, Cap ATT-for-ads all skip on iOS
+- Settings Ad Privacy shows “iOS ads coming later”
+- `PrivacyInfo.xcprivacy` Tracking=No while ads are off
+- Cap AdMob plugin / sample `GADApplicationIdentifier` retained but never initialized on iOS
+
+### Next
+When ready: set `VITE_ENABLE_IOS_ADS=true`, production AdMob iOS IDs, UMP messages, Tracking=Yes, device canary, new binary.
+
+---
+
+## PREVIOUS (2026-07-28) — iOS Google Mobile Ads + UMP
+
+### Goal
+Install Google Mobile Ads / UMP in the Capacitor iOS project and wire production AdMob ID slots so native personalized ads can be certified (ATT + UMP + real iOS App ID).
+
+### What changed
+- Added `@capacitor-community/admob@8` (Cap SPM) — Google Mobile Ads + UMP.
+- `Info.plist`: `GADApplicationIdentifier` (Google sample until production iOS App ID exists), `SKAdNetworkItems`, ATT string retained.
+- `PrivacyInfo.xcprivacy`: Tracking=Yes domains + Device ID for ads.
+- `src/lib/admob.ts`: Despia bridge unchanged; Cap path runs UMP then `AdMob.initialize`.
+- `src/lib/admobIds.ts`: Android production IDs + iOS env slots (`VITE_ADMOB_IOS_*`).
+- Settings Ad Privacy → UMP privacy options on Cap iOS; ATT adult path re-inits AdMob after permission.
+- Docs: `ADMOB_SETUP.md`, `docs/IOS_SETUP.md` §9, `.env.example`.
+
+### Blocker (cannot finish in-repo alone)
+- **No production iOS AdMob App ID yet** under publisher `9952523729646293`. Create iOS app in AdMob → paste into Info.plist + env + Despia dashboard → device-test → new signed binary.
+
+### Next
+1. AdMob console: add iOS app `com.despia.vybe` + units; publish UMP GDPR/IDFA messages.
+2. Paste IDs; replace sample `GADApplicationIdentifier`.
+3. Physical iPhone ATT allow/deny + UMP; Despia rebuild if store binary is Despia.
+
+---
+
+## PREVIOUS (2026-07-28) — Responsive UI, release delivery, ad privacy, and Apple evidence
 
 ### Goal
 Verify the published UI and console on desktop/iPhone/Android layouts, remove the concrete mobile collision, make ad eligibility privacy-safe, and leave reproducible Apple review evidence.

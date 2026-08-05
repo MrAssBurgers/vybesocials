@@ -206,14 +206,23 @@ export function LoginGateModal({
         return;
       }
 
-      const session = (payload as { session?: SessionTokens | null }).session ?? null;
-      if (!session?.access_token || !session?.refresh_token) {
-        toast.error('Sign-in session expired — go back and sign in again.');
-        submittedRef.current = false;
-        onCancel();
+      const customToken =
+        typeof (payload as { customToken?: unknown }).customToken === 'string'
+          ? (payload as { customToken: string }).customToken
+          : null;
+      if (customToken) {
+        onSuccess(null, customToken);
         return;
       }
-      onSuccess(session);
+
+      const session = (payload as { session?: SessionTokens | null }).session ?? null;
+      if (session?.access_token && session?.refresh_token) {
+        onSuccess(session);
+        return;
+      }
+
+      // Authenticated in-session verify (settings / already signed in).
+      onSuccess(null);
     } catch {
       toast.error('Verification failed — check your connection and try again.');
       submittedRef.current = false;
@@ -231,6 +240,11 @@ export function LoginGateModal({
 
   const resendCode = async () => {
     if (resendCooldown > 0 || busy) return;
+    if (currentMode === 'sms') {
+      await switchToSms();
+      setResendCooldown(30);
+      return;
+    }
     try {
       setBusy(true);
       const { data, error } = await db.functions.invoke('auth-2fa-request', {
@@ -315,6 +329,7 @@ export function LoginGateModal({
         const reason = payload.error || error?.message || 'unknown';
         if (reason === 'expired') toast.error('This sign-in request has expired. Try again.');
         else if (reason === 'no_verified_phone') toast.error('No verified phone on this account. Try email instead.');
+        else if (reason === 'twilio_not_configured') toast.error('SMS is not configured yet. Try email instead.');
         else if (reason === 'no_session') toast.error('This request can no longer be switched. Try again.');
         else if (reason === 'rate_limited') toast.error('Too many SMS attempts. Try email instead.');
         else toast.error("Couldn't send SMS — try email instead.");
@@ -419,11 +434,11 @@ export function LoginGateModal({
             )}
 
             <div className="flex items-center justify-between gap-2 pt-1">
-              {currentMode === 'code' ? (
+              {(currentMode === 'code' || currentMode === 'sms') ? (
                 <Button
                   variant="ghost"
                   size="sm"
-                  disabled={busy || resendCooldown > 0}
+                  disabled={busy || resendCooldown > 0 || optionBusy !== null}
                   onClick={resendCode}
                 >
                   {resendCooldown > 0 ? `Resend in ${resendCooldown}s` : 'Resend code'}

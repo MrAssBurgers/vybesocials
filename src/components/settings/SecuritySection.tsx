@@ -145,10 +145,13 @@ export function SecuritySection() {
           <SettingsToggleRow
             icon={Shield}
             title="Login confirmation"
-            description="Require approval from a device already signed in before new logins finish"
+            description="Your other signed-in device gets a push + in-app prompt to approve new logins. You can also fall back to email or SMS codes."
             checked={!!settings?.login_approvals_enabled}
             onCheckedChange={(v) => updateSetting({ login_approvals_enabled: v })}
           />
+          <p className="px-3 pb-3 text-xs text-muted-foreground">
+            SMS fallback needs a verified phone number above. Email codes go to your account email.
+          </p>
         </SettingsPanel>
       </SettingsSectionCard>
 

@@ -259,7 +259,7 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
     const pending = getPendingLoginApproval();
     if (!pending) return null;
     return {
-      mode: 'approval',
+      mode: pending.method === 'email_2fa' ? 'code' : 'approval',
       email: pending.email || '',
       challengeId: pending.challengeId,
       expiresAt: pending.expiresAt,
@@ -271,7 +271,7 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
   const openLoginApprovalGate = useCallback((pending: PendingLoginApproval, fallbackEmail = '') => {
     setPendingLoginApproval(pending);
     setLoginGate({
-      mode: 'approval',
+      mode: pending.method === 'email_2fa' ? 'code' : 'approval',
       email: pending.email || fallbackEmail,
       challengeId: pending.challengeId,
       expiresAt: pending.expiresAt,
@@ -279,6 +279,52 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
       approvalLocation: pending.location,
     });
   }, []);
+
+  const openEmail2faGate = useCallback((opts: {
+    challengeId: string;
+    expiresAt?: string;
+    email: string;
+  }) => {
+    openLoginApprovalGate({
+      challengeId: opts.challengeId,
+      expiresAt: opts.expiresAt,
+      email: opts.email,
+      method: 'email_2fa',
+    }, opts.email);
+  }, [openLoginApprovalGate]);
+
+  const openGateFromSessionResult = useCallback((
+    gate: {
+      requiresApproval?: boolean;
+      requiresEmail2fa?: boolean;
+      challengeId?: string;
+      expiresAt?: string;
+      deviceLabel?: string;
+      geo?: PendingLoginApproval['location'];
+    },
+    email?: string | null,
+  ) => {
+    if (!gate.challengeId) return false;
+    if (gate.requiresEmail2fa) {
+      openEmail2faGate({
+        challengeId: gate.challengeId,
+        expiresAt: gate.expiresAt,
+        email: email || '',
+      });
+      return true;
+    }
+    if (gate.requiresApproval) {
+      openLoginApprovalGate({
+        challengeId: gate.challengeId,
+        expiresAt: gate.expiresAt,
+        deviceLabel: gate.deviceLabel,
+        location: gate.geo,
+        email: email || undefined,
+      });
+      return true;
+    }
+    return false;
+  }, [openEmail2faGate, openLoginApprovalGate]);
 
   useEffect(() => {
     const sync = () => {
@@ -288,7 +334,7 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
         return;
       }
       setLoginGate({
-        mode: 'approval',
+        mode: pending.method === 'email_2fa' ? 'code' : 'approval',
         email: pending.email || '',
         challengeId: pending.challengeId,
         expiresAt: pending.expiresAt,
@@ -360,14 +406,7 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
         setOauthOverlay(null);
         setLoading(false);
         setIsOAuthReturn(false);
-        if (gate.requiresApproval && gate.challengeId) {
-          openLoginApprovalGate({
-            challengeId: gate.challengeId,
-            expiresAt: gate.expiresAt,
-            deviceLabel: gate.deviceLabel,
-            location: gate.geo,
-            email: detail.data.session.user.email || undefined,
-          });
+        if (openGateFromSessionResult(gate, detail.data.session.user.email)) {
           return;
         }
         const cached = getCachedCurrentProfile();
@@ -600,14 +639,7 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
         clearOAuthRedirectPending();
         clearDespiaOAuthPending();
         clearOAuthBusy();
-        if (gate.requiresApproval && gate.challengeId) {
-          openLoginApprovalGate({
-            challengeId: gate.challengeId,
-            expiresAt: gate.expiresAt,
-            deviceLabel: gate.deviceLabel,
-            location: gate.geo,
-            email: oauthResult.data.session.user.email || undefined,
-          });
+        if (openGateFromSessionResult(gate, oauthResult.data.session.user.email)) {
           setOauthOverlay(null);
           return;
         }
@@ -703,14 +735,7 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
         const captured = await finalizeOAuthRedirectCapture();
         if (captured.session?.user) {
           const gate = await applyOAuthSession(captured.session);
-          if (gate.requiresApproval && gate.challengeId) {
-            openLoginApprovalGate({
-              challengeId: gate.challengeId,
-              expiresAt: gate.expiresAt,
-              deviceLabel: gate.deviceLabel,
-              location: gate.geo,
-              email: captured.session.user.email || undefined,
-            });
+          if (openGateFromSessionResult(gate, captured.session.user.email)) {
             setIsOAuthReturn(false);
             setOauthOverlay(null);
             setLoading(false);
@@ -824,7 +849,7 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
         };
 
         // Auto-detect: email → Firebase directly; username → resolve via authQr then sign in.
-        const { error, requiresApproval, challengeId, expiresAt, deviceLabel, geo } = await signIn(
+        const { error, requiresApproval, requiresEmail2fa, challengeId, expiresAt, deviceLabel, geo } = await signIn(
           formData.email,
           formData.password,
         );
@@ -835,6 +860,15 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
             throw createHandledLoginError(getLoginCredentialErrorMessage());
           }
           throw error;
+        }
+
+        if (requiresEmail2fa && challengeId) {
+          openEmail2faGate({
+            challengeId,
+            expiresAt,
+            email: formData.email,
+          });
+          return;
         }
 
         if (requiresApproval && challengeId) {
@@ -1467,10 +1501,15 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
                 const { data: active, error: activeError } = await db.auth.getUser();
                 if (activeError || !active.user) throw activeError ?? new Error('Session was not established');
               } else {
-                toast.error('Could not finish signing in. Try again.');
-                setLoginGate(null);
-                clearPendingLoginApproval();
-                return;
+                const { data: active } = await db.auth.getSession();
+                if (active.session?.user) {
+                  await applyOAuthSession(active.session, 'login_approval');
+                } else {
+                  toast.error('Could not finish signing in. Try again.');
+                  setLoginGate(null);
+                  clearPendingLoginApproval();
+                  return;
+                }
               }
             } catch (e) {
               console.warn('finish login after approval failed', e);

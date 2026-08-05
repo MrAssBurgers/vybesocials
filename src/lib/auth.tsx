@@ -113,6 +113,7 @@ interface BanInfo {
 
 export interface ApplySessionResult {
   requiresApproval: boolean;
+  requiresEmail2fa?: boolean;
   challengeId?: string;
   expiresAt?: string;
   deviceLabel?: string;
@@ -136,7 +137,7 @@ interface AuthContextType {
     needsEmailConfirmation?: boolean;
     verificationEmailSent?: boolean;
   }>;
-  signIn: (email: string, password: string) => Promise<{ error: Error | null; requiresApproval?: boolean } & Partial<ApplySessionResult>>;
+  signIn: (email: string, password: string) => Promise<{ error: Error | null; requiresApproval?: boolean; requiresEmail2fa?: boolean } & Partial<ApplySessionResult>>;
   /** Apply Firebase OAuth session immediately (popup / redirect completion). */
   applyOAuthSession: (session: Session, method?: string) => Promise<ApplySessionResult>;
   resendVerification: (email: string) => Promise<{ error: Error | null }>;
@@ -471,22 +472,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       const permissionDenied = /missing or insufficient permissions|permission-denied/i.test(msg);
-      // Soft-log auth races (token not attached yet) — retry, don't spam as crash.
-      if (permissionDenied) {
-        console.warn('[Auth] fetchProfile permission race — retrying:', msg);
+      const offline = /client is offline|unavailable|Failed to get document because the client is offline/i.test(msg);
+      // Soft-log auth races / transient offline — retry, don't spam as crash.
+      if (permissionDenied || offline) {
+        console.warn('[Auth] fetchProfile transient — retrying:', msg);
       } else {
         console.error('[Auth] fetchProfile error:', err);
       }
       
       if (retryCount < maxRetries) {
-        await new Promise((r) => setTimeout(r, permissionDenied ? 500 : 300));
+        await new Promise((r) => setTimeout(r, permissionDenied || offline ? 500 : 300));
         return fetchProfile(userId, retryCount + 1);
       }
       
       retainCachedProfile(setProfile, userId);
       window.setTimeout(() => {
         void fetchProfile(userId, 0);
-      }, permissionDenied ? 1500 : 2000);
+      }, permissionDenied || offline ? 1500 : 2000);
       return null;
     }
   };
@@ -572,9 +574,39 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     // Interactive sign-ins: check login confirmation BEFORE hydrating React auth
     // so Landing / RootGate cannot navigate into the app early.
-    if (method !== 'login_approval') {
+    if (method !== 'login_approval' && method !== 'email_2fa') {
       beginLoginApprovalCheck();
       try {
+        // Email 2FA applies to password + OAuth when enabled.
+        try {
+          const { getDocument } = await import('@/lib/firebase/firestoreDb');
+          const settings = await getDocument<{ email_2fa_enabled?: boolean }>(
+            'user_2fa_settings',
+            oauthSession.user.id,
+          );
+          if (settings?.email_2fa_enabled) {
+            const { invokeFunction } = await import('@/lib/firebase/functionsService');
+            const req = await invokeFunction<{
+              ok?: boolean;
+              challengeId?: string;
+              expiresAt?: string;
+            }>('auth-2fa-request', {});
+            if (!req.error && req.data?.challengeId) {
+              endLoginApprovalCheck();
+              await softSignOutForLoginApproval();
+              return {
+                requiresApproval: false,
+                requiresEmail2fa: true,
+                challengeId: req.data.challengeId,
+                expiresAt: req.data.expiresAt,
+              };
+            }
+            console.warn('[Auth] email 2FA request failed — continuing to login approval check', req.error);
+          }
+        } catch (e) {
+          console.warn('[Auth] email 2FA check failed — continuing', e);
+        }
+
         const { notifyFreshLogin } = await import('@/hooks/useSessionTracking');
         const result = await notifyFreshLogin(method);
         if (result.requiresApproval) {
@@ -915,7 +947,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
       } else if (captured.session?.user) {
         const gate = await applyOAuthSession(captured.session);
-        if (!gate.requiresApproval) {
+        if (!gate.requiresApproval && !gate.requiresEmail2fa) {
           hydrateCachedProfile(captured.session.user.id);
         }
         authInitializedRef.current = true;
@@ -1205,8 +1237,46 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         password,
       });
 
-      if (data.session?.user) {
-        const gate = await applyOAuthSession(data.session, 'password');
+      const sessionUser = data.session?.user;
+      if (sessionUser) {
+        // Email 2FA: send code while session is live, then soft-sign-out until verified.
+        try {
+          const { getDocument } = await import('@/lib/firebase/firestoreDb');
+          const settings = await getDocument<{ email_2fa_enabled?: boolean }>(
+            'user_2fa_settings',
+            sessionUser.id,
+          );
+          if (settings?.email_2fa_enabled) {
+            const { invokeFunction } = await import('@/lib/firebase/functionsService');
+            const req = await invokeFunction<{
+              ok?: boolean;
+              challengeId?: string;
+              expiresAt?: string;
+            }>('auth-2fa-request', {});
+            if (req.error || !req.data?.challengeId) {
+              endLoginApprovalCheck();
+              await softSignOutForLoginApproval();
+              return {
+                error: new Error(
+                  req.error?.message || "Couldn't send your verification code. Try again.",
+                ),
+              };
+            }
+            endLoginApprovalCheck();
+            await softSignOutForLoginApproval();
+            return {
+              error: null,
+              requiresEmail2fa: true,
+              requiresApproval: false,
+              challengeId: req.data.challengeId,
+              expiresAt: req.data.expiresAt,
+            };
+          }
+        } catch (e) {
+          console.warn('[Auth] email 2FA check failed — continuing sign-in', e);
+        }
+
+        const gate = await applyOAuthSession(data.session!, 'password');
         return { error: null, ...gate };
       }
 

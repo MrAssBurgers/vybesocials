@@ -6,6 +6,9 @@ import { isoDateOnly, weekStartIso, rotateChallengesCore } from './challenges.js
 
 const SYNC_COOLDOWN_MS = 60_000;
 
+let tierCache: Record<string, unknown>[] | null = null;
+let tierCacheAt = 0;
+
 interface ProgressChange {
   challenge_id: string;
   previous_count: number;
@@ -262,10 +265,15 @@ export async function incrementOneChallenge(
 }
 
 async function levelFromXp(totalXp: number) {
-  const tiersSnap = await db.collection('battle_pass_tiers').orderBy('level', 'asc').get();
-  const tiers = tiersSnap.docs.map((d) => d.data());
+  // Cache tiers in-process — scanning the collection on every claim made
+  // cold claims feel stuck for many seconds.
+  if (!tierCache || Date.now() - tierCacheAt > 5 * 60 * 1000) {
+    const tiersSnap = await db.collection('battle_pass_tiers').orderBy('level', 'asc').get();
+    tierCache = tiersSnap.docs.map((d) => d.data());
+    tierCacheAt = Date.now();
+  }
   let level = 1;
-  for (const tier of tiers) {
+  for (const tier of tierCache) {
     const req = Number(tier.xp_required || 0);
     const tierLevel = Number(tier.level || 1);
     if (totalXp >= req) level = tierLevel;
@@ -384,7 +392,9 @@ export const syncMyChallengeProgress = onCall({ region: 'us-central1' }, async (
   };
 });
 
-export const claimChallengeReward = onCall({ region: 'us-central1' }, async (request) => {
+export const claimChallengeReward = onCall(
+  { region: 'us-central1', memory: '256MiB', cpu: 0.5, timeoutSeconds: 60 },
+  async (request) => {
   const authUid = requireAuth(request);
   const data = (request.data || {}) as Record<string, unknown>;
   const rewardId = String(data.p_reward_id || '');

@@ -96,6 +96,26 @@ export function LoginApprovalSheet() {
           }
         },
       },
+      {
+        event: 'INSERT',
+        table: 'notifications',
+        filter: `user_id=eq.${user.id}`,
+        callback: (payload) => {
+          const row = payload.new as { type?: string; metadata?: { challenge_id?: string; challengeId?: string } };
+          if (row?.type !== 'login_approval') return;
+          const challengeId = row.metadata?.challengeId || row.metadata?.challenge_id;
+          if (!challengeId) {
+            void refresh();
+            return;
+          }
+          void db
+            .from('auth_challenges')
+            .select('id, metadata, created_at, expires_at, status, challenge_type')
+            .eq('id', challengeId)
+            .maybeSingle()
+            .then(({ data }) => present(data));
+        },
+      },
     ]);
 
     const onVisible = () => {
@@ -103,8 +123,9 @@ export function LoginApprovalSheet() {
     };
     document.addEventListener('visibilitychange', onVisible);
 
-    // Slower polling safety net for offline gaps.
-    const pollId = window.setInterval(refresh, 15000);
+    // Slower polling safety net for offline gaps — keep snappy so the
+    // already-signed-in device sees the approve sheet within a few seconds.
+    const pollId = window.setInterval(refresh, 4000);
 
     return () => {
       cancelled = true;

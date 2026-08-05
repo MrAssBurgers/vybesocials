@@ -95,7 +95,11 @@ async function loadPostsSlice(opts: {
   }
 
   if (opts.authorIds) {
-    posts = posts.filter((p) => opts.authorIds!.has(p.author_id));
+    const expanded = new Set<string>();
+    for (const id of opts.authorIds) {
+      for (const aid of await resolveAuthorIds(id)) expanded.add(aid);
+    }
+    posts = posts.filter((p) => expanded.has(p.author_id));
   }
 
   return posts.slice(opts.offset, opts.offset + opts.limit).map(postToFeedRow);
@@ -237,12 +241,48 @@ async function rpcGetFollowingPosts(params: Record<string, unknown>): Promise<Re
   }
   if (friendIds.size === 0) return [];
 
-  return loadPostsSlice({
-    type: (params.p_type as string | null) || undefined,
-    offset: Number(params.p_offset || 0),
-    limit: Number(params.p_limit || 15),
-    authorIds: friendIds,
-  });
+  // Query each friend's posts directly. Global-fetch-then-filter missed older
+  // friend posts and caused For You to flicker/empty after adding a friend.
+  const offset = Number(params.p_offset || 0);
+  const limit = Number(params.p_limit || 15);
+  const type = (params.p_type as string | null) || undefined;
+  const perFriendLimit = Math.min(Math.max(offset + limit, limit), 40);
+  const seen = new Set<string>();
+  const merged: PostWithAuthor[] = [];
+
+  const friendList = [...friendIds].slice(0, 40);
+  const chunks: string[][] = [];
+  for (let i = 0; i < friendList.length; i += 5) {
+    chunks.push(friendList.slice(i, i + 5));
+  }
+
+  for (const chunk of chunks) {
+    const batches = await Promise.all(
+      chunk.map(async (friendId) => {
+        const authorIds = await resolveAuthorIds(friendId);
+        const posts: PostWithAuthor[] = [];
+        for (const aid of authorIds) {
+          const batch = await listPosts({
+            type,
+            authorId: aid,
+            limit: perFriendLimit,
+          });
+          posts.push(...batch);
+        }
+        return posts;
+      }),
+    );
+    for (const batch of batches) {
+      for (const post of batch) {
+        if (seen.has(post.id)) continue;
+        seen.add(post.id);
+        merged.push(post);
+      }
+    }
+  }
+
+  merged.sort((a, b) => (b.created_at || '').localeCompare(a.created_at || ''));
+  return merged.slice(offset, offset + limit).map(postToFeedRow);
 }
 
 async function rpcGetTrendingFeed(params: Record<string, unknown>): Promise<Record<string, unknown>[]> {

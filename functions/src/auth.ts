@@ -5,15 +5,62 @@ import { OAuth2Client } from 'google-auth-library';
 import { db, auth, requireAuth, requireAdmin, rateLimit, enforceRateLimit } from './_shared/admin.js';
 import { sendPasswordResetEmail, type PasswordResetSendProvider } from './_shared/passwordResetEmail.js';
 import { claimProfileByEmailForUid } from './_shared/claimProfileByEmail.js';
+import { renderAuthEmail, AUTH_EMAIL_SUBJECTS } from './_shared/emailTemplates/index.js';
 
 /** Must match Firebase Console Google web client (public). Used by native-callback exchange. */
 const GOOGLE_WEB_CLIENT_ID =
   '728651793473-71p1iahdr79ali0o7en8ktirklfjf3pf.apps.googleusercontent.com';
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const RESEND_URL = 'https://api.resend.com/emails';
 
 function code(): string {
   return String(Math.floor(100000 + Math.random() * 900000));
+}
+
+function fromAddr(): string {
+  return process.env.EMAIL_FROM || 'VYBE <no-reply@vybehub.app>';
+}
+
+async function sendCodeEmail(to: string, otp: string): Promise<boolean> {
+  const key = process.env.RESEND_API_KEY?.trim();
+  if (!key) {
+    console.error('[auth2fa] RESEND_API_KEY not bound');
+    return false;
+  }
+  const html = renderAuthEmail('reauthentication', { email: to, code: otp, link: otp });
+  const res = await fetch(RESEND_URL, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      from: fromAddr(),
+      to: [to],
+      subject: AUTH_EMAIL_SUBJECTS.reauthentication,
+      html,
+    }),
+  });
+  if (!res.ok) {
+    console.error('[auth2fa] Resend failed:', res.status, (await res.text()).slice(0, 200));
+    return false;
+  }
+  return true;
+}
+
+function maskEmail(email: string): string {
+  const [local, domain] = email.split('@');
+  if (!domain) return '***';
+  const visible = local.slice(0, Math.min(2, local.length));
+  return `${visible}***@${domain}`;
+}
+
+function hashOtp(otp: string, salt: string): string {
+  return createHmac('sha256', salt).update(otp).digest('hex');
+}
+
+function otpMatches(provided: string, codeHash: string, codeSalt: string): boolean {
+  const expected = Buffer.from(codeHash, 'hex');
+  const actual = Buffer.from(hashOtp(String(provided).trim(), codeSalt), 'hex');
+  return expected.length === actual.length && timingSafeEqual(expected, actual);
 }
 
 /**
@@ -70,48 +117,200 @@ export const claimProfileByEmail = onCall({ cors: true }, async (request) => {
 });
 
 /** auth-2fa-request — issue a 6-digit code (email channel). */
-export const auth2faRequest = onCall(async (request) => {
-  const uid = requireAuth(request);
-  enforceRateLimit(await rateLimit(`2fa-req:${uid}`, 5, 600));
-  const c = code();
-  // Store a salted HMAC of the code (never the plaintext). Combined with the
-  // firestore rule that denies client reads of `*_2fa` challenge docs, this
-  // ensures a compromised session cannot bypass 2FA by reading the code.
-  const salt = randomBytes(16).toString('hex');
-  const codeHash = createHmac('sha256', salt).update(c).digest('hex');
-  await db.collection('auth_challenges').doc(`${uid}_2fa`).set({
-    user_id: uid,
-    code_hash: codeHash,
-    code_salt: salt,
-    channel: 'email',
-    expires_at: Date.now() + 10 * 60 * 1000,
-    created_at: new Date().toISOString(),
-  });
-  // TODO: send email via sendTransactionalEmail
-  return { ok: true };
-});
+export const auth2faRequest = onCall(
+  { cors: true, secrets: ['RESEND_API_KEY', 'EMAIL_FROM'] },
+  async (request) => {
+    const payload = (request.data || {}) as { challengeId?: string; email?: string };
+    const existingChallengeId = asString(payload.challengeId);
+    const uid = request.auth?.uid;
 
-/** auth-2fa-verify — confirm a 6-digit code. */
-export const auth2faVerify = onCall(async (request) => {
-  const uid = requireAuth(request);
-  const { code: provided } = (request.data || {}) as { code?: string };
+    // Soft-signed-out resend: refresh code on an existing challenge by id.
+    if (!uid && existingChallengeId) {
+      enforceRateLimit(await rateLimit(`2fa-req-anon:${existingChallengeId}`, 5, 600));
+      const ref = db.collection('auth_challenges').doc(existingChallengeId);
+      const snap = await ref.get();
+      const data = snap.data() as {
+        user_id?: string;
+        challenge_type?: string;
+        expires_at?: number | string;
+        email?: string;
+        metadata?: Record<string, unknown>;
+      } | undefined;
+      if (!data?.user_id) throw new HttpsError('not-found', 'Challenge not found');
+      const type = data.challenge_type || 'email_2fa';
+      if (type !== 'email_2fa' && type !== 'login_approval') {
+        throw new HttpsError('failed-precondition', 'Unsupported challenge');
+      }
+      const challengeUid = String(data.user_id);
+      let email = asString(data.email);
+      if (!email) {
+        try {
+          email = (await auth.getUser(challengeUid)).email || undefined;
+        } catch {
+          email = undefined;
+        }
+      }
+      if (!email) throw new HttpsError('failed-precondition', 'No email on account');
+
+      const c = code();
+      const salt = randomBytes(16).toString('hex');
+      const expiresAtMs = Date.now() + 10 * 60 * 1000;
+      const expiresAtIso = new Date(expiresAtMs).toISOString();
+      await ref.set({
+        code_hash: hashOtp(c, salt),
+        code_salt: salt,
+        channel: 'email',
+        email,
+        expires_at: type === 'login_approval' ? expiresAtIso : expiresAtMs,
+        updated_at: new Date().toISOString(),
+        metadata: {
+          ...(data.metadata || {}),
+          code_hash: hashOtp(c, salt),
+          code_salt: salt,
+          code_channel: 'email',
+        },
+      }, { merge: true });
+
+      const sent = await sendCodeEmail(email, c);
+      if (!sent) throw new HttpsError('internal', 'Failed to send verification email');
+      return { ok: true, challengeId: existingChallengeId, expiresAt: expiresAtIso, email: maskEmail(email) };
+    }
+
+    const authedUid = requireAuth(request);
+    enforceRateLimit(await rateLimit(`2fa-req:${authedUid}`, 5, 600));
+
+    let email: string | undefined;
+    try {
+      email = (await auth.getUser(authedUid)).email || undefined;
+    } catch {
+      email = undefined;
+    }
+    if (!email) throw new HttpsError('failed-precondition', 'No email on account');
+
+    const c = code();
+    const salt = randomBytes(16).toString('hex');
+    const expiresAtMs = Date.now() + 10 * 60 * 1000;
+    const expiresAtIso = new Date(expiresAtMs).toISOString();
+    // Random id — never `${uid}_2fa` (predictable and unsafe for unauth verify).
+    const ref = existingChallengeId
+      ? db.collection('auth_challenges').doc(existingChallengeId)
+      : db.collection('auth_challenges').doc();
+    await ref.set({
+      user_id: authedUid,
+      challenge_type: 'email_2fa',
+      code_hash: hashOtp(c, salt),
+      code_salt: salt,
+      channel: 'email',
+      email,
+      status: 'pending',
+      expires_at: expiresAtMs,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    }, { merge: true });
+
+    const sent = await sendCodeEmail(email, c);
+    if (!sent) throw new HttpsError('internal', 'Failed to send verification email');
+    return { ok: true, challengeId: ref.id, expiresAt: expiresAtIso, email: maskEmail(email) };
+  },
+);
+
+/** auth-2fa-verify — confirm a 6-digit code; mint custom token when soft-signed-out. */
+export const auth2faVerify = onCall({ cors: true }, async (request) => {
+  const payload = (request.data || {}) as { code?: string; challengeId?: string };
+  const provided = asString(payload.code);
+  const challengeId = asString(payload.challengeId);
   if (!provided) throw new HttpsError('invalid-argument', 'code required');
-  const ref = db.collection('auth_challenges').doc(`${uid}_2fa`);
+
+  const uid = request.auth?.uid;
+  enforceRateLimit(await rateLimit(`2fa-verify:${challengeId || uid || 'anon'}`, 10, 600));
+
+  const ref = challengeId
+    ? db.collection('auth_challenges').doc(challengeId)
+    : uid
+      ? db.collection('auth_challenges').doc(`${uid}_2fa`)
+      : null;
+  if (!ref) throw new HttpsError('unauthenticated', 'Sign in or provide challengeId');
+
   const snap = await ref.get();
-  const data = snap.data() as { expires_at?: number; code_hash?: string; code_salt?: string } | undefined;
-  if (!data || !data.code_hash || !data.code_salt || (data.expires_at ?? 0) < Date.now()) {
+  const data = snap.data() as {
+    user_id?: string;
+    expires_at?: number | string;
+    code_hash?: string;
+    code_salt?: string;
+    challenge_type?: string;
+    status?: string;
+    metadata?: Record<string, unknown>;
+  } | undefined;
+
+  const meta = (data?.metadata || {}) as Record<string, unknown>;
+  const codeHash = data?.code_hash || asString(meta.code_hash);
+  const codeSalt = data?.code_salt || asString(meta.code_salt);
+  const challengeUid = asString(data?.user_id);
+  if (!data || !codeHash || !codeSalt || !challengeUid) {
     throw new HttpsError('permission-denied', 'Invalid or expired code');
   }
-  const expected = Buffer.from(data.code_hash, 'hex');
-  const actual = Buffer.from(
-    createHmac('sha256', data.code_salt).update(String(provided).trim()).digest('hex'),
-    'hex',
-  );
-  if (expected.length !== actual.length || !timingSafeEqual(expected, actual)) {
+
+  const expiresRaw = data.expires_at;
+  const expiresMs = typeof expiresRaw === 'number'
+    ? expiresRaw
+    : typeof expiresRaw === 'string'
+      ? Date.parse(expiresRaw)
+      : 0;
+  if (!expiresMs || expiresMs < Date.now()) {
     throw new HttpsError('permission-denied', 'Invalid or expired code');
   }
-  await ref.delete();
-  await db.collection('profiles').doc(uid).set({ two_factor_verified_at: new Date().toISOString() }, { merge: true });
+  if (data.status && data.status !== 'pending') {
+    throw new HttpsError('failed-precondition', 'Challenge already resolved');
+  }
+  if (uid && uid !== challengeUid) {
+    throw new HttpsError('permission-denied', 'Not your challenge');
+  }
+  if (!otpMatches(provided, codeHash, codeSalt)) {
+    throw new HttpsError('permission-denied', 'Invalid or expired code');
+  }
+
+  const now = new Date().toISOString();
+  if (data.challenge_type === 'login_approval') {
+    let customToken: string;
+    try {
+      customToken = await auth.createCustomToken(challengeUid, { email_2fa: challengeId });
+    } catch (err) {
+      console.error('[auth2faVerify] createCustomToken failed', err);
+      throw new HttpsError('internal', 'Could not mint session token');
+    }
+    await ref.set({
+      status: 'approved',
+      resolved_at: now,
+      metadata: {
+        ...meta,
+        resolved_by: 'email_code',
+        custom_token: customToken,
+        code_hash: FieldValue.delete(),
+        code_salt: FieldValue.delete(),
+      },
+    }, { merge: true });
+    return { ok: true, customToken, status: 'approved' };
+  }
+
+  await ref.delete().catch(async () => {
+    await ref.set({ status: 'approved', resolved_at: now }, { merge: true });
+  });
+  await db.collection('profiles').doc(challengeUid).set(
+    { two_factor_verified_at: now },
+    { merge: true },
+  ).catch(() => undefined);
+
+  if (!uid) {
+    let customToken: string;
+    try {
+      customToken = await auth.createCustomToken(challengeUid, { email_2fa: true });
+    } catch (err) {
+      console.error('[auth2faVerify] createCustomToken failed', err);
+      throw new HttpsError('internal', 'Could not mint session token');
+    }
+    return { ok: true, customToken };
+  }
+
   return { ok: true };
 });
 
@@ -124,63 +323,149 @@ export const auth2faPreauth = onCall(async (request) => {
   return { ok: true, expires_in: 300 };
 });
 
+const TWILIO_SECRETS = [
+  'TWILIO_ACCOUNT_SID',
+  'TWILIO_AUTH_TOKEN',
+  'TWILIO_VERIFY_SERVICE_SID',
+] as const;
+
+function maskPhone(phoneE164: string): string {
+  const digits = phoneE164.replace(/\D/g, '');
+  if (digits.length < 4) return '***';
+  return `•••${digits.slice(-4)}`;
+}
+
+async function resolveVerifiedPhoneForUid(uid: string): Promise<string | null> {
+  const direct = await db.collection('profiles').doc(uid).get();
+  const directPhone = asString(direct.data()?.phone_number);
+  if (direct.data()?.phone_verified && directPhone?.startsWith('+')) return directPhone;
+
+  const byUser = await db.collection('profiles').where('user_id', '==', uid).limit(3).get();
+  for (const doc of byUser.docs) {
+    const row = doc.data() as { phone_verified?: boolean; phone_number?: string };
+    const phone = asString(row.phone_number);
+    if (row.phone_verified && phone?.startsWith('+')) return phone;
+  }
+  return null;
+}
+
 /** auth-2fa-verify-phone — verify phone OTP (Twilio Verify when configured). */
 export const auth2faVerifyPhone = onCall(
-  { cors: true },
+  { cors: true, secrets: [...TWILIO_SECRETS] },
   async (request) => {
-  const uid = requireAuth(request);
-  const { code: provided, challengeId, phone: clientPhone } = (request.data || {}) as {
+  const payload = (request.data || {}) as {
     code?: string;
     challengeId?: string;
     phone?: string;
   };
-  if (!provided || String(provided).trim().length < 4) {
+  const provided = asString(payload.code);
+  const challengeId = asString(payload.challengeId);
+  const uid = request.auth?.uid;
+
+  if (!provided || provided.length < 4) {
     throw new HttpsError('invalid-argument', 'code required');
   }
-  const challengeDocId = challengeId && String(challengeId).trim()
-    ? String(challengeId).trim()
-    : `${uid}_phone`;
+
+  enforceRateLimit(await rateLimit(`2fa-phone-verify:${challengeId || uid || 'anon'}`, 10, 600));
+
+  const challengeDocId = challengeId
+    || (uid ? `${uid}_phone` : null);
+  if (!challengeDocId) {
+    throw new HttpsError('unauthenticated', 'Sign in or provide challengeId');
+  }
+
   const ref = db.collection('auth_challenges').doc(challengeDocId);
   const data = (await ref.get()).data() as {
-    expires_at?: number;
+    expires_at?: number | string;
     code_hash?: string;
     phone_e164?: string;
     user_id?: string;
     provider?: string;
+    challenge_type?: string;
+    status?: string;
+    metadata?: Record<string, unknown>;
   } | undefined;
   if (!data) {
     throw new HttpsError('permission-denied', 'Invalid code');
   }
-  if (data.user_id && data.user_id !== uid) {
-    throw new HttpsError('permission-denied', 'Invalid code');
-  }
-  if ((data.expires_at ?? 0) < Date.now()) {
+
+  const challengeUid = asString(data.user_id);
+  if (uid && challengeUid && challengeUid !== uid) {
     throw new HttpsError('permission-denied', 'Invalid code');
   }
 
-  const phoneE164 = (data.phone_e164 || clientPhone || '').trim();
+  const expiresRaw = data.expires_at;
+  const expiresMs = typeof expiresRaw === 'number'
+    ? expiresRaw
+    : typeof expiresRaw === 'string'
+      ? Date.parse(expiresRaw)
+      : 0;
+  if (!expiresMs || expiresMs < Date.now()) {
+    throw new HttpsError('permission-denied', 'Invalid code');
+  }
+  if (data.status && data.status !== 'pending') {
+    throw new HttpsError('failed-precondition', 'Challenge already resolved');
+  }
+
+  const meta = (data.metadata || {}) as Record<string, unknown>;
+  const phoneE164 = (
+    asString(data.phone_e164) ||
+    asString(meta.phone_e164) ||
+    asString(payload.phone) ||
+    ''
+  ).trim();
   const twilio = getTwilioConfig();
+  const provider = data.provider || asString(meta.sms_provider);
 
-  if (data.provider === 'twilio_verify' || (twilio && !data.code_hash)) {
+  if (provider === 'twilio_verify' || (twilio && !data.code_hash)) {
     if (!twilio) {
       throw new HttpsError('failed-precondition', 'twilio_not_configured');
     }
     if (!phoneE164.startsWith('+')) {
       throw new HttpsError('invalid-argument', 'invalid_phone');
     }
-    const check = await twilioVerifyCheck(twilio, phoneE164, String(provided).trim());
+    const check = await twilioVerifyCheck(twilio, phoneE164, provided);
     if (!check.ok) {
       throw new HttpsError('permission-denied', 'Invalid code');
     }
-  } else if (!data.code_hash || data.code_hash !== String(provided).trim()) {
+  } else if (!data.code_hash || data.code_hash !== provided) {
     throw new HttpsError('permission-denied', 'Invalid code');
   }
 
-  await ref.delete();
+  const now = new Date().toISOString();
+  const isLoginGate =
+    data.challenge_type === 'login_approval' ||
+    asString(meta.switched_to) === 'sms_code';
+
+  if (isLoginGate && challengeUid) {
+    let customToken: string;
+    try {
+      customToken = await auth.createCustomToken(challengeUid, { sms_2fa: challengeDocId });
+    } catch (err) {
+      console.error('[auth2faVerifyPhone] createCustomToken failed', err);
+      throw new HttpsError('internal', 'Could not mint session token');
+    }
+    await ref.set({
+      status: 'approved',
+      resolved_at: now,
+      metadata: {
+        ...meta,
+        resolved_by: 'sms_code',
+        custom_token: customToken,
+      },
+    }, { merge: true });
+    return { ok: true, customToken, status: 'approved', phone: phoneE164 || undefined };
+  }
+
+  if (!uid) {
+    throw new HttpsError('unauthenticated', 'Sign in required');
+  }
+
+  await ref.delete().catch(() => undefined);
 
   const update: Record<string, unknown> = {
     phone_verified: true,
-    updated_at: new Date().toISOString(),
+    updated_at: now,
   };
   if (phoneE164.startsWith('+')) {
     const { createHash } = await import('crypto');
@@ -188,7 +473,6 @@ export const auth2faVerifyPhone = onCall(
     update.phone_e164_sha256 = createHash('sha256').update(phoneE164.toLowerCase()).digest('hex');
   }
   await db.collection('profiles').doc(uid).set(update, { merge: true });
-  // Also merge when profile id ≠ auth uid
   const byUser = await db.collection('profiles').where('user_id', '==', uid).limit(1).get();
   for (const doc of byUser.docs) {
     if (doc.id !== uid) await doc.ref.set(update, { merge: true });
@@ -286,7 +570,7 @@ async function twilioVerifyCheck(
  * so the client can show a clear message (never pretend a code was texted).
  */
 export const phoneVerifyRequest = onCall(
-  { cors: true },
+  { cors: true, secrets: [...TWILIO_SECRETS] },
   async (request) => {
   const uid = requireAuth(request);
   enforceRateLimit(await rateLimit(`phone-req:${uid}`, 3, 600));
@@ -375,7 +659,9 @@ function challengeExpired(expiresAt: unknown): boolean {
 }
 
 /** auth-login-approval — poll/respond to pending device login (trusted device flow). */
-export const authLoginApproval = onCall({ cors: true }, async (request) => {
+export const authLoginApproval = onCall(
+  { cors: true, secrets: ['RESEND_API_KEY', 'EMAIL_FROM', ...TWILIO_SECRETS] },
+  async (request) => {
   const data = (request.data || {}) as Record<string, unknown>;
   const action = asString(data.action) || 'respond';
 
@@ -513,9 +799,110 @@ export const authLoginApproval = onCall({ cors: true }, async (request) => {
     return { ok: true, status: 'denied' };
   }
 
-  // Fallback channels when trusted device is unreachable (not yet ported to email/SMS).
-  if (action === 'switch_to_code' || action === 'switch_to_sms') {
-    return { ok: false, error: 'not_supported' };
+  // Fallback: trusted device unreachable → email a 6-digit code on this challenge.
+  if (action === 'switch_to_code') {
+    const challengeId = asString(data.challengeId);
+    if (!challengeId) throw new HttpsError('invalid-argument', 'challengeId required');
+    enforceRateLimit(await rateLimit(`login-switch-code:${challengeId}`, 5, 600));
+
+    const row = await loadChallenge(challengeId);
+    if (!row || row.challenge_type !== 'login_approval') {
+      return { ok: false, error: 'not_found' };
+    }
+    if (challengeExpired(row.expires_at)) return { ok: false, error: 'expired' };
+    if (row.status && row.status !== 'pending') return { ok: false, error: 'already_resolved' };
+
+    const challengeUid = asString(row.user_id);
+    if (!challengeUid) return { ok: false, error: 'no_session' };
+
+    let email: string | undefined;
+    try {
+      email = (await auth.getUser(challengeUid)).email || undefined;
+    } catch {
+      email = undefined;
+    }
+    if (!email) return { ok: false, error: 'email_failed' };
+
+    const c = code();
+    const salt = randomBytes(16).toString('hex');
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
+    const meta = (row.metadata || {}) as Record<string, unknown>;
+    await db.collection('auth_challenges').doc(challengeId).set({
+      expires_at: expiresAt,
+      channel: 'email',
+      email,
+      code_hash: hashOtp(c, salt),
+      code_salt: salt,
+      metadata: {
+        ...meta,
+        code_hash: hashOtp(c, salt),
+        code_salt: salt,
+        code_channel: 'email',
+        switched_to: 'email_code',
+      },
+    }, { merge: true });
+
+    const sent = await sendCodeEmail(email, c);
+    if (!sent) return { ok: false, error: 'email_failed' };
+
+    return {
+      ok: true,
+      challengeId,
+      expiresAt,
+      email: maskEmail(email),
+      mode: 'code',
+    };
+  }
+
+  if (action === 'switch_to_sms') {
+    const challengeId = asString(data.challengeId);
+    if (!challengeId) throw new HttpsError('invalid-argument', 'challengeId required');
+    enforceRateLimit(await rateLimit(`login-switch-sms:${challengeId}`, 3, 600));
+
+    const row = await loadChallenge(challengeId);
+    if (!row || row.challenge_type !== 'login_approval') {
+      return { ok: false, error: 'not_found' };
+    }
+    if (challengeExpired(row.expires_at)) return { ok: false, error: 'expired' };
+    if (row.status && row.status !== 'pending') return { ok: false, error: 'already_resolved' };
+
+    const challengeUid = asString(row.user_id);
+    if (!challengeUid) return { ok: false, error: 'no_session' };
+
+    const phoneE164 = await resolveVerifiedPhoneForUid(challengeUid);
+    if (!phoneE164) return { ok: false, error: 'no_verified_phone' };
+
+    const twilio = getTwilioConfig();
+    if (!twilio) return { ok: false, error: 'twilio_not_configured' };
+
+    const started = await twilioVerifyStart(twilio, phoneE164);
+    if (!started.ok) {
+      return { ok: false, error: started.error || 'sms_send_failed', detail: started.detail };
+    }
+
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
+    const meta = (row.metadata || {}) as Record<string, unknown>;
+    await db.collection('auth_challenges').doc(challengeId).set({
+      expires_at: expiresAt,
+      channel: 'sms',
+      provider: 'twilio_verify',
+      phone_e164: phoneE164,
+      metadata: {
+        ...meta,
+        phone_e164: phoneE164,
+        sms_provider: 'twilio_verify',
+        code_channel: 'sms',
+        switched_to: 'sms_code',
+      },
+    }, { merge: true });
+
+    return {
+      ok: true,
+      challengeId,
+      expiresAt,
+      phoneMasked: maskPhone(phoneE164),
+      mode: 'sms',
+    };
   }
 
   throw new HttpsError('invalid-argument', `Unknown action: ${action}`);
@@ -620,12 +1007,12 @@ export const authLoginNotify = onCall(
         const doc = known.docs[0];
         await doc.ref.set({
           last_seen_at: now,
-          ip: geo.ip,
-          city: geo.city || null,
-          region: geo.region || null,
-          country: geo.country || null,
-          latitude: geo.latitude || null,
-          longitude: geo.longitude || null,
+          ip: geo.ip ?? null,
+          city: geo.city ?? null,
+          region: geo.region ?? null,
+          country: geo.country ?? null,
+          latitude: geo.latitude ?? null,
+          longitude: geo.longitude ?? null,
           geo: safeGeo,
         }, { merge: true });
         // Clear stale "Was this you?" prompts that were incorrectly created for this install.
@@ -658,12 +1045,12 @@ export const authLoginNotify = onCall(
       session_token_hash: sessionHash || null,
       device_label: deviceLabel,
       user_agent: userAgent || null,
-      ip: geo.ip,
-      city: geo.city || null,
-      region: geo.region || null,
-      country: geo.country || null,
-      latitude: geo.latitude || null,
-      longitude: geo.longitude || null,
+      ip: geo.ip ?? null,
+      city: geo.city ?? null,
+      region: geo.region ?? null,
+      country: geo.country ?? null,
+      latitude: geo.latitude ?? null,
+      longitude: geo.longitude ?? null,
       geo: safeGeo,
       trusted: isResume,
       pending_approval: false,
@@ -687,7 +1074,7 @@ export const authLoginNotify = onCall(
       metadata: {
         session_id: sessionRef.id,
         session_hash: sessionHash || null,
-        ip: geo.ip,
+        ip: geo.ip ?? null,
         geo: safeGeo,
       },
     });
@@ -775,12 +1162,57 @@ export const authLoginNotify = onCall(
         requesting_session_id: sessionRef.id,
         device: { label: deviceLabel, browser: userAgent || null, os: deviceLabel },
         method,
-        ip: geo.ip,
+        ip: geo.ip ?? null,
         geo: safeGeo,
       },
     });
 
     await sessionRef.set({ trusted: false, pending_approval: true }, { merge: true });
+
+    // In-app notification so the already-signed-in session sees a pop + inbox row
+    // even when OneSignal delivery is delayed/offline.
+    try {
+      const notifId = `login_approval_${challengeRef.id}`;
+      await db.collection('notifications').doc(notifId).set({
+        id: notifId,
+        user_id: profileId,
+        type: 'login_approval',
+        title: 'Approve sign-in?',
+        body: `New sign-in from ${place}. Was this you?`,
+        actor_id: null,
+        read: false,
+        created_at: now,
+        deep_link: `/?login-approval=${challengeRef.id}`,
+        metadata: {
+          challenge_id: challengeRef.id,
+          challengeId: challengeRef.id,
+          device_label: deviceLabel,
+          geo: safeGeo,
+        },
+      }, { merge: true });
+      // Also address by auth uid when profile id differs (legacy rows).
+      if (profileId !== uid) {
+        await db.collection('notifications').doc(`${notifId}_${uid}`).set({
+          id: `${notifId}_${uid}`,
+          user_id: uid,
+          type: 'login_approval',
+          title: 'Approve sign-in?',
+          body: `New sign-in from ${place}. Was this you?`,
+          actor_id: null,
+          read: false,
+          created_at: now,
+          deep_link: `/?login-approval=${challengeRef.id}`,
+          metadata: {
+            challenge_id: challengeRef.id,
+            challengeId: challengeRef.id,
+            device_label: deviceLabel,
+            geo: safeGeo,
+          },
+        }, { merge: true });
+      }
+    } catch (err) {
+      console.warn('[authLoginNotify] in-app notification failed', err);
+    }
 
     await dispatchOneSignalToProfile(profileId, {
       title: 'Approve sign-in?',
@@ -792,6 +1224,19 @@ export const authLoginNotify = onCall(
         challenge_id: challengeRef.id,
       },
     });
+    // Push to auth-uid alias as well (Despia/OneSignal external_id drift).
+    if (profileId !== uid) {
+      await dispatchOneSignalToProfile(uid, {
+        title: 'Approve sign-in?',
+        body: `New sign-in from ${place}. Was this you?`,
+        type: 'login_approval',
+        url: `/?login-approval=${challengeRef.id}`,
+        data: {
+          challengeId: challengeRef.id,
+          challenge_id: challengeRef.id,
+        },
+      });
+    }
 
     return {
       ok: true,

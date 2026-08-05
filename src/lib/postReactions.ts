@@ -70,11 +70,10 @@ export async function removePostReaction(
   postId: string,
   authUid?: string | null,
 ): Promise<void> {
-  try {
-    const { waitForAuthSession } = await import('@/lib/auth');
-    await waitForAuthSession(2000);
-  } catch {
-    /* non-fatal */
+  const { waitForAuthSession } = await import('@/lib/auth');
+  const session = await waitForAuthSession(2500);
+  if (!session?.user) {
+    throw new Error('Sign in to update reactions');
   }
 
   const userIds = resolveLikeUserIds(userId, authUid);
@@ -121,11 +120,10 @@ export async function savePostReaction(params: {
   if (!userId || !postId) throw new Error('Missing user or post id');
 
   // Avoid auth-not-ready races that surface as "Missing or insufficient permissions".
-  try {
-    const { waitForAuthSession } = await import('@/lib/auth');
-    await waitForAuthSession(2000);
-  } catch {
-    /* non-fatal — write still attempted with current token */
+  const { waitForAuthSession } = await import('@/lib/auth');
+  const session = await waitForAuthSession(2500);
+  if (!session?.user) {
+    throw new Error('Sign in to react to posts');
   }
 
   const userIds = resolveLikeUserIds(userId, authUid);
@@ -294,8 +292,11 @@ export function patchReactionInFeedCaches(
   queryClient.setQueriesData({ queryKey: ['posts'] }, patchList);
   queryClient.setQueriesData({ queryKey: ['ranked-feed-v2'] }, patchInfinite);
   queryClient.setQueriesData({ queryKey: ['personalized-feed'] }, patchInfinite);
+  queryClient.setQueriesData({ queryKey: ['personalized-feed-v2'] }, patchInfinite);
   queryClient.setQueriesData({ queryKey: ['infinite-posts'] }, patchInfinite);
   queryClient.setQueriesData({ queryKey: ['infinite-following'] }, patchInfinite);
+  queryClient.setQueriesData({ queryKey: ['infinite-following-posts'] }, patchInfinite);
   queryClient.setQueriesData({ queryKey: ['clips-viewer-feed'] }, patchInfinite);
   queryClient.setQueriesData({ queryKey: ['clip-viewer-initial'] }, (data) => patchPost(data as Record<string, unknown>));
+  queryClient.setQueriesData({ queryKey: ['post', postId] }, (data) => patchPost(data as Record<string, unknown>));
 }

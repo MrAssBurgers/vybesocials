@@ -4,6 +4,8 @@
  * Survives soft sign-out so the waiting modal can poll without an active user.
  */
 
+import { isOAuthRedirectInFlight } from '@/lib/firebase/oauthRedirect';
+
 export interface PendingLoginApproval {
   challengeId: string;
   expiresAt?: string;
@@ -75,7 +77,11 @@ export function endLoginApprovalCheck(): void {
 
 /** App must not treat the user as fully signed-in while gated or still checking. */
 export function shouldBlockPostLoginNavigation(): boolean {
-  return isLoginApprovalPending() || isLoginApprovalCheckInProgress();
+  if (isLoginApprovalPending() || isLoginApprovalCheckInProgress()) return true;
+  // Google/Apple redirect returns with a live Firebase session before
+  // applyOAuthSession finishes the login-approval check. Block so Landing
+  // does not navigate into the app and then soft-sign-out ("reload back").
+  return isOAuthRedirectInFlight();
 }
 
 export function setPendingLoginApproval(pending: PendingLoginApproval): void {

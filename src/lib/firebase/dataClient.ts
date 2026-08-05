@@ -1239,6 +1239,28 @@ const CLIENT_RPC: Record<string, (params: Record<string, unknown>) => Promise<un
   earn_vybe_tokens: async (p) => rpcEarnVybeTokens(p),
   check_rate_limit: async (p) => rpcCheckRateLimit(p),
   purchase_marketplace_item: async (p) => rpcPurchaseMarketplaceItem(p),
+  claim_challenge_reward: async (p) => {
+    const { data, error } = await invokeFunction<{
+      success?: boolean;
+      xp_gained?: number;
+      already_claimed?: boolean;
+      level_result?: {
+        old_level: number;
+        new_level: number;
+        total_xp: number;
+        level_up: boolean;
+        new_rewards: unknown[];
+      };
+    }>('claim_challenge_reward', {
+      p_reward_id: p.p_reward_id || p.reward_id,
+      p_user_id: p.p_user_id || p.user_id,
+    });
+    if (error) throw error;
+    if (!data?.success && !data?.already_claimed) {
+      throw new Error('Claim failed — try again');
+    }
+    return data;
+  },
   compute_vybe_dna: async () => rpcComputeVybeDna(),
 };
 
