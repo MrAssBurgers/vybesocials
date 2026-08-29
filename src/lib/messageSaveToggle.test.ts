@@ -2,11 +2,13 @@ import { describe, expect, it } from 'vitest';
 import type { Message } from '@/hooks/useMessages';
 import {
   applyMessageSaveToggle,
+  isMessageSenderId,
   isSavedByViewer,
   restoreExpiresAtOnUnsave,
 } from '@/lib/messageSaveToggle';
 
 const profileId = 'profile-me';
+const authUid = 'auth-me';
 const otherId = 'profile-other';
 
 function baseMessage(overrides: Partial<Message> = {}): Message {
@@ -63,6 +65,17 @@ describe('applyMessageSaveToggle', () => {
       new Date(new Date(viewedAt).getTime() + 24 * 60 * 60 * 1000).toISOString(),
     );
   });
+
+  it('uses the sender save flag for migrated auth-uid messages', () => {
+    const msg = baseMessage({
+      sender_id: authUid,
+      saved_by_sender: false,
+      saved_by_recipient: true,
+    });
+    const saved = applyMessageSaveToggle(msg, profileId, authUid);
+    expect(saved.saved_by_sender).toBe(true);
+    expect(saved.saved_by_recipient).toBe(true);
+  });
 });
 
 describe('isSavedByViewer', () => {
@@ -71,6 +84,17 @@ describe('isSavedByViewer', () => {
       isSavedByViewer(baseMessage({ sender_id: profileId, saved_by_sender: true }), profileId),
     ).toBe(true);
     expect(isSavedByViewer(baseMessage({ saved_by_recipient: true }), profileId)).toBe(true);
+  });
+
+  it('recognizes migrated auth-uid senders', () => {
+    expect(isMessageSenderId(authUid, profileId, authUid)).toBe(true);
+    expect(
+      isSavedByViewer(
+        baseMessage({ sender_id: authUid, saved_by_sender: true }),
+        profileId,
+        authUid,
+      ),
+    ).toBe(true);
   });
 });
 

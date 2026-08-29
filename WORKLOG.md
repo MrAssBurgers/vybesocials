@@ -2,6 +2,39 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## ACTIVE (2026-08-29) — DM message identity and saved-content integrity
+
+### Goal
+Prevent DM participants from rewriting message ownership/conversation identity or clearing another participant's saved-message state.
+
+### Finding / impact
+- Both flat and nested message update rules authorized against the existing sender, but did not keep `sender_id` or `conversation_id` immutable.
+- A sender could repoint one legitimate message to another conversation and profile, forging message history without the callable's membership, block, or schema checks.
+- Either participant could clear the other participant's saved flag; the expiry workers would then hard-delete content the other person explicitly kept.
+
+### What changed
+- Added shared message-update rule guards that preserve sender/conversation identity and the other participant's save flag.
+- Kept legitimate sender edits, recipient view updates, and each participant's own save toggle working.
+- Added standard-edition Auth/Firestore emulator coverage for flat and nested message paths.
+- Preserved save/unsave behavior and saved badges for migrated messages whose sender is still stored as a Firebase Auth uid.
+
+### Verification
+- Pre-fix emulator reproduction — forged identity/conversation and cross-participant save updates were all allowed.
+- `npm run test:message-update-rules` — pass after fix; 24 flat/nested allow/deny checks.
+- `npm run test:dm-send-enforcement` — pass.
+- `npm run typecheck` — pass.
+- `npm run build` — pass; bundle budget pass.
+- `npm run test` — 91 files / 437 tests pass.
+- `npm run lint` — 0 errors / 5 existing unused-disable warnings.
+- Production Firestore edition/login probe was blocked by unavailable Firebase CLI authentication; emulator confirmed Standard edition syntax.
+
+### Blockers / next
+1. Review and merge the PR.
+2. Deploy `firestore:rules` to Firebase project `vybe-daaab`.
+3. Smoke-test sender edit, recipient view, and both save/unsave actions in a real DM after deployment.
+
+---
+
 ## ACTIVE (2026-07-28) — Responsive UI, release delivery, ad privacy, and Apple evidence
 
 ### Goal

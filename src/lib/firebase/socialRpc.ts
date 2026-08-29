@@ -9,6 +9,7 @@ import {
 import { firebaseAuth } from './authService';
 import { getUserProfile, getUserProfileByUsername } from './users';
 import { getProfileByAuthUid, resolveProfileIdFromAuthUid } from './profileResolve';
+import { isMessageSenderId } from '@/lib/messageSaveToggle';
 
 const SOCIAL_RPC_NAMES = new Set([
   'get_profile_by_username',
@@ -131,10 +132,12 @@ async function rpcEditMessage(params: Record<string, unknown>) {
 async function rpcToggleMessageSaved(params: Record<string, unknown>) {
   const messageId = String(params._message_id || params.message_id || '');
   const profileId = await currentProfileId();
+  const authUid = await currentAuthUid();
   if (!messageId || !profileId) return null;
   const msg = await getDocument<Record<string, unknown>>('messages', messageId);
   if (!msg) return null;
-  const isSender = msg.sender_id === profileId;
+  // Migrated messages may retain the Firebase Auth uid instead of profiles.id.
+  const isSender = isMessageSenderId(msg.sender_id, profileId, authUid);
   const senderField = 'saved_by_sender';
   const recipientField = 'saved_by_recipient';
   const field = isSender ? senderField : recipientField;
