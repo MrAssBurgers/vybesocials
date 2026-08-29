@@ -61,6 +61,7 @@ export * from './locationSharing.js';
 export * from './dmInboxProjection.js';
 export * from './contactMatch.js';
 export * from './purgeUnsavedOnLeave.js';
+export * from './profilePrivacy.js';
 
 
 /**

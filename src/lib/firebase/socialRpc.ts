@@ -199,10 +199,15 @@ async function rpcGetOwnSensitiveProfile() {
   const profile = uid ? await getProfileByAuthUid(uid) : null;
   if (!profile) return null;
   const p = profile as unknown as Record<string, unknown>;
+  const privateProfile = await getDocument<Record<string, unknown>>('profile_private', profile.id).catch(() => null);
   return {
     user_id: profile.id,
     email: (p.email as string | null | undefined) ?? null,
     phone: (p.phone as string | null | undefined) ?? null,
+    date_of_birth:
+      (privateProfile?.date_of_birth as string | null | undefined) ??
+      (p.date_of_birth as string | null | undefined) ??
+      null,
     tracking_consent: (p.tracking_consent as boolean | null | undefined) ?? null,
     cookie_consent: (p.cookie_consent as boolean | null | undefined) ?? null,
     crash_report_consent: (p.crash_report_consent as boolean | null | undefined) ?? null,

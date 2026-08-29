@@ -32,6 +32,7 @@ import {
   isAppleAuthUser,
   readAppleProvidedName,
 } from '@/lib/appleNameCapture';
+import { savePrivateProfileDateOfBirth } from '@/lib/profilePrivate';
 
 /** Lock document scroll + hide bottom nav (same shell pattern as Landing). */
 function useOnboardingShell() {
@@ -368,6 +369,18 @@ export default function Onboarding({ onInviteNavigate, isInviteMode = false }: O
         finalUsername;
 
       await ensureProfileRow(user.id);
+      const ensuredProfile = await getProfileByAuthUid(user.id);
+      if (!ensuredProfile?.id) {
+        throw new Error('Could not load your profile. Please try again.');
+      }
+      const privateDateOfBirth = dateOfBirth?.toISOString().split('T')[0] || '';
+      if (privateDateOfBirth) {
+        await savePrivateProfileDateOfBirth({
+          profileId: ensuredProfile.id,
+          authUid: user.id,
+          dateOfBirth: privateDateOfBirth,
+        });
+      }
 
       await updateUserProfile(user.id, {
         username: finalUsername?.toLowerCase(),
@@ -378,7 +391,6 @@ export default function Onboarding({ onInviteNavigate, isInviteMode = false }: O
         link_url: profileData.linkUrl,
         avatar_url: avatarUrl,
         interests: interests,
-        date_of_birth: dateOfBirth?.toISOString().split('T')[0] || null,
         onboarding_completed: true,
       } as any);
 

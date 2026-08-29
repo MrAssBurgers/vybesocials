@@ -1,6 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
 import { db } from '@/lib/firebase';
-import { useAuth } from '@/lib/auth';
 import { useAuthProfileId } from '@/hooks/useAuthProfileId';
 
 /**
@@ -8,7 +7,6 @@ import { useAuthProfileId } from '@/hooks/useAuthProfileId';
  * Friends = accepted friend_requests where either sender or receiver is the user.
  */
 export function useMutualFriends(targetUserId?: string) {
-  const { user } = useAuth();
   const profileId = useAuthProfileId();
 
   return useQuery({
@@ -64,51 +62,16 @@ export function useMutualFriendsCount(targetUserId?: string) {
 }
 
 /**
- * Calculate age in years from a YYYY-MM-DD date_of_birth string.
- */
-function calcAge(dob: string | null | undefined): number | null {
-  if (!dob) return null;
-  const birth = new Date(dob);
-  if (isNaN(birth.getTime())) return null;
-  const now = new Date();
-  let age = now.getFullYear() - birth.getFullYear();
-  const m = now.getMonth() - birth.getMonth();
-  if (m < 0 || (m === 0 && now.getDate() < birth.getDate())) age--;
-  return age;
-}
-
-/**
- * Pick a sensible age window for friend suggestions.
- * Tighter window for minors (safety), wider for adults.
- */
-function ageWindow(myAge: number): { min: number; max: number } {
-  if (myAge < 13) return { min: Math.max(0, myAge - 2), max: myAge + 2 };
-  if (myAge < 18) return { min: Math.max(13, myAge - 2), max: Math.min(17, myAge + 2) };
-  if (myAge < 25) return { min: Math.max(18, myAge - 4), max: myAge + 4 };
-  return { min: Math.max(18, myAge - 7), max: myAge + 7 };
-}
-
-/**
  * Get suggested friends (friends of friends who aren't already your friends)
- * — filtered to a similar age range when the user has a date_of_birth set.
+ * — age-filtered by the server without returning DOBs to the browser.
  */
 export function useSuggestedFriends() {
-  const { user } = useAuth();
   const profileId = useAuthProfileId();
 
   return useQuery({
     queryKey: ['suggested-friends', profileId],
     queryFn: async () => {
       if (!profileId) return [];
-
-      const { data: meProfile } = await db
-        .from('profiles')
-        .select('id, date_of_birth')
-        .eq('id', profileId)
-        .maybeSingle();
-
-      const myAge = calcAge((meProfile as any)?.date_of_birth);
-      const window = myAge !== null ? ageWindow(myAge) : null;
 
       const { data: myFriends } = await db
         .from('friend_requests')
@@ -154,19 +117,22 @@ export function useSuggestedFriends() {
       if (sortedFof.length === 0) return [];
 
       const fofIds = sortedFof.map(([id]) => id);
-      const { data: profiles } = await db
-        .from('profiles')
-        .select('id, username, display_name, avatar_url, is_verified, date_of_birth')
-        .in('id', fofIds);
-
-      // Apply age filter if we know the user's age. Profiles with no DOB are
-      // always allowed through (we can't safely exclude them).
-      const filtered = (profiles || []).filter((p: any) => {
-        if (!window) return true;
-        const a = calcAge(p.date_of_birth);
-        if (a === null) return true;
-        return a >= window.min && a <= window.max;
+      let filtered: any[] = [];
+      const discovery = await db.functions.invoke('get-discovery-profiles', {
+        body: { candidateIds: fofIds, limit: 30 },
       });
+      if (!discovery.error && Array.isArray((discovery.data as any)?.profiles)) {
+        filtered = (discovery.data as any).profiles;
+      } else {
+        if (discovery.error) {
+          console.warn('[FriendsOfFriends] discovery callable unavailable; using public profile fallback', discovery.error.message);
+        }
+        const { data: profiles } = await db
+          .from('profiles')
+          .select('id, username, display_name, avatar_url, is_verified')
+          .in('id', fofIds);
+        filtered = profiles || [];
+      }
 
       // Merge with mutual count
       return filtered.map((p: any) => ({

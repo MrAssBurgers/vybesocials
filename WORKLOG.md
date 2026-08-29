@@ -2,6 +2,35 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## ACTIVE (2026-08-29) — Firebase profile DOB privacy fix
+
+### Goal
+Fix the recent profile-DOB privacy regression where a Supabase column revoke was added after the Firebase migration, leaving the active Firestore `profiles` documents broadly readable and allowing normal discovery/profile reads to fan out `date_of_birth`.
+
+### What changed
+- Added owner-only `profile_private/{profileId}` Firestore rules for sensitive profile fields.
+- Added Firebase Functions:
+  - `onProfilePrivacyWritten` moves newly written public `profiles.date_of_birth` into `profile_private`.
+  - `scrubProfileDateOfBirth` is an admin-only idempotent backfill that copies existing DOB values before deleting the public field.
+  - `getDiscoveryProfiles` returns sanitized discovery candidates and performs age-window filtering server-side without returning DOB.
+- Onboarding now writes DOB to `profile_private` before marking the public profile complete.
+- Quick Add discovery uses the sanitized callable, with an undeployed fallback that selects only public profile fields.
+- The Firebase compatibility adapter now projects requested top-level select fields before returning rows to callers, reducing accidental private-field propagation in app code.
+- Removed the inactive Supabase migration that attempted to fix DOB access on the wrong backend.
+
+### Verification
+- `npm run typecheck` — pass.
+- `npm --prefix functions install` — installed existing Functions lockfile dependencies in this VM.
+- `npm --prefix functions run build` — pass.
+- `npm run test` — 91 files / 435 tests pass.
+- `npm run lint` — pass, 0 errors / 5 pre-existing unused-disable warnings.
+- `npm run build` — pass; entry `app-kZR9WJWW.js`; bundle budget pass at 1,051.4 KB raw / 306.8 KB gzip.
+
+### Blockers / next
+1. Deploy Functions and Firestore rules to `vybe-daaab`, then run `scrubProfileDateOfBirth` as an admin until it reports `scrubbed: 0`.
+2. Lovable Share -> Publish so the sanitized Quick Add/client changes and version manifest reach `vybehub.app`.
+3. Production smoke test: new onboarding DOB write, Add Friends/Quick Add discovery, own ad-age gate, and public profile views.
+
 ## ACTIVE (2026-07-28) — Responsive UI, release delivery, ad privacy, and Apple evidence
 
 ### Goal
