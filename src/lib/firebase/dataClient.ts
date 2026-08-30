@@ -72,6 +72,24 @@ interface JoinSpec {
   fields: string[];
 }
 
+function splitSelectFields(fields: string): string[] {
+  const parts: string[] = [];
+  let current = '';
+  let depth = 0;
+  for (const ch of fields) {
+    if (ch === '(') depth += 1;
+    if (ch === ')') depth = Math.max(0, depth - 1);
+    if (ch === ',' && depth === 0) {
+      if (current.trim()) parts.push(current.trim());
+      current = '';
+      continue;
+    }
+    current += ch;
+  }
+  if (current.trim()) parts.push(current.trim());
+  return parts;
+}
+
 /** Map Supabase `profiles!posts_author_id_fkey` hints to row column names. */
 function resolveJoinForeignKey(parentTable: string, fkHint: string): { column: string; inner: boolean } {
   if (fkHint === 'inner') {
@@ -521,6 +539,36 @@ class QueryBuilder {
     return result;
   }
 
+  private selectedTopLevelFields(): Set<string> | null {
+    const fields = this.selectFields.trim();
+    if (!fields || fields === '*') return null;
+
+    const selected = new Set<string>();
+    for (const part of splitSelectFields(fields)) {
+      if (!part || part === '*') return null;
+      const joinAlias = /^(\w+)\s*:/.exec(part)?.[1];
+      if (joinAlias) {
+        selected.add(joinAlias);
+        continue;
+      }
+      const bare = /^(\w+)$/.exec(part)?.[1];
+      if (bare) selected.add(bare);
+    }
+    return selected.size ? selected : null;
+  }
+
+  private projectSelectedFields(rows: Record<string, unknown>[]): Record<string, unknown>[] {
+    const selected = this.selectedTopLevelFields();
+    if (!selected) return rows;
+    return rows.map((row) => {
+      const projected: Record<string, unknown> = {};
+      for (const field of selected) {
+        if (field in row) projected[field] = row[field];
+      }
+      return projected;
+    });
+  }
+
   async then<TResult1 = QueryResult, TResult2 = never>(
     onfulfilled?: ((value: QueryResult) => TResult1 | PromiseLike<TResult1>) | null,
     onrejected?: ((reason: unknown) => TResult2 | PromiseLike<TResult2>) | null,
@@ -549,7 +597,8 @@ class QueryBuilder {
 
       let rows = await this.fetchRows();
       rows = this.applyClientFilters(rows as Record<string, unknown>[]) as typeof rows;
-      const data = await this.resolveJoins(rows as Record<string, unknown>[]);
+      const joined = await this.resolveJoins(rows as Record<string, unknown>[]);
+      const data = this.projectSelectedFields(joined as Record<string, unknown>[]);
 
       if (this.singleMode === 'single') {
         if (data.length !== 1) {

@@ -39,42 +39,34 @@ export function useQuickAddSuggestions(limit = 8) {
 
       const friendIds = friends?.map(f => f.id) || [];
 
-      // Get my interests + DOB for age-based filtering
+      // Get my interests for ranking. Age filtering happens server-side so
+      // other users' DOBs are never sent to the browser.
       const { data: myProfile } = await db
         .from('profiles')
-        .select('interests, date_of_birth')
+        .select('interests')
         .eq('id', profileId)
         .maybeSingle();
       const myInterests = new Set<string>(
         (myProfile?.interests || []).map((i: string) => i.toLowerCase())
       );
 
-      // Compute age window (tighter for minors, wider for adults)
-      const calcAge = (dob?: string | null): number | null => {
-        if (!dob) return null;
-        const b = new Date(dob);
-        if (isNaN(b.getTime())) return null;
-        const n = new Date();
-        let a = n.getFullYear() - b.getFullYear();
-        const m = n.getMonth() - b.getMonth();
-        if (m < 0 || (m === 0 && n.getDate() < b.getDate())) a--;
-        return a;
-      };
-      const myAge = calcAge((myProfile as any)?.date_of_birth);
-      const ageWin = (() => {
-        if (myAge === null) return null;
-        if (myAge < 13) return { min: Math.max(0, myAge - 2), max: myAge + 2 };
-        if (myAge < 18) return { min: Math.max(13, myAge - 2), max: Math.min(17, myAge + 2) };
-        if (myAge < 25) return { min: Math.max(18, myAge - 4), max: myAge + 4 };
-        return { min: Math.max(18, myAge - 7), max: myAge + 7 };
-      })();
-
-      // Fetch recent profiles; filter self/friends client-side (avoids Firestore inequality+orderBy conflicts)
-      const { data: users } = await db
-        .from('profiles' as any)
-        .select('id, username, display_name, avatar_url, interests, date_of_birth, created_at')
-        .order('created_at', { ascending: false })
-        .limit(120) as any;
+      let users: any[] | null = null;
+      const discovery = await db.functions.invoke('get-discovery-profiles', {
+        body: { limit: 120 },
+      });
+      if (!discovery.error && Array.isArray((discovery.data as any)?.profiles)) {
+        users = (discovery.data as any).profiles;
+      } else {
+        if (discovery.error) {
+          console.warn('[QuickAdd] discovery callable unavailable; using public profile fallback', discovery.error.message);
+        }
+        const fallback = await db
+          .from('profiles' as any)
+          .select('id, username, display_name, avatar_url, interests, created_at')
+          .order('created_at', { ascending: false })
+          .limit(120) as any;
+        users = fallback.data || null;
+      }
 
       const friendIdSet = new Set(friendIds);
 
@@ -82,12 +74,6 @@ export function useQuickAddSuggestions(limit = 8) {
 
       return (users as any[])
         .filter((u: any) => u.id !== profileId && u.username && !friendIdSet.has(u.id))
-        .filter((u: any) => {
-          if (!ageWin) return true;
-          const a = calcAge(u.date_of_birth);
-          if (a === null) return true; // unknown age allowed through
-          return a >= ageWin.min && a <= ageWin.max;
-        })
         .map((u: any) => {
           const theirInterests = (u.interests || []).map((i: string) => i.toLowerCase());
           const shared = theirInterests.filter((i: string) => myInterests.has(i));

@@ -46,7 +46,7 @@ export function useProfileById(profileId: string | undefined) {
       let profile: Profile | null = null;
 
       const profileSelect =
-        'id, user_id, username, avatar_url, bio, created_at, display_name, link_url, location, is_private, is_verified, interests, language, timezone, coins_balance, onboarding_completed, tutorial_completed, tutorial_skipped, intro_completed, badge_settings, date_of_birth';
+        'id, user_id, username, avatar_url, bio, created_at, display_name, link_url, location, is_private, is_verified, interests, language, timezone, coins_balance, onboarding_completed, tutorial_completed, tutorial_skipped, intro_completed, badge_settings';
 
       if (currentProfile) {
         const { data, error } = await db
@@ -150,7 +150,7 @@ export function useProfileByUsername(username: string) {
         for (const candidate of [trimmedUsername, normalizedUsername]) {
           const { data: rows } = await db
             .from('profiles')
-            .select('id, user_id, username, avatar_url, bio, created_at, display_name, link_url, location, is_private, is_verified, interests, language, timezone, coins_balance, onboarding_completed, tutorial_completed, tutorial_skipped, intro_completed, badge_settings, date_of_birth, feature_on_landing')
+            .select('id, user_id, username, avatar_url, bio, created_at, display_name, link_url, location, is_private, is_verified, interests, language, timezone, coins_balance, onboarding_completed, tutorial_completed, tutorial_skipped, intro_completed, badge_settings, feature_on_landing')
             .eq('username', candidate)
             .limit(1);
           if (rows?.[0]) {
@@ -186,7 +186,7 @@ export function useProfileByUsername(username: string) {
       if (!profile && currentProfile) {
         const { data: byUserId } = await db
           .from('profiles')
-          .select('id, user_id, username, avatar_url, bio, created_at, display_name, link_url, location, is_private, is_verified, interests, language, timezone, coins_balance, onboarding_completed, tutorial_completed, tutorial_skipped, intro_completed, badge_settings, date_of_birth, feature_on_landing')
+          .select('id, user_id, username, avatar_url, bio, created_at, display_name, link_url, location, is_private, is_verified, interests, language, timezone, coins_balance, onboarding_completed, tutorial_completed, tutorial_skipped, intro_completed, badge_settings, feature_on_landing')
           .eq('user_id', trimmedUsername)
           .limit(1);
         if (byUserId?.[0]) profile = byUserId[0] as Record<string, unknown>;

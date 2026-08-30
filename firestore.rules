@@ -217,6 +217,24 @@ service cloud.firestore {
       allow update: if signedIn() && (ownsProfileId(userId) || isAdmin());
       allow delete: if isAdmin();
     }
+    // Sensitive owner-only profile fields. Public profile documents are broadly
+    // readable, so DOB and similar PII must live here instead of /profiles.
+    match /profile_private/{profileId} {
+      allow read: if signedIn() && (ownsProfileId(profileId) || isAdmin());
+      allow create, update: if signedIn()
+        && ownsProfileId(profileId)
+        && request.resource.data.keys().hasOnly([
+          'id',
+          'profile_id',
+          'user_id',
+          'date_of_birth',
+          'created_at',
+          'updated_at'
+        ])
+        && request.resource.data.profile_id == profileId
+        && request.resource.data.user_id == uid();
+      allow delete: if isAdmin();
+    }
 
     // Profile-scoped subcollections (settings, prefs, etc.)
     match /profiles/{userId}/{sub=**} {
