@@ -545,7 +545,7 @@ export function useMarkVybeReplayExhausted(conversationId?: string) {
  * Saved messages are exempt from the 48h auto-expiry; both users see the saved state.
  */
 export function useToggleSavedMessage(conversationId?: string) {
-  const { profile } = useAuth();
+  const { profile, user } = useAuth();
   const queryClient = useQueryClient();
   return useMutation({
     // Optimistic flip so the badge animates instantly — never wait on RPC.
@@ -558,7 +558,9 @@ export function useToggleSavedMessage(conversationId?: string) {
         if (!old) return old;
         const profileId = profile?.id;
         if (!profileId) return old;
-        return old.map((m) => (m.id === messageId ? applyMessageSaveToggle(m, profileId) : m));
+        return old.map((m) =>
+          m.id === messageId ? applyMessageSaveToggle(m, profileId, user?.id) : m,
+        );
       });
       return { previous };
     },

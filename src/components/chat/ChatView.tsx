@@ -2491,7 +2491,9 @@ const MessageBubble = memo(function MessageBubble({
   const isVybeMessage = message.media_type === 'vybe';
   const isSharedPost = message.message_type === 'shared_post';
   const isSharedTheme = message.message_type === 'shared_theme';
-  const mySaved = profileId ? isSavedByViewer(message, profileId) : false;
+  const mySaved = profileId
+    ? isSavedByViewer(message, profileId, authUserId)
+    : false;
 
   return (
     <div 
@@ -3046,6 +3048,7 @@ const MessageBubble = memo(function MessageBubble({
     prevProps.showAvatar === nextProps.showAvatar &&
     prevProps.showReactions === nextProps.showReactions &&
     prevProps.profileId === nextProps.profileId &&
+    prevProps.authUserId === nextProps.authUserId &&
     prevProps.forceShowContextMenu === nextProps.forceShowContextMenu &&
     prevProps.message.saved_by_sender === nextProps.message.saved_by_sender &&
     prevProps.message.saved_by_recipient === nextProps.message.saved_by_recipient &&

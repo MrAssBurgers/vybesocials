@@ -115,6 +115,32 @@ service cloud.firestore {
     function isConversationParticipant(cid) {
       return isMember(cid) || isConversationCreatorOf(cid);
     }
+    function messageIdentityUnchanged() {
+      return !request.resource.data.diff(resource.data).affectedKeys()
+        .hasAny(['sender_id', 'conversation_id']);
+    }
+    // A save belongs to one participant. Neither side may clear the other
+    // participant's keep flag and make their message eligible for expiry.
+    function otherMessageSaveUnchanged() {
+      let changed = request.resource.data.diff(resource.data).affectedKeys();
+      return (
+        ownsProfileId(resource.data.get('sender_id', '')) &&
+        !changed.hasAny(['saved_by_recipient'])
+      ) || (
+        !ownsProfileId(resource.data.get('sender_id', '')) &&
+        !changed.hasAny(['saved_by_sender'])
+      );
+    }
+    function changedMessageSaveFlagsValid() {
+      let changed = request.resource.data.diff(resource.data).affectedKeys();
+      return (
+        !changed.hasAny(['saved_by_sender']) ||
+        request.resource.data.get('saved_by_sender', null) is bool
+      ) && (
+        !changed.hasAny(['saved_by_recipient']) ||
+        request.resource.data.get('saved_by_recipient', null) is bool
+      );
+    }
     function safetyOverrideConversationId(overrideId) {
       return get(/databases/$(database)/documents/conversation_safety_overrides/$(overrideId)).data.conversation_id;
     }
@@ -811,10 +837,14 @@ service cloud.firestore {
           (ownsProfileId(resource.data.sender_id) || isAdmin());
         // Sender full update; other members may only touch view/save/expiry fields
         // (needed for 24h timer + keep on save when the recipient is not the sender).
-        allow update: if signedIn() && (
-          ownsProfileId(resource.data.sender_id) ||
-          isAdmin() ||
+        allow update: if isAdmin() || (
+          signedIn() &&
+          messageIdentityUnchanged() &&
+          otherMessageSaveUnchanged() &&
+          changedMessageSaveFlagsValid() &&
           (
+            ownsProfileId(resource.data.sender_id) ||
+            (
             isMember(cid) &&
             request.resource.data.diff(resource.data).affectedKeys().hasOnly([
               'expires_at',
@@ -827,6 +857,7 @@ service cloud.firestore {
               'vybe_replay_exhausted',
               'view_mode'
             ])
+            )
           )
         );
       }
@@ -862,19 +893,27 @@ service cloud.firestore {
       // (blocked-user checks, rate limits, schema/media/membership validation).
       allow create: if false;
       allow delete: if ownsProfileId(resource.data.sender_id) || isAdmin();
-      allow update: if ownsProfileId(resource.data.sender_id) || isAdmin() || (
-        isConversationParticipant(resource.data.conversation_id) &&
-        request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-          'expires_at',
-          'viewed_at',
-          'saved_by_sender',
-          'saved_by_recipient',
-          'saved_at',
-          'updated_at',
-          'replay_count',
-          'vybe_replay_exhausted',
-          'view_mode'
-        ])
+      allow update: if isAdmin() || (
+        messageIdentityUnchanged() &&
+        otherMessageSaveUnchanged() &&
+        changedMessageSaveFlagsValid() &&
+        (
+          ownsProfileId(resource.data.sender_id) ||
+          (
+            isConversationParticipant(resource.data.conversation_id) &&
+            request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+              'expires_at',
+              'viewed_at',
+              'saved_by_sender',
+              'saved_by_recipient',
+              'saved_at',
+              'updated_at',
+              'replay_count',
+              'vybe_replay_exhausted',
+              'view_mode'
+            ])
+          )
+        )
       );
     }
 

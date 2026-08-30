@@ -132,6 +132,30 @@ Fix the recent profile-DOB privacy regression where a Supabase column revoke was
 
 ---
 
+---
+
+## PREVIOUS (2026-08-29) — DM message identity and saved-content integrity (MrAssBurgers cursor branch)
+
+### Goal
+Prevent DM participants from rewriting message ownership/conversation identity or clearing another participant's saved-message state.
+
+### Finding / impact
+- Both flat and nested message update rules authorized against the existing sender, but did not keep `sender_id` or `conversation_id` immutable.
+- A sender could repoint one legitimate message to another conversation and profile, forging message history without the callable's membership, block, or schema checks.
+- Either participant could clear the other participant's saved flag; the expiry workers would then hard-delete content the other person explicitly kept.
+
+### What changed
+- Added shared message-update rule guards that preserve sender/conversation identity and the other participant's save flag.
+- Kept legitimate sender edits, recipient view updates, and each participant's own save toggle working.
+- Added standard-edition Auth/Firestore emulator coverage for flat and nested message paths.
+- Preserved save/unsave behavior and saved badges for migrated messages whose sender is still stored as a Firebase Auth uid.
+
+### Blockers / next
+1. Deploy `firestore:rules` to Firebase project `vybe-daaab`.
+2. Smoke-test sender edit, recipient view, and both save/unsave actions in a real DM after deployment.
+
+---
+
 ## PREVIOUS (2026-07-28) — Responsive UI, release delivery, ad privacy, and Apple evidence
 
 ### Goal

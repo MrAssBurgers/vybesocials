@@ -21,6 +21,7 @@
     "test:dm-send": "node scripts/test-dm-send-path.mjs",
     "test:dm-send-enforcement": "node scripts/test-dm-send-enforcement.mjs",
     "test:dm-send-enforcement:emu": "npx -y firebase-tools@latest emulators:exec --only firestore,auth \"node scripts/test-dm-send-enforcement.mjs\"",
+    "test:message-update-rules": "npx -y firebase-tools@latest emulators:exec --only firestore,auth \"node scripts/test-message-update-rules.mjs\"",
     "test:conversation-load": "node scripts/test-conversation-load.mjs",
     "test:dm-inbox-rules": "node scripts/test-dm-inbox-rules.mjs",
     "test:camera-send-enforcement": "node scripts/test-camera-send-enforcement.mjs",
