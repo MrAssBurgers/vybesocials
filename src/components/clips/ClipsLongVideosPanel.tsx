@@ -5,6 +5,8 @@ import { useInView } from 'react-intersection-observer';
 import { usePersonalizedFeed, useInfiniteFollowingPosts } from '@/hooks/useInfinitePosts';
 import { VideoCard } from '@/components/explore/VideoCard';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { FeedFailureNotice } from '@/components/posts/FeedFailureNotice';
+import { flattenUniqueFeedPosts } from '@/lib/feedReliability';
 import { cn } from '@/lib/utils';
 import { CLIPS_TOP_UI_OFFSET } from '@/lib/clipsLayout';
 import type { ClipsVideoSort } from '@/lib/clipsLayout';
@@ -27,7 +29,7 @@ export const ClipsLongVideosPanel = memo(function ClipsLongVideosPanel() {
   const { data, isLoading, fetchNextPage, hasNextPage, isFetchingNextPage } = activeQuery;
 
   const videos = useMemo(() => {
-    const all = data?.pages.flatMap((page) => page.posts) || [];
+    const all = flattenUniqueFeedPosts(data?.pages);
     if (sort === 'trending') {
       return [...all].sort((a, b) => (b.view_count || 0) - (a.view_count || 0));
     }
@@ -69,9 +71,10 @@ export const ClipsLongVideosPanel = memo(function ClipsLongVideosPanel() {
             <button
               key={id}
               type="button"
+              aria-pressed={active}
               onClick={() => setSort(id)}
               className={cn(
-                'flex items-center gap-1.5 shrink-0 rounded-full px-3.5 py-1.5 text-xs font-semibold transition-all',
+                'flex items-center gap-1.5 shrink-0 min-h-11 rounded-full px-3.5 py-1.5 text-xs font-semibold transition-all',
                 active
                   ? 'bg-gradient-to-r from-primary via-accent to-[hsl(var(--neon-pink))] text-primary-foreground shadow-md'
                   : 'liquid-glass-card border border-border/40 text-muted-foreground',
@@ -90,6 +93,8 @@ export const ClipsLongVideosPanel = memo(function ClipsLongVideosPanel() {
             <div key={i} className="aspect-video rounded-xl bg-muted animate-pulse" />
           ))}
         </div>
+      ) : activeQuery.isError && videos.length === 0 ? (
+        <div className="px-4 pt-8"><FeedFailureNotice label="videos" retrying={activeQuery.isFetching} onRetry={() => { void activeQuery.refetch(); }} /></div>
       ) : videos.length === 0 ? (
         <div className="px-4 pt-8">
           <EmptyState

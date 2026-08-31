@@ -4,6 +4,7 @@ import { useAuth } from '@/lib/auth';
 import { hasStoredAuthSession } from '@/lib/legacyAuthStorage';
 import { stashAuthReturnPath } from '@/lib/authReturnPath';
 import { shouldBlockPostLoginNavigation } from '@/lib/loginApprovalGate';
+import { GuestContentGate } from './GuestContentGate';
 
 interface ProtectedRouteProps {
   children: ReactNode;
@@ -11,7 +12,7 @@ interface ProtectedRouteProps {
   allowGuest?: boolean;
 }
 
-// Routes that guests can browse (view-only)
+// Read-only entry routes that retain the destination while asking guests to sign in.
 const GUEST_ALLOWED_ROUTES = ['/home', '/explore', '/clips', '/shorts', '/p/', '/u/', '/friend/'];
 
 /**
@@ -30,11 +31,11 @@ export function ProtectedRoute({ children, allowGuest }: ProtectedRouteProps) {
 
   // Check if current route allows guest access
   const isGuestAllowedRoute = allowGuest || GUEST_ALLOWED_ROUTES.some(route =>
-    location.pathname === route || location.pathname.startsWith(route)
+    location.pathname === route || location.pathname.startsWith(route.endsWith('/') ? route : `${route}/`)
   );
 
-  // Is there a stored Supabase session on disk? If yes, the user IS signed in;
-  // auth restore just hasn't finished resolving (cold start, slow network,
+  // A stored session is a restoration hint, not authorization. Avoid redirecting
+  // during cold start, a slow network, or
   // background token refresh). We must NOT bounce them to "/" — that creates
   // the "loading session loop" where DMs redirect to landing then back again.
   const hasStoredToken = hasStoredAuthSession();
@@ -44,9 +45,11 @@ export function ProtectedRoute({ children, allowGuest }: ProtectedRouteProps) {
     return <Navigate to="/auth" replace />;
   }
 
-  // Allow guest access to browse-only routes
-  if (!user && isGuestAllowedRoute) {
-    return <>{children}</>;
+  // An explicitly public component may opt in; database-backed guest routes
+  // show the account requirement instead of issuing guaranteed-denied reads.
+  if (!user && allowGuest === true) return <>{children}</>;
+  if (!user && authReady && !hasStoredToken && isGuestAllowedRoute) {
+    return <GuestContentGate />;
   }
 
   // Auth still restoring — never treat as signed-out (OAuth redirect race).
@@ -55,7 +58,7 @@ export function ProtectedRoute({ children, allowGuest }: ProtectedRouteProps) {
   if (!authReady) {
     if (hasStoredToken) return <>{children}</>;
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
+      <div role="status" aria-label="Restoring your session" className="min-h-screen bg-background flex items-center justify-center">
         <div className="w-8 h-8 rounded-full border-[3px] border-primary/30 border-t-primary animate-spin" />
       </div>
     );

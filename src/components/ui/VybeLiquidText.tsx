@@ -22,8 +22,6 @@ const streamStyle: React.CSSProperties = {
   backgroundSize: '200% 100%',
   WebkitBackgroundClip: 'text',
   backgroundClip: 'text',
-  WebkitTextFillColor: 'transparent',
-  color: 'transparent',
   animation: 'vybe-liquid-text-roll calc(22s * var(--anim-speed, 1)) linear infinite',
 };
 
@@ -60,7 +58,7 @@ export function VybeLiquidText<T extends React.ElementType = 'span'>({
       >
         {children}
       </span>
-      <span className="vybe-liquid-text__stream relative block" style={streamStyle}>
+      <span className="vybe-liquid-text__stream relative block text-transparent" style={streamStyle}>
         {children}
       </span>
     </Comp>

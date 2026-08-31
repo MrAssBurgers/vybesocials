@@ -26,7 +26,8 @@ function TabButton({
     <button
       type="button"
       onClick={onClick}
-      className="relative px-1 py-0.5"
+      aria-pressed={isActive}
+      className="relative min-h-11 min-w-11 px-1 py-0.5"
     >
       <span
         className={cn(
@@ -72,7 +73,7 @@ export const ClipsFeedHeader = memo(function ClipsFeedHeader({
           <VybeMiniIcon size={22} className={cn('opacity-90', isDark && 'drop-shadow-lg')} />
         </div>
 
-        <div className="absolute left-1/2 -translate-x-1/2 flex items-center gap-3.5 sm:gap-5 max-w-[min(100vw-7rem,240px)] justify-center">
+        <div className="absolute left-1/2 -translate-x-1/2 flex items-center gap-3.5 sm:gap-5 max-w-[min(calc(100vw-7rem),240px)] justify-center">
           <TabButton
             label="Following"
             isActive={active === 'following'}
@@ -96,7 +97,7 @@ export const ClipsFeedHeader = memo(function ClipsFeedHeader({
         <Link
           to="/explore"
           className={cn(
-            'w-9 h-9 rounded-full flex items-center justify-center text-foreground active:scale-95 transition-transform',
+            'w-11 h-11 rounded-full flex items-center justify-center text-foreground active:scale-95 transition-transform',
             nativePerf
               ? 'bg-card/80 border border-border/40'
               : 'liquid-glass-button border border-primary/20',

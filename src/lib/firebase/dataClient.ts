@@ -27,6 +27,7 @@ import {
   isFounderAuthId,
 } from '@/lib/previewSandbox';
 import { isFeedRpc, normalizeRpcFeedRows, runFeedRpc } from './feedRpc';
+import { readFeedResult } from '@/lib/feedReliability';
 import { isSocialRpc, runSocialRpc } from './socialRpc';
 import { isNotYetPortedPayload } from './functionsService';
 import { getProfileByAuthUid, resolveProfileIdFromAuthUid } from './profileResolve';
@@ -1341,15 +1342,7 @@ export function createDataClient() {
 
       // Feed RPCs: Firestore client first (cloud stubs caused CORS noise on vybehub.app).
       if (isFeedRpc(name)) {
-        const promise = (async () => {
-          try {
-            const rows = await runFeedRpc(name, params);
-            return { data: rows, error: null } as any;
-          } catch (err) {
-            console.warn(`[Feed RPC] ${name} client fallback failed:`, err);
-            return { data: [], error: null } as any;
-          }
-        })();
+        const promise = readFeedResult(() => runFeedRpc(name, params));
         const enriched = promise as Promise<any> & {
           single: () => Promise<any>;
           maybeSingle: () => Promise<any>;
