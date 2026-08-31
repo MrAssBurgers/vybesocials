@@ -1,0 +1,1804 @@
+diff --git a/docs/qa/core-feed-reliability.md b/docs/qa/core-feed-reliability.md
+new file mode 100644
+index 00000000..15ea6276
+--- /dev/null
++++ b/docs/qa/core-feed-reliability.md
+@@ -0,0 +1,66 @@
++# Core feed reliability repair
++
++## Status
++
++The source changes are committed on `qa/mobile-public-readiness-fixes-b7f4`, the branch used by pull request 57. This report does not certify a public release, an authenticated end-to-end test, or a production deployment.
++
++Latest source/test revision recorded here: `15968d713810d7fae201e47322073e400d497b8d`.
++
++## Implemented
++
++- Guest entry routes explain the existing sign-in requirement before mounting database-backed screens. Sign-in preserves the requested destination, filters, and anchor. This is an access/error-handling correction, not implementation of public guest access to posts. Firestore access rules were not relaxed.
++- Feed adapters preserve permission and network errors. Feed hooks reject failed reads so retry controls appear instead of a false empty result.
++- Clips retain server-ranked order as pages append. Duplicate IDs are removed without reshuffling existing entries.
++- Pagination uses received row counts before local filtering, so filtering a full page does not prematurely mark it as the last page.
++- Explore includes author IDs needed for filtering, retains the viewer's own posts, normalizes malformed tags, restores URL filters on browser Back/Forward, and provides accessible filter controls.
++- Feed keyboard shortcuts ignore typing, dialogs, modifier combinations, and IME composition. Browser storage restrictions no longer break mute preference handling.
++- Clip detail query keys include viewer identity. Read errors are distinguished from missing content.
++- Clips and Explore have route-level error boundaries. These contain rendering errors but do not prove resolution of the earlier live WebKit authentication-context report.
++- Reduced-motion account headings remain visible. An invalid Firebase Storage preconnect was removed.
++- Signed-out entry screens no longer mount floating bottom navigation over sign-in controls. Their bottom spacing was adjusted, and three navigation unit tests were added.
++- Browser regressions check actual touch hit targets and completed keyboard-focus restoration, rather than only element dimensions or immediate modal visibility.
++
++## Completed verification
++
++Run `33354772048` completed successfully and saved verified source commit `e9f6b0b415aba5a041c4734678e444530dd34499`.
++
++- 495 unit/component tests passed, with zero failures.
++- 54 existing shared-UI/auth browser scenarios passed.
++- 16 production-build guest entry-route browser scenarios passed.
++- Typecheck, lint, build, CSS validation, startup validation, bundle budget, and camera-send static checks exited 0.
++
++The 70 browser scenarios above validate scoped UI behavior. They do not establish successful authenticated feeds, messages, calls, uploads, notifications, purchases, or physical-device behavior.
++
++Evidence artifact: `9744921966`, from run `33354772048`. Its SHA256 is `0aa49f5fb40c84ac326718edbf8f3edf64bf0b1949ae22272fa1f0587cf66911`.
++
++## Subsequent changes and verification limits
++
++Screenshot review after that passing run found a landscape overlap involving floating navigation. The correction is in `874ccb1c6675b3c78f3c33b71b54cea29c77fe8e`.
++
++Run `33356118846` passed static checks, unit tests, and the production build, but failed a browser focus-restoration check. Its guest-route tests did not run.
++
++Commit `0edfd653a4c16a827d16009bf62b5ce2b2ac86f0` waits for modal cleanup to restore focus before asserting. Run `33356892728` again passed the static/unit/build checks but encountered two WebKit long-panel tap timeouts. Its guest-route checks did not run.
++
++Commit `15968d713810d7fae201e47322073e400d497b8d` verifies the visible, enabled, unobscured footer target with a real touchscreen tap and requires the resulting handler state. It also collects guest-route checks independently when shared-UI checks fail.
++
++Run `33357840709` was last observed with typecheck, unit/component tests, lint, production build, CSS/startup/bundle validation, and camera-send static checks successful. Shared-UI browser tests were still in progress at that observation. No completed final browser result is certified by this report. Consult that run and its artifacts for a newer result before merging.
++
++## Test environment
++
++Unit authentication/feed states use mocks. Browser scenarios use the production web build on local preview and isolated shared components. Guest-route browser tests block remote non-read requests. No credentials, real password-reset emails, public posts, private messages, calls, payments, or account deletions were submitted.
++
++## Unverified release requirements
++
++No reusable authorized QA login was recovered. Signed-in posting/uploads, messages, groups, calls, friend actions, notifications, purchases, maps, settings persistence, and cross-user interactions still require end-to-end verification.
++
++Physical iOS/Android devices, native keyboard/back navigation, OAuth handoff, push delivery, offline/background resume, and billing sandbox behavior remain unverified.
++
++The earlier live WebKit Clips authentication-context error requires reproduction in the signed-in application. A guest sign-in screen and an error boundary do not establish that its underlying cause is repaired.
++
++No Firebase rules, secrets, functions, hosting, or live deployment were changed by this repair batch. Historical SMS and security/privacy deployment notes require separate current verification.
++
++## Next three tasks
++
++1. Inspect the final artifacts from run `33357840709`, fix any remaining failures, and repeat the affected browser checks.
++2. Complete dedicated-account end-to-end tests and the installed iOS/Android permission/navigation/offline matrix.
++3. Review the approved source, publish through the established deployment process, and test the deployed revision.
+diff --git a/index.html b/index.html
+index ee292b77..2b1c8618 100644
+--- a/index.html
++++ b/index.html
+@@ -39,7 +39,6 @@
+ 
+     <meta charset="UTF-8" />
+     <link rel="preconnect" href="https://firebasestorage.googleapis.com" crossorigin />
+-    <link rel="preconnect" href="https://vybe-daaab.firebasestorage.app" crossorigin />
+     <link rel="dns-prefetch" href="https://firebasestorage.googleapis.com" />
+     <meta name="google-site-verification" content="b3Q9zX83fSqJHGmuLFY17oIIoTvFnoDN6Ba6isHL_B0" />
+ 
+diff --git a/scripts/qa/core-feature-smoke.mjs b/scripts/qa/core-feature-smoke.mjs
+new file mode 100644
+index 00000000..33b7c4bc
+--- /dev/null
++++ b/scripts/qa/core-feature-smoke.mjs
+@@ -0,0 +1,120 @@
++import fs from 'node:fs/promises';
++import path from 'node:path';
++import { createRequire } from 'node:module';
++import { spawn } from 'node:child_process';
++import assert from 'node:assert/strict';
++
++const tools = process.env.PLAYWRIGHT_PACKAGE_ROOT;
++if (!tools) throw new Error('Set PLAYWRIGHT_PACKAGE_ROOT to the isolated Playwright installation.');
++const { chromium, webkit, devices } = createRequire(path.join(tools, 'package.json'))('playwright');
++const origin = 'http://127.0.0.1:4176';
++const output = path.resolve('artifacts/core-feature-smoke');
++await fs.mkdir(output, { recursive: true });
++const report = {
++  sourceCommit: process.env.GITHUB_SHA || null,
++  startedAt: new Date().toISOString(),
++  scope: 'Actual built app, signed out. Remote non-read requests blocked. No credentials, content submissions, authenticated E2E or native-device certification.',
++  cases: [],
++};
++const server = spawn(process.execPath, ['node_modules/vite/bin/vite.js', 'preview', '--host', '127.0.0.1', '--port', '4176', '--strictPort'], { stdio: ['ignore', 'pipe', 'pipe'] });
++let serverLog = '';
++server.stdout.on('data', chunk => { serverLog += chunk; });
++server.stderr.on('data', chunk => { serverLog += chunk; });
++server.on('error', error => { serverLog += String(error); });
++const profiles = [
++  { name: 'desktop', engine: 'chromium', options: { viewport: { width: 1440, height: 900 } } },
++  { name: 'android', engine: 'chromium', options: devices['Pixel 7'] },
++  { name: 'iphone', engine: 'webkit', options: devices['iPhone 13'] },
++  { name: 'landscape', engine: 'webkit', options: { ...devices['iPhone 13'], viewport: { width: 844, height: 390 } } },
++];
++const routes = ['/home', '/explore?q=music', '/clips', '/clips/qa-read-only'];
++const safeError = value => String(value).replace(/https?:\/\/[^\s"'<>]+/g, url => {
++  try { const parsed = new URL(url); return parsed.origin + parsed.pathname; } catch { return '[url]'; }
++}).slice(0, 1800);
++try {
++  let ready = false;
++  for (let i = 0; i < 60; i++) {
++    if (server.exitCode !== null) throw new Error('Preview server stopped.');
++    try { if ((await fetch(origin)).ok) { ready = true; break; } } catch { /* server is starting */ }
++    await new Promise(resolve => setTimeout(resolve, 500));
++  }
++  if (!ready) throw new Error('Preview server did not start.');
++  for (const profile of profiles) {
++    const browser = await (profile.engine === 'webkit' ? webkit : chromium).launch({ headless: true });
++    try {
++      for (const route of routes) {
++        const row = { profile: profile.name, engine: profile.engine, browserVersion: browser.version(), route, status: 'NOT_RUN', checks: [], pageErrors: [], blockedNonReadRequests: 0 };
++        const context = await browser.newContext({ ...profile.options, reducedMotion: 'reduce', permissions: [] });
++        context.setDefaultTimeout(10000);
++        await context.route('**/*', requestRoute => {
++          const request = requestRoute.request();
++          if (new URL(request.url()).origin !== origin && !['GET', 'HEAD', 'OPTIONS'].includes(request.method())) {
++            row.blockedNonReadRequests++;
++            return requestRoute.abort();
++          }
++          return requestRoute.continue();
++        });
++        const page = await context.newPage();
++        page.on('pageerror', error => row.pageErrors.push(safeError(error)));
++        const check = (name, value) => {
++          row.checks.push({ name, passed: !!value });
++          assert.ok(value, name);
++        };
++        const stem = `${profile.name}-${route.replace(/[^a-z0-9]/gi, '_')}`;
++        try {
++          const response = await page.goto(origin + route, { waitUntil: 'domcontentloaded', timeout: 45000 });
++          check('HTTP page loads', response && response.status() < 400);
++          const main = page.getByRole('main', { name: 'Sign in to browse VYBE', exact: true });
++          await main.waitFor({ state: 'visible', timeout: 40000 });
++          await page.waitForTimeout(2300);
++          const dismiss = page.getByRole('button', { name: 'Dismiss cookie notice', exact: true });
++          if (await dismiss.isVisible()) { await dismiss.click(); await dismiss.waitFor({ state: 'hidden' }); }
++          check('A named guest screen replaces denied queries', await main.count() === 1);
++          check('Guest screen has one title', await main.getByRole('heading', { level: 1 }).count() === 1);
++          check('Signed-out screen has no overlapping floating navigation', await page.getByRole('navigation', { name: 'Bottom navigation', exact: true }).count() === 0);
++          check('No horizontal document overflow', await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1));
++          for (const name of ['Sign in', 'Create account', 'Learn about VYBE']) {
++            const control = main.getByRole('link', { name, exact: true });
++            await control.scrollIntoViewIfNeeded();
++            await control.click({ trial: true }); // Verify hit testing without navigating or submitting.
++            const box = await control.boundingBox();
++            check(`${name} is reachable and has a 44px target`, box && box.width >= 43.5 && box.height >= 43.5 && box.y >= -1 && box.y + box.height <= profile.options.viewport.height + 1);
++          }
++          await page.screenshot({ path: path.join(output, `${stem}-actions.png`), animations: 'disabled' });
++          await main.evaluate(element => { element.scrollTop = 0; });
++          await page.screenshot({ path: path.join(output, `${stem}.png`), animations: 'disabled' });
++          if (route.startsWith('/explore')) {
++            await main.getByRole('link', { name: 'Sign in', exact: true }).click();
++            await page.waitForURL(url => url.pathname === '/login');
++            await page.locator('#email').waitFor({ state: 'visible', timeout: 30000 });
++            check('Sign in opens the real account form', await page.locator('#email').isVisible());
++            const heading = page.locator('h1 .vybe-liquid-text__stream').first();
++            const fill = await heading.evaluate(element => getComputedStyle(element).webkitTextFillColor);
++            check('Reduced-motion account title is visible', fill !== 'transparent' && fill !== 'rgba(0, 0, 0, 0)');
++            await page.goBack();
++            await main.waitFor({ state: 'visible' });
++            check('Browser Back restores the original query', new URL(page.url()).searchParams.get('q') === 'music');
++          }
++          check('No uncaught browser exceptions', row.pageErrors.length === 0);
++          row.status = 'PASS';
++        } catch (error) {
++          row.status = 'FAIL'; row.error = safeError(error);
++          row.body = (await page.locator('body').innerText().catch(() => '')).slice(0, 1800);
++          await page.screenshot({ path: path.join(output, `${stem}-error.png`), animations: 'disabled', timeout: 10000 }).catch(() => {});
++        } finally {
++          page.removeAllListeners(); await context.close(); report.cases.push(row);
++          await fs.writeFile(path.join(output, 'report.json'), JSON.stringify(report, null, 2));
++          console.log('CORE_SMOKE', JSON.stringify(row));
++        }
++      }
++    } finally { await browser.close(); }
++  }
++} finally {
++  server.kill('SIGTERM');
++  report.finishedAt = new Date().toISOString();
++  report.counts = report.cases.reduce((counts, row) => ({ ...counts, [row.status]: (counts[row.status] || 0) + 1 }), {});
++  await fs.writeFile(path.join(output, 'report.json'), JSON.stringify(report, null, 2));
++  await fs.writeFile(path.join(output, 'server.log'), serverLog);
++}
++assert.equal(report.cases.length, profiles.length * routes.length, 'Every declared browser case must run.');
++assert.ok(report.cases.every(row => row.status === 'PASS'), 'Some core-route browser checks failed.');
+diff --git a/src/components/auth/GuestContentGate.tsx b/src/components/auth/GuestContentGate.tsx
+new file mode 100644
+index 00000000..02409d49
+--- /dev/null
++++ b/src/components/auth/GuestContentGate.tsx
+@@ -0,0 +1,32 @@
++import { Compass } from 'lucide-react';
++import { Link, useLocation } from 'react-router-dom';
++import { Button } from '@/components/ui/button';
++import { stashAuthReturnPath } from '@/lib/authReturnPath';
++
++/** The current Firebase policy requires an account for posts and profiles. */
++export function GuestContentGate() {
++  const location = useLocation();
++  const saveDestination = () => stashAuthReturnPath(`${location.pathname}${location.search}${location.hash}`);
++  return (
++    <main id="main-content" tabIndex={-1} aria-labelledby="guest-content-title"
++      className="flex h-dvh flex-col overflow-y-auto overscroll-contain bg-background px-5 outline-none"
++      style={{ paddingTop: 'calc(var(--sat, 0px) + 2rem)', paddingBottom: 'calc(var(--sab, 0px) + 2rem)', paddingLeft: 'max(1.25rem, var(--sal, 0px))', paddingRight: 'max(1.25rem, var(--sar, 0px))' }}>
++      <section className="mx-auto my-auto w-full max-w-sm shrink-0 space-y-5 rounded-3xl border border-border bg-card p-6 text-center shadow-sm">
++        <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 text-primary">
++          <Compass className="h-6 w-6" aria-hidden="true" />
++        </div>
++        <h1 id="guest-content-title" className="text-2xl font-semibold tracking-tight text-foreground">Sign in to browse VYBE</h1>
++        <p className="text-sm leading-relaxed text-muted-foreground">Posts, clips, and profiles are available after you sign in. Your place will be saved.</p>
++        <div className="flex flex-col gap-3">
++          <Button asChild className="min-h-11 w-full">
++            <Link to="/login" state={{ from: location }} onClick={saveDestination}>Sign in</Link>
++          </Button>
++          <Button asChild variant="outline" className="min-h-11 w-full">
++            <Link to="/signup" state={{ from: location }} onClick={saveDestination}>Create account</Link>
++          </Button>
++          <Link to="/about" className="inline-flex min-h-11 items-center justify-center rounded-xl text-sm text-primary underline-offset-4 hover:underline focus-visible:outline focus-visible:outline-2">Learn about VYBE</Link>
++        </div>
++      </section>
++    </main>
++  );
++}
+diff --git a/src/components/auth/ProtectedRoute.test.tsx b/src/components/auth/ProtectedRoute.test.tsx
+new file mode 100644
+index 00000000..a148fcf6
+--- /dev/null
++++ b/src/components/auth/ProtectedRoute.test.tsx
+@@ -0,0 +1,70 @@
++import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
++import { cleanup, fireEvent, render, screen } from '@testing-library/react';
++import { MemoryRouter, Route, Routes } from 'react-router-dom';
++import { ProtectedRoute } from './ProtectedRoute';
++
++const state = vi.hoisted(() => ({
++  auth: { user: null as null | { id: string }, profile: null as null | { onboarding_completed: boolean }, authReady: true },
++  stored: false, approval: false, stash: vi.fn(),
++}));
++vi.mock('@/lib/auth', () => ({ useAuth: () => state.auth }));
++vi.mock('@/lib/legacyAuthStorage', () => ({ hasStoredAuthSession: () => state.stored }));
++vi.mock('@/lib/loginApprovalGate', () => ({ shouldBlockPostLoginNavigation: () => state.approval }));
++vi.mock('@/lib/authReturnPath', () => ({ stashAuthReturnPath: state.stash }));
++
++beforeEach(() => {
++  state.auth = { user: null, profile: null, authReady: true };
++  state.stored = false; state.approval = false; state.stash.mockClear();
++});
++afterEach(cleanup);
++function show(path = '/explore?q=music#results', allowGuest?: boolean) {
++  return render(<MemoryRouter initialEntries={[path]}><Routes>
++    <Route path="/login" element={<p>Login destination</p>} />
++    <Route path="/auth" element={<p>Authentication destination</p>} />
++    <Route path="/onboarding" element={<p>Onboarding destination</p>} />
++    <Route path="*" element={<ProtectedRoute allowGuest={allowGuest}><p>Protected feature mounted</p></ProtectedRoute>} />
++  </Routes></MemoryRouter>);
++}
++
++describe('database-backed route access', () => {
++  it.each(['/home', '/explore', '/clips', '/clips/post-1', '/u/alex', '/p/post-1'])('does not mount protected data hooks for guest %s', path => {
++    show(path);
++    expect(screen.getByRole('heading', { name: 'Sign in to browse VYBE' })).toBeInTheDocument();
++    expect(screen.queryByText('Protected feature mounted')).not.toBeInTheDocument();
++  });
++  it('preserves the requested route, filters, and anchor on sign-in', () => {
++    show();
++    fireEvent.click(screen.getByRole('link', { name: 'Sign in', exact: true }));
++    expect(state.stash).toHaveBeenCalledWith('/explore?q=music#results');
++    expect(screen.getByText('Login destination')).toBeInTheDocument();
++  });
++  it('shows a named loading state while restoring auth instead of firing guest queries', () => {
++    state.auth.authReady = false; show();
++    expect(screen.getByRole('status', { name: 'Restoring your session' })).toBeInTheDocument();
++    expect(screen.queryByText('Protected feature mounted')).not.toBeInTheDocument();
++  });
++  it('keeps authenticated screens accessible', () => {
++    state.auth = { user: { id: 'test-user' }, profile: { onboarding_completed: true }, authReady: true }; show();
++    expect(screen.getByText('Protected feature mounted')).toBeInTheDocument();
++  });
++  it('preserves existing cached-session restoration', () => {
++    state.stored = true; state.auth.authReady = false; show();
++    expect(screen.getByText('Protected feature mounted')).toBeInTheDocument();
++  });
++  it('does not bypass pending login approval', () => {
++    state.approval = true; show();
++    expect(screen.getByText('Authentication destination')).toBeInTheDocument();
++  });
++  it('does not bypass onboarding', () => {
++    state.auth = { user: { id: 'test-user' }, profile: { onboarding_completed: false }, authReady: true }; show();
++    expect(screen.getByText('Onboarding destination')).toBeInTheDocument();
++  });
++  it('does not classify prefix lookalikes as guest routes', () => {
++    show('/home-settings');
++    expect(screen.getByText('Authentication destination')).toBeInTheDocument();
++  });
++  it('allows explicitly public components', () => {
++    show('/public-help', true);
++    expect(screen.getByText('Protected feature mounted')).toBeInTheDocument();
++  });
++});
+diff --git a/src/components/auth/ProtectedRoute.tsx b/src/components/auth/ProtectedRoute.tsx
+index 3b082740..d1235fc7 100644
+--- a/src/components/auth/ProtectedRoute.tsx
++++ b/src/components/auth/ProtectedRoute.tsx
+@@ -4,6 +4,7 @@ import { useAuth } from '@/lib/auth';
+ import { hasStoredAuthSession } from '@/lib/legacyAuthStorage';
+ import { stashAuthReturnPath } from '@/lib/authReturnPath';
+ import { shouldBlockPostLoginNavigation } from '@/lib/loginApprovalGate';
++import { GuestContentGate } from './GuestContentGate';
+ 
+ interface ProtectedRouteProps {
+   children: ReactNode;
+@@ -11,7 +12,7 @@ interface ProtectedRouteProps {
+   allowGuest?: boolean;
+ }
+ 
+-// Routes that guests can browse (view-only)
++// Read-only entry routes that retain the destination while asking guests to sign in.
+ const GUEST_ALLOWED_ROUTES = ['/home', '/explore', '/clips', '/shorts', '/p/', '/u/', '/friend/'];
+ 
+ /**
+@@ -30,11 +31,11 @@ export function ProtectedRoute({ children, allowGuest }: ProtectedRouteProps) {
+ 
+   // Check if current route allows guest access
+   const isGuestAllowedRoute = allowGuest || GUEST_ALLOWED_ROUTES.some(route =>
+-    location.pathname === route || location.pathname.startsWith(route)
++    location.pathname === route || location.pathname.startsWith(route.endsWith('/') ? route : `${route}/`)
+   );
+ 
+-  // Is there a stored Supabase session on disk? If yes, the user IS signed in;
+-  // auth restore just hasn't finished resolving (cold start, slow network,
++  // A stored session is a restoration hint, not authorization. Avoid redirecting
++  // during cold start, a slow network, or
+   // background token refresh). We must NOT bounce them to "/" — that creates
+   // the "loading session loop" where DMs redirect to landing then back again.
+   const hasStoredToken = hasStoredAuthSession();
+@@ -44,9 +45,11 @@ export function ProtectedRoute({ children, allowGuest }: ProtectedRouteProps) {
+     return <Navigate to="/auth" replace />;
+   }
+ 
+-  // Allow guest access to browse-only routes
+-  if (!user && isGuestAllowedRoute) {
+-    return <>{children}</>;
++  // An explicitly public component may opt in; database-backed guest routes
++  // show the account requirement instead of issuing guaranteed-denied reads.
++  if (!user && allowGuest === true) return <>{children}</>;
++  if (!user && authReady && !hasStoredToken && isGuestAllowedRoute) {
++    return <GuestContentGate />;
+   }
+ 
+   // Auth still restoring — never treat as signed-out (OAuth redirect race).
+@@ -55,7 +58,7 @@ export function ProtectedRoute({ children, allowGuest }: ProtectedRouteProps) {
+   if (!authReady) {
+     if (hasStoredToken) return <>{children}</>;
+     return (
+-      <div className="min-h-screen bg-background flex items-center justify-center">
++      <div role="status" aria-label="Restoring your session" className="min-h-screen bg-background flex items-center justify-center">
+         <div className="w-8 h-8 rounded-full border-[3px] border-primary/30 border-t-primary animate-spin" />
+       </div>
+     );
+diff --git a/src/components/clips/ClipsFeedHeader.tsx b/src/components/clips/ClipsFeedHeader.tsx
+index f4b589ca..15479dc6 100644
+--- a/src/components/clips/ClipsFeedHeader.tsx
++++ b/src/components/clips/ClipsFeedHeader.tsx
+@@ -26,7 +26,8 @@ function TabButton({
+     <button
+       type="button"
+       onClick={onClick}
+-      className="relative px-1 py-0.5"
++      aria-pressed={isActive}
++      className="relative min-h-11 min-w-11 px-1 py-0.5"
+     >
+       <span
+         className={cn(
+@@ -72,7 +73,7 @@ export const ClipsFeedHeader = memo(function ClipsFeedHeader({
+           <VybeMiniIcon size={22} className={cn('opacity-90', isDark && 'drop-shadow-lg')} />
+         </div>
+ 
+-        <div className="absolute left-1/2 -translate-x-1/2 flex items-center gap-3.5 sm:gap-5 max-w-[min(100vw-7rem,240px)] justify-center">
++        <div className="absolute left-1/2 -translate-x-1/2 flex items-center gap-3.5 sm:gap-5 max-w-[min(calc(100vw-7rem),240px)] justify-center">
+           <TabButton
+             label="Following"
+             isActive={active === 'following'}
+@@ -96,7 +97,7 @@ export const ClipsFeedHeader = memo(function ClipsFeedHeader({
+         <Link
+           to="/explore"
+           className={cn(
+-            'w-9 h-9 rounded-full flex items-center justify-center text-foreground active:scale-95 transition-transform',
++            'w-11 h-11 rounded-full flex items-center justify-center text-foreground active:scale-95 transition-transform',
+             nativePerf
+               ? 'bg-card/80 border border-border/40'
+               : 'liquid-glass-button border border-primary/20',
+diff --git a/src/components/clips/ClipsLongVideosPanel.tsx b/src/components/clips/ClipsLongVideosPanel.tsx
+index f5656511..110511a4 100644
+--- a/src/components/clips/ClipsLongVideosPanel.tsx
++++ b/src/components/clips/ClipsLongVideosPanel.tsx
+@@ -5,6 +5,8 @@ import { useInView } from 'react-intersection-observer';
+ import { usePersonalizedFeed, useInfiniteFollowingPosts } from '@/hooks/useInfinitePosts';
+ import { VideoCard } from '@/components/explore/VideoCard';
+ import { EmptyState } from '@/components/ui/EmptyState';
++import { FeedFailureNotice } from '@/components/posts/FeedFailureNotice';
++import { flattenUniqueFeedPosts } from '@/lib/feedReliability';
+ import { cn } from '@/lib/utils';
+ import { CLIPS_TOP_UI_OFFSET } from '@/lib/clipsLayout';
+ import type { ClipsVideoSort } from '@/lib/clipsLayout';
+@@ -27,7 +29,7 @@ export const ClipsLongVideosPanel = memo(function ClipsLongVideosPanel() {
+   const { data, isLoading, fetchNextPage, hasNextPage, isFetchingNextPage } = activeQuery;
+ 
+   const videos = useMemo(() => {
+-    const all = data?.pages.flatMap((page) => page.posts) || [];
++    const all = flattenUniqueFeedPosts(data?.pages);
+     if (sort === 'trending') {
+       return [...all].sort((a, b) => (b.view_count || 0) - (a.view_count || 0));
+     }
+@@ -69,9 +71,10 @@ export const ClipsLongVideosPanel = memo(function ClipsLongVideosPanel() {
+             <button
+               key={id}
+               type="button"
++              aria-pressed={active}
+               onClick={() => setSort(id)}
+               className={cn(
+-                'flex items-center gap-1.5 shrink-0 rounded-full px-3.5 py-1.5 text-xs font-semibold transition-all',
++                'flex items-center gap-1.5 shrink-0 min-h-11 rounded-full px-3.5 py-1.5 text-xs font-semibold transition-all',
+                 active
+                   ? 'bg-gradient-to-r from-primary via-accent to-[hsl(var(--neon-pink))] text-primary-foreground shadow-md'
+                   : 'liquid-glass-card border border-border/40 text-muted-foreground',
+@@ -90,6 +93,8 @@ export const ClipsLongVideosPanel = memo(function ClipsLongVideosPanel() {
+             <div key={i} className="aspect-video rounded-xl bg-muted animate-pulse" />
+           ))}
+         </div>
++      ) : activeQuery.isError && videos.length === 0 ? (
++        <div className="px-4 pt-8"><FeedFailureNotice label="videos" retrying={activeQuery.isFetching} onRetry={() => { void activeQuery.refetch(); }} /></div>
+       ) : videos.length === 0 ? (
+         <div className="px-4 pt-8">
+           <EmptyState
+diff --git a/src/components/layout/AnimatedRoutes.tsx b/src/components/layout/AnimatedRoutes.tsx
+index a99ee859..d4b60263 100644
+--- a/src/components/layout/AnimatedRoutes.tsx
++++ b/src/components/layout/AnimatedRoutes.tsx
+@@ -256,10 +256,10 @@ export function AnimatedRoutes() {
+             <Route path="/brief/*" element={<Navigate to="/brief" replace />} />
+             <Route path="/welcome" element={<ProtectedRoute><AppWelcome /></ProtectedRoute>} />
+             <Route path="/vision" element={<ProtectedRoute><AppWelcome /></ProtectedRoute>} />
+-            <Route path="/clips" element={<ProtectedRoute><Shorts /></ProtectedRoute>} />
++            <Route path="/clips" element={<ProtectedRoute><RouteBoundary name="clips"><Shorts /></RouteBoundary></ProtectedRoute>} />
+             <Route path="/shorts" element={<Navigate to="/clips" replace />} />
+             <Route path="/shorts/:postId" element={<ShortsPostRedirect />} />
+-            <Route path="/explore" element={<ProtectedRoute><Explore /></ProtectedRoute>} />
++            <Route path="/explore" element={<ProtectedRoute><RouteBoundary name="explore"><Explore /></RouteBoundary></ProtectedRoute>} />
+             <Route path="/market" element={<ProtectedRoute><Market /></ProtectedRoute>} />
+             <Route path="/messages/search" element={<ProtectedRoute><RouteBoundary name="messages"><MessagesSearchPage /></RouteBoundary></ProtectedRoute>} />
+             <Route path="/messages/requests" element={<ProtectedRoute><RouteBoundary name="messages"><MessageRequestsPage /></RouteBoundary></ProtectedRoute>} />
+@@ -292,7 +292,7 @@ export function AnimatedRoutes() {
+             <Route path="/community" element={<ProtectedRoute><Community /></ProtectedRoute>} />
+             <Route path="/watch" element={<ProtectedRoute><VideoBrowse /></ProtectedRoute>} />
+             <Route path="/watch/:id" element={<ProtectedRoute><Watch /></ProtectedRoute>} />
+-            <Route path="/clips/:postId" element={<ProtectedRoute><ClipsViewer /></ProtectedRoute>} />
++            <Route path="/clips/:postId" element={<ProtectedRoute><RouteBoundary name="clip-detail"><ClipsViewer /></RouteBoundary></ProtectedRoute>} />
+             <Route path="/invite-friends" element={<ProtectedRoute><InviteFriends /></ProtectedRoute>} />
+             <Route path="/add-friend/:userId" element={<ProtectedRoute><AddFriend /></ProtectedRoute>} />
+             <Route path="/friends/add" element={<ProtectedRoute><RouteBoundary name="friends-add"><AddFriendsPage /></RouteBoundary></ProtectedRoute>} />
+diff --git a/src/components/posts/FeedFailureNotice.test.tsx b/src/components/posts/FeedFailureNotice.test.tsx
+new file mode 100644
+index 00000000..547a781a
+--- /dev/null
++++ b/src/components/posts/FeedFailureNotice.test.tsx
+@@ -0,0 +1,22 @@
++import { afterEach, describe, expect, it, vi } from 'vitest';
++import { cleanup, fireEvent, render, screen } from '@testing-library/react';
++import { FeedFailureNotice } from './FeedFailureNotice';
++afterEach(cleanup);
++describe('feed failure notice', () => {
++  it('announces a failure without claiming the feed is empty', () => {
++    render(<FeedFailureNotice label="clips" onRetry={vi.fn()} />);
++    expect(screen.getByRole('alert')).toHaveTextContent('Unable to load clips');
++    expect(screen.queryByText('No clips yet')).not.toBeInTheDocument();
++  });
++  it('retries through the supplied query action', () => {
++    const retry = vi.fn(); render(<FeedFailureNotice onRetry={retry} />);
++    fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
++    expect(retry).toHaveBeenCalledTimes(1);
++  });
++  it('does not submit repeated requests while a retry is running', () => {
++    const retry = vi.fn(); render(<FeedFailureNotice retrying onRetry={retry} />);
++    const button = screen.getByRole('button', { name: 'Trying again…' });
++    expect(button).toBeDisabled(); fireEvent.click(button);
++    expect(retry).not.toHaveBeenCalled();
++  });
++});
+diff --git a/src/components/posts/FeedFailureNotice.tsx b/src/components/posts/FeedFailureNotice.tsx
+new file mode 100644
+index 00000000..bdfc0f0e
+--- /dev/null
++++ b/src/components/posts/FeedFailureNotice.tsx
+@@ -0,0 +1,22 @@
++import { AlertCircle, RefreshCw } from 'lucide-react';
++import { Button } from '@/components/ui/button';
++
++interface FeedFailureNoticeProps {
++  label?: string;
++  retrying?: boolean;
++  onRetry: () => void;
++}
++
++export function FeedFailureNotice({ label = 'posts', retrying = false, onRetry }: FeedFailureNoticeProps) {
++  return (
++    <section role="alert" className="mx-auto flex w-full max-w-md flex-col items-center gap-4 rounded-2xl border border-border bg-card p-6 text-center text-foreground">
++      <AlertCircle className="h-8 w-8 text-muted-foreground" aria-hidden="true" />
++      <h2 className="text-xl font-semibold">Unable to load {label}</h2>
++      <p className="text-sm leading-relaxed text-muted-foreground">Check your connection and try again. If the problem continues, sign in again.</p>
++      <Button type="button" onClick={onRetry} disabled={retrying} className="min-h-11 min-w-32 gap-2">
++        <RefreshCw className="h-4 w-4" aria-hidden="true" />
++        {retrying ? 'Trying again…' : 'Try again'}
++      </Button>
++    </section>
++  );
++}
+diff --git a/src/components/ui/VybeLiquidText.tsx b/src/components/ui/VybeLiquidText.tsx
+index b0c66036..9cefc486 100644
+--- a/src/components/ui/VybeLiquidText.tsx
++++ b/src/components/ui/VybeLiquidText.tsx
+@@ -22,8 +22,6 @@ const streamStyle: React.CSSProperties = {
+   backgroundSize: '200% 100%',
+   WebkitBackgroundClip: 'text',
+   backgroundClip: 'text',
+-  WebkitTextFillColor: 'transparent',
+-  color: 'transparent',
+   animation: 'vybe-liquid-text-roll calc(22s * var(--anim-speed, 1)) linear infinite',
+ };
+ 
+@@ -60,7 +58,7 @@ export function VybeLiquidText<T extends React.ElementType = 'span'>({
+       >
+         {children}
+       </span>
+-      <span className="vybe-liquid-text__stream relative block" style={streamStyle}>
++      <span className="vybe-liquid-text__stream relative block text-transparent" style={streamStyle}>
+         {children}
+       </span>
+     </Comp>
+diff --git a/src/hooks/useInfinitePosts.reliability.test.tsx b/src/hooks/useInfinitePosts.reliability.test.tsx
+new file mode 100644
+index 00000000..338768c6
+--- /dev/null
++++ b/src/hooks/useInfinitePosts.reliability.test.tsx
+@@ -0,0 +1,79 @@
++import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
++import { cleanup, renderHook } from '@testing-library/react';
++import { useInfinitePosts, useInfiniteFollowingPosts, usePersonalizedFeed } from './useInfinitePosts';
++
++const state = vi.hoisted(() => ({
++  rpc: vi.fn(), profile: { id: 'viewer' } as { id: string } | null,
++  blocked: [] as string[], media: vi.fn(),
++}));
++vi.mock('@tanstack/react-query', () => ({ useInfiniteQuery: (options: unknown) => options, useQueryClient: () => ({}) }));
++vi.mock('@/lib/firebase', () => ({ db: { rpc: state.rpc } }));
++vi.mock('@/lib/auth', () => ({ useAuth: () => ({ profile: state.profile, user: { id: 'auth-viewer' } }) }));
++vi.mock('@/hooks/useBlockedUsers', () => ({ useBlockedUserIds: () => state.blocked }));
++vi.mock('@/lib/profileCache', () => ({ getEffectiveProfileId: (id?: string) => id ?? null }));
++vi.mock('@/lib/signedUrlCache', () => ({ ensureMediaUrlsReady: state.media }));
++vi.mock('@/lib/imagePreload', () => ({ preloadFeedPostsMedia: vi.fn() }));
++
++type Query = { queryFn: (context: { pageParam: number }) => Promise<{ posts: { id: string; tags: string[] }[]; nextPage: number | null }>; enabled: boolean };
++function config(hook: () => unknown): Query { return renderHook(hook).result.current as Query; }
++function rows(count = 15) { return Array.from({ length: count }, (_, i) => ({ id: `post-${i}`, author_id: `author-${i}`, author_username: `creator${i}`, type: 'short', media_url: 'https://example.invalid/clip.mp4', tags: [] })); }
++beforeEach(() => {
++  state.rpc.mockReset(); state.media.mockReset().mockResolvedValue(undefined);
++  state.profile = { id: 'viewer' }; state.blocked = [];
++});
++afterEach(cleanup);
++
++describe('feed hook contracts', () => {
++  it('rejects a failed global read instead of caching an empty success', async () => {
++    state.rpc.mockResolvedValue({ data: null, error: { message: 'Denied', name: 'permission-denied' } });
++    await expect(config(() => useInfinitePosts()).queryFn({ pageParam: 0 })).rejects.toMatchObject({ message: 'Denied', code: 'permission-denied' });
++  });
++  it('rejects a failed Following read', async () => {
++    state.rpc.mockResolvedValue({ data: null, error: { message: 'Offline' } });
++    await expect(config(() => useInfiniteFollowingPosts()).queryFn({ pageParam: 0 })).rejects.toThrow('Offline');
++  });
++  it('rejects when both ranked and fallback requests fail', async () => {
++    state.rpc.mockResolvedValue({ data: null, error: { message: 'Offline' } });
++    await expect(config(() => usePersonalizedFeed()).queryFn({ pageParam: 0 })).rejects.toThrow('Offline');
++    expect(state.rpc).toHaveBeenCalledTimes(2);
++  });
++  it('accepts an empty ranked response without an unrelated fallback request', async () => {
++    state.rpc.mockResolvedValue({ data: [], error: null });
++    expect(await config(() => usePersonalizedFeed()).queryFn({ pageParam: 0 })).toMatchObject({ posts: [], nextPage: null });
++    expect(state.rpc).toHaveBeenCalledTimes(1);
++  });
++  it('continues global pagination after blocked rows are removed', async () => {
++    state.blocked = ['author-0']; state.rpc.mockResolvedValue({ data: rows(), error: null });
++    const page = await config(() => useInfinitePosts()).queryFn({ pageParam: 0 });
++    expect(page.posts).toHaveLength(14); expect(page.nextPage).toBe(1);
++  });
++  it('continues ranked pagination after an entire raw page is filtered out', async () => {
++    state.blocked = rows().map(row => row.author_id); state.rpc.mockResolvedValue({ data: rows(), error: null });
++    const page = await config(() => usePersonalizedFeed()).queryFn({ pageParam: 0 });
++    expect(page.posts).toHaveLength(0); expect(page.nextPage).toBe(1);
++  });
++  it('continues Following pagination after author filtering', async () => {
++    state.blocked = ['author-1']; const source = rows(); source[0].author_id = 'viewer';
++    state.rpc.mockResolvedValue({ data: source, error: null });
++    const page = await config(() => useInfiniteFollowingPosts()).queryFn({ pageParam: 0 });
++    expect(page.posts).toHaveLength(13); expect(page.nextPage).toBe(1);
++  });
++  it('does not invent an empty feed while the profile is hydrating', async () => {
++    state.profile = null; state.rpc.mockResolvedValue({ data: null, error: { message: 'Unavailable' } });
++    await expect(config(() => usePersonalizedFeed()).queryFn({ pageParam: 0 })).rejects.toThrow('Unavailable');
++  });
++  it('normalizes malformed tags before rendering filters', async () => {
++    state.rpc.mockResolvedValue({ data: [{ ...rows(1)[0], tags: 'not-an-array' }, { ...rows(1)[0], id: 'mixed', tags: ['music', null, 42] }], error: null });
++    const page = await config(() => useInfinitePosts()).queryFn({ pageParam: 0 });
++    expect(page.posts.map(post => post.tags)).toEqual([[], ['music']]);
++  });
++  it('preserves explicit inactive-tab query gating', () => {
++    expect(config(() => useInfinitePosts(undefined, undefined, { enabled: false })).enabled).toBe(false);
++    expect(config(() => usePersonalizedFeed(undefined, { enabled: false })).enabled).toBe(false);
++  });
++  it('keeps received posts usable if speculative media warmup fails', async () => {
++    state.media.mockRejectedValue(new Error('Media offline')); state.rpc.mockResolvedValue({ data: rows(1), error: null });
++    const page = await config(() => useInfinitePosts()).queryFn({ pageParam: 0 });
++    await Promise.resolve(); expect(page.posts).toHaveLength(1);
++  });
++});
+diff --git a/src/hooks/useInfinitePosts.ts b/src/hooks/useInfinitePosts.ts
+index 5219b856..abf21f47 100644
+--- a/src/hooks/useInfinitePosts.ts
++++ b/src/hooks/useInfinitePosts.ts
+@@ -7,6 +7,7 @@ import { useBlockedUserIds } from '@/hooks/useBlockedUsers';
+ import { refetchFeedOnMount } from '@/lib/queryRefetchPolicy';
+ import { getEffectiveProfileId } from '@/lib/profileCache';
+ import { preloadFeedPostsMedia } from '@/lib/imagePreload';
++import { hasMoreFeedRows, toFeedError } from '@/lib/feedReliability';
+ 
+ export interface Post {
+   id: string;
+@@ -51,7 +52,7 @@ function transformPost(row: any): Post | null {
+     media_url: row.media_url || '',
+     thumbnail_url: row.thumbnail_url ?? null,
+     caption: row.caption || '',
+-    tags: row.tags || [],
++    tags: Array.isArray(row.tags) ? row.tags.filter((tag: unknown): tag is string => typeof tag === 'string') : [],
+     created_at: row.created_at || new Date().toISOString(),
+     is_pinned: !!row.is_pinned,
+     view_count: row.view_count || 0,
+@@ -110,7 +111,7 @@ async function fetchPersonalizedPosts(
+   offset: number,
+   limit: number,
+   blocked: Set<string>,
+-): Promise<Post[]> {
++): Promise<{ posts: Post[]; hasMore: boolean }> {
+   const { data, error } = await db.rpc('get_ranked_feed_v2', {
+     p_user_id: profileId,
+     p_content_type: type ?? null,
+@@ -122,8 +123,8 @@ async function fetchPersonalizedPosts(
+     p_limit: limit,
+   } as any);
+ 
+-  if (!error && data?.length) {
+-    return mapFeedRows(data).filter((p) => !blocked.has(p.author?.id));
++  if (!error && Array.isArray(data)) {
++    return { posts: mapFeedRows(data).filter((p) => !blocked.has(p.author?.id)), hasMore: hasMoreFeedRows(data, limit) };
+   }
+ 
+   if (error) {
+@@ -140,10 +141,10 @@ async function fetchPersonalizedPosts(
+ 
+   if (fallbackError) {
+     console.warn('[Feed] get_posts_with_counts fallback failed:', fallbackError.message);
+-    return [];
++    throw toFeedError(fallbackError);
+   }
+ 
+-  return mapFeedRows(fallback).filter((p) => !blocked.has(p.author?.id));
++  return { posts: mapFeedRows(fallback).filter((p) => !blocked.has(p.author?.id)), hasMore: hasMoreFeedRows(fallback, limit) };
+ }
+ 
+ export function useInfinitePosts(
+@@ -174,7 +175,7 @@ export function useInfinitePosts(
+ 
+       if (error) {
+         console.warn('[Feed] get_posts_with_counts failed:', error.message);
+-        return { posts: [], nextPage: null, totalLoaded: offset };
++        throw toFeedError(error);
+       }
+ 
+       let posts = mapFeedRows(data);
+@@ -188,7 +189,7 @@ export function useInfinitePosts(
+ 
+       // Sign + preload above-the-fold media before paint on first page
+       if (isFirstPage && posts.length > 0) {
+-        void preparePostMedia(posts, PRELOAD_MEDIA_CAP);
++        void preparePostMedia(posts, PRELOAD_MEDIA_CAP).catch(() => {});
+       } else {
+         void preparePostMedia(posts, 0).catch(() => {});
+       }
+@@ -196,7 +197,7 @@ export function useInfinitePosts(
+       const expectedSize = isFirstPage ? INITIAL_PAGE_SIZE : PAGE_SIZE;
+       return {
+         posts,
+-        nextPage: posts.length >= expectedSize ? pageParam + 1 : null,
++        nextPage: hasMoreFeedRows(data, expectedSize) ? pageParam + 1 : null,
+         totalLoaded: offset + posts.length,
+       };
+     },
+@@ -244,7 +245,7 @@ export function useInfiniteFollowingPosts(
+ 
+       if (error) {
+         console.warn('[Feed] get_following_posts_with_counts failed:', error.message);
+-        return { posts: [], nextPage: null };
++        throw toFeedError(error);
+       }
+ 
+       let posts = mapFeedRows(data);
+@@ -256,7 +257,7 @@ export function useInfiniteFollowingPosts(
+       );
+ 
+       if (isFirstPage && posts.length > 0) {
+-        void preparePostMedia(posts, PRELOAD_MEDIA_CAP);
++        void preparePostMedia(posts, PRELOAD_MEDIA_CAP).catch(() => {});
+       } else {
+         void preparePostMedia(posts, 0).catch(() => {});
+       }
+@@ -264,7 +265,7 @@ export function useInfiniteFollowingPosts(
+       const expectedSize = isFirstPage ? INITIAL_PAGE_SIZE : PAGE_SIZE;
+       return {
+         posts,
+-        nextPage: posts.length >= expectedSize ? pageParam + 1 : null,
++        nextPage: hasMoreFeedRows(data, expectedSize) ? pageParam + 1 : null,
+       };
+     },
+     getNextPageParam: (lastPage) => lastPage.nextPage,
+@@ -397,26 +398,26 @@ export function usePersonalizedFeed(
+         } as any);
+         if (error) {
+           console.warn('[Feed] get_trending_feed failed:', error.message);
+-          return { posts: [], nextPage: null };
++          throw toFeedError(error);
+         }
+         const posts = mapFeedRows(data);
+         if (pageParam === 0 && posts.length > 0) {
+-          void preparePostMedia(posts, PRELOAD_MEDIA_CAP);
++          void preparePostMedia(posts, PRELOAD_MEDIA_CAP).catch(() => {});
+         } else {
+           void preparePostMedia(posts, 0).catch(() => {});
+         }
+-        return { posts, nextPage: posts.length >= limit ? pageParam + 1 : null };
++        return { posts, nextPage: hasMoreFeedRows(data, limit) ? pageParam + 1 : null };
+       }
+ 
+-      const posts = await fetchPersonalizedPosts(profileId, type, offset, limit, blocked);
++      const { posts, hasMore } = await fetchPersonalizedPosts(profileId, type, offset, limit, blocked);
+ 
+       if (pageParam === 0 && posts.length > 0) {
+-        void preparePostMedia(posts, PRELOAD_MEDIA_CAP);
++        void preparePostMedia(posts, PRELOAD_MEDIA_CAP).catch(() => {});
+       } else {
+         void preparePostMedia(posts, 0).catch(() => {});
+       }
+ 
+-      return { posts, nextPage: posts.length >= limit ? pageParam + 1 : null };
++      return { posts, nextPage: hasMore ? pageParam + 1 : null };
+     },
+     getNextPageParam: (last) => last.nextPage,
+     initialPageParam: 0,
+diff --git a/src/hooks/usePosts.ts b/src/hooks/usePosts.ts
+index 89afbc2a..9423796f 100644
+--- a/src/hooks/usePosts.ts
++++ b/src/hooks/usePosts.ts
+@@ -76,6 +76,7 @@ export function usePosts(
+         .from('posts')
+         .select(`
+           id,
++          author_id,
+           type,
+           media_url,
+           thumbnail_url,
+@@ -133,7 +134,6 @@ export function usePosts(
+           .select('blocked_id')
+           .eq('blocker_id', profile.id);
+         feedExcludeAuthors = new Set((blocks || []).map((b: any) => b.blocked_id).filter(Boolean));
+-        feedExcludeAuthors.add(profile.id);
+       }
+ 
+       let rawPosts: any[] | null = null;
+@@ -252,6 +252,7 @@ export function usePosts(
+           
+           return {
+             ...post,
++            tags: Array.isArray(post.tags) ? post.tags.filter((tag): tag is string => typeof tag === 'string') : [],
+             is_pinned: post.is_pinned ?? false,
+             view_count: (post as any).view_count ?? 0,
+             author,
+@@ -324,6 +325,7 @@ export function useFollowingPosts() {
+         .from('posts')
+         .select(`
+           id,
++          author_id,
+           type,
+           media_url,
+           thumbnail_url,
+@@ -375,6 +377,7 @@ export function useFollowingPosts() {
+ 
+           return {
+             ...post,
++            tags: Array.isArray(post.tags) ? post.tags.filter((tag): tag is string => typeof tag === 'string') : [],
+             is_pinned: post.is_pinned ?? false,
+             view_count: (post as any).view_count ?? 0,
+             author,
+diff --git a/src/lib/feedReliability.test.ts b/src/lib/feedReliability.test.ts
+new file mode 100644
+index 00000000..13d2cce5
+--- /dev/null
++++ b/src/lib/feedReliability.test.ts
+@@ -0,0 +1,88 @@
++import { afterEach, describe, expect, it, vi } from 'vitest';
++import { flattenUniqueFeedPosts, hasMoreFeedRows, readFeedPreference, readFeedResult, shouldHandleFeedShortcut, toFeedError, writeFeedPreference } from './feedReliability';
++
++afterEach(() => { vi.restoreAllMocks(); document.body.innerHTML = ''; });
++
++describe('feed read results', () => {
++  it('preserves a genuinely empty successful response', async () => {
++    expect(await readFeedResult(async () => [])).toEqual({ data: [], error: null });
++  });
++  it('does not disguise permission denial as an empty feed', async () => {
++    const result = await readFeedResult(async () => { throw { message: 'Denied', code: 'permission-denied' }; });
++    expect(result.data).toBeNull();
++    expect(result.error).toMatchObject({ message: 'Denied', code: 'permission-denied' });
++  });
++  it('retains an existing network error', async () => {
++    const error = new Error('Offline');
++    expect((await readFeedResult(async () => { throw error; })).error).toBe(error);
++  });
++  it('normalizes adapter errors without losing their code', () => {
++    expect(toFeedError({ message: 'Sign in', name: 'unauthenticated' })).toMatchObject({ code: 'unauthenticated' });
++    expect(toFeedError(undefined)).toBeInstanceOf(Error);
++  });
++});
++
++describe('feed pagination and ordering', () => {
++  it('uses raw page size even if local filters remove every visible post', () => {
++    expect(hasMoreFeedRows(Array(15).fill({ author_id: 'blocked' }), 15)).toBe(true);
++    expect(hasMoreFeedRows(Array(14).fill({}), 15)).toBe(false);
++  });
++  it('does not paginate malformed data or invalid sizes', () => {
++    expect(hasMoreFeedRows(null, 15)).toBe(false);
++    expect(hasMoreFeedRows([], 0)).toBe(false);
++    expect(hasMoreFeedRows([{}], Number.NaN)).toBe(false);
++  });
++  it('keeps previously loaded clips in place when another page arrives', () => {
++    const first = { posts: [{ id: 'ranked-3' }, { id: 'ranked-1' }] };
++    const second = { posts: [{ id: 'ranked-1' }, { id: 'ranked-2' }] };
++    const initial = flattenUniqueFeedPosts([first]);
++    const next = flattenUniqueFeedPosts([first, second]);
++    expect(next.slice(0, initial.length)).toEqual(initial);
++    expect(next.map(post => post.id)).toEqual(['ranked-3', 'ranked-1', 'ranked-2']);
++    expect(first.posts.map(post => post.id)).toEqual(['ranked-3', 'ranked-1']);
++  });
++  it('deduplicates within pages and tolerates an absent feed', () => {
++    expect(flattenUniqueFeedPosts()).toEqual([]);
++    expect(flattenUniqueFeedPosts([{ posts: [{ id: 'a' }, { id: '' }, { id: 'a' }] }])).toEqual([{ id: 'a' }]);
++  });
++});
++
++function keyEvent(target: Element, options: KeyboardEventInit = {}) {
++  const event = new KeyboardEvent('keydown', { key: 'j', bubbles: true, cancelable: true, ...options });
++  target.dispatchEvent(event);
++  return event;
++}
++
++describe('clip keyboard shortcuts', () => {
++  it.each(['input', 'textarea', 'select'])('does not intercept typing in %s', tag => {
++    expect(shouldHandleFeedShortcut(keyEvent(document.createElement(tag)))).toBe(false);
++  });
++  it('does not intercept a nested rich-text editor or dialog', () => {
++    const editor = document.createElement('div'); editor.contentEditable = 'true';
++    editor.setAttribute('contenteditable', 'true');
++    const child = document.createElement('span'); editor.append(child);
++    expect(shouldHandleFeedShortcut(keyEvent(child))).toBe(false);
++    editor.removeAttribute('contenteditable'); editor.setAttribute('role', 'dialog');
++    expect(shouldHandleFeedShortcut(keyEvent(child))).toBe(false);
++  });
++  it.each(['ctrlKey', 'altKey', 'metaKey', 'shiftKey', 'isComposing'])('respects %s', modifier => {
++    expect(shouldHandleFeedShortcut(keyEvent(document.createElement('div'), { [modifier]: true }))).toBe(false);
++  });
++  it('respects a handled event and permits normal feed navigation', () => {
++    const event = keyEvent(document.createElement('div'));
++    expect(shouldHandleFeedShortcut(event)).toBe(true);
++    event.preventDefault();
++    expect(shouldHandleFeedShortcut(event)).toBe(false);
++  });
++});
++
++describe('storage-restricted playback', () => {
++  it('loads with defaults when browser storage is blocked', () => {
++    vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => { throw new DOMException('Blocked', 'SecurityError'); });
++    expect(readFeedPreference('vybe-clips-muted')).toBeNull();
++  });
++  it('keeps mute toggles usable when preferences cannot be saved', () => {
++    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => { throw new DOMException('Full', 'QuotaExceededError'); });
++    expect(() => writeFeedPreference('vybe-clips-muted', 'true')).not.toThrow();
++  });
++});
+diff --git a/src/lib/feedReliability.ts b/src/lib/feedReliability.ts
+new file mode 100644
+index 00000000..6daeba1d
+--- /dev/null
++++ b/src/lib/feedReliability.ts
+@@ -0,0 +1,55 @@
++/** Preserve feed failures instead of turning denied or offline reads into empty feeds. */
++export function toFeedError(value: unknown): Error & { code?: string } {
++  if (value instanceof Error) return value;
++  const details = value && typeof value === 'object'
++    ? value as { message?: unknown; code?: unknown; name?: unknown }
++    : {};
++  const error = new Error(typeof details.message === 'string' ? details.message : 'The feed could not be loaded.');
++  return Object.assign(error, {
++    code: typeof details.code === 'string' ? details.code
++      : typeof details.name === 'string' ? details.name : undefined,
++  });
++}
++
++export async function readFeedResult<T>(read: () => Promise<T>): Promise<
++  { data: T; error: null } | { data: null; error: Error & { code?: string } }
++> {
++  try { return { data: await read(), error: null }; }
++  catch (error) { return { data: null, error: toFeedError(error) }; }
++}
++
++/** Use the received page size, not the visible size after local safety filters. */
++export function hasMoreFeedRows(rows: unknown, pageSize: number): boolean {
++  return Number.isInteger(pageSize) && pageSize > 0 && Array.isArray(rows) && rows.length >= pageSize;
++}
++
++/** Appending a page must not reshuffle clips the viewer has already reached. */
++export function flattenUniqueFeedPosts<T extends { id: string }>(pages?: readonly { posts: readonly T[] }[]): T[] {
++  const seen = new Set<string>();
++  const posts: T[] = [];
++  for (const page of pages ?? []) {
++    for (const post of page.posts) {
++      if (!post?.id || seen.has(post.id)) continue;
++      seen.add(post.id);
++      posts.push(post);
++    }
++  }
++  return posts;
++}
++
++/** Feed shortcuts must not consume typing, IME input, or dialog navigation. */
++export function shouldHandleFeedShortcut(event: KeyboardEvent): boolean {
++  if (event.defaultPrevented || event.isComposing || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return false;
++  const target = event.target;
++  return !(target instanceof Element && target.closest(
++    'input,textarea,select,[contenteditable]:not([contenteditable="false"]),[role="textbox"],[role="dialog"],[role="combobox"],[role="listbox"]',
++  ));
++}
++
++export function readFeedPreference(key: string): string | null {
++  try { return localStorage.getItem(key); } catch { return null; }
++}
++
++export function writeFeedPreference(key: string, value: string): void {
++  try { localStorage.setItem(key, value); } catch { /* Playback still works without persistent storage. */ }
++}
+diff --git a/src/lib/firebase/dataClient.ts b/src/lib/firebase/dataClient.ts
+index 2e2080c0..53c01703 100644
+--- a/src/lib/firebase/dataClient.ts
++++ b/src/lib/firebase/dataClient.ts
+@@ -27,6 +27,7 @@ import {
+   isFounderAuthId,
+ } from '@/lib/previewSandbox';
+ import { isFeedRpc, normalizeRpcFeedRows, runFeedRpc } from './feedRpc';
++import { readFeedResult } from '@/lib/feedReliability';
+ import { isSocialRpc, runSocialRpc } from './socialRpc';
+ import { isNotYetPortedPayload } from './functionsService';
+ import { getProfileByAuthUid, resolveProfileIdFromAuthUid } from './profileResolve';
+@@ -72,6 +73,24 @@ interface JoinSpec {
+   fields: string[];
+ }
+ 
++function splitSelectFields(fields: string): string[] {
++  const parts: string[] = [];
++  let current = '';
++  let depth = 0;
++  for (const ch of fields) {
++    if (ch === '(') depth += 1;
++    if (ch === ')') depth = Math.max(0, depth - 1);
++    if (ch === ',' && depth === 0) {
++      if (current.trim()) parts.push(current.trim());
++      current = '';
++      continue;
++    }
++    current += ch;
++  }
++  if (current.trim()) parts.push(current.trim());
++  return parts;
++}
++
+ /** Map Supabase `profiles!posts_author_id_fkey` hints to row column names. */
+ function resolveJoinForeignKey(parentTable: string, fkHint: string): { column: string; inner: boolean } {
+   if (fkHint === 'inner') {
+@@ -521,6 +540,36 @@ class QueryBuilder {
+     return result;
+   }
+ 
++  private selectedTopLevelFields(): Set<string> | null {
++    const fields = this.selectFields.trim();
++    if (!fields || fields === '*') return null;
++
++    const selected = new Set<string>();
++    for (const part of splitSelectFields(fields)) {
++      if (!part || part === '*') return null;
++      const joinAlias = /^(\w+)\s*:/.exec(part)?.[1];
++      if (joinAlias) {
++        selected.add(joinAlias);
++        continue;
++      }
++      const bare = /^(\w+)$/.exec(part)?.[1];
++      if (bare) selected.add(bare);
++    }
++    return selected.size ? selected : null;
++  }
++
++  private projectSelectedFields(rows: Record<string, unknown>[]): Record<string, unknown>[] {
++    const selected = this.selectedTopLevelFields();
++    if (!selected) return rows;
++    return rows.map((row) => {
++      const projected: Record<string, unknown> = {};
++      for (const field of selected) {
++        if (field in row) projected[field] = row[field];
++      }
++      return projected;
++    });
++  }
++
+   async then<TResult1 = QueryResult, TResult2 = never>(
+     onfulfilled?: ((value: QueryResult) => TResult1 | PromiseLike<TResult1>) | null,
+     onrejected?: ((reason: unknown) => TResult2 | PromiseLike<TResult2>) | null,
+@@ -549,7 +598,8 @@ class QueryBuilder {
+ 
+       let rows = await this.fetchRows();
+       rows = this.applyClientFilters(rows as Record<string, unknown>[]) as typeof rows;
+-      const data = await this.resolveJoins(rows as Record<string, unknown>[]);
++      const joined = await this.resolveJoins(rows as Record<string, unknown>[]);
++      const data = this.projectSelectedFields(joined as Record<string, unknown>[]);
+ 
+       if (this.singleMode === 'single') {
+         if (data.length !== 1) {
+@@ -1239,6 +1289,28 @@ const CLIENT_RPC: Record<string, (params: Record<string, unknown>) => Promise<un
+   earn_vybe_tokens: async (p) => rpcEarnVybeTokens(p),
+   check_rate_limit: async (p) => rpcCheckRateLimit(p),
+   purchase_marketplace_item: async (p) => rpcPurchaseMarketplaceItem(p),
++  claim_challenge_reward: async (p) => {
++    const { data, error } = await invokeFunction<{
++      success?: boolean;
++      xp_gained?: number;
++      already_claimed?: boolean;
++      level_result?: {
++        old_level: number;
++        new_level: number;
++        total_xp: number;
++        level_up: boolean;
++        new_rewards: unknown[];
++      };
++    }>('claim_challenge_reward', {
++      p_reward_id: p.p_reward_id || p.reward_id,
++      p_user_id: p.p_user_id || p.user_id,
++    });
++    if (error) throw error;
++    if (!data?.success && !data?.already_claimed) {
++      throw new Error('Claim failed — try again');
++    }
++    return data;
++  },
+   compute_vybe_dna: async () => rpcComputeVybeDna(),
+ };
+ 
+@@ -1270,15 +1342,7 @@ export function createDataClient() {
+ 
+       // Feed RPCs: Firestore client first (cloud stubs caused CORS noise on vybehub.app).
+       if (isFeedRpc(name)) {
+-        const promise = (async () => {
+-          try {
+-            const rows = await runFeedRpc(name, params);
+-            return { data: rows, error: null } as any;
+-          } catch (err) {
+-            console.warn(`[Feed RPC] ${name} client fallback failed:`, err);
+-            return { data: [], error: null } as any;
+-          }
+-        })();
++        const promise = readFeedResult(() => runFeedRpc(name, params));
+         const enriched = promise as Promise<any> & {
+           single: () => Promise<any>;
+           maybeSingle: () => Promise<any>;
+diff --git a/src/lib/firebase/feedRpc.ts b/src/lib/firebase/feedRpc.ts
+index 0c2db314..d6b2fd82 100644
+--- a/src/lib/firebase/feedRpc.ts
++++ b/src/lib/firebase/feedRpc.ts
+@@ -95,7 +95,11 @@ async function loadPostsSlice(opts: {
+   }
+ 
+   if (opts.authorIds) {
+-    posts = posts.filter((p) => opts.authorIds!.has(p.author_id));
++    const expanded = new Set<string>();
++    for (const id of opts.authorIds) {
++      for (const aid of await resolveAuthorIds(id)) expanded.add(aid);
++    }
++    posts = posts.filter((p) => expanded.has(p.author_id));
+   }
+ 
+   return posts.slice(opts.offset, opts.offset + opts.limit).map(postToFeedRow);
+@@ -237,12 +241,48 @@ async function rpcGetFollowingPosts(params: Record<string, unknown>): Promise<Re
+   }
+   if (friendIds.size === 0) return [];
+ 
+-  return loadPostsSlice({
+-    type: (params.p_type as string | null) || undefined,
+-    offset: Number(params.p_offset || 0),
+-    limit: Number(params.p_limit || 15),
+-    authorIds: friendIds,
+-  });
++  // Query each friend's posts directly. Global-fetch-then-filter missed older
++  // friend posts and caused For You to flicker/empty after adding a friend.
++  const offset = Number(params.p_offset || 0);
++  const limit = Number(params.p_limit || 15);
++  const type = (params.p_type as string | null) || undefined;
++  const perFriendLimit = Math.min(Math.max(offset + limit, limit), 40);
++  const seen = new Set<string>();
++  const merged: PostWithAuthor[] = [];
++
++  const friendList = [...friendIds].slice(0, 40);
++  const chunks: string[][] = [];
++  for (let i = 0; i < friendList.length; i += 5) {
++    chunks.push(friendList.slice(i, i + 5));
++  }
++
++  for (const chunk of chunks) {
++    const batches = await Promise.all(
++      chunk.map(async (friendId) => {
++        const authorIds = await resolveAuthorIds(friendId);
++        const posts: PostWithAuthor[] = [];
++        for (const aid of authorIds) {
++          const batch = await listPosts({
++            type,
++            authorId: aid,
++            limit: perFriendLimit,
++          });
++          posts.push(...batch);
++        }
++        return posts;
++      }),
++    );
++    for (const batch of batches) {
++      for (const post of batch) {
++        if (seen.has(post.id)) continue;
++        seen.add(post.id);
++        merged.push(post);
++      }
++    }
++  }
++
++  merged.sort((a, b) => (b.created_at || '').localeCompare(a.created_at || ''));
++  return merged.slice(offset, offset + limit).map(postToFeedRow);
+ }
+ 
+ async function rpcGetTrendingFeed(params: Record<string, unknown>): Promise<Record<string, unknown>[]> {
+diff --git a/src/pages/ClipsViewer.tsx b/src/pages/ClipsViewer.tsx
+index c447ef98..bf624120 100644
+--- a/src/pages/ClipsViewer.tsx
++++ b/src/pages/ClipsViewer.tsx
+@@ -7,6 +7,8 @@ import { getViewerPostReaction } from '@/lib/postReactions';
+ import { MobileShortCard } from '@/components/posts/MobileShortCard';
+ import { ShortCard } from '@/components/posts/ShortCard';
+ import { EmptyState } from '@/components/ui/EmptyState';
++import { FeedFailureNotice } from '@/components/posts/FeedFailureNotice';
++import { toFeedError, hasMoreFeedRows, flattenUniqueFeedPosts, shouldHandleFeedShortcut, readFeedPreference, writeFeedPreference } from '@/lib/feedReliability';
+ import { useInView } from 'react-intersection-observer';
+ import { ArrowLeft, Film } from 'lucide-react';
+ import { useVideoPreload } from '@/hooks/useVideoPreload';
+@@ -25,7 +27,7 @@ function transformRankedPost(row: any): Post {
+     media_url: row.media_url,
+     thumbnail_url: row.thumbnail_url,
+     caption: row.caption || '',
+-    tags: row.tags || [],
++    tags: Array.isArray(row.tags) ? row.tags.filter((tag: unknown): tag is string => typeof tag === 'string') : [],
+     created_at: row.created_at,
+     is_pinned: row.is_pinned,
+     view_count: row.view_count || 0,
+@@ -73,8 +75,8 @@ export default function ClipsViewer() {
+   const isFromMessages = fromSource === 'messages';
+ 
+   // ─── 1. Fetch the specific clicked post FIRST ───
+-  const { data: initialPost, isLoading: loadingInitial } = useQuery({
+-    queryKey: ['clip-viewer-initial', postId],
++  const initialQuery = useQuery({
++    queryKey: ['clip-viewer-initial', postId, profile?.id],
+     queryFn: async (): Promise<Post | null> => {
+       if (!postId) return null;
+ 
+@@ -87,7 +89,8 @@ export default function ClipsViewer() {
+         .eq('id', postId)
+         .single();
+ 
+-      if (postErr || !post) return null;
++      if (postErr) throw toFeedError(postErr);
++      if (!post) return null;
+ 
+       const [likeRes, commentRes, viewerReaction, isBookmarkedRes] = await Promise.all([
+         db.from('likes').select('id', { count: 'exact', head: true }).eq('post_id', postId),
+@@ -105,7 +108,7 @@ export default function ClipsViewer() {
+         media_url: post.media_url || '',
+         thumbnail_url: post.thumbnail_url,
+         caption: post.caption || '',
+-        tags: post.tags || [],
++        tags: Array.isArray(post.tags) ? post.tags.filter((tag: unknown): tag is string => typeof tag === 'string') : [],
+         created_at: post.created_at,
+         is_pinned: post.is_pinned || false,
+         author: {
+@@ -126,6 +129,7 @@ export default function ClipsViewer() {
+     enabled: !!postId,
+     staleTime: 5 * 60 * 1000,
+   });
++  const { data: initialPost, isLoading: loadingInitial } = initialQuery;
+ 
+   // Long-form videos use the watch player, not the vertical clip viewer
+   useEffect(() => {
+@@ -154,7 +158,7 @@ export default function ClipsViewer() {
+         if (error) throw error;
+         const posts = (data || []).map(transformRankedPost).filter((p) => p.id !== postId && isClipVideo(p));
+         presignPosts(posts).catch(() => {});
+-        return { posts, nextPage: posts.length >= PAGE_SIZE ? pageParam + 1 : null };
++        return { posts, nextPage: hasMoreFeedRows(data, PAGE_SIZE) ? pageParam + 1 : null };
+       }
+ 
+       const { data, error } = await db.rpc('get_trending_feed', {
+@@ -165,7 +169,7 @@ export default function ClipsViewer() {
+       if (error) throw error;
+       const posts = (data || []).map(transformRankedPost).filter((p) => p.id !== postId && isClipVideo(p));
+       presignPosts(posts).catch(() => {});
+-      return { posts, nextPage: posts.length >= PAGE_SIZE ? pageParam + 1 : null };
++      return { posts, nextPage: hasMoreFeedRows(data, PAGE_SIZE) ? pageParam + 1 : null };
+     },
+     getNextPageParam: (lastPage) => lastPage.nextPage,
+     initialPageParam: 0,
+@@ -175,7 +179,7 @@ export default function ClipsViewer() {
+ 
+   // ─── 3. Merge: [clicked_post, ...feed_posts] ───
+   const allClips = useMemo(() => {
+-    const feed = feedQuery.data?.pages.flatMap(p => p.posts) || [];
++    const feed = flattenUniqueFeedPosts(feedQuery.data?.pages);
+     if (!initialPost) return feed;
+     return [initialPost, ...feed.filter(isClipVideo)];
+   }, [initialPost, feedQuery.data]);
+@@ -183,7 +187,7 @@ export default function ClipsViewer() {
+   // ─── State ───
+   const [currentIndex, setCurrentIndex] = useState(0);
+   const [globalMuted, setGlobalMuted] = useState(() => {
+-    const stored = localStorage.getItem('vybe-clips-muted');
++    const stored = readFeedPreference('vybe-clips-muted');
+     return stored !== null ? stored === 'true' : true;
+   });
+   const containerRef = useRef<HTMLDivElement>(null);
+@@ -236,6 +240,7 @@ export default function ClipsViewer() {
+   useEffect(() => {
+     if (isMobileOrTablet) return;
+     const handleKeyDown = (e: KeyboardEvent) => {
++      if (!shouldHandleFeedShortcut(e)) return;
+       if (e.key === 'ArrowDown' || e.key === 'j') {
+         e.preventDefault();
+         scrollToIndex(currentIndex + 1);
+@@ -259,7 +264,7 @@ export default function ClipsViewer() {
+   const handleToggleMute = useCallback(() => {
+     setGlobalMuted(prev => {
+       const next = !prev;
+-      localStorage.setItem('vybe-clips-muted', String(next));
++      writeFeedPreference('vybe-clips-muted', String(next));
+       return next;
+     });
+   }, []);
+@@ -281,6 +286,12 @@ export default function ClipsViewer() {
+     );
+   }
+ 
++  if (initialQuery.isError && !initialPost) {
++    return <main id="main-content" tabIndex={-1} className="flex min-h-dvh items-center justify-center bg-background px-5 py-24">
++      <FeedFailureNotice label="this clip" retrying={initialQuery.isFetching} onRetry={() => { void initialQuery.refetch(); }} />
++    </main>;
++  }
++
+   // ─── Error / not found ───
+   if (!initialPost && !loadingInitial) {
+     return (
+diff --git a/src/pages/Explore.tsx b/src/pages/Explore.tsx
+index 3d425e1b..6e168cad 100644
+--- a/src/pages/Explore.tsx
++++ b/src/pages/Explore.tsx
+@@ -18,7 +18,6 @@ import { motion, AnimatePresence } from 'framer-motion';
+ import { usePosts } from '@/hooks/usePosts';
+ import { AppLayout } from '@/components/layout/AppLayout';
+ import { Input } from '@/components/ui/input';
+-import { Badge } from '@/components/ui/badge';
+ import { ExploreVideosGrid } from '@/components/explore/ExploreVideosGrid';
+ import { useSmartPreload } from '@/hooks/useSmartPreload';
+ import { isValidMediaUrl } from '@/components/ui/SafeMedia';
+@@ -36,6 +35,8 @@ import { db } from '@/lib/firebase';
+ import { TrendingCreators } from '@/components/explore/TrendingCreators';
+ import { TrendingHashtags } from '@/components/explore/TrendingHashtags';
+ import { usePageMeta } from '@/hooks/usePageMeta';
++import { FeedFailureNotice } from '@/components/posts/FeedFailureNotice';
++import { shouldHandleFeedShortcut, readFeedPreference, writeFeedPreference } from '@/lib/feedReliability';
+ 
+ const popularTags = ['meme', 'fails', 'pets', 'gaming', 'comedy', 'sports', 'music', 'food', 'tech', 'beauty'];
+ 
+@@ -79,9 +80,11 @@ const ExploreTabBar = memo(function ExploreTabBar({
+     <div className="flex justify-center">
+       <div className="inline-flex items-center gap-1 p-1 rounded-full bg-card border border-border/40 shadow-lg">
+         <button
++          type="button"
++          aria-pressed={viewMode === 'clips'}
+           onClick={() => onTabChange('clips')}
+           className={cn(
+-            "flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-semibold transition-all",
++            "flex items-center gap-1.5 min-h-11 px-4 py-2 rounded-full text-sm font-semibold transition-all",
+             viewMode === 'clips'
+               ? "bg-primary text-primary-foreground shadow-md shadow-primary/30"
+               : "text-muted-foreground hover:text-foreground hover:bg-foreground/5"
+@@ -91,9 +94,11 @@ const ExploreTabBar = memo(function ExploreTabBar({
+           Clips
+         </button>
+         <button
++          type="button"
++          aria-pressed={viewMode === 'videos'}
+           onClick={() => onTabChange('videos')}
+           className={cn(
+-            "flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-semibold transition-all",
++            "flex items-center gap-1.5 min-h-11 px-4 py-2 rounded-full text-sm font-semibold transition-all",
+             viewMode === 'videos'
+               ? "bg-primary text-primary-foreground shadow-md shadow-primary/30"
+               : "text-muted-foreground hover:text-foreground hover:bg-foreground/5"
+@@ -128,7 +133,7 @@ function FullscreenClipsViewer({
+ }) {
+   const [currentIndex, setCurrentIndex] = useState(startIndex);
+   const [globalMuted, setGlobalMuted] = useState(() => {
+-    const stored = localStorage.getItem('vybe-clips-muted');
++    const stored = readFeedPreference('vybe-clips-muted');
+     return stored !== null ? stored === 'true' : true;
+   });
+   const containerRef = useRef<HTMLDivElement>(null);
+@@ -148,10 +153,9 @@ function FullscreenClipsViewer({
+ 
+   // Lock body scroll when viewer is open
+   useEffect(() => {
++    const previousOverflow = document.body.style.overflow;
+     document.body.style.overflow = 'hidden';
+-    return () => {
+-      document.body.style.overflow = '';
+-    };
++    return () => { document.body.style.overflow = previousOverflow; };
+   }, []);
+ 
+   // Scroll to starting clip on mount
+@@ -207,6 +211,7 @@ function FullscreenClipsViewer({
+     if (isMobileOrTablet) return;
+ 
+     const handleKeyDown = (e: KeyboardEvent) => {
++      if (!shouldHandleFeedShortcut(e)) return;
+       if (e.key === 'ArrowDown' || e.key === 'j') {
+         e.preventDefault();
+         scrollToIndex(currentIndex + 1);
+@@ -232,8 +237,8 @@ function FullscreenClipsViewer({
+   const handleToggleMute = useCallback(() => {
+     setGlobalMuted(prev => {
+       const next = !prev;
+-      localStorage.setItem('vybe-clips-muted', String(next));
+-      localStorage.setItem('clips-muted', String(next));
++      writeFeedPreference('vybe-clips-muted', String(next));
++      writeFeedPreference('clips-muted', String(next));
+       return next;
+     });
+   }, []);
+@@ -445,6 +450,8 @@ function VideosGalleryView({
+           <div className="relative max-w-2xl">
+             <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+             <Input
++              type="search"
++              aria-label="Search videos and creators"
+               placeholder="Search videos, creators..."
+               value={searchQuery}
+               onChange={(e) => setSearchQuery(e.target.value)}
+@@ -467,9 +474,11 @@ function VideosGalleryView({
+               return (
+                 <button
+                   key={cat.id}
++                  type="button"
++                  aria-pressed={isActive}
+                   onClick={() => handleCategoryChange(cat.id)}
+                   className={cn(
+-                    "flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-all shrink-0 border",
++                    "flex items-center gap-2 min-h-11 px-4 py-2 rounded-full text-sm font-medium transition-all shrink-0 border",
+                     isActive
+                       ? "bg-primary text-primary-foreground border-transparent shadow-lg shadow-primary/30"
+                       : "bg-card/60 hover:bg-card border-border/50 text-foreground hover:border-primary/50"
+@@ -488,11 +497,12 @@ function VideosGalleryView({
+         <ScrollArea className="w-full">
+           <div className="flex gap-2 pb-2">
+             {popularTags.map((tag) => (
+-              <Badge
++              <button
+                 key={tag}
+-                variant={selectedTag === tag ? 'default' : 'outline'}
++                type="button"
++                aria-pressed={selectedTag === tag}
+                 className={cn(
+-                  "cursor-pointer transition-all px-3 py-1.5 text-sm whitespace-nowrap shrink-0 rounded-full",
++                  "inline-flex min-h-11 items-center border cursor-pointer transition-all px-3 py-1.5 text-sm whitespace-nowrap shrink-0 rounded-full",
+                   selectedTag === tag 
+                     ? "bg-primary text-primary-foreground border-transparent shadow-md shadow-primary/20" 
+                     : "bg-card/40 hover:bg-card border-border/50 hover:border-primary/50 text-muted-foreground hover:text-foreground"
+@@ -500,7 +510,7 @@ function VideosGalleryView({
+                 onClick={() => handleTagClick(tag)}
+               >
+                 #{tag}
+-              </Badge>
++              </button>
+             ))}
+           </div>
+           <ScrollBar orientation="horizontal" />
+@@ -548,18 +558,19 @@ export default function ExplorePage() {
+   const [searchQuery, setSearchQuery] = useState(searchParams.get('q') || '');
+   const [activeCategory, setActiveCategory] = useState(searchParams.get('cat') || 'all');
+   
++  const initialViewMode = useRef<'clips' | 'videos'>(readFeedPreference('explore-view-mode') === 'clips' ? 'clips' : 'videos');
++
+   // Persist view mode to localStorage + DB so it remembers user selection
+   const [viewMode, setViewMode] = useState<'clips' | 'videos'>(() => {
+     // First check URL param, then localStorage, then default to videos (discovery grid).
+     const urlView = searchParams.get('view') as 'clips' | 'videos';
+     if (urlView === 'clips' || urlView === 'videos') return urlView;
+-    const saved = localStorage.getItem('explore-view-mode');
+-    return (saved === 'clips' || saved === 'videos') ? saved : 'videos';
++    return initialViewMode.current;
+   });
+   
+   // Save to localStorage whenever viewMode changes + sync to DB
+   useEffect(() => {
+-    localStorage.setItem('explore-view-mode', viewMode);
++    writeFeedPreference('explore-view-mode', viewMode);
+     // Fire-and-forget DB sync
+     db.auth.getUser().then(({ data: { user } }) => {
+       if (!user?.id) return;
+@@ -574,8 +585,15 @@ export default function ExplorePage() {
+     });
+   }, [viewMode]);
+   
++  useEffect(() => {
++    setSearchQuery(searchParams.get('q') || '');
++    setActiveCategory(searchParams.get('cat') || 'all');
++    const mode = searchParams.get('view');
++    setViewMode(mode === 'clips' || mode === 'videos' ? mode : initialViewMode.current);
++  }, [searchParams]);
++
+   const selectedTag = searchParams.get('tag');
+-  const { data: posts, isLoading } = usePosts();
++  const { data: posts, isLoading, isError, isFetching, refetch } = usePosts();
+ 
+   // Compute trending creators from posts
+   const trendingCreators = useMemo(() => {
+@@ -712,6 +730,10 @@ export default function ExplorePage() {
+     handleTabChange('videos');
+   }, [handleTabChange]);
+ 
++  if (isError && !posts?.length) {
++    return <AppLayout><div className="p-5"><FeedFailureNotice label="Explore" retrying={isFetching} onRetry={() => { void refetch(); }} /></div></AppLayout>;
++  }
++
+   // Clips view - fullscreen TikTok-style auto-play
+   if (viewMode === 'clips') {
+     if (isLoading && (!filteredContent || filteredContent.length === 0)) {
+diff --git a/src/pages/Shorts.tsx b/src/pages/Shorts.tsx
+index a57bd6ce..56179a0e 100644
+--- a/src/pages/Shorts.tsx
++++ b/src/pages/Shorts.tsx
+@@ -15,6 +15,8 @@ import { useIsMobileOrTablet } from '@/hooks/use-mobile';
+ import { cn } from '@/lib/utils';
+ import { useVideoAds } from '@/hooks/useVideoAds';
+ import { isNativePerfMode } from '@/lib/nativePerfMode';
++import { FeedFailureNotice } from '@/components/posts/FeedFailureNotice';
++import { flattenUniqueFeedPosts, shouldHandleFeedShortcut, readFeedPreference, writeFeedPreference } from '@/lib/feedReliability';
+ import { ClipsLongVideosPanel } from '@/components/clips/ClipsLongVideosPanel';
+ import {
+   CLIPS_BOTTOM_UI_OFFSET,
+@@ -27,24 +29,9 @@ import {
+ const CLIPS_HINT_KEY = 'vybe-clips-hint-seen';
+ const CLIPS_PAGE_CLASS = 'vybe-clips-page';
+ 
+-function shuffleWithSeed<T>(items: T[], seed: number): T[] {
+-  const shuffled = [...items];
+-  let s = seed;
+-  const seededRandom = () => {
+-    s = (s * 16807 + 0.5) % 1;
+-    return Math.abs(s);
+-  };
+-  for (let i = shuffled.length - 1; i > 0; i--) {
+-    const j = Math.floor(seededRandom() * (i + 1));
+-    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+-  }
+-  return shuffled;
+-}
+-
+ export default function ClipsPage() {
+   const navigate = useNavigate();
+   const [feedTab, setFeedTab] = useState<ClipsFeedTab>(() => loadClipsFeedTab());
+-  const sessionSeed = useMemo(() => Math.random(), []);
+ 
+   const isShortsMode = isShortClipsTab(feedTab);
+ 
+@@ -54,15 +41,11 @@ export default function ClipsPage() {
+   const activeQuery = feedTab === 'foryou' ? forYouQuery : followingQuery;
+   const { data, isLoading, fetchNextPage, hasNextPage, isFetchingNextPage } = activeQuery;
+ 
+-  const shorts = useMemo(() => {
+-    const allPosts = data?.pages.flatMap((page) => page.posts) || [];
+-    if (allPosts.length === 0) return [];
+-    return feedTab === 'foryou' ? shuffleWithSeed(allPosts, sessionSeed) : allPosts;
+-  }, [data, sessionSeed, feedTab]);
++  const shorts = useMemo(() => flattenUniqueFeedPosts(data?.pages), [data]);
+ 
+   const [currentIndex, setCurrentIndex] = useState(0);
+   const [globalMuted, setGlobalMuted] = useState(() => {
+-    const stored = localStorage.getItem('vybe-clips-muted');
++    const stored = readFeedPreference('vybe-clips-muted');
+     return stored !== null ? stored === 'true' : true;
+   });
+   const containerRef = useRef<HTMLDivElement>(null);
+@@ -216,6 +199,7 @@ export default function ClipsPage() {
+     if (!isShortsMode || isMobileOrTablet) return;
+ 
+     const handleKeyDown = (e: KeyboardEvent) => {
++      if (!shouldHandleFeedShortcut(e)) return;
+       if (e.key === 'ArrowDown' || e.key === 'j') {
+         e.preventDefault();
+         scrollToIndex(currentIndex + 1);
+@@ -240,7 +224,7 @@ export default function ClipsPage() {
+   const handleToggleMute = useCallback(() => {
+     setGlobalMuted((prev) => {
+       const next = !prev;
+-      localStorage.setItem('vybe-clips-muted', String(next));
++      writeFeedPreference('vybe-clips-muted', String(next));
+       return next;
+     });
+   }, []);
+@@ -287,6 +271,15 @@ export default function ClipsPage() {
+     );
+   }
+ 
++  if (activeQuery.isError && shorts.length === 0) {
++    return <AppLayout hideNav fullWidth noPadding>
++      <ClipsFeedHeader active={feedTab} onChange={handleFeedTabChange} />
++      <div className="flex min-h-dvh items-center justify-center bg-background px-5 py-28">
++        <FeedFailureNotice label="clips" retrying={activeQuery.isFetching} onRetry={() => { void activeQuery.refetch(); }} />
++      </div>
++    </AppLayout>;
++  }
++
+   if (!shorts || shorts.length === 0) {
+     return (
+       <AppLayout hideNav fullWidth noPadding>
+diff --git a/scripts/qa/core-feature-smoke.mjs b/scripts/qa/core-feature-smoke.mjs
+new file mode 100644
+index 00000000..33b7c4bc
+--- /dev/null
++++ b/scripts/qa/core-feature-smoke.mjs
+@@ -0,0 +1,120 @@
++import fs from 'node:fs/promises';
++import path from 'node:path';
++import { createRequire } from 'node:module';
++import { spawn } from 'node:child_process';
++import assert from 'node:assert/strict';
++
++const tools = process.env.PLAYWRIGHT_PACKAGE_ROOT;
++if (!tools) throw new Error('Set PLAYWRIGHT_PACKAGE_ROOT to the isolated Playwright installation.');
++const { chromium, webkit, devices } = createRequire(path.join(tools, 'package.json'))('playwright');
++const origin = 'http://127.0.0.1:4176';
++const output = path.resolve('artifacts/core-feature-smoke');
++await fs.mkdir(output, { recursive: true });
++const report = {
++  sourceCommit: process.env.GITHUB_SHA || null,
++  startedAt: new Date().toISOString(),
++  scope: 'Actual built app, signed out. Remote non-read requests blocked. No credentials, content submissions, authenticated E2E or native-device certification.',
++  cases: [],
++};
++const server = spawn(process.execPath, ['node_modules/vite/bin/vite.js', 'preview', '--host', '127.0.0.1', '--port', '4176', '--strictPort'], { stdio: ['ignore', 'pipe', 'pipe'] });
++let serverLog = '';
++server.stdout.on('data', chunk => { serverLog += chunk; });
++server.stderr.on('data', chunk => { serverLog += chunk; });
++server.on('error', error => { serverLog += String(error); });
++const profiles = [
++  { name: 'desktop', engine: 'chromium', options: { viewport: { width: 1440, height: 900 } } },
++  { name: 'android', engine: 'chromium', options: devices['Pixel 7'] },
++  { name: 'iphone', engine: 'webkit', options: devices['iPhone 13'] },
++  { name: 'landscape', engine: 'webkit', options: { ...devices['iPhone 13'], viewport: { width: 844, height: 390 } } },
++];
++const routes = ['/home', '/explore?q=music', '/clips', '/clips/qa-read-only'];
++const safeError = value => String(value).replace(/https?:\/\/[^\s"'<>]+/g, url => {
++  try { const parsed = new URL(url); return parsed.origin + parsed.pathname; } catch { return '[url]'; }
++}).slice(0, 1800);
++try {
++  let ready = false;
++  for (let i = 0; i < 60; i++) {
++    if (server.exitCode !== null) throw new Error('Preview server stopped.');
++    try { if ((await fetch(origin)).ok) { ready = true; break; } } catch { /* server is starting */ }
++    await new Promise(resolve => setTimeout(resolve, 500));
++  }
++  if (!ready) throw new Error('Preview server did not start.');
++  for (const profile of profiles) {
++    const browser = await (profile.engine === 'webkit' ? webkit : chromium).launch({ headless: true });
++    try {
++      for (const route of routes) {
++        const row = { profile: profile.name, engine: profile.engine, browserVersion: browser.version(), route, status: 'NOT_RUN', checks: [], pageErrors: [], blockedNonReadRequests: 0 };
++        const context = await browser.newContext({ ...profile.options, reducedMotion: 'reduce', permissions: [] });
++        context.setDefaultTimeout(10000);
++        await context.route('**/*', requestRoute => {
++          const request = requestRoute.request();
++          if (new URL(request.url()).origin !== origin && !['GET', 'HEAD', 'OPTIONS'].includes(request.method())) {
++            row.blockedNonReadRequests++;
++            return requestRoute.abort();
++          }
++          return requestRoute.continue();
++        });
++        const page = await context.newPage();
++        page.on('pageerror', error => row.pageErrors.push(safeError(error)));
++        const check = (name, value) => {
++          row.checks.push({ name, passed: !!value });
++          assert.ok(value, name);
++        };
++        const stem = `${profile.name}-${route.replace(/[^a-z0-9]/gi, '_')}`;
++        try {
++          const response = await page.goto(origin + route, { waitUntil: 'domcontentloaded', timeout: 45000 });
++          check('HTTP page loads', response && response.status() < 400);
++          const main = page.getByRole('main', { name: 'Sign in to browse VYBE', exact: true });
++          await main.waitFor({ state: 'visible', timeout: 40000 });
++          await page.waitForTimeout(2300);
++          const dismiss = page.getByRole('button', { name: 'Dismiss cookie notice', exact: true });
++          if (await dismiss.isVisible()) { await dismiss.click(); await dismiss.waitFor({ state: 'hidden' }); }
++          check('A named guest screen replaces denied queries', await main.count() === 1);
++          check('Guest screen has one title', await main.getByRole('heading', { level: 1 }).count() === 1);
++          check('Signed-out screen has no overlapping floating navigation', await page.getByRole('navigation', { name: 'Bottom navigation', exact: true }).count() === 0);
++          check('No horizontal document overflow', await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1));
++          for (const name of ['Sign in', 'Create account', 'Learn about VYBE']) {
++            const control = main.getByRole('link', { name, exact: true });
++            await control.scrollIntoViewIfNeeded();
++            await control.click({ trial: true }); // Verify hit testing without navigating or submitting.
++            const box = await control.boundingBox();
++            check(`${name} is reachable and has a 44px target`, box && box.width >= 43.5 && box.height >= 43.5 && box.y >= -1 && box.y + box.height <= profile.options.viewport.height + 1);
++          }
++          await page.screenshot({ path: path.join(output, `${stem}-actions.png`), animations: 'disabled' });
++          await main.evaluate(element => { element.scrollTop = 0; });
++          await page.screenshot({ path: path.join(output, `${stem}.png`), animations: 'disabled' });
++          if (route.startsWith('/explore')) {
++            await main.getByRole('link', { name: 'Sign in', exact: true }).click();
++            await page.waitForURL(url => url.pathname === '/login');
++            await page.locator('#email').waitFor({ state: 'visible', timeout: 30000 });
++            check('Sign in opens the real account form', await page.locator('#email').isVisible());
++            const heading = page.locator('h1 .vybe-liquid-text__stream').first();
++            const fill = await heading.evaluate(element => getComputedStyle(element).webkitTextFillColor);
++            check('Reduced-motion account title is visible', fill !== 'transparent' && fill !== 'rgba(0, 0, 0, 0)');
++            await page.goBack();
++            await main.waitFor({ state: 'visible' });
++            check('Browser Back restores the original query', new URL(page.url()).searchParams.get('q') === 'music');
++          }
++          check('No uncaught browser exceptions', row.pageErrors.length === 0);
++          row.status = 'PASS';
++        } catch (error) {
++          row.status = 'FAIL'; row.error = safeError(error);
++          row.body = (await page.locator('body').innerText().catch(() => '')).slice(0, 1800);
++          await page.screenshot({ path: path.join(output, `${stem}-error.png`), animations: 'disabled', timeout: 10000 }).catch(() => {});
++        } finally {
++          page.removeAllListeners(); await context.close(); report.cases.push(row);
++          await fs.writeFile(path.join(output, 'report.json'), JSON.stringify(report, null, 2));
++          console.log('CORE_SMOKE', JSON.stringify(row));
++        }
++      }
++    } finally { await browser.close(); }
++  }
++} finally {
++  server.kill('SIGTERM');
++  report.finishedAt = new Date().toISOString();
++  report.counts = report.cases.reduce((counts, row) => ({ ...counts, [row.status]: (counts[row.status] || 0) + 1 }), {});
++  await fs.writeFile(path.join(output, 'report.json'), JSON.stringify(report, null, 2));
++  await fs.writeFile(path.join(output, 'server.log'), serverLog);
++}
++assert.equal(report.cases.length, profiles.length * routes.length, 'Every declared browser case must run.');
++assert.ok(report.cases.every(row => row.status === 'PASS'), 'Some core-route browser checks failed.');
+diff --git a/src/components/auth/GuestContentGate.tsx b/src/components/auth/GuestContentGate.tsx
+new file mode 100644
+index 00000000..02409d49
+--- /dev/null
++++ b/src/components/auth/GuestContentGate.tsx
+@@ -0,0 +1,32 @@
++import { Compass } from 'lucide-react';
++import { Link, useLocation } from 'react-router-dom';
++import { Button } from '@/components/ui/button';
++import { stashAuthReturnPath } from '@/lib/authReturnPath';
++
++/** The current Firebase policy requires an account for posts and profiles. */
++export function GuestContentGate() {
++  const location = useLocation();
++  const saveDestination = () => stashAuthReturnPath(`${location.pathname}${location.search}${location.hash}`);
++  return (
++    <main id="main-content" tabIndex={-1} aria-labelledby="guest-content-title"
++      className="flex h-dvh flex-col overflow-y-auto overscroll-contain bg-background px-5 outline-none"
++      style={{ paddingTop: 'calc(var(--sat, 0px) + 2rem)', paddingBottom: 'calc(var(--sab, 0px) + 2rem)', paddingLeft: 'max(1.25rem, var(--sal, 0px))', paddingRight: 'max(1.25rem, var(--sar, 0px))' }}>
++      <section className="mx-auto my-auto w-full max-w-sm shrink-0 space-y-5 rounded-3xl border border-border bg-card p-6 text-center shadow-sm">
++        <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 text-primary">
++          <Compass className="h-6 w-6" aria-hidden="true" />
++        </div>
++        <h1 id="guest-content-title" className="text-2xl font-semibold tracking-tight text-foreground">Sign in to browse VYBE</h1>
++        <p className="text-sm leading-relaxed text-muted-foreground">Posts, clips, and profiles are available after you sign in. Your place will be saved.</p>
++        <div className="flex flex-col gap-3">
++          <Button asChild className="min-h-11 w-full">
++            <Link to="/login" state={{ from: location }} onClick={saveDestination}>Sign in</Link>
++          </Button>
++          <Button asChild variant="outline" className="min-h-11 w-full">
++            <Link to="/signup" state={{ from: location }} onClick={saveDestination}>Create account</Link>
++          </Button>
++          <Link to="/about" className="inline-flex min-h-11 items-center justify-center rounded-xl text-sm text-primary underline-offset-4 hover:underline focus-visible:outline focus-visible:outline-2">Learn about VYBE</Link>
++        </div>
++      </section>
++    </main>
++  );
++}
+diff --git a/src/components/layout/RootBottomNavMount.test.tsx b/src/components/layout/RootBottomNavMount.test.tsx
+new file mode 100644
+index 00000000..5b25cd5f
+--- /dev/null
++++ b/src/components/layout/RootBottomNavMount.test.tsx
+@@ -0,0 +1,24 @@
++import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
++import { cleanup, render, screen } from '@testing-library/react';
++import { RootBottomNavMount } from './RootBottomNavMount';
++const state = vi.hoisted(() => ({ user: null as null | { id: string }, show: true }));
++vi.mock('@/lib/auth', () => ({ useAuth: () => ({ user: state.user, profile: null }) }));
++vi.mock('@/hooks/useBottomNavMount', () => ({ useBottomNavMount: () => state.show }));
++vi.mock('@/hooks/useRecoverBottomNavOnTabEnter', () => ({ useRecoverBottomNavOnTabEnter: () => {} }));
++vi.mock('./BottomNav', () => ({ BottomNav: () => <nav aria-label="Bottom navigation" /> }));
++afterEach(cleanup);
++beforeEach(() => { state.user = null; state.show = true; });
++describe('root bottom navigation', () => {
++  it('does not cover guest sign-in actions', () => {
++    render(<RootBottomNavMount />);
++    expect(screen.queryByRole('navigation')).not.toBeInTheDocument();
++  });
++  it('retains navigation for an authenticated tab', () => {
++    state.user = { id: 'test-user' }; render(<RootBottomNavMount />);
++    expect(screen.getByRole('navigation', { name: 'Bottom navigation' })).toBeInTheDocument();
++  });
++  it('respects immersive and non-tab route hiding for authenticated users', () => {
++    state.user = { id: 'test-user' }; state.show = false; render(<RootBottomNavMount />);
++    expect(screen.queryByRole('navigation')).not.toBeInTheDocument();
++  });
++});
+diff --git a/src/components/layout/RootBottomNavMount.tsx b/src/components/layout/RootBottomNavMount.tsx
+index b14a7a80..a3b6def8 100644
+--- a/src/components/layout/RootBottomNavMount.tsx
++++ b/src/components/layout/RootBottomNavMount.tsx
+@@ -9,11 +9,12 @@ import { useAuth } from "@/lib/auth";
+  * Scroll, keyboard, and immersive overlays still hide it via navVisibility.
+  */
+ export const RootBottomNavMount = memo(function RootBottomNavMount() {
+-  const { profile } = useAuth();
++  const { user, profile } = useAuth();
+   const showNav = useBottomNavMount();
+ 
+   useRecoverBottomNavOnTabEnter(profile);
+ 
+-  if (!showNav) return null;
++  // Guest entry screens own their sign-in actions; floating tabs obscure them on short displays.
++  if (!user || !showNav) return null;
+   return <BottomNav />;
+ });

@@ -7,6 +7,8 @@ import { getViewerPostReaction } from '@/lib/postReactions';
 import { MobileShortCard } from '@/components/posts/MobileShortCard';
 import { ShortCard } from '@/components/posts/ShortCard';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { FeedFailureNotice } from '@/components/posts/FeedFailureNotice';
+import { toFeedError, hasMoreFeedRows, flattenUniqueFeedPosts, shouldHandleFeedShortcut, readFeedPreference, writeFeedPreference } from '@/lib/feedReliability';
 import { useInView } from 'react-intersection-observer';
 import { ArrowLeft, Film } from 'lucide-react';
 import { useVideoPreload } from '@/hooks/useVideoPreload';
@@ -25,7 +27,7 @@ function transformRankedPost(row: any): Post {
     media_url: row.media_url,
     thumbnail_url: row.thumbnail_url,
     caption: row.caption || '',
-    tags: row.tags || [],
+    tags: Array.isArray(row.tags) ? row.tags.filter((tag: unknown): tag is string => typeof tag === 'string') : [],
     created_at: row.created_at,
     is_pinned: row.is_pinned,
     view_count: row.view_count || 0,
@@ -73,8 +75,8 @@ export default function ClipsViewer() {
   const isFromMessages = fromSource === 'messages';
 
   // ─── 1. Fetch the specific clicked post FIRST ───
-  const { data: initialPost, isLoading: loadingInitial } = useQuery({
-    queryKey: ['clip-viewer-initial', postId],
+  const initialQuery = useQuery({
+    queryKey: ['clip-viewer-initial', postId, profile?.id],
     queryFn: async (): Promise<Post | null> => {
       if (!postId) return null;
 
@@ -87,7 +89,8 @@ export default function ClipsViewer() {
         .eq('id', postId)
         .single();
 
-      if (postErr || !post) return null;
+      if (postErr) throw toFeedError(postErr);
+      if (!post) return null;
 
       const [likeRes, commentRes, viewerReaction, isBookmarkedRes] = await Promise.all([
         db.from('likes').select('id', { count: 'exact', head: true }).eq('post_id', postId),
@@ -105,7 +108,7 @@ export default function ClipsViewer() {
         media_url: post.media_url || '',
         thumbnail_url: post.thumbnail_url,
         caption: post.caption || '',
-        tags: post.tags || [],
+        tags: Array.isArray(post.tags) ? post.tags.filter((tag: unknown): tag is string => typeof tag === 'string') : [],
         created_at: post.created_at,
         is_pinned: post.is_pinned || false,
         author: {
@@ -126,6 +129,7 @@ export default function ClipsViewer() {
     enabled: !!postId,
     staleTime: 5 * 60 * 1000,
   });
+  const { data: initialPost, isLoading: loadingInitial } = initialQuery;
 
   // Long-form videos use the watch player, not the vertical clip viewer
   useEffect(() => {
@@ -154,7 +158,7 @@ export default function ClipsViewer() {
         if (error) throw error;
         const posts = (data || []).map(transformRankedPost).filter((p) => p.id !== postId && isClipVideo(p));
         presignPosts(posts).catch(() => {});
-        return { posts, nextPage: posts.length >= PAGE_SIZE ? pageParam + 1 : null };
+        return { posts, nextPage: hasMoreFeedRows(data, PAGE_SIZE) ? pageParam + 1 : null };
       }
 
       const { data, error } = await db.rpc('get_trending_feed', {
@@ -165,7 +169,7 @@ export default function ClipsViewer() {
       if (error) throw error;
       const posts = (data || []).map(transformRankedPost).filter((p) => p.id !== postId && isClipVideo(p));
       presignPosts(posts).catch(() => {});
-      return { posts, nextPage: posts.length >= PAGE_SIZE ? pageParam + 1 : null };
+      return { posts, nextPage: hasMoreFeedRows(data, PAGE_SIZE) ? pageParam + 1 : null };
     },
     getNextPageParam: (lastPage) => lastPage.nextPage,
     initialPageParam: 0,
@@ -175,7 +179,7 @@ export default function ClipsViewer() {
 
   // ─── 3. Merge: [clicked_post, ...feed_posts] ───
   const allClips = useMemo(() => {
-    const feed = feedQuery.data?.pages.flatMap(p => p.posts) || [];
+    const feed = flattenUniqueFeedPosts(feedQuery.data?.pages);
     if (!initialPost) return feed;
     return [initialPost, ...feed.filter(isClipVideo)];
   }, [initialPost, feedQuery.data]);
@@ -183,7 +187,7 @@ export default function ClipsViewer() {
   // ─── State ───
   const [currentIndex, setCurrentIndex] = useState(0);
   const [globalMuted, setGlobalMuted] = useState(() => {
-    const stored = localStorage.getItem('vybe-clips-muted');
+    const stored = readFeedPreference('vybe-clips-muted');
     return stored !== null ? stored === 'true' : true;
   });
   const containerRef = useRef<HTMLDivElement>(null);
@@ -236,6 +240,7 @@ export default function ClipsViewer() {
   useEffect(() => {
     if (isMobileOrTablet) return;
     const handleKeyDown = (e: KeyboardEvent) => {
+      if (!shouldHandleFeedShortcut(e)) return;
       if (e.key === 'ArrowDown' || e.key === 'j') {
         e.preventDefault();
         scrollToIndex(currentIndex + 1);
@@ -259,7 +264,7 @@ export default function ClipsViewer() {
   const handleToggleMute = useCallback(() => {
     setGlobalMuted(prev => {
       const next = !prev;
-      localStorage.setItem('vybe-clips-muted', String(next));
+      writeFeedPreference('vybe-clips-muted', String(next));
       return next;
     });
   }, []);
@@ -279,6 +284,12 @@ export default function ClipsViewer() {
         <div className="w-12 h-12 border-4 border-white/30 border-t-white rounded-full animate-spin" />
       </div>
     );
+  }
+
+  if (initialQuery.isError && !initialPost) {
+    return <main id="main-content" tabIndex={-1} className="flex min-h-dvh items-center justify-center bg-background px-5 py-24">
+      <FeedFailureNotice label="this clip" retrying={initialQuery.isFetching} onRetry={() => { void initialQuery.refetch(); }} />
+    </main>;
   }
 
   // ─── Error / not found ───

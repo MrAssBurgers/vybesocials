@@ -7,6 +7,7 @@ import { useBlockedUserIds } from '@/hooks/useBlockedUsers';
 import { refetchFeedOnMount } from '@/lib/queryRefetchPolicy';
 import { getEffectiveProfileId } from '@/lib/profileCache';
 import { preloadFeedPostsMedia } from '@/lib/imagePreload';
+import { hasMoreFeedRows, toFeedError } from '@/lib/feedReliability';
 
 export interface Post {
   id: string;
@@ -51,7 +52,7 @@ function transformPost(row: any): Post | null {
     media_url: row.media_url || '',
     thumbnail_url: row.thumbnail_url ?? null,
     caption: row.caption || '',
-    tags: row.tags || [],
+    tags: Array.isArray(row.tags) ? row.tags.filter((tag: unknown): tag is string => typeof tag === 'string') : [],
     created_at: row.created_at || new Date().toISOString(),
     is_pinned: !!row.is_pinned,
     view_count: row.view_count || 0,
@@ -110,7 +111,7 @@ async function fetchPersonalizedPosts(
   offset: number,
   limit: number,
   blocked: Set<string>,
-): Promise<Post[]> {
+): Promise<{ posts: Post[]; hasMore: boolean }> {
   const { data, error } = await db.rpc('get_ranked_feed_v2', {
     p_user_id: profileId,
     p_content_type: type ?? null,
@@ -122,8 +123,8 @@ async function fetchPersonalizedPosts(
     p_limit: limit,
   } as any);
 
-  if (!error && data?.length) {
-    return mapFeedRows(data).filter((p) => !blocked.has(p.author?.id));
+  if (!error && Array.isArray(data)) {
+    return { posts: mapFeedRows(data).filter((p) => !blocked.has(p.author?.id)), hasMore: hasMoreFeedRows(data, limit) };
   }
 
   if (error) {
@@ -140,10 +141,10 @@ async function fetchPersonalizedPosts(
 
   if (fallbackError) {
     console.warn('[Feed] get_posts_with_counts fallback failed:', fallbackError.message);
-    return [];
+    throw toFeedError(fallbackError);
   }
 
-  return mapFeedRows(fallback).filter((p) => !blocked.has(p.author?.id));
+  return { posts: mapFeedRows(fallback).filter((p) => !blocked.has(p.author?.id)), hasMore: hasMoreFeedRows(fallback, limit) };
 }
 
 export function useInfinitePosts(
@@ -174,7 +175,7 @@ export function useInfinitePosts(
 
       if (error) {
         console.warn('[Feed] get_posts_with_counts failed:', error.message);
-        return { posts: [], nextPage: null, totalLoaded: offset };
+        throw toFeedError(error);
       }
 
       let posts = mapFeedRows(data);
@@ -188,7 +189,7 @@ export function useInfinitePosts(
 
       // Sign + preload above-the-fold media before paint on first page
       if (isFirstPage && posts.length > 0) {
-        void preparePostMedia(posts, PRELOAD_MEDIA_CAP);
+        void preparePostMedia(posts, PRELOAD_MEDIA_CAP).catch(() => {});
       } else {
         void preparePostMedia(posts, 0).catch(() => {});
       }
@@ -196,7 +197,7 @@ export function useInfinitePosts(
       const expectedSize = isFirstPage ? INITIAL_PAGE_SIZE : PAGE_SIZE;
       return {
         posts,
-        nextPage: posts.length >= expectedSize ? pageParam + 1 : null,
+        nextPage: hasMoreFeedRows(data, expectedSize) ? pageParam + 1 : null,
         totalLoaded: offset + posts.length,
       };
     },
@@ -244,7 +245,7 @@ export function useInfiniteFollowingPosts(
 
       if (error) {
         console.warn('[Feed] get_following_posts_with_counts failed:', error.message);
-        return { posts: [], nextPage: null };
+        throw toFeedError(error);
       }
 
       let posts = mapFeedRows(data);
@@ -256,7 +257,7 @@ export function useInfiniteFollowingPosts(
       );
 
       if (isFirstPage && posts.length > 0) {
-        void preparePostMedia(posts, PRELOAD_MEDIA_CAP);
+        void preparePostMedia(posts, PRELOAD_MEDIA_CAP).catch(() => {});
       } else {
         void preparePostMedia(posts, 0).catch(() => {});
       }
@@ -264,7 +265,7 @@ export function useInfiniteFollowingPosts(
       const expectedSize = isFirstPage ? INITIAL_PAGE_SIZE : PAGE_SIZE;
       return {
         posts,
-        nextPage: posts.length >= expectedSize ? pageParam + 1 : null,
+        nextPage: hasMoreFeedRows(data, expectedSize) ? pageParam + 1 : null,
       };
     },
     getNextPageParam: (lastPage) => lastPage.nextPage,
@@ -397,26 +398,26 @@ export function usePersonalizedFeed(
         } as any);
         if (error) {
           console.warn('[Feed] get_trending_feed failed:', error.message);
-          return { posts: [], nextPage: null };
+          throw toFeedError(error);
         }
         const posts = mapFeedRows(data);
         if (pageParam === 0 && posts.length > 0) {
-          void preparePostMedia(posts, PRELOAD_MEDIA_CAP);
+          void preparePostMedia(posts, PRELOAD_MEDIA_CAP).catch(() => {});
         } else {
           void preparePostMedia(posts, 0).catch(() => {});
         }
-        return { posts, nextPage: posts.length >= limit ? pageParam + 1 : null };
+        return { posts, nextPage: hasMoreFeedRows(data, limit) ? pageParam + 1 : null };
       }
 
-      const posts = await fetchPersonalizedPosts(profileId, type, offset, limit, blocked);
+      const { posts, hasMore } = await fetchPersonalizedPosts(profileId, type, offset, limit, blocked);
 
       if (pageParam === 0 && posts.length > 0) {
-        void preparePostMedia(posts, PRELOAD_MEDIA_CAP);
+        void preparePostMedia(posts, PRELOAD_MEDIA_CAP).catch(() => {});
       } else {
         void preparePostMedia(posts, 0).catch(() => {});
       }
 
-      return { posts, nextPage: posts.length >= limit ? pageParam + 1 : null };
+      return { posts, nextPage: hasMore ? pageParam + 1 : null };
     },
     getNextPageParam: (last) => last.nextPage,
     initialPageParam: 0,

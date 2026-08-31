@@ -15,6 +15,8 @@ import { useIsMobileOrTablet } from '@/hooks/use-mobile';
 import { cn } from '@/lib/utils';
 import { useVideoAds } from '@/hooks/useVideoAds';
 import { isNativePerfMode } from '@/lib/nativePerfMode';
+import { FeedFailureNotice } from '@/components/posts/FeedFailureNotice';
+import { flattenUniqueFeedPosts, shouldHandleFeedShortcut, readFeedPreference, writeFeedPreference } from '@/lib/feedReliability';
 import { ClipsLongVideosPanel } from '@/components/clips/ClipsLongVideosPanel';
 import {
   CLIPS_BOTTOM_UI_OFFSET,
@@ -27,24 +29,9 @@ import {
 const CLIPS_HINT_KEY = 'vybe-clips-hint-seen';
 const CLIPS_PAGE_CLASS = 'vybe-clips-page';
 
-function shuffleWithSeed<T>(items: T[], seed: number): T[] {
-  const shuffled = [...items];
-  let s = seed;
-  const seededRandom = () => {
-    s = (s * 16807 + 0.5) % 1;
-    return Math.abs(s);
-  };
-  for (let i = shuffled.length - 1; i > 0; i--) {
-    const j = Math.floor(seededRandom() * (i + 1));
-    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
-  }
-  return shuffled;
-}
-
 export default function ClipsPage() {
   const navigate = useNavigate();
   const [feedTab, setFeedTab] = useState<ClipsFeedTab>(() => loadClipsFeedTab());
-  const sessionSeed = useMemo(() => Math.random(), []);
 
   const isShortsMode = isShortClipsTab(feedTab);
 
@@ -54,15 +41,11 @@ export default function ClipsPage() {
   const activeQuery = feedTab === 'foryou' ? forYouQuery : followingQuery;
   const { data, isLoading, fetchNextPage, hasNextPage, isFetchingNextPage } = activeQuery;
 
-  const shorts = useMemo(() => {
-    const allPosts = data?.pages.flatMap((page) => page.posts) || [];
-    if (allPosts.length === 0) return [];
-    return feedTab === 'foryou' ? shuffleWithSeed(allPosts, sessionSeed) : allPosts;
-  }, [data, sessionSeed, feedTab]);
+  const shorts = useMemo(() => flattenUniqueFeedPosts(data?.pages), [data]);
 
   const [currentIndex, setCurrentIndex] = useState(0);
   const [globalMuted, setGlobalMuted] = useState(() => {
-    const stored = localStorage.getItem('vybe-clips-muted');
+    const stored = readFeedPreference('vybe-clips-muted');
     return stored !== null ? stored === 'true' : true;
   });
   const containerRef = useRef<HTMLDivElement>(null);
@@ -216,6 +199,7 @@ export default function ClipsPage() {
     if (!isShortsMode || isMobileOrTablet) return;
 
     const handleKeyDown = (e: KeyboardEvent) => {
+      if (!shouldHandleFeedShortcut(e)) return;
       if (e.key === 'ArrowDown' || e.key === 'j') {
         e.preventDefault();
         scrollToIndex(currentIndex + 1);
@@ -240,7 +224,7 @@ export default function ClipsPage() {
   const handleToggleMute = useCallback(() => {
     setGlobalMuted((prev) => {
       const next = !prev;
-      localStorage.setItem('vybe-clips-muted', String(next));
+      writeFeedPreference('vybe-clips-muted', String(next));
       return next;
     });
   }, []);
@@ -285,6 +269,15 @@ export default function ClipsPage() {
         </div>
       </AppLayout>
     );
+  }
+
+  if (activeQuery.isError && shorts.length === 0) {
+    return <AppLayout hideNav fullWidth noPadding>
+      <ClipsFeedHeader active={feedTab} onChange={handleFeedTabChange} />
+      <div className="flex min-h-dvh items-center justify-center bg-background px-5 py-28">
+        <FeedFailureNotice label="clips" retrying={activeQuery.isFetching} onRetry={() => { void activeQuery.refetch(); }} />
+      </div>
+    </AppLayout>;
   }
 
   if (!shorts || shorts.length === 0) {

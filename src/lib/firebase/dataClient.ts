@@ -27,6 +27,7 @@ import {
   isFounderAuthId,
 } from '@/lib/previewSandbox';
 import { isFeedRpc, normalizeRpcFeedRows, runFeedRpc } from './feedRpc';
+import { readFeedResult } from '@/lib/feedReliability';
 import { isSocialRpc, runSocialRpc } from './socialRpc';
 import { isNotYetPortedPayload } from './functionsService';
 import { getProfileByAuthUid, resolveProfileIdFromAuthUid } from './profileResolve';
@@ -70,6 +71,24 @@ interface JoinSpec {
   fkColumn: string;
   inner: boolean;
   fields: string[];
+}
+
+function splitSelectFields(fields: string): string[] {
+  const parts: string[] = [];
+  let current = '';
+  let depth = 0;
+  for (const ch of fields) {
+    if (ch === '(') depth += 1;
+    if (ch === ')') depth = Math.max(0, depth - 1);
+    if (ch === ',' && depth === 0) {
+      if (current.trim()) parts.push(current.trim());
+      current = '';
+      continue;
+    }
+    current += ch;
+  }
+  if (current.trim()) parts.push(current.trim());
+  return parts;
 }
 
 /** Map Supabase `profiles!posts_author_id_fkey` hints to row column names. */
@@ -521,6 +540,36 @@ class QueryBuilder {
     return result;
   }
 
+  private selectedTopLevelFields(): Set<string> | null {
+    const fields = this.selectFields.trim();
+    if (!fields || fields === '*') return null;
+
+    const selected = new Set<string>();
+    for (const part of splitSelectFields(fields)) {
+      if (!part || part === '*') return null;
+      const joinAlias = /^(\w+)\s*:/.exec(part)?.[1];
+      if (joinAlias) {
+        selected.add(joinAlias);
+        continue;
+      }
+      const bare = /^(\w+)$/.exec(part)?.[1];
+      if (bare) selected.add(bare);
+    }
+    return selected.size ? selected : null;
+  }
+
+  private projectSelectedFields(rows: Record<string, unknown>[]): Record<string, unknown>[] {
+    const selected = this.selectedTopLevelFields();
+    if (!selected) return rows;
+    return rows.map((row) => {
+      const projected: Record<string, unknown> = {};
+      for (const field of selected) {
+        if (field in row) projected[field] = row[field];
+      }
+      return projected;
+    });
+  }
+
   async then<TResult1 = QueryResult, TResult2 = never>(
     onfulfilled?: ((value: QueryResult) => TResult1 | PromiseLike<TResult1>) | null,
     onrejected?: ((reason: unknown) => TResult2 | PromiseLike<TResult2>) | null,
@@ -549,7 +598,8 @@ class QueryBuilder {
 
       let rows = await this.fetchRows();
       rows = this.applyClientFilters(rows as Record<string, unknown>[]) as typeof rows;
-      const data = await this.resolveJoins(rows as Record<string, unknown>[]);
+      const joined = await this.resolveJoins(rows as Record<string, unknown>[]);
+      const data = this.projectSelectedFields(joined as Record<string, unknown>[]);
 
       if (this.singleMode === 'single') {
         if (data.length !== 1) {
@@ -1239,6 +1289,28 @@ const CLIENT_RPC: Record<string, (params: Record<string, unknown>) => Promise<un
   earn_vybe_tokens: async (p) => rpcEarnVybeTokens(p),
   check_rate_limit: async (p) => rpcCheckRateLimit(p),
   purchase_marketplace_item: async (p) => rpcPurchaseMarketplaceItem(p),
+  claim_challenge_reward: async (p) => {
+    const { data, error } = await invokeFunction<{
+      success?: boolean;
+      xp_gained?: number;
+      already_claimed?: boolean;
+      level_result?: {
+        old_level: number;
+        new_level: number;
+        total_xp: number;
+        level_up: boolean;
+        new_rewards: unknown[];
+      };
+    }>('claim_challenge_reward', {
+      p_reward_id: p.p_reward_id || p.reward_id,
+      p_user_id: p.p_user_id || p.user_id,
+    });
+    if (error) throw error;
+    if (!data?.success && !data?.already_claimed) {
+      throw new Error('Claim failed — try again');
+    }
+    return data;
+  },
   compute_vybe_dna: async () => rpcComputeVybeDna(),
 };
 
@@ -1270,15 +1342,7 @@ export function createDataClient() {
 
       // Feed RPCs: Firestore client first (cloud stubs caused CORS noise on vybehub.app).
       if (isFeedRpc(name)) {
-        const promise = (async () => {
-          try {
-            const rows = await runFeedRpc(name, params);
-            return { data: rows, error: null } as any;
-          } catch (err) {
-            console.warn(`[Feed RPC] ${name} client fallback failed:`, err);
-            return { data: [], error: null } as any;
-          }
-        })();
+        const promise = readFeedResult(() => runFeedRpc(name, params));
         const enriched = promise as Promise<any> & {
           single: () => Promise<any>;
           maybeSingle: () => Promise<any>;

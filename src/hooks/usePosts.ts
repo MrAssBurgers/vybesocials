@@ -76,6 +76,7 @@ export function usePosts(
         .from('posts')
         .select(`
           id,
+          author_id,
           type,
           media_url,
           thumbnail_url,
@@ -133,7 +134,6 @@ export function usePosts(
           .select('blocked_id')
           .eq('blocker_id', profile.id);
         feedExcludeAuthors = new Set((blocks || []).map((b: any) => b.blocked_id).filter(Boolean));
-        feedExcludeAuthors.add(profile.id);
       }
 
       let rawPosts: any[] | null = null;
@@ -252,6 +252,7 @@ export function usePosts(
           
           return {
             ...post,
+            tags: Array.isArray(post.tags) ? post.tags.filter((tag): tag is string => typeof tag === 'string') : [],
             is_pinned: post.is_pinned ?? false,
             view_count: (post as any).view_count ?? 0,
             author,
@@ -324,6 +325,7 @@ export function useFollowingPosts() {
         .from('posts')
         .select(`
           id,
+          author_id,
           type,
           media_url,
           thumbnail_url,
@@ -375,6 +377,7 @@ export function useFollowingPosts() {
 
           return {
             ...post,
+            tags: Array.isArray(post.tags) ? post.tags.filter((tag): tag is string => typeof tag === 'string') : [],
             is_pinned: post.is_pinned ?? false,
             view_count: (post as any).view_count ?? 0,
             author,

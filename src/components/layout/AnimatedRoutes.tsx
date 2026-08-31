@@ -256,10 +256,10 @@ export function AnimatedRoutes() {
             <Route path="/brief/*" element={<Navigate to="/brief" replace />} />
             <Route path="/welcome" element={<ProtectedRoute><AppWelcome /></ProtectedRoute>} />
             <Route path="/vision" element={<ProtectedRoute><AppWelcome /></ProtectedRoute>} />
-            <Route path="/clips" element={<ProtectedRoute><Shorts /></ProtectedRoute>} />
+            <Route path="/clips" element={<ProtectedRoute><RouteBoundary name="clips"><Shorts /></RouteBoundary></ProtectedRoute>} />
             <Route path="/shorts" element={<Navigate to="/clips" replace />} />
             <Route path="/shorts/:postId" element={<ShortsPostRedirect />} />
-            <Route path="/explore" element={<ProtectedRoute><Explore /></ProtectedRoute>} />
+            <Route path="/explore" element={<ProtectedRoute><RouteBoundary name="explore"><Explore /></RouteBoundary></ProtectedRoute>} />
             <Route path="/market" element={<ProtectedRoute><Market /></ProtectedRoute>} />
             <Route path="/messages/search" element={<ProtectedRoute><RouteBoundary name="messages"><MessagesSearchPage /></RouteBoundary></ProtectedRoute>} />
             <Route path="/messages/requests" element={<ProtectedRoute><RouteBoundary name="messages"><MessageRequestsPage /></RouteBoundary></ProtectedRoute>} />
@@ -292,7 +292,7 @@ export function AnimatedRoutes() {
             <Route path="/community" element={<ProtectedRoute><Community /></ProtectedRoute>} />
             <Route path="/watch" element={<ProtectedRoute><VideoBrowse /></ProtectedRoute>} />
             <Route path="/watch/:id" element={<ProtectedRoute><Watch /></ProtectedRoute>} />
-            <Route path="/clips/:postId" element={<ProtectedRoute><ClipsViewer /></ProtectedRoute>} />
+            <Route path="/clips/:postId" element={<ProtectedRoute><RouteBoundary name="clip-detail"><ClipsViewer /></RouteBoundary></ProtectedRoute>} />
             <Route path="/invite-friends" element={<ProtectedRoute><InviteFriends /></ProtectedRoute>} />
             <Route path="/add-friend/:userId" element={<ProtectedRoute><AddFriend /></ProtectedRoute>} />
             <Route path="/friends/add" element={<ProtectedRoute><RouteBoundary name="friends-add"><AddFriendsPage /></RouteBoundary></ProtectedRoute>} />

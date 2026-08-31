@@ -18,7 +18,6 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { usePosts } from '@/hooks/usePosts';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { Input } from '@/components/ui/input';
-import { Badge } from '@/components/ui/badge';
 import { ExploreVideosGrid } from '@/components/explore/ExploreVideosGrid';
 import { useSmartPreload } from '@/hooks/useSmartPreload';
 import { isValidMediaUrl } from '@/components/ui/SafeMedia';
@@ -36,6 +35,8 @@ import { db } from '@/lib/firebase';
 import { TrendingCreators } from '@/components/explore/TrendingCreators';
 import { TrendingHashtags } from '@/components/explore/TrendingHashtags';
 import { usePageMeta } from '@/hooks/usePageMeta';
+import { FeedFailureNotice } from '@/components/posts/FeedFailureNotice';
+import { shouldHandleFeedShortcut, readFeedPreference, writeFeedPreference } from '@/lib/feedReliability';
 
 const popularTags = ['meme', 'fails', 'pets', 'gaming', 'comedy', 'sports', 'music', 'food', 'tech', 'beauty'];
 
@@ -79,9 +80,11 @@ const ExploreTabBar = memo(function ExploreTabBar({
     <div className="flex justify-center">
       <div className="inline-flex items-center gap-1 p-1 rounded-full bg-card border border-border/40 shadow-lg">
         <button
+          type="button"
+          aria-pressed={viewMode === 'clips'}
           onClick={() => onTabChange('clips')}
           className={cn(
-            "flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-semibold transition-all",
+            "flex items-center gap-1.5 min-h-11 px-4 py-2 rounded-full text-sm font-semibold transition-all",
             viewMode === 'clips'
               ? "bg-primary text-primary-foreground shadow-md shadow-primary/30"
               : "text-muted-foreground hover:text-foreground hover:bg-foreground/5"
@@ -91,9 +94,11 @@ const ExploreTabBar = memo(function ExploreTabBar({
           Clips
         </button>
         <button
+          type="button"
+          aria-pressed={viewMode === 'videos'}
           onClick={() => onTabChange('videos')}
           className={cn(
-            "flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-semibold transition-all",
+            "flex items-center gap-1.5 min-h-11 px-4 py-2 rounded-full text-sm font-semibold transition-all",
             viewMode === 'videos'
               ? "bg-primary text-primary-foreground shadow-md shadow-primary/30"
               : "text-muted-foreground hover:text-foreground hover:bg-foreground/5"
@@ -128,7 +133,7 @@ function FullscreenClipsViewer({
 }) {
   const [currentIndex, setCurrentIndex] = useState(startIndex);
   const [globalMuted, setGlobalMuted] = useState(() => {
-    const stored = localStorage.getItem('vybe-clips-muted');
+    const stored = readFeedPreference('vybe-clips-muted');
     return stored !== null ? stored === 'true' : true;
   });
   const containerRef = useRef<HTMLDivElement>(null);
@@ -148,10 +153,9 @@ function FullscreenClipsViewer({
 
   // Lock body scroll when viewer is open
   useEffect(() => {
+    const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
-    return () => {
-      document.body.style.overflow = '';
-    };
+    return () => { document.body.style.overflow = previousOverflow; };
   }, []);
 
   // Scroll to starting clip on mount
@@ -207,6 +211,7 @@ function FullscreenClipsViewer({
     if (isMobileOrTablet) return;
 
     const handleKeyDown = (e: KeyboardEvent) => {
+      if (!shouldHandleFeedShortcut(e)) return;
       if (e.key === 'ArrowDown' || e.key === 'j') {
         e.preventDefault();
         scrollToIndex(currentIndex + 1);
@@ -232,8 +237,8 @@ function FullscreenClipsViewer({
   const handleToggleMute = useCallback(() => {
     setGlobalMuted(prev => {
       const next = !prev;
-      localStorage.setItem('vybe-clips-muted', String(next));
-      localStorage.setItem('clips-muted', String(next));
+      writeFeedPreference('vybe-clips-muted', String(next));
+      writeFeedPreference('clips-muted', String(next));
       return next;
     });
   }, []);
@@ -445,6 +450,8 @@ function VideosGalleryView({
           <div className="relative max-w-2xl">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
             <Input
+              type="search"
+              aria-label="Search videos and creators"
               placeholder="Search videos, creators..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
@@ -467,9 +474,11 @@ function VideosGalleryView({
               return (
                 <button
                   key={cat.id}
+                  type="button"
+                  aria-pressed={isActive}
                   onClick={() => handleCategoryChange(cat.id)}
                   className={cn(
-                    "flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-all shrink-0 border",
+                    "flex items-center gap-2 min-h-11 px-4 py-2 rounded-full text-sm font-medium transition-all shrink-0 border",
                     isActive
                       ? "bg-primary text-primary-foreground border-transparent shadow-lg shadow-primary/30"
                       : "bg-card/60 hover:bg-card border-border/50 text-foreground hover:border-primary/50"
@@ -488,11 +497,12 @@ function VideosGalleryView({
         <ScrollArea className="w-full">
           <div className="flex gap-2 pb-2">
             {popularTags.map((tag) => (
-              <Badge
+              <button
                 key={tag}
-                variant={selectedTag === tag ? 'default' : 'outline'}
+                type="button"
+                aria-pressed={selectedTag === tag}
                 className={cn(
-                  "cursor-pointer transition-all px-3 py-1.5 text-sm whitespace-nowrap shrink-0 rounded-full",
+                  "inline-flex min-h-11 items-center border cursor-pointer transition-all px-3 py-1.5 text-sm whitespace-nowrap shrink-0 rounded-full",
                   selectedTag === tag 
                     ? "bg-primary text-primary-foreground border-transparent shadow-md shadow-primary/20" 
                     : "bg-card/40 hover:bg-card border-border/50 hover:border-primary/50 text-muted-foreground hover:text-foreground"
@@ -500,7 +510,7 @@ function VideosGalleryView({
                 onClick={() => handleTagClick(tag)}
               >
                 #{tag}
-              </Badge>
+              </button>
             ))}
           </div>
           <ScrollBar orientation="horizontal" />
@@ -548,18 +558,19 @@ export default function ExplorePage() {
   const [searchQuery, setSearchQuery] = useState(searchParams.get('q') || '');
   const [activeCategory, setActiveCategory] = useState(searchParams.get('cat') || 'all');
   
+  const initialViewMode = useRef<'clips' | 'videos'>(readFeedPreference('explore-view-mode') === 'clips' ? 'clips' : 'videos');
+
   // Persist view mode to localStorage + DB so it remembers user selection
   const [viewMode, setViewMode] = useState<'clips' | 'videos'>(() => {
     // First check URL param, then localStorage, then default to videos (discovery grid).
     const urlView = searchParams.get('view') as 'clips' | 'videos';
     if (urlView === 'clips' || urlView === 'videos') return urlView;
-    const saved = localStorage.getItem('explore-view-mode');
-    return (saved === 'clips' || saved === 'videos') ? saved : 'videos';
+    return initialViewMode.current;
   });
   
   // Save to localStorage whenever viewMode changes + sync to DB
   useEffect(() => {
-    localStorage.setItem('explore-view-mode', viewMode);
+    writeFeedPreference('explore-view-mode', viewMode);
     // Fire-and-forget DB sync
     db.auth.getUser().then(({ data: { user } }) => {
       if (!user?.id) return;
@@ -574,8 +585,15 @@ export default function ExplorePage() {
     });
   }, [viewMode]);
   
+  useEffect(() => {
+    setSearchQuery(searchParams.get('q') || '');
+    setActiveCategory(searchParams.get('cat') || 'all');
+    const mode = searchParams.get('view');
+    setViewMode(mode === 'clips' || mode === 'videos' ? mode : initialViewMode.current);
+  }, [searchParams]);
+
   const selectedTag = searchParams.get('tag');
-  const { data: posts, isLoading } = usePosts();
+  const { data: posts, isLoading, isError, isFetching, refetch } = usePosts();
 
   // Compute trending creators from posts
   const trendingCreators = useMemo(() => {
@@ -711,6 +729,10 @@ export default function ExplorePage() {
     // Close just returns to videos
     handleTabChange('videos');
   }, [handleTabChange]);
+
+  if (isError && !posts?.length) {
+    return <AppLayout><div className="p-5"><FeedFailureNotice label="Explore" retrying={isFetching} onRetry={() => { void refetch(); }} /></div></AppLayout>;
+  }
 
   // Clips view - fullscreen TikTok-style auto-play
   if (viewMode === 'clips') {
