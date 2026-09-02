@@ -4,6 +4,7 @@ import { chatCompletion, generateImage, groundedColorResearchStructured } from '
 import { modelForTier, TOKEN_BUDGET } from './_shared/aiModels.js';
 import { enforceAiQuota, getGeminiByokKey, recordSuccessfulAiUsage, resolveProfileIdFromAuth, } from './_shared/aiQuota.js';
 import { runVybeCheckScan } from './_shared/contentSafety.js';
+import { postBelongsToCaller, resolvePostOwnerId } from './_shared/postOwnership.js';
 const SECRETS = ['GEMINI_API_KEY'];
 async function loadUserProfile(uid) {
     const direct = await db.collection('profiles').doc(uid).get();
@@ -786,11 +787,12 @@ export const detectAiContent = onCall({ secrets: SECRETS }, async (request) => {
         const postSnap = await db.collection('posts').doc(post_id).get();
         if (postSnap.exists) {
             const post = postSnap.data();
-            if (post.user_id && post.user_id !== uid) {
-                const profile = await db.collection('profiles').where('user_id', '==', uid).limit(1).get();
-                const ownerOk = post.user_id === uid || profile.docs.some((d) => d.id === post.user_id);
-                if (!ownerOk)
-                    throw new HttpsError('permission-denied', 'not your post');
+            const profileId = await resolveProfileIdFromAuth(uid);
+            if (!postBelongsToCaller(post, uid, profileId)) {
+                if (!resolvePostOwnerId(post)) {
+                    throw new HttpsError('failed-precondition', 'Post owner missing');
+                }
+                throw new HttpsError('permission-denied', 'not your post');
             }
         }
     }

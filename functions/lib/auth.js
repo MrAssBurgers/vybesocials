@@ -5,6 +5,7 @@ import { OAuth2Client } from 'google-auth-library';
 import { db, auth, requireAuth, requireAdmin, rateLimit, enforceRateLimit } from './_shared/admin.js';
 import { sendPasswordResetEmail } from './_shared/passwordResetEmail.js';
 import { claimProfileByEmailForUid } from './_shared/claimProfileByEmail.js';
+import { gateKnownSession, shouldExpireStaleLoginChallenge } from './_shared/loginNotifyGuards.js';
 import { renderAuthEmail, AUTH_EMAIL_SUBJECTS } from './_shared/emailTemplates/index.js';
 /** Must match Firebase Console Google web client (public). Used by native-callback exchange. */
 const GOOGLE_WEB_CLIENT_ID = '728651793473-71p1iahdr79ali0o7en8ktirklfjf3pf.apps.googleusercontent.com';
@@ -877,7 +878,9 @@ export const authLoginNotify = onCall({ cors: true, secrets: ['ONESIGNAL_APP_ID'
         latitude: geo.latitude ?? null,
         longitude: geo.longitude ?? null,
     };
-    // Known session on this device — refresh heartbeat only, no alerts.
+    let sessionRef = null;
+    // Known session on this device. Trusted installs may heartbeat normally,
+    // but an untrusted install with pending approval must stay gated on retry.
     if (sessionHash) {
         const known = await db.collection('user_sessions')
             .where('user_id', '==', uid)
@@ -886,6 +889,10 @@ export const authLoginNotify = onCall({ cors: true, secrets: ['ONESIGNAL_APP_ID'
             .get();
         if (!known.empty) {
             const doc = known.docs[0];
+            const sessionData = doc.data();
+            const pendingApproval = sessionData.pending_approval === true;
+            const trusted = sessionData.trusted !== false;
+            const deviceLabel = parseDeviceLabel(userAgent);
             await doc.ref.set({
                 last_seen_at: now,
                 ip: geo.ip ?? null,
@@ -896,67 +903,124 @@ export const authLoginNotify = onCall({ cors: true, secrets: ['ONESIGNAL_APP_ID'
                 longitude: geo.longitude ?? null,
                 geo: safeGeo,
             }, { merge: true });
-            // Clear stale "Was this you?" prompts that were incorrectly created for this install.
-            const stale = await db.collection('auth_challenges')
-                .where('user_id', '==', uid)
-                .where('challenge_type', '==', 'login_approval')
-                .where('status', '==', 'pending')
-                .limit(10)
-                .get();
-            const batch = db.batch();
-            let cleared = 0;
-            for (const challenge of stale.docs) {
-                const meta = (challenge.data().metadata || {});
-                const sameDevice = meta.requesting_session_hash === sessionHash;
-                const resumeNoise = meta.method === 'session_resume' || meta.method === 'app_open';
-                if (sameDevice || resumeNoise) {
-                    batch.set(challenge.ref, { status: 'expired', resolved_at: now }, { merge: true });
-                    cleared += 1;
+            const gate = gateKnownSession({ pendingApproval, trusted, isResume });
+            if (gate.action === 'require_approval') {
+                const pendingSnap = await db.collection('auth_challenges')
+                    .where('user_id', '==', uid)
+                    .where('challenge_type', '==', 'login_approval')
+                    .where('status', '==', 'pending')
+                    .limit(10)
+                    .get();
+                const existing = pendingSnap.docs.find((challenge) => {
+                    const meta = (challenge.data().metadata || {});
+                    return (meta.requesting_session_id === doc.id ||
+                        (sessionHash && meta.requesting_session_hash === sessionHash));
+                });
+                await doc.ref.set({ trusted: false, pending_approval: true }, { merge: true });
+                if (existing) {
+                    const existingData = existing.data();
+                    return {
+                        ok: true,
+                        sessionId: doc.id,
+                        challengeId: existing.id,
+                        expiresAt: existingData.expires_at || null,
+                        deviceLabel,
+                        geo: {
+                            city: geo.city || null,
+                            country: geo.country || null,
+                            ip: geo.ip,
+                            region: geo.region || null,
+                        },
+                        notified: false,
+                        requiresApproval: true,
+                        reason: 'existing_challenge',
+                    };
                 }
+                sessionRef = doc.ref;
             }
-            if (cleared > 0)
-                await batch.commit();
-            return { ok: true, sessionId: doc.id, notified: false, requiresApproval: false, reason: 'known_session' };
+            else {
+                const stale = await db.collection('auth_challenges')
+                    .where('user_id', '==', uid)
+                    .where('challenge_type', '==', 'login_approval')
+                    .where('status', '==', 'pending')
+                    .limit(10)
+                    .get();
+                const batch = db.batch();
+                let cleared = 0;
+                for (const challenge of stale.docs) {
+                    const meta = (challenge.data().metadata || {});
+                    const sameDevice = meta.requesting_session_hash === sessionHash;
+                    const resumeNoise = meta.method === 'session_resume' || meta.method === 'app_open';
+                    if (shouldExpireStaleLoginChallenge({ trusted, sameDevice, resumeNoise })) {
+                        batch.set(challenge.ref, { status: 'expired', resolved_at: now }, { merge: true });
+                        cleared += 1;
+                    }
+                }
+                if (cleared > 0)
+                    await batch.commit();
+                return {
+                    ok: true,
+                    sessionId: doc.id,
+                    notified: false,
+                    requiresApproval: false,
+                    reason: 'known_session',
+                };
+            }
         }
     }
-    const sessionRef = db.collection('user_sessions').doc();
+    let reusedPendingSession = false;
+    if (!sessionRef) {
+        sessionRef = db.collection('user_sessions').doc();
+        const deviceLabel = parseDeviceLabel(userAgent);
+        await sessionRef.set({
+            user_id: uid,
+            session_token_hash: sessionHash || null,
+            device_label: deviceLabel,
+            user_agent: userAgent || null,
+            ip: geo.ip ?? null,
+            city: geo.city ?? null,
+            region: geo.region ?? null,
+            country: geo.country ?? null,
+            latitude: geo.latitude ?? null,
+            longitude: geo.longitude ?? null,
+            geo: safeGeo,
+            trusted: isResume,
+            pending_approval: false,
+            created_at: now,
+            last_seen_at: now,
+            revoked_at: null,
+        });
+    }
+    else {
+        reusedPendingSession = true;
+    }
     const deviceLabel = parseDeviceLabel(userAgent);
-    await sessionRef.set({
-        user_id: uid,
-        session_token_hash: sessionHash || null,
-        device_label: deviceLabel,
-        user_agent: userAgent || null,
-        ip: geo.ip ?? null,
-        city: geo.city ?? null,
-        region: geo.region ?? null,
-        country: geo.country ?? null,
-        latitude: geo.latitude ?? null,
-        longitude: geo.longitude ?? null,
-        geo: safeGeo,
-        trusted: isResume,
-        pending_approval: false,
-        created_at: now,
-        last_seen_at: now,
-        revoked_at: null,
-    });
     // Cold starts / resumes register the install but never spam approvals or history.
     if (isResume) {
-        return { ok: true, sessionId: sessionRef.id, notified: false, requiresApproval: false, reason: 'session_resume' };
+        return {
+            ok: true,
+            sessionId: sessionRef.id,
+            notified: false,
+            requiresApproval: false,
+            reason: 'session_resume',
+        };
     }
-    await db.collection('login_history').add({
-        user_id: uid,
-        method,
-        success: true,
-        device_label: deviceLabel,
-        user_agent: userAgent || null,
-        created_at: now,
-        metadata: {
-            session_id: sessionRef.id,
-            session_hash: sessionHash || null,
-            ip: geo.ip ?? null,
-            geo: safeGeo,
-        },
-    });
+    if (!reusedPendingSession) {
+        await db.collection('login_history').add({
+            user_id: uid,
+            method,
+            success: true,
+            device_label: deviceLabel,
+            user_agent: userAgent || null,
+            created_at: now,
+            metadata: {
+                session_id: sessionRef.id,
+                session_hash: sessionHash || null,
+                ip: geo.ip ?? null,
+                geo: safeGeo,
+            },
+        });
+    }
     const allSessions = await db.collection('user_sessions').where('user_id', '==', uid).get();
     const otherActiveSessions = allSessions.docs.filter((doc) => {
         if (doc.id === sessionRef.id)
