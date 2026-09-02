@@ -1,7 +1,8 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useCallback } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth';
+import { openStripeConnectFlow } from '@/lib/openStripeConnectFlow';
 import { toast } from 'sonner';
 
 export function useCreatorConnectStatus() {
@@ -40,7 +41,10 @@ export function useCreatorConnectOnboard() {
         return;
       }
       if (data?.url) {
-        window.open(data.url, '_blank');
+        const opened = await openStripeConnectFlow(data.url);
+        if (!opened) {
+          toast.error('Could not open Stripe setup. Try again in a moment.');
+        }
       }
     } catch (err) {
       toast.error('Failed to start payout setup');

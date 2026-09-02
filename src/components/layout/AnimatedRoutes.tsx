@@ -137,6 +137,8 @@ const FriendMap = lazy(() => import("@/pages/FriendMap"));
 const TokenMarketplace = lazy(() => import("@/pages/TokenMarketplace"));
 const PremiumSuccess = lazy(() => import("@/pages/PremiumSuccess"));
 const ConnectDashboard = lazy(() => import("@/pages/ConnectDashboard"));
+const StripeConnectReturn = lazy(() => import("@/pages/StripeConnectReturn"));
+const StripeConnectRefresh = lazy(() => import("@/pages/StripeConnectRefresh"));
 const ConnectStorefront = lazy(() => import("@/pages/ConnectStorefront"));
 const ConnectSuccess = lazy(() => import("@/pages/ConnectSuccess"));
 const Filters = lazy(() => import("@/pages/Filters"));
@@ -331,6 +333,8 @@ export function AnimatedRoutes() {
             <Route path="/map" element={<ProtectedRoute><FriendMap /></ProtectedRoute>} />
 
             {/* Stripe Connect V2 routes */}
+            <Route path="/stripe-connect/return" element={<ProtectedRoute><StripeConnectReturn /></ProtectedRoute>} />
+            <Route path="/stripe-connect/refresh" element={<ProtectedRoute><StripeConnectRefresh /></ProtectedRoute>} />
             <Route path="/connect/dashboard" element={<ProtectedRoute><ConnectDashboard /></ProtectedRoute>} />
             <Route path="/connect/storefront/:accountId" element={<ConnectStorefront />} />
             <Route path="/connect/success" element={<ConnectSuccess />} />

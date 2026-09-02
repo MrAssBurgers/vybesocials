@@ -19,6 +19,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useSearchParams } from "react-router-dom";
 import { db } from "@/lib/firebase";
+import { openStripeConnectFlow } from "@/lib/openStripeConnectFlow";
 import { toast } from "sonner";
 
 // ── Types ──────────────────────────────────────────────────────────────
@@ -108,8 +109,8 @@ export default function ConnectDashboard() {
       });
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
-      // Open in new tab — Stripe's hosted onboarding
-      window.open(data.url, "_blank");
+      const opened = await openStripeConnectFlow(data.url);
+      if (!opened) throw new Error('Could not open Stripe onboarding');
     } catch (e: any) {
       toast.error(e.message || "Failed to create onboarding link");
     } finally {
@@ -154,7 +155,10 @@ export default function ConnectDashboard() {
       });
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
-      if (data?.url) window.open(data.url, "_blank");
+      if (data?.url) {
+        const opened = await openStripeConnectFlow(data.url);
+        if (!opened) throw new Error('Could not open Stripe checkout');
+      }
     } catch (e: any) {
       toast.error(e.message || "Failed to start subscription");
     } finally {
@@ -172,7 +176,10 @@ export default function ConnectDashboard() {
       });
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
-      if (data?.url) window.open(data.url, "_blank");
+      if (data?.url) {
+        const opened = await openStripeConnectFlow(data.url);
+        if (!opened) throw new Error('Could not open Stripe checkout');
+      }
     } catch (e: any) {
       toast.error(e.message || "Failed to open billing portal");
     } finally {

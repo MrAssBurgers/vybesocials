@@ -1,13 +1,11 @@
 /**
- * Sign in with Apple via Apple JS SDK (Safari / non-Despia browsers).
- * Despia iOS + Android must use oauth:// — see despiaOAuth.ts. Apple JS usePopup
- * returns opaque {error:"unknown"} inside Despia WKWebView even with full
- * window.open guard bypass.
+ * Sign in with Apple via Apple JS SDK (Safari / Despia iOS after nativeauth).
+ * Despia Android must use oauth:// — see despiaOAuth.ts.
  */
 import { OAuthProvider, linkWithCredential, signInWithCredential } from 'firebase/auth';
 import { getProductionOrigin } from '@/lib/authRedirect';
 import { authLog } from '@/lib/authLog';
-import { isDespiaRuntime } from '@/lib/despiaBridge';
+import { getRuntimeOs, isDespiaRuntime } from '@/lib/despiaBridge';
 import { APPLE_SIGNIN_OPEN_FAILED } from '@/lib/errorUtils';
 import { runWithExternalLinkGuardBypassed } from '@/lib/externalLinkGuard';
 import { mapOAuthLinkError } from '@/lib/oauthAccountLink';
@@ -231,13 +229,13 @@ export async function signInWithAppleJsSdk(): Promise<{
   data: { session: VybeSession | null };
   error: VybeAuthError | null;
 }> {
-  // Hard stop: Despia must never run Apple JS (opaque "unknown" in WKWebView).
-  if (isDespiaRuntime()) {
+  // [Android-only] Despia Android keeps oauth:// — Apple JS popup is unreliable there.
+  if (isDespiaRuntime() && getRuntimeOs() !== 'ios') {
     oauthTimelineLog(
       'apple_sdk_blocked',
       {
-        reason: 'despia-oauth-only',
-        os: typeof navigator !== 'undefined' ? 'despia' : 'ssr',
+        reason: 'despia-android-oauth-only',
+        os: getRuntimeOs(),
       },
       'appleSignIn.ts:signInWithAppleJsSdk',
     );

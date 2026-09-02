@@ -64,9 +64,11 @@ export function shouldUseRedirectOAuth(): boolean {
   return shouldUseRedirectOAuthPlatform();
 }
 
-/** Despia store: Google + Apple always oauth:// (JS Apple popup is dead in WKWebView). */
+/** Despia store: Google uses oauth://; Apple on iOS uses nativeauth / Apple JS only. */
 export function shouldUseDespiaOAuth(provider: OAuthProviderId): boolean {
   if (!isDespiaRuntime()) return false;
+  // [iOS-only] Apple Sign-In must show AuthenticationServices / Apple JS — never ASWeb oauth://.
+  if (provider === 'apple' && getRuntimeOs() === 'ios') return false;
   if (provider === 'google' || provider === 'apple') return true;
   return !isEmbeddedAppleWebView();
 }
@@ -177,7 +179,21 @@ async function signInWithOAuthPlatformInner(provider: OAuthProviderId): Promise<
     });
   }
 
-  // Despia oauth:// — Google always ASWeb; Apple ASWeb only when native unavailable.
+  // [iOS-only] Despia Apple — nativeauth bridge first (above); then Apple JS SDK only.
+  if (isDespiaRuntime() && provider === 'apple' && getRuntimeOs() === 'ios') {
+    authLog('oauth_strategy', {
+      provider,
+      strategy: 'apple-js-sdk-ios-despia',
+    });
+    const { signInWithAppleJsSdk } = await import('@/lib/appleSignIn');
+    const js = await signInWithAppleJsSdk();
+    if (js.error) {
+      return { data: { session: null }, error: mapOAuthLinkError(js.error) };
+    }
+    return { data: { session: js.data.session }, error: null };
+  }
+
+  // Despia oauth:// — Google always ASWeb; Apple ASWeb on Android only.
   // Never Firebase popup / window.open Safari.app for login inside Despia.
   if (useDespia || (isDespiaRuntime() && (provider === 'google' || provider === 'apple'))) {
     authLog('oauth_strategy', {
