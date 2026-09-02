@@ -1,5 +1,6 @@
 import { useEffect, useCallback, useState, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
+import { useAuth } from '@/lib/auth';
 import { removeRealtimeChannel, subscribePostgresChannel } from '@/lib/realtimeChannel';
 
 // Global new post signal - listeners can subscribe
@@ -35,9 +36,14 @@ const POST_DELETE_KEYS = [
  * Subscribes to real-time post changes (INSERT/DELETE/UPDATE).
  * INSERT: notifies listeners so the feed can show a "New posts" banner.
  * DELETE/UPDATE: debounced invalidation to prevent cascade refetching.
+ *
+ * Public/marketing visitors do not need a global post listener. Waiting for a
+ * resolved authenticated session prevents unnecessary Firestore Listen traffic
+ * and aborted requests during signed-out startup.
  */
 export function usePostsRealtime() {
   const queryClient = useQueryClient();
+  const { user, authReady } = useAuth();
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Debounced invalidation — coalesces rapid changes into a single refetch
@@ -69,6 +75,8 @@ export function usePostsRealtime() {
   }, [queryClient]);
 
   useEffect(() => {
+    if (!authReady || !user?.id) return;
+
     const channel = subscribePostgresChannel(
       'posts-realtime',
       [
@@ -98,7 +106,7 @@ export function usePostsRealtime() {
       if (debounceRef.current) clearTimeout(debounceRef.current);
       removeRealtimeChannel(channel);
     };
-  }, [queryClient, invalidatePostCaches, patchPostUpdate]);
+  }, [authReady, user?.id, queryClient, invalidatePostCaches, patchPostUpdate]);
 }
 
 /**

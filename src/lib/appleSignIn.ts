@@ -1,13 +1,14 @@
 /**
- * Sign in with Apple via Apple JS SDK (Safari / non-Despia browsers).
- * Despia iOS + Android must use oauth:// — see despiaOAuth.ts. Apple JS usePopup
- * returns opaque {error:"unknown"} inside Despia WKWebView even with full
- * window.open guard bypass.
+ * Sign in with Apple via the Apple JS SDK.
+ *
+ * Despia iOS supports AppleID.auth.signIn() with usePopup:true as the native
+ * Apple ID / Face ID sheet inside WKWebView. Despia Android must continue to
+ * use the oauth:// Chrome Custom Tab path from despiaOAuth.ts.
  */
 import { OAuthProvider, linkWithCredential, signInWithCredential } from 'firebase/auth';
 import { getProductionOrigin } from '@/lib/authRedirect';
 import { authLog } from '@/lib/authLog';
-import { isDespiaRuntime } from '@/lib/despiaBridge';
+import { getRuntimeOs, isDespiaRuntime } from '@/lib/despiaBridge';
 import { APPLE_SIGNIN_OPEN_FAILED } from '@/lib/errorUtils';
 import { runWithExternalLinkGuardBypassed } from '@/lib/externalLinkGuard';
 import { mapOAuthLinkError } from '@/lib/oauthAccountLink';
@@ -34,6 +35,14 @@ declare global {
       };
     };
   }
+}
+
+function isDespiaIosAppleJsRuntime(): boolean {
+  return isDespiaRuntime() && getRuntimeOs() === 'ios';
+}
+
+function isUnsupportedDespiaAppleJsRuntime(): boolean {
+  return isDespiaRuntime() && getRuntimeOs() !== 'ios';
 }
 
 function getAppleServicesId(): string {
@@ -100,6 +109,11 @@ const APPLE_POPUP_BLOCKED_ERROR: VybeAuthError = {
   name: 'apple/popup-blocked',
 };
 
+const APPLE_DESPIA_ANDROID_BLOCKED_ERROR: VybeAuthError = {
+  message: APPLE_SIGNIN_OPEN_FAILED,
+  name: 'apple/despia-android-oauth-required',
+};
+
 /** Dismiss any leftover popup window — never fire oauth wait=1 (that clears pending login). */
 function dismissAppleWebSheetResidue(): void {
   try {
@@ -144,10 +158,16 @@ export function preloadAppleSignIn(): void {
   });
 }
 
+// Landing historically skipped preloading inside Despia. Preload at module
+// evaluation on iOS so AppleID.auth.signIn still runs from a responsive tap and
+// never needs an ASWebAuthenticationSession to bridge the first interaction.
+if (typeof window !== 'undefined' && isDespiaIosAppleJsRuntime()) {
+  queueMicrotask(preloadAppleSignIn);
+}
+
 /**
  * Run AppleID.auth.signIn with native window.open restored (full link-guard bypass).
- * Apple's usePopup needs a real Window + opener for web_message; any wrapper can
- * yield opaque {error:"unknown"} in ~300ms inside Despia WKWebView.
+ * Despia iOS maps usePopup:true to the native Apple account sheet.
  */
 async function appleAuthSignInWithGuardBypass(
   hashedNonce: string,
@@ -178,6 +198,7 @@ async function appleAuthSignInWithGuardBypass(
         redirectPath: '/native-callback.html',
         usePopup: true,
         guardBypass: true,
+        despiaIos: isDespiaIosAppleJsRuntime(),
       },
       logLocation,
     );
@@ -193,13 +214,15 @@ function responseLooksUnknown(response: AppleAuthResponse): boolean {
 }
 
 /**
- * First attempt + one retry on opaque "unknown", both with full link-guard bypass.
- * On retry, stamps `__rawNonce` so Firebase credential uses the matching nonce.
+ * Web browsers get one retry for Apple's occasional opaque "unknown" result.
+ * Despia iOS never retries automatically because that would open a second native
+ * Apple sheet after the user already completed or dismissed the first one.
  */
 async function appleAuthSignInWithUnknownRetry(
   hashedNonce: string,
   logLocation: string,
 ): Promise<AppleAuthResponse> {
+  const allowUnknownRetry = !isDespiaIosAppleJsRuntime();
   const runRetry = async (): Promise<AppleAuthResponse> => {
     oauthTimelineLog(
       'apple_sdk_retry',
@@ -215,12 +238,22 @@ async function appleAuthSignInWithUnknownRetry(
 
   try {
     const response = await appleAuthSignInWithGuardBypass(hashedNonce, logLocation);
-    if (responseLooksUnknown(response)) return runRetry();
+    if (responseLooksUnknown(response) && allowUnknownRetry) return runRetry();
     return response;
   } catch (err: unknown) {
     const { code, message } = formatAppleAuthError(err);
-    if (!isAppleUnknownError(err, code, message)) throw err;
+    if (!isAppleUnknownError(err, code, message) || !allowUnknownRetry) throw err;
     return runRetry();
+  }
+}
+
+async function recoverExistingAppleSession(): Promise<VybeSession | null> {
+  try {
+    const { firebaseAuth } = await import('@/lib/firebase');
+    const result = await firebaseAuth.getSession();
+    return result.data.session?.user ? result.data.session : null;
+  } catch {
+    return null;
   }
 }
 
@@ -231,19 +264,19 @@ export async function signInWithAppleJsSdk(): Promise<{
   data: { session: VybeSession | null };
   error: VybeAuthError | null;
 }> {
-  // Hard stop: Despia must never run Apple JS (opaque "unknown" in WKWebView).
-  if (isDespiaRuntime()) {
+  // Android Despia needs oauth://. iOS Despia is intentionally allowed here.
+  if (isUnsupportedDespiaAppleJsRuntime()) {
     oauthTimelineLog(
       'apple_sdk_blocked',
       {
-        reason: 'despia-oauth-only',
-        os: typeof navigator !== 'undefined' ? 'despia' : 'ssr',
+        reason: 'despia-android-oauth-required',
+        os: getRuntimeOs(),
       },
       'appleSignIn.ts:signInWithAppleJsSdk',
     );
     return {
       data: { session: null },
-      error: { message: APPLE_SIGNIN_OPEN_FAILED, name: 'apple/despia-blocked' },
+      error: APPLE_DESPIA_ANDROID_BLOCKED_ERROR,
     };
   }
 
@@ -273,6 +306,10 @@ export async function signInWithAppleJsSdk(): Promise<{
         },
         'appleSignIn.ts:missingToken',
       );
+      const recoveredSession = await recoverExistingAppleSession();
+      if (recoveredSession?.user) {
+        return { data: { session: recoveredSession }, error: null };
+      }
       if (isAppleUnknownError(response, String(response.error || ''), String(response.error || ''))) {
         return { data: { session: null }, error: APPLE_POPUP_BLOCKED_ERROR };
       }
@@ -293,6 +330,10 @@ export async function signInWithAppleJsSdk(): Promise<{
     await signInWithCredential(auth, credential);
     const { data, error } = await firebaseAuth.getSession();
     if (error) {
+      const recoveredSession = await recoverExistingAppleSession();
+      if (recoveredSession?.user) {
+        return { data: { session: recoveredSession }, error: null };
+      }
       const rawCode = String((error as { code?: string; name?: string }).code || (error as { name?: string }).name || '');
       const rawMessage = String((error as { message?: string }).message || '');
       authLog('apple_firebase_session_error', { code: rawCode, message: rawMessage.slice(0, 200) });
@@ -339,6 +380,15 @@ export async function signInWithAppleJsSdk(): Promise<{
     return { data: { session: data.session }, error: null };
   } catch (err: unknown) {
     dismissAppleWebSheetResidue();
+
+    // Firebase may already have accepted the Apple credential while WKWebView
+    // delivers a late opaque callback error. The valid session always wins.
+    const recoveredSession = await recoverExistingAppleSession();
+    if (recoveredSession?.user) {
+      authLog('apple_late_error_ignored_after_session', {});
+      return { data: { session: recoveredSession }, error: null };
+    }
+
     const { code: rawCode, message: rawMessage } = formatAppleAuthError(err);
     const asAny = err as { error?: string; message?: string; code?: string };
     authLog('apple_signin_error', { code: rawCode, message: rawMessage });
@@ -409,6 +459,10 @@ export async function linkWithAppleJsSdk(): Promise<{
   data: { linked: boolean };
   error: VybeAuthError | null;
 }> {
+  if (isUnsupportedDespiaAppleJsRuntime()) {
+    return { data: { linked: false }, error: APPLE_DESPIA_ANDROID_BLOCKED_ERROR };
+  }
+
   let rawNonce = randomNonce();
   try {
     await loadAppleIdScript();

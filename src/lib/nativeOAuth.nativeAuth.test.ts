@@ -14,7 +14,7 @@ vi.mock('@/lib/despiaBridge', () => ({
   getRuntimeOs: () => getRuntimeOs(),
   isNativeAppShell: () => isDespiaRuntime(),
   isIOSAppShell: () => isDespiaRuntime() && getRuntimeOs() === 'ios',
-  isAndroidAppShell: () => false,
+  isAndroidAppShell: () => isDespiaRuntime() && getRuntimeOs() === 'android',
 }));
 
 describe('nativeAuth feature-flag routing', () => {
@@ -63,5 +63,29 @@ describe('nativeAuth feature-flag routing', () => {
     const { shouldUseNativeAuthBridge } = await import('./nativeOAuth');
     expect(shouldUseNativeAuthBridge('google')).toBe(true);
     expect(shouldUseNativeAuthBridge('apple')).toBe(true);
+  }, 15_000);
+
+  it('routes Apple to the JS native-sheet path on Despia iOS', async () => {
+    const { shouldUseDespiaAppleJs, shouldUseDespiaOAuth } = await import('./nativeOAuth');
+    expect(shouldUseDespiaAppleJs('apple')).toBe(true);
+    expect(shouldUseDespiaOAuth('apple')).toBe(false);
+    expect(shouldUseDespiaOAuth('google')).toBe(true);
+  }, 15_000);
+
+  it('keeps Apple on oauth:// for Despia Android', async () => {
+    getRuntimeOs.mockReturnValue('android');
+    const { shouldUseDespiaAppleJs, shouldUseDespiaOAuth } = await import('./nativeOAuth');
+    expect(shouldUseDespiaAppleJs('apple')).toBe(false);
+    expect(shouldUseDespiaOAuth('apple')).toBe(true);
+    expect(shouldUseDespiaOAuth('google')).toBe(true);
+  }, 15_000);
+
+  it('does not use Despia-specific Apple routes on the normal web', async () => {
+    isDespiaRuntime.mockReturnValue(false);
+    getRuntimeOs.mockReturnValue('web');
+    const { shouldUseDespiaAppleJs, shouldUseDespiaOAuth } = await import('./nativeOAuth');
+    expect(shouldUseDespiaAppleJs('apple')).toBe(false);
+    expect(shouldUseDespiaOAuth('apple')).toBe(false);
+    expect(shouldUseDespiaOAuth('google')).toBe(false);
   }, 15_000);
 });

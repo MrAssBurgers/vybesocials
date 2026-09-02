@@ -57,6 +57,58 @@ let loggedRegistration = false;
 let updateFlowWired = false;
 let reloadingForUpdate = false;
 
+const SHELL_REFRESH_STORAGE_KEY = 'vybe-shell-refresh-public-readiness-v1';
+const ACTIVE_SHELL_CACHE = 'vybe-shell-v7';
+
+/**
+ * One-time production repair for devices that cached the old reconstruction
+ * document as their SPA shell. Only runs after a fresh no-store network fetch
+ * succeeds, so an offline launch never sacrifices its last usable shell.
+ */
+async function refreshCachedAppShellOnce(): Promise<void> {
+  if (typeof window === 'undefined' || !('caches' in window)) return;
+  if (navigator.onLine === false) return;
+
+  try {
+    if (localStorage.getItem(SHELL_REFRESH_STORAGE_KEY) === 'done') return;
+  } catch {
+    // Storage may be blocked; the operation is still safe to attempt once in-memory.
+  }
+
+  try {
+    const response = await fetch(`/?_vybe_shell_refresh=${Date.now()}`, {
+      cache: 'no-store',
+      credentials: 'same-origin',
+      headers: { 'x-vybe-shell-refresh': '1' },
+    });
+    if (!response.ok) return;
+
+    const html = await response.clone().text();
+    // Never pin a maintenance response for offline navigation. Online visitors
+    // still receive it directly from the network when maintenance is enabled.
+    if (/data-vybe-maintenance=["']true["']/i.test(html)) return;
+    if (!/<script[^>]+(?:\/assets\/app(?:-[^"']+)?\.js|\/src\/main\.tsx)/i.test(html)) return;
+
+    const names = await caches.keys();
+    await Promise.all(
+      names
+        .filter((name) => name.startsWith('vybe-shell-'))
+        .map((name) => caches.delete(name)),
+    );
+
+    const shellCache = await caches.open(ACTIVE_SHELL_CACHE);
+    await shellCache.put('/', response.clone());
+
+    try {
+      localStorage.setItem(SHELL_REFRESH_STORAGE_KEY, 'done');
+    } catch {
+      /* storage unavailable */
+    }
+  } catch {
+    // Fail open: service-worker setup must never block the app.
+  }
+}
+
 /**
  * Deploy-safety flow: when a new SW is installed and waiting, tell it to
  * SKIP_WAITING, then reload once on controllerchange so the page never keeps
@@ -128,6 +180,8 @@ export async function registerVybeServiceWorker(): Promise<ServiceWorkerRegistra
   if (!registrationPromise) {
     registrationPromise = (async () => {
       try {
+        await refreshCachedAppShellOnce();
+
         // Drop legacy messaging SW that claimed "/" and fought /sw.js updates.
         // Re-register the tombstone only when a root messaging controller/registration
         // is still present so updateViaCache:'none' can bypass a sticky HTTP cache.

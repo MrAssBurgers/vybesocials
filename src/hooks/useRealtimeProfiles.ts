@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { db } from '@/lib/firebase';
+import { useAuth } from '@/lib/auth';
 import { subscribePostgresChannel, removeRealtimeChannel } from '@/lib/realtimeChannel';
 import {
   patchAuthorOnPostCaches,
@@ -11,12 +12,20 @@ import {
  * Subscribes to real-time profile changes and updates cached profile data.
  * Debounces broad invalidations to prevent cascade refetching when multiple
  * profile updates arrive in quick succession (e.g. batch imports, migrations).
+ *
+ * The subscription is intentionally gated behind a resolved authenticated
+ * session. Public/marketing routes must not open Firestore listeners for a
+ * signed-out visitor, which previously produced aborted Listen/channel traffic
+ * during first paint and wasted mobile startup work.
  */
 export function useRealtimeProfiles() {
   const queryClient = useQueryClient();
+  const { user, authReady } = useAuth();
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
+    if (!authReady || !user?.id) return;
+
     const channel = subscribePostgresChannel('profiles-realtime', [
       {
         event: 'UPDATE',
@@ -65,5 +74,5 @@ export function useRealtimeProfiles() {
       if (debounceRef.current) clearTimeout(debounceRef.current);
       removeRealtimeChannel(channel);
     };
-  }, [queryClient]);
+  }, [authReady, user?.id, queryClient]);
 }

@@ -54,7 +54,7 @@ const DialogContent = React.forwardRef<
           e.preventDefault();
         }}
         className={cn(
-          "vybe-dialog-panel relative pointer-events-auto z-[151]",
+          "vybe-dialog-panel relative pointer-events-auto z-[151] flex min-h-0 flex-col",
           "w-[90vw] max-w-lg h-fit",
           "max-h-[min(85vh,calc(100dvh-var(--sat,env(safe-area-inset-top,0px))-var(--sab,env(safe-area-inset-bottom,0px))-2rem))]",
           "bg-background/95 backdrop-blur-xl",
@@ -69,14 +69,22 @@ const DialogContent = React.forwardRef<
         {...props}
       >
         <DialogPrimitive.Title className="sr-only">Dialog</DialogPrimitive.Title>
-        <div className="p-6 overflow-y-auto max-h-[85vh]">
+        <div className="vybe-dialog-scroll min-h-0 flex-1 overflow-y-auto overscroll-contain p-6">
           {children}
         </div>
+        {/* Keep the visual close puck compact while providing a reliable 44px touch target. */}
         <DialogPrimitive.Close
-          className="absolute right-3 top-3 sm:right-4 sm:top-4 rounded-full bg-muted/80 flex items-center justify-center opacity-70 ring-offset-background transition-all hover:opacity-100 hover:bg-muted focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none z-10"
-          style={{ width: 28, height: 28, minWidth: 28, minHeight: 28 }}
+          aria-label="Close"
+          className="absolute right-0.5 top-0.5 sm:right-1 sm:top-1 z-10 flex items-center justify-center rounded-full opacity-70 ring-offset-background transition-all hover:opacity-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none"
+          style={{ width: 44, height: 44, minWidth: 44, minHeight: 44 }}
         >
-          <X style={{ width: 14, height: 14 }} />
+          <span
+            aria-hidden="true"
+            className="flex items-center justify-center rounded-full bg-muted/80 transition-colors hover:bg-muted"
+            style={{ width: 28, height: 28 }}
+          >
+            <X style={{ width: 14, height: 14 }} />
+          </span>
           <span className="sr-only">Close</span>
         </DialogPrimitive.Close>
       </DialogPrimitive.Content>

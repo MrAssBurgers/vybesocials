@@ -1,7 +1,8 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useCallback } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth';
+import { openStripeHostedUrl } from '@/lib/platformPayments';
 import { toast } from 'sonner';
 
 export function useCreatorConnectStatus() {
@@ -31,6 +32,7 @@ export function useCreatorConnectOnboard() {
   const [isLoading, setIsLoading] = useState(false);
 
   const startOnboarding = useCallback(async () => {
+    if (isLoading) return;
     setIsLoading(true);
     try {
       const { data, error } = await db.functions.invoke('create-creator-connect');
@@ -39,15 +41,15 @@ export function useCreatorConnectOnboard() {
         toast.error(data.error);
         return;
       }
-      if (data?.url) {
-        window.open(data.url, '_blank');
+      if (!data?.url || !openStripeHostedUrl(data.url)) {
+        toast.error('Could not open secure Stripe setup. Please try again.');
       }
-    } catch (err) {
+    } catch {
       toast.error('Failed to start payout setup');
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [isLoading]);
 
   return { startOnboarding, isLoading };
 }
@@ -68,7 +70,7 @@ export function useProcessCreatorPayout() {
       }
       toast.success('Payout processing!');
       return true;
-    } catch (err) {
+    } catch {
       toast.error('Failed to process payout');
       return false;
     } finally {

@@ -1,16 +1,14 @@
 /**
  * Platform-aware OAuth — Despia store builds, Capacitor shells, Safari/PWA, desktop.
  *
- * Despia Google + Apple: oauth:// (ASWeb / Custom Tabs). Apple JS usePopup cannot
- * complete inside Despia WKWebView (opaque "unknown"). True AuthenticationServices
- * only when nativeauth:// bridge is advertised (nativeAuth scaffold).
- * iOS Google: ASAP JS `{scheme}://oauth/auth?wait=1` soft-close (Jul 16; page stays
- * loaded) then exchange + hc= hard close / nonce poll. Apple oauth:// reuses the
- * same wait=1 soft-close when nonce is present. Android: App Link `/auth?hc=`
- * only (never wait=1). Capacitor Firebase auth is skipped inside Despia WebView.
+ * Despia Google: oauth:// (ASWeb / Custom Tabs).
+ * Despia Apple on iOS: Apple JS SDK with usePopup:true, which Despia maps to
+ * the native Apple ID / Face ID sheet inside WKWebView.
+ * Despia Apple on Android: oauth:// through Chrome Custom Tabs.
+ * True AuthenticationServices is preferred when the nativeauth:// bridge is
+ * advertised. Capacitor Firebase auth is skipped inside Despia WebView.
  */
 import { getRuntimeOs, isDespiaRuntime, isNativeAppShell } from '@/lib/despiaBridge';
-import { isEmbeddedAppleWebView } from '@/lib/deviceDetection';
 import { isNativePlatform } from '@/lib/capacitor';
 import { signInWithAppleDespia, signInWithGoogleDespia } from '@/lib/despiaOAuth';
 import {
@@ -64,11 +62,20 @@ export function shouldUseRedirectOAuth(): boolean {
   return shouldUseRedirectOAuthPlatform();
 }
 
-/** Despia store: Google + Apple always oauth:// (JS Apple popup is dead in WKWebView). */
+/**
+ * Despia browser bridge routing.
+ * Google uses oauth:// on both store platforms. Apple uses oauth:// only on
+ * Android; iOS must use the Apple JS native-sheet path below.
+ */
 export function shouldUseDespiaOAuth(provider: OAuthProviderId): boolean {
   if (!isDespiaRuntime()) return false;
-  if (provider === 'google' || provider === 'apple') return true;
-  return !isEmbeddedAppleWebView();
+  if (provider === 'google') return true;
+  return provider === 'apple' && getRuntimeOs() !== 'ios';
+}
+
+/** Despia iOS Apple route: Apple JS usePopup:true, no ASWeb pre-sheet. */
+export function shouldUseDespiaAppleJs(provider: OAuthProviderId): boolean {
+  return isDespiaRuntime() && getRuntimeOs() === 'ios' && provider === 'apple';
 }
 
 /**
@@ -128,16 +135,57 @@ async function tryDespiaAppleOAuth(): Promise<OAuthSignInResult> {
   };
 }
 
+/**
+ * iOS Despia Apple flow. A valid Firebase session is authoritative even when a
+ * late Apple/WebView callback reports an opaque error, preventing the false
+ * "internal error" toast that previously appeared after successful sign-in.
+ */
+async function tryDespiaAppleJs(): Promise<OAuthSignInResult> {
+  const { signInWithAppleJsSdk } = await import('@/lib/appleSignIn');
+  const result = await signInWithAppleJsSdk();
+
+  if (result.data.session?.user) {
+    return { data: { session: result.data.session }, error: null };
+  }
+
+  if (result.error) {
+    try {
+      const { firebaseAuth } = await import('@/lib/firebase');
+      const recovered = await firebaseAuth.getSession();
+      if (recovered.data.session?.user) {
+        authWarn('apple_js_late_error_ignored', {
+          code: result.error.name || '',
+        });
+        return { data: { session: recovered.data.session }, error: null };
+      }
+    } catch {
+      /* keep original Apple error */
+    }
+    return { data: { session: null }, error: mapOAuthLinkError(result.error) };
+  }
+
+  return {
+    data: { session: null },
+    error: {
+      message: 'Apple Sign-In did not finish. Try again, or use email login.',
+      name: 'apple/incomplete',
+    },
+  };
+}
+
 async function signInWithOAuthPlatformInner(provider: OAuthProviderId): Promise<OAuthSignInResult> {
   const platform = detectOAuthPlatform();
   const useNativeBridge = shouldUseNativeAuthBridge(provider);
-  const useDespia = !useNativeBridge && shouldUseDespiaOAuth(provider);
+  const useDespiaAppleJs = shouldUseDespiaAppleJs(provider);
+  const useDespia = !useNativeBridge && !useDespiaAppleJs && shouldUseDespiaOAuth(provider);
   const strategy = useNativeBridge
     ? 'native-auth-bridge'
-    : useDespia
-      ? 'despia-oauth'
-      : platform.strategy;
-  // #region agent log
+    : useDespiaAppleJs
+      ? 'despia-apple-js'
+      : useDespia
+        ? 'despia-oauth'
+        : platform.strategy;
+
   oauthTimelineLog(
     'oauth_tap',
     {
@@ -149,7 +197,6 @@ async function signInWithOAuthPlatformInner(provider: OAuthProviderId): Promise<
     },
     'nativeOAuth.ts:signInWithOAuthPlatformInner',
   );
-  // #endregion
   authLog('oauth_start', {
     provider,
     strategy,
@@ -157,8 +204,8 @@ async function signInWithOAuthPlatformInner(provider: OAuthProviderId): Promise<
     path: typeof location !== 'undefined' ? location.pathname : '',
   });
 
-  // [iOS-only] Prefer true native auth when flag + bridge available.
-  // Fall back to ASWeb oauth:// if native bridge errors as unavailable.
+  // Prefer true native auth when flag + bridge are available.
+  // A bridge availability failure falls through to the platform-specific Despia path.
   if (useNativeBridge) {
     authLog('oauth_strategy', {
       provider,
@@ -177,15 +224,24 @@ async function signInWithOAuthPlatformInner(provider: OAuthProviderId): Promise<
     });
   }
 
-  // Despia oauth:// — Google always ASWeb; Apple ASWeb only when native unavailable.
-  // Never Firebase popup / window.open Safari.app for login inside Despia.
-  if (useDespia || (isDespiaRuntime() && (provider === 'google' || provider === 'apple'))) {
+  // iOS Apple must go directly to Apple JS usePopup:true. This avoids opening
+  // an ASWebAuthenticationSession before Apple's native account sheet.
+  if (useDespiaAppleJs) {
+    authLog('oauth_strategy', {
+      provider,
+      strategy: 'despia-apple-js',
+    });
+    return tryDespiaAppleJs();
+  }
+
+  // Despia oauth:// — Google on iOS/Android and Apple on Android only.
+  if (shouldUseDespiaOAuth(provider)) {
     authLog('oauth_strategy', {
       provider,
       strategy: 'despia-oauth',
     });
     if (provider === 'google') return tryDespiaGoogleOAuth();
-    if (provider === 'apple') return tryDespiaAppleOAuth();
+    return tryDespiaAppleOAuth();
   }
 
   if (shouldUseNativeOAuth() && !isDespiaRuntime()) {
