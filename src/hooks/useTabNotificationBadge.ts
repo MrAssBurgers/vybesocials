@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import { useLocation } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { subscribePostgresChannel, removeRealtimeChannel } from '@/lib/realtimeChannel';
 import { useAuthProfileId } from '@/hooks/useAuthProfileId';
@@ -8,22 +9,30 @@ import { useUnreadCount } from '@/hooks/useNotifications';
 /**
  * Discord/Snapchat-style Tab Notification Badge
  *
- * Updates the browser tab title to show unread counts.
- * Uses a SINGLE realtime channel instead of 3 separate ones.
- * Shares the ['unread-notifications'] query with the sidebar badges —
- * previously this hook ran an identical duplicate query on its own key.
+ * Prefixes the current route title with unread counts instead of replacing
+ * every route with the bare word "VYBE". Signed-out public pages are never
+ * touched, so route SEO titles remain authoritative.
  */
 
-const ORIGINAL_TITLE = 'VYBE';
+const FALLBACK_TITLE = 'VYBE — The Next Generation Social Platform';
 const MAX_DISPLAY_COUNT = 99;
+const BADGE_PREFIX_RE = /^(?:\(\d+\+?\)|💬)\s+/;
+
+function withoutUnreadPrefix(title: string): string {
+  const clean = title.replace(BADGE_PREFIX_RE, '').trim();
+  return clean || FALLBACK_TITLE;
+}
 
 export function useTabNotificationBadge() {
   const profileId = useAuthProfileId();
+  const location = useLocation();
   const queryClient = useQueryClient();
   const { data: unreadMessages = 0 } = useUnreadMessagesCount();
   const { data: unreadNotifications = 0 } = useUnreadCount();
   const previousCountRef = useRef<number>(0);
-  const flashIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const baseTitleRef = useRef<string>(FALLBACK_TITLE);
+  const flashIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const flashTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const totalUnread = unreadMessages + unreadNotifications;
 
@@ -32,38 +41,61 @@ export function useTabNotificationBadge() {
       clearInterval(flashIntervalRef.current);
       flashIntervalRef.current = null;
     }
+    if (flashTimeoutRef.current) {
+      clearTimeout(flashTimeoutRef.current);
+      flashTimeoutRef.current = null;
+    }
+
+    // usePageTitle/usePageMeta run in the route tree before this global mount.
+    // Capture their route-specific value each time navigation changes.
+    const currentBaseTitle = withoutUnreadPrefix(document.title);
+    if (currentBaseTitle !== FALLBACK_TITLE || !baseTitleRef.current) {
+      baseTitleRef.current = currentBaseTitle;
+    } else if (location.pathname === '/') {
+      baseTitleRef.current = currentBaseTitle;
+    }
+
+    // Public visitors have no unread state. Most importantly, do not overwrite
+    // the route title with a generic app name while signed out.
+    if (!profileId) {
+      previousCountRef.current = 0;
+      return;
+    }
+
+    const baseTitle = baseTitleRef.current || currentBaseTitle || FALLBACK_TITLE;
 
     if (totalUnread > 0) {
       const displayCount = totalUnread > MAX_DISPLAY_COUNT
         ? `${MAX_DISPLAY_COUNT}+`
         : totalUnread.toString();
 
-      document.title = `(${displayCount}) ${ORIGINAL_TITLE}`;
+      document.title = `(${displayCount}) ${baseTitle}`;
 
       if (totalUnread > previousCountRef.current && previousCountRef.current > 0) {
         let isFlashing = true;
         flashIntervalRef.current = setInterval(() => {
           document.title = isFlashing
-            ? `💬 ${ORIGINAL_TITLE}`
-            : `(${displayCount}) ${ORIGINAL_TITLE}`;
+            ? `💬 ${baseTitle}`
+            : `(${displayCount}) ${baseTitle}`;
           isFlashing = !isFlashing;
         }, 500);
 
-        setTimeout(() => {
+        flashTimeoutRef.current = setTimeout(() => {
           if (flashIntervalRef.current) {
             clearInterval(flashIntervalRef.current);
             flashIntervalRef.current = null;
           }
+          flashTimeoutRef.current = null;
           if (totalUnread > 0) {
             const currentCount = totalUnread > MAX_DISPLAY_COUNT
               ? `${MAX_DISPLAY_COUNT}+`
               : totalUnread.toString();
-            document.title = `(${currentCount}) ${ORIGINAL_TITLE}`;
+            document.title = `(${currentCount}) ${baseTitle}`;
           }
         }, 3000);
       }
     } else {
-      document.title = ORIGINAL_TITLE;
+      document.title = baseTitle;
     }
 
     previousCountRef.current = totalUnread;
@@ -71,9 +103,14 @@ export function useTabNotificationBadge() {
     return () => {
       if (flashIntervalRef.current) {
         clearInterval(flashIntervalRef.current);
+        flashIntervalRef.current = null;
+      }
+      if (flashTimeoutRef.current) {
+        clearTimeout(flashTimeoutRef.current);
+        flashTimeoutRef.current = null;
       }
     };
-  }, [totalUnread]);
+  }, [location.pathname, profileId, totalUnread]);
 
   useEffect(() => {
     if (!profileId) return;
@@ -109,15 +146,6 @@ export function useTabNotificationBadge() {
       removeRealtimeChannel(channel);
     };
   }, [profileId, queryClient]);
-
-  useEffect(() => {
-    const handleUnload = () => {
-      document.title = ORIGINAL_TITLE;
-    };
-
-    window.addEventListener('beforeunload', handleUnload);
-    return () => window.removeEventListener('beforeunload', handleUnload);
-  }, []);
 
   return { totalUnread, unreadMessages, unreadNotifications };
 }

@@ -90,6 +90,12 @@ try {
   process.exit(1);
 }
 
+// Production output must not contain dormant reconstruction or startup-error
+// copy in the normal DOM. The sanitizer preserves both emergency paths through
+// activation-only inline bootstraps and fails the build if its anchors drift.
+const sanitize = spawnSync('node', ['scripts/sanitize-deployed-shell.mjs'], { stdio: 'inherit' });
+if ((sanitize.status ?? 1) !== 0) process.exit(sanitize.status ?? 1);
+
 try {
   const manifest = generateManifest({ outputDir: 'dist', entryHtml: 'index.html' });
   console.log(`[postbuild] Generated despia/local.json with ${manifest.assets.length} assets`);

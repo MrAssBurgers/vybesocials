@@ -1,0 +1,61 @@
+name: Release Browser QA
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/**'
+      - 'public/**'
+      - 'scripts/**'
+      - 'index.html'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'vite.config.*'
+      - '.github/workflows/release-browser-qa.yml'
+
+jobs:
+  browser-matrix:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      - name: Install app dependencies
+        run: npm ci --legacy-peer-deps
+
+      - name: Build production app
+        run: npm run build
+
+      - name: Install isolated Playwright browsers
+        run: |
+          mkdir -p /tmp/vybe-playwright
+          cd /tmp/vybe-playwright
+          npm init -y
+          npm install playwright@1.55.0
+          npx playwright install --with-deps chromium webkit
+
+      - name: Public shell matrix
+        env:
+          PLAYWRIGHT_PACKAGE_ROOT: /tmp/vybe-playwright
+        run: node scripts/qa/public-shell-smoke.mjs
+
+      - name: Guest core-feature matrix
+        env:
+          PLAYWRIGHT_PACKAGE_ROOT: /tmp/vybe-playwright
+        run: node scripts/qa/core-feature-smoke.mjs
+
+      - name: Upload browser evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: vybe-release-browser-qa
+          path: artifacts/
+          retention-days: 7
+          if-no-files-found: warn

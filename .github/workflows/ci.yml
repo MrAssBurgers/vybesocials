@@ -31,3 +31,21 @@ jobs:
 
       - name: Build
         run: npm run build
+
+      - name: Validate CSS
+        run: npm run validate:css
+
+      - name: Validate boot output
+        run: npm run validate:boot
+
+      - name: Check bundle budget
+        run: npm run check:bundle-budget
+
+      - name: Verify callable-only DM enforcement
+        run: npm run test:dm-send-enforcement
+
+      - name: Verify DM inbox rules contract
+        run: npm run test:dm-inbox-rules
+
+      - name: Verify camera send enforcement
+        run: npm run test:camera-send-enforcement
