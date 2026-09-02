@@ -1,0 +1,49 @@
+name: Firebase Emulator QA
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'firestore.rules'
+      - 'firebase.json'
+      - 'scripts/test-dm-send-enforcement.mjs'
+      - 'scripts/test-message-update-rules.mjs'
+      - 'scripts/qa/realtime-message-emulator.mjs'
+      - '.github/workflows/firebase-emulator-qa.yml'
+
+jobs:
+  emulator:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Install app dependencies
+        run: npm ci --legacy-peer-deps
+
+      - name: Install isolated emulator test tools
+        run: npm install --no-save --legacy-peer-deps firebase-tools@15.28.2 @firebase/rules-unit-testing@5.0.2
+
+      - name: Run Firebase emulator messaging and rules gate
+        env:
+          GCLOUD_PROJECT: demo-vybe-rules
+          REQUIRE_EMULATORS: '1'
+        run: >-
+          npx firebase emulators:exec
+          --project demo-vybe-rules
+          --only auth,firestore
+          "node scripts/test-dm-send-enforcement.mjs &&
+          node scripts/test-message-update-rules.mjs &&
+          node scripts/qa/realtime-message-emulator.mjs"

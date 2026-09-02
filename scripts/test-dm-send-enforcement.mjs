@@ -11,7 +11,9 @@ import { fileURLToPath } from 'node:url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(__dirname, '..');
-const PROJECT_ID = 'vybe-daaab';
+// A demo project ID prevents any accidental fallback to production while the
+// emulator gate is running. emulators:exec supplies GCLOUD_PROJECT in CI.
+const PROJECT_ID = process.env.GCLOUD_PROJECT || 'demo-vybe-rules';
 const RULES_PATH = resolve(ROOT, 'firestore.rules');
 const DMSEND_PATH = resolve(ROOT, 'functions/src/dmSend.ts');
 
@@ -106,7 +108,15 @@ async function emulatorChecks(testing) {
 async function main() {
   staticChecks();
   const testing = await tryImportTesting();
-  if (!testing) return;
+  if (!testing) {
+    if (process.env.REQUIRE_EMULATORS === '1') {
+      throw new Error(
+        '@firebase/rules-unit-testing is required for the emulator gate; refusing a static-only pass',
+      );
+    }
+    console.warn('[dm-send-enforcement] rules-unit-testing unavailable — static checks only');
+    return;
+  }
 
   try {
     await emulatorChecks(testing);
