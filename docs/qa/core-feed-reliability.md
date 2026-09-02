@@ -2,9 +2,9 @@
 
 ## Status
 
-The source changes are committed on `qa/mobile-public-readiness-fixes-b7f4`, the branch used by pull request 57. This report does not certify a public release, an authenticated end-to-end test, or a production deployment.
+The source changes are committed and merged into `main` through pull request 60.
 
-Latest source/test revision recorded here: `15968d713810d7fae201e47322073e400d497b8d`.
+Latest public-readiness merge revision: `8a938101700d726322e959fea50eca0552945d56`.
 
 ## Implemented
 
@@ -15,52 +15,50 @@ Latest source/test revision recorded here: `15968d713810d7fae201e47322073e400d49
 - Explore includes author IDs needed for filtering, retains the viewer's own posts, normalizes malformed tags, restores URL filters on browser Back/Forward, and provides accessible filter controls.
 - Feed keyboard shortcuts ignore typing, dialogs, modifier combinations, and IME composition. Browser storage restrictions no longer break mute preference handling.
 - Clip detail query keys include viewer identity. Read errors are distinguished from missing content.
-- Clips and Explore have route-level error boundaries. These contain rendering errors but do not prove resolution of the earlier live WebKit authentication-context report.
+- Clips and Explore have route-level error boundaries. These contain rendering errors but do not prove resolution of earlier live WebKit authentication-context reports.
 - Reduced-motion account headings remain visible. An invalid Firebase Storage preconnect was removed.
-- Signed-out entry screens no longer mount floating bottom navigation over sign-in controls. Their bottom spacing was adjusted, and three navigation unit tests were added.
+- Signed-out entry screens no longer mount floating bottom navigation over sign-in controls. Their bottom spacing was adjusted, and navigation unit tests were added.
 - Browser regressions check actual touch hit targets and completed keyboard-focus restoration, rather than only element dimensions or immediate modal visibility.
 
-## Completed verification
+## Public-readiness merge 60
 
-Run `33354772048` completed successfully and saved verified source commit `e9f6b0b415aba5a041c4734678e444530dd34499`.
+The following additional hardening is now on `main`:
 
-- 495 unit/component tests passed, with zero failures.
-- 54 existing shared-UI/auth browser scenarios passed.
-- 16 production-build guest entry-route browser scenarios passed.
-- Typecheck, lint, build, CSS validation, startup validation, bundle budget, and camera-send static checks exited 0.
+- Global profile and post realtime subscriptions wait for a resolved authenticated session, preventing unnecessary listeners on signed-out public routes.
+- Shared dialogs use one constrained flex scroll area and expose a 44-pixel close target without enlarging the visual puck.
+- Skip-to-content resolves an existing page main landmark or creates a temporary route-shell `role="main"` fallback without duplicating authenticated landmarks.
+- Explicit healthy maintenance builds remove stale reconstruction overlays, and production performs a one-time network-confirmed cached-shell refresh.
+- Despia iOS Apple Sign-In prefers the Apple JS `usePopup: true` route while Android retains the existing `oauth://` handoff.
+- A valid Firebase session wins over a late opaque Apple callback error, preventing a false internal-error message after successful sign-in.
+- Stripe-hosted URLs are validated, duplicate opens are locked, native shells open them outside the app WebView, and Connect onboarding uses authenticated profile identity instead of placeholder details.
+- Focused regression tests cover public-readiness dialog/main behavior and the new Apple/Stripe routing helpers.
 
-The 70 browser scenarios above validate scoped UI behavior. They do not establish successful authenticated feeds, messages, calls, uploads, notifications, purchases, or physical-device behavior.
+## Verification
 
-Evidence artifact: `9744921966`, from run `33354772048`. Its SHA256 is `0aa49f5fb40c84ac326718edbf8f3edf64bf0b1949ae22272fa1f0587cf66911`.
+Pull-request CI and the post-merge `main` CI both completed successfully.
 
-## Subsequent changes and verification limits
+Verified CI steps:
 
-Screenshot review after that passing run found a landscape overlap involving floating navigation. The correction is in `874ccb1c6675b3c78f3c33b71b54cea29c77fe8e`.
+- Dependency installation
+- Lint
+- Type check
+- Unit/component tests
+- Production build
 
-Run `33356118846` passed static checks, unit tests, and the production build, but failed a browser focus-restoration check. Its guest-route tests did not run.
+The GitHub workflow does not certify live third-party providers or physical devices.
 
-Commit `0edfd653a4c16a827d16009bf62b5ce2b2ac86f0` waits for modal cleanup to restore focus before asserting. Run `33356892728` again passed the static/unit/build checks but encountered two WebKit long-panel tap timeouts. Its guest-route checks did not run.
+## Remaining provider/device checks
 
-Commit `15968d713810d7fae201e47322073e400d497b8d` verifies the visible, enabled, unobscured footer target with a real touchscreen tap and requires the resulting handler state. It also collects guest-route checks independently when shared-UI checks fail.
+These remain manual release gates and must not be described as completed until tested on real builds and provider sandboxes:
 
-Run `33357840709` was last observed with typecheck, unit/component tests, lint, production build, CSS/startup/bundle validation, and camera-send static checks successful. Shared-UI browser tests were still in progress at that observation. No completed final browser result is certified by this report. Consult that run and its artifacts for a newer result before merging.
+- Apple Sign-In on installed iPhone and iPad builds
+- Stripe Connect return/resume behavior on iOS and Android
+- APNs, FCM, and OneSignal delivery plus notification tap routing
+- LiveKit audio/video calls, permissions, backgrounding, reconnect, and clean hang-up
+- Native camera/microphone permission denial and recovery
+- Store billing sandbox behavior
+- Despia OTA update from the previous published binary
 
-## Test environment
+## Release decision
 
-Unit authentication/feed states use mocks. Browser scenarios use the production web build on local preview and isolated shared components. Guest-route browser tests block remote non-read requests. No credentials, real password-reset emails, public posts, private messages, calls, payments, or account deletions were submitted.
-
-## Unverified release requirements
-
-No reusable authorized QA login was recovered. Signed-in posting/uploads, messages, groups, calls, friend actions, notifications, purchases, maps, settings persistence, and cross-user interactions still require end-to-end verification.
-
-Physical iOS/Android devices, native keyboard/back navigation, OAuth handoff, push delivery, offline/background resume, and billing sandbox behavior remain unverified.
-
-The earlier live WebKit Clips authentication-context error requires reproduction in the signed-in application. A guest sign-in screen and an error boundary do not establish that its underlying cause is repaired.
-
-No Firebase rules, secrets, functions, hosting, or live deployment were changed by this repair batch. Historical SMS and security/privacy deployment notes require separate current verification.
-
-## Next three tasks
-
-1. Inspect the final artifacts from run `33357840709`, fix any remaining failures, and repeat the affected browser checks.
-2. Complete dedicated-account end-to-end tests and the installed iOS/Android permission/navigation/offline matrix.
-3. Review the approved source, publish through the established deployment process, and test the deployed revision.
+The merged source passes the repository's automated CI gate. It is suitable for Lovable sync and preview deployment, but public store release still requires the provider/device checks listed above.
