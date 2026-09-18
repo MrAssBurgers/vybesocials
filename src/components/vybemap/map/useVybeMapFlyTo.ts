@@ -7,22 +7,39 @@ import { pitchForMode } from '@/lib/vybemap/mapbox/config';
 export function useVybeMapFlyTo() {
   const mapRef = useRef<mapboxgl.Map | null>(null);
   const setMap = useCallback((map: mapboxgl.Map) => { mapRef.current = map; }, []);
-  /** Fly to a point of interest — GPS follow stays off so the camera doesn't fight back. */
+  /** Instant jump to a point of interest — no slow fly animation (Teleport / search). */
   const flyTo = useCallback((lat: number, lng: number, zoom = 15) => {
     const map = mapRef.current;
     if (!map) return;
     try { map.fire('vybe:pause-follow'); } catch { /* custom event */ }
-    map.flyTo({ center: [lng, lat], zoom, duration: 1200, essential: true });
+    // jumpTo is frame-sync; avoids 1.2s freezes on Fold / mid/low GPUs.
+    map.jumpTo({ center: [lng, lat], zoom });
   }, []);
-  /** Recenter on the user and re-engage GPS follow (recenter button only). */
+  /** Recenter on the user — short ease so it still feels responsive. */
   const flyToUser = useCallback((lat: number, lng: number, zoom = 15) => {
     const map = mapRef.current;
     if (!map) return;
     try { map.fire('vybe:resume-follow'); } catch { /* custom event */ }
-    map.flyTo({ center: [lng, lat], zoom, duration: 1200, essential: true });
+    map.easeTo({ center: [lng, lat], zoom, duration: 220, essential: true });
+  }, []);
+  /** Wander: unlock camera, widen slightly for free exploration. */
+  const startWander = useCallback((lat?: number, lng?: number) => {
+    const map = mapRef.current;
+    if (!map) return;
+    try { map.fire('vybe:pause-follow'); } catch { /* custom event */ }
+    const center = lat != null && lng != null ? ([lng, lat] as [number, number]) : map.getCenter().toArray() as [number, number];
+    const zoom = Math.min(map.getZoom(), 12.5);
+    map.easeTo({
+      center,
+      zoom,
+      bearing: 0,
+      pitch: 0,
+      duration: 180,
+      essential: true,
+    });
   }, []);
   const resetBearing = useCallback(() => {
-    mapRef.current?.easeTo({ bearing: 0, pitch: pitchForMode('2d'), duration: 600 });
+    mapRef.current?.easeTo({ bearing: 0, pitch: pitchForMode('2d'), duration: 180 });
   }, []);
-  return { setMap, flyTo, flyToUser, resetBearing };
+  return { setMap, flyTo, flyToUser, startWander, resetBearing };
 }

@@ -11,7 +11,7 @@ import { navVisibility } from '@/lib/navVisibility';
 import { triggerHaptic } from '@/lib/haptics';
 import { toast } from 'sonner';
 import { trackMapEvent } from '@/lib/vybemap/analytics';
-import { isValidLatLng } from '@/lib/vybemap/geo';
+import { isValidLatLng, distanceMeters } from '@/lib/vybemap/geo';
 import { type LiveFriend, type MapPlace, type MapMeetup } from '@/lib/vybemap/types';
 import {
   useMapLayers, useMapViewMode, useMapFollowHeading, useFriendIds, useLiveFriends, useMapStories, useMapPosts,
@@ -28,10 +28,12 @@ import { SpotDropSheet } from '@/components/vybemap/SpotDropSheet';
 import { PlacePageSheet } from '@/components/vybemap/PlacePageSheet';
 import { MeetupSheet, MeetupCreateSheet } from '@/components/vybemap/MeetupSheet';
 import { GroupMapSheet } from '@/components/vybemap/GroupMapSheet';
-import { MapRouteBar } from '@/components/vybemap/MapRouteBar';
+import { MapRouteBar, MapRouteMinimizedChip } from '@/components/vybemap/MapRouteBar';
+import { RouteOriginPicker, type RouteOriginChoice } from '@/components/vybemap/RouteOriginPicker';
 import { useLocationIntel } from '@/hooks/vybemap/useLocationIntel';
 import { hasMapbox } from '@/lib/vybemap/mapbox/config';
 import { fetchMapboxRoute } from '@/lib/vybemap/mapbox/directions';
+import { resolveTeleportQuery } from '@/lib/vybemap/mapbox/geocode';
 import { externalDirectionsUrl } from '@/lib/vybemap/mapNavigation';
 import { isHeadingTowardYou } from '@/lib/vybemap/headingToward';
 import { sendMapWave } from '@/lib/vybemap/mapSocial';
@@ -42,9 +44,10 @@ import { MapSnapTopBar } from '@/components/vybemap/hud/MapSnapTopBar';
 import { MapSettingsSheet } from '@/components/vybemap/hud/MapSettingsSheet';
 import { MapFloatingActions } from '@/components/vybemap/hud/MapFloatingActions';
 
-// Lazy — mapbox-gl is ~1MB; the map shell/HUD paints instantly while it loads.
+// Prefetch Mapbox chunk as soon as this module evaluates so Follow can engage faster.
+const mapboxCanvasImport = import('@/components/vybemap/map/VybeMapboxCanvas');
 const VybeMapboxCanvas = lazy(() =>
-  import('@/components/vybemap/map/VybeMapboxCanvas').then((m) => ({
+  mapboxCanvasImport.then((m) => ({
     default: m.VybeMapboxCanvas,
   })),
 );
@@ -124,7 +127,8 @@ function VybeMapInner() {
   const { data: groupMaps = [] } = useGroupMaps(effectiveId);
   const createGroupMap = useCreateGroupMap();
   const logAccess = useLogLocationAccess();
-  const { setMap, flyTo, flyToUser, resetBearing } = useVybeMapFlyTo();
+  const { setMap, flyTo, flyToUser, startWander, resetBearing } = useVybeMapFlyTo();
+  const mapInstanceRef = useRef<{ getCenter: () => { lat: number; lng: number } } | null>(null);
 
   const [selId, setSelId] = useState<string | null>(null);
   const [selPlace, setSelPlace] = useState<MapPlace | null>(null);
@@ -143,12 +147,17 @@ function VybeMapInner() {
   const [route, setRoute] = useState<{
     label: string;
     dest: [number, number];
+    origin: [number, number];
+    originKind: RouteOriginChoice;
     geometry: GeoJSON.LineString;
     durationMinutes: number;
     distanceMiles: number;
     externalUrl: string;
   } | null>(null);
+  /** false = card minimized; route polyline stays on the map until End. */
+  const [routeBarExpanded, setRouteBarExpanded] = useState(true);
   const [routeLoading, setRouteLoading] = useState(false);
+  const [pendingRoute, setPendingRoute] = useState<{ label: string; dest: [number, number] } | null>(null);
   const { data: routeDestIntel } = useLocationIntel({
     latitude: route?.dest[0] ?? 0,
     longitude: route?.dest[1] ?? 0,
@@ -169,16 +178,26 @@ function VybeMapInner() {
     [layers.groups, activeSquad, squadMemberIds],
   );
 
-  const startLiveRoute = useCallback(async (
+  const readMapCameraCoords = useCallback((): [number, number] | null => {
+    try {
+      const c = mapInstanceRef.current?.getCenter();
+      if (c && isValidLatLng(c.lat, c.lng)) return [c.lat, c.lng];
+    } catch { /* ignore */ }
+    try {
+      const lc = leafletMapRef.current?.getCenter();
+      if (lc && isValidLatLng(lc.lat, lc.lng)) return [lc.lat, lc.lng];
+    } catch { /* ignore */ }
+    return null;
+  }, []);
+
+  const runLiveRoute = useCallback(async (
     label: string,
     dest: [number, number],
+    origin: [number, number],
+    originKind: RouteOriginChoice,
     options?: { dismissSheets?: boolean },
   ) => {
     const externalUrl = externalDirectionsUrl(dest[0], dest[1]);
-    if (!safeMyCoords) {
-      window.open(externalUrl, '_blank');
-      return;
-    }
     if (options?.dismissSheets !== false) {
       setSelId(null);
       setSelPlace(null);
@@ -186,19 +205,24 @@ function VybeMapInner() {
       setDiscoveryOpen(false);
       setSettingsOpen(false);
     }
+    setPendingRoute(null);
     setRouteLoading(true);
     try {
-      const result = await fetchMapboxRoute(safeMyCoords, dest);
+      const result = await fetchMapboxRoute(origin, dest);
       if (result) {
         setRoute({
           label,
           dest,
+          origin,
+          originKind,
           geometry: result.geometry,
           durationMinutes: result.durationMinutes,
           distanceMiles: result.distanceMiles,
           externalUrl,
         });
+        setRouteBarExpanded(true);
         triggerHaptic('light');
+        trackMapEvent('live_route' as never, { origin: originKind });
       } else {
         window.open(externalUrl, '_blank');
         toast.message('Opened directions in Maps');
@@ -209,7 +233,63 @@ function VybeMapInner() {
     } finally {
       setRouteLoading(false);
     }
-  }, [safeMyCoords]);
+  }, []);
+
+  const endLiveRoute = useCallback(() => {
+    setRoute(null);
+    setRouteBarExpanded(true);
+    setPendingRoute(null);
+    toast.message('Navigation ended');
+  }, []);
+
+  /** Request a route — may open origin picker (live GPS vs map camera). */
+  const startLiveRoute = useCallback(async (
+    label: string,
+    dest: [number, number],
+    options?: { dismissSheets?: boolean },
+  ) => {
+    const externalUrl = externalDirectionsUrl(dest[0], dest[1]);
+    const mapCoords = readMapCameraCoords();
+    const cameraOffLive =
+      !!safeMyCoords &&
+      !!mapCoords &&
+      distanceMeters(safeMyCoords, mapCoords) > 80;
+
+    // Changing destination or navigating from a panned map → ask live vs map position.
+    if (route || cameraOffLive) {
+      if (options?.dismissSheets !== false) {
+        setSelId(null);
+        setSelPlace(null);
+        setSelMeetup(null);
+        setDiscoveryOpen(false);
+        setSettingsOpen(false);
+      }
+      setPendingRoute({ label, dest });
+      return;
+    }
+
+    if (!safeMyCoords) {
+      if (mapCoords) {
+        await runLiveRoute(label, dest, mapCoords, 'map', options);
+        return;
+      }
+      window.open(externalUrl, '_blank');
+      return;
+    }
+
+    await runLiveRoute(label, dest, safeMyCoords, 'live', options);
+  }, [readMapCameraCoords, safeMyCoords, route, runLiveRoute]);
+
+  const confirmRouteOrigin = useCallback((originKind: RouteOriginChoice) => {
+    if (!pendingRoute) return;
+    const origin =
+      originKind === 'live' ? safeMyCoords : readMapCameraCoords();
+    if (!origin) {
+      toast.error(originKind === 'live' ? 'Live location unavailable' : 'Map position unavailable');
+      return;
+    }
+    void runLiveRoute(pendingRoute.label, pendingRoute.dest, origin, originKind);
+  }, [pendingRoute, safeMyCoords, readMapCameraCoords, runLiveRoute]);
 
   const onFriendTap = useCallback((f: LiveFriend) => {
     setSelId(f.user_id);
@@ -319,19 +399,27 @@ function VybeMapInner() {
 
   const handleSearch = async (query: string) => {
     trackMapEvent('teleport', { q: query });
-    try {
-      const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(query)}`);
-      const data = await res.json();
-      if (data?.[0]) {
-        mapFlyTo(parseFloat(data[0].lat), parseFloat(data[0].lon), 12);
-        toast.success(`Jumped to ${data[0].display_name.split(',')[0]}`);
-      } else {
-        toast.error('Could not find that place');
-      }
-    } catch {
-      toast.error('Could not find that place');
+    const hit = await resolveTeleportQuery(query);
+    if (hit) {
+      mapFlyTo(hit.lat, hit.lng, 12);
+      toast.success(`Jumped to ${hit.label}`);
+      return;
     }
+    toast.error('Could not find that place');
   };
+
+  const handleWander = useCallback(() => {
+    setFollowHeading(false);
+    if (useMapbox) {
+      startWander(safeMyCoords?.[0], safeMyCoords?.[1]);
+    } else {
+      void import('@/components/vybemap/map/VybeMapLeafletFallback').then(({ leafletWander }) => {
+        leafletWander(leafletMapRef.current, safeMyCoords?.[0], safeMyCoords?.[1]);
+      });
+    }
+    triggerHaptic('light');
+    toast.success('Wander — free pan & explore');
+  }, [useMapbox, startWander, safeMyCoords, setFollowHeading]);
 
   const handleDropSpot = () => {
     if (!safeMyCoords) {
@@ -366,7 +454,10 @@ function VybeMapInner() {
             mapMode={mapViewMode}
             followHeading={followHeading}
             userHeading={myHeading}
-            onMapReady={setMap}
+            onMapReady={(m) => {
+              setMap(m);
+              mapInstanceRef.current = m;
+            }}
             routeGeometry={route?.geometry ?? null}
             squadMemberIds={squadSet}
             onMeetupTap={handleMeetupTap}
@@ -377,7 +468,10 @@ function VybeMapInner() {
           <VybeMapLeafletFallback
             {...mapProps}
             mapElRef={mapEl}
-            onMapReady={(m) => { leafletMapRef.current = m; }}
+            onMapReady={(m) => {
+              leafletMapRef.current = m;
+              mapInstanceRef.current = m;
+            }}
           />
         </Suspense>
       )}
@@ -408,14 +502,38 @@ function VybeMapInner() {
       )}
 
       <AnimatePresence>
-        {route && (
+        {route && routeBarExpanded && (
           <MapRouteBar
             label={route.label}
             durationMinutes={route.durationMinutes}
             distanceMiles={route.distanceMiles}
             destIntel={routeDestIntel}
-            onClose={() => setRoute(null)}
+            originLabel={route.originKind === 'map' ? 'From map pin' : 'From live GPS'}
+            onMinimize={() => setRouteBarExpanded(false)}
+            onEnd={endLiveRoute}
             onOpenExternal={() => window.open(route.externalUrl, '_blank')}
+          />
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {route && !routeBarExpanded && (
+          <MapRouteMinimizedChip
+            label={route.label}
+            onExpand={() => setRouteBarExpanded(true)}
+            onEnd={endLiveRoute}
+          />
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {pendingRoute && (
+          <RouteOriginPicker
+            label={pendingRoute.label}
+            hasLiveLocation={!!safeMyCoords}
+            hasMapPosition={!!readMapCameraCoords()}
+            onChoose={confirmRouteOrigin}
+            onCancel={() => setPendingRoute(null)}
           />
         )}
       </AnimatePresence>
@@ -465,6 +583,7 @@ function VybeMapInner() {
               if (safeMyCoords) setMeetupCreateOpen(true);
               else toast.error('Enable location first');
             }}
+            onWander={handleWander}
             onClose={() => setSettingsOpen(false)}
           />
         )}

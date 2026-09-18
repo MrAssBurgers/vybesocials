@@ -16,6 +16,7 @@ import {
   lerpHeading,
   subscribeDeviceHeading,
 } from '@/lib/vybemap/deviceHeading';
+import { getRuntimeOs } from '@/lib/despiaBridge';
 import type {
   LiveFriend,
   MapStoryPin,
@@ -29,6 +30,8 @@ import type {
 } from '@/lib/vybemap/types';
 
 mapboxgl.accessToken = MAPBOX_TOKEN || '';
+
+const isAndroidMap = () => getRuntimeOs() === 'android';
 
 export interface VybeMapboxCanvasProps {
   center: [number, number] | null;
@@ -246,19 +249,17 @@ export const VybeMapboxCanvas = memo(function VybeMapboxCanvas({
     };
 
     const addOverlays = () => {
-      try {
-        if (!map.getSource('mapbox-dem')) {
-          map.addSource('mapbox-dem', {
-            type: 'raster-dem',
-            url: 'mapbox://mapbox.mapbox-terrain-dem-v1',
-            tileSize: 512,
-            maxzoom: 14,
-          });
-        }
-      } catch { /* dem may exist */ }
-
+      // Defer DEM until 3D/terrain — keeps first paint + Follow fast on Android.
       if (mapMode === 'terrain' || mapMode === '3d') {
         try {
+          if (!map.getSource('mapbox-dem')) {
+            map.addSource('mapbox-dem', {
+              type: 'raster-dem',
+              url: 'mapbox://mapbox.mapbox-terrain-dem-v1',
+              tileSize: 512,
+              maxzoom: 14,
+            });
+          }
           map.setTerrain({ source: 'mapbox-dem', exaggeration: 1.4 });
         } catch { /* optional */ }
       }
@@ -284,9 +285,16 @@ export const VybeMapboxCanvas = memo(function VybeMapboxCanvas({
       onMapReady?.(map);
     };
 
-    map.on('load', () => {
+    // style.load fires as soon as the basemap is usable — don't wait for idle tiles.
+    map.once('style.load', () => {
       finishLoad();
       addOverlays();
+    });
+    map.on('load', () => {
+      if (!styleLoaded.current) {
+        finishLoad();
+        addOverlays();
+      }
     });
 
     map.on('error', (e) => {
@@ -359,9 +367,14 @@ export const VybeMapboxCanvas = memo(function VybeMapboxCanvas({
   useEffect(() => {
     if (!center || !mapRef.current) return;
     if (!followSelfRef.current || userInteractingRef.current) return;
+    // [Android-only] jumpTo — easeTo(650ms) made Follow feel frozen on Fold/mid-range GPUs.
+    if (isAndroidMap()) {
+      mapRef.current.jumpTo({ center: [center[1], center[0]] });
+      return;
+    }
     mapRef.current.easeTo({
       center: [center[1], center[0]],
-      duration: 650,
+      duration: 280,
       essential: true,
     });
   }, [center?.[0], center?.[1]]);
@@ -447,23 +460,39 @@ export const VybeMapboxCanvas = memo(function VybeMapboxCanvas({
       return;
     }
 
+    const map = mapRef.current;
+    const android = isAndroidMap();
+    // Snap once so Follow engages instantly, then lerp for smoothness.
+    const snapTarget = targetHeadingRef.current;
+    if (map && snapTarget != null) {
+      smoothedBearingRef.current = snapTarget;
+      try {
+        applyingBearingRef.current = true;
+        map.setBearing(snapTarget);
+      } catch { /* ignore */ } finally {
+        applyingBearingRef.current = false;
+      }
+    }
+
+    // [Android-only] Higher alpha = near-instant compass lock.
+    const alpha = android ? 0.42 : 0.22;
+
     const tick = () => {
       headingRafRef.current = requestAnimationFrame(tick);
-      const map = mapRef.current;
+      const liveMap = mapRef.current;
       const target = targetHeadingRef.current;
-      if (!map || target == null || headingInteractPauseRef.current) return;
+      if (!liveMap || target == null || headingInteractPauseRef.current) return;
 
       const current =
         smoothedBearingRef.current ??
-        ((map.getBearing() % 360) + 360) % 360;
-      // Higher alpha = snappier (still smooth). Tuned for ~60fps.
-      const next = lerpHeading(current, target, 0.18);
+        ((liveMap.getBearing() % 360) + 360) % 360;
+      const next = lerpHeading(current, target, alpha);
       smoothedBearingRef.current = next;
       const delta = Math.abs(((next - current + 540) % 360) - 180);
-      if (delta < 0.05) return;
+      if (delta < (android ? 0.08 : 0.05)) return;
       try {
         applyingBearingRef.current = true;
-        map.setBearing(next);
+        liveMap.setBearing(next);
       } catch {
         /* ignore */
       } finally {

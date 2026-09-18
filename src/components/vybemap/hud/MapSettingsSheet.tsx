@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion';
-import { Ghost, Layers, MapPin, Plus, Sparkles, X, Compass } from 'lucide-react';
+import { Ghost, Layers, MapPin, Plus, Sparkles, X, Compass, Footprints } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { MAP_VIEW_MODES, type MapViewMode } from '@/lib/vybemap/mapbox/config';
@@ -19,6 +19,7 @@ interface MapSettingsSheetProps {
   onSquads: () => void;
   onDropSpot: () => void;
   onPlanMeetup: () => void;
+  onWander?: () => void;
   onClose: () => void;
 }
 
@@ -35,6 +36,7 @@ export function MapSettingsSheet({
   onSquads,
   onDropSpot,
   onPlanMeetup,
+  onWander,
   onClose,
 }: MapSettingsSheetProps) {
   return (
@@ -69,6 +71,16 @@ export function MapSettingsSheet({
               <QuickBtn icon={Sparkles} label="Squads" onClick={onSquads} />
               <QuickBtn icon={Plus} label="Drop a spot" onClick={onDropSpot} />
               <QuickBtn icon={MapPin} label="Plan meetup" onClick={onPlanMeetup} />
+              {onWander && (
+                <QuickBtn
+                  icon={Footprints}
+                  label="Wander"
+                  onClick={() => {
+                    onWander();
+                    onClose();
+                  }}
+                />
+              )}
             </div>
           </section>
 

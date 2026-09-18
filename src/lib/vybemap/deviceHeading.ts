@@ -1,4 +1,4 @@
-import { despiaCall, isDespiaRuntime } from '@/lib/despiaBridge';
+import { despiaCall, isDespiaRuntime, isIOSUA, getRuntimeOs } from '@/lib/despiaBridge';
 
 /** Parse a compass heading (degrees from true/magnetic north) from DeviceOrientation. */
 export function headingFromOrientationEvent(e: DeviceOrientationEvent): number | null {
@@ -170,32 +170,21 @@ function stopDespiaGyroIfIdle() {
   despiaLastEmittedHeading = null;
 }
 
-/**
- * Subscribe to live device heading.
- * Despia: native gyroscope + magnetic compass (`window.onGyroscopeChange`).
- * Web: DeviceOrientationEvent (webkit compass / alpha).
- */
-export function subscribeDeviceHeading(listener: HeadingListener): () => void {
-  if (typeof window === 'undefined') return () => {};
-
-  if (isDespiaRuntime()) {
-    despiaListeners.add(listener);
-    ensureDespiaGyroStarted();
-    return () => {
-      despiaListeners.delete(listener);
-      stopDespiaGyroIfIdle();
-    };
-  }
-
+function subscribeWebDeviceOrientation(listener: HeadingListener): () => void {
   let smoothed: number | null = null;
   let lastEmit = 0;
+  // [Android-only] Snappier filter + higher sample rate so Follow feels instant.
+  const android = getRuntimeOs() === 'android';
+  const alpha = android ? 0.45 : 0.28;
+  const minIntervalMs = android ? 16 : 32;
+
   const onOrient = (e: DeviceOrientationEvent) => {
     const raw = headingFromOrientationEvent(e);
     if (raw == null) return;
     const corrected = applyScreenOrientationOffset(raw);
-    smoothed = lerpHeading(smoothed, corrected, 0.28);
+    smoothed = lerpHeading(smoothed, corrected, alpha);
     const now = Date.now();
-    if (now - lastEmit < 32) return;
+    if (now - lastEmit < minIntervalMs) return;
     lastEmit = now;
     listener({ heading: smoothed, source: 'web' });
   };
@@ -222,4 +211,25 @@ export function subscribeDeviceHeading(listener: HeadingListener): () => void {
     window.removeEventListener('pointerdown', onGesture, true);
     window.removeEventListener('touchstart', onGesture, true);
   };
+}
+
+/**
+ * Subscribe to live device heading.
+ * [iOS-only] Despia: native gyroscope + magnetic compass (`window.onGyroscopeChange`).
+ * [Android-only] + web: DeviceOrientationEvent (Android Despia has no reliable gyro bridge).
+ */
+export function subscribeDeviceHeading(listener: HeadingListener): () => void {
+  if (typeof window === 'undefined') return () => {};
+
+  // [iOS-only] Native Despia gyro — do NOT use this path on Android Despia.
+  if (isDespiaRuntime() && isIOSUA()) {
+    despiaListeners.add(listener);
+    ensureDespiaGyroStarted();
+    return () => {
+      despiaListeners.delete(listener);
+      stopDespiaGyroIfIdle();
+    };
+  }
+
+  return subscribeWebDeviceOrientation(listener);
 }

@@ -111,5 +111,13 @@ export function VybeMapLeafletFallback({
 }
 
 export function leafletFlyTo(map: L.Map | null, lat: number, lng: number, zoom = 15) {
-  map?.flyTo([lat, lng], zoom, { duration: 1.2 });
+  // Instant setView — flyTo(1.2s) froze Fold / Android mid-range GPUs.
+  map?.setView([lat, lng], zoom, { animate: false });
+}
+
+export function leafletWander(map: L.Map | null, lat?: number, lng?: number) {
+  if (!map) return;
+  const c = lat != null && lng != null ? ([lat, lng] as [number, number]) : map.getCenter();
+  const zoom = Math.min(map.getZoom(), 12.5);
+  map.setView(c, zoom, { animate: false });
 }

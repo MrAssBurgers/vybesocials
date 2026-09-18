@@ -2,7 +2,30 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
-## ACTIVE (2026-09-18) — Galaxy Fold 8 stuck on load
+## ACTIVE (2026-09-18) — Map follow speed + persistent routes
+
+### Goal
+Faster Android Follow, keep route visible when dismissing the card, choose live vs map-origin when changing destination.
+
+### What changed
+- **Follow (Android):** DeviceOrientation path (Despia Android no longer stuck on iOS gyro bridge); GPS `jumpTo`; snappier heading lerp + snap-on-enable; defer DEM; prefetch Mapbox chunk
+- **Teleport / Wander:** instant `jumpTo` + Mapbox geocode; Wander in Map settings
+- **Routes:** Minimize (X/minimize) keeps polyline; End clears; Origin picker = Live GPS vs Map pin when changing/navigating from a panned camera
+
+### Verification
+- geocode + foldable unit tests pass
+- `npm run build`
+
+### Ship
+- PR #68 branch `cursor/fold8-boot-stuck-fix-87b9` — merge + **Lovable Publish** for `vybehub.app`
+- Agents cannot click Lovable Publish; staging = Firebase hosting if logged in
+
+### iOS status
+Not “perfected.” Recent Apple Sign-In / Stripe work lives on other branches; Fold/Android map follow fixes are Android-first. iOS still uses Despia gyro for heading (unchanged). Physical-device canary still required.
+
+---
+
+## PREVIOUS (2026-09-18) — Galaxy Fold 8 stuck on load
 
 ### Goal
 Unstick VYBE on Samsung Galaxy Z Fold 8 (black / frozen page after open).
