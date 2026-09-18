@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { isNativeAppShell } from '@/lib/despiaBridge';
+import { preferTouchAppShell } from '@/lib/deviceDetection';
 
 export type PlatformType = 'ios' | 'android' | 'windows' | 'macos' | 'linux' | 'unknown';
 export type DeviceType = 'mobile' | 'tablet' | 'desktop';
@@ -76,17 +77,19 @@ function detectIOSSafari(): boolean {
 
 function detectDevice(): DeviceType {
   if (typeof window === 'undefined') return 'desktop';
-  
+
   const width = window.innerWidth;
   const hasTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
-  
+
   // iPad detection (iPads report as Macintosh now)
   const isIPad = /macintosh/.test(navigator.userAgent.toLowerCase()) && navigator.maxTouchPoints > 1;
-  
+  // [Android-only] Fold / Despia: never classify as desktop (inner screen often ≥1024 CSS px)
+  const forceTouchShell = preferTouchAppShell();
+
   if (width < 768 || (hasTouch && width < 768)) {
     return 'mobile';
   }
-  if ((width >= 768 && width < 1024) || isIPad) {
+  if ((width >= 768 && width < 1024) || isIPad || forceTouchShell) {
     return 'tablet';
   }
   return 'desktop';
@@ -270,6 +273,9 @@ export function usePlatform(): PlatformInfo {
 export function useBreakpoint() {
   const [breakpoint, setBreakpoint] = useState<'xs' | 'sm' | 'md' | 'lg' | 'xl' | '2xl'>('md');
   const [isIPad, setIsIPad] = useState(false);
+  const [forceTouchShell, setForceTouchShell] = useState(() =>
+    typeof window !== 'undefined' ? preferTouchAppShell() : false,
+  );
 
   useEffect(() => {
     const getBreakpoint = () => {
@@ -291,25 +297,35 @@ export function useBreakpoint() {
       );
     };
 
-    setBreakpoint(getBreakpoint());
-    setIsIPad(detectIPad());
+    const refresh = () => {
+      setBreakpoint(getBreakpoint());
+      setIsIPad(detectIPad());
+      setForceTouchShell(preferTouchAppShell());
+    };
 
-    const handleResize = () => setBreakpoint(getBreakpoint());
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
+    refresh();
+
+    window.addEventListener('resize', refresh);
+    window.addEventListener('orientationchange', refresh);
+    return () => {
+      window.removeEventListener('resize', refresh);
+      window.removeEventListener('orientationchange', refresh);
+    };
   }, []);
 
-  // Desktop = sidebars, Tablet/iPad/Mobile = bottom nav
+  // Desktop = sidebars; phone/tablet/Fold/iPad = bottom nav shell
   const isMobileBreakpoint = breakpoint === 'xs' || breakpoint === 'sm';
-  const isTabletBreakpoint = breakpoint === 'md' || isIPad;
   const isDesktopBreakpoint = breakpoint === 'lg' || breakpoint === 'xl' || breakpoint === '2xl';
+  const blockDesktopShell = isIPad || forceTouchShell;
 
   return {
     breakpoint,
-    isMobile: isMobileBreakpoint && !isIPad,
-    isTablet: isTabletBreakpoint && !isDesktopBreakpoint,
-    // ONLY true desktop (lg+) gets sidebars - NOT tablets or iPads
-    isDesktop: isDesktopBreakpoint && !isIPad,
+    isMobile: isMobileBreakpoint,
+    isTablet:
+      (!isMobileBreakpoint && !isDesktopBreakpoint) ||
+      (blockDesktopShell && isDesktopBreakpoint),
+    // ONLY true desktop (lg+) gets sidebars - NOT tablets, iPads, or Android Fold
+    isDesktop: isDesktopBreakpoint && !blockDesktopShell,
     isIPad,
   };
 }

@@ -1,5 +1,5 @@
 import * as React from "react";
-import { detectIsIPad } from '@/lib/deviceDetection';
+import { detectIsIPad, preferTouchAppShell } from '@/lib/deviceDetection';
 import { isMobileOrTabletViewport } from '@/lib/mobileViewport';
 
 const MOBILE_BREAKPOINT = 768;
@@ -40,8 +40,10 @@ export function useIsMobileOrTablet() {
     const checkDevice = () => {
       const isIPadDevice = detectIsIPad();
       setIsIPad(isIPadDevice);
-      // iPad always uses mobile/tablet layout regardless of screen size
-      setIsMobileOrTablet(window.innerWidth < TABLET_BREAKPOINT || isIPadDevice);
+      // iPad + Android Fold / Despia: always mobile/tablet shell regardless of CSS width
+      setIsMobileOrTablet(
+        window.innerWidth < TABLET_BREAKPOINT || isIPadDevice || preferTouchAppShell(),
+      );
     };
 
     checkDevice();

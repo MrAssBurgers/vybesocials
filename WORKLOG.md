@@ -2,7 +2,35 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
-## ACTIVE (2026-08-05) — 2FA end-to-end (email, SMS, device approval)
+## ACTIVE (2026-09-18) — Galaxy Fold 8 stuck on load
+
+### Goal
+Unstick VYBE on Samsung Galaxy Z Fold 8 (black / frozen page after open).
+
+### Root causes
+1. **Boot watchdog false-ready:** `body.splash-visible` (default in `index.html`) counted as “meaningful content” even under Despia `native-handoff` (invisible black `#09090b`). Startup recovery never fired.
+2. **Desktop shell on unfolded Fold:** width ≥1024 CSS px → `isDesktop` sidebars / no bottom nav (iPad was special-cased; Android Fold was not). Full foldable PR #33 never merged.
+3. **Stuck login-approval checking flag** could block post-login navigation forever (no TTL).
+
+### What changed
+- `public/boot-guard.js` — native-handoff splash is not “content”; 12s native fail-open if `__VYBE_MAIN_EVAL__` never sets
+- `src/lib/deviceDetection.ts` — `preferTouchAppShell()` / Samsung Fold UA / Android Despia never desktop
+- `usePlatform` / `use-mobile` / `mobileViewport` — Fold stays on touch shell
+- `loginApprovalGate` — 60s TTL on checking flag
+- `ShellVisibilityGuard` — clear stuck splash on fold resize/orientation
+
+### Verification
+- `npm test -- --run src/lib/deviceDetection.foldable.test.ts src/lib/loginApprovalGate.ttl.test.ts`
+- `npm run build`
+
+### Next
+1. Merge + **Lovable Publish** (prod was on stale `3ce6542`; Fold needs this client)
+2. Force-quit ×2 on Fold after OTA; test cover + unfolded
+3. If still black: tap recovery “Clear cache & reload” once
+
+---
+
+## PREVIOUS (2026-08-05) — 2FA end-to-end (email, SMS, device approval)
 
 ### Goal
 Make email codes, SMS codes, and trusted-device login approval actually deliver and complete sign-in.

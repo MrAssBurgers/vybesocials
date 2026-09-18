@@ -23,6 +23,9 @@ export interface PendingLoginApproval {
 
 const STORAGE_KEY = 'vybe-pending-login-approval';
 const CHECKING_KEY = 'vybe-login-gate-checking';
+const CHECKING_AT_KEY = 'vybe-login-gate-checking-at';
+/** Max time interactive sign-in may leave the checking flag set (Fold/Android soft-sign-out stalls). */
+const CHECKING_TTL_MS = 60_000;
 export const LOGIN_APPROVAL_PENDING_EVENT = 'vybe:login-approval-pending';
 export const LOGIN_APPROVAL_CLEARED_EVENT = 'vybe:login-approval-cleared';
 
@@ -53,7 +56,13 @@ export function isLoginApprovalPending(): boolean {
 /** True while interactive sign-in is checking whether approval is required. */
 export function isLoginApprovalCheckInProgress(): boolean {
   try {
-    return sessionStorage.getItem(CHECKING_KEY) === '1';
+    if (sessionStorage.getItem(CHECKING_KEY) !== '1') return false;
+    const startedAt = Number(sessionStorage.getItem(CHECKING_AT_KEY) || '0');
+    if (startedAt > 0 && Date.now() - startedAt > CHECKING_TTL_MS) {
+      endLoginApprovalCheck();
+      return false;
+    }
+    return true;
   } catch {
     return false;
   }
@@ -62,6 +71,7 @@ export function isLoginApprovalCheckInProgress(): boolean {
 export function beginLoginApprovalCheck(): void {
   try {
     sessionStorage.setItem(CHECKING_KEY, '1');
+    sessionStorage.setItem(CHECKING_AT_KEY, String(Date.now()));
   } catch {
     /* ignore */
   }
@@ -70,6 +80,7 @@ export function beginLoginApprovalCheck(): void {
 export function endLoginApprovalCheck(): void {
   try {
     sessionStorage.removeItem(CHECKING_KEY);
+    sessionStorage.removeItem(CHECKING_AT_KEY);
   } catch {
     /* ignore */
   }

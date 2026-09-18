@@ -244,11 +244,29 @@
   }
 
   function isSplashVisible() {
-    if (document.body.classList.contains('splash-visible')) return true;
+    // Native handoff is an invisible #09090b hold (Despia/Android). Never treat
+    // body.splash-visible alone as healthy content — that left Fold/Android stuck
+    // on a black page forever because startup_timeout never fired.
+    var handoff =
+      document.documentElement.getAttribute('data-vybe-splash') === 'native-handoff';
+    if (handoff) {
+      return false;
+    }
+    if (document.body.classList.contains('splash-visible')) {
+      var boot = document.getElementById('vybe-static-boot');
+      if (boot) return true;
+    }
     var root = document.getElementById('root');
     if (!root) return false;
     var text = root.textContent || '';
     return /VYBE/i.test(text) && /Waking up|Checking session|Loading|Ready|Let's go|Tip/i.test(text);
+  }
+
+  function rootHasPaintedUi() {
+    var root = document.getElementById('root');
+    if (!root) return false;
+    if (root.childElementCount > 0) return true;
+    return (root.textContent || '').replace(/\s+/g, '').length > 8;
   }
 
   function isBundleStillLoading() {
@@ -275,6 +293,19 @@
 
     var rootText = (root.textContent || '').replace(/\s+/g, '');
     return rootText.length > 8;
+  }
+
+  function shouldForceStartupRecovery() {
+    if (isAppReady()) return false;
+    if (hasMeaningfulContent()) return false;
+    // Native handoff + splash-visible with no React paint = stuck black page.
+    var handoff =
+      document.documentElement.getAttribute('data-vybe-splash') === 'native-handoff';
+    if (handoff && !rootHasPaintedUi()) return true;
+    if (!isSplashVisible() && !isBundleStillLoading()) return true;
+    // Main never evaluated after timeout (Android Despia module-eval stalls).
+    if (isNativeWrapper && !(window).__VYBE_MAIN_EVAL__ && !rootHasPaintedUi()) return true;
+    return false;
   }
 
   function markBootReady() {
@@ -333,10 +364,21 @@
 
   startupTimer = setTimeout(function () {
     if (isAppReady()) return;
-    if (!hasMeaningfulContent() && !isSplashVisible() && !isBundleStillLoading()) {
+    if (shouldForceStartupRecovery()) {
       showRecovery('startup_timeout');
     }
   }, STARTUP_TIMEOUT_MS);
+
+  // Earlier fail-open on native wrappers: black handoff must not sit forever
+  // waiting for the full 35s if the module never evaluates.
+  if (isNativeWrapper) {
+    setTimeout(function () {
+      if (isAppReady() || recoveryShown) return;
+      if (!(window).__VYBE_MAIN_EVAL__ && !rootHasPaintedUi()) {
+        showRecovery('startup_timeout');
+      }
+    }, 12000);
+  }
 
   window.addEventListener('error', function (event) {
     if (isAppReady()) return;

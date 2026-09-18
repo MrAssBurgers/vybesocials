@@ -20,6 +20,43 @@ export function isAppleTouchDevice(): boolean {
   return /iphone|ipad|ipod/.test(ua) || (/macintosh/.test(ua) && navigator.maxTouchPoints > 1);
 }
 
+export function isAndroidTouchDevice(): boolean {
+  if (typeof window === 'undefined' || typeof navigator === 'undefined') return false;
+  if (!/Android/i.test(navigator.userAgent || '')) return false;
+  return navigator.maxTouchPoints > 0 || 'ontouchstart' in window;
+}
+
+/**
+ * Galaxy Z Fold / Flip and similar — model codes or Fold token in UA.
+ * Unfolded inner displays often report ≥1024 CSS px and would otherwise get desktop sidebars.
+ */
+export function isSamsungFoldableUa(): boolean {
+  if (typeof navigator === 'undefined') return false;
+  const ua = navigator.userAgent || '';
+  return /SM-F\d{3}|SM-W\d{3}|SM-E\d{3}|Fold/i.test(ua);
+}
+
+/**
+ * Prefer phone/tablet app shell (bottom nav, no desktop sidebars).
+ * Mirrors iPad special-casing for Android Fold inner screens and Despia Android.
+ */
+export function preferTouchAppShell(): boolean {
+  if (detectIsIPad()) return true;
+  if (isSamsungFoldableUa()) return true;
+  if (typeof navigator === 'undefined') return false;
+  // Android store / Despia shell: never desktop layout (Fold 8 inner ≥1024 CSS px).
+  if (isNativeAppShell() && /Android/i.test(navigator.userAgent || '')) return true;
+  if (!isAndroidTouchDevice()) return false;
+  try {
+    const fineDesktop = window.matchMedia('(hover: hover) and (pointer: fine)').matches;
+    const coarse = window.matchMedia('(pointer: coarse)').matches;
+    // Coarse touch (phones/folds) → touch shell; hover+fine without coarse → desktop Chrome.
+    return coarse || !fineDesktop;
+  } catch {
+    return true;
+  }
+}
+
 export function isStandaloneApp(): boolean {
   if (typeof window === 'undefined') return false;
   return (
@@ -34,7 +71,7 @@ export function isStandaloneApp(): boolean {
  */
 export function isMobileOrTabletDevice(): boolean {
   if (typeof window === 'undefined') return false;
-  if (detectIsIPad()) return true;
+  if (preferTouchAppShell()) return true;
   return window.innerWidth < TABLET_BREAKPOINT;
 }
 
