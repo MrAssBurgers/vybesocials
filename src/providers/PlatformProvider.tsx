@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, ReactNode } from 'react';
 import { usePlatform, PlatformType, DeviceType, PerformanceTier } from '@/hooks/usePlatform';
 import { applySafeAreaCssVars } from '@/lib/safeAreaInsets';
+import { isSamsungFoldableUa } from '@/lib/deviceDetection';
 
 interface PlatformContextValue {
   platform: PlatformType;
@@ -35,6 +36,8 @@ export function PlatformProvider({ children }: { children: ReactNode }) {
     // Device classes
     html.classList.remove('device-mobile', 'device-tablet', 'device-desktop');
     html.classList.add(`device-${device}`);
+    // [Android-only] Galaxy Fold cover ↔ inner. Set before paint in index.html too.
+    html.classList.toggle('device-fold', isSamsungFoldableUa());
 
     // Performance tier classes
     html.classList.remove('perf-low', 'perf-medium', 'perf-high');
@@ -63,6 +66,7 @@ export function PlatformProvider({ children }: { children: ReactNode }) {
         `platform-${platform}`,
         `device-${device}`,
         `perf-${performanceTier}`,
+        'device-fold',
         'reduce-motion',
         'has-notch'
       );

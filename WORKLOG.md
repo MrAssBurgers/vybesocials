@@ -2,6 +2,26 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## ACTIVE (2026-10-03) — Galaxy Z Fold 8 cover and inner layout
+
+### What changed
+- Fold Chrome no longer locks `maximum-scale` / `user-scalable=no`. That lock kept the cover-screen viewport after unfold, so the inner display never reflowed.
+- Galaxy Z Fold 8 (`SM-F971`) stays on the touch shell. Cover is about 475×751 CSS px. The inner 4:3 screen is about 933×704 CSS px: home and profile use a 42rem column, the bottom nav widens, and the shell uses `100dvh` so the gesture bar does not clip it.
+- If a shell reports ≥1024 CSS px, the layout viewport caps at 1000 so desktop sidebars do not mount. Folding back to the cover releases that cap using `screen.width`, not the capped `innerWidth`.
+- Desktop browsers keep the existing viewport lock.
+
+### Tests run
+- `vitest` `foldViewport.test.ts` and `deviceDetection.foldable.test.ts` — 7 passed
+- Headless Chrome with Fold 8 UA: cover login and signed-in home (475×751), unfold to inner home / clips / messages (933×704), no horizontal overflow, shell height matches the viewport, bottom nav stays on screen. A 1224px-wide shell caps the viewport and does not take `device-desktop`.
+
+### Blockers
+This environment cannot open a physical Fold 8. vybehub.app still needs this branch merged and a Lovable Publish.
+
+### Next
+1. Open the cover, then unfold, on a Fold 8 after publish and confirm the feed reflows without a reload.
+2. Lovable Publish when this client should reach vybehub.app.
+3. Deploy `auth2faRequest` only when email codes should be required again.
+
 ## ACTIVE (2026-10-03) — Password sign-in when email 2FA has no challenge
 
 ### What changed

@@ -38,6 +38,34 @@ describe('deviceDetection foldable / Android shell', () => {
     expect(isMobileOrTabletDevice()).toBe(true);
   });
 
+  it('detects Galaxy Z Fold 8 (SM-F971) and keeps the touch shell', async () => {
+    vi.stubGlobal('navigator', {
+      userAgent:
+        'Mozilla/5.0 (Linux; Android 17; SM-F971N) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Mobile Safari/537.36',
+      maxTouchPoints: 10,
+    });
+    vi.stubGlobal('window', {
+      ...window,
+      innerWidth: 933,
+      matchMedia: (query: string) => ({
+        matches: query.includes('pointer: coarse'),
+        media: query,
+        addEventListener: () => undefined,
+        removeEventListener: () => undefined,
+        addListener: () => undefined,
+        removeListener: () => undefined,
+        dispatchEvent: () => false,
+        onchange: null,
+      }),
+    });
+
+    const { isSamsungFoldableUa, preferTouchAppShell, isMobileOrTabletDevice } =
+      await import('./deviceDetection');
+    expect(isSamsungFoldableUa()).toBe(true);
+    expect(preferTouchAppShell()).toBe(true);
+    expect(isMobileOrTabletDevice()).toBe(true);
+  });
+
   it('keeps unfolded Fold (≥1024 CSS px) on the touch shell', async () => {
     vi.stubGlobal('navigator', {
       userAgent: 'Mozilla/5.0 (Linux; Android 14; SM-F956U) AppleWebKit/537.36',

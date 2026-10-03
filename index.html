@@ -166,6 +166,46 @@
     <link rel="manifest" href="/manifest.webmanifest" />
     
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1, user-scalable=no, shrink-to-fit=no" />
+    <!-- [Android-only] Fold 8: maximum-scale locks the cover viewport so unfold never reflows. -->
+    <script>
+      (function () {
+        try {
+          var ua = navigator.userAgent || '';
+          if (!/Android/i.test(ua) || !/SM-F\d{3}|SM-W\d{3}|SM-E\d{3}|Fold/i.test(ua)) return;
+          document.documentElement.classList.add('device-fold');
+          var meta = document.querySelector('meta[name="viewport"]');
+          if (!meta) return;
+          var TOUCH = 'width=device-width, initial-scale=1.0, viewport-fit=cover';
+          var CAPPED = 'width=1000, initial-scale=1, viewport-fit=cover';
+          var capping = false;
+          var deviceCss = function () {
+            var dpr = window.devicePixelRatio || 1;
+            var sw = window.screen && window.screen.width;
+            if (capping && sw) return sw / dpr;
+            return window.innerWidth || 0;
+          };
+          var apply = function () {
+            var width = deviceCss();
+            var next = TOUCH;
+            var nextCapping = capping;
+            if (width >= 1024 && !capping) {
+              next = CAPPED;
+              nextCapping = true;
+            } else if (capping && width < 900) {
+              next = TOUCH;
+              nextCapping = false;
+            } else if (capping) {
+              next = CAPPED;
+            }
+            capping = nextCapping;
+            if (meta.getAttribute('content') !== next) meta.setAttribute('content', next);
+          };
+          apply();
+          window.addEventListener('resize', apply);
+          window.addEventListener('orientationchange', apply);
+        } catch (e) { /* keep the default viewport */ }
+      })();
+    </script>
     <meta name="format-detection" content="telephone=no" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="theme-color" content="#0B0B10" />

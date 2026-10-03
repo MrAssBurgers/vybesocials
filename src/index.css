@@ -5280,6 +5280,41 @@ body.has-liquid-bg:not(.has-custom-bg) #main-content {
     --auth-android-compact: 1;
   }
 
+  /* [Android-only] Galaxy Z Fold 8 inner is ~933×704 CSS px. Use that canvas
+     without crossing into the desktop sidebar shell. */
+  @media (min-width: 700px) and (max-width: 1023px) {
+    html.device-fold .home-shell,
+    html.device-fold .profile-page-shell {
+      max-width: min(42rem, 100%);
+    }
+
+    html.device-fold .bottom-nav > div {
+      max-width: min(640px, calc(100% - 1.5rem));
+    }
+
+    html.device-fold.platform-android [data-auth-fit] {
+      max-width: min(440px, 92vw);
+    }
+  }
+
+  @media (min-width: 1024px) {
+    html.device-fold .desktop-left-sidebar,
+    html.device-fold .desktop-right-sidebar {
+      display: none !important;
+    }
+  }
+
+  /* [Android-only] 100vh includes the area behind Samsung gesture nav and clips the Fold inner screen. */
+  html.device-fold .h-screen,
+  html.device-fold .app-shell {
+    height: 100dvh;
+    max-height: 100dvh;
+  }
+
+  html.device-fold .min-h-screen {
+    min-height: 100dvh;
+  }
+
   /* Native shells: never show skip-link chrome (keyboard a11y is desktop-oriented). */
   .platform-android .skip-link,
   .platform-ios .skip-link {
