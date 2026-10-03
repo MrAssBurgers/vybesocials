@@ -2,6 +2,27 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## ACTIVE (2026-10-03) — Core path fixes
+
+### What changed
+- `/events/:id` opens the event (title, time, place, host, RSVP, who's going). It used to render the events list.
+- `/community-guidelines` redirects to `/guidelines`. Guidelines show built-in rules when Firestore has no public copy.
+- Guest gate on `/home` previews Feed, Clips, Messages, and Map, then asks for an account. Posts stay signed-in only.
+- Features copy no longer says the live sync runs on Supabase.
+
+### Tests run
+- `vitest` EventDetail, ProtectedRoute, public readiness — 18 passed
+- `tsc --noEmit -p tsconfig.app.json` — pass
+- Browser: Browse as guest, `/guidelines`, `/community-guidelines` redirect, Features “Real-time everything”, signed-out `/events/:id` returns to sign-in
+
+### Blockers
+Signed-in feed, DMs, and posting were not exercised. That needs an account, and this session does not write to production Firebase.
+
+### Next
+1. Sign in on a device and walk Home → post → profile → messages.
+2. Lovable Publish when this client should reach vybehub.app.
+3. Finish the vybesocials `main` move below if that handoff is still open.
+
 ## ENV SETUP (2026-10-03) — Cloud Agent dev environment
 
 ### What changed

@@ -17,7 +17,7 @@ const features = [
   { icon: Users, title: 'Communities and Spaces', body: 'Public or private communities with their own feeds, events, and moderators. Live audio Spaces let you host real-time conversations with up to hundreds of listeners.' },
   { icon: Heart, title: 'Multi-reaction system', body: 'Pick from a wide palette of emoji reactions instead of a single like. Long-press any post or message to react with multiple emojis at once. Reactions count toward your DNA and the creator\'s engagement score.' },
   { icon: Shield, title: 'Vybe Check safety scanning', body: 'Every uploaded photo, video, and audio file is scanned by Gemini Flash + SafeSearch before it goes live. Explicit content is blocked, AI-generated media is auto-watermarked, and users get a clear progress UI showing exactly what is being checked.' },
-  { icon: Zap, title: 'Real-time everything', body: 'Posts, reactions, presence, typing indicators, calls, location, and notifications all sync in milliseconds via Supabase Realtime. No refreshing required.' },
+  { icon: Zap, title: 'Real-time everything', body: 'Posts, reactions, presence, typing indicators, calls, location, and notifications stay in sync as they happen. No refreshing required.' },
   { icon: Globe, title: 'Built-in commerce', body: 'Tip creators, sell digital and physical goods, accept payouts via Stripe Connect, run sponsored posts, and subscribe to VYBE Pro for premium customization, AI safety bypass on your own profile, and gifted entitlements.' },
 ];
 

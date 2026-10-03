@@ -82,6 +82,7 @@ const NotFound = lazy(() => import("@/pages/NotFound"));
 const CreateListing = lazy(() => import("@/pages/CreateListing"));
 const ListingDetail = lazy(() => import("@/pages/ListingDetail"));
 const Events = lazy(() => import("@/pages/Events"));
+const EventDetail = lazy(() => import("@/pages/EventDetail"));
 const CreateEvent = lazy(() => import("@/pages/CreateEvent"));
 const AdminDashboard = lazy(() => import("@/pages/AdminDashboard"));
 const AdminMusicSettings = lazy(() => import("@/pages/AdminMusicSettings"));
@@ -239,6 +240,7 @@ export function AnimatedRoutes() {
             <Route path="/blog" element={<Blog />} />
             <Route path="/blog/:slug" element={<BlogPost />} />
             <Route path="/guidelines" element={<CommunityGuidelines />} />
+            <Route path="/community-guidelines" element={<Navigate to="/guidelines" replace />} />
             <Route path="/about" element={<About />} />
             <Route path="/contact" element={<Contact />} />
             <Route path="/local" element={<LocalIndex />} />
@@ -307,7 +309,7 @@ export function AnimatedRoutes() {
             <Route path="/badges" element={<ProtectedRoute><BadgeLibrary /></ProtectedRoute>} />
             <Route path="/challenges" element={<ProtectedRoute><ChallengesHub /></ProtectedRoute>} />
             <Route path="/howudoin" element={<ProtectedRoute><HowUDoinHub /></ProtectedRoute>} />
-            <Route path="/events/:id" element={<ProtectedRoute><Events /></ProtectedRoute>} />
+            <Route path="/events/:id" element={<ProtectedRoute><RouteBoundary name="event"><EventDetail /></RouteBoundary></ProtectedRoute>} />
             <Route path="/leaderboard" element={<ProtectedRoute><Leaderboard /></ProtectedRoute>} />
             <Route path="/business" element={<ProtectedRoute><BusinessPortal /></ProtectedRoute>} />
             <Route path="/business/:slug" element={<ProtectedRoute><BusinessPortal /></ProtectedRoute>} />

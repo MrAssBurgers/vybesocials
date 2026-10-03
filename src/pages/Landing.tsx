@@ -1044,7 +1044,7 @@ export default function Landing({ onInviteNavigate, isInviteMode = false }: Land
   };
 
   const handleGuestBrowse = () => {
-    // Navigate to home without signing in - guest mode
+    // Home is account-gated. The guest screen explains why and keeps the return path.
     if (isInviteMode && onInviteNavigate) {
       onInviteNavigate('home');
     } else {
