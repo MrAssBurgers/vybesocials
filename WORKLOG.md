@@ -2,6 +2,24 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## ACTIVE (2026-10-03) — Fold 8 Play Store splash
+
+### What changed
+- The Play Store splash on Android was filling the bar, then staying there. Evaluating the app bundle stopped the only timer that removed the cover, and the shell waited on feed and message warm-up.
+- Android, including Galaxy Z Fold 8, now drops that cover at 2.2 seconds even if the progress ticker was stopped. A CSS fail-open does the same if WebView timers are frozen. The feed and inbox finish loading after the shell is visible.
+- iOS still uses its own splash timing.
+
+### Tests run
+- `vitest` `androidSplash.test.ts` and `foldViewport.test.ts` — 6 passed
+
+### Blockers
+The Play Store build loads https://vybehub.app (`cede1aa4` as of this session). This fix is on the branch until it is merged and published with Lovable. A Despia repack is not required if the store app loads the live site.
+
+### Next
+1. Lovable Publish, then force-close the Play Store app and open it on the Fold 8 cover.
+2. Confirm the V splash is gone within a few seconds and Home is on screen.
+3. Unfold once and confirm the feed reflows.
+
 ## ACTIVE (2026-10-03) — Galaxy Z Fold 8 cover and inner layout
 
 ### What changed

@@ -14,6 +14,13 @@ interface SplashScreenProps {
  */
 export const SplashScreen = memo(function SplashScreen({ isVisible }: SplashScreenProps) {
   useEffect(() => {
+    // [Android-only] Fold splash deadline already revealed the shell. Do not hide it again.
+    if (window.__VYBE_SPLASH_FORCE_HIDDEN__) {
+      document.body.style.overflow = '';
+      document.body.classList.remove('splash-visible');
+      ensureAppShellVisible();
+      return;
+    }
     if (!isVisible) {
       document.body.style.overflow = '';
       document.body.classList.remove('splash-visible');

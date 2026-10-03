@@ -5,7 +5,7 @@ import { warmHomeCaches, warmHomeCachesForProfile } from '@/lib/warmHomeCaches';
 import { isPersistRestored, markPersistRestored, onPersistRestored } from '@/lib/persistRestoreGate';
 import { preloadCriticalRoutes, preloadSecondaryRoutes } from '@/lib/routePreloader';
 import { isAndroidNativeStartup, isIOSNativeStartup, isNativePerfMode } from '@/lib/nativePerfMode';
-import { getRuntimeOs } from '@/lib/despiaBridge';
+import { getRuntimeOs, isAndroidUA } from '@/lib/despiaBridge';
 import { isSetupRoutePath } from '@/lib/splashSession';
 import { publishSplashProgress } from '@/lib/splashProgressBridge';
 import { kickstartThemeHydration, prefetchAndApplyUserTheme } from '@/lib/themeHydration';
@@ -75,7 +75,7 @@ export function useAppPreloader() {
       setStatus({ step: label, progress: value, isComplete: done });
     };
 
-    if (delta <= 0) {
+    if (delta <= 0 || done) {
       commit(done ? target : Math.max(start, target));
       return;
     }
@@ -132,7 +132,7 @@ export function useAppPreloader() {
 
     const run = async () => {
       const ios = isIOSNativeStartup();
-      const android = isAndroidNativeStartup();
+      const android = isAndroidNativeStartup() || isAndroidUA();
       const native = ios || android || isNativePerfMode();
       const authMs = native ? 700 : 1600;
       const profileMs = native ? 700 : 1600;
@@ -153,6 +153,29 @@ export function useAppPreloader() {
       if (cancelled) return;
       updateStatus('auth', 1);
       logStartupPhase('Auth restored', { hasUser: !!session?.user, via: 'preloader' });
+
+      // [Android-only] Fold 8 Play Store was stuck on the splash bar while feed and
+      // DMs warmed. Open the shell after auth and finish those in the background.
+      if (android && !ios) {
+        const uid = session?.user?.id;
+        if (uid) {
+          void prefetchAndApplyUserTheme(uid, queryClient);
+          const cachedProfile = getCachedCurrentProfile();
+          if (cachedProfile?.id) {
+            queryClient.setQueryData(['profile', cachedProfile.id], cachedProfile);
+            void warmUserFeed(queryClient, cachedProfile.id, uid).catch(() => undefined);
+            void prefetchDMConversations(queryClient, cachedProfile.id, uid).catch(() => undefined);
+          }
+        } else {
+          void warmGuestFeed(queryClient).catch(() => undefined);
+        }
+        updateStatus('profile', 1);
+        updateStatus('feed', 1);
+        updateStatus('dm', 1);
+        updateStatus('ready', 1);
+        logStartupPhase('Preloader ready', { via: 'android-fast' });
+        return;
+      }
 
       if (!session?.user) {
         updateStatus('profile', 1);

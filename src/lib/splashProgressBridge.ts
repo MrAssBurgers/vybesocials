@@ -16,6 +16,7 @@ declare global {
     __VYBE_MAIN_EVAL__?: boolean;
     __VYBE_APP_LOADED__?: boolean;
     __VYBE_STABLE_RELOAD__?: boolean;
+    __VYBE_SPLASH_FORCE_HIDDEN__?: boolean;
   }
 }
 

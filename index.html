@@ -33,6 +33,11 @@
             document.documentElement.setAttribute('data-vybe-shell', 'native');
             document.documentElement.classList.add('vybe-native-shell');
           }
+          // [Android-only] Fold 8 Play Store shell. Class starts the CSS splash fail-open
+          // even when JS timers are frozen after the bar reaches ~90%.
+          if (/android/i.test(ua)) {
+            document.documentElement.classList.add('vybe-android-boot');
+          }
         } catch (e) { /* fail open — keep full web splash */ }
       })();
     </script>
@@ -592,6 +597,27 @@
         pointer-events: none;
         transition: opacity 220ms ease-out;
       }
+      /* [Android-only] Cover leaves even if setInterval is throttled on the Fold WebView. */
+      @keyframes vybe-splash-failopen {
+        to {
+          opacity: 0;
+          visibility: hidden;
+          pointer-events: none;
+        }
+      }
+      @keyframes vybe-shell-reveal {
+        to {
+          visibility: visible !important;
+          pointer-events: auto !important;
+        }
+      }
+      html.vybe-android-boot #vybe-static-boot {
+        animation: vybe-splash-failopen 1ms linear 2.2s forwards;
+      }
+      html.vybe-android-boot body.splash-visible #app-shell,
+      html.vybe-android-boot body.splash-visible [data-app-shell] {
+        animation: vybe-shell-reveal 1ms linear 2.3s forwards;
+      }
       #vybe-static-boot .vybe-wordmark-img {
         display: block;
         margin: 0 auto;
@@ -842,7 +868,10 @@
         var isNativeShell = isDespia || isAndroid;
         var isNativeHandoff =
           document.documentElement.getAttribute('data-vybe-splash') === 'native-handoff';
-        var failOpenMs = isNativeShell ? 3800 : 12000;
+        // [Android-only] 2.2s ceiling. React used to cancel this by stopping the ticker
+        // as soon as the bundle evaluated, which left Fold 8 on a full bar.
+        var failOpenMs = isAndroid ? 2200 : (isNativeShell ? 3800 : 12000);
+        if (isAndroid) document.documentElement.classList.add('vybe-android-boot');
         function applyDom(value, label) {
           // Native handoff: brand UI is CSS-hidden — skip DOM progress thrash.
           if (isNativeHandoff) return;
@@ -873,18 +902,33 @@
         }
         function hideBoot() {
           var boot = document.getElementById('vybe-static-boot');
-          if (!boot) return;
           try {
-            boot.classList.add('vybe-static-boot-fade');
-            boot.style.opacity = '0';
-            boot.style.pointerEvents = 'none';
-            boot.style.visibility = 'hidden';
+            window.__VYBE_SPLASH_FORCE_HIDDEN__ = true;
             document.body.classList.remove('splash-visible');
+            var root = document.getElementById('root');
+            var painted = root && (root.childElementCount > 0 || (root.textContent || '').replace(/\s+/g, '').length > 8);
+            if (painted) document.documentElement.setAttribute('data-vybe-app-ready', 'true');
+            if (boot) {
+              boot.classList.add('vybe-static-boot-fade');
+              boot.style.opacity = '0';
+              boot.style.pointerEvents = 'none';
+              boot.style.visibility = 'hidden';
+            }
+            window.dispatchEvent(new Event('vybe:splash-force-hide'));
           } catch (eHide) { /* ignore */ }
         }
+        // Progress ticker may stop when React evaluates. The deadline must not.
+        var failTimer = setTimeout(function () {
+          if (document.documentElement.getAttribute('data-vybe-app-ready') === 'true' && !isAndroid) return;
+          hideBoot();
+        }, failOpenMs);
         window.__vybeStopFakeSplash = function () {
           takenOver = true;
           try { clearInterval(timer); } catch (e) { /* ignore */ }
+          // [Android-only] Keep failTimer. iOS/web still release it with the ticker.
+          if (!isAndroid) {
+            try { clearTimeout(failTimer); } catch (e2) { /* ignore */ }
+          }
         };
         var timer = setInterval(function () {
           var boot = document.getElementById('vybe-static-boot');

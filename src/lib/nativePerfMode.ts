@@ -1,6 +1,7 @@
 import {
   getRuntimeOs,
   isAndroidAppShell,
+  isAndroidUA,
   isIOSAppShell,
   isNativeAppShell,
   stampRuntimeOsOnDocument,
@@ -60,7 +61,9 @@ export function splashMinMs(): number {
  */
 export function splashAbsoluteMaxMs(): number {
   if (isIOSAppShell()) return 1400;
-  if (isAndroidAppShell()) return 1900;
+  // [Android-only] Play Store / Fold WebView often has no "; wv", so the shell
+  // check misses and the cover waits on feed warm. Cap it anyway.
+  if (isAndroidAppShell() || isAndroidUA()) return 1200;
   return 2500;
 }
 

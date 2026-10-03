@@ -396,7 +396,9 @@ function completeInitialSplash(setShowSplash: (v: boolean) => void) {
 
   publishSplashProgress(100, "Let's go! ✨");
   const elapsed = (typeof performance !== 'undefined' ? performance.now() : Date.now()) - splashShownAt;
-  const holdMs = Math.max(0, MIN_SPLASH_MS - elapsed);
+  const holdMs = window.__VYBE_SPLASH_FORCE_HIDDEN__
+    ? 0
+    : Math.max(0, MIN_SPLASH_MS - elapsed);
   window.setTimeout(() => {
     window.setTimeout(finish, isIOSNativeStartup() ? 40 : isAndroidNativeStartup() ? 60 : 80);
   }, holdMs);
@@ -565,6 +567,15 @@ function AppWithPreloader() {
     });
     return () => subscription.unsubscribe();
   }, []);
+
+  // [Android-only] index.html drops the Fold cover on a timer React cannot cancel.
+  useEffect(() => {
+    if (!showSplash) return;
+    const force = () => completeInitialSplash(setShowSplash);
+    window.addEventListener('vybe:splash-force-hide', force);
+    if (window.__VYBE_SPLASH_FORCE_HIDDEN__) force();
+    return () => window.removeEventListener('vybe:splash-force-hide', force);
+  }, [showSplash]);
 
   // Safety cap — always hide splash even if init fails (iOS black-screen killer).
   useEffect(() => {
