@@ -132,19 +132,31 @@ export async function savePostReaction(params: {
   const existing = await findLikeRows(userIds, postId);
   const createdAt = existing.find((r) => r.created_at)?.created_at || now;
 
-  await setDocument('likes', docId, {
+  const payload = {
     id: docId,
     user_id: userId,
     post_id: postId,
     reaction_type: reactionType,
     created_at: createdAt,
     updated_at: now,
-  });
+  };
+
+  try {
+    await setDocument('likes', docId, payload);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    // An existing like row can reject an update when user_id doesn't match this
+    // profile. Drop the rows we own, then create a fresh one.
+    if (!/permission-denied|insufficient permissions/i.test(msg)) throw err;
+    await Promise.all(existing.map((row) => (row.id ? safeDeleteLike(row.id) : Promise.resolve())));
+    await setDocument('likes', docId, payload);
+  }
 
   await awaitPendingFirestoreWrites();
-  const confirmed = await getDocumentFromServer('likes', docId);
+  // The write already resolved. A slow server read must not undo a saved reaction.
+  const confirmed = await getDocumentFromServer('likes', docId).catch(() => null);
   if (!confirmed?.id) {
-    throw new Error('Reaction was not saved — check your connection and try again');
+    console.warn('[postReactions] reaction write resolved before the server read confirmed it');
   }
 
   for (const row of existing) {

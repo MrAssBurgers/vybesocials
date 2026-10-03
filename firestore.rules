@@ -603,6 +603,7 @@ service cloud.firestore {
     match /message_reactions/{docId} {
       allow read: if signedIn();
       allow create: if willOwnUserField('user_id');
+      allow update: if ownsUserField('user_id') && willOwnUserField('user_id');
       allow delete: if ownsUserField('user_id') || isAdmin();
     }
     match /message_views/{docId} {
