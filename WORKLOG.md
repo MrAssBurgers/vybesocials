@@ -2,7 +2,39 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
-## ACTIVE (2026-09-18) — Map follow speed + persistent routes
+## ACTIVE (2026-10-03) — Move VYBE to `MrAssBurgers/vybesocials`
+
+### Goal
+New GitHub home is **https://github.com/MrAssBurgers/vybesocials**. Move full latest VYBE tree there.
+
+### Done in-agent
+- Consolidated branch `cursor/migrate-to-vybesocials-87b9` @ `df50bbcd`:
+  - `origin/main` (`6877e0ca`)
+  - Fold 8 boot + map follow/routes (`b9861e96`)
+  - iPhone Apple Sign-In + Stripe Connect (`3d6599e5`)
+- Pushed that branch to **old** repo `vybeapp-3df63bbb` (agent has write there).
+- **Cannot push to `vybesocials`** — GitHub 403 (cursor bot has pull only).
+
+### You must run (Mac / GitHub account with write)
+
+```bash
+git clone https://github.com/MrAssBurgers/vybesocials.git
+cd vybesocials
+git fetch https://github.com/MrAssBurgers/vybeapp-3df63bbb.git cursor/migrate-to-vybesocials-87b9
+git checkout -B main FETCH_HEAD
+git push origin main --force
+```
+
+That replaces `vybesocials` `main` with the full consolidated VYBE tree (`df50bbcd`).
+
+Then point Lovable GitSync at **vybesocials** and **Share → Publish**.
+
+### Forget / out of scope
+Non-Vybe items and USB-debugging PR (#66 closed earlier) — ignore.
+
+---
+
+## PREVIOUS (2026-09-18) — Map follow speed + persistent routes
 
 ### Goal
 Faster Android Follow, keep route visible when dismissing the card, choose live vs map-origin when changing destination.
