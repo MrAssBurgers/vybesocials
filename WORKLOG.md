@@ -2,6 +2,21 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## ACTIVE (2026-10-03) — Clip avatar bars and welcome chip
+
+### What changed
+- The clip author ring was an inline link about 44×94 px, so the gradient drew vertical color bars beside the photo. It is now a 48×48 circle.
+- The “Welcome back” chip no longer uses a translate that the animation overwrites, which had parked it on the right edge of the sign-in card. It stays hidden while the sign-in screen is up, then sits centered at the top.
+
+### Tests run
+- `vitest` `WelcomeBackSplash.test.tsx` — 3 passed
+- Fold cover clips: `.story-ring` measures 48×48
+
+### Next
+1. Lovable Publish `main`, then force-close VYBE.
+2. Open a clip and confirm the avatar ring is a circle.
+3. Sign in and confirm the welcome chip is not stuck on the sign-in card.
+
 ## ACTIVE (2026-10-03) — Fold 8 video sound, pause, and scroll
 
 ### What changed
