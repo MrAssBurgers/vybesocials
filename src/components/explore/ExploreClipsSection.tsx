@@ -10,6 +10,7 @@ import { useIsMobileOrTablet } from '@/hooks/use-mobile';
 import { useVideoPreload } from '@/hooks/useVideoPreload';
 import { useNetworkStatus } from '@/hooks/useNetworkStatus';
 import { db } from '@/lib/firebase';
+import { readClipsMutedPreference, writeClipsMutedPreference } from '@/lib/videoPlayback';
 
 interface ClipPost {
   id: string;
@@ -123,10 +124,7 @@ function FullscreenClipViewer({
   onClose: () => void;
 }) {
   const [currentIndex, setCurrentIndex] = useState(startIndex);
-  const [globalMuted, setGlobalMuted] = useState(() => {
-    const stored = localStorage.getItem('vybe-clips-muted');
-    return stored !== null ? stored === 'true' : true;
-  });
+  const [globalMuted, setGlobalMuted] = useState(() => readClipsMutedPreference());
   const containerRef = useRef<HTMLDivElement>(null);
   const itemRefs = useRef<(HTMLDivElement | null)[]>([]);
   const observerRef = useRef<IntersectionObserver | null>(null);
@@ -228,8 +226,7 @@ function FullscreenClipViewer({
   const handleToggleMute = useCallback(() => {
     setGlobalMuted(prev => {
       const next = !prev;
-      localStorage.setItem('vybe-clips-muted', String(next));
-      localStorage.setItem('clips-muted', String(next));
+      writeClipsMutedPreference(next);
       // DB sync (fire-and-forget)
       db.auth.getUser().then(({ data: { user } }) => {
         if (!user?.id) return;

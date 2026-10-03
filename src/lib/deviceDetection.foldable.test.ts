@@ -64,6 +64,9 @@ describe('deviceDetection foldable / Android shell', () => {
     expect(isSamsungFoldableUa()).toBe(true);
     expect(preferTouchAppShell()).toBe(true);
     expect(isMobileOrTabletDevice()).toBe(true);
+
+    const { isNativePerfMode } = await import('./nativePerfMode');
+    expect(isNativePerfMode()).toBe(true);
   });
 
   it('keeps unfolded Fold (≥1024 CSS px) on the touch shell', async () => {

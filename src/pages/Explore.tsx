@@ -37,6 +37,7 @@ import { TrendingHashtags } from '@/components/explore/TrendingHashtags';
 import { usePageMeta } from '@/hooks/usePageMeta';
 import { FeedFailureNotice } from '@/components/posts/FeedFailureNotice';
 import { shouldHandleFeedShortcut, readFeedPreference, writeFeedPreference } from '@/lib/feedReliability';
+import { readClipsMutedPreference, writeClipsMutedPreference } from '@/lib/videoPlayback';
 
 const popularTags = ['meme', 'fails', 'pets', 'gaming', 'comedy', 'sports', 'music', 'food', 'tech', 'beauty'];
 
@@ -132,10 +133,7 @@ function FullscreenClipsViewer({
   isLoading?: boolean;
 }) {
   const [currentIndex, setCurrentIndex] = useState(startIndex);
-  const [globalMuted, setGlobalMuted] = useState(() => {
-    const stored = readFeedPreference('vybe-clips-muted');
-    return stored !== null ? stored === 'true' : true;
-  });
+  const [globalMuted, setGlobalMuted] = useState(() => readClipsMutedPreference());
   const containerRef = useRef<HTMLDivElement>(null);
   const itemRefs = useRef<(HTMLDivElement | null)[]>([]);
   const observerRef = useRef<IntersectionObserver | null>(null);
@@ -237,8 +235,7 @@ function FullscreenClipsViewer({
   const handleToggleMute = useCallback(() => {
     setGlobalMuted(prev => {
       const next = !prev;
-      writeFeedPreference('vybe-clips-muted', String(next));
-      writeFeedPreference('clips-muted', String(next));
+      writeClipsMutedPreference(next);
       return next;
     });
   }, []);

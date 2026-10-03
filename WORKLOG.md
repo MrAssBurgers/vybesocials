@@ -2,6 +2,28 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## ACTIVE (2026-10-03) — Fold 8 video sound, pause, and scroll
+
+### What changed
+- Feed videos, clips, and chat videos start with sound. A tap pauses. A tap again resumes. A smaller mute/unmute button sits in the right-hand corner of the video only while it is paused.
+- Clips no longer treat a tap as mute, and the old silent default is not reused. Double-tap still likes.
+- If the browser blocks unmuted autoplay, the clip starts silent and the next tap turns sound on. That fallback is not saved as a mute choice.
+- Galaxy Z Fold 8 skips per-card backdrop blur, the animated post outline, and the liquid touch layer, and offscreen feed cards skip paint. Tall feed videos stay inside the short inner screen.
+- Android splash warm-up passes the progress callbacks those helpers require.
+
+### Tests run
+- `vitest` `videoPlayback.test.ts`, `deviceDetection.foldable.test.ts`, `androidSplash.test.ts`
+- `tsc --noEmit -p tsconfig.app.json`
+- eslint on the touched files
+
+### Blockers
+vybehub.app and the Play Store bundle update when this commit is published from https://lovable.dev/projects/416714c8-d013-4aff-984d-522418a9bbc7. This environment cannot open a physical Fold 8.
+
+### Next
+1. Lovable Publish, then force-close VYBE and open it on the Fold 8.
+2. Play a feed video and a clip with sound, tap to pause, and use the corner mute button.
+3. Unfold once and confirm the feed still reflows.
+
 ## ACTIVE (2026-10-03) — Fold 8 Play Store splash
 
 ### What changed

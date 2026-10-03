@@ -5315,6 +5315,39 @@ body.has-liquid-bg:not(.has-custom-bg) #main-content {
     min-height: 100dvh;
   }
 
+  /* [Android-only] Fold GPUs stall on per-card blur, animated aurora borders, and offscreen feed paints. */
+  html.device-fold .feed-post-card,
+  html.device-fold .bottom-nav,
+  html.device-fold .liquid-glass,
+  html.device-fold .liquid-glass-card,
+  html.device-fold .liquid-glass-button,
+  html.device-fold .glass-card,
+  html.device-fold .backdrop-blur-md,
+  html.device-fold .backdrop-blur-sm {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
+
+  html.device-fold .feed-post-card {
+    content-visibility: auto;
+    contain-intrinsic-size: auto 480px;
+    background-color: hsl(var(--card) / 0.94);
+  }
+
+  html.device-fold .post-aurora-outline {
+    animation: none;
+    filter: none;
+  }
+
+  html.device-fold .vybe-liquid-touch-layer,
+  html.device-fold .vybe-liquid-grain {
+    display: none !important;
+  }
+
+  html.device-fold .feed-video-frame {
+    max-height: min(68dvh, calc(100dvh - 9rem));
+  }
+
   /* Native shells: never show skip-link chrome (keyboard a11y is desktop-oriented). */
   .platform-android .skip-link,
   .platform-ios .skip-link {

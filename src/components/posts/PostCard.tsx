@@ -9,8 +9,6 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { T, MOTION_CONFIG } from '@/lib/motion';
 import {
   Play,
-  VolumeX,
-  Volume2,
   BadgeCheck,
   Pin,
   MoreHorizontal,
@@ -75,20 +73,29 @@ import { useInteractionFeedback } from '@/hooks/useInteractionFeedback';
 import { AIBadge } from './AIBadge';
 import { ProductTagBadge } from './ProductTagBadge';
 import { useVideoAds } from '@/hooks/useVideoAds';
+import { playWithAudio } from '@/lib/videoPlayback';
+import { PausedMuteButton } from '@/components/video/PausedMuteButton';
 import SmartErrorBoundary from '@/components/error/SmartErrorBoundary';
 import { DeleteContentDialog } from './DeleteContentDialog';
 // Video player component - maintains the video's native aspect ratio (no cropping)
 // NEVER shows broken placeholder - graceful degradation
 function VideoPlayer({ src, caption }: { src: string; caption?: string }) {
   const videoRef = useRef<HTMLVideoElement>(null);
-  const [isMuted, setIsMuted] = useState(true);
+  const [isMuted, setIsMuted] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [pausedByTap, setPausedByTap] = useState(false);
   const [isLoaded, setIsLoaded] = useState(false);
   const [hasError, setHasError] = useState(false);
   const [retryCount, setRetryCount] = useState(0);
   const [dimensions, setDimensions] = useState<{ width: number; height: number } | null>(null);
   const adShownRef = useRef(false);
+  const isMutedRef = useRef(false);
+  const pausedByTapRef = useRef(false);
+  const lastTapRef = useRef(0);
+  const singleTapTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const { showVideoAd, scheduleMidVideoAd } = useVideoAds();
+  isMutedRef.current = isMuted;
+  pausedByTapRef.current = pausedByTap;
 
   // Retry loading up to 2 times
   useEffect(() => {
@@ -131,20 +138,6 @@ function VideoPlayer({ src, caption }: { src: string; caption?: string }) {
   };
 
   const handleLoadedData = () => {
-    const el = videoRef.current;
-    if (!el) return;
-
-    // Seek a tiny bit forward for a more interesting thumbnail frame
-    const duration = el.duration;
-    if (duration > 0) {
-      const randomTime = Math.random() * Math.min(duration, 10);
-      try {
-        el.currentTime = randomTime;
-      } catch {
-        // ignore
-      }
-    }
-
     setIsLoaded(true);
     setHasError(false);
   };
@@ -154,34 +147,61 @@ function VideoPlayer({ src, caption }: { src: string; caption?: string }) {
     setHasError(true);
   };
 
-  const handleClick = async () => {
+  const togglePlayback = async () => {
+    const video = videoRef.current;
+    if (!video || hasError) return;
     try {
-      if (!videoRef.current || hasError) return;
-
-      if (!isPlaying) {
-        if (!adShownRef.current) {
-          adShownRef.current = true;
-          try { await showVideoAd('pre_video'); } catch (e) { console.warn('[VideoPlayer] ad failed', e); }
-          if (!videoRef.current) return;
-        }
-        try { videoRef.current.currentTime = 0; } catch {}
-        try { await videoRef.current.play(); } catch (e) { console.warn('[VideoPlayer] play failed', e); }
-        setIsPlaying(true);
-      } else {
-        videoRef.current.muted = !videoRef.current.muted;
-        setIsMuted(!isMuted);
+      if (!video.paused) {
+        video.pause();
+        setIsPlaying(false);
+        setPausedByTap(true);
+        return;
       }
+
+      if (!adShownRef.current) {
+        adShownRef.current = true;
+        try { await showVideoAd('pre_video'); } catch (e) { console.warn('[VideoPlayer] ad failed', e); }
+        if (!videoRef.current) return;
+      }
+      const el = videoRef.current;
+      if (!el) return;
+      if (!pausedByTapRef.current) {
+        try { el.currentTime = 0; } catch { /* ignore */ }
+      }
+      const result = await playWithAudio(el, isMutedRef.current, () => setIsMuted(false));
+      if (result === 'blocked') return;
+      setIsMuted(result !== 'sound');
+      setIsPlaying(true);
+      setPausedByTap(false);
     } catch (e) {
       console.error('[VideoPlayer] handleClick crashed', e);
     }
   };
 
-  const toggleMute = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (videoRef.current) {
-      videoRef.current.muted = !videoRef.current.muted;
-      setIsMuted(!isMuted);
+  const handleClick = () => {
+    const now = Date.now();
+    if (now - lastTapRef.current < 320) {
+      lastTapRef.current = 0;
+      if (singleTapTimer.current) {
+        clearTimeout(singleTapTimer.current);
+        singleTapTimer.current = null;
+      }
+      return;
     }
+    lastTapRef.current = now;
+    if (singleTapTimer.current) clearTimeout(singleTapTimer.current);
+    singleTapTimer.current = setTimeout(() => {
+      singleTapTimer.current = null;
+      void togglePlayback();
+    }, 320);
+  };
+
+  const toggleMute = () => {
+    const video = videoRef.current;
+    if (!video) return;
+    const next = !isMutedRef.current;
+    video.muted = next;
+    setIsMuted(next);
   };
 
   // Failed after retries - solid black (no broken icon, no gradient flash)
@@ -197,7 +217,7 @@ function VideoPlayer({ src, caption }: { src: string; caption?: string }) {
     <div className="w-full flex justify-center bg-black" onClick={handleClick}>
       <div
         className={cn(
-          "relative overflow-hidden bg-black",
+          "relative overflow-hidden bg-black feed-video-frame",
           isTall ? "h-[70vh] w-auto max-w-full" : "w-full"
         )}
         style={{ aspectRatio: dimensions ? `${dimensions.width} / ${dimensions.height}` : '4 / 5' }}
@@ -228,15 +248,8 @@ function VideoPlayer({ src, caption }: { src: string; caption?: string }) {
           </div>
         )}
 
-        {/* Mute/Unmute button when playing */}
-        {isPlaying && !hasError && (
-          <button
-            onClick={toggleMute}
-            className="absolute bottom-3 right-3 p-2 rounded-full bg-black/50 text-white active:scale-90 transition-transform"
-            aria-label={isMuted ? 'Unmute video' : 'Mute video'}
-          >
-            {isMuted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
-          </button>
+        {pausedByTap && !isPlaying && isLoaded && !hasError && (
+          <PausedMuteButton muted={isMuted} onToggle={toggleMute} />
         )}
       </div>
     </div>
