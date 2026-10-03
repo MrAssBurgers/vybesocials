@@ -2,6 +2,34 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## ACTIVE (2026-10-03) — Spotify track, playlists, reactions, session, claims
+
+### What changed
+- Skipping a song refreshes now-playing immediately and retries while Spotify is still on the previous track. A slower Firestore row cannot put the old song back for about 12 seconds.
+- Playlists open inside the mini player. The list accepts both the mapped `{ playlists }` payload and the raw Spotify `{ items }` payload the live function returns today. The list is prefetched while the song pill is up.
+- Starting a playlist, seek, and shuffle are implemented in `functions/src/spotify.ts`. That code is not deployed. Until `spotifyControl` and `spotifyPlaylists` are deployed, the in-app list loads, and tapping a playlist can still fail with the current server.
+- Changing a post reaction no longer fails just because the follow-up server read is slow. A tap on a reaction bubble applies it. Message reactions clear both the profile id and the auth id before saving a new one.
+- Reaction, Spotify, and claim failures are written to the error monitor.
+- Phones, including the Fold WebView with no `; wv`, keep the Firebase session in localStorage and a `vybe.auth.user` backup. Sign-out clears that backup. iOS splash timing is unchanged. Android splash fail-open is 0.9s.
+- Challenge claims leave the list and toast immediately, then roll back if the server rejects them. Opening the app no longer waits on a challenge rotate plus a sync every minute.
+- Liquid buttons no longer force their label to `w-full`, which was clipping “Create Event”.
+
+### Tests run
+- `vitest run` — 112 files, 545 passed
+- `tsc --noEmit -p tsconfig.app.json` — pass
+- `tsc --noEmit -p functions/tsconfig.json` — pass
+- `npm run build` — pass
+
+### Blockers
+- vybehub.app updates after Lovable Publish, then a force-close. No new Play Store binary.
+- Playlist playback starts only after `spotifyControl` / `spotifyPlaylists` / `spotifyNowPlaying` are deployed. Do not deploy the rest of the functions; production `auth2faRequest` must stay as it is.
+- `message_reactions` update rule is in `firestore.rules` and is live only after a rules deploy.
+
+### Next
+1. Lovable Publish, force-close VYBE, skip a song and confirm the title changes, then open Playlists inside the player.
+2. Deploy only the Spotify callables when playlist taps should start playback.
+3. Force-restart the Play Store app and confirm the account is still signed in.
+
 ## ACTIVE (2026-10-03) — Clip avatar bars and welcome chip
 
 ### What changed
