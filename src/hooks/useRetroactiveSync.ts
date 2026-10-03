@@ -43,7 +43,7 @@ export function useRetroactiveSync() {
       } catch (error) {
         console.error('[RetroactiveSync] Failed:', error);
       }
-    }, 5000);
+    }, 10000);
 
     return () => {
       if (typeof idleId === 'number') {

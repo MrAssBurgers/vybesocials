@@ -4,7 +4,7 @@ import { db } from '@/lib/firebase';
 import { useAuth } from '@/lib/auth';
 import { registerChallengeSyncInvalidator } from '@/lib/challengeProgressClient';
 
-const COOLDOWN_MS = 60_000;
+const COOLDOWN_MS = 5 * 60_000;
 const STORAGE_PREFIX = 'vybe:challenge-sync:';
 
 export interface ChallengeSyncResult {
@@ -74,7 +74,8 @@ export async function syncChallengeProgress(options: {
   writeLastClientSync(userId, now);
 
   const result = (data || {}) as ChallengeSyncResult;
-  if (queryClient && !result.skipped_cooldown && !result.skipped_client_cooldown) {
+  const changed = (result.newly_completed?.length || 0) > 0;
+  if (queryClient && changed) {
     invalidateChallengeQueries(queryClient, profileId, authUserId);
   }
 
@@ -91,7 +92,6 @@ export function useChallengeSync(options?: { syncOnMount?: boolean }) {
   const profileId = profile?.id;
   const authUserId = profile?.user_id || user?.id;
   const syncUserId = profileId || authUserId;
-  const lastLoginSyncRef = useRef<string | null>(null);
   const syncingRef = useRef(false);
 
   const runSync = useCallback(async (reason: string, force = false) => {
@@ -117,12 +117,8 @@ export function useChallengeSync(options?: { syncOnMount?: boolean }) {
     }
   }, [authUserId, profileId, queryClient, syncUserId]);
 
-  // Login sync (once per profile session)
-  useEffect(() => {
-    if (!profileId || lastLoginSyncRef.current === profileId) return;
-    lastLoginSyncRef.current = profileId;
-    void runSync('login');
-  }, [profileId, runSync]);
+  // Login sync is handled once on idle by useRetroactiveSync so it does not
+  // compete with the first feed paint.
 
   // App resume from background
   useEffect(() => {
@@ -142,18 +138,6 @@ export function useChallengeSync(options?: { syncOnMount?: boolean }) {
     const onOnline = () => void runSync('reconnect');
     window.addEventListener('online', onOnline);
     return () => window.removeEventListener('online', onOnline);
-  }, [runSync, syncUserId]);
-
-  // Periodic auto-sync while the app is in the foreground (respects cooldown).
-  useEffect(() => {
-    if (!syncUserId) return;
-    const tick = () => {
-      if (document.visibilityState === 'visible') {
-        void runSync('interval');
-      }
-    };
-    const id = window.setInterval(tick, COOLDOWN_MS);
-    return () => window.clearInterval(id);
   }, [runSync, syncUserId]);
 
   // Invalidate challenge queries when activity-triggered sync completes elsewhere.

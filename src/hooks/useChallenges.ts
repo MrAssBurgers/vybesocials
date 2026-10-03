@@ -84,26 +84,22 @@ export function useChallenges() {
     queryFn: async () => {
       const { today, weekStart } = getDateFilters();
 
-      await runRotateChallenges('prefetch');
-      
-      // Fetch achievements (no date filter)
-      const { data: achievements, error: achError } = await db
-        .from('challenges')
-        .select('*')
-        .eq('is_active', true)
-        .eq('type', 'achievement');
-      
+      // Read the lists together. Rotating the whole catalog is a Cloud Function
+      // scan — only run it when today's dailies are actually missing.
+      const [achievementsRes, dailiesRes, weekliesRes] = await Promise.all([
+        db.from('challenges').select('*').eq('is_active', true).eq('type', 'achievement'),
+        db.from('challenges').select('*').eq('is_active', true).eq('type', 'daily').eq('active_date', today),
+        db.from('challenges').select('*').eq('is_active', true).eq('type', 'weekly').eq('active_week_start', weekStart),
+      ]);
+
+      const { data: achievements, error: achError } = achievementsRes;
       if (achError) throw achError;
-      
-      // Fetch today's daily challenges (date-specific first)
-      const { data: dailies, error: dailyError } = await db
-        .from('challenges')
-        .select('*')
-        .eq('is_active', true)
-        .eq('type', 'daily')
-        .eq('active_date', today);
-      
+
+      const { data: dailies, error: dailyError } = dailiesRes;
       if (dailyError) throw dailyError;
+
+      const { data: weeklies, error: weeklyError } = weekliesRes;
+      if (weeklyError) throw weeklyError;
       
       let finalDailies = dailies || [];
 
@@ -131,16 +127,6 @@ export function useChallenges() {
         finalDailies = fallbackDailies || [];
       }
       
-      // Fetch this week's weekly challenges (date-specific first)
-      const { data: weeklies, error: weeklyError } = await db
-        .from('challenges')
-        .select('*')
-        .eq('is_active', true)
-        .eq('type', 'weekly')
-        .eq('active_week_start', weekStart);
-      
-      if (weeklyError) throw weeklyError;
-      
       // Fallback: if no date-specific weeklies, fetch ones with NULL active_week_start
       let finalWeeklies = weeklies || [];
       if (finalWeeklies.length === 0) {
@@ -157,10 +143,8 @@ export function useChallenges() {
       return [...(achievements || []), ...finalDailies, ...finalWeeklies] as Challenge[];
     },
     staleTime: 1000 * 60 * 5,
-    networkMode: 'always',
     select: (data) => ensureArray<Challenge>(data),
-    // Refetch when window regains focus (handles day/week boundaries)
-    refetchOnWindowFocus: true,
+    refetchOnWindowFocus: false,
   });
 }
 
