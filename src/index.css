@@ -5329,8 +5329,6 @@ body.has-liquid-bg:not(.has-custom-bg) #main-content {
   }
 
   html.device-fold .feed-post-card {
-    content-visibility: auto;
-    contain-intrinsic-size: auto 480px;
     background-color: hsl(var(--card) / 0.94);
   }
 

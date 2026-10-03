@@ -8,13 +8,15 @@ Use this file as the Lovable -> Cursor handoff each session.
 - Feed videos, clips, and chat videos start with sound. A tap pauses. A tap again resumes. A smaller mute/unmute button sits in the right-hand corner of the video only while it is paused.
 - Clips no longer treat a tap as mute, and the old silent default is not reused. Double-tap still likes.
 - If the browser blocks unmuted autoplay, the clip starts silent and the next tap turns sound on. That fallback is not saved as a mute choice.
-- Galaxy Z Fold 8 skips per-card backdrop blur, the animated post outline, and the liquid touch layer, and offscreen feed cards skip paint. Tall feed videos stay inside the short inner screen.
+- Galaxy Z Fold 8 skips per-card backdrop blur, the animated post outline, and the liquid touch layer. Tall feed videos stay inside the short inner screen. Feed cards stay painted (offscreen skip was blanking posts).
+- The 2-step prompt no longer stacks on the crash-report prompt, and it stays closed when email 2FA is already on.
 - Android splash warm-up passes the progress callbacks those helpers require.
 
 ### Tests run
 - `vitest` `videoPlayback.test.ts`, `deviceDetection.foldable.test.ts`, `androidSplash.test.ts`
 - `tsc --noEmit -p tsconfig.app.json`
 - eslint on the touched files
+- Headless Fold 8 (SM-F971N): cover 475×751 and inner 933×704, signed in, no horizontal overflow. Clips start unmuted. Tap pauses, corner mute is 28px at the right, toggle mutes, tap resumes, mute button hides. Home, explore, messages, and profile stay on screen.
 
 ### Blockers
 vybehub.app and the Play Store bundle update when this commit is published from https://lovable.dev/projects/416714c8-d013-4aff-984d-522418a9bbc7. This environment cannot open a physical Fold 8.

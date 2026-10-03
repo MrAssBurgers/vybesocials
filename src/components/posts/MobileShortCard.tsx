@@ -546,7 +546,7 @@ export const MobileShortCard = memo(function MobileShortCard({
             setIsMuted(next);
             if (onToggleMute && next !== globalMuted) onToggleMute();
           }}
-          className="right-3 top-[calc(env(safe-area-inset-top,0px)+3.25rem)]"
+          className="right-3 top-[calc(var(--app-header-safe,env(safe-area-inset-top,0px))+4.5rem)] z-50"
         />
       )}
 

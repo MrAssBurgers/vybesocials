@@ -79,7 +79,7 @@ import SmartErrorBoundary from '@/components/error/SmartErrorBoundary';
 import { DeleteContentDialog } from './DeleteContentDialog';
 // Video player component - maintains the video's native aspect ratio (no cropping)
 // NEVER shows broken placeholder - graceful degradation
-function VideoPlayer({ src, caption }: { src: string; caption?: string }) {
+function VideoPlayer({ src, caption, poster }: { src: string; caption?: string; poster?: string | null }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [isMuted, setIsMuted] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -134,6 +134,10 @@ function VideoPlayer({ src, caption }: { src: string; caption?: string }) {
     if (!el) return;
     if (el.videoWidth && el.videoHeight) {
       setDimensions({ width: el.videoWidth, height: el.videoHeight });
+    }
+    // Paint one nearby frame. A random seek through the file stalled Fold scrolling.
+    if (!poster && el.duration > 0 && el.currentTime === 0) {
+      try { el.currentTime = Math.min(0.1, el.duration / 2); } catch { /* ignore */ }
     }
   };
 
@@ -227,14 +231,14 @@ function VideoPlayer({ src, caption }: { src: string; caption?: string }) {
           src={src}
           className={cn(
             "absolute inset-0 w-full h-full object-contain bg-black transition-opacity",
-            isLoaded ? "opacity-100" : "opacity-0"
+            isLoaded || poster ? "opacity-100" : "opacity-0"
           )}
           loop
           muted={isMuted}
           playsInline
           webkit-playsinline="true"
           preload="metadata"
-          poster=""
+          poster={poster || undefined}
           style={{ backgroundColor: '#000' }}
           onLoadedMetadata={handleLoadedMetadata}
           onLoadedData={handleLoadedData}
@@ -452,6 +456,7 @@ export const PostCard = memo(function PostCard({
       ? normalizedMediaUrl
       : null);
   const signedAvatarUrl = useFastSignedUrl(post.author.avatar_url);
+  const signedThumbUrl = useFastSignedUrl(post.thumbnail_url);
   const avatarSrc = useMemo(() => {
     const raw = signedAvatarUrl || normalizeMediaUrl(post.author.avatar_url);
     return raw ? transformedImage(raw, { width: 80, height: 80, quality: 82 }) : undefined;
@@ -848,7 +853,7 @@ export const PostCard = memo(function PostCard({
           >
             {post.type === 'video' ? (
               <SmartErrorBoundary fallback={<div className="w-full aspect-video bg-black" />}>
-                <VideoPlayer src={displayMediaUrl || ''} caption={post.caption} />
+                <VideoPlayer src={displayMediaUrl || ''} caption={post.caption} poster={signedThumbUrl} />
               </SmartErrorBoundary>
             ) : allUrls.length > 1 ? (
               <PostCarousel urls={allUrls} onDoubleTap={handleDoubleTap} />

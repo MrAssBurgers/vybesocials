@@ -5,6 +5,7 @@ import { db } from '@/lib/firebase';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
 import { ShieldCheck } from 'lucide-react';
+import { getConsentState } from '@/lib/crashReportConsent';
 
 const STORAGE_KEY = 'vybe-2fa-nudge-dismissed-at';
 const REMIND_AFTER_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
@@ -30,14 +31,29 @@ export function Enable2FANudge() {
         const lastDismissed = Number(localStorage.getItem(STORAGE_KEY) || '0');
         if (Date.now() - lastDismissed < REMIND_AFTER_MS) return;
 
-        const { data } = await db
+        // Crash consent uses the same screen. Wait until that choice is stored
+        // so the two prompts do not stack on top of a clip.
+        if (getConsentState() === null) return;
+
+        const { getDocument } = await import('@/lib/firebase/firestoreDb');
+        const byId = await getDocument<{ email_2fa_enabled?: boolean; login_approvals_enabled?: boolean }>(
+          'user_2fa_settings',
+          user.id,
+        );
+        const { data, error } = await db
           .from('user_2fa_settings')
           .select('email_2fa_enabled, login_approvals_enabled')
           .eq('user_id', user.id)
           .maybeSingle();
+        if (error || cancelled) return;
 
-        const hasFactor = !!(data?.email_2fa_enabled || data?.login_approvals_enabled);
-        if (!hasFactor && !cancelled) setOpen(true);
+        const hasFactor = !!(
+          byId?.email_2fa_enabled ||
+          byId?.login_approvals_enabled ||
+          data?.email_2fa_enabled ||
+          data?.login_approvals_enabled
+        );
+        if (!hasFactor) setOpen(true);
       } catch {
         // Silent — never block the app on this
       }
