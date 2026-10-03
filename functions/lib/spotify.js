@@ -188,6 +188,55 @@ function emptyNowPlaying() {
         energy: null,
     };
 }
+async function readCurrentlyPlaying(token, withFeatures = false) {
+    const res = await fetch('https://api.spotify.com/v1/me/player/currently-playing', {
+        headers: { Authorization: `Bearer ${token}` },
+    });
+    if (res.status === 204)
+        return emptyNowPlaying();
+    if (res.status === 401)
+        throw new HttpsError('unauthenticated', 'token_invalid');
+    if (res.status === 429)
+        throw new HttpsError('resource-exhausted', 'rate_limited');
+    if (res.status !== 200)
+        throw new HttpsError('internal', `Spotify ${res.status}`);
+    const j = await res.json();
+    const item = j.item;
+    if (!item)
+        return emptyNowPlaying();
+    const payload = {
+        provider: 'spotify',
+        is_playing: !!j.is_playing,
+        track_id: item.id ?? null,
+        title: item.name ?? null,
+        artist: (item.artists || []).map((a) => a.name).join(', ') || null,
+        album: item.album?.name ?? null,
+        album_art_url: item.album?.images?.[0]?.url ?? null,
+        duration_ms: item.duration_ms ?? null,
+        progress_ms: j.progress_ms ?? 0,
+        track_url: item.external_urls?.spotify ?? null,
+        tempo: null,
+        energy: null,
+    };
+    if (withFeatures && item.id) {
+        try {
+            const fr = await fetch(`https://api.spotify.com/v1/audio-features/${item.id}`, {
+                headers: { Authorization: `Bearer ${token}` },
+                signal: AbortSignal.timeout(400),
+            });
+            if (fr.ok) {
+                const fj = await fr.json();
+                payload.tempo = typeof fj.tempo === 'number' ? fj.tempo : null;
+                payload.energy = typeof fj.energy === 'number' ? fj.energy : null;
+            }
+        }
+        catch { /* waveform is optional — never block the title */ }
+    }
+    return payload;
+}
+async function writePresence(uid, payload) {
+    await db.collection('live_music_presence').doc(uid).set({ user_id: uid, ...payload, updated_at: new Date().toISOString() }, { merge: true });
+}
 /** Poll Spotify + upsert `live_music_presence` (matches legacy Supabase edge fn). */
 export const spotifyNowPlaying = onCall({ secrets: SECRETS }, async (request) => {
     const uid = requireAuth(request);
@@ -195,95 +244,117 @@ export const spotifyNowPlaying = onCall({ secrets: SECRETS }, async (request) =>
     if (!conn)
         return { connected: false };
     const token = await refreshIfNeeded(conn.id);
-    const res = await fetch('https://api.spotify.com/v1/me/player/currently-playing', {
-        headers: { Authorization: `Bearer ${token}` },
-    });
-    let payload = emptyNowPlaying();
-    if (res.status === 200) {
-        const j = await res.json();
-        const item = j.item;
-        if (item) {
-            payload = {
-                provider: 'spotify',
-                is_playing: !!j.is_playing,
-                track_id: item.id ?? null,
-                title: item.name ?? null,
-                artist: (item.artists || []).map((a) => a.name).join(', ') || null,
-                album: item.album?.name ?? null,
-                album_art_url: item.album?.images?.[0]?.url ?? null,
-                duration_ms: item.duration_ms ?? null,
-                progress_ms: j.progress_ms ?? 0,
-                track_url: item.external_urls?.spotify ?? null,
-                tempo: null,
-                energy: null,
-            };
-            if (item.id) {
-                try {
-                    const fr = await fetch(`https://api.spotify.com/v1/audio-features/${item.id}`, {
-                        headers: { Authorization: `Bearer ${token}` },
-                    });
-                    if (fr.ok) {
-                        const fj = await fr.json();
-                        payload.tempo = typeof fj.tempo === 'number' ? fj.tempo : null;
-                        payload.energy = typeof fj.energy === 'number' ? fj.energy : null;
-                    }
-                }
-                catch { /* best effort */ }
-            }
-        }
-    }
-    else if (res.status === 401) {
-        throw new HttpsError('unauthenticated', 'token_invalid');
-    }
-    else if (res.status === 429) {
-        throw new HttpsError('resource-exhausted', 'rate_limited');
-    }
-    else if (res.status !== 204) {
-        throw new HttpsError('internal', `Spotify ${res.status}`);
-    }
-    await db.collection('live_music_presence').doc(uid).set({
-        user_id: uid,
-        ...payload,
-        updated_at: new Date().toISOString(),
-    }, { merge: true });
+    const payload = await readCurrentlyPlaying(token, true);
+    await writePresence(uid, payload);
     return { connected: true, ...payload };
 });
+async function playerCall(token, url, method, body) {
+    const res = await fetch(url, {
+        method,
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body,
+    });
+    if (res.ok || res.status === 204)
+        return { ok: true };
+    if (res.status === 404)
+        return { ok: false, no_device: true };
+    const text = await res.text().catch(() => '');
+    if (res.status === 403 && /premium/i.test(text))
+        return { ok: false, premium_required: true };
+    throw new HttpsError('internal', `Spotify ${res.status} ${text.slice(0, 120)}`.trim());
+}
 export const spotifyControl = onCall({ secrets: SECRETS }, async (request) => {
     const uid = requireAuth(request);
-    const { action, uri } = (request.data || {});
-    const token = await refreshIfNeeded(uid);
+    const data = (request.data || {});
+    const action = String(data.action || '');
+    const conn = await findSpotifyConnection(uid);
+    if (!conn)
+        return { ok: false, needs_connect: true };
+    const token = await refreshIfNeeded(conn.id);
     const base = 'https://api.spotify.com/v1/me/player';
-    let url = '', method = 'PUT', body;
+    let result;
     switch (action) {
         case 'play':
-            url = `${base}/play`;
-            body = uri ? JSON.stringify({ uris: [uri] }) : undefined;
+            result = await playerCall(token, `${base}/play`, 'PUT', data.uri ? JSON.stringify({ uris: [data.uri] }) : undefined);
             break;
         case 'pause':
-            url = `${base}/pause`;
+            result = await playerCall(token, `${base}/pause`, 'PUT');
             break;
         case 'next':
-            url = `${base}/next`;
-            method = 'POST';
+            result = await playerCall(token, `${base}/next`, 'POST');
             break;
         case 'previous':
-            url = `${base}/previous`;
-            method = 'POST';
+            result = await playerCall(token, `${base}/previous`, 'POST');
             break;
-        default: throw new HttpsError('invalid-argument', 'unknown action');
+        case 'seek': {
+            const position = Math.max(0, Number(data.position_ms) || 0);
+            result = await playerCall(token, `${base}/seek?position_ms=${position}`, 'PUT');
+            break;
+        }
+        case 'shuffle':
+            result = await playerCall(token, `${base}/shuffle?state=${data.state ? 'true' : 'false'}`, 'PUT');
+            break;
+        case 'start_playlist': {
+            const id = String(data.playlist_id || '').trim();
+            if (!id)
+                throw new HttpsError('invalid-argument', 'playlist_id required');
+            const context = id.startsWith('spotify:') ? id : `spotify:playlist:${id}`;
+            result = await playerCall(token, `${base}/play`, 'PUT', JSON.stringify({ context_uri: context }));
+            break;
+        }
+        case 'start_track': {
+            const id = String(data.track_id || '').trim();
+            if (!id)
+                throw new HttpsError('invalid-argument', 'track_id required');
+            const uri = id.startsWith('spotify:') ? id : `spotify:track:${id}`;
+            const body = { uris: [uri] };
+            if (data.position_ms != null)
+                body.position_ms = Number(data.position_ms) || 0;
+            result = await playerCall(token, `${base}/play`, 'PUT', JSON.stringify(body));
+            break;
+        }
+        default:
+            throw new HttpsError('invalid-argument', 'unknown action');
     }
-    const res = await fetch(url, { method, headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body });
-    if (!res.ok && res.status !== 204)
-        throw new HttpsError('internal', `Spotify ${res.status}`);
-    return { ok: true };
+    if (!result.ok)
+        return result;
+    const changesTrack = action === 'next' || action === 'previous' || action === 'start_playlist' || action === 'start_track' || action === 'play';
+    if (!changesTrack)
+        return { ok: true };
+    await new Promise((resolve) => setTimeout(resolve, 280));
+    try {
+        const nowPlaying = await readCurrentlyPlaying(token, false);
+        if (nowPlaying.title)
+            await writePresence(uid, nowPlaying);
+        return { ok: true, now_playing: { connected: true, ...nowPlaying } };
+    }
+    catch {
+        return { ok: true };
+    }
 });
 export const spotifyPlaylists = onCall({ secrets: SECRETS }, async (request) => {
     const uid = requireAuth(request);
-    const token = await refreshIfNeeded(uid);
-    const res = await fetch('https://api.spotify.com/v1/me/playlists?limit=50', { headers: { Authorization: `Bearer ${token}` } });
+    const conn = await findSpotifyConnection(uid);
+    if (!conn)
+        return { ok: false, needs_connect: true, playlists: [] };
+    const token = await refreshIfNeeded(conn.id);
+    const res = await fetch('https://api.spotify.com/v1/me/playlists?limit=50', {
+        headers: { Authorization: `Bearer ${token}` },
+    });
+    if (res.status === 401)
+        return { ok: false, needs_reconnect: true, playlists: [] };
     if (!res.ok)
         throw new HttpsError('internal', `Spotify ${res.status}`);
-    return { ok: true, ...(await res.json()) };
+    const body = await res.json();
+    const items = Array.isArray(body?.items) ? body.items : [];
+    const playlists = items.map((item) => ({
+        id: item?.id,
+        name: item?.name || 'Playlist',
+        image: item?.images?.[0]?.url ?? null,
+        tracks: item?.tracks?.total ?? 0,
+        owner: item?.owner?.display_name || '',
+    })).filter((row) => !!row.id);
+    return { ok: true, playlists, items };
 });
 export const spotifyListenAlong = onCall({ secrets: SECRETS }, async (request) => {
     const uid = requireAuth(request);
