@@ -16,7 +16,8 @@ import { cn } from '@/lib/utils';
 import { useVideoAds } from '@/hooks/useVideoAds';
 import { isNativePerfMode } from '@/lib/nativePerfMode';
 import { FeedFailureNotice } from '@/components/posts/FeedFailureNotice';
-import { flattenUniqueFeedPosts, shouldHandleFeedShortcut, readFeedPreference, writeFeedPreference } from '@/lib/feedReliability';
+import { flattenUniqueFeedPosts, shouldHandleFeedShortcut } from '@/lib/feedReliability';
+import { readClipsMutedPreference, writeClipsMutedPreference } from '@/lib/videoPlayback';
 import { ClipsLongVideosPanel } from '@/components/clips/ClipsLongVideosPanel';
 import {
   CLIPS_BOTTOM_UI_OFFSET,
@@ -44,10 +45,7 @@ export default function ClipsPage() {
   const shorts = useMemo(() => flattenUniqueFeedPosts(data?.pages), [data]);
 
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [globalMuted, setGlobalMuted] = useState(() => {
-    const stored = readFeedPreference('vybe-clips-muted');
-    return stored !== null ? stored === 'true' : true;
-  });
+  const [globalMuted, setGlobalMuted] = useState(() => readClipsMutedPreference());
   const containerRef = useRef<HTMLDivElement>(null);
   const itemRefs = useRef<(HTMLDivElement | null)[]>([]);
   const observerRef = useRef<IntersectionObserver | null>(null);
@@ -224,7 +222,7 @@ export default function ClipsPage() {
   const handleToggleMute = useCallback(() => {
     setGlobalMuted((prev) => {
       const next = !prev;
-      writeFeedPreference('vybe-clips-muted', String(next));
+      writeClipsMutedPreference(next);
       return next;
     });
   }, []);

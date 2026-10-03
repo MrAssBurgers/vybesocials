@@ -7,12 +7,16 @@ import {
   stampRuntimeOsOnDocument,
   type RuntimeOs,
 } from '@/lib/despiaBridge';
+import { isSamsungFoldableUa } from '@/lib/deviceDetection';
 
 export type { RuntimeOs };
 
 /** Despia / Capacitor store builds — prioritize smooth scrolling over decorative motion. */
 export function isNativePerfMode(): boolean {
-  return isNativeAppShell();
+  if (isNativeAppShell()) return true;
+  // [Android-only] Fold Play Store WebView often omits "; wv", so the shell
+  // check misses and every card keeps a live blur. That stalls the cover.
+  return isAndroidUA() && isSamsungFoldableUa();
 }
 
 /** iOS App Store / Despia WKWebView — strict splash fail-open. */

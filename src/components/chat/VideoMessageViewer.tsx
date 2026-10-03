@@ -2,14 +2,14 @@ import { useState, useRef, useCallback, useEffect } from 'react';
 import { motion, AnimatePresence, PanInfo } from 'framer-motion';
 import { 
   X, 
-  Volume2, 
-  VolumeX, 
   Download, 
   Share2, 
   Reply,
   Play,
   Pause 
 } from 'lucide-react';
+import { PausedMuteButton } from '@/components/video/PausedMuteButton';
+import { playWithAudio } from '@/lib/videoPlayback';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { formatDuration } from '@/hooks/useVideoProcessor';
@@ -66,8 +66,10 @@ export function VideoMessageViewer({
   // Auto-play when opened
   useEffect(() => {
     if (open && videoRef.current) {
-      videoRef.current.play().catch(console.error);
-      setIsPlaying(true);
+      const video = videoRef.current;
+      void playWithAudio(video, video.muted, () => setIsMuted(false)).then((result) => {
+        setIsPlaying(result !== 'blocked');
+      });
     }
   }, [open]);
 
@@ -183,6 +185,13 @@ export function VideoMessageViewer({
               muted={isMuted}
               onTimeUpdate={handleTimeUpdate}
             />
+            {!isPlaying && (
+              <PausedMuteButton
+                muted={isMuted}
+                onToggle={toggleMute}
+                className="top-[calc(env(safe-area-inset-top,0px)+3.25rem)] right-3"
+              />
+            )}
           </motion.div>
 
           {/* Controls overlay */}
@@ -225,22 +234,6 @@ export function VideoMessageViewer({
                         </div>
                       )}
                     </div>
-
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="text-white hover:bg-white/20"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        toggleMute();
-                      }}
-                    >
-                      {isMuted ? (
-                        <VolumeX className="h-5 w-5" />
-                      ) : (
-                        <Volume2 className="h-5 w-5" />
-                      )}
-                    </Button>
                   </div>
                 </motion.div>
 

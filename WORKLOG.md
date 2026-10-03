@@ -2,6 +2,45 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## ACTIVE (2026-10-03) — Clip avatar bars and welcome chip
+
+### What changed
+- The clip author ring was an inline link about 44×94 px, so the gradient drew vertical color bars beside the photo. It is now a 48×48 circle.
+- The “Welcome back” chip no longer uses a translate that the animation overwrites, which had parked it on the right edge of the sign-in card. It stays hidden while the sign-in screen is up, then sits centered at the top.
+
+### Tests run
+- `vitest` `WelcomeBackSplash.test.tsx` — 3 passed
+- Fold cover clips: `.story-ring` measures 48×48
+
+### Next
+1. Lovable Publish `main`, then force-close VYBE.
+2. Open a clip and confirm the avatar ring is a circle.
+3. Sign in and confirm the welcome chip is not stuck on the sign-in card.
+
+## ACTIVE (2026-10-03) — Fold 8 video sound, pause, and scroll
+
+### What changed
+- Feed videos, clips, and chat videos start with sound. A tap pauses. A tap again resumes. A smaller mute/unmute button sits in the right-hand corner of the video only while it is paused.
+- Clips no longer treat a tap as mute, and the old silent default is not reused. Double-tap still likes.
+- If the browser blocks unmuted autoplay, the clip starts silent and the next tap turns sound on. That fallback is not saved as a mute choice.
+- Galaxy Z Fold 8 skips per-card backdrop blur, the animated post outline, and the liquid touch layer. Tall feed videos stay inside the short inner screen. Feed cards stay painted (offscreen skip was blanking posts).
+- The 2-step prompt no longer stacks on the crash-report prompt, and it stays closed when email 2FA is already on.
+- Android splash warm-up passes the progress callbacks those helpers require.
+
+### Tests run
+- `vitest` `videoPlayback.test.ts`, `deviceDetection.foldable.test.ts`, `androidSplash.test.ts`
+- `tsc --noEmit -p tsconfig.app.json`
+- eslint on the touched files
+- Headless Fold 8 (SM-F971N): cover 475×751 and inner 933×704, signed in, no horizontal overflow. Clips start unmuted. Tap pauses, corner mute is 28px at the right, toggle mutes, tap resumes, mute button hides. Home, explore, messages, and profile stay on screen.
+
+### Blockers
+vybehub.app and the Play Store bundle update when this commit is published from https://lovable.dev/projects/416714c8-d013-4aff-984d-522418a9bbc7. This environment cannot open a physical Fold 8.
+
+### Next
+1. Lovable Publish, then force-close VYBE and open it on the Fold 8.
+2. Play a feed video and a clip with sound, tap to pause, and use the corner mute button.
+3. Unfold once and confirm the feed still reflows.
+
 ## ACTIVE (2026-10-03) — Fold 8 Play Store splash
 
 ### What changed
