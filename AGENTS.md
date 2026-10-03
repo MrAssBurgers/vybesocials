@@ -11,6 +11,16 @@ Project operating guidance for AI agents working in this repo.
 2. Confirm branch and scope.
 3. Restate active goal and immediate next step.
 
+## Local setup
+`npm i` / `npm ci` fail with `ERESOLVE` (React 18 vs `react-leaflet` 5). Install the way CI does:
+
+```sh
+npm ci --legacy-peer-deps
+npm ci --prefix functions
+```
+
+`npm run dev` serves the Vite app at http://127.0.0.1:8080 (`host` and `port` are set in `vite.config.ts`). Cloud Functions `package.json` requests Node 20; Node 22 installs and builds them.
+
 ## Development Rules
 - Keep changes focused to current scope.
 - Avoid broad refactors unless requested.

@@ -2,6 +2,29 @@
 
 Use this file as the Lovable -> Cursor handoff each session.
 
+## ENV SETUP (2026-10-03) — Cloud Agent dev environment
+
+### What changed
+- Documented the install that actually works: `npm ci --legacy-peer-deps` plus `npm ci --prefix functions`. Plain `npm ci` hits an ERESOLVE peer conflict.
+- No application code changes. Dev server remains `npm run dev` at http://127.0.0.1:8080.
+
+### Tests run
+- `npm ci --legacy-peer-deps` and `npm ci --prefix functions` twice (idempotent)
+- `npm test` — 106 files / 521 tests passed
+- `npm run typecheck` — pass
+- `npm run lint` — 0 errors, 5 existing warnings
+- `npm --prefix functions run build` — pass
+- `npm run build` — pass (`app-BZyyAdNc.js`, bundle budget pass)
+- Browser: `/login` sign-in, switch to Join VYBE and type a demo username/email (not submitted), `/features`, `/faq`
+
+### Blockers
+None for local web + functions compile. Do not deploy from this setup.
+
+### Next
+1. Save the Cloud Agent environment from the Environment panel.
+2. Finish the vybesocials `main` move (section below).
+3. Lovable Publish only when a product change is ready.
+
 ## ACTIVE (2026-10-03) — Move VYBE to `MrAssBurgers/vybesocials`
 
 ### Goal
